@@ -441,6 +441,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   offs.push(() => doc.removeEventListener('focusin', onFocusIn, true));
 
   const deps: MountDeps = {
+    // The site's look (§1.5): every surface of the tab is mounted with it, the dialogs and the side panels too.
+    profile: site.ui(env.theme),
     client,
     i18n,
     catalog,

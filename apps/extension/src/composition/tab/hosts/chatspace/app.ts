@@ -11,14 +11,16 @@
 // at least one granted page (tab/host-facts.ts says where the page's own value
 // is applied).
 //
-// And ChatSpace's slice of the feature manifest (§1.4), which the application
-// reads through the adapter and never by a site's name.
+// And ChatSpace's slice of the feature manifest (§1.4) and its profile for our
+// interface (§1.5), which the application reads through the adapter and never
+// by a site's name.
 
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { SendFuseState } from '@cg/contracts/send';
 import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
+import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
 
 import { CHATSPACE_FEATURE_SLICE } from '../../../features/chatspace';
 import type { HostAppAdapter } from '../../adapter';
@@ -46,4 +48,6 @@ export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfi
   configure: (host, config) => host.configure(config),
   features: CHATSPACE_FEATURE_SLICE,
   contract: CHATSPACE_CONTRACT,
+  // The page's own palette reaches our hosts by inheritance: ChatSpace's theme has nothing to give the profile.
+  ui: () => CHATSPACE_UI,
 };

@@ -75,6 +75,7 @@ beforeEach(() => {
   const state = createTabKeyState({ overlays, route: () => routeOfLocation({ pathname }) });
   dispatcher = createEarlyKeyDispatcher({
     platform: hotkeyPlatformOf('MacIntel'),
+    client: 'extension',
     window,
     document: { source: document, hidden: () => document.hidden },
     ownership: createKeyboardProbe(document, mounts.registry),
@@ -190,6 +191,7 @@ describe('TipTap, the translator and the browser never get a key of ours', () =>
     dispatcher.dispose();
     const win = createEarlyKeyDispatcher({
       platform: 'win',
+      client: 'extension',
       window,
       ownership: createKeyboardProbe(document, mounts.registry),
       state: createTabKeyState({ overlays, route: () => routeOfLocation({ pathname }) }),

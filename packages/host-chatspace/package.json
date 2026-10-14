@@ -8,6 +8,7 @@
     "./main": "./src/main/index.ts",
     "./isolated": "./src/isolated/index.ts",
     "./isolated/validation": "./src/isolated/validate.ts",
+    "./isolated/profile": "./src/isolated/profile.ts",
     "./host-contract": "./src/isolated/host-contract.ts"
   },
   "dependencies": {

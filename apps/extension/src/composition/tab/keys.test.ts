@@ -8,7 +8,7 @@ import { KEY_PENDING_ATTRIBUTE, createMountManager, type MountManager } from '@c
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CHATSPACE_ADAPTER } from '../../entrypoints/chatspace.content';
-import { startTabKeys, type TabKeys } from './keys';
+import { startTabKeys, type TabKeys, type TabKeysEnv } from './keys';
 
 /** The scheme the dispatcher picked for this environment: ⌘ on Apple platforms, Ctrl elsewhere. */
 const MAC = hotkeyPlatformOf(window.navigator.platform) === 'mac';
@@ -71,13 +71,13 @@ afterEach(() => {
   window.history.replaceState(null, '', '/');
 });
 
-function world(path = '/accounts/910101/chats/74001001'): World {
+function world(path = '/accounts/910101/chats/74001001', site: TabKeysEnv['site'] = CHATSPACE_ADAPTER): World {
   window.history.replaceState(null, '', path);
   const mounts = createMountManager(document);
   const waiting: number[] = [];
   const heard: Event[] = [];
   const native: string[] = [];
-  const keys = startTabKeys({ win: window, mounts, site: CHATSPACE_ADAPTER, onWaiting: () => void waiting.push(waiting.length + 1) });
+  const keys = startTabKeys({ win: window, mounts, site, onWaiting: () => void waiting.push(waiting.length + 1) });
   keys.onKeydown((event) => void heard.push(event));
   const onNative = (event: Event): void => void native.push((event as KeyboardEvent).code);
   window.addEventListener('keydown', onNative, true);
@@ -148,6 +148,24 @@ describe('the early keys of a tab', () => {
     w.keys.dispatcher.connect({ ...sink, run: (command) => (handed.push(w.keys.takeKept()?.event ?? null), sink.run(command)) });
     expect(ran.map((command) => command.id)).toEqual(['hi']);
     expect(handed).toEqual([second]);
+  });
+
+  it('[R20-F5] the keys run as the client of the scheme the adapter names: ChatSpace’s is `extension`; a row another client lacks is never run', () => {
+    expect(CHATSPACE_ADAPTER.hotkeyClient).toBe('extension');
+    const coach = (): KeyboardEvent => key('KeyC', MAC ? { shift: true } : { alt: true });
+    const ran = (site: TabKeysEnv['site']): string[] => {
+      const w = world(undefined, site);
+      const { ran: commands, sink } = w.sink();
+      w.keys.dispatcher.connect(sink);
+      window.dispatchEvent(coach());
+      w.keys.dispose();
+      w.mounts.dispose();
+      current = null;
+      return commands.map((command) => command.id);
+    };
+    expect(ran(CHATSPACE_ADAPTER)).toEqual(['coach']);
+    // The desktop's client has no Coach: the same key is a reserved letter there.
+    expect(ran({ ...CHATSPACE_ADAPTER, hotkeyClient: 'desktop' })).toEqual([]);
   });
 
   it('[HK-026] a key that is not ours is not touched: ChatSpace gets it, nothing waits', () => {

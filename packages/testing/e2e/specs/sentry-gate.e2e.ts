@@ -202,7 +202,7 @@ describe('[X22] Sentry on the stand: what ChatSpace’s telemetry could send of 
     }));
     evidence['hosts'] = seen;
     expect(seen.hosts.length).toBeGreaterThanOrEqual(2);
-    const allowed = new Set(['data-host', 'data-mode', 'data-layer', 'data-pending', 'data-scheme', 'data-dismissible-open', 'aria-busy', 'style']);
+    const allowed = new Set(['data-host', 'data-mode', 'data-layer', 'data-pending', 'data-scheme', 'data-dock-variant', 'data-dismissible-open', 'aria-busy', 'style']);
     for (const host of seen.hosts) {
       expect([host.tag, host.editable, host.children]).toEqual(['div', false, 0]);
       expect(host.attributes.filter((name) => !allowed.has(name))).toEqual([]);

@@ -6,7 +6,7 @@
 // 1. At document_start, synchronously, before anything else of the page runs:
 //      overlays = createOverlayState();
 //      keyState = createTabKeyState({ overlays, route: () => routeOfLocation(win.location) });
-//      dispatcher = createEarlyKeyDispatcher({ platform: hotkeyPlatformOf(navigator.platform),
+//      dispatcher = createEarlyKeyDispatcher({ platform: hotkeyPlatformOf(navigator.platform), client: adapter.hotkeyClient,
 //        window: win, document: { source: doc, hidden: () => doc.hidden },
 //        ownership: createKeyboardProbe(doc, started.mounts.registry),   // @cg/host-chatspace/isolated
 //        state: keyState, timers: { setTimer: (ms, fn) => setTimeout(fn, ms), clearTimer: clearTimeout },

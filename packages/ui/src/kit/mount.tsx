@@ -6,13 +6,19 @@
 // it took: the Preact tree, the element, the subscriptions, the attributes
 // and the sheets. Several surfaces may share one root (the overlay host):
 // the sheets and the host's attributes go with the last of them.
+// In a site's tab the surface comes with the site's profile (`deps.profile`,
+// Project Unite architecture §1.5; R20 F5): the dock's variant goes on the
+// host as `data-dock-variant`, next to `data-scheme`; the site's palette, if
+// it gives one, and its variant's sheet are adopted after the surface's own
+// sheets, and the palette is kept current. On ChatSpace that is the variant's
+// name alone: its palette is the page's own, its rules are the shared ones.
 // Extension pages (popup, options, debug) mount the same way into a
 // container of their own document. Embedding into ChatSpace's DOM is the
 // host side's job, never the UI's.
 
 import { render, type FunctionComponent } from 'preact';
 
-import { SCHEME_ATTRIBUTE, type MountDeps, type MountPort, type MountSurfaceKind, type Unmount } from '@cg/contracts/vm';
+import { DOCK_VARIANT_ATTRIBUTE, SCHEME_ATTRIBUTE, type MountDeps, type MountPort, type MountSurfaceKind, type Unmount } from '@cg/contracts/vm';
 
 import { ROOT_CLASS } from './base';
 import { createKitEnv, type KitEnv, type KitFailure } from './context';
@@ -20,7 +26,8 @@ import { holdAttribute } from './holds';
 import { KitRoot } from './root';
 import { bindScheme } from './scheme';
 import { retainKitStyles } from './sheets';
-import { type StyleMode, type StyleSource } from './styles';
+import { adoptSheets, type StyleMode, type StyleSource } from './styles';
+import { paletteSource } from './tokens';
 
 /** A surface as the kit mounts it: its root component and its own CSS. */
 export interface SurfaceDefinition {
@@ -53,9 +60,17 @@ function envOptions(options: KitMountOptions): { now?: () => number; report?: (f
 /** Mounts one surface into a closed shadow root the host side created. */
 export function mountKitSurface(kind: MountSurfaceKind, root: ShadowRoot, deps: MountDeps, definition: SurfaceDefinition, options: KitMountOptions = {}): KitMount {
   const host = root.host as HTMLElement;
-  const styles = retainKitStyles(root, definition.styles ?? []);
+  const { profile } = deps;
+  const palette = profile?.palette;
+  const site: StyleSource[] = [];
+  if (palette !== undefined) site.push(paletteSource(palette.value));
+  if (profile?.sheet !== undefined) site.push(profile.sheet);
+  const styles = retainKitStyles(root, [...(definition.styles ?? []), ...site]);
   const releaseScheme = holdAttribute(host, SCHEME_ATTRIBUTE, deps.scheme.value);
   const offScheme = bindScheme(host, deps.scheme);
+  const releaseVariant = profile === undefined ? null : holdAttribute(host, DOCK_VARIANT_ATTRIBUTE, profile.dock.variant);
+  // A new palette rewrites the one shared sheet (the same id): every root of ours shows it at once.
+  const offPalette = palette?.subscribe((value) => adoptSheets(root, [paletteSource(value)]));
   const container = root.ownerDocument.createElement('div');
   container.className = ROOT_CLASS;
   container.setAttribute('data-cg-surface', kind);
@@ -77,6 +92,8 @@ export function mountKitSurface(kind: MountSurfaceKind, root: ShadowRoot, deps: 
     env.dispose();
     offScheme();
     releaseScheme();
+    offPalette?.();
+    releaseVariant?.();
     styles.release();
   };
   return { styleMode: styles.mode, env, container, unmount };

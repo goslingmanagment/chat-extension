@@ -1,12 +1,14 @@
 // One key resolver per tab (architecture.md §9.1 «Движок»; HK-018…HK-023):
-// the vendored engine (client `extension`) for the shared scheme, then the
-// rows outside it. EVERY trusted keydown goes through `keydown` — modifiers
+// the vendored engine for the shared scheme, then the rows outside it. The
+// engine runs as the client the site's adapter names (`hotkeyClient`, Project
+// Unite architecture §1.3, §1.5): ChatSpace — `extension`, Fansly — `fansly`,
+// which also has the Notes row. EVERY trusted keydown goes through `keydown` — modifiers
 // included — because the engine's fresh-press guard has to see ⌘/Ctrl go
 // down; every keyup through `keyup`; `reset` on window blur and when the tab
 // is hidden. There is no second engine in the panels (HK-023): they get
 // commands, never raw keys of the scheme.
 
-import { createHotkeyEngine, type HotkeyEngine } from '@chatgoose/hotkeys';
+import { createHotkeyEngine, type HotkeyClient, type HotkeyEngine } from '@chatgoose/hotkeys';
 
 import { DISPATCHER_COMMAND_IDS, isModifierKey, isPrimaryModifierKey, matchExtraKey, type DispatcherCommandId, type HotkeyKeyEvent, type HotkeyPlatform } from './keymap';
 
@@ -47,7 +49,8 @@ export interface KeyResolver {
   primaryHeldAlone(): boolean;
 }
 
-export function createKeyResolver(platform: HotkeyPlatform, engine: HotkeyEngine = createHotkeyEngine({ platform, client: 'extension' })): KeyResolver {
+/** `client` — the site's client of the vendored scheme (`HostAdapter.hotkeyClient`): the rows it serves run, a row of another client is a reserved letter. */
+export function createKeyResolver(platform: HotkeyPlatform, client: HotkeyClient, engine: HotkeyEngine = createHotkeyEngine({ platform, client })): KeyResolver {
   let primaryDown = false;
   let alone = false;
 
@@ -78,8 +81,9 @@ export function createKeyResolver(platform: HotkeyPlatform, engine: HotkeyEngine
       if (decision !== null) {
         if (decision.kind === 'swallow') return decision;
         // The engine hands this client only the rows it serves; a row of
-        // another client (the Fansly extension's Notes) arrives as `reserved`.
-        // Typed as any scheme action, so it is checked here all the same.
+        // another client (Notes, where the client is `extension`) arrives as
+        // `reserved`. A row the client serves that the dispatcher has no
+        // command for yet (Notes on Fansly) is a reserved letter here too.
         if (!isDispatcherCommand(decision.action)) return { kind: 'swallow', reason: 'reserved' };
         return { kind: 'command', command: decision.action, slot: null, repeat: decision.repeat, scheme: true, plain: false, fallback: false };
       }

@@ -20,6 +20,7 @@ export {
   type ExtraKeyDef,
   type ExtraKeyMatch,
   type HotkeyAction,
+  type HotkeyClient,
   type HotkeyDef,
   type HotkeyKeyEvent,
   type HotkeyPlatform,
