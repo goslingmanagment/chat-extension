@@ -215,8 +215,6 @@ export interface SiteLiteralDebt {
   readonly note: string;
 }
 
-const CORE = 'packages/core/src';
-
 /**
  * The debt of architecture.md §1.9. An entry is a file and a value, not a line: lines move with every edit of the
  * file, the count moves only when a literal comes or goes. The PR that removes a literal lowers the count or drops the
