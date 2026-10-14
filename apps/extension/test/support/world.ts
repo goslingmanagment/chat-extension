@@ -32,9 +32,18 @@ export interface PlayedTone {
   readonly level: number;
 }
 
+/** One request of the background to the hub as it left the browser: method, path with its query string, body text. */
+export interface WireRequest {
+  readonly method: string;
+  readonly url: string;
+  readonly body: string | null;
+}
+
 export interface World {
   readonly fake: FakeBrowser;
   readonly hub: FakeHub;
+  /** Every request the background sent the hub, in order, byte for byte (the origin left out). */
+  readonly wire: WireRequest[];
   /** Every tone the sound arbiter started, in order. */
   readonly played: PlayedTone[];
   /** The browser's network to the hub: `down` — every request of the background fails like an offline one. */
@@ -102,6 +111,7 @@ export function createWorld(
   // The extension may run on ChatSpace (the manifest's host permission): without it nothing of ours rings there.
   for (const pattern of CHATSPACE_MATCHES) fake.permissions.origins.add(pattern);
   const played: PlayedTone[] = [];
+  const wire: WireRequest[] = [];
   const net = { down: false };
   const chunkLoads: string[] = [];
   const settings = options.settings === undefined ? settingsFor() : options.settings;
@@ -116,7 +126,12 @@ export function createWorld(
     composeBackground({
       api: context.api,
       // A dead instance's timers find no network, like a page that is gone.
-      fetch: (input, init) => (context.alive && !net.down ? hub.fetch(input, init) : Promise.reject(new TypeError('NetworkError: the page is gone'))),
+      fetch: (input, init) => {
+        if (!context.alive || net.down) return Promise.reject(new TypeError('NetworkError: the page is gone'));
+        const url = new URL(input);
+        wire.push({ method: (init?.method ?? 'GET').toUpperCase(), url: `${url.pathname}${url.search}`, body: typeof init?.body === 'string' ? init.body : null });
+        return hub.fetch(input, init);
+      },
       // The event page's AudioContext does not exist here: the tones are counted instead of played.
       audio: {
         prepare: () => Promise.resolve(true),
@@ -146,6 +161,7 @@ export function createWorld(
   return {
     fake,
     hub,
+    wire,
     played,
     net,
     chunkLoads,

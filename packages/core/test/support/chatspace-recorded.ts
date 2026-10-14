@@ -7,7 +7,9 @@
 // the result cache. Recorded as JSON on `main` 668cd69, before F6a: on
 // ChatSpace the conversation of a chat is its fan, so F6a leaves every byte of
 // these as it was, and the tests compare them byte for byte. Synthetic ids
-// only (the fake worlds of @cg/testing).
+// only (the fake worlds of @cg/testing). R20 F6b adds what the tab asks the
+// background for the reads it keys by conversation (below), recorded the same
+// way on `main` 180f6ec, before F6b.
 
 export const CHATSPACE_RECORDED = {
   dockStart:
@@ -30,4 +32,14 @@ export const CHATSPACE_RECORDED = {
     '[{"intentId":"00000000-0000-4000-8000-000000000700","cause":{"kind":"click","actionToken":"tok_nav_0000000000000001"},"target":{"hostAccountId":"1001","platformFanId":"2004"}}]',
   requestKey:
     '{"archiveHead":"4006","bindingRevision":2,"checkpoint":{"coverage":"ok","documentEpoch":"doc-1","fanSequence":2,"hostAccountId":"1001","knownFanMessageIds":["4006","4004"],"lastFanMessageId":"4006","platformFanId":"2002","socketEpoch":1,"subscriptionEpoch":1},"coachDigest":null,"fanRef":"2002","feature":"reply","fixDraftDigest":null,"freshDigest":null,"freshHead":null,"host":"chatspace","hostAccountId":"1001","hubOrigin":"https://hub.example.test","pageId":11,"personaDefinitionId":"pdef_0123456789abcdef","personaKey":"default","recapMode":null,"signInEpoch":3,"split":false,"surface":"dock","tone":null,"userId":7,"variantCount":null,"window":100}',
+  // R20 F6b (recorded on `main` 180f6ec): the recap status, the shared recaps, the tab's dossier save and the
+  // background saver's own (facade-level) after a full Recap; «Обновить переписку» of the Coach; a preview's feed
+  // (the first page with the Ping window, an older page by the hub's cursor) and the fan panel's card, dossier and
+  // archive head. On ChatSpace the conversation is the fan: none of them names one.
+  recapReads:
+    '{"status":[{"pageId":11,"fanRef":"2002","personaDefinitionId":"pdef_0123456789abcdef"}],"read":[{"pageId":11,"fanRef":"2002","personaDefinitionId":"pdef_0123456789abcdef"}],"save":[{"pageId":11,"fanRef":"2002","generationRef":"00000000-0000-4000-8000-000000000200","opId":"00000000-0000-4000-8000-000000000100"}],"background":[{"pageLabel":"model-one","fanRef":"2002","generationRef":"00000000-0000-4000-8000-000000000200","clientRequestId":"00000000-0000-4000-8000-000000000100"}]}',
+  coachFeed:
+    '[{"pageId":11,"fanRef":"2002","cursor":null,"limit":1}]',
+  boardReads:
+    '[{"type":"feed.read","payload":{"pageId":11,"fanRef":"2002","cursor":null,"limit":50,"summaryWindow":100}},{"type":"fan.card","payload":{"pageId":11,"fanRef":"2002","period":"30d"}},{"type":"feed.read","payload":{"pageId":11,"fanRef":"2002","cursor":"<cursor>","limit":50}},{"type":"fan.card","payload":{"pageId":11,"fanRef":"2002","period":"lifetime"}},{"type":"fan.card","payload":{"pageId":11,"fanRef":"2002","period":"30d"}},{"type":"fan.dossier","payload":{"pageId":11,"fanRef":"2002"}},{"type":"feed.read","payload":{"pageId":11,"fanRef":"2002","cursor":null,"limit":1}}]',
 } as const;

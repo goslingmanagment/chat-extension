@@ -18,6 +18,7 @@ import { BOOTSTRAP_PILOT_PAGES, contextFrame, hubServing, meta, resolveHubErrorR
 import { settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
 import { type ScriptResponse } from './support/fake-hub';
+import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { NOW_MS, WORLD, session, uuid } from './support/world';
 
 function parts(): HarnessParts & { readonly fake: FakeHostPort } {
@@ -1245,6 +1246,12 @@ describe('coach: the archive it reads', () => {
     expect(elsewhere.coach().freshness.refresh).toMatchObject({ enabled: true, reason: null });
     expect(await elsewhere.dispatch(elsewhere.coach().freshness.refresh.action)).toMatchObject({ ok: true });
     expect(elsewhere.bg.callsOf('feed.read')).toHaveLength(1);
+  });
+
+  it('R20 F6b, ChatSpace: «Обновить переписку» of a ChatSpace chat reads the feed as before F6b — byte for byte as recorded on main', async () => {
+    const h = await start({ background: (bg) => (bg.feed = feed()) });
+    expect(await h.dispatch(h.coach().freshness.refresh.action)).toMatchObject({ ok: true, type: 'RefreshArchive' });
+    expect(JSON.stringify(h.bg.callsOf('feed.read'))).toBe(CHATSPACE_RECORDED.coachFeed);
   });
 
   it('every action the Coach view offers is a valid UiAction', async () => {
