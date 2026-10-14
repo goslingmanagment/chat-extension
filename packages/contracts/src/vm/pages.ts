@@ -27,6 +27,11 @@ import { type ActionButtonVM, type RunningOpVM, type VmView } from './view';
 export interface PageTagVM {
   readonly platform: string;
   readonly pageLabel: string;
+  /**
+   * 1.15.0 (R20 F9b): the platform as people name it — the phrase of the site that serves it (`HostPhrases`
+   * `sitePlatform`), «OnlyFans». Absent — no site of the pages serves it: the token is printed as it is.
+   */
+  readonly platformName?: string;
 }
 
 export interface PopupVM {
@@ -121,9 +126,10 @@ export interface StatusRowVM {
 }
 
 /**
- * 1.15.0 (R20 F7): the words of a site's `host` row of «Статус» and of the popup's line about it, each the site's own
- * text — until the phrases of the site profile take them over (F9b). The extension pages' composition root hands
- * each site's set to the controller with the site.
+ * 1.15.0 (R20 F7): the words of a site's `host` row of «Статус» and of the popup's line about it. Since F9b the texts
+ * name no site — they say `{site}` and the I18n port puts the site's phrase in — so the set is a site's own only where
+ * its row says something else (a step it lacks, a check of its own). The extension pages' composition root hands each
+ * site's set to the controller with the site.
  */
 export interface HostStatusTexts {
   /** The row's name: the site. */

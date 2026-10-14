@@ -25,7 +25,7 @@ export const DeviceTokenIssueRequestSchema = z
   .strictObject({
     username: boundedText(SIGN_IN_LIMITS.loginMaxChars),
     password: boundedText(SIGN_IN_LIMITS.passwordMaxChars),
-    /** «Firefox · OS · ChatSpace» (§8.2). */
+    /** «Firefox · OS · ChatGoose» (§8.2; it named ChatSpace before R20 F9b — free text, the hub reads nothing in it). */
     label: boundedText(120),
     mode: z.enum(DEVICE_TOKEN_ISSUE_MODES),
     client: z.optional(z.literal(CHAT_EXTENSION_CLIENT)),

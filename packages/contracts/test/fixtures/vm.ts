@@ -604,6 +604,8 @@ export const PAGE_TAG_SAMPLES: {
     { platform: 'fansly', pageLabel: 'lora-fansly' },
     // An open token: a platform this build does not know is printed as it is.
     { platform: 'somewhere-new', pageLabel: 'lora-new' },
+    // 1.15.0 (R20 F9b): the platform as people name it, the phrase of the site that serves it.
+    { platform: 'onlyfans', pageLabel: 'lora-vip', platformName: 'OnlyFans' },
   ],
   rows: [PERSONA_PAGE_BASE, { ...PERSONA_PAGE_BASE, page: { platform: 'onlyfans', pageLabel: 'lora-vip' } }],
   popup: [
@@ -623,5 +625,7 @@ export const PAGE_TAG_SAMPLES: {
     { platform: 'onlyfans', pageLabel: 11 } satisfies C.PageTagVM,
     // @ts-expect-error a row's tag is the pair, not a ready-made text
     { ...PERSONA_PAGE_BASE, page: 'OnlyFans · lora-vip' } satisfies PersonaPageRow,
+    // @ts-expect-error the platform's name is the site's phrase, a text — not the phrases of every language
+    { platform: 'onlyfans', pageLabel: 'lora-vip', platformName: { ru: 'OnlyFans', en: 'OnlyFans' } } satisfies C.PageTagVM,
   ],
 };

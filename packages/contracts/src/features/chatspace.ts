@@ -27,22 +27,34 @@ const PREVIEW_SEND: Req = { flags: ['previewSend'], hostCapabilities: ['previewS
 
 const FEATURES = {
   // Drafts for the fan. No switch of their own on OnlyFans: the hub's master switch and the build's version decide.
-  reply: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub' },
+  // `splitAll`: the hub splits the whole answer into parts (Reply's Split, ops/request.ts).
+  reply: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub', switches: ['splitAll'] },
   fix: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub' },
   hi: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview', 'newcomers'], source: 'hub' },
   ping: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub' },
   'fresh-text': { base: { flags: ['freshText'], hostCapabilities: [], clientNeeds: CLIENT_FLAG_REQUIREMENTS.freshText }, actions: {}, surfaces: ['dock'], source: 'page' },
   review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
   recap: { base: { flags: ['recap'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded', 'fan-panel'], source: 'hub' },
-  coach: { base: { flags: ['coach'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['coach'], source: 'hub' },
-  spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview'], source: 'hub' },
+  // `preview`: the hub's archive feed of the chat, which Coach reads for its history.
+  coach: { base: { flags: ['coach'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['coach'], source: 'hub', switches: ['preview'] },
+  // `stats`: the statistics and the «waiting» queue of the board; `preview`: the archive feed of a fan's preview.
+  spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview'], source: 'hub', switches: ['stats', 'preview'] },
   // «Новые» come from the hub (`audience-new`); a greeting leaves from the card through X8.
-  newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: PREVIEW_SEND }, surfaces: ['newcomers', 'preview'], source: 'hub' },
-  'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub' },
-  sound: { base: { flags: ['sound'], hostCapabilities: [] }, actions: {}, surfaces: [] },
+  newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: PREVIEW_SEND }, surfaces: ['newcomers', 'preview'], source: 'hub', switches: ['preview'] },
+  'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub', switches: ['preview'] },
+  // `wsTap`: ChatSpace's WebSocket tap, which hears the messages of the accounts that are not open.
+  sound: { base: { flags: ['sound'], hostCapabilities: [] }, actions: {}, surfaces: [], switches: ['wsTap'] },
 
   // ── only ChatSpace ──
-  'preview-send': { kind: 'host-action', base: PREVIEW_SEND, actions: { send: NOTHING }, surfaces: ['preview', 'newcomers'], source: 'page' },
+  // `wsTap`: the passive freshness of the chat a part is sent to (CG-SEND-FRESHNESS without it); the AI mark of the send.
+  'preview-send': {
+    kind: 'host-action',
+    base: PREVIEW_SEND,
+    actions: { send: NOTHING },
+    surfaces: ['preview', 'newcomers'],
+    source: 'page',
+    switches: ['wsTap', 'previewSendMarkAiGenerated'],
+  },
   navigation: { kind: 'host-action', base: { flags: ['navigation'], hostCapabilities: ['navigate'] }, actions: {}, surfaces: ['quick-jump'], source: 'page' },
   // The window itself needs no switch; the chats it lists are opened by `navigation`.
   palette: { kind: 'panel', base: NOTHING, actions: {}, surfaces: ['palette'], source: 'page' },

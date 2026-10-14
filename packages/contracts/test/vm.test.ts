@@ -545,12 +545,14 @@ describe('pages of one title are told apart (1.3.0)', () => {
     expectTypeOf<C.AccountsBodyVM['rows'][number]['page']>().toEqualTypeOf<C.PageTagVM | null | undefined>();
     expectTypeOf<C.AccountBodyVM['pages'][number]['pageLabel']>().toEqualTypeOf<string | undefined>();
     expectTypeOf<Extract<C.PopupVM['persona'], { s: 'set' }>['page']>().toEqualTypeOf<C.PageTagVM | undefined>();
-    expect(PAGE_TAG_SAMPLES.valid.map((tag) => tag.platform)).toEqual(['onlyfans', 'fansly', 'somewhere-new']);
+    expect(PAGE_TAG_SAMPLES.valid.map((tag) => tag.platform)).toEqual(['onlyfans', 'fansly', 'somewhere-new', 'onlyfans']);
+    // 1.15.0 (R20 F9b): the name is optional — a tag without it prints the token.
+    expect(PAGE_TAG_SAMPLES.valid.map((tag) => tag.platformName ?? null)).toEqual([null, null, null, 'OnlyFans']);
     const [bare, tagged] = PAGE_TAG_SAMPLES.rows;
     expect(bare?.page).toBeUndefined();
     expect(tagged?.page).toEqual({ platform: 'onlyfans', pageLabel: 'lora-vip' });
     expect(PAGE_TAG_SAMPLES.popup.filter((persona) => persona.s !== 'not-connected' && persona.page !== undefined)).toHaveLength(2);
     expect(PAGE_TAG_SAMPLES.accountPages[1]?.pageLabel).toBe('lora-vip');
-    expect(PAGE_TAG_SAMPLES.invalid).toHaveLength(3);
+    expect(PAGE_TAG_SAMPLES.invalid).toHaveLength(4);
   });
 });

@@ -65,6 +65,10 @@ describe('the feature manifest: vocabularies', () => {
           expect(new Set(requirement.flags).size, id).toBe(requirement.flags.length);
         }
         for (const action of Object.keys(entry.actions)) expect(F.ADMISSION_ACTIONS, `${id}: ${action}`).toContain(action);
+        // 1.15.0 (F9b): a switch that shapes the feature is a known name, once, and never also one of its requirements.
+        for (const flag of entry.switches ?? []) expect(flags, `${id}: switch ${flag}`).toContain(flag);
+        expect(new Set(entry.switches ?? []).size, id).toBe((entry.switches ?? []).length);
+        for (const flag of entry.switches ?? []) expect(requirementsOf(entry).flatMap((requirement) => requirement.flags), `${id}: ${flag}`).not.toContain(flag);
         for (const surface of entry.surfaces) expect(surfaces, `${id}: ${surface}`).toContain(surface);
         // A feature of both sites takes its kind, chip and key from the common part; a feature only this site has brings its own.
         expect(id in common, id).toBe(entry.kind === undefined);
@@ -118,7 +122,7 @@ describe('the feature manifest: the entries F4 writes in full, for both sites (a
 
   it('reply: no switch of its own on ChatSpace, `drafts` on Fansly; an insert asks `insertion` on both', () => {
     expect(FEATURES_COMMON.reply).toEqual({ kind: 'ai', chip: { group: 'reply', priority: 10, icon: null }, hotkey: 'reply' });
-    expect(CHATSPACE_FEATURES.reply).toEqual({ base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub' });
+    expect(CHATSPACE_FEATURES.reply).toEqual({ base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub', switches: ['splitAll'] });
     expect(FANSLY_FEATURES.reply).toEqual({ base: { flags: ['drafts'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded'], source: 'hub' });
     // The four drafts are admitted alike on a site.
     for (const id of ['fix', 'hi', 'ping'] as const) {
@@ -129,12 +133,19 @@ describe('the feature manifest: the entries F4 writes in full, for both sites (a
 
   it('newcomers: the hub’s list and a greeting through X8 on ChatSpace; a pass of the background and `newcomers` alone on Fansly', () => {
     expect(FEATURES_COMMON.newcomers).toEqual({ kind: 'board', chip: { group: 'windows', priority: 20, icon: 'userPlus' } });
-    expect(CHATSPACE_FEATURES.newcomers).toEqual({ base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: X8 }, surfaces: ['newcomers', 'preview'], source: 'hub' });
+    expect(CHATSPACE_FEATURES.newcomers).toEqual({ base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: X8 }, surfaces: ['newcomers', 'preview'], source: 'hub', switches: ['preview'] });
     expect(FANSLY_FEATURES.newcomers).toEqual({ base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: NOTHING }, surfaces: ['newcomers'], source: 'host-pass' });
   });
 
   it('preview-send: X8 is ChatSpace’s — its switch, its queue and a receipt profile; Fansly has none', () => {
-    expect(CHATSPACE_FEATURES['preview-send']).toEqual({ kind: 'host-action', base: X8, actions: { send: NOTHING }, surfaces: ['preview', 'newcomers'], source: 'page' });
+    expect(CHATSPACE_FEATURES['preview-send']).toEqual({
+      kind: 'host-action',
+      base: X8,
+      actions: { send: NOTHING },
+      surfaces: ['preview', 'newcomers'],
+      source: 'page',
+      switches: ['wsTap', 'previewSendMarkAiGenerated'],
+    });
     expect('preview-send' in FANSLY_FEATURES).toBe(false);
     expect(JSON.stringify(FANSLY_FEATURES)).not.toContain('previewSend');
   });
