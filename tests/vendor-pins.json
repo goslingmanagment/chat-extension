@@ -1,9 +1,9 @@
 {
   "kernelSdk": {
-    "contractHash": "030124539ce7c649519ca0acafe8c6c131e3620025e7b858650857baa7119bbc",
-    "sourceCommit": "6ee3d627e204efd791424b5ae5802b9e4a48b82c",
-    "distSha256": "5fc254a882e6332045cd72d4d09ba9379448ebe368ab2d82ffc43dde6b43a432",
-    "note": "Vendored on 2026-10-12 with the hub's scripts/vendor-sdk.mjs from hub main 6ee3d627 (#567) — the commit that runs in production since 2026-10-11 22:28 UTC (the image's source revision 6ee3d627e204; prod health: contractHash 03012453…, compatibleClientSdks lists it and b95b765c…, no longer b9d4dd07…), so this vendor satisfies the release rule (a release is vendored only from a deployed hub commit). Against 2260ef73 (b9d4dd07…): one contract change, hub #563 — a new route GET /api/v1/ops/live (routes-ops-live) for the server monitor, which this extension does not call. No other route was added, removed or reshaped: every client route, operation, schema and scope this extension uses is unchanged. Re-vendor with the same script, then update this pin in the same commit."
+    "contractHash": "9137410d6c88a628b538e61b912e209b79c087144e4ac8f21edbea7c6f587493",
+    "sourceCommit": "bd3eec0657bca31e418e377288214b920575211b",
+    "distSha256": "b396248cdec9796c829f8799ce4ca7a8ff01312ad3de55453468f89149cc431d",
+    "note": "Vendored on 2026-10-14 (R20 P2v) with the hub's scripts/vendor-sdk.mjs from hub main bd3eec06 (#607) — the commit that runs in production since 2026-10-14 00:55 UTC (prod health: contractHash 9137410d…, compatibleClientSdks lists it, 03012453…, a6f77fbb… and b95b765c…), so this vendor satisfies the release rule (a release is vendored only from a merged and deployed hub commit). Against 6ee3d627 (03012453…) the contract only grew, with the Project Unite R20 hub PRs (HF-2…HF-13, fan-notes-fill): optional body fields of the AI stream (coverageCheck, startProof, personalMessageCount, fanAvatarUrl, noteFields, noteValues; messageCount up to 5000), optional context-frame fields (coverageCheck, live.matched, pair), conversationRef on the recaps read, the dossier save and the feed, the manual greeting group in the claim body and greetingSendPerMinute in the bootstrap limits, new flag, capability and reason names, four Fansly perf metrics, the voice-note operations in the narrow token. Every route, operation and schema this extension calls for ChatSpace keeps its form; OnlyFans bodies are answered as before. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

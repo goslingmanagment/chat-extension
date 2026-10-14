@@ -9,11 +9,15 @@
 //
 // And the request side of the AI stream, with the hub's REAL body schema
 // (`routeSchemas.aiFeatureStream.body` of the vendored SDK — hub main
-// c8514c5c) and the rules of the hub's own handler (fake-hub/ai-rules.ts):
-// every feature's body, as its driver builds it from a start the tab can
-// make, must be one the hub accepts. The first live check met a body the
-// hub answers 400 to (the Coach preset sent with our own question) that no
-// test of ours had refused.
+// bd3eec06, the commit production runs) and the rules of the hub's own
+// handler (fake-hub/ai-rules.ts): every feature's body, as its driver builds
+// it from a start the tab can make, must be one the hub accepts. The first
+// live check met a body the hub answers 400 to (the Coach preset sent with
+// our own question) that no test of ours had refused.
+//
+// And the Fansly greeting's claim body (contracts 1.15.0, P4c) against the
+// hub's real one since HF-3: until the SDK was vendored past HF-3 (R20 P2v)
+// the contract test restated that schema by hand.
 
 import {
   AI_REQUEST_LIMITS,
@@ -48,12 +52,21 @@ import {
   type SpendersStats,
   type StartOp,
 } from '@cg/contracts';
-import { clientHealth } from '@cg/contracts/fixtures';
 import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
 import { PERF_METRICS, PERF_METRIC_NAMES, type PerfMetric } from '@cg/contracts/telemetry';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
+import { FANSLY_CLAIM_BODY_FIXTURES, TEXT_FINGERPRINT, clientHealth, fanslyDispatch, fanslyManualGroup } from '@cg/contracts/fixtures';
+import { FanslyGreetingClaimBodySchema, greetingGroupRef } from '@cg/contracts/send-fansly';
 import { AI_FEATURE_DRIVERS, FEATURE_POLICIES, featureSlice, freshTextAdmitted } from '@cg/core/domain/features';
-import { CLIENT_HEALTH_PERF_METRICS, clientHealthReportV1Schema, kernelOperations, routeSchemas, type KernelOperationResponse } from '@kernel/sdk';
+import {
+  CLIENT_HEALTH_PERF_METRICS,
+  CLIENT_MANUAL_GROUP_REF_PREFIX,
+  CLIENT_TEXT_FINGERPRINT_PATTERN,
+  clientHealthReportV1Schema,
+  kernelOperations,
+  routeSchemas,
+  type KernelOperationResponse,
+} from '@kernel/sdk';
 import { describe, expect, it } from 'vitest';
 
 import { streamBodyRefusal } from '../../fake-hub/ai-rules';
@@ -240,12 +253,12 @@ describe('contracts vs the vendored SDK', () => {
 });
 
 describe('[TL-012] client_health against the vendored SDK (R20 F7)', () => {
-  it('every metric the SDK knows has our bounds and version; ours it does not know yet are the four of HF-13 (hub #577), until P2v re-vendors', () => {
+  it('our metrics are the SDK\'s, each with its bounds and version — Fansly\'s four of HF-13 (hub #577) included since P2v', () => {
     for (const [metric, entry] of Object.entries(CLIENT_HEALTH_PERF_METRICS)) {
       expect([metric, PERF_METRICS[metric as PerfMetric]]).toEqual([metric, { schemaVersion: entry.schemaVersion, bounds: entry.bounds }]);
     }
-    const notVendored = PERF_METRIC_NAMES.filter((metric) => !(metric in CLIENT_HEALTH_PERF_METRICS));
-    expect(notVendored.filter((metric) => !['frameParseMs', 'xhrParseMs', 'snapshotMs', 'snapshotRoundTripMs'].includes(metric))).toEqual([]);
+    expect([...PERF_METRIC_NAMES].sort()).toEqual(Object.keys(CLIENT_HEALTH_PERF_METRICS).sort());
+    for (const metric of ['frameParseMs', 'xhrParseMs', 'snapshotMs', 'snapshotRoundTripMs']) expect(Object.keys(CLIENT_HEALTH_PERF_METRICS)).toContain(metric);
   });
 
   it('windows of two sites pass the hub\'s report schema', () => {
@@ -394,5 +407,31 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
         expect([name, request.body.liveTextContext, request.body.knownFanMessageIds]).toEqual([name, undefined, undefined]);
       }
     }
+  });
+});
+
+describe('[host:fansly] the Fansly greeting claim body (contracts 1.15.0, P4c) against the hub\'s real one (HF-3)', () => {
+  const body = sdkRoutes['clientFanClaim']?.body;
+  if (body === undefined) throw new Error('claim body');
+
+  it('every body our schema lets out the hub takes; what the hub refuses, ours refuses too', () => {
+    for (const value of FANSLY_CLAIM_BODY_FIXTURES.valid) expect(body.safeParse(value).success, JSON.stringify(value)).toBe(true);
+    // A reply's manual group, two parts of a manual group, a text beside the fingerprint, a 401 as proof, a mixed group.
+    const hubRefuses = [
+      { ...fanslyDispatch, purpose: 'preview-reply' },
+      { ...fanslyDispatch, partIndex: 1 },
+      { ...fanslyDispatch, group: { ...fanslyManualGroup, text: 'Привет' } },
+      { action: 'failed', attemptId: uuid(402), instanceId: uuid(404), reason: 'native_rejected', httpStatus: 401 },
+      { ...fanslyDispatch, group: { ...fanslyManualGroup, generationRef: uuid(401) } },
+    ];
+    for (const value of hubRefuses) {
+      expect(body.safeParse(value).success, JSON.stringify(value)).toBe(false);
+      expect(FanslyGreetingClaimBodySchema.safeParse(value).success, JSON.stringify(value)).toBe(false);
+    }
+  });
+
+  it('the manual group reads as the hub answers it: its prefix and the fingerprint\'s form', () => {
+    expect(greetingGroupRef(fanslyManualGroup)).toBe(`${CLIENT_MANUAL_GROUP_REF_PREFIX}${TEXT_FINGERPRINT}`);
+    expect(CLIENT_TEXT_FINGERPRINT_PATTERN.test(TEXT_FINGERPRINT)).toBe(true);
   });
 });

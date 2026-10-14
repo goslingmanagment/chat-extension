@@ -10,8 +10,10 @@
 // exactly (config.test.ts).
 //
 // What each flag needs of the hub is the HUB's table (`CLIENT_FEATURE_REQUIREMENTS`
-// there), repeated in the scenarios (`HUB_FEATURE_CAPABILITIES`) as it stands at
-// 6ee3d627 — the commit production runs and the SDK is vendored from. The
+// there), repeated in the scenarios (`HUB_FEATURE_CAPABILITIES`): its OnlyFans
+// column as it stands at bd3eec06 — the commit production runs and the SDK is
+// vendored from; that column is the same as at 6ee3d627 (R20 HF-2 made the
+// table per platform and gave Fansly its own; the Fansly column is P6c1's). The
 // client does not carry that table (R20 F4: it reads the page's feature, and
 // only its own transport needs on top — `CLIENT_FLAG_REQUIREMENTS`).
 

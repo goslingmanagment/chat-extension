@@ -154,9 +154,10 @@
     {success:false}` Fansly ничего не доказывает — опека остаётся
     `uncertain-held`. `limits.greetingSendPerMinute` (30 в минуту, отдельно от
     `previewSendPerMinute`) клиент не читает: темп держит хаб (429
-    `preview_send_rate_limited`), схема bootstrap не менялась. Вендоренный SDK
-    (`6ee3d627`) старше HF-3; тест контракта сверяет тело Fansly со схемой хаба,
-    переписанной в него, до перевендоринга.
+    `preview_send_rate_limited`), схема bootstrap не менялась. SDK вендорен из
+    `bd3eec06` (R20 P2v), он новее HF-3: тело Fansly сверяется с настоящей схемой
+    хаба `clientFanClaim` в `packages/testing/src/scenarios/hub/sdk-alignment.test.ts`
+    (переписанная в тест контракта копия схемы убрана).
 
 ## Флаги: решает страница
 

@@ -109,6 +109,10 @@ export const aiUsageFeatures = [
     "coach-chat",
     // Voice notes: the ElevenLabs TTS lane's script-generation feature.
     "voice-script",
+    // The Fansly notes panel's «fill with AI»: the questionnaire fields of the
+    // fan's native note, filled from the whole chat (POST /ai/features and the
+    // client usage batch alike).
+    "fan-notes-fill",
 ];
 /** Ledger-only features: rows the hub writes for its own system lanes
  * (`user_id` NULL). They live in the DB enum `ai_usage_feature` but never on

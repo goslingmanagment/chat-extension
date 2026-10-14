@@ -1,9 +1,16 @@
 // What the hub's own handler refuses in an AI body AFTER its schema accepted
 // it — the rules of `prepareAiFeatureStream` (hub
-// apps/runtime/src/modules/ai/features/index.ts as it stands at c8514c5c,
-// hub `main` and the commit the SDK is vendored from. The hub's AI module is
-// the same there as at e7e1037b, where these rules were first read),
-// in the hub's order and with the hub's own messages. They are code on the hub, not schema, so the body schema of
+// apps/runtime/src/modules/ai/features/index.ts; first read at e7e1037b, the
+// same at c8514c5c; re-read at bd3eec06, the commit production runs and the
+// SDK is vendored from since R20 P2v),
+// in the hub's order and with the hub's own messages. Between c8514c5c and
+// bd3eec06 the R20 hub PRs added refusals only of fields and features a
+// ChatSpace body never carries — `noteFields` / `noteValues` off
+// `fan-notes-fill` (right after `summaryMode`), `fanRef` of `fan-notes-fill` on
+// Fansly, `startProof` / `personalMessageCount` / `fanAvatarUrl` off the Hi
+// start-proof lane (HF-5) — and dropped one that never met ChatSpace (fresh
+// text on a Fansly page, HF-8б): every rule below is unchanged, and the new
+// ones come with the Fansly fake hub (R20 P6c1, P6c2, P6c4). They are code on the hub, not schema, so the body schema of
 // the vendored SDK cannot show them: the first live check met one of them
 // (the Coach preset sent with our own question → 400 in 10 ms) only on the
 // real hub. Modelled here so that a body the hub would refuse fails on the

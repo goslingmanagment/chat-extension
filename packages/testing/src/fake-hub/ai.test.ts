@@ -169,8 +169,8 @@ describe('fake hub AI: the stream the model writes', () => {
       });
     const good = streamBody({ clientRequestId: uuid(0xa00), replyTone: 'casual' });
     expect((await send('fast-reply', good)).status).toBe(200);
-    // The hub's body is strict: a key it does not know, a count outside its bounds, a tone it never had.
-    for (const bad of [{ ...good, clientRequestId: uuid(0xa01), someLaterField: true }, { ...good, clientRequestId: uuid(0xa02), messageCount: 3001 }, { ...good, clientRequestId: uuid(0xa03), replyTone: 'tender' }]) {
+    // The hub's body is strict: a key it does not know, a count outside its bounds (≤ 5000 since hub HF-6), a tone it never had.
+    for (const bad of [{ ...good, clientRequestId: uuid(0xa01), someLaterField: true }, { ...good, clientRequestId: uuid(0xa02), messageCount: 5001 }, { ...good, clientRequestId: uuid(0xa03), replyTone: 'tender' }]) {
       const response = await send('fast-reply', bad);
       expect([response.status, ((await response.json()) as { message: string }).message]).toEqual([400, 'fake hub: body: refused by the hub’s own body schema (vendored SDK)']);
     }

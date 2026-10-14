@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import * as z from 'zod/mini';
+import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
 import * as S from '../src/send-fansly';
@@ -36,64 +36,6 @@ function expectVerdicts(label: string, schema: { safeParse(value: unknown): { su
   verdicts.valid.forEach((value, index) => expect(schema.safeParse(value).success, `${label} valid[${index}]`).toBe(true));
   verdicts.invalid.forEach((value, index) => expect(schema.safeParse(value).success, `${label} invalid[${index}]`).toBe(false));
 }
-
-/**
- * The hub's own claim body since HF-3 (hub `packages/contracts/src/routes-client.ts`, `clientFanClaimBodySchema`,
- * merged in b37075d8), restated here for the subset check until the SDK is vendored past it: the vendored SDK
- * (6ee3d627) predates the manual group.
- */
-const HUB_ID = z.string().check(z.regex(/^[1-9]\d{0,29}$/));
-const HUB_MINTED = z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i));
-const HUB_REVISION = z.int().check(z.gte(0), z.lte(2_147_483_647));
-const HUB_PURPOSE = z.enum(['greeting', 'preview-reply']);
-const HUB_PART = z.int().check(z.gte(0), z.lte(9));
-const HUB_GROUP = z.union([
-  z.strictObject({ generationRef: z.string().check(z.minLength(1), z.maxLength(100)), variant: z.int().check(z.gte(0), z.lte(2)), partCount: z.int().check(z.gte(1), z.lte(10)) }),
-  z.strictObject({ kind: z.literal('manual'), textFingerprint: z.string().check(z.regex(/^[0-9a-f]{64}$/)) }),
-]);
-const hubLease = (action: 'claim' | 'renew' | 'release') => z.strictObject({ action: z.literal(action), leaseToken: HUB_MINTED, instanceId: HUB_MINTED });
-const HUB_HF3_CLAIM_BODY = z
-  .discriminatedUnion('action', [
-    hubLease('claim'),
-    hubLease('renew'),
-    hubLease('release'),
-    z.strictObject({
-      action: z.literal('dispatch'),
-      attemptId: HUB_MINTED,
-      instanceId: HUB_MINTED,
-      purpose: HUB_PURPOSE,
-      group: HUB_GROUP,
-      partIndex: HUB_PART,
-      textRevision: HUB_REVISION,
-      leaseToken: z.optional(HUB_MINTED),
-      flagRevision: HUB_REVISION,
-    }),
-    z.strictObject({ action: z.literal('sent'), attemptId: HUB_MINTED, instanceId: HUB_MINTED, platformMessageId: HUB_ID, evidence: z.literal('receipt+echo') }),
-    z.strictObject({
-      action: z.literal('failed'),
-      attemptId: HUB_MINTED,
-      instanceId: HUB_MINTED,
-      reason: z.enum(['not_enqueued', 'native_rejected']),
-      httpStatus: z.optional(z.int().check(z.gte(100), z.lte(599))),
-    }),
-    z.strictObject({
-      action: z.literal('registerNativeSend'),
-      attemptId: HUB_MINTED,
-      instanceId: HUB_MINTED,
-      purpose: HUB_PURPOSE,
-      group: HUB_GROUP,
-      partIndex: HUB_PART,
-      platformMessageId: HUB_ID,
-    }),
-  ])
-  .check(
-    z.refine((b) => {
-      if (b.action !== 'dispatch' && b.action !== 'registerNativeSend') return true;
-      if ('kind' in b.group) return b.partIndex === 0 && b.purpose === 'greeting';
-      return b.partIndex < b.group.partCount && !b.group.generationRef.startsWith('manual:');
-    }),
-    z.refine((b) => b.action !== 'failed' || (b.reason === 'native_rejected' ? b.httpStatus !== undefined && b.httpStatus >= 400 && b.httpStatus <= 499 && b.httpStatus !== 401 : b.httpStatus === undefined)),
-  );
 
 describe('[host:fansly] the «Новые» greeting request (FS-NEW-3, FS-NEW-6)', () => {
   it('carries the field text, its revision, the reviewed history revision, the admission and the human action', () => {
@@ -137,9 +79,10 @@ describe('[host:fansly] the manual group and the custody body (hub HF-3)', () =>
     expectVerdicts('FanslyGreetingClaimOp', S.FanslyGreetingClaimOpSchema, FANSLY_CLAIM_OP_FIXTURES);
   });
 
-  it('every body it lets out the hub takes (HF-3 b37075d8); what the hub refuses it refuses too', () => {
-    for (const body of FANSLY_CLAIM_BODY_FIXTURES.valid) expect(HUB_HF3_CLAIM_BODY.safeParse(body).success, JSON.stringify(body)).toBe(true);
-    // The hub refuses these as well: a reply's manual group, two parts of a manual group, a 401 as proof, a mixed group.
+  it('what the hub refuses (HF-3) it refuses too; the hub\'s real schema checks both ways in sdk-alignment.test.ts', () => {
+    // A reply's manual group, two parts of a manual group, a text beside the fingerprint, a 401 as proof, a mixed group.
+    // The vendored SDK's `clientFanClaim` body (hub bd3eec06, past HF-3) is checked against the same bodies and every
+    // valid fixture in `packages/testing/src/scenarios/hub/sdk-alignment.test.ts`: this package does not import the SDK.
     const hubRefuses = [
       { ...fanslyDispatch, purpose: 'preview-reply' },
       { ...fanslyDispatch, partIndex: 1 },
@@ -147,10 +90,7 @@ describe('[host:fansly] the manual group and the custody body (hub HF-3)', () =>
       { action: 'failed', attemptId: uuid(402), instanceId: uuid(404), reason: 'native_rejected', httpStatus: 401 },
       { ...fanslyDispatch, group: { ...fanslyManualGroup, generationRef: uuid(401) } },
     ];
-    for (const body of hubRefuses) {
-      expect(HUB_HF3_CLAIM_BODY.safeParse(body).success, JSON.stringify(body)).toBe(false);
-      expect(S.FanslyGreetingClaimBodySchema.safeParse(body).success, JSON.stringify(body)).toBe(false);
-    }
+    for (const body of hubRefuses) expect(S.FanslyGreetingClaimBodySchema.safeParse(body).success, JSON.stringify(body)).toBe(false);
   });
 
   it('the OnlyFans body is unchanged: AI groups only, the manual one is refused there', () => {

@@ -275,17 +275,11 @@ describe('[AU-029] routes this client never calls (§8.1 «Никогда»)', (
  * The hub's `client_health` intake as merged (hub apps/runtime/src/services/client-health-intake.ts, `main`): a report
  * the hub's own schema refuses (the vendored SDK's `clientHealthReportV1Schema`) is dropped and still answered as
  * accepted; one client event id is one report; a histogram whose metric or bounds the registry does not know is left
- * out of the rollups. The registry is the SDK's, plus Fansly's four of HF-13 (hub #577) until the SDK is re-vendored
- * with them (P2v) — the numbers of hub `main`, held to ours by packages/contracts/test/vocabulary.test.ts.
+ * out of the rollups. The registry is the vendored SDK's own, Fansly's four of HF-13 (hub #577) included since the
+ * re-vendor from bd3eec06 (R20 P2v).
  */
 function hubHealthIntake() {
-  const hf13: Readonly<Record<string, readonly number[]>> = {
-    frameParseMs: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100],
-    xhrParseMs: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100],
-    snapshotMs: [0.1, 0.25, 0.5, 1, 2, 3, 4, 5, 8, 16, 32, 50, 100, 250],
-    snapshotRoundTripMs: [1, 2, 5, 8, 16, 32, 50, 75, 100, 150, 250, 500, 1000, 2500, 5000],
-  };
-  const registry: Readonly<Record<string, readonly number[]>> = { ...Object.fromEntries(Object.entries(CLIENT_HEALTH_PERF_METRICS).map(([metric, entry]) => [metric, entry.bounds])), ...hf13 };
+  const registry: Readonly<Record<string, readonly number[]>> = Object.fromEntries(Object.entries(CLIENT_HEALTH_PERF_METRICS).map(([metric, entry]) => [metric, entry.bounds]));
   const kept = new Map<string, unknown>();
   let refused = 0;
   const droppedHistograms: string[] = [];
