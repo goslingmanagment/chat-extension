@@ -11,7 +11,6 @@ import {
   LIVE_EDGE_MS,
   MESSAGE_THROTTLE_MS,
   NO_RINGS,
-  PLATFORM_DEFAULT_TONES,
   SEEN_MAX,
   SEEN_TTL_MS,
   SOUND_OUTCOMES,
@@ -379,23 +378,22 @@ describe('[SN-013] the eight tones', () => {
     expect(normalizeVolume(Number.NaN)).toBe(50);
   });
 
-  it('[SN-013] OnlyFans and Fansly have different default tones; an explicit choice wins on both', () => {
-    // The pilot host rings exactly what the settings page shows by default.
-    expect(PLATFORM_DEFAULT_TONES.onlyfans).toEqual({ message: SOUND.messages.tone, subscriber: SOUND.subscribers.tone });
-    expect(PLATFORM_DEFAULT_TONES.fansly).not.toEqual(PLATFORM_DEFAULT_TONES.onlyfans);
-    // Each platform rings what its own old client rang: the desktop app's pair on OnlyFans, the Fansly extension's on Fansly (X26).
-    expect(resolveTone('message', 'onlyfans', SOUND, SOUND)).toBe('blip');
-    expect(resolveTone('subscriber', 'onlyfans', SOUND, SOUND)).toBe('arpeggio');
-    expect(resolveTone('message', 'fansly', SOUND, SOUND)).toBe('chime');
-    expect(resolveTone('subscriber', 'fansly', SOUND, SOUND)).toBe('double');
+  it('[SN-013] a site rings its own default for an untouched tone; an explicit choice wins on every site', () => {
+    // A site whose default IS the settings' (ChatSpace): exactly what the settings page shows by default.
+    expect(resolveTone('message', SOUND, SOUND, null)).toBe('blip');
+    expect(resolveTone('subscriber', SOUND, SOUND, null)).toBe('arpeggio');
+    // A site with a pair of its own (the composition root's word, R20 F9b): what its own old client rang (X26).
+    const own = { message: 'chime', subscriber: 'double' } as const;
+    expect(resolveTone('message', SOUND, SOUND, own)).toBe('chime');
+    expect(resolveTone('subscriber', SOUND, SOUND, own)).toBe('double');
     // A tone stored before 1.12.0 (the old default) is a choice of its own: it rings on.
     const before = withSound({ messages: { on: true, tone: 'chime' }, subscribers: { on: true, tone: 'double' } });
-    expect(resolveTone('message', 'onlyfans', before, SOUND)).toBe('chime');
-    expect(resolveTone('subscriber', 'onlyfans', before, SOUND)).toBe('double');
+    expect(resolveTone('message', before, SOUND, null)).toBe('chime');
+    expect(resolveTone('subscriber', before, SOUND, null)).toBe('double');
     const chosen = withSound({ messages: { on: true, tone: 'bell' }, subscribers: { on: true, tone: 'knock' } });
-    for (const platform of ['onlyfans', 'fansly'] as const) {
-      expect(resolveTone('message', platform, chosen, SOUND)).toBe('bell');
-      expect(resolveTone('subscriber', platform, chosen, SOUND)).toBe('knock');
+    for (const site of [null, own]) {
+      expect(resolveTone('message', chosen, SOUND, site)).toBe('bell');
+      expect(resolveTone('subscriber', chosen, SOUND, site)).toBe('knock');
     }
     expect(HOST_PLATFORM).toEqual({ chatspace: 'onlyfans', 'fansly-web': 'fansly' });
   });

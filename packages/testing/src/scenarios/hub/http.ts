@@ -227,7 +227,8 @@ const authState = {
     assignedPages: [{ id: pages.one.pageId, label: pages.one.pageLabel, platform: 'onlyfans', modelSlug: 'model-one', modelName: 'Model One' }],
   },
 };
-const signIn = { username: WORLD.user.username, password: 'synthetic-password', label: 'Firefox · macOS · ChatSpace', mode: 'active', client: 'chat-extension' };
+// The extension's own sign-in body: its device label names the extension, not a site (AU-005, R20 F9b).
+const signIn = { username: WORLD.user.username, password: 'synthetic-password', label: 'Firefox · macOS · ChatGoose', mode: 'active', client: 'chat-extension' };
 
 // ── Spenders board: 1240 payers, five pages of 200 = the 1000-row cap ──────
 

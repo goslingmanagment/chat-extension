@@ -5,7 +5,6 @@
 // (`@cg/platform` createAudioPlayer) schedules them: this shape is its
 // ToneSpec.
 
-import { type Platform } from '@cg/contracts/ids';
 import { SETTINGS_RANGES, SOUND_TONE_IDS, type SettingsV1, type ToneId } from '@cg/contracts/settings';
 
 export type ToneWave = 'sine' | 'square' | 'triangle' | 'sawtooth';
@@ -92,29 +91,19 @@ export function volumeToGain(volume: unknown): number {
 
 export type SoundKind = 'message' | 'subscriber';
 
-/**
- * Default tones per platform (§9.8: «У OnlyFans и Fansly разные тона по
- * умолчанию»). OnlyFans is the pilot's host and its row IS the settings
- * default (blip, arpeggio — contracts DEFAULT_SETTINGS, ST-127, ST-129), so
- * what the settings page shows is what rings. Each platform keeps the pair
- * its own old client rang — OnlyFans the desktop app's, Fansly the Fansly
- * extension's (chime, double) — so a chatter working both hears which one
- * rings, here and next to the Fansly extension (decision X26, the first
- * chatter's word: «не как на Fansly»; it closes ui-design §9.4 п. 4). It is
- * one table.
- */
-export const PLATFORM_DEFAULT_TONES: Readonly<Record<Platform, Readonly<Record<SoundKind, ToneId>>>> = {
-  onlyfans: { message: 'blip', subscriber: 'arpeggio' },
-  fansly: { message: 'chime', subscriber: 'double' },
-};
+/** A pair of tones, one for each kind of sound. */
+export type SoundTones = Readonly<Record<SoundKind, ToneId>>;
 
 /**
- * The tone that rings: the person's explicit choice wins. Settings v1 keep
- * one tone per kind for every host, so «explicit» is «differs from the
- * schema default»; an untouched setting gives the platform's own default.
+ * The tone that rings (§9.8: «У OnlyFans и Fansly разные тона по умолчанию»): the person's explicit choice wins.
+ * Settings v1 keep one tone per kind for every host, so «explicit» is «differs from the schema default»; an
+ * untouched setting gives the site's own default — `siteDefault`, the pair its own old client rang (decision X26:
+ * the Fansly extension's on Fansly, so a chatter working both hears which one rings). null — the site's default IS
+ * the settings' (ChatSpace: the desktop app's blip and arpeggio, what the settings page shows, ST-127, ST-129).
+ * Which site rings which pair is its composition root's word, not this module's (R20 F9b).
  */
-export function resolveTone(kind: SoundKind, platform: Platform, sound: SettingsV1['sound'], schemaDefault: SettingsV1['sound']): ToneId {
+export function resolveTone(kind: SoundKind, sound: SettingsV1['sound'], schemaDefault: SettingsV1['sound'], siteDefault: SoundTones | null): ToneId {
   const chosen = kind === 'message' ? sound.messages.tone : sound.subscribers.tone;
   const untouched = kind === 'message' ? schemaDefault.messages.tone : schemaDefault.subscribers.tone;
-  return chosen === untouched ? PLATFORM_DEFAULT_TONES[platform][kind] : chosen;
+  return chosen === untouched && siteDefault !== null ? siteDefault[kind] : chosen;
 }

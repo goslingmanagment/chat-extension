@@ -8,7 +8,7 @@ import { flagUsable, starFlag } from '@cg/core/domain/ops';
 import { BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, WORLD, pageFeaturesOff } from '@cg/testing/hub';
 import { describe, expect, it } from 'vitest';
 
-import { TAB_FED_FRESH_MS, createBackgroundSound } from '../src/composition/background/sound.ts';
+import { SITE_TONES, TAB_FED_FRESH_MS, createBackgroundSound } from '../src/composition/background/sound.ts';
 
 const NOW = Date.parse('2026-10-04T09:00:00.000Z');
 const ONE = WORLD.pages.one;
@@ -130,6 +130,14 @@ function world() {
   });
   return { clock, state, reads, played, told, sound };
 }
+
+describe('each site’s tones (R20 F9b)', () => {
+  it('[SN-013] the composition root names them, not core: ChatSpace rings the settings’ own pair, Fansly the Fansly extension’s (X26)', () => {
+    expect(SITE_TONES).toEqual({ chatspace: null, 'fansly-web': { message: 'chime', subscriber: 'double' } });
+    // ChatSpace's pair is what the settings page shows by default.
+    expect([DEFAULT_SETTINGS.sound.messages.tone, DEFAULT_SETTINGS.sound.subscribers.tone]).toEqual(['blip', 'arpeggio']);
+  });
+});
 
 describe('the slow poll of «Новые» for the subscriber sound', () => {
   it('[SN-012] runs only while a ChatSpace tab lives and somebody is signed in; the first read is the baseline and rings nothing, a new subscriber after it rings once', async () => {

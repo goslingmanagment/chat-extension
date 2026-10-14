@@ -114,6 +114,11 @@ export interface HubFacadeOptions {
    * bind (never by name). A release build has no compat mode and never reads it.
    */
   readonly compatPageAccounts?: Readonly<Record<string, string>>;
+  /**
+   * DEV-ONLY compat mode: the platforms the build's sites serve (the composition root's word, R20 F9b) — a page of
+   * the synthesized bootstrap on another is `platform_unsupported`. Absent — none: every page is.
+   */
+  readonly compatPlatforms?: readonly string[];
 }
 
 export type HubState = 'off' | 'connecting' | 'live' | 'degraded' | 'auth-failed' | 'stopped';
@@ -153,6 +158,11 @@ export interface ConnectionReport {
 }
 
 const OS_LABELS = { windows: 'Windows', macos: 'macOS', linux: 'Linux', other: 'OS' } as const;
+/**
+ * The device as the hub lists it (AU-005): the browser, the OS and the extension — not a site. One extension runs on
+ * every site of its build, so the label names none (R20 F9b; it said «ChatSpace» while that was the only one).
+ */
+const deviceLabel = (os: keyof typeof OS_LABELS): string => `Firefox · ${OS_LABELS[os]} · ChatGoose`;
 const WIPE_REASONS = new Set(['token_revoked', 'token_expired']);
 
 /** A UUID-shaped id derived from `seed` (FNV-1a, four lanes): the same report always gets the same `clientEventId`. */
@@ -218,7 +228,7 @@ export class ChatExtensionHub implements HubFacade {
     this.wire = new HubWire({ fetch: options.fetch, clock, headers });
     this.custody = new AuthCustody({ local: options.local, clock, log, configuredOrigin: () => options.env.hubOrigin() });
     this.ctx = new HubContext(options.env, this.custody, this.wire, clock, log, uuid);
-    this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {} });
+    this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {}, compatPlatforms: options.compatPlatforms ?? [] });
     this.catalogService = new CatalogService(this.ctx, options.local);
     this.quota = new QuotaTracker(() => clock.now());
     this.echo = new PromptEchoStore(clock, uuid);
@@ -350,7 +360,7 @@ export class ChatExtensionHub implements HubFacade {
     const call = { signal: scope.signal, timeoutMs: null, facts: { unbound: true } } as const;
     let issuedToken: string | null = null;
     try {
-      const body = { username: login, password, label: `Firefox · ${OS_LABELS[env.os]} · ChatSpace`, mode: 'active' as const, client: CHAT_EXTENSION_CLIENT };
+      const body = { username: login, password, label: deviceLabel(env.os), mode: 'active' as const, client: CHAT_EXTENSION_CLIENT };
       if (!DeviceTokenIssueRequestSchema.safeParse(body).success) throw this.ctx.failure(route, transportFailure('contract'), unbound, { unbound: true });
       const result = await this.wire.sdk(route, { hubOrigin, token: null, signals: [scope.signal], timeoutMs: null }, { body });
       if (!result.ok) throw this.ctx.failure(route, result.failure, unbound, { unbound: true });
