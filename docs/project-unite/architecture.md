@@ -206,7 +206,8 @@ ChatSpace: ни байта разницы, и сборка этот файл н�
   эту таблицу дублировала (и для `newcomers` требовала `audience-new-v1` — на Fansly неверно). С F4 в ней только нужда
   транспорта самого клиента — `{freshText: ['context-v1']}`, она же `clientNeeds` у `fresh-text` в обоих срезах;
   `pageFlagState` (`core/src/domain/ops/flags.ts`) читает одну функцию страницы. Таблица хаба повторена только в
-  поддельном хабе (`HUB_FEATURE_CAPABILITIES` в `packages/testing/src/scenarios/hub/http.ts`, по `6ee3d627`).
+  поддельном хабе (`HUB_FEATURE_CAPABILITIES` в `packages/testing/src/scenarios/hub/http.ts`: столбец OnlyFans по
+  `bd3eec06`, тот же, что в `6ee3d627`; столбец Fansly HF-2 — P6c1).
   Что таблица флагов ChatSpace на нынешнем хабе та же, держит `packages/testing/src/fake-hub/flag-table.test.ts`:
   прежнее правило, замороженное по `main`, против нового на каждом пресете поддельного хаба и на каждом отставании хаба.
 - Генерация, вставка и отправка допускаются раздельно. «Только копировать» (FS-DOCK-3) — состояние чата, его
