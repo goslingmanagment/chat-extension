@@ -9,6 +9,7 @@
 // stand-in, the client never derives it anyway (it shows what it gets).
 
 import {
+  CHAT_IS_FAN,
   type AiUsageDay,
   type AiUsageQuery,
   type AiUsageReport,
@@ -518,7 +519,8 @@ export class DataModel {
     const key = this.key(page.pageLabel, fanRef);
     let archive = this.archives.get(key);
     if (archive === undefined) {
-      const seeded = fanRef === WORLD.fan ? SCENARIO_DATA.feedTotal : this.knowsFanStatic(fanRef) ? 3 : 0;
+      // A conversation with an id of its own (a Fansly group, R20 F6b) holds three messages of its own, ids from its id.
+      const seeded = fanRef === WORLD.fan ? SCENARIO_DATA.feedTotal : this.knowsFanStatic(fanRef) || !CHAT_IS_FAN[page.platform] ? 3 : 0;
       archive = {
         generation: 1,
         revision: 1,
@@ -589,8 +591,10 @@ export class DataModel {
    * and head. A forged cursor, another target's or user's, or a changed
    * generation is 400 `cursor_invalid`.
    */
-  feed(page: FakePage, query: FeedQuery, now: number, userId: number): Read<FeedPage> {
-    const archive = this.archive(page, query.fanRef);
+  feed(page: FakePage, query: FeedQuery, now: number, userId: number, conversation: string = query.fanRef): Read<FeedPage> {
+    // R20 F6b (hub HF-10): the conversation's archive; the fan's own chat keeps its cursor scope, another's binds it.
+    const archive = this.archive(page, conversation);
+    const scope = conversation === query.fanRef ? {} : { c: conversation };
     let all: readonly ArchiveMessage[] = archive.messages;
     let revision = archive.revision;
     let start = 0;
@@ -600,6 +604,7 @@ export class DataModel {
         cursor === null ||
         cursor['p'] !== page.pageLabel ||
         cursor['f'] !== query.fanRef ||
+        cursor['c'] !== scope.c ||
         cursor['u'] !== userId ||
         cursor['g'] !== archive.generation ||
         typeof cursor['r'] !== 'number' ||
@@ -621,9 +626,9 @@ export class DataModel {
     const head = all[0];
     const coverage = all.length === 0 ? 'unknown' : 'complete';
     const first = query.cursor === undefined;
-    const snapshot = { p: page.pageLabel, f: query.fanRef, u: userId, g: archive.generation, r: revision, t: head?.order ?? 0 };
+    const snapshot = { p: page.pageLabel, f: query.fanRef, ...scope, u: userId, g: archive.generation, r: revision, t: head?.order ?? 0 };
     return ok({
-      target: { pageLabel: page.pageLabel, fanRef: query.fanRef },
+      target: { pageLabel: page.pageLabel, fanRef: query.fanRef, ...(query.conversationRef === undefined ? {} : { conversationRef: query.conversationRef }) },
       source: 'union',
       snapshotRevision: `snap-${revision}`,
       asOf: iso(now),
@@ -728,21 +733,32 @@ export class DataModel {
 
   // ── recaps and dossiers (H-13, H-5) ──
 
-  storeRecap(pageLabel: string, fanRef: string, slot: 'full' | 'short', body: RecapBody): void {
-    const key = this.key(pageLabel, fanRef);
+  /** Where a recap of a conversation about a fan is kept: the fan's own form, or the conversation's when it is not the fan (R20 F6b). */
+  private recapKey(pageLabel: string, conversation: string, fanRef: string): string {
+    return this.key(pageLabel, conversation === fanRef ? fanRef : `${conversation}\u0000${fanRef}`);
+  }
+
+  storeRecap(pageLabel: string, fanRef: string, slot: 'full' | 'short', body: RecapBody, conversation: string = fanRef): void {
+    const key = this.recapKey(pageLabel, conversation, fanRef);
     const current = this.recaps.get(key) ?? { full: null, short: null };
     this.recaps.set(key, { ...current, [slot]: body });
   }
 
-  sharedRecaps(pageLabel: string, fanRef: string, personaDefinitionId: string | undefined): SharedRecaps {
-    const stored = this.recaps.get(this.key(pageLabel, fanRef)) ?? { full: null, short: null };
+  /**
+   * The shared recaps of a fan (H-13). By a conversation of its own (hub HF-10): the recaps of that conversation
+   * stored about this fan, and those in the fan's own form — the freshest of each length. Never another fan's.
+   */
+  sharedRecaps(pageLabel: string, fanRef: string, personaDefinitionId: string | undefined, conversation: string = fanRef): SharedRecaps {
+    const own = this.recaps.get(this.key(pageLabel, fanRef)) ?? { full: null, short: null };
+    const group = conversation === fanRef ? { full: null, short: null } : (this.recaps.get(this.recapKey(pageLabel, conversation, fanRef)) ?? { full: null, short: null });
     const pick = (body: RecapBody | null): RecapBody | null => (body === null || personaDefinitionId === undefined || body.personaDefinitionId === personaDefinitionId ? body : null);
-    const full = pick(stored.full);
-    return { full, short: pick(stored.short), fullSavedToProfile: full !== null && this.dossierSource.get(this.key(pageLabel, fanRef)) === full.generationRef };
+    const newest = (a: RecapBody | null, b: RecapBody | null): RecapBody | null => (a === null ? b : b === null || Date.parse(a.generatedAt) >= Date.parse(b.generatedAt) ? a : b);
+    const full = newest(pick(group.full), pick(own.full));
+    return { full, short: newest(pick(group.short), pick(own.short)), fullSavedToProfile: full !== null && this.dossierSource.get(this.key(pageLabel, fanRef)) === full.generationRef };
   }
 
-  recapStatus(pageLabel: string, fanRef: string, personaDefinitionId: string | undefined, now: number): RecapStatus {
-    const { full, short } = this.sharedRecaps(pageLabel, fanRef, personaDefinitionId);
+  recapStatus(pageLabel: string, fanRef: string, personaDefinitionId: string | undefined, now: number, conversation: string = fanRef): RecapStatus {
+    const { full, short } = this.sharedRecaps(pageLabel, fanRef, personaDefinitionId, conversation);
     const slot = (body: RecapBody | null): RecapStatus['full'] =>
       body === null
         ? null
@@ -762,7 +778,7 @@ export class DataModel {
     const seed = this.seedOf(fanRef);
     return ok({
       fan: {
-        platform: 'onlyfans',
+        platform: page.platform,
         platformUserId: fanRef,
         username: seed?.username ?? (named ? 'fan_two' : `fan_${fanRef}`),
         displayName: seed?.displayName ?? (named ? 'Fan Two' : null),
