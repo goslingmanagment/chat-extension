@@ -36,6 +36,7 @@ function wire(mounted: MountedKit): void {
   page = [];
   dispatcher = createEarlyKeyDispatcher({
     platform: 'mac',
+    client: 'extension',
     window,
     ownership: createKeyboardProbe(document, registry),
     state: createTabKeyState({ overlays, route: () => ({ kind: 'chat', epoch: '/accounts/1001/chats/2002' }) }),

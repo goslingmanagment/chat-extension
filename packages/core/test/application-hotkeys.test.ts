@@ -48,6 +48,7 @@ function rig(platform: HotkeyPlatform = 'mac', connect = true, onEarly?: (notice
   let tick = 0;
   const dispatcher = createEarlyKeyDispatcher({
     platform,
+    client: 'extension',
     window: win,
     document: { source: doc, hidden: () => page.hidden, focused: () => page.focused },
     ownership: own,
@@ -181,14 +182,14 @@ describe('the early dispatcher', () => {
   });
 
   it('[HK-023] one engine per tab: every trusted keydown and keyup goes through the single resolver, the lazy part gets commands, never keys', () => {
-    const resolver = createKeyResolver('mac');
+    const resolver = createKeyResolver('mac', 'extension');
     const keydown = vi.spyOn(resolver, 'keydown');
     const keyup = vi.spyOn(resolver, 'keyup');
     const win = new FakeWindow();
     const own = new FakeOwnership();
     const clock = new FakeClock(NOW);
     const sink = new RecordingSink();
-    const dispatcher = createEarlyKeyDispatcher({ platform: 'mac', window: win, ownership: own, state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false }, timers: clock, now: () => clock.now(), resolver });
+    const dispatcher = createEarlyKeyDispatcher({ platform: 'mac', client: 'extension', window: win, ownership: own, state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false }, timers: clock, now: () => clock.now(), resolver });
     dispatcher.connect(sink);
     // One listener of each kind on `window`, in capture: nothing else of ours listens for keys there. The pointer
     // is not listened to at all while no hold is armed and no popup is open.
@@ -648,13 +649,14 @@ describe('the early dispatcher', () => {
     expect(early.sink.quick).toEqual([]);
 
     // The engine no longer sees a lone ⌘ when the 400 ms are over (whatever ended it without a keydown of ours): no popup.
-    const resolver = createKeyResolver('mac');
+    const resolver = createKeyResolver('mac', 'extension');
     let alone = true;
     const win = new FakeWindow();
     const clock = new FakeClock(NOW);
     const sink = new RecordingSink();
     const dispatcher = createEarlyKeyDispatcher({
       platform: 'mac',
+      client: 'extension',
       window: win,
       ownership: new FakeOwnership(),
       state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false },
@@ -766,7 +768,7 @@ describe('the early dispatcher', () => {
     const win = new FakeWindow();
     const clock = new FakeClock(NOW);
     const sink = new RecordingSink();
-    const plain = createEarlyKeyDispatcher({ platform: 'mac', window: win, ownership: new FakeOwnership(), state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false }, timers: clock, now: () => clock.now() });
+    const plain = createEarlyKeyDispatcher({ platform: 'mac', client: 'extension', window: win, ownership: new FakeOwnership(), state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false }, timers: clock, now: () => clock.now() });
     plain.connect(sink);
     win.fire('keydown', primaryKey('mac', true));
     await clock.advance(QUICK_JUMP_HOLD_MS);

@@ -40,6 +40,7 @@ import {
   isPrimaryModifierKey,
   type DispatcherCommandId,
   type FocusKind,
+  type HotkeyClient,
   type HotkeyKeyEvent,
   type HotkeyPlatform,
   type KeyCommand,
@@ -144,6 +145,8 @@ export interface DispatcherStats {
 
 export interface EarlyKeyDispatcherOptions {
   readonly platform: HotkeyPlatform;
+  /** The site's client of the vendored key scheme (`HostAdapter.hotkeyClient`): ChatSpace `extension`, Fansly `fansly`. */
+  readonly client: HotkeyClient;
   /** `window`: keydown and keyup in capture, blur. */
   readonly window: EventSourceLike;
   /**
@@ -194,7 +197,7 @@ function asKeyEvent(value: unknown): KeyEventLike | null {
 
 export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): EarlyKeyDispatcher {
   const { platform, ownership, state, timers } = options;
-  const resolver = options.resolver ?? createKeyResolver(platform);
+  const resolver = options.resolver ?? createKeyResolver(platform, options.client);
   const sampleEvery = Math.max(1, options.sampleEvery ?? 20);
   let sink: HotkeySink | null = null;
   let kept: KeptKey | null = null;

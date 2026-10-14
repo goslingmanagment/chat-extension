@@ -64,8 +64,8 @@ export interface TabKeys {
 export interface TabKeysEnv {
   readonly win: Window;
   readonly mounts: Pick<HostMounts, 'dock' | 'registry' | 'setDismissibleOpen'>;
-  /** The page side of the dispatcher: whose the focus is, the address's route, the dock host's waiting mark. */
-  readonly site: Pick<HostAdapter, 'keyProbe' | 'keyPending' | 'routeOfLocation'>;
+  /** The page side of the dispatcher: whose the focus is, the address's route, the dock host's waiting mark; the site's client of the key scheme. */
+  readonly site: Pick<HostAdapter, 'keyProbe' | 'keyPending' | 'routeOfLocation' | 'hotkeyClient'>;
   /** A key waits for the lazy part: load it now. */
   readonly onWaiting: () => void;
 }
@@ -129,6 +129,7 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
   // Registered after `onKeydown` above, on the same target and phase: it runs second.
   const dispatcher = createEarlyKeyDispatcher({
     platform,
+    client: site.hotkeyClient,
     window: win,
     document: { source: doc, hidden: () => doc.hidden, focused: () => doc.hasFocus() },
     ownership: site.keyProbe(doc, mounts.registry),

@@ -3,7 +3,9 @@
 // parameter — every dock state; `&w=853|693|489|360` the composer width,
 // `&theme=light|dark`, `&lang=ru|en`, `&style=bare|sheet`, `&feed=574&vh=900`
 // the height of the feed window and of the browser window the host reports
-// (the result's height limit, ui-design §3.2). The page plays the host side: a closed shadow root on a host element above a fake composer
+// (the result's height limit, ui-design §3.2), `&host=chatspace|test` the
+// site's profile the surfaces are mounted with (kit/profiles.ts; ChatSpace's
+// by default). The page plays the host side: a closed shadow root on a host element above a fake composer
 // (or the overlay host over the whole window), and the surfaces are mounted
 // exactly as the extension mounts them. `window.__dock` tells the e2e what a
 // closed root hides: failures the surfaces reported, overflow, overlaps and
@@ -14,6 +16,7 @@ import { dockSurface, preloadPart, DEFAULT_PARTS } from '@cg/ui/dock';
 import { mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
 import { lazyOverlays, toastsSurface } from '@cg/ui/overlays';
 
+import { galleryHostOf } from '../../kit/profiles';
 import { entry } from '../../scenarios/app-client';
 import { kitWorld, type KitWorld } from '../../kit/world';
 import { GALLERY_STATES, STATE_GROUPS, galleryState, scenarioOfState, type GalleryState } from './states';
@@ -59,6 +62,7 @@ const feedHeight = Number(params.get('feed') ?? '574') || 574;
 const viewportHeight = Number(params.get('vh') ?? '900') || 900;
 /** `os=win`: the key labels of Windows and Linux («Ctrl+Alt+B»), four times as wide as the Mac's. */
 const keys: 'mac' | 'win' = params.get('os') === 'win' ? 'win' : 'mac';
+const site = galleryHostOf(params);
 const stateParam = params.get('state');
 const groupParam = params.get('group');
 const single = stateParam === null ? null : galleryState(stateParam);
@@ -80,7 +84,7 @@ if (single !== null) html.setAttribute('data-gal-single', single.id);
 // A menu opens upwards, over the feed: a page of one such state gives it room.
 if (single?.open !== undefined) html.style.setProperty('--gal-feed', '260px');
 const config = document.querySelector('[data-gal-config]');
-if (config !== null) config.textContent = `${scheme} · ${language} · ${width} px · ${style}${groupParam === null ? '' : ` · ${groupParam}`}`;
+if (config !== null) config.textContent = `${scheme} · ${language} · ${width} px · ${style}${groupParam === null ? '' : ` · ${groupParam}`}${site.host === 'chatspace' ? '' : ` · ${site.host}`}`;
 
 const gallery = document.getElementById('gallery') as HTMLElement;
 const failures: KitFailure[] = [];
@@ -110,7 +114,8 @@ function worldOf(item: GalleryState): KitWorld {
 
 function mountInto(item: GalleryState, world: KitWorld, host: HTMLElement, kind: MountSurfaceKind, definition: SurfaceDefinition): Mounted {
   const root = host.attachShadow({ mode: 'closed' });
-  const mount = mountKitSurface(kind, root, world.deps, definition, { now: () => world.client.now(), report: (failure) => failures.push(failure) });
+  // As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet).
+  const mount = mountKitSurface(kind, root, { ...world.deps, profile: site.profile }, definition, { now: () => world.client.now(), report: (failure) => failures.push(failure) });
   const entryOf: Mounted = { state: item, world, host, root, mount };
   mounted.push(entryOf);
   return entryOf;

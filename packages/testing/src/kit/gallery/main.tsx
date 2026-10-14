@@ -1,4 +1,5 @@
-// The gallery page: `?theme=light|dark&lang=ru|en&col=320&section=parts-sheet`.
+// The gallery page: `?theme=light|dark&lang=ru|en&col=320&section=parts-sheet&host=chatspace|test` (the site's
+// profile it is mounted with, kit/profiles.ts; ChatSpace's by default).
 // It plays the host side — a closed shadow root on a host element — and
 // mounts the gallery through the kit's own mount helper, the way a surface
 // of the extension is mounted. `window.__gallery` gives the e2e what a closed
@@ -8,6 +9,7 @@
 import { type ColorScheme, type Locale } from '@cg/contracts';
 import { mountKitSurface, type KitFailure } from '@cg/ui/kit';
 
+import { galleryHostOf } from '../profiles';
 import { kitWorld } from '../world';
 import { GALLERY_CSS, GALLERY_SECTIONS, Gallery } from './Gallery';
 
@@ -33,6 +35,7 @@ const language: Locale = params.get('lang') === 'en' ? 'en' : 'ru';
 const column = Number(params.get('col') ?? '0');
 const sectionParam = params.get('section');
 const section = GALLERY_SECTIONS.find((id) => id === sectionParam) ?? null;
+const site = galleryHostOf(params);
 
 const html = document.documentElement;
 html.classList.toggle('dark', scheme === 'dark');
@@ -43,7 +46,7 @@ if (column > 0) {
   html.style.setProperty('--gal-col', `${column}px`);
 }
 const config = document.querySelector('[data-gal-config]');
-if (config !== null) config.textContent = `${scheme} · ${language}${column > 0 ? ` · ${column} px` : ''}${section === null ? '' : ` · ${section}`}`;
+if (config !== null) config.textContent = `${scheme} · ${language}${column > 0 ? ` · ${column} px` : ''}${section === null ? '' : ` · ${section}`}${site.host === 'chatspace' ? '' : ` · ${site.host}`}`;
 
 const world = kitWorld('gallery-ready', language);
 world.deps.scheme.set(scheme);
@@ -55,7 +58,7 @@ const failures: KitFailure[] = [];
 const mount = mountKitSurface(
   'dock',
   root,
-  world.deps,
+  { ...world.deps, profile: site.profile },
   { view: () => <Gallery ctx={world.ctx} only={section} />, styles: [{ id: 'kit-gallery', css: GALLERY_CSS }] },
   { now: () => world.client.now(), report: (failure) => failures.push(failure) },
 );

@@ -10,6 +10,7 @@ import { type PerfMetric } from '../telemetry';
 import { type Uuid } from '../primitives';
 import { type AppClient } from './app-client';
 import { type ActionCatalog } from './catalog';
+import { type HostUiProfile } from './host-profile';
 import { type I18n, type Msg } from './i18n';
 import { type MountSurfaceKind, type ToastId } from './selectors';
 import { type ValueSignal } from './signal';
@@ -112,6 +113,12 @@ export interface MountDeps {
   readonly geometry: GeometrySignal;
   readonly focus: FocusReturn;
   readonly marks: RenderMarks;
+  /**
+   * The site's profile for our interface (1.15.0, R20 F5; host-profile.ts): the mount puts its palette and the
+   * dock's variant on the host element and adopts its sheet. Absent — an extension page, or a test: nothing of a
+   * site goes on the host.
+   */
+  readonly profile?: HostUiProfile;
 }
 
 /**

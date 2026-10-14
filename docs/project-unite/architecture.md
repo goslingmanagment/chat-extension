@@ -113,6 +113,7 @@ interface HostAdapter<P extends HostPort = HostPort> {
   keyProbe(doc: Document, roots: ShadowRegistry): KeyOwnership;  // чьё поле в фокусе, открыто ли окно сайта
   keyPending(dock: Element): (waiting: boolean) => void;        // метка ждущей клавиши на хосте дока (HK-024)
   routeOfLocation(location: Pick<Location, 'pathname'>): RouteKey;  // ранний разбор адреса для клавиш
+  readonly hotkeyClient: HotkeyClient;                          // клиент схемы клавиш: 'extension' | 'fansly' (§1.5, F5)
   readonly lazy: HostLazyPlan;                                  // { root }: где лежит своя ленивая сборка
 }
 interface HostStartEnv extends TabEnv { redeem; lazy(entry); navInsertTimeoutMs(); onDiagnostic(diagnostic) }
@@ -124,11 +125,13 @@ interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
   configure(host: P, config: C): Promise<unknown>;                         // вкладка применяет только новое значение
   readonly features: FeatureSlice;                                         // срез манифеста фич сайта (§1.4, F4)
   readonly contract: HostContractShape;                                    // ожидаемый набор якорей сайта (§7.12, F7)
+  ui(theme: HostThemeSource): HostUiProfile;                               // профиль сайта для интерфейса (§1.5, F5)
 }
 ```
 - **Что впереди.** Срез манифеста фич в половине приложения — `HostAppAdapter.features` (§1.4, сделано в F4); F10
-  добавляет порты политики AI (`ai`, §1.6, §9.1). Профиль сайта (§1.5, F5) раскладывается по тому же правилу: клиент схемы клавиш (`hotkeyClient`)
-  читает ранний диспетчер — он в ранней половине; палитра, лист варианта и фразы — с приложением.
+  добавляет порты политики AI (`ai`, §1.6, §9.1). Профиль сайта (§1.5) разложен по тому же правилу (сделано в F5):
+  клиент схемы клавиш (`HostAdapter.hotkeyClient`) читает ранний диспетчер — он в ранней половине; палитра, вариант и
+  лист дока, фразы — с приложением (`HostAppAdapter.ui`).
 - **План ленивых чанков** — данные: каждый чанк — `<root>/<вход>.js` своей сборки. Хост с первым кадром MAIN грузит
   `bridge-validation`; ранний бандл с первым местом для дока, первой нашей клавишей или первой командой страницы —
   `tab-protocol` и `tab-app` (с половиной приложения); остальное приложение грузит по имени. Имена входов у сайтов
@@ -239,30 +242,48 @@ ChatSpace: ни байта разницы, и сборка этот файл н�
 
 ### 1.5 Профиль сайта для интерфейса
 
+Как построено в F5 (`contracts/src/vm/host-profile.ts`, 1.15.0):
 ```ts
-interface HostUiProfile {
-  kind: HostKind;
-  palette: ValueSignal<Record<`--color-om-${string}`, string>>;  // ValueSignal — contracts/src/vm/signal.ts
-  dock: { variant: 'chatspace' | 'fansly'; keepBottomPx: number; minWidthPx: number };
-  layers: { ceiling: number };                                   // под модалками сайта
-  keys: HostKeyTable; hotkeyClient: 'extension' | 'fansly';
-  sheet?: () => Promise<CSSStyleSheet>;                          // правила варианта дока и иконки чипов сайта
-  phrases: HostPhrases;                                          // целые фразы с именем сайта (§3.4)
+interface HostUiProfile {                                         // в MountDeps.profile каждой поверхности вкладки
+  palette?: ValueSignal<HostPalette>;   // HostPalette = Record<`--color-om-${string}`, string>; нет — палитра страницы по наследованию
+  dock: { variant: DockVariant };       // 'chatspace' | 'fansly' → data-dock-variant на хосте
+  sheet?: HostSheet;                    // { id, css }: правила варианта дока и иконки чипов сайта
+  phrases: Record<Locale, HostPhrases>; // целые фразы с именем сайта (§3.4): { site, onSite }
 }
+// клиент схемы клавиш — в ранней половине адаптера: HostAdapter.hotkeyClient ('extension' | 'fansly', §1.3)
 ```
-- **Цвета.** Kit по-прежнему читает `--color-om-*`. На Fansly адаптер переводит переменные страницы (`--blue-1`,
-  `--dark-1…8`, `--font-1`, `--border-color` и др., S2 Q9) в эти тройки и ставит их на наш хост-элемент рядом с
-  `data-scheme`. Первый чанк дока не меняется.
-- **Вариант дока** — атрибут `data-dock-variant` на хосте. Правила ширины и иконки чипов варианта Fansly приходят листом
-  стилей из сборки Fansly (`profile.sheet`), а не правилами в общем `ui/src/dock/styles.ts`.
+- **Половины.** Профиль отдаёт половина приложения адаптера (`HostAppAdapter.ui(theme)` — один раз, при старте
+  приложения; `theme` — тема сайта, как её показывает страница, для палитры, которая следует за страницей). Клиент схемы
+  клавиш читает ранний диспетчер (`createKeyResolver(platform, client)`, `core/src/domain/hotkeys/resolver.ts`), поэтому
+  он — поле ранней половины `HostAdapter.hotkeyClient`, а не профиля. Профиль ChatSpace —
+  `host-chatspace/src/isolated/profile.ts` (`CHATSPACE_UI`, подпуть `@cg/host-chatspace/isolated/profile`): его
+  импортируют только половина приложения ChatSpace (чанк `tab-app`) и галереи стенда.
+- **Цвета.** Kit по-прежнему читает `--color-om-*`. У ChatSpace палитры в профиле нет: его тройки стоят на `<html>` и
+  доходят до наших хостов наследованием. Сайт, у страницы которого таких переменных нет, отдаёт их в `palette`; на Fansly
+  адаптер переводит переменные страницы (`--blue-1`, `--dark-1…8`, `--font-1`, `--border-color` и др., S2 Q9) в эти
+  тройки (P8d). Монтирование kit (`ui/kit/mount.tsx`) ставит их на наш хост правилом `:host { … }` одного общего листа
+  (`paletteSource`, id `cg-host-palette`, `ui/kit/tokens.ts`): страница не видит инлайн-стиля, все наши корни документа
+  делят один лист, и новое значение сигнала переписывает его во всех сразу.
+- **Вариант дока** — атрибут `data-dock-variant` на хосте рядом с `data-scheme` (имя нейтральное, X22; его держат
+  `mount.dom.test.ts` и `sentry-gate.e2e.ts`). Правила ширины и иконки чипов варианта Fansly приходят листом стилей
+  из сборки Fansly (`profile.sheet`, после листов поверхности), а не правилами в общем `ui/src/dock/styles.ts`. Лист —
+  данные, а не `() => Promise<CSSStyleSheet>`: половина приложения сайта и так ленивая, а лист, пришедший после первого
+  кадра, перерисовал бы док (скачок ширины).
+- **Что не в профиле.** Порог низа ленты (keep-bottom: у ChatSpace 100 px, `NEAR_BOTTOM_PX`; у Fansly 350 px) и слои
+  под модалками сайта — параметры старта хоста в ранней половине: keep-bottom и слои перенёс в `host-kit` P5
+  (`host-kit/src/isolated/{keep-bottom,hosts}.ts`, порог там пока константа), параметром старта сайта его делает P7d
+  вместе с порогом Fansly. Общий интерфейс их не читает. Таблица клавиш сайта (уступка модалкам, Enter) — ранний щуп
+  `keyProbe` (P7i). Ширины — лист варианта.
 - **Чипы — данными.** `DockVM.chips: ChipVM[]` (добавочно; `actions` для замороженных семи остаётся) строится из среза
   манифеста и `admission`. Чип 🎙 — запись в манифесте, а не ветка в `Strip`.
 - **Слоты.** Поверхность `header-slot` есть только у Fansly; что в неё рисуется («Регистрация», «Заметки»), решает срез.
 - **Где сайты могут различаться:** цвета, плотность, вариант раскладки, набор и порядок чипов, слоты, фразы. **Нельзя:**
   копировать компонент под сайт. Если вид расходится сильнее — отдельная поверхность сайта в `ui/src/hosts/<host>/`,
   зарегистрированная в его срезе.
-- Галерея рисует каждую поверхность в профиле каждого сайта (`?host=fansly`); визуальную правку проверяют по снимкам
-  обоих.
+- Галерея рисует каждую поверхность в профиле каждого сайта: параметр `?host=` у галерей kit, дока и досок
+  (`packages/testing/src/kit/profiles.ts`); по умолчанию — профиль ChatSpace, как его монтирует вкладка; `?host=test` —
+  тестовый второй сайт (своя палитра и лист варианта), профиль Fansly с его видом добавляет P8d (`?host=fansly`).
+  Визуальную правку проверяют по снимкам обоих.
 
 ### 1.6 Свои реестры у сайта
 
@@ -396,9 +417,9 @@ interface HostUiProfile {
 | `core/src/domain/telemetry/health.ts:242`; `core/src/services/telemetry/health.ts:33, 193` | один хост `chatspace`, `chatSpaceOpen` | окно на (хост, сборка) | F7 · гейт (литерал `health.ts:242`) |
 | `core/src/application/pages/view-status.ts:139-151, 474, 489`; `contracts/src/vm/pages.ts:86-102`; `ui/src/pages/options/Status.tsx:45`; `Options.tsx:59` | строка «ChatSpace» обязательна | строка на каждый сайт с привязками | F7 · гейт |
 | `core/src/application/pages/model.ts:181`; `client.ts:910` | перечисление двух видов хоста | `HOST_KINDS` | F6a · гейт |
-| `core/src/domain/hotkeys/resolver.ts:50` | клиент схемы `'extension'` | `profile.hotkeyClient` (F5) | F5 |
-| `ui/src/kit/tokens.ts:18-55` | палитра только из `<html>` ChatSpace | `profile.palette` | F5 |
-| `ui/src/dock/Strip.tsx:47-60`; `dock/styles.ts:112-235`; `contracts/src/vm/dock.ts:15-16` | семь чипов и пороги под них | чипы данными (сделано в F4: `DockVM.chips`, `Strip` по группам и порядку данных, слоты групп — `ui/kit/chips.ts`); лист варианта — F5 | F4 ✓, F5 |
+| `core/src/domain/hotkeys/resolver.ts:50` | клиент схемы `'extension'` | клиент сайта из ранней половины адаптера (сделано в F5: `HostAdapter.hotkeyClient` → `createKeyResolver(platform, client)`) | F5 ✓ |
+| `ui/src/kit/tokens.ts:18-55` | палитра только из `<html>` ChatSpace | `profile.palette` (сделано в F5: правило `:host` общего листа; у ChatSpace — наследование, как было) | F5 ✓ |
+| `ui/src/dock/Strip.tsx:47-60`; `dock/styles.ts:112-235`; `contracts/src/vm/dock.ts:15-16` | семь чипов и пороги под них | чипы данными (сделано в F4: `DockVM.chips`, `Strip` по группам и порядку данных, слоты групп — `ui/kit/chips.ts`); лист варианта (сделано в F5: `profile.sheet` и `data-dock-variant`) | F4 ✓, F5 ✓ |
 | `hub/src/facade.ts:343` | «… · ChatSpace» в имени устройства | нейтрально | F9b (тексты) |
 | `hub/src/ai-request.ts` с `HubFacade.buildStreamRequest` | мёртвый сборщик (`conversationRef = fanRef`), вызывают только тесты, но он в `background.js`; рабочий — `core/src/domain/ops/request.ts:105` | удалить (освобождает байты фона) | F6a |
 | `host-chatspace/src/main/requests.ts:9, 23` | MAIN ChatSpace принимает оба вида хоста | только `'chatspace'` (освобождает байты MAIN) | F6a · гейт |
@@ -511,15 +532,15 @@ XHR Angular, а второй MAIN-скрипт — лишняя точка, ко
 |---|---|---|
 | MAIN `chatspace-main.js` | 10 174 / 10 240 Б gzip (перед F6a — 10 169; F6a — −9: только `'chatspace'`; P5 — +14: тот же код в другом порядке модулей — литералы протокола в двух модулях, `host-kit` и ChatSpace) | 66 Б |
 | тап `chatspace-ws.js` | 6 105 / 6 144 (P5 — −2: две строки протокола в другом порядке) | 39 Б |
-| ранний изолированный `chatspace.js` | 30 310 / 30 720 (замер F3: `main` `d159743` — 30 154, F3 — +122; перед F4 — 30 285, F4 — −13: те же модули в другом порядке; P5 — +38: два правила сайта в щупе клавиш `host-kit` — замыканиями, список несклеиваемых событий — параметром клиента моста, порядок модулей) | 410 Б |
-| слой `ai` | 29 884 / 30 720 (перед F4 — 29 887; F4 — −50: таблица флагов и `FEATURE_FLAGS` ушли, чипы — в `tab-app`; F6a — +47: разговор дока из маршрута, «Открыть и вставить») | 836 Б |
-| проба реестра запросов вкладки | 27 526 / 28 672 (F1: +39 Б — `hostModules` диагностики; перед F6a — 27 521, F6a — +5: `BackgroundToast.conversationRef`) | 1 146 Б |
-| проба раннего контракта (конверты, `tab.register`) | 10 812 / 12 288 | 1 476 Б |
-| проба `UiAction` | 14 323 / 16 384 | 2 061 Б |
-| слой `tab-app` | 26 506 / 30 720 (перед F4 — 25 407; F4 — +1 072: срез манифеста ChatSpace, `admission`, чипы данными; F6a — +27: разговор тоста через порт ручки чата) | 4 214 Б |
-| первый чанк дока | 42 109 / 46 080 (F4 — −308: таблицы чипов ушли из `Strip`) | 3 971 Б |
+| ранний изолированный `chatspace.js` | 30 324 / 30 720 (замер F3: `main` `d159743` — 30 154, F3 — +122; перед F4 — 30 285, F4 — −13: те же модули в другом порядке; F7 — 0; P5 — +38: два правила сайта в щупе клавиш `host-kit` — замыканиями, список несклеиваемых событий — параметром клиента моста, порядок модулей; F5 — +14: клиент схемы клавиш из ранней половины адаптера) | 396 Б |
+| слой `ai` | 29 935 / 30 720 (перед F4 — 29 887; F4 — −50: таблица флагов и `FEATURE_FLAGS` ушли, чипы — в `tab-app`; F6a — +47: разговор дока из маршрута, «Открыть и вставить»; F7 — +51, замер F5 на `main` `9845f54`; F5 — 0) | 785 Б |
+| проба реестра запросов вкладки | 27 775 / 28 672 (F1: +39 Б — `hostModules` диагностики; перед F6a — 27 521, F6a — +5: `BackgroundToast.conversationRef`; F7 — +249, замер F5 на `main` `9845f54`; F5 — 0) | 897 Б |
+| проба раннего контракта (конверты, `tab.register`) | 10 816 / 12 288 (замер F5 на `main` `9845f54` и на ветке — тот же) | 1 472 Б |
+| проба `UiAction` | 14 319 / 16 384 (замер F5 на `main` `9845f54` и на ветке — тот же) | 2 065 Б |
+| слой `tab-app` | 26 710 / 30 720 (перед F4 — 25 407; F4 — +1 072: срез манифеста ChatSpace, `admission`, чипы данными; F6a — +27: разговор тоста через порт ручки чата; F7 — +128: ожидаемый набор якорей сайта, замер F5 на `main` `9845f54` — 26 634; F5 — +76: профиль ChatSpace в половине приложения) | 4 010 Б |
+| первый чанк дока | 42 253 / 46 080 (F4 — −308: таблицы чипов ушли из `Strip`; F5 — +144: профиль на хосте — вариант, палитра, лист сайта) | 3 827 Б |
 | каталог `ru` | 23,39 / 30 КиБ (F1: +40 Б gzip — предупреждение «Статуса») | — (тексты Fansly в него не идут) |
-| **ядро фона** `background.js`, raw (сигнальный порог `archive-check`) | 772 184 / 819 200 (F1; до F1 — 811 317; перед F4 — 771 369; F4 — +2 956: срезы манифеста, `admission`, токен `insert` по допуску; F6a — −2 141: мёртвый сборщик −2 276, разговор тоста и ключа запроса +135) | **47 016 Б** |
+| **ядро фона** `background.js`, raw (сигнальный порог `archive-check`) | 782 380 / 819 200 (F1; до F1 — 811 317; перед F4 — 771 369; F4 — +2 956: срезы манифеста, `admission`, токен `insert` по допуску; F6a — −2 141: мёртвый сборщик −2 276, разговор тоста и ключа запроса +135; F7 — +3 753, замер F5 на `main` `9845f54`; P2v — +6 443: SDK из `bd3eec06` (план §4); F5 — 0) | **36 820 Б** |
 | чанк фона `bg/chatspace.js`, raw (F1; потолок — реестр хостов) | 90 691 / 98 304 (перед F4 — 91 722; F4 — −1 031: таблица `CLIENT_FLAG_REQUIREMENTS` ушла) | 7 613 Б |
 
   Известные источники байтов: мёртвый `hub/src/ai-request.ts` с `HubFacade.buildStreamRequest` (F6a, освобождён:

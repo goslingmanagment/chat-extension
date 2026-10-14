@@ -12,8 +12,17 @@
 // `:host-context()` (Firefox has none), so the mount writes the resolved
 // scheme to `data-scheme` on our host element and the dark values key on
 // it. Extension pages put the same attribute on <html>.
+//
+// The triplets are the site's (Project Unite architecture §1.5; R20 F5): on
+// ChatSpace they come from its <html> by inheritance; a site whose page has
+// no such variables gives them in its profile (`HostUiProfile.palette`), and
+// the mount puts them on our host element as a `:host` rule of one shared
+// sheet (`paletteSource`) — the same names, so every token below reads them
+// unchanged.
 
-import { THEME_TOKEN_NAMES, type ColorScheme, type ThemeTokenName } from '@cg/contracts/vm';
+import { THEME_TOKEN_NAMES, type ColorScheme, type HostPalette, type ThemeTokenName } from '@cg/contracts/vm';
+
+import { type StyleSource } from './styles';
 
 /** ChatSpace 0.172.0 values of the steps we read: the fallback of each triplet (ui-design §2.2). */
 export const HOST_FALLBACK_TRIPLETS = {
@@ -47,6 +56,14 @@ export const HOST_FALLBACK_TRIPLETS = {
 } as const;
 
 export type HostStep = keyof typeof HOST_FALLBACK_TRIPLETS;
+
+/**
+ * A site's palette as the sheet the mount adopts into our roots: its triplets on our host element. One id for the
+ * document — every root of the tab shares the one sheet, and a new value rewrites it for all of them at once.
+ */
+export function paletteSource(palette: HostPalette): StyleSource {
+  return { id: 'cg-host-palette', css: `:host { ${Object.entries(palette).map(([name, triplet]) => `${name}: ${triplet};`).join(' ')} }` };
+}
 
 /** `rgb(var(--color-om-neutral-900, 26 24 19))`, optionally with alpha. */
 export function om(step: HostStep, alpha?: number): string {

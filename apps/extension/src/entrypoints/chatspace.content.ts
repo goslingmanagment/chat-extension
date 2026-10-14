@@ -28,6 +28,8 @@ export const CHATSPACE_ADAPTER: HostAdapter<ChatSpaceHostPort> = {
   keyProbe: createKeyboardProbe,
   keyPending: createKeyPendingMark,
   routeOfLocation,
+  // The vendored scheme's rows of both extensions; Notes (⌘⇧K) is the Fansly extension's and stays a reserved letter here.
+  hotkeyClient: 'extension',
   // ChatSpace's own lazy build (lazy/chatspace/, R20 F2b).
   lazy: { root: CHATSPACE_LAZY_ROOT },
 };

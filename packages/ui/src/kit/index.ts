@@ -15,6 +15,7 @@ export {
   TOKEN_VALUES,
   dark,
   om,
+  paletteSource,
   tokenValue,
   type HostStep,
   type TokenValue,

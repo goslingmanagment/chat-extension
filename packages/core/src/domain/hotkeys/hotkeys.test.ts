@@ -61,7 +61,7 @@ const CTRL = ev('ControlLeft', { key: 'Control', ctrlKey: true });
 
 /** Presses the primary modifier freshly, then the key under it: what a person does. */
 function press(platform: HotkeyPlatform, code: string, mods: Mods = {}): KeyVerdict | null {
-  const resolver = createKeyResolver(platform);
+  const resolver = createKeyResolver(platform, 'extension');
   resolver.keydown(platform === 'mac' ? META : CTRL);
   return resolver.keydown(ev(code, platform === 'mac' ? { metaKey: true, ...mods } : { ctrlKey: true, ...mods }));
 }
@@ -105,7 +105,7 @@ describe('the vendored scheme through the tab resolver', () => {
   });
 
   it('[HK-006] Cancel has no fresh-press guard: ⌘E, then . under the same ⌘ still cancels the run it started', () => {
-    const resolver = createKeyResolver('mac');
+    const resolver = createKeyResolver('mac', 'extension');
     resolver.keydown(META);
     expect(command(resolver.keydown(ev('KeyE', { metaKey: true })))).toBe('reply');
     expect(command(resolver.keydown(ev('Period', { metaKey: true })))).toBe('cancel');
@@ -119,7 +119,7 @@ describe('the vendored scheme through the tab resolver', () => {
     // The rows outside the scheme are just as strict.
     expect(press('mac', 'KeyK', { altKey: true })).toBeNull();
     expect(press('win', 'KeyU', { shiftKey: true })).toBeNull();
-    expect(createKeyResolver('win').keydown(ev('KeyJ', { shiftKey: true }))).toBeNull();
+    expect(createKeyResolver('win', 'extension').keydown(ev('KeyJ', { shiftKey: true }))).toBeNull();
   });
 
   it('[HK-015] Ctrl+Shift and Alt+Shift carry nothing on Windows: they switch the input language', () => {
@@ -127,7 +127,7 @@ describe('the vendored scheme through the tab resolver', () => {
     for (const def of EXTRA_KEYS) {
       for (const code of def.codes) {
         expect(press('win', code, { shiftKey: true })).toBeNull();
-        expect(createKeyResolver('win').keydown(ev(code, { altKey: true, shiftKey: true }))).toBeNull();
+        expect(createKeyResolver('win', 'extension').keydown(ev(code, { altKey: true, shiftKey: true }))).toBeNull();
       }
     }
   });
@@ -161,7 +161,7 @@ describe('the vendored scheme through the tab resolver', () => {
     };
     for (const platform of ['mac', 'win'] as const) {
       for (const item of CHATSPACE_KEYS) {
-        const resolver = createKeyResolver(platform);
+        const resolver = createKeyResolver(platform, 'extension');
         resolver.keydown(platform === 'mac' ? META : CTRL);
         const verdict = resolver.keydown(event(item, platform));
         if (item.status === 'theirs') expect([platform, item.what, verdict]).toEqual([platform, item.what, null]);
@@ -180,20 +180,20 @@ describe('the vendored scheme through the tab resolver', () => {
   it('[HK-017] the physical key decides: ⌘+«у» on ЙЦУКЕН is Reply, a Latin «e» on another physical key is not', () => {
     expect(command(press('mac', 'KeyE', { key: 'у' }))).toBe('reply');
     expect(command(press('win', 'KeyK', { key: 'л' }))).toBe('palette');
-    expect(command(createKeyResolver('win').keydown(ev('KeyJ', { key: 'о' })))).toBe('chat-next');
+    expect(command(createKeyResolver('win', 'extension').keydown(ev('KeyJ', { key: 'о' })))).toBe('chat-next');
     // Dvorak-like: the letter «e» typed from the physical D key is not Reply.
     expect(press('mac', 'KeyD', { key: 'e' })).toBeNull();
   });
 
   it('[HK-018] fresh press: a text key fires only as the first key under a freshly pressed ⌘/Ctrl', () => {
     // Windows: Ctrl+Shift (language switch) → Shift up → still holding Ctrl → E.
-    const win = createKeyResolver('win');
+    const win = createKeyResolver('win', 'extension');
     win.keydown(CTRL);
     win.keydown(ev('ShiftLeft', { key: 'Shift', ctrlKey: true, shiftKey: true }));
     win.keyup(ev('ShiftLeft', { key: 'Shift', ctrlKey: true }));
     expect(win.keydown(ev('KeyE', { ctrlKey: true }))).toEqual({ kind: 'swallow', reason: 'rollover' });
     // macOS: ⌘G, then E under the same ⌘ needs ⌘ pressed again.
-    const mac = createKeyResolver('mac');
+    const mac = createKeyResolver('mac', 'extension');
     mac.keydown(META);
     expect(command(mac.keydown(ev('KeyG', { metaKey: true })))).toBe('hi');
     expect(mac.keydown(ev('KeyE', { metaKey: true }))).toEqual({ kind: 'swallow', reason: 'rollover' });
@@ -201,13 +201,13 @@ describe('the vendored scheme through the tab resolver', () => {
     mac.keydown(META);
     expect(command(mac.keydown(ev('KeyE', { metaKey: true })))).toBe('reply');
     // A modifier already held when the page got the focus is an unknown state: nothing fires.
-    expect(createKeyResolver('mac').keydown(ev('KeyE', { metaKey: true }))).toEqual({ kind: 'swallow', reason: 'rollover' });
+    expect(createKeyResolver('mac', 'extension').keydown(ev('KeyE', { metaKey: true }))).toEqual({ kind: 'swallow', reason: 'rollover' });
     // Panel keys are not guarded.
-    expect(command(createKeyResolver('mac').keydown(ev('KeyS', { metaKey: true, shiftKey: true })))).toBe('recap');
+    expect(command(createKeyResolver('mac', 'extension').keydown(ev('KeyS', { metaKey: true, shiftKey: true })))).toBe('recap');
   });
 
   it('[HK-019] auto-repeat is reported as a repeat, for the scheme and for the rows outside it', () => {
-    const resolver = createKeyResolver('mac');
+    const resolver = createKeyResolver('mac', 'extension');
     resolver.keydown(META);
     expect(resolver.keydown(ev('KeyE', { metaKey: true }))).toMatchObject({ command: 'reply', repeat: false });
     expect(resolver.keydown(ev('KeyE', { metaKey: true, repeat: true }))).toMatchObject({ command: 'reply', repeat: true });
@@ -216,9 +216,9 @@ describe('the vendored scheme through the tab resolver', () => {
 
   it('[HK-020] nothing fires during an IME composition, by isComposing or by keyCode 229', () => {
     expect(press('mac', 'KeyE', { isComposing: true })).toBeNull();
-    expect(createKeyResolver('win').keydown(ev('KeyJ', { isComposing: true }))).toBeNull();
-    expect(createKeyResolver('win').keydown(ev('KeyJ', { keyCode: 229 }))).toBeNull();
-    expect(createKeyResolver('win').keydown(ev('Escape', { key: 'Process' }))).toBeNull();
+    expect(createKeyResolver('win', 'extension').keydown(ev('KeyJ', { isComposing: true }))).toBeNull();
+    expect(createKeyResolver('win', 'extension').keydown(ev('KeyJ', { keyCode: 229 }))).toBeNull();
+    expect(createKeyResolver('win', 'extension').keydown(ev('Escape', { key: 'Process' }))).toBeNull();
   });
 
   it('[HK-021] mac aliases: ⌘⇧E/I/G are Reply/Fix/Hi, ⌘⇧X is Cancel, the retired ⌘⇧D and ⌘⇧F are swallowed', () => {
@@ -233,7 +233,7 @@ describe('the vendored scheme through the tab resolver', () => {
   });
 
   it('[HK-022] reset (window blur, a hidden tab) forgets a held modifier', () => {
-    const resolver = createKeyResolver('mac');
+    const resolver = createKeyResolver('mac', 'extension');
     resolver.keydown(META);
     expect(resolver.primaryHeldAlone()).toBe(true);
     resolver.reset();
@@ -264,26 +264,26 @@ describe('rows outside the scheme', () => {
       expect([code, matchExtraKey(ev(code, { metaKey: true }), 'win')]).toEqual([code, null]);
       expect([code, matchExtraKey(ev(code, { ctrlKey: true, metaKey: true }), 'mac')]).toEqual([code, null]);
     }
-    expect(createKeyResolver('mac').keydown(ev('KeyK', { ctrlKey: true }))).toBeNull();
+    expect(createKeyResolver('mac', 'extension').keydown(ev('KeyK', { ctrlKey: true }))).toBeNull();
     expect(matchExtraKey(ev('Slash', { shiftKey: true, ctrlKey: true, key: '?' }), 'mac')).toBeNull();
   });
 
   it('[HK-037] J / K, ⌘U with Alt+U, ⌘1–9 with Alt+1–9', () => {
-    const resolver = createKeyResolver('win');
+    const resolver = createKeyResolver('win', 'extension');
     expect(resolver.keydown(ev('KeyJ'))).toMatchObject({ command: 'chat-next', plain: true });
     expect(resolver.keydown(ev('KeyK'))).toMatchObject({ command: 'chat-previous', plain: true });
     expect(press('win', 'KeyU')).toMatchObject({ command: 'next-unread', fallback: false, plain: false });
-    expect(createKeyResolver('win').keydown(ev('KeyU', { altKey: true }))).toMatchObject({ command: 'next-unread', fallback: true });
+    expect(createKeyResolver('win', 'extension').keydown(ev('KeyU', { altKey: true }))).toMatchObject({ command: 'next-unread', fallback: true });
     for (let n = 1; n <= 9; n += 1) {
       expect(press('mac', `Digit${n}`)).toMatchObject({ command: 'quick-jump', slot: n, fallback: false });
-      expect(createKeyResolver('mac').keydown(ev(`Digit${n}`, { altKey: true }))).toMatchObject({ command: 'quick-jump', slot: n, fallback: true });
+      expect(createKeyResolver('mac', 'extension').keydown(ev(`Digit${n}`, { altKey: true }))).toMatchObject({ command: 'quick-jump', slot: n, fallback: true });
     }
     expect(press('mac', 'Digit0')).toBeNull();
   });
 
   it('[HK-039] ] is the fan panel, [ is nobody\'s (NEG-CHATSPACE-UI: ChatSpace owns its chat list)', () => {
-    expect(createKeyResolver('mac').keydown(ev('BracketRight', { key: ']' }))).toMatchObject({ command: 'fan-panel', plain: true });
-    expect(createKeyResolver('mac').keydown(ev('BracketLeft', { key: '[' }))).toBeNull();
+    expect(createKeyResolver('mac', 'extension').keydown(ev('BracketRight', { key: ']' }))).toMatchObject({ command: 'fan-panel', plain: true });
+    expect(createKeyResolver('mac', 'extension').keydown(ev('BracketLeft', { key: '[' }))).toBeNull();
   });
 
   it('[HK-041] ⌘, / Ctrl+, opens the settings', () => {
@@ -307,7 +307,7 @@ describe('rows outside the scheme', () => {
   });
 
   it('[NEW-07] the resolver knows when ⌘/Ctrl is held alone', () => {
-    const resolver = createKeyResolver('win');
+    const resolver = createKeyResolver('win', 'extension');
     expect(resolver.primaryHeldAlone()).toBe(false);
     resolver.keydown(CTRL);
     expect(resolver.primaryHeldAlone()).toBe(true);
@@ -523,10 +523,10 @@ describe('whose key is it', () => {
     expect(createActionCatalog('mac').entry('send').hotkey).toBeNull();
     expect(createActionCatalog('win').entry('send').hotkey).toBeNull();
     for (const platform of ['mac', 'win'] as const) {
-      const resolver = createKeyResolver(platform);
+      const resolver = createKeyResolver(platform, 'extension');
       resolver.keydown(platform === 'mac' ? META : CTRL);
       expect(resolver.keydown(ev('Enter', platform === 'mac' ? { metaKey: true } : { ctrlKey: true }))).toBeNull();
-      expect(createKeyResolver(platform).keydown(ev('Enter'))).toBeNull();
+      expect(createKeyResolver(platform, 'extension').keydown(ev('Enter'))).toBeNull();
     }
   });
 
@@ -666,7 +666,7 @@ describe('the action catalog', () => {
 
 describe('[R20-F4] the keys and the feature manifest', () => {
   const SLICES = { chatspace: featureSlice(FEATURES_COMMON, CHATSPACE_FEATURES), fansly: featureSlice(FEATURES_COMMON, FANSLY_FEATURES) };
-  /** The client of the vendored scheme a site's keys run as (the site's profile says it, F5). */
+  /** The client of the vendored scheme a site's keys run as (its adapter says it: `HostAdapter.hotkeyClient`, F5). */
   const CLIENTS: Readonly<Record<keyof typeof SLICES, HotkeyClient>> = { chatspace: 'extension', fansly: 'fansly' };
 
   it('`HotkeyActionId` of the contracts is the vendored scheme’s `HotkeyAction`, name for name (contracts import only zod, so the union is repeated there)', () => {
@@ -717,5 +717,23 @@ describe('[R20-F4] the keys and the feature manifest', () => {
     expect(bare.map((group) => group.id)).toEqual(['ai', 'windows', 'before', 'result', 'preview']);
     expect(labels(bare, 'ai')).toEqual(['cheatsheet.row.help']);
     expect(labels(bare, 'preview')).toEqual(['send.openAndInsert']);
+  });
+});
+
+describe('[R20-F5] the keys run as the site’s client of the scheme', () => {
+  /** A panel key under ⌘⇧ (unguarded: no fresh press is needed). */
+  const panel = (client: HotkeyClient, code: string): KeyVerdict | null => createKeyResolver('mac', client).keydown(ev(code, { metaKey: true, shiftKey: true }));
+
+  it('the client the site’s adapter names decides which rows are live: Coach is the extensions’ row, a reserved letter in the desktop’s client', () => {
+    expect(command(panel('extension', 'KeyC'))).toBe('coach');
+    expect(command(panel('fansly', 'KeyC'))).toBe('coach');
+    expect(panel('desktop', 'KeyC')).toEqual({ kind: 'swallow', reason: 'reserved' });
+    // A row of both extensions runs in every client that has it.
+    for (const client of ['extension', 'fansly', 'desktop'] as const) expect(command(panel(client, 'KeyS')), client).toBe('recap');
+  });
+
+  it('Notes is the Fansly extension’s row: a reserved letter on ChatSpace, and on Fansly too until the dispatcher has its command — never the page’s key', () => {
+    expect(panel('extension', 'KeyK')).toEqual({ kind: 'swallow', reason: 'reserved' });
+    expect(panel('fansly', 'KeyK')).toEqual({ kind: 'swallow', reason: 'reserved' });
   });
 });

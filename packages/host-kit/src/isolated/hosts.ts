@@ -14,8 +14,8 @@
 // title, name, type and alt, or its `data-sentry-*`). So a host is a plain
 // `div` with none of those, never editable, and its attributes have neutral
 // names that never name the extension (decision X22): `data-host`,
-// `data-mode`, `data-layer`, `data-pending` (keyboard.ts) and `data-scheme`
-// (the UI kit).
+// `data-mode`, `data-layer`, `data-pending` (keyboard.ts), and `data-scheme`
+// and `data-dock-variant` (the UI kit, the site's profile).
 
 import type { ShadowRootRegistry } from './shadow-registry';
 

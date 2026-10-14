@@ -10,6 +10,7 @@
 export * from './signal';
 export * from './i18n';
 export * from './theme';
+export * from './host-profile';
 export * from './selectors';
 export * from './actions';
 export * from './catalog';

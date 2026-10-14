@@ -12,9 +12,9 @@
 // one exception by nature: it is a character, so it is taken both from its
 // physical US place (Shift+Slash) and by `key` (Shift+7 on ЙЦУКЕН).
 
-import { HOTKEYS, detectHotkeyPlatform, hotkeyAriaShortcut, hotkeyLabel, type HotkeyAction, type HotkeyDef, type HotkeyKeyEvent, type HotkeyPlatform } from '@chatgoose/hotkeys';
+import { HOTKEYS, detectHotkeyPlatform, hotkeyAriaShortcut, hotkeyLabel, type HotkeyAction, type HotkeyClient, type HotkeyDef, type HotkeyKeyEvent, type HotkeyPlatform } from '@chatgoose/hotkeys';
 
-export type { HotkeyAction, HotkeyDef, HotkeyKeyEvent, HotkeyPlatform };
+export type { HotkeyAction, HotkeyClient, HotkeyDef, HotkeyKeyEvent, HotkeyPlatform };
 
 /** HK-031: Apple platforms get the ⌘ scheme, everything else (Windows, Linux) the Ctrl one. */
 export function hotkeyPlatformOf(platform: string | null | undefined): HotkeyPlatform {

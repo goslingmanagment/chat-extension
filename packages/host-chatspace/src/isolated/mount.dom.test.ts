@@ -2,13 +2,14 @@ import type { ComposerState } from '@cg/contracts/host';
 import { MountPointsSchema } from '@cg/contracts/host';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { SCHEME_ATTRIBUTE } from '@cg/contracts/vm';
+import { DOCK_VARIANT_ATTRIBUTE, SCHEME_ATTRIBUTE } from '@cg/contracts/vm';
 
 import { OVERLAY_Z } from '@cg/host-kit/isolated/hosts';
 import { createKeyPendingMark } from '@cg/host-kit/isolated/keyboard';
 
 import { createFakePage, type FakePage } from '../testing/fake-page';
 import { COMPOSER_SLOT_SELECTOR, createMountManager, findComposerMount, waitForComposerMount, type MountDiagnostic, type MountManager } from './mount';
+import { CHATSPACE_UI } from './profile';
 
 const ACC = '1001';
 const state = (fan: string, over: Partial<ComposerState> = {}): ComposerState => ({
@@ -481,7 +482,7 @@ describe('legacy helpers (R00 composition root)', () => {
  * `data-sentry-component`/`-element` — and records keypresses only on text fields. So a host is a plain `div`, never
  * editable, carries none of those, and its attributes are only these neutral ones.
  */
-const ALLOWED_HOST_ATTRIBUTES = new Set(['data-host', 'data-mode', 'data-layer', 'data-pending', 'data-scheme', 'data-dismissible-open', 'aria-busy', 'style']);
+const ALLOWED_HOST_ATTRIBUTES = new Set(['data-host', 'data-mode', 'data-layer', 'data-pending', 'data-scheme', 'data-dock-variant', 'data-dismissible-open', 'aria-busy', 'style']);
 const pinned = (host: HTMLElement): void => {
   expect(host.tagName).toBe('DIV');
   expect(host.localName).toBe('div');
@@ -518,8 +519,9 @@ describe('[X22] our hosts as the page sees them', () => {
     mounts.update(state('2002'));
     await tick();
     expect(mounts.points().dock.kind).toBe('in-flow');
-    // The UI kit mirrors the scheme on the host (packages/ui kit/scheme.ts); the key mark sets its two attributes.
+    // The UI kit mirrors the scheme and the site's dock variant on the host (packages/ui kit/mount.tsx); the key mark sets its two attributes.
     mounts.dock.host.setAttribute(SCHEME_ATTRIBUTE, 'dark');
+    mounts.dock.host.setAttribute(DOCK_VARIANT_ATTRIBUTE, CHATSPACE_UI.dock.variant);
     createKeyPendingMark(mounts.dock.host)(true);
     mounts.setDismissibleOpen('dock', 'menu', true);
     pinned(mounts.dock.host);
@@ -527,6 +529,7 @@ describe('[X22] our hosts as the page sees them', () => {
     for (const layer of ['panel', 'modal', 'toast'] as const) {
       const overlay = mounts.overlay(layer);
       overlay.host.setAttribute(SCHEME_ATTRIBUTE, 'light');
+      overlay.host.setAttribute(DOCK_VARIANT_ATTRIBUTE, CHATSPACE_UI.dock.variant);
       mounts.setDismissibleOpen(layer, 'window', true);
       pinned(overlay.host);
     }

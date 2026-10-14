@@ -72,6 +72,7 @@ const early = createEarlyNotices({ onWaiting: createKeyPendingMark(started.mount
 
 const dispatcher = createEarlyKeyDispatcher({
   platform,
+  client: 'extension',
   window,
   document: { source: document, hidden: () => document.hidden, focused: () => document.hasFocus() },
   ownership: probe,

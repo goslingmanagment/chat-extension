@@ -7,6 +7,11 @@
 // ChatSpace's lazy chunks as they are, and again with a plugin that writes one more entry into the Fansly file —
 // the same bytes, and the plugin never sees the file, because ChatSpace's graph does not have it. The same plugin
 // on a second site's build that does carry the Fansly file changes that build: the plugin is not a no-op.
+//
+// The site's profile for our interface (§1.5; R20 F5) is cut the same way: a site's look is data of its own
+// application half, and the shared mount reads whatever profile it is handed. A second site's profile, changed
+// by a plugin, moves no byte of ChatSpace (its graph does not have the file), and ChatSpace's own profile rides
+// with its application in `tab-app`, never in the dock's chunks.
 
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -25,6 +30,9 @@ if (CHATSPACE_SITE === undefined) throw new Error('the registry has ChatSpace');
 /** A second site's build whose one entry carries that site's slice of the manifest (test/fixtures/second-site/features.ts). */
 const SLICE = fileURLToPath(new URL('./fixtures/second-site/features.ts', import.meta.url));
 const SECOND: LazySite = { site: 'fansly-web', build: { root: 'lazy/second', entries: { features: SLICE }, layers: [], beforeTheDock: [] }, matches: ['http://localhost/*'] };
+/** A second site's build whose one entry mounts the shared kit with that site's profile (test/fixtures/second-site/profile.ts). */
+const PROFILE = fileURLToPath(new URL('./fixtures/second-site/profile.ts', import.meta.url));
+const SECOND_UI: LazySite = { site: 'fansly-web', build: { root: 'lazy/second-ui', entries: { app: PROFILE }, layers: [], beforeTheDock: [] }, matches: ['http://localhost/*'] };
 
 const FANSLY_FILE = /\/packages\/contracts\/src\/features\/fansly\.ts$/;
 const TABLE_START = 'const FEATURES = {\n';
@@ -43,6 +51,29 @@ function newFanslyEntry(): { readonly plugin: { name: string; enforce: 'pre'; tr
         if (!code.includes(TABLE_START)) throw new Error('features/fansly.ts: the table does not start as this test expects');
         seen += 1;
         return code.replace(TABLE_START, `${TABLE_START}${NEW_ENTRY}`);
+      },
+    },
+    seen: () => seen,
+  };
+}
+
+const PROFILE_FILE = /\/apps\/extension\/test\/fixtures\/second-site\/profile\.ts$/;
+const PALETTE_BEFORE = "'--color-om-brand-500': '10 128 114'";
+/** Another palette for the second site, as a PR of its look (P8d) would give it. */
+const PALETTE_AFTER = "'--color-om-brand-500': '29 161 242'";
+
+/** Gives the second site's profile another palette for one build, and counts how often the build loaded that file. */
+function newSitePalette(): { readonly plugin: { name: string; enforce: 'pre'; transform(code: string, id: string): string | null }; seen(): number } {
+  let seen = 0;
+  return {
+    plugin: {
+      name: 'cg-test-new-site-palette',
+      enforce: 'pre',
+      transform(code, id) {
+        if (!PROFILE_FILE.test(id.split('?')[0] ?? id)) return null;
+        if (!code.includes(PALETTE_BEFORE)) throw new Error('second-site/profile.ts: the palette is not as this test expects');
+        seen += 1;
+        return code.replace(PALETTE_BEFORE, PALETTE_AFTER);
       },
     },
     seen: () => seen,
@@ -82,15 +113,22 @@ let chatspace: Built;
 let chatspaceAfter: Built;
 let second: Built;
 let secondAfter: Built;
+let secondUi: Built;
+let secondUiAfter: Built;
 const overChatSpace = newFanslyEntry();
 const overSecond = newFanslyEntry();
+const paletteOverChatSpace = newSitePalette();
+const paletteOverSecond = newSitePalette();
 
 beforeAll(async () => {
   chatspace = await built('chatspace', CHATSPACE_SITE);
-  chatspaceAfter = await built('chatspace-new-entry', CHATSPACE_SITE, [overChatSpace.plugin]);
+  // One build with both changes of the other site: a new entry of its manifest and another palette of its profile.
+  chatspaceAfter = await built('chatspace-new-entry', CHATSPACE_SITE, [overChatSpace.plugin, paletteOverChatSpace.plugin]);
   second = await built('second', SECOND);
   secondAfter = await built('second-new-entry', SECOND, [overSecond.plugin]);
-}, 240_000);
+  secondUi = await built('second-ui', SECOND_UI);
+  secondUiAfter = await built('second-ui-new-palette', SECOND_UI, [paletteOverSecond.plugin]);
+}, 300_000);
 
 afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
@@ -131,5 +169,34 @@ describe('the feature manifest is cut by the module graph (R20 F4)', () => {
     for (const marker of CHATSPACE_ONLY) expect(all, marker).not.toContain(marker);
     // The common part is in both: it names no site.
     for (const out of [all, textOf(chatspace, root)]) expect(out).toContain('fresh-text');
+  });
+});
+
+describe('the site’s profile for our interface is its own (R20 F5)', () => {
+  const root = CHATSPACE_SITE.build.root;
+
+  it('another palette in a second site’s profile changes no byte of ChatSpace’s chunks: its graph does not have the file', () => {
+    expect(hashes(chatspaceAfter, root)).toEqual(hashes(chatspace, root));
+    expect(paletteOverChatSpace.seen()).toBe(0);
+  });
+
+  it('the same change does change the build that carries that profile: the plugin wrote it, and the build has it', () => {
+    expect(paletteOverSecond.seen()).toBeGreaterThan(0);
+    const before = textOf(secondUi, SECOND_UI.build.root);
+    const after = textOf(secondUiAfter, SECOND_UI.build.root);
+    expect(hashes(secondUiAfter, SECOND_UI.build.root)).not.toEqual(hashes(secondUi, SECOND_UI.build.root));
+    expect(before).toContain('10 128 114');
+    expect(after).toContain('29 161 242');
+    expect(after).not.toContain('10 128 114');
+    // The shared mount writes whatever palette and sheet it is handed: the same code in both sites' builds.
+    for (const out of [before, textOf(chatspace, root)]) expect(out).toContain('cg-host-palette');
+  });
+
+  it('ChatSpace’s chunks carry no part of the second site’s look, and ChatSpace’s own profile rides with its application in `tab-app`', () => {
+    const all = textOf(chatspace, root);
+    for (const marker of ['sitefix-variant', 'Sitefix', '10 128 114']) expect(all, marker).not.toContain(marker);
+    // `onSite` is a key of a profile's phrases: only ChatSpace's profile has one in ChatSpace's build.
+    expect(textOf(chatspace, root, (file) => file === 'tab-app.js')).toContain('onSite');
+    expect(textOf(chatspace, root, (file) => file !== 'tab-app.js')).not.toContain('onSite');
   });
 });

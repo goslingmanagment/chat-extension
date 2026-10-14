@@ -3,6 +3,7 @@
 //   &surface=spenders|newcomers|fan-panel|palette|quick-jump|preview   (a scenario id needs it; a state knows its own)
 //   &rows=1000                                    the live board over that many fans (search, filters, sort)
 //   &step=N                                       apply the scenario's steps up to N
+//   &host=chatspace|test                          the site's profile the surface is mounted with (kit/profiles.ts)
 // It plays the host side — a closed shadow root on the overlay host, outside
 // the page's own tree — and mounts the surface through the kit's mount
 // helper, as the extension does. `window.__boards` gives the e2e what a closed
@@ -17,6 +18,7 @@ import { paletteSurface, quickJumpSurface } from '@cg/ui/palette';
 import { previewWindowSurface } from '@cg/ui/preview';
 import { spendersSurface } from '@cg/ui/spenders';
 
+import { galleryHostOf } from '../../kit/profiles';
 import { manyFans } from '../data';
 import { LiveBoardClient } from '../live-client';
 import { BOARD_STATES } from '../states';
@@ -94,7 +96,9 @@ if (kind === 'fan-panel') {
 const fans = rowsParam > 0 ? manyFans(rowsParam) : null;
 const live = fans === null ? null : new LiveBoardClient(world.client, world.ctx, fans);
 if (fans !== null) world.client.goTo(-1);
-const deps = live === null ? world.deps : { ...world.deps, client: live };
+// As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet).
+const { profile } = galleryHostOf(params);
+const deps = { ...world.deps, ...(live === null ? {} : { client: live }), profile };
 
 const host = document.createElement('div');
 host.setAttribute('data-host', 'overlay');
