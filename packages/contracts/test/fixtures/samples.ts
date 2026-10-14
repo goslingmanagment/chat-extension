@@ -259,7 +259,7 @@ export const tabProof: CoverageProof = {
 
 /** The proof of the «Новые» pass (FS-NEW-7): the history it checked, no text. */
 export const passProof: CoverageProof = {
-  kind: 'host-pass',
+  kind: 'pass',
   conversationRef: FANSLY_IDS.group,
   completeness: 'complete',
   takenAt: ISO,

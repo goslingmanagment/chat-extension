@@ -98,7 +98,7 @@ describe('[host:fansly] the window coverage check reads as the hub’s shared ma
 
   it('each request of the matrix is the window check of a proof: its lists go to the body as they are', () => {
     for (const c of cases) {
-      const proof = { kind: 'host-pass', conversationRef: FANSLY_IDS.group, completeness: 'complete', takenAt: ISO, window: c.request.window, knownFanMessageIds: [], deletedIds: c.request.deletedIds };
+      const proof = { kind: 'pass', conversationRef: FANSLY_IDS.group, completeness: 'complete', takenAt: ISO, window: c.request.window, knownFanMessageIds: [], deletedIds: c.request.deletedIds };
       expect(C.CoverageProofSchema.safeParse(proof).success, c.name).toBe(true);
     }
   });
