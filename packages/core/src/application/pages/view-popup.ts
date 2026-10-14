@@ -106,8 +106,8 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
       bound === null || pageName === null || persona === null
         ? { s: 'not-connected' }
         : persona.s === 'set' && persona.label !== null
-          ? { s: 'set', label: persona.label, pageName, page: boundPageTagOf(bound) }
-          : { s: 'no-persona', pageName, page: boundPageTagOf(bound) },
+          ? { s: 'set', label: persona.label, pageName, page: boundPageTagOf(model, bound) }
+          : { s: 'no-persona', pageName, page: boundPageTagOf(model, bound) },
     account: session === null ? null : { login: session.login, signOut: button('popup.signOut', { type: 'SignOut' }) },
     chat:
       chat === null

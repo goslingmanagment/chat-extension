@@ -31,6 +31,7 @@ import {
   hostOfOrigin,
   msg,
   personaOfPage,
+  platformNameOf,
   reasonOf,
   runningOps,
   valueOf,
@@ -67,8 +68,6 @@ function siteRowOf(site: PageSite, level: StatusRowVM['level'], value: string | 
 }
 
 const goTo = (section: 'account' | 'accounts' | 'personas'): UiAction => ({ type: 'OpenSettings', route: { section } });
-
-export const PLATFORM_NAMES: Readonly<Record<string, string>> = { onlyfans: 'OnlyFans', fansly: 'Fansly' };
 
 export const ROLE_KEYS = {
   owner: 'settings.role.owner',
@@ -242,7 +241,7 @@ function bindingRow(model: PagesModel): StatusRowVM {
   if (!slot.ok) return row('binding', 'error', msg('settings.status.row.bindingMissing', { id }), errorOf(model, slot.error).body, action);
   const bound = boundPageOf(model, current.account);
   const page = bound?.page?.title ?? slot.binding.pageLabel;
-  const platform = PLATFORM_NAMES[slot.binding.platform] ?? slot.binding.platform;
+  const platform = platformNameOf(model, slot.binding.platform) ?? slot.binding.platform;
   const handle = current.account.username === null ? id : `@${current.account.username.replace(/^@/, '')}`;
   const others = otherBound(model, current);
   return row(

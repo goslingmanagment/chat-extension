@@ -195,8 +195,9 @@ describe('the site’s profile for our interface is its own (R20 F5)', () => {
   it('ChatSpace’s chunks carry no part of the second site’s look, and ChatSpace’s own profile rides with its application in `tab-app`', () => {
     const all = textOf(chatspace, root);
     for (const marker of ['sitefix-variant', 'Sitefix', '10 128 114']) expect(all, marker).not.toContain(marker);
-    // `onSite` is a key of a profile's phrases: only ChatSpace's profile has one in ChatSpace's build.
-    expect(textOf(chatspace, root, (file) => file === 'tab-app.js')).toContain('onSite');
-    expect(textOf(chatspace, root, (file) => file !== 'tab-app.js')).not.toContain('onSite');
+    // ChatSpace's phrases ride with its profile in `tab-app`: «in ChatSpace» is there and nowhere else — the catalogs
+    // say `{onSite}` (R20 F9b), the I18n port puts the phrase in.
+    expect(textOf(chatspace, root, (file) => file === 'tab-app.js')).toContain('in ChatSpace');
+    expect(textOf(chatspace, root, (file) => file !== 'tab-app.js')).not.toContain('in ChatSpace');
   });
 });

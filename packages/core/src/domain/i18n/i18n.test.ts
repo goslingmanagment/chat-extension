@@ -8,8 +8,11 @@ import { CG_CODES } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { I18N_KEYS, isPluralKey, messageParams } from '@cg/contracts/i18n/catalog';
 import { LOCALES, PLURAL_CATEGORIES, UI_PLURAL_KEYS, type Locale } from '@cg/contracts/i18n/keys';
+import { HOST_PHRASE_NAMES } from '@cg/contracts/vm';
 
-import { CATALOGS, createTranslator, EN, interpolate, resolveLocale, RU } from './index';
+import { CHATSPACE_PHRASES } from '../hosts/chatspace/i18n';
+import { FANSLY_PHRASES } from '../hosts/fansly/i18n';
+import { CATALOGS, createI18n, createTranslator, EN, interpolate, resolveLocale, RU } from './index';
 
 type Message = string | Readonly<Record<string, string>>;
 const asEntries = (catalog: object): Array<[string, Message]> => Object.entries(catalog) as Array<[string, Message]>;
@@ -79,18 +82,63 @@ describe('[I18-003] i18n catalogs: keys', () => {
   });
 });
 
+/** A text's placeholders that are not the site's phrases: what a caller has to give it. */
+const ownParams = (text: string): string[] => messageParams(text).filter((name) => !(HOST_PHRASE_NAMES as readonly string[]).includes(name));
+
 describe('i18n catalogs: CG registry texts', () => {
-  it('every code has a title and a body in both languages, with no parameters', () => {
+  it('every code has a title and a body in both languages, with no parameters (the site’s phrases are no parameter of the wire)', () => {
     for (const code of CG_CODES) {
       const { title, body } = CG_REGISTRY[code];
       for (const locale of LOCALES) {
         const catalog = CATALOGS[locale];
         for (const text of [catalog[title], catalog[body]]) {
           expect(text, `${locale} ${code}`).toBeTruthy();
-          expect(messageParams(text), `${locale} ${code}: the wire carries no parameters`).toEqual([]);
+          expect(ownParams(text), `${locale} ${code}: the wire carries no parameters`).toEqual([]);
         }
       }
     }
+  });
+});
+
+/** A site's name, as a word: the shared texts say the site's phrase instead (R20 F9b). */
+const SITE_NAME = /(?<!\p{L})(?:ChatSpace|OnlyMonster|OnlyFans|Fansly)(?!\p{L})/u;
+
+describe('[R20-F9b] the shared texts name no site: a site is its phrase', () => {
+  it('no text of either catalog names ChatSpace, OnlyMonster, OnlyFans or Fansly', () => {
+    for (const locale of LOCALES) for (const [key, text] of allTexts(locale)) expect(SITE_NAME.exec(text)?.[0] ?? null, `${locale} ${key}: «${text}»`).toBeNull();
+  });
+
+  it('no text takes a phrase’s name as a parameter of its own: the port fills it, and a caller never gives one', () => {
+    // Every placeholder named like a phrase is one; the ones the catalogs use are the four of the contract.
+    const used = new Set(LOCALES.flatMap((locale) => allTexts(locale).flatMap(([, text]) => messageParams(text))));
+    expect(HOST_PHRASE_NAMES.filter((name) => used.has(name))).toEqual([...HOST_PHRASE_NAMES]);
+  });
+
+  it('with ChatSpace’s phrases the texts say what they said when they named it themselves, ru and en', () => {
+    const ru = createTranslator('ru', CHATSPACE_PHRASES);
+    const en = createTranslator('en', CHATSPACE_PHRASES);
+    expect(ru.text('send.queued')).toBe('В очереди ChatSpace');
+    expect(ru.text('send.openAndInsertTooltip')).toBe('Открыть чат в ChatSpace и вставить часть в поле ввода');
+    expect(ru.text('settings.appearance.theme.host')).toBe('Как в ChatSpace');
+    expect(ru.text('settings.status.row.bindingValue', { id: '1001', page: 'Lora Vie' })).toBe('OnlyMonster 1001 → Lora Vie');
+    expect(ru.text('popup.copyCreatorId')).toBe('Скопировать номер страницы OnlyFans');
+    expect(ru.text(CG_REGISTRY['CG-SEND-FUSE'].body)).toBe(
+      'После отправки ChatSpace повёл себя не так, как мы ждём. Отправка из превью выключена в этом браузере до новой сборки ChatSpace или до сброса в «Статусе». «Открыть и вставить» работает.',
+    );
+    expect(en.text('settings.appearance.theme.host')).toBe('As in ChatSpace');
+    expect(en.text('send.reason.guard')).toBe('ChatSpace’s Message Guard did not let the text through.');
+    expect(en.text('popup.dialogAccount', { id: '1001' })).toBe('OnlyMonster 1001');
+    // The port of a tab says the same, and a parameter of the caller's own stays the caller's.
+    const port = createI18n({ language: 'ru', phrases: CHATSPACE_PHRASES });
+    expect(port.t('settings.status.row.hubLatency', { ms: 120 })).toBe('Ответ за 120 мс. Архив чатов догоняет ChatSpace за 1–2 минуты.');
+    port.setLanguage('en');
+    expect(port.t('popup.signInLead')).toBe('Sign in from the settings and AI starts working in ChatSpace.');
+  });
+
+  it('another site’s phrases put its own words in, prepositions and all; a port of no site leaves the placeholder visible', () => {
+    expect(createTranslator('ru', FANSLY_PHRASES).text('settings.appearance.theme.host')).toBe('Как на Fansly');
+    expect(createTranslator('en', FANSLY_PHRASES).text('send.openAndInsertTooltip')).toBe('Open the chat on Fansly and insert the part into the message field');
+    expect(createTranslator('ru').text('send.queued')).toBe('В очереди {site}');
   });
 });
 

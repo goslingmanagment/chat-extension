@@ -23,6 +23,7 @@ import {
   type UnavailableReasonId,
   type VmView,
 } from '@cg/contracts';
+import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { createTranslator } from '@cg/core/domain/i18n';
 
 export interface ScenarioCtx {
@@ -61,7 +62,7 @@ export interface ErrorExtras {
 /** A rendered error in the scenario's language, as the controller builds it: the registry's keys through the real catalog. */
 export function cgError(ctx: ScenarioCtx, code: CgCode, extras: ErrorExtras = {}): CgErrorView {
   const entry = cgEntry(code);
-  const t = createTranslator(ctx.lang);
+  const t = createTranslator(ctx.lang, CHATSPACE_PHRASES);
   return { code, title: t.text(entry.title), body: t.text(entry.body), ...extras };
 }
 

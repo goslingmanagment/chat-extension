@@ -4,7 +4,8 @@
 // clock of the mockup («данные на 09:18»). No DOM here: the gallery page and
 // the unit tests both use it.
 
-import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
+import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
+import { createI18n, type LiveI18n, type SitePhrases } from '@cg/core/domain/i18n';
 import { type Locale } from '@cg/contracts';
 
 import { FakeAppClient, createFakeMountDeps, ctxOf, fallbackView, scenarioById, type AppClientScenario, type FakeMountDeps, type ScenarioCtx } from '../scenarios/app-client';
@@ -27,11 +28,12 @@ export function resolveScenario(id: string, language: Locale): AppClientScenario
   return BOARD_STATES.some((state) => state.id === id) ? boardScenario(id, language) : scenarioById(id);
 }
 
-export function boardWorld(scenario: string | AppClientScenario, language: Locale = 'ru'): BoardWorld {
+/** `phrases` — the site the texts speak of (R20 F9b): ChatSpace's, as its tab has them, unless a gallery draws another. */
+export function boardWorld(scenario: string | AppClientScenario, language: Locale = 'ru', phrases: SitePhrases = CHATSPACE_PHRASES): BoardWorld {
   const chosen = typeof scenario === 'string' ? resolveScenario(scenario, language) : scenario;
   const ctx = ctxOf({ lang: language, platform: chosen.platform, debug: chosen.debug });
   const client = new FakeAppClient(chosen, (selector) => fallbackView(ctx, selector));
   const fake = createFakeMountDeps(client, ctx);
-  const deps: BoardDeps = { ...fake, i18n: createI18n({ language, now: () => client.now(), timeZone: STAND_TIME_ZONE }) };
+  const deps: BoardDeps = { ...fake, i18n: createI18n({ language, now: () => client.now(), timeZone: STAND_TIME_ZONE, phrases }) };
   return { scenario: chosen, ctx, client, deps };
 }

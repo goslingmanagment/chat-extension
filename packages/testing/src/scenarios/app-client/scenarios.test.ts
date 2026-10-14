@@ -23,6 +23,7 @@ import {
   type ViewName,
   type ViewSelector,
 } from '@cg/contracts';
+import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { createTranslator } from '@cg/core/domain/i18n';
 import { describe, expect, it } from 'vitest';
 
@@ -95,7 +96,7 @@ describe('AppClient scenarios', () => {
           const fromCatalog =
             entry !== null &&
             LOCALES.some((locale) => {
-              const t = createTranslator(locale);
+              const t = createTranslator(locale, CHATSPACE_PHRASES);
               return node['title'] === t.text(entry.title) && node['body'] === t.text(entry.body);
             });
           if (!fromCatalog) bad.push(`${e.selector.of}: ${String(node['code'])}`);

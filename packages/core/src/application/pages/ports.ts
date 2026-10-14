@@ -13,6 +13,8 @@ import { type TabEventPayload, type TabEventType, type TabRequestPayload, type T
 import { type ExtensionPage } from '@cg/contracts/tab-protocol';
 import { type ActionCatalog, type ColorScheme, type HostStatusTexts, type HotkeyPlatform, type ValueSignal } from '@cg/contracts/vm';
 
+import { type SitePhrases } from '../../domain/i18n';
+
 /** An answer of the background: the payload, or a CG error as code and facts (platform `RpcResult`). */
 export type PageAnswer<T> = { readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: CgErrorWire };
 
@@ -118,6 +120,16 @@ export interface PageEnv {
    * a row for each in use, and a tab's report is read by its site's expected anchors.
    */
   readonly sites: readonly PageSite[];
+  /**
+   * R20 F9b: what the pages' texts say for a site's name (`{site}`, `{onSite}`, `{siteAccount}`, `{sitePlatform}`):
+   * the phrases of the build's site, from its text pack. The shared texts name no site.
+   */
+  readonly phrases: SitePhrases;
+  /**
+   * R20 F9b: the phrases of the site that serves a hub page's platform — a page is named «OnlyFans · lora-vip» by
+   * them. The pages carry every site's text pack, a site this build does not run on too; null — no site serves it.
+   */
+  readonly platformPhrases: (platform: string) => SitePhrases | null;
 }
 
 /** The I18n the page renders with: the controller switches its language with `ui.locale` (I18-001). */

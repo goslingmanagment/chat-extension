@@ -106,7 +106,7 @@ function worldOf(item: GalleryState): KitWorld {
   const scenario = scenarioOfState(item, language, scheme, keys);
   // «Вид ответа» comes from the URL, as the setting would.
   const views = scenario.views.map((view) => (view.selector.of === 'dock' ? entry({ of: 'dock' }, { ...(view.vm as Parameters<typeof entry<{ of: 'dock' }>>[1]), resultStyle: style }) : view));
-  const world = kitWorld({ ...scenario, views }, language);
+  const world = kitWorld({ ...scenario, views }, language, site.profile.phrases);
   world.deps.scheme.set(scheme);
   world.deps.geometry.set(geometryOf(item));
   return world;

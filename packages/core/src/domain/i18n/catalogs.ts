@@ -7,26 +7,28 @@ import type { I18nCatalog } from '@cg/contracts/i18n/catalog';
 import type { Locale } from '@cg/contracts/i18n/keys';
 
 import { EN } from './en';
-import { interpolate, resolveLocale, type Translator } from './live';
+import { interpolate, resolveLocale, withPhrases, type SitePhrases, type Translator } from './live';
 import { RU } from './ru';
 
-export { interpolate, resolveLocale, type Translator };
+export { interpolate, resolveLocale, withPhrases, type SitePhrases, type Translator };
 
 export const CATALOGS: { readonly [L in Locale]: I18nCatalog<L> } = { ru: RU, en: EN };
 
 type PluralForms = Readonly<Partial<Record<Intl.LDMLPluralRule, string>>> & { readonly other: string };
 
-export function createTranslator(locale: Locale): Translator {
+/** `phrases` — the site the texts speak of (R20 F9b): its phrases fill `{site}` and the rest; absent — they stay visible. */
+export function createTranslator(locale: Locale, phrases?: SitePhrases): Translator {
   const catalog: I18nCatalog<'ru'> | I18nCatalog<'en'> = CATALOGS[locale];
   const rules = new Intl.PluralRules(locale);
+  const site = phrases?.[locale];
   return {
     locale,
     text(key, params) {
-      return interpolate(catalog[key], params);
+      return interpolate(catalog[key], withPhrases(site, params));
     },
     plural(key, n, params) {
       const forms: PluralForms = catalog[key];
-      return interpolate(forms[rules.select(n)] ?? forms.other, { ...params, n });
+      return interpolate(forms[rules.select(n)] ?? forms.other, { ...withPhrases(site, params), n });
     },
   };
 }

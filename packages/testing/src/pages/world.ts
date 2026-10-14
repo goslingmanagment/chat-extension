@@ -26,7 +26,9 @@ import {
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import { CHATSPACE_STATUS_TEXTS } from '@cg/contracts/vm';
 import { createPagesClient, type PageEnv, type PagePorts, type PageTimers, type PagesClient } from '@cg/core/application/pages';
-import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
+import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
+import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
+import { createI18n, type LiveI18n, type SitePhrases } from '@cg/core/domain/i18n';
 import { type PageDeps } from '@cg/ui/pages';
 
 import { NOW, SCENARIO_FEATURES, createFakeCatalog, ctxOf, iso, uuid } from '../scenarios/app-client';
@@ -40,6 +42,13 @@ export const PAGES_VERSION = '0.4.3';
 export const PAGES_HOST_ORIGIN = 'https://chatspace.example.test';
 /** The sites of the release build as the pages' composition root names them (R20 F7). */
 export const PAGES_SITES: PageEnv['sites'] = [{ kind: 'chatspace', contract: CHATSPACE_CONTRACT, texts: CHATSPACE_STATUS_TEXTS }];
+/** What the pages' texts say for the site (R20 F9b): the release build's site, ChatSpace, from its text pack. */
+export const PAGES_PHRASES: SitePhrases = CHATSPACE_PHRASES;
+/** Every site's phrases by the platform it serves, as the pages' composition root has them (both packs). */
+const PLATFORM_PHRASES: ReadonlyMap<string, SitePhrases> = new Map([
+  ['onlyfans', CHATSPACE_PHRASES],
+  ['fansly', FANSLY_PHRASES],
+]);
 const MIN = 60_000;
 const HOUR = 60 * MIN;
 
@@ -378,7 +387,7 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
   const state = options.state ?? workingState(now());
   const background = new FakePageBackground(state, page, now);
   const language = options.language ?? 'ru';
-  const i18n = createI18n({ language, now, timeZone: 'Europe/Moscow' });
+  const i18n = createI18n({ language, now, timeZone: 'Europe/Moscow', phrases: PAGES_PHRASES });
   const systemScheme = new Settable<ColorScheme>(options.scheme ?? 'light');
   const record: PortsRecord = { permissionRequests: [], consentRequests: 0, opened: [], links: [], downloads: [], clipboard: [], hashes: [], closed: 0 };
   const hashListeners = new Set<() => void>();
@@ -443,6 +452,8 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
     features: options.features ?? ((host) => (host === 'chatspace' ? SCENARIO_FEATURES : null)),
     // The pages' composition root's table (apps/extension/src/composition/pages.ts `PAGE_SITES`), or a test's own.
     sites: options.sites ?? PAGES_SITES,
+    phrases: PAGES_PHRASES,
+    platformPhrases: (platform) => PLATFORM_PHRASES.get(platform) ?? null,
   };
   const ports: PagePorts = {
     rpc: background,

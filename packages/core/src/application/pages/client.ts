@@ -195,8 +195,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   // Until the settings are read: the default's language, as a fresh install has it.
   let locale: Locale = resolveLocale(DEFAULT_SETTINGS.ui.locale, env.systemLanguages());
-  let translator: Translator = createTranslator(locale);
-  const i18n: LiveI18n = createI18n({ language: locale, now: () => clock.now(), ...(env.timeZone === undefined ? {} : { timeZone: env.timeZone }) });
+  let translator: Translator = createTranslator(locale, env.phrases);
+  const i18n: LiveI18n = createI18n({ language: locale, now: () => clock.now(), phrases: env.phrases, ...(env.timeZone === undefined ? {} : { timeZone: env.timeZone }) });
 
   /** The events' channel is parked (the background sleeps): its next opening is followed by a re-read. */
   let eventsParked = false;
@@ -263,7 +263,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     const next = resolveLocale(effective.ui.locale, env.systemLanguages());
     if (next !== locale) {
       locale = next;
-      translator = createTranslator(locale);
+      translator = createTranslator(locale, env.phrases);
       i18n.setLanguage(locale);
     }
     try {

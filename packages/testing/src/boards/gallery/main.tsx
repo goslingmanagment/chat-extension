@@ -84,7 +84,9 @@ html.classList.toggle('dark', scheme === 'dark');
 html.classList.toggle('light', scheme === 'light');
 html.lang = language;
 
-const world = boardWorld(stateId, language);
+// As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet, its phrases).
+const { profile } = galleryHostOf(params);
+const world = boardWorld(stateId, language, profile.phrases);
 world.deps.scheme.set(scheme);
 if (step >= 0) world.client.goTo(step);
 // The side panel stands at the right edge of ChatSpace's container, inside its 1 px frame, left of its rail (ui-design §3.7).
@@ -96,8 +98,6 @@ if (kind === 'fan-panel') {
 const fans = rowsParam > 0 ? manyFans(rowsParam) : null;
 const live = fans === null ? null : new LiveBoardClient(world.client, world.ctx, fans);
 if (fans !== null) world.client.goTo(-1);
-// As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet).
-const { profile } = galleryHostOf(params);
 const deps = { ...world.deps, ...(live === null ? {} : { client: live }), profile };
 
 const host = document.createElement('div');

@@ -263,13 +263,13 @@ export function Columns({ main, aside, even }: { readonly main: ComponentChildre
   );
 }
 
-/** The platforms this build has a word for; a token it does not know is printed as it is (an open token of the hub). */
-const PLATFORM_WORDS: Readonly<Record<string, string>> = { onlyfans: 'OnlyFans', fansly: 'Fansly' };
-
-/** «OnlyFans · lora-vip»: what tells a hub page from another of the same title (1.3.0, `PageTagVM`). */
+/**
+ * «OnlyFans · lora-vip»: what tells a hub page from another of the same title (1.3.0, `PageTagVM`). The platform's
+ * name is the site's phrase the controller put in (1.15.0); a token no site names is printed as it is (an open
+ * token of the hub).
+ */
 export function pageTagText(tag: PageTagVM): string {
-  const platform = Object.prototype.hasOwnProperty.call(PLATFORM_WORDS, tag.platform) ? PLATFORM_WORDS[tag.platform] : tag.platform;
-  return `${platform ?? tag.platform} · ${tag.pageLabel}`;
+  return `${tag.platformName ?? tag.platform} · ${tag.pageLabel}`;
 }
 
 /** A page's title with its tag in one string, for a label or a sentence: «Lora Vie (OnlyFans · lora-vip)». */
