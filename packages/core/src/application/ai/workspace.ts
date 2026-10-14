@@ -940,7 +940,9 @@ export class AiWorkspace {
 
   /** Whose recaps the open chat's are: the page, the fan and the persona definition. */
   slotKey(ready: ReadyTarget): RecapSlotKey {
-    return { hubOrigin: ready.target.binding.hubOrigin, pageId: ready.page.pageId, fanRef: ready.target.fanRef, personaDefinitionId: ready.persona.definitionId };
+    const { fanRef, conversationRef } = ready.target;
+    // R20 F6b: the conversation goes into the key, and into the hub's recap reads, only when it is not the fan.
+    return { hubOrigin: ready.target.binding.hubOrigin, pageId: ready.page.pageId, fanRef, ...(conversationRef === fanRef ? {} : { conversationRef }), personaDefinitionId: ready.persona.definitionId };
   }
 
   recapOwner(ready: ReadyTarget): RecapOwner {

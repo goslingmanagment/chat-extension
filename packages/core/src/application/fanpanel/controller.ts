@@ -89,6 +89,12 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     return binding === null || binding.hostAccountId === route.chat.hostAccountId ? route.chat : null;
   }
 
+  /** R20 F6b: the conversation of the open chat when the route names one that is not the fan (Fansly: the group); `{}` on ChatSpace. */
+  function conversationOf(chat: ChatRef): { readonly conversationRef?: string } {
+    const ref = host.current().route.conversationRef;
+    return ref === undefined || ref === chat.platformFanId ? {} : { conversationRef: ref };
+  }
+
   const usable = (): boolean => {
     const ctx = context.current();
     return ctx.phase === 'ready' && pageFlag(ctx, 'fanPanel');
@@ -118,6 +124,8 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     card.since = clock.now();
     changed();
     const fanRef = chat.platformFanId;
+    // The card and the dossier are the fan's; the archive is the conversation's (R20 F6b, architecture §11.1).
+    const conversation = conversationOf(chat);
     // The archive feed is the preview's route on the hub (`archive-feed-v1`): without it the archive's state stays unknown, and says so.
     const archiveOn = pageFlag(context.current(), 'preview');
     const [lifetime, last30, dossier, feed] = await Promise.all([
@@ -125,7 +133,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       rpc.request('fan.card', { pageId, fanRef, period: '30d' }),
       rpc.request('fan.dossier', { pageId, fanRef }),
       // One row is enough: the page carries the archive's coverage. It is the hub's database only — the chat is not read on OnlyFans.
-      archiveOn ? rpc.request('feed.read', { pageId, fanRef, cursor: null, limit: 1 }) : Promise.resolve(null),
+      archiveOn ? rpc.request('feed.read', { pageId, fanRef, cursor: null, limit: 1, ...conversation }) : Promise.resolve(null),
     ]);
     if (disposed || atEpoch !== epoch || card.run !== run) return;
     card.loading = false;

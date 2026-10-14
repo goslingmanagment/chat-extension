@@ -149,6 +149,8 @@ interface TargetState {
   readonly fanRef: string;
   info: PreviewTargetInfo;
   feed: FeedState | null;
+  /** R20 F6b: the conversation the feed's walk reads (the list's, when it is not the fan); its older pages keep it. */
+  feedConversation: { readonly conversationRef?: string };
   feedLoading: boolean;
   feedError: CgErrorWire | null;
   feedRun: number;
@@ -193,6 +195,12 @@ class AbortFlag {
     for (const listener of [...this.listeners]) listener();
     this.listeners.clear();
   }
+}
+
+/** The conversation of a preview's reads when the list knows one that is not the fan (R20 F6b); `{}` on ChatSpace. */
+function feedConversationOf(info: PreviewTargetInfo): { readonly conversationRef?: string } {
+  const ref = info.conversationRef;
+  return ref === undefined || ref === info.fanRef ? {} : { conversationRef: ref };
 }
 
 export interface PreviewControllerDeps {
@@ -414,18 +422,22 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     state.feedSince = clock.now();
     changedFor(state.handle);
     const pingWindow = ctx.settings?.generation.windows.ping;
+    // A new walk reads the conversation the list knows now (on Fansly the group it resolved), never the chat on screen.
+    const conversation = feedConversationOf(state.info);
     const answer = await rpc.request('feed.read', {
       pageId: state.pageId,
       fanRef: state.fanRef,
       cursor: null,
       limit: feedLimit(),
       ...(pingWindow === undefined ? {} : { summaryWindow: pingWindow }),
+      ...conversation,
     });
     if (disposed || atEpoch !== epoch || state.feedRun !== run || targets.get(state.handle) !== state) return;
     state.feedLoading = false;
     state.feedSince = null;
     if (answer.ok) {
       state.feed = firstFeedPage(answer.payload);
+      state.feedConversation = conversation;
       state.feedError = null;
       state.olderError = null;
       state.feedLoadedAt = clock.now();
@@ -445,7 +457,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     state.olderLoading = true;
     state.olderError = null;
     changedFor(state.handle);
-    const answer = await rpc.request('feed.read', { pageId: state.pageId, fanRef: state.fanRef, cursor, limit: feedLimit() });
+    const answer = await rpc.request('feed.read', { pageId: state.pageId, fanRef: state.fanRef, cursor, limit: feedLimit(), ...state.feedConversation });
     if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state) return;
     state.olderLoading = false;
     // A first page was read meanwhile: this page belongs to the walk it replaced.
@@ -507,6 +519,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       fanRef: info.fanRef,
       info,
       feed: saved?.first ?? null,
+      feedConversation: feedConversationOf(info),
       feedLoading: false,
       feedError: null,
       feedRun: 0,

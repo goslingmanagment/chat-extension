@@ -5,6 +5,13 @@
 // background checks that itself (§5.4 «Правила отправителей»); an extension
 // page may ask about any granted page. Controllers of R11/R12 own what the
 // answers mean; this is the plain route.
+//
+// Reads by conversation (R20 F6b, docs/project-unite/architecture.md §11.1):
+// the recaps, their status and the feed name the conversation of the fan when
+// it is not the fan (on Fansly the group) — the facade sends it only to a hub
+// with `conversation-recaps-v1`; the card and the dossier are the fan's alone.
+// On ChatSpace the tab names no conversation, and what goes to the hub is what
+// it always was.
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type HubFacade, type HubSpenderPeriod, type SpendersBoard } from '@cg/contracts/hub';
@@ -35,6 +42,10 @@ type DataRequest = 'recap.status' | 'recap.read' | 'spenders.board' | 'spenders.
 
 export type HubDataHandlers = { readonly [T in DataRequest]: TabRequestHandler<T> };
 
+/** The conversation of a read when it is not the fan; `{}` when it is, or when the tab named none (ChatSpace). */
+const conversationOf = (fanRef: string, conversationRef: string | undefined): { readonly conversationRef?: string } =>
+  conversationRef === undefined || conversationRef === fanRef ? {} : { conversationRef };
+
 /** Codes that mean «no such report here» for `usage.get`, whose answer is null rather than an error. */
 const NO_USAGE: readonly CgCode[] = ['CG-FEATURE-DISABLED', 'CG-HUB-CAPABILITY'];
 
@@ -53,11 +64,13 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
   return {
     'recap.status': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
-        // On OnlyFans the conversation is the fan (§8.4 «conversationRef = fanRef»).
-        deps.hub().recapStatus({ pageLabel: page.pageLabel, conversationRef: request.fanRef, fanRef: request.fanRef, personaDefinitionId: request.personaDefinitionId }),
+        // The status line has always named the conversation: the tab's, else the fan (OnlyFans, §8.4 «conversationRef = fanRef»).
+        deps.hub().recapStatus({ pageLabel: page.pageLabel, conversationRef: request.conversationRef ?? request.fanRef, fanRef: request.fanRef, personaDefinitionId: request.personaDefinitionId }),
       ),
     'recap.read': (request, sender) =>
-      onPage(request.pageId, sender, (page) => deps.hub().recaps({ pageLabel: page.pageLabel, fanRef: request.fanRef, personaDefinitionId: request.personaDefinitionId })),
+      onPage(request.pageId, sender, (page) =>
+        deps.hub().recaps({ pageLabel: page.pageLabel, fanRef: request.fanRef, personaDefinitionId: request.personaDefinitionId, ...conversationOf(request.fanRef, request.conversationRef) }),
+      ),
     'spenders.board': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
         deps.hub().spendersBoard({ pageLabel: page.pageLabel, period: request.period, ...(request.force === undefined ? {} : { force: request.force }) }),
@@ -76,6 +89,7 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
           limit: request.limit,
           ...(request.cursor === null ? {} : { cursor: request.cursor }),
           ...(request.summaryWindow === undefined ? {} : { summaryWindow: request.summaryWindow }),
+          ...conversationOf(request.fanRef, request.conversationRef),
         }),
       ),
     'fan.card': (request, sender) =>

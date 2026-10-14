@@ -26,6 +26,8 @@ export interface RecapSlotKey {
   readonly hubOrigin: string;
   readonly pageId: number;
   readonly fanRef: string;
+  /** R20 F6b: the conversation, only when it is not the fan (on Fansly the group); the hub's recaps are read by it. */
+  readonly conversationRef?: string;
   readonly personaDefinitionId: string;
 }
 
@@ -51,7 +53,7 @@ export interface RecapCopy {
   readonly storedAt: number;
 }
 
-const slotKey = (key: RecapSlotKey, length: RecapLength): string => [key.hubOrigin, key.pageId, key.fanRef, key.personaDefinitionId, length].join('\u0000');
+const slotKey = (key: RecapSlotKey, length: RecapLength): string => [key.hubOrigin, key.pageId, key.fanRef, key.conversationRef, key.personaDefinitionId, length].join('\u0000');
 
 /**
  * How long a recap this tab generated holds its slot against another

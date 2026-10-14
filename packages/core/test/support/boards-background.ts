@@ -362,10 +362,12 @@ export class BoardsBackground {
       const pageLabel = this.pageLabel(pageId);
       return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientSpenderAwaitingReply', cursor === null ? { pageLabel, limit } : { pageLabel, cursor, limit });
     },
-    'feed.read': ({ pageId, fanRef, cursor, limit, summaryWindow }) => {
+    'feed.read': ({ pageId, fanRef, cursor, limit, summaryWindow, conversationRef }) => {
       const pageLabel = this.pageLabel(pageId);
       if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
-      return this.read('clientConversationFeed', { pageLabel, fanRef, limit, ...(cursor === null ? {} : { cursor }), ...(summaryWindow === undefined ? {} : { summaryWindow }) });
+      // As the background's hub-data route: the conversation goes along only when it is not the fan (R20 F6b).
+      const conversation = conversationRef === undefined || conversationRef === fanRef ? {} : { conversationRef };
+      return this.read('clientConversationFeed', { pageLabel, fanRef, limit, ...(cursor === null ? {} : { cursor }), ...(summaryWindow === undefined ? {} : { summaryWindow }), ...conversation });
     },
     'fan.dossier': async ({ pageId, fanRef }) => {
       const pageLabel = this.pageLabel(pageId);

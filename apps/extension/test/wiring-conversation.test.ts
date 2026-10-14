@@ -9,6 +9,7 @@
 // ChatSpace the conversation is the fan, and the hub's reads are the same.
 
 import { chat } from '@cg/contracts/fixtures';
+import { PILOT_CAPABILITIES, callsTo } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,9 +63,16 @@ async function fullRecap(w: World, tab: WorkingTab): Promise<{ readonly opId: st
   return { opId, generationRef, wire: w.wire.slice(from).filter((request) => request.url.endsWith('/profile/from-generation')) };
 }
 
+/** The hub as the pilot runs it (it serves `conversation-recaps-v1`), and a hub before HF-10. */
+const HUBS = [
+  ['a hub that serves conversation-recaps-v1', PILOT_CAPABILITIES],
+  ['a hub before HF-10', PILOT_CAPABILITIES.filter((capability) => capability !== 'conversation-recaps-v1')],
+] as const;
+
 describe('[host:chatspace] R20 F6b: what the background sends the hub for the reads by conversation is what main sent', () => {
-  it('the recap status and recaps, both dossier saves, the feed, the card and the dossier — byte for byte', async () => {
+  it.each(HUBS)('the recap status and recaps, both dossier saves, the feed, the card and the dossier — byte for byte, on %s', async (_name, capabilities) => {
     const w = world();
+    w.hub.control({ op: 'config', patch: { capabilities } });
     w.start();
     await signInWithPersona(w);
     const tab = await workingTab(w);
@@ -93,4 +101,35 @@ describe('[host:chatspace] R20 F6b: what the background sends the hub for the re
     reads['dossier'] = named(await wireOf(w, () => tab.client.request('fan.dossier', { pageId: PAGE_ID, fanRef: fan })), names);
     expect(reads).toEqual(CHATSPACE_RECORDED_READS.reads);
   });
+});
+
+describe('[host:chatspace] R20 F6b: a ChatSpace chat whose conversation is not its fan is a request the hub refuses', () => {
+  for (const [name, capabilities] of HUBS) {
+    it(`on ${name}: ${capabilities.includes('conversation-recaps-v1') ? 'the hub answers it 409 conversation_fan_mismatch (CG-CONTEXT-CHANGED)' : 'it is never asked (CG-HUB-CAPABILITY)'}`, async () => {
+      const w = world();
+      w.hub.control({ op: 'config', patch: { capabilities } });
+      w.start();
+      await signInWithPersona(w);
+      const tab = await workingTab(w);
+      const fan = chat.platformFanId;
+      const other = WORLD.otherFan;
+      const answers = await Promise.all([
+        tab.client.request('recap.read', { pageId: PAGE_ID, fanRef: fan, personaDefinitionId: PERSONA, conversationRef: other }),
+        tab.client.request('feed.read', { pageId: PAGE_ID, fanRef: fan, cursor: null, limit: 1, conversationRef: other }),
+        tab.client.request('recap.save', { pageId: PAGE_ID, fanRef: fan, generationRef: '00000000-0000-4000-8000-000000000200', conversationRef: other }),
+      ]);
+      const served = capabilities.includes('conversation-recaps-v1');
+      const entries = w.hub.read().entries;
+      if (served) {
+        // The hub checks the pair before it reads anything: the save too is its 409, not «rejected».
+        expect(answers.map((answer) => (answer.ok ? answer.payload : answer.error.code))).toEqual(['CG-CONTEXT-CHANGED', 'CG-CONTEXT-CHANGED', 'CG-CONTEXT-CHANGED']);
+        for (const route of ['clientConversationRecaps', 'clientConversationFeed', 'clientFanProfileFromGeneration'] as const) {
+          expect([route, callsTo(entries, route).map((call) => [call.status, call.error])]).toEqual([route, [[409, 'conversation_fan_mismatch']]]);
+        }
+      } else {
+        expect(answers.map((answer) => (answer.ok ? answer.payload : answer.error.code))).toEqual(['CG-HUB-CAPABILITY', 'CG-HUB-CAPABILITY', 'CG-HUB-CAPABILITY']);
+        for (const route of ['clientConversationRecaps', 'clientConversationFeed', 'clientFanProfileFromGeneration'] as const) expect([route, callsTo(entries, route)]).toEqual([route, []]);
+      }
+    });
+  }
 });
