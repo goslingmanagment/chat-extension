@@ -75,8 +75,12 @@ pnpm monorepo, TypeScript strict, Firefox MV3 (WXT), Preact.
   tab and of the pages).
 - `packages/platform` — the only package that touches `browser.*`.
 - `packages/hub` — the hub facade over the vendored SDK; background only.
-- `packages/host-chatspace` — the MAIN bridge (dependency-free) and the
-  isolated adapter (`HostPort`).
+- `packages/host-kit` — the host-neutral page machinery both sites share: the
+  MAIN loader and bridge protocol (dependency-free), `guard`, the isolated
+  bridge client, closed hosts and layers, keep-bottom, the key probe; it
+  names no site.
+- `packages/host-chatspace` — ChatSpace's MAIN runtime and WS tap, and its
+  isolated adapter (`HostPort`) over `host-kit`.
 - `packages/ui` — Preact surfaces; data only through `AppClient`.
 - `packages/testing` — the stand, the fake hub, e2e. Never ships.
 - `vendor/` — `@kernel/sdk`, `@chatgoose/hotkeys`. `tools/` — size budgets,
