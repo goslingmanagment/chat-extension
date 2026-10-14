@@ -85,6 +85,8 @@ export interface BootstrapDeps {
   readonly ctx: HubContext;
   readonly local: HubKeyValueStore;
   readonly compatPageAccounts: Readonly<Record<string, string>>;
+  /** The platforms the build's sites serve: the compat bootstrap's pages of another are `platform_unsupported`. */
+  readonly compatPlatforms: readonly string[];
 }
 
 export class BootstrapService {
@@ -226,7 +228,7 @@ export class BootstrapService {
     this.ctx.log('warn', 'hub: no client/bootstrap — using the DEV-ONLY compat bootstrap', { epoch: connection.epoch });
     const me = (await this.ctx.sdk('me', {}, options, connection)) as HubAuthState;
     const pages = CompatPagesSchema.parse(await this.ctx.sdk('pages', {}, options, connection)) as CompatPage[];
-    return synthesizeCompatBootstrap({ me: HubAuthStateSchema.parse(me), pages, issuedAt: new Date(now).toISOString(), pageAccounts: this.deps.compatPageAccounts });
+    return synthesizeCompatBootstrap({ me: HubAuthStateSchema.parse(me), pages, issuedAt: new Date(now).toISOString(), pageAccounts: this.deps.compatPageAccounts, platforms: this.deps.compatPlatforms });
   }
 
   /** Takes a checked bootstrap as the current one, persists it and schedules its expiry refresh. */

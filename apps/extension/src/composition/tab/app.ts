@@ -143,6 +143,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   const firstSettings = await rpc.request('settings.get', {});
   if (firstSettings.ok) ui = readSettings(firstSettings.payload);
 
+  // ── the site's look and its phrases (R20 §1.5): read once, as the application starts ──
+  const profile = site.ui(env.theme);
+
   // ── texts: one language, its own lazy chunk (§11) ──────────────────────────
   const catalogs: Partial<Record<Locale, Readonly<Record<string, unknown>>>> = {};
   const loadCatalog = async (language: Locale): Promise<void> => {
@@ -155,6 +158,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   const i18n = createLiveI18n((language) => catalogs[language] ?? null, {
     language: languageOf(ui),
     onMissing: (key, language) => logger.warn('tab.i18n', 'text missing', { fields: { key, language } }),
+    // The shared texts name no site: the site's own phrases go where they did (R20 F9b).
+    phrases: profile.phrases,
   });
   const translator = translatorOf(i18n);
   const errorOf = (code: CgCode): CgErrorView => viewOfCode(code, translator);
@@ -442,7 +447,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
 
   const deps: MountDeps = {
     // The site's look (§1.5): every surface of the tab is mounted with it, the dialogs and the side panels too.
-    profile: site.ui(env.theme),
+    profile,
     client,
     i18n,
     catalog,

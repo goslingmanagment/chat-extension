@@ -528,7 +528,7 @@ describe('[HB-011] the DEV-ONLY compat mode for a hub without client/bootstrap (
   it('[HB-011] a release build refuses with debug mode on too — a full token of a hub without H-3 as well: debug is a chatter’s switch, not a developer’s build', async () => {
     for (const issued of [WORLD_PILOT.issued, { ...WORLD_PILOT.issued, client: null }]) {
       h.facade.dispose();
-      h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }), compatPageAccounts: { [one.pageLabel]: one.platformAccountId } });
+      h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }), compatPageAccounts: { [one.pageLabel]: one.platformAccountId }, compatPlatforms: ['onlyfans'] });
       serveOldHub(h, issued);
       expect(await codeOf(h.facade.signIn(WORLD.user.username, 'synthetic-password'))).toBe('CG-HUB-OUTDATED');
       await flush();
@@ -541,7 +541,7 @@ describe('[HB-011] the DEV-ONLY compat mode for a hub without client/bootstrap (
   });
 
   it('[HB-011] a test build with debug on: a bootstrap synthesized from me + pages; every feature that needs a new route is hub_not_ready', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true, testBuild: true }), compatPageAccounts: { [one.pageLabel]: one.platformAccountId } });
+    h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true, testBuild: true }), compatPageAccounts: { [one.pageLabel]: one.platformAccountId }, compatPlatforms: ['onlyfans'] });
     serveOldHub(h);
     await h.facade.signIn(WORLD.user.username, 'synthetic-password');
     const cached = h.facade.cachedBootstrap();
@@ -594,6 +594,7 @@ describe('[HB-011] the DEV-ONLY compat mode for a hub without client/bootstrap (
       pages: [{ id: 1, label: 'p', platform: 'onlyfans', modelName: 'M', displayName: null }],
       issuedAt: new Date(NOW_MS).toISOString(),
       pageAccounts: { p: '3003' },
+      platforms: ['onlyfans'],
     });
     expect(bootstrap).toMatchObject({ protocol: 1, configRevision: 0, minVersion: '0.0.0', pages: [{ title: 'M', platformAccountId: '3003', bindingRevision: 0 }] });
     // The owner's switches stay on; what the hub cannot do is unavailable on the page (hub_not_ready).

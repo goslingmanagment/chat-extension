@@ -60,13 +60,13 @@ describe('[AU-001] [AU-005] [AU-006] [AU-008] [HB-004] sign-in with login and pa
     expect(left.left().map((exchange) => exchange.route)).toEqual([]);
   });
 
-  it('[AU-005] labels the device «Firefox · OS · ChatSpace» and sends the client name', async () => {
+  it('[AU-005] labels the device «Firefox · OS · ChatGoose» — the extension, no site — and sends the client name', async () => {
     h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ os: 'windows' }) });
     await signIn(h, WORLD_PILOT);
     expect(h.hub.of('authIssueDeviceTokenWithPassword')[0]?.body).toEqual({
       username: WORLD.user.username,
       password: PASSWORD,
-      label: 'Firefox · Windows · ChatSpace',
+      label: 'Firefox · Windows · ChatGoose',
       mode: 'active',
       client: 'chat-extension',
     });

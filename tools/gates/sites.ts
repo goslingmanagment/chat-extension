@@ -1,18 +1,24 @@
 // The gates that keep the two sites apart (docs/project-unite/architecture.md
-// §1.8; R20 F9a — the early gates, standing on the debt list of §1.9). Pure
-// functions over {path, text}; index.ts feeds them the repo, the release build
-// and the diff of the change.
+// §1.8; R20 F9a — the early gates; R20 F9b — the final ones, with no
+// exceptions). Pure functions over {path, text}; index.ts feeds them the repo,
+// the release build and the diff of the change.
 //
-// 1. Site literals, by AST and by meaning. Shared code (core, ui, hub) names no
-//    site: no string equal to a value of HostKind or Platform, no comparison
-//    with one, no table keyed by one, no read of such a key. A site's own code
-//    names no OTHER site. A value counts wherever it stands — a comparison, a
-//    switch, a literal type, an object key written without quotes — and only a
-//    value does: `platform === 'mac'`, `host === null`, a comment, a longer
-//    text or an i18n key never trip it. What shared code still names today is
-//    the debt list, each entry with the PR of plan.md that removes it; the gate
+// 1. Site literals, by AST and by meaning. Shared code (core, ui, hub and the
+//    shared page mechanics of host-kit) names no site: no string equal to a
+//    value of HostKind or Platform, no comparison with one, no table keyed by
+//    one, no read of such a key. A site's own code names no OTHER site. A value
+//    counts wherever it stands — a comparison, a switch, a literal type, an
+//    object key written without quotes — and only a value does:
+//    `platform === 'mac'`, `host === null`, a comment, a longer text or an i18n
+//    key never trip it. The debt list of §1.9 is empty since F9b: an entry
+//    stays only while a PR of plan.md that owns it is in flight, and the gate
 //    fails on a literal outside the list, on an entry the code has outgrown and
 //    on an entry of a PR already done — so the list only shrinks.
+// 1a. Site names in texts (F9b). No text of shared code — a catalog entry, a
+//    string, a template, a JSX text — says «ChatSpace», «OnlyMonster»,
+//    «OnlyFans» or «Fansly»: it says the site's phrase (`{site}`, `{onSite}`,
+//    `{siteAccount}`, `{sitePlatform}`), which the I18n port fills from the
+//    site's own text pack. The names are derived from those packs.
 // 2. Bytes per site. ChatSpace's built files — its scripts, its lazy build, its
 //    background chunk and the background core — are pinned by size and hash in
 //    chatspace-bytes.json, and the release build must match it. A change of
@@ -35,7 +41,12 @@ import ts from 'typescript';
 
 import type { HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
 import { HOST_KINDS, HOST_PLATFORM, type HostKind } from '../../packages/contracts/src/hosts.ts';
+import type { HostPhrases } from '../../packages/contracts/src/vm/host-profile.ts';
+import { CHATSPACE_PHRASES } from '../../packages/core/src/domain/hosts/chatspace/i18n/index.ts';
+import { FANSLY_PHRASES } from '../../packages/core/src/domain/hosts/fansly/i18n/phrases.ts';
 import { lineOf, parse, walk, type SourceFile, type Violation } from './checks.ts';
+
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ── Whose path is whose ─────────────────────────────────────────────────────
 
@@ -87,8 +98,8 @@ export function isNeutralPath(path: string): boolean {
 
 // ── 1. Site literals ────────────────────────────────────────────────────────
 
-/** Shared code that names no site at all. */
-export const SITE_FREE_SCOPES: readonly RegExp[] = [/^packages\/core\/src\//, /^packages\/ui\/src\//, /^packages\/hub\/src\//];
+/** Shared code that names no site at all: core, ui, the hub layer and the shared mechanics of the page (host-kit, R20 P5). */
+export const SITE_FREE_SCOPES: readonly RegExp[] = [/^packages\/core\/src\//, /^packages\/ui\/src\//, /^packages\/hub\/src\//, /^packages\/host-kit\/src\//];
 /** The one shared module that decides by site: the admission of a feature on a host (architecture.md §1.4). */
 export const SITE_LITERALS_ALLOWED: readonly RegExp[] = [/^packages\/core\/src\/domain\/features\/admission\.ts$/];
 /** How a site value stands in the code. */
@@ -205,25 +216,18 @@ export interface SiteLiteralDebt {
 }
 
 const CORE = 'packages/core/src';
-const UI = 'packages/ui/src';
 
 /**
- * The debt of architecture.md §1.9, as the gate found it on `main` (2026-10-13). An entry is a file and a value, not a
- * line: lines move with every edit of the file, the count moves only when a literal comes or goes. The PR that removes
- * a literal lowers the count or drops the entry in the same commit; the final gate (F9b) stands on an empty list.
+ * The debt of architecture.md §1.9. An entry is a file and a value, not a line: lines move with every edit of the
+ * file, the count moves only when a literal comes or goes. The PR that removes a literal lowers the count or drops the
+ * entry in the same commit. The final gate (F9b) emptied the list of every entry no PR in flight owns: the platforms'
+ * names went to the sites' phrases, the default tones to the background's table of the sites, `settings.ext` is read
+ * by the sections its schema names, the compat bootstrap takes the build's platforms from the composition root. What is
+ * left is an entry of a PR still in flight; it leaves with that PR.
  */
 export const SITE_LITERAL_DEBT: readonly SiteLiteralDebt[] = [
   // F10 — the policy of AI by site: the pre-check is the site's port.
   { path: `${CORE}/domain/features/gates.ts`, value: 'fansly', count: 1, pr: 'F10', note: "`platform === 'fansly'` in `pingGate` → the pre-check port of `AiHostPolicy`" },
-  // F9b — what no earlier PR of the plan owns: the final gate removes it or hands it on.
-  { path: `${CORE}/application/pages/view-status.ts`, value: 'onlyfans', count: 1, pr: 'F9b', note: 'the platforms’ names (`PLATFORM_NAMES`) → phrases of the site profile' },
-  { path: `${CORE}/application/pages/view-status.ts`, value: 'fansly', count: 1, pr: 'F9b', note: 'the same table' },
-  { path: `${UI}/pages/shared.tsx`, value: 'onlyfans', count: 1, pr: 'F9b', note: 'the platforms’ names (`PLATFORM_WORDS`) → phrases of the site profile' },
-  { path: `${UI}/pages/shared.tsx`, value: 'fansly', count: 1, pr: 'F9b', note: 'the same table' },
-  { path: `${CORE}/domain/sound/tones.ts`, value: 'onlyfans', count: 1, pr: 'F9b', note: 'the default tones by platform (`PLATFORM_DEFAULT_TONES`) → a default of the site' },
-  { path: `${CORE}/domain/sound/tones.ts`, value: 'fansly', count: 1, pr: 'F9b', note: 'the same table' },
-  { path: `${CORE}/domain/settings/ext.ts`, value: 'fansly-web', count: 1, pr: 'F9b', note: "the Fansly section of `settings.ext` read by name → by the sections the key's schema names" },
-  { path: 'packages/hub/src/bootstrap-rules.ts', value: 'onlyfans', count: 1, pr: 'F9b', note: "`platform !== 'onlyfans'` in the bootstrap made up for an old hub → the hub's own decision per page" },
 ];
 
 /** The PRs of plan.md and which of them are marked done (tools/parity/matrix.ts `parsePlanPrs`). */
@@ -297,6 +301,54 @@ export function checkSiteLiterals(files: readonly SourceFile[], debt: readonly S
         message: `names ${quote(entry.value)} ×${now} now, the debt list says ×${entry.count} (${entry.pr}): ${now === 0 ? 'drop the entry' : `lower it to ${now}`} in ${DEBT_FILE} — the list only shrinks.`,
       });
     }
+  }
+  return violations;
+}
+
+// ── 1a. Site names in texts ─────────────────────────────────────────────────
+
+/** The names in a site's phrases (`HostPhrases`): the site, its accounts, its platform — every language's. */
+function namesOf(phrases: { readonly [locale: string]: HostPhrases }): readonly string[] {
+  return [...new Set(Object.values(phrases).flatMap((phrase) => [phrase.site, phrase.siteAccount, phrase.sitePlatform]))];
+}
+
+/**
+ * What says a site in a text, by its kind: the names its own phrases give (its text pack, `core/domain/hosts/<site>/
+ * i18n`). A new host kind does not typecheck until its phrases are here.
+ */
+export const SITE_NAMES: { readonly [K in HostKind]: readonly string[] } = { chatspace: namesOf(CHATSPACE_PHRASES), 'fansly-web': namesOf(FANSLY_PHRASES) };
+
+/** The site names a file's texts may not say: every site's in shared code, the other sites' in a site's own; null — not gated. */
+export function forbiddenSiteNames(path: string): readonly string[] | null {
+  if (isNeutralPath(path)) return null;
+  const owner = siteOfPath(path);
+  if (owner !== null) return SITES.filter((site) => site !== owner).flatMap((site) => SITE_NAMES[site.kind]);
+  return SITE_FREE_SCOPES.some((pattern) => pattern.test(path)) ? HOST_KINDS.flatMap((kind) => SITE_NAMES[kind]) : null;
+}
+
+/** A name as a word of a text: «ChatSpace обновился», «Fansly’s» — not `openChatSpace`, an i18n key or an identifier. */
+const nameInText = (names: readonly string[]): RegExp => new RegExp(`(?<![\\p{L}\\p{N}_$])(?:${names.map(escapeRegExp).join('|')})(?![\\p{L}\\p{N}_$])`, 'u');
+
+/**
+ * 1a. A text of a gated file that says a site's name — a string, a template's chunk, a JSX text; by AST, so a comment
+ * never counts. A shared text says the site's phrase instead (`{site}`, `{onSite}`, `{siteAccount}`, `{sitePlatform}`).
+ */
+export function checkSiteNames(files: readonly SourceFile[]): Violation[] {
+  const violations: Violation[] = [];
+  for (const file of files) {
+    const names = forbiddenSiteNames(file.path);
+    if (names === null || names.length === 0) continue;
+    const pattern = nameInText(names);
+    const source = parse(file);
+    walk(source, (node) => {
+      const isText = ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node) || ts.isJsxText(node);
+      if (!isText || (ts.isStringLiteralLike(node) && isModuleSpecifier(node))) return;
+      const name = pattern.exec(node.text)?.[0];
+      if (name === undefined) return;
+      const owner = siteOfPath(file.path);
+      const where = owner === null ? 'a shared text names no site: say its phrase — {site}, {onSite}, {siteAccount}, {sitePlatform} — and the I18n port puts the site’s own in' : `${owner.kind}'s own text names no other site`;
+      violations.push({ gate: 'site-name', path: file.path, line: lineOf(source, node), message: `«${name}» in «${node.text.trim().slice(0, 60)}» — ${where} (docs/project-unite/architecture.md §1.8, §3.4).` });
+    });
   }
   return violations;
 }
@@ -473,7 +525,6 @@ export function deriveSiteMarkers(files: readonly SourceFile[], site: Site): str
   return [...own].filter((text) => text.length >= MARKER_MIN_LENGTH && MARKER_SHAPES.some((shape) => shape.test(text)) && !others.has(text)).sort();
 }
 
-const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * 3. No built file of `host` carries a marker of another site: a marker counts as a whole string of the bundle (a

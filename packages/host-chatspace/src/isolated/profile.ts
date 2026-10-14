@@ -7,6 +7,7 @@
 // is all — the palette is the page's own, the rules are the shared ones.
 
 import type { HostUiProfile } from '@cg/contracts/vm';
+import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 
 export const CHATSPACE_UI: HostUiProfile = {
   // No palette: ChatSpace defines `--color-om-*` on its <html>, and they reach our hosts by inheritance — the kit's
@@ -14,8 +15,6 @@ export const CHATSPACE_UI: HostUiProfile = {
   // and the layers' stacking are the host's own start, not the interface's.
   dock: { variant: 'chatspace' },
   // No sheet: the dock's shared rules are ChatSpace's.
-  phrases: {
-    ru: { site: 'ChatSpace', onSite: 'в ChatSpace' },
-    en: { site: 'ChatSpace', onSite: 'in ChatSpace' },
-  },
+  // What the shared texts say instead of a site's name: ChatSpace's text pack (R20 F9b), the tab's I18n port fills them.
+  phrases: CHATSPACE_PHRASES,
 };

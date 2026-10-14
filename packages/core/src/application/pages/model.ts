@@ -244,16 +244,26 @@ export function boundPageOf(model: PagesModel, account: HostAccount): { readonly
 }
 
 /**
- * What tells a hub page from another of the same title (1.3.0, `PageTagVM`): its platform token and the hub's
- * page label. An owner may have «Lora Vie» on OnlyFans twice and on Fansly once. Display only (AU-023).
+ * A hub page's platform as people name it (R20 F9b): the phrase of the site that serves it, in the page's language;
+ * null — no site of the pages serves the platform (an open token of the hub: it is printed as it is).
  */
-export function pageTagOf(page: Pick<BootstrapPage, 'platform' | 'pageLabel'>): PageTagVM {
-  return { platform: page.platform, pageLabel: page.pageLabel };
+export function platformNameOf(model: Pick<PagesModel, 'env' | 'locale'>, platform: string): string | null {
+  return model.env.platformPhrases(platform)?.[model.locale].sitePlatform ?? null;
+}
+
+/**
+ * What tells a hub page from another of the same title (1.3.0, `PageTagVM`): its platform token, as people name it
+ * (1.15.0), and the hub's page label. An owner may have «Lora Vie» on one platform twice and on another once.
+ * Display only (AU-023).
+ */
+export function pageTagOf(model: Pick<PagesModel, 'env' | 'locale'>, page: Pick<BootstrapPage, 'platform' | 'pageLabel'>): PageTagVM {
+  const platformName = platformNameOf(model, page.platform);
+  return { platform: page.platform, pageLabel: page.pageLabel, ...(platformName === null ? {} : { platformName }) };
 }
 
 /** The tag of the page a host account is bound to: the bootstrap's page, or — when it no longer lists it — the binding's own. */
-export function boundPageTagOf(bound: { readonly binding: HubBinding; readonly page: BootstrapPage | null }): PageTagVM {
-  return pageTagOf(bound.page ?? bound.binding);
+export function boundPageTagOf(model: Pick<PagesModel, 'env' | 'locale'>, bound: { readonly binding: HubBinding; readonly page: BootstrapPage | null }): PageTagVM {
+  return pageTagOf(model, bound.page ?? bound.binding);
 }
 
 export const OP_RUNNING_STATES: readonly OpView['state'][] = ['admitted', 'requesting', 'streaming'];

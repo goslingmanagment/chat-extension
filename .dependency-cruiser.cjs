@@ -145,8 +145,8 @@ module.exports = {
     only(
       'host-isolated',
       pkg('host-chatspace/src/isolated'),
-      [HOST_KIT_ISOLATED, pkg('contracts'), pkg('core/src/domain/text'), ZOD],
-      '`host-chatspace/isolated`: host-kit, contracts and core/domain/text only (§4).',
+      [HOST_KIT_ISOLATED, pkg('contracts'), pkg('core/src/domain/text'), pkg('core/src/domain/hosts/chatspace/i18n'), ZOD],
+      '`host-chatspace/isolated`: host-kit, contracts, core/domain/text and ChatSpace\'s own text pack (its phrases for the profile, R20 F9b) only (§4).',
     ),
     // ── The packages of the page for two sites (docs/project-unite/architecture.md §1.1, §1.8) ──
     only(
@@ -183,8 +183,8 @@ module.exports = {
     only(
       'host-fansly-isolated',
       pkg('host-fansly/src/isolated'),
-      [HOST_KIT_ISOLATED, pkg('contracts'), pkg('core/src/domain/text'), ZOD],
-      '`host-fansly/isolated`: host-kit, contracts and core/domain/text only — no token, no network, no MAIN code (docs/project-unite/architecture.md §7).',
+      [HOST_KIT_ISOLATED, pkg('contracts'), pkg('core/src/domain/text'), pkg('core/src/domain/hosts/fansly/i18n'), ZOD],
+      '`host-fansly/isolated`: host-kit, contracts, core/domain/text and Fansly\'s own text pack (its phrases for the profile, R20 F9b) only — no token, no network, no MAIN code (docs/project-unite/architecture.md §7).',
     ),
     only(
       'fansly-api-graph',
@@ -297,9 +297,9 @@ module.exports = {
     {
       name: 'chatspace-code-only-from-chatspace',
       comment:
-        'ChatSpace\'s implementation — its page package and its hosts/chatspace folders — is imported only by ChatSpace\'s own code: its entry points, its halves of the adapter and the two lazy entries that carry them. The shared tab composition works with the common HostPort and the adapter (docs/project-unite/architecture.md §1.3, §1.8).',
+        'ChatSpace\'s implementation — its page package and its hosts/chatspace folders — is imported only by ChatSpace\'s own code: its entry points, its halves of the adapter and the two lazy entries that carry them; and by the extension pages\' composition root, which speaks of every site of the build (ChatSpace\'s text pack, R20 F9b), as it may import Fansly\'s. The shared tab composition works with the common HostPort and the adapter (docs/project-unite/architecture.md §1.3, §1.8).',
       severity: 'error',
-      from: { pathNot: [...CHATSPACE_HOST_CODE, '^apps/extension/src/entrypoints/chatspace', '^apps/extension/lazy/entries/(tab-app|bridge-validation)\\.ts$', ...TEST_CODE] },
+      from: { pathNot: [...CHATSPACE_HOST_CODE, '^apps/extension/src/entrypoints/chatspace', '^apps/extension/lazy/entries/(tab-app|bridge-validation)\\.ts$', PAGES_ROOT, ...TEST_CODE] },
       to: { path: CHATSPACE_HOST_CODE },
     },
     {

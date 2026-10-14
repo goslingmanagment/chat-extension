@@ -9,16 +9,12 @@
 //   A default is never written down and never replaces a stored value, so a
 //   later build that adds a field, or another build of the same version, loses
 //   nothing to this one.
+//
+// Both walk the key's schema (R20 F9b): a site's section is read and written
+// by the names `SettingsExtSchema` gives its `hosts` — this module names no
+// site, and a section a later contract adds is read with no change here.
 
-import {
-  DEFAULT_SETTINGS_EXT,
-  FanslySettingsSchema,
-  SETTINGS_EXT_VERSION,
-  SettingsExtSchema,
-  type SettingsExt,
-  type SettingsExtLoadOutcome,
-  type SettingsExtPatch,
-} from '@cg/contracts/settings-ext';
+import { DEFAULT_SETTINGS_EXT, SETTINGS_EXT_VERSION, SettingsExtSchema, type SettingsExt, type SettingsExtLoadOutcome, type SettingsExtPatch } from '@cg/contracts/settings-ext';
 
 import { isPlainRecord, stableJson } from '../storage/json';
 
@@ -28,10 +24,15 @@ interface FieldSchema {
   safeParse(value: unknown): { readonly success: boolean; readonly data?: unknown };
 }
 
-const FANSLY = 'fansly-web';
-const FANSLY_FIELDS = FanslySettingsSchema.shape;
-const SOUND_FIELDS = FanslySettingsSchema.shape.sound.shape;
-const DEEP = SettingsExtSchema.shape.windows.shape.deep;
+/** An object of the key's schema: its fields by name, each a value or an object of its own. */
+interface SectionSchema {
+  readonly shape: Readonly<Record<string, FieldSchema>>;
+}
+
+const sectionOf = (schema: FieldSchema): SectionSchema | null => ('shape' in schema && isPlainRecord(schema.shape) ? (schema as unknown as SectionSchema) : null);
+
+/** The sites' sections, by the names the key's schema gives them. */
+const HOST_SECTIONS: readonly string[] = Object.keys(SettingsExtSchema.shape.hosts.shape);
 
 /** A stored field read on its own: absent — the default, unnamed; broken — the default, named by path. */
 function field<T>(stored: Readonly<Record<string, unknown>> | null, key: string, schema: FieldSchema, fallback: T, path: string, repaired: string[]): T {
@@ -51,28 +52,36 @@ function section(stored: Readonly<Record<string, unknown>> | null, key: string, 
   return null;
 }
 
+/**
+ * Reads an object of the schema out of what is stored: every object inside it first, then every value, each in the
+ * schema's order — so a broken object is named before the values it took with it (`leaves` runs after the walk).
+ */
+function readSection(
+  stored: Readonly<Record<string, unknown>> | null,
+  schema: SectionSchema,
+  defaults: Readonly<Record<string, unknown>>,
+  path: string,
+  repaired: string[],
+  leaves: (() => void)[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, fieldSchema] of Object.entries(schema.shape)) {
+    const at = path === '' ? key : `${path}.${key}`;
+    const nested = sectionOf(fieldSchema);
+    // The key is taken here, so the view keeps the schema's order of fields.
+    out[key] = undefined;
+    if (nested !== null) out[key] = readSection(section(stored, key, at, repaired), nested, defaults[key] as Readonly<Record<string, unknown>>, at, repaired, leaves);
+    else leaves.push(() => (out[key] = field(stored, key, fieldSchema, defaults[key], at, repaired)));
+  }
+  return out;
+}
+
 function readKnown(stored: Readonly<Record<string, unknown>>, repaired: string[]): SettingsExt {
-  const defaults = DEFAULT_SETTINGS_EXT.hosts[FANSLY];
-  const hosts = section(stored, 'hosts', 'hosts', repaired);
-  const fansly = section(hosts, FANSLY, `hosts.${FANSLY}`, repaired);
-  const sound = section(fansly, 'sound', `hosts.${FANSLY}.sound`, repaired);
-  const windows = section(stored, 'windows', 'windows', repaired);
-  const p = `hosts.${FANSLY}`;
-  return {
-    v: SETTINGS_EXT_VERSION,
-    hosts: {
-      [FANSLY]: {
-        enabled: field(fansly, 'enabled', FANSLY_FIELDS.enabled, defaults.enabled, `${p}.enabled`, repaired),
-        viaTab: field(fansly, 'viaTab', FANSLY_FIELDS.viaTab, defaults.viaTab, `${p}.viaTab`, repaired),
-        notesView: field(fansly, 'notesView', FANSLY_FIELDS.notesView, defaults.notesView, `${p}.notesView`, repaired),
-        sound: {
-          messagesTone: field(sound, 'messagesTone', SOUND_FIELDS.messagesTone, defaults.sound.messagesTone, `${p}.sound.messagesTone`, repaired),
-          subscribersTone: field(sound, 'subscribersTone', SOUND_FIELDS.subscribersTone, defaults.sound.subscribersTone, `${p}.sound.subscribersTone`, repaired),
-        },
-      },
-    },
-    windows: { deep: field(windows, 'deep', DEEP, null, 'windows.deep', repaired) },
-  };
+  const { v: _version, ...fields } = SettingsExtSchema.shape;
+  const leaves: (() => void)[] = [];
+  const read = readSection(stored, { shape: fields }, DEFAULT_SETTINGS_EXT, '', repaired, leaves);
+  for (const leaf of leaves) leaf();
+  return { v: SETTINGS_EXT_VERSION, ...read } as SettingsExt;
 }
 
 /** The stored version: a whole number ≥ 1; anything else reads as this build's (named). */
@@ -130,12 +139,14 @@ export function applySettingsExtPatch(stored: unknown, patch: SettingsExtPatch):
   const next: Record<string, unknown> = { ...base, v: (base === null ? null : storedVersion(base)) ?? SETTINGS_EXT_VERSION };
   /** Paths the patch wrote: each must read back as written. */
   const written: string[] = [];
-  const fansly = patch.hosts?.[FANSLY];
-  if (fansly !== undefined) {
-    const block = child(child(next, 'hosts'), FANSLY);
-    const { sound, ...flags } = fansly;
-    written.push(...setDefined(block, flags, `hosts.${FANSLY}`));
-    if (sound !== undefined) written.push(...setDefined(child(block, 'sound'), sound, `hosts.${FANSLY}.sound`));
+  const hostPatches: Readonly<Record<string, Readonly<Record<string, unknown>> | undefined>> = patch.hosts ?? {};
+  const hostsNamed = HOST_SECTIONS.filter((host) => hostPatches[host] !== undefined);
+  for (const host of hostsNamed) {
+    const block = child(child(next, 'hosts'), host);
+    const entries = Object.entries(hostPatches[host] ?? {});
+    // A site's own values first, then its objects (the sound's tones), each written field by field.
+    written.push(...setDefined(block, Object.fromEntries(entries.filter(([, value]) => !isPlainRecord(value))), `hosts.${host}`));
+    for (const [key, value] of entries) if (isPlainRecord(value)) written.push(...setDefined(child(block, key), value, `hosts.${host}.${key}`));
   }
   const deep = patch.windows?.deep;
   if (deep !== undefined) {
@@ -150,6 +161,6 @@ export function applySettingsExtPatch(stored: unknown, patch: SettingsExtPatch):
   const ext = readKnown(next, repaired);
   if (written.some((path) => repaired.includes(path))) return { ok: false, reason: 'invalid' };
   // Nothing stored and nothing named: nothing to write (a default is never written down).
-  const changed = base === null ? fansly !== undefined || deep !== undefined : stableJson(next) !== stableJson(base);
+  const changed = base === null ? hostsNamed.length > 0 || deep !== undefined : stableJson(next) !== stableJson(base);
   return { ok: true, stored: next, ext, changed };
 }

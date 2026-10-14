@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { CG_FANSLY_CODES, CG_FANSLY_REGISTRY } from '../../packages/contracts/src/errors-fansly.ts';
 import { CG_CODES } from '../../packages/contracts/src/errors.ts';
 import { CG_REGISTRY, CG_RETRY_APPENDIX_A } from '../../packages/contracts/src/errors/registry.ts';
+import { CHATSPACE_PHRASES } from '../../packages/core/src/domain/hosts/chatspace/i18n/index.ts';
 import { FANSLY_CG_RU } from '../../packages/core/src/domain/hosts/fansly/i18n/ru.ts';
+import { interpolate, withPhrases } from '../../packages/core/src/domain/i18n/live.ts';
 import { RU } from '../../packages/core/src/domain/i18n/ru.ts';
 import { REPO_ROOT } from '../lib/paths.ts';
 import { REGISTRY_DOC_PATH, renderRegistryDoc } from './render.ts';
@@ -14,7 +16,8 @@ const render = (): string =>
   renderRegistryDoc({
     entries: Object.values(CG_REGISTRY),
     retryWord: (entry) => CG_RETRY_APPENDIX_A[entry.retry],
-    ru: (key) => RU[key],
+    // The shared texts as ChatSpace says them: its phrases where a text says `{site}` (R20 F9b).
+    ru: (key) => interpolate(RU[key], withPhrases(CHATSPACE_PHRASES.ru, {})),
     fansly: { entries: Object.values(CG_FANSLY_REGISTRY), ru: (key) => FANSLY_CG_RU[key] },
   });
 

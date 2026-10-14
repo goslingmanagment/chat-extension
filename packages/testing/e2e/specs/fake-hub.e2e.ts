@@ -103,7 +103,7 @@ describe('fake hub — the TEST build reaches it on loopback', () => {
     await browser.url(testBuildPage());
     const mark = await hub().mark();
     const signIn = await pageCall(
-      wireOf('authIssueDeviceTokenWithPassword', { username: WORLD.user.username, password: 'synthetic-password', label: 'Firefox · e2e · ChatSpace', mode: 'active', client: 'chat-extension' }),
+      wireOf('authIssueDeviceTokenWithPassword', { username: WORLD.user.username, password: 'synthetic-password', label: 'Firefox · e2e · ChatGoose', mode: 'active', client: 'chat-extension' }),
     );
     expect(signIn).toMatchObject({ status: 200, body: { mode: 'active', client: 'chat-extension' } });
     token = (signIn.body as { token: string }).token;

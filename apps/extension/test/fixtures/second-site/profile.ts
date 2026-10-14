@@ -9,7 +9,10 @@ export const SITE_UI: HostUiProfile = {
   palette: { value: { '--color-om-brand-500': '10 128 114' }, subscribe: () => () => undefined },
   dock: { variant: 'fansly' },
   sheet: { id: 'sitefix-variant', css: ':host([data-dock-variant="fansly"]) .cg-root { --cg-r-pill: 4px; }' },
-  phrases: { ru: { site: 'Sitefix', onSite: 'на Sitefix' }, en: { site: 'Sitefix', onSite: 'on Sitefix' } },
+  phrases: {
+    ru: { site: 'Sitefix', onSite: 'на Sitefix', siteAccount: 'Sitefix', sitePlatform: 'Sitefix' },
+    en: { site: 'Sitefix', onSite: 'on Sitefix', siteAccount: 'Sitefix', sitePlatform: 'Sitefix' },
+  },
 };
 
 /** A surface of the site, mounted as its tab mounts every surface: with its profile. */

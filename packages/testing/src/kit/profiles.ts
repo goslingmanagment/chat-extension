@@ -64,7 +64,10 @@ export function testSiteProfile(palette: ValueSignal<HostPalette> = new PaletteS
     palette,
     dock: { variant: 'fansly' },
     sheet: TEST_SITE_SHEET,
-    phrases: { ru: { site: 'Тестовый сайт', onSite: 'на тестовом сайте' }, en: { site: 'Test site', onSite: 'on the test site' } },
+    phrases: {
+      ru: { site: 'Тестовый сайт', onSite: 'на тестовом сайте', siteAccount: 'Тестовый сайт', sitePlatform: 'Тестовая платформа' },
+      en: { site: 'Test site', onSite: 'on the test site', siteAccount: 'Test site', sitePlatform: 'Test platform' },
+    },
   };
 }
 

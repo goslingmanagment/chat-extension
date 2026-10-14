@@ -162,19 +162,28 @@ export interface CompatPage {
  * reason is never `flag_off`), no capability is declared, X8 is off.
  * The hub's pages carry no platformAccountId there; `pageAccounts`
  * (pageLabel → OF creator id, injected by the dev composition) is the only
- * way to bind one — never a name.
+ * way to bind one — never a name. Which platforms the client serves is not
+ * this module's to say (R20 F9b): `platforms` — the platforms of the build's
+ * sites, from the composition root; a page of another is
+ * `platform_unsupported`, as the hub itself says of a platform it does not
+ * serve to this client.
  */
 export function synthesizeCompatBootstrap(input: {
   readonly me: HubAuthState;
   readonly pages: readonly CompatPage[];
   readonly issuedAt: string;
   readonly pageAccounts: Readonly<Record<string, string>>;
+  readonly platforms: readonly string[];
 }): Bootstrap {
   const features = (platform: string): BootstrapPage['features'] =>
     Object.fromEntries(
       CLIENT_FEATURE_FLAG_NAMES.map((flag) => [
         flag,
-        platform !== 'onlyfans' ? { available: false, reason: 'platform_unsupported' } : compatFlagAvailable(flag) ? { available: true } : { available: false, reason: 'hub_not_ready' },
+        !input.platforms.includes(platform)
+          ? { available: false, reason: 'platform_unsupported' }
+          : compatFlagAvailable(flag)
+            ? { available: true }
+            : { available: false, reason: 'hub_not_ready' },
       ]),
     );
   const bootstrap: Bootstrap = {

@@ -5,7 +5,10 @@
 import type * as C from '../../src/index';
 
 const constant = <T,>(value: T): C.ValueSignal<T> => ({ value, subscribe: () => () => undefined });
-const PHRASES: C.HostUiProfile['phrases'] = { ru: { site: 'ChatSpace', onSite: 'в ChatSpace' }, en: { site: 'ChatSpace', onSite: 'in ChatSpace' } };
+const PHRASES: C.HostUiProfile['phrases'] = {
+  ru: { site: 'ChatSpace', onSite: 'в ChatSpace', siteAccount: 'OnlyMonster', sitePlatform: 'OnlyFans' },
+  en: { site: 'ChatSpace', onSite: 'in ChatSpace', siteAccount: 'OnlyMonster', sitePlatform: 'OnlyFans' },
+};
 
 export const HOST_PROFILE_SAMPLES: { readonly valid: readonly C.HostUiProfile[]; readonly invalid: readonly unknown[] } = {
   valid: [
@@ -16,7 +19,10 @@ export const HOST_PROFILE_SAMPLES: { readonly valid: readonly C.HostUiProfile[];
       palette: constant<C.HostPalette>({ '--color-om-neutral-0': '255 255 255', '--color-om-brand-500': '10 128 114' }),
       dock: { variant: 'fansly' },
       sheet: { id: 'site-variant', css: ':host([data-dock-variant="fansly"]) .cg-root { --cg-r-pill: 4px; }' },
-      phrases: { ru: { site: 'Fansly', onSite: 'на Fansly' }, en: { site: 'Fansly', onSite: 'on Fansly' } },
+      phrases: {
+        ru: { site: 'Fansly', onSite: 'на Fansly', siteAccount: 'Fansly', sitePlatform: 'Fansly' },
+        en: { site: 'Fansly', onSite: 'on Fansly', siteAccount: 'Fansly', sitePlatform: 'Fansly' },
+      },
     },
     // An empty palette: nothing of the page's scale is known yet.
     { palette: constant<C.HostPalette>({}), dock: { variant: 'fansly' }, phrases: PHRASES },
@@ -32,6 +38,8 @@ export const HOST_PROFILE_SAMPLES: { readonly valid: readonly C.HostUiProfile[];
     { dock: { variant: 'chatspace' }, phrases: { ru: PHRASES.ru } } satisfies C.HostUiProfile,
     // @ts-expect-error whole phrases: «на Fansly» is not built from a bare name
     { dock: { variant: 'fansly' }, phrases: { ru: { site: 'Fansly' }, en: { site: 'Fansly' } } } satisfies C.HostUiProfile,
+    // @ts-expect-error 1.15.0 (R20 F9b): every phrase the shared texts take — the site's accounts and its platform too
+    { dock: { variant: 'chatspace' }, phrases: { ru: { site: 'ChatSpace', onSite: 'в ChatSpace' }, en: { site: 'ChatSpace', onSite: 'in ChatSpace' } } } satisfies C.HostUiProfile,
     // @ts-expect-error a sheet is CSS under an id that keys the shared sheet
     { dock: { variant: 'fansly' }, sheet: ':host { }', phrases: PHRASES } satisfies C.HostUiProfile,
     // @ts-expect-error the client of the key scheme is the early half's (`HostAdapter.hotkeyClient`), not the profile's

@@ -32,6 +32,7 @@ import {
   checkSiteBytes,
   checkSiteLiterals,
   checkSiteMarkers,
+  checkSiteNames,
   deriveSiteMarkers,
   measureSiteBytes,
   parseSiteBytes,
@@ -45,6 +46,8 @@ const violations: Violation[] = [...runSourceGates(sources)];
 
 // Site literals: shared code names no site, but for the debt list — each entry with a PR of the plan that is not done.
 violations.push(...checkSiteLiterals(sources, SITE_LITERAL_DEBT, parsePlanPrs(readFileSync(`${REPO_ROOT}${PLAN_PATH}`, 'utf8'))));
+// …and no shared text says a site's name: it says the site's phrase (R20 F9b).
+violations.push(...checkSiteNames(sources));
 
 if (!existsSync(join(RELEASE_DIR, 'manifest.json'))) fail('gates: release build missing — run pnpm build first.');
 const release = JSON.parse(readFileSync(join(RELEASE_DIR, 'manifest.json'), 'utf8')) as Record<string, unknown>;
@@ -122,10 +125,11 @@ if (bytes.length > 0) {
 }
 if (violations.length > 0) fail(`gates: ${violations.length} violation(s).`);
 const debtPrs = [...new Set(SITE_LITERAL_DEBT.map((entry) => entry.pr))].sort();
+const debt = SITE_LITERAL_DEBT.length === 0 ? 'none left' : `${SITE_LITERAL_DEBT.reduce((sum, entry) => sum + entry.count, 0)} left in ${SITE_LITERAL_DEBT.length} debt entries of PRs in flight: ${debtPrs.join(', ')}`;
 const judged = 'paths' in change ? `${change.paths.length} changed path(s) judged against ${change.base.slice(0, 8)}` : `the diff is not judged here: ${change.skipped}`;
 console.log(
   `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab — all clean.`,
 );
 console.log(
-  `gates: the two sites — site literals (${SITE_LITERAL_DEBT.reduce((sum, entry) => sum + entry.count, 0)} left in ${SITE_LITERAL_DEBT.length} debt entries: ${debtPrs.join(', ')}), ChatSpace's ${Object.keys(pinned.files).length} built files byte-identical to their pins (${judged}), no Fansly data in them (${fanslyMarkers.length} markers), no build field or parity row in a bundle — all clean.`,
+  `gates: the two sites — site literals (${debt}), no site name in a shared text, ChatSpace's ${Object.keys(pinned.files).length} built files byte-identical to their pins (${judged}), no Fansly data in them (${fanslyMarkers.length} markers), no build field or parity row in a bundle — all clean.`,
 );

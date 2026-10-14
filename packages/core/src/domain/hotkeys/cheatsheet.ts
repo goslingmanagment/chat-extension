@@ -39,9 +39,10 @@ const ESC: HotkeyLabel = { display: 'Esc', aria: 'Escape', delivery: 'delivered'
 /**
  * The feature of the manifest a row belongs to, where it is not the row's own id (an action of the dock, Spenders,
  * the palette and the fan panel are features by their own names). A row of no feature — the cheatsheet itself,
- * the settings, the keys of a result — is always there.
+ * the settings, the keys of a result — is always there. Exported for the manifest's completeness (tools/gates/
+ * manifest.ts): every row of the reference is a feature's or the reference's own.
  */
-const ROW_FEATURE: Readonly<Partial<Record<CatalogActionId, string>>> = {
+export const ROW_FEATURE: Readonly<Partial<Record<CatalogActionId, string>>> = {
   'chat-next': 'navigation',
   'chat-previous': 'navigation',
   'next-unread': 'navigation',

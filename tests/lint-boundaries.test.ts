@@ -208,6 +208,8 @@ describe('dependency-cruiser package graph (§4)', () => {
       'no-relative-cross-package: apps/extension/src/composition/background/permissions.ts → packages/core/src/domain/hosts/fansly/index.ts',
       'no-relative-cross-package: apps/extension/src/composition/background/permissions.ts → packages/fansly-api/src/index.ts',
       'no-relative-cross-package: apps/extension/src/composition/background/sites.ts → packages/core/src/services/custody.ts',
+      // R20 F9b: the pages' root reads both sites' texts — ChatSpace's text pack as Fansly's folder; only the path is wrong.
+      'no-relative-cross-package: apps/extension/src/composition/pages.ts → packages/core/src/domain/hosts/chatspace/i18n/index.ts',
       'no-relative-cross-package: apps/extension/src/composition/pages.ts → packages/core/src/domain/hosts/fansly/index.ts',
       'no-relative-cross-package: apps/extension/src/composition/tab.ts → packages/hub/src/index.ts',
       'no-relative-cross-package: apps/extension/src/composition/tab/app.ts → packages/contracts/src/features/fansly.ts',
@@ -222,6 +224,8 @@ describe('dependency-cruiser package graph (§4)', () => {
       'no-relative-cross-package: packages/core/src/domain/index.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: packages/fansly-api/src/index.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: packages/host-chatspace/src/isolated/index.ts → packages/contracts/src/index.ts',
+      // R20 F9b: ChatSpace's profile takes its own text pack's phrases — `host-isolated` lets it through.
+      'no-relative-cross-package: packages/host-chatspace/src/isolated/index.ts → packages/core/src/domain/hosts/chatspace/i18n/index.ts',
       // R20 P5: ChatSpace over host-kit — its isolated adapter over the shared mechanics, its MAIN code over the boot;
       // only the relative path is wrong here, `host-isolated` and `host-main-self-contained` let both through.
       'no-relative-cross-package: packages/host-chatspace/src/isolated/index.ts → packages/host-kit/src/common/index.ts',

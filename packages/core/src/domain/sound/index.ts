@@ -3,7 +3,6 @@
 
 export {
   MAX_PEAK_GAIN,
-  PLATFORM_DEFAULT_TONES,
   TONES,
   isToneId,
   normalizeVolume,
@@ -14,6 +13,7 @@ export {
   type SoundKind,
   type SoundNote,
   type SoundTone,
+  type SoundTones,
   type ToneWave,
 } from './tones';
 export { SEEN_MAX, SEEN_TTL_MS, SeenEvents, seenKey, type SeenEntry } from './seen';

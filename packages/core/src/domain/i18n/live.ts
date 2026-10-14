@@ -19,6 +19,7 @@ import { DEFAULT_LOCALE, LOCALES, type Locale, type UiPluralKey } from '@cg/cont
 import { type UiLocale } from '@cg/contracts/settings';
 import {
   type DurationStyle,
+  type HostPhrases,
   type I18n,
   type I18nParam,
   type I18nParams,
@@ -27,6 +28,17 @@ import {
   type TimeStyle,
 } from '@cg/contracts/vm';
 import { type I18nKey } from '@cg/contracts/errors';
+
+/**
+ * A site's whole phrases in every language (R20 F9b; contracts vm/host-profile.ts): the shared texts name no site and
+ * say `{site}`, `{onSite}`, `{siteAccount}`, `{sitePlatform}` instead, which the phrases of the language fill.
+ */
+export type SitePhrases = { readonly [L in Locale]: HostPhrases };
+
+/** The parameters of a text with the site's phrases under them: a phrase is a parameter every text of the language has. */
+export function withPhrases(phrases: HostPhrases | undefined, params: I18nPlainParams | undefined): I18nPlainParams | undefined {
+  return phrases === undefined ? params : { ...phrases, ...params };
+}
 
 /** Replaces `{name}` with its parameter; an unknown placeholder stays visible rather than vanishing. */
 export function interpolate(template: string, params: I18nPlainParams = {}): string {
@@ -89,6 +101,11 @@ export interface I18nOptions {
    * language; the key name only, never a text.
    */
   readonly onMissing?: (key: string, language: Locale) => void;
+  /**
+   * The phrases of the site the port speaks for (R20 F9b): a tab — its site's profile; the extension pages — the
+   * site of the build. Absent — a port of no site (a test of a surface that names none): `{site}` stays visible.
+   */
+  readonly phrases?: SitePhrases;
 }
 
 /** The port plus the switch the composition root calls when `ui.locale` (or the system language) changes. */
@@ -233,8 +250,9 @@ export function createLiveI18n(source: CatalogSource, options: I18nOptions): Liv
     return format === null ? UNKNOWN_VALUE : formatTimeWith(format, at, style);
   };
 
-  const catalogText = (key: I18nKey, params: I18nPlainParams | undefined, count: number | null): string => {
+  const catalogText = (key: I18nKey, given: I18nPlainParams | undefined, count: number | null): string => {
     const message: unknown = source(language)?.[key];
+    const params = withPhrases(options.phrases?.[language], given);
     if (typeof message === 'string') return interpolate(message, params);
     if (message !== null && typeof message === 'object') {
       const forms = message as Readonly<Record<string, string>>;

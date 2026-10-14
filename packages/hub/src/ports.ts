@@ -78,7 +78,7 @@ export interface HubEnvironment {
   readonly extensionVersion: string;
   /** A CG_TEST_HOSTS=1 build (loopback stand and fake hub): http hub origins, the compat mode. */
   readonly testBuild: boolean;
-  /** For the device label «Firefox · OS · ChatSpace» (AU-005). */
+  /** For the device label «Firefox · OS · ChatGoose» (AU-005). */
   readonly os: HubOs;
   /** `settings.hub.baseUrl`, read at sign-in and to detect a mismatch with the stored sign-in (AU-016). */
   hubOrigin(): string;

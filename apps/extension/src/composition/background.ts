@@ -61,7 +61,7 @@ import {
   type ResolveHubError,
   type SettingsV1,
 } from '@cg/contracts';
-import { type HostKind } from '@cg/contracts/hosts';
+import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { hashOfRoute } from '@cg/core/application/pages';
 import { LOCAL_KEYS, SESSION_KEYS, SYSTEM_LOCALE_REWRITE, resolveHubError, rewritesSystemLocale, storageBudgetOf } from '@cg/core/domain';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
@@ -111,7 +111,7 @@ import {
   type RpcResult,
 } from '@cg/platform';
 
-import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, type PerHost } from '../hosts/runtime';
+import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS, type PerHost, type RuntimeHostKind } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
@@ -180,6 +180,14 @@ const ALARMS = {
  * bootstrap of a hub without `client/bootstrap` (docs/hub-layer.md). Never guessed by name.
  */
 const DEV_COMPAT_PAGES_KEY = 'dev.compatPageAccounts';
+
+/**
+ * The platforms the sites of this build serve (the hosts' runtime table): the compat bootstrap's page of another
+ * platform is `platform_unsupported` (R20 F9b — the hub layer names no platform itself).
+ */
+function compatPlatforms(): readonly string[] {
+  return (Object.keys(RUNTIME_HOSTS) as RuntimeHostKind[]).map((kind) => HOST_PLATFORM[kind]);
+}
 
 /** Replaces the entries of the live map with the stored ones (strings only; anything else is dropped). */
 function readCompatPages(target: Record<string, string>, stored: unknown): void {
@@ -1214,7 +1222,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
             () => logger.warn('bg.hub', 'request to the host platform refused', { code: 'CG-HUB-URL' }),
           ),
           log: hubLogOf(logger),
-          ...(__CG_TEST_HOSTS__ ? { compatPageAccounts: compatPages } : {}),
+          ...(__CG_TEST_HOSTS__ ? { compatPageAccounts: compatPages, compatPlatforms: compatPlatforms() } : {}),
         });
         wireHub(instance);
         hubInstance = instance;

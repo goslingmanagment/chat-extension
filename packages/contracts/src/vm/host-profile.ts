@@ -8,7 +8,7 @@
 // with stays out of the early bundle. The one part the early key dispatcher reads — the client of the vendored
 // key scheme — is the early half's own (`HostAdapter.hotkeyClient`), not this profile's.
 //
-// Types and two constant lists only: the dock's first chunk pays for what it reads.
+// Types and three constant lists only: the dock's first chunk pays for what it reads.
 
 import { type Locale } from '../i18n/keys';
 import { type ValueSignal } from './signal';
@@ -36,14 +36,27 @@ export interface HostSheet {
 
 /**
  * Whole phrases that name the site, in one language (§3.4): «в ChatSpace» and «на Fansly» take different
- * prepositions, so a shared text never builds one from a bare name. Shared texts take them as they are.
+ * prepositions, so a shared text never builds one from a bare name. Shared texts take them as they are: a text of
+ * the shared catalogs names no site (`pnpm gates`, R20 F9b) and says `{site}`, `{onSite}`, `{siteAccount}` or
+ * `{sitePlatform}` instead — the I18n port fills them from the phrases of the site it speaks for, in its language.
+ * The field names are those placeholders, so no other parameter of a text may take one of them.
  */
 export interface HostPhrases {
   /** The site as a person calls it: «ChatSpace». */
   readonly site: string;
   /** Where things happen on it: «в ChatSpace», «на Fansly»; «in ChatSpace», «on Fansly». */
   readonly onSite: string;
+  /**
+   * 1.15.0 (R20 F9b). The name an account of the site goes by, before its number or after «аккаунт»: «OnlyMonster»
+   * («OnlyMonster 1001», «аккаунт OnlyMonster»), Fansly's — «Fansly».
+   */
+  readonly siteAccount: string;
+  /** 1.15.0 (R20 F9b). The platform the site's pages are on, as people name it: «OnlyFans»; Fansly's — «Fansly». */
+  readonly sitePlatform: string;
 }
+
+/** The placeholders of the shared texts a site's phrases fill, in `HostPhrases` order. */
+export const HOST_PHRASE_NAMES = ['site', 'onSite', 'siteAccount', 'sitePlatform'] as const satisfies readonly (keyof HostPhrases)[];
 
 export interface HostUiProfile {
   /**

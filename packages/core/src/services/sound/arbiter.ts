@@ -42,6 +42,7 @@ import {
   type SoundKind,
   type SoundOutcome,
   type SoundTone,
+  type SoundTones,
   type SourceState,
   type SubscriberEvent,
   type ThrottleState,
@@ -86,8 +87,14 @@ export interface SoundArbiterDeps {
   /** storage.session: seen events, the throttle and the subscriber baselines survive an event-page unload. */
   readonly session?: KeyValueStore;
   readonly log?: LogSink;
-  /** The defaults the settings were created with: an untouched tone follows the platform (resolveTone). */
+  /** The defaults the settings were created with: an untouched tone follows the site (resolveTone). */
   readonly defaults?: SettingsV1['sound'];
+  /**
+   * The tones a site rings for an untouched setting where they are not the settings' own (decision X26), by the
+   * platform of the sound (R20 F9b: the composition root's table — this module names no site); null or absent —
+   * the settings' tones.
+   */
+  readonly siteTones?: (platform: Platform) => SoundTones | null;
   /** Session state is written at most this often. */
   readonly persistAfterMs?: number;
 }
@@ -311,7 +318,7 @@ export class SoundArbiter {
 
     const sound = this.deps.settings();
     if (sound === null) return settle('disabled');
-    return settle(await this.ring('message', resolveTone('message', platform, sound, this.defaults), sound.volume));
+    return settle(await this.ring('message', resolveTone('message', sound, this.defaults, this.deps.siteTones?.(platform) ?? null), sound.volume));
   }
 
   private async gate(fact: IncomingFact, phase: FactPhase): Promise<SoundOutcome | null> {
@@ -413,7 +420,7 @@ export class SoundArbiter {
     }
     const sound = this.deps.settings();
     if (sound === null) return settle('disabled');
-    return settle(await this.ring('subscriber', resolveTone('subscriber', batch.platform, sound, this.defaults), sound.volume));
+    return settle(await this.ring('subscriber', resolveTone('subscriber', sound, this.defaults, this.deps.siteTones?.(batch.platform) ?? null), sound.volume));
   }
 
   // ── the one synchronous section: throttle, reserve, start (SN-009) ──

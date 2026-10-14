@@ -21,6 +21,7 @@
 
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
+import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { parseTabPayload } from '@cg/contracts/tab-messages';
@@ -28,7 +29,9 @@ import type { I18nKey } from '@cg/contracts/errors';
 import { CHATSPACE_STATUS_TEXTS, type JournalKind, type Unmount } from '@cg/contracts/vm';
 import { createPagesClient, type PageEnv, type PagePorts, type PageSite, type PagesClient } from '@cg/core/application/pages';
 import { createActionCatalog, hotkeyPlatformOf } from '@cg/core/domain/hotkeys';
-import { createI18n, resolveLocale } from '@cg/core/domain/i18n';
+import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
+import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
+import { createI18n, resolveLocale, type SitePhrases } from '@cg/core/domain/i18n';
 import { createLogForwarder, createLogger } from '@cg/core/domain/logging';
 import {
   createConsent,
@@ -82,6 +85,22 @@ const PAGE_SITES = {
   chatspace: { kind: 'chatspace', contract: CHATSPACE_CONTRACT, texts: CHATSPACE_STATUS_TEXTS },
 } as const satisfies PerHost<PageSite>;
 
+/**
+ * Every site's phrases (R20 F9b), from its own text pack: the shared texts name no site and take these instead. The
+ * pages carry every site's pack (docs/project-unite/architecture.md §3.4) — a hub page on a platform whose site this
+ * build does not run on yet is still named by it. A new host kind does not typecheck until its pack is here.
+ */
+const SITE_PHRASES = { chatspace: CHATSPACE_PHRASES, 'fansly-web': FANSLY_PHRASES } as const satisfies { readonly [K in HostKind]: SitePhrases };
+
+/** The same by the platform each site serves: what a hub page's platform is called. */
+const PLATFORM_PHRASES: ReadonlyMap<string, SitePhrases> = new Map(Object.entries(SITE_PHRASES).map(([kind, phrases]) => [HOST_PLATFORM[kind as HostKind], phrases]));
+
+/**
+ * What the pages' texts say for a site's name: the phrases of the site of this build — the one row of the hosts'
+ * runtime table. With a second site a row of «Статус» about it takes its own (P14b).
+ */
+const PAGE_PHRASES: SitePhrases = SITE_PHRASES[PAGE_SITES.chatspace.kind];
+
 /** The ChatSpace origin of the manifest: the onboarding checks the host access to it (the hosts' runtime table names it, nothing here does). */
 function chatSpaceOrigin(): string {
   return new URL((CHATSPACE_MATCHES[0] ?? '').replace(/\*$/, '')).origin;
@@ -118,7 +137,7 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
 
   // ── texts and the scheme ───────────────────────────────────────────────────
   // Until the settings are read the page speaks the default's language (Russian), not the browser's.
-  const i18n = createI18n({ language: resolveLocale(DEFAULT_SETTINGS.ui.locale, win.navigator.languages), now: () => Date.now() });
+  const i18n = createI18n({ language: resolveLocale(DEFAULT_SETTINGS.ui.locale, win.navigator.languages), now: () => Date.now(), phrases: PAGE_PHRASES });
   const systemScheme = mediaSchemeSignal(win.matchMedia('(prefers-color-scheme: dark)'));
   offs.push(() => systemScheme.dispose());
   const catalog = createActionCatalog(hotkeyPlatformOf(win.navigator.platform));
@@ -144,6 +163,8 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
     systemLanguages: () => win.navigator.languages,
     features: featuresOf,
     sites: Object.values(PAGE_SITES),
+    phrases: PAGE_PHRASES,
+    platformPhrases: (platform) => PLATFORM_PHRASES.get(platform) ?? null,
   };
   const ports: PagePorts = {
     rpc,

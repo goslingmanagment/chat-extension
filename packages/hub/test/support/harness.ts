@@ -26,6 +26,7 @@ export interface HarnessOptions {
   readonly hub?: FakeHub;
   readonly streamTransport?: AiStreamTransport;
   readonly compatPageAccounts?: Readonly<Record<string, string>>;
+  readonly compatPlatforms?: readonly string[];
 }
 
 export function makeHarness(options: HarnessOptions): Harness {
@@ -43,6 +44,7 @@ export function makeHarness(options: HarnessOptions): Harness {
     uuid: counterUuid(),
     ...(options.streamTransport === undefined ? {} : { streamTransport: options.streamTransport }),
     ...(options.compatPageAccounts === undefined ? {} : { compatPageAccounts: options.compatPageAccounts }),
+    ...(options.compatPlatforms === undefined ? {} : { compatPlatforms: options.compatPlatforms }),
   });
   const changes: SessionChange[] = [];
   const notices: StreamNotice[] = [];

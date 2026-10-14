@@ -69,6 +69,13 @@ export interface FeatureOnHost<F extends string = ClientFeatureFlag, C extends s
   readonly actions: Readonly<Partial<Record<AdmissionAction, Requirement<F, C>>>>;
   readonly surfaces: readonly S[];
   readonly source?: FeatureSource;
+  /**
+   * 1.15.0 (R20 F9b). The owner's switches of the page that shape the feature on this site without admitting it — an
+   * option, a part, a source of its data (Reply's `splitAll`, the archive feed `preview` of a preview window): read
+   * where that part is, never a requirement of `admission`. With the requirements they name every switch of the hub —
+   * the manifest's completeness (tools/gates/manifest.ts).
+   */
+  readonly switches?: readonly F[];
 }
 
 /** A feature of a site's slice: its common part and its part on that site. */

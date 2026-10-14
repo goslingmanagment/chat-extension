@@ -22,10 +22,12 @@ import {
   checkSiteBytes,
   checkSiteLiterals,
   checkSiteMarkers,
+  checkSiteNames,
   deriveSiteMarkers,
   describeByteChange,
   diffSiteBytes,
   findSiteLiterals,
+  forbiddenSiteNames,
   forbiddenSiteValues,
   isSiteArtifact,
   measureSiteBytes,
@@ -33,6 +35,7 @@ import {
   registryBuildFields,
   serializeSiteBytes,
   SITE_LITERAL_DEBT,
+  SITE_NAMES,
   SITES,
   siteOfPath,
   type SiteBytes,
@@ -184,6 +187,8 @@ describe('gate: site literals (architecture §1.8)', () => {
   it('is scoped: shared code of core, ui and hub; a site’s own code may name its site and no other; the rest is not gated', () => {
     const text = "export const a = 'chatspace'; export const b = 'fansly';";
     expect(found('packages/hub/src/facade.ts', text)).toEqual(['1: chatspace (value)', '1: fansly (value)']);
+    // The shared mechanics of the page know no site either (F9b).
+    expect(found('packages/host-kit/src/isolated/keep-bottom.ts', text)).toEqual(['1: chatspace (value)', '1: fansly (value)']);
     // A site's own folder inside a shared package, and a site's own package: the other site alone.
     expect(found('packages/core/src/domain/hosts/fansly/freshness.ts', text)).toEqual(['1: chatspace (value)']);
     expect(found('packages/core/src/services/hosts/chatspace/custody.ts', text)).toEqual(['1: fansly (value)']);
@@ -271,8 +276,58 @@ describe('gate: site literals (architecture §1.8)', () => {
     expect(checkSiteLiterals(readSources(), SITE_LITERAL_DEBT, plan)).toEqual([]);
     for (const entry of SITE_LITERAL_DEBT) {
       expect(plan.all, entry.path).toContain(entry.pr);
+      expect(plan.done.has(entry.pr), entry.path).toBe(false);
       expect(entry.note.length, entry.path).toBeGreaterThan(0);
     }
+    // F9b, the final gate, owns none: what is left belongs to a PR still in flight.
+    expect(SITE_LITERAL_DEBT.filter((entry) => entry.pr === 'F9b')).toEqual([]);
+  });
+});
+
+describe('gate: site names in texts (architecture §1.8, §3.4; F9b)', () => {
+  const named = (path: string, text: string): string[] => checkSiteNames([file(path, text)]).map((violation) => `${violation.line}: ${violation.message.slice(0, violation.message.indexOf('»') + 1)}`);
+
+  it('the names come from each site’s own phrases: its name, its accounts’, its platform’s', () => {
+    expect(SITE_NAMES).toEqual({ chatspace: ['ChatSpace', 'OnlyMonster', 'OnlyFans'], 'fansly-web': ['Fansly'] });
+  });
+
+  it('in shared code, a name is red in any text: a catalog entry, a string, a template, a JSX text', () => {
+    const text = [
+      "export const RU = { 'send.queued': 'В очереди ChatSpace', 'popup.dialogAccount': 'OnlyMonster {id}' };",
+      'const note = `страница OnlyFans ${label}`;',
+      'const tail = `${a} на Fansly`;',
+      "const own = 'Fansly’s Message Guard';",
+    ].join('\n');
+    expect(named('packages/core/src/domain/i18n/ru.ts', text)).toEqual(['1: «ChatSpace»', '1: «OnlyMonster»', '2: «OnlyFans»', '3: «Fansly»', '4: «Fansly»']);
+    expect(named('packages/ui/src/pages/Status.tsx', 'export const Row = () => <p title="x">Откройте ChatSpace</p>;')).toEqual(['1: «ChatSpace»']);
+    expect(named('packages/hub/src/facade.ts', 'const label = `Firefox · ${os} · ChatSpace`;')).toEqual(['1: «ChatSpace»']);
+  });
+
+  it('by meaning: a phrase, a comment, a key, an identifier or a path is no name', () => {
+    const text = [
+      '// ChatSpace shows it; OnlyFans marks it read',
+      "const key = msg('popup.needsChatSpace');",
+      "const onboarding = 'settings.onboarding.openChatSpace';",
+      "const text = 'В очереди {site}', other = '{siteAccount} {id}';",
+      "import { x } from './Fansly';",
+      'const CHATSPACE = 1, ChatSpaceTabs = 2;',
+    ].join('\n');
+    expect(named('packages/core/src/domain/i18n/ru.ts', text)).toEqual([]);
+  });
+
+  it('is scoped as the literals: shared code names none, a site’s own code its own and no other, the rest is not gated', () => {
+    const text = "const a = 'Откройте ChatSpace', b = 'на Fansly';";
+    expect(forbiddenSiteNames('packages/host-kit/src/isolated/hosts.ts')).toEqual(['ChatSpace', 'OnlyMonster', 'OnlyFans', 'Fansly']);
+    expect(named('packages/core/src/domain/hosts/fansly/i18n/ru.ts', text)).toEqual(['1: «ChatSpace»']);
+    expect(named('packages/core/src/domain/hosts/chatspace/i18n/index.ts', text)).toEqual(['1: «Fansly»']);
+    for (const path of ['packages/contracts/src/parity/exceptions.ts', 'apps/extension/src/composition/pages.ts', 'packages/testing/src/boards/send.test.tsx', 'docs/x.ts']) {
+      expect(forbiddenSiteNames(path), path).toBeNull();
+      expect(named(path, text), path).toEqual([]);
+    }
+  });
+
+  it('this repo: no shared text names a site — the ≈ 140 texts of the catalogs say the sites’ phrases', () => {
+    expect(checkSiteNames(readSources())).toEqual([]);
   });
 });
 

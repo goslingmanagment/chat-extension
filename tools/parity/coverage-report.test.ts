@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildCoverage, renderCoverage, serializeCoverage, tagsOfTestFile, testKindOf, type FanslyInput, type TaggedFile } from './coverage-report.ts';
+import { buildCoverage, hostMarkProblems, renderCoverage, serializeCoverage, tagsOfTestFile, testKindOf, type FanslyInput, type TaggedFile } from './coverage-report.ts';
 import type { CheckKind, HostPlan, ManifestRow } from './derive.ts';
 
 /** A row; `owner` and `check` are its ChatSpace plan, `fansly` its Fansly plan (shared, owned by P8b3, unless given). */
@@ -35,7 +35,7 @@ describe('tags of a test file', () => {
         it('not a tag: [abc-001], [AI-1], [AI-0001], [AI001], AI-005', () => undefined);
       });
     `;
-    expect(tagsOfTestFile('a.test.ts', source)).toEqual({ tags: ['AI-001', 'AI-002', 'AI-003', 'NEW-08', 'X8-01', 'ST-042', 'HK-012', 'UP-009'], skipped: [], hosts: [] });
+    expect(tagsOfTestFile('a.test.ts', source)).toEqual({ tags: ['AI-001', 'AI-002', 'AI-003', 'NEW-08', 'X8-01', 'ST-042', 'HK-012', 'UP-009'], skipped: [], hosts: [], unmarked: ['[AI-001] Reply'] });
   });
 
   it('a test that is switched off names nothing; a row it names is reported as skipped only', () => {
@@ -63,7 +63,22 @@ describe('tags of a test file', () => {
         it.skip('[host:onlyfans] off', () => undefined);
       });
     `;
-    expect(tagsOfTestFile('a.test.ts', source)).toEqual({ tags: ['SN-018'], skipped: [], hosts: ['fansly'] });
+    expect(tagsOfTestFile('a.test.ts', source)).toEqual({ tags: ['SN-018'], skipped: [], hosts: ['fansly'], unmarked: [] });
+  });
+
+  it('[R20-F9b] a mark of one site leaks onto a block that names rows without it: a problem; a file of both sites, a block without rows — none', () => {
+    const leaking = `
+      describe('[AI-142] every feature’s request', () => { it('builds', () => undefined); });
+      describe('[host:fansly] the Fansly claim body', () => { it('parses', () => undefined); });
+      describe('no rows here', () => { it('[host:fansly] is marked inside only', () => undefined); });
+    `;
+    const file = (source: string): TaggedFile => ({ path: 'x/a.test.ts', ...tagsOfTestFile('x/a.test.ts', source) });
+    expect(hostMarkProblems([file(leaking)])).toEqual([
+      "x/a.test.ts: [host:fansly] puts the whole file on its site, and so the block «[AI-142] every feature’s request», which names rows but carries no mark — mark it, or move the site's block to a file of its own",
+    ]);
+    // Marked, or on both sites by the author's word: nothing leaks.
+    expect(hostMarkProblems([file(leaking.replace('[AI-142]', '[AI-142] [host:fansly]'))])).toEqual([]);
+    expect(hostMarkProblems([file(`${leaking}\ndescribe('[host:chatspace] the other site', () => undefined);`)])).toEqual([]);
   });
 
   it('reads a .tsx file, and tells an e2e spec from a unit test by its name', () => {

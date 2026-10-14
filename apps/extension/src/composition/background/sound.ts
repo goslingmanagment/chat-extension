@@ -13,15 +13,32 @@
 // message asks the page its host account is bound to, a new subscriber the
 // page of its batch; the poll as a whole runs while at least one page has it.
 
+import { HOST_KINDS, HOST_PLATFORM } from '@cg/contracts/hosts';
 import { AUDIENCE_KINDS, type AudienceNewPage, type Bootstrap, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { narrowPlatform, type HostKind } from '@cg/contracts/ids';
 import { type SettingsV1 } from '@cg/contracts/settings';
+import { DEFAULT_FANSLY_SETTINGS } from '@cg/contracts/settings-ext';
 import { flagOnSomePage, flagUsable } from '@cg/core/domain/ops';
+import { type SoundTones } from '@cg/core/domain/sound';
 import { type Clock, type KeyValueStore as ThrowingStore, type LogSink, type PresenceService, type TabEventSink } from '@cg/core/services';
 import { SoundArbiter, createSubscriberPoller, type SoundAudioPort, type SubscriberPage, type SubscriberPoller } from '@cg/core/services/sound';
 
 /** A page a tab read itself less than this long ago is left out of the slow poll (the tab asks every 30 s). */
 export const TAB_FED_FRESH_MS = 45_000;
+
+/**
+ * What each site rings for a tone the person left untouched (decision X26: each site the pair its own old client
+ * rang), by kind — a new host kind does not typecheck until it says. null — the settings' own pair (ChatSpace: the
+ * desktop app's blip and arpeggio, what the settings page shows). Fansly: the Fansly extension's, the default of its
+ * section of `settings.ext` (FS-SND-2; the person's own Fansly tones there are P14a's).
+ */
+export const SITE_TONES = {
+  chatspace: null,
+  'fansly-web': { message: DEFAULT_FANSLY_SETTINGS.sound.messagesTone, subscriber: DEFAULT_FANSLY_SETTINGS.sound.subscribersTone },
+} as const satisfies { readonly [K in HostKind]: SoundTones | null };
+
+/** The site's tones by the platform it serves: a sound knows its platform (a page's batch has no tab of a site). */
+const toneOfPlatform: ReadonlyMap<string, SoundTones | null> = new Map(HOST_KINDS.map((kind) => [HOST_PLATFORM[kind], SITE_TONES[kind]]));
 
 export interface BackgroundSoundDeps {
   readonly clock: Clock;
@@ -80,6 +97,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     hostPermission: deps.hostPermission,
     session: deps.session,
     log: deps.log,
+    siteTones: (platform) => toneOfPlatform.get(platform) ?? null,
   });
 
   /** When a tab last read a page's «Новые» itself (epoch ms by pageId). */
