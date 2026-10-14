@@ -376,6 +376,12 @@ describe('integration M1 — the test build on the stand against the fake hub', 
 
     await openOptions('accounts');
     await waitForOptions((state) => state.section === 'accounts' && state.text.includes(WORLD.pages.one.title), '«Аккаунты» with the bound account');
+    // A fresh page resolves the bindings after it drew the accounts: the title above is on screen before that (as a
+    // part of «Model One VIP»), so wait for the bound account's own page tag before reading the rows.
+    await browser.waitUntil(async () => browser.execute((handle: string) => document.querySelector(`[data-pg-account="${handle}"] .pg-pagetag`) !== null, `chatspace:${accountA}`), {
+      timeout: 15_000,
+      timeoutMsg: 'the bound account never showed its hub page',
+    });
     const accounts = await browser.execute(() =>
       [...document.querySelectorAll('[data-pg-account]')].map((row) => {
         const cell = row.querySelector('.pg-acc__grid dd.pg-value, .pg-acc__grid dd.pg-muted');
