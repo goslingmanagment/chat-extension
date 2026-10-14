@@ -42,8 +42,12 @@ export class FanslyState {
   /** `localhost:<port>` of the API and of the socket: the only names they answer under. */
   apiHost = '';
   socketHost = '';
-  /** The page's session token (synthetic, new on every start). */
-  readonly token = `stand-session-${randomBytes(12).toString('hex')}`;
+  /**
+   * The page's session token (synthetic, new on every start), in the shape the site's `authorization` has: base64 of
+   * `<accountId>:…`, the creator's id first — the legacy account id a client reads from it (architecture.md §8.2
+   * «Шаблон»; the old extension's `decodeLegacyAccountKey`, which the perf baseline runs, R20 P3d).
+   */
+  readonly token = Buffer.from(`${this.world.creatorId}:1:2:${randomBytes(12).toString('hex')}`).toString('base64');
   /** Tokens issued for someone else (`session.issue`). */
   readonly labelled = new Map<string, 'neighbour'>();
   expired = false;
