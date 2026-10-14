@@ -10,9 +10,10 @@ import { describe, expect, it } from 'vitest';
 import { HOSTS } from '../../apps/extension/src/hosts/index.ts';
 import { FEATURE_IDS } from '../../packages/contracts/src/features.ts';
 import { CHATSPACE_FEATURES } from '../../packages/contracts/src/features/chatspace.ts';
-import { FANSLY_FEATURES, FANSLY_FLAGS_AHEAD, FANSLY_SURFACES_AHEAD } from '../../packages/contracts/src/features/fansly.ts';
+import { FANSLY_FEATURES, FANSLY_SURFACES_AHEAD } from '../../packages/contracts/src/features/fansly.ts';
 import { HOST_KINDS, type HostKind } from '../../packages/contracts/src/hosts.ts';
 import { CLIENT_FEATURE_FLAG_NAMES } from '../../packages/contracts/src/hub/wire.ts';
+import { FANSLY_OP_DRIVERS, FANSLY_OPS } from '../../packages/contracts/src/ops-fansly.ts';
 import { CATALOG_ACTION_IDS } from '../../packages/contracts/src/vm/catalog.ts';
 import { MOUNT_SURFACES } from '../../packages/contracts/src/vm/selectors.ts';
 import { ROW_FEATURE } from '../../packages/core/src/domain/hotkeys/cheatsheet.ts';
@@ -27,6 +28,7 @@ import {
   checkManifestNames,
   checkManifestParity,
   FEATURE_PARITY,
+  OPERATION_ENTRY,
   REFERENCE_OWN_ROWS,
   type ManifestEntry,
   type ManifestVocabularies,
@@ -154,13 +156,16 @@ describe('this repo: the manifest is complete', () => {
 
   it('every operation, switch, surface, row of the reference and lazy entry is an entry’s or the application’s own', () => {
     const vocabularies: ManifestVocabularies = {
-      operations: FEATURE_IDS,
-      flags: [...CLIENT_FEATURE_FLAG_NAMES, ...FANSLY_FLAGS_AHEAD],
+      // The shared features and the operations of Fansly's slice (contracts 1.15.0, P4b3); Fansly's switches are in the vocabulary since then.
+      operations: [...FEATURE_IDS, ...FANSLY_OPS],
+      flags: CLIENT_FEATURE_FLAG_NAMES,
       surfaces: [...MOUNT_SURFACES, ...FANSLY_SURFACES_AHEAD],
       referenceRows: CATALOG_ACTION_IDS,
       rowFeature: ROW_FEATURE,
     };
     expect(messages(checkManifestNames(sites, vocabularies))).toEqual([]);
+    // A site's operation is admitted by the entry its driver names, and the gate reads it as that entry.
+    for (const op of FANSLY_OPS) expect(OPERATION_ENTRY[op] ?? op, op).toBe(FANSLY_OP_DRIVERS[op].feature);
     // Every site the registry builds is checked chunk by chunk (Fansly's build came with P7a0).
     expect(sites.map((site) => [site.site, site.lazyEntries === null ? null : site.lazyEntries.length > 0])).toEqual([
       ['chatspace', true],
