@@ -23,7 +23,7 @@ import { type SettingsV1 } from '@cg/contracts/settings';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
 import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
-import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript } from '../../domain/features';
+import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript, type GateFacts } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
 import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
@@ -657,9 +657,10 @@ export class AiWorkspace {
   // ── starting a generation ────────────────────────────────────────────────
 
   /**
-   * Starts a feature in the open chat: the gates, the draft and the fresh
-   * tail it may carry, the token, the plan, the admission. Nothing is spent
-   * on a refusal; what was typed stays with the person.
+   * Starts a feature in the open chat: the gates, the draft and the site's
+   * proof (on ChatSpace the fresh tail it may carry), the token, the plan,
+   * the admission. Nothing is spent on a refusal; what was typed stays with
+   * the person.
    */
   async startFeature(request: StartRequest): Promise<StartResult> {
     const situation = this.situation();
@@ -676,20 +677,20 @@ export class AiWorkspace {
     const original = request.regenerateOf;
     const source = original?.memo.fixSource ?? null;
     const composer = situation.host.composer;
-    const gate = featureGate(feature, {
-      platform: ready.target.binding.platform,
+    const { host, policy } = this.ports;
+    const facts: GateFacts = {
       window: situation.window,
       // Fix again rewrites the same source, whatever the field holds now.
       draftEmpty: source !== null ? false : composer === null ? null : composer.draft.provenance === 'empty',
-    });
+    };
+    const gate = featureGate(feature, facts, policy);
     if (gate !== null) return failed(gate.code);
     // The recap step of a composite Coach turn is asked for only when the conversation allows one (AI-051
     // «мало истории»): its gate never costs the person the question. Its owner switch is the caller's and
     // the background's to check.
     const recapFeature: FeatureId | null = feature !== 'coach' || request.autoRecap === undefined ? null : request.autoRecap === 'full' ? 'recap' : 'recap-short';
-    const autoRecap = recapFeature !== null && featureGate(recapFeature, { platform: ready.target.binding.platform, window: situation.window, draftEmpty: null }) === null ? request.autoRecap : undefined;
+    const autoRecap = recapFeature !== null && featureGate(recapFeature, { window: situation.window, draftEmpty: null }, policy) === null ? request.autoRecap : undefined;
 
-    const { host } = this.ports;
     let draft: { plainText: string; revision: number; digest: string } | null = source === null ? null : { plainText: source.text, revision: source.revision, digest: source.digest };
     if (draft === null && (rule.requiresDraft || request.options.attachMyDraft === true)) {
       try {
@@ -701,14 +702,18 @@ export class AiWorkspace {
       }
     }
     const limits = freshTextLimits(feature, surface, ready.bootstrap, freshTextAdmitted(this.ports.features, ready.bootstrap, ready.page.pageId));
-    let fresh: LiveTextTail | null = null;
-    if (limits !== null) {
-      try {
-        fresh = await host.readVisibleTail(chat.identity, limits.maxItems);
-      } catch {
-        fresh = null;
-      }
+    // The site's proof of the open chat (R20 F10): on ChatSpace the visible tail, read only when the start may carry
+    // fresh text. A proof that fails is no proof: the start goes on without one.
+    let proof: unknown = null;
+    try {
+      const pending = policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits });
+      if (pending !== null) proof = await pending;
+    } catch {
+      proof = null;
     }
+    // The site's pre-check once more, now with the proof: a site whose rule needs it refuses here, before the token.
+    const late = featureGate(feature, { ...facts, proof }, policy);
+    if (late !== null) return failed(late.code);
     const token = await this.token('generate', surface, request.cause);
     if (!token.ok) return failed(token.error.code, token.error);
     // The person switched chats while the page was read: this click was for the chat that is gone.
@@ -724,7 +729,7 @@ export class AiWorkspace {
       bootstrap: ready.bootstrap,
       tone: original !== undefined ? toneForRegenerate(original.view) : this.tone(chat.key),
       draft,
-      fresh,
+      fields: policy.fields(proof),
       freshText: limits !== null,
       ...(request.coachHistory === undefined ? {} : { coachHistory: request.coachHistory }),
       ...(autoRecap === undefined ? {} : { autoRecap }),
@@ -733,7 +738,11 @@ export class AiWorkspace {
     });
     if (!plan.ok) return failed(plan.code);
 
-    const outcome = await this.ops.start(plan.start, { fixSource: plan.start.draft !== undefined && feature === 'fix' ? plan.start.draft : null, personaDefinitionId: ready.persona.definitionId });
+    const outcome = await this.ops.start(plan.start, {
+      fixSource: plan.start.draft !== undefined && feature === 'fix' ? plan.start.draft : null,
+      personaDefinitionId: ready.persona.definitionId,
+      fingerprint: policy.fingerprint(proof),
+    });
     switch (outcome.kind) {
       case 'error':
         return { kind: 'failed', error: outcome.error };

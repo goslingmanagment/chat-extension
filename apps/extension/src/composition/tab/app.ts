@@ -153,8 +153,14 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     catalogs[language] = (await env.lazy<{ readonly CATALOG: Readonly<Record<string, unknown>> }>(`i18n-${language}`)).CATALOG;
   };
   const languageOf = (settings: UiSettings): Locale => resolveLocale(settings.locale, win.navigator.languages);
-  // The texts and the first three chunks of the application travel together.
-  const [, dockChunk, aiChunk, navigationChunk] = await Promise.all([loadCatalog(languageOf(ui)), env.lazy<typeof DockChunk>('dock'), env.lazy<typeof AiChunk>('ai'), env.lazy<typeof NavigationChunk>('navigation')]);
+  // The texts and the first three chunks of the application travel together, with the site's AI policy.
+  const [, dockChunk, aiChunk, navigationChunk, aiPolicy] = await Promise.all([
+    loadCatalog(languageOf(ui)),
+    env.lazy<typeof DockChunk>('dock'),
+    env.lazy<typeof AiChunk>('ai'),
+    env.lazy<typeof NavigationChunk>('navigation'),
+    site.ai(env.lazy),
+  ]);
   const i18n = createLiveI18n((language) => catalogs[language] ?? null, {
     language: languageOf(ui),
     onMissing: (key, language) => logger.warn('tab.i18n', 'text missing', { fields: { key, language } }),
@@ -347,6 +353,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     }),
     host,
     features: site.features,
+    aiPolicy,
     i18n,
     clock,
     ids: { uuid: () => win.crypto.randomUUID() },

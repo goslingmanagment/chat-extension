@@ -191,7 +191,8 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
       wire === undefined
         ? []
         : errorActions(wire, { catalog, now, again: options.regenerate, againHotkey: featureHotkey(catalog, feature), openChat: null, againOff: pageOff }),
-    stale: view.stale ?? null,
+    // The mark is the site's verdict on this result, read against what the tab kept of the start's proof (R20 F10).
+    stale: ws.ports.policy.verdict(view, record.memo.fingerprint),
     toneUsed: view.toneUsed,
     canRegenerate: !running && regenerateReason === null && fix?.replaced !== true && !board,
     regenerateReason,

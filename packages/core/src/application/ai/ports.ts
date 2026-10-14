@@ -1,14 +1,16 @@
 // Ports of the AI controllers (architecture.md §4 «контроллеры зависят
 // только от портов», §10.2). The composition root of the tab hands them in:
 // the tab ↔ background client, the host port, the I18n port, a clock with
-// timers, an id source, the action catalog, the clipboard, and — optional —
-// a toast sink, a journal sink and the overlay switch. Nothing here touches
-// browser.*, the DOM, the network or storage.
+// timers, an id source, the action catalog, the site's slice of the feature
+// manifest and its AI policy, the clipboard, and — optional — a toast sink, a
+// journal sink and the overlay switch. Nothing here touches browser.*, the
+// DOM, the network or storage.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { type HostPort } from '@cg/contracts/host';
 import { type LogRecord } from '@cg/contracts/logs';
+import { type AiHostPolicy } from '@cg/contracts/ops';
 import { type TabEventPayload, type TabEventType, type TabRequestPayload, type TabRequestType, type TabResponsePayload } from '@cg/contracts/tab-messages';
 import {
   type ActionCatalog,
@@ -76,6 +78,11 @@ export interface AiPorts {
   readonly catalog: ActionCatalog;
   /** The site's slice of the feature manifest (the application's half of the site's adapter): what exists here and what each thing needs. */
   readonly features: FeatureSlice;
+  /**
+   * The site's AI policy (the application's half of the site's adapter, R20 F10): the proof a start gathers, the
+   * site's pre-check, its fields of the start, the fingerprint kept with the operation and the verdict on its result.
+   */
+  readonly policy: AiHostPolicy;
   readonly clipboard: ClipboardPort;
   readonly toasts?: ToastSink;
   readonly journal?: JournalSink;

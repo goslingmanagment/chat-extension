@@ -15,8 +15,10 @@
 //   what only the application calls — the bootstrap's switches of the site's
 //   host port (`configure`), the site's slice of the feature manifest
 //   (`features`, §1.4), what the site's contract report must name
-//   (`contract`, R20 F7) and the site's profile for our interface (`ui`: the
-//   palette, the dock's variant and sheet, the phrases, §1.5). Its code would
+//   (`contract`, R20 F7), the site's profile for our interface (`ui`: the
+//   palette, the dock's variant and sheet, the phrases, §1.5) and the site's
+//   AI policy (`ai`: proof, pre-check, request fields, fingerprint, verdict,
+//   R20 F10). Its code would
 //   weigh on every page at document_start for nothing: ChatSpace's
 //   `liveConfigOf` brings the flag rules of the bootstrap along, ≈ 2 KiB gzip,
 //   against the early bundle's ≈ 0.45 KiB of headroom (§3.2).
@@ -30,6 +32,7 @@ import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { HostContractShape, HostPort, HostTheme, MountPoints } from '@cg/contracts/host';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { Bootstrap } from '@cg/contracts/hub';
+import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendFuseState } from '@cg/contracts/send';
 import type { HostUiProfile } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
@@ -186,4 +189,12 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    * the application starts; `theme` is the site's theme as its page shows it, for a palette that follows the page.
    */
   ui(theme: HostThemeSource): HostUiProfile;
+  /**
+   * The site's AI policy (R20 F10; §1.6, §9.1): the proof a start gathers in the open chat, the site's pre-check,
+   * its fields of the start, the fingerprint kept with the operation and the verdict on its result — the shared AI
+   * controller calls them and never names a site. Asked once, as the application starts, together with the dock's
+   * chunks: a site whose policy is a lazy chunk of its own build (Fansly's `ai-fansly`, §3.1) loads it here with
+   * `lazy`; ChatSpace's is in its `tab-app` and answers at once.
+   */
+  ai(lazy: <T>(entry: LazyEntryName) => Promise<T>): AiHostPolicy | Promise<AiHostPolicy>;
 }
