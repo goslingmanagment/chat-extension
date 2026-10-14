@@ -1,11 +1,11 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json, docs/project-unite/plan.md, §10 docs/project-unite/parity-matrix.md, метки [ID] и [host:…] в названиях тестов",
   "testFiles": {
-    "unit": 267,
+    "unit": 269,
     "e2e": 41,
     "chatspace": 64,
-    "fansly": 23,
-    "free": 225
+    "fansly": 24,
+    "free": 226
   },
   "totals": {
     "name": "всего",
@@ -320,8 +320,8 @@
       "planned": "unit",
       "rows": 426,
       "inUnit": 426,
-      "inE2e": 95,
-      "unitOnly": 331,
+      "inE2e": 96,
+      "unitOnly": 330,
       "uncovered": 0
     },
     {
@@ -476,7 +476,7 @@
         "rows": 4,
         "closed": 4,
         "open": 0,
-        "done": false
+        "done": true
       },
       {
         "name": "P4a3",
@@ -820,7 +820,7 @@
     {"id":"AI-037","function":"Сегмент Ping на клиенте","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/HF-7д","planned":"hub","closed":false,"by":[]}},
     {"id":"AI-038","function":"Показ сегмента Ping A/B","target":"пилот","owner":"R12","milestones":["M4"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-spenders.test.ts","packages/testing/src/boards/preview.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-online.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P9e","planned":"shared","closed":true,"by":["packages/core/test/application-boards.test.ts","packages/core/test/domain-spenders.test.ts","packages/testing/src/boards/preview.test.tsx"]}},
     {"id":"AI-039","function":"Шаблоны реактивации","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8c","planned":"shared","closed":true,"by":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts"]}},
-    {"id":"AI-050","function":"Review","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-recap-review.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8c","planned":"e2e","closed":false,"by":[]}},
+    {"id":"AI-050","function":"Review","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-recap-review.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-shift.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P8c","planned":"e2e","closed":false,"by":[]}},
     {"id":"AI-051","function":"Минимум 30 сообщений","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-coach.test.ts","packages/core/test/application-dock.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/analysis.test.tsx"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8c","planned":"shared","closed":true,"by":["packages/core/test/application-coach.test.ts","packages/core/test/application-dock.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/analysis.test.tsx"]}},
     {"id":"AI-052","function":"Разбор XML ответа","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-recap-review.test.ts","packages/core/test/domain-output.test.ts","packages/testing/src/dock/analysis.test.tsx"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8c","planned":"shared","closed":true,"by":["packages/core/test/application-recap-review.test.ts","packages/core/test/domain-output.test.ts","packages/testing/src/dock/analysis.test.tsx"]}},
     {"id":"AI-053","function":"Показ Review","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-recap-review.test.ts","packages/core/test/domain-output.test.ts","packages/testing/src/dock/analysis.test.tsx"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8c","planned":"shared","closed":true,"by":["packages/core/test/application-recap-review.test.ts","packages/core/test/domain-output.test.ts","packages/testing/src/dock/analysis.test.tsx"]}},
@@ -1051,7 +1051,7 @@
     {"id":"SN-010","function":"Дубли","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/core/src/domain/sound/sound.test.ts","packages/core/test/services-sound.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["apps/extension/test/wiring-background.test.ts","packages/core/src/domain/sound/sound.test.ts","packages/core/test/services-sound.test.ts"]}},
     {"id":"SN-011","function":"Повтор после пробуждения аудио","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/services-sound.test.ts","packages/platform/src/audio.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["packages/core/test/services-sound.test.ts","packages/platform/src/audio.test.ts"]}},
     {"id":"SN-012","function":"Звук нового подписчика","target":"пилот","owner":"R17","milestones":["M5"],"planned":"unit","pilot":true,"unit":["apps/extension/test/background-sound.test.ts","apps/extension/test/wiring-background.test.ts","packages/core/src/domain/sound/sound.test.ts","packages/core/test/services-sound.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"e2e","closed":false,"by":[]}},
-    {"id":"SN-013","function":"8 тонов","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/sound/sound.test.ts","packages/platform/src/audio.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["packages/core/src/domain/sound/sound.test.ts","packages/platform/src/audio.test.ts"]}},
+    {"id":"SN-013","function":"8 тонов","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/test/background-sound.test.ts","packages/core/src/domain/sound/sound.test.ts","packages/platform/src/audio.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["apps/extension/test/background-sound.test.ts","packages/core/src/domain/sound/sound.test.ts","packages/platform/src/audio.test.ts"]}},
     {"id":"SN-014","function":"Воспроизведение в фоне","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/services-sound.test.ts","packages/platform/src/audio.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["packages/core/test/services-sound.test.ts","packages/platform/src/audio.test.ts"]}},
     {"id":"SN-015","function":"Диагностика звука","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/services/presence.test.ts","packages/core/test/services-sound.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["packages/core/src/services/presence.test.ts","packages/core/test/services-sound.test.ts"]}},
     {"id":"SN-016","function":"Протокол звука","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/host-facts.test.ts","packages/core/test/services-sound.test.ts","packages/platform/src/rpc.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["apps/extension/src/composition/tab/host-facts.test.ts","packages/core/test/services-sound.test.ts","packages/platform/src/rpc.test.ts"]}},

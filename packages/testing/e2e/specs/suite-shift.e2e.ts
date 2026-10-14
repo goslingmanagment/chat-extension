@@ -90,7 +90,7 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await waitForComposerText(ACC, a1, 'a line of my own', 'the person’s own line');
   });
 
-  it('analysis asks the hub only: a short Recap, a Review, a question to Coach', async () => {
+  it('[AI-050] analysis asks the hub only: a short Recap, a Review, a question to Coach', async () => {
     const mark = await hub().mark();
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');

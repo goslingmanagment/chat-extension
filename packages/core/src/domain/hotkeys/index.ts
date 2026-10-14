@@ -47,4 +47,4 @@ export {
 } from './policy';
 export { DELIVERY, DELIVERY_KEYS, deliveryOf, type DeliveryKey, type DeliveryOverrides } from './delivery';
 export { createActionCatalog, isOutsideScheme, printableHotkey, type CatalogOptions } from './catalog';
-export { cheatsheetGroups, cheatsheetView, hotkeyReferenceRows } from './cheatsheet';
+export { ROW_FEATURE, cheatsheetGroups, cheatsheetView, hotkeyReferenceRows } from './cheatsheet';

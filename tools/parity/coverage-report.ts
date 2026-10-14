@@ -58,6 +58,28 @@ export interface FileTags {
   readonly skipped: readonly string[];
   /** Host marks (`[host:fansly]`) of tests that run, each once: they put the whole file on those sites. */
   readonly hosts: readonly string[];
+  /**
+   * The titles of the file's top-level blocks (`describe`, `it`, … at the top of the file) that name a row but carry
+   * no host mark. In a file marked for one site they leak: the mark puts their rows on that site too (R20 F9b,
+   * `hostMarkProblems`). Absent — not read (a file made by hand in a test).
+   */
+  readonly unmarked?: readonly string[];
+}
+
+/** The text of a test's title: a string, or a template with its substitutions left out. */
+function titleText(node: ts.Expression | undefined): string | null {
+  if (node === undefined) return null;
+  if (ts.isStringLiteralLike(node)) return node.text;
+  if (ts.isTemplateExpression(node)) return [node.head.text, ...node.templateSpans.map((span) => span.literal.text)].join('…');
+  return null;
+}
+
+/** `describe(…)`, `it.each(…)(…)`, `xit(…)`: a call of a test function, whatever its modifiers. */
+function isTestCall(call: ts.CallExpression): boolean {
+  let callee: ts.Expression = call.expression;
+  while (ts.isCallExpression(callee) || ts.isTaggedTemplateExpression(callee)) callee = ts.isCallExpression(callee) ? callee.expression : callee.tag;
+  while (ts.isPropertyAccessExpression(callee)) callee = callee.expression;
+  return ts.isIdentifier(callee) && (TEST_FUNCTIONS.has(callee.text) || OFF_FUNCTIONS.has(callee.text));
 }
 
 /** The `[ROW-ID]` tags and `[host:…]` marks of one test file: from its strings and templates, never from comments. */
@@ -77,16 +99,45 @@ export function tagsOfTestFile(path: string, source: string): FileTags {
     ts.forEachChild(node, (child) => visit(child, inside));
   };
   visit(file, false);
-  return { tags: [...live], skipped: [...off].filter((id) => !live.has(id)), hosts: [...hosts] };
+  const unmarked: string[] = [];
+  for (const statement of file.statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression) || !isTestCall(statement.expression)) continue;
+    const title = titleText(statement.expression.arguments[0]);
+    if (title === null || new RegExp(HOST_MARK.source).test(title)) continue;
+    // Only a block that names a row can carry it to the wrong site.
+    let names = false;
+    const look = (node: ts.Node): void => {
+      if (names) return;
+      if ((ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) && new RegExp(TAG.source).test(node.text)) names = true;
+      else ts.forEachChild(node, look);
+    };
+    look(statement);
+    if (names) unmarked.push(title);
+  }
+  return { tags: [...live], skipped: [...off].filter((id) => !live.has(id)), hosts: [...hosts], unmarked };
 }
 
 export interface TaggedFile extends FileTags {
   readonly path: string;
 }
 
-/** Problems of the host marks of the test files: an unknown site, a mark against the file's path. */
+/**
+ * Problems of the host marks of the test files: an unknown site, a mark against the file's path, and a mark that
+ * leaks — a file marked for ONE site whose top-level block names a row but carries no mark: the mark puts that block
+ * on its site too, so its rows close there and leave the site they were written for (R20 F9b; the Fansly claim block
+ * of sdk-alignment.test.ts took ChatSpace's AI-142 to Fansly this way). Mark the block, or give the site's block a
+ * file of its own. A file marked for both sites is on both by its author's word.
+ */
 export function hostMarkProblems(files: readonly TaggedFile[]): string[] {
-  return files.flatMap((file) => placeOfTest(file.path, file.hosts).problems);
+  return files.flatMap((file) => [
+    ...placeOfTest(file.path, file.hosts).problems,
+    ...(file.hosts.length !== 1
+      ? []
+      : (file.unmarked ?? []).map(
+          (title) =>
+            `${file.path}: [host:${file.hosts[0] ?? ''}] puts the whole file on its site, and so the block «${title.slice(0, 60)}», which names rows but carries no mark — mark it, or move the site's block to a file of its own`,
+        )),
+  ]);
 }
 
 /** Rows that carry `пилот` in their target: what the pilot is accepted by (§17). */
