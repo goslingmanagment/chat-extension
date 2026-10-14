@@ -70,6 +70,7 @@ export class Isolated {
   private scripts = 0;
   private hooksIn = false;
   private gateOpen = false;
+  private domStarted = false;
   private guardIn = false;
   private messageLogs = 0;
   private flooded = 0;
@@ -92,7 +93,7 @@ export class Isolated {
   }
 
   get ready(): boolean {
-    return this.hooksIn && this.gateOpen;
+    return this.hooksIn && this.gateOpen && this.domStarted;
   }
 
   start(): void {
@@ -157,6 +158,7 @@ export class Isolated {
     this.gateOpen = true;
     const begin = (): void => {
       this.dom.start();
+      this.domStarted = true;
       this.startTimers();
       void this.maybeGuard();
       this.settle();
@@ -288,7 +290,7 @@ export class Isolated {
         restored: this.restoredBefore + (guard?.restored ?? 0),
       },
       mapPatch: { installed: map?.installed ?? false, found: map?.found ?? false, restored: map?.restored ?? false },
-      dom: { hosts: this.ui.hosts().length, ...this.dom.stats, mounts: this.ui.mounts },
+      dom: { hosts: this.ui.hosts().length, ...this.dom.stats, mounts: this.ui.mounts, queued: this.dom.queued },
       title: { writes: this.title.writes, favicons: this.title.favicons },
       messageLogs: this.messageLogs,
       generic: this.options.generic === null ? null : { ...this.options.generic },
@@ -332,7 +334,7 @@ export function genericOnlyControl(config: NeighborConfig, generic: GenericCount
     hook: { installs: 0, instance: null, scripts: 0 },
     guard: { active: false, swallowed: 0, restored: 0 },
     mapPatch: { installed: false, found: false, restored: false },
-    dom: { hosts: 0, records: 0, batches: 0, targets: 0, mounts: 0, rescans: 0 },
+    dom: { hosts: 0, records: 0, batches: 0, targets: 0, mounts: 0, rescans: 0, queued: 0 },
     title: { writes: 0, favicons: 0 },
     messageLogs: 0,
     generic: generic === null ? null : { ...generic },

@@ -24,55 +24,85 @@ import { NEIGHBOR_TAGS } from '../../src/fake-fansly/neighbor/dom';
 import { GUARD_TOAST } from '../../src/fake-fansly/neighbor/guard';
 import { FBUDDY_IDS, NEIGHBOR_PART_ATTRIBUTE, NEIGHBOR_SCRIPT_PATH, type NeighborConfig } from '../../src/fake-fansly/neighbor/protocol';
 import { BODY_LAYER_TAG } from '../../src/fake-fansly/neighbor/ui';
-import { callNeighbor, neighborState, openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
-import { FANSLY_MAIN, callFansly, fakeFansly, fanslyIds, fanslyStandServer } from '../support/fansly-stand';
+import { callNeighbor, neighborState, openWithNeighbor, setFanslyNeighbor, waitForNeighborComposer } from '../support/fansly-neighbor';
+import { FANSLY_MAIN, callFansly, fakeFansly, fanslyIds, fanslyStandServer, waitForFanslyStandIdle } from '../support/fansly-stand';
 import { useNetworkTrap } from '../support/network-trap';
 
 type Ids = Awaited<ReturnType<typeof fanslyIds>>;
-
-/** The page's API calls on the fake Fansly since `since`, as `METHOD path` with the ids of this run's sends cut. */
-async function pageCalls(since: number): Promise<string[]> {
-  return (await fakeFansly().calls('page', since)).map((entry) => `${entry.method ?? ''} ${(entry.path ?? '').replace(/before=\d+/, 'before=*')}`).sort();
-}
 
 async function waitFor(check: () => Promise<boolean>, what: string, timeout = 5000): Promise<void> {
   await browser.waitUntil(check, { timeout, interval: 50, timeoutMsg: what });
 }
 
-/** A run of the same scenario: a chat, a trusted send, a fan's answer, another chat. */
-async function scenario(config: Partial<NeighborConfig>, ids: Ids): Promise<{ readonly calls: string[]; readonly seen: string[] | null; readonly sendDuring: unknown; readonly messages: number }> {
+/** What one run of the scenario left on both sides, read once the page had settled. */
+interface Run {
+  /** Every call of the page as the server answered it, `METHOD path → status`, sorted. */
+  readonly all: string[];
+  /** The same without its read marks' calls: what must be equal from run to run, call for call. */
+  readonly calls: string[];
+  /**
+   * What the page marked, `<kind of mark>:<message>`, sorted: the ids it acknowledged, however many calls carried
+   * them — the page sends its marks in chunks, and how they fall into calls is timing, not behaviour.
+   */
+  readonly marks: string[];
+  /** Every call of the page as the neighbour's hook reported it, in `all`'s form; null — no neighbour. */
+  readonly seen: string[] | null;
+  /** The handler the page's send was made in. */
+  readonly sendDuring: unknown;
+  /** Messages in the first chat after the fan's answer. */
+  readonly messages: number;
+}
+
+const FANS_NEW_MESSAGE = 'the fan’s new message';
+
+/**
+ * One run of the same scenario — a chat, a trusted send, a fan's answer, a chat with unread messages — between two
+ * moments when the page has SETTLED (`idle()`): its start is over before the first mark (at its start alone the page
+ * sends 60 delivery marks, 25 a call, 200 ms apart), and its last mark is out before the journals are read.
+ */
+async function scenario(config: Partial<NeighborConfig>, ids: Ids): Promise<Run> {
   const fake = fakeFansly();
   await fake.command({ op: 'reset' });
   const [a, b] = ids.groups as [string, string];
-  // The page sends its read marks at once (the site waits 1–3 s at random): the scenario's requests do not hang on luck.
+  // The page collects its marks for 0 ms, not the site's 1–3 s at random.
   await openWithNeighbor('/messages?stand-ack-delay=0', config);
-  // Both sides' marks after the page's start: the scenario's part only.
-  await waitFor(async () => (await callFansly('socket'))?.state === 'connected', 'the page’s socket');
-  await browser.pause(300);
+  await waitForFanslyStandIdle();
   const since = await fake.mark();
   const logMark = config.mode === 'off' ? 0 : ((await callNeighbor('log')).at(-1)?.seq ?? 0);
   const pageMark = (await callFansly('journal')).at(-1)?.seq ?? 0;
+
   await callFansly('open', a);
-  await waitFor(async () => ((await callFansly('list'))?.messages ?? 0) > 0 && (await callFansly('list'))?.groupId === a, 'the first chat');
+  await waitFor(async () => (await callFansly('list'))?.groupId === a && ((await callFansly('list'))?.messages ?? 0) > 0, 'the first chat');
   await $(FANSLY_MAIN.field).click();
-  // Short: one typing announcement however slow the keys (the page announces at most every 3 s).
-  await browser.keys('hello');
+  // One key: exactly one typing announcement, however slow the machine (the page announces at most every 3 s).
+  await browser.keys('h');
   await browser.keys(Key.Enter);
   await waitFor(async () => (await fake.calls('page', since)).some((entry) => entry.route === 'message.send' && entry.status === 200), 'the send');
+  await waitForFanslyStandIdle();
   const before = (await callFansly('list'))?.messages ?? 0;
-  await fake.command({ op: 'message', groupId: a, text: 'a fan answers' });
+  const fanMessage = (await fake.command({ op: 'message', groupId: a, text: 'a fan answers' })).message?.id;
   await waitFor(async () => ((await callFansly('list'))?.messages ?? 0) === before + 1, 'the fan’s message');
   const messages = (await callFansly('list'))?.messages ?? 0;
+  // The second chat has two unread messages: opening it marks them read.
   await callFansly('open', b);
   await waitFor(async () => (await callFansly('list'))?.groupId === b && ((await callFansly('list'))?.messages ?? 0) > 0, 'the second chat');
-  await browser.pause(500);
+  await waitForFanslyStandIdle();
+
+  const line = (method: string, address: string, status: number): string => `${method} ${address.replace(/before=\d+/, 'before=*')} → ${status}`;
+  const entries = await fake.calls('page', since);
+  const acks = entries.filter((entry) => entry.route === 'message.ack');
+  const marks = acks.flatMap((entry) => ((entry.detail?.['messageIds'] ?? []) as string[]).map((id) => `${String(entry.detail?.['ackType'])}:${id === fanMessage ? FANS_NEW_MESSAGE : id}`));
   const sendDuring = (await callFansly('journal', pageMark)).find((entry) => entry.type === 'api' && entry['method'] === 'POST' && /^\/api\/v1\/message\?/.test(String(entry['path'])))?.['during'];
-  const seen =
-    config.mode === 'off'
-      ? null
-      : (await callNeighbor('log', logMark)).map((entry) => `${entry.method} ${new URL(entry.url).pathname}${new URL(entry.url).search}`.replace(/before=\d+/, 'before=*')).sort();
+  const seen = config.mode === 'off' ? null : (await callNeighbor('log', logMark)).map((entry) => line(entry.method, `${new URL(entry.url).pathname}${new URL(entry.url).search}`, entry.status)).sort();
   await fake.assertOursClean(since, `the scenario with the neighbour ${config.mode ?? 'after'}`);
-  return { calls: await pageCalls(since), seen, sendDuring, messages };
+  return {
+    all: entries.map((entry) => line(entry.method ?? '', entry.path ?? '', entry.status ?? 0)).sort(),
+    calls: entries.filter((entry) => entry.route !== 'message.ack').map((entry) => line(entry.method ?? '', entry.path ?? '', entry.status ?? 0)).sort(),
+    marks: marks.sort(),
+    seen,
+    sendDuring,
+    messages,
+  };
 }
 
 describe('the Fansly stand next to the FBuddy-like neighbour', () => {
@@ -147,13 +177,22 @@ describe('the Fansly stand next to the FBuddy-like neighbour', () => {
   it('our absence changes nothing: the page makes the same requests with the same results with the neighbour off and after — and the neighbour saw each one', async () => {
     const off = await scenario({ mode: 'off' }, ids);
     const after = await scenario({ mode: 'after' }, ids);
+    // The scenario did what it says, in the reference run already: the send, the fan's answer marked, the second
+    // chat's two unread messages marked read.
+    expect(off.calls.filter((call) => call.startsWith('POST /api/v1/message?'))).toEqual(['POST /api/v1/message?ngsw-bypass=true → 200']);
+    expect(off.marks.filter((mark) => mark.endsWith(FANS_NEW_MESSAGE))).toHaveLength(1);
+    expect(off.marks.filter((mark) => mark.startsWith('2:'))).toHaveLength(2);
+    expect(new Set(off.marks).size).toBe(off.marks.length);
+    // The same requests with the same answers, call for call — and the same messages marked the same way.
     expect(after.calls).toEqual(off.calls);
+    expect(after.marks).toEqual(off.marks);
     expect(after.messages).toBe(off.messages);
     // The page's send inside the trusted Enter, both times.
     expect(off.sendDuring).toEqual({ type: 'keydown', isTrusted: true, eventPhase: 2 });
     expect(after.sendDuring).toEqual(off.sendDuring);
-    // Every request of the page went past its hooks, once.
-    expect(after.seen).toEqual(after.calls);
+    // Every request of the page — each call of its marks too — went past the neighbour's hooks once, with the answer
+    // the server gave.
+    expect(after.seen).toEqual(after.all);
   });
 
   it('its CSS on the page — `contain: size`, the two-row composer — its <body> layer first and on top, its widgets after the composer’s actions', async () => {
@@ -188,7 +227,7 @@ describe('the Fansly stand next to the FBuddy-like neighbour', () => {
     const plain = await measure();
     expect(plain).toMatchObject({ contain: 'none', twoRows: false, layerIsOurs: false, widgets: [] });
     await openWithNeighbor(`/messages/${group}`, { mode: 'after' });
-    await waitFor(async () => (await measure()).widgets.length === 3, 'its composer widgets');
+    await waitForNeighborComposer();
     const next = await measure();
     expect(next.composerHeight).toBeGreaterThan(plain.composerHeight);
     expect(next).toMatchObject({
@@ -254,6 +293,8 @@ describe('the Fansly stand next to the FBuddy-like neighbour', () => {
 
   it('translate: a trusted Ctrl+Shift+L in the field is stopped on the field and replaces the whole value a moment later; Alt+T focuses its toasts', async () => {
     await openWithNeighbor(`/messages/${String(ids.groups[3])}`, { mode: 'after', mod: 'ctrl' });
+    // Its key is on the field only once its batch has reached this composer.
+    await waitForNeighborComposer();
     await browser.execute(() => {
       const seen: string[] = [];
       document.addEventListener('keydown', (event) => seen.push(`capture:${event.code}`), true);

@@ -124,6 +124,39 @@ describe('the Fansly stand over the fake Fansly: its start', () => {
 });
 
 describe('the Fansly stand over the fake Fansly: marks of delivery and reading', () => {
+  it('`idle()`: not while the page has marks to send — at its start 60 delivery marks, 25 a call, 200 ms apart — and once idle the server hears nothing more', async () => {
+    stand = await mount('/messages');
+    const control = stand.control;
+    // Between the chunks no request is in flight: «nothing in flight» is not «done», `idle()` is.
+    const seen: boolean[] = [];
+    await until(
+      () => {
+        seen.push(control.idle());
+        return control.idle();
+      },
+      'the page to settle',
+      8000,
+    );
+    expect(seen).toContain(false);
+    expect(connected()).toBe(true);
+    const marks = serverCalls('message.ack').map((entry) => ({ type: entry.detail?.['ackType'], ids: (entry.detail?.['messageIds'] ?? []) as string[] }));
+    expect(marks.map((mark) => [mark.type, mark.ids.length])).toEqual([
+      [1, 25],
+      [1, 25],
+      [1, 10],
+    ]);
+    expect(new Set(marks.flatMap((mark) => mark.ids)).size).toBe(60);
+    const settled = fake.journal.next;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(fake.journal.calls('page', settled)).toEqual([]);
+    expect(control.idle()).toBe(true);
+    // A mark that waits for its collecting delay is work too.
+    fake.command({ op: 'message', groupId: third, text: 'one more' });
+    await until(() => !control.idle(), 'the page to have a mark to send');
+    await until(() => control.idle(), 'the page to settle again');
+    expect(fake.journal.calls('page', settled).map((entry) => [entry.route, entry.detail?.['ackType']])).toEqual([['message.ack', 1]]);
+  });
+
   it('opening an unread chat sends the read marks later, by `POST /message/ack` — not inside the click that opened it', async () => {
     stand = await mount('/messages', { ackDelay: 150 });
     await until(connected, 'the socket');

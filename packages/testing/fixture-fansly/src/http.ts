@@ -46,6 +46,12 @@ export function pendingRequests(): number {
 export class FanslyHttp {
   private readonly clientId = `stand-client-${String(Math.floor(Math.random() * 9e8) + 1e8)}`;
   private readonly sessionId: string;
+  private sent = 0;
+
+  /** Requests of THIS page sent and not yet ended (`pendingRequests()` counts every page the module ever served). */
+  get pending(): number {
+    return this.sent;
+  }
 
   constructor(private readonly config: HttpConfig) {
     this.sessionId = `stand-session-id-${config.token.slice(-8)}`;
@@ -74,8 +80,10 @@ export class FanslyHttp {
     if (body !== null) xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.responseType = 'text';
     inFlight += 1;
+    this.sent += 1;
     xhr.addEventListener('loadend', () => {
       inFlight -= 1;
+      this.sent -= 1;
     });
     xhr.addEventListener('load', () => {
       let parsed: WireEnvelope<T> | null;

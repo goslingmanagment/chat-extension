@@ -295,7 +295,11 @@ export interface NeighborOwnRequest {
 
 export interface NeighborState {
   readonly config: NeighborConfig;
-  /** Its hooks are installed and its DOM work started (after its own `/account/me` named a creator). */
+  /**
+   * Its hooks are installed and its DOM work has begun (after its own `/account/me` named a creator). Begun, not done:
+   * its mounts come in batches behind a 50-ms throttle, and anew for every new composer — a test that needs a widget
+   * or its key on the field waits for that widget (`dom.queued`, or the node itself).
+   */
   readonly ready: boolean;
   readonly creatorId: string | null;
   readonly hook: {
@@ -318,6 +322,8 @@ export interface NeighborState {
     /** Hosts it inserted (a re-mount counts again). */
     readonly mounts: number;
     readonly rescans: number;
+    /** Targets its observer found and has not worked through yet. */
+    readonly queued: number;
   };
   readonly title: { readonly writes: number; readonly favicons: number };
   /** `POST /message` it would have logged to its organization (message logging; never sent anywhere). */

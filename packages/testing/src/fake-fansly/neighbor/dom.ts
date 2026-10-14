@@ -132,6 +132,11 @@ export class NeighborDom {
     this.queue.clear();
   }
 
+  /** Targets waiting for a batch: its work is behind a 50-ms throttle, so a node it will mount on may not carry it yet. */
+  get queued(): number {
+    return this.queue.size;
+  }
+
   /** The queue's work now, without the throttle (tests). */
   flushNow(): void {
     if (this.timer !== null) clearTimeout(this.timer);

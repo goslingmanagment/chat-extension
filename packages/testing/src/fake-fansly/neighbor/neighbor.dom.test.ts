@@ -33,6 +33,17 @@ const quiet = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 200));
 };
 
+/**
+ * The page has SETTLED (`idle()`: no request in flight, its unread reading over, no read mark waiting or going out —
+ * at its start alone it sends 60 delivery marks, 25 a call, 200 ms apart) and the hook's reports have crossed the
+ * bridge: the moment to compare what the hook saw with what the server answered. Not after a swallowed send — that
+ * request never ends.
+ */
+const settled = async (): Promise<void> => {
+  await until(() => stand?.control.idle() === true, 'the page to settle', 8000);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+};
+
 beforeAll(async () => {
   fake = await startFakeFansly({ pageOrigin: location.origin });
 });
@@ -94,7 +105,7 @@ describe('the neighbour: its hooks next to the page (after)', () => {
     await openChat(first);
     typeAndEnter('hello from the page');
     await until(() => fake.journal.calls('page', since).some((entry) => entry.route === 'message.send' && entry.status === 200), 'the send answered');
-    await quiet();
+    await settled();
     // Every request the page made, the hook reported — each once.
     expect(sorted(seen())).toEqual(sorted(pageCalls()));
     const log = s().neighbor.log();
@@ -138,26 +149,30 @@ describe('the neighbour: its hooks next to the page (after)', () => {
 describe('the neighbour: when its hooks arrive', () => {
   it('before: in place before the page’s first request — the page’s own /account/me is in its log', async () => {
     await mount({ mode: 'before' });
-    await quiet();
+    await settled();
     expect(seen()[0]).toMatch(/^GET \/api\/v1\/account\/me\?/);
     expect(sorted(seen())).toEqual(sorted(pageCalls()));
   });
 
-  it('first-xhr: after the page’s first request came back — that one is not in its log, the later ones are', async () => {
+  it('first-xhr: after the page’s first request came back — what the page asked before is not in its log, everything after is', async () => {
     let inject: (() => void) | null = null;
     await mount({ mode: 'after', timing: 'first-xhr' }, '/messages', { afterFirstXhr: (run) => (inject = run) });
     expect(s().neighbor.state().ready).toBe(false);
+    // The page's whole start goes by without its hooks, and nothing is in flight when they come.
+    await settled();
+    const unhooked = pageCalls();
+    expect(unhooked[0]).toMatch(/^GET \/api\/v1\/account\/me\?/);
+    expect(seen()).toEqual([]);
+    const hooked = fake.journal.next;
     if (inject === null) throw new Error('no injection waiting');
     (inject as () => void)();
     await s().neighbor.whenReady();
     await openChat(first);
-    await quiet();
-    const calls = pageCalls();
-    expect(calls[0]).toMatch(/^GET \/api\/v1\/account\/me\?/);
-    expect(seen()).not.toContain(calls[0]);
-    expect(seen().length).toBeGreaterThan(0);
-    expect(sorted(seen())).toEqual(sorted(calls.slice(calls.length - seen().length)));
-    expect(seen().some((call) => call.startsWith(`GET /api/v1/message?groupId=${first}`))).toBe(true);
+    await settled();
+    const after = fake.journal.calls('page', hooked).map((entry) => `${entry.method ?? ''} ${entry.path ?? ''}`);
+    expect(after.some((call) => call.startsWith(`GET /api/v1/message?groupId=${first}`))).toBe(true);
+    expect(sorted(seen())).toEqual(sorted(after));
+    expect(seen()).not.toContain(unhooked[0]);
   });
 });
 
@@ -167,11 +182,12 @@ describe('the neighbour: reinject and legacy', () => {
     await s().neighbor.whenReady();
     await until(() => s().neighbor.state().guard.active, 'the guard');
     // What instance 1 sent is reported by instance 1 — even after it is gone: its listeners came with the request.
-    await quiet();
+    // So the page settles first: nothing of instance 1's is in flight when instance 2 comes.
+    await settled();
     expect(await s().neighbor.reinject()).toBe(2);
     const mark = s().neighbor.log().at(-1)?.seq ?? 0;
     await openChat(third);
-    await quiet();
+    await settled();
     const after = s().neighbor.log(mark);
     expect(after.length).toBeGreaterThan(0);
     expect(after.every((entry) => entry.instance === 2)).toBe(true);
@@ -350,25 +366,32 @@ describe('the neighbour: its DOM', () => {
   it('its observer does not rock: still while the page is still, bounded per chat switch', async () => {
     await mount({ mode: 'after', panel: 'mobile' });
     await s().neighbor.whenReady();
+    /** The page has settled (its marks out, their receipts in the inbox) and the neighbour has worked its queue through. */
+    const still = async (): Promise<void> => {
+      await settled();
+      await until(() => s().neighbor.state().dom.queued === 0, 'its queue to empty');
+      await quiet();
+    };
     await openChat(first);
-    await quiet();
-    const still = s().neighbor.state().dom;
+    await still();
+    const before = s().neighbor.state().dom;
     await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(s().neighbor.state().dom).toEqual(still);
+    expect(s().neighbor.state().dom).toEqual(before);
     const perSwitch: number[] = [];
     for (const groupId of [second, third, first, second, third, first]) {
       const from = s().neighbor.state().dom.records;
       await openChat(groupId);
-      await quiet();
+      await still();
       perSwitch.push(s().neighbor.state().dom.records - from);
     }
     // The same work for every switch: no growth from its own records feeding it.
     expect(Math.max(...perSwitch)).toBeLessThan(200);
     expect(Math.max(...perSwitch.slice(3)) - Math.min(...perSwitch.slice(3))).toBeLessThan(40);
-    const settled = s().neighbor.state().dom;
+    const after = s().neighbor.state().dom;
     await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(s().neighbor.state().dom).toEqual(settled);
-  });
+    expect(s().neighbor.state().dom).toEqual(after);
+    // Seven times «the page has settled»: each waits out the page's marks (their chunk gap is 200 ms).
+  }, 30_000);
 });
 
 describe('the neighbour: the composer', () => {
@@ -387,6 +410,8 @@ describe('the neighbour: the composer', () => {
     expect(s().neighbor.state().guard).toMatchObject({ active: true, swallowed: 1, restored: 1 });
     // The page's model follows the restored text (its `input` reached NgModel).
     expect(s().control.composers().find((composer) => composer.place === 'main')?.model).toBe('this is forbidden, babe');
+    // The page's request never ends — no event will ever come for it: this page is not idle again.
+    expect(s().control.idle()).toBe(false);
     typeAndEnter('all clean');
     await until(() => fake.journal.calls('page', since).some((entry) => entry.route === 'message.send' && entry.status === 200), 'the clean send');
     await quiet();

@@ -135,6 +135,7 @@ export function installControl(app: StandApp): { markReady(): void } {
       composer.recreateField();
     },
     socket: () => live?.socket() ?? null,
+    idle: () => live?.idle() ?? true,
     notify: (messageIds) => live?.notify(messageIds),
     cameBack: (hiddenMs) => live?.cameBack(hiddenMs),
     composers: () => [...liveComposers].map((composer) => composer.view()),

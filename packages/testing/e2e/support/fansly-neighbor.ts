@@ -11,8 +11,9 @@ import { request as httpRequest } from 'node:http';
 import { browser } from '@wdio/globals';
 
 import { CONTROL_REQUEST_HEADER } from '../../fixture-chatspace/src/protocol';
+import { NEIGHBOR_TAGS } from '../../src/fake-fansly/neighbor/dom';
 import { NEIGHBOR_CONTROL_PATH, NEIGHBOR_GLOBAL, NEIGHBOR_PARAM, neighborSpec, type NeighborConfig, type NeighborControl, type NeighborState } from '../../src/fake-fansly/neighbor/protocol';
-import { fanslyStandOrigin, fanslyStandUrl, waitForFanslyStandReady } from './fansly-stand';
+import { FANSLY_MAIN, fanslyStandOrigin, fanslyStandUrl, waitForFanslyStandReady } from './fansly-stand';
 
 /** The stand page's address with the neighbour named in it. */
 export function neighborUrl(path: string, config: Partial<NeighborConfig>): string {
@@ -49,6 +50,32 @@ export async function openWithNeighbor(path: string, config: Partial<NeighborCon
   await waitForFanslyStandReady(timeout);
   if (config.mode === 'off') return;
   await browser.waitUntil(async () => (await neighborState()).ready, { timeout, interval: 50, timeoutMsg: `the neighbour (${neighborSpec(config)}) did not get ready` });
+}
+
+/**
+ * Waits until the neighbour has mounted on the MAIN composer that stands now: its three widgets right after the
+ * composer's actions — and with them its translate key on the field. Its mounts come behind a 50-ms throttle, in
+ * batches, and anew for every new composer (a chat switch, a new field branch): a key pressed or a widget read
+ * before that meets a page the neighbour has not reached yet. `ready` says only that its work has begun.
+ */
+export async function waitForNeighborComposer(timeout = 5000): Promise<void> {
+  const expected = [NEIGHBOR_TAGS.templates, NEIGHBOR_TAGS.emoji, NEIGHBOR_TAGS.translate];
+  await browser.waitUntil(
+    async () =>
+      browser.execute(
+        (composer: string, tags: string[]) => {
+          let node = document.querySelector(`${composer} .collapsable-actions`)?.nextElementSibling ?? null;
+          for (const tag of tags) {
+            if (node?.localName !== tag) return false;
+            node = node.nextElementSibling;
+          }
+          return true;
+        },
+        FANSLY_MAIN.composer,
+        expected,
+      ),
+    { timeout, interval: 30, timeoutMsg: 'the neighbour did not mount its widgets on the main composer' },
+  );
 }
 
 /** The stand's default neighbour for every later page load that names none itself; null — none. */

@@ -50,6 +50,7 @@ const randomBetween = (min: number, max: number): number => Math.floor(Math.rand
 export class LiveSession {
   readonly xhr: XhrBackend;
   loggedOut = false;
+  private readonly http: FanslyHttp;
   private readonly events: EventService;
   private store: GroupService | null = null;
   private hiddenAt = 0;
@@ -63,7 +64,8 @@ export class LiveSession {
     options: LiveOptions = {},
   ) {
     const ackDelay = options.ackDelay;
-    this.xhr = new XhrBackend({ http: new FanslyHttp(config), ackDelay: () => ackDelay ?? randomBetween(1000, 3000) });
+    this.http = new FanslyHttp(config);
+    this.xhr = new XhrBackend({ http: this.http, ackDelay: () => ackDelay ?? randomBetween(1000, 3000) });
     this.events = new EventService({
       url: config.socketUrl,
       token: config.token,
@@ -208,6 +210,14 @@ export class LiveSession {
 
   socket(): SocketView {
     return this.events.view();
+  }
+
+  /**
+   * The page has settled: its socket is verified, none of its requests is in flight, its unread reading is over and
+   * no read mark waits or is going out. The stand's own signal for tests (protocol.ts `idle`), not Fansly's.
+   */
+  idle(): boolean {
+    return (this.loggedOut || this.events.view().state === 'connected') && this.http.pending === 0 && !this.xhr.busy;
   }
 
   /** A command of the stand to the fake Fansly: a control request, journaled there as `control`. */
