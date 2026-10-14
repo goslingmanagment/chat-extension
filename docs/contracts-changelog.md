@@ -469,6 +469,13 @@ ChatSpace не меняются.
   `packages/contracts/test/coverage-check.test.ts` (матрица хаба целиком), `fansly.test.ts`, `schemas.test.ts`,
   `protocols.test.ts`, `packages/core/test/domain-ops.test.ts`, `packages/testing/src/scenarios/hub/sdk-alignment.test.ts`
   (тело, лексемы, пределы и имена возможностей — против настоящего SDK).
+- Байты (сборка выпуска `main` `6732314` и ветки одна за другой): `StartOp.proof`, `ServedContext.coverageCheck` и
+  причины `stale` — в общих схемах, их несут слой `tab-protocol` (+554 Б gzip), проба реестра запросов вкладки (+550:
+  28 325 из 28 672, запас 347 Б; ≈ 94 Б из них — тело и кадр `hub/ai.ts`, которые настоящий чанк не несёт) и ядро фона
+  (+2 358 Б raw, запас 34 462 Б). `ai` +59, `boards-preview` +23, `tab-app` −24 — новые хеши в именах импортируемых
+  чанков; `bridge-validation` +32 (пределы). Модуль `fansly-host`, `coverageCheckVerdict` и классы в бандлы ChatSpace
+  не попадают (не используются, выбрасываются). Закрепы `tools/gates/chatspace-bytes.json` переписаны: 22 файла, все
+  дельты — в описании PR.
 
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
