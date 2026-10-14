@@ -180,7 +180,8 @@ export async function runScenario(subject: PerfSubject, options: ScenarioOptions
   await waitForFanslyStandReady();
   // fansly.com caps its content at `--maxContentWidth: 70em` (the live snapshot: `app-messages-route` 1120 px wide in
   // a 1728-px window, docs/research/fansly/chat-dom-2026-10-13.json); the stand's route takes the whole width. The
-  // column it leaves on the right is where the old extension docks «Всегда справа» (fansly-chat placement.ts).
+  // column it leaves on the right is where the old extension docks «Всегда справа» (fansly-chat placement.ts). The
+  // neighbour, as FBuddy does, widens the content to 1800 px with `!important`: with it there is no such column.
   await browser.execute((css: string) => {
     const style = document.createElement('style');
     style.dataset['perfStand'] = 'max-content-width';
@@ -220,14 +221,19 @@ export async function runScenario(subject: PerfSubject, options: ScenarioOptions
   }
 
   // §11: typing into the composer, as separate key presses; once plain, once under the sampler.
-  const field = browser.$(FANSLY_MAIN.field);
   const typeOnce = async (): Promise<LatencySummary> => {
-    await field.click();
+    // The field takes the focus as a click on it would give it: a click itself may land on a subject's fixed launcher
+    // (the old one's «Новые» at the bottom right lies over the field with Fansly's content cap and no neighbour
+    // widening the page). Every letter must reach the field — `?` outside it opens the old extension's cheatsheet.
+    await browser.execute((selector: string) => document.querySelector<HTMLTextAreaElement>(selector)?.focus(), FANSLY_MAIN.field);
+    const focused = await browser.execute((selector: string) => document.activeElement === document.querySelector(selector), FANSLY_MAIN.field);
+    if (!focused) throw new Error('the composer did not take the focus');
     await installInputProbe();
     await takeLatencySamples();
     await typeSlowly(options.text, options.keyGapMs);
     await browser.pause(300);
     const samples = await takeLatencySamples();
+    if (samples.length < options.text.length) throw new Error(`${String(samples.length)} of ${String(options.text.length)} keys reached the field`);
     // Empty the field again (select all, delete), as after a sent message.
     await browser.keys([Key.Ctrl, 'a']);
     await browser.keys([Key.Backspace]);
