@@ -469,15 +469,15 @@ ChatSpace не меняются.
   `packages/contracts/test/coverage-check.test.ts` (матрица хаба целиком), `fansly.test.ts`, `schemas.test.ts`,
   `protocols.test.ts`, `packages/core/test/domain-ops.test.ts`, `packages/testing/src/scenarios/hub/sdk-alignment.test.ts`
   (тело, лексемы, пределы и имена возможностей — против настоящего SDK).
-- Байты (сборка выпуска `main` `6732314` и ветки одна за другой): `StartOp.proof`, `ServedContext.coverageCheck` и
-  причины `stale` — в общих схемах, их несут слой `tab-protocol` (+551 Б gzip, чанк +1 921 Б raw), проба реестра
-  запросов вкладки (+547: 28 322 из 28 672, запас 350 Б; ≈ 94 Б из них — тело и кадр `hub/ai.ts`, которые настоящий чанк
-  не несёт) и ядро фона (+2 348 Б raw, запас 34 472 Б). `ai` +60, `boards-preview` +22, `tab-app` −27 — новые хеши в
-  именах импортируемых чанков (`ai` +1 Б raw); `bridge-validation` +32 (пределы). Модуль `fansly-host`,
-  `coverageCheckVerdict` и таблица классов в бандлы ChatSpace не попадают (не используются, выбрасываются). Вид
-  доказательства прохода — `pass`, не `host-pass`: это слово источника фичи в манифесте Fansly, и тест
-  `feature-slices` держит его вне чанков ChatSpace. Закрепы `tools/gates/chatspace-bytes.json` переписаны: 22 файла, все
-  дельты — в описании PR.
+- Байты (сборка выпуска `main` `a4622c5` и ветки одна за другой): `StartOp.proof`, `ServedContext.coverageCheck` и
+  причины `stale` — в общих схемах, их несут слой `tab-protocol` (+561 Б gzip, чанк +1 923 Б raw), проба реестра
+  запросов вкладки (+555: 28 342 из 28 672, запас 330 Б; ≈ 94 Б из них — тело и кадр `hub/ai.ts`, которые настоящий чанк
+  не несёт) и ядро фона (+2 348 Б raw, запас 33 523 Б). `ai` +61, `boards-preview` +23, `tab-health` +6, `ai-coach` +4,
+  `tab-app` −24 — новые хеши в именах импортируемых чанков (`ai` +1 Б raw); `bridge-validation` +32 (пределы). Модуль
+  `fansly-host`, `coverageCheckVerdict` и таблица классов в бандлы ChatSpace не попадают (не используются,
+  выбрасываются). Вид доказательства прохода — `pass`, не `host-pass`: это слово источника фичи в манифесте Fansly, и
+  тест `feature-slices` держит его вне чанков ChatSpace. Закрепы `tools/gates/chatspace-bytes.json` переписаны: 22
+  файла, все дельты — в описании PR.
 
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
