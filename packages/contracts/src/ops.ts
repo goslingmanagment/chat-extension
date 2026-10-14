@@ -7,8 +7,8 @@ import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature, type FeatureId, type Surface } from './features';
-import { LiveTextMessageSchema, LiveTextTailSchema } from './host';
-import { ChatRefSchema, HumanCauseSchema, TargetSchema } from './ids';
+import { LiveTextMessageSchema, LiveTextTailSchema, type ChatWindow, type HostPort, type LiveTextTail } from './host';
+import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity } from './ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
 import {
   CountSchema,
@@ -23,8 +23,10 @@ import {
   UuidSchema,
   boundedText,
   displayText,
+  type IsoTimestamp,
 } from './primitives';
 import { FreshnessCheckpointSchema, checkpointMatches } from './send';
+import type { UNAVAILABLE_REASONS, UnavailableReasonId } from './vm/catalog';
 
 export const OP_STATES = ['admitted', 'requesting', 'streaming', 'done', 'failed', 'canceled', 'interrupted'] as const;
 export const OpStateSchema = z.enum(OP_STATES);
@@ -556,3 +558,78 @@ export const OpViewSchema = z.strictObject({
   continuedBy: z.optional(UuidSchema),
 });
 export type OpView = z.infer<typeof OpViewSchema>;
+
+// ── The site's AI policy (1.15.0, R20 F10; docs/project-unite/architecture.md §1.6, §9.1) ──
+//
+// What of an AI start and of its result is the site's to say. The shared controller of the open chat calls these
+// ports and never names a site; the site's application half of its adapter hands its policy in (`HostAppAdapter.ai`).
+// ChatSpace's policy is what the controller did by itself before the second site: the visible tail as fresh text,
+// Hi refused by the loaded window, no fingerprint, the background's «фан написал новое» as the mark. Fansly's is its
+// snapshot, the start proof of Hi and the coverage verdict (P8b1–P8c). Types only: no schema of a port goes into a
+// bundle.
+
+/** A reason of the action catalog that carries a CG code: what a pre-check refuses with — the start fails with that code. */
+export type AiGateReason = { [K in UnavailableReasonId]: (typeof UNAVAILABLE_REASONS)[K]['code'] extends null ? never : K }[UnavailableReasonId];
+
+/**
+ * The mark over a finished result's parts, ready to be drawn — the shared result's model of it (`ResultVM.stale`): the
+ * site's AI policy gives it (`verdict`), the shared result only shows it. ChatSpace's is the background's «фан написал
+ * новое после генерации» (`OpView.stale`); the window check's reasons (`StaleReason`) are Fansly's (P8b2). Here, next to
+ * the view it is read from: the view models import `ops`, never the other way round.
+ */
+export interface ResultMarkVM {
+  readonly reason: StaleReason;
+  readonly at: IsoTimestamp | null;
+}
+
+/** What a start asks the site's proof for. */
+export interface AiProofAsk {
+  readonly feature: FeatureId;
+  readonly surface: Surface;
+  /** The open chat as the start found it: the host answers only while it is still this chat. */
+  readonly identity: HostIdentity;
+  /** How much fresh page text the start may carry (D-14: a draft feature in the dock, admitted on the page); null — none. */
+  readonly fresh: { readonly maxItems: number; readonly maxChars: number } | null;
+}
+
+/**
+ * The site's own fields of a start, made from its proof. The shared plan trims `fresh` to D-14 and copies the rest
+ * into the start as they are; the StartOp schema checks them like every other field, so a field the schema does not
+ * know refuses the start (CG-UI-FAILED) instead of reaching the background.
+ */
+export interface AiStartFields {
+  /** The visible tail as fresh page text (D-14): ChatSpace's. */
+  readonly fresh?: LiveTextTail | null;
+  /** The proof of freshness the site made of its snapshot (`CoverageProof`, its texts inside): Fansly's (P8b1). */
+  readonly proof?: CoverageProof;
+}
+
+/**
+ * The site's AI policy. `P` is the proof the site gathers for a start (ChatSpace: the visible tail); `F` — its
+ * fingerprint, what the tab keeps of that proof with the operation for the verdict (ChatSpace: nothing). Both are
+ * opaque to the shared controller: it only hands them back to the policy.
+ */
+export interface AiHostPolicy<P = unknown, F = unknown> {
+  /**
+   * The pre-check: the site's own reason a feature cannot start in the open chat, from what the page holds — after
+   * the shared rules (the chat is loading, Fix without a draft, a short history for Review and Recap), before a token
+   * is asked for or anything reaches the hub. It only spares a round trip: the hub decides its gates itself. Asked
+   * with `proof` null for a view and for the first check of a start, and once more with the start's proof before
+   * its token: a site whose rule needs the proof (Fansly's Hi, FS-AI-2) refuses there.
+   */
+  preflight(feature: FeatureId, window: ChatWindow, proof: P | null): AiGateReason | null;
+  /**
+   * The proof of the open chat a start gathers after its pre-check, from page memory only. null — nothing to gather
+   * for this start (nothing is awaited); a proof that fails or rejects is no proof, and the start goes on without one.
+   */
+  proof(host: HostPort, ask: AiProofAsk): Promise<P | null> | null;
+  /** The site's fields of the start, from its proof. */
+  fields(proof: P | null): AiStartFields;
+  /**
+   * What the tab keeps of the proof with the operation for as long as its result lives, for the verdict; null —
+   * nothing. Never a text of the conversation (R20 F8: after the start no tail is kept anywhere in the tab).
+   */
+  fingerprint(proof: P | null): F | null;
+  /** The verdict on a result: the ready mark the shared result shows over its parts; null — no mark. */
+  verdict(view: OpView, fingerprint: F | null): ResultMarkVM | null;
+}

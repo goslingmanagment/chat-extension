@@ -7,7 +7,7 @@
 import { type CgCode, type CgErrorView, type I18nKey } from '../errors';
 import { type FeatureId, type Surface, type Tone } from '../features';
 import { type PartRef } from '../ids';
-import { type OpState, type StaleReason } from '../ops';
+import { type OpState, type ResultMarkVM } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
 import { type PreviewSendPreflight, type SendAttemptView } from '../send';
 import { PREVIEW_SEND_CONDITION_CODES, isRetryableEnd } from '../send-rules';
@@ -299,10 +299,11 @@ export interface ResultVM {
   /** Recovery buttons of the registry entry: «Повторить», «Настройки», «Войти», «Перезагрузить вкладку», «Открыть чат». */
   readonly errorActions: readonly ActionButtonVM[];
   /**
-   * «Фан написал новое после генерации» (dock inserts still allowed; previews hold sends). 1.15.0: the reasons of the
-   * window check's verdict too (`StaleReason`, R20 spec §3.5); their mark over the result is P8b2's.
+   * The mark over the parts, ready to be drawn (`ResultMarkVM`, 1.15.0): the site's AI policy gives it (R20 F10).
+   * «Фан написал новое после генерации» (dock inserts still allowed; previews hold sends), and the reasons of the window
+   * check's verdict too (`StaleReason`, R20 spec §3.5); their mark over the result is P8b2's.
    */
-  readonly stale: { readonly reason: StaleReason; readonly at: IsoTimestamp | null } | null;
+  readonly stale: ResultMarkVM | null;
   readonly toneUsed: Tone | null;
   readonly canRegenerate: boolean;
   readonly regenerateReason: ReasonVM | null;
