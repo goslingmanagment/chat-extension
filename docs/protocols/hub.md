@@ -16,6 +16,7 @@
 | `spenders` | Spenders v2, карточка, пачка, корзины, доска до 1000 строк, статистика (H-8b), «ждут ответа» (H-8c) |
 | `feed` | лента архива (H-9c) |
 | `newcomers` | «Новые» (H-7c), тело и состояние брони и опеки (H-7b), переходы опеки |
+| `claim-body` | 1.15.0, только типы: тело брони хаба после HF-3 — ручная группа (`ManualClaimGroup`), `ClaimSendGroup`, `HubClaimBody`, `HubClaimOp` (п. 17) |
 | `usage` | конверт ingest и ответ; свои расходы AI (H-15) |
 | `routes` | операции как данные: метод, класс для разбора ошибок, какой H её приносит, флаг, возможности, узкий токен; таблица §4.12 «флаг → возможности»; запрещённые операции |
 | `registry` | `HUB_ROUTE_SCHEMAS`: схема запроса и ответа по ключу операции |
@@ -138,6 +139,24 @@
     (`CLAIM_REVISION_MAX`). Прод на старом контракте эти маршруты не объявляет —
     функции читаются как `hub_not_ready`, запросов к ним нет (`docs/hub-layer.md`,
     «Хаб старше SDK»).
+
+17. **1.15.0 (R20 P4c): бронь и опека на Fansly — HF-3 хаба (`b37075d8`).** Хаб
+    допускает действия опеки по `(платформа, purpose, действие)`. OnlyFans — как
+    прежде: приветствия и ответы из превью, только группы AI, `dispatch` под
+    `previewSend`; `ClaimBodySchema` не менялся. Fansly — только приветствие,
+    группа AI или ручная (`{kind: 'manual', textFingerprint}`, sha256 точного
+    текста; хаб отвечает `generationRef` `manual:<отпечаток>`, вариант 0, одна
+    часть), `dispatch` под `newcomers`, без `previewSend`; `preview-reply` — 409.
+    Схема тела Fansly — в модуле сайта (`send-fansly`:
+    `FanslyGreetingClaimBodySchema`), в общем коде — только типы (`claim-body`:
+    `HubClaimBody`, которым фасад назовёт оба тела). Доказательство отказа то же:
+    `failed: not_enqueued` или `native_rejected` с 4xx, кроме 401; `200
+    {success:false}` Fansly ничего не доказывает — опека остаётся
+    `uncertain-held`. `limits.greetingSendPerMinute` (30 в минуту, отдельно от
+    `previewSendPerMinute`) клиент не читает: темп держит хаб (429
+    `preview_send_rate_limited`), схема bootstrap не менялась. Вендоренный SDK
+    (`6ee3d627`) старше HF-3; тест контракта сверяет тело Fansly со схемой хаба,
+    переписанной в него, до перевендоринга.
 
 ## Флаги: решает страница
 

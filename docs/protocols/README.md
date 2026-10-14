@@ -22,7 +22,8 @@ X8 на любой сборке ChatSpace по профилю-метке хаб�
 разговор маршрута и навигации; P4a2 — мост Fansly: модули сайта `bridge-fansly`, `bridge-messages-fansly`, `fansly`;
 P4a3 — протокол вкладки Fansly, отправитель `relay`, ключ `settings.ext` и коды Fansly; F4 — манифест фич
 `features/*` (только подпути), чипы полосы данными `DockVM.chips`, в `CLIENT_FLAG_REQUIREMENTS` — только нужда
-транспорта клиента).
+транспорта клиента; P4c — отправка приветствия Fansly по HTTP: модуль сайта `send-fansly` и типы тела брони хаба
+после HF-3 `hub/claim-body`).
 Менять их можно только по правилу из [журнала изменений](../contracts-changelog.md).
 
 R01 делали четыре исполнителя, интегратор свёл их работу:
@@ -39,8 +40,8 @@ R01 делали четыре исполнителя, интегратор св�
 Каждый модуль — свой подпуть `exports` (`@cg/contracts/<модуль>`), корень
 `@cg/contracts` реэкспортирует всё, кроме `parity/exceptions` (его читает гейт
 паритета под чистой Node), модулей сайта Fansly (`fansly`, `bridge-fansly`,
-`bridge-messages-fansly`, `tab-messages-fansly`, `errors-fansly`, 1.15.0), `settings-ext` и манифеста фич
-`features/*` (1.15.0): их
+`bridge-messages-fansly`, `tab-messages-fansly`, `errors-fansly`, `send-fansly`, 1.15.0), `settings-ext` и манифеста
+фич `features/*` (1.15.0): их
 импортирует только тот, кому они нужны, по подпути, и ни бандл ChatSpace, ни ядро фона, которые берут корень, их не
 несут (R20 §1.8, §3.2). Пакет без побочных эффектов: в бандл попадают только модули, которыми он пользуется.
 
@@ -61,6 +62,7 @@ R01 делали четыре исполнителя, интегратор св�
 | `settings-ext` | 1.15.0, только подпуть: ключ `settings.ext` — то, чего v1 не выражает (раздел сайта `hosts['fansly-web']`, глубина выше 3000), своя версия; вид с умолчаниями, патч, ответ, исход загрузки | R20 §12, FS-SET-1 |
 | `send-rules` | **лёгкий**: X8 без схем — состояния попытки и переходы, `isRetryableEnd`, коды условий §6.7.4, `SEND_CUSTODY_REPORTS`, `servedContextCovers`, `localDeadline`; 1.11.0 — виды совпадения профиля, профиль-метка «любая сборка» (`isAnyBuildReceiptProfile`), причины и места предохранителя, `sendFuseHolds` (решение X25) | §6.2, §6.7 |
 | `send` | X8: точка свежести, запрос и билет отправки, preflight и commit, вид попытки, журнал, ключ блокировки, `PreviewSendPort`; 1.11.0 — предохранитель: `SendFuseFact`, `SendFuse`, `SendFuseState` | §5.2, §6.7 |
+| `send-fansly` | 1.15.0, только подпуть: отправка приветствия «Новых» Fansly по HTTP — машина состояний данными (`ready … sent`, `refused`, `uncertain`) с доказательствами концов и `isFanslySendStep`, вид попытки, журнал `fansly.send.journal` (только id), перезапуск и отчёты опеке, запрос приветствия (`fansly.followers.send`), ручная группа и тело брони Fansly (подмножество тела хаба HF-3), последняя сверка, квитанция `POST /message` | R20 §8.6, FS-NEW-3, FS-NEW-6 |
 | `host` | `HostPort`, возможности и якоря, отчёт контракта, маршрут (1.15.0: разговор маршрута `conversationRef`, его вид `conversationKind`, проверка `conversationFits`), composer, вставка (`InsertIntent` с токеном, `InsertWire` для MAIN) и навигация с квитанциями (1.15.0: разговор цели `target.conversationRef`), хвост переписки, окно чата, фан, строки списка, тема, точки монтирования, факты входящих и отправки человеком, хранилище `presence` | §5.2, §6 |
 | `ops` | `OpState` и переходы, `Phase`, `StartOp`, `Admission`, `OpView`, `OpResult`, Review, Coach, охват, `ServedContext`, `OP_TIMEOUTS` | §5.5, §7 |
 | `telemetry` | `AcceptanceEvent`, `ClientHealthV1`, `PERF_METRICS` с фиксированными границами, отчёт вкладки | §5.7, §9.6 |
@@ -75,7 +77,7 @@ R01 делали четыре исполнителя, интегратор св�
 | `tab-messages-fansly` | 1.15.0, только подпуть, **тяжёлый**: реестр Fansly — `fansly.followers.*`, `fansly.notes.*`, `fansly.voice.*`, `fansly.vault.*`, `fansly.relay.*`; разбирает его чанк `bg/fansly` и вкладка Fansly | R20 §1.6, §8 |
 | `tab-liveness` | обмен `hello`/`status` каркаса R00. С каркаса M1 им никто не пользуется: вкладка и фон говорят конвертом §5.4, а сырой слушатель порта из `@cg/platform` убран. Схемы остаются до версии 2.0 (заморозка 1.x) | — |
 | `vm` | модели видов, `AppClient`, `UiAction`, `ActionCatalog`, порты UI | §10.2 |
-| `hub` | `HubFacade`, DTO, таблица маршрутов, реестр схем, карта ошибок | §5.8, §8 |
+| `hub` | `HubFacade`, DTO, таблица маршрутов, реестр схем, карта ошибок; 1.15.0 — типы тела брони хаба после HF-3 (`claim-body`, только типы) | §5.8, §8 |
 | `parity/exceptions` | 20 отрицательных проверок для строк «не нужно» и «убрано владельцем» | §12, §16 |
 | `@cg/contracts/fixtures` | фикстуры для тестов других пакетов (`test/fixtures`) | — |
 

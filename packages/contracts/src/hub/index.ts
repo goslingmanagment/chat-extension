@@ -11,6 +11,7 @@ export * from './recaps';
 export * from './spenders';
 export * from './feed';
 export * from './newcomers';
+export type * from './claim-body';
 export * from './usage';
 export * from './routes';
 export * from './registry';
