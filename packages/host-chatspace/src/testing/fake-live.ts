@@ -15,7 +15,7 @@
 // - The queue's action is named by the send port's own constant: the queue
 //   method's name lives in one file only (tools/gates).
 
-import { idOf, isPlain } from '../main/check';
+import { idOf, isPlain } from '@cg/host-kit/main/check';
 import { type Entry, type LiveHost, type PageStore, type Route, type SentDraft } from '../main/live';
 import { QUEUE_SEND, queueShape } from '../main/send-port';
 import { fakeStore, type FakeStore } from './fake-page';

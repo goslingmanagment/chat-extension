@@ -117,6 +117,15 @@ importers:
       '@cg/core':
         specifier: workspace:*
         version: link:../core
+      '@cg/host-kit':
+        specifier: workspace:*
+        version: link:../host-kit
+
+  packages/host-kit:
+    dependencies:
+      '@cg/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/hub:
     dependencies:

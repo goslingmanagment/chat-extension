@@ -1,7 +1,8 @@
 import { ANCHOR_IDS, HOST_CAPABILITIES, ChatSpaceContractReportSchema } from '@cg/contracts/host';
+import { sameReport } from '@cg/host-kit/isolated/report';
 import { describe, expect, it } from 'vitest';
 
-import { buildContractReport, sameReport, type ContractInput } from './contract';
+import { buildContractReport, type ContractInput } from './contract';
 import { normalizeDraftText, readStoredDraft, storedDraftAgrees, tiptapText } from './draft-store';
 
 const input = (over: Partial<ContractInput> = {}): ContractInput => ({
@@ -135,11 +136,6 @@ describe('[DB-031] the host contract check (§6.2)', () => {
     expect(report.capabilities.dockMount).toEqual({ state: 'degraded', reason: 'composerFrame' });
     expect(report.capabilities.draftRead).toEqual({ state: 'degraded', reason: 'draftKey' });
     expect(report.capabilities.theme).toEqual({ state: 'degraded', reason: 'theme' });
-  });
-
-  it('a report equal but for the time is the same report', () => {
-    expect(sameReport(buildContractReport(input()), buildContractReport(input({ checkedAt: 99 })))).toBe(true);
-    expect(sameReport(buildContractReport(input()), buildContractReport(input({ accountBound: false })))).toBe(false);
   });
 });
 

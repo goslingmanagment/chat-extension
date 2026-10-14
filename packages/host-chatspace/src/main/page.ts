@@ -4,7 +4,7 @@
 // may throw. Nothing here creates stores, calls ensure*/refresh*/fetch/
 // invalidate*, or writes to a store or the cache (§6.10).
 
-import { idOf, isId, isPlain, type Plain } from './check';
+import { idOf, isId, isPlain, type Plain } from '@cg/host-kit/main/check';
 import {
   APP_SELECTOR,
   BUILD_PATTERN,

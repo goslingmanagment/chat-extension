@@ -77,7 +77,7 @@
 //   retries, never changes a request. The echo's text is read here only for
 //   such a comparison and is kept nowhere.
 
-import { idOf, isPlain, type Plain } from './check';
+import { idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 import { type Fact, type LiveHost, type QueueListener, type Tap } from './live';
 import { CG_SEND_GUARD, CG_SEND_REJECTED, CG_SEND_UNCERTAIN, ENTRY_FAILED, ERROR_BLOCKED, EVT_FUSE, GUARD_CODE, SEND_PATH } from './protocol';
 import { isRef, queueBusy, type SendObserver } from './send-port';

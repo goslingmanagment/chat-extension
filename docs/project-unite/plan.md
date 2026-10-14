@@ -207,7 +207,7 @@ ChatSpace проходят без изменений, кроме мест из �
 
 | PR | Что | Файлы | Готово, когда | Зависит от |
 |---|---|---|---|---|
-| P5 | **чистый перенос** общего из `host-chatspace` по архитектуре §1.1 и списку S1a §2.2: `main/{guard,check}`, общая часть `main/protocol` и `main/bridge` (загрузчик), `isolated/{shadow-registry,validation,keep-bottom}`, общая часть `isolated/wire`, `bridge-client` и `validate` с реестром по хосту, хосты и слои из `mount.ts`, проба клавиш из `keyboard.ts`, `sameReport`, `digest`/`normalize`. Протокол моста и склейка ChatSpace не меняются; пачки Fansly — в его эмиттере (P7a) | `packages/host-kit/src/{main,isolated,common}/*`, `eslint.config.ts`, `.dependency-cruiser.cjs`, `tests/lint-boundaries.test.ts`, корневой `tsconfig.json`, `main/protocol.test.ts`, `lazy/entries/bridge-validation.ts`, `tools/gates/checks.ts` (`MAIN_WORLD_SOURCE`) | `chatspace-main.js`, `chatspace-ws.js`, `chatspace.js` — в пределах, дельта названа; поведение ChatSpace прежнее; e2e ChatSpace зелёные | F3, P4a2, F9a |
+| P5 ✓ | **чистый перенос** общего из `host-chatspace` по архитектуре §1.1 и списку S1a §2.2: `main/{guard,check}`, общая часть `main/protocol` и `main/bridge` (загрузчик), `isolated/{shadow-registry,validation,keep-bottom}`, общая часть `isolated/wire`, `bridge-client` и `validate` с реестром по хосту, хосты и слои из `mount.ts`, проба клавиш из `keyboard.ts`, `sameReport`, `digest`/`normalize`. Протокол моста и склейка ChatSpace не меняются; пачки Fansly — в его эмиттере (P7a) | `packages/host-kit/src/{main,isolated,common}/*`, `eslint.config.ts`, `.dependency-cruiser.cjs`, `tests/lint-boundaries.test.ts`, корневой `tsconfig.json`, `main/protocol.test.ts`, `lazy/entries/bridge-validation.ts`, `tools/gates/checks.ts` (`MAIN_WORLD_SOURCE`) | `chatspace-main.js`, `chatspace-ws.js`, `chatspace.js` — в пределах, дельта названа; поведение ChatSpace прежнее; e2e ChatSpace зелёные | F3, P4a2, F9a |
 
 Сразу (X34): без окна без выпусков и без временной копии.
 
@@ -357,7 +357,7 @@ ChatSpace проходят без изменений, кроме мест из �
 | F7 | фон, проба раннего контракта | окно на (хост, сборка), разбор отчёта по `host`, имена метрик HF-13 | — |
 | F8 | слой `ai` | — | `StartMemo.start` |
 | F10 | слой `ai` (запас 763 Б) | порты политики | байты F8 |
-| P5 | MAIN, тап, ранний изолированный | — (перенос) | — |
+| P5 | MAIN, тап, ранний изолированный | перенос в `host-kit` (замер на `main` `6a1c226`): MAIN +14 Б gzip (запас 66) и тап −2 (запас 39) — тот же код в другом порядке модулей; ранний изолированный +38 (запас 410) — два правила сайта в щупе клавиш, список несклеиваемых событий хоста у клиента моста, порядок модулей; остальные 60 из 63 файлов сборки — байт в байт | — |
 | P2v | фон | рост SDK | — (сверка с запасом ядра из F1) |
 | P8b2 | первый чанк дока | готовая модель пометки в общем `Result` | — |
 | P8c | — | ничего: предпроверка Hi — в `ai-fansly`, общий `gates.ts` не меняется | — |

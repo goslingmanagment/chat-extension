@@ -39,34 +39,23 @@
 //
 // Every host's closed root is registered for the hotkey dispatcher (§9.1).
 //
-// The page sees our hosts, and its telemetry may print them (Sentry in
-// ChatSpace 0.195.0 prints a clicked element's tag, id, classes, aria-label,
-// title, name, type and alt, or its `data-sentry-*`). So a host is a plain
-// `div` with none of those, never editable, and its attributes have neutral
-// names that never name the extension (decision X22): `data-host`,
-// `data-mode`, `data-layer`, `data-pending` (keyboard.ts), `data-scheme`
-// (the UI kit) and ChatSpace's own `data-dismissible-open`. mount.dom.test.ts
-// pins that list.
+// The hosts themselves — a plain `div` with a closed root and neutral
+// attributes (decision X22: `data-host`, `data-mode`, `data-layer`) — their
+// layers and the registry of their roots are the shared mechanics of the page
+// (@cg/host-kit/isolated: hosts.ts, shadow-registry.ts, keep-bottom.ts); the
+// one attribute of ChatSpace's own a host carries is `data-dismissible-open`.
+// mount.dom.test.ts pins the list of what the page sees on our hosts.
 
 import type { ComposerState, MountPoints } from '@cg/contracts/host';
 
 import { DISMISSIBLE_ATTRIBUTE, FIXED_WIDTH_VARIABLE, FRAME_SELECTOR, SLOT_SELECTOR } from './host-contract';
-import { createBottomKeeper } from './keep-bottom';
-import { createShadowRootRegistry, type ShadowRootRegistry } from './shadow-registry';
+import { createBottomKeeper } from '@cg/host-kit/isolated/keep-bottom';
+import { createShadowRootRegistry, type ShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry';
+import { HOST_ATTRIBUTE, LAYER_ATTRIBUTE, MODE_ATTRIBUTE, OVERLAY_Z, mountClosedHost, type ClosedHost, type OverlayLayer } from '@cg/host-kit/isolated/hosts';
 
 /** The translator bridge slot ChatSpace renders above its composer. */
 export const COMPOSER_SLOT_SELECTOR = SLOT_SELECTOR;
 
-/** What a host is: `dock` or `overlay`. */
-export const HOST_ATTRIBUTE = 'data-host';
-/** The dock's mode when it is not in the composer frame: `copy-only` (the row) or `overlay` (fixed over the composer). */
-export const MODE_ATTRIBUTE = 'data-mode';
-/** An overlay host's layer: `panel`, `modal`, `toast`. */
-export const LAYER_ATTRIBUTE = 'data-layer';
-
-export type OverlayLayer = 'panel' | 'modal' | 'toast';
-/** §6.3 «Слои». */
-export const OVERLAY_Z: Readonly<Record<OverlayLayer, number>> = { panel: 900, modal: 950, toast: 960 };
 /** The dock as a fixed overlay sits on the panel layer. */
 const FIXED_DOCK_Z = OVERLAY_Z.panel;
 /** How many ancestors of the frame root are watched for a re-created composer. */
@@ -78,12 +67,6 @@ const MIN_COMPOSER_WIDTH = 240;
  * MAIN did not hear of. On a chat switch MAIN reports within a frame and its two 20 ms event gaps (§5.3).
  */
 export const RENEWED_SETTLE_MS = 100;
-
-export interface ClosedHost {
-  readonly host: HTMLElement;
-  readonly root: ShadowRoot;
-  remove(): void;
-}
 
 const visible = (element: Element | null): element is Element => {
   if (!element?.isConnected || !element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
@@ -133,45 +116,6 @@ export function waitForComposerMount(doc: Document, options: WaitForComposerOpti
     const timer = setTimeout(() => finish(null), options.timeoutMs);
     options.signal.addEventListener('abort', onAbort, { once: true });
   });
-}
-
-/**
- * Inserts a host element with a CLOSED shadow root into `parent`: the dock
- * goes first (in flow above the composer frame), overlays last. The root is
- * registered for the hotkey dispatcher when a registry is given.
- */
-export function mountClosedHost(parent: Element, kind: 'dock' | 'overlay', position: 'first' | 'last' = 'first', registry?: ShadowRootRegistry): ClosedHost {
-  const host = parent.ownerDocument.createElement('div');
-  host.setAttribute(HOST_ATTRIBUTE, kind);
-  host.style.setProperty('contain', 'layout style');
-  const root = host.attachShadow({ mode: 'closed' });
-  const unregister = registry?.register(host, root);
-  if (position === 'first') parent.insertBefore(host, parent.firstChild);
-  else parent.append(host);
-  return {
-    host,
-    root,
-    remove: () => {
-      unregister?.();
-      host.remove();
-    },
-  };
-}
-
-/**
- * Removes hosts left by a previous instance of the extension. When the add-on
- * is updated, reinstalled or re-enabled, Firefox kills the old content script
- * (its listeners never fire again) but leaves its DOM, and injects the new
- * scripts into the already-open tab (spike M0). Returns how many it removed.
- */
-export function removeStaleHosts(doc: Document): number {
-  // Only our host shape — a `div` with nothing in its light DOM: a neutral name could be some other element's too.
-  // `data-cg` — a host of a build from before X22.
-  const stale = [...doc.querySelectorAll(`div[${HOST_ATTRIBUTE}], div[data-cg]`)].filter(
-    (node) => node.childNodes.length === 0 && (node.hasAttribute('data-cg') || ['dock', 'overlay'].includes(node.getAttribute(HOST_ATTRIBUTE) ?? '')),
-  );
-  stale.forEach((node) => node.remove());
-  return stale.length;
 }
 
 export interface MountDiagnostic {

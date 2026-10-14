@@ -44,7 +44,22 @@ describe('ESLint package graph (§4)', () => {
     // the packages of the page and Fansly's API package are wired by the app alone (R20 F9a, architecture §1.8)
     ['core imports Fansly’s adapter', 'packages/core/src/application/bad.ts', "import { startFansly } from '@cg/host-fansly/isolated';\nexport const x = startFansly;", ['no-restricted-imports']],
     ['ui imports Fansly’s API package', 'packages/ui/src/bad.ts', "import { createFanslyApi } from '@cg/fansly-api';\nexport const x = createFanslyApi;", ['no-restricted-imports']],
-    ['hub imports the shared mechanics of the page', 'packages/hub/src/bad.ts', "import { guard } from '@cg/host-kit/main';\nexport const x = guard;", ['no-restricted-imports']],
+    ['hub imports the shared mechanics of the page', 'packages/hub/src/bad.ts', "import { guardWith } from '@cg/host-kit/main/guard';\nexport const x = guardWith;", ['no-restricted-imports']],
+    ['ui imports the shared mechanics of the page', 'packages/ui/src/bad.ts', "import { OVERLAY_Z } from '@cg/host-kit/isolated/hosts';\nexport const x = OVERLAY_Z;", ['no-restricted-imports']],
+    // host-kit (R20 P5, architecture §1.1): what a MAIN bundle carries imports nothing; the isolated half imports
+    // contracts and core/domain/text alone; neither knows a site.
+    ['the shared MAIN boot imports a package', 'packages/host-kit/src/main/bad.ts', "import { BRIDGE_TAGS } from '@cg/contracts';\nexport const x = BRIDGE_TAGS;", ['no-restricted-imports']],
+    ['the shared MAIN boot imports a site’s MAIN code', 'packages/host-kit/src/main/bad.ts', "import { createMainRuntime } from '@cg/host-chatspace/main';\nexport const x = createMainRuntime;", ['no-restricted-imports']],
+    ['the shared MAIN boot imports the isolated half next to it', 'packages/host-kit/src/main/bad.ts', "import { TAGS } from '../isolated/wire';\nexport const x = TAGS;", ['no-restricted-imports']],
+    ['host-kit/common imports the MAIN boot', 'packages/host-kit/src/common/bad.ts', "import { guardWith } from '../main/guard';\nexport const x = guardWith;", ['no-restricted-imports']],
+    ['the shared MAIN boot calls win.fetch', 'packages/host-kit/src/main/bad.ts', "export const x = (win: Window) => win.fetch('/x');", ['no-restricted-properties']],
+    ['the shared isolated mechanics import a site’s adapter', 'packages/host-kit/src/isolated/bad.ts', "import { startChatSpaceHost } from '@cg/host-chatspace/isolated';\nexport const x = startChatSpaceHost;", ['no-restricted-imports']],
+    ['the shared isolated mechanics import Fansly’s adapter', 'packages/host-kit/src/isolated/bad.ts', "import { startFansly } from '@cg/host-fansly/isolated';\nexport const x = startFansly;", ['no-restricted-imports']],
+    ['the shared isolated mechanics import core/domain', 'packages/host-kit/src/isolated/bad.ts', "import { OP_LIMITS } from '@cg/core/domain';\nexport const x = OP_LIMITS;", ['no-restricted-imports']],
+    ['the shared isolated mechanics import the MAIN boot', 'packages/host-kit/src/isolated/bad.ts', "import { installMainBridge } from '../main/bridge';\nexport const x = installMainBridge;", ['no-restricted-imports']],
+    ['the shared isolated mechanics import platform', 'packages/host-kit/src/isolated/bad.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
+    ['the shared isolated mechanics read win.localStorage', 'packages/host-kit/src/isolated/bad.ts', 'export const x = (win: Window) => win.localStorage;', ['no-restricted-properties']],
+    ['ChatSpace’s MAIN code imports the isolated half of host-kit', 'packages/host-chatspace/src/main/bad.ts', "import { TAGS } from '@cg/host-kit/isolated/wire';\nexport const x = TAGS;", ['no-restricted-imports']],
     ['contracts imports Fansly’s API package', 'packages/contracts/src/bad.ts', "import { FANSLY_PATHS } from '@cg/fansly-api';\nexport const x = FANSLY_PATHS;", ['no-restricted-imports']],
     // hub only in the background (§4, D-13)
     ['the tab composition root imports hub', 'apps/extension/src/composition/tab.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;", ['no-restricted-imports']],
@@ -72,7 +87,8 @@ describe('ESLint package graph (§4)', () => {
     ['the isolated host calls window.fetch', 'packages/host-chatspace/src/isolated/bad.ts', "export const x = () => window.fetch('https://example.invalid/');", ['no-restricted-properties']],
     ['the isolated host calls win.fetch', 'packages/host-chatspace/src/isolated/bad.ts', "export const x = (win: Window) => win.fetch('https://example.invalid/');", ['no-restricted-properties']],
     ['the MAIN bridge calls win.fetch', 'packages/host-chatspace/src/main/bad.ts', "export const x = (win: Window) => win.fetch('/x');", ['no-restricted-properties']],
-    ['the MAIN bridge opens a WebSocket', 'packages/host-chatspace/src/main/bridge.ts', "export const x = () => new WebSocket('wss://x');", ['no-restricted-globals']],
+    ['the MAIN bridge opens a WebSocket', 'packages/host-kit/src/main/bridge.ts', "export const x = () => new WebSocket('wss://x');", ['no-restricted-globals']],
+    ['ChatSpace’s runtime opens a WebSocket', 'packages/host-chatspace/src/main/runtime.ts', "export const x = () => new WebSocket('wss://x');", ['no-restricted-globals']],
     ['the MAIN bridge uses navigator.sendBeacon', 'packages/host-chatspace/src/main/bad.ts', "export const x = () => navigator.sendBeacon('/x');", ['no-restricted-properties']],
     // The receipt observer may hold the page's `fetch` property, nothing else of the network, and never the global.
     ['the receipt observer calls the global fetch', 'packages/host-chatspace/src/main/receipt.ts', "export const x = () => fetch('/x');", ['no-restricted-globals']],
@@ -85,6 +101,11 @@ describe('ESLint package graph (§4)', () => {
   it.each([
     ['core/domain imports contracts', 'packages/core/src/domain/ok.ts', "import { CONTRACTS_VERSION } from '@cg/contracts';\nexport const x = CONTRACTS_VERSION;"],
     ['the isolated host imports core/domain/text', 'packages/host-chatspace/src/isolated/ok.ts', "import { normalizeNewlines } from '@cg/core/domain/text';\nexport const x = normalizeNewlines;"],
+    // host-kit and the adapter over it (R20 P5)
+    ['ChatSpace’s MAIN code imports the shared boot and what both worlds share', 'packages/host-chatspace/src/main/ok.ts', "import { installMainBridge } from '@cg/host-kit/main/bridge';\nimport { digest } from '@cg/host-kit/common/digest';\nexport const x = [installMainBridge, digest];"],
+    ['ChatSpace’s adapter imports the shared isolated mechanics', 'packages/host-chatspace/src/isolated/ok.ts', "import { mountClosedHost } from '@cg/host-kit/isolated/hosts';\nexport const x = mountClosedHost;"],
+    ['the shared MAIN boot imports its own folder and host-kit/common', 'packages/host-kit/src/main/ok.ts', "import { guardWith } from './guard';\nimport { digest } from '../common/digest';\nexport const x = [guardWith, digest];"],
+    ['the shared isolated mechanics import contracts, core/domain/text and host-kit/common', 'packages/host-kit/src/isolated/ok.ts', "import { BRIDGE_LIMITS } from '@cg/contracts/limits';\nimport { normalizeNewlines } from '@cg/core/domain/text';\nimport { digest } from '../common/digest';\nexport const x = [BRIDGE_LIMITS, normalizeNewlines, digest];"],
     ['ui imports preact', 'packages/ui/src/ok.ts', "import { render } from 'preact';\nexport const x = render;"],
     ['platform imports the browser API', 'packages/platform/src/ok.ts', "import { browser } from '@wxt-dev/browser';\nexport const x = browser;"],
     ['the background composition root imports hub', 'apps/extension/src/composition/background.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;"],
@@ -201,7 +222,11 @@ describe('dependency-cruiser package graph (§4)', () => {
       'no-relative-cross-package: packages/core/src/domain/index.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: packages/fansly-api/src/index.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: packages/host-chatspace/src/isolated/index.ts → packages/contracts/src/index.ts',
+      // R20 P5: ChatSpace over host-kit — its isolated adapter over the shared mechanics, its MAIN code over the boot;
+      // only the relative path is wrong here, `host-isolated` and `host-main-self-contained` let both through.
+      'no-relative-cross-package: packages/host-chatspace/src/isolated/index.ts → packages/host-kit/src/common/index.ts',
       'no-relative-cross-package: packages/host-chatspace/src/main/index.ts → packages/contracts/src/index.ts',
+      'no-relative-cross-package: packages/host-chatspace/src/main/index.ts → packages/host-kit/src/main/index.ts',
       'no-relative-cross-package: packages/host-fansly/src/isolated/index.ts → packages/host-kit/src/common/index.ts',
       'no-relative-cross-package: packages/host-fansly/src/isolated/index.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: packages/host-fansly/src/main/index.ts → packages/contracts/src/index.ts',

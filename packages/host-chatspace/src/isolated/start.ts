@@ -7,13 +7,15 @@
 // host as not ready (CG-HOST-NOT-READY).
 
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
+import { connectMainBridge } from '@cg/host-kit/isolated/bridge-client';
 
-import { connectMainBridge, type MainBridgeClient } from './bridge-client';
+import type { ChatSpaceBridge, MainBridgeClient } from './bridge-client';
 import type { DraftStorage } from './draft-store';
 import { createChatSpaceHostPort, type ChatSpaceHostPort, type HostDiagnostic, type TokenRedeemer } from './host-port';
 import { createMountManager, type MountDiagnostic, type MountManager } from './mount';
 import { createThemeReader, type ThemeReader } from './theme';
 import type { Validation, ValidationLoader } from './validation';
+import { UNDROPPABLE_EVENTS } from './wire';
 
 export interface StartChatSpaceHostOptions {
   readonly win: Window;
@@ -58,7 +60,8 @@ export function startChatSpaceHost(options: StartChatSpaceHostOptions): StartedC
       loaded = null;
       throw error;
     }));
-  const bridge = connectMainBridge(options.win, validation, options.handshakeTimeoutMs ?? BRIDGE_LIMITS.callTimeoutMs).catch(() => {
+  // The shared client of the page over ChatSpace's registry: its schemas (`validation`) and its events that are never coalesced.
+  const bridge = connectMainBridge<ChatSpaceBridge>(options.win, validation, UNDROPPABLE_EVENTS, options.handshakeTimeoutMs ?? BRIDGE_LIMITS.callTimeoutMs).catch(() => {
     options.onDiagnostic?.({ event: 'main-missing', code: 'CG-HOST-NOT-READY' });
     return null;
   });

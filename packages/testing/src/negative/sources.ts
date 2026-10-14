@@ -11,7 +11,8 @@ export const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 
 /**
  * Source roots of the shipped code (architecture.md §4): contracts, core, hub,
- * platform, host, UI, the extension app and its lazy chunks (lazy/entries:
+ * platform, the host adapter and the shared mechanics of the page under it
+ * (host-kit), UI, the extension app and its lazy chunks (lazy/entries:
  * `dock` ships as lazy/dock.js; the test-only `spike` entry is scanned too).
  */
 export const CLIENT_SOURCE_ROOTS = [
@@ -20,6 +21,7 @@ export const CLIENT_SOURCE_ROOTS = [
   'packages/hub/src',
   'packages/platform/src',
   'packages/host-chatspace/src',
+  'packages/host-kit/src',
   'packages/ui/src',
   'apps/extension/src',
   'apps/extension/lazy/entries',

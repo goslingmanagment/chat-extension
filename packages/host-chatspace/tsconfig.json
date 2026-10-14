@@ -8,5 +8,5 @@
     "tsBuildInfoFile": ".tsbuild/tsconfig.tsbuildinfo"
   },
   "include": ["src"],
-  "references": [{ "path": "../contracts" }, { "path": "../core" }]
+  "references": [{ "path": "../contracts" }, { "path": "../core" }, { "path": "../host-kit" }]
 }

@@ -41,6 +41,9 @@
       "path": "../packages/core"
     },
     {
+      "path": "../packages/host-kit"
+    },
+    {
       "path": "../packages/host-chatspace"
     }
   ]

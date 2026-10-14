@@ -44,12 +44,13 @@
 // anything without the tap, and the document_start bundle has no room for it
 // (§11). The bridge's runtime takes it through the handle (live.ts).
 
-import { idOf, isPlain } from './check';
-import { guardWith } from './guard';
+import { idOf, isPlain } from '@cg/host-kit/main/check';
+import { guardWith } from '@cg/host-kit/main/guard';
 import { createLivePort } from './live-port';
 import { type Checkpoint, type LiveHost, type Tap, type TapSink, type WsTapHandle } from './live';
 import { iso } from './page';
-import { CG_SEND_FRESHNESS, CG_SEND_STALE, KNOWN_FAN_MESSAGES, WS_AUTHENTICATED, WS_NEW_MESSAGE, WS_PATH, WS_TAP_KEY } from './protocol';
+import { WS_TAP_KEY } from '@cg/host-kit/main/protocol';
+import { CG_SEND_FRESHNESS, CG_SEND_STALE, KNOWN_FAN_MESSAGES, WS_AUTHENTICATED, WS_NEW_MESSAGE, WS_PATH } from './protocol';
 
 export { type WsTapHandle } from './live';
 

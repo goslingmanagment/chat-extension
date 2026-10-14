@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",
-    "@cg/core": "workspace:*"
+    "@cg/core": "workspace:*",
+    "@cg/host-kit": "workspace:*"
   }
 }

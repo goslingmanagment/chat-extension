@@ -1,14 +1,19 @@
-// The MAIN boot and the isolated bridge client against a minimal window:
-// happy-dom does not set MessageEvent.source or transfer ports, so this test
-// shims window messaging over Node's MessageChannel; the real-browser path is
-// covered by the e2e (spike M0 and the R09 harness on the stand).
+// ChatSpace's bridge as a whole against a minimal window: the shared MAIN boot
+// and isolated client (@cg/host-kit) over ChatSpace's registry — its schemas
+// (validate.ts) and its events that are never coalesced (wire.ts), as start.ts
+// hands them to the client. happy-dom does not set MessageEvent.source or
+// transfer ports, so this test shims window messaging over Node's
+// MessageChannel; the real-browser path is covered by the e2e (spike M0 and
+// the R09 harness on the stand).
 
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { attachMainRuntime, exposeMainRuntimeHook, installMainBridge, type MainContext, type MainRuntime } from '../main/bridge';
-import { BridgeCallError, connectMainBridge, type BridgeEvent, type MainBridgeClient } from './bridge-client';
+import { connectMainBridge } from '@cg/host-kit/isolated/bridge-client';
+import { attachMainRuntime, exposeMainRuntimeHook, installMainBridge, type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
+import { BridgeCallError, type BridgeEvent, type ChatSpaceBridge, type MainBridgeClient } from './bridge-client';
 import { loadValidation } from './validation';
+import { UNDROPPABLE_EVENTS } from './wire';
 
 type Listener = (event: { source: unknown; data: unknown; ports: readonly MessagePort[] }) => void;
 
@@ -37,6 +42,9 @@ function fakeWindow(): Window & { listeners: Set<Listener>; posted: unknown[] } 
   return win as unknown as Window & { listeners: Set<Listener>; posted: unknown[] };
 }
 
+/** The client as start.ts connects it: ChatSpace's schemas and its undroppable events. */
+const connect = (win: Window, timeoutMs: number): Promise<MainBridgeClient> => connectMainBridge<ChatSpaceBridge>(win, loadValidation, UNDROPPABLE_EVENTS, timeoutMs);
+
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
@@ -52,7 +60,7 @@ async function connected(handle: (t: string, payload: unknown, context: MainCont
     return { handle: (t, payload) => (calls.push({ t, payload }), handle(t, payload, ctx)), dispose: () => undefined };
   };
   const main = installMainBridge(win, { runtime });
-  const client = await connectMainBridge(win, loadValidation, 1000);
+  const client = await connect(win, 1000);
   cleanups.push(() => client.close(), () => main.dispose());
   // MAIN holds the port once the probe comes back.
   await client.probe();
@@ -63,7 +71,7 @@ describe('[EX-008] MAIN ↔ isolated handshake (§5.3)', () => {
   it('[EX-007] connects when MAIN starts first and answers a schema-checked probe', async () => {
     const win = fakeWindow();
     const main = installMainBridge(win);
-    const client = await connectMainBridge(win, loadValidation, 1000);
+    const client = await connect(win, 1000);
     cleanups.push(() => client.close(), () => main.dispose());
     expect(await client.probe()).toEqual({ v: 1, readyStateAtStart: 'loading', installMs: expect.any(Number) as unknown, wsTap: false });
     expect(main.isConnected()).toBe(true);
@@ -73,7 +81,7 @@ describe('[EX-008] MAIN ↔ isolated handshake (§5.3)', () => {
 
   it('connects when the isolated side says hello before MAIN exists', async () => {
     const win = fakeWindow();
-    const pending = connectMainBridge(win, loadValidation, 1000);
+    const pending = connect(win, 1000);
     const main = installMainBridge(win);
     const client = await pending;
     cleanups.push(() => client.close(), () => main.dispose());
@@ -83,14 +91,14 @@ describe('[EX-008] MAIN ↔ isolated handshake (§5.3)', () => {
   it('MAIN accepts only the first connect and then stops listening on window', async () => {
     const win = fakeWindow();
     const main = installMainBridge(win);
-    const client = await connectMainBridge(win, loadValidation, 1000);
+    const client = await connect(win, 1000);
     cleanups.push(() => client.close(), () => main.dispose());
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(win.listeners.size).toBe(0);
   });
 
   it('times out instead of hanging when there is no MAIN bridge', async () => {
-    await expect(connectMainBridge(fakeWindow(), loadValidation, 50)).rejects.toThrow('main-bridge-timeout');
+    await expect(connect(fakeWindow(), 50)).rejects.toThrow('main-bridge-timeout');
   });
 });
 
@@ -99,7 +107,7 @@ describe('[EX-008] the boot routes requests to the runtime', () => {
     const win = fakeWindow();
     const main = installMainBridge(win);
     exposeMainRuntimeHook(main, win);
-    const client = await connectMainBridge(win, loadValidation, 1000);
+    const client = await connect(win, 1000);
     cleanups.push(() => client.close(), () => main.dispose());
     const refused = await client.request('listAccounts', {}).catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(BridgeCallError);
@@ -306,7 +314,7 @@ describe('a page script pretending to be MAIN (§14)', () => {
   it('rejects a forged probe answer with a valid envelope but invalid data', async () => {
     const win = fakeWindow();
     forgeMain(win, (request) => ({ ...envelope(request), ok: true, data: { v: 1, evil: true } }));
-    const client = await connectMainBridge(win, loadValidation, 1000);
+    const client = await connect(win, 1000);
     cleanups.push(() => client.close());
     await expect(client.probe()).rejects.toMatchObject({ failure: 'invalid-answer' });
   });
@@ -326,7 +334,7 @@ describe('a page script pretending to be MAIN (§14)', () => {
     for (const forge of forgeries) {
       const win = fakeWindow();
       forgeMain(win, forge);
-      const client = await connectMainBridge(win, loadValidation, 100);
+      const client = await connect(win, 100);
       await expect(client.request('probe', {}, 60)).rejects.toMatchObject({ failure: 'timeout' });
       const stats = client.stats();
       expect(Object.values(stats.rejected).reduce((sum, n) => sum + n, 0) + stats.late).toBeGreaterThan(0);
@@ -341,7 +349,7 @@ describe('a page script pretending to be MAIN (§14)', () => {
       if (event.data.tag === 'iso-hello') win.postMessage({ tag: 'main-ready', v: 1 }, '*');
       if (event.data.tag === 'connect') port = event.ports[0] ?? null;
     }) as unknown as EventListener);
-    const client = await connectMainBridge(win, loadValidation, 100);
+    const client = await connect(win, 100);
     cleanups.push(() => client.close());
     await new Promise((resolve) => setTimeout(resolve, 10));
     const send = (frame: unknown): void => (port as unknown as MessagePort).postMessage(frame);
@@ -356,7 +364,7 @@ describe('a page script pretending to be MAIN (§14)', () => {
     const win = fakeWindow();
     let n = 0;
     forgeMain(win, (request) => ({ v: 1, kind: 'res', id: request.id, t: request.t, documentEpoch: n === 0 ? 'one' : 'two', seq: 5 + n++, ok: true, data: [] }));
-    const client = await connectMainBridge(win, loadValidation, 100);
+    const client = await connect(win, 100);
     cleanups.push(() => client.close());
     expect(await client.request('listAccounts', {})).toEqual([]);
     await expect(client.request('listAccounts', {}, 60)).rejects.toMatchObject({ failure: 'timeout' });
@@ -367,7 +375,7 @@ describe('a page script pretending to be MAIN (§14)', () => {
   it('a frame of this document with an old sequence number (a replay) is dropped', async () => {
     const win = fakeWindow();
     forgeMain(win, (request) => ({ v: 1, kind: 'res', id: request.id, t: request.t, documentEpoch: 'one', seq: 5, ok: true, data: [] }));
-    const client = await connectMainBridge(win, loadValidation, 100);
+    const client = await connect(win, 100);
     cleanups.push(() => client.close());
     expect(await client.request('listAccounts', {})).toEqual([]);
     await expect(client.request('listAccounts', {}, 60)).rejects.toMatchObject({ failure: 'timeout' });

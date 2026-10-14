@@ -9,8 +9,8 @@ import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakeEditor, type FakePage } from '../testing/fake-page';
-import { type MainContext, type MainRuntime } from './bridge';
-import { faultCounter, guardWith } from './guard';
+import { type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
+import { faultCounter, guardWith } from '@cg/host-kit/main/guard';
 import { createMainRuntime } from './runtime';
 
 /** The boot's guard and fault counter as MainContext takes them. */

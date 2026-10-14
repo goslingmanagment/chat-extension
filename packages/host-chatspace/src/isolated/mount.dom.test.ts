@@ -4,9 +4,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { SCHEME_ATTRIBUTE } from '@cg/contracts/vm';
 
+import { OVERLAY_Z } from '@cg/host-kit/isolated/hosts';
+import { createKeyPendingMark } from '@cg/host-kit/isolated/keyboard';
+
 import { createFakePage, type FakePage } from '../testing/fake-page';
-import { createKeyPendingMark } from './keyboard';
-import { COMPOSER_SLOT_SELECTOR, createMountManager, findComposerMount, mountClosedHost, OVERLAY_Z, removeStaleHosts, waitForComposerMount, type MountDiagnostic, type MountManager } from './mount';
+import { COMPOSER_SLOT_SELECTOR, createMountManager, findComposerMount, waitForComposerMount, type MountDiagnostic, type MountManager } from './mount';
 
 const ACC = '1001';
 const state = (fan: string, over: Partial<ComposerState> = {}): ComposerState => ({
@@ -470,29 +472,6 @@ describe('legacy helpers (R00 composition root)', () => {
     life.abort();
     await expect(aborted).resolves.toBeNull();
     await expect(waitForComposerMount(document, { timeoutMs: 5, signal: new AbortController().signal })).resolves.toBeNull();
-  });
-
-  it('mountClosedHost and removeStaleHosts', () => {
-    const parent = document.createElement('div');
-    document.body.append(parent);
-    const host = mountClosedHost(parent, 'overlay', 'last');
-    expect(parent.lastChild).toBe(host.host);
-    expect(host.host.shadowRoot).toBeNull();
-    expect(removeStaleHosts(document)).toBe(1);
-    expect(parent.childNodes).toHaveLength(0);
-  });
-
-  it('[X22] removeStaleHosts takes only our host shape: a page element with the same neutral attribute stays; a host of a build before X22 goes', () => {
-    const theirs = document.createElement('div');
-    theirs.setAttribute('data-host', 'dock');
-    theirs.append(document.createElement('span'));
-    const span = document.createElement('span');
-    span.setAttribute('data-host', 'overlay');
-    const old = document.createElement('div');
-    old.setAttribute('data-cg', 'dock');
-    document.body.append(theirs, span, old);
-    expect(removeStaleHosts(document)).toBe(1);
-    expect([theirs.isConnected, span.isConnected, old.isConnected]).toEqual([true, true, false]);
   });
 });
 

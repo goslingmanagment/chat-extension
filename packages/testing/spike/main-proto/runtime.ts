@@ -1,7 +1,7 @@
 // The Fansly MAIN runtime of the prototype: built by the host-kit boot at document_start (installMainBridge's
 // `runtime` option), installs both taps at once, answers ToMainFansly requests (§6), sends fx.batch.
 
-import type { MainContext, MainRuntime } from '../../../host-chatspace/src/main/bridge';
+import type { MainContext, MainRuntime } from '../../../host-kit/src/main/bridge';
 import { createEmitter } from './emitter';
 import { installExtras, isFeature, isGroupId } from './extras';
 import { handleFrame } from './frames';

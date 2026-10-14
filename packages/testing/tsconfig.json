@@ -40,6 +40,9 @@
       "path": "../hub"
     },
     {
+      "path": "../host-kit"
+    },
+    {
       "path": "../host-chatspace"
     },
     {

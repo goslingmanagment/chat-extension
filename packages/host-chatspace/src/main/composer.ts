@@ -18,9 +18,10 @@
 // `transaction` before `update`), the `input` listener inside the person's
 // typing: all are guarded (guard.ts) — a failure of ours never stops either.
 
-import { type Guard } from './guard';
+import { type Guard } from '@cg/host-kit/main/guard';
 import { type InsertWire } from './requests';
 import { CG_COMPOSER_MISSING, CG_DRAFT_CHANGED, CG_INSERT_FAILED, CG_MISPLACED, CG_UNCERTAIN, EDITOR_SELECTOR, FRAME_SELECTOR, SLOT_SELECTOR } from './protocol';
+import { digest, normalize } from '@cg/host-kit/common/digest';
 
 export type Provenance = 'empty' | 'our-insert' | 'human-or-unknown';
 type TxListener = (payload: { transaction?: { docChanged?: boolean } }) => void;
@@ -74,28 +75,6 @@ export type Receipt =
   | { readonly state: 'uncertain'; readonly code: string };
 
 export const rejected = (code: string, needs?: 'confirm-human-draft' | 'confirm-changed-draft'): Receipt => (needs ? { state: 'rejected', code, needs } : { state: 'rejected', code });
-
-/** 53-bit string hash (cyrb53) as 16 hex digits: the local fingerprint of a whole document. */
-export function digest(value: string): string {
-  let a = 0xdeadbeef;
-  let b = 0x41c6ce57;
-  for (let i = 0; i < value.length; i += 1) {
-    const c = value.charCodeAt(i);
-    a = Math.imul(a ^ c, 2654435761);
-    b = Math.imul(b ^ c, 1597334677);
-  }
-  a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
-  b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
-  return (b >>> 0).toString(16).padStart(8, '0') + (a >>> 0).toString(16).padStart(8, '0');
-}
-
-/** Line breaks and non-breaking spaces made plain, runs of spaces folded, outer whitespace trimmed. */
-export const normalize = (value: string): string =>
-  value
-    .replace(/\r\n?/g, '\n')
-    .replace(/[\u00a0\t ]+/g, ' ')
-    .replace(/ ?\n ?/g, '\n')
-    .trim();
 
 export type Composers = ReturnType<typeof createComposers>;
 

@@ -455,11 +455,19 @@ export function checkStandHooks(files: readonly SourceFile[]): Violation[] {
 }
 
 /**
- * MAIN-world source: the modules of every site's `mainWorldSources` folder in the host registry (ChatSpace: the
- * bridge, its runtime and the tap script in packages/host-chatspace/src/main, §4, D-06), not their subfolders.
+ * The MAIN part of host-kit: the boot, `guard`, the hand checks (`main/`) and what both worlds of the page share
+ * (`common/`). Every site's MAIN bundle carries them (docs/project-unite/architecture.md §1.1), so they are MAIN-world
+ * source whatever the host registry lists — no site names them as its own.
+ */
+export const HOST_KIT_MAIN_SOURCES: readonly string[] = ['packages/host-kit/src/main/', 'packages/host-kit/src/common/'];
+
+/**
+ * MAIN-world source: the modules of the MAIN part of host-kit and of every site's `mainWorldSources` folder in the
+ * host registry (ChatSpace: its runtime and the tap script in packages/host-chatspace/src/main, §4, D-06), not their
+ * subfolders.
  */
 export function isMainWorldSource(path: string, hosts: readonly HostDescriptor[] = HOSTS): boolean {
-  return hosts.some((host) => host.mainWorldSources.some((dir) => path.startsWith(dir) && /^[^/]+\.ts$/.test(path.slice(dir.length))));
+  return [...HOST_KIT_MAIN_SOURCES, ...hosts.flatMap((host) => host.mainWorldSources)].some((dir) => path.startsWith(dir) && /^[^/]+\.ts$/.test(path.slice(dir.length)));
 }
 
 /**

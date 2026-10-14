@@ -86,7 +86,8 @@ describe('whose path is whose (site-paths.cjs)', () => {
     ['the hosts table of the contracts', 'packages/contracts/src/hosts.ts'],
     ['a shared module whose name only starts like the site', 'packages/core/src/domain/fanslyish.ts'],
     ['a shared component named in another case', 'packages/ui/src/pages/FanslySection.tsx'],
-    ['ChatSpace’s own code', 'packages/host-chatspace/src/main/bridge.ts'],
+    ['ChatSpace’s own code', 'packages/host-chatspace/src/main/runtime.ts'],
+    ['the shared mechanics of the page, which every site’s bundles carry', 'packages/host-kit/src/main/bridge.ts'],
     ['the build', 'apps/extension/lazy/vite.config.ts'],
     ['the dependencies', 'pnpm-lock.yaml'],
   ])('not Fansly’s, a change of it is a shared change: %s', (_what, path) => {

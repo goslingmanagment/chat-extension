@@ -1,0 +1,25 @@
+{
+  "name": "@cg/host-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./main/bridge": "./src/main/bridge.ts",
+    "./main/check": "./src/main/check.ts",
+    "./main/guard": "./src/main/guard.ts",
+    "./main/protocol": "./src/main/protocol.ts",
+    "./common/digest": "./src/common/digest.ts",
+    "./isolated/bridge-client": "./src/isolated/bridge-client.ts",
+    "./isolated/hosts": "./src/isolated/hosts.ts",
+    "./isolated/keep-bottom": "./src/isolated/keep-bottom.ts",
+    "./isolated/keyboard": "./src/isolated/keyboard.ts",
+    "./isolated/report": "./src/isolated/report.ts",
+    "./isolated/shadow-registry": "./src/isolated/shadow-registry.ts",
+    "./isolated/validation": "./src/isolated/validation.ts",
+    "./isolated/wire": "./src/isolated/wire.ts"
+  },
+  "dependencies": {
+    "@cg/contracts": "workspace:*"
+  }
+}

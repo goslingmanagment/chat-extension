@@ -8,7 +8,7 @@
 import { HostContractReportSchema, MountPointsSchema } from '@cg/contracts/host';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { installMainBridge, type MainBridgeHandle } from '../main/bridge';
+import { installMainBridge, type MainBridgeHandle } from '@cg/host-kit/main/bridge';
 import { createMainRuntime } from '../main/runtime';
 import { createFakePage, seedCache, type FakePage } from '../testing/fake-page';
 import { startChatSpaceHost, type StartedChatSpaceHost } from './start';
