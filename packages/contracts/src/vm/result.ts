@@ -7,7 +7,7 @@
 import { type CgCode, type CgErrorView, type I18nKey } from '../errors';
 import { type FeatureId, type Surface, type Tone } from '../features';
 import { type PartRef } from '../ids';
-import { type OpState } from '../ops';
+import { type OpState, type StaleReason } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
 import { type PreviewSendPreflight, type SendAttemptView } from '../send';
 import { PREVIEW_SEND_CONDITION_CODES, isRetryableEnd } from '../send-rules';
@@ -298,8 +298,11 @@ export interface ResultVM {
   readonly error: CgErrorView | null;
   /** Recovery buttons of the registry entry: «Повторить», «Настройки», «Войти», «Перезагрузить вкладку», «Открыть чат». */
   readonly errorActions: readonly ActionButtonVM[];
-  /** «Фан написал новое после генерации» (dock inserts still allowed; previews hold sends). */
-  readonly stale: { readonly reason: 'fan-wrote' | 'archive-moved'; readonly at: IsoTimestamp | null } | null;
+  /**
+   * «Фан написал новое после генерации» (dock inserts still allowed; previews hold sends). 1.15.0: the reasons of the
+   * window check's verdict too (`StaleReason`, R20 spec §3.5); their mark over the result is P8b2's.
+   */
+  readonly stale: { readonly reason: StaleReason; readonly at: IsoTimestamp | null } | null;
   readonly toneUsed: Tone | null;
   readonly canRegenerate: boolean;
   readonly regenerateReason: ReasonVM | null;

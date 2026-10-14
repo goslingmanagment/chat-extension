@@ -180,6 +180,12 @@ export const PART_LIMITS = { maxVariants: 3, maxParts: 10 } as const;
 /** Hub limits for fresh text (H-4c `AI_LIVE_TEXT_MAX_ITEMS` / `_MAX_CHARS`). */
 export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 
+/**
+ * 1.15.0 (R20): hub limits of the window coverage check (HF-8в `AI_COVERAGE_CHECK_WINDOW_MAX` / `_DELETED_MAX`):
+ * the ids of the check window and the ids of its messages the tab saw deleted, each list at most this many.
+ */
+export const COVERAGE_CHECK_LIMITS = { windowMax: 60, deletedMax: 60 } as const;
+
 /** Starting timeouts per feature, ms (§7 «Тайм-ауты»); refined by lab measurements. */
 export interface OpTimeouts {
   /** From the request until the `meta` frame. */

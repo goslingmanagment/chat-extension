@@ -1070,6 +1070,13 @@ FS-INS-1 на этом механизме:
 | `freshness` (новое, необязательное) | `snapshot(chat, opts)` → `FanslySnapshot` через мост |
 | `fansly` (новое, необязательное) | `FanslyPagePort`: слот шапки, передача файла в поле, vault, relay |
 
+Как построено в P4b1. Общий модуль не называет типов сайта (граф `fansly-code-only-from-fansly` считает и импорт типов):
+в `host.ts` — порт `FreshnessPort<S>` (`snapshot(chat, {conversationRef, feature, window, withText})`, `S` — форма
+сайта) и члены `HostPort.freshness?: FreshnessPort`, `HostPort.fansly?: unknown`; типизирует их порт сайта
+`FanslyHostPort` (модуль `fansly-host`: `freshness` даёт `FanslySnapshot`, `fansly` — `FanslyPagePort`), его и несёт
+адаптер Fansly (`HostAdapter<FanslyHostPort>`). Поля `fanScript?` и `newestAt?` — у типа `ChatWindow`, а не у схемы:
+схема — ответ MAIN ChatSpace, её байты закреплены, а окно Fansly проверяет своя схема `fx.chat`.
+
 ### 7.8 Тема
 
 Переменные страницы читаются через `getComputedStyle(document.documentElement)` лениво — при первом показе и при смене
@@ -1121,8 +1128,11 @@ FS-INS-1 на этом механизме:
 popup; ему импорт модулей Fansly разрешён). Общая схема отчёта (`SiteContractReportSchema`) имён якорей сайта не знает:
 она требует блок своего сайта и машинные имена, а полноту держит читатель по набору. Ядро фона набора Fansly не
 знает (граф `background-core-graph`) и читает отчёт так, как его приняла схема: в `client_health` попадают якоря,
-которые отчёт назвал. Набор Fansly (`FANSLY_ANCHOR_IDS`) и строгая ветка блока — P4b1; строка «Статуса» Fansly со
-своими словами — P14b2.
+которые отчёт назвал. Набор Fansly и строгая ветка блока — P4b1, модуль сайта `fansly-host`: `FANSLY_CONTRACT` (все 17
+якорей; без поломки не `on` — `vaultUpload`: vault — выключатель владельца и своя страница; общие `previewSend`,
+`receipt`, `chatList`, которых у Fansly нет, §7.7) и `FanslyContractBlockSchema` / `FanslyContractReportSchema` — блок с
+каждым якорем и каждой своей возможностью; их читают производитель отчёта и проверка контракта (P7c, P7h), общая схема
+принимает всё, что принимает строгая ветка. Строка «Статуса» Fansly со своими словами — P14b2.
 
 ## 8. Фон: службы Fansly
 
@@ -1485,8 +1495,9 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 | `features/{types,common,chatspace,fansly}.ts` (новые) | манифест фич (§1.4): общее и по файлу на сайт, требования по действиям; срез — графом модулей при сборке; `HotkeyActionId` — строковое объединение |
 | `host.ts` | `RouteState.conversationRef?`, `conversationKind?: 'direct' \| 'group'` (проверка `conversationFits`: только маршрут чата, вид — с разговором, у группы `chat` = null, на OnlyFans разговор = фан); `NavigationIntent.target.conversationRef?` (только у цели-чата); `HostContractReport` — разбор по `host`: нет `host` или `'chatspace'` → прежняя полная схема `anchors`; `'fansly-web'` → обязательный блок `extensions['fansly-web']` с полным набором якорей и возможностей Fansly; `HostPort.freshness?`, `HostPort.fansly?`; `ChatWindow.fanScript?`, `newestAt?` |
 | `fansly.ts` (новый, P4a2) | `FanslySnapshot` (с `fanAvatarUrl?` для Hi, FX-018), `StartProofV1`, `FanslyPagePort` (тип), `FanslyAnchorId`, `FanslyCapability`, пределы наблюдения, причины полноты, порядок id; только подпуть |
+| `fansly-host.ts` (новый, P4b1) | `FanslyHostPort` — `HostPort` с типами членов сайта; `FANSLY_CONTRACT` (ожидаемый набор отчёта); строгая ветка блока `FanslyContractBlockSchema`, `FanslyContractReportSchema`; только подпуть (§7.7, §7.12) |
 | `bridge-fansly.ts`, `bridge-messages-fansly.ts` (новые, P4a2) | реестр моста Fansly (§6), конверт `fx.batch`, `fx.ack`, `fx.gap`, кредиты и пределы кадров; только подпути: корень `@cg/contracts` модули сайта не реэкспортирует |
-| `ops.ts` | `StartOp.proof?: CoverageProof` (снимок вкладки или доказательство прохода; хвост внутри); `checkpoint` не трогаем; `ServedContext.coverageCheck?`; новые причины `stale`; операции сайта — объединение на уровне типов |
+| `ops.ts` | `StartOp.proof?: CoverageProof` (снимок вкладки или доказательство прохода; хвост внутри); `checkpoint` не трогаем; `ServedContext.coverageCheck?`; новые причины `stale`; операции сайта — объединение на уровне типов. P4b1: доказательство — общая форма без имени сайта (`tab-snapshot` / `pass`; разговор цели, полнота, окно ≤ 60, известные id фана, удалённые ≤ 60, хвост, `truncated`), рядом с `fresh` и `checkpoint` не ходит; ответы читаются по таблице, общей с хабом (`COVERAGE_CHECK_CLASSES`, фикстура — копия матрицы хаба байт в байт), `narrowCoverageCheck`, `coverageCheckVerdict`; причины `unverified`, `window-miss`, `deleted-served`; ключ запроса — с `proofDigest` (`core/src/domain/ops/identity.ts`) |
 | `send-fansly.ts` (новый, P4c) | машина состояний HTTP-отправки (§8.6) данными и `isFanslySendStep`; журнал `fansly.send.journal` (только id; свой ключ рядом с `send.journal`), перезапуск и отчёты опеке; запрос приветствия «Новых» (`fansly.followers.send`: текст поля, его ревизия, `historyRevision`, вид допуска, действие человека) и вид попытки; ручная группа и тело брони Fansly — подмножество тела хаба HF-3; последняя сверка `fanslyFinalCheck`, квитанция `POST /message`; только подпуть |
 | `hub/claim-body.ts` (новый, P4c) | только типы: тело брони хаба после HF-3 (`HubClaimBody`, `HubClaimOp`, `ManualClaimGroup`) — общему коду (фасаду) есть чем его назвать. Отдельно от `hub/newcomers.ts`: любая правка там, даже тип или комментарий, переименовывает идентификаторы в минифицированной пробе реестра запросов вкладки, и её gzip сдвигается на байты |
 | `tab-protocol.ts` | `TypeSchema` — до двух точек; `RequestSpec.hosts?` и `senderAllowed` (правила `from`, `pages`, `hosts` для любого реестра); вид отправителя `relay`, порт `cg-relay`. В общем реестре `hosts: ['chatspace']` — у X8 и «Новых» хаба (P4a3) |

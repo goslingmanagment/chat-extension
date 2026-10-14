@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import * as F from '../src/bridge-fansly';
 import * as M from '../src/bridge-messages-fansly';
 import * as H from '../src/fansly';
+import * as P from '../src/fansly-host';
 import * as C from '../src/index';
 import {
   FANSLY_BRIDGE_EVENT_FIXTURES,
@@ -23,6 +24,7 @@ import {
   fanslyIdentityWire,
   fanslyReplySnapshot,
   fullFanslyBatch,
+  siteContractReport,
   oversizeFanslyBatch,
   oversizeFanslySnapshot,
   type Verdicts,
@@ -256,16 +258,56 @@ describe('Fansly anchors and capabilities (§7.12, FS-CTR-1)', () => {
   });
 });
 
+describe('Fansly’s side of the host contract (P4b1: §7.7, §7.12, FS-CTR-1)', () => {
+  const block = siteContractReport.extensions['fansly-web'];
+  if (block === undefined) throw new Error('the sample names its block');
+  const report = { ...siteContractReport, extensions: { 'fansly-web': block } };
+  const withoutAnchor = (anchor: string) => ({ ...report, extensions: { 'fansly-web': { ...block, anchors: Object.fromEntries(Object.entries(block.anchors).filter(([name]) => name !== anchor)) } } });
+
+  it('the expected set is every Fansly anchor; what is off without a break is named, and is the site’s', () => {
+    expect(P.FANSLY_CONTRACT.anchors).toEqual(H.FANSLY_ANCHOR_IDS);
+    for (const anchor of P.FANSLY_CONTRACT.switchedAnchors) expect(P.FANSLY_CONTRACT.anchors).toContain(anchor);
+    for (const capability of P.FANSLY_CONTRACT.switchedCapabilities) expect(C.HOST_CAPABILITIES).toContain(capability);
+    // ChatSpace's set stays as F7 left it.
+    expect(C.CHATSPACE_CONTRACT.anchors).toEqual(C.ANCHOR_IDS);
+  });
+
+  it('the strict branch takes a report naming every anchor and capability of Fansly; the shared schema takes it too', () => {
+    expect(P.FanslyContractReportSchema.safeParse(report).success).toBe(true);
+    expect(C.HostContractReportSchema.safeParse(report).success).toBe(true);
+    expect(P.FanslyContractBlockSchema.safeParse(block).success).toBe(true);
+    expect(P.FanslyContractReportSchema.safeParse({ ...report, extensions: { 'fansly-web': { ...block, anchors: { ...block.anchors, socket: 'notYet' } } } }).success).toBe(true);
+  });
+
+  it('a report without the block, without one anchor or capability, or with a name Fansly does not have, is no report of Fansly’s', () => {
+    for (const anchor of H.FANSLY_ANCHOR_IDS) {
+      expect(P.FanslyContractReportSchema.safeParse(withoutAnchor(anchor)).success, anchor).toBe(false);
+      // The shared schema knows no site's anchors: its readers count the missing one as `missing` (FS-CTR-1).
+      expect(C.HostContractReportSchema.safeParse(withoutAnchor(anchor)).success, anchor).toBe(true);
+    }
+    for (const capability of H.FANSLY_CAPABILITIES) {
+      const capabilities = Object.fromEntries(Object.entries(block.capabilities).filter(([name]) => name !== capability));
+      expect(P.FanslyContractBlockSchema.safeParse({ ...block, capabilities }).success, capability).toBe(false);
+    }
+    expect(P.FanslyContractReportSchema.safeParse({ ...report, extensions: {} }).success).toBe(false);
+    expect(P.FanslyContractBlockSchema.safeParse({ ...block, anchors: { ...block.anchors, wsFrames: 'ok' } }).success).toBe(false);
+    expect(P.FanslyContractBlockSchema.safeParse({ ...block, capabilities: { ...block.capabilities, previewSend: { state: 'off' } } }).success).toBe(false);
+    expect(P.FanslyContractReportSchema.safeParse({ ...report, host: 'chatspace' }).success).toBe(false);
+    expect(P.FanslyContractReportSchema.safeParse({ ...report, capabilities: { ...report.capabilities, receipt: undefined } }).success).toBe(false);
+  });
+});
+
 describe('site modules stay out of the root (§1.8, §3.2)', () => {
   it('@cg/contracts does not re-export them; each is its own subpath', () => {
     const root = Object.keys(C);
-    for (const name of [...Object.keys(F), ...Object.keys(M), ...Object.keys(H)]) expect(root, name).not.toContain(name);
+    for (const name of [...Object.keys(F), ...Object.keys(M), ...Object.keys(H), ...Object.keys(P)]) expect(root, name).not.toContain(name);
     const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
     expect(index).not.toMatch(/from '\.\/[^']*fansly[^']*'/);
     const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { exports: Record<string, string> };
     expect(manifest.exports['./fansly']).toBe('./src/fansly.ts');
     expect(manifest.exports['./bridge-fansly']).toBe('./src/bridge-fansly.ts');
     expect(manifest.exports['./bridge-messages-fansly']).toBe('./src/bridge-messages-fansly.ts');
+    expect(manifest.exports['./fansly-host']).toBe('./src/fansly-host.ts');
   });
 
   it('fansly.ts takes nothing of host.ts or ids.ts at run time, so they may import from it', () => {

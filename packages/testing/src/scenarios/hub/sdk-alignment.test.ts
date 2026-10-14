@@ -18,10 +18,22 @@
 // And the Fansly greeting's claim body (contracts 1.15.0, P4c) against the
 // hub's real one since HF-3: until the SDK was vendored past HF-3 (R20 P2v)
 // the contract test restated that schema by hand.
+//
+// And the window coverage check (contracts 1.15.0, P4b1; hub HF-8в): our body
+// field and the answer we read against the hub's real schema, over the matrix
+// the hub and this client share (a verbatim copy in the contracts' fixtures).
+
+import { readFileSync } from 'node:fs';
 
 import {
   AI_REQUEST_LIMITS,
+  AI_STREAM_CAPABILITIES,
+  CLIENT_HUB_CAPABILITY_NAMES,
   COACH_LIMITS,
+  COVERAGE_CHECK_LIMITS,
+  COVERAGE_DELETED_STATES,
+  COVERAGE_WINDOW_STATES,
+  CoverageCheckBodySchema,
   FEATURE_IDS,
   HUB_ROUTE_KEYS,
   HUB_ROUTES,
@@ -32,6 +44,7 @@ import {
   type AudienceNewPage,
   type AutoLists,
   type Bootstrap,
+  type ContextFrame,
   type ClaimState,
   type FeedPage,
   type Dossier,
@@ -59,12 +72,19 @@ import { FANSLY_CLAIM_BODY_FIXTURES, TEXT_FINGERPRINT, clientHealth, fanslyDispa
 import { FanslyGreetingClaimBodySchema, greetingGroupRef } from '@cg/contracts/send-fansly';
 import { AI_FEATURE_DRIVERS, FEATURE_POLICIES, featureSlice, freshTextAdmitted } from '@cg/core/domain/features';
 import {
+  AI_COVERAGE_CHECK_DELETED_MAX,
+  AI_COVERAGE_CHECK_DELETED_STATES,
+  AI_COVERAGE_CHECK_WINDOW_MAX,
+  AI_COVERAGE_CHECK_WINDOW_STATES,
+  AI_STREAM_CAPABILITIES as SDK_AI_STREAM_CAPABILITIES,
+  CLIENT_HUB_CAPABILITY_NAMES as SDK_CLIENT_HUB_CAPABILITY_NAMES,
   CLIENT_HEALTH_PERF_METRICS,
   CLIENT_MANUAL_GROUP_REF_PREFIX,
   CLIENT_TEXT_FINGERPRINT_PATTERN,
   clientHealthReportV1Schema,
   kernelOperations,
   routeSchemas,
+  type AiFeatureContextFrame,
   type KernelOperationResponse,
 } from '@kernel/sdk';
 import { describe, expect, it } from 'vitest';
@@ -104,6 +124,9 @@ export type SdkResponsesFitOurDtos = [
   Assignable<KernelOperationResponse<'clientFanClaimStatus'>, ClaimState>,
   Assignable<KernelOperationResponse<'clientAudienceNew'>, AudienceNewPage>,
 ];
+
+/** The hub's answer to a window check fits what our frame mirror reads (contracts 1.15.0, P4b1). */
+export type SdkCoverageAnswerFitsOurs = Assignable<NonNullable<AiFeatureContextFrame['coverageCheck']>, NonNullable<ContextFrame['coverageCheck']>>;
 
 interface LooseSchema {
   safeParse(value: unknown): { success: boolean; error?: unknown };
@@ -398,7 +421,10 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
   });
 
   it('what a feature never sends: no fresh text outside the draft features, no Split for Recap and Review, nothing a hub older than the SDK did not declare', () => {
+    // The pilot's hub declares the window check (HF-8в is deployed); a ChatSpace start has no proof, so none asks for it.
+    expect(BOOTSTRAP_PILOT_PAGES.capabilities).toContain('coverage-check-v1');
     for (const { name, request } of built) {
+      expect([name, request.body.coverageCheck, request.capabilities.includes('coverage-check-v1')]).toEqual([name, undefined, false]);
       const draftFeature = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'].includes(request.feature);
       if (!draftFeature) expect([name, request.body.liveTextContext]).toEqual([name, undefined]);
       if (['chat-review', 'fan-summary'].includes(request.feature)) expect([name, request.body.replyMode]).toEqual([name, undefined]);
@@ -407,6 +433,57 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
         expect([name, request.body.liveTextContext, request.body.knownFanMessageIds]).toEqual([name, undefined, undefined]);
       }
     }
+  });
+});
+
+describe('[host:fansly] the window coverage check (contracts 1.15.0, P4b1) against the hub\'s real one (HF-8в)', () => {
+  const realBody = sdkRoutes['aiFeatureStream']?.body;
+  if (realBody === undefined) throw new Error('aiFeatureStream body');
+  interface MatrixCase {
+    readonly name: string;
+    readonly request: unknown;
+  }
+  const matrix = JSON.parse(readFileSync(new URL('../../../../contracts/test/fixtures/ai-coverage-check-matrix.json', import.meta.url), 'utf8')) as {
+    readonly hubCases: readonly MatrixCase[];
+    readonly clientCases: readonly MatrixCase[];
+    readonly invalidRequests: readonly MatrixCase[];
+  };
+  const body = (coverageCheck: unknown) => ({
+    clientRequestId: uuid(0x4b1),
+    pageLabel: WORLD.pages.fansly.pageLabel,
+    platform: 'fansly',
+    conversationRef: '7203',
+    fanRef: '7102',
+    messageCount: 100,
+    coverageCheck,
+  });
+
+  it('our limits and words are the SDK\'s: 60 ids a list, its states, its capability names in its order', () => {
+    expect(COVERAGE_CHECK_LIMITS).toEqual({ windowMax: AI_COVERAGE_CHECK_WINDOW_MAX, deletedMax: AI_COVERAGE_CHECK_DELETED_MAX });
+    expect([...COVERAGE_WINDOW_STATES].sort()).toEqual([...AI_COVERAGE_CHECK_WINDOW_STATES].sort());
+    // The deleted list reads one state more than the hub sends there: `included` — the matrix reads it as a stale context.
+    expect(COVERAGE_DELETED_STATES.filter((state) => !(AI_COVERAGE_CHECK_DELETED_STATES as readonly string[]).includes(state))).toEqual(['included']);
+    for (const state of AI_COVERAGE_CHECK_DELETED_STATES) expect(COVERAGE_DELETED_STATES).toContain(state);
+    expect(SDK_AI_STREAM_CAPABILITIES.filter((capability) => (AI_STREAM_CAPABILITIES as readonly string[]).includes(capability))).toEqual([...AI_STREAM_CAPABILITIES]);
+    for (const capability of CLIENT_HUB_CAPABILITY_NAMES) expect(SDK_CLIENT_HUB_CAPABILITY_NAMES).toContain(capability);
+  });
+
+  it('every request of the matrix both take, and each one the hub refuses ours refuses too', () => {
+    for (const c of [...matrix.hubCases, ...matrix.clientCases]) {
+      expect([c.name, realBody.safeParse(body(c.request)).success, CoverageCheckBodySchema.safeParse(c.request).success]).toEqual([c.name, true, true]);
+    }
+    expect(matrix.invalidRequests.length).toBeGreaterThan(5);
+    for (const c of matrix.invalidRequests) {
+      expect([c.name, realBody.safeParse(body(c.request)).success, CoverageCheckBodySchema.safeParse(c.request).success]).toEqual([c.name, false, false]);
+    }
+  });
+
+  it('a request with the check passes our mirror only with both headers, and the hub\'s body', () => {
+    const [first] = matrix.hubCases;
+    const request = { feature: 'fast-reply', body: body(first?.request), capabilities: ['context-v1', 'coverage-check-v1'] };
+    expect(HubStreamRequestSchema.safeParse(request).success).toBe(true);
+    expect(realBody.safeParse(request.body).success).toBe(true);
+    expect(HubStreamRequestSchema.safeParse({ ...request, capabilities: ['context-v1'] }).success).toBe(false);
   });
 });
 

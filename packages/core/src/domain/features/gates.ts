@@ -9,7 +9,7 @@
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
-import { type ChatWindow, type LiveTextTail } from '@cg/contracts/host';
+import { type ChatWindow, type FanScript, type LiveTextTail } from '@cg/contracts/host';
 import { type Platform } from '@cg/contracts/ids';
 import { type PingSegment } from '@cg/contracts/hub';
 import { UNAVAILABLE_REASONS, type UnavailableReasonId } from '@cg/contracts/vm';
@@ -101,8 +101,8 @@ export function featureGate(feature: FeatureId, facts: GateFacts): Gate | null {
 
 const CYRILLIC = /\p{Script=Cyrillic}/u;
 
-/** What the fan's own lines say about the fan's script. */
-export type FanScript = 'cyrillic' | 'other' | 'unknown';
+/** What the fan's own lines say about the fan's script: the contracts' word (1.15.0, a host's ChatWindow carries it). */
+export type { FanScript };
 
 /**
  * Only the fan's own lines are a language signal — never the chatter's

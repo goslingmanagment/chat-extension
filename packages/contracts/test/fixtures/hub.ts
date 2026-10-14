@@ -7,7 +7,7 @@
 import type * as z from 'zod/mini';
 
 import * as C from '../../src/index';
-import { FANSLY_IDS, IDS, ISO, ISO_LATER, uuid } from './samples';
+import { FANSLY_IDS, COVERAGE_MSG, IDS, ISO, ISO_LATER, tabProof, uuid } from './samples';
 
 const fixture = (name: string, schema: z.ZodMiniType, valid: readonly unknown[], invalid: readonly unknown[]) => ({ name, schema, valid, invalid });
 
@@ -125,6 +125,18 @@ const streamRequest: C.HubStreamRequest = {
   capabilities: ['context-v1', 'split-all-v1'],
 };
 const reviewBody: C.AiFeatureStreamBody = { clientRequestId: uuid(3), pageLabel: PAGE, platform: 'onlyfans', conversationRef: IDS.fan, messageCount: 1500 };
+/** 1.15.0 (R20 HF-8в): the window check of a Fansly reply, from its proof. */
+const coverageCheck: C.CoverageCheckBody = { window: tabProof.window, deletedIds: tabProof.deletedIds };
+const fanslyBody: C.AiFeatureStreamBody = {
+  clientRequestId: uuid(4),
+  pageLabel: 'model-two',
+  platform: 'fansly',
+  conversationRef: FANSLY_IDS.group,
+  fanRef: FANSLY_IDS.fan,
+  messageCount: 100,
+  knownFanMessageIds: [...tabProof.knownFanMessageIds],
+  coverageCheck,
+};
 
 const meta = {
   type: 'meta',
@@ -165,6 +177,14 @@ const contextFrame: C.ContextFrame = {
   ],
   live: { status: 'served', accepted: 2, rejected: 0 },
   fanLanguageEvidence: 'latin',
+};
+/** 1.15.0 (R20 HF-8в): the answers to a window check — the hub's open tokens, one a later hub might send. */
+const coverageAnswer = {
+  window: [
+    { id: COVERAGE_MSG.m1, state: 'included' },
+    { id: COVERAGE_MSG.m2, state: 'future_state' },
+  ],
+  deleted: [{ id: COVERAGE_MSG.deleted, state: 'absent' }],
 };
 
 // ── recaps ──
@@ -522,7 +542,7 @@ export const HUB_SCHEMA_FIXTURES = [
     ],
     [{ error: 'bad_request', statusCode: 400 }, { error: 'x', message: 'm', statusCode: '400' }],
   ),
-  fixture('AiStreamCapability', C.AiStreamCapabilitySchema, ['context-v1', 'debug-input-v1'], ['live-text-v1']),
+  fixture('AiStreamCapability', C.AiStreamCapabilitySchema, ['context-v1', 'debug-input-v1', 'coverage-check-v1'], ['live-text-v1', 'hi-start-proof-v1']),
 
   // ── auth ──
   fixture('DeviceTokenIssueRequest', C.DeviceTokenIssueRequestSchema, [issueRequest, { ...issueRequest, mode: 'pending', client: undefined }], [
@@ -590,7 +610,15 @@ export const HUB_SCHEMA_FIXTURES = [
     { ...liveText, items: [{ platformMessageId: '0123', direction: 'fan', occurredAt: ISO, text: 'x' }] },
     { ...liveText, items: [{ platformMessageId: IDS.msg1, direction: 'fan', occurredAt: ISO, text: 'x', isFromQueue: true }] },
   ]),
-  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }], [
+  // 1.15.0 (R20 HF-8в): the window check, ids only, every id once across both lists (the hub's matrix `invalidRequests`).
+  fixture('CoverageCheckBody', C.CoverageCheckBodySchema, [coverageCheck, { window: [], deletedIds: [] }], [
+    { window: [{ id: COVERAGE_MSG.m1, dir: 'fan' }, { id: COVERAGE_MSG.m1, dir: 'model' }], deletedIds: [] },
+    { window: [{ id: COVERAGE_MSG.m1, dir: 'fan' }], deletedIds: [COVERAGE_MSG.m1] },
+    { window: [], deletedIds: [COVERAGE_MSG.deleted, COVERAGE_MSG.deleted] },
+    { window: [{ id: COVERAGE_MSG.m1, dir: 'fan' }] },
+    { window: [], deletedIds: [], knownFanMessageIds: [COVERAGE_MSG.m1] },
+  ]),
+  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }, fanslyBody], [
     { ...streamBody, messageCount: 3001 },
     { ...streamBody, clientContext: { transcript: 'x' } },
     { ...streamBody, conversationRef: 'chat-2002' },
@@ -599,6 +627,7 @@ export const HUB_SCHEMA_FIXTURES = [
     { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg2] },
     { ...streamBody, knownFanMessageIds: Array.from({ length: 11 }, (_, i) => String(5000 + i)) },
     { ...streamBody, knownFanMessageId: IDS.msg2 },
+    { ...fanslyBody, coverageCheck: { ...coverageCheck, deletedIds: [COVERAGE_MSG.m1] } },
   ]),
   fixture(
     'HubStreamRequest',
@@ -611,6 +640,8 @@ export const HUB_SCHEMA_FIXTURES = [
       // Coach (1.3.0): a question of ours, or the hub's preset — which carries its own question.
       { feature: 'coach-chat', body: { ...reviewBody, chatterQuestion: 'What do I offer him?', coachHistory: [] }, capabilities: [] },
       { feature: 'coach-chat', body: { ...reviewBody, preset: 'situation' }, capabilities: [] },
+      // 1.15.0 (R20 HF-8в): the window check rides with both tokens — the hub answers it in the context frame.
+      { feature: 'fast-reply', body: fanslyBody, capabilities: ['context-v1', 'coverage-check-v1'] },
     ],
     [
       // The hub answers 400 to both: «coach-chat preset forbids chatterQuestion», «coach-chat requires chatterQuestion».
@@ -622,6 +653,9 @@ export const HUB_SCHEMA_FIXTURES = [
       { feature: 'improve-draft', body: reviewBody, capabilities: [] },
       { feature: 'ping', body: streamBody, capabilities: [] },
       { feature: 'fast-reply', body: streamBody, capabilities: ['context-v1', 'context-v1'] },
+      // A hub before HF-8в refuses the field; without the frame there is nowhere to answer it.
+      { feature: 'fast-reply', body: fanslyBody, capabilities: ['context-v1'] },
+      { feature: 'fast-reply', body: fanslyBody, capabilities: ['coverage-check-v1'] },
     ],
   ),
   fixture('MetaFrame', C.MetaFrameSchema, [meta, { ...meta, feature: 'future-feature', provider: 'future-provider', presetQuestion: 'q' }], [
@@ -640,10 +674,23 @@ export const HUB_SCHEMA_FIXTURES = [
     { ...debugFrame, systemBlocks: [] },
     { ...debugFrame, images: [{ url: 'https://evil.example/x.png' }] },
   ]),
-  fixture('ContextFrame', C.ContextFrameSchema, [contextFrame, { ...contextFrame, source: 'archive', servedHead: null, knownFanMessages: undefined, futureKey: true }], [
-    { ...contextFrame, live: undefined },
-    { ...contextFrame, generationRef: 'gen-1' },
-  ]),
+  fixture(
+    'ContextFrame',
+    C.ContextFrameSchema,
+    [
+      contextFrame,
+      { ...contextFrame, source: 'archive', servedHead: null, knownFanMessages: undefined, futureKey: true },
+      { ...contextFrame, source: 'live_union', coverageCheck: coverageAnswer },
+      { ...contextFrame, coverageCheck: { window: [], deleted: [] } },
+    ],
+    [
+      { ...contextFrame, live: undefined },
+      { ...contextFrame, generationRef: 'gen-1' },
+      // The hub's own caps: at most 60 answers in a list.
+      { ...contextFrame, coverageCheck: { window: Array.from({ length: 61 }, (_unused, i) => ({ id: String(700_000 + i), state: 'included' })), deleted: [] } },
+      { ...contextFrame, coverageCheck: { window: [] } },
+    ],
+  ),
   fixture('HubFrame', C.HubFrameSchema, [meta, usageFrame, errorFrame, debugFrame, contextFrame, { type: 'done', stopReason: null }], [
     { type: 'heartbeat' },
     { type: 'content_delta', text: 'x', extra: true },

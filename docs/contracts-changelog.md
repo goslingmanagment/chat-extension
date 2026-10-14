@@ -411,6 +411,74 @@ ChatSpace не меняются.
   (пустая строка, число, буквы, `'0'`), разговор у карточки и досье. Тесты: `packages/contracts/test/schemas.test.ts`,
   `packages/contracts/test/protocols.test.ts`, `packages/contracts/test/vocabulary.test.ts` («R20 F6b»).
 
+### P4b1 — свежесть и запрос
+
+Проверка окна Fansly (спецификация §3, FS-TAIL-*, FS-NEW-7; архитектура §5.8, §7.7, §7.12, §9.1, §12; хаб HF-8в —
+`731a4cb2`, выложен в `bd3eec06`, из которого вендорен SDK). Запрос ChatSpace не меняется: его старт доказательства не
+несёт, поле `coverageCheck` и возможность `coverage-check-v1` он не шлёт, хотя хаб её объявляет (тест в
+`sdk-alignment.test.ts` перебирает все запросы всех фич ChatSpace).
+
+- **`StartOp.proof?: CoverageProof`** (`ops`) — чем генерация доказывает свежесть на сайте, чья вкладка сама наблюдает
+  чаты. Общая форма без имени сайта, объединение по `kind`: `tab-snapshot` — снимок вкладки по клику (на Fansly его даёт
+  `FanslySnapshot` MAIN, переводит политика AI сайта) с хвостом текста внутри (`tail`, только Reply, Fix, Hi, Ping —
+  D-14) и `truncated`; `pass` — доказательство прохода «Новых» (Б17), без текста. У обоих — разговор цели
+  (`conversationRef`: на Fansly `groupId`), полнота (`complete` | `unknown`), момент снимка (`takenAt`, он же
+  `capturedAt` хвоста), окно проверки ≤ 60 (`CoverageWindowSchema`: id и сторона), известные id фана ≤ 10 (новые
+  первыми, как берёт тело хаба) и удалённые ≤ 60 (`CoverageDeletedIdsSchema`). Проверка доказательства: каждый id
+  один раз на оба списка (`coverageIdsOnce`, правило хаба), известные id — сообщения фана из окна, хвост — сообщения
+  окна той же стороны, `truncated` — только у хвоста. Проверка старта (`proofFits`): доказательство — разговора цели, не
+  рядом с `fresh` (хвост ChatSpace) и `checkpoint` (X8), текст — только у функции черновика, проход — только в
+  «Новых». `checkpoint` не тронут.
+- **`ServedContext.coverageCheck?`** — ответы хаба на проверку окна, каждый список в порядке хаба, состояние сужено своим
+  списком (`COVERAGE_WINDOW_STATES`, `COVERAGE_DELETED_STATES`; незнакомое — `null`). Чтение ответа —
+  **по таблице, общей с хабом**: `COVERAGE_CHECK_CLASSES` = `classes` матрицы хаба
+  `tests/fixtures/ai-coverage-check-matrix.json`; копия матрицы байт в байт — фикстура
+  `test/fixtures/ai-coverage-check-matrix.json` (sha256 закреплён тестом). `narrowCoverageCheck` — кадр → `ServedContext`
+  (ответ, где назван не id, не отвечает ни на один наш id: проверка читается как неотвеченная), `coverageCheckVerdict` —
+  часть вердикта, которую даёт сама проверка: `unverified` (нет ответа; id без ответа или с двумя; ответ на неспрошенный
+  id; любое `unverified`) → `miss` → `stale` → `fresh`. Каждый случай матрицы (`hubCases` и `clientCases`) читается к её
+  `coverageVerdict`; полный вердикт §3.5 (снимок, полнота, `live`) строит P8b2 вокруг этой части.
+- **Причины `stale`** (`STALE_REASONS`, `StaleReason`; `ResultVM.stale` берёт тот же тип): к `fan-wrote` и
+  `archive-moved` — `unverified` («свежесть не проверена»), `window-miss` («Ответ мог не учесть последние сообщения»),
+  `deleted-served` (контекст устарел). Пометку над результатом рисует P8b2.
+- **Тело и кадр хаба** (`hub/ai`): `AiFeatureStreamBody.coverageCheck?` (`CoverageCheckBodySchema`: окно и `deletedIds`,
+  строго, повтор id — отказ, как у хаба); `HubStreamRequestSchema` пускает поле только с заголовками `coverage-check-v1`
+  и `context-v1`; кадр `context_v1` несёт `coverageCheck` (открытые лексемы, ≤ 60 на список). Возможность
+  `coverage-check-v1` — в `CLIENT_HUB_CAPABILITY_NAMES` и `AI_STREAM_CAPABILITIES` (порядок SDK). Пределы —
+  `COVERAGE_CHECK_LIMITS` (`limits`, 60 и 60 — числа SDK).
+- **`RequestIdentity.proofDigest?`** (`core/src/domain/ops/identity.ts`, `proofDigestOf`): отпечаток доказательства без
+  `takenAt` — тот же снимок позже тот же запрос, другое окно, удаление, полнота или хвост — другой; текст хвоста в ключ не
+  попадает, только в отпечаток. Без доказательства поля нет: ключ ChatSpace байт в байт прежний (записанный ключ `main`).
+  `RequestIdentity.conversationRef` — с F6a.
+- **`HostPort.freshness?`, `HostPort.fansly?`** (`host`): порт снимка `FreshnessPort<S>` —
+  `snapshot(chat, {conversationRef, feature, window, withText})`, форма снимка — сайта; член `fansly` в общем модуле —
+  `unknown`: общий модуль типов сайта не называет (граф считает и импорт типов). Типы даёт **новый модуль сайта
+  `fansly-host`** (только подпуть): `FanslyHostPort` (`freshness` → `FanslySnapshot`, `fansly` → `FanslyPagePort`).
+- **`ChatWindow.fanScript?`, `newestAt?`** — у типа, не у схемы: `ChatWindowSchema` — ответ MAIN ChatSpace, он прежний
+  (байты `bridge-validation` закреплены); окно Fansly проверяет своя схема `fx.chat`. Слово `FanScript` теперь в `host`;
+  `core` (`fanScriptOf`) и `FANSLY_FAN_SCRIPTS` берут его оттуда.
+- **Ветка `fansly-web` отчёта контракта** (`fansly-host`): `FANSLY_CONTRACT` — ожидаемый набор (все 17 якорей; без
+  поломки не `on` — якорь `vaultUpload` и общие `previewSend`, `receipt`, `chatList`, которых у Fansly нет) и строгая
+  ветка блока `FanslyContractBlockSchema` / `FanslyContractReportSchema`: блок называет каждый якорь и каждую свою
+  возможность. Общая схема `HostContractReportSchema` не менялась и принимает всё, что принимает строгая ветка.
+- Фикстуры: окно, удалённые, доказательство (верные: снимок, без хвоста, усечённый, `unknown`, пустой чат, проход;
+  неверные: повтор id, id не из окна, модель вместо фана, хвост чужой стороны, `truncated` без хвоста, текст у прохода,
+  61 id), старт (Fansly с доказательством, Recap без текста, проход в «Новых», превью; неверные — с `fresh`, с
+  `checkpoint`, чужая группа, текст у Recap, проход в доке), ответы проверки, тело (матрица `invalidRequests`), запрос
+  (без одного из двух заголовков), кадр, `op.start` и `op.done` реестра вкладки, отчёт Fansly. Тесты:
+  `packages/contracts/test/coverage-check.test.ts` (матрица хаба целиком), `fansly.test.ts`, `schemas.test.ts`,
+  `protocols.test.ts`, `packages/core/test/domain-ops.test.ts`, `packages/testing/src/scenarios/hub/sdk-alignment.test.ts`
+  (тело, лексемы, пределы и имена возможностей — против настоящего SDK).
+- Байты (сборка выпуска `main` `a4622c5` и ветки одна за другой): `StartOp.proof`, `ServedContext.coverageCheck` и
+  причины `stale` — в общих схемах, их несут слой `tab-protocol` (+561 Б gzip, чанк +1 923 Б raw), проба реестра
+  запросов вкладки (+555: 28 342 из 28 672, запас 330 Б; ≈ 94 Б из них — тело и кадр `hub/ai.ts`, которые настоящий чанк
+  не несёт) и ядро фона (+2 348 Б raw, запас 33 523 Б). `ai` +61, `boards-preview` +23, `tab-health` +6, `ai-coach` +4,
+  `tab-app` −24 — новые хеши в именах импортируемых чанков (`ai` +1 Б raw); `bridge-validation` +32 (пределы). Модуль
+  `fansly-host`, `coverageCheckVerdict` и таблица классов в бандлы ChatSpace не попадают (не используются,
+  выбрасываются). Вид доказательства прохода — `pass`, не `host-pass`: это слово источника фичи в манифесте Fansly, и
+  тест `feature-slices` держит его вне чанков ChatSpace. Закрепы `tools/gates/chatspace-bytes.json` переписаны: 22
+  файла, все дельты — в описании PR.
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

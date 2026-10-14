@@ -299,8 +299,9 @@ describe('[AI-140] [AU-028] the stream is a sensitive action: checked before any
   it('[AI-140] the vendored SDK announces what the request asks — context-v1 and split-all-v1 on its own header — and reads `context_v1` by its own schema', async () => {
     h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }) });
     await signIn(h, WORLD_PILOT);
-    // Declared by the hub ∩ carried by the transport: the SDK carries all three now.
-    expect(h.facade.streamCapabilities()).toEqual(['debug-input-v1', 'context-v1', 'split-all-v1']);
+    // Declared by the hub ∩ carried by the transport: the SDK carries all four now (1.15.0: `coverage-check-v1`, HF-8в).
+    // A request announces only what it asks for: a ChatSpace start has no proof, so never the window check (below).
+    expect(h.facade.streamCapabilities()).toEqual(['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1']);
     const scenario = scenarioNamed(SSE_SCENARIOS, 'hi-three-variants');
     expect(scenario.request.capabilities).toEqual(['context-v1', 'split-all-v1']);
     serveScenario(h, scenario);

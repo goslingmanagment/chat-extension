@@ -19,6 +19,8 @@ import {
   dispatchTicket,
   hostIdentity,
   deferredInsert,
+  fanslyStartReply,
+  fanslyTarget,
   insertIntent,
   insertWire,
   logRecord,
@@ -26,6 +28,7 @@ import {
   sendView,
   session,
   startReply,
+  tabProof,
   uuid,
 } from './samples';
 import {
@@ -146,7 +149,8 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: { valid: [{ revision: 4 }], invalid: [{ revision: -1 }] },
   },
   'op.start': {
-    req: { valid: [startReply], invalid: [{ ...startReply, surface: 'preview' }] },
+    // 1.15.0 (R20 P4b1): a Fansly start proves its freshness by its proof, never beside ChatSpace's tail.
+    req: { valid: [startReply, fanslyStartReply], invalid: [{ ...startReply, surface: 'preview' }, { ...fanslyStartReply, fresh: startReply.fresh }] },
     res: { valid: [{ ok: true, opId: uuid(2) }], invalid: [{ ok: false, code: 'CG-OP-CHAT-BUSY' }] },
   },
   'op.cancel': {
@@ -448,7 +452,26 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
     valid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming', phase: { name: 'streaming', since: T0 }, firstChunkAt: T0 + 900 }],
     invalid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming' }],
   },
-  'op.done': { valid: [{ view: opView }], invalid: [{ view: { ...opView, opId: 'x' } }] },
+  'op.done': {
+    valid: [
+      { view: opView },
+      // 1.15.0 (R20 P4b1): the hub's answers to a window check, and the verdict's mark.
+      {
+        view: {
+          ...opView,
+          target: fanslyTarget,
+          servedContext: {
+            source: 'live_union',
+            servedHead: null,
+            live: { status: 'served', accepted: 2, rejected: 0 },
+            coverageCheck: { window: tabProof.window.map((entry) => ({ id: entry.id, state: 'included' })), deleted: [{ id: tabProof.deletedIds[0], state: 'absent' }] },
+          },
+          stale: { reason: 'window-miss', at: null },
+        },
+      },
+    ],
+    invalid: [{ view: { ...opView, opId: 'x' } }, { view: { ...opView, stale: { reason: 'stale', at: null } } }],
+  },
   'send.state': { valid: [{ view: sendView }], invalid: [{ view: { ...sendView, state: 'done' } }] },
   'send.fuse': { valid: [fuseState, { fuse: null, resetAt: T0 }], invalid: [{ fuse: { ...fuseState.fuse, build: 7 }, resetAt: null }, {}] },
   toast: { valid: [{ toast }, { toast: fanslyToast }], invalid: [{ toast: { ...toast, toastId: 'x' } }, { toast: { ...fanslyToast, conversationRef: '' } }] },

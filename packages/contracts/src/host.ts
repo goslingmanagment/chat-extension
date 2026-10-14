@@ -7,6 +7,7 @@
 import * as z from 'zod/mini';
 
 import { CgCodeSchema } from './errors';
+import { type FeatureId } from './features';
 import { HOST_PLATFORM } from './hosts';
 import {
   ChatRefSchema,
@@ -34,6 +35,8 @@ import {
   UuidSchema,
   boundedText,
   displayText,
+  type IsoTimestamp,
+  type NativeId,
 } from './primitives';
 import { type FreshnessCheckpoint, type PreviewSendPort, type SendFuseFact } from './send';
 import { RECEIPT_MATCH_KINDS } from './send-rules';
@@ -440,7 +443,17 @@ export const TailSnapshotSchema = z.strictObject({
 });
 export type TailSnapshot = z.infer<typeof TailSnapshotSchema>;
 
-/** Prechecks of the open chat from the host cache (Hi/Ping gates, «чат грузится»); no text. */
+/**
+ * 1.15.0 (R20 §7.7): what the fan's own lines among the texts a host holds say about the fan's script — the language
+ * gate's word (AI-087): Cyrillic in any of them — `cyrillic`; fan lines without — `other`; none — `unknown`.
+ */
+export type FanScript = 'cyrillic' | 'other' | 'unknown';
+
+/**
+ * Prechecks of the open chat from the host cache (Hi/Ping gates, «чат грузится»); no text. The schema is ChatSpace
+ * MAIN's answer to `chatWindow` and stays as it was (its bytes are pinned): the two fields of 1.15.0 are the type's
+ * alone (`ChatWindow` below).
+ */
 export const ChatWindowSchema = z.strictObject({
   chat: ChatRefSchema,
   state: z.enum(['loading', 'ready']),
@@ -454,7 +467,12 @@ export const ChatWindowSchema = z.strictObject({
   /** The host says older history exists beyond what is loaded; null = unknown. */
   hasOlder: z.nullable(z.boolean()),
 });
-export type ChatWindow = z.infer<typeof ChatWindowSchema>;
+/**
+ * 1.15.0 (R20 §7.7): a host that keeps the chat's window itself (Fansly: MAIN's `fx.chat`, checked by its own schema
+ * there) adds `fanScript` — the language gate without a copy of the text in the tab — and `newestAt`, the newest
+ * message it holds (null — none), for the lag of the hub's archive. ChatSpace's port never sets them.
+ */
+export type ChatWindow = z.infer<typeof ChatWindowSchema> & { readonly fanScript?: FanScript; readonly newestAt?: IsoTimestamp | null };
 
 /** A fan as the host already holds it in memory: decoration only, facts come from the hub (D-29). */
 export const HostFanSchema = z.strictObject({
@@ -650,6 +668,28 @@ export interface NavigateOptions {
   };
 }
 
+/** 1.15.0 (R20 §7.7, §9.1): what a host's freshness port is asked on the Generate click. */
+export interface FreshnessRequest {
+  /** The conversation of the chat (on Fansly the group, FS-IDN-6): the target's — never the open route's for another chat. */
+  readonly conversationRef: NativeId;
+  readonly feature: FeatureId;
+  /** The function's messageCount: the check window is the chat's last min(60, window) messages (FS-TAIL-1). */
+  readonly window: number;
+  /** The tail's texts too: a draft function only (D-14). */
+  readonly withText: boolean;
+}
+
+/**
+ * 1.15.0 (R20 §5.8, §7.7): the generation snapshot of a host whose own tab observes its chats, taken in one step on
+ * the Generate click, so the tail and the window check come from one instant (FS-TAIL-6). The snapshot is the site's
+ * own form (Fansly: `FanslySnapshot`, `@cg/contracts/fansly`); the site's AI policy turns it into the start's shared
+ * `CoverageProof` (ops.ts). null — no snapshot: the bridge did not answer, the capability is off, or the host does not
+ * know the chat; the result is then marked «свежесть не проверена» (FS-TAIL-7).
+ */
+export interface FreshnessPort<S = unknown> {
+  snapshot(chat: ChatRef, request: FreshnessRequest): Promise<S | null>;
+}
+
 export interface HostPort {
   readonly kind: HostKind;
   readonly platform: Platform;
@@ -694,5 +734,16 @@ export interface HostPort {
   onTheme(cb: (theme: HostTheme) => void): Unsubscribe;
   /** X8; null when the capability is off. */
   readonly previewSend: PreviewSendPort | null;
+  /**
+   * 1.15.0 (R20 §7.7): the generation snapshot (FS-TAIL-6), only on a host whose tab observes its chats itself
+   * (Fansly); absent on ChatSpace, whose fresh text is `readVisibleTail` and whose freshness is `checkpoint`.
+   */
+  readonly freshness?: FreshnessPort;
+  /**
+   * 1.15.0 (R20 §7.7): what only fansly.com has — the header slot, a file into the composer or the vault, the relay
+   * frame (`FanslyPagePort`). A shared module names no site's type (§1.8): the member is typed by Fansly's own port,
+   * `FanslyHostPort` (`@cg/contracts/fansly-host`), and shared code never reads it. Absent on every other host.
+   */
+  readonly fansly?: unknown;
   dispose(): void;
 }

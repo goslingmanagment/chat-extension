@@ -3,14 +3,15 @@
 // user and sign-in epoch, page and binding revision, fan and its
 // conversation (when it is not the fan: on Fansly the group), persona
 // definition, feature and recap mode, window, tone, Split, the Fix draft
-// digest, the archive head and every other request parameter. Two clicks
-// with equal identities are the same request: the second reopens the first
-// result; anything different is a new generation. The cache never crosses
-// users because the user and the sign-in epoch are part of the key.
+// digest, the archive head, the freshness proof (1.15.0, R20: its
+// fingerprint) and every other request parameter. Two clicks with equal
+// identities are the same request: the second reopens the first result;
+// anything different is a new generation. The cache never crosses users
+// because the user and the sign-in epoch are part of the key.
 
 import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
 import { chatKeyOf, type SessionIdentity } from '@cg/contracts/ids';
-import { type StartOp } from '@cg/contracts/ops';
+import { type CoverageProof, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint } from '@cg/contracts/send';
 
 import { conversationOf } from './conversation';
@@ -60,6 +61,12 @@ export interface RequestIdentity {
   readonly freshDigest: string | null;
   readonly coachDigest: string | null;
   readonly checkpoint: CheckpointIdentity | null;
+  /**
+   * 1.15.0 (R20 §9.1): the fingerprint of the start's freshness proof (`proofDigestOf`) — the same window, deletions,
+   * completeness and tail are the same request, so a reopened result is read against the proof it was made with;
+   * anything else is a new generation. Absent without a proof, so a ChatSpace key is the one it was before.
+   */
+  readonly proofDigest?: string;
 }
 
 export interface IdentityInputs {
@@ -70,6 +77,16 @@ export interface IdentityInputs {
 }
 
 const recapModeOf = (feature: FeatureId): RequestIdentity['recapMode'] => (feature === 'recap' ? 'full' : feature === 'recap-short' ? 'short' : null);
+
+/**
+ * The proof as the request key sees it: everything but the moment it was taken (`takenAt`), as a checkpoint is keyed
+ * without `observedAt` — a later click on the same observation is the same request. The tail's texts are inside the
+ * fingerprint, never in the key.
+ */
+export function proofDigestOf(proof: CoverageProof): string {
+  const { takenAt: _takenAt, ...rest } = proof;
+  return stableDigest(rest);
+}
 
 export function requestIdentityOf({ session, start, persona, archiveHead }: IdentityInputs): RequestIdentity {
   const fresh = start.fresh;
@@ -99,6 +116,7 @@ export function requestIdentityOf({ session, start, persona, archiveHead }: Iden
     freshDigest: fresh === undefined ? null : stableDigest(fresh.messages.map((m) => [m.platformMessageId, m.direction, m.text])),
     coachDigest: start.coach === undefined ? null : stableDigest(start.coach),
     checkpoint: start.checkpoint === undefined ? null : checkpointIdentity(start.checkpoint),
+    ...(start.proof === undefined ? {} : { proofDigest: proofDigestOf(start.proof) }),
   };
 }
 

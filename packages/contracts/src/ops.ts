@@ -6,10 +6,10 @@
 import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
-import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature } from './features';
-import { LiveTextTailSchema } from './host';
+import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature, type FeatureId, type Surface } from './features';
+import { LiveTextMessageSchema, LiveTextTailSchema } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema } from './ids';
-import { AI_REQUEST_LIMITS, COACH_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -18,6 +18,7 @@ import {
   GenerationRefSchema,
   IsoTimestampSchema,
   MicroUsdSchema,
+  NATIVE_ID_PATTERN,
   NativeIdSchema,
   UuidSchema,
   boundedText,
@@ -80,6 +81,100 @@ export const OpDraftSchema = z.strictObject({
   digest: DigestSchema,
 });
 
+// ── The window check (1.15.0, R20: spec §3, architecture §5.8, §9.1; hub HF-8в) ─────────────────────────────
+
+/** One message of the check window: its id and the side that sent it, never a text. Media-only and automated ones too. */
+export const CoverageWindowEntrySchema = z.strictObject({ id: NativeIdSchema, dir: z.enum(['fan', 'model']) });
+export type CoverageWindowEntry = z.infer<typeof CoverageWindowEntrySchema>;
+/** The check window as the hub takes it (`coverageCheck.window`): the tab's order, which the hub's answers keep. */
+export const CoverageWindowSchema = z.array(CoverageWindowEntrySchema).check(z.maxLength(COVERAGE_CHECK_LIMITS.windowMax));
+/** The window's messages the tab saw deleted (`coverageCheck.deletedIds`); never in the window itself. */
+export const CoverageDeletedIdsSchema = z.array(NativeIdSchema).check(z.maxLength(COVERAGE_CHECK_LIMITS.deletedMax));
+
+/** Every id of the check is named once across both lists: the hub refuses a repeat (400), one id with two answers is none. */
+export function coverageIdsOnce(window: readonly CoverageWindowEntry[], deletedIds: readonly string[]): boolean {
+  const ids = new Set([...window.map((entry) => entry.id), ...deletedIds]);
+  return ids.size === window.length + deletedIds.length;
+}
+
+type ProofShape = {
+  readonly window: readonly CoverageWindowEntry[];
+  readonly knownFanMessageIds: readonly string[];
+  readonly deletedIds: readonly string[];
+  readonly tail?: readonly { readonly platformMessageId: string; readonly direction: 'fan' | 'model' }[] | undefined;
+  readonly truncated?: boolean;
+};
+
+/**
+ * Every id of the check comes from the window (FS-TAIL-1): each once, the fan's known messages are the window's fan
+ * messages, the tail is the window's messages with a text, on the same side; texts are dropped only from a tail.
+ */
+function proofIdsHold(p: ProofShape): boolean {
+  const side = new Map(p.window.map((entry) => [entry.id, entry.dir]));
+  return (
+    coverageIdsOnce(p.window, p.deletedIds) &&
+    new Set(p.knownFanMessageIds).size === p.knownFanMessageIds.length &&
+    p.knownFanMessageIds.every((id) => side.get(id) === 'fan') &&
+    (p.tail ?? []).every((m) => side.get(m.platformMessageId) === m.direction) &&
+    (p.truncated !== true || p.tail !== undefined)
+  );
+}
+
+const proofShape = {
+  /** The conversation the proof is of — the target's (on Fansly the group id, FS-IDN-6). */
+  conversationRef: NativeIdSchema,
+  /** `complete` — the observation of the chat is unbroken (FS-TAIL-4) or the pass walked it whole; else `unknown`. */
+  completeness: z.enum(['complete', 'unknown']),
+  /** When it was taken: the tail's `capturedAt`; not part of the proof's identity (the request key). */
+  takenAt: IsoTimestampSchema,
+  /** The chat's last min(60, messageCount) messages, both sides (FS-TAIL-1). Empty — the chat has none. */
+  window: CoverageWindowSchema,
+  /** The fan's newest messages of the window, newest first, as the hub body takes them (`knownFanMessageIds`). */
+  knownFanMessageIds: z.array(NativeIdSchema).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax)),
+  deletedIds: CoverageDeletedIdsSchema,
+};
+
+/**
+ * 1.15.0 (R20 §9.1, FS-TAIL-6, FS-NEW-7): what proves a generation fresh on a host whose own tab observes its chats
+ * — the check window and the ids the hub is asked about (`coverageCheck`, `knownFanMessageIds`). Two sources:
+ * - `tab-snapshot` — the tab's snapshot of the Generate click (Fansly: MAIN's `FanslySnapshot`, which the site's AI
+ *   policy turns into this shared form); a draft function's texts are inside (`tail`), so the text the hub reads and
+ *   the ids it is asked about come from one instant;
+ * - `pass` — a pass the background ran itself («Новые» on Fansly, Б17): the history it checked, no text — the
+ *   greeting is built from the hub's history (X4).
+ * The background builds the request from it and reads the hub's answer against it (`coverageCheckVerdict`).
+ */
+export const CoverageProofSchema = z
+  .discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('tab-snapshot'),
+      ...proofShape,
+      /** Reply, Fix, Hi, Ping only (D-14): the window's messages with a text, oldest first; empty — none has one. */
+      tail: z.optional(z.array(LiveTextMessageSchema).check(z.maxLength(LIVE_TEXT_LIMITS.maxItems))),
+      /** Old texts were dropped to keep the snapshot in its frame: the result is not verified fresh (spec §3.5). */
+      truncated: z.boolean(),
+    }),
+    // Not `host-pass`: that word is the source of a feature in Fansly's manifest alone, and stays out of ChatSpace's chunks.
+    z.strictObject({ kind: z.literal('pass'), ...proofShape }),
+  ])
+  .check(z.refine(proofIdsHold, { message: 'proof ids: each once, all of its window' }));
+export type CoverageProof = z.infer<typeof CoverageProofSchema>;
+
+/** A start proves its freshness one way: a proof is the target's, never beside ChatSpace's tail or X8's checkpoint. */
+function proofFits(op: {
+  readonly feature: FeatureId;
+  readonly surface: Surface;
+  readonly target: { readonly conversationRef: string };
+  readonly fresh?: unknown;
+  readonly checkpoint?: unknown;
+  readonly proof?: CoverageProof | undefined;
+}): boolean {
+  const proof = op.proof;
+  if (proof === undefined) return true;
+  if (proof.conversationRef !== op.target.conversationRef || op.fresh !== undefined || op.checkpoint !== undefined) return false;
+  return proof.kind === 'pass' ? op.surface === 'newcomers' : proof.tail === undefined || isFreshTextFeature(op.feature);
+}
+
 export const StartOpSchema = z
   .strictObject({
     feature: FeatureIdSchema,
@@ -126,6 +221,11 @@ export const StartOpSchema = z
      * give one; such a result can be inserted, never sent (CG-SEND-FRESHNESS).
      */
     checkpoint: z.optional(FreshnessCheckpointSchema),
+    /**
+     * 1.15.0 (R20 §9.1): the freshness proof of a host whose tab observes its chats (Fansly) — the window check, and
+     * a draft function's page text inside it. Never beside `fresh` or `checkpoint`; a pass's proof only in «Новые».
+     */
+    proof: z.optional(CoverageProofSchema),
     regenerateOf: z.optional(UuidSchema),
     /** Bypass the result cache (Regenerate, Refresh). */
     force: z.optional(z.boolean()),
@@ -144,6 +244,8 @@ export const StartOpSchema = z
     z.refine((op) => op.checkpoint === undefined || checkpointMatches(op.checkpoint, op.target.chat.hostAccountId, op.target.chat.platformFanId), {
       message: 'the checkpoint belongs to the target chat',
     }),
+    // The words are short on purpose: every schema of this module weighs on the tab's request registry (its probe).
+    z.refine(proofFits, { message: 'the proof does not fit the start' }),
   );
 export type StartOp = z.infer<typeof StartOpSchema>;
 
@@ -268,6 +370,25 @@ export const LIVE_TEXT_STATUSES = ['not_sent', 'disabled', 'shadow', 'served', '
 export const KNOWN_FAN_MESSAGE_STATES = ['included', 'absent', 'deleted', 'unknown'] as const;
 
 /**
+ * 1.15.0 (R20 HF-8в): how the client reads the hub's answer to each id of the window check, one table per list — the
+ * matrix the hub and this client share (hub `tests/fixtures/ai-coverage-check-matrix.json`, `classes`; a verbatim copy
+ * is this package's fixture, its test reads every case; spec §3.5, table one). `counted` — the context holds it, or
+ * knows it deleted; `miss` — the context may lack it; `stale` — the context holds what the tab saw deleted;
+ * `unverified` — not checked. A state its list's table does not name, or one this build does not know, reads
+ * `unverified`.
+ */
+export const COVERAGE_WINDOW_STATES = ['included', 'deleted', 'direction_mismatch', 'outside_window', 'absent', 'unknown'] as const;
+export const COVERAGE_DELETED_STATES = ['deleted', 'absent', 'still_served', 'included', 'unknown'] as const;
+export type CoverageClass = 'counted' | 'miss' | 'stale' | 'unverified';
+export const COVERAGE_CHECK_CLASSES = {
+  window: { included: 'counted', deleted: 'counted', direction_mismatch: 'miss', outside_window: 'miss', absent: 'miss', unknown: 'unverified' },
+  deleted: { deleted: 'counted', absent: 'counted', still_served: 'stale', included: 'stale', unknown: 'unverified' },
+} as const satisfies {
+  window: Record<(typeof COVERAGE_WINDOW_STATES)[number], CoverageClass>;
+  deleted: Record<(typeof COVERAGE_DELETED_STATES)[number], CoverageClass>;
+};
+
+/**
  * Which snapshot actually served the generation (`context_v1`, H-4b), as the
  * background narrowed the hub's open tokens: the hub reader in `source`, our
  * fresh text in the separate `live` block (hub-pr-plan.md §5: `live-overlay`
@@ -281,8 +402,85 @@ export const ServedContextSchema = z.strictObject({
     z.array(z.strictObject({ id: NativeIdSchema, state: z.nullable(z.enum(KNOWN_FAN_MESSAGE_STATES)) })).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax)),
   ),
   live: z.strictObject({ status: z.nullable(z.enum(LIVE_TEXT_STATUSES)), accepted: CountSchema, rejected: CountSchema }),
+  /**
+   * 1.15.0 (R20 HF-8в): the hub's answers to the start's window check, each list in the hub's order, each state
+   * narrowed by its own list (`narrowCoverageCheck`; unknown → null). Absent — the frame had none (no
+   * `coverage-check-v1`, no proof), or answered something that is no id.
+   */
+  coverageCheck: z.optional(
+    z.strictObject({
+      window: z.array(z.strictObject({ id: NativeIdSchema, state: z.nullable(z.enum(COVERAGE_WINDOW_STATES)) })).check(z.maxLength(COVERAGE_CHECK_LIMITS.windowMax)),
+      deleted: z.array(z.strictObject({ id: NativeIdSchema, state: z.nullable(z.enum(COVERAGE_DELETED_STATES)) })).check(z.maxLength(COVERAGE_CHECK_LIMITS.deletedMax)),
+    }),
+  ),
 });
 export type ServedContext = z.infer<typeof ServedContextSchema>;
+export type ServedCoverageCheck = NonNullable<ServedContext['coverageCheck']>;
+
+type CoverageAnswer = { readonly id: string; readonly state: string };
+const knownState = <T extends string>(states: readonly T[], state: string): T | null => ((states as readonly string[]).includes(state) ? (state as T) : null);
+
+/**
+ * The frame's `coverageCheck` (hub tokens) as the background hands it on: each state narrowed by its own list,
+ * unknown → null. An answer that names something which is no id answers nothing the client asked (it asks ids only):
+ * the check reads as unanswered — absent, `unverified`.
+ */
+export function narrowCoverageCheck(answer: { readonly window: readonly CoverageAnswer[]; readonly deleted: readonly CoverageAnswer[] } | undefined): ServedCoverageCheck | undefined {
+  if (answer === undefined || [...answer.window, ...answer.deleted].some((item) => !NATIVE_ID_PATTERN.test(item.id))) return undefined;
+  return {
+    window: answer.window.map((item) => ({ id: item.id, state: knownState(COVERAGE_WINDOW_STATES, item.state) })),
+    deleted: answer.deleted.map((item) => ({ id: item.id, state: knownState(COVERAGE_DELETED_STATES, item.state) })),
+  };
+}
+
+/** The class of each asked id's one answer, in the asked order; null — an id answered never or twice, or one not asked. */
+function classesOf<S extends string>(
+  asked: readonly string[],
+  answers: readonly { readonly id: string; readonly state: S | null }[],
+  table: Readonly<Record<S, CoverageClass>>,
+): CoverageClass[] | null {
+  const byId = new Map<string, S | null>();
+  for (const answer of answers) {
+    if (byId.has(answer.id)) return null;
+    byId.set(answer.id, answer.state);
+  }
+  if (byId.size !== asked.length || new Set(asked).size !== asked.length || !asked.every((id) => byId.has(id))) return null;
+  return asked.map((id) => {
+    const state = byId.get(id) ?? null;
+    return state === null ? 'unverified' : table[state];
+  });
+}
+
+/**
+ * The window check's own part of the verdict (spec §3.5, table two; the shared matrix's `coverageVerdict`), the first
+ * that holds: `unverified` — no answer, an asked id answered never or twice in its list, an id its list did not ask,
+ * or any answer reads `unverified`; `miss` — a window answer reads `miss`; `stale` — a deleted answer reads `stale`;
+ * `fresh` otherwise. The caller puts its own conditions around it (spec §3.5: no frame, no snapshot, an unknown
+ * observation and a truncated snapshot first; the fresh text's `live` beside `miss`; coverage `complete`, and an empty
+ * window only under full observation, before `fresh`).
+ */
+export function coverageCheckVerdict(
+  asked: { readonly window: readonly { readonly id: string }[]; readonly deletedIds: readonly string[] },
+  answer: ServedCoverageCheck | undefined,
+): 'fresh' | 'miss' | 'stale' | 'unverified' {
+  if (answer === undefined) return 'unverified';
+  const window = classesOf(asked.window.map((entry) => entry.id), answer.window, COVERAGE_CHECK_CLASSES.window);
+  const deleted = classesOf(asked.deletedIds, answer.deleted, COVERAGE_CHECK_CLASSES.deleted);
+  if (window === null || deleted === null || window.includes('unverified') || deleted.includes('unverified')) return 'unverified';
+  if (window.includes('miss')) return 'miss';
+  return deleted.includes('stale') ? 'stale' : 'fresh';
+}
+
+/**
+ * Why a result is not shown as fresh (`OpView.stale`): `fan-wrote` — the fan wrote after the generation (§6.7.5);
+ * `archive-moved` — the archive moved past it. 1.15.0 (R20 spec §3.5, the verdict of the window check, FS-TAIL-8):
+ * `unverified` — its freshness is not verified (no context frame, no proof, an unknown observation, a truncated
+ * snapshot, an unchecked id); `window-miss` — the answer may not have counted the latest messages (a miss of the
+ * window, or a draft's page text the hub did not serve); `deleted-served` — the context held a message the tab saw
+ * deleted. Any of them holds a preview's send (CG-SEND-STALE); the dock still inserts.
+ */
+export const STALE_REASONS = ['fan-wrote', 'archive-moved', 'unverified', 'window-miss', 'deleted-served'] as const;
+export type StaleReason = (typeof STALE_REASONS)[number];
 
 /** Debug-only details (debug.enabled): profiler stages, usage and cost, reasoning, prompt token. */
 export const OpDebugViewSchema = z.strictObject({
@@ -344,8 +542,8 @@ export const OpViewSchema = z.strictObject({
   /** The tone the result was generated with; Regenerate repeats it (AI-007). */
   toneUsed: z.nullable(ToneSchema),
   servedContext: z.optional(z.nullable(ServedContextSchema)),
-  /** A newer fan message exists (the dock may still insert; previews hold sends, §6.7.5). */
-  stale: z.optional(z.strictObject({ reason: z.enum(['fan-wrote', 'archive-moved']), at: z.nullable(IsoTimestampSchema) })),
+  /** The result is not shown as fresh (the dock may still insert; previews hold sends, §6.7.5): STALE_REASONS. */
+  stale: z.optional(z.strictObject({ reason: z.enum(STALE_REASONS), at: z.nullable(IsoTimestampSchema) })),
   /** Only when debug.enabled. */
   debug: z.optional(OpDebugViewSchema),
   /**

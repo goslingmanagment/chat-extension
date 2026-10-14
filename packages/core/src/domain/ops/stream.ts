@@ -9,7 +9,7 @@
 
 import { narrowToken, type ContextFrame, type HubFrame } from '@cg/contracts/hub';
 import { SEND_LIMITS } from '@cg/contracts/limits';
-import { CONTEXT_SOURCES, KNOWN_FAN_MESSAGE_STATES, LIVE_TEXT_STATUSES, type ServedContext } from '@cg/contracts/ops';
+import { CONTEXT_SOURCES, KNOWN_FAN_MESSAGE_STATES, LIVE_TEXT_STATUSES, narrowCoverageCheck, type ServedContext } from '@cg/contracts/ops';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 
 /** A cap on what we keep of one stream, far above any hub output limit (Coach 64 000). */
@@ -84,13 +84,19 @@ export const INITIAL_STREAM_STATE: StreamState = {
 
 const isNativeId = (value: string): boolean => NATIVE_ID_PATTERN.test(value);
 
-/** `context_v1` as the tab may see it: hub tokens narrowed to the ones this client knows (unknown → null). */
+/**
+ * `context_v1` as the tab may see it: hub tokens narrowed to the ones this client knows (unknown → null). 1.15.0 (R20
+ * HF-8в): the answers to a window check are read by the shared matrix's tables (`narrowCoverageCheck`); a frame
+ * without them — every frame of a ChatSpace request — keeps the form it had.
+ */
 export function narrowContext(frame: ContextFrame): ServedContext {
   const head = frame.servedHead;
+  const coverageCheck = narrowCoverageCheck(frame.coverageCheck);
   const served: ServedContext = {
     source: narrowToken(CONTEXT_SOURCES, frame.source),
     servedHead: head !== null && head.occurredAt !== null && isNativeId(head.messageRef) ? { messageRef: head.messageRef, at: head.occurredAt } : null,
     live: { status: narrowToken(LIVE_TEXT_STATUSES, frame.live.status), accepted: frame.live.accepted, rejected: frame.live.rejected },
+    ...(coverageCheck === undefined ? {} : { coverageCheck }),
   };
   if (frame.knownFanMessages === undefined) return served;
   return {

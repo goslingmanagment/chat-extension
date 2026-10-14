@@ -20,7 +20,9 @@ X8 на любой сборке ChatSpace по профилю-метке хаб�
 1.15.0 — второй сайт, fansly.com (R20, этап 4 `docs/project-unite/plan.md`): одна минорная версия на весь этап, PR
 этапа дописывают в неё свои разделы; первым — P4a1: таблица сайтов `hosts`, пара хост↔платформа цели из неё,
 разговор маршрута и навигации; P4a2 — мост Fansly: модули сайта `bridge-fansly`, `bridge-messages-fansly`, `fansly`;
-P4a3 — протокол вкладки Fansly, отправитель `relay`, ключ `settings.ext` и коды Fansly; F4 — манифест фич
+P4a3 — протокол вкладки Fansly, отправитель `relay`, ключ `settings.ext` и коды Fansly; P4b1 — свежесть и запрос: проверка
+окна HF-8в (`StartOp.proof`, `ServedContext.coverageCheck`, тело и кадр хаба, возможность `coverage-check-v1`), порты
+`HostPort.freshness?` и `HostPort.fansly?`, модуль сайта `fansly-host`; F4 — манифест фич
 `features/*` (только подпути), чипы полосы данными `DockVM.chips`, в `CLIENT_FLAG_REQUIREMENTS` — только нужда
 транспорта клиента; P4c — отправка приветствия Fansly по HTTP: модуль сайта `send-fansly` и типы тела брони хаба
 после HF-3 `hub/claim-body`; P2v — SDK перевендорен из выложенного `main` хаба `bd3eec06` (контракт `9137410d…`),
@@ -41,7 +43,7 @@ R01 делали четыре исполнителя, интегратор св�
 Каждый модуль — свой подпуть `exports` (`@cg/contracts/<модуль>`), корень
 `@cg/contracts` реэкспортирует всё, кроме `parity/exceptions` (его читает гейт
 паритета под чистой Node), модулей сайта Fansly (`fansly`, `bridge-fansly`,
-`bridge-messages-fansly`, `tab-messages-fansly`, `errors-fansly`, `send-fansly`, 1.15.0), `settings-ext` и манифеста
+`bridge-messages-fansly`, `tab-messages-fansly`, `errors-fansly`, `send-fansly`, `fansly-host`, 1.15.0), `settings-ext` и манифеста
 фич `features/*` (1.15.0): их
 импортирует только тот, кому они нужны, по подпути, и ни бандл ChatSpace, ни ядро фона, которые берут корень, их не
 несут (R20 §1.8, §3.2). Пакет без побочных эффектов: в бандл попадают только модули, которыми он пользуется.
@@ -53,7 +55,7 @@ R01 делали четыре исполнителя, интегратор св�
 | `features/types`, `features/common`, `features/chatspace`, `features/fansly` | 1.15.0, только подпути, без zod (R20 F4): манифест фич — `FeatureCommon` (вид, чип, клавиша), `Requirement` (флаги страницы, возможности сайта, нужды транспорта клиента — всё AND), `FeatureOnHost` (`base` и требования действий `generate`/`insert`/`send`, поверхности, источник), `HotkeyActionId`; общее для обоих сайтов и по файлу на сайт — срез делает граф модулей. Файл сайта называет и то, чего в общих словарях ещё нет (`FANSLY_FLAGS_AHEAD`, `FANSLY_SURFACES_AHEAD`) | R20 §1.4 |
 | `hosts` | **лёгкий**, без zod (1.15.0): сайты `HOST_KINDS` и платформа каждого `HOST_PLATFORM` — одна таблица для проверок цели и маршрута; адреса, скрипты и поля сборки — в реестре хостов приложения (`apps/extension/src/hosts`), не здесь | R20 §1.2, §12 |
 | `ids` | `HostKind` (схема; список — из `hosts`), `Platform`, `Role`, `ChatRef`, `ChatKey`, `HostAccount`, `SessionIdentity`, `HubBinding`, `Target` (пара хост↔платформа — по `HOST_PLATFORM`), `GenerationIdentity`, `HostIdentity`, `DraftSnapshot`, `HumanCause`, `PartRef`; сужение открытых лексем | §5.1 |
-| `limits` | числовые пределы без схем: мост, планировщик операций, хранилища, X8, логи, телеметрия, отладка; пределы тела AI хаба (`AI_REQUEST_LIMITS`, `COACH_LIMITS`), входа, частей, свежего текста; `OP_TIMEOUTS` | §5.3, §7, §9 |
+| `limits` | числовые пределы без схем: мост, планировщик операций, хранилища, X8, логи, телеметрия, отладка; пределы тела AI хаба (`AI_REQUEST_LIMITS`, `COACH_LIMITS`), входа, частей, свежего текста, проверки окна (1.15.0: `COVERAGE_CHECK_LIMITS`); `OP_TIMEOUTS` | §5.3, §7, §9 |
 | `errors` | `CG_CODES` прил. А (108 кодов, в его порядке), виды, тяжесть, восстановление, повтор, `I18nKey`, `CgEntry`, `CgErrorView`, проводная форма `CgErrorWire`, `SettingsRoute` и разделы настроек | §5.7, прил. А |
 | `errors/registry` | `CG_REGISTRY`: запись на каждый код, коды P1, выведенные из оборота | прил. А |
 | `errors-fansly` | 1.15.0, только подпуть: коды Fansly (`CG-FAN-*`, `CG-NOTE-*`, `CG-VOICE-*`, `CG-VAULT-*`, `CG-FNEW-*`, 34), их реестр и виды, ключи текстов и форма каталога Fansly, общий словарь `CgAnyCode` и `CgAnyErrorWire` для тела сообщений Fansly, ответы хаба о войсах → коды Fansly (`HUB_FANSLY_ERROR_CODES`), списанные номера старого (ER-083) | прил. А «Коды Fansly», R20 §1.6 |
@@ -64,8 +66,8 @@ R01 делали четыре исполнителя, интегратор св�
 | `send-rules` | **лёгкий**: X8 без схем — состояния попытки и переходы, `isRetryableEnd`, коды условий §6.7.4, `SEND_CUSTODY_REPORTS`, `servedContextCovers`, `localDeadline`; 1.11.0 — виды совпадения профиля, профиль-метка «любая сборка» (`isAnyBuildReceiptProfile`), причины и места предохранителя, `sendFuseHolds` (решение X25) | §6.2, §6.7 |
 | `send` | X8: точка свежести, запрос и билет отправки, preflight и commit, вид попытки, журнал, ключ блокировки, `PreviewSendPort`; 1.11.0 — предохранитель: `SendFuseFact`, `SendFuse`, `SendFuseState` | §5.2, §6.7 |
 | `send-fansly` | 1.15.0, только подпуть: отправка приветствия «Новых» Fansly по HTTP — машина состояний данными (`ready … sent`, `refused`, `uncertain`) с доказательствами концов и `isFanslySendStep`, вид попытки, журнал `fansly.send.journal` (только id), перезапуск и отчёты опеке, запрос приветствия (`fansly.followers.send`), ручная группа и тело брони Fansly (подмножество тела хаба HF-3), последняя сверка, квитанция `POST /message` | R20 §8.6, FS-NEW-3, FS-NEW-6 |
-| `host` | `HostPort`, возможности и якоря, отчёт контракта (1.15.0: разбор по `host` — без него или `chatspace` прежняя полная схема, другой сайт — свой обязательный блок `extensions[<сайт>]`; ожидаемый набор якорей сайта `HostContractShape`, у ChatSpace `CHATSPACE_CONTRACT`), маршрут (1.15.0: разговор маршрута `conversationRef`, его вид `conversationKind`, проверка `conversationFits`), composer, вставка (`InsertIntent` с токеном, `InsertWire` для MAIN) и навигация с квитанциями (1.15.0: разговор цели `target.conversationRef`), хвост переписки, окно чата, фан, строки списка, тема, точки монтирования, факты входящих и отправки человеком, хранилище `presence` | §5.2, §6 |
-| `ops` | `OpState` и переходы, `Phase`, `StartOp`, `Admission`, `OpView`, `OpResult`, Review, Coach, охват, `ServedContext`, `OP_TIMEOUTS` | §5.5, §7 |
+| `host` | `HostPort`, возможности и якоря, отчёт контракта (1.15.0: разбор по `host` — без него или `chatspace` прежняя полная схема, другой сайт — свой обязательный блок `extensions[<сайт>]`; ожидаемый набор якорей сайта `HostContractShape`, у ChatSpace `CHATSPACE_CONTRACT`), маршрут (1.15.0: разговор маршрута `conversationRef`, его вид `conversationKind`, проверка `conversationFits`), composer, вставка (`InsertIntent` с токеном, `InsertWire` для MAIN) и навигация с квитанциями (1.15.0: разговор цели `target.conversationRef`), хвост переписки, окно чата (1.15.0: у типа `ChatWindow` — `fanScript?`, `newestAt?`; схема ответа MAIN ChatSpace прежняя), фан, строки списка, тема, точки монтирования, факты входящих и отправки человеком, хранилище `presence`; 1.15.0 — порт снимка генерации `FreshnessPort` и члены `HostPort.freshness?`, `HostPort.fansly?` (тип последнего — сайта, `fansly-host`) | §5.2, §6, R20 §7.7 |
+| `ops` | `OpState` и переходы, `Phase`, `StartOp`, `Admission`, `OpView`, `OpResult`, Review, Coach, охват, `ServedContext`, `OP_TIMEOUTS`; 1.15.0 — проверка окна (R20 HF-8в): доказательство свежести `StartOp.proof` (`CoverageProof`: снимок вкладки или проход, хвост внутри), ответы хаба `ServedContext.coverageCheck`, их чтение по общей с хабом таблице (`COVERAGE_CHECK_CLASSES`, `narrowCoverageCheck`, `coverageCheckVerdict`), причины `stale` вердикта | §5.5, §7, R20 §9.1, спек §3.5 |
 | `telemetry` | `AcceptanceEvent`, `ClientHealthV1` (1.15.0: окно на пару сайт и сборка), `PERF_METRICS` с фиксированными границами (1.15.0: плюс четыре метрики Fansly HF-13), отчёт вкладки | §5.7, §9.6, R20 §8.13 |
 | `logs` | `LogRecord`, уровни, поля под вымарывание | §5.7, §9.2 |
 | `bridge` | **лёгкий**: рукопожатие, `checkBridgeFrame`, списки типов, конверты, `MainProbe` | §5.3 |
@@ -73,6 +75,7 @@ R01 делали четыре исполнителя, интегратор св�
 | `bridge-fansly` | **лёгкий**, только подпуть (1.15.0): мост Fansly — списки запросов, событий пачки и событий порта, склеиваемые состояния и неотбрасываемый поток, пустой список записей, кредиты `fx.batch` и пределы кадров (`fanslyFrameByteLimit`), конверты | R20 §6 |
 | `bridge-messages-fansly` | **тяжёлый**, только подпуть (1.15.0): схемы запросов и ответов `TO_MAIN_FANSLY`, событий пачки `FROM_MAIN_FANSLY`, `fx.batch`, `fx.gap`, `fault`, полные кадры, разбор третьей ступени | R20 §6 |
 | `fansly` | только подпуть (1.15.0): снимок генерации `FanslySnapshot`, доказательство начала `StartProofV1`, `FanslyPagePort` (тип), якоря `FanslyAnchorId` и возможности `FanslyCapability` Fansly, пределы наблюдения, причины полноты, порядок id `compareFanslyIds`, адрес аватара | R20 §5.5–§5.8, §7.7, §7.12 |
+| `fansly-host` | только подпуть (1.15.0, P4b1): порт адаптера Fansly `FanslyHostPort` (`freshness` даёт `FanslySnapshot`, `fansly` — `FanslyPagePort`), ожидаемый набор отчёта `FANSLY_CONTRACT` и строгая ветка его блока — `FanslyContractBlockSchema`, `FanslyContractReportSchema` | R20 §7.7, §7.12, FS-CTR-1 |
 | `tab-protocol` | **лёгкий**: имена портов (1.15.0: `cg-relay`), страницы, виды отправителей (1.15.0: `relay`), правила отправителей (`senderAllowed`: `from`, `pages`, 1.15.0 — `hosts`), конверт (тип — до двух точек), схемы `tab.register` | §5.4 |
 | `tab-messages` | **тяжёлый**: общий реестр запросов `TAB_REQUESTS` и событий `TAB_EVENTS` | §5.4 |
 | `tab-messages-fansly` | 1.15.0, только подпуть, **тяжёлый**: реестр Fansly — `fansly.followers.*`, `fansly.notes.*`, `fansly.voice.*`, `fansly.vault.*`, `fansly.relay.*`; разбирает его чанк `bg/fansly` и вкладка Fansly | R20 §1.6, §8 |
@@ -131,6 +134,8 @@ R01 делали четыре исполнителя, интегратор св�
 | `Locale` | `i18n/keys` | настройка `ui.locale` (`system` + локали), порт `I18n`, переводчик core |
 | тема, язык, «Вид ответа», авто-рекап Coach | `settings` (`UiTheme`, `UiLocale`, `UiResultStyle`, `CoachAutoRecap`) | модели видов |
 | охват, читатель `context_v1`, статус свежего текста | `ops` (`COVERAGE_LEVELS`, `CONTEXT_SOURCES`, `LIVE_TEXT_STATUSES`, `KNOWN_FAN_MESSAGE_STATES`) | хаб, модели видов |
+| ответы проверки окна и их классы (1.15.0) | `ops` (`COVERAGE_WINDOW_STATES`, `COVERAGE_DELETED_STATES`, `COVERAGE_CHECK_CLASSES` — таблица, общая с хабом; причины `STALE_REASONS`) | кадр хаба, вердикт сайта, модели видов (`ResultVM.stale`) |
+| письменность фана для языкового фильтра (`FanScript`, 1.15.0) | `host` | `core` (`fanScriptOf`, `languageGate`), мост Fansly (`FANSLY_FAN_SCRIPTS` — тот же список) |
 | назначение отправки | `send` (`SendPurposeSchema`) | опека H-7 в хабе |
 | периоды доски, отправитель ленты, сегмент Ping | хаб (`HubSpenderPeriod`, `FeedSender`, `PingSegment`) | протокол вкладки, модели видов |
 
