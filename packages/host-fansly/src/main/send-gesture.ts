@@ -55,6 +55,14 @@ export const GESTURE_RELEASE_MS = 1000;
 export const SEND_WAIT_MAX = 16;
 /** …each at most this long. */
 export const SEND_WAIT_MS = 60_000;
+/**
+ * A gesture's name (`gestureAt`, its event's `timeStamp`) is not unique: Firefox reduces the precision of timers, and
+ * two gestures may share one. A send is said only within this long of its gesture, and a name two gestures of this
+ * window share is said for neither.
+ */
+export const GESTURE_SEND_MS = 120_000;
+/** Names of this window kept; past it, no send is said for a window (nothing can be told apart). */
+const NAMES_MAX = 256;
 
 /** A chat's address (FS-RTE-1): the group it names. */
 const CHAT_PATH = /^\/messages\/([1-9]\d{0,29})$/;
@@ -86,6 +94,8 @@ export interface Gesture {
   event: Event | null;
   /** The event's `timeStamp`: the gesture's name in both worlds (`fx.sent.gestureAt`). */
   readonly at: number;
+  /** When MAIN saw it (its clock). */
+  readonly seenAt: number;
   /** The address at the gesture, and the chat it names (null — no chat's address). */
   readonly path: string;
   readonly groupId: string | null;
@@ -94,9 +104,18 @@ export interface Gesture {
   ended: number;
   /** Marked answers at exactly `/api/v1/message`. */
   candidates: number;
-  receipt: { readonly msgId: string; readonly groupId: string; readonly contentDigest: string; readonly gestureAt: number } | null;
+  receipt: Receipt | null;
   media: boolean;
   settled: boolean;
+}
+
+/** A receipt of a gesture's send, as it waits for its echo. */
+interface Receipt {
+  readonly msgId: string;
+  readonly groupId: string;
+  readonly contentDigest: string;
+  readonly gestureAt: number;
+  readonly seenAt: number;
 }
 
 export interface SendCounts {
@@ -141,7 +160,12 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
   /** Echoes (id → group) that came while a marked request was in flight. */
   const echoes = new Map<string, { readonly groupId: string; readonly at: number }>();
   /** Receipts (id → receipt) waiting for their echo. */
-  const waiting = new Map<string, { readonly groupId: string; readonly contentDigest: string; readonly gestureAt: number; readonly at: number }>();
+  const waiting = new Map<string, Receipt & { readonly at: number }>();
+  /** The names of this window's gestures (name → when seen), the names two of them share (name → until), and a window
+   * in which nothing is said because the names overflowed. */
+  const names = new Map<number, number>();
+  const shared = new Map<number, number>();
+  let blindUntil = -Infinity;
 
   /** Keeps a waiting map within its bounds: the stale first, then the oldest. */
   const bound = <V extends { readonly at: number }>(map: Map<string, V>): void => {
@@ -150,9 +174,15 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
     while (map.size > SEND_WAIT_MAX) map.delete(map.keys().next().value as string);
   };
 
-  const say = (msgId: string, receipt: { readonly groupId: string; readonly contentDigest: string; readonly gestureAt: number }, echoFirst: boolean): void => {
+  const say = (msgId: string, receipt: Receipt, echoFirst: boolean): void => {
     // The old extension may have come since the receipt: then this MAIN stands down, and says nothing more.
     if (!natives.standing()) return;
+    // A name that is not this gesture's alone — shared, too old, or lost to an overflow — names no draft: not said.
+    const now = natives.now();
+    if (now - receipt.seenAt > GESTURE_SEND_MS || now < blindUntil || (shared.get(receipt.gestureAt) ?? -Infinity) > now) {
+      counts.ambiguous += 1;
+      return;
+    }
     counts.sent += 1;
     if (echoFirst) counts.echoFirst += 1;
     else counts.receiptFirst += 1;
@@ -162,7 +192,17 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
   const remember = (event: Event): void => {
     counts.gestures += 1;
     const path = natives.path();
-    const gesture: Gesture = { event, at: event.timeStamp, path, groupId: CHAT_PATH.exec(path)?.[1] ?? null, marked: 0, ended: 0, candidates: 0, receipt: null, media: false, settled: false };
+    const now = natives.now();
+    const at = event.timeStamp;
+    for (const [name, seen] of names) if (now - seen > GESTURE_SEND_MS) names.delete(name);
+    for (const [name, until] of shared) if (until <= now) shared.delete(name);
+    if (names.has(at)) shared.set(at, now + GESTURE_SEND_MS);
+    names.set(at, now);
+    if (names.size > NAMES_MAX) {
+      blindUntil = now + GESTURE_SEND_MS;
+      names.clear();
+    }
+    const gesture: Gesture = { event, at, seenAt: now, path, groupId: CHAT_PATH.exec(path)?.[1] ?? null, marked: 0, ended: 0, candidates: 0, receipt: null, media: false, settled: false };
     last = gesture;
     natives.setTimer(() => {
       gesture.event = null;
@@ -185,7 +225,7 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
         echoes.delete(receipt.msgId);
         say(receipt.msgId, receipt, true);
       } else {
-        waiting.set(receipt.msgId, { groupId: receipt.groupId, contentDigest: receipt.contentDigest, gestureAt: receipt.gestureAt, at: natives.now() });
+        waiting.set(receipt.msgId, { ...receipt, at: natives.now() });
         bound(waiting);
       }
     }
@@ -228,7 +268,7 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
       if (Array.isArray(attachments) && attachments.length > 0) gesture.media = true;
       else {
         const content = response['content'];
-        gesture.receipt = { msgId, groupId, contentDigest: digest(normalize(typeof content === 'string' ? content : '')), gestureAt: gesture.at };
+        gesture.receipt = { msgId, groupId, contentDigest: digest(normalize(typeof content === 'string' ? content : '')), gestureAt: gesture.at, seenAt: gesture.seenAt };
       }
     },
     ended(gesture, candidate) {
@@ -263,6 +303,8 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
       open.clear();
       echoes.clear();
       waiting.clear();
+      names.clear();
+      shared.clear();
     },
   };
 }

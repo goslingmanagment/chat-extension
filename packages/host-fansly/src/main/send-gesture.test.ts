@@ -30,7 +30,7 @@ import {
   type FakeXMLHttpRequest,
   type PageWindow,
 } from '../testing/fake-page';
-import { SEND_WAIT_MS } from './send-gesture';
+import { GESTURE_SEND_MS, SEND_WAIT_MS } from './send-gesture';
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
@@ -344,6 +344,32 @@ describe('[FS-SEND-2] [UI-033] [host:fansly] the person’s send, attributed by 
     await settle();
     expect(sents(c)).toEqual([]);
     expect(await counts(c)).toMatchObject({ gestures: 2, receipts: 2, sent: 0 });
+  });
+
+  it('[FS-SEND-2] two gestures sharing a name (Firefox reduces the precision of `timeStamp`): neither send is said — the isolated side could not tell their drafts apart', async () => {
+    const { c, win, socket } = await onChat();
+    const sends: FakeXMLHttpRequest[] = [];
+    await controls(win).deliver({ ...enter, timeStamp: 5000.5 }, { target: [() => sends.push(post(win))] });
+    await controls(win).deliver({ ...click, timeStamp: 5000.5 }, { target: [() => sends.push(post(win))] });
+    receipt(sends[0] as FakeXMLHttpRequest, '700000000000000451');
+    echo(socket, '700000000000000451');
+    receipt(sends[1] as FakeXMLHttpRequest, '700000000000000452');
+    echo(socket, '700000000000000452');
+    await settle();
+    expect(sents(c)).toEqual([]);
+    expect(await counts(c)).toMatchObject({ gestures: 2, receipts: 2, ambiguous: 2, sent: 0 });
+  });
+
+  it('[FS-SEND-2] a send proven too long after its gesture is not said: the gesture’s name may be another one’s by then', async () => {
+    let now = 1000;
+    const { c, win, socket } = await onChat(() => now);
+    let xhr: FakeXMLHttpRequest | null = null;
+    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
+    now += GESTURE_SEND_MS + 1000;
+    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000461');
+    echo(socket, '700000000000000461');
+    await settle();
+    expect(sents(c)).toEqual([]);
   });
 
   it('[FS-CO-1] the old extension shows up between the receipt and the echo: MAIN stands down, and the echo says nothing', async () => {
