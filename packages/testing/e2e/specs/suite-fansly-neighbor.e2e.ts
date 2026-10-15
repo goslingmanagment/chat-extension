@@ -11,29 +11,34 @@
 // - our dock right before Fansly's composer, the neighbour's widgets after the
 //   composer's actions, both in place;
 // - a Reply by its key and its part inserted by Enter: Fansly's field and the
-//   page's model have the text;
+//   page's model have the text; the person's Enter sends it — Fansly's own
+//   request — and that send of our part is taken for known: the hub hears
+//   `sent` of the operation (the person allowed the measurements);
 // - the neighbour's hooks saw the page's answers as the server served them —
 //   our Proxies changed nothing for it —, and nothing of ours asked Fansly;
 // and with the neighbour's word filter (`+guard`): after our insert, a send
-// with a restricted word is swallowed — no request — and the text is back, the
-// next one goes. Whose send is a person's and its `sent` next to the neighbour
-// is suite-fansly-send-observe's (P7f); the keys next to it, suite-fansly-host's;
+// with a restricted word is swallowed — no request, no `sent` — and the text is
+// back, the next one goes. How MAIN tells a person's send and links it to our
+// insert is suite-fansly-send-observe's (P7f); the keys next to it, suite-fansly-host's;
 // the tap's frames mode by mode without our extension, suite-fansly-tap's;
 // the stand's neighbour without us, fansly-stand-neighbor's.
 
 import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
+import { callsTo } from '../../src/fake-hub/journal';
 import type { NeighborConfig } from '../../src/fake-fansly/neighbor/protocol';
+import { setOptionalPermissionPrompts } from '../support/background';
 import { MOD } from '../support/chat';
 import { readReport } from '../support/extension';
-import { useFakeHub } from '../support/fake-hub';
+import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { callNeighbor, neighborState, openWithNeighbor, setFanslyNeighbor, waitForNeighborComposer } from '../support/fansly-neighbor';
-import { startFanslyShift } from '../support/fansly-shift';
+import { startFanslyShift, type FanslyShift } from '../support/fansly-shift';
 import { FANSLY_MAIN, callFansly, fakeFansly, fanslyIds, fanslyStandServer, waitForFanslyStandIdle } from '../support/fansly-stand';
 import { focusTab } from '../support/focus';
 import { useNetworkTrap } from '../support/network-trap';
 import { readOurs } from '../support/ours';
+import { openOptions, press, waitForOptions } from '../support/pages';
 import { dockIs } from '../support/shift';
 
 type Ids = Awaited<ReturnType<typeof fanslyIds>>;
@@ -87,17 +92,17 @@ const place = (): Promise<{ parent: string | null; next: string | null; hosts: n
     return { parent: host?.parentElement?.localName ?? null, next: host?.nextElementSibling?.localName ?? null, hosts: hosts.length };
   });
 
-/** A Reply of the open chat by its key, its first part inserted by Enter: the text Fansly's field got. */
-async function replyAndInsert(): Promise<string> {
+/** A Reply of the open chat by its key, its first part inserted by Enter: the operation, and the text Fansly's field got. */
+async function replyAndInsert(): Promise<{ readonly opId: string; readonly text: string }> {
   const before = (await readReport())?.dock?.result?.opId ?? null;
   await intoField();
   await browser.keys([MOD, 'e']);
-  await dockIs((d) => d.result !== null && d.result.opId !== before && d.result.state === 'done' && d.result.parts >= 1, 'a Reply of the open chat', 30_000);
+  const done = await dockIs((d) => d.result !== null && d.result.opId !== before && d.result.state === 'done' && d.result.parts >= 1, 'a Reply of the open chat', 30_000);
   expect(await readOurs('dock', '[data-cg-part="0"]', (node) => (node.focus(), true))).toBe(true);
   await browser.keys(Key.Enter);
   await dockIs((d) => (d.result?.inserted ?? 0) >= 1, 'its first part inserted');
   await browser.waitUntil(async () => (await fieldValue()).length > 0, { timeout: 5000, timeoutMsg: 'the part did not reach Fansly’s field' });
-  return fieldValue();
+  return { opId: done.result?.opId ?? '', text: await fieldValue() };
 }
 
 describe('our extension next to the FBuddy-like neighbour in every mode: tap, dock, insert (R20 P7i, FS-CO-4)', () => {
@@ -106,23 +111,42 @@ describe('our extension next to the FBuddy-like neighbour in every mode: tap, do
   let ids: Ids;
   let group = '';
   let journalStart = 0;
+  let shift: FanslyShift;
+
+  /** The `ai_acceptance` lifecycles of `opId` the hub ingested since `mark`, in order. */
+  const lifecycles = async (mark: number, opId: string): Promise<string[]> =>
+    callsTo((await hub().journal(mark)).entries, 'ingestObservations')
+      .filter((call) => call.status === 200)
+      .flatMap((call) => (call.request as { events: Array<{ kind: string; payload: { lifecycle: string; opId: string } }> }).events)
+      .filter((event) => event.kind === 'ai_acceptance' && event.payload.opId === opId)
+      .map((event) => event.payload.lifecycle);
 
   before(async () => {
     await setFanslyNeighbor(null);
     await fakeFansly().command({ op: 'reset' });
     journalStart = await fanslyStandServer.mark();
-    await startFanslyShift(hub(), { path: '/messages', settings: { generation: { split: true } }, viewport: { width: 1440, height: 900 } });
+    shift = await startFanslyShift(hub(), { path: '/messages', settings: { generation: { split: true } }, viewport: { width: 1440, height: 900 } });
     ids = await fanslyIds();
     group = String(ids.groups[1]);
+    // The person allows the technical measurements on the settings page (ST-034): `sent` leaves the browser only then.
+    await shift.toPages();
+    await setOptionalPermissionPrompts(false);
+    await openOptions('status');
+    await waitForOptions((state) => state.rows['consent']?.level === 'warn', 'the consent row asks');
+    await press('Разрешить замеры', '[data-pg-row="consent"]');
+    await waitForOptions((state) => state.rows['consent']?.level === 'ok', 'the consent is on');
+    await browser.url(testBuildPage(QUIET_PAGE));
+    await shift.toFansly();
   });
 
   after(async () => {
+    await setOptionalPermissionPrompts(null);
     expect((await fanslyStandServer.journal(journalStart)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
     await setFanslyNeighbor(null);
   });
 
   for (const { label, config } of MODES) {
-    it(`[FS-CO-4] next to the neighbour (${label}): our tap and our dock before Fansly’s composer, its widgets after the actions; a Reply’s part inserted — the page’s model has it; the neighbour saw the page’s answers as served; nothing of ours asked Fansly`, async () => {
+    it(`[FS-CO-4] next to the neighbour (${label}): our tap and our dock before Fansly’s composer, its widgets after the actions; a Reply’s part inserted — the page’s model has it — and sent by the person: the hub hears \`sent\`; the neighbour saw the page’s answers as served; nothing of ours asked Fansly`, async () => {
       const fake = fakeFansly();
       const hooked = config.mode !== 'off';
       await openWithNeighbor(`/messages/${group}`, config);
@@ -137,9 +161,15 @@ describe('our extension next to the FBuddy-like neighbour in every mode: tap, do
       const since = await fake.mark();
       const logMark = hooked ? ((await callNeighbor('log')).at(-1)?.seq ?? 0) : 0;
 
-      const inserted = await replyAndInsert();
+      const { opId, text: inserted } = await replyAndInsert();
       expect(inserted.trim().length).toBeGreaterThan(0);
       await browser.waitUntil(async () => (await modelValue()) === inserted, { timeout: 5000, timeoutMsg: `the page’s model holds «${String(await modelValue())}», not the inserted part` });
+      // The person sends it with Enter in Fansly's field (the insert left the focus there): Fansly's own request, and
+      // our part's `sent` for the hub — the send seen by MAIN, taken for known by Fansly's own rule (`human-send`).
+      const hubMark = await hub().mark();
+      await browser.keys(Key.Enter);
+      await browser.waitUntil(async () => (await fake.calls('page', since)).some((entry) => entry.route === 'message.send' && entry.status === 200), { timeout: 10_000, timeoutMsg: 'the person’s send' });
+      await browser.waitUntil(async () => (await lifecycles(hubMark, opId)).includes('sent'), { timeout: 15_000, interval: 250, timeoutMsg: `the hub was not told «sent» of ${opId} (${label})` });
       // The neighbour is where it was: its widgets after the composer's actions, its hooks on (a reinject re-installs them).
       if (hooked) {
         await waitForNeighborComposer();
@@ -152,15 +182,16 @@ describe('our extension next to the FBuddy-like neighbour in every mode: tap, do
     });
   }
 
-  it('[FS-CO-4] +guard: after our insert, a send with a restricted word is swallowed by the neighbour’s filter — no request — and the text is back in the field; the next message goes', async () => {
+  it('[FS-CO-4] +guard: after our insert, a send with a restricted word is swallowed by the neighbour’s filter — no request, no `sent` — and the text is back in the field; the next message goes', async () => {
     const fake = fakeFansly();
     await openWithNeighbor(`/messages/${group}`, { mode: 'after', guard: ['forbidden'] });
     await browser.waitUntil(async () => (await neighborState()).guard.active, { timeout: 10_000, timeoutMsg: 'its guard' });
     await waitForNeighborComposer();
     await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'our dock next to the guarded neighbour', 20_000);
     await focusTab();
-    const inserted = await replyAndInsert();
+    const { opId, text: inserted } = await replyAndInsert();
     const since = await fake.mark();
+    const hubMark = await hub().mark();
     // The person adds a restricted word to our part and sends: the neighbour's filter swallows it.
     await browser.keys([Key.End, ...' forbidden'.split('')]);
     await browser.keys(Key.Enter);
@@ -173,6 +204,10 @@ describe('our extension next to the FBuddy-like neighbour in every mode: tap, do
     await browser.keys('all clean'.split(''));
     await browser.keys(Key.Enter);
     await browser.waitUntil(async () => (await fake.calls('page', since)).some((entry) => entry.route === 'message.send' && entry.status === 200), { timeout: 10_000, timeoutMsg: 'the clean send' });
+    // Neither send was our part's: the swallowed one never went, the next is the person's own text. The telemetry
+    // queue leaves a second after its first event — by then whatever was to be told has been told.
+    await browser.pause(2500);
+    expect(await lifecycles(hubMark, opId)).not.toContain('sent');
     await fake.assertOursClean(since, 'next to the guarded neighbour');
   });
 });
