@@ -855,6 +855,7 @@ ChatSpace. `BackgroundKit.networkSession` даёт чанку единствен
 | `/account?ids=` | кэш аккаунтов страницы: адреса аватаров фанов (FX-018, P7b) |
 | `/message/automated` | приветственные тексты — классификатор Hi (§5.8) |
 | ровно `/vault/albums/media` (только `POST`) | подтверждение vault (§7.11): страница проверяет только `success`, тело ответа не читает (`main:30320-30326`, `:12818-12827`), его форма по бандлу неизвестна (P3a) |
+| `/media/vaultnew` | альбом, который страница загрузила (§7.11, P13a): `albumId=` адреса, `null` у альбома-типа (`type=`); ответ 2xx, **тело не читается** — `fx.vaultLoaded` |
 
 - `JSON.parse(xhr.responseText)` — Angular ставит `responseType = 'text'`, готового объекта нет — только для путей
   таблицы, `status` 2xx и `success === true`. Ответ до 64 КиБ разбирается сразу на `loadend`. Больший (`/messaging/groups`
@@ -1246,6 +1247,7 @@ P7g: эти проекции разбираются, но ещё никуда н
 | `fx.coverage` | `{groupIds \| 'all', state, reason}` | поток |
 | `fx.deleted` | `{groupId, ids}` (открытая группа) | поток |
 | `fx.vaultAdded` | `{seq}` — номер наблюдения; `albumId`/`mediaIds` из ответа не взять (§7.11, P3a) | поток |
+| `fx.vaultLoaded` | `{albumId \| null, seq}` — альбом, который страница загрузила (`GET /media/vaultnew`, по адресу; `null` — альбом-тип; P13a, §7.15) | поток |
 | `fx.contract` | сетевые якоря: `accountMe`, `socket`, `frames`, `xhr`; сигнал несовместимости тапа | состояние |
 | `fx.gap` | причина: `overflow` \| `memory` | вне пачки: одно уведомление, вне кредитов |
 | `fault` | место, счёт (X22) | вне пачки: его шлёт сам загрузчик |

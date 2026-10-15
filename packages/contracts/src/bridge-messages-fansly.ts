@@ -251,6 +251,13 @@ export const FROM_MAIN_FANSLY = {
    * read that answer's body, so neither album nor media ids come from it (P3a).
    */
   'fx.vaultAdded': z.strictObject({ seq: CountSchema }),
+  /**
+   * The page asked an album's media (`GET /media/vaultnew`, §7.11, R20 P13a): the album it shows — opened, or
+   * reloaded after `POST /vault/albums/media` — by the `albumId=` of the request's address; null — a type album of
+   * the vault (`type=`: «Posts», «Messages»), which has no id. A 2xx answer; its body is not read. `seq` — the
+   * observation's number, as `fx.vaultAdded`'s: a reload after an addition has the greater one.
+   */
+  'fx.vaultLoaded': z.strictObject({ albumId: z.nullable(NativeIdSchema), seq: CountSchema }),
 } as const satisfies Record<FromMainFanslyType, z.ZodMiniType>;
 
 export type FromMainFanslyPayload<T extends FromMainFanslyType> = z.infer<(typeof FROM_MAIN_FANSLY)[T]>;
@@ -270,6 +277,7 @@ export const FanslyBatchEventSchema = z.discriminatedUnion('t', [
   batchEvent('fx.coverage'),
   batchEvent('fx.deleted'),
   batchEvent('fx.vaultAdded'),
+  batchEvent('fx.vaultLoaded'),
 ]);
 
 const STATES: readonly string[] = FANSLY_BRIDGE_STATE_EVENTS;

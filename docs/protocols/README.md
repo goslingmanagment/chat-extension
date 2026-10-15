@@ -201,10 +201,10 @@ R01 делали четыре исполнителя, интегратор св�
   routeEpoch}`, `fx.generationSnapshot {groupId, feature, window, withText}` → `FanslySnapshot` или `null`,
   `fx.windowMeta {groupId}`, `fx.ack {n}`, `fx.health` (P7a: счёт кадров и ответов, поток, время разбора MAIN; P7b — и шаг снимка
   `snapshotMs` — `FanslyHealth`). Записей нет: MAIN на Fansly не пишет ни в DOM, ни в сеть.
-- **События идут пачками.** На порту — `fx.batch {n, events: [{t, p}]}` с 9 типами событий внутри
+- **События идут пачками.** На порту — `fx.batch {n, events: [{t, p}]}` с 10 типами событий внутри
   (`FROM_MAIN_FANSLY_TYPES`), одно `fx.gap {reason}` и `fault`. Состояния (`fx.identity`, `fx.chat`, `fx.contract`) в
-  пачке не повторяются; поток (`fx.incoming`, `fx.follow`, `fx.sent`, `fx.coverage`, `fx.deleted`, `fx.vaultAdded`)
-  идёт по порядку.
+  пачке не повторяются; поток (`fx.incoming`, `fx.follow`, `fx.sent`, `fx.coverage`, `fx.deleted`, `fx.vaultAdded`,
+  `fx.vaultLoaded` — P13a: альбом, который страница загрузила) идёт по порядку.
 - **Кредиты:** изолированный мир подтверждает пачки `fx.ack {n}` (накопительно — все до `n`, и принятые, и
   отвергнутые); MAIN держит ≤ 8 неподтверждённых пачек и ≤ 256 КиБ в пути. Бюджет исчерпан — MAIN отправляет одно
   `fx.gap` (вне кредитов), все чаты `unknown`, поток молчит до `fx.state`. Пачка проверяется целиком: плохое событие
