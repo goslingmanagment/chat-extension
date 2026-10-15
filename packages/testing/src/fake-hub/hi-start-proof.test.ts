@@ -152,6 +152,25 @@ describe('[host:fansly] HF-5: the archive, capabilities and avatar around the sh
     expect((await ask(body({ startProof: PROOF }))).verdict).toEqual({ status: 500, error: 'internal_error' });
   });
 
+  it('P6c4 caps the Hi context but P6c2 still judges live refs outside that cap', async () => {
+    hub.control({ op: 'config', patch: { limits: { deepMax: 5000 } } });
+    const ids = Array.from({ length: 1501 }, (_, n) => String(BigInt(PROOF.startWitnessId!) + BigInt(n)));
+    const sent = {
+      startProof: { ...PROOF, coveredCount: ids.length, personalCount: 1, automatedIds: [] },
+      messageCount: 3000,
+      coverageCheck: { window: [{ id: ids[0]!, dir: 'model' }], deletedIds: [] },
+    };
+    seed(messages(ids));
+    const admitted = await ask(body(sent));
+    expect(admitted.verdict).toBeNull();
+    expect(admitted.frames.find((frame) => frame.type === 'context_v1')).toMatchObject({
+      window: { requested: 3000, served: 1500 },
+      coverageCheck: { window: [{ id: ids[0], state: 'outside_window' }] },
+    });
+    seed(messages([String(BigInt(PROOF.startWitnessId!) - 1n), ...ids]));
+    expect((await ask(body(sent))).verdict).toEqual(gate('history_unproven'));
+  });
+
   it('two 18-digit refs that round to the same double still contradict a later witness', async () => {
     const older = '700000000000000101';
     const witness = '700000000000000102';

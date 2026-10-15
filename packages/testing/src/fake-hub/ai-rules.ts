@@ -26,10 +26,11 @@
 // short Recap), the narrow token's switch by platform (client-ai-switch.ts:
 // on Fansly Reply, Fix, Hi and Ping behind `drafts`, Help not at all), the
 // pair `groupId ↔ fanRef` (HF-9, chat-access.ts) and the answer to the
-// window check (HF-8в, context-frame.ts `resolveCoverageCheck`). The rules of
-// HF-5 (Hi's start proof) follow below (P6c2); HF-4а and the notes fill are P6c4's.
+// window check (HF-8в, context-frame.ts `resolveCoverageCheck`).
+// HF-5 (Hi's start proof) follows below (P6c2). P6c4 adds voice identity, notes fill
+// isolation and the transcript reader's depth (HF-4а/б, HF-6), from bd3eec065.
 
-import { type AiFeatureStreamBody } from '@cg/contracts';
+import { type AiFeatureStreamBody, type HubStreamRequest } from '@cg/contracts';
 import { type StartProofV1 } from '@cg/contracts/fansly';
 
 export interface StreamBodyRefusal {
@@ -41,11 +42,11 @@ export interface StreamBodyRefusal {
 }
 
 /** Hub features whose policy says `requiresDraft` (feature-policies.ts). */
-const REQUIRES_DRAFT: readonly string[] = ['improve-draft'];
+const REQUIRES_DRAFT: readonly string[] = ['improve-draft', 'voice-script'];
 
 const blank = (value: string | null | undefined): boolean => value === undefined || value === null || value.trim() === '';
 
-type StreamRuleBody = Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown };
+type StreamRuleBody = Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown; readonly noteValues?: readonly string[] };
 
 export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabilities: readonly string[] = []): StreamBodyRefusal | null {
   if (REQUIRES_DRAFT.includes(feature) && blank(body.draftText)) return { error: 'gate_draft_required', message: `${feature} requires draftText` };
@@ -60,11 +61,21 @@ export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabil
     return { error: 'bad_request', message: `${feature} does not accept coach fields` };
   }
   if (body.summaryMode !== undefined && feature !== 'fan-summary') return { error: 'bad_request', message: `${feature} does not accept summaryMode` };
+  // assertNoteFieldsRequestShape (bd3eec065): the SDK allows these fields on any feature;
+  // the handler isolates them. Our client sends labels only, never noteValues.
+  if (feature === 'fan-notes-fill') {
+    if (body.noteFields === undefined || body.noteFields.length === 0) return { error: 'bad_request', message: 'fan-notes-fill requires noteFields' };
+    if (body.noteValues !== undefined && body.noteValues.length !== body.noteFields.length) return { error: 'bad_request', message: 'noteValues must hold exactly one value per noteFields label' };
+  } else {
+    if (body.noteFields !== undefined) return { error: 'bad_request', message: `${feature} does not accept noteFields` };
+    if (body.noteValues !== undefined) return { error: 'bad_request', message: `${feature} does not accept noteValues` };
+  }
   // Fan-erasure reachability (hub «Blocker 2»): on Fansly the conversation is the group, not the fan, so the writer
   // paths a new client drives — Coach and the short Recap — must name the fan.
   if (body.platform === 'fansly' && blank(body.fanRef) && (feature === 'coach-chat' || body.summaryMode === 'short')) {
     return { error: 'bad_request', message: 'fanRef is required on fansly for coach-chat and short fan-summary' };
   }
+  if (body.platform === 'fansly' && blank(body.fanRef) && feature === 'fan-notes-fill') return { error: 'bad_request', message: 'fanRef is required on fansly for fan-notes-fill' };
   return hiStartProofShapeRefusal(feature, body, capabilities);
 }
 
@@ -105,6 +116,26 @@ export function judgeHiStartProof(input: { readonly proof: StartProofV1 | undefi
   const beforeStart = (id: string): boolean => witness === null || id.length < witness.length || (id.length === witness.length && id < witness);
   if (input.windowIds.some(beforeStart) || input.knownLiveIds.some(beforeStart)) return 'history_unproven';
   return proof.personalCount > HI_GREETING_MAX_TRANSCRIPT ? 'too_many_personal' : null;
+}
+
+/** HF-4а: after access and HF-9's pair check, before any spend. The old client-context form still needs fan/fan. */
+export function voiceScriptRefusal(body: Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown }, laneOff: boolean): string | null {
+  if (body.platform !== 'fansly') return 'gate_voice_unsupported_platform';
+  if (blank(body.fanRef) || (body.clientContext !== undefined && body.conversationRef !== body.fanRef)) return 'gate_voice_identity_required';
+  return laneOff ? 'gate_voice_disabled' : null;
+}
+
+/** HF-6 (ai-transcript-depth.ts + features/index.ts at bd3eec065). The wire accepts 5000;
+ * the reader clamps, it does NOT reject above deepMax. Both platforms use the same cap. */
+export function transcriptWindow(request: HubStreamRequest, ownerDepth: number): { requested: number; limit: number } {
+  const { feature, body, capabilities } = request;
+  const short = feature === 'fan-summary' && body.summaryMode === 'short';
+  const deep = ['fan-summary', 'chat-review', 'fan-notes-fill'].includes(feature);
+  const fallback = short ? 300 : deep ? 1500 : feature === 'improve-draft' ? 25 : 100;
+  const requested = short ? Math.min(300, body.messageCount ?? fallback) : body.messageCount ?? fallback;
+  const mayReadDeep = capabilities.includes('context-v1') && ((feature === 'fan-summary' && !short) || feature === 'fan-notes-fill');
+  const cap = mayReadDeep ? (feature === 'fan-notes-fill' ? Math.max(3000, ownerDepth) : ownerDepth) : 1500;
+  return { requested, limit: Math.min(requested, cap) };
 }
 
 /** A schema as the fake hub needs it: the vendored SDK's zod schema fits. */

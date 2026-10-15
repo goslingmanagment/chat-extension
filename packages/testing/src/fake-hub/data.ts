@@ -51,7 +51,7 @@ import { pageRefOf, type FakePage } from './config';
 import { type SpenderSeed } from './types';
 
 export interface Refusal {
-  readonly error: HubErrorCode;
+  readonly error: HubErrorCode | (string & {});
   readonly reason?: string;
   readonly retryAfterSec?: number;
 }
