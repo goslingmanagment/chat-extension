@@ -8,4 +8,6 @@ export { Surfaces, createChatNavigator, createPageContext } from '@cg/core/appli
 export { createFanPanelController } from '@cg/core/application/fanpanel';
 export { createNewcomersController } from '@cg/core/application/newcomers';
 export { createPaletteDirectory } from '@cg/core/application/preview';
-export { createSpendersController } from '@cg/core/application/spenders';
+import type { HostPort } from '@cg/contracts/host';
+import { createSpendersController as create, type SpendersControllerDeps } from '@cg/core/application/spenders';
+export const createSpendersController = (deps: SpendersControllerDeps & { readonly host: HostPort }) => create(deps);

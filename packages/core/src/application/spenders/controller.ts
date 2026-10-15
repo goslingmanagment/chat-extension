@@ -22,7 +22,7 @@ import { type SpenderRow } from '../../domain/spenders/rows';
 import { statsModel, type StatsModel } from '../../domain/spenders/stats';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
-import { type ChatNavigator } from '../boards/navigate';
+import { boardOpenRefusal, type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
@@ -80,7 +80,16 @@ interface QueueEntry {
   cursorRestarted?: boolean;
 }
 
+/** A site's optional missing-data lookup. Ranking and known names always remain the hub's. */
+export interface SpendersSource {
+  cached(account: string, fanRef: string): Promise<string | null>;
+  resolve(account: string, fan: { readonly fanRef: string; readonly displayName: string | null; readonly username: string | null }): Promise<string | null>;
+  names(account: string, fanRefs: readonly string[]): Promise<readonly { readonly fanRef: string; readonly name: string; readonly username: string | null; readonly displayName: string | null }[]>;
+}
+
 export interface SpendersControllerDeps {
+  readonly source?: SpendersSource;
+  readonly statistics?: boolean;
   readonly rpc: TabRpc;
   readonly i18n: I18n;
   readonly clock: BoardsClock;
@@ -113,6 +122,9 @@ export interface SpendersController extends SurfaceController<BoardViews> {
 
 export function createSpendersController(deps: SpendersControllerDeps): SpendersController {
   const { rpc, i18n, clock, context, surfaces, navigator } = deps;
+  const statistics = deps.statistics !== false;
+  let conversations = new Map<string, string>();
+  let navigationRun = 0;
 
   let period: SpendersPeriod = '30d';
   let filters: BoardFilters = NO_FILTERS;
@@ -152,7 +164,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   };
 
   /** «Ждут ответа» is served by the hub's queue when the statistics are on for the page. */
-  const queueMode = (): boolean => filters.main === 'waiting' && pageFlag(context.current(), 'stats') && queue.error === null && queue.state.total !== null;
+  const queueMode = (): boolean => filters.main === 'waiting' && statistics && pageFlag(context.current(), 'stats') && queue.error === null && queue.state.total !== null;
 
   // ── the visible list ──
 
@@ -209,7 +221,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     const narrowed = applied.trim().length > 0 || filtersActive(filters);
 
     const counts = current === null ? null : boardFilterCounts(current.index, FILTERS);
-    const waitingTotal = pageFlag(ctx, 'stats') ? (queue.state.total ?? statsEntry.raw?.queueSummary.total ?? null) : null;
+    const waitingTotal = (statistics && pageFlag(ctx, 'stats')) ? (queue.state.total ?? statsEntry.raw?.queueSummary.total ?? null) : null;
     const filterVMs = FILTERS.map((id) => ({
       id,
       label: msg(FILTER_LABELS[id]),
@@ -266,8 +278,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     // «Ждут ответа» is the hub's queue over the whole page (SP-047). When its read failed the rows on screen are this
     // tab's own filter over what the board has loaded — a fallback the board must name, with the read's own error
     // and «Повторить» (ER-025: a failed read is never passed off as a list), not a list that only looks like the queue.
-    const queueFailed = current !== null && blocked === null && filters.main === 'waiting' && pageFlag(ctx, 'stats') && queue.error !== null ? queue.error : null;
+    const queueFailed = current !== null && blocked === null && filters.main === 'waiting' && (statistics && pageFlag(ctx, 'stats')) && queue.error !== null ? queue.error : null;
     return {
+      statistics,
       view,
       pageName: ctx.page?.title ?? null,
       period,
@@ -289,7 +302,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         { label: msg('spenders.keys.row'), hotkey: localKey('J / K', 'J K') },
         { label: msg('preview.label'), hotkey: localKey('Space', 'Space') },
         { label: msg('common.openChat'), hotkey: localKey('O', 'O') },
-        { label: msg('stats.title'), hotkey: localKey('S', 'S') },
+        ...(statistics ? [{ label: msg('stats.title'), hotkey: localKey('S', 'S') }] : []),
         { label: msg('cheatsheet.row.search'), hotkey: localKey('/', '/') },
         { label: msg('common.close'), hotkey: localKey('Esc', 'Escape') },
       ],
@@ -363,7 +376,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   const usable = (flag: 'spenders' | 'stats'): boolean => {
     const ctx = context.current();
-    return ctx.phase === 'ready' && pageFlag(ctx, flag);
+    return ctx.phase === 'ready' && (flag !== 'stats' || statistics) && pageFlag(ctx, flag);
   };
 
   async function loadBoard(force: boolean): Promise<void> {
@@ -385,6 +398,21 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       entry.index = indexBoard(answer.payload);
       entry.error = null;
       entry.loadedAt = clock.now();
+      // Show the ranking first. Only fans the hub knows by id need the site's six-hour name cache (SP-038…040).
+      const loaded = entry.index.byFan;
+      const missing = answer.payload.items.filter(({ fan }) => loaded.has(fan.platformUserId) && ![fan.pageAlias, fan.displayName, fan.username].some((value) => (value?.trim().length ?? 0) > 0)).map(({ fan }) => fan.platformUserId);
+      const account = context.current().binding?.platformAccountId;
+      if (deps.source !== undefined && account !== undefined && missing.length > 0) {
+        void deps.source.names(account, missing).then((names) => {
+          if (disposed || epoch !== atEpoch || entry.run !== run || entry.index === null) return;
+          const byFan = new Map(names.map((name) => [name.fanRef, name]));
+          entry.index = indexBoard({ ...answer.payload, items: answer.payload.items.map((item) => {
+            const name = byFan.get(item.fan.platformUserId);
+            return name === undefined ? item : { ...item, fan: { ...item.fan, pageAlias: name.name, displayName: name.displayName, username: name.username } };
+          }) });
+          changed();
+        }).catch(() => undefined);
+      }
     } else entry.error = answer.error;
     changed();
   }
@@ -456,6 +484,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   function reset(): void {
     boards = new Map();
+    conversations = new Map();
+    navigationRun++;
     statsEntry = { raw: null, loading: false, error: null, loadedAt: null, since: null, run: statsEntry.run + 1 };
     queue = { state: EMPTY_QUEUE, loading: false, error: null, run: queue.run + 1 };
     filters = NO_FILTERS;
@@ -482,6 +512,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   });
   const offSurfaces = surfaces.subscribe((state, previous) => {
     if (state.spenders && !previous.spenders) ensure();
+    if (!state.spenders && previous.spenders) navigationRun++;
     if (!state.spenders && previous.spenders && searchTimer !== null) {
       clock.clearTimer(searchTimer);
       searchTimer = null;
@@ -500,7 +531,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
    */
   const conversationOfRow = (row: SpenderRow | undefined): { readonly conversationRef?: string } => {
     const platform = context.current().binding?.platform;
-    const ref = row?.conversationRef ?? null;
+    const ref = row?.conversationRef ?? (row === undefined ? null : conversations.get(row.fanRef) ?? null);
     return platform === undefined || CHAT_IS_FAN[platform] || ref === null ? {} : { conversationRef: ref };
   };
 
@@ -541,7 +572,27 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     };
   };
 
+  async function resolveConversation(fanRef: string, active: boolean): Promise<void> {
+    const binding = context.current().binding;
+    const source = deps.source;
+    const row = entryOf(period).index?.byFan.get(fanRef);
+    if (binding === null || CHAT_IS_FAN[binding.platform] || row === undefined || source === undefined || conversationOfRow(row).conversationRef !== undefined) return;
+    const atEpoch = epoch;
+    let ref = await source.cached(binding.platformAccountId, fanRef);
+    if (!disposed && epoch === atEpoch && ref === null && active) ref = await source.resolve(binding.platformAccountId, { fanRef, displayName: row.displayName ?? null, username: row.username });
+    if (disposed || epoch !== atEpoch || ref === null) return;
+    conversations.set(fanRef, ref);
+    changed('board');
+  }
+
   const directory: PreviewDirectory = {
+    ...(deps.source === undefined ? {} : {
+      canResolve: true,
+      prepare: async (handle: TargetHandle) => {
+        const fanRef = own(handle);
+        if (fanRef !== null) await resolveConversation(fanRef, false);
+      },
+    }),
     resolve(handle) {
       const parsed = parseFanHandle(handle);
       const id = pageId();
@@ -580,6 +631,13 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   async function openChat(type: UiAction['type'], fanRef: string): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
+    const admission = boardOpenRefusal(context.current(), ['spenders']);
+    if (admission !== null) return refused(type, errorOf(admission, i18n));
+    const atEpoch = epoch;
+    const run = ++navigationRun;
+    try { await resolveConversation(fanRef, true); }
+    catch { return refused(type, localError('CG-DATA-NOT-READY', i18n)); }
+    if (disposed || epoch !== atEpoch || run !== navigationRun) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     // R20 P8a: the fan's chat as the board knows it; where a chat has an id of its own, the fan's id opens none.
     const { conversationRef } = conversationOfRow(entryOf(period).index?.byFan.get(fanRef));
     if (conversationRef === undefined && !CHAT_IS_FAN[binding.platform]) return refused(type, localError('CG-DATA-NOT-READY', i18n));
@@ -660,6 +718,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       return loadQueue(false).then(() => done(action.type));
     }
     if (action.type === 'SetStatsExpanded') {
+      if (!statistics) return Promise.resolve(done(action.type, 'noop'));
       if (statsExpanded !== action.expanded) {
         statsExpanded = action.expanded;
         changed('stats');
@@ -718,6 +777,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         case 'preview':
           return focusedFan === null ? null : { action: { type: 'OpenPreview', targetHandle: handleOf(focusedFan) } };
         case 'toggle-stats':
+          if (!statistics) return null;
           return { action: { type: 'SetStatsExpanded', expanded: !statsExpanded } };
         case 'focus-search':
           return { focusSearch: true };

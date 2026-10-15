@@ -29,9 +29,9 @@ describe('the R20 parity matrix (docs/project-unite/parity-matrix.md)', () => {
       browser: 111,
       unit: 128,
       hub: 12,
-      shared: 444,
+      shared: 438,
       negative: 17,
-      afterPilot: 6,
+      afterPilot: 12,
     });
     // «Строк на PR: HF-6 — 1; HF-7а — 1; …» — the same per PR.
     const line = /Строк на PR: ([^]*?)\n\n/.exec(matrixText)?.[1] ?? '';

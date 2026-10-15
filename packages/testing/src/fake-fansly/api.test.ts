@@ -294,6 +294,7 @@ describe('the fake Fansly API: «Новые», notes, vault', () => {
     const again = (await call<WireGroup>(fake, 'POST', bypass('/group'), { body: body(stranger) })).response as WireGroup;
     expect(again.id).toBe(created.id);
     expect((await call(fake, 'POST', bypass('/group'), { body: { users: [{ userId: ids.creator }] } })).status).toBe(400);
+    expect((await call(fake, 'POST', bypass('/group'), { body: { users: [{ userId: fanA }, { userId: ids.creator }] } })).status).toBe(400);
     socket.socket.close();
   });
 

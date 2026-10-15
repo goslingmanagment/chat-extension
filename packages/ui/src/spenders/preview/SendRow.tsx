@@ -87,7 +87,8 @@ function waitsForEarlierPart(part: PartVM): boolean {
  */
 export function offersOpenInsert(part: PartVM): boolean {
   const send = part.send;
-  if (send === undefined || waitsForEarlierPart(part)) return false;
+  if (send === undefined) return part.openInsert !== undefined && part.openInsert.s !== 'hidden';
+  if (waitsForEarlierPart(part)) return false;
   return send.s === 'available' || send.s === 'unavailable' || (send.s === 'rejected' && !send.canRetry);
 }
 
@@ -198,7 +199,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
   const hints = useHints();
   const dispatch = useDispatch();
   const send = part.send;
-  if (send === undefined) return null;
+  if (send === undefined) return part.openInsert === undefined ? null : <div class="cg-pvs"><OpenAndInsert part={part} opId={result.opId} /><CopyIcon part={part} /></div>;
   const opId = result.opId;
   const order = part.sendOrder ?? null;
 

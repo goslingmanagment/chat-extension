@@ -98,6 +98,8 @@ export interface FakeHubConfigPatch {
  */
 export interface SpenderSeed {
   readonly fanRef: string;
+  /** Explicit null lets a test exercise the page cache/search when the hub has no group yet. */
+  readonly conversationRef?: string | null;
   readonly username?: string;
   readonly displayName?: string | null;
   readonly lifetimeUsd?: number;

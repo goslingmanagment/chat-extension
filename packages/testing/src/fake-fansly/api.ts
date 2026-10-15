@@ -164,7 +164,9 @@ const ROUTES: readonly Route[] = [
     method: 'POST',
     path: /^\/group$/,
     run: ({ world, hub, body }) => {
-      const users = (asRecord(body) as WireCreateGroupBody | null)?.users;
+      const asked = asRecord(body) as unknown as WireCreateGroupBody | null;
+      if (asked?.type !== 1 || asked.lastMessage !== null || asked.userSettings !== null || !Array.isArray(asked.recipients) || asked.recipients.length !== 0 || !Array.isArray(asked.users) || asked.users.some((user) => asRecord(user)?.['permissionFlags'] !== 0)) return bad('the page’s get-or-create body');
+      const users = asked.users;
       const ids = Array.isArray(users) ? users.map((user: { userId?: unknown }) => user.userId) : [];
       const fanId = ids.find((id): id is string => typeof id === 'string' && id !== world.creatorId);
       if (ids.length !== 2 || !ids.includes(world.creatorId) || fanId === undefined || !/^\d{1,24}$/.test(fanId)) return bad('a conversation is the creator and one more account');

@@ -24,6 +24,8 @@ export interface SpenderRow {
   readonly name: string;
   /** Without the «@»; null — unknown. */
   readonly username: string | null;
+  /** The hub display name, separate from a saved alias: the inbox searches displayName || username. */
+  readonly displayName?: string | null;
   readonly lifetime: MoneyMills | null;
   /** Spent in the board's period; for the lifetime board it is the lifetime itself. */
   readonly period: MoneyMills | null;
@@ -105,6 +107,7 @@ export function spenderRow(item: SpenderListItem, rank: number, boardPeriod: Hub
     fanRef: item.fan.platformUserId,
     conversationRef: conversation.platformConversationId,
     name,
+    displayName: item.fan.displayName?.trim() || null,
     username: username.length > 0 ? username.replace(/^@/, '') : null,
     lifetime,
     period,

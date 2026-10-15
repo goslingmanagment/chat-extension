@@ -26,6 +26,8 @@ export function SpendersWindow(): JSX.Element {
   const { root, deps } = useKit();
   const board = useView({ of: 'spenders.board' }).value;
   const stats = useView({ of: 'spenders.stats' }).value;
+  const statistics = board.statistics !== false;
+  const expanded = statistics && stats.expanded;
   const boardRef = useRef<BoardHandle>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -34,9 +36,9 @@ export function SpendersWindow(): JSX.Element {
   const close = useCallback((): void => {
     // Esc in turn: the search, the preview, the window (ui-design §6.4).
     if (board.query !== '') void dispatch({ type: 'Search', list: 'spenders', query: '' });
-    else if (board.previewOpen && !stats.expanded) void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
+    else if (board.previewOpen && !expanded) void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
     else void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
-  }, [board.query, board.previewOpen, stats.expanded, dispatch]);
+  }, [board.query, board.previewOpen, expanded, dispatch]);
 
   // The board is on screen: the end of `boardOpenMs` (the controller holds its start).
   const paintedOpen = useRef(false);
@@ -89,12 +91,12 @@ export function SpendersWindow(): JSX.Element {
   // The statistics took the place of the list (S, «Развернуть»): the row that had the focus is gone with it, and
   // the focus would fall out of the window — to the page, where no key of ours is heard, so a second S could
   // not bring the list back. It goes to «Свернуть к списку», and back to the fan's row when the list returns.
-  const statsWereExpanded = useRef(stats.expanded);
+  const statsWereExpanded = useRef(expanded);
   useLayoutEffect(() => {
-    if (stats.expanded && !statsWereExpanded.current) focusQuietly(frameRef.current?.querySelector<HTMLElement>('.cg-stx__head .cg-btn'));
-    else if (!stats.expanded && statsWereExpanded.current) boardRef.current?.focusActiveRow();
-    statsWereExpanded.current = stats.expanded;
-  }, [stats.expanded]);
+    if (expanded && !statsWereExpanded.current) focusQuietly(frameRef.current?.querySelector<HTMLElement>('.cg-stx__head .cg-btn'));
+    else if (!expanded && statsWereExpanded.current) boardRef.current?.focusActiveRow();
+    statsWereExpanded.current = expanded;
+  }, [expanded]);
 
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
     if (event.defaultPrevented || isComposing(event) || isTextEntry(event.target) || !isPlainKey(event)) return;
@@ -102,14 +104,14 @@ export function SpendersWindow(): JSX.Element {
       // `/` — the search (SP-019).
       event.preventDefault();
       searchRef.current?.focus();
-    } else if (event.code === 'KeyS' && !event.shiftKey) {
+    } else if (event.code === 'KeyS' && !event.shiftKey && statistics) {
       // S — the statistics, expanded and back (SP-049).
       event.preventDefault();
-      void dispatch({ type: 'SetStatsExpanded', expanded: !stats.expanded });
+      void dispatch({ type: 'SetStatsExpanded', expanded: !expanded });
     }
   };
 
-  const columns = stats.expanded ? 'is-stats' : board.previewOpen ? 'is-preview' : 'is-list';
+  const columns = expanded ? 'is-stats' : board.previewOpen ? 'is-preview' : 'is-list';
 
   return (
     <OverlayLayer>
@@ -132,8 +134,8 @@ export function SpendersWindow(): JSX.Element {
               onQuery={(query) => void dispatch({ type: 'Search', list: 'spenders', query })}
             />
           </WindowHeader>
-          <div class={`cg-sp__cols ${columns}`}>
-            {stats.expanded ? (
+          <div class={`cg-sp__cols ${columns}${statistics ? '' : ' no-stats'}`}>
+            {expanded ? (
               <Boundary surface={null}>
                 <StatsExpanded stats={stats} />
               </Boundary>
@@ -146,12 +148,12 @@ export function SpendersWindow(): JSX.Element {
                   </Boundary>
                 ) : null}
                 {/* A broken statistics column does not take the board down (ER-020). */}
-                <Boundary surface={null}>
+                {statistics ? <Boundary surface={null}>
                   <StatsColumn stats={stats} onShelf={(shelfId) => {
                     void dispatch({ type: 'RevealShelf', shelfId });
                     boardRef.current?.scrollToShelf(shelfId);
                   }} />
-                </Boundary>
+                </Boundary> : null}
               </>
             )}
           </div>
@@ -174,6 +176,8 @@ export function SpendersWindow(): JSX.Element {
 export const SPENDERS_CSS = `
 .cg-sp__cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; }
 .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 420px 264px; }
+.cg-sp__cols.no-stats { grid-template-columns: minmax(0, 1fr); }
+.cg-sp__cols.no-stats.is-preview { grid-template-columns: minmax(0, 1fr) 420px; }
 .cg-sp__cols.is-stats { grid-template-columns: minmax(0, 1fr); }
 .cg-sp__cols > * { min-height: 0; min-width: 0; }
 .cg-sp__cols > * + * { border-left: 1px solid var(--cg-rule); }
