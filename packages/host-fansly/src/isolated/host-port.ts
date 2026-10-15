@@ -1,3 +1,4 @@
+import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 // HostPort for Fansly (docs/project-unite/architecture.md §7.7): the isolated
 // world's face of a Fansly tab. It never touches the network or the hub token
 // and makes no request of its own to Fansly; it reads MAIN's stream (stream.ts)
@@ -166,6 +167,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const adapterVersion = options.adapterVersion ?? FANSLY_ADAPTER_VERSION;
   const diag = (diagnostic: FanslyDiagnostic): void => options.onDiagnostic?.(diagnostic);
 
+  let companion: PageDiagnostics['companion'] = null;
   let disposed = false;
   let creator: string | null = null;
   /** Grows whenever the creator changes: an identity of another creator matches nothing (§5.7). */
@@ -436,6 +438,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const onState = (state: FanslyState): void => {
     if (state.identity.legacy) options.coexistence?.stop('legacy');
     if (disposed) return;
+    companion = { ...state.identity.fbuddy };
     network = state.contract;
     const changed = changeCreator(state.identity.creatorId);
     setChat(state.chat !== null && chatFits(routeNow(), state.chat) && focused === state.chat.routeEpoch ? state.chat : null);
@@ -446,6 +449,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (disposed) return;
     switch (event.t) {
       case 'fx.identity':
+        companion = { ...event.p.fbuddy };
         if (event.p.legacy) options.coexistence?.stop('legacy');
         if (disposed) return;
         return setCreator(event.p.creatorId);
@@ -704,6 +708,17 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       anchors.refresh();
       sync();
       return report;
+    },
+    async diagnostics() {
+      const health = await this.health();
+      const counters: Record<string, number> = {};
+      const collect = (value: unknown, prefix: string): void => {
+        if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) counters[prefix] = value;
+        else if (value !== null && typeof value === 'object') for (const [key, child] of Object.entries(value)) collect(child, `${prefix}.${key}`);
+      };
+      collect(health.isolated, 'isolated');
+      collect(health.main, 'main');
+      return { observedAt: clock(), companion: health.main === null ? null : companion, mainAvailable: health.main !== null, counters };
     },
     async health() {
       const main = bridge === null || disposed ? null : await bridge.request('fx.health', {}).catch(() => null);

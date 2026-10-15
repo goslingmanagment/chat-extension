@@ -35,6 +35,8 @@ export interface PageTagVM {
 }
 
 export interface PopupVM {
+  /** Per-site pills; absent on older producers. */
+  readonly sites?: readonly { readonly host: HostKind; readonly label: string; readonly state: PopupVM['pills']['host']; readonly waitingReload: number }[];
   /** `error` — CG-RUNTIME-UNREACHABLE (a card, never an endless spinner); `forbidden` — CG-AUTH-REQUIRED → «Аккаунт». */
   readonly view: VmView;
   readonly version: string;
@@ -58,7 +60,7 @@ export interface PopupVM {
     readonly fanName: string;
     readonly fanUsername: string | null;
     readonly hostAccountLabel: string;
-    readonly copyIds: { readonly hostAccountId: string; readonly creatorId: string | null };
+    readonly copyIds: { readonly hostAccountId: string; readonly creatorId: string | null; readonly fanId?: string; readonly conversationRef?: string };
   } | null;
   /** «осталось 12 — обновится в 03:00»; monochrome, no amber (ui-design §9.2 п. 12). */
   readonly quota: { readonly remaining: number | null; readonly resetsAt: IsoTimestamp | null; readonly low: boolean } | null;
@@ -123,6 +125,8 @@ export interface StatusRowVM {
   readonly value: string | Msg;
   readonly note: string | Msg | null;
   readonly action: ActionButtonVM | null;
+  /** Local diagnostic facts, displayed under this site only. */
+  readonly details?: readonly { readonly label: string; readonly value: string }[];
 }
 
 /**
@@ -342,6 +346,7 @@ export type OptionsVM<S extends SettingsSection = SettingsSection> = S extends S
 export interface DebugPromptVM {
   /** `error` — «истёк»; `empty` — «эхо выключено»; `partial` — a block was cut; `forbidden` — debug is off. */
   readonly view: VmView;
+  readonly generation?: { readonly text: string };
   readonly source: 'echo' | 'cache' | null;
   readonly createdAt: number | null;
   readonly expiresAt: number | null;

@@ -51,7 +51,12 @@ function Pills({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const [hubKey, hubMark] = hub[vm.pills.hub];
   return (
     <div class="pg-pills">
-      <Pill label={i18n.t('popup.pill.chatspace', { state: i18n.t(hostKey) })} mark={hostMark} />
+      {vm.sites === undefined ? <Pill label={i18n.t('popup.pill.chatspace', { state: i18n.t(hostKey) })} mark={hostMark} /> : vm.sites.map((site) => (
+        <span key={site.host} data-pg-site={site.host} class={vm.sites!.length > 1 || site.waitingReload > 0 ? 'pg-site-pill' : undefined}>
+          <Pill label={i18n.t('popup.siteLabel', { site: site.label, state: i18n.t(host[site.state][0]) })} mark={host[site.state][1]} />
+          {site.waitingReload > 0 ? <small>{i18n.t('popup.waitingReload', { n: site.waitingReload })}</small> : null}
+        </span>
+      ))}
       <Pill label={i18n.t('popup.pill.hub', { state: i18n.t(hubKey) })} mark={hubMark} />
     </div>
   );
@@ -157,10 +162,11 @@ function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
         ) : (
           <div class="pg-popup__line">
             <b>
-              {vm.chat.fanName}
+              {vm.chat.copyIds.fanId === undefined ? vm.chat.fanName : <CopyValue text={vm.chat.fanName} value={vm.chat.copyIds.fanId} tooltip={i18n.t('common.copy')} />}
               {vm.chat.fanUsername === null ? null : ` @${vm.chat.fanUsername.replace(/^@/, '')}`}
             </b>
             <span class="pg-popup__aside">
+              {vm.chat.copyIds.conversationRef === undefined ? null : <><CopyValue text={`groupId ${vm.chat.copyIds.conversationRef}`} value={vm.chat.copyIds.conversationRef} tooltip={i18n.t('common.copy')} />{' · '}</>}
               <CopyValue text={vm.chat.hostAccountLabel} value={vm.chat.copyIds.hostAccountId} tooltip={i18n.t('popup.copyAccountId')} />
               {vm.chat.copyIds.creatorId === null ? null : (
                 <>

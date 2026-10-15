@@ -54,3 +54,5 @@ export {
   type AdvancedAccountInfo,
   type DebugFeatures,
 } from './mode';
+
+export { generationDebug } from './op-debug';

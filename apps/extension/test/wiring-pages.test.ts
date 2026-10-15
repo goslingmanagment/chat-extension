@@ -319,8 +319,9 @@ describe('the debug pages', () => {
 });
 
 describe('optional-site page copy', () => {
-  it('uses the Fansly status title', async () => {
+  it('uses the Fansly status title when the site is enabled', async () => {
     const w = start(); await signInWithPersona(w);
+    expect(await w.page().request('site.access', { host: 'fansly-web', enabled: true })).toMatchObject({ ok: true });
     const { page } = open(w, 'options', '#status');
     await until(() => page.client.getSnapshot({ of: 'options', section: 'status' }).body !== null, 'status');
     const snapshot = page.client.getSnapshot({ of: 'options', section: 'status' });

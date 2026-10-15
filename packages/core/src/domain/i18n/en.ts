@@ -4,6 +4,37 @@
 import type { I18nCatalog } from '@cg/contracts/i18n/catalog';
 
 export const EN: I18nCatalog<'en'> = {
+  'status.details.accountTabs': 'Tabs: {n}',
+  'status.details.tabs': 'Listening in {n} of {m} tabs; unattributed: {unknown}',
+  'popup.siteLabel': '{site}: {state}',
+  'popup.waitingReload': '{n} tabs need a reload',
+  'status.details.access': 'Site access',
+  'status.details.accessValue': 'Enabled: {enabled} · permission: {granted} · scripts: {registered}',
+  'status.details.noData': 'no data',
+  'status.details.yes': 'yes',
+  'status.details.no': 'no',
+  'status.details.build': 'Site build',
+  'status.details.anchors': 'Contract anchors',
+  'status.details.companion': 'FBuddy',
+  'status.details.companionValue': 'Bridge: {bridge} · network hook: {network} · styles: {styles}',
+  'status.details.wordFilter': 'Word filter',
+  'status.details.session': 'Site session',
+  'status.details.sessionValue': 'Present: {present} · account: {account} · age: {age} s',
+  'status.details.headerNames': 'Header names (no values)',
+  'status.details.mode': 'Request mode',
+  'status.details.background': 'from extension',
+  'status.details.relay': 'through tab',
+  'status.details.pacer': 'Pacer / cooling',
+  'status.details.pacerPending': 'no data',
+  'status.details.health': 'MAIN / tab counters',
+  'status.details.observed': 'Observed at {time}',
+  'status.details.freshness': 'Freshness over 24 hours',
+  'status.details.freshnessScope': 'From {since} to {until}; full hour buckets. Local, {storage}. Dropped groups: {dropped}.',
+  'status.details.persisted': 'saved for the browser session',
+  'status.details.memory': 'background memory only',
+  'status.details.freshnessValue': '{feature} · {build}: marked {marked}/{n}; unknown completeness {unknown}/{n}; rejected tail {rejected}/{n}; truncated snapshot {truncated}/{n}; source ≠ live_union {other}/{n}',
+  'debugPage.generation': 'Generation snapshot, tail and coverage answers',
+
   // ── Common ──
   // Optional-site activation and status (P9a).
   'siteAccess.enable': 'Enable {site}',

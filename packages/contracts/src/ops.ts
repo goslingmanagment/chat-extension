@@ -493,7 +493,12 @@ export const STALE_REASONS = ['fan-wrote', 'archive-moved', 'unverified', 'windo
 export type StaleReason = (typeof STALE_REASONS)[number];
 
 /** Debug-only details (debug.enabled): profiler stages, usage and cost, reasoning, prompt token. */
+/** Debug only: the exact start proof (including its draft tail) and the narrowed hub answer. Never logged. */
+export const GenerationDebugSchema = z.strictObject({ proof: CoverageProofSchema, served: z.nullable(ServedContextSchema) });
+export type GenerationDebug = z.infer<typeof GenerationDebugSchema>;
+
 export const OpDebugViewSchema = z.strictObject({
+  generation: z.optional(GenerationDebugSchema),
   stages: z
     .array(z.strictObject({ name: boundedText(48), at: EpochMsSchema }))
     .check(z.maxLength(32)),

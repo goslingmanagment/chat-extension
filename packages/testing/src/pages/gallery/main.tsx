@@ -1,3 +1,4 @@
+import { FANSLY_PAGE_SITES, fanslyPageState } from '../fansly';
 // The pages gallery of the stand (architecture.md §10.2 «Приёмка UI»;
 // ui-design §11): one extension page per document, as the browser would
 // open it — popup, options, debug-prompt, debug-journal — mounted with the
@@ -47,7 +48,7 @@ const stateName = params.get('state') ?? 'working';
 
 function stateOf(name: string): BackgroundState {
   const state =
-    name === 'troubled'
+    name === 'fansly' || name === 'mixed' || name === 'chatspace' ? fanslyPageState(name) : name === 'troubled'
       ? troubledState(PAGES_NOW)
       : name === 'signed-out'
         ? signedOutState(PAGES_NOW)
@@ -58,7 +59,7 @@ function stateOf(name: string): BackgroundState {
             : workingState(PAGES_NOW);
   if (name === 'first-run') state.settings = { ...state.settings, onboarding: { ...state.settings.onboarding, checklistDismissed: false, lastSeenVersion: '0.4.2' } };
   if (name === 'read-only') state.readOnly = true;
-  if (name === 'debug') state.settings = { ...state.settings, debug: { enabled: true, renderTrace: false } };
+  if (name === 'debug' || (name === 'fansly' && page === 'debug-prompt')) state.settings = { ...state.settings, debug: { enabled: true, renderTrace: false } };
   if (name === 'no-chatspace' || name === 'stale-tabs') {
     state.diagnostics = { ...state.diagnostics, tabs: [], sound: { ...state.diagnostics.sound, listeningTabs: 0 } };
     state.accounts = state.accounts.map((entry) => ({ ...entry, openTabs: 0, routeTabs: 0 }));
@@ -84,6 +85,7 @@ const world = pagesWorld({
   platform: params.get('platform') === 'win' ? 'win' : 'mac',
   scheme: systemScheme,
   state: stateOf(stateName),
+  ...(['fansly', 'mixed', 'chatspace'].includes(stateName) ? { sites: FANSLY_PAGE_SITES } : {}),
   hash: location.hash,
   // The clock starts at the mockup's «now» and runs with the page; the timers are the browser's own.
   now: () => PAGES_NOW + Math.round(performance.now() - startedAt),

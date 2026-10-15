@@ -183,6 +183,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         void rpc
           .request('tab.presence', {
             chat: snapshot.route.chat,
+            ...(snapshot.route.conversationRef === undefined ? {} : { conversationRef: snapshot.route.conversationRef }),
             routeEpoch: snapshot.route.epoch,
             // The account the route is on, chat open or not: of the loaded accounts, the one the person works under.
             routeAccount: snapshot.route.account,

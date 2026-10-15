@@ -719,6 +719,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       health = chunk.startTabHealth({
         send: (report) => rpc.request('health.report', { report }).then((answer) => answer.ok),
         contract: () => host.current().contract,
+        diagnostics: host.diagnostics === undefined ? undefined : () => host.diagnostics!(),
         domNodes,
         now: () => Date.now(),
         perfNow: () => win.performance.now(),

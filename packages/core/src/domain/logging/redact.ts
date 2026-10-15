@@ -42,7 +42,7 @@ const SECRET_SHAPES: readonly RegExp[] = [
 
 /** «label=value» and «label: value»: the label stays, the value goes. */
 const LABELLED_SECRET =
-  /(["']?\b(?:api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|authorization|cookie|session[_-]?id|ticket)["']?\s*[:=]\s*["']?)(?!\[redacted\])([^\s"'&,;)\]}]{3,})/gi;
+  /(["']?\b(?:api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|authorization|cookie|session[_-]?id|[a-z0-9-]*client-(?:id|ts|check)|[a-z0-9-]*session-id|ticket)["']?\s*[:=]\s*["']?)(?!\[redacted\])([^\s"'&,;)\]}]{3,})/gi;
 
 /** A URL's parameters and fragment are never logged (§9.2): `https://h/p?x` → `https://h/p?[redacted]`. */
 const URL_PARAMETERS = /\b((?:https?|wss?|moz-extension):\/\/[^\s?#"'<>]*)[?#][^\s"'<>]*/gi;

@@ -1,3 +1,4 @@
+import type { NetworkSessionSnapshot } from '@cg/contracts/diagnostics';
 // Background-core observation (§3.3, §8.2). Site data is injected by the
 // composition root. No transport, API client, page code or session logging.
 import { createWriteChain, type KeyValuePort } from './storage/ports';
@@ -230,6 +231,18 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
       if (!readable || !enabled) return null;
       const value = [...templates.values()].find((entry) => entry.connected && (entry.legacyId === accountId || entry.canonicalId === accountId));
       return value?.connected === true ? { ...value, headers: { ...value.headers }, checks: { ...value.checks } } : null;
+    },
+    /** Safe page projection: explicitly assembled, never a spread of a transport template. */
+    diagnostics(tabId: number): NetworkSessionSnapshot {
+      const legacy = tabs.get(tabId);
+      const value = readable && enabled && legacy !== undefined ? templates.get(legacy) : undefined;
+      const allowed = new Set([...deps.requiredHeaders, deps.checkHeader]);
+      return {
+        present: value?.connected === true,
+        ageMs: value === undefined ? null : Math.max(0, Math.floor(deps.now() - value.observedAt)),
+        accountId: value === undefined ? null : value.canonicalId ?? value.legacyId,
+        headerNames: value === undefined ? [] : Object.keys(value.headers).filter((name) => allowed.has(name) && /^[a-z][a-z0-9-]{0,63}$/.test(name)).sort().slice(0, 16),
+      };
     },
     rateLimits(): readonly RateLimitFact[] { return readable ? limits.map((fact) => ({ ...fact })) : []; },
     idle: () => run(() => undefined),

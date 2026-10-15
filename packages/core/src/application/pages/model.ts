@@ -169,6 +169,7 @@ export function accountKeyOf(account: Pick<HostAccount, 'host' | 'hostAccountId'
 }
 
 export interface OpenChat {
+  readonly conversationRef?: string;
   readonly host: HostAccount['host'];
   readonly hostAccountId: string;
   readonly platformFanId: string;
@@ -190,7 +191,7 @@ export function parseChatKey(key: string | null): OpenChat | null {
 export function openChatOf(model: PagesModel): OpenChat | null {
   for (const tab of valueOf(model.diagnostics)?.tabs ?? []) {
     const chat = parseChatKey(tab.chatKey);
-    if (chat !== null) return chat;
+    if (chat !== null) return tab.conversationRef === undefined ? chat : { ...chat, conversationRef: tab.conversationRef };
   }
   return null;
 }

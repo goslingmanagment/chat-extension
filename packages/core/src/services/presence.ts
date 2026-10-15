@@ -26,6 +26,7 @@ import { NO_LOG, SYSTEM_CLOCK, createWriteChain, type Clock, type KeyValuePort, 
 /** A `tab.presence` request as the background got it (schema-checked by the RPC). */
 export interface TabPresenceReport {
   readonly chat: ChatRef | null;
+  readonly conversationRef?: string | undefined;
   readonly routeEpoch: number;
   readonly visible: boolean;
   readonly focused: boolean;
@@ -37,6 +38,7 @@ export interface TabPresenceReport {
 export interface TabPresence {
   readonly tabSessionId: string;
   readonly chat: ChatRef | null;
+  readonly conversationRef?: string | undefined;
   readonly chatKey: ChatKey | null;
   readonly routeEpoch: number;
   readonly visible: boolean;
@@ -186,6 +188,7 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         tabSessionId,
         chat: report.chat,
         chatKey: report.chat ? chatKeyOf(report.chat) : null,
+        ...(report.chat === null || report.conversationRef === undefined ? {} : { conversationRef: report.conversationRef }),
         routeEpoch: report.routeEpoch,
         visible: report.visible,
         focused: report.focused,

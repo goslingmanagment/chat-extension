@@ -52,6 +52,9 @@ export interface DiagnosticsFacts {
   readonly session: DiagnosticsSnapshot['session'];
   readonly hub: DiagnosticsSnapshot['hub'];
   readonly tabs: DiagnosticsSnapshot['tabs'];
+  readonly siteAccess?: DiagnosticsSnapshot['siteAccess'];
+  readonly requestModes?: DiagnosticsSnapshot['requestModes'];
+  readonly freshness?: DiagnosticsSnapshot['freshness'];
   readonly settings: SettingsV1 | null;
   /** The logger's per-code counters (LG-010). */
   readonly counters: CodeCountersSnapshot;
@@ -106,6 +109,9 @@ export function diagnosticsSnapshot(facts: DiagnosticsFacts): DiagnosticsSnapsho
     session: { ...facts.session },
     hub: facts.hub,
     tabs: facts.tabs.slice(0, 32),
+    ...(facts.siteAccess === undefined ? {} : { siteAccess: facts.siteAccess }),
+    ...(facts.requestModes === undefined ? {} : { requestModes: facts.requestModes }),
+    ...(facts.freshness === undefined ? {} : { freshness: facts.freshness }),
     counters: snapshotCounters(facts),
     logs: { records: facts.logs.records, bytes: facts.logs.bytes, dropped: facts.logs.lost },
     telemetry: { consent: facts.telemetry.consent, queued: facts.telemetry.queued, dropped: facts.telemetry.droppedTotal },

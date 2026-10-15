@@ -1,3 +1,5 @@
+import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
+import { siteLabel } from './site-details';
 // The toolbar popup (architecture.md §9.9; ui-design §4.23; PU-001…PU-022):
 // what is connected, who is signed in, which chat is open and how much AI
 // quota is left — from what the background already knows. Nothing here asks
@@ -13,10 +15,10 @@ import { formatMicroUsd } from '../../domain/debug';
 import { hotkeyOf } from './hotkeys';
 import { QUOTA_LOW, boundPageOf, boundPageTagOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
-import { hostGaps, hostReportOf, hubState, missingAnchors, siteOfReport } from './view-status';
+import { hostGaps, hostReportOf, hubState, missingAnchors, siteOfReport, statusSites } from './view-status';
 
-function hostPill(model: PagesModel): PopupVM['pills']['host'] {
-  const host = hostReportOf(model);
+function hostPill(model: PagesModel, site?: HostKind): PopupVM['pills']['host'] {
+  const host = hostReportOf(model, site);
   if (host === null) return 'unknown';
   if (host.tabs === 0) return 'closed';
   if (host.report === null) return 'unknown';
@@ -101,6 +103,7 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
     view,
     version: model.env.version,
     pills: { host, hub },
+    sites: statusSites(model).map((site) => ({ host: site.kind, label: siteLabel(model, site.kind), state: hostPill(model, site.kind), waitingReload: valueOf(model.diagnostics)?.siteAccess?.find((entry) => entry.host === site.kind)?.waitingReload ?? (site.kind === model.env.sites[0]?.kind ? staleTabsOf(model) : 0) })),
     problems,
     persona:
       bound === null || pageName === null || persona === null
@@ -116,8 +119,8 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
             // Pages are told no fan names (§5.4): the id is what the popup knows (PU-008 «имя фана или id»).
             fanName: model.t.text('popup.fanId', { id: chat.platformFanId }),
             fanUsername: null,
-            hostAccountLabel: model.t.text('popup.dialogAccount', { id: chat.hostAccountId }),
-            copyIds: { hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },
+            hostAccountLabel: model.t.text('popup.dialogAccount', { ...model.env.platformPhrases(HOST_PLATFORM[chat.host])?.[model.locale], id: chat.hostAccountId }),
+            copyIds: { ...(chat.conversationRef === undefined ? {} : { conversationRef: chat.conversationRef, fanId: chat.platformFanId }), hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },
           },
     quota: bound === null ? null : { remaining: quota?.remainingRequestsToday ?? null, resetsAt: quota?.resetsAt ?? null, low: quota !== null && quota.remainingRequestsToday !== null && quota.remainingRequestsToday <= QUOTA_LOW },
     // Money of AI only in debug (Б4, PU-016); the hub's own number for this person and page.

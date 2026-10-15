@@ -6,7 +6,7 @@
 // characters, cut with a mark), the prompt only into the snapshot store.
 
 import { type HubFrame } from '@cg/contracts/hub';
-import { type OpDebugView } from '@cg/contracts/ops';
+import { type CoverageProof, type ServedContext, type GenerationDebug, type OpDebugView } from '@cg/contracts/ops';
 
 import { CLIENT_STAGES, StageMarks, hubStagesFromManifest, type ClientStage, type HubStage } from './profiler';
 import { TRUNCATED_MARK } from './prompt';
@@ -129,4 +129,9 @@ export class OpDebugBuilder {
       hubStages: this.hubStages,
     };
   }
+}
+
+/** One generation's exact proof and the hub's answers. Debug only, never a log or a diagnostics export. */
+export function generationDebug(proof: CoverageProof | undefined, served: ServedContext | null | undefined): GenerationDebug | undefined {
+  return proof === undefined ? undefined : { proof, served: served ?? null };
 }

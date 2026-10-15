@@ -1,3 +1,4 @@
+import { generationDebug } from '../domain/debug/op-debug';
 // The operation scheduler of the background (architecture.md §7, §5.5,
 // §8.4): the single writer that admits, runs, cancels and remembers AI
 // operations. A start spends its one-time `generate` token, passes the
@@ -98,12 +99,16 @@ export interface OpDriver {
 }
 
 export interface OpSchedulerHooks {
+  /** Once per operation that reached the hub, before its start proof leaves memory. Local numbers only downstream. */
+  settled?(view: OpView, start: StartOp, ownerTab: string | null): void;
   /** The resolver asked for a catalog refresh (persona changed). */
   refreshCatalog?(): void;
   /** The resolver asked for a bootstrap refresh (flags, version). */
   refreshBootstrap?(): void;
   /** A full recap finished (H-5 dossier save, §7 «Recap: общий и досье»); `ownerTab` null — its tab closed. */
   recapDone?(view: OpView, ownerTab: string | null): void;
+  /** The echo ticket can exist even when the hub returned no prompt blocks. */
+  promptToken?(opId: string): string | null;
   /** debug_input_v1 arrived: the debug store keeps it and answers an opaque token (DB-004). */
   debugInput?(opId: string, frame: Extract<HubFrame, { type: 'debug_input_v1' }>): string | null;
   /** A `usage` frame arrived (numbers only): the local spend journal of debug mode counts it (DB-022). */
@@ -1117,6 +1122,7 @@ export class OpScheduler {
     this.stage(run, 'settled', now);
     const debug = this.deps.environment().debug ? this.debugView(run) : undefined;
     if (debug !== undefined) run.view = { ...run.view, debug };
+    if (run.start !== null && run.attempt > 0) this.deps.hooks?.settled?.(run.view, run.start, run.ownerTab);
     // Texts the request carried (draft, fresh tail, Coach question) leave memory with the run.
     const then = run.then;
     run.start = null;
@@ -1183,17 +1189,34 @@ export class OpScheduler {
     this.deps.events.emit(owner, 'toast', { toast });
   }
 
+  /** The prompt page can read the proof while the result and its echo are alive. No disk copy of its tail. */
+  generationDebug(token: string): OpDebugView['generation'] {
+    if (!this.deps.environment().debug) return undefined;
+    for (const run of this.runs.values()) if (!resultExpired(run.view, this.deps.clock.now()) && run.view.debug?.promptToken === token) return run.view.debug.generation;
+    return undefined;
+  }
+
+  clearDebug(): void {
+    for (const run of this.runs.values()) {
+      const { debug: _debug, ...view } = run.view;
+      run.view = view;
+    }
+    void this.persist().catch(() => undefined);
+  }
+
   private debugView(run: Run): OpDebugView {
     const usage = run.stream.usage;
     const frame = run.context;
+    const generation = generationDebug(run.start?.proof, run.view.servedContext);
     return {
+      ...(generation === undefined ? {} : { generation }),
       stages: run.stages.slice(0, DEBUG_STAGES_MAX).map((stage) => ({ name: stage.name.slice(0, 48), at: stage.at })),
       usage:
         usage === null
           ? null
           : { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, cacheReadTokens: usage.cacheReadTokens, cacheWriteTokens: usage.cacheWriteTokens, costMicroUsd: usage.costMicroUsd },
       reasoning: run.stream.reasoning.length > 0 ? run.stream.reasoning : null,
-      promptToken: run.promptToken,
+      promptToken: run.promptToken ?? this.deps.hooks?.promptToken?.(run.view.opId) ?? null,
       context:
         frame === null
           ? null
@@ -1228,7 +1251,7 @@ export class OpScheduler {
     const value = {
       v: 1,
       ops: items.map((run) => ({
-        view: run.ended ? run.view : withoutText(run.view),
+        view: withoutGenerationTail(run.ended ? run.view : withoutText(run.view)),
         meta: { startedBy: run.startedBy, requestKey: run.requestKey, tag: run.tag, fanLabel: run.fanLabel, knownIds: run.knownIds, checkpoint: run.checkpoint, split: run.split } satisfies PersistedMeta,
       })),
     };
@@ -1312,4 +1335,10 @@ function readMeta(raw: unknown): PersistedMeta | null {
     typeof tag['personaKey'] === 'string' &&
     typeof tag['personaDefinitionId'] === 'string';
   return ok ? (raw as PersistedMeta) : null;
+}
+
+function withoutGenerationTail(view: OpView): OpView {
+  if (view.debug?.generation === undefined) return view;
+  const { generation: _generation, ...debug } = view.debug;
+  return { ...view, debug };
 }

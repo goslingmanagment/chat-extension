@@ -52,14 +52,14 @@ interface Harness {
   readonly tokens: ActionTokens;
   readonly scheduler: OpScheduler;
   readonly presence: Map<string, ShownTab>;
-  readonly hooks: { catalog: number; bootstrap: number; recaps: OpView[]; prompts: string[]; usages: { feature: string; costMicroUsd: number }[] };
+  readonly hooks: { settled: number; catalog: number; bootstrap: number; recaps: OpView[]; prompts: string[]; usages: { feature: string; costMicroUsd: number }[] };
   env: OpsEnvironment;
   start(tab: string, start: StartOp, opts?: { fanLabel?: string }): ReturnType<OpScheduler['start']>;
   /** The opId the next admission gets. */
   nextOp(): string;
 }
 
-function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clock?: FakeClock; firstId?: number; online?: () => boolean; drivers?: OpSchedulerDeps['drivers'] } = {}): Harness {
+function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clock?: FakeClock; firstId?: number; online?: () => boolean; drivers?: OpSchedulerDeps['drivers']; promptToken?: (opId: string) => string | null } = {}): Harness {
   const clock = over.clock ?? new FakeClock(NOW_MS);
   const hub = new FakeHub(clock);
   const ids = sequentialIds(over.firstId ?? 0x100);
@@ -68,8 +68,10 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
   const log = new LogRecorder();
   const tokens = new ActionTokens(clock, ids);
   const presence = new Map<string, ShownTab>();
-  const counters = { catalog: 0, bootstrap: 0, recaps: [] as OpView[], prompts: [] as string[], usages: [] as { feature: string; costMicroUsd: number }[] };
+  const counters = { settled: 0, catalog: 0, bootstrap: 0, recaps: [] as OpView[], prompts: [] as string[], usages: [] as { feature: string; costMicroUsd: number }[] };
   const hooks: OpSchedulerHooks = {
+    ...(over.promptToken === undefined ? {} : { promptToken: over.promptToken }),
+    settled: () => { counters.settled++; },
     refreshCatalog: () => {
       counters.catalog += 1;
     },
@@ -1089,4 +1091,33 @@ describe('R20 F6a, Fansly: the background toast names the operation\'s own conve
     expect(TAB_EVENTS.toast.payload.safeParse(toasts[0]?.payload).success).toBe(true);
     expect(h.hub.streams.map((request) => request.body)).toMatchObject([{ platform: 'fansly', conversationRef: FANSLY.group, fanRef: FANSLY.fan }]);
   });
+});
+
+
+it('[DB-010] [FS-TAIL-9] a completed generation exposes its exact proof only in memory; one terminal hook, then debug revoke clears it', async () => {
+  const h = harness({ env: { debug: true, bootstrap: withFanslyPage(BOOTSTRAP_PILOT_PAGES), features: featuresOfBoth } });
+  const op = h.nextOp();
+  h.hub.streamScript.push(...forOp(scenario('debug-input-and-reasoning'), op));
+  const proof: NonNullable<StartOp['proof']> = { kind: 'tab-snapshot', conversationRef: FANSLY.group, takenAt: new Date(NOW_MS).toISOString(), completeness: 'complete', window: [{ id: '10001', dir: 'fan' }], knownFanMessageIds: ['10001'], deletedIds: [], tail: [{ platformMessageId: '10001', direction: 'fan', sentAt: new Date(NOW_MS).toISOString(), text: 'unique-synthetic-tail-debug-only' }], truncated: false };
+  opIdOf(await h.start(TAB, startOf({ target: fanslyTarget, proof })));
+  await h.clock.advance(1000); await h.scheduler.idle();
+  const token = `prompt_${op.slice(-4)}`;
+  expect(h.hooks.settled).toBe(1);
+  expect(h.scheduler.generationDebug(token)?.proof).toEqual(proof);
+  expect(JSON.stringify(h.store.data.get(OPS_STORE_KEY))).not.toContain('unique-synthetic-tail-debug-only');
+  expect(JSON.stringify(h.log.entries)).not.toContain('unique-synthetic-tail-debug-only');
+  h.env = { ...h.env, debug: false }; h.scheduler.clearDebug(); await h.scheduler.idle();
+  expect(h.scheduler.generationDebug(token)).toBeUndefined();
+  expect(h.scheduler.view(op)?.debug).toBeUndefined();
+});
+
+it('[DB-010] an echo-off ticket still opens the local generation proof', async () => {
+  const h = harness({ promptToken: () => 'echo-off-ticket', env: { debug: true, bootstrap: withFanslyPage(BOOTSTRAP_PILOT_PAGES), features: featuresOfBoth } });
+  const op = h.nextOp();
+  h.hub.streamScript.push(...forOp(scenario('reply-normal'), op));
+  const proof: NonNullable<StartOp['proof']> = { kind: 'tab-snapshot', conversationRef: FANSLY.group, takenAt: new Date(NOW_MS).toISOString(), completeness: 'unknown', window: [], knownFanMessageIds: [], deletedIds: [], truncated: false };
+  opIdOf(await h.start(TAB, startOf({ target: fanslyTarget, proof })));
+  await h.clock.advance(1000); await h.scheduler.idle();
+  expect(h.scheduler.view(op)?.debug?.promptToken).toBe('echo-off-ticket');
+  expect(h.scheduler.generationDebug('echo-off-ticket')?.proof).toEqual(proof);
 });

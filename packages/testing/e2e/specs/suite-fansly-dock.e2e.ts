@@ -1,3 +1,5 @@
+import type { DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
+import { testBuildPage } from '../support/fake-hub';
 // Our dock on Fansly's stand (R20 P7d; docs/project-unite/architecture.md
 // §7.3, §7.8, §7.12; FS-PLC-1…7, FS-DOCK-2, FS-DOCK-3, FS-CTR-2; plan.md §3
 // `suite-fansly-dock`): where the dock and our overlays live on a Fansly
@@ -24,7 +26,7 @@ import { mkdirSync } from 'node:fs';
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
 import type { ListView } from '../../fixture-fansly/src/protocol';
 import { MOD } from '../support/chat';
-import { installTestBuild, readReport, waitForReport, type DockReport, type SpikeReport } from '../support/extension';
+import { installTestBuild, pageRpc, readReport, waitForReport, type DockReport, type SpikeReport } from '../support/extension';
 import { openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
 import { switchFanslyOnForTheStand } from '../support/fansly-site';
 import { FANSLY_MAIN, callFansly, fakeFansly, fanslyIds, fanslyStandServer, openFanslyStand, waitForFanslyStandIdle } from '../support/fansly-stand';
@@ -357,6 +359,32 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
       await callFansly('setTheme', 'bright');
     });
   }
+
+  it('[FS-SET-2] P14b2: MAIN observations reach diagnostics.get through the installed tab and background', async () => {
+    const [first] = ids.groups as [string];
+    await openWithNeighbor(`/messages/${first}`, { mode: 'after' });
+    await dockShown('the dock before reading page diagnostics');
+    const tab = await browser.getWindowHandle();
+    await browser.newWindow(testBuildPage());
+    try {
+      let snapshot: DiagnosticsSnapshot | null = null;
+      await browser.waitUntil(async () => {
+        const answer = await pageRpc<DiagnosticsSnapshot>('diagnostics.get');
+        if (answer.ok) snapshot = answer.payload;
+        return answer.ok && answer.payload.tabs.some((entry) => entry.site === 'fansly-web' && entry.page?.mainAvailable === true && entry.conversationRef === first);
+      }, { timeout: 15_000, timeoutMsg: 'Fansly observations did not reach the background diagnostics' });
+      const row = (snapshot as DiagnosticsSnapshot | null)?.tabs.find((entry) => entry.site === 'fansly-web');
+      expect(row?.page?.counters['main.frames.seen']).toBeGreaterThanOrEqual(0);
+      expect(typeof row?.page?.companion?.wordFilter).toBe('boolean');
+      expect(row?.networkSession).toHaveProperty('headerNames');
+      expect(row?.networkSession).not.toHaveProperty('headers');
+      expect(row?.networkSession).not.toHaveProperty('cookie');
+      expect((snapshot as DiagnosticsSnapshot | null)?.siteAccess?.[0]).toMatchObject({ host: 'fansly-web', enabled: true });
+    } finally {
+      await browser.closeWindow();
+      await browser.switchToWindow(tab);
+    }
+  });
 
   it('[FS-PLC-2] a chat switch moves the same host into the new container; a field made anew, a contact block made anew — the host stays one, in its place', async () => {
     const [first, second] = ids.groups as [string, string];

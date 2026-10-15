@@ -28,6 +28,7 @@ export const LOG_REDACTED_FIELDS = ['authorization', 'bearer', 'token', 'passwor
 
 export function isRedactedLogField(key: string): boolean {
   const name = key.toLowerCase().replace(/[-_]/g, '');
+  if (/(?:^|-)(?:client-(?:id|ts|check)|session-id)$/.test(key.toLowerCase())) return true;
   return LOG_REDACTED_FIELDS.some((field) => name === field || name.endsWith(field));
 }
 

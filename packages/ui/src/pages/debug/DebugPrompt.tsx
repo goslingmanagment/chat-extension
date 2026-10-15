@@ -70,7 +70,7 @@ export function DebugPrompt({ token }: { readonly token: string }): JSX.Element 
   const vm = useView({ of: 'debug-prompt', token }).value;
   const i18n = useI18n();
   const act = useAct();
-  const has = vm.view.s === 'ready' || vm.view.s === 'partial';
+  const has = vm.view.s === 'ready' || vm.view.s === 'partial' || vm.generation !== undefined;
   return (
     <main class="pg-debug" aria-label={i18n.t('debugPage.prompt.title')}>
       <h1 class="pg-h1">{i18n.t('debugPage.prompt.title')}</h1>
@@ -97,6 +97,7 @@ export function DebugPrompt({ token }: { readonly token: string }): JSX.Element 
               </div>
             ))}
           </section>
+          {vm.generation === undefined ? null : <section class="pg-block" data-pg-generation><div class="pg-block__head"><span>{i18n.t('debugPage.generation')}</span></div><pre class="pg-pre">{vm.generation.text}</pre></section>}
           {vm.manifest === null ? null : (
             <div class="pg-block">
               <div class="pg-block__head">

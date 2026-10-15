@@ -8,6 +8,37 @@
 import type { I18nCatalog } from '@cg/contracts/i18n/catalog';
 
 export const RU: I18nCatalog<'ru'> = {
+  'status.details.accountTabs': 'Вкладок: {n}',
+  'status.details.tabs': 'Слушаем {n} из {m} вкладок; без атрибуции: {unknown}',
+  'popup.siteLabel': '{site}: {state}',
+  'popup.waitingReload': '{n} вкладок ждут перезагрузки',
+  'status.details.access': 'Доступ к сайту',
+  'status.details.accessValue': 'Включён: {enabled} · права: {granted} · скрипты: {registered}',
+  'status.details.noData': 'нет данных',
+  'status.details.yes': 'да',
+  'status.details.no': 'нет',
+  'status.details.build': 'Сборка сайта',
+  'status.details.anchors': 'Контракт по якорям',
+  'status.details.companion': 'FBuddy',
+  'status.details.companionValue': 'Мост: {bridge} · перехват сети: {network} · стили: {styles}',
+  'status.details.wordFilter': 'Фильтр слов',
+  'status.details.session': 'Сессия сайта',
+  'status.details.sessionValue': 'Есть: {present} · аккаунт: {account} · возраст: {age} с',
+  'status.details.headerNames': 'Имена заголовков (без значений)',
+  'status.details.mode': 'Режим запросов',
+  'status.details.background': 'из расширения',
+  'status.details.relay': 'через вкладку',
+  'status.details.pacer': 'Пейсер / охлаждение',
+  'status.details.pacerPending': 'нет данных',
+  'status.details.health': 'Счётчики MAIN / вкладки',
+  'status.details.observed': 'Замеры в {time}',
+  'status.details.freshness': 'Свежесть за сутки',
+  'status.details.freshnessScope': 'С {since} до {until}; полные часовые корзины. Локально, {storage}. Отброшено групп: {dropped}.',
+  'status.details.persisted': 'сохранено на время сессии браузера',
+  'status.details.memory': 'только в памяти фона',
+  'status.details.freshnessValue': '{feature} · {build}: с пометкой {marked}/{n}; полнота unknown {unknown}/{n}; хвост отвергнут {rejected}/{n}; снимок усечён {truncated}/{n}; source ≠ live_union {other}/{n}',
+  'debugPage.generation': 'Снимок генерации, хвост и ответы покрытия',
+
   // ── Common ──
   // Optional-site activation and status (P9a).
   'siteAccess.enable': 'Включить {site}',

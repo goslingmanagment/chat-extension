@@ -89,6 +89,38 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
     await browser.browsingContextSetViewport({ context, viewport: null, devicePixelRatio: null });
   });
 
+  for (const profile of ['chatspace', 'fansly', 'mixed'] as const) {
+    it(`[host:fansly] [host:chatspace] [PU-005] P14b2 popup: ${profile}`, async () => {
+      await open(`page=popup&state=${profile}&theme=light`, POPUP);
+      const sites = await count('[data-pg-site]');
+      expect(sites).toBe(profile === 'mixed' ? 2 : 1);
+      if (profile !== 'chatspace') expect(await text('[data-pg-site="fansly-web"]')).toContain('2 вкладок ждут перезагрузки');
+      await capture(`p14b2-popup-${profile}`);
+      expectHealthy(await probe(), 'light');
+    });
+    it(`[host:fansly] [host:chatspace] [ST-025] [ST-032] P14b2 status: ${profile}`, async () => {
+      await open(`page=options&state=${profile}&theme=light`, DESKTOP, 1, '#status');
+      expect(await count('[data-pg-anchor="host"]')).toBe(profile === 'mixed' ? 2 : 1);
+      if (profile !== 'chatspace') {
+        await browser.execute(() => { for (const detail of document.querySelectorAll<HTMLDetailsElement>('[data-pg-site-details]')) detail.open = true; });
+        const facts = await text('[data-pg-site-details="fansly-web"]');
+        for (const expected of ['FBuddy', 'Фильтр слов', 'main.2e6b96097a4bb73b', 'Пейсер / охлаждение', '3/20']) expect(facts).toContain(expected);
+      }
+      await capture(`p14b2-status-${profile}`);
+      expectHealthy(await probe(), 'light');
+    });
+  }
+
+  it('[host:fansly] [DB-009] [DB-010] generation proof, tail and per-id coverage are rendered on the debug page', async () => {
+    await open('page=debug-prompt&state=fansly&theme=light', DESKTOP);
+    const generation = await text('[data-pg-generation]');
+    for (const expected of ['synthetic tail for visual check', 'coverageCheck', 'included', '90001']) expect(generation).toContain(expected);
+    const gap = await browser.execute(() => { const block = document.querySelector('[data-pg-generation]')!; return block.nextElementSibling!.getBoundingClientRect().top - block.getBoundingClientRect().bottom; });
+    expect(gap).toBeGreaterThanOrEqual(16);
+    await capture('p14b2-debug-generation');
+    expectHealthy(await probe(), 'light');
+  });
+
   for (const theme of THEMES) {
     it(`[PU-005] popup, a working shift (final-20a) · ${theme}`, async () => {
       await open(`page=popup&state=working&theme=${theme}`, POPUP);

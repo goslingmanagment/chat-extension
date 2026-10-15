@@ -453,7 +453,7 @@ describe('the host contract in the tab’s log', () => {
     expect(facts(short)).toMatchObject({ ok: false, missing: ['mimic'] });
   });
 
-  it('[R20 F7] two test adapters, two sites: each report is read by its own site\'s set, the second one in its own block', () => {
+  it('[host:fansly] [host:chatspace] [LG-016] [R20 F7] two test adapters, two sites: each report is read by its own site\'s set, the second one in its own block', () => {
     // A second site's adapter: its anchors are its own, its switched part its own.
     const second: HostContractShape = { anchors: ['conversationRoute', 'textarea', 'socket', 'vaultUpload'], switchedAnchors: ['vaultUpload'], switchedCapabilities: [] };
     const site = {
