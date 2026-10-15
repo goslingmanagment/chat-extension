@@ -15,7 +15,11 @@ import { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';
 import { composeTab, type HostAdapter } from '../composition/tab';
 import { FANSLY_LAZY_ROOT } from '../hosts/runtime/fansly';
 
-/** The early half of the Fansly adapter; its application's half comes with Fansly's `tab-app` (P7c). */
+/**
+ * The early half of the Fansly adapter (R20 P7c: its start brings up Fansly's HostPort — the route by signals, the
+ * anchors, the identity, the freshness port). Its application's half comes with Fansly's `tab-app`, together with the
+ * first surface of ours on a Fansly page (the dock, P7d): until the dock has a place, the application never starts.
+ */
 export const FANSLY_ADAPTER: HostAdapter<FanslyHostPort> = {
   kind: 'fansly-web',
   start: (env) =>

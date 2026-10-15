@@ -5,10 +5,11 @@
 // a WebDriver BiDi preload script, which runs before any script of the page,
 // as a document_start content script does; or, for the late-install case,
 // evaluated in the page once it is up. The consumer
-// (e2e/harness/fansly-tap-harness.ts) is Fansly's own isolated starter in a
-// BiDi sandbox realm, connected to that MAIN: until the isolated world
-// consumes MAIN's stream (P7c), this is the one that does — and a blocked one
-// when the spec says so. No extension is installed.
+// (e2e/harness/fansly-tap-harness.ts) runs in a BiDi sandbox realm, connected
+// to that MAIN: `raw` — the shared client over Fansly's schemas, a consumer
+// of MAIN's stream the spec drives (a blocked one when it says so; P7a);
+// `port` — Fansly's own isolated start with its HostPort, as the extension
+// starts it (P7c). No extension is installed.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -51,11 +52,12 @@ export interface FanslyTapHarness {
  * Every document loaded from now on gets the consumer — and, unless `main: 'late'`, Fansly's MAIN at its first
  * moment. With `late` the spec injects MAIN itself (`injectFanslyMain`) when the page is up.
  */
-export async function installFanslyTapHarness(options: { readonly main: 'start' | 'late' } = { main: 'start' }): Promise<FanslyTapHarness> {
+export async function installFanslyTapHarness(options: { readonly main: 'start' | 'late'; readonly consumer?: 'raw' | 'port' } = { main: 'start' }): Promise<FanslyTapHarness> {
   const wrap = (code: string): string => `() => {\n${code}\n}`;
   const scripts: Array<{ readonly script: string }> = [];
   if (options.main === 'start') scripts.push(await browser.scriptAddPreloadScript({ functionDeclaration: wrap(fanslyMainScript()) }));
-  scripts.push(await browser.scriptAddPreloadScript({ functionDeclaration: wrap(await consumerBundle()), sandbox: FANSLY_TAP_SANDBOX }));
+  const choice = `globalThis.__cgFanslyTapConsumer = ${JSON.stringify(options.consumer ?? 'raw')};\n`;
+  scripts.push(await browser.scriptAddPreloadScript({ functionDeclaration: wrap(choice + (await consumerBundle())), sandbox: FANSLY_TAP_SANDBOX }));
   return {
     remove: async () => {
       for (const script of scripts) await browser.scriptRemovePreloadScript({ script: script.script });

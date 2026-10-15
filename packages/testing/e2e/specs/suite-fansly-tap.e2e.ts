@@ -16,11 +16,23 @@
 //   limit, exactly one `fx.gap`, no `sent`; `fx.state` resumes the stream.
 // - The parse of a frame within its budget (≤ 0.1 ms on average), measured by
 //   MAIN itself (`frameParseMs`).
+// - (P7c) Fansly's own isolated start over that MAIN, as the extension starts
+//   it: the route by the page's signals (no timer, no hook on history) through
+//   Fansly's real lifecycle — a chat switch, the gallery, back —, the anchors'
+//   observers silent while the fan types and writes, the creator of the
+//   page's /account/me as the tab's one account, the stream acknowledged to
+//   the last batch; each chat's fan as MAIN names it for the route's own epoch
+//   and the target's snapshot once MAIN observes chats (P7b), the chat
+//   honestly unknown while it cannot (its own word, `fx.focus`).
 // No extension is installed: the background, the dock and the observation
-// come with later PRs (P7b, P7c); the real build's start and its budget on the
+// come with later PRs (P7b, P7d); the real build's start and its budget on the
 // stand are suite-fansly-site's.
 
 import type { FanslyHealth, FanslyState } from '@cg/contracts/bridge-messages-fansly';
+import type { FanslyHeaderSlot } from '@cg/contracts/fansly';
+import type { FanslyContractReport } from '@cg/contracts/fansly-host';
+import type { HostAccount, HostIdentity } from '@cg/contracts/ids';
+import type { RouteState } from '@cg/contracts/host';
 import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
@@ -364,4 +376,124 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
     await harness.remove();
     harness = await installFanslyTapHarness({ main: 'start' });
   });
+});
+
+/** What Fansly's port says on the stand (the harness's `port`): no text, no fan's name. */
+interface PortView {
+  readonly route: RouteState;
+  readonly identity: HostIdentity | null;
+  readonly accounts: readonly HostAccount[];
+  readonly composer: { readonly instanceId: string; readonly ready: boolean; readonly hidden: boolean } | null;
+  readonly slot: FanslyHeaderSlot;
+  readonly anchors: { readonly conversation: boolean; readonly container: boolean; readonly textarea: boolean; readonly gallery: boolean };
+}
+interface PortHealth {
+  readonly isolated: {
+    readonly route: { readonly changes: number; readonly unsignalled: number; readonly restorations: number };
+    readonly anchors: { readonly searches: number; readonly searching: boolean; readonly exhausted: boolean; readonly workCallbacks: number };
+    readonly stream: { readonly batches: number; readonly acked: number; readonly gaps: number; readonly refused: number; readonly skipped: number; readonly states: number } | null;
+    readonly staleChats: number;
+  };
+  readonly main: FanslyHealth | null;
+}
+
+const portView = (): Promise<PortView> => tap<PortView>('port');
+const portHealth = (): Promise<PortHealth> => tap<PortHealth>('portHealth');
+const routeIs = (group: string, what: string): Promise<PortView> => waitForTap(portView, (view) => view.route.conversationRef === group && view.anchors.textarea, what);
+
+describe('Fansly’s isolated world over P7a’s MAIN on its stand: the route by signals, the anchors, the identity (R20 P7c)', () => {
+  useNetworkTrap();
+  let harness: FanslyTapHarness | null = null;
+
+  before(async () => {
+    await setFanslyNeighbor(null);
+    await fakeFansly().command({ op: 'reset' });
+    await browser.setWindowSize(1440, 900);
+    harness = await installFanslyTapHarness({ main: 'start', consumer: 'port' });
+  });
+
+  after(async () => {
+    await harness?.remove();
+    expect(await fakeFansly().calls('ours', 0)).toEqual([]);
+    await setFanslyNeighbor(null);
+    await browser.url('about:blank');
+    await fakeFansly().command({ op: 'reset' });
+  });
+
+  for (const mode of ['off', 'after'] as const) {
+    it(`[FS-RTE-2] [FS-RTE-3] [FS-RTE-4] [FS-PLC-4] next to the neighbour (${mode}): every change of chat seen by a signal — the switch, the gallery as none, back —, each chat’s fan from MAIN for its own epoch, the observers silent while the fan writes, the creator the one account, the stream acknowledged`, async () => {
+      await openWithNeighbor('/messages', { mode });
+      const ids = await fanslyIds();
+      const [first, second] = ids.groups as [string, string];
+      await waitForFanslyTap();
+      await waitForFanslyStandIdle();
+      // The initial binding: the creator of the page's own /account/me, the one account; its platform id is the key.
+      const start = await waitForTap(portView, (view) => view.accounts.length === 1, 'the creator from the page’s /account/me');
+      expect(start.accounts).toEqual([{ host: 'fansly-web', hostAccountId: ids.creator, platform: 'fansly', platformAccountId: ids.creator, username: null, displayName: null }]);
+      expect(start.identity).toMatchObject({ host: 'fansly-web', hostAccountId: ids.creator, platformAccountId: ids.creator, chat: null, routeEpoch: 1 });
+      expect(start.route).toMatchObject({ epoch: 1, name: 'other', chat: null });
+
+      // Fansly's router: the address, then the conversation's nodes in the same task — the observers see it.
+      await callFansly('open', first);
+      expect((await routeIs(first, 'the first chat')).route).toMatchObject({ epoch: 2, name: 'chat', conversationRef: first });
+      // Whether MAIN observes chats is its own word, its answer to the focus: P7a's says `not-ready` — the chat stays
+      // honestly unknown —; from P7b on it names the group's fan from the page's own answers.
+      const report = await waitForTap(() => tap<FanslyContractReport>('report'), (r) => r.capabilities.chatWindow.reason !== 'focus', 'MAIN’s answer to the focus');
+      const observing = report.capabilities.chatWindow.state === 'on';
+      expect(report.capabilities.identity).toEqual({ state: 'on' });
+      expect(report.extensions['fansly-web'].capabilities.freshness).toEqual(observing ? { state: 'on' } : { state: 'off', reason: 'observation', code: 'CG-HOST-NOT-READY' });
+      expect(report.extensions['fansly-web'].anchors).toMatchObject({ conversationRoute: 'ok', container: 'ok', composer: 'ok', textarea: 'ok', sendButton: 'ok', fileInput: 'ok', headerContact: 'ok', headerSubRow: 'ok', accountMe: 'ok', xhr: 'ok' });
+      const chatOf = (group: string) => (observing ? { host: 'fansly-web', hostAccountId: ids.creator, platformFanId: ids.fans[group] as string } : null);
+      /** The route of `group` with its field, and its fan once MAIN can name it. */
+      const at = (group: string, what: string): Promise<PortView> => waitForTap(portView, (view) => view.route.conversationRef === group && view.anchors.textarea && (!observing || view.route.chat !== null), what);
+      const atFirst = await at(first, 'the first chat');
+      expect(atFirst.route).toMatchObject({ epoch: 2, chat: chatOf(first) });
+      if (observing) {
+        expect(atFirst.route.conversationKind).toBe('direct');
+        expect(atFirst.composer).toMatchObject({ ready: true, hidden: false });
+        expect(atFirst.slot).toEqual({ state: 'ready', groupId: first, fanId: ids.fans[first] });
+        expect(atFirst.identity).toMatchObject({ chat: chatOf(first), routeEpoch: 2, composerInstanceId: atFirst.composer?.instanceId });
+        // The target's generation snapshot through the port: its own group and fan; texts for Reply, none for Recap.
+        await waitForFanslyStandIdle();
+        const reply = await tap<{ group: string; fan: string; window: number; tail: number | null } | null>('portSnapshot', 'reply', true);
+        expect(reply).toMatchObject({ group: first, fan: ids.fans[first] });
+        expect(reply?.tail).not.toBeNull();
+        expect(await tap('portSnapshot', 'recap', true)).toMatchObject({ group: first, fan: ids.fans[first], tail: null });
+      } else {
+        // No fan named: no composer, no header slot, no snapshot — and the report says why.
+        expect([atFirst.composer, atFirst.slot]).toEqual([null, { state: 'none', reason: 'no-chat' }]);
+        expect(report.capabilities.chatWindow).toEqual({ state: 'off', reason: 'observation', code: 'CG-HOST-NOT-READY' });
+      }
+
+      await callFansly('open', second);
+      expect((await at(second, 'the second chat')).route).toMatchObject({ epoch: 3, chat: chatOf(second) });
+      // The gallery takes the header and the container away without a change of address: the same route and chat, no field.
+      await callFansly('setGallery', true);
+      const gallery = await waitForTap(portView, (view) => view.anchors.gallery, 'the gallery');
+      expect(gallery).toMatchObject({ route: { epoch: 3, conversationRef: second, chat: chatOf(second) }, anchors: { container: false, textarea: false }, composer: null, slot: { state: 'none', reason: 'gallery' } });
+      await callFansly('setGallery', false);
+      await waitForTap(portView, (view) => view.anchors.textarea && !view.anchors.gallery, 'back from the gallery');
+      // Back: `popstate` before Angular moves, and the nodes after it — A → B → A, the first chat's own fan again.
+      await browser.back();
+      expect((await at(first, 'back to the first chat')).route).toMatchObject({ epoch: 4, chat: chatOf(first) });
+      await waitForFanslyStandIdle();
+
+      // Idle, the observers stay silent: the fan types and writes, the inbox moves — nothing of it is watched.
+      const quiet = (await portHealth()).isolated.anchors;
+      expect(quiet).toMatchObject({ searching: false, exhausted: false });
+      await callFansly('fanTyping', first);
+      await callFansly('fanMessage', first, 'hello');
+      await waitFor(async () => ((await callFansly('list'))?.messages ?? 0) > 0 && ((await callFansly('list'))?.typing ?? true) === false, 'the fan’s message in the feed');
+      await waitForFanslyStandIdle();
+      expect((await portHealth()).isolated.anchors.workCallbacks).toBe(quiet.workCallbacks);
+
+      // FS-RTE-3: a verification without a signal finds the address where the signals left it.
+      expect(await tap('verify')).toEqual({ changes: 3, unsignalled: 0, restorations: 0 });
+      // The stream: every batch acknowledged, nothing lost.
+      const health = await waitForTap(portHealth, (h) => h.main !== null && h.main.stream.unacked === 0 && h.isolated.stream?.acked === h.main.stream.batches, 'every batch acknowledged');
+      expect(health.isolated.stream).toMatchObject({ gaps: 0, refused: 0, skipped: 0 });
+      expect(health.main?.stream.gaps).toBe(0);
+      expect((await tap<Array<{ event: string }>>('diagnostics')).filter((d) => d.event !== 'main-missing')).toEqual([]);
+    });
+  }
 });

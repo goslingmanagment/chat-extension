@@ -1,22 +1,33 @@
-// The isolated half of the R20 P7a harness, injected by a WebDriver BiDi
+// The isolated half of the R20 P7a/P7c harness, injected by a WebDriver BiDi
 // preload script into a SANDBOX realm of the Fansly stand page (Firefox gives
-// it Xray access to the page, as an isolated content script has): Fansly's own
-// starter (`startFanslyTab`) — the shared client of host-kit over Fansly's
-// schemas — connected to the MAIN world of the test build, and a consumer of
-// MAIN's stream as the isolated world will be one from P7c on: it asks
-// `fx.state`, acknowledges every batch (or none: a blocked consumer) and keeps
-// what came. Every frame from MAIN passed the three stages of checks first; a
-// frame that did not is in the client's counts.
+// it Xray access to the page, as an isolated content script has), connected
+// to the MAIN world of the test build. Two consumers, chosen before the page
+// loads (`globalThis.__cgFanslyTapConsumer`, support/fansly-tap.ts):
+// - `raw` (P7a): the shared client of host-kit over Fansly's schemas
+//   (`connectFanslyMain`) and a consumer of MAIN's stream the spec drives —
+//   it asks `fx.state`, acknowledges every batch (or none: a blocked
+//   consumer) and keeps what came;
+// - `port` (P7c): Fansly's own start (`startFanslyTab`), exactly as the
+//   extension's isolated script starts it — the route by signals, the
+//   anchors' observers, Fansly's HostPort over the stream — and what the port
+//   says: its route, identity, accounts, composer, header slot, report and
+//   counts. Never a text.
+// Every frame from MAIN passed the three stages of checks first; a frame that
+// did not is in the client's counts.
 //
 // The spec drives it through `globalThis.__cgFanslyTap.call(method, argsJson)`.
 // Nothing here talks to the network; the e2e network trap would catch it.
 
 import type { FanslyBatch, FanslyHealth, FanslyState } from '@cg/contracts/bridge-messages-fansly';
-import { startFanslyTab, type FanslyMainBridgeClient } from '@cg/host-fansly/isolated';
+import type { HostEvent } from '@cg/contracts/host';
+import { connectFanslyMain, startFanslyTab, type FanslyMainBridgeClient, type FanslyPort, type StartedFanslyTab } from '@cg/host-fansly/isolated';
 import * as validation from '@cg/host-fansly/isolated/validation';
 
 /** How long the handshake waits: MAIN may come late (the late-install case). */
 const HANDSHAKE_MS = 60_000;
+
+const consumer = (globalThis as { readonly __cgFanslyTapConsumer?: unknown }).__cgFanslyTapConsumer === 'port' ? 'port' : 'raw';
+const load = (): Promise<typeof validation> => Promise.resolve(validation);
 
 const batches: FanslyBatch[] = [];
 const gaps: unknown[] = [];
@@ -26,37 +37,63 @@ let client: FanslyMainBridgeClient | null = null;
 let failure: string | null = null;
 let states = 0;
 
-const started = startFanslyTab({ win: window, validation: () => Promise.resolve(validation), handshakeTimeoutMs: HANDSHAKE_MS });
-void started.bridge.then(
-  (connected) => {
-    if (connected === null) {
-      failure = 'no MAIN';
-      return;
-    }
+// ── raw: P7a's consumer ──
+
+if (consumer === 'raw') {
+  connectFanslyMain(window, load, HANDSHAKE_MS).then(
+    (connected) => {
+      client = connected;
+      connected.onEvent((event) => {
+        if (event.t === 'fx.batch') {
+          batches.push(event.payload);
+          if (acking) connected.request('fx.ack', { n: event.payload.n }).catch((error: unknown) => (failure = `ack: ${String(error)}`));
+        } else if (event.t === 'fx.gap') gaps.push(event.payload);
+        else faults.push(event.payload);
+      });
+      // The stream starts with the isolated side's first `fx.state`.
+      connected.request('fx.state', {}).then(
+        () => (states += 1),
+        (error: unknown) => (failure = `fx.state: ${String(error)}`),
+      );
+    },
+    (error: unknown) => (failure = String(error)),
+  );
+}
+
+// ── port: Fansly's own start (P7c) ──
+
+let started: StartedFanslyTab | null = null;
+let port: FanslyPort | null = null;
+/** What the port said, in order: the event's type and, for a route, its epoch and group — no text, no fan. */
+const said: Array<{ readonly type: HostEvent['type']; readonly epoch?: number; readonly group?: string | null }> = [];
+const diagnostics: Array<{ readonly event: string }> = [];
+
+if (consumer === 'port') {
+  started = startFanslyTab({ win: window, validation: load, handshakeTimeoutMs: HANDSHAKE_MS, onDiagnostic: (diagnostic) => diagnostics.push({ event: diagnostic.event }) });
+  void started.bridge.then((connected) => {
     client = connected;
-    connected.onEvent((event) => {
-      if (event.t === 'fx.batch') {
-        batches.push(event.payload);
-        if (acking) connected.request('fx.ack', { n: event.payload.n }).catch((error: unknown) => (failure = `ack: ${String(error)}`));
-      } else if (event.t === 'fx.gap') gaps.push(event.payload);
-      else faults.push(event.payload);
-    });
-    // The stream starts with the isolated side's first `fx.state`.
-    connected.request('fx.state', {}).then(
-      () => (states += 1),
-      (error: unknown) => (failure = `fx.state: ${String(error)}`),
-    );
-  },
-  (error: unknown) => (failure = String(error)),
-);
+    if (connected === null) failure = 'no MAIN';
+  });
+  started.host.then(
+    (ready) => {
+      port = ready;
+      ready.subscribe((event) => said.push(event.type === 'route' ? { type: 'route', epoch: event.route.epoch, group: event.route.conversationRef ?? null } : { type: event.type }));
+    },
+    (error: unknown) => (failure = String(error)),
+  );
+}
 
 const need = (): FanslyMainBridgeClient => {
   if (client === null) throw new Error(`not connected to MAIN${failure === null ? '' : `: ${failure}`}`);
   return client;
 };
+const needPort = (): FanslyPort => {
+  if (port === null) throw new Error(`no host port${failure === null ? '' : `: ${failure}`}`);
+  return port;
+};
 
 const methods: Record<string, (...args: never[]) => unknown> = {
-  ready: () => ({ connected: client !== null, started: states > 0, failure }),
+  ready: () => ({ connected: client !== null, started: consumer === 'port' ? port !== null : states > 0, failure }),
   probe: () => need().probe(),
   state: (): Promise<FanslyState> => need().request('fx.state', {}).finally(() => (states += 1)),
   health: (): Promise<FanslyHealth> => need().request('fx.health', {}),
@@ -72,6 +109,44 @@ const methods: Record<string, (...args: never[]) => unknown> = {
   ack: (n: number) => need().request('fx.ack', { n }),
   /** What the client dropped: frames refused at its first two stages, events and answers its schemas refused. */
   stats: () => need().stats(),
+
+  // ── the port (P7c) ──
+  /** What the port says now: route, identity, accounts, the composer's shape, the header slot, the anchors found. */
+  port: () => {
+    const now = needPort().current();
+    const anchors = started?.anchors.current();
+    return {
+      route: now.route,
+      identity: now.identity,
+      accounts: now.accounts,
+      composer: now.composer === null ? null : { instanceId: now.composer.instanceId, ready: now.composer.ready, hidden: now.composer.hidden },
+      slot: needPort().fansly.headerSlot(),
+      anchors: {
+        conversation: Boolean(anchors?.conversation),
+        container: Boolean(anchors?.conversation?.container),
+        textarea: Boolean(anchors?.conversation?.textarea),
+        gallery: anchors?.conversation?.gallery === true,
+      },
+    };
+  },
+  report: () => needPort().probe(),
+  portHealth: () => needPort().health(),
+  /** A verification without a signal, as an action of our UI makes one (FS-RTE-3); the route's counts after it. */
+  verify: () => {
+    started?.route.verify('ui');
+    return started?.route.stats() ?? null;
+  },
+  said: (from = 0) => said.slice(from),
+  /** The open chat's generation snapshot through the port, as a click asks it — its shape only, never a text. */
+  portSnapshot: async (feature: 'reply' | 'recap', withText: boolean) => {
+    const now = needPort().current().route;
+    if (now.chat === null || now.conversationRef === undefined) return null;
+    const snapshot = await needPort().freshness.snapshot(now.chat, { conversationRef: now.conversationRef, feature, window: 60, withText });
+    return snapshot === null
+      ? null
+      : { feature: snapshot.feature, group: snapshot.identity.groupId, fan: snapshot.identity.fanId, completeness: snapshot.completeness, window: snapshot.window.length, tail: snapshot.tail?.length ?? null };
+  },
+  diagnostics: () => diagnostics,
 };
 
 Object.defineProperty(globalThis, '__cgFanslyTap', {

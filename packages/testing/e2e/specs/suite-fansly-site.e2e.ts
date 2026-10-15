@@ -16,8 +16,10 @@
 //   is not one of them (EX-010);
 // - the whole synchronous start of either script stays in its budget: MAIN
 //   ≤ 1 ms, the isolated one ≤ 3 ms (§3.1), printed on every run.
-// P9a accepts the handshake and starts the site module. No host port exists
-// before P7c, so nothing of the application starts on the page.
+// P9a accepts the handshake and starts the site module; Fansly's host port
+// (P7c) comes up too, but our dock has no place on the page before P7d, so
+// nothing of the application starts on it — its route, anchors and identity
+// on the stand are suite-fansly-tap's.
 
 import { browser, expect } from '@wdio/globals';
 
@@ -100,7 +102,7 @@ describe('the Fansly site on its stand: both scripts at document_start, the brid
       expect(report.lifecycle).toEqual({ staleHosts: 0, lateInjection: false });
       expect(report.bootstrap?.bundleMs).not.toBeNull();
       expect(await mainBundleMs()).not.toBeNull();
-      // P9a accepts the tab; no host port before P7c: nothing of the application.
+      // P9a accepts the tab; the dock has no place before P7d: nothing of the application.
       const later = await waitForReport((r) => r.rpc !== undefined, 'the tab asked the background');
       expect(later.rpc?.registered).toBe(true);
       expect([later.app, later.appError, later.runtimeError]).toEqual([undefined, undefined, undefined]);
