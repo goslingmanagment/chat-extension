@@ -17,6 +17,7 @@
 // did; Fansly's six read `platform_unsupported` on every ChatSpace page of every hub, and no ChatSpace feature asks one.
 
 import {
+  BootstrapSchema,
   CLIENT_FEATURE_FLAG_NAMES,
   CLIENT_HUB_CAPABILITY_NAMES,
   FEATURE_IDS,
@@ -111,7 +112,8 @@ const HUBS: readonly Hub[] = PRESETS.flatMap((preset) =>
   OWNER.flatMap(([owner, change]) =>
     SERVED.map(([served, capabilities]): Hub => {
       const config = change(presetConfig(preset));
-      return { name: `${preset} · ${owner} · ${served}`, bootstrap: bootstrapOf(capabilities === null ? config : patchConfig(config, { capabilities }), FAKE_PAGES, chatter, NOW_MS) };
+      // P4c: the client drops the server-only greeting rate; compare exactly what ChatSpace reads.
+      return { name: `${preset} · ${owner} · ${served}`, bootstrap: BootstrapSchema.parse(bootstrapOf(capabilities === null ? config : patchConfig(config, { capabilities }), FAKE_PAGES, chatter, NOW_MS)) };
     }),
   ),
 );
@@ -229,7 +231,7 @@ describe('[R20-F4] the ChatSpace table of switches on today’s hub is the same 
   it('the scenarios’ own helper for a hub that lags gives the bootstrap the fake hub computes', () => {
     for (const [, capabilities] of SERVED) {
       if (capabilities === null) continue;
-      const computed = bootstrapOf(patchConfig(presetConfig('pilot-pages'), { capabilities }), FAKE_PAGES, chatter, NOW_MS);
+      const computed = BootstrapSchema.parse(bootstrapOf(patchConfig(presetConfig('pilot-pages'), { capabilities }), FAKE_PAGES, chatter, NOW_MS));
       expect(hubServing(BOOTSTRAP_PILOT_PAGES, capabilities)).toEqual({ ...computed, configRevision: BOOTSTRAP_PILOT_PAGES.configRevision });
     }
   });

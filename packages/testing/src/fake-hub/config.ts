@@ -8,7 +8,8 @@
 // — then the hub lane of the feature, and the top-level `flags` by
 // `clientBootstrapFlags`, from the `*` row ALONE. Presets reproduce the
 // scenarios' BOOTSTRAP_PILOT_PAGES, BOOTSTRAP_PILOT_ON and BOOTSTRAP_ALL_OFF
-// exactly (config.test.ts).
+// in the client's schema (config.test.ts). The raw server also announces HF-3's
+// greetingSendPerMinute, which that client schema intentionally drops (P4c).
 //
 // What each flag needs of the hub is the HUB's table (`CLIENT_FEATURE_REQUIREMENTS`
 // there), repeated in the scenarios (`HUB_FEATURE_REQUIREMENTS`) as it stands at
@@ -63,7 +64,8 @@ export interface FakeHubConfig {
   readonly capabilities: readonly string[];
   readonly minVersion: string;
   readonly bindingsByHost: Readonly<Record<string, number>>;
-  readonly limits: BootstrapLimits;
+  /** HF-3's server limit; the client deliberately does not consume it (P4c). */
+  readonly limits: BootstrapLimits & { readonly greetingSendPerMinute: number };
   /** Grows on every owner change (= custody `flagRevision`). */
   readonly configRevision: number;
   readonly narrowTokens: boolean;
@@ -118,7 +120,7 @@ export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
         capabilities: PILOT_CAPABILITIES,
         minVersion: '0.1.0',
         bindingsByHost: { [BINDING_KEY_ONE]: WORLD.pages.one.pageId, [BINDING_KEY_VIP]: WORLD.pages.vip.pageId },
-        limits: { ...SCENARIO_DATA.limits, previewSendReceiptProfiles: [] },
+        limits: { ...SCENARIO_DATA.limits, greetingSendPerMinute: 30, previewSendReceiptProfiles: [] },
         configRevision: WORLD.configRevision,
       };
     case 'all-off':
@@ -129,7 +131,7 @@ export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
         capabilities: [],
         minVersion: '0.0.0',
         bindingsByHost: {},
-        limits: { ...SCENARIO_DATA.limits, deepMax: 1500, previewSendReceiptProfiles: [] },
+        limits: { ...SCENARIO_DATA.limits, greetingSendPerMinute: 30, deepMax: 1500, previewSendReceiptProfiles: [] },
         configRevision: 0,
       };
     case 'master-off':

@@ -348,21 +348,6 @@ describe('fake hub claims: custody', () => {
     expect((await post(a, dispatch(attempt(), 0, { purpose: 'preview-reply' }), '3012')).status).toBe(200);
   });
 
-  it('claim and custody are OnlyFans-only: on a Fansly page every action and the status are refused, the flag-free ones included', async () => {
-    const fansly = WORLD.pages.fansly.pageLabel;
-    const call = async (route: 'clientFanClaim' | 'clientFanClaimStatus', body?: ClaimBody) => {
-      const response = await hubCall(hub.fetch, hub.origin, route, body === undefined ? { pageLabel: fansly, fanRef: FAN } : { pageLabel: fansly, fanRef: FAN, body }, { token: a });
-      const json = (await response.json()) as { error?: string; reason?: string };
-      return { status: response.status, error: json.error ?? null, reason: json.reason ?? null };
-    };
-    const off = { status: 409, error: 'client_feature_disabled', reason: 'platform_unsupported' };
-    expect(await call('clientFanClaimStatus')).toEqual(off);
-    expect(await call('clientFanClaim', lease('claim'))).toEqual(off);
-    expect(await call('clientFanClaim', native(attempt(), 0, '4100'))).toEqual(off);
-    expect(await call('clientFanClaim', dispatch(attempt(), 0, { purpose: 'preview-reply' }))).toEqual(off);
-    expect(hub.status().claims.filter((claim) => claim.pageLabel === fansly)).toEqual([]);
-  });
-
   it('a desktop-confirmed greeting closes the fan for everyone', async () => {
     hub.control({ op: 'desktopGreeting', pageLabel: PAGE, fanRef: FAN });
     expect((await status(a)).greeting).toMatchObject({ state: 'confirmed', source: 'desktop-outbox', messageRef: null });

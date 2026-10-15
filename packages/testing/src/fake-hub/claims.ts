@@ -19,23 +19,56 @@ import {
   isCustodyTransition,
   type ClaimBody,
   type ClaimGroup,
+  type ClaimSendGroup,
   type ClaimState,
   type ClaimSummary,
   type ClientFeatureFlag,
   type CustodyState,
   type HubErrorCode,
+  type HubClaimBody,
 } from '@cg/contracts';
 
+import { hubFeatureNeedsOn, type HubPlatform } from '../scenarios/hub';
 import { iso } from './clock';
+
+// Hub bd3eec065: services/client-claim-admission.ts (HF-3, admitted by HF-2).
+interface SendAdmission {
+  readonly flags: readonly ClientFeatureFlag[];
+  readonly groups: readonly ('generation' | 'manual')[];
+  readonly limit: 'perMinute' | 'greetingPerMinute';
+}
+const SEND_ADMISSIONS: Record<HubPlatform, Partial<Record<'greeting' | 'preview-reply', SendAdmission>>> = {
+  onlyfans: {
+    greeting: { flags: ['previewSend', 'newcomers'], groups: ['generation'], limit: 'perMinute' },
+    'preview-reply': { flags: ['previewSend'], groups: ['generation'], limit: 'perMinute' },
+  },
+  fansly: { greeting: { flags: ['newcomers'], groups: ['generation', 'manual'], limit: 'greetingPerMinute' } },
+};
+
+export function custodyExistsOn(platform: HubPlatform): boolean {
+  return Object.values(SEND_ADMISSIONS[platform]).some((rule) => rule.flags.every((flag) => hubFeatureNeedsOn(flag, platform) !== undefined));
+}
+
+function sendAdmission(platform: HubPlatform, body: Extract<HubClaimBody, { action: 'dispatch' | 'registerNativeSend' }>): SendAdmission | null {
+  const rule = SEND_ADMISSIONS[platform][body.purpose];
+  return rule !== undefined && rule.flags.every((flag) => hubFeatureNeedsOn(flag, platform) !== undefined) && rule.groups.includes('kind' in body.group ? 'manual' : 'generation') ? rule : null;
+}
+
+/** HF-3 stores a manual group in the existing generation columns; answers keep the old shape. */
+function storedClaimGroup(group: ClaimSendGroup): ClaimGroup {
+  return 'kind' in group ? { generationRef: `manual:${group.textFingerprint}`, variant: 0, partCount: 1 } : group;
+}
 
 export type FlagVerdict = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
 export interface ClaimContext {
+  readonly platform: HubPlatform;
   readonly now: number;
   readonly userId: number;
   readonly leaseSec: number;
   readonly ticketSec: number;
   readonly perMinute: number;
+  readonly greetingPerMinute: number;
   readonly flagRevision: number;
   readonly flag: (flag: ClientFeatureFlag) => FlagVerdict;
 }
@@ -113,8 +146,8 @@ interface Caller {
 
 export class ClaimsModel {
   private readonly fans = new Map<string, FanClaims>();
-  /** Preview-send dispatch times per user (the 6-per-minute rate). */
-  private readonly dispatches = new Map<number, number[]>();
+  /** Dispatch times per user AND platform: OnlyFans' two purposes share 6/min, Fansly's greeting has 30/min. Native records never spend a slot. */
+  private readonly dispatches = new Map<string, number[]>();
   private seq = 0;
   private ticketSeq = 0;
 
@@ -230,7 +263,7 @@ export class ClaimsModel {
   }
 
   /** POST …/claim. */
-  apply(pageLabel: string, fanRef: string, body: ClaimBody, ctx: ClaimContext): ClaimResult {
+  apply(pageLabel: string, fanRef: string, body: HubClaimBody, ctx: ClaimContext): ClaimResult {
     const fan = this.fan(pageLabel, fanRef);
     ClaimsModel.expireLease(fan, ctx.now);
     switch (body.action) {
@@ -281,37 +314,42 @@ export class ClaimsModel {
     return answer();
   }
 
-  private dispatch(fan: FanClaims, body: Extract<ClaimBody, { action: 'dispatch' }>, ctx: ClaimContext): ClaimResult {
+  private dispatch(fan: FanClaims, body: Extract<HubClaimBody, { action: 'dispatch' }>, ctx: ClaimContext): ClaimResult {
     const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: body.leaseToken ?? null };
     const hash = stableJson(body);
-    // 1. A repeat of the same attempt only reads; another body under the same id is a conflict.
+    // 1. A repeat of the same attempt only reads; another body, page or fan under the same id is a conflict
+    // (the hub hashes pageId/fanRef too). A cross-platform repeat must not bypass the admission below.
     const existing = this.findAttempt(body.attemptId);
     if (existing !== null) {
-      if (existing.attempt.bodyHash !== hash || existing.attempt.userId !== ctx.userId) return refuse('attempt_conflict');
+      if (existing.fan !== fan || existing.attempt.bodyHash !== hash || existing.attempt.userId !== ctx.userId) return refuse('attempt_conflict');
       return { ok: true, state: this.view(existing.fan, caller, existing.attempt, ctx, false) };
     }
-    // 2. The owner's switches, read atomically with the dispatch.
-    for (const flagName of body.purpose === 'greeting' ? (['previewSend', 'newcomers'] as const) : (['previewSend'] as const)) {
+    // 2. Platform admission, then the owner's switches, AFTER an idempotent repeat.
+    const admission = sendAdmission(ctx.platform, body);
+    if (admission === null) return refuse('client_feature_disabled', { reason: 'platform_unsupported' });
+    for (const flagName of admission.flags) {
       const flag = ctx.flag(flagName);
       if (!flag.ok) return refuse('client_feature_disabled', { reason: flag.reason });
     }
-    // 3. Rate per user.
-    const recent = (this.dispatches.get(ctx.userId) ?? []).filter((at) => at > ctx.now - 60_000);
-    this.dispatches.set(ctx.userId, recent);
-    if (recent.length >= ctx.perMinute) {
+    // 3. Rate per user and platform (hub client-claim.ts sendRateScopeSql).
+    const rateKey = `${ctx.userId}:${ctx.platform}`;
+    const recent = (this.dispatches.get(rateKey) ?? []).filter((at) => at > ctx.now - 60_000);
+    this.dispatches.set(rateKey, recent);
+    if (recent.length >= ctx[admission.limit]) {
       const oldest = recent[0] ?? ctx.now;
       return refuse('preview_send_rate_limited', { retryAfterSec: Math.max(1, Math.ceil((oldest + 60_000 - ctx.now) / 1000)) });
     }
     // 4–5. No open custody of anyone on this fan (the desktop's held new-follower command included, for a greeting).
     if (this.openAttempt(fan) !== null) return refuse('custody_held');
     if (body.purpose === 'greeting' && fan.desktopHeld) return refuse('custody_held');
+    const group = storedClaimGroup(body.group);
     // 6. The greeting: confirmed → only its owner's group; not yet → a live lease of this caller.
     if (body.purpose === 'greeting') {
       const greeting = fan.greeting;
       if (greeting !== null) {
         if (greeting.ownerUserId !== ctx.userId) return refuse('greeting_done');
         const g = greeting.group;
-        if (g !== null && (g.generationRef !== body.group.generationRef || g.variant !== body.group.variant || g.partCount !== body.group.partCount)) {
+        if (g !== null && (g.generationRef !== group.generationRef || g.variant !== group.variant || g.partCount !== group.partCount)) {
           return refuse('generation_mismatch');
         }
       } else {
@@ -323,7 +361,7 @@ export class ClaimsModel {
       }
     }
     // 7. The part is not sent yet.
-    if (this.partSent(fan, body.group, body.partIndex)) return refuse('part_already_sent');
+    if (this.partSent(fan, group, body.partIndex)) return refuse('part_already_sent');
     // 8. Custody `dispatching` and the one-time ticket.
     this.ticketSeq += 1;
     const attempt: Attempt = {
@@ -333,7 +371,7 @@ export class ClaimsModel {
       instanceId: body.instanceId,
       purpose: body.purpose,
       origin: 'preview-send',
-      group: body.group,
+      group,
       partIndex: body.partIndex,
       bodyHash: hash,
       state: 'dispatching',
@@ -380,18 +418,21 @@ export class ClaimsModel {
     return { ok: true, state: this.view(fan, caller, attempt, ctx, false) };
   }
 
-  private registerNativeSend(pageLabel: string, fan: FanClaims, body: Extract<ClaimBody, { action: 'registerNativeSend' }>, ctx: ClaimContext): ClaimResult {
+  private registerNativeSend(pageLabel: string, fan: FanClaims, body: Extract<HubClaimBody, { action: 'registerNativeSend' }>, ctx: ClaimContext): ClaimResult {
+    // Native admission is before the repository's repeat check; no owner switch gates a proven send.
+    if (sendAdmission(ctx.platform, body) === null) return refuse('client_feature_disabled', { reason: 'platform_unsupported' });
     const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: null };
     const hash = stableJson(body);
     const existing = this.findAttempt(body.attemptId);
     if (existing !== null) {
-      if (existing.attempt.bodyHash !== hash || existing.attempt.userId !== ctx.userId) return refuse('attempt_conflict');
+      if (existing.fan !== fan || existing.attempt.bodyHash !== hash || existing.attempt.userId !== ctx.userId) return refuse('attempt_conflict');
       return { ok: true, state: this.view(existing.fan, caller, existing.attempt, ctx, false) };
     }
     // Idempotent by (page, platform message id).
     const sameMessage = this.attemptsOfPage(pageLabel).find((a) => a.platformMessageId === body.platformMessageId);
     if (sameMessage !== undefined) return { ok: true, state: this.view(fan, caller, sameMessage, ctx, false) };
-    if (this.partSent(fan, body.group, body.partIndex)) return refuse('part_already_sent');
+    const group = storedClaimGroup(body.group);
+    if (this.partSent(fan, group, body.partIndex)) return refuse('part_already_sent');
     if (!isCustodyTransition(null, 'sent')) throw new Error('fake hub: sent is not an initial custody state');
     const attempt: Attempt = {
       seq: ++this.seq,
@@ -400,7 +441,7 @@ export class ClaimsModel {
       instanceId: body.instanceId,
       purpose: body.purpose,
       origin: 'native-register',
-      group: body.group,
+      group,
       partIndex: body.partIndex,
       bodyHash: hash,
       state: 'sent',
