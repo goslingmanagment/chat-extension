@@ -22,6 +22,7 @@ import type { ChatRef, HostAccount } from '@cg/contracts/ids';
 import { FANSLY_TAB_TYPE_PREFIX, parseFanslyTabPayload, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 import type { FanslyPageRequestType } from '@cg/core/application/hosts/fansly/pages';
 import { SoundArbiter } from '@cg/core/services/sound';
+import type { NetworkSession, RequestFact } from '@cg/core/services/network-session';
 import { createPageRpcClient, createTabRpcClient, type TabRpcClient } from '@cg/platform';
 import { callsTo, fanslyPageFlags } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
@@ -71,11 +72,15 @@ const release = (held: ChunkGate): void => {
 };
 
 /** The world with Fansly's chunk loadable — or missing, as a build without it would be, or held at a gate. */
-function world(chunk: 'present' | 'missing' | ChunkGate = 'present'): World {
+function world(chunk: 'present' | 'missing' | ChunkGate = 'present', captureSession?: (session: NetworkSession) => void): World {
   const loadFansly = (): Promise<unknown> => {
     if (chunk === 'missing') return Promise.reject(new TypeError('error loading dynamically imported module'));
     // A module of its own for every load: each instance of the event page is a realm of its own.
-    const loaded = { default: fanslyModule() };
+    const module = fanslyModule();
+    const loaded = { default: { ...module, start: (kit: Parameters<typeof module.start>[0]) => {
+      if (kit.networkSession !== undefined) captureSession?.(kit.networkSession);
+      return module.start(kit);
+    } } };
     if (chunk === 'present' || !chunk.held) return Promise.resolve(loaded);
     return new Promise((resolve) => chunk.waiting.push(() => resolve(loaded)));
   };
@@ -456,6 +461,60 @@ function fanslySettingsPage(w: World) {
 }
 
 describe('[host:fansly] the settings page and Fansly’s module (R20 P14b1)', () => {
+  it('[ST-075] [ST-079] mute set before the creator was known still silences the canonical account after reconciliation', async () => {
+    let network: NetworkSession | undefined;
+    const w = world('present', (session) => { network = session; });
+    w.start();
+    await switchFanslyOn(w);
+    const tab = await fanslyTab(w, 21);
+    const page = fanslySettingsPage(w);
+    await page.request('fansly.accounts.read', {}); // Wait for the real module.
+    const legacy = '700000000000000101';
+    const fact: RequestFact = {
+      phase: 'headers', requestId: 'legacy-session', url: 'https://apiv3.fansly.com/api/v1/account/me', tabId: 21, frameId: 0,
+      originUrl: `${FANSLY_ORIGIN}/messages`, documentUrl: `${FANSLY_ORIGIN}/messages`,
+      requestHeaders: [
+        { name: 'authorization', value: btoa(`${legacy}:synthetic`) },
+        { name: 'fansly-client-id', value: 'client' }, { name: 'fansly-session-id', value: 'session' },
+        { name: 'fansly-client-ts', value: '100' }, { name: 'fansly-client-check', value: 'check' },
+      ],
+    };
+    if (network === undefined) throw new Error('module did not receive its session owner');
+    await network.accept(fact);
+    await network.accept({ ...fact, phase: 'completed', statusCode: 200 });
+    expect(await w.page().request('settings.patch', { patch: { sound: { mutedAccounts: [`fansly-web:${legacy}`] } }, baseRevision: null })).toMatchObject({ ok: true });
+    // A correlated identity response, after the legacy-only preference was stored.
+    await network.resolveIdentity(21, legacy, CREATOR);
+    expect(await page.request('fansly.accounts.read', {})).toMatchObject({ ok: true, payload: { sessions: [{ legacyId: legacy, canonicalId: CREATOR }] } });
+    // P14a's real socket route uses its persistent own-account aliases for both kinds of sound.
+    expect(await fanslyRequest(tab.client, 'fansly.sound.batch', { host: 'fansly-web', hostAccountId: CREATOR, events: [
+      { kind: 'message', id: '900000000000000010', conversationRef: group, senderId: fan, fromFan: true, automatic: false, tip: false, sentAt: new Date().toISOString() },
+      { kind: 'subscriber', id: '900000000000000011', accountId: CREATOR, followerId: fan },
+    ] })).toMatchObject({ ok: true });
+    const diagnostics = await w.page().request('diagnostics.get', {});
+    expect(diagnostics.ok && diagnostics.payload.sound.outcomes).toMatchObject({ muted: 1, 'subscriber.muted': 1 });
+    expect(w.played).toEqual([]);
+    page.close();
+  });
+
+  it('[FS-SET-1] disabling Fansly while its module loads refuses the pending page write', async () => {
+    const held = gate();
+    held.held = true;
+    const w = world(held);
+    w.start();
+    await switchFanslyOn(w);
+    const page = fanslySettingsPage(w);
+    const pending = page.request('fansly.settings.write', { patch: { hosts: { 'fansly-web': { viaTab: true } } } });
+    await until(() => held.waiting.length > 0, 'Fansly module load is pending');
+    expect(await w.page().request('site.access', { host: 'fansly-web', enabled: false })).toMatchObject({ ok: true });
+    const storage = w.fake.context(pageSender(w.fake, 'options')).api.storage.local;
+    const before = await storage.get('settings.ext');
+    release(held);
+    expect(await pending).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'site off' } });
+    expect(await storage.get('settings.ext')).toEqual(before);
+    page.close();
+  });
+
   it('[host:fansly] the core routes the page’s `fansly.*` by the site’s own prefix (composition site-access.ts = contracts)', () => {
     expect(SITE_TYPE_PREFIX).toBe(FANSLY_TAB_TYPE_PREFIX);
   });

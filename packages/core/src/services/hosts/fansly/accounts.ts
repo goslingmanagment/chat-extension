@@ -4,12 +4,12 @@
 // `accounts.seen`) and adds what only the background knows:
 //
 // - The live sessions it captured (network-session.ts): the account the session's token names (legacy, AU-031) and,
-//   once a tab of ours on it said its creator from `/account/me`, that creator (canonical, AU-032). A tab opened before
+//   once a correlated `/account/me` response proved its creator, that creator (canonical, AU-032). A tab opened before
 //   Fansly was switched on runs no script of ours until it is reloaded, yet its requests are seen: the session is how
 //   the page knows the model works there.
-// - The reconciliation (ST-079): a registered tab that named its creator and carries a session binds the two —
-//   `resolveIdentity` of that very tab and its very session, never by a name. It runs on every read: a tab says its
-//   creator after the session was captured, and the page reads again when it comes back on screen.
+// - The reconciliation (ST-079) uses only the session owner's proven aliases. Presence carries no evidence of the
+//   request/session that produced its creator: pairing it with the current session would bind a newly switched
+//   account to the previous creator. Different ids without a correlated identity response stay separate.
 // - «Вкладки без атрибуции» (ST-077): Fansly tabs open in the browser that neither named their creator to us nor carry
 //   a session — opened before the grant and never used, or a tab still loading. Counted, never guessed.
 // - «к вкладке» (ST-076): the tab of the account — by its registration (its report names the creator), else by its
@@ -22,10 +22,9 @@ import { FANSLY_PAGE_SESSIONS_MAX, type FanslyAccountSession, type FanslyAccount
 
 import type { SessionTemplate } from '../../network-session';
 
-/** The network session as this reads it: the live session of a tab, and the binding of a tab's session to its creator. */
+/** Read-only projection: this service cannot establish identity from an uncorrelated presence report. */
 export interface FanslySessionsPort {
   forTab(tabId: number): Pick<SessionTemplate, 'legacyId' | 'canonicalId' | 'observedAt'> | null;
-  resolveIdentity(tabId: number, legacyId: string, canonicalId: string): Promise<void>;
 }
 
 /** Fansly's tabs as the core knows them (the kit's `siteTabs`). */
@@ -43,7 +42,7 @@ export interface FanslyAccountsDeps {
 }
 
 export interface FanslyAccounts {
-  /** `fansly.accounts.read`: reconciles first, then the sessions and the tabs no account is known for. */
+  /** `fansly.accounts.read`: proven session identities and the tabs no account is known for. */
   read(): Promise<FanslyAccountsView>;
   /** `fansly.accounts.focus`: true — a tab of the account is in front now. */
   focus(hostAccountId: string): Promise<boolean>;
@@ -65,12 +64,6 @@ export function createFanslyAccounts(deps: FanslyAccountsDeps): FanslyAccounts {
       const open = await deps.tabs.open();
       const named = creators();
       const tabIds = [...new Set([...(open ?? []), ...deps.tabs.registered().map((registration) => registration.tabId)])];
-      // ST-079: a tab that named its creator binds its own session to it.
-      for (const tabId of tabIds) {
-        const session = deps.sessions.forTab(tabId);
-        const creator = named.get(tabId);
-        if (session !== null && creator !== undefined && session.canonicalId !== creator) await deps.sessions.resolveIdentity(tabId, session.legacyId, creator);
-      }
       const sessions = new Map<string, FanslyAccountSession>();
       let unattributed = 0;
       for (const tabId of tabIds) {

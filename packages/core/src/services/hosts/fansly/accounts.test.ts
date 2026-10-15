@@ -1,7 +1,11 @@
 import { FanslyAccountsViewSchema } from '@cg/contracts/tab-messages-fansly';
 import { describe, expect, it } from 'vitest';
 
+import { createNetworkSession, legacyAccount, type RequestFact } from '../../network-session';
+import { createMemoryKv } from '../../test-support/memory-kv';
 import { createFanslyAccounts, type FanslySessionsPort, type FanslyTabsPort } from './accounts';
+
+declare function btoa(value: string): string;
 
 const CREATOR = '700000000000000001';
 const LEGACY = '700000000000000101';
@@ -13,19 +17,10 @@ interface Session {
   observedAt: number;
 }
 
-/** The network session as the module reads it: a session per tab, and the bindings it was asked to make. */
-function sessionsOf(byTab: Record<number, Session>): FanslySessionsPort & { readonly resolved: string[] } {
-  const resolved: string[] = [];
+/** The network session's read-only projection: the identities already known for each tab. */
+function sessionsOf(byTab: Record<number, Session>): FanslySessionsPort {
   return {
-    resolved,
     forTab: (tabId) => byTab[tabId] ?? null,
-    resolveIdentity(tabId, legacyId, canonicalId) {
-      resolved.push(`${tabId}:${legacyId}→${canonicalId}`);
-      const session = byTab[tabId];
-      // The network session binds only the tab's own session (network-session.ts).
-      if (session !== undefined && session.legacyId === legacyId) session.canonicalId = canonicalId;
-      return Promise.resolve();
-    },
   };
 }
 
@@ -44,6 +39,32 @@ function tabsOf(open: readonly number[] | null, registered: { tabId: number; acc
 }
 
 describe('[host:fansly] «Аккаунты» on Fansly in the background (R20 P14b1)', () => {
+  it('[ST-079] an account switch before the next presence report must not persist B as A’s alias', async () => {
+    const store = createMemoryKv();
+    const sessions = createNetworkSession({
+      storage: store.open(), key: 'session', now: () => 1_000,
+      ownOrigin: 'moz-extension://ours/', pageRequest: () => true, apiRequest: () => true,
+      requiredHeaders: ['authorization'], materialHeaders: ['authorization'], checkHeader: 'check',
+      accountOf: legacyAccount, familyOf: () => 'account',
+    });
+    await sessions.setEnabled(true);
+    const capture = async (legacy: string, tabId = 4): Promise<void> => {
+      const fact: RequestFact = { phase: 'headers', requestId: `${tabId}-${legacy}`, url: 'https://example.test/account/me', tabId, frameId: 0, requestHeaders: [{ name: 'authorization', value: btoa(`${legacy}:synthetic`) }] };
+      await sessions.accept(fact);
+      await sessions.accept({ ...fact, phase: 'completed', statusCode: 200 });
+    };
+    await capture(LEGACY);
+    await sessions.resolveIdentity(4, LEGACY, CREATOR); // Previously proven identity of A.
+    await capture(LEGACY, 5); // A remains open in another tab.
+    const tabs = tabsOf([4, 5], [{ tabId: 4, accounts: [CREATOR] }, { tabId: 5, accounts: [CREATOR] }]);
+    await capture(OTHER); // B completes while tab 4 still reports A.
+    const accounts = createFanslyAccounts({ sessions, tabs });
+    const before = store.read('session');
+    expect((await accounts.read()).sessions).toContainEqual({ legacyId: OTHER, canonicalId: null, tabs: 1, observedAt: 1_000 });
+    expect(sessions.forAccount(OTHER)?.canonicalId).toBeNull();
+    expect(store.read('session')).toEqual(before);
+  });
+
   it('[ST-067] [AU-035] the live sessions next to the registrations: one row per session, how many open tabs ride it, ids and a time only', async () => {
     const sessions = sessionsOf({ 1: { legacyId: CREATOR, canonicalId: CREATOR, observedAt: 5_000.004 }, 2: { legacyId: CREATOR, canonicalId: CREATOR, observedAt: 4_000 }, 3: { legacyId: OTHER, canonicalId: null, observedAt: 9_000 } });
     const accounts = createFanslyAccounts({ sessions, tabs: tabsOf([1, 2, 3], [{ tabId: 1, accounts: [CREATOR] }]) });
@@ -60,17 +81,15 @@ describe('[host:fansly] «Аккаунты» on Fansly in the background (R20 P1
     expect(JSON.stringify(view)).not.toMatch(/authorization|fansly-client|headers/);
   });
 
-  it('[ST-079] a tab that named its creator binds its own session to it (legacy → canonical), once; a session of no named tab stays legacy', async () => {
+  it('[ST-079] presence alone cannot correlate different ids; only an already proven session alias folds into its creator', async () => {
     const sessions = sessionsOf({ 4: { legacyId: LEGACY, canonicalId: null, observedAt: 1_000 }, 5: { legacyId: OTHER, canonicalId: null, observedAt: 2_000 } });
     const tabs = tabsOf([4, 5], [{ tabId: 4, accounts: [CREATOR] }]);
     const accounts = createFanslyAccounts({ sessions, tabs });
     const first = await accounts.read();
-    expect(sessions.resolved).toEqual([`4:${LEGACY}→${CREATOR}`]);
-    expect(first.sessions).toContainEqual({ legacyId: LEGACY, canonicalId: CREATOR, tabs: 1, observedAt: 1_000 });
+    expect(first.sessions).toContainEqual({ legacyId: LEGACY, canonicalId: null, tabs: 1, observedAt: 1_000 });
     expect(first.sessions).toContainEqual({ legacyId: OTHER, canonicalId: null, tabs: 1, observedAt: 2_000 });
-    await accounts.read();
-    // Bound already: nothing is written again.
-    expect(sessions.resolved).toHaveLength(1);
+    const proven = sessionsOf({ 4: { legacyId: LEGACY, canonicalId: CREATOR, observedAt: 1_000 } });
+    expect((await createFanslyAccounts({ sessions: proven, tabs }).read()).sessions).toContainEqual({ legacyId: LEGACY, canonicalId: CREATOR, tabs: 1, observedAt: 1_000 });
   });
 
   it('[ST-077] «без атрибуции»: an open tab with neither a named creator nor a session; unknown when the browser does not say which tabs are open', async () => {

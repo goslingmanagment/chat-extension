@@ -369,6 +369,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // Fansly is on; the module comes up for it. Off — the page hears so at once.
     pageSite: {
       hostOf: (type) => (type.startsWith(SITE_TYPE_PREFIX) ? OPTIONAL_HOST : null),
+      active: (host) => host === OPTIONAL_HOST && siteAccess.active(),
       async open(host) {
         await accessReady.catch(() => undefined);
         if (host !== OPTIONAL_HOST || !siteAccess.active()) return false;
@@ -677,7 +678,6 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope.
     site: { plug: (registry) => rpc.site({ ...registry, host }) },
     // R20 P14b1: `settings.ext` through its one owner; the site's tabs by its addresses and registrations, no `tabs` right.
-    settingsExt: { state: () => extSettings.state(), patch: (patch) => extSettings.patch(patch) },
     siteTabs: siteTabsOf(host),
   });
   /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */

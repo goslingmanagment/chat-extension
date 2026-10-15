@@ -164,6 +164,17 @@ describe('[host:fansly] «Аккаунты» for Fansly models (R20 P14b1)', () 
     expect(page.world.state.settings.sound.mutedAccounts).toEqual([]);
   });
 
+  it('[ST-075] [ST-079] a stored legacy-only mute shows on the reconciled creator row and unmuting clears it', async () => {
+    const state = withFanslyModel(workingState(), PAGES_NOW);
+    state.settings = { ...state.settings, sound: { ...state.settings.sound, mutedAccounts: [`fansly-web:${FANSLY_LEGACY}`] } };
+    const page = await mount({ state, hash: '#accounts' });
+    const sound = (): HTMLElement => page.$(CREATOR_ROW)?.querySelector<HTMLElement>('[aria-label="Звук модели"]') as HTMLElement;
+    expect(sound().getAttribute('aria-checked') ?? (sound() as HTMLInputElement).checked.toString()).toBe('false');
+    await flush(() => sound().click());
+    expect(page.world.state.settings.sound.mutedAccounts).toEqual([]);
+    expect(sound().getAttribute('aria-checked') ?? (sound() as HTMLInputElement).checked.toString()).toBe('true');
+  });
+
   it('[ST-076] «К вкладке»: Fansly’s own way — its tab by the registration or session, no command to the tab, no `tabs` right; a model with no open tab says why', async () => {
     const page = await mount({ hash: '#accounts' });
     await flush(() => button(page.$(CREATOR_ROW) as Element, 'К вкладке').click());

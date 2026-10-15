@@ -170,7 +170,7 @@ export type SettingsExtAnswer = { readonly ok: true; readonly state: SettingsExt
  * R20 P14b1: the key `settings.ext` (architecture.md §12), whose one owner is the core's: a site's module reads it and
  * writes the fields its own pages change — never a second owner of the key.
  */
-export interface SettingsExtPort {
+export interface SettingsExtPort extends Pick<SettingsExtOwner, 'current' | 'onChange'> {
   state(): Promise<SettingsExtAnswer>;
   patch(patch: SettingsExtPatch): Promise<SettingsExtAnswer>;
 }
@@ -197,7 +197,6 @@ export interface SiteTabsPort {
 export interface BackgroundKit {
   /** The one arbiter; waits for this registered tab's first account report. */
   readonly sound?: { batch(tabSessionId: string, batch: SoundBatch): Promise<void> };
-  readonly settingsExt?: Pick<SettingsExtOwner, 'state' | 'current' | 'onChange'>;
   /** R20 P13b: the site's own tab registry (`fansly.*`), plugged by its module. Absent — the core serves no site registry. */
   readonly site?: SitePort;
   /** Passive session/429 state, owned and restored by the core. No site transport here. */

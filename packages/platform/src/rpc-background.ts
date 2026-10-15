@@ -96,6 +96,8 @@ export type SiteSenderContext =
 export interface PageSiteRoute {
   hostOf(type: string): TabHostKind | null;
   open(host: TabHostKind): Promise<boolean>;
+  /** Current permission/settings admission, checked synchronously immediately before dispatch. */
+  active(host: TabHostKind): boolean;
 }
 
 /**
@@ -357,6 +359,7 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       reject('sender-kind', type, 'page');
       return null;
     }
+    if (!route.active(sender.host)) return rpcError('CG-RUNTIME-UNREACHABLE', 'site off');
     return run(type, (kind, t, p) => site.parse(kind, t, p), (input) => site.handle(type, input, sender), payload, 'page');
   }
 

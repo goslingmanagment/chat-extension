@@ -11,7 +11,7 @@
 //   the background answered; a write that failed waits for «Повторить» or the next change, never goes by itself.
 //   Writes go one after another, in the order they were made.
 // - «Аккаунты»: the captured sessions of the background (`fansly.accounts.read`) as the shared controller takes a
-//   site's facts — an account goes by its creator's id once a tab of ours named it, its legacy id an alias (ST-079);
+//   site's facts — an account goes by its proven creator's id, its legacy id an alias (ST-079);
 //   «к вкладке» by the tab's registration or session (`fansly.accounts.focus`, ST-076). The tabs no account is known
 //   for (ST-077) and how many are open stay in this control's view for Fansly's card.
 // - The first run (ST-012): Fansly's three steps — switch it on, open Fansly as the model, reload the tabs.

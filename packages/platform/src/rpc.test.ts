@@ -844,6 +844,7 @@ describe('[EX-015] [NF-027] a site’s own registry and the host rules (fansly-w
     let on = true;
     const w = siteWorld({
       hostOf: (type) => (type.startsWith(FANSLY_TAB_TYPE_PREFIX) ? 'fansly-web' : null),
+      active: () => on,
       open: (host) => {
         opened.push(host);
         return Promise.resolve(on);
@@ -870,7 +871,7 @@ describe('[EX-015] [NF-027] a site’s own registry and the host rules (fansly-w
   });
 
   it('R20 P14b1: a page’s request waits for the module the site opened; none plugs — CG-RUNTIME-UNREACHABLE, not silence', async () => {
-    const w = siteWorld({ hostOf: () => 'fansly-web', open: () => Promise.resolve(true) });
+    const w = siteWorld({ hostOf: () => 'fansly-web', open: () => Promise.resolve(true), active: () => true });
     const options = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'options')).api, validate: parseFanslyTabPayload, requestTimeoutMs: 200 });
     expect(await options.request('fansly.accounts.read' as never, {} as never)).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'site not running' } });
     const handled: { type: string; sender: SiteSenderContext }[] = [];
