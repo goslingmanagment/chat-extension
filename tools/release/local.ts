@@ -29,6 +29,7 @@ import {
 } from './records.ts';
 import { SITE_FILES, type SiteContext } from './site.ts';
 import { readPackageVersion } from './version.ts';
+import { parseTestBuildSet, TEST_BUILDS_DIR, type TestBuildSet } from './test-builds.ts';
 import { sha256Hex } from './xpi.ts';
 
 export class Checkout {
@@ -208,6 +209,27 @@ export class Checkout {
   record(version: string): ReleaseRecord | null {
     const path = this.paths(version).record;
     return existsSync(path) ? parseReleaseRecord(readFileSync(path, 'utf8')) : null;
+  }
+
+  // ── the P3b test builds in .release/test-builds/ ──
+
+  /** The folder of a set of test builds (test-builds.ts), by the version of its N. */
+  testBuildsDir(set: string): string {
+    return this.path(join(TEST_BUILDS_DIR, set));
+  }
+
+  /** The latest set (the highest stamp) with its folder; null — none was made here. */
+  latestTestBuildSet(): { readonly dir: string; readonly set: TestBuildSet } | null {
+    const root = this.path(TEST_BUILDS_DIR);
+    if (!existsSync(root)) return null;
+    const stamp = (name: string): number => Number(name.slice(name.lastIndexOf('.') + 1));
+    const names = readdirSync(root)
+      .filter((name) => existsSync(join(root, name, 'set.json')))
+      .sort((a, b) => stamp(a) - stamp(b) || a.localeCompare(b));
+    const name = names.at(-1);
+    if (name === undefined) return null;
+    const dir = join(root, name);
+    return { dir, set: parseTestBuildSet(readFileSync(join(dir, 'set.json'), 'utf8')) };
   }
 }
 

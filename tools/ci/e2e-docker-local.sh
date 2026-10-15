@@ -9,6 +9,9 @@
 #     --filter @cg/testing exec wdio run e2e/wdio.conf.ts --spec e2e/specs/stand-smoke.e2e.ts
 #     (after a full run: a spec needs both builds and the built stand)
 #   CG_E2E_SHARD=2/5 tools/ci/e2e-docker-local.sh   one part of the suite, as a CI job runs it
+#   CG_E2E_WITH=<folder>   a folder git ignores, copied into the tree of the run
+#                          as well (the signed XPIs of P3b: e2e-docker-local-p3b.sh);
+#                          CG_P3B_* reach the run (p3b-signed-builds.e2e.ts)
 #
 # The Mac's own node_modules are built for macOS, so the run gets a Linux
 # install of its own. It lives in the Docker volume CG_E2E_VOLUME (default
@@ -51,7 +54,12 @@ echo "e2e-docker-local: step 1 — Linux install in the volume $volume ($node_im
 # and GNU tar in the container prints «Ignoring unknown extended header keyword
 # 'LIBARCHIVE.xattr.<name>'» for each — at least one line per file, as every
 # file an agent checked out or wrote carries com.apple.provenance.
-(cd "$root" && git ls-files -co --exclude-standard -z | COPYFILE_DISABLE=1 tar --no-xattrs --null -T - -cf -) | docker run --rm -i \
+with=${CG_E2E_WITH:-}
+if [ -n "$with" ]; then
+  case "$with" in /* | *..*) echo "e2e-docker-local: CG_E2E_WITH must be a folder inside the checkout, relative to its root: $with" >&2; exit 1 ;; esac
+  [ -d "$root/$with" ] || { echo "e2e-docker-local: CG_E2E_WITH: no folder $root/$with" >&2; exit 1; }
+fi
+(cd "$root" && { git ls-files -co --exclude-standard -z; if [ -n "$with" ]; then find "$with" -type f -print0; fi; } | COPYFILE_DISABLE=1 tar --no-xattrs --null -T - -cf -) | docker run --rm -i \
   --mount "type=volume,source=$volume,target=/sim" \
   --env "PINNED=$pinned" --env CI=true "$node_image" bash -euo pipefail -c '
     mkdir -p /sim/work /sim/node /sim/node-libs /sim/pnpm /sim/store
@@ -76,4 +84,5 @@ exec docker run --rm --init --network none --shm-size 2g --user 0:0 \
   --workdir /sim/work --mount "type=volume,source=$volume,target=/sim" \
   --env CG_NODE_BIN=/sim/node/bin --env CG_PNPM_BIN=/sim/pnpm/bin --env CG_NODE_LIBS=/sim/node-libs \
   --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env CG_E2E_SHARD \
+  --env CG_P3B_XPI_N0 --env CG_P3B_XPI_N --env CG_P3B_XPI_N1 --env CG_P3B_XPI_CONTROL --env CG_P3B_UNSIGNED \
   --entrypoint bash "$CG_E2E_IMAGE" /sim/work/tools/ci/e2e-in-container.sh "$@"

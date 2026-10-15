@@ -15,6 +15,7 @@
   "integration-m1.e2e.ts": 15,
   "kit-gallery.e2e.ts": 14,
   "lifecycle.e2e.ts": 98,
+  "p3b-signed-builds.e2e.ts": 2,
   "pages-gallery.e2e.ts": 52,
   "pages-wiring.e2e.ts": 13,
   "popup-panel.e2e.ts": 7,

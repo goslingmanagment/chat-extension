@@ -133,7 +133,7 @@ a boundary you need to cross is a design question, not a lint exception.
   mechanism. Headless Firefox driven by geckodriver (`pnpm e2e`, `pnpm perf`)
   is exempt.
 - `pnpm release <command>` — cutting a release (`docs/release.md`). `status`,
-  `version`, `note`, `site`, `build`, `preflight` are local. `preflight
+  `version`, `note`, `site`, `build`, `test-builds` (the P3b test builds), `preflight` are local. `preflight
   --online` also reads, and only reads: origin (`git fetch`, `git
   ls-remote`), the served feed, the production hub's health, and GitHub's API
   about the hub repository (`gh api repos/<hub>/compare/…`: is the vendored

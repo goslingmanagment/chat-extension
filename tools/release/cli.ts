@@ -8,6 +8,8 @@
 //   note                           create docs/releases/<version>.md, the manual checklist
 //   site [--check]                 rewrite the generated parts of site/ (or only compare)
 //   build                          `pnpm build` and the sha256 of both archives
+//   test-builds                    `pnpm build`, then the P3b test builds N0, N, N+1 and the control
+//                                  under a test add-on id in .release/test-builds/ (test-builds.ts)
 //   preflight [--online]           the pre-release gate; --online adds the read-only
 //                                  network checks and is what `sign` asks for
 //   announce --check               validate the Telegram post of the version
@@ -16,6 +18,8 @@
 // command lines, scripts and addresses — and stops unless it is given
 // `--confirm <version>`; `--dry-run` prints the plan and nothing else:
 //   sign                           AMO: web-ext sign --channel unlisted
+//   sign --test-builds             AMO: the latest set of P3b test builds, the confirmation
+//                                  names its N's version; nothing of the release is touched
 //   sign --import <file.xpi>       no network: take a signed XPI downloaded from the
 //                                  developer hub by hand (AMO signed, web-ext timed out);
 //                                  with --dry-run it checks the file and stores nothing
@@ -34,13 +38,15 @@
 // tool runs in tests against a throwaway checkout with a scripted world;
 // index.ts is the entry point that hands it the real one.
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { writeZip } from '../lib/zip-write.ts';
+import { readZip } from '../lib/zip.ts';
 import { AnnounceError, composePost, sendPost, type FetchLike } from './announce.ts';
 import { sectionOf } from './changelog.ts';
-import { ENV, noteFile, signedXpiName, VERSION_FILE, type ReleaseTarget } from './config.ts';
+import { ENV, noteFile, OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS, signedXpiName, VERSION_FILE, type ReleaseTarget } from './config.ts';
 import { commandStep, mustRun, renderCommand, runSteps, type Exec, type Print, type Step } from './exec.ts';
 import { Checkout } from './local.ts';
 import { renderNote } from './note.ts';
@@ -50,16 +56,31 @@ import { gateProblems, importProblems, type ArtifactRef, type GateRecord, type R
 import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
 import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
 import { renderSite, siteProblems, SITE_FILES, SITE_STYLESHEET, VERSIONLESS_PAGES } from './site.ts';
+import {
+  deriveTestBuild,
+  differencesBeyondManifest,
+  setSigningProblems,
+  signedTestXpiName,
+  TEST_BUILD_ENV,
+  TEST_BUILD_ROLES,
+  TEST_BUILDS_GECKO_ID,
+  testBuildNotes,
+  testBuildVersions,
+  testXpiName,
+  type TestBuild,
+  type TestBuildSet,
+} from './test-builds.ts';
 import { bumpVersion, compareVersions, isVersion, setPackageVersion, type BumpKind } from './version.ts';
 import { sha256Hex } from './xpi.ts';
 
 const USAGE = `pnpm release <command>
 
 local:    status · version [--set X.Y.Z | --bump patch|minor|major] · note · site [--check] · build
-          preflight [--online] · announce --check
+          preflight [--online] · announce --check · test-builds
 outward:  sign · publish · pages [--versionless] · tag · announce [--again] · rollback --to <version>
           each prints its plan and stops without --confirm <version>; --dry-run only prints
           sign --import <file.xpi> takes a signed XPI downloaded by hand (no network)
+          sign --test-builds signs the latest set of P3b test builds (--confirm <its N's version>)
 
 The runbook: docs/release.md`;
 
@@ -109,6 +130,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         import: { type: 'string' },
         silent: { type: 'boolean', default: false },
         again: { type: 'boolean', default: false },
+        'test-builds': { type: 'boolean', default: false },
       },
     });
   } catch (error) {
@@ -239,6 +261,12 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const announced = checkout.announced(version);
     if (announced !== null) print(`announced    ${announced.state === 'posted' ? `posted ${announced.at}${announced.messageId === null ? '' : `, message ${announced.messageId}`}` : `${announced.at}: the send may have reached the channel — look there`}`);
     print(`tag          v${version} ${(await checkout.gitCode('rev-parse', '-q', '--verify', `refs/tags/v${version}`)) === 0 ? 'exists' : 'is free'}`);
+    const tests = checkout.latestTestBuildSet();
+    if (tests !== null) {
+      const signed = TEST_BUILD_ROLES.filter((role) => existsSync(join(tests.dir, 'signed', signedTestXpiName(role))));
+      const from = tests.set.commit === null ? 'outside a git checkout' : `${tests.set.commit.slice(0, 12)}${tests.set.clean ? '' : ' with changes'}`;
+      print(`test builds  ${tests.set.set} (P3b) from ${from}, signed: ${signed.length === 0 ? 'none' : signed.join(', ')}`);
+    }
   }
 
   function version(): void {
@@ -286,6 +314,66 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     for (const artifact of [built.xpi, built.sources]) print(`${artifact.file}  ${artifact.bytes} B  sha256 ${artifact.sha256}`);
   }
 
+  /** HEAD and whether the tree is clean; commit null — this is no git checkout (a copy of the tree, as in the e2e image). */
+  async function headState(): Promise<{ readonly commit: string | null; readonly clean: boolean }> {
+    try {
+      const commit = await checkout.git('rev-parse', 'HEAD');
+      return { commit, clean: (await checkout.git('status', '--porcelain')) === '' };
+    } catch {
+      return { commit: null, clean: false };
+    }
+  }
+
+  /** The harness's lines for a set's XPIs (relative to the checkout), signed or not. */
+  function harnessEnv(dir: string, file: (build: TestBuild) => string, set: TestBuildSet): string {
+    return set.builds.map((build) => `${TEST_BUILD_ENV[build.role]}=${relative(checkout.root, join(dir, file(build)))}`).join(' ');
+  }
+
+  async function testBuilds(): Promise<void> {
+    const head = await headState();
+    const result = await deps.exec({ program: 'pnpm', args: ['build'], cwd: checkout.root, inherit: true });
+    if (result.code !== 0) refuse('pnpm build failed.');
+    const built = checkout.build();
+    if (built.version !== checkout.version()) refuse(`the release build is of ${built.version}, the tree holds ${checkout.version()}.`);
+    const versions = testBuildVersions(built.version, deps.now());
+    const dir = checkout.testBuildsDir(versions.n);
+    if (existsSync(dir)) refuse(`the set ${versions.n} already exists (${dir}): a set a minute — run the command again in a minute.`);
+    const release = checkout.buildFiles(built.dir);
+    const builds: TestBuild[] = [];
+    for (const role of TEST_BUILD_ROLES) {
+      const files = deriveTestBuild(release, role, versions[role], { origins: OPTIONAL_SITE_ORIGINS, api: OPTIONAL_SITE_API });
+      const wrong = differencesBeyondManifest(release, files);
+      if (wrong.length > 0) throw new Error(`the test build «${role}» is not the release build beyond its manifest:\n  ${wrong.join('\n  ')}`);
+      for (const file of files) {
+        const path = join(dir, role, file.name);
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, file.data);
+      }
+      const data = writeZip(files);
+      const name = testXpiName(role, versions[role]);
+      writeFileSync(join(dir, name), data);
+      builds.push({ role, version: versions[role], dir: role, xpi: { file: name, sha256: sha256Hex(data), bytes: data.length } });
+    }
+    copyFileSync(built.sources.path, join(dir, 'sources.zip'));
+    const set: TestBuildSet = {
+      schema: 1,
+      set: versions.n,
+      geckoId: TEST_BUILDS_GECKO_ID,
+      commit: head.commit,
+      clean: head.clean,
+      createdAt: deps.now().toISOString(),
+      base: { version: built.version, xpiSha256: built.xpi.sha256, sourcesSha256: built.sources.sha256 },
+      builds,
+    };
+    writeFileSync(join(dir, 'set.json'), `${JSON.stringify(set, null, 2)}\n`);
+    print(`test builds ${set.set} of the release build ${built.version} (${built.xpi.sha256.slice(0, 12)}…) in ${relative(checkout.root, dir)}, add-on ${TEST_BUILDS_GECKO_ID}:`);
+    for (const build of builds) print(`  ${build.role.padEnd(8)} ${build.version}  ${build.xpi.file}  sha256 ${build.xpi.sha256}`);
+    const problems = setSigningProblems(set);
+    for (const problem of problems) print(`note: ${problem}.`);
+    print(`unsigned, for a stand-in run of the harness (docs/project-unite/spike.md «P3b: как прогнать»): CG_P3B_UNSIGNED=1 ${harnessEnv(dir, (build) => build.xpi.file, set)}`);
+    if (problems.length === 0) print(`next: the owner signs — pnpm release sign --test-builds --confirm ${set.set} (docs/release.md «Подписанные тестовые сборки (P3b)»)`);
+  }
+
   async function preflight(): Promise<void> {
     const result = await runPreflight(checkout, { online: values.online, http: deps.http, print, now: deps.now, env: deps.env });
     // What is kept is this run, whatever it ended with: a pass of an earlier run does not outlive a failure.
@@ -302,7 +390,75 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   // ── outward commands ───────────────────────────────────────────────────────
 
+  async function signTestBuilds(): Promise<void> {
+    if (values.import !== undefined) refuse('sign --test-builds takes no --import: a set whose signing failed is made again (pnpm release test-builds), its versions are new.');
+    const latest = checkout.latestTestBuildSet();
+    if (latest === null) refuse('no set of test builds here — pnpm release test-builds');
+    const { dir, set } = latest;
+    const plan = planOnly(set.set);
+    const signedDir = join(dir, 'signed');
+    const problems = setSigningProblems(set);
+    for (const build of set.builds) {
+      const path = join(dir, build.xpi.file);
+      if (!existsSync(path) || sha256Hex(readFileSync(path)) !== build.xpi.sha256) problems.push(`${build.xpi.file} is not the file set.json describes`);
+      else {
+        const folder = new Map(checkout.buildFiles(join(dir, build.dir)).map((file) => [file.name, file.data]));
+        const packed = readZip(readFileSync(path));
+        if (packed.length !== folder.size || packed.some((entry) => !(folder.get(entry.name)?.equals(entry.data) ?? false))) problems.push(`the folder ${build.dir}/ is not what ${build.xpi.file} holds`);
+      }
+    }
+    if (problems.length > 0 && !plan) refuse(`cannot sign the test builds ${set.set}:\n  ${problems.join('\n  ')}`);
+    for (const problem of problems) print(`note: ${problem}`);
+    const pending = set.builds.filter((build) => !existsSync(join(signedDir, signedTestXpiName(build.role))));
+    const signedEnv = (): string => harnessEnv(signedDir, (build) => signedTestXpiName(build.role), set);
+    if (pending.length === 0) {
+      print(`the test builds ${set.set} are signed. The harness (docs/project-unite/spike.md «P3b: как прогнать»): ${signedEnv()}`);
+      return;
+    }
+    if (pending.length < set.builds.length) print(`note: already signed: ${set.builds.filter((build) => !pending.includes(build)).map((build) => build.role).join(', ')} — only the rest goes to AMO.`);
+    const pnpmVersion = (await mustRun(deps.exec, { program: 'pnpm', args: ['--version'], cwd: checkout.root })).stdout.trim();
+    const nodeVersion = process.versions.node.split('.')[0] ?? process.versions.node;
+    const steps: Step[] = pending.map((build) => {
+      const notes = testBuildNotes({ set, role: build.role, nodeVersion, pnpmVersion });
+      const input = {
+        repoRoot: checkout.root,
+        buildDir: join(dir, build.dir),
+        sourcesZip: join(dir, 'sources.zip'),
+        artifactsDir: join(dir, `web-ext-artifacts-${build.role}`),
+        metadataPath: join(dir, `amo-metadata-${build.role}.json`),
+      };
+      const spec = signCommand(input);
+      const target = join(signedDir, signedTestXpiName(build.role));
+      return {
+        title: `Sign the test build «${build.role}» ${build.version} at addons.mozilla.org (unlisted, the test add-on ${TEST_BUILDS_GECKO_ID}), check it, store it`,
+        show: [
+          `write ${input.metadataPath} (approval notes):`,
+          ...notes.split('\n').map((line) => `  | ${line}`),
+          ...renderCommand(spec),
+          `the one .xpi in ${input.artifactsDir} must be signed, be ${TEST_BUILDS_GECKO_ID} ${build.version} and hold the files of ${build.dir}/ unchanged`,
+          `store ${target}`,
+        ],
+        run: async () => {
+          requireEnv(ENV.amoKey);
+          requireEnv(ENV.amoSecret);
+          writeFileSync(input.metadataPath, amoMetadata(notes));
+          const data = await signBuild(deps.exec, input, { version: build.version, geckoId: TEST_BUILDS_GECKO_ID }, () => checkout.buildFiles(input.buildDir), spec);
+          mkdirSync(signedDir, { recursive: true });
+          writeFileSync(target, data);
+          rmSync(input.artifactsDir, { recursive: true, force: true });
+          print(`    signed: ${build.role} ${build.version}, ${data.length} B, sha256 ${sha256Hex(data)}`);
+        },
+      };
+    });
+    await outward(`signing the P3b test builds ${set.set} at AMO`, set.set, steps);
+    if (!plan) print(`the test builds ${set.set} are signed. The harness (docs/project-unite/spike.md «P3b: как прогнать»): ${signedEnv()}`);
+  }
+
   async function sign(): Promise<void> {
+    if (values['test-builds']) {
+      await signTestBuilds();
+      return;
+    }
     const version = checkout.version();
     const paths = checkout.paths(version);
     if (existsSync(paths.signedXpi) || existsSync(paths.record)) refuse(`${version} is already signed (${paths.signedXpi}): a version is signed once. Next: pnpm release publish`);
@@ -559,7 +715,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     }
   }
 
-  const commands: Readonly<Record<string, () => Promise<void> | void>> = { status, version, note, site, build, preflight, sign, publish, pages, tag, announce, rollback };
+  const commands: Readonly<Record<string, () => Promise<void> | void>> = { status, version, note, site, build, 'test-builds': testBuilds, preflight, sign, publish, pages, tag, announce, rollback };
 
   const run = commands[command];
   if (run === undefined) {
