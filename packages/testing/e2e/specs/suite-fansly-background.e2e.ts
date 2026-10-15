@@ -1,5 +1,4 @@
 // P9a: the real Firefox event page, optional grant and passive observations.
-import { mkdirSync } from 'node:fs';
 import { browser, expect } from '@wdio/globals';
 import type { SiteAccessState } from '@cg/contracts/site-access';
 import { backgroundState, setOptionalPermissionPrompts, suspendBackground } from '../support/background';
@@ -10,6 +9,7 @@ import { FANSLY_STAND_PATTERN, registeredScripts } from '../support/fansly-site'
 import { callFansly, fakeFansly, fanslyStandUrl, waitForFanslyStandIdle, waitForFanslyStandReady } from '../support/fansly-stand';
 import { useNetworkTrap } from '../support/network-trap';
 import { grantOptional, revokeOptional } from '../support/permissions';
+import { capturePage } from '../support/pages';
 
 interface Stored {
   templates: Array<{ legacyId: string; headers: Record<string, string>; observedAt: number }>;
@@ -41,7 +41,6 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
     await waitForFanslyStandReady(); standTab = await browser.getWindowHandle();
     await browser.newWindow(testBuildPage('popup.html')); pagesTab = await browser.getWindowHandle();
     await setOptionalPermissionPrompts(false);
-    mkdirSync('test-results', { recursive: true });
   });
   after(async () => { await setOptionalPermissionPrompts(null); await setFanslyNeighbor(null); });
 
@@ -57,10 +56,13 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
       ['fansly-main', 'MAIN', 'document_start'], ['fansly', 'ISOLATED', 'document_start'],
     ]);
     expect((await access()).waitingReload).toBe(1);
-    await browser.saveScreenshot('test-results/p9a-enable.png');
+    const disable = browser.$('button=Выключить Fansly');
+    await disable.waitForDisplayed();
+    await browser.waitUntil(async () => (await disable.getAttribute('aria-busy')) !== 'true', { timeout: 10_000 });
+    await capturePage('p9a-enable');
     await stand();
     await browser.waitUntil(() => browser.execute(() => document.querySelector('div[data-host="reload-notice"]') !== null), { timeout: 10_000 });
-    await browser.saveScreenshot('test-results/p9a-notice.png');
+    await capturePage('p9a-notice');
   });
 
   it('[BG-007] [AU-031] first grant → sleep → tab reload/handshake → module restored and page headers captured after 2xx', async () => {
@@ -128,8 +130,9 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
     await installTestBuild();
     await browser.waitUntil(() => browser.execute(() => document.querySelector('div[data-host="reload-notice"]') !== null), { timeout: 15_000 });
     expect(await browser.execute(() => ({ stale: document.querySelectorAll('div[data-host="dock"]').length, foreign: document.querySelector('div[data-host="foreign"]')?.textContent }))).toEqual({ stale: 0, foreign: 'neighbour' });
-    await browser.saveScreenshot('test-results/p9a-update-notice.png');
-    await pages(); await browser.url(testBuildPage('popup.html'));
+    await capturePage('p9a-update-notice');
+    // Firefox closes extension-page tabs when their add-on is replaced.
+    await browser.newWindow(testBuildPage('popup.html')); pagesTab = await browser.getWindowHandle();
     expect(await access()).toMatchObject({ enabled: true, granted: true, registered: true, waitingReload: 1 });
     await stand(); await browser.refresh(); await waitForFanslyStandReady();
     await waitForReport((report) => report.rpc?.registered === true, 'handshake after update');
