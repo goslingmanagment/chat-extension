@@ -75,7 +75,7 @@ export const FANSLY_START_OP_FIXTURES: Verdicts = {
     { ...fanslyVoiceScriptStart, fields: [...NOTE_LABELS] },
     // The body's bounds of the window; a shared feature is no operation of this table.
     { ...fanslyNotesFillStart, window: 4 },
-    { ...fanslyNotesFillStart, window: 3001 },
+    { ...fanslyNotesFillStart, window: 5001 },
     { ...fanslyVoiceScriptStart, feature: 'reply' },
     { ...fanslyVoiceScriptStart, surface: 'dock' },
   ],
