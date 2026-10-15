@@ -119,15 +119,24 @@ const isAck = /* @__PURE__ */ shape({ n: int(1) });
 /** Seconds of a message's `createdAt` → ISO 8601 UTC; null past the year 9999 (no four-digit year) or before 1970. */
 const MAX_ISO_MS = 253_402_300_799_999;
 
-/** The messages of an answer (`messages[]`), as MAIN keeps them; one that is not a message is left out. */
-const messagesOf = (response: unknown): FrameMessage[] => {
+/**
+ * The messages of an answer (`messages[]`), as MAIN keeps them, and how many the page sent. One MAIN cannot read is
+ * never left out quietly: `lost` names its chat — null when it names none (every chat), `[]` when all were read.
+ */
+const messagesOf = (response: unknown): { readonly messages: FrameMessage[]; readonly count: number; readonly lost: string[] | null } => {
   const list = isPlain(response) && Array.isArray(response['messages']) ? (response['messages'] as unknown[]) : [];
-  const out: FrameMessage[] = [];
+  const messages: FrameMessage[] = [];
+  let lost: string[] | null = [];
   for (const item of list) {
     const m = frameMessage(item);
-    if (m !== null) out.push(m);
+    if (m !== null) messages.push(m);
+    else {
+      const groupId = isPlain(item) ? idOf(item['groupId']) : null;
+      if (groupId === null) lost = null;
+      else lost?.push(groupId);
+    }
   }
-  return out;
+  return { messages, count: list.length, lost };
 };
 const listOf = (value: unknown): unknown[] => (Array.isArray(value) ? (value as unknown[]) : []);
 
@@ -180,7 +189,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   let built: { readonly identity: Identity; readonly automation: Automation; readonly observation: Observation; readonly views: Views } | null = null;
   const world = (): NonNullable<typeof built> => {
     if (built !== null) return built;
-    const identity = createIdentity(memory, parse, Url);
+    // The groups of the chats observed, and the focused one, are the last to be forgotten.
+    const identity = createIdentity(memory, parse, Url, (groupId) => observation.focus === groupId || observation.chat(groupId) !== undefined);
     const automation = createAutomation(parse);
     const observation = createObservation({
       memory,
@@ -300,7 +310,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
           incoming(item.m);
         } else if (item.k === 'deleted') observation.deleted(item.id, item.groupId, item.cascade);
         else if (item.k === 'members') {
-          if (identity.member(item.groupId, item.userId, item.type === 6)) observation.participants(item.groupId);
+          if (identity.member(item.groupId, item.userId, item.type === 6, seq)) observation.participants(item.groupId);
         } else if (item.k === 'follow') emitter.event(EVT_FOLLOW, { eventId: item.eventId, accountId: item.accountId, followerId: item.followerId });
         // 'read': a receipt names no chat — nothing to add, nothing to lower; it never crosses the bridge (§5.3).
       }
@@ -320,10 +330,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     },
   });
 
-  /** A group of an answer, and what its `lastMessage` says of the chat's observation. */
-  const group = (value: unknown): void => {
+  /** A group of an answer asked at observation `seen`, and what its `lastMessage` says of the chat's observation. */
+  const group = (value: unknown, seen: number): void => {
     const { identity, observation } = world();
-    const id = identity.readGroup(value);
+    const id = identity.readGroup(value, seen);
     if (id === null) return;
     const last = isPlain(value) && isPlain(value['lastMessage']) ? idOf(value['lastMessage']['id']) : null;
     if (last !== null) observation.hint(id, last);
@@ -333,6 +343,19 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   const respond = (read: ResponseRead, stamp: Stamp | undefined): void => {
     const { identity, automation, observation } = world();
     const r = read.response;
+    /** The answer's place in the order of observations: its `loadstart`. */
+    const seen = stamp?.seq ?? seq;
+    /**
+     * The messages of the answer; one MAIN cannot read loses its chat (`fallback` — the chat of the address, when the
+     * message names none) before anything is merged, so the answer certifies nothing (§5.6).
+     */
+    const messagesIn = (fallback: string | null): ReturnType<typeof messagesOf> => {
+      const found = messagesOf(r);
+      const { lost } = found;
+      if (lost === null) observation.lose(fallback === null ? null : [fallback], WHY_PARSE_LIMIT);
+      else if (lost.length > 0) observation.lose(lost, WHY_PARSE_LIMIT);
+      return found;
+    };
     switch (read.kind) {
       case 'me': {
         const was = identity.creator;
@@ -343,14 +366,16 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         observation.dirty = true;
         return;
       }
-      case 'history':
-        observation.history(read.groupId as string, messagesOf(r), stamp, { epoch, confirmed }, read.limit ?? null);
+      case 'history': {
+        const { messages, count } = messagesIn(read.groupId);
+        observation.history(read.groupId as string, messages, count, stamp, { epoch, confirmed }, read.limit ?? null);
         return;
+      }
       case 'older':
-        observation.answer(messagesOf(r), read.groupId, stamp);
+        observation.answer(messagesIn(read.groupId).messages, read.groupId, stamp);
         return;
       case 'byIds':
-        observation.answer(messagesOf(r), null, stamp);
+        observation.answer(messagesIn(null).messages, null, stamp);
         return;
       case 'receipt': {
         // The page's own `POST /message`: its new message, as live as the socket's (its echo; the send is P7f's).
@@ -367,11 +392,11 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         }
         return;
       case 'group':
-        group(r);
+        group(r, seen);
         return;
       case 'groups': {
         const aggregation = (r as Plain)['aggregationData'];
-        for (const item of listOf(isPlain(aggregation) ? aggregation['groups'] : null)) group(item);
+        for (const item of listOf(isPlain(aggregation) ? aggregation['groups'] : null)) group(item, seen);
         for (const item of listOf(isPlain(aggregation) ? aggregation['accounts'] : null)) identity.readAccount(item);
         for (const item of listOf((r as Plain)['data'])) {
           const groupId = isPlain(item) ? idOf(item['groupId']) : null;

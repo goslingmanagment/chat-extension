@@ -92,11 +92,12 @@ export function certifiable(stamp: Stamp | undefined, epoch: number, confirmed: 
 export type Verdict = 'first' | 'recovered' | 'held' | 'no-overlap';
 
 /**
- * A certificate for the chat: `oldest` of the answer (null — empty), whether it holds an id, whether it is short. The
- * chat's ring already holds the answer. `first`/`recovered` — complete now; `held` — it was complete; `no-overlap` —
- * it stays unknown.
+ * A certificate for the chat: `oldest` of the answer (null — empty), whether it holds an id, whether it is short, and
+ * whether the ring retained all of it (`retained`: a proof of the start needs its whole base). The chat's ring already
+ * holds what it could of the answer. `first`/`recovered` — complete now; `held` — it was complete; `no-overlap` — it
+ * stays unknown.
  */
-export function certify(chat: Completeness, stamp: Stamp, oldest: string | null, holds: (id: string) => boolean, short: boolean): Verdict {
+export function certify(chat: Completeness, stamp: Stamp, oldest: string | null, holds: (id: string) => boolean, short: boolean, retained: boolean): Verdict {
   let verdict: Verdict;
   if (!chat.ever) verdict = 'first';
   else if (chat.complete) verdict = 'held';
@@ -108,7 +109,8 @@ export function certify(chat: Completeness, stamp: Stamp, oldest: string | null,
   if (verdict === 'first') chat.floor = oldest;
   if (short) {
     chat.floor = oldest;
-    chat.start = true;
+    // A short answer reaches the start; it proves it only while the ring holds all of it.
+    if (retained) chat.start = true;
   }
   chat.ever = true;
   chat.complete = true;

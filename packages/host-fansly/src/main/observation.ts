@@ -133,7 +133,7 @@ export interface Observation {
   /** A new message of the socket (5/1) or of the page's own send: live, never a sign of a loss. */
   live(m: FrameMessage): void;
   /** The fresh end of a chat: a certificate, when `certifiable`; `limit` — the page's own (`limit=` of its address). */
-  history(groupId: string, messages: readonly FrameMessage[], stamp: Stamp | undefined, socket: Socket, limit: number | null): void;
+  history(groupId: string, messages: readonly FrameMessage[], count: number, stamp: Stamp | undefined, socket: Socket, limit: number | null): void;
   /** An older page, messages by id: into the rings, never a certificate. */
   answer(messages: readonly FrameMessage[], groupId: string | null, stamp: Stamp | undefined): void;
   /** 5/10: a message deleted; a deleted mass-send parent (`cascade`) takes its copies in every chat. */
@@ -231,10 +231,17 @@ export function createObservation(deps: ObservationDeps): Observation {
     charge(chat, -(COST_RECORD + (corr === null ? 0 : COST_CORR)));
   };
 
-  /** Inserts a record at its place; -1 — it is older than a full ring holds. */
-  const insert = (chat: Chat, id: string, at: number, hash: number, bits: number, corr: string | null): number => {
+  /**
+   * Inserts a record at its place; -1 — it is older than a full ring holds. `seen` — the observation number it is known
+   * by: a frame's own, an answer's `loadstart` (the server made the answer after it, so the message existed then).
+   */
+  const insert = (chat: Chat, id: string, at: number, seen: number, hash: number, bits: number, corr: string | null): number => {
     let i = find(chat, id);
-    if (i >= 0) return i;
+    if (i >= 0) {
+      // Known: the latest evidence that it exists counts.
+      if ((chat.words[i * WORDS + 1] as number) < seen) chat.words[i * WORDS + 1] = seen;
+      return i;
+    }
     i = ~i;
     if (chat.ids.length >= RING_RECORDS) {
       if (i === 0) return -1;
@@ -250,7 +257,7 @@ export function createObservation(deps: ObservationDeps): Observation {
     chat.words.copyWithin((i + 1) * WORDS, i * WORDS, n * WORDS);
     chat.bits.copyWithin(i + 1, i, n);
     chat.words[i * WORDS] = at;
-    chat.words[i * WORDS + 1] = seq();
+    chat.words[i * WORDS + 1] = seen;
     chat.words[i * WORDS + 2] = hash;
     chat.bits[i] = bits;
     chat.ids.splice(i, 0, id);
@@ -354,11 +361,15 @@ export function createObservation(deps: ObservationDeps): Observation {
 
   const gone = (m: FrameMessage): boolean => tombs.has(m.id) || (m.correlationId !== null && cascades.has(m.correlationId));
 
-  /** A message into its chat's ring; the index, and whether it was new. A deleted one comes in flagged, without its text. */
-  const ingest = (chat: Chat, m: FrameMessage): { readonly i: number; readonly fresh: boolean } => {
+  /**
+   * A message into its chat's ring, known by observation number `seen`; the index, and whether it was new. A deleted
+   * one comes in flagged, without its text.
+   */
+  const ingest = (chat: Chat, m: FrameMessage, seen: number): { readonly i: number; readonly fresh: boolean } => {
     const known = find(chat, m.id);
     const deleted = gone(m);
     if (known >= 0) {
+      if ((chat.words[known * WORDS + 1] as number) < seen) chat.words[known * WORDS + 1] = seen;
       if (!deleted && m.content !== '' && !((chat.bits[known] as number) & DELETED)) {
         chat.bits[known] = (chat.bits[known] as number) | TEXT;
         setText(chat, known, m.content);
@@ -368,7 +379,7 @@ export function createObservation(deps: ObservationDeps): Observation {
     const fromFan = m.senderId !== identity.creator;
     const bits = (fromFan ? FAN : 0) | (m.media ? MEDIA : 0) | (deleted ? DELETED : 0) | (!fromFan && madeBySomething(m.type, m.correlationId, m.inReplyTo) ? MADE : 0) | (m.content === '' ? 0 : TEXT);
     const at = m.createdAt === null ? 0 : Math.min(Math.floor(m.createdAt), 0xffffffff);
-    const i = insert(chat, m.id, at, fromFan ? 0 : textHash(m.content), bits, m.correlationId);
+    const i = insert(chat, m.id, at, seen, fromFan ? 0 : textHash(m.content), bits, m.correlationId);
     if (i >= 0 && !deleted && m.content !== '') setText(chat, i, m.content);
     return { i, fresh: i >= 0 };
   };
@@ -400,10 +411,10 @@ export function createObservation(deps: ObservationDeps): Observation {
       const chat = ensure(m.groupId);
       chat.active = clock += 1;
       waited.delete(m.id);
-      ingest(chat, m);
+      ingest(chat, m, seq());
       if (chat.id === observation.focus) observation.dirty = true;
     },
-    history(groupId, messages, stamp, socket, limit) {
+    history(groupId, messages, count, stamp, socket, limit) {
       if (identity.creator === null) return;
       const chat = ensure(groupId);
       chat.active = clock += 1;
@@ -415,7 +426,8 @@ export function createObservation(deps: ObservationDeps): Observation {
       const own = sorted(messages, groupId);
       const held = new Set(own.map((m) => m.id));
       const oldest = own[0]?.id ?? null;
-      const short = limit !== null && own.length < Math.min(limit, HISTORY_PAGE);
+      // Short by the page's own count: a message left out here (another chat's) does not make a page short.
+      const short = limit !== null && count < Math.min(limit, HISTORY_PAGE);
       // What the chat held from before the request and the answer, made later, lacks within its span: deleted unseen.
       for (let i = chat.ids.length - 1; i >= 0; i -= 1) {
         const id = chat.ids[i] as string;
@@ -425,8 +437,14 @@ export function createObservation(deps: ObservationDeps): Observation {
           removeAt(chat, i);
         }
       }
-      for (const m of own) ingest(chat, m);
-      const verdict = certify(chat, stamp, oldest, (id) => held.has(id), short);
+      for (const m of own) ingest(chat, m, stamp.seq);
+      // A proof of the start rests on the whole answer: messages that came while it was in flight may have filled the
+      // ring, so its older part never entered it.
+      const retained = own.every((m) => find(chat, m.id) >= 0);
+      const verdict = certify(chat, stamp, oldest, (id) => held.has(id), short, retained);
+      // The interval cannot start below what the ring holds.
+      const first = chat.ids[0];
+      if (chat.floor !== null && first !== undefined && compareIds(first, chat.floor) > 0) chat.floor = first;
       if (verdict !== 'no-overlap') {
         // The answer shows what it shows: a waited-for message of its span is in it, or gone.
         for (const [id, w] of waited) if (w.g === groupId && (short || (oldest !== null && compareIds(id, oldest) >= 0))) waited.delete(id);
@@ -446,7 +464,7 @@ export function createObservation(deps: ObservationDeps): Observation {
             const older = stamp !== undefined && stamp.seq < chat.certSeq && (chat.certFrom === null || compareIds(m.id, chat.certFrom) >= 0);
             if (older) continue;
           }
-          const { fresh } = ingest(chat, m);
+          const { fresh } = ingest(chat, m, stamp?.seq ?? seq());
           if (fresh && chat.complete && !gone(m) && inside(chat, m.id)) wait(chat, m.id);
         }
         if (id === observation.focus) observation.dirty = true;
@@ -469,7 +487,7 @@ export function createObservation(deps: ObservationDeps): Observation {
       if (groupId !== null && identity.creator !== null) {
         // Known to be of this chat: flagged, or kept flagged, so the order of a deletion and an answer changes nothing.
         const chat = ensure(groupId);
-        const i = insert(chat, id, 0, 0, 0, null);
+        const i = insert(chat, id, 0, seq(), 0, 0, null);
         if (i >= 0) flag(chat, i);
       }
       for (const chat of chats.values()) {
@@ -552,6 +570,7 @@ export function createObservation(deps: ObservationDeps): Observation {
           if (victim !== null) evict(victim);
           return victim !== null;
         },
+        avatar: () => identity.evictAvatar(),
         group: () => identity.evict(observation.focus),
         stream,
       });

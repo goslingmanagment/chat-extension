@@ -40,7 +40,7 @@ import { frameMessage, type FrameMessage } from './frame-parse';
 import { createIdentity } from './identity';
 import { createMemory } from './memory';
 import { createObservation } from './observation';
-import { MAX_CHATS, MEMORY_MAX_BYTES, RESPONSE_NOW_CHARS, TEXT_CHATS, TEXT_MAX_BYTES, UNSEEN_GRACE_MS } from './protocol';
+import { MAX_CHATS, MEMORY_MAX_BYTES, TEXT_CHATS, TEXT_MAX_BYTES, UNSEEN_GRACE_MS } from './protocol';
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -534,27 +534,50 @@ describe('[host:fansly] the generation snapshot (FS-TAIL-6, FS-TAIL-7, §5.8)', 
     expect((await snap(c, { feature: 'recap', withText: false }))?.truncated).toBe(false);
   });
 
-  it('[FS-TAIL-6] ≤ 5 ms with several 115 KB answers in the queue — drained first; a drain over its budget says `pending-parse`', async () => {
-    const { c } = await tab();
+  it('[FS-TAIL-6] ≤ 5 ms with several 115 KB answers in the queue — real inbox pages, read by the snapshot itself; what does not fit its step says `pending-parse`', async () => {
+    // The page's idle moments come when the test says: the snapshot, not an idle callback, meets the queue.
+    const idle: Array<(deadline: IdleDeadline) => void> = [];
+    const { c } = await tab({ win: page('loading', () => performance.now(), (callback) => idle.push(callback)) });
     fresh(c.win).respond(200, freshEnd(conversation(1, 25)));
-    const inbox = (n: number): string => ok({ data: [{ groupId: GROUP, lastMessageId: id(25) }], aggregationData: { groups: [group(GROUP, [CREATOR, FAN])], accounts: [], pad: String(n).repeat(115_000) } });
-    expect(inbox(1).length).toBeGreaterThan(RESPONSE_NOW_CHARS);
+    await settle();
+    // An inbox page as Fansly serves it: rows, their groups with members, rules and last messages, the fans' accounts.
+    const inbox = (n: number): string => {
+      const rows = Array.from({ length: 120 }, (_, i) => ({ fan: `7000000000006${String(n * 1000 + i).padStart(5, '0')}`, group: `7000000000007${String(n * 1000 + i).padStart(5, '0')}` }));
+      return ok({
+        data: rows.map((row) => ({ groupId: row.group, partnerAccountId: row.fan, unreadCount: 0, lastMessageId: `${row.group.slice(0, 13)}99999` })),
+        aggregationData: {
+          groups: rows.map((row) => group(row.group, [CREATOR, row.fan], { lastMessage: message(`${row.group.slice(0, 13)}99999`, row.fan, { groupId: row.group, content: 'привет, как дела? '.repeat(3) }) })),
+          accounts: rows.map((row) => ({ id: row.fan, username: `fan${row.fan.slice(-4)}`, avatar: { width: 800, locations: [{ location: `https://cdn3.fansly.com/${row.fan}/a.jpeg` }], variants: [{ width: 400, locations: [{ location: `https://cdn3.fansly.com/${row.fan}/b.jpeg` }] }] } })),
+        },
+      });
+    };
+    expect(inbox(1).length).toBeGreaterThan(100_000);
+    expect(inbox(1).length).toBeLessThan(150_000);
     const times: number[] = [];
+    let drained = 0;
     for (let round = 0; round < 5; round += 1) {
-      for (let i = 0; i < 4; i += 1) request(c.win, `${API}/messaging/groups?offset=${i}`).respond(200, inbox(i));
+      for (let i = 0; i < 4; i += 1) request(c.win, `${API}/messaging/groups?offset=${round * 4 + i}`).respond(200, inbox(round * 4 + i));
+      const before = (await c.health()).responses.parsed;
       const started = performance.now();
       const s = await snap(c);
       times.push(performance.now() - started);
-      // Drained within its budget: the four answers were read before the snapshot was taken.
-      expect(s?.completeness).toBe('complete');
+      const read = (await c.health()).responses.parsed - before;
+      // The snapshot read what fit its step — at least the first — and says whether it read them all.
+      expect(read).toBeGreaterThanOrEqual(1);
+      expect(s?.completeness).toBe(read === 4 ? 'complete' : 'unknown');
+      if (read < 4) expect(s?.gap).toBe('pending-parse');
+      drained += read;
+      for (const callback of idle.splice(0)) callback({ didTimeout: true, timeRemaining: () => 0 });
     }
     const { perf, responses } = await c.health();
     expect(responses.deferred).toBe(20);
     expect(perf.snapshotMs.count).toBe(5);
     console.log(
-      `snapshotMs with four 115 KB answers queued: max ${perf.snapshotMs.max.toFixed(2)} ms, mean ${(perf.snapshotMs.sum / 5).toFixed(2)} ms; round trip max ${Math.max(...times).toFixed(1)} ms`,
+      `snapshotMs with four 115 KB inbox pages queued: max ${perf.snapshotMs.max.toFixed(2)} ms, mean ${(perf.snapshotMs.sum / 5).toFixed(2)} ms; ${drained} of 20 read by the snapshots; round trip max ${Math.max(...times).toFixed(1)} ms`,
     );
-    expect(perf.snapshotMs.sum / perf.snapshotMs.count).toBeLessThanOrEqual(5);
+    expect(perf.snapshotMs.max).toBeLessThanOrEqual(5);
+    // 2400 groups went by (≤ 600 kept): the observed chat's own group is the last one forgotten.
+    expect(await meta(c)).toMatchObject({ fanId: FAN, kind: 'direct' });
 
     // A slow page: every look at the clock is a millisecond — the drain stops at its budget, the rest waits.
     let clock = 0;
@@ -627,7 +650,12 @@ describe('[host:fansly] the generation snapshot (FS-TAIL-6, FS-TAIL-7, §5.8)', 
 
 describe('[host:fansly] the memory account (FS-TAIL-5, §5.5)', () => {
   /** The observation on its own, its account and what it said. */
-  function observed(held = 0): { observation: ReturnType<typeof createObservation>; memory: ReturnType<typeof createMemory>; said: Array<Record<string, unknown>> } {
+  function observed(held = 0): {
+    observation: ReturnType<typeof createObservation>;
+    memory: ReturnType<typeof createMemory>;
+    identity: ReturnType<typeof createIdentity>;
+    said: Array<Record<string, unknown>>;
+  } {
     let seq = 0;
     const memory = createMemory(() => held);
     const identity = createIdentity(memory, JSON.parse, URL);
@@ -643,7 +671,7 @@ describe('[host:fansly] the memory account (FS-TAIL-5, §5.5)', () => {
       tick: () => (seq += 1),
       seq: () => seq,
     });
-    return { observation, memory, said };
+    return { observation, memory, identity, said };
   }
   const chatId = (k: number): string => `7000000000003${String(k).padStart(5, '0')}`;
   /** Message `n` of chat `k`: 18 digits, unique, ascending with `n`. */
@@ -654,14 +682,14 @@ describe('[host:fansly] the memory account (FS-TAIL-5, §5.5)', () => {
     const { observation, memory, said } = observed(512 * 1024);
     observation.focus = chatId(0);
     // The focused chat is certified first, then everything else floods in.
-    observation.history(chatId(0), [live(0, 1, 'x')], { seq: 1, epoch: 1, confirmed: true }, { epoch: 1, confirmed: true }, 25);
+    observation.history(chatId(0), [live(0, 1, 'x')], 1, { seq: 1, epoch: 1, confirmed: true }, { epoch: 1, confirmed: true }, 25);
     let peak = 0;
     let peakTexts = 0;
     for (let k = 1; k <= 400; k += 1) {
       const group = chatId(k);
       for (let n = 1; n <= 130; n += 1) observation.live(live(k, n, `${'ж'.repeat(1500)} ${k}/${n}`));
       // Every 20th chat certified (a page of its newest message, not short): its eviction must say so.
-      if (k % 20 === 0) observation.history(group, [live(k, 130, 'z')], { seq: Number.MAX_SAFE_INTEGER, epoch: 1, confirmed: true }, { epoch: 1, confirmed: true }, null);
+      if (k % 20 === 0) observation.history(group, [live(k, 130, 'z')], 1, { seq: 2 ** 31, epoch: 1, confirmed: true }, { epoch: 1, confirmed: true }, null);
       observation.touch(chatId(0));
       observation.enforce(() => false);
       peak = Math.max(peak, memory.total());
@@ -685,6 +713,14 @@ describe('[host:fansly] the memory account (FS-TAIL-5, §5.5)', () => {
     expect(evicted).not.toContain(chatId(0));
   });
 
+  it('[FS-TAIL-5] avatars are in the account and go too: 300 addresses of 4096 characters beside a full deferred queue stay within 4 MiB', () => {
+    const { observation, memory, identity } = observed(2 * 1024 * 1024);
+    for (let k = 0; k < 300; k += 1) identity.readAccount({ id: chatId(k), avatar: { locations: [{ location: `https://cdn3.fansly.com/${String(k).padStart(4, '0')}${'a'.repeat(4096 - 28)}` }] } });
+    expect(memory.total()).toBeGreaterThan(MEMORY_MAX_BYTES);
+    observation.enforce(() => false);
+    expect(memory.total()).toBeLessThanOrEqual(MEMORY_MAX_BYTES);
+  });
+
   it('[FS-TAIL-5] over the limit with nothing of the observation left to drop, the stream’s queue goes (`fx.gap {memory}`)', () => {
     const { observation, memory } = observed(MEMORY_MAX_BYTES + 1);
     let dropped = 0;
@@ -695,5 +731,114 @@ describe('[host:fansly] the memory account (FS-TAIL-5, §5.5)', () => {
     });
     expect(dropped).toBe(1);
     expect(memory.texts).toBe(0);
+  });
+});
+
+describe('[host:fansly] the review of P7b: six cases that must hold (FS-TAIL-4…6, FS-IDN-3)', () => {
+  it('[FS-TAIL-6] a short answer proves the start only if the ring still holds all of it: 121 messages that came while it was in flight leave no proof', async () => {
+    const { c, socket } = await tab();
+    const xhr = fresh(c.win);
+    // Eleven personal messages on the server when it made the answer; 121 automated ones arrive before it does.
+    for (let n = 12; n <= 132; n += 1) socket.receive(newMessage(id(n), CREATOR, { type: 2, content: 'auto', createdAt: 1_790_000_000 + n }));
+    xhr.respond(200, freshEnd(conversation(1, 11)));
+    await settle();
+    const hi = await snap(c, { feature: 'hi', window: 25 });
+    expect(hi?.completeness).toBe('complete');
+    expect(hi?.startProof).toBeUndefined();
+    expect((await meta(c))?.window.startProven).toBe(false);
+    // The ring holds the newest 120, all after the answer: the window is theirs.
+    expect(windowIds(hi)).toEqual(Array.from({ length: 25 }, (_, i) => id(108 + i)));
+  });
+
+  it('[FS-TAIL-4] two overlapping fresh ends give one history whatever order they answer in: a record carries its request’s place, not its arrival’s', async () => {
+    const windows: string[][] = [];
+    for (const order of ['A first', 'B first']) {
+      const { c } = await tab();
+      const a = fresh(c.win);
+      const b = fresh(c.win);
+      // Message 2 was deleted between the two requests, unseen: B, asked later, no longer has it.
+      const older = historyPage(conversation(1, 3));
+      const newer = historyPage(conversation(1, 3).filter((m) => m['id'] !== id(2)));
+      if (order === 'A first') {
+        a.respond(200, older);
+        b.respond(200, newer);
+      } else {
+        b.respond(200, newer);
+        a.respond(200, older);
+      }
+      await settle();
+      const s = await snap(c);
+      expect(s?.completeness, order).toBe('complete');
+      windows.push(windowIds(s));
+      for (const cleanup of cleanups.splice(0)) cleanup();
+    }
+    expect(windows).toEqual([
+      [id(1), id(3)],
+      [id(1), id(3)],
+    ]);
+  });
+
+  it('[FS-IDN-3] an answer about a group asked before a member frame does not undo it: a third member stays, no fan, no snapshot', async () => {
+    const { c, socket } = await tab();
+    const stale = request(c.win, `${API}/group/${GROUP}/`);
+    socket.receive(member(6, GROUP, THIRD));
+    stale.respond(200, ok(group(GROUP, [CREATOR, FAN])));
+    fresh(c.win).respond(200, freshEnd(conversation(1, 4)));
+    await settle();
+    expect(await meta(c)).toMatchObject({ kind: 'group', fanId: null });
+    expect(await snap(c)).toBeNull();
+    // A group the page never showed: a member frame first, then an answer asked before it — nothing is told.
+    const unknown = '700000000000000088';
+    const before = request(c.win, `${API}/group/${unknown}/`);
+    socket.receive(member(6, unknown, THIRD));
+    before.respond(200, ok(group(unknown, [CREATOR, FAN])));
+    await settle();
+    expect(await meta(c, unknown)).toMatchObject({ kind: null, fanId: null });
+    // An answer asked after the frame is the truth.
+    request(c.win, `${API}/group/${unknown}/`).respond(200, ok(group(unknown, [CREATOR, FAN, THIRD])));
+    await settle();
+    expect(await meta(c, unknown)).toMatchObject({ kind: 'group', fanId: null });
+  });
+
+  it('[FS-TAIL-4] an answer with a message MAIN cannot read is not read whole: no certificate, no proof of the start from a page that only looks short', async () => {
+    const { c } = await tab();
+    const server = conversation(1, 25);
+    const broken = server.map((m) => (m['id'] === id(13) ? { ...m, senderId: undefined } : m));
+    fresh(c.win).respond(200, freshEnd(broken));
+    await settle();
+    const hi = await snap(c, { feature: 'hi', window: 25 });
+    // Never certified: its observation has no interval at all.
+    expect(hi).toMatchObject({ completeness: 'unknown', gap: 'not-certified' });
+    expect(hi?.startProof).toBeUndefined();
+    expect(certified(c)).toBe(false);
+    expect(coverage(c).at(-1)).toEqual({ groupIds: [GROUP], state: 'unknown', reason: 'parse-limit' });
+    // Messages by id the same: the chat the unreadable one names becomes unknown.
+    fresh(c.win).respond(200, freshEnd(server));
+    await settle();
+    expect(certified(c)).toBe(true);
+    request(c.win, `${API}/messages?ids=${id(26)}`).respond(200, historyPage([{ ...message(id(26)), senderId: 'x' }]));
+    await settle();
+    expect((await snap(c))?.gap).toBe('parse-limit');
+  });
+
+  it('[FS-TAIL-6] a snapshot never starts a parse it cannot finish within its step: one ~1 MB answer of 190 messages waits (`pending-parse`) and is read when the page is idle', async () => {
+    // The page's idle moments come when the test says.
+    const idle: Array<(deadline: IdleDeadline) => void> = [];
+    const { c } = await tab({ win: page('loading', () => performance.now(), (callback) => idle.push(callback)) });
+    fresh(c.win).respond(200, freshEnd(conversation(1, 25)));
+    await settle();
+    const big = historyPage(Array.from({ length: 190 }, (_, i) => message(`70000000000050${String(i).padStart(4, '0')}`, FAN, { groupId: OTHER_GROUP, content: `${'слово '.repeat(860)}${i}` })));
+    expect(big.length).toBeGreaterThan(950_000);
+    request(c.win, `${API}/messages?ids=1`).respond(200, big);
+    const before = (await c.health()).responses.parsed;
+    const s = await snap(c);
+    expect(s).toMatchObject({ completeness: 'unknown', gap: 'pending-parse' });
+    const health = await c.health();
+    expect(health.responses.parsed).toBe(before);
+    expect(health.perf.snapshotMs.max).toBeLessThanOrEqual(5);
+    // The page's idle time reads it.
+    for (const callback of idle.splice(0)) callback({ didTimeout: true, timeRemaining: () => 0 });
+    expect((await c.health()).responses.parsed).toBe(before + 1);
+    expect((await snap(c))?.completeness).toBe('complete');
   });
 });

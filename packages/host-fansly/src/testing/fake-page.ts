@@ -90,8 +90,14 @@ export interface PageControls {
   show(persisted: boolean): void;
 }
 
-/** A page-like window: its constructors, and window messaging over Node's MessageChannel; `clock` — its `performance.now`. */
-export function page(readyState: DocumentReadyState = 'loading', clock: () => number = () => performance.now()): PageWindow {
+/** The page's requestIdleCallback when a test holds its idle moments: it calls them back itself. */
+export type IdleHook = (callback: (deadline: IdleDeadline) => void, options?: { timeout: number }) => number;
+
+/**
+ * A page-like window: its constructors, and window messaging over Node's MessageChannel; `clock` — its
+ * `performance.now`; `idle` — its `requestIdleCallback` (none by default: MAIN stands a timer in for it).
+ */
+export function page(readyState: DocumentReadyState = 'loading', clock: () => number = () => performance.now(), idle?: IdleHook): PageWindow {
   const listeners = new Set<Listener>();
   /** `pageshow`: the back-forward cache (§5.6) — no switch of anything. */
   const shows = new Set<(event: Event) => void>();
@@ -116,6 +122,7 @@ export function page(readyState: DocumentReadyState = 'loading', clock: () => nu
     XMLHttpRequest: FakeXMLHttpRequest,
     setTimeout: (callback: () => void, ms?: number) => setTimeout(callback, ms),
     requestAnimationFrame: (callback: () => void) => setTimeout(callback, 0),
+    ...(idle === undefined ? {} : { requestIdleCallback: idle }),
     listening: () => listeners.size,
     show: (persisted: boolean) => {
       for (const listener of [...shows]) listener(Object.assign(new Event('pageshow'), { persisted }));

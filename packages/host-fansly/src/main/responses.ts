@@ -26,7 +26,8 @@
 // inbox, up to 115 KB) is kept as its string — never the request — in a
 // queue of at most DEFERRED_MAX_ITEMS answers and DEFERRED_MAX_CHARS, read
 // when the page is idle (`requestIdleCallback`, within its slice) or drained
-// with a budget before a snapshot (P7b). An answer over RESPONSE_MAX_CHARS,
+// with a budget before a snapshot (P7b) — never an answer the budget left
+// could not read to its end. An answer over RESPONSE_MAX_CHARS,
 // or one the full queue cannot take, is not read: an explicit loss — the
 // area it names becomes unknown — never a long block (§5.4: the P3a
 // calibration, 115 KB in 0.2 ms).
@@ -39,7 +40,7 @@
 import { idOf, isPlain } from '@cg/host-kit/main/check';
 import type { Guard } from '@cg/host-kit/main/guard';
 
-import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
+import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, DRAIN_CHARS_PER_MS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
 
 export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault';
 
@@ -167,7 +168,10 @@ export interface Deferred<S> {
 export interface ResponseQueue<S> {
   /** Keeps the answer for later; false — the queue is full: the answer is lost. */
   push(item: Deferred<S>): boolean;
-  /** Reads waiting answers until `budgetMs` is spent (a snapshot's bounded drain, P7b); true — nothing waits. */
+  /**
+   * Reads waiting answers within `budgetMs` (a snapshot's bounded drain, P7b): an answer is started only if it can be
+   * read in what is left, at DRAIN_CHARS_PER_MS; true — nothing waits.
+   */
   drain(budgetMs: number): boolean;
   size(): number;
   /** Characters waiting (a string of them — two bytes a character at most: the memory account, §5.5). */
@@ -222,7 +226,12 @@ export function createResponseQueue<S>(natives: QueueNatives, read: (item: Defer
     },
     drain(budgetMs) {
       const until = now() + budgetMs;
-      while (items.length > 0 && now() < until) one();
+      for (let item = items[0]; item !== undefined; item = items[0]) {
+        const left = until - now();
+        // Once started, an answer is read to its end: one that would not fit what is left waits for an idle moment.
+        if (left <= 0 || item.text.length > left * DRAIN_CHARS_PER_MS) break;
+        one();
+      }
       return items.length === 0;
     },
     size: () => items.length,

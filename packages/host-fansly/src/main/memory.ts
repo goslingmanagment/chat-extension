@@ -8,8 +8,8 @@
 //
 // Over a limit the observation does not grow: `enforce` drops texts of the
 // least recently active chat first (texts alone ≤ 2 MiB), then whole chats,
-// then groups, and — when nothing of the observation is left to drop — the
-// stream's waiting queue with one `fx.gap {memory}`. Whatever was dropped is
+// then the fans' avatars, then groups, and — when nothing of the observation
+// is left to drop — the stream's waiting queue with one `fx.gap {memory}`. Whatever was dropped is
 // `unknown` from then on. The estimates are conservative (the spike's
 // measures in protocol.ts); `about:memory` calibrates them in P16a.
 
@@ -42,6 +42,7 @@ export function createMemory(held: () => number): Memory {
 export interface Evictors {
   texts(): boolean;
   chat(): boolean;
+  avatar(): boolean;
   group(): boolean;
   stream(): boolean;
 }
@@ -49,5 +50,5 @@ export interface Evictors {
 /** Brings the account within its limits. */
 export function enforce(memory: Memory, evict: Evictors): void {
   while (memory.texts > TEXT_MAX_BYTES && evict.texts());
-  while (memory.total() > MEMORY_MAX_BYTES && (evict.texts() || evict.chat() || evict.group() || evict.stream()));
+  while (memory.total() > MEMORY_MAX_BYTES && (evict.texts() || evict.chat() || evict.avatar() || evict.group() || evict.stream()));
 }

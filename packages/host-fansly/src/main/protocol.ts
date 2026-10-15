@@ -181,6 +181,12 @@ export const UNSEEN_GRACE_MS = 3000;
 export const UNSEEN_MAX = 64;
 /** §5.4, FS-TAIL-6: a snapshot drains the deferred parse for this long at most; what is left makes it `pending-parse`. */
 export const SNAPSHOT_DRAIN_MS = 3;
+/**
+ * …and starts an answer only if it can be read in what is left of that, at this many characters a millisecond. Once
+ * started, an answer is read to its end, so the estimate is a slow one: P3a read a 115 KB inbox answer in 0.18 ms, the
+ * review of P7b a `/messages` answer of 987 K characters and 190 messages in 7.5–12.9 ms (≈ 100 K a millisecond).
+ */
+export const DRAIN_CHARS_PER_MS = 64 * 1024;
 
 /**
  * The account's estimates (§5.5, spike P3a: a compact record measured 33 B, a text of 150 characters 220 B in Latin

@@ -22,7 +22,8 @@
 //   (`fanslyAvatarUrlSchema`: https, a `*.fansly.com` host, ≤ 4096
 //   characters). A string only: nobody here loads it (X37).
 // Bounded: MAX_GROUPS groups and MAX_AVATARS avatars, the least recently
-// touched forgotten first; both are in the memory account (memory.ts).
+// touched forgotten first — a group whose chat the observation holds only
+// when no other is left; both are in the memory account (memory.ts).
 
 import { idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 
@@ -37,6 +38,11 @@ interface Group {
   type: number | null;
   /** Fansly's DM rules let the model write; null — not known. */
   dm: boolean | null;
+  /**
+   * The observation number of what it says: a member frame's own, an answer's `loadstart`. An answer asked before it
+   * says nothing newer (a member added while it was in flight stays added, §5.6 merge order).
+   */
+  seen: number;
 }
 
 const MASS_SEND_GROUP = 3;
@@ -111,12 +117,12 @@ export function avatarOf(account: Plain, Url: typeof URL): string | null {
 
 export interface Identity {
   creator: string | null;
-  /** A group of an answer (`/group/<id>/`, `aggregationData.groups[]`): its id, or null — not a group. */
-  readGroup(value: unknown): string | null;
+  /** A group of an answer asked at observation `seen` (`/group/<id>/`, `aggregationData.groups[]`): its id, or null — not a group. */
+  readGroup(value: unknown, seen: number): string | null;
   /** An account of an answer: its avatar, if it has one fit to send. */
   readAccount(value: unknown): void;
-  /** A member added (4/6) or removed (4/7); true — the group's fan or kind changed. */
-  member(groupId: string, userId: string | null, added: boolean): boolean;
+  /** A member added (4/6) or removed (4/7) at observation `seen`; true — the group's fan or kind changed. */
+  member(groupId: string, userId: string | null, added: boolean, seen: number): boolean;
   known(groupId: string): boolean;
   kind(groupId: string): Kind | null;
   fan(groupId: string): string | null;
@@ -124,9 +130,15 @@ export interface Identity {
   avatar(fanId: string): string | null;
   /** Forgets the least recently touched group but `keep`; false — none to forget. */
   evict(keep: string | null): boolean;
+  /** Forgets the least recently seen avatar; false — none left. */
+  evictAvatar(): boolean;
 }
 
-export function createIdentity(memory: Memory, parse: (text: string) => unknown, Url: typeof URL): Identity {
+/**
+ * `held` — the observation still holds this chat (or it is the focused one): its group is forgotten only when no other
+ * is left to forget.
+ */
+export function createIdentity(memory: Memory, parse: (text: string) => unknown, Url: typeof URL, held: (groupId: string) => boolean = () => false): Identity {
   const groups = new Map<string, Group>();
   const avatars = new Map<string, string>();
   const groupCost = (group: Group): number => COST_GROUP + COST_MEMBER * (group.members?.length ?? 0);
@@ -142,19 +154,33 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
     return group;
   };
 
+  /** The group, touched, or a new one known by nothing yet. */
+  const ensure = (id: string): Group => {
+    let group = take(id);
+    if (group === undefined) {
+      group = { members: null, type: null, dm: null, seen: 0 };
+      groups.set(id, group);
+      memory.groups += groupCost(group);
+      if (groups.size > MAX_GROUPS) identity.evict(id);
+    }
+    return group;
+  };
+
+  const forgetAvatar = (id: string, url: string): void => {
+    avatars.delete(id);
+    memory.groups -= avatarCost(url);
+  };
+
   const identity: Identity = {
     creator: null,
-    readGroup(value) {
+    readGroup(value, seen) {
       if (!isPlain(value)) return null;
       const id = idOf(value['id']);
       if (id === null) return null;
-      let group = take(id);
-      if (group === undefined) {
-        group = { members: null, type: null, dm: null };
-        groups.set(id, group);
-        memory.groups += groupCost(group);
-        if (groups.size > MAX_GROUPS) identity.evict(id);
-      }
+      const group = ensure(id);
+      // Asked before the group last changed: what it says is older than what is known.
+      if (seen < group.seen) return id;
+      group.seen = seen;
       memory.groups -= groupCost(group);
       const users = value['users'];
       if (Array.isArray(users)) {
@@ -177,21 +203,16 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
       const url = id === null || id === identity.creator ? null : avatarOf(value, Url);
       if (id === null || url === null) return;
       const old = avatars.get(id);
-      if (old !== undefined) {
-        avatars.delete(id);
-        memory.groups -= avatarCost(old);
-      }
+      if (old !== undefined) forgetAvatar(id, old);
       avatars.set(id, url);
       memory.groups += avatarCost(url);
-      if (avatars.size > MAX_AVATARS) {
-        const [oldest, address] = avatars.entries().next().value as [string, string];
-        avatars.delete(oldest);
-        memory.groups -= avatarCost(address);
-      }
+      if (avatars.size > MAX_AVATARS) identity.evictAvatar();
     },
-    member(groupId, userId, added) {
-      const group = groups.get(groupId);
-      if (group === undefined || group.members === null || userId === null) return false;
+    member(groupId, userId, added, seen) {
+      // A group the page never showed us is remembered by the frame alone: an answer asked before it cannot undo it.
+      const group = ensure(groupId);
+      group.seen = seen;
+      if (group.members === null || userId === null) return false;
       const before = `${identity.kind(groupId)}/${identity.fan(groupId)}`;
       memory.groups -= groupCost(group);
       group.members = added ? (group.members.includes(userId) ? group.members : [...group.members, userId]) : group.members.filter((id) => id !== userId);
@@ -211,12 +232,22 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
     },
     dm: (groupId) => groups.get(groupId)?.dm ?? null,
     avatar: (fanId) => avatars.get(fanId) ?? null,
-    evict(keep) {
-      for (const [id, group] of groups) {
-        if (id === keep) continue;
-        groups.delete(id);
-        memory.groups -= groupCost(group);
+    evictAvatar() {
+      for (const [id, url] of avatars) {
+        forgetAvatar(id, url);
         return true;
+      }
+      return false;
+    },
+    evict(keep) {
+      // The least recently touched group no chat of the observation needs; else the least recently touched one.
+      for (const spare of [true, false]) {
+        for (const [id, group] of groups) {
+          if (id === keep || (spare && held(id))) continue;
+          groups.delete(id);
+          memory.groups -= groupCost(group);
+          return true;
+        }
       }
       return false;
     },
