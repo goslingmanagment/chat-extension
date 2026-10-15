@@ -57,7 +57,7 @@ describe('[EX-015] [DB-029] [host:fansly] the tab protocol of fansly.com (fansly
       expect(envelopeAccepts(type), type).toBe(true);
       families.add(type.split('.')[1] ?? '');
     }
-    expect([...families].sort()).toEqual(['accounts', 'followers', 'notes', 'ops', 'relay', 'settings', 'sound', 'spenders', 'vault', 'voice']);
+    expect([...families].sort()).toEqual(['accounts', 'followers', 'notes', 'ops', 'registration', 'relay', 'settings', 'sound', 'spenders', 'vault', 'voice']);
     for (const type of [...C.TAB_REQUEST_TYPES, ...C.TAB_EVENT_TYPES]) expect(type.startsWith(T.FANSLY_TAB_TYPE_PREFIX), type).toBe(false);
     expect(T.isFanslyTabRequestType('settings.get')).toBe(false);
     expect(T.isFanslyTabRequestType('__proto__')).toBe(false);

@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./registration-fansly": "./src/registration-fansly.ts",
     ".": "./src/index.ts",
     "./primitives": "./src/primitives.ts",
     "./features": "./src/features.ts",

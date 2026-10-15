@@ -326,6 +326,13 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.ops.read': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ view: z.nullable(FanslyOpViewSchema) }), from: TAB, hosts: FANSLY },
   'fansly.ops.list': { req: z.strictObject({ chatKey: z.optional(ChatKeySchema) }), res: z.strictObject({ ops: z.array(FanslyOpViewSchema).check(z.maxLength(STORAGE_LIMITS.opListMax)), truncated: z.boolean() }), from: TAB, hosts: FANSLY },
   'fansly.ops.cancel': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ state: z.nullable(OpStateSchema) }), from: TAB, hosts: FANSLY },
+  /** P11a: only the open group, by a click, when MAIN has not supplied its fan. */
+  'fansly.registration.read': {
+    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, groupId: NativeIdSchema }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), fanId: NativeIdSchema }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
   'fansly.sound.batch': { req: z.extend(SoundBatchSchema, { host: z.literal('fansly-web') }), res: Ack, from: TAB, hosts: FANSLY },
   // ── «Новые» ──
   /** Opens a pass for the creator of the tab and the window; an open one for the same creator and window is answered as is. */

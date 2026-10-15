@@ -53,7 +53,7 @@ R01 делали четыре исполнителя, интегратор св�
 Каждый модуль — свой подпуть `exports` (`@cg/contracts/<модуль>`), корень
 `@cg/contracts` реэкспортирует всё, кроме `parity/exceptions` (его читает гейт
 паритета под чистой Node), модулей сайта Fansly (`fansly`, `bridge-fansly`,
-`bridge-messages-fansly`, `tab-messages-fansly`, `errors-fansly`, `send-fansly`, `fansly-host`, `ops-fansly`, 1.15.0), `settings-ext` и манифеста
+`bridge-messages-fansly`, `tab-messages-fansly`, `errors-fansly`, `send-fansly`, `fansly-host`, `ops-fansly`, `registration-fansly`, 1.15.0), `settings-ext` и манифеста
 фич `features/*` (1.15.0): их
 импортирует только тот, кому они нужны, по подпути, и ни бандл ChatSpace, ни ядро фона, которые берут корень, их не
 несут (R20 §1.8, §3.2). Пакет без побочных эффектов: в бандл попадают только модули, которыми он пользуется.
