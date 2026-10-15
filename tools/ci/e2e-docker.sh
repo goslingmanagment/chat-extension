@@ -27,7 +27,8 @@
 # checkout it has mounted; its name says which run it belongs to.
 #
 # Linux only (GNU readlink). On a Mac use e2e-docker-local.sh.
-# Arguments go to pnpm instead of `e2e`.
+# Arguments go to pnpm instead of `e2e`. CG_E2E_SHARD=<k>/<n> (the CI job's
+# matrix) runs part k of n of the spec files (packages/testing/src/e2e-shards.ts).
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
@@ -143,7 +144,7 @@ trap 'cancelled SIGTERM 143' TERM
 docker run --name "$name" --label "$label" --rm --init --network none --shm-size 2g --user 0:0 \
   --workdir "$root" "${mounts[@]}" \
   --env "CG_NODE_BIN=$node_home/bin" --env "CG_PNPM_BIN=$pnpm_home/bin" --env "CG_NODE_LIBS=$node_libs" \
-  --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env "CG_E2E_CHOWN=$chown_to" \
+  --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env CG_E2E_SHARD --env "CG_E2E_CHOWN=$chown_to" \
   --entrypoint bash "$CG_E2E_IMAGE" "$root/tools/ci/e2e-in-container.sh" "$@" &
 client=$!
 status=0

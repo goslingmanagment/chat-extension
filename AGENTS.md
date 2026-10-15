@@ -100,7 +100,15 @@ a boundary you need to cross is a design question, not a lint exception.
 - `pnpm check` — typecheck, lint, test, build, webext-lint, size, gates,
   parity, archive-check. Green before every commit.
 - `pnpm e2e` — both builds, the stand, the fake hub, headless Firefox
-  (about 18 minutes). Green before Ready. No network beyond loopback.
+  (about 18 minutes). No network beyond loopback. Green before Ready, and who
+  runs it depends on where CI runs (`ci-pool status`, the `chat-extension`
+  row). **CI on the owner's PC (`CI_POOL=pc`)** — executors run `pnpm check`
+  locally and leave the full e2e to CI: a Draft PR runs all of CI there, the
+  suite as five parts side by side (about 5 minutes); no full e2e on the Mac.
+  **CI on GitHub** — a Draft runs nothing: the full e2e locally
+  (`tools/ci/e2e-docker-local.sh`) before Ready, as before. The CI shape:
+  `docs/release.md` §2. `CG_E2E_SHARD=<k>/<n>` runs one part
+  (`packages/testing/src/e2e-shards.ts`).
 - `pnpm vitest run <path>` and, from `packages/testing`,
   `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` — one test
   file or one spec (the spec needs `pnpm build && pnpm build:test` first).
@@ -131,7 +139,8 @@ a boundary you need to cross is a design question, not a lint exception.
   step. A test of the tool never uses a real address: `tools/release/*.test.ts`
   run against loopback and a scripted world (`cli-world.ts`).
 - `tools/ci/e2e-docker-local.sh` — the CI e2e job on this machine: the whole
-  `pnpm e2e` inside the pinned Firefox image with no network (needs Docker).
+  `pnpm e2e` inside the pinned Firefox image with no network (needs Docker);
+  `CG_E2E_SHARD=2/5 tools/ci/e2e-docker-local.sh` — one part, as a CI job runs it.
   One volume is one run at a time (a start replaces the working tree in it):
   while a running container has the volume mounted, the script refuses to
   start and names that container. Wait, or give the run a volume of its own:

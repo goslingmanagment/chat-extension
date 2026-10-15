@@ -8,6 +8,7 @@
 #   tools/ci/e2e-docker-local.sh <pnpm …>   something else, for example one spec:
 #     --filter @cg/testing exec wdio run e2e/wdio.conf.ts --spec e2e/specs/stand-smoke.e2e.ts
 #     (after a full run: a spec needs both builds and the built stand)
+#   CG_E2E_SHARD=2/5 tools/ci/e2e-docker-local.sh   one part of the suite, as a CI job runs it
 #
 # The Mac's own node_modules are built for macOS, so the run gets a Linux
 # install of its own. It lives in the Docker volume CG_E2E_VOLUME (default
@@ -74,5 +75,5 @@ docker image inspect "$CG_E2E_IMAGE" > /dev/null 2>&1 || docker pull --quiet "$C
 exec docker run --rm --init --network none --shm-size 2g --user 0:0 \
   --workdir /sim/work --mount "type=volume,source=$volume,target=/sim" \
   --env CG_NODE_BIN=/sim/node/bin --env CG_PNPM_BIN=/sim/pnpm/bin --env CG_NODE_LIBS=/sim/node-libs \
-  --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER \
+  --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env CG_E2E_SHARD \
   --entrypoint bash "$CG_E2E_IMAGE" /sim/work/tools/ci/e2e-in-container.sh "$@"
