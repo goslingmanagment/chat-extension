@@ -1,3 +1,4 @@
+import { siteDetails, siteLabel } from './site-details';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 // «Статус» of the options page (architecture.md §9.9; ui-design §4.24;
 // ST-020…ST-038): the readiness line, one row per thing a shift depends on,
@@ -67,7 +68,8 @@ function row(id: Exclude<StatusRowVM['id'], 'host'>, level: StatusRowVM['level']
 function siteRowOf(model: PagesModel, site: PageSite, level: StatusRowVM['level'], value: string | Msg, note: string | Msg | null = null): StatusRowVM {
   const phrases = model.env.platformPhrases(HOST_PLATFORM[site.kind])?.[model.locale];
   const local = (value: string | Msg | null): string | Msg | null => typeof value === 'object' && value !== null ? { ...value, params: { ...phrases, ...value.params } } : value;
-  return { id: 'host', host: site.kind, level, title: msg(site.texts.title, { ...phrases }), value: local(value) as string | Msg, note: local(note), action: null };
+  const details = siteDetails(model, site);
+  return { ...(details === undefined ? {} : { details }), id: 'host', host: site.kind, level, title: msg(site.texts.title, { ...phrases }), value: local(value) as string | Msg, note: local(note), action: null };
 }
 
 const goTo = (section: 'account' | 'accounts' | 'personas'): UiAction => ({ type: 'OpenSettings', route: { section } });
@@ -150,8 +152,10 @@ export function hostReportOf(model: PagesModel, site?: HostKind): { readonly tab
 export function statusSites(model: PagesModel): readonly PageSite[] {
   const tabs = valueOf(model.diagnostics)?.tabs ?? [];
   const bound = (valueOf(model.accounts) ?? []).filter((entry) => model.bindings.get(accountKeyOf(entry.account))?.ok === true);
-  const used = model.env.sites.filter((site) => tabs.some((tab) => siteOfTab(model, tab) === site.kind) || bound.some((entry) => entry.account.host === site.kind));
-  return used.length > 0 ? used : model.env.sites;
+  const access = valueOf(model.diagnostics)?.siteAccess ?? [];
+  const eligible = model.env.sites.filter((site) => access.find((entry) => entry.host === site.kind)?.enabled !== false || tabs.some((tab) => siteOfTab(model, tab) === site.kind));
+  const used = eligible.filter((site) => access.some((entry) => entry.host === site.kind && entry.enabled) || tabs.some((tab) => siteOfTab(model, tab) === site.kind) || bound.some((entry) => entry.account.host === site.kind));
+  return used.length > 0 ? used : eligible;
 }
 
 /** Codes that mean «the hub did not answer», as opposed to «the hub answered with a refusal». */
@@ -211,7 +215,7 @@ function hubRow(model: PagesModel): StatusRowVM {
     return row('hub', 'error', msg('settings.status.row.hubRefused', { host }), `${view.title}. ${view.body}`);
   }
   if (state === 'unknown') return row('hub', 'unknown', msg('settings.status.row.hubUnknown', { host }));
-  return row('hub', 'ok', msg('settings.status.row.hubValue', { host }), model.check.latencyMs === null ? null : msg('settings.status.row.hubLatency', { ms: model.check.latencyMs }));
+  return row('hub', 'ok', msg('settings.status.row.hubValue', { host }), model.check.latencyMs === null ? null : msg('settings.status.row.hubLatency', { ms: model.check.latencyMs, site: statusSites(model).map((site) => siteLabel(model, site.kind)).join(' / ') }));
 }
 
 function accountRow(model: PagesModel): StatusRowVM {
@@ -239,9 +243,10 @@ function bindingRow(model: PagesModel): StatusRowVM {
   const current = currentAccountOf(model);
   if (current === null) return row('binding', 'warn', msg('settings.status.row.bindingNoAccount'), msg('settings.status.row.bindingNoAccountNote'), action);
   const id = current.account.hostAccountId;
+  const phrases = model.env.platformPhrases(current.account.platform)?.[model.locale];
   const slot = model.bindings.get(accountKeyOf(current.account));
-  if (slot === undefined) return row('binding', 'unknown', msg('settings.status.row.bindingChecking', { id }), null, action);
-  if (!slot.ok) return row('binding', 'error', msg('settings.status.row.bindingMissing', { id }), errorOf(model, slot.error).body, action);
+  if (slot === undefined) return row('binding', 'unknown', msg('settings.status.row.bindingChecking', { ...phrases, id }), null, action);
+  if (!slot.ok) return row('binding', 'error', msg('settings.status.row.bindingMissing', { ...phrases, id }), errorOf(model, slot.error).body, action);
   const bound = boundPageOf(model, current.account);
   const page = bound?.page?.title ?? slot.binding.pageLabel;
   const platform = platformNameOf(model, slot.binding.platform) ?? slot.binding.platform;
@@ -250,7 +255,7 @@ function bindingRow(model: PagesModel): StatusRowVM {
   return row(
     'binding',
     'ok',
-    msg('settings.status.row.bindingValue', { id, page }),
+    msg('settings.status.row.bindingValue', { ...phrases, id, page }),
     others === 0 ? msg('settings.status.row.bindingOnly', { platform, handle }) : msg('settings.status.row.bindingOthers', { platform, handle, n: others }),
     action,
   );
@@ -584,7 +589,7 @@ export function statusReport(model: PagesModel, i18n: I18n): string {
     readinessText(i18n, body.readiness),
     ...body.rows.map((entry) => {
       const note = entry.note === null ? '' : ` — ${textOf(i18n, entry.note)}`;
-      return `${i18n.text(entry.title)}: ${textOf(i18n, entry.value)}${note}`;
+      return [`${i18n.text(entry.title)}: ${textOf(i18n, entry.value)}${note}`, ...(entry.details ?? []).map((detail) => `  ${detail.label}: ${detail.value}`)].join('\n');
     }),
     `${i18n.t('settings.diagnostics.counters')}: ${counters.length === 0 ? i18n.t('settings.diagnostics.countersNone') : counters.join(', ')}`,
   ];

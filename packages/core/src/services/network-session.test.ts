@@ -228,3 +228,22 @@ describe('[host:fansly] FS-NET-3 all visible 429 facts, persisted before a futur
     await restored.accept(request('fresh')); await restored.accept(complete(request('fresh')));
     expect(restored.forTab(1)?.legacyId).toBe(account);
   });
+
+it('[host:fansly] [LG-026] [FS-PRIV-2] page snapshot keeps only header names, ownership and age across switching and revoke', async () => {
+  const { service, advance } = setup();
+  await service.setEnabled(true);
+  const captured = request('diagnostics', { requestHeaders: [...headers(account, 'unique-token-material', 'unique-check-material').map((header) => header.name === 'Authorization' ? header : { ...header, value: `unique-${header.name}-material` }), { name: 'cookie', value: 'unique-cookie-material' }] });
+  await service.accept(captured); await service.accept(complete(captured));
+  await service.resolveIdentity(1, account, other);
+  advance(1500);
+  const snapshot = service.diagnostics(1);
+  expect(snapshot).toEqual({ present: true, ageMs: 1500, accountId: other, headerNames: ['authorization', 'fansly-client-check', 'fansly-client-id', 'fansly-client-ts', 'fansly-session-id'] });
+  const wire = JSON.stringify(snapshot);
+  for (const header of captured.requestHeaders ?? []) if ((header.value?.length ?? 0) > 3) expect(wire).not.toContain(header.value);
+  expect(wire).not.toContain('unique-');
+  expect(service.diagnostics(2)).toEqual({ present: false, ageMs: null, accountId: null, headerNames: [] });
+  await service.disconnect(other);
+  expect(service.diagnostics(1).present).toBe(false);
+  await service.setEnabled(false);
+  expect(service.diagnostics(1)).toEqual({ present: false, ageMs: null, accountId: null, headerNames: [] });
+});

@@ -74,6 +74,7 @@ export function debugPromptView(model: DebugModel, token: string): DebugPromptVM
     case 'echo-off':
       return {
         ...NO_PROMPT,
+        ...(snapshot.generation === undefined ? {} : { generation: { text: JSON.stringify(snapshot.generation, null, 2) } }),
         source: snapshot.fromCache ? 'cache' : null,
         createdAt: snapshot.capturedAt === null ? null : Date.parse(snapshot.capturedAt),
         view: { s: 'empty', why: msg(snapshot.fromCache ? 'debugPage.prompt.fromCache' : 'debugPage.prompt.echoOff') },
@@ -84,6 +85,7 @@ export function debugPromptView(model: DebugModel, token: string): DebugPromptVM
       const view: VmView = cut > 0 ? { s: 'partial', gaps: [{ kind: 'truncated', shown: snapshot.blocks.length - cut, total: snapshot.blocks.length }] } : { s: 'ready' };
       return {
         view,
+        ...(snapshot.generation === undefined ? {} : { generation: { text: JSON.stringify(snapshot.generation, null, 2) } }),
         source: snapshot.fromCache ? 'cache' : 'echo',
         createdAt,
         expiresAt: createdAt === null ? null : createdAt + DEBUG_LIMITS.promptSnapshotTtlMs,
@@ -99,6 +101,7 @@ export function debugPromptView(model: DebugModel, token: string): DebugPromptVM
 export function promptText(snapshot: PromptSnapshotView): string {
   const parts = snapshot.blocks.map((block) => `=== ${block.name} ===\n${block.text}`);
   if (snapshot.manifest !== null) parts.push(`=== context manifest ===\n${snapshot.manifest}`);
+  if (snapshot.generation !== undefined) parts.push(`=== generation snapshot ===\n${JSON.stringify(snapshot.generation, null, 2)}`);
   return parts.join('\n\n');
 }
 

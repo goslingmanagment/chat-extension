@@ -168,6 +168,28 @@ describe('[host:fansly] a Fansly tab and the background (R20 P7i)', () => {
     expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(1);
   });
 
+  it('[host:fansly] [FS-TAIL-9] local freshness counts without telemetry consent and survives event-page sleep', async () => {
+    const w = world();
+    w.start();
+    await switchFanslyOn(w);
+    await signIn(w);
+    const tab = await fanslyTab(w);
+    const opId = admitted(await fanslyReply(tab, await fanslyBinding(tab)));
+    await until(async () => (await opsOf(tab)).some((op) => op.opId === opId && op.state === 'done'), 'the Reply is done');
+    const before = await w.page().request('diagnostics.get', {});
+    expect(before.ok && before.payload.telemetry.consent).toBe(false);
+    expect(before.ok && before.payload.freshness?.rows).toMatchObject([{ host: 'fansly-web', feature: 'reply', counts: { generations: 1, unknown: 1 } }]);
+    await until(() => w.fake.areas.session.has('diagnostics.freshnessDay'), 'the numeric day aggregate is saved');
+    expect(JSON.stringify(w.fake.areas.session.get('diagnostics.freshnessDay'))).not.toContain(CREATOR);
+    w.fake.suspendBackground();
+    await until(() => w.starts() === 2 && tab.client.state() === 'ready', 'the background woke');
+    const after = await w.page().request('diagnostics.get', {});
+    expect(after.ok && after.payload.freshness?.rows).toEqual(before.ok ? before.payload.freshness?.rows : []);
+    expect(after.ok && after.payload.freshness?.persisted).toBe(true);
+    expect(after.ok && after.payload.telemetry.queued).toBe(0);
+    expect(callsTo(w.hub.read().entries, 'ingestObservations')).toHaveLength(0);
+  });
+
   it('[host:fansly] a part of a Fansly Reply sent by hand is taken for known by Fansly’s own rule — its page has no `wsTap`, its MAIN sees the send —; a ChatSpace page with `wsTap` off still drops its own', async () => {
     const w = world();
     // The person agreed to technical data: a `sent` that is taken for known is queued (`recorded: true`).

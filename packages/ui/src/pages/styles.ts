@@ -567,6 +567,15 @@ ${/* A few words that no longer fit one line stand two by two, never torn. */ ''
   .pg-details > summary::before { transition: none; }
   .pg-page .cg-check--14::before, .pg-page .cg-check--14::after { transition: none; }
 }
+
+.pg-site-pill { display:flex; flex-wrap:wrap; gap:6px 12px; width:100%; align-items:center; }
+.pg-site-pill small { color:var(--cg-ink-2); }
+.pg-site-details { grid-column:2 / -1; min-width:0; font-size:13px; }
+.pg-site-details summary { cursor:pointer; padding:8px 0; }
+.pg-site-details dl { margin:0; }
+.pg-site-details dl > div { border-top:1px solid var(--cg-rule); padding:10px 0; }
+.pg-site-details dt { font-weight:600; }
+.pg-site-details dd { margin:4px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--cg-ink-2); }
 `;
 
 export const PAGES_SOURCE: StyleSource = { id: 'cg-pages', css: PAGES_CSS };

@@ -40,6 +40,10 @@ function Row({ row }: { readonly row: StatusRowVM }): JSX.Element {
           />
         )}
       </span>
+      {row.details === undefined ? null : <details class="pg-site-details" data-pg-site-details={row.host}>
+        <summary>{i18n.t('common.details')}</summary>
+        <dl>{row.details.map((entry, index) => <div key={index}><dt>{entry.label}</dt><dd>{entry.value}</dd></div>)}</dl>
+      </details>}
     </div>
   );
 }

@@ -12,6 +12,7 @@
 // This is its own lazy chunk (`tab-health`), loaded once the dock is on
 // screen: nothing of it is needed to draw anything.
 
+import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 import type { HostContractReport } from '@cg/contracts/host';
 import type { PerfMetric, TabHealthReport } from '@cg/contracts/telemetry';
 import type { UiAction, UiPaintMetric } from '@cg/contracts/vm';
@@ -28,6 +29,7 @@ export interface TabHealthEnv {
   /** `health.report`; false — the background did not take it. */
   readonly send: (report: TabHealthReport) => Promise<boolean>;
   readonly contract: () => HostContractReport;
+  readonly diagnostics?: (() => Promise<PageDiagnostics>) | undefined;
   /** Elements in our own roots (the footprint's `owned-estimate`, §9.6). */
   readonly domNodes: () => number;
   /** Epoch ms. */
@@ -70,10 +72,10 @@ export function startTabHealth(env: TabHealthEnv): TabHealth {
       if (force) again = true;
       return;
     }
-    if (!force && collector.isEmpty()) return;
+    if (!force && collector.isEmpty() && env.diagnostics === undefined) return;
     sending = true;
-    void env
-      .send(collector.takeReport(env.contract(), { cachesKB: 0, domNodes: env.domNodes() }))
+    const send = (page?: PageDiagnostics): Promise<boolean> => env.send({ ...collector.takeReport(env.contract(), { cachesKB: 0, domNodes: env.domNodes() }), ...(page === undefined ? {} : { page }) });
+    void (env.diagnostics === undefined ? send() : env.diagnostics().catch(() => undefined).then(send))
       .catch(() => false)
       .then(() => {
         sending = false;
@@ -82,6 +84,7 @@ export function startTabHealth(env: TabHealthEnv): TabHealth {
         report(true);
       });
   };
+  if (env.diagnostics !== undefined) report(true);
   const timer = env.setInterval(() => report(), HEALTH_REPORT_MS);
 
   const end = (metric: UiPaintMetric): void => {

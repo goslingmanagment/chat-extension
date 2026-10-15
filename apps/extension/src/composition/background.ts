@@ -1,3 +1,6 @@
+import { FreshnessDayStore, freshnessCounts } from '@cg/core/services/telemetry';
+import type { PageDiagnostics } from '@cg/contracts/diagnostics';
+import type { SiteAccessState } from '@cg/contracts/site-access';
 // Composition root of the background event page (architecture.md §2, §4, §7
 // «Фон и выгрузка»): only dependency wiring. Everything the extension owns
 // lives here — storage, sign-in and the hub (the ONLY module that imports
@@ -337,6 +340,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const tabAccounts = createTabAccountsGate({ setTimer: (fn, ms) => TIMERS.set(fn, ms) });
   /** The host contract as each tab last reported it (`health.report`), for diagnostics. */
   const hostReports = new Map<string, HostContractReport | null>();
+  const pageReports = new Map<string, PageDiagnostics>();
+  let accessSnapshot: SiteAccessState | undefined;
+  let requestMode: 'background' | 'relay' | undefined;
+  const freshness = new FreshnessDayStore(() => Date.now(), keyOf(session, 'diagnostics.freshnessDay'));
+  const freshnessReady = freshness.start();
   /** When a status surface last asked for the hub's health (epoch ms; 0 — ask at the next read). */
   let healthAskedAt = 0;
 
@@ -367,6 +375,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       tokens.dropTab(info.tabSessionId);
       scheduler.detachTab(info.tabSessionId);
       hostReports.delete(info.tabSessionId);
+      pageReports.delete(info.tabSessionId);
       // Its next facts are a first snapshot again; without a tab nobody is asked about subscribers.
       sound.arbiter.tabGone(info.tabSessionId);
       sound.sync();
@@ -499,9 +508,19 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // «Нет связи» vs «хаб не ответил вовремя» at a deadline: what the browser itself says about the connection.
     online: () => navigator.onLine,
     hooks: {
+      settled(view, start, ownerTab) {
+        if (view.target.chat.host !== OPTIONAL_HOST) return;
+        const counts = freshnessCounts(start.proof, view.servedContext);
+        const report = ownerTab === null ? null : hostReports.get(ownerTab);
+        void freshnessReady.then(() => freshness.record(view.target.chat.host, report?.build ?? null, view.feature, counts));
+        // The existing consent gate in HealthReporter is the only path to the hub.
+        telemetry.health.onHost(view.target.chat.host, report ?? null);
+        for (const [name, count] of Object.entries(counts)) if (count > 0) telemetry.health.count(view.target.chat.host, `freshness.${view.feature}.${name}`, count);
+      },
       // The facade refreshes its catalog itself when it reads such a failure.
       refreshBootstrap: () => void hubInstance?.bootstrap({ force: true }).catch(() => undefined),
       recapDone: (view, ownerTab) => saver.save(view, ownerTab),
+      promptToken: (opId) => hubInstance?.promptEchoTicket(opId)?.token ?? null,
       debugInput: (opId) => hubInstance?.promptEchoTicket(opId)?.token ?? null,
       // The local spend journal exists only in debug mode (§9.3, DB-022): numbers of this browser, nothing else.
       usage: (feature, usage) => {
@@ -696,7 +715,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   }
 
   /** §9.3 «Выключение отладки или выход очищают всё»: journals and the local spend; the facade drops its prompt echoes itself. */
-  const clearDebug = (): void => clearDebugData({ journals: logging.journals, spend });
+  const clearDebug = (): void => { scheduler.clearDebug(); clearDebugData({ journals: logging.journals, spend }); };
 
   /** Prompt snapshots held now, by the facade's own tickets (counts only). */
   const promptStats = (): { count: number; chars: number } => {
@@ -723,7 +742,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const now = Date.now();
     const status = hubInstance?.status() ?? null;
     const current = settings.current();
-    const shown = new Map(presence.tabs().map((tab) => [tab.tabSessionId, tab.chatKey]));
+    const shown = new Map(presence.tabs().map((tab) => [tab.tabSessionId, tab]));
     const active = scheduler.active();
     const modules = hostModules.facts();
     return {
@@ -747,7 +766,18 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         flags: hubInstance?.cachedBootstrap() ? flagsOnSomePage(hubInstance.cachedBootstrap()?.bootstrap ?? null) : {},
         sdk: status?.sdk ?? { vendoredHash: VENDORED_CONTRACT_HASH, hubHash: null, compatible: null },
       },
-      tabs: rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, site: tab.request.host, host: hostReports.get(tab.tabSessionId) ?? null, chatKey: shown.get(tab.tabSessionId) ?? null })),
+      tabs: rpc.tabs().map((tab) => {
+        const present = shown.get(tab.tabSessionId);
+        const page = pageReports.get(tab.tabSessionId);
+        return { tabSessionId: tab.tabSessionId, site: tab.request.host, host: hostReports.get(tab.tabSessionId) ?? null, chatKey: present?.chatKey ?? null,
+          ...(present?.conversationRef === undefined ? {} : { conversationRef: present.conversationRef }),
+          ...(page === undefined ? {} : { page }),
+          ...(tab.request.host !== OPTIONAL_HOST ? {} : { networkSession: networkSession.diagnostics(tab.tabId) }),
+        };
+      }),
+      ...(accessSnapshot === undefined ? {} : { siteAccess: [accessSnapshot] }),
+      ...(requestMode === undefined ? {} : { requestModes: [{ host: OPTIONAL_HOST, mode: requestMode }] }),
+      freshness: freshness.snapshot(),
       settings: settingsRead() ? current : null,
       counters: logging.counters.snapshot(now),
       logs: logging.logs.stats(),
@@ -1172,6 +1202,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('diagnostics.get', async () => {
     // A status surface is open (the popup, «Статус»): the hub's health is read again, at most every 10 s.
     await refreshHealth();
+    await freshnessReady;
+    accessSnapshot = await siteAccess.state().catch(() => undefined);
+    const ext = await extSettings.state();
+    requestMode = ext.ok ? (ext.state.ext.hosts[OPTIONAL_HOST].viaTab ? 'relay' : 'background') : undefined;
     // A site's module that is starting adds its records in a moment (its X8 journal, its fuse).
     await hostModules.settled(HEALTH_WAIT_MS);
     return ok(await diagnostics.snapshot());
@@ -1181,7 +1215,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const read = logging.journals.read(journal, limit);
     return ok({ records: read.records, truncated: read.truncated, runs: read.runs === null ? null : [...read.runs] });
   });
-  rpc.handle('debug.prompt', ({ token }) => ok(hub().promptEcho(token)));
+  rpc.handle('debug.prompt', ({ token }) => {
+    const echo = hub().promptEcho(token);
+    const generation = debugEnabled() && (echo.state === 'ok' || echo.state === 'echo-off') ? scheduler.generationDebug(token) : undefined;
+    return ok(generation === undefined ? echo : { ...echo, generation });
+  });
   // «Промпт» of a result's debug block (DB-007): the page is ours and a content script cannot open it. Only the
   // opaque token goes into the page's address, and only while debug mode is on (§9.3).
   rpc.handle('debug.open', async ({ token }, sender) => {
@@ -1192,6 +1230,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('health.report', ({ report }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UNKNOWN', 'tab only');
     hostReports.set(sender.tabSessionId, report.host);
+    if (report.page === undefined) pageReports.delete(sender.tabSessionId);
+    else pageReports.set(sender.tabSessionId, report.page);
     // The tab's site is its registration's, never the report's word (R20 F7: a window per site and build).
     const site = hostOfTab(sender.tabSessionId);
     if (site !== null) telemetry.mergeTab(sender.tabSessionId, site, report);

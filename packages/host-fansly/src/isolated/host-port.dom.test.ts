@@ -1,3 +1,4 @@
+import { PageDiagnosticsSchema } from '@cg/contracts/diagnostics';
 // Fansly's HostPort (R20 P7c; docs/project-unite/architecture.md §6, §7.2, §7.7, §7.12): the isolated world over
 // MAIN's stream and the page's DOM. A scripted MAIN — every event it sends checked by Fansly's own schemas
 // (validate.ts) and built from the contracts' fixtures — for each rule; then the real MAIN of P7a under the port, the
@@ -6,7 +7,7 @@
 import type { FanslyChatWire, FanslyState, FromMainFansly as FanslyBatchEvent } from '@cg/contracts/bridge-messages-fansly';
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import { FANSLY_CONTRACT, FanslyContractReportSchema } from '@cg/contracts/fansly-host';
-import { FANSLY_IDS, fanslyChatWire, fanslyContractWire, fanslyIdentityWire, fanslyReplySnapshot, fanslyState, probe as PROBE } from '@cg/contracts/fixtures';
+import { FANSLY_IDS, fanslyHealth, fanslyChatWire, fanslyContractWire, fanslyIdentityWire, fanslyReplySnapshot, fanslyState, probe as PROBE } from '@cg/contracts/fixtures';
 import { HostContractReportSchema, RouteStateSchema, type HostEvent } from '@cg/contracts/host';
 import { HostIdentitySchema, type HostIdentity } from '@cg/contracts/ids';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -948,6 +949,10 @@ describe('[host:fansly] the port over the real MAIN', () => {
       expect(await port.freshness.snapshot(chat, { conversationRef: GROUP, feature: 'reply', window: 30, withText: true })).toBeNull();
     }
     expect(await port.freshness.snapshot(chat, { conversationRef: OTHER, feature: 'reply', window: 30, withText: true })).toBeNull();
+    const pageHealth = await port.diagnostics!();
+    expect(PageDiagnosticsSchema.safeParse(pageHealth).success).toBe(true);
+    expect(pageHealth).toMatchObject({ mainAvailable: true, companion: { windowBridge: false, networkHook: false, styleFixes: false, wordFilter: false } });
+    expect(pageHealth.counters['main.frames.seen']).toBeGreaterThanOrEqual(0);
     const health = await port.health();
     expect(health.main?.stream).toMatchObject({ unacked: 0, gaps: 0 });
     expect(health.isolated.stream).toMatchObject({ states: 1, gaps: 0, refused: 0, skipped: 0 });
@@ -1083,4 +1088,18 @@ describe('[host:fansly] coexistence invalidates pending work', () => {
     expect(port.listCachedAccounts()).toEqual([]);
     expect(port.probe().capabilities.identity).toMatchObject({ state: 'off', reason: 'legacy' });
   });
+});
+
+
+it('[FS-SET-2] MAIN identity and state supply only companion booleans; health counters are projected without page text', async () => {
+  const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null, 'fx.health': () => fanslyHealth });
+  const { port } = await startPort(`/messages/${GROUP}`, main.client);
+  expect((await port.diagnostics!()).companion).toEqual(fanslyIdentityWire.fbuddy);
+  const fbuddy = { windowBridge: true, networkHook: true, styleFixes: true, wordFilter: true };
+  main.batch(1, { t: 'fx.identity', p: { ...fanslyIdentityWire, fbuddy } });
+  const projection = await port.diagnostics!();
+  expect(projection.companion).toEqual(fbuddy);
+  expect(projection.counters['main.frames.seen']).toBe(fanslyHealth.frames.seen);
+  expect(PageDiagnosticsSchema.safeParse(projection).success).toBe(true);
+  expect(JSON.stringify(projection)).not.toContain(CREATOR);
 });
