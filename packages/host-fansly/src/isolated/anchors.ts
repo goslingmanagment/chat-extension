@@ -20,9 +20,20 @@
 //    container and the header's contact block; the gallery takes both away
 //    without a change of address). Their targets move with the page; nothing
 //    under the feed or the header is watched — FBuddy's nodes and the typing
-//    line live there and change with every keystroke of the fan. Idle, every
-//    observer here is silent. The narrow observers of the composer and of the
-//    header's row (FS-PLC-4) are the dock's mount's (P7d).
+//    line live there and change with every keystroke of the fan. And two
+//    NARROW ones (R20 P7d), `childList` without `subtree` too: on
+//    `app-group-message-input` — its children are the field's branches: the
+//    DM rules unmet put `div.no-dm-allowed` there (the field's branch gets
+//    `hidden`), and the field's own `div.message-composer` is made anew
+//    without a change of address — and on the header's row with the back
+//    button (`.message-content-header > .flex-col > .flex-row`), where the
+//    contact block stands under its `ngIf` and is made anew when the number
+//    of participants changes (main:74512). The voice recorder changes a
+//    button inside `.actions`, an attachment comes inside
+//    `.message-attachments`, FBuddy adds its node to the header itself:
+//    none of it is a child of these two, none of it wakes us. The narrow
+//    targets move with every reading of the anchors, as the working ones do.
+//    Idle, every observer here is silent.
 //
 // Every callback of these observers is a route signal (route.ts): Fansly
 // re-creates the container in the same task as its `pushState`, so a change
@@ -45,6 +56,10 @@ export const FANSLY_SELECTORS = {
   /** A direct child of the conversation route (as are `header` and `gallery`). */
   container: 'app-group-message-container',
   header: 'div.message-content-header',
+  /** `> .flex-col > .flex-row` of the header: the row with the back button, where the contact block stands. */
+  headerColumn: 'div.flex-col',
+  headerRow: 'div.flex-row',
+  backButton: '.back-button',
   headerContact: '.message-content-header-contact',
   headerSubRow: '.content-header-sub-row',
   gallery: 'app-group-media-offers',
@@ -72,6 +87,8 @@ export const SEARCH_MS = 30_000;
 export interface ConversationAnchors {
   readonly route: Element;
   readonly header: Element | null;
+  /** The header's row with the back button: the contact block's parent (the narrow observer's target). */
+  readonly headerRow: Element | null;
   readonly contact: Element | null;
   readonly subRow: Element | null;
   /** The gallery stands instead of the header and the container (no change of address). */
@@ -114,6 +131,20 @@ function childMatching(parent: Element, selector: string): Element | null {
   return null;
 }
 
+/** The header's row with the back button (the first row of its column when none has one). */
+function headerRowOf(header: Element | null): Element | null {
+  const s = FANSLY_SELECTORS;
+  const column = header === null ? null : childMatching(header, s.headerColumn);
+  if (column === null) return null;
+  let first: Element | null = null;
+  for (const child of column.children) {
+    if (!child.matches(s.headerRow)) continue;
+    if (childMatching(child, s.backButton) !== null) return child;
+    first ??= child;
+  }
+  return first;
+}
+
 /** Reads the open chat's nodes from the conversation route down its own chain (§7.3). */
 export function locateConversation(route: Element): ConversationAnchors {
   const s = FANSLY_SELECTORS;
@@ -125,6 +156,7 @@ export function locateConversation(route: Element): ConversationAnchors {
   return {
     route,
     header,
+    headerRow: headerRowOf(header),
     contact,
     subRow: contact?.querySelector(s.headerSubRow) ?? null,
     gallery: container === null && childMatching(route, s.gallery) !== null,
@@ -144,6 +176,7 @@ const sameConversation = (a: ConversationAnchors | null, b: ConversationAnchors 
   return (
     a.route === b.route &&
     a.header === b.header &&
+    a.headerRow === b.headerRow &&
     a.contact === b.contact &&
     a.subRow === b.subRow &&
     a.gallery === b.gallery &&
@@ -168,6 +201,8 @@ export interface AnchorStats {
   readonly exhausted: boolean;
   /** Callbacks of the working observers since the start. */
   readonly workCallbacks: number;
+  /** Callbacks of the narrow observers (the composer's branches, the header's row) since the start. */
+  readonly narrowCallbacks: number;
 }
 
 export interface AnchorWatcher {
@@ -199,8 +234,10 @@ export function createAnchorWatcher(doc: Document, route: RouteWatcher, options:
   let exhausted = false;
   let searches = 0;
   let workCallbacks = 0;
+  let narrowCallbacks = 0;
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let watched: readonly Element[] = [];
+  let narrowed: readonly Element[] = [];
   const listeners = new Set<(anchors: PageAnchors) => void>();
 
   const locate = (): PageAnchors => {
@@ -230,6 +267,10 @@ export function createAnchorWatcher(doc: Document, route: RouteWatcher, options:
     workCallbacks += 1;
     onMutations();
   });
+  const narrow = new MutationObserver(() => {
+    narrowCallbacks += 1;
+    onMutations();
+  });
 
   const stopSearch = (): void => {
     if (!searching) return;
@@ -252,13 +293,25 @@ export function createAnchorWatcher(doc: Document, route: RouteWatcher, options:
     }, searchMs);
   };
 
-  /** The working observers stand on the wrappers and the route that are there now, and on nothing else. */
+  const same = (a: readonly Element[], b: readonly Element[]): boolean => a.length === b.length && a.every((target, index) => target === b[index]);
+  const present = (targets: ReadonlyArray<Element | null | undefined>): Element[] => targets.filter((target): target is Element => target !== null && target !== undefined);
+  /**
+   * The working observers stand on the wrappers and the route that are there now, the narrow ones on the open chat's
+   * composer and header row — and on nothing else.
+   */
   const watch = (found: PageAnchors): void => {
-    const targets = [found.contentWrapper, found.messagesWrapper, found.conversation?.route ?? null].filter((target): target is Element => target !== null);
-    if (targets.length === watched.length && targets.every((target, index) => target === watched[index])) return;
-    work.disconnect();
-    for (const target of targets) work.observe(target, { childList: true });
-    watched = targets;
+    const targets = present([found.contentWrapper, found.messagesWrapper, found.conversation?.route]);
+    if (!same(targets, watched)) {
+      work.disconnect();
+      for (const target of targets) work.observe(target, { childList: true });
+      watched = targets;
+    }
+    const narrowTargets = present([found.conversation?.composer, found.conversation?.headerRow]);
+    if (!same(narrowTargets, narrowed)) {
+      narrow.disconnect();
+      for (const target of narrowTargets) narrow.observe(target, { childList: true });
+      narrowed = narrowTargets;
+    }
   };
 
   const notify = (): void => {
@@ -292,14 +345,16 @@ export function createAnchorWatcher(doc: Document, route: RouteWatcher, options:
         listeners.delete(listener);
       };
     },
-    stats: () => ({ searches, searching, exhausted, workCallbacks }),
+    stats: () => ({ searches, searching, exhausted, workCallbacks, narrowCallbacks }),
     dispose() {
       if (disposed) return;
       disposed = true;
       offRoute();
       stopSearch();
       work.disconnect();
+      narrow.disconnect();
       watched = [];
+      narrowed = [];
       listeners.clear();
       anchors = NONE;
     },

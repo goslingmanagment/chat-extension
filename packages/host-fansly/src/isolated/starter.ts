@@ -9,9 +9,9 @@
 // this instance owns the page now), then the host itself (start.ts) — the
 // mounts and the theme, the handshake with Fansly's MAIN, the route and the
 // search for the anchors — and, behind the bridge, Fansly's HostPort (R20
-// P7c). The dock's place, its overlays and the page's theme come with P7d and
-// P8d: until the dock has a place, nothing of the application starts on a
-// Fansly page.
+// P7c) — which places the dock by Fansly's composer (R20 P7d) and reads the
+// page's theme. Until the dock has a place, nothing of the application
+// starts on a Fansly page; the palette of the page's variables is P8d's.
 
 import { removeStaleHosts } from '@cg/host-kit/isolated/hosts';
 

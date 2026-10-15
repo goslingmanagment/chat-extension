@@ -10,9 +10,13 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
+import type { LazyEntryName } from '../lazy/entries/names.ts';
 import { describe, expect, it } from 'vitest';
 
 import { baseManifest, checkManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from '../build/manifest.ts';
+import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../lazy/entries/names.ts';
+import { FANSLY_APP, FANSLY_UI } from '../src/composition/tab/hosts/fansly/app.ts';
+import { LAZY as TAB_LAZY } from '../src/composition/tab/runtime.ts';
 import { lazyPath } from '../src/composition/tab/lazy.ts';
 import { FANSLY_ADAPTER } from '../src/entrypoints/fansly.ts';
 import { CHATSPACE } from '../src/hosts/chatspace.ts';
@@ -85,16 +89,38 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
   });
 
   it('[EX-010] [host:fansly] its lazy build is its own web resource entry, for its own pages — the stand too in a test build; ChatSpace’s stays ChatSpace’s', () => {
-    expect(FANSLY.lazy).toEqual({ root: 'lazy/fansly', entries: { 'bridge-validation': 'fansly/bridge-validation.ts' }, layers: [], beforeTheDock: [] });
+    expect([FANSLY.lazy.root, FANSLY.lazy.layers, FANSLY.lazy.beforeTheDock]).toEqual(['lazy/fansly', LAZY_LAYERS, BEFORE_THE_DOCK]);
     for (const source of Object.values(FANSLY.lazy.entries)) expect(existsSync(`${lazyRoot}${source}`), source).toBe(true);
     const war = (flavor: BuildFlavor): Array<{ resources: string[]; matches: string[] }> => manifestOf(flavor)['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
     for (const flavor of ['release', 'test'] as const) {
       const [chatspace, fansly] = war(flavor);
-      expect(fansly).toEqual({ resources: ['lazy/fansly/bridge-validation.js'], matches: pageMatchesOf(FANSLY, flavor === 'test') });
+      expect(fansly).toEqual({ resources: Object.keys(FANSLY.lazy.entries).map((entry) => `lazy/fansly/${entry}.js`).sort(), matches: pageMatchesOf(FANSLY, flavor === 'test') });
       expect(chatspace?.matches).toEqual(pageMatchesOf(CHATSPACE, flavor === 'test'));
       expect(chatspace?.resources.every((resource) => resource.startsWith('lazy/chatspace/'))).toBe(true);
     }
     expect(war('test')[1]?.matches).toEqual(['https://fansly.com/*', 'http://localhost/*']);
+  });
+
+  it('[host:fansly] its build carries the application (R20 P7d): the tab’s two chunks, every layer, the texts — Fansly’s own `tab-app` and texts, the shared rest; nothing of ChatSpace’s alone', () => {
+    const entries = FANSLY.lazy.entries;
+    for (const name of [...Object.values(TAB_LAZY), ...LAZY_LAYERS, 'i18n-ru', 'i18n-en', 'ai-analysis', 'ai-coach', 'tab-health']) expect(Object.keys(entries), name).toContain(name);
+    // Every entry name is one the tab asks for by name; its source is Fansly's own or the shared entry of that name.
+    for (const [name, source] of Object.entries(entries)) {
+      expect(Object.keys(LAZY_ENTRIES), name).toContain(name);
+      expect([`fansly/${name}.ts`, LAZY_ENTRIES[name as LazyEntryName]], name).toContain(source);
+    }
+    expect([entries['tab-app'], entries['bridge-validation'], entries['i18n-ru'], entries['i18n-en']]).toEqual(['fansly/tab-app.ts', 'fansly/bridge-validation.ts', 'fansly/i18n-ru.ts', 'fansly/i18n-en.ts']);
+    for (const only of ['palette', 'preview', 'newcomers']) expect(Object.keys(entries), only).not.toContain(only);
+  });
+
+  it('[host:fansly] the application’s half of its adapter: no live configuration, its slice of the manifest, its contract, the dock’s variant `fansly` and its phrases', async () => {
+    expect(FANSLY_APP.liveConfigOf(null, null)).toBeNull();
+    expect(FANSLY_APP.contract.anchors).toContain('headerSubRow');
+    expect(FANSLY_UI.dock.variant).toBe('fansly');
+    expect(FANSLY_UI.phrases.ru.onSite).toBe('на Fansly');
+    expect(FANSLY_APP.ui({ current: () => ({ scheme: 'dark', tokens: {}, fixedWidth: false }), onChange: () => () => undefined, dispose: () => undefined })).toBe(FANSLY_UI);
+    const policy = await FANSLY_APP.ai(() => Promise.reject(new Error('nothing to load')));
+    expect([policy.proof({} as never, {} as never), policy.fields(null), policy.fingerprint(null)]).toEqual([null, {}, null]);
   });
 
   it('[host:fansly] the early half of its adapter is assembled in its entry point: its kind, its client of the key scheme, its own lazy build', () => {

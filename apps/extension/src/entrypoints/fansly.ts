@@ -17,8 +17,9 @@ import { FANSLY_LAZY_ROOT } from '../hosts/runtime/fansly';
 
 /**
  * The early half of the Fansly adapter (R20 P7c: its start brings up Fansly's HostPort — the route by signals, the
- * anchors, the identity, the freshness port). Its application's half comes with Fansly's `tab-app`, together with the
- * first surface of ours on a Fansly page (the dock, P7d): until the dock has a place, the application never starts.
+ * anchors, the identity, the freshness port; P7d: the dock's place by Fansly's composer, the page's theme). Its
+ * application's half (`FANSLY_APP`, composition/tab/hosts/fansly/app.ts) comes with Fansly's `tab-app` once the dock
+ * has a place or a key of ours waits: never before.
  */
 export const FANSLY_ADAPTER: HostAdapter<FanslyHostPort> = {
   kind: 'fansly-web',

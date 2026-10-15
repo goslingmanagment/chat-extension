@@ -18,9 +18,14 @@
 // scroll geometry; the one write is `scrollTop` of its scroll box, which no
 // request of ChatSpace's follows that a scroll by hand would not.
 //
-// The list is found from the dock, not by a class of a ChatSpace build: the
+// How near is «near its bottom» is the site's own measure, a parameter of its
+// start (R20 P7d): ChatSpace's is NEAR_BOTTOM_PX; Fansly's page keeps its list
+// at the bottom within 350 px of it (xdScrollWatcher, FS-PLC-5).
+//
+// The list is found from the dock, not by a class of a site's build: the
 // tallest scroll box that ends above the dock, among the siblings that
-// precede the dock's ancestors. The size observer is made anew each time the
+// precede the dock and its ancestors (ChatSpace's dock is the first child of
+// its frame, Fansly's stands right after its list). The size observer is made anew each time the
 // dock is placed, after ChatSpace has rendered the chat: observers are told in
 // the order they were made, so ChatSpace's own answer to the resize (it may
 // put the list back at its top anchor) comes first and ours has the last word
@@ -34,10 +39,10 @@
 // we moved it. So a scroll that lands on that very place, right after the dock
 // grew, does not say the person left the bottom; any other scroll does.
 
-/** ChatSpace's «at the latest messages» (MessagesList: `bottomDistance <= 100`). */
+/** ChatSpace's «at the latest messages» (MessagesList: `bottomDistance <= 100`): the measure when the site names none. */
 export const NEAR_BOTTOM_PX = 100;
-/** How far up the dock's ancestors the list is looked for, and how deep inside a sibling. */
-const ANCESTOR_DEPTH = 6;
+/** How far up from the dock (itself, then its ancestors) the list is looked for, and how deep inside a sibling. */
+const ANCESTOR_DEPTH = 7;
 const SIBLING_DEPTH = 5;
 /** Elements looked at in one sibling before giving up: the scroll box is near its top, the messages are not. */
 const SIBLING_BUDGET = 60;
@@ -63,6 +68,8 @@ export interface BottomKeeperOptions {
   /** A size observer of the dock host (tests give their own). */
   readonly observe?: (target: Element, changed: () => void) => () => void;
   readonly now?: () => number;
+  /** The site's «near its bottom», px (NEAR_BOTTOM_PX by default). */
+  readonly nearBottomPx?: number;
 }
 
 const distance = (list: HTMLElement): number => list.scrollHeight - list.scrollTop - list.clientHeight;
@@ -95,7 +102,7 @@ function scrollBoxIn(win: Window, root: Element): HTMLElement | null {
 export function findListAbove(win: Window, dock: HTMLElement): HTMLElement | null {
   const box = dock.getBoundingClientRect();
   let best: HTMLElement | null = null;
-  let node: Element | null = dock.parentElement;
+  let node: Element | null = dock;
   for (let depth = 0; node !== null && depth < ANCESTOR_DEPTH && node !== win.document.body; depth += 1, node = node.parentElement) {
     for (let sibling = node.previousElementSibling; sibling !== null; sibling = sibling.previousElementSibling) {
       const found = scrollBoxIn(win, sibling);
@@ -110,6 +117,7 @@ export function findListAbove(win: Window, dock: HTMLElement): HTMLElement | nul
 
 export function createBottomKeeper(win: Window, dock: HTMLElement, options: BottomKeeperOptions = {}): BottomKeeper {
   const now = options.now ?? (() => win.performance.now());
+  const nearPx = options.nearBottomPx ?? NEAR_BOTTOM_PX;
   const observe =
     options.observe ??
     ((target: Element, changed: () => void): (() => void) => {
@@ -133,8 +141,8 @@ export function createBottomKeeper(win: Window, dock: HTMLElement, options: Bott
       if (list === null) return;
       const away = distance(list);
       // ChatSpace put the list back where it stood before the dock grew: not the person's scroll.
-      if (away > NEAR_BOTTOM_PX && stoodAt !== null && now() < settleUntil && Math.abs(list.scrollTop - stoodAt) <= SAME_PLACE_PX) return;
-      near = away <= NEAR_BOTTOM_PX;
+      if (away > nearPx && stoodAt !== null && now() < settleUntil && Math.abs(list.scrollTop - stoodAt) <= SAME_PLACE_PX) return;
+      near = away <= nearPx;
     } catch {
       // The list went away with its chat.
     }
@@ -155,7 +163,7 @@ export function createBottomKeeper(win: Window, dock: HTMLElement, options: Bott
     list = found;
     found.addEventListener('scroll', onScroll, { passive: true });
     // Never looked at before: where it stood before the dock took `grown` px from it.
-    near = distance(found) - grown <= NEAR_BOTTOM_PX;
+    near = distance(found) - grown <= nearPx;
     return found;
   };
   const onResize = (): void => {
