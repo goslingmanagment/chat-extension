@@ -3,7 +3,7 @@
 // capabilities, limits, minVersion, explicit host bindings, plus the fake
 // hub's own knobs. Bootstrap is computed from it the way the hub does
 // (apps/runtime/src/services/client-features.ts): a page's feature by
-// `evaluateClientFeature` — platform → master → flag (the page's own row
+// `evaluateClientFeature` — master → platform → flag (the page's own row
 // wins over `*`, which reaches only OnlyFans pages) → binding → capability
 // — then the hub lane of the feature, and the top-level `flags` by
 // `clientBootstrapFlags`, from the `*` row ALONE. Presets reproduce the
@@ -13,7 +13,7 @@
 //
 // What each flag needs of the hub is the HUB's table (`CLIENT_FEATURE_REQUIREMENTS`
 // there), repeated in the scenarios (`HUB_FEATURE_REQUIREMENTS`) as it stands at
-// bd3eec06 — the commit production runs and the SDK is vendored from: per
+// SDK bd3eec06, plus HF-15 master-first admission deployed at 29708c44d010: per
 // platform since R20 HF-2 (R20 P6c1 models the Fansly column). A Fansly page
 // takes no `"*"` row: it is switched on by its own row alone. The client does
 // not carry that table (R20 F4: it reads the page's feature, and only its own
@@ -216,13 +216,13 @@ function bindable(config: FakeHubConfig, page: FakePage): boolean {
 
 /**
  * `evaluateClientFeature`: whether a page's feature is available and why not, in the hub's order — the feature exists
- * on the page's platform, the master switch, the flag (the page's own row; `*` only where it reaches), the binding,
+ * on the page's platform after the master switch, then the flag (the page's own row; `*` only where it reaches), the binding,
  * the capabilities it needs on that platform.
  */
 export function featureVerdict(config: FakeHubConfig, page: FakePage, flag: string): FeatureAvailability {
+  if (!config.master) return { available: false, reason: 'disabled' };
   const needs = hubFeatureNeedsOn(flag, page.platform);
   if (needs === undefined) return { available: false, reason: 'platform_unsupported' };
-  if (!config.master) return { available: false, reason: 'disabled' };
   if (!flagOn(config, page, flag)) return { available: false, reason: 'flag_off' };
   if (!bindable(config, page)) return { available: false, reason: 'binding_missing' };
   if (!needs.capabilities.every((capability) => config.capabilities.includes(capability))) return { available: false, reason: 'hub_not_ready' };

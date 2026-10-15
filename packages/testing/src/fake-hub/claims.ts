@@ -62,6 +62,7 @@ function storedClaimGroup(group: ClaimSendGroup): ClaimGroup {
 export type FlagVerdict = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
 export interface ClaimContext {
+  readonly master: boolean;
   readonly platform: HubPlatform;
   readonly now: number;
   readonly userId: number;
@@ -324,7 +325,8 @@ export class ClaimsModel {
       if (existing.fan !== fan || existing.attempt.bodyHash !== hash || existing.attempt.userId !== ctx.userId) return refuse('attempt_conflict');
       return { ok: true, state: this.view(existing.fan, caller, existing.attempt, ctx, false) };
     }
-    // 2. Platform admission, then the owner's switches, AFTER an idempotent repeat.
+    // 2. HF-15: master, platform admission, then page switches, AFTER an idempotent repeat.
+    if (!ctx.master) return refuse('client_feature_disabled', { reason: 'disabled' });
     const admission = sendAdmission(ctx.platform, body);
     if (admission === null) return refuse('client_feature_disabled', { reason: 'platform_unsupported' });
     for (const flagName of admission.flags) {

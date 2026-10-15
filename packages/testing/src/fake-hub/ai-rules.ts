@@ -159,7 +159,7 @@ const AI_PLATFORM_FEATURE_FLAGS: Readonly<Record<string, string>> = {
 /** The narrow token's AI features with no flag of their own, by the platforms the extension has them on (Help: OnlyFans only, R20 HF-2). */
 const AI_UNFLAGGED_FEATURE_PLATFORMS: Readonly<Record<string, readonly string[]>> = { 'help-me': ['onlyfans'] };
 
-/** Whether the extension has this AI feature on this platform at all (`clientAiFeatureExistsOn`): asked first, before any switch. */
+/** Whether the extension has this AI feature on this platform at all (`clientAiFeatureExistsOn`): after the master switch (HF-15). */
 export function aiFeatureExistsOn(feature: string, platform: string): boolean {
   return AI_UNFLAGGED_FEATURE_PLATFORMS[feature]?.includes(platform) ?? true;
 }

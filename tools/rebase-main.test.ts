@@ -114,18 +114,19 @@ describe('pnpm rebase:main', () => {
     expect(r.git('merge-base', 'HEAD', 'origin/main')).toBe(main);
     expect(r.read(SOURCE)).toBe('feature survives\n');
     expect(r.git('status', '--porcelain')).toBe('');
-    expect(r.git('log', '-1', '--format=%s')).toBe(`chore(gates): regenerate pins and coverage after rebasing on ${main}`);
-    expect(r.git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').split('\n').sort()).toEqual([...GENERATED].sort());
+    expect(r.git('log', '-1', '--format=%s')).toBe(`chore(gates): regenerate pins after rebasing on ${main}; the coverage report stays main's`);
+    expect(r.git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').split('\n').sort()).toEqual([GENERATED[0]]);
     expect(r.git('rev-list', '--count', `${main}..HEAD`)).toBe('2');
     expect(r.records().map(({ tool, args }) => [tool, args])).toEqual([
       ['lock', ['pnpm', 'install', '--frozen-lockfile']], ['pnpm', ['install', '--frozen-lockfile']],
       ['lock', ['pnpm', 'build']], ['pnpm', ['build']],
-      ['pnpm', ['gates:bytes']], ['pnpm', ['parity:coverage']],
+      ['pnpm', ['gates:bytes']],
     ]);
     const install = r.records().find(({ tool }) => tool === 'pnpm');
     expect(install?.ci).toBe('true');
     expect(install?.generated).toEqual(GENERATED.map(() => 'main\n'));
-    for (const path of GENERATED) expect(r.read(path)).toBe(`regenerated ${path}\n`);
+    expect(r.read(GENERATED[0]!)).toBe(`regenerated ${GENERATED[0]}\n`);
+    for (const path of GENERATED.slice(1)) expect(r.read(path)).toBe('main\n');
   });
 
   it.each([[SOURCE], [SOURCE, ...GENERATED], [PLAN]])('stops on non-generated conflicts %j without resolving or regenerating', (...paths) => {
@@ -157,6 +158,32 @@ describe('pnpm rebase:main', () => {
     expect(r.git('status', '--porcelain')).toBe('');
   });
 
+  it('restores a non-conflicting branch coverage edit to the fetched main report', () => {
+    const r = fixture();
+    for (const path of GENERATED.slice(1)) r.write(path, 'branch report\n');
+    r.commit('branch report');
+    r.advanceMain([SOURCE]);
+    const result = r.run();
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    for (const path of GENERATED.slice(1)) expect(r.read(path)).toBe('base\n');
+    expect(r.git('diff', 'origin/main', 'HEAD', '--', ...GENERATED.slice(1))).toBe('');
+    expect(r.records().some(({ args }) => args[0] === 'parity:coverage')).toBe(false);
+    expect(r.git('status', '--porcelain')).toBe('');
+  });
+
+  it('keeps coverage deleted on main deleted, including a conflict-free branch addition', () => {
+    const r = fixture();
+    r.git('rm', ...GENERATED.slice(1));
+    r.commit('remove reports');
+    r.git('push', '--quiet', 'origin', 'HEAD:main');
+    for (const path of GENERATED.slice(1)) r.write(path, 'branch-only report\n');
+    r.commit('add reports');
+    const result = r.run();
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    for (const path of GENERATED.slice(1)) expect(existsSync(join(r.cwd, path))).toBe(false);
+    expect(r.git('status', '--porcelain')).toBe('');
+  });
+
   it('runs directly without a lock and does not make an empty commit on a second run', () => {
     const r = fixture();
     const first = r.run();
@@ -169,7 +196,7 @@ describe('pnpm rebase:main', () => {
     expect(r.records().every(({ tool }) => tool === 'pnpm')).toBe(true);
   });
 
-  it.each(['install', 'build', 'gates:bytes', 'parity:coverage'])('stops on failed %s without committing artifacts', (step) => {
+  it.each(['install', 'build', 'gates:bytes'])('stops on failed %s without committing artifacts', (step) => {
     const r = fixture();
     const head = r.git('rev-parse', 'HEAD');
     const result = r.run({ FAKE_FAIL: step });

@@ -3,7 +3,7 @@
 // schema module: importing even a constant from it builds its schemas at
 // startup (zod/mini builders are not pure-annotated), which the early start
 // cannot afford (docs/project-unite/architecture.md §3.1). So they are
-// repeated here and pinned to the contracts by validate.test.ts; the schemas
+// repeated here and pinned to the contracts by bridge.test.ts; the schemas
 // themselves load lazily (validate.ts, the `bridge-validation` chunk of
 // Fansly's build).
 

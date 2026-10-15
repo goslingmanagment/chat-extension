@@ -88,8 +88,8 @@ export interface HubFeatureNeeds {
 const NOTHING: HubFeatureNeeds = { capabilities: [] };
 
 /**
- * The hub's `CLIENT_FEATURE_REQUIREMENTS` (hub apps/runtime/src/services/client-features.ts at bd3eec06, the commit
- * production runs and the SDK is vendored from): per flag, one entry per platform the feature exists on, with what it
+ * The hub's `CLIENT_FEATURE_REQUIREMENTS` (hub apps/runtime/src/services/client-features.ts at SDK bd3eec06;
+ * HF-15 master-first admission deployed at 29708c44d010): per flag, one entry per platform the feature exists on, with what it
  * needs there. A platform with no entry has no such feature (`platform_unsupported`). R20 HF-2 made it per platform:
  * on Fansly Recap and the preview read by conversation (`conversation-recaps-v1`), «Новые» are the greeting custody
  * with the manual group and not the hub's list of new subscribers, and Fansly has its own `drafts`, `voice`,
@@ -144,7 +144,9 @@ export const STAR_ROW_PLATFORMS: readonly string[] = ['onlyfans'];
 /** A page's features: every contract flag that exists on its platform reads `feature(flag)`, every other `platform_unsupported`. */
 const featuresOn = (platform: HubPlatform, feature: (flag: ClientFeatureFlag) => FeatureAvailability): BootstrapPage['features'] =>
   Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, HUB_FEATURE_REQUIREMENTS[flag][platform] === undefined ? { available: false, reason: 'platform_unsupported' } : feature(flag)]));
-const allFeatures = (platform: HubPlatform, reason: string): BootstrapPage['features'] => featuresOn(platform, () => ({ available: false, reason }));
+const allFeatures = (platform: HubPlatform, reason: string): BootstrapPage['features'] => reason === 'disabled'
+  ? Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, { available: false, reason }]))
+  : featuresOn(platform, () => ({ available: false, reason }));
 
 const ofPage = (page: typeof pages.one | typeof pages.vip, features: BootstrapPage['features']): BootstrapPage => ({
   pageId: page.pageId,
@@ -158,7 +160,7 @@ const ofPage = (page: typeof pages.one | typeof pages.vip, features: BootstrapPa
 /**
  * The Fansly page as the hub answers it: every flag Fansly has reads `reason` — `flag_off` while the page has no row
  * of its own (R20 HF-2: the owner's `"*"` row never reaches a Fansly page; production has no Fansly row yet),
- * `disabled` under the master switch — and every other `platform_unsupported`.
+ * `disabled` for every flag under the master switch (HF-15); otherwise foreign flags are `platform_unsupported`.
  */
 const fanslyPage = (reason: string): BootstrapPage => ({
   pageId: pages.fansly.pageId,
@@ -170,7 +172,7 @@ const fanslyPage = (reason: string): BootstrapPage => ({
   features: allFeatures('fansly', reason),
 });
 
-/** Master switch off: platform features `disabled`, foreign ones `platform_unsupported`, every flag false, no capabilities. */
+/** Master switch off (HF-15): every feature `disabled`, every flag false, no capabilities. */
 export const BOOTSTRAP_ALL_OFF: Bootstrap = {
   protocol: 1,
   issuedAt: NOW,

@@ -140,7 +140,7 @@ describe('[host:fansly] voice identity and the narrow token (HF-4а/б)', () => 
     expect(await create(request, hub.issueToken({ client: null }))).toEqual(view);
     hub.control({ op: 'config', patch: { master: false } });
     const wrongPlatform = await client().raw('voiceNoteCreate', { params: { pageLabel: PAGE }, body: request });
-    expect(await wrongPlatform.json()).toMatchObject({ reason: 'platform_unsupported' }); // deployed order, not HF-15
+    expect(await wrongPlatform.json()).toMatchObject({ reason: 'disabled' }); // HF-15: master precedes platform and client version
   });
 
   it('an incomplete, failed or truncated source never admits a render', async () => {

@@ -1,14 +1,17 @@
 // The owner's hub configuration as the fake hub models it: the presets give
 // exactly the scenarios' bootstrap answers, features are judged in the hub's
-// order (platform → master → flag → binding → capability; hub
+// order (master → platform → flag → binding → capability; hub
 // client-features.ts `evaluateClientFeature`), the top-level `flags` are the
 // owner's `"*"` row alone (`clientBootstrapFlags`), and only owner changes
 // bump configRevision (= custody flagRevision).
 
+import { NON_CHATSPACE_FEATURE_FLAGS } from '@cg/contracts/fixtures';
+import { CHATSPACE_FEATURE_FLAGS } from '@cg/contracts/features/chatspace';
+import { pageBlanketReason, pageSwitchedOff } from '@cg/core/domain/ops';
 import { BootstrapSchema, CLIENT_FEATURE_FLAG_NAMES } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HUB_FEATURE_REQUIREMENTS, NOW_MS, WORLD, hubFeatureNeedsOn } from '../scenarios/hub';
+import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HUB_FEATURE_REQUIREMENTS, NOW_MS, WORLD } from '../scenarios/hub';
 import { FAKE_PAGES, bootstrapOf, featureVerdict, flagOn, patchConfig, presetConfig, type FakePage } from './config';
 import { createFakeHub } from './hub';
 import { hubCall } from './kit';
@@ -41,17 +44,23 @@ describe('fake hub config: presets', () => {
     expect(BootstrapSchema.parse(bootstrapOf(presetConfig('all-off'), FAKE_PAGES, chatter, NOW_MS))).toEqual(BOOTSTRAP_ALL_OFF);
   });
 
-  it('master-off lists every flag on every page: platform features disabled, foreign ones platform_unsupported, top-level flags false', () => {
+  it('HF-15: master-off disables every flag on every page, top-level flags false', () => {
     const boot = bootstrapOf(presetConfig('master-off'), FAKE_PAGES, chatter, NOW_MS);
     expect(Object.values(boot.flags).every((on) => !on)).toBe(true);
-    // A switch the platform does not have reads `platform_unsupported` there, before the master switch (R20 HF-2).
+    // HF-15: the master switch precedes platform admission.
     for (const page of boot.pages) {
+      expect(pageBlanketReason(page)).toBe('disabled');
+      expect(pageSwitchedOff(page)).toBe(true);
       expect(page.features).toEqual(
-        Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, { available: false, reason: hubFeatureNeedsOn(flag, page.platform) === undefined ? 'platform_unsupported' : 'disabled' }])),
+        Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, { available: false, reason: 'disabled' }])),
       );
     }
     expect(boot.pages.filter((page) => page.platform === 'onlyfans')).toHaveLength(2);
-    expect(CLIENT_FEATURE_FLAG_NAMES.filter((flag) => HUB_FEATURE_REQUIREMENTS[flag].onlyfans === undefined)).toEqual(['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration']);
+    expect(CLIENT_FEATURE_FLAG_NAMES.filter((flag) => HUB_FEATURE_REQUIREMENTS[flag].onlyfans === undefined)).toEqual(NON_CHATSPACE_FEATURE_FLAGS);
+  });
+
+  it('the ChatSpace allowlist equals the hub table’s OnlyFans admission', () => {
+    expect(CHATSPACE_FEATURE_FLAGS).toEqual(CLIENT_FEATURE_FLAG_NAMES.filter((flag) => HUB_FEATURE_REQUIREMENTS[flag].onlyfans !== undefined));
   });
 
   it('the bootstrap route serves the preset for the caller, through the contract schema', async () => {
@@ -67,13 +76,13 @@ describe('fake hub config: presets', () => {
 describe('fake hub config: evaluateClientFeature order', () => {
   const pilot = presetConfig('pilot-on');
 
-  it('platform first: a feature the page’s platform does not have is platform_unsupported even with the master off; one it has is `disabled` (R20 HF-2)', () => {
-    expect(featureVerdict({ ...pilot, master: false }, fansly, 'navigation')).toEqual({ available: false, reason: 'platform_unsupported' });
+  it('HF-15: master first, even for unsupported platform features', () => {
+    expect(featureVerdict({ ...pilot, master: false }, fansly, 'navigation')).toEqual({ available: false, reason: 'disabled' });
     expect(featureVerdict({ ...pilot, master: false }, fansly, 'spenders')).toEqual({ available: false, reason: 'disabled' });
-    expect(featureVerdict({ ...pilot, master: false }, one, 'drafts')).toEqual({ available: false, reason: 'platform_unsupported' });
+    expect(featureVerdict({ ...pilot, master: false }, one, 'drafts')).toEqual({ available: false, reason: 'disabled' });
   });
 
-  it('then the master switch and the flag — before the binding is even looked at', () => {
+  it('then the flag — before the binding is even looked at', () => {
     const unbound = { ...one, platformAccountId: null };
     const noBindings = { ...pilot, bindingsByHost: {} };
     expect(featureVerdict({ ...noBindings, master: false }, unbound, 'spenders')).toEqual({ available: false, reason: 'disabled' });

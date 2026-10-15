@@ -1,3 +1,4 @@
+import { NON_CHATSPACE_FEATURE_FLAGS } from '@cg/contracts/fixtures';
 import {
   BootstrapSchema,
   CLIENT_FEATURE_FLAG_NAMES,
@@ -168,7 +169,7 @@ describe('fake hub: HTTP scenarios', () => {
     for (const page of ofPages) {
       // Fansly's own switches (contracts 1.15.0, P4b3) are not on an OnlyFans page at all (hub HF-2).
       for (const flag of CLIENT_FEATURE_FLAG_NAMES) expect(usable(BOOTSTRAP_PILOT_ON, page, flag), `${page.pageLabel} ${flag}`).toBe(existsOnOnlyFans(flag) && !PILOT_FLAGS_OFF.includes(flag));
-      for (const flag of ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration']) expect(page.features[flag], `${page.pageLabel} ${flag}`).toEqual({ available: false, reason: 'platform_unsupported' });
+      for (const flag of NON_CHATSPACE_FEATURE_FLAGS) expect(page.features[flag], `${page.pageLabel} ${flag}`).toEqual({ available: false, reason: 'platform_unsupported' });
     }
     const fansly = BOOTSTRAP_PILOT_ON.pages.find((page) => page.platform === 'fansly');
     expect(fansly?.features['insertion']?.reason).toBe('flag_off');

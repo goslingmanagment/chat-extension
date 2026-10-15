@@ -41,8 +41,6 @@ export function createFanslyMounts(doc: Document): FanslyMounts {
     },
   };
   const overlays = new Map<OverlayLayer, ClosedHost>();
-  const owners = new Map<'dock' | OverlayLayer, Set<string>>();
-  const listeners = new Set<(points: MountPoints) => void>();
 
   const overlay = (layer: OverlayLayer): ClosedHost => {
     let found = overlays.get(layer);
@@ -67,25 +65,14 @@ export function createFanslyMounts(doc: Document): FanslyMounts {
       dock: { kind: 'none', composerInstanceId: null, width: null },
       overlay: { ready: (doc.documentElement as HTMLElement | null) !== null, container: null },
     }),
-    onChange(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    setDismissibleOpen(target, owner, open) {
-      const set = owners.get(target) ?? new Set<string>();
-      owners.set(target, set);
-      if (open) set.add(owner);
-      else set.delete(owner);
-    },
+    // P7d supplies anchor changes and dismissal handling; the starter has neither yet.
+    onChange: () => () => undefined,
+    setDismissibleOpen: () => undefined,
     registry,
     dispose() {
       dock.remove();
       for (const host of overlays.values()) host.remove();
       overlays.clear();
-      listeners.clear();
-      owners.clear();
     },
   };
 }
