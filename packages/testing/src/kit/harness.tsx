@@ -7,9 +7,10 @@ import { type FunctionComponent } from 'preact';
 import { act } from 'preact/test-utils';
 
 import { type Locale, type MountSurfaceKind } from '@cg/contracts';
+import { type SitePhrases } from '@cg/core/domain/i18n';
 import { mountKitSurface, type KitFailure, type KitMount, type StyleSource } from '@cg/ui/kit';
 
-import { type AppClientScenario } from '../scenarios/app-client';
+import { type AppClientScenario, type SiteTexts } from '../scenarios/app-client';
 import { kitWorld, type KitWorld } from './world';
 
 export { kitWorld, type KitDeps, type KitWorld } from './world';
@@ -34,11 +35,13 @@ export interface MountKitOptions {
   readonly parent?: HTMLElement;
   /** The surface's clock (default: the scenario's fake clock). */
   readonly now?: () => number;
+  /** The site the surface speaks for (its phrases and its own catalog entries, as its tab has them); default: ChatSpace's. */
+  readonly site?: { readonly phrases: SitePhrases; readonly texts?: SiteTexts };
 }
 
 /** Mounts `view` as a kit surface into a fresh closed shadow root. */
 export function mountKit(view: FunctionComponent, options: MountKitOptions = {}): MountedKit {
-  const world = kitWorld(options.scenario, options.language);
+  const world = kitWorld(options.scenario, options.language, options.site?.phrases, options.site?.texts);
   const host = document.createElement('div');
   host.setAttribute('data-host', options.kind ?? 'dock');
   (options.parent ?? document.body).append(host);

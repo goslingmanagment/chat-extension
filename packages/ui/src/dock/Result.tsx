@@ -9,7 +9,9 @@
 import { type ReadonlySignal } from '@preact/signals';
 import { type JSX } from 'preact';
 
-import { type DockVM, type ResultVM } from '@cg/contracts/vm';
+import { type I18nKey } from '@cg/contracts/errors';
+import { type ResultMarkVM, type StaleReason } from '@cg/contracts/ops';
+import { type DockVM, type ResultMarkKey, type ResultVM } from '@cg/contracts/vm';
 
 import { Button, Caret, Dot, ErrorCard, KeysFooter, Spinner, StageLine, hotkeyText, useDispatch, useI18n, useKit, type KeyHint } from '../kit';
 import { RetryAnnouncer, spokenReady, useReadyAnnouncement, useStageAnnouncements } from './announce';
@@ -36,16 +38,24 @@ export interface ResultContentProps {
   readonly quiet?: boolean;
 }
 
-/** «Фан написал новое» above the parts (ui-design §4.7): the answer does not know the new message; inserting stays allowed. `onAgain` null — the result has no «Ещё раз» here. */
-function StaleRow({ onAgain, reason }: { readonly onAgain: (() => void) | null; readonly reason: string | null }): JSX.Element {
+/**
+ * The words of each mark, by its reason (ui-design §4.7): «Фан написал новое» of the shared catalog (`archive-moved` has
+ * none of its own); the window check's (R20 P8b2, spec §3.5) — `ResultMarkKey`, in the catalog of the site whose verdict
+ * gives them.
+ */
+const MARK_WORDS = { 'fan-wrote': '', 'archive-moved': '', unverified: '.unverified', 'window-miss': '.windowMiss', 'deleted-served': '.deletedServed' } as const satisfies Record<StaleReason, string>;
+
+/** The mark above the parts (ui-design §4.7): the answer may not know what the chat holds now; inserting stays allowed. `onAgain` null — the result has no «Ещё раз» here. */
+function StaleRow({ mark, onAgain, reason }: { readonly mark: ResultMarkVM; readonly onAgain: (() => void) | null; readonly reason: string | null }): JSX.Element {
   const i18n = useI18n();
+  const words = (part: 'title' | 'body'): string => i18n.t(`result.stale${MARK_WORDS[mark.reason]}.${part}` as const satisfies I18nKey | ResultMarkKey as I18nKey);
   return (
     <div class="cg-stale" role="status">
       <span class="cg-gut">
         <Dot kind="accent" use="result-stale" />
       </span>
       <span class="cg-stale__t">
-        <b>{i18n.t('result.stale.title')}</b> {i18n.t('result.stale.body')}
+        <b>{words('title')}</b> {words('body')}
       </span>
       {onAgain === null ? null : <Button label={i18n.t('common.again')} variant="line" reason={reason} onClick={onAgain} />}
     </div>
@@ -140,7 +150,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
         {result.draftNotSent ? <DraftLabel /> : null}
       </Head>
       <div class="cg-body">
-        {result.stale === null ? null : <StaleRow onAgain={board ? null : again} reason={againReason} />}
+        {result.stale === null ? null : <StaleRow mark={result.stale} onAgain={board ? null : again} reason={againReason} />}
         {fix !== null ? (
           <FixBody opId={result.opId} fix={fix.vm} part={fix.part} mode={mode} confirm={result.confirm} />
         ) : result.variants !== null ? (

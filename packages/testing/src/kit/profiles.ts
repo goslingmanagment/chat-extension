@@ -6,7 +6,7 @@
 // reaches every surface and changes nothing of ChatSpace.
 
 import { type ColorScheme, type HostPalette, type HostUiProfile, type ValueSignal } from '@cg/contracts';
-import { FANSLY_CG_EN, FANSLY_CG_RU, FANSLY_PHRASES, FANSLY_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
+import { FANSLY_CG_EN, FANSLY_CG_RU, FANSLY_MARK_TEXTS, FANSLY_PHRASES, FANSLY_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
 import { fanslyPaletteSignal, type FanslyThemeSource } from '@cg/host-fansly/isolated/palette';
 import { createFanslyTheme } from '@cg/host-fansly/isolated/theme';
@@ -91,8 +91,11 @@ export function fanslyProfile(theme: FanslyThemeSource, page: () => Document = (
 export const GALLERY_HOSTS = ['chatspace', 'fansly', 'test'] as const;
 export type GalleryHost = (typeof GALLERY_HOSTS)[number];
 
-/** What Fansly's tab lays over the shared catalog (apps/extension lazy/fansly/i18n-*.ts): its codes' texts, its own wording. */
-export const FANSLY_SITE_TEXTS: SiteTexts = { ru: { ...FANSLY_CG_RU, ...FANSLY_TEXTS.ru }, en: { ...FANSLY_CG_EN, ...FANSLY_TEXTS.en } };
+/** What Fansly's tab lays over the shared catalog (apps/extension lazy/fansly/i18n-*.ts): its codes' texts, its own wording, its marks' words. */
+export const FANSLY_SITE_TEXTS: SiteTexts = {
+  ru: { ...FANSLY_CG_RU, ...FANSLY_TEXTS.ru, ...FANSLY_MARK_TEXTS.ru },
+  en: { ...FANSLY_CG_EN, ...FANSLY_TEXTS.en, ...FANSLY_MARK_TEXTS.en },
+};
 
 export interface GallerySite {
   readonly host: GalleryHost;
