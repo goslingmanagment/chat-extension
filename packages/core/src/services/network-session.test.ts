@@ -9,10 +9,11 @@ const API = 'https://apiv3.fansly.com/api/v1/message';
 const OWN = 'moz-extension://our-id/';
 const account = '123456789012345678';
 const other = '123456789012345679';
+let clientTimestamp = 100;
 const headers = (id = account, token = 'fresh', check = 'message-check') => [
   { name: 'Authorization', value: btoa(`${id}:${token}`) },
   { name: 'fansly-client-id', value: 'client' }, { name: 'fansly-session-id', value: 'session' },
-  { name: 'fansly-client-ts', value: '100' }, { name: 'fansly-client-check', value: check },
+  { name: 'fansly-client-ts', value: String(++clientTimestamp) }, { name: 'fansly-client-check', value: check },
 ];
 const request = (requestId: string, change: Partial<RequestFact> = {}): RequestFact => ({ phase: 'headers', requestId, url: API, tabId: 1, frameId: 0, documentUrl: PAGE, originUrl: PAGE, requestHeaders: headers(), ...change });
 const complete = (fact: RequestFact, statusCode = 200): RequestFact => ({ ...fact, phase: 'completed', statusCode });
@@ -115,12 +116,17 @@ describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation',
     expect(store.calls.set).toBe(baseline);
     await service.accept(complete(request('first')));
     const saved = store.calls.set;
+    const snapshot = store.read('session');
     for (let i = 0; i < 5; i++) {
-      const fact = request(`same-${i}`);
+      const fact = request(`same-${i}`, { requestHeaders: headers(account, 'fresh', `message-check-${i}`) });
       await service.accept(fact); await service.accept(complete(fact));
+      expect(service.forTab(1)?.headers['fansly-client-ts']).toBe(fact.requestHeaders?.find((header) => header.name === 'fansly-client-ts')?.value);
+      expect(service.forTab(1)?.checks['message']).toBe(`message-check-${i}`);
+      expect(store.calls.set).toBe(saved);
     }
     await service.setEnabled(true);
     expect(store.calls.set).toBe(saved);
+    expect(store.read('session')).toEqual(snapshot);
     const burst = [1, 2, 3].map((n) => request(`burst-${n}`, { requestHeaders: headers(account, `token-${n}`) }));
     await Promise.all(burst.map((fact) => service.accept(fact)));
     expect(store.calls.set).toBe(saved);
@@ -133,6 +139,25 @@ describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation',
     const limited = complete(request('limited'), 429);
     await service.accept(limited); await service.accept(limited);
     expect(store.calls.set).toBe(writes + 2);
+  });
+  it('persists a newly learned route family, but not rotating checks within it; material changes reset checks', async () => {
+    const { service, store } = setup(); await service.setEnabled(true);
+    const first = request('message'); await service.accept(first); await service.accept(complete(first));
+    const saved = store.calls.set;
+    const learned = request('account', { url: `${API}/account`, requestHeaders: headers(account, 'fresh', 'account-check') });
+    await service.accept(learned); await service.accept(complete(learned));
+    expect(store.calls.set).toBe(saved + 1);
+    const rotated = request('account-again', { url: learned.url, requestHeaders: headers(account, 'fresh', 'account-check-new') });
+    await service.accept(rotated); await service.accept(complete(rotated));
+    expect(store.calls.set).toBe(saved + 1);
+    expect(service.forTab(1)?.checks).toEqual({ message: 'message-check', account: 'account-check-new' });
+    const restored = setup(store).service; await restored.setEnabled(true);
+    expect(restored.forTab(1)?.checks).toEqual({ message: 'message-check', account: 'account-check' });
+    const changed = request('new-session', { requestHeaders: headers(account, 'new-token', 'new-session-check') });
+    await service.accept(changed); await service.accept(complete(changed));
+    expect(store.calls.set).toBe(saved + 2);
+    expect(service.forTab(1)?.checks).toEqual({ message: 'new-session-check' });
+    expect(store.read<{ templates: { checks: Record<string, string> }[] }>('session')?.templates[0]?.checks).toEqual({ message: 'new-session-check' });
   });
   it('storage failure is fail-closed and revoke clears credentials in memory and session', async () => {
     const { service, store } = setup(); await service.setEnabled(true);

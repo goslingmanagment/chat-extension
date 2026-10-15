@@ -16,7 +16,9 @@ export interface RequestFact {
 export interface SessionTemplate {
   readonly legacyId: string;
   canonicalId: string | null;
+  /** Captured samples: the API client regenerates per-request timestamps and selects a route check from `checks`. */
   headers: Record<string, string>;
+  /** Latest accepted check per route family in memory; persisted on meaningful session changes. */
   checks: Record<string, string>;
   observedAt: number;
   connected: boolean;
@@ -52,6 +54,7 @@ export interface NetworkSessionDeps {
   readonly ownOrigin: string;
   readonly requiredHeaders: readonly string[];
   readonly checkHeader: string;
+  /** Stable session identity: changes reset route checks and require persistence. */
   readonly materialHeaders: readonly string[];
   readonly accountOf: (authorization: string) => string | null;
   readonly familyOf: (url: string) => string | null;
@@ -179,9 +182,12 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
               const material = previous === undefined || deps.materialHeaders.some((name) => previous.headers[name] !== candidate.headers[name]);
               const checks = material ? {} : { ...previous?.checks };
               const check = candidate.headers[deps.checkHeader];
+              const learnedFamily = candidate.family !== null && check !== undefined && checks[candidate.family] === undefined;
               if (candidate.family !== null && check !== undefined) checks[candidate.family] = check;
-              const same = (a: Record<string, string>, b: Record<string, string>): boolean => Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((key) => a[key] === b[key]);
-              const changed = previous === undefined || !previous.connected || !same(previous.headers, candidate.headers) || !same(previous.checks, checks);
+              // Timestamps and rotating checks stay fresh in memory, but must
+              // not turn every 2xx into a whole-snapshot write. A new family is
+              // durable so its accepted check is available after a wake.
+              const changed = material || previous?.connected !== true || learnedFamily;
               dirty ||= changed;
               templates.set(candidate.legacyId, { legacyId: candidate.legacyId, canonicalId: previous?.canonicalId ?? null, headers: candidate.headers, checks, observedAt: candidate.at, connected: true });
             }

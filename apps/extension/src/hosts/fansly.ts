@@ -16,7 +16,7 @@
 // (packages/testing/e2e/support/fansly-site.ts), with the stand's origins
 // granted as a person would.
 
-import { FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_QUIET_DOMAINS } from './runtime/fansly.ts';
+import { FANSLY_API_MATCHES, FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_QUIET_DOMAINS } from './runtime/fansly.ts';
 import { FANSLY_STAND_MATCHES } from './runtime/index.ts';
 import type { HostDescriptor, TestHostConfig } from './types.ts';
 
@@ -24,9 +24,6 @@ const KIB = 1024;
 
 /** The Fansly stand: its own loopback name, `localhost` (ChatSpace's stand is `127.0.0.1`), optional as the site's pages (R20 P6a). */
 export const FANSLY_TEST: TestHostConfig = { pageMatches: FANSLY_STAND_MATCHES };
-
-/** Fansly's API: its background asks it, by the list of FS-NET-1 (§8.3); the session and its answers come from `webRequest` (§8.2). */
-export const FANSLY_API_MATCHES: readonly string[] = ['https://apiv3.fansly.com/*'];
 
 /**
  * Fansly's own lazy build (§3.1, §3.2): `lazy/fansly/<entry>.js`, cut by the bundler alone until it has the dock's

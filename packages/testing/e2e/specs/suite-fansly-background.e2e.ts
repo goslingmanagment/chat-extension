@@ -6,13 +6,13 @@ import { installTestBuild, pageRpc, waitForReport } from '../support/extension';
 import { testBuildPage } from '../support/fake-hub';
 import { callNeighbor, openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
 import { FANSLY_STAND_PATTERN, registeredScripts } from '../support/fansly-site';
-import { callFansly, fakeFansly, fanslyStandUrl, waitForFanslyStandIdle, waitForFanslyStandReady } from '../support/fansly-stand';
+import { callFansly, fakeFansly, fanslyIds, fanslyStandUrl, waitForFanslyStandIdle, waitForFanslyStandReady } from '../support/fansly-stand';
 import { useNetworkTrap } from '../support/network-trap';
 import { grantOptional, revokeOptional } from '../support/permissions';
 import { capturePage } from '../support/pages';
 
 interface Stored {
-  templates: Array<{ legacyId: string; headers: Record<string, string>; observedAt: number }>;
+  templates: Array<{ legacyId: string; headers: Record<string, string>; checks: Record<string, string> }>;
   limits: Array<{ accountId: string | null; source: string; requestId: string }>;
 }
 async function captured(): Promise<Stored> {
@@ -95,12 +95,16 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
     });
     await stand(); await browser.refresh(); await waitForFanslyStandReady(); await waitForFanslyStandIdle();
     expect(await browser.execute(() => document.documentElement.hasAttribute('data-cg-spike'))).toBe(false);
-    await pages(); const before = await captured();
+    const groupId = (await fanslyIds()).groups[0]!;
+    await callFansly('forget', groupId);
+    await pages(); expect((await captured()).templates[0]?.checks['group']).toBeUndefined();
     expect(await suspendBackground()).toBe('stopped');
-    await stand(); await callFansly('cameBack', 31_000); await waitForFanslyStandIdle();
+    // A newly learned route family is a durable change; a timestamp/check
+    // rotation on the already-known /message family must not force a write.
+    await stand(); await callFansly('open', groupId); await waitForFanslyStandIdle();
     await browser.waitUntil(async () => (await backgroundState()) === 'running', { timeout: 10_000 });
     await pages();
-    await browser.waitUntil(async () => ((await captured()).templates[0]?.observedAt ?? 0) > (before.templates[0]?.observedAt ?? 0), { timeout: 10_000 });
+    await browser.waitUntil(async () => (await captured()).templates[0]?.checks['group'] !== undefined, { timeout: 10_000 });
     const diagnostic = await pageRpc<{ hostModules: Array<{ host: string; state: string }> }>('diagnostics.get');
     expect(diagnostic.ok && diagnostic.payload.hostModules.find((entry) => entry.host === 'fansly-web')?.state).toBe('idle');
     expect((await registeredScripts()).some((script) => script.id === 'fansly')).toBe(true);
@@ -115,7 +119,14 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
     await stand(); expect((await callNeighbor('pollNow')).status).toBe(429);
     await pages();
     await browser.waitUntil(async () => (await captured()).limits.length > 0, { timeout: 10_000 });
-    expect((await captured()).templates).toEqual(before.templates);
+    // A 429 flush can also save newer page timestamps/checks accumulated in
+    // memory. The rejected neighbour must leave the session identity intact.
+    for (const template of (await captured()).templates) {
+      const previous = before.templates.find((entry) => entry.legacyId === template.legacyId);
+      expect(previous).toBeDefined();
+      for (const name of ['authorization', 'fansly-client-id', 'fansly-session-id']) expect(template.headers[name]).toBe(previous?.headers[name]);
+      expect(Object.values(template.checks).every((check) => check.startsWith('stand-check-'))).toBe(true);
+    }
     const facts = (await captured()).limits;
     expect(facts.at(-1)?.accountId).toBe(before.templates[0]?.legacyId);
     expect(await suspendBackground()).toBe('stopped'); await access();

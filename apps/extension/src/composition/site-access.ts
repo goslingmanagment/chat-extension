@@ -1,15 +1,14 @@
 // Optional-site configuration for the core's permission and observation services.
 // The core takes these inert data/functions; no site's chunk is imported here.
-import { FANSLY_MATCHES } from '../hosts/runtime/fansly';
+import { FANSLY_API_MATCHES, FANSLY_MATCHES } from '../hosts/runtime/fansly';
 import { FANSLY_STAND_MATCHES } from '../hosts/runtime';
 
 export const OPTIONAL_HOST = 'fansly-web' as const;
 export const SESSION_KEY = 'fansly.session';
 export const RELOAD_KEY = 'fansly.waitingReload';
-export const API_MATCHES = ['https://apiv3.fansly.com/*'];
 export const siteMatches = (): string[] => __CG_TEST_HOSTS__ ? [...FANSLY_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES];
-export const permissionSet = () => ({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, ...API_MATCHES], permissions: ['webRequest'] });
-export const apiMatches = (): string[] => __CG_TEST_HOSTS__ ? [...API_MATCHES, ...FANSLY_STAND_MATCHES] : [...API_MATCHES];
+export const permissionSet = () => ({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], permissions: ['webRequest'] });
+export const apiMatches = (): string[] => __CG_TEST_HOSTS__ ? [...FANSLY_API_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_API_MATCHES];
 export const scriptSet = () => [
   { id: 'fansly-main', js: ['fansly-main.js'], world: 'MAIN' as const, matches: siteMatches() },
   { id: 'fansly', js: ['fansly.js'], world: 'ISOLATED' as const, matches: siteMatches() },

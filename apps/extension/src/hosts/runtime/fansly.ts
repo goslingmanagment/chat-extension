@@ -10,6 +10,9 @@
 /** Fansly's pages, where its scripts run once the person switched Fansly on (§4). */
 export const FANSLY_MATCHES: readonly string[] = ['https://fansly.com/*'];
 
+/** Fansly's API: optional permission and passive observation (§8.2–§8.3). */
+export const FANSLY_API_MATCHES: readonly string[] = ['https://apiv3.fansly.com/*'];
+
 /** Quiet mode (X3) is ChatSpace's alone: the extension talks to Fansly's API (X4). */
 export const FANSLY_QUIET_DOMAINS: readonly string[] = [];
 
