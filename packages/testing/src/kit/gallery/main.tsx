@@ -50,6 +50,7 @@ if (config !== null) config.textContent = `${scheme} · ${language}${column > 0 
 
 const world = kitWorld('gallery-ready', language, site.profile.phrases);
 world.deps.scheme.set(scheme);
+site.theme?.onChange((theme) => world.deps.scheme.set(theme.scheme));
 const host = document.createElement('div');
 host.setAttribute('data-host', 'gallery');
 document.getElementById('gallery')?.append(host);

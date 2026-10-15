@@ -36,7 +36,7 @@ describe('the Fansly start without MAIN', () => {
     expect([modal.host.getAttribute('data-host'), modal.host.getAttribute('data-layer'), modal.host.style.getPropertyValue('z-index')]).toEqual(['overlay', 'modal', '950']);
     expect(started.mounts.registry.hosts()).toEqual([dock.host, modal.host]);
     // Fansly's theme is the page's own (P7d): dark without `bright-theme` on <html>.
-    expect(started.theme.current()).toEqual({ scheme: 'dark', tokens: {}, fixedWidth: false });
+    expect(started.theme.current()).toMatchObject({ scheme: 'dark', tokens: { '--color-om-neutral-900': '25 30 38' }, fixedWidth: false });
     started.mounts.dispose();
     expect(modal.host.isConnected).toBe(false);
     expect(started.mounts.registry.hosts()).toEqual([]);

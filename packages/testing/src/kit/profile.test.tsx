@@ -56,7 +56,7 @@ describe('[R20-F5] [host:chatspace] ChatSpace’s profile', () => {
   it('is what the galleries draw in unless `?host=test` asks for the test site', () => {
     expect(galleryHostOf(new URLSearchParams(''))).toEqual({ host: 'chatspace', profile: CHATSPACE_UI });
     expect(galleryHostOf(new URLSearchParams('host=chatspace'))).toEqual({ host: 'chatspace', profile: CHATSPACE_UI });
-    expect(galleryHostOf(new URLSearchParams('host=fansly')).host).toBe('chatspace');
+    expect(galleryHostOf(new URLSearchParams('host=unknown')).host).toBe('chatspace');
     expect(galleryHostOf(new URLSearchParams('host=test')).profile.dock.variant).toBe('fansly');
   });
 });

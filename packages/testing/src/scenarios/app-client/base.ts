@@ -11,6 +11,7 @@ import {
   type CgCode,
   type CgErrorView,
   type HotkeyLabel,
+  type HostUiProfile,
   type HotkeyPlatform,
   type I18nKey,
   type I18nParams,
@@ -32,6 +33,7 @@ export interface ScenarioCtx {
   /** The fake clock of the scenario, epoch ms. */
   readonly now: number;
   readonly debug: boolean;
+  readonly phrases?: HostUiProfile['phrases'];
 }
 
 /** 2026-10-03 09:20 Moscow, the mockup's «now». */
@@ -62,7 +64,7 @@ export interface ErrorExtras {
 /** A rendered error in the scenario's language, as the controller builds it: the registry's keys through the real catalog. */
 export function cgError(ctx: ScenarioCtx, code: CgCode, extras: ErrorExtras = {}): CgErrorView {
   const entry = cgEntry(code);
-  const t = createTranslator(ctx.lang, CHATSPACE_PHRASES);
+  const t = createTranslator(ctx.lang, ctx.phrases ?? CHATSPACE_PHRASES);
   return { code, title: t.text(entry.title), body: t.text(entry.body), ...extras };
 }
 

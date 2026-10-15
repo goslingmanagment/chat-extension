@@ -68,7 +68,7 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     for (const script of scriptsOf(FANSLY)) expect(existsSync(`${entrypoints}${script.entry}.ts`), script.entry).toBe(true);
     expect(FANSLY.budgets.scripts.map((line) => [line.entry, line.gzipBytes])).toEqual([
       ['fansly-main', 16 * 1024],
-      ['fansly', 30 * 1024],
+      ['fansly', 31 * 1024],
       ['fansly-notice', 2 * 1024],
     ]);
     expect(FANSLY.mainWorldSources).toEqual(['packages/host-fansly/src/main/']);
@@ -118,7 +118,11 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     expect(FANSLY_APP.contract.anchors).toContain('headerSubRow');
     expect(FANSLY_UI.dock.variant).toBe('fansly');
     expect(FANSLY_UI.phrases.ru.onSite).toBe('на Fansly');
-    expect(FANSLY_APP.ui({ current: () => ({ scheme: 'dark', tokens: {}, fixedWidth: false }), onChange: () => () => undefined, dispose: () => undefined })).toBe(FANSLY_UI);
+    const tokens = { '--color-om-brand-500': '38 153 247' };
+    const ui = FANSLY_APP.ui({ current: () => ({ scheme: 'dark', tokens, fixedWidth: false }), onChange: () => () => undefined, dispose: () => undefined });
+    expect(ui).toMatchObject(FANSLY_UI);
+    expect(ui.sheet?.id).toBe('cg-fansly-dock');
+    expect(ui.palette?.value).toBe(tokens);
     const policy = await FANSLY_APP.ai(() => Promise.reject(new Error('nothing to load')));
     expect([policy.proof({} as never, {} as never), policy.fields(null), policy.fingerprint(null)]).toEqual([null, {}, null]);
   });

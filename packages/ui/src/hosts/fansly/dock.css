@@ -1,0 +1,14 @@
+/* Fansly's column is usually around 622 px. Preserve the family's 40 px card,
+   raised chips, sunken options, terracotta and serif drafts (X28).
+   Only this variant switches the analysis chips to icons below 660 px. */
+:host([data-dock-variant="fansly"]) .cg-dock { width: 100%; min-width: 0; }
+@container cg (min-width: 610px) and (max-width: 659px) {
+  :host([data-dock-variant="fansly"]) .cg-slot--two .cg-act {
+    width: 28px; padding: 0; justify-content: center;
+  }
+  :host([data-dock-variant="fansly"]) .cg-slot--two .cg-act > .cg-ico { display: block; }
+  :host([data-dock-variant="fansly"]) .cg-slot--two .cg-act__t {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+}

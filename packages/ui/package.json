@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./hosts/fansly": "./src/hosts/fansly/index.ts",
     "./kit": "./src/kit/index.ts",
     "./dock": "./src/dock/index.ts",
     "./dock/analysis": "./src/dock/analysis/index.tsx",

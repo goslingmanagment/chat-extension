@@ -11,7 +11,7 @@
 // closed root hides: failures the surfaces reported, overflow, overlaps and
 // heights.
 
-import { type ColorScheme, type Locale, type MountSurfaceKind, type SurfaceGeometry, type UiResultStyle } from '@cg/contracts';
+import { type ColorScheme, type Locale, type MountSurfaceKind, type SurfaceGeometry, type UiResultStyle, type ToastsVM } from '@cg/contracts';
 import { dockSurface, preloadPart, DEFAULT_PARTS } from '@cg/ui/dock';
 import { mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
 import { lazyOverlays, toastsSurface } from '@cg/ui/overlays';
@@ -27,6 +27,8 @@ export interface DockProbe {
   readonly states: readonly string[];
   /** What is wrong on screen now: overflow, overlap, heights (empty when fine). */
   check(): readonly string[];
+  /** Computed styles inside the closed root, for visual regression assertions. */
+  style(id: string, selector: string, property: string): string | null;
   /** Sets the composer width of every stage (the 360…900 px sweep). */
   setWidth(px: number): void;
   measure(id: string): { readonly strip: number; readonly sheet: number; readonly cap: number; readonly draftVisible: boolean | null; readonly buttons: readonly string[] } | null;
@@ -103,9 +105,20 @@ const geometryOf = (item: GalleryState): SurfaceGeometry =>
     : { width: null, feedHeight: null, viewportHeight: window.innerHeight, container: { left: 64, top: 44, width: window.innerWidth - 64, height: window.innerHeight - 44 } };
 
 function worldOf(item: GalleryState): KitWorld {
-  const scenario = scenarioOfState(item, language, scheme, keys);
+  const scenario = scenarioOfState(item, language, scheme, keys, site.profile.phrases);
   // «Вид ответа» comes from the URL, as the setting would.
-  const views = scenario.views.map((view) => (view.selector.of === 'dock' ? entry({ of: 'dock' }, { ...(view.vm as Parameters<typeof entry<{ of: 'dock' }>>[1]), resultStyle: style }) : view));
+  let views = scenario.views.map((view) => (view.selector.of === 'dock' ? entry({ of: 'dock' }, { ...(view.vm as Parameters<typeof entry<{ of: 'dock' }>>[1]), resultStyle: style, ...(site.host === 'fansly' ? { paletteHotkey: null } : {}) }) : view));
+  if (site.host === 'fansly') {
+    views = views.map((view) => {
+      if (view.selector.of !== 'toasts') return view;
+      const vm = view.vm as ToastsVM;
+      return entry({ of: 'toasts' }, { ...vm, toasts: vm.toasts.map((toast) => {
+        if (toast.id === 'toast-info') return { ...toast, title: language === 'ru' ? 'Настройки хаба обновляются…' : 'Hub settings are updating…' };
+        if (toast.id === 'toast-contract') return { ...toast, title: language === 'ru' ? 'Fansly обновился — часть функций выключена' : 'Fansly was updated — some functions are off' };
+        return toast;
+      }) });
+    });
+  }
   const world = kitWorld({ ...scenario, views }, language, site.profile.phrases);
   world.deps.scheme.set(scheme);
   world.deps.geometry.set(geometryOf(item));
@@ -239,6 +252,10 @@ window.__dock = {
     }
     return problems;
   },
+  style: (id, selector, property) => {
+    const element = mounted.find((item) => item.state.id === id)?.root.querySelector(selector);
+    return element ? getComputedStyle(element).getPropertyValue(property) : null;
+  },
   setWidth: (px) => {
     width = px;
     html.style.setProperty('--gal-w', `${px}px`);
@@ -285,5 +302,11 @@ window.__dock = {
     },
   },
 };
+
+site.theme?.onChange((theme) => {
+  html.classList.toggle('dark', theme.scheme === 'dark');
+  html.classList.toggle('light', theme.scheme === 'light');
+  for (const item of mounted) item.world.deps.scheme.set(theme.scheme);
+});
 
 void show();

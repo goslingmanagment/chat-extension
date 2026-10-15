@@ -10,6 +10,7 @@ import {
   type CoachVM,
   type DockVM,
   type Locale,
+  type HostUiProfile,
   type PartVM,
   type RecapViewVM,
   type ResultVM,
@@ -742,8 +743,8 @@ export function galleryState(id: string): GalleryState | null {
 }
 
 /** The scenario of one gallery state in a language. */
-export function scenarioOfState(item: GalleryState, lang: Locale, scheme: AppClientScenario['scheme'], platform: 'mac' | 'win' = 'mac'): AppClientScenario {
-  const ctx = ctxOf({ lang, platform, debug: item.debug === true });
+export function scenarioOfState(item: GalleryState, lang: Locale, scheme: AppClientScenario['scheme'], platform: 'mac' | 'win' = 'mac', phrases?: HostUiProfile['phrases']): AppClientScenario {
+  const ctx = ctxOf({ lang, platform, debug: item.debug === true, ...(phrases === undefined ? {} : { phrases }) });
   return {
     id: `gallery-${item.id}`,
     title: item.title,

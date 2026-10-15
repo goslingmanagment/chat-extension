@@ -156,7 +156,7 @@ export const PAGE_OFF_REASON: ReasonVM = { id: 'feature-disabled', code: 'CG-FEA
  * status line, every AI action and option carries that reason, and what was generated before can only be copied.
  */
 export function dockPageOff(ctx: ScenarioCtx, options: DockOptions = {}): DockVM {
-  const t = createTranslator(ctx.lang, CHATSPACE_PHRASES);
+  const t = createTranslator(ctx.lang, ctx.phrases ?? CHATSPACE_PHRASES);
   const base = dock(ctx, 'ready', { actionsOptions: { off: PAGE_OFF_REASON }, ...options });
   return {
     ...base,

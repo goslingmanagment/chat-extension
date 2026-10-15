@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./main": "./src/main/index.ts",
+    "./isolated/theme": "./src/isolated/theme.ts",
     "./isolated/notice": "./src/isolated/notice.ts",
     "./isolated": "./src/isolated/index.ts",
     "./isolated/validation": "./src/isolated/validate.ts"

@@ -85,9 +85,11 @@ html.classList.toggle('light', scheme === 'light');
 html.lang = language;
 
 // As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet, its phrases).
-const { profile } = galleryHostOf(params);
+const site = galleryHostOf(params);
+const { profile } = site;
 const world = boardWorld(stateId, language, profile.phrases);
 world.deps.scheme.set(scheme);
+site.theme?.onChange((theme) => world.deps.scheme.set(theme.scheme));
 if (step >= 0) world.client.goTo(step);
 // The side panel stands at the right edge of ChatSpace's container, inside its 1 px frame, left of its rail (ui-design §3.7).
 if (kind === 'fan-panel') {

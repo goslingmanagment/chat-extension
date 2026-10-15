@@ -82,7 +82,8 @@ export const FANSLY: HostDescriptor = {
     scripts: [
       // Everything of MAIN in one script, ≤ 1 ms at document_start (e2e): the P3a prototype was 8.8 KiB.
       { entry: 'fansly-main', label: 'MAIN: boot, traps, observation (fansly-main)', gzipBytes: 16 * KIB },
-      { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 30 * KIB },
+      // P8d: page-colour parsing and the fallback scale bring the measured start to 30.07 KiB gzip.
+      { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 31 * KIB },
       { entry: 'fansly-notice', label: 'reload notice (fansly-notice)', gzipBytes: 2 * KIB },
     ],
     contracts: [],

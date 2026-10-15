@@ -340,6 +340,15 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
       for (const theme of ['bright', 'dark'] as const) {
         await callFansly('setTheme', theme);
         await waitForReport((now) => now.dock?.scheme === (theme === 'bright' ? 'light' : 'dark'), `the dock in the ${theme} theme`);
+        const palette = await browser.execute((selector: string) => {
+          const host = document.querySelector(selector);
+          return host === null ? null : {
+            card: getComputedStyle(host).getPropertyValue('--color-om-neutral-900').trim(),
+            send: getComputedStyle(host).getPropertyValue('--color-om-brand-500').trim(),
+            variant: host.getAttribute('data-dock-variant'),
+          };
+        }, DOCK);
+        expect(palette).toEqual({ card: theme === 'bright' ? '20 30 40' : '25 30 38', send: '38 153 247', variant: 'fansly' });
         await shoot(`${mode}-${theme}-1440x900`);
       }
       await callFansly('setTheme', 'bright');

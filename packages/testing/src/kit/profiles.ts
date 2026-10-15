@@ -1,10 +1,13 @@
 // The sites' profiles the stand's galleries and the tests draw in (Project Unite architecture §1.5; R20 F5):
 // `?host=chatspace` — ChatSpace's own profile, as its tab mounts every surface (the default); `?host=test` — a
 // second site that exists only here, with a palette and a variant sheet of its own, to show that a profile reaches
-// every surface and changes nothing of ChatSpace. Fansly's own look comes with its UI (P8d adds `?host=fansly`).
+// every surface and changes nothing of ChatSpace. `?host=fansly` uses the real palette reader and variant over the stand's page variables.
 
 import { type HostPalette, type HostUiProfile, type ValueSignal } from '@cg/contracts';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
+import type { FanslyTheme } from '@cg/host-fansly/isolated/theme';
+
+import { fanslyGalleryProfile } from './fansly-profile';
 
 /** A palette that does not change (the gallery's): `set` for a test that changes it. */
 export class PaletteSignal implements ValueSignal<HostPalette> {
@@ -71,10 +74,11 @@ export function testSiteProfile(palette: ValueSignal<HostPalette> = new PaletteS
   };
 }
 
-export const GALLERY_HOSTS = ['chatspace', 'test'] as const;
+export const GALLERY_HOSTS = ['chatspace', 'test', 'fansly'] as const;
 export type GalleryHost = (typeof GALLERY_HOSTS)[number];
 
 /** `?host=` of a gallery page: ChatSpace's profile unless the test site is asked for. */
-export function galleryHostOf(params: URLSearchParams): { readonly host: GalleryHost; readonly profile: HostUiProfile } {
+export function galleryHostOf(params: URLSearchParams): { readonly host: GalleryHost; readonly profile: HostUiProfile; readonly theme?: FanslyTheme } {
+  if (params.get('host') === 'fansly') return fanslyGalleryProfile(params);
   return params.get('host') === 'test' ? { host: 'test', profile: testSiteProfile() } : { host: 'chatspace', profile: CHATSPACE_UI };
 }
