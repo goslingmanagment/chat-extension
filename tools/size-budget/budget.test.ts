@@ -207,11 +207,11 @@ describe('size budgets of the sites’ lazy builds and contract probes (R20 F2b)
     expect(lines.filter((line) => line.label.startsWith('fansly-web: ')).map((line) => [line.label, line.limitBytes])).toEqual([['fansly-web: first dock chunk with Preact (lazy/fansly/dock + shared)', BUDGETS.firstDockChunk]]);
   });
 
-  it('every script of the registry has its one line: Fansly’s MAIN ≤ 16 KiB and its early isolated start ≤ 34 KiB come after ChatSpace’s (R20 P7a0, P7g, P7e)', () => {
+  it('every script of the registry has its one line: Fansly’s MAIN ≤ 16 KiB and its early isolated start ≤ 36 KiB come after ChatSpace’s (R20 P7a0, P7g, P7e)', () => {
     expect(scriptBudgets(HOSTS).map((line) => [line.file, line.limitBytes])).toEqual([
       ...scriptBudgets([CHATSPACE]).map((line) => [line.file, line.limitBytes]),
       ['fansly-main.js', 16 * 1024],
-      ['fansly.js', 34 * 1024],
+      ['fansly.js', 36 * 1024],
       ['fansly-notice.js', 2 * 1024],
     ]);
   });

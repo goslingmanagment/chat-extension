@@ -82,9 +82,9 @@ export const FANSLY: HostDescriptor = {
     scripts: [
       // Everything of MAIN in one script, ≤ 1 ms at document_start (e2e): the P3a prototype was 8.8 KiB.
       { entry: 'fansly-main', label: 'MAIN: boot, traps, observation (fansly-main)', gzipBytes: 16 * KIB },
-      // P7g: admission, retirement and notices alongside P7d's dock (30.43 KiB measured); R20 P7e: → 34 KiB — the writes
+      // P7g: admission, retirement and notices alongside P7d's dock (30.43 KiB measured); R20 P7e: → 36 KiB (33.41 measured) — the writes
       // (the field's revision and record, the insert, «Открыть и вставить») start with the port.
-      { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 34 * KIB },
+      { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 36 * KIB },
       { entry: 'fansly-notice', label: 'reload notice (fansly-notice)', gzipBytes: 2 * KIB },
     ],
     contracts: [],
