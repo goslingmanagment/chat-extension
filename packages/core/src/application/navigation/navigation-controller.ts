@@ -9,11 +9,13 @@
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
+import { type FeatureSlice } from '@cg/contracts/features/types';
 import { type HostPort, type NavigationItem } from '@cg/contracts/host';
 import { type ChatRef } from '@cg/contracts/ids';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 import { type ActionReceipt, type I18n, type NavigationTarget, type ToastPort, type UiAction } from '@cg/contracts/vm';
 
+import { rowPresent } from '../../domain/hotkeys/cheatsheet';
 import { chatAtSlot, nextUnreadChat, stepChat } from '../../domain/navigation';
 import { type OverlayState } from './overlays';
 import { failedReceipt, type IdPort, type SurfaceController, type TabClock, type TabRpc } from './ports';
@@ -101,6 +103,12 @@ export interface NavigationControllerDeps {
   readonly ownerSwitch?: (hostAccountId: string | null) => boolean | null | Promise<boolean | null>;
   readonly toasts?: ToastPort;
   readonly cause?: CauseHint;
+  /**
+   * The site's slice of the feature manifest (R20 §1.4): a window or a walk whose feature the site has not — the
+   * palette and our chat navigation are ChatSpace's — opens nothing, quietly, as a key the reference does not list
+   * (its chunk is not in the site's build either). Absent — every one is there.
+   */
+  readonly features?: FeatureSlice;
 }
 
 export interface NavigationController extends SurfaceController {
@@ -222,7 +230,11 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     // The key's mark belongs to this very dispatch. It is taken here, whatever comes of the navigation — nothing to
     // open, a router still moving, a refusal — so it never rides on a later click.
     const cause = deps.cause?.take() ?? 'click';
-    if (to.kind === 'chat-step' || to.kind === 'next-unread' || to.kind === 'chat-slot') return walk(to, cause);
+    if (to.kind === 'chat-step' || to.kind === 'next-unread' || to.kind === 'chat-slot') {
+      // J/K, ⌘U and ⌘1–9 are rows of our navigation: on a site without it they walk nowhere.
+      if (!rowPresent(to.kind === 'next-unread' ? 'next-unread' : to.kind === 'chat-slot' ? 'quick-jump' : 'chat-next', deps.features)) return Promise.resolve(done('noop'));
+      return walk(to, cause);
+    }
     if (to.kind === 'chat') {
       const chat = parseChatHandle(to.targetHandle);
       return chat === null ? null : open(chat, cause);
@@ -232,6 +244,8 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
       return hostAccountId === null ? null : open({ hostAccountId, platformFanId: null }, cause);
     }
     if (to.kind === 'surface' && OWN_SURFACES.includes(to.surface)) {
+      // A window of a feature the site has not (the palette, the quick jump of our navigation) is not opened at all.
+      if (to.open && !rowPresent(to.surface as 'palette' | 'quick-jump' | 'cheatsheet', deps.features)) return Promise.resolve(done('noop'));
       if (to.surface === 'quick-jump') {
         if (to.open) return openQuickJump();
         quickJumpAsk += 1;

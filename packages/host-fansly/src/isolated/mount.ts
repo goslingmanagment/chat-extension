@@ -49,7 +49,7 @@ import { HOST_ATTRIBUTE, LAYER_ATTRIBUTE, MODE_ATTRIBUTE, mountClosedHost, OVERL
 import { createBottomKeeper } from '@cg/host-kit/isolated/keep-bottom';
 import { createShadowRootRegistry, type ShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry';
 
-import { FANSLY_SELECTORS, type ConversationAnchors } from './anchors';
+import type { ConversationAnchors } from './anchors';
 
 /** Fansly's «near the latest messages»: within 350 px of the bottom its list follows a new message (xdScrollWatcher, main:24549). */
 export const FANSLY_NEAR_BOTTOM_PX = 350;
@@ -57,9 +57,6 @@ export const FANSLY_NEAR_BOTTOM_PX = 350;
 export const DOCK_Z = 3;
 /** The dock as a fixed overlay sits on the panel layer. */
 const FIXED_DOCK_Z = OVERLAY_Z.panel;
-/** How far up from a stray field its box is looked for, and the narrowest box that is a composer's. */
-const BOX_DEPTH = 6;
-const MIN_COMPOSER_WIDTH = 240;
 
 type DockKind = MountPoints['dock']['kind'];
 
@@ -115,35 +112,19 @@ interface Spot {
 
 const NOWHERE: Spot = { kind: 'none', at: null, before: null };
 
-/** The box of a field that stands outside the container's chain: its composer, or its nearest ancestor as wide as one. */
-function strayBox(route: Element): Element | null {
-  const field = route.querySelector(FANSLY_SELECTORS.textarea);
-  if (field === null) return null;
-  const composer = field.closest(FANSLY_SELECTORS.composer);
-  if (composer !== null && route.contains(composer)) return composer;
-  let node = field.parentElement;
-  for (let depth = 0; node !== null && node !== route && depth < BOX_DEPTH; depth += 1, node = node.parentElement) {
-    if (node.getBoundingClientRect().width >= MIN_COMPOSER_WIDTH) return node;
-  }
-  return field.parentElement;
-}
-
 /** The dock's spot for a place (§7.3): in flow before the composer, copy-only there, a fixed overlay, or nowhere. */
 export function spotOf(place: DockPlace): Spot {
   const conversation = place.conversation;
   if (conversation === null || conversation.gallery || place.group || !conversation.route.isConnected) return NOWHERE;
-  const { container, composer } = conversation;
+  const { container, composer, strayBox } = conversation;
+  // A field the chain does not reach (a new build): the dock follows it from above, over its box (FS-PLC-3).
+  const stray: Spot | null = strayBox !== null && strayBox.isConnected ? { kind: 'fixed-overlay', at: strayBox, before: null } : null;
   if (container !== null && container.isConnected) {
     if (composer !== null && composer.parentElement === container) return { kind: place.copyOnly ? 'copy-only-row' : 'in-flow', at: container, before: composer };
-    // A container without the composer's anchor: a field in it is followed from above (the chain changed), none — copy only.
-    const box = container.querySelector(FANSLY_SELECTORS.textarea) === null ? null : strayBox(container);
-    return box === null ? { kind: place.copyOnly ? 'copy-only-row' : 'in-flow', at: container, before: null } : { kind: 'fixed-overlay', at: box, before: null };
+    // A container without the composer's anchor and without a field: the dock at its end — copy only.
+    return stray ?? { kind: place.copyOnly ? 'copy-only-row' : 'in-flow', at: container, before: null };
   }
-  if (conversation.strayField) {
-    const box = strayBox(conversation.route);
-    if (box !== null) return { kind: 'fixed-overlay', at: box, before: null };
-  }
-  return NOWHERE;
+  return stray ?? NOWHERE;
 }
 
 export function createFanslyMounts(doc: Document, options: FanslyMountOptions = {}): FanslyMounts {
@@ -185,7 +166,8 @@ export function createFanslyMounts(doc: Document, options: FanslyMountOptions = 
     style.setProperty('contain', 'layout style');
   };
   const positionFixed = (): void => {
-    if (fixedBox === null || live === null) return;
+    // A box that left the page is no place: the dock stays where it stood until the anchors name the new one.
+    if (fixedBox === null || live === null || !fixedBox.isConnected) return;
     const rect = fixedBox.getBoundingClientRect();
     const style = dockHost.style;
     style.setProperty('display', 'block');

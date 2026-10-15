@@ -33,7 +33,7 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
-import { dockChips, featureGate, isDraftFeature, policyOf, toggleTone } from '../../domain/features';
+import { dockChips, featureGate, featurePresent, isDraftFeature, policyOf, toggleTone } from '../../domain/features';
 import { contractBroken } from '../../domain/host';
 import { flagUsable, isTerminalOpState } from '../../domain/ops';
 import { targetHandle } from '../ai/handles';
@@ -227,7 +227,8 @@ export function createDockController(ws: AiWorkspace): DockController {
       hints: settings?.ui.hints ?? true,
       keysFooter: result !== null && footerOps.has(result.opId) && settings?.onboarding.keysFooter.dismissed !== true,
       resultStyle: settings?.ui.resultStyle ?? 'bare',
-      paletteHotkey: catalog.entry('palette').hotkey,
+      // The palette's key is printed only where the site has the palette (R20 P7d).
+      paletteHotkey: featurePresent(ws.ports.features, 'palette') ? catalog.entry('palette').hotkey : null,
       debug: settings?.debug.enabled === true ? { renderTrace: settings.debug.renderTrace, contract: `${contract.build ?? '?'} · ${broken ? 'partial' : 'ok'}` } : null,
     };
   }

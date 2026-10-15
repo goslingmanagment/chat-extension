@@ -23,12 +23,14 @@ import { mkdirSync } from 'node:fs';
 
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
 import type { ListView } from '../../fixture-fansly/src/protocol';
+import { MOD } from '../support/chat';
 import { installTestBuild, readReport, waitForReport, type DockReport, type SpikeReport } from '../support/extension';
 import { openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
 import { switchFanslyOnForTheStand } from '../support/fansly-site';
 import { FANSLY_MAIN, callFansly, fakeFansly, fanslyIds, fanslyStandServer, openFanslyStand, waitForFanslyStandIdle } from '../support/fansly-stand';
 import { injectFanslyConsumer, injectFanslyMain, installFanslyTapHarness, tap, waitForFanslyTap, waitForTap, type FanslyTapHarness } from '../support/fansly-tap';
 import { useNetworkTrap } from '../support/network-trap';
+import { oursText } from '../support/ours';
 import { setViewport } from '../support/visual';
 
 type Ids = Awaited<ReturnType<typeof fanslyIds>>;
@@ -261,25 +263,32 @@ describe('Fansly’s own start places our dock host: 200 chat switches, a broken
     expect(await anchorStats()).toMatchObject({ searching: false });
   });
 
-  it('a group chat is not a dock’s place (FS-DOCK-2) — once MAIN says the group has more than one fan', async () => {
+  it('a group chat is not a dock’s place (FS-DOCK-2): MAIN names the group a group, and the dock leaves', async function () {
     harness = await installFanslyTapHarness({ main: 'start', consumer: 'port' });
-    const [first] = ids.groups as [string];
+    const [first, second] = ids.groups as [string, string];
     await openWithNeighbor(`/messages/${first}`, { mode: 'off' });
     await waitForFanslyTap();
     await waitForTap(harnessDock, (dock) => dock.points.dock.kind === 'in-flow', 'the dock placed');
-    await callFansly('setPartners', first, 2);
-    // MAIN names a group's kind once it observes chats (P7b); before that the chat is honestly unknown and the dock stays.
-    const kind = await waitForTap(
-      () => tap<{ route: { conversationKind?: string } }>('port'),
-      (view) => view.route.conversationKind !== 'direct',
-      'the group no longer direct',
-    ).then(
-      (view) => view.route.conversationKind ?? null,
-      () => null,
-    );
-    if (kind === 'group') await waitForTap(harnessDock, (dock) => dock.points.dock.kind === 'none', 'no dock in a group chat');
-    else expect((await harnessDock()).points.dock.kind).toBe('in-flow');
-    await callFansly('setPartners', first, 1);
+    // Whether MAIN observes chats is its own word, its answer to the focus. Only an observing MAIN (P7b) names a
+    // group's kind; before it the chat is honestly unknown and nothing here can be proven: pending, not passed.
+    const answered = await waitForTap(() => tap<{ capabilities: { chatWindow: { state: string; reason?: string } } }>('report'), (r) => r.capabilities.chatWindow.reason !== 'focus', 'MAIN’s answer to the focus');
+    if (answered.capabilities.chatWindow.state !== 'on') {
+      console.log('suite-fansly-dock: MAIN does not observe chats on this build (before P7b) — the group chat check is pending');
+      this.skip();
+    }
+    await waitForTap(() => tap<{ route: { conversationKind?: string } }>('port'), (view) => view.route.conversationKind === 'direct', 'the first chat direct');
+    try {
+      // The group gains a second fan; the page reads it anew, and MAIN with it.
+      await callFansly('open', second);
+      await callFansly('setPartners', first, 2);
+      await openWithNeighbor(`/messages/${first}`, { mode: 'off' });
+      await waitForFanslyTap();
+      await waitForTap(() => tap<{ route: { conversationKind?: string } }>('port'), (view) => view.route.conversationKind === 'group', 'MAIN names the group a group');
+      await waitForTap(harnessDock, (dock) => dock.points.dock.kind === 'none', 'no dock in a group chat');
+      expect((await place()).connected).toBe(false);
+    } finally {
+      await callFansly('setPartners', first, 1);
+    }
   });
 });
 
@@ -468,6 +477,21 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
     expect(overflow).toBe(0);
     await shoot('narrow-bright-1280x800');
     await setViewport(null);
+  });
+
+  it('the palette is ChatSpace’s: on Fansly its key opens no window of ours and asks for no chunk Fansly’s build has not — nothing fails, nothing is said', async () => {
+    const [first] = ids.groups as [string];
+    await openWithNeighbor(`/messages/${first}`, { mode: 'off' });
+    await dockShown('the dock');
+    await $(FANSLY_MAIN.field).click();
+    await browser.keys([MOD, 'k']);
+    // A chunk that does not load fails after its one retry (≈ 0.5 s): wait past it.
+    await browser.pause(1500);
+    const report = await readReport();
+    expect(report?.['surfaceError']).toBeUndefined();
+    expect(report?.dock?.overlays ?? []).not.toContain('palette');
+    expect(await browser.execute(() => document.querySelector('[data-host="overlay"][data-layer="modal"]') !== null)).toBe(false);
+    expect(await oursText('toast')).not.toMatch(/CG-UI-FAILED|Сбой интерфейса/);
   });
 
   it('[UI-017] [CS-005] our overlay layers: hosts in <html> outside Fansly’s app, fixed, 900/950/960 — over its feed and mini-chat, under its modals, alerts and FBuddy’s layer', async () => {

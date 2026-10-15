@@ -117,6 +117,34 @@ describe('[host:fansly] the dock’s place (FS-PLC-1…3)', () => {
     expect([host.hasAttribute('data-mode'), host.style.getPropertyValue('position'), host.style.getPropertyValue('bottom')]).toEqual([false, 'relative', '']);
   });
 
+  it('[FS-PLC-3] the fixed overlay follows its field’s box: the box made anew under the renamed container moves the overlay onto the new one, never left on the detached', async () => {
+    const { page, started, port } = await start();
+    page.openChat(A);
+    await settle();
+    const container = page.container() as Element;
+    const renamed = document.createElement('app-group-message-container-v2');
+    renamed.append(...container.childNodes);
+    container.replaceWith(renamed);
+    await settle();
+    const host = dockOf(started);
+    expect(port.mounts().dock.kind).toBe('fixed-overlay');
+    const box = (top: number, element: Element): void => {
+      element.getBoundingClientRect = () => ({ top, bottom: top + 60, left: 10, right: 610, width: 600, height: 60, x: 10, y: top, toJSON: () => ({}) });
+    };
+    // Fansly makes the composer anew inside the renamed container, without a change of address.
+    const old = renamed.querySelector('app-group-message-input') as Element;
+    const fresh = old.cloneNode(true) as Element;
+    box(0, old);
+    box(window.innerHeight - 300, fresh);
+    old.replaceWith(fresh);
+    await settle();
+    expect(started.anchors.current().conversation?.strayBox).toBe(fresh);
+    expect([host.parentElement, host.style.getPropertyValue('bottom'), host.style.getPropertyValue('width')]).toEqual([document.documentElement, '300px', '600px']);
+    // A resize of the window puts it over the same, live box.
+    window.dispatchEvent(new Event('resize'));
+    expect(host.style.getPropertyValue('bottom')).toBe('300px');
+  });
+
   it('[FS-CTR-2] a container without the composer’s anchor and no field in it: the dock at its end, no field to name — copy only', () => {
     const route = document.createElement('app-messages-conversation-route');
     const container = document.createElement('app-group-message-container');
@@ -124,7 +152,7 @@ describe('[host:fansly] the dock’s place (FS-PLC-1…3)', () => {
     route.append(container);
     document.body.append(route);
     cleanups.push(() => route.remove());
-    const conversation = { route, header: null, headerRow: null, contact: null, subRow: null, gallery: false, container, composer: null, textarea: null, sendButton: null, fileInput: null, attachments: null, copyOnly: false, strayField: false };
+    const conversation = { route, header: null, headerRow: null, contact: null, subRow: null, gallery: false, container, composer: null, textarea: null, sendButton: null, fileInput: null, attachments: null, copyOnly: false, strayField: false, strayBox: null };
     expect(spotOf({ conversation, group: false, copyOnly: false, composerInstanceId: null })).toEqual({ kind: 'in-flow', at: container, before: null });
     // Detached nodes are nobody's: nothing is placed into them.
     route.remove();

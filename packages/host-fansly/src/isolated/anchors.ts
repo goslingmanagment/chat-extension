@@ -103,6 +103,12 @@ export interface ConversationAnchors {
   readonly copyOnly: boolean;
   /** A message field under the route outside the container's chain: Fansly changed that chain (a new build). */
   readonly strayField: boolean;
+  /**
+   * The box of a field the chain does not reach — under the route without the container's anchor, or in the container
+   * without the composer's — that the dock stands over as a fixed overlay (FS-PLC-3); null — the chain is whole, or no
+   * field. Its parent is watched by a narrow observer: a box made anew is a new anchor (R20 P7d).
+   */
+  readonly strayBox: Element | null;
 }
 
 export interface PageAnchors {
@@ -145,6 +151,27 @@ function headerRowOf(header: Element | null): Element | null {
   return first;
 }
 
+/** How far up from a stray field its box is looked for, and the narrowest box that is a composer's. */
+const BOX_DEPTH = 6;
+const MIN_COMPOSER_WIDTH = 240;
+
+/**
+ * The box of a field found under `within` outside the chain: its composer (`app-group-message-input`) where there is
+ * one, else its nearest ancestor as wide as a composer. Read only when the chain is broken: a layout read.
+ */
+function strayBoxIn(within: Element): Element | null {
+  const s = FANSLY_SELECTORS;
+  const field = within.querySelector(s.textarea);
+  if (field === null) return null;
+  const composer = field.closest(s.composer);
+  if (composer !== null && within.contains(composer)) return composer;
+  let node = field.parentElement;
+  for (let depth = 0; node !== null && node !== within && depth < BOX_DEPTH; depth += 1, node = node.parentElement) {
+    if (node.getBoundingClientRect().width >= MIN_COMPOSER_WIDTH) return node;
+  }
+  return field.parentElement;
+}
+
 /** Reads the open chat's nodes from the conversation route down its own chain (§7.3). */
 export function locateConversation(route: Element): ConversationAnchors {
   const s = FANSLY_SELECTORS;
@@ -168,6 +195,7 @@ export function locateConversation(route: Element): ConversationAnchors {
     attachments: composer?.querySelector(s.attachments) ?? null,
     copyOnly: composer !== null && (childMatching(composer, s.noDmAllowed) !== null || childMatching(composer, s.composerHidden) !== null),
     strayField: container === null && route.querySelector(s.textarea) !== null,
+    strayBox: container === null ? strayBoxIn(route) : composer === null ? strayBoxIn(container) : null,
   };
 }
 
@@ -187,7 +215,8 @@ const sameConversation = (a: ConversationAnchors | null, b: ConversationAnchors 
     a.fileInput === b.fileInput &&
     a.attachments === b.attachments &&
     a.copyOnly === b.copyOnly &&
-    a.strayField === b.strayField
+    a.strayField === b.strayField &&
+    a.strayBox === b.strayBox
   );
 };
 
@@ -306,7 +335,7 @@ export function createAnchorWatcher(doc: Document, route: RouteWatcher, options:
       for (const target of targets) work.observe(target, { childList: true });
       watched = targets;
     }
-    const narrowTargets = present([found.conversation?.composer, found.conversation?.headerRow]);
+    const narrowTargets = present([found.conversation?.composer, found.conversation?.headerRow, found.conversation?.strayBox?.parentElement]);
     if (!same(narrowTargets, narrowed)) {
       narrow.disconnect();
       for (const target of narrowTargets) narrow.observe(target, { childList: true });

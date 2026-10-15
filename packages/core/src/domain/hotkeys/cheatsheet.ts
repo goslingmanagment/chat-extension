@@ -51,12 +51,19 @@ export const ROW_FEATURE: Readonly<Partial<Record<CatalogActionId, string>>> = {
 };
 const FEATURE_ROWS: readonly CatalogActionId[] = [...DOCK_ACTION_IDS, 'spenders', 'palette', 'fan-panel'];
 
+/**
+ * Whether the site has what a row of the reference does: its feature is in the site's slice, or the row belongs to no
+ * feature. `features` absent — a page that speaks for every site: every row is there. The reference draws by it, and
+ * the navigation controller opens nothing a site's slice lacks (R20 P7d: a window whose chunk its build has not).
+ */
+export function rowPresent(id: CatalogActionId, features: FeatureSlice | undefined): boolean {
+  const feature = ROW_FEATURE[id] ?? (FEATURE_ROWS.includes(id) ? id : null);
+  return features === undefined || feature === null || featurePresent(features, feature);
+}
+
 /** `features` — the site's slice of the manifest; without it (the settings page, which speaks for every site) every row is drawn. */
 export function cheatsheetGroups(catalog: ActionCatalog, features?: FeatureSlice): readonly Group[] {
-  const there = (id: CatalogActionId): boolean => {
-    const feature = ROW_FEATURE[id] ?? (FEATURE_ROWS.includes(id) ? id : null);
-    return features === undefined || feature === null || featurePresent(features, feature);
-  };
+  const there = (id: CatalogActionId): boolean => rowPresent(id, features);
   const rows = (...ids: CatalogActionId[]): RowVM[] => ids.filter(there).map((id) => row(catalog, id));
   const groups: Group[] = [
     {
