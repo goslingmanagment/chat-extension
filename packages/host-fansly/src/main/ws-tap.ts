@@ -40,8 +40,8 @@ export interface SocketSink {
 
 export interface TapNatives {
   readonly construct: typeof Reflect.construct;
-  /** EventTarget.prototype.addEventListener, captured at install. */
-  readonly listenOn: (target: EventTarget, type: string, listener: (event: Event) => void) => void;
+  /** EventTarget.prototype.addEventListener, captured at install; `capture` — in the capture phase, passive (P7f's gesture). */
+  readonly listenOn: (target: EventTarget, type: string, listener: (event: Event) => void, capture?: boolean) => void;
   readonly guard: Guard;
   readonly fault: (site: string) => void;
 }

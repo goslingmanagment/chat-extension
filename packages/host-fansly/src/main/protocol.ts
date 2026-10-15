@@ -24,9 +24,11 @@ export const EVT_IDENTITY = 'fx.identity';
 export const EVT_CONTRACT = 'fx.contract';
 /** The focused group's state (P7b): the latest wins. */
 export const EVT_CHAT = 'fx.chat';
-/** FANSLY_BRIDGE_UNDROPPABLE_EVENTS MAIN sends (`fx.sent` is P7f's). */
+/** FANSLY_BRIDGE_UNDROPPABLE_EVENTS MAIN sends. */
 export const EVT_INCOMING = 'fx.incoming';
 export const EVT_FOLLOW = 'fx.follow';
+/** The person's send, attributed (P7f, §5.9). */
+export const EVT_SENT = 'fx.sent';
 export const EVT_COVERAGE = 'fx.coverage';
 export const EVT_DELETED = 'fx.deleted';
 export const EVT_VAULT = 'fx.vaultAdded';

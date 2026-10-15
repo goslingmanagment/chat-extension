@@ -6,7 +6,8 @@
 // first script of the page (§5.1):
 // - natives captured now, only what we call ourselves (§5.1):
 //   `Reflect.construct`, `EventTarget.prototype.addEventListener`,
-//   `JSON.parse`/`stringify`, `requestIdleCallback`, `setTimeout`, `URL`;
+//   `JSON.parse`/`stringify`, `requestIdleCallback`, `setTimeout`, `URL`,
+//   `Element` with its `closest` and `matches` (the gesture's target);
 //   never the XHR prototype's `open`/`send`/`setRequestHeader` (FBuddy hooks
 //   them after us, S5 §2.3) and never `Map.prototype` (FBuddy swaps it at the
 //   start);
@@ -28,8 +29,13 @@
 //   `fx.incoming` with its group's fan; a follow `fx.follow`; deletions of the
 //   focused group `fx.deleted`; every loss and certificate `fx.coverage`; a
 //   confirmed vault upload `fx.vaultAdded`, an album the page loaded
-//   `fx.vaultLoaded` (its address only, P13a). Our own sends' echo and receipt are
-//   P7f's, the old extension and FBuddy's markers P7g's;
+//   `fx.vaultLoaded` (its address only, P13a). The old extension and FBuddy's
+//   markers are P7g's;
+// - the person's send (send-gesture.ts, P7f): the last trusted Enter or Send
+//   click of the main composer, in the capture phase on the window; a request
+//   whose `loadstart` comes while it is still being delivered gets its mark;
+//   the marked receipt of exactly `/api/v1/message` and its `5/1` echo, in
+//   either order, are `fx.sent` with the digest of the sent text;
 // - the requests: `fx.state` (and the stream starts), `fx.ack`, `fx.health`,
 //   `fx.focus`, `fx.windowMeta` and `fx.generationSnapshot` (snapshot.ts).
 //
@@ -58,6 +64,7 @@ import {
   EVT_FOLLOW,
   EVT_IDENTITY,
   EVT_INCOMING,
+  EVT_SENT,
   EVT_VAULT,
   EVT_VAULT_LOADED,
   FRAMES_UNREAD_SIGN,
@@ -86,6 +93,7 @@ import {
   WHY_SOCKET,
 } from './protocol';
 import { classifyAddress, createResponseQueue, readResponse, type ApiCall, type Deferred, type ResponseRead } from './responses';
+import { createSendGesture, type Gesture } from './send-gesture';
 import { createViews, isFocus, isSnapshotRequest, isWindowRequest, type Views } from './snapshot';
 import { installWsTap, type TapNatives } from './ws-tap';
 import { installXhrTap } from './xhr-tap';
@@ -143,6 +151,11 @@ const messagesOf = (response: unknown): { readonly messages: FrameMessage[]; rea
 };
 const listOf = (value: unknown): unknown[] => (Array.isArray(value) ? (value as unknown[]) : []);
 
+/** A request's stamp at its `loadstart`: its place in the order of observations (§5.6) and the person's gesture that marked it (§5.9). */
+type XhrStamp = Stamp & { readonly gesture: Gesture | null };
+/** Our gesture listeners: in the capture phase on the window, passive — they cancel nothing. */
+const CAPTURE: AddEventListenerOptions = { capture: true, passive: true };
+
 /** The runtime of Fansly's MAIN world over the boot's context (installMainBridge's `runtime`). */
 export function createFanslyRuntime(context: MainContext, network: FanslyNetwork): MainRuntime {
   const win = context.win as Window & typeof globalThis;
@@ -150,9 +163,17 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   // Natives, captured at document_start (§5.1).
   const parse = JSON.parse as (text: string) => unknown;
   const stringify = JSON.stringify as (value: unknown) => string;
-  // eslint-disable-next-line @typescript-eslint/unbound-method -- native captured at load, always invoked with .call
+  /* eslint-disable @typescript-eslint/unbound-method -- natives captured at load, always invoked with .call */
   const add = win.EventTarget.prototype.addEventListener;
-  const natives: TapNatives = { construct: Reflect.construct, listenOn: (target, type, listener) => add.call(target, type, listener), guard, fault };
+  const remove = win.EventTarget.prototype.removeEventListener;
+  /* eslint-enable @typescript-eslint/unbound-method */
+  const natives: TapNatives = { construct: Reflect.construct, listenOn: (target, type, listener, capture) => add.call(target, type, listener, capture === true ? CAPTURE : undefined), guard, fault };
+  // The gesture's target (§5.9); a window without `Element` (none in a browser) only has no gesture to watch.
+  const ElementNative = win.Element as typeof Element | undefined;
+  /* eslint-disable @typescript-eslint/unbound-method -- natives captured at load, always invoked with .call */
+  const closest = ElementNative?.prototype.closest as Element['closest'];
+  const matches = ElementNative?.prototype.matches as Element['matches'];
+  /* eslint-enable @typescript-eslint/unbound-method */
   const idle = typeof win.requestIdleCallback === 'function' ? win.requestIdleCallback.bind(win) : null;
   const later = win.setTimeout.bind(win);
   const Url = win.URL;
@@ -186,7 +207,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   // A gap of the stream: the isolated side lost events — every chat unknown until the next certificate (§5.12).
   const emitter = createEmitter((t, payload) => context.post(t, payload), stringify, () => world().observation.lose(null, WHY_GAP));
   // eslint-disable-next-line prefer-const -- the queue's own drain needs the runtime's `end`, defined below it
-  let queue: ReturnType<typeof createResponseQueue<Stamp>>;
+  let queue: ReturnType<typeof createResponseQueue<XhrStamp>>;
   const memory = createMemory(() => 2 * queue.chars() + emitter.held());
   /**
    * What the observation is made of, built at its first use — the first frame, answer or request, never at
@@ -218,6 +239,52 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   };
   /** The creator of `/account/me`, without building anything for it. */
   const creator = (): string | null => stopped || disposed ? null : built?.identity.creator ?? null;
+
+  // The person's send (§5.9): the gesture's listeners stand from document_start, first of the window's capture phase.
+  const sends = createSendGesture({
+    element: (target): target is Element => ElementNative !== undefined && target instanceof ElementNative,
+    closest: (element, selector) => closest.call(element, selector),
+    matches: (element, selector) => matches.call(element, selector),
+    path: () => win.location.pathname,
+    creator,
+    // A send settled by a timer goes out with it: nothing else would flush the stream then.
+    setTimer: (callback, ms) =>
+      context.setTimer(() => {
+        callback();
+        emitter.flush();
+      }, ms),
+    now,
+    // The old extension's marks may have come with no event of the page since the receipt: looked at again first.
+    standing: () => {
+      refreshNeighbors();
+      return !stopped && !disposed;
+    },
+    sent: (payload) => emitter.event(EVT_SENT, payload),
+  });
+  const onSendKey = guard('sendKey', (event: Event) => {
+    if (!stopped && !disposed) sends.onKey(event);
+  });
+  const onSendClick = guard('sendClick', (event: Event) => {
+    if (!stopped && !disposed) sends.onClick(event);
+  });
+  /** The gesture's listeners leave the page's window when MAIN stands down or is disposed. */
+  const unlistenSends = (): void => {
+    try {
+      remove.call(win, 'keydown', onSendKey, CAPTURE);
+      remove.call(win, 'click', onSendClick, CAPTURE);
+    } catch {
+      fault('sendUnlisten');
+    }
+  };
+  // Standing down for the old extension (P7g): no gesture is ours to watch, from the start or from then on.
+  if (!stopped) {
+    try {
+      natives.listenOn(win, 'keydown', onSendKey, true);
+      natives.listenOn(win, 'click', onSendClick, true);
+    } catch {
+      fault('sendListen');
+    }
+  }
 
   const identityState = (): Plain => ({
     creatorId: creator(),
@@ -321,6 +388,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         else if (item.k === 'message') {
           observation.live(item.m);
           incoming(item.m);
+          // The echo of a send of the person's, in either order with its receipt (§5.9 п. 4).
+          sends.echo(item.m);
         } else if (item.k === 'deleted') observation.deleted(item.id, item.groupId, item.cascade);
         else if (item.k === 'members') {
           if (identity.member(item.groupId, item.userId, item.type === 6, seq)) observation.participants(item.groupId);
@@ -345,7 +414,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   });
 
   /** A group of an answer asked at observation `seen`, and what its `lastMessage` says of the chat's observation. */
-  const group = (value: unknown, seen: number, stamp: Stamp | undefined): void => {
+  const group = (value: unknown, seen: number, stamp: XhrStamp | undefined): void => {
     const { identity, observation } = world();
     const id = identity.readGroup(value, seen);
     if (id === null) return;
@@ -354,7 +423,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     if (id === observation.focus) observation.dirty = true;
   };
 
-  const respond = (read: ResponseRead, stamp: Stamp | undefined): void => {
+  const respond = (read: ResponseRead, stamp: XhrStamp | undefined): void => {
     const { identity, automation, observation } = world();
     const r = read.response;
     /** The answer's place in the order of observations: its `loadstart`. */
@@ -392,9 +461,11 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         observation.answer(messagesIn(null).messages, null, stamp, { epoch, confirmed });
         return;
       case 'receipt': {
-        // The page's own `POST /message`: its new message, under the same rule as a frame (§5.12; the send is P7f's).
+        // The page's own `POST /message`: its new message, under the same rule as a frame (§5.12) — and, marked, the
+        // receipt of the person's gesture (§5.9 п. 3).
         const m = frameMessage(r);
         if (m !== null) observation.sent(m, stamp, { epoch, confirmed });
+        if (stamp?.gesture) sends.receipt(stamp.gesture, r);
         return;
       }
       case 'unread':
@@ -436,7 +507,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   };
 
   /** Reads one answer of the table, at once or deferred, within its measure (`xhrParseMs`). */
-  const readOne = (item: Deferred<Stamp>): void => {
+  const readOne = (item: Deferred<XhrStamp>): void => {
     if (stopped || disposed) return;
     const started = now();
     const read = readResponse(item.call, item.text, parse);
@@ -447,24 +518,28 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     xhrTimes.add(now() - started);
   };
 
-  queue = createResponseQueue<Stamp>({ now, idle, later, guard }, readOne, end);
+  queue = createResponseQueue<XhrStamp>({ now, idle, later, guard }, readOne, end);
 
   const lose = (call: ApiCall): void => {
     responses.lost += 1;
     world().observation.lose(call.groupId === null ? null : [call.groupId], WHY_PARSE_LIMIT);
   };
 
-  const xhr = stopped ? inert : installXhrTap<Stamp>(win, natives, {
+  const xhr = stopped ? inert : installXhrTap<XhrStamp>(win, natives, {
     start() {
-      if (stopped || disposed) return { seq, epoch, confirmed: false };
+      if (stopped || disposed) return { seq, epoch, confirmed: false, gesture: null };
       seq += 1;
-      return { seq, epoch, confirmed };
+      return { seq, epoch, confirmed, gesture: sends.mark() };
     },
     end(request, stamp) {
       refreshNeighbors();
       if (stopped || disposed) return;
       const call = classifyAddress(request.responseURL, network.apiOrigins);
-      if (call === null) return;
+      const gesture = stamp?.gesture ?? null;
+      if (call === null) {
+        if (gesture !== null) sends.ended(gesture, false);
+        return;
+      }
       responses.seen += 1;
       const status = request.status;
       const type = request.responseType;
@@ -474,10 +549,12 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       } else if (call.kind !== 'other' && status >= 200 && status < 300 && (type === '' || type === 'text')) {
         const text = request.responseText;
         if (text.length > RESPONSE_MAX_CHARS) lose(call);
-        else if (text.length <= RESPONSE_NOW_CHARS) readOne({ call, text, stamp });
+        // A receipt is read at once, whatever its length: the gesture's candidates are counted at this `loadend`.
+        else if (text.length <= RESPONSE_NOW_CHARS || call.kind === 'receipt') readOne({ call, text, stamp });
         else if (queue.push({ call, text, stamp })) responses.deferred += 1;
         else lose(call);
       }
+      if (gesture !== null) sends.ended(gesture, call.kind === 'receipt');
       end();
     },
   });
@@ -512,6 +589,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       // Keep a foreign wrapper intact; our existing per-instance callbacks are inert.
       ws.restore();
       xhr.restore();
+      sends.dispose();
+      unlistenSends();
       emitter.retire();
       emitter.state(EVT_IDENTITY, identityState());
       emitter.flush();
@@ -552,6 +631,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
           responses: { ...responses },
           stream: emitter.stats(),
           perf: { frameParseMs: frameTimes.read(), xhrParseMs: xhrTimes.read(), snapshotMs: snapshotTimes.read() },
+          sends: { ...sends.counts() },
         };
       }
       if (t === REQ_FOCUS) {
@@ -593,6 +673,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       win.document.removeEventListener('DOMContentLoaded', ready);
       ws.restore();
       xhr.restore();
+      sends.dispose();
+      unlistenSends();
     },
   };
 }

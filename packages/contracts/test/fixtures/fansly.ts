@@ -219,7 +219,11 @@ export const fanslyHealth = {
     xhrParseMs: { counts: [0, 0, 1, 3, 3, 1, 1, 0, 0, 0, 0, 0, 0, 0], count: 9, sum: 1.9, max: 0.8 },
     snapshotMs: { counts: [1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], count: 4, sum: 0.7, max: 0.4 },
   },
+  // Five gestures: one swallowed by the neighbour's word filter, one with media, three sent — the echo first once.
+  sends: { gestures: 5, receipts: 4, ambiguous: 0, media: 1, sent: 3, echoFirst: 1, receiptFirst: 2 },
 } as const;
+/** No gesture yet. */
+const noSends = { gestures: 0, receipts: 0, ambiguous: 0, media: 0, sent: 0, echoFirst: 0, receiptFirst: 0 } as const;
 
 export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]: BridgeRequestFixtures } = {
   probe: { payload: empty, data: { valid: [probe], invalid: [{ ...probe, v: 2 }] } },
@@ -287,6 +291,7 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
           responses: { seen: 0, parsed: 0, deferred: 0, lost: 0 },
           stream: { batches: 0, unacked: 0, queued: 0, heldBytes: 0, gaps: 0 },
           perf: { frameParseMs: noTimes, xhrParseMs: noTimes, snapshotMs: noSnapshots },
+          sends: noSends,
         },
       ],
       invalid: [
@@ -298,6 +303,11 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
         { ...fanslyHealth, perf: { ...fanslyHealth.perf, snapshotRoundTripMs: noTimes } },
         { ...fanslyHealth, perf: { frameParseMs: noTimes, xhrParseMs: noTimes } },
         { ...fanslyHealth, frames: { seen: 3, parsed: -1, lost: 0 } },
+        // P7f: the sends are counted always; every send said had its echo before or after its receipt.
+        (({ sends: _sends, ...rest }) => rest)(fanslyHealth),
+        { ...fanslyHealth, sends: { ...fanslyHealth.sends, sent: 4 } },
+        { ...fanslyHealth, sends: { ...fanslyHealth.sends, ambiguous: -1 } },
+        { ...fanslyHealth, sends: { ...fanslyHealth.sends, unmarked: 1 } },
       ],
     },
   },
@@ -332,8 +342,15 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
     invalid: [{ eventId: '700000000000000201', accountId: creator, followerId: creator }, { eventId: Number('700000000000000201'), accountId: creator, followerId: fan }],
   },
   'fx.sent': {
-    valid: [{ groupId: group, msgId: newer, contentDigest: DIGEST }],
-    invalid: [{ groupId: group, msgId: newer, contentDigest: DIGEST, content: 'hey' }, { groupId: group, msgId: newer, contentDigest: 'XYZ' }],
+    valid: [{ groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: 15123.456 }],
+    invalid: [
+      { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: 15123.456, content: 'hey' },
+      { groupId: group, msgId: newer, contentDigest: 'XYZ', gestureAt: 15123.456 },
+      // P7f: a send names its gesture — without it the isolated side could link it only by its text.
+      { groupId: group, msgId: newer, contentDigest: DIGEST },
+      { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: -1 },
+      { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: '15123.456' },
+    ],
   },
   'fx.coverage': {
     valid: [
@@ -378,7 +395,7 @@ export const fullFanslyBatch = (): unknown => batchOf(3, Array.from({ length: FA
 export const FANSLY_WIRE_EVENT_FIXTURES: { readonly [T in FanslyWireEventType]: Verdicts } = {
   'fx.batch': {
     valid: [
-      batchOf(1, [{ t: 'fx.identity', p: fanslyIdentityWire }, { t: 'fx.chat', p: fanslyChatWire }, incomingEvent, { t: 'fx.sent', p: { groupId: group, msgId: newer, contentDigest: DIGEST } }]),
+      batchOf(1, [{ t: 'fx.identity', p: fanslyIdentityWire }, { t: 'fx.chat', p: fanslyChatWire }, incomingEvent, { t: 'fx.sent', p: { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: 15123.456 } }]),
       batchOf(2, [incomingEvent, incomingEvent]),
       fullFanslyBatch(),
     ],

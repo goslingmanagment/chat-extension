@@ -129,6 +129,15 @@ describe('Fansly bridge registry (§6)', () => {
     expect(Object.keys(M.FanslyHealthSchema.def.shape.perf.def.shape)).toEqual(['frameParseMs', 'xhrParseMs', 'snapshotMs']);
   });
 
+  it('fx.health (R20 P7f) counts the person’s sends — counts only, no id or text — and the order of each attributed send’s echo and receipt', () => {
+    const { sends } = fanslyHealth;
+    expect(sends.echoFirst + sends.receiptFirst).toBe(sends.sent);
+    expect(Object.values(sends).every((value) => typeof value === 'number')).toBe(true);
+    const counted = { ...sends, echoFirst: sends.echoFirst + 1 };
+    expect(M.FanslyHealthSchema.safeParse({ ...fanslyHealth, sends: counted }).success).toBe(false);
+    expect(M.FanslyHealthSchema.safeParse({ ...fanslyHealth, sends: { ...counted, sent: sends.sent + 1 } }).success).toBe(true);
+  });
+
   it('MAIN events carry no message text; only the snapshot does, for a draft function', () => {
     const shapes: Array<[string, unknown]> = [...Object.entries(M.FROM_MAIN_FANSLY), ...Object.entries(M.FANSLY_WIRE_EVENTS)];
     for (const [t, schema] of shapes) {
@@ -207,7 +216,7 @@ describe('Fansly ids: snowflake strings, never numbers', () => {
   it('above 2^53 a number would merge neighbours, so every id field takes a string only', () => {
     expect(Number(FANSLY_MSG.m1)).toBe(Number(FANSLY_MSG.m2));
     const numeric = Number(FANSLY_MSG.m1);
-    expect(M.FROM_MAIN_FANSLY['fx.sent'].safeParse({ groupId: '700000000000000003', msgId: numeric, contentDigest: 'deadbeef' }).success).toBe(false);
+    expect(M.FROM_MAIN_FANSLY['fx.sent'].safeParse({ groupId: '700000000000000003', msgId: numeric, contentDigest: 'deadbeef', gestureAt: 1 }).success).toBe(false);
     expect(M.FROM_MAIN_FANSLY['fx.deleted'].safeParse({ groupId: '700000000000000003', ids: [numeric] }).success).toBe(false);
     expect(M.TO_MAIN_FANSLY['fx.windowMeta'].payload.safeParse({ groupId: numeric }).success).toBe(false);
     expect(H.FanslySnapshotSchema.safeParse({ ...fanslyReplySnapshot, knownFanMessageIds: [numeric] }).success).toBe(false);

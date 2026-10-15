@@ -35,7 +35,7 @@ P4a3 — протокол вкладки Fansly, отправитель `relay`,
 Остальные дополнения 1.15.0: P9a — права опционального сайта; F1 — фоновые модули сайтов в диагностике;
 F6a — разговор тоста фона; F7 — телеметрия и отчёт контракта по сайтам; F5 — профиль сайта для интерфейса;
 F6b — чтения по разговору и `conversation-recaps-v1`; F9b — фразы сайта и переключатели в манифесте;
-F10 — порты политики AI; P7a — счёт MAIN Fansly `fx.health`; review follow-ups — общий порядок числовых id
+F10 — порты политики AI; P7a — счёт MAIN Fansly `fx.health` (P7b — шаг снимка, P7f — отправки человека); review follow-ups — общий порядок числовых id
 и явный список допустимых флагов ChatSpace).
 Менять их можно только по правилу из [журнала изменений](../contracts-changelog.md).
 
@@ -200,7 +200,8 @@ R01 делали четыре исполнителя, интегратор св�
   номер последней пачки — старт, перезапуск изолированного мира, после `fx.gap`), `fx.focus {groupId | null,
   routeEpoch}`, `fx.generationSnapshot {groupId, feature, window, withText}` → `FanslySnapshot` или `null`,
   `fx.windowMeta {groupId}`, `fx.ack {n}`, `fx.health` (P7a: счёт кадров и ответов, поток, время разбора MAIN; P7b — и шаг снимка
-  `snapshotMs` — `FanslyHealth`). Записей нет: MAIN на Fansly не пишет ни в DOM, ни в сеть.
+  `snapshotMs`; P7f — счёт отправок человека `sends`, с порядком эха и квитанции — `FanslyHealth`). Записей нет: MAIN на
+  Fansly не пишет ни в DOM, ни в сеть.
 - **События идут пачками.** На порту — `fx.batch {n, events: [{t, p}]}` с 10 типами событий внутри
   (`FROM_MAIN_FANSLY_TYPES`), одно `fx.gap {reason}` и `fault`. Состояния (`fx.identity`, `fx.chat`, `fx.contract`) в
   пачке не повторяются; поток (`fx.incoming`, `fx.follow`, `fx.sent`, `fx.coverage`, `fx.deleted`, `fx.vaultAdded`,

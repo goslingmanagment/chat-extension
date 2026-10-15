@@ -161,6 +161,24 @@ export const FanslyHealthSchema = z.strictObject({
     gaps: CountSchema,
   }),
   perf: z.strictObject({ frameParseMs: FanslyPerfCountsSchema, xhrParseMs: FanslyPerfCountsSchema, snapshotMs: FanslyPerfCountsSchema }),
+  /**
+   * The person's sends (R20 P7f; §5.9): trusted gestures in the main composer; marked answers of exactly
+   * `POST /api/v1/message` that are the creator's receipt in the gesture's chat; sends not told apart (`ambiguous`: two
+   * such requests in one gesture, a gesture name another gesture shares, a send proven too long after its gesture) and
+   * receipts with media — neither attributed; `fx.sent` said, and of them how many had the socket's echo before the
+   * receipt and after it: the real order on Fansly, which the stand cannot show (spike P3a §3).
+   */
+  sends: z
+    .strictObject({
+      gestures: CountSchema,
+      receipts: CountSchema,
+      ambiguous: CountSchema,
+      media: CountSchema,
+      sent: CountSchema,
+      echoFirst: CountSchema,
+      receiptFirst: CountSchema,
+    })
+    .check(z.refine((s) => s.echoFirst + s.receiptFirst === s.sent, { message: 'every send said had its echo before its receipt or after it' })),
 });
 export type FanslyHealth = z.infer<typeof FanslyHealthSchema>;
 
@@ -229,9 +247,11 @@ export const FROM_MAIN_FANSLY = {
     .check(z.refine((f) => f.accountId !== f.followerId, { message: 'an account does not follow itself' })),
   /**
    * A send by the person, attributed (§5.9): a trusted gesture, a receipt of exactly `POST /api/v1/message` and the
-   * echo `5/1` with the same id. The digest of the sent `content` is MAIN's; the text does not cross.
+   * echo `5/1` with the same id. The digest of the sent `content` is MAIN's; the text does not cross. `gestureAt` (R20
+   * P7f) names the gesture: the `timeStamp` of its event, which both worlds read from the same event — the isolated
+   * side links the send only to the draft it read at that very gesture.
    */
-  'fx.sent': z.strictObject({ groupId: NativeIdSchema, msgId: NativeIdSchema, contentDigest: DigestSchema }),
+  'fx.sent': z.strictObject({ groupId: NativeIdSchema, msgId: NativeIdSchema, contentDigest: DigestSchema, gestureAt: z.number().check(z.gte(0)) }),
   /** The completeness of chats changed (§5.6): `complete` only by a certificate of one chat; `all` only ever lowers it. */
   'fx.coverage': z
     .strictObject({

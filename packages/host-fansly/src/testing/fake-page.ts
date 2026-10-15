@@ -4,7 +4,10 @@
 // Node's MessageChannel (happy-dom sets no `source`), and the isolated side as
 // Fansly's starter connects it — the shared client over Fansly's schemas, so
 // every batch and answer a test sees passed the checks the isolated side
-// makes. Frames and answers as Fansly sends them (fansly-web.md §4, §5).
+// makes. Frames and answers as Fansly sends them (fansly-web.md §4, §5). And
+// the person's gestures (P7f): elements with `closest` and `matches`, and an
+// event delivered the way the browser delivers its own — the window's capture,
+// the target, the bubbling — with a microtask checkpoint after every listener.
 // Test-only: no bundle imports this file. Firefox's own natives, the stand and
 // the FBuddy-like neighbour are the e2e's (suite-fansly-tap).
 
@@ -15,6 +18,7 @@ import type { FanslyBridge } from '../isolated/bridge-client';
 import { loadValidation } from '../isolated/validation';
 import { UNDROPPABLE_EVENTS } from '../isolated/wire';
 import { installFanslyMain, type FanslyNetwork } from '../main/index';
+import { MAIN_COMPOSER, MAIN_FIELD, SEND_BUTTON } from '../main/send-gesture';
 
 export const CREATOR = '700000000000000001';
 export const FAN = '700000000000000002';
@@ -79,6 +83,49 @@ export class FakeXMLHttpRequest extends EventTarget {
   }
 }
 
+/** An element of the page as far as the gesture's watch reads it: the selectors it matches, its parent. */
+export class FakeElement {
+  constructor(
+    readonly name: string,
+    readonly parent: FakeElement | null = null,
+    readonly selectors: readonly string[] = [],
+  ) {}
+  matches(selector: string): boolean {
+    return this.selectors.includes(selector);
+  }
+  closest(selector: string): FakeElement | null {
+    return this.matches(selector) ? this : (this.parent?.closest(selector) ?? null);
+  }
+}
+
+/** A composer: the main conversation's (under the route's chain) or the mini-chat's (not under it). */
+export function composer(place: 'main' | 'mini' = 'main'): { readonly input: FakeElement; readonly field: FakeElement; readonly button: FakeElement; readonly icon: FakeElement } {
+  const input = new FakeElement('app-group-message-input', null, place === 'main' ? [MAIN_COMPOSER] : []);
+  const field = new FakeElement('textarea', input, [MAIN_FIELD]);
+  const button = new FakeElement('button', input, [SEND_BUTTON]);
+  return { input, field, button, icon: new FakeElement('i', button) };
+}
+
+/** An event of the person as the page's and our listeners read it; `eventPhase` and `currentTarget` move with its delivery. */
+export interface PersonEvent {
+  readonly type: 'keydown' | 'click';
+  readonly isTrusted: boolean;
+  readonly key?: string;
+  readonly shiftKey?: boolean;
+  readonly isComposing?: boolean;
+  /** The event's time on the page's timeline: the gesture's name in both worlds (`fx.sent.gestureAt`). */
+  readonly timeStamp: number;
+  readonly target: unknown;
+  eventPhase: number;
+  currentTarget: unknown;
+}
+type PageListener = (event: PersonEvent) => void;
+
+/** Runs every microtask the listeners queued, and those they queue in turn (an `await` chain), before going on. */
+export const checkpoint = async (): Promise<void> => {
+  for (let i = 0; i < 64; i += 1) await Promise.resolve();
+};
+
 export type PageWindow = Window & typeof globalThis;
 type Listener = (event: { source: unknown; data: unknown; ports: readonly MessagePort[] }) => void;
 
@@ -88,6 +135,14 @@ export interface PageControls {
   listening(): number;
   /** The page comes back from the back-forward cache (`persisted`), or is shown anew. */
   show(persisted: boolean): void;
+  /** Capture listeners of the window for the person's gestures (`keydown`, `click`): MAIN's. */
+  gestureListeners(): number;
+  /**
+   * An event the browser delivers itself (a person's key or click): the window's capture listeners (MAIN's), then the
+   * target's own (the page's composer), then the window's bubbling ones (a page's late listener) — a microtask
+   * checkpoint after every one, as after every callback the browser runs —, then NONE and no `currentTarget`.
+   */
+  deliver(init: Omit<PersonEvent, 'eventPhase' | 'currentTarget' | 'isTrusted' | 'timeStamp'> & { readonly isTrusted?: boolean; readonly timeStamp?: number }, page?: { readonly target?: readonly PageListener[]; readonly window?: readonly PageListener[] }): Promise<PersonEvent>;
 }
 
 /** The page's requestIdleCallback when a test holds its idle moments: it calls them back itself. */
@@ -101,9 +156,13 @@ export function page(readyState: DocumentReadyState = 'loading', clock: () => nu
   const listeners = new Set<Listener>();
   /** `pageshow`: the back-forward cache (§5.6) — no switch of anything. */
   const shows = new Set<(event: Event) => void>();
+  /** The window's capture listeners of the person's gestures (P7f). */
+  const gestures = new Map<string, Array<(event: Event) => void>>();
+  /** The person's events so far: each its own `timeStamp`. */
+  let stamps = 0;
   FakeWebSocket.made = [];
   const win = {
-    location: { origin: 'https://fansly.com', href: 'https://fansly.com/messages' },
+    location: { origin: 'https://fansly.com', href: `https://fansly.com/messages/${GROUP}`, pathname: `/messages/${GROUP}` },
     document: Object.assign(new EventTarget(), { readyState, querySelector: () => null }),
     performance: { now: clock },
     crypto,
@@ -114,18 +173,43 @@ export function page(readyState: DocumentReadyState = 'loading', clock: () => nu
         addEventListener(this: unknown, type: string, listener: (event: Event) => void) {
           if (this !== win) return EventTarget.prototype.addEventListener.call(this as EventTarget, type, listener);
           if (type === 'pageshow') shows.add(listener);
+          else if (type === 'keydown' || type === 'click') gestures.set(type, [...(gestures.get(type) ?? []), listener]);
           else listeners.add(listener as unknown as Listener);
+        },
+        removeEventListener(this: unknown, type: string, listener: (event: Event) => void) {
+          if (this !== win) return EventTarget.prototype.removeEventListener.call(this as EventTarget, type, listener);
+          gestures.set(type, (gestures.get(type) ?? []).filter((other) => other !== listener));
         },
       },
     },
     WebSocket: FakeWebSocket,
     XMLHttpRequest: FakeXMLHttpRequest,
+    Element: FakeElement,
     setTimeout: (callback: () => void, ms?: number) => setTimeout(callback, ms),
     requestAnimationFrame: (callback: () => void) => setTimeout(callback, 0),
     ...(idle === undefined ? {} : { requestIdleCallback: idle }),
     listening: () => listeners.size,
     show: (persisted: boolean) => {
       for (const listener of [...shows]) listener(Object.assign(new Event('pageshow'), { persisted }));
+    },
+    gestureListeners: () => [...gestures.values()].reduce((sum, list) => sum + list.length, 0),
+    async deliver(init: Omit<PersonEvent, 'eventPhase' | 'currentTarget' | 'isTrusted' | 'timeStamp'> & { readonly isTrusted?: boolean; readonly timeStamp?: number }, page: { readonly target?: readonly PageListener[]; readonly window?: readonly PageListener[] } = {}) {
+      stamps += 1;
+      const event: PersonEvent = { isTrusted: true, timeStamp: 1000 * stamps + 0.5, ...init, eventPhase: 0, currentTarget: null };
+      const run = async (phase: number, current: unknown, list: readonly PageListener[]): Promise<void> => {
+        for (const listener of list) {
+          event.eventPhase = phase;
+          event.currentTarget = current;
+          listener(event);
+          await checkpoint();
+        }
+      };
+      await run(1, win, (gestures.get(event.type) ?? []) as unknown as PageListener[]);
+      await run(2, event.target, page.target ?? []);
+      await run(3, win, page.window ?? []);
+      event.eventPhase = 0;
+      event.currentTarget = null;
+      return event;
     },
     dispatchEvent: (event: Event) => {
       for (const listener of [...listeners]) listener({ source: null, data: (event as CustomEvent).detail, ports: [] });

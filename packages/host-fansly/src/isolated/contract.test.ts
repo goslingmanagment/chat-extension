@@ -31,6 +31,18 @@ describe('[host:fansly] the early bundle’s copies of the contracts', () => {
     expect(report('notYet').capabilities.theme).toEqual({ state: 'degraded', reason: 'themeClass' });
   });
 
+  it('[FS-SEND-2] the person’s send is observed with MAIN, its creator, the field and the chat; the echo’s frames broken — broken', () => {
+    const base = { bridge: true, creator: true, observation: 'ready', dom: { ...DOM_ANCHORS_NOT_YET, container: 'ok', composer: 'ok', textarea: 'ok' }, build: null, adapterVersion: '0.1.0', checkedAt: 1 } as const;
+    const wire = { anchors: { accountMe: 'ok', socket: 'ok', frames: 'ok', xhr: 'ok' }, tap: 'ok' } as const;
+    const of = (over: Partial<Parameters<typeof buildFanslyReport>[0]>) => buildFanslyReport({ ...base, wire, ...over }).capabilities.sendObserve;
+    expect(of({})).toEqual({ state: 'on' });
+    expect(of({ bridge: false })).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
+    expect(of({ dom: { ...base.dom, textarea: 'missing' } })).toEqual({ state: 'off', reason: 'textarea', code: 'CG-HOST-COMPOSER-MISSING' });
+    expect(of({ wire: { ...wire, anchors: { ...wire.anchors, frames: 'shape' } } })).toEqual({ state: 'contractBroken', reason: 'frames', code: 'CG-HOST-CONTRACT' });
+    expect(of({ creator: false })).toEqual({ state: 'off', reason: 'accountMe', code: 'CG-HOST-NOT-READY' });
+    expect(of({ observation: 'unknown' })).toEqual({ state: 'off', reason: 'focus', code: 'CG-HOST-NOT-READY' });
+  });
+
   it('page text only for the draft functions (D-14): the same list as the contracts’', () => {
     expect([...FRESH_TEXT_FEATURES]).toEqual([...CONTRACT_FRESH_TEXT]);
   });
