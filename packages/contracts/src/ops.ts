@@ -7,6 +7,7 @@ import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
+import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hiStartProofMatches } from './hi-start-proof';
 import { LiveTextMessageSchema, LiveTextTailSchema, type ChatWindow, type HostPort, type LiveTextTail } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
@@ -228,6 +229,11 @@ export const StartOpSchema = z
      * a draft function's page text inside it. Never beside `fresh` or `checkpoint`; a pass's proof only in «Новые».
      */
     proof: z.optional(CoverageProofSchema),
+    /** 1.15.0 (R20 HF-5): Hi on the second host, independent of the freshness proof; no proof is not a zero count. */
+    startProof: z.optional(StartProofV1Schema),
+    personalMessageCount: z.optional(CountSchema),
+    /** FX-018: the page's avatar address, forwarded as an image to the provider by the hub. */
+    fanAvatarUrl: z.optional(HiFanAvatarUrlSchema),
     regenerateOf: z.optional(UuidSchema),
     /** Bypass the result cache (Regenerate, Refresh). */
     force: z.optional(z.boolean()),
@@ -248,6 +254,8 @@ export const StartOpSchema = z
     }),
     // The words are short on purpose: every schema of this module weighs on the tab's request registry (its probe).
     z.refine(proofFits, { message: 'the proof does not fit the start' }),
+    z.refine((op) => !hasHiStartFields(op) || (op.feature === 'hi' && op.target.binding.platform === 'fansly'), { message: 'Hi fields only on Fansly Hi' }),
+    z.refine((op) => hiStartProofMatches(op, op.target.conversationRef), { message: 'Hi proof conversation or count mismatch' }),
   );
 export type StartOp = z.infer<typeof StartOpSchema>;
 
@@ -602,6 +610,10 @@ export interface AiStartFields {
   readonly fresh?: LiveTextTail | null;
   /** The proof of freshness the site made of its snapshot (`CoverageProof`, its texts inside): Fansly's (P8b1). */
   readonly proof?: CoverageProof;
+  /** Hi's start evidence and avatar (1.15.0, P4b4); the shared plan carries them to StartOp unchanged. */
+  readonly startProof?: StartOp['startProof'];
+  readonly personalMessageCount?: StartOp['personalMessageCount'];
+  readonly fanAvatarUrl?: StartOp['fanAvatarUrl'];
 }
 
 /**

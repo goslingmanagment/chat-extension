@@ -7,6 +7,7 @@
 import * as z from 'zod/mini';
 
 import { TONES, type FeatureId } from '../features';
+import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hiStartProofMatches } from '../hi-start-proof';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS } from '../limits';
 import { CoverageDeletedIdsSchema, CoverageWindowSchema, coverageIdsOnce } from '../ops';
 import {
@@ -58,6 +59,9 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   /** 1.15.0: the voice script is written from the draft (the hub's `requiresDraft`). */
   draftText: ['improve-draft', 'coach-chat', 'voice-script'],
   variantCount: ['hi-greeting'],
+  startProof: ['hi-greeting'],
+  personalMessageCount: ['hi-greeting'],
+  fanAvatarUrl: ['hi-greeting'],
   summaryMode: ['fan-summary'],
   chatterQuestion: ['coach-chat'],
   coachHistory: ['coach-chat'],
@@ -148,7 +152,7 @@ export const NoteFieldsSchema = z
 
 /**
  * The body this client sends (a strict subset of the hub's body: no model or
- * effort override, no Fansly `clientContext` until R20, no deprecated
+ * effort override, no `clientContext` (also on Fansly), no deprecated
  * `greetingMode`, no `noteValues` of the notes fill's merge mode: the values of
  * the fan's notes never leave the tab). On OnlyFans conversationRef = fanRef = the fan id.
  */
@@ -194,6 +198,12 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   coverageCheck: z.optional(CoverageCheckBodySchema),
   /** 1.15.0 (R20 P4b3): `fan-notes-fill` only, and required there — the labels, never the values (no `noteValues`). */
   noteFields: z.optional(NoteFieldsSchema),
+  /** 1.15.0 (R20 HF-5): only Fansly hi-greeting under hi-start-proof-v1; ids only, never a text. */
+  startProof: z.optional(StartProofV1Schema),
+  /** Optional repetition of startProof.personalCount; alone it proves nothing. */
+  personalMessageCount: z.optional(CountSchema),
+  /** FX-018: same schema as the old clientContext avatar; the hub forwards it as an image, never fetches it. */
+  fanAvatarUrl: z.optional(HiFanAvatarUrlSchema),
 });
 export type AiFeatureStreamBody = z.infer<typeof AiFeatureStreamBodySchema>;
 
@@ -219,6 +229,10 @@ export const HubStreamRequestSchema = z
     z.refine((r) => r.body.coverageCheck === undefined || (r.capabilities.includes('coverage-check-v1') && r.capabilities.includes('context-v1')), {
       message: 'coverageCheck needs coverage-check-v1 and context-v1',
     }),
+    z.refine((r) => !hasHiStartFields(r.body) || (r.body.platform === 'fansly' && r.capabilities.includes('hi-start-proof-v1')), {
+      message: 'Hi fields need Fansly and hi-start-proof-v1',
+    }),
+    z.refine((r) => hiStartProofMatches(r.body, r.body.conversationRef), { message: 'start_proof_mismatch' }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),
     // 1.15.0 (R20 P4b3), the hub's own rules of Fansly's two features (its handler; else 400, or 409 for our narrow
     // token on a page without the switch): a Fansly page's, the fan named apart from the group; the voice script is
