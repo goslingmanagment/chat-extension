@@ -600,7 +600,16 @@ HF-3, HF-4а, HF-4б, HF-12 и `fan-notes-fill` — все выложены в `
   ai}.test.ts`, `packages/testing/src/scenarios/hub/scenarios.test.ts`, `sdk-alignment-fansly.test.ts` (словари флагов и
   причин равны SDK, функции хаба — его `aiUsageFeatures`, пределы меток — его, метки и тела двух функций — по его схеме
   тела).
-- Байты: BYTES_PLACEHOLDER
+- Байты: модуль `ops-fansly` и данные драйвера в бандлы ChatSpace не попадают. Растут общие схемы: словарь хаба
+  (`voice-script`, `fan-notes-fill`), `noteFields` и правила зеркала запроса — в ядре фона (`background.js` +1 010 Б raw)
+  и в чанке `tab-protocol` вкладки ChatSpace (+742 Б raw), `bridge-validation` +56 Б, `tab-app` +45 Б (прочтение
+  главного выключателя); у остальных чанков ChatSpace сменились только хеши в именах импортов. Проба реестра запросов
+  вкладки: 28 627 Б gzip из 28 672 — предел не поднимался. Закрепы `tools/gates/chatspace-bytes.json` переписаны
+  `pnpm gates:bytes`. Тест `feature-slices` считает метку Fansly целой строкой бандла, как гейт меток: функция хаба
+  `fan-notes-fill` — слово общего словаря хаба, а не запись манифеста `notes-fill`.
+- Слой хаба: эхо промпта режима отладки (`featureOfHub`, `PromptEchoStore`) знает две функции хаба операций сайта
+  (`voice-script` → `voice-script`, `fan-notes-fill` → `notes-fill`); вид снимка (`PromptSnapshotView.feature`)
+  называет только общие фичи, у операции сайта — `null`.
 
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
