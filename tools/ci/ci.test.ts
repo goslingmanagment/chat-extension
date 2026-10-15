@@ -179,6 +179,7 @@ describe('the e2e container of a CI job', () => {
       expect(r.calls().find((call) => call.startsWith('run '))).toMatch(new RegExp(`^run --name ${CONTAINER} --label cg-e2e\\.workspace=${REPO_ROOT.replace(/[.+]/g, '\\$&')} --rm --init --network none `));
       // The part of the suite (CG_E2E_SHARD) goes in with the run.
       expect(r.calls().find((call) => call.startsWith('run '))).toContain(' --env CG_E2E_SHARD ');
+      expect(r.calls().find((call) => call.startsWith('run '))).toContain(' --env CG_E2E_TIMING_SLACK ');
 
       const at = Date.now();
       step.child.kill(signal);
@@ -425,7 +426,7 @@ describe('the e2e suite in parts', () => {
     expect(PART).toContain(`        shard: \${{ fromJSON(vars.CI_POOL == 'pc' && '["1/5","2/5","3/5","4/5","5/5"]' || '["1/1"]') }}\n`);
     // Every part reports, however the others end.
     expect(PART).toContain('      fail-fast: false\n');
-    expect(PART).toMatch(/- name: e2e \(headless Firefox in the pinned image, no network\)\n {8}if: [^\n]+\n {8}env:\n {10}CG_E2E_SHARD: \$\{\{ matrix\.shard \}\}\n {8}run: exec tools\/ci\/e2e-docker\.sh\n/);
+    expect(PART).toMatch(/- name: e2e \(headless Firefox in the pinned image, no network\)\n {8}if: [^\n]+\n {8}env:\n {10}CG_E2E_SHARD: \$\{\{ matrix\.shard \}\}\n(?: {10}#[^\n]*\n)* {10}CG_E2E_TIMING_SLACK: '3'\n {8}run: exec tools\/ci\/e2e-docker\.sh\n/);
     // The logs of a failed part do not overwrite another part's.
     expect(PART).toContain('name: e2e-logs-${{ github.run_id }}-${{ github.run_attempt }}-part-${{ strategy.job-index }}\n');
   });
@@ -513,6 +514,7 @@ describe('a local run of the e2e job in a Docker volume', () => {
     expect(calls[2]).toBe('ps --filter volume=cg-e2e-own --format {{.Names}}');
     // Both steps mount the volume the question was about, so a start during another start’s step 1 gets the same answer.
     for (const step of [calls[3], calls[5]]) expect(step).toContain(' --mount type=volume,source=cg-e2e-own,target=/sim ');
+    expect(calls[5]).toContain(' --env CG_E2E_TIMING_SLACK ');
   });
 });
 

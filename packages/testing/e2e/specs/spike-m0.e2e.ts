@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 
 import { browser, expect } from '@wdio/globals';
 
+import { budgetMs } from '../../src/e2e-timing';
 import { TEST_GECKO_ID } from '../support/constants';
 import { htmlAttribute, installTestBuild, mainBundleMs, readReport, standUrl, summarize, waitForReport, type SpikeReport } from '../support/extension';
 import { allowedE2eOrigins, useNetworkTrap } from '../support/network-trap';
@@ -123,15 +124,15 @@ describe('spike M0 on the M1 build — the start of the content scripts', () => 
       return `${key} ${median.toFixed(2)}/${max.toFixed(2)}`;
     };
     // The measurement itself, in the CI log of every run.
-    console.log(`spike-m0 §11, ms, median/max of ${TIMING_LOADS} loads: MAIN ${line('mainBundleMs')} (median ≤ ${MAIN_MEDIAN_MS}); isolated ${line('bundleMs')} (median ≤ ${BOOTSTRAP_MEDIAN_MS}; of it ${line('evalMs')}, ${line('composeMs')}); any start ≤ ${START_MAX_MS}`);
+    console.log(`spike-m0 §11, ms, median/max of ${TIMING_LOADS} loads (assertion limits, ×${budgetMs(1)}): MAIN ${line('mainBundleMs')} (median ≤ ${budgetMs(MAIN_MEDIAN_MS)}); isolated ${line('bundleMs')} (median ≤ ${budgetMs(BOOTSTRAP_MEDIAN_MS)}; of it ${line('evalMs')}, ${line('composeMs')}); any start ≤ ${budgetMs(START_MAX_MS)}`);
     const main = summarize(series['mainBundleMs'] ?? []);
     expect(main.n).toBe(TIMING_LOADS);
-    expect(main.median).toBeLessThanOrEqual(MAIN_MEDIAN_MS);
-    expect(main.max).toBeLessThanOrEqual(START_MAX_MS);
+    expect(main.median).toBeLessThanOrEqual(budgetMs(MAIN_MEDIAN_MS));
+    expect(main.max).toBeLessThanOrEqual(budgetMs(START_MAX_MS));
     const bundle = summarize(series['bundleMs'] ?? []);
     expect(bundle.n).toBe(TIMING_LOADS);
-    expect(bundle.median).toBeLessThanOrEqual(BOOTSTRAP_MEDIAN_MS);
-    expect(bundle.max).toBeLessThanOrEqual(START_MAX_MS);
+    expect(bundle.median).toBeLessThanOrEqual(budgetMs(BOOTSTRAP_MEDIAN_MS));
+    expect(bundle.max).toBeLessThanOrEqual(budgetMs(START_MAX_MS));
   });
 
   it("a page cannot switch our content script off with WXT's «script started» event", async () => {

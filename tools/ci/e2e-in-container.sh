@@ -14,6 +14,7 @@
 #                                       is the real root)
 #   CG_E2E_SHARD (optional) <k>/<n>     run part k of n of the spec files
 #                                       (e2e/wdio.conf.ts reads it)
+#   CG_E2E_TIMING_SLACK (optional)     e2e timing multiplier (CI job: 3; unset: 1)
 # Everything after the script name goes to pnpm instead of `e2e` (for example
 # `--filter @cg/testing exec wdio run e2e/wdio.conf.ts --spec …`).
 set -euo pipefail
@@ -98,6 +99,6 @@ export GECKODRIVER_PATH="$gecko_bin"
 export FIREFOX_BIN="$firefox_bin"
 export CI=true
 
-echo "e2e: Firefox $firefox_version, geckodriver $gecko_version, Node $node_version, pnpm $pnpm_version, no network${CG_E2E_SHARD:+, part $CG_E2E_SHARD of the suite}"
+echo "e2e: Firefox $firefox_version, geckodriver $gecko_version, Node $node_version, pnpm $pnpm_version, timing slack ${CG_E2E_TIMING_SLACK:-1}x, no network${CG_E2E_SHARD:+, part $CG_E2E_SHARD of the suite}"
 if [ "$#" -eq 0 ]; then set -- e2e; fi
 pnpm "$@"

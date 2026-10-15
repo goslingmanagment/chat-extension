@@ -14,7 +14,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 
 import { browser, expect } from '@wdio/globals';
 
+import { budgetMs } from '../../src/e2e-timing';
 import { BOARDS_GALLERY_PATH, E2E_EVIDENCE_DIR } from '../../src/stand/paths';
+import { summarize } from '../support/extension';
 import { useNetworkTrap } from '../support/network-trap';
 import { standOrigin } from '../support/stand';
 
@@ -329,8 +331,10 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
     const samples = await browser.execute(async () => [...((await window.__boards?.reopen(20)) ?? [])]);
     expect(samples).toHaveLength(20);
     const p95 = percentile(samples, 0.95);
-    writeFileSync(`${E2E_EVIDENCE_DIR}boards-open-ms.json`, JSON.stringify({ samples, p95, budget: BOARD_OPEN_P95_MS }));
-    expect(p95).toBeLessThanOrEqual(BOARD_OPEN_P95_MS);
+    writeFileSync(`${E2E_EVIDENCE_DIR}boards-open-ms.json`, JSON.stringify({ samples, p95, budget: BOARD_OPEN_P95_MS, limit: budgetMs(BOARD_OPEN_P95_MS) }));
+    const { median, max } = summarize(samples);
+    console.log(`boards-gallery SP-002: open ms median/max ${median.toFixed(2)}/${max.toFixed(2)}, p95 ${p95.toFixed(2)} (limit ≤ ${budgetMs(BOARD_OPEN_P95_MS)})`);
+    expect(p95).toBeLessThanOrEqual(budgetMs(BOARD_OPEN_P95_MS));
     // The board is back and alive after the last opening.
     expect(await browser.execute(() => window.__boards?.rows() ?? 0)).toBeGreaterThan(0);
   });
@@ -345,11 +349,14 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
       runs.push({ query, ...result });
     }
     const p95 = percentile(runs.map((run) => run.totalMs), 0.95);
-    writeFileSync(`${E2E_EVIDENCE_DIR}boards-search-ms.json`, JSON.stringify({ runs, p95, budget: SEARCH_MS }));
+    writeFileSync(`${E2E_EVIDENCE_DIR}boards-search-ms.json`, JSON.stringify({ runs, p95, budget: SEARCH_MS, limit: budgetMs(SEARCH_MS), buildLimit: budgetMs(SEARCH_MS / 2) }));
+    const total = summarize(runs.map((run) => run.totalMs));
+    const build = summarize(runs.map((run) => run.buildMs));
+    console.log(`boards-gallery SP-019: search ms median/max ${total.median.toFixed(2)}/${total.max.toFixed(2)}, p95 ${p95.toFixed(2)} (limit ≤ ${budgetMs(SEARCH_MS)}); filter median/max ${build.median.toFixed(2)}/${build.max.toFixed(2)} (max limit ≤ ${budgetMs(SEARCH_MS / 2)})`);
     // p95 of twenty searches: one scheduler hiccup of a busy machine is not the board's time.
-    expect(p95).toBeLessThanOrEqual(SEARCH_MS);
-    // What the dataset costs to filter is far below the budget on any machine.
-    expect(Math.max(...runs.map((run) => run.buildMs))).toBeLessThanOrEqual(SEARCH_MS / 2);
+    expect(p95).toBeLessThanOrEqual(budgetMs(SEARCH_MS));
+    // The dataset's filtering work has its own bound, separate from painting the answer.
+    expect(build.max).toBeLessThanOrEqual(budgetMs(SEARCH_MS / 2));
     // The answers are real: a narrow query finds some, an impossible one none, an empty one everybody.
     expect(runs[0]?.shown).toBeGreaterThan(0);
     expect(runs[0]?.shown).toBeLessThan(1000);

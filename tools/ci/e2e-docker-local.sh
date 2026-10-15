@@ -83,6 +83,6 @@ docker image inspect "$CG_E2E_IMAGE" > /dev/null 2>&1 || docker pull --quiet "$C
 exec docker run --rm --init --network none --shm-size 2g --user 0:0 \
   --workdir /sim/work --mount "type=volume,source=$volume,target=/sim" \
   --env CG_NODE_BIN=/sim/node/bin --env CG_PNPM_BIN=/sim/pnpm/bin --env CG_NODE_LIBS=/sim/node-libs \
-  --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env CG_E2E_SHARD \
+  --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env CG_E2E_SHARD --env CG_E2E_TIMING_SLACK \
   --env CG_P3B_XPI_N0 --env CG_P3B_XPI_N --env CG_P3B_XPI_N1 --env CG_P3B_XPI_CONTROL --env CG_P3B_UNSIGNED \
   --entrypoint bash "$CG_E2E_IMAGE" /sim/work/tools/ci/e2e-in-container.sh "$@"
