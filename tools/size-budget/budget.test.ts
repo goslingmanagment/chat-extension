@@ -192,11 +192,19 @@ describe('size budgets of the sites’ lazy builds and contract probes (R20 F2b)
     expect(() => computeBudgets(() => noise(10), chunks.filter((item) => item.name !== 'dock'), [CHATSPACE], [SITE])).toThrow(/lazy chunk list has no lazy\/chatspace\/dock\.js/);
   });
 
-  it('a build without layers — Fansly’s, so far — has its entries measured on demand, no dock line', () => {
-    const fansly: LazySite = { site: FANSLY.kind, build: FANSLY.lazy, matches: [] };
+  it('a build without layers — Fansly’s until its application came (R20 P7d) — has its entries measured on demand, no dock line', () => {
+    const bare: LazySite = { site: FANSLY.kind, build: { ...FANSLY.lazy, entries: { 'bridge-validation': 'fansly/bridge-validation.ts' }, layers: [], beforeTheDock: [] }, matches: [] };
     const schemas: LazyChunk = { file: 'lazy/fansly/bridge-validation.js', kind: 'entry', name: 'bridge-validation', imports: [], site: FANSLY.kind };
-    const lines = computeBudgets(() => noise(10), [...chunks, schemas], [CHATSPACE], [SITE, fansly]);
+    const lines = computeBudgets(() => noise(10), [...chunks, schemas], [CHATSPACE], [SITE, bare]);
     expect(lines.filter((line) => line.label.startsWith('fansly-web: ')).map((line) => [line.label, line.files])).toEqual([['fansly-web: lazy chunk bridge-validation (beyond the layers)', ['lazy/fansly/bridge-validation.js']]]);
+  });
+
+  it('Fansly’s build carries the application (R20 P7d): cut by ChatSpace’s plan of layers, its first dock chunk has its own line', () => {
+    expect([FANSLY.lazy.layers, FANSLY.lazy.beforeTheDock]).toEqual([CHATSPACE.lazy.layers, CHATSPACE.lazy.beforeTheDock]);
+    const fansly: LazySite = { site: FANSLY.kind, build: { ...FANSLY.lazy, layers: ['dock'], beforeTheDock: [] }, matches: [] };
+    const dock: LazyChunk = { file: 'lazy/fansly/dock.js', kind: 'entry', name: 'dock', imports: [], layer: 0, site: FANSLY.kind };
+    const lines = computeBudgets(() => noise(10), [...chunks, dock], [CHATSPACE], [SITE, fansly]);
+    expect(lines.filter((line) => line.label.startsWith('fansly-web: ')).map((line) => [line.label, line.limitBytes])).toEqual([['fansly-web: first dock chunk with Preact (lazy/fansly/dock + shared)', BUDGETS.firstDockChunk]]);
   });
 
   it('every script of the registry has its one line: Fansly’s MAIN ≤ 16 KiB and its early isolated start ≤ 30 KiB come after ChatSpace’s (R20 P7a0)', () => {

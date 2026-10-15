@@ -17,9 +17,10 @@
 // - the whole synchronous start of either script stays in its budget: MAIN
 //   ≤ 1 ms, the isolated one ≤ 3 ms (§3.1), printed on every run.
 // P9a accepts the handshake and starts the site module; Fansly's host port
-// (P7c) comes up too, but our dock has no place on the page before P7d, so
-// nothing of the application starts on it — its route, anchors and identity
-// on the stand are suite-fansly-tap's.
+// (P7c) comes up too, and our dock has its place by Fansly's composer (P7d):
+// the application of Fansly's own lazy build starts with it — the dock's
+// place, overlays and theme on the stand are suite-fansly-dock's; the port's
+// route, anchors and identity, suite-fansly-tap's.
 
 import { browser, expect } from '@wdio/globals';
 
@@ -102,12 +103,11 @@ describe('the Fansly site on its stand: both scripts at document_start, the brid
       expect(report.lifecycle).toEqual({ staleHosts: 0, lateInjection: false });
       expect(report.bootstrap?.bundleMs).not.toBeNull();
       expect(await mainBundleMs()).not.toBeNull();
-      // P9a accepts the tab; the dock has no place before P7d: nothing of the application.
-      const later = await waitForReport((r) => r.rpc !== undefined, 'the tab asked the background');
-      expect(later.rpc?.registered).toBe(true);
-      expect([later.app, later.appError, later.runtimeError]).toEqual([undefined, undefined, undefined]);
-      // Our dock host stands nowhere yet (P7d): the page holds no host of ours.
-      expect(await browser.execute(() => document.querySelectorAll('[data-host]').length)).toBe(0);
+      // P9a accepts the tab; the dock has its place (P7d): the application of Fansly's build starts.
+      const later = await waitForReport((r) => r.rpc?.registered === true && r.app !== undefined, 'the tab registered, the application started', 20_000);
+      expect([later.appError, later.runtimeError]).toEqual([undefined, undefined]);
+      // One dock host of ours, in flow right before Fansly's composer.
+      expect(await browser.execute(() => [...document.querySelectorAll('[data-host="dock"]')].map((host) => host.nextElementSibling?.localName ?? null))).toEqual(['app-group-message-input']);
 
       // The page goes on as its own: it settles, opens a chat, and only the page — never we — asked Fansly.
       await waitForFanslyStandIdle();

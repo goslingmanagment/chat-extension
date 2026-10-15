@@ -23,14 +23,28 @@ function sized(element: HTMLElement, box: Box, scroll?: { height: number; top: n
   return state;
 }
 
-/** A chat as ChatSpace lays it out: the list's box over the composer's, our dock first in the composer's frame root. */
-function chat(listHeight: number, contentHeight: number, scrollTop: number) {
-  document.body.innerHTML = `
+const CHATSPACE_LAYOUT = `
     <div id="view">
       <div class="tabs" style="overflow-x: auto; overflow-y: auto"><span>chips</span></div>
       <div class="list-root"><div class="viewport"><div class="scroller" style="overflow-y: auto"><div class="content"></div></div></div></div>
       <div class="composer-block"><div class="frame-root"><div data-host="dock"></div><div class="composer-frame"></div></div></div>
     </div>`;
+/** Fansly's container: the list, the typing line (no height), our dock, the composer — siblings in one flex column. */
+const FANSLY_LAYOUT = `
+    <div class="tabs" style="overflow-x: auto; overflow-y: auto"><span>chips</span></div>
+    <app-group-message-container>
+      <div class="scroller" style="overflow-y: auto"><div class="content"></div></div>
+      <div class="partner-is-typing"></div>
+      <div data-host="dock"></div>
+      <app-group-message-input></app-group-message-input>
+    </app-group-message-container>`;
+
+/**
+ * A chat as a site lays it out: ChatSpace's list over the composer's box, our dock first in the composer's frame root;
+ * Fansly's list right before our dock in its container. `nearBottomPx` — the site's measure (the default otherwise).
+ */
+function chat(listHeight: number, contentHeight: number, scrollTop: number, site: { readonly layout?: string; readonly nearBottomPx?: number } = {}) {
+  document.body.innerHTML = site.layout ?? CHATSPACE_LAYOUT;
   const pick = (selector: string): HTMLElement => {
     const found = document.querySelector<HTMLElement>(selector);
     if (found === null) throw new Error(`no ${selector} on the page`);
@@ -54,6 +68,7 @@ function chat(listHeight: number, contentHeight: number, scrollTop: number) {
       };
     },
     now: () => clock,
+    ...(site.nearBottomPx === undefined ? {} : { nearBottomPx: site.nearBottomPx }),
   });
   return {
     keeper,
@@ -214,6 +229,29 @@ describe('the message list keeps its bottom when our dock grows (UI-016)', () =>
     page.grow(300);
     // 20 px from the bottom before the result took 300 px: near.
     expect(page.distance()).toBe(0);
+  });
+
+  it('a site with its own measure: Fansly’s list stands right before the dock, and «near» is 350 px of it — not 351 (FS-PLC-5)', () => {
+    const fansly = { layout: FANSLY_LAYOUT, nearBottomPx: 350 };
+    const found = chat(500, 2_000, 1_500, fansly);
+    keeper = found.keeper;
+    expect(findListAbove(window, found.dock)).toBe(found.scroller);
+    found.keeper.dispose();
+    for (const [away, kept] of [
+      [0, true],
+      [NEAR_BOTTOM_PX + 1, true],
+      [350, true],
+      [351, false],
+    ] as const) {
+      const page = chat(500, 2_000, 1_500 - away, fansly);
+      keeper = page.keeper;
+      page.keeper.placed(true);
+      page.grow(240);
+      page.frame();
+      expect(page.distance() === 0, `${away} px away`).toBe(kept);
+      if (!kept) expect(page.list.scroll.top).toBe(1_500 - away);
+      page.keeper.dispose();
+    }
   });
 
   it('[UI-016] the dock in the copy-only row or over a missing frame pushes no list: nothing is watched; a shrinking dock moves nothing', () => {

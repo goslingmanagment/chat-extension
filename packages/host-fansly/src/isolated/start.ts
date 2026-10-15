@@ -11,14 +11,14 @@
 // Nothing here touches an element's `style` (§3.1: ≤ 3 ms) or runs on a timer
 // but the search's own time limit.
 
-import type { HostTheme } from '@cg/contracts/host';
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { connectMainBridge } from '@cg/host-kit/isolated/bridge-client';
 
 import { createAnchorWatcher, type AnchorWatcher } from './anchors';
 import type { FanslyBridge, FanslyMainBridgeClient } from './bridge-client';
-import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort, type FanslyTheme } from './host-port';
+import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from './host-port';
 import { createFanslyMounts, type FanslyMounts } from './mount';
+import { createFanslyTheme, type FanslyTheme } from './theme';
 import { createRouteWatcher, type RouteWatcher } from './route';
 import type { Validation, ValidationLoader } from './validation';
 import { UNDROPPABLE_EVENTS } from './wire';
@@ -49,11 +49,6 @@ export interface StartedFanslyHost {
   readonly host: Promise<FanslyPort>;
 }
 
-const LIGHT: HostTheme = { scheme: 'light', tokens: {}, fixedWidth: false };
-
-/** Fansly's theme until P8d reads the page's own: the light scheme. */
-const lightTheme = (): FanslyTheme => ({ current: () => LIGHT, onChange: () => () => undefined, dispose: () => undefined });
-
 /**
  * The handshake with Fansly's MAIN: the shared client of the page over Fansly's registry — its schemas, loaded once
  * (a load that failed is asked again with the next frame), and its frames that are never coalesced. Rejects without
@@ -73,7 +68,7 @@ export function startFanslyHost(options: StartFanslyHostOptions): StartedFanslyH
   const { win } = options;
   const doc = win.document;
   const mounts = createFanslyMounts(doc);
-  const theme = lightTheme();
+  const theme = createFanslyTheme(doc);
   const bridge = connectFanslyMain(win, options.validation, options.handshakeTimeoutMs).catch(() => {
     options.onDiagnostic?.({ event: 'main-missing', code: 'CG-HOST-NOT-READY' });
     return null;

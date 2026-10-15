@@ -34,8 +34,18 @@ export interface FakeFanslyPage {
   popTo(path: string): Promise<void>;
   /** Changes the address without any signal or node of the page: what FS-RTE-3 counts. */
   silentPush(path: string): void;
+  /** The open chat's field branch (`div.message-composer`) made anew in the same composer (R20 P7d). */
+  recreateField(): void;
+  /** The DM rules turn unmet or met again without a change of address: the branch and the `hidden` class (P7d). */
+  setCopyOnly(on: boolean): void;
+  /** The number of participants changes without a change of address: the contact block goes or is made anew (P7d). */
+  setPartners(count: number): void;
+  /** The fan types (a typing line in the container, no height) or stops (P7d). */
+  typing(on: boolean): void;
   route(): Element | null;
   container(): Element | null;
+  composer(): Element | null;
+  headerRow(): Element | null;
   textarea(): HTMLTextAreaElement | null;
   destroy(): void;
 }
@@ -60,15 +70,12 @@ export function createFakeFanslyPage(): FakeFanslyPage {
   let pending: { readonly groupId: string; readonly options: FakeChatOptions } | null = null;
   let mini: HTMLElement | null = null;
 
-  const field = (copyOnly: boolean): HTMLElement =>
-    make('app-group-message-input', undefined, [
-      make('div', 'message-attachments'),
-      ...(copyOnly ? [make('div', 'no-dm-allowed')] : []),
-      make('div', copyOnly ? 'message-composer hidden' : 'message-composer', [
-        make('div', 'collapsable-actions', [Object.assign(document.createElement('input'), { type: 'file' })]),
-        make('div', 'message-entry', [make('textarea', 'message-input'), make('button', 'send-button')]),
-      ]),
+  const branch = (copyOnly: boolean): HTMLElement =>
+    make('div', copyOnly ? 'message-composer hidden' : 'message-composer', [
+      make('div', 'collapsable-actions', [Object.assign(document.createElement('input'), { type: 'file' })]),
+      make('div', 'message-entry', [make('textarea', 'message-input'), make('button', 'send-button')]),
     ]);
+  const field = (copyOnly: boolean): HTMLElement => make('app-group-message-input', undefined, [make('div', 'message-attachments'), ...(copyOnly ? [make('div', 'no-dm-allowed')] : []), branch(copyOnly)]);
   const containerOf = (options: FakeChatOptions): HTMLElement => make('app-group-message-container', 'message-content', [make('div', 'message-content-list'), field(options.copyOnly === true)]);
   const contact = (): HTMLElement => make('div', 'message-content-header-contact', [make('app-account-username'), make('div', 'flex-row content-header-sub-row', [make('div', 'gallery-hot-icon')])]);
 
@@ -171,8 +178,32 @@ export function createFakeFanslyPage(): FakeFanslyPage {
     silentPush(path) {
       history.pushState({}, '', path);
     },
+    recreateField() {
+      const composer = conversation?.querySelector(':scope > app-group-message-container > app-group-message-input');
+      const old = composer?.querySelector(':scope > div.message-composer');
+      old?.replaceWith(branch(old.classList.contains('hidden')));
+    },
+    setCopyOnly(on) {
+      const composer = conversation?.querySelector(':scope > app-group-message-container > app-group-message-input');
+      const fieldBranch = composer?.querySelector(':scope > div.message-composer');
+      if (composer === null || composer === undefined || fieldBranch === null || fieldBranch === undefined) return;
+      composer.querySelector(':scope > div.no-dm-allowed')?.remove();
+      if (on) fieldBranch.before(make('div', 'no-dm-allowed'));
+      fieldBranch.classList.toggle('hidden', on);
+    },
+    setPartners(count) {
+      row?.querySelector(':scope > .message-content-header-contact')?.remove();
+      if (count === 1) row?.append(contact());
+    },
+    typing(on) {
+      const container = conversation?.querySelector(':scope > app-group-message-container');
+      container?.querySelector(':scope > .partner-is-typing')?.remove();
+      if (on) container?.querySelector(':scope > .message-content-list')?.after(make('div', 'partner-is-typing'));
+    },
     route: () => conversation,
     container: () => conversation?.querySelector(':scope > app-group-message-container') ?? null,
+    composer: () => conversation?.querySelector(':scope > app-group-message-container > app-group-message-input') ?? null,
+    headerRow: () => row,
     textarea: () => conversation?.querySelector<HTMLTextAreaElement>(':scope > app-group-message-container textarea.message-input') ?? null,
     destroy() {
       root.remove();

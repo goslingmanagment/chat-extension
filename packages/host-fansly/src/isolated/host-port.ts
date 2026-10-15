@@ -33,7 +33,7 @@ import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, Fro
 import type { CgCode } from '@cg/contracts/errors';
 import type { FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
 import type { FanslyContractReport, FanslyHostPort } from '@cg/contracts/fansly-host';
-import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, HostTheme, InsertReceipt, NavigationIntent, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertReceipt, NavigationIntent, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import { digest } from '@cg/host-kit/common/digest';
 import { sameReport } from '@cg/host-kit/isolated/report';
@@ -46,6 +46,7 @@ import { createGeneration } from './generation';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
 import type { FanslyMounts } from './mount';
 import type { FanslyRoute, RouteStats, RouteWatcher } from './route';
+import type { FanslyTheme } from './theme';
 import { consumeStream, type StreamStats } from './stream';
 
 /** What the host tells the tab's log: an event, its code, a few plain facts — never a text, a name or an id of a fan. */
@@ -55,12 +56,7 @@ export interface FanslyDiagnostic {
   readonly detail?: Readonly<Record<string, string | number | boolean | null>>;
 }
 
-/** Fansly's theme as its page shows it: the light scheme until P8d reads the page's own. */
-export interface FanslyTheme {
-  current(): HostTheme;
-  onChange(listener: (theme: HostTheme) => void): () => void;
-  dispose(): void;
-}
+export type { FanslyTheme } from './theme';
 
 /** This side's counts: the route, the anchors' observers, the stream. */
 export interface FanslyIsolatedHealth {
@@ -280,6 +276,13 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
             draft: { revision, provenance: provenance() },
           }
         : null;
+    // The dock's place, before anyone hears of the change: what they read of the mounts is already the new one (§7.3).
+    mounts.place({
+      conversation,
+      group: routeState.conversationKind === 'group',
+      copyOnly: conversation?.copyOnly === true || chatWire?.dmAllowed === false,
+      composerInstanceId: field === null ? null : instanceOf(field),
+    });
     const seen = composer === null ? 'none' : [composer.instanceId, composer.ready, composer.hidden, composer.draft.provenance, chat?.platformFanId].join('|');
 
     dom = judgeAnchors(doc, { anchors: anchors.current(), chat: now.groupId !== null, path: now.path, exhausted: anchors.stats().exhausted, direct: chatWire?.kind === 'direct' }, dom);

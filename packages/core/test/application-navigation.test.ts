@@ -39,6 +39,7 @@ import {
   type RpcAnswer,
   type TabRpc,
 } from '@cg/core/application/navigation';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import { createActionCatalog } from '@cg/core/domain/hotkeys';
 import { createI18n } from '@cg/core/domain/i18n';
 import { FakeToasts, cgError, ctxOf, dock, reason } from '@cg/testing/app-client';
@@ -46,6 +47,7 @@ import { FakeHostPort, contractReport, hostAccount, memory, openChat, startSnaps
 import { describe, expect, it } from 'vitest';
 
 import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
+import { CHATSPACE } from './support/features';
 import { FakeClock, sequentialIds, settle } from './support/clock';
 import { WORLD, uuid } from './support/world';
 
@@ -107,6 +109,8 @@ interface WorldOptions {
   readonly answers?: HostAnswers;
   /** The owner's `navigation` switch as the tab would answer it; a function — an answer that is slow or moves. */
   readonly ownerSwitch?: boolean | null | ((hostAccountId: string | null) => boolean | null | Promise<boolean | null>);
+  /** The site's slice of the feature manifest (none — every surface of the controller is there, as before R20). */
+  readonly features?: FeatureSlice;
 }
 
 function world(options: WorldOptions = {}) {
@@ -123,7 +127,18 @@ function world(options: WorldOptions = {}) {
   const toasts = new FakeToasts();
   const cause = createCauseHint();
   const i18n = createI18n({ language: 'ru', now: () => clock.now() });
-  const navigation = createNavigationController({ host, rpc, i18n, ids: sequentialIds(0x700), clock, overlays, toasts, cause, ownerSwitch: (hostAccountId) => (typeof options.ownerSwitch === 'function' ? options.ownerSwitch(hostAccountId) : (options.ownerSwitch ?? null)) });
+  const navigation = createNavigationController({
+    host,
+    rpc,
+    i18n,
+    ids: sequentialIds(0x700),
+    clock,
+    overlays,
+    toasts,
+    cause,
+    ownerSwitch: (hostAccountId) => (typeof options.ownerSwitch === 'function' ? options.ownerSwitch(hostAccountId) : (options.ownerSwitch ?? null)),
+    ...(options.features === undefined ? {} : { features: options.features }),
+  });
   const go = async (action: UiAction): Promise<ActionReceipt | null> => {
     const pending = navigation.dispatch(action);
     if (pending === null) return null;
@@ -423,6 +438,29 @@ describe('chat navigation', () => {
     void w.navigation.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'palette', open: true } });
     expect(w.overlays.list()).toEqual(['palette']);
     expect(w.host.calls.navigations).toEqual([]);
+  });
+});
+
+describe('a site whose slice has neither the palette nor our navigation (R20 P7d)', () => {
+  const { palette: _palette, navigation: _navigation, ...withoutThem } = CHATSPACE;
+  const surface = (name: 'palette' | 'quick-jump' | 'cheatsheet', open = true): UiAction => ({ type: 'Navigate', to: { kind: 'surface', surface: name, open } });
+
+  it('⌘K, the quick jump, J/K, ⌘U and ⌘1–9 open nothing there — no window whose chunk the site’s build has not, no token, no chat; the cheatsheet and closing still work', async () => {
+    const w = world({ features: withoutThem, ownerSwitch: true });
+    const opened: string[] = [];
+    w.overlays.subscribe(() => opened.push(...w.overlays.list()));
+    expect(await w.go(surface('palette'))).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect(await w.go(surface('quick-jump'))).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    for (const walk of [step('next'), step('previous'), NEXT_UNREAD, slot(2)]) expect(await w.go(walk), JSON.stringify(walk)).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect(opened).toEqual([]);
+    expect([w.host.calls.navigations, w.rpc.of('token.issue'), w.toasts.shown]).toEqual([[], [], []]);
+    // The cheatsheet is the application's own: it opens on every site; closing a window is never refused.
+    expect(await w.go(surface('cheatsheet'))).toEqual({ ok: true, type: 'Navigate', outcome: 'opened' });
+    expect(await w.go(surface('cheatsheet', false))).toEqual({ ok: true, type: 'Navigate', outcome: 'done' });
+    expect(await w.go(surface('palette', false))).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    // With them in its slice, the same site opens the palette as before.
+    const all = world({ features: CHATSPACE, ownerSwitch: true });
+    expect(await all.go(surface('palette'))).toEqual({ ok: true, type: 'Navigate', outcome: 'opened' });
   });
 });
 

@@ -3019,6 +3019,13 @@ describe('[R20-F4] dock: the bar’s chips as data — the site’s slice of the
     expect(h.dock().actions.reply.enabled).toBe(true);
   });
 
+  it('a site without the palette prints no key of it in the strip (R20 P7d): the key would open nothing there', async () => {
+    const { palette: _palette, ...rest } = CHATSPACE;
+    expect((await start({ features: rest })).dock().paletteHotkey).toBeNull();
+    expect((await start({ features: FANSLY })).dock().paletteHotkey).toBeNull();
+    expect((await start()).dock().paletteHotkey).not.toBeNull();
+  });
+
   it('Fansly’s slice on a page whose hub lists no `drafts`: the drafts are off with the switch’s reason, the analysis follows its own switches; 🎙 is its feature’s PR to draw', async () => {
     // A hub before HF-2 lists none of Fansly's own switches (the fake hub's pages answer them `platform_unsupported` since contracts 1.15.0).
     const fanslyOwn: readonly string[] = NON_CHATSPACE_FEATURE_FLAGS;

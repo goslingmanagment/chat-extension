@@ -138,6 +138,8 @@ const methods: Record<string, (...args: never[]) => unknown> = {
       },
     };
   },
+  /** Where Fansly's start put our dock host (P7d): its moves and removals, and the mount points the port says. */
+  dock: () => ({ stats: started?.mounts.stats() ?? null, points: needPort().mounts() }),
   report: () => needPort().probe(),
   portHealth: () => needPort().health(),
   /** A verification without a signal, as an action of our UI makes one (FS-RTE-3); the route's counts after it. */

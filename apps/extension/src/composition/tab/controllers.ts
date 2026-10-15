@@ -177,6 +177,8 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     // The owner's `navigation` switch of the page the account is bound to (its own feature; an account bound to
     // no hub page — the owner's `"*"` value). Unknown while nobody is signed in: ChatSpace's own list needs no hub.
     ownerSwitch: (hostAccountId) => ai.workspace.accountFlag(hostAccountId, 'navigation'),
+    // What the site has (R20 §1.4): a window or a walk of a feature its slice lacks opens nothing.
+    features: world.features,
   });
   const dockView = (): DockVM | null => (router.serves('dock') ? router.getSnapshot({ of: 'dock' }) : null);
   const palette = chunk.createPaletteController({
