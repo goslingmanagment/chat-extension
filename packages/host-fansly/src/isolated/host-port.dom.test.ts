@@ -16,6 +16,7 @@ import { createFakeFanslyPage, type FakeFanslyPage } from '../testing/fake-dom';
 import { createAnchorWatcher } from './anchors';
 import { BridgeCallError, type FanslyBridgeEvent, type FanslyMainBridgeClient } from './bridge-client';
 import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from './host-port';
+import { watchCoexistence, type Coexistence } from './legacy';
 import { createFanslyMounts } from './mount';
 import { createRouteWatcher } from './route';
 import { startFanslyHost } from './start';
@@ -103,7 +104,7 @@ interface Started {
 }
 
 /** The port on a Fansly-like page at `path`, over `main` (null — no MAIN), once its first state was taken. */
-async function startPort(path: string, main: FanslyMainBridgeClient | null, now?: () => number, before?: (page: FakeFanslyPage) => void): Promise<Started> {
+async function startPort(path: string, main: FanslyMainBridgeClient | null, now?: () => number, before?: (page: FakeFanslyPage) => void, coexistence?: Coexistence): Promise<Started> {
   history.replaceState({}, '', path);
   const page = createFakeFanslyPage();
   // What the page shows before the port exists (its field rendered before MAIN's first word).
@@ -111,7 +112,7 @@ async function startPort(path: string, main: FanslyMainBridgeClient | null, now?
   const diagnostics: FanslyDiagnostic[] = [];
   const route = createRouteWatcher(window, (diagnostic) => diagnostics.push(diagnostic));
   const anchors = createAnchorWatcher(document, route);
-  const port = createFanslyHostPort({ win: window, bridge: main, mounts: createFanslyMounts(document), theme: light, route, anchors, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic), ...(now === undefined ? {} : { now }) });
+  const port = createFanslyHostPort({ ...(coexistence ? { coexistence } : {}), win: window, bridge: main, mounts: createFanslyMounts(document), theme: light, route, anchors, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic), ...(now === undefined ? {} : { now }) });
   cleanups.push(() => port.dispose(), () => page.destroy());
   const events: HostEvent[] = [];
   port.subscribe((event) => events.push(event));
@@ -974,5 +975,42 @@ describe('[host:fansly] the port over the real MAIN', () => {
     expect(port.probe().extensions['fansly-web'].anchors.accountMe).toBe('ok');
     expect(health.isolated.route).toEqual({ changes: 1, unsignalled: 0, restorations: 0 });
     expect(diagnostics).toEqual([]);
+  });
+});
+
+
+describe('[host:fansly] coexistence invalidates pending work', () => {
+  it('[NEW-12] [FS-CO-1] a late legacy identity retires the port, drops a pending snapshot, and cannot be revived by a later clean identity', async () => {
+    const coexistence = watchCoexistence(window);
+    cleanups.push(() => {
+      coexistence.dispose();
+      document.documentElement.removeAttribute('data-fx-instance');
+      document.querySelector('[data-host="reload-notice"]')?.remove();
+    });
+    let release: (value: unknown) => void = () => undefined;
+    const main = scriptedMain({
+      'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }),
+      'fx.ack': () => null, 'fx.focus': () => null,
+      'fx.generationSnapshot': () => new Promise((resolve) => { release = resolve; }),
+    });
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client, undefined, undefined, coexistence);
+    page.openChat(GROUP); await settle();
+    main.batch(1, chatOf(GROUP, 1));
+    const identity = open(port.identity());
+    const chat = { host: 'fansly-web', hostAccountId: CREATOR, platformFanId: FAN } as const;
+    const request = { conversationRef: GROUP, feature: 'reply', window: 30, withText: true } as const;
+    const pending = port.freshness.snapshot(chat, request);
+    main.batch(2, { t: 'fx.identity', p: { ...fanslyIdentityWire, legacy: true } });
+    release(fanslyReplySnapshot);
+    expect(await pending).toBeNull();
+    expect(port.current()).toMatchObject({ accounts: [], identity: null, composer: null });
+    expect(await port.focusComposer(identity)).toBe(false);
+    const calls = main.calls.length;
+    expect(await port.freshness.snapshot(chat, request)).toBeNull();
+    await port.recheck();
+    expect(main.calls).toHaveLength(calls);
+    main.batch(3, identityEvent(CREATOR));
+    expect(port.listCachedAccounts()).toEqual([]);
+    expect(port.probe().capabilities.identity).toMatchObject({ state: 'off', reason: 'legacy' });
   });
 });

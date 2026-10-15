@@ -42,6 +42,7 @@ export type Observation = 'unknown' | 'ready' | 'off';
 export interface FanslyContractInput {
   /** MAIN answered the handshake. */
   readonly bridge: boolean;
+  readonly blocked?: 'legacy' | 'update' | null;
   /** MAIN's network anchors; null — no `fx.state` taken yet. */
   readonly wire: FanslyContractWire | null;
   /** The creator of `/account/me` is known. */
@@ -99,6 +100,10 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     vault: notReady('vault'),
     relay: notReady('relay'),
   };
+  if (input.blocked) {
+    for (const key of Object.keys(capabilities) as HostCapability[]) capabilities[key] = notReady(input.blocked);
+    for (const key of Object.keys(own) as FanslyCapability[]) own[key] = notReady(input.blocked);
+  }
   return {
     host: 'fansly-web',
     build: input.build,

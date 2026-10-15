@@ -36,9 +36,10 @@
 // Every callback the page or the browser calls is a `guard(…)`; a Proxy's
 // trap lets the native constructor's own error through and keeps ours.
 
+import { hasLegacy, readFBuddy, previousMain, rememberMain } from './legacy';
 import { installMainBridge, type MainBridgeHandle, type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
 import { idOf, int, isPlain, shape, type Plain } from '@cg/host-kit/main/check';
-import { ERR_BAD_REQUEST, ERR_UNKNOWN_REQUEST } from '@cg/host-kit/main/protocol';
+import { ERR_BAD_REQUEST, ERR_NOT_READY, ERR_UNKNOWN_REQUEST } from '@cg/host-kit/main/protocol';
 
 import { createAutomation, madeBySomething, textHash, type Automation } from './automation';
 import type { Stamp } from './certificate';
@@ -155,6 +156,9 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   const Url = win.URL;
   const late = win.document.readyState !== 'loading';
 
+  let stopped = hasLegacy(win);
+  let disposed = false;
+  let fbuddy = readFBuddy(win);
   /** The page's sockets so far; the newest one's epoch. */
   let epoch = 0;
   /** `t:1` came on the newest socket. */
@@ -200,6 +204,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       now,
       wake: (ms) =>
         context.setTimer(() => {
+          if (stopped || disposed) return;
           observation.settle();
           end();
         }, ms),
@@ -210,14 +215,13 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     return built;
   };
   /** The creator of `/account/me`, without building anything for it. */
-  const creator = (): string | null => built?.identity.creator ?? null;
+  const creator = (): string | null => stopped || disposed ? null : built?.identity.creator ?? null;
 
-  // FBuddy's markers and the old extension are P7g's: until then MAIN says it saw neither.
   const identityState = (): Plain => ({
     creatorId: creator(),
     accountMeSeen: creator() !== null,
-    legacy: false,
-    fbuddy: { windowBridge: false, networkHook: false, styleFixes: false, wordFilter: false },
+    legacy: stopped,
+    fbuddy,
   });
 
   const contract = (): Plain => ({
@@ -231,6 +235,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   });
 
   const focusedView = (): Plain | null => {
+    if (stopped || disposed) return null;
     const { observation, views } = world();
     return observation.focus === null ? null : views.chat(observation.focus, routeEpoch);
   };
@@ -240,18 +245,21 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
    * then at most one batch.
    */
   const end = (): void => {
-    const { observation } = world();
-    observation.enforce(() => {
-      if (emitter.stats().queued === 0) return false;
-      emitter.gap(GAP_MEMORY);
-      return true;
-    });
-    if (observation.dirty) {
-      observation.dirty = false;
-      const view = focusedView();
-      const text = view === null ? '' : stringify(view);
-      if (view !== null && text !== chatSent) emitter.state(EVT_CHAT, view);
-      chatSent = text;
+    if (disposed) return;
+    if (!stopped) {
+      const { observation } = world();
+      observation.enforce(() => {
+        if (emitter.stats().queued === 0) return false;
+        emitter.gap(GAP_MEMORY);
+        return true;
+      });
+      if (observation.dirty) {
+        observation.dirty = false;
+        const view = focusedView();
+        const text = view === null ? '' : stringify(view);
+        if (view !== null && text !== chatSent) emitter.state(EVT_CHAT, view);
+        chatSent = text;
+      }
     }
     const current = contract();
     const text = stringify(current);
@@ -279,8 +287,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     });
   };
 
-  const ws = installWsTap(win, natives, network.socketHosts, {
+  const inert = { wrapped: () => false, restore: () => undefined };
+  const ws = stopped ? inert : installWsTap(win, natives, network.socketHosts, {
     created() {
+      if (stopped || disposed) return;
       epoch += 1;
       confirmed = false;
       socketSeen = 0;
@@ -291,6 +301,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       end();
     },
     frame(text, current) {
+      if (stopped || disposed) return;
       const started = now();
       const read = readFrame(text, parse);
       frames.seen += 1;
@@ -324,6 +335,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       end();
     },
     lost() {
+      if (stopped || disposed) return;
       confirmed = false;
       world().observation.lose(null, WHY_SOCKET);
       end();
@@ -422,6 +434,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
 
   /** Reads one answer of the table, at once or deferred, within its measure (`xhrParseMs`). */
   const readOne = (item: Deferred<Stamp>): void => {
+    if (stopped || disposed) return;
     const started = now();
     const read = readResponse(item.call, item.text, parse);
     if (read !== null) {
@@ -438,12 +451,15 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     world().observation.lose(call.groupId === null ? null : [call.groupId], WHY_PARSE_LIMIT);
   };
 
-  const xhr = installXhrTap<Stamp>(win, natives, {
+  const xhr = stopped ? inert : installXhrTap<Stamp>(win, natives, {
     start() {
+      if (stopped || disposed) return { seq, epoch, confirmed: false };
       seq += 1;
       return { seq, epoch, confirmed };
     },
     end(request, stamp) {
+      refreshNeighbors();
+      if (stopped || disposed) return;
       const call = classifyAddress(request.responseURL, network.apiOrigins);
       if (call === null) return;
       responses.seen += 1;
@@ -466,7 +482,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       win,
       'pageshow',
       guard('pageShow', (event: Event) => {
-        if (!(event as PageTransitionEvent).persisted) return;
+        if (stopped || disposed || !(event as PageTransitionEvent).persisted) return;
         world().observation.lose(null, WHY_BFCACHE);
         end();
       }),
@@ -476,10 +492,37 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   }
 
   // Injected after the page began, MAIN missed what the page did before it: its socket, its answers (FS-WS-5).
-  if (late) world().observation.lose(null, WHY_LATE);
+  if (late && !stopped) world().observation.lose(null, WHY_LATE);
+
+  const refreshNeighbors = (): void => {
+    if (disposed) return;
+    const next = readFBuddy(win);
+    const changed = stringify(fbuddy) !== stringify(next);
+    fbuddy = next;
+    if (!stopped && hasLegacy(win)) {
+      stopped = true;
+      built = null;
+      confirmed = false;
+      // Keep a foreign wrapper intact; our existing per-instance callbacks are inert.
+      ws.restore();
+      xhr.restore();
+      emitter.retire();
+      emitter.state(EVT_IDENTITY, identityState());
+      emitter.flush();
+    } else if (changed) emitter.state(EVT_IDENTITY, identityState());
+  };
+  const ready = guard('neighbors', () => {
+    refreshNeighbors(); end();
+    // Another extension may append its DOM in a later DOMContentLoaded listener.
+    context.setTimer(() => { refreshNeighbors(); end(); }, 0);
+  });
+  win.document.addEventListener('DOMContentLoaded', ready, { once: true });
+
 
   return {
     handle(t, payload) {
+      refreshNeighbors();
+      if ((stopped || disposed) && t !== REQ_STATE && t !== REQ_HEALTH && t !== REQ_ACK) return ERR_NOT_READY;
       if (t === REQ_STATE) {
         if (!isEmpty(payload)) return ERR_BAD_REQUEST;
         const lastBatch = emitter.start();
@@ -538,6 +581,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       return ERR_UNKNOWN_REQUEST;
     },
     dispose() {
+      disposed = true;
+      built = null;
+      emitter.retire();
+      win.document.removeEventListener('DOMContentLoaded', ready);
       ws.restore();
       xhr.restore();
     },
@@ -546,5 +593,9 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
 
 /** Installs Fansly's MAIN world in `win`: the shared boot of host-kit with Fansly's runtime attached at once. */
 export function installFanslyMain(win: Window, network: FanslyNetwork): MainBridgeHandle {
-  return installMainBridge(win, { runtime: (context) => createFanslyRuntime(context, network) });
+  const previous = previousMain(win);
+  if (previous !== null) return previous;
+  const handle = installMainBridge(win, { runtime: (context) => createFanslyRuntime(context, network) });
+  rememberMain(win, handle);
+  return handle;
 }

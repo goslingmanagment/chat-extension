@@ -22,7 +22,7 @@ function fakeWindow(): Window {
   const listeners = new Set<Listener>();
   const win = {
     location: { origin: 'http://localhost:4200', href: 'http://localhost:4200/messages' },
-    document: { readyState: 'loading' },
+    document: Object.assign(new EventTarget(), { readyState: 'loading', querySelector: () => null }),
     performance,
     crypto,
     URL,

@@ -96,42 +96,48 @@ export function composeTab<P extends HostPort>(env: TabEnv, adapter: HostAdapter
     void host.host.then((port) => port.dispose());
   });
 
-  if (probe !== null) {
+  host.activation?.stopped.addEventListener('abort', () => life.abort('host-retired'), { once: true });
+  if (host.activation?.stopped.aborted) life.abort('host-retired');
+
+  if (probe !== null && !life.signal.aborted) {
     void host.bridge.then(async (bridge) => {
       if (bridge === null) probe.set('mainError', 'no MAIN bridge');
       else probe.set('main', await bridge.probe());
-    });
+    }).catch(() => undefined);
   }
 
-  // Everything else of the early bundle, one task later: outside the synchronous start (§11).
+  // Everything else of the early bundle, one task later. A host's admission
+  // waits for its coexistence checks before any background registration.
   setTimeout(() => {
-    if (life.signal.aborted) return;
-    runtime = import('./tab/runtime').then(({ startTabRuntime }) =>
-      startTabRuntime({
-        win,
-        kind: adapter.kind,
-        lazy,
-        life: life.signal,
-        abort: (reason) => life.abort(reason),
-        host,
-        keys,
-        lateInjection,
-        staleHosts,
-        probe,
-        setNavInsertTimeoutMs(ms) {
-          navInsertTimeoutMs = ms;
-        },
-        takeDiagnostics(listener) {
-          onDiagnostic = listener;
-          return diagnostics.splice(0);
-        },
-      }),
-    );
-    runtime.then(
-      // A key that came before the runtime existed is still waiting.
-      (ready) => (wakeAsked ? ready.wake() : undefined),
-      (error: unknown) => probe?.set('runtimeError', String(error)),
-    );
+    void (host.activation?.ready ?? Promise.resolve(true)).then((admitted) => {
+      if (!admitted || life.signal.aborted) return;
+      runtime = import('./tab/runtime').then(({ startTabRuntime }) => {
+        if (life.signal.aborted) throw new Error('host-retired');
+        return startTabRuntime({
+          win,
+          kind: adapter.kind,
+          lazy,
+          life: life.signal,
+          abort: (reason) => life.abort(reason),
+          host,
+          keys,
+          lateInjection,
+          staleHosts,
+          probe,
+          setNavInsertTimeoutMs(ms) {
+            navInsertTimeoutMs = ms;
+          },
+          takeDiagnostics(listener) {
+            onDiagnostic = listener;
+            return diagnostics.splice(0);
+          },
+        });
+      });
+      runtime.then(
+        (ready) => (wakeAsked ? ready.wake() : undefined),
+        (error: unknown) => { if (!life.signal.aborted) probe?.set('runtimeError', String(error)); },
+      );
+    });
   }, 0);
 
   // The body of composeTab only; the probe adds the whole synchronous start of
