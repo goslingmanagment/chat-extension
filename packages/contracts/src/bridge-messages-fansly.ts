@@ -161,6 +161,23 @@ export const FanslyHealthSchema = z.strictObject({
     gaps: CountSchema,
   }),
   perf: z.strictObject({ frameParseMs: FanslyPerfCountsSchema, xhrParseMs: FanslyPerfCountsSchema, snapshotMs: FanslyPerfCountsSchema }),
+  /**
+   * The person's sends (R20 P7f; §5.9): trusted gestures in the main composer; marked answers of exactly
+   * `POST /api/v1/message` that are the creator's receipt in the gesture's chat; gestures with two such requests and
+   * receipts with media — neither attributed; `fx.sent` said, and of them how many had the socket's echo before the
+   * receipt and after it: the real order on Fansly, which the stand cannot show (spike P3a §3).
+   */
+  sends: z
+    .strictObject({
+      gestures: CountSchema,
+      receipts: CountSchema,
+      ambiguous: CountSchema,
+      media: CountSchema,
+      sent: CountSchema,
+      echoFirst: CountSchema,
+      receiptFirst: CountSchema,
+    })
+    .check(z.refine((s) => s.echoFirst + s.receiptFirst === s.sent, { message: 'every send said had its echo before its receipt or after it' })),
 });
 export type FanslyHealth = z.infer<typeof FanslyHealthSchema>;
 
