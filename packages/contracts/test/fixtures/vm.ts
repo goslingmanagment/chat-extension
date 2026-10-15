@@ -45,6 +45,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   SetStatsExpanded: { type: 'SetStatsExpanded', expanded: true },
   SetNewcomersTab: { type: 'SetNewcomersTab', tab: 'all' },
   SetNewcomersFilter: { type: 'SetNewcomersFilter', filter: 'stopped' },
+  SetNewcomersCheckFilter: { type: 'SetNewcomersCheckFilter', filter: 'dm-closed' },
   SetNewcomersWindow: { type: 'SetNewcomersWindow', hours: 48 },
   LoadMore: { type: 'LoadMore', list: 'newcomers' },
   RenewClaim: { type: 'RenewClaim', targetHandle: 'newcomers:f2' },
