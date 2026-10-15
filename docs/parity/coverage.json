@@ -1,11 +1,11 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json, docs/project-unite/plan.md и done/<PR id>, §10 docs/project-unite/parity-matrix.md, метки [ID] и [host:…] в названиях тестов",
   "testFiles": {
-    "unit": 292,
+    "unit": 290,
     "e2e": 44,
     "chatspace": 67,
-    "fansly": 44,
-    "free": 231
+    "fansly": 43,
+    "free": 230
   },
   "totals": {
     "name": "всего",
