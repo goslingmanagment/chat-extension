@@ -446,6 +446,8 @@ it('[host:fansly] unreadable pacer storage keeps the module and vault registry r
   // The installed registry handles the vault request (not CG-RUNTIME-UNREACHABLE).
   const vault = await fanslyRequest(tab.client, 'fansly.vault.resume', { hostAccountId: CREATOR, albumId: '123' });
   expect(vault).toMatchObject({ ok: true });
+});
+
 /** The settings page as the pages' composition root makes its port: Fansly's types checked by Fansly's registry (R20 P14b1). */
 function fanslySettingsPage(w: World) {
   const client = createPageRpcClient({
