@@ -6,7 +6,8 @@
 // search for the anchors — both watch the page from its first moment.
 // Asynchronous: Fansly's HostPort, once MAIN answered (or is known to be
 // missing) and its first state was taken; without MAIN the port still
-// answers, and its report says CG-HOST-NOT-READY.
+// answers, and its report says CG-HOST-NOT-READY. Its writes spend the
+// background's action tokens (`redeem`, R20 P7e).
 //
 // Nothing here touches an element's `style` (§3.1: ≤ 3 ms) or runs on a timer
 // but the search's own time limit.
@@ -16,7 +17,7 @@ import { connectMainBridge } from '@cg/host-kit/isolated/bridge-client';
 
 import { createAnchorWatcher, type AnchorWatcher } from './anchors';
 import type { FanslyBridge, FanslyMainBridgeClient } from './bridge-client';
-import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from './host-port';
+import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort, type TokenRedeemer } from './host-port';
 import type { Coexistence } from './legacy';
 import { createFanslyMounts, type FanslyMounts } from './mount';
 import { createFanslyTheme, type FanslyTheme } from './theme';
@@ -33,6 +34,10 @@ export interface StartFanslyHostOptions {
    * the next frame.
    */
   readonly validation: ValidationLoader;
+  /** The background's `token.redeem`: a write of the port spends the token of the click or key that asked for it. */
+  readonly redeem: TokenRedeemer;
+  /** Bootstrap `limits.navInsertTimeoutSec` × 1000 once a bootstrap arrived; read at each «Открыть и вставить». */
+  readonly navInsertTimeoutMs?: () => number | undefined;
   /** How long the handshake waits for MAIN (the bridge's call timeout by default). */
   readonly handshakeTimeoutMs?: number;
   /** A search's time limit (anchors.ts SEARCH_MS by default). */
@@ -57,13 +62,17 @@ export interface StartedFanslyHost {
  * MAIN after `timeoutMs`.
  */
 export function connectFanslyMain(win: Window, load: ValidationLoader, timeoutMs: number = BRIDGE_LIMITS.callTimeoutMs): Promise<FanslyMainBridgeClient> {
+  return connectMainBridge<FanslyBridge>(win, once(load), UNDROPPABLE_EVENTS, timeoutMs);
+}
+
+/** The schema module loaded once; a load that failed is asked again next time. */
+function once(load: ValidationLoader): ValidationLoader {
   let loaded: Promise<Validation> | null = null;
-  const validation: ValidationLoader = () =>
+  return () =>
     (loaded ??= load().catch((error: unknown) => {
       loaded = null;
       throw error;
     }));
-  return connectMainBridge<FanslyBridge>(win, validation, UNDROPPABLE_EVENTS, timeoutMs);
 }
 
 export function startFanslyHost(options: StartFanslyHostOptions): StartedFanslyHost {
@@ -71,14 +80,27 @@ export function startFanslyHost(options: StartFanslyHostOptions): StartedFanslyH
   const doc = win.document;
   const mounts = createFanslyMounts(doc);
   const theme = createFanslyTheme(doc);
-  const bridge = options.coexistence?.stopped.aborted ? Promise.resolve(null) : connectFanslyMain(win, options.validation, options.handshakeTimeoutMs).catch(() => {
+  const validation = once(options.validation);
+  const bridge = options.coexistence?.stopped.aborted ? Promise.resolve(null) : connectFanslyMain(win, validation, options.handshakeTimeoutMs).catch(() => {
     options.onDiagnostic?.({ event: 'main-missing', code: 'CG-HOST-NOT-READY' });
     return null;
   });
   const route = createRouteWatcher(win, options.onDiagnostic);
   const anchors = createAnchorWatcher(doc, route, options.searchMs === undefined ? {} : { searchMs: options.searchMs });
   const host = bridge.then(async (client) => {
-    const port = createFanslyHostPort({ ...(options.coexistence ? { coexistence: options.coexistence } : {}), win, bridge: client, mounts, theme, route, anchors, ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}) });
+    const port = createFanslyHostPort({
+      ...(options.coexistence ? { coexistence: options.coexistence } : {}),
+      win,
+      bridge: client,
+      mounts,
+      theme,
+      route,
+      anchors,
+      redeem: options.redeem,
+      validation,
+      ...(options.navInsertTimeoutMs ? { navInsertTimeoutMs: options.navInsertTimeoutMs } : {}),
+      ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}),
+    });
     await port.ready;
     return port;
   });

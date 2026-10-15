@@ -28,6 +28,9 @@ export const FANSLY_ADAPTER: HostAdapter<FanslyHostPort> = {
       win: env.win,
       // The bridge's schemas are a lazy chunk of Fansly's own build (§3.1): this file is one classic script.
       validation: () => env.lazy<Validation>('bridge-validation'),
+      // The writes of R20 P7e: the token of the click or key, the owner's deadline of «Открыть и вставить».
+      redeem: env.redeem,
+      navInsertTimeoutMs: env.navInsertTimeoutMs,
       onDiagnostic: env.onDiagnostic,
     }),
   keyProbe: createKeyboardProbe,

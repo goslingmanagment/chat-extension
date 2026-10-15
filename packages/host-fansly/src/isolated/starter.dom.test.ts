@@ -23,7 +23,7 @@ afterEach(() => {
 describe('the Fansly start without MAIN', () => {
   it('takes our hosts of a dead instance out, makes the dock host with a closed root that stands nowhere, and overlays in <html> on first use', async () => {
     document.body.innerHTML = '<div data-host="dock"></div><div data-host="overlay"></div><div data-host="dock"><span>not ours</span></div>';
-    const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20 });
+    const started = startFanslyTab({ win: window, validation: loadValidation, redeem: () => Promise.resolve(false), handshakeTimeoutMs: 20 });
     expect(started.staleHosts).toBe(2);
     // The one whose light DOM has content is no host of ours.
     expect(document.querySelectorAll('[data-host]')).toHaveLength(2);
@@ -49,7 +49,7 @@ describe('the Fansly start without MAIN', () => {
 
   it('[ER-048] without MAIN the bridge is null after its timeout and the tab hears «not ready»; Fansly’s host port comes all the same and says so', async () => {
     const diagnostics: FanslyDiagnostic[] = [];
-    const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
+    const started = startFanslyTab({ win: window, validation: loadValidation, redeem: () => Promise.resolve(false), handshakeTimeoutMs: 20, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
     expect(await started.bridge).toBeNull();
     expect(diagnostics).toEqual([{ event: 'main-missing', code: 'CG-HOST-NOT-READY' }]);
     const port = await started.host;
@@ -61,7 +61,7 @@ describe('the Fansly start without MAIN', () => {
 
   it('the keys: a conversation’s address is a chat (P7c); no field is Fansly’s message field and no window of its own is open yet (P7i)', async () => {
     expect(routeOfLocation({ pathname: '/messages/123456789012345678' })).toEqual({ kind: 'chat', epoch: '/messages/123456789012345678' });
-    const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20 });
+    const started = startFanslyTab({ win: window, validation: loadValidation, redeem: () => Promise.resolve(false), handshakeTimeoutMs: 20 });
     const probe = createKeyboardProbe(document, started.mounts.registry);
     document.body.innerHTML = '<app-group-message-input><textarea class="message-input"></textarea></app-group-message-input>';
     const field = document.querySelector('textarea');

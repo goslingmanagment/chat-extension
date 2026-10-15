@@ -13,20 +13,18 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { installFanslyMain } from '../main/index';
 import { createFakeFanslyPage, type FakeFanslyPage } from '../testing/fake-dom';
+import { EPOCH, NO_ONE, scriptedMain, type Answer } from '../testing/scripted-main';
 import { createAnchorWatcher } from './anchors';
-import { BridgeCallError, type FanslyBridgeEvent, type FanslyMainBridgeClient } from './bridge-client';
+import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from './host-port';
 import { watchCoexistence, type Coexistence } from './legacy';
 import { createFanslyMounts } from './mount';
 import { createRouteWatcher } from './route';
 import { startFanslyHost } from './start';
-import { parseEvent } from './validate';
 import { loadValidation } from './validation';
 
 const { creator: CREATOR, fan: FAN, group: GROUP, otherGroup: OTHER } = FANSLY_IDS;
 const SECOND_CREATOR = '700000000000000009';
-/** The fixtures' snapshot names this document epoch. */
-const EPOCH = 'doc1';
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -39,60 +37,9 @@ const settle = async (): Promise<void> => {
   for (let i = 0; i < 3; i += 1) await new Promise((resolve) => setTimeout(resolve, 0));
 };
 
-const NO_ONE: FanslyState = {
-  identity: { ...fanslyIdentityWire, creatorId: null, accountMeSeen: false },
-  socket: { epoch: 0, confirmed: false },
-  chat: null,
-  contract: { anchors: { accountMe: 'notYet', socket: 'notYet', frames: 'notYet', xhr: 'notYet' }, tap: 'ok' },
-  lastBatch: 0,
-};
 
-type Answer = (payload: never) => unknown;
-
-/** A MAIN the test scripts: its answers by request type (none — `not-ready`, as a MAIN before P7b says), its events through Fansly's schemas. */
-function scriptedMain(script: Partial<Record<string, Answer>>) {
-  const listeners = new Set<(event: FanslyBridgeEvent) => void>();
-  const calls: Array<{ readonly t: string; readonly payload: unknown }> = [];
-  const client = {
-    documentEpoch: EPOCH,
-    probe: () => Promise.resolve(PROBE),
-    request(t: string, payload: unknown) {
-      calls.push({ t, payload });
-      const answer = script[t];
-      if (answer === undefined) return Promise.reject(new BridgeCallError('not-ready', t));
-      try {
-        return Promise.resolve(answer(payload as never));
-      } catch (error) {
-        return Promise.reject(error instanceof Error ? error : new Error(String(error)));
-      }
-    },
-    onEvent(listener: (event: FanslyBridgeEvent) => void) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    stats: () => ({ rejected: {}, invalidAnswers: 0, invalidEvents: 0, stale: 0, late: 0, timeouts: 0, coalesced: 0 }),
-    close: () => listeners.clear(),
-  } as unknown as FanslyMainBridgeClient;
-  /** Delivers a wire event as the client would after its checks: what Fansly's schemas make of it. */
-  const deliver = (t: 'fx.batch' | 'fx.gap' | 'fault', payload: unknown): void => {
-    const parsed = parseEvent(t, payload);
-    if (parsed === null) throw new Error(`the client would drop this ${t}`);
-    for (const listener of [...listeners]) listener({ t, payload: parsed } as FanslyBridgeEvent);
-  };
-  return {
-    client,
-    calls,
-    /** The requests of a type, their payloads. */
-    asked: (t: string): unknown[] => calls.filter((call) => call.t === t).map((call) => call.payload),
-    batch: (n: number, ...events: FanslyBatchEvent[]): void => deliver('fx.batch', { n, events }),
-    /** A batch the schemas refuse: only its number goes on (validate.ts). */
-    refused: (n: number): void => deliver('fx.batch', { n, events: [{ t: 'fx.identity', p: { creatorId: 'not-an-id' } }] }),
-    gap: (): void => deliver('fx.gap', { reason: 'overflow' }),
-    fault: (source: string, count: number): void => deliver('fault', { source, count }),
-  };
-}
+/** No action token is ever spent here: these tests write nothing (insert.dom.test.ts does). */
+const NO_TOKEN = (): Promise<boolean> => Promise.resolve(false);
 
 const light = { current: () => ({ scheme: 'light', tokens: {}, fixedWidth: false }) as const, onChange: () => () => undefined, dispose: () => undefined };
 
@@ -112,7 +59,7 @@ async function startPort(path: string, main: FanslyMainBridgeClient | null, now?
   const diagnostics: FanslyDiagnostic[] = [];
   const route = createRouteWatcher(window, (diagnostic) => diagnostics.push(diagnostic));
   const anchors = createAnchorWatcher(document, route);
-  const port = createFanslyHostPort({ ...(coexistence ? { coexistence } : {}), win: window, bridge: main, mounts: createFanslyMounts(document), theme: light, route, anchors, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic), ...(now === undefined ? {} : { now }) });
+  const port = createFanslyHostPort({ ...(coexistence ? { coexistence } : {}), win: window, bridge: main, mounts: createFanslyMounts(document), theme: light, route, anchors, redeem: NO_TOKEN, validation: loadValidation, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic), ...(now === undefined ? {} : { now }) });
   cleanups.push(() => port.dispose(), () => page.destroy());
   const events: HostEvent[] = [];
   port.subscribe((event) => events.push(event));
@@ -916,7 +863,7 @@ describe('[host:fansly] the port over the real MAIN', () => {
     const main = installFanslyMain(win, { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com'] });
     Reflect.deleteProperty(document, 'readyState');
     const diagnostics: FanslyDiagnostic[] = [];
-    const started = startFanslyHost({ win, validation: loadValidation, handshakeTimeoutMs: 1000, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
+    const started = startFanslyHost({ win, validation: loadValidation, redeem: NO_TOKEN, handshakeTimeoutMs: 1000, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
     const port = await started.host;
     cleanups.push(() => port.dispose(), () => main.dispose(), () => page.destroy(), () => void started.bridge.then((bridge) => bridge?.close()));
     /** The page's own request and its answer, as Fansly's API gives it. */

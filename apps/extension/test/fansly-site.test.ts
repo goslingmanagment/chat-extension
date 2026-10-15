@@ -68,7 +68,7 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     for (const script of scriptsOf(FANSLY)) expect(existsSync(`${entrypoints}${script.entry}.ts`), script.entry).toBe(true);
     expect(FANSLY.budgets.scripts.map((line) => [line.entry, line.gzipBytes])).toEqual([
       ['fansly-main', 16 * 1024],
-      ['fansly', 31 * 1024],
+      ['fansly', 34 * 1024],
       ['fansly-notice', 2 * 1024],
     ]);
     expect(FANSLY.mainWorldSources).toEqual(['packages/host-fansly/src/main/']);

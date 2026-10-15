@@ -65,7 +65,7 @@ describe('[NEW-12] [FS-CO-1] coexistence notices and retirement', () => {
   });
   it('old DOM before start admits no tab, clears accounts and denies every capability and fresh snapshot', async () => {
     document.body.innerHTML = '<div id="chatgoose-root"></div>';
-    const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20 });
+    const started = startFanslyTab({ win: window, validation: loadValidation, redeem: () => Promise.resolve(false), handshakeTimeoutMs: 20 });
     expect(await started.activation.ready).toBe(false);
     const port = await started.host;
     expect(await started.bridge).toBeNull();

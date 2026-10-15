@@ -7,11 +7,13 @@
 // within the bridge's limits (`checkBridgeFrame`) and the byte limit of its
 // own type (`fanslyFrameByteLimit`: a batch 64 KiB, a snapshot 128 KiB), the
 // envelope, then the answer schema of the request's type or the payload schema
-// of the event frame (a batch is checked whole).
+// of the event frame (a batch is checked whole). And the intents our own
+// controllers hand the port's writes (R20 P7e).
 
 import { checkBridgeFrame } from '@cg/contracts/bridge';
 import { FANSLY_WIRE_EVENT_TYPES, FanslyBridgeEventEnvelopeSchema, FanslyBridgeResponseSchema, fanslyFrameByteLimit, type FanslyWireEventType, type ToMainFanslyType } from '@cg/contracts/bridge-fansly';
 import { parseFanslyBridgeData, parseFanslyWireEvent, type FanslyWireEventPayload, type ToMainFanslyData } from '@cg/contracts/bridge-messages-fansly';
+import { InsertIntentSchema, NavigationIntentSchema } from '@cg/contracts/host';
 import type { CheckedFrame } from '@cg/host-kit/isolated/validation';
 
 import type { FanslyBridge } from './bridge-client';
@@ -54,3 +56,7 @@ export function parseEvent<T extends FanslyWireEventType>(t: T, payload: unknown
   const n: unknown = (payload as { readonly n?: unknown }).n;
   return Number.isSafeInteger(n) && (n as number) >= 1 ? ({ n, events: [] } as unknown as FanslyWireEventPayload<T>) : null;
 }
+
+/** HostPort inputs from our own controllers (R20 P7e): a broken one is a programming error, not a refusal of the page. */
+export const isInsertIntent = (value: unknown): boolean => InsertIntentSchema.safeParse(value).success;
+export const isNavigationIntent = (value: unknown): boolean => NavigationIntentSchema.safeParse(value).success;

@@ -317,6 +317,8 @@ export class Composer implements View {
 
   private onContentInputChange(value: string): void {
     this.model = value;
+    // Every value the model takes from the field, by the group this composer serves: where a write landed (R20 P7e).
+    record('composer-model', { place: this.place, instance: this.instance, groupId: this.group.id, value });
     this.onAfterContentInputChange();
     this.store.cacheDmContent(this.group.id, this.model);
     if (this.model.length > 0) {
