@@ -21,6 +21,16 @@
 //   and its template are in it). That is how «the composer is in the
 //   container» and «the send button is the composer's» are read without a
 //   single minified name;
+// - «in the page socket's decoder» — the same idea for code that is no
+//   component: a block of the prettified copy (the lines around a line
+//   indented at least as deep as it) that holds a marker. The page socket's
+//   service is the block holding its table of service ids (`MessageService:
+//   5`), its module — the block one level around it (the socket's own
+//   service, which opens the address, stands there); its decoder — the block
+//   in the service that decodes the envelope by its published name
+//   (`EventWrapper`). The envelope's numbers count only there:
+//   `10001` or `1e4` elsewhere (another socket's decoder, unrelated code) says
+//   nothing of the frames MAIN reads;
 // - an address or a number — as the page's code writes it.
 //
 // Only the app's own code is read: `main.<hash>.js` and its lazy chunks
@@ -90,6 +100,8 @@ export const FRAME_ENVELOPE = { service: 10_000, package: 10_001 } as const;
 export const FRAME_SERVICES = { MessageService: 5, GroupService: 4, FollowerService: 3 } as const;
 /** The version of the socket's protocol the page asks for: another one may bring other frames. */
 export const SOCKET_VERSION = '?v=3';
+/** The envelope's name in the page's published protocol (`message EventWrapper { t, d }`): what its decoder decodes a frame as. */
+export const FRAME_WRAPPER = 'EventWrapper';
 
 // ── How a string is looked for ─────────────────────────────────────────────
 
@@ -153,6 +165,58 @@ const within =
     return list.some((item, at) => item.tag === tag && index > (list[at - 1]?.end ?? -1) && index <= item.end);
   };
 
+type Block = { readonly start: number; readonly end: number };
+
+/** A block of the prettified copy: the lines around `index` indented at least as deep as it (blank lines with them). */
+function blockOf(lines: readonly string[], index: number): Block {
+  const indent = indentOf(lines[index] ?? '');
+  const inside = (line: string | undefined): boolean => line !== undefined && (line.trim() === '' || indentOf(line) >= indent);
+  let start = index;
+  let end = index;
+  while (inside(lines[start - 1])) start -= 1;
+  while (inside(lines[end + 1])) end += 1;
+  return { start, end };
+}
+
+type Confirm = (lines: readonly string[], index: number) => boolean;
+
+/** The blocks of each marker in a file (a cache per file of one `checkAnchors`), by the marker's name. */
+const blocks = new WeakMap<readonly string[], Map<string, readonly Block[]>>();
+
+/** The line that opens the block a line stands in: the nearest one above indented less; null — none. */
+function openerOf(lines: readonly string[], index: number): number | null {
+  const indent = indentOf(lines[index] ?? '');
+  for (let at = index - 1; at >= 0; at -= 1) {
+    const line = lines[at] ?? '';
+    if (line.trim() !== '' && indentOf(line) < indent) return at;
+  }
+  return null;
+}
+
+/**
+ * A line counts only inside a block that holds a line of `marker` (that line itself standing where `outer` says, when
+ * given) — or, with `up`, inside the block that many levels around it: «in the page socket's service», «in its
+ * decoder», «in the module of that service».
+ */
+const inBlockOf =
+  (name: string, marker: RegExp, options: { readonly outer?: Confirm; readonly up?: number } = {}): Confirm =>
+  (lines, index) => {
+    let byName = blocks.get(lines);
+    if (byName === undefined) blocks.set(lines, (byName = new Map<string, readonly Block[]>()));
+    let found = byName.get(name);
+    if (found === undefined) {
+      const list: Block[] = [];
+      lines.forEach((line, at) => {
+        if (!marker.test(line) || (options.outer !== undefined && !options.outer(lines, at))) return;
+        let from: number | null = at;
+        for (let level = 0; level < (options.up ?? 0) && from !== null; level += 1) from = openerOf(lines, from);
+        if (from !== null) list.push(blockOf(lines, from));
+      });
+      byName.set(name, (found = list));
+    }
+    return found.some((block) => index >= block.start && index <= block.end);
+  };
+
 /** The classes a selector names: `div.message-composer.hidden` → message-composer, hidden. */
 const classesIn = (selector: string): string[] => [...selector.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((match) => match[1] ?? '');
 /** The one class a selector of the adapter names (the first): the anchor's own. */
@@ -188,6 +252,20 @@ const address = (group: FanslyAnchorId, entry: (typeof RESPONSE_ADDRESSES)[numbe
   group,
   pattern: entry.exact ? literal(entry.written) : startOf(entry.written),
 });
+
+const MESSAGE_SERVICE = 'MessageService';
+const SERVICE_TABLE = keyed(MESSAGE_SERVICE, FRAME_SERVICES[MESSAGE_SERVICE]);
+/** The page socket's service: the block that holds its table of service ids. */
+const inSocketService = inBlockOf('socket service', SERVICE_TABLE);
+/** The module of that service, with the socket's own service beside it (the address it opens): one level around. */
+const inSocketModule = inBlockOf('socket module', SERVICE_TABLE, { up: 1 });
+/** Its decoder: the block in that service that decodes the envelope by its name. */
+const inFrameDecoder = inBlockOf('frame decoder', literal(FRAME_WRAPPER), { outer: inSocketService });
+/** A service id compared with its number: `5 === e.serviceId`, `e.serviceId === 5`. */
+const serviceIdIs = (id: number): RegExp =>
+  new RegExp(`(?<![\\w$.])(?:${numberForms(id)})\\s*[=!]==?\\s*[\\w$.]+\\.serviceId(?![\\w$])|\\.serviceId\\s*[=!]==?\\s*(?:${numberForms(id)})(?![\\w$.])`);
+/** A handler of the message service's events: the block of that comparison. */
+const besideMessageService = inBlockOf('message service', serviceIdIs(FRAME_SERVICES[MESSAGE_SERVICE]));
 
 /**
  * Fansly's anchor set: every string with the contract anchor it proves (`group`). An anchor is present in the copy
@@ -229,11 +307,18 @@ export function fanslyAnchors(): Anchor[] {
     ...RESPONSE_ADDRESSES.filter((entry) => entry.kind === 'me').map((entry) => address('accountMe', entry)),
     ...FANSLY_NETWORK.socketHosts.map((host): Anchor => ({ id: `socket url wss://${host}`, group: 'socket', pattern: startOf(`wss://${host}`) })),
     { id: 'new WebSocket() — the global, taken at construction', group: 'socket', pattern: /(?<![\w$.])new\s+WebSocket\s*\(/ },
-    { id: `envelope t ${FRAME_ENVELOPE.service} (a service event)`, group: 'frames', pattern: compared(FRAME_ENVELOPE.service) },
-    { id: `envelope t ${FRAME_ENVELOPE.package} (a package of frames)`, group: 'frames', pattern: compared(FRAME_ENVELOPE.package) },
+    // The page socket's service — the block of its table of service ids — and in it the decoder of the envelope.
     ...Object.entries(FRAME_SERVICES).map(([name, id]): Anchor => ({ id: `service ${name} = ${id}`, group: 'frames', pattern: keyed(name, id) })),
-    { id: 'the service event is one more JSON string: JSON.parse(….event)', group: 'frames', pattern: /JSON\.parse\(\s*[\w$.]+\.event\s*\)/ },
-    { id: `socket protocol ${SOCKET_VERSION}`, group: 'frames', pattern: startOf(SOCKET_VERSION) },
+    { id: `socket protocol ${SOCKET_VERSION} in the page socket's module`, group: 'frames', pattern: startOf(SOCKET_VERSION), confirm: inSocketModule },
+    { id: `the envelope decoded as ${FRAME_WRAPPER} in the page socket's service`, group: 'frames', pattern: literal(FRAME_WRAPPER), confirm: inSocketService },
+    { id: `envelope t ${FRAME_ENVELOPE.service} (a service event) in the page socket's decoder`, group: 'frames', pattern: compared(FRAME_ENVELOPE.service), confirm: inFrameDecoder },
+    { id: `envelope t ${FRAME_ENVELOPE.package} (a package of frames) in the page socket's decoder`, group: 'frames', pattern: compared(FRAME_ENVELOPE.package), confirm: inFrameDecoder },
+    {
+      id: `a ${MESSAGE_SERVICE} event is one more JSON string: JSON.parse(….event) beside its service id ${FRAME_SERVICES[MESSAGE_SERVICE]}`,
+      group: 'frames',
+      pattern: /JSON\.parse\(\s*[\w$.]+\.event\s*\)/,
+      confirm: besideMessageService,
+    },
     { id: 'new XMLHttpRequest() — the HTTP client', group: 'xhr', pattern: /(?<![\w$.])new\s+XMLHttpRequest\s*\(/ },
     { id: 'JSON answers read as text: responseType "text"', group: 'xhr', pattern: new RegExp(`\\.responseType\\s*=.*${QUOTE}text${QUOTE}`) },
     { id: 'the envelope {success, response}', group: 'xhr', pattern: /\.success\s*\?.*\.response(?![\w$])/ },
