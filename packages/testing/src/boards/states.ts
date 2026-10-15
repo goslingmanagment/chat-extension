@@ -47,6 +47,7 @@ import {
   type ScenarioViewEntry,
 } from '../scenarios/app-client';
 import { BOARD_FANS, GREETING_PARTS, HUBERT, NEWCOMER_FANS, REPLY_PARTS, boardHandle, boardShelves, boardStats, hubertFeed, manyFans, newcomerHandle, newcomerRows, paletteChat, type BoardFan } from './data';
+import { fanslyConnecting, fanslyGreeted, fanslyListFailed, fanslyQueue, fanslyScanning } from './fansly-newcomers';
 
 const OP = { reply: uuid(701), hi: uuid(702) };
 const SENT_AT = iso(NOW + MIN);
@@ -343,9 +344,13 @@ export interface BoardState {
   readonly title: string;
   readonly surface: MountSurfaceKind;
   readonly views: (ctx: ScenarioCtx) => ScenarioViewEntry[];
+  /** A site's own surface for the view (R20 P10a: «Новые» of the pass on Fansly); absent — the shared one. */
+  readonly site?: 'fansly';
 }
 
 const state = (id: string, title: string, surface: MountSurfaceKind, build: (ctx: ScenarioCtx) => ScenarioViewEntry[]): BoardState => ({ id, title, surface, views: build });
+/** «Новые» of the background's pass, drawn by Fansly's own surface (ui/hosts/fansly/newcomers). */
+const fansly = (id: string, title: string, build: (ctx: ScenarioCtx) => ScenarioViewEntry[]): BoardState => ({ id, title, surface: 'newcomers', views: build, site: 'fansly' });
 
 export const BOARD_STATES: readonly BoardState[] = [
   // 11 — Spenders
@@ -368,6 +373,12 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('13b', 'Sent 1 of 3, part 2 in ChatSpace’s queue', 'newcomers', (ctx) => newcomersState(ctx, 'b')),
   state('13c', 'A colleague holds the fan: Hi is off', 'newcomers', (ctx) => newcomersState(ctx, 'c')),
   state('13d', 'Stopped on an unknown outcome', 'newcomers', (ctx) => newcomersState(ctx, 'd')),
+  // 13 f–j — «Новые» on Fansly (R20 P10a): the background's pass, Fansly's own window
+  fansly('13f', 'Fansly: the queue runs, the card of the first fan to write to', fanslyQueue),
+  fansly('13g', 'Fansly: «Уже писали» — the proof folded, earlier messages to load', fanslyGreeted),
+  fansly('13h', 'Fansly: the list was not read (FX-017)', fanslyListFailed),
+  fansly('13i', 'Fansly: a pause Fansly asked for, a partial result, a fan nobody can write to', fanslyScanning),
+  fansly('13j', 'Fansly: the fast part reads the followers', fanslyConnecting),
   // 14 — the fan panel
   state('14a', 'Fan panel: the fan', 'fan-panel', (ctx) => fanPanelState(ctx, 'a')),
   state('14b', 'Fan panel: Recap', 'fan-panel', (ctx) => fanPanelState(ctx, 'b')),

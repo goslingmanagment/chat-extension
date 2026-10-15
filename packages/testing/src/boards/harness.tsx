@@ -15,7 +15,11 @@ import { paletteSurface, quickJumpSurface } from '@cg/ui/palette';
 import { previewWindowSurface } from '@cg/ui/preview';
 import { spendersSurface } from '@cg/ui/spenders';
 
+import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
+
+import { FANSLY_SITE_TEXTS } from '../kit/profiles';
 import { type AppClientScenario } from '../scenarios/app-client';
+import { FANSLY_NEWCOMERS_SURFACE } from './fansly-newcomers';
 import { boardWorld, type BoardWorld } from './world';
 
 export const BOARD_SURFACES = {
@@ -51,15 +55,16 @@ export interface MountBoardOptions {
   readonly client?: (world: BoardWorld) => AppClient;
 }
 
-export function mountBoard(kind: BoardSurfaceKind, scenario: string | AppClientScenario, options: MountBoardOptions = {}): MountedBoard {
-  const world = boardWorld(scenario, options.language ?? 'ru');
+export function mountBoard(kind: BoardSurfaceKind | 'fansly-newcomers', scenario: string | AppClientScenario, options: MountBoardOptions = {}): MountedBoard {
+  const fansly = kind === 'fansly-newcomers';
+  const world = fansly ? boardWorld(scenario, options.language ?? 'ru', FANSLY_PHRASES, FANSLY_SITE_TEXTS) : boardWorld(scenario, options.language ?? 'ru');
   const host = document.createElement('div');
   host.setAttribute('data-host', 'overlay');
   document.documentElement.append(host);
   const root = host.attachShadow({ mode: 'closed' });
   const failures: KitFailure[] = [];
   const deps = options.client === undefined ? world.deps : { ...world.deps, client: options.client(world) };
-  const mount = mountKitSurface(kind, root, deps, BOARD_SURFACES[kind], { report: (failure) => failures.push(failure), now: () => world.client.now() });
+  const mount = mountKitSurface(fansly ? 'newcomers' : kind, root, deps, fansly ? FANSLY_NEWCOMERS_SURFACE : BOARD_SURFACES[kind], { report: (failure) => failures.push(failure), now: () => world.client.now() });
   return {
     ...world,
     host,
@@ -79,7 +84,7 @@ export function mountBoard(kind: BoardSurfaceKind, scenario: string | AppClientS
 }
 
 /** mountBoard inside `act`: the effects of the first render have run when it resolves. */
-export async function mountBoardSettled(kind: BoardSurfaceKind, scenario: string | AppClientScenario, options: MountBoardOptions = {}): Promise<MountedBoard> {
+export async function mountBoardSettled(kind: BoardSurfaceKind | 'fansly-newcomers', scenario: string | AppClientScenario, options: MountBoardOptions = {}): Promise<MountedBoard> {
   let mounted: MountedBoard | null = null;
   await act(() => {
     mounted = mountBoard(kind, scenario, options);

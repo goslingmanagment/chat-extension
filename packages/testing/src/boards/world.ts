@@ -6,9 +6,10 @@
 
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { createI18n, type LiveI18n, type SitePhrases } from '@cg/core/domain/i18n';
+import { createLiveI18n } from '@cg/core/domain/i18n/live';
 import { type Locale } from '@cg/contracts';
 
-import { FakeAppClient, createFakeMountDeps, ctxOf, fallbackView, scenarioById, type AppClientScenario, type FakeMountDeps, type ScenarioCtx } from '../scenarios/app-client';
+import { FakeAppClient, createFakeMountDeps, ctxOf, fallbackView, scenarioById, siteCatalogs, type AppClientScenario, type FakeMountDeps, type ScenarioCtx, type SiteTexts } from '../scenarios/app-client';
 import { BOARD_STATES, boardScenario } from './states';
 
 export type BoardDeps = Omit<FakeMountDeps, 'i18n'> & { readonly i18n: LiveI18n };
@@ -28,12 +29,16 @@ export function resolveScenario(id: string, language: Locale): AppClientScenario
   return BOARD_STATES.some((state) => state.id === id) ? boardScenario(id, language) : scenarioById(id);
 }
 
-/** `phrases` — the site the texts speak of (R20 F9b): ChatSpace's, as its tab has them, unless a gallery draws another. */
-export function boardWorld(scenario: string | AppClientScenario, language: Locale = 'ru', phrases: SitePhrases = CHATSPACE_PHRASES): BoardWorld {
+/**
+ * `phrases` — the site the texts speak of (R20 F9b): ChatSpace's, as its tab has them, unless a gallery draws another;
+ * `texts` — that site's own catalog entries over the shared catalog, as its tab's catalog chunk lays them (Fansly's codes).
+ */
+export function boardWorld(scenario: string | AppClientScenario, language: Locale = 'ru', phrases: SitePhrases = CHATSPACE_PHRASES, texts?: SiteTexts): BoardWorld {
   const chosen = typeof scenario === 'string' ? resolveScenario(scenario, language) : scenario;
   const ctx = ctxOf({ lang: language, platform: chosen.platform, debug: chosen.debug });
   const client = new FakeAppClient(chosen, (selector) => fallbackView(ctx, selector));
   const fake = createFakeMountDeps(client, ctx);
-  const deps: BoardDeps = { ...fake, i18n: createI18n({ language, now: () => client.now(), timeZone: STAND_TIME_ZONE, phrases }) };
+  const options = { language, now: () => client.now(), timeZone: STAND_TIME_ZONE, phrases };
+  const deps: BoardDeps = { ...fake, i18n: texts === undefined ? createI18n(options) : createLiveI18n(siteCatalogs(texts), options) };
   return { scenario: chosen, ctx, client, deps };
 }

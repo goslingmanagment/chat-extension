@@ -4,6 +4,7 @@
 //   &rows=1000                                    the live board over that many fans (search, filters, sort)
 //   &step=N                                       apply the scenario's steps up to N
 //   &host=chatspace|fansly|test                   the site's profile the surface is mounted with (kit/profiles.ts)
+//                                                 (13f–13j: «Новые» of the pass, Fansly's own surface — with host=fansly)
 // It plays the host side — a closed shadow root on the overlay host, outside
 // the page's own tree — and mounts the surface through the kit's mount
 // helper, as the extension does. `window.__boards` gives the e2e what a closed
@@ -20,6 +21,7 @@ import { spendersSurface } from '@cg/ui/spenders';
 
 import { galleryHostOf } from '../../kit/profiles';
 import { manyFans } from '../data';
+import { FANSLY_NEWCOMERS_SURFACE } from '../fansly-newcomers';
 import { LiveBoardClient } from '../live-client';
 import { BOARD_STATES } from '../states';
 import { boardWorld } from '../world';
@@ -77,7 +79,8 @@ const step = Number(params.get('step') ?? '-1');
 const known = BOARD_STATES.find((item) => item.id === stateId);
 const surfaceParam = params.get('surface') as MountSurfaceKind | null;
 const kind: MountSurfaceKind = surfaceParam !== null && SURFACES[surfaceParam] !== undefined ? surfaceParam : (known?.surface ?? 'spenders');
-const definition = SURFACES[kind] ?? spendersSurface;
+// A site's own surface for the view (R20 P10a: «Новые» of the pass on Fansly).
+const definition = known?.site === 'fansly' ? FANSLY_NEWCOMERS_SURFACE : (SURFACES[kind] ?? spendersSurface);
 
 const html = document.documentElement;
 html.classList.toggle('dark', scheme === 'dark');
@@ -85,9 +88,9 @@ html.classList.toggle('light', scheme === 'light');
 html.lang = language;
 
 // As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet, its phrases); the page plays the site.
-const { profile, play } = galleryHostOf(params);
+const { profile, play, texts } = galleryHostOf(params);
 play(scheme);
-const world = boardWorld(stateId, language, profile.phrases);
+const world = boardWorld(stateId, language, profile.phrases, texts);
 world.deps.scheme.set(scheme);
 if (step >= 0) world.client.goTo(step);
 // The side panel stands at the right edge of ChatSpace's container, inside its 1 px frame, left of its rail (ui-design §3.7).

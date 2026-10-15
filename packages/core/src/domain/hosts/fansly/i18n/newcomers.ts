@@ -1,0 +1,192 @@
+// The texts of «Новые» on Fansly (R20 P10a; docs/project-unite/architecture.md §3.4, §8.15; ui-design §3.12): keys
+// `fansly.newcomers.*` (contracts newcomers-fansly.ts). They come with the window's own chunk (`lazy/fansly/
+// newcomers.js`), never in the catalog every Fansly page with our application loads, and no ChatSpace bundle carries
+// them. The old Fansly extension's words (its window «Новые фоловеры»: «Не писали», «Ждёт ответа», «Уже писали»,
+// «Нельзя написать», «Список не загружен»…), in the chatter's vocabulary.
+
+import type { I18nKey } from '@cg/contracts/errors';
+import type { Locale } from '@cg/contracts/i18n/keys';
+import type { FanslyNewcomersTextKey } from '@cg/contracts/newcomers-fansly';
+import type { I18n } from '@cg/contracts/vm';
+
+import { createLiveI18n } from '../../../i18n/live';
+
+export type FanslyNewcomersCatalog = Readonly<Record<FanslyNewcomersTextKey, string>>;
+
+const RU: FanslyNewcomersCatalog = {
+  'fansly.newcomers.listLabel': 'Новые фоловеры',
+  'fansly.newcomers.cardLabel': 'Карточка фоловера',
+  'fansly.newcomers.tab.todo': 'К обработке',
+  'fansly.newcomers.tab.all': 'Все',
+  'fansly.newcomers.col.fan': 'Фан',
+  'fansly.newcomers.col.followed': 'Подписка',
+  'fansly.newcomers.col.status': 'Статус',
+  'fansly.newcomers.window': 'За какой срок показывать новых фоловеров',
+  'fansly.newcomers.stage.connecting': 'Подключаемся к Fansly…',
+  'fansly.newcomers.stage.welcome': 'Читаем welcome-сообщения…',
+  'fansly.newcomers.stage.followers': 'Загружаем фоловеров…',
+  'fansly.newcomers.stage.profiles': 'Загружаем профили…',
+  'fansly.newcomers.stage.checked': 'Проверено {done} из {total}',
+  'fansly.newcomers.stage.queue': 'Уточняем переписку: осталось {n}',
+  'fansly.newcomers.stage.paused': 'Проверка на паузе · осталось {n}',
+  'fansly.newcomers.stage.cooldown': 'Fansly ограничил частоту запросов. Пауза {s} с — проверка продолжится сама.',
+  'fansly.newcomers.stage.stopped': 'Проверка остановлена',
+  'fansly.newcomers.stage.failed': 'Список не загружен',
+  'fansly.newcomers.range': '{from} — {to} · местное время',
+  'fansly.newcomers.status.checking': 'Проверяем…',
+  'fansly.newcomers.status.pending': 'В очереди',
+  'fansly.newcomers.status.ready': 'Не писали',
+  'fansly.newcomers.status.reply': 'Ждёт ответа',
+  'fansly.newcomers.status.unverified': 'Переписка не проверена',
+  'fansly.newcomers.status.greeted': 'Уже писали',
+  'fansly.newcomers.status.dm-closed': 'Нельзя написать',
+  'fansly.newcomers.status.excluded': 'Исключён · нельзя написать',
+  'fansly.newcomers.status.failed': 'Не удалось проверить',
+  'fansly.newcomers.filter.label': 'Статус фана',
+  'fansly.newcomers.filter.any': 'Все статусы',
+  'fansly.newcomers.filter.ready': 'Не писали',
+  'fansly.newcomers.filter.pending': 'В очереди',
+  'fansly.newcomers.filter.reply': 'Ждёт ответа',
+  'fansly.newcomers.filter.unchecked': 'Не проверены',
+  'fansly.newcomers.filter.dm-closed': 'Нельзя написать',
+  'fansly.newcomers.filter.contacted': 'Уже писали',
+  'fansly.newcomers.followedAgo': 'подписался {age} назад',
+  'fansly.newcomers.followedAt': 'Подписался {date}',
+  'fansly.newcomers.checkedAt': 'проверен в {time}',
+  'fansly.newcomers.proof': 'Уже писали · {date}',
+  'fansly.newcomers.proofNote': 'Личное сообщение модели, которое нашла проверка',
+  'fansly.newcomers.automated': 'Автоматическое / массовое',
+  'fansly.newcomers.attachments': 'Вложения: {n}',
+  'fansly.newcomers.open': 'Открыть в Fansly ↗',
+  'fansly.newcomers.openTooltip': 'Чат откроется в новой вкладке, это окно останется открытым',
+  'fansly.newcomers.history.label': 'Переписка с фаном',
+  'fansly.newcomers.history.unchecked': 'Переписка ещё не проверена. Строка ждёт проверки по аккаунту фана.',
+  'fansly.newcomers.history.checking': 'Проверяем переписку…',
+  'fansly.newcomers.history.none': 'Личной переписки ещё нет',
+  'fansly.newcomers.history.loading': 'Загружаем переписку…',
+  'fansly.newcomers.history.empty': 'Fansly не вернул сообщений',
+  'fansly.newcomers.history.failed': 'Историю прочитать не удалось',
+  'fansly.newcomers.history.retry': 'Повторить загрузку',
+  'fansly.newcomers.history.older': 'Более ранние сообщения',
+  'fansly.newcomers.history.capped': 'Показаны {n} сообщений. Более ранняя переписка — в самом чате: «Открыть в Fansly».',
+  'fansly.newcomers.fanPrefix': 'Фан:',
+  'fansly.newcomers.ownPrefix': 'Модель:',
+  'fansly.newcomers.dmClosed.paid': 'Fansly не даёт написать: этот фан принимает только платные сообщения.',
+  'fansly.newcomers.dmClosed.permissions': 'Fansly не даёт написать: модель не проходит правила фана для личных сообщений.',
+  'fansly.newcomers.errorFrom': 'ChatGoose · {code}',
+  'fansly.newcomers.listFailed': 'Список не загружен — это сбой, а не пустой список.',
+  'fansly.newcomers.listFailedHint': 'Если Fansly открыт через прокси и фоловеры не загружаются, включите «Fansly через вкладку» в настройках расширения.',
+  'fansly.newcomers.incomplete': 'Проверка прошла не до конца: показаны не все, кто подписался за это время.',
+  'fansly.newcomers.empty.window': 'За {window} новых фоловеров нет.',
+  'fansly.newcomers.empty.filter': 'Нет фанов с выбранным статусом.',
+  'fansly.newcomers.empty.search': 'Никого не нашли. Проверьте фильтр или поиск.',
+  'fansly.newcomers.empty.todo': 'Очередь пуста: всем найденным фоловерам уже написали. Они во вкладке «Все».',
+  'fansly.newcomers.empty.card': 'Выберите фана в списке.',
+  'fansly.newcomers.hint': 'Здесь те, кто подписался на модель за последние {window}. Статус фана — по проверке его переписки; сама проверка ничего не отправляет.',
+  'fansly.newcomers.footer': '{n} за {window}',
+};
+
+const EN: FanslyNewcomersCatalog = {
+  'fansly.newcomers.listLabel': 'New followers',
+  'fansly.newcomers.cardLabel': 'Follower’s card',
+  'fansly.newcomers.tab.todo': 'To do',
+  'fansly.newcomers.tab.all': 'All',
+  'fansly.newcomers.col.fan': 'Fan',
+  'fansly.newcomers.col.followed': 'Followed',
+  'fansly.newcomers.col.status': 'Status',
+  'fansly.newcomers.window': 'How far back to show new followers',
+  'fansly.newcomers.stage.connecting': 'Connecting to Fansly…',
+  'fansly.newcomers.stage.welcome': 'Reading the welcome messages…',
+  'fansly.newcomers.stage.followers': 'Loading the followers…',
+  'fansly.newcomers.stage.profiles': 'Loading the profiles…',
+  'fansly.newcomers.stage.checked': 'Checked {done} of {total}',
+  'fansly.newcomers.stage.queue': 'Checking the chats: {n} left',
+  'fansly.newcomers.stage.paused': 'The check is paused · {n} left',
+  'fansly.newcomers.stage.cooldown': 'Fansly limited the requests. Pause {s} s — the check goes on by itself.',
+  'fansly.newcomers.stage.stopped': 'The check stopped',
+  'fansly.newcomers.stage.failed': 'The list did not load',
+  'fansly.newcomers.range': '{from} — {to} · local time',
+  'fansly.newcomers.status.checking': 'Checking…',
+  'fansly.newcomers.status.pending': 'Queued',
+  'fansly.newcomers.status.ready': 'Not written to',
+  'fansly.newcomers.status.reply': 'Waits for a reply',
+  'fansly.newcomers.status.unverified': 'Chat not checked',
+  'fansly.newcomers.status.greeted': 'Written to already',
+  'fansly.newcomers.status.dm-closed': 'Can’t be messaged',
+  'fansly.newcomers.status.excluded': 'Excluded · can’t be messaged',
+  'fansly.newcomers.status.failed': 'Couldn’t check',
+  'fansly.newcomers.filter.label': 'Fan’s status',
+  'fansly.newcomers.filter.any': 'All statuses',
+  'fansly.newcomers.filter.ready': 'Not written to',
+  'fansly.newcomers.filter.pending': 'Queued',
+  'fansly.newcomers.filter.reply': 'Waits for a reply',
+  'fansly.newcomers.filter.unchecked': 'Not checked',
+  'fansly.newcomers.filter.dm-closed': 'Can’t be messaged',
+  'fansly.newcomers.filter.contacted': 'Written to already',
+  'fansly.newcomers.followedAgo': 'followed {age} ago',
+  'fansly.newcomers.followedAt': 'Followed {date}',
+  'fansly.newcomers.checkedAt': 'checked at {time}',
+  'fansly.newcomers.proof': 'Written to already · {date}',
+  'fansly.newcomers.proofNote': 'The model’s personal message the check found',
+  'fansly.newcomers.automated': 'Automated / mass',
+  'fansly.newcomers.attachments': 'Attachments: {n}',
+  'fansly.newcomers.open': 'Open in Fansly ↗',
+  'fansly.newcomers.openTooltip': 'The chat opens in a new tab; this window stays open',
+  'fansly.newcomers.history.label': 'Chat with the fan',
+  'fansly.newcomers.history.unchecked': 'The chat isn’t checked yet. The row waits for the check of the fan’s account.',
+  'fansly.newcomers.history.checking': 'Checking the chat…',
+  'fansly.newcomers.history.none': 'No personal chat yet',
+  'fansly.newcomers.history.loading': 'Loading the chat…',
+  'fansly.newcomers.history.empty': 'Fansly returned no messages',
+  'fansly.newcomers.history.failed': 'The history could not be read',
+  'fansly.newcomers.history.retry': 'Load again',
+  'fansly.newcomers.history.older': 'Earlier messages',
+  'fansly.newcomers.history.capped': '{n} messages shown. The earlier chat is in the chat itself: «Open in Fansly».',
+  'fansly.newcomers.fanPrefix': 'Fan:',
+  'fansly.newcomers.ownPrefix': 'Model:',
+  'fansly.newcomers.dmClosed.paid': 'Fansly won’t let you write: this fan takes paid messages only.',
+  'fansly.newcomers.dmClosed.permissions': 'Fansly won’t let you write: the model doesn’t meet the fan’s rules for direct messages.',
+  'fansly.newcomers.errorFrom': 'ChatGoose · {code}',
+  'fansly.newcomers.listFailed': 'The list did not load — a failure, not an empty list.',
+  'fansly.newcomers.listFailedHint': 'If Fansly runs through a proxy and the followers don’t load, switch on «Fansly through the tab» in the extension’s settings.',
+  'fansly.newcomers.incomplete': 'The check did not finish: not everyone who followed in this time is shown.',
+  'fansly.newcomers.empty.window': 'No new followers in the last {window}.',
+  'fansly.newcomers.empty.filter': 'No fans with this status.',
+  'fansly.newcomers.empty.search': 'Nobody found. Check the filter or the search.',
+  'fansly.newcomers.empty.todo': 'The queue is empty: every follower found has been written to. They are under «All».',
+  'fansly.newcomers.empty.card': 'Choose a fan in the list.',
+  'fansly.newcomers.hint': 'Here are those who followed the model in the last {window}. A fan’s status comes from the check of their chat; the check itself sends nothing.',
+  'fansly.newcomers.footer': '{n} in {window}',
+};
+
+export const FANSLY_NEWCOMERS_TEXTS: { readonly [L in Locale]: FanslyNewcomersCatalog } = { ru: RU, en: EN };
+
+const PREFIX = 'fansly.newcomers.';
+
+/**
+ * The tab's I18n with the window's texts laid over it: a `fansly.newcomers.*` key is answered from this pack in the
+ * tab's language at the moment of the call; every other key, number and time is the tab's own port's.
+ */
+export function withFanslyNewcomersTexts(base: I18n): I18n {
+  const own = createLiveI18n((language) => FANSLY_NEWCOMERS_TEXTS[language], { language: base.language });
+  const mine = (key: I18nKey): boolean => (key as string).startsWith(PREFIX);
+  const now = (): typeof own => {
+    if (own.language !== base.language) own.setLanguage(base.language);
+    return own;
+  };
+  return {
+    get language() {
+      return base.language;
+    },
+    t: (key, params) => (mine(key) ? now().t(key, params) : base.t(key, params)),
+    plural: (key, count, params) => base.plural(key, count, params),
+    text: (msg) => (mine(msg.key) ? now().text(msg) : base.text(msg)),
+    formatMoneyMills: (mills, format) => base.formatMoneyMills(mills, format),
+    ...(base.formatMoneySpoken === undefined ? {} : { formatMoneySpoken: (mills: Parameters<I18n['formatMoneyMills']>[0], format?: Parameters<I18n['formatMoneyMills']>[1]) => base.formatMoneySpoken?.(mills, format) ?? '' }),
+    formatAge: (from, at) => base.formatAge(from, at),
+    formatTime: (at, style) => base.formatTime(at, style),
+    ...(base.formatTimeIn === undefined ? {} : { formatTimeIn: (at: Parameters<I18n['formatTime']>[0], zone: string, style?: Parameters<I18n['formatTime']>[1]) => base.formatTimeIn?.(at, zone, style) ?? '' }),
+    formatDuration: (ms, style) => base.formatDuration(ms, style),
+    subscribe: (listener) => base.subscribe(listener),
+  };
+}
