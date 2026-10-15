@@ -342,8 +342,15 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
     invalid: [{ eventId: '700000000000000201', accountId: creator, followerId: creator }, { eventId: Number('700000000000000201'), accountId: creator, followerId: fan }],
   },
   'fx.sent': {
-    valid: [{ groupId: group, msgId: newer, contentDigest: DIGEST }],
-    invalid: [{ groupId: group, msgId: newer, contentDigest: DIGEST, content: 'hey' }, { groupId: group, msgId: newer, contentDigest: 'XYZ' }],
+    valid: [{ groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: 15123.456 }],
+    invalid: [
+      { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: 15123.456, content: 'hey' },
+      { groupId: group, msgId: newer, contentDigest: 'XYZ', gestureAt: 15123.456 },
+      // P7f: a send names its gesture — without it the isolated side could link it only by its text.
+      { groupId: group, msgId: newer, contentDigest: DIGEST },
+      { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: -1 },
+      { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: '15123.456' },
+    ],
   },
   'fx.coverage': {
     valid: [
@@ -388,7 +395,7 @@ export const fullFanslyBatch = (): unknown => batchOf(3, Array.from({ length: FA
 export const FANSLY_WIRE_EVENT_FIXTURES: { readonly [T in FanslyWireEventType]: Verdicts } = {
   'fx.batch': {
     valid: [
-      batchOf(1, [{ t: 'fx.identity', p: fanslyIdentityWire }, { t: 'fx.chat', p: fanslyChatWire }, incomingEvent, { t: 'fx.sent', p: { groupId: group, msgId: newer, contentDigest: DIGEST } }]),
+      batchOf(1, [{ t: 'fx.identity', p: fanslyIdentityWire }, { t: 'fx.chat', p: fanslyChatWire }, incomingEvent, { t: 'fx.sent', p: { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: 15123.456 } }]),
       batchOf(2, [incomingEvent, incomingEvent]),
       fullFanslyBatch(),
     ],

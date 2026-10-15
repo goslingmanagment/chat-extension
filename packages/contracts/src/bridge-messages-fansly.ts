@@ -246,9 +246,11 @@ export const FROM_MAIN_FANSLY = {
     .check(z.refine((f) => f.accountId !== f.followerId, { message: 'an account does not follow itself' })),
   /**
    * A send by the person, attributed (§5.9): a trusted gesture, a receipt of exactly `POST /api/v1/message` and the
-   * echo `5/1` with the same id. The digest of the sent `content` is MAIN's; the text does not cross.
+   * echo `5/1` with the same id. The digest of the sent `content` is MAIN's; the text does not cross. `gestureAt` (R20
+   * P7f) names the gesture: the `timeStamp` of its event, which both worlds read from the same event — the isolated
+   * side links the send only to the draft it read at that very gesture.
    */
-  'fx.sent': z.strictObject({ groupId: NativeIdSchema, msgId: NativeIdSchema, contentDigest: DigestSchema }),
+  'fx.sent': z.strictObject({ groupId: NativeIdSchema, msgId: NativeIdSchema, contentDigest: DigestSchema, gestureAt: z.number().check(z.gte(0)) }),
   /** The completeness of chats changed (§5.6): `complete` only by a certificate of one chat; `all` only ever lowers it. */
   'fx.coverage': z
     .strictObject({

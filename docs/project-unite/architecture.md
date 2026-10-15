@@ -1286,7 +1286,7 @@ P7g: эти проекции разбираются, но ещё никуда н
 | `fx.chat` | `{groupId, fanId \| null, kind, dmAllowed, routeEpoch, window: {loaded, newestId, newestAt, completeness, startProven, fanScript}}` | состояние активной группы |
 | `fx.incoming` | `{groupId, fanId, msgId, fromFan, automated, tip, createdAt}` — каждое `5/1`, свои тоже | поток (свежесть, звук, эхо фоновых отправок) |
 | `fx.follow` | `{eventId, accountId, followerId}` | поток |
-| `fx.sent` | `{groupId, msgId, contentDigest}` | поток |
+| `fx.sent` | `{groupId, msgId, contentDigest, gestureAt}` — `gestureAt`: `timeStamp` события жеста (P7f) | поток |
 | `fx.coverage` | `{groupIds \| 'all', state, reason}` | поток |
 | `fx.deleted` | `{groupId, ids}` (открытая группа) | поток |
 | `fx.vaultAdded` | `{seq}` — номер наблюдения; `albumId`/`mediaIds` из ответа не взять (§7.11, P3a) | поток |

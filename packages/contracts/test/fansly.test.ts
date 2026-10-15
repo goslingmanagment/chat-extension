@@ -216,7 +216,7 @@ describe('Fansly ids: snowflake strings, never numbers', () => {
   it('above 2^53 a number would merge neighbours, so every id field takes a string only', () => {
     expect(Number(FANSLY_MSG.m1)).toBe(Number(FANSLY_MSG.m2));
     const numeric = Number(FANSLY_MSG.m1);
-    expect(M.FROM_MAIN_FANSLY['fx.sent'].safeParse({ groupId: '700000000000000003', msgId: numeric, contentDigest: 'deadbeef' }).success).toBe(false);
+    expect(M.FROM_MAIN_FANSLY['fx.sent'].safeParse({ groupId: '700000000000000003', msgId: numeric, contentDigest: 'deadbeef', gestureAt: 1 }).success).toBe(false);
     expect(M.FROM_MAIN_FANSLY['fx.deleted'].safeParse({ groupId: '700000000000000003', ids: [numeric] }).success).toBe(false);
     expect(M.TO_MAIN_FANSLY['fx.windowMeta'].payload.safeParse({ groupId: numeric }).success).toBe(false);
     expect(H.FanslySnapshotSchema.safeParse({ ...fanslyReplySnapshot, knownFanMessageIds: [numeric] }).success).toBe(false);
