@@ -67,6 +67,7 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   'ai-fansly': 'fansly/ai-fansly.ts',
   // Fansly's own panels (§3.1): the vault on `/creator/vault` (R20 P13b).
   vault: 'fansly/vault.ts',
+  registration: 'fansly/registration.ts',
 };
 
 export const FANSLY: HostDescriptor = {

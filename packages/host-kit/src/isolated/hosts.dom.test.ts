@@ -34,8 +34,12 @@ describe('our hosts in the page (§6.3)', () => {
     span.setAttribute('data-host', 'overlay');
     const old = document.createElement('div');
     old.setAttribute('data-cg', 'dock');
-    document.body.append(theirs, span, old);
-    expect(removeStaleHosts(document)).toBe(1);
+    const header = document.createElement('div');
+    header.setAttribute('data-host', 'header-slot');
+    header.attachShadow({ mode: 'closed' }).append(document.createElement('button'));
+    document.body.append(theirs, span, old, header);
+    expect(removeStaleHosts(document)).toBe(2);
+    expect(header.isConnected).toBe(false);
     expect([theirs.isConnected, span.isConnected, old.isConnected]).toEqual([true, true, false]);
   });
 

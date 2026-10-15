@@ -37,6 +37,8 @@ export type ApiOutcome =
   | { readonly kind: 'garbage' };
 
 export interface ApiRule {
+  /** Valid JSON larger than MAIN's passive body limit; the page still reads its normal data (P11a). */
+  readonly paddingChars?: number;
   /** A route's name (`message.send`, journal.ts `FanslyRoute`) or `*` — any API call. */
   readonly route: string;
   /** Only calls of this caller; any caller without it. */

@@ -21,3 +21,5 @@ export { FANSLY_TEXTS, type FanslyTextKey } from './texts';
 export { FANSLY_VAULT_TEXTS, type FanslyVaultCatalog } from './vault';
 
 export const FANSLY_CG_CATALOGS: { readonly [L in Locale]: CgFanslyCatalog } = { ru: FANSLY_CG_RU, en: FANSLY_CG_EN };
+
+export { REGISTRATION_TEXTS, REGISTRATION_I18N } from './registration';

@@ -63,6 +63,7 @@ import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { FANSLY_ADAPTER_VERSION, buildFanslyReport, buildOf, type Observation } from './contract';
 import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
+import { createHeaderSlots, type HeaderSlots } from './header-slot';
 import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
 import type { Coexistence } from './legacy';
@@ -117,6 +118,8 @@ export interface FanslyVaultFacts {
 }
 
 export interface FanslyPort extends FanslyHostPort {
+  /** P11a: ordered closed roots under the contact; kept by the existing narrow observers. */
+  readonly header: HeaderSlots;
   /** Bounded early backlog; the tab's transport subscribes before its first presence. */
   onSoundBatch(listener: (batch: SoundBatch) => void): Unsubscribe;
   /** Resolves once MAIN's first state was taken (or asked in vain, or at once without MAIN). */
@@ -173,6 +176,7 @@ const shown = (element: Element): boolean => typeof element.checkVisibility !== 
 export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort {
   const { win, bridge, mounts, theme, route, anchors, redeem, validation } = options;
   const doc = win.document;
+  const header = createHeaderSlots(doc, mounts.registry);
   const clock = options.now ?? (() => Date.now());
   const adapterVersion = options.adapterVersion ?? FANSLY_ADAPTER_VERSION;
   const diag = (diagnostic: FanslyDiagnostic): void => options.onDiagnostic?.(diagnostic);
@@ -397,6 +401,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const nextSlot = headerSlot();
     const slotMoved = JSON.stringify(nextSlot) !== JSON.stringify(slot);
     slot = nextSlot;
+    header.sync(routeState.name === 'chat' && routeState.conversationKind !== 'group' ? anchors.current().conversation?.subRow ?? null : null);
 
     if (routeMoved) emit({ type: 'route', route: routeState });
     if (seen !== composerSeen) {
@@ -680,6 +685,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     route.dispose();
     anchors.dispose();
     mounts.dispose();
+    header.dispose();
     theme.dispose();
     options.coexistence?.dispose();
     eventListeners.clear();
@@ -718,6 +724,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       return () => { soundListeners.delete(listener); };
     },
     kind: FANSLY_KIND,
+    header,
     platform: FANSLY_PLATFORM,
     ready,
     identity,

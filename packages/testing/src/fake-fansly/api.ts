@@ -473,7 +473,7 @@ export async function handleFanslyApi(state: FanslyState, hub: FanslySocketHub, 
     // The request took effect; only its answer is replaced.
     log(await writeOutcome(state, response, outcome), { ...answer.journal, outcome: outcome.kind, effect: true });
   } else {
-    sendJson(response, 200, { success: true, ...(answer.response !== undefined ? { response: answer.response } : {}) }, answer.headers);
+    sendJson(response, 200, { success: true, ...(answer.response !== undefined ? { response: answer.response } : {}), ...(rule?.paddingChars === undefined ? {} : { padding: ' '.repeat(Math.min(2_000_000, Math.max(0, rule.paddingChars))) }) }, answer.headers);
     log(200, answer.journal);
   }
   answer.after?.();

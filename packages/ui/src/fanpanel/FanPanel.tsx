@@ -65,6 +65,11 @@ function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
   const kinds = (spent?.byKind ?? []).filter((entry) => entry.mills !== 0);
   return (
     <>
+      {vm.registration === undefined ? null : (
+        <div class="cg-fp__sec" data-registration-date={vm.registration.at}>
+          <dl class="cg-fp__kv cg-fp__kv--flush"><Kv label={vm.registration.label} value={i18n.formatTime(vm.registration.at, 'date')} /></dl>
+        </div>
+      )}
       <div class="cg-fp__sec">
         <div class="cg-fp__cap">{i18n.t('fanPanel.spent')}</div>
         {/* A known zero of money is not drawn (ui-design §1 п. 6): «трат нет» under the caption, and no rows of

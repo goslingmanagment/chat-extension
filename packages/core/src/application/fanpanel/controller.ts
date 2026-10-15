@@ -56,6 +56,7 @@ interface Card {
 }
 
 export interface FanPanelControllerDeps {
+  readonly registrationOf?: (fanId: string, i18n: I18n) => FanPanelVM['registration'];
   readonly rpc: TabRpc;
   readonly host: HostPort;
   readonly i18n: I18n;
@@ -223,10 +224,12 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       } else view = dataView(gaps);
     }
 
+    const registration = pageFlag(ctx, 'registration') ? deps.registrationOf?.(chat.platformFanId, i18n) : undefined;
     return {
       ...base,
       view,
       fan: { name: model.name, username: model.username, initials: model.initials, lastSeenAt: model.lastSeenAt, online: model.online },
+      ...(registration === undefined ? {} : { registration }),
       spent: model.spent,
       subscription: model.subscription,
       host: model.host,

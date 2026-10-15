@@ -19,7 +19,7 @@ import type { ChatRef } from '@cg/contracts/ids';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { HostPort } from '@cg/contracts/host';
-import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
+import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
 import { toastKindOf } from '@cg/core/domain/errors';
@@ -52,6 +52,7 @@ export interface DraftStore {
 
 /** What every family gets from the application. */
 export interface TabWorld {
+  readonly registrationOf?: (fanId: string, i18n: I18n) => FanPanelVM['registration'];
   readonly win: Window;
   /** The background's client with `token.issue` behind the gate (client.ts). */
   readonly rpc: ControllerRpc;
@@ -420,7 +421,7 @@ export async function startBoards(
   late.preview = preview;
   dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
-  const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged });
+  const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }) });
 
   // R12's order: the preview first — it answers for the parts of its own results.
   const controllers = [preview, spenders, newcomers, fanPanel];

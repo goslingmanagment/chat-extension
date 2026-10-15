@@ -43,7 +43,7 @@ export const LAZY_ENTRIES = {
  * loader's type: the site's registry entry builds them (apps/extension/src/hosts/<site>.ts), and no other build has a
  * file of that name.
  */
-export type SiteLazyEntryName = 'ai-fansly' | 'vault';
+export type SiteLazyEntryName = 'ai-fansly' | 'vault' | 'registration';
 
 export type LazyEntryName = keyof typeof LAZY_ENTRIES | SiteLazyEntryName;
 
