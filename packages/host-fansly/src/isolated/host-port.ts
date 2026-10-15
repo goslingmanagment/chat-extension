@@ -114,6 +114,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   let creator: string | null = null;
   /** Grows whenever the creator changes: an identity of another creator matches nothing (§5.7). */
   let logins = 0;
+  /** Changes of creator after the first binding: a field seen before the binding is the first creator's. */
+  let creatorChanges = 0;
   let network: FanslyContractWire | null = null;
   /** MAIN's chat for the current route's group and epoch; null — not known. */
   let chatWire: FanslyChatWire | null = null;
@@ -219,19 +221,15 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const focus = (epoch: number, groupId: string | null): void => {
     if (bridge === null || disposed) return;
     focused = epoch;
-    bridge.request('fx.focus', { groupId, routeEpoch: epoch }).then(
-      () => {
-        if (observation === 'ready') return;
-        observation = 'ready';
-        sync();
-      },
-      (error: unknown) => {
-        // A MAIN without the observation (before P7b) says `not-ready`: the chat stays unknown, honestly.
-        if (!(error instanceof BridgeCallError) || error.failure !== 'not-ready' || observation === 'off') return;
-        observation = 'off';
-        sync();
-      },
-    );
+    void generation.under(() => bridge.request('fx.focus', { groupId, routeEpoch: epoch })).then((taken) => {
+      // An answer to a focus of another generation says nothing of now: a newer answer may have said more.
+      if (disposed || !taken.fresh()) return;
+      // A MAIN without the observation (before P7b) says `not-ready`: the chat stays unknown, honestly.
+      const next: Observation | null = taken.ok ? 'ready' : taken.error instanceof BridgeCallError && taken.error.failure === 'not-ready' ? 'off' : null;
+      if (next === null || next === observation) return;
+      observation = next;
+      sync();
+    });
   };
 
   let syncing = false;
@@ -268,7 +266,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
 
     const conversation = anchors.current().conversation;
     const candidate = conversation?.textarea ?? null;
-    const owner = now.groupId === null ? null : `${logins}:${now.groupId}`;
+    const owner = now.groupId === null ? null : `${creatorChanges}:${now.groupId}`;
     if (candidate !== null && !owners.has(candidate)) owners.set(candidate, owner);
     follow(candidate !== null && owner !== null && owners.get(candidate) === owner ? candidate : null);
     const chat = routeState.chat;
@@ -314,6 +312,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (next === creator) return false;
     if (creator !== null) {
       chatWire = null;
+      creatorChanges += 1;
       generation.advance();
     }
     creator = next;

@@ -103,9 +103,11 @@ interface Started {
 }
 
 /** The port on a Fansly-like page at `path`, over `main` (null — no MAIN), once its first state was taken. */
-async function startPort(path: string, main: FanslyMainBridgeClient | null, now?: () => number): Promise<Started> {
+async function startPort(path: string, main: FanslyMainBridgeClient | null, now?: () => number, before?: (page: FakeFanslyPage) => void): Promise<Started> {
   history.replaceState({}, '', path);
   const page = createFakeFanslyPage();
+  // What the page shows before the port exists (its field rendered before MAIN's first word).
+  before?.(page);
   const diagnostics: FanslyDiagnostic[] = [];
   const route = createRouteWatcher(window, (diagnostic) => diagnostics.push(diagnostic));
   const anchors = createAnchorWatcher(document, route);
@@ -756,6 +758,85 @@ describe('[host:fansly] every asynchronous answer is taken under the generation 
     page.openChat(GROUP);
     await settle();
     expect(asks()).toBe(11);
+  });
+});
+
+describe('[host:fansly] the binding and the moment of consumption (review of P7c, round 3)', () => {
+  const chat = (fanId: string = FAN, creatorId: string = CREATOR) => ({ host: 'fansly-web', hostAccountId: creatorId, platformFanId: fanId }) as const;
+
+  it('[UI-011] [AI-122] a field rendered before MAIN’s first state is the first creator’s: the initial binding is no change of creator', async () => {
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client, undefined, (shown) => shown.openChat(GROUP));
+    await settle();
+    main.batch(1, chatOf(GROUP, 1));
+    expect(port.current().composer).toMatchObject({ chat: chat(), ready: true });
+    const field = page.textarea() as HTMLTextAreaElement;
+    field.value = 'hello';
+    field.dispatchEvent(new Event('input'));
+    expect((await port.readDraft(open(port.identity()))).plainText).toBe('hello');
+  });
+
+  it('[UI-011] [AI-122] a field rendered before the page’s /account/me is the creator’s it names: the identity event binds, it does not change', async () => {
+    const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port } = await startPort(`/messages/${GROUP}`, main.client, undefined, (shown) => shown.openChat(GROUP));
+    await settle();
+    expect(port.current().composer).toBeNull();
+    main.batch(1, identityEvent(CREATOR));
+    main.batch(2, chatOf(GROUP, 1));
+    expect(port.current().route.epoch).toBe(1);
+    expect(port.current().composer).toMatchObject({ chat: chat(), ready: true });
+    expect((await port.readDraft(open(port.identity()))).identity.chat).toEqual(chat());
+    // A real change after it still takes the field away: it was the first creator's.
+    main.batch(3, identityEvent(SECOND_CREATOR));
+    main.batch(4, chatOf(GROUP, 2));
+    expect(port.current().route.chat).toEqual(chat(FAN, SECOND_CREATOR));
+    expect(port.current().composer).toBeNull();
+  });
+
+  it('[FS-RTE-4] [FS-TAIL-7] a snapshot is checked when it is handed over, not when it lands: a switch between the two makes it no answer', async () => {
+    let release: (snapshot: unknown) => void = () => undefined;
+    const main = scriptedMain({
+      'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }),
+      'fx.ack': () => null,
+      'fx.focus': () => null,
+      'fx.generationSnapshot': () => new Promise((resolve) => (release = resolve)),
+    });
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
+    page.openChat(GROUP);
+    await settle();
+    main.batch(1, chatOf(GROUP, 1));
+    const identity = open(port.identity());
+    const asked = port.freshness.snapshot(chat(), { conversationRef: GROUP, feature: 'reply', window: 30, withText: true });
+    await settle();
+    // The answer lands, and in the very next turn — before the port hands it over — the person is in another chat.
+    release({ ...fanslyReplySnapshot, identity: { creatorId: CREATOR, groupId: GROUP, fanId: FAN }, epochs: { ...fanslyReplySnapshot.epochs, document: EPOCH } });
+    queueMicrotask(() => {
+      history.pushState({}, '', `/messages/${OTHER}`);
+      void port.focusComposer(identity);
+    });
+    expect(await asked).toBeNull();
+    expect(port.current().route).toMatchObject({ epoch: 2, conversationRef: OTHER });
+  });
+
+  it('[FS-CTR-2] MAIN’s answer to a focus of an older generation changes nothing: a late refusal does not take back what a newer answer said', async () => {
+    const answers: Array<{ resolve: (value: null) => void; reject: (error: unknown) => void }> = [];
+    const main = scriptedMain({
+      'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }),
+      'fx.ack': () => null,
+      'fx.focus': () => new Promise((resolve, reject) => answers.push({ resolve, reject })),
+    });
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
+    page.openChat(OTHER);
+    await settle();
+    expect(answers).toHaveLength(2);
+    // The newer focus answers: MAIN observes chats.
+    answers[1]?.resolve(null);
+    await settle();
+    expect(port.probe().capabilities.chatWindow).toEqual({ state: 'on' });
+    // The older one refuses late, as a MAIN that could not: of another generation, it is not heard.
+    answers[0]?.reject(new BridgeCallError('not-ready', 'fx.focus'));
+    await settle();
+    expect(port.probe().capabilities.chatWindow).toEqual({ state: 'on' });
   });
 });
 

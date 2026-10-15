@@ -87,7 +87,11 @@ export interface StreamOptions {
   readonly onFailure?: (failure: string) => void;
 }
 
-const always: Under = (ask) => ask().then((value) => ({ fresh: true, value }));
+const always: Under = <T>(ask: () => Promise<T>) =>
+  ask().then(
+    (value) => ({ ok: true as const, value, fresh: () => true }),
+    (error: unknown) => ({ ok: false as const, error, fresh: () => true }),
+  );
 
 export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, options: StreamOptions = {}): FanslyStream {
   const under = options.under ?? always;
@@ -114,14 +118,17 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
 
   const ask = async (): Promise<boolean> => {
     try {
-      const { fresh, value: state } = await under(() => bridge.request('fx.state', {}));
+      const taken = await under(() => bridge.request('fx.state', {}));
+      if (!taken.ok) throw taken.error;
+      const state = taken.value;
       if (disposed) return false;
       failures = 0;
       retryAt = 0;
       // The credits it names are freed whatever its generation: they are the transport's.
       last = Math.max(last ?? 0, state.lastBatch);
       ack(state.lastBatch);
-      if (!fresh) {
+      // Read now, as it is taken: the page may have moved in the turn since the answer landed.
+      if (!taken.fresh()) {
         // Of another generation: nothing of it is taken, and the state is asked again at once.
         counts.statesDiscarded += 1;
         owing = true;

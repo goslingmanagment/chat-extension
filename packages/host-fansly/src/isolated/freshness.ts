@@ -50,15 +50,17 @@ export function createFreshnessPort(deps: FreshnessDeps): FreshnessPort<FanslySn
       const payload = { groupId, feature: request.feature, window: request.window, withText: request.withText && FRESH_TEXT_FEATURES.includes(request.feature) };
       const ask = (): Promise<FanslySnapshot | null> => bridge.request('fx.generationSnapshot', payload);
       let snapshot: FanslySnapshot | null;
-      try {
-        const taken = deps.under === undefined ? { fresh: true, value: await ask() } : await deps.under(ask);
-        // Asked in another generation — another chat, creator or life of the page: never this one's answer.
-        if (!taken.fresh) return null;
-        snapshot = taken.value;
-      } catch {
-        return null;
+      let fresh: () => boolean = () => true;
+      if (deps.under === undefined) {
+        snapshot = await ask().catch(() => null);
+      } else {
+        const taken = await deps.under(ask);
+        snapshot = taken.ok ? taken.value : null;
+        fresh = taken.fresh;
       }
-      if (snapshot === null) return null;
+      // Checked as it is handed over: asked in another generation — another chat, creator or life of the page, even
+      // one the page moved to in the turn since the answer landed — it is never this one's answer.
+      if (snapshot === null || !fresh()) return null;
       const { identity } = snapshot;
       const fits =
         snapshot.feature === request.feature &&
