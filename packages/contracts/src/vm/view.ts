@@ -4,7 +4,6 @@
 // missing right for an outage. `null` in a field means unknown, never 0.
 
 import { type CgCode, type CgErrorView } from '../errors';
-import { type FeatureId } from '../features';
 import { type HostCapability } from '../host';
 import { type CoverageLevel } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
@@ -68,7 +67,7 @@ export interface ActionButtonVM {
 /** A running generation: «Идут сейчас» under the refusal of a fourth, in the palette, in the status page. */
 export interface RunningOpVM {
   readonly opId: Uuid;
-  readonly feature: FeatureId;
+  readonly feature: string;
   /** Display only; null = unknown. */
   readonly fanLabel: string | null;
   readonly startedAt: number;

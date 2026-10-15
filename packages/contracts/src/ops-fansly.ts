@@ -21,7 +21,7 @@ import type { FanslyFeatureKey } from './features/fansly';
 import { NoteFieldLabelSchema, NoteFieldsSchema, type HubAiFeature } from './hub/ai';
 import { HumanCauseSchema, TargetSchema } from './ids';
 import { AI_REQUEST_LIMITS, NOTE_FILL_LIMITS, OP_TIMEOUTS, type OpTimeouts } from './limits';
-import { OpDraftSchema, type SiteOpResult, type SiteStartOp } from './ops';
+import { OpDraftSchema, OpViewSchema, type SiteOpResult, type SiteStartOp, type SiteOpView } from './ops';
 import { UuidSchema, boundedText, displayText } from './primitives';
 
 /** The operations of Fansly's slice, beside the shared `FEATURE_IDS`. */
@@ -118,3 +118,15 @@ export const NoteFieldsResultSchema = z.strictObject({
 
 export const FanslyOpResultSchema = z.discriminatedUnion('kind', [VoiceScriptResultSchema, NoteFieldsResultSchema]) satisfies z.ZodMiniType<SiteOpResult>;
 export type FanslyOpResult = z.infer<typeof FanslyOpResultSchema>;
+
+/** Kept by the common scheduler, decoded only by the Fansly chunk. */
+export const FanslyOpViewSchema = z.strictObject({
+  ...OpViewSchema.shape,
+  feature: FanslyOpSchema,
+  result: z.optional(FanslyOpResultSchema),
+}).check(
+  z.refine(ofFansly, { message: "a Fansly operation is a Fansly chat's" }),
+  z.refine((view) => view.result === undefined || view.result.kind === FANSLY_OP_DRIVERS[view.feature].result, { message: 'result belongs to another operation' }),
+  z.refine((view) => view.state !== 'done' || (view.result !== undefined && view.generationRef !== undefined), { message: 'done needs a result and its source' }),
+) satisfies z.ZodMiniType<SiteOpView>;
+export type FanslyOpView = z.infer<typeof FanslyOpViewSchema>;

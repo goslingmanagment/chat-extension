@@ -21,6 +21,7 @@ import {
   MicroUsdSchema,
   NATIVE_ID_PATTERN,
   NativeIdSchema,
+  OpenTokenSchema,
   UuidSchema,
   boundedText,
   displayText,
@@ -274,13 +275,19 @@ export const ActiveOpSummarySchema = z.strictObject({
 });
 export type ActiveOpSummary = z.infer<typeof ActiveOpSummarySchema>;
 
+/** Display metadata from a site registry, beside the closed common summary. Never an executable start. */
+export const SiteActiveOpSummarySchema = z.strictObject({ ...ActiveOpSummarySchema.shape, feature: OpenTokenSchema.check(z.regex(/^[a-z][a-z0-9-]{0,63}$/)) });
+export type SiteActiveOpSummary = z.infer<typeof SiteActiveOpSummarySchema>;
+export type AnyActiveOpSummary = ActiveOpSummary | SiteActiveOpSummary;
+
 export const AdmissionSchema = z.discriminatedUnion('ok', [
   z.strictObject({ ok: z.literal(true), opId: UuidSchema }),
   z.strictObject({
     ok: z.literal(false),
     code: z.enum(['CG-OP-CHAT-BUSY', 'CG-OP-TAB-LIMIT']),
     active: z.array(ActiveOpSummarySchema).check(z.maxLength(OP_LIMITS.perTab)),
-  }),
+    siteActive: z.optional(z.array(SiteActiveOpSummarySchema).check(z.maxLength(OP_LIMITS.perTab))),
+  }).check(z.refine((value) => value.active.length + (value.siteActive?.length ?? 0) <= OP_LIMITS.perTab, { message: 'too many active operations' })),
 ]);
 export type Admission = z.infer<typeof AdmissionSchema>;
 
@@ -703,3 +710,7 @@ export interface NoteFieldValue {
 export type SiteOpResult = { readonly kind: 'voice-script'; readonly script: string } | { readonly kind: 'note-fields'; readonly fields: readonly NoteFieldValue[] };
 /** What the scheduler keeps as a result: a shared feature's or a site operation's. */
 export type AnyOpResult = OpResult | SiteOpResult;
+
+/** A site's kept view has the same lifecycle, but its own feature and result schemas. */
+export type SiteOpView = Omit<OpView, 'feature' | 'result'> & { readonly feature: SiteOpId; readonly result?: SiteOpResult | undefined };
+export type AnyOpView = OpView | SiteOpView;

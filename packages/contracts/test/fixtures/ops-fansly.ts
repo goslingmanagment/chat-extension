@@ -4,7 +4,7 @@
 // valid and invalid. Synthetic Fansly ids (FANSLY_IDS): the conversation is
 // the group, the fan named apart.
 
-import { DIGEST, FANSLY_IDS, cause, fanslyTarget, target, uuid } from './samples';
+import { DIGEST, FANSLY_IDS, cause, fanslyTarget, target, uuid, opView } from './samples';
 
 /** The shape of protocols.ts `Verdicts`, written here: the hub's fixtures take these, and protocols.ts imports the hub's. */
 interface Verdicts {
@@ -158,4 +158,11 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'voice-script', body: { ...voiceScriptBody, liveTextContext: { capturedAt: '2026-10-03T10:00:00Z', items: [{ platformMessageId: '700000000000000101', direction: 'fan', occurredAt: '2026-10-03T10:00:00Z', text: 'hi' }] } }, capabilities: ['context-v1'] },
     { feature: 'voice-script', body: { ...voiceScriptBody, variantCount: 3 }, capabilities: [] },
   ],
+};
+
+// P12a: a kept site view uses the same lifecycle with a strict site result.
+export const fanslyVoiceView = { ...opView, target: fanslyTarget, feature: 'voice-script', result: voiceScriptResult, generationRef: uuid(0x550), toneUsed: null } as const;
+export const FANSLY_OP_VIEW_FIXTURES: Verdicts = {
+  valid: [fanslyVoiceView, { ...fanslyVoiceView, feature: 'notes-fill', result: noteFieldsResult }, { ...fanslyVoiceView, state: 'streaming', result: undefined }],
+  invalid: [opView, { ...fanslyVoiceView, target }, { ...fanslyVoiceView, result: noteFieldsResult }, { ...fanslyVoiceView, generationRef: undefined }, { ...fanslyVoiceView, result: undefined }, { ...fanslyVoiceView, clientContext: {} }],
 };

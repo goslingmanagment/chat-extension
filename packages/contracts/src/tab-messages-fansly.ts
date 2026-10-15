@@ -19,7 +19,9 @@
 //   a note's text only between the «Заметки» panel and the background, never
 //   to the hub (FS-NOTE-5).
 //
-// Families. `fansly.followers.*` — «Новые» by the background's pass (Б17,
+// Families. `fansly.ops.*` — site generations through the shared scheduler (P12a):
+// start, read, list, cancel and the kept terminal view;
+// `fansly.followers.*` — «Новые» by the background's pass (Б17,
 // FS-NEW-*) and its greeting send (`fansly.followers.send`, send-fansly.ts);
 // `fansly.notes.*` — the fan's native notes (FS-NOTE-*);
 // `fansly.voice.*` — paid voice notes over the hub (HF-4, FS-VOI-*; the script
@@ -37,6 +39,10 @@ import * as z from 'zod/mini';
 import { SoundBatchSchema } from './sound';
 
 import { CgAnyErrorWireSchema } from './errors-fansly';
+import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
+import { AdmissionSchema, OpStateSchema } from './ops';
+import { ChatKeySchema } from './ids';
+import { STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
@@ -313,6 +319,11 @@ export type FanslyAccountsView = z.infer<typeof FanslyAccountsViewSchema>;
 // ── Requests ───────────────────────────────────────────────────────────────
 
 export const FANSLY_TAB_REQUESTS = {
+  /** Site operations share the background's admission with Reply and the other common operations. */
+  'fansly.ops.start': { req: FanslyStartOpSchema, res: AdmissionSchema, from: TAB, hosts: FANSLY },
+  'fansly.ops.read': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ view: z.nullable(FanslyOpViewSchema) }), from: TAB, hosts: FANSLY },
+  'fansly.ops.list': { req: z.strictObject({ chatKey: z.optional(ChatKeySchema) }), res: z.strictObject({ ops: z.array(FanslyOpViewSchema).check(z.maxLength(STORAGE_LIMITS.opListMax)), truncated: z.boolean() }), from: TAB, hosts: FANSLY },
+  'fansly.ops.cancel': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ state: z.nullable(OpStateSchema) }), from: TAB, hosts: FANSLY },
   'fansly.sound.batch': { req: z.extend(SoundBatchSchema, { host: z.literal('fansly-web') }), res: Ack, from: TAB, hosts: FANSLY },
   // ── «Новые» ──
   /** Opens a pass for the creator of the tab and the window; an open one for the same creator and window is answered as is. */
@@ -520,6 +531,7 @@ export type FanslyTabResponsePayload<T extends FanslyTabRequestType> = z.infer<(
 // ── Events ─────────────────────────────────────────────────────────────────
 
 export const FANSLY_TAB_EVENTS = {
+  'fansly.ops.done': { payload: z.strictObject({ view: FanslyOpViewSchema }), to: TAB },
   /** Rows of an open pass changed (the window is told, it does not poll); `seq` grows per pass. */
   'fansly.followers.changed': {
     payload: z.strictObject({
