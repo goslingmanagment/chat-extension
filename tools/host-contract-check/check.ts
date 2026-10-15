@@ -3,6 +3,12 @@
 // file names and texts; index.ts reads the copy from disk. Never in CI: the
 // bundles are someone else's code and live outside the repository (А2).
 //
+// The machinery is the sites' common one: a string looked for line by line
+// (`Anchor`, `checkAnchors`, the pattern helpers) and — R20 P7h — a site's
+// report of a copy read by the site's EXPECTED set of anchors, the way the
+// tab's log reads a page's (`verdictOf` → `contractFactsOf`, FS-CTR-1). The
+// anchors below are ChatSpace's; Fansly's are in anchors-fansly.ts.
+//
 // What it tells: for every string the adapter relies on
 // (packages/host-chatspace/src/isolated/host-contract.ts) — present or
 // missing, with file:line of the first places; the receipt-profile
@@ -14,6 +20,9 @@
 
 import { createHash } from 'node:crypto';
 
+import { contractFactsOf } from '../../apps/extension/src/composition/tab/host-facts.ts';
+import { HostContractReportSchema, contractHostOf, type HostContractShape } from '../../packages/contracts/src/host.ts';
+import type { HostKind } from '../../packages/contracts/src/hosts.ts';
 import * as contract from '../../packages/host-chatspace/src/isolated/host-contract.ts';
 
 export interface BundleFile {
@@ -45,12 +54,13 @@ export const QUEUE_ACTION = 'enqueue';
 /** The platform part of KEY_BUYING_POWERS: the argument ChatSpace's key factory gets for it (platformKeyAnchor). */
 export const BUYING_POWERS_PLATFORM = 'onlyfans';
 
-const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** The text as a part of a regular expression. */
+export const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** A string literal in any quotes. */
-const literal = (value: string): RegExp => new RegExp(`[\`'"]${escape(value)}[\`'"]`);
+export const literal = (value: string): RegExp => new RegExp(`[\`'"]${escape(value)}[\`'"]`);
 /** A member or identifier: not a part of a longer name. */
-const word = (value: string): RegExp => new RegExp(`(?<![\\w$])${escape(value)}(?![\\w$])`);
-const text = (value: string): RegExp => new RegExp(escape(value));
+export const word = (value: string): RegExp => new RegExp(`(?<![\\w$])${escape(value)}(?![\\w$])`);
+export const text = (value: string): RegExp => new RegExp(escape(value));
 
 /** How a minified build names a variable or a parameter. */
 const NAME = '[A-Za-z_$][\\w$]*';
@@ -159,6 +169,70 @@ export function checkAnchors(files: readonly BundleFile[], anchors: readonly Anc
     }
     return { id: anchor.id, group: anchor.group, present: count > 0, at, count };
   });
+}
+
+// ── A site's report of a copy, read by its expected set (R20 P7h) ──────────
+
+/**
+ * The contract anchors a copy shows, by the strings found: an anchor (the strings' `group`) is `ok` when every one of
+ * its strings is present, `missing` when one is not. Only the anchors the strings name: an anchor of the site that has
+ * no string here is absent, and the reader of the expected set reads it `missing`.
+ */
+export function anchorStates(results: readonly AnchorResult[]): Record<string, 'ok' | 'missing'> {
+  const states: Record<string, 'ok' | 'missing'> = {};
+  for (const result of results) states[result.group] = states[result.group] === 'missing' || !result.present ? 'missing' : 'ok';
+  return states;
+}
+
+/** The contract facts of the tab's log (DB-031). */
+export type ContractFacts = ReturnType<typeof contractFactsOf>;
+
+/** What a schema says against a value: where and why. */
+interface SchemaIssues {
+  readonly issues: ReadonlyArray<{ readonly path: readonly PropertyKey[]; readonly message: string }>;
+}
+
+/** How a site's own report is told from any other (its strict schema), as the check needs it. */
+export interface StrictReport {
+  safeParse(value: unknown): { readonly success: boolean; readonly error?: SchemaIssues };
+}
+
+/** What a site's report is read by: the site, its expected set of anchors and the strict branch of its report. */
+export interface SiteContract {
+  readonly kind: HostKind;
+  readonly shape: HostContractShape;
+  readonly strict: StrictReport;
+}
+
+export interface ContractVerdict {
+  /** Every anchor of the site's expected set is `ok`, in a report of the site's own shape. */
+  readonly green: boolean;
+  /** The report as the tab's log reads it; null — it is no report of this site. */
+  readonly facts: ContractFacts | null;
+  /** Why it is not green, one line each. */
+  readonly problems: readonly string[];
+}
+
+const issuesOf = (error: SchemaIssues | undefined): string => (error?.issues ?? []).map((issue) => `${issue.path.map(String).join('.') || 'the report'}: ${issue.message}`).join('; ');
+
+/**
+ * A site's report of a copy, read the way the tab's log reads a page's (FS-CTR-1): first by the schema the hub
+ * accepts, then by the site's EXPECTED set (`contractFactsOf`) — an anchor the report does not name is `missing`,
+ * never «nothing to check» — and by the strict branch of the site's report (its block, every anchor and capability
+ * named). Green only when every expected anchor is `ok`: in a copy of the bundle all of the site's code is there, so
+ * an anchor a page shows only sometimes (`notYet`) or only behind the owner's switch (`switchedAnchors`) must be found
+ * too. A report without the site's block, or without one anchor, is not green.
+ */
+export function verdictOf(report: unknown, site: SiteContract): ContractVerdict {
+  const parsed = HostContractReportSchema.safeParse(report);
+  if (!parsed.success) return { green: false, facts: null, problems: [`no host contract report the hub accepts: ${issuesOf(parsed.error)}`] };
+  const host = contractHostOf(parsed.data);
+  if (host !== site.kind) return { green: false, facts: null, problems: [`a report of ${host}, not of ${site.kind}`] };
+  const facts = contractFactsOf(parsed.data, site.shape);
+  const problems = [...facts.missing.map((anchor) => `anchor ${anchor}: not ok`), ...(facts.notYet ?? []).map((anchor) => `anchor ${anchor}: not yet`)];
+  const strict = site.strict.safeParse(report);
+  if (!strict.success) problems.push(`not a report of ${site.kind}'s own shape: ${issuesOf(strict.error)}`);
+  return { green: problems.length === 0, facts, problems };
 }
 
 /** The build fingerprint (the entry module's hashed name) from the copy's index.html. */

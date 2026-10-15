@@ -2,7 +2,15 @@
 // code here: the real copy lives outside the repository and is read only by
 // hand, `node tools/host-contract-check/index.ts`).
 
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
+
+import { REPO_ROOT } from '../lib/paths.ts';
 
 import * as contract from '../../packages/host-chatspace/src/isolated/host-contract.ts';
 import { receiptModules } from '../../packages/host-chatspace/src/isolated/receipt-profile.ts';
@@ -294,5 +302,42 @@ describe('host-contract-check (§6.2 «Сверка с новой сборкой
     expect(same.roles).toEqual([{ role: 'notificationEntry', from: 'AAAAAAAA', to: 'BBBBBBBB' }]);
     expect(same.code).toEqual([{ role: 'notificationEntry', anchor: 'store pendingMessages', same: 1, changed: [] }]);
     expect(diffCopies(before, rewritten).code).toEqual([{ role: 'notificationEntry', anchor: 'store pendingMessages', same: 0, changed: ['notificationEntry-CCCCCCCC.js:1'] }]);
+  });
+});
+
+/** The CLI on a copy written to a folder of its own: its exit code and its output, the folder's path as `<copy>`. */
+function runCli(files: readonly BundleFile[], args: readonly string[] = []): { readonly status: number | null; readonly text: string } {
+  const root = mkdtempSync(join(tmpdir(), 'cg-contract-cli-'));
+  try {
+    const dir = join(root, '0.999.0', 'pretty');
+    mkdirSync(dir, { recursive: true });
+    for (const file of files) writeFileSync(join(dir, file.name), file.text);
+    const run = spawnSync(process.execPath, ['tools/host-contract-check/index.ts', ...args], { cwd: REPO_ROOT, encoding: 'utf8', env: { ...process.env, CG_CHATSPACE_BUNDLES: root } });
+    return { status: run.status, text: run.stdout.replaceAll(dir, '<copy>') };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+describe('the CLI on a synthetic copy (R20 P7h: its rewrite for two sites keeps ChatSpace’s output)', () => {
+  // The pins are the output of the CLI before the rewrite — `node tools/host-contract-check/index.ts` in a checkout of
+  // main at adbd0baf, with CG_CHATSPACE_BUNDLES on this same copy — the folder's path as `<copy>`.
+  it('prints for a ChatSpace copy, as text and as JSON, exactly what it printed before the rewrite, with the same exit code', () => {
+    const text = runCli(fullCopy());
+    expect(text.status).toBe(1);
+    expect(text.text.split('\n').slice(0, 2)).toEqual(['host-contract-check: <copy>', 'version 0.999.0, build index-AAAAAAAA, 10 files']);
+    expect(text.text.trimEnd().split('\n').at(-1)).toBe('every anchor is present; the profile above is NOT a candidate: this adapter does not read the send path of this build (§6.2).');
+    expect([text.text.split('\n').length - 1, sha256(text.text)]).toEqual([141, '56112487f6b723b2b52a2b633df74d02b964be5b67d3144b8da3c03dfe8800f8']);
+    const json = runCli(fullCopy(), ['--json']);
+    expect(json.status).toBe(1);
+    expect([json.text.split('\n').length - 1, sha256(json.text)]).toEqual([854, 'b8e6783fcfc917fc4645a44c8608746a720b794a66d253f145023ecfabcf0a6b']);
+  });
+
+  it('refuses a site the registry does not have, by kind or platform', () => {
+    const run = spawnSync(process.execPath, ['tools/host-contract-check/index.ts', '--host', 'nowhere'], { cwd: REPO_ROOT, encoding: 'utf8' });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('--host nowhere is not a site of the host registry (chatspace or onlyfans; fansly-web or fansly)');
   });
 });

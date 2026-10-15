@@ -45,6 +45,9 @@
     },
     {
       "path": "../packages/host-chatspace"
+    },
+    {
+      "path": "../packages/host-fansly"
     }
   ]
 }

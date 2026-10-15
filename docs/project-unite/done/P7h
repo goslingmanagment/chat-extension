@@ -1,0 +1,1 @@
+Проверка контракта Fansly против бандла: набор якорей `tools/host-contract-check/anchors-fansly.ts`, `--host fansly`, вердикт по ожидаемому набору через `contractFactsOf` (архитектура §7.16).

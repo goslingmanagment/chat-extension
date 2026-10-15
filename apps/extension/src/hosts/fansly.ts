@@ -87,8 +87,9 @@ export const FANSLY: HostDescriptor = {
     ],
     contracts: [],
   },
-  // Local only, never in CI: the copies of Fansly's bundles stay outside the repository (§0; P7h brings the module).
-  contractCheck: { module: 'packages/host-fansly/src/isolated/host-contract.ts', bundlesRootEnv: 'CG_FANSLY_BUNDLES' },
+  // Local only, never in CI: the copies of Fansly's bundles stay outside the repository (§0; docs/research/fansly.md
+  // says where they are). The module is the check's anchor set (P7h): it reads the adapter's own selectors and addresses.
+  contractCheck: { module: 'tools/host-contract-check/anchors-fansly.ts', bundlesRootEnv: 'CG_FANSLY_BUNDLES' },
   archiveMarkers: {
     code: [
       // The research copy's folder of fansly.com's bundle (architecture.md header: the snapshot of 2026-10-12).
