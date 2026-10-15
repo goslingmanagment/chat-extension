@@ -66,7 +66,7 @@ describe('[host:fansly] route signals (FS-RTE-2, FS-RTE-3)', () => {
     window.dispatchEvent(new PopStateEvent('popstate'));
     expect(changes).toHaveLength(2);
     expect(vi.getTimerCount()).toBe(0);
-    expect(watcher.stats()).toEqual({ changes: 2, unsignalled: 0 });
+    expect(watcher.stats()).toEqual({ changes: 2, unsignalled: 0, restorations: 0 });
   });
 
   it('[FS-RTE-2] the Navigation API, where Firefox has it (≥ 147), is an early signal; `pageshow` from bfcache moves the epoch even on the same address', () => {
@@ -84,6 +84,8 @@ describe('[host:fansly] route signals (FS-RTE-2, FS-RTE-3)', () => {
     window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: false }));
     window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
     expect(vias).toEqual(['navigation:2', 'pageshow:3']);
+    // The return from bfcache is a new life of the page: counted, and the change says so.
+    expect(watcher.stats().restorations).toBe(1);
     expect(watcher.current()).toEqual({ path: `/messages/${B}`, groupId: B, epoch: 3 });
     // Disposed, it hears nothing more.
     watcher.dispose();
@@ -105,7 +107,7 @@ describe('[host:fansly] route signals (FS-RTE-2, FS-RTE-3)', () => {
     window.dispatchEvent(new Event('focus'));
     history.pushState({}, '', `/messages/${A}`);
     watcher.verify('ui');
-    expect(watcher.stats()).toEqual({ changes: 3, unsignalled: 3 });
+    expect(watcher.stats()).toEqual({ changes: 3, unsignalled: 3, restorations: 0 });
     expect(diagnostics).toEqual([
       { event: 'route-unsignalled', detail: { via: 'visibility', count: 1, chat: true } },
       { event: 'route-unsignalled', detail: { via: 'focus', count: 2, chat: false } },
@@ -139,6 +141,6 @@ describe('[host:fansly] route signals (FS-RTE-2, FS-RTE-3)', () => {
     watcher.verify('focus');
     watcher.verify('visibility');
     expect(seen).toEqual([`/messages/${A}@2:observer`, `/messages/${B}@3:observer`, '/messages@4:observer', '/home@5:observer', `/messages/${A}@6:popstate`]);
-    expect(watcher.stats()).toEqual({ changes: 5, unsignalled: 0 });
+    expect(watcher.stats()).toEqual({ changes: 5, unsignalled: 0, restorations: 0 });
   });
 });

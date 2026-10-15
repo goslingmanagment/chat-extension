@@ -54,6 +54,11 @@ export interface FanslyStream {
   resync(): Promise<boolean>;
   /** An answer of `fx.state` was ever taken: the stream runs. */
   started(): boolean;
+  /**
+   * A state is owed: none was taken yet, or a loss or a failed ask came after the last one taken. MAIN stopped by a
+   * gap sends nothing until it is asked again, so the port asks at every signal of the page while this holds.
+   */
+  owed(): boolean;
   stats(): StreamStats;
   dispose(): void;
 }
@@ -65,6 +70,8 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
   let acked = 0;
   let inFlight: Promise<boolean> | null = null;
   let again = false;
+  /** Set by a loss or a failed ask, cleared by a state taken after it. */
+  let owing = true;
   const counts = { batches: 0, events: 0, gaps: 0, refused: 0, skipped: 0, states: 0, stateFailures: 0 };
 
   const ack = (n: number): void => {
@@ -79,12 +86,15 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
       const state = await bridge.request('fx.state', {});
       if (disposed) return false;
       counts.states += 1;
+      // A loss while this ask was on its way asked again (`again`): only that answer settles it.
+      if (!again) owing = false;
       last = Math.max(last ?? 0, state.lastBatch);
       ack(state.lastBatch);
       sink.state(state);
       return true;
     } catch (error) {
       counts.stateFailures += 1;
+      owing = true;
       onFailure?.(error instanceof BridgeCallError ? error.failure : 'error');
       return false;
     }
@@ -107,6 +117,7 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
   };
 
   const lose = (reason: StreamLoss): void => {
+    owing = true;
     sink.lost(reason);
     void resync();
   };
@@ -141,6 +152,7 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
   return {
     resync,
     started: () => counts.states > 0,
+    owed: () => owing,
     stats: () => ({ ...counts, acked }),
     dispose() {
       disposed = true;

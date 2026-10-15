@@ -100,8 +100,8 @@ export function identityMatches(expected: HostIdentity, current: HostIdentity): 
 /**
  * The window of the open chat as MAIN summarizes it (`fx.chat`), synchronously (§7.7: a read that waits would keep the
  * dock «loading» for ever, S1b §2.1). Fansly's summary has no count by side: those stay 0 and no rule of Fansly reads
- * them — its own facts are `loaded`, whether the history before is known (`hasOlder`: false only once the start is
- * proven), the newest message's time (`newestAt`, the lag of the hub's archive) and the fan's script (the language
+ * them — its own facts are `loaded`, whether the history before is known (`hasOlder`: false only while the start is
+ * proven and the observation complete), the newest message's time (`newestAt`, the lag of the hub's archive) and the fan's script (the language
  * gate without a copy of the text in the tab).
  */
 export function chatWindowOf(chat: ChatRef, wire: FanslyChatWire): ChatWindow {
@@ -115,7 +115,7 @@ export function chatWindowOf(chat: ChatRef, wire: FanslyChatWire): ChatWindow {
     lastFanMessageId: null,
     lastFanMessageAt: null,
     lastModelMessageAt: null,
-    hasOlder: window.startProven ? false : null,
+    hasOlder: window.startProven && window.completeness === 'complete' ? false : null,
     fanScript: window.fanScript,
     newestAt: window.newestAt,
   };

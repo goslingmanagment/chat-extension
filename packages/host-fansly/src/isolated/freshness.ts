@@ -13,7 +13,9 @@
 //   for any other function before MAIN is asked.
 // - The answer must be of this very chat and this document: MAIN's creator,
 //   group and fan equal to the target's, its document epoch the one the
-//   bridge knows, the function the one asked (FS-RTE-4, RB-014). Anything
+//   bridge knows, the function the one asked, and the page's life the same
+//   as when it was asked — not across a return from bfcache (FS-RTE-2,
+//   FS-RTE-4, RB-014). Anything
 //   else — or no MAIN, a MAIN that cannot take one yet (`not-ready`), a
 //   timeout — is null: «свежесть не проверена» (FS-TAIL-7), never a guess.
 
@@ -31,6 +33,11 @@ export interface FreshnessDeps {
   readonly bridge: FanslyMainBridgeClient | null;
   /** Before MAIN is asked: our UI acted, the address is looked at once more (route.ts). */
   readonly beforeAsk?: () => void;
+  /**
+   * The page's life: it grows when the page comes back from the back-forward cache (route.ts `restorations`). MAIN's
+   * document epoch stays the same across it, so an answer to an ask of an earlier life is told by this (FS-RTE-2).
+   */
+  readonly life?: () => number;
   readonly onDiagnostic?: (diagnostic: { readonly event: string; readonly detail?: Readonly<Record<string, string | number | boolean | null>> }) => void;
 }
 
@@ -41,13 +48,15 @@ export function createFreshnessPort(deps: FreshnessDeps): FreshnessPort<FanslySn
       deps.beforeAsk?.();
       if (bridge === null || chat.host !== 'fansly-web' || !Number.isSafeInteger(request.window) || request.window < 1) return null;
       const groupId = request.conversationRef;
+      const life = deps.life?.() ?? 0;
       let snapshot: FanslySnapshot | null;
       try {
         snapshot = await bridge.request('fx.generationSnapshot', { groupId, feature: request.feature, window: request.window, withText: request.withText && FRESH_TEXT_FEATURES.includes(request.feature) });
       } catch {
         return null;
       }
-      if (snapshot === null) return null;
+      // Asked before the page's return from bfcache: an answer of another life, never this one's.
+      if (snapshot === null || (deps.life?.() ?? 0) !== life) return null;
       const { identity } = snapshot;
       const fits =
         snapshot.feature === request.feature &&

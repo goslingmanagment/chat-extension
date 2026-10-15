@@ -56,6 +56,8 @@ export interface RouteChange {
   readonly previous: FanslyRoute;
   /** What noticed it: a signal, a verification (an unsignalled change) or the page's return from bfcache. */
   readonly via: RouteSignal | RouteVerification;
+  /** The page came back from the back-forward cache: a new life of the document, the address the same or not. */
+  readonly restored: boolean;
 }
 
 export interface RouteStats {
@@ -63,6 +65,8 @@ export interface RouteStats {
   readonly changes: number;
   /** Changes a verification found before any signal did (FS-RTE-3: must stay 0). */
   readonly unsignalled: number;
+  /** Returns from the back-forward cache: whatever was asked before one of them belongs to another life (FS-RTE-2). */
+  readonly restorations: number;
 }
 
 export interface RouteWatcher {
@@ -94,14 +98,16 @@ export function createRouteWatcher(win: Window, onDiagnostic?: (diagnostic: Rout
   let route: FanslyRoute = { path: path(), groupId: groupIdOfPath(path()), epoch: 1 };
   let changes = 0;
   let unsignalled = 0;
+  let restorations = 0;
   let disposed = false;
   const listeners = new Set<(change: RouteChange) => void>();
 
-  const move = (next: string, via: RouteSignal | RouteVerification): void => {
+  const move = (next: string, via: RouteSignal | RouteVerification, restored = false): void => {
     const previous = route;
     route = { path: next, groupId: groupIdOfPath(next), epoch: previous.epoch + 1 };
     changes += 1;
-    for (const listener of [...listeners]) listener({ route, previous, via });
+    if (restored) restorations += 1;
+    for (const listener of [...listeners]) listener({ route, previous, via, restored });
   };
 
   const signal = (source: RouteSignal): void => {
@@ -125,7 +131,7 @@ export function createRouteWatcher(win: Window, onDiagnostic?: (diagnostic: Rout
     if (disposed) return;
     // Back from the back-forward cache: whatever was on its way before belongs to another life of the page — a new
     // epoch even on the same address (FS-RTE-2, FS-RTE-4).
-    if ((event as PageTransitionEvent).persisted) move(path(), 'pageshow');
+    if ((event as PageTransitionEvent).persisted) move(path(), 'pageshow', true);
     else signal('pageshow');
   };
   const onEntryChange = (): void => signal('navigation');
@@ -149,7 +155,7 @@ export function createRouteWatcher(win: Window, onDiagnostic?: (diagnostic: Rout
         listeners.delete(listener);
       };
     },
-    stats: () => ({ changes, unsignalled }),
+    stats: () => ({ changes, unsignalled, restorations }),
     dispose() {
       if (disposed) return;
       disposed = true;

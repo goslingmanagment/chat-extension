@@ -389,7 +389,7 @@ interface PortView {
 }
 interface PortHealth {
   readonly isolated: {
-    readonly route: { readonly changes: number; readonly unsignalled: number };
+    readonly route: { readonly changes: number; readonly unsignalled: number; readonly restorations: number };
     readonly anchors: { readonly searches: number; readonly searching: boolean; readonly exhausted: boolean; readonly workCallbacks: number };
     readonly stream: { readonly batches: number; readonly acked: number; readonly gaps: number; readonly refused: number; readonly skipped: number; readonly states: number } | null;
     readonly staleChats: number;
@@ -488,7 +488,7 @@ describe('Fansly’s isolated world over P7a’s MAIN on its stand: the route by
       expect((await portHealth()).isolated.anchors.workCallbacks).toBe(quiet.workCallbacks);
 
       // FS-RTE-3: a verification without a signal finds the address where the signals left it.
-      expect(await tap('verify')).toEqual({ changes: 3, unsignalled: 0 });
+      expect(await tap('verify')).toEqual({ changes: 3, unsignalled: 0, restorations: 0 });
       // The stream: every batch acknowledged, nothing lost.
       const health = await waitForTap(portHealth, (h) => h.main !== null && h.main.stream.unacked === 0 && h.isolated.stream?.acked === h.main.stream.batches, 'every batch acknowledged');
       expect(health.isolated.stream).toMatchObject({ gaps: 0, refused: 0, skipped: 0 });

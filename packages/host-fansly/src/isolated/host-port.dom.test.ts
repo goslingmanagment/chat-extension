@@ -425,6 +425,148 @@ describe('[host:fansly] the contract and its degradation (FS-CTR-1, FS-CTR-2)', 
   });
 });
 
+describe('[host:fansly] what the port holds belongs to its route, its creator and its life (review of P7c)', () => {
+  const mainFor = (extra: Partial<Record<string, Answer>> = {}) => scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null, ...extra });
+  const chat = (fanId: string = FAN, creatorId: string = CREATOR) => ({ host: 'fansly-web', hostAccountId: creatorId, platformFanId: fanId }) as const;
+
+  it('[RB-014] [FS-RTE-4] back or forward: the address moves before Fansly replaces the conversation — the field still on the page is the old chat’s, never the new one’s, even once MAIN names the new fan', async () => {
+    const main = mainFor();
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
+    page.openChat(GROUP);
+    await settle();
+    main.batch(1, chatOf(GROUP, 1));
+    const fieldA = page.textarea() as HTMLTextAreaElement;
+    fieldA.value = 'draft for fan A';
+    fieldA.dispatchEvent(new Event('input'));
+    const first = port.current().composer;
+    expect(first?.chat).toEqual(chat());
+    // `popstate`: the address is OTHER's now, the DOM still A's — and MAIN already names OTHER's fan for the new epoch.
+    const moved = page.popTo(`/messages/${OTHER}`);
+    main.batch(2, chatOf(OTHER, 2, { fanId: '700000000000000099' }));
+    expect(port.current().route).toMatchObject({ epoch: 2, conversationRef: OTHER, chat: chat('700000000000000099') });
+    expect(page.textarea()).toBe(fieldA);
+    expect(port.current().composer).toBeNull();
+    const identity = open(port.identity());
+    expect(identity.composerInstanceId).toBeNull();
+    const refused = (await port.readDraft({ ...identity, composerInstanceId: first?.instanceId ?? null }).catch((error: unknown) => error)) as BridgeCallError;
+    expect(refused.failure).toBe('identity-mismatch');
+    expect(await port.focusComposer({ ...identity, composerInstanceId: first?.instanceId ?? null })).toBe(false);
+    // Fansly renders OTHER's conversation: its own field, a new instance.
+    await moved;
+    await settle();
+    const second = port.current().composer;
+    expect(second).toMatchObject({ chat: chat('700000000000000099'), draft: { provenance: 'empty' } });
+    expect(second?.instanceId).not.toBe(first?.instanceId);
+    expect((await port.readDraft(open(port.identity()))).plainText).toBe('');
+  });
+
+  it('[AU-034] [FS-RTE-4] another creator signs in on the page: the old creator’s chat and window go at once, MAIN is asked to focus again, and only its new answer names the chat', async () => {
+    const main = mainFor();
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
+    page.openChat(GROUP);
+    await settle();
+    main.batch(1, chatOf(GROUP, 1));
+    expect(port.current().route.chat).toEqual(chat());
+    main.batch(2, identityEvent(SECOND_CREATOR));
+    await settle();
+    expect(port.current().route).toMatchObject({ epoch: 1, conversationRef: GROUP, chat: null });
+    expect(port.current().route.conversationKind).toBeUndefined();
+    expect(port.chatWindow(chat(FAN, SECOND_CREATOR), 200)).toBeNull();
+    expect(port.current().composer).toBeNull();
+    expect(main.asked('fx.focus')).toEqual([
+      { groupId: GROUP, routeEpoch: 1 },
+      { groupId: GROUP, routeEpoch: 1 },
+    ]);
+    main.batch(3, chatOf(GROUP, 1));
+    expect(port.current().route.chat).toEqual(chat(FAN, SECOND_CREATOR));
+  });
+
+  it('[FS-RTE-2] [FS-RTE-4] back from the back-forward cache: a snapshot asked before is no answer after, the chat held is gone until MAIN names it again, and MAIN’s state is asked again', async () => {
+    let release: (snapshot: unknown) => void = () => undefined;
+    const main = mainFor({ 'fx.generationSnapshot': () => new Promise((resolve) => (release = resolve)) });
+    const { port, page, events } = await startPort(`/messages/${GROUP}`, main.client);
+    page.openChat(GROUP);
+    await settle();
+    main.batch(1, chatOf(GROUP, 1, { window: { ...fanslyChatWire.window, completeness: 'complete', startProven: true } }));
+    expect(port.chatWindow(chat(), 200)?.hasOlder).toBe(false);
+    const asked = port.freshness.snapshot(chat(), { conversationRef: GROUP, feature: 'reply', window: 30, withText: true });
+    await settle();
+    window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    // The same address, a new life (a new route epoch): what was held is gone, and the state is asked again.
+    expect(port.chatWindow(chat(), 200)).toBeNull();
+    expect(events.filter((event) => event.type === 'route').at(-1)).toMatchObject({ route: { epoch: 2, chat: null } });
+    await settle();
+    expect(main.asked('fx.state')).toHaveLength(2);
+    release({ ...fanslyReplySnapshot, identity: { creatorId: CREATOR, groupId: GROUP, fanId: FAN }, epochs: { ...fanslyReplySnapshot.epochs, document: EPOCH } });
+    expect(await asked).toBeNull();
+  });
+
+  it('[BG-002] a recovery that failed is asked again at the next signal of the page — a chat switch, an action of ours — however many states were taken before', async () => {
+    let answering = true;
+    const main = mainFor({ 'fx.state': () => (answering ? { ...NO_ONE, identity: fanslyIdentityWire } : Promise.reject(new BridgeCallError('timeout', 'fx.state'))) });
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
+    page.openChat(GROUP);
+    await settle();
+    expect(main.asked('fx.state')).toHaveLength(1);
+    answering = false;
+    main.gap();
+    await settle();
+    expect(main.asked('fx.state')).toHaveLength(2);
+    // MAIN stays stopped until a state is taken: the next chat asks again.
+    page.openChat(OTHER);
+    await settle();
+    expect(main.asked('fx.state')).toHaveLength(3);
+    // And so does an action of our UI.
+    await port.readDraft(open(port.identity())).catch(() => undefined);
+    await settle();
+    expect(main.asked('fx.state')).toHaveLength(4);
+    answering = true;
+    page.openChat(GROUP);
+    await settle();
+    expect(main.asked('fx.state')).toHaveLength(5);
+    // Taken: nothing more is asked.
+    page.openChat(OTHER);
+    await settle();
+    expect(main.asked('fx.state')).toHaveLength(5);
+  });
+
+  it('[BG-002] MAIN’s state replaces what the port holds: a chat MAIN no longer names is gone, a window that changed is said', async () => {
+    let state: FanslyState = { ...NO_ONE, identity: fanslyIdentityWire };
+    const main = mainFor({ 'fx.state': () => state });
+    const { port, page, events } = await startPort(`/messages/${GROUP}`, main.client);
+    page.openChat(GROUP);
+    await settle();
+    main.batch(1, chatOf(GROUP, 1));
+    expect(port.chatWindow(chat(), 200)?.loaded).toBe(4);
+    // The recovery's state names the same chat with another window: the dock hears `chatCache` with it.
+    const heard: Array<number | null> = [];
+    port.subscribe((event) => event.type === 'chatCache' && heard.push(port.chatWindow(event.chat, 200)?.loaded ?? null));
+    state = { ...state, chat: { ...fanslyChatWire, groupId: GROUP, routeEpoch: 1, window: { ...fanslyChatWire.window, loaded: 9 } } };
+    main.gap();
+    await settle();
+    expect(port.chatWindow(chat(), 200)?.loaded).toBe(9);
+    expect(heard.at(-1)).toBe(9);
+    // MAIN no longer names the chat: it is gone, and the route says so.
+    state = { ...state, chat: null };
+    main.gap();
+    await settle();
+    expect(port.current().route.chat).toBeNull();
+    expect(port.chatWindow(chat(), 200)).toBeNull();
+    expect(events.filter((event) => event.type === 'route').at(-1)).toMatchObject({ route: { chat: null } });
+  });
+
+  it('[BG-002] a loss of the stream withdraws a proven start at once: no window claims the whole history until MAIN says so again', async () => {
+    const proven = mainFor();
+    const { port, page } = await startPort(`/messages/${GROUP}`, proven.client);
+    page.openChat(GROUP);
+    await settle();
+    proven.batch(1, chatOf(GROUP, 1, { window: { ...fanslyChatWire.window, completeness: 'complete', startProven: true } }));
+    expect(port.chatWindow(chat(), 200)?.hasOlder).toBe(false);
+    proven.gap();
+    expect(port.chatWindow(chat(), 200)).toMatchObject({ state: 'ready', hasOlder: null });
+  });
+});
+
 // ── Over the real MAIN of P7a ────────────────────────────────────────────
 
 /** The page's XHR as the natives look (Node has none): `send()` fires `loadstart`, `respond` `load` and `loadend`. */
@@ -557,7 +699,7 @@ describe('[host:fansly] the port over the real MAIN', () => {
     expect(health.isolated.stream?.acked).toBe(health.main?.stream.batches);
     expect(health.isolated.staleChats).toBe(0);
     expect(port.probe().extensions['fansly-web'].anchors.accountMe).toBe('ok');
-    expect(health.isolated.route).toEqual({ changes: 1, unsignalled: 0 });
+    expect(health.isolated.route).toEqual({ changes: 1, unsignalled: 0, restorations: 0 });
     expect(diagnostics).toEqual([]);
   });
 });

@@ -132,7 +132,13 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   let slot: FanslyHeaderSlot = { state: 'none', reason: 'no-chat' };
   let report: FanslyContractReport = compute();
 
-  // ── the main field: its instance and its revision ──
+  // ── the main field: its owner, its instance and its revision ──
+  /**
+   * The conversation each field node was first seen under. Fansly changes the address before it replaces the
+   * conversation's nodes (`popstate` is read a task later, S2 Q4): a field still on the page when the route moved is
+   * the old chat's, and it never becomes the new one's — even once MAIN names the new fan (FS-RTE-4).
+   */
+  const owners = new WeakMap<Element, string | null>();
   const instances = new WeakMap<Element, string>();
   let instanceSerial = 0;
   let revision = 0;
@@ -242,7 +248,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     routeState = nextRoute;
 
     const conversation = anchors.current().conversation;
-    follow(conversation?.textarea ?? null);
+    const candidate = conversation?.textarea ?? null;
+    if (candidate !== null && !owners.has(candidate)) owners.set(candidate, now.groupId);
+    follow(candidate !== null && now.groupId !== null && owners.get(candidate) === now.groupId ? candidate : null);
     const chat = routeState.chat;
     composer =
       chat !== null && field !== null && conversation !== null
@@ -276,12 +284,35 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   }
 
   // ── MAIN's stream ──
-  const setCreator = (next: string | null): void => {
-    if (next === creator) return;
+  /**
+   * Another creator (§5.7): a new login epoch, and what MAIN said of the old one's chat is gone — MAIN starts its
+   * observation anew for the new creator, so the route's group is focused again and only the answer to that names
+   * the chat. Says whether it changed; the caller syncs and tells the accounts.
+   */
+  const changeCreator = (next: string | null): boolean => {
+    if (next === creator) return false;
+    if (creator !== null) {
+      chatWire = null;
+      focused = null;
+    }
     creator = next;
     logins += 1;
+    return true;
+  };
+  const setCreator = (next: string | null): void => {
+    if (!changeCreator(next)) return;
     sync();
     emit({ type: 'accounts', accounts: accounts() });
+  };
+
+  /** MAIN's chat for the route, or none: the port says the change — the route when the chat comes or goes, `chatCache` when its window moves. */
+  const setChat = (next: FanslyChatWire | null): void => {
+    const before = chatWire;
+    chatWire = next;
+    sync();
+    const chat = routeState.chat;
+    const same = before !== null && next !== null && before.groupId === next.groupId && before.fanId === next.fanId;
+    if (chat !== null && same && JSON.stringify(before.window) !== JSON.stringify(next.window)) emit({ type: 'chatCache', chat });
   };
 
   /** fx.chat of the route's group and epoch: taken; any other is late (A → B → A) and dropped. */
@@ -290,18 +321,15 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       staleChats += 1;
       return;
     }
-    const before = chatWire;
-    chatWire = wire;
-    sync();
-    const chat = routeState.chat;
-    if (chat !== null && before !== null && JSON.stringify(before.window) !== JSON.stringify(wire.window)) emit({ type: 'chatCache', chat });
+    setChat(wire);
   };
 
+  /** MAIN's state replaces what the port holds: its chat for the route's focus, or none — a chat it no longer names is gone. */
   const onState = (state: FanslyState): void => {
     network = state.contract;
-    if (state.chat !== null && chatFits(route.current(), state.chat) && focused === state.chat.routeEpoch) chatWire = state.chat;
-    if (state.identity.creatorId !== creator) setCreator(state.identity.creatorId);
-    else sync();
+    const changed = changeCreator(state.identity.creatorId);
+    setChat(state.chat !== null && chatFits(route.current(), state.chat) && focused === state.chat.routeEpoch ? state.chat : null);
+    if (changed) emit({ type: 'accounts', accounts: accounts() });
   };
 
   const onEvent = (event: FromMainFansly): void => {
@@ -335,10 +363,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
             event: onEvent,
             lost(reason) {
               diag({ event: 'stream-lost', detail: { reason } });
-              // Every chat unknown until the next state (FS-TAIL-5): the window the tab holds says so at once.
-              if (chatWire === null) return;
-              chatWire = { ...chatWire, window: { ...chatWire.window, completeness: 'unknown' } };
-              if (routeState.chat !== null) emit({ type: 'chatCache', chat: routeState.chat });
+              // Every chat unknown until the next state (FS-TAIL-5): the window the tab holds says so at once — and a
+              // proven start no longer stands, its unbroken observation is broken.
+              if (chatWire !== null) setChat({ ...chatWire, window: { ...chatWire.window, completeness: 'unknown', startProven: false } });
             },
             fault(source, count) {
               // MAIN says a site's count at 1, 2, 4, 8…: one is logged when it at least doubled the last.
@@ -351,16 +378,16 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
           (failure) => diag({ event: 'state-failed', detail: { failure } }),
         );
 
-  /** A state was never taken (it failed): the next signal of the page asks again. */
+  /** A state is owed — none taken yet, or a loss or a failed ask since the last one: the next signal of the page asks again. */
   const resyncIfNeeded = (): void => {
-    if (stream !== null && !stream.started()) void stream.resync();
+    if (stream?.owed() === true) void stream.resync();
   };
 
   const offRoute = route.onChange((change) => {
-    if (change.via === 'pageshow') {
-      // Back from bfcache: MAIN's states are asked again whole (FS-RTE-2).
-      void stream?.resync();
-    } else resyncIfNeeded();
+    // Back from bfcache: a new life (and a new route epoch, so what MAIN said before no longer fits); MAIN's states
+    // are asked again whole (FS-RTE-2).
+    if (change.restored) void stream?.resync();
+    else resyncIfNeeded();
     sync();
   });
   const offAnchors = anchors.onChange(() => sync());
@@ -394,7 +421,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     return field;
   };
 
-  const freshness = createFreshnessPort({ bridge, beforeAsk: acting, onDiagnostic: diag });
+  const freshness = createFreshnessPort({ bridge, beforeAsk: acting, life: () => route.stats().restorations, onDiagnostic: diag });
 
   const page: FanslyPagePort = {
     headerSlot: () => slot,
