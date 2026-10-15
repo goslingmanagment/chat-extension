@@ -12,7 +12,7 @@
 import { handler } from './events';
 import { record } from './journal';
 
-export type Route = { readonly kind: 'messages'; readonly groupId: string | null } | { readonly kind: 'other'; readonly path: string };
+export type Route = { readonly kind: 'messages'; readonly groupId: string | null } | { readonly kind: 'vault' } | { readonly kind: 'other'; readonly path: string };
 
 const CONVERSATION = /^\/messages\/(\d+)$/;
 
@@ -20,6 +20,7 @@ export function parseRoute(path: string): Route {
   if (path === '/messages' || path === '/messages/') return { kind: 'messages', groupId: null };
   const conversation = CONVERSATION.exec(path);
   if (conversation !== null) return { kind: 'messages', groupId: conversation[1] ?? null };
+  if (path === '/creator/vault' || path === '/creator/vault/') return { kind: 'vault' };
   return { kind: 'other', path };
 }
 

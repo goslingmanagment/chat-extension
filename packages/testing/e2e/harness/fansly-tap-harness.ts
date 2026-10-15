@@ -15,6 +15,9 @@
 //   it, «Открыть и вставить», the insertion record; the background's
 //   `token.redeem` is a stand-in that says yes unless the spec turns it off.
 //   Texts only of the spec's own drafts.
+//   Over that port, the vault's uploader (R20 P13a,
+//   `@cg/host-fansly/isolated/vault`) as the vault's panel will run it: a run
+//   of files the spec names, its checkpoints kept here in memory.
 // Every frame from MAIN passed the three stages of checks first; a frame that
 // did not is in the client's counts.
 //
@@ -22,10 +25,12 @@
 // Nothing here talks to the network; the e2e network trap would catch it.
 
 import type { FanslyBatch, FanslyHealth, FanslyState } from '@cg/contracts/bridge-messages-fansly';
+import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 import type { HostEvent, InsertIntent, InsertReceipt, InsertWire, NavigationReceipt } from '@cg/contracts/host';
 import type { DraftSnapshot, HostIdentity } from '@cg/contracts/ids';
 import { connectFanslyMain, startFanslyTab, type FanslyDiagnostic, type FanslyMainBridgeClient, type FanslyPort, type StartedFanslyTab } from '@cg/host-fansly/isolated';
 import * as validation from '@cg/host-fansly/isolated/validation';
+import { createVaultRun, createVaultUploader, vaultTargetOf, type VaultCheckpointStore, type VaultRun, type VaultUploader } from '@cg/host-fansly/isolated/vault';
 
 /** How long the handshake waits: MAIN may come late (the late-install case). */
 const HANDSHAKE_MS = 60_000;
@@ -100,6 +105,26 @@ if (consumer === 'port') {
     (error: unknown) => (failure = String(error)),
   );
 }
+
+// ── the vault's uploader over the port (P13a) ──
+
+let vaultUploader: VaultUploader | null = null;
+let vaultRun: VaultRun | null = null;
+/** Every checkpoint the run wrote, in order, and the uploads it cleared — the background's part, here in memory. */
+const vaultSaves: VaultCheckpoint[] = [];
+const vaultClears: string[] = [];
+const vaultStore: VaultCheckpointStore = {
+  load: (target) => Promise.resolve([...vaultSaves].reverse().find((saved) => saved.hostAccountId === target.hostAccountId && saved.albumId === target.albumId) ?? null),
+  save: (checkpoint) => {
+    vaultSaves.push(checkpoint);
+    return Promise.resolve(true);
+  },
+  clear: (_target, uploadId) => {
+    vaultClears.push(uploadId);
+    return Promise.resolve(true);
+  },
+};
+const vault = (): VaultUploader => (vaultUploader ??= createVaultUploader({ win: window, port: needPort() }));
 
 const need = (): FanslyMainBridgeClient => {
   if (client === null) throw new Error(`not connected to MAIN${failure === null ? '' : `: ${failure}`}`);
@@ -330,6 +355,31 @@ const methods: Record<string, (...args: never[]) => unknown> = {
     return Promise.all(results);
   },
   raceSkipped: () => raceSkipped,
+
+  // ── the vault (P13a) ──
+  /** What the uploader reads of the page: the account, the open album's id and title, the uploader, the cards. */
+  vaultView: () => vault().view(),
+  /** Starts a run of files by these names (a few bytes each, of `type`) into the album open now; false — no album or account. */
+  vaultStart: (names: readonly string[], type = 'image/jpeg') => {
+    const target = vaultTargetOf(vault().view());
+    if (target === null) return { started: false, target };
+    const files = names.map((name) => new File([`stand ${name}`], name, { type }));
+    vaultRun = createVaultRun({ target, files, checkpoint: null }, { uploader: vault(), store: vaultStore });
+    vaultSaves.splice(0);
+    vaultClears.splice(0);
+    void vaultRun.start();
+    return { started: true, target };
+  },
+  /** The run, its checkpoints as [confirmed, pending], what it cleared, and what the uploader watches. */
+  vaultState: () => ({
+    run: vaultRun?.snapshot() ?? null,
+    checkpoints: vaultSaves.map((saved) => [saved.confirmed, saved.pending?.index ?? null]),
+    clears: vaultClears.length,
+    stats: vault().stats(),
+    album: needPort().vault.album(),
+  }),
+  vaultStop: () => vaultRun?.stop() ?? null,
+  vaultResolve: (answer: 'present' | 'missing') => vaultRun?.resolve(answer) ?? false,
 };
 
 Object.defineProperty(globalThis, '__cgFanslyTap', {

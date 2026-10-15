@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createWorld, standIds } from '../../fixture-fansly/src/data';
-import { EVENT, SERVICE, compareIds, snowflakeMs, type WireAccount, type WireAccountMe, type WireAutomatedMessage, type WireFollowersPage, type WireGroup, type WireHistoryPage, type WireInboxPage, type WireMessage, type WireNote, type WireUnreadPage, type WireVaultAlbums } from '../../fixture-fansly/src/wire';
+import { EVENT, SERVICE, compareIds, snowflakeMs, type WireAccount, type WireAccountMe, type WireAutomatedMessage, type WireFollowersPage, type WireGroup, type WireHistoryPage, type WireInboxPage, type WireMessage, type WireNote, type WireUnreadPage, type WireVaultAlbumMediaPage, type WireVaultAlbums } from '../../fixture-fansly/src/wire';
 import { STAND_COOKIE } from './api';
 import { SEED_FOLLOWERS, SEED_FOLLOWERS_WITH_CHAT } from './data';
 import type { FakeFansly } from './index';
@@ -331,8 +331,29 @@ describe('the fake Fansly API: «Новые», notes, vault', () => {
     expect((await call(fake, 'POST', bypass('/vault/albums/media'), { body: { albumId: '801000000000000001', mediaIds: ['1'] } })).status).toBe(404);
   });
 
+  it('the vault: an uploaded file is a medium with its name; an album lists its media the newest first, with the media they name (R20 P13a)', async () => {
+    const album = '807000000000000022';
+    expect((await call<WireVaultAlbumMediaPage>(fake, 'GET', bypass(`/media/vaultnew?albumId=${album}&mediaType=0&search=&before=0&after=0`))).response).toEqual({ albumMedia: [], media: [] });
+    const created = (await call<Array<{ contentId: string }>>(fake, 'POST', bypass('/account/media'), { body: [{ name: 'IMG_1.JPG', type: 'image/jpeg', size: 10 }, { name: 'clip.mp4', type: 'video/mp4', size: 20 }] })).response as Array<{ contentId: string }>;
+    const [first, second] = created.map((item) => item.contentId);
+    await call(fake, 'POST', bypass('/vault/albums/media'), { body: { albumId: album, mediaIds: [first] } });
+    await call(fake, 'POST', bypass('/vault/albums/media'), { body: { albumId: album, mediaIds: [second] } });
+    const page = (await call<WireVaultAlbumMediaPage>(fake, 'GET', bypass(`/media/vaultnew?albumId=${album}&mediaType=0&search=&before=0&after=0`))).response as WireVaultAlbumMediaPage;
+    expect(page.albumMedia.map((item) => [item.albumId, item.mediaId])).toEqual([
+      [album, second],
+      [album, first],
+    ]);
+    expect(page.media.map((item) => [item.id, item.filename, item.mimetype])).toEqual([
+      [second, 'clip.mp4', 'video/mp4'],
+      [first, 'IMG_1.JPG', 'image/jpeg'],
+    ]);
+    // A type album keeps nothing here; an album that does not exist is not found.
+    expect((await call<WireVaultAlbumMediaPage>(fake, 'GET', bypass('/media/vaultnew?type=1000&before=0&after=0'))).response).toEqual({ albumMedia: [], media: [] });
+    expect((await call(fake, 'GET', bypass('/media/vaultnew?albumId=801000000000000001&mediaType=0'))).status).toBe(404);
+  });
+
   it('every id in every answer is a string of 17–19 digits; no number is too large to be exact', async () => {
-    const paths = ['/account/me', '/messaging/groups?limit=20&offset=0', `/group/${groupA}/`, `/message?groupId=${ids.longHistory}&limit=25`, '/message/unread?limit=100&offset=0&before=0', `/account/${ids.creator}/followersnew?before=0&limit=100`, `/account?ids=${fanA}`, '/message/automated', '/vault/albumsnew'];
+    const paths = ['/account/me', '/messaging/groups?limit=20&offset=0', `/group/${groupA}/`, `/message?groupId=${ids.longHistory}&limit=25`, '/message/unread?limit=100&offset=0&before=0', `/account/${ids.creator}/followersnew?before=0&limit=100`, `/account?ids=${fanA}`, '/message/automated', '/vault/albumsnew', '/media/vaultnew?albumId=807000000000000021&mediaType=0'];
     let seen = 0;
     for (const path of paths) {
       const answer = await call(fake, 'GET', bypass(path));

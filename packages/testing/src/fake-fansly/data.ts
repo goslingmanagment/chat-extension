@@ -27,6 +27,7 @@ import {
   type WireNote,
   type WireUnreadPage,
   type WireVaultAlbum,
+  type WireVaultAlbumMediaPage,
   type WireVaultAlbums,
 } from '../../fixture-fansly/src/wire';
 
@@ -110,7 +111,16 @@ export interface FakeAlbum {
   readonly id: string;
   readonly type: number;
   title: string;
+  /** Oldest first: the page lists the newest first. */
   readonly mediaIds: string[];
+}
+
+/** An account medium the page uploaded (the stand's `POST /account/media`): its file name for the vault's cards. */
+export interface FakeMedia {
+  readonly id: string;
+  readonly filename: string | null;
+  readonly mimetype: string;
+  readonly createdAt: number;
 }
 
 export interface NewMessage {
@@ -150,6 +160,8 @@ export class FanslyWorld {
   readonly follows: FakeFollow[] = [];
   readonly automated: WireAutomatedMessage[];
   readonly albums: FakeAlbum[];
+  /** The account's media by id: what the page uploaded. */
+  readonly media = new Map<string, FakeMedia>();
   /** The creator's mass-send group: the parents of its mass sends live there. */
   readonly broadcastGroupId = BROADCAST_GROUP_ID;
   private readonly ids = new Snowflakes();
@@ -565,5 +577,14 @@ export class FanslyWorld {
 
   wireAlbums(): WireVaultAlbums {
     return { albums: this.albums.map((album) => this.wireAlbum(album)), aggregationData: { media: [] } };
+  }
+
+  /** An album's media, the newest first, with the media they name (`GET /media/vaultnew`). */
+  wireAlbumMedia(album: FakeAlbum): WireVaultAlbumMediaPage {
+    const media = [...album.mediaIds].reverse().flatMap((id) => this.media.get(id) ?? []);
+    return {
+      albumMedia: media.map((item) => ({ id: String(BigInt(item.id) + 1n), albumId: album.id, mediaId: item.id, customFilename: null, createdAt: Math.floor(item.createdAt / 1000) })),
+      media: media.map((item) => ({ id: item.id, filename: item.filename, mimetype: item.mimetype })),
+    };
   }
 }

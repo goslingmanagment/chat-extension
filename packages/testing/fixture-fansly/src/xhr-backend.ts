@@ -16,7 +16,8 @@
 import type { GroupDetail, HistoryPage, OutgoingMessage, StandBackend, UploadFile } from './backend';
 import type { Account, Message, MessageAttachment } from './data';
 import type { FanslyHttp } from './http';
-import type { WireAccount, WireAccountMe, WireAckBody, WireGroup, WireHistoryPage, WireInboxPage, WireMessage, WireSendBody, WireUnreadPage } from './wire';
+import type { VaultApi } from './vault';
+import type { WireAccount, WireAccountMe, WireAckBody, WireGroup, WireHistoryPage, WireInboxPage, WireMessage, WireSendBody, WireUnreadPage, WireVaultAlbum, WireVaultAlbumMediaPage, WireVaultAlbums } from './wire';
 
 const HISTORY_PAGE = 25;
 const UNREAD_CHUNK = 100;
@@ -51,7 +52,7 @@ export interface XhrBackendOptions {
   readonly ackDelay: () => number;
 }
 
-export class XhrBackend implements StandBackend {
+export class XhrBackend implements StandBackend, VaultApi {
   creatorId = '';
   /** A group's facts changed after its answer (a partner's account arrived): the store hears of it here. */
   onGroup: (detail: GroupDetail) => void = () => undefined;
@@ -223,6 +224,24 @@ export class XhrBackend implements StandBackend {
 
   automated(): void {
     this.http.request<unknown>('GET', '/message/automated', null, () => undefined);
+  }
+
+  // ── the vault (vault.ts, R20 P13a) ──
+
+  vaultAlbums(done: (albums: readonly WireVaultAlbum[]) => void): void {
+    this.http.request<WireVaultAlbums>('GET', '/vault/albumsnew', null, (error, response) => done(error !== null || response === null ? [] : response.albums));
+  }
+
+  vaultAlbumMedia(albumId: string, done: (page: WireVaultAlbumMediaPage | null) => void): void {
+    this.http.request<WireVaultAlbumMediaPage>('GET', `/media/vaultnew?albumId=${albumId}&mediaType=0&search=&before=0&after=0`, null, (error, response) => done(error === null ? response : null), { albumId });
+  }
+
+  vaultUpload(file: UploadFile, done: (mediaId: string | null) => void): void {
+    this.http.request<MessageAttachment[]>('POST', '/account/media', [file], (error, response) => done(error !== null || response === null ? null : (response[0]?.contentId ?? null)), { files: 1 });
+  }
+
+  vaultAdd(albumId: string, mediaIds: readonly string[], done: (ok: boolean) => void): void {
+    this.http.request<unknown>('POST', '/vault/albums/media', { albumId, mediaIds }, (error) => done(error === null), { albumId, media: mediaIds.length });
   }
 
   // ── unread and the page's marks ──

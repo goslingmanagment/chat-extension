@@ -312,6 +312,27 @@ export interface WireVaultAlbums {
   readonly aggregationData: { readonly media: readonly unknown[] };
 }
 
+/** One medium of an album (`albumMedia[]`): the page shows `customFilename || media.filename` on its card (main:12393). */
+export interface WireVaultAlbumMedia {
+  readonly id: string;
+  readonly albumId: string;
+  readonly mediaId: string;
+  readonly customFilename: string | null;
+  readonly createdAt: number;
+}
+
+export interface WireVaultMedia {
+  readonly id: string;
+  readonly filename: string | null;
+  readonly mimetype: string;
+}
+
+/** `GET /media/vaultnew?albumId=<id>&mediaType=…&search=…&before=…&after=…` (main:12696-12712, :30257): newest first. */
+export interface WireVaultAlbumMediaPage {
+  readonly albumMedia: readonly WireVaultAlbumMedia[];
+  readonly media: readonly WireVaultMedia[];
+}
+
 // ── the socket ──
 
 /** `t` of a frame (main:27556-27567). */
