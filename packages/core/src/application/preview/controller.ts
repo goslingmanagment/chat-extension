@@ -442,6 +442,17 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const atEpoch = epoch;
     // A new walk reads the conversation the list knows now (on Fansly the group it resolved), never the chat on screen.
     const conversation = feedConversationOf(infoNow(state), ctx.binding?.platform ?? null);
+    if (conversation === null || conversation.conversationRef !== state.feedConversation?.conversationRef) {
+      // Neither rows nor a cursor survive losing or changing the conversation, including a failed new read.
+      state.feed = null;
+      state.feedConversation = null;
+      state.feedLoadedAt = null;
+      state.olderError = null;
+      kept = kept.filter((entry) => entry.key !== state.handle);
+      stopPoll(state);
+    }
+    // A new first-page run invalidates any older page still in flight.
+    state.olderLoading = false;
     if (conversation === null) {
       // R20 P8a: the list knows no chat of the fan — nothing is read, and the card says so with «Повторить».
       state.feedLoading = false;
@@ -482,16 +493,16 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const cursor = feed?.nextOlderCursor ?? null;
     const conversation = state.feedConversation;
     if (feed === null || cursor === null || conversation === null || state.olderLoading) return;
+    if (conversationNow(state) !== (conversation.conversationRef ?? state.fanRef)) return;
     const run = state.feedRun;
     const atEpoch = epoch;
     state.olderLoading = true;
     state.olderError = null;
     changedFor(state.handle);
     const answer = await rpc.request('feed.read', { pageId: state.pageId, fanRef: state.fanRef, cursor, limit: feedLimit(), ...conversation });
-    if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state) return;
-    state.olderLoading = false;
     // A first page was read meanwhile: this page belongs to the walk it replaced.
-    if (state.feedRun !== run || state.feed === null) return changedFor(state.handle);
+    if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state || state.feedRun !== run || state.feed === null) return;
+    state.olderLoading = false;
     if (answer.ok) {
       const step = olderFeedPage(state.feed, cursor, answer.payload);
       if (step.kind === 'appended') state.feed = step.state;
@@ -541,6 +552,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   function openTarget(source: PreviewSource, handle: TargetHandle): void {
     const info = deps.directories[source]?.resolve(handle) ?? null;
     if (info === null) return;
+    const conversation = feedConversationOf(info, context.current().binding?.platform ?? null);
+    kept = kept.filter((entry) => entry.key !== handle || (conversation !== null && entry.conversationRef === (conversation.conversationRef ?? info.fanRef)));
     const saved = kept.find((entry) => entry.key === handle) ?? null;
     const state: TargetState = {
       handle,
@@ -549,7 +562,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       fanRef: info.fanRef,
       info,
       feed: saved?.first ?? null,
-      feedConversation: feedConversationOf(info, context.current().binding?.platform ?? null),
+      feedConversation: saved === null ? null : conversation,
       feedLoading: false,
       feedError: null,
       feedRun: 0,
@@ -578,7 +591,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const state = targets.get(handle);
     if (state === undefined) return;
     stopPoll(state);
-    if (state.feed !== null) kept = keepFeed(kept, { key: handle, first: state.feed, keptAt: state.feedLoadedAt ?? clock.now() });
+    if (state.feed !== null && state.feedConversation !== null) kept = keepFeed(kept, { key: handle, conversationRef: state.feedConversation.conversationRef ?? state.fanRef, first: state.feed, keptAt: state.feedLoadedAt ?? clock.now() });
     targets.delete(handle);
     // The person closed the preview before the chat opened: the pending insert is given up (§6.5).
     if (pendingInsert !== null && pendingInsert.track.handle === handle && !closingForNavigation) cancelInsert('preview-closed');
@@ -1445,7 +1458,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       fanWroteNew: shown !== null && (shown.fanWrote || shown.mirror.done?.stale?.reason === 'fan-wrote'),
       feed: {
         items: feedItems(state),
-        hasOlder: feed !== null && feed.nextOlderCursor !== null,
+        hasOlder: !chatUnknown && feed !== null && feed.nextOlderCursor !== null,
         loadingOlder: state.olderLoading,
         olderError: state.olderError === null ? null : errorOf(state.olderError, i18n),
       },

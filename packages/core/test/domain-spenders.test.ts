@@ -809,24 +809,24 @@ describe('[SP-050] [SP-053] [AI-038] [DB-026] the archive feed of a preview', ()
   it('kept feeds: the newest page of the ten most recent previews, a hundred messages each, two MiB together', () => {
     const page = firstFeedPage(first);
     let kept: KeptFeed[] = [];
-    for (let i = 0; i < 12; i += 1) kept = keepFeed(kept, { key: `fan-${i}`, first: page, keptAt: i });
+    for (let i = 0; i < 12; i += 1) kept = keepFeed(kept, { key: `fan-${i}`, conversationRef: `fan-${i}`, first: page, keptAt: i });
     expect(kept).toHaveLength(STORAGE_LIMITS.previewFeeds);
     expect(kept[0]?.key).toBe('fan-11');
     expect(kept.some((entry) => entry.key === 'fan-0')).toBe(false);
     // Keeping one again moves it to the front without a second copy.
-    kept = keepFeed(kept, { key: 'fan-5', first: page, keptAt: 99 });
+    kept = keepFeed(kept, { key: 'fan-5', conversationRef: 'fan-5', first: page, keptAt: 99 });
     expect(kept.filter((entry) => entry.key === 'fan-5')).toHaveLength(1);
     expect(kept[0]?.key).toBe('fan-5');
     // A page longer than a kept feed may be is cut, and loses the cursor that pointed behind its end.
     const long = { ...page, items: Array.from({ length: 130 }, (_, i) => ({ ...page.items[0]!, messageId: String(8000 + i) })) };
-    const cut = keepFeed([], { key: 'long', first: long, keptAt: 1 })[0]!;
+    const cut = keepFeed([], { key: 'long', conversationRef: 'long', first: long, keptAt: 1 })[0]!;
     expect(cut.first.items).toHaveLength(STORAGE_LIMITS.previewFeedMessages);
     expect(cut.first.nextOlderCursor).toBeNull();
     // Bytes: huge feeds push the oldest out before the count does.
     const huge = { ...page, items: page.items.map((item) => ({ ...item, text: 'x'.repeat(8000) })) };
     expect(feedBytes(huge)).toBeGreaterThan(700_000);
     let heavy: KeptFeed[] = [];
-    for (let i = 0; i < 6; i += 1) heavy = keepFeed(heavy, { key: `h-${i}`, first: huge, keptAt: i });
+    for (let i = 0; i < 6; i += 1) heavy = keepFeed(heavy, { key: `h-${i}`, conversationRef: `h-${i}`, first: huge, keptAt: i });
     expect(heavy.length).toBeLessThan(6);
     expect(heavy.reduce((sum, entry) => sum + feedBytes(entry.first), 0)).toBeLessThanOrEqual(STORAGE_LIMITS.previewFeedsTotalBytes);
   });
