@@ -7,12 +7,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
+import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import { DEFAULT_PARTS, DOCK_CSS, preloadPart, useSteadyView } from '@cg/ui/dock';
 import { tabbables } from '@cg/ui/kit';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 
+import { FANSLY_SITE_TEXTS } from '../kit/profiles';
 import { FANS, MIN, button, cgError, entry, failedResult, iso, meta, msg, part, parts, phase, reason, result, running, uuid, variants, type FanFixture } from '../scenarios/app-client';
 import { type MountedKit, ctx, dockScenario, dockVm, flush, keydown, mountDock, mountDockSettled, settle, text } from './harness';
 
@@ -716,6 +718,32 @@ describe('the head: «Ещё раз» and «Скрыть»', () => {
     await flush(() => byLabel('Ещё раз', row).click());
     await flush(() => byLabel('Вставить', partRows()[0]).click());
     expect(kit.client.dispatched.map((action) => action.type)).toEqual(['Regenerate', 'InsertPart']);
+  });
+
+  it('R20 P8b2: Fansly’s window check marks (spec §3.5) — each in its own words from the site’s catalog, the accent dot and «Ещё раз»; inserting stays allowed', async () => {
+    const site = { phrases: FANSLY_PHRASES, texts: FANSLY_SITE_TEXTS };
+    // The whole line, and its start in bold.
+    const said = {
+      unverified: ['Свежесть не проверена: неизвестно, учёл ли ответ последние сообщения чата.', 'Свежесть не проверена:'],
+      'window-miss': ['Ответ мог не учесть последние сообщения чата.', 'Ответ мог не учесть'],
+      'deleted-served': ['Контекст устарел: ответ учитывает сообщение, удалённое из чата.', 'Контекст устарел:'],
+      'fan-wrote': ['Фан написал новое после генерации. Ответ его не учитывает.', 'Фан написал новое'],
+    } as const;
+    for (const [reason, [line, bold]] of Object.entries(said) as [keyof typeof said, readonly [string, string]][]) {
+      kit = mountDock(withResult(reply({ stale: { reason, at: null } })), { site });
+      const row = kit.$('.cg-stale') as HTMLElement;
+      expect([reason, row.getAttribute('role'), text(row.querySelector('.cg-stale__t')), text(row.querySelector('.cg-stale__t b'))]).toEqual([reason, 'status', line, bold]);
+      expect(row.querySelector('.cg-dot--accent')?.getAttribute('data-accent-use')).toBe('result-stale');
+      await flush(() => byLabel('Ещё раз', row).click());
+      await flush(() => byLabel('Вставить', partRows()[0]).click());
+      expect(kit.client.dispatched.map((action) => action.type)).toEqual(['Regenerate', 'InsertPart']);
+      kit.unmount();
+      kit = null;
+    }
+    // A board’s result in the dock: the mark, no «Ещё раз» of its own (a new answer is the strip’s buttons).
+    kit = mountDock(withResult(reply({ surface: 'preview', stale: { reason: 'window-miss', at: null } })), { site });
+    expect(text(kit.$('.cg-stale .cg-stale__t'))).toBe(said['window-miss'][0]);
+    expect(kit.$$('.cg-stale button')).toEqual([]);
   });
 
   it('the keys footer shows while the view model says so; its «Скрыть» writes the preference', async () => {

@@ -19,6 +19,7 @@ import {
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { type SitePhrases } from '@cg/core/domain/i18n';
 
+import { type GalleryHost } from '../../kit/profiles';
 import {
   FANS,
   HOUR,
@@ -82,6 +83,11 @@ export interface GalleryState {
   readonly debug?: boolean;
   /** The surface cannot draw this view model: the state shows the «Сбой интерфейса» card of its error boundary (ER-020). */
   readonly broken?: boolean;
+  /**
+   * Only these sites' galleries draw it (`?host=`): what only one site gives — the window check's marks of Fansly's
+   * verdict, whose words only its catalog carries (R20 P8b2). Absent — every site's.
+   */
+  readonly sites?: readonly GalleryHost[];
   views(ctx: ScenarioCtx): readonly ScenarioViewEntry[];
 }
 
@@ -311,6 +317,14 @@ export const GALLERY_STATES: readonly GalleryState[] = [
     ),
   ),
   state('3c', 'results', 'Фан написал новое', (ctx) => one(ctx, replyDock(ctx, reply(ctx, { stale: { reason: 'fan-wrote', at: iso(ctx.now - MIN) } })))),
+  // The window check's marks (R20 P8b2; spec §3.5, ui-design §4.7): the plate of 3c in their own words — Fansly's alone.
+  ...(
+    [
+      ['unverified', 'Свежесть не проверена (Fansly)'],
+      ['window-miss', 'Ответ мог не учесть последние сообщения (Fansly)'],
+      ['deleted-served', 'Контекст устарел (Fansly)'],
+    ] as const
+  ).map(([reason, title]) => state(`x-stale-${reason}`, 'results', title, (ctx) => one(ctx, replyDock(ctx, reply(ctx, { stale: { reason, at: null } }))), { sites: ['fansly'] })),
   state('3d', 'results', 'Одним сообщением (Split выключен)', (ctx) =>
     one(
       ctx,

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import type { HostTheme } from '@cg/contracts/host';
 import { LOCALES, type Locale } from '@cg/contracts/i18n/keys';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
-import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
+import { FANSLY_MARK_TEXTS, FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import { createLiveI18n, type SitePhrases } from '@cg/core/domain/i18n/live';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { fanslyProfile } from '@cg/testing/kit/profiles';
@@ -202,6 +202,19 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
       ru: ['фан заблокирован, можно только копировать', 'Фан заблокирован', 'Можно только копировать.'],
       en: ['the fan is blocked, copy only', 'Fan blocked', 'You can only copy.'],
     });
+  });
+
+  it('[R20-P8b2] [host:fansly] the window check’s marks speak on Fansly’s tab, from its own catalog; ChatSpace’s tab carries none of their words and keeps «Фан написал новое»', () => {
+    const marks = (['unverified', 'windowMiss', 'deletedServed'] as const).flatMap((reason) => [`result.stale.${reason}.title`, `result.stale.${reason}.body`] as const);
+    for (const language of LOCALES) {
+      const fansly = createLiveI18n((locale) => ({ ru: FANSLY_RU, en: FANSLY_EN })[locale] ?? null, { language, phrases: FANSLY_PHRASES });
+      const chatspace = createLiveI18n((locale) => ({ ru: CHATSPACE_RU, en: CHATSPACE_EN })[locale] ?? null, { language, phrases: CHATSPACE_PHRASES });
+      for (const key of marks) {
+        expect(fansly.t(key as unknown as Parameters<typeof fansly.t>[0]), `${language} ${key}`).toBe(FANSLY_MARK_TEXTS[language][key]);
+        expect(key in (language === 'ru' ? CHATSPACE_RU : CHATSPACE_EN), `${language} ${key}`).toBe(false);
+      }
+      expect(fansly.t('result.stale.title')).toBe(chatspace.t('result.stale.title'));
+    }
   });
 
   it('[host:fansly] the early half of its adapter is assembled in its entry point: its kind, its client of the key scheme, its own lazy build', () => {

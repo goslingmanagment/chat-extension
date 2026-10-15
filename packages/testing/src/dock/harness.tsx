@@ -10,7 +10,7 @@ import { type DockVM, type Locale, type MountSurfaceKind, type ViewSelector } fr
 import { DOCK_STYLE, DockView, type DockParts } from '@cg/ui/dock';
 import { type StyleSource } from '@cg/ui/kit';
 
-import { type MountedKit, mountKit } from '../kit/harness';
+import { type MountKitOptions, type MountedKit, mountKit } from '../kit/harness';
 import { NOW, ctxOf, dock, entry, type AppClientScenario, type DockOptions, type ScenarioCtx, type ScenarioStep, type ScenarioViewEntry } from '../scenarios/app-client';
 
 export { flush, kitWorld, mountKit, mountKitSettled, type MountedKit } from '../kit/harness';
@@ -59,6 +59,8 @@ export interface MountDockOptions {
   readonly parts?: Partial<DockParts>;
   readonly now?: () => number;
   readonly parent?: HTMLElement;
+  /** The site the dock speaks for (mountKit's `site`); default: ChatSpace's. */
+  readonly site?: MountKitOptions['site'];
 }
 
 /** The real dock over a scenario, in a closed shadow root. */
@@ -75,6 +77,7 @@ export function mountSurface(view: FunctionComponent, scenario: string | AppClie
     ...(options.language === undefined ? {} : { language: options.language }),
     ...(options.now === undefined ? {} : { now: options.now }),
     ...(options.parent === undefined ? {} : { parent: options.parent }),
+    ...(options.site === undefined ? {} : { site: options.site }),
   });
 }
 

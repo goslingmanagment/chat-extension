@@ -20,16 +20,22 @@
 // And the start of the dock's Reply (R20 P8b1; FS-TAIL-1, FS-TAIL-6): MAIN's
 // snapshot of the open chat is the start's proof, and the hub is asked about
 // it — the window the page holds, the fan's newest ids first, what the page
-// deleted, the texts, a count no smaller than the window.
+// deleted, the texts, a count no smaller than the window. The verdict over
+// that Reply (R20 P8b2; spec §3.5, FS-TAIL-8): the mark the hub's answers
+// call for, in both of Fansly's themes; inserting never held by it.
 // Nothing of ours asks the Fansly stand for anything.
 
+import { mkdirSync } from 'node:fs';
+
 import { $, browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
 
 import type { HubRouteKey } from '@cg/contracts';
 
 import type { FakeHubControlClient } from '../../src/fake-hub/control-client';
 import type { FakeHubJournalEntry } from '../../src/fake-hub/types';
 import { WORLD } from '../../src/scenarios/hub';
+import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
 import { PANEL } from '../support/chat';
 import { readReport, waitForReport } from '../support/extension';
 import { useFakeHub } from '../support/fake-hub';
@@ -38,7 +44,7 @@ import { startFanslyShift } from '../support/fansly-shift';
 import { FANSLY_MAIN, callFansly, fakeFansly, fanslyStandServer } from '../support/fansly-stand';
 import { focusTab } from '../support/focus';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursByText, oursExists, oursText, pressOurs, waitOursText } from '../support/ours';
+import { ours, oursByText, oursExists, oursText, pressOurs, readOurs, waitOursText } from '../support/ours';
 import { dockIs } from '../support/shift';
 
 /** The stand's first two chats as the hub's capture knows them: groups and fans, every id apart. */
@@ -81,6 +87,13 @@ async function openChat(group: string, fan: string): Promise<void> {
 }
 const replyDone = (fan: string) => (d: { readonly target: string | null; readonly result: { readonly feature: string; readonly state: string } | null }): boolean =>
   d.target?.endsWith(`:${fan}`) === true && d.result?.feature === 'reply' && d.result.state === 'done';
+
+/** A picture of the stand's page as it is now, in .cache/e2e/ (compared by eye with ui-design.md). */
+async function shootStand(name: string): Promise<void> {
+  mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
+  await browser.execute(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await browser.saveScreenshot(`${E2E_EVIDENCE_DIR}${name}.png`);
+}
 
 /** Leaves Fansly's field: a key of ours outside it is a command, not text. */
 const leaveField = (): Promise<unknown> => browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -281,5 +294,69 @@ describe('groupId on every Fansly surface: the dock, the fan panel, the toast, t
     expect(body.liveTextContext?.items.at(-1)).toEqual({ platformMessageId: written, direction: 'fan', occurredAt: expect.any(String) as unknown, text: `‹${'one more line'.length} chars›` });
     expect(body.liveTextContext?.items.every((item) => page.includes(item.platformMessageId))).toBe(true);
     expect(body.messageCount).toBeGreaterThanOrEqual(body.coverageCheck?.window.length ?? Infinity);
+  });
+
+  it('[R20-P8b2] [FS-TAIL-8] the verdict over the dock’s Reply on the stand: what the hub has not got is marked «Ответ мог не учесть…»; the page’s messages in the hub — no mark; a message the page deleted, still served — «Контекст устарел»; the mark in both of Fansly’s themes, the part still inserted', async function () {
+    this.timeout(180_000);
+    if ((await route()).groupId !== A.group) await openChat(A.group, A.fan);
+    const held = async (): Promise<string[]> => (await callFansly('list'))?.ids.slice() ?? [];
+    // A message of the window is deleted on the page: the snapshot names it, the window does not hold it.
+    const fake = fakeFansly();
+    const deleted = (await held()).at(-2) ?? '';
+    await fake.command({ op: 'delete', messageId: deleted });
+    await browser.waitUntil(async () => !(await held()).includes(deleted), { timeout: 10_000, timeoutMsg: 'the page did not drop the deleted message' });
+
+    /** A new Reply of the chat — «Ещё раз» over the one shown (Reply again would show the kept one) —, and the window check it asked. */
+    const regenerate = async (): Promise<{ readonly window: readonly { readonly id: string; readonly dir: 'fan' | 'model' }[]; readonly deletedIds: readonly string[] }> => {
+      const now = (await readReport())?.dock ?? null;
+      if (now === null || !replyDone(A.fan)(now)) await pressOurs('dock', '.cg-strip button', /^Reply/);
+      const shown = await dockIs(replyDone(A.fan), 'the chat’s Reply in the dock', 30_000);
+      const mark = await hub().mark();
+      await pressOurs('dock', '.cg-sheet button', /^Ещё раз/);
+      await dockIs((d) => replyDone(A.fan)(d) && d.result?.opId !== shown.result?.opId, 'a new Reply of the chat', 30_000);
+      const streams = (await hub().journal(mark)).entries.filter((entry) => entry.route === 'aiFeatureStream');
+      expect(streams.map((entry) => entry.status)).toEqual([200]);
+      const check = (streams[0]?.request as { readonly body: { readonly coverageCheck?: { readonly window: readonly { readonly id: string; readonly dir: 'fan' | 'model' }[]; readonly deletedIds: readonly string[] } } }).body.coverageCheck;
+      if (check === undefined) throw new Error('the Reply asked no window check');
+      return check;
+    };
+    const markText = (): Promise<string> => oursText('dock', '.cg-stale__t');
+    const seed = (messages: readonly { readonly id: string; readonly sender: 'fan' | 'model' }[]): Promise<unknown> =>
+      hub().command({ op: 'archiveConversation', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: A.group, messages });
+
+    // As the stand is: the hub's archive of the group holds none of the page's ids — every one of them `absent`.
+    const asked = await regenerate();
+    expect(asked.deletedIds).toContain(deleted);
+    await waitOursText('dock', 'Ответ мог не учесть последние сообщения чата.', 'the mark of a miss of the window', { selector: '.cg-stale__t' });
+    expect(await oursText('dock', '.cg-stale button')).toBe('Ещё раз');
+    for (const theme of ['bright', 'dark'] as const) {
+      await callFansly('setTheme', theme);
+      await waitForReport((now) => now.dock?.scheme === (theme === 'bright' ? 'light' : 'dark'), `the dock in the ${theme} theme`);
+      await shootStand(`suite-fansly-ids-mark-window-miss-${theme}`);
+    }
+    await callFansly('setTheme', 'bright');
+    // The mark holds nothing in the dock: the part inserts into Fansly's field as ever (FS-TAIL-8).
+    expect(await readOurs('dock', '[data-cg-part="0"]', (node) => (node.focus(), true))).toBe(true);
+    await browser.keys(Key.Enter);
+    await dockIs((d) => (d.result?.inserted ?? 0) >= 1, 'the first part inserted under the mark');
+    await browser.waitUntil(async () => ((await browser.execute((field: string) => document.querySelector<HTMLTextAreaElement>(field)?.value ?? '', FANSLY_MAIN.field)) ?? '').length > 0, {
+      timeout: 5_000,
+      timeoutMsg: 'the part did not reach Fansly’s field',
+    });
+
+    // The hub holds the page's window as the page has it: every id counted, the deletion unknown to it — no mark.
+    await seed(asked.window.map((entry) => ({ id: entry.id, sender: entry.dir })));
+    await regenerate();
+    await browser.waitUntil(async () => !(await oursExists('dock', '.cg-stale')), { timeout: 10_000, timeoutMsg: `a fresh Reply still marked: «${await markText()}»` });
+
+    // The message the page deleted is still in what the hub serves: the context is stale.
+    const withDeleted = [...asked.window.map((entry) => ({ id: entry.id, sender: entry.dir })), { id: deleted, sender: 'fan' as const }].sort((a, b) => (a.id.length - b.id.length) || a.id.localeCompare(b.id));
+    await seed(withDeleted);
+    await regenerate();
+    await waitOursText('dock', 'Контекст устарел: ответ учитывает сообщение, удалённое из чата.', 'the mark of a stale context', { selector: '.cg-stale__t' });
+    await callFansly('setTheme', 'dark');
+    await waitForReport((now) => now.dock?.scheme === 'dark', 'the dock in the dark theme');
+    await shootStand('suite-fansly-ids-mark-deleted-served-dark');
+    await callFansly('setTheme', 'bright');
   });
 });

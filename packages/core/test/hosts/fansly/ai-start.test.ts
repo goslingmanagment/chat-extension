@@ -6,6 +6,9 @@
 // (`coverageCheck` under `coverage-check-v1`), the fan's known ids, a draft's texts (`liveTextContext` under the
 // page's `freshText`), never a messageCount below the window. Recap, Review and Coach are checked without a text.
 // No snapshot is no proof: the generation goes on, unverified (FS-TAIL-7).
+// And the verdict over the dock's result (R20 P8b2, spec §3.5, FS-TAIL-8): the tab keeps the proof's ids with the
+// operation, reads the hub's answers about them, and the shared result draws the mark the policy gives; inserting is
+// never held by it. The table itself, over the matrix shared with the hub: verdict.test.ts.
 //
 // The whole path is the real one — the dock's controller, the workspace, the plan and its StartOp schema, the
 // scheduler with its drivers and the request mirror of the hub — over the scripted hub of these tests; the hub's
@@ -17,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CLIENT_HUB_CAPABILITY_NAMES,
   type Bootstrap,
+  type ContextFrame,
   type ChatRef,
   type CoverageProof,
   type FeatureId,
@@ -24,6 +28,7 @@ import {
   type FreshnessRequest,
   type HubStreamRequest,
   type IncomingFact,
+  type ResultMarkVM,
   type StartOp,
   type UserOptions,
 } from '@cg/contracts';
@@ -237,7 +242,7 @@ describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as
       items: textsOf(live).map((message) => ({ platformMessageId: message.platformMessageId, direction: message.direction, occurredAt: message.sentAt, text: message.text })),
     });
     expect(request.body.messageCount ?? 0).toBeGreaterThanOrEqual(request.body.coverageCheck?.window.length ?? Infinity);
-    // Hi's evidence and the verdict are not this start's (P8c, P8b2).
+    // Hi's evidence is not this start's (P8c).
     expect([request.body.startProof, request.body.personalMessageCount, request.body.fanAvatarUrl, request.capabilities.includes('hi-start-proof-v1')]).toEqual([undefined, undefined, undefined, false]);
   });
 
@@ -392,5 +397,82 @@ describe('[host:fansly] R20 P8b1: the snapshot as the start’s proof, the windo
     const plain = buildStreamRequest(withoutProof, ctx);
     if (!plain.ok) throw new Error(plain.issues);
     expect([plain.request.body.messageCount, plain.request.body.coverageCheck, plain.request.body.knownFanMessageIds, plain.request.capabilities]).toEqual([40, undefined, undefined, ['context-v1']]);
+  });
+});
+
+describe('[host:fansly] R20 P8b2: the verdict over the dock’s result — what the tab kept of the start’s proof against the hub’s answers', () => {
+  /** The window and the deleted ids a Reply's snapshot of `held` names (the last 60 live messages; the deleted in their span). */
+  const windowOf = (held: readonly Held[]): { readonly window: readonly Held[]; readonly deleted: readonly string[] } => {
+    const window = held.filter((message) => message.deleted !== true).slice(-60);
+    const from = held.indexOf(window[0] as Held);
+    return { window, deleted: held.slice(from).filter((message) => message.deleted === true).map((message) => message.id) };
+  };
+  /** The hub's `context_v1` of the Reply: its answer about each id — counted, unless `states` says otherwise —, the draft's text served. */
+  const contextOf = (held: readonly Held[], states: { readonly window?: Readonly<Record<string, string>>; readonly deleted?: string } = {}, live: ContextFrame['live'] = { status: 'served', accepted: 48, rejected: 0 }): ContextFrame => {
+    const { window, deleted } = windowOf(held);
+    return {
+      type: 'context_v1',
+      generationRef: meta('fast-reply').requestId,
+      source: 'live_union',
+      servedHead: null,
+      window: { requested: WINDOWS.quick, served: window.length },
+      coverage: 'complete',
+      coverageCheck: {
+        window: window.map((message) => ({ id: message.id, state: states.window?.[message.id] ?? 'included' })),
+        deleted: deleted.map((id) => ({ id, state: states.deleted ?? 'deleted' })),
+      },
+      live,
+    };
+  };
+  /** A Reply of the open chat whose stream carries `frames` beside its text; the mark the dock then shows over it. */
+  async function replyWith(tab: FanslyTab, frames: readonly ContextFrame[]): Promise<{ readonly opId: string; readonly mark: ResultMarkVM | null }> {
+    const { h } = tab;
+    h.script(h.streamOf('fast-reply', ['Hey you'], frames));
+    expect(await h.dispatch({ type: 'Generate', targetHandle: h.dock().targetHandle ?? '', feature: 'reply', options: {} })).toMatchObject({ ok: true });
+    await h.finish();
+    const result = h.dock().result;
+    if (result === null || result.state !== 'done') throw new Error('no finished Reply in the dock');
+    return { opId: result.opId, mark: result.stale };
+  }
+
+  it('[FS-TAIL-8] every id of the window counted and the draft’s text served: no mark; a window message the hub has not got: «Ответ мог не учесть последние сообщения» — the part still offered for insert', async () => {
+    const held = chatOf(80);
+    held[72] = { ...(held[72] as Held), deleted: true };
+    const fresh = await fanslyTab({ held });
+    expect((await replyWith(fresh, [contextOf(held)])).mark).toBeNull();
+
+    const missed = await fanslyTab({ held });
+    const newest = windowOf(held).window.at(-1)?.id ?? '';
+    const { mark } = await replyWith(missed, [contextOf(held, { window: { [newest]: 'absent' } })]);
+    expect(mark).toEqual({ reason: 'window-miss', at: null });
+    // The mark holds nothing in the dock: every part is offered for insert, «Ещё раз» is there.
+    expect(missed.h.dock().result).toMatchObject({ canRegenerate: true, parts: [{ insertBlocked: null }] });
+  });
+
+  it('a message the tab saw deleted is still in the context: «Контекст устарел»; the draft’s text rejected in part comes before it', async () => {
+    const held = chatOf(80);
+    held[72] = { ...(held[72] as Held), deleted: true };
+    expect((await replyWith(await fanslyTab({ held }), [contextOf(held, { deleted: 'still_served' })])).mark).toEqual({ reason: 'deleted-served', at: null });
+    const rejected = contextOf(held, { deleted: 'still_served' }, { status: 'served', accepted: 40, rejected: 8 });
+    expect((await replyWith(await fanslyTab({ held }), [rejected])).mark).toEqual({ reason: 'window-miss', at: null });
+  });
+
+  it('[FS-TAIL-7] no context frame, or no snapshot from MAIN: «Свежесть не проверена»', async () => {
+    const held = chatOf(80);
+    expect((await replyWith(await fanslyTab({ held }), [])).mark).toEqual({ reason: 'unverified', at: null });
+    const blind = await fanslyTab({ held });
+    blind.port.answer = () => Promise.resolve(null);
+    expect((await replyWith(blind, [contextOf(held)])).mark).toEqual({ reason: 'unverified', at: null });
+  });
+
+  it('a fresh result the fan wrote after: «фан написал новое», as on ChatSpace', async () => {
+    const held = chatOf(80);
+    const tab = await fanslyTab({ held });
+    const { opId, mark } = await replyWith(tab, [contextOf(held)]);
+    expect(mark).toBeNull();
+    const at = new Date(NOW_MS + 60_000).toISOString();
+    tab.h.bg.scheduler.incoming({ host: 'fansly-web', hostAccountId: FANSLY.creator, platformFanId: FANSLY.fan, platformMessageId: idOf(500), fromFan: true, automatic: false, tip: false, sentAt: at, socketEpoch: 1, fanSequence: 1, source: 'ws-tap' }, NOW_MS + 60_000);
+    await tab.h.settle();
+    expect(tab.h.dock().result).toMatchObject({ opId, stale: { reason: 'fan-wrote', at } });
   });
 });

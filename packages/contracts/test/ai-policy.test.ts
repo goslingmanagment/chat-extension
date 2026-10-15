@@ -26,6 +26,13 @@ describe('[R20-F10] the site’s AI policy', () => {
     expectTypeOf<NonNullable<C.OpView['stale']>>().toExtend<C.ResultMarkVM>();
   });
 
+  it('R20 P8b2: the words of a window check’s mark are keys of their own, none of them the shared catalog’s; «фан написал новое» keeps its own', () => {
+    expectTypeOf<Extract<C.ResultMarkKey, C.I18nKey>>().toBeNever();
+    expectTypeOf<'result.stale.windowMiss.title' | 'result.stale.unverified.body' | 'result.stale.deletedServed.title'>().toExtend<C.ResultMarkKey>();
+    expectTypeOf<'result.stale.title' | 'result.stale.body'>().toExtend<C.I18nKey>();
+    expect(C.I18N_KEYS.filter((key) => key.startsWith('result.stale.'))).toEqual(['result.stale.title', 'result.stale.body']);
+  });
+
   it('the pre-check names a reason of the action catalog that carries a code, the fields are fields of the start', () => {
     expectTypeOf<ReturnType<C.AiHostPolicy['preflight']>>().toEqualTypeOf<C.AiGateReason | null>();
     const coded = C.UNAVAILABLE_REASON_IDS.filter((id) => C.UNAVAILABLE_REASONS[id].code !== null);

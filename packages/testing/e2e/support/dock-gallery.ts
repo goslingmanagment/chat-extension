@@ -34,6 +34,8 @@ export const LANGUAGES = ['ru', 'en'] as const;
 export const PAGE_PADDING = 32;
 /** Accent dots the dock states show (ui-design §1 п. 4): the whole list, per state. */
 export const ACCENTS = ['18b:archive-lag', '1b:recap-ready', '3c:result-stale', 'x-recap-slots:recap-ready'];
+/** Fansly's gallery draws the window check's marks too (R20 P8b2): the same dot of a stale result. */
+export const FANSLY_ACCENTS = [...ACCENTS, ...['unverified', 'window-miss', 'deleted-served'].map((reason) => `x-stale-${reason}:result-stale`)].sort();
 
 export type Box = { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number; readonly width: number; readonly height: number };
 
@@ -140,7 +142,7 @@ export async function captureWindow(name: string): Promise<void> {
   save(name, shot.data);
 }
 
-export function expectHealthy(result: Health, width: number): void {
+export function expectHealthy(result: Health, width: number, accents: readonly string[] = ACCENTS): void {
   // Nothing sticks out of the composer, the bar is 40 px, its right block never
   // overlaps the buttons, «черновик · не отправлено» is whole, the sheet is within its limit.
   expect(result.problems).toEqual([]);
@@ -148,7 +150,7 @@ export function expectHealthy(result: Health, width: number): void {
   expect(result.states).toBeGreaterThan(40);
   expect(result.mode).toBe('adopted');
   // Blue marks a state of our result — a stale answer, a lagging archive, a ready Recap — and nothing else (ui-design §11 п. 5).
-  expect(result.accents).toEqual(ACCENTS);
+  expect(result.accents).toEqual(accents);
   if (width + PAGE_PADDING <= result.clientWidth) expect(result.scrollWidth).toBeLessThanOrEqual(result.clientWidth);
 }
 

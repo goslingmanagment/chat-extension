@@ -18,9 +18,14 @@
 //   the background asks the hub about it (`coverageCheck` under
 //   `coverage-check-v1`, the fan's known ids, the tail as `liveTextContext`
 //   under the page's `freshText`) and never cuts the window by the count.
-// - Not yet: the verdict over a result and the fingerprint it reads (P8b2);
-//   Hi's start proof, its avatar and the pre-checks of Hi and Ping (P8c). Until
-//   then the hub decides its gates by itself, and a result carries no mark.
+// - The fingerprint and the verdict (R20 P8b2, ./verdict.ts): the tab keeps
+//   the proof's ids and flags with the operation (never a text), and the mark
+//   over the finished result is the verdict of spec §3.5's table on what the
+//   hub answered — «свежесть не проверена», «ответ мог не учесть последние
+//   сообщения», «контекст устарел» — or the background's «фан написал новое».
+//   An operation this tab did not start has no fingerprint: «не проверена».
+// - Not yet: Hi's start proof, its avatar and the pre-checks of Hi and Ping
+//   (P8c); until then the hub decides its gates by itself.
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import type { FanslyHostPort } from '@cg/contracts/fansly-host';
@@ -28,6 +33,7 @@ import type { HostPort } from '@cg/contracts/host';
 import type { AiHostPolicy, AiProofAsk, CoverageProof } from '@cg/contracts/ops';
 
 import { checkWindowOf, startProofOf } from './proof';
+import { fingerprintOf, verdictMark, type ProofFingerprint } from './verdict';
 
 export interface FanslyAiDeps {
   readonly now: () => number;
@@ -54,12 +60,12 @@ function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<Fa
   return freshness.snapshot(chat, request).then((snapshot) => (snapshot === null ? null : { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()) }));
 }
 
-export function createFanslyAi(deps: FanslyAiDeps): AiHostPolicy<FanslyStartProof, null> {
+export function createFanslyAi(deps: FanslyAiDeps): AiHostPolicy<FanslyStartProof, ProofFingerprint> {
   return {
     preflight: () => null,
     proof: (host, ask) => gather(host, ask, deps),
     fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof }),
-    fingerprint: () => null,
-    verdict: () => null,
+    fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),
+    verdict: verdictMark,
   };
 }
