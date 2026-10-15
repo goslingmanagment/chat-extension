@@ -52,7 +52,7 @@ afterEach(() => {
 const EPOCH = 'a1b2c3d4e5f6a1b2c3d4e5f6';
 
 describe('Fansly’s bridge: its MAIN world and the shared client over its registry (R20 P7a0)', () => {
-  it('connects to Fansly’s MAIN, whose boot answers `probe` itself through Fansly’s own schemas; its runtime answers `fx.state`, the observation’s requests wait for P7b', async () => {
+  it('connects to Fansly’s MAIN, whose boot answers `probe` itself through Fansly’s own schemas; its runtime answers `fx.state` and the observation’s requests (P7b)', async () => {
     const win = fakeWindow();
     const main = installFanslyMain(win, { socketHosts: ['localhost'], apiOrigins: ['http://localhost'] });
     const client: MainBridgeClient<FanslyBridge> = await connectMainBridge<FanslyBridge>(win, loadValidation, UNDROPPABLE_EVENTS, 1000);
@@ -69,9 +69,12 @@ describe('Fansly’s bridge: its MAIN world and the shared client over its regis
       contract: { anchors: { accountMe: 'notYet', socket: 'notYet', frames: 'notYet', xhr: 'notYet' }, tap: 'ok' },
       lastBatch: 0,
     });
-    const refused = (await client.request('fx.windowMeta', { groupId: '700000000000000010' }).catch((error: unknown) => error)) as BridgeCallError;
+    // A group MAIN never saw: no window, no snapshot.
+    expect(await client.request('fx.windowMeta', { groupId: '700000000000000010' })).toBeNull();
+    expect(await client.request('fx.generationSnapshot', { groupId: '700000000000000010', feature: 'reply', window: 60, withText: true })).toBeNull();
+    const refused = (await client.request('fx.focus', { groupId: '0', routeEpoch: 1 }).catch((error: unknown) => error)) as BridgeCallError;
     expect(refused).toBeInstanceOf(BridgeCallError);
-    expect([refused.failure, refused.executed]).toEqual(['not-ready', 'no']);
+    expect([refused.failure, refused.executed]).toEqual(['bad-request', 'no']);
   });
 
   it('never coalesces a frame of Fansly’s port: the list is the wire’s, as the contracts name it', () => {

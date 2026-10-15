@@ -16,6 +16,11 @@
 //   limit, exactly one `fx.gap`, no `sent`; `fx.state` resumes the stream.
 // - The parse of a frame within its budget (≤ 0.1 ms on average), measured by
 //   MAIN itself (`frameParseMs`).
+// - The observation (R20 P7b): the open chat certified once by the page's own
+//   fresh end after `t:1`; the generation snapshot's window is what the page
+//   holds — through a new message, a deletion and a new socket the page
+//   recovers from by itself; the fan and the avatar from the page's answers;
+//   MAIN's step of a snapshot ≤ 5 ms (`snapshotMs`).
 // - (P7c) Fansly's own isolated start over that MAIN, as the extension starts
 //   it: the route by the page's signals (no timer, no hook on history) through
 //   Fansly's real lifecycle — a chat switch, the gallery, back —, the anchors'
@@ -24,12 +29,12 @@
 //   the last batch; each chat's fan as MAIN names it for the route's own epoch
 //   and the target's snapshot once MAIN observes chats (P7b), the chat
 //   honestly unknown while it cannot (its own word, `fx.focus`).
-// No extension is installed: the background, the dock and the observation
-// come with later PRs (P7b, P7d); the real build's start and its budget on the
-// stand are suite-fansly-site's.
+// No extension is installed: the background and the dock come with a later
+// PR (P7d); the real build's start and its budget on the stand are
+// suite-fansly-site's.
 
 import type { FanslyHealth, FanslyState } from '@cg/contracts/bridge-messages-fansly';
-import type { FanslyHeaderSlot } from '@cg/contracts/fansly';
+import type { FanslyHeaderSlot, FanslySnapshot } from '@cg/contracts/fansly';
 import type { FanslyContractReport } from '@cg/contracts/fansly-host';
 import type { HostAccount, HostIdentity } from '@cg/contracts/ids';
 import type { RouteState } from '@cg/contracts/host';
@@ -342,6 +347,56 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
     expect(resumed.find((event) => event.p['msgId'] === fan)?.n).toBe(last + 1);
     expect(await tap('gaps')).toHaveLength(1);
     expect((await health()).stream.gaps).toBe(1);
+  });
+
+  it('[FS-TAIL-4] [FS-TAIL-6] [FS-IDN-3] the observation on the stand: one certificate by the page’s own fresh end after t:1; the snapshot’s window is what the page holds through a new message, a deletion and a new socket; ≤ 5 ms a snapshot', async () => {
+    const fake = fakeFansly();
+    const group = String(ids.groups[4]);
+    const fan = ids.fans[group];
+    await openWithNeighbor(`/messages/${group}`, { mode: 'after' });
+    await waitForFanslyTap();
+    await waitForFanslyStandIdle();
+    const since = await fake.mark();
+    expect(await tap('focus', group, 1)).toBeNull();
+    const certificate = JSON.stringify({ groupIds: [group], state: 'complete', reason: 'certificate' });
+    const certificates = async (): Promise<number> => (await events()).filter((event) => event.t === 'fx.coverage' && JSON.stringify(event.p) === certificate).length;
+    await waitFor(async () => (await certificates()) === 1, 'the certificate of the open chat');
+    const held = async (): Promise<string[]> => (await callFansly('list'))?.ids.slice() ?? [];
+    const snap = async (feature: 'reply' | 'hi' = 'reply', window = 60): Promise<FanslySnapshot> => {
+      const { snapshot } = await tap<{ snapshot: FanslySnapshot | null; roundTripMs: number }>('snapshot', { groupId: group, feature, window, withText: true });
+      if (snapshot === null) throw new Error('no snapshot of a direct chat');
+      return snapshot;
+    };
+    const first = await snap();
+    expect(first).toMatchObject({ completeness: 'complete', identity: { creatorId: ids.creator, groupId: group, fanId: fan }, truncated: false });
+    expect(first.window.map((entry) => entry.id)).toEqual((await held()).slice(-60));
+    expect((await state()).chat).toMatchObject({ groupId: group, fanId: fan, kind: 'direct', routeEpoch: 1, window: { completeness: 'complete' } });
+    // The fan writes; an earlier message is deleted: the page and the window follow.
+    const written = (await fake.command({ op: 'message', groupId: group, text: 'one more' })).message?.id ?? '';
+    const target = first.window.at(-2)?.id ?? '';
+    await fake.command({ op: 'delete', messageId: target });
+    await waitFor(async () => (await held()).includes(written) && !(await held()).includes(target), 'the page shows the new message and drops the deleted one');
+    const second = await snap();
+    expect(second.completeness).toBe('complete');
+    expect(second.window.map((entry) => entry.id)).toEqual((await held()).slice(-60));
+    expect(second.deletedIds).toEqual([target]);
+    expect(second.tail?.at(-1)).toMatchObject({ platformMessageId: written, direction: 'fan', text: 'one more' });
+    // A new socket: every chat unknown, until the page asks the open chat's fresh end after the new t:1 — it overlaps.
+    const created = (await callFansly('socket'))?.created ?? 0;
+    await fake.command({ op: 'socket', close: true });
+    await waitFor(async () => ((await callFansly('socket'))?.created ?? 0) > created && (await callFansly('socket'))?.state === 'connected', 'a new socket of the page', 15_000);
+    await waitFor(async () => (await certificates()) === 2, 'the chat recovered by the page’s own re-request');
+    const third = await snap();
+    expect(third.completeness).toBe('complete');
+    expect(third.window.map((entry) => entry.id)).toEqual((await held()).slice(-60));
+    // Hi: the fan's avatar is an address of the page's own answers, a string only.
+    expect((await snap('hi', 25)).fanAvatarUrl).toMatch(/^https:\/\/cdn3\.fansly\.com\//);
+    const { perf } = await health();
+    console.log(`suite-fansly-tap: snapshotMs over ${perf.snapshotMs.count} snapshots: mean ${(perf.snapshotMs.sum / perf.snapshotMs.count).toFixed(3)} ms, max ${perf.snapshotMs.max.toFixed(2)} ms`);
+    expect(perf.snapshotMs.count).toBe(4);
+    expect(perf.snapshotMs.max).toBeLessThanOrEqual(5);
+    expect(await tap('stats')).toMatchObject({ rejected: {}, invalidEvents: 0, invalidAnswers: 0 });
+    await fake.assertOursClean(since, 'the observation on the stand');
   });
 
   it('[FS-WS-5] [SN-020] a late install — the neighbour first, MAIN after the page began: every chat unknown, the old socket unseen, the answers from then on seen as the neighbour sees them; the next socket is watched', async () => {

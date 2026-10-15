@@ -4,186 +4,46 @@
 // the page's own instances, and the stream it sends — received by the shared
 // isolated client over Fansly's own schemas (validate.ts), so every batch
 // here passed the checks the isolated side makes. The constructors are fakes
-// with the natives' shape (Node has no XMLHttpRequest); Firefox's own natives,
+// with the natives' shape (Node has no XMLHttpRequest; src/testing/fake-page.ts); Firefox's own natives,
 // the stand and the FBuddy-like neighbour are the e2e's
 // (packages/testing/e2e/specs/suite-fansly-tap.e2e.ts).
 
 import { FANSLY_BRIDGE_REQUEST_FIXTURES } from '@cg/contracts/fixtures';
-import type { FanslyBatch, FanslyHealth, FanslyState } from '@cg/contracts/bridge-messages-fansly';
-import { connectMainBridge, type BridgeCallError, type MainBridgeClient } from '@cg/host-kit/isolated/bridge-client';
+import type { BridgeCallError } from '@cg/host-kit/isolated/bridge-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { FanslyBridge } from '../isolated/bridge-client';
-import { loadValidation } from '../isolated/validation';
-import { UNDROPPABLE_EVENTS } from '../isolated/wire';
-import { installFanslyMain, type FanslyNetwork } from './index';
+import {
+  CREATOR,
+  FAN,
+  GROUP,
+  NETWORK,
+  OTHER_GROUP,
+  SOCKET,
+  API,
+  FakeWebSocket as WebSocket,
+  FakeXMLHttpRequest as XMLHttpRequest,
+  connect as connectTo,
+  newMessage,
+  ok,
+  page,
+  request,
+  service,
+  session,
+  settle,
+  type Connected,
+  type PageWindow,
+} from '../testing/fake-page';
+import { installFanslyMain } from './index';
 import { FRAMES_UNREAD_SIGN, MAX_UNACKED, QUEUE_MAX_BYTES, RESPONSE_MAX_CHARS, RESPONSE_NOW_CHARS } from './protocol';
-
-const CREATOR = '700000000000000001';
-const FAN = '700000000000000002';
-const GROUP = '700000000000000010';
-const OTHER_GROUP = '700000000000000011';
-const SOCKET = 'wss://wsv3.fansly.com?v=3';
-const API = 'https://apiv3.fansly.com/api/v1';
-const NETWORK: FanslyNetwork = { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com'] };
-
-// ── The page: its socket and its XHR, as natives look ─────────────────────
-
-/** The page's socket: a native-like constructor (statics, prototype); a test makes it receive frames. */
-class WebSocket extends EventTarget {
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static readonly CLOSING = 2;
-  static readonly CLOSED = 3;
-  static made: WebSocket[] = [];
-  readonly url: string;
-  constructor(url: string | URL, protocols?: string | string[]) {
-    super();
-    if (String(url) === 'wss://throws') throw new SyntaxError('the native refuses this address');
-    void protocols;
-    this.url = String(url);
-    WebSocket.made.push(this);
-  }
-  send(): void {
-    throw new Error('MAIN never sends on the page’s socket');
-  }
-  receive(data: string | ArrayBuffer): void {
-    this.dispatchEvent(new MessageEvent('message', { data }));
-  }
-  drop(): void {
-    this.dispatchEvent(new Event('close'));
-  }
-}
-
-/** The page's XHR: `send()` fires `loadstart` within it; `respond` fires `load`, then `loadend` (after every `load` listener). */
-class XMLHttpRequest extends EventTarget {
-  static readonly DONE = 4;
-  responseURL = '';
-  status = 0;
-  responseType: XMLHttpRequestResponseType = '';
-  private body = '';
-  private address = '';
-  open(_method: string, url: string): void {
-    this.address = url;
-  }
-  send(): void {
-    this.dispatchEvent(new Event('loadstart'));
-  }
-  get responseText(): string {
-    if (this.responseType !== '' && this.responseType !== 'text') throw new Error('InvalidStateError');
-    return this.body;
-  }
-  respond(status: number, body: string): void {
-    this.responseURL = this.address;
-    this.status = status;
-    this.body = body;
-    this.dispatchEvent(new Event('load'));
-    this.dispatchEvent(new Event('loadend'));
-  }
-}
-
-type PageWindow = Window & typeof globalThis;
-type Listener = (event: { source: unknown; data: unknown; ports: readonly MessagePort[] }) => void;
-
-/** A page-like window: its constructors, and window messaging over Node's MessageChannel (happy-dom sets no `source`). */
-function page(readyState: DocumentReadyState = 'loading'): PageWindow {
-  const listeners = new Set<Listener>();
-  WebSocket.made = [];
-  const win = {
-    location: { origin: 'https://fansly.com', href: 'https://fansly.com/messages' },
-    document: { readyState },
-    performance,
-    crypto,
-    URL,
-    EventTarget,
-    WebSocket,
-    XMLHttpRequest,
-    setTimeout: (callback: () => void, ms?: number) => setTimeout(callback, ms),
-    requestAnimationFrame: (callback: () => void) => setTimeout(callback, 0),
-    /** Window listeners now: the page's own world, where a switch of ours would listen. */
-    listening: () => listeners.size,
-    dispatchEvent: (event: Event) => {
-      for (const listener of [...listeners]) listener({ source: null, data: (event as CustomEvent).detail, ports: [] });
-      return true;
-    },
-    addEventListener: (_type: string, listener: Listener) => listeners.add(listener),
-    removeEventListener: (_type: string, listener: Listener) => listeners.delete(listener),
-    postMessage(data: unknown, _origin: string, transfer: MessagePort[] = []) {
-      const event = { source: win, data: structuredClone(data), ports: transfer };
-      setTimeout(() => {
-        for (const listener of [...listeners]) listener(event);
-      }, 0);
-    },
-  };
-  return win as unknown as PageWindow;
-}
-
-// ── Frames and answers as Fansly sends them ───────────────────────────────
-
-const service = (serviceId: number, event: Record<string, unknown>): string => JSON.stringify({ t: 10000, d: JSON.stringify({ serviceId, event: JSON.stringify(event) }) });
-const session = JSON.stringify({ t: 1, d: JSON.stringify({ session: { id: '1', accountId: CREATOR, token: 'secret', deviceId: null } }) });
-const newMessage = (id: string, senderId = FAN, over: Record<string, unknown> = {}): string =>
-  service(5, { type: 1, message: { id, type: 1, content: 'hello', groupId: GROUP, senderId, correlationId: null, inReplyTo: null, createdAt: 1_790_000_000, attachments: [], totalTipAmount: 0, ...over } });
-const ok = (response: unknown): string => JSON.stringify({ success: true, response });
-
-// ── The isolated side, as Fansly's starter connects it ────────────────────
-
-interface Connected {
-  readonly win: PageWindow;
-  readonly main: ReturnType<typeof installFanslyMain>;
-  readonly client: MainBridgeClient<FanslyBridge>;
-  readonly batches: FanslyBatch[];
-  readonly gaps: unknown[];
-  /** Acknowledge every batch as it comes (a consumer that keeps up), or none (a blocked one). */
-  acking: boolean;
-  events(): Array<{ t: string; p: Record<string, unknown> }>;
-  state(): Promise<FanslyState>;
-  health(): Promise<FanslyHealth>;
-}
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function connect(win: PageWindow, options: { acking?: boolean; start?: boolean } = {}): Promise<Connected> {
-  const main = installFanslyMain(win, NETWORK);
-  const client = await connectMainBridge<FanslyBridge>(win, loadValidation, UNDROPPABLE_EVENTS, 1000);
-  cleanups.push(() => client.close(), () => main.dispose());
-  const connected: Connected = {
-    win,
-    main,
-    client,
-    batches: [],
-    gaps: [],
-    acking: options.acking ?? true,
-    events: () => connected.batches.flatMap((batch) => batch.events as Array<{ t: string; p: Record<string, unknown> }>),
-    state: (): Promise<FanslyState> => client.request('fx.state', {}),
-    health: (): Promise<FanslyHealth> => client.request('fx.health', {}),
-  };
-  client.onEvent((event) => {
-    if (event.t === 'fx.batch') {
-      connected.batches.push(event.payload);
-      if (connected.acking) void client.request('fx.ack', { n: event.payload.n }).catch(() => undefined);
-    } else if (event.t === 'fx.gap') connected.gaps.push(event.payload);
-  });
-  if (options.start ?? true) await connected.state();
-  return connected;
-}
-
-/** Lets the port, the timers and the client's lazy schemas run. */
-const settle = async (): Promise<void> => {
-  for (let i = 0; i < 4; i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
-};
+const connect = (win: PageWindow, options: { acking?: boolean; start?: boolean } = {}): Promise<Connected> => connectTo(win, cleanups, options);
 
 const coverage = (c: Connected): unknown[] => c.events().filter((e) => e.t === 'fx.coverage').map((e) => e.p);
-
-function request(win: PageWindow, url: string): XMLHttpRequest {
-  const xhr = new win.XMLHttpRequest() as unknown as XMLHttpRequest;
-  xhr.open('GET', url);
-  xhr.send();
-  return xhr;
-}
 
 describe('[SN-017] [EX-007] [host:fansly] the Proxies over the page’s constructors (FS-WS-1)', () => {
   it('[FS-WS-1] are invisible but for their source text: the native instance, prototype, statics, name, length, instanceof, subclasses and a call without new', () => {
@@ -441,19 +301,14 @@ describe('[host:fansly] the XHR observer and its response table (§5.4)', () => 
     expect(c.events().filter((e) => e.t === 'fx.vaultAdded').map((e) => e.p)).toEqual([{ seq: 1 }]);
   });
 
-  it('[EX-008] answers its requests by hand, as the contracts’ fixtures have them; the observation’s wait for P7b', async () => {
+  it('[EX-008] answers its requests by hand, as the contracts’ fixtures have them', async () => {
     const c = await connect(page());
-    for (const t of ['fx.state', 'fx.ack', 'fx.health'] as const) {
+    for (const t of ['fx.state', 'fx.ack', 'fx.health', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta'] as const) {
       for (const payload of FANSLY_BRIDGE_REQUEST_FIXTURES[t].payload.valid) await expect(c.client.request(t, payload as never)).resolves.not.toBeUndefined();
       for (const payload of FANSLY_BRIDGE_REQUEST_FIXTURES[t].payload.invalid) {
         const error = (await c.client.request(t, payload as never).catch((caught: unknown) => caught)) as BridgeCallError;
         expect([t, error.failure]).toEqual([t, 'bad-request']);
       }
-    }
-    for (const t of ['fx.focus', 'fx.generationSnapshot', 'fx.windowMeta'] as const) {
-      const payload = FANSLY_BRIDGE_REQUEST_FIXTURES[t].payload.valid[0];
-      const error = (await c.client.request(t, payload as never).catch((caught: unknown) => caught)) as BridgeCallError;
-      expect([t, error.failure, error.executed]).toEqual([t, 'not-ready', 'no']);
     }
     expect(c.client.stats().invalidAnswers).toBe(0);
   });

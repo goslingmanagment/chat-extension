@@ -27,6 +27,7 @@ describe('[host:fansly] the response table of the XHR observer (§5.4)', () => {
       [`group/${GROUP}`, 'group', GROUP],
       ['messaging/groups?limit=50&ngsw-bypass=true', 'groups', null],
       ['account/me?ngsw-bypass=true', 'me', null],
+      ['account?ids=700000000000000002,700000000000000003&ngsw-bypass=true', 'accounts', null],
       ['message/automated?ngsw-bypass=true', 'automated', null],
       ['vault/albums/media?ngsw-bypass=true', 'vault', null],
       // The API's, not the table's.
@@ -37,8 +38,18 @@ describe('[host:fansly] the response table of the XHR observer (§5.4)', () => {
       ['vault/albumsnew', 'other', null],
       ['group/abc/', 'other', null],
       ['messages', 'other', null],
+      ['account', 'other', null],
+      ['account?usernames=fan', 'other', null],
     ];
-    for (const [path, kind, groupId] of table) expect(classifyAddress(at(path), API), path).toEqual({ kind, groupId });
+    for (const [path, kind, groupId] of table) expect(classifyAddress(at(path), API), path).toMatchObject({ kind, groupId });
+  });
+
+  it('keeps the page’s own `limit=` of the history: a fresh end shorter than it proves the start (§5.6)', () => {
+    expect(classifyAddress(at(`message?groupId=${GROUP}&limit=25&ngsw-bypass=true`), API)).toEqual({ kind: 'history', groupId: GROUP, limit: 25 });
+    expect(classifyAddress(at(`message?groupId=${GROUP}&before=700000000000000101&limit=25`), API)).toEqual({ kind: 'older', groupId: GROUP, limit: 25 });
+    for (const limit of ['', '&limit=', '&limit=0', '&limit=-3', '&limit=2.5', '&limit=x']) {
+      expect(classifyAddress(at(`message?groupId=${GROUP}${limit}`), API), limit).toEqual({ kind: 'history', groupId: GROUP, limit: null });
+    }
   });
 
   it('is the API’s only on its origins, whose port may follow — the stand’s loopback API, never a look-alike host', () => {
@@ -67,6 +78,8 @@ describe('[host:fansly] the response table of the XHR observer (§5.4)', () => {
     expect(readResponse({ kind: 'unread', groupId: null }, ok({ messageInteractions: [] }), JSON.parse)).not.toBeNull();
     expect(readResponse({ kind: 'automated', groupId: null }, ok([]), JSON.parse)).not.toBeNull();
     expect(readResponse({ kind: 'automated', groupId: null }, ok({}), JSON.parse)).toBeNull();
+    expect(readResponse({ kind: 'accounts', groupId: null }, ok([{ id: '700000000000000002' }]), JSON.parse)).not.toBeNull();
+    expect(readResponse({ kind: 'accounts', groupId: null }, ok({ accounts: [] }), JSON.parse)).toBeNull();
     // The page does not read the vault's answer: its success is the whole confirmation.
     expect(readResponse({ kind: 'vault', groupId: null }, ok(null), JSON.parse)).toEqual({ kind: 'vault', groupId: null, response: null });
     expect(readResponse({ kind: 'other', groupId: null }, ok({}), JSON.parse)).toBeNull();
