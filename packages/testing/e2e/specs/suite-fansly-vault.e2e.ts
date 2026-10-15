@@ -78,10 +78,13 @@ async function openAlbum(): Promise<VaultView> {
 describe('the vault uploader on the Fansly stand: files into the open album, confirmed, with checkpoints (R20 P13a)', () => {
   useNetworkTrap();
   let harness: FanslyTapHarness | null = null;
+  // reset preserves the journal, including intentional API calls of earlier spec files.
+  let apiJournalStart = 0;
 
   before(async () => {
     await setFanslyNeighbor(null);
     await fakeFansly().command({ op: 'reset' });
+    apiJournalStart = await fakeFansly().mark();
     await browser.setWindowSize(1440, 900);
     harness = await installFanslyTapHarness({ main: 'start', consumer: 'port' });
   });
@@ -89,7 +92,7 @@ describe('the vault uploader on the Fansly stand: files into the open album, con
   after(async () => {
     await harness?.remove();
     // Every request was the page's own: nothing of ours asked the fake Fansly anything.
-    expect(await fakeFansly().calls('ours', 0)).toEqual([]);
+    expect(await fakeFansly().calls('ours', apiJournalStart)).toEqual([]);
     await setFanslyNeighbor(null);
     await browser.url('about:blank');
     await fakeFansly().command({ op: 'reset' });
@@ -213,12 +216,14 @@ describe('the vault panel on the Fansly stand: one click to it on `/creator/vaul
   let pagesTab = '';
   let creator = '';
   let journalStart = 0;
+  let apiJournalStart = 0;
   const pages = (): Promise<void> => browser.switchToWindow(pagesTab);
   const stand = (): Promise<void> => browser.switchToWindow(standTab);
 
   before(async () => {
     await setFanslyNeighbor(null);
     await fakeFansly().command({ op: 'reset' });
+    apiJournalStart = await fakeFansly().mark();
     journalStart = await fanslyStandServer.mark();
     // The owner switched the vault on for the Fansly page (its own row: `"*"` never reaches it).
     await hub().command({ op: 'config', patch: fanslyPageFlags({ vault: true }) });
@@ -246,7 +251,7 @@ describe('the vault panel on the Fansly stand: one click to it on `/creator/vaul
   after(async () => {
     // Nothing of the extension asked the Fansly stand for anything: the page's own requests did every upload.
     expect((await fanslyStandServer.journal(journalStart)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
-    expect(await fakeFansly().calls('ours', 0)).toEqual([]);
+    expect(await fakeFansly().calls('ours', apiJournalStart)).toEqual([]);
     await setFanslyNeighbor(null);
     await browser.url('about:blank');
     await fakeFansly().command({ op: 'reset' });
