@@ -126,7 +126,7 @@ describe('Fansly’s human send on its stand and its `sent` (R20 P7f)', () => {
 
   for (const mode of ['off', 'after'] as const) {
     describe(`next to the neighbour (${mode})`, () => {
-      it(`[FS-SEND-1] [FS-SEND-2] [UI-033] [TL-004] our insert, the person’s trusted Enter (${mode}): the page sends its model inside the keydown; its receipt, then its echo — the port says the send for the server’s message, our intent, not edited`, async () => {
+      it(`[FS-SEND-1] [FS-SEND-2] [UI-033] [TL-004] our insert, the person’s trusted Enter (${mode}): the page sends its model inside the keydown; its receipt and its echo — the port says the send for the server’s message, our intent, not edited`, async () => {
         const group = ids.groups[1] as string;
         await openChat(ids, group, mode);
         const since = await fakeFansly().mark();
@@ -145,7 +145,11 @@ describe('Fansly’s human send on its stand and its `sent` (R20 P7f)', () => {
         });
         // The page sent its model, and cleared its field — no text of ours went anywhere but into the field.
         expect(await mainComposer()).toMatchObject({ value: '', model: '' });
-        expect(await mainSends()).toMatchObject({ gestures: 1, receipts: 1, ambiguous: 0, media: 0, sent: 1, receiptFirst: 1, echoFirst: 0 });
+        // The server writes the echo right after its answer, but on the client the socket's frame and the HTTP answer
+        // race: either may come first — the very order MAIN counts for the real Fansly (spike P3a §3).
+        const counted = await mainSends();
+        expect(counted).toMatchObject({ gestures: 1, receipts: 1, ambiguous: 0, media: 0, sent: 1 });
+        expect(counted.echoFirst + counted.receiptFirst).toBe(1);
         expect((await portHealth()).isolated.sends).toEqual({ gestures: 1, linked: 1, unmatched: 0, ambiguous: 0 });
       });
 
