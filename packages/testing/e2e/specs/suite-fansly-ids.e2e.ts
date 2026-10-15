@@ -16,14 +16,14 @@
 //   group — its archive and its «Открыть чат» (the address is the group's);
 //   a row whose chat no one knows asks nothing of it — no archive, no
 //   generation, nothing by the fan's id in the group's place.
-// Spenders' own group resolution beyond the hub's rows is P9e, «Новые» P10c.
+// P9e also resolves Spenders' missing groups on an explicit click; «Новые» is P10c.
 // And the start of the dock's Reply (R20 P8b1; FS-TAIL-1, FS-TAIL-6): MAIN's
 // snapshot of the open chat is the start's proof, and the hub is asked about
 // it — the window the page holds, the fan's newest ids first, what the page
 // deleted, the texts, a count no smaller than the window. The verdict over
 // that Reply (R20 P8b2; spec §3.5, FS-TAIL-8): the mark the hub's answers
 // call for, in both of Fansly's themes; inserting never held by it.
-// Nothing of ours asks the Fansly stand for anything.
+// The passive cases ask the fake Fansly nothing; P9e's explicit lookups use its paced allowlist.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
