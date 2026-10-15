@@ -781,6 +781,26 @@ Fansly (`FANSLY_SURFACES_AHEAD`): её модель и действия не в�
   `{checkpoint}` читаются как прежде. Фикстуры: верные `{recorded: false, held: true}`, `{checkpoint, held: true}`;
   неверные `{recorded: true, held: true}`, `held: 'yes'`.
 
+### P7i — как сайт видит отправку человеком: `human-send` в манифесте фич
+
+Не PR этапа 4, но в его открытую версию (`docs/project-unite/architecture.md` §1.4, §7.22). Фон берёт ручную отправку
+части за известную (`op.reportSent`: телеметрия `sent`, регистрация приветствия в хабе) только где сайт её видит. До
+P7i правило было ChatSpace (`wsTap` страницы операции) в общем коде фона, и `sent` Fansly (P7f: жест, квитанция и эхо
+в MAIN) отбрасывался бы всегда: у страницы Fansly `wsTap` нет. Правило сайта — запись манифеста, а не имя сайта.
+
+- **`FEATURES_COMMON['human-send']`** (`features/common`) — `{kind: 'service'}`: часть, отправленная человеком, взята
+  за известную. Ветки сайтов: ChatSpace — `base: {flags: ['wsTap'], hostCapabilities: ['sendObserve']}` (его сокет и
+  `wsTap` страницы операции, как было); Fansly — `base: {flags: [], hostCapabilities: ['sendObserve']}` (MAIN видит
+  отправку при включённом сайте, выключателя владельца нет); обе `actions: {}`, `surfaces: []`, `source: 'page'`.
+  Фон спрашивает `admission(slice, 'human-send', null, onPage(bootstrap, page))` страницы операции — возможности
+  сайта проверяет его вкладка; среза сайта нет (модуль Fansly не поднялся) — не видно.
+- Строки паритета записи — `TL-004` (`tools/gates/manifest.ts`, `FEATURE_PARITY`).
+- Тесты: `packages/contracts/test/features.test.ts` (обе ветки записи), `apps/extension/test/account-switch.test.ts`
+  (`humanSendObservable` по срезам обоих сайтов: ChatSpace — по `wsTap` страницы операции, Fansly — без `wsTap`, но
+  не без среза), `apps/extension/test/wiring-fansly.test.ts` (`op.reportSent` вкладки Fansly записан на странице без
+  `wsTap`, вкладки ChatSpace — по-прежнему нет).
+- Байты: срез ChatSpace получил запись — сдвинулись `background.js` и `tab-app` его ленивой сборки (`pnpm gates:bytes`).
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

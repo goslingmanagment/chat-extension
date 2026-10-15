@@ -174,6 +174,12 @@ describe('the feature manifest: the entries F4 writes in full, for both sites (a
     expect('notes-fill' in CHATSPACE_FEATURES || 'notes' in CHATSPACE_FEATURES).toBe(false);
   });
 
+  it('human-send (R20 P7i): how a site sees a part sent by hand — ChatSpace’s socket, under the page’s `wsTap`; Fansly’s MAIN, under no switch of the owner', () => {
+    expect(FEATURES_COMMON['human-send']).toEqual({ kind: 'service' });
+    expect(CHATSPACE_FEATURES['human-send']).toEqual({ base: { flags: ['wsTap'], hostCapabilities: ['sendObserve'] }, actions: {}, surfaces: [], source: 'page' });
+    expect(FANSLY_FEATURES['human-send']).toEqual({ base: { flags: [], hostCapabilities: ['sendObserve'] }, actions: {}, surfaces: [], source: 'page' });
+  });
+
   it('the rest of the table: the analysis features, the windows and the services ask their own switch on both sites', () => {
     const flagsOf = (file: Readonly<Record<string, Entry>>): Record<string, readonly string[]> => Object.fromEntries(Object.entries(file).map(([id, entry]) => [id, entry.base.flags]));
     const shared = { review: ['review'], recap: ['recap'], coach: ['coach'], spenders: ['spenders'], 'fan-panel': ['fanPanel'], sound: ['sound'], newcomers: ['newcomers'], 'fresh-text': ['freshText'] };

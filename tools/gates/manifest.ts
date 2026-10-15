@@ -139,6 +139,8 @@ export const FEATURE_PARITY: Readonly<Record<string, readonly string[]>> = {
   newcomers: ['NF-001', 'NF-020', 'NF-021'],
   'fan-panel': ['CS-031'],
   sound: ['SN-001', 'SN-012'],
+  // A part sent by hand, taken for known: telemetry `sent` (and with it the hub's registration of a greeting).
+  'human-send': ['TL-004'],
   'preview-send': ['SP-054', 'X8-02'],
   navigation: ['HK-037'],
   palette: ['HK-036', 'CS-014'],

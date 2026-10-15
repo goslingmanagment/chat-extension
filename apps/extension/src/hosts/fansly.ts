@@ -11,10 +11,14 @@
 // a manifest content script at install (MV3 `extensions.originControls.
 // grantByDefault`), so a static one would hand fansly.com — and in a test
 // build the stand — to every installation before anyone switched Fansly on.
-// The registration comes with «Включить Fansly» (P9a); on the stand the e2e
-// makes the same one call `[fansly-main, fansly]` itself
-// (packages/testing/e2e/support/fansly-site.ts), with the stand's origins
-// granted as a person would.
+// The registration comes with «Включить Fansly»: the background's sync
+// (P9a; composition/site-access.ts `scriptSet`) registers `[fansly-main,
+// fansly]` in one call on fansly.com in a release, on the stand too in a test
+// build, and its e2e grants the stand's origins as a person would
+// (packages/testing/e2e/support/fansly-site.ts). The tab registers with the
+// background as Fansly's (`fansly-web`), and the background admits what it
+// asks by Fansly's slice of the feature manifest, which Fansly's background
+// module brings (bg/fansly.ts, R20 P7i).
 
 import { BEFORE_THE_DOCK, LAZY_LAYERS } from '../../lazy/entries/names.ts';
 import { FANSLY_API_MATCHES, FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_QUIET_DOMAINS } from './runtime/fansly.ts';

@@ -22,6 +22,7 @@ import type { NetworkSession } from '@cg/core/services/network-session';
 
 import type { HostKind } from '@cg/contracts/hosts';
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { Bootstrap, HubFacade, HubRouteKey, ResolveHubError } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { OpView } from '@cg/contracts/ops';
@@ -191,6 +192,13 @@ export interface HostModuleFacts {
 }
 
 export interface BackgroundHostHandle {
+  /**
+   * The site's slice of the feature manifest, where the core cannot carry it (R20 P7i; architecture.md §1.4): a site
+   * whose slice is a file of its own — Fansly's — is not in the core's graph (`background-core-graph`), so its module
+   * brings it, and the core admits the site's generations and insert tokens by it while the module runs. Absent — the
+   * core holds the site's slice itself (ChatSpace's).
+   */
+  readonly features?: FeatureSlice;
   /** A request of the module's own types; the answer is checked by its schema on the way out. */
   onTabMessage(message: VerifiedTabMessage): Promise<HostAnswer>;
   onEvent(event: HostModuleEvent): Promise<void>;

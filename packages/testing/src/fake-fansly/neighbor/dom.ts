@@ -13,7 +13,8 @@
 //   inline-flex widgets right after the composer's `.collapsable-actions` —
 //   templates, emoji, translate — on every new composer, and the translate key
 //   on its field; plain-DOM pin and translate entries in each message's
-//   `.actions` (`width:auto`); the fan panel by `panel=`; the `<body>` layer;
+//   `.actions` (`width:auto`); the fan panel by `panel=` (on desktop with its
+//   notes field, R20 P7i); the `<body>` layer;
 //   `style#fb-fansly-style-fixes` and `style#fb-dynamic-tweaks-css`.
 // Every mount checks first, so its own records end the loop: a feature that
 // finds its node in place writes nothing.
@@ -64,6 +65,16 @@ export interface DomOptions {
   readonly panel: NeighborPanel;
   readonly translator: Translator;
 }
+
+/** The notes field of its fan panel: what a person types there stays there. */
+export const NOTES_FIELD_CLASS = 'fb-notes-field';
+const notesField = (doc: Document): HTMLTextAreaElement => {
+  const field = doc.createElement('textarea');
+  field.className = NOTES_FIELD_CLASS;
+  field.setAttribute('aria-label', 'Notes');
+  field.setAttribute('style', 'display:block;box-sizing:border-box;width:100%;min-height:96px');
+  return field;
+};
 
 const button = (doc: Document, label: string, onClick: () => void): HTMLButtonElement => {
   const element = doc.createElement('button');
@@ -266,7 +277,15 @@ export class NeighborDom {
     if (wrapper.lastElementChild?.localName === NEIGHBOR_TAGS.panelDesktop) return;
     wrapper.querySelector(`:scope > ${NEIGHBOR_TAGS.panelDesktop}`)?.remove();
     wrapper.append(
-      this.options.ui.host({ tag: NEIGHBOR_TAGS.panelDesktop, feature: 'user-profile-panel-desktop', key: 'panel', owner: wrapper, style: `display:block;flex:0 0 ${DESKTOP_PANEL_PX}px;width:${DESKTOP_PANEL_PX}px` }),
+      this.options.ui.host({
+        tag: NEIGHBOR_TAGS.panelDesktop,
+        feature: 'user-profile-panel-desktop',
+        key: 'panel',
+        owner: wrapper,
+        style: `display:block;flex:0 0 ${DESKTOP_PANEL_PX}px;width:${DESKTOP_PANEL_PX}px`,
+        // Its notes about the fan (FBuddy Notes): a field of its own, where a person types — our keys must not (R20 P7i).
+        content: (root) => root.append(notesField(this.doc)),
+      }),
     );
   }
 

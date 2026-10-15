@@ -53,6 +53,9 @@ const FEATURES = {
   'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub', switches: ['preview'] },
   // `wsTap`: ChatSpace's WebSocket tap, which hears the messages of the accounts that are not open.
   sound: { base: { flags: ['sound'], hostCapabilities: [] }, actions: {}, surfaces: [], switches: ['wsTap'] },
+  // ChatSpace's socket tells a send by hand (its receipt and echo): the socket of a page may be listened to only where
+  // the page's own `wsTap` is usable — the tab's tap is one for all its accounts, on while any page has it.
+  'human-send': { base: { flags: ['wsTap'], hostCapabilities: ['sendObserve'] }, actions: {}, surfaces: [], source: 'page' },
 
   // ── only ChatSpace ──
   // `wsTap`: the passive freshness of the chat a part is sent to (CG-SEND-FRESHNESS without it); the AI mark of the send.

@@ -13,6 +13,16 @@
 // families answer CG-RUNTIME-UNREACHABLE until their PRs (P9c, P10*, P11b, P12b*).
 // Forgotten checkpoints go with the module's first start and «Очистить
 // локальные данные».
+//
+// R20 P7i: the module brings Fansly's slice of the feature manifest
+// (docs/project-unite/architecture.md §1.4). The core's graph never has a file
+// of Fansly's, so it admits a generation of a Fansly chat and an insert token
+// of a Fansly tab by the slice of this running module (`features`). Cut here
+// the way the site's other roots cut it (apps/extension/src/composition/
+// features/fansly.ts): the common part and Fansly's own file, never
+// ChatSpace's.
+import { FEATURES_COMMON } from '@cg/contracts/features/common';
+import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
 import {
   FANSLY_TAB_TYPE_PREFIX,
   fanslyEventTargets,
@@ -22,11 +32,15 @@ import {
   parseFanslyTabPayload,
   type FanslyTabRequestPayload,
 } from '@cg/contracts/tab-messages-fansly';
+import { featureSlice } from '@cg/core/domain/features';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry } from '../src/composition/background/host-module';
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
+
+/** Fansly's slice of the feature manifest, as its tab and the extension pages hold it. */
+const FANSLY_SLICE = featureSlice(FEATURES_COMMON, FANSLY_FEATURES);
 
 /** Fansly's registry for the core's RPC: its rules and schemas, and what this module answers so far. */
 export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegistry {
@@ -61,6 +75,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   // Runs once a background: whatever was left for more than 14 days goes.
   void vault.sweep().catch(() => 0);
   return {
+    features: FANSLY_SLICE,
     onTabMessage: () => Promise.resolve({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     async onEvent(event) {
       if (event.kind === 'clear-finished') await vault.sweep();
