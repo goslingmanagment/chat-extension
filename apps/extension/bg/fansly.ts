@@ -33,6 +33,10 @@ import {
   type FanslyTabRequestPayload,
 } from '@cg/contracts/tab-messages-fansly';
 import { featureSlice } from '@cg/core/domain/features';
+import { createFanslyApi } from '@cg/fansly-api';
+import { FanslyPacer } from '@cg/fansly-api/pacer';
+import { FanslyApiError } from '@cg/fansly-api/errors';
+import type { FanslyApiCall, FanslyApiPort } from '@cg/contracts/fansly-api';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry } from '../src/composition/background/host-module';
@@ -54,8 +58,31 @@ export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegi
   };
 }
 
-async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
-  await kit.networkSession?.ready;
+export interface FanslyBackgroundHandle extends BackgroundHostHandle { readonly api: FanslyApiPort; readonly pacer: FanslyPacer }
+
+async function startFansly(kit: BackgroundKit): Promise<FanslyBackgroundHandle> {
+  const session = kit.networkSession;
+  if (session === undefined) throw new FanslyApiError('CG-FAN-SESSION', 'before-dispatch');
+  await session.ready;
+  const pacer = new FanslyPacer({ session, storage: kit.storage.sessionKeys, now: () => kit.clock.now(), countLimit: (source) => kit.telemetry.count?.(`fansly.429.${source}`) });
+  await pacer.sync();
+  let testOrigin: string | undefined;
+  const api = createFanslyApi({ session, pacer, id: () => kit.ids.uuid(), now: () => kit.clock.now(), ...(__CG_TEST_HOSTS__ ? { testOrigin: () => testOrigin } : {}) });
+  let stopProbe: (() => void) | undefined;
+  if (__CG_TEST_HOSTS__) {
+    // The stand drives the actual background client. No new production RPC,
+    // no UI performing the work of P9c–P9e; removed from release builds.
+    stopProbe = kit.storage.local.onChanged((changes) => {
+      const probe = changes['test.fansly-network.request']?.newValue as { id: string; origin: string; call: FanslyApiCall } | undefined;
+      if (probe === undefined) return;
+      testOrigin = probe.origin;
+      void api.request(probe.call, new AbortController().signal).then(
+        (value) => kit.storage.local.set({ 'test.fansly-network.result': { id: probe.id, ok: true, value } }),
+        (error: unknown) => kit.storage.local.set({ 'test.fansly-network.result': { id: probe.id, ok: false, code: error instanceof FanslyApiError ? error.code : 'error', phase: error instanceof FanslyApiError ? error.phase : 'unknown', status: pacer.status(probe.call.accountId) } }),
+      );
+    });
+  }
+
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
@@ -75,16 +102,14 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   // Runs once a background: whatever was left for more than 14 days goes.
   void vault.sweep().catch(() => 0);
   return {
+    api, pacer,
     features: FANSLY_SLICE,
     onTabMessage: () => Promise.resolve({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     async onEvent(event) {
       if (event.kind === 'clear-finished') await vault.sweep();
     },
     facts: () => ({}),
-    dispose: () => {
-      unplug();
-      return Promise.resolve();
-    },
+    dispose: async () => { unplug(); stopProbe?.(); await pacer.idle(); },
   };
 }
 

@@ -3,7 +3,7 @@
   "version": "0.2.4",
   "private": true,
   "type": "module",
-  "description": "ChatGoose \u0434\u043b\u044f ChatSpace \u2014 Firefox MV3 extension (WXT entry points, manifest, composition roots).",
+  "description": "ChatGoose для ChatSpace — Firefox MV3 extension (WXT entry points, manifest, composition roots).",
   "scripts": {
     "build": "cd ../.. && wxt zip apps/extension -b firefox --mv3",
     "build:test": "cd ../.. && CG_TEST_HOSTS=1 wxt zip apps/extension -b firefox --mv3",
@@ -19,7 +19,8 @@
     "@cg/ui": "workspace:*",
     "@preact/signals": "2.11.3",
     "preact": "11.0.0",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "@cg/fansly-api": "workspace:*"
   },
   "devDependencies": {
     "vite": "8.3.2",

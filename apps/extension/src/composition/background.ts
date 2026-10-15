@@ -92,7 +92,7 @@ import { soundRequestHandlers } from '@cg/core/services/sound';
 import { createSiteAccess } from '@cg/core/services/site-access';
 import { createNetworkSession, legacyAccount } from '@cg/core/services/network-session';
 import { HEALTH_TICK_MS } from '@cg/core/services/telemetry';
-import { ChatExtensionHub, VENDORED_CONTRACT_HASH, errorWireOf } from '@cg/hub';
+import { ChatExtensionHub, VENDORED_CONTRACT_HASH, errorWireOf, directFetch } from '@cg/hub';
 import {
   createAlarms,
   createPermissionBundle,
@@ -285,7 +285,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   // ── platform ───────────────────────────────────────────────────────────────
   const api = deps.api ?? defaultBrowser();
-  const hubFetch = deps.fetch ?? ((input: string, init?: RequestInit): Promise<Response> => fetch(input, init));
+  const hubFetch = deps.fetch ?? directFetch;
   const local = createKeyValueStore('local', { api, budgetOf: storageBudgetOf });
   const session = createKeyValueStore('session', { api, budgetOf: storageBudgetOf });
   const alarms = createAlarms(api);
@@ -320,7 +320,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     apiRequest: apiAddress, ownOrigin: api.runtime.getURL(''),
     requiredHeaders: ['authorization', 'fansly-client-id', 'fansly-client-ts', 'fansly-session-id'],
     materialHeaders: ['authorization', 'fansly-client-id', 'fansly-session-id'],
-    checkHeader: 'fansly-client-check', accountOf: legacyAccount, familyOf: routeFamily,
+    checkHeader: 'fansly-client-check', correlationHeader: 'fansly-client-ts', accountOf: legacyAccount, familyOf: routeFamily,
   });
   let observations: Promise<void> = Promise.resolve();
   const observation = observeWebRequests(apiMatches(), (fact) => {
@@ -616,13 +616,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     ops: { forSend: (opId) => scheduler.forSend(opId), view: (opId) => scheduler.view(opId), environment },
     tokens,
     install: { instanceId: () => instanceId, owner: () => ownerOf(hubInstance?.session() ?? null) },
-    networkSession,
+    networkSession: { ...networkSession, idle: () => observations.then(() => networkSession.idle()), recordOwnLimit: (fact) => observations.then(() => networkSession.recordOwnLimit(fact)) },
     nativeSends: { register: (view, part, platformMessageId) => nativeSends.register(view, part, platformMessageId) },
   };
   /** The kit of a site's module: what it counts goes to its site's `client_health` window (R20 F7). */
   const kitOf = (host: HostKind): BackgroundKit => ({
     ...kit,
-    telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
+    telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code), count: (name) => telemetry.health.count(host, name) },
     // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope.
     site: { plug: (registry) => rpc.site({ ...registry, host }) },
   });
@@ -1263,7 +1263,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   if (__CG_TEST_HOSTS__) {
     local.onChanged((changes) => {
       // The e2e's proof that the egress sink sees background requests.
-      if (changes[EGRESS_PROBE_KEY]?.newValue !== undefined) fireEgressProbe();
+      if (changes[EGRESS_PROBE_KEY]?.newValue !== undefined) fireEgressProbe(hubFetch);
       const compat = changes[DEV_COMPAT_PAGES_KEY];
       if (compat !== undefined) readCompatPages(compatPages, compat.newValue);
     });

@@ -29,6 +29,17 @@ export interface RateLimitFact {
   /** null means every creator, including one learned after this response. */
   readonly accountId: string | null;
   readonly source: 'own' | 'page' | 'unknown';
+  readonly method?: string;
+  readonly pathname?: string;
+  readonly retryAfterMs?: number;
+}
+interface OwnRequest {
+  readonly requestId: string;
+  readonly accountId: string;
+  readonly url: string;
+  readonly stamp: string;
+  readonly method: string;
+  readonly at: number;
 }
 interface Candidate {
   tabId: number;
@@ -44,6 +55,8 @@ interface Snapshot {
   registered: number[];
   tabTimes: [number, number][];
   limits: RateLimitFact[];
+  /** Only ids, attribution and route: never headers or credentials. */
+  ownAliases: [string, { requestId: string; accountId: string; method: string; pathname: string; at: number }][];
 }
 export interface NetworkSessionDeps {
   readonly storage: KeyValuePort;
@@ -58,6 +71,8 @@ export interface NetworkSessionDeps {
   readonly materialHeaders: readonly string[];
   readonly accountOf: (authorization: string) => string | null;
   readonly familyOf: (url: string) => string | null;
+  /** Existing per-request timestamp header, used locally to correlate our two observations. */
+  readonly correlationHeader?: string;
 }
 
 const MAX_PENDING = 256;
@@ -76,18 +91,23 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
   const tabTimes = new Map<number, number>();
   const pending = new Map<string, Candidate>();
   const own = new Map<string, string>();
+  const outgoing = new Map<string, OwnRequest>();
+  const ownAliases = new Map<string, { requestId: string; accountId: string; method: string; pathname: string; at: number }>();
   const limits: RateLimitFact[] = [];
   let sequenceAt = 0;
   let readable = false;
   let enabled = false;
   let dirty = false;
   let flushing: Promise<void> | null = null;
-  const snapshot = (): Snapshot => ({ v: 1, templates: [...templates.values()].map((value) => ({ ...value, headers: { ...value.headers }, checks: { ...value.checks } })), tabs: [...tabs], registered: [...registered], tabTimes: [...tabTimes], limits: [...limits] });
+  const snapshot = (): Snapshot => ({ v: 1, templates: [...templates.values()].map((value) => ({ ...value, headers: { ...value.headers }, checks: { ...value.checks } })), tabs: [...tabs], registered: [...registered], tabTimes: [...tabTimes], limits: [...limits], ownAliases: [...ownAliases] });
   const canonical = (legacy: string): string => templates.get(legacy)?.canonicalId ?? legacy;
   const prune = (): void => {
     for (const [key, value] of pending) if (value.at < deps.now() - PENDING_MS) pending.delete(key);
     while (pending.size > MAX_PENDING) pending.delete(pending.keys().next().value as string);
     while (own.size > MAX_PENDING) own.delete(own.keys().next().value as string);
+    for (const [key, value] of outgoing) if (value.at < deps.now() - PENDING_MS) outgoing.delete(key);
+    for (const [key, value] of ownAliases) if (value.at < deps.now() - FACT_MS) { ownAliases.delete(key); dirty = true; }
+    while (ownAliases.size > MAX_PENDING) { ownAliases.delete(ownAliases.keys().next().value as string); dirty = true; }
     while (limits.length > MAX_PENDING || (limits[0]?.at ?? deps.now()) < deps.now() - FACT_MS) { limits.shift(); dirty = true; }
   };
   const save = async (): Promise<void> => {
@@ -111,6 +131,9 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
       // Old snapshots have no per-tab clock. No in-flight request is restored,
       // so future observations safely start after every saved account clock.
       if (Array.isArray(raw['limits'])) for (const value of raw['limits'].slice(-MAX_PENDING)) if (record(value) && typeof value['requestId'] === 'string' && typeof value['at'] === 'number' && (value['accountId'] === null || id(value['accountId'])) && ['own', 'page', 'unknown'].includes(String(value['source']))) limits.push(value as unknown as RateLimitFact);
+      if (Array.isArray(raw['ownAliases'])) for (const pair of raw['ownAliases'].slice(-MAX_PENDING)) {
+        if (Array.isArray(pair) && typeof pair[0] === 'string' && record(pair[1]) && typeof pair[1]['requestId'] === 'string' && id(pair[1]['accountId']) && typeof pair[1]['method'] === 'string' && typeof pair[1]['pathname'] === 'string' && typeof pair[1]['at'] === 'number') ownAliases.set(pair[0], pair[1] as unknown as { requestId: string; accountId: string; method: string; pathname: string; at: number });
+      }
     }
     sequenceAt = Math.max(0, ...[...templates.values()].map((value) => value.observedAt), ...[...tabTimes.values()]);
     prune();
@@ -137,6 +160,7 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
         if (!value) {
           dirty ||= templates.size > 0 || tabs.size > 0 || registered.size > 0;
           templates.clear(); tabs.clear(); tabTimes.clear(); registered.clear(); pending.clear(); own.clear();
+          outgoing.clear();
         }
         // Keep 429 facts across a revoke/regrant; an unchanged enable is read-only.
       });
@@ -157,6 +181,15 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
           }
           const legacyId = deps.accountOf(headers['authorization'] ?? '');
           if (legacyId !== null && isOwn) own.set(fact.requestId, legacyId);
+          if (isOwn && deps.correlationHeader !== undefined) {
+            const stamp = fact.requestHeaders?.find((header) => header.name.toLowerCase() === deps.correlationHeader)?.value;
+            const tracked = stamp === undefined ? undefined : outgoing.get(`${fact.url}\n${stamp}`);
+            if (tracked !== undefined) {
+              ownAliases.set(fact.requestId, { requestId: tracked.requestId, accountId: tracked.accountId, method: tracked.method, pathname: '/' + tracked.url.split('/').slice(3).join('/').split('?')[0], at: tracked.at });
+              outgoing.delete(`${fact.url}\n${stamp}`);
+              dirty = true;
+            }
+          }
           if (!isOwn && legacyId !== null && deps.pageRequest(fact) && deps.requiredHeaders.every((name) => !!headers[name])) {
             sequenceAt = Math.max(deps.now(), sequenceAt + 0.001);
             pending.set(fact.requestId, { tabId: fact.tabId, at: sequenceAt, legacyId, headers, family: deps.familyOf(fact.url) });
@@ -165,12 +198,17 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
         }
         const candidate = pending.get(fact.requestId);
         pending.delete(fact.requestId);
-        if (fact.phase === 'completed' && fact.statusCode === 429 && !limits.some((value) => value.requestId === fact.requestId)) {
+        const alias = ownAliases.get(fact.requestId);
+        const limitId = alias?.requestId ?? fact.requestId;
+        if (fact.phase === 'completed' && fact.statusCode === 429 && !limits.some((value) => value.requestId === limitId)) {
           const legacy = isOwn && fact.tabId < 0 ? own.get(fact.requestId) : registered.has(fact.tabId) ? tabs.get(fact.tabId) : undefined;
           dirty = true;
-          limits.push({ requestId: fact.requestId, at: deps.now(), accountId: legacy === undefined ? null : canonical(legacy), source: isOwn ? 'own' : deps.pageRequest(fact) ? 'page' : 'unknown' });
+          limits.push({ requestId: limitId, at: deps.now(), accountId: alias !== undefined ? canonical(alias.accountId) : legacy === undefined ? null : canonical(legacy), source: isOwn || alias !== undefined ? 'own' : deps.pageRequest(fact) ? 'page' : 'unknown', pathname: '/' + fact.url.split('/').slice(3).join('/').split('?')[0], ...(alias === undefined ? {} : { method: alias.method }) });
         }
         own.delete(fact.requestId);
+        // Successful/failed non-429 attempts need no durable alias; retaining
+        // all successful traffic would evict the still-in-flight correlations.
+        if (fact.statusCode !== 429 && ownAliases.delete(fact.requestId)) dirty = true;
         if (candidate !== undefined && fact.phase === 'completed' && fact.tabId === candidate.tabId && deps.pageRequest(fact) && (fact.statusCode ?? 0) >= 200 && (fact.statusCode ?? 0) < 300) {
           const previous = templates.get(candidate.legacyId);
           const oldLegacy = tabs.get(candidate.tabId);
@@ -197,6 +235,29 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
             while (templates.size > MAX_ACCOUNTS) templates.delete(templates.keys().next().value as string);
           }
         }
+      });
+    },
+    /**
+     * Called synchronously immediately before dispatch. No wire marker: the
+     * accepted URL and freshly generated timestamp identify our observation.
+     * An identical unbound dispatch in the same millisecond is refused, never guessed.
+     */
+    trackOwnRequest(request: Omit<OwnRequest, 'at'>): boolean {
+      if (!readable || !enabled || deps.correlationHeader === undefined || !deps.apiRequest(request.url)) return false;
+      prune();
+      const key = `${request.url}\n${request.stamp}`;
+      if (outgoing.has(key) || outgoing.size >= MAX_PENDING) return false;
+      outgoing.set(key, { ...request, at: deps.now() });
+      return true;
+    },
+    /** fetch and onCompleted report one fact; Retry-After enriches it, never doubles it. */
+    recordOwnLimit(fact: RateLimitFact): Promise<void> {
+      return run(() => {
+        const index = limits.findIndex((value) => value.requestId === fact.requestId);
+        const previous = limits[index];
+        if (previous === undefined) limits.push({ ...fact, source: 'own', accountId: fact.accountId === null ? null : canonical(fact.accountId) });
+        else limits[index] = { ...previous, ...(fact.method === undefined ? {} : { method: fact.method }), ...(fact.pathname === undefined ? {} : { pathname: fact.pathname }), retryAfterMs: Math.max(previous.retryAfterMs ?? 0, fact.retryAfterMs ?? 0) };
+        dirty = true;
       });
     },
     register(tabId: number): Promise<void> { return run(() => { dirty ||= !registered.has(tabId); registered.add(tabId); }); },

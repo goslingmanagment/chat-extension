@@ -186,7 +186,7 @@ export function checkUiTexts(files: readonly SourceFile[]): Violation[] {
 export function checkSendQueueReferences(files: readonly SourceFile[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
-    if (file.path === SEND_PORT_FILE) continue;
+    if (file.path === SEND_PORT_FILE || file.path.startsWith('packages/fansly-api/')) continue;
     const source = parse(file);
     walk(source, (node) => {
       const hit =
@@ -209,6 +209,7 @@ export function checkSendQueueReferences(files: readonly SourceFile[]): Violatio
 /** 6. The release bundle carries nothing test-only: no loopback hosts, no spike or egress probe. */
 export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
   const markers: Array<[RegExp, string]> = [
+    [/test\.fansly-network/, 'Fansly network stand driver'],
     [/127\.0\.0\.1|\blocalhost\b/, 'loopback stand / fake hub host'],
     [/data-cg-spike|lazy\/spike\.js/, 'spike M0 probe'],
     [/cg-test-egress-probe|cg-bg-probe\.invalid/, 'background egress probe'],
@@ -542,6 +543,7 @@ export function checkMainWorldGuards(files: readonly SourceFile[]): Violation[] 
 
 export function runSourceGates(files: readonly SourceFile[]): Violation[] {
   return [
+    ...checkNetworkScope(files),
     ...checkOnlyMonsterReferences(files),
     ...checkHtmlSinks(files),
     ...checkBrowserApiScope(files),
@@ -550,4 +552,32 @@ export function runSourceGates(files: readonly SourceFile[]): Violation[] {
     ...checkStandHooks(files),
     ...checkMainWorldGuards(files),
   ];
+}
+
+/** P9b: native fetch is held only by network packages and the relay entry. */
+export function checkNetworkScope(files: readonly SourceFile[]): Violation[] {
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (file.path.startsWith('packages/testing/')) continue;
+    const allowed = /^(?:packages\/(?:hub|fansly-api)\/src\/|apps\/extension\/src\/entrypoints\/fansly-relay\/)/.test(file.path);
+    const source = parse(file);
+    walk(source, (node) => {
+      const report = (gate: string, message: string): void => { violations.push({ gate, path: file.path, line: lineOf(source, node), message }); };
+      if (isTextNode(node) && node.text.includes('/message/ack')) report('fansly-no-ack', 'Own reads must never mark messages read (FS-NET-1).');
+      if (!allowed) {
+        const globalProperty = ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && ['globalThis', 'window', 'self'].includes(node.expression.text) && node.name.text === 'fetch';
+        const globalElement = ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) && ['globalThis', 'window', 'self'].includes(node.expression.text) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === 'fetch';
+        // The identifier as a value (including an alias); types, declarations
+        // and a port's named property are not the native capability.
+        const bare = ts.isIdentifier(node) && node.text === 'fetch' && !ts.isTypeQueryNode(node.parent) && !ts.isQualifiedName(node.parent) && !ts.isPropertyAccessExpression(node.parent) && !ts.isPropertySignature(node.parent) && !ts.isPropertyAssignment(node.parent) && !ts.isMethodSignature(node.parent) && !(ts.isVariableDeclaration(node.parent) && node.parent.name === node) && !(ts.isParameter(node.parent) && node.parent.name === node);
+        if (globalProperty || globalElement || bare) report('fetch-scope', 'Native fetch is allowed only in hub, fansly-api and the relay entry (§8.3).');
+      }
+      if (file.path.startsWith('packages/fansly-api/src/') && isTextNode(node) && /^https?:\/\//i.test(node.text)) {
+        let admitted = false;
+        try { const url = new URL(node.text); admitted = url.href.startsWith('https://apiv3.fansly.com/api/v1/') && !url.username && !url.password && !url.hash; } catch { /* Invalid addresses fail closed. */ }
+        if (!admitted) report('fansly-api-address', 'Fansly API addresses must stay under https://apiv3.fansly.com/api/v1/ (FS-NET-1).');
+      }
+    });
+  }
+  return violations;
 }

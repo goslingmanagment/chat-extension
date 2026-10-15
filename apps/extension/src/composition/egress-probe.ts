@@ -10,6 +10,6 @@ export const EGRESS_PROBE_KEY = 'cg.test.egressProbe';
 /** Never resolvable (RFC 6761); in e2e the profile's proxy sends it to the egress sink. */
 export const EGRESS_PROBE_URL = 'https://cg-bg-probe.invalid/probe';
 
-export function fireEgressProbe(): void {
-  void fetch(EGRESS_PROBE_URL, { cache: 'no-store', credentials: 'omit' }).catch(() => undefined);
+export function fireEgressProbe(send: (url: string, init: RequestInit) => Promise<unknown>): void {
+  void send(EGRESS_PROBE_URL, { cache: 'no-store', credentials: 'omit' }).catch(() => undefined);
 }

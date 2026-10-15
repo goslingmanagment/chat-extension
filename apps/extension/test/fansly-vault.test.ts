@@ -9,6 +9,7 @@ import type { I18nKey } from '@cg/contracts/errors';
 import type { HostEvent } from '@cg/contracts/host';
 import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 import { createLiveI18n } from '@cg/core/domain/i18n/live';
+import { createNetworkSession } from '@cg/core/services/network-session';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { createBackgroundRpc, createTabRpcClient, type BackgroundRpc, type TabRpcClient } from '@cg/platform';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -51,7 +52,9 @@ interface Background {
 function backgroundOf(context: FakeContext, kv: MemoryKv): Background {
   const rpc = createBackgroundRpc({ api: context.api, tabHosts: TAB_HOSTS, ready: Promise.resolve(), contractsVersion: CONTRACTS_VERSION, testBuild: true, siteWaitMs: 2_000 });
   const kit = {
-    storage: { local: kv.open() },
+    storage: { local: kv.open(), sessionKeys: { get: () => Promise.resolve(undefined), set: () => Promise.resolve() } },
+    networkSession: createNetworkSession({ storage: kv.open(), key: 'network-session', now: () => T0, ownOrigin: 'moz-extension://test/', pageRequest: () => false, apiRequest: () => false, requiredHeaders: [], materialHeaders: [], checkHeader: '', accountOf: () => null, familyOf: () => null }),
+    telemetry: {},
     clock: { now: () => T0 },
     log: { service: () => undefined },
     router: { tabs: () => rpc.tabs().map((tab) => tab.tabSessionId) },

@@ -20,6 +20,7 @@ export const VENDORED_SDK_VERSION: string = KERNEL_SDK_VERSION;
 /** Production hub origin (D-13); a custom address needs an optional host permission (§3). */
 export const DEFAULT_HUB_ORIGIN = 'https://gosling-agency.ru';
 
+export { directFetch } from './fetch';
 export {
   ChatExtensionHub,
   errorWireOf,

@@ -6,6 +6,7 @@ import { readTree } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/paths.ts';
 import {
   checkBrowserApiScope,
+  checkNetworkScope,
   checkHtmlSinks,
   checkIsolatedStart,
   checkMainWorldBundles,
@@ -31,6 +32,24 @@ import {
 
 const file = (path: string, text: string): SourceFile => ({ path, text });
 const gates = (violations: ReadonlyArray<{ gate: string }>): string[] => violations.map((violation) => violation.gate);
+
+describe('FS-NET-1 network custody', () => {
+  it('rejects native fetch and aliases outside network code, including computed globals', () => {
+    for (const text of ['fetch(url)', 'globalThis.fetch(url)', 'window["fetch"](url)', 'const send = fetch; send(url)']) {
+      expect(checkNetworkScope([file('packages/core/src/x.ts', text)]).some((v) => v.gate === 'fetch-scope')).toBe(true);
+      expect(checkNetworkScope([file('packages/fansly-api/src/client.ts', text)])).toEqual([]);
+      expect(checkNetworkScope([file('packages/hub/src/transport.ts', text)])).toEqual([]);
+      expect(checkNetworkScope([file('apps/extension/src/entrypoints/fansly-relay/main.ts', text)])).toEqual([]);
+    }
+  });
+  it('rejects the read-mark route everywhere outside testing and rejects foreign API addresses', () => {
+    const text = 'const route = "/message/ack"';
+    expect(gates(checkNetworkScope([file('packages/fansly-api/src/client.ts', text)]))).toEqual(['fansly-no-ack']);
+    expect(checkNetworkScope([file('packages/testing/src/api.ts', text)])).toEqual([]);
+    for (const url of ['https://apiv3.fansly.com/else', 'https://other.test/api/v1/', 'https://apiv3.fansly.com.evil/api/v1/']) expect(gates(checkNetworkScope([file('packages/fansly-api/src/client.ts', `const url = '${url}'`)]))).toEqual(['fansly-api-address']);
+    expect(checkSendQueueReferences([file('packages/fansly-api/src/pacer/pacer.ts', 'const enqueue = () => {}; enqueue();')])).toEqual([]);
+  });
+});
 
 describe('gate: onlymonster references', () => {
   it('flags the origin in code outside the allowlist, ignores comments', () => {

@@ -22,7 +22,8 @@
     "@cg/platform": "workspace:*",
     "@cg/ui": "workspace:*",
     "@preact/signals": "2.11.3",
-    "preact": "11.0.0"
+    "preact": "11.0.0",
+    "@cg/fansly-api": "workspace:*"
   },
   "devDependencies": {
     "@sentry/browser": "10.45.0",

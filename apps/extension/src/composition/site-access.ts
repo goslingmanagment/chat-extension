@@ -27,7 +27,7 @@ export function routeFamily(value: string): string | null {
     return [
       ['/api/v1/account/wallets/earnings/', 'earnings'], ['/api/v1/subscribers', 'subscribers'],
       ['/api/v1/media/orderhistory', 'media'], ['/api/v1/messaging/groups', 'messagingGroups'],
-      ['/api/v1/group/', 'group'], ['/api/v1/message', 'message'], ['/api/v1/account', 'account'],
+      ['/api/v1/group', 'group'], ['/api/v1/message', 'message'], ['/api/v1/account', 'account'], ['/api/v1/notes', 'notes'],
     ].find(([prefix]) => prefix !== undefined && path.startsWith(prefix))?.[1] ?? null;
   } catch { return null; }
 }

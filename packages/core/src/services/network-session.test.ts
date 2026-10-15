@@ -23,7 +23,7 @@ function setup(store = createMemoryKv()) {
     ownOrigin: OWN, pageRequest: (fact) => fact.tabId >= 0 && fact.frameId === 0 && fact.documentUrl?.startsWith('https://fansly.com/') === true && fact.originUrl?.startsWith('https://fansly.com/') === true,
     apiRequest: (url) => url.startsWith('https://apiv3.fansly.com/api/v1/'),
     requiredHeaders: ['authorization', 'fansly-client-id', 'fansly-client-ts', 'fansly-session-id'], materialHeaders: ['authorization', 'fansly-client-id', 'fansly-session-id'], checkHeader: 'fansly-client-check', accountOf: legacyAccount,
-    familyOf: (url) => url.includes('/account') ? 'account' : 'message',
+    familyOf: (url) => url.includes('/account') ? 'account' : 'message', correlationHeader: 'fansly-client-ts',
   });
   return { service, store, advance: (ms: number) => { now += ms; } };
 }
@@ -31,6 +31,20 @@ function setup(store = createMemoryKv()) {
 // Firefox cannot identify an MV3 neighbour which repeats a page's headers.
 // A rejected replay must not replace the template; an accepted one may.
 describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation', () => {
+  it.each(['listener-first', 'client-first', 'wake-between'] as const)('[NF-037] our fetch and onCompleted deduplicate in either order, including a wake: %s', async (order) => {
+    const { service, store } = setup(); await service.setEnabled(true);
+    const url = `${API}?ngsw-bypass=true`;
+    expect(service.trackOwnRequest({ requestId: 'client-1', accountId: account, method: 'POST', url, stamp: '10000' })).toBe(true);
+    // An identical URL/stamp cannot get ambiguous attribution.
+    expect(service.trackOwnRequest({ requestId: 'client-2', accountId: account, method: 'POST', url, stamp: '10000' })).toBe(false);
+    const observed = request('browser-99', { url, tabId: -1, documentUrl: OWN, originUrl: OWN, requestHeaders: [...headers(), { name: 'fansly-client-ts', value: '10000' }].filter((h, i, all) => h.name !== 'fansly-client-ts' || i === all.length - 1) });
+    await service.accept(observed);
+    const report = () => service.recordOwnLimit({ requestId: 'client-1', at: 10_000, accountId: account, source: 'own', retryAfterMs: 120_000, method: 'POST', pathname: '/api/v1/message' });
+    if (order === 'listener-first') { await service.accept(complete(observed, 429)); await report(); }
+    else { await report(); if (order === 'client-first') await service.accept(complete(observed, 429)); }
+    const awake = setup(store).service; await awake.setEnabled(true); await awake.accept(complete(observed, 429));
+    expect(awake.rateLimits()).toEqual([{ requestId: 'client-1', at: 10_000, accountId: account, source: 'own', retryAfterMs: 120_000, method: 'POST', pathname: '/api/v1/message' }]);
+  });
   it('commits only after the matching 2xx, and survives sleep with route checks and precise ids', async () => {
     const { service, store } = setup();
     await service.setEnabled(true);
@@ -214,7 +228,7 @@ describe('[host:fansly] FS-NET-3 all visible 429 facts, persisted before a futur
     await service.accept(request('page')); await service.accept(complete(request('page')));
     const own = request('own', { tabId: -1, originUrl: `${OWN}background.html`, requestHeaders: headers(account, 'own-old') });
     await service.accept(own); await service.accept(complete(own, 429));
-    expect(service.rateLimits()).toEqual([{ requestId: 'own', at: 10_000, accountId: account, source: 'own' }]);
+    expect(service.rateLimits()).toEqual([{ requestId: 'own', at: 10_000, accountId: account, source: 'own', pathname: '/api/v1/message' }]);
     expect(service.forTab(1)?.headers['authorization']).toBe(btoa(`${account}:fresh`));
   });
 });

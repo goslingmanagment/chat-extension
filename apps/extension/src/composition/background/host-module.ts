@@ -91,6 +91,8 @@ export interface LogPort {
 
 /** Telemetry of the core (consent, the queue, the health window): a module reports, the core decides what leaves. */
 export interface TelemetryPort {
+  /** A named counter in this host's health window; no ids, headers or text. */
+  count?(name: string): void;
   /** One lifecycle event of an operation (`ai_acceptance`); true — queued. */
   report(kind: AcceptanceEvent['payload']['lifecycle'], view: OpView | null, opId: string, position: PartPosition, proof?: SentProof): boolean;
   /** One more of a CG code in the `client_health` window. */
