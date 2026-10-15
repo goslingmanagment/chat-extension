@@ -19,12 +19,12 @@
 // - the diagnostics file is saved through a Blob (§9.2), a link of the site
 //   opens in a new tab on a click and only when it is https.
 
-import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
+import { FANSLY_CONTRACT, FANSLY_STATUS_TEXTS } from '@cg/contracts/fansly-host';
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { LOG_LIMITS } from '@cg/contracts/limits';
-import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
+import { DEFAULT_SETTINGS, STORAGE_KEYS } from '@cg/contracts/settings';
 import { parseTabPayload } from '@cg/contracts/tab-messages';
 import type { I18nKey } from '@cg/contracts/errors';
 import { CHATSPACE_STATUS_TEXTS, type JournalKind, type Unmount } from '@cg/contracts/vm';
@@ -51,8 +51,8 @@ import {
 import { mediaSchemeSignal, type KitFailure } from '@cg/ui/kit';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type PageDeps } from '@cg/ui/pages';
 
-import { FANSLY_MATCHES } from '../hosts/runtime/fansly';
-import { CHATSPACE_MATCHES, FANSLY_STAND_MATCHES, type PerHost } from '../hosts/runtime';
+import { OPTIONAL_HOST, RELOAD_KEY, permissionSet } from './site-access';
+import { CHATSPACE_MATCHES, type PerHost } from '../hosts/runtime';
 import { featuresOf } from './features';
 import { SITE_PAGES } from '../site';
 
@@ -87,7 +87,7 @@ const LOG_FORWARD_DELAY_MS = 250;
  */
 const PAGE_SITES = {
   chatspace: { kind: 'chatspace', contract: CHATSPACE_CONTRACT, texts: CHATSPACE_STATUS_TEXTS },
-  'fansly-web': { kind: 'fansly-web', contract: FANSLY_CONTRACT, texts: CHATSPACE_STATUS_TEXTS },
+  'fansly-web': { kind: 'fansly-web', contract: FANSLY_CONTRACT, texts: FANSLY_STATUS_TEXTS },
 } as const satisfies PerHost<PageSite>;
 
 /**
@@ -221,16 +221,16 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   client.start();
 
   // ── the page itself ────────────────────────────────────────────────────────
-  const sitePermissions = createPermissionBundle({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, 'https://apiv3.fansly.com/*'], permissions: ['webRequest'] }, api);
-  const access = createSiteAccessControl('fansly-web', rpc, sitePermissions);
+  const sitePermissions = createPermissionBundle(permissionSet(), api);
+  const access = createSiteAccessControl(OPTIONAL_HOST, rpc, sitePermissions);
   if (page === 'popup' || page === 'options') {
     const refresh = (): void => { if (doc.visibilityState === 'visible') void access.refresh(); };
     offs.push(sitePermissions.onChange(refresh), ports.window.onFocus(refresh),
-      createKeyValueStore('session', { api }).onChanged((changes) => { if ('fansly.waitingReload' in changes) refresh(); }),
-      createKeyValueStore('local', { api }).onChanged((changes) => { if ('settings.ext' in changes) refresh(); }));
+      createKeyValueStore('session', { api }).onChanged((changes) => { if (RELOAD_KEY in changes) refresh(); }),
+      createKeyValueStore('local', { api }).onChanged((changes) => { if (STORAGE_KEYS.settingsExt in changes) refresh(); }));
     void access.refresh();
   }
-  const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface, ...((page === 'popup' || page === 'options') ? { siteAccess: { control: access, title: 'Fansly', enable: 'Включить Fansly', disable: 'Выключить Fansly', reload: 'Перезагрузить вкладки', waiting: (count: number) => `Ждут перезагрузки: ${count}` } } : {}) };
+  const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface, ...((page === 'popup' || page === 'options') ? { siteAccess: { control: access, title: FANSLY_PHRASES[i18n.language].site } } : {}) };
   let unmount: Unmount;
   if (page === 'popup') unmount = mountPopup(container, shared);
   else if (page === 'options') unmount = mountOptions(container, { ...shared, location: client.location, helpUrl: SITE_PAGES.start });

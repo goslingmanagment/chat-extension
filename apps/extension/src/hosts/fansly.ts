@@ -48,6 +48,7 @@ export const FANSLY: HostDescriptor = {
     main: { entry: 'fansly-main', file: 'fansly-main.js', world: 'MAIN', registration: 'dynamic' },
     // The early isolated bootstrap: the adapter's start, the bridge client, the keys (§7.1).
     isolated: { entry: 'fansly', file: 'fansly.js', world: 'ISOLATED', registration: 'dynamic' },
+    notice: { entry: 'fansly-notice', file: 'fansly-notice.js', world: 'ISOLATED', registration: 'execute' },
   },
   lazy: { root: FANSLY_LAZY_ROOT, entries: FANSLY_LAZY_ENTRIES, layers: [], beforeTheDock: [] },
   // Asked for on the person's gesture, all at once (§4 «Включить Fansly»): the pages, the API and webRequest.
@@ -60,6 +61,7 @@ export const FANSLY: HostDescriptor = {
       // Everything of MAIN in one script, ≤ 1 ms at document_start (e2e): the P3a prototype was 8.8 KiB.
       { entry: 'fansly-main', label: 'MAIN: boot, traps, observation (fansly-main)', gzipBytes: 16 * KIB },
       { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 30 * KIB },
+      { entry: 'fansly-notice', label: 'reload notice (fansly-notice)', gzipBytes: 2 * KIB },
     ],
     contracts: [],
   },

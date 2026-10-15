@@ -1,3 +1,4 @@
+import { HOST_PLATFORM } from '@cg/contracts/hosts';
 // «Статус» of the options page (architecture.md §9.9; ui-design §4.24;
 // ST-020…ST-038): the readiness line, one row per thing a shift depends on,
 // and the report for the team lead. Every row says what is known and since
@@ -63,8 +64,10 @@ function row(id: Exclude<StatusRowVM['id'], 'host'>, level: StatusRowVM['level']
 }
 
 /** A site's row (R20 F7): one per site in use, named by its site. */
-function siteRowOf(site: PageSite, level: StatusRowVM['level'], value: string | Msg, note: string | Msg | null = null): StatusRowVM {
-  return { id: 'host', host: site.kind, level, title: msg(site.texts.title), value, note, action: null };
+function siteRowOf(model: PagesModel, site: PageSite, level: StatusRowVM['level'], value: string | Msg, note: string | Msg | null = null): StatusRowVM {
+  const phrases = model.env.platformPhrases(HOST_PLATFORM[site.kind])?.[model.locale];
+  const local = (value: string | Msg | null): string | Msg | null => typeof value === 'object' && value !== null ? { ...value, params: { ...phrases, ...value.params } } : value;
+  return { id: 'host', host: site.kind, level, title: msg(site.texts.title, { ...phrases }), value: local(value) as string | Msg, note: local(note), action: null };
 }
 
 const goTo = (section: 'account' | 'accounts' | 'personas'): UiAction => ({ type: 'OpenSettings', route: { section } });
@@ -169,19 +172,19 @@ export function hubState(model: PagesModel): 'ok' | 'down' | 'unknown' {
 function siteRow(model: PagesModel, site: PageSite): StatusRowVM {
   const texts = site.texts;
   const host = hostReportOf(model, site.kind);
-  if (host === null) return siteRowOf(site, 'unknown', msg('common.unknown'));
-  if (host.tabs === 0) return siteRowOf(site, 'warn', msg(texts.closed), msg(texts.closedNote));
-  if (host.report === null) return siteRowOf(site, 'unknown', msg(texts.checking));
+  if (host === null) return siteRowOf(model, site, 'unknown', msg('common.unknown'));
+  if (host.tabs === 0) return siteRowOf(model, site, 'warn', msg(texts.closed), msg(texts.closedNote));
+  if (host.report === null) return siteRowOf(model, site, 'unknown', msg(texts.checking));
   const build = host.report.build ?? '—';
   const gaps = hostGaps(host.report, site.contract);
   const missing = [...gaps.anchors, ...gaps.broken];
   if (missing.length === 0) {
     // Connected. Before the page's first chat ChatSpace has not created what the preview send reads: said as a note.
     const note = previewSendWaitsForChat(host.report) ? msg(texts.notYetNote) : msg(texts.checked, { time: { time: host.report.checkedAt } });
-    return siteRowOf(site, 'ok', msg(texts.value, { build }), note);
+    return siteRowOf(model, site, 'ok', msg(texts.value, { build }), note);
   }
   // 1.5.0: «Вставка работает через „Копировать“» only when the dock really is copy-only.
-  return siteRowOf(site, 'warn', msg(texts.partial, { build }), msg(gaps.insert ? texts.partialNote : texts.copyOnlyNote, { missing: missingAnchors(gaps) }));
+  return siteRowOf(model, site, 'warn', msg(texts.partial, { build }), msg(gaps.insert ? texts.partialNote : texts.copyOnlyNote, { missing: missingAnchors(gaps) }));
 }
 
 /** «Не найдено: …» of a partly checked site: the anchors and the closed capabilities, each name once, the first eight. */

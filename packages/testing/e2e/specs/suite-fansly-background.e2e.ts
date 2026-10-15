@@ -131,6 +131,11 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
     await installTestBuild();
     await browser.waitUntil(() => browser.execute(() => document.querySelector('div[data-host="reload-notice"]') !== null), { timeout: 15_000 });
     expect(await browser.execute(() => ({ stale: document.querySelectorAll('div[data-host="dock"]').length, foreign: document.querySelector('div[data-host="foreign"]')?.textContent }))).toEqual({ stale: 0, foreign: 'neighbour' });
+    // Update once more while the previous version's notice is still visible.
+    // Its closed DOM survives unloading, but its click listener does not.
+    await browser.execute(() => document.querySelector('[data-host="reload-notice"]')?.setAttribute('data-old-notice', 'true'));
+    await installTestBuild();
+    await browser.waitUntil(() => browser.execute(() => document.querySelector('[data-host="reload-notice"]') !== null && document.querySelector('[data-old-notice]') === null), { timeout: 15_000 });
     await capturePage('p9a-update-notice');
     // Firefox closes extension-page tabs when their add-on is replaced.
     await browser.newWindow(testBuildPage('popup.html')); pagesTab = await browser.getWindowHandle();

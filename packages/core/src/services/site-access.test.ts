@@ -3,6 +3,8 @@ import { createSiteAccess } from './site-access';
 import { createMemoryKv } from './test-support/memory-kv';
 
 function setup() {
+  const closedOnReload = new Set<number>();
+  const vanishOnReload = new Set<number>();
   const store = createMemoryKv();
   let enabled = false;
   let granted = false;
@@ -22,7 +24,11 @@ function setup() {
     tabs: {
       list: () => { calls.push('query'); return Promise.resolve([...live]); },
       notice: (tab) => { calls.push(`notice ${tab}`); return Promise.resolve(); },
-      reload: (tab) => { calls.push(`reload ${tab}`); return Promise.resolve(); },
+      reload: (tab) => {
+        calls.push(`reload ${tab}`);
+        if (vanishOnReload.has(tab)) live = live.filter((id) => id !== tab);
+        return closedOnReload.has(tab) || vanishOnReload.has(tab) ? Promise.reject(new Error('reload refused')) : Promise.resolve();
+      },
       onRemoved: (listener) => { removed = listener; return () => undefined; },
     },
     observe: { attach: () => { calls.push('attach'); }, detach: () => { calls.push('detach'); } },
@@ -30,7 +36,7 @@ function setup() {
     startModule: () => { calls.push('module'); return Promise.resolve(); },
     failed: () => { calls.push('failed'); },
   });
-  return { service, store, calls, grant: (value: boolean) => { granted = value; changed(value); },
+  return { service, store, calls, closedOnReload, vanishOnReload, settingsChanged: () => settingsChanged(), grant: (value: boolean) => { granted = value; changed(value); },
     retainedPermissions: () => { granted = true; }, close: (tab: number) => { live = live.filter((id) => id !== tab); removed(tab); } };
 }
 
@@ -64,3 +70,26 @@ describe('[host:fansly] [EX-004] FS-PERM-2 optional activation and serialized re
     await world.service.reload(); expect(world.calls).toContain('reload 1');
   });
 });
+
+  it('[host:fansly] state reads and unrelated settings changes do not re-register or write', async () => {
+    const world = setup(); await world.service.start(); world.grant(true); await world.service.idle();
+    const calls = [...world.calls]; const writes = world.store.calls.set;
+    await world.service.state(); world.settingsChanged(); await world.service.idle();
+    expect(world.service.active()).toBe(true);
+    expect(world.calls).toEqual(calls);
+    expect(world.store.calls.set).toBe(writes);
+  });
+  it('[host:fansly] a failed reload retains its waiting tab without losing the successful count', async () => {
+    const world = setup(); await world.service.start(); world.grant(true); await world.service.idle();
+    world.closedOnReload.add(2);
+    await expect(world.service.reload()).resolves.toMatchObject({ waitingReload: 1, reloaded: 1 });
+    expect(world.store.read('reload')).toEqual([2]);
+    expect(world.calls).toContain('reload 1'); expect(world.calls).toContain('reload 2');
+  });
+
+  it('[host:fansly] a tab closed between list and reload is removed while the other reload succeeds', async () => {
+    const world = setup(); await world.service.start(); world.grant(true); await world.service.idle();
+    world.vanishOnReload.add(2);
+    await expect(world.service.reload()).resolves.toMatchObject({ waitingReload: 0, reloaded: 1 });
+    expect(world.store.read('reload')).toEqual([]);
+  });

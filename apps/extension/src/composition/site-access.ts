@@ -1,7 +1,7 @@
 // Optional-site configuration for the core's permission and observation services.
 // The core takes these inert data/functions; no site's chunk is imported here.
-import { FANSLY_MATCHES } from '../../hosts/runtime/fansly';
-import { FANSLY_STAND_MATCHES } from '../../hosts/runtime';
+import { FANSLY_MATCHES } from '../hosts/runtime/fansly';
+import { FANSLY_STAND_MATCHES } from '../hosts/runtime';
 
 export const OPTIONAL_HOST = 'fansly-web' as const;
 export const SESSION_KEY = 'fansly.session';

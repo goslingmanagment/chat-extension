@@ -73,20 +73,74 @@ describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation',
     await service.accept(request('late')); advance(121_000); await service.accept(complete(request('late')));
     expect(service.forTab(1)).toBeNull();
   });
-  it('sleep between headers and response restores the pending confirmation, but an older completion cannot switch back accounts', async () => {
+  it('an older completion cannot switch back accounts', async () => {
     const { service, store } = setup(); await service.setEnabled(true);
     await service.accept(request('old'));
     await service.accept(request('new', { requestHeaders: headers(other) }));
+    await service.accept(complete(request('new'))); await service.accept(complete(request('old')));
+    expect(service.forTab(1)?.legacyId).toBe(other);
     const restored = setup(store).service; await restored.setEnabled(true);
-    await restored.accept(complete(request('new'))); await restored.accept(complete(request('old')));
     expect(restored.forTab(1)?.legacyId).toBe(other);
     expect(restored.forAccount(account)).toBeNull();
+  });
+  it('orders each tab binding independently of fresher templates from another tab, including after sleep', async () => {
+    const { service, store } = setup(); await service.setEnabled(true);
+    for (const tabId of [1, 2]) {
+      const fact = request(`initial-${tabId}`, { tabId });
+      await service.accept(fact); await service.accept(complete(fact));
+    }
+    const switched = request('switch', { requestHeaders: headers(other) });
+    const fresher = request('fresher', { tabId: 2 });
+    await service.accept(switched); await service.accept(fresher);
+    await service.accept(complete(fresher)); await service.accept(complete(switched));
+    expect(service.forTab(1)?.legacyId).toBe(other);
+    expect(service.forTab(2)?.legacyId).toBe(account);
+    const restored = setup(store).service; await restored.setEnabled(true);
+    expect(restored.forTab(1)?.legacyId).toBe(other);
+    expect(restored.forTab(2)?.legacyId).toBe(account);
+  });
+  it('binds a tab even when another tab confirmed a newer template for its destination account', async () => {
+    const { service } = setup(); await service.setEnabled(true);
+    const first = request('first');
+    const second = request('second', { tabId: 2, requestHeaders: headers(account, 'newer') });
+    await service.accept(first); await service.accept(second);
+    await service.accept(complete(second)); await service.accept(complete(first));
+    expect(service.forTab(1)?.headers['authorization']).toBe(btoa(`${account}:newer`));
+    expect(service.forTab(2)?.headers['authorization']).toBe(btoa(`${account}:newer`));
+  });
+  it('writes no unconfirmed requests or unchanged facts, and coalesces a burst of confirmed changes', async () => {
+    const { service, store } = setup(); await service.setEnabled(true);
+    const baseline = store.calls.set;
+    await service.accept(request('first'));
+    expect(store.calls.set).toBe(baseline);
+    await service.accept(complete(request('first')));
+    const saved = store.calls.set;
+    for (let i = 0; i < 5; i++) {
+      const fact = request(`same-${i}`);
+      await service.accept(fact); await service.accept(complete(fact));
+    }
+    await service.setEnabled(true);
+    expect(store.calls.set).toBe(saved);
+    const burst = [1, 2, 3].map((n) => request(`burst-${n}`, { requestHeaders: headers(account, `token-${n}`) }));
+    await Promise.all(burst.map((fact) => service.accept(fact)));
+    expect(store.calls.set).toBe(saved);
+    await Promise.all(burst.map((fact) => service.accept(complete(fact))));
+    expect(store.calls.set).toBe(saved + 1);
+    expect(store.read<{ templates: { headers: Record<string, string> }[] }>('session')?.templates[0]?.headers['authorization']).toBe(btoa(`${account}:token-3`));
+    const writes = store.calls.set;
+    await service.resolveIdentity(1, account, other);
+    await service.resolveIdentity(1, account, other);
+    const limited = complete(request('limited'), 429);
+    await service.accept(limited); await service.accept(limited);
+    expect(store.calls.set).toBe(writes + 2);
   });
   it('storage failure is fail-closed and revoke clears credentials in memory and session', async () => {
     const { service, store } = setup(); await service.setEnabled(true);
     await service.accept(request('one')); await service.accept(complete(request('one')));
     store.failNext('set');
-    await expect(service.accept(request('two'))).rejects.toThrow();
+    const next = request('two', { requestHeaders: headers(account, 'changed') });
+    await service.accept(next);
+    await expect(service.accept(complete(next))).rejects.toThrow();
     expect(service.forTab(1)).toBeNull();
     await service.setEnabled(false);
     expect(store.read<{ templates: unknown[] }>('session')?.templates).toEqual([]);
@@ -139,3 +193,13 @@ describe('[host:fansly] FS-NET-3 all visible 429 facts, persisted before a futur
     expect(service.forTab(1)?.headers['authorization']).toBe(btoa(`${account}:fresh`));
   });
 });
+
+  it('[host:fansly] a completion after losing its unconfirmed headers cannot create a session', async () => {
+    const { service, store } = setup(); await service.setEnabled(true);
+    await service.accept(request('pending'));
+    const restored = setup(store).service; await restored.setEnabled(true);
+    await restored.accept(complete(request('pending')));
+    expect(restored.forTab(1)).toBeNull();
+    await restored.accept(request('fresh')); await restored.accept(complete(request('fresh')));
+    expect(restored.forTab(1)?.legacyId).toBe(account);
+  });

@@ -40,8 +40,7 @@ interface Snapshot {
   templates: SessionTemplate[];
   tabs: [number, string][];
   registered: number[];
-  pending: [string, Candidate][];
-  own: [string, string][];
+  tabTimes: [number, number][];
   limits: RateLimitFact[];
 }
 export interface NetworkSessionDeps {
@@ -71,24 +70,29 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
   const templates = new Map<string, SessionTemplate>();
   const tabs = new Map<number, string>();
   const registered = new Set<number>();
+  const tabTimes = new Map<number, number>();
   const pending = new Map<string, Candidate>();
   const own = new Map<string, string>();
   const limits: RateLimitFact[] = [];
   let sequenceAt = 0;
   let readable = false;
   let enabled = false;
-  const snapshot = (): Snapshot => ({ v: 1, templates: [...templates.values()], tabs: [...tabs], registered: [...registered], pending: [...pending], own: [...own], limits: [...limits] });
+  let dirty = false;
+  let flushing: Promise<void> | null = null;
+  const snapshot = (): Snapshot => ({ v: 1, templates: [...templates.values()].map((value) => ({ ...value, headers: { ...value.headers }, checks: { ...value.checks } })), tabs: [...tabs], registered: [...registered], tabTimes: [...tabTimes], limits: [...limits] });
   const canonical = (legacy: string): string => templates.get(legacy)?.canonicalId ?? legacy;
   const prune = (): void => {
     for (const [key, value] of pending) if (value.at < deps.now() - PENDING_MS) pending.delete(key);
     while (pending.size > MAX_PENDING) pending.delete(pending.keys().next().value as string);
     while (own.size > MAX_PENDING) own.delete(own.keys().next().value as string);
-    while (limits.length > MAX_PENDING || (limits[0]?.at ?? deps.now()) < deps.now() - FACT_MS) limits.shift();
+    while (limits.length > MAX_PENDING || (limits[0]?.at ?? deps.now()) < deps.now() - FACT_MS) { limits.shift(); dirty = true; }
   };
   const save = async (): Promise<void> => {
     prune();
+    if (!dirty) return;
     const result = await deps.storage.set({ [deps.key]: snapshot() });
     if (!result.ok) { readable = false; throw new Error(result.code); }
+    dirty = false;
   };
   const ready = chain(async () => {
     const stored = await deps.storage.get([deps.key]);
@@ -100,35 +104,43 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
       }
       if (Array.isArray(raw['tabs'])) for (const pair of raw['tabs']) if (Array.isArray(pair) && Number.isInteger(pair[0]) && pair[0] >= 0 && id(pair[1]) && templates.has(pair[1])) tabs.set(pair[0] as number, pair[1]);
       if (Array.isArray(raw['registered'])) for (const value of raw['registered']) if (typeof value === 'number' && Number.isInteger(value) && value >= 0) registered.add(value);
-      if (Array.isArray(raw['pending'])) for (const pair of raw['pending'].slice(-MAX_PENDING)) {
-        if (!Array.isArray(pair) || typeof pair[0] !== 'string' || !record(pair[1])) continue;
-        const value = pair[1];
-        if (id(value['legacyId']) && Number.isInteger(value['tabId']) && typeof value['at'] === 'number' && headerMap(value['headers']) && (value['family'] === null || typeof value['family'] === 'string')) pending.set(pair[0], value as unknown as Candidate);
-      }
-      if (Array.isArray(raw['own'])) for (const pair of raw['own'].slice(-MAX_PENDING)) if (Array.isArray(pair) && typeof pair[0] === 'string' && id(pair[1])) own.set(pair[0], pair[1]);
+      if (Array.isArray(raw['tabTimes'])) for (const pair of raw['tabTimes']) if (Array.isArray(pair) && tabs.has(pair[0] as number) && typeof pair[1] === 'number' && Number.isFinite(pair[1])) tabTimes.set(pair[0] as number, pair[1]);
+      // Old snapshots have no per-tab clock. No in-flight request is restored,
+      // so future observations safely start after every saved account clock.
       if (Array.isArray(raw['limits'])) for (const value of raw['limits'].slice(-MAX_PENDING)) if (record(value) && typeof value['requestId'] === 'string' && typeof value['at'] === 'number' && (value['accountId'] === null || id(value['accountId'])) && ['own', 'page', 'unknown'].includes(String(value['source']))) limits.push(value as unknown as RateLimitFact);
     }
-    sequenceAt = Math.max(0, ...[...templates.values()].map((value) => value.observedAt), ...[...pending.values()].map((value) => value.at));
+    sequenceAt = Math.max(0, ...[...templates.values()].map((value) => value.observedAt), ...[...tabTimes.values()]);
     prune();
     readable = true;
   });
   // A read failure remains fail-closed, but does not become an unhandled rejection before the readiness barrier.
   void ready.catch(() => undefined);
-  const run = (task: () => Promise<void>): Promise<void> => chain(async () => { await ready; await task(); });
+  // Mutations arriving in the same burst share one queued write. The returned
+  // promise still covers persistence (and its failure), before an API user runs.
+  const flush = (): Promise<void> => {
+    if (flushing === null) {
+      flushing = chain(save).finally(() => { flushing = null; });
+    }
+    return flushing;
+  };
+  const run = (task: () => void): Promise<void> => chain(async () => { await ready; task(); }).then(flush);
 
   const service = {
     ready,
     /** The permission/settings controller changes this before accepting any API observation. */
     setEnabled(value: boolean): Promise<void> {
       enabled = value;
-      return run(async () => {
-        if (!value) { templates.clear(); tabs.clear(); registered.clear(); pending.clear(); own.clear(); }
-        await save(); // Keep 429 facts across a revoke/regrant.
+      return run(() => {
+        if (!value) {
+          dirty ||= templates.size > 0 || tabs.size > 0 || registered.size > 0;
+          templates.clear(); tabs.clear(); tabTimes.clear(); registered.clear(); pending.clear(); own.clear();
+        }
+        // Keep 429 facts across a revoke/regrant; an unchanged enable is read-only.
       });
     },
     accept(fact: RequestFact): Promise<void> {
       if (!enabled || !deps.apiRequest(fact.url)) return Promise.resolve();
-      return run(async () => {
+      return run(() => {
         if (!enabled) return;
         prune();
         const isOwn = fact.originUrl?.startsWith(deps.ownOrigin) === true || fact.documentUrl?.startsWith(deps.ownOrigin) === true;
@@ -146,60 +158,66 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
             sequenceAt = Math.max(deps.now(), sequenceAt + 0.001);
             pending.set(fact.requestId, { tabId: fact.tabId, at: sequenceAt, legacyId, headers, family: deps.familyOf(fact.url) });
           }
-          await save();
           return;
         }
         const candidate = pending.get(fact.requestId);
         pending.delete(fact.requestId);
         if (fact.phase === 'completed' && fact.statusCode === 429 && !limits.some((value) => value.requestId === fact.requestId)) {
           const legacy = isOwn && fact.tabId < 0 ? own.get(fact.requestId) : registered.has(fact.tabId) ? tabs.get(fact.tabId) : undefined;
+          dirty = true;
           limits.push({ requestId: fact.requestId, at: deps.now(), accountId: legacy === undefined ? null : canonical(legacy), source: isOwn ? 'own' : deps.pageRequest(fact) ? 'page' : 'unknown' });
         }
         own.delete(fact.requestId);
         if (candidate !== undefined && fact.phase === 'completed' && fact.tabId === candidate.tabId && deps.pageRequest(fact) && (fact.statusCode ?? 0) >= 200 && (fact.statusCode ?? 0) < 300) {
           const previous = templates.get(candidate.legacyId);
           const oldLegacy = tabs.get(candidate.tabId);
-          const tabTime = oldLegacy === undefined ? 0 : templates.get(oldLegacy)?.observedAt ?? 0;
-          // Completion order is not request order. A late old response must not roll a newer template back.
-          if (tabTime <= candidate.at && (previous === undefined || previous.observedAt <= candidate.at)) {
-            const material = previous === undefined || deps.materialHeaders.some((name) => previous.headers[name] !== candidate.headers[name]);
-            const checks = material ? {} : { ...previous?.checks };
-            const check = candidate.headers[deps.checkHeader];
-            if (candidate.family !== null && check !== undefined) checks[candidate.family] = check;
-            templates.set(candidate.legacyId, { legacyId: candidate.legacyId, canonicalId: previous?.canonicalId ?? null, headers: candidate.headers, checks, observedAt: candidate.at, connected: true });
+          // A different tab may refresh either account's template. It must
+          // never advance this tab's association clock or prevent its binding.
+          if ((tabTimes.get(candidate.tabId) ?? 0) <= candidate.at) {
+            tabTimes.set(candidate.tabId, candidate.at);
+            if (previous === undefined || previous.observedAt <= candidate.at) {
+              const material = previous === undefined || deps.materialHeaders.some((name) => previous.headers[name] !== candidate.headers[name]);
+              const checks = material ? {} : { ...previous?.checks };
+              const check = candidate.headers[deps.checkHeader];
+              if (candidate.family !== null && check !== undefined) checks[candidate.family] = check;
+              const same = (a: Record<string, string>, b: Record<string, string>): boolean => Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((key) => a[key] === b[key]);
+              const changed = previous === undefined || !previous.connected || !same(previous.headers, candidate.headers) || !same(previous.checks, checks);
+              dirty ||= changed;
+              templates.set(candidate.legacyId, { legacyId: candidate.legacyId, canonicalId: previous?.canonicalId ?? null, headers: candidate.headers, checks, observedAt: candidate.at, connected: true });
+            }
+            dirty ||= oldLegacy !== candidate.legacyId;
             tabs.set(candidate.tabId, candidate.legacyId);
             if (oldLegacy !== undefined && oldLegacy !== candidate.legacyId && ![...tabs.values()].includes(oldLegacy)) templates.delete(oldLegacy);
             while (templates.size > MAX_ACCOUNTS) templates.delete(templates.keys().next().value as string);
           }
         }
-        await save();
       });
     },
-    register(tabId: number): Promise<void> { return run(async () => { registered.add(tabId); await save(); }); },
+    register(tabId: number): Promise<void> { return run(() => { dirty ||= !registered.has(tabId); registered.add(tabId); }); },
     forget(tabId: number): Promise<void> {
-      return run(async () => {
+      return run(() => {
         const legacy = tabs.get(tabId);
-        tabs.delete(tabId); registered.delete(tabId);
+        dirty ||= tabs.has(tabId) || registered.has(tabId);
+        tabs.delete(tabId); tabTimes.delete(tabId); registered.delete(tabId);
         for (const [key, value] of pending) if (value.tabId === tabId) pending.delete(key);
         if (legacy !== undefined && ![...tabs.values()].includes(legacy)) templates.delete(legacy);
-        await save();
       });
     },
     /** The identity response is bound to the exact captured legacy session, never matched by name. */
     resolveIdentity(tabId: number, legacyId: string, canonicalId: string): Promise<void> {
-      return run(async () => {
+      return run(() => {
         const template = templates.get(legacyId);
         if (!id(canonicalId) || tabs.get(tabId) !== legacyId || template === undefined) return;
+        dirty ||= template.canonicalId !== canonicalId;
         template.canonicalId = canonicalId;
         for (let i = 0; i < limits.length; i++) {
           const fact = limits[i];
-          if (fact?.accountId === legacyId) limits[i] = { ...fact, accountId: canonicalId };
+          if (fact?.accountId === legacyId && legacyId !== canonicalId) { limits[i] = { ...fact, accountId: canonicalId }; dirty = true; }
         }
-        await save();
       });
     },
     disconnect(accountId: string): Promise<void> {
-      return run(async () => { for (const value of templates.values()) if (value.legacyId === accountId || value.canonicalId === accountId) value.connected = false; await save(); });
+      return run(() => { for (const value of templates.values()) if (value.connected && (value.legacyId === accountId || value.canonicalId === accountId)) { value.connected = false; dirty = true; } });
     },
     forTab(tabId: number): SessionTemplate | null { const legacy = tabs.get(tabId); return legacy === undefined ? null : service.forAccount(legacy); },
     forAccount(accountId: string): SessionTemplate | null {
@@ -208,7 +226,7 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
       return value?.connected === true ? { ...value, headers: { ...value.headers }, checks: { ...value.checks } } : null;
     },
     rateLimits(): readonly RateLimitFact[] { return readable ? limits.map((fact) => ({ ...fact })) : []; },
-    idle: () => chain(async () => { await ready; }),
+    idle: () => run(() => undefined),
   };
   return service;
 }

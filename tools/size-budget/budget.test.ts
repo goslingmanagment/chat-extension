@@ -204,6 +204,7 @@ describe('size budgets of the sites’ lazy builds and contract probes (R20 F2b)
       ...scriptBudgets([CHATSPACE]).map((line) => [line.file, line.limitBytes]),
       ['fansly-main.js', 16 * 1024],
       ['fansly.js', 30 * 1024],
+      ['fansly-notice.js', 2 * 1024],
     ]);
   });
 

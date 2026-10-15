@@ -32,6 +32,7 @@ export function createSiteAccess(deps: SiteAccessDeps) {
   let enabled = false;
   let granted = false;
   let registered = false;
+  let synced = false;
   const ready = chain(async () => {
     const stored = await deps.storage.get([deps.key]);
     if (!stored.ok) throw new Error(stored.code);
@@ -41,20 +42,27 @@ export function createSiteAccess(deps: SiteAccessDeps) {
   void ready.catch(deps.failed);
   const save = async (): Promise<void> => { const result = await deps.storage.set({ [deps.key]: [...waiting] }); if (!result.ok) throw new Error(result.code); };
   const state = (): SiteAccessState => ({ host: deps.host, enabled, granted, registered, waitingReload: granted ? waiting.size : 0 });
-  async function sync(notice: boolean, grant: boolean): Promise<SiteAccessState> {
+  async function sync(notice: boolean, grant: boolean, force = false): Promise<SiteAccessState> {
     await ready;
-    granted = await deps.permissions.has();
+    const nextGranted = await deps.permissions.has();
     // onAdded completes activation even when the popup closed during Firefox's permission dialog.
-    if (grant && granted) await deps.settings.setEnabled(true);
-    enabled = await deps.settings.enabled();
+    let nextEnabled = await deps.settings.enabled();
+    if (grant && nextGranted && !nextEnabled) { await deps.settings.setEnabled(true); nextEnabled = true; }
+    const changed = !synced || enabled !== nextEnabled || granted !== nextGranted;
+    enabled = nextEnabled;
+    granted = nextGranted;
     const active = enabled && granted;
-    if (granted) deps.observe.attach(); else deps.observe.detach();
-    await deps.setCaptureEnabled(active);
-    registered = false;
-    await deps.syncScripts(active);
-    registered = active;
+    if (changed || force) {
+      registered = false;
+      synced = false;
+      if (granted) deps.observe.attach(); else deps.observe.detach();
+      await deps.setCaptureEnabled(active);
+      await deps.syncScripts(active);
+      registered = active;
+      synced = true;
+    }
     if (!active && waiting.size > 0) { waiting.clear(); await save(); }
-    if (notice && active) {
+    if (notice && active && (changed || force)) {
       const tabs = await deps.tabs.list();
       for (const tab of [...waiting]) if (!tabs.includes(tab)) waiting.delete(tab);
       // Persist the count before injecting: a tab may vanish between query and execution.
@@ -64,7 +72,7 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     }
     return state();
   }
-  const schedule = (notice = false, grant = false): Promise<SiteAccessState> => chain(() => sync(notice, grant));
+  const schedule = (notice = false, grant = false, force = false): Promise<SiteAccessState> => chain(() => sync(notice, grant, force));
   deps.permissions.onChange((added) => {
     // The permission exposes webRequest immediately, before the queue's asynchronous storage work.
     if (added) deps.observe.attach();
@@ -72,25 +80,31 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     void schedule(added, added).then(async (next) => { if (added && next.registered) await deps.startModule(); }).catch(deps.failed);
   });
   deps.settings.onChange(() => { void schedule().catch(deps.failed); });
-  deps.tabs.onRemoved((tab) => { void chain(async () => { waiting.delete(tab); await save(); }).catch(deps.failed); });
+  deps.tabs.onRemoved((tab) => { void chain(async () => { if (waiting.delete(tab)) await save(); }).catch(deps.failed); });
   return {
-    start: () => schedule(),
-    installed: () => schedule(true),
-    state: () => schedule(),
+    start: () => schedule(false, false, true),
+    installed: () => schedule(true, false, true),
+    state: () => chain(async () => { await ready; return state(); }),
     setEnabled(value: boolean): Promise<SiteAccessState> {
-      return chain(async () => { await deps.settings.setEnabled(value); return sync(value, false); });
+      return chain(async () => { if (await deps.settings.enabled() !== value) await deps.settings.setEnabled(value); return sync(value, false); });
     },
     registered(tabId: number): Promise<void> {
-      return chain(async () => { await ready; waiting.delete(tabId); await save(); });
+      return chain(async () => { await ready; if (waiting.delete(tabId)) await save(); });
     },
     reload(): Promise<SiteAccessState> {
       return chain(async () => {
         if (!(await deps.permissions.has())) return sync(false, false);
         const alive = await deps.tabs.list();
-        await Promise.all([...waiting].filter((tab) => alive.includes(tab)).map((tab) => deps.tabs.reload(tab)));
-        for (const tab of [...waiting]) if (!alive.includes(tab)) waiting.delete(tab);
+        const targets = [...waiting].filter((tab) => alive.includes(tab));
+        const results = await Promise.allSettled(targets.map((tab) => deps.tabs.reload(tab)));
+        let reloaded = 0;
+        for (const [index, result] of results.entries()) {
+          if (result.status === 'fulfilled') { waiting.delete(targets[index] as number); reloaded++; }
+        }
+        const remaining = await deps.tabs.list();
+        for (const tab of [...waiting]) if (!remaining.includes(tab)) waiting.delete(tab);
         await save();
-        return state();
+        return { ...state(), reloaded };
       });
     },
     active: () => enabled && granted && registered,
