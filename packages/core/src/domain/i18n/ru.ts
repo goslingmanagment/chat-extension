@@ -140,6 +140,7 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.reason.language': 'черновик кириллицей, а фан пишет не кириллицей',
   'dock.reason.fanBlocked': 'фан заблокирован, можно только копировать',
   'dock.reason.fanUnknown': 'не удалось понять, с каким фаном открыт чат',
+  'dock.reason.conversationUnknown': 'переписка с этим фаном ещё не найдена',
   'dock.reason.overlayOpen': 'сначала закройте открытое окно',
   'dock.reason.hostDegraded': '{site} обновился, часть функций выключена',
   'dock.reason.composerMissing': '{site} не показал поле ввода',
