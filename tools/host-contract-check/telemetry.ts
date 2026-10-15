@@ -16,7 +16,7 @@
 // itself names many options in its own code (it reads them), so a count, not a
 // presence, is what moves when the app's init or a new integration adds one.
 
-import { type BundleFile } from './check.ts';
+import type { BundleFile } from './check.ts';
 
 export interface TelemetrySignal {
   readonly id: string;
