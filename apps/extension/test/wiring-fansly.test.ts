@@ -22,7 +22,7 @@ import { WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { tabSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
-import fanslyModule from '../bg/fansly.ts';
+import { fanslyModule } from '../bg/fansly.ts';
 import { FANSLY_API_MATCHES, FANSLY_MATCHES } from '../src/hosts/runtime/fansly.ts';
 import { admitted, bindingOf, opsOf, signInWithPersona, startReply, workingTab, type WorkingTab } from './support/tabs.ts';
 import { PASSWORD, createWorld, loadChunkModule, sleep, until, type World } from './support/world.ts';
@@ -46,11 +46,27 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-/** The world with Fansly's chunk loadable — or missing, as a build without it would be. */
-function world(chunk: 'present' | 'missing' = 'present'): World {
-  const made = createWorld({
-    loadHostModule: (url) => (url.includes('/bg/fansly.js') ? (chunk === 'present' ? Promise.resolve({ default: fanslyModule }) : Promise.reject(new TypeError('error loading dynamically imported module'))) : loadChunkModule(url)),
-  });
+/** A load of Fansly's chunk held until the test lets it go: a module that takes its time to come up. */
+interface ChunkGate {
+  held: boolean;
+  readonly waiting: Array<() => void>;
+}
+const gate = (): ChunkGate => ({ held: false, waiting: [] });
+const release = (held: ChunkGate): void => {
+  held.held = false;
+  for (const go of held.waiting.splice(0)) go();
+};
+
+/** The world with Fansly's chunk loadable — or missing, as a build without it would be, or held at a gate. */
+function world(chunk: 'present' | 'missing' | ChunkGate = 'present'): World {
+  const loadFansly = (): Promise<unknown> => {
+    if (chunk === 'missing') return Promise.reject(new TypeError('error loading dynamically imported module'));
+    // A module of its own for every load: each instance of the event page is a realm of its own.
+    const loaded = { default: fanslyModule() };
+    if (chunk === 'present' || !chunk.held) return Promise.resolve(loaded);
+    return new Promise((resolve) => chunk.waiting.push(() => resolve(loaded)));
+  };
+  const made = createWorld({ loadHostModule: (url) => (url.includes('/bg/fansly.js') ? loadFansly() : loadChunkModule(url)) });
   worlds.push(made);
   // The Fansly page of the hub with every switch it has on (its own row: `*` never reaches a Fansly page, HF-2).
   made.hub.control({ op: 'config', patch: fanslyPageFlags() });
@@ -171,6 +187,62 @@ describe('[host:fansly] a Fansly tab and the background (R20 P7i)', () => {
     const reply = admitted(await startReply(chatspace, await bindingOf(chatspace)));
     await until(async () => (await opsOf(chatspace)).find((op) => op.opId === reply)?.state === 'done', 'ChatSpace’s Reply is done');
     expect(await chatspace.client.request('op.reportSent', { opId: reply, part: { index: 0 }, pendingId: 'pending-2', platformMessageId: '4101', edited: false })).toEqual({ ok: true, payload: { recorded: false } });
+  });
+
+  it('[host:fansly] a send reported while the woken background brings Fansly’s module up is judged when the module is up: the person signed out and another signed in meanwhile — the operation is gone, nothing is recorded under the new sign-in', async () => {
+    const held = gate();
+    const w = world(held);
+    w.fake.permissions.data_collection.add('technicalAndInteraction');
+    w.start();
+    await switchFanslyOn(w);
+    await signIn(w);
+    const tab = await fanslyTab(w);
+    const opId = admitted(await fanslyReply(tab, await fanslyBinding(tab)));
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state === 'done', 'the Fansly Reply is done');
+    // The event page goes and comes back: Fansly's module is to be loaded again, and that load takes its time.
+    held.held = true;
+    w.fake.suspendBackground();
+    await until(() => w.starts() === 2 && tab.client.state() === 'ready', 'the tab registered with the new instance');
+    expect((await opsOf(tab)).find((op) => op.opId === opId)).toBeDefined();
+    const reported = tab.client.request('op.reportSent', { opId, part: { index: 0 }, pendingId: 'pending-1', platformMessageId: '810000000000000999', edited: false });
+    await sleep(50);
+    // Meanwhile the person signs out, and another signs in.
+    expect(await w.page().request('session.signOut', {})).toMatchObject({ ok: true });
+    await signInWithPersona(w, { username: WORLD.otherUser.username, password: 'synthetic-password-2' });
+    release(held);
+    expect(await reported).toEqual({ ok: true, payload: { recorded: false } });
+    const diagnostics = await w.page().request('diagnostics.get', {});
+    expect(diagnostics.ok && diagnostics.payload.telemetry.queued).toBe(0);
+  });
+
+  it('[host:fansly] a start and an insert token that waited for Fansly’s module are refused when the sign-in changed meanwhile', async () => {
+    const held = gate();
+    const w = world(held);
+    w.start();
+    await switchFanslyOn(w);
+    await signIn(w);
+    held.held = true;
+    const tab = await fanslyTab(w);
+    const binding = await fanslyBinding(tab);
+    const token = await tab.client.request('token.issue', { kind: 'generate', surface: 'dock' });
+    if (!token.ok) throw new Error(`token.issue: ${token.error.code}`);
+    const started = tab.client.request('op.start', {
+      feature: 'reply',
+      surface: 'dock',
+      target: { binding, chat: FANSLY_CHAT, fanRef: fan, conversationRef: group },
+      cause: { kind: 'click', actionToken: token.payload.actionToken },
+      tone: null,
+      split: false,
+      window: 100,
+    });
+    const insert = tab.client.request('token.issue', { kind: 'insert', surface: 'dock' });
+    await sleep(50);
+    expect(await w.page().request('session.signOut', {})).toMatchObject({ ok: true });
+    await signInWithPersona(w, { username: WORLD.otherUser.username, password: 'synthetic-password-2' });
+    release(held);
+    expect(await started).toMatchObject({ ok: false, error: { code: 'CG-CONTEXT-CHANGED' } });
+    expect(await insert).toMatchObject({ ok: false, error: { code: 'CG-CONTEXT-CHANGED' } });
+    expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(0);
   });
 
   it('[host:fansly] the module down (its file missing): nothing of Fansly is admitted and nothing reaches the hub; a ChatSpace tab beside it generates as before', async () => {

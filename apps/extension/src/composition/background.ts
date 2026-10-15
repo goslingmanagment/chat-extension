@@ -673,15 +673,26 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   /**
    * A site's slice of the feature manifest (§1.4): the core's own (ChatSpace's), else the one the site's running module
    * brought (Fansly's, R20 P7i: its file is not in the core's graph). Null until that module runs: nothing of the site is
-   * admitted, and a request of the site's tab that needs the slice starts the module first (`featuresFor`).
+   * admitted, and a request of the site's tab that needs the slice starts the module first (`moduleUnderSameSignIn`).
    */
   function featuresOf(host: HostKind): FeatureSlice | null {
     return coreFeaturesOf(host, (site) => hostModules.running(site)?.features);
   }
-  /** The slice for a request of the site's own tab, after the site's module is up: the background this request woke may not have started it yet. */
-  async function featuresFor(host: HostKind): Promise<FeatureSlice | null> {
+  /** Who is signed in, to the sign-in (its epoch moves with every sign-in and sign-out); null — nobody. */
+  const signInNow = (): string | null => {
+    const signedIn = hubInstance?.session() ?? null;
+    return signedIn === null ? null : `${signedIn.hubOrigin}|${signedIn.userId}|${signedIn.epoch}`;
+  };
+  /**
+   * Brings the site's module up for a request of the site's own tab (the background this request woke may not have
+   * started it yet) and says whether the sign-in the request came under still stands. The wait can be long — a load,
+   * a start —, and a sign-out or another person's sign-in in it leaves the request nothing to act for: the caller
+   * refuses, and reads anew whatever it held from before the wait (an operation the sign-out took away).
+   */
+  async function moduleUnderSameSignIn(host: HostKind): Promise<boolean> {
+    const before = signInNow();
     await hostModules.ensure(host);
-    return featuresOf(host);
+    return signInNow() === before;
   }
 
   /** §9.3 «Выключение отладки или выход очищают всё»: journals and the local spend; the facade drops its prompt echoes itself. */
@@ -1041,7 +1052,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     // The start is judged by the slice of its chat's site: a site whose slice its module brings has it up first.
     const site = start.target.binding.host;
-    if (featuresOf(site) === null && hostOfTab(sender.tabSessionId) === site) await featuresFor(site);
+    if (featuresOf(site) === null && hostOfTab(sender.tabSessionId) === site && !(await moduleUnderSameSignIn(site))) return fail('CG-CONTEXT-CHANGED', 'the sign-in changed');
     const outcome = await scheduler.start(sender.tabSessionId, start);
     return outcome.kind === 'admission' ? ok(outcome.admission) : fail(outcome.code);
   });
@@ -1064,14 +1075,23 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok({ recorded: telemetry.report('inserted', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }) });
   });
   rpc.handle('op.reportSent', async ({ opId, part, platformMessageId, edited }, sender) => {
-    const view = scheduler.view(opId);
+    let view = scheduler.view(opId);
     // How a human send is seen is the operation's site's, its slice of the manifest says when (`human-send`): on
     // ChatSpace its socket tells it, and whose socket may be listened to is the PAGE's own `wsTap` (the tab keeps one
     // tap while any page has it); Fansly's MAIN sees it with no switch. Not observable on the operation's page: the
     // send is not ours to know — nothing is registered and no `sent` is reported, as on a tab that has no tap at all.
     // A site whose slice its module brings has the module up first (a background this report woke).
+    // After that wait the operation is read anew: a sign-out in it took the operation away, and nothing of it is
+    // recorded — least of all under the next person's sign-in.
     const site = view?.target.binding.host ?? null;
-    if (site !== null && featuresOf(site) === null && sender.kind === 'tab' && hostOfTab(sender.tabSessionId) === site) await featuresFor(site);
+    if (site !== null && featuresOf(site) === null && sender.kind === 'tab' && hostOfTab(sender.tabSessionId) === site) {
+      const same = await moduleUnderSameSignIn(site);
+      view = scheduler.view(opId);
+      if (!same || view === null) {
+        logger.info('bg.sends', 'human send not recorded: the sign-in or the operation changed while the site module started', { fields: { operation: view !== null } });
+        return ok({ recorded: false });
+      }
+    }
     if (!humanSendObservable(view, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf)) {
       logger.info('bg.sends', 'human send not recorded: not observable on the page', { fields: { pageId: view?.target.binding.pageId ?? null } });
       return ok({ recorded: false });
@@ -1219,8 +1239,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // Without a hub layer (its start step failed) there is no sign-in to insert a result of; ChatSpace's own
     // list still navigates. Whose switch a navigation asks is its surface's: ours (`navigation`) or a board's own.
     // An insert is admitted by the feature manifest of the site the tab is on.
+    // Only an insert reads the site's slice; a site whose slice its module brings has the module up first.
     const site = hostOfTab(sender.tabSessionId);
-    const siteFeatures = site === null ? null : (featuresOf(site) ?? (await featuresFor(site)));
+    if (kind === 'insert' && site !== null && featuresOf(site) === null && !(await moduleUnderSameSignIn(site))) return fail('CG-CONTEXT-CHANGED', 'the sign-in changed');
+    const siteFeatures = site === null ? null : featuresOf(site);
     const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, surface, hubInstance, wireOf, siteFeatures);
     if (refusal !== null) {
       logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });
