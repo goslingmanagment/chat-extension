@@ -269,6 +269,16 @@ export interface ResultDebugVM {
   readonly liveTimer: boolean;
 }
 
+/**
+ * 1.15.0 (R20 P8b2; spec §3.5, FS-TAIL-8; ui-design §4.7): the catalog keys of the words of a window check's mark
+ * (`ResultVM.stale` with reason `unverified`, `window-miss`, `deleted-served`) — its title and the continuation, as the
+ * shared result draws them. Only the catalog of a site whose verdict gives these reasons carries them (a Fansly tab's,
+ * `core/src/domain/hosts/fansly/i18n`): the shared catalog does not, so no ChatSpace bundle carries their words.
+ * `fan-wrote` and `archive-moved` keep the shared «Фан написал новое» (`result.stale.title`, `result.stale.body`).
+ * Types only.
+ */
+export type ResultMarkKey = `result.stale.${'unverified' | 'windowMiss' | 'deletedServed'}.${'title' | 'body'}`;
+
 export interface ResultVM {
   readonly opId: Uuid;
   readonly feature: FeatureId;
@@ -301,7 +311,7 @@ export interface ResultVM {
   /**
    * The mark over the parts, ready to be drawn (`ResultMarkVM`, 1.15.0): the site's AI policy gives it (R20 F10).
    * «Фан написал новое после генерации» (dock inserts still allowed; previews hold sends), and the reasons of the window
-   * check's verdict too (`StaleReason`, R20 spec §3.5); their mark over the result is P8b2's.
+   * check's verdict too (`StaleReason`, R20 spec §3.5, P8b2): their words are `ResultMarkKey`'s.
    */
   readonly stale: ResultMarkVM | null;
   readonly toneUsed: Tone | null;

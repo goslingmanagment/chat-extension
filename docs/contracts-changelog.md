@@ -35,6 +35,19 @@
 выпуск расширения, следующий PR этапа поднимает версию до 1.16.0: вышедшая версия не меняет состава. Что меняется и
 почему — `docs/project-unite/architecture.md` §12. Старые фикстуры проходят без изменений.
 
+### P8b2 — слова пометки проверки окна
+
+- **`vm`: `ResultMarkKey`** — ключи слов пометки, которую вердикт проверки окна ставит над результатом (`ResultVM.stale`
+  с причиной `unverified`, `window-miss`, `deleted-served`; спецификация R20 §3.5, FS-TAIL-8; ui-design §4.7):
+  `result.stale.unverified | windowMiss | deletedServed`, у каждого `.title` (начало, жирным) и `.body` (продолжение).
+  Только типы. Ключи — не общего каталога: их несёт каталог сайта, чей вердикт даёт эти причины (вкладка Fansly,
+  `core/src/domain/hosts/fansly/i18n/marks.ts`), так что в бандлах ChatSpace этих слов нет. У `fan-wrote` и
+  `archive-moved` — прежние общие «Фан написал новое» (`result.stale.title`, `.body`). Общий `Result` выбирает слова
+  по причине пометки; на ChatSpace пометка по-прежнему только `fan-wrote`.
+- Фикстур нет: схем нет. Тесты — `packages/contracts/test/ai-policy.test.ts` (ни один ключ не общий, общие ключи
+  «фан написал новое» прежние), `packages/core/src/domain/hosts/fansly/i18n/i18n.test.ts` (каталоги Fansly — ровно эти
+  ключи в обоих языках, в общих каталогах их нет).
+
 ### P14b2 — popup, статус и безопасная отладка
 
 - Добавочные `diagnostics.get.siteAccess/requestModes/freshness`, `tabs[].page/networkSession` и `health.report.page`: доступ, режим запросов, булевы соседнего расширения, числовые счётчики, возраст сессии и только имена заголовков; ограниченный локальный суточный агрегат.
