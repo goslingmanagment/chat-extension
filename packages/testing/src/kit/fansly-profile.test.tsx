@@ -139,21 +139,29 @@ describe('[R20-P8d] [host:fansly] Fansly’s palette under the kit’s tokens (u
     }
   });
 
-  it('the family’s accent reads where it stands on Fansly’s greys (WCAG 2): its ink 4.5 : 1 on a chip, a tint and a draft; the focus ring and a state dot 3 : 1; muted ink and Split’s word 4.5 : 1', () => {
+  // The page shows one theme; the person may force the other (`ui.theme`): the palette of each of Fansly's themes is
+  // drawn in both schemes, and each of the four meets the kit's own bars (ui/kit tokens.test.ts).
+  for (const page of ['light', 'dark'] as const) {
     for (const scheme of ['light', 'dark'] as const) {
-      const palette = fanslyPalette(scheme, () => '');
-      for (const fill of ['--cg-raised', '--cg-chip', '--cg-clay-bg', '--cg-draft', '--cg-draft-hover'] as const) {
-        expect(contrast('--cg-clay-ink', fill, scheme, palette), `${scheme}: clay-ink on ${fill}`).toBeGreaterThanOrEqual(4.5);
-      }
-      for (const fill of ['--cg-surface', '--cg-raised', '--cg-chip', '--cg-groove', '--cg-sunk', '--cg-draft', '--cg-clay-bg'] as const) {
-        expect(contrast('--cg-focus', fill, scheme, palette), `${scheme}: the focus ring on ${fill}`).toBeGreaterThanOrEqual(3);
-      }
-      for (const fill of ['--cg-raised', '--cg-draft', '--cg-draft-hover'] as const) {
-        expect(contrast('--cg-ink-muted', fill, scheme, palette), `${scheme}: muted ink on ${fill}`).toBeGreaterThanOrEqual(4.5);
-      }
-      expect(contrast('--cg-ink-2', '--cg-groove', scheme, palette), `${scheme}: Split in the groove`).toBeGreaterThanOrEqual(4.5);
-      expect(contrast('--cg-ink', '--cg-chip', scheme, palette), `${scheme}: a chip's word`).toBeGreaterThanOrEqual(4.5);
-      expect(contrast('--cg-ink', '--cg-raised', scheme, palette), `${scheme}: the bar's ink`).toBeGreaterThanOrEqual(7);
+      const forced = page === scheme ? '' : ' (forced against the page)';
+      it(`the family’s accent reads where it stands on Fansly’s greys (WCAG 2) · Fansly ${page}, our ${scheme}${forced}: its ink 4.5 : 1 on a chip, a tint and a draft; the focus ring and a state dot 3 : 1; muted ink and Split’s word 4.5 : 1; a chip stands off the bar`, () => {
+        const palette = fanslyPalette(page, () => '');
+        for (const fill of ['--cg-raised', '--cg-chip', '--cg-clay-bg', '--cg-draft', '--cg-draft-hover'] as const) {
+          expect(contrast('--cg-clay-ink', fill, scheme, palette), `clay-ink on ${fill}`).toBeGreaterThanOrEqual(4.5);
+        }
+        for (const fill of ['--cg-surface', '--cg-raised', '--cg-chip', '--cg-groove', '--cg-sunk', '--cg-draft', '--cg-clay-bg'] as const) {
+          expect(contrast('--cg-focus', fill, scheme, palette), `the focus ring on ${fill}`).toBeGreaterThanOrEqual(3);
+          expect(contrast('--cg-accent', fill, scheme, palette), `a state dot on ${fill}`).toBeGreaterThanOrEqual(3);
+        }
+        for (const fill of ['--cg-raised', '--cg-draft', '--cg-draft-hover'] as const) {
+          expect(contrast('--cg-ink-muted', fill, scheme, palette), `muted ink on ${fill}`).toBeGreaterThanOrEqual(4.5);
+        }
+        expect(contrast('--cg-ink-2', '--cg-groove', scheme, palette), 'Split in the groove').toBeGreaterThanOrEqual(4.5);
+        expect(contrast('--cg-ink', '--cg-chip', scheme, palette), "a chip's word").toBeGreaterThanOrEqual(4.5);
+        expect(contrast('--cg-ink', '--cg-raised', scheme, palette), "the bar's ink").toBeGreaterThanOrEqual(7);
+        // A raised chip is a tone off the bar it stands on, as ChatSpace's (1.08 dark, 1.09 light) and Fansly's own (1.07, 1.09).
+        expect(contrast('--cg-chip', '--cg-raised', scheme, palette), 'a chip off the bar').toBeGreaterThanOrEqual(1.05);
+      });
     }
-  });
+  }
 });

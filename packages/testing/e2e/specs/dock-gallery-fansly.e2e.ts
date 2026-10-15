@@ -24,7 +24,7 @@ import { standOrigin } from '../support/stand';
 const FANSLY_WIDTHS = [622, 489, 381] as const;
 /** The rows of the parity matrix this gallery closes on Fansly (parity-matrix.md, P8d): the dock's states and the toasts. */
 const DOCK_ROWS = '[UI-002] [UI-003] [UI-004] [UI-005] [UI-006] [UI-007] [UI-008] [UI-009] [UI-010] [UI-013] [UI-014] [UI-015] [UI-018] [UI-022] [UI-024] [UI-025] [UI-030] [UI-031] [UI-032]';
-const TOAST_ROWS = '[ER-009] [ER-010] [ER-011] [ER-013] [ER-015]';
+const TOAST_ROWS = '[ER-009] [ER-010] [ER-011] [ER-013]';
 
 /** What the dock is drawn in, per Fansly theme (host-fansly isolated/theme.ts over fansly.com's variables). */
 const LOOK = {
@@ -79,13 +79,17 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
         // The phrases are Fansly's: no shared text names ChatSpace on its page.
         expect((await shown('9g', '.cg-dock')).join(' ')).toMatch(/Fansly обновился/);
         expect((await shown('9g', '.cg-dock')).join(' ')).not.toMatch(/ChatSpace/);
+        // Copy only says why as Fansly has it: the fan does not accept messages (Fansly's own wording, R20 P8d).
+        expect((await shown('9h', '.cg-dock')).join(' ')).toMatch(/Фан не принимает сообщения/);
+        expect((await shown('9h', '.cg-dock')).join(' ')).not.toMatch(/заблокирован/);
       });
     }
-    it(`[UI-004] [UI-006] [host:fansly] every dock state · ${theme} · en · 622 px, Windows key labels`, async () => {
+    it(`[UI-004] [UI-006] [UI-027] [host:fansly] every dock state · ${theme} · en · 622 px, Windows key labels; copy only in Fansly’s words`, async () => {
       await open(`host=fansly&theme=${theme}&lang=en&w=622&os=win`);
       await captureGroups(`dock-fansly-${theme}-en-w622-win`);
       expectHealthy(await health(), 622);
       await expectFanslyLook('1a', theme);
+      expect((await shown('9h', '.cg-dock')).join(' ')).toMatch(/The fan doesn’t accept messages/);
     });
 
     it(`${TOAST_ROWS} [UI-014] [I18-006] [host:fansly] the overlays · ${theme}: toasts, the cheatsheet, Coach, the expanded result — drawn, nothing failed`, async () => {
@@ -103,6 +107,14 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
       await open(`host=fansly&state=12a&theme=${theme}&lang=ru`);
       expect((await shown('12a', '.cg-toast')).length).toBe(3);
       expect((await shown('12a', '.cg-toast button')).join(' ')).toContain('Настройки');
+    });
+
+    it(`[ER-015] [host:fansly] «Настройки хаба обновляются» · ${theme}: an info toast with no buttons`, async () => {
+      await open(`host=fansly&state=x-hub-settings&theme=${theme}&lang=ru`);
+      await captureWindow(`overlay-fansly-x-hub-settings-${theme}-ru-1440x900`);
+      expect((await health()).failures).toEqual([]);
+      expect(await shown('x-hub-settings', '.cg-toast--info .cg-toast__t')).toEqual(['Настройки хаба обновляются…']);
+      expect(await shown('x-hub-settings', '.cg-toast__acts .cg-btn')).toEqual([]);
     });
 
     it(`[ER-020] [host:fansly] a surface that failed to render keeps its card · ${theme}`, async () => {

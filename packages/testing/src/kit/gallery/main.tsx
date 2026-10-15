@@ -49,7 +49,7 @@ if (column > 0) {
 const config = document.querySelector('[data-gal-config]');
 if (config !== null) config.textContent = `${scheme} · ${language}${column > 0 ? ` · ${column} px` : ''}${section === null ? '' : ` · ${section}`}${site.host === 'chatspace' ? '' : ` · ${site.host}`}`;
 
-const world = kitWorld('gallery-ready', language, site.profile.phrases);
+const world = kitWorld('gallery-ready', language, site.profile.phrases, site.texts);
 world.deps.scheme.set(scheme);
 const host = document.createElement('div');
 host.setAttribute('data-host', 'gallery');

@@ -113,10 +113,10 @@ const geometryOf = (item: GalleryState): SurfaceGeometry =>
     : { width: null, feedHeight: null, viewportHeight: window.innerHeight, container: { left: 64, top: 44, width: window.innerWidth - 64, height: window.innerHeight - 44 } };
 
 function worldOf(item: GalleryState): KitWorld {
-  const scenario = scenarioOfState(item, language, scheme, keys, site.profile.phrases);
+  const scenario = scenarioOfState(item, language, scheme, keys, site.profile.phrases, site.texts);
   // «Вид ответа» comes from the URL, as the setting would.
   const views = scenario.views.map((view) => (view.selector.of === 'dock' ? entry({ of: 'dock' }, { ...(view.vm as Parameters<typeof entry<{ of: 'dock' }>>[1]), resultStyle: style }) : view));
-  const world = kitWorld({ ...scenario, views }, language, site.profile.phrases);
+  const world = kitWorld({ ...scenario, views }, language, site.profile.phrases, site.texts);
   world.deps.scheme.set(scheme);
   world.deps.geometry.set(geometryOf(item));
   return world;

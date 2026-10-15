@@ -10,6 +10,10 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import type { HostTheme } from '@cg/contracts/host';
+import { LOCALES, type Locale } from '@cg/contracts/i18n/keys';
+import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
+import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
+import { createLiveI18n, type SitePhrases } from '@cg/core/domain/i18n/live';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { fanslyProfile } from '@cg/testing/kit/profiles';
 import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
@@ -17,7 +21,11 @@ import type { LazyEntryName } from '../lazy/entries/names.ts';
 import { describe, expect, it } from 'vitest';
 
 import { baseManifest, checkManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from '../build/manifest.ts';
+import { CATALOG as CHATSPACE_EN } from '../lazy/entries/i18n-en.ts';
+import { CATALOG as CHATSPACE_RU } from '../lazy/entries/i18n-ru.ts';
 import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../lazy/entries/names.ts';
+import { CATALOG as FANSLY_EN } from '../lazy/fansly/i18n-en.ts';
+import { CATALOG as FANSLY_RU } from '../lazy/fansly/i18n-ru.ts';
 import { FANSLY_APP, fanslyUi } from '../src/composition/tab/hosts/fansly/app.ts';
 import { LAZY as TAB_LAZY } from '../src/composition/tab/runtime.ts';
 import { lazyPath } from '../src/composition/tab/lazy.ts';
@@ -156,6 +164,28 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     expect(FANSLY_APP.ui(source)).toMatchObject({ dock: { variant: 'fansly' }, sheet: FANSLY_DOCK_SHEET, phrases: profile.phrases });
     const gallery = fanslyProfile(source, page);
     expect({ ...gallery, palette: gallery.palette?.value }).toEqual({ ...profile, palette: profile.palette?.value });
+  });
+
+  it('[UI-027] [R20-P8d] [host:fansly] copy only on Fansly says why as Fansly has it — the fan does not accept messages; ChatSpace’s tab keeps «фан заблокирован»', () => {
+    const said = (catalogs: Readonly<Record<Locale, Readonly<Record<string, unknown>>>>, phrases: SitePhrases): Record<Locale, string[]> => {
+      const out = { ru: [] as string[], en: [] as string[] };
+      for (const language of LOCALES) {
+        // As the tab speaks (tab/app.ts): the site's lazy catalog of the language, the site's phrases.
+        const i18n = createLiveI18n((locale) => catalogs[locale] ?? null, { language, phrases });
+        out[language] = [i18n.t('dock.reason.fanBlocked'), i18n.t('cg.gateFanBlocked.title'), i18n.t('cg.gateFanBlocked.body')];
+      }
+      return out;
+    };
+    const fansly = said({ ru: FANSLY_RU, en: FANSLY_EN }, FANSLY_PHRASES);
+    expect(fansly).toEqual({
+      ru: ['фан не принимает сообщения — можно только копировать', 'Фан не принимает сообщения', 'Можно только копировать.'],
+      en: ['the fan doesn’t accept messages — copy only', 'The fan doesn’t accept messages', 'You can only copy.'],
+    });
+    const chatspace = said({ ru: CHATSPACE_RU, en: CHATSPACE_EN }, CHATSPACE_PHRASES);
+    expect(chatspace).toEqual({
+      ru: ['фан заблокирован, можно только копировать', 'Фан заблокирован', 'Можно только копировать.'],
+      en: ['the fan is blocked, copy only', 'Fan blocked', 'You can only copy.'],
+    });
   });
 
   it('[host:fansly] the early half of its adapter is assembled in its entry point: its kind, its client of the key scheme, its own lazy build', () => {

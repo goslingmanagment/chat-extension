@@ -1,9 +1,9 @@
-// Fansly's palette for our interface (R20 P8d; docs/project-unite/architecture.md §7.8, §7.15; FS-PLC-7, FS-DOCK-1): the
+// Fansly's palette for our interface (R20 P8d; docs/project-unite/architecture.md §7.8, §7.17; FS-PLC-7, FS-DOCK-1): the
 // page's own variables in the theme it shows as the kit's triplets (the correspondence table, ui-design §2.1
 // «Fansly»), read anew when the theme reader says the page switched. In Firefox on the stand, both themes with our dock
 // in them: suite-fansly-dock.e2e.ts; the galleries with Fansly's profile: dock-gallery-fansly.e2e.ts.
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { FANSLY_SCALE, fanslyPalette, fanslyPaletteSignal, parseColour, readFanslyPalette } from './palette';
 import { createFanslyTheme } from './theme';
@@ -38,14 +38,6 @@ afterEach(() => {
   document.documentElement.className = '';
   for (const style of document.head.querySelectorAll('style')) style.remove();
 });
-
-const luminance = (triplet: string): number => {
-  const [r = 0, g = 0, b = 0] = triplet.split(' ').map((byte) => {
-    const channel = Number(byte) / 255;
-    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
 
 describe('[host:fansly] Fansly’s palette: the page’s own variables as the kit’s triplets (R20 P8d, FS-DOCK-1)', () => {
   it('[I18-005] in each theme every step the kit reads, from the variables of that theme: the card is `--modal-bg`, the ink `--font-1`, blue `--blue-1`', () => {
@@ -98,30 +90,26 @@ describe('[host:fansly] Fansly’s palette: the page’s own variables as the ki
     expect(fanslyPalette('dark', (name) => (name === '--dark-1' ? 'var(--nope)' : ''))['--color-om-neutral-950']).toBe('17 18 21');
   });
 
-  it('[I18-005] either theme gives a whole scale, light to dark: a scheme forced against the page’s (`ui.theme`) reads every step it needs', () => {
-    for (const scheme of ['light', 'dark'] as const) {
-      const palette = fanslyPalette(scheme, () => '');
-      const neutrals = STEPS.filter((step) => step.startsWith('neutral-')).map((step) => luminance(palette[`--color-om-${step}`] ?? ''));
-      for (let index = 1; index < neutrals.length; index += 1) expect(neutrals[index], `${scheme}: ${STEPS[index]}`).toBeLessThanOrEqual(neutrals[index - 1] ?? 1);
-    }
-    // Every row reads the page in at least one theme (which steps each scheme reads: testing kit/fansly-profile.test.ts).
+  it('[I18-005] either theme gives every step a triplet: a scheme forced against the page’s (`ui.theme`) reads a whole palette (its contrast in all four: testing kit/fansly-profile.test.tsx)', () => {
+    for (const scheme of ['light', 'dark'] as const) expect(Object.keys(fanslyPalette(scheme, () => '')).sort(), scheme).toEqual(STEPS.map((step) => `--color-om-${step}`).sort());
+    // Every row reads the page in at least one theme; the steps each scheme reads are variables of its theme (testing kit/fansly-profile.test.tsx).
     for (const [step, sources] of Object.entries(FANSLY_SCALE)) expect(sources.light[0] !== null || sources.dark[0] !== null, step).toBe(true);
   });
 
-  it('[I18-005] the profile’s palette follows the theme reader: the page read once per theme, anew on each switch, said once', async () => {
+  it('[I18-005] the profile’s palette is the page’s as it is now: the same values keep the same palette; a switch of the theme says the new one once to each listener', async () => {
     playFansly();
     const theme = createFanslyTheme(document);
-    const reads = vi.spyOn(window, 'getComputedStyle');
     const signal = fanslyPaletteSignal(theme, () => document);
-    expect(signal.value['--color-om-neutral-900']).toBe('22 22 26');
-    expect(signal.value['--color-om-neutral-950']).toBe('17 18 21');
-    expect(reads).toHaveBeenCalledTimes(1);
+    const first = signal.value;
+    expect(first['--color-om-neutral-900']).toBe('22 22 26');
+    expect(signal.value).toBe(first);
     const heard: string[] = [];
+    const also: string[] = [];
     const off = signal.subscribe((palette) => heard.push(palette['--color-om-neutral-900'] ?? ''));
+    const offAlso = signal.subscribe((palette) => also.push(palette['--color-om-neutral-900'] ?? ''));
     document.documentElement.classList.add('bright-theme');
     await settle();
     expect(signal.value['--color-om-neutral-900']).toBe('20 30 40');
-    expect(reads).toHaveBeenCalledTimes(2);
     document.documentElement.setAttribute('class', 'bright-theme');
     await settle();
     document.documentElement.className = 'dark-theme';
@@ -130,7 +118,29 @@ describe('[host:fansly] Fansly’s palette: the page’s own variables as the ki
     document.documentElement.className = 'bright-theme';
     await settle();
     expect(heard).toEqual(['20 30 40', '22 22 26']);
-    reads.mockRestore();
+    expect(also).toEqual(['20 30 40', '22 22 26', '20 30 40']);
+    offAlso();
+    theme.dispose();
+  });
+
+  it('[I18-005] variables that come after the first read — Fansly’s sheet and its theme class, the scheme the same — reach the palette and are said; a later mount reads the page as it is', async () => {
+    // Read before Fansly's sheet and class: the dark theme in fansly.com's values.
+    const theme = createFanslyTheme(document);
+    const signal = fanslyPaletteSignal(theme, () => document);
+    expect(signal.value['--color-om-neutral-900']).toBe('22 22 26');
+    const heard: string[] = [];
+    const off = signal.subscribe((palette) => heard.push(palette['--color-om-neutral-900'] ?? ''));
+    playFansly(`${FANSLY_CSS}\n:root { --modal-bg: #202020; }`);
+    document.documentElement.classList.add('dark-theme');
+    await settle();
+    expect(heard).toEqual(['32 32 32']);
+    expect(signal.value['--color-om-neutral-900']).toBe('32 32 32');
+    // A sheet that lands with no class change says nothing (nothing on the page to hear), but a mount reads it.
+    playFansly(':root { --modal-bg: #303030; }');
+    await settle();
+    expect(heard).toEqual(['32 32 32']);
+    expect(signal.value['--color-om-neutral-900']).toBe('48 48 48');
+    off();
     theme.dispose();
   });
 

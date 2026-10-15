@@ -1,18 +1,19 @@
-// Fansly's palette for our interface (docs/project-unite/architecture.md §1.5, §7.8, §7.15; R20 P8d; FS-PLC-7,
+// Fansly's palette for our interface (docs/project-unite/architecture.md §1.5, §7.8, §7.17; R20 P8d; FS-PLC-7,
 // FS-DOCK-1): the page's own colour variables, in the theme its page shows, translated into the kit's
 // `--color-om-*` triplets — the palette of Fansly's profile, which the mount puts on every host of ours as one
 // shared `:host` sheet. Only the application draws with it, so it is the application half's (§1.5): Fansly's
 // `tab-app` chunk and the galleries import this module, the early bundle never does (its theme reader,
-// ./theme.ts, says the scheme). Read when a surface mounts and anew on each switch of the page's theme, never on a
-// timer.
+// ./theme.ts, says the scheme). Read when a surface mounts and anew whenever the theme reader says the page's theme
+// moved (a switch, or Fansly's theme class arriving), never on a timer.
 //
 // The correspondence table: docs/ui-design.md §2.1 «Fansly». ChatSpace's scale keeps one triplet per step in both
 // themes, the dark scheme taking other steps; Fansly instead redefines its variables per theme (`:root` is dark,
 // `html.bright-theme` light), and only the variables of the theme on screen can be read. So each theme has its own
 // row for a step: the variable of the role the kit gives that step in that scheme (the raised card is Fansly's
 // `--modal-bg`, the ink its `--font-1`, the muted ink its `--dark-blue-1` or `--font-tint-3`…), or, for a step that
-// scheme never reads, Fansly's value of the other theme — so a scheme forced against the page's (`ui.theme`) still
-// gets a whole scale, light to dark. A variable the page does not have (a new build of Fansly) stands in with its
+// scheme never reads, a value for the scheme forced against the page's (`ui.theme`): Fansly's value of the other
+// theme, or a tone that keeps the kit's contrast where that one would not (testing kit/fansly-profile.test.tsx holds
+// all four: either page, either scheme). A variable the page does not have (a new build of Fansly) stands in with its
 // value on fansly.com of 2026-10-12; a translucent one is laid over the theme's card (`--modal-bg`). Blue is
 // Fansly's `--blue-1`, and only for what reaches the fan (send, the sent bubble); green and red are not translated:
 // Fansly's are bright tones for badges (its light green #27d644 is 1.95 : 1 on white), so money and the error dot
@@ -45,8 +46,8 @@ export const FANSLY_SCALE: Readonly<Record<string, { readonly light: Source; rea
   'neutral-300': { light: ['--seperator', '#b0b0b098'], dark: ['--font-tint-2', '#bbc1cb'] },
   // faint ink / muted ink
   'neutral-400': { light: ['--font-tint-6', 'rgb(157, 162, 173)'], dark: ['--font-tint-3', '#9da2ad'] },
-  // muted ink / — (in dark the page's dim ink, as 600: lighter would break the scale's run to dark)
-  'neutral-500': { light: ['--dark-blue-1', 'rgba(86, 102, 120, 1)'], dark: ['--dark-blue-1', '#637395'] },
+  // muted ink / — (a light scheme forced on the dark page reads it on a draft card: the light theme's, 4.5 : 1 there)
+  'neutral-500': { light: ['--dark-blue-1', 'rgba(86, 102, 120, 1)'], dark: [null, '#566678'] },
   // strong bars / faint ink
   'neutral-600': { light: ['--font-tint-3', 'rgb(85, 90, 100)'], dark: ['--dark-blue-1', '#637395'] },
   // secondary ink / seams, key caps
@@ -55,8 +56,9 @@ export const FANSLY_SCALE: Readonly<Record<string, { readonly light: Source; rea
   'neutral-750': { light: [null, '#323844'], dark: ['--seperator', '#323844'] },
   // — / press, the floating card's outline
   'neutral-800': { light: [null, '#2a3142'], dark: ['--dropdown-bg-color-hover', '#2a3142'] },
-  // — / chip, hover, rule
-  'neutral-850': { light: [null, '#1a1e26'], dark: ['--dark-3', '#1a1e26'] },
+  // — / chip, hover, rule (a dark scheme forced on the light page has the light ink for its card: a tone off it, not
+  // the dark theme's #1a1e26, which would be the card's own)
+  'neutral-850': { light: [null, '#1f2835'], dark: ['--dark-3', '#1a1e26'] },
   // ink / raised card, sunk
   'neutral-900': { light: ['--font-1', 'rgb(20, 30, 40)'], dark: ['--modal-bg', '#16161a'] },
   // strong ink / surface, the groove
@@ -133,24 +135,35 @@ export interface FanslyThemeSource {
 }
 
 /**
- * The palette of Fansly's profile (architecture §1.5): the page's variables in the theme it shows, live — a switch of
- * the page's theme rewrites the one shared sheet in every root of ours, without a remount. Read once per theme the
- * reader says (`current()` is the same object until the page switches): the mounts of one theme share the read.
+ * The palette of Fansly's profile (architecture §1.5): the page's variables in the theme it shows, as they are when a
+ * surface mounts — the same values keep the same palette object, so the mounts of one theme share one sheet. Live:
+ * whenever the theme reader says the page's theme moved (a switch, or Fansly's theme class arriving — its variables
+ * may come with it), the page is read anew and each listener hears a palette that differs from the last it heard.
  */
 export function fanslyPaletteSignal(theme: FanslyThemeSource, page: () => Document): ValueSignal<HostPalette> {
-  let seen: HostTheme | null = null;
+  let key = '';
   let palette: HostPalette = {};
-  const of = (next: HostTheme): HostPalette => {
-    if (next !== seen) {
-      seen = next;
-      palette = readFanslyPalette(page(), next.scheme);
+  const read = (scheme: Scheme): HostPalette => {
+    const next = readFanslyPalette(page(), scheme);
+    const nextKey = `${scheme} ${JSON.stringify(next)}`;
+    if (nextKey !== key) {
+      key = nextKey;
+      palette = next;
     }
     return palette;
   };
   return {
     get value() {
-      return of(theme.current());
+      return read(theme.current().scheme);
     },
-    subscribe: (listener) => theme.onChange((next) => listener(of(next))),
+    subscribe(listener) {
+      let last = read(theme.current().scheme);
+      return theme.onChange((next) => {
+        const now = read(next.scheme);
+        if (now === last) return;
+        last = now;
+        listener(now);
+      });
+    },
   };
 }

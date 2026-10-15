@@ -33,7 +33,7 @@ import type { HostAppAdapter, HostThemeSource } from '../../adapter';
 const page = (): Document => document;
 
 /**
- * Fansly's profile for our interface (§1.5, §7.15): the palette of the page's own variables in the theme it shows,
+ * Fansly's profile for our interface (§1.5, §7.17): the palette of the page's own variables in the theme it shows,
  * live; the variant `fansly` with its sheet; its phrases.
  */
 export function fanslyUi(theme: HostThemeSource, doc: () => Document = page): HostUiProfile {

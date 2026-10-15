@@ -6,12 +6,13 @@
 // reaches every surface and changes nothing of ChatSpace.
 
 import { type ColorScheme, type HostPalette, type HostUiProfile, type ValueSignal } from '@cg/contracts';
-import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
+import { FANSLY_CG_EN, FANSLY_CG_RU, FANSLY_PHRASES, FANSLY_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
 import { fanslyPaletteSignal, type FanslyThemeSource } from '@cg/host-fansly/isolated/palette';
 import { createFanslyTheme } from '@cg/host-fansly/isolated/theme';
 import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
 
+import { type SiteTexts } from '../scenarios/app-client';
 import { playFanslyPage } from './fansly-page';
 
 /** A palette that does not change (the gallery's): `set` for a test that changes it. */
@@ -90,9 +91,14 @@ export function fanslyProfile(theme: FanslyThemeSource, page: () => Document = (
 export const GALLERY_HOSTS = ['chatspace', 'fansly', 'test'] as const;
 export type GalleryHost = (typeof GALLERY_HOSTS)[number];
 
+/** What Fansly's tab lays over the shared catalog (apps/extension lazy/fansly/i18n-*.ts): its codes' texts, its own wording. */
+export const FANSLY_SITE_TEXTS: SiteTexts = { ru: { ...FANSLY_CG_RU, ...FANSLY_TEXTS.ru }, en: { ...FANSLY_CG_EN, ...FANSLY_TEXTS.en } };
+
 export interface GallerySite {
   readonly host: GalleryHost;
   readonly profile: HostUiProfile;
+  /** The site's own catalog entries over the shared catalog; absent — the shared catalog alone (ChatSpace). */
+  readonly texts?: SiteTexts;
   /** The page plays the site in `scheme` (Fansly: its variables and its theme class); call it before the first mount. */
   readonly play: (scheme: ColorScheme) => void;
 }
@@ -104,6 +110,6 @@ export function galleryHostOf(params: URLSearchParams): GallerySite {
   const host = params.get('host');
   if (host === 'test') return { host: 'test', profile: testSiteProfile(), play: nothingToPlay };
   // The palette is read off the page when the first surface mounts, after `play` has put Fansly's theme on it.
-  if (host === 'fansly') return { host: 'fansly', profile: fanslyProfile(createFanslyTheme(document)), play: (scheme) => playFanslyPage(document, scheme) };
+  if (host === 'fansly') return { host: 'fansly', profile: fanslyProfile(createFanslyTheme(document)), texts: FANSLY_SITE_TEXTS, play: (scheme) => playFanslyPage(document, scheme) };
   return { host: 'chatspace', profile: CHATSPACE_UI, play: nothingToPlay };
 }

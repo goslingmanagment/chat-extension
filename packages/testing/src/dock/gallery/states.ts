@@ -51,6 +51,7 @@ import {
   result,
   review,
   running,
+  scenarioTranslator,
   toast,
   toasts,
   uuid,
@@ -60,6 +61,7 @@ import {
   type DockOptions,
   type ScenarioCtx,
   type ScenarioViewEntry,
+  type SiteTexts,
 } from '../../scenarios/app-client';
 
 export type StateGroup = 'strip' | 'results' | 'errors' | 'status' | 'analysis' | 'extras' | 'overlays';
@@ -616,6 +618,16 @@ export const GALLERY_STATES: readonly GalleryState[] = [
     ],
     { surface: 'toasts' },
   ),
+  state(
+    'x-hub-settings',
+    'overlays',
+    'Тост: настройки хаба обновляются (ER-015)',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx) })),
+      entry({ of: 'toasts' }, toasts(views.ready(), [toast(ctx, 'toast-hub-settings', 'info', { title: scenarioTranslator(ctx).text('toast.hubSettingsUpdating') })])),
+    ],
+    { surface: 'toasts' },
+  ),
   state('16', 'overlays', 'Шпаргалка', (ctx) => [entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx) })), entry({ of: 'cheatsheet' }, cheatsheet(ctx, views.ready()))], { surface: 'cheatsheet' }),
   state('17a', 'overlays', 'Coach: сессия', (ctx) => [entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })), entry({ of: 'coach' }, coach(ctx, views.ready(), coachTurns(ctx)))], {
     surface: 'coach',
@@ -747,11 +759,11 @@ export function galleryState(id: string): GalleryState | null {
 }
 
 /**
- * The scenario of one gallery state in a language. `phrases` — the site the gallery draws (its `?host=`): what the
- * scenario writes out itself names that site; without them, ChatSpace.
+ * The scenario of one gallery state in a language. `phrases` and `texts` — the site the gallery draws (its `?host=`):
+ * what the scenario writes out itself speaks for that site, in its own wording; without them, ChatSpace.
  */
-export function scenarioOfState(item: GalleryState, lang: Locale, scheme: AppClientScenario['scheme'], platform: 'mac' | 'win' = 'mac', phrases?: SitePhrases): AppClientScenario {
-  const ctx = ctxOf({ lang, platform, debug: item.debug === true, ...(phrases === undefined ? {} : { phrases }) });
+export function scenarioOfState(item: GalleryState, lang: Locale, scheme: AppClientScenario['scheme'], platform: 'mac' | 'win' = 'mac', phrases?: SitePhrases, texts?: SiteTexts): AppClientScenario {
+  const ctx = ctxOf({ lang, platform, debug: item.debug === true, ...(phrases === undefined ? {} : { phrases }), ...(texts === undefined ? {} : { texts }) });
   return {
     id: `gallery-${item.id}`,
     title: item.title,

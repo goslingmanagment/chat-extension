@@ -25,6 +25,12 @@ describe('[host:fansly] the early bundle’s copies of the contracts', () => {
     for (const capability of FANSLY_CONTRACT.switchedCapabilities) expect(report.capabilities[capability].state).toBe('off');
   });
 
+  it('[FS-PLC-7] [R20-P8d] the theme is the page’s own once Fansly’s theme class is on <html>; before it, degraded — the scheme dark by default, the palette fansly.com’s values', () => {
+    const report = (themeClass: 'ok' | 'notYet') => buildFanslyReport({ bridge: true, wire: null, creator: false, observation: 'unknown', dom: { ...DOM_ANCHORS_NOT_YET, themeClass }, build: null, adapterVersion: '0.1.0', checkedAt: 1 });
+    expect(report('ok').capabilities.theme).toEqual({ state: 'on' });
+    expect(report('notYet').capabilities.theme).toEqual({ state: 'degraded', reason: 'themeClass' });
+  });
+
   it('page text only for the draft functions (D-14): the same list as the contracts’', () => {
     expect([...FRESH_TEXT_FEATURES]).toEqual([...CONTRACT_FRESH_TEXT]);
   });
