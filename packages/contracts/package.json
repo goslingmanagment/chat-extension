@@ -25,6 +25,7 @@
     "./send": "./src/send.ts",
     "./send-fansly": "./src/send-fansly.ts",
     "./vault-fansly": "./src/vault-fansly.ts",
+    "./newcomers-fansly": "./src/newcomers-fansly.ts",
     "./pages-fansly": "./src/pages-fansly.ts",
     "./host": "./src/host.ts",
     "./ops": "./src/ops.ts",

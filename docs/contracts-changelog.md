@@ -35,6 +35,25 @@
 выпуск расширения, следующий PR этапа поднимает версию до 1.16.0: вышедшая версия не меняет состава. Что меняется и
 почему — `docs/project-unite/architecture.md` §12. Старые фикстуры проходят без изменений.
 
+### P10a — «Новые» на Fansly: окно прохода
+
+- Реестр Fansly (`tab-messages-fansly`), добавочно: у строки `FanslyFollowerRowSchema` — необязательные `customName`
+  (своё имя фана, заметка 12002), `bio`, `fanWrote` («Ждёт ответа»), `proof` (личное сообщение модели для «Уже
+  писали», `FanslyPreviewMessageSchema` — теперь объявлена до строки) и `error` (почему `failed`, `CgAnyErrorWire`);
+  у прохода `FanslyPassViewSchema.phase?` (`FANSLY_PASS_PHASES`: welcome, followers, profiles, checking); у ответа
+  `fansly.followers.read` — `seq?`, последнее изменение `fansly.followers.changed`, которое снимок уже содержит;
+  предел `FANSLY_TAB_LIMITS.bioMaxChars`. Старые строки и снимки без полей валидны. Фикстуры — `test/fixtures/
+  protocols-fansly.ts`, верные и неверные.
+- `vm/newcomers.ts`, только типы: `NewcomersVM.pass?` — список, который проверяет проход фона (`NewcomersPassVM`:
+  стадия и фаза, «Проверено N из M», даты окна, пауза, фильтры по вердикту, отказ, карточка `NewcomerCardVM` с
+  перепиской прохода `NewcomerHistoryVM` до предела и адресом «Открыть … ↗»); `NewcomerRowVM.check?`;
+  `NEWCOMER_CHECKS`, `NEWCOMERS_PASS_STAGES`, `NEWCOMERS_PASS_PHASES`. Сайта не называют.
+- `vm/actions.ts`: `NEWCOMER_CHECK_FILTERS` и действие `SetNewcomersCheckFilter` — фильтр списка прохода. Остальные
+  действия окна — прежние (`SetNewcomersWindow`, `SetNewcomersTab`, `Search`, `LoadMore`, `ResetFilters`,
+  `ReloadView`, `OpenPreview`/`LoadOlder`/`RefreshArchive` по ручке строки прохода). Фикстура — `test/fixtures/vm.ts`.
+- `newcomers-fansly` (новый, только подпуть): ключи текстов окна `fansly.newcomers.*`; тексты — пакет Fansly
+  (`core/src/domain/hosts/fansly/i18n/newcomers.ts`), приходят с чанком окна; общий каталог их не несёт.
+
 ### P8b2 — слова пометки проверки окна
 
 - **`vm`: `ResultMarkKey`** — ключи слов пометки, которую вердикт проверки окна ставит над результатом (`ResultVM.stale`

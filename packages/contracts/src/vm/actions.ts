@@ -114,6 +114,13 @@ export type GreetingFilter = (typeof GREETING_FILTERS)[number];
 /** «Новые» window, hours (§8.5: quick 24/48/72/168, any 1–720 within bootstrap `audienceWindowHours`). */
 export const NEWCOMERS_WINDOW_HOURS = { min: 1, max: 720, quick: [24, 48, 72, 168], default: 48 } as const;
 
+/**
+ * 1.15.0 (R20 P10a): the status filters of a list a background pass checks (NF-006; `NewcomersVM.pass`): «Не писали»,
+ * «В очереди», «Ждёт ответа», «Не проверены», «Нельзя написать», «Уже писали».
+ */
+export const NEWCOMER_CHECK_FILTERS = ['any', 'ready', 'pending', 'reply', 'unchecked', 'dm-closed', 'contacted'] as const;
+export type NewcomerCheckFilter = (typeof NEWCOMER_CHECK_FILTERS)[number];
+
 export const RECAP_LENGTHS = ['short', 'full'] as const;
 export type RecapLength = (typeof RECAP_LENGTHS)[number];
 
@@ -216,6 +223,8 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('SetStatsExpanded', { expanded: z.boolean() }),
   act('SetNewcomersTab', { tab: z.enum(NEWCOMERS_TABS) }),
   act('SetNewcomersFilter', { filter: z.enum(GREETING_FILTERS) }),
+  /** 1.15.0 (R20 P10a): a status filter of a list a background pass checks. */
+  act('SetNewcomersCheckFilter', { filter: z.enum(NEWCOMER_CHECK_FILTERS) }),
   act('SetNewcomersWindow', { hours: z.int().check(z.gte(NEWCOMERS_WINDOW_HOURS.min), z.lte(NEWCOMERS_WINDOW_HOURS.max)) }),
   act('LoadMore', { list: z.enum(['spenders', 'newcomers']) }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
