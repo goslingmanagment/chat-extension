@@ -1,3 +1,4 @@
+import type { PageDiagnostics } from './diagnostics';
 // The host port (architecture.md §5.2, §6): everything the extension may know
 // about and do to the host page. Page memory only — never the network. The
 // port never has, and never will have, fetchHistory(), markRead(), setStore(),
@@ -691,6 +692,8 @@ export interface FreshnessPort<S = unknown> {
 }
 
 export interface HostPort {
+  /** Local observations only; no network. Optional for hosts without extra diagnostics. */
+  diagnostics?(): Promise<PageDiagnostics>;
   readonly kind: HostKind;
   readonly platform: Platform;
   probe(): HostContractReport;

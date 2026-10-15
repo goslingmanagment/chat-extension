@@ -1,3 +1,4 @@
+import { PageDiagnosticsSchema } from './diagnostics';
 // Telemetry (architecture.md §5.7, §9.6, D-22; hub H-11a, H-14): the
 // `ai_acceptance` lifecycle and `client_health` with fixed-bound histograms.
 // Both leave the browser only with the `technicalAndInteraction` consent. No
@@ -189,6 +190,7 @@ export type ClientHealthV1 = z.infer<typeof ClientHealthV1Schema>;
 
 /** What a tab reports to the background (`health.report`): deltas since its last report; the background aggregates. */
 export const TabHealthReportSchema = z.strictObject({
+  page: z.optional(PageDiagnosticsSchema),
   windowFrom: EpochMsSchema,
   windowTo: EpochMsSchema,
   host: z.nullable(HostContractReportSchema),

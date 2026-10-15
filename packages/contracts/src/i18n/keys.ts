@@ -27,6 +27,38 @@ export type PluralMessage<L extends Locale> = { readonly [C in (typeof PLURAL_CA
 
 /** Plain messages; `{name}` marks a parameter. */
 export const UI_TEXT_KEYS = [
+  'status.details.tabs',
+  'status.details.accountTabs',
+  // 1.15.0 P14b2: local per-site diagnostics.
+  'popup.siteLabel',
+  'popup.waitingReload',
+  'status.details.access',
+  'status.details.accessValue',
+  'status.details.noData',
+  'status.details.yes',
+  'status.details.no',
+  'status.details.build',
+  'status.details.anchors',
+  'status.details.companion',
+  'status.details.companionValue',
+  'status.details.wordFilter',
+  'status.details.session',
+  'status.details.sessionValue',
+  'status.details.headerNames',
+  'status.details.mode',
+  'status.details.background',
+  'status.details.relay',
+  'status.details.pacer',
+  'status.details.pacerPending',
+  'status.details.health',
+  'status.details.observed',
+  'status.details.freshness',
+  'status.details.freshnessScope',
+  'status.details.persisted',
+  'status.details.memory',
+  'status.details.freshnessValue',
+  'debugPage.generation',
+
   // 1.15.0 P9a: optional-site activation and per-site status.
   'siteAccess.enable', 'siteAccess.disable', 'siteAccess.reload', 'siteAccess.waiting', 'siteAccess.reloaded', 'settings.status.site.title', 'settings.status.site.closed', 'settings.status.site.closedNote', 'settings.status.site.checking', 'settings.status.site.value', 'settings.status.site.checked', 'settings.status.site.notYetNote', 'settings.status.site.partial', 'settings.status.site.partialNote', 'settings.status.site.copyOnlyNote',
   'common.copy', 'common.copied', 'common.close', 'common.cancel', 'common.cancelOp', 'common.hide', 'common.again', 'common.retry',

@@ -18,6 +18,7 @@
     "./errors": "./src/errors.ts",
     "./errors-fansly": "./src/errors-fansly.ts",
     "./settings": "./src/settings.ts",
+    "./diagnostics": "./src/diagnostics.ts",
     "./site-access": "./src/site-access.ts",
     "./settings-ext": "./src/settings-ext.ts",
     "./send-rules": "./src/send-rules.ts",

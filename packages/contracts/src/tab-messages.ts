@@ -5,6 +5,7 @@
 // own module (1.15.0: tab-messages-fansly.ts), never imported here.
 
 import * as z from 'zod/mini';
+import { PageDiagnosticsSchema, NetworkSessionSnapshotSchema, FreshnessDaySchema } from './diagnostics';
 import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
 
 import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
@@ -13,7 +14,7 @@ import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } fro
 import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, type HostKind } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
-import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
+import { GenerationDebugSchema, AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
 import {
   ActionTokenSchema,
   CountSchema,
@@ -140,6 +141,9 @@ export const HOST_MODULE_STATES = ['idle', 'starting', 'started', 'failed'] as c
 /** `diagnostics.get`: versions, flags and states without secrets or texts (LG-020…LG-025, SN-015). */
 export const DiagnosticsSnapshotSchema = z.strictObject({
   generatedAt: IsoTimestampSchema,
+  siteAccess: z.optional(z.array(SiteAccessStateSchema).check(z.maxLength(8))),
+  requestModes: z.optional(z.array(z.strictObject({ host: HostKindSchema, mode: z.enum(['background', 'relay']) })).check(z.maxLength(8))),
+  freshness: z.optional(FreshnessDaySchema),
   extension: z.strictObject({
     version: boundedText(32),
     contractsVersion: boundedText(32),
@@ -176,6 +180,9 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
         site: z.optional(HostKindSchema),
         host: z.nullable(HostContractReportSchema),
         chatKey: z.nullable(ChatKeySchema),
+        conversationRef: z.optional(NativeIdSchema),
+        page: z.optional(PageDiagnosticsSchema),
+        networkSession: z.optional(NetworkSessionSnapshotSchema),
       }),
     )
     .check(z.maxLength(32)),
@@ -221,6 +228,7 @@ export type PageCommand = z.infer<typeof PageCommandSchema>;
 
 /** `debug.prompt`: the prompt snapshot for debug-prompt.html only, by an opaque token (§9.3, DB-004…DB-008). */
 export const PromptSnapshotViewSchema = z.strictObject({
+  generation: z.optional(GenerationDebugSchema),
   state: z.enum(['ok', 'expired', 'not-found', 'debug-off', 'echo-off']),
   fromCache: z.boolean(),
   capturedAt: z.nullable(IsoTimestampSchema),
@@ -288,6 +296,7 @@ export const TAB_REQUESTS = {
   /** Which chat the tab shows and whether it is visible and focused (sound, «AI готово» toasts). */
   'tab.presence': {
     req: z.strictObject({
+      conversationRef: z.optional(NativeIdSchema),
       chat: z.nullable(ChatRefSchema),
       routeEpoch: CountSchema,
       visible: z.boolean(),

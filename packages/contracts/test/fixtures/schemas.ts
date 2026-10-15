@@ -1,3 +1,4 @@
+import { generation } from './diagnostics';
 // One valid and one invalid fixture (at least) for every exported schema of
 // @cg/contracts. test/schemas.test.ts checks that each exported `*Schema` is
 // listed here and that the verdicts hold.
@@ -217,6 +218,7 @@ export const tabHealth = {
 } as const;
 
 export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
+  { name: 'GenerationDebugSchema', schema: C.GenerationDebugSchema, valid: [generation], invalid: [{}] },
   // ── primitives ──
   fixture('NativeId', C.NativeIdSchema, ['1', IDS.fan, repeat('9', 30)], ['0', '01', repeat('1', 31), 2002, '-1', '1.5', '']),
   fixture('HubIntId', C.HubIntIdSchema, [1, 11], [0, -1, 1.5, '11']),
