@@ -279,7 +279,7 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
     await browser.pause(300);
     const echo = (await events()).filter((event) => event.t === 'fx.incoming' && event.p['groupId'] === group && event.p['fromFan'] === false).at(-1);
     expect((await events()).filter((event) => event.t === 'fx.sent')).toEqual(sentEvents);
-    expect(sentEvents.map((event) => event.p)).toEqual([{ groupId: group, msgId: echo?.p['msgId'], contentDigest: expect.stringMatching(/^[0-9a-f]{16}$/) as unknown }]);
+    expect(sentEvents.map((event) => event.p)).toEqual([{ groupId: group, msgId: echo?.p['msgId'], contentDigest: expect.stringMatching(/^[0-9a-f]{16}$/) as unknown, gestureAt: expect.any(Number) as unknown }]);
     expect((await health()).sends).toMatchObject({ gestures: 2, receipts: 1, sent: 1 });
   });
 
