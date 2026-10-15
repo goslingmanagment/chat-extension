@@ -40,7 +40,10 @@ describe('Fansly registration in the header (R20 P11a)', () => {
     await shift.toFansly();
     mark = await fakeFansly().mark();
   });
-  after(async () => { await fakeFansly().assertOursClean(mark, 'P11a'); });
+  after(async () => {
+    try { await fakeFansly().assertOursClean(mark, 'P11a'); }
+    finally { await fakeFansly().command({ op: 'reset' }); }
+  });
 
   it('[FX-002] [FS-REG-1] [FS-REG-2] follows Gallery; a known account snowflake needs no request', async () => {
     expect(await browser.execute((selector) => {
