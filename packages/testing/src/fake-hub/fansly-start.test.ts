@@ -10,7 +10,7 @@ import { coverageCheckVerdict, HubStreamRequestSchema, narrowCoverageCheck, type
 import { FanslySnapshotSchema, type FanslySnapshot } from '@cg/contracts/fansly';
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { checkWindowOf, startProofOf } from '@cg/core/application/hosts/fansly/ai';
-import { planStart } from '@cg/core/domain/features';
+import { planStart, windowFor } from '@cg/core/domain/features';
 import { buildStreamRequest } from '@cg/core/domain/ops';
 import { routeSchemas, streamAiFeature } from '@kernel/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -81,7 +81,7 @@ const target = (): Target => ({ binding: binding(), chat: { host: 'fansly-web', 
 function requestOf(feature: FeatureId): { readonly request: HubStreamRequest; readonly proof: ReturnType<typeof startProofOf> } {
   const draft = feature === 'reply' || feature === 'fix' || feature === 'hi' || feature === 'ping';
   const fresh = draft ? { maxItems: 60, maxChars: 5000 } : null;
-  const proof = startProofOf(snapshot(feature, checkWindowOf(feature, DEFAULT_SETTINGS.generation.windows), fresh !== null), fresh, NOW);
+  const proof = startProofOf(snapshot(feature, checkWindowOf(windowFor(feature, undefined, DEFAULT_SETTINGS, bootstrap)), fresh !== null), fresh, NOW);
   const plan = planStart({
     feature,
     surface: 'dock',

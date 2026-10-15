@@ -12,7 +12,7 @@
 //   route's conversation of the very chat the start was made in — the target's
 //   (FS-IDN-6); its window is min(60, N) of the start's messageCount N
 //   (`checkWindowOf`). No snapshot — the bridge did not answer, the port has
-//   none, the chat or the person's windows are not known yet, the route moved —
+//   none, the chat or the start's count is not known, the route moved —
 //   is no proof: the generation goes on and is not verified fresh (FS-TAIL-7).
 // - The fields — the snapshot as the start's shared `proof` (`CoverageProof`):
 //   the background asks the hub about it (`coverageCheck` under
@@ -27,11 +27,9 @@ import type { FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { HostPort } from '@cg/contracts/host';
 import type { AiHostPolicy, AiProofAsk, CoverageProof } from '@cg/contracts/ops';
 
-import { checkWindowOf, startProofOf, type MessageWindows } from './proof';
+import { checkWindowOf, startProofOf } from './proof';
 
 export interface FanslyAiDeps {
-  /** The person's message windows of the settings (Б5), as the tab last heard them; null — not read yet. */
-  readonly windows: () => MessageWindows | null;
   readonly now: () => number;
 }
 
@@ -47,13 +45,12 @@ const freshnessOf = (host: HostPort): FanslyHostPort['freshness'] | undefined =>
 function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<FanslyStartProof | null> | null {
   const freshness = freshnessOf(host);
   const chat = ask.identity.chat;
-  const windows = deps.windows();
   const route = host.current().route;
-  if (freshness === undefined || chat === null || windows === null) return null;
+  if (freshness === undefined || chat === null || ask.messageCount === undefined) return null;
   // The chat the start was made in, on the route it was made on: its group is the target's conversation.
   const same = route.epoch === ask.identity.routeEpoch && route.chat !== null && route.chat.hostAccountId === chat.hostAccountId && route.chat.platformFanId === chat.platformFanId;
   if (!same || route.conversationRef === undefined) return null;
-  const request = { conversationRef: route.conversationRef, feature: ask.feature, window: checkWindowOf(ask.feature, windows), withText: ask.fresh !== null };
+  const request = { conversationRef: route.conversationRef, feature: ask.feature, window: checkWindowOf(ask.messageCount), withText: ask.fresh !== null };
   return freshness.snapshot(chat, request).then((snapshot) => (snapshot === null ? null : { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()) }));
 }
 

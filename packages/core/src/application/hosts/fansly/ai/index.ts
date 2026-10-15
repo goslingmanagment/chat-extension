@@ -2,5 +2,4 @@
 // Fansly's lazy chunk `ai-fansly`, the windows its proof is cut by, the proof of a snapshot.
 
 export { createFanslyAi, type FanslyAiDeps, type FanslyStartProof } from './policy';
-export { checkWindowOf, startProofOf, type MessageWindows } from './proof';
-export { followWindows } from './windows';
+export { checkWindowOf, startProofOf } from './proof';

@@ -136,7 +136,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
     if (start.coach.attachDraft !== undefined) body.draftText = start.coach.attachDraft;
   }
   // A start carries one of the two (StartOp: a proof never beside a checkpoint): the ids come from where it was taken.
-  const known = start.checkpoint?.knownFanMessageIds ?? proof?.knownFanMessageIds ?? [];
+  const known = start.checkpoint?.knownFanMessageIds ?? (ctx.freshText ? proof?.knownFanMessageIds : undefined) ?? [];
   if (contextV1 && known.length > 0) body.knownFanMessageIds = [...known];
   if (coverageCheck && proof !== undefined) body.coverageCheck = { window: proof.window.map((entry) => ({ id: entry.id, dir: entry.dir })), deletedIds: [...proof.deletedIds] };
   // D-14: fresh page text goes only where the page admits it (the owner's `freshText` and the hub's `context-v1`) —

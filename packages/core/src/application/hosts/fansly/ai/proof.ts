@@ -21,24 +21,15 @@
 //   limit. Recap, Review and Coach never carry one (FS-TAIL-10).
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
-import type { FeatureId } from '@cg/contracts/features';
-import { AI_REQUEST_LIMITS, COVERAGE_CHECK_LIMITS } from '@cg/contracts/limits';
+import { COVERAGE_CHECK_LIMITS } from '@cg/contracts/limits';
 import type { AiProofAsk, CoverageProof } from '@cg/contracts/ops';
-import type { SettingsV1 } from '@cg/contracts/settings';
-
-import { messageWindowFor } from '../../../../domain/ops/request';
-
-/** The person's message windows of the settings (Б5): what a start's messageCount is made of. */
-export type MessageWindows = SettingsV1['generation']['windows'];
 
 /**
- * FS-TAIL-1: the check window of a start — min(60, its messageCount). The count is the one the shared plan gives a
- * start without a one-off window (`windowFor`); the deep windows (Review, Recap: at least 100) and their cap by the
- * bootstrap's `deepMax` give 60 whatever they are. Should the plan still ask for less than the window (a cap below
- * 60, a setting changed in between), the background raises the count to the window (`buildStreamRequest`).
+ * FS-TAIL-1: min(60, the start's effective messageCount), computed by the same `windowFor` as the shared plan,
+ * from the environment's current settings, the generation's override and the hub cap.
  */
-export function checkWindowOf(feature: FeatureId, windows: MessageWindows): number {
-  return Math.min(COVERAGE_CHECK_LIMITS.windowMax, messageWindowFor(feature, windows, AI_REQUEST_LIMITS.messageCountMax));
+export function checkWindowOf(messageCount: number): number {
+  return Math.min(COVERAGE_CHECK_LIMITS.windowMax, messageCount);
 }
 
 /** The snapshot's texts as a start may carry them: the newest `maxItems`, each within `maxChars` (D-14). */

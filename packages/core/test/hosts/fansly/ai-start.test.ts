@@ -24,12 +24,11 @@ import {
   type FreshnessRequest,
   type HubStreamRequest,
   type IncomingFact,
-  type SettingsState,
   type StartOp,
+  type UserOptions,
 } from '@cg/contracts';
 import { FanslySnapshotSchema, type FanslySnapshot } from '@cg/contracts/fansly';
-import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
-import { checkWindowOf, createFanslyAi, followWindows, startProofOf, type MessageWindows } from '@cg/core/application/hosts/fansly/ai';
+import { checkWindowOf, createFanslyAi, startProofOf } from '@cg/core/application/hosts/fansly/ai';
 import { buildStreamRequest } from '@cg/core/domain/ops';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, memory, startSnapshot } from '@cg/testing/host';
@@ -44,7 +43,7 @@ const PERSONA = { key: WORLD.persona.key, definitionId: WORLD.persona.definition
 const SETTINGS = settingsWithPersona({
   personas: { scope: { hubOrigin: WORLD.hubOrigin, userId: WORLD.user.userId }, byPageId: { [String(WORLD.pages.one.pageId)]: PERSONA, [String(WORLD.pages.fansly.pageId)]: PERSONA } },
 });
-const WINDOWS: MessageWindows = SETTINGS.generation.windows;
+const WINDOWS = SETTINGS.generation.windows;
 const BOOTSTRAP = withFanslyPage(BOOTSTRAP_PILOT_PAGES);
 const NOW_ISO = new Date(NOW_MS).toISOString();
 
@@ -107,15 +106,12 @@ interface FanslyTab {
   readonly h: Harness;
   readonly port: ReturnType<typeof freshnessOver>;
   readonly held: Held[];
-  /** The person's windows as Fansly's application half hears them. */
-  windows: MessageWindows | null;
 }
 
-async function fanslyTab(options: { readonly bootstrap?: Bootstrap; readonly held?: Held[]; readonly windows?: MessageWindows | null } = {}): Promise<FanslyTab> {
+async function fanslyTab(options: { readonly bootstrap?: Bootstrap; readonly held?: Held[] } = {}): Promise<FanslyTab> {
   const held = options.held ?? chatOf(80);
   const port = freshnessOver(() => held);
-  const tab: { h: Harness | null; windows: MessageWindows | null } = { h: null, windows: options.windows === undefined ? WINDOWS : options.windows };
-  const policy = createFanslyAi({ windows: () => tab.windows, now: () => NOW_MS });
+  const policy = createFanslyAi({ now: () => NOW_MS });
   const fake = new FakeHostPort({ start: startSnapshot, memory, checkpoint: null, answers: {}, timeline: [] });
   const h = await readyHarness(
     { baseHost: fake, memory, catalog: createFakeCatalog(ctxOf({ now: NOW_MS })), bootstrap: options.bootstrap ?? BOOTSTRAP, resolve: resolveHubErrorReference, meta: (feature) => meta(feature as Parameters<typeof meta>[0]) },
@@ -132,19 +128,13 @@ async function fanslyTab(options: { readonly bootstrap?: Bootstrap; readonly hel
     h,
     port,
     held,
-    get windows() {
-      return tab.windows;
-    },
-    set windows(next) {
-      tab.windows = next;
-    },
   };
 }
 
 const HUB_FEATURE: Readonly<Record<FeatureId, string>> = { reply: 'fast-reply', fix: 'improve-draft', hi: 'hi-greeting', ping: 'ping', review: 'chat-review', recap: 'fan-summary', 'recap-short': 'fan-summary', coach: 'coach-chat' };
 
 /** Generates in the open chat with a scripted answer; the start the background was given and the hub request it made. */
-async function generate(tab: FanslyTab, feature: FeatureId): Promise<{ readonly start: StartOp; readonly request: HubStreamRequest }> {
+async function generate(tab: FanslyTab, feature: FeatureId, options: UserOptions = {}): Promise<{ readonly start: StartOp; readonly request: HubStreamRequest }> {
   const { h } = tab;
   const before = h.bg.hub.streams.length;
   if (feature === 'fix') h.host.type('a draft to fix');
@@ -153,7 +143,7 @@ async function generate(tab: FanslyTab, feature: FeatureId): Promise<{ readonly 
   const receipt =
     feature === 'recap' || feature === 'recap-short'
       ? await h.dispatch({ type: 'RefreshRecap', length: feature === 'recap' ? 'full' : 'short' })
-      : await h.dispatch({ type: 'Generate', targetHandle: h.dock().targetHandle ?? '', feature, options: feature === 'coach' ? { question: 'What now?' } : {} });
+      : await h.dispatch({ type: 'Generate', targetHandle: h.dock().targetHandle ?? '', feature, options: feature === 'coach' ? { question: 'What now?', ...options } : options });
   expect(receipt, feature).toMatchObject({ ok: true });
   await h.finish();
   const start = h.bg.callsOf('op.start').at(-1) as StartOp;
@@ -172,6 +162,45 @@ const lastFan = (held: readonly Held[], count: number): string[] =>
     .reverse();
 
 describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as its proof, and the hub is asked about it', () => {
+  it('review P2: auto-Recap preserves the Coach snapshot in both hub requests, without page text', async () => {
+    const tab = await fanslyTab();
+    const { h } = tab;
+    h.script(h.streamOf('fan-summary', ['Summary']), h.streamOf('coach-chat', ['Advice']));
+    expect(await h.ai.workspace.startFeature({ feature: 'coach', surface: 'coach', cause: 'click', options: { question: 'What now?' }, autoRecap: 'full' })).toMatchObject({ kind: 'started' });
+    await h.finish();
+    const start = h.bg.callsOf('op.start')[0] as StartOp;
+    expect(start.proof?.window).toHaveLength(60);
+    expect(h.bg.hub.streams.map(({ feature, body }) => [feature, body.messageCount, body.coverageCheck?.window, body.liveTextContext])).toEqual([
+      ['fan-summary', 3000, start.proof?.window, undefined],
+      ['coach-chat', WINDOWS.quick, start.proof?.window, undefined],
+    ]);
+  });
+
+  it.each([100, 5])('review P2: Fix uses the effective generation window %i instead of its 25-message setting', async (window) => {
+    const tab = await fanslyTab();
+    const { request } = await generate(tab, 'fix', { window });
+    expect([request.body.messageCount, tab.port.asked[0]?.request.window, request.body.coverageCheck?.window.length]).toEqual([window, Math.min(60, window), Math.min(60, window)]);
+  });
+
+  it('the hub cap is applied before the snapshot, without raising the requested count back to 60', async () => {
+    const tab = await fanslyTab({ bootstrap: { ...BOOTSTRAP, limits: { ...BOOTSTRAP.limits, deepMax: 40 } } });
+    const { request } = await generate(tab, 'fix', { window: 100 });
+    expect([request.body.messageCount, tab.port.asked[0]?.request.window, request.body.coverageCheck?.window.length]).toEqual([40, 40, 40]);
+  });
+
+  it('review P2: the first generation after reconnect uses the settings reloaded by the environment', async () => {
+    const tab = await fanslyTab();
+    const { h } = tab;
+    await h.settle();
+    h.bg.setConnection('reconnecting');
+    // The background changes while disconnected: no settings.changed reaches the tab.
+    h.bg.settings = { ...h.bg.settings, revision: h.bg.settings.revision + 1, settings: { ...SETTINGS, generation: { ...SETTINGS.generation, windows: { ...WINDOWS, improve: 60 } } } };
+    h.bg.setConnection('ready');
+    await h.settle();
+    const { request } = await generate(tab, 'fix');
+    expect([request.body.messageCount, tab.port.asked[0]?.request.window, request.body.coverageCheck?.window.length]).toEqual([60, 60, 60]);
+  });
+
   it('[AI-142] Reply: the snapshot of the target’s group — the window, the fan’s known ids, the deleted, the tail — and a body without `clientContext`: the group beside the fan, the window check, the known ids, the texts, a count no smaller than the window', async () => {
     const held = chatOf(80);
     const deleted = held[70] as Held;
@@ -248,6 +277,7 @@ describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as
     expect([reply.start.proof?.kind, reply.start.proof?.window.length]).toEqual(['tab-snapshot', 60]);
     expect(reply.start.proof?.kind === 'tab-snapshot' && reply.start.proof.tail).toBe(undefined);
     expect([reply.request.body.coverageCheck?.window.length, reply.request.body.liveTextContext]).toEqual([60, undefined]);
+    expect(reply.request.body.knownFanMessageIds).toBeUndefined();
 
     const older: Bootstrap = { ...BOOTSTRAP, capabilities: CLIENT_HUB_CAPABILITY_NAMES.filter((capability) => capability !== 'coverage-check-v1' && capability !== 'client-health-perf-v1') };
     const before = await fanslyTab({ bootstrap: older });
@@ -258,7 +288,7 @@ describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as
     expect(request.body.liveTextContext?.items.length).toBe(48);
   });
 
-  it('[FS-TAIL-7] no snapshot is no proof — MAIN does not answer, it answers null, the person’s windows are not read yet: the generation goes on, nothing is asked about the window', async () => {
+  it('[FS-TAIL-7] no snapshot is no proof — MAIN does not answer, it answers null, an older caller has no effective count: the generation goes on, nothing is asked about the window', async () => {
     const tab = await fanslyTab();
     // Two features: the same start twice would be the cached result, not a new request.
     for (const [feature, answer] of [
@@ -272,18 +302,19 @@ describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as
     }
     tab.port.answer = null;
     tab.port.asked.length = 0;
-    tab.windows = null;
-    const unread = await generate(tab, 'hi');
+    const identity = tab.h.host.current().identity;
+    if (identity === null) throw new Error('no identity');
+    const legacy = createFanslyAi({ now: () => NOW_MS });
+    expect(legacy.proof(tab.h.host, { feature: 'hi', surface: 'dock', identity, fresh: null })).toBeNull();
     expect(tab.port.asked).toEqual([]);
-    expect(unread.start.proof).toBeUndefined();
   });
 
   it('[FS-IDN-6] the snapshot is the route’s group of the chat the start was made in: a route that moved or names no group gives no proof, nothing is asked', async () => {
     const tab = await fanslyTab();
-    const policy = createFanslyAi({ windows: () => WINDOWS, now: () => NOW_MS });
+    const policy = createFanslyAi({ now: () => NOW_MS });
     const identity = tab.h.host.current().identity;
     if (identity === null) throw new Error('no identity');
-    const ask = { feature: 'reply' as const, surface: 'dock' as const, identity, fresh: null };
+    const ask = { feature: 'reply' as const, surface: 'dock' as const, identity, fresh: null, messageCount: 100 };
     expect(await policy.proof(tab.h.host, ask)).toMatchObject({ proof: { conversationRef: FANSLY.group } });
     expect(policy.proof(tab.h.host, { ...ask, identity: { ...identity, routeEpoch: identity.routeEpoch + 1 } })).toBeNull();
     expect(policy.proof(tab.h.host, { ...ask, identity: { ...identity, chat: { ...fanslyChat, platformFanId: '7109' } } })).toBeNull();
@@ -325,19 +356,8 @@ describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as
 describe('[host:fansly] R20 P8b1: the snapshot as the start’s proof, the window and the request (pure)', () => {
   const request = (window: number, withText = true): FreshnessRequest => ({ conversationRef: FANSLY.group, feature: 'reply', window, withText });
 
-  it('the check window of each feature by the person’s windows (FS-TAIL-1)', () => {
-    const windows: MessageWindows = { quick: 30, ping: 200, improve: 5, deep: 100 };
-    expect(Object.fromEntries((['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'recap-short', 'coach'] as const).map((feature) => [feature, checkWindowOf(feature, windows)]))).toEqual({
-      reply: 30,
-      fix: 5,
-      hi: 25,
-      ping: 60,
-      review: 60,
-      recap: 60,
-      'recap-short': 60,
-      coach: 30,
-    });
-    expect(checkWindowOf('fix', DEFAULT_SETTINGS.generation.windows)).toBe(25);
+  it.each([1, 5, 25, 40, 60, 100, 3000])('the check window of effective messageCount %i (FS-TAIL-1)', (count) => {
+    expect(checkWindowOf(count)).toBe(Math.min(60, count));
   });
 
   it('the fan’s known ids newest first, as the hub body takes them; the tail cut to the page’s limits — the newest texts, each within the limit —; no texts where the start may carry none', () => {
@@ -372,42 +392,5 @@ describe('[host:fansly] R20 P8b1: the snapshot as the start’s proof, the windo
     const plain = buildStreamRequest(withoutProof, ctx);
     if (!plain.ok) throw new Error(plain.issues);
     expect([plain.request.body.messageCount, plain.request.body.coverageCheck, plain.request.body.knownFanMessageIds, plain.request.capabilities]).toEqual([40, undefined, undefined, ['context-v1']]);
-  });
-});
-
-describe('[host:fansly] R20 P8b1: Fansly’s application half follows the person’s windows', () => {
-  it('the first read, then every change; never an older state after a newer one; nothing after its stop', async () => {
-    const tab = await fanslyTab();
-    const heard: (MessageWindows | null)[] = [];
-    const life = { aborted: false };
-    const stop = followWindows(tab.h.bg.rpc(TAB), life, (windows) => heard.push(windows));
-    await tab.h.settle();
-    expect(heard).toEqual([WINDOWS]);
-    tab.h.bg.changeSettings({ generation: { windows: { improve: 40 } } });
-    await tab.h.settle();
-    expect(heard).toEqual([WINDOWS, { ...WINDOWS, improve: 40 }]);
-    stop();
-    tab.h.bg.changeSettings({ generation: { windows: { improve: 50 } } });
-    await tab.h.settle();
-    expect(heard.length).toBe(2);
-    // A late first read never undoes a newer change.
-    const late: MessageWindows[] = [];
-    const rpc = tab.h.bg.rpc(TAB);
-    const listeners: ((state: SettingsState) => void)[] = [];
-    const first: (() => void)[] = [];
-    const slow = {
-      onEvent: (type: string, listener: (state: SettingsState) => void) => {
-        if (type === 'settings.changed') listeners.push(listener);
-        return () => undefined;
-      },
-      // The first read answers only after a newer change was heard.
-      request: () => new Promise((resolve) => first.push(() => void rpc.request('settings.get', {}).then(resolve))),
-    } as unknown as Parameters<typeof followWindows>[0];
-    followWindows(slow, life, (windows) => late.push(windows));
-    const newer: SettingsState = { settings: { ...SETTINGS, generation: { ...SETTINGS.generation, windows: { ...WINDOWS, ping: 7 } } }, revision: 99, readOnly: false };
-    for (const listener of listeners) listener(newer);
-    for (const answer of first) answer();
-    await tab.h.settle();
-    expect(late).toEqual([{ ...WINDOWS, ping: 7 }]);
   });
 });

@@ -24,7 +24,7 @@ import { type SettingsV1 } from '@cg/contracts/settings';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
 import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
-import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript, type GateFacts } from '../../domain/features';
+import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, windowFor, type FanScript, type GateFacts } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
 import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
@@ -709,7 +709,7 @@ export class AiWorkspace {
     // fresh text. A proof that fails is no proof: the start goes on without one.
     let proof: unknown = null;
     try {
-      const pending = policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits });
+      const pending = policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits, messageCount: windowFor(feature, request.options.window, ready.settings, ready.bootstrap) });
       if (pending !== null) proof = await pending;
     } catch {
       proof = null;

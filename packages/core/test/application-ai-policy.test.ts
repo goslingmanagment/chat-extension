@@ -135,7 +135,7 @@ describe('R20 F10, ChatSpace: the controller reaches ChatSpace’s behaviour thr
     const receipt = await h.generate('reply');
     if (!receipt.ok || receipt.opId === undefined) throw new Error('not started');
     await h.finish();
-    expect(callsTo(calls, 'proof')).toEqual([[h.host, { feature: 'reply', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 } }]]);
+    expect(callsTo(calls, 'proof')).toEqual([[h.host, { feature: 'reply', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 }, messageCount: 100 }]]);
     expect(h.host.reads.tail).toBeGreaterThanOrEqual(1);
     expect(callsTo(calls, 'fields')).toEqual([[TAIL]]);
     expect(callsTo(calls, 'fingerprint')).toEqual([[TAIL]]);
@@ -201,7 +201,7 @@ describe('R20 F10: a second site’s policy decides through the same controller 
     // The stand's chat shows forty messages: ChatSpace would not offer Hi; the second site has not proven anything yet.
     expect(h.dock().actions.hi).toMatchObject({ enabled: true, reason: null });
     expect(await h.generate('hi')).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
-    expect(asked).toEqual([{ feature: 'hi', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 } }]);
+    expect(asked).toEqual([{ feature: 'hi', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 }, messageCount: 25 }]);
     expect(h.bg.callsOf('token.issue')).toEqual([]);
     expect(h.bg.callsOf('op.start')).toEqual([]);
 
@@ -223,7 +223,7 @@ describe('R20 F10: a second site’s policy decides through the same controller 
     const h = await start({ policy: secondSite((ask) => (asked.push(ask), Promise.resolve({ personal: 0, windowIds: ['4001'] }))) });
     h.script(h.streamOf('chat-review', ['Оценка: 7/10']));
     expect(await h.generate('review')).toMatchObject({ ok: true, outcome: 'started' });
-    expect(asked).toEqual([{ feature: 'review', surface: 'dock', identity: h.host.current().identity, fresh: null }]);
+    expect(asked).toEqual([{ feature: 'review', surface: 'dock', identity: h.host.current().identity, fresh: null, messageCount: 3000 }]);
   });
 
   it('a proof that fails is no proof: the start goes on, nothing is kept, and the verdict is asked with none', async () => {

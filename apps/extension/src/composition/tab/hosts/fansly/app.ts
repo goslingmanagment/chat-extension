@@ -16,13 +16,11 @@
 // - Its AI policy (§1.6, F10; R20 P8b1): Fansly's own chunk `ai-fansly`,
 //   loaded with the dock — every start's proof is MAIN's generation snapshot
 //   (the window check, the fan's known ids, the deletions, a draft's texts),
-//   its window cut by the person's message windows, which the application
-//   half follows from its start (`followWindows`).
+//   its window cut by the effective messageCount of that start.
 // - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`.
 
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
-import { followWindows, type MessageWindows } from '@cg/core/application/hosts/fansly/ai';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanslyPaletteSignal } from '@cg/host-fansly/isolated/palette';
@@ -80,29 +78,18 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
 }
 
 /**
- * The application's half of Fansly's adapter. Its AI policy and its start share what the tab heard of the person's
- * message windows: the policy cuts a start's check window by them (FS-TAIL-1), the start follows them for as long as
- * the application lives. Until the first read the policy gathers no proof («свежесть не проверена», FS-TAIL-7).
+ * The application's half of Fansly's adapter. Its AI policy takes each start's effective count from the shared
+ * controller (FS-TAIL-1); settings are owned and refreshed by the tab environment alone.
  */
 export function fanslyApp(): HostAppAdapter<FanslyPort, null> {
-  let windows: MessageWindows | null = null;
   return {
     liveConfigOf: () => null,
     configure: () => Promise.resolve(),
     features: FANSLY_FEATURE_SLICE,
     contract: FANSLY_CONTRACT,
     ui: (theme) => fanslyUi(theme),
-    ai: (lazy) => lazy<typeof AiChunk>('ai-fansly').then((chunk) => chunk.createFanslyAi({ windows: () => windows, now: () => Date.now() })),
-    start: (env) => {
-      const offWindows = followWindows(env.rpc, env.life, (next) => {
-        windows = next;
-      });
-      const offSurfaces = startFanslySurfaces(env);
-      return () => {
-        offWindows();
-        offSurfaces();
-      };
-    },
+    ai: (lazy) => lazy<typeof AiChunk>('ai-fansly').then((chunk) => chunk.createFanslyAi({ now: () => Date.now() })),
+    start: (env) => startFanslySurfaces(env),
   };
 }
 
