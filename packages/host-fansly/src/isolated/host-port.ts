@@ -26,8 +26,11 @@
 //   synchronous step from its last check (insert.ts, FS-INS-1); «Открыть и
 //   вставить» opens the target's group and writes once its own field is there
 //   (navigate.ts, FS-INS-4). The insertion record is what a human send is
-//   linked to (`insertion`, `sentDraft`; P7f). `checkpoint` and `previewSend`
+//   linked to (`insertion`, `sentDraft`). `checkpoint` and `previewSend`
 //   are ChatSpace's X8 and do not exist here.
+// - The person's send (R20 P7f): the draft is read at the person's own Enter
+//   or Send click in the field the port owns, and MAIN's `fx.sent` for that
+//   gesture is linked to it — the port says `humanSend` (send-observe.ts).
 // - `fansly` (FanslyPagePort): the header slot is said from the anchors (its
 //   mount is P7d's and P11a's); a file into the field (P12c), the vault (P13b)
 //   and the relay (P9c) are refused until then.
@@ -61,6 +64,7 @@ import type { Coexistence } from './legacy';
 import type { FanslyMounts } from './mount';
 import { createNavigator, type NavigationWay } from './navigate';
 import type { FanslyRoute, RouteStats, RouteWatcher } from './route';
+import { createSendObserver, type SendObserveStats } from './send-observe';
 import type { FanslyTheme } from './theme';
 import { consumeStream, type StreamStats } from './stream';
 import type { ValidationLoader } from './validation';
@@ -85,6 +89,8 @@ export interface FanslyIsolatedHealth {
   readonly stream: StreamStats | null;
   /** `fx.chat` answers dropped as of another route epoch or group (FS-RTE-4). */
   readonly staleChats: number;
+  /** The person's gestures read and MAIN's `fx.sent` linked to them, or not (P7f). */
+  readonly sends: SendObserveStats;
 }
 
 /** A fact of the vault from MAIN's stream (§7.11): an addition to an album, an album the page loaded. */
@@ -241,6 +247,21 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     for (const listener of [...eventListeners]) listener(event);
   };
 
+  /** The person's send (§5.9 п. 7): the draft read at the gesture in the field this port owns, linked to MAIN's `fx.sent`. */
+  const sends = createSendObserver({
+    win,
+    field: () => composerField.element(),
+    draft: () => composerField.sentDraft(),
+    chat: () => {
+      const chat = routeState.chat;
+      const groupId = routeState.conversationRef;
+      return chat === null || groupId === undefined ? null : { chat, groupId };
+    },
+    now: clock,
+    said: (fact) => emit({ type: 'humanSend', fact }),
+    onDiagnostic: diag,
+  });
+
   function compute(): FanslyContractReport {
     return buildFanslyReport({ blocked: options.coexistence?.reason() ?? null, bridge: bridge !== null, wire: network, creator: creator !== null, observation, dom, build, adapterVersion, checkedAt: clock() });
   }
@@ -369,6 +390,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       chatWire = null;
       creatorChanges += 1;
       generation.advance();
+      sends.reset();
     }
     creator = next;
     logins += 1;
@@ -430,13 +452,15 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         if (event.t === 'fx.vaultLoaded' && (vaultLoad === null || event.p.seq > vaultLoad.seq)) vaultLoad = event.p;
         for (const listener of [...vaultListeners]) listener(event);
         return;
-      // The stream's other facts — new messages, follows, coverage, deletions, sends — are taken by the work packages
-      // that act on them (P8b1, P14a, P7f); here they are acknowledged with their batch.
+      // The person's send, proven by MAIN: linked to the draft read at its gesture (P7f).
+      case 'fx.sent':
+        return sends.sent(event.p);
+      // The stream's other facts — new messages, follows, coverage, deletions — are taken by the work packages that act
+      // on them (P8b1, P14a); here they are acknowledged with their batch.
       case 'fx.incoming':
       case 'fx.follow':
       case 'fx.coverage':
       case 'fx.deleted':
-      case 'fx.sent':
         return;
     }
   };
@@ -601,6 +625,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     offRoute();
     offAnchors();
     navigator.dispose();
+    sends.dispose();
     composerField.dispose();
     route.dispose();
     anchors.dispose();
@@ -673,7 +698,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     },
     async health() {
       const main = bridge === null || disposed ? null : await bridge.request('fx.health', {}).catch(() => null);
-      return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats }, main };
+      return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats, sends: sends.stats() }, main };
     },
     vault: {
       album: () => vaultLoad,

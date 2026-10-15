@@ -14,7 +14,8 @@
 //   counts. And its writes (P7e): the insert built the way the dock builds
 //   it, «Открыть и вставить», the insertion record; the background's
 //   `token.redeem` is a stand-in that says yes unless the spec turns it off.
-//   Texts only of the spec's own drafts.
+//   And the person's sends the port linked to a draft (P7f, `humanSend`: ids,
+//   digests, the draft's link — no text). Texts only of the spec's own drafts.
 //   Over that port, the vault's uploader (R20 P13a,
 //   `@cg/host-fansly/isolated/vault`) as the vault's panel will run it: a run
 //   of files the spec names, its checkpoints kept here in memory.
@@ -26,7 +27,7 @@
 
 import type { FanslyBatch, FanslyHealth, FanslyState } from '@cg/contracts/bridge-messages-fansly';
 import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
-import type { HostEvent, InsertIntent, InsertReceipt, InsertWire, NavigationReceipt } from '@cg/contracts/host';
+import type { HostEvent, HumanSendFact, InsertIntent, InsertReceipt, InsertWire, NavigationReceipt } from '@cg/contracts/host';
 import type { DraftSnapshot, HostIdentity } from '@cg/contracts/ids';
 import { connectFanslyMain, startFanslyTab, type FanslyDiagnostic, type FanslyMainBridgeClient, type FanslyPort, type StartedFanslyTab } from '@cg/host-fansly/isolated';
 import * as validation from '@cg/host-fansly/isolated/validation';
@@ -75,6 +76,8 @@ let started: StartedFanslyTab | null = null;
 let port: FanslyPort | null = null;
 /** What the port said, in order: the event's type and, for a route, its epoch and group — no text, no fan. */
 const said: Array<{ readonly type: HostEvent['type']; readonly epoch?: number; readonly group?: string | null }> = [];
+/** The person's sends the port linked (P7f): what the tab would report (`op.reportSent`). */
+const humanSends: HumanSendFact[] = [];
 const diagnostics: FanslyDiagnostic[] = [];
 const TOKEN = 'tok_e2e_fansly_harness_0';
 let redeemAllowed = true;
@@ -100,7 +103,10 @@ if (consumer === 'port') {
   started.host.then(
     (ready) => {
       port = ready;
-      ready.subscribe((event) => said.push(event.type === 'route' ? { type: 'route', epoch: event.route.epoch, group: event.route.conversationRef ?? null } : { type: event.type }));
+      ready.subscribe((event) => {
+        said.push(event.type === 'route' ? { type: 'route', epoch: event.route.epoch, group: event.route.conversationRef ?? null } : { type: event.type });
+        if (event.type === 'humanSend') humanSends.push(event.fact);
+      });
     },
     (error: unknown) => (failure = String(error)),
   );
@@ -317,6 +323,8 @@ const methods: Record<string, (...args: never[]) => unknown> = {
   navigation: (id: string) => navigations.get(id) ?? null,
   /** The record of our last write (no text: digests and ids) and the draft as a send would carry it. */
   insertion: () => ({ record: needPort().insertion(), sent: needPort().sentDraft() }),
+  /** The person's sends the port linked to a draft (P7f), from the `from`-th on. */
+  humanSends: (from = 0) => humanSends.slice(from),
   /**
    * The race (§12 «200 быстрых переключений»): an insert aimed at the open chat goes out unawaited; the person clicks
    * another chat's inbox row first (every third time), or a microtask, a frame or two frames into the insert's way.

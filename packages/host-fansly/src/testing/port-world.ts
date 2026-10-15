@@ -8,6 +8,7 @@
 // the selection and fires `beforeinput` and `input` as Firefox does — or, on
 // request, does nothing, half of it, or writes with no event.
 
+import type { FromMainFansly } from '@cg/contracts/bridge-messages-fansly';
 import { fanslyChatWire, fanslyIdentityWire } from '@cg/contracts/fixtures';
 import type { HostEvent, InsertIntent, InsertWire, NavigationIntent } from '@cg/contracts/host';
 import type { DraftSnapshot, HostIdentity } from '@cg/contracts/ids';
@@ -95,6 +96,8 @@ export interface World {
   holdRedeem(): () => void;
   /** MAIN stops naming fans for a while (its answer waits), or names them again. */
   holdChats(held: boolean): void;
+  /** MAIN's next batch, with these events (the stream's facts: `fx.sent`, P7f). */
+  main(...events: FromMainFansly[]): void;
   identity(): HostIdentity;
   draft(): Promise<DraftSnapshot>;
   /** An open intent from a draft read (now, or one read before); its consent when asked for. */
@@ -180,6 +183,10 @@ export async function startWorld(path: string, options: WorldOptions): Promise<W
     holdChats(next) {
       held = next;
       if (!held) for (const name of waiting.splice(0)) name();
+    },
+    main(...events) {
+      batch += 1;
+      main.batch(batch, ...events);
     },
     identity,
     draft: () => port.readDraft(identity()),

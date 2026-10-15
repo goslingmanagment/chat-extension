@@ -8,7 +8,8 @@
 // - Next to the FBuddy-like neighbour in every mode (X34: FBuddy runs for
 //   every chatter): the page reads the same frames we do, the neighbour's hook
 //   and the server see the same answers we do, and its word filter still
-//   swallows a send.
+//   swallows a send — and, since P7f, only the clean send that follows is
+//   `fx.sent`.
 // - A new socket, a damaged frame, a package; a late install (the neighbour
 //   `before`, MAIN injected after the page began): every chat unknown with
 //   its reason.
@@ -272,8 +273,14 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
     await browser.keys(Key.Enter);
     await waitFor(async () => (await fake.calls('page', since)).some((entry) => entry.route === 'message.send' && entry.status === 200), 'the clean send');
     await sameAnswers(before, since, 'our answers and the server’s, the clean send');
-    // Its echo is an fx.incoming of the creator; no `sent` before P7f, and never one without a gesture's receipt.
-    expect((await events()).map((event) => event.t)).not.toContain('fx.sent');
+    // [FS-SEND-2] The swallowed send started no request, so no gesture's receipt — no `sent`; the clean one, its
+    // receipt and its echo, is the one `fx.sent` (P7f): the newest message of the chat, the creator's own.
+    const sentEvents = await waitForTap(async () => (await events()).filter((event) => event.t === 'fx.sent'), (list) => list.length > 0, 'the clean send’s fx.sent');
+    await browser.pause(300);
+    const echo = (await events()).filter((event) => event.t === 'fx.incoming' && event.p['groupId'] === group && event.p['fromFan'] === false).at(-1);
+    expect((await events()).filter((event) => event.t === 'fx.sent')).toEqual(sentEvents);
+    expect(sentEvents.map((event) => event.p)).toEqual([{ groupId: group, msgId: echo?.p['msgId'], contentDigest: expect.stringMatching(/^[0-9a-f]{16}$/) as unknown }]);
+    expect((await health()).sends).toMatchObject({ gestures: 2, receipts: 1, sent: 1 });
   });
 
   it('[SN-020] [FS-WS-5] [FS-WS-2] a new socket and its end, a damaged frame, a package: every chat unknown with its reason, the rest read on', async () => {

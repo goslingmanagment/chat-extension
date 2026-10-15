@@ -12,9 +12,11 @@
 // leaves the window, the freshness and the insert off the same way — the
 // honest «not yet»: the insert needs the open chat as MAIN names it, and the
 // field where the chain says (R20 P7e); «Открыть и вставить» needs the
-// creator. What only later work packages bring is `off` with the same code
-// and its own name as the reason: the send's observation (P7f), the facts of
-// new messages (P14a), the header's slot (P7d, P11a), a file into the field
+// creator. The person's send (R20 P7f) needs all of it: MAIN's creator for
+// the receipt, its socket's frames for the echo, the field for the gesture's
+// reading, the chat MAIN named. What only later work packages bring is `off`
+// with the same code and its own name as the reason: the facts of new
+// messages (P14a), the header's slot (P7d, P11a), a file into the field
 // (P12c), the vault (P13b), the relay (P9c). X8's preview send, its receipt and the cached chat list are no part
 // of Fansly (§7.7): off by design.
 //
@@ -75,6 +77,8 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
   const observed = main ?? (input.observation === 'ready' ? ON : notReady(input.observation === 'off' ? 'observation' : 'focus'));
   // The field where the chain says: a field outside it is no field to write into (FS-PLC-3: copy only).
   const field = gone(dom.container) || gone(dom.composer) || gone(dom.textarea) ? MISSING_FIELD : null;
+  // The send (§5.9): MAIN's receipt names the creator, its echo comes by the socket's frames; read at the field's gesture.
+  const sendObserve = main ?? field ?? (anchors.frames === 'shape' ? broken('frames') : identity.state !== 'on' ? identity : observed);
   const capabilities: Record<HostCapability, CapabilityState> = {
     identity,
     route: ON,
@@ -88,7 +92,7 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     freshText: off('snapshot'),
     fan: observed,
     chatList: off('chatList'),
-    sendObserve: notReady('sendObserve'),
+    sendObserve,
     incoming: notReady('incoming'),
     navigate: identity,
     // The scheme and the palette are the page's own (P8d): once Fansly's theme controller has put its class on <html>.

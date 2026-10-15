@@ -236,7 +236,8 @@ describe('[SN-020] [host:fansly] the tap’s counts and completeness (FS-WS-5)',
     const c = await connect(page());
     const socket = new c.win.WebSocket(SOCKET) as unknown as WebSocket;
     // The old extension's tap went silent on this event when both sounds were off (fansly-chat sound-relay.ts):
-    // MAIN listens to nothing on the page's window once connected — no switch of any kind reaches the tap.
+    // MAIN listens to no message or switch on the page's window once connected — only to the person's Enter and
+    // Send click (P7f, §5.9), counted apart — so no switch of any kind reaches the tap.
     expect((c.win as unknown as { listening(): number }).listening()).toBe(0);
     c.win.dispatchEvent(new CustomEvent('chatgoose:sound-arm', { detail: 'off' }));
     for (let i = 0; i < 20; i += 1) socket.receive(newMessage(`7000000000001${String(i).padStart(5, '0')}`));
