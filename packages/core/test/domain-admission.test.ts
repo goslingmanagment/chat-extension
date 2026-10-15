@@ -97,17 +97,19 @@ describe('[R20-F4] admission: absent, off, on', () => {
     }
   });
 
-  it('the master switch is the page’s blanket answer over the switches its platform has: Fansly’s own, `platform_unsupported` on an OnlyFans page since hub HF-2, do not hide it', () => {
+  it('the master switch is the page’s blanket answer on HF-15 and older HF-2 hubs', () => {
     const one = pageOf(BOOTSTRAP_ALL_OFF, PAGE_ID) as BootstrapPage;
-    // What the hub answers since HF-2 with the master switch off: the platform first, so Fansly's six are not `disabled`.
-    expect([one.features['drafts'], one.features['coach']]).toEqual([{ available: false, reason: 'platform_unsupported' }, { available: false, reason: 'disabled' }]);
+    // HF-15: master off answers disabled for every feature, including the other platform's.
+    expect([one.features['drafts'], one.features['coach']]).toEqual([{ available: false, reason: 'disabled' }, { available: false, reason: 'disabled' }]);
     expect([pageBlanketReason(one), pageSwitchedOff(one)]).toEqual(['disabled', true]);
     // A page whose features disagree has no blanket answer; nor one whose platform has none of the switches (a hub before HF-2 on Fansly).
     const mixed: BootstrapPage = { ...one, features: { ...one.features, coach: { available: false, reason: 'flag_off' } } };
     expect([pageBlanketReason(mixed), pageSwitchedOff(mixed)]).toEqual([null, false]);
     const fansly = pageOf(BOOTSTRAP_ALL_OFF, WORLD.pages.fansly.pageId) as BootstrapPage;
-    expect([fansly.features['drafts'], fansly.features['navigation']]).toEqual([{ available: false, reason: 'disabled' }, { available: false, reason: 'platform_unsupported' }]);
+    expect([fansly.features['drafts'], fansly.features['navigation']]).toEqual([{ available: false, reason: 'disabled' }, { available: false, reason: 'disabled' }]);
     expect([pageBlanketReason(fansly), pageSwitchedOff(fansly)]).toEqual(['disabled', true]);
+    const older: BootstrapPage = { ...one, features: { ...one.features, drafts: { available: false, reason: 'platform_unsupported' } } };
+    expect([pageBlanketReason(older), pageSwitchedOff(older)]).toEqual(['disabled', true]);
     const beforeHf2: BootstrapPage = { ...fansly, features: Object.fromEntries(Object.keys(fansly.features).map((flag) => [flag, { available: false, reason: 'platform_unsupported' }])) };
     expect([pageBlanketReason(beforeHf2), pageSwitchedOff(beforeHf2)]).toEqual([null, false]);
   });

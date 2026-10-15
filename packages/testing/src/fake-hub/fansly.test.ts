@@ -1,6 +1,5 @@
 // The fake hub for Fansly (R20 P6c1; docs/project-unite/plan.md, architecture
-// §11.1, §13), against the deployed hub bd3eec06 — the commit production runs
-// and the SDK is vendored from:
+// §11.1, §13), against SDK bd3eec06 and HF-15 switch order deployed at 29708c44d010:
 // - the Fansly world: the page is the stand's creator, its chats the stand's;
 //   ids are 18-digit strings above 2^53 (17 for an old account), and a chat's
 //   group is never its fan (FS-ACC-1);
@@ -14,6 +13,7 @@
 //   and refuses every request the hub refuses — through the vendored SDK's own
 //   schemas.
 
+import { NON_CHATSPACE_FEATURE_FLAGS } from '@cg/contracts/fixtures';
 import { readFileSync } from 'node:fs';
 
 import { CLIENT_FEATURE_FLAG_NAMES, CLIENT_HUB_CAPABILITY_NAMES, HUB_ERROR_STATUSES, coverageCheckVerdict, narrowCoverageCheck, type AiFeatureStreamBody, type Bootstrap, type BootstrapPage, type HubAiFeature } from '@cg/contracts';
@@ -153,21 +153,21 @@ describe('[host:fansly] the switches by platform (hub HF-2)', () => {
     expect((await bootstrapPage()).features['voice']).toEqual(OFF('flag_off'));
   });
 
-  it('every page lists every contract flag; platform_unsupported precedes the master switch, as on the deployed hub', async () => {
-    const own = ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration'];
+  it('every page lists every contract flag; HF-15 master switch precedes platform_unsupported', async () => {
+    const own = NON_CHATSPACE_FEATURE_FLAGS;
     hub.control({ op: 'config', patch: pilotPageFlags({ drafts: true, voice: true, notes: true }) });
     hub.control({ op: 'config', patch: fanslyPageFlags() });
     for (const master of [false, true]) {
       hub.control({ op: 'config', patch: { master } });
       const fansly = await bootstrapPage();
       expect(featuresOf(fansly, FANSLY_PAGE_FLAGS)).toEqual(Object.fromEntries(FANSLY_PAGE_FLAGS.map((flag) => [flag, master ? ON : OFF('disabled')])));
-      expect(featuresOf(fansly, NOT_ON_FANSLY)).toEqual(Object.fromEntries(NOT_ON_FANSLY.map((flag) => [flag, OFF('platform_unsupported')])));
+      expect(featuresOf(fansly, NOT_ON_FANSLY)).toEqual(Object.fromEntries(NOT_ON_FANSLY.map((flag) => [flag, OFF(master ? 'platform_unsupported' : 'disabled')])));
       for (const page of FAKE_PAGES) {
         const boot = await bootstrapPage(page.pageLabel);
         expect(Object.keys(boot.features)).toEqual(CLIENT_FEATURE_FLAG_NAMES);
         if (page.platform === 'onlyfans') {
-          expect(featuresOf(boot, own)).toEqual(Object.fromEntries(own.map((flag) => [flag, OFF('platform_unsupported')])));
-          expect(own.map((flag) => featureVerdict(hub.config(), page, flag))).toEqual(own.map(() => OFF('platform_unsupported')));
+          expect(featuresOf(boot, own)).toEqual(Object.fromEntries(own.map((flag) => [flag, OFF(master ? 'platform_unsupported' : 'disabled')])));
+          expect(own.map((flag) => featureVerdict(hub.config(), page, flag))).toEqual(own.map(() => OFF(master ? 'platform_unsupported' : 'disabled')));
         }
       }
     }
@@ -187,6 +187,17 @@ describe('[host:fansly] the switches by platform (hub HF-2)', () => {
     hub.control({ op: 'pageAccount', pageLabel: FANSLY, platformAccountId: WORLD.fansly.oldCreator });
     const page = await bootstrapPage();
     expect([page.platformAccountId, page.features['drafts']]).toEqual([WORLD.fansly.oldCreator, ON]);
+  });
+
+  it('HF-15: master off wins over platform admission for AI and page routes; master on restores platform_unsupported', async () => {
+    for (const master of [false, true]) {
+      hub.control({ op: 'config', patch: { master } });
+      const expected = { status: 409, error: 'client_feature_disabled', reason: master ? 'platform_unsupported' : 'disabled' };
+      // The body has a valid Fansly shape, but names a page where voice is unavailable.
+      expect(await refusal(await stream('voice-script', fanslyBody({ pageLabel: WORLD.pages.one.pageLabel, draftText: 'my draft' })))).toEqual(expected);
+      expect(await refusal(await hubCall(hub.fetch, hub.origin, 'clientAudienceNew', { pageLabel: FANSLY, windowHours: 48 }, { token }))).toEqual(expected);
+      expect(await refusal(await hubCall(hub.fetch, hub.origin, 'clientSpenderStats', { pageLabel: FANSLY, windowDays: 30, timeZone: 'UTC' }, { token }))).toEqual(expected);
+    }
   });
 
   it('the routes: Fansly’s reads wait for its own row; the hub’s list of new subscribers and the statistics are not Fansly’s', async () => {

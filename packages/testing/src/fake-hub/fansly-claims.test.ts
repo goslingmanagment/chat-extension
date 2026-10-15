@@ -105,14 +105,27 @@ describe('[host:fansly] HF-3 custody through the deployed SDK', () => {
     expect((await post(native())).greeting.state).toBe('confirmed');
   });
 
-  it('preview-reply is 409 for dispatch and native registration, even with every switch on or the master off (deployed order, not HF-15)', async () => {
+  it('HF-15: a new dispatch checks master before platform, native registration checks platform alone', async () => {
     for (const master of [true, false]) {
       hub.control({ op: 'config', patch: { master, flags: { previewSend: true }, ...fanslyPageFlags({ previewSend: true }) } });
       for (const body of [dispatch({ purpose: 'preview-reply', group: AI_GROUP }), native({ purpose: 'preview-reply', group: AI_GROUP })]) {
-        await expect(post(body)).rejects.toMatchObject(off('platform_unsupported'));
+        await expect(post(body)).rejects.toMatchObject(off(!master && body.action === 'dispatch' ? 'disabled' : 'platform_unsupported'));
       }
     }
     expect(hub.status().claims.every((row) => row.attempts.length === 0)).toBe(true);
+  });
+
+  it('HF-15: master off blocks status, claim and new dispatch, but preserves repeats and proven sends', async () => {
+    await post(lease());
+    const body = dispatch();
+    await post(body);
+    hub.control({ op: 'config', patch: { master: false } });
+    await expect(status()).rejects.toMatchObject(off('disabled'));
+    await expect(post(lease('renew'))).rejects.toMatchObject(off('disabled'));
+    await expect(post(dispatch())).rejects.toMatchObject(off('disabled'));
+    expect((await post(body)).custody).toMatchObject({ state: 'dispatching', ticket: null });
+    expect((await post(sent(body.attemptId))).greeting.state).toBe('confirmed');
+    expect((await post(native(), WORLD.fansly.twinFan)).greeting.state).toBe('confirmed');
   });
 
   it('OnlyFans refuses manual groups for dispatch and native registration', async () => {

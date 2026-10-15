@@ -14,8 +14,9 @@
 //
 // Contracts 1.15.0 (R20 P4b3) put Fansly's own six switches into the shared vocabulary. The table below is
 // ChatSpace's: the sixteen switches it had, the only ones that exist on an OnlyFans page — each reads exactly as it
-// did; Fansly's six read `platform_unsupported` on every ChatSpace page of every hub, and no ChatSpace feature asks one.
+// did; no ChatSpace feature asks a flag outside its allowlist (master off still disables every flag, HF-15).
 
+import { NON_CHATSPACE_FEATURE_FLAGS } from '@cg/contracts/fixtures';
 import {
   BootstrapSchema,
   CLIENT_FEATURE_FLAG_NAMES,
@@ -24,11 +25,10 @@ import {
   hasCapability,
   type Bootstrap,
   type BootstrapPage,
-  type ClientFeatureFlag,
   type ClientHubCapability,
   type FeatureId,
 } from '@cg/contracts';
-import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
+import { CHATSPACE_FEATURE_FLAGS, CHATSPACE_FEATURES, type ChatSpaceFeatureFlag } from '@cg/contracts/features/chatspace';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { admission, admissionState, featureKeyOf, featureSlice, freshTextAdmitted, onPage } from '@cg/core/domain/features';
 import { flagStateOf, pageFlagState, type FlagState } from '@cg/core/domain/ops';
@@ -41,9 +41,9 @@ import type { BootstrapPresetName } from './types';
 // ── the rule as it was on main before F4 (f5a360f) ─────────────────────────
 
 /** Fansly's own switches (contracts 1.15.0, P4b3): on an OnlyFans page none of them exists (hub HF-2). */
-const FANSLY_FLAGS = ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration'] as const satisfies readonly ClientFeatureFlag[];
+const FANSLY_FLAGS = NON_CHATSPACE_FEATURE_FLAGS;
 /** The switches ChatSpace had before F4 — and still the only ones an OnlyFans page has. */
-type ChatSpaceFlag = Exclude<ClientFeatureFlag, (typeof FANSLY_FLAGS)[number]>;
+type ChatSpaceFlag = ChatSpaceFeatureFlag;
 
 /** `CLIENT_FLAG_REQUIREMENTS[flag].capabilities` of contracts/src/hub/routes.ts before F4, word for word. */
 const BEFORE_FLAG_CAPABILITIES: Readonly<Record<ChatSpaceFlag, readonly ClientHubCapability[]>> = {
@@ -66,7 +66,7 @@ const BEFORE_FLAG_CAPABILITIES: Readonly<Record<ChatSpaceFlag, readonly ClientHu
 };
 
 /** ChatSpace's switches, in the vocabulary's order. */
-const CHATSPACE_FLAGS: readonly ChatSpaceFlag[] = CLIENT_FEATURE_FLAG_NAMES.filter((flag): flag is ChatSpaceFlag => flag in BEFORE_FLAG_CAPABILITIES);
+const CHATSPACE_FLAGS = CHATSPACE_FEATURE_FLAGS;
 
 /** `FEATURE_FLAGS` of core/src/domain/ops/environment.ts before F4 (and `FEATURE_POLICIES[feature].flag`, its double). */
 const BEFORE_FEATURE_FLAGS: Readonly<Record<FeatureId, ChatSpaceFlag | null>> = { reply: null, fix: null, hi: null, ping: null, review: 'review', recap: 'recap', 'recap-short': 'recap', coach: 'coach' };
@@ -160,7 +160,7 @@ describe('[R20-F4] the ChatSpace table of switches on today’s hub is the same 
     for (const { name, bootstrap } of HUBS) {
       expect(bootstrap.pages.filter((page) => page.platform === 'onlyfans')).toHaveLength(2);
       for (const page of bootstrap.pages.filter((candidate) => candidate.platform === 'onlyfans')) {
-        for (const flag of FANSLY_FLAGS) expect(pageFlagState(page, flag), `${name} · ${page.pageLabel} · ${flag}`).toEqual({ usable: false, reason: 'platform_unsupported' });
+        for (const flag of FANSLY_FLAGS) expect(pageFlagState(page, flag), `${name} · ${page.pageLabel} · ${flag}`).toEqual({ usable: false, reason: page.features['insertion']?.reason === 'disabled' ? 'disabled' : 'platform_unsupported' });
       }
     }
     // Even an owner who writes them into the pilot pages' rows and into `"*"` switches nothing on there.

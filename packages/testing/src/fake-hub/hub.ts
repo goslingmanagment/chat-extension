@@ -11,7 +11,7 @@
 // narrow-token allow-list → wire → facade request → schema → script → model
 // checks (deployed, page granted, flag) → model. Every call is journaled.
 //
-// R20 P6c1: Fansly as the deployed hub (bd3eec06) serves it — the switches by
+// R20 P6c1: Fansly per SDK bd3eec06, with HF-15 master-first admission — the switches by
 // platform (HF-2: a Fansly page by its own row alone), the narrow token's AI
 // switch by platform (HF-12), the pair `groupId ↔ fanRef` against the page's
 // capture (HF-9) for a generation and a read, the transcript of a Fansly
@@ -634,6 +634,7 @@ export class FakeHub {
     // A page the hub does not know, or one not granted to the caller: 404 either way (the hub never tells them apart).
     if (pageLabel !== null && (page === null || (principal !== null && !this.granted(principal.user.userId, page)))) return refuse({ ...record, servedBy: 'check' }, 'not_found');
     if (spec.flag !== null && page !== null) {
+      if (!s.config.master) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'disabled');
       const part = ROUTE_PARTS[route];
       if (part !== undefined && !(hubFeatureNeedsOn(spec.flag, page.platform)?.capabilities.includes(part) ?? false)) {
         return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
@@ -643,9 +644,9 @@ export class FakeHub {
     }
     // HF-3/HF-2: status exists where at least one send is admitted. Each POST checks its own action;
     // release/sent/failed need the grant alone, a dispatch checks admission only after its repeat check.
-    if (route === 'clientFanClaimStatus' && page !== null && !custodyExistsOn(page.platform)) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
     // The claim status has no flag of its own, but the hub's master switch refuses it (hub `requireClientPage`).
     if (route === 'clientFanClaimStatus' && !s.config.master) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'disabled');
+    if (route === 'clientFanClaimStatus' && page !== null && !custodyExistsOn(page.platform)) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
 
     let outcome: Outcome;
     try {
@@ -819,9 +820,10 @@ export class FakeHub {
   }
 
   private claimContext(page: FakePage, principal: Principal): ClaimContext {
-    const { limits, configRevision } = this.state.config;
+    const { limits, configRevision, master } = this.state.config;
     return {
       platform: page.platform,
+      master,
       now: this.clock.now(),
       userId: principal.user.userId,
       leaseSec: limits.claimLeaseSec,
@@ -945,17 +947,18 @@ export class FakeHub {
     const s = this.state;
     const refusal = (error: HubErrorCode | (string & {}), reason?: string): Outcome => ({ kind: 'refuse', refusal: reason === undefined ? { error } : { error, reason } });
     const { body, feature } = request;
-    // H-3: the narrow token's AI switch, by the platform the body names (hub client-ai-switch.ts): a feature the
+    // H-3 / HF-15: master first, then the narrow token's AI switch by the platform the body names (hub client-ai-switch.ts): a feature the
     // extension does not have there is `platform_unsupported`; one behind a flag — Coach, Recap, Review everywhere,
     // and on Fansly Reply, Fix, Hi and Ping behind `drafts` (R20 HF-12) — answers as that flag on the page; any other
-    // waits for the master switch alone.
+    // needs no further switch.
     if (principal.token.client !== null) {
+      if (!s.config.master) return refusal('client_feature_disabled', 'disabled');
       if (!aiFeatureExistsOn(feature, body.platform)) return refusal('client_feature_disabled', 'platform_unsupported');
       const flag = aiFeatureFlag(feature, body.platform, (name, platform) => hubFeatureNeedsOn(name, platform) !== undefined);
       if (flag !== null) {
         const verdict = featureVerdict(s.config, page, flag);
         if (!verdict.available) return refusal('client_feature_disabled', verdict.reason ?? 'flag_off');
-      } else if (!s.config.master) return refusal('client_feature_disabled', 'disabled');
+      }
     }
     // The hub's access check: a body naming another platform than its page's finds no page (404, as one not granted).
     if (body.platform !== page.platform) return refusal('not_found');

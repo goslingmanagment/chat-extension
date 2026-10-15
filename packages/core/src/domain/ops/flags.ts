@@ -88,8 +88,8 @@ export function flagsOnSomePage(bootstrap: Bootstrap | null): Record<ClientFeatu
 }
 
 /**
- * How far a page got in the hub's own order of checks (platform → master switch → flag → binding → what the
- * hub serves → the hub's lane the feature runs on): the further, the closer the switch is to being usable there.
+ * Prefer the most useful page reason: master off beats platform_unsupported on older hubs (before HF-15).
+ * Otherwise later checks (flag → binding → what the hub serves → its lane) are closer to being usable.
  * `lane_off` (1.15.0, hub HF-4б) is the bootstrap's last word: it is said only of a feature everything else
  * admitted.
  */
@@ -128,10 +128,8 @@ export function starFlag(bootstrap: Bootstrap | null, flag: ClientFeatureFlag): 
  * The one reason every feature a page lists is unavailable for, or null: a blanket answer of the hub about the
  * whole page (its features disagree, or one is available — no blanket reason).
  *
- * Only the features the page's platform has are asked. Since hub HF-2 (R20; contracts 1.15.0) a page lists every
- * switch of the vocabulary, and one its platform does not have reads `platform_unsupported` before anything else —
- * Fansly's own six on an OnlyFans page, ChatSpace's own on a Fansly page — whatever the master switch says; counted,
- * they would hide the master switch on every page.
+ * HF-15: master off makes every listed feature `disabled`, even outside its platform. Older hubs (HF-2)
+ * answered `platform_unsupported` first; ignore those entries so their blanket master reason still works too.
  */
 export function pageBlanketReason(page: BootstrapPage | null | undefined): string | null {
   if (page === null || page === undefined) return null;

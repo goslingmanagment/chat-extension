@@ -16,6 +16,16 @@ export const NATIVE_ID_PATTERN = /^[1-9]\d{0,29}$/;
 export const NativeIdSchema = z.string().check(z.regex(NATIVE_ID_PATTERN));
 export type NativeId = z.infer<typeof NativeIdSchema>;
 
+/** Canonical decimal ids (no leading zero): length, then lexical order, without losing precision. */
+export function compareNativeIds(a: string, b: string): number {
+  return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+}
+
+/** Strictly ascending canonical ids, without duplicates. */
+export function nativeIdsAscending(ids: readonly string[]): boolean {
+  return ids.every((id, i) => i === 0 || compareNativeIds(ids[i - 1] as string, id) < 0);
+}
+
 /** Hub integer ids (pageId, userId): positive safe integers. */
 export const HubIntIdSchema = z.int().check(z.gte(1));
 export type HubIntId = z.infer<typeof HubIntIdSchema>;

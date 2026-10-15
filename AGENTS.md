@@ -98,7 +98,8 @@ a boundary you need to cross is a design question, not a lint exception.
 
 - `pnpm install --frozen-lockfile` — Node 26, pnpm 10.33.1 (no corepack).
 - `pnpm rebase:main` — fetch/rebase a clean branch on main, resolve only pins/coverage
-  conflicts, install, build and commit regenerated files. Set `CG_HEAVY_RUN` to the shared
+  conflicts, restore coverage to fetched main's version, install, build and commit regenerated pins.
+  PRs never commit their own coverage report; the coordinator refreshes it on main. Set `CG_HEAVY_RUN` to the shared
   lock executable for install/build (unset: direct). Other conflicts stop: resolve, finish
   the rebase and rerun.
 - `pnpm check` — typecheck, lint, test, build, webext-lint, size, gates,
@@ -150,7 +151,9 @@ a boundary you need to cross is a design question, not a lint exception.
   start and names that container. Wait, or give the run a volume of its own:
   `CG_E2E_VOLUME=<own name>` (the default is `cg-e2e-local`).
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.{json,md}`: which parity
-  rows a test names. Name the row in the test title: `it('[ST-042] …')`.
+  rows a test names. PRs do not commit these reports: the coordinator refreshes them on main.
+  For local inspection you may generate them, then restore both files before committing.
+  Name the row in the test title: `it('[ST-042] …')`.
   On Fansly a test closes a row only on its host (its path, or `[host:fansly]`
   in a title of shared code) and at its level; `pnpm parity` fails on an open
   row of a done R20 PR — add `docs/project-unite/done/<PR id>` in your diff

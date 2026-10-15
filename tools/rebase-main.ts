@@ -4,11 +4,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const GENERATED = [
-  'tools/gates/chatspace-bytes.json',
-  'docs/parity/coverage.json',
-  'docs/parity/coverage.md',
-];
+const COVERAGE = ['docs/parity/coverage.json', 'docs/parity/coverage.md'];
+const GENERATED = ['tools/gates/chatspace-bytes.json', ...COVERAGE];
 const splitPaths = (text: string): string[] => text.split('\0').filter(Boolean);
 
 function rebaseMain(): void {
@@ -62,7 +59,14 @@ function rebaseMain(): void {
     status = rebase(['--continue']);
   }
 
-  for (const args of [['install', '--frozen-lockfile'], ['build'], ['gates:bytes'], ['parity:coverage']]) {
+  // The report belongs to main, even when a branch-only edit replayed without a conflict.
+  for (const path of COVERAGE) {
+    if (git('ls-tree', '--name-only', '-z', main, '--', path) === '') {
+      if (git('ls-files', '-z', '--', path) !== '') git('rm', '--', path);
+    } else git('restore', '--source', main, '--staged', '--worktree', '--', path);
+  }
+
+  for (const args of [['install', '--frozen-lockfile'], ['build'], ['gates:bytes']]) {
     const heavy = args[0] === 'install' || args[0] === 'build';
     const env = args[0] === 'install' ? { ...process.env, CI: 'true' } : process.env;
     if (heavy && heavyRun) checked(heavyRun, ['pnpm', ...args], env);
@@ -76,8 +80,9 @@ function rebaseMain(): void {
     console.log('rebase:main: generated files are current; no regeneration commit.');
     return;
   }
-  git('add', '-A', '--', ...changed);
-  checked('git', ['commit', '--only', '-m', `chore(gates): regenerate pins and coverage after rebasing on ${main}`, '--', ...changed]);
+  const unstaged = changed.filter((path) => git('ls-files', '-z', '--', path) !== '' || existsSync(resolve(cwd, path)));
+  if (unstaged.length > 0) git('add', '-A', '--', ...unstaged);
+  checked('git', ['commit', '--only', '-m', `chore(gates): regenerate pins after rebasing on ${main}; the coverage report stays main's`, '--', ...changed]);
 }
 
 try {

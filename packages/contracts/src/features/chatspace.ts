@@ -18,12 +18,13 @@ import type { ClientFeatureFlag } from '../hub/wire';
 import type { SiteFeatures } from './common';
 import type { Requirement } from './types';
 
-/**
- * The switches ChatSpace's file may name: the shared vocabulary without Fansly's own six, which it holds since
- * contracts 1.15.0 (P4b3) and which do not exist on an OnlyFans page (hub HF-2). A type only: the compiler keeps
- * them out of this file, and a ChatSpace bundle carries none of them.
- */
-export type ChatSpaceFeatureFlag = Exclude<ClientFeatureFlag, 'drafts' | 'voice' | 'notesFill' | 'notes' | 'vault' | 'registration'>;
+/** Explicit admission: a new shared or site-only flag must be opted into ChatSpace. */
+export const CHATSPACE_FEATURE_FLAGS = [
+  'insertion', 'freshText', 'newcomers', 'spenders', 'stats', 'preview', 'previewSend',
+  'previewSendMarkAiGenerated', 'fanPanel', 'navigation', 'wsTap', 'sound', 'coach',
+  'recap', 'review', 'splitAll',
+] as const satisfies readonly ClientFeatureFlag[];
+export type ChatSpaceFeatureFlag = (typeof CHATSPACE_FEATURE_FLAGS)[number];
 
 type Req = Requirement<ChatSpaceFeatureFlag>;
 

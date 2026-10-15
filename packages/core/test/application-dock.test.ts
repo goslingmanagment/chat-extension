@@ -4,6 +4,7 @@
 // Split, the stream, parts, inserts with Б2 and Fix, copy, cache hits, the
 // refusal list, the stale mark, the debug footer, telemetry hooks, hotkeys.
 
+import { NON_CHATSPACE_FEATURE_FLAGS } from '@cg/contracts/fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, OP_LIMITS, UI_TEXT_KEYS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
@@ -3020,7 +3021,7 @@ describe('[R20-F4] dock: the bar’s chips as data — the site’s slice of the
 
   it('Fansly’s slice on a page whose hub lists no `drafts`: the drafts are off with the switch’s reason, the analysis follows its own switches; 🎙 is its feature’s PR to draw', async () => {
     // A hub before HF-2 lists none of Fansly's own switches (the fake hub's pages answer them `platform_unsupported` since contracts 1.15.0).
-    const fanslyOwn: readonly string[] = ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration'];
+    const fanslyOwn: readonly string[] = NON_CHATSPACE_FEATURE_FLAGS;
     const older: Bootstrap = {
       ...BOOTSTRAP_PILOT_PAGES,
       pages: BOOTSTRAP_PILOT_PAGES.pages.map((page) => ({ ...page, features: Object.fromEntries(Object.entries(page.features).filter(([flag]) => !fanslyOwn.includes(flag))) })),
