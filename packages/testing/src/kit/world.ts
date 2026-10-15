@@ -34,7 +34,8 @@ export interface KitWorld {
 export function kitWorld(scenario: string | AppClientScenario = 'gallery-ready', language?: Locale, phrases: SitePhrases = CHATSPACE_PHRASES): KitWorld {
   const chosen = typeof scenario === 'string' ? scenarioById(scenario) : scenario;
   const lang = language ?? chosen.language;
-  const ctx = ctxOf({ lang, platform: chosen.platform, debug: chosen.debug });
+  // What a gallery writes out itself (an error's texts) names the site it draws too.
+  const ctx = ctxOf({ lang, platform: chosen.platform, debug: chosen.debug, ...(phrases === CHATSPACE_PHRASES ? {} : { phrases }) });
   const client = new FakeAppClient(chosen, (selector) => fallbackView(ctx, selector));
   const fake = createFakeMountDeps(client, ctx);
   const deps: KitDeps = { ...fake, i18n: createI18n({ language: lang, now: () => client.now(), timeZone: 'UTC', phrases }) };

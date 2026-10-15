@@ -16,6 +16,8 @@ import {
   type ReviewVM,
   type ToastVM,
 } from '@cg/contracts';
+import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
+import { type SitePhrases } from '@cg/core/domain/i18n';
 
 import {
   FANS,
@@ -273,6 +275,9 @@ const coachTurns = (ctx: ScenarioCtx, patch: Partial<CoachTurnVM> = {}): CoachTu
 };
 
 const runningList = (ctx: ScenarioCtx) => [running(ctx, FANS.theodore, 'reply', 14, OP.a), running(ctx, FANS.marco, 'recap', 42, OP.b), running(ctx, FANS.jake, 'hi', 7, OP.c)];
+
+/** The site's own name in what a state writes out itself (the gallery's `?host=`; ChatSpace by default). */
+const site = (ctx: ScenarioCtx): string => (ctx.phrases ?? CHATSPACE_PHRASES)[ctx.lang].site;
 
 const errorToast = (ctx: ScenarioCtx): ToastVM =>
   toast(ctx, 'toast-hub', 'error', {
@@ -602,7 +607,7 @@ export const GALLERY_STATES: readonly GalleryState[] = [
           }),
           toast(ctx, 'toast-contract', 'warning', {
             code: 'CG-HOST-CONTRACT',
-            title: ctx.lang === 'ru' ? 'ChatSpace обновился — часть функций выключена' : 'ChatSpace was updated — some functions are off',
+            title: ctx.lang === 'ru' ? `${site(ctx)} обновился — часть функций выключена` : `${site(ctx)} was updated — some functions are off`,
             actions: [button('common.settings', { type: 'OpenSettings', route: { section: 'status', code: 'CG-HOST-CONTRACT' } })],
           }),
           toast(ctx, 'toast-insert', 'warning', { code: 'CG-INSERT-UNCERTAIN', title: cgError(ctx, 'CG-INSERT-UNCERTAIN').title, body: cgError(ctx, 'CG-INSERT-UNCERTAIN').body }),
@@ -741,9 +746,12 @@ export function galleryState(id: string): GalleryState | null {
   return GALLERY_STATES.find((item) => item.id === id) ?? null;
 }
 
-/** The scenario of one gallery state in a language. */
-export function scenarioOfState(item: GalleryState, lang: Locale, scheme: AppClientScenario['scheme'], platform: 'mac' | 'win' = 'mac'): AppClientScenario {
-  const ctx = ctxOf({ lang, platform, debug: item.debug === true });
+/**
+ * The scenario of one gallery state in a language. `phrases` — the site the gallery draws (its `?host=`): what the
+ * scenario writes out itself names that site; without them, ChatSpace.
+ */
+export function scenarioOfState(item: GalleryState, lang: Locale, scheme: AppClientScenario['scheme'], platform: 'mac' | 'win' = 'mac', phrases?: SitePhrases): AppClientScenario {
+  const ctx = ctxOf({ lang, platform, debug: item.debug === true, ...(phrases === undefined ? {} : { phrases }) });
   return {
     id: `gallery-${item.id}`,
     title: item.title,

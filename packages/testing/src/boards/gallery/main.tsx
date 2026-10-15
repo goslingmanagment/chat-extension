@@ -3,7 +3,7 @@
 //   &surface=spenders|newcomers|fan-panel|palette|quick-jump|preview   (a scenario id needs it; a state knows its own)
 //   &rows=1000                                    the live board over that many fans (search, filters, sort)
 //   &step=N                                       apply the scenario's steps up to N
-//   &host=chatspace|test                          the site's profile the surface is mounted with (kit/profiles.ts)
+//   &host=chatspace|fansly|test                   the site's profile the surface is mounted with (kit/profiles.ts)
 // It plays the host side — a closed shadow root on the overlay host, outside
 // the page's own tree — and mounts the surface through the kit's mount
 // helper, as the extension does. `window.__boards` gives the e2e what a closed
@@ -84,8 +84,9 @@ html.classList.toggle('dark', scheme === 'dark');
 html.classList.toggle('light', scheme === 'light');
 html.lang = language;
 
-// As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet, its phrases).
-const { profile } = galleryHostOf(params);
+// As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet, its phrases); the page plays the site.
+const { profile, play } = galleryHostOf(params);
+play(scheme);
 const world = boardWorld(stateId, language, profile.phrases);
 world.deps.scheme.set(scheme);
 if (step >= 0) world.client.goTo(step);

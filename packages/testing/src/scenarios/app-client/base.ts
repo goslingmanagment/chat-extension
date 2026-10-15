@@ -24,7 +24,7 @@ import {
   type VmView,
 } from '@cg/contracts';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
-import { createTranslator } from '@cg/core/domain/i18n';
+import { createTranslator, type SitePhrases } from '@cg/core/domain/i18n';
 
 export interface ScenarioCtx {
   readonly lang: Locale;
@@ -32,7 +32,12 @@ export interface ScenarioCtx {
   /** The fake clock of the scenario, epoch ms. */
   readonly now: number;
   readonly debug: boolean;
+  /** The site the texts a scenario writes out name (the galleries' `?host=`, R20 P8d); absent — ChatSpace's. */
+  readonly phrases?: SitePhrases;
 }
+
+/** The translator of the scenario's language, speaking for its site (ChatSpace unless the scenario names another). */
+export const translatorOf = (ctx: ScenarioCtx): ReturnType<typeof createTranslator> => createTranslator(ctx.lang, ctx.phrases ?? CHATSPACE_PHRASES);
 
 /** 2026-10-03 09:20 Moscow, the mockup's «now». */
 export const NOW = Date.UTC(2026, 9, 3, 6, 20, 0);
@@ -62,7 +67,7 @@ export interface ErrorExtras {
 /** A rendered error in the scenario's language, as the controller builds it: the registry's keys through the real catalog. */
 export function cgError(ctx: ScenarioCtx, code: CgCode, extras: ErrorExtras = {}): CgErrorView {
   const entry = cgEntry(code);
-  const t = createTranslator(ctx.lang, CHATSPACE_PHRASES);
+  const t = translatorOf(ctx);
   return { code, title: t.text(entry.title), body: t.text(entry.body), ...extras };
 }
 

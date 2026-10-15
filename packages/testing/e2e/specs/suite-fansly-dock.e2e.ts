@@ -92,6 +92,15 @@ async function place(): Promise<Place> {
   }, DOCK);
 }
 
+/** Three steps of the palette our dock host wears (its `:host` rule, read from the page): ink 900, page 950, blue 500. */
+const hostPalette = (): Promise<{ ink: string; page: string; blue: string }> =>
+  browser.execute((selector: string) => {
+    const host = document.querySelector(selector);
+    const style = host === null ? null : getComputedStyle(host);
+    const step = (name: string): string => style?.getPropertyValue(`--color-om-${name}`).trim() ?? '';
+    return { ink: step('neutral-900'), page: step('neutral-950'), blue: step('brand-500') };
+  }, DOCK);
+
 const forgetMark = (): Promise<void> => browser.execute(() => void Reflect.deleteProperty(window, '__cgDockFirst'));
 
 const list = async (): Promise<ListView> => {
@@ -319,7 +328,7 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
   });
 
   for (const mode of ['off', 'after'] as const) {
-    it(`[UI-001] [EX-013] [EX-012] next to the neighbour ${mode}: the dock in flow right before Fansly’s composer, a plain host over the typing line; our UI in its closed root with adopted sheets, nothing of ours in the page’s styles; both themes`, async () => {
+    it(`[UI-001] [EX-013] [EX-012] [I18-005] next to the neighbour ${mode}: the dock in flow right before Fansly’s composer, a plain host over the typing line; our UI in its closed root with adopted sheets, nothing of ours in the page’s styles; both themes with the page’s palette`, async () => {
       const [first] = ids.groups as [string];
       await setViewport({ width: 1440, height: 900 });
       await openWithNeighbor(`/messages/${first}`, { mode });
@@ -336,10 +345,13 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
         adopted: document.adoptedStyleSheets.filter((sheet) => [...sheet.cssRules].some((rule) => rule.cssText.includes('.cg-'))).length,
       }));
       expect(global).toEqual({ styles: 0, adopted: 0 });
-      // The page's theme is the dock's (its «как на сайте»): Fansly's class on <html>, dark by default.
+      // The page's theme is the dock's (its «как на сайте»): Fansly's class on <html>, dark by default; and so is its palette
+      // (R20 P8d): the page's own variables as our triplets on our host — Fansly's ink in light, its card in dark.
       for (const theme of ['bright', 'dark'] as const) {
         await callFansly('setTheme', theme);
         await waitForReport((now) => now.dock?.scheme === (theme === 'bright' ? 'light' : 'dark'), `the dock in the ${theme} theme`);
+        const expected = theme === 'bright' ? { ink: '20 30 40', page: '0 0 0', blue: '38 153 247' } : { ink: '22 22 26', page: '17 18 21', blue: '38 153 247' };
+        await browser.waitUntil(async () => JSON.stringify(await hostPalette()) === JSON.stringify(expected), { timeout: 5_000, timeoutMsg: `the ${theme} palette on our host: ${JSON.stringify(expected)}` });
         await shoot(`${mode}-${theme}-1440x900`);
       }
       await callFansly('setTheme', 'bright');

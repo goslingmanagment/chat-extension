@@ -1,10 +1,18 @@
-// The sites' profiles the stand's galleries and the tests draw in (Project Unite architecture §1.5; R20 F5):
-// `?host=chatspace` — ChatSpace's own profile, as its tab mounts every surface (the default); `?host=test` — a
-// second site that exists only here, with a palette and a variant sheet of its own, to show that a profile reaches
-// every surface and changes nothing of ChatSpace. Fansly's own look comes with its UI (P8d adds `?host=fansly`).
+// The sites' profiles the stand's galleries and the tests draw in (Project Unite architecture §1.5; R20 F5, P8d):
+// `?host=chatspace` — ChatSpace's own profile, as its tab mounts every surface (the default); `?host=fansly` —
+// Fansly's, as its tab mounts them: the palette read off the page by Fansly's own reader at its theme's word, the variant
+// `fansly` with its sheet, its phrases — the page plays fansly.com around them (kit/fansly-page.ts); `?host=test` —
+// a second site that exists only here, with a palette and a variant sheet of its own, to show that a profile
+// reaches every surface and changes nothing of ChatSpace.
 
-import { type HostPalette, type HostUiProfile, type ValueSignal } from '@cg/contracts';
+import { type ColorScheme, type HostPalette, type HostUiProfile, type ValueSignal } from '@cg/contracts';
+import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
+import { fanslyPaletteSignal, type FanslyThemeSource } from '@cg/host-fansly/isolated/palette';
+import { createFanslyTheme } from '@cg/host-fansly/isolated/theme';
+import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
+
+import { playFanslyPage } from './fansly-page';
 
 /** A palette that does not change (the gallery's): `set` for a test that changes it. */
 export class PaletteSignal implements ValueSignal<HostPalette> {
@@ -71,10 +79,31 @@ export function testSiteProfile(palette: ValueSignal<HostPalette> = new PaletteS
   };
 }
 
-export const GALLERY_HOSTS = ['chatspace', 'test'] as const;
+/**
+ * Fansly's profile as the application's half of its adapter builds it from the page's theme (composition/tab/hosts/
+ * fansly/app.ts `fanslyUi`; apps/extension/test/fansly-site.test.ts holds the two to the same parts).
+ */
+export function fanslyProfile(theme: FanslyThemeSource, page: () => Document = () => document): HostUiProfile {
+  return { palette: fanslyPaletteSignal(theme, page), dock: { variant: 'fansly' }, sheet: FANSLY_DOCK_SHEET, phrases: FANSLY_PHRASES };
+}
+
+export const GALLERY_HOSTS = ['chatspace', 'fansly', 'test'] as const;
 export type GalleryHost = (typeof GALLERY_HOSTS)[number];
 
-/** `?host=` of a gallery page: ChatSpace's profile unless the test site is asked for. */
-export function galleryHostOf(params: URLSearchParams): { readonly host: GalleryHost; readonly profile: HostUiProfile } {
-  return params.get('host') === 'test' ? { host: 'test', profile: testSiteProfile() } : { host: 'chatspace', profile: CHATSPACE_UI };
+export interface GallerySite {
+  readonly host: GalleryHost;
+  readonly profile: HostUiProfile;
+  /** The page plays the site in `scheme` (Fansly: its variables and its theme class); call it before the first mount. */
+  readonly play: (scheme: ColorScheme) => void;
+}
+
+const nothingToPlay = (): void => undefined;
+
+/** `?host=` of a gallery page: ChatSpace's profile unless Fansly or the test site is asked for. */
+export function galleryHostOf(params: URLSearchParams): GallerySite {
+  const host = params.get('host');
+  if (host === 'test') return { host: 'test', profile: testSiteProfile(), play: nothingToPlay };
+  // The palette is read off the page when the first surface mounts, after `play` has put Fansly's theme on it.
+  if (host === 'fansly') return { host: 'fansly', profile: fanslyProfile(createFanslyTheme(document)), play: (scheme) => playFanslyPage(document, scheme) };
+  return { host: 'chatspace', profile: CHATSPACE_UI, play: nothingToPlay };
 }

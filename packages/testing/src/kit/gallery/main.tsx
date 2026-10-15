@@ -1,5 +1,5 @@
-// The gallery page: `?theme=light|dark&lang=ru|en&col=320&section=parts-sheet&host=chatspace|test` (the site's
-// profile it is mounted with, kit/profiles.ts; ChatSpace's by default).
+// The gallery page: `?theme=light|dark&lang=ru|en&col=320&section=parts-sheet&host=chatspace|fansly|test` (the site's
+// profile it is mounted with, kit/profiles.ts; ChatSpace's by default; with Fansly's the page plays fansly.com).
 // It plays the host side — a closed shadow root on a host element — and
 // mounts the gallery through the kit's own mount helper, the way a surface
 // of the extension is mounted. `window.__gallery` gives the e2e what a closed
@@ -41,6 +41,7 @@ const html = document.documentElement;
 html.classList.toggle('dark', scheme === 'dark');
 html.classList.toggle('light', scheme === 'light');
 html.lang = language;
+site.play(scheme);
 if (column > 0) {
   html.setAttribute('data-gal-col', String(column));
   html.style.setProperty('--gal-col', `${column}px`);

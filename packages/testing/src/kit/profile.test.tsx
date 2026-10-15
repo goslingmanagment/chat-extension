@@ -53,10 +53,14 @@ describe('[R20-F5] [host:chatspace] ChatSpace’s profile', () => {
     expect(chatspace.host.hasAttribute(DOCK_VARIANT_ATTRIBUTE)).toBe(false);
   });
 
-  it('is what the galleries draw in unless `?host=test` asks for the test site', () => {
-    expect(galleryHostOf(new URLSearchParams(''))).toEqual({ host: 'chatspace', profile: CHATSPACE_UI });
-    expect(galleryHostOf(new URLSearchParams('host=chatspace'))).toEqual({ host: 'chatspace', profile: CHATSPACE_UI });
-    expect(galleryHostOf(new URLSearchParams('host=fansly')).host).toBe('chatspace');
+  it('is what the galleries draw in unless `?host=fansly` or `?host=test` asks for another site; it plays nothing on the page', () => {
+    for (const query of ['', 'host=chatspace', 'host=onlyfans']) {
+      const site = galleryHostOf(new URLSearchParams(query));
+      expect([site.host, site.profile]).toEqual(['chatspace', CHATSPACE_UI]);
+      site.play('dark');
+      expect([document.documentElement.className, document.documentElement.hasAttribute('data-gal-host'), document.head.querySelector('style[data-gal-fansly]')]).toEqual(['', false, null]);
+    }
+    expect(galleryHostOf(new URLSearchParams('host=fansly')).host).toBe('fansly');
     expect(galleryHostOf(new URLSearchParams('host=test')).profile.dock.variant).toBe('fansly');
   });
 });
