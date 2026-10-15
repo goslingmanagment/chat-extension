@@ -153,3 +153,27 @@ for (const site of sites) describe(`${site.kind}: startup retirement`, () => {
     expect(document.querySelectorAll('[data-host="overlay"]')).toHaveLength(0);
   });
 });
+
+describe('[host:fansly] a place of the site’s own without a composer (R20 P13b)', () => {
+  const fansly = sites[0] as (typeof sites)[number];
+
+  it('on `/creator/vault` the application comes for the vault’s entry, no composer and no key needed', async () => {
+    history.replaceState({}, '', '/creator/vault');
+    cleanups.push(() => history.replaceState({}, '', '/'));
+    const w = await setup(fansly, 'none');
+    startTabRuntime(w.env);
+    await vi.waitFor(() => expect(w.start).toHaveBeenCalledTimes(1));
+  });
+
+  it('elsewhere without a composer it does not; the page’s own move to the vault brings it', async () => {
+    history.replaceState({}, '', '/notifications');
+    cleanups.push(() => history.replaceState({}, '', '/'));
+    const w = await setup(fansly, 'none');
+    startTabRuntime(w.env);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(w.start).not.toHaveBeenCalled();
+    history.pushState({}, '', '/creator/vault');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await vi.waitFor(() => expect(w.start).toHaveBeenCalledTimes(1));
+  });
+});

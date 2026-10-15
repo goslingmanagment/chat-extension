@@ -23,6 +23,7 @@
     "./send-rules": "./src/send-rules.ts",
     "./send": "./src/send.ts",
     "./send-fansly": "./src/send-fansly.ts",
+    "./vault-fansly": "./src/vault-fansly.ts",
     "./host": "./src/host.ts",
     "./ops": "./src/ops.ts",
     "./ops-fansly": "./src/ops-fansly.ts",

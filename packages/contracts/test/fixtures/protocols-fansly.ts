@@ -10,6 +10,8 @@ import { FANSLY_GREETING_REQUEST_FIXTURES, FANSLY_SEND_VIEW_FIXTURES } from './s
 
 const F = FANSLY_IDS;
 const ack = { valid: [{ recorded: true }, { recorded: false }], invalid: [{ recorded: 'yes' }, {}] } as const;
+/** P13b review: another open tab holds the album — nothing kept; a held write that says it was kept is no answer. */
+const vaultAck = { valid: [...ack.valid, { recorded: false, held: true }, { recorded: true, held: false }], invalid: [...ack.invalid, { recorded: true, held: true }, { recorded: false, held: 'yes' }] } as const;
 const SHA = 'ab'.repeat(32);
 
 /** A Fansly failure in a payload: a Fansly code and a shared one are both readable; an unknown code is not. */
@@ -170,15 +172,18 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       // More confirmed files than files; a pending file already confirmed; no files at all.
       invalid: [{ checkpoint: { ...vaultCheckpoint, confirmed: 3, pending: null } }, { checkpoint: { ...vaultCheckpoint, pending: { index: 0, passedAt: T0 } } }, { checkpoint: { ...vaultCheckpoint, files: [], confirmed: 0, pending: null } }],
     },
-    res: ack,
+    res: vaultAck,
   },
   'fansly.vault.resume': {
     req: { valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId }], invalid: [{ albumId: vaultCheckpoint.albumId }] },
-    res: { valid: [{ checkpoint: vaultCheckpoint }, { checkpoint: null }], invalid: [{ checkpoint: { ...vaultCheckpoint, uploadId: 'up-1' } }] },
+    res: {
+      valid: [{ checkpoint: vaultCheckpoint }, { checkpoint: null }, { checkpoint: vaultCheckpoint, held: true }],
+      invalid: [{ checkpoint: { ...vaultCheckpoint, uploadId: 'up-1' } }, { checkpoint: null, held: 'yes' }],
+    },
   },
   'fansly.vault.clear': {
     req: { valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, uploadId: uuid(310) }], invalid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId }] },
-    res: ack,
+    res: vaultAck,
   },
 
   'fansly.relay.head': {

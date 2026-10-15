@@ -752,6 +752,35 @@ HF-3, HF-4а, HF-4б, HF-12 и `fan-notes-fill` — все выложены в `
   отправка доказана позже 120 с после жеста. Форма не меняется, только смысл счётчика.
 - Байты: модуль сайта, в бандлы ChatSpace не попадает.
 
+### P13b — панель vault: модель, действия и тексты
+
+Не PR этапа 4, но в его открытую версию (`docs/project-unite/architecture.md` §7.21). Панель vault — поверхность только
+Fansly (`FANSLY_SURFACES_AHEAD`): её модель и действия не входят в общий `AppClient` и `UiAction` (байты ChatSpace), а
+приходят своим клиентом. Новый модуль сайта `@cg/contracts/vault-fansly` — только типы и списки, ни одной схемы: модель
+и действия не пересекают границу миров (панель и её контроллер живут в одной вкладке), а контрольная точка в фоне —
+прежняя `VaultCheckpointSchema` (P4a3).
+
+- **`VaultPanelVM`** — вход и режим (`closed` / `open` / `minimized`), аккаунт, альбом, форма загрузки, порядок альбома,
+  набор (`VaultSelectionVM`: файлы в порядке альбома с состоянием, проблемы и предупреждения плана), прошлый запуск
+  (`VaultResumeVM`: `found` / `continue` / `other`), вопрос о неизвестном файле, ход (`VaultRunVM`: состояние, готово,
+  остановка `VaultStopVM`, код `CG-VAULT-*`, отчёт), заметка о сбое шага с точкой (`VaultPanelNote`), доступность
+  кнопок и почему Start недоступен (`VAULT_START_BLOCKS`). Списки `VAULT_ALBUM_ORDERS`, `VAULT_RUN_STATES`,
+  `VAULT_ITEM_STATES`, `VAULT_STOP_KINDS` (их держат равными загрузчику P13a тесты host-fansly).
+- **`VaultPanelAction<F>`** и **`VaultPanelClient<F>`** — `F` — файл человека, как его даёт страница (DOM `File`):
+  контракты DOM-типов не несут.
+- **Ключи текстов `fansly.vault.*`** (`FANSLY_VAULT_TEXT_KEYS`, `FANSLY_VAULT_PLURAL_KEYS`) — только в каталогах Fansly
+  (`core/src/domain/hosts/fansly/i18n/vault.ts`), в общих каталогах их нет; приходят с чанком vault.
+- Фикстур нет: схем нет. Тесты — `packages/contracts/test/fansly.test.ts` (модуль вне корня пакета, ключи свои и
+  каждый один раз, у каждой остановки и каждой причины — свой текст).
+- Байты: модуль сайта, только типы и списки текстов; в бандлы ChatSpace не попадает.
+- **Ревью P13b — одна вкладка на альбом.** Ответы `fansly.vault.checkpoint` и `fansly.vault.clear` — `{recorded,
+  held?}` (`held: true` только при `recorded: false`: альбом держит другая открытая вкладка, ничего не записано), ответ
+  `fansly.vault.resume` — `{checkpoint, held?}`; правило шага `vaultCheckpointFollows(row, next)` — какую запись той же
+  загрузки фон принимает поверх строки на диске (не назад, не файл поверх файла в пути). В модели панели — заметки
+  `held` и `moved`, причина недоступного Start `held` и их тексты. Всё добавочно: старые ответы `{recorded}` и
+  `{checkpoint}` читаются как прежде. Фикстуры: верные `{recorded: false, held: true}`, `{checkpoint, held: true}`;
+  неверные `{recorded: true, held: true}`, `held: 'yes'`.
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

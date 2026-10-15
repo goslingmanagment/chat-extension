@@ -11,7 +11,8 @@
 // search for the anchors — and, behind the bridge, Fansly's HostPort (R20
 // P7c) — which places the dock by Fansly's composer (R20 P7d) and reads the
 // page's theme. Until the dock has a place, nothing of the application
-// starts on a Fansly page; the palette of the page's variables is P8d's.
+// starts on a Fansly page — but on `/creator/vault`, where the vault's entry
+// has its place (P13b); the palette of the page's variables is P8d's.
 // P7g waits for coexistence admission before the shared tab registers or
 // starts background work. A retired copy stays off until reload.
 
@@ -31,7 +32,15 @@ export interface StartedFanslyTab extends StartedFanslyHost {
   /** Our hosts of a dead instance this start took out of the page. */
   readonly staleHosts: number;
   readonly activation: { readonly ready: Promise<boolean>; readonly stopped: AbortSignal };
+  /**
+   * The application is wanted without a composer (R20 P13b): on `/creator/vault` the vault's entry has its place, so
+   * the application loads as for the dock's — and with it, if the page's owner switched the vault on, the entry.
+   */
+  readonly wantsApp: { current(): boolean; onChange(listener: () => void): () => void };
 }
+
+/** The vault's page (isolated/vault/dom.ts `isVaultPath`, which this early bundle does not carry). */
+const onVault = (path: string): boolean => path === '/creator/vault' || path === '/creator/vault/';
 
 export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
   const staleHosts = removeStaleHosts(env.win.document);
@@ -44,5 +53,11 @@ export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
     await port.recheck();
     return !coexistence.stopped.aborted;
   });
-  return { staleHosts, ...started, activation: { ready, stopped: coexistence.stopped } };
+  const wantsApp = {
+    current: () => onVault(started.route.current().path),
+    onChange: (listener: () => void) => started.route.onChange((change) => {
+      if (onVault(change.route.path) !== onVault(change.previous.path)) listener();
+    }),
+  };
+  return { staleHosts, ...started, activation: { ready, stopped: coexistence.stopped }, wantsApp };
 }

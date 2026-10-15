@@ -295,11 +295,14 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     );
   });
   life.addEventListener('abort', offCommand);
+  // The dock's place — or a place of the site's own where no composer is (R20 P13b): the application comes for it.
   const onMounts = (): void => {
-    if (host.mounts.points().dock.kind !== 'none') wake();
+    if (host.mounts.points().dock.kind !== 'none' || host.wantsApp?.current() === true) wake();
   };
   const offMounts = host.mounts.onChange(onMounts);
   life.addEventListener('abort', offMounts);
+  // The host's own signal goes with the host (its route watcher is disposed with the port); `wake` checks `life`.
+  host.wantsApp?.onChange(onMounts);
   onMounts();
 
   return {

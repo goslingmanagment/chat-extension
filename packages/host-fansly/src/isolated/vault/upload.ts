@@ -29,7 +29,7 @@
 import type { FanslyHandoffPath } from '@cg/contracts/fansly';
 import type { HostEvent } from '@cg/contracts/host';
 
-import type { FanslyPort, FanslyVaultFact } from '../host-port';
+import type { FanslyPort, FanslyVaultFact, FanslyVaultFacts } from '../host-port';
 import { isVaultPath, readVaultPage, VAULT_SELECTORS, vaultMediaKey, type VaultPage } from './dom';
 import { handFile } from './handoff';
 
@@ -129,7 +129,7 @@ export interface VaultUploader {
 }
 
 /** The port's members the uploader reads: the vault's facts, the account, and its route and account events. */
-export type VaultPort = Pick<FanslyPort, 'vault' | 'current' | 'subscribe'>;
+export type VaultPort = Pick<FanslyPort, 'current' | 'subscribe'> & { readonly vault: Pick<FanslyVaultFacts, 'album' | 'onFact' | 'onLost'> };
 
 export interface VaultTimer {
   set(callback: () => void, ms: number): unknown;

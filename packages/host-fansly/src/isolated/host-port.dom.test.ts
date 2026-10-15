@@ -19,6 +19,7 @@ import { createAnchorWatcher } from './anchors';
 import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from './host-port';
 import { watchCoexistence, type Coexistence } from './legacy';
+import { vaultUploadOf } from './vault/serve';
 import { createVaultUploader, vaultTargetOf } from './vault/upload';
 import { createFanslyMounts } from './mount';
 import { createRouteWatcher } from './route';
@@ -979,6 +980,43 @@ describe('[host:fansly] the vault’s facts: start order and losses (review of P
     main.batch(4, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 9 } });
     expect(port.vault.album()).toEqual({ albumId: '700000000000000301', seq: 9 });
     off();
+  });
+});
+
+describe('[host:fansly] `uploadToVault`: the vault panel’s single file (P13b)', () => {
+  it('[FS-VLT-1] refused until the panel’s module serves it; served — one file into the open album, done by the addition, the album’s reload and its card; refused again once the module went', async () => {
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port } = await startPort('/creator/vault', main.client);
+    const vaultPage = createFakeVaultPage();
+    cleanups.push(() => vaultPage.destroy());
+    vaultPage.openAlbum('Set 1');
+    vaultPage.expandUploader();
+    vaultPage.cards([]);
+    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 3 } });
+    const file = { name: 'a.jpg', type: 'image/jpeg', bytes: new TextEncoder().encode('x').buffer };
+    expect(await port.fansly.uploadToVault(file)).toEqual({ state: 'refused', reason: 'anchor-missing' });
+    expect(vaultPage.changes).toBe(0);
+
+    const uploader = createVaultUploader({ win: window, port });
+    const off = port.vault.serve(vaultUploadOf(window, uploader));
+    const step = port.fansly.uploadToVault(file);
+    await settle();
+    expect(vaultPage.taken.map((taken) => [taken.name, taken.type])).toEqual([['a.jpg', 'image/jpeg']]);
+    main.batch(2, { t: 'fx.vaultAdded', p: { seq: 5 } });
+    vaultPage.uploaded();
+    vaultPage.loading();
+    vaultPage.cards(['a.jpg']);
+    main.batch(3, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 6 } });
+    expect(await step).toEqual({ state: 'done', path: 'data-transfer' });
+
+    // No album open: nothing is handed over.
+    vaultPage.closeAlbum();
+    expect(await port.fansly.uploadToVault(file)).toEqual({ state: 'refused', reason: 'anchor-missing' });
+    off();
+    uploader.dispose();
+    vaultPage.openAlbum('Set 1');
+    expect(await port.fansly.uploadToVault(file)).toEqual({ state: 'refused', reason: 'anchor-missing' });
+    expect(vaultPage.changes).toBe(1);
   });
 });
 

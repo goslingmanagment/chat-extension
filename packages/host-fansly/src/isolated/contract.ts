@@ -17,7 +17,8 @@
 // reading, the chat MAIN named. What only later work packages bring is `off`
 // with the same code and its own name as the reason: the facts of new
 // messages (P14a), the header's slot (P7d, P11a), a file into the field
-// (P12c), the vault (P13b), the relay (P9c). X8's preview send, its receipt and the cached chat list are no part
+// (P12c), the relay (P9c). The vault (P13b) is on with MAIN's observer of the
+// page's requests: its facts confirm every file. X8's preview send, its receipt and the cached chat list are no part
 // of Fansly (§7.7): off by design.
 //
 // The anchor names and the capability names are repeated here as literals:
@@ -105,7 +106,8 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     follows: main ?? (anchors.frames === 'shape' ? broken('frames') : anchors.socket === 'ok' && anchors.frames === 'ok' ? ON : degraded('socket')),
     headerSlot: notReady('headerSlot'),
     fileAttach: notReady('fileAttach'),
-    vault: notReady('vault'),
+    // A file into the open vault album (P13b): the page's own input, confirmed by MAIN's facts of its requests (§7.11).
+    vault: main ?? (anchors.xhr === 'shape' ? broken('xhr') : anchors.xhr === 'ok' ? ON : notReady('xhr')),
     relay: notReady('relay'),
   };
   if (input.blocked) {

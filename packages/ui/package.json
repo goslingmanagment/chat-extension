@@ -22,7 +22,8 @@
     "./palette": "./src/palette/index.ts",
     "./preview": "./src/preview/index.ts",
     "./pages": "./src/pages/index.ts",
-    "./hosts/fansly": "./src/hosts/fansly/index.ts"
+    "./hosts/fansly": "./src/hosts/fansly/index.ts",
+    "./hosts/fansly/vault": "./src/hosts/fansly/vault/index.tsx"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",

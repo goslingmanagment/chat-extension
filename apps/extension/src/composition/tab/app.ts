@@ -542,6 +542,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   });
   const mounted = surfaces;
   offs.push(() => mounted.dispose());
+  // The site's own surfaces (R20 P13b: Fansly's vault), with what every surface of the tab is mounted with.
+  if (site.start !== undefined) offs.push(site.start({ win, life: env.life, rpc, host, mounts, lazy: env.lazy, deps: { ...deps, geometry: panelGeometry }, features: site.features, report: reportSurface, probe }));
 
   // ── what the dock's view says about our overlays ───────────────────────────
   // «Развернуть ↗» is a window while a result, a Recap or a Review is expanded; a Б2 question is a dialog for
