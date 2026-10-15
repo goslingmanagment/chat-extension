@@ -37,6 +37,7 @@ import { createLogForwarder, createLogger } from '@cg/core/domain/logging';
 import {
   createConsent,
   createPermissionBundle,
+  createKeyValueStore,
   createExtensionPages,
   createHostPermissions,
   createLinkOpener,
@@ -220,8 +221,15 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   client.start();
 
   // ── the page itself ────────────────────────────────────────────────────────
-  const access = createSiteAccessControl('fansly-web', rpc, createPermissionBundle({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, 'https://apiv3.fansly.com/*'], permissions: ['webRequest'] }, api));
-  if (page === 'popup' || page === 'options') void access.refresh();
+  const sitePermissions = createPermissionBundle({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, 'https://apiv3.fansly.com/*'], permissions: ['webRequest'] }, api);
+  const access = createSiteAccessControl('fansly-web', rpc, sitePermissions);
+  if (page === 'popup' || page === 'options') {
+    const refresh = (): void => { if (doc.visibilityState === 'visible') void access.refresh(); };
+    offs.push(sitePermissions.onChange(refresh), ports.window.onFocus(refresh),
+      createKeyValueStore('session', { api }).onChanged((changes) => { if ('fansly.waitingReload' in changes) refresh(); }),
+      createKeyValueStore('local', { api }).onChanged((changes) => { if ('settings.ext' in changes) refresh(); }));
+    void access.refresh();
+  }
   const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface, ...((page === 'popup' || page === 'options') ? { siteAccess: { control: access, title: 'Fansly', enable: 'Включить Fansly', disable: 'Выключить Fansly', reload: 'Перезагрузить вкладки', waiting: (count: number) => `Ждут перезагрузки: ${count}` } } : {}) };
   let unmount: Unmount;
   if (page === 'popup') unmount = mountPopup(container, shared);
