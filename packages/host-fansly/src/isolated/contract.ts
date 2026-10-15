@@ -9,12 +9,13 @@
 // page's memory is there: the identity, the chat's window and the freshness
 // are off with CG-HOST-NOT-READY («хост не подключён», ER-048, AU-030). A
 // MAIN that cannot observe chats yet (it answers `fx.focus` with `not-ready`)
-// leaves the window and the freshness off the same way — the honest «not
-// yet». What only later work packages bring is `off` with the same code and
-// its own name as the reason: the insert and «Открыть и вставить» (P7e), the
-// send's observation (P7f), the facts of new messages (P14a), the header's
-// slot (P7d, P11a), a file into the field (P12c), the vault (P13b), the relay
-// (P9c). X8's preview send, its receipt and the cached chat list are no part
+// leaves the window, the freshness and the insert off the same way — the
+// honest «not yet»: the insert needs the open chat as MAIN names it, and the
+// field where the chain says (R20 P7e); «Открыть и вставить» needs the
+// creator. What only later work packages bring is `off` with the same code
+// and its own name as the reason: the send's observation (P7f), the facts of
+// new messages (P14a), the header's slot (P7d, P11a), a file into the field
+// (P12c), the vault (P13b), the relay (P9c). X8's preview send, its receipt and the cached chat list are no part
 // of Fansly (§7.7): off by design.
 //
 // The anchor names and the capability names are repeated here as literals:
@@ -61,6 +62,7 @@ const broken = (reason: string): CapabilityState => ({ state: 'contractBroken', 
 const off = (reason: string): CapabilityState => ({ state: 'off', reason });
 const degraded = (reason: string): CapabilityState => ({ state: 'degraded', reason });
 const gone = (state: AnchorState): boolean => state === 'missing' || state === 'shape';
+const MISSING_FIELD: CapabilityState = { state: 'off', reason: 'textarea', code: 'CG-HOST-COMPOSER-MISSING' };
 
 export function buildFanslyReport(input: FanslyContractInput): FanslyContractReport {
   const { dom } = input;
@@ -71,14 +73,16 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
   const identity = main ?? (anchors.accountMe === 'shape' ? broken('accountMe') : input.creator ? ON : notReady('accountMe'));
   // `focus` — MAIN has not answered the route's focus yet; `observation` — it said it cannot observe chats (before P7b).
   const observed = main ?? (input.observation === 'ready' ? ON : notReady(input.observation === 'off' ? 'observation' : 'focus'));
+  // The field where the chain says: a field outside it is no field to write into (FS-PLC-3: copy only).
+  const field = gone(dom.container) || gone(dom.composer) || gone(dom.textarea) ? MISSING_FIELD : null;
   const capabilities: Record<HostCapability, CapabilityState> = {
     identity,
     route: ON,
     accounts: identity,
     // No container where the chain says: the dock floats over the field (FS-PLC-3).
     dockMount: gone(dom.container) ? degraded('container') : ON,
-    insert: notReady('insert'),
-    draftRead: gone(dom.textarea) ? { state: 'off', reason: 'textarea', code: 'CG-HOST-COMPOSER-MISSING' } : ON,
+    insert: main ?? field ?? observed,
+    draftRead: gone(dom.textarea) ? MISSING_FIELD : ON,
     chatWindow: observed,
     // Fansly's fresh text is the generation snapshot's (`freshness`), never `readVisibleTail`.
     freshText: off('snapshot'),
@@ -86,7 +90,7 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     chatList: off('chatList'),
     sendObserve: notReady('sendObserve'),
     incoming: notReady('incoming'),
-    navigate: notReady('navigate'),
+    navigate: identity,
     // The page's own theme is read with P8d: until then the light scheme.
     theme: degraded('theme'),
     previewSend: off('site'),

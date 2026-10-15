@@ -11,7 +11,10 @@
 //   extension's isolated script starts it — the route by signals, the
 //   anchors' observers, Fansly's HostPort over the stream — and what the port
 //   says: its route, identity, accounts, composer, header slot, report and
-//   counts. Never a text.
+//   counts. And its writes (P7e): the insert built the way the dock builds
+//   it, «Открыть и вставить», the insertion record; the background's
+//   `token.redeem` is a stand-in that says yes unless the spec turns it off.
+//   Texts only of the spec's own drafts.
 // Every frame from MAIN passed the three stages of checks first; a frame that
 // did not is in the client's counts.
 //
@@ -19,8 +22,9 @@
 // Nothing here talks to the network; the e2e network trap would catch it.
 
 import type { FanslyBatch, FanslyHealth, FanslyState } from '@cg/contracts/bridge-messages-fansly';
-import type { HostEvent } from '@cg/contracts/host';
-import { connectFanslyMain, startFanslyTab, type FanslyMainBridgeClient, type FanslyPort, type StartedFanslyTab } from '@cg/host-fansly/isolated';
+import type { HostEvent, InsertIntent, InsertReceipt, InsertWire, NavigationReceipt } from '@cg/contracts/host';
+import type { DraftSnapshot, HostIdentity } from '@cg/contracts/ids';
+import { connectFanslyMain, startFanslyTab, type FanslyDiagnostic, type FanslyMainBridgeClient, type FanslyPort, type StartedFanslyTab } from '@cg/host-fansly/isolated';
 import * as validation from '@cg/host-fansly/isolated/validation';
 
 /** How long the handshake waits: MAIN may come late (the late-install case). */
@@ -66,10 +70,24 @@ let started: StartedFanslyTab | null = null;
 let port: FanslyPort | null = null;
 /** What the port said, in order: the event's type and, for a route, its epoch and group — no text, no fan. */
 const said: Array<{ readonly type: HostEvent['type']; readonly epoch?: number; readonly group?: string | null }> = [];
-const diagnostics: Array<{ readonly event: string }> = [];
+const diagnostics: FanslyDiagnostic[] = [];
+const TOKEN = 'tok_e2e_fansly_harness_0';
+let redeemAllowed = true;
+const redeemed: string[] = [];
+let navInsertTimeoutMs: number | undefined;
 
 if (consumer === 'port') {
-  started = startFanslyTab({ win: window, validation: load, handshakeTimeoutMs: HANDSHAKE_MS, onDiagnostic: (diagnostic) => diagnostics.push({ event: diagnostic.event }) });
+  started = startFanslyTab({
+    win: window,
+    validation: load,
+    redeem: (request) => {
+      redeemed.push(request.kind);
+      return Promise.resolve(redeemAllowed);
+    },
+    navInsertTimeoutMs: () => navInsertTimeoutMs,
+    handshakeTimeoutMs: HANDSHAKE_MS,
+    onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+  });
   void started.bridge.then((connected) => {
     client = connected;
     if (connected === null) failure = 'no MAIN';
@@ -91,6 +109,68 @@ const needPort = (): FanslyPort => {
   if (port === null) throw new Error(`no host port${failure === null ? '' : `: ${failure}`}`);
   return port;
 };
+
+/** What the spec says about one insert; the rest is filled in the way the dock's insert service does. */
+interface InsertOptions {
+  readonly text: string;
+  readonly mode?: 'replace' | 'append';
+  /** One-time consent for the draft read just now (Б2). */
+  readonly confirm?: boolean;
+  /** A draft read earlier (`snapshotDraft`): its identity, revision and digest — a stale CAS. */
+  readonly from?: DraftSnapshot;
+  readonly ttlMs?: number;
+  /** Hold the intent this long before handing it over (an expired intent). */
+  readonly holdMs?: number;
+  /** The neighbour's widget clicked in the microtask right after our write's `input`: its write inside our check. */
+  readonly follower?: 'templates' | 'emoji';
+}
+
+const FIELD = 'app-messages-conversation-route > app-group-message-container > app-group-message-input textarea.message-input';
+const NEIGHBOUR_WIDGETS = { templates: 'fb-text-templates-ui', emoji: 'fb-emoji-picker-ui' } as const;
+
+const identityNow = (): HostIdentity => {
+  const identity = needPort().identity();
+  if (identity === null) throw new Error('no identity');
+  return identity;
+};
+
+function buildIntent(draft: DraftSnapshot, options: InsertOptions): InsertIntent {
+  const base = draft.identity;
+  if (base.chat === null || base.composerInstanceId === null) throw new Error('no open field');
+  const now = Date.now();
+  return {
+    intentId: crypto.randomUUID(),
+    operationId: crypto.randomUUID(),
+    part: { index: 0 },
+    target: base.chat,
+    expected: { kind: 'open', documentEpoch: base.documentEpoch, routeEpoch: base.routeEpoch, composerInstanceId: base.composerInstanceId, draftRevision: draft.revision, draftDigest: draft.digest },
+    mode: options.mode ?? 'replace',
+    text: options.text,
+    confirmationId: options.confirm === true ? crypto.randomUUID() : null,
+    createdAt: now,
+    expiresAt: now + (options.ttlMs ?? 20_000),
+    cause: { kind: 'click', actionToken: TOKEN },
+  };
+}
+
+/** Clicks the neighbour's widget on the main composer (its open shadow root): its own write, through its own button. */
+function clickNeighbour(widget: 'templates' | 'emoji'): void {
+  const host = document.querySelector(`app-messages-conversation-route app-group-message-input ${NEIGHBOUR_WIDGETS[widget]}`);
+  const button = host?.shadowRoot?.querySelector('button');
+  if (button === null || button === undefined) throw new Error(`no ${widget} widget of the neighbour on the main composer`);
+  button.click();
+}
+
+const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+/** The inbox row's link of a group (the person's click). */
+const clickRow = (groupId: string): void => {
+  const link = document.querySelector<HTMLElement>(`.messages-list-wrapper a[href="/messages/${groupId}"]`);
+  if (link === null) throw new Error(`the inbox row of ${groupId} is not rendered`);
+  link.click();
+};
+
+const navigations = new Map<string, NavigationReceipt | 'pending'>();
+let raceSkipped = 0;
 
 const methods: Record<string, (...args: never[]) => unknown> = {
   ready: () => ({ connected: client !== null, started: consumer === 'port' ? port !== null : states > 0, failure }),
@@ -159,6 +239,97 @@ const methods: Record<string, (...args: never[]) => unknown> = {
   },
   diagnostics: () => diagnostics,
   activation: async () => ({ ready: await started?.activation.ready, stopped: started?.activation.stopped.aborted }),
+
+  // ── the writes (P7e) ──
+  /** The open field's draft as the port reads it, with the identity it was read under. */
+  snapshotDraft: (): Promise<DraftSnapshot> => needPort().readDraft(identityNow()),
+  async insert(options: InsertOptions): Promise<InsertReceipt> {
+    const intent = buildIntent(options.from ?? (await needPort().readDraft(identityNow())), options);
+    if (options.holdMs !== undefined) await new Promise((resolve) => setTimeout(resolve, options.holdMs));
+    const follower = options.follower;
+    if (follower !== undefined) document.querySelector(FIELD)?.addEventListener('input', () => queueMicrotask(() => clickNeighbour(follower)), { once: true });
+    return needPort().insert(intent);
+  },
+  focusComposer: () => needPort().focusComposer(identityNow()),
+  setRedeem(allowed: boolean) {
+    redeemAllowed = allowed;
+    return allowed;
+  },
+  redeemed: () => redeemed,
+  setNavInsertTimeout(ms: number | null) {
+    navInsertTimeoutMs = ms ?? undefined;
+    return ms;
+  },
+  /** «Открыть и вставить» (with `text`) or a plain opening of a group's fan; its receipt later by `navigation(id)`. */
+  navigate(options: { readonly group: string; readonly fan: string; readonly text?: string; readonly ttlMs?: number; readonly abortAfterMs?: number }) {
+    const id = crypto.randomUUID();
+    const port = needPort();
+    const creator = port.current().accounts[0]?.hostAccountId ?? '';
+    const now = Date.now();
+    const controller = new AbortController();
+    if (options.abortAfterMs !== undefined) setTimeout(() => controller.abort(), options.abortAfterMs);
+    const thenInsert: InsertWire | undefined =
+      options.text === undefined
+        ? undefined
+        : {
+            intentId: crypto.randomUUID(),
+            operationId: crypto.randomUUID(),
+            part: { index: 0 },
+            target: { host: 'fansly-web', hostAccountId: creator, platformFanId: options.fan },
+            expected: { kind: 'deferred', documentEpoch: port.identity()?.documentEpoch ?? 'none' },
+            mode: 'replace',
+            text: options.text,
+            confirmationId: null,
+            createdAt: now,
+            expiresAt: now + (options.ttlMs ?? 20_000),
+          };
+    navigations.set(id, 'pending');
+    void port
+      .navigate({ intentId: id, cause: { kind: 'click', actionToken: TOKEN }, target: { hostAccountId: creator, platformFanId: options.fan, conversationRef: options.group }, ...(thenInsert === undefined ? {} : { thenInsert }) }, { signal: controller.signal })
+      .then((receipt) => navigations.set(id, receipt));
+    return id;
+  },
+  navigation: (id: string) => navigations.get(id) ?? null,
+  /** The record of our last write (no text: digests and ids) and the draft as a send would carry it. */
+  insertion: () => ({ record: needPort().insertion(), sent: needPort().sentDraft() }),
+  /**
+   * The race (§12 «200 быстрых переключений»): an insert aimed at the open chat goes out unawaited; the person clicks
+   * another chat's inbox row first (every third time), or a microtask, a frame or two frames into the insert's way.
+   * Every receipt with the group it was aimed at.
+   */
+  async race(options: { readonly n: number; readonly groups: readonly string[] }) {
+    const results: Array<Promise<{ group: string; text: string; receipt: InsertReceipt | { readonly state: 'error'; readonly code: string } }>> = [];
+    let skipped = 0;
+    const port = needPort();
+    for (let i = 0; i < options.n; i += 1) {
+      const current = port.identity();
+      const group = port.current().route.conversationRef ?? null;
+      const draft = current !== null && current.composerInstanceId !== null ? await port.readDraft(current).catch(() => null) : null;
+      const next = options.groups[(options.groups.indexOf(group ?? '') + 1 + (i % 2)) % options.groups.length] ?? options.groups[0] ?? '';
+      if (i % 4 === 0) clickRow(next);
+      if (group !== null && draft !== null) {
+        const text = `R${i}@${group}`;
+        results.push(
+          port.insert(buildIntent(draft, { text, confirm: true })).then(
+            (receipt) => ({ group, text, receipt }),
+            (error: unknown) => ({ group, text, receipt: { state: 'error' as const, code: String(error) } }),
+          ),
+        );
+      } else skipped += 1;
+      if (i % 4 === 1) await Promise.resolve();
+      for (let f = 1; f < i % 4; f += 1) await frame();
+      if (i % 4 !== 0) clickRow(next);
+      // The port catches up with the switch (a few frames at most), so the next insert has a fresh identity.
+      for (let f = 0; f < 40; f += 1) {
+        const seen = port.identity();
+        if (port.current().route.conversationRef === next && seen?.composerInstanceId) break;
+        await frame();
+      }
+    }
+    raceSkipped = skipped;
+    return Promise.all(results);
+  },
+  raceSkipped: () => raceSkipped,
 };
 
 Object.defineProperty(globalThis, '__cgFanslyTap', {

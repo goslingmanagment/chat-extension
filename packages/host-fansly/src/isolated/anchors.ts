@@ -52,6 +52,8 @@ import type { RouteWatcher } from './route';
 export const FANSLY_SELECTORS = {
   contentWrapper: 'content-wrapper',
   messagesWrapper: 'messages-content-wrapper',
+  /** The inbox, a virtual list: its rows are `a[href="/messages/<groupId>"]` (navigate.ts). */
+  inbox: 'messages-list-wrapper',
   conversationRoute: 'app-messages-conversation-route',
   /** A direct child of the conversation route (as are `header` and `gallery`). */
   container: 'app-group-message-container',

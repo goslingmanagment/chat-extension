@@ -7,8 +7,11 @@
 // later for one the page must fetch); the gallery takes the header's contact
 // and the container away without a change of address; `/messages` shows no
 // conversation and another page no messages route. The mini-chat repeats the
-// container's classes outside the route. The Firefox stand is
-// packages/testing/fixture-fansly; this is only the shape of it.
+// container's classes outside the route. On request (R20 P7e) the inbox rows
+// with their links, Angular's `popstate` read a task later, and the page's
+// draft cache: a new field gets its group's cached draft a microtask after it
+// appears, with no event. The Firefox stand is packages/testing/fixture-fansly;
+// this is only the shape of it.
 
 export interface FakeChatOptions {
   /** The group is in the page's cache: its container comes in the same task (default); false — `arrive()` brings it. */
@@ -42,6 +45,15 @@ export interface FakeFanslyPage {
   setPartners(count: number): void;
   /** The fan types (a typing line in the container, no height) or stops (P7d). */
   typing(on: boolean): void;
+  /**
+   * The inbox rows of these groups: `a[href="/messages/<id>"]`; a click on one opens it in the router's microtask —
+   * unless `dead`: the router ignores the click and the address stays (what the SP-036 check is for).
+   */
+  inbox(groupIds: readonly string[], options?: { readonly dead?: boolean }): void;
+  /** The router reads `popstate`: a task later, the address it finds is shown (Angular, S2 Q4). Off by default. */
+  routing(on: boolean): void;
+  /** The page's draft cache by group: typed text kept; a new field shows its group's a microtask after it appears. Off by default. */
+  cacheDrafts(on: boolean): void;
   route(): Element | null;
   container(): Element | null;
   composer(): Element | null;
@@ -69,6 +81,13 @@ export function createFakeFanslyPage(): FakeFanslyPage {
   let row: HTMLElement | null = null;
   let pending: { readonly groupId: string; readonly options: FakeChatOptions } | null = null;
   let mini: HTMLElement | null = null;
+  let drafts: Map<string, string> | null = null;
+  const remember = (event: Event): void => {
+    const group = /^\/messages\/(\d+)$/.exec(location.pathname)?.[1];
+    if (drafts !== null && group !== undefined && event.target instanceof HTMLTextAreaElement) drafts.set(group, event.target.value);
+  };
+  document.addEventListener('input', remember, true);
+  const onPopState = (): void => void setTimeout(() => show(location.pathname), 0);
 
   const branch = (copyOnly: boolean): HTMLElement =>
     make('div', copyOnly ? 'message-composer hidden' : 'message-composer', [
@@ -94,7 +113,12 @@ export function createFakeFanslyPage(): FakeFanslyPage {
   const render = (options: FakeChatOptions): void => {
     if (conversation === null || header === null || row === null) return;
     if ((options.partners ?? 1) === 1) row.append(contact());
-    conversation.append(containerOf(options));
+    const container = containerOf(options);
+    conversation.append(container);
+    // NgModel writes the cached draft into the new field a microtask later, with no event (main:55931).
+    const cached = drafts?.get(/^\/messages\/(\d+)$/.exec(location.pathname)?.[1] ?? '');
+    const field = container.querySelector('textarea');
+    if (cached !== undefined && field !== null) queueMicrotask(() => (field.value = cached));
   };
 
   const show = (path: string, options: FakeChatOptions = {}): void => {
@@ -124,11 +148,13 @@ export function createFakeFanslyPage(): FakeFanslyPage {
     else render(options);
   };
 
+  const openChat = (groupId: string, options: FakeChatOptions = {}): void => {
+    history.pushState({}, '', `/messages/${groupId}`);
+    show(`/messages/${groupId}`, options);
+  };
+
   return {
-    openChat(groupId, options = {}) {
-      history.pushState({}, '', `/messages/${groupId}`);
-      show(`/messages/${groupId}`, options);
-    },
+    openChat,
     arrive() {
       if (pending === null) return;
       const { options } = pending;
@@ -200,12 +226,37 @@ export function createFakeFanslyPage(): FakeFanslyPage {
       container?.querySelector(':scope > .partner-is-typing')?.remove();
       if (on) container?.querySelector(':scope > .message-content-list')?.after(make('div', 'partner-is-typing'));
     },
+    inbox(groupIds, options = {}) {
+      ensureMessages();
+      const list = messagesRoute?.querySelector('.messages-list-wrapper');
+      if (list === null || list === undefined) return;
+      list.replaceChildren(
+        ...groupIds.map((groupId) => {
+          const link = make('a');
+          link.setAttribute('href', `/messages/${groupId}`);
+          link.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (options.dead !== true) queueMicrotask(() => openChat(groupId));
+          });
+          return link;
+        }),
+      );
+    },
+    routing(on) {
+      window.removeEventListener('popstate', onPopState);
+      if (on) window.addEventListener('popstate', onPopState);
+    },
+    cacheDrafts(on) {
+      drafts = on ? new Map() : null;
+    },
     route: () => conversation,
     container: () => conversation?.querySelector(':scope > app-group-message-container') ?? null,
     composer: () => conversation?.querySelector(':scope > app-group-message-container > app-group-message-input') ?? null,
     headerRow: () => row,
     textarea: () => conversation?.querySelector<HTMLTextAreaElement>(':scope > app-group-message-container textarea.message-input') ?? null,
     destroy() {
+      window.removeEventListener('popstate', onPopState);
+      document.removeEventListener('input', remember, true);
       root.remove();
       history.replaceState({}, '', '/');
     },

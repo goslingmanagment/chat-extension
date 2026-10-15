@@ -16,12 +16,18 @@
 //   `freshness`); `listCachedChats` is empty until P17.
 // - `readDraft` reads the main field itself (`textarea.message-input` under
 //   the route); its revision counts the `input` events we saw on it, its
-//   digest is host-kit's. `focusComposer` focuses that field after the same
-//   checks. A field of another chat, route, creator or document is refused.
-// - Writes come with their work packages: `insert` and `navigate` (P7e) are
-//   refused here before anything is spent (no token is redeemed), the send's
-//   observation is P7f's; `checkpoint` and `previewSend` are ChatSpace's X8 and
-//   do not exist here.
+//   digest is host-kit's, its provenance knows our own unchanged insert
+//   (insert.ts). `focusComposer` focuses that field after the same checks. A
+//   field of another chat, route, creator or document is refused.
+// - Writes need a human (R20 P7e): `insert` and `navigate` spend the action
+//   token of the click or key (`token.redeem`) before anything is written,
+//   once the cheap checks passed. The insert goes into the field this port
+//   owns for the current generation — its chat's and its creator's — in one
+//   synchronous step from its last check (insert.ts, FS-INS-1); «Открыть и
+//   вставить» opens the target's group and writes once its own field is there
+//   (navigate.ts, FS-INS-4). The insertion record is what a human send is
+//   linked to (`insertion`, `sentDraft`; P7f). `checkpoint` and `previewSend`
+//   are ChatSpace's X8 and do not exist here.
 // - `fansly` (FanslyPagePort): the header slot is said from the anchors (its
 //   mount is P7d's and P11a's); a file into the field (P12c), the vault (P13b)
 //   and the relay (P9c) are refused until then.
@@ -33,7 +39,7 @@ import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, Fro
 import type { CgCode } from '@cg/contracts/errors';
 import type { FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
 import type { FanslyContractReport, FanslyHostPort } from '@cg/contracts/fansly-host';
-import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertReceipt, NavigationIntent, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
 import type { ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import { digest } from '@cg/host-kit/common/digest';
 import { sameReport } from '@cg/host-kit/isolated/report';
@@ -43,12 +49,15 @@ import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { FANSLY_ADAPTER_VERSION, buildFanslyReport, buildOf, type Observation } from './contract';
 import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
+import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
 import type { Coexistence } from './legacy';
 import type { FanslyMounts } from './mount';
+import { createNavigator, type NavigationWay } from './navigate';
 import type { FanslyRoute, RouteStats, RouteWatcher } from './route';
 import type { FanslyTheme } from './theme';
 import { consumeStream, type StreamStats } from './stream';
+import type { ValidationLoader } from './validation';
 
 /** What the host tells the tab's log: an event, its code, a few plain facts — never a text, a name or an id of a fan. */
 export interface FanslyDiagnostic {
@@ -58,6 +67,10 @@ export interface FanslyDiagnostic {
 }
 
 export type { FanslyTheme } from './theme';
+export type { InsertionRecord } from './insert';
+
+/** Spends one action token for one write (`token.redeem`); false — not spent, nothing is written. */
+export type TokenRedeemer = (request: { readonly kind: 'insert' | 'navigate'; readonly actionToken: string; readonly intentId: string }) => Promise<boolean>;
 
 /** This side's counts: the route, the anchors' observers, the stream. */
 export interface FanslyIsolatedHealth {
@@ -78,6 +91,10 @@ export interface FanslyPort extends FanslyHostPort {
   recheck(): Promise<FanslyContractReport>;
   /** This side's counts and MAIN's own (`fx.health`, null when it does not answer): «Статус», client_health, the e2e. */
   health(): Promise<{ readonly isolated: FanslyIsolatedHealth; readonly main: FanslyHealth | null }>;
+  /** What our last write left in the open field, while the draft descends from it (§7.5 п. 5); null — none. */
+  insertion(): InsertionRecord | null;
+  /** The open field's draft as a human send carries it (§5.9 п. 7, P7f): its revision, provenance and our insert; null — no field. */
+  sentDraft(): SentDraft | null;
 }
 
 export interface FanslyHostPortOptions {
@@ -89,6 +106,14 @@ export interface FanslyHostPortOptions {
   readonly theme: FanslyTheme;
   readonly route: RouteWatcher;
   readonly anchors: AnchorWatcher;
+  /** The background's `token.redeem` for the click or key of a write. */
+  readonly redeem: TokenRedeemer;
+  /** Fansly's schema module (validation.ts): the checks of our own controllers' intents. */
+  readonly validation: ValidationLoader;
+  /** Bootstrap `limits.navInsertTimeoutSec` × 1000, read at each «Открыть и вставить»; undefined — 20 s. */
+  readonly navInsertTimeoutMs?: () => number | undefined;
+  /** The page loaded by its address when a navigation did not open the chat (SP-036); tests replace it. */
+  readonly load?: (path: string) => void;
   readonly adapterVersion?: string;
   readonly now?: () => number;
   readonly onDiagnostic?: (diagnostic: FanslyDiagnostic) => void;
@@ -99,10 +124,11 @@ const MAX_FAULT_SITES = 64;
 /** The longest draft a snapshot carries (contracts DraftSnapshotSchema). */
 const DRAFT_MAX = 20_000;
 
-const rejected = (code: CgCode): InsertReceipt => ({ state: 'rejected', code });
+/** Shown: not under `display: none`, `visibility: hidden` or a zero opacity. */
+const shown = (element: Element): boolean => typeof element.checkVisibility !== 'function' || element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
 
 export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort {
-  const { win, bridge, mounts, theme, route, anchors } = options;
+  const { win, bridge, mounts, theme, route, anchors, redeem, validation } = options;
   const doc = win.document;
   const clock = options.now ?? (() => Date.now());
   const adapterVersion = options.adapterVersion ?? FANSLY_ADAPTER_VERSION;
@@ -160,15 +186,21 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const owners = new WeakMap<Element, string | null>();
   const instances = new WeakMap<Element, string>();
   let instanceSerial = 0;
-  let revision = 0;
-  let field: HTMLTextAreaElement | null = null;
-  const onInput = (): void => {
-    revision += 1;
-    if (composer === null) return;
-    // A keystroke that changes nothing the views read is said to nobody (§11); the revision is kept current all the same.
-    if (provenance() !== composer.draft.provenance) sync();
-    else composer = { ...composer, draft: { revision, provenance: composer.draft.provenance } };
-  };
+  /** The field this port owns now, its revision, its composition and the record of our write (insert.ts). */
+  const composerField = createComposerField({
+    win,
+    changed() {
+      if (composer === null) return;
+      // A keystroke that changes nothing the views read is said to nobody (§11); the revision is kept current all the same.
+      const draft = { revision: composerField.revision(), provenance: composerField.provenance() };
+      if (draft.provenance !== composer.draft.provenance) sync();
+      else composer = { ...composer, draft };
+    },
+    onWrite: ({ receipt, path, mode }) => noteInsert(receipt, path, mode),
+  });
+  /** The tab's log hears of every insert — its outcome, its way, never its text (LG-017). */
+  const noteInsert = (receipt: InsertReceipt, path: WritePath, mode: 'replace' | 'append'): void =>
+    diag({ event: 'insert', ...(receipt.state === 'applied' ? {} : { code: receipt.code }), detail: { state: receipt.state, path, mode, ms: receipt.state === 'applied' ? receipt.ms : null, needs: receipt.state === 'rejected' ? (receipt.needs ?? null) : null } });
   const instanceOf = (element: Element): string => {
     let token = instances.get(element);
     if (token === undefined) {
@@ -177,13 +209,6 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       instances.set(element, token);
     }
     return token;
-  };
-  const provenance = (): 'empty' | 'human-or-unknown' => (field === null || field.value.trim() === '' ? 'empty' : 'human-or-unknown');
-  const follow = (next: HTMLTextAreaElement | null): void => {
-    if (next === field) return;
-    field?.removeEventListener('input', onInput);
-    field = next;
-    field?.addEventListener('input', onInput);
   };
 
   const eventListeners = new Set<(event: HostEvent) => void>();
@@ -266,7 +291,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const candidate = conversation?.textarea ?? null;
     const owner = now.groupId === null ? null : `${creatorChanges}:${now.groupId}`;
     if (candidate !== null && !owners.has(candidate)) owners.set(candidate, owner);
-    follow(candidate !== null && owner !== null && owners.get(candidate) === owner ? candidate : null);
+    const owned = candidate !== null && owner !== null && owners.get(candidate) === owner ? candidate : null;
+    composerField.follow(owned, owned === null ? null : instanceOf(owned));
+    const field = composerField.element();
     const chat = routeState.chat;
     composer =
       chat !== null && field !== null && conversation !== null
@@ -275,7 +302,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
             instanceId: instanceOf(field),
             ready: field.isConnected && !field.disabled,
             hidden: conversation.copyOnly || chatWire?.dmAllowed === false,
-            draft: { revision, provenance: provenance() },
+            draft: { revision: composerField.revision(), provenance: composerField.provenance() },
           }
         : null;
     // The dock's place, before anyone hears of the change: what they read of the mounts is already the new one (§7.3).
@@ -452,6 +479,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     acting();
     const current = identity();
     if (disposed || bridge === null || current === null) return new BridgeCallError('not-ready', t);
+    const field = composerField.element();
     if (!identityMatches(expected, current) || current.chat === null || composer === null || field === null || expected.composerInstanceId !== composer.instanceId) {
       return new BridgeCallError('identity-mismatch', t);
     }
@@ -459,6 +487,65 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   };
 
   const freshness = createFreshnessPort({ bridge, under: generation.under, onDiagnostic: diag });
+
+  // ── writes (R20 P7e) ──
+  /**
+   * FS-INS-1 п. 1–3, asked before the token, before the focus and after it: the address verified, the anchors read
+   * again, then this document and creator, the target's own chat — an open insert also its generation and the very
+   * field its draft was read from —, a field shown, enabled and under the route (never the mini-chat's), the DM
+   * rules met. A refusal, or null.
+   */
+  const insertCheck = (intent: InsertWire): InsertReceipt | null => {
+    acting();
+    const current = identity();
+    if (disposed || bridge === null || current === null) return rejected('CG-HOST-NOT-READY');
+    const expected = intent.expected;
+    if (current.documentEpoch !== expected.documentEpoch || !sameChat(current.chat, intent.target)) return rejected('CG-INSERT-CHAT-CHANGED');
+    if (expected.kind === 'open' && (current.routeEpoch !== expected.routeEpoch || current.composerInstanceId !== expected.composerInstanceId)) return rejected('CG-INSERT-CHAT-CHANGED');
+    const field = composerField.element();
+    if (composer === null || field === null) return rejected('CG-HOST-COMPOSER-MISSING');
+    if (composer.hidden) return rejected('CG-GATE-FAN-BLOCKED');
+    if (anchors.current().conversation?.textarea !== field || !field.isConnected || field.disabled || field.readOnly || !shown(field)) return rejected('CG-HOST-COMPOSER-MISSING');
+    return null;
+  };
+
+  /** A write is no use while the capability is off: the person sees why (copy only, not ready). */
+  const writeBlocked = (): CgCode | null => {
+    const state = report.capabilities.insert;
+    return state.state === 'off' || state.state === 'contractBroken' ? (state.code ?? 'CG-HOST-COMPOSER-MISSING') : null;
+  };
+
+  const navigator = createNavigator({
+    win,
+    creator: () => creator,
+    open: () => {
+      const now = routeNow();
+      const field = composerField.element();
+      const conversation = anchors.current().conversation;
+      return {
+        groupId: now.groupId,
+        fanId: routeState.epoch === now.epoch ? (routeState.chat?.platformFanId ?? null) : null,
+        generation: now.epoch,
+        composer: composer === null || field === null ? null : { instanceId: composer.instanceId, ready: composer.ready },
+        composing: composerField.composing(),
+        container: conversation?.container ?? null,
+        conversation: conversation !== null && conversation !== undefined,
+      };
+    },
+    // The two looks saw this generation and this field: the write takes them as its expectation, then every check.
+    write: (intent, seen) =>
+      composerField.write(intent, () => {
+        const refusal = insertCheck(intent);
+        if (refusal !== null) return refusal;
+        const current = identity();
+        return current?.routeEpoch === seen.generation && current.composerInstanceId === seen.instanceId ? null : rejected('CG-INSERT-CHAT-CHANGED');
+      }),
+    ...(options.navInsertTimeoutMs === undefined ? {} : { timeoutMs: options.navInsertTimeoutMs }),
+    ...(options.load === undefined ? {} : { load: options.load }),
+    onRoute: (listener) => route.onChange(() => listener()),
+    onNavigate: (way: NavigationWay, receipt: NavigationReceipt) =>
+      diag({ event: 'navigate', ...(receipt.state === 'failed' ? { code: receipt.code } : {}), detail: { way, state: receipt.state, insert: receipt.insert?.state ?? null, insertCode: receipt.insert !== null && receipt.insert.state !== 'applied' ? receipt.insert.code : null } }),
+  });
 
   const page: FanslyPagePort = {
     headerSlot: () => slot,
@@ -480,7 +567,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     stream?.dispose();
     offRoute();
     offAnchors();
-    follow(null);
+    navigator.dispose();
+    composerField.dispose();
     route.dispose();
     anchors.dispose();
     mounts.dispose();
@@ -557,7 +645,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       if (found instanceof BridgeCallError) return Promise.reject(found);
       const text = found.value;
       const current = identity() as HostIdentity;
-      return Promise.resolve({ identity: current, revision, plainText: text.slice(0, DRAFT_MAX), provenance: provenance(), digest: digest(text) });
+      return Promise.resolve({ identity: current, revision: composerField.revision(), plainText: text.slice(0, DRAFT_MAX), provenance: composerField.provenance(), digest: digest(text) });
     },
     readVisibleTail: () => Promise.resolve(null),
     chatWindow(chat: ChatRef): ChatWindow | null {
@@ -568,11 +656,47 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     },
     listCachedChats: () => [],
     listCachedAccounts: accounts,
+    insertion: () => composerField.insertion(),
+    sentDraft: () => composerField.sentDraft(),
 
-    // The insert and «Открыть и вставить» are P7e's (§7.5, §7.6): refused before anything is spent or written.
-    insert: (): Promise<InsertReceipt> => Promise.resolve(rejected(report.capabilities.insert.code ?? 'CG-HOST-NOT-READY')),
-    navigate: (intent: NavigationIntent): Promise<NavigationReceipt> =>
-      Promise.resolve({ state: 'failed', code: 'CG-NAV-FAILED', insert: intent.thenInsert === undefined ? null : rejected('CG-NAV-FAILED') }),
+    /**
+     * §7.5: an open intent only (a deferred one rides `navigate`). The cheap checks first, so a stale intent spends no
+     * token; then the token; then the one synchronous step of insert.ts, which asks every check again.
+     */
+    async insert(intent: InsertIntent): Promise<InsertReceipt> {
+      const check = await validation();
+      if (!check.isInsertIntent(intent) || intent.expected.kind !== 'open') throw new TypeError('insert() takes an open InsertIntent with its cause; a deferred one rides navigate()');
+      // The port ended while it waited (the tab goes): nothing of the page is touched any more.
+      if (disposed) return rejected('CG-HOST-NOT-READY');
+      const { cause, ...wire } = intent;
+      const refused = (receipt: InsertReceipt): InsertReceipt => (noteInsert(receipt, 'none', intent.mode), receipt);
+      const blocked = writeBlocked();
+      if (blocked !== null) return refused(rejected(blocked));
+      const early = insertCheck(wire);
+      if (early !== null) return refused(early);
+      if (Date.now() > intent.expiresAt || !(await redeem({ kind: 'insert', actionToken: cause.actionToken, intentId: intent.intentId })) || Date.now() > intent.expiresAt) return refused(rejected('CG-INSERT-FAILED'));
+      if (disposed) return rejected('CG-HOST-NOT-READY');
+      // Another write of ours, into the open chat: the latest navigation stops — its waiting insert, its 2-second check.
+      navigator.cancel();
+      return composerField.write(wire, () => insertCheck(wire));
+    },
+    /** §7.6: on a human action only; its token is spent before the page is touched. */
+    async navigate(intent: NavigationIntent, navigateOptions?: NavigateOptions): Promise<NavigationReceipt> {
+      const check = await validation();
+      if (!check.isNavigationIntent(intent)) throw new TypeError('navigate() takes a NavigationIntent with its cause');
+      const then = intent.thenInsert;
+      const failed = (code: CgCode): NavigationReceipt => ({ state: 'failed', code, insert: then === undefined ? null : rejected(code) });
+      // After each wait the port may have ended (the tab goes): then nothing moves — no address, no check, no load.
+      if (disposed || bridge === null || report.capabilities.navigate.state !== 'on') return failed('CG-NAV-FAILED');
+      if (!(await redeem({ kind: 'navigate', actionToken: intent.cause.actionToken, intentId: intent.intentId })) || disposed) return failed('CG-NAV-FAILED');
+      // The chat still opens, but its insert is refused at once instead of waiting out its deadline: copy only, or
+      // given up already (sign-out, a persona or binding change, the preview closed).
+      const skipped: CgCode | null = then === undefined ? null : navigateOptions?.signal?.aborted === true ? 'CG-INSERT-CANCELED' : writeBlocked();
+      if (skipped === null) return navigator.navigate(intent, navigateOptions);
+      const { thenInsert: _skipped, ...plain } = intent;
+      const receipt = await navigator.navigate(plain);
+      return { ...receipt, insert: rejected(skipped) };
+    },
     focusComposer(expected: HostIdentity): Promise<boolean> {
       const found = fieldFor(expected, 'focus');
       if (found instanceof BridgeCallError) return Promise.resolve(false);

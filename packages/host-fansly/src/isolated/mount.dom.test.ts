@@ -46,7 +46,7 @@ function listenerCounts(): { of(element: Element | null): number; restore(): voi
 async function start(path = '/messages'): Promise<{ page: FakeFanslyPage; started: StartedFanslyTab; port: FanslyPort }> {
   history.replaceState({}, '', path);
   const page = createFakeFanslyPage();
-  const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20 });
+  const started = startFanslyTab({ win: window, validation: loadValidation, redeem: () => Promise.resolve(false), handshakeTimeoutMs: 20 });
   const port = await started.host;
   cleanups.push(
     () => port.dispose(),

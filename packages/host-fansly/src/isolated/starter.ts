@@ -23,7 +23,7 @@ import { startFanslyHost, type StartFanslyHostOptions, type StartedFanslyHost } 
 
 export type { FanslyDiagnostic, FanslyTheme } from './host-port';
 
-export type FanslyStartEnv = Pick<StartFanslyHostOptions, 'win' | 'validation' | 'handshakeTimeoutMs' | 'searchMs'> & {
+export type FanslyStartEnv = Pick<StartFanslyHostOptions, 'win' | 'validation' | 'redeem' | 'navInsertTimeoutMs' | 'handshakeTimeoutMs' | 'searchMs'> & {
   readonly onDiagnostic?: (diagnostic: FanslyDiagnostic) => void;
 };
 

@@ -36,7 +36,7 @@ afterEach(async () => {
 });
 
 const sites: Array<{ kind: TabRuntimeEnv['kind']; start(): StartedHost; chunk: TabAppChunk }> = [
-  { kind: 'fansly-web', start: () => startFanslyTab({ win: window, validation: () => Promise.resolve(fanslyValidation), handshakeTimeoutMs: 1 }), chunk: fanslyApp },
+  { kind: 'fansly-web', start: () => startFanslyTab({ win: window, validation: () => Promise.resolve(fanslyValidation), redeem: () => Promise.resolve(false), handshakeTimeoutMs: 1 }), chunk: fanslyApp },
   { kind: 'chatspace', start: () => ({ staleHosts: 0, ...startChatSpaceHost({ win: window, validation: chatspaceValidation, redeem: () => Promise.resolve(false), handshakeTimeoutMs: 1 }) }), chunk: chatspaceApp },
 ];
 
