@@ -343,6 +343,25 @@ export default defineConfig(
     },
   },
   {
+    // Fansly's API (docs/project-unite/architecture.md §8.1, §8.3; R20 P9b): the only code that requests Fansly — the
+    // global `fetch` is its own; the browser API is the core's (reached through the kit), and it knows no page, hub or UI.
+    files: ['packages/fansly-api/src/**/*.ts'],
+    rules: {
+      ...restrict(
+        {
+          regex: '^@cg/core/(services|application)(/|$)',
+          message: '`fansly-api` imports only @cg/contracts, @cg/core/domain and zod (docs/project-unite/architecture.md §8.1).',
+        },
+        {
+          group: flat(CG.platform, CG.hub, CG.host, CG.ui, CG.testing, CG.extension, BROWSER_API, PREACT, SDK, NODE),
+          message: '`fansly-api` imports only @cg/contracts, @cg/core/domain and zod: no browser API, hub, page or UI (docs/project-unite/architecture.md §8.1).',
+        },
+      ),
+      'no-restricted-globals': ['error', ...BANNED_GLOBALS.filter((global) => global.name !== 'fetch')],
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES.filter((rule) => rule.property !== 'fetch')],
+    },
+  },
+  {
     files: ['packages/ui/src/**/*.{ts,tsx}'],
     rules: {
       ...restrict({

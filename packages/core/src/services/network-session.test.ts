@@ -20,7 +20,7 @@ const complete = (fact: RequestFact, statusCode = 200): RequestFact => ({ ...fac
 function setup(store = createMemoryKv()) {
   let now = 10_000;
   const service = createNetworkSession({ storage: store.open(), key: 'session', now: () => now,
-    ownOrigin: OWN, pageRequest: (fact) => fact.tabId >= 0 && fact.frameId === 0 && fact.documentUrl?.startsWith('https://fansly.com/') === true && fact.originUrl?.startsWith('https://fansly.com/') === true,
+    requestIdHeader: 'x-cg-request-id', ownOrigin: OWN, pageRequest: (fact) => fact.tabId >= 0 && fact.frameId === 0 && fact.documentUrl?.startsWith('https://fansly.com/') === true && fact.originUrl?.startsWith('https://fansly.com/') === true,
     apiRequest: (url) => url.startsWith('https://apiv3.fansly.com/api/v1/'),
     requiredHeaders: ['authorization', 'fansly-client-id', 'fansly-client-ts', 'fansly-session-id'], materialHeaders: ['authorization', 'fansly-client-id', 'fansly-session-id'], checkHeader: 'fansly-client-check', accountOf: legacyAccount,
     familyOf: (url) => url.includes('/account') ? 'account' : 'message',
@@ -246,4 +246,35 @@ it('[host:fansly] [LG-026] [FS-PRIV-2] page snapshot keeps only header names, ow
   expect(service.diagnostics(1).present).toBe(false);
   await service.setEnabled(false);
   expect(service.diagnostics(1)).toEqual({ present: false, ageMs: null, accountId: null, headerNames: [] });
+});
+
+
+describe('review regression: session response identity', () => {
+  it('a late 401/403 cannot disconnect a recaptured session, including an identical token', async () => {
+    const { service } = setup();
+    await service.setEnabled(true);
+    await service.accept(request('first')); await service.accept(complete(request('first')));
+    const used = service.forAccount(account)!;
+    await service.accept(request('recaptured'));
+    // Queue the successful recapture before the old request's disconnect.
+    const accepted = service.accept(complete(request('recaptured')));
+    const disconnected = service.disconnect(account, used);
+    await accepted; await disconnected;
+    expect(service.forAccount(account)?.connected).toBe(true);
+    await service.disconnect(account, service.forAccount(account)!);
+    expect(service.forAccount(account)).toBeNull();
+  });
+});
+
+
+it('carries our opaque request id to the 429 fact and across wake, never trusts the page to claim it', async () => {
+  const { service, store } = setup(); await service.setEnabled(true);
+  const own = request('browser-own', { tabId: -1, originUrl: OWN, requestHeaders: [...headers(), { name: 'X-CG-Request-ID', value: 'opaque-own-id' }] });
+  await service.accept(own); await service.accept(complete(own, 429));
+  expect(service.rateLimits()[0]).toMatchObject({ requestId: 'browser-own', clientRequestId: 'opaque-own-id', source: 'own' });
+  const page = request('page-spoof', { requestHeaders: own.requestHeaders ?? [] });
+  await service.accept(page); await service.accept(complete(page, 429));
+  expect(service.rateLimits()[1]).not.toHaveProperty('clientRequestId');
+  const woken = setup(store).service; await woken.ready;
+  expect(woken.rateLimits()).toEqual(service.rateLimits());
 });

@@ -21,6 +21,7 @@ import {
   checkSdkCustody,
   checkTabStorageListeners,
   deriveSdkMarkers,
+  FETCH_EXCEPTIONS,
   missingSdkMarkerKinds,
   runSourceGates,
   type Violation,
@@ -128,7 +129,7 @@ const debtPrs = [...new Set(SITE_LITERAL_DEBT.map((entry) => entry.pr))].sort();
 const debt = SITE_LITERAL_DEBT.length === 0 ? 'none left' : `${SITE_LITERAL_DEBT.reduce((sum, entry) => sum + entry.count, 0)} left in ${SITE_LITERAL_DEBT.length} debt entries of PRs in flight: ${debtPrs.join(', ')}`;
 const judged = 'paths' in change ? `${change.paths.length} changed path(s) judged against ${change.base.slice(0, 8)}` : `the diff is not judged here: ${change.skipped}`;
 console.log(
-  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab — all clean.`,
+  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, fetch only in the hub, fansly-api and the relay (${FETCH_EXCEPTIONS.length} counted exceptions), Fansly's addresses under its API, no /message/ack, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab — all clean.`,
 );
 console.log(
   `gates: the two sites — site literals (${debt}), no site name in a shared text, ChatSpace's ${Object.keys(pinned.files).length} built files byte-identical to their pins (${judged}), no Fansly data in them (${fanslyMarkers.length} markers), no build field or parity row in a bundle — all clean.`,

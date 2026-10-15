@@ -17,8 +17,6 @@
 import { CONTRACTS_VERSION, type HubBinding, type StartOp } from '@cg/contracts';
 import type { SoundBatch } from '@cg/contracts/sound';
 import { soundTransport } from '../src/composition/tab/hosts/fansly/sound';
-import { fanslyRequest } from '../src/composition/tab/hosts/fansly/requests';
-import { parseTabPayload as fanslyProtocol } from '../lazy/fansly/tab-protocol';
 import type { StartedHost } from '../src/composition/tab/adapter';
 import type { ChatRef, HostAccount } from '@cg/contracts/ids';
 import { SoundArbiter } from '@cg/core/services/sound';
@@ -27,7 +25,13 @@ import { callsTo, fanslyPageFlags } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { tabSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
+import type { WebRequestDetailsApi } from '../../../packages/platform/src/browser-api.ts';
+import { FakeEvent, tabSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
+import { createFanslyApi } from '@cg/fansly-api';
+import type { BackgroundKit } from '../src/composition/background/host-module.ts';
+
+import { parseTabPayload as fanslyProtocol } from '../lazy/fansly/tab-protocol.ts';
+import { fanslyRequest } from '../src/composition/tab/hosts/fansly/requests.ts';
 import { fanslyModule } from '../bg/fansly.ts';
 import { FANSLY_API_MATCHES, FANSLY_MATCHES } from '../src/hosts/runtime/fansly.ts';
 import { admitted, bindingOf, opsOf, signInWithPersona, startReply, workingTab, type WorkingTab } from './support/tabs.ts';
@@ -372,4 +376,66 @@ describe('[host:fansly] a Fansly tab and the background (R20 P7i)', () => {
     admitted(await startReply(chatspace, await bindingOf(chatspace)));
     await until(() => callsTo(w.hub.read().entries, 'aiFeatureStream').length === 1, 'ChatSpace’s Reply reached the hub');
   });
+});
+
+
+it('[host:fansly] [FS-NET-3] a call waits for webRequest observations still queued in composition', async () => {
+  let kit: BackgroundKit | undefined;
+  const completed = new FakeEvent<(details: WebRequestDetailsApi) => void>();
+  const w = createWorld({ configureApi: (api) => { Object.assign(api, { webRequest: { onCompleted: completed, onBeforeSendHeaders: new FakeEvent(), onErrorOccurred: new FakeEvent() } }); }, loadHostModule: () => Promise.resolve({ default: { host: 'fansly-web', start: async (value: BackgroundKit) => {
+    kit = value;
+    return fanslyModule().start(value);
+  } } }) });
+  worlds.push(w);
+  w.start(); await switchFanslyOn(w); await fanslyTab(w);
+  await until(() => kit !== undefined, 'kit supplied');
+  const session = kit!.networkSession!;
+  const fact = { requestId: 'capture', url: 'https://apiv3.fansly.com/api/v1/message', tabId: 21, frameId: 0, documentUrl: `${FANSLY_ORIGIN}/messages/9`, originUrl: FANSLY_ORIGIN,
+    requestHeaders: [
+      { name: 'authorization', value: btoa(`${CREATOR}:token`) },
+      { name: 'fansly-client-id', value: 'client' }, { name: 'fansly-session-id', value: 'session' }, { name: 'fansly-client-ts', value: '1' },
+    ],
+  };
+  await session.accept({ ...fact, phase: 'headers' }); await session.accept({ ...fact, phase: 'completed', statusCode: 200 });
+  const fetch = vi.fn().mockResolvedValue({ status: 200, headers: { get: () => null }, text: () => Promise.resolve( '{"success":true}') });
+  const api = createFanslyApi({ session, storage: kit!.storage.session, fetch });
+  await api.pacer.ready;
+  // Hold the first item inside accept: the 429 behind it has not reached the core yet.
+  const original = session.accept.bind(session);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const spy = vi.spyOn(session, 'accept').mockImplementation(async (event) => {
+    if (event.requestId === 'held') await held;
+    return original(event);
+  });
+  completed.emit( { ...fact, requestId: 'held', statusCode: 200 });
+  await until(() => spy.mock.calls.length > 0, 'observation held');
+  completed.emit( { ...fact, requestId: 'foreign-429', statusCode: 429 });
+  const result = api.client.call({ purpose: 'registration', route: 'group.detail', account: CREATOR, path: { group } }).catch((error: unknown) => error);
+  await sleep(20);
+  const callsBeforeRelease = fetch.mock.calls.length;
+  release();
+  const outcome = await result;
+  expect(callsBeforeRelease).toBe(0);
+  expect(outcome).toMatchObject({ kind: 'cooling', sent: false });
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+
+it('[host:fansly] unreadable pacer storage keeps the module and vault registry running while calls fail closed', async () => {
+  let kit: BackgroundKit | undefined;
+  const w = createWorld({ loadHostModule: () => Promise.resolve({ default: { host: 'fansly-web', start: async (value: BackgroundKit) => {
+    kit = value;
+    const get = value.storage.session.get.bind(value.storage.session);
+    vi.spyOn(value.storage.session, 'get').mockImplementation((keys) => keys.includes('fansly.pacer') ? Promise.reject(new Error('unreadable')) : get(keys));
+    return fanslyModule().start(value);
+  } } }) });
+  worlds.push(w);
+  w.start(); await switchFanslyOn(w);
+  const tab = await fanslyTab(w);
+  await until(async () => (await modules(w)).some((entry) => entry.host === 'fansly-web' && entry.state === 'started'), 'Fansly module starts despite unreadable pacer');
+  expect(kit).toBeDefined();
+  // The installed registry handles the vault request (not CG-RUNTIME-UNREACHABLE).
+  const vault = await fanslyRequest(tab.client, 'fansly.vault.resume', { hostAccountId: CREATOR, albumId: '123' });
+  expect(vault).toMatchObject({ ok: true });
 });

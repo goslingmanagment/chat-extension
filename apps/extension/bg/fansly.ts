@@ -1,7 +1,16 @@
 // First Fansly background module (P9a). The core captures and persists passive
-// observations even when this chunk has never loaded. P9b adds its API/pacer
-// here, over the same session owner; a handshake restores this module after
-// the first optional grant, whose late webRequest listener cannot wake Firefox.
+// observations even when this chunk has never loaded; a handshake restores this
+// module after the first optional grant, whose late webRequest listener cannot
+// wake Firefox.
+//
+// R20 P9b: Fansly's API (packages/fansly-api; architecture.md §8.3, §8.4) —
+// the client of FS-NET-1 and the pacer, one of each per realm, over the core's
+// session owner (`kit.networkSession`: the templates and the 429 facts it
+// recorded, those of the page and of a neighbour too) and storage.session (the
+// pacer's state survives the event page). The pacer's stored state is read as
+// the module starts; a call waits for it. The services that ask Fansly (P9c–P9e,
+// P10*, P11*) take `api` from here. A test build adds the e2e's probe
+// (bg/fansly/api-probe.ts), which a release chunk does not carry.
 //
 // R20 P13b: the module plugs Fansly's own tab registry (`fansly.*`,
 // contracts tab-messages-fansly.ts; architecture.md §1.6, §3.3, §12) into the
@@ -34,8 +43,10 @@ import {
 } from '@cg/contracts/tab-messages-fansly';
 import { featureSlice } from '@cg/core/domain/features';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
+import { createFanslyApi, type FanslyApi } from '@cg/fansly-api';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry } from '../src/composition/background/host-module';
+import { startFanslyApiProbe } from './fansly/api-probe';
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
 
@@ -55,7 +66,12 @@ export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegi
 }
 
 async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
-  await kit.networkSession?.ready;
+  const session = kit.networkSession;
+  await session?.ready.catch(() => undefined);
+  // Fansly's API over the core's session owner; none without it (a kit without P9a's session asks Fansly nothing).
+  const api: FanslyApi | null = session === undefined ? null : createFanslyApi({ session, storage: kit.storage.session, now: () => kit.clock.now(), warn: (reason) => kit.log.service({ level: 'warn', scope: 'fansly.pacer', msg: 'request pacing state unavailable; cooling all creators', fields: { reason } }) });
+  await api?.pacer.ready;
+  const unprobe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? startFanslyApiProbe(kit, session, api) : () => undefined;
   let settingsReady = false;
   let disposed = false;
   let retry: ReturnType<BackgroundKit['clock']['setTimer']> | null = null;
@@ -105,12 +121,13 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       if (event.kind === 'clear-finished') await vault.sweep();
     },
     facts: () => ({}),
-    dispose: () => {
+    dispose: async () => {
       disposed = true;
       if (retry !== null) kit.clock.clearTimer(retry);
       offSettings?.();
       unplug();
-      return Promise.resolve();
+      unprobe();
+      await api?.pacer.flush();
     },
   };
 }

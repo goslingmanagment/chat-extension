@@ -44,6 +44,11 @@ describe('ESLint package graph (§4)', () => {
     // the packages of the page and Fansly's API package are wired by the app alone (R20 F9a, architecture §1.8)
     ['core imports Fansly’s adapter', 'packages/core/src/application/bad.ts', "import { startFansly } from '@cg/host-fansly/isolated';\nexport const x = startFansly;", ['no-restricted-imports']],
     ['ui imports Fansly’s API package', 'packages/ui/src/bad.ts', "import { createFanslyApi } from '@cg/fansly-api';\nexport const x = createFanslyApi;", ['no-restricted-imports']],
+    // Fansly's API (R20 P9b): `fetch` is its own, the browser API and the core's services are not.
+    ['Fansly’s API imports platform', 'packages/fansly-api/src/bad.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
+    ['Fansly’s API imports the core’s services', 'packages/fansly-api/src/bad.ts', "import { createNetworkSession } from '@cg/core/services/network-session';\nexport const x = createNetworkSession;", ['no-restricted-imports']],
+    ['Fansly’s API opens a WebSocket', 'packages/fansly-api/src/bad.ts', "export const x = () => new WebSocket('wss://x');", ['no-restricted-globals']],
+    ['Fansly’s API touches browser.storage', 'packages/fansly-api/src/bad.ts', 'export const x = () => globalThis.browser;', ['no-restricted-properties']],
     ['hub imports the shared mechanics of the page', 'packages/hub/src/bad.ts', "import { guardWith } from '@cg/host-kit/main/guard';\nexport const x = guardWith;", ['no-restricted-imports']],
     ['ui imports the shared mechanics of the page', 'packages/ui/src/bad.ts', "import { OVERLAY_Z } from '@cg/host-kit/isolated/hosts';\nexport const x = OVERLAY_Z;", ['no-restricted-imports']],
     // host-kit (R20 P5, architecture §1.1): what a MAIN bundle carries imports nothing; the isolated half imports
@@ -125,6 +130,7 @@ describe('ESLint package graph (§4)', () => {
       'apps/extension/src/entrypoints/fansly-main.ts',
       "import { installFanslyMain } from '@cg/host-fansly/main';\nimport type { UnlistedScriptDefinition } from 'wxt';\nimport { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';\nimport { FANSLY_MATCHES } from '../hosts/runtime/fansly';\nexport const x: UnlistedScriptDefinition = defineUnlistedScript(() => installFanslyMain(window));\nexport const y = FANSLY_MATCHES;",
     ],
+    ['Fansly’s API calls fetch and imports the contracts and core/domain', 'packages/fansly-api/src/ok.ts', "import type { CgAnyCode } from '@cg/contracts/errors-fansly';\nimport { featureSlice } from '@cg/core/domain/features';\nexport const x = (u: string): [Promise<Response>, unknown, CgAnyCode] => [fetch(u, { credentials: 'omit' }), featureSlice, 'CG-FAN-REQUEST'];"],
     ['ui imports preact', 'packages/ui/src/ok.ts', "import { render } from 'preact';\nexport const x = render;"],
     ['platform imports the browser API', 'packages/platform/src/ok.ts', "import { browser } from '@wxt-dev/browser';\nexport const x = browser;"],
     ['the background composition root imports hub', 'apps/extension/src/composition/background.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;"],

@@ -186,7 +186,7 @@ export function checkUiTexts(files: readonly SourceFile[]): Violation[] {
 export function checkSendQueueReferences(files: readonly SourceFile[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
-    if (file.path === SEND_PORT_FILE) continue;
+    if (file.path === SEND_PORT_FILE || /^packages\/fansly-api\//.test(file.path) || /^apps\/extension\/bg\/fansly(?:\/|\.ts$)/.test(file.path)) continue;
     const source = parse(file);
     walk(source, (node) => {
       const hit =
@@ -212,6 +212,7 @@ export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
     [/127\.0\.0\.1|\blocalhost\b/, 'loopback stand / fake hub host'],
     [/data-cg-spike|lazy\/spike\.js/, 'spike M0 probe'],
     [/cg-test-egress-probe|cg-bg-probe\.invalid/, 'background egress probe'],
+    [/dev\.fanslyApi\./, "Fansly's API probe of the e2e (bg/fansly/api-probe.ts)"],
     [/chat-extension-test@/, 'test gecko id'],
     [/__cgBundleMarks/, 'spike timing marks'],
     [/cg-e2e-main-throw/, 'the sentry-gate e2e\'s throwing MAIN probe'],
@@ -540,6 +541,143 @@ export function checkMainWorldGuards(files: readonly SourceFile[]): Violation[] 
   return violations;
 }
 
+// ── Our own requests (R20 P9b; docs/project-unite/architecture.md §8.1, §8.3; spec FS-NET-1) ──
+
+/**
+ * Where the global `fetch` may be used: the hub layer, Fansly's API and the relay frame of «Fansly через вкладку»
+ * (P9c) — every other request of ours goes through one of them. The test stand never ships.
+ */
+export const FETCH_ALLOWED: readonly RegExp[] = [/^packages\/hub\/src\//, /^packages\/fansly-api\/src\//, /^apps\/extension\/src\/entrypoints\/fansly-relay\//, STAND_PACKAGE];
+
+/**
+ * Files outside FETCH_ALLOWED that hold the global `fetch` — each with its number of references, so a new one is red,
+ * and why. A file that holds fewer than its number is a stale entry: the list shrinks with it.
+ */
+export const FETCH_EXCEPTIONS: ReadonlyArray<{ readonly path: string; readonly count: number; readonly why: string }> = [
+  {
+    path: 'apps/extension/src/composition/background.ts',
+    count: 1,
+    why: 'the hub layer\'s fetch: the composition root hands the global to packages/hub (`BackgroundDeps.fetch`), which makes every hub request',
+  },
+  { path: 'apps/extension/src/composition/egress-probe.ts', count: 1, why: 'test builds only: the e2e\'s proof that the egress sink sees background requests (dropped from release, `release-bundle`)' },
+];
+
+const GLOBAL_OBJECTS = new Set(['globalThis', 'window', 'self']);
+
+const inTypePosition = (node: ts.Node): boolean => {
+  for (let at: ts.Node | undefined = node.parent; at !== undefined; at = at.parent) {
+    if (ts.isTypeNode(at) || ts.isTypeAliasDeclaration(at) || ts.isInterfaceDeclaration(at)) return true;
+    if (ts.isStatement(at) || ts.isSourceFile(at)) return false;
+  }
+  return false;
+};
+
+/** The references of a file to the global `fetch`: `fetch(…)`, `{ fetch }`, `globalThis.fetch`, `self['fetch']`… — not `x.fetch`, a key or a type. */
+export function globalFetchReferences(file: SourceFile): number[] {
+  const source = parse(file);
+  // Resolve each reference in its lexical scope. A parameter in a different
+  // function must never hide the global transport elsewhere in the file.
+  const options: ts.CompilerOptions = { noLib: true, noResolve: true };
+  const host = ts.createCompilerHost(options);
+  host.getSourceFile = (name) => name === source.fileName ? source : undefined;
+  const checker = ts.createProgram([source.fileName], options, host).getTypeChecker();
+  const local = (node: ts.Identifier): boolean => {
+    const symbol = ts.isShorthandPropertyAssignment(node.parent) ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node);
+    return symbol !== undefined;
+  };
+  const lines: number[] = [];
+  walk(source, (node) => {
+    if (ts.isPropertyAccessExpression(node) && node.name.text === 'fetch' && ts.isIdentifier(node.expression) && GLOBAL_OBJECTS.has(node.expression.text)) {
+      lines.push(lineOf(source, node));
+      return;
+    }
+    if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === 'fetch' && ts.isIdentifier(node.expression) && GLOBAL_OBJECTS.has(node.expression.text)) {
+      lines.push(lineOf(source, node));
+      return;
+    }
+    if (!ts.isIdentifier(node) || node.text !== 'fetch' || local(node) || inTypePosition(node)) return;
+    const parent = node.parent;
+    // `x.fetch`, `{ fetch: … }`, `fetch() {}` and the like name a property, not the global.
+    if ((ts.isPropertyAccessExpression(parent) && parent.name === node) || ((ts.isPropertyAssignment(parent) || ts.isMethodDeclaration(parent) || ts.isPropertyDeclaration(parent) || ts.isPropertySignature(parent) || ts.isMethodSignature(parent) || ts.isGetAccessor(parent)) && parent.name === node)) return;
+    lines.push(lineOf(source, node));
+  });
+  return lines;
+}
+
+/** 11. The global `fetch` only in the hub layer, Fansly's API and the relay frame (FETCH_ALLOWED; FETCH_EXCEPTIONS counted). */
+export function checkFetchScope(files: readonly SourceFile[], exceptions = FETCH_EXCEPTIONS): Violation[] {
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (FETCH_ALLOWED.some((pattern) => pattern.test(file.path))) continue;
+    const lines = globalFetchReferences(file);
+    const exception = exceptions.find((entry) => entry.path === file.path);
+    const allowed = exception?.count ?? 0;
+    if (exception !== undefined && lines.length < allowed) {
+      violations.push({ gate: 'fetch-scope', path: file.path, line: 1, message: `FETCH_EXCEPTIONS counts ${allowed} reference(s) of \`fetch\` here, the file has ${lines.length}: shrink the entry (tools/gates/checks.ts).` });
+    }
+    if (lines.length <= allowed) continue;
+    for (const line of lines) {
+      violations.push({
+        gate: 'fetch-scope',
+        path: file.path,
+        line,
+        message: `\`fetch\` outside the hub layer, packages/fansly-api and the relay frame${allowed > 0 ? ` (this file may hold ${allowed}: ${exception?.why ?? ''})` : ''} — our requests go through them (docs/project-unite/architecture.md §8.1, FS-NET-1).`,
+      });
+    }
+  }
+  return violations;
+}
+
+/** Every address our own code may request from Fansly is under this prefix (FS-NET-1; contracts FANSLY_RELAY_TARGET). */
+export const FANSLY_API_PREFIX = 'https://apiv3.fansly.com/api/v1/';
+/** The code that requests Fansly: its API package and the relay frame. */
+export const FANSLY_REQUEST_SCOPES: readonly RegExp[] = [/^packages\/fansly-api\/src\//, /^apps\/extension\/src\/entrypoints\/fansly-relay\//];
+/** An absolute address in a text: a scheme and `//`. */
+const ABSOLUTE_ADDRESS = /\b[a-z][a-z0-9+.-]*:\/\//i;
+
+/**
+ * 12. Fansly's addresses (FS-NET-1): in the code that requests Fansly, every absolute address a string or a template
+ * names starts with https://apiv3.fansly.com/api/v1/ — no other host, no other path, no `http:` (a test build hands its
+ * stand's address in from outside: bg/fansly/api-probe.ts, never shipped).
+ */
+export function checkFanslyAddresses(files: readonly SourceFile[]): Violation[] {
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (!FANSLY_REQUEST_SCOPES.some((pattern) => pattern.test(file.path))) continue;
+    const source = parse(file);
+    walk(source, (node) => {
+      if (!isTextNode(node)) return;
+      const match = ABSOLUTE_ADDRESS.exec(node.text);
+      if (match === null) return;
+      const address = node.text.slice(match.index);
+      if (match.index === 0 && address.startsWith(FANSLY_API_PREFIX)) return;
+      violations.push({ gate: 'fansly-addresses', path: file.path, line: lineOf(source, node), message: `«${address.slice(0, 60)}» is not under ${FANSLY_API_PREFIX}: our requests to Fansly go there alone (FS-NET-1).` });
+    });
+  }
+  return violations;
+}
+
+/** `/message/ack`, as a text names it (regex escaping undone) — also as a template's chunk after the base (`${base}message/ack`). */
+const MESSAGE_ACK = /(?:^|\/)message\/ack\b/i;
+
+/**
+ * 13. Our reads never mark a message read (RB-022, FS-NET-1): the string `/message/ack` is in no code of ours but the
+ * test stand's (which plays the page that does send it). Strings, templates and regular expressions; comments are prose.
+ */
+export function checkMessageAck(files: readonly SourceFile[]): Violation[] {
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (STAND_PACKAGE.test(file.path)) continue;
+    const source = parse(file);
+    walk(source, (node) => {
+      if (!isTextNode(node) && !ts.isRegularExpressionLiteral(node)) return;
+      if (!MESSAGE_ACK.test(node.text.replace(/\\/g, ''))) return;
+      violations.push({ gate: 'message-ack', path: file.path, line: lineOf(source, node), message: '`/message/ack` outside the test stand: nothing of ours marks a message read (RB-022, FS-NET-1).' });
+    });
+  }
+  return violations;
+}
+
 export function runSourceGates(files: readonly SourceFile[]): Violation[] {
   return [
     ...checkOnlyMonsterReferences(files),
@@ -549,5 +687,8 @@ export function runSourceGates(files: readonly SourceFile[]): Violation[] {
     ...checkSendQueueReferences(files),
     ...checkStandHooks(files),
     ...checkMainWorldGuards(files),
+    ...checkFetchScope(files),
+    ...checkFanslyAddresses(files),
+    ...checkMessageAck(files),
   ];
 }

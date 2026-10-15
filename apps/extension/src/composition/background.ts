@@ -318,17 +318,25 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   const extSettings = createSettingsExtOwner({ local, session, log: serviceLog });
   const accessFailed = (): void => serviceLog({ level: 'warn', scope: 'bg.site-access', msg: 'site access or observation unavailable' });
+  let observations: Promise<void> = Promise.resolve();
+  let pendingObservations = 0;
   const networkSession = createNetworkSession({
     storage: session, key: SESSION_KEY, now: () => Date.now(),
     pageRequest: (fact) => fact.tabId >= 0 && fact.frameId === 0 && pageAddress(fact.documentUrl) && pageAddress(fact.originUrl),
     apiRequest: apiAddress, ownOrigin: api.runtime.getURL(''),
     requiredHeaders: ['authorization', 'fansly-client-id', 'fansly-client-ts', 'fansly-session-id'],
     materialHeaders: ['authorization', 'fansly-client-id', 'fansly-session-id'],
+    requestIdHeader: 'x-cg-request-id',
+    observationsPending: () => pendingObservations > 0,
+    settleObservations: async () => {
+      let seen: Promise<void>;
+      do { seen = observations; await seen; } while (seen !== observations);
+    },
     checkHeader: 'fansly-client-check', accountOf: legacyAccount, familyOf: routeFamily,
   });
-  let observations: Promise<void> = Promise.resolve();
   const observation = observeWebRequests(apiMatches(), (fact) => {
-    observations = observations.then(async () => { await siteAccess.idle(); await networkSession.accept(fact); }).catch(accessFailed);
+    pendingObservations += 1;
+    observations = observations.then(async () => { await siteAccess.idle(); await networkSession.accept(fact); }).catch(accessFailed).finally(() => { pendingObservations -= 1; });
   }, api);
   const scriptTabs = createScriptTabs(siteMatches(), 'fansly-notice.js', api);
   scriptTabs.onRemoved((tab) => { void networkSession.forget(tab).catch(accessFailed); });
