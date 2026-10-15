@@ -44,26 +44,28 @@ function manifestOf(flavor: BuildFlavor): Record<string, unknown> {
 }
 
 describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
-  it('[host:fansly] is the second site: fansly-web on fansly, its pages from its runtime row, not quiet; the row joins the table with its tabs (P7i)', () => {
+  it('[host:fansly] is the second site: fansly-web on fansly, its pages from its runtime row, not quiet; the row joins the table for the permission handshake (P9a)', () => {
     expect([FANSLY.kind, FANSLY.platform]).toEqual(['fansly-web', HOST_PLATFORM['fansly-web']]);
     expect(FANSLY.matches).toBe(FANSLY_MATCHES);
     expect(FANSLY.matches).toEqual(['https://fansly.com/*']);
     expect(FANSLY.quietDomains).toEqual([]);
-    expect(Object.keys(RUNTIME_HOSTS)).not.toContain('fansly-web');
+    expect(Object.keys(RUNTIME_HOSTS)).toContain('fansly-web');
     expect(FANSLY.test).toBe(FANSLY_TEST);
     expect(FANSLY_TEST.pageMatches).toEqual(FANSLY_STAND_MATCHES);
-    expect(FANSLY.background).toBeUndefined();
+    expect(FANSLY.background?.file).toBe('bg/fansly.js');
   });
 
-  it('[host:fansly] has two scripts, MAIN first, both registered by the background; each has its entry point and a budget line — 16 KiB and 30 KiB gzip (§3.1)', () => {
+  it('[host:fansly] has MAIN and ISOLATED registrations plus the injected notice, all with their budget lines (§3.1)', () => {
     expect(scriptsOf(FANSLY).map((script) => [script.entry, script.file, script.world, script.registration])).toEqual([
       ['fansly-main', 'fansly-main.js', 'MAIN', 'dynamic'],
       ['fansly', 'fansly.js', 'ISOLATED', 'dynamic'],
+      ['fansly-notice', 'fansly-notice.js', 'ISOLATED', 'execute'],
     ]);
     for (const script of scriptsOf(FANSLY)) expect(existsSync(`${entrypoints}${script.entry}.ts`), script.entry).toBe(true);
     expect(FANSLY.budgets.scripts.map((line) => [line.entry, line.gzipBytes])).toEqual([
       ['fansly-main', 16 * 1024],
       ['fansly', 30 * 1024],
+      ['fansly-notice', 2 * 1024],
     ]);
     expect(FANSLY.mainWorldSources).toEqual(['packages/host-fansly/src/main/']);
   });

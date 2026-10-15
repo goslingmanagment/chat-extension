@@ -121,6 +121,7 @@ export interface BackgroundRpcOptions {
   readonly testBuild: boolean;
   readonly mintSessionId?: () => string;
   readonly now?: () => number;
+  readonly allowTab?: (host: TabHostKind) => boolean;
   readonly onTabRegistered?: (info: TabSessionInfo) => void;
   readonly onTabGone?: (info: TabSessionInfo) => void;
   /** A refused message: the reason and the type only, never the payload. */
@@ -280,6 +281,7 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       reject('origin', 'tab.register', 'tab');
       return null;
     }
+    if (options.allowTab?.(state.host) === false) return rpcError('CG-RUNTIME-UNREACHABLE', 'site disabled');
     if (!tabPorts.has(state)) return rpcError('CG-RUNTIME-UNREACHABLE', 'port closed');
     // One session per port: a repeated register answers the same session.
     if (!state.session) {

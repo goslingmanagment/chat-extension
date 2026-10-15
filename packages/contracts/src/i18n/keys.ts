@@ -27,6 +27,8 @@ export type PluralMessage<L extends Locale> = { readonly [C in (typeof PLURAL_CA
 
 /** Plain messages; `{name}` marks a parameter. */
 export const UI_TEXT_KEYS = [
+  // 1.15.0 P9a: optional-site activation and per-site status.
+  'siteAccess.enable', 'siteAccess.disable', 'siteAccess.reload', 'siteAccess.waiting', 'siteAccess.reloaded', 'settings.status.site.title', 'settings.status.site.closed', 'settings.status.site.closedNote', 'settings.status.site.checking', 'settings.status.site.value', 'settings.status.site.checked', 'settings.status.site.notYetNote', 'settings.status.site.partial', 'settings.status.site.partialNote', 'settings.status.site.copyOnlyNote',
   'common.copy', 'common.copied', 'common.close', 'common.cancel', 'common.cancelOp', 'common.hide', 'common.again', 'common.retry',
   'common.copyCode', 'common.settings', 'common.openChat', 'common.refreshArchive', 'common.go', 'common.details', 'common.save', 'common.saving',
   'common.saved', 'common.signIn', 'common.signOut', 'common.reloadTab', 'common.loading', 'common.empty', 'common.unknown', 'common.errorSource',

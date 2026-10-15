@@ -9,6 +9,22 @@ import type { I18nCatalog } from '@cg/contracts/i18n/catalog';
 
 export const RU: I18nCatalog<'ru'> = {
   // ── Common ──
+  // Optional-site activation and status (P9a).
+  'siteAccess.enable': 'Включить {site}',
+  'siteAccess.disable': 'Выключить {site}',
+  'siteAccess.reload': 'Перезагрузить вкладки',
+  'siteAccess.waiting': 'Ждут перезагрузки: {count}',
+  'siteAccess.reloaded': 'Перезагружено вкладок: {count}',
+  'settings.status.site.title': '{site}',
+  'settings.status.site.closed': 'Вкладка {site} закрыта',
+  'settings.status.site.closedNote': 'Откройте сообщения {onSite}.',
+  'settings.status.site.checking': 'Проверяем {site}…',
+  'settings.status.site.value': '{site} {build} · подключён',
+  'settings.status.site.checked': 'Проверено в {time}',
+  'settings.status.site.notYetNote': 'Откройте чат, чтобы завершить проверку.',
+  'settings.status.site.partial': '{site} {build} · проверен частично',
+  'settings.status.site.partialNote': 'Не найдено: {missing}. Вставка работает.',
+  'settings.status.site.copyOnlyNote': 'Не найдено: {missing}. Используйте «Копировать».',
   'common.copy': 'Копировать',
   'common.copied': 'Скопировано',
   'common.close': 'Закрыть',

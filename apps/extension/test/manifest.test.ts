@@ -148,7 +148,7 @@ describe('release manifest (§3)', () => {
     for (const built of [release, test]) {
       const war = (built.manifest['web_accessible_resources'] as Array<{ resources: string[] }>).flatMap((entry) => entry.resources);
       const chunks = HOSTS.flatMap((host) => (host.background === undefined ? [] : [host.background.file]));
-      expect(chunks).toEqual(['bg/chatspace.js']);
+      expect(chunks).toEqual(['bg/chatspace.js', 'bg/fansly.js']);
       expect(readdirSync(join(built.dir, 'bg')).map((name) => `bg/${name}`).sort()).toEqual([...chunks].sort());
       for (const chunk of chunks) {
         expect(readFileSync(join(built.dir, chunk), 'utf8')).toMatch(/\bas default\b/);

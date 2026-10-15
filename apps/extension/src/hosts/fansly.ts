@@ -16,7 +16,7 @@
 // (packages/testing/e2e/support/fansly-site.ts), with the stand's origins
 // granted as a person would.
 
-import { FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_QUIET_DOMAINS } from './runtime/fansly.ts';
+import { FANSLY_API_MATCHES, FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_QUIET_DOMAINS } from './runtime/fansly.ts';
 import { FANSLY_STAND_MATCHES } from './runtime/index.ts';
 import type { HostDescriptor, TestHostConfig } from './types.ts';
 
@@ -24,9 +24,6 @@ const KIB = 1024;
 
 /** The Fansly stand: its own loopback name, `localhost` (ChatSpace's stand is `127.0.0.1`), optional as the site's pages (R20 P6a). */
 export const FANSLY_TEST: TestHostConfig = { pageMatches: FANSLY_STAND_MATCHES };
-
-/** Fansly's API: its background asks it, by the list of FS-NET-1 (§8.3); the session and its answers come from `webRequest` (§8.2). */
-export const FANSLY_API_MATCHES: readonly string[] = ['https://apiv3.fansly.com/*'];
 
 /**
  * Fansly's own lazy build (§3.1, §3.2): `lazy/fansly/<entry>.js`, cut by the bundler alone until it has the dock's
@@ -40,6 +37,7 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
 export const FANSLY: HostDescriptor = {
   kind: 'fansly-web',
   platform: 'fansly',
+  background: { source: 'bg/fansly.ts', file: 'bg/fansly.js', rawBytes: 200 * KIB },
   matches: FANSLY_MATCHES,
   quietDomains: FANSLY_QUIET_DOMAINS,
   scripts: {
@@ -47,6 +45,7 @@ export const FANSLY: HostDescriptor = {
     main: { entry: 'fansly-main', file: 'fansly-main.js', world: 'MAIN', registration: 'dynamic' },
     // The early isolated bootstrap: the adapter's start, the bridge client, the keys (§7.1).
     isolated: { entry: 'fansly', file: 'fansly.js', world: 'ISOLATED', registration: 'dynamic' },
+    notice: { entry: 'fansly-notice', file: 'fansly-notice.js', world: 'ISOLATED', registration: 'execute' },
   },
   lazy: { root: FANSLY_LAZY_ROOT, entries: FANSLY_LAZY_ENTRIES, layers: [], beforeTheDock: [] },
   // Asked for on the person's gesture, all at once (§4 «Включить Fansly»): the pages, the API and webRequest.
@@ -59,6 +58,7 @@ export const FANSLY: HostDescriptor = {
       // Everything of MAIN in one script, ≤ 1 ms at document_start (e2e): the P3a prototype was 8.8 KiB.
       { entry: 'fansly-main', label: 'MAIN: boot, traps, observation (fansly-main)', gzipBytes: 16 * KIB },
       { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 30 * KIB },
+      { entry: 'fansly-notice', label: 'reload notice (fansly-notice)', gzipBytes: 2 * KIB },
     ],
     contracts: [],
   },

@@ -13,6 +13,7 @@
 
 import type { HostKind } from '@cg/contracts';
 
+import { FANSLY_MATCHES, FANSLY_QUIET_DOMAINS } from './fansly.ts';
 import { CHATSPACE_MATCHES, CHATSPACE_QUIET_DOMAINS } from './chatspace.ts';
 
 export { CHATSPACE_MATCHES };
@@ -59,6 +60,7 @@ export interface RuntimeHostRow {
 /** Every site of the extension by its kind. Code that ships reads the rows' constants; the registry reads this table. */
 export const RUNTIME_HOSTS = {
   chatspace: { matches: CHATSPACE_MATCHES, quietDomains: CHATSPACE_QUIET_DOMAINS },
+  'fansly-web': { matches: FANSLY_MATCHES, quietDomains: FANSLY_QUIET_DOMAINS },
 } as const satisfies { readonly [K in HostKind]?: RuntimeHostRow };
 
 export type RuntimeHostKind = keyof typeof RUNTIME_HOSTS;

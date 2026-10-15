@@ -118,3 +118,5 @@ export * from './scheduler';
 export * from './profile-saver';
 export * from './send-driver';
 export * from './native-send';
+
+export { createSettingsExtOwner } from './settings-owner';

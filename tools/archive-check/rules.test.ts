@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { ZipEntry } from '../lib/zip.ts';
 import { isStandSource, STAND_SOURCE_GLOBS, STAND_SOURCE_KEPT } from '../../apps/extension/build/sources-archive.ts';
 import { CHATSPACE } from '../../apps/extension/src/hosts/chatspace.ts';
-import type { HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
+import { HOSTS, type HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
 import { checkArchive, compareWithBuild, danglingReferences, jsCeilingOf, MAX_BACKGROUND_JS_BYTES, MAX_JS_BYTES, missingBackgroundChunks, REAL_ID_SHA256, sha256 } from './rules.ts';
 
 const entry = (name: string, text = ''): ZipEntry => ({ name, data: Buffer.from(text) });
@@ -52,9 +52,8 @@ describe('archive check', () => {
   });
 
   it('every site’s background chunk is in the XPI: a chunk the core cannot find leaves the site’s services down', () => {
-    const chunk = CHATSPACE.background?.file ?? '';
-    expect(missingBackgroundChunks('x.zip', [entry('background.js'), entry(chunk)])).toEqual([]);
-    expect(missingBackgroundChunks('x.zip', [entry('background.js')])).toEqual([{ archive: 'x.zip', file: chunk, rule: 'missing-chunk', detail: 'chatspace\'s background chunk is not in the XPI' }]);
+    expect(missingBackgroundChunks('x.zip', [entry('background.js'), ...HOSTS.flatMap((host) => host.background === undefined ? [] : [entry(host.background.file)])])).toEqual([]);
+    expect(missingBackgroundChunks('x.zip', [entry('background.js')])).toEqual(HOSTS.flatMap((host) => host.background === undefined ? [] : [{ archive: 'x.zip', file: host.background.file, rule: 'missing-chunk', detail: `${host.kind}'s background chunk is not in the XPI` }]));
     const coreOnly: HostDescriptor = { ...CHATSPACE };
     delete (coreOnly as { background?: unknown }).background;
     expect(missingBackgroundChunks('x.zip', [entry('background.js')], [coreOnly])).toEqual([]);

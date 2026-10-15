@@ -1,3 +1,4 @@
+import type { HostStatusTexts } from './vm/pages';
 // Fansly's side of the host contract (R20, docs/project-unite/architecture.md §7.7, §7.12, FS-CTR-1): the port of the
 // Fansly adapter as Fansly's own code sees it (`FanslyHostPort`: `freshness` gives `FanslySnapshot`, `fansly` is
 // `FanslyPagePort`), what its contract report must name (`FANSLY_CONTRACT`) and the strict branch of its report's block
@@ -59,3 +60,17 @@ export const FanslyContractReportSchema = z.strictObject({
   extensions: z.strictObject({ 'fansly-web': FanslyContractBlockSchema }),
 });
 export type FanslyContractReport = z.infer<typeof FanslyContractReportSchema>;
+
+/** P9a: the site's own status labels, rendered with its phrases. */
+export const FANSLY_STATUS_TEXTS: HostStatusTexts = {
+  title: 'settings.status.site.title',
+  closed: 'settings.status.site.closed',
+  closedNote: 'settings.status.site.closedNote',
+  checking: 'settings.status.site.checking',
+  value: 'settings.status.site.value',
+  checked: 'settings.status.site.checked',
+  notYetNote: 'settings.status.site.notYetNote',
+  partial: 'settings.status.site.partial',
+  partialNote: 'settings.status.site.partialNote',
+  copyOnlyNote: 'settings.status.site.copyOnlyNote',
+};

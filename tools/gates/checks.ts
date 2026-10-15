@@ -43,7 +43,7 @@ const SEND_QUEUE_IN_TEXT = new RegExp(`(?<![\\w$])${SEND_QUEUE_METHOD}(?![\\w$])
 /** Where user-visible UI text lives until the i18n catalogs exist (R13/R16). */
 export const UI_TEXT_SCOPES: readonly RegExp[] = [/^packages\/ui\/src\/.*\.tsx$/, /^apps\/extension\/src\/composition\/pages\.ts$/];
 /** AU-019: no keys and no token/key/API/bearer vocabulary in UI texts. */
-export const UI_FORBIDDEN_WORDS = /\b(?:api|tokens?|bearer|keys?|apikey|api-key)\b|токен|ключ(?!ев)/i;
+export const UI_FORBIDDEN_WORDS = /\b(?:api|tokens?|bearer|keys?|apikey|api-key)\b|токен|(?<!\p{L})ключ(?!ев)/iu;
 
 const HTML_SINKS = new Set(['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'createContextualFragment', 'dangerouslySetInnerHTML']);
 const UI_TEXT_ATTRIBUTES = new Set(['title', 'placeholder', 'aria-label', 'alt', 'label', 'aria-description']);

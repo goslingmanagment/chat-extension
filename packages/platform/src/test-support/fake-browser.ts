@@ -332,6 +332,9 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
     const api: BrowserApi = {
       runtime,
       tabs: {
+        query: async () => [],
+        reload: async (tabId) => { tabCalls.push(`reload ${tabId}`); },
+        onRemoved: new FakeEvent<(tabId: number) => void>(),
         async create(properties: { url: string; active?: boolean }): Promise<TabApi> {
           tabCalls.push(`create ${properties.url}`);
           return { id: nextTabId++, url: properties.url };
@@ -382,6 +385,7 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
         onRemoved: events.permissionsRemoved,
       },
       scripting: {
+        executeScript: async () => [],
         getRegisteredContentScripts: async (filter) =>
           [...scripts.values()].filter((script) => !filter?.ids || filter.ids.includes(script.id)).map((script) => structuredClone(script)),
         async registerContentScripts(list) {

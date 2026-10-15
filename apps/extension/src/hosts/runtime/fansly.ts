@@ -4,13 +4,14 @@
 // (docs/project-unite/architecture.md §1.2, §5). The registry entry
 // (../fansly.ts) reads its addresses from here.
 //
-// The row is not in the table yet (`RUNTIME_HOSTS`): the background core and
-// the extension pages, which read the whole table, learn of Fansly when its
-// tabs register with the background and its scripts are registered by it
-// (R20 P7i, P9a) — joining the table moves bytes both sites load.
+// P9a joins this row to RUNTIME_HOSTS for the grant/reload handshake. The
+// application and feature admission remain P7i. Joining moves shared bytes.
 
 /** Fansly's pages, where its scripts run once the person switched Fansly on (§4). */
 export const FANSLY_MATCHES: readonly string[] = ['https://fansly.com/*'];
+
+/** Fansly's API: optional permission and passive observation (§8.2–§8.3). */
+export const FANSLY_API_MATCHES: readonly string[] = ['https://apiv3.fansly.com/*'];
 
 /** Quiet mode (X3) is ChatSpace's alone: the extension talks to Fansly's API (X4). */
 export const FANSLY_QUIET_DOMAINS: readonly string[] = [];

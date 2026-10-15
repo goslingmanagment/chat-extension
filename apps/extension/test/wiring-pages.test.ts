@@ -20,6 +20,7 @@ import { callsTo } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { BrowserApi } from '@cg/platform';
 import { pageSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
 import { composePage, type ComposedPage, type PageName } from '../src/composition/pages.ts';
 import { SITE_PAGES } from '../src/site.ts';
@@ -52,17 +53,18 @@ function start(options?: Parameters<typeof createWorld>[0]): World {
 }
 
 /** Opens one of our pages as the browser would: its own document address, its own extension context. */
-function open(w: World, page: PageName, address = '', tabId: number | null = 31): { readonly page: ComposedPage; readonly root: HTMLElement } {
+function open(w: World, page: PageName, address = '', tabId: number | null = 31): { readonly page: ComposedPage; readonly root: HTMLElement; readonly api: BrowserApi } {
   const url = `${w.fake.base}${page}.html${address}`;
   (window as unknown as HappyWindow).happyDOM.setURL(url);
   const root = document.createElement('div');
   root.id = 'app';
   document.body.append(root);
   const sender = pageSender(w.fake, page, tabId === null ? { url } : { url, tab: { id: tabId }, frameId: 0 });
-  const composed = composePage(page, root, { api: w.fake.context(sender).api });
+  const api = w.fake.context(sender).api;
+  const composed = composePage(page, root, { api });
   if (composed === null) throw new Error('the page was not composed');
   pages.push(composed);
-  return { page: composed, root };
+  return { page: composed, root, api };
 }
 
 const text = (root: HTMLElement): string => (root.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -313,5 +315,41 @@ describe('the debug pages', () => {
     window.dispatchEvent(new Event('hashchange'));
     await until(() => asked.includes('journal.read:operations'), 'the other journal is read');
     expect(asked).not.toContain('debug.prompt');
+  });
+});
+
+describe('optional-site page copy', () => {
+  it('uses the Fansly status title', async () => {
+    const w = start(); await signInWithPersona(w);
+    const { page } = open(w, 'options', '#status');
+    await until(() => page.client.getSnapshot({ of: 'options', section: 'status' }).body !== null, 'status');
+    const snapshot = page.client.getSnapshot({ of: 'options', section: 'status' });
+    if (snapshot.body === null) throw new Error('status unavailable');
+    const row = snapshot.body.rows.find((entry) => entry.id === 'host' && entry.host === 'fansly-web');
+    expect(row?.title).toMatchObject({ key: 'settings.status.site.title', params: { site: 'Fansly' } });
+  });
+  it('changes activation labels with the selected language', async () => {
+    const w = start(); await signInWithPersona(w);
+    const { page, root } = open(w, 'options', '#status');
+    await until(() => page.client.getSnapshot({ of: 'options', section: 'status' }).body !== null, 'status');
+    expect(text(root)).toContain('Включить Fansly');
+    await page.client.dispatch({ type: 'SetPreference', key: 'ui.locale', value: 'en' });
+    await until(() => document.documentElement.lang === 'en', 'English');
+    expect(text(root)).toContain('Enable Fansly');
+    expect(text(root)).not.toContain('Включить Fansly');
+  });
+  it('explains an activation failure instead of displaying a bare error code', async () => {
+    const w = start();
+    const { root, api } = open(w, 'popup');
+    await until(() => text(root).includes('Включить Fansly') && root.querySelector('button[aria-busy="true"]') === null, 'activation');
+    w.fake.grantRequests = true;
+    // A lost RPC is explained on the activation surface.
+    const request = vi.spyOn(api.runtime, 'sendMessage').mockRejectedValue(new Error('unavailable'));
+    const button = [...root.querySelectorAll('button')].find((node) => node.textContent?.includes('Включить Fansly'));
+    button?.click();
+    await until(() => text(root).includes('CG-RUNTIME-UNREACHABLE'), 'activation error');
+    expect(text(root)).toContain('Расширение не отвечает');
+    expect(text(root)).toContain('Повторить');
+    request.mockRestore();
   });
 });

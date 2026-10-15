@@ -105,6 +105,10 @@ describe('gate: browser.* scope', () => {
 });
 
 describe('gate: UI vocabulary (AU-019)', () => {
+  it('allows Russian enable/disable verbs without allowing a credential key', () => {
+    expect(checkUiTexts([file('apps/extension/src/composition/pages.ts', "const labels = ['Включить Fansly', 'Выключить Fansly', 'Подключение'];")])).toEqual([]);
+    expect(checkUiTexts([file('apps/extension/src/composition/pages.ts', "const label = 'Введите ключ доступа';")])).toHaveLength(1);
+  });
   it('flags token/key/API/bearer in JSX text, text attributes and page strings', () => {
     const violations = checkUiTexts([
       file('packages/ui/src/a.tsx', 'export const A = () => <p title="Paste your API key">Enter the token</p>;'),

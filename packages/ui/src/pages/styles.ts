@@ -145,6 +145,9 @@ ${/* ST-016: a store newer than this build — every control reads «look, do no
    (.cg-root): by itself it asks for nothing, and the panel opens as a line 0 px wide. So the popup's root says its
    width; where the browser gives the width (the overflow menu of a narrow window) the root just fills it. */
 .cg-root--page[data-cg-surface="popup"] { contain-intrinsic-inline-size: 360px; }
+.pg-site-access { box-sizing: border-box; max-width: 520px; margin: 12px; padding: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pg-site-access > .cg-card { flex-basis: 100%; }
+:root:has(.pg-popup) .pg-site-access { max-width: 336px; }
 .pg-popup { width: 360px; max-width: 100%; font-size: 14px; line-height: 20px; color: var(--cg-ink-2); background: var(--cg-surface); overflow: hidden; }
 .pg-popup__head { display: flex; align-items: flex-end; gap: 10px; padding: 16px 16px 2px; }
 .pg-popup__head .pg-logo { width: 116px; }

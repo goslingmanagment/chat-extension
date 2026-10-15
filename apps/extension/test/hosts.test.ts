@@ -76,7 +76,7 @@ describe('the host registry', () => {
     expect(hostOf('chatspace')).toBe(CHATSPACE);
     expect(hostOf('fansly-web')).toBe(FANSLY);
     // Fansly's row joins the table — what the background core and the pages read — with its tabs (R20 P7i).
-    expect(Object.keys(RUNTIME_HOSTS)).toEqual(['chatspace']);
+    expect(Object.keys(RUNTIME_HOSTS)).toEqual(['chatspace', 'fansly-web']);
     for (const kind of Object.keys(RUNTIME_HOSTS)) {
       const row = RUNTIME_HOSTS[kind as keyof typeof RUNTIME_HOSTS];
       const host = hostOf(kind);
@@ -141,7 +141,7 @@ describe('the host registry', () => {
 
   it('[R20-F1] the background loads each site’s chunk of the registry, and only those; each site with a chunk routes its own requests to it', () => {
     const withChunk = HOSTS.filter((host) => host.background !== undefined);
-    expect(withChunk.map((host) => host.kind)).toEqual(['chatspace']);
+    expect(withChunk.map((host) => host.kind)).toEqual(['chatspace', 'fansly-web']);
     expect(Object.fromEntries(Object.entries(HOST_MODULE_SPECS).map(([kind, spec]) => [kind, spec.chunk]))).toEqual(Object.fromEntries(withChunk.map((host) => [host.kind, host.background?.file])));
     for (const host of withChunk) {
       expect(host.background?.file).toMatch(/^bg\/[a-z-]+\.js$/);

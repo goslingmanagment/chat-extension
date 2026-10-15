@@ -5,6 +5,7 @@
 // own module (1.15.0: tab-messages-fansly.ts), never imported here.
 
 import * as z from 'zod/mini';
+import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
 
 import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
@@ -496,6 +497,7 @@ export const TAB_REQUESTS = {
   },
 
   // ── service ──
+  'site.access': { req: SiteAccessRequestSchema, res: SiteAccessStateSchema, from: PAGE, pages: ['popup', 'options'] },
   'settings.get': { req: Empty, res: SettingsStateSchema, from: ANY },
   /**
    * «Сохранено» is shown only on this confirmation with its revision
