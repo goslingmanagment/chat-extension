@@ -27,6 +27,7 @@ import { suspendBackground } from '../support/background';
 import { assignPersona, installTestBuild, pageRpc, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
 import { fakeHubOrigin, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
+import { prepareSound } from '../support/sound';
 import { callStand, chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
 const { a: accountA, b: accountB } = STAND_IDS.accounts;
@@ -114,6 +115,8 @@ describe('background wiring — operations, sound and page commands on the stand
       { timeout: 15_000, timeoutMsg: 'the settings owner did not pick the hub address up' },
     );
     await signIn();
+    await prepareSound();
+    await browser.url(testBuildPage('debug-journal.html'));
     pagesTab = await browser.getWindowHandle();
     standTab = (await browser.createWindow('tab')).handle;
     await toStand();

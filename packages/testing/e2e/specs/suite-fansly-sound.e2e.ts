@@ -10,6 +10,7 @@ import { startFanslyShift, type FanslyShift } from '../support/fansly-shift';
 import { fakeFansly, fanslyIds, fanslyStandServer } from '../support/fansly-stand';
 import { focusTab } from '../support/focus';
 import { useNetworkTrap } from '../support/network-trap';
+import { prepareSound } from '../support/sound';
 
 interface Sound { outcomes: Record<string, number>; listeningTabs: number }
 const value = (sound: Sound, name: string): number => sound.outcomes[name] ?? 0;
@@ -45,6 +46,7 @@ describe('[FS-SND-1] Fansly socket sounds', () => {
     shift = await startFanslyShift(hub(), { path: '/messages', neighbor: { mode: 'after' } });
     ids = await fanslyIds();
     await away();
+    await prepareSound();
     await browser.url(testBuildPage('popup.html'));
     await browser.waitUntil(async () => (await sound()).listeningTabs === 1, { timeout: 10000 });
   });

@@ -86,6 +86,12 @@ cat > "$firefox_home/cg-e2e.cfg" << 'CFG'
 pref("intl.accept_languages", "ru-RU, ru, en-US, en");
 CFG
 
+# Our custom entry point bypasses the image's services, including audio.
+# Without a sink Firefox cannot run its real AudioContext.
+# Keep the Web Audio player real and silent, using a virtual output device.
+pulseaudio --start --exit-idle-time=-1 --load="module-null-sink sink_name=cg_e2e" --log-target=stderr
+pactl set-default-sink cg_e2e
+
 # WebdriverIO fetches geckodriver from GitHub before the first session unless
 # the version it is asked for already lies in its cache folder as
 # geckodriver-<version>; it then starts the binary GECKODRIVER_PATH names.
