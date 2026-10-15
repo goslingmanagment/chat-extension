@@ -26,8 +26,12 @@
 // is the site's `voice-script` operation, ops-fansly.ts, admitted by the shared
 // scheduler — its start is not a shared `StartOp`);
 // `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.relay.*` — «Fansly
-// через вкладку» (FS-NET-4, port `cg-relay`). A family's own PR (P10*, P11b,
-// P12b*, P13a, P9c) may add fields and types to it, additively.
+// через вкладку» (FS-NET-4, port `cg-relay`); `fansly.settings.*` and
+// `fansly.accounts.*` — the settings page (R20 P14b1: Fansly's part of
+// `settings.ext`, its sessions and tabs for «Аккаунты»), the only types a page
+// sends here; the core routes them to the module while Fansly is on. A
+// family's own PR (P10*, P11b, P12b*, P13a, P9c) may add fields and types to
+// it, additively.
 
 import * as z from 'zod/mini';
 import { SoundBatchSchema } from './sound';
@@ -36,6 +40,7 @@ import { CgAnyErrorWireSchema } from './errors-fansly';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
+import { SettingsExtPatchSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 
@@ -45,6 +50,10 @@ export const FANSLY_TAB_TYPE_PREFIX = 'fansly.';
 const FANSLY = ['fansly-web'] as const satisfies readonly HostKind[];
 const TAB = ['tab'] as const satisfies readonly TabSender[];
 const RELAY = ['relay'] as const satisfies readonly TabSender[];
+/** R20 P14b1: the settings page speaks to Fansly's module too (its part of the settings and «Аккаунты»). */
+const PAGE = ['page'] as const satisfies readonly TabSender[];
+const OPTIONS = ['options'] as const satisfies readonly ExtensionPage[];
+const Empty = z.strictObject({});
 
 const Ack = z.strictObject({ recorded: z.boolean() });
 /** The site's own failure, in the payload (`ok: false`); the other branch of each answer is `ok: true`. */
@@ -258,6 +267,49 @@ const HeaderListSchema = (max: number) => z.array(z.tuple([HeaderNameSchema, dis
 /** Why the relay made no request or got no answer; `refused` — its own last check failed: provably no fetch. */
 export const FANSLY_RELAY_FAILURES = ['refused', 'network', 'aborted', 'too-large'] as const;
 
+// ── fansly.settings.*, fansly.accounts.* — the settings page (R20 P14b1) ───
+
+/**
+ * What the settings page changes in Fansly's part of `settings.ext` (FS-SET-1): «Fansly через вкладку», the tones on
+ * Fansly and the Recap depth above v1's 3000. Never `enabled` — «Включить Fansly» goes through `site.access`, with the
+ * browser's prompt inside the click (architecture.md §4) — nor the view of «Заметки», which their panel chooses
+ * (FS-NOTE-2).
+ */
+export const FanslySettingsPatchSchema = SettingsExtPatchSchema.check(
+  z.refine((patch) => patch.hosts?.['fansly-web']?.enabled === undefined && patch.hosts?.['fansly-web']?.notesView === undefined, {
+    message: '«Fansly включён» changes through site.access, the view of «Заметки» in their panel',
+  }),
+);
+
+/** Captured sessions in one `fansly.accounts.read` (the background keeps no more templates, network-session.ts). */
+export const FANSLY_PAGE_SESSIONS_MAX = 128;
+
+/**
+ * A live Fansly session this browser captured (architecture.md §8.2): the account its token names (`legacyId`,
+ * AU-031) and, once a tab of ours on it said its creator from `/account/me`, that creator (`canonicalId`, AU-032) —
+ * the reconciliation of ST-079. Ids, counts and a time only: no header ever leaves the background.
+ */
+export const FanslyAccountSessionSchema = z.strictObject({
+  legacyId: NativeIdSchema,
+  /** null — no tab of ours on this session has named its creator yet. */
+  canonicalId: z.nullable(NativeIdSchema),
+  /** Open Fansly tabs whose requests ride this session now. */
+  tabs: CountSchema,
+  /** When a request of the page on it last came back 2xx. */
+  observedAt: EpochMsSchema,
+});
+export type FanslyAccountSession = z.infer<typeof FanslyAccountSessionSchema>;
+
+/** «Аккаунты» on Fansly (ST-067, ST-077, ST-079, AU-035): what the background knows beyond its tabs' own reports. */
+export const FanslyAccountsViewSchema = z.strictObject({
+  sessions: z.array(FanslyAccountSessionSchema).check(z.maxLength(FANSLY_PAGE_SESSIONS_MAX)),
+  /** Fansly tabs open in this browser, found by the granted address (no `tabs` right); null — the browser did not answer. */
+  openTabs: z.nullable(CountSchema),
+  /** Of them, tabs that neither named their creator to us (a registration) nor carry a captured session: «без атрибуции». */
+  unattributedTabs: z.nullable(CountSchema),
+});
+export type FanslyAccountsView = z.infer<typeof FanslyAccountsViewSchema>;
+
 // ── Requests ───────────────────────────────────────────────────────────────
 
 export const FANSLY_TAB_REQUESTS = {
@@ -448,6 +500,16 @@ export const FANSLY_TAB_REQUESTS = {
     hosts: FANSLY,
   },
   'fansly.relay.failure': { req: z.strictObject({ requestId: UuidSchema, reason: z.enum(FANSLY_RELAY_FAILURES) }), res: Ack, from: RELAY, hosts: FANSLY },
+
+  // ── the settings page (R20 P14b1): its requests reach the module while Fansly is on (platform rpc-background) ──
+  /** Fansly's part of `settings.ext` as it is stored, with its revision (FS-SET-1). */
+  'fansly.settings.read': { req: Empty, res: SettingsExtStateSchema, from: PAGE, pages: OPTIONS, hosts: FANSLY },
+  /** A change of it; «Сохранено» only on this answer with its revision. Read-only or not written — a shared CG-STORAGE-* code. */
+  'fansly.settings.write': { req: z.strictObject({ patch: FanslySettingsPatchSchema }), res: SettingsExtStateSchema, from: PAGE, pages: OPTIONS, hosts: FANSLY },
+  /** The captured sessions and the tabs no account is known for; reading reconciles a session with the creator its tab named. */
+  'fansly.accounts.read': { req: Empty, res: FanslyAccountsViewSchema, from: PAGE, pages: OPTIONS, hosts: FANSLY },
+  /** «к вкладке» (ST-076): a Fansly tab of the account to the front, found by its registration or session, without the `tabs` right. */
+  'fansly.accounts.focus': { req: z.strictObject({ hostAccountId: NativeIdSchema }), res: z.strictObject({ focused: z.boolean() }), from: PAGE, pages: OPTIONS, hosts: FANSLY },
 } as const satisfies Record<`fansly.${string}`, TabRequestSpec>;
 
 export type FanslyTabRequestType = keyof typeof FANSLY_TAB_REQUESTS;

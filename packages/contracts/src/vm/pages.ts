@@ -234,7 +234,17 @@ export interface AccountsBodyVM {
     readonly muted: boolean;
     /** «к вкладке» (Б13). */
     readonly goTo: ActionButtonVM;
+    /**
+     * 1.15.0 (R20 P14b1): the account's other ids — a session's legacy id next to the creator's own (ST-079). Its
+     * label and its sound follow them; absent or empty — none.
+     */
+    readonly aliases?: readonly string[];
   }[];
+  /**
+   * 1.15.0 (R20 P14b1): the sites the list holds accounts of, as the lead and the hint say them — «OnlyMonster и
+   * Fansly», «ChatSpace или Fansly»; absent — the page's own site.
+   */
+  readonly phrases?: { readonly siteAccount: string; readonly site: string };
 }
 
 export interface GenerationBodyVM {

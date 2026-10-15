@@ -18,6 +18,12 @@ const SHA = 'ab'.repeat(32);
 const failure = { ok: false, error: { code: 'CG-FAN-RATE-LIMIT', retryAt: T0 + 60_000, httpStatus: 429 } } as const;
 const sharedFailure = { ok: false, error: { code: 'CG-NETWORK' } } as const;
 const unknownFailure = { ok: false, error: { code: 'CG-FAN-01' } } as const;
+/** `settings.ext` as the settings page reads it (R20 P14b1). */
+const extState = {
+  ext: { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'drawer', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: null } },
+  revision: 2,
+  readOnly: false,
+} as const;
 
 export const fanslyPass = {
   passId: uuid(301),
@@ -209,6 +215,33 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     req: { valid: [{ requestId: uuid(330), reason: 'refused' }, { requestId: uuid(330), reason: 'aborted' }], invalid: [{ requestId: uuid(330), reason: 'timeout' }] },
     res: ack,
   },
+
+  // R20 P14b1: the settings page.
+  'fansly.settings.read': { req: { valid: [{}], invalid: [{ host: 'fansly-web' }] }, res: { valid: [extState], invalid: [{ ...extState, revision: -1 }, { ext: extState.ext, revision: 1 }] } },
+  'fansly.settings.write': {
+    req: {
+      valid: [{ patch: { hosts: { 'fansly-web': { viaTab: true } } } }, { patch: { hosts: { 'fansly-web': { sound: { subscribersTone: 'bell' } } }, windows: { deep: 4000 } } }, { patch: { windows: { deep: null } } }],
+      // «Fansly включён» goes through site.access; the view of «Заметки» is their panel's; a depth v1 holds.
+      invalid: [{ patch: { hosts: { 'fansly-web': { enabled: true } } } }, { patch: { hosts: { 'fansly-web': { notesView: 'center' } } } }, { patch: { windows: { deep: 3000 } } }, {}],
+    },
+    res: { valid: [extState, { ...extState, readOnly: true }], invalid: [{ ...extState, ext: { ...extState.ext, windows: { deep: 3000 } } }] },
+  },
+  'fansly.accounts.read': {
+    req: { valid: [{}], invalid: [{ tabs: true }] },
+    res: {
+      valid: [
+        { sessions: [{ legacyId: F.creator, canonicalId: F.creator, tabs: 1, observedAt: T0 }, { legacyId: '700000000000000009', canonicalId: null, tabs: 0, observedAt: T0 - 60_000 }], openTabs: 2, unattributedTabs: 1 },
+        { sessions: [], openTabs: null, unattributedTabs: null },
+      ],
+      // A session header never crosses; an id that is not a native id; more sessions than the background keeps.
+      invalid: [
+        { sessions: [{ legacyId: F.creator, canonicalId: null, tabs: 1, observedAt: T0, authorization: 'x' }], openTabs: 1, unattributedTabs: 0 },
+        { sessions: [{ legacyId: '0', canonicalId: null, tabs: 1, observedAt: T0 }], openTabs: 1, unattributedTabs: 0 },
+        { sessions: Array.from({ length: 129 }, () => ({ legacyId: F.creator, canonicalId: null, tabs: 0, observedAt: T0 })), openTabs: 0, unattributedTabs: 0 },
+      ],
+    },
+  },
+  'fansly.accounts.focus': { req: { valid: [{ hostAccountId: F.creator }], invalid: [{ hostAccountId: 'creator' }, {}] }, res: { valid: [{ focused: true }, { focused: false }], invalid: [{ focused: 'yes' }] } },
 };
 
 export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Verdicts } = {
