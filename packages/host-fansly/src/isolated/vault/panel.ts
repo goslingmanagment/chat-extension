@@ -17,16 +17,24 @@
 //   another order drop a run that is not running. A run that stopped keeps its reason on screen until the person acts.
 // - The person's own steps on the checkpoint (an answer, a reset) are said when they fail and change nothing then.
 
-import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
+import { vaultCheckpointFollows, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 import type { VaultAlbumOrder, VaultItemState, VaultPanelAction, VaultPanelClient, VaultPanelNote, VaultPanelVM, VaultResumeVM, VaultRunVM, VaultStartBlock } from '@cg/contracts/vault-fansly';
 
 import { planVaultUpload, type VaultPlan } from './plan';
 import { VAULT_CHECKPOINT_TTL_MS, createVaultRun, findVaultCheckpoint, sameVaultFiles, type VaultCheckpointStore, type VaultRun, type VaultRunSnapshot } from './run';
 import { vaultTargetOf, type VaultTarget, type VaultUploader, type VaultView } from './upload';
 
+/**
+ * The panel's store (the background's `fansly.vault.*`): the run's checkpoints, and for the panel the album's row as it
+ * is now with whether another tab of this browser holds the album's upload (`held`, the background's word).
+ */
+export interface VaultPanelStore extends VaultCheckpointStore {
+  look(target: VaultTarget): Promise<{ readonly checkpoint: VaultCheckpoint | null; readonly held: boolean }>;
+}
+
 export interface VaultPanelDeps {
   readonly uploader: VaultUploader;
-  readonly store: VaultCheckpointStore;
+  readonly store: VaultPanelStore;
   /** The tab's creator as the page names it (the port's account); null — not said yet. */
   readonly account: () => { readonly username: string | null; readonly displayName: string | null } | null;
   /** Something on the page moved — the route, the accounts, the vault's facts: the panel reads the page again. */
@@ -77,8 +85,8 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   let plan: VaultPlan<File> | null = null;
   let page: VaultView = uploader.view();
   let target: VaultTarget | null = vaultTargetOf(page);
-  /** The checkpoint the background keeps for the album of `key`, as last read; null — none there. */
-  let checked: { readonly key: string; readonly checkpoint: VaultCheckpoint | null } | null = null;
+  /** The checkpoint the background keeps for the album of `key`, as last read; null — none there; `held` — another tab holds it. */
+  let checked: { readonly key: string; readonly checkpoint: VaultCheckpoint | null; readonly held: boolean } | null = null;
   /** The album whose checkpoint is being read, and the read's own number (a later read wins). */
   let reading: { readonly key: string; readonly serial: number } | null = null;
   let serial = 0;
@@ -87,12 +95,16 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   let resetArmed = false;
   let writing = false;
   let starting = false;
+  /** Every Start's own number: one the panel hid (the owner switched the vault off) starts nothing when its reading comes. */
+  let starts = 0;
   let disposed = false;
 
   const active = (): boolean => bound !== null && ACTIVE.has(bound.snapshot.state);
   const alive = (checkpoint: VaultCheckpoint | null): VaultCheckpoint | null => (checkpoint !== null && now() - checkpoint.updatedAt <= VAULT_CHECKPOINT_TTL_MS ? checkpoint : null);
   /** The background's checkpoint of the open album, while it is known and not forgotten. */
   const kept = (): VaultCheckpoint | null => (checked !== null && checked.key === keyOf(target) ? alive(checked.checkpoint) : null);
+  /** Another tab of this browser holds the open album's upload (the background's word, as last read). */
+  const heldNow = (): boolean => checked !== null && checked.key === keyOf(target) && checked.held;
 
   const emit = (): void => {
     if (disposed) return;
@@ -109,10 +121,12 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
       made.snapshot = snapshot;
       if (snapshot.state === 'complete') {
         // The run cleared its checkpoint; one it could not clear may be offered again on the next visit.
-        checked = { key: made.key, checkpoint: null };
+        checked = { key: made.key, checkpoint: null, held: false };
         if (snapshot.checkpointLeftBehind) note = 'left-behind';
       }
       emit();
+      // Not kept: another tab may hold the album, or have taken the run further — the row is read again.
+      if (snapshot.state === 'stopped' && snapshot.stop?.kind === 'checkpoint-write-failed') void recheck(made.target, made);
     });
     made = { run, key: keyOf(at) ?? '', target: at, files, uploadId, previous: checkpoint?.confirmed ?? 0, answered: 0, fromCheckpoint: checkpoint !== null, snapshot: run.snapshot() };
     return made;
@@ -140,12 +154,13 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
     const key = keyOf(at) ?? '';
     const mine = (serial += 1);
     reading = { key, serial: mine };
-    store.load(at).then(
-      (checkpoint) => {
+    store.look(at).then(
+      ({ checkpoint, held }) => {
         if (disposed || reading?.serial !== mine) return;
         reading = null;
-        checked = { key, checkpoint };
-        if (note === 'read-failed') note = null;
+        checked = { key, checkpoint, held };
+        if (held) note = 'held';
+        else if (note === 'read-failed' || note === 'held') note = null;
         adopt();
         emit();
       },
@@ -168,13 +183,61 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
       // A run built for another album and never started is that album's: it goes, and comes back with it.
       if (bound !== null && bound.key !== keyOf(target) && bound.snapshot.state === 'idle') bound = null;
     }
-    if (mode !== 'closed' && target !== null && checked?.key !== keyOf(target) && reading?.key !== keyOf(target)) read(target);
+    // An album another tab holds is asked again each time: that tab may have let it go.
+    if (mode !== 'closed' && target !== null && (checked?.key !== keyOf(target) || checked.held) && reading?.key !== keyOf(target)) read(target);
     adopt();
+  };
+
+  /** The run's view of the album's row holds: its next write would follow the row on disk (`vaultCheckpointFollows`). */
+  const consistent = (run: Bound, row: VaultCheckpoint | null): boolean => {
+    if (row === null || row.uploadId !== run.uploadId) return false;
+    const { confirmed, items } = run.snapshot;
+    const uncertain = items.findIndex((item) => item.status === 'uncertain');
+    if (uncertain >= 0) return row.confirmed === confirmed && row.pending?.index === uncertain;
+    return confirmed >= items.length || vaultCheckpointFollows(row, { ...row, confirmed, pending: { index: confirmed, passedAt: row.updatedAt } });
+  };
+
+  /**
+   * A write of the panel's was not kept: the album's row is read again, and the panel says why (review of P13b) —
+   * another tab holds the album (`held`), or another tab took the run further than this copy knows (`moved`): the copy
+   * that fell behind goes, and the row's own state comes back (its file in flight asks its question again).
+   */
+  const recheck = async (at: VaultTarget, run: Bound | null): Promise<void> => {
+    let status: Awaited<ReturnType<VaultPanelStore['look']>>;
+    try {
+      status = await store.look(at);
+    } catch {
+      return;
+    }
+    if (disposed || bound !== run) return;
+    const key = keyOf(at) ?? '';
+    if (status.held) {
+      checked = { key, checkpoint: status.checkpoint, held: true };
+      note = 'held';
+      return emit();
+    }
+    if (run === null || consistent(run, status.checkpoint)) return;
+    note = 'moved';
+    checked = { key, checkpoint: status.checkpoint, held: false };
+    if (!active()) {
+      bound = null;
+      adopt();
+    }
+    emit();
+  };
+
+  /** The panel hid (the owner switched the vault off, the person left): a file in flight is seen to its end, nothing after it is handed over. */
+  const halt = (): void => {
+    starts += 1;
+    if (bound === null || !ACTIVE.has(bound.snapshot.state)) return;
+    if (bound.snapshot.current !== null) bound.run.pause();
+    else bound.run.stop();
   };
 
   const startBlock = (): VaultStartBlock | null => {
     if (starting) return 'checking';
     if (bound !== null && ACTIVE.has(bound.snapshot.state)) return 'running';
+    if (heldNow()) return 'held';
     if (plan === null) return 'files';
     if (plan.problems.length > 0) return 'problems';
     if (bound !== null && bound.snapshot.state === 'complete') return 'done';
@@ -190,9 +253,13 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   };
 
   const start = async (): Promise<void> => {
+    if (!shown) return;
     look();
     if (startBlock() !== null || plan === null || target === null) return emit();
     note = null;
+    const mine = (starts += 1);
+    /** The panel hid meanwhile (the owner switched the vault off), or went: this Start starts nothing (review of P13b). */
+    const cancelled = (): boolean => disposed || !shown || mine !== starts;
     if (bound === null) {
       starting = true;
       emit();
@@ -203,22 +270,23 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
         found = await findVaultCheckpoint(store, at, refsOf(files), now());
       } catch {
         starting = false;
-        note = 'read-failed';
+        if (!cancelled()) note = 'read-failed';
         return emit();
       }
       starting = false;
       // The person moved on meanwhile (other files, another album): nothing starts on the old picture.
-      if (disposed || plan?.sequence !== files || keyOf(target) !== keyOf(at) || bound !== null) return emit();
+      if (cancelled() || plan?.sequence !== files || keyOf(target) !== keyOf(at) || bound !== null) return emit();
       if (found.kind === 'other') {
-        checked = { key: keyOf(at) ?? '', checkpoint: found.checkpoint };
+        checked = { key: keyOf(at) ?? '', checkpoint: found.checkpoint, held: false };
         return emit();
       }
-      checked = { key: keyOf(at) ?? '', checkpoint: found.kind === 'continue' ? found.checkpoint : null };
+      checked = { key: keyOf(at) ?? '', checkpoint: found.kind === 'continue' ? found.checkpoint : null, held: false };
       bound = bind(at, files, found.kind === 'continue' ? found.checkpoint : null);
       // A file left uncertain by that run: its question comes first (VA-004).
       if (bound.snapshot.items.some((item) => item.status === 'uncertain')) return emit();
     }
     const run = bound;
+    if (cancelled()) return emit();
     emit();
     await run.run.start();
     emit();
@@ -234,6 +302,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
     if (written && value === 'present') run.answered += 1;
     note = written ? null : 'save-failed';
     emit();
+    if (!written) void recheck(run.target, run);
   };
 
   const reset = async (): Promise<void> => {
@@ -252,10 +321,11 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
     writing = false;
     if (!cleared) {
       note = 'clear-failed';
-      return emit();
+      emit();
+      return recheck(at, bound);
     }
     note = null;
-    checked = { key: keyOf(at) ?? '', checkpoint: null };
+    checked = { key: keyOf(at) ?? '', checkpoint: null, held: false };
     if (bound !== null && !active()) bound = null;
     emit();
   };
@@ -336,7 +406,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
         start: bound !== null && snapshot !== null && snapshot.state !== 'complete' && (snapshot.state !== 'idle' || bound.fromCheckpoint) ? 'resume' : 'start',
         blocked,
         pause: snapshot?.state === 'running',
-        reset: !holding && !writing && onDisk,
+        reset: !holding && !writing && onDisk && !heldNow(),
         close: !holding,
         pick: !holding && !starting,
       },
@@ -402,6 +472,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
       if (shown === next) return;
       shown = next;
       if (shown) look();
+      else halt();
       emit();
     },
     running: active,

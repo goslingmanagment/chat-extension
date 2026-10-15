@@ -3,13 +3,13 @@
 // test scripts it, with the background's checkpoints in memory — every write checked by the contract's schema. What
 // the person sees is the model (`VaultPanelVM`); the browser test of the panel itself is `suite-fansly-vault`.
 
-import { VaultCheckpointSchema, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
+import { VaultCheckpointSchema, vaultCheckpointFollows, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 import { VAULT_STOP_KINDS, type VaultPanelVM } from '@cg/contracts/vault-fansly';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createFakeVaultPage, createFakeVaultPort, type FakeVaultPage, type FakeVaultPort } from '../../testing/fake-vault';
-import { createVaultPanel, type VaultPanel } from './panel';
-import { VAULT_CHECKPOINT_TTL_MS, type VaultCheckpointStore } from './run';
+import { createVaultPanel, type VaultPanel, type VaultPanelStore } from './panel';
+import { VAULT_CHECKPOINT_TTL_MS } from './run';
 import { VAULT_HALTS, createVaultUploader, type VaultTarget, type VaultUploader } from './upload';
 
 const CREATOR = '700000000000000001';
@@ -26,25 +26,36 @@ const file = (name: string, folder = 'Set 1', size = 1000): File => {
 };
 const refs = (files: readonly File[]) => files.map((f) => ({ name: f.name, size: f.size, lastModified: f.lastModified }));
 
+/** The background's checkpoints as `fansly.vault.*` keeps them: a write of the same upload kept only when it follows the row. */
 function memoryStore() {
   const rows = new Map<string, VaultCheckpoint>();
   const loads: string[] = [];
   const clears: string[] = [];
   let failLoads = 0;
   let refusals = 0;
+  /** Another tab holds the album (the background's lease). */
+  let held = false;
+  /** Reads wait for `release` (a slow background). */
+  let gate: Promise<void> | null = null;
+  let release = (): void => undefined;
   const key = (t: VaultTarget): string => `${t.hostAccountId}:${t.albumId}`;
-  const store: VaultCheckpointStore = {
-    load(t) {
-      loads.push(key(t));
-      if (failLoads > 0) {
-        failLoads -= 1;
-        return Promise.reject(new Error('CG-RUNTIME-UNREACHABLE'));
-      }
-      return Promise.resolve(rows.get(key(t)) ?? null);
-    },
+  const look = async (t: VaultTarget): Promise<{ checkpoint: VaultCheckpoint | null; held: boolean }> => {
+    loads.push(key(t));
+    if (gate !== null) await gate;
+    if (failLoads > 0) {
+      failLoads -= 1;
+      throw new Error('CG-RUNTIME-UNREACHABLE');
+    }
+    return { checkpoint: rows.get(key(t)) ?? null, held };
+  };
+  const store: VaultPanelStore = {
+    look,
+    load: async (t) => (await look(t)).checkpoint,
     save(checkpoint) {
       const parsed = VaultCheckpointSchema.safeParse(checkpoint);
       if (!parsed.success) throw new Error(`a checkpoint the contract refuses: ${parsed.error.message}`);
+      const row = rows.get(key(checkpoint));
+      if (held || (row !== undefined && row.uploadId === checkpoint.uploadId && !vaultCheckpointFollows(row, checkpoint))) return Promise.resolve(false);
       if (refusals > 0) {
         refusals -= 1;
         return Promise.resolve(false);
@@ -54,6 +65,7 @@ function memoryStore() {
     },
     clear(t, uploadId) {
       clears.push(uploadId);
+      if (held) return Promise.resolve(false);
       if (rows.get(key(t))?.uploadId === uploadId) rows.delete(key(t));
       return Promise.resolve(true);
     },
@@ -70,6 +82,18 @@ function memoryStore() {
     refuse: (): void => {
       refusals = 1;
     },
+    hold: (value: boolean): void => {
+      held = value;
+    },
+    holdReads(): void {
+      gate = new Promise<void>((resolve) => {
+        release = () => {
+          gate = null;
+          resolve();
+        };
+      });
+    },
+    releaseReads: (): void => release(),
   };
 }
 
@@ -342,5 +366,85 @@ describe('[host:fansly] the vault panel’s controller (R20 P13b)', () => {
     panel.dispatch({ type: 'pick', files: [file('z.jpg')] });
     await settle();
     expect(view()).toMatchObject({ run: null, resume: { kind: 'other', done: 0, total: 2 }, controls: { blocked: 'other', reset: true } });
+  });
+
+  it('[VA-003] the owner switching the vault off cancels a Start still waiting for its checkpoint: nothing is handed over (review of P13b)', async () => {
+    panel.dispatch({ type: 'open' });
+    await settle();
+    panel.dispatch({ type: 'pick', files: [file('a.jpg'), file('b.jpg')] });
+    await settle();
+    memory.holdReads();
+    panel.dispatch({ type: 'start' });
+    await settle();
+    expect(view().controls.blocked).toBe('checking');
+    panel.setShown(false);
+    memory.releaseReads();
+    await settle();
+    expect([page.taken.length, view().run, view().shown]).toEqual([0, null, false]);
+    // Hidden, a Start does nothing at all; shown again, it runs.
+    panel.dispatch({ type: 'start' });
+    await settle();
+    expect(page.taken).toEqual([]);
+    panel.setShown(true);
+    panel.dispatch({ type: 'start' });
+    await settle();
+    expect(view().run).toMatchObject({ state: 'complete', done: 2 });
+  });
+
+  it('[VA-006] switched off while a file is in flight: that file is seen to its end, the next one is never handed over (review of P13b)', async () => {
+    fates = { 'b.jpg': 'silent' };
+    panel.dispatch({ type: 'open' });
+    await settle();
+    panel.dispatch({ type: 'pick', files: [file('a.jpg'), file('b.jpg'), file('c.jpg')] });
+    panel.dispatch({ type: 'start' });
+    await settle();
+    expect(page.taken.map((taken) => taken.name)).toEqual(['c.jpg', 'b.jpg']);
+    panel.setShown(false);
+    expect(view().run?.state).toBe('pausing');
+    // b is confirmed after all: the run pauses there, a is not handed over.
+    page.uploaded();
+    facts.added((seqNow += 1));
+    album.unshift('b.jpg');
+    page.loading();
+    page.cards(album);
+    facts.loaded(ALBUM, (seqNow += 1));
+    await settle();
+    expect(view().run).toMatchObject({ state: 'paused', done: 2 });
+    expect(page.taken.map((taken) => taken.name)).toEqual(['c.jpg', 'b.jpg']);
+  });
+
+  it('[VA-005] another tab holds the album: the panel says so and hands nothing over; when that tab lets go, Start comes back (review of P13b)', async () => {
+    memory.hold(true);
+    panel.dispatch({ type: 'open' });
+    await settle();
+    panel.dispatch({ type: 'pick', files: [file('a.jpg')] });
+    await settle();
+    expect(view()).toMatchObject({ note: 'held', controls: { blocked: 'held', reset: false } });
+    panel.dispatch({ type: 'start' });
+    await settle();
+    expect(page.taken).toEqual([]);
+    memory.hold(false);
+    touch();
+    await settle();
+    expect(view()).toMatchObject({ note: null, controls: { blocked: null } });
+  });
+
+  it('[VA-004] [VA-005] another tab took the run further: this copy’s write is refused before its file, the row is read again — its file in flight asks its question here (review of P13b)', async () => {
+    const files = [file('a.jpg'), file('b.jpg'), file('c.jpg')];
+    const paused = { hostAccountId: CREATOR, albumId: ALBUM, uploadId: OLD_ID, files: refs([...files].reverse()), confirmed: 1, pending: null, updatedAt: T0 - 1000 };
+    memory.rows.set(`${CREATOR}:${ALBUM}`, paused);
+    album = ['c.jpg'];
+    page.cards(album);
+    facts.loaded(ALBUM, (seqNow += 1));
+    panel.dispatch({ type: 'open' });
+    await settle();
+    panel.dispatch({ type: 'pick', files });
+    expect(view()).toMatchObject({ resume: { kind: 'continue', done: 1, total: 3 }, controls: { blocked: null, start: 'resume' } });
+    // Meanwhile another tab continued the same run: b is in flight there.
+    memory.rows.set(`${CREATOR}:${ALBUM}`, { ...paused, pending: { index: 1, passedAt: T0 } });
+    panel.dispatch({ type: 'start' });
+    await settle();
+    expect(page.taken).toEqual([]);
+    expect(view()).toMatchObject({ note: 'moved', question: { name: 'b.jpg' }, controls: { blocked: 'answer' } });
   });
 });

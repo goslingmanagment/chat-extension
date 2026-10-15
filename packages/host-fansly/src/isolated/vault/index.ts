@@ -45,5 +45,5 @@ export {
   type VaultStop,
 } from './run';
 export { VAULT_MEDIA_EXTENSIONS, isVaultMedia, planVaultUpload, type VaultPick, type VaultPlan } from './plan';
-export { createVaultPanel, type VaultPanel, type VaultPanelDeps } from './panel';
+export { createVaultPanel, type VaultPanel, type VaultPanelDeps, type VaultPanelStore } from './panel';
 export { vaultUploadOf } from './serve';

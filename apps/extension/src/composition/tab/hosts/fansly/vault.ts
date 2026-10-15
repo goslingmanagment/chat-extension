@@ -18,7 +18,7 @@ import { admittedOn } from '@cg/core/domain/features';
 import { FANSLY_VAULT_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import { createLiveI18n } from '@cg/core/domain/i18n/live';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
-import { createVaultPanel, createVaultUploader, isVaultPath, vaultUploadOf, type VaultCheckpointStore, type VaultTarget } from '@cg/host-fansly/isolated/vault';
+import { createVaultPanel, createVaultUploader, isVaultPath, vaultUploadOf, type VaultPanelStore, type VaultTarget } from '@cg/host-fansly/isolated/vault';
 import { VAULT_SURFACE, vaultSurface } from '@cg/ui/hosts/fansly/vault';
 import { mountKitSurface, type KitMount } from '@cg/ui/kit';
 
@@ -29,15 +29,20 @@ import { fanslyRequest } from './requests';
 /** Above the background's wait for its site's module (10 s, platform rpc-background `DEFAULT_SITE_WAIT_MS`). */
 export const VAULT_REQUEST_TIMEOUT_MS = 15_000;
 
-/** The background's checkpoints of the vault, over the tab's port. A read that fails rejects: nothing starts over it. */
-export function vaultStoreOf(rpc: SiteAppEnv['rpc'], timeoutMs = VAULT_REQUEST_TIMEOUT_MS): VaultCheckpointStore {
+/**
+ * The background's checkpoints of the vault, over the tab's port. A read that fails rejects: nothing starts over it.
+ * `held` — another open tab holds the album's upload (the background answers so, and keeps nothing of this tab's).
+ */
+export function vaultStoreOf(rpc: SiteAppEnv['rpc'], timeoutMs = VAULT_REQUEST_TIMEOUT_MS): VaultPanelStore {
   const album = (target: VaultTarget) => ({ hostAccountId: target.hostAccountId, albumId: target.albumId });
+  const look = async (target: VaultTarget): Promise<{ readonly checkpoint: VaultCheckpoint | null; readonly held: boolean }> => {
+    const answer = await fanslyRequest(rpc, 'fansly.vault.resume', album(target), timeoutMs);
+    if (!answer.ok) throw new Error(answer.error.code);
+    return { checkpoint: answer.payload.checkpoint, held: answer.payload.held === true };
+  };
   return {
-    async load(target): Promise<VaultCheckpoint | null> {
-      const answer = await fanslyRequest(rpc, 'fansly.vault.resume', album(target), timeoutMs);
-      if (!answer.ok) throw new Error(answer.error.code);
-      return answer.payload.checkpoint;
-    },
+    look,
+    load: async (target) => (await look(target)).checkpoint,
     async save(checkpoint) {
       const answer = await fanslyRequest(rpc, 'fansly.vault.checkpoint', { checkpoint }, timeoutMs);
       return answer.ok && answer.payload.recorded;
@@ -102,6 +107,7 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
     },
   });
   const deps = { ...env.deps, i18n: withVaultTexts(env.deps.i18n) };
+  const upload = vaultUploadOf(win, uploader);
 
   /** On the vault page, the feature admitted on the page this tab's creator is bound to. */
   const shown = (): boolean => {
@@ -130,7 +136,8 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
   };
 
   const offs = [
-    port.vault.serve(vaultUploadOf(win, uploader)),
+    // The port's single file goes only where the panel's entry stands: off the vault, or the owner's switch off — refused.
+    port.vault.serve((file) => (shown() ? upload(file) : Promise.resolve({ state: 'refused', reason: 'anchor-missing' }))),
     port.subscribe((event) => {
       if (event.type === 'route' || event.type === 'accounts') {
         sync();

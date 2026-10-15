@@ -8,7 +8,8 @@
 // core's RPC through the kit — its schemas are this chunk's, never the core's —
 // and answers the vault's checkpoints (`fansly.vault.{resume,checkpoint,clear}`,
 // core services/hosts/fansly/vault-checkpoints.ts) over storage.local: a
-// checkpoint outlives a reload of the tab and the event page's sleep. The other
+// checkpoint outlives a reload of the tab and the event page's sleep; one tab
+// at a time holds an album's upload (its tab session, while registered). The other
 // families answer CG-RUNTIME-UNREACHABLE until their PRs (P9c, P10*, P11b, P12b*).
 // Forgotten checkpoints go with the module's first start and «Очистить
 // локальные данные».
@@ -41,15 +42,17 @@ export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegi
 
 async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   await kit.networkSession?.ready;
-  const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service });
-  const handle: HostSiteRegistry['handle'] = async (type, payload) => {
+  // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
+  const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
+  const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
+    const tab = sender.tabSessionId;
     switch (type) {
       case 'fansly.vault.resume':
-        return ok(await vault.resume(payload as FanslyTabRequestPayload<'fansly.vault.resume'>));
+        return ok(await vault.resume(payload as FanslyTabRequestPayload<'fansly.vault.resume'>, tab));
       case 'fansly.vault.checkpoint':
-        return ok(await vault.checkpoint((payload as FanslyTabRequestPayload<'fansly.vault.checkpoint'>).checkpoint));
+        return ok(await vault.checkpoint((payload as FanslyTabRequestPayload<'fansly.vault.checkpoint'>).checkpoint, tab));
       case 'fansly.vault.clear':
-        return ok(await vault.clear(payload as FanslyTabRequestPayload<'fansly.vault.clear'>));
+        return ok(await vault.clear(payload as FanslyTabRequestPayload<'fansly.vault.clear'>, tab));
       default:
         return { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: `${type}: not served yet` } };
     }

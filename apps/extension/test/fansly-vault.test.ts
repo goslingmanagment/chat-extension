@@ -54,6 +54,7 @@ function backgroundOf(context: FakeContext, kv: MemoryKv): Background {
     storage: { local: kv.open() },
     clock: { now: () => T0 },
     log: { service: () => undefined },
+    router: { tabs: () => rpc.tabs().map((tab) => tab.tabSessionId) },
     site: { plug: (registry: HostSiteRegistry) => rpc.site({ ...registry, host: 'fansly-web' }) },
   } as unknown as BackgroundKit;
   return { rpc, module: fanslyModule().start(kit) };
@@ -63,7 +64,7 @@ interface World {
   readonly fake: FakeBrowser;
   readonly kv: MemoryKv;
   readonly backgrounds: Background[];
-  tab(): TabRpcClient;
+  tab(id?: number): TabRpcClient;
 }
 
 const worlds: World[] = [];
@@ -80,10 +81,10 @@ function world(): World {
     fake,
     kv,
     backgrounds,
-    tab() {
+    tab(id = 12) {
       const url = `${FANSLY_ORIGIN}/creator/vault`;
       return createTabRpcClient({
-        api: fake.context(tabSender(fake, { url, origin: FANSLY_ORIGIN, tab: { id: 12, url } })).api,
+        api: fake.context(tabSender(fake, { url, origin: FANSLY_ORIGIN, tab: { id, url } })).api,
         validate: fanslyProtocol,
         register: { host: 'fansly-web', lateInjection: false, contractsVersion: CONTRACTS_VERSION },
         reconnectDelaysMs: [5, 10, 20],
@@ -134,6 +135,21 @@ describe('[host:fansly] the vault’s checkpoints between the tab and the backgr
     await until(() => second.state() === 'ready', 'the reloaded tab registered');
     expect(await vaultStoreOf(second).load(target)).toEqual(checkpoint(1, 1));
     expect(w.kv.read(`fansly.vault.${CREATOR}.${ALBUM}`)).toEqual(checkpoint(1, 1));
+  });
+
+  it('[VA-005] one tab at a time (review of P13b): the tab that wrote the album’s row holds it while its session is registered — another tab’s write is answered `held` and its read says so; the holder’s tab gone, the album is free', async () => {
+    const w = world();
+    const first = w.tab(12);
+    const second = w.tab(13);
+    await until(() => first.state() === 'ready' && second.state() === 'ready', 'both tabs registered');
+    expect(await vaultStoreOf(first).save(checkpoint(1, null))).toBe(true);
+    expect(await fanslyRequest(second, 'fansly.vault.checkpoint', { checkpoint: checkpoint(1, 1) })).toEqual({ ok: true, payload: { recorded: false, held: true } });
+    expect(await vaultStoreOf(second).look(target)).toEqual({ checkpoint: checkpoint(1, null), held: true });
+    expect(await vaultStoreOf(first).look(target)).toEqual({ checkpoint: checkpoint(1, null), held: false });
+    first.close();
+    await until(() => w.backgrounds[0]?.rpc.tabs().length === 1, 'the first tab’s session gone');
+    expect(await vaultStoreOf(second).look(target)).toEqual({ checkpoint: checkpoint(1, null), held: false });
+    expect(await vaultStoreOf(second).save(checkpoint(1, 1))).toBe(true);
   });
 
   it('the tab’s protocol lets Fansly’s answers through to the code that asks, and checks every shared one as before', () => {

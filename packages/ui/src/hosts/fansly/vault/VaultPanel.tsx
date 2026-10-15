@@ -13,7 +13,7 @@ import { type JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
-import { type FanslyVaultPluralKey, type FanslyVaultTextKey, type VaultItemState, type VaultPanelClient, type VaultPanelVM, type VaultPlanProblem, type VaultPlanWarning, type VaultRunVM } from '@cg/contracts/vault-fansly';
+import { type FanslyVaultPluralKey, type FanslyVaultTextKey, type VaultItemState, type VaultPanelClient, type VaultPanelNote, type VaultPanelVM, type VaultPlanProblem, type VaultPlanWarning, type VaultRunVM } from '@cg/contracts/vault-fansly';
 import { type I18n, type I18nParams } from '@cg/contracts/vm';
 
 import { Button, Dot, Icon, Segmented, Spinner, useI18n } from '../../../kit';
@@ -41,6 +41,15 @@ export function sizeText(i18n: I18n, bytes: number): string {
   const n = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: value < 10 ? 1 : 0 }).format(value);
   return t(units[unit] as (typeof units)[number], { n });
 }
+
+const NOTE_KEYS: Readonly<Record<VaultPanelNote, FanslyVaultTextKey>> = {
+  'read-failed': 'fansly.vault.note.readFailed',
+  'save-failed': 'fansly.vault.note.saveFailed',
+  'clear-failed': 'fansly.vault.note.clearFailed',
+  'left-behind': 'fansly.vault.note.leftBehind',
+  held: 'fansly.vault.note.held',
+  moved: 'fansly.vault.note.moved',
+};
 
 const ITEM_KEYS: Readonly<Record<VaultItemState, FanslyVaultTextKey>> = {
   pending: 'fansly.vault.item.pending',
@@ -140,7 +149,7 @@ function Panel({ client, view }: { readonly client: VaultPanelClient<File>; read
     ...(selection?.problems ?? []).map((problem) => ({ tone: 'problem' as const, text: problemText(t, problem) })),
     ...(selection?.warnings ?? []).map((warning) => ({ tone: 'warning' as const, text: warningText(t, warning) })),
     ...(resume === null ? [] : [{ tone: 'info' as const, text: t(`fansly.vault.resume.${resume.kind}`, { done: resume.done, total: resume.total }) }]),
-    ...(view.note === null ? [] : [{ tone: 'problem' as const, text: t(view.note === 'read-failed' ? 'fansly.vault.note.readFailed' : view.note === 'save-failed' ? 'fansly.vault.note.saveFailed' : view.note === 'clear-failed' ? 'fansly.vault.note.clearFailed' : 'fansly.vault.note.leftBehind') }]),
+    ...(view.note === null ? [] : [{ tone: 'problem' as const, text: t(NOTE_KEYS[view.note]) }]),
   ];
   const stop = run === null ? null : stopText(t, run);
   const progress = run === null || run.total === 0 ? null : Math.round((run.done / run.total) * 100);

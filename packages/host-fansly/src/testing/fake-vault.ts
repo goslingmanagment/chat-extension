@@ -46,17 +46,19 @@ export interface FakeVaultPage {
   destroy(): void;
 }
 
-const make = (tag: string, className?: string, children: ReadonlyArray<Node | string> = []): HTMLElement => {
-  const element = document.createElement(tag);
+const makeIn = (doc: Document) => (tag: string, className?: string, children: ReadonlyArray<Node | string> = []): HTMLElement => {
+  const element = doc.createElement(tag);
   if (className !== undefined) element.className = className;
   element.append(...children);
   return element;
 };
 
-export function createFakeVaultPage(): FakeVaultPage {
+/** The vault page in `doc` (the test's own document by default; another window's for a second tab). */
+export function createFakeVaultPage(doc: Document = document): FakeVaultPage {
+  const make = makeIn(doc);
   const host = make('app-media-vault');
   const route = make('app-media-vault-route', undefined, [host]);
-  document.body.append(make('div', 'content-wrapper', [make('router-outlet'), route]));
+  doc.body.append(make('div', 'content-wrapper', [make('router-outlet'), route]));
   let header: HTMLElement | null = null;
   let uploader: HTMLElement | null = null;
   let wrapper: HTMLElement | null = null;
@@ -97,7 +99,7 @@ export function createFakeVaultPage(): FakeVaultPage {
     },
     expandUploader() {
       if (uploader !== null) return;
-      const input = Object.assign(document.createElement('input'), { type: 'file', multiple: true });
+      const input = Object.assign(doc.createElement('input'), { type: 'file', multiple: true });
       input.addEventListener('change', () => {
         changes += 1;
         const files = [...(input.files ?? [])];
@@ -138,12 +140,12 @@ export function createFakeVaultPage(): FakeVaultPage {
     },
     modal() {
       const view = make('app-media-vault', undefined, [make('div', 'flex-row vault-header', [make('div', 'font-size-xl semi-bold flex-row', ['Modal album'])])]);
-      document.body.append(make('div', 'modal-wrapper', [view]));
+      doc.body.append(make('div', 'modal-wrapper', [view]));
       return view;
     },
     destroy() {
       route.parentElement?.remove();
-      for (const modal of document.querySelectorAll('.modal-wrapper')) modal.remove();
+      for (const modal of doc.querySelectorAll('.modal-wrapper')) modal.remove();
     },
   };
   return page;
