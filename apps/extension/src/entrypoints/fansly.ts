@@ -1,5 +1,5 @@
 // Fansly's isolated world, document_start (docs/project-unite/architecture.md
-// §2, §7.1): the early bootstrap of a Fansly tab, `fansly.js` (≤ 30 KiB gzip,
+// §2, §7.1): the early bootstrap of a Fansly tab, `fansly.js` (≤ 31 KiB gzip,
 // ≤ 3 ms). Wiring lives in composition/tab.ts; this entry assembles the Fansly
 // adapter for it (§1.3) from the starter of @cg/host-fansly.
 //

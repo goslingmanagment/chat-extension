@@ -18,7 +18,12 @@ const notice = () => browser.execute(() => {
 describe('[NEW-12] [FS-CO-1] Fansly coexistence on the stand', () => {
   useNetworkTrap();
   let harness: FanslyTapHarness | null = null;
-  before(async () => { await fakeFansly().command({ op: 'reset' }); await browser.setWindowSize(1440, 900); });
+  let ids: Awaited<ReturnType<typeof fanslyIds>>;
+  before(async () => {
+    await fakeFansly().command({ op: 'reset' }); await browser.setWindowSize(1440, 900);
+    await openWithNeighbor('/messages', { mode: 'off' });
+    ids = await fanslyIds();
+  });
   afterEach(async () => { await harness?.remove(); harness = null; await browser.url('about:blank'); });
   after(async () => { await setFanslyNeighbor(null); expect(await fakeFansly().calls('ours', 0)).toEqual([]); });
 
@@ -41,7 +46,6 @@ describe('[NEW-12] [FS-CO-1] Fansly coexistence on the stand', () => {
   for (const mode of ['off', 'after', 'legacy'] as const) {
     it(`[NEW-12] [FS-CO-1] ${mode} FBuddy is admitted, its booleans truthful; an old copy of our MAIN retires the host with a visible banner`, async () => {
       harness = await installFanslyTapHarness({ main: 'start', consumer: 'port' });
-      const ids = await fanslyIds();
       await openWithNeighbor(`/messages/${String(ids.groups[0])}`, { mode, guard: mode === 'off' ? [] : ['forbidden'], generic: 'subclass' });
       await waitForFanslyTap(); await waitForFanslyStandIdle();
       expect(await tap('activation')).toEqual({ ready: true, stopped: false });
@@ -101,7 +105,7 @@ describe('[NEW-12] [FS-CO-1] the installed extension steps aside and P9a notices
     const ids = await fanslyIds();
     await browser.url(fanslyStandUrl(`/messages/${String(ids.groups[0])}`));
     await waitForFanslyStandReady();
-    await waitForReport((report) => report.dock !== undefined, 'the real dock rendered after reload');
+    await waitForReport((report) => report.dock?.strip === true, 'the real dock rendered after reload');
     expect((await notice()).docks).toBeGreaterThan(0);
     await injectFanslyMain();
     await waitForReport((report) => report.runtime === 'shut-down', 'a duplicate MAIN stops the running dock');
