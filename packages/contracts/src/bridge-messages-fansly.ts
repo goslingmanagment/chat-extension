@@ -163,7 +163,8 @@ export const FanslyHealthSchema = z.strictObject({
   perf: z.strictObject({ frameParseMs: FanslyPerfCountsSchema, xhrParseMs: FanslyPerfCountsSchema, snapshotMs: FanslyPerfCountsSchema }),
   /**
    * The person's sends (R20 P7f; §5.9): trusted gestures in the main composer; marked answers of exactly
-   * `POST /api/v1/message` that are the creator's receipt in the gesture's chat; gestures with two such requests and
+   * `POST /api/v1/message` that are the creator's receipt in the gesture's chat; sends not told apart (`ambiguous`: two
+   * such requests in one gesture, a gesture name another gesture shares, a send proven too long after its gesture) and
    * receipts with media — neither attributed; `fx.sent` said, and of them how many had the socket's echo before the
    * receipt and after it: the real order on Fansly, which the stand cannot show (spike P3a §3).
    */
