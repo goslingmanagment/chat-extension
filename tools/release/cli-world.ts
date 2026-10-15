@@ -60,6 +60,10 @@ export interface World {
   // ── AMO ──
   /** The exit code of `web-ext sign`; 0 leaves the signed XPI in the artifacts folder. */
   signExit: number;
+  /** Runs when `pnpm build` runs in the checkout: what changes in the tree while it builds. */
+  onBuild: (() => void) | null;
+  /** Runs when `web-ext sign` starts, with its --source-dir: what changes while AMO has the upload. */
+  onSign: ((sourceDir: string) => void) | null;
   // ── Telegram: one reply per request ──
   telegram: Array<{ status: number; body: unknown } | Error>;
   now: Date;
@@ -146,6 +150,8 @@ export function makeHarness(): Harness {
     feed: null,
     health: { status: 200, body: JSON.stringify({ status: 'ok', contractHash: SDK_HASH, compatibleClientSdks: [SDK_HASH] }) },
     signExit: 0,
+    onBuild: null,
+    onSign: null,
     telegram: [],
     now: new Date('2026-10-05T11:00:00.000Z'),
   };
@@ -211,6 +217,7 @@ export function makeHarness(): Harness {
     if (line === 'pnpm check') return Promise.resolve(answer('', world.checkExit));
     if (line === 'pnpm install --frozen-lockfile --offline') return Promise.resolve(answer());
     if (line === 'pnpm build') {
+      if (spec.cwd !== undefined && spec.cwd.startsWith(checkout)) world.onBuild?.();
       // The rebuild in the unpacked sources archive: the same extension again.
       if (spec.cwd !== undefined && !spec.cwd.startsWith(checkout)) {
         mkdirSync(join(spec.cwd, 'apps/extension/.output/firefox-mv3'), { recursive: true });
@@ -219,6 +226,7 @@ export function makeHarness(): Harness {
       return Promise.resolve(answer());
     }
     if (program === 'web-ext' && spec.args[0] === 'sign') {
+      world.onSign?.(spec.args[spec.args.indexOf('--source-dir') + 1] ?? '');
       if (world.signExit === 0) {
         const dir = spec.args[spec.args.indexOf('--artifacts-dir') + 1] ?? '';
         const source = spec.args[spec.args.indexOf('--source-dir') + 1] ?? '';

@@ -44,6 +44,8 @@ export interface OptionalSites {
 const NAME_MARK = ' (P3b)';
 const STAMP_EPOCH = Date.UTC(2026, 0, 1);
 const RELEASE_VERSION_RE = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$/;
+/** A test build's version: four numbers. A release has three, so no build of a set can pass for a release. */
+const TEST_VERSION_RE = /^(0|[1-9]\d{0,8})(\.(0|[1-9]\d{0,8})){3}$/;
 
 /** The versions of a set made at `now` from a release build of `base` (X.Y.Z). */
 export function testBuildVersions(base: string, now: Date): Readonly<Record<TestBuildRole, string>> {
@@ -162,17 +164,38 @@ export function parseTestBuildSet(text: string): TestBuildSet {
   const roles = builds.map((build) => (record(build) ? build['role'] : null));
   if (TEST_BUILD_ROLES.some((role) => !roles.includes(role)) || builds.length !== TEST_BUILD_ROLES.length) problems.push(`builds: exactly ${TEST_BUILD_ROLES.join(', ')}`);
   for (const build of builds) {
-    if (!record(build) || typeof build['version'] !== 'string' || typeof build['dir'] !== 'string' || build['dir'].includes('..') || !record(build['xpi'])) problems.push('builds: a role, a version, a folder and an XPI each');
+    if (!record(build) || typeof build['version'] !== 'string' || !TEST_VERSION_RE.test(build['version']) || typeof build['dir'] !== 'string' || build['dir'].includes('..') || !record(build['xpi'])) {
+      problems.push('builds: a role, a test version, a folder and an XPI each');
+    }
   }
   if (problems.length > 0) throw new Error(`set.json: ${problems.join('; ')}`);
   return parsed as unknown as TestBuildSet;
+}
+
+/**
+ * What a build's OWN manifest says against what the set says it is — read before anything is sent to AMO, since a set
+ * can be replaced consistently around another add-on: [] — the test add-on, a test version, the one set.json names, and
+ * no update_url.
+ */
+export function testBuildIdentityProblems(manifest: unknown, build: Pick<TestBuild, 'role' | 'version'>): string[] {
+  const { role } = build;
+  if (!record(manifest)) return [`${role}: manifest.json is not an object`];
+  const gecko = record(manifest['browser_specific_settings']) ? manifest['browser_specific_settings']['gecko'] : undefined;
+  const id = record(gecko) ? gecko['id'] : undefined;
+  const version = manifest['version'];
+  const out: string[] = [];
+  if (id !== TEST_BUILDS_GECKO_ID) out.push(`${role}: add-on id ${String(id)}, not ${TEST_BUILDS_GECKO_ID}`);
+  if (typeof version !== 'string' || !TEST_VERSION_RE.test(version)) out.push(`${role}: version ${String(version)} is not a test version (four numbers)`);
+  else if (version !== build.version) out.push(`${role}: version ${version}, set.json names ${build.version}`);
+  if (record(gecko) && gecko['update_url'] !== undefined) out.push(`${role}: an update_url (${JSON.stringify(gecko['update_url'])}): a test build asks no feed`);
+  return out;
 }
 
 /** Why a set cannot be signed: [] — it can. */
 export function setSigningProblems(set: TestBuildSet): string[] {
   const out: string[] = [];
   if (set.commit === null) out.push('the set was made outside a git checkout: its builds are of no commit (good for an unsigned stand-in run only)');
-  else if (!set.clean) out.push(`the set was made from ${set.commit.slice(0, 12)} with uncommitted changes: its builds are of no commit — commit, then pnpm release test-builds again`);
+  else if (!set.clean) out.push(`the set was made from ${set.commit.slice(0, 12)} with uncommitted changes (or the tree changed while it built): its builds are of no commit — commit, then pnpm release test-builds again`);
   return out;
 }
 

@@ -9,8 +9,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { baseManifest, GECKO_ID, UPDATE_URL } from '../../apps/extension/build/manifest.ts';
+import { listTree } from '../lib/files.ts';
+import { writeZip } from '../lib/zip-write.ts';
 import { readZip, type ZipEntry } from '../lib/zip.ts';
-import { COMMIT_A, makeHarness, VERSION, type Harness } from './cli-world.ts';
+import { COMMIT_A, COMMIT_B, makeHarness, VERSION, type Harness } from './cli-world.ts';
 import { OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS } from './config.ts';
 import {
   deriveTestBuild,
@@ -22,7 +24,7 @@ import {
   testManifest,
   type TestBuildSet,
 } from './test-builds.ts';
-import { SIGNATURE_FILES } from './xpi.ts';
+import { sha256Hex, SIGNATURE_FILES } from './xpi.ts';
 
 const SITES = { origins: OPTIONAL_SITE_ORIGINS, api: OPTIONAL_SITE_API };
 /** The release manifest as the build makes it: the policy of build/manifest.ts plus what WXT adds. */
@@ -171,6 +173,27 @@ describe('pnpm release test-builds', () => {
     }
     harness = null;
   });
+
+  it('a tree that changed while it built — a file, or HEAD — is of no commit either: never signed', async () => {
+    const changes: ReadonlyArray<(h: Harness) => void> = [
+      (h) => void (h.world.porcelain = ' M packages/core/src/a.ts\n'),
+      (h) => void (h.world.head = COMMIT_B),
+    ];
+    for (const change of changes) {
+      const h = world();
+      h.world.onBuild = () => change(h);
+      expect(await h.run('test-builds'), h.err.join('\n')).toBe(0);
+      const { set } = setOf(h);
+      expect(set.clean).toBe(false);
+      expect(setSigningProblems(set)).toHaveLength(1);
+      expect(h.out.join('\n')).toMatch(/note: .*changed while/);
+      h.forget();
+      expect(await h.run('sign', '--test-builds', '--confirm', set.set)).toBe(2);
+      expect(h.outward()).toEqual([]);
+      harness?.remove();
+    }
+    harness = null;
+  });
 });
 
 describe('pnpm release sign --test-builds', () => {
@@ -180,6 +203,72 @@ describe('pnpm release sign --test-builds', () => {
     h.forget();
     return { h, ...setOf(h) };
   }
+
+  /**
+   * Rewrites a build's manifest everywhere at once — its folder, its XPI and set.json's sha256 — so that only what the
+   * manifest SAYS can tell it apart: a set made consistent around another add-on or another version.
+   */
+  function rewriteBuild(dir: string, set: TestBuildSet, role: string, change: (manifest: Record<string, unknown>) => void): void {
+    const build = set.builds.find((item) => item.role === role);
+    if (build === undefined) throw new Error(`no role ${role}`);
+    const folder = join(dir, build.dir);
+    const manifest = JSON.parse(readFileSync(join(folder, 'manifest.json'), 'utf8')) as Record<string, unknown>;
+    change(manifest);
+    writeFileSync(join(folder, 'manifest.json'), JSON.stringify(manifest));
+    const data = writeZip(listTree(folder).map((name) => ({ name, data: readFileSync(join(folder, name)) })));
+    writeFileSync(join(dir, build.xpi.file), data);
+    const raw = JSON.parse(readFileSync(join(dir, 'set.json'), 'utf8')) as { builds: Array<{ role: string; xpi: { sha256: string; bytes: number } }> };
+    for (const item of raw.builds) if (item.role === role) item.xpi = { ...item.xpi, sha256: sha256Hex(data), bytes: data.length };
+    writeFileSync(join(dir, 'set.json'), JSON.stringify(raw, null, 2));
+  }
+
+  it('reads each build’s own manifest before anything leaves: the real add-on, a release version or a version set.json does not name is refused', async () => {
+    const cases: ReadonlyArray<readonly [string, (manifest: Record<string, unknown>) => void, RegExp]> = [
+      ['the real add-on', (manifest) => void ((manifest['browser_specific_settings'] as { gecko: Record<string, unknown> }).gecko['id'] = GECKO_ID), /n0: add-on id chat-extension@gosling\.agency, not chatgoose-p3b-test@gosling\.agency/],
+      ['a release version', (manifest) => void (manifest['version'] = '0.2.4'), /n0: version 0\.2\.4 is not a test version/],
+      ['another test version', (manifest) => void (manifest['version'] = '0.2.4.7'), /n0: version 0\.2\.4\.7, set\.json names/],
+      ['the release feed', (manifest) => void ((manifest['browser_specific_settings'] as { gecko: Record<string, unknown> }).gecko['update_url'] = UPDATE_URL), /n0: an update_url/],
+    ];
+    for (const [what, change, message] of cases) {
+      const { h, dir, set } = await made();
+      rewriteBuild(dir, set, 'n0', change);
+      for (const flags of [['--confirm', set.set], ['--dry-run']]) {
+        h.forget();
+        const code = await h.run('sign', '--test-builds', ...flags);
+        expect(h.outward(), `${what} ${flags.join(' ')}`).toEqual([]);
+        if (flags[0] === '--confirm') {
+          expect(code, what).toBe(2);
+          expect(h.err.join('\n'), what).toMatch(message);
+        } else expect(h.out.join('\n'), what).toMatch(message);
+      }
+      harness?.remove();
+    }
+    harness = null;
+  });
+
+  it('refuses a sources archive that is not the one the set was made with', async () => {
+    const { h, dir, set } = await made();
+    writeFileSync(join(dir, 'sources.zip'), writeZip([{ name: 'BUILD.md', data: Buffer.from('another tree') }]));
+    expect(await h.run('sign', '--test-builds', '--confirm', set.set)).toBe(2);
+    expect(h.err.join('\n')).toContain('sources.zip is not the sources archive set.json describes');
+    expect(h.outward()).toEqual([]);
+  });
+
+  it('checks each build again right before its upload: one replaced while AMO had the one before is not sent', async () => {
+    const { h, dir, set } = await made();
+    // The folder web-ext uploads is swapped for the real add-on while the build before it is with AMO.
+    h.world.onSign = (source) => {
+      if (!source.endsWith('n0')) return;
+      const manifest = JSON.parse(readFileSync(join(dir, 'n', 'manifest.json'), 'utf8')) as { browser_specific_settings: { gecko: Record<string, unknown> } };
+      manifest.browser_specific_settings.gecko['id'] = GECKO_ID;
+      writeFileSync(join(dir, 'n', 'manifest.json'), JSON.stringify(manifest));
+    };
+    expect(await h.run('sign', '--test-builds', '--confirm', set.set)).toBe(2);
+    expect(h.err.join('\n')).toContain('the test build «n» is not what was checked, nothing of it was sent');
+    expect(h.err.join('\n')).toMatch(/n: add-on id chat-extension@gosling\.agency/);
+    expect(h.outward().filter((line) => WEB_EXT_SIGN.test(line))).toEqual([expect.stringContaining(`--source-dir ${join(dir, 'n0')}`)]);
+    expect(existsSync(join(dir, 'signed', 'n.xpi'))).toBe(false);
+  });
 
   it('without the owner’s word only prints its plan: four unlisted signings of the test add-on, nothing sent, nothing written', async () => {
     const { h, dir, set } = await made();

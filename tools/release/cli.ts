@@ -64,6 +64,7 @@ import {
   TEST_BUILD_ENV,
   TEST_BUILD_ROLES,
   TEST_BUILDS_GECKO_ID,
+  testBuildIdentityProblems,
   testBuildNotes,
   testBuildVersions,
   testXpiName,
@@ -330,9 +331,13 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   }
 
   async function testBuilds(): Promise<void> {
-    const head = await headState();
+    const before = await headState();
     const result = await deps.exec({ program: 'pnpm', args: ['build'], cwd: checkout.root, inherit: true });
     if (result.code !== 0) refuse('pnpm build failed.');
+    // The build is of a commit only if nothing moved while it ran: the same HEAD, still no change in the tree.
+    const after = await headState();
+    const head = { commit: before.commit, clean: before.clean && after.clean && after.commit === before.commit };
+    if (before.clean && !head.clean) print(`note: the tree changed while it built (HEAD ${after.commit?.slice(0, 12) ?? '?'}${after.clean ? '' : ', uncommitted changes'}): the set is of no commit.`);
     const built = checkout.build();
     if (built.version !== checkout.version()) refuse(`the release build is of ${built.version}, the tree holds ${checkout.version()}.`);
     const versions = testBuildVersions(built.version, deps.now());
@@ -397,16 +402,32 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const { dir, set } = latest;
     const plan = planOnly(set.set);
     const signedDir = join(dir, 'signed');
-    const problems = setSigningProblems(set);
-    for (const build of set.builds) {
+    /** The sources archive is the one the set was made with. */
+    const sourcesProblems = (): string[] => {
+      const path = join(dir, 'sources.zip');
+      return existsSync(path) && sha256Hex(readFileSync(path)) === set.base.sourcesSha256 ? [] : ['sources.zip is not the sources archive set.json describes'];
+    };
+    /**
+     * A build is what set.json says (its XPI's sha256), its folder — what web-ext uploads — holds that XPI's files, and
+     * its own manifest names the test add-on at its test version: read before the first request, and again right
+     * before its own upload.
+     */
+    const buildProblems = (build: TestBuild): string[] => {
       const path = join(dir, build.xpi.file);
-      if (!existsSync(path) || sha256Hex(readFileSync(path)) !== build.xpi.sha256) problems.push(`${build.xpi.file} is not the file set.json describes`);
-      else {
-        const folder = new Map(checkout.buildFiles(join(dir, build.dir)).map((file) => [file.name, file.data]));
-        const packed = readZip(readFileSync(path));
-        if (packed.length !== folder.size || packed.some((entry) => !(folder.get(entry.name)?.equals(entry.data) ?? false))) problems.push(`the folder ${build.dir}/ is not what ${build.xpi.file} holds`);
+      if (!existsSync(path) || sha256Hex(readFileSync(path)) !== build.xpi.sha256) return [`${build.xpi.file} is not the file set.json describes`];
+      const folder = new Map(checkout.buildFiles(join(dir, build.dir)).map((file) => [file.name, file.data]));
+      const packed = readZip(readFileSync(path));
+      const out: string[] = [];
+      if (packed.length !== folder.size || packed.some((entry) => !(folder.get(entry.name)?.equals(entry.data) ?? false))) out.push(`the folder ${build.dir}/ is not what ${build.xpi.file} holds`);
+      let manifest: unknown;
+      try {
+        manifest = JSON.parse(folder.get('manifest.json')?.toString('utf8') ?? 'null') as unknown;
+      } catch {
+        manifest = null;
       }
-    }
+      return [...out, ...testBuildIdentityProblems(manifest, build)];
+    };
+    const problems = [...setSigningProblems(set), ...sourcesProblems(), ...set.builds.flatMap(buildProblems)];
     if (problems.length > 0 && !plan) refuse(`cannot sign the test builds ${set.set}:\n  ${problems.join('\n  ')}`);
     for (const problem of problems) print(`note: ${problem}`);
     const pending = set.builds.filter((build) => !existsSync(join(signedDir, signedTestXpiName(build.role))));
@@ -439,6 +460,9 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
           `store ${target}`,
         ],
         run: async () => {
+          // An earlier upload took minutes: what goes now is checked again, as it is now.
+          const now = [...sourcesProblems(), ...buildProblems(build)];
+          if (now.length > 0) refuse(`the test build «${build.role}» is not what was checked, nothing of it was sent:\n  ${now.join('\n  ')}`);
           requireEnv(ENV.amoKey);
           requireEnv(ENV.amoSecret);
           writeFileSync(input.metadataPath, amoMetadata(notes));
