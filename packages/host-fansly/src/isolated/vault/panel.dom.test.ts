@@ -183,7 +183,10 @@ describe('[host:fansly] the vault panel’s controller (R20 P13b)', () => {
     expect(view().controls).toMatchObject({ blocked: 'done', reset: false });
     // «last on top»: the same set in its own order of uploads.
     panel.dispatch({ type: 'order', order: 'last-on-top' });
-    expect(view()).toMatchObject({ order: 'last-on-top', run: null, controls: { blocked: null } });
+    // What the finished run left is read again first.
+    expect(view()).toMatchObject({ order: 'last-on-top', run: null, controls: { blocked: 'checking' } });
+    await settle();
+    expect(view().controls.blocked).toBeNull();
   });
 
   it('[VA-003] a problem of the set, a page that cannot take a file: Start is not offered and says why; the facts are read again when the person comes back', async () => {
@@ -312,5 +315,32 @@ describe('[host:fansly] the vault panel’s controller (R20 P13b)', () => {
     await settle();
     expect(view()).toMatchObject({ run: { state: 'stopped', stop: { kind: 'route-left' }, code: 'CG-VAULT-UNCERTAIN' }, question: { name: 'b.jpg' }, controls: { close: true, start: 'resume' } });
     expect(memory.row()).toMatchObject({ confirmed: 1, pending: { index: 1 } });
+  });
+
+  it('[VA-005] other files after a stopped run: its checkpoint is read again and said — Start waits for those files or a reset', async () => {
+    fates = { 'b.jpg': 'silent' };
+    panel.dispatch({ type: 'open' });
+    await settle();
+    panel.dispatch({ type: 'pick', files: [file('a.jpg'), file('b.jpg')] });
+    panel.dispatch({ type: 'start' });
+    await settle();
+    // b in flight, never confirmed: the person stops by going away and back.
+    page.collapseUploader();
+    page.expandUploader();
+    drive();
+    touch();
+    await settle();
+    expect(memory.row()).toMatchObject({ confirmed: 0, pending: { index: 0 } });
+    panel.dispatch({ type: 'pick', files: [file('z.jpg')] });
+    // Still in flight: the set is kept.
+    expect(view().selection?.items.map((item) => item.name)).toEqual(['a.jpg', 'b.jpg']);
+    facts.navigate('/creator/vault');
+    facts.loaded(ALBUM, (seqNow += 1));
+    for (const listener of pageListeners) listener();
+    await settle();
+    expect(view().run).toMatchObject({ state: 'stopped', code: 'CG-VAULT-UNCERTAIN' });
+    panel.dispatch({ type: 'pick', files: [file('z.jpg')] });
+    await settle();
+    expect(view()).toMatchObject({ run: null, resume: { kind: 'other', done: 0, total: 2 }, controls: { blocked: 'other', reset: true } });
   });
 });

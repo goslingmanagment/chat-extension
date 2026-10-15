@@ -126,9 +126,14 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
     bound = bind(target, plan.sequence, checkpoint);
   };
 
-  /** Drops a run that does not hold a file now (new files, another order, a reset). */
+  /**
+   * Drops a run that does not hold a file now (new files, another order). What it wrote is on disk: the album's
+   * checkpoint is read again, so the panel says it as the next run will find it.
+   */
   const drop = (): void => {
-    if (bound !== null && !active()) bound = null;
+    if (bound === null || active()) return;
+    if (bound.fromCheckpoint || bound.snapshot.state !== 'idle') checked = null;
+    bound = null;
   };
 
   const read = (at: VaultTarget): void => {
@@ -374,6 +379,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
           if (active() || starting || action.order === order) return;
           order = action.order;
           repick(picked);
+          look();
           return emit();
         case 'start':
           void start();
