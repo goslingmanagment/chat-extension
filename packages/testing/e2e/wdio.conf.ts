@@ -39,6 +39,25 @@ let stand: StandServer | null = null;
 let egress: EgressSink | null = null;
 let hub: FakeHubServer | null = null;
 
+/**
+ * Fixed ports for the run, from CG_E2E_PORTS (JSON: `fansly`, `fanslyApi`, `fanslySocket`, `hub`; any may be left
+ * out): only for a subject that has the stand's addresses compiled in — the old Fansly extension's test build of the
+ * perf baseline (e2e/perf/fansly/ports.ts). Without it every port is a free one.
+ */
+function fixedPorts(): { fansly?: number; fanslyApi?: number; fanslySocket?: number; hub?: number } {
+  const text = process.env['CG_E2E_PORTS'];
+  if (text === undefined || text === '') return {};
+  const parsed = JSON.parse(text) as Record<string, unknown>;
+  const ports: Record<string, number> = {};
+  for (const key of ['fansly', 'fanslyApi', 'fanslySocket', 'hub']) {
+    const value = parsed[key];
+    if (value === undefined) continue;
+    if (!Number.isInteger(value) || (value as number) <= 0 || (value as number) > 65_535) throw new Error(`CG_E2E_PORTS: ${key} is not a port (${JSON.stringify(value)})`);
+    ports[key] = value as number;
+  }
+  return ports;
+}
+
 export const config: WebdriverIO.Config = {
   runner: 'local',
   specs: ['./specs/**/*.e2e.ts'],
@@ -99,8 +118,14 @@ export const config: WebdriverIO.Config = {
     if (!existsSync(join(FANSLY_FIXTURE_BUILD_DIR, 'index.html'))) {
       throw new Error('the Fansly stand is not built: run `pnpm --filter @cg/testing build:stand` (pnpm e2e does it)');
     }
+    const ports = fixedPorts();
     egress = await startEgressSink();
-    stand = await startStandServer({ egress });
+    stand = await startStandServer({
+      egress,
+      ...(ports.fansly === undefined ? {} : { fanslyPort: ports.fansly }),
+      ...(ports.fanslyApi === undefined ? {} : { fanslyApiPort: ports.fanslyApi }),
+      ...(ports.fanslySocket === undefined ? {} : { fanslySocketPort: ports.fanslySocket }),
+    });
     process.env['CG_STAND_ORIGIN'] = stand.origin;
     process.env['CG_STAND_API_ORIGIN'] = stand.apiOrigin;
     // The Fansly stand: its own loopback name (http://localhost:<port>), never ChatSpace's 127.0.0.1.
@@ -112,7 +137,7 @@ export const config: WebdriverIO.Config = {
     // reset and script it through its control API. Every AI body is checked by the hub's own body schema, every
     // client/* request and model answer by the hub's own route schemas (the vendored SDK's): a request the real
     // hub would answer 400 to fails here, not on the first live check.
-    hub = await startFakeHub({ streamBodySchema: routeSchemas.aiFeatureStream.body, routeSchemas });
+    hub = await startFakeHub({ streamBodySchema: routeSchemas.aiFeatureStream.body, routeSchemas, ...(ports.hub === undefined ? {} : { port: ports.hub }) });
     process.env['CG_FAKE_HUB_ORIGIN'] = hub.origin;
     // The sink's port is known only now; workers start with these capabilities.
     for (const capability of capabilities as WebdriverIO.Capabilities[]) {
