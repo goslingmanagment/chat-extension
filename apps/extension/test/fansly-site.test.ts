@@ -115,19 +115,20 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
   it('[host:fansly] its build carries the application (R20 P7d): the tab’s two chunks, every layer, the texts — Fansly’s own `tab-app` and texts, the shared rest; nothing of ChatSpace’s alone', () => {
     const entries = FANSLY.lazy.entries;
     for (const name of [...Object.values(TAB_LAZY), ...LAZY_LAYERS, 'i18n-ru', 'i18n-en', 'ai-analysis', 'ai-coach', 'tab-health']) expect(Object.keys(entries), name).toContain(name);
-    // Every entry name is one the tab asks for by name — a shared one, or one of Fansly's own panels (R20 P13b: the
-    // vault); its source is Fansly's own or the shared entry of that name.
-    const own: readonly SiteLazyEntryName[] = ['vault'];
+    // Every entry name is one the tab asks for by name — a shared one, or one of Fansly's own (R20 P8b1: its AI
+    // policy; P13b: the vault); its source is Fansly's own or the shared entry of that name.
+    const own: readonly SiteLazyEntryName[] = ['ai-fansly', 'vault'];
     for (const [name, source] of Object.entries(entries)) {
       expect([...Object.keys(LAZY_ENTRIES), ...own], name).toContain(name);
       expect([`fansly/${name}.ts`, LAZY_ENTRIES[name as keyof typeof LAZY_ENTRIES]], name).toContain(source);
     }
-    expect([entries['tab-app'], entries['bridge-validation'], entries['tab-protocol'], entries['i18n-ru'], entries['i18n-en'], entries['vault']]).toEqual([
+    expect([entries['tab-app'], entries['bridge-validation'], entries['tab-protocol'], entries['i18n-ru'], entries['i18n-en'], entries['ai-fansly'], entries['vault']]).toEqual([
       'fansly/tab-app.ts',
       'fansly/bridge-validation.ts',
       'fansly/tab-protocol.ts',
       'fansly/i18n-ru.ts',
       'fansly/i18n-en.ts',
+      'fansly/ai-fansly.ts',
       'fansly/vault.ts',
     ]);
     // No other build has a file of Fansly's own entry.
@@ -141,8 +142,12 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     const profile = FANSLY_APP.ui({ current: () => ({ scheme: 'dark', tokens: {}, fixedWidth: false }), onChange: () => () => undefined, dispose: () => undefined });
     expect(profile.dock.variant).toBe('fansly');
     expect(profile.phrases.ru.onSite).toBe('на Fansly');
-    const policy = await FANSLY_APP.ai(() => Promise.reject(new Error('nothing to load')));
-    expect([policy.proof({} as never, {} as never), policy.fields(null), policy.fingerprint(null)]).toEqual([null, {}, null]);
+    // Its AI policy is its own chunk (R20 P8b1), asked for by name; a chunk that does not load is no policy.
+    const asked: string[] = [];
+    const policy = await FANSLY_APP.ai(<T,>(entry: string): Promise<T> => (asked.push(entry), import('../lazy/fansly/ai-fansly.ts') as Promise<T>));
+    expect(asked).toEqual(['ai-fansly']);
+    expect([policy.fields(null), policy.fingerprint(null), policy.preflight('hi', { chat: null, state: 'ready', loaded: 40, hasOlder: true } as never, null)]).toEqual([{}, null, null]);
+    await expect(FANSLY_APP.ai(() => Promise.reject(new Error('nothing to load')))).rejects.toThrow('nothing to load');
   });
 
   it('[R20-P8d] [host:fansly] its profile (§1.5): the palette of the page in the theme it shows, read anew on each switch; the variant’s sheet; the same parts the galleries draw Fansly in', () => {

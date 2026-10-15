@@ -599,6 +599,8 @@ export interface ResultMarkVM {
 export interface AiProofAsk {
   readonly feature: FeatureId;
   readonly surface: Surface;
+  /** Effective messageCount of this start, after its one-off option and hub limits. Absent on older callers. */
+  readonly messageCount?: number;
   /** The open chat as the start found it: the host answers only while it is still this chat. */
   readonly identity: HostIdentity;
   /** How much fresh page text the start may carry (D-14: a draft feature in the dock, admitted on the page); null — none. */

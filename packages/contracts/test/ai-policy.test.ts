@@ -4,9 +4,14 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import * as C from '../src/index';
-import { AI_POLICY_SAMPLES } from './fixtures/ai-policy';
+import { AI_POLICY_SAMPLES, AI_PROOF_ASK_SAMPLES } from './fixtures/ai-policy';
 
 describe('[R20-F10] the site’s AI policy', () => {
+  it('the proof ask may carry the effective count; older callers remain valid', () => {
+    expectTypeOf<C.AiProofAsk['messageCount']>().toEqualTypeOf<number | undefined>();
+    expect(AI_PROOF_ASK_SAMPLES.valid.map((ask: C.AiProofAsk) => ask.messageCount)).toEqual([undefined, 100]);
+    expect(AI_PROOF_ASK_SAMPLES.invalid).toHaveLength(1);
+  });
   it('the samples: ChatSpace’s shape, a second site with its own proof and fingerprint, a site with nothing to prove', () => {
     expect(AI_POLICY_SAMPLES.valid).toHaveLength(3);
     for (const policy of AI_POLICY_SAMPLES.valid) expect(Object.keys(policy).sort()).toEqual(['fields', 'fingerprint', 'preflight', 'proof', 'verdict']);

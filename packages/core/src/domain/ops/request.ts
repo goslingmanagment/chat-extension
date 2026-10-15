@@ -7,6 +7,14 @@
 // the known fan ids of a preview checkpoint, and the capability header. The
 // result is checked against the contracts' schema: a request the hub would
 // refuse with 400 is our bug and never leaves the background.
+//
+// A start with a proof (1.15.0, R20 P8b1: a host whose tab observes its chats —
+// Fansly's snapshot; «Новые» — the pass) is asked about it: its window and its
+// deleted ids as `coverageCheck` under `coverage-check-v1` (with `context-v1`:
+// the answer rides in the context frame; a hub before HF-8в refuses the field),
+// the fan's known ids, a draft's texts as `liveTextContext` under the same
+// freshText switch, and a messageCount never below the check window — the hub
+// serves at least what it is asked about (FS-TAIL-1, HF-8г).
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
@@ -97,7 +105,12 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   const split = splitAllowed(start.feature, ctx.bootstrap, pageId);
   if (spec.replyMode === 'split-all-v1' && split) capabilities.push('split-all-v1');
 
-  const window = Math.min(start.window, Math.max(AI_REQUEST_LIMITS.messageCountMin, ctx.bootstrap.limits.deepMax));
+  const proof = start.proof;
+  // HF-8в: the window check only to a hub that declared it, beside the context frame its answer rides in.
+  const coverageCheck = proof !== undefined && contextV1 && hasCapability(ctx.bootstrap.capabilities, 'coverage-check-v1');
+  if (coverageCheck) capabilities.push('coverage-check-v1');
+
+  const window = Math.max(Math.min(start.window, Math.max(AI_REQUEST_LIMITS.messageCountMin, ctx.bootstrap.limits.deepMax)), proof?.window.length ?? 0);
   const body: { -readonly [K in keyof AiFeatureStreamBody]: AiFeatureStreamBody[K] } = {
     clientRequestId: ctx.opId,
     pageLabel: start.target.binding.pageLabel,
@@ -122,11 +135,14 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
     if (start.coach.history.length > 0) body.coachHistory = start.coach.history.map((turn) => ({ question: turn.question, answer: turn.answer }));
     if (start.coach.attachDraft !== undefined) body.draftText = start.coach.attachDraft;
   }
-  if (contextV1 && start.checkpoint !== undefined && start.checkpoint.knownFanMessageIds.length > 0) {
-    body.knownFanMessageIds = [...start.checkpoint.knownFanMessageIds];
-  }
-  // D-14: fresh page text goes only where the page admits it (the owner's `freshText` and the hub's `context-v1`).
-  if (start.fresh !== undefined && ctx.freshText) body.liveTextContext = liveTextOf(start.fresh);
+  // A start carries one of the two (StartOp: a proof never beside a checkpoint): the ids come from where it was taken.
+  const known = start.checkpoint?.knownFanMessageIds ?? (ctx.freshText ? proof?.knownFanMessageIds : undefined) ?? [];
+  if (contextV1 && known.length > 0) body.knownFanMessageIds = [...known];
+  if (coverageCheck && proof !== undefined) body.coverageCheck = { window: proof.window.map((entry) => ({ id: entry.id, dir: entry.dir })), deletedIds: [...proof.deletedIds] };
+  // D-14: fresh page text goes only where the page admits it (the owner's `freshText` and the hub's `context-v1`) —
+  // ChatSpace's tail, or a proof's texts taken in the same instant as its window.
+  const tail = start.fresh ?? (proof?.kind === 'tab-snapshot' && proof.tail !== undefined && proof.tail.length > 0 ? { capturedAt: proof.takenAt, messages: proof.tail } : undefined);
+  if (tail !== undefined && ctx.freshText) body.liveTextContext = liveTextOf(tail);
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };
   const parsed = HubStreamRequestSchema.safeParse(request);

@@ -36,6 +36,9 @@ describe('fake hub journal: redaction', () => {
     expect(redact(null)).toBeNull();
     expect(redact(['a', 1, true])).toEqual(['‹1 chars›', 1, true]);
     expect(redact({ capabilities: ['context-v1'], knownFanMessageIds: ['6600', '6601'] })).toEqual({ capabilities: ['context-v1'], knownFanMessageIds: ['6600', '6601'] });
+    // R20 P8b1: a Fansly start's window check — ids and sides — reads as it was sent.
+    const coverageCheck = { window: [{ id: '6600', dir: 'fan' }], deletedIds: ['6601'] };
+    expect(redact({ coverageCheck })).toEqual({ coverageCheck });
   });
 
   it('redacts by default: unknown keys, text under a kept key, and text used as a key are all lengths', () => {

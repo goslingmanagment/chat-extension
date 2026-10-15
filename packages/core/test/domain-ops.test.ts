@@ -479,6 +479,9 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     expect(bare.ok && bare.request.body.liveTextContext).toBeUndefined();
     const preview = buildStreamRequest(startOf({ surface: 'preview', target: targetOf('2003'), checkpoint: checkpointFor('2003') }), ctx);
     expect(preview.ok && preview.request.body.knownFanMessageIds).toEqual([WORLD.messages.fanLatest, WORLD.messages.fanFirst]);
+    const previewOff = buildStreamRequest(startOf({ surface: 'preview', target: targetOf('2003'), checkpoint: checkpointFor('2003') }), { ...ctx, freshText: false });
+    // The proof branch obeys freshText; ChatSpace's checkpoint request remains byte-identical.
+    expect(JSON.stringify(previewOff)).toBe(JSON.stringify(preview));
     const noCtx = buildStreamRequest(startOf({ surface: 'preview', target: targetOf('2003'), checkpoint: checkpointFor('2003') }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: [] } });
     expect(noCtx.ok && noCtx.request.body.knownFanMessageIds).toBeUndefined();
     expect(noCtx.ok && noCtx.request.capabilities).toEqual([]);

@@ -172,7 +172,8 @@ describe('the Fansly stand over the fake Fansly: marks of delivery and reading',
     // route is seen here a later mark may have gone already: the delay is 150 ms, a loaded machine is slower.)
     const inClick = apiCalls(stand.control.journal(mark), 'POST', /^\/api\/v1\/message\/ack/).filter((entry) => entry.during !== null);
     expect(inClick).toEqual([]);
-    await until(() => fake.journal.calls('page', before).some((entry) => entry.route === 'message.ack'), 'the read marks');
+    // Delivery (type 1) can finish first; only a read acknowledgement (type 2) satisfies this wait.
+    await until(() => fake.journal.calls('page', before).some((entry) => entry.route === 'message.ack' && entry.detail?.['ackType'] === 2), 'the read marks');
     const acks = apiCalls(stand.control.journal(mark), 'POST', /^\/api\/v1\/message\/ack/);
     expect(acks.every((entry) => entry.during === null)).toBe(true);
     expect(acks.some((entry) => entry['ackType'] === 2)).toBe(true);

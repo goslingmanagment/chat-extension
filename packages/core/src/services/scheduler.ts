@@ -430,6 +430,8 @@ export class OpScheduler {
     const knownIds = new Set<string>();
     for (const message of start.fresh?.messages ?? []) knownIds.add(message.platformMessageId);
     for (const id of start.checkpoint?.knownFanMessageIds ?? []) knownIds.add(id);
+    // A proof's window (R20 P8b1): what the tab saw before the click is never «новое после генерации».
+    for (const entry of start.proof?.window ?? []) knownIds.add(entry.id);
     return {
       view: {
         opId,

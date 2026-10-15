@@ -13,20 +13,20 @@
 //   own variables, live with its theme (host-fansly isolated/palette.ts), the
 //   dock's variant `fansly` on our hosts with its sheet (ui hosts/fansly), and
 //   the phrases that name the site — «на Fansly».
-// - Its AI policy (§1.6, F10): until Fansly's own (`ai-fansly`, P8b1 — the
-//   snapshot's proof, the window check, the verdict) the start gathers no
-//   proof and adds no field of its own; the hub decides its gates by itself,
-//   and no fresh page text leaves the tab.
+// - Its AI policy (§1.6, F10; R20 P8b1): Fansly's own chunk `ai-fansly`,
+//   loaded with the dock — every start's proof is MAIN's generation snapshot
+//   (the window check, the fan's known ids, the deletions, a draft's texts),
+//   its window cut by the effective messageCount of that start.
 // - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`.
 
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
-import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanslyPaletteSignal } from '@cg/host-fansly/isolated/palette';
 import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
 
+import type * as AiChunk from '../../../../../lazy/fansly/ai-fansly';
 import type * as VaultChunk from '../../../../../lazy/fansly/vault';
 import { FANSLY_FEATURE_SLICE } from '../../../features/fansly';
 import type { HostAppAdapter, HostThemeSource, SiteAppEnv } from '../../adapter';
@@ -46,15 +46,6 @@ export function fanslyUi(theme: HostThemeSource, doc: () => Document = page): Ho
     phrases: FANSLY_PHRASES,
   };
 }
-
-/** Until P8b1: a start on Fansly gathers no proof of its own and adds nothing to the shared request. */
-export const FANSLY_AI: AiHostPolicy<null, null> = {
-  preflight: () => null,
-  proof: () => null,
-  fields: () => ({}),
-  fingerprint: () => null,
-  verdict: () => null,
-};
 
 /** The vault's page (host-fansly isolated/vault `isVaultPath`: its module is the vault's chunk, not this one). */
 const onVault = (path: string): boolean => path === '/creator/vault' || path === '/creator/vault/';
@@ -86,12 +77,20 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   };
 }
 
-export const FANSLY_APP: HostAppAdapter<FanslyPort, null> = {
-  liveConfigOf: () => null,
-  configure: () => Promise.resolve(),
-  features: FANSLY_FEATURE_SLICE,
-  contract: FANSLY_CONTRACT,
-  ui: (theme) => fanslyUi(theme),
-  ai: () => FANSLY_AI,
-  start: startFanslySurfaces,
-};
+/**
+ * The application's half of Fansly's adapter. Its AI policy takes each start's effective count from the shared
+ * controller (FS-TAIL-1); settings are owned and refreshed by the tab environment alone.
+ */
+export function fanslyApp(): HostAppAdapter<FanslyPort, null> {
+  return {
+    liveConfigOf: () => null,
+    configure: () => Promise.resolve(),
+    features: FANSLY_FEATURE_SLICE,
+    contract: FANSLY_CONTRACT,
+    ui: (theme) => fanslyUi(theme),
+    ai: (lazy) => lazy<typeof AiChunk>('ai-fansly').then((chunk) => chunk.createFanslyAi({ now: () => Date.now() })),
+    start: (env) => startFanslySurfaces(env),
+  };
+}
+
+export const FANSLY_APP: HostAppAdapter<FanslyPort, null> = fanslyApp();

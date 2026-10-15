@@ -25,6 +25,8 @@ export const JOURNAL_KEPT_STRING_KEYS: ReadonlySet<string> = new Set([
   // AI requests
   'clientRequestId', 'personaKey', 'expectedPersonaDefinitionId', 'personaDefinitionId', 'replyMode', 'replyTone', 'preset', 'summaryMode',
   'capabilities', 'direction', 'platformMessageId', 'knownFanMessageIds', 'capturedAt', 'occurredAt',
+  // the window check of a Fansly start (R20 P8b1): message ids and sides, never a text
+  'id', 'dir', 'deletedIds',
   // claims and custody
   'action', 'attemptId', 'instanceId', 'leaseToken', 'purpose', 'generationRef', 'evidence', 'reason',
   // reads
