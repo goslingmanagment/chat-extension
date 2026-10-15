@@ -1,7 +1,8 @@
 // The Fansly catalogs of the Fansly CG codes (1.15.0, R20 P4a3; host:
 // fansly-web): exactly the keys of the Fansly registry in both languages,
 // plain texts, the shared catalog's vocabulary rules, and none of it in the
-// ChatSpace catalog.
+// ChatSpace catalog. So too the words of the window check's marks (R20 P8b2),
+// the vault panel's texts (P13b) and the extension pages' (P14b1).
 
 import { CG_FANSLY_CODES, CG_FANSLY_I18N_KEYS, cgFanslyEntry } from '@cg/contracts/errors-fansly';
 import { I18N_KEYS, messageParams } from '@cg/contracts/i18n/catalog';
@@ -11,7 +12,7 @@ import { FANSLY_VAULT_PLURAL_KEYS, FANSLY_VAULT_TEXT_KEYS } from '@cg/contracts/
 import { describe, expect, it } from 'vitest';
 
 import { CATALOGS, createI18n } from '../../../i18n';
-import { FANSLY_CG_CATALOGS, FANSLY_VAULT_TEXTS } from './index';
+import { FANSLY_CG_CATALOGS, FANSLY_MARK_TEXTS, FANSLY_VAULT_TEXTS } from './index';
 import { FANSLY_PAGE_TEXTS, fanslyPageText, withFanslyPageTexts } from './pages';
 
 /** AU-019 (as in the shared catalog's test): a chatter never reads of tokens, keys or an API. */
@@ -43,6 +44,26 @@ describe('[ER-004] [I18-003] Fansly CG texts (fansly-web)', () => {
     for (const key of CG_FANSLY_I18N_KEYS) {
       expect(shared.has(key), key).toBe(false);
       for (const locale of LOCALES) expect(key in CATALOGS[locale], `${locale} ${key}`).toBe(false);
+    }
+  });
+});
+
+describe('[I18-003] the words of the window check’s marks (fansly-web, R20 P8b2; spec §3.5, ui-design §4.7)', () => {
+  /** `ResultMarkKey` spelled out: a title and its continuation for each reason only Fansly’s verdict gives. */
+  const MARK_KEYS = (['unverified', 'windowMiss', 'deletedServed'] as const).flatMap((reason) => [`result.stale.${reason}.title`, `result.stale.${reason}.body`]);
+
+  it('ru and en carry exactly the marks’ keys: plain texts, no parameters, no forbidden words; none in the shared catalogs, whose «Фан написал новое» stays', () => {
+    const shared = new Set<string>(I18N_KEYS);
+    for (const locale of LOCALES) {
+      expect(Object.keys(FANSLY_MARK_TEXTS[locale]).sort(), locale).toEqual([...MARK_KEYS].sort());
+      for (const [key, text] of Object.entries(FANSLY_MARK_TEXTS[locale])) {
+        expect(text.trim(), `${locale} ${key}`).not.toBe('');
+        expect(messageParams(text), `${locale} ${key}`).toEqual([]);
+        expect(FORBIDDEN_WORDS.filter((pattern) => pattern.test(text)), `${locale} ${key}: «${text}»`).toEqual([]);
+        expect(shared.has(key), key).toBe(false);
+        expect(key in CATALOGS[locale], `${locale} ${key}`).toBe(false);
+      }
+      expect(['result.stale.title', 'result.stale.body'].every((key) => key in CATALOGS[locale]), locale).toBe(true);
     }
   });
 });
