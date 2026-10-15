@@ -511,3 +511,22 @@ describe('gates: the sites’ bundles and MAIN-world sources come from the host 
     expect(isMainWorldSource('packages/host-kit/src/main/sub/x.ts')).toBe(false);
   });
 });
+
+
+describe('review regressions: request boundaries', () => {
+  it('allows Fansly queues but still rejects ChatSpace enqueue outside the send port', () => {
+    expect(checkSendQueueReferences([
+      file('packages/fansly-api/src/pacer/queue.ts', 'queue.enqueue(item);'),
+      file('apps/extension/bg/fansly/service.ts', 'queue.enqueue(item);'),
+    ])).toEqual([]);
+    expect(checkSendQueueReferences([file('packages/host-chatspace/src/main/oops.ts', 'queue.enqueue(item);')])).toHaveLength(1);
+  });
+  it.each([
+    'const t = { send: fetch }; t.send(url);',
+    'const t = { send: fetch }; t.send(url); function local(fetch: unknown) {}',
+    'const t = { send: globalThis.fetch }; t.send(url);',
+    'const t = { send: self["fetch"] }; t.send(url);',
+  ])('rejects a transport alias: %s', (code) => {
+    expect(checkFetchScope([file('packages/core/src/services/oops.ts', code)])).toHaveLength(1);
+  });
+});

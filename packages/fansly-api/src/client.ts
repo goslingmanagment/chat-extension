@@ -42,6 +42,7 @@ export interface FanslySessionTemplate {
   readonly headers: Readonly<Record<string, string>>;
   readonly checks: Readonly<Record<string, string>>;
   readonly connected: boolean;
+  readonly observedAt: number;
 }
 
 /** The core's session owner, as the client uses it (`BackgroundKit.networkSession`, structurally). */
@@ -51,7 +52,7 @@ export interface FanslySessionPort {
   /** The confirmed template of a creator by either of its ids; null — none (or not usable). */
   forAccount(accountId: string): FanslySessionTemplate | null;
   /** Fansly answered 401/403 to this session: unusable until the page's next accepted request. */
-  disconnect(accountId: string): Promise<void>;
+  disconnect(accountId: string, expected: FanslySessionTemplate): Promise<void>;
 }
 
 export interface FanslyCall extends FanslyAddressParts {
@@ -100,6 +101,8 @@ export interface FanslyClientDeps {
 }
 
 /** The session headers a request carries from the template (the page's own names, lower case). */
+export const REQUEST_ID_HEADER = 'x-cg-request-id';
+
 const SESSION_HEADERS = ['authorization', 'fansly-client-id', 'fansly-session-id'] as const;
 
 const sleepFor = (ms: number, signal?: AbortSignal): Promise<void> =>
@@ -141,7 +144,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
       if (body.length > REQUEST_RULES.bodyMaxChars) throw notSent('not-admitted');
     }
     if (call.signal?.aborted === true) throw notSent('aborted');
-    await deps.session.ready;
+    await deps.session.ready.catch(() => { throw notSent('session'); });
     await deps.pacer.ready;
     const template = deps.session.forAccount(call.account);
     if (template === null || !template.connected) throw notSent('session');
@@ -173,7 +176,8 @@ export function createFanslyClient(deps: FanslyClientDeps) {
           pass.release();
           return Promise.reject(notSent('session'));
         }
-        const headers: Record<string, string> = {};
+        const requestId = crypto.randomUUID();
+        const headers: Record<string, string> = { [REQUEST_ID_HEADER]: requestId };
         for (const name of SESSION_HEADERS) {
           const value = live.headers[name];
           if (value !== undefined) headers[name] = value;
@@ -194,6 +198,16 @@ export function createFanslyClient(deps: FanslyClientDeps) {
           clearTimer(timer);
           call.signal?.removeEventListener('abort', abort);
         };
+        // No await between this final admission and fetch (P9d custody).
+        try {
+          const until = deps.pacer.coolingUntil(creatorOf(live));
+          if (until > now()) throw new PacerCooling(until);
+          pass.start(requestId);
+        } catch (error) {
+          finish();
+          pass.release();
+          return Promise.reject(error instanceof PacerCooling ? new FanslyApiError('cooling', { sent: false, retryAt: error.until }) : notSent('aborted'));
+        }
         let request: Promise<FanslyHttpResponse>;
         try {
           request = doFetch(url, {
@@ -223,7 +237,6 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     let text: string;
     try {
       response = await request;
-      text = await response.text();
     } catch {
       throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true });
     }
@@ -233,14 +246,19 @@ export function createFanslyClient(deps: FanslyClientDeps) {
       throw new FanslyApiError('rate-limited', { sent: true, httpStatus: 429, retryAt });
     }
     if (status === 401 || status === 403) {
-      await deps.session.disconnect(template.legacyId).catch(() => undefined);
+      await deps.session.disconnect(template.legacyId, template).catch(() => undefined);
       throw new FanslyApiError('expired', { sent: true, httpStatus: status });
     }
     if (status < 200 || status >= 300) throw new FanslyApiError('http', { sent: true, httpStatus: status });
+    try {
+      text = await response.text();
+    } catch {
+      throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true });
+    }
     const reading = readEnvelope(status, text, spec.emptyAnswer === true);
     if (!reading.ok) throw reading.error;
     // Only a validated envelope counts as Fansly answering (E133).
-    pass.served();
+    if (!spec.write) pass.served();
     return { response: reading.response, status };
   }
 

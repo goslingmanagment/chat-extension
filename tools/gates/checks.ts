@@ -186,7 +186,7 @@ export function checkUiTexts(files: readonly SourceFile[]): Violation[] {
 export function checkSendQueueReferences(files: readonly SourceFile[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
-    if (file.path === SEND_PORT_FILE) continue;
+    if (file.path === SEND_PORT_FILE || /^packages\/fansly-api\//.test(file.path) || /^apps\/extension\/bg\/fansly(?:\/|\.ts$)/.test(file.path)) continue;
     const source = parse(file);
     walk(source, (node) => {
       const hit =
@@ -572,26 +572,19 @@ const inTypePosition = (node: ts.Node): boolean => {
   return false;
 };
 
-/** The file binds a name `fetch` of its own (a parameter, a variable, a function): its bare `fetch` is not the global. */
-function bindsFetch(source: ts.SourceFile): boolean {
-  let binds = false;
-  walk(source, (node) => {
-    if (
-      (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isBindingElement(node) || ts.isImportSpecifier(node)) &&
-      node.name !== undefined &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === 'fetch'
-    ) {
-      binds = true;
-    }
-  });
-  return binds;
-}
-
 /** The references of a file to the global `fetch`: `fetch(…)`, `{ fetch }`, `globalThis.fetch`, `self['fetch']`… — not `x.fetch`, a key or a type. */
 export function globalFetchReferences(file: SourceFile): number[] {
   const source = parse(file);
-  const local = bindsFetch(source);
+  // Resolve each reference in its lexical scope. A parameter in a different
+  // function must never hide the global transport elsewhere in the file.
+  const options: ts.CompilerOptions = { noLib: true, noResolve: true };
+  const host = ts.createCompilerHost(options);
+  host.getSourceFile = (name) => name === source.fileName ? source : undefined;
+  const checker = ts.createProgram([source.fileName], options, host).getTypeChecker();
+  const local = (node: ts.Identifier): boolean => {
+    const symbol = ts.isShorthandPropertyAssignment(node.parent) ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node);
+    return symbol !== undefined;
+  };
   const lines: number[] = [];
   walk(source, (node) => {
     if (ts.isPropertyAccessExpression(node) && node.name.text === 'fetch' && ts.isIdentifier(node.expression) && GLOBAL_OBJECTS.has(node.expression.text)) {
@@ -602,7 +595,7 @@ export function globalFetchReferences(file: SourceFile): number[] {
       lines.push(lineOf(source, node));
       return;
     }
-    if (!ts.isIdentifier(node) || node.text !== 'fetch' || local || inTypePosition(node)) return;
+    if (!ts.isIdentifier(node) || node.text !== 'fetch' || local(node) || inTypePosition(node)) return;
     const parent = node.parent;
     // `x.fetch`, `{ fetch: … }`, `fetch() {}` and the like name a property, not the global.
     if ((ts.isPropertyAccessExpression(parent) && parent.name === node) || ((ts.isPropertyAssignment(parent) || ts.isMethodDeclaration(parent) || ts.isPropertyDeclaration(parent) || ts.isPropertySignature(parent) || ts.isMethodSignature(parent) || ts.isGetAccessor(parent)) && parent.name === node)) return;

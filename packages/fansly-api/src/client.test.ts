@@ -21,6 +21,7 @@ const TEMPLATE: FanslySessionTemplate = {
   headers: { authorization: 'token-1', 'fansly-client-id': 'client-1', 'fansly-session-id': 'session-1', 'fansly-client-ts': '111', 'fansly-client-check': 'shared-sample' },
   checks: { group: 'check-group', message: 'check-message', account: 'check-account' },
   connected: true,
+  observedAt: T0,
 };
 
 interface Sent {
@@ -33,13 +34,13 @@ interface Sent {
   readonly at: number;
 }
 
-type Reply = { status: number; body?: string; retryAfter?: string } | 'network' | 'hang';
+type Reply = { status: number; body?: string; retryAfter?: string; brokenBody?: boolean; beforeResponse?: () => void } | 'network' | 'hang';
 
 function answer(reply: Exclude<Reply, 'network' | 'hang'>): FanslyHttpResponse {
   return {
     status: reply.status,
     headers: { get: (name: string) => (name.toLowerCase() === 'retry-after' ? (reply.retryAfter ?? null) : null) },
-    text: () => Promise.resolve(reply.body ?? JSON.stringify({ success: true, response: { ok: 1 } })),
+    text: () => reply.brokenBody === true ? Promise.reject(new Error('body lost')) : Promise.resolve(reply.body ?? JSON.stringify({ success: true, response: { ok: 1 } })),
   };
 }
 
@@ -53,7 +54,8 @@ function world() {
     ready: Promise.resolve(),
     idle: () => Promise.resolve(),
     forAccount: (id) => (template !== null && (template.legacyId === id || template.canonicalId === id) ? template : null),
-    disconnect: (id) => {
+    disconnect: (id, expected) => {
+      if (template?.observedAt !== expected.observedAt) return Promise.resolve();
       disconnected.push(id);
       if (template !== null) template = { ...template, connected: false };
       return Promise.resolve();
@@ -83,6 +85,7 @@ function world() {
     if (reply === 'hang') {
       return new Promise((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
     }
+    reply.beforeResponse?.();
     return Promise.resolve(answer(reply));
   };
   const api = createFanslyApi({ session, storage, fetch, random: () => 0 });
@@ -92,6 +95,8 @@ function world() {
     replies,
     sent,
     disconnected,
+    session,
+    data,
     setTemplate(next: FanslySessionTemplate | null) {
       template = next;
     },
@@ -142,7 +147,7 @@ describe('a request of ours', () => {
     expect(sent[0]).toEqual({
       url: `${FANSLY_API_BASE}group/${GROUP}/?ngsw-bypass=true`,
       method: 'GET',
-      headers: { authorization: 'token-1', 'fansly-client-id': 'client-1', 'fansly-session-id': 'session-1', 'fansly-client-ts': String(T0 + 1234), 'fansly-client-check': 'check-group' },
+      headers: { 'x-cg-request-id': expect.any(String) as string, authorization: 'token-1', 'fansly-client-id': 'client-1', 'fansly-session-id': 'session-1', 'fansly-client-ts': String(T0 + 1234), 'fansly-client-check': 'check-group' },
       body: undefined,
       credentials: 'omit',
       redirect: 'error',
@@ -305,4 +310,75 @@ describe('a write the hub\'s custody guards (§8.6)', () => {
     expect(await failure(made.api.client.prepare(greeting(controller.signal)))).toMatchObject({ kind: 'aborted', sent: false });
     expect(made.sent).toEqual([]);
   });
+});
+
+
+describe('review regressions: dispatch and response boundaries', () => {
+  it('[FS-NET-3] a prepared greeting rechecks a newly recorded foreign 429 synchronously before fetch', async () => {
+    const made = world();
+    const prepared = await made.api.client.prepare(greeting());
+    made.facts.push({ requestId: 'late-page', at: T0, accountId: CREATOR, source: 'page' });
+    const result = prepared.start();
+    expect(made.sent).toHaveLength(0);
+    await expect(result).rejects.toMatchObject({ kind: 'cooling', sent: false, retryAt: T0 + 30_000 });
+  });
+
+  it('[FS-NET-3] a 429 with an unreadable body still cools the next call by Retry-After', async () => {
+    const made = world();
+    made.replies.push({ status: 429, retryAfter: '120', brokenBody: true });
+    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'rate-limited', httpStatus: 429 });
+    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'cooling', sent: false, retryAt: T0 + 120_000 });
+    expect(made.sent).toHaveLength(1);
+  });
+
+  it('[NF-037] queued reads count their spacing from dispatch, even if preparation was five seconds earlier', async () => {
+    const made = world();
+    const prepared = await made.api.client.prepare(passRead);
+    await vi.advanceTimersByTimeAsync(5000);
+    await prepared.start();
+    await settle(made.api.client.call(passRead), 1);
+    expect((made.sent[1]?.at ?? 0) - (made.sent[0]?.at ?? 0)).toBe(500);
+  });
+
+  it('[NF-037] successful writes never count as answered reads for cooldown or healing', async () => {
+    const made = world();
+    for (let i = 0; i < 30; i++) await made.api.client.call(greeting());
+    made.replies.push({ status: 429 });
+    expect(await failure(made.api.client.call(registration))).toMatchObject({ retryAt: T0 + 30_000 });
+  });
+});
+
+
+it.each([401, 403])('[ER-050] a late %s with an unreadable body expires only the captured session it used', async (status) => {
+  const made = world();
+  made.replies.push({ status, brokenBody: true, beforeResponse: () => made.setTemplate({ ...TEMPLATE, observedAt: T0 + 1 }) });
+  expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'expired', httpStatus: status });
+  expect(made.disconnected).toEqual([]);
+  await expect(made.api.client.call(registration)).resolves.toMatchObject({ status: 200 });
+  made.replies.push({ status, brokenBody: true });
+  expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'expired' });
+  expect(made.disconnected).toEqual([CREATOR]);
+});
+
+
+it('[FS-NET-3] a canonical id learned after prepare cannot hide its new cooldown at dispatch', async () => {
+  const made = world();
+  const prepared = await made.api.client.prepare(greeting());
+  const canonicalId = '300000000000000009';
+  made.setTemplate({ ...TEMPLATE, canonicalId });
+  made.facts.push({ requestId: 'canonical-late', at: T0, accountId: canonicalId, source: 'page' });
+  await expect(prepared.start()).rejects.toMatchObject({ kind: 'cooling', sent: false });
+  expect(made.sent).toEqual([]);
+});
+
+
+it('[FS-NET-3] prepared start refuses while a new observation is still held by composition', async () => {
+  const made = world();
+  let pending = false;
+  made.session.observationsPending = () => pending;
+  const prepared = await made.api.client.prepare(greeting());
+  pending = true;
+  const result = prepared.start();
+  expect(made.sent).toEqual([]);
+  await expect(result).rejects.toMatchObject({ kind: 'cooling', sent: false });
 });

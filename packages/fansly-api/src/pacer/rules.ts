@@ -54,11 +54,6 @@ export const PACE_RULES = {
   /** E130: a limited spacing is remembered this long, and the key stays a quarter above it. */
   badMemoryMs: 24 * 3600_000,
   badMargin: 1.25,
-  /**
-   * §8.4: a 429 of our own request is seen twice — by the client, and by the core's listener (a fact `own`). Two
-   * sightings of one creator closer than this are one response, one limit.
-   */
-  dedupMs: 10_000,
 } as const;
 
 /** RB-023: how a request is asked and asked again. */

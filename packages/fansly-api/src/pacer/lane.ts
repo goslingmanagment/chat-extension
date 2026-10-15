@@ -35,21 +35,16 @@ export interface LaneState {
   /** Memory only: the earliest next start of a queued call. */
   nextAt: number;
   keys: Map<string, KeyState>;
-  /** Our own 429s the client saw that no fact `own` has matched yet (event times). */
-  ownSeen: number[];
-  /** Facts `own` applied that the client has not reported (yet, or ever: its realm died first). */
-  ownFacts: number[];
 }
 
 export const MAX_KEYS = 32;
-const MAX_OWN = 16;
 
 export function freshKey(policy: KeyPolicy): KeyState {
   return { spacingMs: policy.startMs, lastStartAt: 0, badMs: 0, badAt: 0 };
 }
 
 export function freshLane(aliases: readonly string[]): LaneState {
-  return { aliases: [...aliases], usedAt: 0, cooldownUntil: 0, level: 0, gapLevel: 0, healFrom: 0, clean: 0, answered: 0, nextAt: 0, keys: new Map(), ownSeen: [], ownFacts: [] };
+  return { aliases: [...aliases], usedAt: 0, cooldownUntil: 0, level: 0, gapLevel: 0, healFrom: 0, clean: 0, answered: 0, nextAt: 0, keys: new Map() };
 }
 
 /** The lowest spacing allowed now: the policy's own, or a margin above a remembered limit. */
@@ -164,40 +159,13 @@ export function started(lane: LaneState, key: string, now: number): void {
   trimKeys(lane);
 }
 
-/**
- * Pairs one sighting of our own 429 with the other channel's (§8.4 dedup): `from` holds the other channel's
- * unmatched times; a time within the window is consumed (the same response) and true is returned; otherwise `at` joins
- * `into` and false is returned (a limit of its own).
- */
-export function pairOwn(from: number[], into: number[], at: number): boolean {
-  let best = -1;
-  for (let i = 0; i < from.length; i++) {
-    const distance = Math.abs((from[i] ?? 0) - at);
-    if (distance <= PACE_RULES.dedupMs && (best < 0 || distance < Math.abs((from[best] ?? 0) - at))) best = i;
-  }
-  if (best >= 0) {
-    from.splice(best, 1);
-    return true;
-  }
-  into.push(at);
-  while (into.length > MAX_OWN) into.shift();
-  return false;
-}
-
-/** Drops the sightings no later sighting can pair with any more (older than the facts live). */
-export function pruneOwn(lane: LaneState, now: number): void {
-  const keep = (at: number): boolean => now - at < PACE_RULES.badMemoryMs;
-  lane.ownSeen = lane.ownSeen.filter(keep);
-  lane.ownFacts = lane.ownFacts.filter(keep);
-}
-
 function trimKeys(lane: LaneState): void {
   while (lane.keys.size > MAX_KEYS) lane.keys.delete(lane.keys.keys().next().value as string);
 }
 
 /** Whether a lane holds anything worth keeping: a penalty, a cooldown, a remembered limit, an unmatched sighting. */
 export function worthKeeping(lane: LaneState, now: number): boolean {
-  return lane.level > 0 || lane.cooldownUntil > now || lane.ownSeen.length > 0 || lane.ownFacts.length > 0 || [...lane.keys.values()].some((state) => state.badMs > 0 && now - state.badAt < PACE_RULES.badMemoryMs);
+  return lane.level > 0 || lane.cooldownUntil > now || [...lane.keys.values()].some((state) => state.badMs > 0 && now - state.badAt < PACE_RULES.badMemoryMs);
 }
 
 // ── the stored form (storage.session; architecture §8.4) ─────────────────────
@@ -213,8 +181,6 @@ export interface StoredLane {
   readonly answered: number;
   /** key → [spacingMs, badMs, badAt] */
   readonly keys: Readonly<Record<string, readonly [number, number, number]>>;
-  readonly ownSeen: readonly number[];
-  readonly ownFacts: readonly number[];
 }
 
 export function storeLane(lane: LaneState): StoredLane {
@@ -228,8 +194,6 @@ export function storeLane(lane: LaneState): StoredLane {
     clean: lane.clean,
     answered: lane.answered,
     keys: Object.fromEntries([...lane.keys].map(([key, state]) => [key, [state.spacingMs, state.badMs, state.badAt] as const])),
-    ownSeen: [...lane.ownSeen],
-    ownFacts: [...lane.ownFacts],
   };
 }
 
@@ -237,10 +201,15 @@ const time = (value: unknown): number => (typeof value === 'number' && Number.is
 const count = (value: unknown, max: number): number => Math.min(max, Math.round(time(value)));
 const ID = /^[1-9][0-9]{0,39}$/;
 
-/** A stored lane as it may come back: anything malformed is dropped or zeroed, never trusted; null — not a lane. */
+/** Reject an unreadable lane; finite out-of-range values are bounded below. */
 export function readLane(raw: unknown, now: number, withAliases: boolean): LaneState | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
   const value = raw as Record<string, unknown>;
+  const numeric = ['usedAt', 'cooldownUntil', 'level', 'gapLevel', 'healFrom', 'clean', 'answered'];
+  if (!numeric.every((name) => typeof value[name] === 'number' && Number.isFinite(value[name]) && value[name] >= 0)) return null;
+  if (!Array.isArray(value['aliases']) || !value['aliases'].every((alias) => typeof alias === 'string' && ID.test(alias))) return null;
+  if (typeof value['keys'] !== 'object' || value['keys'] === null || Array.isArray(value['keys'])) return null;
+  if (!Object.entries(value['keys']).every(([key, entry]) => key.length <= 80 && Array.isArray(entry) && entry.length === 3 && entry.every((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0))) return null;
   const aliases = Array.isArray(value['aliases']) ? value['aliases'].filter((alias): alias is string => typeof alias === 'string' && ID.test(alias)).slice(0, 4) : [];
   if (withAliases && aliases.length === 0) return null;
   const lane = freshLane(aliases);
@@ -261,8 +230,5 @@ export function readLane(raw: unknown, now: number, withAliases: boolean): LaneS
       lane.keys.set(key, { spacingMs, lastStartAt: 0, badMs: time(entry[1]), badAt: time(entry[2]) });
     }
   }
-  const times = (list: unknown): number[] => (Array.isArray(list) ? list.map(time).filter((at) => at > 0).slice(-MAX_OWN) : []);
-  lane.ownSeen = times(value['ownSeen']);
-  lane.ownFacts = times(value['ownFacts']);
   return lane;
 }

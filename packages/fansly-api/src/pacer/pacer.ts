@@ -18,7 +18,7 @@
 //   extra pause is safer than an extra request.
 // - One response is one limit: our own 429 is seen by the client and, as a
 //   fact `own`, by the listener; the two sightings pair up whichever comes
-//   first (rules.ts `dedupMs`), across a sleep of the event page too.
+//   first, by the opaque client request id, across a sleep of the event page too.
 // - The state lives in memory and in `storage.session` (it survives the event
 //   page, it goes with the browser's session, like the facts it is made
 //   from). After the event page wakes, a call waits until it is loaded and the
@@ -29,10 +29,7 @@ import {
   extendCooldown,
   freshLane,
   heal,
-  limitKey,
   limitLane,
-  pairOwn,
-  pruneOwn,
   readLane,
   restIfIdle,
   served as servedLane,
@@ -52,6 +49,7 @@ export interface PacerCreator {
 
 /** A 429 the core recorded (core/services/network-session.ts `RateLimitFact`, structurally). */
 export interface RateLimitFactLike {
+  readonly clientRequestId?: string;
   readonly requestId: string;
   readonly at: number;
   /** null — every creator of the profile, those learned later too. */
@@ -71,6 +69,8 @@ export interface PacerDeps {
   readonly facts: () => readonly RateLimitFactLike[];
   /** Settles the observations already delivered to the core (`networkSession.idle`). */
   readonly settle?: () => Promise<void>;
+  readonly pending?: () => boolean;
+  readonly warn?: (reason: 'restore' | 'observations' | 'persist') => void;
   readonly now?: () => number;
   readonly random?: () => number;
   readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -100,6 +100,8 @@ export class PacerAborted extends Error {
 
 /** One admitted start. `release` when the attempt is over (the next queued call may then start). */
 export interface PacerPass {
+  /** Final synchronous check and actual dispatch accounting. Once, immediately before fetch. */
+  start(requestId?: string): void;
   release(): void;
   /** Fansly answered with a valid envelope. */
   served(): void;
@@ -113,7 +115,16 @@ export interface PacerLaneView {
   readonly gapLevel: number;
 }
 
+interface OwnRequest {
+  id: string;
+  aliases: string[];
+  paceKey: string | null;
+  at: number;
+  limitedAt: number | null;
+}
+
 interface Lane extends LaneState {
+  parent?: Lane;
   tail: Promise<void>;
   pending: number;
 }
@@ -158,6 +169,7 @@ export function createFanslyPacer(deps: PacerDeps) {
   const sleep = deps.sleep ?? defaultSleep;
   const key = deps.key ?? PACER_KEY;
   const lanes: Lane[] = [];
+  const requests = new Map<string, OwnRequest>();
   /** Every creator of the profile: the facts that name none. */
   let profile: Lane = { ...freshLane([]), tail: Promise.resolve(), pending: 0 };
   /** The facts already applied, by `requestId` (they stay in the core's list for a day). */
@@ -166,31 +178,55 @@ export function createFanslyPacer(deps: PacerDeps) {
   let savedAt = 0;
   let writing: Promise<void> = Promise.resolve();
   let queued: Promise<void> | null = null;
+  let recoveryDirty = false;
 
   const laneOf = (state: LaneState): Lane => ({ ...state, tail: Promise.resolve(), pending: 0 });
 
+  const closed = (reason: 'restore' | 'observations'): void => {
+    profile.cooldownUntil = Math.max(profile.cooldownUntil, now() + PACE_RULES.retryAfterMaxMs);
+    profile.usedAt = now();
+    recoveryDirty = true;
+    deps.warn?.(reason);
+  };
+
   const ready = (async (): Promise<void> => {
-    const stored = await deps.storage.get([key]);
-    const raw = stored.ok ? stored.value[key] : undefined;
-    if (typeof raw !== 'object' || raw === null || (raw as { v?: unknown }).v !== 1) return;
-    const value = raw as Record<string, unknown>;
-    const at = now();
-    if (Array.isArray(value['lanes'])) {
-      for (const item of value['lanes'].slice(-MAX_LANES)) {
+    try {
+      const stored = await deps.storage.get([key]);
+      if (!stored.ok) throw new Error('read failed');
+      const raw = stored.value[key];
+      if (raw === undefined) return; // Only an absent key is a fresh session.
+      if (typeof raw !== 'object' || raw === null) throw new Error('invalid state');
+      const value = raw as Record<string, unknown>;
+      if (value['v'] !== 2 || !Array.isArray(value['lanes']) || !Array.isArray(value['applied']) || !Array.isArray(value['requests'])) throw new Error('invalid state');
+      const at = now();
+      for (const item of value['lanes']) {
         const lane = readLane(item, at, true);
-        if (lane !== null) lanes.push(laneOf(lane));
+        if (lane === null) throw new Error('invalid lane');
+        lanes.push(laneOf(lane));
       }
+      const everyone = readLane(value['profile'], at, false);
+      if (everyone === null) throw new Error('invalid profile');
+      profile = laneOf({ ...everyone, aliases: [] });
+      if (!value['applied'].every((id) => typeof id === 'string' && id.length <= 128)) throw new Error('invalid facts');
+      applied = (value['applied'] as string[]).slice(-MAX_APPLIED);
+      appliedSet = new Set(applied);
+      for (const item of value['requests']) {
+        if (typeof item !== 'object' || item === null) throw new Error('invalid request');
+        const r = item as OwnRequest;
+        if (typeof r.id !== 'string' || !/^[a-zA-Z0-9-]{1,64}$/.test(r.id) || !Array.isArray(r.aliases) || !r.aliases.every((id) => typeof id === 'string' && /^[1-9][0-9]{0,39}$/.test(id)) || (r.paceKey !== null && (typeof r.paceKey !== 'string' || r.paceKey.length > 80)) || !Number.isFinite(r.at) || (r.limitedAt !== null && !Number.isFinite(r.limitedAt))) throw new Error('invalid request');
+        if (at - r.at < PACE_RULES.badMemoryMs) requests.set(r.id, r);
+      }
+      if (lanes.length > MAX_LANES || requests.size > MAX_APPLIED) throw new Error('state too large');
+    } catch {
+      closed('restore');
     }
-    const everyone = readLane(value['profile'], at, false);
-    if (everyone !== null) profile = laneOf({ ...everyone, aliases: [] });
-    if (Array.isArray(value['applied'])) applied = value['applied'].filter((id): id is string => typeof id === 'string' && id.length <= 64).slice(-MAX_APPLIED);
-    appliedSet = new Set(applied);
-  })().catch(() => undefined);
+  })();
 
   const snapshot = (): Record<string, unknown> => {
     const at = now();
     return {
-      v: 1,
+      v: 2,
+      requests: [...requests.values()].filter((r) => at - r.at < PACE_RULES.badMemoryMs),
       lanes: lanes.filter((lane) => worthKeeping(lane, at)).map(storeLane),
       profile: storeLane(profile),
       applied: [...applied],
@@ -202,9 +238,10 @@ export function createFanslyPacer(deps: PacerDeps) {
     savedAt = now();
     queued ??= writing.then(async () => {
       queued = null;
-      await deps.storage.set({ [key]: snapshot() });
+      const result = await deps.storage.set({ [key]: snapshot() });
+      if (!result.ok) deps.warn?.('persist');
     });
-    writing = queued.catch(() => undefined);
+    writing = queued.catch(() => { deps.warn?.('persist'); });
     return writing;
   };
 
@@ -227,9 +264,19 @@ export function createFanslyPacer(deps: PacerDeps) {
       lane.gapLevel = Math.max(lane.gapLevel, other.gapLevel);
       lane.healFrom = Math.max(lane.healFrom, other.healFrom);
       lane.usedAt = Math.max(lane.usedAt, other.usedAt);
-      for (const [name, state] of other.keys) if ((lane.keys.get(name)?.badAt ?? -1) < state.badAt) lane.keys.set(name, state);
-      lane.ownSeen.push(...other.ownSeen);
-      lane.ownFacts.push(...other.ownFacts);
+      for (const [name, state] of other.keys) {
+        const current = lane.keys.get(name);
+        lane.keys.set(name, current === undefined ? state : {
+          spacingMs: Math.max(current.spacingMs, state.spacingMs), lastStartAt: Math.max(current.lastStartAt, state.lastStartAt),
+          badMs: Math.max(current.badMs, state.badMs), badAt: Math.max(current.badAt, state.badAt),
+        });
+      }
+      lane.nextAt = Math.max(lane.nextAt, other.nextAt);
+      lane.answered += other.answered;
+      lane.clean = Math.min(lane.clean, other.clean);
+      lane.pending += other.pending;
+      lane.tail = Promise.all([lane.tail, other.tail]).then(() => undefined);
+      other.parent = lane;
       lane.aliases.push(...other.aliases);
       lanes.splice(lanes.indexOf(other), 1);
     }
@@ -237,6 +284,8 @@ export function createFanslyPacer(deps: PacerDeps) {
     lane.aliases = [...new Set(lane.aliases)].slice(0, 4);
     return lane;
   }
+
+  const root = (lane: Lane): Lane => lane.parent === undefined ? lane : root(lane.parent);
 
   const idsOf = (creator: PacerCreator): string[] => (creator.canonicalId === null || creator.canonicalId === creator.legacyId ? [creator.legacyId] : [creator.legacyId, creator.canonicalId]);
 
@@ -252,20 +301,33 @@ export function createFanslyPacer(deps: PacerDeps) {
       applied.push(fact.requestId);
       appliedSet.add(fact.requestId);
       changed = true;
-      const lane = fact.accountId === null ? profile : laneFor([fact.accountId]);
+      const id = fact.source === 'own' ? fact.clientRequestId : undefined;
+      let own = id === undefined ? undefined : requests.get(id);
+      if (own?.limitedAt !== null && own?.limitedAt !== undefined) continue;
+      const ids = [...(own?.aliases ?? []), ...(fact.accountId === null ? [] : [fact.accountId])];
+      const lane = ids.length === 0 ? profile : laneFor(ids);
       restIfIdle(lane, fact.at);
-      // Our own response, which the client may already have counted.
-      if (fact.source === 'own' && pairOwn(lane.ownSeen, lane.ownFacts, fact.at)) continue;
-      limitLane(lane, null, fact.at);
+      limitLane(lane, own?.paceKey ?? null, fact.at);
+      if (id !== undefined) {
+        own ??= { id, aliases: ids, paceKey: null, at: fact.at, limitedAt: null };
+        own.limitedAt = fact.at;
+        remember(own);
+      }
     }
     while (applied.length > MAX_APPLIED) appliedSet.delete(applied.shift() ?? '');
     return changed;
   }
 
+  function remember(request: OwnRequest): void {
+    requests.set(request.id, request);
+    for (const [id, value] of requests) if (now() - value.at >= PACE_RULES.badMemoryMs) requests.delete(id);
+    while (requests.size > MAX_APPLIED) requests.delete(requests.keys().next().value as string);
+  }
+
   async function sync(): Promise<void> {
     await ready;
-    if (deps.settle !== undefined) await deps.settle().catch(() => undefined);
-    if (applyFacts()) await save();
+    if (deps.settle !== undefined) await deps.settle().catch(() => { closed('observations'); });
+    if (applyFacts() || recoveryDirty) { recoveryDirty = false; await save(); }
   }
 
   /** When the creator's cooldown ends: its lane's and the profile's (epoch ms; in the past — none). */
@@ -277,40 +339,52 @@ export function createFanslyPacer(deps: PacerDeps) {
     if (lane.pending === 0) changed = restIfIdle(lane, at) || changed;
     changed = restIfIdle(profile, at) || changed;
     changed = heal(lane, at) || changed;
-    pruneOwn(lane, at);
     if (changed) void save();
   }
 
-  function passOf(lane: Lane, paceKey: string, unlock: (() => void) | null): PacerPass {
+  function passOf(initial: Lane, paceKey: string, mode: PacerMode, unlock: (() => void) | null): PacerPass {
     let released = false;
+    let dispatched = false;
+    let request: OwnRequest | null = null;
     return {
+      start(id = crypto.randomUUID()) {
+        if (released || dispatched) throw new PacerAborted();
+        if (applyFacts()) void save();
+        const lane = root(initial);
+        const at = now();
+        const until = Math.max(coolingOf(lane), deps.pending?.() === true ? at + PACE_RULES.cooldownBaseMs : 0,
+          mode === 'queue' || mode === 'queue-or-refuse' ? spacingDeadline(lane, paceKey) : 0);
+        if (until > at) throw new PacerCooling(until);
+        dispatched = true;
+        started(lane, paceKey, at);
+        request = { id, aliases: [...lane.aliases], paceKey, at, limitedAt: null };
+        remember(request);
+        void save();
+      },
       release() {
         if (released) return;
         released = true;
-        lane.usedAt = Math.max(lane.usedAt, now());
-        if (unlock !== null) {
-          lane.pending -= 1;
-          unlock();
-        }
+        const lane = root(initial);
+        if (unlock !== null) { lane.pending -= 1; unlock(); }
+        if (request !== null && request.limitedAt === null) requests.delete(request.id);
         if (now() - savedAt >= SAVE_EVERY_MS && worthKeeping(lane, now())) void save();
       },
-      served() {
-        servedLane(lane, now());
-      },
+      served() { servedLane(root(initial), now()); },
       async limited(retryAfterMs) {
-        // A fact `own` of this very response may be in the core already: settle and apply it first, then pair.
-        await sync();
+        // Apply the client observation immediately; a blocked composition queue must not postpone cooling.
+        const lane = root(initial);
         const at = now();
         restIfIdle(lane, at);
-        if (pairOwn(lane.ownFacts, lane.ownSeen, at)) {
-          // The listener's fact counted the limit (lane-wide); the client adds what only it knows: the key and Retry-After.
-          limitKey(lane, paceKey, at);
-          extendCooldown(lane, at, retryAfterMs);
-        } else {
+        request ??= { id: crypto.randomUUID(), aliases: [...lane.aliases], paceKey, at, limitedAt: null };
+        if (request.limitedAt === null) {
           limitLane(lane, paceKey, at, retryAfterMs);
+          request.limitedAt = at;
+          remember(request);
+        } else {
+          extendCooldown(lane, request.limitedAt, retryAfterMs);
         }
         await save();
-        return coolingOf(lane);
+        return coolingOf(root(initial));
       },
     };
   }
@@ -322,15 +396,14 @@ export function createFanslyPacer(deps: PacerDeps) {
   async function enter(creator: PacerCreator, paceKey: string, mode: PacerMode, signal?: AbortSignal): Promise<PacerPass> {
     if (signal?.aborted === true) throw new PacerAborted();
     await sync();
-    const lane = laneFor(idsOf(creator));
+    let lane = laneFor(idsOf(creator));
     freshen(lane, now());
     if (mode === 'check' || mode === 'dispatch' || mode === 'queue-or-refuse') {
       const until = coolingOf(lane);
       if (until > now()) throw new PacerCooling(until);
     }
     if (mode === 'check' || mode === 'dispatch') {
-      started(lane, paceKey, now());
-      return passOf(lane, paceKey, null);
+      return passOf(lane, paceKey, mode, null);
     }
 
     // The FIFO: one queued attempt of this creator in flight.
@@ -342,7 +415,7 @@ export function createFanslyPacer(deps: PacerDeps) {
     lane.pending += 1;
     // A waiter that gives up must not let its successor overtake the call before it.
     const leave = (): void => {
-      lane.pending -= 1;
+      root(lane).pending -= 1;
       void previous.then(unlock);
     };
     try {
@@ -350,6 +423,7 @@ export function createFanslyPacer(deps: PacerDeps) {
       let jitter: number | null = null;
       for (;;) {
         await sync();
+        lane = root(lane);
         const at = now();
         freshen(lane, at);
         const cooling = coolingOf(lane);
@@ -363,8 +437,7 @@ export function createFanslyPacer(deps: PacerDeps) {
       }
       // The signal may have fired during the last wait's resolution (narrowing does not see across the awaits).
       if (isAborted(signal)) throw new PacerAborted();
-      started(lane, paceKey, now());
-      return passOf(lane, paceKey, () => void previous.then(unlock));
+      return passOf(lane, paceKey, mode, () => void previous.then(unlock));
     } catch (error) {
       leave();
       throw error;
@@ -383,12 +456,13 @@ export function createFanslyPacer(deps: PacerDeps) {
      */
     coolingUntil(creator: PacerCreator): number {
       if (applyFacts()) void save();
-      const lane = lanes.find((candidate) => candidate.aliases.some((alias) => idsOf(creator).includes(alias)));
+      const lane = laneFor(idsOf(creator));
       return lane === undefined ? profile.cooldownUntil : coolingOf(lane);
     },
     /** What «Статус» and the diagnostics may show of a creator's lane (no ids of fans, no text). */
     view(creator: PacerCreator): PacerLaneView {
-      const lane = lanes.find((candidate) => candidate.aliases.some((alias) => idsOf(creator).includes(alias)));
+      if (applyFacts()) void save();
+      const lane = laneFor(idsOf(creator));
       return { cooldownUntil: lane === undefined ? profile.cooldownUntil : coolingOf(lane), level: lane?.level ?? 0, gapLevel: lane?.gapLevel ?? 0 };
     },
     /** Waits for the writes in flight. */

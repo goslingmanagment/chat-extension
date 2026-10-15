@@ -24,10 +24,13 @@
 import { browser, expect } from '@wdio/globals';
 
 import { suspendBackground } from '../support/background';
-import { installTestBuild, pageRpc, readLocalStorage, waitForReport, writeLocalStorage } from '../support/extension';
-import { QUIET_PAGE, testBuildPage } from '../support/fake-hub';
-import { callNeighbor, openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
-import { switchFanslyOnForTheStand } from '../support/fansly-site';
+import { pageRpc, readLocalStorage, waitForReport, writeLocalStorage } from '../support/extension';
+import { useFakeHub } from '../support/fake-hub';
+import { callsTo } from '../../src/fake-hub/journal';
+import { startFanslyShift } from '../support/fansly-shift';
+import { pressOurs } from '../support/ours';
+import { dockIs } from '../support/shift';
+import { callNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
 import { callFansly, fakeFansly, fanslyIds, waitForFanslyStandIdle } from '../support/fansly-stand';
 import { useNetworkTrap } from '../support/network-trap';
 
@@ -55,7 +58,7 @@ interface ProbeResult {
 }
 
 interface Captured {
-  readonly limits: ReadonlyArray<{ readonly accountId: string | null; readonly source: string; readonly requestId: string }>;
+  readonly limits: ReadonlyArray<{ readonly accountId: string | null; readonly source: string; readonly requestId: string; readonly clientRequestId?: string }>;
   readonly templates: ReadonlyArray<{ readonly legacyId: string }>;
 }
 
@@ -74,6 +77,7 @@ async function fanslyModuleState(): Promise<string | undefined> {
 
 describe('Fansly network: FS-NET-1, FS-NET-3 — our own requests, by the server', () => {
   useNetworkTrap();
+  const { hub } = useFakeHub();
   let standTab = '';
   let pagesTab = '';
   let creator = '';
@@ -112,16 +116,12 @@ describe('Fansly network: FS-NET-1, FS-NET-3 — our own requests, by the server
     await fakeFansly().command({ op: 'reset' });
     await setFanslyNeighbor(null);
     since = await fakeFansly().mark();
-    await installTestBuild();
-    await browser.url(testBuildPage(QUIET_PAGE));
-    await switchFanslyOnForTheStand();
-    await browser.url(testBuildPage(QUIET_PAGE));
-    pagesTab = await browser.getWindowHandle();
+    const shift = await startFanslyShift(hub(), { path: '/messages', neighbor: { mode: 'after', pollMs: 600_000 } });
+    pagesTab = shift.pagesTab;
+    standTab = shift.fanslyTab;
+    await pages();
     await writeLocalStorage({ [PROBE.origin]: fakeFansly().apiOrigin });
-    standTab = (await browser.createWindow('tab')).handle;
     await stand();
-    // The neighbour polls only when asked (its own 10 s poll would be noise here).
-    await openWithNeighbor('/messages', { mode: 'after', pollMs: 600_000 });
     await waitForReport((report) => report.rpc?.registered === true, 'the Fansly tab registered');
     await waitForFanslyStandIdle();
     const ids = await fanslyIds();
@@ -137,7 +137,7 @@ describe('Fansly network: FS-NET-1, FS-NET-3 — our own requests, by the server
     await setFanslyNeighbor(null);
   });
 
-  it('[BG-001] [AI-120] by itself the extension asks Fansly nothing: its module runs, the page and the neighbour talk, no call of ours', async () => {
+  it('[BG-001] by itself the extension asks Fansly nothing: its module runs, the page and the neighbour talk, no call of ours', async () => {
     await stand();
     const ids = await fanslyIds();
     await callFansly('open', ids.groups[1] ?? group);
@@ -149,7 +149,22 @@ describe('Fansly network: FS-NET-1, FS-NET-3 — our own requests, by the server
     await fakeFansly().assertOursClean(since, 'nothing by itself');
   });
 
-  it('[FS-NET-1] [RB-022] [AI-120] every read FS-NET-1 names goes through with the session the page proved; a pair it does not name — /message/ack above all — never leaves', async () => {
+  it('[AI-120] an actual Reply generation streams from the hub without a request of ours to Fansly or a read mark', async () => {
+    await stand();
+    await callFansly('open', group);
+    await waitForFanslyStandIdle();
+    await dockIs((dock) => dock.status === 'ready' && dock.actions['reply'] === true, 'Reply ready', 20_000);
+    const mark = await fakeFansly().mark();
+    const hubMark = await hub().mark();
+    await pressOurs('dock', 'button', 'Reply');
+    await dockIs((dock) => dock.result?.feature === 'reply' && dock.result.state === 'done', 'Reply generated', 30_000);
+    expect(callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream')).toHaveLength(1);
+    expect(await ours(mark)).toEqual([]);
+    expect((await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.ack')).toEqual([]);
+    await fakeFansly().assertOursClean(mark, 'AI generation');
+  });
+
+  it('[FS-NET-1] [RB-022] every read FS-NET-1 names goes through with the session the page proved; a pair it does not name — /message/ack above all — never leaves', async () => {
     const mark = await fakeFansly().mark();
     const reads: ProbeCall[] = [
       { purpose: 'identity', route: 'account.me' },
@@ -241,6 +256,7 @@ describe('Fansly network: FS-NET-1, FS-NET-3 — our own requests, by the server
       timeout: 10_000,
       timeoutMsg: 'the core recorded no fact of our own 429',
     });
+    expect((await captured())?.limits.at(-1)?.clientRequestId).toMatch(/^[a-f0-9-]{36}$/);
     const next = await probe(registration());
     expect(next).toMatchObject({ ok: false, kind: 'cooling', sent: false, retryAt: limited.retryAt, lane: { level: 2 } });
     expect(await ours(mark)).toEqual(['GET group.detail 200', 'GET group.detail 429']);

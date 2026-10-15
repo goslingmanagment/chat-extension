@@ -67,9 +67,9 @@ export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegi
 
 async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const session = kit.networkSession;
-  await session?.ready;
+  await session?.ready.catch(() => undefined);
   // Fansly's API over the core's session owner; none without it (a kit without P9a's session asks Fansly nothing).
-  const api: FanslyApi | null = session === undefined ? null : createFanslyApi({ session, storage: kit.storage.session, now: () => kit.clock.now() });
+  const api: FanslyApi | null = session === undefined ? null : createFanslyApi({ session, storage: kit.storage.session, now: () => kit.clock.now(), warn: (reason) => kit.log.service({ level: 'warn', scope: 'fansly.pacer', msg: 'request pacing state unavailable; cooling all creators', fields: { reason } }) });
   await api?.pacer.ready;
   const unprobe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? startFanslyApiProbe(kit, session, api) : () => undefined;
   let settingsReady = false;

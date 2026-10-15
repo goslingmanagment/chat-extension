@@ -62,6 +62,7 @@ const fact = (accountId: string | null, source: RateLimitFactLike['source'], at 
 /** Starts of a call, run to its pass, then released at once: the moment it started. */
 async function startedAt(pacer: Rig['pacer'], creator: PacerCreator, key: string, mode: 'queue' | 'check' | 'dispatch' | 'queue-or-refuse' = 'queue'): Promise<number> {
   const pass = await pacer.enter(creator, key, mode);
+  pass.start();
   const at = Date.now();
   pass.release();
   return at;
@@ -198,6 +199,7 @@ describe('the cooldown (E133)', () => {
     const answered = rig();
     for (let i = 0; i < 100; i++) {
       const read = await settle(answered.pacer.enter(C, `GET /k${i % 20}`, 'queue'));
+      read.start();
       read.served();
       read.release();
     }
@@ -250,6 +252,7 @@ describe('the cooldown (E133)', () => {
     vi.setSystemTime(until + 1000);
     for (let i = 0; i < 25; i++) {
       const read = await settle(pacer.enter(A, `GET /k${i}`, 'queue'));
+      read.start();
       read.served();
       read.release();
     }
@@ -257,6 +260,7 @@ describe('the cooldown (E133)', () => {
     vi.setSystemTime(until + PACE_RULES.healMs + 1);
     for (let i = 0; i < 20; i++) {
       const read = await settle(pacer.enter(A, `GET /k${i}`, 'queue'));
+      read.start();
       read.served();
       read.release();
     }
@@ -269,6 +273,7 @@ describe('the cooldown (E133)', () => {
     limited.release();
     vi.setSystemTime(Date.now() + 30_000 + PACE_RULES.idleMs + 1);
     const restedAt = await idle.pacer.enter(B, GROUP, 'queue');
+    restedAt.start();
     restedAt.release();
     expect(idle.pacer.view(B)).toMatchObject({ level: 0, gapLevel: 0 });
     // The key keeps a quarter above the spacing Fansly limited (500 ms → 625 ms).
@@ -326,47 +331,6 @@ describe('a cooldown from any 429 (§8.4)', () => {
     await expect(pacer.enter(A, GROUP, 'check')).rejects.toBeInstanceOf(PacerCooling);
   });
 
-  it('[NF-037] our own 429 seen by the client and by the listener is one limit, whichever comes first, across a sleep too', async () => {
-    // The client first, then the listener's fact.
-    const first = rig();
-    const pass = await first.pacer.enter(A, GROUP, 'check');
-    await pass.limited();
-    pass.release();
-    first.facts.push(fact(A.legacyId, 'own', Date.now() + 5));
-    expect(first.pacer.coolingUntil(A)).toBe(T0 + 30_000);
-    expect(level(first.pacer, A)).toBe(1);
-
-    // The fact first (the next call applies it), then the client: Retry-After still counts, the level does not.
-    const second = rig();
-    const own = await second.pacer.enter(B, GROUP, 'check');
-    second.facts.push(fact(B.legacyId, 'own'));
-    await second.pacer.sync();
-    expect(level(second.pacer, B)).toBe(1);
-    expect(await own.limited(90_000)).toBe(T0 + 90_000);
-    own.release();
-    expect(level(second.pacer, B)).toBe(1);
-
-    // Across a sleep: the client's sighting is stored, the fact comes to the next realm.
-    const third = rig();
-    const stored = await third.pacer.enter(C, GROUP, 'check');
-    await stored.limited();
-    stored.release();
-    await third.pacer.flush();
-    third.facts.push(fact(C.legacyId, 'own', Date.now() + 20));
-    const woken = third.wake();
-    await woken.sync();
-    expect(level(woken, C)).toBe(1);
-
-    // Two responses half a minute apart are two limits; a page's 429 next to ours is its own limit.
-    const fourth = rig();
-    const one = await fourth.pacer.enter(A, GROUP, 'check');
-    await one.limited();
-    one.release();
-    fourth.facts.push(fact(A.legacyId, 'own'), fact(A.legacyId, 'page'));
-    await fourth.pacer.sync();
-    expect(level(fourth.pacer, A)).toBe(2);
-  });
-
   it('[NF-037] a queued call that waits its turn notices a 429 recorded meanwhile', async () => {
     const { pacer, facts } = rig();
     const first = await pacer.enter(A, GROUP, 'queue');
@@ -382,19 +346,88 @@ describe('a cooldown from any 429 (§8.4)', () => {
     await expect(settle(queued)).rejects.toBeInstanceOf(PacerCooling);
   });
 
-  it('[NF-037] the stored state is bounded and read defensively: a cooldown saved past the 6 h cap is cut to it', async () => {
-    const { storage } = rig();
-    storage.data.set(PACER_KEY, {
-      v: 1,
-      lanes: [{ aliases: [A.legacyId, 'not-an-id'], cooldownUntil: T0 + 1e12, level: 99, gapLevel: 99, keys: { [GROUP]: [1e9, 500, T0] }, ownSeen: ['x', T0] }, { aliases: [] }, 'junk'],
-      profile: null,
-      applied: [1, 'r-kept'],
-    });
-    const pacer = createFanslyPacer({ storage, facts: () => [{ requestId: 'r-kept', at: T0, accountId: null, source: 'page' }], settle: () => Promise.resolve() });
-    const refused = (await pacer.enter(A, GROUP, 'check').catch((error: unknown) => error)) as PacerCooling;
-    expect(refused.until).toBe(T0 + PACE_RULES.retryAfterMaxMs);
-    expect(pacer.view(A)).toMatchObject({ level: PACE_RULES.maxLevel, gapLevel: PACE_RULES.maxLevel });
-    // The applied fact is not applied again: no creator but A cools down.
-    expect(await startedAt(pacer, B, GROUP, 'check')).toBe(T0);
+  it('[NF-037] a finite saved cooldown beyond the maximum is capped conservatively', async () => {
+    const { storage, pacer } = rig();
+    const pass = await pacer.enter(A, GROUP, 'check');
+    pass.start();
+    await pass.limited(); pass.release(); await pacer.flush();
+    const snapshot = storage.data.get(PACER_KEY) as { lanes: Array<{ cooldownUntil: number }> };
+    snapshot.lanes[0]!.cooldownUntil = T0 + 1e12;
+    const restored = createFanslyPacer({ storage, facts: () => [] });
+    await expect(restored.enter(A, GROUP, 'check')).rejects.toMatchObject({ until: T0 + PACE_RULES.retryAfterMaxMs });
+    expect(await startedAt(restored, B, GROUP, 'check')).toBe(T0);
   });
+});
+
+
+describe('review regressions: recovery and creator aliases', () => {
+  it.each(['error-result', 'rejection', 'malformed'] as const)('[NF-037] unreadable session state (%s) closes every creator for the maximum window without rejecting readiness', async (kind) => {
+    const storage = memoryStorage();
+    if (kind === 'malformed') storage.data.set(PACER_KEY, { v: 1, lanes: 'lost' });
+    const broken: PacerStorage = kind === 'malformed' ? storage : { ...storage, get: () => kind === 'rejection' ? Promise.reject(new Error('storage failed')) : Promise.resolve({ ok: false, code: 'read-failed' }) };
+    const warn = vi.fn();
+    const pacer = createFanslyPacer({ storage: broken, facts: () => [], warn });
+    await expect(pacer.ready).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith('restore');
+    for (const creator of [A, B, C]) {
+      await expect(pacer.enter(creator, GROUP, 'check')).rejects.toMatchObject({ until: T0 + PACE_RULES.retryAfterMaxMs });
+    }
+  });
+
+  it('[NF-037] coolingUntil and view merge separate legacy and canonical lanes', async () => {
+    const { pacer, facts } = rig();
+    await startedAt(pacer, A, GROUP);
+    facts.push(fact(A_CANONICAL.canonicalId, 'page'));
+    await pacer.sync();
+    expect(pacer.view(A_CANONICAL)).toMatchObject({ cooldownUntil: T0 + 30_000, level: 1 });
+    expect(pacer.coolingUntil(A_CANONICAL)).toBe(T0 + 30_000);
+  });
+});
+
+
+describe('review regression: exact own-request correlation', () => {
+  it.each(['client-first', 'listener-first'] as const)('[NF-037] %s has the same isolated-key penalty and a delayed duplicate never escalates', async (order) => {
+    const made = rig();
+    const pass = await made.pacer.enter(A, ACCOUNT, 'check');
+    // start() is the dispatch boundary; the opaque id is carried to webRequest.
+    pass.start('own-1');
+    const seen = { ...fact(A.legacyId, 'own'), clientRequestId: 'own-1' };
+    if (order === 'listener-first') { made.facts.push(seen); await made.pacer.sync(); }
+    await pass.limited(120_000);
+    if (order === 'client-first') { made.facts.push(seen); await made.pacer.sync(); }
+    expect(made.pacer.view(A)).toMatchObject({ level: 1, gapLevel: 0, cooldownUntil: T0 + 120_000 });
+    pass.release();
+    await made.pacer.flush();
+    vi.setSystemTime(T0 + 10_001);
+    made.facts.push({ ...seen, requestId: 'replayed-web-request', at: Date.now() });
+    const woken = made.wake();
+    await woken.sync();
+    expect(woken.view(A)).toMatchObject({ level: 1, gapLevel: 0, cooldownUntil: T0 + 120_000 });
+  });
+
+  it('[NF-037] two distinct own requests at the same time are two limits', async () => {
+    const made = rig();
+    const first = await made.pacer.enter(A, GROUP, 'check');
+    const second = await made.pacer.enter(A, MESSAGE, 'check');
+    first.start('distinct-1'); second.start('distinct-2');
+    await first.limited();
+    made.facts.push({ ...fact(A.legacyId, 'own'), clientRequestId: 'distinct-2' });
+    await made.pacer.sync();
+    await second.limited();
+    expect(made.pacer.view(A)).toMatchObject({ level: 2, gapLevel: 2 });
+    first.release(); second.release();
+  });
+});
+
+
+it('[NF-037] losing access to a saved 120 s Retry-After persists a conservative profile cooldown for the next wake', async () => {
+  const { storage, pacer } = rig();
+  const pass = await pacer.enter(A, GROUP, 'check');
+  pass.start(); await pass.limited(120_000); pass.release(); await pacer.flush();
+  const unreadable: PacerStorage = { ...storage, get: () => Promise.reject(new Error('session inaccessible')) };
+  const woken = createFanslyPacer({ storage: unreadable, facts: () => [] });
+  await expect(woken.enter(B, GROUP, 'check')).rejects.toMatchObject({ until: T0 + PACE_RULES.retryAfterMaxMs });
+  await woken.flush();
+  const restored = createFanslyPacer({ storage, facts: () => [] });
+  await expect(restored.enter(C, GROUP, 'check')).rejects.toMatchObject({ until: T0 + PACE_RULES.retryAfterMaxMs });
 });

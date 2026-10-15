@@ -16,6 +16,7 @@ export * from './pacer';
 export interface FanslyNetworkSession extends FanslySessionPort {
   rateLimits(): readonly RateLimitFactLike[];
   idle(): Promise<void>;
+  observationsPending?(): boolean;
 }
 
 export interface FanslyApiDeps extends Omit<FanslyClientDeps, 'session' | 'pacer'> {
@@ -23,6 +24,7 @@ export interface FanslyApiDeps extends Omit<FanslyClientDeps, 'session' | 'pacer
   /** storage.session: the pacer's state survives the event page there. */
   readonly storage: PacerDeps['storage'];
   readonly random?: () => number;
+  readonly warn?: PacerDeps['warn'];
 }
 
 export interface FanslyApi {
@@ -36,6 +38,8 @@ export function createFanslyApi(deps: FanslyApiDeps): FanslyApi {
     storage: deps.storage,
     facts: () => deps.session.rateLimits(),
     settle: () => deps.session.idle(),
+    pending: () => deps.session.observationsPending?.() ?? false,
+    ...(deps.warn === undefined ? {} : { warn: deps.warn }),
     ...(deps.now === undefined ? {} : { now: deps.now }),
     ...(deps.random === undefined ? {} : { random: deps.random }),
     ...(deps.sleep === undefined ? {} : { sleep: deps.sleep }),

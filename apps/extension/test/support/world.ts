@@ -99,6 +99,7 @@ export const loadChunkModule = (url: string): Promise<unknown> => {
 export function createWorld(
   options: {
     readonly settings?: SettingsV1 | null;
+    readonly configureApi?: (api: FakeContext['api']) => void;
     /** Another browser's hub: two installs, one hub. */
     readonly hub?: FakeHub;
     /** How a site's chunk loads (loadChunkModule otherwise): a probe fails it or wraps the module. */
@@ -125,6 +126,7 @@ export function createWorld(
   const compose = (context: FakeContext): void => {
     starts += 1;
     let blocked = 0;
+    options.configureApi?.(context.api);
     composeBackground({
       api: context.api,
       // A dead instance's timers find no network, like a page that is gone.
