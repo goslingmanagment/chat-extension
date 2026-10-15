@@ -40,6 +40,7 @@ export const REQ_ACK = 'fx.ack';
 export const REQ_HEALTH = 'fx.health';
 export const REQ_FOCUS = 'fx.focus';
 export const REQ_SNAPSHOT = 'fx.generationSnapshot';
+export const REQ_GROUP_FOR_FAN = 'fx.groupForFan';
 export const REQ_WINDOW = 'fx.windowMeta';
 
 /** FANSLY_GAP_REASONS. */

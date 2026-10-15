@@ -47,6 +47,19 @@ const connect = (win: PageWindow, options: { acking?: boolean; start?: boolean }
 const coverage = (c: Connected): unknown[] => c.events().filter((e) => e.t === 'fx.coverage').map((e) => e.p);
 
 describe('[SN-017] [EX-007] [host:fansly] the Proxies over the page’s constructors (FS-WS-1)', () => {
+  it('[SP-037] a passive group lookup names only a direct conversation of the requested creator and fan', async () => {
+    const c = await connect(page());
+    request(c.win, `${API}/account/me`).respond(200, ok({ account: { id: CREATOR } }));
+    request(c.win, `${API}/messaging/groups`).respond(200, ok({ data: [], aggregationData: { groups: [{ id: GROUP, type: 1, users: [{ userId: CREATOR }, { userId: FAN }] }] } }));
+    await settle();
+    expect(await c.client.request('fx.groupForFan', { creatorId: CREATOR, fanId: FAN })).toEqual({ groupId: GROUP });
+    expect(await c.client.request('fx.groupForFan', { creatorId: '999', fanId: FAN })).toEqual({ groupId: null });
+    expect(await c.client.request('fx.groupForFan', { creatorId: CREATOR, fanId: '999' })).toEqual({ groupId: null });
+    request(c.win, `${API}/group/${GROUP}/`).respond(200, ok({ id: GROUP, type: 1, users: [{ userId: CREATOR }, { userId: FAN }, { userId: '999' }] }));
+    await settle();
+    expect(await c.client.request('fx.groupForFan', { creatorId: CREATOR, fanId: FAN })).toEqual({ groupId: null });
+  });
+
   it('[FS-WS-1] are invisible but for their source text: the native instance, prototype, statics, name, length, instanceof, subclasses and a call without new', () => {
     const win = page();
     const main = installFanslyMain(win, NETWORK);
@@ -346,7 +359,7 @@ describe('[host:fansly] the XHR observer and its response table (§5.4)', () => 
 
   it('[EX-008] answers its requests by hand, as the contracts’ fixtures have them', async () => {
     const c = await connect(page());
-    for (const t of ['fx.state', 'fx.ack', 'fx.health', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta'] as const) {
+    for (const t of ['fx.state', 'fx.ack', 'fx.health', 'fx.focus', 'fx.generationSnapshot', 'fx.groupForFan', 'fx.windowMeta'] as const) {
       for (const payload of FANSLY_BRIDGE_REQUEST_FIXTURES[t].payload.valid) await expect(c.client.request(t, payload as never)).resolves.not.toBeUndefined();
       for (const payload of FANSLY_BRIDGE_REQUEST_FIXTURES[t].payload.invalid) {
         const error = (await c.client.request(t, payload as never).catch((caught: unknown) => caught)) as BridgeCallError;

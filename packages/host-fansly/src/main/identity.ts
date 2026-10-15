@@ -123,6 +123,7 @@ export interface Identity {
   readAccount(value: unknown): void;
   /** A member added (4/6) or removed (4/7) at observation `seen`; true — the group's fan or kind changed. */
   member(groupId: string, userId: string | null, added: boolean, seen: number): boolean;
+  groupForFan(fanId: string): string | null;
   known(groupId: string): boolean;
   kind(groupId: string): Kind | null;
   fan(groupId: string): string | null;
@@ -229,6 +230,10 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
       else if (group.members !== null) group.members = added ? (group.members.includes(userId) ? group.members : [...group.members, userId]) : group.members.filter((id) => id !== userId);
       memory.groups += groupCost(group);
       return before !== `${identity.kind(groupId)}/${identity.fan(groupId)}`;
+    },
+    groupForFan(fanId) {
+      for (const groupId of groups.keys()) if (identity.fan(groupId) === fanId) return groupId;
+      return null;
     },
     known: (groupId) => groups.has(groupId),
     kind(groupId) {

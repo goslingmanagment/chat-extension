@@ -84,6 +84,14 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   'fansly.ops.read': { req: { valid: [{ opId: uuid(0x550) }], invalid: [{ opId: 'x' }] }, res: { valid: [{ view: fanslyVoiceView }, { view: null }], invalid: [{ view: {} }] } },
   'fansly.ops.list': { req: { valid: [{}], invalid: [{ chatKey: 'x' }] }, res: { valid: [{ ops: [fanslyVoiceView], truncated: false }], invalid: [{ ops: [{}], truncated: false }] } },
   'fansly.ops.cancel': { req: { valid: [{ opId: uuid(0x550) }], invalid: [{}] }, res: { valid: [{ state: 'canceled' }, { state: null }], invalid: [{ state: 'queued' }] } },
+  'fansly.spenders.names': {
+    req: { valid: [{ hostAccountId: F.creator, fanRefs: [F.fan] }], invalid: [{ hostAccountId: F.creator, fanRefs: [] }, { hostAccountId: F.creator, fanRefs: [123] }] },
+    res: { valid: [{ ok: true, names: [{ fanRef: F.fan, name: 'Alias', displayName: 'Fan', username: 'fan' }] }, failure], invalid: [{ ok: true, names: [{ fanRef: 123, name: 'Fan', username: null }] }, unknownFailure] },
+  },
+  'fansly.spenders.resolve': {
+    req: { valid: [{ hostAccountId: F.creator, fanRef: F.fan, displayName: 'Fan', username: null }], invalid: [{ hostAccountId: F.creator, fanRef: 123, displayName: null, username: null }, { fanRef: F.fan }] },
+    res: { valid: [{ ok: true, groupId: F.group }, { ok: true, groupId: null }, failure], invalid: [{ ok: true, groupId: Number(F.group) }, unknownFailure] },
+  },
   'fansly.followers.scan': {
     req: { valid: [{ hostAccountId: F.creator, windowHours: 48 }, { hostAccountId: F.creator, windowHours: 720 }], invalid: [{ hostAccountId: F.creator, windowHours: 721 }, { hostAccountId: F.creator, windowHours: 0 }, { windowHours: 48 }] },
     res: { valid: [{ ok: true, pass: fanslyPass }, failure, sharedFailure], invalid: [{ ok: true, pass: { ...fanslyPass, state: 'running' } }, unknownFailure, { pass: fanslyPass }] },

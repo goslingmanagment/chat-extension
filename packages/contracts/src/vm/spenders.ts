@@ -51,6 +51,8 @@ export interface ShelfVM {
 }
 
 export interface SpendersBoardVM {
+  /** False for a host whose statistics are outside the pilot (R20 P9e); absent keeps the existing panel. */
+  readonly statistics?: boolean;
   /** `empty` — «Не настроено» or nothing after a filter («Никого не нашли…»); `partial` — coverage or the 1000-row cut. */
   readonly view: VmView;
   /** The page's display name («LoraVie VIP»), not the hub's pageLabel key. */

@@ -269,6 +269,7 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
     },
     data: { valid: [fanslyReplySnapshot, fanslyHiSnapshot, fanslyRecapSnapshot, null], invalid: [{ ...fanslyRecapSnapshot, tail: [] }, { completeness: 'unknown', gap: 'not-certified' }] },
   },
+  'fx.groupForFan': { payload: { valid: [{ creatorId: FANSLY_IDS.creator, fanId: FANSLY_IDS.fan }], invalid: [{ creatorId: FANSLY_IDS.creator, fanId: 123 }, { fanId: FANSLY_IDS.fan }] }, data: { valid: [{ groupId: group }, { groupId: null }], invalid: [{ groupId: 123 }, {}] } },
   'fx.windowMeta': {
     payload: { valid: [{ groupId: group }], invalid: [{ groupId: Number(group) }, {}] },
     data: {
