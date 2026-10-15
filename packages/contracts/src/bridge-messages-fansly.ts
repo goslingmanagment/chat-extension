@@ -192,6 +192,8 @@ export const TO_MAIN_FANSLY = {
    */
   'fx.ack': { payload: z.strictObject({ n: BridgeRequestIdSchema }), data: z.null(), write: false, timeout: 'call' },
   /** MAIN's counts, parse and snapshot times since the document began (R20 P7a, P7b): for «Статус», client_health and the e2e. */
+  /** Observation fence and the last album loaded by the page; no request to Fansly (P13a). */
+  'fx.vaultState': { payload: EmptySchema, data: z.strictObject({ seq: CountSchema, albumId: z.nullable(NativeIdSchema), creatorId: z.nullable(NativeIdSchema) }), write: false, timeout: 'call' },
   'fx.health': { payload: EmptySchema, data: FanslyHealthSchema, write: false, timeout: 'call' },
 } as const satisfies Record<ToMainFanslyType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: false; readonly timeout: 'call' }>;
 
@@ -251,6 +253,8 @@ export const FROM_MAIN_FANSLY = {
    * read that answer's body, so neither album nor media ids come from it (P3a).
    */
   'fx.vaultAdded': z.strictObject({ seq: CountSchema }),
+  /** Successful /media/vaultnew: album from the URL, seq from loadstart; no media body crosses the bridge. */
+  'fx.vaultReloaded': z.strictObject({ seq: CountSchema, albumId: NativeIdSchema }),
 } as const satisfies Record<FromMainFanslyType, z.ZodMiniType>;
 
 export type FromMainFanslyPayload<T extends FromMainFanslyType> = z.infer<(typeof FROM_MAIN_FANSLY)[T]>;
@@ -270,6 +274,7 @@ export const FanslyBatchEventSchema = z.discriminatedUnion('t', [
   batchEvent('fx.coverage'),
   batchEvent('fx.deleted'),
   batchEvent('fx.vaultAdded'),
+  batchEvent('fx.vaultReloaded'),
 ]);
 
 const STATES: readonly string[] = FANSLY_BRIDGE_STATE_EVENTS;
@@ -337,6 +342,7 @@ export const FanslyBridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('fx.windowMeta'),
   requestFrame('fx.ack'),
   requestFrame('fx.health'),
+  requestFrame('fx.vaultState'),
 ]);
 export type FanslyBridgeRequest = z.infer<typeof FanslyBridgeRequestSchema>;
 

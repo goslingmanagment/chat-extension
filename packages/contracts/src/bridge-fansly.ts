@@ -29,7 +29,7 @@ const KiB = 1024;
  * Requests isolated → MAIN (§6 `ToMainFansly`); payload and answer schemas: TO_MAIN_FANSLY in bridge-messages-fansly.ts.
  * `fx.health` (R20 P7a): MAIN's counts and parse times, read on demand.
  */
-export const TO_MAIN_FANSLY_TYPES = ['probe', 'fx.state', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta', 'fx.ack', 'fx.health'] as const;
+export const TO_MAIN_FANSLY_TYPES = ['probe', 'fx.state', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta', 'fx.ack', 'fx.vaultState', 'fx.health'] as const;
 export type ToMainFanslyType = (typeof TO_MAIN_FANSLY_TYPES)[number];
 
 /**
@@ -51,6 +51,7 @@ export const FROM_MAIN_FANSLY_TYPES = [
   'fx.coverage',
   'fx.deleted',
   'fx.vaultAdded',
+  'fx.vaultReloaded',
 ] as const;
 export type FromMainFanslyType = (typeof FROM_MAIN_FANSLY_TYPES)[number];
 
@@ -72,6 +73,7 @@ export const FANSLY_BRIDGE_UNDROPPABLE_EVENTS = [
   'fx.coverage',
   'fx.deleted',
   'fx.vaultAdded',
+  'fx.vaultReloaded',
 ] as const satisfies readonly FromMainFanslyType[];
 
 /**

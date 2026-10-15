@@ -276,6 +276,10 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
     payload: { valid: [{ n: 1 }, { n: 9 }], invalid: [{ n: 0 }, { n: '1' }, { n: 1, bytes: 300 }] },
     data: { valid: [null], invalid: [{ freed: 1 }] },
   },
+  'fx.vaultState': {
+    payload: empty,
+    data: { valid: [{ seq: 0, albumId: null, creatorId: null }, { seq: 7, albumId: group, creatorId: creator }], invalid: [{ seq: -1, albumId: null, creatorId: null }, { seq: 7, albumId: 123, creatorId: null }] },
+  },
   'fx.health': {
     payload: empty,
     data: {
@@ -354,6 +358,7 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
     valid: [{ groupId: group, ids: [deleted] }, { groupId: group, ids: [m2, deleted, newer] }],
     invalid: [{ groupId: group, ids: [] }, { groupId: group, ids: Array.from({ length: FANSLY_LIMITS.ringRecords + 1 }, (_, i) => `7000000000006${String(i).padStart(5, '0')}`) }],
   },
+  'fx.vaultReloaded': { valid: [{ seq: 8, albumId: group }], invalid: [{ seq: 8 }, { seq: -1, albumId: group }, { seq: 8, albumId: 123 }] },
   'fx.vaultAdded': {
     valid: [{ seq: 7 }],
     // The page does not read that answer: no album, no media ids (P3a).

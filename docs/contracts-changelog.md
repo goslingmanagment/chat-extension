@@ -35,6 +35,13 @@
 выпуск расширения, следующий PR этапа поднимает версию до 1.16.0: вышедшая версия не меняет состава. Что меняется и
 почему — `docs/project-unite/architecture.md` §12. Старые фикстуры проходят без изменений.
 
+### P13a — подтверждение загрузки vault
+
+- Добавлены read-only `fx.vaultState {seq, albumId, creatorId}` и потоковое `fx.vaultReloaded {seq, albumId}`.
+  Номер наблюдения отсекает XHR, начатые до передачи файла; альбом обновления читается из URL
+  `/media/vaultnew?albumId=…`, не из тела `POST /vault/albums/media`. Старое `fx.vaultAdded` не меняется.
+- Верные и неверные фикстуры запроса, ответа и события — `test/fixtures/fansly.ts`.
+
 ### Review follow-ups — порядок id и допуск флагов ChatSpace
 
 - `primitives.compareNativeIds` и `nativeIdsAscending` — один порядок канонических десятичных id без `Number`:
