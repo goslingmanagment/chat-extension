@@ -220,6 +220,39 @@ describe('[host:fansly] the switches by platform (hub HF-2)', () => {
   });
 });
 
+describe('[host:fansly] the Spenders board of a Fansly page names the fan’s chat as the page’s capture knows it (R20 P8a)', () => {
+  type Row = { readonly fan: { readonly platform: string; readonly platformUserId: string }; readonly conversation: { readonly platformConversationId: string | null } };
+  const STRANGER = '920000000000000077';
+  const get = async <T>(route: 'spenders' | 'spenderDetail', request: Record<string, unknown>): Promise<{ readonly status: number; readonly body: T }> => {
+    const response = await hubCall(hub.fetch, hub.origin, route, request, { token });
+    return { status: response.status, body: (await response.json()) as T };
+  };
+
+  it('a row names the group of the fan’s thread, or none — never the fan’s own id; the fan’s card is read by the page’s own platform', async () => {
+    hub.control({ op: 'config', patch: fanslyPageFlags() });
+    hub.control({ op: 'spenderFans', fans: [{ fanRef: A.fan }, { fanRef: B.fan }, { fanRef: STRANGER }] });
+    const board = await get<{ readonly scope: { readonly platform: string }; readonly items: readonly Row[] }>('spenders', { scope: 'page', pageLabel: FANSLY, period: 'lifetime', limit: 3, offset: 0 });
+    expect(board.status).toBe(200);
+    expect(board.body.scope.platform).toBe('fansly');
+    expect(board.body.items.map((row) => [row.fan.platformUserId, row.conversation.platformConversationId])).toEqual([
+      [A.fan, A.group],
+      [B.fan, B.group],
+      [STRANGER, null],
+    ]);
+    const card = await get<{ readonly fan: { readonly platformUserId: string } }>('spenderDetail', { platform: 'fansly', platformUserId: A.fan, scope: 'page', pageLabel: FANSLY, period: '30d' });
+    expect([card.status, card.body.fan.platformUserId]).toEqual([200, A.fan]);
+    // A fan of another platform is not this page's.
+    expect((await get('spenderDetail', { platform: 'onlyfans', platformUserId: A.fan, scope: 'page', pageLabel: FANSLY, period: '30d' })).status).toBe(404);
+  });
+
+  it('[host:chatspace] an OnlyFans page’s rows are as before: the conversation is the fan', async () => {
+    hub.control({ op: 'spenderFans', fans: [{ fanRef: WORLD.fan }] });
+    const board = await get<{ readonly scope: { readonly platform: string }; readonly items: readonly Row[] }>('spenders', { scope: 'page', pageLabel: WORLD.pages.one.pageLabel, period: 'lifetime', limit: 1, offset: 0 });
+    expect(board.body.scope.platform).toBe('onlyfans');
+    expect(board.body.items.map((row) => row.conversation.platformConversationId)).toEqual([WORLD.fan]);
+  });
+});
+
 describe('[host:fansly] the narrow token’s AI on Fansly (hub client-ai-switch.ts)', () => {
   it('Reply, Fix, Hi and Ping wait for the page’s `drafts`; Coach, Recap and Review for their own switches; OnlyFans keeps the master switch', async () => {
     const draft = (feature: HubAiFeature): AiFeatureStreamBody => fanslyBody(feature === 'improve-draft' ? { draftText: 'my draft' } : feature === 'hi-greeting' ? { conversationRef: B.group, fanRef: B.fan } : {});

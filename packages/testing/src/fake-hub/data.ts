@@ -298,6 +298,22 @@ export class DataModel {
     return classifyPair(this.threads.get(this.key(pageLabel, conversationRef)), fanRef);
   }
 
+  /**
+   * The fan's chat as the page's capture knows it (R20 P8a): the group whose thread is the fan's; null — none. What a
+   * Fansly page's Spenders row names as `conversation.platformConversationId` (architecture §8.11).
+   */
+  private threadOf(pageLabel: string, fanRef: string): string | null {
+    const prefix = this.key(pageLabel, '');
+    for (const [key, fan] of this.threads) if (key.startsWith(prefix) && fan === fanRef) return key.slice(prefix.length);
+    return null;
+  }
+
+  /** A row as this page's hub serves it: where a chat has an id of its own, the row names the fan's group or none. */
+  private onPage(page: FakePage, row: SpenderListItem): SpenderListItem {
+    if (CHAT_IS_FAN[page.platform]) return row;
+    return { ...row, conversation: { ...row.conversation, platformConversationId: this.threadOf(page.pageLabel, row.fan.platformUserId) } };
+  }
+
   private threadFan(pageLabel: string, fanRef: string): boolean {
     const prefix = this.key(pageLabel, '');
     return [...this.threads].some(([key, fan]) => key.startsWith(prefix) && fan === fanRef);
@@ -335,7 +351,7 @@ export class DataModel {
   }
 
   private scopeOf(page: FakePage): SpendersPage['scope'] {
-    return { kind: 'page', platform: 'onlyfans', pageCount: 1, page: pageRefOf(page), model: null };
+    return { kind: 'page', platform: page.platform, pageCount: 1, page: pageRefOf(page), model: null };
   }
 
   /** A seeded fan's row: the synthetic row of its rank with the seed's fan, money and message ages. */
@@ -373,16 +389,16 @@ export class DataModel {
     };
   }
 
-  private rows(total: number, now: number): SpenderListItem[] {
+  private rows(page: FakePage, total: number, now: number): SpenderListItem[] {
     return Array.from({ length: Math.max(total, this.seeds.length) }, (_, rank) => {
       const seed = this.seeds[rank];
-      return seed === undefined ? spenderRow(rank) : this.seedRow(seed, rank, now);
+      return this.onPage(page, seed === undefined ? spenderRow(rank) : this.seedRow(seed, rank, now));
     });
   }
 
   spenders(page: FakePage, query: SpendersQuery, now: number, total: number): Read<SpendersPage> {
     const needle = query.query?.toLowerCase();
-    let rows = this.rows(total, now).filter(
+    let rows = this.rows(page, total, now).filter(
       (row) =>
         (needle === undefined || (row.fan.username ?? '').toLowerCase().includes(needle) || (row.fan.displayName ?? '').toLowerCase().includes(needle)) &&
         (query.retentionStatus === undefined || query.retentionStatus === 'all' || row.retentionStatus === query.retentionStatus),
@@ -407,13 +423,13 @@ export class DataModel {
     });
   }
 
-  private row(platformUserId: string, total: number, now: number): SpenderListItem | null {
+  private row(page: FakePage, platformUserId: string, total: number, now: number): SpenderListItem | null {
     const seeded = this.seeds.findIndex((seed) => seed.fanRef === platformUserId);
     const seed = this.seeds[seeded];
-    if (seed !== undefined) return this.seedRow(seed, seeded, now);
+    if (seed !== undefined) return this.onPage(page, this.seedRow(seed, seeded, now));
     const rank = Number(platformUserId) - SPENDER_FAN_BASE;
     // A rank a seeded fan took has no synthetic fan any more.
-    return Number.isInteger(rank) && rank >= this.seeds.length && rank < total ? spenderRow(rank) : null;
+    return Number.isInteger(rank) && rank >= this.seeds.length && rank < total ? this.onPage(page, spenderRow(rank)) : null;
   }
 
   private breakdown(row: SpenderListItem): SpenderDetail['typeBreakdown'] {
@@ -423,7 +439,8 @@ export class DataModel {
   }
 
   spenderDetail(page: FakePage, query: SpenderDetailQuery, now: number, total: number): Read<SpenderDetail> {
-    const row = query.platform === 'onlyfans' ? this.row(query.platformUserId, total, now) : null;
+    // A fan of the page's own platform (R20 P8a: a Fansly page's fan card too).
+    const row = query.platform === page.platform ? this.row(page, query.platformUserId, total, now) : null;
     if (row === null) return no('not_found');
     return ok({
       scope: this.scopeOf(page),
@@ -458,7 +475,7 @@ export class DataModel {
       scope: this.scopeOf(page),
       period: this.periodMeta(query.period ?? 'lifetime', query.from, query.to, now),
       items: query.fans.map((fan) => {
-        const row = fan.platform === 'onlyfans' ? this.row(fan.platformUserId, total, now) : null;
+        const row = fan.platform === page.platform ? this.row(page, fan.platformUserId, total, now) : null;
         return row === null
           ? { requestedFan: fan, found: false, fan: null, metrics: null, typeBreakdown: null, lifetimeLastTransactionAt: null, subscription: null }
           : {
@@ -476,7 +493,7 @@ export class DataModel {
 
   autoLists(page: FakePage, now: number, total: number): Read<AutoLists> {
     if (this.seeds.length > 0) {
-      const lifetimes = this.rows(total, now).map((row) => row.metrics.lifetime.scopeGrossAmountMills);
+      const lifetimes = this.rows(page, total, now).map((row) => row.metrics.lifetime.scopeGrossAmountMills);
       const lists = SEEDED_TIERS.map((tier) => ({
         key: tier.key,
         label: tier.label,
