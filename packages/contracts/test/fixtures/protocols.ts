@@ -404,13 +404,6 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
       invalid: [{ fileName: 'x.json', mime: 'application/zip', body: '{}' }],
     },
   },
-  'sound.batch': {
-    req: {
-      valid: [{ host: 'fansly-web', hostAccountId: '1001', events: [{ kind: 'subscriber', id: '9001', accountId: '1001', followerId: '2002' }] }],
-      invalid: [{ host: 'fansly-web', hostAccountId: '1001', events: [] }, { host: 'fansly-web', hostAccountId: '1001', events: [{ kind: 'subscriber', id: '9001', accountId: '1001', followerId: '2002', text: 'never' }] }],
-    },
-    res: { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] },
-  },
   'sound.event': {
     req: { valid: [{ fact: incomingFact }], invalid: [{ fact: { ...incomingFact, source: 'dom' } }] },
     res: { valid: [{ played: true }, { played: false, reason: 'chat-open' }], invalid: [{ reason: 'chat-open' }] },

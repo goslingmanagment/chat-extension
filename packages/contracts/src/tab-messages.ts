@@ -4,7 +4,6 @@
 // rules and the envelope are in tab-protocol.ts; a site's own registry is its
 // own module (1.15.0: tab-messages-fansly.ts), never imported here.
 
-import { SoundBatchSchema } from './sound';
 import * as z from 'zod/mini';
 import { PageDiagnosticsSchema, NetworkSessionSnapshotSchema, FreshnessDaySchema } from './diagnostics';
 import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
@@ -612,7 +611,6 @@ export const TAB_REQUESTS = {
     pages: ['popup', 'options'],
   },
   /** An incoming-message fact for the one sound arbiter of the extension (§9.8). */
-  'sound.batch': { req: SoundBatchSchema, res: Ack, from: TAB },
   'sound.event': {
     req: z.strictObject({ fact: IncomingFactSchema }),
     res: z.strictObject({ played: z.boolean(), reason: z.optional(OpenTokenSchema) }),

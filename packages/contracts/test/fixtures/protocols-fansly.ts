@@ -174,6 +174,13 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     },
     res: vaultAck,
   },
+  'fansly.sound.batch': {
+    req: {
+      valid: [{ host: 'fansly-web', hostAccountId: '1001', events: [{ kind: 'subscriber', id: '9001', accountId: '1001', followerId: '2002' }] }],
+      invalid: [{ host: 'fansly-web', hostAccountId: '1001', events: [] }, { host: 'fansly-web', hostAccountId: '1001', events: [{ kind: 'subscriber', id: '9001', accountId: '1001', followerId: '2002', text: 'never' }] }],
+    },
+    res: { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] },
+  },
   'fansly.vault.resume': {
     req: { valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId }], invalid: [{ albumId: vaultCheckpoint.albumId }] },
     res: {

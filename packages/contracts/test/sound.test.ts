@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SoundBatchSchema } from '../src/sound';
-import { TAB_REQUESTS, mayRequest } from '../src/tab-messages';
+import { TAB_REQUESTS } from '../src/tab-messages';
+import { FANSLY_TAB_REQUESTS, mayRequestFansly } from '../src/tab-messages-fansly';
 import { FROM_MAIN_FANSLY } from '../src/bridge-messages-fansly';
 
 const message = { kind: 'message', id: '901', conversationRef: '501', senderId: '201', fromFan: true, automatic: false, tip: false, sentAt: '2026-10-15T10:00:00.000Z' };
@@ -13,9 +14,11 @@ describe('[host:fansly] sound wire (1.15.0 P14a)', () => {
     for (const events of [[], Array.from({ length: 513 }, () => message), [{ ...message, text: 'private' }], [{ ...message, senderId: null }]]) {
       expect(SoundBatchSchema.safeParse({ ...batch, events }).success).toBe(false);
     }
-    expect(mayRequest('sound.batch', 'tab', null)).toBe(true);
-    expect(mayRequest('sound.batch', 'page', 'options')).toBe(false);
-    expect(TAB_REQUESTS['sound.batch'].res.safeParse({ recorded: true }).success).toBe(true);
+    expect(mayRequestFansly('fansly.sound.batch', 'tab', null, 'fansly-web')).toBe(true);
+    expect(mayRequestFansly('fansly.sound.batch', 'tab', null, 'chatspace')).toBe(false);
+    expect(FANSLY_TAB_REQUESTS['fansly.sound.batch'].req.safeParse({ ...batch, host: 'chatspace' }).success).toBe(false);
+    expect(mayRequestFansly('fansly.sound.batch', 'page', 'options', 'fansly-web')).toBe(false);
+    expect(FANSLY_TAB_REQUESTS['fansly.sound.batch'].res.safeParse({ recorded: true }).success).toBe(true);
   });
   it('incoming accepts the additive author and the previous MAIN shape', () => {
     const fact = { groupId: '500', fanId: null, msgId: '900', fromFan: true, automated: false, tip: false, createdAt: null };
