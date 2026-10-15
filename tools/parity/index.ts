@@ -4,7 +4,7 @@
 // «не нужно» / «убрано владельцем» row a negative check, and the manifest is
 // exactly what the map, the R20 parity matrix and the exceptions registry
 // derive (no hand edits). Then the gate on Fansly (plan.md §0, P1b): every
-// row of a PR marked done in plan.md is closed on Fansly — by a test with its
+// row of a PR marked done by a done file or in plan.md is closed on Fansly — by a test with its
 // id on its host and at its level, the hub's confirmation or the exceptions
 // registry — and at the pilot no Fansly row is open; host marks of tests and
 // the hub's confirmations are well formed. Network: none.
@@ -19,7 +19,8 @@ import { closeOnFansly, hostMarkProblems } from './coverage-report.ts';
 import { deriveManifest, MANIFEST_PATH, serializeManifest, type ManifestRow } from './derive.ts';
 import { parseParityMap } from './map.ts';
 import { checklistIds, checkParityManifest, fanslyGateProblems, hubConfirmationProblems, manifestRequired } from './manifest.ts';
-import { MATRIX_PATH, parseParityMatrix, parsePlanPrs, PLAN_PATH } from './matrix.ts';
+import { MATRIX_PATH, parseParityMatrix } from './matrix.ts';
+import { readPlanPrs } from './plan.ts';
 import { readTestFiles } from './test-files.ts';
 
 const MANIFEST = `${REPO_ROOT}${MANIFEST_PATH}`;
@@ -40,7 +41,7 @@ try {
 } catch (error) {
   fail(`parity: ${MANIFEST_PATH} is not valid JSON (${String(error)}).`);
 }
-const plan = parsePlanPrs(read(PLAN_PATH));
+const plan = readPlanPrs(REPO_ROOT);
 const matrix = parseParityMatrix(read(MATRIX_PATH));
 const problems = checkParityManifest(manifest, ids, PARITY_EXCEPTIONS, plan.all);
 try {
@@ -67,5 +68,5 @@ const required = fansly.filter((row) => row.fansly.check.kind !== 'after-pilot')
 const closed = required.filter((row) => closure.get(row.id)?.closed === true).length;
 console.log(`parity: ${String(rows.length)} rows (${String(ids.length)} from the checklist), each with a plan on ChatSpace and on Fansly; ${String(PARITY_EXCEPTIONS.length)} negative checks.`);
 console.log(
-  `parity: Fansly — ${String(fansly.length)} rows of the matrix, ${String(closed)} of ${String(required.length)} closed; ${String(plan.done.size)} of ${String(plan.all.length)} PRs of the plan done, none with an open row; ${String(files.length)} test files read.`,
+  `parity: Fansly — ${String(fansly.length)} rows of the matrix, ${String(closed)} of ${String(required.length)} closed; ${String(plan.done.size)} of ${String(plan.all.length)} PRs of the plan done (done/<PR id> or legacy ✓ in plan.md), none with an open row; ${String(files.length)} test files read.`,
 );

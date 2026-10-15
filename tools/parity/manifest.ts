@@ -8,7 +8,7 @@
 // concern Fansly (`n/a` with a reason).
 //
 // The gate on Fansly (fanslyGateProblems): a row of a PR marked done in
-// plan.md (`✓`) is closed on Fansly — by a test on its host and at its level,
+// done/<PR id> or plan.md (`✓`) is closed on Fansly — by a test on its host and at its level,
 // by the hub's confirmation (`хаб`) or by the exceptions registry
 // (`отрицательная`); once the pilot PR is marked done, no Fansly row is open
 // but those after the pilot. Rows of PRs not done yet are planned, not errors.
@@ -209,12 +209,12 @@ export function fanslyGateProblems(rows: readonly ManifestRow[], closure: Readon
     if (pr === null || check.kind === 'n/a') continue;
     const ownerDone = done.has(pr);
     if (check.kind === 'after-pilot') {
-      if (ownerDone) problems.push(`${row.id}: ${pr} is done (✓ in plan.md), but the row's check is still «после пилота» — name it in parity-matrix.md`);
+      if (ownerDone) problems.push(`${row.id}: ${pr} is done (done file or ✓ in plan.md), but the row's check is still «после пилота» — name it in parity-matrix.md`);
       continue;
     }
     if (closure.get(row.id)?.closed === true) continue;
     const needs = `${CLOSED_BY[check.kind]}${check.where === undefined ? '' : ` (${check.where})`} with [${row.id}]`;
-    if (ownerDone) problems.push(`${row.id}: ${pr} is done (✓ in plan.md), but the row is open on Fansly — needs ${needs}`);
+    if (ownerDone) problems.push(`${row.id}: ${pr} is done (done file or ✓ in plan.md), but the row is open on Fansly — needs ${needs}`);
     else if (pilot) problems.push(`${row.id}: open on Fansly at the pilot (${PILOT_PR} ✓) — ${pr} must close it: ${needs}`);
   }
   return problems;

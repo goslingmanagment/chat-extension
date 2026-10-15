@@ -1,7 +1,7 @@
 // `pnpm parity:coverage`: which rows of the parity manifest are named by a
 // test, on ChatSpace and on Fansly (a `[ROW-ID]` tag in a test's title; the
 // host from the file's path or a `[host:…]` mark). Reads every test file of
-// the repository, the done marks of docs/project-unite/plan.md and the hub's
+// the repository, done files plus legacy marks in docs/project-unite/plan.md and the hub's
 // confirmations (§10 of docs/project-unite/parity-matrix.md), writes
 // docs/parity/coverage.md (the Russian report: ChatSpace by milestone and by
 // work package; Fansly by check and by owning PR) and docs/parity/coverage.json
@@ -18,7 +18,8 @@ import { parseArgs } from 'node:util';
 import { fail, REPO_ROOT } from '../lib/paths.ts';
 import { buildCoverage, renderCoverage, serializeCoverage } from './coverage-report.ts';
 import { MANIFEST_PATH, type ParityManifest } from './derive.ts';
-import { MATRIX_PATH, parseParityMatrix, parsePlanPrs, PLAN_PATH } from './matrix.ts';
+import { MATRIX_PATH, parseParityMatrix } from './matrix.ts';
+import { readPlanPrs } from './plan.ts';
 import { readTestFiles } from './test-files.ts';
 
 export const COVERAGE_MD_PATH = 'docs/parity/coverage.md';
@@ -35,7 +36,7 @@ try {
 } catch (error) {
   fail(`parity:coverage: cannot read ${MANIFEST_PATH} (${String(error)}). Run node tools/parity/generate.ts.`);
 }
-const plan = parsePlanPrs(read(PLAN_PATH));
+const plan = readPlanPrs(REPO_ROOT);
 const report = buildCoverage(manifest.rows, files, { confirmations: parseParityMatrix(read(MATRIX_PATH)).hub, prs: plan.all, done: plan.done });
 const outputs: ReadonlyArray<readonly [string, string]> = [
   [COVERAGE_MD_PATH, renderCoverage(report)],

@@ -16,7 +16,7 @@
 // 2. Parity and e2e. Every entry of a site's slice has its parity rows
 //    (`FEATURE_PARITY`), each planned on the site's host; and once the owner of
 //    one of them on that host is done (ChatSpace's work packages; a Fansly PR
-//    marked ✓ in plan.md), an e2e spec on that site's stand names one of them.
+//    marked by a done file or ✓ in plan.md), an e2e spec on that site's stand names one of them.
 //    The row by row closing is P1b's (`pnpm parity`); this is the bond between
 //    an entry and its rows.
 //
@@ -221,7 +221,7 @@ export interface ParityFacts {
   readonly rows: readonly ParityRow[];
   /** The rows an e2e spec on each host's stand names (tools/parity/hosts.ts `placeOfTest`, browser level). */
   readonly browserRows: Readonly<Record<string, ReadonlySet<string>>>;
-  /** Whether the owner of a row on a host is done: a work package of R00–R19; an R20 PR marked ✓ in plan.md. */
+  /** Whether the owner of a row on a host is done: a work package of R00–R19; an R20 PR marked by a done file or ✓ in plan.md. */
   readonly ownerDone: (owner: string) => boolean;
 }
 
