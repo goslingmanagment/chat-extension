@@ -30,18 +30,30 @@ describe('[host:fansly] the response table of the XHR observer (§5.4)', () => {
       ['account?ids=700000000000000002,700000000000000003&ngsw-bypass=true', 'accounts', null],
       ['message/automated?ngsw-bypass=true', 'automated', null],
       ['vault/albums/media?ngsw-bypass=true', 'vault', null],
+      ['media/vaultnew?albumId=700000000000000301&mediaType=0&search=&before=0&after=0&ngsw-bypass=true', 'vaultLoad', null],
+      ['media/vaultnew?type=1000&before=0&after=0', 'vaultLoad', null],
       // The API's, not the table's.
       ['message/ack?ngsw-bypass=true', 'other', null],
       ['message/typing', 'other', null],
       ['message/broadcast', 'other', null],
       ['vault/albums/media/extra', 'other', null],
       ['vault/albumsnew', 'other', null],
+      ['media/vaultnew?albumId=null&mediaType=0', 'other', null],
+      ['media/vault?albumId=700000000000000301', 'other', null],
       ['group/abc/', 'other', null],
       ['messages', 'other', null],
       ['account', 'other', null],
       ['account?usernames=fan', 'other', null],
     ];
     for (const [path, kind, groupId] of table) expect(classifyAddress(at(path), API), path).toMatchObject({ kind, groupId });
+  });
+
+  it('[host:fansly] names the vault album the page loads by its address: `albumId=`, null for a type album — never a part of its answer (P13a)', () => {
+    expect(classifyAddress(at('media/vaultnew?albumId=700000000000000301&mediaType=0&search=&before=0&after=0&ngsw-bypass=true'), API)).toEqual({ kind: 'vaultLoad', groupId: null, albumId: '700000000000000301' });
+    expect(classifyAddress(at('media/vaultnew?type=1000&before=0&after=0&ngsw-bypass=true'), API)).toEqual({ kind: 'vaultLoad', groupId: null, albumId: null });
+    // An address the page never makes is not an album; its answer is never read either way.
+    expect(classifyAddress(at('media/vaultnew?albumId=&mediaType=0'), API)).toEqual({ kind: 'other', groupId: null });
+    expect(readResponse({ kind: 'vaultLoad', groupId: null, albumId: '700000000000000301' }, ok({ albumMedia: [], media: [] }), JSON.parse)).toBeNull();
   });
 
   it('keeps the page’s own `limit=` of the history: a fresh end shorter than it proves the start (§5.6)', () => {

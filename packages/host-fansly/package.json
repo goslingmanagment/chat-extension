@@ -7,6 +7,7 @@
   "exports": {
     "./main": "./src/main/index.ts",
     "./isolated/notice": "./src/isolated/notice.ts",
+    "./isolated/vault": "./src/isolated/vault/index.ts",
     "./isolated": "./src/isolated/index.ts",
     "./isolated/validation": "./src/isolated/validate.ts",
     "./isolated/theme": "./src/isolated/theme.ts",

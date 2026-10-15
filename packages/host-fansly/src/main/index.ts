@@ -27,7 +27,8 @@
 //   every chat unknown then. Every new message (5/1, ours too) is
 //   `fx.incoming` with its group's fan; a follow `fx.follow`; deletions of the
 //   focused group `fx.deleted`; every loss and certificate `fx.coverage`; a
-//   confirmed vault upload `fx.vaultAdded`. Our own sends' echo and receipt are
+//   confirmed vault upload `fx.vaultAdded`, an album the page loaded
+//   `fx.vaultLoaded` (its address only, P13a). Our own sends' echo and receipt are
 //   P7f's, the old extension and FBuddy's markers P7g's;
 // - the requests: `fx.state` (and the stream starts), `fx.ack`, `fx.health`,
 //   `fx.focus`, `fx.windowMeta` and `fx.generationSnapshot` (snapshot.ts).
@@ -58,6 +59,7 @@ import {
   EVT_IDENTITY,
   EVT_INCOMING,
   EVT_VAULT,
+  EVT_VAULT_LOADED,
   FRAMES_UNREAD_SIGN,
   GAP_MEMORY,
   PARSE_BOUNDS,
@@ -426,6 +428,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'vault':
         emitter.event(EVT_VAULT, { seq: stamp?.seq ?? seq });
         return;
+      case 'vaultLoad':
       case 'other':
         // Never read: `readResponse` takes the table's kinds only.
         return;
@@ -465,7 +468,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       responses.seen += 1;
       const status = request.status;
       const type = request.responseType;
-      if (call.kind !== 'other' && status >= 200 && status < 300 && (type === '' || type === 'text')) {
+      // The album the page loaded (§7.11): its address says it; the answer — the page's media — is not read.
+      if (call.kind === 'vaultLoad') {
+        if (status >= 200 && status < 300) emitter.event(EVT_VAULT_LOADED, { albumId: call.albumId ?? null, seq: stamp?.seq ?? seq });
+      } else if (call.kind !== 'other' && status >= 200 && status < 300 && (type === '' || type === 'text')) {
         const text = request.responseText;
         if (text.length > RESPONSE_MAX_CHARS) lose(call);
         else if (text.length <= RESPONSE_NOW_CHARS) readOne({ call, text, stamp });
