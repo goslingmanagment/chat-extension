@@ -818,6 +818,18 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     offs.push(mounts.onChange(report), router.subscribe({ of: 'dock' }, report), keys.overlays.subscribe(report), i18n.subscribe(report), scheme.subscribe(report));
     void stageTwo.then(report);
     report();
+    // The toasts on screen as their view model has them (R20 P8a): kind, code and the chat each «Открыть чат» names —
+    // its handle carries the operation's own conversation on Fansly. Ids only, nothing of a text.
+    const reportToasts = (): void =>
+      probe.set(
+        'toasts',
+        shell.getSnapshot({ of: 'toasts' }).toasts.map((toast) => ({
+          kind: toast.kind,
+          code: toast.code,
+          chats: toast.actions.flatMap((button) => (button.action.type === 'Navigate' && button.action.to.kind === 'chat' ? [button.action.to.targetHandle] : [])),
+        })),
+      );
+    offs.push(shell.subscribe({ of: 'toasts' }, reportToasts));
   }
 
   const dispose = (): void => {

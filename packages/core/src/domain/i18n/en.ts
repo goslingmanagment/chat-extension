@@ -136,6 +136,7 @@ export const EN: I18nCatalog<'en'> = {
   'dock.reason.language': 'the draft is in Cyrillic and the fan does not write in Cyrillic',
   'dock.reason.fanBlocked': 'the fan is blocked, copy only',
   'dock.reason.fanUnknown': 'could not tell which fan this chat is with',
+  'dock.reason.conversationUnknown': 'the chat with this fan is not found yet',
   'dock.reason.overlayOpen': 'close the open window first',
   'dock.reason.hostDegraded': '{site} has changed, some features are off',
   'dock.reason.composerMissing': '{site} is not showing the message field',

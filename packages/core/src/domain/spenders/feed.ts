@@ -188,6 +188,8 @@ export function feedBytes(state: FeedState): number {
  */
 export interface KeptFeed {
   readonly key: string;
+  /** The conversation these rows and their cursor belong to, even when the preview key names only the fan. */
+  readonly conversationRef: string;
   readonly first: FeedState;
   readonly keptAt: number;
 }

@@ -64,6 +64,8 @@ export function queueRow(item: QueueItem, rank: number, boardRow: SpenderRow | u
   const username = item.username?.trim() ?? '';
   return {
     fanRef: item.fanRef,
+    // The queue's rows name no conversation: a fan of the board keeps the board's (above).
+    conversationRef: null,
     name: fanName(fan),
     username: username.length > 0 ? username.replace(/^@/, '') : null,
     lifetime: item.lifetimeGrossMills,

@@ -16,7 +16,8 @@ import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features'
 import type { AdmissionAction } from '@cg/contracts/features/types';
 import { type ChatWindow, type HostSnapshot, type LiveTextTail } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
-import { chatKeyOf, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
+import { HOST_PLATFORM } from '@cg/contracts/hosts';
+import { CHAT_IS_FAN, chatKeyOf, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { type ActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
@@ -71,7 +72,8 @@ export interface OpenChat {
   readonly chat: ChatRef;
   /**
    * The host's conversation of the chat, from the route (1.15.0): on Fansly the group id of the address; absent on
-   * the route — the conversation is the fan (ChatSpace). Never another chat's.
+   * the route — the conversation is the fan (ChatSpace). Never another chat's, and never the fan's id where a chat has
+   * an id of its own (R20 P8a, FS-IDN-6): a route of such a site that names no conversation opens no chat for the AI.
    */
   readonly conversationRef: string;
   readonly key: ChatKey;
@@ -421,12 +423,13 @@ export class AiWorkspace {
     const snapshot = host.current();
     const route = snapshot.route;
     const chatRef = route.name === 'chat' ? route.chat : null;
+    const conversationRef = chatRef === null ? undefined : (route.conversationRef ?? (CHAT_IS_FAN[HOST_PLATFORM[chatRef.host]] ? chatRef.platformFanId : undefined));
     const chat: OpenChat | null =
-      chatRef === null
+      chatRef === null || conversationRef === undefined
         ? null
         : {
             chat: chatRef,
-            conversationRef: route.conversationRef ?? chatRef.platformFanId,
+            conversationRef,
             key: chatKeyOf(chatRef),
             handle: targetHandle('dock', chatRef),
             account: route.account,

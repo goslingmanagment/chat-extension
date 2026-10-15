@@ -27,7 +27,7 @@ import { type CgCode, type CgErrorWire, type I18nKey } from '@cg/contracts/error
 import { TONES, type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
 import { type HostEvent, type HostPort, type NavigationReceipt } from '@cg/contracts/host';
 import { type SpenderDetail } from '@cg/contracts/hub';
-import { chatKeyOf, type PartRef, type Target } from '@cg/contracts/ids';
+import { CHAT_IS_FAN, chatKeyOf, type PartRef, type Platform, type Target } from '@cg/contracts/ids';
 import { OP_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
 import { type OpView, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint, type PreviewSendPreflight, type PreviewSendRequest, type SendAttemptView, type SendGroup } from '@cg/contracts/send';
@@ -149,8 +149,11 @@ interface TargetState {
   readonly fanRef: string;
   info: PreviewTargetInfo;
   feed: FeedState | null;
-  /** R20 F6b: the conversation the feed's walk reads (the list's, when it is not the fan); its older pages keep it. */
-  feedConversation: { readonly conversationRef?: string };
+  /**
+   * R20 F6b: the conversation the feed's walk reads (the list's, when it is not the fan); its older pages keep it.
+   * null — no conversation of the fan is known (R20 P8a): no page is read.
+   */
+  feedConversation: { readonly conversationRef?: string } | null;
   feedLoading: boolean;
   feedError: CgErrorWire | null;
   feedRun: number;
@@ -197,10 +200,21 @@ class AbortFlag {
   }
 }
 
-/** The conversation of a preview's reads when the list knows one that is not the fan (R20 F6b); `{}` on ChatSpace. */
-function feedConversationOf(info: PreviewTargetInfo): { readonly conversationRef?: string } {
-  const ref = info.conversationRef;
-  return ref === undefined || ref === info.fanRef ? {} : { conversationRef: ref };
+/**
+ * R20 P8a (FS-IDN-6): the conversation a preview works on — the one its list named (on Fansly the group the list
+ * resolved for the fan; never the route of the chat on screen) or, where a chat is its fan (OnlyFans), the fan. null —
+ * the list knows no conversation of the fan on a platform where a chat has an id of its own (or the binding, and so
+ * the platform, is not known yet): nothing of that chat is asked, and never by the fan's id in its place.
+ */
+function conversationOfTarget(info: PreviewTargetInfo, platform: Platform | null): string | null {
+  if (info.conversationRef !== undefined) return info.conversationRef;
+  return platform !== null && CHAT_IS_FAN[platform] ? info.fanRef : null;
+}
+
+/** What a read of the preview names (R20 F6b): `{}` — the conversation is the fan (ChatSpace); null — none is known (P8a). */
+function feedConversationOf(info: PreviewTargetInfo, platform: Platform | null): { readonly conversationRef?: string } | null {
+  const conversation = conversationOfTarget(info, platform);
+  return conversation === null ? null : conversation === info.fanRef ? {} : { conversationRef: conversation };
 }
 
 export interface PreviewControllerDeps {
@@ -413,17 +427,43 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   const feedLimit = (): number => Math.max(1, Math.min(FEED_PAGE_SIZE, context.current().bootstrap?.limits.feedMax ?? FEED_PAGE_SIZE));
 
+  /** What the list knows of the fan now — it may have resolved the fan's chat since the card opened (R20 F6a). */
+  function infoNow(state: TargetState): PreviewTargetInfo {
+    state.info = deps.directories[state.source]?.resolve(state.handle) ?? state.info;
+    return state.info;
+  }
+  /** The conversation the card works on, read at the moment it is needed (R20 P8a); null — none is known. */
+  const conversationNow = (state: TargetState): string | null => conversationOfTarget(infoNow(state), context.current().binding?.platform ?? null);
+
   async function loadFeed(state: TargetState): Promise<void> {
     const ctx = context.current();
     if (ctx.phase !== 'ready' || !pageFlag(ctx, 'preview')) return;
     const run = ++state.feedRun;
     const atEpoch = epoch;
+    // A new walk reads the conversation the list knows now (on Fansly the group it resolved), never the chat on screen.
+    const conversation = feedConversationOf(infoNow(state), ctx.binding?.platform ?? null);
+    if (conversation === null || conversation.conversationRef !== state.feedConversation?.conversationRef) {
+      // Neither rows nor a cursor survive losing or changing the conversation, including a failed new read.
+      state.feed = null;
+      state.feedConversation = null;
+      state.feedLoadedAt = null;
+      state.olderError = null;
+      kept = kept.filter((entry) => entry.key !== state.handle);
+      stopPoll(state);
+    }
+    // A new first-page run invalidates any older page still in flight.
+    state.olderLoading = false;
+    if (conversation === null) {
+      // R20 P8a: the list knows no chat of the fan — nothing is read, and the card says so with «Повторить».
+      state.feedLoading = false;
+      state.feedSince = null;
+      state.feedError = { code: 'CG-DATA-NOT-READY' };
+      return changedFor(state.handle);
+    }
     state.feedLoading = true;
     state.feedSince = clock.now();
     changedFor(state.handle);
     const pingWindow = ctx.settings?.generation.windows.ping;
-    // A new walk reads the conversation the list knows now (on Fansly the group it resolved), never the chat on screen.
-    const conversation = feedConversationOf(state.info);
     const answer = await rpc.request('feed.read', {
       pageId: state.pageId,
       fanRef: state.fanRef,
@@ -451,17 +491,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   async function loadOlder(state: TargetState): Promise<void> {
     const feed = state.feed;
     const cursor = feed?.nextOlderCursor ?? null;
-    if (feed === null || cursor === null || state.olderLoading) return;
+    const conversation = state.feedConversation;
+    if (feed === null || cursor === null || conversation === null || state.olderLoading) return;
+    if (conversationNow(state) !== (conversation.conversationRef ?? state.fanRef)) return;
     const run = state.feedRun;
     const atEpoch = epoch;
     state.olderLoading = true;
     state.olderError = null;
     changedFor(state.handle);
-    const answer = await rpc.request('feed.read', { pageId: state.pageId, fanRef: state.fanRef, cursor, limit: feedLimit(), ...state.feedConversation });
-    if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state) return;
-    state.olderLoading = false;
+    const answer = await rpc.request('feed.read', { pageId: state.pageId, fanRef: state.fanRef, cursor, limit: feedLimit(), ...conversation });
     // A first page was read meanwhile: this page belongs to the walk it replaced.
-    if (state.feedRun !== run || state.feed === null) return changedFor(state.handle);
+    if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state || state.feedRun !== run || state.feed === null) return;
+    state.olderLoading = false;
     if (answer.ok) {
       const step = olderFeedPage(state.feed, cursor, answer.payload);
       if (step.kind === 'appended') state.feed = step.state;
@@ -511,6 +552,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   function openTarget(source: PreviewSource, handle: TargetHandle): void {
     const info = deps.directories[source]?.resolve(handle) ?? null;
     if (info === null) return;
+    const conversation = feedConversationOf(info, context.current().binding?.platform ?? null);
+    kept = kept.filter((entry) => entry.key !== handle || (conversation !== null && entry.conversationRef === (conversation.conversationRef ?? info.fanRef)));
     const saved = kept.find((entry) => entry.key === handle) ?? null;
     const state: TargetState = {
       handle,
@@ -519,7 +562,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       fanRef: info.fanRef,
       info,
       feed: saved?.first ?? null,
-      feedConversation: feedConversationOf(info),
+      feedConversation: saved === null ? null : conversation,
       feedLoading: false,
       feedError: null,
       feedRun: 0,
@@ -548,7 +591,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const state = targets.get(handle);
     if (state === undefined) return;
     stopPoll(state);
-    if (state.feed !== null) kept = keepFeed(kept, { key: handle, first: state.feed, keptAt: state.feedLoadedAt ?? clock.now() });
+    if (state.feed !== null && state.feedConversation !== null) kept = keepFeed(kept, { key: handle, conversationRef: state.feedConversation.conversationRef ?? state.fanRef, first: state.feed, keptAt: state.feedLoadedAt ?? clock.now() });
     targets.delete(handle);
     // The person closed the preview before the chat opened: the pending insert is given up (§6.5).
     if (pendingInsert !== null && pendingInsert.track.handle === handle && !closingForNavigation) cancelInsert('preview-closed');
@@ -1269,6 +1312,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     }
     if (!pageFlag(ctx, 'preview')) return flagReasonVm(pageFlagOf(ctx, 'preview'));
     if (ctx.persona === null) return reason('no-persona');
+    // R20 P8a (FS-IDN-6): no chat of the fan is known — nothing starts on the fan's id in its place.
+    if (conversationNow(state) === null) return reason('conversation-unknown');
     if (otherRunning) return reason('chat-busy');
     // §6.7.8, §6.7.9: an unknown outcome holds the fan, and one part is in work at a time — for every feature of the strip,
     // not only «Ещё раз»: a new generation would take the held result, its notice and its «Открыть чат для проверки» off the card.
@@ -1330,8 +1375,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const state = handle === null ? undefined : targets.get(handle);
     if (handle === null || state === undefined) return closedVM(source);
     const ctx = context.current();
-    const info = deps.directories[source]?.resolve(handle) ?? state.info;
-    state.info = info;
+    const info = infoNow(state);
     const feed = state.feed;
     const opId = currentOp.get(handle);
     const track = opId === undefined ? null : (tracks.get(opId) ?? null);
@@ -1387,6 +1431,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
     const around = deps.directories[source]?.neighbours(handle) ?? { previous: null, next: null };
     const openChat: UiAction = { type: 'Navigate', to: { kind: 'chat', targetHandle: handle } };
+    // R20 P8a: a chat nobody knows cannot be opened — the fan's id names none on Fansly.
+    const chatUnknown = ctx.phase === 'ready' && conversationOfTarget(info, ctx.binding?.platform ?? null) === null;
     return {
       view,
       from: source,
@@ -1400,7 +1446,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         fanWroteAt: info.fanWroteAt,
         newcomer: info.newcomer,
       },
-      openChat: button('common.openChat', openChat),
+      openChat: button('common.openChat', openChat, chatUnknown ? { enabled: false, reason: reason('conversation-unknown') } : {}),
       close: CLOSE_PREVIEW,
       unread: sendStarted || sends.started ? 'read-after-send' : 'kept',
       archive: {
@@ -1412,7 +1458,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       fanWroteNew: shown !== null && (shown.fanWrote || shown.mirror.done?.stale?.reason === 'fan-wrote'),
       feed: {
         items: feedItems(state),
-        hasOlder: feed !== null && feed.nextOlderCursor !== null,
+        hasOlder: !chatUnknown && feed !== null && feed.nextOlderCursor !== null,
         loadingOlder: state.olderLoading,
         olderError: state.olderError === null ? null : errorOf(state.olderError, i18n),
       },
@@ -1506,8 +1552,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (binding === null || settings === null || bootstrap === null) return refused(type, localError('CG-HUB-UNAVAILABLE', i18n));
 
     const chat = { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef };
-    // The fan's conversation as its list resolved it (on Fansly the group id), never the route of the chat on screen.
-    const target: Target = { binding, chat, fanRef: state.fanRef, conversationRef: state.info.conversationRef ?? state.fanRef };
+    // The fan's conversation as its list resolved it (on Fansly the group id), never the route of the chat on screen,
+    // and never the fan's id where a chat has an id of its own (R20 P8a, FS-IDN-6; the gate above said so already).
+    const conversationRef = conversationOfTarget(state.info, binding.platform);
+    if (conversationRef === null) return refused(type, localError('CG-DATA-NOT-READY', i18n));
+    const target: Target = { binding, chat, fanRef: state.fanRef, conversationRef };
     const atEpoch = epoch;
     // The click is the person working with the fan. «Something is in flight» is said only once an operation
     // really started: a refused Generate must not keep the greeting lease renewing with nobody at the card (NF-021).

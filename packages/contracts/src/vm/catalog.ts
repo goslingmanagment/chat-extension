@@ -110,6 +110,11 @@ export const UNAVAILABLE_REASONS = {
   'language': { key: 'dock.reason.language', code: 'CG-GATE-LANGUAGE' },
   'fan-blocked': { key: 'dock.reason.fanBlocked', code: 'CG-GATE-FAN-BLOCKED' },
   'fan-unknown': { key: 'dock.reason.fanUnknown', code: 'CG-GATE-FAN-UNKNOWN' },
+  /**
+   * 1.15.0 (R20 P8a, FS-IDN-6): the fan of a preview has no conversation its list knows, on a platform where a chat has
+   * an id of its own (Fansly: the group). Nothing of that chat is asked — never by the fan's id instead.
+   */
+  'conversation-unknown': { key: 'dock.reason.conversationUnknown', code: 'CG-DATA-NOT-READY' },
   'overlay-open': { key: 'dock.reason.overlayOpen', code: 'CG-GATE-OVERLAY' },
   'host-degraded': { key: 'dock.reason.hostDegraded', code: 'CG-HOST-CONTRACT' },
   'composer-missing': { key: 'dock.reason.composerMissing', code: 'CG-HOST-COMPOSER-MISSING' },

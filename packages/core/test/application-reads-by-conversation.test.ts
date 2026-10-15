@@ -250,6 +250,125 @@ describe('[host:fansly] R20 F6b: a preview reads the group its list resolved; it
   });
 });
 
+describe('[host:fansly] R20 P8a: a preview never reuses another group’s archive or cursor', () => {
+  async function preview() {
+    const hub = feedHub();
+    const clock = new FakeClock(NOW_MS);
+    const bg = new BoardsBackground({ clock, call: hub.call, session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId, features: featuresOfBoth });
+    const host = new FakeHostPort({ start: startSnapshot, memory, checkpoint: null, answers: {}, timeline: [] }, NOW_MS);
+    let info = infoOf(A);
+    const handle = info.handle;
+    const directory: PreviewDirectory = { resolve: () => info, neighbours: () => ({ previous: null, next: null }), subscribe: () => () => undefined };
+    const controller = createPreviewController({
+      rpc: bg.rpc, host, i18n, clock, ids: sequentialIds(0x9000), context, surfaces: new Surfaces(),
+      navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 2, insert: null }) },
+      directories: { spenders: directory, newcomers: null, palette: null },
+      greeting: null, sender: null, drafts: null, clipboard: null, notifier: null,
+    });
+    controller.subscribe({ of: 'preview', from: 'spenders' }, () => undefined);
+    const open = () => controller.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    await open();
+    await settle(12);
+    const shown = () => controller.getSnapshot({ of: 'preview', from: 'spenders' });
+    expect(shown().feed.items.map((item) => item.id)).toEqual([`${A.group}01`]);
+    return {
+      bg, shown, open,
+      close: () => controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } }),
+      refresh: () => controller.dispatch({ type: 'RefreshArchive', targetHandle: handle }),
+      older: () => controller.dispatch({ type: 'LoadOlder', targetHandle: handle }),
+      reads: () => bg.requests.filter((request) => request.type === 'feed.read').map((request) => request.payload),
+      group: (group: string | null) => {
+        const { conversationRef: _previous, ...fan } = info;
+        info = group === null ? fan : { ...fan, conversationRef: group };
+      },
+      dispose: () => { controller.dispose(); host.dispose(); },
+    };
+  }
+
+  it.each(['success', 'failure'] as const)('P1: reopening the same fan with a different group drops cached rows and cursor before the first page’s %s', async (outcome) => {
+    const h = await preview();
+    await h.close();
+    h.group(B.group);
+    const release = h.bg.hold('feed.read');
+    await h.open();
+    await settle(12);
+    expect.soft(h.shown().feed).toMatchObject({ items: [], hasOlder: false });
+    await h.older();
+    expect.soft(h.reads()).toMatchObject([
+      { fanRef: A.fan, conversationRef: A.group, cursor: null },
+      { fanRef: A.fan, conversationRef: B.group, cursor: null },
+    ]);
+    if (outcome === 'failure') h.bg.failNext('feed.read', { code: 'CG-HUB-UNAVAILABLE' });
+    release();
+    await settle(12);
+    if (outcome === 'success') {
+      expect(h.shown().feed.items.map((item) => item.id)).toEqual([`${B.group}01`]);
+      await h.older();
+      expect(h.reads().at(-1)).toMatchObject({ fanRef: A.fan, conversationRef: B.group, cursor: `older-of-${B.group}` });
+    } else {
+      expect(h.shown().feed).toMatchObject({ items: [], hasOlder: false });
+      expect(h.shown().view).toMatchObject({ s: 'offline', error: { code: 'CG-HUB-UNAVAILABLE' } });
+    }
+    h.dispose();
+  });
+
+  it('P1: reopening the same group preserves its cached rows and its own cursor', async () => {
+    const h = await preview();
+    await h.close();
+    const release = h.bg.hold('feed.read');
+    await h.open();
+    expect(h.shown().feed.items.map((item) => item.id)).toEqual([`${A.group}01`]);
+    await h.older();
+    expect(h.reads().at(-1)).toMatchObject({ conversationRef: A.group, cursor: `older-of-${A.group}` });
+    release();
+    await settle(12);
+    h.dispose();
+  });
+
+  it('P2: losing the group and refreshing clears the archive and blocks older reads until a new first page arrives', async () => {
+    const h = await preview();
+    h.group(null);
+    await h.refresh();
+    expect.soft(h.shown().feed).toMatchObject({ items: [], hasOlder: false, loadingOlder: false, olderError: null });
+    expect.soft(h.shown().view).toMatchObject({ s: 'error', error: { code: 'CG-DATA-NOT-READY' } });
+    await h.older();
+    expect.soft(h.reads()).toHaveLength(1);
+    h.group(B.group);
+    const release = h.bg.hold('feed.read');
+    const refreshing = h.refresh();
+    await settle(12);
+    await h.older();
+    expect.soft(h.reads()).toHaveLength(2);
+    release();
+    await refreshing;
+    expect(h.shown().feed.items.map((item) => item.id)).toEqual([`${B.group}01`]);
+    await h.older();
+    expect(h.reads().at(-1)).toMatchObject({ conversationRef: B.group, cursor: `older-of-${B.group}` });
+    h.dispose();
+  });
+
+  it('P2: «Старее» checks whether the group is still known even before refresh', async () => {
+    const h = await preview();
+    h.group(null);
+    await h.older();
+    expect(h.reads()).toHaveLength(1);
+    h.dispose();
+  });
+
+  it('P2: an older page already in flight cannot restore the archive after the group is lost', async () => {
+    const h = await preview();
+    const release = h.bg.hold('feed.read');
+    const older = h.older();
+    h.group(null);
+    await h.refresh();
+    expect.soft(h.shown().feed).toMatchObject({ items: [], hasOlder: false, loadingOlder: false });
+    release();
+    await older;
+    expect(h.shown().feed).toMatchObject({ items: [], hasOlder: false, loadingOlder: false });
+    h.dispose();
+  });
+});
+
 describe('[host:fansly] R20 F6b: the fan panel reads the archive of the open chat’s group, the card and the dossier of its fan', () => {
   it('the route’s group goes with the feed read only; the money and the dossier name the fan', async () => {
     const hub = feedHub();

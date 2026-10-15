@@ -13,7 +13,8 @@
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
 import { type Dossier, type SpenderDetail } from '@cg/contracts/hub';
-import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
+import { HOST_PLATFORM } from '@cg/contracts/hosts';
+import { CHAT_IS_FAN, chatKeyOf, type ChatRef } from '@cg/contracts/ids';
 import { type CoverageLevel } from '@cg/contracts/ops';
 import { type ActionReceipt, type FanPanelVM, type I18n, type PartialGap, type UiAction, type VmView } from '@cg/contracts/vm';
 
@@ -89,10 +90,15 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     return binding === null || binding.hostAccountId === route.chat.hostAccountId ? route.chat : null;
   }
 
-  /** R20 F6b: the conversation of the open chat when the route names one that is not the fan (Fansly: the group); `{}` on ChatSpace. */
-  function conversationOf(chat: ChatRef): { readonly conversationRef?: string } {
+  /**
+   * R20 F6b: the conversation of the open chat when the route names one that is not the fan (Fansly: the group); `{}`
+   * on ChatSpace. null — the route names none on a platform where a chat has an id of its own (R20 P8a, FS-IDN-6): the
+   * archive is not read by the fan's id in its place, and its state stays unknown.
+   */
+  function conversationOf(chat: ChatRef): { readonly conversationRef?: string } | null {
     const ref = host.current().route.conversationRef;
-    return ref === undefined || ref === chat.platformFanId ? {} : { conversationRef: ref };
+    if (ref === undefined) return CHAT_IS_FAN[HOST_PLATFORM[chat.host]] ? {} : null;
+    return ref === chat.platformFanId ? {} : { conversationRef: ref };
   }
 
   const usable = (): boolean => {
@@ -133,7 +139,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       rpc.request('fan.card', { pageId, fanRef, period: '30d' }),
       rpc.request('fan.dossier', { pageId, fanRef }),
       // One row is enough: the page carries the archive's coverage. It is the hub's database only — the chat is not read on OnlyFans.
-      archiveOn ? rpc.request('feed.read', { pageId, fanRef, cursor: null, limit: 1, ...conversation }) : Promise.resolve(null),
+      archiveOn && conversation !== null ? rpc.request('feed.read', { pageId, fanRef, cursor: null, limit: 1, ...conversation }) : Promise.resolve(null),
     ]);
     if (disposed || atEpoch !== epoch || card.run !== run) return;
     card.loading = false;

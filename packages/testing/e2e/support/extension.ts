@@ -113,6 +113,8 @@ export type SpikeReport = Record<string, unknown> & {
   runtimeError?: string;
   /** Writes that passed our own check of the chat and reached the point where their action token is spent (tab/probe.ts `holdWrite`). */
   writesReached?: number;
+  /** The toasts on screen: kind, code and the chat handle each «Открыть чат» names (`nav.chat.<account>.<fan>[.<conversation>]`). */
+  toasts?: readonly { readonly kind: string; readonly code: string | null; readonly chats: readonly string[] }[];
   startedAt?: number;
   readyStateAtStart?: string;
 };
