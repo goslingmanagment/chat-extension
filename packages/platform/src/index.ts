@@ -4,7 +4,8 @@
 // parameter that defaults to the real `browser`, so tests run on a fake.
 //
 // - storage: storage.local / storage.session with budgets and CG-STORAGE-* results
-// - rpc-background / rpc-tab / rpc-page: the typed §5.4 protocol with sender checks
+// - rpc-background / rpc-tab / rpc-page / rpc-relay: the typed §5.4 protocol with sender checks
+//   (rpc-relay — the frame side of a site's relay port, R20 P9c)
 // - alarms, lifecycle (installed, browser start, suspend), permissions (hub
 //   host access, technicalAndInteraction consent)
 // - idb: a bounded IndexedDB store (logs, R18 owns the record format)
@@ -67,6 +68,15 @@ export {
   type TabRpcClient,
   type TabRpcClientOptions,
 } from './rpc-tab';
+export {
+  createRelayRpcClient,
+  DEFAULT_RELAY_RECONNECT_DELAYS_MS,
+  DEFAULT_RELAY_REQUEST_TIMEOUT_MS,
+  DEFAULT_RELAY_SETTLED_AFTER_MS,
+  type RelayConnectionState,
+  type RelayRpcClient,
+  type RelayRpcClientOptions,
+} from './rpc-relay';
 export { createPageRpcClient, DEFAULT_PAGE_REQUEST_TIMEOUT_MS, type PageEventsState, type PageRpcClient, type PageRpcClientOptions } from './rpc-page';
 export { alarmCreateInfo, createAlarms, type AlarmSchedule, type AlarmsPort } from './alarms';
 export { createLifecycle, INSTALL_REASONS, type InstalledDetails, type InstallReason, type LifecyclePort } from './lifecycle';

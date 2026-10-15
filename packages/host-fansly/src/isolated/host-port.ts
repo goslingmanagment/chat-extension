@@ -33,9 +33,11 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 //   or Send click in the field the port owns, and MAIN's `fx.sent` for that
 //   gesture is linked to it — the port says `humanSend` (send-observe.ts).
 // - `fansly` (FanslyPagePort): the header slot is said from the anchors (its
-//   mount is P7d's and P11a's); a file into the field (P12c) and the relay
-//   (P9c) are refused until then; a file into the vault is the vault panel's
-//   upload (`vault.serve`, P13b), refused while its module is not up.
+//   mount is P7d's and P11a's); a file into the field (P12c) is refused until
+//   then; a file into the vault is the vault panel's upload (`vault.serve`,
+//   P13b), refused while its module is not up; the relay frame of «Fansly
+//   через вкладку» (P9c, relay-frame.ts) is mounted for the creator when the
+//   background asks, and goes with a change of creator.
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
@@ -66,6 +68,7 @@ import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf,
 import type { Coexistence } from './legacy';
 import type { FanslyMounts } from './mount';
 import { createNavigator, type NavigationWay } from './navigate';
+import { createRelayFrame } from './relay-frame';
 import type { FanslyRoute, RouteStats, RouteWatcher } from './route';
 import { createSendObserver, type SendObserveStats } from './send-observe';
 import type { FanslyTheme } from './theme';
@@ -150,6 +153,8 @@ export interface FanslyHostPortOptions {
   readonly navInsertTimeoutMs?: () => number | undefined;
   /** The page loaded by its address when a navigation did not open the chat (SP-036); tests replace it. */
   readonly load?: (path: string) => void;
+  /** R20 P9c: the relay page of «Fansly через вкладку» (`moz-extension://<uuid>/fansly-relay.html`), asked at the first mount; absent — no relay. */
+  readonly relayUrl?: () => Promise<string>;
   readonly adapterVersion?: string;
   readonly now?: () => number;
   readonly onDiagnostic?: (diagnostic: FanslyDiagnostic) => void;
@@ -177,6 +182,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   let logins = 0;
   /** Changes of creator after the first binding: a field seen before the binding is the first creator's. */
   let creatorChanges = 0;
+  /** «Fansly через вкладку» (P9c): the relay frame, for the account the tab is on, mounted only when the background asks. */
+  const relayFrame = createRelayFrame({ doc, url: options.relayUrl, account: () => creator, onDiagnostic: diag });
   let network: FanslyContractWire | null = null;
   /** MAIN's chat for the current route's group and epoch; null — not known. */
   let chatWire: FanslyChatWire | null = null;
@@ -284,7 +291,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   });
 
   function compute(): FanslyContractReport {
-    return buildFanslyReport({ blocked: options.coexistence?.reason() ?? null, bridge: bridge !== null, wire: network, creator: creator !== null, observation, dom, build, adapterVersion, checkedAt: clock() });
+    return buildFanslyReport({ blocked: options.coexistence?.reason() ?? null, bridge: bridge !== null, wire: network, creator: creator !== null, observation, dom, build, adapterVersion, checkedAt: clock(), relay: options.relayUrl !== undefined });
   }
 
   const loginEpoch = (): string | null => (creator === null ? null : `fansly-${logins}`);
@@ -419,6 +426,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     }
     creator = next;
     logins += 1;
+    // A frame of the old account serves it no more: it goes now, before anything of the new one is asked (FS-NET-4).
+    relayFrame.accountChanged();
     return true;
   };
   const setCreator = (next: string | null): void => {
@@ -653,7 +662,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     },
     attachToComposer: () => Promise.resolve({ state: 'refused', reason: 'anchor-missing' }),
     uploadToVault: (file) => (vaultUpload === null || disposed ? Promise.resolve({ state: 'refused', reason: 'anchor-missing' }) : vaultUpload(file)),
-    relay: { open: () => Promise.resolve('failed'), close: () => undefined },
+    relay: { open: () => (disposed ? Promise.resolve('failed') : relayFrame.open()), close: () => relayFrame.close() },
   };
 
   const dispose = (): void => {
@@ -679,6 +688,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     vaultListeners.clear();
     vaultLosses.clear();
     vaultUpload = null;
+    relayFrame.close();
   };
   const retire = (): void => {
     generation.advance();

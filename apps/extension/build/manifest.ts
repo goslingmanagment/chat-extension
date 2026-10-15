@@ -131,8 +131,8 @@ export interface ManifestLike {
 
 /**
  * Applied in WXT's build:manifestGenerated hook: web_accessible_resources =
- * exactly the lazy chunks (+ their CSS), one entry per site's lazy build, for
- * that site's pages alone (docs/project-unite/architecture.md §3.2: a site's
+ * exactly the lazy chunks (+ their CSS) and a site's relay page (R20 P9c), one
+ * entry per site's lazy build, for that site's pages alone (docs/project-unite/architecture.md §3.2: a site's
  * tab may load its own build, never another's); in a test build every content
  * script also matches its site's loopback stand. A content script no site of
  * the registry declares, or a lazy file of no build, fails the build.
@@ -157,10 +157,11 @@ export function finalizeManifest(
     const site = sites.find((candidate) => candidate.site === chunk.site);
     if (site === undefined || !inBuild(chunk.file, site)) throw new Error(`finalizeManifest: lazy file ${chunk.file} is of no lazy build of this flavor (${sites.map((candidate) => candidate.build.root).join(', ')})`);
   }
+  // A site's relay page (R20 P9c) goes into its entry: its pages frame it, no other page may.
   const resources = sites
     .map((site) => ({ site, files: options.lazyChunks.filter((chunk) => chunk.site === site.site).map((chunk) => chunk.file) }))
     .filter(({ files }) => files.length > 0)
-    .map(({ site, files }) => ({ resources: files.sort(), matches: [...site.matches] }));
+    .map(({ site, files }) => ({ resources: [...files.sort(), ...(site.relayPage === undefined ? [] : [site.relayPage])], matches: [...site.matches] }));
   if (resources.length > 0) manifest.web_accessible_resources = resources;
 }
 
@@ -257,12 +258,13 @@ export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFl
     const resources = asArray(entry['resources']);
     if (resources.length === 0) fail('a web_accessible_resources entry lists no lazy chunks');
     for (const resource of resources) {
-      if (typeof resource !== 'string' || !/^lazy\/.+\.(js|css)$/.test(resource)) {
-        fail(`web_accessible_resources may list only lazy chunks and their CSS, got ${String(resource)}`);
+      if (typeof resource !== 'string' || (!/^lazy\/.+\.(js|css)$/.test(resource) && !builds.some((site) => site.relayPage === resource))) {
+        fail(`web_accessible_resources may list only lazy chunks and their CSS, and a site's relay page, got ${String(resource)}`);
       }
     }
     if ('use_dynamic_url' in entry) fail('use_dynamic_url is Chrome-only');
-    const site = builds.find((candidate) => resources.length > 0 && resources.every((resource) => inBuild(resource, candidate)));
+    // A site's own entry: its lazy files, and its relay page (R20 P9c) — never another site's.
+    const site = builds.find((candidate) => resources.some((resource) => inBuild(resource, candidate)) && resources.every((resource) => inBuild(resource, candidate) || resource === candidate.relayPage));
     if (site === undefined) {
       fail(`a web_accessible_resources entry must list the files of exactly one lazy build (${builds.map((candidate) => candidate.build.root).join(', ')}), got ${resources.slice(0, 3).map(String).join(', ')}${resources.length > 3 ? ', …' : ''}`);
       continue;
@@ -272,6 +274,7 @@ export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFl
   for (const site of builds) {
     const entries = war.filter((entry) => asArray(entry['resources']).some((resource) => inBuild(resource, site)));
     if (entries.length !== 1) fail(`the lazy build ${site.build.root} must be exactly one web_accessible_resources entry, got ${entries.length}`);
+    if (site.relayPage !== undefined && !asArray(entries[0]?.['resources']).includes(site.relayPage)) fail(`the relay page ${site.relayPage} must be in the web_accessible_resources entry of ${site.build.root}`);
   }
 
   const action = manifest['action'] as Record<string, unknown> | undefined;

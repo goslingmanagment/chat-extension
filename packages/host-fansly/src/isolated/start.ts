@@ -42,6 +42,8 @@ export interface StartFanslyHostOptions {
   readonly handshakeTimeoutMs?: number;
   /** A search's time limit (anchors.ts SEARCH_MS by default). */
   readonly searchMs?: number;
+  /** R20 P9c: the relay page of «Fansly через вкладку» (the extension's address of `fansly-relay.html`), asked at its first mount; absent — none. */
+  readonly relayUrl?: () => Promise<string>;
   readonly onDiagnostic?: (diagnostic: FanslyDiagnostic) => void;
 }
 
@@ -99,6 +101,7 @@ export function startFanslyHost(options: StartFanslyHostOptions): StartedFanslyH
       redeem: options.redeem,
       validation,
       ...(options.navInsertTimeoutMs ? { navInsertTimeoutMs: options.navInsertTimeoutMs } : {}),
+      ...(options.relayUrl === undefined ? {} : { relayUrl: options.relayUrl }),
       ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}),
     });
     await port.ready;

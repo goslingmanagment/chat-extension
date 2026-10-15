@@ -38,7 +38,7 @@ export function pageMatchesOf(host: HostDescriptor, test: boolean): string[] {
 
 /** The lazy builds of an extension build: every site's of the registry, in its order, each for its own pages. */
 export function lazySitesOf(test: boolean, hosts: readonly HostDescriptor[] = HOSTS): LazySite[] {
-  return hosts.map((host): LazySite => ({ site: host.kind, build: host.lazy, matches: pageMatchesOf(host, test) }));
+  return hosts.map((host): LazySite => ({ site: host.kind, build: host.lazy, matches: pageMatchesOf(host, test), ...(host.relayPage === undefined ? {} : { relayPage: host.relayPage }) }));
 }
 
 /** The hub (D-13). */

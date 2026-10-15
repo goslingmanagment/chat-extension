@@ -2,7 +2,9 @@
 // only code of the extension that requests Fansly, imported by Fansly's
 // background chunk alone (.dependency-cruiser.cjs `fansly-api-only-in-its-chunk`).
 // FS-NET-1 as data (allowlist.ts), the envelope and the errors (errors.ts), the
-// pacer (pacer/), the client over them (client.ts).
+// pacer (pacer/), the client over them (client.ts) and where a ready request
+// leaves — the event page's own `fetch` or the relay frame of the model's tab
+// (transport.ts, R20 P9c).
 
 import { createFanslyClient, type FanslyClient, type FanslyClientDeps, type FanslySessionPort } from './client';
 import { createFanslyPacer, type FanslyPacer, type PacerDeps, type RateLimitFactLike } from './pacer';
@@ -11,6 +13,7 @@ export * from './allowlist';
 export * from './errors';
 export * from './client';
 export * from './pacer';
+export * from './transport';
 
 /** The core's session owner as the API needs it: its templates and its 429 facts (`BackgroundKit.networkSession`). */
 export interface FanslyNetworkSession extends FanslySessionPort {

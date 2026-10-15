@@ -24,6 +24,12 @@ export const FANSLY_QUIET_DOMAINS: readonly string[] = [];
 export const FANSLY_LAZY_ROOT = 'lazy/fansly';
 
 /**
+ * The relay frame of «Fansly через вкладку» (§8.5, R20 P9c): an extension page at the extension's own base, framed by
+ * a Fansly tab in a closed root; web-accessible to Fansly's pages alone (build/manifest.ts), its port `cg-relay`.
+ */
+export const FANSLY_RELAY_PAGE = 'fansly-relay.html';
+
+/**
  * The page's own socket and API, which Fansly's MAIN observes (§5.2, §5.4; FS-WS-1): the host name of its socket
  * (`wss://wsv3.fansly.com?v=3`) and the origin of its API (`/api/v1/…`). Its entry point hands them in.
  */

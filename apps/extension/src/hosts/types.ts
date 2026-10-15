@@ -70,6 +70,8 @@ export interface LazySite {
   readonly build: HostLazyBuild;
   /** The pages that may load its files (its `web_accessible_resources` entry): the site's pages, its stand in a test build. */
   readonly matches: readonly string[];
+  /** R20 P9c: the site's relay page, web-accessible in the same entry (its pages frame it); absent — none. */
+  readonly relayPage?: string;
 }
 
 /** One line of `pnpm size`: a script of the site and its gzip -9 ceiling. */
@@ -149,6 +151,11 @@ export interface HostDescriptor extends RuntimeHostRow {
   readonly permissions: HostPermissions;
   /** The site's background chunk; absent — everything the site needs in the background is the core's. */
   readonly background?: HostBackground;
+  /**
+   * R20 P9c: the site's relay page (`<page>.html` at the extension's base), framed by its tabs for «… через вкладку»
+   * (architecture.md §8.5): web-accessible to the site's pages alone, the core's `cg-relay` port takes it. Absent — none.
+   */
+  readonly relayPage?: string;
   /** Folders whose modules run in the page's own world: every callback they hand the page goes through `guard` (tools/gates). */
   readonly mainWorldSources: readonly string[];
   readonly budgets: HostBudgets;

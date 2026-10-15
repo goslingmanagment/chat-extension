@@ -21,7 +21,7 @@
 // module brings (bg/fansly.ts, R20 P7i).
 
 import { BEFORE_THE_DOCK, LAZY_LAYERS } from '../../lazy/entries/names.ts';
-import { FANSLY_API_MATCHES, FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_QUIET_DOMAINS } from './runtime/fansly.ts';
+import { FANSLY_API_MATCHES, FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_QUIET_DOMAINS, FANSLY_RELAY_PAGE } from './runtime/fansly.ts';
 import { FANSLY_STAND_MATCHES } from './runtime/index.ts';
 import type { HostDescriptor, TestHostConfig } from './types.ts';
 
@@ -73,6 +73,8 @@ export const FANSLY: HostDescriptor = {
   kind: 'fansly-web',
   platform: 'fansly',
   background: { source: 'bg/fansly.ts', file: 'bg/fansly.js', rawBytes: 200 * KIB },
+  // «Fansly через вкладку» (§8.5, R20 P9c): the relay page its tabs frame, web-accessible to Fansly's pages alone.
+  relayPage: FANSLY_RELAY_PAGE,
   matches: FANSLY_MATCHES,
   quietDomains: FANSLY_QUIET_DOMAINS,
   scripts: {
@@ -93,8 +95,9 @@ export const FANSLY: HostDescriptor = {
       // Everything of MAIN in one script, ≤ 1 ms at document_start (e2e): the P3a prototype was 8.8 KiB.
       { entry: 'fansly-main', label: 'MAIN: boot, traps, observation (fansly-main)', gzipBytes: 16 * KIB },
       // P7g: admission, retirement and notices alongside P7d's dock (30.43 KiB measured); R20 P7e: → 36 KiB (33.41 measured) — the writes
-      // (the field's revision and record, the insert, «Открыть и вставить») start with the port.
-      { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 36 * KIB },
+      // (the field's revision and record, the insert, «Открыть и вставить») start with the port; R20 P9c: → 38 KiB (36.04
+      // measured) — the relay frame and its lease, early: the background's work may route through a tab without a chat.
+      { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 38 * KIB },
       { entry: 'fansly-notice', label: 'reload notice (fansly-notice)', gzipBytes: 2 * KIB },
     ],
     contracts: [],

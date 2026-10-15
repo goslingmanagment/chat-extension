@@ -27,13 +27,22 @@
 //
 // A write the hub's custody guards (§8.6) is made in two steps: `prepare`
 // (everything that may wait: the session, the pacer, a cooldown refuses it
-// before the custody) and `start` — synchronous up to `fetch`, so the caller's
-// final check and the request have no `await` between them.
+// before the custody, the route) and `start` — synchronous up to `fetch`, so
+// the caller's final check and the request have no `await` between them.
+//
+// R20 P9c: the route (transport.ts) is chosen in `prepare`, after the pacer's
+// turn: the event page's own `fetch`, or with «Fansly через вкладку» the relay
+// frame of the model's tab, up and answering before anything goes to the hub's
+// custody — no frame in time is `tab`, provably unsent, and never the direct
+// route instead. `start` asks the route whether it still holds (the same frame,
+// tab, document and session) right before it sends; the route dispatches before
+// it yields.
 
 import { admit, addressOf, FANSLY_API_BASE, FANSLY_ROUTES, type FanslyAddressParts, type FanslyPurpose, type FanslyRouteName, type FanslyRouteSpec } from './allowlist';
 import { FanslyApiError, readEnvelope, retryAfterMs } from './errors';
 import { PacerAborted, PacerCooling, type FanslyPacer, type PacerCreator, type PacerPass } from './pacer/pacer';
 import { REQUEST_RULES } from './pacer/rules';
+import { FanslyRouteRefused, FanslyRouteUnavailable, directTransport, type FanslyFetch, type FanslyHttpResponse, type FanslyRoute, type FanslyTransport, type FanslyTransportLabel } from './transport';
 
 /** A session template of a creator as the core holds it (core/services/network-session.ts `SessionTemplate`, structurally). */
 export interface FanslySessionTemplate {
@@ -71,22 +80,17 @@ export interface FanslyAnswer {
   readonly status: number;
 }
 
-/** A call admitted and paced, not sent yet. */
+/** A call admitted, paced and routed, not sent yet. */
 export interface PreparedFanslyCall {
+  /** Where it goes (§8.5): `direct`, or `tab:<tabSessionId>` of the relay frame — a part of P9d's tuple. */
+  readonly transport: FanslyTransportLabel;
+  /** The route's part of the last check, synchronous (transport.ts `FanslyRoute.holds`); `start` asks it too. */
+  holds(): boolean;
   /** Sends it: synchronous up to `fetch` (the template is read now). Once. */
   start(): Promise<FanslyAnswer>;
   /** Not sent after all (the caller's own check refused it): the pacer's turn is given back. */
   cancel(): void;
 }
-
-/** The response as the client reads it: a status, the one header it needs and the body as text. */
-export interface FanslyHttpResponse {
-  readonly status: number;
-  readonly headers: { get(name: string): string | null };
-  text(): Promise<string>;
-}
-
-export type FanslyFetch = (url: string, init: RequestInit) => Promise<FanslyHttpResponse>;
 
 export interface FanslyClientDeps {
   readonly session: FanslySessionPort;
@@ -94,6 +98,8 @@ export interface FanslyClientDeps {
   /** Where the requests go: FANSLY_API_BASE; a test build hands the stand's API (`http://localhost:<port>/api/v1/`). */
   readonly base?: string;
   readonly fetch?: FanslyFetch;
+  /** Where a ready request leaves (R20 P9c, transport.ts): the event page's own `fetch` by default. */
+  readonly transport?: FanslyTransport;
   readonly now?: () => number;
   readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   readonly setTimer?: (callback: () => void, ms: number) => unknown;
@@ -119,11 +125,12 @@ const sleepFor = (ms: number, signal?: AbortSignal): Promise<void> =>
     else signal?.addEventListener('abort', abort, { once: true });
   });
 
-const notSent = (kind: 'not-admitted' | 'session' | 'aborted'): FanslyApiError => new FanslyApiError(kind, { sent: false });
+const notSent = (kind: 'not-admitted' | 'session' | 'aborted' | 'tab'): FanslyApiError => new FanslyApiError(kind, { sent: false });
 
 export function createFanslyClient(deps: FanslyClientDeps) {
   const base = deps.base ?? FANSLY_API_BASE;
   const doFetch: FanslyFetch = deps.fetch ?? ((url, init) => fetch(url, init));
+  const transport = deps.transport ?? directTransport(doFetch);
   const now = deps.now ?? (() => Date.now());
   const sleep = deps.sleep ?? sleepFor;
   const setTimer = deps.setTimer ?? ((callback: () => void, ms: number): unknown => setTimeout(callback, ms));
@@ -156,8 +163,18 @@ export function createFanslyClient(deps: FanslyClientDeps) {
       if (error instanceof PacerAborted) throw notSent('aborted');
       throw error;
     }
+    // The route after the pacer's turn, before anything is handed to the custody: a frame raised now serves the request at once.
+    let route: FanslyRoute;
+    try {
+      route = await transport.route({ legacyId: template.legacyId, canonicalId: template.canonicalId, ...(call.signal === undefined ? {} : { signal: call.signal }) });
+    } catch (error) {
+      pass.release();
+      throw notSent(error instanceof FanslyRouteUnavailable && error.reason === 'aborted' ? 'aborted' : 'tab');
+    }
     let used = false;
     return {
+      transport: route.transport,
+      holds: () => route.holds(),
       cancel() {
         if (used) return;
         used = true;
@@ -175,6 +192,11 @@ export function createFanslyClient(deps: FanslyClientDeps) {
         if (live === null || !live.connected || live.legacyId !== template.legacyId) {
           pass.release();
           return Promise.reject(notSent('session'));
+        }
+        // The route's part of the last check: the same frame, tab, document and session (or the switch still off).
+        if (!route.holds()) {
+          pass.release();
+          return Promise.reject(notSent('tab'));
         }
         const requestId = crypto.randomUUID();
         const headers: Record<string, string> = { [REQUEST_ID_HEADER]: requestId };
@@ -210,18 +232,10 @@ export function createFanslyClient(deps: FanslyClientDeps) {
         }
         let request: Promise<FanslyHttpResponse>;
         try {
-          request = doFetch(url, {
-            method: spec.method,
-            headers,
-            ...(body === undefined ? {} : { body }),
-            credentials: 'omit',
-            cache: 'no-store',
-            redirect: 'error',
-            referrerPolicy: 'no-referrer',
-            signal: controller.signal,
-          });
+          // `credentials: 'omit'`, `cache: 'no-store'`, `redirect: 'error'`, `referrerPolicy: 'no-referrer'` — the route's (the relay frame's too).
+          request = route.send({ url, path: url.slice(base.length), method: spec.method, headers, ...(body === undefined ? {} : { body }), signal: controller.signal });
         } catch {
-          request = Promise.reject(new TypeError('fetch threw'));
+          request = Promise.reject(new TypeError('send threw'));
         }
         return answerOf(request, () => timedOut, live, pass, spec).finally(() => {
           finish();
@@ -237,7 +251,9 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     let text: string;
     try {
       response = await request;
-    } catch {
+    } catch (error) {
+      // The route took nothing (no frame took the post, or the frame's own check refused): provably no request.
+      if (error instanceof FanslyRouteRefused) throw notSent('tab');
       throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true });
     }
     const status = response.status;
@@ -287,7 +303,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     }
   }
 
-  return { prepare, call, base };
+  return { prepare, call, base, transport };
 }
 
 export type FanslyClient = ReturnType<typeof createFanslyClient>;

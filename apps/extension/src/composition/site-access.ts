@@ -3,6 +3,8 @@
 import { FANSLY_API_MATCHES, FANSLY_MATCHES } from '../hosts/runtime/fansly';
 import { FANSLY_STAND_MATCHES } from '../hosts/runtime';
 
+export { FANSLY_RELAY_PAGE } from '../hosts/runtime/fansly';
+
 export const OPTIONAL_HOST = 'fansly-web' as const;
 export const SESSION_KEY = 'fansly.session';
 export const RELOAD_KEY = 'fansly.waitingReload';

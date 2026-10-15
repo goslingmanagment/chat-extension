@@ -31,7 +31,9 @@
 // - A relay frame (`cg-relay`) is a subframe of a tab at the site's relay
 //   page; it is accepted only inside a tab that holds a registered session of
 //   that site, speaks for that session only, and goes when that tab's port
-//   goes. It sends only types its registry allows from `relay`.
+//   goes. It sends only types its registry allows from `relay`. Its site hears
+//   once when it goes, either way (`SiteRpc.relayGone`, R20 P9c): what it was
+//   asked and has not answered will not be answered.
 
 import { TabEnvelopeSchema, type ExtensionPage, type TabRegisterRequest, type TabSender } from '@cg/contracts/tab-protocol';
 import {
@@ -117,6 +119,11 @@ export interface SiteRpc {
   eventTargets(type: string): readonly TabSender[] | null;
   /** A shared CG code in a failure: a site's own failure travels in its payload (contracts errors-fansly.ts). */
   handle(type: string, payload: unknown, sender: SiteSenderContext): RpcResult<unknown> | Promise<RpcResult<unknown>>;
+  /**
+   * R20 P9c: a relay frame of the site is gone — its port closed, or the core closed it with its tab's document. What
+   * the frame was asked and has not answered will not be answered. Called once per relay port.
+   */
+  relayGone?(sender: Extract<SiteSenderContext, { readonly kind: 'relay' }>): void;
 }
 
 export type TabRequestHandler<T extends HandledRequestType> = (
@@ -178,7 +185,7 @@ interface RelayPortState {
   readonly host: TabHostKind;
   readonly tabSessionId: string;
   /** What its requests carry to the site's handler. */
-  readonly sender: SiteSenderContext;
+  readonly sender: Extract<SiteSenderContext, { readonly kind: 'relay' }>;
   /** The tab document it is framed in: it goes with it. */
   readonly owner: TabPortState;
 }
@@ -327,6 +334,16 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     });
   }
 
+  /** A relay port is gone (its frame closed it, or the core did with its tab's document): its site hears it once. */
+  function relayGone(relay: RelayPortState): void {
+    if (!relayPorts.delete(relay)) return;
+    try {
+      sites.get(relay.host)?.relayGone?.(relay.sender);
+    } catch {
+      reject('handler', null, 'relay');
+    }
+  }
+
   /** A request of the sender's site's registry (a tab or a relay). null — refused without an answer (unknown type, wrong sender), as for the shared registry. */
   async function dispatchSite(type: string, payload: unknown, sender: SiteSenderContext): Promise<RpcResult<unknown> | null> {
     if (!(await ready(type, sender.kind))) return rpcError('CG-UNKNOWN', 'background not ready');
@@ -444,11 +461,11 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       port.onMessage.addListener((message) => onTabMessage(state, message));
       port.onDisconnect.addListener(() => {
         tabPorts.delete(state);
-        // Its relay frames belong to this document: they go with it.
+        // Its relay frames belong to this document: they go with it (a port closed on this side hears no onDisconnect).
         for (const relay of [...relayPorts]) {
           if (relay.owner !== state) continue;
-          relayPorts.delete(relay);
           relay.port.disconnect();
+          relayGone(relay);
         }
         if (state.session) options.onTabGone?.(state.session);
       });
@@ -473,7 +490,7 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       const state: RelayPortState = { port, host, tabSessionId, owner, sender: { kind: 'relay', host, tabSessionId, tabId, frameId, url } };
       relayPorts.add(state);
       port.onMessage.addListener((message) => onRelayMessage(state, message));
-      port.onDisconnect.addListener(() => relayPorts.delete(state));
+      port.onDisconnect.addListener(() => relayGone(state));
       return;
     }
     if (port.name === PAGE_PORT_NAME) {

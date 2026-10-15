@@ -24,7 +24,7 @@ import { PAGE_CHUNK_GROUPS, PAGE_ENTRY_NAMES } from '../build/page-chunks.ts';
 import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, HOSTS, LOOPBACK_MATCHES, scriptsOf } from '../src/hosts/index.ts';
 import { FANSLY_LAZY_ENTRIES } from '../src/hosts/fansly.ts';
 import { CHATSPACE_LAZY_ROOT } from '../src/hosts/runtime/chatspace.ts';
-import { FANSLY_LAZY_ROOT } from '../src/hosts/runtime/fansly.ts';
+import { FANSLY_LAZY_ROOT, FANSLY_RELAY_PAGE } from '../src/hosts/runtime/fansly.ts';
 import { SITE_BASE, SITE_PAGES } from '../src/site.ts';
 
 /** tools/archive-check takes a JS file over this for a foreign bundle (`MAX_JS_BYTES`). */
@@ -130,13 +130,17 @@ describe('release manifest (§3)', () => {
     expect(JSON.stringify(release.manifest['content_scripts'])).not.toContain('fansly');
   });
 
-  it('[EX-010] exposes only the lazy chunks, and they exist: each site’s own build, for its own pages', () => {
+  it('[EX-010] [FX-001] exposes only the lazy chunks — and Fansly’s relay page —, and they exist: each site’s own build, for its own pages', () => {
     const war = release.manifest['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
     expect(war.map((entry) => entry.matches)).toEqual([['https://chat.onlymonster.ai/*'], ['https://fansly.com/*']]);
     expect(war[0]?.resources).toContain('lazy/chatspace/dock.js');
     expect(war[1]?.resources).toContain('lazy/fansly/bridge-validation.js');
+    // R20 P9c: the relay page of «Fansly через вкладку», for Fansly’s pages alone; it is built, and ChatSpace’s pages may not frame it.
+    expect(war[1]?.resources).toContain(FANSLY_RELAY_PAGE);
+    expect(war[0]?.resources).not.toContain(FANSLY_RELAY_PAGE);
+    expect(existsSync(join(release.dir, FANSLY_RELAY_PAGE))).toBe(true);
     for (const [index, root] of [CHATSPACE_LAZY_ROOT, FANSLY_LAZY_ROOT].entries()) {
-      const resources = war[index]?.resources ?? [];
+      const resources = (war[index]?.resources ?? []).filter((resource) => resource !== FANSLY_RELAY_PAGE);
       for (const resource of resources) {
         expect(resource.startsWith(`${root}/`), resource).toBe(true);
         expect(resource).toMatch(/\.(js|css)$/);
@@ -257,7 +261,7 @@ describe('the sites’ lazy builds in the two flavors (R20 F2b)', () => {
     expect(war.map((entry) => entry.resources.every((resource) => resource.startsWith(`${CHATSPACE_LAZY_ROOT}/`)))).toEqual([true, false]);
     // Its application came with the dock (R20 P7d): every entry and shared chunk of its own folder, nothing else.
     expect(war[1]?.matches).toEqual(['https://fansly.com/*', ...FANSLY_STAND_MATCHES]);
-    expect(war[1]?.resources.every((resource) => resource.startsWith(`${FANSLY_LAZY_ROOT}/`))).toBe(true);
+    expect(war[1]?.resources.every((resource) => resource.startsWith(`${FANSLY_LAZY_ROOT}/`) || resource === FANSLY_RELAY_PAGE)).toBe(true);
     for (const entry of Object.keys(FANSLY_LAZY_ENTRIES)) expect(war[1]?.resources, entry).toContain(`${FANSLY_LAZY_ROOT}/${entry}.js`);
     // P12a: the test flavor has the operation port's stand-only probe; the release has none of its graph.
     // Public entries and site scoping stay the same; ChatSpace's bytes remain equal in the next test.
@@ -289,6 +293,8 @@ describe('manifest policy catches violations', () => {
     ['MV2', (m: Record<string, unknown>) => (m['manifest_version'] = 2)],
     ['a non-lazy web resource', (m: Record<string, unknown>) => (m['web_accessible_resources'] = [{ resources: ['background.js'], matches: ['https://chat.onlymonster.ai/*'] }])],
     ['a lazy chunk outside its site’s build', (m: Record<string, unknown>) => (m['web_accessible_resources'] = [{ resources: ['lazy/dock.js'], matches: ['https://chat.onlymonster.ai/*'] }])],
+    ['Fansly’s relay page for ChatSpace’s pages', (m: Record<string, unknown>) => (m['web_accessible_resources'] as Array<{ resources: string[] }>)[0]!.resources.push(FANSLY_RELAY_PAGE)],
+    ['Fansly’s chunks without its relay page', (m: Record<string, unknown>) => ((m['web_accessible_resources'] as Array<{ resources: string[] }>)[1]!.resources = (m['web_accessible_resources'] as Array<{ resources: string[] }>)[1]!.resources.filter((resource) => resource !== FANSLY_RELAY_PAGE))],
     ['ChatSpace’s chunks for every page', (m: Record<string, unknown>) => ((m['web_accessible_resources'] as Array<{ matches: string[] }>)[0]!.matches = ['<all_urls>'])],
     ['all_frames: true', (m: Record<string, unknown>) => ((m['content_scripts'] as Script[])[0]!.all_frames = true)],
     ['missing data consent', (m: Record<string, unknown>) => delete (m['browser_specific_settings'] as { gecko: Record<string, unknown> }).gecko['data_collection_permissions']],
