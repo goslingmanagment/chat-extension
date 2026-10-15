@@ -47,6 +47,7 @@ import type { SiteAccessState } from '@cg/contracts/site-access';
 // bootstrap blocks new sensitive actions (background/token-gate.ts and the
 // hub layer) and takes no result away.
 
+import { hostAccountKeyOf } from '@cg/contracts/settings';
 import {
   CONTRACTS_VERSION,
   HUB_CLIENT_CHECK_CODES,
@@ -361,7 +362,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       armAlarms();
       sound.sync();
       // The site's own services come up with its first tab (its requests wait for them).
-      if (info.request.host !== OPTIONAL_HOST || siteAccess.active()) void hostModules.ensure(info.request.host);
+      if (info.request.host !== OPTIONAL_HOST || siteAccess.active()) void hostModules.ensure(info.request.host).then(() => sound.arbiter.rememberAccounts());
       if (info.request.host === OPTIONAL_HOST) {
         void siteAccess.registered(info.tabId).catch(accessFailed);
         void networkSession.register(info.tabId).catch(accessFailed);
@@ -569,6 +570,12 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     chatspace: (__CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES).map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
   } satisfies PerHost<readonly string[]>;
   const sound = createBackgroundSound({
+    local: throwingStoreOf(local),
+    stream: {
+      policy: (host, accountId) => hostModules.running(host)?.sound?.(accountId) ?? null,
+      listening: (tabSessionId, batch) => hostOfTab(tabSessionId) === batch.host && presence.tabs().some((tab) => tab.tabSessionId === tabSessionId && tab.routeAccount === hostAccountKeyOf(batch.host, batch.hostAccountId)),
+      focused: (batch, conversationRef) => presence.tabs().some((tab) => tab.routeAccount === hostAccountKeyOf(batch.host, batch.hostAccountId) && tab.conversationRef === conversationRef && tab.visible && tab.focused),
+    },
     clock: CLOCK,
     audio,
     presence,
@@ -576,7 +583,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
     newcomersUsable: (pageLabel) => hubInstance?.flagState('newcomers', pageLabel).usable === true,
     accountFlag,
-    hostPermission: async (host) => (await Promise.all((hostOrigins[host] ?? []).map((origin) => hostPermissions.has(origin)))).some(Boolean),
+    hostPermission: async (host) => (host !== OPTIONAL_HOST || siteAccess.active()) && (await Promise.all((hostOrigins[host] ?? []).map((origin) => hostPermissions.has(origin)))).some(Boolean),
     read: (pageLabel, windowHours) => hub().audienceNew({ pageLabel, windowHours }),
     online: () => navigator.onLine,
     events,
@@ -617,6 +624,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // ── the sites' background modules (docs/project-unite/architecture.md §3.3) ──
   // The ports of the core a site's chunk is started with: one owner of each thing stays here.
   const kit: Omit<BackgroundKit, 'telemetry'> = {
+    settingsExt: extSettings,
+    sound: { batch: async (tabSessionId, batch) => {
+      await tabAccounts.known(tabSessionId);
+      await sound.arbiter.handleBatch(tabSessionId, batch);
+    } },
     hub: {
       // The facade is read at each call: it exists once the settings are read.
       facade: { claim: (op) => hub().claim(op), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
@@ -1028,6 +1040,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const recorded = await presence.report(sender.tabSessionId, report);
     // From here the tab's own accounts are known: a request that waited for them is answered now.
     if (report.accounts !== undefined && report.accounts.length > 0) tabAccounts.reported(sender.tabSessionId);
+    // A keepalive never waits behind audio or recomputes the site's aliases.
+    if (recorded.recorded && (report.accounts !== undefined || before?.routeAccount !== presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId)?.routeAccount)) void sound.arbiter.rememberAccounts();
     return ok(recorded);
   });
 

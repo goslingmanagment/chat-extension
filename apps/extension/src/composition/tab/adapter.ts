@@ -37,7 +37,7 @@ import type { SendFuseState } from '@cg/contracts/send';
 import type { HostUiProfile, MountDeps } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
 import type { HotkeyClient, RouteKind } from '@cg/core/domain/hotkeys';
-import type { TabRpcClient } from '@cg/platform';
+import type { TabPayloadValidator, TabRpcClient } from '@cg/platform';
 import type { KitFailure } from '@cg/ui/kit';
 
 import type { LazyEntryName } from '../../../lazy/entries/names';
@@ -117,6 +117,8 @@ export interface HostBridge {
 
 /** A site's host as `start` brought it up: at once the mount layers and the theme, later the bridge and the port. */
 export interface StartedHost<P extends HostPort = HostPort> {
+  /** Site-owned early transport over the existing tab RPC, before application chunks load. */
+  readonly background?: { connect(rpc: TabRpcClient, life: AbortSignal): void; validate(...args: Parameters<TabPayloadValidator>): ReturnType<TabPayloadValidator> | null };
   /** Our hosts of a dead instance (an update, a reinstall) the start took out of the page (UP-009). */
   readonly staleHosts: number;
   /** A host may wait for coexistence checks and retire the entire tab without a reload. */

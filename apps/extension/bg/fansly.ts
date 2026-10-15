@@ -56,11 +56,27 @@ export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegi
 
 async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   await kit.networkSession?.ready;
+  let settingsReady = false;
+  let disposed = false;
+  let retry: ReturnType<BackgroundKit['clock']['setTimer']> | null = null;
+  let reading: Promise<void> | null = null;
+  const refreshSettings = (): Promise<void> => (reading ??= (async () => {
+    try { settingsReady = (await kit.settingsExt?.state())?.ok === true; }
+    catch { settingsReady = false; }
+    if (!disposed && !settingsReady && kit.settingsExt !== undefined && retry === null) {
+      retry = kit.clock.setTimer(1000, () => { retry = null; void refreshSettings(); });
+    }
+  })().finally(() => { reading = null; }));
+  const offSettings = kit.settingsExt?.onChange(() => { void refreshSettings(); });
+  await refreshSettings();
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
     const tab = sender.tabSessionId;
     switch (type) {
+      case 'fansly.sound.batch':
+        await kit.sound?.batch(tab, payload as FanslyTabRequestPayload<'fansly.sound.batch'>);
+        return ok({ recorded: kit.sound !== undefined });
       case 'fansly.vault.resume':
         return ok(await vault.resume(payload as FanslyTabRequestPayload<'fansly.vault.resume'>, tab));
       case 'fansly.vault.checkpoint':
@@ -76,12 +92,23 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   void vault.sweep().catch(() => 0);
   return {
     features: FANSLY_SLICE,
+    sound: (accountId) => {
+      if (!settingsReady || kit.settingsExt === undefined) return null;
+      const tones = kit.settingsExt.current().hosts['fansly-web'].sound;
+      // Presence can switch before the passive session. Only the session owner's
+      // proven canonical mapping may supply an alias; a tab alone proves nothing.
+      const aliases = kit.networkSession?.aliases(accountId) ?? [];
+      return { tones: { message: tones.messagesTone, subscriber: tones.subscribersTone }, aliases };
+    },
     onTabMessage: () => Promise.resolve({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     async onEvent(event) {
       if (event.kind === 'clear-finished') await vault.sweep();
     },
     facts: () => ({}),
     dispose: () => {
+      disposed = true;
+      if (retry !== null) kit.clock.clearTimer(retry);
+      offSettings?.();
       unplug();
       return Promise.resolve();
     },

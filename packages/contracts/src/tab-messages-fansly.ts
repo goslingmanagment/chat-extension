@@ -30,6 +30,7 @@
 // P12b*, P13a, P9c) may add fields and types to it, additively.
 
 import * as z from 'zod/mini';
+import { SoundBatchSchema } from './sound';
 
 import { CgAnyErrorWireSchema } from './errors-fansly';
 import { type HostKind } from './hosts';
@@ -260,6 +261,7 @@ export const FANSLY_RELAY_FAILURES = ['refused', 'network', 'aborted', 'too-larg
 // ── Requests ───────────────────────────────────────────────────────────────
 
 export const FANSLY_TAB_REQUESTS = {
+  'fansly.sound.batch': { req: z.extend(SoundBatchSchema, { host: z.literal('fansly-web') }), res: Ack, from: TAB, hosts: FANSLY },
   // ── «Новые» ──
   /** Opens a pass for the creator of the tab and the window; an open one for the same creator and window is answered as is. */
   'fansly.followers.scan': {

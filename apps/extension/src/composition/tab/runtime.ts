@@ -134,6 +134,8 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   // ── the port ───────────────────────────────────────────────────────────────
   let registry: TabPayloadValidator | null = null;
   const validate: TabPayloadValidator = (kind, type, payload) => {
+    const site = host.background?.validate(kind, type, payload);
+    if (site !== undefined && site !== null) return site;
     if (registry !== null) return registry(kind, type, payload);
     // A page command may come before the registry is loaded (the tab shows no chat yet): it is kept as it came
     // and checked against its schema once the application — and the registry with it — is in (below).
@@ -153,6 +155,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     ...(api === undefined ? {} : { api }),
   });
   life.addEventListener('abort', () => rpc.close());
+  host.background?.connect(rpc, life);
   /** How many times the background answered `tab.register`: more than one — it started again under this tab. */
   let registrations = 0;
   rpc.onState((state, tabSessionId) => {

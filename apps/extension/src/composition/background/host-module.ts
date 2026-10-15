@@ -1,4 +1,3 @@
-import type { NetworkSession } from '@cg/core/services/network-session';
 // The contract between the background core and a site's background chunk
 // (docs/project-unite/architecture.md §3.3): what a chunk `bg/<site>.js`
 // exports (`BackgroundHostModule` as its default export), the ports of the
@@ -20,6 +19,10 @@ import type { NetworkSession } from '@cg/core/services/network-session';
 // for that sender and the payload by the frozen schema; the answer is checked
 // by its schema again on the way out (packages/platform rpc-background).
 
+import type { SettingsExtOwner } from '@cg/core/services';
+import type { SoundBatch } from '@cg/contracts/sound';
+import type { SoundStreamPolicy } from '@cg/core/services/sound';
+import type { NetworkSession } from '@cg/core/services/network-session';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
@@ -157,6 +160,9 @@ export interface SitePort {
 
 /** The ports of the core a site's module is started with. */
 export interface BackgroundKit {
+  /** The one arbiter; waits for this registered tab's first account report. */
+  readonly sound?: { batch(tabSessionId: string, batch: SoundBatch): Promise<void> };
+  readonly settingsExt?: Pick<SettingsExtOwner, 'state' | 'current' | 'onChange'>;
   /** R20 P13b: the site's own tab registry (`fansly.*`), plugged by its module. Absent — the core serves no site registry. */
   readonly site?: SitePort;
   /** Passive session/429 state, owned and restored by the core. No site transport here. */
@@ -192,6 +198,8 @@ export interface HostModuleFacts {
 }
 
 export interface BackgroundHostHandle {
+  /** The site supplies its effective tones and passive account aliases; the arbiter owns all decisions. */
+  readonly sound?: (accountId: string, tabId?: number) => SoundStreamPolicy | null;
   /**
    * The site's slice of the feature manifest, where the core cannot carry it (R20 P7i; architecture.md §1.4): a site
    * whose slice is a file of its own — Fansly's — is not in the core's graph (`background-core-graph`), so its module

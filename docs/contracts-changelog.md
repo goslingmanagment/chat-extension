@@ -44,6 +44,14 @@
 - `GenerationDebug` в `OpDebugView` и `debug.prompt`: исходный снимок контекста генерации и ответы покрытия по id; только в режиме отладки. Необязательные модели строк popup, деталей статуса и снимка отладки; ключи i18n.
 - Старые сообщения проходят без новых полей. Положительные и отрицательные фикстуры — `test/fixtures/diagnostics.ts`, тесты — `test/diagnostics.test.ts`.
 
+### P14a — звуки сокета
+
+- `fansly.sound.batch` в собственном реестре Fansly: 1–512 фактов сокета без текста, один запрос на пачку,
+  только из вкладки Fansly. Схема пачки не входит в общий реестр; ChatSpace `sound.event` сохранён.
+- В `tab.presence` — необязательный `conversationRef` для фокуса разговора без известного фана;
+  в `fx.incoming` — необязательные `senderId` и `accountId` (креатор при захвате).
+- Фикстуры — `test/fixtures/protocols-fansly.ts`, `test/fixtures/protocols.ts`; проверки — `test/sound.test.ts`.
+
 ### Review follow-ups — порядок id и допуск флагов ChatSpace
 
 - `primitives.compareNativeIds` и `nativeIdsAscending` — один порядок канонических десятичных id без `Number`:

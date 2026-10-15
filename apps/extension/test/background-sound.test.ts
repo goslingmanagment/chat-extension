@@ -81,6 +81,7 @@ function world() {
   const clock = fakeClock(NOW);
   const state = {
     tabs: ['tab-a'] as string[],
+    accounts: [ACCOUNT] as HostAccount[],
     bootstrap: BOOTSTRAP_PILOT_PAGES as Bootstrap | null,
     usable: true,
     online: true,
@@ -105,7 +106,7 @@ function world() {
     presence: {
       listeningTabs: () => state.tabs.length,
       isChatInFocus: () => false,
-      seenAccounts: () => [{ account: ACCOUNT, lastSeenAt: new Date(NOW).toISOString(), openTabs: state.tabs.length, routeTabs: state.tabs.length }],
+      seenAccounts: () => state.accounts.map((account) => ({ account, lastSeenAt: new Date(NOW).toISOString(), openTabs: state.tabs.length, routeTabs: state.tabs.length })),
     },
     settings: () => state.sound,
     bootstrap: () => state.bootstrap,
@@ -140,6 +141,19 @@ describe('each site’s tones (R20 F9b)', () => {
 });
 
 describe('the slow poll of «Новые» for the subscriber sound', () => {
+  it('[SN-012] signed in with both sites granted: Fansly is excluded from the subscriber poll while ChatSpace is actually polled', async () => {
+    const w = world();
+    const base = BOOTSTRAP_PILOT_PAGES.pages[0];
+    if (base === undefined) throw new Error('missing pilot page');
+    w.state.bootstrap = { ...BOOTSTRAP_PILOT_PAGES, pages: [...BOOTSTRAP_PILOT_PAGES.pages, { ...base, pageId: 99, pageLabel: 'fansly-sound', platform: 'fansly', platformAccountId: '900' }] };
+    w.state.accounts.push({ host: 'fansly-web', hostAccountId: '900', platform: 'fansly', platformAccountId: '900', username: null, displayName: null });
+    w.sound.sync();
+    await w.clock.advance(130_000);
+    expect(w.sound.poller.running).toBe(true);
+    expect(w.reads.filter((page) => page === ONE.pageLabel).length).toBeGreaterThan(1);
+    expect(w.reads).not.toContain('fansly-sound');
+  });
+
   it('[SN-012] runs only while a ChatSpace tab lives and somebody is signed in; the first read is the baseline and rings nothing, a new subscriber after it rings once', async () => {
     const w = world();
     w.state.hubRows = ['evt-1'];

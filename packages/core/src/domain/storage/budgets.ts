@@ -26,6 +26,8 @@ export const SESSION_KEYS = {
 
 /** storage.local keys of the background that are not part of the frozen `STORAGE_KEYS`. */
 export const LOCAL_KEYS = {
+  /** 500 seen models, at most 16 decimal ids (30 digits) each; no session secrets. */
+  soundAccounts: 'sound.accounts',
   /** Registrations of human sends the hub has not answered yet (§6.6, H-7): ids only. */
   nativeSends: 'send.native',
   /** The error counters of today and of the day before, by CG code (LG-010): codes and counts only. */
@@ -52,6 +54,8 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [STORAGE_KEYS.sendJournal]: 1 * MiB,
   /** «Новые» drafts: up to 100 and 1 MiB (§9.4). */
   [STORAGE_KEYS.newcomersDrafts]: STORAGE_LIMITS.previewDraftsTotalBytes,
+  /** 500 models × 16 ids of up to 30 digits, plus canonical keys and JSON. */
+  [LOCAL_KEYS.soundAccounts]: 320 * KiB,
   /** No text: at most 200 registrations of a few hundred bytes. */
   [LOCAL_KEYS.nativeSends]: 256 * KiB,
   /** Two days × the CG registry (about a hundred codes), some forty bytes a code. */

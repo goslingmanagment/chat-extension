@@ -46,7 +46,8 @@
     "./parity/exceptions": "./src/parity/exceptions.ts",
     "./vm": "./src/vm/index.ts",
     "./hub": "./src/hub/index.ts",
-    "./fixtures": "./test/fixtures/index.ts"
+    "./fixtures": "./test/fixtures/index.ts",
+    "./sound": "./src/sound.ts"
   },
   "dependencies": {
     "zod": "4.6.5"

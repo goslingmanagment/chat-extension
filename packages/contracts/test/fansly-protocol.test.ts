@@ -49,7 +49,7 @@ describe('[EX-015] [DB-029] [host:fansly] the tab protocol of fansly.com (fansly
     });
   }
 
-  it('names its types `fansly.<family>.<name>`: two dots, the five families, none a shared type', () => {
+  it('names its types `fansly.<family>.<name>`: two dots, the six families, none a shared type', () => {
     const families = new Set<string>();
     for (const type of [...T.FANSLY_TAB_REQUEST_TYPES, ...T.FANSLY_TAB_EVENT_TYPES]) {
       expect(type, type).toMatch(/^fansly\.[a-z]+\.[a-zA-Z]+$/);
@@ -57,7 +57,7 @@ describe('[EX-015] [DB-029] [host:fansly] the tab protocol of fansly.com (fansly
       expect(envelopeAccepts(type), type).toBe(true);
       families.add(type.split('.')[1] ?? '');
     }
-    expect([...families].sort()).toEqual(['followers', 'notes', 'relay', 'vault', 'voice']);
+    expect([...families].sort()).toEqual(['followers', 'notes', 'relay', 'sound', 'vault', 'voice']);
     for (const type of [...C.TAB_REQUEST_TYPES, ...C.TAB_EVENT_TYPES]) expect(type.startsWith(T.FANSLY_TAB_TYPE_PREFIX), type).toBe(false);
     expect(T.isFanslyTabRequestType('settings.get')).toBe(false);
     expect(T.isFanslyTabRequestType('__proto__')).toBe(false);
