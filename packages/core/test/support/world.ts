@@ -29,7 +29,7 @@ export const WORLD = {
   instanceId: uuid(0x900),
   pages: {
     one: { pageId: 11, pageLabel: 'model-one', platformAccountId: '3003', hostAccountId: '1001', bindingRevision: 2 },
-    fansly: { pageId: 13, pageLabel: 'model-two-fansly', platformAccountId: '7007', bindingRevision: 1 },
+    fansly: { pageId: 13, pageLabel: 'model-two-fansly', platformAccountId: '700000000000000017', bindingRevision: 1 },
   },
   fan: '2002',
   otherFan: '2003',
@@ -82,8 +82,8 @@ export const fanslyTarget: Target = { binding: fanslyBinding, chat: fanslyChat, 
 
 /**
  * The world's Fansly page switched on as its first OnlyFans page is, plus Fansly's own `drafts` (HF-12; the drafts of
- * Fansly's slice ask it): the hub's own bootstrap answers a Fansly page `platform_unsupported` until R20's hub work, and
- * these tests only follow the ids of a Fansly chat through shared code.
+ * Fansly's slice ask it): the hub's own bootstrap answers a Fansly page without a row of its own `flag_off` (R20 HF-2),
+ * and these tests only follow the ids of a Fansly chat through shared code.
  */
 export function withFanslyPage(base: Bootstrap): Bootstrap {
   const one = base.pages.find((page) => page.pageId === WORLD.pages.one.pageId);

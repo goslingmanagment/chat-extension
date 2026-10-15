@@ -7,6 +7,9 @@
 // page, fan or window, is refused the way the hub refuses it. Numbers are
 // plausible, not the hub's formulas: the Ping segment rule below is a
 // stand-in, the client never derives it anyway (it shows what it gets).
+// R20 P6c1: the page's capture of its chats (the pair of hub HF-9), and what
+// the AI's serving reader reads of a conversation beside what the hub holds
+// or tombstoned (the window check of hub HF-8в).
 
 import {
   CHAT_IS_FAN,
@@ -42,6 +45,7 @@ import {
 } from '@cg/contracts';
 
 import { SCENARIO_DATA, WORLD, spenderRow } from '../scenarios/hub';
+import { classifyPair, type PairState, type ServedRef, type StoreState } from './ai-rules';
 import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
 import { type SpenderSeed } from './types';
@@ -137,6 +141,11 @@ const isKnownZone = (timeZone: string): boolean => {
 
 interface ArchiveMessage extends FeedItem {
   readonly order: number;
+  /**
+   * R20 P6c1: held for this conversation, but not in what the AI's serving reader reads (older than its window, cut by
+   * the prompt's budget, or in a store that reader does not read) — the window check answers it `outside_window`.
+   */
+  readonly held?: true;
 }
 
 interface Archive {
@@ -146,6 +155,22 @@ interface Archive {
   revision: number;
   /** Newest first. */
   readonly messages: ArchiveMessage[];
+  /** R20 P6c1: the hub's lookup of the ids outside the served window fails here (the window check answers them `unknown`). */
+  lookupFails?: boolean;
+}
+
+/** One message of a conversation seeded as a whole (`archiveConversation`), oldest first. */
+export interface ConversationSeed {
+  readonly id: string;
+  readonly sender: 'fan' | 'model';
+  /** `held` — the hub holds it but the AI's reader does not read it; `deleted` — tombstoned. Absent — read, inside the window. */
+  readonly state?: 'held' | 'deleted';
+}
+
+/** What the AI's serving reader read of a conversation, newest first, and what the stores hold about any other id (null — their lookup failed). */
+export interface ServedSnapshot {
+  readonly window: readonly (ServedRef & { readonly at: string | null })[];
+  readonly stores: ReadonlyMap<string, StoreState> | null;
 }
 
 interface AudienceEvent {
@@ -216,6 +241,11 @@ export class DataModel {
   /** generationRef of the dossier's current body (H-5 «existing»). */
   private readonly dossierSource = new Map<string, string>();
   private readonly ingested = new Map<string, IngestBatch['events'][number]>();
+  /**
+   * R20 P6c1: the page's capture of its chats (`page_dm_threads`), by page and conversation: the fan the thread
+   * names, or null — a thread whose fan the hub does not know. A conversation without a thread is not here.
+   */
+  private readonly threads = new Map<string, string | null>();
   readonly usage: UsageRecord[] = [];
   /** The fans at the top of every page's board (`spenderFans`); empty — the synthetic board. */
   private seeds: readonly SpenderSeed[] = [];
@@ -248,10 +278,29 @@ export class DataModel {
       });
       this.dossierSource.set(this.key(page, fan), '00000000-0000-4000-8000-000000000200');
     }
+    // The Fansly page's capture knows its chats (scenarios/hub world: the stand's first two, and an old fan's).
+    for (const chat of [WORLD.fansly.chats.a, WORLD.fansly.chats.b, WORLD.fansly.old]) this.threads.set(this.key(WORLD.pages.fansly.pageLabel, chat.group), chat.fan);
   }
 
   private key(pageLabel: string, fanRef: string): string {
     return `${pageLabel}\u0000${fanRef}`;
+  }
+
+  // ── the page's threads and the pair (R20 HF-9) ──
+
+  /** The page's capture learns a chat (`fanRef` null — a thread whose fan it does not know). */
+  setThread(pageLabel: string, conversationRef: string, fanRef: string | null): void {
+    this.threads.set(this.key(pageLabel, conversationRef), fanRef);
+  }
+
+  /** The pair a request names, judged by the page's thread of the group (hub `checkAiConversationPair`). */
+  pair(pageLabel: string, conversationRef: string, fanRef: string): PairState {
+    return classifyPair(this.threads.get(this.key(pageLabel, conversationRef)), fanRef);
+  }
+
+  private threadFan(pageLabel: string, fanRef: string): boolean {
+    const prefix = this.key(pageLabel, '');
+    return [...this.threads].some(([key, fan]) => key.startsWith(prefix) && fan === fanRef);
   }
 
   /** The first rows of the board become these fans (the stand's own, in e2e); `[]` — the synthetic board again. */
@@ -267,7 +316,7 @@ export class DataModel {
 
   /** Fans the page's archive and audience know (dossier lookups 404 for anyone else). */
   knowsFan(page: FakePage, fanRef: string, spendersTotal: number): boolean {
-    if (fanRef === WORLD.fan || this.seedOf(fanRef) !== null) return true;
+    if (fanRef === WORLD.fan || this.seedOf(fanRef) !== null || this.threadFan(page.pageLabel, fanRef)) return true;
     const n = Number(fanRef);
     if (n >= SPENDER_FAN_BASE && n < SPENDER_FAN_BASE + spendersTotal) return true;
     if (this.audienceOf(page).some((event) => event.item.fanRef === fanRef)) return true;
@@ -569,6 +618,47 @@ export class DataModel {
     return archive.generation;
   }
 
+  /**
+   * R20 P6c1: a conversation's archive becomes exactly these messages, oldest first — the window check's world as the
+   * matrix the hub shares with this client writes it: what the model reads, and what the hub holds or tombstoned
+   * beside it. A new archive generation: every feed cursor of the conversation is `cursor_invalid` from now on.
+   */
+  seedConversation(page: FakePage, conversationRef: string, messages: readonly ConversationSeed[], lookupFails: boolean): void {
+    const key = this.key(page.pageLabel, conversationRef);
+    const old = this.archives.get(key);
+    const count = messages.length;
+    const seeded: ArchiveMessage[] = messages.map((message, index) => ({
+      messageId: message.id,
+      at: iso(this.base - 60_000 * (count - index)),
+      sender: message.sender,
+      text: message.sender === 'fan' ? 'seeded synthetic fan message' : 'seeded synthetic model message',
+      automatic: null,
+      deleted: message.state === 'deleted',
+      tipMills: null,
+      priceMills: null,
+      attachmentLabels: [],
+      order: -(count - index),
+      ...(message.state === 'held' ? { held: true as const } : {}),
+    }));
+    this.archives.set(key, { generation: (old?.generation ?? 0) + 1, revision: (old?.revision ?? 0) + 1, messages: seeded.reverse(), lookupFails });
+  }
+
+  /**
+   * What the AI's serving reader reads of a conversation (hub `TranscriptServedSnapshot`), newest first: its newest
+   * `requested` messages the hub has neither tombstoned nor holds beside the reader; and the store state of every other
+   * id the archive has — `present` or `deleted` — or null when that lookup fails (`lookupFails`).
+   */
+  served(page: FakePage, ref: string, requested: number): ServedSnapshot {
+    const archive = this.archive(page, ref);
+    const window = archive.messages.filter((message) => !message.deleted && message.held !== true).slice(0, requested);
+    const read = new Set(window.map((message) => message.messageId));
+    const stores =
+      archive.lookupFails === true
+        ? null
+        : new Map(archive.messages.filter((message) => !read.has(message.messageId)).map((message): [string, StoreState] => [message.messageId, message.deleted ? 'deleted' : 'present']));
+    return { window: window.map((message) => ({ messageRef: message.messageId, isFromFan: message.sender === 'fan', at: message.at })), stores };
+  }
+
   /** The head the generation reader serves (context_v1) and whether a message id is in the archive. */
   archiveFacts(page: FakePage, fanRef: string): { head: FeedItem | null; total: number; states: (id: string) => 'included' | 'absent' | 'deleted' } {
     const archive = this.archive(page, fanRef);
@@ -621,7 +711,7 @@ export class DataModel {
       start = index + 1;
     }
     const limit = query.limit ?? 50;
-    const items = all.slice(start, start + limit).map(({ order: _order, ...item }) => item);
+    const items = all.slice(start, start + limit).map(({ order: _order, held: _held, ...item }) => item);
     const last = items.at(-1);
     const head = all[0];
     const coverage = all.length === 0 ? 'unknown' : 'complete';

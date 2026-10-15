@@ -10,6 +10,12 @@
 // Pipeline: control? → classify (route / forbidden / unknown) → auth →
 // narrow-token allow-list → wire → facade request → schema → script → model
 // checks (deployed, page granted, flag) → model. Every call is journaled.
+//
+// R20 P6c1: Fansly as the deployed hub (bd3eec06) serves it — the switches by
+// platform (HF-2: a Fansly page by its own row alone), the narrow token's AI
+// switch by platform (HF-12), the pair `groupId ↔ fanRef` against the page's
+// capture (HF-9) for a generation and a read, the transcript of a Fansly
+// generation read by its group, and the answer to the window check (HF-8в).
 
 import {
   CHAT_IS_FAN,
@@ -22,6 +28,7 @@ import {
   type AudienceNewQuery,
   type ClaimOp,
   type ClientFeatureFlag,
+  type ClientHubCapability,
   type DeviceTokenIssueRequest,
   type DeviceTokenIssueResponse,
   type DossierQuery,
@@ -44,14 +51,14 @@ import {
   type StatsQuery,
 } from '@cg/contracts';
 
-import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, type HttpExchange } from '../scenarios/hub';
+import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
-import { streamBodyRefusal, type BodySchemaLike } from './ai-rules';
+import { aiFeatureExistsOn, aiFeatureFlag, resolveCoverageCheck, streamBodyRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
-import { bootstrapOf, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
+import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
 import { CursorSigner, DataModel, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
@@ -204,7 +211,12 @@ function pageLabelOf(route: HubRouteKey, request: unknown): string | null {
 /** `pages` of the vendored SDK: the hub's page list, read only by the client's dev/compat mode. */
 const LEGACY_PAGES_PATH = '/api/v1/pages';
 
-const AI_FEATURE_FLAGS: Partial<Record<HubAiFeature, ClientFeatureFlag>> = { 'coach-chat': 'coach', 'fan-summary': 'recap', 'chat-review': 'review' };
+/**
+ * A route that serves one part of its flagged feature, by the capability of that part: it exists only where the
+ * feature's requirement on the page's platform names it (hub `requireClientFeature`'s `part`, R20 HF-2) — the hub's
+ * list of new subscribers is part of «Новые» on OnlyFans alone (Fansly's are found by the extension itself).
+ */
+const ROUTE_PARTS: Partial<Record<HubRouteKey, ClientHubCapability>> = { clientAudienceNew: 'audience-new-v1' };
 /** The hub's `HI_GREETING_MAX_TRANSCRIPT` (feature-policies.ts): a greeting is for a conversation of at most this many messages. */
 export const HI_GREETING_MAX_TRANSCRIPT = 10;
 
@@ -391,6 +403,13 @@ export class FakeHub {
         return { ok: true, messageId: s.data.addArchiveMessage(this.page(command.pageLabel), command.fanRef, command.sender ?? 'fan', now, command.messageId) };
       case 'archiveRebuild':
         return { ok: true, generation: s.data.rebuildArchive(this.page(command.pageLabel), command.fanRef) };
+      case 'archiveConversation':
+        s.data.seedConversation(this.page(command.pageLabel), command.conversationRef, command.messages, command.lookupFails ?? false);
+        return { ok: true, messages: command.messages.length };
+      case 'thread':
+        this.page(command.pageLabel);
+        s.data.setThread(command.pageLabel, command.conversationRef, command.fanRef);
+        return { ok: true };
       case 'audienceEvent':
         return { ok: true, eventRef: s.data.addAudienceEvent(this.page(command.pageLabel), command.fanRef, command.kind ?? 'new', command.trial ?? false, now) };
       case 'spenderFans':
@@ -548,6 +567,10 @@ export class FakeHub {
       }
       const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body) : null;
       if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, undefined, undefined, [rule.message]);
+      // R20 HF-8в: a hub before it has no `coverageCheck` in its strict body — an unknown key, 400.
+      if (typeof body === 'object' && body !== null && (body as { coverageCheck?: unknown }).coverageCheck !== undefined && !s.config.capabilities.includes('coverage-check-v1')) {
+        return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['coverageCheck: an unknown key on a hub without coverage-check-v1']);
+      }
     }
     // R20 F6b: a hub before HF-10 has no `conversationRef` in these strict queries and bodies — an unknown key, 400.
     if (CONVERSATION_ROUTES.includes(route) && namesConversation(facade.request) && !s.config.capabilities.includes('conversation-recaps-v1')) {
@@ -591,6 +614,10 @@ export class FakeHub {
     // A page the hub does not know, or one not granted to the caller: 404 either way (the hub never tells them apart).
     if (pageLabel !== null && (page === null || (principal !== null && !this.granted(principal.user.userId, page)))) return refuse({ ...record, servedBy: 'check' }, 'not_found');
     if (spec.flag !== null && page !== null) {
+      const part = ROUTE_PARTS[route];
+      if (part !== undefined && !(hubFeatureNeedsOn(spec.flag, page.platform)?.capabilities.includes(part) ?? false)) {
+        return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
+      }
       const flag = featureVerdict(s.config, page, spec.flag);
       if (!flag.available) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', flag.reason ?? 'flag_off');
     }
@@ -816,17 +843,17 @@ export class FakeHub {
       }
       case 'clientConversationRecaps': {
         const query = request as SharedRecapsQuery;
-        const conversation = conversationOf(need(page), query);
+        const conversation = conversationOf(need(page), query, s.data);
         if (typeof conversation !== 'string') return conversation;
         return { kind: 'json', status: 200, body: s.data.sharedRecaps(need(page).pageLabel, query.fanRef, query.personaDefinitionId, conversation) };
       }
       case 'clientFanProfileFromGeneration': {
-        const conversation = conversationOf(need(page), request as ProfileFromGenerationRequest);
+        const conversation = conversationOf(need(page), request as ProfileFromGenerationRequest, s.data);
         if (typeof conversation !== 'string') return conversation;
         return this.profileFromGeneration(request as ProfileFromGenerationRequest, need(principal), conversation);
       }
       case 'clientConversationFeed': {
-        const conversation = conversationOf(need(page), request as FeedQuery);
+        const conversation = conversationOf(need(page), request as FeedQuery, s.data);
         if (typeof conversation !== 'string') return conversation;
         return read(s.data.feed(need(page), request as FeedQuery, now, need(principal).user.userId, conversation));
       }
@@ -858,16 +885,32 @@ export class FakeHub {
   private modelAi(request: HubStreamRequest, principal: Principal, page: FakePage): Outcome {
     const s = this.state;
     const refusal = (error: HubErrorCode, reason?: string): Outcome => ({ kind: 'refuse', refusal: reason === undefined ? { error } : { error, reason } });
-    // H-3: the narrow token's AI is behind the master switch and the coach/recap/review flags.
+    const { body, feature } = request;
+    // H-3: the narrow token's AI switch, by the platform the body names (hub client-ai-switch.ts): a feature the
+    // extension does not have there is `platform_unsupported`; one behind a flag — Coach, Recap, Review everywhere,
+    // and on Fansly Reply, Fix, Hi and Ping behind `drafts` (R20 HF-12) — answers as that flag on the page; any other
+    // waits for the master switch alone.
     if (principal.token.client !== null) {
-      if (!s.config.master) return refusal('client_feature_disabled', 'disabled');
-      const flag = AI_FEATURE_FLAGS[request.feature];
-      if (flag !== undefined) {
+      if (!aiFeatureExistsOn(feature, body.platform)) return refusal('client_feature_disabled', 'platform_unsupported');
+      const flag = aiFeatureFlag(feature, body.platform, (name, platform) => hubFeatureNeedsOn(name, platform) !== undefined);
+      if (flag !== null) {
         const verdict = featureVerdict(s.config, page, flag);
         if (!verdict.available) return refusal('client_feature_disabled', verdict.reason ?? 'flag_off');
-      }
+      } else if (!s.config.master) return refusal('client_feature_disabled', 'disabled');
     }
-    const { body } = request;
+    // The hub's access check: a body naming another platform than its page's finds no page (404, as one not granted).
+    if (body.platform !== page.platform) return refusal('not_found');
+    // R20 HF-9: a Fansly request whose transcript the hub loads itself names the group and the fan apart; the page's
+    // capture of the group decides the pair before anything loads — another fan's group is 409, one the hub cannot
+    // vouch for is served `unverified`. No fan named, no pair to check.
+    let pair: 'verified' | 'unverified' | undefined;
+    if (!chatIsFan(page) && body.fanRef !== undefined && body.fanRef !== null && body.fanRef.trim() !== '') {
+      const state = s.data.pair(page.pageLabel, body.conversationRef, body.fanRef);
+      if (state === 'mismatch') return refusal('conversation_fan_mismatch');
+      pair = state;
+    }
+    // Where a chat is its fan the transcript is the fan's; on Fansly it is the group's (the fan's data stay the fan's).
+    const transcript = transcriptRefOf(page, body);
     let definitionId: string | null = null;
     if (body.personaKey !== undefined && body.personaKey !== null) {
       const persona = s.catalog.find((item) => item.key === body.personaKey && item.status === 'active');
@@ -879,7 +922,7 @@ export class FakeHub {
     // lane this client uses — the hub's own context, no client-side message count — it counts EVERY message of the
     // transcript, and past ten the conversation is a dialogue: 400 `gate_hi_greeting_limit`. A product gate, so
     // nothing is spent on it.
-    if (request.feature === 'hi-greeting' && s.data.archiveFacts(page, body.fanRef ?? body.conversationRef).total > HI_GREETING_MAX_TRANSCRIPT) {
+    if (request.feature === 'hi-greeting' && s.data.archiveFacts(page, transcript).total > HI_GREETING_MAX_TRANSCRIPT) {
       return refusal('gate_hi_greeting_limit');
     }
     if (s.config.quotaRequestsToday === 0) {
@@ -889,21 +932,32 @@ export class FakeHub {
     const remaining = s.config.quotaRequestsToday === null ? null : s.config.quotaRequestsToday - 1;
     if (remaining !== null) s.config = { ...s.config, quotaRequestsToday: remaining };
     s.generationSeq += 1;
-    const archive = s.data.archiveFacts(page, body.fanRef ?? body.conversationRef);
+    const archive = s.data.archiveFacts(page, transcript);
+    // On Fansly the frame describes what the serving reader read: the hub's tombstones and what it holds beside the
+    // reader are not in the window (hub `TranscriptServedSnapshot`). The ChatSpace frame stays what it always was.
+    const served = s.data.served(page, transcript, body.messageCount ?? 100);
+    const newest = served.window[0];
+    // R20 HF-8в: answered only to a request that advertised `coverage-check-v1` (it rides in the context frame).
+    const coverageCheck =
+      body.coverageCheck !== undefined && request.capabilities.includes('coverage-check-v1') ? resolveCoverageCheck({ check: body.coverageCheck, window: served.window, stores: served.stores }) : undefined;
     const steps = modelStream(request, {
       requestId: crypto.randomUUID(),
       personaDefinitionId: definitionId,
       remainingRequestsToday: remaining,
       splitAllFlag: featureVerdict(s.config, page, 'splitAll').available,
       freshTextFlag: featureVerdict(s.config, page, 'freshText').available,
-      archive: {
-        head: archive.head === null ? null : { messageRef: archive.head.messageId, at: archive.head.at, isFromFan: archive.head.sender === 'fan' },
-        total: archive.total,
-        state: archive.states,
-      },
+      archive: chatIsFan(page)
+        ? {
+            head: archive.head === null ? null : { messageRef: archive.head.messageId, at: archive.head.at, isFromFan: archive.head.sender === 'fan' },
+            total: archive.total,
+            state: archive.states,
+          }
+        : { head: newest === undefined ? null : { messageRef: newest.messageRef, at: newest.at, isFromFan: newest.isFromFan }, total: served.window.length, state: archive.states },
       chunkDelayMs: s.config.aiChunkDelayMs,
       nameFan: s.config.aiNameFan,
       texts: s.config.aiTexts,
+      ...(pair === undefined ? {} : { pair }),
+      ...(coverageCheck === undefined ? {} : { coverageCheck }),
     });
     return { kind: 'sse', response: { kind: 'stream', steps }, request };
   }
@@ -937,7 +991,7 @@ export class FakeHub {
     if (generation.outcome !== 'done' || generation.feature !== 'fan-summary') return;
     const requested = generation.messageCount ?? 100;
     const page = this.pages().find((candidate) => candidate.pageLabel === generation.pageLabel);
-    const total = page === undefined ? 0 : this.state.data.archiveFacts(page, generation.fanRef).total;
+    const total = page === undefined ? 0 : this.state.data.archiveFacts(page, chatIsFan(page) ? generation.fanRef : generation.conversationRef).total;
     this.state.data.storeRecap(generation.pageLabel, generation.fanRef, generation.summaryMode === 'short' ? 'short' : 'full', {
       generationRef: generation.requestId,
       generatedAt: iso(now),
@@ -997,6 +1051,11 @@ export class FakeHub {
   }
 }
 
+/** The archive a generation's transcript is read from: the fan's where a chat is its fan, the group's on Fansly. */
+function transcriptRefOf(page: FakePage, body: { readonly conversationRef: string; readonly fanRef?: string | null | undefined }): string {
+  return chatIsFan(page) ? (body.fanRef ?? body.conversationRef) : body.conversationRef;
+}
+
 /** The client reads keyed by conversation (R20 F6b, hub HF-10). */
 const CONVERSATION_ROUTES: readonly HubRouteKey[] = ['clientConversationRecaps', 'clientConversationFeed', 'clientFanProfileFromGeneration'];
 
@@ -1007,13 +1066,16 @@ function namesConversation(request: unknown): boolean {
 /**
  * The hub's resolver of a read by conversation (HF-10 `services/client-conversation.ts`), before anything is read:
  * where a chat is its fan (OnlyFans) the conversation is the fan — absent or equal changes nothing, another is 409
- * `conversation_fan_mismatch`; where a chat has an id of its own (Fansly) it is required (400 without it). The fake
- * knows no threads, so a group is served as the hub serves an unverified pair.
+ * `conversation_fan_mismatch`; where a chat has an id of its own (Fansly) it is required (400 without it), and its
+ * pair is checked by the AI lane's own rule (HF-9): a group the page's capture holds as another fan's is 409
+ * `conversation_fan_mismatch`; a group without a thread, or with a fan the hub does not know, is served unverified.
  */
-function conversationOf(page: FakePage, request: { readonly fanRef: string; readonly conversationRef?: string | undefined }): string | Outcome {
+function conversationOf(page: FakePage, request: { readonly fanRef: string; readonly conversationRef?: string | undefined }, data: DataModel): string | Outcome {
   const { fanRef, conversationRef } = request;
-  if (CHAT_IS_FAN[page.platform]) return conversationRef === undefined || conversationRef === fanRef ? fanRef : { kind: 'refuse', refusal: { error: 'conversation_fan_mismatch' } };
-  return conversationRef ?? { kind: 'refuse', refusal: { error: 'bad_request' } };
+  const mismatch: Outcome = { kind: 'refuse', refusal: { error: 'conversation_fan_mismatch' } };
+  if (CHAT_IS_FAN[page.platform]) return conversationRef === undefined || conversationRef === fanRef ? fanRef : mismatch;
+  if (conversationRef === undefined) return { kind: 'refuse', refusal: { error: 'bad_request' } };
+  return data.pair(page.pageLabel, conversationRef, fanRef) === 'mismatch' ? mismatch : conversationRef;
 }
 
 /** A fake hub for one test file (in-process mode). */

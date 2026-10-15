@@ -222,8 +222,8 @@ ChatSpace: ни байта разницы, и сборка этот файл н�
   эту таблицу дублировала (и для `newcomers` требовала `audience-new-v1` — на Fansly неверно). С F4 в ней только нужда
   транспорта самого клиента — `{freshText: ['context-v1']}`, она же `clientNeeds` у `fresh-text` в обоих срезах;
   `pageFlagState` (`core/src/domain/ops/flags.ts`) читает одну функцию страницы. Таблица хаба повторена только в
-  поддельном хабе (`HUB_FEATURE_CAPABILITIES` в `packages/testing/src/scenarios/hub/http.ts`: столбец OnlyFans по
-  `bd3eec06`, тот же, что в `6ee3d627`; столбец Fansly HF-2 — P6c1).
+  поддельном хабе (`HUB_FEATURE_REQUIREMENTS` в `packages/testing/src/scenarios/hub/http.ts`, по `bd3eec06`):
+  P6c1 добавил столбец Fansly HF-2; `HUB_FEATURE_CAPABILITIES` выводится из столбца OnlyFans, того же, что в `6ee3d627`.
   Что таблица флагов ChatSpace на нынешнем хабе та же, держит `packages/testing/src/fake-hub/flag-table.test.ts`:
   прежнее правило, замороженное по `main`, против нового на каждом пресете поддельного хаба и на каждом отставании хаба.
 - Генерация, вставка и отправка допускаются раздельно. «Только копировать» (FS-DOCK-3) — состояние чата, его
@@ -1689,6 +1689,31 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 - **Поддельный хаб** — страницы Fansly с 18-значными id (> 2^53), `groupId ≠ fanId`, флаги и требования по платформам
   (HF-2), правила по возможностям: HF-8, HF-9 (P6c1), HF-5 (P6c2), опека HF-3 (P6c3), HF-4а и операции сайта (P6c4);
   `aiNameFan` метит черновик по `conversationRef`; тела проверяются схемой вендоренного SDK (`fake-hub/ai-rules.ts`).
+
+  **Сделано в P6c1** (по хабу `bd3eec06`). Страница Fansly поддельного хаба — создатель стенда Fansly, её чаты — чаты
+  стенда (`WORLD.fansly` в `scenarios/hub/world.ts`; тест держит их равными `fixture-fansly/src/data.ts`): id — строки
+  из 18 цифр больше 2^53, группа никогда не равна фану; старый аккаунт (17 цифр) — страница, перепривязанная командой
+  `pageAccount`. Таблица хаба «что нужно флагу на платформе» — `HUB_FEATURE_REQUIREMENTS` (`scenarios/hub/http.ts`,
+  копия `client-features.ts`); это единственный источник требований: `HUB_FEATURE_CAPABILITIES` и `existsOnOnlyFans`
+  выводятся из его столбца OnlyFans. После P4b3/P4b4 имена всех флагов и возможностей берутся из контрактов
+  (`CLIENT_FEATURE_FLAG_NAMES`, `CLIENT_HUB_CAPABILITY_NAMES`); отдельные словари fake hub удалены, сверка с SDK
+  сохранена. Каждая страница перечисляет
+  все флаги (`listedFlagsOn` удалён); флаг чужой платформы остаётся `platform_unsupported` **перед** главным выключателем,
+  как у выложенного хаба `bd3eec06` (будущий порядок HF-15 сюда не переносится). Исправление P4b3 в `pageBlanketReason`
+  читает главный выключатель по функциям самой платформы. Страница Fansly включается только своей строкой
+  (`fanslyPageFlags`): строка `"*"` до неё не
+  доходит, без строки каждый её флаг — `flag_off`, как на проде; флаги, которых у Fansly нет, — `platform_unsupported`.
+  `voice` идёт по полосе войсов: `lane_off` на страницах из `voiceLaneOff`. Привязка хоста OnlyMonster страницу Fansly не
+  связывает. Маршруты: чтения Fansly ждут её строку, список «Новых» хаба и статистика на Fansly —
+  `platform_unsupported`. Переключатель AI узкого токена — по платформе тела: на Fansly Reply, Fix, Hi, Ping — за `drafts`,
+  Help — `platform_unsupported`; тело с чужой платформой — 404; Coach и короткий Recap на Fansly без `fanRef` — 400. Пара
+  HF-9: захват страницы (`thread`; по умолчанию три чата мира) решает и для генерации, и для чтений по разговору: группа
+  другого фана — 409 `conversation_fan_mismatch` до любых затрат, незахваченная — `pair: unverified` в кадре. Транскрипт
+  генерации Fansly — архив группы, а не фана. Проверка окна HF-8в: `resolveCoverageCheck` — построчный перенос функции
+  хаба; разговор задаётся целиком (`archiveConversation`: прочитанное окно, `held` рядом с ним, `deleted`,
+  `lookupFails`); тест прогоняет все `hubCases` общей матрицы через SDK (ответ и вердикт клиента) и все
+  `invalidRequests` (400); хаб без `coverage-check-v1` отвечает на поле 400. Опека Fansly (HF-3) — P6c3, правила Hi
+  (HF-5) — P6c2, войсы и заметки — P6c4.
 - **Проверка жеста** — на geckodriver (драйвер нашего e2e) с доверенными кликом и Enter; синтетический Enter из JS прячет
   проблему микрозадач.
 - **База старого** (P3d) — тестовая сборка старого с адресами стенда (подмена при сборке), в том же headless Firefox, со

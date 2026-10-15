@@ -8,13 +8,14 @@
 import { BootstrapSchema, CLIENT_FEATURE_FLAG_NAMES } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, NOW_MS, WORLD, existsOnOnlyFans } from '../scenarios/hub';
+import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HUB_FEATURE_REQUIREMENTS, NOW_MS, WORLD, hubFeatureNeedsOn } from '../scenarios/hub';
 import { FAKE_PAGES, bootstrapOf, featureVerdict, flagOn, patchConfig, presetConfig, type FakePage } from './config';
 import { createFakeHub } from './hub';
 import { hubCall } from './kit';
 
 const chatter = { userId: WORLD.user.userId, username: WORLD.user.username, role: 'chatter', tokenClient: 'chat-extension' } as const;
 const one = FAKE_PAGES[0] as FakePage;
+const vip = FAKE_PAGES[1] as FakePage;
 const fansly = FAKE_PAGES[2] as FakePage;
 
 describe('fake hub config: presets', () => {
@@ -31,27 +32,26 @@ describe('fake hub config: presets', () => {
     expect(createFakeHub().config()).toEqual(presetConfig('pilot-pages'));
     // A flag the page rows do not name still follows `"*"` (X8 for everyone in one patch); one they name is switched per page.
     const x8 = patchConfig(presetConfig('pilot-pages'), { flags: { previewSend: true } });
-    expect(flagOn(x8, one.pageLabel, 'previewSend')).toBe(true);
+    expect(flagOn(x8, one, 'previewSend')).toBe(true);
     const noStats = patchConfig(presetConfig('pilot-pages'), { flags: { stats: false }, pageFlags: { [one.pageLabel]: { review: false } } });
-    expect([flagOn(noStats, one.pageLabel, 'stats'), flagOn(noStats, one.pageLabel, 'review'), flagOn(noStats, WORLD.pages.vip.pageLabel, 'review')]).toEqual([true, false, true]);
+    expect([flagOn(noStats, one, 'stats'), flagOn(noStats, one, 'review'), flagOn(noStats, vip, 'review')]).toEqual([true, false, true]);
   });
 
   it('all-off is the scenarios’ BOOTSTRAP_ALL_OFF exactly', () => {
     expect(bootstrapOf(presetConfig('all-off'), FAKE_PAGES, chatter, NOW_MS)).toEqual(BOOTSTRAP_ALL_OFF);
   });
 
-  it('master-off keeps the pilot flags but serves every feature as disabled and every flag false', () => {
+  it('master-off lists every flag on every page: platform features disabled, foreign ones platform_unsupported, top-level flags false', () => {
     const boot = bootstrapOf(presetConfig('master-off'), FAKE_PAGES, chatter, NOW_MS);
     expect(Object.values(boot.flags).every((on) => !on)).toBe(true);
-    // Fansly's own switches (contracts 1.15.0, P4b3) are not on an OnlyFans page at all: the platform is the first check.
-    const onlyFans = boot.pages.filter((page) => page.platform === 'onlyfans');
-    expect(onlyFans).toHaveLength(2);
-    for (const page of onlyFans) {
+    // A switch the platform does not have reads `platform_unsupported` there, before the master switch (R20 HF-2).
+    for (const page of boot.pages) {
       expect(page.features).toEqual(
-        Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, { available: false, reason: existsOnOnlyFans(flag) ? 'disabled' : 'platform_unsupported' }])),
+        Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, { available: false, reason: hubFeatureNeedsOn(flag, page.platform) === undefined ? 'platform_unsupported' : 'disabled' }])),
       );
     }
-    expect(CLIENT_FEATURE_FLAG_NAMES.filter((flag) => !existsOnOnlyFans(flag))).toEqual(['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration']);
+    expect(boot.pages.filter((page) => page.platform === 'onlyfans')).toHaveLength(2);
+    expect(CLIENT_FEATURE_FLAG_NAMES.filter((flag) => HUB_FEATURE_REQUIREMENTS[flag].onlyfans === undefined)).toEqual(['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration']);
   });
 
   it('the bootstrap route serves the preset for the caller, through the contract schema', async () => {
@@ -67,8 +67,10 @@ describe('fake hub config: presets', () => {
 describe('fake hub config: evaluateClientFeature order', () => {
   const pilot = presetConfig('pilot-on');
 
-  it('platform first: a Fansly page is platform_unsupported even with the master off', () => {
-    expect(featureVerdict({ ...pilot, master: false }, fansly, 'spenders')).toEqual({ available: false, reason: 'platform_unsupported' });
+  it('platform first: a feature the page’s platform does not have is platform_unsupported even with the master off; one it has is `disabled` (R20 HF-2)', () => {
+    expect(featureVerdict({ ...pilot, master: false }, fansly, 'navigation')).toEqual({ available: false, reason: 'platform_unsupported' });
+    expect(featureVerdict({ ...pilot, master: false }, fansly, 'spenders')).toEqual({ available: false, reason: 'disabled' });
+    expect(featureVerdict({ ...pilot, master: false }, one, 'drafts')).toEqual({ available: false, reason: 'platform_unsupported' });
   });
 
   it('then the master switch and the flag — before the binding is even looked at', () => {
@@ -98,8 +100,8 @@ describe('fake hub config: evaluateClientFeature order', () => {
 
   it('a page’s own flag wins over `*`; an unknown future flag is served as given', () => {
     const config = patchConfig(pilot, { flags: { stats: true, futureFlag: true }, pageFlags: { [one.pageLabel]: { stats: false } } });
-    expect(flagOn(config, one.pageLabel, 'stats')).toBe(false);
-    expect(flagOn(config, WORLD.pages.vip.pageLabel, 'stats')).toBe(true);
+    expect(flagOn(config, one, 'stats')).toBe(false);
+    expect(flagOn(config, vip, 'stats')).toBe(true);
     const boot = bootstrapOf(config, FAKE_PAGES, chatter, NOW_MS);
     expect(boot.flags['futureFlag']).toBe(true);
     expect(boot.pages[0]?.features['stats']).toEqual({ available: false, reason: 'flag_off' });

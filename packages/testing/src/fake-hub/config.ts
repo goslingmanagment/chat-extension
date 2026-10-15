@@ -4,32 +4,32 @@
 // hub's own knobs. Bootstrap is computed from it the way the hub does
 // (apps/runtime/src/services/client-features.ts): a page's feature by
 // `evaluateClientFeature` — platform → master → flag (the page's own row
-// wins over `*`) → binding → capability — and the top-level `flags` by
+// wins over `*`, which reaches only OnlyFans pages) → binding → capability
+// — then the hub lane of the feature, and the top-level `flags` by
 // `clientBootstrapFlags`, from the `*` row ALONE. Presets reproduce the
 // scenarios' BOOTSTRAP_PILOT_PAGES, BOOTSTRAP_PILOT_ON and BOOTSTRAP_ALL_OFF
 // exactly (config.test.ts).
 //
 // What each flag needs of the hub is the HUB's table (`CLIENT_FEATURE_REQUIREMENTS`
-// there), repeated in the scenarios (`HUB_FEATURE_CAPABILITIES`): its OnlyFans
-// column as it stands at bd3eec06 — the commit production runs and the SDK is
-// vendored from; that column is the same as at 6ee3d627 (R20 HF-2 made the
-// table per platform and gave Fansly its own; the Fansly column is P6c1's). The
-// client does not carry that table (R20 F4: it reads the page's feature, and
-// only its own transport needs on top — `CLIENT_FLAG_REQUIREMENTS`).
+// there), repeated in the scenarios (`HUB_FEATURE_REQUIREMENTS`) as it stands at
+// bd3eec06 — the commit production runs and the SDK is vendored from: per
+// platform since R20 HF-2 (R20 P6c1 models the Fansly column). A Fansly page
+// takes no `"*"` row: it is switched on by its own row alone. The client does
+// not carry that table (R20 F4: it reads the page's feature, and only its own
+// transport needs on top — `CLIENT_FLAG_REQUIREMENTS`).
+
+import { CHAT_IS_FAN, CLIENT_FEATURE_FLAG_NAMES, CLIENT_HUB_CAPABILITY_NAMES, type Bootstrap, type BootstrapLimits, type ClientFeatureFlag, type FeatureAvailability, type HubPageRef } from '@cg/contracts';
 
 import {
-  CLIENT_FEATURE_FLAG_NAMES,
-  CLIENT_HUB_CAPABILITY_NAMES,
-  hasCapability,
-  narrowToken,
-  type Bootstrap,
-  type BootstrapLimits,
-  type ClientFeatureFlag,
-  type FeatureAvailability,
-  type HubPageRef,
-} from '@cg/contracts';
-
-import { BINDING_KEY_ONE, BINDING_KEY_VIP, HUB_FEATURE_CAPABILITIES, PILOT_FLAGS_OFF, SCENARIO_DATA, WORLD, existsOnOnlyFans } from '../scenarios/hub';
+  BINDING_KEY_ONE,
+  BINDING_KEY_VIP,
+  HUB_FEATURE_REQUIREMENTS,
+  PILOT_FLAGS_ON,
+  SCENARIO_DATA,
+  STAR_ROW_PLATFORMS,
+  WORLD,
+  hubFeatureNeedsOn,
+} from '../scenarios/hub';
 import { iso } from './clock';
 import { type BootstrapPresetName, type FakeHubConfigPatch } from './types';
 
@@ -77,11 +77,14 @@ export interface FakeHubConfig {
   readonly aiNameFan: boolean;
   /** The model's whole answer per hub feature, in place of the synthetic one. */
   readonly aiTexts: Readonly<Record<string, string>>;
+  /** Pages the hub's voice-notes lane does not serve (R20 HF-4б): their `voice` reads `lane_off` in the bootstrap. */
+  readonly voiceLaneOff: readonly string[];
 }
 
+/** The owner's `"*"` row over every switch in the contracts (the hub's own top-level names). */
 const allFlags = (on: (flag: ClientFeatureFlag) => boolean): Record<string, boolean> => Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, on(flag)]));
 
-/** Pilot capabilities: every one but client-health (B′ ingest still off). */
+/** Pilot capabilities: every one the hub serves but client-health (B′ ingest still off). */
 export const PILOT_CAPABILITIES: readonly string[] = CLIENT_HUB_CAPABILITY_NAMES.filter((capability) => capability !== 'client-health-perf-v1');
 
 const BASE = {
@@ -94,6 +97,7 @@ const BASE = {
   aiChunkDelayMs: 0,
   aiNameFan: false,
   aiTexts: {},
+  voiceLaneOff: [],
 } as const;
 
 export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
@@ -101,15 +105,16 @@ export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
     case 'pilot-pages': {
       // What the owner really does: nothing in `*`, a row per pilot page that names only what is ON there.
       // A flag the row does not name falls back to `*` — so a test still switches X8 on for everyone with
-      // `flags`, and switches a pilot flag off with `pageFlags`.
-      const row = Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.filter((flag) => !PILOT_FLAGS_OFF.includes(flag)).map((flag) => [flag, true]));
+      // `flags`, and switches a pilot flag off with `pageFlags`. No Fansly page has a row (as in production):
+      // it reads `flag_off` until a test writes one (`fanslyPageFlags`).
+      const row = Object.fromEntries(PILOT_FLAGS_ON.map((flag) => [flag, true]));
       return { ...presetConfig('pilot-on'), flags: allFlags(() => false), pageFlags: { [WORLD.pages.one.pageLabel]: row, [WORLD.pages.vip.pageLabel]: row } };
     }
     case 'pilot-on':
       return {
         ...BASE,
         master: true,
-        flags: allFlags((flag) => !PILOT_FLAGS_OFF.includes(flag)),
+        flags: allFlags((flag) => PILOT_FLAGS_ON.includes(flag)),
         capabilities: PILOT_CAPABILITIES,
         minVersion: '0.1.0',
         bindingsByHost: { [BINDING_KEY_ONE]: WORLD.pages.one.pageId, [BINDING_KEY_VIP]: WORLD.pages.vip.pageId },
@@ -141,6 +146,17 @@ export function pilotPageFlags(flags: Readonly<Partial<Record<ClientFeatureFlag,
   return { pageFlags: { [WORLD.pages.one.pageLabel]: flags, [WORLD.pages.vip.pageLabel]: flags } };
 }
 
+/** Every switch a Fansly page has (hub R20 HF-2): the flags of the table's Fansly column. */
+export const FANSLY_PAGE_FLAGS: readonly ClientFeatureFlag[] = CLIENT_FEATURE_FLAG_NAMES.filter((flag) => HUB_FEATURE_REQUIREMENTS[flag].fansly !== undefined);
+
+/**
+ * An owner change of the Fansly page's own row (`chatExtensionFeatures["<pageLabel>"]`) — the ONLY way to switch a
+ * Fansly page on: the `"*"` row never reaches it (R20 HF-2). Without `flags`, every switch the page has, on.
+ */
+export function fanslyPageFlags(flags: Readonly<Partial<Record<ClientFeatureFlag, boolean>>> = Object.fromEntries(FANSLY_PAGE_FLAGS.map((flag) => [flag, true]))): Pick<FakeHubConfigPatch, 'pageFlags'> {
+  return { pageFlags: { [WORLD.pages.fansly.pageLabel]: flags } };
+}
+
 /** Applies an owner change; any change of what bootstrap shows bumps configRevision. */
 export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): FakeHubConfig {
   const next: FakeHubConfig = {
@@ -167,35 +183,63 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.aiChunkDelayMs === undefined ? {} : { aiChunkDelayMs: patch.aiChunkDelayMs }),
     ...(patch.aiNameFan === undefined ? {} : { aiNameFan: patch.aiNameFan }),
     ...(patch.aiTexts === undefined ? {} : { aiTexts: { ...patch.aiTexts } }),
+    ...(patch.voiceLaneOff === undefined ? {} : { voiceLaneOff: [...patch.voiceLaneOff] }),
   };
   const owner = ['master', 'flags', 'pageFlags', 'capabilities', 'minVersion', 'bindingsByHost', 'limits'].some((key) => key in patch);
   return owner ? { ...next, configRevision: config.configRevision + 1 } : next;
 }
 
-/** The flag on this page: the page's own entry wins over `*`; master off → off. */
-export function flagOn(config: FakeHubConfig, pageLabel: string, flag: string): boolean {
+/**
+ * The flag on this page: the page's own entry wins over `*`, and `*` reaches only the pages of a platform that takes
+ * it — a Fansly page reads its own row alone (hub `clientStarRowReaches`, R20 HF-2); master off → off.
+ */
+export function flagOn(config: FakeHubConfig, page: Pick<FakePage, 'pageLabel' | 'platform'>, flag: string): boolean {
   if (!config.master) return false;
-  return config.pageFlags[pageLabel]?.[flag] ?? config.flags[flag] === true;
+  return config.pageFlags[page.pageLabel]?.[flag] ?? (STAR_ROW_PLATFORMS.includes(page.platform) && config.flags[flag] === true);
 }
 
-/** The extension can bind a host account to the page: by its platform account id, or by an explicit owner binding. */
+/** The host apps whose accounts an owner binding names, with the platforms of those accounts (hub `CLIENT_HOST_PLATFORMS`). */
+const HOST_PLATFORMS: Readonly<Record<string, readonly string[]>> = { onlymonster: ['onlyfans'] };
+
+/** Whether an owner binding of this host account can point at a page of this platform (hub `hostBindingFitsPlatform`). */
+export function hostBindingFits(hostAccount: string, platform: string): boolean {
+  const [host = ''] = hostAccount.split(':', 1);
+  return HOST_PLATFORMS[host]?.includes(platform) ?? false;
+}
+
+/** The extension can bind a host account to the page: by its platform account id, or by an owner binding from a host of the page's platform. */
 function bindable(config: FakeHubConfig, page: FakePage): boolean {
-  return page.platformAccountId !== null || Object.values(config.bindingsByHost).includes(page.pageId);
+  return page.platformAccountId !== null || Object.entries(config.bindingsByHost).some(([host, pageId]) => pageId === page.pageId && hostBindingFits(host, page.platform));
 }
 
-/** `evaluateClientFeature`: whether a page's feature is available and why not, in the hub's order. */
+/**
+ * `evaluateClientFeature`: whether a page's feature is available and why not, in the hub's order — the feature exists
+ * on the page's platform, the master switch, the flag (the page's own row; `*` only where it reaches), the binding,
+ * the capabilities it needs on that platform.
+ */
 export function featureVerdict(config: FakeHubConfig, page: FakePage, flag: string): FeatureAvailability {
-  // A switch of Fansly's alone (contracts 1.15.0, P4b3) is not on an OnlyFans page at all (HF-2): the platform first.
-  if (page.platform !== 'onlyfans' || !existsOnOnlyFans(flag)) return { available: false, reason: 'platform_unsupported' };
+  const needs = hubFeatureNeedsOn(flag, page.platform);
+  if (needs === undefined) return { available: false, reason: 'platform_unsupported' };
   if (!config.master) return { available: false, reason: 'disabled' };
-  if (!flagOn(config, page.pageLabel, flag)) return { available: false, reason: 'flag_off' };
+  if (!flagOn(config, page, flag)) return { available: false, reason: 'flag_off' };
   if (!bindable(config, page)) return { available: false, reason: 'binding_missing' };
-  const known = narrowToken(CLIENT_FEATURE_FLAG_NAMES, flag);
-  if (known !== null && !(HUB_FEATURE_CAPABILITIES[known] ?? []).every((capability) => hasCapability(config.capabilities, capability))) {
-    return { available: false, reason: 'hub_not_ready' };
-  }
+  if (!needs.capabilities.every((capability) => config.capabilities.includes(capability))) return { available: false, reason: 'hub_not_ready' };
   return { available: true };
 }
+
+/**
+ * A page's feature as the bootstrap shows it (hub `evaluateClientPageFeatures`): the evaluation, and then, for a
+ * feature it offers that runs on a hub lane, that lane — `lane_off` where the lane does not serve the page (R20
+ * HF-4б: `voice` on the voice-notes lane). Only the bootstrap asks the lane; a call is answered by the lane itself.
+ */
+export function pageFeature(config: FakeHubConfig, page: FakePage, flag: string): FeatureAvailability {
+  const verdict = featureVerdict(config, page, flag);
+  const lane = hubFeatureNeedsOn(flag, page.platform)?.lane;
+  return verdict.available && lane === 'voice-notes' && config.voiceLaneOff.includes(page.pageLabel) ? { available: false, reason: 'lane_off' } : verdict;
+}
+
+/** Where a chat of this page is its fan (OnlyFans); a Fansly chat is a group with an id of its own. */
+export const chatIsFan = (page: Pick<FakePage, 'platform'>): boolean => CHAT_IS_FAN[page.platform];
 
 export interface BootstrapIdentity {
   readonly userId: number;
@@ -206,7 +250,9 @@ export interface BootstrapIdentity {
 
 /** Bootstrap for one caller at `now` (H-2a form). */
 export function bootstrapOf(config: FakeHubConfig, pages: readonly FakePage[], identity: BootstrapIdentity, now: number): Bootstrap {
-  const flagNames = [...new Set([...CLIENT_FEATURE_FLAG_NAMES, ...Object.keys(config.flags)])];
+  // Every page and the top-level flags list every contract name, plus a test's future names.
+  const flagNames = [...new Set<string>([...CLIENT_FEATURE_FLAG_NAMES, ...Object.keys(config.flags)])];
+  const pageOf = (pageId: number): FakePage | undefined => pages.find((page) => page.pageId === pageId);
   return {
     protocol: 1,
     issuedAt: iso(now),
@@ -221,9 +267,15 @@ export function bootstrapOf(config: FakeHubConfig, pages: readonly FakePage[], i
       platform: page.platform,
       platformAccountId: page.platformAccountId,
       bindingRevision: page.bindingRevision,
-      features: Object.fromEntries(flagNames.map((flag) => [flag, featureVerdict(config, page, flag)])),
+      features: Object.fromEntries(flagNames.map((flag) => [flag, pageFeature(config, page, flag)])),
     })),
-    bindingsByHost: Object.fromEntries(Object.entries(config.bindingsByHost).filter(([, pageId]) => pages.some((page) => page.pageId === pageId))),
+    // The caller's pages only, and only a binding from a host of the page's platform (hub `hostBindingFitsPlatform`).
+    bindingsByHost: Object.fromEntries(
+      Object.entries(config.bindingsByHost).filter(([host, pageId]) => {
+        const page = pageOf(pageId);
+        return page !== undefined && hostBindingFits(host, page.platform);
+      }),
+    ),
     // `clientBootstrapFlags`: the `*` row alone — a page's own row never shows here.
     flags: Object.fromEntries(flagNames.map((flag) => [flag, config.master && config.flags[flag] === true])),
     limits: config.limits,

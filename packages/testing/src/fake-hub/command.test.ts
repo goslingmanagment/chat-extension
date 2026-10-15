@@ -36,6 +36,10 @@ describe('fake hub control commands', () => {
       { op: 'spenderFans', fans: [{ fanRef: '74001001', displayName: null, lifetimeUsd: 12, windowUsd: null, fanWroteAgoSec: 60, awaiting: true }] },
       { op: 'spenderFans', fans: [] },
       { op: 'config', patch: { aiNameFan: true } },
+      { op: 'config', patch: { voiceLaneOff: [WORLD.pages.fansly.pageLabel] } },
+      { op: 'thread', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: WORLD.fansly.chats.a.group, fanRef: WORLD.fansly.chats.a.fan },
+      { op: 'thread', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: WORLD.fansly.chats.a.group, fanRef: null },
+      { op: 'archiveConversation', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: WORLD.fansly.chats.a.group, messages: [{ id: '880000000000000001', sender: 'fan', state: 'held' }, { id: '880000000000000002', sender: 'model' }], lookupFails: true },
       { op: 'status' },
     ];
     for (const command of valid) expect(checkCommand(command)).toBe(command);
@@ -57,6 +61,10 @@ describe('fake hub control commands', () => {
     expect(() => hub.control(bad({ op: 'spenderFans' }))).toThrow(/spenderFans needs «fans»/);
     expect(() => hub.control(bad({ op: 'spenderFans', fans: [{ fanRef: '74001001', lifetimeUSD: 5 }] }))).toThrow(/spenderFans\.fans is not valid/);
     expect(() => hub.control(bad({ op: 'spenderFans', fans: [{ username: 'nobody' }] }))).toThrow(/spenderFans\.fans is not valid/);
+    expect(() => hub.control(bad({ op: 'thread', pageLabel: PAGE, conversationRef: WORLD.fansly.chats.a.group }))).toThrow(/thread needs «fanRef»/);
+    expect(() => hub.control(bad({ op: 'thread', pageLabel: PAGE, conversationRef: 7203, fanRef: null }))).toThrow(/thread\.conversationRef is not valid/);
+    expect(() => hub.control(bad({ op: 'archiveConversation', pageLabel: PAGE, conversationRef: '81', messages: [{ id: '1', sender: 'fan', text: 'hi' }] }))).toThrow(/archiveConversation\.messages is not valid/);
+    expect(() => hub.control(bad({ op: 'archiveConversation', pageLabel: PAGE, conversationRef: '81', messages: [{ id: '1', sender: 'fan', state: 'gone' }] }))).toThrow(/archiveConversation\.messages is not valid/);
     expect(() => hub.control(bad(null))).toThrow(/JSON object with an `op`/);
     expect(hub.status()).toEqual(before);
   });
