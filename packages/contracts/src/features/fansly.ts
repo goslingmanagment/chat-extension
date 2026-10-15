@@ -57,6 +57,9 @@ const FEATURES = {
   newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: NOTHING }, surfaces: ['newcomers'], source: 'host-pass' },
   'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub' },
   sound: { base: { flags: ['sound'], hostCapabilities: [] }, actions: {}, surfaces: [] },
+  // Fansly's MAIN sees a send by hand — the trusted gesture, the receipt of `POST /api/v1/message`, the echo (§5.9) —
+  // with the site switched on: no owner switch decides it (its observation of the page is on by itself, FS-WS-4).
+  'human-send': { base: { flags: [], hostCapabilities: ['sendObserve'] }, actions: {}, surfaces: [], source: 'page' },
 
   // ── only Fansly ──
   // 🎙: a script from the draft and its paid voicing (the hub, HF-4); the MP3 goes into the field of this chat (§7.10).

@@ -27,6 +27,11 @@ export const FEATURES_COMMON = {
   newcomers: { kind: 'board', chip: { group: 'windows', priority: 20, icon: 'userPlus' } },
   'fan-panel': { kind: 'panel' },
   sound: { kind: 'service' },
+  /**
+   * 1.15.0 (R20 P7i). A person's own send of a part of ours, taken for known (`op.reportSent`: telemetry `sent`, the
+   * hub's registration of a greeting sent by hand): how the site sees it is the site's — its requirement says when.
+   */
+  'human-send': { kind: 'service' },
 } as const satisfies Readonly<Record<string, FeatureCommon>>;
 
 export type CommonFeatureKey = keyof typeof FEATURES_COMMON;
