@@ -7,7 +7,8 @@
 // - Our insert, the person's trusted Enter, or a click on Fansly's own Send: the receipt of exactly
 //   `POST /api/v1/message` and its socket echo, in either order — the port says `humanSend` for the server's message
 //   id with our insert's intent (what the tab reports, `op.reportSent` → `ai_acceptance · sent`); an edit after the
-//   insert is `edited`. No echo — nothing.
+//   insert is `edited`. No echo — nothing. The link is by the gesture's own name, its event's `timeStamp`, which
+//   MAIN and the isolated side read from the same event: Firefox shows here that both read the same value.
 // - Two `POST /message` in one gesture — not attributed; a request from a timer beside the page's own send is no
 //   candidate.
 // - A send the neighbour's word filter swallowed (`after,guard`) — no request, no `sent`; the person's fixed text,
@@ -39,7 +40,7 @@ interface Insertion {
   readonly record: { readonly intentId: string; readonly contentDigest: string } | null;
 }
 interface PortHealth {
-  readonly isolated: { readonly sends: { readonly gestures: number; readonly linked: number; readonly unmatched: number; readonly ambiguous: number } };
+  readonly isolated: { readonly sends: { readonly gestures: number; readonly linked: number; readonly unmatched: number; readonly mismatched: number; readonly ambiguous: number } };
   readonly main: FanslyHealth | null;
 }
 
@@ -150,7 +151,8 @@ describe('Fansly’s human send on its stand and its `sent` (R20 P7f)', () => {
         const counted = await mainSends();
         expect(counted).toMatchObject({ gestures: 1, receipts: 1, ambiguous: 0, media: 0, sent: 1 });
         expect(counted.echoFirst + counted.receiptFirst).toBe(1);
-        expect((await portHealth()).isolated.sends).toEqual({ gestures: 1, linked: 1, unmatched: 0, ambiguous: 0 });
+        // The link is the gesture's own: the event's timeStamp MAIN carried is the one this side read in Firefox.
+        expect((await portHealth()).isolated.sends).toEqual({ gestures: 1, linked: 1, unmatched: 0, mismatched: 0, ambiguous: 0 });
       });
 
       it(`[FS-SEND-1] [FS-SEND-2] [TL-004] a trusted click on Fansly’s own Send (${mode}), the echo before the receipt: attributed; an edit after our insert — \`edited\`; no echo — nothing`, async () => {

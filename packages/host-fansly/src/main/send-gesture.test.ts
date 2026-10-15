@@ -30,6 +30,7 @@ import {
   type FakeXMLHttpRequest,
   type PageWindow,
 } from '../testing/fake-page';
+import { SEND_WAIT_MS } from './send-gesture';
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
@@ -46,8 +47,8 @@ interface Chat {
 }
 
 /** The page on its chat: the creator known, its socket confirmed — what the page has before a person sends. */
-async function onChat(): Promise<Chat> {
-  const c = await connectTo(page(), cleanups);
+async function onChat(clock?: () => number): Promise<Chat> {
+  const c = await connectTo(clock === undefined ? page() : page('loading', clock), cleanups);
   request(c.win, `${API}/account/me?ngsw-bypass=true`).respond(200, ok({ account: { id: CREATOR } }));
   const socket = openSocket(c.win);
   socket.receive(session);
@@ -65,22 +66,34 @@ const echo = (socket: FakeWebSocket, id: string, over: Record<string, unknown> =
 
 const enter = { type: 'keydown', key: 'Enter', target: MAIN.field } as const;
 const click = { type: 'click', target: MAIN.icon } as const;
-const sents = (c: Connected): unknown[] => c.events().filter((e) => e.t === 'fx.sent').map((e) => e.p);
+/** The sends MAIN said, without the gesture's name (`sentAt` reads it). */
+const sents = (c: Connected): unknown[] =>
+  c
+    .events()
+    .filter((e) => e.t === 'fx.sent')
+    .map(({ p }) => {
+      const { gestureAt: _at, ...rest } = p;
+      return rest;
+    });
+/** The gesture each send names (`fx.sent.gestureAt`). */
+const sentAt = (c: Connected): unknown[] => c.events().filter((e) => e.t === 'fx.sent').map((e) => e.p['gestureAt']);
 const counts = async (c: Connected): Promise<Record<string, number>> => (await c.health()).sends;
 
 describe('[FS-SEND-2] [UI-033] [host:fansly] the person’s send, attributed by MAIN (§5.9)', () => {
   it('[FS-SEND-1] a trusted Enter in the main field: the page’s POST inside the keydown is marked; its receipt and its echo — in either order — are one fx.sent with the digest of the sent text, never the text', async () => {
     const { c, win, socket } = await onChat();
     let xhr: FakeXMLHttpRequest | null = null;
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
+    const first = await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
     receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000301');
     echo(socket, '700000000000000301');
     // The echo first: it waits while the request is in flight, its receipt finds it.
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
+    const second = await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
     echo(socket, '700000000000000302');
     receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000302');
     await settle();
     expect(sents(c)).toEqual([sentOf('700000000000000301'), sentOf('700000000000000302')]);
+    // Each send names its own gesture: the timeStamp of the very event, which the isolated side reads too.
+    expect(sentAt(c)).toEqual([first.timeStamp, second.timeStamp]);
     expect(JSON.stringify(c.batches)).not.toContain('Привет');
     expect(await counts(c)).toEqual({ gestures: 2, receipts: 2, ambiguous: 0, media: 0, sent: 2, echoFirst: 1, receiptFirst: 1 });
     expect(c.client.stats()).toMatchObject({ invalidEvents: 0, invalidAnswers: 0 });
@@ -313,6 +326,49 @@ describe('[FS-SEND-2] [UI-033] [host:fansly] the person’s send, attributed by 
     await settle();
     expect(sents(c)).toEqual([]);
     expect(await counts(c)).toMatchObject({ gestures: 1, receipts: 0 });
+  });
+
+  it('[FS-SEND-2] an expired wait confirms nothing: a receipt whose echo comes past its wait, an echo whose receipt comes past it — no fx.sent', async () => {
+    let now = 1000;
+    const { c, win, socket } = await onChat(() => now);
+    let xhr: FakeXMLHttpRequest | null = null;
+    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
+    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000431');
+    now += SEND_WAIT_MS + 1000;
+    echo(socket, '700000000000000431');
+    // The echo first, kept while its request is in flight — and its receipt only past the wait.
+    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
+    echo(socket, '700000000000000432');
+    now += SEND_WAIT_MS + 1000;
+    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000432');
+    await settle();
+    expect(sents(c)).toEqual([]);
+    expect(await counts(c)).toMatchObject({ gestures: 2, receipts: 2, sent: 0 });
+  });
+
+  it('[FS-CO-1] the old extension shows up between the receipt and the echo: MAIN stands down, and the echo says nothing', async () => {
+    const { c, win, socket } = await onChat();
+    let xhr: FakeXMLHttpRequest | null = null;
+    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
+    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000441');
+    // Its tap marker only — no event of the page tells MAIN of it.
+    Reflect.set(win, Symbol.for('chatgoose.socketTap'), true);
+    echo(socket, '700000000000000441');
+    await settle();
+    expect(sents(c)).toEqual([]);
+    expect((await c.state()).identity.legacy).toBe(true);
+  });
+
+  it('the window’s gesture listeners go when MAIN stands down and when it is disposed', async () => {
+    const standing = await onChat();
+    expect(controls(standing.win).gestureListeners()).toBe(2);
+    Reflect.set(standing.win, Symbol.for('chatgoose.socketTap'), true);
+    standing.win.document.dispatchEvent(new Event('DOMContentLoaded'));
+    expect(controls(standing.win).gestureListeners()).toBe(0);
+    const disposed = await onChat();
+    expect(controls(disposed.win).gestureListeners()).toBe(2);
+    disposed.c.main.dispose();
+    expect(controls(disposed.win).gestureListeners()).toBe(0);
   });
 
   it('[FS-CO-1] standing down for the old extension: present at the start — no gesture listener at all; seen later — a gesture in flight and every one after it are nothing', async () => {

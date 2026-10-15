@@ -74,14 +74,18 @@ export interface GestureNatives {
   /** The boot's timer, which guards its callback itself. */
   readonly setTimer: (callback: () => void, ms: number) => unknown;
   readonly now: () => number;
+  /** MAIN still stands (no old extension, not disposed): asked right before a send is said. */
+  readonly standing: () => boolean;
   /** `fx.sent`. */
-  readonly sent: (payload: { readonly groupId: string; readonly msgId: string; readonly contentDigest: string }) => void;
+  readonly sent: (payload: { readonly groupId: string; readonly msgId: string; readonly contentDigest: string; readonly gestureAt: number }) => void;
 }
 
 /** One gesture of the person and what its delivery started. */
 export interface Gesture {
   /** The event while it may still be delivered; null once let go. */
   event: Event | null;
+  /** The event's `timeStamp`: the gesture's name in both worlds (`fx.sent.gestureAt`). */
+  readonly at: number;
   /** The address at the gesture, and the chat it names (null — no chat's address). */
   readonly path: string;
   readonly groupId: string | null;
@@ -90,7 +94,7 @@ export interface Gesture {
   ended: number;
   /** Marked answers at exactly `/api/v1/message`. */
   candidates: number;
-  receipt: { readonly msgId: string; readonly groupId: string; readonly contentDigest: string } | null;
+  receipt: { readonly msgId: string; readonly groupId: string; readonly contentDigest: string; readonly gestureAt: number } | null;
   media: boolean;
   settled: boolean;
 }
@@ -137,7 +141,7 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
   /** Echoes (id → group) that came while a marked request was in flight. */
   const echoes = new Map<string, { readonly groupId: string; readonly at: number }>();
   /** Receipts (id → receipt) waiting for their echo. */
-  const waiting = new Map<string, { readonly groupId: string; readonly contentDigest: string; readonly at: number }>();
+  const waiting = new Map<string, { readonly groupId: string; readonly contentDigest: string; readonly gestureAt: number; readonly at: number }>();
 
   /** Keeps a waiting map within its bounds: the stale first, then the oldest. */
   const bound = <V extends { readonly at: number }>(map: Map<string, V>): void => {
@@ -146,17 +150,19 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
     while (map.size > SEND_WAIT_MAX) map.delete(map.keys().next().value as string);
   };
 
-  const say = (msgId: string, groupId: string, contentDigest: string, echoFirst: boolean): void => {
+  const say = (msgId: string, receipt: { readonly groupId: string; readonly contentDigest: string; readonly gestureAt: number }, echoFirst: boolean): void => {
+    // The old extension may have come since the receipt: then this MAIN stands down, and says nothing more.
+    if (!natives.standing()) return;
     counts.sent += 1;
     if (echoFirst) counts.echoFirst += 1;
     else counts.receiptFirst += 1;
-    natives.sent({ groupId, msgId, contentDigest });
+    natives.sent({ groupId: receipt.groupId, msgId, contentDigest: receipt.contentDigest, gestureAt: receipt.gestureAt });
   };
 
   const remember = (event: Event): void => {
     counts.gestures += 1;
     const path = natives.path();
-    const gesture: Gesture = { event, path, groupId: CHAT_PATH.exec(path)?.[1] ?? null, marked: 0, ended: 0, candidates: 0, receipt: null, media: false, settled: false };
+    const gesture: Gesture = { event, at: event.timeStamp, path, groupId: CHAT_PATH.exec(path)?.[1] ?? null, marked: 0, ended: 0, candidates: 0, receipt: null, media: false, settled: false };
     last = gesture;
     natives.setTimer(() => {
       gesture.event = null;
@@ -172,12 +178,14 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
     if (gesture.candidates > 1) counts.ambiguous += 1;
     else if (gesture.candidates === 1 && gesture.media) counts.media += 1;
     else if (gesture.candidates === 1 && receipt !== null) {
+      // An echo that waited past its time pairs with nothing (review of P7f).
+      bound(echoes);
       const echo = echoes.get(receipt.msgId);
       if (echo?.groupId === receipt.groupId) {
         echoes.delete(receipt.msgId);
-        say(receipt.msgId, receipt.groupId, receipt.contentDigest, true);
+        say(receipt.msgId, receipt, true);
       } else {
-        waiting.set(receipt.msgId, { groupId: receipt.groupId, contentDigest: receipt.contentDigest, at: natives.now() });
+        waiting.set(receipt.msgId, { groupId: receipt.groupId, contentDigest: receipt.contentDigest, gestureAt: receipt.gestureAt, at: natives.now() });
         bound(waiting);
       }
     }
@@ -220,7 +228,7 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
       if (Array.isArray(attachments) && attachments.length > 0) gesture.media = true;
       else {
         const content = response['content'];
-        gesture.receipt = { msgId, groupId, contentDigest: digest(normalize(typeof content === 'string' ? content : '')) };
+        gesture.receipt = { msgId, groupId, contentDigest: digest(normalize(typeof content === 'string' ? content : '')), gestureAt: gesture.at };
       }
     },
     ended(gesture, candidate) {
@@ -233,13 +241,15 @@ export function createSendGesture(natives: GestureNatives): SendGesture {
       else settle(gesture);
     },
     echo(message) {
+      // A receipt that waited past its time is gone before any echo is matched to it (review of P7f).
+      if (waiting.size > 0) bound(waiting);
       if (waiting.size === 0 && open.size === 0) return;
       const creator = natives.creator();
       if (creator === null || message.senderId !== creator) return;
       const receipt = waiting.get(message.id);
       if (receipt !== undefined) {
         waiting.delete(message.id);
-        if (receipt.groupId === message.groupId) say(message.id, receipt.groupId, receipt.contentDigest, false);
+        if (receipt.groupId === message.groupId) say(message.id, receipt, false);
         return;
       }
       if (open.size === 0) return;

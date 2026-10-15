@@ -1,29 +1,33 @@
 // The person's send on Fansly, linked to our draft (docs/project-unite/
 // architecture.md §5.9 п. 7, §7.5 п. 5, §9.3; FS-SEND-2; D-17). We never
 // send: MAIN watches the person's own Enter or Send click and says
-// `fx.sent {groupId, msgId, contentDigest}` for a send it proved to be that
-// gesture's (main/send-gesture.ts) — the text itself never crosses. Here:
+// `fx.sent {groupId, msgId, contentDigest, gestureAt}` for a send it proved to
+// be that gesture's (main/send-gesture.ts) — the text itself never crosses.
+// `gestureAt` is the `timeStamp` of the gesture's event, which both worlds
+// read from the same event: it names the gesture on both sides. Here:
 // - AT THE SAME GESTURE — the trusted Enter (no Shift, no IME composition) in
 //   the field the port owns, or the trusted click on that field's own
 //   `.send-button` — the draft is read before the page clears the field (a
 //   microtask after its send, without events — fansly-web.md §3): the chat
 //   and group of the route, the draft as a send carries it (`sentDraft`,
 //   insert.ts: its revision, its provenance, the insert it descends from and
-//   whether it changed since), and the digest of its text normalized as MAIN
-//   digests the sent `content`. An empty field is no send.
-// - An `fx.sent` is linked to the ONE reading of its group whose digest is
-//   the sent text's: the port says `humanSend` — with our insert's intent and
-//   «edited since» when the draft descends from one —, and the tab reports
-//   it for its operation (`op.reportSent`, telemetry `sent`). None — not
-//   linked (the text changed between the gesture and the send, a gesture
-//   this side did not see); two — not linked either: the link is one or
-//   none, and the readings it could not tell apart go with it.
-// - The same text pressed again from the same draft — the page sent nothing
-//   the first time (the neighbour's word filter, S5 §2.6) — replaces the
-//   earlier reading; any other reading waits for its send until it is old.
+//   whether it changed since), the digest of its text normalized as MAIN
+//   digests the sent `content`, and the event's `timeStamp`. An empty field
+//   is no send.
+// - An `fx.sent` is linked only to the reading of ITS gesture (`gestureAt`),
+//   checked by its group and the digest of the sent text: the port says
+//   `humanSend` — with our insert's intent and «edited since» when the draft
+//   descends from one —, and the tab reports it for its operation
+//   (`op.reportSent`, telemetry `sent`). No reading of that gesture, two of
+//   it, or one of another group or text — not linked; MAIN says one send a
+//   gesture at most, so the readings of that gesture go with it. A text alone
+//   links nothing: drafts of other operations with the same text, read at
+//   other gestures, are never taken for this send (review of P7f).
+// - A reading waits for its send at most READING_MS (MAIN waits as long for a
+//   receipt's echo): one the page never sent — the neighbour's word filter
+//   swallowed it (S5 §2.6) — simply ages out.
 // - A text equal to our insert sent with no gesture — from another device, by
-//   a script's click — gets no `fx.sent` from MAIN, and so nothing here: a
-//   matching text alone never makes a `sent`.
+//   a script's click — gets no `fx.sent` from MAIN, and so nothing here.
 
 import type { HumanSendFact, SentDraft } from '@cg/contracts/host';
 import type { ChatRef } from '@cg/contracts/ids';
@@ -40,6 +44,8 @@ const COMPOSER = 'app-group-message-input';
 /** The draft read at one gesture. */
 interface Reading {
   readonly serial: number;
+  /** The gesture's event `timeStamp`: its name in both worlds. */
+  readonly gestureAt: number;
   readonly groupId: string;
   readonly chat: ChatRef;
   readonly draft: SentDraft;
@@ -52,16 +58,18 @@ export interface SendObserveStats {
   readonly gestures: number;
   /** `fx.sent` linked to a reading, and the port's `humanSend` said. */
   readonly linked: number;
-  /** `fx.sent` with no reading of its group and text. */
+  /** `fx.sent` of a gesture this side has no reading of. */
   readonly unmatched: number;
-  /** `fx.sent` with two or more such readings. */
+  /** `fx.sent` whose gesture's reading is of another group or text. */
+  readonly mismatched: number;
+  /** `fx.sent` of a gesture read twice. */
   readonly ambiguous: number;
 }
 
 /** What the tab's log hears of a send — its link, never its text or a fan. */
 export interface SendDiagnostic {
   readonly event: 'human-send';
-  readonly detail: { readonly link: 'linked' | 'unmatched' | 'ambiguous'; readonly ours: boolean | null; readonly edited: boolean | null };
+  readonly detail: { readonly link: 'linked' | 'unmatched' | 'mismatched' | 'ambiguous'; readonly ours: boolean | null; readonly edited: boolean | null };
 }
 
 export interface SendObserverOptions {
@@ -80,7 +88,7 @@ export interface SendObserverOptions {
 
 export interface SendObserver {
   /** MAIN's `fx.sent`. */
-  sent(payload: { readonly groupId: string; readonly msgId: string; readonly contentDigest: string }): void;
+  sent(payload: { readonly groupId: string; readonly msgId: string; readonly contentDigest: string; readonly gestureAt: number }): void;
   /** Another creator: what was read under the old one is gone. */
   reset(): void;
   stats(): SendObserveStats;
@@ -90,20 +98,18 @@ export interface SendObserver {
 /** In the capture phase on the window, passive: before the page's own handlers, and nothing is cancelled. */
 const CAPTURE: AddEventListenerOptions = { capture: true, passive: true };
 
-const sameLink = (a: SentDraft, b: SentDraft): boolean => a.insertIntentId === b.insertIntentId && a.editedSinceInsert === b.editedSinceInsert && a.provenance === b.provenance;
-
 export function createSendObserver(options: SendObserverOptions): SendObserver {
   const { win, now } = options;
   let readings: Reading[] = [];
   let serial = 0;
-  const stats = { gestures: 0, linked: 0, unmatched: 0, ambiguous: 0 };
+  const stats = { gestures: 0, linked: 0, unmatched: 0, mismatched: 0, ambiguous: 0 };
 
   const fresh = (): void => {
     const at = now();
     readings = readings.filter((reading) => at - reading.at <= READING_MS);
   };
 
-  const read = (field: HTMLTextAreaElement): void => {
+  const read = (field: HTMLTextAreaElement, event: Event): void => {
     stats.gestures += 1;
     const where = options.chat();
     const draft = options.draft();
@@ -111,17 +117,14 @@ export function createSendObserver(options: SendObserverOptions): SendObserver {
     if (where === null || draft === null || text === '') return;
     fresh();
     serial += 1;
-    const reading: Reading = { serial, groupId: where.groupId, chat: where.chat, draft, contentDigest: digest(text), at: now() };
-    // The same draft pressed again: whatever the first press did, it sent nothing this reading could still be told from.
-    readings = readings.filter((other) => !(other.groupId === reading.groupId && other.contentDigest === reading.contentDigest && sameLink(other.draft, reading.draft)));
-    readings.push(reading);
+    readings.push({ serial, gestureAt: event.timeStamp, groupId: where.groupId, chat: where.chat, draft, contentDigest: digest(text), at: now() });
     if (readings.length > READINGS_MAX) readings.shift();
   };
 
   const onKey = (event: KeyboardEvent): void => {
     if (event.isTrusted !== true || event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
     const field = options.field();
-    if (field !== null && event.target === field) read(field);
+    if (field !== null && event.target === field) read(field, event);
   };
   const onClick = (event: MouseEvent): void => {
     if (event.isTrusted !== true) return;
@@ -130,7 +133,7 @@ export function createSendObserver(options: SendObserverOptions): SendObserver {
     if (field === null || typeof target?.closest !== 'function') return;
     const button = target.closest(SEND_BUTTON);
     const composer = button?.closest(COMPOSER) ?? null;
-    if (composer !== null && composer === field.closest(COMPOSER)) read(field);
+    if (composer !== null && composer === field.closest(COMPOSER)) read(field, event);
   };
   win.addEventListener('keydown', onKey, CAPTURE);
   win.addEventListener('click', onClick, CAPTURE);
@@ -141,16 +144,20 @@ export function createSendObserver(options: SendObserverOptions): SendObserver {
   return {
     sent(payload) {
       fresh();
-      const found = readings.filter((reading) => reading.groupId === payload.groupId && reading.contentDigest === payload.contentDigest);
+      // Only the reading of this very gesture — MAIN says one send a gesture at most, so its readings go with it.
+      const found = readings.filter((reading) => reading.gestureAt === payload.gestureAt);
+      readings = readings.filter((reading) => reading.gestureAt !== payload.gestureAt);
       const reading = found[0];
       if (found.length !== 1 || reading === undefined) {
         if (found.length === 0) stats.unmatched += 1;
         else stats.ambiguous += 1;
-        // Readings a send could not tell apart are no better for the next one.
-        readings = readings.filter((other) => !found.includes(other));
         return note(found.length === 0 ? 'unmatched' : 'ambiguous', null);
       }
-      readings = readings.filter((other) => other !== reading);
+      // Its group and text — a check: a gesture whose send is not what was read there is not linked.
+      if (reading.groupId !== payload.groupId || reading.contentDigest !== payload.contentDigest) {
+        stats.mismatched += 1;
+        return note('mismatched', reading.draft);
+      }
       stats.linked += 1;
       note('linked', reading.draft);
       options.said({ chat: reading.chat, pendingId: `g${String(reading.serial)}`, platformMessageId: payload.msgId, textDigest: payload.contentDigest, draft: reading.draft });

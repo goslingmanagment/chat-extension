@@ -163,8 +163,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   // Natives, captured at document_start (§5.1).
   const parse = JSON.parse as (text: string) => unknown;
   const stringify = JSON.stringify as (value: unknown) => string;
-  // eslint-disable-next-line @typescript-eslint/unbound-method -- native captured at load, always invoked with .call
+  /* eslint-disable @typescript-eslint/unbound-method -- natives captured at load, always invoked with .call */
   const add = win.EventTarget.prototype.addEventListener;
+  const remove = win.EventTarget.prototype.removeEventListener;
+  /* eslint-enable @typescript-eslint/unbound-method */
   const natives: TapNatives = { construct: Reflect.construct, listenOn: (target, type, listener, capture) => add.call(target, type, listener, capture === true ? CAPTURE : undefined), guard, fault };
   // The gesture's target (§5.9); a window without `Element` (none in a browser) only has no gesture to watch.
   const ElementNative = win.Element as typeof Element | undefined;
@@ -252,27 +254,33 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         emitter.flush();
       }, ms),
     now,
+    // The old extension's marks may have come with no event of the page since the receipt: looked at again first.
+    standing: () => {
+      refreshNeighbors();
+      return !stopped && !disposed;
+    },
     sent: (payload) => emitter.event(EVT_SENT, payload),
   });
+  const onSendKey = guard('sendKey', (event: Event) => {
+    if (!stopped && !disposed) sends.onKey(event);
+  });
+  const onSendClick = guard('sendClick', (event: Event) => {
+    if (!stopped && !disposed) sends.onClick(event);
+  });
+  /** The gesture's listeners leave the page's window when MAIN stands down or is disposed. */
+  const unlistenSends = (): void => {
+    try {
+      remove.call(win, 'keydown', onSendKey, CAPTURE);
+      remove.call(win, 'click', onSendClick, CAPTURE);
+    } catch {
+      fault('sendUnlisten');
+    }
+  };
   // Standing down for the old extension (P7g): no gesture is ours to watch, from the start or from then on.
   if (!stopped) {
     try {
-      natives.listenOn(
-        win,
-        'keydown',
-        guard('sendKey', (event: Event) => {
-          if (!stopped && !disposed) sends.onKey(event);
-        }),
-        true,
-      );
-      natives.listenOn(
-        win,
-        'click',
-        guard('sendClick', (event: Event) => {
-          if (!stopped && !disposed) sends.onClick(event);
-        }),
-        true,
-      );
+      natives.listenOn(win, 'keydown', onSendKey, true);
+      natives.listenOn(win, 'click', onSendClick, true);
     } catch {
       fault('sendListen');
     }
@@ -582,6 +590,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       ws.restore();
       xhr.restore();
       sends.dispose();
+      unlistenSends();
       emitter.retire();
       emitter.state(EVT_IDENTITY, identityState());
       emitter.flush();
@@ -665,6 +674,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       ws.restore();
       xhr.restore();
       sends.dispose();
+      unlistenSends();
     },
   };
 }
