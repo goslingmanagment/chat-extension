@@ -103,13 +103,13 @@ interface Started {
 }
 
 /** The port on a Fansly-like page at `path`, over `main` (null — no MAIN), once its first state was taken. */
-async function startPort(path: string, main: FanslyMainBridgeClient | null): Promise<Started> {
+async function startPort(path: string, main: FanslyMainBridgeClient | null, now?: () => number): Promise<Started> {
   history.replaceState({}, '', path);
   const page = createFakeFanslyPage();
   const diagnostics: FanslyDiagnostic[] = [];
   const route = createRouteWatcher(window, (diagnostic) => diagnostics.push(diagnostic));
   const anchors = createAnchorWatcher(document, route);
-  const port = createFanslyHostPort({ win: window, bridge: main, mounts: createFanslyMounts(document), theme: light, route, anchors, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
+  const port = createFanslyHostPort({ win: window, bridge: main, mounts: createFanslyMounts(document), theme: light, route, anchors, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic), ...(now === undefined ? {} : { now }) });
   cleanups.push(() => port.dispose(), () => page.destroy());
   const events: HostEvent[] = [];
   port.subscribe((event) => events.push(event));
@@ -344,11 +344,14 @@ describe('[host:fansly] the stream rebuilds the tab’s state (§6)', () => {
   it('[BG-002] a failed state is asked again at the page’s next signal, never on a timer; MAIN’s guarded failures are logged at 1, 2, 4…', async () => {
     let answering = false;
     const main = scriptedMain({ 'fx.state': () => (answering ? NO_ONE : Promise.reject(new BridgeCallError('timeout', 'fx.state'))), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port, page, diagnostics } = await startPort('/messages', main.client);
+    let clock = 1_000;
+    const { port, page, diagnostics } = await startPort('/messages', main.client, () => clock);
     expect(diagnostics).toContainEqual({ event: 'state-failed', detail: { failure: 'timeout' } });
     await settle();
     expect(main.asked('fx.state')).toHaveLength(1);
     answering = true;
+    // After its pause (it failed once: 250 ms), the next signal of the page asks again.
+    clock += 300;
     page.openChat(GROUP);
     await settle();
     expect(main.asked('fx.state')).toHaveLength(2);
@@ -469,15 +472,16 @@ describe('[host:fansly] what the port holds belongs to its route, its creator an
     expect(port.current().route.chat).toEqual(chat());
     main.batch(2, identityEvent(SECOND_CREATOR));
     await settle();
-    expect(port.current().route).toMatchObject({ epoch: 1, conversationRef: GROUP, chat: null });
+    // Another creator is a new generation: a new route epoch on the same address, focused anew.
+    expect(port.current().route).toMatchObject({ epoch: 2, conversationRef: GROUP, chat: null });
     expect(port.current().route.conversationKind).toBeUndefined();
     expect(port.chatWindow(chat(FAN, SECOND_CREATOR), 200)).toBeNull();
     expect(port.current().composer).toBeNull();
     expect(main.asked('fx.focus')).toEqual([
       { groupId: GROUP, routeEpoch: 1 },
-      { groupId: GROUP, routeEpoch: 1 },
+      { groupId: GROUP, routeEpoch: 2 },
     ]);
-    main.batch(3, chatOf(GROUP, 1));
+    main.batch(3, chatOf(GROUP, 2));
     expect(port.current().route.chat).toEqual(chat(FAN, SECOND_CREATOR));
   });
 
@@ -504,7 +508,8 @@ describe('[host:fansly] what the port holds belongs to its route, its creator an
   it('[BG-002] a recovery that failed is asked again at the next signal of the page — a chat switch, an action of ours — however many states were taken before', async () => {
     let answering = true;
     const main = mainFor({ 'fx.state': () => (answering ? { ...NO_ONE, identity: fanslyIdentityWire } : Promise.reject(new BridgeCallError('timeout', 'fx.state'))) });
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
+    let clock = 1_000;
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client, () => clock);
     page.openChat(GROUP);
     await settle();
     expect(main.asked('fx.state')).toHaveLength(1);
@@ -512,15 +517,18 @@ describe('[host:fansly] what the port holds belongs to its route, its creator an
     main.gap();
     await settle();
     expect(main.asked('fx.state')).toHaveLength(2);
-    // MAIN stays stopped until a state is taken: the next chat asks again.
+    // MAIN stays stopped until a state is taken: the next chat asks again, once the pause after the failure is over.
+    clock += 300;
     page.openChat(OTHER);
     await settle();
     expect(main.asked('fx.state')).toHaveLength(3);
-    // And so does an action of our UI.
+    // And so does an action of our UI (the pause doubled after the second failure).
+    clock += 600;
     await port.readDraft(open(port.identity())).catch(() => undefined);
     await settle();
     expect(main.asked('fx.state')).toHaveLength(4);
     answering = true;
+    clock += 1_200;
     page.openChat(GROUP);
     await settle();
     expect(main.asked('fx.state')).toHaveLength(5);
@@ -564,6 +572,190 @@ describe('[host:fansly] what the port holds belongs to its route, its creator an
     expect(port.chatWindow(chat(), 200)?.hasOlder).toBe(false);
     proven.gap();
     expect(port.chatWindow(chat(), 200)).toMatchObject({ state: 'ready', hasOlder: null });
+  });
+});
+
+describe('[host:fansly] every asynchronous answer is taken under the generation it was asked in (review of P7c, round 2)', () => {
+  /**
+   * The generation: the page's life, the route and the creator, one token taken when a request leaves. Each path —
+   * MAIN's state, its chat, the generation snapshot, the field's draft — is asked under one generation, the generation
+   * moves (another chat, another creator, a return from bfcache), and the late answer must change nothing.
+   */
+  type Change = 'route' | 'creator' | 'bfcache';
+  const CHANGES: readonly Change[] = ['route', 'creator', 'bfcache'];
+  const B_FAN = '700000000000000099';
+  const chatRef = (fanId: string = FAN, creatorId: string = CREATOR) => ({ host: 'fansly-web', hostAccountId: creatorId, platformFanId: fanId }) as const;
+
+  interface World {
+    readonly port: FanslyPort;
+    readonly page: FakeFanslyPage;
+    readonly main: ReturnType<typeof scriptedMain>;
+    /** Resolves the request of a type that waits (the deferred ones). */
+    readonly release: (t: string, value: unknown) => void;
+    next: number;
+  }
+
+  /** The port on chat A, its fan named for epoch 1; the requests named in `deferred` wait for `release` (after the first state). */
+  async function onChatA(deferred: readonly string[] = []): Promise<World> {
+    const waiting = new Map<string, (value: unknown) => void>();
+    let states = 0;
+    const later = (t: string) => () => new Promise((resolve) => waiting.set(t, resolve));
+    const main = scriptedMain({
+      'fx.state': () => (deferred.includes('fx.state') && states++ > 0 ? later('fx.state')() : { ...NO_ONE, identity: fanslyIdentityWire }),
+      'fx.ack': () => null,
+      'fx.focus': () => null,
+      'fx.generationSnapshot': later('fx.generationSnapshot'),
+    });
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
+    page.openChat(GROUP);
+    await settle();
+    main.batch(1, chatOf(GROUP, 1));
+    expect(port.current().route).toMatchObject({ epoch: 1, chat: chatRef() });
+    return {
+      port,
+      page,
+      main,
+      next: 2,
+      release: (t, value) => {
+        const resolve = waiting.get(t);
+        if (resolve === undefined) throw new Error(`nothing of ${t} waits`);
+        waiting.delete(t);
+        resolve(value);
+      },
+    };
+  }
+
+  /** Moves the generation; afterwards what the route's chat must be (MAIN named B's fan for a route change). */
+  async function change(world: World, kind: Change): Promise<ReturnType<typeof chatRef> | null> {
+    if (kind === 'route') {
+      world.page.openChat(OTHER);
+      await settle();
+      const epoch = world.port.current().route.epoch;
+      world.main.batch(world.next++, chatOf(OTHER, epoch, { fanId: B_FAN }));
+      return chatRef(B_FAN);
+    }
+    if (kind === 'creator') {
+      world.main.batch(world.next++, identityEvent(SECOND_CREATOR));
+      await settle();
+      return null;
+    }
+    window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    await settle();
+    return null;
+  }
+
+  for (const kind of CHANGES) {
+    it(`[FS-RTE-4] [BG-002] MAIN’s state asked before ${kind === 'route' ? 'a chat switch' : kind === 'creator' ? 'another creator' : 'a return from bfcache'} is discarded whole when it lands, and asked again`, async () => {
+      const world = await onChatA(['fx.state']);
+      world.main.gap();
+      await settle();
+      expect(world.main.asked('fx.state')).toHaveLength(2);
+      const after = await change(world, kind);
+      const route = world.port.current().route;
+      // The old answer: chat A for epoch 1, the first creator.
+      world.release('fx.state', { ...NO_ONE, identity: fanslyIdentityWire, chat: { ...fanslyChatWire, groupId: GROUP, routeEpoch: 1 } });
+      await settle();
+      expect(world.port.current().route).toEqual(route);
+      expect(world.port.current().route.chat).toEqual(after);
+      expect(world.main.asked('fx.state')).toHaveLength(3);
+    });
+
+    it(`[FS-RTE-4] MAIN’s chat named for the epoch before ${kind === 'route' ? 'a chat switch' : kind === 'creator' ? 'another creator' : 'a return from bfcache'} is dropped, and the route is focused under a new epoch`, async () => {
+      const world = await onChatA();
+      const focusesBefore = world.main.asked('fx.focus').length;
+      const after = await change(world, kind);
+      const epoch = world.port.current().route.epoch;
+      expect(epoch).toBeGreaterThan(1);
+      expect(world.main.asked('fx.focus').slice(focusesBefore)).toContainEqual({ groupId: kind === 'route' ? OTHER : GROUP, routeEpoch: epoch });
+      world.main.batch(world.next++, chatOf(GROUP, 1));
+      expect(world.port.current().route.chat).toEqual(after);
+      expect(world.port.current().route.epoch).toBe(epoch);
+      if (after === null) expect(world.port.current().composer).toBeNull();
+    });
+
+    it(`[FS-RTE-4] [FS-TAIL-7] a snapshot asked before ${kind === 'route' ? 'a chat switch' : kind === 'creator' ? 'another creator' : 'a return from bfcache'} is no answer after it`, async () => {
+      const world = await onChatA();
+      const asked = world.port.freshness.snapshot(chatRef(), { conversationRef: GROUP, feature: 'reply', window: 30, withText: true });
+      await settle();
+      await change(world, kind);
+      world.release('fx.generationSnapshot', { ...fanslyReplySnapshot, identity: { creatorId: CREATOR, groupId: GROUP, fanId: FAN }, epochs: { ...fanslyReplySnapshot.epochs, document: EPOCH } });
+      expect(await asked).toBeNull();
+    });
+
+    it(`[RB-014] [FS-RTE-4] a draft read under the identity of before ${kind === 'route' ? 'a chat switch' : kind === 'creator' ? 'another creator' : 'a return from bfcache'} is refused`, async () => {
+      const world = await onChatA();
+      const field = world.page.textarea() as HTMLTextAreaElement;
+      field.value = 'draft for fan A';
+      field.dispatchEvent(new Event('input'));
+      const before = open(world.port.identity());
+      expect((await world.port.readDraft(before)).plainText).toBe('draft for fan A');
+      await change(world, kind);
+      const refused = (await world.port.readDraft(before).catch((error: unknown) => error)) as BridgeCallError;
+      expect(refused.failure).toBe('identity-mismatch');
+      expect(await world.port.focusComposer(before)).toBe(false);
+    });
+  }
+
+  it('[AU-034] [FS-RTE-4] another creator on the same address: a late fx.chat of the first creator names nothing, and the field is not the new creator’s until MAIN names its fan', async () => {
+    const world = await onChatA();
+    const field = world.page.textarea() as HTMLTextAreaElement;
+    field.value = 'draft for fan A';
+    field.dispatchEvent(new Event('input'));
+    world.main.batch(world.next++, identityEvent(SECOND_CREATOR));
+    await settle();
+    world.main.batch(world.next++, chatOf(GROUP, 1));
+    expect(world.port.current().route.chat).toBeNull();
+    expect(world.port.current().composer).toBeNull();
+    const identity = open(world.port.identity());
+    expect((await world.port.readDraft({ ...identity, composerInstanceId: 'f1' }).catch((error: unknown) => error)) as BridgeCallError).toMatchObject({ failure: 'identity-mismatch' });
+  });
+
+  it('[BG-002] a state that keeps failing is asked again with a growing pause: many actions in a row make a few asks, never one each', async () => {
+    let clock = 1_000;
+    let answering = true;
+    const main = scriptedMain({ 'fx.state': () => (answering ? { ...NO_ONE, identity: fanslyIdentityWire } : Promise.reject(new BridgeCallError('timeout', 'fx.state'))), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client, () => clock);
+    page.openChat(GROUP);
+    await settle();
+    answering = false;
+    main.gap();
+    await settle();
+    const asks = (): number => main.asked('fx.state').length;
+    expect(asks()).toBe(2);
+    const identity = port.identity() as HostIdentity;
+    // 25 actions within one pause: no ask at all.
+    for (let i = 0; i < 25; i += 1) await port.readDraft(identity).catch(() => undefined);
+    await settle();
+    expect(asks()).toBe(2);
+    // The pause passes: one ask; it fails, the next pause is longer.
+    clock += 300;
+    for (let i = 0; i < 25; i += 1) await port.readDraft(identity).catch(() => undefined);
+    await settle();
+    expect(asks()).toBe(3);
+    clock += 300;
+    await port.readDraft(identity).catch(() => undefined);
+    await settle();
+    expect(asks()).toBe(3);
+    clock += 300;
+    await port.readDraft(identity).catch(() => undefined);
+    await settle();
+    expect(asks()).toBe(4);
+    // Never longer than a few seconds.
+    for (let i = 0; i < 6; i += 1) {
+      clock += 5_000;
+      await port.readDraft(identity).catch(() => undefined);
+      await settle();
+    }
+    expect(asks()).toBe(10);
+    // Taken: the pause is over, nothing is owed.
+    answering = true;
+    clock += 5_000;
+    page.openChat(OTHER);
+    await settle();
+    expect(asks()).toBe(11);
+    page.openChat(GROUP);
+    await settle();
+    expect(asks()).toBe(11);
   });
 });
 

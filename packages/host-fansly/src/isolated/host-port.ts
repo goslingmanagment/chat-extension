@@ -42,9 +42,10 @@ import { DOM_ANCHORS_NOT_YET, judgeAnchors, type AnchorStats, type AnchorWatcher
 import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { FANSLY_ADAPTER_VERSION, buildFanslyReport, buildOf, type Observation } from './contract';
 import { createFreshnessPort } from './freshness';
+import { createGeneration } from './generation';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
 import type { FanslyMounts } from './mount';
-import type { RouteStats, RouteWatcher } from './route';
+import type { FanslyRoute, RouteStats, RouteWatcher } from './route';
 import { consumeStream, type StreamStats } from './stream';
 
 /** What the host tells the tab's log: an event, its code, a few plain facts — never a text, a name or an id of a fan. */
@@ -125,7 +126,24 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   let reloadNeeded = false;
   const faults = new Map<string, number>();
 
-  let routeState: RouteState = routeStateOf(route.current(), null, null);
+  /**
+   * The port's generation (generation.ts) — its route epoch: it moves with the address (and a return from bfcache)
+   * and with the creator, so a focus after either names a new epoch, and every asynchronous answer is taken only in
+   * the generation it was asked in.
+   */
+  const generation = createGeneration(1);
+  let addressEpoch = route.current().epoch;
+  /** The route as the port says it: the address, under the port's own epoch. */
+  const routeNow = (): FanslyRoute => {
+    const address = route.current();
+    if (address.epoch !== addressEpoch) {
+      addressEpoch = address.epoch;
+      generation.advance();
+    }
+    return { path: address.path, groupId: address.groupId, epoch: generation.current() };
+  };
+
+  let routeState: RouteState = routeStateOf(routeNow(), null, null);
   let composer: ComposerState | null = null;
   /** The projection of the composer views read (§11: a keystroke that changes none of it says nothing). */
   let composerSeen = '';
@@ -134,9 +152,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
 
   // ── the main field: its owner, its instance and its revision ──
   /**
-   * The conversation each field node was first seen under. Fansly changes the address before it replaces the
-   * conversation's nodes (`popstate` is read a task later, S2 Q4): a field still on the page when the route moved is
-   * the old chat's, and it never becomes the new one's — even once MAIN names the new fan (FS-RTE-4).
+   * The conversation (and the creator) each field node was first seen under. Fansly changes the address before it
+   * replaces the conversation's nodes (`popstate` is read a task later, S2 Q4): a field still on the page when the
+   * route moved is the old chat's, and it never becomes the new one's — even once MAIN names the new fan; nor the
+   * field of one creator another's (FS-RTE-4).
    */
   const owners = new WeakMap<Element, string | null>();
   const instances = new WeakMap<Element, string>();
@@ -240,7 +259,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   }
 
   function syncOnce(): void {
-    const now = route.current();
+    const now = routeNow();
     if (chatWire !== null && !chatFits(now, chatWire)) chatWire = null;
     if (stream?.started() === true && focused !== now.epoch) focus(now.epoch, now.groupId);
     const nextRoute = routeStateOf(now, creator, chatWire);
@@ -249,8 +268,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
 
     const conversation = anchors.current().conversation;
     const candidate = conversation?.textarea ?? null;
-    if (candidate !== null && !owners.has(candidate)) owners.set(candidate, now.groupId);
-    follow(candidate !== null && now.groupId !== null && owners.get(candidate) === now.groupId ? candidate : null);
+    const owner = now.groupId === null ? null : `${logins}:${now.groupId}`;
+    if (candidate !== null && !owners.has(candidate)) owners.set(candidate, owner);
+    follow(candidate !== null && owner !== null && owners.get(candidate) === owner ? candidate : null);
     const chat = routeState.chat;
     composer =
       chat !== null && field !== null && conversation !== null
@@ -285,15 +305,16 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
 
   // ── MAIN's stream ──
   /**
-   * Another creator (§5.7): a new login epoch, and what MAIN said of the old one's chat is gone — MAIN starts its
-   * observation anew for the new creator, so the route's group is focused again and only the answer to that names
-   * the chat. Says whether it changed; the caller syncs and tells the accounts.
+   * Another creator (§5.7): a new login epoch and a new generation — what MAIN said of the old one's chat is gone,
+   * the route's group is focused again under a new epoch, and only the answer to that names the chat. The first
+   * creator of the page (none before it) is its binding, not a change. Says whether it changed; the caller syncs and
+   * tells the accounts.
    */
   const changeCreator = (next: string | null): boolean => {
     if (next === creator) return false;
     if (creator !== null) {
       chatWire = null;
-      focused = null;
+      generation.advance();
     }
     creator = next;
     logins += 1;
@@ -317,18 +338,21 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
 
   /** fx.chat of the route's group and epoch: taken; any other is late (A → B → A) and dropped. */
   const takeChat = (wire: FanslyChatWire): void => {
-    if (!chatFits(route.current(), wire) || focused !== wire.routeEpoch) {
+    if (!chatFits(routeNow(), wire) || focused !== wire.routeEpoch) {
       staleChats += 1;
       return;
     }
     setChat(wire);
   };
 
-  /** MAIN's state replaces what the port holds: its chat for the route's focus, or none — a chat it no longer names is gone. */
+  /**
+   * MAIN's state — taken only in the generation it was asked in (the stream drops it whole otherwise) — replaces what
+   * the port holds: its chat for the route's focus, or none: a chat it no longer names is gone.
+   */
   const onState = (state: FanslyState): void => {
     network = state.contract;
     const changed = changeCreator(state.identity.creatorId);
-    setChat(state.chat !== null && chatFits(route.current(), state.chat) && focused === state.chat.routeEpoch ? state.chat : null);
+    setChat(state.chat !== null && chatFits(routeNow(), state.chat) && focused === state.chat.routeEpoch ? state.chat : null);
     if (changed) emit({ type: 'accounts', accounts: accounts() });
   };
 
@@ -375,15 +399,17 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
               diag({ event: 'main-fault', code: 'CG-UNKNOWN', detail: { source, count } });
             },
           },
-          (failure) => diag({ event: 'state-failed', detail: { failure } }),
+          { under: generation.under, now: clock, onFailure: (failure) => diag({ event: 'state-failed', detail: { failure } }) },
         );
 
-  /** A state is owed — none taken yet, or a loss or a failed ask since the last one: the next signal of the page asks again. */
+  /** A state is owed — none taken yet, or a loss or a failed ask since the last one: the next signal of the page asks again (after its pause). */
   const resyncIfNeeded = (): void => {
-    if (stream?.owed() === true) void stream.resync();
+    stream?.retry();
   };
 
   const offRoute = route.onChange((change) => {
+    // The new generation first: whatever is asked from here on is asked in it.
+    routeNow();
     // Back from bfcache: a new life (and a new route epoch, so what MAIN said before no longer fits); MAIN's states
     // are asked again whole (FS-RTE-2).
     if (change.restored) void stream?.resync();
@@ -421,7 +447,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     return field;
   };
 
-  const freshness = createFreshnessPort({ bridge, beforeAsk: acting, life: () => route.stats().restorations, onDiagnostic: diag });
+  const freshness = createFreshnessPort({ bridge, beforeAsk: acting, under: generation.under, onDiagnostic: diag });
 
   const page: FanslyPagePort = {
     headerSlot: () => slot,

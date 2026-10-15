@@ -15,12 +15,24 @@
 //   `fx.state` again (FS-TAIL-5). A lost event never becomes a fact here.
 // - `fx.state` goes one at a time; asked again meanwhile, once more after.
 //
-// No timer and no retry by itself: a failed `fx.state` is asked again at the
-// next signal of the page (the port asks on a route change and a return).
+// - A state is taken only under the generation it was asked in
+//   (generation.ts): one that lands after the page's route, creator or life
+//   moved is discarded whole — only the credits it names are freed — and
+//   asked again at once.
+//
+// No timer: a failed `fx.state` is asked again at the next signal of the page
+// (`retry`: the port calls it on a route change and on every action of our
+// UI), after a pause that doubles with each failure in a row (RETRY_FIRST_MS
+// up to RETRY_MAX_MS) — never once per action.
 
 import type { FanslyState, FromMainFansly } from '@cg/contracts/bridge-messages-fansly';
 
 import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
+import type { Under } from './generation';
+
+/** The pause before a failed state is asked again; doubled with each failure in a row, up to RETRY_MAX_MS. */
+export const RETRY_FIRST_MS = 250;
+export const RETRY_MAX_MS = 4_000;
 
 /** Why the stream lost events: MAIN's gap, a batch refused by its schema, a batch that never came. */
 export type StreamLoss = 'gap' | 'refused' | 'skipped';
@@ -47,6 +59,8 @@ export interface StreamStats {
   /** `fx.state` answers taken. */
   readonly states: number;
   readonly stateFailures: number;
+  /** `fx.state` answers that landed in another generation: discarded whole and asked again. */
+  readonly statesDiscarded: number;
 }
 
 export interface FanslyStream {
@@ -59,12 +73,29 @@ export interface FanslyStream {
    * gap sends nothing until it is asked again, so the port asks at every signal of the page while this holds.
    */
   owed(): boolean;
+  /** A signal of the page: an owed state is asked again — once its pause after the last failure is over. */
+  retry(): void;
   stats(): StreamStats;
   dispose(): void;
 }
 
-export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, onFailure?: (failure: string) => void): FanslyStream {
+export interface StreamOptions {
+  /** The port's generation guard (generation.ts): a state is taken only in the generation it was asked in. */
+  readonly under?: Under;
+  /** Epoch ms, for the pause after a failure. */
+  readonly now?: () => number;
+  readonly onFailure?: (failure: string) => void;
+}
+
+const always: Under = (ask) => ask().then((value) => ({ fresh: true, value }));
+
+export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, options: StreamOptions = {}): FanslyStream {
+  const under = options.under ?? always;
+  const now = options.now ?? (() => Date.now());
   let disposed = false;
+  /** Failures of `fx.state` in a row, and when the next owed ask may go. */
+  let failures = 0;
+  let retryAt = 0;
   /** The highest batch number seen or named by a state; null — none yet. */
   let last: number | null = null;
   let acked = 0;
@@ -72,7 +103,7 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
   let again = false;
   /** Set by a loss or a failed ask, cleared by a state taken after it. */
   let owing = true;
-  const counts = { batches: 0, events: 0, gaps: 0, refused: 0, skipped: 0, states: 0, stateFailures: 0 };
+  const counts = { batches: 0, events: 0, gaps: 0, refused: 0, skipped: 0, states: 0, stateFailures: 0, statesDiscarded: 0 };
 
   const ack = (n: number): void => {
     if (n <= acked || disposed) return;
@@ -83,19 +114,31 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
 
   const ask = async (): Promise<boolean> => {
     try {
-      const state = await bridge.request('fx.state', {});
+      const { fresh, value: state } = await under(() => bridge.request('fx.state', {}));
       if (disposed) return false;
+      failures = 0;
+      retryAt = 0;
+      // The credits it names are freed whatever its generation: they are the transport's.
+      last = Math.max(last ?? 0, state.lastBatch);
+      ack(state.lastBatch);
+      if (!fresh) {
+        // Of another generation: nothing of it is taken, and the state is asked again at once.
+        counts.statesDiscarded += 1;
+        owing = true;
+        again = true;
+        return false;
+      }
       counts.states += 1;
       // A loss while this ask was on its way asked again (`again`): only that answer settles it.
       if (!again) owing = false;
-      last = Math.max(last ?? 0, state.lastBatch);
-      ack(state.lastBatch);
       sink.state(state);
       return true;
     } catch (error) {
       counts.stateFailures += 1;
       owing = true;
-      onFailure?.(error instanceof BridgeCallError ? error.failure : 'error');
+      failures += 1;
+      retryAt = now() + Math.min(RETRY_FIRST_MS * 2 ** (failures - 1), RETRY_MAX_MS);
+      options.onFailure?.(error instanceof BridgeCallError ? error.failure : 'error');
       return false;
     }
   };
@@ -153,6 +196,9 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
     resync,
     started: () => counts.states > 0,
     owed: () => owing,
+    retry() {
+      if (owing && !disposed && inFlight === null && now() >= retryAt) void resync();
+    },
     stats: () => ({ ...counts, acked }),
     dispose() {
       disposed = true;
