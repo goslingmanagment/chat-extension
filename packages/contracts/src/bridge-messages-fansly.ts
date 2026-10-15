@@ -230,11 +230,14 @@ export const FROM_MAIN_FANSLY = {
   'fx.contract': FanslyContractWireSchema,
   /**
    * Every new message `5/1` of any chat of the account, ours too (§5.3): freshness, sound and the echo of a send from
-   * the background. `fanId` — the group's fan, null when not known or a group chat.
+   * the background. `fanId` — the group's fan, null when not known or a group chat. `senderId` (R20 P14a) — who wrote
+   * it: the background counts the agency's other models as its own (SN-002), and a fan of a group MAIN does not know
+   * yet is still its sender.
    */
   'fx.incoming': z.strictObject({
     groupId: NativeIdSchema,
     fanId: z.nullable(NativeIdSchema),
+    senderId: z.optional(NativeIdSchema),
     msgId: NativeIdSchema,
     fromFan: z.boolean(),
     automated: z.boolean(),

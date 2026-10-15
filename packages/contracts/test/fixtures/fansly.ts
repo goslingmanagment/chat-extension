@@ -334,8 +334,9 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
     invalid: [{ ...fanslyContractWire, anchors: { accountMe: 'ok', socket: 'ok', frames: 'ok' } }, { ...fanslyContractWire, anchors: { ...fanslyContractWire.anchors, textarea: 'ok' } }, { ...fanslyContractWire, tap: 'broken' }],
   },
   'fx.incoming': {
-    valid: [incoming, { ...incoming, fanId: null, fromFan: false, automated: true, createdAt: null }],
-    invalid: [{ ...incoming, text: 'hi' }, { ...incoming, msgId: Number(newer) }, { ...incoming, createdAt: 1_790_000_000 }],
+    // P14a: the sender, when MAIN names it (a MAIN of an older build does not).
+    valid: [incoming, { ...incoming, fanId: null, fromFan: false, automated: true, createdAt: null }, { ...incoming, senderId: fan }, { ...incoming, fanId: null, senderId: fan }],
+    invalid: [{ ...incoming, text: 'hi' }, { ...incoming, msgId: Number(newer) }, { ...incoming, createdAt: 1_790_000_000 }, { ...incoming, senderId: Number(fan) }, { ...incoming, senderId: null }],
   },
   'fx.follow': {
     valid: [{ eventId: '700000000000000201', accountId: creator, followerId: fan }, { eventId: '1000000000000000202', accountId: creator, followerId: FANSLY_OLD_ACCOUNT_ID }],

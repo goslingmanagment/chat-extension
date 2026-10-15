@@ -25,9 +25,10 @@
 // `fansly.voice.*` — paid voice notes over the hub (HF-4, FS-VOI-*; the script
 // is the site's `voice-script` operation, ops-fansly.ts, admitted by the shared
 // scheduler — its start is not a shared `StartOp`);
-// `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.relay.*` — «Fansly
-// через вкладку» (FS-NET-4, port `cg-relay`). A family's own PR (P10*, P11b,
-// P12b*, P13a, P9c) may add fields and types to it, additively.
+// `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.sound.*` — what
+// the page heard for the sound, in batches (FS-SND-1, P14a); `fansly.relay.*`
+// — «Fansly через вкладку» (FS-NET-4, port `cg-relay`). A family's own PR
+// (P10*, P11b, P12b*, P13a, P9c) may add fields and types to it, additively.
 
 import * as z from 'zod/mini';
 
@@ -73,6 +74,8 @@ export const FANSLY_TAB_LIMITS = {
   /** One MP3 voice note, as base64 in `fansly.voice.audio` (4 characters a 3 bytes). */
   voiceAudioMaxBytes: 8 * 1024 * 1024,
   vaultFilesPerUpload: 500,
+  /** Facts of each kind in one `fansly.sound.facts`: one batch of MAIN carries at most 512 events (bridge-fansly.ts). */
+  soundFactsPerReport: 512,
   /** The relay: a request body we send, a response body it hands back, and the headers each way. */
   relayRequestBodyMaxChars: 256 * 1024,
   relayResponseBodyMaxChars: 4 * 1024 * 1024,
@@ -245,6 +248,41 @@ export function vaultCheckpointFollows(row: VaultCheckpoint, next: VaultCheckpoi
 const VaultAck = z
   .strictObject({ recorded: z.boolean(), held: z.optional(z.boolean()) })
   .check(z.refine((ack) => ack.held !== true || !ack.recorded, { message: 'a held album keeps nothing' }));
+
+// ── fansly.sound.* — the sound's facts (FS-SND-1, R20 P14a) ────────────────
+
+/**
+ * A new message `5/1` of any chat of the account, ours too, as Fansly's page saw it (MAIN's `fx.incoming`): ids, sides
+ * and the page's own time, never a text. `fanId` — the group's fan, null when not known or a group chat; `senderId` —
+ * who wrote it (MAIN names it from P14a on); `automated` — a welcome, a mass send or another automation of the model.
+ */
+export const FanslySoundMessageSchema = z.strictObject({
+  groupId: NativeIdSchema,
+  fanId: z.nullable(NativeIdSchema),
+  senderId: z.optional(NativeIdSchema),
+  msgId: NativeIdSchema,
+  fromFan: z.boolean(),
+  automated: z.boolean(),
+  tip: z.boolean(),
+  createdAt: z.nullable(IsoTimestampSchema),
+});
+export type FanslySoundMessage = z.infer<typeof FanslySoundMessageSchema>;
+
+/** A new subscriber `3/2` of the account (MAIN's `fx.follow`): the event, the account followed, who followed. */
+export const FanslySoundFollowSchema = z
+  .strictObject({ eventId: NativeIdSchema, accountId: NativeIdSchema, followerId: NativeIdSchema })
+  .check(z.refine((f) => f.accountId !== f.followerId, { message: 'an account does not follow itself' }));
+export type FanslySoundFollow = z.infer<typeof FanslySoundFollowSchema>;
+
+/** One batch of what the page heard for the sound; the tab's creator when it came. */
+export const FanslySoundFactsSchema = z
+  .strictObject({
+    creatorId: NativeIdSchema,
+    messages: z.array(FanslySoundMessageSchema).check(z.maxLength(FANSLY_TAB_LIMITS.soundFactsPerReport)),
+    follows: z.array(FanslySoundFollowSchema).check(z.maxLength(FANSLY_TAB_LIMITS.soundFactsPerReport)),
+  })
+  .check(z.refine((facts) => facts.messages.length + facts.follows.length > 0, { message: 'a report carries a fact' }));
+export type FanslySoundFacts = z.infer<typeof FanslySoundFactsSchema>;
 
 // ── fansly.relay.* — «Fansly через вкладку» (port `cg-relay`) ──────────────
 
@@ -425,6 +463,14 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.vault.resume': { req: z.strictObject(AlbumRef), res: z.strictObject({ checkpoint: z.nullable(VaultCheckpointSchema), held: z.optional(z.boolean()) }), from: TAB, hosts: FANSLY },
   /** The upload is over or the person dropped it; `held` — another open tab holds it: nothing is cleared. */
   'fansly.vault.clear': { req: z.strictObject({ ...AlbumRef, uploadId: UuidSchema }), res: VaultAck, from: TAB, hosts: FANSLY },
+
+  // ── sound ──
+  /**
+   * What the page heard for the sound in one batch of MAIN (R20 P14a; architecture.md §8.12, §10.3: in batches, never a
+   * request per fact): new messages and new subscribers for the core's one arbiter, which decides each (FS-SND-1). Sent
+   * from the early bundle, with or without the application; nobody waits on the answer: `recorded` — taken.
+   */
+  'fansly.sound.facts': { req: FanslySoundFactsSchema, res: Ack, from: TAB, hosts: FANSLY },
 
   // ── relay: its answers to `fansly.relay.fetch` ──
   /** Status and headers as soon as `fetch` has them: a 429 or a 401 counts even when its body never arrives. */

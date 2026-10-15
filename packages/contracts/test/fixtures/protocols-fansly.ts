@@ -65,6 +65,9 @@ export const vaultCheckpoint = {
   pending: { index: 1, passedAt: T0 + 1000 },
   updatedAt: T0 + 1000,
 } as const;
+/** A `5/1` the page heard and a `3/2` (P14a): ids, sides and the page's time, never a text. */
+const soundMessage = { groupId: F.group, fanId: F.fan, senderId: F.fan, msgId: '700000000000000030', fromFan: true, automated: false, tip: false, createdAt: ISO } as const;
+const soundFollow = { eventId: '700000000000000031', accountId: F.creator, followerId: F.fan } as const;
 const passRef = { passId: uuid(301) } as const;
 const noteTarget = { hostAccountId: F.creator, fanRef: F.fan } as const;
 const voiceRef = { attemptId: uuid(320), pageId: 12, voiceNoteId: 77 } as const;
@@ -184,6 +187,28 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   'fansly.vault.clear': {
     req: { valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, uploadId: uuid(310) }], invalid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId }] },
     res: vaultAck,
+  },
+
+  'fansly.sound.facts': {
+    req: {
+      valid: [
+        { creatorId: F.creator, messages: [soundMessage], follows: [] },
+        { creatorId: F.creator, messages: [], follows: [soundFollow] },
+        // A MAIN of an older build names no sender; a group chat has no fan; the page may hold no time.
+        { creatorId: F.creator, messages: [{ ...soundMessage, senderId: undefined, fanId: null, createdAt: null }, { ...soundMessage, fromFan: false, automated: true, senderId: F.creator }], follows: [soundFollow] },
+        { creatorId: F.creator, messages: Array.from({ length: 512 }, () => soundMessage), follows: [] },
+      ].map((facts) => JSON.parse(JSON.stringify(facts)) as unknown),
+      invalid: [
+        // A report carries a fact; never a text; ids are strings; an account does not follow itself.
+        { creatorId: F.creator, messages: [], follows: [] },
+        { creatorId: F.creator, messages: [{ ...soundMessage, text: 'hi' }], follows: [] },
+        { creatorId: F.creator, messages: [{ ...soundMessage, msgId: Number(soundMessage.msgId) }], follows: [] },
+        { creatorId: F.creator, messages: [], follows: [{ ...soundFollow, followerId: F.creator }] },
+        { messages: [soundMessage], follows: [] },
+        { creatorId: F.creator, messages: Array.from({ length: 513 }, () => soundMessage), follows: [] },
+      ],
+    },
+    res: ack,
   },
 
   'fansly.relay.head': {
