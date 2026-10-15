@@ -38,7 +38,7 @@
 //
 // Facts only: ids, digests, booleans. Never a message text.
 
-import type { HostContractReport, HostContractShape, HostPort, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent } from '@cg/contracts/host';
+import { contractAnchorsOf, type HostContractReport, type HostContractShape, type HostPort, type InsertIntent, type InsertReceipt, type NavigateOptions, type NavigationIntent } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { SendFuseFact, SendFuseState } from '@cg/contracts/send';
@@ -97,7 +97,10 @@ export function contractFactsOf(
   const degraded = [...Object.entries(report.capabilities), ...Object.entries(siteCapabilitiesOf(report))]
     .filter(([, capability]) => capability.state !== 'on')
     .map(([name]) => name);
-  return { build: report.build, adapterVersion: report.adapterVersion, ok: missing.every((anchor) => shape.switchedAnchors.includes(anchor)), missing, degraded, ...(later.length === 0 ? {} : { notYet: later }) };
+  // A switched anchor may explicitly be missing, but omitting its state is an incomplete report (FS-CTR-1).
+  const named = contractAnchorsOf(report);
+  const ok = missing.every((anchor) => named[anchor] !== undefined && shape.switchedAnchors.includes(anchor));
+  return { build: report.build, adapterVersion: report.adapterVersion, ok, missing, degraded, ...(later.length === 0 ? {} : { notYet: later }) };
 }
 
 /**

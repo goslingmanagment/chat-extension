@@ -468,7 +468,7 @@ describe('the host contract in the tab’s log', () => {
     // ChatSpace's set reads ChatSpace's report, whatever another site's says.
     expect(facts(report({}))).toMatchObject({ ok: true, missing: [] });
     // Only switched anchors missing: no error.
-    const quiet = { ...site, extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'ok', socket: 'ok' }, capabilities: {} } } } as unknown as HostContractReport;
+    const quiet = { ...site, extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'ok', socket: 'ok', vaultUpload: 'missing' }, capabilities: {} } } } as unknown as HostContractReport;
     expect(contractFactsOf(quiet, second)).toMatchObject({ ok: true, missing: ['vaultUpload'] });
   });
 });

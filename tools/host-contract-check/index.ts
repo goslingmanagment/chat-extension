@@ -1,9 +1,9 @@
-// `node tools/host-contract-check/index.ts [--host chatspace] [--dir <copy>] [--against <other copy>] [--json]`
+// `node tools/host-contract-check/index.ts [--host chatspace|fansly] [--dir <copy>] [--against <other copy>] [--json]`
 //
 // --host is a site of the host registry (apps/extension/src/hosts; default
 // chatspace): its entry names the contract module and the variable with the
-// root of its copies. The anchors below are ChatSpace's; another site brings
-// its own (docs/project-unite/plan.md P7h).
+// root of its copies. `--host fansly` (alias of fansly-web) selects P7h's
+// anchors and main.<hash>; no ChatSpace receipt or telemetry verdict applies.
 //
 // Checks the ChatSpace host contract (packages/host-chatspace/src/isolated/
 // host-contract.ts) against a LOCAL copy of ChatSpace's bundles and prints
@@ -29,19 +29,22 @@
 // extensions, counted against the 0.195.0 baseline (or the --against copy).
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
+
+import { createJiti } from 'jiti';
 
 import { HOSTS, hostOf } from '../../apps/extension/src/hosts/index.ts';
 import { fail } from '../lib/paths.ts';
-import { buildOf, checkAnchors, diffCopies, missingRoles, receiptProfile, sendPathOutsideRoles, type BundleFile } from './check.ts';
+import type * as FanslyModule from './anchors-fansly.ts';
+import { buildOf, checkAnchors, diffAnchorPresence, diffCopies, missingRoles, receiptProfile, sendPathOutsideRoles, type BundleFile } from './check.ts';
 import { TELEMETRY_BASELINE, telemetryCounts, telemetryTripwire } from './telemetry.ts';
 
 const { values } = parseArgs({ options: { host: { type: 'string', default: 'chatspace' }, dir: { type: 'string' }, against: { type: 'string' }, json: { type: 'boolean', default: false } } });
 
 /** The sites whose anchors this tool knows (check.ts, telemetry.ts); another site's come with its own module. */
-const CHECKED_HOSTS: readonly string[] = ['chatspace'];
-const host = hostOf(values.host);
+const CHECKED_HOSTS: readonly string[] = ['chatspace', 'fansly-web'];
+const host = hostOf(values.host === 'fansly' ? 'fansly-web' : values.host);
 if (host === undefined) fail(`host-contract-check: --host ${values.host} is not a site of the host registry (${HOSTS.map((item) => item.kind).join(', ')}).`);
 if (!CHECKED_HOSTS.includes(host.kind)) fail(`host-contract-check: no anchors for ${host.kind} yet (its contract: ${host.contractCheck.module}).`);
 const rootEnv = host.contractCheck.bundlesRootEnv;
@@ -50,6 +53,15 @@ function newestCopy(): string {
   const root = process.env[rootEnv];
   if (root === undefined || root === '') fail(`host-contract-check: pass --dir <copy>, or set ${rootEnv} to the root of the local bundle copies (docs/architecture.md §6.2).`);
   if (!existsSync(root)) fail(`host-contract-check: no bundle copies at ${root}.`);
+  if (host?.kind === 'fansly-web') {
+    // Fansly snapshots are dated, not semver releases. The variable may also name one snapshot or its pretty/.
+    if (existsSync(join(root, 'pretty'))) return join(root, 'pretty');
+    if (readdirSync(root).some((name) => /^main\.[0-9a-f]{8,32}\.js$/.test(name))) return root;
+    const dated = readdirSync(root).filter((name) => /\d{4}-\d{2}-\d{2}$/.test(name) && existsSync(join(root, name, 'pretty'))).sort((a, b) => a.slice(-10).localeCompare(b.slice(-10)));
+    const newest = dated.at(-1);
+    if (newest === undefined) fail(`host-contract-check: no dated snapshots under ${root}; pass --dir <snapshot/pretty>.`);
+    return join(root, newest, 'pretty');
+  }
   const versions = readdirSync(root)
     .filter((name) => /^\d+\.\d+\.\d+$/.test(name) && statSync(join(root, name)).isDirectory())
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -60,7 +72,10 @@ function newestCopy(): string {
 
 function readCopy(dir: string): { files: BundleFile[]; build: string | null; version: string | null } {
   if (!existsSync(dir)) fail(`host-contract-check: ${dir} does not exist.`);
-  const names = readdirSync(dir).filter((name) => /\.(js|css|html)$/.test(name));
+  const names = readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.(js|css|html)$/.test(entry.name))
+    .map((entry) => relative(dir, join(entry.parentPath, entry.name)))
+    .sort();
   const files = names.map((name) => ({ name, text: readFileSync(join(dir, name), 'utf8') }));
   const index = files.find((file) => file.name === 'index.html');
   // The copy's own manifest (one level up) names the version; else the folder does.
@@ -76,6 +91,28 @@ function readCopy(dir: string): { files: BundleFile[]; build: string | null; ver
 
 const dir = values.dir ?? newestCopy();
 const copy = readCopy(dir);
+if (host.kind === 'fansly-web') {
+  // The package sources use extensionless imports. jiti resolves them for Node, as in tools/cg-registry.
+  const { fanslyAnchors, fanslyBuildOf } = await createJiti(import.meta.url).import<typeof FanslyModule>('./anchors-fansly.ts');
+  const anchors = fanslyAnchors();
+  const results = checkAnchors(copy.files, anchors);
+  const build = fanslyBuildOf(copy.files);
+  const missing = results.filter((result) => !result.present);
+  const against = values.against === undefined ? null : readCopy(values.against);
+  const diff = against === null ? null : { build: { from: fanslyBuildOf(against.files), to: build }, anchors: diffAnchorPresence(against.files, copy.files, anchors) };
+  if (values.json) {
+    console.log(JSON.stringify({ host: host.kind, dir, build, anchors: results, missing: missing.map((anchor) => anchor.id), diff }, null, 2));
+  } else {
+    console.log(`host-contract-check: ${host.kind}, ${dir}\nbuild ${build ?? 'unknown'}, ${copy.files.length} files`);
+    for (const result of results) console.log(`  ${result.present ? 'present' : 'MISSING'}  ${result.id}  ${result.at.join(', ')}`);
+    if (diff !== null) {
+      console.log(`against ${values.against}: build ${diff.build.from ?? 'unknown'} → ${diff.build.to ?? 'unknown'}`);
+      for (const change of diff.anchors) console.log(`  ${change.id}: ${change.from ? 'present' : 'missing'} → ${change.to ? 'present' : 'MISSING'}`);
+    }
+    console.log(missing.length === 0 ? 'every anchor is present; static evidence only — DOM hierarchy and runtime behaviour need their own checks.' : `${missing.length} anchor probe(s) MISSING`);
+  }
+  process.exit(missing.length === 0 ? 0 : 1);
+}
 const results = checkAnchors(copy.files);
 const scripts = copy.files.filter((file) => file.name.endsWith('.js')).map((file) => file.name);
 const profile = receiptProfile(scripts, copy.version);

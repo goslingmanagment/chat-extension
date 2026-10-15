@@ -1429,6 +1429,13 @@ popup; ему импорт модулей Fansly разрешён). Общая �
 каждым якорем и каждой своей возможностью; их читают производитель отчёта и проверка контракта (P7c, P7h), общая схема
 принимает всё, что принимает строгая ветка. Строка «Статуса» Fansly со своими словами — P14b2.
 
+P7h: локальный CLI принимает `--host fansly` и `fansly-web`; набор в
+`tools/host-contract-check/anchors-fansly.ts` берёт группы из `FANSLY_CONTRACT`, селекторы — из P7c/P7d.
+Проверяются статические признаки, не DOM-иерархия или живой протокол. В CI — синтетические тексты и
+отрицательные отчёты; настоящая копия остаётся вне Git. В `contractFactsOf` выключаемый якорь может явно
+сообщить `missing`, но отсутствие самого ключа не даёт зелёного результата.
+Команды и границы — [README проверки](../../tools/host-contract-check/README.md).
+
 ### 7.13 Сделано в P7c
 
 Код — `packages/host-fansly/src/isolated/{start,route,anchors,identity,generation,stream,contract,host-port,freshness}.ts`;

@@ -1,7 +1,8 @@
 // Local check of the ChatSpace host contract against a copy of ChatSpace's
 // bundles (architecture.md §6.2 «Сверка с новой сборкой»). Pure functions over
-// file names and texts; index.ts reads the copy from disk. Never in CI: the
-// bundles are someone else's code and live outside the repository (А2).
+// file names and texts; index.ts reads the copy from disk. The scanner also
+// takes Fansly's anchor set (anchors-fansly.ts). Real bundles never enter CI:
+// they are someone else's code and live outside the repository (А2).
 //
 // What it tells: for every string the adapter relies on
 // (packages/host-chatspace/src/isolated/host-contract.ts) — present or
@@ -27,6 +28,8 @@ export interface Anchor {
   /** What breaks when it is missing. */
   readonly group: string;
   readonly pattern: RegExp;
+  /** Limit evidence to the site's application files; a bundled third-party library is not its protocol. */
+  readonly filePattern?: RegExp;
   /** A line the pattern matched counts only when this agrees (the file's lines, the line's index). */
   readonly confirm?: (lines: readonly string[], index: number) => boolean;
 }
@@ -152,6 +155,7 @@ export function checkAnchors(files: readonly BundleFile[], anchors: readonly Anc
     const at: string[] = [];
     let count = 0;
     for (const file of lines) {
+      if (anchor.filePattern !== undefined && !anchor.filePattern.test(file.name)) continue;
       for (const index of placesIn(anchor, file.lines)) {
         count += 1;
         if (at.length < limit) at.push(`${file.name}:${index + 1}`);
@@ -159,6 +163,14 @@ export function checkAnchors(files: readonly BundleFile[], anchors: readonly Anc
     }
     return { id: anchor.id, group: anchor.group, present: count > 0, at, count };
   });
+}
+
+/** Anchor changes for a site's expected set; no send-path or telemetry assumptions of another host. */
+export function diffAnchorPresence(from: readonly BundleFile[], to: readonly BundleFile[], anchors: readonly Anchor[]): Array<{ id: string; from: boolean; to: boolean }> {
+  const before = new Map(checkAnchors(from, anchors).map((anchor) => [anchor.id, anchor.present]));
+  return checkAnchors(to, anchors)
+    .filter((anchor) => before.get(anchor.id) !== anchor.present)
+    .map((anchor) => ({ id: anchor.id, from: before.get(anchor.id) ?? false, to: anchor.present }));
 }
 
 /** The build fingerprint (the entry module's hashed name) from the copy's index.html. */
