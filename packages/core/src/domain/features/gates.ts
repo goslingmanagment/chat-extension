@@ -4,97 +4,60 @@
 // is asked for or anything reaches the hub. They only spare a round trip:
 // the hub decides the same gates itself (`gate_*` → the same codes), from
 // its own archive. A gate fires only on certain facts: a window that may
-// have older messages beyond what ChatSpace loaded never fails a
+// have older messages beyond what the page loaded never fails a
 // «too few messages» gate here.
+//
+// The rules here are the same on every site. What a site decides of its own —
+// Hi and Ping, which each site judges from its own facts — is the site's AI
+// policy (`AiHostPolicy.preflight`, R20 F10; docs/project-unite/architecture.md
+// §1.6), asked after them.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
 import { type ChatWindow, type FanScript, type LiveTextTail } from '@cg/contracts/host';
-import { type Platform } from '@cg/contracts/ids';
 import { type PingSegment } from '@cg/contracts/hub';
-import { UNAVAILABLE_REASONS, type UnavailableReasonId } from '@cg/contracts/vm';
+import { type AiGateReason, type AiHostPolicy } from '@cg/contracts/ops';
+import { UNAVAILABLE_REASONS } from '@cg/contracts/vm';
 
-import { HI_MAX_PERSONAL_MESSAGES, MIN_MESSAGES_FOR_DEEP, policyOf } from './policy';
-
-export type GateReasonId = Extract<UnavailableReasonId, 'chat-loading' | 'needs-draft' | 'no-history' | 'hi-gate' | 'ping-gate' | 'language'>;
+import { MIN_MESSAGES_FOR_DEEP, policyOf } from './policy';
 
 export interface Gate {
-  readonly reason: GateReasonId;
+  readonly reason: AiGateReason;
   readonly code: CgCode;
 }
 
-const gate = (reason: GateReasonId): Gate => ({ reason, code: UNAVAILABLE_REASONS[reason].code });
+const gate = (reason: AiGateReason): Gate => ({ reason, code: UNAVAILABLE_REASONS[reason].code });
 
 export interface GateFacts {
-  readonly platform: Platform;
   /** The open chat's window in the host cache; null — nothing loaded yet. */
   readonly window: ChatWindow | null;
   /** The composer's draft: empty or not; null — unknown (not read). */
   readonly draftEmpty: boolean | null;
-  /** The hub's Ping segment when it is known (a feed summary); never computed here. */
-  readonly pingSegment?: PingSegment | null;
+  /** What a start gathered for the site's pre-check (`AiHostPolicy.proof`); absent — nothing yet (a view, a start's first check). */
+  readonly proof?: unknown;
 }
 
-/** The loaded window is the whole conversation (ChatSpace says there is nothing older). */
+/** The loaded window is the whole conversation (the page says there is nothing older). */
 const wholeHistory = (window: ChatWindow): boolean => window.hasOlder === false;
-
-/**
- * AI-036 (owner's ruling В4): a manual Ping is never blocked on OnlyFans —
- * the hub's segment is a hint; on Fansly an active fan blocks it
- * (CG-GATE-PING), as the Fansly client does.
- */
-export function pingGate(platform: Platform, segment: PingSegment | null | undefined): Gate | null {
-  return platform === 'fansly' && segment === 'active' ? gate('ping-gate') : null;
-}
 
 /** The Ping hint for the person: the hub's segment, or nothing while it is unknown. */
 export function pingHint(segment: PingSegment | null | undefined): Exclude<PingSegment, 'unknown'> | null {
   return segment === undefined || segment === null || segment === 'unknown' ? null : segment;
 }
 
-/**
- * AI-031, NF-015: the hub's own Hi gate, as far as the page can know it. The
- * hub refuses a greeting when the conversation has more than ten stored
- * messages — EVERY message, the fan's and the model's alike (on the lane this
- * client uses the hub has no word for «personal»: it counts its whole
- * transcript, `gate_hi_greeting_limit`). The dock does not see the hub's
- * archive; it sees ChatSpace's window of the open chat. More than ten
- * confirmed messages of either side in that window is a certain fact — the
- * conversation is a dialogue, and Reply is the feature for it — so Hi is not
- * offered and no request is spent on a refusal. Ten or fewer says nothing
- * certain (older history may lie beyond the window, the archive may hold what
- * ChatSpace has not loaded): Hi stays on, and the hub's own refusal, when it
- * comes, is shown in the gate's words (CG-GATE-HI).
- */
-function hiGate(window: ChatWindow): Gate | null {
-  return window.loaded > HI_MAX_PERSONAL_MESSAGES ? gate('hi-gate') : null;
-}
-
-/** The reason `feature` cannot start in the open chat right now, or null. */
-export function featureGate(feature: FeatureId, facts: GateFacts): Gate | null {
+/** The reason `feature` cannot start in the open chat right now, or null: the shared rules, then the site's pre-check. */
+export function featureGate(feature: FeatureId, facts: GateFacts, site: Pick<AiHostPolicy, 'preflight'>): Gate | null {
   const window = facts.window;
   // AI-122: nothing starts while the chat's history is not in the host cache yet.
   if (window === null || window.state === 'loading') return gate('chat-loading');
-  const rule = policyOf(feature);
   // AI-021: Fix rewrites the person's draft; without one there is nothing to fix.
-  if (rule.requiresDraft && facts.draftEmpty === true) return gate('needs-draft');
-  switch (feature) {
-    case 'hi':
-      return hiGate(window);
-    case 'ping':
-      return pingGate(facts.platform, facts.pingSegment);
-    case 'review':
-    case 'recap':
-      // AI-051: only when the whole conversation is loaded and it is short.
-      return wholeHistory(window) && window.loaded < MIN_MESSAGES_FOR_DEEP ? gate('no-history') : null;
-    // Reply has no client gate of its own (neither predecessor had one): whether a chat without a fan
-    // message can be answered is the hub's to say.
-    case 'reply':
-    case 'fix':
-    case 'recap-short':
-    case 'coach':
-      return null;
-  }
+  if (policyOf(feature).requiresDraft && facts.draftEmpty === true) return gate('needs-draft');
+  // AI-051: Review and the full Recap only when the whole conversation is loaded and it is short.
+  if ((feature === 'review' || feature === 'recap') && wholeHistory(window) && window.loaded < MIN_MESSAGES_FOR_DEEP) return gate('no-history');
+  // Reply has no client gate of its own (neither predecessor had one): whether a chat without a fan message can be
+  // answered is the hub's to say. Hi and Ping are each site's own to judge.
+  const reason = site.preflight(feature, window, facts.proof ?? null);
+  return reason === null ? null : gate(reason);
 }
 
 // ── AI-087: the language gate ───────────────────────────────────────────────

@@ -126,10 +126,11 @@ interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
   readonly features: FeatureSlice;                                         // срез манифеста фич сайта (§1.4, F4)
   readonly contract: HostContractShape;                                    // ожидаемый набор якорей сайта (§7.12, F7)
   ui(theme: HostThemeSource): HostUiProfile;                               // профиль сайта для интерфейса (§1.5, F5)
+  ai(lazy: <T>(entry: LazyEntryName) => Promise<T>): AiHostPolicy | Promise<AiHostPolicy>;  // политика AI сайта (§1.6, F10)
 }
 ```
-- **Что впереди.** Срез манифеста фич в половине приложения — `HostAppAdapter.features` (§1.4, сделано в F4); F10
-  добавляет порты политики AI (`ai`, §1.6, §9.1). Профиль сайта (§1.5) разложен по тому же правилу (сделано в F5):
+- **Половина приложения.** Срез манифеста фич — `HostAppAdapter.features` (§1.4, сделано в F4); порты политики AI —
+  `HostAppAdapter.ai` (§1.6, §9.1, сделано в F10). Профиль сайта (§1.5) разложен по тому же правилу (сделано в F5):
   клиент схемы клавиш (`HostAdapter.hotkeyClient`) читает ранний диспетчер — он в ранней половине; палитра, вариант и
   лист дока, фразы — с приложением (`HostAppAdapter.ui`).
 - **План ленивых чанков** — данные: каждый чанк — `<root>/<вход>.js` своей сборки. Хост с первым кадром MAIN грузит
@@ -307,10 +308,42 @@ interface HostUiProfile {                                         // в MountDep
 | ошибки | реестр CG | `errors-fansly.ts`: `CG-FAN-*`, `CG-NOTE-*`, `CG-VOICE-*`, `CG-VAULT-*`, `CG-FNEW-*`; сливается с общим реестром только во вкладке Fansly, на страницах расширения и в `bg/fansly` |
 | настройки | общий v1 (`settings`) | раздел сайта в версионированном ключе `settings.ext` (§12): старые сборки его не знают и не трогают |
 | операции AI | общие `FeatureId` | `voice-script`, `notes-fill` — операции среза Fansly со своим драйвером и схемой результата, через общий допуск (§8.8) |
-| политика AI | общий контроллер | порты `AiHostPolicy`: доказательство, предпроверка, поля запроса сайта, вердикт и его отпечаток; реализации — в слое `ai-fansly` |
+| политика AI | `CHATSPACE_AI` (`core/src/application/hosts/chatspace/ai.ts`, в чанке `tab-app`; F10) | порты `AiHostPolicy`: доказательство, предпроверка, поля запроса сайта, вердикт и его отпечаток; реализации — в слое `ai-fansly` |
 | тексты | общий каталог | пакеты `i18n-ru-fansly`, `i18n-en-fansly` своей сборки |
 | фоновые службы | `bg/chatspace` (после F1) | `bg/fansly` |
 | телеметрия | окно `chatspace:<сборка>` | окно `fansly-web:<сборка>` |
+
+**Политика AI (как построено в F10).** Что в старте генерации и в её результате решает сайт, общий контроллер AI
+(`core/src/application/ai`) спрашивает у политики сайта и сайта не называет. Типы — в `contracts/src/ops.ts`
+(`AiHostPolicy<P, F>`, `AiProofAsk`, `AiStartFields`), готовая модель пометки — `ResultMarkVM` (там же, рядом с `OpView.stale`: модели видов импортируют `ops`, не наоборот);
+политику отдаёт половина приложения адаптера (`HostAppAdapter.ai(lazy)`, §1.3), её зовут один раз при старте
+приложения вместе с чанками дока — сайт, у которого политика лежит в своём ленивом чанке (Fansly: `ai-fansly`), грузит
+его здесь. Пять портов:
+- **предпроверка** `preflight(feature, window, proof)` — причина сайта, по которой функция не стартует. Общие правила
+  (чат грузится, Fix без черновика, мало истории для Review и полного Recap, `core/src/domain/features/gates.ts`)
+  идут первыми, потом — правило сайта. Без доказательства её спрашивают вид дока и первая проверка старта; ещё раз — с
+  доказательством старта, до токена: так сайт, которому для отказа нужно доказательство (Hi на Fansly, FS-AI-2), отказывает,
+  ничего не потратив;
+- **доказательство** `proof(host, ask)` — что старт собирает в открытом чате после предпроверки, только из памяти
+  страницы; `ask.fresh` — сколько свежего текста можно взять (D-14), `null` — нельзя. Ответ `null` — собирать нечего,
+  ничего не ждём; отказ или ошибка — доказательства нет, старт идёт без него;
+- **поля запроса** `fields(proof)` — поля `StartOp` от сайта: `fresh` общий план обрезает по D-14, остальное кладёт в
+  старт как есть, и его проверяет схема `StartOp` (неизвестное поле — отказ CG-UI-FAILED, до фона не доходит); у Fansly
+  это `proof` — `CoverageProof` из P4b1, в который его политика превращает снимок (P8b1): в общий слой ничего дописывать
+  не надо;
+- **отпечаток** `fingerprint(proof)` — что вкладка хранит от доказательства при операции, пока жив результат
+  (`StartMemo.fingerprint`), для вердикта; никогда не текст (F8). Ключ запроса фона с отпечатком доказательства —
+  P8b3 (`RequestIdentity.proofDigest` от P4b1), не этот порт;
+- **вердикт** `verdict(view, fingerprint)` — готовая модель пометки общего результата (`ResultVM.stale`); общий `Result`
+  её только рисует.
+
+ChatSpace (`CHATSPACE_AI`) — ровно прежнее поведение контроллера: доказательство — видимый хвост
+(`readVisibleTail`), и только когда старт может нести свежий текст; поля — `{fresh: хвост}`; предпроверка — Hi не
+предлагается при окне больше десяти сообщений (AI-031), Ping не блокируется (AI-036); отпечатка нет; вердикт — пометка
+фона «фан написал новое». Политика ChatSpace лежит в его `tab-app`: в общем слое `ai` остались только вызовы портов.
+Fansly — снимок `freshness`, `StartProofV1` и вердикт таблицы §3.5 спецификации в `ai-fansly` (P8b1–P8c); правило Ping
+для активного фана (до F10 — ветка `platform === 'fansly'` в общем `pingGate`, ни разу не вызванная с сегментом) — его
+предпроверка (P8c).
 
 ### 1.7 Как добавить фичу (рецепты для агентов)
 
@@ -446,7 +479,7 @@ interface HostUiProfile {                                         // в MountDep
 | `host-chatspace/src/main/requests.ts:9, 23` | MAIN ChatSpace принимает оба вида хоста | только `'chatspace'` (освобождает байты MAIN) | F6a · гейт |
 | ≈ 47 текстов с именами сайтов на общих путях | захардкожены | фразы профиля (сделано в F9b: 71 текст каталога `ru` и 71 — `en`, §1.5; ещё имена платформ и метка устройства) | F9b ✓ |
 | `core/src/domain/sound/policy.ts:72` (нашёл гейт F9a) | своя копия таблицы «хост → платформа» | `HOST_PLATFORM` контрактов | F6a · гейт |
-| `core/src/domain/features/gates.ts:47` (нашёл гейт F9a) | `platform === 'fansly'` в `pingGate` | порт предпроверки `AiHostPolicy` | F10 · гейт |
+| `core/src/domain/features/gates.ts:47` (нашёл гейт F9a) | `platform === 'fansly'` в `pingGate` | порт предпроверки `AiHostPolicy` (сделано в F10: правила Hi и Ping — предпроверка сайта; у ChatSpace — `CHATSPACE_AI`, запись долга снята) | F10 ✓ |
 | `core/src/application/pages/view-status.ts:62` (`PLATFORM_NAMES`); `ui/src/pages/shared.tsx:267` (`PLATFORM_WORDS`) (нашёл гейт F9a) | имена платформ таблицей по ключу платформы | фразы профиля (сделано в F9b: `sitePlatform` фраз сайта, который обслуживает платформу, — `PageEnv.platformPhrases`, `PageTagVM.platformName`) | F9b ✓ |
 | `core/src/domain/sound/tones.ts:107-108` (`PLATFORM_DEFAULT_TONES`) (нашёл гейт F9a) | тоны по умолчанию таблицей по платформе | умолчание сайта (сделано в F9b: `resolveTone(…, siteDefault)`, пару сайта даёт таблица корня композиции фона `SITE_TONES` — у ChatSpace своей нет, у Fansly — умолчание его раздела `settings.ext`) | F9b ✓ |
 | `core/src/domain/settings/ext.ts:31` (нашёл гейт F9a; появилось с P4a3) | раздел Fansly ключа `settings.ext` читается по имени `'fansly-web'` | по разделам, которые называет схема ключа (сделано в F9b: чтение и запись обходят `SettingsExtSchema`) | F9b ✓ |
@@ -1355,13 +1388,15 @@ uncertain → sent: только поздние эхо или история с 
 ### 9.1 Reply со свежестью
 
 1. Клик или клавиша → контроллер дока: `admission('reply', 'generate')` — on, токен действия.
-2. Общий контроллер зовёт порт `adapter.ai.proof()` → `freshness.snapshot(chat, {feature: 'reply', window: 100, withText:
-   true})` → MAIN: ограниченный слив и один синхронный шаг → `FanslySnapshot`.
-3. `StartOp {…, target: {conversationRef: groupId, fanRef}, proof: {kind: 'tab-snapshot', …}}` → фон: допуск (одна
-   операция на чат, три на вкладку) → запрос к хабу: `conversationRef`, `fanRef`, `liveTextContext` (хвост),
-   `coverageCheck` (окно и удалённые) при возможности `coverage-check-v1`, `messageCount` 100.
-4. Хаб отвечает кадром `context_v1` с ответом по каждому id окна → `adapter.ai.verdict()` — чистая функция таблицы §3.5
-   спецификации → общий `Result` получает готовую модель пометки.
+2. Общий контроллер зовёт порт `policy.proof(host, ask)` политики сайта (`HostAppAdapter.ai`, §1.6) →
+   `freshness.snapshot(chat, {feature: 'reply', window: 100, withText: true})` → MAIN: ограниченный слив и один
+   синхронный шаг → `FanslySnapshot`; затем `policy.preflight(…, snapshot)` до токена.
+3. `StartOp {…, target: {conversationRef: groupId, fanRef}, proof: {kind: 'tab-snapshot', …}}` (поля — `policy.fields`)
+   → фон: допуск (одна операция на чат, три на вкладку) → запрос к хабу: `conversationRef`, `fanRef`,
+   `liveTextContext` (хвост), `coverageCheck` (окно и удалённые) при возможности `coverage-check-v1`, `messageCount` 100.
+4. Хаб отвечает кадром `context_v1` с ответом по каждому id окна → `policy.verdict(view, fingerprint)` — чистая функция
+   таблицы §3.5 спецификации над тем, что вкладка сохранила от снимка (`policy.fingerprint`) → общий `Result` получает
+   готовую модель пометки (`ResultMarkVM`).
 5. Ключ операции включает `conversationRef` и отпечаток доказательства; повторно открытый результат показывает свой вердикт.
 
 ### 9.2 Hi в чате

@@ -56,6 +56,11 @@ export interface StartMemo {
    * inserted and never shown as the current persona's (§7 «Ограда», AI-126).
    */
   readonly personaDefinitionId: string | null;
+  /**
+   * What the site's AI policy keeps of the start's proof for the verdict on its result (`AiHostPolicy.fingerprint`,
+   * R20 F10); null — nothing (ChatSpace, an operation this tab did not start). Never a text.
+   */
+  readonly fingerprint: unknown;
 }
 
 export interface OpRecord {
@@ -81,7 +86,7 @@ export type OpStoreEvent =
   /** The terminal view arrived (once per operation; the stale mark comes as `changed`). */
   | { readonly kind: 'done'; readonly record: OpRecord };
 
-const NO_MEMO: StartMemo = { split: false, fixSource: null, personaDefinitionId: null };
+const NO_MEMO: StartMemo = { split: false, fixSource: null, personaDefinitionId: null, fingerprint: null };
 const EARLY_OPS_MAX = 16;
 const EARLY_EVENTS_MAX = 400;
 /** Dropped operations remembered so that a later read of the background does not bring them back. */
@@ -479,7 +484,8 @@ export class OpStore {
   private follow(opId: string, recap: Entry): void {
     if (this.entries.has(opId) || this.tombstones.has(opId)) return;
     const view = admittedView(opId, { feature: 'coach', surface: recap.view.surface, target: recap.view.target, tone: null }, this.clock.now());
-    const memo: StartMemo = { split: recap.memo.split, fixSource: null, personaDefinitionId: recap.memo.personaDefinitionId };
+    // The same start's memo: its Split snapshot, its persona and what the site's policy kept of its proof.
+    const memo: StartMemo = { ...recap.memo, fixSource: null };
     this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo, own: true, reopenedAt: null, desynced: false });
     const events = this.early.get(opId) ?? [];
     this.early.delete(opId);

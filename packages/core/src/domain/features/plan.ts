@@ -18,7 +18,7 @@ import { type LiveTextTail } from '@cg/contracts/host';
 import { type Bootstrap } from '@cg/contracts/hub';
 import { type DraftSnapshot, type HumanCause, type Target } from '@cg/contracts/ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
-import { StartOpSchema, type CoachTurn, type StartOp } from '@cg/contracts/ops';
+import { StartOpSchema, type AiStartFields, type CoachTurn, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint } from '@cg/contracts/send';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type UserOptions } from '@cg/contracts/vm';
@@ -92,8 +92,11 @@ export interface StartPlanInput {
   readonly tone: Tone | null;
   /** The composer's draft as read right before: Fix's source, Coach's «приложить мой ответ». */
   readonly draft?: Pick<DraftSnapshot, 'plainText' | 'revision' | 'digest'> | null;
-  /** The visible tail as the host gave it; dropped unless D-14 allows it. */
-  readonly fresh?: LiveTextTail | null;
+  /**
+   * The site's own fields of the start, from its proof (`AiHostPolicy.fields`, R20 F10): the visible tail as the host
+   * gave it — dropped unless D-14 allows it — and whatever else the site sets, checked by the schema with the rest.
+   */
+  readonly fields?: AiStartFields;
   /** The page admits fresh page text (`freshTextAdmitted`); absent — it does not. */
   readonly freshText?: boolean;
   readonly coachHistory?: readonly CoachTurn[];
@@ -150,8 +153,10 @@ export function planStart(input: StartPlanInput): StartPlan {
       ...(input.autoRecap === undefined ? {} : { autoRecap: { length: input.autoRecap, window: windowFor(input.autoRecap === 'full' ? 'recap' : 'recap-short', undefined, settings, bootstrap) } }),
     };
   }
-  const fresh = trimFreshTail(input.fresh, freshTextLimits(feature, surface, bootstrap, input.freshText === true));
+  const { fresh: tail, ...site } = input.fields ?? {};
+  const fresh = trimFreshTail(tail, freshTextLimits(feature, surface, bootstrap, input.freshText === true));
   if (fresh !== null) start.fresh = fresh;
+  Object.assign(start, site);
   if (input.checkpoint !== undefined && (surface === 'preview' || surface === 'newcomers')) start.checkpoint = input.checkpoint;
   if (input.regenerateOf !== undefined) start.regenerateOf = input.regenerateOf;
   if (input.force === true || input.regenerateOf !== undefined) start.force = true;

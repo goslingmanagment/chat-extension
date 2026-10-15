@@ -28,7 +28,7 @@ import {
   TONE_LABEL_KEYS,
   TONE_ORDER,
   fanScriptOf,
-  featureGate,
+  featureGate as sharedGate,
   featureKeyOf,
   freshTextLimits,
   hiVariantCount,
@@ -36,7 +36,6 @@ import {
   isDraftFeature,
   languageGate,
   nextTone,
-  pingGate,
   pingHint,
   planStart,
   splitFor,
@@ -45,8 +44,10 @@ import {
   toneForRegenerate,
   trimFreshTail,
   windowFor,
+  type GateFacts,
   type StartPlanInput,
 } from '@cg/core/domain/features';
+import { CHATSPACE_AI } from '@cg/core/application/hosts/chatspace/ai';
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_PAGES, pageFeaturesOff } from '@cg/testing/hub';
 
@@ -185,7 +186,9 @@ describe('tones', () => {
 });
 
 describe('client gates', () => {
-  const facts = (over: Partial<Parameters<typeof featureGate>[1]> = {}) => ({ platform: 'onlyfans' as const, window: windowOf(), draftEmpty: false, ...over });
+  const facts = (over: Partial<GateFacts> = {}): GateFacts => ({ window: windowOf(), draftEmpty: false, ...over });
+  /** ChatSpace's gate: the shared rules, then ChatSpace's own pre-check (its AI policy, R20 F10). */
+  const featureGate = (feature: FeatureId, gateFacts: GateFacts) => sharedGate(feature, gateFacts, CHATSPACE_AI);
 
   it('[AI-122] nothing starts while the chat is loading', () => {
     for (const feature of FEATURE_IDS) {
@@ -234,15 +237,9 @@ describe('client gates', () => {
     expect(featureGate('reply', facts({ window: null }))?.code).toBe('CG-GATE-CHAT-LOADING');
   });
 
-  it('[AI-036] Ping is never blocked on OnlyFans; the segment is only a hint', () => {
-    for (const segment of ['active', 'segment-a', 'segment-b', 'unknown', null] as const) {
-      expect(pingGate('onlyfans', segment), String(segment)).toBeNull();
-      expect(featureGate('ping', facts({ pingSegment: segment })), String(segment)).toBeNull();
-    }
-    expect(pingGate('onlyfans', undefined)).toBeNull();
+  it('[AI-036] Ping is never blocked on ChatSpace (OnlyFans): the segment is only a hint', () => {
+    for (const loaded of [0, 3, 11, 40]) expect(featureGate('ping', facts({ window: windowOf({ loaded, hasOlder: false }) })), String(loaded)).toBeNull();
     expect(featureGate('ping', facts())).toBeNull();
-    expect(pingGate('fansly', 'active')).toEqual({ reason: 'ping-gate', code: 'CG-GATE-PING' });
-    expect(pingGate('fansly', 'segment-a')).toBeNull();
     expect(pingHint('active')).toBe('active');
     expect(pingHint('unknown')).toBeNull();
     expect(pingHint(undefined)).toBeNull();
@@ -334,18 +331,18 @@ describe('the plan from a click to a StartOp', () => {
 
   it('fresh page text only for Reply, Fix, Hi and Ping in the dock, with the switch and context-v1', () => {
     const fresh = tail([['fan', 'hey'], ['model', 'hi you']]);
-    for (const feature of ['reply', 'hi', 'ping'] as const) expect(planned({ feature, fresh }).fresh, feature).toEqual(fresh);
-    expect(planned({ feature: 'fix', draft: draft('x'), fresh }).fresh).toEqual(fresh);
-    for (const feature of ['review', 'recap', 'recap-short'] as const) expect(planned({ feature, fresh }).fresh, feature).toBeUndefined();
-    expect(planned({ feature: 'coach', options: { question: 'what now?' }, fresh }).fresh).toBeUndefined();
+    for (const feature of ['reply', 'hi', 'ping'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toEqual(fresh);
+    expect(planned({ feature: 'fix', draft: draft('x'), fields: { fresh } }).fresh).toEqual(fresh);
+    for (const feature of ['review', 'recap', 'recap-short'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toBeUndefined();
+    expect(planned({ feature: 'coach', options: { question: 'what now?' }, fields: { fresh } }).fresh).toBeUndefined();
     // Never from a preview or «Новые» ([NF-013]: the greeting of a new subscriber goes without page text).
-    expect(planned({ surface: 'preview', fresh, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
-    expect(planned({ feature: 'hi', surface: 'newcomers', fresh, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
+    expect(planned({ surface: 'preview', fields: { fresh }, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
+    expect(planned({ feature: 'hi', surface: 'newcomers', fields: { fresh }, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
     // The owner's switch and the hub capability both gate it.
     const flagOff: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText']);
     const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'context-v1') };
-    expect(planned({ fresh, bootstrap: flagOff }).fresh).toBeUndefined();
-    expect(planned({ fresh, bootstrap: noContext }).fresh).toBeUndefined();
+    expect(planned({ fields: { fresh }, bootstrap: flagOff }).fresh).toBeUndefined();
+    expect(planned({ fields: { fresh }, bootstrap: noContext }).fresh).toBeUndefined();
     expect(freshTextLimits('reply', 'dock', BOOTSTRAP_ALL_OFF, freshTextOn(BOOTSTRAP_ALL_OFF, PAGE_ID))).toBeNull();
     expect([freshTextOn(BOOTSTRAP_PILOT_PAGES, PAGE_ID), freshTextOn(flagOff, PAGE_ID), freshTextOn(noContext, PAGE_ID)]).toEqual([true, false, false]);
     // A page that does not admit it gets no fresh text, whatever else the bootstrap says.
@@ -356,7 +353,7 @@ describe('the plan from a click to a StartOp', () => {
     expect(freshTextLimits('reply', 'dock', BOOTSTRAP_PILOT_PAGES, true)).toEqual({ maxItems: BOOTSTRAP_PILOT_PAGES.limits.freshTextMaxItems, maxChars: BOOTSTRAP_PILOT_PAGES.limits.freshTextMaxChars });
     const small: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, freshTextMaxItems: 2, freshTextMaxChars: 4 } };
     const fresh = tail([['fan', 'first'], ['model', 'second'], ['fan', 'third']]);
-    const cut = planned({ fresh, bootstrap: small }).fresh;
+    const cut = planned({ fields: { fresh }, bootstrap: small }).fresh;
     expect(cut?.messages.map((m) => m.text)).toEqual(['seco', 'thir']);
     const huge: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, freshTextMaxItems: 500, freshTextMaxChars: 90_000 } };
     expect(freshTextLimits('reply', 'dock', huge, true)).toEqual({ maxItems: 60, maxChars: 5000 });
@@ -463,7 +460,7 @@ describe('the background drivers (§8.4)', () => {
 
   it('fresh text goes as liveTextContext with the context-v1 header; the capability header lists what the hub may use', () => {
     const fresh = tail([['fan', 'hey']]);
-    const request = build(planned({ fresh }));
+    const request = build(planned({ fields: { fresh } }));
     expect(request.body.liveTextContext?.items).toEqual([{ platformMessageId: '4000', direction: 'fan', occurredAt: '2026-10-03T09:59:00.000Z', text: 'hey' }]);
     expect(request.capabilities).toContain('context-v1');
     expect(build(planned({ feature: 'hi' })).capabilities).toContain('split-all-v1');

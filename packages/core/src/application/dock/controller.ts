@@ -137,7 +137,7 @@ export function createDockController(ws: AiWorkspace): DockController {
           // Recap opens its sheet and Coach its panel: their gates sit on the build and ask buttons.
           const composer = situation.host.composer;
           // A strip action is the AI feature of its own name (`DOCK_ACTION_IDS` are feature ids).
-          const gate = featureGate(id, { platform: ready.target.binding.platform, window: situation.window, draftEmpty: composer === null ? null : composer.draft.provenance === 'empty' });
+          const gate = featureGate(id, { window: situation.window, draftEmpty: composer === null ? null : composer.draft.provenance === 'empty' }, ws.ports.policy);
           if (gate !== null) reason = catalog.reason(gate.reason);
         }
       }

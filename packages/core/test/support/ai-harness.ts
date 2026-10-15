@@ -33,7 +33,9 @@ import {
 } from '@cg/contracts';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { HostKind } from '@cg/contracts/hosts';
+import type { AiHostPolicy } from '@cg/contracts/ops';
 import { createAiSurfaces, type AiSurfaces } from '@cg/core/application/ai';
+import { CHATSPACE_AI } from '@cg/core/application/hosts/chatspace/ai';
 import { createI18n } from '@cg/core/domain/i18n';
 
 import { FakeBackground, TAB } from './ai-background';
@@ -69,6 +71,8 @@ export interface HarnessOptions {
   readonly features?: FeatureSlice;
   /** The sites the background serves; absent — ChatSpace alone. */
   readonly served?: (host: HostKind) => FeatureSlice | null;
+  /** The site's AI policy (R20 F10); absent — ChatSpace's. */
+  readonly policy?: AiHostPolicy;
 }
 
 export class FakeClipboard {
@@ -142,6 +146,7 @@ export function aiHarness(parts: HarnessParts, options: HarnessOptions = {}): Ha
     ids: sequentialIds(tab === TAB ? 0x5000 : 0x6000),
     catalog: parts.catalog,
     features: options.features ?? CHATSPACE,
+    policy: options.policy ?? CHATSPACE_AI,
     clipboard,
     toasts: { show: (toast) => toasts.push(toast) },
     journal: { write: (entry) => journal.push(entry) },

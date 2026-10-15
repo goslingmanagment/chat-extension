@@ -215,20 +215,15 @@ export interface SiteLiteralDebt {
   readonly note: string;
 }
 
-const CORE = 'packages/core/src';
-
 /**
  * The debt of architecture.md §1.9. An entry is a file and a value, not a line: lines move with every edit of the
  * file, the count moves only when a literal comes or goes. The PR that removes a literal lowers the count or drops the
  * entry in the same commit. The final gate (F9b) emptied the list of every entry no PR in flight owns: the platforms'
  * names went to the sites' phrases, the default tones to the background's table of the sites, `settings.ext` is read
- * by the sections its schema names, the compat bootstrap takes the build's platforms from the composition root. What is
- * left is an entry of a PR still in flight; it leaves with that PR.
+ * by the sections its schema names, the compat bootstrap takes the build's platforms from the composition root. F10
+ * took the last one: the Ping rule of one site left the shared gate for the sites' AI policy (`AiHostPolicy.preflight`).
  */
-export const SITE_LITERAL_DEBT: readonly SiteLiteralDebt[] = [
-  // F10 — the policy of AI by site: the pre-check is the site's port.
-  { path: `${CORE}/domain/features/gates.ts`, value: 'fansly', count: 1, pr: 'F10', note: "`platform === 'fansly'` in `pingGate` → the pre-check port of `AiHostPolicy`" },
-];
+export const SITE_LITERAL_DEBT: readonly SiteLiteralDebt[] = [];
 
 /** The PRs of plan.md and which of them are marked done (tools/parity/matrix.ts `parsePlanPrs`). */
 export interface PlanState {

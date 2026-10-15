@@ -12,6 +12,10 @@
 // application half, and the shared mount reads whatever profile it is handed. A second site's profile, changed
 // by a plugin, moves no byte of ChatSpace (its graph does not have the file), and ChatSpace's own profile rides
 // with its application in `tab-app`, never in the dock's chunks.
+//
+// So is the site's AI policy (§1.6, §9.1; R20 F10): the shared AI workspace calls the ports of whatever policy it
+// is handed. A second site's policy — Fansly's rules as a fixture — changed by a plugin moves no byte of ChatSpace,
+// and ChatSpace's own policy rides with its application half in `tab-app`, not in the shared `ai` layer.
 
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -33,6 +37,9 @@ const SECOND: LazySite = { site: 'fansly-web', build: { root: 'lazy/second', ent
 /** A second site's build whose one entry mounts the shared kit with that site's profile (test/fixtures/second-site/profile.ts). */
 const PROFILE = fileURLToPath(new URL('./fixtures/second-site/profile.ts', import.meta.url));
 const SECOND_UI: LazySite = { site: 'fansly-web', build: { root: 'lazy/second-ui', entries: { app: PROFILE }, layers: [], beforeTheDock: [] }, matches: ['http://localhost/*'] };
+/** A second site's build whose one entry starts the shared AI workspace with that site's policy (test/fixtures/second-site/ai-policy.ts). */
+const POLICY = fileURLToPath(new URL('./fixtures/second-site/ai-policy.ts', import.meta.url));
+const SECOND_AI: LazySite = { site: 'fansly-web', build: { root: 'lazy/second-ai', entries: { ai: POLICY }, layers: [], beforeTheDock: [] }, matches: ['http://localhost/*'] };
 
 const FANSLY_FILE = /\/packages\/contracts\/src\/features\/fansly\.ts$/;
 const TABLE_START = 'const FEATURES = {\n';
@@ -80,6 +87,29 @@ function newSitePalette(): { readonly plugin: { name: string; enforce: 'pre'; tr
   };
 }
 
+const POLICY_FILE = /\/apps\/extension\/test\/fixtures\/second-site\/ai-policy\.ts$/;
+const RULE_BEFORE = 'proof.sitefixPersonal > 10';
+/** Another rule of the second site's pre-check, as a PR of its AI (P8c) would change it. */
+const RULE_AFTER = 'proof.sitefixPersonal > 12';
+
+/** Changes the second site's AI policy for one build, and counts how often the build loaded that file. */
+function newSitePolicy(): { readonly plugin: { name: string; enforce: 'pre'; transform(code: string, id: string): string | null }; seen(): number } {
+  let seen = 0;
+  return {
+    plugin: {
+      name: 'cg-test-new-site-policy',
+      enforce: 'pre',
+      transform(code, id) {
+        if (!POLICY_FILE.test(id.split('?')[0] ?? id)) return null;
+        if (!code.includes(RULE_BEFORE)) throw new Error('second-site/ai-policy.ts: the rule is not as this test expects');
+        seen += 1;
+        return code.replace(RULE_BEFORE, RULE_AFTER);
+      },
+    },
+    seen: () => seen,
+  };
+}
+
 interface Built {
   readonly dir: string;
   readonly chunks: readonly LazyChunkInfo[];
@@ -115,19 +145,26 @@ let second: Built;
 let secondAfter: Built;
 let secondUi: Built;
 let secondUiAfter: Built;
+let secondAi: Built;
+let secondAiAfter: Built;
 const overChatSpace = newFanslyEntry();
 const overSecond = newFanslyEntry();
 const paletteOverChatSpace = newSitePalette();
 const paletteOverSecond = newSitePalette();
+const policyOverChatSpace = newSitePolicy();
+const policyOverSecond = newSitePolicy();
 
 beforeAll(async () => {
   chatspace = await built('chatspace', CHATSPACE_SITE);
-  // One build with both changes of the other site: a new entry of its manifest and another palette of its profile.
-  chatspaceAfter = await built('chatspace-new-entry', CHATSPACE_SITE, [overChatSpace.plugin, paletteOverChatSpace.plugin]);
+  // One build with every change of the other site: a new entry of its manifest, another palette of its profile and
+  // another rule of its AI policy.
+  chatspaceAfter = await built('chatspace-new-entry', CHATSPACE_SITE, [overChatSpace.plugin, paletteOverChatSpace.plugin, policyOverChatSpace.plugin]);
   second = await built('second', SECOND);
   secondAfter = await built('second-new-entry', SECOND, [overSecond.plugin]);
   secondUi = await built('second-ui', SECOND_UI);
   secondUiAfter = await built('second-ui-new-palette', SECOND_UI, [paletteOverSecond.plugin]);
+  secondAi = await built('second-ai', SECOND_AI);
+  secondAiAfter = await built('second-ai-new-rule', SECOND_AI, [policyOverSecond.plugin]);
 }, 300_000);
 
 afterAll(() => {
@@ -199,5 +236,30 @@ describe('the site’s profile for our interface is its own (R20 F5)', () => {
     // say `{onSite}` (R20 F9b), the I18n port puts the phrase in.
     expect(textOf(chatspace, root, (file) => file === 'tab-app.js')).toContain('in ChatSpace');
     expect(textOf(chatspace, root, (file) => file !== 'tab-app.js')).not.toContain('in ChatSpace');
+  });
+});
+
+describe('the site’s AI policy is its own (R20 F10)', () => {
+  const root = CHATSPACE_SITE.build.root;
+
+  it('another rule in a second site’s AI policy changes no byte of ChatSpace’s chunks: its graph does not have the file', () => {
+    expect(hashes(chatspaceAfter, root)).toEqual(hashes(chatspace, root));
+    expect(policyOverChatSpace.seen()).toBe(0);
+  });
+
+  it('the same change does change the build that carries that policy: the plugin wrote it, and the build has it', () => {
+    expect(policyOverSecond.seen()).toBeGreaterThan(0);
+    expect(hashes(secondAiAfter, SECOND_AI.build.root)).not.toEqual(hashes(secondAi, SECOND_AI.build.root));
+    expect(textOf(secondAi, SECOND_AI.build.root)).toContain('sitefix-proof:');
+    expect(textOf(secondAi, SECOND_AI.build.root)).toContain('sitefixPersonal>10');
+    expect(textOf(secondAiAfter, SECOND_AI.build.root)).toContain('sitefixPersonal>12');
+    expect(textOf(secondAiAfter, SECOND_AI.build.root)).not.toContain('sitefixPersonal>10');
+  });
+
+  it('ChatSpace’s chunks carry nothing of the second site’s policy, and ChatSpace’s own policy rides with its application in `tab-app`', () => {
+    expect(textOf(chatspace, root)).not.toContain('sitefix-proof:');
+    // ChatSpace's proof reads the visible tail: in `tab-app`, with the application's half of its adapter. (The `ai`
+    // layer reads it too — the page tail of the archive lag and the language gate — so only the presence is asked.)
+    expect(textOf(chatspace, root, (file) => file === 'tab-app.js')).toContain('readVisibleTail');
   });
 });

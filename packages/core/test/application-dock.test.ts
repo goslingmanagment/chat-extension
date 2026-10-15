@@ -14,7 +14,7 @@ import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff 
 
 import { CATALOG, OTHER_TAB, PERSONA_LABEL, TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
-import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
+import { CHATSPACE_RECORDED, CHATSPACE_RECORDED_F10 } from './support/chatspace-recorded';
 import { settle } from './support/clock';
 import { CHATSPACE, FANSLY } from './support/features';
 import { type ScriptResponse } from './support/fake-hub';
@@ -993,8 +993,9 @@ describe('dock: fresh page text', () => {
     expect(leftovers()).toEqual([]);
 
     await h.finish();
-    // What the tab remembers of the start is what «Ещё раз» and Fix read, and nothing of the request.
-    expect(h.ai.workspace.ops.get(opId)?.memo).toEqual({ split: false, fixSource: null, personaDefinitionId: WORLD.persona.definitionId });
+    // What the tab remembers of the start is what «Ещё раз» and Fix read, and nothing of the request: ChatSpace's AI
+    // policy keeps no fingerprint of its proof (R20 F10).
+    expect(h.ai.workspace.ops.get(opId)?.memo).toEqual({ split: false, fixSource: null, personaDefinitionId: WORLD.persona.definitionId, fingerprint: null });
     expect(leftovers()).toEqual([]);
 
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
@@ -3036,5 +3037,31 @@ describe('R20 F6a, ChatSpace: the dock on ChatSpace starts and asks the hub as b
     const recorded = { dockStart: JSON.stringify(h.bg.callsOf('op.start')), dockStreams: JSON.stringify(h.bg.hub.streams) };
     expect(recorded.dockStart).toBe(CHATSPACE_RECORDED.dockStart);
     expect(recorded.dockStreams).toBe(CHATSPACE_RECORDED.dockStreams);
+  });
+});
+
+describe('R20 F10, ChatSpace: the starts through ChatSpace’s AI policy are the starts of main', () => {
+  /** What one start of the dock sent: the `op.start` the background got and the hub body it streamed. */
+  const sent = (h: Harness): string => JSON.stringify({ starts: h.bg.callsOf('op.start'), streams: h.bg.hub.streams });
+  /** One feature started in the open chat and played to its end. */
+  const played = async (h: Harness, feature: Parameters<Harness['generate']>[0], hubFeature: string, text: string, options: Parameters<Harness['generate']>[1] = {}): Promise<string> => {
+    h.script(h.streamOf(hubFeature, [text]));
+    expect(await h.generate(feature, options)).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    return sent(h);
+  };
+
+  it('Hi, Fix and Ping carry the tail the proof read, Review and Coach none: byte for byte as recorded on main before F10', async () => {
+    const hi = await start();
+    hi.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages: 1, modelMessages: 2, loaded: 3 }, openChat);
+    await hi.settle();
+    expect(await played(hi, 'hi', 'hi-greeting', 'hey [NEXT] you there? [VARIANT] hi stranger [VARIANT] morning')).toBe(CHATSPACE_RECORDED_F10.hi);
+    const fix = await start();
+    fix.host.type('i mis you so much');
+    await fix.settle();
+    expect(await played(fix, 'fix', 'improve-draft', 'I miss you so much')).toBe(CHATSPACE_RECORDED_F10.fix);
+    expect(await played(await start(), 'ping', 'ping', 'hey, you there?')).toBe(CHATSPACE_RECORDED_F10.ping);
+    expect(await played(await start(), 'review', 'chat-review', 'Оценка: 7/10')).toBe(CHATSPACE_RECORDED_F10.review);
+    expect(await played(await start(), 'coach', 'coach-chat', 'Спросите, как прошёл день.', { question: 'what now?' })).toBe(CHATSPACE_RECORDED_F10.coach);
   });
 });

@@ -16,6 +16,7 @@ import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { ChatRef } from '@cg/contracts/ids';
+import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { HostPort } from '@cg/contracts/host';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
@@ -57,6 +58,8 @@ export interface TabWorld {
   readonly host: HostPort;
   /** The site's slice of the feature manifest (the adapter's `features`). */
   readonly features: FeatureSlice;
+  /** The site's AI policy (the adapter's `ai`, R20 F10). */
+  readonly aiPolicy: AiHostPolicy;
   readonly i18n: I18n;
   readonly clock: TabClock;
   readonly ids: { uuid(): string };
@@ -96,6 +99,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     ids: world.ids,
     catalog,
     features: world.features,
+    policy: world.aiPolicy,
     clipboard: world.clipboard,
     toasts: world.toasts,
     extensionVersion: world.extensionVersion,
