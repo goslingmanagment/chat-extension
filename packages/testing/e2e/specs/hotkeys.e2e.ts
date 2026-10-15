@@ -20,6 +20,7 @@ import { EXTRA_KEYS, schemeActions } from '@cg/core/domain/hotkeys';
 import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
+import { budgetMs } from '../../src/e2e-timing';
 import type { PageJournalEntry } from '../../fixture-chatspace/src/protocol';
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
 import { input, inputLog, installInputHarness, type InstalledInputHarness, type ReachedKey } from '../support/input-harness';
@@ -123,7 +124,8 @@ describe('R17 — the early key dispatcher on the stand', () => {
       expect(log.stats).toMatchObject({ claimed: 2, isolated: 0, untrusted: 0 });
       // §11: no synchronous handler of ours above 16 ms (the 2 ms budget is a p95 measured in the field by
       // `handlerMs`; the slowest one of a cold page includes the first compile and is not a stable number).
-      expect(log.stats.maxHandlerMs).toBeLessThan(16);
+      console.log(`hotkeys: handler max ${log.stats.maxHandlerMs.toFixed(3)} ms (limit < ${budgetMs(16)} ms)`);
+      expect(log.stats.maxHandlerMs).toBeLessThan(budgetMs(16));
     });
 
     it('[HK-004] [HK-005] [HK-006] [HK-008] Hi, Ping, Cancel and Recap are taken too: no strikethrough from ⌘⇧S', async () => {

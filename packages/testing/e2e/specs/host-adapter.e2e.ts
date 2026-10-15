@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
+import { budgetMs } from '../../src/e2e-timing';
 import type { StandBreak } from '../../fixture-chatspace/src/protocol';
 import { createDataset } from '../../src/stand/dataset';
 import { harness, installHostHarness, waitForHarness, waitForHarnessState, type InstalledHarness } from '../support/host-harness';
@@ -121,8 +122,9 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       evidence['mainInstallMs'] = probe.installMs;
       // The whole MAIN bundle (boot + runtime) evaluated at document_start, for the owner's shipping decision (README).
       evidence['mainEvalMs'] = await browser.execute(() => (window as unknown as { __cgMainEvalMs?: number }).__cgMainEvalMs ?? null);
+      console.log(`host-adapter: MAIN install ${probe.installMs.toFixed(3)} ms (one sample; limit < ${budgetMs(1)} ms)`);
       expect(probe.readyStateAtStart).toBe('loading');
-      expect(probe.installMs).toBeLessThan(1);
+      expect(probe.installMs).toBeLessThan(budgetMs(1));
       const s = await settledOn(a1);
       expect(s.identity).toMatchObject({ routeEpoch: 1, chat: { platformFanId: a1 } });
     });

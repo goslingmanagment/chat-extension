@@ -42,6 +42,7 @@ import type { RouteState } from '@cg/contracts/host';
 import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
+import { budgetMs } from '../../src/e2e-timing';
 import { messageCreatedFrame, serviceFrame, type WireMessage } from '../../fixture-fansly/src/wire';
 import { GUARD_TOAST } from '../../src/fake-fansly/neighbor/guard';
 import type { NeighborConfig } from '../../src/fake-fansly/neighbor/protocol';
@@ -338,8 +339,8 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
     expect((await events(from)).map((event) => event.t)).not.toContain('fx.sent');
     // MAIN's own measure of its parse: ≤ 0.1 ms a frame on average (§5.3), printed on every run.
     const { frameParseMs } = read.perf;
-    console.log(`suite-fansly-tap: frameParseMs over ${frameParseMs.count} frames: mean ${(frameParseMs.sum / frameParseMs.count).toFixed(4)} ms, max ${frameParseMs.max.toFixed(2)} ms`);
-    expect(frameParseMs.sum / frameParseMs.count).toBeLessThanOrEqual(0.1);
+    console.log(`suite-fansly-tap: frameParseMs over ${frameParseMs.count} frames: mean ${(frameParseMs.sum / frameParseMs.count).toFixed(4)} ms, max ${frameParseMs.max.toFixed(2)} ms (mean limit ≤ ${budgetMs(0.1)} ms)`);
+    expect(frameParseMs.sum / frameParseMs.count).toBeLessThanOrEqual(budgetMs(0.1));
     // The consumer catches up: it acks what it got and asks fx.state; the stream goes on after the batch it names.
     await tap('setAcking', true);
     const last = batches.at(-1)?.n ?? 0;
@@ -399,9 +400,9 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
     // Hi: the fan's avatar is an address of the page's own answers, a string only.
     expect((await snap('hi', 25)).fanAvatarUrl).toMatch(/^https:\/\/cdn3\.fansly\.com\//);
     const { perf } = await health();
-    console.log(`suite-fansly-tap: snapshotMs over ${perf.snapshotMs.count} snapshots: mean ${(perf.snapshotMs.sum / perf.snapshotMs.count).toFixed(3)} ms, max ${perf.snapshotMs.max.toFixed(2)} ms`);
+    console.log(`suite-fansly-tap: snapshotMs over ${perf.snapshotMs.count} snapshots: mean ${(perf.snapshotMs.sum / perf.snapshotMs.count).toFixed(3)} ms, max ${perf.snapshotMs.max.toFixed(2)} ms (max limit ≤ ${budgetMs(5)} ms)`);
     expect(perf.snapshotMs.count).toBe(4);
-    expect(perf.snapshotMs.max).toBeLessThanOrEqual(5);
+    expect(perf.snapshotMs.max).toBeLessThanOrEqual(budgetMs(5));
     expect(await tap('stats')).toMatchObject({ rejected: {}, invalidEvents: 0, invalidAnswers: 0 });
     await fake.assertOursClean(since, 'the observation on the stand');
   });

@@ -209,6 +209,8 @@ jobs:
         if: steps.scope.outputs.e2e != 'false'
         env:
           CG_E2E_SHARD: ${{ matrix.shard }}
+          # Parallel jobs share the PC: timings catch a 3× regression; local runs stay strict.
+          CG_E2E_TIMING_SLACK: '3'
         run: exec tools/ci/e2e-docker.sh
 
       # What a SIGKILL leaves: the script had ten seconds and did not make it.

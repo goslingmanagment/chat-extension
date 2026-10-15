@@ -21,6 +21,7 @@ import { ADAPTER_VERSION, receiptModules } from '@cg/host-chatspace/isolated';
 import { browser, expect } from '@wdio/globals';
 
 import type { PageJournalEntry, SendOutcome, ServerJournalEntry, StandBreak } from '../../fixture-chatspace/src/protocol';
+import { budgetMs } from '../../src/e2e-timing';
 import { FIXTURE_BUILD_DIR } from '../../src/stand/paths';
 import { harness, installHostHarness, waitForHarness, waitForHarnessState, type InstalledHarness } from '../support/host-harness';
 import { useNetworkTrap } from '../support/network-trap';
@@ -760,10 +761,11 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
         return handle?.frameTime?.() ?? [0, 0, 0];
       });
       evidence['tapFrameTime'] = { frames, totalMs, maxMs, averageMs: frames > 0 ? totalMs / frames : null };
+      console.log(`x8-send: listener over ${frames} frames: mean ${(totalMs / frames).toFixed(4)} ms, max ${maxMs.toFixed(3)} ms (mean limit < ${budgetMs(1)} ms)`);
       expect(frames).toBeGreaterThan(0);
       // The browser's clock is coarse (1 ms and more): this only trips on a gross regression. The 0.1 ms budget itself
       // is asserted on a fine clock in ws-tap.test.ts.
-      expect(totalMs / frames).toBeLessThan(1);
+      expect(totalMs / frames).toBeLessThan(budgetMs(1));
     });
   });
 

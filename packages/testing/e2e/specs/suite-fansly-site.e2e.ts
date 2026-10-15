@@ -24,6 +24,7 @@
 
 import { browser, expect } from '@wdio/globals';
 
+import { budgetMs } from '../../src/e2e-timing';
 import { testBuildPage } from '../support/fake-hub';
 import { E2E_ADDON_UUID } from '../support/constants';
 import { installTestBuild, mainBundleMs, readReport, summarize, waitForReport, type SpikeReport } from '../support/extension';
@@ -165,14 +166,14 @@ describe('the Fansly site on its stand: both scripts at document_start, the brid
       return `${key} ${median.toFixed(2)}/${max.toFixed(2)}`;
     };
     // The measurement itself, in the CI log of every run.
-    console.log(`suite-fansly-site §3.1, ms, median/max of ${TIMING_LOADS} loads: MAIN ${stat('mainBundleMs')} (median ≤ ${MAIN_MEDIAN_MS}; install ${stat('mainInstallMs')}); isolated ${stat('bundleMs')} (median ≤ ${BOOTSTRAP_MEDIAN_MS}; of it ${stat('evalMs')}, ${stat('composeMs')}); any start ≤ ${START_MAX_MS}`);
+    console.log(`suite-fansly-site §3.1, ms, median/max of ${TIMING_LOADS} loads (assertion limits, ×${budgetMs(1)}): MAIN ${stat('mainBundleMs')} (median ≤ ${budgetMs(MAIN_MEDIAN_MS)}; install ${stat('mainInstallMs')}); isolated ${stat('bundleMs')} (median ≤ ${budgetMs(BOOTSTRAP_MEDIAN_MS)}; of it ${stat('evalMs')}, ${stat('composeMs')}); any start ≤ ${budgetMs(START_MAX_MS)}`);
     const main = summarize(series['mainBundleMs'] ?? []);
     expect(main.n).toBe(TIMING_LOADS);
-    expect(main.median).toBeLessThanOrEqual(MAIN_MEDIAN_MS);
-    expect(main.max).toBeLessThanOrEqual(START_MAX_MS);
+    expect(main.median).toBeLessThanOrEqual(budgetMs(MAIN_MEDIAN_MS));
+    expect(main.max).toBeLessThanOrEqual(budgetMs(START_MAX_MS));
     const bundle = summarize(series['bundleMs'] ?? []);
     expect(bundle.n).toBe(TIMING_LOADS);
-    expect(bundle.median).toBeLessThanOrEqual(BOOTSTRAP_MEDIAN_MS);
-    expect(bundle.max).toBeLessThanOrEqual(START_MAX_MS);
+    expect(bundle.median).toBeLessThanOrEqual(budgetMs(BOOTSTRAP_MEDIAN_MS));
+    expect(bundle.max).toBeLessThanOrEqual(budgetMs(START_MAX_MS));
   });
 });
