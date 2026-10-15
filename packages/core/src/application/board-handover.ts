@@ -59,6 +59,8 @@ export type BoardSync = 'read' | 'unread' | 'gone';
 
 /** The boards' side of the results the dock shows; bound late — the boards load with the first board the person opens. */
 export interface BoardResults {
+  /** A dock insert's human send, proven by the host and linked by insert intent; hosts without X8 account for it locally. */
+  manualSent?(opId: string, part: PartRef, platformMessageId: string): void;
   /** null — the board does not hold the result (any more): what was sent and what holds the fan is not known. */
   part(opId: string, part: PartRef): BoardPartFacts | null;
   /**

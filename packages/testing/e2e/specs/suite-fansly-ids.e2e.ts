@@ -386,12 +386,12 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     await fakeFansly().command({ op: 'reset' });
     await hub().command({ op: 'spenderFans', fans: seeds });
     await hub().command({ op: 'config', patch: { spendersTotal: 3 } });
-    await startFanslyShift(hub(), { path: `/messages/${A.group}`, viewport: { width: 1440, height: 900 } });
+    await startFanslyShift(hub(), { path: `/messages/${A.group}`, settings: { generation: { split: true } }, viewport: { width: 1440, height: 900 } });
     await openChat(B.group, B.fan); // The person's earlier visit puts Birch in the page's passive cache.
     await openChat(A.group, A.fan);
   });
 
-  it('[SP-037] [SP-035] [FS-SPD-2] [SP-055] the passive cache supplies the group; Reply opens and inserts into that group, never sends; both themes without statistics', async function () {
+  it('[SP-037] [SP-035] [FS-SPD-2] [SP-055] [TL-004] Reply inserts part 0, Fansly’s own Send confirms it, the reopened preview offers part 1; both themes without statistics', async function () {
     this.timeout(120_000);
     const mark = await fakeFansly().mark();
     const hubMark = await hub().mark();
@@ -405,6 +405,13 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     const streams = await callsOf(hub(), hubMark, ['aiFeatureStream']);
     expect(streams.map(({ fan, conversation }) => [fan, conversation])).toEqual([[B.fan, B.group]]);
     expect(allServed(streams)).toEqual([]);
+    const first = '.cg-pvp[data-cg-part="0"]';
+    const second = '.cg-pvp[data-cg-part="1"]';
+    const firstText = await oursText('modal', `${first} .cg-pvp__t`);
+    const secondText = await oursText('modal', `${second} .cg-pvp__t`);
+    expect(firstText.length).toBeGreaterThan(0);
+    expect(secondText.length).toBeGreaterThan(0);
+    expect(secondText).not.toBe(firstText);
     mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
     for (const theme of ['bright', 'dark'] as const) {
       await callFansly('setTheme', theme);
@@ -413,10 +420,30 @@ describe('Spenders on Fansly (R20 P9e)', () => {
       writeFileSync(join(E2E_EVIDENCE_DIR, `spenders-fansly-p9e-${theme}.png`), Buffer.from(await browser.takeScreenshot(), 'base64'));
     }
     expect(await fakeFansly().calls('ours', mark)).toEqual([]);
-    await ours('modal', '.cg-pvp').click();
+    await ours('modal', first).click();
     await browser.keys(['Enter']);
     await browser.waitUntil(async () => (await route()).groupId === B.group && (await $(FANSLY_MAIN.field).getValue()).length > 0, { timeout: 25_000, timeoutMsg: '«Открыть и вставить» did not put the preview’s part into Birch’s composer' });
     expect(await oursExists('modal', '.cg-spw')).toBe(false);
+    expect(await fakeFansly().calls('ours', mark)).toEqual([]);
+    expect(await $(FANSLY_MAIN.field).getValue()).toBe(firstText);
+    // A trusted click on the site's own send button: P7f needs its receipt AND echo, linked to this insert.
+    await $(FANSLY_MAIN.send).click();
+    await browser.waitUntil(async () => (await $(FANSLY_MAIN.field).getValue()) === '' && (await fakeFansly().calls('page', mark)).some((entry) => entry.route === 'message.send' && entry.status === 200), { timeout: 10_000, timeoutMsg: 'Fansly’s own Send did not deliver part 0' });
+    await show('Hub Birch');
+    await waitOursText('modal', /Отправлено/, 'part 0 is confirmed sent after reopening the preview', { selector: first });
+    expect(await oursExists('modal', `${first}[data-cg-send-state="sent"].is-done`)).toBe(true);
+    expect(await oursExists('modal', `${first} .cg-pvs__open`)).toBe(false);
+    expect(await oursExists('modal', `${second} .cg-pvs__open`)).toBe(true);
+    expect(await oursByText('modal', '.cg-pv button', /^Отправить$/)).toBeNull();
+    writeFileSync(join(E2E_EVIDENCE_DIR, 'spenders-fansly-p9e-sent.png'), Buffer.from(await browser.takeScreenshot(), 'base64'));
+    await ours('modal', first).click();
+    await browser.keys(['Enter']);
+    expect(await oursExists('modal', '.cg-pv')).toBe(true);
+    expect(await $(FANSLY_MAIN.field).getValue()).toBe('');
+    await ours('modal', second).click();
+    await browser.keys(['Enter']);
+    await browser.waitUntil(async () => (await $(FANSLY_MAIN.field).getValue()) === secondText, { timeout: 25_000, timeoutMsg: 'Enter did not insert the next, unsent part 1' });
+    expect((await fakeFansly().calls('page', mark)).filter((entry) => entry.route === 'message.send' && entry.status === 200)).toHaveLength(1);
     expect(await fakeFansly().calls('ours', mark)).toEqual([]);
   });
 
