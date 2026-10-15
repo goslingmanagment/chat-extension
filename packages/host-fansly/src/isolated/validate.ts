@@ -42,7 +42,15 @@ export function parseAnswer<T extends ToMainFanslyType>(t: T, data: unknown): { 
   return parseFanslyBridgeData(t, data);
 }
 
-/** Stage three of an event frame: the payload schema of its type; null — it did not pass (a batch is then lost whole). */
+/**
+ * Stage three of an event frame: the payload schema of its type; null — it did not pass. A batch that did not pass is
+ * lost whole (§6) — and yet the isolated side must acknowledge it, or MAIN holds its credit: when its number can be
+ * read, it comes on as that number alone, `{n, events: []}` — a batch MAIN never sends (a batch has at least one
+ * event), so the consumer (stream.ts) takes it for what it is: acknowledged, every chat unknown, `fx.state` again.
+ */
 export function parseEvent<T extends FanslyWireEventType>(t: T, payload: unknown): FanslyWireEventPayload<T> | null {
-  return parseFanslyWireEvent(t, payload);
+  const parsed = parseFanslyWireEvent(t, payload);
+  if (parsed !== null || t !== 'fx.batch' || typeof payload !== 'object' || payload === null) return parsed;
+  const n: unknown = (payload as { readonly n?: unknown }).n;
+  return Number.isSafeInteger(n) && (n as number) >= 1 ? ({ n, events: [] } as unknown as FanslyWireEventPayload<T>) : null;
 }

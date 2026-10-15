@@ -1,10 +1,11 @@
 // host-fansly/isolated — the isolated-world side of the Fansly host
-// (docs/project-unite/architecture.md §7): its start, its bridge registry over
-// the shared mechanics of the page (@cg/host-kit/isolated: the bridge client,
-// our closed hosts and their layers, the registry of their roots, the key
-// probe), whose names this entry keeps exporting for the code that starts the
-// Fansly host. Imports only @cg/host-kit and @cg/contracts. Never receives the
-// hub token, never touches the network or page storage.
+// (docs/project-unite/architecture.md §7): its start, its route and anchors,
+// its HostPort and freshness port (R20 P7c), its bridge registry over the
+// shared mechanics of the page (@cg/host-kit/isolated: the bridge client, our
+// closed hosts and their layers, the registry of their roots, the key probe),
+// whose names this entry keeps exporting for the code that starts the Fansly
+// host. Imports only @cg/host-kit and @cg/contracts. Never receives the hub
+// token, never touches the network or page storage.
 //
 // Fansly's schema module is not exported here: the isolated content script is
 // one classic file, a dynamic import inside it would be inlined. It is its own
@@ -14,8 +15,13 @@
 export { BridgeCallError, type BridgeFailure, type BridgeStats, type FanslyBridge, type FanslyBridgeEvent, type FanslyMainBridgeClient } from './bridge-client';
 export type { Validation, ValidationLoader } from './validation';
 export { createFanslyMounts, type FanslyMounts } from './mount';
-export { createKeyboardProbe, routeOfLocation } from './keyboard';
+export { createKeyboardProbe } from './keyboard';
+export { groupIdOfPath, routeOfLocation, type FanslyRoute, type RouteStats, type RouteWatcher } from './route';
+export { FANSLY_SELECTORS, type AnchorStats, type AnchorWatcher, type ConversationAnchors, type PageAnchors } from './anchors';
+export { FANSLY_ADAPTER_VERSION } from './contract';
+export type { FanslyIsolatedHealth, FanslyPort } from './host-port';
 export { DELIVERED_KEY_MARK, KEY_PENDING_ATTRIBUTE, createKeyPendingMark, type KeyboardProbe } from '@cg/host-kit/isolated/keyboard';
 export { HOST_ATTRIBUTE, removeStaleHosts, type ClosedHost, type OverlayLayer } from '@cg/host-kit/isolated/hosts';
+export { connectFanslyMain, startFanslyHost, type StartFanslyHostOptions, type StartedFanslyHost } from './start';
 export { startFanslyTab, type FanslyDiagnostic, type FanslyStartEnv, type FanslyTheme, type StartedFanslyTab } from './starter';
 export { UNDROPPABLE_EVENTS } from './wire';

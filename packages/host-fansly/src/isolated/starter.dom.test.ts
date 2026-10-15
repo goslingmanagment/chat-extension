@@ -1,14 +1,16 @@
-// The start of the Fansly host in the isolated world (R20 P7a0; docs/project-unite/
+// The start of the Fansly host in the isolated world (R20 P7a0, P7c; docs/project-unite/
 // architecture.md §1.3, §7.1): what it does at document_start without MAIN —
 // our hosts of a dead instance go, the dock host with its closed root exists
 // and stands nowhere, the overlays come in <html> on first use, the bridge
-// gives up after its timeout and says so, and no host port of Fansly's comes
-// before P7c. The handshake itself: bridge.test.ts; in Firefox, on the stand:
-// suite-fansly-site.e2e.ts.
+// gives up after its timeout and says so, and Fansly's host port comes all the
+// same, saying the host is not ready. The handshake itself: bridge.test.ts;
+// the port: host-port.dom.test.ts; in Firefox, on the stand:
+// suite-fansly-site.e2e.ts and suite-fansly-tap.e2e.ts.
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createKeyboardProbe, routeOfLocation } from './keyboard';
+import { createKeyboardProbe } from './keyboard';
+import { routeOfLocation } from './route';
 import { startFanslyTab, type FanslyDiagnostic } from './starter';
 import { loadValidation } from './validation';
 
@@ -37,22 +39,24 @@ describe('the Fansly start without MAIN', () => {
     started.mounts.dispose();
     expect(modal.host.isConnected).toBe(false);
     expect(started.mounts.registry.hosts()).toEqual([]);
-    // The handshake's timer ends inside the test, not after the environment is gone.
-    expect(await started.bridge).toBeNull();
+    // The handshake gives up within the test, never after its window is gone.
+    (await started.host).dispose();
   });
 
-  it('without MAIN the bridge is null after its timeout and the tab hears «not ready»; Fansly’s host port never comes before P7c', async () => {
+  it('[ER-048] without MAIN the bridge is null after its timeout and the tab hears «not ready»; Fansly’s host port comes all the same and says so', async () => {
     const diagnostics: FanslyDiagnostic[] = [];
     const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
     expect(await started.bridge).toBeNull();
     expect(diagnostics).toEqual([{ event: 'main-missing', code: 'CG-HOST-NOT-READY' }]);
-    const never = Symbol('never');
-    expect(await Promise.race([started.host, new Promise((resolve) => setTimeout(() => resolve(never), 30))])).toBe(never);
-    started.mounts.dispose();
+    const port = await started.host;
+    expect([port.kind, port.platform]).toEqual(['fansly-web', 'fansly']);
+    expect(port.probe().capabilities.identity).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
+    expect(port.current()).toMatchObject({ identity: null, accounts: [], composer: null, mounts: { dock: { kind: 'none' } } });
+    port.dispose();
   });
 
-  it('the keys: no route of the address is a chat yet (P7c), no field is Fansly’s message field and no window of its own is open (P7i)', async () => {
-    expect(routeOfLocation({ pathname: '/messages/123456789012345678' })).toEqual({ kind: 'other', epoch: '/messages/123456789012345678' });
+  it('the keys: a conversation’s address is a chat (P7c); no field is Fansly’s message field and no window of its own is open yet (P7i)', async () => {
+    expect(routeOfLocation({ pathname: '/messages/123456789012345678' })).toEqual({ kind: 'chat', epoch: '/messages/123456789012345678' });
     const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20 });
     const probe = createKeyboardProbe(document, started.mounts.registry);
     document.body.innerHTML = '<app-group-message-input><textarea class="message-input"></textarea></app-group-message-input>';
@@ -62,6 +66,6 @@ describe('the Fansly start without MAIN', () => {
     document.body.classList.add('modal-opened');
     expect(probe.nativeModalOpen()).toBe(false);
     started.mounts.dispose();
-    expect(await started.bridge).toBeNull();
+    (await started.host).dispose();
   });
 });
