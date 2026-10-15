@@ -27,7 +27,7 @@ import { installTestBuild, readReport, waitForReport, type DockReport, type Spik
 import { openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
 import { switchFanslyOnForTheStand } from '../support/fansly-site';
 import { FANSLY_MAIN, callFansly, fakeFansly, fanslyIds, fanslyStandServer, openFanslyStand, waitForFanslyStandIdle } from '../support/fansly-stand';
-import { installFanslyTapHarness, tap, waitForFanslyTap, waitForTap, type FanslyTapHarness } from '../support/fansly-tap';
+import { injectFanslyConsumer, injectFanslyMain, installFanslyTapHarness, tap, waitForFanslyTap, waitForTap, type FanslyTapHarness } from '../support/fansly-tap';
 import { useNetworkTrap } from '../support/network-trap';
 import { setViewport } from '../support/visual';
 
@@ -247,6 +247,18 @@ describe('Fansly’s own start places our dock host: 200 chat switches, a broken
     await callFansly('open', second);
     await waitForTap(harnessDock, (now) => now.points.dock.kind === 'in-flow', 'back in flow');
     expect(await place()).toMatchObject({ parent: 'app-group-message-container', next: 'app-group-message-input', mode: null, position: 'relative' });
+  });
+
+  it('a late start — both worlds injected into a chat already on screen (an install or an update under an open tab): the dock comes right before the composer at once, the search over the document ends', async () => {
+    const [first] = ids.groups as [string];
+    await openWithNeighbor(`/messages/${first}`, { mode: 'after' });
+    await waitForFanslyStandIdle();
+    await injectFanslyMain();
+    await injectFanslyConsumer('port');
+    await waitForFanslyTap();
+    await waitForTap(harnessDock, (dock) => dock.points.dock.kind === 'in-flow', 'the dock placed after a late start');
+    expect(await place()).toMatchObject({ hosts: 1, parent: 'app-group-message-container', next: 'app-group-message-input' });
+    expect(await anchorStats()).toMatchObject({ searching: false });
   });
 
   it('a group chat is not a dock’s place (FS-DOCK-2) — once MAIN says the group has more than one fan', async () => {

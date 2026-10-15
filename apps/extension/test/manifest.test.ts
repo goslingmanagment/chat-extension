@@ -22,6 +22,7 @@ import {
 } from '../build/manifest.ts';
 import { PAGE_CHUNK_GROUPS, PAGE_ENTRY_NAMES } from '../build/page-chunks.ts';
 import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, HOSTS, LOOPBACK_MATCHES, scriptsOf } from '../src/hosts/index.ts';
+import { FANSLY_LAZY_ENTRIES } from '../src/hosts/fansly.ts';
 import { CHATSPACE_LAZY_ROOT } from '../src/hosts/runtime/chatspace.ts';
 import { FANSLY_LAZY_ROOT } from '../src/hosts/runtime/fansly.ts';
 import { SITE_BASE, SITE_PAGES } from '../src/site.ts';
@@ -251,7 +252,10 @@ describe('the sites’ lazy builds in the two flavors (R20 F2b)', () => {
   it('both flavors carry Fansly’s own build beside ChatSpace’s, for Fansly’s pages — and in the test build its stand — alone', () => {
     const war = test.manifest['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
     expect(war.map((entry) => entry.resources.every((resource) => resource.startsWith(`${CHATSPACE_LAZY_ROOT}/`)))).toEqual([true, false]);
-    expect(war[1]).toEqual({ resources: ['lazy/fansly/bridge-validation.js'], matches: ['https://fansly.com/*', ...FANSLY_STAND_MATCHES] });
+    // Its application came with the dock (R20 P7d): every entry and shared chunk of its own folder, nothing else.
+    expect(war[1]?.matches).toEqual(['https://fansly.com/*', ...FANSLY_STAND_MATCHES]);
+    expect(war[1]?.resources.every((resource) => resource.startsWith(`${FANSLY_LAZY_ROOT}/`))).toBe(true);
+    for (const entry of Object.keys(FANSLY_LAZY_ENTRIES)) expect(war[1]?.resources, entry).toContain(`${FANSLY_LAZY_ROOT}/${entry}.js`);
     expect(tree(join(test.dir, FANSLY_LAZY_ROOT))).toEqual(tree(join(release.dir, FANSLY_LAZY_ROOT)));
   });
 

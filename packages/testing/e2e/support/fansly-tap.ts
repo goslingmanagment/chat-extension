@@ -72,6 +72,17 @@ export async function injectFanslyMain(): Promise<void> {
   if (result.type !== 'success') throw new Error(`late MAIN: ${JSON.stringify(result.exceptionDetails)}`);
 }
 
+/**
+ * Starts the consumer in the sandbox of the current document after the page began — the isolated script of an install
+ * or an update under an open tab (R20 P7d). With `injectFanslyMain` before it: a late start of both worlds.
+ */
+export async function injectFanslyConsumer(consumer: 'raw' | 'port' = 'port'): Promise<void> {
+  const context = await browser.getWindowHandle();
+  const code = `globalThis.__cgFanslyTapConsumer = ${JSON.stringify(consumer)};\n${await consumerBundle()}`;
+  const result = await browser.scriptCallFunction({ functionDeclaration: `() => {\n${code}\n}`, target: { context, sandbox: FANSLY_TAP_SANDBOX }, awaitPromise: false });
+  if (result.type !== 'success') throw new Error(`late consumer: ${JSON.stringify(result.exceptionDetails)}`);
+}
+
 /** Calls the consumer's `method` in the sandbox of the current document; JSON in and out. */
 export async function tap<T = unknown>(method: string, ...args: unknown[]): Promise<T> {
   const context = await browser.getWindowHandle();

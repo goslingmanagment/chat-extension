@@ -96,8 +96,10 @@ export const REFERENCE_OWN_ROWS: readonly string[] = [
 
 /**
  * Chunks of a site's lazy build that are the application's own, of no one feature: the bridge's and the tab
- * protocol's schemas, the application, the texts, the AI controllers and the boards' base, the dock's own views,
- * health, the dialogs and the cheatsheet. Every other chunk is named after a feature or a surface of the site's slice.
+ * protocol's schemas, the application, the texts, the AI and navigation controllers (the keys' sink and the
+ * reference: a layer every tab loads — on ChatSpace it is also its feature's, R20 P7d), the boards' base, the dock's
+ * own views, health, the dialogs and the cheatsheet. Every other chunk is named after a feature or a surface of the
+ * site's slice.
  */
 export const APPLICATION_CHUNKS: readonly string[] = [
   'bridge-validation',
@@ -106,6 +108,7 @@ export const APPLICATION_CHUNKS: readonly string[] = [
   'i18n-ru',
   'i18n-en',
   'ai',
+  'navigation',
   'ai-analysis',
   'ai-coach',
   'tab-health',
