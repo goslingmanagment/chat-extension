@@ -207,6 +207,14 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     res: vaultAck,
   },
 
+  'fansly.relay.hello': {
+    req: {
+      valid: [{ hostAccountId: F.creator, relayId: uuid(340) }],
+      // No id of its own; an account that is no id.
+      invalid: [{ hostAccountId: F.creator }, { hostAccountId: 'creator', relayId: uuid(340) }],
+    },
+    res: ack,
+  },
   'fansly.relay.head': {
     req: {
       valid: [{ requestId: uuid(330), status: 429, headers: [['retry-after', '30']] }, { requestId: uuid(330), status: 200, headers: [] }],
@@ -262,15 +270,18 @@ export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Ve
     valid: [
       { requestId: uuid(330), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/account/me?ngsw-bypass=true', headers: [['authorization', 'x']], expect: { hostAccountId: F.creator } },
       { requestId: uuid(331), method: 'POST', url: 'https://apiv3.fansly.com/api/v1/notes?ngsw-bypass=true', headers: [], body: '{}', expect: { hostAccountId: F.creator } },
+      { requestId: uuid(332), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/group/1?ngsw-bypass=true', headers: [], expect: { hostAccountId: F.creator, relayId: uuid(340) } },
     ],
     // Any other address, even of Fansly; a method we never use; no expectation for the frame's own check.
     invalid: [
       { requestId: uuid(330), method: 'GET', url: 'https://fansly.com/api/v1/account/me', headers: [], expect: { hostAccountId: F.creator } },
       { requestId: uuid(330), method: 'DELETE', url: 'https://apiv3.fansly.com/api/v1/notes', headers: [], expect: { hostAccountId: F.creator } },
       { requestId: uuid(330), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/account/me', headers: [] },
+      { requestId: uuid(330), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/account/me', headers: [], expect: { hostAccountId: F.creator, relayId: 'frame-1' } },
     ],
   },
   'fansly.relay.abort': { valid: [{ requestId: uuid(330) }], invalid: [{ requestId: 'r1' }] },
+  'fansly.relay.open': { valid: [{}], invalid: [{ hostAccountId: F.creator }, null] },
 };
 
 /** `settings.ext` as this build reads it: the view, the patch, the state (contracts settings-ext.ts). */

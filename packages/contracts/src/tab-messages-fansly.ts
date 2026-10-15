@@ -491,7 +491,13 @@ export const FANSLY_TAB_REQUESTS = {
   /** The upload is over or the person dropped it; `held` — another open tab holds it: nothing is cleared. */
   'fansly.vault.clear': { req: z.strictObject({ ...AlbumRef, uploadId: UuidSchema }), res: VaultAck, from: TAB, hosts: FANSLY },
 
-  // ── relay: its answers to `fansly.relay.fetch` ──
+  // ── relay: it is up, and its answers to `fansly.relay.fetch` ──
+  /**
+   * R20 P9c: the frame is up — its port is open, it serves the account its tab was on when the tab mounted it (the
+   * tab tears the frame down when its account changes), under an id of its own that each request names
+   * (`fetch.expect.relayId`). Sent on every connect of its port. The route is chosen only once it came (§8.5).
+   */
+  'fansly.relay.hello': { req: z.strictObject({ hostAccountId: NativeIdSchema, relayId: UuidSchema }), res: Ack, from: RELAY, hosts: FANSLY },
   /** Status and headers as soon as `fetch` has them: a 429 or a 401 counts even when its body never arrives. */
   'fansly.relay.head': {
     req: z.strictObject({
@@ -552,11 +558,21 @@ export const FANSLY_TAB_EVENTS = {
       url: z.string().check(z.maxLength(2048), z.startsWith(FANSLY_RELAY_TARGET)),
       headers: HeaderListSchema(FANSLY_TAB_LIMITS.relayRequestHeadersMax),
       body: z.optional(displayText(FANSLY_TAB_LIMITS.relayRequestBodyMaxChars)),
-      expect: z.strictObject({ hostAccountId: NativeIdSchema }),
+      /**
+       * R20 P9c: `relayId` — the frame the route was chosen with (its `fansly.relay.hello`): another frame of the same
+       * tab session takes no part in this request and answers nothing.
+       */
+      expect: z.strictObject({ hostAccountId: NativeIdSchema, relayId: z.optional(UuidSchema) }),
     }),
     to: RELAY,
   },
   'fansly.relay.abort': { payload: z.strictObject({ requestId: UuidSchema }), to: RELAY },
+  /**
+   * R20 P9c: to the tab — mount the relay frame, or keep the mounted one, for 60 s more (FS-NET-4: lazily, for a batch
+   * of work and 60 s after). The background says it when it routes a request through the tab and again when it sends
+   * one; the tab mounts the frame for the account it is on, and nothing when it is on none.
+   */
+  'fansly.relay.open': { payload: z.strictObject({}), to: TAB },
 } as const satisfies Record<`fansly.${string}`, TabEventSpec>;
 
 export type FanslyTabEventType = keyof typeof FANSLY_TAB_EVENTS;
