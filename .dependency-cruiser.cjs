@@ -69,11 +69,12 @@ const SITE_ONLY_BACKGROUND = [
   FANSLY_OWNED,
 ];
 /**
- * Every other bundle root: the content scripts, the WS tap, the extension pages
- * and the lazy chunks. Everything under entrypoints/ counts, so a new entry
- * point is covered before anyone remembers to list it.
+ * Every other bundle root: the content scripts, the WS tap, Fansly's scripts the
+ * background registers, the extension pages and the lazy chunks of both sites.
+ * Everything under entrypoints/ counts, so a new entry point is covered before
+ * anyone remembers to list it.
  */
-const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/', '^apps/extension/bg/'], pathNot: BACKGROUND_ENTRY };
+const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/', '^apps/extension/lazy/fansly/', '^apps/extension/bg/'], pathNot: BACKGROUND_ENTRY };
 
 /** `from` may depend only on paths matching `allowed` (plus itself). */
 function only(name, from, allowed, comment) {

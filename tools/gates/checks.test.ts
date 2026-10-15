@@ -395,9 +395,11 @@ describe('[X22] gate: MAIN-world guards', () => {
 });
 
 describe('gates: the sites’ bundles and MAIN-world sources come from the host registry', () => {
-  it('ChatSpace: the bridge and the WS tap in the page’s world, chatspace.js the isolated start', () => {
-    expect(MAIN_WORLD_BUNDLES).toEqual(['content-scripts/chatspace-main.js', 'chatspace-ws.js']);
-    expect(ISOLATED_BUNDLES).toEqual(['content-scripts/chatspace.js']);
+  it('ChatSpace: the bridge and the WS tap in the page’s world, chatspace.js the isolated start; Fansly: fansly-main.js and fansly.js (R20 P7a0)', () => {
+    expect(MAIN_WORLD_BUNDLES).toEqual(['content-scripts/chatspace-main.js', 'chatspace-ws.js', 'fansly-main.js']);
+    expect(ISOLATED_BUNDLES).toEqual(['content-scripts/chatspace.js', 'fansly.js']);
+    expect(isMainWorldSource('packages/host-fansly/src/main/index.ts')).toBe(true);
+    expect(isMainWorldSource('packages/host-fansly/src/isolated/starter.ts')).toBe(false);
   });
 
   it('the MAIN-world source is the top level of host-chatspace/src/main, not its subfolders or other packages', () => {

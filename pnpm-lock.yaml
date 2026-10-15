@@ -68,6 +68,9 @@ importers:
       '@cg/host-chatspace':
         specifier: workspace:*
         version: link:../../packages/host-chatspace
+      '@cg/host-fansly':
+        specifier: workspace:*
+        version: link:../../packages/host-fansly
       '@cg/hub':
         specifier: workspace:*
         version: link:../../packages/hub
@@ -117,6 +120,15 @@ importers:
       '@cg/core':
         specifier: workspace:*
         version: link:../core
+      '@cg/host-kit':
+        specifier: workspace:*
+        version: link:../host-kit
+
+  packages/host-fansly:
+    dependencies:
+      '@cg/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@cg/host-kit':
         specifier: workspace:*
         version: link:../host-kit

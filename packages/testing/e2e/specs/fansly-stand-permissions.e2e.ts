@@ -105,7 +105,8 @@ describe('the Fansly stand’s permissions in the test build: optional, granted 
     expect(stand).toBe('http://localhost/*');
     await browser.switchToWindow(pagesTab);
     const manifest = await browser.execute(() => (globalThis as unknown as { browser: PageApi }).browser.runtime.getManifest());
-    expect(manifest['optional_host_permissions']).toEqual(['https://*/*', 'http://localhost/*']);
+    // Fansly's own origins (R20 P7a0), then its stand: all optional, none granted.
+    expect(manifest['optional_host_permissions']).toEqual(['https://*/*', 'https://fansly.com/*', 'https://apiv3.fansly.com/*', 'http://localhost/*']);
     expect(manifest['optional_permissions']).toEqual(['webRequest']);
     expect(manifest['host_permissions']).toEqual(expect.arrayContaining(['http://127.0.0.1/*']));
     expect(manifest['host_permissions']).not.toEqual(expect.arrayContaining(['http://localhost/*']));

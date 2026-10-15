@@ -109,6 +109,8 @@ const SITE_PACKAGES = ['@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/host-f
 const BACKGROUND_FILES = ['apps/extension/src/entrypoints/background.ts', 'apps/extension/src/composition/background.ts'];
 /** MAIN-world entry points: bundled self-contained, like host-chatspace/main itself (§4, D-06). */
 const MAIN_WORLD_ENTRIES = ['apps/extension/src/entrypoints/chatspace-main.content.ts', 'apps/extension/src/entrypoints/chatspace-ws.ts'];
+/** Fansly's MAIN-world entry point (docs/project-unite/architecture.md §5): self-contained, the same way. */
+const FANSLY_MAIN_ENTRY = 'apps/extension/src/entrypoints/fansly-main.ts';
 /** The tap is the one MAIN file that wraps the page's WebSocket constructor (§6.8). */
 const WS_TAP_FILE = 'packages/host-chatspace/src/main/ws-tap.ts';
 /**
@@ -243,6 +245,15 @@ export default defineConfig(
     rules: mainWorldRules('\\./', '`host-kit/common` is what both worlds of the page share: the MAIN bundles carry it, so it imports nothing (docs/project-unite/architecture.md §1.1).'),
   },
   {
+    // Fansly's MAIN script (docs/project-unite/architecture.md §5, §3.1): one self-contained bundle, like ChatSpace's.
+    files: ['packages/host-fansly/src/main/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: mainWorldRules(
+      '\\./|@cg/host-kit/(?:main|common)/',
+      'Fansly\'s MAIN script is one self-contained bundle: only same-folder imports and the MAIN part of @cg/host-kit — its boot and what both worlds share (docs/project-unite/architecture.md §5, §3.1).',
+    ),
+  },
+  {
     files: [WS_TAP_FILE],
     rules: {
       'no-restricted-globals': ['error', ...hostBannedGlobals(['WebSocket'])],
@@ -297,6 +308,24 @@ export default defineConfig(
     },
   },
   {
+    // Fansly's isolated adapter (docs/project-unite/architecture.md §7): as ChatSpace's — and never ChatSpace's package.
+    files: ['packages/host-fansly/src/isolated/**/*.ts'],
+    rules: {
+      ...restrict(
+        {
+          regex: '^@cg/core(/(domain|services|application))?$',
+          message: '`host-fansly/isolated` may import only @cg/core/domain/text and Fansly\'s own text pack from core (docs/project-unite/architecture.md §7).',
+        },
+        {
+          group: flat(ISOLATED_BANNED, '@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/fansly-api', '@cg/fansly-api/*'),
+          message: '`host-fansly/isolated` imports only @cg/host-kit, @cg/contracts and @cg/core/domain/text; no token, no network, no MAIN code, no other site (docs/project-unite/architecture.md §7).',
+        },
+      ),
+      'no-restricted-globals': ['error', ...hostBannedGlobals()],
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
+    },
+  },
+  {
     files: ['packages/ui/src/**/*.{ts,tsx}'],
     rules: {
       ...restrict({
@@ -309,7 +338,7 @@ export default defineConfig(
   },
   {
     // Content-script and page composition roots, entry points, lazy chunks.
-    files: ['apps/extension/src/**/*.ts', 'apps/extension/lazy/entries/**/*.ts'],
+    files: ['apps/extension/src/**/*.ts', 'apps/extension/lazy/entries/**/*.ts', 'apps/extension/lazy/fansly/**/*.ts'],
     ignores: BACKGROUND_FILES,
     rules: restrict(APP_RESTRICTION, HUB_BACKGROUND_ONLY, BACKGROUND_ROOT_IMPORT),
   },
@@ -332,6 +361,13 @@ export default defineConfig(
     rules: restrict({
       regex: '^(?!@cg/host-chatspace/main$|wxt$|wxt/utils/define-[a-z-]+$|\\.\\./hosts/runtime/chatspace$)',
       message: 'MAIN-world entry points bundle only @cg/host-chatspace/main, the WXT define helpers and ../hosts/runtime/chatspace (§4, D-06).',
+    }),
+  },
+  {
+    files: [FANSLY_MAIN_ENTRY],
+    rules: restrict({
+      regex: '^(?!@cg/host-fansly/main$|wxt$|wxt/utils/define-[a-z-]+$|\\.\\./hosts/runtime/fansly$)',
+      message: 'Fansly\'s MAIN-world entry point bundles only @cg/host-fansly/main, the WXT define helpers and ../hosts/runtime/fansly (docs/project-unite/architecture.md §5, §3.1).',
     }),
   },
   {

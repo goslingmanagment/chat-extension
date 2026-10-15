@@ -60,6 +60,18 @@ describe('ESLint package graph (§4)', () => {
     ['the shared isolated mechanics import platform', 'packages/host-kit/src/isolated/bad.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
     ['the shared isolated mechanics read win.localStorage', 'packages/host-kit/src/isolated/bad.ts', 'export const x = (win: Window) => win.localStorage;', ['no-restricted-properties']],
     ['ChatSpace’s MAIN code imports the isolated half of host-kit', 'packages/host-chatspace/src/main/bad.ts', "import { TAGS } from '@cg/host-kit/isolated/wire';\nexport const x = TAGS;", ['no-restricted-imports']],
+    // host-fansly (R20 P7a0, architecture §5, §7): its MAIN script as self-contained as ChatSpace's, its isolated
+    // adapter as ChatSpace's and never another site's; its MAIN entry and its lazy chunks wired like ChatSpace's.
+    ['Fansly’s MAIN code imports a package', 'packages/host-fansly/src/main/bad.ts', "import { BRIDGE_TAGS } from '@cg/contracts';\nexport const x = BRIDGE_TAGS;", ['no-restricted-imports']],
+    ['Fansly’s MAIN code imports the isolated half of host-kit', 'packages/host-fansly/src/main/bad.ts', "import { TAGS } from '@cg/host-kit/isolated/wire';\nexport const x = TAGS;", ['no-restricted-imports']],
+    ['Fansly’s MAIN code opens a WebSocket', 'packages/host-fansly/src/main/bad.ts', "export const x = () => new WebSocket('wss://x');", ['no-restricted-globals']],
+    ['Fansly’s adapter imports ChatSpace’s', 'packages/host-fansly/src/isolated/bad.ts', "import { startChatSpaceHost } from '@cg/host-chatspace/isolated';\nexport const x = startChatSpaceHost;", ['no-restricted-imports']],
+    ['Fansly’s adapter imports its MAIN code', 'packages/host-fansly/src/isolated/bad.ts', "import { installFanslyMain } from '../main';\nexport const x = installFanslyMain;", ['no-restricted-imports']],
+    ['Fansly’s adapter imports platform', 'packages/host-fansly/src/isolated/bad.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
+    ['Fansly’s adapter calls win.fetch', 'packages/host-fansly/src/isolated/bad.ts', "export const x = (win: Window) => win.fetch('https://example.invalid/');", ['no-restricted-properties']],
+    ['Fansly’s MAIN entry imports platform', 'apps/extension/src/entrypoints/fansly-main.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
+    ['Fansly’s MAIN entry imports the host registry', 'apps/extension/src/entrypoints/fansly-main.ts', "import { HOSTS } from '../hosts';\nexport const x = HOSTS;", ['no-restricted-imports']],
+    ['a lazy chunk of Fansly’s build re-exports hub', 'apps/extension/lazy/fansly/bad.ts', "export * as hubProbe from '@cg/hub';", ['no-restricted-imports']],
     ['contracts imports Fansly’s API package', 'packages/contracts/src/bad.ts', "import { FANSLY_PATHS } from '@cg/fansly-api';\nexport const x = FANSLY_PATHS;", ['no-restricted-imports']],
     // hub only in the background (§4, D-13)
     ['the tab composition root imports hub', 'apps/extension/src/composition/tab.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;", ['no-restricted-imports']],
@@ -106,6 +118,13 @@ describe('ESLint package graph (§4)', () => {
     ['ChatSpace’s adapter imports the shared isolated mechanics', 'packages/host-chatspace/src/isolated/ok.ts', "import { mountClosedHost } from '@cg/host-kit/isolated/hosts';\nexport const x = mountClosedHost;"],
     ['the shared MAIN boot imports its own folder and host-kit/common', 'packages/host-kit/src/main/ok.ts', "import { guardWith } from './guard';\nimport { digest } from '../common/digest';\nexport const x = [guardWith, digest];"],
     ['the shared isolated mechanics import contracts, core/domain/text and host-kit/common', 'packages/host-kit/src/isolated/ok.ts', "import { BRIDGE_LIMITS } from '@cg/contracts/limits';\nimport { normalizeNewlines } from '@cg/core/domain/text';\nimport { digest } from '../common/digest';\nexport const x = [BRIDGE_LIMITS, normalizeNewlines, digest];"],
+    ['Fansly’s MAIN code imports the shared boot', 'packages/host-fansly/src/main/ok.ts', "import { installMainBridge } from '@cg/host-kit/main/bridge';\nexport const x = installMainBridge;"],
+    ['Fansly’s adapter imports the shared isolated mechanics and the contracts', 'packages/host-fansly/src/isolated/ok.ts', "import { BRIDGE_LIMITS } from '@cg/contracts/limits';\nimport { mountClosedHost } from '@cg/host-kit/isolated/hosts';\nexport const x = [BRIDGE_LIMITS, mountClosedHost];"],
+    [
+      'Fansly’s MAIN entry imports its MAIN code, a WXT define helper and Fansly’s row of the hosts’ runtime table',
+      'apps/extension/src/entrypoints/fansly-main.ts',
+      "import { installFanslyMain } from '@cg/host-fansly/main';\nimport type { UnlistedScriptDefinition } from 'wxt';\nimport { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';\nimport { FANSLY_MATCHES } from '../hosts/runtime/fansly';\nexport const x: UnlistedScriptDefinition = defineUnlistedScript(() => installFanslyMain(window));\nexport const y = FANSLY_MATCHES;",
+    ],
     ['ui imports preact', 'packages/ui/src/ok.ts', "import { render } from 'preact';\nexport const x = render;"],
     ['platform imports the browser API', 'packages/platform/src/ok.ts', "import { browser } from '@wxt-dev/browser';\nexport const x = browser;"],
     ['the background composition root imports hub', 'apps/extension/src/composition/background.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;"],

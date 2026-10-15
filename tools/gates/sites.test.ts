@@ -338,8 +338,8 @@ describe('gate: bytes per site (architecture §1.8)', () => {
     for (const path of ['content-scripts/chatspace-main.js', 'content-scripts/chatspace.js', 'chatspace-ws.js', 'lazy/chatspace/dock.js', 'lazy/chatspace/chunks/kernel-DA8hH5uq.js', 'bg/chatspace.js', BACKGROUND_CORE_FILE]) {
       expect(isSiteArtifact(chatspace, path), path).toBe(true);
     }
-    // Another site's files, the test build's second lazy build, the extension pages and the manifest are not.
-    for (const path of ['content-scripts/fansly-main.js', 'lazy/fansly/notes.js', 'lazy/second-site/empty.js', 'bg/fansly.js', 'chunks/pages-CaMHj_VA.js', 'popup.html', 'manifest.json', 'icons/48.png']) {
+    // Another site's files, the extension pages and the manifest are not.
+    for (const path of ['fansly-main.js', 'fansly.js', 'lazy/fansly/bridge-validation.js', 'lazy/fansly/notes.js', 'bg/fansly.js', 'chunks/pages-CaMHj_VA.js', 'popup.html', 'manifest.json', 'icons/48.png']) {
       expect(isSiteArtifact(chatspace, path), path).toBe(false);
     }
   });

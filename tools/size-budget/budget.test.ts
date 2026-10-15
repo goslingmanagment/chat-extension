@@ -3,7 +3,8 @@ import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import { CHATSPACE } from '../../apps/extension/src/hosts/chatspace.ts';
-import { SECOND_LAZY_BUILD, type HostDescriptor, type LazySite } from '../../apps/extension/src/hosts/index.ts';
+import { FANSLY } from '../../apps/extension/src/hosts/fansly.ts';
+import { HOSTS, type HostDescriptor, type LazySite } from '../../apps/extension/src/hosts/index.ts';
 import { MAX_BACKGROUND_JS_BYTES } from '../archive-check/rules.ts';
 import { BACKGROUND_CORE, BUDGETS, backgroundBudgets, computeBudgets, scriptBudgets, staticClosure, type LazyChunk } from './budget.ts';
 import { contractsProbes } from './contracts-probes.ts';
@@ -191,10 +192,19 @@ describe('size budgets of the sites’ lazy builds and contract probes (R20 F2b)
     expect(() => computeBudgets(() => noise(10), chunks.filter((item) => item.name !== 'dock'), [CHATSPACE], [SITE])).toThrow(/lazy chunk list has no lazy\/chatspace\/dock\.js/);
   });
 
-  it('a build without layers — the test build’s empty second one — has its entries measured on demand, no dock line', () => {
-    const empty: LazyChunk = { file: 'lazy/second-site/empty.js', kind: 'entry', name: 'empty', imports: [], site: 'second-site' };
-    const lines = computeBudgets(() => noise(10), [...chunks, empty], [CHATSPACE], [SITE, SECOND_LAZY_BUILD]);
-    expect(lines.filter((line) => line.label.startsWith('second-site: ')).map((line) => [line.label, line.files])).toEqual([['second-site: lazy chunk empty (beyond the layers)', ['lazy/second-site/empty.js']]]);
+  it('a build without layers — Fansly’s, so far — has its entries measured on demand, no dock line', () => {
+    const fansly: LazySite = { site: FANSLY.kind, build: FANSLY.lazy, matches: [] };
+    const schemas: LazyChunk = { file: 'lazy/fansly/bridge-validation.js', kind: 'entry', name: 'bridge-validation', imports: [], site: FANSLY.kind };
+    const lines = computeBudgets(() => noise(10), [...chunks, schemas], [CHATSPACE], [SITE, fansly]);
+    expect(lines.filter((line) => line.label.startsWith('fansly-web: ')).map((line) => [line.label, line.files])).toEqual([['fansly-web: lazy chunk bridge-validation (beyond the layers)', ['lazy/fansly/bridge-validation.js']]]);
+  });
+
+  it('every script of the registry has its one line: Fansly’s MAIN ≤ 16 KiB and its early isolated start ≤ 30 KiB come after ChatSpace’s (R20 P7a0)', () => {
+    expect(scriptBudgets(HOSTS).map((line) => [line.file, line.limitBytes])).toEqual([
+      ...scriptBudgets([CHATSPACE]).map((line) => [line.file, line.limitBytes]),
+      ['fansly-main.js', 16 * 1024],
+      ['fansly.js', 30 * 1024],
+    ]);
   });
 
   it('the contract probes: the common one, then each site’s own, named by it; a second site adds its lines after ChatSpace’s', () => {
