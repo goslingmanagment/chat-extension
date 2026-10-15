@@ -91,8 +91,8 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     sendObserve: notReady('sendObserve'),
     incoming: notReady('incoming'),
     navigate: identity,
-    // The page's own theme is read with P8d: until then the light scheme.
-    theme: degraded('theme'),
+    // The scheme and the palette are the page's own (P8d): once Fansly's theme controller has put its class on <html>.
+    theme: dom.themeClass === 'ok' ? ON : degraded('themeClass'),
     previewSend: off('site'),
     receipt: off('site'),
   };

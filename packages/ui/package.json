@@ -21,7 +21,8 @@
     "./fanpanel": "./src/fanpanel/index.ts",
     "./palette": "./src/palette/index.ts",
     "./preview": "./src/preview/index.ts",
-    "./pages": "./src/pages/index.ts"
+    "./pages": "./src/pages/index.ts",
+    "./hosts/fansly": "./src/hosts/fansly/index.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",

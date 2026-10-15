@@ -6,9 +6,11 @@
 // switches the theme.
 //
 // The page's colour variables (`--blue-1`, `--dark-1…8`, …) translated into
-// the kit's `--color-om-*` triplets are P8d's (the palette of Fansly's
-// profile): until then `tokens` is empty and the dock wears the kit's own
-// palette in the page's scheme. Fansly has no fixed-width workspace.
+// the kit's `--color-om-*` triplets are the palette of Fansly's profile
+// (./palette.ts, R20 P8d): only the application draws with it, so it rides in
+// Fansly's application chunk and reads the page on this reader's word — the
+// early bundle says the scheme alone, and `tokens` stay empty. Fansly has no
+// fixed-width workspace.
 //
 // Read when first asked for, not at document_start: nothing needs the theme
 // before the UI does, and Angular sets the class only once it runs.
@@ -33,19 +35,30 @@ export function readFanslyTheme(doc: Document): HostTheme {
   return { scheme: light ? 'light' : 'dark', tokens: {}, fixedWidth: false };
 }
 
+/** Which of Fansly's theme classes <html> wears: its controller has run when one is there. */
+const marksOf = (doc: Document): string => {
+  const classes = (doc.documentElement as HTMLElement | null)?.classList;
+  return `${classes?.contains(LIGHT_CLASS) === true ? 'b' : ''}${classes?.contains(DARK_CLASS) === true ? 'd' : ''}`;
+};
+
 export function createFanslyTheme(doc: Document): FanslyTheme {
   /** null — nothing asked for it yet. */
   let theme: HostTheme | null = null;
+  let marks = '';
   const listeners = new Set<(theme: HostTheme) => void>();
   let observer: MutationObserver | null = null;
   let waiting: MutationObserver | null = null;
   let disposed = false;
 
+  // Said when the scheme moves, and when Fansly's theme class comes or goes with the scheme the same: its variables
+  // may have come with it, and the palette (./palette.ts) reads them anew (R20 P8d). Other classes say nothing.
   const refresh = (): void => {
     if (theme === null) return;
     const next = readFanslyTheme(doc);
-    if (next.scheme === theme.scheme) return;
+    const nextMarks = marksOf(doc);
+    if (next.scheme === theme.scheme && nextMarks === marks) return;
     theme = next;
+    marks = nextMarks;
     for (const listener of [...listeners]) listener(next);
   };
   /** The class on <html>, from the first read on; a document_start script may run before <html> exists. */
@@ -68,6 +81,7 @@ export function createFanslyTheme(doc: Document): FanslyTheme {
   const read = (): HostTheme => {
     if (theme === null) {
       theme = readFanslyTheme(doc);
+      marks = marksOf(doc);
       watch();
     }
     return theme;

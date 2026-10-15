@@ -20,10 +20,8 @@ import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
 
 import { dockChips, featureSlice } from '@cg/core/domain/features';
-import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
-import { createTranslator } from '@cg/core/domain/i18n';
 
-import { cgError, FANS, handles, hotkey, isHotkeyName, PERSONA, reason, views, type FanFixture, type ScenarioCtx } from './base';
+import { cgError, FANS, handles, hotkey, isHotkeyName, PERSONA, reason, scenarioTranslator, views, type FanFixture, type ScenarioCtx } from './base';
 
 /** The site of the scenarios and of the stand is ChatSpace: its slice of the feature manifest. */
 export const SCENARIO_FEATURES = featureSlice(FEATURES_COMMON, CHATSPACE_FEATURES);
@@ -156,7 +154,7 @@ export const PAGE_OFF_REASON: ReasonVM = { id: 'feature-disabled', code: 'CG-FEA
  * status line, every AI action and option carries that reason, and what was generated before can only be copied.
  */
 export function dockPageOff(ctx: ScenarioCtx, options: DockOptions = {}): DockVM {
-  const t = createTranslator(ctx.lang, CHATSPACE_PHRASES);
+  const t = scenarioTranslator(ctx);
   const base = dock(ctx, 'ready', { actionsOptions: { off: PAGE_OFF_REASON }, ...options });
   return {
     ...base,

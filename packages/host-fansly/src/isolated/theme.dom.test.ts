@@ -40,4 +40,19 @@ describe('[host:fansly] Fansly’s theme (FS-PLC-7)', () => {
     await settle();
     expect(heard).toEqual(['light', 'dark']);
   });
+
+  it('[R20-P8d] Fansly’s theme class appearing with the scheme it already said is said too: the page’s variables may have come with it (the palette reads them anew)', async () => {
+    const theme = createFanslyTheme(document);
+    const heard: string[] = [];
+    theme.onChange((next) => heard.push(next.scheme));
+    expect(theme.current().scheme).toBe('dark');
+    document.documentElement.classList.add('dark-theme');
+    await settle();
+    document.documentElement.classList.add('some-other-class');
+    await settle();
+    document.documentElement.className = 'bright-theme';
+    await settle();
+    expect(heard).toEqual(['dark', 'light']);
+    theme.dispose();
+  });
 });

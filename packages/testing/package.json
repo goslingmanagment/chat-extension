@@ -10,7 +10,8 @@
     "./hub": "./src/scenarios/hub/index.ts",
     "./fake-hub": "./src/fake-hub/index.ts",
     "./host": "./src/scenarios/host/index.ts",
-    "./stand": "./src/stand/index.ts"
+    "./stand": "./src/stand/index.ts",
+    "./kit/profiles": "./src/kit/profiles.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",

@@ -24,7 +24,7 @@ import {
   type VmView,
 } from '@cg/contracts';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
-import { createTranslator } from '@cg/core/domain/i18n';
+import { CATALOGS, createLiveI18n, createTranslator, translatorOf, type CatalogSource, type SitePhrases, type Translator } from '@cg/core/domain/i18n';
 
 export interface ScenarioCtx {
   readonly lang: Locale;
@@ -32,6 +32,32 @@ export interface ScenarioCtx {
   /** The fake clock of the scenario, epoch ms. */
   readonly now: number;
   readonly debug: boolean;
+  /** The site the texts a scenario writes out name (the galleries' `?host=`, R20 P8d); absent — ChatSpace's. */
+  readonly phrases?: SitePhrases;
+  /** That site's own catalog entries over the shared catalog (Fansly's codes and its own wording, R20 P8d); absent — none. */
+  readonly texts?: SiteTexts;
+}
+
+/** A site's own catalog entries laid over the shared catalog, per language — what its tab's catalog chunk adds. */
+export type SiteTexts = { readonly [L in Locale]: Readonly<Record<string, string>> };
+
+const siteCatalogsMemo = new WeakMap<SiteTexts, CatalogSource>();
+
+/** The shared catalogs with a site's own entries laid over them, as its tab's catalog chunks are. */
+export function siteCatalogs(texts: SiteTexts): CatalogSource {
+  let source = siteCatalogsMemo.get(texts);
+  if (source === undefined) {
+    const merged = { ru: { ...CATALOGS.ru, ...texts.ru }, en: { ...CATALOGS.en, ...texts.en } } as const;
+    source = (language) => merged[language];
+    siteCatalogsMemo.set(texts, source);
+  }
+  return source;
+}
+
+/** The translator of the scenario's language, speaking for its site (ChatSpace unless the scenario names another). */
+export function scenarioTranslator(ctx: ScenarioCtx): Translator {
+  const phrases = ctx.phrases ?? CHATSPACE_PHRASES;
+  return ctx.texts === undefined ? createTranslator(ctx.lang, phrases) : translatorOf(createLiveI18n(siteCatalogs(ctx.texts), { language: ctx.lang, phrases }));
 }
 
 /** 2026-10-03 09:20 Moscow, the mockup's «now». */
@@ -62,7 +88,7 @@ export interface ErrorExtras {
 /** A rendered error in the scenario's language, as the controller builds it: the registry's keys through the real catalog. */
 export function cgError(ctx: ScenarioCtx, code: CgCode, extras: ErrorExtras = {}): CgErrorView {
   const entry = cgEntry(code);
-  const t = createTranslator(ctx.lang, CHATSPACE_PHRASES);
+  const t = scenarioTranslator(ctx);
   return { code, title: t.text(entry.title), body: t.text(entry.body), ...extras };
 }
 

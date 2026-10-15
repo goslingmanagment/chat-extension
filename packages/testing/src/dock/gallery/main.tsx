@@ -3,9 +3,11 @@
 // parameter — every dock state; `&w=853|693|489|360` the composer width,
 // `&theme=light|dark`, `&lang=ru|en`, `&style=bare|sheet`, `&feed=574&vh=900`
 // the height of the feed window and of the browser window the host reports
-// (the result's height limit, ui-design §3.2), `&host=chatspace|test` the
-// site's profile the surfaces are mounted with (kit/profiles.ts; ChatSpace's
-// by default). The page plays the host side: a closed shadow root on a host element above a fake composer
+// (the result's height limit, ui-design §3.2), `&host=chatspace|fansly|test`
+// the site's profile the surfaces are mounted with (kit/profiles.ts;
+// ChatSpace's by default; with Fansly's the page plays fansly.com in the
+// theme asked for, and `__dock.setHostTheme` switches it as the person would).
+// The page plays the host side: a closed shadow root on a host element above a fake composer
 // (or the overlay host over the whole window), and the surfaces are mounted
 // exactly as the extension mounts them. `window.__dock` tells the e2e what a
 // closed root hides: failures the surfaces reported, overflow, overlaps and
@@ -16,6 +18,7 @@ import { dockSurface, preloadPart, DEFAULT_PARTS } from '@cg/ui/dock';
 import { mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
 import { lazyOverlays, toastsSurface } from '@cg/ui/overlays';
 
+import { setFanslyTheme } from '../../kit/fansly-page';
 import { galleryHostOf } from '../../kit/profiles';
 import { entry } from '../../scenarios/app-client';
 import { kitWorld, type KitWorld } from '../../kit/world';
@@ -44,6 +47,12 @@ export interface DockProbe {
   focused(id: string): string | null;
   /** Types of the actions the surfaces of a state dispatched, in order (what a real click did). */
   dispatched(id: string): readonly string[];
+  /** What the dock of a state is drawn in: the bar's card and ink, a chip after Reply's (Fix), Reply's capsule and the font, as computed; its host's scheme. */
+  colours(id: string): { readonly raised: string; readonly ink: string; readonly chip: string; readonly groove: string; readonly font: string; readonly scheme: string | null } | null;
+  /** The site's theme switched on the page as the person would (Fansly: its class on <html>); our surfaces follow as the tab does («как на сайте»). */
+  setHostTheme(scheme: ColorScheme): void;
+  /** Surfaces mounted since the page loaded: a theme switch remounts nothing. */
+  readonly mounts: number;
   readonly styles: { readonly mode: string };
 }
 
@@ -79,6 +88,7 @@ const html = document.documentElement;
 html.classList.toggle('dark', scheme === 'dark');
 html.classList.toggle('light', scheme === 'light');
 html.lang = language;
+site.play(scheme);
 html.style.setProperty('--gal-w', `${width}px`);
 if (single !== null) html.setAttribute('data-gal-single', single.id);
 // A menu opens upwards, over the feed: a page of one such state gives it room.
@@ -103,10 +113,10 @@ const geometryOf = (item: GalleryState): SurfaceGeometry =>
     : { width: null, feedHeight: null, viewportHeight: window.innerHeight, container: { left: 64, top: 44, width: window.innerWidth - 64, height: window.innerHeight - 44 } };
 
 function worldOf(item: GalleryState): KitWorld {
-  const scenario = scenarioOfState(item, language, scheme, keys);
+  const scenario = scenarioOfState(item, language, scheme, keys, site.profile.phrases, site.texts);
   // «Вид ответа» comes from the URL, as the setting would.
   const views = scenario.views.map((view) => (view.selector.of === 'dock' ? entry({ of: 'dock' }, { ...(view.vm as Parameters<typeof entry<{ of: 'dock' }>>[1]), resultStyle: style }) : view));
-  const world = kitWorld({ ...scenario, views }, language, site.profile.phrases);
+  const world = kitWorld({ ...scenario, views }, language, site.profile.phrases, site.texts);
   world.deps.scheme.set(scheme);
   world.deps.geometry.set(geometryOf(item));
   return world;
@@ -143,7 +153,13 @@ function stage(item: GalleryState, parent: HTMLElement, world: KitWorld): Mounte
   if (item.noComposer !== true) {
     const composer = document.createElement('div');
     composer.className = 'gal-composer';
-    composer.textContent = 'Type a message';
+    if (site.host === 'fansly') {
+      // Fansly's composer row: its message pill inside (kit/fansly-page.ts).
+      const pill = document.createElement('div');
+      pill.className = 'gal-pill';
+      pill.textContent = 'Type a message';
+      composer.append(pill);
+    } else composer.textContent = 'Type a message';
     composerRoot.append(composer);
   }
   section.append(caption, feed, composerRoot);
@@ -279,6 +295,31 @@ window.__dock = {
     return active instanceof HTMLElement ? active.className : null;
   },
   dispatched: (id) => [...new Set(mounted.filter((item) => item.state.id === id).map((item) => item.world.client))].flatMap((client) => client.dispatched.map((action) => action.type)),
+  colours: (id) => {
+    const item = docks().find((candidate) => candidate.state.id === id);
+    if (item === undefined) return null;
+    const style = (selector: string): CSSStyleDeclaration | null => {
+      const element = item.root.querySelector(selector);
+      return element === null ? null : getComputedStyle(element);
+    };
+    return {
+      raised: style('.cg-strip')?.backgroundColor ?? '',
+      ink: style('.cg-dock')?.color ?? '',
+      chip: style('.cg-strip .cg-slot:not(.cg-slot--reply) .cg-act')?.backgroundColor ?? '',
+      groove: style('.cg-strip .cg-tones')?.backgroundColor ?? '',
+      font: style('.cg-dock')?.fontFamily ?? '',
+      scheme: item.host.getAttribute('data-scheme'),
+    };
+  },
+  setHostTheme: (next) => {
+    if (site.host === 'fansly') setFanslyTheme(document, next);
+    html.classList.toggle('dark', next === 'dark');
+    html.classList.toggle('light', next === 'light');
+    for (const item of mounted) item.world.deps.scheme.set(next);
+  },
+  get mounts() {
+    return mounted.length;
+  },
   styles: {
     get mode() {
       return mounted[0]?.mount.styleMode ?? 'none';
