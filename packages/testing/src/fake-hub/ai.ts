@@ -11,7 +11,7 @@
 import { SPLIT_MARKERS, type ContextFrame, type HubFrame, type HubStreamRequest, type PersonaCatalogItem } from '@cg/contracts';
 
 import { WORLD } from '../scenarios/hub';
-import { type CoverageCheckAnswer } from './ai-rules';
+import { hiStartProofDecides, type CoverageCheckAnswer } from './ai-rules';
 import { type FakeSseStep } from './types';
 
 export interface Generation {
@@ -127,12 +127,19 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
     }),
   ];
   if (debug) {
+    const proof = hiStartProofDecides(feature, body, capabilities) ? body.startProof : undefined;
     steps.push(
       frame({
         type: 'debug_input_v1',
         systemBlocks: [{ text: 'synthetic system prompt', cache: '1h' }],
         userBlocks: [{ text: 'synthetic transcript', cache: 'none' }],
-        contextManifest: { window: body.messageCount ?? null, feature },
+        contextManifest: {
+          window: body.messageCount ?? null,
+          feature,
+          ...(proof === undefined ? {} : { hiStartProof: { source: proof.source, coveredCount: proof.coveredCount, personalCount: proof.personalCount, automatedCount: proof.automatedIds.length } }),
+        },
+        // HF-5: the provider image is echoed for debug, as on the hub. The fake never fetches the URL.
+        ...(proof === undefined || body.fanAvatarUrl === undefined ? {} : { images: [{ url: body.fanAvatarUrl }] }),
       }),
     );
   }

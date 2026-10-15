@@ -53,7 +53,7 @@ import {
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
-import { aiFeatureExistsOn, aiFeatureFlag, resolveCoverageCheck, streamBodyRefusal, type BodySchemaLike } from './ai-rules';
+import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, resolveCoverageCheck, streamBodyRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
@@ -218,7 +218,7 @@ const LEGACY_PAGES_PATH = '/api/v1/pages';
  */
 const ROUTE_PARTS: Partial<Record<HubRouteKey, ClientHubCapability>> = { clientAudienceNew: 'audience-new-v1' };
 /** The hub's `HI_GREETING_MAX_TRANSCRIPT` (feature-policies.ts): a greeting is for a conversation of at most this many messages. */
-export const HI_GREETING_MAX_TRANSCRIPT = 10;
+export { HI_GREETING_MAX_TRANSCRIPT } from './ai-rules';
 
 /** Why the hub refuses an AI body before the generic 400 (hub-pr-plan.md §4.11). */
 function streamRefusalReason(request: unknown): string | undefined {
@@ -560,13 +560,18 @@ export class FakeHub {
     if (route === 'aiFeatureStream') {
       // As the hub's route does: its own body schema first, then the rules of its handler (ai-rules.ts) — both
       // before our contract's mirror of them, so that a drift of the mirror cannot hide a body the hub refuses.
-      const { feature, body } = facade.request as { feature: string; body: unknown };
+      const { feature, body, capabilities } = facade.request as { feature: string; body: unknown; capabilities: string[] };
       const real = this.options.streamBodySchema;
       if (real !== undefined && !real.safeParse(body).success) {
         return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', streamRefusalReason(facade.request), undefined, ['body: refused by the hub’s own body schema (vendored SDK)']);
       }
-      const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body) : null;
-      if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, undefined, undefined, [rule.message]);
+      // A hub before HF-5 has none of these optional fields in its strict body. Advertising a future token alone
+      // does not enable a handler the old hub does not have (modelAi keeps its old count gate below).
+      if (typeof body === 'object' && body !== null && ['startProof', 'personalMessageCount', 'fanAvatarUrl'].some((field) => field in body) && !s.config.capabilities.includes('hi-start-proof-v1')) {
+        return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['Hi start-proof fields: unknown keys on a hub without hi-start-proof-v1']);
+      }
+      const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body, capabilities) : null;
+      if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, rule.reason, undefined, [rule.message]);
       // R20 HF-8в: a hub before it has no `coverageCheck` in its strict body — an unknown key, 400.
       if (typeof body === 'object' && body !== null && (body as { coverageCheck?: unknown }).coverageCheck !== undefined && !s.config.capabilities.includes('coverage-check-v1')) {
         return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['coverageCheck: an unknown key on a hub without coverage-check-v1']);
@@ -918,11 +923,23 @@ export class FakeHub {
       if (body.expectedPersonaDefinitionId !== undefined && body.expectedPersonaDefinitionId !== persona.definitionId) return refusal('persona_definition_changed');
       definitionId = persona.definitionId;
     }
-    // The hub's Hi gate (`assertHiGreetingFreshness`, hub apps/runtime/src/modules/ai/features/index.ts): on the
-    // lane this client uses — the hub's own context, no client-side message count — it counts EVERY message of the
-    // transcript, and past ten the conversation is a dialogue: 400 `gate_hi_greeting_limit`. A product gate, so
-    // nothing is spent on it.
-    if (request.feature === 'hi-greeting' && s.data.archiveFacts(page, transcript).total > HI_GREETING_MAX_TRANSCRIPT) {
+    const hiByStartProof = s.config.capabilities.includes('hi-start-proof-v1') && hiStartProofDecides(feature, body, request.capabilities);
+    // assertHiStartProofSent: no proof fails before reading the context, even if that read would fail too.
+    if (hiByStartProof && body.startProof === undefined) return refusal('gate_hi_greeting_limit', 'history_unproven');
+    const served = s.data.served(page, transcript, body.messageCount ?? 100);
+    if (hiByStartProof) {
+      // assertHiStartProof reads the served window AND the oldest live archive ref. In the fake, `stores` holds
+      // every ref outside the window: checking all its live refs is equivalent to checking their oldest one.
+      // A failed archive lookup is fatal on this lane, never an admission on a guess (unlike HF-8's unknown).
+      if (served.stores === null) return refusal('internal_error');
+      const reason = judgeHiStartProof({
+        proof: body.startProof,
+        windowIds: body.coverageCheck?.window.map((item) => item.id) ?? [],
+        knownLiveIds: [...served.window.map((item) => item.messageRef), ...[...served.stores].filter(([, state]) => state === 'present').map(([id]) => id)],
+      });
+      if (reason !== null) return refusal('gate_hi_greeting_limit', reason);
+    } else if (feature === 'hi-greeting' && s.data.archiveFacts(page, transcript).total > HI_GREETING_MAX_TRANSCRIPT) {
+      // OnlyFans and Fansly without the proof token keep assertHiGreetingFreshness and its reason-less envelope.
       return refusal('gate_hi_greeting_limit');
     }
     if (s.config.quotaRequestsToday === 0) {
@@ -935,7 +952,6 @@ export class FakeHub {
     const archive = s.data.archiveFacts(page, transcript);
     // On Fansly the frame describes what the serving reader read: the hub's tombstones and what it holds beside the
     // reader are not in the window (hub `TranscriptServedSnapshot`). The ChatSpace frame stays what it always was.
-    const served = s.data.served(page, transcript, body.messageCount ?? 100);
     const newest = served.window[0];
     // R20 HF-8в: answered only to a request that advertised `coverage-check-v1` (it rides in the context frame).
     const coverageCheck =

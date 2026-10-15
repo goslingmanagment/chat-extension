@@ -27,15 +27,17 @@
 // on Fansly Reply, Fix, Hi and Ping behind `drafts`, Help not at all), the
 // pair `groupId ↔ fanRef` (HF-9, chat-access.ts) and the answer to the
 // window check (HF-8в, context-frame.ts `resolveCoverageCheck`). The rules of
-// HF-5 (Hi's start proof), HF-4а and the notes fill are P6c2's and P6c4's.
+// HF-5 (Hi's start proof) follow below (P6c2); HF-4а and the notes fill are P6c4's.
 
 import { type AiFeatureStreamBody } from '@cg/contracts';
+import { type StartProofV1 } from '@cg/contracts/fansly';
 
 export interface StreamBodyRefusal {
   /** The hub's error code: a gate (`gate_draft_required`) or the plain `bad_request`. */
   readonly error: 'gate_draft_required' | 'bad_request';
   /** The hub's own message, word for word. */
   readonly message: string;
+  readonly reason?: string;
 }
 
 /** Hub features whose policy says `requiresDraft` (feature-policies.ts). */
@@ -43,7 +45,9 @@ const REQUIRES_DRAFT: readonly string[] = ['improve-draft'];
 
 const blank = (value: string | null | undefined): boolean => value === undefined || value === null || value.trim() === '';
 
-export function streamBodyRefusal(feature: string, body: Partial<AiFeatureStreamBody>): StreamBodyRefusal | null {
+type StreamRuleBody = Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown };
+
+export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabilities: readonly string[] = []): StreamBodyRefusal | null {
   if (REQUIRES_DRAFT.includes(feature) && blank(body.draftText)) return { error: 'gate_draft_required', message: `${feature} requires draftText` };
   // Coach feature isolation: coach-chat needs a question — its own, or the preset's, which lives on the hub.
   if (feature === 'coach-chat') {
@@ -61,7 +65,46 @@ export function streamBodyRefusal(feature: string, body: Partial<AiFeatureStream
   if (body.platform === 'fansly' && blank(body.fanRef) && (feature === 'coach-chat' || body.summaryMode === 'short')) {
     return { error: 'bad_request', message: 'fanRef is required on fansly for coach-chat and short fan-summary' };
   }
+  return hiStartProofShapeRefusal(feature, body, capabilities);
+}
+
+// ── Hi by the start proof (hub context/hi-start-proof.ts, HF-5, bd3eec065) ──
+
+/** The hub's HI_GREETING_MAX_TRANSCRIPT: on the proof lane, personal messages only. */
+export const HI_GREETING_MAX_TRANSCRIPT = 10;
+
+export function hiStartProofDecides(feature: string, body: StreamRuleBody, capabilities: readonly string[]): boolean {
+  return feature === 'hi-greeting' && body.platform === 'fansly' && body.clientContext === undefined && capabilities.includes('hi-start-proof-v1');
+}
+
+/** assertHiStartProofRequestShape, in the hub's order, before the client's stricter body mirror. */
+function hiStartProofShapeRefusal(feature: string, body: StreamRuleBody, capabilities: readonly string[]): StreamBodyRefusal | null {
+  const fields = ['startProof', 'personalMessageCount', 'fanAvatarUrl'].filter((name) => body[name as keyof StreamRuleBody] !== undefined).join(', ');
+  if (fields === '') return null;
+  const bad = (message: string, reason: string): StreamBodyRefusal => ({ error: 'bad_request', message, reason });
+  if (feature !== 'hi-greeting') return bad(`${feature} does not accept ${fields}`, 'start_proof_not_allowed');
+  if (body.clientContext !== undefined) return bad(`${fields} cannot be combined with clientContext`, 'start_proof_not_allowed');
+  if (body.platform !== 'fansly') return bad(`${fields} are only accepted for fansly pages`, 'start_proof_not_allowed');
+  if (!capabilities.includes('hi-start-proof-v1')) return bad(`${fields} require the hi-start-proof-v1 capability`, 'capability_required');
+  // The SDK schema runs first. Without it, malformed bodies still reach the client's schema below, never throw here.
+  if (body.startProof !== undefined && body.startProof !== null) {
+    if (body.startProof.groupId !== body.conversationRef) return bad("startProof.groupId must be the request's conversationRef", 'start_proof_mismatch');
+    if (body.personalMessageCount !== undefined && body.personalMessageCount !== body.startProof.personalCount) return bad('personalMessageCount must equal startProof.personalCount', 'start_proof_mismatch');
+  }
   return null;
+}
+
+export type HiGreetingRefusalReason = 'history_unproven' | 'too_many_personal';
+
+/** judgeHiStartProof: a missing/contradicted start outranks the count; deleted messages are not knownLiveIds. */
+export function judgeHiStartProof(input: { readonly proof: StartProofV1 | undefined; readonly windowIds: readonly string[]; readonly knownLiveIds: readonly string[] }): HiGreetingRefusalReason | null {
+  const { proof } = input;
+  if (proof === undefined) return 'history_unproven';
+  const witness = proof.startWitnessId;
+  // Canonical snowflakes: length, then lexical order. Never round an 18-digit id through Number.
+  const beforeStart = (id: string): boolean => witness === null || id.length < witness.length || (id.length === witness.length && id < witness);
+  if (input.windowIds.some(beforeStart) || input.knownLiveIds.some(beforeStart)) return 'history_unproven';
+  return proof.personalCount > HI_GREETING_MAX_TRANSCRIPT ? 'too_many_personal' : null;
 }
 
 /** A schema as the fake hub needs it: the vendored SDK's zod schema fits. */
