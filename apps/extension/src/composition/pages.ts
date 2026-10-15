@@ -19,6 +19,7 @@
 // - the diagnostics file is saved through a Blob (§9.2), a link of the site
 //   opens in a new tab on a click and only when it is https.
 
+import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
@@ -27,7 +28,7 @@ import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { parseTabPayload } from '@cg/contracts/tab-messages';
 import type { I18nKey } from '@cg/contracts/errors';
 import { CHATSPACE_STATUS_TEXTS, type JournalKind, type Unmount } from '@cg/contracts/vm';
-import { createPagesClient, type PageEnv, type PagePorts, type PageSite, type PagesClient } from '@cg/core/application/pages';
+import { createSiteAccessControl, createPagesClient, type PageEnv, type PagePorts, type PageSite, type PagesClient } from '@cg/core/application/pages';
 import { createActionCatalog, hotkeyPlatformOf } from '@cg/core/domain/hotkeys';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
@@ -35,6 +36,7 @@ import { createI18n, resolveLocale, type SitePhrases } from '@cg/core/domain/i18
 import { createLogForwarder, createLogger } from '@cg/core/domain/logging';
 import {
   createConsent,
+  createPermissionBundle,
   createExtensionPages,
   createHostPermissions,
   createLinkOpener,
@@ -48,7 +50,8 @@ import {
 import { mediaSchemeSignal, type KitFailure } from '@cg/ui/kit';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type PageDeps } from '@cg/ui/pages';
 
-import { CHATSPACE_MATCHES, type PerHost } from '../hosts/runtime';
+import { FANSLY_MATCHES } from '../hosts/runtime/fansly';
+import { CHATSPACE_MATCHES, FANSLY_STAND_MATCHES, type PerHost } from '../hosts/runtime';
 import { featuresOf } from './features';
 import { SITE_PAGES } from '../site';
 
@@ -83,6 +86,7 @@ const LOG_FORWARD_DELAY_MS = 250;
  */
 const PAGE_SITES = {
   chatspace: { kind: 'chatspace', contract: CHATSPACE_CONTRACT, texts: CHATSPACE_STATUS_TEXTS },
+  'fansly-web': { kind: 'fansly-web', contract: FANSLY_CONTRACT, texts: CHATSPACE_STATUS_TEXTS },
 } as const satisfies PerHost<PageSite>;
 
 /**
@@ -216,7 +220,9 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   client.start();
 
   // ── the page itself ────────────────────────────────────────────────────────
-  const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface };
+  const access = createSiteAccessControl('fansly-web', rpc, createPermissionBundle({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, 'https://apiv3.fansly.com/*'], permissions: ['webRequest'] }, api));
+  if (page === 'popup' || page === 'options') void access.refresh();
+  const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface, ...((page === 'popup' || page === 'options') ? { siteAccess: { control: access, title: 'Fansly', enable: 'Включить Fansly', disable: 'Выключить Fansly', reload: 'Перезагрузить вкладки', waiting: (count: number) => `${count} вкладок ждут перезагрузки` } } : {}) };
   let unmount: Unmount;
   if (page === 'popup') unmount = mountPopup(container, shared);
   else if (page === 'options') unmount = mountOptions(container, { ...shared, location: client.location, helpUrl: SITE_PAGES.start });

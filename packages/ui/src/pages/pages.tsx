@@ -28,6 +28,7 @@ import { Hints, SettableSignal, capturePageErrors, mountKitPage, resolvedSchemeS
 import { DebugJournal } from './debug/Journal';
 import { DebugPrompt } from './debug/DebugPrompt';
 import { Options, type OptionsRoute } from './options/Options';
+import { SiteAccess, type SiteAccessProps } from './SiteAccess';
 import { Popup } from './Popup';
 import { FONTS_SOURCE } from './brand/fonts';
 import { PageServices, PageServicesProvider } from './shared';
@@ -35,6 +36,7 @@ import { PAGES_SOURCE } from './styles';
 
 /** What a page's composition root hands over. */
 export interface PageDeps {
+  readonly siteAccess?: SiteAccessProps;
   /** core `createPagesClient(...)`, started by the composition root. */
   readonly client: AppClient;
   readonly i18n: I18n;
@@ -87,6 +89,7 @@ function mountPage(container: HTMLElement, deps: PageDeps, surface: MountSurface
     return (
       <PageServicesProvider services={services}>
         <Hints value={on}>
+          {deps.siteAccess !== undefined && <SiteAccess {...deps.siteAccess} />}
           <View />
         </Hints>
       </PageServicesProvider>

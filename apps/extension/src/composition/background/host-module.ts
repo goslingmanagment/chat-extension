@@ -1,3 +1,4 @@
+import type { NetworkSession } from '@cg/core/services/network-session';
 // The contract between the background core and a site's background chunk
 // (docs/project-unite/architecture.md §3.3): what a chunk `bg/<site>.js`
 // exports (`BackgroundHostModule` as its default export), the ports of the
@@ -126,6 +127,8 @@ export interface NativeSendPort {
 
 /** The ports of the core a site's module is started with. */
 export interface BackgroundKit {
+  /** Passive session/429 state, owned and restored by the core. No site transport here. */
+  readonly networkSession?: NetworkSession;
   readonly hub: HubPort;
   readonly storage: StoragePort;
   readonly clock: Clock;

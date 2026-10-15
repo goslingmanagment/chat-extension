@@ -102,3 +102,6 @@ export {
 export { writeClipboardText, type ClipboardNavigator, type ClipboardResult } from './clipboard';
 export { clientOsOf, extensionVersionOf, majorVersionOf, readClientEnv, type ClientEnv, type ClientOs } from './env';
 export { downloadFile, safeFileName, DOWNLOAD_URL_TTL_MS, type DownloadDeps, type DownloadFile } from './download';
+export { createPermissionBundle } from './permissions';
+export { syncDynamicScripts, createScriptTabs, type DynamicScriptSpec } from './scripting';
+export { observeWebRequests, type WebRequestFact } from './web-request';

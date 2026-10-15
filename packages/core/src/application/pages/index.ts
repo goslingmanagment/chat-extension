@@ -29,3 +29,4 @@ export { DEFAULT_SECTION, hashOfRoute, routeOfHash, sectionOfCode } from './rout
 export { AUTOSAVE_DEBOUNCE_MS, SettingsWriter, mergeSettingsPatch, ridesAlong, settingsWithPending, type SaveStatus, type SettingsWriterDeps, type WriteMode, type WriteOutcome } from './settings-writer';
 export { SCHEME_ACTIONS, hotkeyOf, hotkeyRows, inScheme, outsideSchemeHotkey, schemeHotkey } from './hotkeys';
 export { QUOTA_LOW, type PagesModel, type Slot } from './model';
+export { createSiteAccessControl } from './site-access';

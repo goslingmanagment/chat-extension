@@ -80,6 +80,7 @@ import {
   createReadinessBarrier,
   createResultsStore,
   createSettingsOwner,
+  createSettingsExtOwner,
   onInstalledPlan,
   settingsChangePlan,
   settingsRequestHandlers,
@@ -87,10 +88,16 @@ import {
 } from '@cg/core/services';
 import { DiagnosticsService, SpendService, clearDebugData, type DiagnosticsFacts } from '@cg/core/services/diagnostics';
 import { soundRequestHandlers } from '@cg/core/services/sound';
+import { createSiteAccess } from '@cg/core/services/site-access';
+import { createNetworkSession, legacyAccount } from '@cg/core/services/network-session';
 import { HEALTH_TICK_MS } from '@cg/core/services/telemetry';
 import { ChatExtensionHub, VENDORED_CONTRACT_HASH, errorWireOf } from '@cg/hub';
 import {
   createAlarms,
+  createPermissionBundle,
+  createScriptTabs,
+  syncDynamicScripts,
+  observeWebRequests,
   createAudioPlayer,
   createBackgroundRpc,
   createConsent,
@@ -129,6 +136,7 @@ import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf } from './features';
+import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily } from './background/site-access';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
@@ -149,11 +157,13 @@ export function wsTapSpec(): DynamicMainScriptSpec {
  * hub their reports), a tripped fuse («Статус» shows it), greeting leases.
  */
 export const HOST_MODULE_SPECS = {
+  'fansly-web': { chunk: 'bg/fansly.js', pending: { local: [], session: [] } },
   chatspace: { chunk: 'bg/chatspace.js', pending: { local: [STORAGE_KEYS.sendJournal, LOCAL_KEYS.sendFuse], session: [SESSION_KEYS.greetingLeases] } },
 } as const satisfies PerHost<HostModuleSpec>;
 
 /** The requests each site's module answers: the core checked the sender, its session and the payload, and routes them. */
 export const HOST_REQUESTS = {
+  'fansly-web': [],
   chatspace: ['send.begin', 'send.status', 'send.list', 'send.report', 'send.fuse', 'send.fuseState', 'send.fuseReset', 'newcomers.claim'],
 } as const satisfies PerHost<readonly HostRequestType[]>;
 
@@ -301,6 +311,23 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const serviceLog = serviceLogOf(logger);
   const coreLog = logSinkOf(logger);
 
+  const extSettings = createSettingsExtOwner({ local, session, log: serviceLog });
+  const accessFailed = (): void => serviceLog({ level: 'warn', scope: 'bg.site-access', msg: 'site access or observation unavailable' });
+  const networkSession = createNetworkSession({
+    storage: session, key: SESSION_KEY, now: () => Date.now(),
+    pageRequest: (fact) => fact.tabId >= 0 && fact.frameId === 0 && pageAddress(fact.documentUrl) && pageAddress(fact.originUrl),
+    apiRequest: apiAddress, ownOrigin: api.runtime.getURL(''),
+    requiredHeaders: ['authorization', 'fansly-client-id', 'fansly-client-ts', 'fansly-session-id'],
+    materialHeaders: ['authorization', 'fansly-client-id', 'fansly-session-id'],
+    checkHeader: 'fansly-client-check', accountOf: legacyAccount, familyOf: routeFamily,
+  });
+  let observations: Promise<void> = Promise.resolve();
+  const observation = observeWebRequests(apiMatches(), (fact) => {
+    observations = observations.then(async () => { await siteAccess.idle(); await networkSession.accept(fact); }).catch(accessFailed);
+  }, api);
+  const scriptTabs = createScriptTabs(siteMatches(), 'fansly-notice.js', api);
+  scriptTabs.onRemoved((tab) => { void networkSession.forget(tab).catch(accessFailed); });
+
   const barrier = createReadinessBarrier({ timers: TIMERS, log: serviceLog });
 
   /** A refused message is counted by the RPC; the log hears each kind on its 1st, 10th, 100th… occurrence. */
@@ -315,16 +342,21 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const rpc = createBackgroundRpc({
     api,
     // ChatSpace's loopback stand counts as ChatSpace in a test build only (the constant keeps it out of release).
-    tabHosts: { chatspace: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES } satisfies PerHost<readonly string[]>,
+    tabHosts: { chatspace: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES, 'fansly-web': siteMatches() } satisfies PerHost<readonly string[]>,
     ready: barrier.ready,
     contractsVersion: CONTRACTS_VERSION,
     testBuild,
+    allowTab: (host) => host !== OPTIONAL_HOST || siteAccess.active(),
     onTabRegistered(info) {
       presence.tabRegistered(info.tabSessionId);
       armAlarms();
       sound.sync();
       // The site's own services come up with its first tab (its requests wait for them).
-      void hostModules.ensure(info.request.host);
+      if (info.request.host !== OPTIONAL_HOST || siteAccess.active()) void hostModules.ensure(info.request.host);
+      if (info.request.host === OPTIONAL_HOST) {
+        void siteAccess.registered(info.tabId).catch(accessFailed);
+        void networkSession.register(info.tabId).catch(accessFailed);
+      }
       logger.info('bg.tabs', 'tab registered', { fields: { late: info.request.lateInjection, contractsVersion: info.request.contractsVersion }, ctx: { tabSessionId: info.tabSessionId } });
     },
     onTabGone(info) {
@@ -512,6 +544,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const hostPermissions = createHostPermissions(api);
   /** Where the content scripts of a host kind run: without the permission nothing of ours runs there. */
   const hostOrigins: Readonly<Record<string, readonly string[]>> = {
+    'fansly-web': siteMatches().map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
     chatspace: (__CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES).map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
   } satisfies PerHost<readonly string[]>;
   const sound = createBackgroundSound({
@@ -581,6 +614,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     ops: { forSend: (opId) => scheduler.forSend(opId), view: (opId) => scheduler.view(opId), environment },
     tokens,
     install: { instanceId: () => instanceId, owner: () => ownerOf(hubInstance?.session() ?? null) },
+    networkSession,
     nativeSends: { register: (view, part, platformMessageId) => nativeSends.register(view, part, platformMessageId) },
   };
   /** The kit of a site's module: what it counts goes to its site's `client_health` window (R20 F7). */
@@ -607,6 +641,23 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     now: () => Date.now(),
     log: coreLog,
   });
+  const siteAccess = createSiteAccess({
+    host: OPTIONAL_HOST, key: RELOAD_KEY, storage: session,
+    settings: {
+      async enabled() { const state = await extSettings.state(); return state.ok && state.state.ext.hosts[OPTIONAL_HOST].enabled; },
+      async setEnabled(enabled) { const result = await extSettings.patch({ hosts: { [OPTIONAL_HOST]: { enabled } } }); if (!result.ok) throw new Error(result.error.code); },
+      onChange: (listener) => extSettings.onChange(listener),
+    },
+    permissions: createPermissionBundle(permissionSet(), api),
+    syncScripts: (enabled) => syncDynamicScripts(scriptSet(), enabled, api),
+    tabs: scriptTabs, observe: observation,
+    setCaptureEnabled: (enabled) => networkSession.setEnabled(enabled),
+    startModule: async () => { await barrier.ready; return hostModules.ensure(OPTIONAL_HOST); },
+    failed: accessFailed,
+  });
+  // Starts immediately, independent of the hub's readiness/availability.
+  const accessReady = siteAccess.start();
+  void accessReady.catch(accessFailed);
   /** Where the storage keys of a site's unfinished work hold anything (a store that cannot be read may: the module reads it itself). */
   async function workPending(spec: HostModuleSpec): Promise<boolean> {
     const [stored, held] = await Promise.all([local.get(spec.pending.local), session.get(spec.pending.session)]);
@@ -764,6 +815,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   lifecycle.onInstalled((details) => {
     installed = details;
+    if (details.reason === 'install' || details.reason === 'update') void siteAccess.installed().catch(accessFailed);
     lifecycleSeen();
     // UP-008: an install or an update only logs — nothing talks to the hub until a human signs in or opens ChatSpace.
     const plan = onInstalledPlan(details.reason);
@@ -812,7 +864,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // unloads the page only once it is done (at most 5 s): started here and not handed over, it was cut by the unload
     // whenever the store was slower than the unload, and the record of this very suspend was lost (LG-018).
     logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.active().length, sends: hostModules.facts().sends?.open ?? 0, uptimeMs: Date.now() - started } });
-    return logging.logs.flush();
+    return Promise.allSettled([logging.logs.flush(), observations.then(() => networkSession.idle()), siteAccess.idle()]).then(() => undefined);
   });
   lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));
 
@@ -1049,6 +1101,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);
+  rpc.handle('site.access', async (request) => {
+    if (request.host !== OPTIONAL_HOST) return fail('CG-UNKNOWN', 'not an optional site');
+    try {
+      if (request.enabled !== undefined) await siteAccess.setEnabled(request.enabled);
+      return ok(request.reload === true ? await siteAccess.reload() : await siteAccess.state());
+    } catch { return fail('CG-RUNTIME-UNREACHABLE'); }
+  });
   rpc.handle('settings.get', settingsHandlers['settings.get']);
   rpc.handle('settings.patch', async (request, sender) => {
     // §14: a tab changes personas only of the pages of its own binding — the same check as `persona.set`.
@@ -1233,6 +1292,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         void instance.notifyDebugChanged();
       },
     },
+    { name: 'site-access', run: () => accessReady },
     { name: 'results', run: () => results.start() },
     { name: 'ops', run: () => scheduler.restore() },
     // A site with unfinished work stored starts its module now (bg/chatspace: the X8 journal is restored, its open

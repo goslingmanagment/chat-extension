@@ -12,9 +12,9 @@ import type { HostKind } from '@cg/contracts/hosts';
 import type { PerHost } from '../../hosts/runtime';
 import { CHATSPACE_FEATURE_SLICE } from './chatspace';
 
-export const HOST_FEATURES = { chatspace: CHATSPACE_FEATURE_SLICE } as const satisfies PerHost<FeatureSlice>;
+export const HOST_FEATURES = { chatspace: CHATSPACE_FEATURE_SLICE, 'fansly-web': null } as const satisfies PerHost<FeatureSlice | null>;
 
 /** A site's slice; null — the extension has no such site (its features do not exist here). */
 export function featuresOf(host: HostKind): FeatureSlice | null {
-  return (HOST_FEATURES as { readonly [K in HostKind]?: FeatureSlice })[host] ?? null;
+  return (HOST_FEATURES as { readonly [K in HostKind]?: FeatureSlice | null })[host] ?? null;
 }

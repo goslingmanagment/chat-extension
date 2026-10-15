@@ -16,15 +16,16 @@
 //   is not one of them (EX-010);
 // - the whole synchronous start of either script stays in its budget: MAIN
 //   ≤ 1 ms, the isolated one ≤ 3 ms (§3.1), printed on every run.
-// Not yet: the background takes no Fansly tab (P7i), no host port of Fansly's
-// exists before P7c, so nothing of the application starts on the page.
+// P9a accepts the handshake and starts the site module. No host port exists
+// before P7c, so nothing of the application starts on the page.
 
 import { browser, expect } from '@wdio/globals';
 
+import { testBuildPage } from '../support/fake-hub';
 import { E2E_ADDON_UUID } from '../support/constants';
 import { installTestBuild, mainBundleMs, readReport, summarize, waitForReport, type SpikeReport } from '../support/extension';
 import { callNeighbor, openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
-import { FANSLY_SCRIPTS, FANSLY_STAND_PATTERN, registerFanslyScripts, registeredScripts } from '../support/fansly-site';
+import { FANSLY_SCRIPTS, FANSLY_STAND_PATTERN, registeredScripts } from '../support/fansly-site';
 import { callFansly, fakeFansly, fanslyIds, fanslyStandServer, fanslyStandUrl, openFanslyStand, waitForFanslyStandIdle } from '../support/fansly-stand';
 import { useNetworkTrap } from '../support/network-trap';
 import { grantedState, grantOptional } from '../support/permissions';
@@ -56,7 +57,7 @@ describe('the Fansly site on its stand: both scripts at document_start, the brid
     await fakeFansly().command({ op: 'reset' });
     journalStart = await fanslyStandServer.mark();
     await installTestBuild();
-    await registerFanslyScripts();
+    await browser.url(testBuildPage());
   });
 
   after(async () => {
@@ -68,11 +69,9 @@ describe('the Fansly site on its stand: both scripts at document_start, the brid
     await fakeFansly().command({ op: 'reset' });
   });
 
-  it('registers as the background will — one call, MAIN first, at document_start — and yet runs on no page before the stand is granted', async () => {
+  it('the background registers nothing before the optional stand grant', async () => {
     const registered = await registeredScripts();
-    expect(registered.map((script) => [script.id, script.js, script.world, script.runAt, script.matches])).toEqual(
-      FANSLY_SCRIPTS.map((script) => [script.id, [...script.js], script.world, 'document_start', [FANSLY_STAND_PATTERN]]),
-    );
+    expect(registered.filter((script) => FANSLY_SCRIPTS.some((own) => own.id === script.id))).toEqual([]);
     expect(await grantedState(fanslyStandUrl('/messages'))).toMatchObject({ reaches: false });
     await openFanslyStand('/messages');
     ids = await fanslyIds();
@@ -83,7 +82,11 @@ describe('the Fansly site on its stand: both scripts at document_start, the brid
 
   for (const mode of ['off', 'after'] as const) {
     it(`[EX-009] granted, the neighbour ${mode}: MAIN hands its port to the isolated script at document_start, and its probe passes Fansly’s schemas from lazy/fansly; the page and the neighbour are as without us`, async () => {
-      if (mode === 'off') await grantOptional({ origins: [FANSLY_STAND_PATTERN], permissions: ['webRequest'] });
+      if (mode === 'off') {
+        await grantOptional({ origins: [FANSLY_STAND_PATTERN], permissions: ['webRequest'] });
+        await browser.url(testBuildPage());
+        await browser.waitUntil(async () => (await registeredScripts()).some((script) => script.id === 'fansly'), { timeout: 15_000 });
+      }
       const fake = fakeFansly();
       const since = await fake.mark();
       const [first, second] = ids.groups as [string, string];
@@ -97,9 +100,9 @@ describe('the Fansly site on its stand: both scripts at document_start, the brid
       expect(report.lifecycle).toEqual({ staleHosts: 0, lateInjection: false });
       expect(report.bootstrap?.bundleMs).not.toBeNull();
       expect(await mainBundleMs()).not.toBeNull();
-      // The background takes no Fansly tab yet (P7i); no host port of Fansly's before P7c: nothing of the application.
+      // P9a accepts the tab; no host port before P7c: nothing of the application.
       const later = await waitForReport((r) => r.rpc !== undefined, 'the tab asked the background');
-      expect(later.rpc?.registered).toBe(false);
+      expect(later.rpc?.registered).toBe(true);
       expect([later.app, later.appError, later.runtimeError]).toEqual([undefined, undefined, undefined]);
       // Our dock host stands nowhere yet (P7d): the page holds no host of ours.
       expect(await browser.execute(() => document.querySelectorAll('[data-host]').length)).toBe(0);

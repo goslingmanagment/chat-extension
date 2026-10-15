@@ -156,12 +156,39 @@ export interface ScriptingApi {
   getRegisteredContentScripts(filter?: { ids?: string[] }): Promise<RegisteredContentScriptApi[]>;
   registerContentScripts(scripts: RegisteredContentScriptApi[]): Promise<void>;
   unregisterContentScripts(filter?: { ids?: string[] }): Promise<void>;
+  executeScript(details: { target: { tabId: number }; files: string[]; world: 'ISOLATED' }): Promise<unknown>;
 }
 
 /** Without the `tabs` permission: create, update a tab of our own page, and bring a tab we know by its id to the front. */
 export interface TabsApi {
   create(properties: { url: string; active?: boolean }): Promise<TabApi>;
   update(tabId: number, properties: { url?: string; active?: boolean }): Promise<TabApi>;
+  query(query: { url: string[] }): Promise<TabApi[]>;
+  reload(tabId: number): Promise<void>;
+  readonly onRemoved: EventApi<(tabId: number) => void>;
+}
+
+export interface WebRequestDetailsApi {
+  readonly requestId: string;
+  readonly url: string;
+  readonly tabId: number;
+  readonly frameId: number;
+  readonly documentUrl?: string;
+  readonly originUrl?: string;
+  readonly requestHeaders?: readonly { readonly name: string; readonly value?: string }[];
+  readonly responseHeaders?: readonly { readonly name: string; readonly value?: string }[];
+  readonly statusCode?: number;
+}
+
+export interface WebRequestEventApi {
+  addListener(listener: (details: WebRequestDetailsApi) => void, filter: { urls: string[] }, extra?: string[]): void;
+  removeListener(listener: (details: WebRequestDetailsApi) => void): void;
+}
+
+export interface WebRequestApi {
+  readonly onBeforeSendHeaders: WebRequestEventApi;
+  readonly onCompleted: WebRequestEventApi;
+  readonly onErrorOccurred: WebRequestEventApi;
 }
 
 export interface WindowsApi {
@@ -176,6 +203,8 @@ export interface BrowserApi {
   readonly alarms: AlarmsApi;
   readonly permissions: PermissionsApi;
   readonly scripting: ScriptingApi;
+  /** Absent until the optional permission is granted. Read it again on onAdded. */
+  readonly webRequest?: WebRequestApi;
 }
 
 /** The real `browser` namespace, read when a factory is called (never at import). */

@@ -40,6 +40,7 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
 export const FANSLY: HostDescriptor = {
   kind: 'fansly-web',
   platform: 'fansly',
+  background: { source: 'bg/fansly.ts', file: 'bg/fansly.js', rawBytes: 200 * KIB },
   matches: FANSLY_MATCHES,
   quietDomains: FANSLY_QUIET_DOMAINS,
   scripts: {

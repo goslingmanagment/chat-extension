@@ -60,7 +60,7 @@ describe('the background core and the ChatSpace chunk (R20 F1)', () => {
     });
     w.start();
     await signInWithPersona(w);
-    expect((await diagnostics(w)).hostModules).toEqual([{ host: 'chatspace', state: 'idle' }]);
+    expect((await diagnostics(w)).hostModules).toEqual([{ host: 'fansly-web', state: 'idle' }, { host: 'chatspace', state: 'idle' }]);
     expect(w.chunkLoads).toEqual([]);
 
     const tab = await workingTab(w);
@@ -68,7 +68,7 @@ describe('the background core and the ChatSpace chunk (R20 F1)', () => {
     expect(await tab.client.request('send.list', { pageId: PAGE_ID, fanRef: '2002' })).toEqual({ ok: true, payload: { attempts: [], truncated: false } });
     expect(w.chunkLoads).toHaveLength(1);
     expect(w.chunkLoads[0]).toMatch(CHUNK);
-    expect((await diagnostics(w)).hostModules).toEqual([{ host: 'chatspace', state: 'started' }]);
+    expect((await diagnostics(w)).hostModules).toEqual([{ host: 'fansly-web', state: 'idle' }, { host: 'chatspace', state: 'started' }]);
 
     // The kit is the core's: the sign-in, the install, the tabs, the bootstrap, and the one registrar of human sends.
     const given = kit as BackgroundKit | null;
@@ -96,7 +96,7 @@ describe('the background core and the ChatSpace chunk (R20 F1)', () => {
     expect(await tab.client.request('newcomers.claim', { pageId: PAGE_ID, fanRef: '2002', action: 'claim' })).toEqual(unreachable);
     expect(await w.page('options').request('send.fuseState', {})).toEqual(unreachable);
     const failed = await diagnostics(w);
-    expect(failed.hostModules).toEqual([{ host: 'chatspace', state: 'failed' }]);
+    expect(failed.hostModules).toEqual([{ host: 'fansly-web', state: 'idle' }, { host: 'chatspace', state: 'failed' }]);
     expect(failed.sends).toEqual({ open: 0, uncertain: 0 });
     expect(failed.session.signedIn).toBe(true);
     // Within the realm it is not asked for again at once.
@@ -110,7 +110,7 @@ describe('the background core and the ChatSpace chunk (R20 F1)', () => {
     expect(await tab.client.request('send.fuseState', {})).toEqual({ ok: true, payload: { fuse: null, resetAt: null } });
     expect(w.chunkLoads).toHaveLength(2);
     expect(w.chunkLoads[1]).toMatch(CHUNK);
-    expect((await diagnostics(w)).hostModules).toEqual([{ host: 'chatspace', state: 'started' }]);
+    expect((await diagnostics(w)).hostModules).toEqual([{ host: 'fansly-web', state: 'idle' }, { host: 'chatspace', state: 'started' }]);
   });
 
   it('[R20-F1] [X8-07] a restart with an X8 journal: the chunk starts with the event page — no tab needed —, the open attempt holds its fan as uncertain, and so after every wake', async () => {
@@ -128,7 +128,7 @@ describe('the background core and the ChatSpace chunk (R20 F1)', () => {
     w.start();
     await until(() => w.chunkLoads.length === 1, 'the chunk starts with the event page: an X8 journal is pending');
     const first = await diagnostics(w);
-    expect(first.hostModules).toEqual([{ host: 'chatspace', state: 'started' }]);
+    expect(first.hostModules).toEqual([{ host: 'fansly-web', state: 'idle' }, { host: 'chatspace', state: 'started' }]);
     expect(first.sends).toEqual({ open: 0, uncertain: 1 });
 
     // Asleep and woken by a page alone: the next realm restores it again, before anything is answered.
@@ -136,7 +136,7 @@ describe('the background core and the ChatSpace chunk (R20 F1)', () => {
     const second = await diagnostics(w);
     expect(w.starts()).toBe(2);
     expect(w.chunkLoads).toHaveLength(2);
-    expect(second.hostModules).toEqual([{ host: 'chatspace', state: 'started' }]);
+    expect(second.hostModules).toEqual([{ host: 'fansly-web', state: 'idle' }, { host: 'chatspace', state: 'started' }]);
     expect(second.sends).toEqual({ open: 0, uncertain: 1 });
 
     // A tab of the person sees the fan held by it.

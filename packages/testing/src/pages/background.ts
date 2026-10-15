@@ -295,6 +295,8 @@ export class FakePageBackground implements PageRpc {
     const { state } = this;
     const needsSession = (): PageAnswer<never> | null => (state.session === null ? refuse('CG-AUTH-REQUIRED') : null);
     switch (type) {
+      case 'site.access':
+        return refuse('CG-RUNTIME-UNREACHABLE');
       case 'settings.get':
         return { ok: true, payload: this.settingsState() };
       case 'settings.patch':

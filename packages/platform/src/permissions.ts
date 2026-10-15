@@ -52,6 +52,23 @@ async function quietly(task: () => Promise<boolean>): Promise<boolean> {
   }
 }
 
+/** One atomic optional grant; request calls the browser synchronously, preserving the click's user gesture. */
+export function createPermissionBundle(set: PermissionsSetApi, api: BrowserApi = defaultBrowser()) {
+  const relevant = (changed: PermissionsSetApi): boolean =>
+    changed.origins?.some((origin) => set.origins?.includes(origin)) === true || changed.permissions?.some((permission) => set.permissions?.includes(permission)) === true;
+  return {
+    has: () => quietly(() => api.permissions.contains(set)),
+    request: () => quietly(() => api.permissions.request(set)),
+    onChange(listener: (added: boolean) => void): () => void {
+      const added = (change: PermissionsSetApi): void => { if (relevant(change)) listener(true); };
+      const removed = (change: PermissionsSetApi): void => { if (relevant(change)) listener(false); };
+      api.permissions.onAdded.addListener(added);
+      api.permissions.onRemoved.addListener(removed);
+      return () => { api.permissions.onAdded.removeListener(added); api.permissions.onRemoved.removeListener(removed); };
+    },
+  };
+}
+
 export function createHostPermissions(api: BrowserApi = defaultBrowser()): HostPermissionsPort {
   const set = (origin: string): PermissionsSetApi | null => {
     const pattern = originPermission(origin);
