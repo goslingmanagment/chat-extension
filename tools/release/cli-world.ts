@@ -11,11 +11,12 @@ import { cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { listTree } from '../lib/files.ts';
 import { writeZip } from '../lib/zip-write.ts';
 import type { ZipEntry } from '../lib/zip.ts';
 import type { FetchLike } from './announce.ts';
 import { runCli, type CliDeps } from './cli.ts';
-import { CHANGELOG_FILE, ENV, HUB_HEALTH_PATH, noteFile, releaseTarget, REPO_ROOT, signedXpiName, SITE_DIR, VERSION_FILE } from './config.ts';
+import { CHANGELOG_FILE, ENV, HUB_HEALTH_PATH, noteFile, OPTIONAL_SITE_ORIGINS, releaseTarget, REPO_ROOT, signedXpiName, SITE_DIR, VERSION_FILE } from './config.ts';
 import { realExec, type CommandResult, type CommandSpec, type Exec } from './exec.ts';
 import { BEFORE_SIGNING, renderNote } from './note.ts';
 import type { Http } from './publish.ts';
@@ -47,6 +48,8 @@ export interface World {
   localTags: Map<string, { commit: string; annotated: boolean }>;
   originTags: Set<string>;
   pushFails: boolean;
+  /** No git at all: the checkout is a copy of the tree (the e2e image's); every git command fails to start. */
+  noGit: boolean;
   // ── the gate ──
   checkExit: number;
   hubCompare: string | null;
@@ -57,6 +60,10 @@ export interface World {
   // ── AMO ──
   /** The exit code of `web-ext sign`; 0 leaves the signed XPI in the artifacts folder. */
   signExit: number;
+  /** Runs when `pnpm build` runs in the checkout: what changes in the tree while it builds. */
+  onBuild: (() => void) | null;
+  /** Runs when `web-ext sign` starts, with its --source-dir: what changes while AMO has the upload. */
+  onSign: ((sourceDir: string) => void) | null;
   // ── Telegram: one reply per request ──
   telegram: Array<{ status: number; body: unknown } | Error>;
   now: Date;
@@ -92,7 +99,20 @@ export interface Harness {
 }
 
 const BUILD: readonly ZipEntry[] = [
-  { name: 'manifest.json', data: Buffer.from(JSON.stringify({ manifest_version: 3, version: VERSION, browser_specific_settings: { gecko: { id: target.geckoId } } })) },
+  {
+    name: 'manifest.json',
+    data: Buffer.from(
+      JSON.stringify({
+        manifest_version: 3,
+        name: 'ChatGoose для ChatSpace',
+        version: VERSION,
+        host_permissions: ['https://gosling-agency.ru/*'],
+        optional_host_permissions: ['https://*/*', ...OPTIONAL_SITE_ORIGINS],
+        optional_permissions: ['webRequest'],
+        browser_specific_settings: { gecko: { id: target.geckoId, update_url: target.feedUrl } },
+      }),
+    ),
+  },
   { name: 'background.js', data: Buffer.from('console.log(1)') },
 ];
 
@@ -124,11 +144,14 @@ export function makeHarness(): Harness {
     localTags: new Map(),
     originTags: new Set(),
     pushFails: false,
+    noGit: false,
     checkExit: 0,
     hubCompare: 'ahead',
     feed: null,
     health: { status: 200, body: JSON.stringify({ status: 'ok', contractHash: SDK_HASH, compatibleClientSdks: [SDK_HASH] }) },
     signExit: 0,
+    onBuild: null,
+    onSign: null,
     telegram: [],
     now: new Date('2026-10-05T11:00:00.000Z'),
   };
@@ -140,6 +163,8 @@ export function makeHarness(): Harness {
   const err: string[] = [];
   const answer = (stdout = '', code = 0, stderr = ''): CommandResult => ({ code, stdout, stderr });
   const signedXpi = (): Buffer => writeZip([...SIGNATURE_FILES.map((name) => ({ name, data: Buffer.from('signature') })), ...BUILD]);
+  const signedFolder = (dir: string): Buffer =>
+    writeZip([...SIGNATURE_FILES.map((name) => ({ name, data: Buffer.from('signature') })), ...listTree(dir).map((name) => ({ name, data: readFileSync(join(dir, name)) }))]);
 
   const commit = (name: string): string => (name === 'HEAD' ? world.head : name === 'origin/main' ? (world.main.at(-1) ?? '') : name);
   function git(args: readonly string[]): CommandResult {
@@ -186,12 +211,13 @@ export function makeHarness(): Harness {
     const program = spec.program.endsWith('/node_modules/.bin/web-ext') ? 'web-ext' : spec.program;
     const line = [program, ...spec.args].join(' ');
     commands.push(line);
-    if (program === 'git') return Promise.resolve(git(spec.args));
+    if (program === 'git') return world.noGit ? Promise.reject(new Error('git: spawn git ENOENT')) : Promise.resolve(git(spec.args));
     if (program === 'gh' && spec.args[0] === 'api') return Promise.resolve(world.hubCompare === null ? answer('', 1, 'gh: Not Found (HTTP 404)') : answer(`${world.hubCompare}\n`));
     if (line === 'pnpm --version') return Promise.resolve(answer('10.33.1\n'));
     if (line === 'pnpm check') return Promise.resolve(answer('', world.checkExit));
     if (line === 'pnpm install --frozen-lockfile --offline') return Promise.resolve(answer());
     if (line === 'pnpm build') {
+      if (spec.cwd !== undefined && spec.cwd.startsWith(checkout)) world.onBuild?.();
       // The rebuild in the unpacked sources archive: the same extension again.
       if (spec.cwd !== undefined && !spec.cwd.startsWith(checkout)) {
         mkdirSync(join(spec.cwd, 'apps/extension/.output/firefox-mv3'), { recursive: true });
@@ -200,10 +226,14 @@ export function makeHarness(): Harness {
       return Promise.resolve(answer());
     }
     if (program === 'web-ext' && spec.args[0] === 'sign') {
+      world.onSign?.(spec.args[spec.args.indexOf('--source-dir') + 1] ?? '');
       if (world.signExit === 0) {
         const dir = spec.args[spec.args.indexOf('--artifacts-dir') + 1] ?? '';
+        const source = spec.args[spec.args.indexOf('--source-dir') + 1] ?? '';
         mkdirSync(dir, { recursive: true });
-        writeFileSync(join(dir, 'signed.xpi'), signedXpi());
+        // A P3b test build is signed as the folder it was given; the release — as the build of the checkout.
+        const testBuild = source.includes(`${join('.release', 'test-builds')}`);
+        writeFileSync(join(dir, 'signed.xpi'), testBuild ? signedFolder(source) : signedXpi());
       }
       return Promise.resolve(answer('', world.signExit));
     }

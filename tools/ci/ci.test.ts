@@ -532,3 +532,29 @@ describe('the tree a local run copies into its volume', () => {
     expect(archive).not.toContain('cg.ci.test');
   });
 });
+
+describe('a local run that brings files git ignores (CG_E2E_WITH, the signed XPIs of P3b)', () => {
+  it('copies that one folder into the tree of the run and hands the run the P3b inputs; a folder outside the checkout is refused', () => {
+    const r = runner();
+    const script = localScript();
+    writeFileSync(join(r.state, 'run-mode'), 'exit:0');
+    writeFileSync(join(script.dir, '.gitignore'), '.release/\n');
+    mkdirSync(join(script.dir, '.release/test-builds/0.2.4.1/signed'), { recursive: true });
+    writeFileSync(join(script.dir, '.release/test-builds/0.2.4.1/signed/n.xpi'), 'signed n');
+    writeFileSync(join(script.dir, '.release/test-builds/0.2.4.1/sources.zip'), 'not wanted');
+
+    const env = { ...r.env, CG_E2E_WITH: '.release/test-builds/0.2.4.1/signed', CG_P3B_XPI_N: '.release/test-builds/0.2.4.1/signed/n.xpi' };
+    const { status, stderr } = spawnSync('bash', [script.path], { cwd: script.dir, env, encoding: 'utf8' });
+    expect(status, stderr).toBe(0);
+    const archive = readFileSync(join(r.state, 'stdin'), 'latin1');
+    expect(archive).toContain('.release/test-builds/0.2.4.1/signed/n.xpi');
+    expect(archive).not.toContain('sources.zip');
+    expect(r.calls().filter((call) => call.startsWith('run ')).at(-1)).toContain(' --env CG_P3B_XPI_N ');
+
+    for (const outside of ['/tmp/signed', '../signed', 'no/such/folder']) {
+      const refused = spawnSync('bash', [script.path], { cwd: script.dir, env: { ...r.env, CG_E2E_WITH: outside }, encoding: 'utf8' });
+      expect(refused.status, outside).toBe(1);
+      expect(refused.stderr, outside).toMatch(/^e2e-docker-local: CG_E2E_WITH/);
+    }
+  });
+});

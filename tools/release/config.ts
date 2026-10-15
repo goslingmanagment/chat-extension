@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ARTIFACT_PREFIX } from '../../apps/extension/build/artifacts.ts';
 import { GECKO_ID, STRICT_MIN_VERSION, UPDATE_URL } from '../../apps/extension/build/manifest.ts';
-import { HUB_HOST_PERMISSION } from '../../apps/extension/src/hosts/index.ts';
+import { HOSTS, HUB_HOST_PERMISSION } from '../../apps/extension/src/hosts/index.ts';
 import { SITE_BASE } from '../../apps/extension/src/site.ts';
 
 export const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -60,6 +60,13 @@ export function releaseTarget(overrides: Partial<Pick<ReleaseTarget, 'siteBase' 
     hubOrigin: overrides.hubOrigin ?? HUB_HOST_PERMISSION.replace(/\/\*$/, ''),
   };
 }
+
+/**
+ * The optional sites' permissions (the host registry's): asked for on a gesture, never at install. The P3b test builds
+ * (test-builds.ts) leave them out of N0 and move the origins into host_permissions in the control.
+ */
+export const OPTIONAL_SITE_ORIGINS: readonly string[] = HOSTS.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.origins);
+export const OPTIONAL_SITE_API: readonly string[] = [...new Set(HOSTS.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.api ?? []))];
 
 export const FEED_FILE = UPDATE_URL.slice(UPDATE_URL.lastIndexOf('/') + 1);
 /** The feed the swap replaced, kept next to it. */

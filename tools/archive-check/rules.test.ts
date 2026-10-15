@@ -107,6 +107,9 @@ describe('archive check', () => {
       // Its FBuddy-like neighbour (R20 P6d) and the neighbour's build config.
       'packages/testing/src/fake-fansly/neighbor/network-hook.ts',
       'packages/testing/fansly-neighbor.vite.config.ts',
+      // The world of the signed-build checks (R20 P3b) and the script that runs them in Docker.
+      'packages/testing/src/p3b/world.ts',
+      'tools/ci/e2e-docker-local-p3b.sh',
     ]) {
       expect(rules(stand, 'sources', 'export {};'), stand).toEqual(['stand-in-sources']);
     }

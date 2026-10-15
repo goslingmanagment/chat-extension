@@ -3,8 +3,9 @@
 // entry, the M0 spike page, the fixture's DOM tests), the Fansly-like stand of
 // R20 P6a (its page and DOM tests), the fake Fansly it talks to (P6b) and its
 // FBuddy-like neighbour (P6d, with its build config), the e2e harness that
-// drives Firefox against them and the R20 spike's probes (P3a). None of it is
-// needed to rebuild the XPI.
+// drives Firefox against them, the R20 spike's probes (P3a) and the world of
+// the signed-build checks with the script that runs them in Docker (P3b). None
+// of it is needed to rebuild the XPI.
 // wxt.config.ts excludes these paths; tools/archive-check fails if any of them
 // is in the sources archive anyway, and if anything left in it imports or
 // references a file that is not there (`dangling-import`).
@@ -34,6 +35,8 @@ export const STAND_SOURCE_PATHS = [
   'packages/testing/src/fixture/',
   'packages/testing/e2e/',
   'packages/testing/spike/',
+  'packages/testing/src/p3b/',
+  'tools/ci/e2e-docker-local-p3b.sh',
 ] as const;
 
 /**
