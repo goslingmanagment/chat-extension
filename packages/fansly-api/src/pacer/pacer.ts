@@ -127,6 +127,7 @@ interface Lane extends LaneState {
   parent?: Lane;
   tail: Promise<void>;
   pending: number;
+  inFlight: number;
 }
 
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -171,7 +172,7 @@ export function createFanslyPacer(deps: PacerDeps) {
   const lanes: Lane[] = [];
   const requests = new Map<string, OwnRequest>();
   /** Every creator of the profile: the facts that name none. */
-  let profile: Lane = { ...freshLane([]), tail: Promise.resolve(), pending: 0 };
+  let profile: Lane = { ...freshLane([]), tail: Promise.resolve(), pending: 0, inFlight: 0 };
   /** The facts already applied, by `requestId` (they stay in the core's list for a day). */
   let applied: string[] = [];
   let appliedSet = new Set<string>();
@@ -179,8 +180,11 @@ export function createFanslyPacer(deps: PacerDeps) {
   let writing: Promise<void> = Promise.resolve();
   let queued: Promise<void> | null = null;
   let recoveryDirty = false;
+  let persistDirty = false;
+  let revision = 0;
+  const recoveryKey = `${key}.recovery`;
 
-  const laneOf = (state: LaneState): Lane => ({ ...state, tail: Promise.resolve(), pending: 0 });
+  const laneOf = (state: LaneState): Lane => ({ ...state, tail: Promise.resolve(), pending: 0, inFlight: 0 });
 
   const closed = (reason: 'restore' | 'observations'): void => {
     profile.cooldownUntil = Math.max(profile.cooldownUntil, now() + PACE_RULES.retryAfterMaxMs);
@@ -191,9 +195,19 @@ export function createFanslyPacer(deps: PacerDeps) {
 
   const ready = (async (): Promise<void> => {
     try {
-      const stored = await deps.storage.get([key]);
+      const stored = await deps.storage.get([key, recoveryKey]);
       if (!stored.ok) throw new Error('read failed');
-      const raw = stored.value[key];
+      // A failed primary write may have left a newer recovery snapshot. It contains
+      // the cooldown AND its applied facts, so restoration cannot deduplicate away Retry-After.
+      let raw: unknown;
+      for (const source of [key, recoveryKey]) {
+        const candidate = stored.value[source];
+        if (candidate === undefined) continue;
+        if (typeof candidate !== 'object' || candidate === null) throw new Error('invalid state');
+        const version = (candidate as Record<string, unknown>)['revision'] ?? 0;
+        if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0) throw new Error('invalid revision');
+        if (raw === undefined || version > revision) { raw = candidate; revision = version; persistDirty = source === recoveryKey; }
+      }
       if (raw === undefined) return; // Only an absent key is a fresh session.
       if (typeof raw !== 'object' || raw === null) throw new Error('invalid state');
       const value = raw as Record<string, unknown>;
@@ -226,20 +240,39 @@ export function createFanslyPacer(deps: PacerDeps) {
     const at = now();
     return {
       v: 2,
-      requests: [...requests.values()].filter((r) => at - r.at < PACE_RULES.badMemoryMs),
+      revision: ++revision,
+      requests: [...requests.values()].filter((r) => at - r.at < PACE_RULES.badMemoryMs).map((r) => ({ ...r, aliases: [...r.aliases] })),
       lanes: lanes.filter((lane) => worthKeeping(lane, at)).map(storeLane),
       profile: storeLane(profile),
       applied: [...applied],
     };
   };
 
-  /** One write of the whole state; calls in the same moment share it. A failed write keeps pacing from memory. */
+  const persist = async (target: string, state: Record<string, unknown>): Promise<boolean> => {
+    try {
+      if ((await deps.storage.set({ [target]: state })).ok) return true;
+    } catch { /* A rejected write is the same as an explicit storage failure. */ }
+    deps.warn?.('persist');
+    return false;
+  };
+
+  /** Serialized snapshots; never reload over authoritative memory after a write failure. */
   const save = (): Promise<void> => {
-    savedAt = now();
     queued ??= writing.then(async () => {
       queued = null;
-      const result = await deps.storage.set({ [key]: snapshot() });
-      if (!result.ok) deps.warn?.('persist');
+      persistDirty = true;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const state = snapshot();
+        if (await persist(key, state)) {
+          persistDirty = false;
+          savedAt = now();
+          return;
+        }
+        // Preserve the stricter requirement independently of a stale primary key,
+        // then retry the primary with current memory (which may have advanced).
+        await persist(recoveryKey, state);
+      }
+      // Persistent failure: sync/flush retries without spinning or forgetting memory.
     });
     writing = queued.catch(() => { deps.warn?.('persist'); });
     return writing;
@@ -275,6 +308,7 @@ export function createFanslyPacer(deps: PacerDeps) {
       lane.answered += other.answered;
       lane.clean = Math.min(lane.clean, other.clean);
       lane.pending += other.pending;
+      lane.inFlight += other.inFlight;
       lane.tail = Promise.all([lane.tail, other.tail]).then(() => undefined);
       other.parent = lane;
       lane.aliases.push(...other.aliases);
@@ -327,7 +361,7 @@ export function createFanslyPacer(deps: PacerDeps) {
   async function sync(): Promise<void> {
     await ready;
     if (deps.settle !== undefined) await deps.settle().catch(() => { closed('observations'); });
-    if (applyFacts() || recoveryDirty) { recoveryDirty = false; await save(); }
+    if (applyFacts() || recoveryDirty || persistDirty) { recoveryDirty = false; await save(); }
   }
 
   /** When the creator's cooldown ends: its lane's and the profile's (epoch ms; in the past — none). */
@@ -351,11 +385,15 @@ export function createFanslyPacer(deps: PacerDeps) {
         if (released || dispatched) throw new PacerAborted();
         if (applyFacts()) void save();
         const lane = root(initial);
+        // A merge can unite permits already returned from different FIFOs. Their
+        // old tails cannot revoke them: claim the merged lane synchronously here.
+        if (unlock !== null && lane.inFlight > 0) throw new PacerAborted();
         const at = now();
         const until = Math.max(coolingOf(lane), deps.pending?.() === true ? at + PACE_RULES.cooldownBaseMs : 0,
           mode === 'queue' || mode === 'queue-or-refuse' ? spacingDeadline(lane, paceKey) : 0);
         if (until > at) throw new PacerCooling(until);
         dispatched = true;
+        if (unlock !== null) lane.inFlight += 1;
         started(lane, paceKey, at);
         request = { id, aliases: [...lane.aliases], paceKey, at, limitedAt: null };
         remember(request);
@@ -365,6 +403,7 @@ export function createFanslyPacer(deps: PacerDeps) {
         if (released) return;
         released = true;
         const lane = root(initial);
+        if (unlock !== null && dispatched) lane.inFlight -= 1;
         if (unlock !== null) { lane.pending -= 1; unlock(); }
         if (request !== null && request.limitedAt === null) requests.delete(request.id);
         if (now() - savedAt >= SAVE_EVERY_MS && worthKeeping(lane, now())) void save();
@@ -466,7 +505,10 @@ export function createFanslyPacer(deps: PacerDeps) {
       return { cooldownUntil: lane === undefined ? profile.cooldownUntil : coolingOf(lane), level: lane?.level ?? 0, gapLevel: lane?.gapLevel ?? 0 };
     },
     /** Waits for the writes in flight. */
-    flush: (): Promise<void> => writing,
+    flush: async (): Promise<void> => {
+      await writing;
+      if (persistDirty) await save();
+    },
   };
 }
 
