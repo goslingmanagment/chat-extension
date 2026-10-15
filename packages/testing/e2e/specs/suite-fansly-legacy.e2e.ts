@@ -15,17 +15,20 @@ const notice = () => browser.execute(() => {
   return { count: document.querySelectorAll('[data-host="reload-notice"]').length, visible: (host?.getBoundingClientRect().height ?? 0) > 0, docks: document.querySelectorAll('[data-host="dock"], [data-host="overlay"]').length };
 });
 
+/** The fake Fansly's journal is the run's: an earlier spec of the same part may have asked it things of its own. */
+let oursSince = 0;
+
 describe('[NEW-12] [FS-CO-1] Fansly coexistence on the stand', () => {
   useNetworkTrap();
   let harness: FanslyTapHarness | null = null;
   let ids: Awaited<ReturnType<typeof fanslyIds>>;
   before(async () => {
-    await fakeFansly().command({ op: 'reset' }); await browser.setWindowSize(1440, 900);
+    await fakeFansly().command({ op: 'reset' }); oursSince = await fakeFansly().mark(); await browser.setWindowSize(1440, 900);
     await openWithNeighbor('/messages', { mode: 'off' });
     ids = await fanslyIds();
   });
   afterEach(async () => { await harness?.remove(); harness = null; await browser.url('about:blank'); });
-  after(async () => { await setFanslyNeighbor(null); expect(await fakeFansly().calls('ours', 0)).toEqual([]); });
+  after(async () => { await setFanslyNeighbor(null); expect(await fakeFansly().calls('ours', oursSince)).toEqual([]); });
 
   for (const legacy of ['before', 'after'] as const) {
     it(`[NEW-12] [FS-CO-1] old ChatGoose ${legacy} MAIN: no page facts forwarded, even beside legacy FBuddy +guard +generic`, async () => {

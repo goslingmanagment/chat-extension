@@ -124,6 +124,9 @@ const MODES: ReadonlyArray<{ readonly label: string; readonly config: Partial<Ne
   { label: 'a third party’s subclass over the constructors', config: { mode: 'off', generic: 'subclass' } },
 ];
 
+/** The fake Fansly's journal is the run's: an earlier spec of the same part may have asked it things of its own. */
+let oursSince = 0;
+
 describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stream and its limits (R20 P7a)', () => {
   useNetworkTrap();
   let ids: Ids;
@@ -133,6 +136,7 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
   before(async () => {
     await setFanslyNeighbor(null);
     await fakeFansly().command({ op: 'reset' });
+    oursSince = await fakeFansly().mark();
     journalStart = await fanslyStandServer.mark();
     await browser.setWindowSize(1440, 900);
     harness = await installFanslyTapHarness({ main: 'start' });
@@ -145,7 +149,7 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
     // Nothing but the page's own loads reached the Fansly stand; nothing of ours asked the fake Fansly anything.
     const entries = await fanslyStandServer.journal(journalStart);
     expect(entries.filter((entry) => entry.origin !== 'asset')).toEqual([]);
-    expect(await fakeFansly().calls('ours', 0)).toEqual([]);
+    expect(await fakeFansly().calls('ours', oursSince)).toEqual([]);
     await setFanslyNeighbor(null);
     await browser.url('about:blank');
     await fakeFansly().command({ op: 'reset' });
@@ -471,13 +475,14 @@ describe('Fansly’s isolated world over P7a’s MAIN on its stand: the route by
   before(async () => {
     await setFanslyNeighbor(null);
     await fakeFansly().command({ op: 'reset' });
+    oursSince = await fakeFansly().mark();
     await browser.setWindowSize(1440, 900);
     harness = await installFanslyTapHarness({ main: 'start', consumer: 'port' });
   });
 
   after(async () => {
     await harness?.remove();
-    expect(await fakeFansly().calls('ours', 0)).toEqual([]);
+    expect(await fakeFansly().calls('ours', oursSince)).toEqual([]);
     await setFanslyNeighbor(null);
     await browser.url('about:blank');
     await fakeFansly().command({ op: 'reset' });

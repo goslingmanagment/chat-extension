@@ -98,6 +98,9 @@ async function sendsLanded(since: number, n: number): Promise<void> {
   await browser.pause(400);
 }
 
+/** The fake Fansly's journal is the run's: an earlier spec of the same part may have asked it things of its own. */
+let oursSince = 0;
+
 describe('Fansly’s human send on its stand and its `sent` (R20 P7f)', () => {
   useNetworkTrap();
   let harness: FanslyTapHarness | null = null;
@@ -106,6 +109,7 @@ describe('Fansly’s human send on its stand and its `sent` (R20 P7f)', () => {
   before(async () => {
     await setFanslyNeighbor(null);
     await fakeFansly().command({ op: 'reset' });
+    oursSince = await fakeFansly().mark();
     await browser.setWindowSize(1440, 900);
     harness = await installFanslyTapHarness({ main: 'start', consumer: 'port' });
     await openWithNeighbor('/messages', { mode: 'off' });
@@ -119,7 +123,7 @@ describe('Fansly’s human send on its stand and its `sent` (R20 P7f)', () => {
   after(async () => {
     await harness?.remove();
     // Nothing of ours ever reached Fansly: every send was the page's own.
-    expect(await fakeFansly().calls('ours', 0)).toEqual([]);
+    expect(await fakeFansly().calls('ours', oursSince)).toEqual([]);
     await setFanslyNeighbor(null);
     await browser.url('about:blank');
     await fakeFansly().command({ op: 'reset' });
