@@ -1,10 +1,10 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json, docs/project-unite/plan.md, §10 docs/project-unite/parity-matrix.md, метки [ID] и [host:…] в названиях тестов",
   "testFiles": {
-    "unit": 279,
-    "e2e": 43,
+    "unit": 285,
+    "e2e": 44,
     "chatspace": 66,
-    "fansly": 32,
+    "fansly": 39,
     "free": 229
   },
   "totals": {
@@ -353,8 +353,8 @@
     "rows": 718,
     "notConcerned": 110,
     "required": 712,
-    "closed": 470,
-    "open": 242,
+    "closed": 476,
+    "open": 236,
     "afterPilot": 6,
     "byKind": [
       {
@@ -372,8 +372,8 @@
       {
         "name": "unit",
         "rows": 128,
-        "closed": 8,
-        "open": 120
+        "closed": 14,
+        "open": 114
       },
       {
         "name": "hub",
@@ -502,9 +502,9 @@
       {
         "name": "P7a",
         "rows": 6,
-        "closed": 0,
-        "open": 6,
-        "done": false
+        "closed": 6,
+        "open": 0,
+        "done": true
       },
       {
         "name": "P7c",
@@ -1055,10 +1055,10 @@
     {"id":"SN-014","function":"Воспроизведение в фоне","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/services-sound.test.ts","packages/platform/src/audio.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["packages/core/test/services-sound.test.ts","packages/platform/src/audio.test.ts"]}},
     {"id":"SN-015","function":"Диагностика звука","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/services/presence.test.ts","packages/core/test/services-sound.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["packages/core/src/services/presence.test.ts","packages/core/test/services-sound.test.ts"]}},
     {"id":"SN-016","function":"Протокол звука","target":"пилот","owner":"R17","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/host-facts.test.ts","packages/core/test/services-sound.test.ts","packages/platform/src/rpc.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14a","planned":"shared","closed":true,"by":["apps/extension/src/composition/tab/host-facts.test.ts","packages/core/test/services-sound.test.ts","packages/platform/src/rpc.test.ts"]}},
-    {"id":"SN-017","function":"Перехват сокета Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7a","planned":"unit","closed":false,"by":[]}},
-    {"id":"SN-018","function":"Relay и выключение перехвата","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7a","planned":"unit","closed":false,"by":[]}},
-    {"id":"SN-019","function":"Разбор кадров Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7a","planned":"unit","closed":false,"by":[]}},
-    {"id":"SN-020","function":"Счётчики перехвата","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7a","planned":"unit","closed":false,"by":[]}},
+    {"id":"SN-017","function":"Перехват сокета Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7a","planned":"unit","closed":true,"by":["packages/host-fansly/src/main/runtime.test.ts","packages/testing/e2e/specs/suite-fansly-tap.e2e.ts"]}},
+    {"id":"SN-018","function":"Relay и выключение перехвата","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7a","planned":"unit","closed":true,"by":["packages/host-fansly/src/main/runtime.test.ts"]}},
+    {"id":"SN-019","function":"Разбор кадров Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7a","planned":"unit","closed":true,"by":["packages/host-fansly/src/main/frame-parse.test.ts","packages/host-fansly/src/main/runtime.test.ts","packages/testing/e2e/specs/suite-fansly-tap.e2e.ts"]}},
+    {"id":"SN-020","function":"Счётчики перехвата","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7a","planned":"unit","closed":true,"by":["packages/host-fansly/src/main/runtime.test.ts","packages/testing/e2e/specs/suite-fansly-tap.e2e.ts"]}},
     {"id":"SN-021","function":"Тост и OS-уведомление о входящем","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"planned":"n/a","closed":false,"by":[]}},
     {"id":"SN-022","function":"Тихий тост и OS-уведомление о покупке","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"planned":"n/a","closed":false,"by":[]}},
     {"id":"SN-023","function":"Бейдж на иконке приложения","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/contracts.test.ts"],"e2e":[],"covered":true,"fansly":{"planned":"n/a","closed":false,"by":[]}},
@@ -1564,8 +1564,8 @@
     {"id":"EX-004","function":"`webRequest` и host permissions Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":false,"by":[]}},
     {"id":"EX-005","function":"Доступ к хабу","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["packages/platform/src/rpc.test.ts","packages/platform/src/services.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["packages/platform/src/rpc.test.ts","packages/platform/src/services.test.ts"]}},
     {"id":"EX-006","function":"`data_collection_permissions`","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["apps/extension/test/manifest.test.ts"]}},
-    {"id":"EX-007","function":"MAIN-world скрипт на `document_start`","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/isolated/bridge.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","tools/size-budget/budget.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7a","planned":"unit","closed":false,"by":[]}},
-    {"id":"EX-008","function":"Изолированный relay","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/isolated/bridge.test.ts","packages/host-chatspace/src/isolated/stack.dom.test.ts","packages/host-chatspace/src/main/protocol.test.ts","packages/host-kit/src/isolated/bridge-client.test.ts","packages/host-kit/src/isolated/wire.test.ts","packages/host-kit/src/main/protocol.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7a","planned":"unit","closed":false,"by":[]}},
+    {"id":"EX-007","function":"MAIN-world скрипт на `document_start`","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/isolated/bridge.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","tools/size-budget/budget.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7a","planned":"unit","closed":true,"by":["packages/host-fansly/src/main/runtime.test.ts","packages/testing/e2e/specs/suite-fansly-tap.e2e.ts"]}},
+    {"id":"EX-008","function":"Изолированный relay","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/isolated/bridge.test.ts","packages/host-chatspace/src/isolated/stack.dom.test.ts","packages/host-chatspace/src/main/protocol.test.ts","packages/host-kit/src/isolated/bridge-client.test.ts","packages/host-kit/src/isolated/wire.test.ts","packages/host-kit/src/main/protocol.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7a","planned":"unit","closed":true,"by":["packages/host-fansly/src/main/emitter.test.ts","packages/host-fansly/src/main/protocol.test.ts","packages/host-fansly/src/main/runtime.test.ts","packages/testing/e2e/specs/suite-fansly-tap.e2e.ts"]}},
     {"id":"EX-009","function":"Bootstrap и ленивые бандлы","target":"пилот","owner":"R00","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/surfaces.test.ts","apps/extension/test/lazy.test.ts","packages/testing/src/boards/size.test.ts","packages/testing/src/dock/size.test.ts","packages/testing/src/kit/size.test.ts"],"e2e":["packages/testing/e2e/specs/integration-m1.e2e.ts","packages/testing/e2e/specs/spike-m0.e2e.ts","packages/testing/e2e/specs/tab-wiring.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7a0","planned":"e2e","closed":true,"by":["packages/testing/e2e/specs/suite-fansly-site.e2e.ts"]}},
     {"id":"EX-010","function":"`web_accessible_resources`","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P7a0","planned":"unit","closed":true,"by":["apps/extension/test/fansly-site.test.ts","packages/testing/e2e/specs/suite-fansly-site.e2e.ts"]}},
     {"id":"EX-011","function":"Ноль работы вне маршрута","target":"пилот","owner":"R00","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/testing/src/kit/mount.test.tsx","packages/ui/src/kit/clock.test.ts"],"e2e":["packages/testing/e2e/specs/integration-m1.e2e.ts","packages/testing/e2e/specs/spike-m0.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P16a","planned":"e2e","closed":false,"by":[]}},

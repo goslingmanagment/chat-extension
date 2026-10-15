@@ -1,5 +1,5 @@
 // Fansly's bridge as a whole against a minimal window: Fansly's MAIN world (the
-// shared boot of host-kit, R20 P7a0) and the shared isolated client over
+// shared boot of host-kit with Fansly's runtime, R20 P7a) and the shared isolated client over
 // Fansly's registry — its schemas (validate.ts) and the frames it never
 // coalesces (wire.ts), as the starter hands them to the client. happy-dom does
 // not set MessageEvent.source or transfer ports, so this test shims window
@@ -21,10 +21,15 @@ type Listener = (event: { source: unknown; data: unknown; ports: readonly Messag
 function fakeWindow(): Window {
   const listeners = new Set<Listener>();
   const win = {
-    location: { origin: 'http://localhost:4200' },
+    location: { origin: 'http://localhost:4200', href: 'http://localhost:4200/messages' },
     document: { readyState: 'loading' },
     performance,
     crypto,
+    URL,
+    EventTarget,
+    // The page's constructors MAIN stands its Proxies over (their own tests: main/runtime.test.ts).
+    WebSocket: class WebSocket extends EventTarget {},
+    XMLHttpRequest: class XMLHttpRequest extends EventTarget {},
     setTimeout: (callback: () => void, ms?: number) => setTimeout(callback, ms),
     requestAnimationFrame: (callback: () => void) => setTimeout(callback, 0),
     addEventListener: (_type: string, listener: Listener) => listeners.add(listener),
@@ -47,16 +52,23 @@ afterEach(() => {
 const EPOCH = 'a1b2c3d4e5f6a1b2c3d4e5f6';
 
 describe('Fansly’s bridge: its MAIN world and the shared client over its registry (R20 P7a0)', () => {
-  it('connects to Fansly’s MAIN, whose boot answers `probe` itself through Fansly’s own schemas; Fansly’s requests wait for its runtime (P7a)', async () => {
+  it('connects to Fansly’s MAIN, whose boot answers `probe` itself through Fansly’s own schemas; its runtime answers `fx.state`, the observation’s requests wait for P7b', async () => {
     const win = fakeWindow();
-    const main = installFanslyMain(win);
+    const main = installFanslyMain(win, { socketHosts: ['localhost'], apiOrigins: ['http://localhost'] });
     const client: MainBridgeClient<FanslyBridge> = await connectMainBridge<FanslyBridge>(win, loadValidation, UNDROPPABLE_EVENTS, 1000);
     cleanups.push(() => client.close(), () => main.dispose());
     expect(await client.probe()).toEqual({ v: 1, readyStateAtStart: 'loading', installMs: expect.any(Number) as unknown, wsTap: false });
     expect(main.isConnected()).toBe(true);
     expect(main.installMs).toBeLessThan(1);
     expect(client.documentEpoch).toBe(main.documentEpoch);
-    const refused = (await client.request('fx.state', {}).catch((error: unknown) => error)) as BridgeCallError;
+    expect(await client.request('fx.state', {})).toEqual({
+      identity: { creatorId: null, accountMeSeen: false, legacy: false, fbuddy: { windowBridge: false, networkHook: false, styleFixes: false, wordFilter: false } },
+      socket: { epoch: 0, confirmed: false },
+      chat: null,
+      contract: { anchors: { accountMe: 'notYet', socket: 'notYet', frames: 'notYet', xhr: 'notYet' }, tap: 'ok' },
+      lastBatch: 0,
+    });
+    const refused = (await client.request('fx.windowMeta', { groupId: '700000000000000010' }).catch((error: unknown) => error)) as BridgeCallError;
     expect(refused).toBeInstanceOf(BridgeCallError);
     expect([refused.failure, refused.executed]).toEqual(['not-ready', 'no']);
   });

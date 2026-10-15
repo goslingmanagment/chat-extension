@@ -5,12 +5,13 @@
 //   after «Включить Fansly» (P9a): one call, MAIN first, at document_start —
 //   and reach no page before the stand's origins are granted, as a person
 //   would grant them (the stand is optional, never granted at install: P6a);
-// - granted, both run at document_start: MAIN (the shared boot of host-kit)
-//   hands its port to the isolated script, which assembles Fansly's adapter
-//   and checks MAIN's probe with Fansly's own schemas — the first chunk of
-//   Fansly's own lazy build, `lazy/fansly/bridge-validation.js` — next to the
-//   FBuddy-like neighbour in `off` and `after` (X34): the page and the
-//   neighbour see what they see without us, and nothing of ours asks Fansly;
+// - granted, both run at document_start: MAIN (the shared boot of host-kit
+//   with Fansly's taps, P7a) hands its port to the isolated script, which
+//   assembles Fansly's adapter and checks MAIN's probe with Fansly's own
+//   schemas — the first chunk of Fansly's own lazy build,
+//   `lazy/fansly/bridge-validation.js` — next to the FBuddy-like neighbour
+//   in `off` and `after` (X34): the page and the neighbour see what they
+//   see without us, and nothing of ours asks Fansly;
 // - Fansly's lazy build is a web resource of its own pages alone; ChatSpace's
 //   is not one of them (EX-010);
 // - the whole synchronous start of either script stays in its budget: MAIN

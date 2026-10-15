@@ -986,6 +986,56 @@ interface StartProofV1 {
 - Общий сигнал несовместимости тапа (чужой Proxy над конструктором поверх нашего, пропавшие события при живом сокете) —
   в отчёте контракта (`fx.contract`).
 
+### 5.11 Сделано в P7a
+
+Код — `packages/host-fansly/src/main/{index,protocol,ws-tap,xhr-tap,frame-parse,responses,emitter}.ts`. Наблюдение
+чатов, сертификаты, личность групп и снимок — P7b, эхо и квитанция своей отправки — P7f, старое расширение и булевы FBuddy —
+P7g: эти проекции разбираются, но ещё никуда не идут. Что сделано иначе или уточнено против §5.1–§5.4 и §6:
+
+- **Адреса — от входа.** Хост сокета и origin API (`FANSLY_NETWORK` в строке рантайма Fansly) передаёт вход
+  `fansly-main.ts`; тестовая сборка под `__CG_TEST_HOSTS__` добавляет `localhost` стенда (`FANSLY_STAND_NETWORK`: API на
+  своём порту — origin совпадает и с портом после себя), выпускная его не несёт (гейт `release-bundle`).
+- **Захват:** `Reflect.construct`, `EventTarget.prototype.addEventListener`, `JSON.parse`/`stringify`,
+  `requestIdleCallback`, `setTimeout`, `URL`. `queueMicrotask` и `MessageChannel` не нужны: порт держит загрузчик.
+- **Сокет:** слушателя `open` нет — его ничего не ждёт; слушаем `message`, `close`, `error`. Кадры прежнего экземпляра
+  читаются (сообщение не теряется), но подтверждает (`t:1`) и обрывает (`close`/`error`) только новейший.
+- **Разбор** (`readFrame`): `known` — кадр, который читает страница (пинг или известный `t`), `whole`, `touched` — чаты
+  неполного кадра (`null` — все), проекции, счёт печатания. Неизвестный `t` — не потеря; повреждённая подписка `3/2` —
+  тоже (чата не называет). «Кадры видны, ни один не разобран» (FS-WS-5): ≥ 3 кадров новейшего сокета без единого
+  `known` → все чаты `unknown` (`socket`) один раз и якорь `frames: shape`.
+- **Что MAIN шлёт с P7a:** `fx.incoming` на каждое `5/1` (`fanId: null` до групп P7b; `fromFan: false`, пока
+  `/account/me` не назвал креатора; `automated` — `type 2` или `correlationId` без `inReplyTo`, правило приветственных
+  текстов — P7b), `fx.follow`, `fx.identity` (креатор; `legacy` и FBuddy — `false` до P7g), `fx.contract` (якоря
+  `notYet` → `ok`, `frames: shape`; `tap: wrapped` — глобал заменён поверх нашего Proxy, `silent` — подтверждённый
+  сокет без кадров 75 с; считается при отправке, без таймера), `fx.vaultAdded {seq}` (номер наблюдения `loadstart`
+  запроса), `fx.coverage … unknown` с причинами `socket` (новый сокет, его конец, ни одного разобранного кадра),
+  `frame` (затронутые чаты или все), `late-install` (`readyState` при установке не `loading`), `parse-limit` (чат из
+  адреса ответа или все).
+- **Таблица ответов:** вид `other` — ответ API вне таблицы: считается (`responses.seen`), не разбирается. Метод без
+  хука `open` не виден: `/message` без `groupId` и `/vault/albums/media` принимаются как ответы `POST` — других запросов
+  на эти адреса страница не делает. Очередь отложенного разбора — ≤ 8 ответов и ≤ 1 Mi знаков, `requestIdleCallback`
+  с тайм-аутом 1 с и запасом 2 мс, без него — таймер (ответ за ход).
+- **Поток:** начинается с первого `fx.state` — изолированный мир спрашивает его, когда слушает; до него события ждут в
+  очереди под тем же пределом. Ответ `fx.state` несёт состояния целиком, а продолжение потока уходит следующим ходом
+  (разовый таймер), поэтому пачка не обгоняет ответ с номером `lastBatch`. Одна пачка на вызов слушателя: устаревший
+  `fx.ack` ничего не освобождает, но его вызов может отправить ждущую пачку. `fx.state` кредитов не освобождает — их
+  освобождают подтверждения. Пределы откалиброваны: очередь ≤ 256 КиБ и ≤ 2048 событий, в пути ≤ 256 КиБ — поток
+  держит ≤ 512 КиБ из 4 МиБ (§5.5); переполнение — очередь сброшена, одно `fx.gap {overflow}`; `fx.gap {memory}` —
+  для общего учёта памяти P7b (`emitter.gap`).
+- **`fx.health`** — новый запрос (`contract-change:`, `contracts-changelog.md` «P7a»): счёт кадров и ответов, поток,
+  гистограммы `frameParseMs` и `xhrParseMs` по границам HF-13 — по запросу, без таймеров; «Статус» и `client_health`
+  его прочтут с P7c.
+- `fx.focus`, `fx.generationSnapshot`, `fx.windowMeta` до P7b отвечают `not-ready`.
+- **Бюджет:** `fansly-main.js` — 5,92 КиБ gzip из 16 (строка бюджета не менялась); синхронный старт ≤ 1 мс меряет
+  `suite-fansly-site`; разбор кадра — микросекунды (юнит), в Firefox — `frameParseMs` в `suite-fansly-tap`.
+- Гейт `main-world-guard` знает `listenOn(target, type, callback)` — слушатель на экземпляре страницы через захваченный
+  `addEventListener`; ESLint разрешает `.WebSocket` только в `ws-tap.ts`, `.XMLHttpRequest` — только в `xhr-tap.ts`.
+- **Проверки:** юнит — `packages/host-fansly/src/main/*.test.ts` (Proxy на подделках с формой натива, разбор, таблица,
+  эмиттер с проверкой каждого кадра схемами Fansly, весь MAIN через клиент host-kit); e2e — `suite-fansly-tap` на
+  стенде: `fansly-main.js` тестовой сборки — preload-скриптом WebDriver BiDi в мир страницы (как `document_start`),
+  потребитель — стартер Fansly в песочнице BiDi; соседи `off`, `after` (и с хуком после первого ответа), `reinject`,
+  `legacy`, `+guard`, `before` (поздняя установка), сторонние Proxy и подкласс над конструкторами.
+
 ## 6. Мост MAIN ↔ изолированный мир (реестр Fansly)
 
 Загрузчик и протокол моста переносятся в host-kit **байт в байт** (P5): `postMessage` только на время рукопожатия, затем
@@ -1020,6 +1070,7 @@ interface StartProofV1 {
 | `fx.generationSnapshot` | `{groupId, feature, window, withText}` | `FanslySnapshot` или `null` |
 | `fx.windowMeta` | `{groupId}` | сводка окна (для `chatWindow`) или `null` |
 | `fx.ack` | `{n}` | `null`; подтверждает все пачки до `n` включительно — и принятые, и отвергнутые |
+| `fx.health` | — | `FanslyHealth` (P7a): счёт кадров (`seen`, `parsed`, `lost`) и ответов страницы, поток (пачки, неподтверждённые, очередь, удержанные байты, `fx.gap`), время разбора MAIN по корзинам `frameParseMs`, `xhrParseMs` — для «Статуса», `client_health` и e2e; по запросу, без таймеров |
 
 **События из MAIN (`FromMainFansly`, внутри `fx.batch`):**
 

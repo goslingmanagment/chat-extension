@@ -254,6 +254,23 @@ export default defineConfig(
     ),
   },
   {
+    // Fansly's taps (docs/project-unite/architecture.md §5.2, §5.4): each puts a construct-only Proxy over the one page
+    // constructor it watches and reads the global back for the contract. Neither ever makes a connection or a
+    // request of its own: the global stays banned as a call, the other constructors stay banned as properties.
+    files: ['packages/host-fansly/src/main/ws-tap.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['WebSocket'])],
+    },
+  },
+  {
+    files: ['packages/host-fansly/src/main/xhr-tap.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['XMLHttpRequest'])],
+    },
+  },
+  {
     files: [WS_TAP_FILE],
     rules: {
       'no-restricted-globals': ['error', ...hostBannedGlobals(['WebSocket'])],

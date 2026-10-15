@@ -177,6 +177,9 @@ importers:
       '@cg/host-chatspace':
         specifier: workspace:*
         version: link:../host-chatspace
+      '@cg/host-fansly':
+        specifier: workspace:*
+        version: link:../host-fansly
       '@cg/hub':
         specifier: workspace:*
         version: link:../hub

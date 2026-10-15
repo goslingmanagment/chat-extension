@@ -20,3 +20,16 @@ export const FANSLY_QUIET_DOMAINS: readonly string[] = [];
  * `<root>/chunks/`. The tab asks for its chunks here; the registry entry (../fansly.ts) has its build write them here.
  */
 export const FANSLY_LAZY_ROOT = 'lazy/fansly';
+
+/**
+ * The page's own socket and API, which Fansly's MAIN observes (§5.2, §5.4; FS-WS-1): the host name of its socket
+ * (`wss://wsv3.fansly.com?v=3`) and the origin of its API (`/api/v1/…`). Its entry point hands them in.
+ */
+export const FANSLY_NETWORK = { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com'] } as const;
+
+/**
+ * The Fansly stand's (packages/testing/src/fake-fansly): its socket and API on the loopback name `localhost`, on
+ * ports of their own. Read ONLY under `__CG_TEST_HOSTS__`, so a release bundle never carries it (tools/gates
+ * `release-bundle`).
+ */
+export const FANSLY_STAND_NETWORK = { socketHosts: ['localhost'], apiOrigins: ['http://localhost'] } as const;

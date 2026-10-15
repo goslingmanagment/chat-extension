@@ -125,6 +125,44 @@ export const FanslyStateSchema = z
   .check(z.refine((s) => !s.socket.confirmed || s.socket.epoch > 0, { message: 'only a created socket is confirmed' }));
 export type FanslyState = z.infer<typeof FanslyStateSchema>;
 
+/**
+ * One of MAIN's own time histograms (HF-13: `frameParseMs`, `xhrParseMs`), over the bounds of its metric in
+ * `PERF_METRICS` (telemetry.ts): the counts per bucket (one more than the bounds), their total, sum and max — what a
+ * `PerfHistogram` carries besides its name and bounds, which the reader adds (MAIN repeats the bounds as literals,
+ * pinned by its tests).
+ */
+export const FanslyPerfCountsSchema = z
+  .strictObject({
+    counts: z.array(CountSchema).check(z.minLength(2), z.maxLength(33)),
+    count: CountSchema,
+    sum: z.number().check(z.gte(0)),
+    max: z.number().check(z.gte(0)),
+  })
+  .check(z.refine((h) => h.counts.reduce((a, b) => a + b, 0) === h.count, { message: 'count must equal the sum of counts' }));
+export type FanslyPerfCounts = z.infer<typeof FanslyPerfCountsSchema>;
+
+/**
+ * The answer of `fx.health` (R20 P7a; §5.3, §5.4, §6, §8.13): what MAIN counted since the document began, read on
+ * demand — never pushed, never on a timer. The tap's «seen, not parsed» (SN-020, FS-WS-5), the observer's answers,
+ * the stream under its credits, and MAIN's own parse times for client_health.
+ */
+export const FanslyHealthSchema = z.strictObject({
+  /** Text frames of the page's sockets: seen; parsed — a frame the page reads (a known `t`); lost — not read whole (FS-WS-2). */
+  frames: z.strictObject({ seen: CountSchema, parsed: CountSchema, lost: CountSchema }),
+  /** The page's API answers at `loadend`: seen; parsed by the table, at once or deferred; deferred; lost to a limit. */
+  responses: z.strictObject({ seen: CountSchema, parsed: CountSchema, deferred: CountSchema, lost: CountSchema }),
+  /** The stream: batches sent, those not acknowledged yet, events waiting, the bytes MAIN holds for it, `fx.gap`s sent. */
+  stream: z.strictObject({
+    batches: CountSchema,
+    unacked: z.int().check(z.gte(0), z.lte(FANSLY_BRIDGE_LIMITS.maxUnackedBatches)),
+    queued: CountSchema,
+    heldBytes: CountSchema,
+    gaps: CountSchema,
+  }),
+  perf: z.strictObject({ frameParseMs: FanslyPerfCountsSchema, xhrParseMs: FanslyPerfCountsSchema }),
+});
+export type FanslyHealth = z.infer<typeof FanslyHealthSchema>;
+
 // ── Requests ───────────────────────────────────────────────────────────────
 
 /** `fx.generationSnapshot` (§5.8): `window` is the function's messageCount; MAIN takes the last min(60, window). */
@@ -152,6 +190,8 @@ export const TO_MAIN_FANSLY = {
    * credits. Cumulative, so a late ack cannot hold credits forever.
    */
   'fx.ack': { payload: z.strictObject({ n: BridgeRequestIdSchema }), data: z.null(), write: false, timeout: 'call' },
+  /** MAIN's counts and parse times since the document began (R20 P7a): for «Статус», client_health and the e2e. */
+  'fx.health': { payload: EmptySchema, data: FanslyHealthSchema, write: false, timeout: 'call' },
 } as const satisfies Record<ToMainFanslyType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: false; readonly timeout: 'call' }>;
 
 export type ToMainFanslyPayload<T extends ToMainFanslyType> = z.infer<(typeof TO_MAIN_FANSLY)[T]['payload']>;
@@ -295,6 +335,7 @@ export const FanslyBridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('fx.generationSnapshot'),
   requestFrame('fx.windowMeta'),
   requestFrame('fx.ack'),
+  requestFrame('fx.health'),
 ]);
 export type FanslyBridgeRequest = z.infer<typeof FanslyBridgeRequestSchema>;
 
