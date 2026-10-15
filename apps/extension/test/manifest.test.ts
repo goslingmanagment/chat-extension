@@ -120,9 +120,12 @@ describe('release manifest (§3)', () => {
   });
 
   it('builds Fansly’s two scripts and registers neither statically: the background registers them, after «Включить Fansly» (R20 P7a0, P9a)', () => {
+    // Every string of the manifest: none names either script (Fansly's own lazy chunks, `lazy/fansly/ai-fansly.js`, are
+    // web resources of its pages, not these scripts).
+    const strings = JSON.stringify(release.manifest).match(/"(?:[^"\\]|\\.)*"/g) ?? [];
     for (const file of ['fansly-main.js', 'fansly.js']) {
       expect(existsSync(join(release.dir, file)), file).toBe(true);
-      expect(JSON.stringify(release.manifest), file).not.toContain(file);
+      expect(strings.filter((value) => value === `"${file}"` || value.endsWith(`/${file}"`)), file).toEqual([]);
     }
     expect(JSON.stringify(release.manifest['content_scripts'])).not.toContain('fansly');
   });

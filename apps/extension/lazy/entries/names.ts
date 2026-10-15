@@ -39,10 +39,11 @@ export const LAZY_ENTRIES = {
 } as const;
 
 /**
- * Entries only a site's own build has (R20: Fansly's panels — the vault, P13b), named for the loader's type: the site's
- * registry entry builds them (apps/extension/src/hosts/<site>.ts), and no other build has a file of that name.
+ * Entries only a site's own build has (R20: Fansly's AI policy, P8b1; its panels — the vault, P13b), named for the
+ * loader's type: the site's registry entry builds them (apps/extension/src/hosts/<site>.ts), and no other build has a
+ * file of that name.
  */
-export type SiteLazyEntryName = 'vault';
+export type SiteLazyEntryName = 'ai-fansly' | 'vault';
 
 export type LazyEntryName = keyof typeof LAZY_ENTRIES | SiteLazyEntryName;
 

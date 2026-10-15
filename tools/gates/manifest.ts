@@ -121,6 +121,15 @@ export const APPLICATION_CHUNKS: readonly string[] = [
 ];
 
 /**
+ * Chunks a site's own build has for its application, of no one feature (by the site's host kind): Fansly's AI policy
+ * (`ai-fansly`, R20 P8b1 — the proof of every start, loaded with the dock). A name listed here that its site's build
+ * no longer has is a violation too: the list only says what is.
+ */
+export const SITE_APPLICATION_CHUNKS: Readonly<Record<string, readonly string[]>> = {
+  'fansly-web': ['ai-fansly'],
+};
+
+/**
  * The parity rows of each entry (docs/parity, docs/project-unite/parity-matrix.md): the rows that state the feature
  * itself — the first is its own row — and, where that row is not checked in the browser on a site, the one that is.
  * A new entry does not pass until its rows are here.
@@ -200,8 +209,12 @@ export function checkManifestNames(sites: readonly SiteManifest[], vocabularies:
   for (const site of sites) {
     if (site.lazyEntries === null) continue;
     const own = new Set([...Object.keys(site.features), ...Object.values(site.features).flatMap((entry) => entry.surfaces)]);
+    const siteOwn = SITE_APPLICATION_CHUNKS[site.site] ?? [];
     for (const chunk of site.lazyEntries) {
-      if (!own.has(chunk) && !APPLICATION_CHUNKS.includes(chunk)) violations.push(violation(`${site.site}'s lazy entry «${chunk}» carries no feature or surface of its slice and is not the application's own`));
+      if (!own.has(chunk) && !APPLICATION_CHUNKS.includes(chunk) && !siteOwn.includes(chunk)) violations.push(violation(`${site.site}'s lazy entry «${chunk}» carries no feature or surface of its slice and is not the application's own`));
+    }
+    for (const chunk of siteOwn) {
+      if (!site.lazyEntries.includes(chunk)) violations.push(violation(`«${chunk}», listed as ${site.site}'s own application chunk, is no lazy entry of its build: drop it from tools/gates/manifest.ts`));
     }
   }
   return violations;

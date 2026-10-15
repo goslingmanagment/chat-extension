@@ -25,6 +25,7 @@ import { readPlanPrs } from '../parity/plan.ts';
 import { readTestFiles } from '../parity/test-files.ts';
 import {
   APPLICATION_CHUNKS,
+  SITE_APPLICATION_CHUNKS,
   APPLICATION_SURFACES,
   checkManifestNames,
   checkManifestParity,
@@ -174,6 +175,17 @@ describe('this repo: the manifest is complete', () => {
       ['fansly-web', true],
     ]);
     for (const chunk of APPLICATION_CHUNKS) expect(sites[0]?.lazyEntries, chunk).toContain(chunk);
+    // A site's own application chunk is its build's alone (R20 P8b1: Fansly's AI policy): on another site's build it is
+    // a chunk of nothing, and a listed one its build lost is said.
+    const [chatspace, fansly] = sites;
+    if (chatspace === undefined || fansly === undefined || chatspace.lazyEntries === null || fansly.lazyEntries === null) throw new Error('both builds');
+    expect(SITE_APPLICATION_CHUNKS['fansly-web']).toEqual(['ai-fansly']);
+    expect(messages(checkManifestNames([{ ...chatspace, lazyEntries: [...chatspace.lazyEntries, 'ai-fansly'] }, fansly], vocabularies))).toEqual([
+      "chatspace's lazy entry «ai-fansly» carries no feature or surface of its slice and is not the application's own",
+    ]);
+    expect(messages(checkManifestNames([chatspace, { ...fansly, lazyEntries: fansly.lazyEntries.filter((chunk) => chunk !== 'ai-fansly') }], vocabularies))).toEqual([
+      "«ai-fansly», listed as fansly-web's own application chunk, is no lazy entry of its build: drop it from tools/gates/manifest.ts",
+    ]);
   });
 
   it('every entry of every site has its parity rows, planned on its host, and its e2e on its stand where its owner is done', () => {

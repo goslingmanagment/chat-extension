@@ -11,6 +11,7 @@ import {
   type ChatWindow,
   type DraftSnapshot,
   type FreshnessCheckpoint,
+  type FreshnessPort,
   type HostAccount,
   type HostCapability,
   type CapabilityState,
@@ -54,6 +55,8 @@ export class MutableHost implements HostPort {
   inserts = 0;
   /** The bridge call is lost after it may have run: `insert` rejects, the outcome is unknown. */
   insertThrows = false;
+  /** A host whose tab observes its chats (R20: Fansly's generation snapshot); absent — ChatSpace's, which has none. */
+  freshness?: FreshnessPort;
 
   constructor(
     private readonly base: HostPort,
