@@ -168,8 +168,9 @@ describe('the Fansly stand over the fake Fansly: marks of delivery and reading',
     const link = document.querySelector<HTMLAnchorElement>(`.messages-list-wrapper a[href="/messages/${unread.id}"]`);
     link?.click();
     await until(() => stand?.control.route().groupId === unread.id, 'the chat');
-    // Inside the click: the route's own requests only.
-    const inClick = apiCalls(stand.control.journal(mark), 'POST', /^\/api\/v1\/message\/ack/);
+    // Inside the click: the route's own requests only — no read mark made in the click's own handler. (By the time the
+    // route is seen here a later mark may have gone already: the delay is 150 ms, a loaded machine is slower.)
+    const inClick = apiCalls(stand.control.journal(mark), 'POST', /^\/api\/v1\/message\/ack/).filter((entry) => entry.during !== null);
     expect(inClick).toEqual([]);
     await until(() => fake.journal.calls('page', before).some((entry) => entry.route === 'message.ack'), 'the read marks');
     const acks = apiCalls(stand.control.journal(mark), 'POST', /^\/api\/v1\/message\/ack/);
