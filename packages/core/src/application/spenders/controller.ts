@@ -10,6 +10,7 @@
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type QueuePage, type SpendersStats } from '@cg/contracts/hub';
+import { CHAT_IS_FAN } from '@cg/contracts/ids';
 import { type ActionReceipt, type I18n, type PartialGap, type PreviewSource, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type SpendersStatsVM, type TargetHandle, type UiAction, type ViewMap, type VmView } from '@cg/contracts/vm';
 import { type I18nKey } from '@cg/contracts/errors';
 
@@ -492,6 +493,17 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   // ── directory ──
 
+  /**
+   * R20 P8a (FS-IDN-6): the fan's conversation as the board knows it — the hub's chat of the fan where a chat has an
+   * id of its own (Fansly: the group of the row); `{}` where a chat is its fan (OnlyFans: the fan is the conversation,
+   * as before) and where the hub knows none: a preview then asks nothing of that chat, and the chat is not opened.
+   */
+  const conversationOfRow = (row: SpenderRow | undefined): { readonly conversationRef?: string } => {
+    const platform = context.current().binding?.platform;
+    const ref = row?.conversationRef ?? null;
+    return platform === undefined || CHAT_IS_FAN[platform] || ref === null ? {} : { conversationRef: ref };
+  };
+
   const infoOf = (fanRef: string, id: number): PreviewTargetInfo | null => {
     const index = entryOf(period).index;
     const row = index?.byFan.get(fanRef);
@@ -501,6 +513,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         source: 'spenders',
         pageId: id,
         fanRef,
+        ...conversationOfRow(row),
         name: row.name,
         username: row.username,
         lifetime: row.lifetime,
@@ -567,8 +580,11 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   async function openChat(type: UiAction['type'], fanRef: string): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
+    // R20 P8a: the fan's chat as the board knows it; where a chat has an id of its own, the fan's id opens none.
+    const { conversationRef } = conversationOfRow(entryOf(period).index?.byFan.get(fanRef));
+    if (conversationRef === undefined && !CHAT_IS_FAN[binding.platform]) return refused(type, localError('CG-DATA-NOT-READY', i18n));
     // The person's click on this fan in the Spenders board: the board's own switch on its page, not `navigation`.
-    const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['spenders']);
+    const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['spenders'], conversationRef);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     // SP-035: the chat opened — the board gets out of the way.
     surfaces.closeBoards();

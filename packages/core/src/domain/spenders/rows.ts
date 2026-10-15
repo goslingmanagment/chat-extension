@@ -16,6 +16,11 @@ export type RowHistory = 'complete' | 'partial' | 'none';
 export interface SpenderRow {
   /** OnlyFans fan id = hub fanRef = ChatSpace chat id. */
   readonly fanRef: string;
+  /**
+   * The hub's conversation of the fan's chat (`conversation.platformConversationId`; R20 P8a): on Fansly the group,
+   * where the hub's capture knows one; null — it knows none. Where a chat is its fan (OnlyFans) nothing reads it.
+   */
+  readonly conversationRef: string | null;
   readonly name: string;
   /** Without the «@»; null — unknown. */
   readonly username: string | null;
@@ -98,6 +103,7 @@ export function spenderRow(item: SpenderListItem, rank: number, boardPeriod: Hub
   const name = fanName(item.fan);
   return {
     fanRef: item.fan.platformUserId,
+    conversationRef: conversation.platformConversationId,
     name,
     username: username.length > 0 ? username.replace(/^@/, '') : null,
     lifetime,

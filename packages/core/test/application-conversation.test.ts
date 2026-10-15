@@ -94,13 +94,13 @@ const i18n = createI18n({ language: 'ru', now: () => NOW_MS, timeZone: 'Europe/M
 /** The hub behind the background: the fan's archive and card are not read here (a Fansly page reads `platform_unsupported` on the hub until R20's hub work). */
 const hubCall = () => Promise.resolve({ status: 409, body: { error: 'client_feature_disabled', reason: 'platform_unsupported' } });
 
-/** A list that resolved its Fansly fan to a group (FS-SPD-2): the info a preview opens with. */
-const infoOf = (source: PreviewTargetInfo['source'], conversationRef: string | undefined = FANSLY.group): PreviewTargetInfo => ({
+/** A list that resolved its Fansly fan to a group (FS-SPD-2): the info a preview opens with; null — it resolved none yet. */
+const infoOf = (source: PreviewTargetInfo['source'], conversationRef: string | null = FANSLY.group): PreviewTargetInfo => ({
   handle: fanHandle(source, WORLD.pages.fansly.pageId, FANSLY.fan),
   source,
   pageId: WORLD.pages.fansly.pageId,
   fanRef: FANSLY.fan,
-  ...(conversationRef === undefined ? {} : { conversationRef }),
+  ...(conversationRef === null ? {} : { conversationRef }),
   name: 'Fan of Fansly',
   username: null,
   lifetime: null,
@@ -207,14 +207,15 @@ describe('R20 F6a, Fansly: a preview — the conversation comes from the list th
     expect(open?.thenInsert).toMatchObject({ target: fanslyChat, text: 'hey you', expected: { kind: 'deferred', documentEpoch: DOCUMENT } });
   });
 
-  it('a fan the list has no group for yet starts on the fan as before, and a group resolved later is taken at the click', async () => {
-    let info = infoOf('spenders', undefined);
+  it('a fan the list has no group for yet starts nothing — never on the fan\'s id (R20 P8a) — and a group resolved later is taken at the click', async () => {
+    let info = infoOf('spenders', null);
     const directory: PreviewDirectory = { ...directoryOf(info), resolve: (handle) => (handle === info.handle ? info : null) };
     const p = preview({ spenders: directory });
     await dispatchTo(p.controller, { type: 'OpenPreview', targetHandle: info.handle });
-    // The list resolved the fan's group after the preview opened: the next build of the card reads it.
+    expect(await dispatchTo(p.controller, { type: 'Generate', targetHandle: info.handle, feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-DATA-NOT-READY' });
+    expect(p.bg.requests.filter((request) => request.type === 'op.start' || request.type === 'feed.read')).toEqual([]);
+    // The list resolved the fan's group after the preview opened: the click reads it.
     info = infoOf('spenders');
-    p.controller.getSnapshot({ of: 'preview', from: 'spenders' });
     scriptReply(p.bg, 'hey you');
     await dispatchTo(p.controller, { type: 'Generate', targetHandle: info.handle, feature: 'reply', options: {} });
     expect(p.bg.requests.filter((request) => request.type === 'op.start').map((request) => request.payload)).toMatchObject([{ target: { conversationRef: FANSLY.group, fanRef: FANSLY.fan } }]);
@@ -229,14 +230,15 @@ describe('R20 F6a, Fansly: a preview — the conversation comes from the list th
 });
 
 describe('R20 F6a, Fansly: a board row or card opens the fan of the binding\'s site', () => {
-  it('a Spenders row and a card of «Новые» open the chat on the Fansly host of the binding, not ChatSpace', async () => {
+  it('a card of «Новые» opens the chat on the Fansly host of the binding, not ChatSpace; a Spenders row whose chat the board does not know opens none (R20 P8a)', async () => {
     const world = boards();
     const navigator = recordingNavigator();
     const spenders = createSpendersController({ rpc: world.bg.rpc, i18n, clock: world.clock, context, surfaces: world.surfaces, navigator, timeZone: 'Europe/Moscow' });
     const newcomers = createNewcomersController({ rpc: world.bg.rpc, host: world.host, i18n, clock: world.clock, context, surfaces: world.surfaces, navigator, connectivity: null, random: () => 0.5 });
-    expect(await dispatchTo(spenders, { type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', WORLD.pages.fansly.pageId, FANSLY.fan) } })).toMatchObject({ ok: true, outcome: 'opened' });
+    // The board is not read here: no row names the fan's group, and the fan's id names none on Fansly.
+    expect(await dispatchTo(spenders, { type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', WORLD.pages.fansly.pageId, FANSLY.fan) } })).toMatchObject({ ok: false, code: 'CG-DATA-NOT-READY' });
     expect(await dispatchTo(newcomers, { type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('newcomers', WORLD.pages.fansly.pageId, FANSLY.fan) } })).toMatchObject({ ok: true, outcome: 'opened' });
-    expect(navigator.opened.map((open) => open.chat)).toEqual([fanslyChat, fanslyChat]);
+    expect(navigator.opened.map((open) => open.chat)).toEqual([fanslyChat]);
     spenders.dispose();
     newcomers.dispose();
   });
