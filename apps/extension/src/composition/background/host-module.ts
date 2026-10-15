@@ -20,6 +20,7 @@
 // by its schema again on the way out (packages/platform rpc-background).
 
 import type { SettingsExtOwner } from '@cg/core/services';
+import type { SoundBatch } from '@cg/contracts/sound';
 import type { SoundStreamPolicy } from '@cg/core/services/sound';
 import type { NetworkSession } from '@cg/core/services/network-session';
 import type { HostKind } from '@cg/contracts/hosts';
@@ -159,7 +160,9 @@ export interface SitePort {
 
 /** The ports of the core a site's module is started with. */
 export interface BackgroundKit {
-  readonly settingsExt?: Pick<SettingsExtOwner, 'state' | 'current'>;
+  /** The one arbiter; waits for this registered tab's first account report. */
+  readonly sound?: { batch(tabSessionId: string, batch: SoundBatch): Promise<void> };
+  readonly settingsExt?: Pick<SettingsExtOwner, 'state' | 'current' | 'onChange'>;
   /** R20 P13b: the site's own tab registry (`fansly.*`), plugged by its module. Absent — the core serves no site registry. */
   readonly site?: SitePort;
   /** Passive session/429 state, owned and restored by the core. No site transport here. */

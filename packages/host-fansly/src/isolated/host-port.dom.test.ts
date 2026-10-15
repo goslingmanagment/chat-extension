@@ -5,6 +5,7 @@ import { PageDiagnosticsSchema } from '@cg/contracts/diagnostics';
 // way the stand runs it (in Firefox: suite-fansly-tap.e2e.ts). The page is a Fansly-like DOM (testing/fake-dom.ts).
 
 import type { FanslyChatWire, FanslyState, FromMainFansly as FanslyBatchEvent } from '@cg/contracts/bridge-messages-fansly';
+import type { SoundBatch } from '@cg/contracts/sound';
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import { FANSLY_CONTRACT, FanslyContractReportSchema } from '@cg/contracts/fansly-host';
 import { FANSLY_IDS, fanslyHealth, fanslyChatWire, fanslyContractWire, fanslyIdentityWire, fanslyReplySnapshot, fanslyState, probe as PROBE } from '@cg/contracts/fixtures';
@@ -81,37 +82,58 @@ const open = (identity: HostIdentity | null): HostIdentity => {
 describe('[host:fansly] [FS-SND-1] the socket batch for sound', () => {
   it('[SN-016] preserves one MAIN delivery as one text-free host event, on the inbox too; old facts without authors stay silent', async () => {
     const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });
-    const { events } = await startPort('/messages', main.client);
+    const { port } = await startPort('/messages', main.client);
+    const events: SoundBatch[] = [];
+    port.onSoundBatch((batch) => events.push(batch));
     const incoming = { groupId: GROUP, fanId: null, msgId: '700000000000000101', fromFan: true, automated: false, tip: false, createdAt: null };
     main.batch(1, identityEvent(CREATOR),
       { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } },
       { t: 'fx.follow', p: { eventId: '700000000000000102', accountId: CREATOR, followerId: FAN } },
       { t: 'fx.incoming', p: incoming });
-    expect(events.filter((event) => event.type === 'sound-batch')).toEqual([{
-      type: 'sound-batch', batch: { host: 'fansly-web', hostAccountId: CREATOR, events: [
+    expect(events).toEqual([{
+       host: 'fansly-web', hostAccountId: CREATOR, events: [
         { kind: 'message', id: incoming.msgId, conversationRef: GROUP, senderId: FAN, fromFan: true, automatic: false, tip: false, sentAt: null },
         { kind: 'subscriber', id: '700000000000000102', accountId: CREATOR, followerId: FAN },
-      ] },
+      ],
     }]);
+    // An intentional repeated delivery must not emit twice.
     main.batch(1, { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } });
-    expect(events.filter((event) => event.type === 'sound-batch')).toHaveLength(1);
-    main.batch(2, identityEvent(SECOND_CREATOR), { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } });
-    expect(events.filter((event) => event.type === 'sound-batch')).toHaveLength(1); // An old creator's queued message is not the new one's.
+    expect(events).toHaveLength(1);
+    // A fresh batch without authors is independently rejected (not a duplicate).
+    main.batch(2, { t: 'fx.incoming', p: incoming });
+    expect(events).toHaveLength(1);
+    main.batch(3, identityEvent(SECOND_CREATOR), { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } });
+    expect(events).toHaveLength(1); // An old creator's queued message is not the new one's.
+  });
+
+  it('[SN-016] retains early batches until the transport subscribes, bounded to the last 32 batches', async () => {
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port, diagnostics } = await startPort('/messages', main.client);
+    for (let n = 1; n <= 34; n += 1) main.batch(n, { t: 'fx.follow', p: { eventId: String(9000 + n), accountId: CREATOR, followerId: FAN } });
+    const batches: SoundBatch[] = [];
+    const off = port.onSoundBatch((batch) => batches.push(batch));
+    expect(batches).toHaveLength(32);
+    expect(batches[0]?.events[0]?.id).toBe('9003');
+    expect(batches[31]?.events[0]?.id).toBe('9034');
+    expect(diagnostics.filter((entry) => entry.event === 'sound-overflow')).toHaveLength(2);
+    off();
   });
 
   it('[SN-002] drops the old creator’s pending sounds when identity changes inside one MAIN batch', async () => {
     const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { events } = await startPort('/messages', main.client);
+    const { port } = await startPort('/messages', main.client);
+    const events: SoundBatch[] = [];
+    port.onSoundBatch((batch) => events.push(batch));
     const incoming = { groupId: GROUP, fanId: null, msgId: '700000000000000101', senderId: FAN, accountId: CREATOR, fromFan: true, automated: false, tip: false, createdAt: null };
     main.batch(1,
       { t: 'fx.incoming', p: incoming },
       { t: 'fx.follow', p: { eventId: '700000000000000102', accountId: CREATOR, followerId: FAN } },
       identityEvent(SECOND_CREATOR),
       { t: 'fx.incoming', p: { ...incoming, msgId: '700000000000000103', accountId: SECOND_CREATOR } });
-    expect(events.filter((event) => event.type === 'sound-batch')).toEqual([{
-      type: 'sound-batch', batch: { host: 'fansly-web', hostAccountId: SECOND_CREATOR, events: [
+    expect(events).toEqual([{
+       host: 'fansly-web', hostAccountId: SECOND_CREATOR, events: [
         { kind: 'message', id: '700000000000000103', conversationRef: GROUP, senderId: FAN, fromFan: true, automatic: false, tip: false, sentAt: null },
-      ] },
+      ],
     }]);
   });
 });

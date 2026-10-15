@@ -65,6 +65,8 @@ export interface World {
 }
 
 export interface TabOptions {
+  readonly hostKind?: 'chatspace' | 'fansly-web';
+  readonly host?: TabRuntimeEnv['host'];
   readonly tabId?: number;
   readonly accounts?: readonly HostAccount[];
   /** Where ChatSpace's route is: the fixture chat of the fixture account unless said otherwise. */
@@ -183,7 +185,8 @@ export function createWorld(
       return { client, context };
     },
     tabRuntime(tab = {}) {
-      const context = fake.context(chatSpaceSender(tab.tabId ?? 7));
+      const tabId = tab.tabId ?? 7;
+      const context = fake.context(tab.hostKind === 'fansly-web' ? tabSender(fake, { url: 'https://fansly.com/messages', origin: 'https://fansly.com', tab: { id: tabId, url: 'https://fansly.com/messages' } }) : chatSpaceSender(tabId));
       const life = new AbortController();
       lives.push(life);
       const listeners = new Map<string, Set<() => void>>();
@@ -210,12 +213,12 @@ export function createWorld(
       };
       const env = {
         win,
-        kind: 'chatspace',
+        kind: tab.hostKind ?? 'chatspace',
         // No composer on this page: no chunk is ever asked for.
         lazy: () => Promise.reject(new Error('no lazy chunk in this world')),
         life: life.signal,
         abort: (reason: string) => life.abort(reason),
-        host: {
+        host: tab.host ?? {
           // No composer on this page: the application chunk is never asked for.
           mounts: { points: () => ({ dock: { kind: 'none', composerInstanceId: null, width: null }, overlay: { ready: false, container: null } }), onChange: () => () => undefined },
           theme: {},

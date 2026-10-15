@@ -134,6 +134,8 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   // ── the port ───────────────────────────────────────────────────────────────
   let registry: TabPayloadValidator | null = null;
   const validate: TabPayloadValidator = (kind, type, payload) => {
+    const site = host.background?.validate(kind, type, payload);
+    if (site !== undefined && site !== null) return site;
     if (registry !== null) return registry(kind, type, payload);
     // A page command may come before the registry is loaded (the tab shows no chat yet): it is kept as it came
     // and checked against its schema once the application — and the registry with it — is in (below).
@@ -143,7 +145,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
       const parsed = TabRegisterResponseSchema.safeParse(payload);
       return parsed.success ? { ok: true, payload: parsed.data } : { ok: false };
     }
-    return (type === 'tab.presence' || type === 'sound.batch') && isAck(payload) ? { ok: true, payload } : { ok: false };
+    return type === 'tab.presence' && isAck(payload) ? { ok: true, payload } : { ok: false };
   };
   // A TEST build on the loopback stand may hold the port down (the probe; release has none): the client under it is the real one.
   const api = probe === null ? env.api : probe.api(env.api ?? defaultBrowser());
@@ -153,6 +155,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     ...(api === undefined ? {} : { api }),
   });
   life.addEventListener('abort', () => rpc.close());
+  host.background?.connect(rpc, life);
   /** How many times the background answered `tab.register`: more than one — it started again under this tab. */
   let registrations = 0;
   rpc.onState((state, tabSessionId) => {
@@ -230,8 +233,6 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     if (life.aborted) return;
     const off = port.subscribe((event) => {
       if (event.type === 'route' || event.type === 'accounts') reportPresence();
-      // Socket facts are heard on the inbox too, before any application chunk loads.
-      if (event.type === 'sound-batch' && rpc.state() === 'ready') void rpc.request('sound.batch', event.batch);
     });
     life.addEventListener('abort', off);
     reportPresence(true);

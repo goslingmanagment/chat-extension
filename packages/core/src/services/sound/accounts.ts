@@ -3,9 +3,10 @@
 // or account headers. Bounded like the presence store.
 import type { Platform } from '@cg/contracts/ids';
 
+import { LOCAL_KEYS } from '../../domain/storage';
 import type { KeyValueStore } from '../ports';
 
-const KEY = 'sound.accounts';
+const KEY = LOCAL_KEYS.soundAccounts;
 const MAX = 500;
 const id = (value: unknown): value is string => typeof value === 'string' && /^[0-9]{1,30}$/.test(value);
 

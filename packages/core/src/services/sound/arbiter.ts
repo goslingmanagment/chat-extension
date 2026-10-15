@@ -173,6 +173,7 @@ export class SoundArbiter {
   private readonly seen = new SeenEvents();
   private readonly own: SoundAccounts;
   private readonly chain = new WriteQueue();
+  private readonly accountWrites = new WriteQueue();
   private readonly sources = new Map<string, SourceState>();
   private readonly pages = new Map<string, string[]>();
   /** The hub's clock (epoch ms) at the last answer of each page: when its baseline was last looked at. */
@@ -238,11 +239,8 @@ export class SoundArbiter {
 
   /** Learn models and aliases even when their tab never receives a sound event. */
   rememberAccounts(): Promise<void> {
-    return this.chain.run(async () => {
-      if (this.deps.stream === undefined) return;
-      this.rememberKnownAccounts(this.deps.stream);
-      await this.own.flush();
-    });
+    if (this.deps.stream !== undefined) this.rememberKnownAccounts(this.deps.stream);
+    return this.accountWrites.run(() => this.own.flush());
   }
 
   private rememberKnownAccounts(stream: SoundStreamPort): void {
@@ -262,7 +260,7 @@ export class SoundArbiter {
         const outcome = await this.decideStream(tabSessionId, batch, event).catch(() => 'audio-error' as const);
         outcomes.push(this.count(event.kind, outcome));
       }
-      await this.own.flush();
+      await this.accountWrites.run(() => this.own.flush());
       return outcomes;
     });
   }

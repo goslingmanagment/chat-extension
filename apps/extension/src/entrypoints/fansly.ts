@@ -12,6 +12,7 @@ import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startFansly
 import type { UnlistedScriptDefinition } from 'wxt';
 import { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';
 
+import { soundTransport } from '../composition/tab/hosts/fansly/sound';
 import { composeTab, type HostAdapter } from '../composition/tab';
 import { FANSLY_LAZY_ROOT } from '../hosts/runtime/fansly';
 
@@ -23,8 +24,8 @@ import { FANSLY_LAZY_ROOT } from '../hosts/runtime/fansly';
  */
 export const FANSLY_ADAPTER: HostAdapter<FanslyPort> = {
   kind: 'fansly-web',
-  start: (env) =>
-    startFanslyTab({
+  start: (env) => {
+    const started = startFanslyTab({
       win: env.win,
       // The bridge's schemas are a lazy chunk of Fansly's own build (§3.1): this file is one classic script.
       validation: () => env.lazy<Validation>('bridge-validation'),
@@ -32,7 +33,9 @@ export const FANSLY_ADAPTER: HostAdapter<FanslyPort> = {
       redeem: env.redeem,
       navInsertTimeoutMs: env.navInsertTimeoutMs,
       onDiagnostic: env.onDiagnostic,
-    }),
+    });
+    return { ...started, background: soundTransport(started.host, env.onDiagnostic) };
+  },
   // Fansly's own rules for our keys (R20 P7i, §7.9): its message field — `textarea.message-input` under the route —,
   // and its windows — `body.modal-opened`, the focus in FBuddy's `fb-*-ui` — to which our keys yield; Enter is Fansly's.
   keyProbe: createKeyboardProbe,

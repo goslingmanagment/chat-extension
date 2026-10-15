@@ -46,7 +46,7 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 // Before MAIN's first state the port knows only the address; without MAIN at
 // all it still answers, and its report says CG-HOST-NOT-READY.
 
-import type { SoundStreamEvent } from '@cg/contracts/sound';
+import type { SoundBatch, SoundStreamEvent } from '@cg/contracts/sound';
 import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, FromMainFansly } from '@cg/contracts/bridge-messages-fansly';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
@@ -114,6 +114,8 @@ export interface FanslyVaultFacts {
 }
 
 export interface FanslyPort extends FanslyHostPort {
+  /** Bounded early backlog; the tab's transport subscribes before its first presence. */
+  onSoundBatch(listener: (batch: SoundBatch) => void): Unsubscribe;
   /** Resolves once MAIN's first state was taken (or asked in vain, or at once without MAIN). */
   readonly ready: Promise<void>;
   /** The identity reads and writes are checked against now; null when there is none. */
@@ -251,6 +253,14 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   let vaultUpload: FanslyPagePort['uploadToVault'] | null = null;
   const vaultListeners = new Set<(fact: FanslyVaultFact) => void>();
   const vaultLosses = new Set<() => void>();
+  const soundListeners = new Set<(batch: SoundBatch) => void>();
+  const pendingSounds: SoundBatch[] = [];
+  const saySound = (batch: SoundBatch): void => {
+    if (soundListeners.size === 0) {
+      if (pendingSounds.length === 32) { pendingSounds.shift(); diag({ event: 'sound-overflow' }); }
+      pendingSounds.push(batch);
+    } else for (const listener of soundListeners) listener(batch);
+  };
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
   const slotListeners = new Set<(slot: FanslyHeaderSlot) => void>();
@@ -500,7 +510,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
             batch() {
               const events = soundEvents;
               soundEvents = [];
-              if (!disposed && creator !== null && events.length > 0) emit({ type: 'sound-batch', batch: { host: FANSLY_KIND, hostAccountId: creator, events } });
+              if (!disposed && creator !== null && events.length > 0) saySound({ host: FANSLY_KIND, hostAccountId: creator, events });
             },
             lost(reason) {
               diag({ event: 'stream-lost', detail: { reason } });
@@ -662,6 +672,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     theme.dispose();
     options.coexistence?.dispose();
     eventListeners.clear();
+    soundListeners.clear();
+    pendingSounds.length = 0;
     contractListeners.clear();
     slotListeners.clear();
     vaultListeners.clear();
@@ -688,6 +700,11 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   if (options.coexistence?.stopped.aborted) retire();
 
   return {
+    onSoundBatch(listener) {
+      soundListeners.add(listener);
+      for (const batch of pendingSounds.splice(0)) listener(batch);
+      return () => { soundListeners.delete(listener); };
+    },
     kind: FANSLY_KIND,
     platform: FANSLY_PLATFORM,
     ready,

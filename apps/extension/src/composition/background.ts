@@ -572,12 +572,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const sound = createBackgroundSound({
     local: throwingStoreOf(local),
     stream: {
-      policy: (host, accountId) => {
-        const key = hostAccountKeyOf(host, accountId);
-        const tab = presence.tabs().find((item) => item.routeAccount === key);
-        const registered = rpc.tabs().find((item) => item.tabSessionId === tab?.tabSessionId);
-        return hostModules.running(host)?.sound?.(accountId, registered?.tabId) ?? null;
-      },
+      policy: (host, accountId) => hostModules.running(host)?.sound?.(accountId) ?? null,
       listening: (tabSessionId, batch) => hostOfTab(tabSessionId) === batch.host && presence.tabs().some((tab) => tab.tabSessionId === tabSessionId && tab.routeAccount === hostAccountKeyOf(batch.host, batch.hostAccountId)),
       focused: (batch, conversationRef) => presence.tabs().some((tab) => tab.routeAccount === hostAccountKeyOf(batch.host, batch.hostAccountId) && tab.conversationRef === conversationRef && tab.visible && tab.focused),
     },
@@ -630,6 +625,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // The ports of the core a site's chunk is started with: one owner of each thing stays here.
   const kit: Omit<BackgroundKit, 'telemetry'> = {
     settingsExt: extSettings,
+    sound: { batch: async (tabSessionId, batch) => {
+      await tabAccounts.known(tabSessionId);
+      await sound.arbiter.handleBatch(tabSessionId, batch);
+    } },
     hub: {
       // The facade is read at each call: it exists once the settings are read.
       facade: { claim: (op) => hub().claim(op), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
@@ -1041,7 +1040,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const recorded = await presence.report(sender.tabSessionId, report);
     // From here the tab's own accounts are known: a request that waited for them is answered now.
     if (report.accounts !== undefined && report.accounts.length > 0) tabAccounts.reported(sender.tabSessionId);
-    if (recorded.recorded) await sound.arbiter.rememberAccounts();
+    // A keepalive never waits behind audio or recomputes the site's aliases.
+    if (recorded.recorded && (report.accounts !== undefined || before?.routeAccount !== presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId)?.routeAccount)) void sound.arbiter.rememberAccounts();
     return ok(recorded);
   });
 
@@ -1261,12 +1261,6 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (!incomingFactUsable(request.fact, accountFlag)) return ok({ played: false, reason: 'disabled' });
     scheduler.incoming(request.fact);
     return soundHandlers['sound.event'](request, sender);
-  });
-  rpc.handle('sound.batch', async (batch, sender) => {
-    if (sender.kind !== 'tab' || hostOfTab(sender.tabSessionId) !== batch.host) return fail('CG-RUNTIME-UNREACHABLE', 'wrong sound host');
-    await hostModules.ensure(batch.host);
-    await sound.arbiter.handleBatch(sender.tabSessionId, batch);
-    return ok({ recorded: true });
   });
   rpc.handle('sound.preview', soundHandlers['sound.preview']);
 

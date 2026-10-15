@@ -89,8 +89,8 @@ describe('background wiring — operations, sound and page commands on the stand
     if (!diagnostics.ok) throw new Error(`diagnostics.get: ${diagnostics.error.code}`);
     return diagnostics.payload.sound;
   };
-  /** How many tones the arbiter decided to start: played, or handed to a player that would not run in this browser. */
-  const rings = (sound: SoundFacts): number => (sound.outcomes['played'] ?? 0) + (sound.outcomes['audio-error'] ?? 0);
+  /** Successful tones only: an audio error is a failed ring. */
+  const rings = (sound: SoundFacts): number => sound.outcomes['played'] ?? 0;
   const signIn = async (): Promise<void> => {
     await browser.url(testBuildPage('options.html'));
     expect(await pageRpc('session.signIn', { login: WORLD.user.username, password: PASSWORD })).toMatchObject({ ok: true });

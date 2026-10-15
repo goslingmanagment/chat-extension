@@ -247,7 +247,7 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
     /** IDs only, including disconnected templates: a previously seen model is still our own. */
     aliases(accountId: string): readonly string[] {
       if (!readable) return [];
-      return [...new Set([...templates.values()].filter((entry) => entry.legacyId === accountId || entry.canonicalId === accountId).flatMap((entry) => entry.canonicalId === null ? [entry.legacyId] : [entry.legacyId, entry.canonicalId]))];
+      return [...new Set([...templates.values()].filter((entry) => (entry.legacyId === accountId && entry.canonicalId === null) || entry.canonicalId === accountId).flatMap((entry) => entry.canonicalId === null ? [entry.legacyId] : [entry.legacyId, entry.canonicalId]))];
     },
     rateLimits(): readonly RateLimitFact[] { return readable ? limits.map((fact) => ({ ...fact })) : []; },
     idle: () => run(() => undefined),

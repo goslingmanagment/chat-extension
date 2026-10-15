@@ -13,7 +13,7 @@ import { useNetworkTrap } from '../support/network-trap';
 
 interface Sound { outcomes: Record<string, number>; listeningTabs: number }
 const value = (sound: Sound, name: string): number => sound.outcomes[name] ?? 0;
-const rings = (sound: Sound, prefix = ''): number => value(sound, `${prefix}played`) + value(sound, `${prefix}audio-error`);
+const rings = (sound: Sound, prefix = ''): number => value(sound, `${prefix}played`);
 
 describe('[FS-SND-1] Fansly socket sounds', () => {
   useNetworkTrap();

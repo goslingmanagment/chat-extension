@@ -316,7 +316,6 @@ export class AiWorkspace {
             this.bump();
             break;
           // The X8 fuse (decision X25) is the tab's to report; what it turns off comes with the host contract.
-          case 'sound-batch': // The early runtime forwards socket sound facts; no UI redraw for each fact.
           case 'sendFuse':
             break;
         }
