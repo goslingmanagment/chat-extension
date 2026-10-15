@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe('the Fansly start without MAIN', () => {
-  it('takes our hosts of a dead instance out, makes the dock host with a closed root that stands nowhere, and overlays in <html> on first use', () => {
+  it('takes our hosts of a dead instance out, makes the dock host with a closed root that stands nowhere, and overlays in <html> on first use', async () => {
     document.body.innerHTML = '<div data-host="dock"></div><div data-host="overlay"></div><div data-host="dock"><span>not ours</span></div>';
     const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20 });
     expect(started.staleHosts).toBe(2);
@@ -37,6 +37,8 @@ describe('the Fansly start without MAIN', () => {
     started.mounts.dispose();
     expect(modal.host.isConnected).toBe(false);
     expect(started.mounts.registry.hosts()).toEqual([]);
+    // The handshake's timer ends inside the test, not after the environment is gone.
+    expect(await started.bridge).toBeNull();
   });
 
   it('without MAIN the bridge is null after its timeout and the tab hears «not ready»; Fansly’s host port never comes before P7c', async () => {
@@ -49,7 +51,7 @@ describe('the Fansly start without MAIN', () => {
     started.mounts.dispose();
   });
 
-  it('the keys: no route of the address is a chat yet (P7c), no field is Fansly’s message field and no window of its own is open (P7i)', () => {
+  it('the keys: no route of the address is a chat yet (P7c), no field is Fansly’s message field and no window of its own is open (P7i)', async () => {
     expect(routeOfLocation({ pathname: '/messages/123456789012345678' })).toEqual({ kind: 'other', epoch: '/messages/123456789012345678' });
     const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20 });
     const probe = createKeyboardProbe(document, started.mounts.registry);
@@ -60,5 +62,6 @@ describe('the Fansly start without MAIN', () => {
     document.body.classList.add('modal-opened');
     expect(probe.nativeModalOpen()).toBe(false);
     started.mounts.dispose();
+    expect(await started.bridge).toBeNull();
   });
 });
