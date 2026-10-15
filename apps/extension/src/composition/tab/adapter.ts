@@ -34,11 +34,14 @@ import type { HostKind } from '@cg/contracts/hosts';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendFuseState } from '@cg/contracts/send';
-import type { HostUiProfile } from '@cg/contracts/vm';
+import type { HostUiProfile, MountDeps } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
 import type { HotkeyClient, RouteKind } from '@cg/core/domain/hotkeys';
+import type { TabRpcClient } from '@cg/platform';
+import type { KitFailure } from '@cg/ui/kit';
 
 import type { LazyEntryName } from '../../../lazy/entries/names';
+import type { TabProbe } from './probe';
 
 /** What the browser gives a site's isolated content script. */
 export interface TabEnv {
@@ -124,6 +127,11 @@ export interface StartedHost<P extends HostPort = HostPort> {
   readonly bridge: Promise<HostBridge | null>;
   /** The HostPort once the bridge is up (or known to be missing) and its first snapshot was taken. */
   readonly host: Promise<P>;
+  /**
+   * A place for a surface of the site's own where no composer is (R20 P13b: the vault's entry on Fansly's
+   * `/creator/vault`): while it holds, the application is loaded as for the dock's place. Absent — the dock's alone.
+   */
+  readonly wantsApp?: { current(): boolean; onChange(listener: () => void): () => void };
 }
 
 /** The route by the address alone (§9.1): `epoch` is the path, so a kept key runs only where it was pressed. */
@@ -164,6 +172,27 @@ export interface HostAdapter<P extends HostPort = HostPort> {
 }
 
 /**
+ * What the application gives the site's own surfaces (R20 P13b; `HostAppAdapter.start`): the port to the background,
+ * the site's host port, our mount layers, the site's lazy build, and what every surface of the tab is mounted with
+ * (`deps`: the site's profile, the texts, the scheme, the toasts; the side panels' geometry).
+ */
+export interface SiteAppEnv<P extends HostPort = HostPort> {
+  readonly win: Window;
+  readonly life: AbortSignal;
+  readonly rpc: TabRpcClient;
+  readonly host: P;
+  readonly mounts: HostMounts;
+  readonly lazy: <T>(entry: LazyEntryName) => Promise<T>;
+  readonly deps: MountDeps;
+  /** The site's slice of the feature manifest: what its own surfaces are admitted by. */
+  readonly features: FeatureSlice;
+  /** A surface failed to render or to load: the tab's log and client_health (facts only, never a text). */
+  readonly report: (failure: KitFailure) => void;
+  /** Test builds only: what the e2e reads of the tab. */
+  readonly probe: TabProbe | null;
+}
+
+/**
  * The application's half of a site's adapter: in the site's `tab-app` chunk, loaded with the application. `C` is
  * what the site's host port takes from the bootstrap (ChatSpace: `ChatSpaceLiveConfig`, its part B).
  */
@@ -199,4 +228,9 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    * `lazy`; ChatSpace's is in its `tab-app` and answers at once.
    */
   ai(lazy: <T>(entry: LazyEntryName) => Promise<T>): AiHostPolicy | Promise<AiHostPolicy>;
+  /**
+   * The site's own surfaces, started once with the application (R20 P13b: Fansly's vault panel and its entry): they
+   * mount into our layers, load their chunks of the site's build and stop with the answer. Absent — none (ChatSpace).
+   */
+  start?(env: SiteAppEnv<P>): () => void;
 }

@@ -32,8 +32,9 @@
 //   or Send click in the field the port owns, and MAIN's `fx.sent` for that
 //   gesture is linked to it — the port says `humanSend` (send-observe.ts).
 // - `fansly` (FanslyPagePort): the header slot is said from the anchors (its
-//   mount is P7d's and P11a's); a file into the field (P12c), the vault (P13b)
-//   and the relay (P9c) are refused until then.
+//   mount is P7d's and P11a's); a file into the field (P12c) and the relay
+//   (P9c) are refused until then; a file into the vault is the vault panel's
+//   upload (`vault.serve`, P13b), refused while its module is not up.
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
@@ -103,6 +104,11 @@ export interface FanslyVaultFacts {
   onFact(cb: (fact: FanslyVaultFact) => void): Unsubscribe;
   /** MAIN's facts were lost (`fx.gap`, a refused or skipped batch): what the page did meanwhile is not known. */
   onLost(cb: () => void): Unsubscribe;
+  /**
+   * `FanslyPagePort.uploadToVault` as the vault's panel serves it (R20 P13b): its uploader is a lazy chunk of its own,
+   * never this early bundle, so the member refuses (`anchor-missing`) until the panel's module is up and after it went.
+   */
+  serve(upload: FanslyPagePort['uploadToVault']): Unsubscribe;
 }
 
 export interface FanslyPort extends FanslyHostPort {
@@ -238,6 +244,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   };
 
   let vaultLoad: ReturnType<FanslyVaultFacts['album']> = null;
+  /** The vault panel's upload of one file (P13b), while its module is up. */
+  let vaultUpload: FanslyPagePort['uploadToVault'] | null = null;
   const vaultListeners = new Set<(fact: FanslyVaultFact) => void>();
   const vaultLosses = new Set<() => void>();
   const eventListeners = new Set<(event: HostEvent) => void>();
@@ -613,7 +621,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       };
     },
     attachToComposer: () => Promise.resolve({ state: 'refused', reason: 'anchor-missing' }),
-    uploadToVault: () => Promise.resolve({ state: 'refused', reason: 'anchor-missing' }),
+    uploadToVault: (file) => (vaultUpload === null || disposed ? Promise.resolve({ state: 'refused', reason: 'anchor-missing' }) : vaultUpload(file)),
     relay: { open: () => Promise.resolve('failed'), close: () => undefined },
   };
 
@@ -637,6 +645,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     slotListeners.clear();
     vaultListeners.clear();
     vaultLosses.clear();
+    vaultUpload = null;
   };
   const retire = (): void => {
     generation.advance();
@@ -712,6 +721,12 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         vaultLosses.add(cb);
         return () => {
           vaultLosses.delete(cb);
+        };
+      },
+      serve(upload): Unsubscribe {
+        vaultUpload = upload;
+        return () => {
+          if (vaultUpload === upload) vaultUpload = null;
         };
       },
     },

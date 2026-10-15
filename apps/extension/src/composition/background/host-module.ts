@@ -26,7 +26,8 @@ import type { Bootstrap, HubFacade, HubRouteKey, ResolveHubError } from '@cg/con
 import type { PartRef } from '@cg/contracts/ids';
 import type { OpView } from '@cg/contracts/ops';
 import type { FreshnessCheckpoint, SendFuseState, SendJournalEntry } from '@cg/contracts/send';
-import type { TabRequestPayload, TabRequestType } from '@cg/contracts/tab-messages';
+import type { TabPayloadCheck, TabRequestPayload, TabRequestType } from '@cg/contracts/tab-messages';
+import type { ExtensionPage, TabSender } from '@cg/contracts/tab-protocol';
 import type { AcceptanceEvent } from '@cg/contracts/telemetry';
 import type { OpEnvTag, OpsEnvironment } from '@cg/core/domain/ops';
 import type { PartPosition, SentProof } from '@cg/core/domain/telemetry';
@@ -125,8 +126,38 @@ export interface NativeSendPort {
   register(view: OpView | null, part: PartRef, platformMessageId: string): Promise<NativeSendOutcome>;
 }
 
+/** Who sent a request of a site's own registry: a tab of the site, or the relay frame of a tab session (platform `SiteSenderContext`). */
+export type HostSiteSender =
+  | { readonly kind: 'tab'; readonly host: HostKind; readonly tabSessionId: string; readonly tabId: number; readonly url: string }
+  | { readonly kind: 'relay'; readonly host: HostKind; readonly tabSessionId: string; readonly tabId: number; readonly frameId: number; readonly url: string };
+
+/**
+ * A site's own tab registry as its module plugs it (1.15.0; R20 P13b; architecture.md §1.6, §3.3, §12; platform
+ * `BackgroundRpc.site`): the core checked the sender, its tab session, its site and the envelope; the registry's sender
+ * rules, schemas (both ways) and handler are the site's — its schemas never enter the core's graph. A failure of the
+ * site's own travels in the answer's payload; the error of `HostAnswer` carries shared codes only.
+ */
+export interface HostSiteRegistry {
+  /** Every type of the registry starts with it (`fansly.`); no shared type does. */
+  readonly prefix: string;
+  isRequestType(type: string): boolean;
+  mayRequest(type: string, sender: TabSender, page: ExtensionPage | null, host: HostKind | null): boolean;
+  parse(kind: 'req' | 'res' | 'evt', type: string, payload: unknown): TabPayloadCheck;
+  /** Who an event of the registry goes to; null — not one of its events. */
+  eventTargets(type: string): readonly TabSender[] | null;
+  handle(type: string, payload: unknown, sender: HostSiteSender): HostAnswer | Promise<HostAnswer>;
+}
+
+/** The core's RPC as a site's module reaches it: its own registry, plugged while the module runs (R20 P13b). */
+export interface SitePort {
+  /** Requests of the site's types are answered by `registry` from now on; the answer unplugs it. */
+  plug(registry: HostSiteRegistry): () => void;
+}
+
 /** The ports of the core a site's module is started with. */
 export interface BackgroundKit {
+  /** R20 P13b: the site's own tab registry (`fansly.*`), plugged by its module. Absent — the core serves no site registry. */
+  readonly site?: SitePort;
   /** Passive session/429 state, owned and restored by the core. No site transport here. */
   readonly networkSession?: NetworkSession;
   readonly hub: HubPort;

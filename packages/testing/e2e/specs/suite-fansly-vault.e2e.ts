@@ -4,16 +4,33 @@
 // `/creator/vault`, the page's own input and upload, each confirmed by MAIN's `fx.vaultAdded` (the page's
 // `POST /vault/albums/media` to the fake Fansly), the reload of that album (`fx.vaultLoaded`, its address) and the
 // file's card; checkpoints before every handoff; next to the FBuddy-like neighbour `off` and `after` (its hook on
-// every XHR of the page). A file the page does not take is not known, never handed again. The panel and its entry on
-// `/creator/vault` are P13b's, which completes this suite. No extension is installed; nothing of ours asks Fansly
-// anything (the fake's journal by caller).
+// every XHR of the page). A file the page does not take is not known, never handed again. No extension is installed
+// there; nothing of ours asks Fansly anything (the fake's journal by caller).
+//
+// P13b — the extension's test build on the stand, signed in to the fake hub with the Fansly page's `vault` on: the
+// entry only on `/creator/vault` and one click to the panel (VA-001), the set in its order (VA-002), the uploads one
+// by one through the page's own form (VA-003), next to the neighbour `off` and `after`, the panel in both Fansly
+// themes (screenshots `.cache/e2e/suite-fansly-vault-*.png`); a paused set continues after the background's sleep
+// and a reload of the tab from the checkpoint the background keeps (VA-005, FS-PERM-5).
 
 import { browser, expect } from '@wdio/globals';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
+import { WORLD } from '../../src/scenarios/hub/world';
+import { fanslyPageFlags } from '../../src/fake-hub/config';
+import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
+import { suspendBackground } from '../support/background';
+import { installTestBuild, pageRpc, readLocalStorage, readReport, waitForReport } from '../support/extension';
+import { QUIET_PAGE, fakeHubOrigin, pointTestBuildAtFakeHub, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
-import { fakeFansly, fanslyIds, waitForFanslyStandIdle } from '../support/fansly-stand';
+import { switchFanslyOnForTheStand } from '../support/fansly-site';
+import { callFansly, fakeFansly, fanslyIds, fanslyStandServer, waitForFanslyStandIdle, waitForFanslyStandReady } from '../support/fansly-stand';
 import { installFanslyTapHarness, tap, waitForFanslyTap, waitForTap, type FanslyTapHarness } from '../support/fansly-tap';
 import { useNetworkTrap } from '../support/network-trap';
+import { ours, oursExists, waitOursByText } from '../support/ours';
+import { SHIFT_PASSWORD } from '../support/shift';
 
 /** The fake Fansly's first album (src/fake-fansly/data.ts). */
 const ALBUM = '807000000000000021';
@@ -134,4 +151,224 @@ describe('the vault uploader on the Fansly stand: files into the open album, con
       expect(other).toMatchObject({ title: OTHER_ALBUM_TITLE, loading: false });
     });
   }
+});
+
+// ── P13b: the panel of the extension's test build, its entry on `/creator/vault` and the background's checkpoints ──
+
+interface PanelReport {
+  readonly shown: boolean;
+  readonly mode: 'closed' | 'open' | 'minimized';
+  readonly account: string | null;
+  readonly album: { readonly state: string; readonly title: string | null };
+  readonly uploader: string;
+  readonly items: ReadonlyArray<{ readonly name: string; readonly state: string }> | null;
+  readonly run: { readonly state: string; readonly done: number; readonly total: number; readonly stop: { readonly kind: string } | null; readonly code: string | null; readonly report: { readonly uploaded: number; readonly present: number; readonly previous: number } | null } | null;
+  readonly question: { readonly name: string } | null;
+  readonly resume: { readonly kind: string; readonly done: number; readonly total: number } | null;
+  readonly controls: { readonly start: string; readonly blocked: string | null };
+  readonly mounted: boolean;
+}
+
+const panelOf = async (): Promise<PanelReport | null> => ((await readReport())?.['vault'] as PanelReport | undefined) ?? null;
+async function waitForPanel(predicate: (panel: PanelReport) => boolean, message: string, timeout = 15_000): Promise<PanelReport> {
+  const report = await waitForReport((now) => {
+    const panel = now['vault'] as PanelReport | undefined;
+    return panel !== undefined && predicate(panel);
+  }, message, timeout);
+  return report['vault'] as PanelReport;
+}
+
+/** The person's files on this machine, as a file picker gives them: a set of small images (the stand takes any image). */
+function setOnDisk(name: string, files: readonly string[]): string[] {
+  const folder = join(tmpdir(), `cg-vault-${name}`);
+  rmSync(folder, { recursive: true, force: true });
+  mkdirSync(folder, { recursive: true });
+  return files.map((file, index) => {
+    const path = join(folder, file);
+    writeFileSync(path, Buffer.alloc(64 + index, index + 1));
+    return path;
+  });
+}
+
+/** Picks `paths` with the panel's own «Выбрать файлы» input (inside our closed root), as the browser's picker would. */
+async function pick(paths: readonly string[]): Promise<void> {
+  await ours('panel', 'input[data-cg-vault-input="files"]').addValue(paths.join('\n'));
+}
+
+async function shootVault(name: string): Promise<string> {
+  mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
+  await browser.execute(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await browser.pause(200);
+  const path = `${E2E_EVIDENCE_DIR}suite-fansly-vault-${name}.png`;
+  await browser.saveScreenshot(path);
+  return path;
+}
+
+const checkpointKey = (creator: string): string => `fansly.vault.${creator}.${ALBUM}`;
+
+describe('the vault panel on the Fansly stand: one click to it on `/creator/vault`, the set, the uploads one by one, checkpoints in the background (R20 P13b)', () => {
+  useNetworkTrap();
+  const { hub } = useFakeHub();
+  let standTab = '';
+  let pagesTab = '';
+  let creator = '';
+  let journalStart = 0;
+  const pages = (): Promise<void> => browser.switchToWindow(pagesTab);
+  const stand = (): Promise<void> => browser.switchToWindow(standTab);
+
+  before(async () => {
+    await setFanslyNeighbor(null);
+    await fakeFansly().command({ op: 'reset' });
+    journalStart = await fanslyStandServer.mark();
+    // The owner switched the vault on for the Fansly page (its own row: `"*"` never reaches it).
+    await hub().command({ op: 'config', patch: fanslyPageFlags({ vault: true }) });
+    await installTestBuild();
+    await pointTestBuildAtFakeHub();
+    await browser.waitUntil(
+      async () => {
+        const state = await pageRpc<{ settings: { hub: { baseUrl: string } } }>('settings.get');
+        return state.ok && state.payload.settings.hub.baseUrl === fakeHubOrigin();
+      },
+      { timeout: 15_000, timeoutMsg: 'the settings owner did not pick the hub address up' },
+    );
+    // The password is taken only from the settings page (the sender rule of `session.signIn`).
+    await browser.url(testBuildPage('options.html'));
+    const signedIn = await pageRpc('session.signIn', { login: WORLD.user.username, password: SHIFT_PASSWORD });
+    if (!signedIn.ok) throw new Error(`sign-in: ${signedIn.error.code}`);
+    await switchFanslyOnForTheStand();
+    await browser.url(testBuildPage(QUIET_PAGE));
+    pagesTab = await browser.getWindowHandle();
+    standTab = (await browser.createWindow('tab')).handle;
+    await stand();
+    await browser.setWindowSize(1440, 900);
+  });
+
+  after(async () => {
+    // Nothing of the extension asked the Fansly stand for anything: the page's own requests did every upload.
+    expect((await fanslyStandServer.journal(journalStart)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
+    expect(await fakeFansly().calls('ours', 0)).toEqual([]);
+    await setFanslyNeighbor(null);
+    await browser.url('about:blank');
+    await fakeFansly().command({ op: 'reset' });
+  });
+
+  for (const mode of ['off', 'after'] as const) {
+    it(`[VA-001] [VA-002] [VA-003] [FS-VLT-1] next to the neighbour (${mode}): the entry only on the vault, one click opens the panel; the set in its order, uploaded one by one through the page’s own form, each confirmed, the album as the person wanted; both Fansly themes`, async () => {
+      await fakeFansly().command({ op: 'reset' });
+      await stand();
+      // A chat is no place of the vault's: no entry, nothing of it loaded.
+      await openWithNeighbor('/messages', { mode });
+      const [group] = (await fanslyIds()).groups as [string];
+      await openWithNeighbor(`/messages/${group}`, { mode });
+      await waitForReport((report) => report.rpc?.registered === true, 'the chat tab registered');
+      await browser.pause(300);
+      expect((await panelOf())?.shown ?? false).toBe(false);
+      expect(await oursExists('panel', '[data-cg-vault-entry]')).toBe(false);
+
+      await openWithNeighbor('/creator/vault', { mode });
+      await waitForFanslyStandIdle();
+      creator = (await fanslyIds()).creator;
+      // VA-001: the entry stands closed at the corner; one click and the panel is there.
+      await waitForPanel((panel) => panel.shown && panel.mode === 'closed' && panel.mounted, 'the vault’s entry on /creator/vault');
+      for (const theme of ['dark', 'bright'] as const) {
+        await callFansly('setTheme', theme);
+        await browser.pause(100);
+        await shootVault(`${mode}-${theme}-entry`);
+      }
+      await ours('panel', '[data-cg-vault-entry]').click();
+      const opened = await waitForPanel((panel) => panel.mode === 'open', 'the panel after one click');
+      // AU-036: the creator of the page's own /account/me, named as the hub page bound to it.
+      expect(opened).toMatchObject({ account: WORLD.pages.fansly.title, album: { state: 'none' }, controls: { blocked: 'files' } });
+
+      // The person opens an album and «Upload to Vault»; the panel reads the page when the pointer comes back.
+      await browser.$('app-media-vault-route .vault-album').click();
+      await browser.$('app-media-vault-route .vault-header').waitForExist({ timeout: 5000 });
+      await browser.$('app-media-vault-route .close-toggle').click();
+      await ours('panel', '.cg-vault__card').moveTo();
+      await waitForPanel((panel) => panel.album.state === 'open' && panel.uploader === 'ready', 'the open album and its form in the panel');
+
+      // VA-002: a folder's set in its natural order — the album shows the first file on top.
+      const names = [`p13b-${mode}-2.jpg`, `p13b-${mode}-10.jpg`, `p13b-${mode}-1.jpg`];
+      await pick(setOnDisk(mode, names));
+      const planned = await waitForPanel((panel) => (panel.items?.length ?? 0) === 3 && panel.controls.blocked === null, 'the set in the panel');
+      expect(planned.items?.map((item) => item.name)).toEqual([`p13b-${mode}-1.jpg`, `p13b-${mode}-2.jpg`, `p13b-${mode}-10.jpg`]);
+      for (const theme of ['bright', 'dark'] as const) {
+        await callFansly('setTheme', theme);
+        await browser.pause(100);
+        await shootVault(`${mode}-${theme}-set`);
+      }
+      await callFansly('setTheme', 'bright');
+
+      // VA-003: Start — one file at a time through the page's form, each confirmed before the next.
+      const since = await fakeFansly().mark();
+      await ours('panel', '[data-cg-vault-start]').click();
+      const done = await waitForPanel((panel) => panel.run?.state === 'complete' || panel.run?.state === 'stopped', 'the run’s end', 60_000);
+      expect(done.run).toMatchObject({ state: 'complete', done: 3, total: 3, stop: null, code: null, report: { uploaded: 3, present: 0, previous: 0 } });
+      expect(done.items?.map((item) => item.state)).toEqual(['verified', 'verified', 'verified']);
+      expect(await cards()).toEqual([`p13b-${mode}-1.jpg`, `p13b-${mode}-2.jpg`, `p13b-${mode}-10.jpg`]);
+      const calls = (await fakeFansly().calls('page', since)).filter((entry) => entry.route === 'vault.addMedia').map((entry) => entry.route);
+      expect(calls).toEqual(['vault.addMedia', 'vault.addMedia', 'vault.addMedia']);
+      for (const theme of ['dark', 'bright'] as const) {
+        await callFansly('setTheme', theme);
+        await browser.pause(100);
+        await shootVault(`${mode}-${theme}-done`);
+      }
+      // Its checkpoint is gone from the background.
+      await pages();
+      expect(await readLocalStorage([checkpointKey(creator)])).toEqual({});
+      await stand();
+    });
+  }
+
+  it('[VA-005] [FS-VLT-1] [FS-PERM-5] a paused set survives the background’s sleep and a reload of the tab: the same files continue from the checkpoint, the done ones are not uploaded again', async () => {
+    await fakeFansly().command({ op: 'reset' });
+    await stand();
+    await openWithNeighbor('/creator/vault', { mode: 'off' });
+    await waitForFanslyStandIdle();
+    creator = (await fanslyIds()).creator;
+    await waitForPanel((panel) => panel.shown && panel.mounted, 'the vault’s entry');
+    await ours('panel', '[data-cg-vault-entry]').click();
+    await waitForPanel((panel) => panel.mode === 'open', 'the panel');
+    await browser.$('app-media-vault-route .vault-album').click();
+    await browser.$('app-media-vault-route .vault-header').waitForExist({ timeout: 5000 });
+    await browser.$('app-media-vault-route .close-toggle').click();
+    await ours('panel', '.cg-vault__card').moveTo();
+    await waitForPanel((panel) => panel.uploader === 'ready', 'the form ready');
+    const paths = setOnDisk('resume', ['r-1.jpg', 'r-2.jpg', 'r-3.jpg']);
+    await pick(paths);
+    await waitForPanel((panel) => panel.controls.blocked === null, 'the set ready');
+    await ours('panel', '[data-cg-vault-start]').click();
+    // «Пауза после текущего»: the file in flight goes, then nothing.
+    await (await waitOursByText('panel', 'button', 'Пауза после текущего', 'the pause')).click();
+    const paused = await waitForPanel((panel) => panel.run?.state === 'paused', 'the run paused', 30_000);
+    expect(paused.run?.done).toBe(1);
+    await pages();
+    const kept = (await readLocalStorage([checkpointKey(creator)]))[checkpointKey(creator)] as { confirmed: number; pending: unknown; files: unknown[] };
+    expect([kept.confirmed, kept.pending, kept.files.length]).toEqual([1, null, 3]);
+
+    // The event page sleeps; the tab is reloaded: a new document, a new background.
+    expect(await suspendBackground()).toBe('stopped');
+    await stand();
+    await browser.refresh();
+    await waitForFanslyStandReady();
+    await waitForPanel((panel) => panel.shown && panel.mounted, 'the vault’s entry after the reload');
+    await ours('panel', '[data-cg-vault-entry]').click();
+    await waitForPanel((panel) => panel.mode === 'open', 'the panel after the reload');
+    await browser.$('app-media-vault-route .vault-album').click();
+    await browser.$('app-media-vault-route .vault-header').waitForExist({ timeout: 5000 });
+    await browser.$('app-media-vault-route .close-toggle').click();
+    await ours('panel', '.cg-vault__card').moveTo();
+    await waitForPanel((panel) => panel.resume?.kind === 'found', 'the checkpoint of the album, read from the new background');
+    await pick(paths);
+    const resumed = await waitForPanel((panel) => panel.resume?.kind === 'continue' && panel.controls.blocked === null, 'the same files continue');
+    expect([resumed.resume, resumed.controls.start]).toEqual([{ kind: 'continue', done: 1, total: 3 }, 'resume']);
+    await shootVault('resume-bright');
+    const since = await fakeFansly().mark();
+    await ours('panel', '[data-cg-vault-start]').click();
+    const done = await waitForPanel((panel) => panel.run?.state === 'complete', 'the rest uploaded', 60_000);
+    expect(done.run?.report).toEqual({ uploaded: 2, present: 0, previous: 1 });
+    // Only the two not done went to the page.
+    expect((await fakeFansly().calls('page', since)).filter((entry) => entry.route === 'vault.addMedia')).toHaveLength(2);
+    expect(await cards()).toEqual(['r-1.jpg', 'r-2.jpg', 'r-3.jpg']);
+  });
 });

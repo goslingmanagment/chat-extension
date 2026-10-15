@@ -38,7 +38,13 @@ export const LAZY_ENTRIES = {
   preview: 'entries/preview.ts',
 } as const;
 
-export type LazyEntryName = keyof typeof LAZY_ENTRIES;
+/**
+ * Entries only a site's own build has (R20: Fansly's panels — the vault, P13b), named for the loader's type: the site's
+ * registry entry builds them (apps/extension/src/hosts/<site>.ts), and no other build has a file of that name.
+ */
+export type SiteLazyEntryName = 'vault';
+
+export type LazyEntryName = keyof typeof LAZY_ENTRIES | SiteLazyEntryName;
 
 /**
  * The entries every chat tab loads, in the order their budgets stack

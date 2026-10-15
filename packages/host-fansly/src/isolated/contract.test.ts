@@ -43,6 +43,18 @@ describe('[host:fansly] the early bundle’s copies of the contracts', () => {
     expect(of({ observation: 'unknown' })).toEqual({ state: 'off', reason: 'focus', code: 'CG-HOST-NOT-READY' });
   });
 
+  it('[FS-VLT-1] [R20-P13b] the vault is on with MAIN’s observer of the page’s requests — its facts confirm every file; without MAIN, before its word or with that observer broken, it is not', () => {
+    const report = (bridge: boolean, xhr: 'ok' | 'missing' | 'shape' | 'notYet' | null) =>
+      buildFanslyReport({ bridge, wire: xhr === null ? null : { anchors: { accountMe: 'ok', socket: 'ok', frames: 'ok', xhr }, tap: 'ok' }, creator: true, observation: 'ready', dom: DOM_ANCHORS_NOT_YET, build: null, adapterVersion: '0.1.0', checkedAt: 1 }).extensions['fansly-web'].capabilities.vault;
+    expect(report(true, 'ok')).toEqual({ state: 'on' });
+    expect(report(false, null)).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
+    expect(report(true, null)).toEqual({ state: 'off', reason: 'xhr', code: 'CG-HOST-NOT-READY' });
+    expect(report(true, 'missing')).toEqual({ state: 'off', reason: 'xhr', code: 'CG-HOST-NOT-READY' });
+    expect(report(true, 'shape')).toEqual({ state: 'contractBroken', reason: 'xhr', code: 'CG-HOST-CONTRACT' });
+    // The upload input is there only with «Upload to Vault» open: an anchor the owner's switch and the page decide, never the capability.
+    expect(FANSLY_CONTRACT.switchedAnchors).toContain('vaultUpload');
+  });
+
   it('page text only for the draft functions (D-14): the same list as the contracts’', () => {
     expect([...FRESH_TEXT_FEATURES]).toEqual([...CONTRACT_FRESH_TEXT]);
   });

@@ -17,17 +17,19 @@
 //   snapshot's proof, the window check, the verdict) the start gathers no
 //   proof and adds no field of its own; the hub decides its gates by itself,
 //   and no fresh page text leaves the tab.
+// - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`.
 
-import type { FanslyHostPort } from '@cg/contracts/fansly-host';
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { AiHostPolicy } from '@cg/contracts/ops';
-import type { HostUiProfile } from '@cg/contracts/vm';
+import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
+import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanslyPaletteSignal } from '@cg/host-fansly/isolated/palette';
 import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
 
+import type * as VaultChunk from '../../../../../lazy/fansly/vault';
 import { FANSLY_FEATURE_SLICE } from '../../../features/fansly';
-import type { HostAppAdapter, HostThemeSource } from '../../adapter';
+import type { HostAppAdapter, HostThemeSource, SiteAppEnv } from '../../adapter';
 
 /** The page our content script runs in: read only when a surface mounts or the page's theme switches. */
 const page = (): Document => document;
@@ -54,11 +56,42 @@ export const FANSLY_AI: AiHostPolicy<null, null> = {
   verdict: () => null,
 };
 
-export const FANSLY_APP: HostAppAdapter<FanslyHostPort, null> = {
+/** The vault's page (host-fansly isolated/vault `isVaultPath`: its module is the vault's chunk, not this one). */
+const onVault = (path: string): boolean => path === '/creator/vault' || path === '/creator/vault/';
+
+/**
+ * Fansly's own surfaces (R20 P13b): the vault's chunk the first time the tab is on `/creator/vault` (FS-PERF-3), kept
+ * from then on — it says itself where its entry stands. A chunk that did not load is asked again on the next visit.
+ */
+export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
+  let vault: Promise<(() => void) | null> | null = null;
+  const sync = (): void => {
+    if (vault !== null || env.life.aborted || !onVault(env.win.location.pathname)) return;
+    vault = env.lazy<typeof VaultChunk>('vault').then(
+      (chunk) => (env.life.aborted ? null : chunk.startFanslyVault(env)),
+      (error: unknown) => {
+        vault = null;
+        env.report({ kind: 'render', surface: 'vault' as MountSurfaceKind, code: 'CG-UI-FAILED', name: error instanceof Error ? error.name : typeof error });
+        return null;
+      },
+    );
+  };
+  const off = env.host.subscribe((event) => {
+    if (event.type === 'route') sync();
+  });
+  sync();
+  return () => {
+    off();
+    void vault?.then((stop) => stop?.());
+  };
+}
+
+export const FANSLY_APP: HostAppAdapter<FanslyPort, null> = {
   liveConfigOf: () => null,
   configure: () => Promise.resolve(),
   features: FANSLY_FEATURE_SLICE,
   contract: FANSLY_CONTRACT,
   ui: (theme) => fanslyUi(theme),
   ai: () => FANSLY_AI,
+  start: startFanslySurfaces,
 };

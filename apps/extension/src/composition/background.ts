@@ -621,6 +621,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const kitOf = (host: HostKind): BackgroundKit => ({
     ...kit,
     telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
+    // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope.
+    site: { plug: (registry) => rpc.site({ ...registry, host }) },
   });
   const hostModules = createHostModules({
     specs: HOST_MODULE_SPECS,

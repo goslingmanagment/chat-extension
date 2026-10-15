@@ -33,11 +33,13 @@ export const FANSLY_TEST: TestHostConfig = { pageMatches: FANSLY_STAND_MATCHES }
  * dock, the schemas, the protocol, the application, the AI and navigation controllers) — with Fansly's own `tab-app`
  * (the application's half of its adapter) and its texts (the shared catalog with Fansly's codes). The surfaces
  * ChatSpace alone has — its palette with its cached chats, the preview window of X8, its «Новые» — are not in it;
- * Fansly's AI policy (`ai-fansly`), panels and «Новые» come with their work packages.
+ * Fansly's AI policy (`ai-fansly`), panels and «Новые» come with their work packages: the vault's panel (P13b) is
+ * here, and with it Fansly's `tab-protocol`, which lets Fansly's own types through to the site's code.
  */
 export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   'bridge-validation': 'fansly/bridge-validation.ts',
-  'tab-protocol': 'entries/tab-protocol.ts',
+  // The shared registry, and Fansly's own types let through to the site's code that checks them (R20 P13b).
+  'tab-protocol': 'fansly/tab-protocol.ts',
   'tab-app': 'fansly/tab-app.ts',
   'i18n-ru': 'fansly/i18n-ru.ts',
   'i18n-en': 'fansly/i18n-en.ts',
@@ -57,6 +59,8 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   dialogs: 'entries/dialogs.ts',
   spenders: 'entries/spenders.ts',
   'fan-panel': 'entries/fan-panel.ts',
+  // Fansly's own panels (§3.1): the vault on `/creator/vault` (R20 P13b).
+  vault: 'fansly/vault.ts',
 };
 
 export const FANSLY: HostDescriptor = {

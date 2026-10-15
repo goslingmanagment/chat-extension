@@ -1,4 +1,4 @@
-// The vault panel of a Fansly tab (1.15.0; R20 P13b; docs/project-unite/architecture.md §7.11, §7.20; FS-VLT-1,
+// The vault panel of a Fansly tab (1.15.0; R20 P13b; docs/project-unite/architecture.md §7.11, §7.21; FS-VLT-1,
 // VA-001…VA-006): its view model, what the person asks of it, and the names of its texts.
 //
 // A site module, like send-fansly.ts: imported by its own subpath only (`@cg/contracts/vault-fansly`) and only by

@@ -7,8 +7,7 @@
 // in one call (§4; P9a), on the stand the e2e does. It starts without WXT's
 // wrapper (build/isolated-entry.ts): `main` is called bare.
 
-import type { FanslyHostPort } from '@cg/contracts/fansly-host';
-import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startFanslyTab, type Validation } from '@cg/host-fansly/isolated';
+import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startFanslyTab, type FanslyPort, type Validation } from '@cg/host-fansly/isolated';
 import type { UnlistedScriptDefinition } from 'wxt';
 import { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';
 
@@ -21,7 +20,7 @@ import { FANSLY_LAZY_ROOT } from '../hosts/runtime/fansly';
  * application's half (`FANSLY_APP`, composition/tab/hosts/fansly/app.ts) comes with Fansly's `tab-app` once the dock
  * has a place or a key of ours waits: never before.
  */
-export const FANSLY_ADAPTER: HostAdapter<FanslyHostPort> = {
+export const FANSLY_ADAPTER: HostAdapter<FanslyPort> = {
   kind: 'fansly-web',
   start: (env) =>
     startFanslyTab({
