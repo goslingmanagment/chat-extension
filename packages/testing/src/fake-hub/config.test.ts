@@ -20,12 +20,12 @@ const fansly = FAKE_PAGES[2] as FakePage;
 
 describe('fake hub config: presets', () => {
   it('pilot-on is the scenarios’ BOOTSTRAP_PILOT_ON exactly', () => {
-    expect(bootstrapOf(presetConfig('pilot-on'), FAKE_PAGES, chatter, NOW_MS)).toEqual(BOOTSTRAP_PILOT_ON);
+    expect(BootstrapSchema.parse(bootstrapOf(presetConfig('pilot-on'), FAKE_PAGES, chatter, NOW_MS))).toEqual(BOOTSTRAP_PILOT_ON);
   });
 
   it('pilot-pages — the default — is the scenarios’ BOOTSTRAP_PILOT_PAGES exactly: a row per page, `"*"` empty, every top-level flag false', () => {
     const boot = bootstrapOf(presetConfig('pilot-pages'), FAKE_PAGES, chatter, NOW_MS);
-    expect(boot).toEqual(BOOTSTRAP_PILOT_PAGES);
+    expect(BootstrapSchema.parse(boot)).toEqual(BOOTSTRAP_PILOT_PAGES);
     expect(Object.values(boot.flags).some(Boolean)).toBe(false);
     // The pages answer exactly what the `"*"` pilot answers: only the top-level flags tell the two apart.
     expect(boot.pages).toEqual(BOOTSTRAP_PILOT_ON.pages);
@@ -38,7 +38,7 @@ describe('fake hub config: presets', () => {
   });
 
   it('all-off is the scenarios’ BOOTSTRAP_ALL_OFF exactly', () => {
-    expect(bootstrapOf(presetConfig('all-off'), FAKE_PAGES, chatter, NOW_MS)).toEqual(BOOTSTRAP_ALL_OFF);
+    expect(BootstrapSchema.parse(bootstrapOf(presetConfig('all-off'), FAKE_PAGES, chatter, NOW_MS))).toEqual(BOOTSTRAP_ALL_OFF);
   });
 
   it('master-off lists every flag on every page: platform features disabled, foreign ones platform_unsupported, top-level flags false', () => {
@@ -60,7 +60,7 @@ describe('fake hub config: presets', () => {
     const response = await hubCall(hub.fetch, hub.origin, 'clientBootstrap', null, { token });
     const body = (await response.json()) as unknown;
     expect(BootstrapSchema.safeParse(body).success).toBe(true);
-    expect(body).toEqual({ ...BOOTSTRAP_ALL_OFF, identity: { ...BOOTSTRAP_ALL_OFF.identity, tokenClient: null } });
+    expect(BootstrapSchema.parse(body)).toEqual({ ...BOOTSTRAP_ALL_OFF, identity: { ...BOOTSTRAP_ALL_OFF.identity, tokenClient: null } });
   });
 });
 

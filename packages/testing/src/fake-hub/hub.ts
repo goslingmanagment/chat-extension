@@ -26,7 +26,7 @@ import {
   type AiFeatureStreamBody,
   type AiUsageQuery,
   type AudienceNewQuery,
-  type ClaimOp,
+  type HubClaimOp,
   type ClientFeatureFlag,
   type ClientHubCapability,
   type DeviceTokenIssueRequest,
@@ -55,7 +55,7 @@ import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeature
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
 import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, resolveCoverageCheck, streamBodyRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
-import { ClaimsModel, stableJson, type ClaimContext, type FlagVerdict } from './claims';
+import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
 import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
@@ -626,8 +626,9 @@ export class FakeHub {
       const flag = featureVerdict(s.config, page, spec.flag);
       if (!flag.available) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', flag.reason ?? 'flag_off');
     }
-    // H-7 claim and custody are OnlyFans-only (§4.12): every action and the status, the flag-free ones included.
-    if (spec.routeClass === 'claim' && page !== null && page.platform !== 'onlyfans') return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
+    // HF-3/HF-2: status exists where at least one send is admitted. Each POST checks its own action;
+    // release/sent/failed need the grant alone, a dispatch checks admission only after its repeat check.
+    if (route === 'clientFanClaimStatus' && page !== null && !custodyExistsOn(page.platform)) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
     // The claim status has no flag of its own, but the hub's master switch refuses it (hub `requireClientPage`).
     if (route === 'clientFanClaimStatus' && !s.config.master) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'disabled');
 
@@ -769,11 +770,13 @@ export class FakeHub {
   private claimContext(page: FakePage, principal: Principal): ClaimContext {
     const { limits, configRevision } = this.state.config;
     return {
+      platform: page.platform,
       now: this.clock.now(),
       userId: principal.user.userId,
       leaseSec: limits.claimLeaseSec,
       ticketSec: limits.dispatchTicketSec,
       perMinute: limits.previewSendPerMinute,
+      greetingPerMinute: limits.greetingSendPerMinute,
       flagRevision: configRevision,
       flag: this.flagVerdict(page),
     };
@@ -867,7 +870,7 @@ export class FakeHub {
       case 'clientSpenderAwaitingReply':
         return read(s.data.awaitingReply(need(page), request as QueueQuery, now));
       case 'clientFanClaim': {
-        const op = request as ClaimOp;
+        const op = request as HubClaimOp;
         const result = s.claims.apply(op.pageLabel, op.fanRef, op.body, this.claimContext(need(page), need(principal)));
         return result.ok ? { kind: 'json', status: 200, body: result.state } : { kind: 'refuse', refusal: result };
       }

@@ -7,7 +7,8 @@
 // mapping mirrors the vendored SDK's `buildPath`/`buildQuery` and the hub's
 // route params; sdk-alignment and routing tests pin both.
 
-import { HUB_ROUTE_KEYS, HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HUB_FORBIDDEN_OPERATIONS, type HubRouteKey } from '@cg/contracts';
+import { ClaimOpSchema, HUB_ROUTE_KEYS, HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HUB_FORBIDDEN_OPERATIONS, type HubRouteKey } from '@cg/contracts';
+import { ManualClaimGroupSchema } from '@cg/contracts/send-fansly';
 
 import { HUB_ROUTE_PATHS } from '../scenarios/hub/types';
 import { type BodySchemaLike } from './ai-rules';
@@ -265,6 +266,26 @@ export type ValidationResult = { readonly ok: true; readonly request: unknown } 
 
 /** The contracts' request schema of the route (HUB_ROUTE_SCHEMAS), as the hub's 400 does it. Issues name paths and rules, never values. */
 export function validateRequest(route: HubRouteKey, request: unknown): ValidationResult {
+  // P4c keeps the shared claim schema AI-only for ChatSpace. The fake accepts the hub's wider HF-3 body:
+  // validate the manual shape, then all the unchanged fields using a one-part AI placeholder (the old schema
+  // takes UUID generation refs only). This placeholder never enters custody. Keep the wire group for
+  // platform admission (OnlyFans must refuse it). The real SDK schema is also checked by the HTTP pipeline.
+  if (route === 'clientFanClaim' && typeof request === 'object' && request !== null && 'body' in request) {
+    const body = request.body;
+    if (typeof body === 'object' && body !== null && 'group' in body && typeof body.group === 'object' && body.group !== null) {
+      if ('kind' in body.group) {
+        const manual = ManualClaimGroupSchema.safeParse(body.group);
+        if (!manual.success || !('purpose' in body) || body.purpose !== 'greeting') return { ok: false, issues: ['body.group: a manual greeting needs a lower-case sha256 fingerprint'] };
+        const checked = ClaimOpSchema.safeParse({ ...request, body: { ...body, group: { generationRef: '00000000-0000-4000-8000-000000000000', variant: 0, partCount: 1 } } });
+        return checked.success
+          ? { ok: true, request: { ...checked.data, body: { ...checked.data.body, group: manual.data } } }
+          : { ok: false, issues: ['body: invalid manual greeting'] };
+      }
+      if ('generationRef' in body.group && typeof body.group.generationRef === 'string' && body.group.generationRef.startsWith('manual:')) {
+        return { ok: false, issues: ['body.group.generationRef: the manual namespace is reserved'] };
+      }
+    }
+  }
   const schema = HUB_ROUTE_SCHEMAS[route].request;
   if (schema === null) return request === null ? { ok: true, request: null } : { ok: false, issues: ['this route takes no request'] };
   const result = schema.safeParse(request);
