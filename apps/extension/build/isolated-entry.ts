@@ -1,5 +1,7 @@
-// The isolated ChatSpace content script (chatspace.content.ts) starts without
-// WXT's entry wrapper and without its ContentScriptContext (architecture.md
+// A site's isolated script — ChatSpace's content script (chatspace.content.ts),
+// Fansly's script the background registers (fansly.ts, an unlisted script of
+// WXT's) — starts without WXT's entry wrapper and without its
+// ContentScriptContext (architecture.md
 // §11 «ранний бутстрап ≤ 3 мс»; the spike-m0 e2e measures it). The context
 // cost the synchronous start of every ChatSpace page about a third of its
 // time, and none of it was ours to keep:
@@ -17,7 +19,8 @@
 //   seen through the background port (tab/runtime.ts).
 // Decision X23 (docs/decisions.md).
 //
-// The plugin answers WXT's virtual entry module of that one entry point with
+// The plugin answers WXT's virtual entry module of that one entry point (a
+// content script's or an unlisted script's) with
 // `import definition from '<entry>'; definition.main();` — the same as
 // main-world-entry.ts does for the MAIN-world scripts. WXT plugins
 // (`initPlugins`) are not called: this project has none. If a WXT upgrade
@@ -27,10 +30,13 @@
 
 import type { Plugin } from 'vite';
 
-/** WXT's virtual entry module of an isolated-world content script, as a resolved id. */
-const WXT_ENTRY = /^\0virtual:wxt-content-script-isolated-world-entrypoint\?(.+)$/;
+/**
+ * WXT's virtual entry module of an isolated-world content script or of an unlisted script, as a resolved id. An
+ * unlisted script gets no context, but the same wrapper, which logs «crashed on startup» and rethrows.
+ */
+const WXT_ENTRY = /^\0virtual:wxt-(?:content-script-isolated-world|unlisted-script)-entrypoint\?(.+)$/;
 
-/** `entry` — the absolute input path of the isolated content script. */
+/** `entry` — the absolute input path of the site's isolated script. */
 export function isolatedEntryPlugin(entry: string): Plugin {
   return {
     name: 'cg:isolated-entry',

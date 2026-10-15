@@ -161,10 +161,10 @@ describe('this repo: the manifest is complete', () => {
       rowFeature: ROW_FEATURE,
     };
     expect(messages(checkManifestNames(sites, vocabularies))).toEqual([]);
-    // The site the registry builds is checked chunk by chunk; the other has no build yet (P7a0 brings Fansly's).
+    // Every site the registry builds is checked chunk by chunk (Fansly's build came with P7a0).
     expect(sites.map((site) => [site.site, site.lazyEntries === null ? null : site.lazyEntries.length > 0])).toEqual([
       ['chatspace', true],
-      ['fansly-web', null],
+      ['fansly-web', true],
     ]);
     for (const chunk of APPLICATION_CHUNKS) expect(sites[0]?.lazyEntries, chunk).toContain(chunk);
   });

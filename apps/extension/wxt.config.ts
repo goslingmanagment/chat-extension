@@ -32,7 +32,7 @@ const repoRoot = resolve(import.meta.dirname, '../..');
 
 let lazyChunks: LazyChunkInfo[] = [];
 // The sites' entry points, from the host registry (src/hosts).
-/** The entry points that run in the page's own world (ChatSpace: chatspace-main, the bridge; chatspace-ws, the WS tap). */
+/** The entry points that run in the page's own world (ChatSpace: chatspace-main, the bridge; chatspace-ws, the WS tap; Fansly: fansly-main). */
 const MAIN_WORLD_ENTRY_NAMES = HOSTS.flatMap((host) => scriptsOf(host).filter((script) => script.world === 'MAIN').map((script) => script.entry));
 /** Each site's MAIN script at document_start: a TEST build's one also carries the sentry-gate e2e's positive control. */
 const BRIDGE_ENTRY_NAMES = HOSTS.map((host) => host.scripts.main.entry);
@@ -63,7 +63,7 @@ export default defineConfig({
   hooks: {
     // After WXT cleaned the output dir, before entry points are built.
     'entrypoints:grouped': async (wxt) => {
-      // Each site's own lazy build (lazy/<site>/), and in a test build of one site the empty second one.
+      // Each site's own lazy build (lazy/<site>/), for its own pages.
       lazyChunks = await buildLazyChunks(wxt.config.outDir, lazySitesOf(flavor === 'test'));
       // The sites' background chunks (bg/<site>.js): only the event page loads them, so they are no web resource.
       await buildBackgroundChunks(wxt.config.outDir, flavor === 'test');

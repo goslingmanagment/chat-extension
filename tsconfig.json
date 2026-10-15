@@ -10,6 +10,7 @@
     { "path": "packages/hub/test" },
     { "path": "packages/host-kit" },
     { "path": "packages/host-chatspace" },
+    { "path": "packages/host-fansly" },
     { "path": "packages/ui" },
     { "path": "packages/testing" },
     { "path": "apps/extension/tsconfig.json" },

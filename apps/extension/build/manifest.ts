@@ -16,7 +16,6 @@ import {
   TEST_HUB_MATCHES,
   lazySitesOf,
   pageMatchesOf,
-  pendingStandsOf,
   scriptsOf,
   type HostDescriptor,
   type HostPermissions,
@@ -58,11 +57,10 @@ export function hostPermissions(flavor: BuildFlavor, hosts: readonly HostDescrip
   return [...required.flatMap((host) => host.permissions.origins), HUB_HOST_PERMISSION, ...test];
 }
 
-/** The stands a test build asks for on request: the optional sites' own, then a stand still without its site (pendingStandsOf). */
+/** The stands a test build asks for on request: the optional sites' own, optional as their pages are (R20 P6a). */
 function optionalStands(flavor: BuildFlavor, hosts: readonly HostDescriptor[]): HostPermissions[] {
   if (flavor !== 'test') return [];
-  const sites = hosts.filter((host) => host.permissions.optional).map((host): HostPermissions => ({ origins: host.test.pageMatches, optional: true }));
-  return [...sites, ...pendingStandsOf(hosts)];
+  return hosts.filter((host) => host.permissions.optional).map((host): HostPermissions => ({ origins: host.test.pageMatches, optional: true, api: host.permissions.api ?? [] }));
 }
 
 /**
@@ -74,7 +72,7 @@ export function optionalHostPermissions(flavor: BuildFlavor, hosts: readonly Hos
   return [CUSTOM_HUB_OPTIONAL_PERMISSION, ...unique([...sites, ...optionalStands(flavor, hosts).flatMap((stand) => stand.origins)])];
 }
 
-/** The optional API permissions the optional sites (and, in a test build, a pending stand) ask for with their origins; [] — the manifest has none. */
+/** The optional API permissions the optional sites (and, in a test build, their stands) ask for with their origins; [] — the manifest has none. */
 export function optionalPermissions(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): OptionalApi[] {
   const sites = hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.api ?? []);
   return [...new Set([...sites, ...optionalStands(flavor, hosts).flatMap((stand) => stand.api ?? [])])];

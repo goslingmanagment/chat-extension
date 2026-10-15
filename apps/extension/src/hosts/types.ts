@@ -63,9 +63,9 @@ export interface HostLazyBuild {
   readonly beforeTheDock: readonly string[];
 }
 
-/** A lazy build as the extension build makes it: a site's of the registry, or the test build's second one (./index.ts). */
+/** A lazy build as the extension build makes it: a site's of the registry (./index.ts), with the pages that may load it. */
 export interface LazySite {
-  /** The site's kind (the second build's own name): the chunk list and the size report name the build by it. */
+  /** The site's kind: the chunk list and the size report name the build by it. */
   readonly site: string;
   readonly build: HostLazyBuild;
   /** The pages that may load its files (its `web_accessible_resources` entry): the site's pages, its stand in a test build. */

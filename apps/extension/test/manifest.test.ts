@@ -21,8 +21,9 @@ import {
   type BuildFlavor,
 } from '../build/manifest.ts';
 import { PAGE_CHUNK_GROUPS, PAGE_ENTRY_NAMES } from '../build/page-chunks.ts';
-import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, HOSTS, LOOPBACK_MATCHES, SECOND_LAZY_BUILD, scriptsOf } from '../src/hosts/index.ts';
+import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, HOSTS, LOOPBACK_MATCHES, scriptsOf } from '../src/hosts/index.ts';
 import { CHATSPACE_LAZY_ROOT } from '../src/hosts/runtime/chatspace.ts';
+import { FANSLY_LAZY_ROOT } from '../src/hosts/runtime/fansly.ts';
 import { SITE_BASE, SITE_PAGES } from '../src/site.ts';
 
 /** tools/archive-check takes a JS file over this for a foreign bundle (`MAX_JS_BYTES`). */
@@ -91,10 +92,11 @@ describe('release manifest (§3)', () => {
     });
   });
 
-  it('[EX-003] asks only for storage, alarms, scripting and the two hosts', () => {
+  it('[EX-003] asks only for storage, alarms, scripting and the two hosts; Fansly’s origins and webRequest only on request', () => {
     expect(release.manifest['permissions']).toEqual(['storage', 'alarms', 'scripting']);
     expect(release.manifest['host_permissions']).toEqual(['https://chat.onlymonster.ai/*', 'https://gosling-agency.ru/*']);
-    expect(release.manifest['optional_host_permissions']).toEqual(['https://*/*']);
+    expect(release.manifest['optional_host_permissions']).toEqual(['https://*/*', 'https://fansly.com/*', 'https://apiv3.fansly.com/*']);
+    expect(release.manifest['optional_permissions']).toEqual(['webRequest']);
   });
 
   it('declares the MAIN bridge and the isolated script at document_start, top frame only; the WS tap stays dynamic', () => {
@@ -116,18 +118,30 @@ describe('release manifest (§3)', () => {
     expect(existsSync(join(release.dir, 'chatspace-ws.js'))).toBe(true);
   });
 
-  it('[EX-010] exposes only the lazy chunks, and they exist: ChatSpace’s own build, for its pages', () => {
-    const war = release.manifest['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
-    expect(war).toHaveLength(1);
-    expect(war[0]?.matches).toEqual(['https://chat.onlymonster.ai/*']);
-    expect(war[0]?.resources).toContain('lazy/chatspace/dock.js');
-    for (const resource of war[0]?.resources ?? []) {
-      expect(resource).toMatch(/^lazy\/chatspace\/.+\.(js|css)$/);
-      expect(existsSync(join(release.dir, resource)), resource).toBe(true);
+  it('builds Fansly’s two scripts and registers neither statically: the background registers them, after «Включить Fansly» (R20 P7a0, P9a)', () => {
+    for (const file of ['fansly-main.js', 'fansly.js']) {
+      expect(existsSync(join(release.dir, file)), file).toBe(true);
+      expect(JSON.stringify(release.manifest), file).not.toContain(file);
     }
-    // Every file of the build is listed: nothing under lazy/ the tab could not load, nothing of another build.
-    expect(listTree(join(release.dir, 'lazy')).map((file) => `lazy/${file}`)).toEqual([...(war[0]?.resources ?? [])].sort());
-    expect(war[0]?.resources).not.toContain('lazy/spike.js');
+    expect(JSON.stringify(release.manifest['content_scripts'])).not.toContain('fansly');
+  });
+
+  it('[EX-010] exposes only the lazy chunks, and they exist: each site’s own build, for its own pages', () => {
+    const war = release.manifest['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
+    expect(war.map((entry) => entry.matches)).toEqual([['https://chat.onlymonster.ai/*'], ['https://fansly.com/*']]);
+    expect(war[0]?.resources).toContain('lazy/chatspace/dock.js');
+    expect(war[1]?.resources).toContain('lazy/fansly/bridge-validation.js');
+    for (const [index, root] of [CHATSPACE_LAZY_ROOT, FANSLY_LAZY_ROOT].entries()) {
+      const resources = war[index]?.resources ?? [];
+      for (const resource of resources) {
+        expect(resource.startsWith(`${root}/`), resource).toBe(true);
+        expect(resource).toMatch(/\.(js|css)$/);
+        expect(existsSync(join(release.dir, resource)), resource).toBe(true);
+      }
+      // Every file of the build is listed: nothing under its folder the tab could not load, nothing of another build.
+      expect(listTree(join(release.dir, root)).map((file) => `${root}/${file}`)).toEqual([...resources].sort());
+    }
+    expect(readdirSync(join(release.dir, 'lazy')).sort()).toEqual(['chatspace', 'fansly']);
   });
 
   it('[R20-F1] builds each site’s background chunk as one ES module next to the core; none is a web resource; the core loads it itself', () => {
@@ -224,7 +238,7 @@ describe('test manifest (CG_TEST_HOSTS=1)', () => {
   });
 
   it('lets the extension ask for the Fansly stand on its own loopback name — optional, with webRequest, never granted at install (R20 P6a)', () => {
-    expect(test.manifest['optional_host_permissions']).toEqual(['https://*/*', ...FANSLY_STAND_MATCHES]);
+    expect(test.manifest['optional_host_permissions']).toEqual(['https://*/*', 'https://fansly.com/*', 'https://apiv3.fansly.com/*', ...FANSLY_STAND_MATCHES]);
     expect(test.manifest['optional_permissions']).toEqual(['webRequest']);
     const granted = JSON.stringify([test.manifest['host_permissions'], test.manifest['content_scripts']]);
     for (const pattern of FANSLY_STAND_MATCHES) expect(granted).not.toContain(pattern.replace('/*', ''));
@@ -234,15 +248,14 @@ describe('test manifest (CG_TEST_HOSTS=1)', () => {
 describe('the sites’ lazy builds in the two flavors (R20 F2b)', () => {
   const tree = (dir: string): Record<string, string> => Object.fromEntries(listTree(dir).map((file) => [file, readFileSync(join(dir, file), 'utf8')]));
 
-  it('the test build carries the empty second build beside ChatSpace’s, for a second site’s stand only', () => {
+  it('both flavors carry Fansly’s own build beside ChatSpace’s, for Fansly’s pages — and in the test build its stand — alone', () => {
     const war = test.manifest['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
     expect(war.map((entry) => entry.resources.every((resource) => resource.startsWith(`${CHATSPACE_LAZY_ROOT}/`)))).toEqual([true, false]);
-    expect(war[1]).toEqual({ resources: ['lazy/second-site/empty.js'], matches: SECOND_LAZY_BUILD.matches });
-    expect(existsSync(join(test.dir, 'lazy/second-site/empty.js'))).toBe(true);
-    expect(existsSync(join(release.dir, 'lazy/second-site'))).toBe(false);
+    expect(war[1]).toEqual({ resources: ['lazy/fansly/bridge-validation.js'], matches: ['https://fansly.com/*', ...FANSLY_STAND_MATCHES] });
+    expect(tree(join(test.dir, FANSLY_LAZY_ROOT))).toEqual(tree(join(release.dir, FANSLY_LAZY_ROOT)));
   });
 
-  it('with the second build beside it, ChatSpace’s lazy build is the release build’s byte for byte', () => {
+  it('with Fansly’s build beside it, ChatSpace’s lazy build is the release build’s byte for byte', () => {
     const chatspace = tree(join(release.dir, CHATSPACE_LAZY_ROOT));
     expect(Object.keys(chatspace).length).toBeGreaterThan(20);
     expect(tree(join(test.dir, CHATSPACE_LAZY_ROOT))).toEqual(chatspace);

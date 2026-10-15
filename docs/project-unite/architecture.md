@@ -77,9 +77,19 @@ type ScriptSpec = { entry: string; file: string; world: 'MAIN' | 'ISOLATED'; reg
 бюджетов, `archive-check`, `host-contract-check --host`. Код одного сайта никогда не импортирует запись другого.
 Сборки ленивых чанков (как построено в F2b): `lazySitesOf(test)` даёт сборки сайтов реестра по порядку, `buildLazyChunks`
 собирает их одну за другой, каждую в свою папку, `finalizeManifest` пишет по записи WAR на сборку — для страниц её сайта.
-У тестовой сборки с одним сайтом есть ещё пустая вторая (`SECOND_LAZY_BUILD`: `lazy/second-site/empty.js`, страницы —
-`http://localhost/*`, стенд второго сайта, §13): путь «две сборки рядом» работает в тестовой сборке и её e2e; выпуск её не
-несёт, а собственный второй сайт реестра (P7a0) занимает её место сам.
+До P7a0 у тестовой сборки с одним сайтом была ещё пустая вторая (`SECOND_LAZY_BUILD`, `lazy/second-site/empty.js`) —
+чтобы путь «две сборки рядом» работал в e2e; с записью Fansly (P7a0) её место заняла сборка `lazy/fansly` в обоих видах
+сборки, а заглушка удалена.
+
+**Сделано P7a0 (запись Fansly).** `hosts/fansly.ts`: оба скрипта — `fansly-main.js` (MAIN) и `fansly.js` (ISOLATED) —
+`registration: 'dynamic'` в выпуске **и в тестовой сборке**; сборка `lazy/fansly` (пока один вход — `bridge-validation`,
+слоёв нет); права — опциональные `https://fansly.com/*`, `https://apiv3.fansly.com/*` и `webRequest`; стенд —
+`FANSLY_TEST` (`localhost`); строки бюджета 16 и 30 КиБ (§3.1); маркеры архива (папка копии бандла, атрибут
+`_ngcontent-…` Angular, пакеты `@angular/*`); модуль проверки контракта — P7h. Строка рантайма —
+`hosts/runtime/fansly.ts` (адреса, `FANSLY_LAZY_ROOT`); в таблицу `RUNTIME_HOSTS` она **ещё не входит**: таблицу целиком
+читают ядро фона и страницы, её строка Fansly двигает их байты и включает разводку `PerHost` (хосты RPC вкладок, модули
+фона, срезы фич, страницы, платформы bootstrap старого хаба) — это P7i и P9a вместе с регистрацией вкладки и
+скриптов.
 
 Рантайму достаётся отдельная лёгкая таблица — `apps/extension/src/hosts/runtime/{index,<сайт>}.ts`: адреса сайта (`matches`,
 `quietDomains`), `isQuietHost`, loopback тестовой сборки; вид и платформа — из контрактов (`HostKind`, `Platform`, P4a1).
@@ -431,6 +441,9 @@ Fansly — снимок `freshness`, `StartProofV1` и вердикт табли
     чанк одного сайта не импортирует чанк другого (`background-chunks-apart`).
   Пакеты, которых ещё нет (`host-kit` — P5, `host-fansly` — P7a0, `fansly-api` — P9b, relay — P9c), получили граф
   заранее: PR, который приносит пакет, меняет правило в том же диффе, если ему нужно иное, и объясняет зачем.
+  `host-fansly` (P7a0) лёг в граф как написан; добавлены правила ESLint пакета (MAIN — как у ChatSpace, изолированный —
+  без пакета ChatSpace и `fansly-api`), входа MAIN Fansly и ленивых входов `lazy/fansly/`, а `hub-unreachable-outside-
+  background` считает корнями и `lazy/fansly/`.
 - **Поля сборки** реестра хостов и строки паритета в рантайм-бандлы не попадают: граф — `host-registry-build-only`,
   собранные файлы — гейт `build-data` (метки бюджетов, исходники ленивых входов, модуль и переменная проверки
   контракта, папки MAIN, маркеры архива; номера отрицательных проверок реестра исключений).
@@ -552,8 +565,8 @@ background (event page)
 
 | Файл | Что | Бюджет |
 |---|---|---|
-| `content-scripts/fansly-main.js` (регистрируется) | MAIN целиком: загрузчик host-kit, два Proxy, разбор, наблюдение, снимок, жест | ≤ 16 КиБ gzip; ≤ 1 мс на `document_start` |
-| `content-scripts/fansly.js` (регистрируется) | ранний изолированный: адаптер, клиент моста, маршрут, монтирование, клавиши | ≤ 30 КиБ gzip (30 720 Б), из них общая часть — 18 227 Б (замер F3, ниже); собственному коду Fansly остаётся 12 493 Б — столько же, сколько сейчас занимает свой код ChatSpace (≈ 12 050 Б); ≤ 3 мс |
+| `fansly-main.js` (регистрируется) | MAIN целиком: загрузчик host-kit, два Proxy, разбор, наблюдение, снимок, жест | ≤ 16 КиБ gzip; ≤ 1 мс на `document_start` |
+| `fansly.js` (регистрируется) | ранний изолированный: адаптер, клиент моста, маршрут, монтирование, клавиши | ≤ 30 КиБ gzip (30 720 Б), из них общая часть — 18 227 Б (замер F3, ниже); собственному коду Fansly остаётся 12 493 Б — столько же, сколько сейчас занимает свой код ChatSpace (≈ 12 050 Б); ≤ 3 мс |
 | `fansly-notice.js` (по `executeScript`) | баннер «перезагрузите вкладку», уборка наших осиротевших хостов | ≤ 2 КиБ |
 | `lazy/fansly/bridge-validation.js` | схемы моста Fansly | ≤ 30 КиБ |
 | `lazy/fansly/tab-protocol.js` | схемы протокола вкладки Fansly | ≤ 30 КиБ |
@@ -562,6 +575,11 @@ background (event page)
 | `lazy/fansly/{notes,newcomers,voice,vault}.js` | панели сайта | ≤ 30 КиБ каждый (войс при превышении делится) |
 | `lazy/fansly/i18n-{ru,en}.js` | тексты Fansly | ≤ 30 КиБ |
 | `bg/fansly.js` | службы Fansly в фоне | своя строка; стартово ≤ 200 КиБ raw, утверждается по базе P3d |
+
+Оба скрипта — «unlisted script» WXT в корне XPI (`src/entrypoints/{fansly-main,fansly}.ts`, как `chatspace-ws.js`), а не
+`content-scripts/*`: вход `*.content.ts` WXT вписал бы в манифест, а с `registration: 'runtime'` — вписал бы его адреса в
+`host_permissions` (P7a0). Обёртку WXT у обоих снимают те же плагины, что у ChatSpace (`build/main-world-entry.ts`,
+`build/isolated-entry.ts` — с P7a0 и для «unlisted» изолированного).
 
 **Общая часть раннего изолированного бандла (замер F3).** Бандл любого сайта несёт её до своего первого байта: обёртку
 входа WXT, `composeTab`, ранний диспетчер клавиш, рантайм вкладки (порт к фону, регистрация, присутствие, загрузчик
@@ -700,7 +718,13 @@ I18n ставит фразы сайта на место `{site}`, `{onSite}`, `{
   - `web_accessible_resources` для `https://fansly.com/*` — сборка `lazy/fansly/*` и страница relay.
 - **Никаких** `host_permissions` и статических `content_scripts` для Fansly. Обновление они не задержали бы, но выдали бы
   fansly.com каждой новой установке, поставили бы точку внимания на вкладках Fansly и внедрили бы тап чаттерам, которые
-  ещё не перешли (S6 Q2).
+  ещё не перешли (S6 Q2). **И в тестовой сборке тоже** (P7a0; план писал «статическая регистрация только в тестовой
+  сборке»): Firefox при установке MV3-дополнения выдаёт все адреса манифеста, `content_scripts[].matches` в том числе
+  (`Extension.getManifestOrigins()` при `extensions.originControls.grantByDefault = true`, умолчание Firefox 127+), так
+  что статический скрипт выдал бы стенд и fansly.com при установке — против P6a (стенд опционален, `manifest.test.ts`
+  это держит). До P9a скрипты на стенде регистрирует сам e2e тем же одним вызовом `[fansly-main, fansly]` со страницы
+  расширения (`packages/testing/e2e/support/fansly-site.ts`), права стенда выдаёт как человек (`grantOptional`);
+  с P9a это делает фон.
 - **«Включить Fansly»** — один синхронный `permissions.request({origins: [fansly, apiv3], permissions: ['webRequest']})`
   в обработчике клика popup или настроек. Включение доводит фон по `permissions.onAdded`: popup может закрыться раньше.
   «Fansly включён» — пользовательская настройка в `settings.ext`, отдельно от выдачи прав: оставшиеся права не включают
@@ -1586,9 +1610,11 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
   relay, поддельный хаб, манифест, автоматическая выдача и отзыв прав (механизм доказывает P6a). Сборка выпуска проверяет,
   что подмен и обходов loopback в ней нет. **Сделано в P6a:** у каждого стенда своё loopback-имя (`CHATSPACE_STAND_MATCHES`
   — `127.0.0.1`, `FANSLY_STAND_MATCHES` — `localhost`, `hosts/runtime/index.ts`); стенд опционального сайта и в тестовой
-  сборке опционален — до записи Fansly (P7a0) тестовая сборка несёт его права отдельно (`FANSLY_STAND_PERMISSIONS`,
-  `pendingStandsOf`): `optional_host_permissions` `http://localhost/*` и `optional_permissions: ["webRequest"]`, при
-  установке не выдано ничего. Выдача и отзыв без человека — `packages/testing/e2e/support/permissions.ts`: хранилище прав
+  сборке опционален — до записи Fansly (P7a0) тестовая сборка несла его права отдельно (`FANSLY_STAND_PERMISSIONS`,
+  `pendingStandsOf`); с P7a0 их несёт запись Fansly: `optional_host_permissions` — адреса Fansly и `http://localhost/*`,
+  `optional_permissions: ["webRequest"]`, при установке не выдано ничего. Скрипты Fansly на стенде — §4 (их регистрирует
+  e2e до P9a); первый спек с расширением на стенде — `suite-fansly-site.e2e.ts` (P7a0: оба скрипта на `document_start`,
+  рукопожатие host-kit через схемы `lazy/fansly`, рядом с соседом в `off` и `after`, WAR по сайту, тайминги §3.1). Выдача и отзыв без человека — `packages/testing/e2e/support/permissions.ts`: хранилище прав
   Firefox (`ExtensionPermissions` через chrome-контекст WebDriver, как переключатель менеджера дополнений; `onAdded`/
   `onRemoved` приходят) и путь человека — `permissions.request` в доверенном клике с отвеченным вопросом
   (`extensions.webextOptionalPermissionPrompts`), `permissions.remove` со страницы (`fansly-stand-permissions.e2e.ts`).

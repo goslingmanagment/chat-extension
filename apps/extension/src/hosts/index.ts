@@ -12,14 +12,14 @@
 // (tools/gates), which strips types but does not guess extensions.
 
 import { CHATSPACE } from './chatspace.ts';
-import { FANSLY_STAND_PERMISSIONS } from './fansly.ts';
+import { FANSLY } from './fansly.ts';
 import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, LOOPBACK_MATCHES } from './runtime/index.ts';
-import type { HostDescriptor, HostPermissions, LazySite, ScriptSpec } from './types.ts';
+import type { HostDescriptor, LazySite, ScriptSpec } from './types.ts';
 
 export type * from './types.ts';
 export { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, LOOPBACK_MATCHES };
 
-export const HOSTS: readonly HostDescriptor[] = [CHATSPACE];
+export const HOSTS: readonly HostDescriptor[] = [CHATSPACE, FANSLY];
 
 /** The registry entry of a host kind; undefined — the extension does not run there. */
 export function hostOf(kind: string, hosts: readonly HostDescriptor[] = HOSTS): HostDescriptor | undefined {
@@ -36,32 +36,9 @@ export function pageMatchesOf(host: HostDescriptor, test: boolean): string[] {
   return [...host.matches, ...(test ? host.test.pageMatches : [])];
 }
 
-/**
- * The test build's second lazy build (R20 F2b): an empty build of a second site, in place of the one the registry does
- * not have yet. It keeps the per-site path — two builds side by side, a web resource entry each — running in the test
- * build and its e2e; a release build never carries it, and the registry's own second site (Fansly, P7a0) takes its
- * place. Its pages are the Fansly stand's (`localhost`, FANSLY_STAND_MATCHES), where ChatSpace's stand is `127.0.0.1`
- * (architecture.md §13), so ChatSpace's stand cannot load its file.
- */
-export const SECOND_LAZY_BUILD: LazySite = {
-  site: 'second-site',
-  build: { root: 'lazy/second-site', entries: { empty: 'second-site/empty.js' }, layers: [], beforeTheDock: [] },
-  matches: FANSLY_STAND_MATCHES,
-};
-
-/** The lazy builds of an extension build: every site's of the registry, in its order; a test build of one site gets the second. */
+/** The lazy builds of an extension build: every site's of the registry, in its order, each for its own pages. */
 export function lazySitesOf(test: boolean, hosts: readonly HostDescriptor[] = HOSTS): LazySite[] {
-  const sites = hosts.map((host): LazySite => ({ site: host.kind, build: host.lazy, matches: pageMatchesOf(host, test) }));
-  return test && sites.length === 1 ? [...sites, SECOND_LAZY_BUILD] : sites;
-}
-
-/**
- * The stands a test build carries for sites the registry has no entry for yet: their permissions alone — no script,
- * no lazy build. Fansly's (R20 P6a: its stand's optional origins and `webRequest`, which the e2e grants and revokes)
- * until its entry (P7a0) carries the stand as its own `test`.
- */
-export function pendingStandsOf(hosts: readonly HostDescriptor[] = HOSTS): HostPermissions[] {
-  return hosts.some((host) => host.kind === 'fansly-web') ? [] : [FANSLY_STAND_PERMISSIONS];
+  return hosts.map((host): LazySite => ({ site: host.kind, build: host.lazy, matches: pageMatchesOf(host, test) }));
 }
 
 /** The hub (D-13). */
