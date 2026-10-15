@@ -10,6 +10,16 @@ const hasLegacyDom = (doc: Document): boolean => doc.querySelector(LEGACY_SELECT
 export const MAIN_INSTANCE = 'fxRuntime';
 export const hasLegacy = (win: Window): boolean => Boolean(Reflect.get(win, Symbol.for('chatgoose.socketTap'))) || hasLegacyDom(win.document);
 
+function hasRestrictedWords(doc: Document): boolean {
+  try {
+    const data: unknown = JSON.parse(doc.querySelector('script#fbuddy-restricted-words-data')?.textContent ?? '');
+    const words: unknown = Array.isArray(data) ? data : typeof data === 'object' && data !== null && 'words' in data ? data.words : null;
+    return Array.isArray(words) && words.some((word: unknown) => typeof word === 'string' && word.trim() !== '');
+  } catch {
+    return false;
+  }
+}
+
 /** Diagnostics only: never copy the hook, its answers or its restricted words. */
 export function readFBuddy(win: Window): { windowBridge: boolean; networkHook: boolean; styleFixes: boolean; wordFilter: boolean } {
   const doc = win.document;
@@ -17,7 +27,7 @@ export function readFBuddy(win: Window): { windowBridge: boolean; networkHook: b
     windowBridge: doc.querySelector('script#fbuddy-window-bridge-script') !== null,
     networkHook: Boolean(Reflect.get(win, '__FBUDDY_NETWORK_HOOK__')),
     styleFixes: doc.querySelector('style#fb-fansly-style-fixes') !== null,
-    wordFilter: Boolean(doc.querySelector('script#fbuddy-restricted-words-data')?.textContent?.trim()),
+    wordFilter: hasRestrictedWords(doc),
   };
 }
 

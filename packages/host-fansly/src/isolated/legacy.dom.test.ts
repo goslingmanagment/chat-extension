@@ -79,4 +79,21 @@ describe('[NEW-12] [FS-CO-1] coexistence notices and retirement', () => {
     expect(readFBuddy(window)).toEqual({ windowBridge: true, networkHook: false, styleFixes: true, wordFilter: false });
     expect(watch().reason()).toBeNull();
   });
+  it.each([
+    ['{"words":[]}', false],
+    ['{"words":["restricted"]}', true],
+    ['[]', false],
+    ['["restricted"]', true],
+    ['{"words":["", "  ", null, 42]}', false],
+    ['{"words":"restricted"}', false],
+    ['null', false],
+    ['{broken', false],
+  ])('FBuddy word data %s reports only a decoded non-empty list', (data, active) => {
+    const script = document.createElement('script');
+    script.id = 'fbuddy-restricted-words-data';
+    script.textContent = data;
+    document.head.append(script);
+    expect(readFBuddy(window).wordFilter).toBe(active);
+    expect(script.textContent).toBe(data);
+  });
 });

@@ -128,6 +128,7 @@ const BOARD_SURFACES: readonly string[] = ['spenders', 'newcomers', 'fan-panel']
 
 /** The application of a site's tab; `site` is the application's half of the site's adapter (tab/adapter.ts). */
 export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site: HostAppAdapter<P, C>): Promise<TabApp> {
+  env.life.throwIfAborted();
   const { win, rpc, host, mounts, keys, probe } = env;
   const doc = win.document;
   const offs: (() => void)[] = [];
@@ -141,6 +142,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     debug: state.settings.debug.enabled,
   });
   const firstSettings = await rpc.request('settings.get', {});
+  env.life.throwIfAborted();
   if (firstSettings.ok) ui = readSettings(firstSettings.payload);
 
   // ── the site's look and its phrases (R20 §1.5): read once, as the application starts ──
@@ -161,6 +163,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     env.lazy<typeof NavigationChunk>('navigation'),
     site.ai(env.lazy),
   ]);
+  // No listeners or UI exist before this last asynchronous startup boundary.
+  // From here initialization and installing the abort listener are synchronous.
+  env.life.throwIfAborted();
   const i18n = createLiveI18n((language) => catalogs[language] ?? null, {
     language: languageOf(ui),
     onMissing: (key, language) => logger.warn('tab.i18n', 'text missing', { fields: { key, language } }),
@@ -825,12 +830,15 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     router.dispose();
     void forwarder.flush();
   };
-  env.life.addEventListener('abort', dispose);
+  env.life.addEventListener('abort', dispose, { once: true });
+  offs.push(() => env.life.removeEventListener('abort', dispose));
   // The last records and the last health window reach the background while the page goes away (best effort).
-  win.addEventListener('pagehide', () => {
+  const onPageHide = (): void => {
     health?.report();
     void forwarder.flush();
-  });
+  };
+  win.addEventListener('pagehide', onPageHide);
+  offs.push(() => win.removeEventListener('pagehide', onPageHide));
 
   /**
    * The person clicked on our popup or options page; the background brought this tab to the front and handed the
