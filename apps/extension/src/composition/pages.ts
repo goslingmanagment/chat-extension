@@ -20,6 +20,7 @@
 //   opens in a new tab on a click and only when it is https.
 
 import { FANSLY_CONTRACT, FANSLY_STATUS_TEXTS } from '@cg/contracts/fansly-host';
+import { FANSLY_TAB_TYPE_PREFIX, parseFanslyTabPayload } from '@cg/contracts/tab-messages-fansly';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
@@ -30,6 +31,8 @@ import { parseTabPayload } from '@cg/contracts/tab-messages';
 import type { I18nKey } from '@cg/contracts/errors';
 import { CHATSPACE_STATUS_TEXTS, type JournalKind, type Unmount } from '@cg/contracts/vm';
 import { createSiteAccessControl, createPagesClient, type PageEnv, type PagePorts, type PageSite, type PagesClient } from '@cg/core/application/pages';
+import { createFanslyPages, type FanslyPagesDeps } from '@cg/core/application/hosts/fansly/pages';
+import { withFanslyPageTexts } from '@cg/core/domain/hosts/fansly/i18n/pages';
 import { createActionCatalog, hotkeyPlatformOf } from '@cg/core/domain/hotkeys';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
@@ -50,6 +53,7 @@ import {
   type BrowserApi,
 } from '@cg/platform';
 import { mediaSchemeSignal, type KitFailure } from '@cg/ui/kit';
+import { fanslyOptionsSlots } from '@cg/ui/hosts/fansly/pages';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type PageDeps } from '@cg/ui/pages';
 
 import { OPTIONAL_HOST, RELOAD_KEY, permissionSet } from './site-access';
@@ -136,7 +140,9 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   const offs: (() => void)[] = [];
 
   // ── the protocol and the page's own log ────────────────────────────────────
-  const rpc = createPageRpcClient({ api, validate: parseTabPayload });
+  // R20 P14b1: the settings page speaks Fansly's registry too (`fansly.settings.*`, `fansly.accounts.*`): its types are
+  // checked by Fansly's own schemas, both ways.
+  const rpc = createPageRpcClient({ api, validate: (kind, type, payload) => (type.startsWith(FANSLY_TAB_TYPE_PREFIX) ? parseFanslyTabPayload(kind, type, payload) : parseTabPayload(kind, type, payload)) });
   const forwarder = createLogForwarder({
     async send(records) {
       const answer = await rpc.request('log.write', { records: [...records] });
@@ -229,23 +235,30 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
     report: (failure) => logger.warn(`page.${page}`, 'controller failed', { fields: { scope: failure.scope, code: failure.code, name: failure.name } }),
   };
 
-  const client = createPagesClient(env, ports);
+  // «Включить Fansly» (P9a) and — on the settings page — Fansly's own part of it (R20 P14b1): its card, rows and steps
+  // (ui/hosts/fansly/pages) over its controller, which also tells «Аккаунты» its sessions and goes to its tabs.
+  const sitePermissions = createPermissionBundle(permissionSet(), api);
+  const access = createSiteAccessControl(OPTIONAL_HOST, rpc, sitePermissions);
+  // The page's port carries Fansly's types as any other (its validator checks them by Fansly's registry).
+  const fanslyRequest = ((type: string, payload: unknown) => rpc.request(type as never, payload as never)) as unknown as FanslyPagesDeps['request'];
+  const fansly = page === 'options' ? createFanslyPages({ access, request: fanslyRequest, preview: (tone, volume) => rpc.request('sound.preview', { tone, volume }) }) : null;
+
+  const client = createPagesClient(env, fansly === null ? ports : { ...ports, siteAccounts: [fansly.accounts] });
   client.start();
 
   // ── the page itself ────────────────────────────────────────────────────────
-  const sitePermissions = createPermissionBundle(permissionSet(), api);
-  const access = createSiteAccessControl(OPTIONAL_HOST, rpc, sitePermissions);
   if (page === 'popup' || page === 'options') {
-    const refresh = (): void => { if (doc.visibilityState === 'visible') void access.refresh(); };
+    const read = (): Promise<void> => (fansly === null ? access.refresh() : fansly.control.refresh());
+    const refresh = (): void => { if (doc.visibilityState === 'visible') void read(); };
     offs.push(sitePermissions.onChange(refresh), ports.window.onFocus(refresh),
       createKeyValueStore('session', { api }).onChanged((changes) => { if (RELOAD_KEY in changes) refresh(); }),
       createKeyValueStore('local', { api }).onChanged((changes) => { if (STORAGE_KEYS.settingsExt in changes) refresh(); }));
-    void access.refresh();
+    void read();
   }
-  const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface, ...((page === 'popup' || page === 'options') ? { siteAccess: { control: access, title: FANSLY_PHRASES[i18n.language].site } } : {}) };
+  const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface, ...(page === 'popup' ? { siteAccess: { control: access, title: FANSLY_PHRASES[i18n.language].site } } : {}) };
   let unmount: Unmount;
   if (page === 'popup') unmount = mountPopup(container, shared);
-  else if (page === 'options') unmount = mountOptions(container, { ...shared, location: client.location, helpUrl: SITE_PAGES.start });
+  else if (page === 'options') unmount = mountOptions(container, { ...shared, location: client.location, helpUrl: SITE_PAGES.start, ...(fansly === null ? {} : { i18n: withFanslyPageTexts(i18n), slots: fanslyOptionsSlots(fansly.control) }) });
   else if (page === 'debug-prompt') unmount = mountDebugPrompt(container, { ...shared, token: promptTokenOf(win) });
   else {
     const mountJournal = (journal: JournalKind): Unmount => mountDebugJournal(container, { ...shared, journal });

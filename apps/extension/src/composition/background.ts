@@ -127,7 +127,7 @@ import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS, type PerHost
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
-import { type BackgroundKit, type HostRequestType, type KitSender, type VerifiedTabMessage } from './background/host-module';
+import { type BackgroundKit, type HostRequestType, type KitSender, type SiteTabsPort, type VerifiedTabMessage } from './background/host-module';
 import { createHostModules, type HostModuleSpec } from './background/host-modules';
 import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
 import { createBackgroundLogging } from './background/logging';
@@ -141,7 +141,7 @@ import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
-import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily } from './site-access';
+import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily } from './site-access';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
@@ -365,6 +365,19 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     contractsVersion: CONTRACTS_VERSION,
     testBuild,
     allowTab: (host) => host !== OPTIONAL_HOST || siteAccess.active(),
+    // R20 P14b1: the settings page speaks to Fansly's module (its part of `settings.ext`, its sessions and tabs) while
+    // Fansly is on; the module comes up for it. Off — the page hears so at once.
+    pageSite: {
+      hostOf: (type) => (type.startsWith(SITE_TYPE_PREFIX) ? OPTIONAL_HOST : null),
+      active: (host) => host === OPTIONAL_HOST && siteAccess.active(),
+      async open(host) {
+        await accessReady.catch(() => undefined);
+        if (host !== OPTIONAL_HOST || !siteAccess.active()) return false;
+        await barrier.ready;
+        void hostModules.ensure(host).catch(accessFailed);
+        return true;
+      },
+    },
     onTabRegistered(info) {
       presence.tabRegistered(info.tabSessionId);
       armAlarms();
@@ -664,7 +677,24 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
     // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope.
     site: { plug: (registry) => rpc.site({ ...registry, host }) },
+    // R20 P14b1: `settings.ext` through its one owner; the site's tabs by its addresses and registrations, no `tabs` right.
+    siteTabs: siteTabsOf(host),
   });
+  /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */
+  function siteTabsOf(host: HostKind): SiteTabsPort {
+    const prefix = `${host}:`;
+    return {
+      open: () => (host === OPTIONAL_HOST ? scriptTabs.list().catch(() => null) : Promise.resolve(null)),
+      registered() {
+        const reported = new Map(presence.tabs().map((tab) => [tab.tabSessionId, tab.accounts]));
+        return rpc
+          .tabs()
+          .filter((tab) => tab.request.host === host)
+          .map((tab) => ({ tabSessionId: tab.tabSessionId, tabId: tab.tabId, accounts: (reported.get(tab.tabSessionId) ?? []).filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length)) }));
+      },
+      focus: (tabId) => tabFocus.focus(tabId),
+    };
+  }
   const hostModules = createHostModules({
     specs: HOST_MODULE_SPECS,
     kit: kitOf,

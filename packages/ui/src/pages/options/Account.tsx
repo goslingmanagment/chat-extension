@@ -14,6 +14,7 @@ import { Button, Checkbox, CodeLine, Dot, useI18n } from '../../kit';
 import { ChatGooseLogo, TrioArt } from '../brand/art';
 import { Card, Columns, Opt, useAct, usePageServices } from '../shared';
 import { Field } from './controls';
+import { Slot } from './slots';
 import { SignInForm } from './SignIn';
 
 const ROLE_KEYS: Readonly<Record<string, I18nKey>> = {
@@ -262,6 +263,8 @@ export function SignInScreen(props: SignInScreenProps): JSX.Element {
         )}
       </div>
       {props.checklist}
+      {/* A site's own card (R20 P14b1): «Включить Fansly» stands here before the first sign-in too. */}
+      <Slot name="signIn" />
 
       <details class="pg-details" data-pg-anchor="hub-address">
         <summary>{i18n.t('settings.account.advanced')}</summary>

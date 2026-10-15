@@ -4,7 +4,7 @@
 // a failed read keeps its error instead of posing as an empty answer.
 
 import { type CgCode, type CgErrorView, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
-import { HOST_KINDS, type HostKind } from '@cg/contracts/hosts';
+import { HOST_KINDS, HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { type Bootstrap, type BootstrapPage, type PersonaCatalog, type PersonaCatalogItem } from '@cg/contracts/hub';
 import { type Locale } from '@cg/contracts/i18n/keys';
 import { type HostAccount, type HubBinding, type SessionIdentity } from '@cg/contracts/ids';
@@ -29,7 +29,7 @@ import {
 
 import { errorView } from '../../domain/errors';
 import { type Translator } from '../../domain/i18n';
-import { type OptionsLocation, type PageEnv } from './ports';
+import { type OptionsLocation, type PageEnv, type SiteAccountsFacts } from './ports';
 import { type SaveStatus } from './settings-writer';
 
 /** One read: nothing asked yet, asked, answered, or refused with its error. */
@@ -107,6 +107,8 @@ export interface PagesModel {
   readonly catalog: Slot<PersonaCatalog>;
   readonly diagnostics: Slot<DiagnosticsSnapshot>;
   readonly accounts: Slot<readonly SeenAccount[]>;
+  /** R20 P14b1: what each site's background told «Аккаунты» (`PagePorts.siteAccounts`); absent — no such site, or not read. */
+  readonly siteAccounts: ReadonlyMap<HostKind, Slot<SiteAccountsFacts | null>>;
   readonly bindings: ReadonlyMap<HostAccountKey, BindingSlot>;
   /** Per hub page; null — the background has seen no generation on it yet. */
   readonly quotas: ReadonlyMap<number, AiQuotaSnapshot | null>;
@@ -213,6 +215,48 @@ export function currentAccountOf(model: PagesModel): SeenAccount | null {
   const open = seen.find((entry) => entry.openTabs > 0);
   if (open !== undefined) return open;
   return [...seen].sort((a, b) => (a.lastSeenAt < b.lastSeenAt ? 1 : -1))[0] ?? null;
+}
+
+/** A site's facts for «Аккаунты» as last read; null — none (no such site, the site is off, not read yet). */
+export function siteFactsOf(model: Pick<PagesModel, 'siteAccounts'>, host: HostKind): SiteAccountsFacts | null {
+  const slot = model.siteAccounts.get(host);
+  return slot === undefined ? null : valueOf(slot);
+}
+
+/**
+ * The other ids of a host account (ST-079): the legacy ids its site's sessions name for it. A label and a model's sound
+ * set under one of them belong to the account; a change writes the account's own id and clears them.
+ */
+export function aliasesOf(model: Pick<PagesModel, 'siteAccounts'>, host: HostKind, hostAccountId: string): readonly string[] {
+  const facts = siteFactsOf(model, host);
+  if (facts === null) return [];
+  return [...new Set(facts.sessions.filter((session) => session.id === hostAccountId).flatMap((session) => session.aliases))].filter((alias) => alias !== hostAccountId);
+}
+
+/**
+ * Every account «Аккаунты» lists (R20 P14b1; ST-067, AU-035): the ones the tabs reported, then the live sessions of a
+ * site none of them names — by its id or an alias. A session of a reported account adds its open tabs: the account is
+ * at work in a tab that never registered (opened before the site was switched on).
+ */
+export function knownAccounts(model: Pick<PagesModel, 'accounts' | 'siteAccounts'>): readonly SeenAccount[] {
+  const out: SeenAccount[] = [...(valueOf(model.accounts) ?? [])];
+  for (const [host, slot] of model.siteAccounts) {
+    const facts = valueOf(slot);
+    if (facts === null) continue;
+    for (const session of facts.sessions) {
+      const ids = [session.id, ...session.aliases];
+      const seenAt = new Date(session.observedAt).toISOString();
+      const index = out.findIndex((entry) => entry.account.host === host && ids.includes(entry.account.hostAccountId));
+      const known = out[index];
+      if (known !== undefined) {
+        out[index] = { ...known, openTabs: Math.max(known.openTabs, session.tabs), lastSeenAt: known.lastSeenAt < seenAt ? seenAt : known.lastSeenAt };
+        continue;
+      }
+      const account: HostAccount = { host, hostAccountId: session.id, platform: HOST_PLATFORM[host], platformAccountId: session.platformAccountId, username: null, displayName: null };
+      out.push({ account, lastSeenAt: seenAt, openTabs: session.tabs, routeTabs: 0 });
+    }
+  }
+  return out;
 }
 
 export function pageById(model: PagesModel, pageId: number): BootstrapPage | null {

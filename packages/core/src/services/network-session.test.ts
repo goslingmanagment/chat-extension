@@ -176,9 +176,16 @@ describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation',
     await service.resolveIdentity(2, account, other); expect(service.forAccount(other)).toBeNull();
     await service.resolveIdentity(1, account, other);
     expect(service.forAccount(other)?.legacyId).toBe(account);
+    expect(service.aliases(other)).toEqual([account, other]);
+    expect(service.aliases('999999999999999999')).toEqual([]);
     const restored = setup(store).service; await restored.setEnabled(true);
     expect(restored.forAccount(other)?.canonicalId).toBe(other);
+    expect(restored.aliases(other)).toEqual([account, other]);
+    await restored.disconnect(other);
+    // P14a keeps proven own-account ids even after credentials expire.
+    expect(restored.aliases(other)).toEqual([account, other]);
     await restored.forget(1); expect(restored.forAccount(other)).toBeNull();
+    expect(restored.aliases(other)).toEqual([]);
   });
   it('[ER-050] expired sessions are unavailable until a new successful capture, without fallback', async () => {
     const { service } = setup(); await service.setEnabled(true);

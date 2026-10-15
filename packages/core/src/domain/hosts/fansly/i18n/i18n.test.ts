@@ -6,11 +6,13 @@
 import { CG_FANSLY_CODES, CG_FANSLY_I18N_KEYS, cgFanslyEntry } from '@cg/contracts/errors-fansly';
 import { I18N_KEYS, messageParams } from '@cg/contracts/i18n/catalog';
 import { LOCALES, PLURAL_CATEGORIES } from '@cg/contracts/i18n/keys';
+import { FANSLY_PAGE_TEXT_KEYS } from '@cg/contracts/pages-fansly';
 import { FANSLY_VAULT_PLURAL_KEYS, FANSLY_VAULT_TEXT_KEYS } from '@cg/contracts/vault-fansly';
 import { describe, expect, it } from 'vitest';
 
-import { CATALOGS } from '../../../i18n';
+import { CATALOGS, createI18n } from '../../../i18n';
 import { FANSLY_CG_CATALOGS, FANSLY_VAULT_TEXTS } from './index';
+import { FANSLY_PAGE_TEXTS, fanslyPageText, withFanslyPageTexts } from './pages';
 
 /** AU-019 (as in the shared catalog's test): a chatter never reads of tokens, keys or an API. */
 const FORBIDDEN_WORDS: readonly RegExp[] = [/(?<!\p{L})tokens?(?!\p{L})/iu, /(?<!\p{L})токен/iu, /(?<!\p{L})keys?(?!\p{L})/iu, /(?<!\p{L})ключ/iu, /(?<!\p{L})api(?!\p{L})/iu, /(?<!\p{L})bearer/iu];
@@ -67,5 +69,34 @@ describe('[I18-003] [FS-VLT-1] the vault panel’s texts (fansly-web, R20 P13b)'
         expect(key in CATALOGS[locale], `${locale} ${key}`).toBe(false);
       }
     }
+  });
+});
+
+describe('[I18-003] Fansly’s texts on the extension pages (R20 P14b1, FS-SET-1)', () => {
+  it('ru and en carry exactly the page keys, the same parameters in both, no forbidden words; none in the shared catalogs', () => {
+    const shared = new Set<string>(I18N_KEYS);
+    for (const locale of LOCALES) {
+      expect(Object.keys(FANSLY_PAGE_TEXTS[locale]).sort(), locale).toEqual([...FANSLY_PAGE_TEXT_KEYS].sort());
+      for (const key of FANSLY_PAGE_TEXT_KEYS) {
+        const text = FANSLY_PAGE_TEXTS[locale][key];
+        expect(text.trim(), `${locale} ${key}`).not.toBe('');
+        expect(messageParams(text).sort(), `${locale} ${key}`).toEqual(messageParams(FANSLY_PAGE_TEXTS.ru[key]).sort());
+        expect(FORBIDDEN_WORDS.filter((pattern) => pattern.test(text)), `${locale} ${key}: «${text}»`).toEqual([]);
+        expect(shared.has(key), key).toBe(false);
+        expect(key in CATALOGS[locale], `${locale} ${key}`).toBe(false);
+      }
+    }
+  });
+
+  it('laid over the page’s I18n: its own keys in the page’s language as it switches, every other key the page’s', () => {
+    const base = createI18n({ language: 'ru', now: () => 0 });
+    const i18n = withFanslyPageTexts(base);
+    expect(fanslyPageText(i18n, 'fansly.pages.viaTab')).toBe('Fansly через вкладку');
+    expect(fanslyPageText(i18n, 'fansly.pages.tabsOpen', { n: 3 })).toBe('Открыто: 3');
+    expect(i18n.t('common.retry')).toBe(base.t('common.retry'));
+    base.setLanguage('en');
+    expect(i18n.language).toBe('en');
+    expect(fanslyPageText(i18n, 'fansly.pages.viaTab')).toBe('Fansly through the tab');
+    expect(i18n.t('common.retry')).toBe(base.t('common.retry'));
   });
 });

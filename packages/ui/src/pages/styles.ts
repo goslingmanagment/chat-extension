@@ -288,6 +288,22 @@ ${/* A step done is a quiet line with its tick; a step to do has its number in t
 .pg-check__item.is-done { min-height: 34px; color: var(--cg-ink-muted); font-size: 14px; }
 .pg-check__item:not(.is-done) .pg-check__t { color: var(--cg-ink-strong); font-weight: 600; }
 .pg-check__item .cg-btn--quiet { justify-self: end; }
+${/* R20 P14b1: a site's own steps under the eight, a subheading over their own numbered list. */ ''}
+.pg-check__group { margin-top: 10px; }
+.pg-check__sub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; padding: 10px 0 6px; border-top: 1px solid var(--cg-rule); }
+.pg-check__sub b { font-family: var(--pg-display); font-weight: 800; font-size: 16px; line-height: 22px; color: var(--cg-ink-strong); }
+.pg-check__sub span { color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-check__item > .pg-site-access { justify-self: end; }
+
+/* R20 P14b1: a site's own card in a shared section («Аккаунты», the sign-in screen) */
+.pg-sitecard { position: relative; }
+.pg-sitecard + .pg-intro.pg-intro, .pg-sitecard + .pg-note { margin-top: 16px; }
+.pg-sitecard__save { position: absolute; top: 18px; right: 24px; }
+.pg-signin .pg-sitecard { margin-top: 16px; }
+${/* The P9a hook of a site's switch (the button inside `.pg-site-access`), here a plain wrapper of the button. */ ''}
+.pg-sitecard .pg-site-access, .pg-check__item .pg-site-access { margin: 0; padding: 0; max-width: none; display: inline-flex; }
+${/* A site's own tone row has no switch of its own: the room of one, so its picker stands under the shared ones. */ ''}
+.pg-tone-pad { flex: none; width: 38px; }
 
 /* «Статус» (§4.24): the verdict on the stage — the pond when ready, the gosling's yellow when something waits — then the rows */
 .pg-sum { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 6px 24px; margin: 0 0 16px; padding: 28px 32px 26px; border-radius: 28px; background: var(--pg-pond); color: var(--pg-on-pond); overflow: hidden; }

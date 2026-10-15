@@ -49,7 +49,7 @@ describe('[EX-015] [DB-029] [host:fansly] the tab protocol of fansly.com (fansly
     });
   }
 
-  it('names its types `fansly.<family>.<name>`: two dots, the six families, none a shared type', () => {
+  it('names its types `fansly.<family>.<name>`: two dots, the eight families, none a shared type', () => {
     const families = new Set<string>();
     for (const type of [...T.FANSLY_TAB_REQUEST_TYPES, ...T.FANSLY_TAB_EVENT_TYPES]) {
       expect(type, type).toMatch(/^fansly\.[a-z]+\.[a-zA-Z]+$/);
@@ -57,7 +57,7 @@ describe('[EX-015] [DB-029] [host:fansly] the tab protocol of fansly.com (fansly
       expect(envelopeAccepts(type), type).toBe(true);
       families.add(type.split('.')[1] ?? '');
     }
-    expect([...families].sort()).toEqual(['followers', 'notes', 'relay', 'sound', 'vault', 'voice']);
+    expect([...families].sort()).toEqual(['accounts', 'followers', 'notes', 'relay', 'settings', 'sound', 'vault', 'voice']);
     for (const type of [...C.TAB_REQUEST_TYPES, ...C.TAB_EVENT_TYPES]) expect(type.startsWith(T.FANSLY_TAB_TYPE_PREFIX), type).toBe(false);
     expect(T.isFanslyTabRequestType('settings.get')).toBe(false);
     expect(T.isFanslyTabRequestType('__proto__')).toBe(false);
@@ -65,10 +65,19 @@ describe('[EX-015] [DB-029] [host:fansly] the tab protocol of fansly.com (fansly
     expect(T.parseFanslyTabPayload('evt', 'fansly.notes.read', {})).toEqual({ ok: false });
   });
 
-  it('every request is the site’s own: a fansly.com tab or its relay sends it, never ChatSpace or a page', () => {
+  it('every request is the site’s own: a fansly.com tab or its relay sends it, never ChatSpace; a page only the settings page’s four (P14b1)', () => {
+    const pageTypes = ['fansly.settings.read', 'fansly.settings.write', 'fansly.accounts.read', 'fansly.accounts.focus'];
     for (const type of T.FANSLY_TAB_REQUEST_TYPES) {
       const spec: C.TabRequestSpec = T.FANSLY_TAB_REQUESTS[type];
       expect(spec.hosts, type).toEqual(['fansly-web']);
+      if (pageTypes.includes(type)) {
+        expect(spec.from, type).toEqual(['page']);
+        expect(T.mayRequestFansly(type, 'page', 'options', null), type).toBe(true);
+        expect(T.mayRequestFansly(type, 'page', 'popup', null), type).toBe(false);
+        expect(T.mayRequestFansly(type, 'tab', null, 'fansly-web'), type).toBe(false);
+        expect(T.mayRequestFansly(type, 'relay', null, 'fansly-web'), type).toBe(false);
+        continue;
+      }
       const relay = type.startsWith('fansly.relay.');
       expect(spec.from, type).toEqual(relay ? ['relay'] : ['tab']);
       expect(T.mayRequestFansly(type, relay ? 'relay' : 'tab', null, 'fansly-web'), type).toBe(true);
@@ -281,7 +290,7 @@ describe('[host:fansly] light modules and the package index', () => {
 
   it('the Fansly modules and settings.ext are subpaths only: nothing that imports the index carries them', () => {
     const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
-    for (const module of ['tab-messages-fansly', 'errors-fansly', 'settings-ext']) expect(index, module).not.toContain(`'./${module}'`);
+    for (const module of ['tab-messages-fansly', 'errors-fansly', 'settings-ext', 'pages-fansly']) expect(index, module).not.toContain(`'./${module}'`);
     for (const name of ['FANSLY_TAB_REQUESTS', 'CG_FANSLY_CODES', 'SettingsExtSchema', 'CgAnyErrorWireSchema']) expect(name in C, name).toBe(false);
   });
 });

@@ -23,7 +23,8 @@
     "./preview": "./src/preview/index.ts",
     "./pages": "./src/pages/index.ts",
     "./hosts/fansly": "./src/hosts/fansly/index.ts",
-    "./hosts/fansly/vault": "./src/hosts/fansly/vault/index.tsx"
+    "./hosts/fansly/vault": "./src/hosts/fansly/vault/index.tsx",
+    "./hosts/fansly/pages": "./src/hosts/fansly/pages/index.tsx"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",

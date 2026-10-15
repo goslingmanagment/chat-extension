@@ -63,6 +63,23 @@
 - Фикстуры порядка id проверяют переход длины, соседей выше 2^53, равные id и 30 цифр; прежние фикстуры
   снимка и Hi сохраняются. Внешних зависимостей не добавлено.
 
+### P14b1 — Fansly на странице настроек
+
+- Реестр Fansly (`tab-messages-fansly`): четыре запроса страницы настроек (`from: page`, `pages: ['options']`) —
+  `fansly.settings.read` и `fansly.settings.write` (часть Fansly ключа `settings.ext`: «Fansly через вкладку», тоны,
+  глубина выше 3000; `FanslySettingsPatchSchema` — патч ключа без `enabled` и `notesView`), `fansly.accounts.read`
+  (`FanslyAccountsViewSchema`: живые сессии — legacy и canonical id, вкладки, время; открытые вкладки; без атрибуции)
+  и `fansly.accounts.focus`. Фикстуры — `test/fixtures/protocols-fansly.ts`, верные и неверные; правило «страница
+  в реестр сайта не ходит» стало «ходит только за этими четырьмя».
+- `pages-fansly` (новый, только подпуть): вид и порт контроллера Fansly на странице (`FanslyPagesView`,
+  `FanslyPagesControl`, `FanslyStep`, `FanslyPageFacts`) и ключи его текстов `fansly.pages.*` — каталоги Fansly
+  (`core/src/domain/hosts/fansly/i18n/pages.ts`), общий каталог их не несёт.
+- `vm/pages.ts`: `AccountsBodyVM.rows[].aliases?` — другие id аккаунта (legacy id сессии рядом с id креатора, ST-079);
+  `AccountsBodyVM.phrases?` — сайты списка для пояснения и подсказки («OnlyMonster и Fansly», «ChatSpace или Fansly»),
+  нет — фразы сайта страницы. Только типы; старые модели без полей валидны.
+- Протокол платформы (не схемы контрактов): `SiteSenderContext` и `HostSiteSender` — вид `page`; опция
+  `pageSite` фона ([site-access.md](protocols/site-access.md) «Страница настроек и модуль сайта»).
+
 ### P9a — права опционального сайта
 
 - Общий запрос страниц `site.access` (только popup/options): чтение состояния опционального сайта,

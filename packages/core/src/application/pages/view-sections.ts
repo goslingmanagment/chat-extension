@@ -5,7 +5,8 @@
 // nowhere outside debug.
 
 import { isCgCode, type CgCode } from '@cg/contracts/errors';
-import { SOUND_TONE_IDS } from '@cg/contracts/settings';
+import { HOST_KINDS, HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
+import { SOUND_TONE_IDS, hostAccountKeyOf } from '@cg/contracts/settings';
 import {
   JOURNAL_KINDS,
   type AccountBodyVM,
@@ -13,6 +14,7 @@ import {
   type AppearanceBodyVM,
   type DiagnosticsBodyVM,
   type GenerationBodyVM,
+  type HostPhrases,
   type HotkeysBodyVM,
   type PersonasBodyVM,
   type ReasonVM,
@@ -20,7 +22,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { hotkeyRows } from './hotkeys';
-import { accountKeyOf, boundPageOf, boundPageTagOf, button, errorOf, msg, pageTagOf, personaOfPage, platformNameOf, valueOf, type PagesModel } from './model';
+import { accountKeyOf, aliasesOf, boundPageOf, boundPageTagOf, button, errorOf, knownAccounts, msg, pageTagOf, personaOfPage, platformNameOf, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
 import { hubState } from './view-status';
 
@@ -120,30 +122,55 @@ function noTabReason(model: PagesModel): ReasonVM | null {
   return tabs > 0 ? null : { id: 'host-degraded', code: 'CG-HOST-NOT-READY', text: msg('settings.accounts.toTabUnavailable') };
 }
 
+/**
+ * A host account's number as a heading (ST-069): an id of up to 12 digits as it is (OnlyMonster's); a longer one — a
+ * Fansly id has 18–19 — by its first and last four digits. «Скопировать номер» copies it whole.
+ */
+export function shortAccountId(id: string): string {
+  return id.length > 12 ? `${id.slice(0, 4)}…${id.slice(-4)}` : id;
+}
+
+/** What a text says for a host's name: the phrases of the site itself (R20 F9b), not the page's — a row of Fansly says «Fansly». */
+function phrasesOfHost(model: PagesModel, host: HostKind): Partial<HostPhrases> {
+  return model.env.platformPhrases(HOST_PLATFORM[host])?.[model.locale] ?? {};
+}
+
 export function accountsBody(model: PagesModel): AccountsBodyVM {
   // The account a tab's route is on comes first — the one «Статус» names (currentAccountOf) — then the rest at
-  // work in a tab (loaded there), then the newest seen.
-  const seen = [...(valueOf(model.accounts) ?? [])].sort(
+  // work in a tab (loaded there), then the newest seen. R20 P14b1: with the live sessions a site's background
+  // knows and no tab of ours reported (ST-067, AU-035).
+  const seen = [...knownAccounts(model)].sort(
     (a, b) =>
       Number((b.routeTabs ?? 0) > 0) - Number((a.routeTabs ?? 0) > 0) || Number(b.openTabs > 0) - Number(a.openTabs > 0) || (a.lastSeenAt < b.lastSeenAt ? 1 : -1),
   );
   const reason = noTabReason(model);
+  const labels = model.effective?.accounts.labels ?? {};
+  const muted = model.effective?.sound.mutedAccounts ?? [];
   const boundPages = new Set<number>();
   const rows: AccountsBodyVM['rows'][number][] = seen.map((entry) => {
+    const { host, hostAccountId } = entry.account;
     const key = accountKeyOf(entry.account);
     const bound = boundPageOf(model, entry.account);
     if (bound !== null) boundPages.add(bound.binding.pageId);
+    const phrases = phrasesOfHost(model, host);
+    // ST-079: the account's other ids carry what was set under them, until a change writes its own id.
+    const aliases = aliasesOf(model, host, hostAccountId);
+    const aliasKeys = aliases.map((alias) => hostAccountKeyOf(host, alias));
+    // A site that goes to its tab its own way (R20 P14b1, ST-076) can only when a tab of it has the account.
+    const own = model.siteAccounts.has(host);
+    const rowReason = !own ? reason : entry.openTabs > 0 ? null : { id: 'host-degraded' as const, code: 'CG-HOST-NOT-READY' as const, text: msg('settings.accounts.toTabUnavailable', phrases) };
     return {
       accountHandle: key,
-      title: entry.account.displayName ?? (entry.account.username === null ? model.t.text('popup.dialogAccount', { id: entry.account.hostAccountId }) : `@${entry.account.username.replace(/^@/, '')}`),
+      title: entry.account.displayName ?? (entry.account.username === null ? model.t.text('popup.dialogAccount', { ...phrases, id: shortAccountId(hostAccountId) }) : `@${entry.account.username.replace(/^@/, '')}`),
       username: entry.account.username,
-      localLabel: model.effective?.accounts.labels[key] ?? null,
+      localLabel: labels[key] ?? aliasKeys.map((alias) => labels[alias]).find((label) => label !== undefined) ?? null,
       status: entry.openTabs > 0 ? 'working' : 'seen',
       pageName: bound === null ? null : (bound.page?.title ?? bound.binding.pageLabel),
       page: bound === null ? null : boundPageTagOf(model, bound),
       persona: bound === null ? null : personaOfPage(model, bound.binding.pageId).label,
-      muted: model.effective?.sound.mutedAccounts.includes(key) ?? false,
-      goTo: button('settings.accounts.toTab', { type: 'Navigate', to: { kind: 'account', accountHandle: key } }, { reason }),
+      muted: muted.includes(key) || aliasKeys.some((alias) => muted.includes(alias)),
+      goTo: button('settings.accounts.toTab', { type: 'Navigate', to: { kind: 'account', accountHandle: key } }, { reason: rowReason }),
+      ...(aliases.length === 0 ? {} : { aliases }),
     };
   });
   // Hub pages this browser has never opened an account for: «нет сессий» (ST-067).
@@ -164,7 +191,21 @@ export function accountsBody(model: PagesModel): AccountsBodyVM {
       goTo: button('settings.accounts.toTab', { type: 'Navigate', to: { kind: 'account', accountHandle: handle } }, { reason: { id: 'host-degraded', code: 'CG-HOST-NOT-READY', text: msg('settings.accounts.noSessionsHint') } }),
     });
   }
-  return { section: 'accounts', rows };
+  return { section: 'accounts', rows, ...listPhrases(model, seen.map((entry) => entry.account.host)) };
+}
+
+/**
+ * What the lead and the hint of «Аккаунты» say for the sites (R20 P14b1): the list holds accounts of more than one site
+ * or of another than the page's own — «Аккаунты OnlyMonster и Fansly…», «…во вкладке ChatSpace или Fansly». One site of
+ * the page's own, or none: nothing — the page's phrases, as before.
+ */
+function listPhrases(model: PagesModel, hosts: readonly HostKind[]): Pick<AccountsBodyVM, 'phrases'> {
+  const present = HOST_KINDS.filter((host) => hosts.includes(host)).map((host) => phrasesOfHost(model, host));
+  const own = model.env.phrases[model.locale];
+  if (present.length === 0 || (present.length === 1 && present[0]?.site === own.site)) return {};
+  const join = (words: readonly (string | undefined)[], type: 'conjunction' | 'disjunction'): string =>
+    new Intl.ListFormat(model.locale, { type }).format(words.filter((word): word is string => word !== undefined));
+  return { phrases: { siteAccount: join(present.map((phrases) => phrases.siteAccount), 'conjunction'), site: join(present.map((phrases) => phrases.site), 'disjunction') } };
 }
 
 export function generationBody(model: PagesModel): GenerationBodyVM | null {

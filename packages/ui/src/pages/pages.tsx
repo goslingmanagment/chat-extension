@@ -28,6 +28,7 @@ import { Hints, SettableSignal, capturePageErrors, mountKitPage, resolvedSchemeS
 import { DebugJournal } from './debug/Journal';
 import { DebugPrompt } from './debug/DebugPrompt';
 import { Options, type OptionsRoute } from './options/Options';
+import { type OptionsSlots } from './options/slots';
 import { SiteAccess, type SiteAccessProps } from './SiteAccess';
 import { Popup } from './Popup';
 import { FONTS_SOURCE } from './brand/fonts';
@@ -59,6 +60,8 @@ export interface OptionsPageDeps extends PageDeps {
   readonly location: ValueSignal<OptionsRoute>;
   /** The site page that helps with the sign-in (ST-050); https, or absent. */
   readonly helpUrl?: string | null;
+  /** R20 P14b1: a site's own parts of the shared sections (ui/hosts/<site>/pages); absent — none. */
+  readonly slots?: OptionsSlots;
 }
 
 const ALWAYS_ON: ValueSignal<boolean> = { value: true, subscribe: () => () => undefined };
@@ -114,7 +117,7 @@ export function mountPopup(container: HTMLElement, deps: PageDeps): Unmount {
 
 /** options.html: the settings with their hash routes; the sign-in screen while nobody is signed in. */
 export function mountOptions(container: HTMLElement, deps: OptionsPageDeps): Unmount {
-  return mountPage(container, deps, 'options', () => <Options location={deps.location} helpUrl={deps.helpUrl ?? null} />);
+  return mountPage(container, deps, 'options', () => <Options location={deps.location} helpUrl={deps.helpUrl ?? null} {...(deps.slots === undefined ? {} : { slots: deps.slots })} />);
 }
 
 /** debug-prompt.html?t=…: `token` is the `t` parameter; it is never drawn and never logged. */

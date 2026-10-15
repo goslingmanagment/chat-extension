@@ -23,6 +23,13 @@
 // Forgotten checkpoints go with the module's first start and «Очистить
 // локальные данные».
 //
+// R20 P14b1: the settings page reaches this registry too (the core routes a
+// page's `fansly.*` request here while Fansly is on): Fansly's part of
+// `settings.ext` through the core's one owner of the key (`fansly.settings.*`),
+// and «Аккаунты» — the captured sessions with their legacy ↔ canonical
+// reconciliation, the tabs no account is known for and «к вкладке» without the
+// `tabs` right (`fansly.accounts.*`, core services/hosts/fansly/accounts.ts).
+//
 // R20 P7i: the module brings Fansly's slice of the feature manifest
 // (docs/project-unite/architecture.md §1.4). The core's graph never has a file
 // of Fansly's, so it admits a generation of a Fansly chat and an insert token
@@ -42,13 +49,33 @@ import {
   type FanslyTabRequestPayload,
 } from '@cg/contracts/tab-messages-fansly';
 import { featureSlice } from '@cg/core/domain/features';
+import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 import { createFanslyApi, type FanslyApi } from '@cg/fansly-api';
 
-import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry } from '../src/composition/background/host-module';
+import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
 import { startFanslyApiProbe } from './fansly/api-probe';
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
+const unreachable = (detail: string): HostAnswer => ({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail } });
+/** A read or a write of `settings.ext`: its state, or the owner's code (CG-STORAGE-READ, -WRITE, -VERSION). */
+const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? ok(answer.state) : { ok: false, error: answer.error });
+
+/** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
+async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, type: string, payload: unknown): Promise<HostAnswer> {
+  switch (type) {
+    case 'fansly.settings.read':
+      return kit.settingsExt === undefined ? unreachable('no settings.ext port') : settingsAnswer(await kit.settingsExt.state());
+    case 'fansly.settings.write':
+      return kit.settingsExt === undefined ? unreachable('no settings.ext port') : settingsAnswer(await kit.settingsExt.patch((payload as FanslyTabRequestPayload<'fansly.settings.write'>).patch));
+    case 'fansly.accounts.read':
+      return accounts === null ? unreachable('no session or tabs port') : ok(await accounts.read());
+    case 'fansly.accounts.focus':
+      return accounts === null ? unreachable('no session or tabs port') : ok({ focused: await accounts.focus((payload as FanslyTabRequestPayload<'fansly.accounts.focus'>).hostAccountId) });
+    default:
+      return unreachable(`${type}: not a page's`);
+  }
+}
 
 /** Fansly's slice of the feature manifest, as its tab and the extension pages hold it. */
 const FANSLY_SLICE = featureSlice(FEATURES_COMMON, FANSLY_FEATURES);
@@ -87,7 +114,10 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   await refreshSettings();
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
+  const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
+    // The registry's rules let a page send only the settings page's types (contracts tab-messages-fansly.ts).
+    if (sender.kind === 'page') return pageRequest(kit, accounts, type, payload);
     const tab = sender.tabSessionId;
     switch (type) {
       case 'fansly.sound.batch':

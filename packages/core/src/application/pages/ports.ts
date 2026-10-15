@@ -132,6 +132,41 @@ export interface PageEnv {
   readonly platformPhrases: (platform: string) => SitePhrases | null;
 }
 
+/**
+ * R20 P14b1: an account a site's own background knows beyond its tabs' reports — a live session it captured (on Fansly:
+ * a tab opened before the site was switched on runs no script of ours, yet its requests are seen).
+ */
+export interface SiteSessionFact {
+  /** The id the row goes by: the account's own once a tab of ours named it (canonical), else the session's (legacy). */
+  readonly id: string;
+  /** Other ids of the same account — a session's legacy id next to its canonical one (ST-079): labels and sounds follow them. */
+  readonly aliases: readonly string[];
+  /** The platform's id of the account when known (it binds the account to a hub page, AU-022); null — not known. */
+  readonly platformAccountId: string | null;
+  /** Open tabs on it now. */
+  readonly tabs: number;
+  /** When it was last seen live, epoch ms. */
+  readonly observedAt: number;
+}
+
+/** What a site's background knows of its accounts for «Аккаунты» (ST-067, ST-079). */
+export interface SiteAccountsFacts {
+  readonly sessions: readonly SiteSessionFact[];
+}
+
+/**
+ * R20 P14b1: a site that tells «Аккаунты» more than its tabs' reports, and goes to a tab of an account its own way
+ * (Fansly: by the tab's registration or session, without the `tabs` right — no command to the tab). The composition
+ * root gives one per such site; the controller names no site.
+ */
+export interface PageSiteAccounts {
+  readonly host: HostKind;
+  /** null — the site is off now: nothing of it to add. */
+  read(): Promise<PageAnswer<SiteAccountsFacts | null>>;
+  /** «к вкладке» (ST-076): true — a tab of the account is in front now; false — none is open. */
+  focus(hostAccountId: string): Promise<PageAnswer<boolean>>;
+}
+
 /** The I18n the page renders with: the controller switches its language with `ui.locale` (I18-001). */
 export interface PageLanguageSwitch {
   setLanguage(language: Locale): void;
@@ -156,6 +191,8 @@ export interface PagePorts {
   readonly catalog?: ActionCatalog;
   /** Failures of the controller itself: class and code only, never a text (ER-021…ER-023). */
   readonly report?: (failure: { readonly scope: string; readonly code: string; readonly name: string }) => void;
+  /** R20 P14b1: the sites that tell «Аккаунты» more than their tabs' reports (the options page reads them). */
+  readonly siteAccounts?: readonly PageSiteAccounts[];
 }
 
 /** Where the options page is: `#<section>:<CODE>`; `seq` grows on every hash change, the same one included (ST-009). */

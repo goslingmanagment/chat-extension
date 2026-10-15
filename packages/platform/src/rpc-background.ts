@@ -24,7 +24,10 @@
 //   the sender, the tab session, the site — a tab or a relay reaches only its
 //   own site's registry — and the envelope; the registry's rules, schemas and
 //   handler do the rest, as for the shared one. Such a request waits for its
-//   site to be plugged within `siteWaitMs`. A page reaches no site registry.
+//   site to be plugged within `siteWaitMs`. R20 P14b1: a page reaches a site's
+//   registry too, through `pageSite` — the core names the site of the type and
+//   brings its module up while the site is on (off: CG-RUNTIME-UNREACHABLE at
+//   once); the registry's rules decide which of its types a page may send.
 // - A relay frame (`cg-relay`) is a subframe of a tab at the site's relay
 //   page; it is accepted only inside a tab that holds a registered session of
 //   that site, speaks for that session only, and goes when that tab's port
@@ -76,12 +79,26 @@ export type RpcSenderContext =
 export type HandledRequestType = Exclude<TabRequestType, 'tab.register'>;
 
 /**
- * 1.15.0: who sent a request of a site's registry — a tab of the site, or the relay frame of a tab session. A page
- * reaches no site registry yet (none of its types is a page's); the PR that adds one routes pages here too.
+ * 1.15.0: who sent a request of a site's registry — a tab of the site, the relay frame of a tab session, or (R20
+ * P14b1) one of our pages, routed to the site by `pageSite`.
  */
 export type SiteSenderContext =
   | { readonly kind: 'tab'; readonly host: TabHostKind; readonly tabSessionId: string; readonly tabId: number; readonly url: string }
-  | { readonly kind: 'relay'; readonly host: TabHostKind; readonly tabSessionId: string; readonly tabId: number; readonly frameId: number; readonly url: string };
+  | { readonly kind: 'relay'; readonly host: TabHostKind; readonly tabSessionId: string; readonly tabId: number; readonly frameId: number; readonly url: string }
+  | { readonly kind: 'page'; readonly host: TabHostKind; readonly page: ExtensionPage; readonly tabId: number | null; readonly url: string };
+
+/**
+ * R20 P14b1: where a page's request of a type the shared registry does not know goes. `hostOf` — the site whose
+ * registry the type belongs to (by its prefix), null — none: refused without an answer, as before; `open` — the site
+ * is on and its module is being brought up for it (its registry is then waited for, `siteWaitMs`); false — it is off:
+ * answered CG-RUNTIME-UNREACHABLE at once.
+ */
+export interface PageSiteRoute {
+  hostOf(type: string): TabHostKind | null;
+  open(host: TabHostKind): Promise<boolean>;
+  /** Current permission/settings admission, checked synchronously immediately before dispatch. */
+  active(host: TabHostKind): boolean;
+}
 
 /**
  * A site's own registry and its handler (1.15.0; R20 architecture §1.6, §3.3; contracts `tab-messages-fansly.ts`),
@@ -115,6 +132,8 @@ export interface BackgroundRpcOptions {
   readonly relayPages?: RelayPages;
   /** 1.15.0: how long a tab's or relay's request of a site's registry waits for that site to be plugged (default 10 s). */
   readonly siteWaitMs?: number;
+  /** R20 P14b1: a page's requests of a site's registry; absent — a page reaches no site registry. */
+  readonly pageSite?: PageSiteRoute;
   /** The readiness barrier: no request is handled before it settles. */
   readonly ready: Promise<unknown>;
   readonly contractsVersion: string;
@@ -323,6 +342,27 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     return run(type, (kind, t, p) => site.parse(kind, t, p), (input) => site.handle(type, input, sender), payload, sender.kind);
   }
 
+  /**
+   * R20 P14b1: a page's request of a site's registry. The site is opened first (its module comes up while the site is
+   * on); null — refused without an answer (a type the registry does not have, or not a page's), as for the shared one.
+   */
+  async function dispatchPageSite(type: string, payload: unknown, sender: Extract<SiteSenderContext, { kind: 'page' }>, route: PageSiteRoute): Promise<RpcResult<unknown> | null> {
+    if (!(await ready(type, 'page'))) return rpcError('CG-UNKNOWN', 'background not ready');
+    if (!(await route.open(sender.host).catch(() => false))) return rpcError('CG-RUNTIME-UNREACHABLE', 'site off');
+    const site = await siteOf(sender.host);
+    if (site === null) return rpcError('CG-RUNTIME-UNREACHABLE', 'site not running');
+    if (!type.startsWith(site.prefix) || !site.isRequestType(type)) {
+      reject('unknown-type', type, 'page');
+      return null;
+    }
+    if (!site.mayRequest(type, 'page', sender.page, null)) {
+      reject('sender-kind', type, 'page');
+      return null;
+    }
+    if (!route.active(sender.host)) return rpcError('CG-RUNTIME-UNREACHABLE', 'site off');
+    return run(type, (kind, t, p) => site.parse(kind, t, p), (input) => site.handle(type, input, sender), payload, 'page');
+  }
+
   function onRelayMessage(state: RelayPortState, raw: unknown): void {
     const envelope = TabEnvelopeSchema.safeParse(raw);
     // A relay speaks for the tab session it is framed in: it carries none of its own.
@@ -463,10 +503,15 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       return undefined;
     }
     const { id, type, payload } = envelope.data;
-    // A site's registry has nothing a page may send yet (1.15.0): its types read as unknown here.
+    // A type of a site's registry (R20 P14b1): its site, while it is on; without a route or a site — unknown, as before.
     if (!isTabRequestType(type)) {
-      reject('unknown-type', type, 'page');
-      return undefined;
+      const host = options.pageSite?.hostOf(type) ?? null;
+      if (options.pageSite === undefined || host === null) {
+        reject('unknown-type', type, 'page');
+        return undefined;
+      }
+      const sender: Extract<SiteSenderContext, { kind: 'page' }> = { kind: 'page', host, page: verdict.page, tabId: verdict.tabId, url: verdict.url };
+      return dispatchPageSite(type, payload, sender, options.pageSite).then((result) => (result === null ? undefined : responseEnvelope(id, type, result)));
     }
     if (type === 'tab.register' || !mayRequest(type, 'page', verdict.page, null)) {
       reject('sender-kind', type, 'page');

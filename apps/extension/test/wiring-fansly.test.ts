@@ -14,25 +14,29 @@
 // - the module down (its file missing): nothing of Fansly is admitted, and
 //   nothing reaches the hub; ChatSpace as before.
 
-import { CONTRACTS_VERSION, type HubBinding, type StartOp } from '@cg/contracts';
+import { CONTRACTS_VERSION, parseTabPayload, type HubBinding, type StartOp } from '@cg/contracts';
 import type { SoundBatch } from '@cg/contracts/sound';
 import { soundTransport } from '../src/composition/tab/hosts/fansly/sound';
 import type { StartedHost } from '../src/composition/tab/adapter';
 import type { ChatRef, HostAccount } from '@cg/contracts/ids';
+import { FANSLY_TAB_TYPE_PREFIX, parseFanslyTabPayload, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
+import type { FanslyPageRequestType } from '@cg/core/application/hosts/fansly/pages';
 import { SoundArbiter } from '@cg/core/services/sound';
-import { createTabRpcClient, type TabRpcClient } from '@cg/platform';
+import type { NetworkSession, RequestFact } from '@cg/core/services/network-session';
+import { createPageRpcClient, createTabRpcClient, type TabRpcClient } from '@cg/platform';
 import { callsTo, fanslyPageFlags } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WebRequestDetailsApi } from '../../../packages/platform/src/browser-api.ts';
-import { FakeEvent, tabSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
+import { FakeEvent, pageSender, tabSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
 import { createFanslyApi } from '@cg/fansly-api';
 import type { BackgroundKit } from '../src/composition/background/host-module.ts';
 
 import { parseTabPayload as fanslyProtocol } from '../lazy/fansly/tab-protocol.ts';
 import { fanslyRequest } from '../src/composition/tab/hosts/fansly/requests.ts';
 import { fanslyModule } from '../bg/fansly.ts';
+import { SITE_TYPE_PREFIX } from '../src/composition/site-access.ts';
 import { FANSLY_API_MATCHES, FANSLY_MATCHES } from '../src/hosts/runtime/fansly.ts';
 import { admitted, bindingOf, opsOf, signInWithPersona, startReply, workingTab, type WorkingTab } from './support/tabs.ts';
 import { PASSWORD, createWorld, loadChunkModule, sleep, until, type World } from './support/world.ts';
@@ -68,11 +72,15 @@ const release = (held: ChunkGate): void => {
 };
 
 /** The world with Fansly's chunk loadable — or missing, as a build without it would be, or held at a gate. */
-function world(chunk: 'present' | 'missing' | ChunkGate = 'present'): World {
+function world(chunk: 'present' | 'missing' | ChunkGate = 'present', captureSession?: (session: NetworkSession) => void): World {
   const loadFansly = (): Promise<unknown> => {
     if (chunk === 'missing') return Promise.reject(new TypeError('error loading dynamically imported module'));
     // A module of its own for every load: each instance of the event page is a realm of its own.
-    const loaded = { default: fanslyModule() };
+    const module = fanslyModule();
+    const loaded = { default: { ...module, start: (kit: Parameters<typeof module.start>[0]) => {
+      if (kit.networkSession !== undefined) captureSession?.(kit.networkSession);
+      return module.start(kit);
+    } } };
     if (chunk === 'present' || !chunk.held) return Promise.resolve(loaded);
     return new Promise((resolve) => chunk.waiting.push(() => resolve(loaded)));
   };
@@ -438,4 +446,113 @@ it('[host:fansly] unreadable pacer storage keeps the module and vault registry r
   // The installed registry handles the vault request (not CG-RUNTIME-UNREACHABLE).
   const vault = await fanslyRequest(tab.client, 'fansly.vault.resume', { hostAccountId: CREATOR, albumId: '123' });
   expect(vault).toMatchObject({ ok: true });
+});
+
+/** The settings page as the pages' composition root makes its port: Fansly's types checked by Fansly's registry (R20 P14b1). */
+function fanslySettingsPage(w: World) {
+  const client = createPageRpcClient({
+    api: w.fake.context(pageSender(w.fake, 'options')).api,
+    validate: (kind, type, payload) => (type.startsWith(FANSLY_TAB_TYPE_PREFIX) ? parseFanslyTabPayload(kind, type, payload) : parseTabPayload(kind, type, payload)),
+    reconnectDelaysMs: [5, 10, 20],
+  });
+  return {
+    request: <T extends FanslyPageRequestType>(type: T, payload: FanslyTabRequestPayload<T>) =>
+      client.request(type as never, payload as never) as unknown as Promise<{ ok: true; payload: FanslyTabResponsePayload<T> } | { ok: false; error: { code: string; detail?: string } }>,
+    close: () => client.close(),
+  };
+}
+
+describe('[host:fansly] the settings page and Fansly’s module (R20 P14b1)', () => {
+  it('[ST-075] [ST-079] mute set before the creator was known still silences the canonical account after reconciliation', async () => {
+    let network: NetworkSession | undefined;
+    const w = world('present', (session) => { network = session; });
+    w.start();
+    await switchFanslyOn(w);
+    const tab = await fanslyTab(w, 21);
+    const page = fanslySettingsPage(w);
+    await page.request('fansly.accounts.read', {}); // Wait for the real module.
+    const legacy = '700000000000000101';
+    const fact: RequestFact = {
+      phase: 'headers', requestId: 'legacy-session', url: 'https://apiv3.fansly.com/api/v1/account/me', tabId: 21, frameId: 0,
+      originUrl: `${FANSLY_ORIGIN}/messages`, documentUrl: `${FANSLY_ORIGIN}/messages`,
+      requestHeaders: [
+        { name: 'authorization', value: btoa(`${legacy}:synthetic`) },
+        { name: 'fansly-client-id', value: 'client' }, { name: 'fansly-session-id', value: 'session' },
+        { name: 'fansly-client-ts', value: '100' }, { name: 'fansly-client-check', value: 'check' },
+      ],
+    };
+    if (network === undefined) throw new Error('module did not receive its session owner');
+    await network.accept(fact);
+    await network.accept({ ...fact, phase: 'completed', statusCode: 200 });
+    expect(await w.page().request('settings.patch', { patch: { sound: { mutedAccounts: [`fansly-web:${legacy}`] } }, baseRevision: null })).toMatchObject({ ok: true });
+    // A correlated identity response, after the legacy-only preference was stored.
+    await network.resolveIdentity(21, legacy, CREATOR);
+    expect(await page.request('fansly.accounts.read', {})).toMatchObject({ ok: true, payload: { sessions: [{ legacyId: legacy, canonicalId: CREATOR }] } });
+    // P14a's real socket route uses its persistent own-account aliases for both kinds of sound.
+    expect(await fanslyRequest(tab.client, 'fansly.sound.batch', { host: 'fansly-web', hostAccountId: CREATOR, events: [
+      { kind: 'message', id: '900000000000000010', conversationRef: group, senderId: fan, fromFan: true, automatic: false, tip: false, sentAt: new Date().toISOString() },
+      { kind: 'subscriber', id: '900000000000000011', accountId: CREATOR, followerId: fan },
+    ] })).toMatchObject({ ok: true });
+    const diagnostics = await w.page().request('diagnostics.get', {});
+    expect(diagnostics.ok && diagnostics.payload.sound.outcomes).toMatchObject({ muted: 1, 'subscriber.muted': 1 });
+    expect(w.played).toEqual([]);
+    page.close();
+  });
+
+  it('[FS-SET-1] disabling Fansly while its module loads refuses the pending page write', async () => {
+    const held = gate();
+    held.held = true;
+    const w = world(held);
+    w.start();
+    await switchFanslyOn(w);
+    const page = fanslySettingsPage(w);
+    const pending = page.request('fansly.settings.write', { patch: { hosts: { 'fansly-web': { viaTab: true } } } });
+    await until(() => held.waiting.length > 0, 'Fansly module load is pending');
+    expect(await w.page().request('site.access', { host: 'fansly-web', enabled: false })).toMatchObject({ ok: true });
+    const storage = w.fake.context(pageSender(w.fake, 'options')).api.storage.local;
+    const before = await storage.get('settings.ext');
+    release(held);
+    expect(await pending).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'site off' } });
+    expect(await storage.get('settings.ext')).toEqual(before);
+    page.close();
+  });
+
+  it('[host:fansly] the core routes the page’s `fansly.*` by the site’s own prefix (composition site-access.ts = contracts)', () => {
+    expect(SITE_TYPE_PREFIX).toBe(FANSLY_TAB_TYPE_PREFIX);
+  });
+
+  it('[FS-SET-1] [host:fansly] off: answered at once — CG-RUNTIME-UNREACHABLE, no module; on: its part of `settings.ext` through the one owner — a write lands in the key, never «Fansly включён»', async () => {
+    const w = world();
+    w.start();
+    const page = fanslySettingsPage(w);
+    expect(await page.request('fansly.settings.read', {})).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'site off' } });
+    expect((await modules(w)).find((entry) => entry.host === 'fansly-web')?.state ?? 'idle').not.toBe('started');
+    await switchFanslyOn(w);
+    const read = await page.request('fansly.settings.read', {});
+    expect(read).toMatchObject({ ok: true, payload: { ext: { hosts: { 'fansly-web': { enabled: true, viaTab: false } }, windows: { deep: null } }, readOnly: false } });
+    const before = read.ok ? read.payload.revision : -1;
+    const written = await page.request('fansly.settings.write', { patch: { hosts: { 'fansly-web': { viaTab: true, sound: { subscribersTone: 'bell' } } } } });
+    expect(written).toMatchObject({ ok: true, payload: { ext: { hosts: { 'fansly-web': { enabled: true, viaTab: true, sound: { messagesTone: 'chime', subscribersTone: 'bell' } } } } } });
+    expect(written.ok && written.payload.revision).toBe(before + 1);
+    const stored = await w.fake.context(pageSender(w.fake, 'options')).api.storage.local.get('settings.ext');
+    expect(stored['settings.ext']).toMatchObject({ v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: true, sound: { subscribersTone: 'bell' } } } });
+    // «Fansly включён» changes through site.access only: the page's write of it is refused by Fansly's own schema.
+    expect(await page.request('fansly.settings.write', { patch: { hosts: { 'fansly-web': { enabled: false } } } })).toMatchObject({ ok: false, error: { code: 'CG-UNKNOWN' } });
+    page.close();
+  });
+
+  it('[ST-067] [ST-076] [ST-077] [host:fansly] «Аккаунты»: the tabs by their registration, «к вкладке» brings the creator’s tab forward without the `tabs` right and sends the tab nothing', async () => {
+    const w = world();
+    w.start();
+    await switchFanslyOn(w);
+    await fanslyTab(w, 21);
+    const page = fanslySettingsPage(w);
+    // The fake browser lists no tab by address; the registered one is attributed by the creator its tab reported.
+    expect(await page.request('fansly.accounts.read', {})).toEqual({ ok: true, payload: { sessions: [], openTabs: 0, unattributedTabs: 0 } });
+    w.fake.tabCalls.length = 0;
+    expect(await page.request('fansly.accounts.focus', { hostAccountId: CREATOR })).toEqual({ ok: true, payload: { focused: true } });
+    expect(w.fake.tabCalls).toEqual(['update 21', 'focus window 1']);
+    expect(await page.request('fansly.accounts.focus', { hostAccountId: '700000000000000999' })).toEqual({ ok: true, payload: { focused: false } });
+    page.close();
+  });
 });
