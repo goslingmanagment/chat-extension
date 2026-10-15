@@ -322,6 +322,10 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ ...pageFan, action: 'claim' }, { ...pageFan, action: 'renew' }], invalid: [{ ...pageFan, action: 'dispatch' }] },
     res: dto(H.claimState, { ...H.claimState, lease: { ...H.claimState.lease, state: 'mine' } }),
   },
+  'site.access': {
+    req: { valid: [{ host: 'fansly-web' }, { host: 'fansly-web', enabled: true }, { host: 'fansly-web', reload: true }], invalid: [{ host: 'other' }, { host: 'fansly-web', enabled: 'yes' }] },
+    res: { valid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 2 }], invalid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: -1 }] },
+  },
   'settings.get': {
     req: empty,
     res: { valid: [settingsState], invalid: [{ ...settingsState, readOnly: 'no' }] },

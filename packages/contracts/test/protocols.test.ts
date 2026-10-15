@@ -56,6 +56,10 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(C.mayRequest('debug.prompt', 'page', 'debug-prompt')).toBe(true);
     expect(C.mayRequest('debug.prompt', 'page', 'popup')).toBe(false);
     expect(C.mayRequest('settings.get', 'tab', null)).toBe(true);
+    expect(C.mayRequest('site.access', 'tab', null)).toBe(false);
+    expect(C.mayRequest('site.access', 'page', 'popup')).toBe(true);
+    expect(C.mayRequest('site.access', 'page', 'options')).toBe(true);
+    expect(C.mayRequest('site.access', 'page', 'debug-journal')).toBe(false);
   });
 
   it('[ST-007] `settings.open` is a ChatSpace tab’s request: a section of the settings and a CG code, never an address', () => {
