@@ -372,10 +372,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         return;
       }
       case 'older':
-        observation.answer(messagesIn(read.groupId).messages, read.groupId, stamp);
+        observation.answer(messagesIn(read.groupId).messages, read.groupId);
         return;
       case 'byIds':
-        observation.answer(messagesIn(null).messages, null, stamp);
+        observation.answer(messagesIn(null).messages, null);
         return;
       case 'receipt': {
         // The page's own `POST /message`: its new message, as live as the socket's (its echo; the send is P7f's).

@@ -377,7 +377,7 @@ describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () =>
     expect(coverage(c).filter((p) => JSON.stringify(p).includes('unseen'))).toEqual([{ groupIds: [GROUP], state: 'unknown', reason: 'unseen' }]);
   });
 
-  it('[FS-TAIL-4] merge order: a late answer neither undoes a newer deletion nor brings its text back, and adds nothing an answer asked later showed gone', async () => {
+  it('[FS-TAIL-4] merge order: a late answer neither undoes a newer deletion nor brings its text back; what it has and a later answer lacks stays, unproven', async () => {
     const { c, socket } = await tab();
     const server = conversation(1, 12);
     const first = fresh(c.win);
@@ -392,11 +392,14 @@ describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () =>
     late.respond(200, historyPage(without5));
     await settle();
     const s = await snap(c);
-    expect(windowIds(s)).not.toContain(id(5));
+    // Message 5: an absence does not outrank a presence (which answer is the newer cannot be told) — it stays, and the
+    // chat waits for its socket frame.
+    expect(windowIds(s)).toContain(id(5));
+    expect(s).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
+    // Message 7: the socket said deleted — that wins over any answer.
     expect(windowIds(s)).not.toContain(id(7));
     expect(s?.deletedIds).toEqual([id(7)]);
     expect(s?.tail?.map((t) => t.platformMessageId)).not.toContain(id(7));
-    expect(s?.completeness).toBe('complete');
   });
 
   it('[FS-TAIL-4] bfcache and a gap of the stream: every chat unknown', async () => {
@@ -751,7 +754,7 @@ describe('[host:fansly] the review of P7b: six cases that must hold (FS-TAIL-4�
     expect(windowIds(hi)).toEqual(Array.from({ length: 25 }, (_, i) => id(108 + i)));
   });
 
-  it('[FS-TAIL-4] two overlapping fresh ends give one history whatever order they answer in: a record carries its request’s place, not its arrival’s', async () => {
+  it('[FS-TAIL-4] two overlapping fresh ends give one history and one verdict whatever order they answer in: an absence never outranks a presence', async () => {
     const windows: string[][] = [];
     for (const order of ['A first', 'B first']) {
       const { c } = await tab();
@@ -769,13 +772,14 @@ describe('[host:fansly] the review of P7b: six cases that must hold (FS-TAIL-4�
       }
       await settle();
       const s = await snap(c);
-      expect(s?.completeness, order).toBe('complete');
+      // Message 2 was seen; that the other answer lacks it proves nothing — it stays, unproven: no socket frame of it.
+      expect(s, order).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
       windows.push(windowIds(s));
       for (const cleanup of cleanups.splice(0)) cleanup();
     }
     expect(windows).toEqual([
-      [id(1), id(3)],
-      [id(1), id(3)],
+      [id(1), id(2), id(3)],
+      [id(1), id(2), id(3)],
     ]);
   });
 
@@ -842,5 +846,54 @@ describe('[host:fansly] the review of P7b: six cases that must hold (FS-TAIL-4�
     for (const callback of idle.splice(0)) callback({ didTimeout: true, timeRemaining: () => 0 });
     expect((await c.health()).responses.parsed).toBe(before + 1);
     expect((await snap(c))?.completeness).toBe('complete');
+  });
+});
+
+describe('[host:fansly] the re-check of P7b: an absence never outranks a presence; an unknown membership change (FS-TAIL-4, FS-IDN-3)', () => {
+  it('[FS-TAIL-4] an answer that lacks a message another answer has does not delete it for good: its socket frame and a fresh history bring it back, the proof counts it', async () => {
+    const { c, socket } = await tab();
+    const a = fresh(c.win);
+    const b = fresh(c.win);
+    // The server serves B first ([1]); message 2 is made; A, served after, has [1, 2]. The answers come A, then B.
+    const one = message(id(1), FAN, { content: 'hi' });
+    const two = message(id(2), CREATOR, { content: 'hello you' });
+    a.respond(200, historyPage([one, two]));
+    b.respond(200, historyPage([one]));
+    await settle();
+    // Which answer is the newer one cannot be told: message 2 stays, and the chat waits for its socket frame.
+    expect(windowIds(await snap(c))).toEqual([id(1), id(2)]);
+    expect((await snap(c))?.completeness).toBe('unknown');
+    socket.receive(service(5, { type: 1, message: two }));
+    fresh(c.win).respond(200, historyPage([one, two]));
+    await settle();
+    const hi = await snap(c, { feature: 'hi', window: 25 });
+    expect(hi?.completeness).toBe('complete');
+    expect(windowIds(hi)).toEqual([id(1), id(2)]);
+    expect(hi?.startProof).toMatchObject({ coveredCount: 2, personalCount: 2, startWitnessId: id(1) });
+  });
+
+  it('[FS-IDN-3] a membership frame without its member makes the members unknown; an answer then tells — a group is never kept direct', async () => {
+    const { c, socket } = await tab();
+    fresh(c.win).respond(200, freshEnd(conversation(1, 4)));
+    // A `/group` request is in flight when `4/8 {group: {id}}` says the group changed, naming nobody.
+    const asked = request(c.win, `${API}/group/${GROUP}/`);
+    socket.receive(service(4, { type: 8, group: { id: GROUP } }));
+    await settle();
+    expect(await meta(c)).toMatchObject({ kind: null, fanId: null });
+    expect(await snap(c)).toBeNull();
+    // Its answer has three members: a group chat — never discarded for «unknown».
+    asked.respond(200, ok(group(GROUP, [CREATOR, FAN, THIRD])));
+    await settle();
+    expect(await meta(c)).toMatchObject({ kind: 'group', fanId: null });
+    expect(await snap(c)).toBeNull();
+    // A two-member answer asked before another such frame is no proof of a DM; one asked after it is.
+    const stale = request(c.win, `${API}/group/${GROUP}/`);
+    socket.receive(service(4, { type: 8, group: { id: GROUP } }));
+    stale.respond(200, ok(group(GROUP, [CREATOR, FAN])));
+    await settle();
+    expect(await meta(c)).toMatchObject({ kind: null, fanId: null });
+    request(c.win, `${API}/group/${GROUP}/`).respond(200, ok(group(GROUP, [CREATOR, FAN])));
+    await settle();
+    expect(await meta(c)).toMatchObject({ kind: 'direct', fanId: FAN });
   });
 });

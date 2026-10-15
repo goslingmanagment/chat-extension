@@ -178,20 +178,30 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
       const id = idOf(value['id']);
       if (id === null) return null;
       const group = ensure(id);
-      // Asked before the group last changed: what it says is older than what is known.
-      if (seen < group.seen) return id;
-      group.seen = seen;
-      memory.groups -= groupCost(group);
       const users = value['users'];
+      let members: string[] | null = null;
       if (Array.isArray(users)) {
-        const members: string[] = [];
+        members = [];
         for (const user of users as unknown[]) {
           const userId = isPlain(user) ? idOf(user['userId']) : null;
           if (userId !== null && !members.includes(userId)) members.push(userId);
         }
-        group.members = members;
       }
-      if (typeof value['type'] === 'number') group.type = value['type'];
+      const type = typeof value['type'] === 'number' ? value['type'] : null;
+      memory.groups -= groupCost(group);
+      if (seen < group.seen) {
+        // Asked before the members last changed: it may say what they were. A group chat it shows is safe to take — a
+        // DM it shows is not, and the change since stands (or stays unknown) until an answer asked after it.
+        if (members !== null && (members.length !== 2 || type === MASS_SEND_GROUP)) {
+          group.members = members;
+          group.type = type ?? group.type;
+        }
+        memory.groups += groupCost(group);
+        return id;
+      }
+      group.seen = seen;
+      if (members !== null) group.members = members;
+      if (type !== null) group.type = type;
       const rules = value['dmPermissionFlags'];
       if (Array.isArray(rules)) group.dm = dmAllowed(rules as unknown[], value['accountDmPermissionFlags'], parse);
       memory.groups += groupCost(group);
@@ -212,10 +222,11 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
       // A group the page never showed us is remembered by the frame alone: an answer asked before it cannot undo it.
       const group = ensure(groupId);
       group.seen = seen;
-      if (group.members === null || userId === null) return false;
       const before = `${identity.kind(groupId)}/${identity.fan(groupId)}`;
       memory.groups -= groupCost(group);
-      group.members = added ? (group.members.includes(userId) ? group.members : [...group.members, userId]) : group.members.filter((id) => id !== userId);
+      // A change that names nobody (`4/8`, a member without its id): the members are not known any more.
+      if (userId === null) group.members = null;
+      else if (group.members !== null) group.members = added ? (group.members.includes(userId) ? group.members : [...group.members, userId]) : group.members.filter((id) => id !== userId);
       memory.groups += groupCost(group);
       return before !== `${identity.kind(groupId)}/${identity.fan(groupId)}`;
     },

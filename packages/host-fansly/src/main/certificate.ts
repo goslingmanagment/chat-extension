@@ -44,9 +44,8 @@ export interface Completeness {
   start: boolean;
   /** The observation number of the chat's last loss. */
   lossSeq: number;
-  /** The `loadstart` of its last certificate's request, and where that answer begins (null — at the start). */
+  /** The `loadstart` of its last certificate's request: one asked before it is only a late answer. */
   certSeq: number;
-  certFrom: string | null;
   /** Why it is unknown (FANSLY_COVERAGE_REASONS). */
   why: string;
 }
@@ -60,7 +59,6 @@ export const uncertified = (): Completeness => ({
   start: false,
   lossSeq: 0,
   certSeq: 0,
-  certFrom: null,
   why: WHY_NOT_CERTIFIED,
 });
 
@@ -117,6 +115,5 @@ export function certify(chat: Completeness, stamp: Stamp, oldest: string | null,
   chat.loss = false;
   chat.boundary = null;
   chat.certSeq = stamp.seq;
-  chat.certFrom = short ? null : oldest;
   return verdict;
 }
