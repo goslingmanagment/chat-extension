@@ -186,6 +186,13 @@ export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
  */
 export const COVERAGE_CHECK_LIMITS = { windowMax: 60, deletedMax: 60 } as const;
 
+/**
+ * 1.15.0 (R20 P4b3): hub limits of «Заполнить из чата» (`fan-notes-fill`: `AI_NOTE_FIELDS_MAX`,
+ * `AI_NOTE_FIELD_LABEL_MAX_CHARS`, `AI_NOTE_VALUE_MAX_CHARS`): the questionnaire's labels in the body, each one
+ * trimmed, and the value one label gets back — one line of the note.
+ */
+export const NOTE_FILL_LIMITS = { fieldsMax: 30, labelMaxChars: 60, valueMaxChars: 2000 } as const;
+
 /** Starting timeouts per feature, ms (§7 «Тайм-ауты»); refined by lab measurements. */
 export interface OpTimeouts {
   /** From the request until the `meta` frame. */

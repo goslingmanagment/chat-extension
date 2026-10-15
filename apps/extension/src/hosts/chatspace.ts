@@ -62,7 +62,7 @@ export const CHATSPACE: HostDescriptor = {
         gzipBytes: 12 * KIB,
       },
       { label: 'contracts: UiAction schema', entry: `export { UiActionSchema } from '${CONTRACTS}/vm/actions.ts';`, gzipBytes: 16 * KIB },
-      { label: 'contracts: tab request registry (parseTabPayload)', entry: `export { parseTabPayload } from '${CONTRACTS}/tab-messages.ts';`, gzipBytes: 28 * KIB },
+      { label: 'contracts: tab request registry (parseTabPayload)', entry: `export { parseTabPayload } from '${CONTRACTS}/tab-messages.ts';`, gzipBytes: 30 * KIB }, // R20 P4b3: room for Fansly's operations in the shared registry.
     ],
   },
   // Local only, never in CI: the bundles are OnlyMonster's code and stay outside the repository

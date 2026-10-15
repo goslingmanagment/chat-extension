@@ -7,7 +7,7 @@
 import * as z from 'zod/mini';
 
 import { TONES, type FeatureId } from '../features';
-import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS } from '../limits';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS } from '../limits';
 import { CoverageDeletedIdsSchema, CoverageWindowSchema, coverageIdsOnce } from '../ops';
 import {
   CountSchema,
@@ -38,15 +38,25 @@ export type PersonaCatalog = z.infer<typeof PersonaCatalogSchema>;
 
 // ── Feature map (§8.4 table) ───────────────────────────────────────────────
 
-/** Hub feature keys this client streams (`aiUsageFeatures` subset; path param of `aiFeatureStream`). */
-export const HUB_AI_FEATURES = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'fan-summary', 'coach-chat'] as const;
+/**
+ * Hub feature keys this client streams (`aiUsageFeatures` subset; path param of `aiFeatureStream`). 1.15.0 (R20
+ * P4b3): the two of Fansly's own operations (`SiteOpId`, architecture §8.8) — `voice-script` (the voice script, the
+ * page's `voice`) and `fan-notes-fill` («Заполнить из чата», the page's `notesFill`). Which operation streams which
+ * is the site's table (`FANSLY_OP_DRIVERS`, ops-fansly.ts); `HUB_FEATURE_MAP` stays the shared features'.
+ */
+export const HUB_AI_FEATURES = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'fan-summary', 'coach-chat', 'voice-script', 'fan-notes-fill'] as const;
 export const HubAiFeatureSchema = z.enum(HUB_AI_FEATURES);
 export type HubAiFeature = z.infer<typeof HubAiFeatureSchema>;
 
+/** 1.15.0 (R20 P4b3): the hub features of a site's own operations — each a Fansly page's, each names its fan. */
+const SITE_HUB_FEATURES: readonly HubAiFeature[] = ['voice-script', 'fan-notes-fill'];
+
 /** Body fields only one hub feature takes; anything else in this list on another feature is our bug. */
 export const HUB_FEATURE_ONLY_FIELDS = {
-  replyTone: ['fast-reply'],
-  draftText: ['improve-draft', 'coach-chat'],
+  /** 1.15.0: the voice script speaks a tone too (the hub's `supportsReplyTone`; the panel's three presets). */
+  replyTone: ['fast-reply', 'voice-script'],
+  /** 1.15.0: the voice script is written from the draft (the hub's `requiresDraft`). */
+  draftText: ['improve-draft', 'coach-chat', 'voice-script'],
   variantCount: ['hi-greeting'],
   summaryMode: ['fan-summary'],
   chatterQuestion: ['coach-chat'],
@@ -54,6 +64,8 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   preset: ['coach-chat'],
   /** Fresh text (D-14, H-4c): draft features only; Recap/Review/Coach never. */
   liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
+  /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */
+  noteFields: ['fan-notes-fill'],
 } as const satisfies Record<string, readonly HubAiFeature[]>;
 
 export interface HubFeatureSpec {
@@ -115,9 +127,30 @@ export const CoverageCheckBodySchema = z
 export type CoverageCheckBody = z.infer<typeof CoverageCheckBodySchema>;
 
 /**
+ * 1.15.0 (R20 P4b3; hub `aiNoteFieldsSchema`): one label of the fan's questionnaire («Имя», «Локация»…), as the
+ * notes panel reads it off the note — never a value (FS-NOTE-5, FX-015). The model answers one `Label: value` line
+ * per label, the label copied byte for byte, so it holds no line break, no `:` and none of `<`, `>`, `&`. The hub
+ * trims a label before its checks; this client sends it trimmed, so a label with edge spaces is refused here.
+ */
+export const NoteFieldLabelSchema = boundedText(NOTE_FILL_LIMITS.labelMaxChars).check(
+  z.regex(/^[^\r\n\u2028\u2029:<>&]+$/),
+  z.refine((label) => label.trim() === label, { message: 'label untrimmed' }),
+);
+
+/** The labels of `fan-notes-fill`, in the order the answer fills them: 1–30, none twice (the hub compares them case-insensitively). */
+export const NoteFieldsSchema = z
+  .array(NoteFieldLabelSchema)
+  .check(
+    z.minLength(1),
+    z.maxLength(NOTE_FILL_LIMITS.fieldsMax),
+    z.refine((labels) => new Set(labels.map((label) => label.toLowerCase())).size === labels.length, { message: 'noteFields repeat' }),
+  );
+
+/**
  * The body this client sends (a strict subset of the hub's body: no model or
  * effort override, no Fansly `clientContext` until R20, no deprecated
- * `greetingMode`). On OnlyFans conversationRef = fanRef = the fan id.
+ * `greetingMode`, no `noteValues` of the notes fill's merge mode: the values of
+ * the fan's notes never leave the tab). On OnlyFans conversationRef = fanRef = the fan id.
  */
 export const AiFeatureStreamBodySchema = z.strictObject({
   /** = opId (§8.4). */
@@ -159,6 +192,8 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   liveTextContext: z.optional(LiveTextContextSchema),
   /** 1.15.0 (R20 HF-8в): the window check — only from a start's proof, under `coverage-check-v1`. */
   coverageCheck: z.optional(CoverageCheckBodySchema),
+  /** 1.15.0 (R20 P4b3): `fan-notes-fill` only, and required there — the labels, never the values (no `noteValues`). */
+  noteFields: z.optional(NoteFieldsSchema),
 });
 export type AiFeatureStreamBody = z.infer<typeof AiFeatureStreamBodySchema>;
 
@@ -185,6 +220,14 @@ export const HubStreamRequestSchema = z
       message: 'coverageCheck needs coverage-check-v1 and context-v1',
     }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),
+    // 1.15.0 (R20 P4b3), the hub's own rules of Fansly's two features (its handler; else 400, or 409 for our narrow
+    // token on a page without the switch): a Fansly page's, the fan named apart from the group; the voice script is
+    // spoken from a draft that is not blank, the notes fill needs the labels it fills.
+    z.refine((r) => !SITE_HUB_FEATURES.includes(r.feature) || (r.body.platform === 'fansly' && typeof r.body.fanRef === 'string'), {
+      message: 'a Fansly feature: its page and fan',
+    }),
+    z.refine((r) => r.feature !== 'voice-script' || (r.body.draftText ?? '').trim() !== '', { message: 'voice-script needs draftText' }),
+    z.refine((r) => r.feature !== 'fan-notes-fill' || r.body.noteFields !== undefined, { message: 'fan-notes-fill needs noteFields' }),
     z.refine((r) => r.body.summaryMode === undefined || r.feature === 'fan-summary', { message: 'summaryMode is fan-summary only' }),
     // 1.3.0, the hub's own rule of `coach-chat` (400 otherwise): a preset carries its question on the hub and
     // forbids ours; without a preset a question is required.

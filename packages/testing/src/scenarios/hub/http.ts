@@ -72,8 +72,52 @@ const LIMITS = {
   previewSendReceiptProfiles: [],
 } as const satisfies Bootstrap['limits'];
 
+/**
+ * The hub's `CLIENT_FEATURE_REQUIREMENTS[flag].onlyfans.capabilities` (hub apps/runtime/src/services/client-features.ts
+ * at bd3eec06, the commit production runs and the SDK is vendored from; the OnlyFans column is the same as at 6ee3d627,
+ * before R20 HF-2 made the table per platform): what the hub must serve before it offers a
+ * flag on a page; without it the page's feature reads `hub_not_ready`. It is the HUB's rule — the client does not
+ * carry this table (R20 F4: it reads the page's feature, and only its own transport needs on top,
+ * `CLIENT_FLAG_REQUIREMENTS`). Fresh text needs `live-text-v1` here: `context-v1` is the client's own need (a
+ * request header), not the hub's. A hub rule that changes is changed here.
+ *
+ * A switch the column does not name does not exist on OnlyFans (HF-2): Fansly's own six — `drafts`, `voice`,
+ * `notesFill`, `notes`, `vault`, `registration`, named in the vocabulary since contracts 1.15.0 (P4b3) — read
+ * `platform_unsupported` on every OnlyFans page, before the master switch, whatever the owner's rows say. The
+ * column of Fansly is the Fansly fake hub's (R20 P6c1).
+ */
+export const HUB_FEATURE_CAPABILITIES: Readonly<Partial<Record<ClientFeatureFlag, readonly ClientHubCapability[]>>> = {
+  insertion: [],
+  navigation: [],
+  wsTap: [],
+  sound: [],
+  fanPanel: [],
+  previewSendMarkAiGenerated: [],
+  spenders: [],
+  review: [],
+  coach: [],
+  freshText: ['live-text-v1'],
+  splitAll: ['split-all-v1'],
+  recap: ['shared-recaps-v1', 'recap-profile-v1'],
+  preview: ['archive-feed-v1'],
+  stats: ['spenders-stats-v1', 'awaiting-reply-v1'],
+  newcomers: ['audience-new-v1', 'preview-send-custody-v1'],
+  previewSend: ['preview-send-custody-v1'],
+};
+
+/** The switch exists on an OnlyFans page: the hub's OnlyFans column names it. A name the vocabulary does not know is let through, as the hub's own. */
+export function existsOnOnlyFans(flag: string): boolean {
+  const known = narrowToken(CLIENT_FEATURE_FLAG_NAMES, flag);
+  return known === null || HUB_FEATURE_CAPABILITIES[known] !== undefined;
+}
+
+const PLATFORM_UNSUPPORTED = { available: false, reason: 'platform_unsupported' } as const;
+
 const allFeatures = (available: boolean, reason?: string): BootstrapPage['features'] =>
   Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, reason === undefined ? { available } : { available, reason }]));
+/** An OnlyFans page's features: a switch of Fansly's alone reads `platform_unsupported` there, the rest `feature`. */
+const onlyFansFeatures = (feature: (flag: ClientFeatureFlag) => BootstrapPage['features'][string]): BootstrapPage['features'] =>
+  Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, existsOnOnlyFans(flag) ? feature(flag) : PLATFORM_UNSUPPORTED]));
 
 const ofPage = (page: typeof pages.one | typeof pages.vip, features: BootstrapPage['features']): BootstrapPage => ({
   pageId: page.pageId,
@@ -102,7 +146,7 @@ export const BOOTSTRAP_ALL_OFF: Bootstrap = {
   configRevision: 0,
   minVersion: '0.0.0',
   identity: { userId: WORLD.user.userId, username: WORLD.user.username, role: 'chatter', tokenClient: 'chat-extension' },
-  pages: [ofPage(pages.one, allFeatures(false, 'disabled')), ofPage(pages.vip, allFeatures(false, 'disabled')), fanslyPage],
+  pages: [ofPage(pages.one, onlyFansFeatures(() => ({ available: false, reason: 'disabled' }))), ofPage(pages.vip, onlyFansFeatures(() => ({ available: false, reason: 'disabled' }))), fanslyPage],
   bindingsByHost: {},
   flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, false])),
   limits: { ...LIMITS, deepMax: 1500 },
@@ -112,9 +156,7 @@ export const BOOTSTRAP_ALL_OFF: Bootstrap = {
 /** Pilot flags: everything but X8 send and its AI mark (previewSend waits for its gates, §6.7.13). */
 export const PILOT_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated'];
 const pilotFlags = Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, !PILOT_FLAGS_OFF.includes(flag)]));
-const pilotFeatures = Object.fromEntries(
-  CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, PILOT_FLAGS_OFF.includes(flag) ? { available: false, reason: 'flag_off' } : { available: true }]),
-);
+const pilotFeatures = onlyFansFeatures((flag) => (PILOT_FLAGS_OFF.includes(flag) ? { available: false, reason: 'flag_off' } : { available: true }));
 
 /** Pilot on both OF pages, explicit host bindings, every capability but client-health (B′ ingest still off). */
 export const BOOTSTRAP_PILOT_ON: Bootstrap = {
@@ -140,34 +182,6 @@ export const BOOTSTRAP_PILOT_PAGES: Bootstrap = {
 };
 
 /**
- * The hub's `CLIENT_FEATURE_REQUIREMENTS[flag].onlyfans.capabilities` (hub apps/runtime/src/services/client-features.ts
- * at bd3eec06, the commit production runs and the SDK is vendored from; the OnlyFans column is the same as at 6ee3d627,
- * before R20 HF-2 made the table per platform): what the hub must serve before it offers a
- * flag on a page; without it the page's feature reads `hub_not_ready`. It is the HUB's rule — the client does not
- * carry this table (R20 F4: it reads the page's feature, and only its own transport needs on top,
- * `CLIENT_FLAG_REQUIREMENTS`). Fresh text needs `live-text-v1` here: `context-v1` is the client's own need (a
- * request header), not the hub's. A hub rule that changes is changed here.
- */
-export const HUB_FEATURE_CAPABILITIES: Readonly<Record<ClientFeatureFlag, readonly ClientHubCapability[]>> = {
-  insertion: [],
-  navigation: [],
-  wsTap: [],
-  sound: [],
-  fanPanel: [],
-  previewSendMarkAiGenerated: [],
-  spenders: [],
-  review: [],
-  coach: [],
-  freshText: ['live-text-v1'],
-  splitAll: ['split-all-v1'],
-  recap: ['shared-recaps-v1', 'recap-profile-v1'],
-  preview: ['archive-feed-v1'],
-  stats: ['spenders-stats-v1', 'awaiting-reply-v1'],
-  newcomers: ['audience-new-v1', 'preview-send-custody-v1'],
-  previewSend: ['preview-send-custody-v1'],
-};
-
-/**
  * The same sign-in on a hub that serves only `capabilities` (a hub older than the SDK, a production that lags
  * `main`): the bootstrap as THAT hub computes it — it declares these capabilities, and every page feature that
  * needs one it does not serve reads `hub_not_ready`. The hub never offers a feature it cannot serve, so a bootstrap
@@ -176,7 +190,7 @@ export const HUB_FEATURE_CAPABILITIES: Readonly<Record<ClientFeatureFlag, readon
 export function hubServing(bootstrap: Bootstrap, capabilities: readonly string[]): Bootstrap {
   const served = (flag: string): boolean => {
     const known = narrowToken(CLIENT_FEATURE_FLAG_NAMES, flag);
-    return known === null || HUB_FEATURE_CAPABILITIES[known].every((capability) => hasCapability(capabilities, capability));
+    return known === null || (HUB_FEATURE_CAPABILITIES[known] ?? []).every((capability) => hasCapability(capabilities, capability));
   };
   return {
     ...bootstrap,

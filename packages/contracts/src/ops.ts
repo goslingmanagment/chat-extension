@@ -6,9 +6,9 @@
 import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
-import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature, type FeatureId, type Surface } from './features';
+import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
 import { LiveTextMessageSchema, LiveTextTailSchema, type ChatWindow, type HostPort, type LiveTextTail } from './host';
-import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity } from './ids';
+import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
 import {
   CountSchema,
@@ -633,3 +633,54 @@ export interface AiHostPolicy<P = unknown, F = unknown> {
   /** The verdict on a result: the ready mark the shared result shows over its parts; null — no mark. */
   verdict(view: OpView, fingerprint: F | null): ResultMarkVM | null;
 }
+
+// ── Operations of a site's own slice (1.15.0, R20 P4b3; architecture §1.6, §8.8) ───────────────────────────────
+
+/**
+ * The start of an operation of a site's own slice (`SiteOpId`: Fansly's voice script and «Заполнить из чата»). It
+ * goes through the shared scheduler — one operation per chat across the extension and three per tab together with
+ * Reply and the rest; timeouts, cancel, spend, dedup and the kept result — but it is no `StartOp`: `StartOpSchema`,
+ * `OpViewSchema` and every shared schema built on `FEATURE_IDS` stay closed, and no ChatSpace bundle carries a site's
+ * operation. This union is the types' alone: the schemas that check these shapes are the site's module
+ * (`ops-fansly`), parsed in its own chunk, and they give exactly these types (its test holds both ways).
+ */
+interface SiteStartBase<F extends SiteOpId> {
+  readonly feature: F;
+  readonly target: Target;
+  readonly cause: HumanCause;
+  /** The hub body's `messageCount`: the voice script reads the quick window, the notes fill the deep one. */
+  readonly window: number;
+  readonly regenerateOf?: string | undefined;
+  /** Bypass the result cache (Regenerate). */
+  readonly force?: boolean | undefined;
+}
+
+/** The voice script (`voice-script`): spoken from the draft of the chat's field, in the tone of a preset (null — calm, the hub's `none`). */
+export interface VoiceScriptStart extends SiteStartBase<'voice-script'> {
+  readonly tone: Tone | null;
+  readonly draft: { readonly text: string; readonly revision: number; readonly digest: string };
+}
+
+/** «Заполнить из чата» (`notes-fill`): the questionnaire's labels only — the values of the fan's notes never leave the tab (FS-NOTE-5). */
+export interface NotesFillStart extends SiteStartBase<'notes-fill'> {
+  readonly fields: readonly string[];
+}
+
+export type SiteStartOp = VoiceScriptStart | NotesFillStart;
+/** What the scheduler admits: a shared feature's start or a site operation's. */
+export type AnyStartOp = StartOp | SiteStartOp;
+
+/** One label of the questionnaire and what the chat says of it; `''` — nothing (the panel leaves the field as it is). */
+export interface NoteFieldValue {
+  readonly label: string;
+  readonly value: string;
+}
+
+/**
+ * The result of a site operation, as its driver parses the finished stream: the voice script's text (its
+ * `generationRef` — the source of the paid voicing, HF-4а — is the view's), or the asked labels with what the chat
+ * gave each one, in the asked order.
+ */
+export type SiteOpResult = { readonly kind: 'voice-script'; readonly script: string } | { readonly kind: 'note-fields'; readonly fields: readonly NoteFieldValue[] };
+/** What the scheduler keeps as a result: a shared feature's or a site operation's. */
+export type AnyOpResult = OpResult | SiteOpResult;

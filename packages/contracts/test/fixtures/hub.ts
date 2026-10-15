@@ -7,6 +7,7 @@
 import type * as z from 'zod/mini';
 
 import * as C from '../../src/index';
+import { FANSLY_OP_REQUEST_FIXTURES, NOTE_FIELDS_FIXTURES, notesFillBody, voiceScriptBody } from './ops-fansly';
 import { FANSLY_IDS, COVERAGE_MSG, IDS, ISO, ISO_LATER, tabProof, uuid } from './samples';
 
 const fixture = (name: string, schema: z.ZodMiniType, valid: readonly unknown[], invalid: readonly unknown[]) => ({ name, schema, valid, invalid });
@@ -604,7 +605,11 @@ export const HUB_SCHEMA_FIXTURES = [
   // ── AI ──
   fixture('PersonaCatalogItem', C.PersonaCatalogItemSchema, [persona], [{ ...persona, definitionId: 'short' }, { ...persona, status: 'deleted' }]),
   fixture('PersonaCatalog', C.PersonaCatalogSchema, [{ personas: [persona] }, { personas: [] }], [{ personas: [{ ...persona, version: 0 }] }]),
-  fixture('HubAiFeature', C.HubAiFeatureSchema, ['fast-reply', 'coach-chat'], ['help-me', 'reply']),
+  // 1.15.0 (R20 P4b3): the two hub features of Fansly's own operations; our names of them are not the hub's.
+  fixture('HubAiFeature', C.HubAiFeatureSchema, ['fast-reply', 'coach-chat', 'voice-script', 'fan-notes-fill'], ['help-me', 'reply', 'notes-fill', 'voice']),
+  // 1.15.0 (R20 P4b3): the questionnaire's labels of `fan-notes-fill` (the hub's `aiNoteFieldsSchema`, sent trimmed).
+  fixture('NoteFieldLabel', C.NoteFieldLabelSchema, ['Имя', 'Ник в TG', 'я'.repeat(60)], ['', 'я'.repeat(61), 'Имя: Анна', ' Имя', 'Tom & Jerry', 'a<b']),
+  fixture('NoteFields', C.NoteFieldsSchema, NOTE_FIELDS_FIXTURES.valid, NOTE_FIELDS_FIXTURES.invalid),
   fixture('LiveTextContext', C.LiveTextContextSchema, [liveText], [
     { ...liveText, items: [] },
     { ...liveText, items: [{ platformMessageId: '0123', direction: 'fan', occurredAt: ISO, text: 'x' }] },
@@ -618,7 +623,11 @@ export const HUB_SCHEMA_FIXTURES = [
     { window: [{ id: COVERAGE_MSG.m1, dir: 'fan' }] },
     { window: [], deletedIds: [], knownFanMessageIds: [COVERAGE_MSG.m1] },
   ]),
-  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }, fanslyBody], [
+  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }, fanslyBody, voiceScriptBody, notesFillBody], [
+    // 1.15.0 (R20 P4b3): labels only — the merge mode's values never travel — and labels the hub takes.
+    { ...notesFillBody, noteValues: ['Анна', '', '', ''] },
+    { ...notesFillBody, noteFields: [] },
+    { ...notesFillBody, noteFields: ['Имя', 'ИМЯ'] },
     { ...streamBody, messageCount: 3001 },
     { ...streamBody, clientContext: { transcript: 'x' } },
     { ...streamBody, conversationRef: 'chat-2002' },
@@ -642,6 +651,8 @@ export const HUB_SCHEMA_FIXTURES = [
       { feature: 'coach-chat', body: { ...reviewBody, preset: 'situation' }, capabilities: [] },
       // 1.15.0 (R20 HF-8в): the window check rides with both tokens — the hub answers it in the context frame.
       { feature: 'fast-reply', body: fanslyBody, capabilities: ['context-v1', 'coverage-check-v1'] },
+      // 1.15.0 (R20 P4b3): Fansly's own operations (ops-fansly.ts).
+      ...FANSLY_OP_REQUEST_FIXTURES.valid,
     ],
     [
       // The hub answers 400 to both: «coach-chat preset forbids chatterQuestion», «coach-chat requires chatterQuestion».
@@ -656,6 +667,8 @@ export const HUB_SCHEMA_FIXTURES = [
       // A hub before HF-8в refuses the field; without the frame there is nowhere to answer it.
       { feature: 'fast-reply', body: fanslyBody, capabilities: ['context-v1'] },
       { feature: 'fast-reply', body: fanslyBody, capabilities: ['coverage-check-v1'] },
+      // 1.15.0 (R20 P4b3): what the hub's handler refuses of the voice script and the notes fill.
+      ...FANSLY_OP_REQUEST_FIXTURES.invalid,
     ],
   ),
   fixture('MetaFrame', C.MetaFrameSchema, [meta, { ...meta, feature: 'future-feature', provider: 'future-provider', presetQuestion: 'q' }], [

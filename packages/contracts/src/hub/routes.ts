@@ -92,6 +92,13 @@ export const HUB_FORBIDDEN_OPERATIONS = [
  * `capability_required`). The feature manifest names it as `clientNeeds` of `fresh-text` (features/<site>.ts), and
  * `admission` checks it there. A route's own capabilities are `HUB_ROUTES[route].capabilities`: the hub layer
  * never calls a route the bootstrap did not declare.
+ *
+ * 1.15.0 (R20 P4b3; architecture §11.1): Fansly's switches add nothing here. What the hub needs to offer them —
+ * `voice-notes-v1` and its voice lane for `voice`, `manual-greeting-v1` for `newcomers` on a Fansly page — is the
+ * hub's table, already in the page's feature (`hub_not_ready`, `lane_off`). What one of this client's calls needs
+ * beyond its route is said where the call is made: the voice-note routes name `voice` and `voice-notes-v1` in
+ * `HUB_ROUTES` when the hub layer calls them; a claim with the manual group asks `manual-greeting-v1` of the
+ * bootstrap as a need of that request (the hub layer's `needs`), because an AI group needs nothing new.
  */
 export const CLIENT_FLAG_REQUIREMENTS = {
   freshText: ['context-v1'],

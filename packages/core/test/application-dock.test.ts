@@ -3019,7 +3019,13 @@ describe('[R20-F4] dock: the bar’s chips as data — the site’s slice of the
   });
 
   it('Fansly’s slice on a page whose hub lists no `drafts`: the drafts are off with the switch’s reason, the analysis follows its own switches; 🎙 is its feature’s PR to draw', async () => {
-    const h = await start({ features: FANSLY });
+    // A hub before HF-2 lists none of Fansly's own switches (the fake hub's pages answer them `platform_unsupported` since contracts 1.15.0).
+    const fanslyOwn: readonly string[] = ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration'];
+    const older: Bootstrap = {
+      ...BOOTSTRAP_PILOT_PAGES,
+      pages: BOOTSTRAP_PILOT_PAGES.pages.map((page) => ({ ...page, features: Object.fromEntries(Object.entries(page.features).filter(([flag]) => !fanslyOwn.includes(flag))) })),
+    };
+    const h = await start({ features: FANSLY, bootstrap: older });
     expect(chipsOf(h).map((item) => item.id)).toEqual(ORDER);
     for (const id of ['reply', 'fix', 'hi', 'ping'] as const) expect(chip(h, id), id).toMatchObject({ enabled: false, reason: { id: 'feature-disabled', text: { key: 'dock.reason.featureDisabled' } } });
     for (const id of ['review', 'recap', 'coach'] as const) expect(chip(h, id).enabled, id).toBe(true);

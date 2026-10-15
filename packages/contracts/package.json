@@ -24,6 +24,7 @@
     "./send-fansly": "./src/send-fansly.ts",
     "./host": "./src/host.ts",
     "./ops": "./src/ops.ts",
+    "./ops-fansly": "./src/ops-fansly.ts",
     "./telemetry": "./src/telemetry.ts",
     "./logs": "./src/logs.ts",
     "./bridge": "./src/bridge.ts",

@@ -11,26 +11,48 @@
 //   hub's real one since HF-3 (`routeSchemas.clientFanClaim.body`): until the
 //   SDK was vendored past HF-3 (R20 P2v) the contract test restated that
 //   schema by hand.
+// - Fansly's own operations and switches (contracts 1.15.0, P4b3; hub HF-2,
+//   HF-4б, HF-12, `fan-notes-fill`): the vocabularies are the SDK's, and the
+//   bodies of the voice script and the notes fill are ones its schema takes.
+//   The rules of its handler for them come with the fake hub's (R20 P6c4).
 
 import { readFileSync } from 'node:fs';
 
 import {
   AI_STREAM_CAPABILITIES,
+  CLIENT_FEATURE_FLAG_NAMES,
+  CLIENT_FEATURE_UNAVAILABLE_REASONS,
   CLIENT_HUB_CAPABILITY_NAMES,
   COVERAGE_CHECK_LIMITS,
   COVERAGE_DELETED_STATES,
   COVERAGE_WINDOW_STATES,
   CoverageCheckBodySchema,
+  HUB_AI_FEATURES,
   HubStreamRequestSchema,
+  NOTE_FILL_LIMITS,
+  NoteFieldsSchema,
 } from '@cg/contracts';
-import { FANSLY_CLAIM_BODY_FIXTURES, TEXT_FINGERPRINT, fanslyDispatch, fanslyManualGroup } from '@cg/contracts/fixtures';
+import {
+  FANSLY_CLAIM_BODY_FIXTURES,
+  FANSLY_OP_REQUEST_FIXTURES,
+  NOTE_FIELDS_FIXTURES,
+  TEXT_FINGERPRINT,
+  fanslyDispatch,
+  fanslyManualGroup,
+  notesFillBody,
+} from '@cg/contracts/fixtures';
 import { FanslyGreetingClaimBodySchema, greetingGroupRef } from '@cg/contracts/send-fansly';
 import {
   AI_COVERAGE_CHECK_DELETED_MAX,
   AI_COVERAGE_CHECK_DELETED_STATES,
   AI_COVERAGE_CHECK_WINDOW_MAX,
   AI_COVERAGE_CHECK_WINDOW_STATES,
+  AI_NOTE_FIELD_LABEL_MAX_CHARS,
+  AI_NOTE_FIELDS_MAX,
+  AI_NOTE_VALUE_MAX_CHARS,
   AI_STREAM_CAPABILITIES as SDK_AI_STREAM_CAPABILITIES,
+  CLIENT_FEATURE_FLAG_NAMES as SDK_CLIENT_FEATURE_FLAG_NAMES,
+  CLIENT_FEATURE_UNAVAILABLE_REASONS as SDK_CLIENT_FEATURE_UNAVAILABLE_REASONS,
   CLIENT_HUB_CAPABILITY_NAMES as SDK_CLIENT_HUB_CAPABILITY_NAMES,
   CLIENT_MANUAL_GROUP_REF_PREFIX,
   CLIENT_TEXT_FINGERPRINT_PATTERN,
@@ -93,6 +115,48 @@ describe('[host:fansly] the window coverage check (contracts 1.15.0, P4b1) again
     expect(HubStreamRequestSchema.safeParse(request).success).toBe(true);
     expect(realBody.safeParse(request.body).success).toBe(true);
     expect(HubStreamRequestSchema.safeParse({ ...request, capabilities: ['context-v1'] }).success).toBe(false);
+  });
+});
+
+describe('[host:fansly] Fansly\'s own operations and switches (contracts 1.15.0, P4b3) against the hub\'s real ones (HF-2, HF-4б, HF-12)', () => {
+  const realBody = sdkRoutes['aiFeatureStream']?.body;
+  if (realBody === undefined) throw new Error('aiFeatureStream body');
+  /** The hub's `aiUsageFeatures`: the SDK exports no list, its gateway body names them in its enum. */
+  const hubFeatures = (routeSchemas.aiGatewayStream.body as unknown as { readonly shape: { readonly feature: { readonly options: readonly string[] } } }).shape.feature.options;
+
+  it('every switch and every reason of the SDK is ours — Fansly\'s six and `lane_off` among them; its capabilities hold ours', () => {
+    expect([...CLIENT_FEATURE_FLAG_NAMES].sort()).toEqual([...SDK_CLIENT_FEATURE_FLAG_NAMES].sort());
+    expect([...CLIENT_FEATURE_UNAVAILABLE_REASONS].sort()).toEqual([...SDK_CLIENT_FEATURE_UNAVAILABLE_REASONS].sort());
+    for (const capability of ['manual-greeting-v1', 'voice-notes-v1'] as const) {
+      expect(CLIENT_HUB_CAPABILITY_NAMES, capability).toContain(capability);
+      expect(SDK_CLIENT_HUB_CAPABILITY_NAMES, capability).toContain(capability);
+      // A capability of the bootstrap, never a token of the AI header.
+      expect(SDK_AI_STREAM_CAPABILITIES as readonly string[], capability).not.toContain(capability);
+    }
+  });
+
+  it('the hub features we stream are the hub\'s, the two of Fansly\'s operations with them; the notes fill\'s bounds are its', () => {
+    for (const feature of HUB_AI_FEATURES) expect(hubFeatures, feature).toContain(feature);
+    expect(hubFeatures).toEqual(expect.arrayContaining(['voice-script', 'fan-notes-fill']));
+    expect(NOTE_FILL_LIMITS).toEqual({ fieldsMax: AI_NOTE_FIELDS_MAX, labelMaxChars: AI_NOTE_FIELD_LABEL_MAX_CHARS, valueMaxChars: AI_NOTE_VALUE_MAX_CHARS });
+  });
+
+  it('the labels: what ours lets out the hub takes; what the hub refuses ours refuses — and ours sends them trimmed', () => {
+    const body = (noteFields: unknown) => ({ ...notesFillBody, noteFields });
+    for (const labels of NOTE_FIELDS_FIXTURES.valid) expect([labels, NoteFieldsSchema.safeParse(labels).success, realBody.safeParse(body(labels)).success]).toEqual([labels, true, true]);
+    for (const labels of NOTE_FIELDS_FIXTURES.invalid) {
+      expect([labels, NoteFieldsSchema.safeParse(labels).success]).toEqual([labels, false]);
+      // The hub trims a label before its checks: what it takes of ours is only a label we would have trimmed first.
+      const untrimmed = Array.isArray(labels) && labels.some((label) => typeof label === 'string' && label.trim() !== label);
+      if (realBody.safeParse(body(labels)).success) expect([labels, untrimmed]).toEqual([labels, true]);
+    }
+  });
+
+  it('a request of each, as Fansly\'s driver will build it: the hub\'s body takes it, and so does our mirror', () => {
+    for (const request of FANSLY_OP_REQUEST_FIXTURES.valid) {
+      const { feature, body } = request as { readonly feature: string; readonly body: unknown };
+      expect([feature, realBody.safeParse(body).success, HubStreamRequestSchema.safeParse(request).success]).toEqual([feature, true, true]);
+    }
   });
 });
 

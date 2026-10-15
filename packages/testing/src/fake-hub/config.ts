@@ -29,7 +29,7 @@ import {
   type HubPageRef,
 } from '@cg/contracts';
 
-import { BINDING_KEY_ONE, BINDING_KEY_VIP, HUB_FEATURE_CAPABILITIES, PILOT_FLAGS_OFF, SCENARIO_DATA, WORLD } from '../scenarios/hub';
+import { BINDING_KEY_ONE, BINDING_KEY_VIP, HUB_FEATURE_CAPABILITIES, PILOT_FLAGS_OFF, SCENARIO_DATA, WORLD, existsOnOnlyFans } from '../scenarios/hub';
 import { iso } from './clock';
 import { type BootstrapPresetName, type FakeHubConfigPatch } from './types';
 
@@ -185,12 +185,13 @@ function bindable(config: FakeHubConfig, page: FakePage): boolean {
 
 /** `evaluateClientFeature`: whether a page's feature is available and why not, in the hub's order. */
 export function featureVerdict(config: FakeHubConfig, page: FakePage, flag: string): FeatureAvailability {
-  if (page.platform !== 'onlyfans') return { available: false, reason: 'platform_unsupported' };
+  // A switch of Fansly's alone (contracts 1.15.0, P4b3) is not on an OnlyFans page at all (HF-2): the platform first.
+  if (page.platform !== 'onlyfans' || !existsOnOnlyFans(flag)) return { available: false, reason: 'platform_unsupported' };
   if (!config.master) return { available: false, reason: 'disabled' };
   if (!flagOn(config, page.pageLabel, flag)) return { available: false, reason: 'flag_off' };
   if (!bindable(config, page)) return { available: false, reason: 'binding_missing' };
   const known = narrowToken(CLIENT_FEATURE_FLAG_NAMES, flag);
-  if (known !== null && !HUB_FEATURE_CAPABILITIES[known].every((capability) => hasCapability(config.capabilities, capability))) {
+  if (known !== null && !(HUB_FEATURE_CAPABILITIES[known] ?? []).every((capability) => hasCapability(config.capabilities, capability))) {
     return { available: false, reason: 'hub_not_ready' };
   }
   return { available: true };

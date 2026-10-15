@@ -63,8 +63,12 @@ export interface ManifestVocabularies {
   readonly rowFeature: Readonly<Partial<Record<string, string>>>;
 }
 
-/** An operation that is a mode of another entry: Recap's short length is Recap (contracts features.test). */
-export const OPERATION_ENTRY: Readonly<Record<string, string>> = { 'recap-short': 'recap' };
+/**
+ * An operation that is a mode of another entry: Recap's short length is Recap (contracts features.test); Fansly's voice
+ * script is the generation of its `voice` entry (contracts 1.15.0 P4b3, `FANSLY_OP_DRIVERS` of ops-fansly — this
+ * gate's test holds the two to each other).
+ */
+export const OPERATION_ENTRY: Readonly<Record<string, string>> = { 'recap-short': 'recap', 'voice-script': 'voice' };
 
 /** Surfaces of the application itself, of no feature: the extension's pages, the toasts, the cheatsheet. */
 export const APPLICATION_SURFACES: readonly string[] = ['cheatsheet', 'toasts', 'popup', 'options', 'debug-prompt', 'journal'];

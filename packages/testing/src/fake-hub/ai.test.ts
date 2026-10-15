@@ -7,7 +7,7 @@
 // recaps, dossier from generation, own AI spend). The vendored SDK accepts
 // every frame the model writes.
 
-import { HUB_AI_FEATURES, HubFrameSchema, SPLIT_MARKERS, type HubAiFeature } from '@cg/contracts';
+import { FEATURE_IDS, HUB_AI_FEATURES, HUB_FEATURE_MAP, HubFrameSchema, SPLIT_MARKERS, type HubAiFeature } from '@cg/contracts';
 import { routeSchemas, streamAiFeature } from '@kernel/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -38,6 +38,12 @@ const refusal = async (response: Response): Promise<{ status: number; error: str
 const GREETED = { fanRef: WORLD.newFan, conversationRef: WORLD.newFan } as const;
 const NEEDS: Partial<Record<HubAiFeature, Body>> = { 'improve-draft': { draftText: 'my draft' }, 'coach-chat': { chatterQuestion: 'What now?' }, 'hi-greeting': GREETED };
 const needs = (feature: HubAiFeature): Body => NEEDS[feature] ?? {};
+/**
+ * The hub features of the shared AI features — what this fake hub serves on its OnlyFans pages. The two of Fansly's
+ * own operations (`voice-script`, `fan-notes-fill`, contracts 1.15.0 P4b3) are in `HUB_AI_FEATURES` too; their pages,
+ * bodies and the hub's rules for them come with the Fansly fake hub (R20 P6c1, P6c4).
+ */
+const SHARED_HUB_FEATURES: readonly HubAiFeature[] = [...new Set(FEATURE_IDS.map((feature) => HUB_FEATURE_MAP[feature].hub))];
 
 beforeEach(() => {
   hub = createFakeHub();
@@ -46,7 +52,8 @@ beforeEach(() => {
 
 describe('fake hub AI: the stream the model writes', () => {
   it('the vendored SDK accepts every frame of every feature, debug included', async () => {
-    for (const feature of HUB_AI_FEATURES) {
+    expect(HUB_AI_FEATURES.filter((feature) => !SHARED_HUB_FEATURES.includes(feature))).toEqual(['voice-script', 'fan-notes-fill']);
+    for (const feature of SHARED_HUB_FEATURES) {
       const frames: unknown[] = [];
       const handle: { done: Promise<void> } = streamAiFeature(
         { baseUrl: hub.origin, fetch: hub.fetch, auth: { mode: 'bearer', token: () => token } } as never,
@@ -145,8 +152,8 @@ describe('fake hub AI: the stream the model writes', () => {
     expect(await refusedWith(await stream('coach-chat', {}))).toEqual({ status: 400, error: 'bad_request', message: 'fake hub: coach-chat requires chatterQuestion' });
     expect(await refusedWith(await stream('coach-chat', { chatterQuestion: '   ' }))).toMatchObject({ status: 400, message: 'fake hub: coach-chat requires chatterQuestion' });
     expect(await refusedWith(await stream('improve-draft', {}))).toEqual({ status: 400, error: 'gate_draft_required', message: 'fake hub: improve-draft requires draftText' });
-    // The same rules as a function, for every feature (ai-rules.ts mirrors hub `prepareAiFeatureStream`).
-    for (const feature of HUB_AI_FEATURES) {
+    // The same rules as a function, for every shared feature (ai-rules.ts mirrors hub `prepareAiFeatureStream`).
+    for (const feature of SHARED_HUB_FEATURES) {
       expect([feature, streamBodyRefusal(feature, needs(feature) ?? {})]).toEqual([feature, null]);
       if (feature === 'coach-chat') continue;
       expect(streamBodyRefusal(feature, { ...needs(feature), preset: 'situation' })?.message).toBe(`${feature} does not accept coach fields`);

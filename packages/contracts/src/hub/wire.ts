@@ -54,7 +54,18 @@ export type HubErrorBody = z.infer<typeof HubErrorBodySchema>;
 
 // ── Known values of the open vocabularies (hub-pr-plan.md §4.1) ────────────
 
-/** Owner kill switches (`chatExtensionFeatures`); on the wire an open record. */
+/**
+ * Owner kill switches (`chatExtensionFeatures`); on the wire an open record. Where each one exists is the hub's
+ * (R20 HF-2): a page of a platform without it reads `platform_unsupported`, whatever the owner's rows say.
+ *
+ * 1.15.0 (R20 P4b3; docs/project-unite/architecture.md §11.1): Fansly's own six, in the SDK's order — `drafts`
+ * (Reply, Fix, Hi and Ping on a Fansly page, HF-12), `voice` (the voice script and the voice-note routes, HF-4б;
+ * the bootstrap offers it only where the hub's voice lane serves the page — else `lane_off`), `notesFill`
+ * («Заполнить из чата», `fan-notes-fill`), `notes`, `vault`, `registration` (the extension's own panels; the hub
+ * has no action behind them). They exist on Fansly only, as `previewSend`, `previewSendMarkAiGenerated`,
+ * `navigation`, `wsTap` and `stats` exist on OnlyFans only. A Fansly page is switched on by its own row alone,
+ * never by `"*"`: the top-level `flags` say nothing about it.
+ */
 export const CLIENT_FEATURE_FLAG_NAMES = [
   'insertion',
   'freshText',
@@ -72,6 +83,12 @@ export const CLIENT_FEATURE_FLAG_NAMES = [
   'recap',
   'review',
   'splitAll',
+  'drafts',
+  'voice',
+  'notesFill',
+  'notes',
+  'vault',
+  'registration',
 ] as const;
 export type ClientFeatureFlag = (typeof CLIENT_FEATURE_FLAG_NAMES)[number];
 
@@ -98,10 +115,27 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'conversation-recaps-v1',
   /** 1.15.0 (R20 HF-8в): the hub answers the body's window check in the context frame. */
   'coverage-check-v1',
+  /**
+   * 1.15.0 (R20 P4b3; hub HF-3): a greeting with no AI generation behind it — the claim body's manual group
+   * `{kind: 'manual', textFingerprint}` and `limits.greetingSendPerMinute`. The hub needs it to offer `newcomers` on
+   * a Fansly page (its own table, in the page's feature); a hub without it refuses the manual group (400).
+   */
+  'manual-greeting-v1',
+  /**
+   * 1.15.0 (R20 P4b3; hub HF-4б): the voice-note routes (`voiceNoteCreate`, `voiceNoteStatus`, `voiceNoteAudio`) take
+   * the narrow token behind the page's `voice`, and the create body takes `fanRef` apart from the chat (HF-4а).
+   */
+  'voice-notes-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
-/** Why a page feature is unavailable (`features.*.reason`, `client_feature_disabled.reason`); critic item 6 adds `client_outdated`. */
+/**
+ * Why a page feature is unavailable (`features.*.reason`, `client_feature_disabled.reason`); critic item 6 adds
+ * `client_outdated`. 1.15.0 (R20 P4b3; hub HF-4б): `lane_off` — the bootstrap's alone, checked after everything
+ * else: the feature runs on a lane of the hub with switches of its own (`voice`: the voice-notes lane — its live
+ * switch, its synthesis provider, its page allowlist, the page's voice profile), and that lane does not serve the
+ * page now. A call is answered by the lane's own admission and codes (`voice_disabled`…), never by this reason.
+ */
 export const CLIENT_FEATURE_UNAVAILABLE_REASONS = [
   'disabled',
   'flag_off',
@@ -110,6 +144,7 @@ export const CLIENT_FEATURE_UNAVAILABLE_REASONS = [
   'hub_not_ready',
   'not_granted',
   'client_outdated',
+  'lane_off',
 ] as const;
 export type ClientFeatureUnavailableReason = (typeof CLIENT_FEATURE_UNAVAILABLE_REASONS)[number];
 

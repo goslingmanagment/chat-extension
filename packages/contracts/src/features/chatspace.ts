@@ -14,10 +14,18 @@
 // this client's own transport needs on top (routes.ts, CLIENT_FLAG_REQUIREMENTS).
 
 import { CLIENT_FLAG_REQUIREMENTS } from '../hub/routes';
+import type { ClientFeatureFlag } from '../hub/wire';
 import type { SiteFeatures } from './common';
 import type { Requirement } from './types';
 
-type Req = Requirement;
+/**
+ * The switches ChatSpace's file may name: the shared vocabulary without Fansly's own six, which it holds since
+ * contracts 1.15.0 (P4b3) and which do not exist on an OnlyFans page (hub HF-2). A type only: the compiler keeps
+ * them out of this file, and a ChatSpace bundle carries none of them.
+ */
+export type ChatSpaceFeatureFlag = Exclude<ClientFeatureFlag, 'drafts' | 'voice' | 'notesFill' | 'notes' | 'vault' | 'registration'>;
+
+type Req = Requirement<ChatSpaceFeatureFlag>;
 
 const NOTHING: Req = { flags: [], hostCapabilities: [] };
 /** Putting a result into ChatSpace's composer: the owner's `insertion` and the bridge that writes there. */
@@ -60,6 +68,6 @@ const FEATURES = {
   palette: { kind: 'panel', base: NOTHING, actions: {}, surfaces: ['palette'], source: 'page' },
 } as const;
 
-export const CHATSPACE_FEATURES: SiteFeatures<typeof FEATURES> = FEATURES;
+export const CHATSPACE_FEATURES: SiteFeatures<typeof FEATURES, ChatSpaceFeatureFlag> = FEATURES;
 
 export type ChatSpaceFeatureKey = keyof typeof CHATSPACE_FEATURES;

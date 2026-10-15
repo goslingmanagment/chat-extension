@@ -8,6 +8,17 @@ export const FEATURE_IDS = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 're
 export const FeatureIdSchema = z.enum(FEATURE_IDS);
 export type FeatureId = z.infer<typeof FeatureIdSchema>;
 
+/**
+ * 1.15.0 (R20 P4b3; docs/project-unite/architecture.md §1.6, §8.8): the operations of a site's own slice — Fansly's
+ * voice script (`voice-script`) and «Заполнить из чата» (`notes-fill`). They run through the scheduler's shared
+ * admission beside the features above, but they are no `FeatureId`: the closed list and every shared schema built on
+ * it stay as they are, and no ChatSpace bundle carries a site's operation. A union at the type level only; the runtime
+ * list, the schemas of a start and a result and the driver's data are the site's module (`ops-fansly`, its subpath).
+ */
+export type SiteOpId = 'voice-script' | 'notes-fill';
+/** What the scheduler runs: a shared AI feature or an operation of a site's slice. */
+export type OpFeature = FeatureId | SiteOpId;
+
 /** Where an operation was started and where its result is shown. */
 export const SURFACES = ['dock', 'preview', 'newcomers', 'coach', 'overlay'] as const;
 export const SurfaceSchema = z.enum(SURFACES);

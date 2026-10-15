@@ -136,6 +136,12 @@ const textOf = (out: Built, root: string, only: (file: string) => boolean = () =
 
 /** What only Fansly's file of the manifest says: its own features, switches, capabilities and source. */
 const FANSLY_ONLY = ['notes-fill', 'notesFill', 'via-tab', 'host-pass', 'fileAttach', 'headerSlot', 'sitefix-album'];
+/**
+ * A marker counts as a whole string of a bundle (a minifier keeps a string literal verbatim between its quotes), as
+ * the site-markers gate counts it: the hub's feature `fan-notes-fill` — a word of the hub's shared vocabulary since
+ * contracts 1.15.0 (P4b3), which ChatSpace's request schemas carry — is not the manifest's entry `notes-fill`.
+ */
+const carries = (text: string, marker: string): boolean => new RegExp(`[\`'"]${marker}[\`'"]`).test(text);
 /** What only ChatSpace's file says. */
 const CHATSPACE_ONLY = ['preview-send', 'previewSend'];
 
@@ -192,7 +198,7 @@ describe('the feature manifest is cut by the module graph (R20 F4)', () => {
 
   it('ChatSpace’s chunks carry ChatSpace’s slice — with the application, in `tab-app` — and no entry of Fansly', () => {
     const all = textOf(chatspace, root);
-    for (const marker of FANSLY_ONLY) expect(all, marker).not.toContain(marker);
+    for (const marker of FANSLY_ONLY) expect(carries(all, marker), marker).toBe(false);
     // The slice comes with the application's half of the adapter: the dock's first chunk and the schemas' chunks do not pay for it.
     const app = textOf(chatspace, root, (file) => file === 'tab-app.js');
     for (const marker of ['hostCapabilities', 'clientNeeds', 'fresh-text', ...CHATSPACE_ONLY]) expect(app, marker).toContain(marker);
@@ -202,8 +208,8 @@ describe('the feature manifest is cut by the module graph (R20 F4)', () => {
 
   it('a build with Fansly’s slice carries Fansly’s entries and nothing only ChatSpace has', () => {
     const all = textOf(second, SECOND.build.root);
-    for (const marker of FANSLY_ONLY.filter((name) => name !== 'sitefix-album')) expect(all, marker).toContain(marker);
-    for (const marker of CHATSPACE_ONLY) expect(all, marker).not.toContain(marker);
+    for (const marker of FANSLY_ONLY.filter((name) => name !== 'sitefix-album')) expect(carries(all, marker), marker).toBe(true);
+    for (const marker of CHATSPACE_ONLY) expect(carries(all, marker), marker).toBe(false);
     // The common part is in both: it names no site.
     for (const out of [all, textOf(chatspace, root)]) expect(out).toContain('fresh-text');
   });

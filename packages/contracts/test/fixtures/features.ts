@@ -3,12 +3,13 @@
 // samples are refused by the compiler (`@ts-expect-error`), as the other view-model fixtures are.
 
 import { type FanslyCapability } from '../../src/fansly';
+import { type ChatSpaceFeatureFlag } from '../../src/features/chatspace';
 import { type SiteFeatures } from '../../src/features/common';
 import { type FanslyFeatureFlag, type FanslySurface } from '../../src/features/fansly';
 import type { Requirement } from '../../src/features/types';
 import type * as C from '../../src/index';
 
-type ChatSpaceFile<T> = SiteFeatures<T>;
+type ChatSpaceFile<T> = SiteFeatures<T, ChatSpaceFeatureFlag>;
 type FanslyFile<T> = SiteFeatures<T, FanslyFeatureFlag, C.HostCapability | FanslyCapability, FanslySurface>;
 
 const NOTHING = { flags: [], hostCapabilities: [] } as const;
@@ -20,10 +21,12 @@ export const REQUIREMENT_SAMPLES: { readonly valid: readonly Requirement[]; read
     { flags: ['insertion'], hostCapabilities: ['insert'] },
     { flags: ['previewSend', 'newcomers'], hostCapabilities: ['previewSend', 'receipt'] },
     { flags: ['freshText'], hostCapabilities: [], clientNeeds: ['context-v1'] },
+    // 1.15.0 (P4b3): Fansly's own switches are in the shared vocabulary; only Fansly's file names them (ChatSpace's cannot, below).
+    { flags: ['drafts'], hostCapabilities: [] },
   ],
   invalid: [
-    // @ts-expect-error a switch the hub's vocabulary does not have (Fansly's own are its file's, features/fansly.ts)
-    { flags: ['drafts'], hostCapabilities: [] } satisfies Requirement,
+    // @ts-expect-error a switch the hub's vocabulary does not have
+    { flags: ['autoSend'], hostCapabilities: [] } satisfies Requirement,
     // @ts-expect-error a capability no site's report carries
     { flags: [], hostCapabilities: ['teleport'] } satisfies Requirement,
     // @ts-expect-error a client need is a capability of the hub's bootstrap, not a switch

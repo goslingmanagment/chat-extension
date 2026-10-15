@@ -3,7 +3,7 @@
 // retry, the persona fence and catalog, the prompt echo and the quota
 // (parity AI-140, AI-141, AU-026…AU-028, DB-002/003/006/008, TL-013).
 
-import { AI_STREAM_CAPABILITIES, STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode, type HubFrame, type HubStreamRequest } from '@cg/contracts';
+import { AI_STREAM_CAPABILITIES, HUB_AI_FEATURES, STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode, type HubFrame, type HubStreamRequest } from '@cg/contracts';
 import {
   BOOTSTRAP_ALL_OFF,
   BOOTSTRAP_PILOT_ON,
@@ -23,7 +23,8 @@ import {
 } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CATALOG_TTL_MS, STREAM_RETRY_DELAY_MS, errorWireOf, sdkStreamTransport, type AiStreamTransport } from '../src/index';
+import { PromptEchoStore } from '../src/debug-echo';
+import { CATALOG_TTL_MS, STREAM_RETRY_DELAY_MS, errorWireOf, featureOfHub, sdkStreamTransport, type AiStreamTransport } from '../src/index';
 import { hubError, json, sse, sseFrame, testEnv } from './support/fake-hub';
 import { flush, makeHarness, signIn, until, type Harness } from './support/harness';
 import { scenarioNamed, signInWorld } from './support/world';
@@ -719,6 +720,18 @@ describe('[DB-002] [DB-003] [DB-006] [DB-008] the prompt echo of debug mode', ()
     h.env.debug = false;
     expect(h.facade.promptEcho(ticket?.token ?? '')).toMatchObject({ state: 'debug-off', blocks: [] });
     expect(h.facade.promptEcho('unknown-token')).toMatchObject({ state: 'debug-off' });
+  });
+
+  it('Fansly\'s two hub features are its own operations; their echo opens without a shared feature\'s name (contracts 1.15.0, P4b3)', () => {
+    expect(HUB_AI_FEATURES.map((feature) => featureOfHub(feature, undefined))).toEqual(['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach', 'voice-script', 'notes-fill']);
+    expect(featureOfHub('fan-summary', 'short')).toBe('recap-short');
+    let n = 0;
+    const store = new PromptEchoStore({ now: () => NOW_MS, monotonic: () => 0 }, () => `00000000-0000-4000-8000-${String((n += 1)).padStart(12, '0')}`);
+    store.requested('op-voice', 'voice-script');
+    store.record('op-voice', { type: 'debug_input_v1', systemBlocks: [{ text: 'system', cache: 'none' }], userBlocks: [{ text: 'draft', cache: 'none' }], contextManifest: null });
+    const ticket = store.ticket('op-voice');
+    expect(ticket).toMatchObject({ state: 'ok', blocks: 2 });
+    expect(store.view(ticket?.token ?? '', true)).toMatchObject({ state: 'ok', feature: null, blocks: [{ name: 'system 1', text: 'system' }, { name: 'user 1', text: 'draft' }] });
   });
 
   it('[DB-003] the owner\'s window closed: no echo is not an error, the ticket says «echo off»', async () => {

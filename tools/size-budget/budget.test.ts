@@ -212,7 +212,7 @@ describe('size budgets of the sites’ lazy builds and contract probes (R20 F2b)
       ['contracts: limits only', 2 * 1024],
       ['chatspace: contracts: early isolated (bridge guard, envelopes, tab.register)', 12 * 1024],
       ['chatspace: contracts: UiAction schema', 16 * 1024],
-      ['chatspace: contracts: tab request registry (parseTabPayload)', 28 * 1024],
+      ['chatspace: contracts: tab request registry (parseTabPayload)', 30 * 1024],
     ]);
     const fansly: HostDescriptor = { ...CHATSPACE, kind: 'fansly-web', budgets: { ...CHATSPACE.budgets, contracts: [{ label: 'contracts: its bridge registry', entry: 'export {};', gzipBytes: 30 * 1024 }] } };
     expect(contractsProbes([CHATSPACE, fansly])).toEqual([...contractsProbes([CHATSPACE]), { label: 'fansly-web: contracts: its bridge registry', entry: 'export {};', limitBytes: 30 * 1024 }]);

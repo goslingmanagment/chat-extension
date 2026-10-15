@@ -6,7 +6,7 @@
 // token and counters (DB-006); the text opens on debug-prompt.html by that
 // token. Turning debug off or signing out clears everything.
 
-import { DEBUG_LIMITS, type FeatureId, type HubAiFeature, type HubFrame, type PromptSnapshotView } from '@cg/contracts';
+import { DEBUG_LIMITS, FEATURE_IDS, type FeatureId, type HubAiFeature, type HubFrame, type OpFeature, type PromptSnapshotView } from '@cg/contracts';
 
 import { type HubClock, type UuidSource } from './ports';
 
@@ -15,7 +15,7 @@ type DebugFrame = Extract<HubFrame, { type: 'debug_input_v1' }>;
 interface EchoEntry {
   readonly token: string;
   readonly opId: string;
-  readonly feature: FeatureId;
+  readonly feature: OpFeature;
   /** Monotonic: the snapshot TTL and the order of eviction. */
   readonly createdAt: number;
   frame: DebugFrame | null;
@@ -37,8 +37,12 @@ export interface EchoTicket {
 const MAX_TOMBSTONES = 64;
 const MAX_BLOCKS = 32;
 
-/** Our feature of a stream request (the hub's `fan-summary` is a full or a short recap). */
-export function featureOfHub(feature: HubAiFeature, summaryMode: 'short' | undefined): FeatureId {
+/**
+ * Our operation of a stream request (the hub's `fan-summary` is a full or a short recap). 1.15.0 (R20 P4b3): the two
+ * hub features of Fansly's own operations are those operations (`SiteOpId`); the snapshot's view names shared
+ * features only (`PromptSnapshotView.feature`), so theirs shows without a name.
+ */
+export function featureOfHub(feature: HubAiFeature, summaryMode: 'short' | undefined): OpFeature {
   switch (feature) {
     case 'fast-reply':
       return 'reply';
@@ -54,8 +58,15 @@ export function featureOfHub(feature: HubAiFeature, summaryMode: 'short' | undef
       return summaryMode === 'short' ? 'recap-short' : 'recap';
     case 'coach-chat':
       return 'coach';
+    case 'voice-script':
+      return 'voice-script';
+    case 'fan-notes-fill':
+      return 'notes-fill';
   }
 }
+
+/** The shared feature a view may name; a site's operation has none there. */
+const viewFeature = (feature: OpFeature): FeatureId | null => ((FEATURE_IDS as readonly string[]).includes(feature) ? (feature as FeatureId) : null);
 
 export class PromptEchoStore {
   private readonly byToken = new Map<string, EchoEntry>();
@@ -69,7 +80,7 @@ export class PromptEchoStore {
   ) {}
 
   /** A stream asked for the echo. */
-  requested(opId: string, feature: FeatureId): void {
+  requested(opId: string, feature: OpFeature): void {
     this.sweep();
     const token = this.uuid();
     this.byToken.set(token, { token, opId, feature, createdAt: this.clock.monotonic(), frame: null, capturedAt: null, ended: false, fromCache: false });
@@ -120,7 +131,7 @@ export class PromptEchoStore {
     this.sweep();
     const entry = this.byToken.get(token);
     if (entry === undefined) return { state: this.expired.includes(token) ? 'expired' : 'not-found', ...empty };
-    const base = { fromCache: entry.fromCache, capturedAt: entry.capturedAt === null ? null : new Date(entry.capturedAt).toISOString(), feature: entry.feature };
+    const base = { fromCache: entry.fromCache, capturedAt: entry.capturedAt === null ? null : new Date(entry.capturedAt).toISOString(), feature: viewFeature(entry.feature) };
     if (entry.frame === null) return { state: entry.ended ? 'echo-off' : 'not-found', ...base, manifest: null, blocks: [] };
     const cut = (text: string, max: number) => ({ text: text.length > max ? text.slice(0, max) : text, truncated: text.length > max });
     const blocks = [
