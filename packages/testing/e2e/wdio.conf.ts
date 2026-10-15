@@ -10,13 +10,19 @@
 //
 // FIREFOX_BIN overrides the browser binary (default: the macOS app path, or
 // whatever geckodriver finds on PATH elsewhere).
+//
+// CG_E2E_SHARD=<k>/<n> runs part k of n of the spec files (src/e2e-shards.ts:
+// the CI job runs the parts side by side); unset, every spec file runs. The
+// launcher prints a `cg-e2e-time:` line for each spec file a worker finished —
+// what the parts are weighed by.
 
 import { existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { routeSchemas } from '@kernel/sdk';
 
+import { parseShard, shardSpecs, SPECS_DIR, TIME_LINE } from '../src/e2e-shards';
 import { startFakeHub, type FakeHubServer } from '../src/fake-hub/server';
 import { startStandServer, type StandServer } from '../src/stand-server';
 import { egressProxyPrefs, startEgressSink, type EgressSink } from '../src/stand/egress-sink';
@@ -39,6 +45,14 @@ let stand: StandServer | null = null;
 let egress: EgressSink | null = null;
 let hub: FakeHubServer | null = null;
 
+/** The part of the suite this run is (CG_E2E_SHARD), or null for the whole suite; a value that names no part throws. */
+const shardText = process.env['CG_E2E_SHARD'] ?? '';
+const shard = shardText === '' ? null : parseShard(shardText);
+const shardFiles = shard === null ? null : shardSpecs(shard);
+
+/** When each worker started, by its id: the launcher prints how long its spec file took. */
+const workerStarts = new Map<string, number>();
+
 /**
  * Fixed ports for the run, from CG_E2E_PORTS (JSON: `fansly`, `fanslyApi`, `fanslySocket`, `hub`; any may be left
  * out): only for a subject that has the stand's addresses compiled in — the old Fansly extension's test build of the
@@ -60,7 +74,7 @@ function fixedPorts(): { fansly?: number; fanslyApi?: number; fanslySocket?: num
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
-  specs: ['./specs/**/*.e2e.ts'],
+  specs: shardFiles === null ? ['./specs/**/*.e2e.ts'] : shardFiles.map((name) => `./specs/${name}`),
   maxInstances: 1,
   capabilities: [
     {
@@ -112,6 +126,9 @@ export const config: WebdriverIO.Config = {
   reporters: ['spec'],
   mochaOpts: { ui: 'bdd', timeout: 120_000 },
   onPrepare: async (_config, capabilities) => {
+    if (shard !== null && shardFiles !== null) {
+      console.log(`e2e: part ${shard.part}/${shard.of} of the suite, ${shardFiles.length} spec file(s): ${shardFiles.join(' ')}`);
+    }
     if (!existsSync(join(FIXTURE_BUILD_DIR, 'index.html'))) {
       throw new Error('the ChatSpace fixture is not built: run `pnpm --filter @cg/testing build:stand` (pnpm e2e does it)');
     }
@@ -143,6 +160,19 @@ export const config: WebdriverIO.Config = {
     for (const capability of capabilities as WebdriverIO.Capabilities[]) {
       const firefox = capability['moz:firefoxOptions'];
       if (firefox !== undefined) firefox.prefs = { ...firefox.prefs, ...egressProxyPrefs(egress.port) };
+    }
+  },
+  onWorkerStart: (cid) => {
+    workerStarts.set(cid, performance.now());
+  },
+  onWorkerEnd: (cid, exitCode, specs) => {
+    const started = workerStarts.get(cid);
+    if (started === undefined) return;
+    const seconds = ((performance.now() - started) / 1000).toFixed(1);
+    for (const spec of specs) {
+      const path = spec.startsWith('file://') ? fileURLToPath(spec) : spec;
+      const name = relative(SPECS_DIR, path).split('\\').join('/');
+      console.log(`${TIME_LINE} ${name.startsWith('..') ? basename(path) : name} ${seconds} ${exitCode === 0 ? 'passed' : 'failed'}`);
     }
   },
   onComplete: async () => {

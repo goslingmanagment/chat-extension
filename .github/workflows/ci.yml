@@ -1,29 +1,40 @@
 # CI (docs/architecture.md §13, docs/release.md «CI»).
 #
-# Two jobs on a ready PR, on every push to main and on a manual run:
-#   check  `pnpm check` — typecheck, lint, test, build, webext-lint, size,
-#          gates, parity, archive-check (§3);
-#   e2e    `pnpm e2e` — headless Firefox and geckodriver inside the image pinned
-#          by digest in tools/ci/e2e-image.sh, in a container with no network.
-# A Draft PR runs nothing: both jobs are skipped (a skipped job costs no runner
-# and counts as passed for a required check). Marking the PR ready starts them.
+# On a PR, on every push to main and on a manual run:
+#   check      `pnpm check` — typecheck, lint, test, build, webext-lint, size,
+#              gates, parity, archive-check (§3);
+#   e2e-part   `pnpm e2e` in parts side by side — headless Firefox and
+#              geckodriver inside the image pinned by digest in
+#              tools/ci/e2e-image.sh, in a container with no network; each part
+#              builds for itself and runs its share of the spec files
+#              (CG_E2E_SHARD, packages/testing/src/e2e-shards.ts);
+#   e2e        «pnpm e2e», the required check: green only when every part is.
+#
+# Drafts: while CI runs on the owner's PC (CI_POOL=pc, free) a Draft PR runs
+# everything, so an executor needs no full e2e run of its own; on GitHub's
+# runners (paid) a Draft runs nothing — every job is skipped (a skipped job
+# costs no runner and counts as passed for a required check) — and marking the
+# PR ready starts them. Marking a PR that ran on the PC ready runs CI once more:
+# GitHub tests the PR merged into its base, and the base may have moved since
+# the Draft's run; telling a still-valid green run from a stale one would need
+# a gate job reading the API, whose «skipped» would also read as passed.
 #
 # A change of documents alone — docs/**, site/**, *.md in the root — does not
-# run the e2e suite: the job starts, sees what changed (its second step,
-# tools/ci/e2e-needed.sh) and ends green within seconds instead of half an
-# hour. `check` always runs in full: it is what tests the site, the changelog
+# run the e2e suite: each part starts, sees what changed (its second step,
+# tools/ci/e2e-needed.sh) and ends green within seconds instead of running its
+# share. `check` always runs in full: it is what tests the site, the changelog
 # and the parity tables. Why inside the job and not `paths-ignore` on the
 # workflow: a workflow that does not start reports nothing, and a PR with a
 # required check would wait for it forever. Why not a job of its own in front:
-# that is a second wait for a runner (and for the PC's priority hook), and a
-# gate job that failed would turn the jobs behind it into «skipped», which a
-# required check reads as passed.
+# that is a second wait for a runner (and for the PC's priority hook).
 #
 # Runner pool, as in hub, fansly-chat, onlyfans-chat and taskindex: the
 # repository variable CI_POOL=pc sends the first attempt to the owner's
 # self-hosted runners; any other value, and every re-run (the PC may have died
-# mid-run), uses GitHub-hosted runners. Branch protection matches a required
-# check by the job's `name:` — «pnpm check» and «pnpm e2e»: keep the names.
+# mid-run), uses GitHub-hosted runners. On the PC the suite runs as five parts
+# (six runners: `check` and five parts at once); on GitHub as one, so the paid
+# minutes stay what they were. Branch protection matches a required check by
+# the job's `name:` — «pnpm check» and «pnpm e2e»: keep the names.
 #
 # No secret is read here and none is needed: the jobs build, lint and test
 # against the synthetic stand and the fake hub on loopback. The runners hold no
@@ -42,10 +53,11 @@ on:
 permissions:
   contents: read
 
-# A superseded PR head has nothing left to prove — cancel its run. Each push to
-# main (and each manual run) gets a group of its own: GitHub keeps only ONE
-# pending run per group, so a shared group would let a newer push evict an
-# older pending one, and main keeps a finished run per commit.
+# A superseded PR head has nothing left to prove — cancel its run (a Draft's
+# too: the group is the PR's). Each push to main (and each manual run) gets a
+# group of its own: GitHub keeps only ONE pending run per group, so a shared
+# group would let a newer push evict an older pending one, and main keeps a
+# finished run per commit.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -53,7 +65,8 @@ concurrency:
 jobs:
   check:
     name: pnpm check
-    if: github.event.pull_request.draft != true
+    # A Draft runs only on the PC (see the top of the file).
+    if: github.event.pull_request.draft != true || vars.CI_POOL == 'pc'
     runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     timeout-minutes: 25
     env:
@@ -117,12 +130,24 @@ jobs:
       - name: Dependency audit (warnings only)
         run: pnpm audit --audit-level high || echo "::warning title=pnpm audit::pnpm audit reports vulnerabilities or could not reach the registry — see the log of this step"
 
-  e2e:
-    name: pnpm e2e
-    if: github.event.pull_request.draft != true
+  e2e-part:
+    name: e2e ${{ matrix.shard }}
+    if: github.event.pull_request.draft != true || vars.CI_POOL == 'pc'
     runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
-    # About 18 minutes on the owner's Mac; slower runners get room.
+    # The whole suite is about 20 minutes on the PC and 28 on a GitHub runner
+    # (one part there); slower runners and the PC's priority hook get room.
     timeout-minutes: 60
+    strategy:
+      # Every part reports: a red part does not cancel the others, so one run
+      # names every failing spec file. On the PC the parts cost nothing.
+      fail-fast: false
+      # Each part names itself and the count, «<k>/<n>»: a part re-run on
+      # GitHub runs the same spec files as on the PC. Five on the PC — the PC
+      # has six runners for this repository, `check` takes one (the parts weigh
+      # ~4 minutes each, packages/testing/e2e/shard-weights.json) — one on
+      # GitHub.
+      matrix:
+        shard: ${{ fromJSON(vars.CI_POOL == 'pc' && '["1/5","2/5","3/5","4/5","5/5"]' || '["1/1"]') }}
 
     steps:
       # Two commits deep: on a PR this is GitHub's merge commit, and the next
@@ -171,7 +196,9 @@ jobs:
 
       # Both builds, the stand, the fake hub, WebdriverIO, geckodriver and
       # Firefox all run inside one container with --network none: rootless
-      # Docker on the PC, the stock daemon on a hosted runner.
+      # Docker on the PC, the stock daemon on a hosted runner. Each part builds
+      # for itself (about 20 s on the PC — less than handing a build over
+      # through an artifact) and runs its share of the spec files.
       #
       # `exec`: when a run is cancelled (a newer push to the PR does that) or
       # times out, the runner signals the step's own process and nothing below
@@ -180,6 +207,8 @@ jobs:
       # With it the script takes the signal and removes its container.
       - name: e2e (headless Firefox in the pinned image, no network)
         if: steps.scope.outputs.e2e != 'false'
+        env:
+          CG_E2E_SHARD: ${{ matrix.shard }}
         run: exec tools/ci/e2e-docker.sh
 
       # What a SIGKILL leaves: the script had ten seconds and did not make it.
@@ -193,7 +222,30 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          name: e2e-logs-${{ github.run_id }}-${{ github.run_attempt }}-part-${{ strategy.job-index }}
           path: .cache/wdio
           if-no-files-found: ignore
           retention-days: 7
+
+  # The required check «pnpm e2e». It only reads the parts' result: green when
+  # every part is (a part that saw documents alone is green too), red when any
+  # failed, was cancelled or never ran. `always()`: without it a failed or
+  # cancelled part would make this job «skipped», and a required check reads
+  # «skipped» as passed. A Draft on GitHub's runners skips it with the parts.
+  e2e:
+    name: pnpm e2e
+    needs: [e2e-part]
+    if: always() && (github.event.pull_request.draft != true || vars.CI_POOL == 'pc')
+    # One shell line: off the PC the smallest GitHub runner does (as hub's
+    # gates).
+    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-slim' }}
+    # Seconds of work; the rest is room for the PC's priority hook.
+    timeout-minutes: 15
+
+    steps:
+      - name: Every part of the suite passed
+        env:
+          PARTS: ${{ needs.e2e-part.result }}
+        run: |
+          echo "the parts of the e2e suite: $PARTS"
+          [ "$PARTS" = success ] || { echo "::error title=pnpm e2e::a part of the e2e suite did not pass ($PARTS) — see the e2e jobs of this run"; exit 1; }
