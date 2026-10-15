@@ -478,6 +478,8 @@ export function isMainWorldSource(path: string, hosts: readonly HostDescriptor[]
 export const MAIN_CALLBACK_SITES: Readonly<Record<string, number>> = {
   addEventListener: 1,
   listen: 1,
+  // Fansly's taps: a listener on a page's own instance through the addEventListener captured at install (target, type, callback).
+  listenOn: 2,
   setTimeout: 0,
   setInterval: 0,
   later: 0,

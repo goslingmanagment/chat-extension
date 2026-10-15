@@ -16,6 +16,7 @@
     "@cg/contracts": "workspace:*",
     "@cg/core": "workspace:*",
     "@cg/host-chatspace": "workspace:*",
+    "@cg/host-fansly": "workspace:*",
     "@cg/hub": "workspace:*",
     "@cg/platform": "workspace:*",
     "@cg/ui": "workspace:*",

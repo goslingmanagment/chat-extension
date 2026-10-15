@@ -335,10 +335,11 @@ describe('[X22] gate: MAIN-world guards', () => {
           'editor.on("transaction", listener);',
           'socket.addEventListener("message", onMessage);',
           'queueMicrotask(release);',
+          'listenOn(socket, "message", (event) => read(event));',
         ].join('\n'),
       ),
     ]);
-    expect(violations.map((violation) => violation.line)).toEqual([1, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(violations.map((violation) => violation.line)).toEqual([1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(violations.every((violation) => violation.gate === 'main-world-guard')).toBe(true);
   });
 
