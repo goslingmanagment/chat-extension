@@ -17,6 +17,10 @@
 //   a row whose chat no one knows asks nothing of it — no archive, no
 //   generation, nothing by the fan's id in the group's place.
 // Spenders' own group resolution beyond the hub's rows is P9e, «Новые» P10c.
+// And the start of the dock's Reply (R20 P8b1; FS-TAIL-1, FS-TAIL-6): MAIN's
+// snapshot of the open chat is the start's proof, and the hub is asked about
+// it — the window the page holds, the fan's newest ids first, what the page
+// deleted, the texts, a count no smaller than the window.
 // Nothing of ours asks the Fansly stand for anything.
 
 import { $, browser, expect } from '@wdio/globals';
@@ -228,5 +232,54 @@ describe('groupId on every Fansly surface: the dock, the fan panel, the toast, t
     await dockIs((d) => d.target?.endsWith(`:${A.fan}`) === true, 'the dock of the first fan’s chat');
     expect(await $(FANSLY_MAIN.field).isExisting()).toBe(true);
     expect((await readReport())?.dock?.target?.endsWith(`:${A.fan}`)).toBe(true);
+  });
+
+  it('[FS-TAIL-1] [FS-TAIL-6] the dock’s Reply carries its chat’s snapshot (R20 P8b1): the window the page holds, the fan’s newest ids first, what the page deleted, the texts — no `clientContext`, a count no smaller than the window — and the hub takes it', async function () {
+    this.timeout(120_000);
+    if ((await route()).groupId !== A.group) await openChat(A.group, A.fan);
+    const held = async (): Promise<string[]> => (await callFansly('list'))?.ids.slice() ?? [];
+    // The fan writes; a message of the window is deleted: the page follows both before the click.
+    const fake = fakeFansly();
+    const deleted = (await held()).at(-3) ?? '';
+    const written = (await fake.command({ op: 'message', groupId: A.group, text: 'one more line' })).message?.id ?? '';
+    await fake.command({ op: 'delete', messageId: deleted });
+    await browser.waitUntil(async () => (await held()).includes(written) && !(await held()).includes(deleted), { timeout: 10_000, timeoutMsg: 'the page did not show the new message and drop the deleted one' });
+    const page = await held();
+
+    const mark = await hub().mark();
+    const streamsSince = async (): Promise<FakeHubJournalEntry[]> => (await hub().journal(mark)).entries.filter((entry) => entry.route === 'aiFeatureStream');
+    await pressOurs('dock', '.cg-strip button', /^Reply/);
+    const shown = await dockIs(replyDone(A.fan), 'the chat’s Reply in the dock', 30_000);
+    // A Reply that ran has streamed by its end; none — the chat's last Reply is kept and shown again, and «Ещё раз»
+    // starts a new one, with a new snapshot.
+    if ((await streamsSince()).length === 0) {
+      await pressOurs('dock', '.cg-sheet button', /^Ещё раз/);
+      await dockIs((d) => replyDone(A.fan)(d) && d.result?.opId !== shown.result?.opId, 'a new Reply of the chat', 30_000);
+    }
+
+    const streams = await streamsSince();
+    expect(streams.map((entry) => entry.status)).toEqual([200]);
+    const request = streams[0]?.request as {
+      readonly capabilities: readonly string[];
+      readonly body: {
+        readonly conversationRef: string;
+        readonly fanRef: string;
+        readonly messageCount: number;
+        readonly coverageCheck?: { readonly window: readonly { readonly id: string; readonly dir: string }[]; readonly deletedIds: readonly string[] };
+        readonly knownFanMessageIds?: readonly string[];
+        readonly liveTextContext?: { readonly items: readonly { readonly platformMessageId: string; readonly direction: string; readonly text: string }[] };
+      };
+    };
+    const { body } = request;
+    expect(request.capabilities).toEqual(expect.arrayContaining(['context-v1', 'coverage-check-v1']));
+    expect([body.conversationRef, body.fanRef, 'clientContext' in body]).toEqual([A.group, A.fan, false]);
+    expect(body.coverageCheck?.window.map((entry) => entry.id)).toEqual(page.slice(-60));
+    expect(body.coverageCheck?.window.at(-1)).toEqual({ id: written, dir: 'fan' });
+    expect(body.coverageCheck?.deletedIds).toEqual([deleted]);
+    expect(body.knownFanMessageIds?.[0]).toBe(written);
+    // The texts: ids and sides as sent; the journal keeps a text's length only.
+    expect(body.liveTextContext?.items.at(-1)).toEqual({ platformMessageId: written, direction: 'fan', occurredAt: expect.any(String) as unknown, text: `‹${'one more line'.length} chars›` });
+    expect(body.liveTextContext?.items.every((item) => page.includes(item.platformMessageId))).toBe(true);
+    expect(body.messageCount).toBeGreaterThanOrEqual(body.coverageCheck?.window.length ?? Infinity);
   });
 });
