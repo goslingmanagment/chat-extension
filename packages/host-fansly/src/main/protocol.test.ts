@@ -37,7 +37,7 @@ describe('[EX-008] [host:fansly] Fansly’s MAIN literals', () => {
     expect([...FANSLY_BRIDGE_STATE_EVENTS].sort()).toEqual([protocol.EVT_IDENTITY, protocol.EVT_CHAT, protocol.EVT_CONTRACT].sort());
     expect(FANSLY_BRIDGE_UNDROPPABLE_EVENTS).toEqual(expect.arrayContaining([protocol.EVT_INCOMING, protocol.EVT_FOLLOW, protocol.EVT_COVERAGE, protocol.EVT_DELETED, protocol.EVT_VAULT]));
     // Every request but `probe` (the boot's) is MAIN's own.
-    expect(['probe', protocol.REQ_STATE, protocol.REQ_ACK, protocol.REQ_HEALTH, protocol.REQ_FOCUS, protocol.REQ_SNAPSHOT, protocol.REQ_WINDOW].sort()).toEqual([...TO_MAIN_FANSLY_TYPES].sort());
+    expect(['probe', protocol.REQ_STATE, protocol.REQ_ACK, protocol.REQ_HEALTH, protocol.REQ_FOCUS, protocol.REQ_SNAPSHOT, protocol.REQ_WINDOW, protocol.REQ_VAULT_STATE].sort()).toEqual([...TO_MAIN_FANSLY_TYPES].sort());
     expect([protocol.GAP_OVERFLOW, protocol.GAP_MEMORY]).toEqual([...FANSLY_GAP_REASONS]);
   });
 

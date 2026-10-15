@@ -21,6 +21,7 @@ import { el, host, registerView, scope } from './ng';
 import { OldExtensionMarks } from './old-extension';
 import { FANSLY_STAND_DEFAULT_LATENCY_MS } from './protocol';
 import { Router, type Route } from './router';
+import { createVaultPage } from './vault';
 import { GroupService } from './store';
 
 /** The Angular version the live page declares (`ng-version`, chat-dom-2026-10-13.json). */
@@ -96,6 +97,11 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
     }
     other?.remove();
     const page = scope();
+    if (route.path === '/creator/vault' && options.server !== undefined) {
+      other = createVaultPage(options.server);
+      outlet.after(other);
+      return;
+    }
     other = host(page, 'app-home-route');
     other.append(el(page, 'div', { class: 'home-placeholder' }, [`Stand page ${route.path}`]));
     outlet.after(other);

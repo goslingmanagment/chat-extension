@@ -47,6 +47,7 @@ import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf,
 import type { FanslyMounts } from './mount';
 import type { FanslyRoute, RouteStats, RouteWatcher } from './route';
 import type { FanslyTheme } from './theme';
+import type { VaultEvent, VaultSession } from './vault/session';
 import { consumeStream, type StreamStats } from './stream';
 
 /** What the host tells the tab's log: an event, its code, a few plain facts — never a text, a name or an id of a fan. */
@@ -70,6 +71,8 @@ export interface FanslyIsolatedHealth {
 export interface FanslyPort extends FanslyHostPort {
   /** Resolves once MAIN's first state was taken (or asked in vain, or at once without MAIN). */
   readonly ready: Promise<void>;
+  /** Lazy vault engine input (P13a); the panel and admission remain P13b. */
+  readonly vaultSession: VaultSession;
   /** The identity reads and writes are checked against now; null when there is none. */
   identity(): HostIdentity | null;
   probe(): FanslyContractReport;
@@ -186,6 +189,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
 
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
+  const vaultListeners = new Set<(event: VaultEvent) => void>();
+  const vaultChanges = new Set<() => void>();
   const slotListeners = new Set<(slot: FanslyHeaderSlot) => void>();
   const emit = (event: HostEvent): void => {
     for (const listener of [...eventListeners]) listener(event);
@@ -295,6 +300,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const slotMoved = JSON.stringify(nextSlot) !== JSON.stringify(slot);
     slot = nextSlot;
 
+    if (routeMoved) for (const listener of [...vaultChanges]) listener();
     if (routeMoved) emit({ type: 'route', route: routeState });
     if (seen !== composerSeen) {
       composerSeen = seen;
@@ -374,7 +380,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       case 'fx.coverage':
       case 'fx.deleted':
       case 'fx.sent':
+        return;
       case 'fx.vaultAdded':
+      case 'fx.vaultReloaded':
+        for (const listener of [...vaultListeners]) listener(event);
         return;
     }
   };
@@ -388,6 +397,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
             state: onState,
             event: onEvent,
             lost(reason) {
+              for (const listener of [...vaultListeners]) listener(null);
               diag({ event: 'stream-lost', detail: { reason } });
               // Every chat unknown until the next state (FS-TAIL-5): the window the tab holds says so at once — and a
               // proven start no longer stands, its unbroken observation is broken.
@@ -465,6 +475,16 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   };
 
   return {
+    vaultSession: {
+      current() {
+        acting();
+        return { accountId: disposed ? null : creator, generation: generation.current(), onRoute: route.current().path === '/creator/vault' };
+      },
+      under: generation.under,
+      inspect: () => bridge === null ? Promise.reject(new Error('MAIN missing')) : bridge.request('fx.vaultState', {}),
+      subscribe(listener) { vaultListeners.add(listener); return () => { vaultListeners.delete(listener); }; },
+      onChange(listener) { vaultChanges.add(listener); return () => { vaultChanges.delete(listener); }; },
+    },
     kind: FANSLY_KIND,
     platform: FANSLY_PLATFORM,
     ready,
@@ -539,6 +559,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     dispose() {
       if (disposed) return;
       disposed = true;
+      generation.advance();
+      for (const listener of [...vaultChanges]) listener();
+      vaultListeners.clear();
+      vaultChanges.clear();
       stream?.dispose();
       offRoute();
       offAnchors();

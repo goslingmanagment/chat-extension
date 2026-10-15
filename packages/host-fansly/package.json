@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./isolated/vault": "./src/isolated/vault/index.ts",
     "./main": "./src/main/index.ts",
     "./isolated/notice": "./src/isolated/notice.ts",
     "./isolated": "./src/isolated/index.ts",

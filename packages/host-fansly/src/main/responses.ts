@@ -42,7 +42,7 @@ import type { Guard } from '@cg/host-kit/main/guard';
 
 import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, DRAIN_CHARS_PER_MS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
 
-export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault';
+export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault' | 'vaultReload';
 
 /** An answer of the API by its address: of the table, or `other` — an API answer MAIN does not read. */
 export interface ApiCall {
@@ -51,6 +51,7 @@ export interface ApiCall {
   readonly groupId: string | null;
   /** The page's `limit=` of the history (a positive integer); null — absent or another. */
   readonly limit?: number | null;
+  readonly albumId?: string;
 }
 
 const OTHER: ApiCall = { kind: 'other', groupId: null };
@@ -109,6 +110,12 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
         return param(query, 'ids') === null ? OTHER : { kind: 'accounts', groupId: null };
       case 'message/automated':
         return { kind: 'automated', groupId: null };
+      case 'media/vaultnew': {
+        const albumId = idOf(param(query, 'albumId'));
+        // Only the first page is an album reload, never a pagination response.
+        return albumId !== null && param(query, 'before') === null && (param(query, 'offset') ?? '0') === '0'
+          ? { kind: 'vaultReload', groupId: null, albumId } : OTHER;
+      }
       case 'vault/albums/media':
         return { kind: 'vault', groupId: null };
       default: {
@@ -123,7 +130,7 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
 /** Whether `response` has the form the table asks of its kind (the header of this file). */
 function ofForm(call: ApiCall, response: unknown): boolean {
   if (call.kind === 'other') return false;
-  if (call.kind === 'vault') return true;
+  if (call.kind === 'vault' || call.kind === 'vaultReload') return true;
   if (call.kind === 'automated' || call.kind === 'accounts') return Array.isArray(response);
   if (!isPlain(response)) return false;
   switch (call.kind) {

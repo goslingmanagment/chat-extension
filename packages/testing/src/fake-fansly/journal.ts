@@ -49,6 +49,7 @@ export type FanslyRoute =
   | 'notes.create'
   | 'notes.edit'
   | 'notes.delete'
+  | 'vault.reload'
   | 'vault.albums'
   | 'vault.addMedia'
   | 'media.create';

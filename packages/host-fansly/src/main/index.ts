@@ -57,6 +57,8 @@ import {
   EVT_IDENTITY,
   EVT_INCOMING,
   EVT_VAULT,
+  EVT_VAULT_RELOADED,
+  REQ_VAULT_STATE,
   FRAMES_UNREAD_SIGN,
   GAP_MEMORY,
   PARSE_BOUNDS,
@@ -167,6 +169,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   let unread = false;
   /** The order of observations in this document (§5.6): a frame's item, an XHR's `loadstart`, a loss. */
   let seq = 0;
+  let vaultAlbum: string | null = null;
+  let vaultSeen = 0;
   /** The route epoch of the last `fx.focus` (FS-RTE-4). */
   let routeEpoch = 0;
   const frames = { seen: 0, parsed: 0, lost: 0 };
@@ -360,6 +364,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'me': {
         const was = identity.creator;
         identity.creator = idOf((r as { account: Plain }).account['id']);
+        if (was !== identity.creator) { vaultAlbum = null; vaultSeen = seq; }
         // Another account in the same document: nothing observed under the old one says anything of this one.
         if (was !== null && was !== identity.creator) observation.reset(WHY_NOT_CERTIFIED);
         emitter.state(EVT_IDENTITY, identityState());
@@ -411,8 +416,15 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'automated':
         automation.read(r as unknown[]);
         return;
+      case 'vaultReload':
+        if (stamp !== undefined && stamp.seq > vaultSeen && read.albumId !== undefined) {
+          vaultSeen = stamp.seq;
+          vaultAlbum = read.albumId;
+          emitter.event(EVT_VAULT_RELOADED, { seq: stamp.seq, albumId: read.albumId });
+        }
+        return;
       case 'vault':
-        emitter.event(EVT_VAULT, { seq: stamp?.seq ?? seq });
+        if (stamp !== undefined) emitter.event(EVT_VAULT, { seq: stamp.seq });
         return;
       case 'other':
         // Never read: `readResponse` takes the table's kinds only.
@@ -495,6 +507,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         if (!isAck(payload)) return ERR_BAD_REQUEST;
         emitter.ack((payload as { n: number }).n);
         return null;
+      }
+      if (t === REQ_VAULT_STATE) {
+        if (!isEmpty(payload)) return ERR_BAD_REQUEST;
+        return { seq, albumId: vaultAlbum, creatorId: world().identity.creator };
       }
       if (t === REQ_HEALTH) {
         if (!isEmpty(payload)) return ERR_BAD_REQUEST;

@@ -301,9 +301,25 @@ describe('[host:fansly] the XHR observer and its response table (§5.4)', () => 
     expect(c.events().filter((e) => e.t === 'fx.vaultAdded').map((e) => e.p)).toEqual([{ seq: 1 }]);
   });
 
+  it('[VA-005] exposes a fence and a reload only for a successful first page of the same album; ignores stale reloads', async () => {
+    const c = await connect(page());
+    request(c.win, `${API}/account/me`).respond(200, ok({ account: { id: CREATOR } }));
+    const older = request(c.win, `${API}/media/vaultnew?albumId=700000000000000301`);
+    request(c.win, `${API}/media/vaultnew?albumId=700000000000000302&offset=0`).respond(200, ok({}));
+    older.respond(200, ok({}));
+    request(c.win, `${API}/media/vaultnew?albumId=700000000000000301&offset=50`).respond(200, ok({}));
+    request(c.win, `${API}/media/vaultnew?albumId=700000000000000301`).respond(500, ok({}));
+    request(c.win, `${API}/vault/albums/media/delete`).respond(200, ok({}));
+    request(c.win, `${API}/vault/albums/media/rename`).respond(200, ok({}));
+    await settle();
+    expect(c.events().filter((e) => e.t === 'fx.vaultReloaded').map((e) => e.p)).toEqual([{ seq: 3, albumId: '700000000000000302' }]);
+    expect(c.events().filter((e) => e.t === 'fx.vaultAdded')).toEqual([]);
+    expect(await c.client.request('fx.vaultState', {})).toEqual({ seq: 7, albumId: '700000000000000302', creatorId: CREATOR });
+  });
+
   it('[EX-008] answers its requests by hand, as the contracts’ fixtures have them', async () => {
     const c = await connect(page());
-    for (const t of ['fx.state', 'fx.ack', 'fx.health', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta'] as const) {
+    for (const t of ['fx.state', 'fx.ack', 'fx.health', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta', 'fx.vaultState'] as const) {
       for (const payload of FANSLY_BRIDGE_REQUEST_FIXTURES[t].payload.valid) await expect(c.client.request(t, payload as never)).resolves.not.toBeUndefined();
       for (const payload of FANSLY_BRIDGE_REQUEST_FIXTURES[t].payload.invalid) {
         const error = (await c.client.request(t, payload as never).catch((caught: unknown) => caught)) as BridgeCallError;

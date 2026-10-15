@@ -150,6 +150,7 @@ export class FanslyWorld {
   readonly follows: FakeFollow[] = [];
   readonly automated: WireAutomatedMessage[];
   readonly albums: FakeAlbum[];
+  readonly vaultMedia = new Map<string, string>();
   /** The creator's mass-send group: the parents of its mass sends live there. */
   readonly broadcastGroupId = BROADCAST_GROUP_ID;
   private readonly ids = new Snowflakes();

@@ -296,6 +296,10 @@ const ROUTES: readonly Route[] = [
       return {};
     },
   },
+  { name: 'vault.reload', method: 'GET', path: /^\/media\/vaultnew$/, run: ({ world, params }) => {
+    const album = world.albums.find((a) => a.id === params.get('albumId'));
+    return album ? { response: { media: [...album.mediaIds].reverse().map((id) => ({ id, filename: world.vaultMedia.get(id) ?? id })) } } : missing('no album');
+  } },
   { name: 'vault.albums', method: 'GET', path: /^\/vault\/albums(?:new)?$/, run: ({ world }) => ({ response: world.wireAlbums() }) },
   {
     // The page checks only `success` (main:30320-30326, :12818-12827); what the answer carries is not known.
@@ -316,7 +320,12 @@ const ROUTES: readonly Route[] = [
     name: 'media.create',
     method: 'POST',
     path: /^\/account\/media$/,
-    run: ({ world, body }) => ({ response: (Array.isArray(body) ? body : []).map(() => ({ contentId: world.nextId(), contentType: 1 })) }),
+    run: ({ world, body }) => ({ response: (Array.isArray(body) ? body : []).map((file: unknown) => {
+      const contentId = world.nextId();
+      const name = asRecord(file)?.['name'];
+      if (typeof name === 'string') world.vaultMedia.set(contentId, name);
+      return { contentId, contentType: 1 };
+    }) }),
   },
 ];
 

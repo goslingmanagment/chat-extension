@@ -21,6 +21,8 @@
 import type { FanslyBatch, FanslyHealth, FanslyState } from '@cg/contracts/bridge-messages-fansly';
 import type { HostEvent } from '@cg/contracts/host';
 import { connectFanslyMain, startFanslyTab, type FanslyMainBridgeClient, type FanslyPort, type StartedFanslyTab } from '@cg/host-fansly/isolated';
+import { VaultUploadRunner, createVaultCheckpointStore } from '@cg/host-fansly/isolated/vault';
+import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 import * as validation from '@cg/host-fansly/isolated/validation';
 
 /** How long the handshake waits: MAIN may come late (the late-install case). */
@@ -92,7 +94,30 @@ const needPort = (): FanslyPort => {
   return port;
 };
 
+let vault: VaultUploadRunner | null = null;
+const vaultRows = new Map<string, unknown>();
+const vaultStore = createVaultCheckpointStore({ read: (k) => Promise.resolve(vaultRows.get(k)), write: (k, v) => { vaultRows.set(k, v); return Promise.resolve(); }, remove: (k) => { vaultRows.delete(k); return Promise.resolve(); } });
+const vaultMake = async (names: string[], checkpoint?: VaultCheckpoint): Promise<void> => {
+  const session = needPort().vaultSession;
+  const state = await session.inspect();
+  if (state.creatorId === null || state.albumId === null) throw new Error('No open vault album');
+  const files = names.map((name) => new File(['synthetic'], name, { type: 'image/jpeg', lastModified: 100 }));
+  const saved = checkpoint ?? await vaultStore.load(state.creatorId, state.albumId);
+  vault = new VaultUploadRunner({ doc: document, session, store: vaultStore, files,
+    checkpoint: saved ?? { hostAccountId: state.creatorId, albumId: state.albumId, uploadId: crypto.randomUUID(), files: files.map((f) => ({ name: f.name, size: f.size, lastModified: f.lastModified })), confirmed: 0, pending: null, updatedAt: Date.now() },
+    albumTitle: document.querySelector('app-media-vault h1')?.textContent ?? '', timeoutMs: 3000,
+  });
+};
+
 const methods: Record<string, (...args: never[]) => unknown> = {
+  vaultMake,
+  vaultStart: () => { void vault?.start().catch((e: unknown) => { failure = String(e); }); },
+  vaultSnapshot: () => vault?.snapshot() ?? null,
+  vaultCheckpoint: () => [...vaultRows.values()][0] ?? null,
+  vaultStop: () => vault?.stop(),
+  vaultPause: () => vault?.pause(),
+  vaultResolve: (outcome: 'present' | 'missing') => vault?.resolveUncertain(outcome),
+  vaultState: () => needPort().vaultSession.inspect(),
   ready: () => ({ connected: client !== null, started: consumer === 'port' ? port !== null : states > 0, failure }),
   probe: () => need().probe(),
   state: (): Promise<FanslyState> => need().request('fx.state', {}).finally(() => (states += 1)),
