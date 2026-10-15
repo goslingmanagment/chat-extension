@@ -19,7 +19,7 @@ import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { CHAT_IS_FAN, chatKeyOf, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
-import { type ActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
+import { type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
 import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
@@ -55,7 +55,7 @@ export type Sheet =
 export interface RefusalState {
   readonly feature: FeatureId;
   readonly error: CgErrorWire;
-  readonly running: readonly ActiveOpSummary[];
+  readonly running: readonly AnyActiveOpSummary[];
   /** When it was refused: a start refused again is another refusal, and is shown again after «Скрыть». */
   readonly at?: number;
 }
@@ -750,7 +750,7 @@ export class AiWorkspace {
       case 'error':
         return { kind: 'failed', error: outcome.error };
       case 'refused':
-        return { kind: 'refused', refusal: { feature, error: { code: outcome.admission.code }, running: outcome.admission.active } };
+        return { kind: 'refused', refusal: { feature, error: { code: outcome.admission.code }, running: [...outcome.admission.active, ...(outcome.admission.siteActive ?? [])].sort((a, b) => a.startedAt - b.startedAt) } };
       case 'started': {
         // Б1: the tone went with this request and is gone.
         if (rule.tone) this.ui(chat.key).tone = toneAfterStart();

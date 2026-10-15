@@ -152,6 +152,35 @@ const modules = async (w: World): Promise<ReadonlyArray<{ host: string; state: s
 };
 
 describe('[host:fansly] a Fansly tab and the background (R20 P7i)', () => {
+  it('[AI-111] P12a: the real site RPC streams a script, then an event-page restart restores it and interrupts the next script without a second POST', async () => {
+    const w = world(); w.start(); await switchFanslyOn(w); await signIn(w);
+    const tab = await fanslyTab(w);
+    const binding = await fanslyBinding(tab);
+    const start = async (regenerateOf?: string): Promise<string> => {
+      const token = await tab.client.request('token.issue', { kind: 'generate', surface: 'dock' });
+      if (!token.ok) throw new Error(token.error.code);
+      return admitted(await fanslyRequest(tab.client, 'fansly.ops.start', {
+        feature: 'voice-script', target: { binding, chat: FANSLY_CHAT, fanRef: fan, conversationRef: group },
+        cause: { kind: 'click', actionToken: token.payload.actionToken }, window: 100, tone: null,
+        draft: { text: 'A synthetic draft.', revision: 1, digest: '0123456789abcdef' },
+        ...(regenerateOf === undefined ? {} : { regenerateOf }),
+      }));
+    };
+    const read = (opId: string) => fanslyRequest(tab.client, 'fansly.ops.read', { opId });
+    const first = await start();
+    await until(async () => { const result = await read(first); return result.ok && result.payload.view?.state === 'done'; }, 'the voice script is complete');
+    w.hub.control({ op: 'scriptSse', feature: 'voice-script', responses: [{ kind: 'stream', steps: [{ kind: 'gate', name: 'p12a-restart' }, { kind: 'eof' }] }] });
+    const pending = await start(first);
+    await until(async () => { const result = await read(pending); return result.ok && result.payload.view?.state === 'requesting'; }, 'the next script is journaled and requested');
+    const before = w.starts();
+    w.fake.suspendBackground();
+    await until(() => w.starts() > before && tab.client.state() === 'ready', 'the tab registered with a fresh background');
+    expect(await read(first)).toMatchObject({ ok: true, payload: { view: { state: 'done', result: { kind: 'voice-script' }, generationRef: expect.any(String) as unknown } } });
+    expect(await read(pending)).toMatchObject({ ok: true, payload: { view: { state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } } } });
+    expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(2);
+    w.hub.control({ op: 'release', gate: 'p12a-restart' });
+  });
+
   it('[SN-001] a MAIN batch acknowledged during RPC reconnection reaches the arbiter after the new presence', async () => {
     const w = world(); w.start(); await switchFanslyOn(w);
     let emit = (_batch: SoundBatch): void => undefined;

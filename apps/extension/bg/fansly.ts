@@ -48,6 +48,7 @@ import {
   parseFanslyTabPayload,
   type FanslyTabRequestPayload,
 } from '@cg/contracts/tab-messages-fansly';
+import { createFanslyOperations } from '@cg/core/services/hosts/fansly/voice-operations';
 import { featureSlice } from '@cg/core/domain/features';
 import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
@@ -115,11 +116,27 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
+  const operations = createFanslyOperations((view) => kit.site?.emit('fansly.ops.done', { view }));
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
     // The registry's rules let a page send only the settings page's types (contracts tab-messages-fansly.ts).
     if (sender.kind === 'page') return pageRequest(kit, accounts, type, payload);
     const tab = sender.tabSessionId;
     switch (type) {
+      case 'fansly.ops.start': {
+        const start = payload as FanslyTabRequestPayload<'fansly.ops.start'>;
+        const page = await kit.hub.page(start.target.binding.pageId, { kind: 'tab', tabSessionId: tab });
+        if (!page.ok) return { ok: false, error: { code: page.code } };
+        const outcome = await kit.ops.start(tab, start);
+        return outcome.kind === 'admission' ? ok(outcome.admission) : { ok: false, error: { code: outcome.code } };
+      }
+      case 'fansly.ops.read':
+        return ok({ view: kit.ops.siteView((payload as FanslyTabRequestPayload<'fansly.ops.read'>).opId, 'fansly-web') });
+      case 'fansly.ops.list':
+        return ok(kit.ops.siteList(tab, 'fansly-web', (payload as FanslyTabRequestPayload<'fansly.ops.list'>).chatKey));
+      case 'fansly.ops.cancel': {
+        const { opId } = payload as FanslyTabRequestPayload<'fansly.ops.cancel'>;
+        return ok({ state: kit.ops.siteView(opId, 'fansly-web') === null ? null : kit.ops.cancel(opId) });
+      }
       case 'fansly.sound.batch':
         await kit.sound?.batch(tab, payload as FanslyTabRequestPayload<'fansly.sound.batch'>);
         return ok({ recorded: kit.sound !== undefined });
@@ -138,6 +155,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   void vault.sweep().catch(() => 0);
   return {
     features: FANSLY_SLICE,
+    operations,
     sound: (accountId) => {
       if (!settingsReady || kit.settingsExt === undefined) return null;
       const tones = kit.settingsExt.current().hosts['fansly-web'].sound;

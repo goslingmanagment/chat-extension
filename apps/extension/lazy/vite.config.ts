@@ -65,6 +65,8 @@ export interface LazyChunkInfo {
 
 export interface LazyBuildOptions {
   readonly extensionOutDir: string;
+  /** Compile out stand-only ports in the release, as the background build does. */
+  readonly testBuild?: boolean;
   /** Module id → the chunk of its layer (see layerPlan); absent — the bundler cuts everything by itself. */
   readonly layers?: ReadonlyMap<string, string>;
   /** Plugins of a test of the build (test/feature-slices.test.ts rewrites one source for one build); the extension passes none. */
@@ -88,6 +90,7 @@ export function createLazyConfig(build: HostLazyBuild, options: LazyBuildOptions
     configFile: false,
     root: LAZY_ROOT,
     mode: 'production',
+    define: { __CG_TEST_HOSTS__: JSON.stringify(options.testBuild ?? false) },
     logLevel: 'warn',
     publicDir: false,
     ...(options.plugins === undefined ? {} : { plugins: [...options.plugins] }),
@@ -142,10 +145,10 @@ export const KERNEL_CHUNK = 'kernel';
  * loads before it or without it goes to the kernel, every other module to the
  * first layer that has it. undefined — the site has no layers.
  */
-export async function layerPlan(build: HostLazyBuild, plugins?: readonly PluginOption[]): Promise<Map<string, string> | undefined> {
+export async function layerPlan(build: HostLazyBuild, plugins?: readonly PluginOption[], testBuild = false): Promise<Map<string, string> | undefined> {
   const [dockLayer] = build.layers;
   if (dockLayer === undefined) return undefined;
-  const config = createLazyConfig(build, { extensionOutDir: resolve(LAZY_ROOT, '../.output/lazy-plan'), ...(plugins === undefined ? {} : { plugins }) }, build.layers);
+  const config = createLazyConfig(build, { extensionOutDir: resolve(LAZY_ROOT, '../.output/lazy-plan'), testBuild, ...(plugins === undefined ? {} : { plugins }) }, build.layers);
   const chunks = chunksOf(await vite({ ...config, logLevel: 'error', build: { ...config.build, write: false } }));
   const byFile = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
   const modulesOf = (entry: string): Set<string> => {
@@ -193,9 +196,9 @@ function describeOutput(chunks: readonly Rolldown.OutputChunk[], site: LazySite)
 }
 
 /** One site's build into `<extensionOutDir>/<root>/`, cut by its plan. Returns its files. `plugins` — a test's own (LazyBuildOptions). */
-export async function buildLazySite(extensionOutDir: string, site: LazySite, plugins?: readonly PluginOption[]): Promise<LazyChunkInfo[]> {
-  const layers = await layerPlan(site.build, plugins);
-  const result = await vite(createLazyConfig(site.build, { extensionOutDir, ...(layers === undefined ? {} : { layers }), ...(plugins === undefined ? {} : { plugins }) }));
+export async function buildLazySite(extensionOutDir: string, site: LazySite, plugins?: readonly PluginOption[], testBuild = false): Promise<LazyChunkInfo[]> {
+  const layers = await layerPlan(site.build, plugins, testBuild);
+  const result = await vite(createLazyConfig(site.build, { extensionOutDir, testBuild, ...(layers === undefined ? {} : { layers }), ...(plugins === undefined ? {} : { plugins }) }));
   const outputs = (Array.isArray(result) ? result : [result]) as Rolldown.RolldownOutput[];
   const assets: LazyChunkInfo[] = outputs
     .flatMap((output) => output.output)
@@ -209,7 +212,7 @@ export async function buildLazySite(extensionOutDir: string, site: LazySite, plu
  * extension dir (`<extensionOutDir>.lazy-chunks.json`, outside the XPI) for
  * tools/size-budget. Returns the chunk list.
  */
-export async function buildLazyChunks(extensionOutDir: string, sites: readonly LazySite[]): Promise<LazyChunkInfo[]> {
+export async function buildLazyChunks(extensionOutDir: string, sites: readonly LazySite[], testBuild = false): Promise<LazyChunkInfo[]> {
   const roots = sites.map((site) => site.build.root);
   for (const root of roots) {
     if (!root.startsWith(`${LAZY_DIR}/`) || roots.some((other) => other !== root && (other.startsWith(`${root}/`) || root.startsWith(`${other}/`)))) {
@@ -218,7 +221,7 @@ export async function buildLazyChunks(extensionOutDir: string, sites: readonly L
   }
   if (new Set(roots).size !== roots.length) throw new Error(`lazy builds share a folder: ${roots.join(', ')}`);
   const chunks: LazyChunkInfo[] = [];
-  for (const site of sites) chunks.push(...(await buildLazySite(extensionOutDir, site)));
+  for (const site of sites) chunks.push(...(await buildLazySite(extensionOutDir, site, undefined, testBuild)));
   await writeFile(`${extensionOutDir}.lazy-chunks.json`, `${JSON.stringify(chunks, null, 2)}\n`);
   return chunks;
 }

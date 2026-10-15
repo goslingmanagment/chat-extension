@@ -20,6 +20,8 @@
 // - A result is removed only when the scheduler knew it and dropped it;
 //   anything else leaves by the store's own 30-minute sweep.
 
+import type { AnyOpView } from '@cg/contracts/ops';
+
 import { OPS_STORE_KEY, type KeyValueStore as ThrowingStore, type ResultsStore } from '@cg/core/services';
 import { type KeyValueStore } from '@cg/platform';
 
@@ -58,7 +60,7 @@ function fingerprint(value: unknown): string {
   return `${text.length}:${hash.toString(16)}`;
 }
 
-export function opsStoreOver(results: ResultsStore, session: KeyValueStore): ThrowingStore {
+export function opsStoreOver(results: ResultsStore<AnyOpView>, session: KeyValueStore): ThrowingStore {
   /** What this background last wrote (or read) per operation. */
   const written = new Map<string, string>();
   let lastMeta: string | null = null;
@@ -98,7 +100,7 @@ export function opsStoreOver(results: ResultsStore, session: KeyValueStore): Thr
       for (const op of ops) {
         const print = fingerprint(op.view);
         if (written.get(op.view.opId) === print) continue;
-        const put = await results.put(op.view as Parameters<ResultsStore['put']>[0], { tabSessionId: op.meta.startedBy });
+        const put = await results.put(op.view as AnyOpView, { tabSessionId: op.meta.startedBy });
         if (!put.ok) throw new StorageCallError(put.code, `result ${op.view.opId}`);
         written.set(op.view.opId, print);
         for (const evicted of put.evicted) written.delete(evicted);

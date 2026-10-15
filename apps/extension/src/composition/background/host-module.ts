@@ -28,7 +28,9 @@ import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { Bootstrap, HubFacade, HubRouteKey, ResolveHubError } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
-import type { OpView } from '@cg/contracts/ops';
+import type { ChatKey } from '@cg/contracts/ids';
+import type { StartOutcome, SiteOperations } from '@cg/core/services';
+import type { OpView, SiteStartOp, SiteOpView, OpState } from '@cg/contracts/ops';
 import type { FreshnessCheckpoint, SendFuseState, SendJournalEntry } from '@cg/contracts/send';
 import type { SettingsExtPatch, SettingsExtState } from '@cg/contracts/settings-ext';
 import type { TabPayloadCheck, TabRequestPayload, TabRequestType } from '@cg/contracts/tab-messages';
@@ -110,6 +112,10 @@ export interface TabRouterPort {
 
 /** The operations of the core's scheduler a site's send comes from. */
 export interface OpsPort {
+  start(tab: string, start: SiteStartOp): Promise<StartOutcome>;
+  siteView(opId: string, host: HostKind): SiteOpView | null;
+  siteList(tab: string, host: HostKind, chatKey?: ChatKey): { readonly ops: SiteOpView[]; readonly truncated: boolean };
+  cancel(opId: string): OpState | null;
   forSend(opId: string): { readonly view: OpView; readonly checkpoint: FreshnessCheckpoint | null; readonly tag: OpEnvTag } | null;
   view(opId: string): OpView | null;
   environment(): OpsEnvironment;
@@ -161,6 +167,7 @@ export interface HostSiteRegistry {
 export interface SitePort {
   /** Requests of the site's types are answered by `registry` from now on; the answer unplugs it. */
   plug(registry: HostSiteRegistry): () => void;
+  emit(type: string, payload: unknown): void;
 }
 
 /** `settings.ext` as its one owner in the core reads or writes it (core settings-owner `SettingsExtResult`): a failure carries the state as it stands. */
@@ -236,6 +243,7 @@ export interface HostModuleFacts {
 }
 
 export interface BackgroundHostHandle {
+  readonly operations?: SiteOperations;
   /** The site supplies its effective tones and passive account aliases; the arbiter owns all decisions. */
   readonly sound?: (accountId: string, tabId?: number) => SoundStreamPolicy | null;
   /**

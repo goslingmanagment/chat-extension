@@ -84,7 +84,7 @@ export interface SpendReport {
   readonly fromDay: string;
   readonly toDay: string;
   readonly total: SpendTotals;
-  readonly byFeature: readonly ({ readonly feature: FeatureId } & SpendTotals)[];
+  readonly byFeature: readonly ({ readonly feature: string } & SpendTotals)[];
 }
 
 interface MutableTotals {
@@ -118,8 +118,8 @@ function add(into: MutableTotals, from: Readonly<MutableTotals>): void {
 
 const FEATURES: readonly FeatureId[] = FEATURE_IDS;
 
-function isFeature(value: unknown): value is FeatureId {
-  return typeof value === 'string' && (FEATURES as readonly string[]).includes(value);
+function isFeature(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(value);
 }
 
 /** Days kept: today and the 7 before it. */
@@ -127,9 +127,9 @@ export const SPEND_DAYS_KEPT = 8;
 
 export class LocalSpendJournal {
   /** day → feature → totals. */
-  private readonly days = new Map<string, Map<FeatureId, MutableTotals>>();
+  private readonly days = new Map<string, Map<string, MutableTotals>>();
 
-  private bucket(feature: FeatureId, at: number): MutableTotals {
+  private bucket(feature: string, at: number): MutableTotals {
     const day = localDayKey(at);
     let byFeature = this.days.get(day);
     if (byFeature === undefined) {
@@ -147,7 +147,7 @@ export class LocalSpendJournal {
   }
 
   /** One generation's `usage` frame. */
-  recordUsage(feature: FeatureId, usage: UsageNumbers, at: number): void {
+  recordUsage(feature: string, usage: UsageNumbers, at: number): void {
     const totals = this.bucket(feature, at);
     totals.runs += 1;
     totals.inputTokens += usage.inputTokens;
@@ -169,7 +169,7 @@ export class LocalSpendJournal {
     const wanted: string[] = [];
     for (let i = span - 1; i >= 0; i -= 1) wanted.push(localDayKey(now - i * 86_400_000));
     const total = emptyTotals();
-    const byFeature = new Map<FeatureId, MutableTotals>();
+    const byFeature = new Map<string, MutableTotals>();
     for (const day of new Set(wanted)) {
       for (const [feature, totals] of this.days.get(day) ?? []) {
         add(total, totals);
@@ -183,7 +183,7 @@ export class LocalSpendJournal {
       fromDay: wanted[0] ?? localDayKey(now),
       toDay: wanted.at(-1) ?? localDayKey(now),
       total: finish(total),
-      byFeature: FEATURES.flatMap((feature) => {
+      byFeature: [...new Set([...FEATURES, ...byFeature.keys()])].flatMap((feature) => {
         const totals = byFeature.get(feature);
         return totals === undefined ? [] : [{ feature, ...finish(totals) }];
       }),

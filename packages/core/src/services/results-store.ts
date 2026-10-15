@@ -25,7 +25,7 @@
 
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { OP_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
-import { OP_TERMINAL_STATES, OpViewSchema, type OpState, type OpView } from '@cg/contracts/ops';
+import { OP_TERMINAL_STATES, OpViewSchema, type OpState, type OpView, type AnyOpView } from '@cg/contracts/ops';
 
 import { RESULT_MAX_BYTES, SESSION_KEYS, isPlainRecord, jsonUtf8Bytes } from '../domain/storage';
 import { NO_LOG, SYSTEM_CLOCK, createWriteChain, type Clock, type KeyValuePort, type ServiceLog, type StorageFailureCode } from './storage/ports';
@@ -66,7 +66,7 @@ export interface ResultsRecovery {
   readonly readable: boolean;
 }
 
-export interface ResultsStore {
+export interface ResultsStore<V extends AnyOpView = OpView> {
   /** Load and recover; the readiness barrier runs it. Idempotent: a second call answers the first report. */
   start(): Promise<ResultsRecovery>;
   /**
@@ -74,10 +74,10 @@ export interface ResultsStore {
    * ~1.5 MiB written): call it at phase changes and at the end, not per
    * streamed batch.
    */
-  put(view: OpView, owner: { readonly tabSessionId: string | null }): Promise<ResultsPutResult>;
-  get(opId: string): Promise<OpView | null>;
+  put(view: V, owner: { readonly tabSessionId: string | null }): Promise<ResultsPutResult>;
+  get(opId: string): Promise<V | null>;
   /** `op.list`: this tab's (≤ 24) or everything (newest first, ≤ 200, `truncated`). */
-  list(query: { readonly scope: 'tab' | 'all'; readonly tabSessionId?: string | null; readonly chatKey?: ChatKey }): Promise<{ readonly ops: readonly OpView[]; readonly truncated: boolean }>;
+  list(query: { readonly scope: 'tab' | 'all'; readonly tabSessionId?: string | null; readonly chatKey?: ChatKey }): Promise<{ readonly ops: readonly V[]; readonly truncated: boolean }>;
   /** Persona change: the results of a page; sign-out: everything (`clear`). */
   removeWhere(predicate: (meta: ResultMeta) => boolean): Promise<number>;
   clear(): Promise<boolean>;
@@ -86,7 +86,9 @@ export interface ResultsStore {
   stats(): { readonly count: number; readonly bytes: number };
 }
 
-export interface ResultsStoreDeps {
+export interface ResultsStoreDeps<V extends AnyOpView = OpView> {
+  /** Strict parser from the owning site registry; the default accepts common views only. */
+  readonly readView?: (value: unknown) => Promise<V | null>;
   readonly session: KeyValuePort;
   readonly clock?: Clock;
   readonly log?: ServiceLog;
@@ -115,7 +117,12 @@ function readIndex(raw: unknown): ResultMeta[] | null {
   );
 }
 
-export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
+export function createResultsStore<V extends AnyOpView = OpView>(deps: ResultsStoreDeps<V>): ResultsStore<V> {
+  const readView = async (value: unknown): Promise<V | null> => {
+    if (deps.readView !== undefined) return deps.readView(value);
+    const parsed = OpViewSchema.safeParse(value);
+    return parsed.success ? parsed.data as V : null;
+  };
   const clock = deps.clock ?? SYSTEM_CLOCK;
   const log = deps.log ?? NO_LOG;
   const limits: ResultsLimits = { ...RESULTS_LIMITS, ...deps.limits };
@@ -181,15 +188,16 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
     if (running.length > 0) {
       const read = await deps.session.get(running.map((entry) => keyOf(entry.opId)));
       for (const entry of running) {
-        const parsed = read.ok ? OpViewSchema.safeParse(read.value[keyOf(entry.opId)]) : null;
-        if (!parsed?.success) continue;
-        const view: OpView = {
-          ...parsed.data,
+        const parsed = read.ok ? await readView(read.value[keyOf(entry.opId)]) : null;
+        if (parsed === null) continue;
+        const view = {
+          ...parsed,
           state: 'interrupted',
           phase: { name: 'settled', since: now },
           endedAt: now,
           error: { code: 'CG-OP-INTERRUPTED' },
         };
+        delete view.text;
         updates[keyOf(entry.opId)] = view;
         interrupted.push(entry.opId);
       }
@@ -271,9 +279,9 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
     },
     put(view, owner) {
       return chain(async (): Promise<ResultsPutResult> => {
-        const checked = OpViewSchema.safeParse(view);
-        if (!checked.success) return { ok: false, code: 'CG-STORAGE-WRITE', detail: 'results.put: invalid view' };
-        const bytes = jsonUtf8Bytes(checked.data);
+        const checked = await readView(view);
+        if (checked === null) return { ok: false, code: 'CG-STORAGE-WRITE', detail: 'results.put: invalid view' };
+        const bytes = jsonUtf8Bytes(checked);
         if (bytes === null) return { ok: false, code: 'CG-STORAGE-WRITE', detail: 'results.put: not JSON' };
         if (bytes > RESULT_MAX_BYTES) return { ok: false, code: 'CG-STORAGE-FULL', detail: `results.put: ${bytes} > ${RESULT_MAX_BYTES} bytes` };
         // Results are a 30-minute cache: an index that cannot be read starts over rather than blocking the work.
@@ -290,7 +298,7 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
           bytes,
         };
         const { kept, evicted } = evict([...index.filter((entry) => entry.opId !== view.opId), meta], view.opId, now);
-        const saved = await deps.session.set({ [keyOf(view.opId)]: checked.data, [INDEX_KEY]: indexValue(kept) });
+        const saved = await deps.session.set({ [keyOf(view.opId)]: checked, [INDEX_KEY]: indexValue(kept) });
         if (!saved.ok) return { ok: false, code: saved.code, detail: saved.detail };
         index = kept;
         await removeKeys(evicted.map(keyOf));
@@ -303,8 +311,7 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
         if (!(await ensureLoaded()) || !index.some((entry) => entry.opId === opId)) return null;
         const read = await deps.session.get([keyOf(opId)]);
         if (!read.ok) return null;
-        const parsed = OpViewSchema.safeParse(read.value[keyOf(opId)]);
-        return parsed.success ? parsed.data : null;
+        return readView(read.value[keyOf(opId)]);
       });
     },
     list(query) {
@@ -321,10 +328,10 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
         if (chosen.length === 0) return { ops: [], truncated: false };
         const read = await deps.session.get(chosen.map((entry) => keyOf(entry.opId)));
         if (!read.ok) return { ops: [], truncated: false };
-        const ops: OpView[] = [];
+        const ops: V[] = [];
         for (const entry of chosen) {
-          const parsed = OpViewSchema.safeParse(read.value[keyOf(entry.opId)]);
-          if (parsed.success) ops.push(parsed.data);
+          const parsed = await readView(read.value[keyOf(entry.opId)]);
+          if (parsed !== null) ops.push(parsed);
         }
         return { ops, truncated: matching.length > cap };
       });

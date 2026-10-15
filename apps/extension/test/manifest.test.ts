@@ -259,7 +259,13 @@ describe('the sites’ lazy builds in the two flavors (R20 F2b)', () => {
     expect(war[1]?.matches).toEqual(['https://fansly.com/*', ...FANSLY_STAND_MATCHES]);
     expect(war[1]?.resources.every((resource) => resource.startsWith(`${FANSLY_LAZY_ROOT}/`))).toBe(true);
     for (const entry of Object.keys(FANSLY_LAZY_ENTRIES)) expect(war[1]?.resources, entry).toContain(`${FANSLY_LAZY_ROOT}/${entry}.js`);
-    expect(tree(join(test.dir, FANSLY_LAZY_ROOT))).toEqual(tree(join(release.dir, FANSLY_LAZY_ROOT)));
+    // P12a: the test flavor has the operation port's stand-only probe; the release has none of its graph.
+    // Public entries and site scoping stay the same; ChatSpace's bytes remain equal in the next test.
+    const releaseText = Object.values(tree(join(release.dir, FANSLY_LAZY_ROOT))).join('\n');
+    const testText = Object.values(tree(join(test.dir, FANSLY_LAZY_ROOT))).join('\n');
+    expect(releaseText).not.toContain('data-cg-ops-command');
+    expect(releaseText).not.toContain('__CG_TEST_HOSTS__');
+    expect(testText).toContain('data-cg-ops-command');
   });
 
   it('with Fansly’s build beside it, ChatSpace’s lazy build is the release build’s byte for byte', () => {

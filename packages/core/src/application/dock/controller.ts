@@ -17,7 +17,7 @@
 
 import { TONES } from '@cg/contracts/features';
 import { chatKeyOf } from '@cg/contracts/ids';
-import { type ActiveOpSummary } from '@cg/contracts/ops';
+import { type AnyActiveOpSummary } from '@cg/contracts/ops';
 import {
   DOCK_ACTION_IDS,
   type ActionReceipt,
@@ -47,7 +47,7 @@ import { flagReasonVm } from '../flag-reason';
 /** The keys footer is shown under the first results (ui-design §4.3). */
 export const KEYS_FOOTER_RESULTS = 5;
 
-export function runningVm(ws: AiWorkspace, summary: Pick<ActiveOpSummary, 'opId' | 'feature' | 'chat' | 'fanLabel' | 'startedAt' | 'inThisTab'>): RunningOpVM {
+export function runningVm(ws: AiWorkspace, summary: Pick<AnyActiveOpSummary, 'opId' | 'feature' | 'chat' | 'fanLabel' | 'startedAt' | 'inThisTab'>): RunningOpVM {
   return {
     opId: summary.opId,
     feature: summary.feature,
