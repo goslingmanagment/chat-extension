@@ -378,9 +378,9 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         observation.answer(messagesIn(null).messages, null, stamp, { epoch, confirmed });
         return;
       case 'receipt': {
-        // The page's own `POST /message`: its new message, as live as the socket's (its echo; the send is P7f's).
+        // The page's own `POST /message`: its new message, under the same rule as a frame (§5.12; the send is P7f's).
         const m = frameMessage(r);
-        if (m !== null) observation.live(m);
+        if (m !== null) observation.sent(m, stamp, { epoch, confirmed });
         return;
       }
       case 'unread':

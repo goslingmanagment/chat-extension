@@ -893,3 +893,47 @@ describe('[host:fansly] the re-check of P7b: an absence never outranks a presenc
     expect(await meta(c)).toMatchObject({ kind: 'direct', fanId: FAN });
   });
 });
+
+describe('[host:fansly] the fourth review of P7b: a send’s late answer, a socket behind the answers (FS-TAIL-4, §5.12)', () => {
+  it('[FS-TAIL-4] the answer of our own send obeys the rule: one asked before a loss brings back nothing that was deleted in the gap', async () => {
+    const { c, socket } = await tab();
+    fresh(c.win).respond(200, historyPage([message(id(1), FAN, { content: 'hi' })]));
+    // Our send: its request begins, the server makes message 2 — and the socket breaks before its echo.
+    const send = request(c.win, `${API}/message`, 'POST');
+    socket.drop();
+    // During the gap message 2 is deleted and the fan writes message 3.
+    const next = openSocket(c.win);
+    next.receive(session);
+    const recovery = [message(id(1), FAN, { content: 'hi' }), message(id(3), FAN, { content: 'again' })];
+    fresh(c.win).respond(200, historyPage(recovery));
+    await settle();
+    expect(windowIds(await snap(c))).toEqual([id(1), id(3)]);
+    // The send's answer arrives at last: message 2 as the server made it.
+    send.respond(200, ok(message(id(2), CREATOR, { content: 'deleted since' })));
+    await settle();
+    const hi = await snap(c, { feature: 'hi', window: 25 });
+    expect(windowIds(hi)).toEqual([id(1), id(3)]);
+    expect(hi?.completeness).toBe('complete');
+    expect(hi?.startProof).toMatchObject({ coveredCount: 2, personalCount: 2 });
+  });
+
+  it('[FS-TAIL-4] a socket behind the answers: the late frame of a message the certificate shows deleted (made before its newest) is a conflict — unknown, never an impossible history', async () => {
+    const { c, socket } = await tab();
+    // On the server: 1; 2 made and deleted; 3 made. The answer comes before the socket says any of it.
+    fresh(c.win).respond(200, historyPage([message(id(1), FAN, { content: 'hi' }), message(id(3), FAN, { content: 'again' })]));
+    await settle();
+    expect(windowIds(await snap(c))).toEqual([id(1), id(3)]);
+    socket.receive(newMessage(id(2), CREATOR, { content: 'made and deleted' }));
+    await settle();
+    const behind = await snap(c);
+    expect(windowIds(behind)).not.toContain(id(2));
+    expect(behind?.completeness).toBe('unknown');
+    socket.receive(deletion(id(2), { senderId: CREATOR }));
+    socket.receive(newMessage(id(3), FAN, { content: 'again' }));
+    // The next certificate of the page settles it.
+    fresh(c.win).respond(200, historyPage([message(id(1), FAN, { content: 'hi' }), message(id(3), FAN, { content: 'again' })]));
+    await settle();
+    expect(await snap(c)).toMatchObject({ completeness: 'complete' });
+    expect(windowIds(await snap(c))).toEqual([id(1), id(3)]);
+  });
+});
