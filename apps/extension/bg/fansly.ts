@@ -56,6 +56,7 @@ export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegi
 
 async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   await kit.networkSession?.ready;
+  const settings = await kit.settingsExt?.state();
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
@@ -76,6 +77,15 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   void vault.sweep().catch(() => 0);
   return {
     features: FANSLY_SLICE,
+    sound: (accountId, tabId) => {
+      if (!settings?.ok || kit.settingsExt === undefined) return null;
+      const tones = kit.settingsExt.current().hosts['fansly-web'].sound;
+      // The core supplies only a tab currently reporting this creator. The alias
+      // is learned by sound's own ID set; sound never rewrites API session bindings.
+      const observed = tabId === undefined ? null : kit.networkSession?.forTab(tabId) ?? null;
+      const aliases = [...(kit.networkSession?.aliases(accountId) ?? []), ...(observed === null ? [] : [observed.legacyId])];
+      return { tones: { message: tones.messagesTone, subscriber: tones.subscribersTone }, aliases };
+    },
     onTabMessage: () => Promise.resolve({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     async onEvent(event) {
       if (event.kind === 'clear-finished') await vault.sweep();

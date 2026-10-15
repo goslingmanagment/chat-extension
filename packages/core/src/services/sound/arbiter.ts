@@ -13,14 +13,15 @@
 //   (≤ 1.5 s, SN-011) → a fresh look at everything that may have changed
 //   meanwhile → one synchronous section: throttle, reserve, start.
 //
-// The message sound needs no hub sign-in: a live ChatSpace identity, the
-// host permission and the switch are enough. The subscriber sound comes from
-// the hub's «Новые» and needs it. Nothing here reads or logs a message.
+// Message and socket-subscriber sounds need no hub sign-in: the live account,
+// host permission and switch suffice. Polled subscribers need the hub's
+// «Новые». Nothing here reads or logs a message.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type IncomingFact } from '@cg/contracts/host';
 import { chatKeyOf, type ChatKey, type HostAccount, type HostKind, type Platform } from '@cg/contracts/ids';
 import { DEFAULT_SETTINGS, hostAccountKeyOf, type SettingsV1, type ToneId } from '@cg/contracts/settings';
+import type { SoundBatch, SoundStreamEvent } from '@cg/contracts/sound';
 
 import {
   HOST_PLATFORM,
@@ -48,7 +49,9 @@ import {
   type ThrottleState,
   timeOf,
 } from '../../domain/sound';
+import { gateStreamEvent } from '../../domain/sound/stream';
 import { NO_LOG, WriteQueue, type Clock, type KeyValueStore, type LogSink, type TimerHandle } from '../ports';
+import { SoundAccounts } from './accounts';
 
 export type SoundPlayResult = { readonly played: true } | { readonly played: false; readonly code: 'CG-AUDIO-BLOCKED'; readonly reason: string };
 
@@ -70,7 +73,23 @@ export interface SoundPresencePort {
   accounts(): readonly HostAccount[];
 }
 
+export interface SoundStreamPolicy {
+  /** Effective site tones: the site's settings, independent of v1's tones. */
+  readonly tones: SoundTones;
+  /** Aliases of this creator from the site's passive identity/session owner. */
+  readonly aliases: readonly string[];
+}
+
+export interface SoundStreamPort {
+  policy(host: HostKind, accountId: string): SoundStreamPolicy | null;
+  /** This very tab still belongs to this account, including after audio wake-up. */
+  listening(tabSessionId: string, batch: SoundBatch): boolean;
+  focused(batch: SoundBatch, conversationRef: string): boolean;
+}
+
 export interface SoundArbiterDeps {
+  readonly stream?: SoundStreamPort;
+  readonly local?: KeyValueStore;
   readonly clock: Clock;
   readonly audio: SoundAudioPort;
   readonly presence: SoundPresencePort;
@@ -152,6 +171,7 @@ const finiteOr = (value: unknown, fallback: number): number => (typeof value ===
 
 export class SoundArbiter {
   private readonly seen = new SeenEvents();
+  private readonly own: SoundAccounts;
   private readonly chain = new WriteQueue();
   private readonly sources = new Map<string, SourceState>();
   private readonly pages = new Map<string, string[]>();
@@ -168,11 +188,13 @@ export class SoundArbiter {
 
   constructor(private readonly deps: SoundArbiterDeps) {
     this.log = deps.log ?? NO_LOG;
+    this.own = new SoundAccounts(deps.local);
     this.defaults = deps.defaults ?? DEFAULT_SETTINGS.sound;
   }
 
   /** Reads the session state after the event page woke up; a damaged one starts empty. */
   async restore(): Promise<void> {
+    await this.own.restore().catch(() => undefined);
     if (this.deps.session === undefined) return;
     let raw: unknown;
     try {
@@ -212,6 +234,79 @@ export class SoundArbiter {
         (outcome) => this.count('message', outcome),
         () => this.count('message', 'audio-error'),
       );
+  }
+
+  /** Learn models and aliases even when their tab never receives a sound event. */
+  rememberAccounts(): Promise<void> {
+    return this.chain.run(async () => {
+      if (this.deps.stream === undefined) return;
+      this.rememberKnownAccounts(this.deps.stream);
+      await this.own.flush();
+    });
+  }
+
+  private rememberKnownAccounts(stream: SoundStreamPort): void {
+    for (const account of this.deps.presence.accounts()) {
+      if (account.platformAccountId === null) continue;
+      const policy = stream.policy(account.host, account.hostAccountId);
+      if (policy !== null) this.own.remember(account.platform, account.platformAccountId, policy.aliases);
+    }
+  }
+
+  /** One MAIN batch, one RPC, the same serial chain and throttle as every other source. */
+  handleBatch(tabSessionId: string, batch: SoundBatch): Promise<readonly SoundOutcome[]> {
+    this.lastIncomingAt = this.deps.clock.now();
+    return this.chain.run(async () => {
+      const outcomes: SoundOutcome[] = [];
+      for (const event of batch.events) {
+        const outcome = await this.decideStream(tabSessionId, batch, event).catch(() => 'audio-error' as const);
+        outcomes.push(this.count(event.kind, outcome));
+      }
+      await this.own.flush();
+      return outcomes;
+    });
+  }
+
+  private async decideStream(tabSessionId: string, batch: SoundBatch, event: SoundStreamEvent): Promise<SoundOutcome> {
+    const stream = this.deps.stream;
+    if (stream === undefined) return 'disabled';
+    const platform = HOST_PLATFORM[batch.host];
+    const key = seenKey(platform, batch.hostAccountId, event.kind === 'message' ? event.id : `sub:${event.id}`);
+    const settle = (outcome: SoundOutcome): SoundOutcome => {
+      if (consumesEvent(outcome)) { this.seen.consume(key, this.deps.clock.now()); this.touch(); }
+      return outcome;
+    };
+    if (this.seen.has(key, this.deps.clock.now())) return 'duplicate';
+    const gate = async (): Promise<SoundOutcome | null> => {
+      // Check after awaits too: a closed tab or another creator cannot ring for its old account.
+      const permission = await Promise.resolve(this.deps.hostPermission(batch.host)).catch(() => false);
+      if (!stream.listening(tabSessionId, batch)) return 'tab-closed';
+      const policy = stream.policy(batch.host, batch.hostAccountId);
+      const sound = this.deps.settings();
+      if (policy === null || sound === null) return 'disabled';
+      const accounts = this.deps.presence.accounts().filter((a) => a.platform === platform);
+      this.rememberKnownAccounts(stream);
+      const known = accounts.some((a) => a.host === batch.host && a.hostAccountId === batch.hostAccountId);
+      const gated = gateStreamEvent({ batch, event, sound, now: this.deps.clock.now(), hostPermission: permission,
+        ownerSwitch: this.deps.ownerSwitch({ kind: 'account', host: batch.host, hostAccountId: batch.hostAccountId }), known,
+        own: this.own.has(platform, event.kind === 'message' ? event.senderId : event.followerId),
+        mutedAlias: this.own.aliases(platform, batch.hostAccountId).some((id) => sound.mutedAccounts.includes(hostAccountKeyOf(batch.host, id))),
+        recipient: event.kind === 'message' || this.own.aliases(platform, batch.hostAccountId).includes(event.accountId),
+      });
+      if (gated !== null) return gated;
+      return event.kind === 'message' && stream.focused(batch, event.conversationRef) ? 'open-chat' : null;
+    };
+    const before = await gate();
+    if (before !== null) return settle(before);
+    if (this.deps.audio.prepare !== undefined) {
+      if (!(await this.wake())) return settle('audio-error');
+      const after = await gate();
+      if (after !== null) return settle(after);
+    }
+    const sound = this.deps.settings();
+    const policy = stream.policy(batch.host, batch.hostAccountId);
+    if (sound === null || policy === null) return settle('disabled');
+    return settle(await this.ring(event.kind, policy.tones[event.kind], sound.volume));
   }
 
   /** A payload that failed its schema before it got here (the RPC rejects it; counted for the status line). */

@@ -188,7 +188,7 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         tabSessionId,
         chat: report.chat,
         chatKey: report.chat ? chatKeyOf(report.chat) : null,
-        ...(report.chat === null || report.conversationRef === undefined ? {} : { conversationRef: report.conversationRef }),
+        ...(report.conversationRef === undefined ? {} : { conversationRef: report.conversationRef }),
         routeEpoch: report.routeEpoch,
         visible: report.visible,
         focused: report.focused,

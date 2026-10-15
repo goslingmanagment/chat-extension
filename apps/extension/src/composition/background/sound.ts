@@ -21,7 +21,7 @@ import { DEFAULT_FANSLY_SETTINGS } from '@cg/contracts/settings-ext';
 import { flagOnSomePage, flagUsable } from '@cg/core/domain/ops';
 import { type SoundTones } from '@cg/core/domain/sound';
 import { type Clock, type KeyValueStore as ThrowingStore, type LogSink, type PresenceService, type TabEventSink } from '@cg/core/services';
-import { SoundArbiter, createSubscriberPoller, type SoundAudioPort, type SubscriberPage, type SubscriberPoller } from '@cg/core/services/sound';
+import { SoundArbiter, createSubscriberPoller, type SoundAudioPort, type SubscriberPage, type SubscriberPoller, type SoundStreamPort } from '@cg/core/services/sound';
 
 /** A page a tab read itself less than this long ago is left out of the slow poll (the tab asks every 30 s). */
 export const TAB_FED_FRESH_MS = 45_000;
@@ -41,6 +41,8 @@ export const SITE_TONES = {
 const toneOfPlatform: ReadonlyMap<string, SoundTones | null> = new Map(HOST_KINDS.map((kind) => [HOST_PLATFORM[kind], SITE_TONES[kind]]));
 
 export interface BackgroundSoundDeps {
+  readonly stream?: SoundStreamPort;
+  readonly local?: ThrowingStore;
   readonly clock: Clock;
   readonly audio: SoundAudioPort;
   readonly presence: Pick<PresenceService, 'listeningTabs' | 'isChatInFocus' | 'seenAccounts'>;
@@ -83,6 +85,8 @@ export interface BackgroundSound {
 export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSound {
   const accounts = () => deps.presence.seenAccounts().map((seen) => seen.account);
   const arbiter = new SoundArbiter({
+    ...(deps.stream === undefined ? {} : { stream: deps.stream }),
+    ...(deps.local === undefined ? {} : { local: deps.local }),
     clock: deps.clock,
     audio: deps.audio,
     presence: { listeningTabs: () => deps.presence.listeningTabs(), isChatInFocus: (chatKey) => deps.presence.isChatInFocus(chatKey), accounts },
@@ -125,7 +129,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     const out: SubscriberPage[] = [];
     for (const page of bootstrap.pages) {
       const platform = narrowPlatform(page.platform);
-      if (platform === null || !deps.newcomersUsable(page.pageLabel) || !flagUsable(bootstrap, page.pageId, 'sound')) continue;
+      if (platform !== HOST_PLATFORM.chatspace || !deps.newcomersUsable(page.pageLabel) || !flagUsable(bootstrap, page.pageId, 'sound')) continue;
       if (now - (tabFed.get(page.pageId) ?? Number.NEGATIVE_INFINITY) < TAB_FED_FRESH_MS) continue;
       out.push({ pageId: page.pageId, pageLabel: page.pageLabel, platform, platformAccountId: page.platformAccountId });
     }
@@ -149,7 +153,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     start: () => arbiter.restore(),
     fed(page, answer, tabSessionId) {
       const platform = narrowPlatform(page.platform);
-      if (platform === null) return;
+      if (platform !== HOST_PLATFORM.chatspace) return;
       tabFed.set(page.pageId, deps.clock.now());
       void hear(
         {

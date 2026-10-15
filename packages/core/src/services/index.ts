@@ -119,4 +119,4 @@ export * from './profile-saver';
 export * from './send-driver';
 export * from './native-send';
 
-export { createSettingsExtOwner } from './settings-owner';
+export { createSettingsExtOwner, type SettingsExtOwner } from './settings-owner';

@@ -133,6 +133,38 @@ const modules = async (w: World): Promise<ReadonlyArray<{ host: string; state: s
 };
 
 describe('[host:fansly] a Fansly tab and the background (R20 P7i)', () => {
+  it('[FS-SND-1] [FS-SND-2] socket sounds use the site slice while signed out: focus, effective tones, identity, mute and disable are checked in the real wiring', async () => {
+    const w = world();
+    const context = w.start();
+    await switchFanslyOn(w);
+    const tab = await fanslyTab(w);
+    const report = { chat: null, routeEpoch: 2, visible: true, focused: true, accounts: [FANSLY_ACCOUNT], routeAccount: FANSLY_ACCOUNT, conversationRef: group };
+    await tab.client.request('tab.presence', report);
+    // The model is remembered before a socket event ever comes in.
+    expect((await context.api.storage.local.get('sound.accounts'))['sound.accounts']).toContainEqual([`fansly:${CREATOR}`, [CREATOR]]);
+    const fact = { kind: 'message' as const, id: '900000000000000001', conversationRef: group, senderId: fan, fromFan: true, automatic: false, tip: false, sentAt: new Date().toISOString() };
+    const send = (id: string, hostAccountId: string = CREATOR) => tab.client.request('sound.batch', { host: 'fansly-web', hostAccountId, events: [{ ...fact, id }] });
+    expect(await send(fact.id)).toMatchObject({ ok: true });
+    expect(w.played).toHaveLength(0); // The group is open, although its fan is unknown.
+    await tab.client.request('tab.presence', { ...report, focused: false });
+    // A site-specific choice, changed while the module lives; v1's blip remains untouched.
+    await context.api.storage.local.set({ 'settings.ext': { v: 1, hosts: { 'fansly-web': { enabled: true, sound: { messagesTone: 'double' } } } } });
+    await sleep(30);
+    expect(await send('900000000000000002')).toMatchObject({ ok: true });
+    expect(w.played).toHaveLength(1);
+    expect(w.played[0]?.notes).toBe(2);
+    expect(await send('900000000000000003', '900000000000000999')).toMatchObject({ ok: true });
+    expect(w.played).toHaveLength(1); // A different account's facts are not this tab's.
+    const other = w.tabClient();
+    await until(() => other.client.state() === 'ready', 'the ChatSpace tab registered');
+    expect(await other.client.request('sound.batch', { host: 'fansly-web', hostAccountId: CREATOR, events: [fact] })).toMatchObject({ ok: false });
+    await w.page().request('site.access', { host: 'fansly-web', enabled: false });
+    expect(await send('900000000000000004')).toMatchObject({ ok: true });
+    const diagnostics = await w.page().request('diagnostics.get', {});
+    expect(diagnostics.ok && diagnostics.payload.sound.outcomes).toMatchObject({ 'open-chat': 1, played: 1, 'tab-closed': 1, 'no-permission': 1 });
+    expect(w.wire.filter((request) => request.url.includes('audience-new'))).toEqual([]);
+  });
+
   it('[host:fansly] «Включить Fansly»: the sync registers both scripts on fansly.com in one call, MAIN first; the tab registers as Fansly’s and its module comes up', async () => {
     const w = world();
     w.start();

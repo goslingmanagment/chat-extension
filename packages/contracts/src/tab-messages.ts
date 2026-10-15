@@ -310,8 +310,6 @@ export const TAB_REQUESTS = {
        * from before 1.8.0: its route is not known.
        */
       routeAccount: z.optional(z.nullable(HostAccountSchema)),
-      /** The host conversation id, including a chat whose fan is not known yet (1.15.0 P14a). */
-      conversationRef: z.optional(z.nullable(NativeIdSchema)),
     }),
     res: Ack,
     from: TAB,

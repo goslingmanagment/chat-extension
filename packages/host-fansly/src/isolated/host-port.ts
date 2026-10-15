@@ -46,6 +46,7 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 // Before MAIN's first state the port knows only the address; without MAIN at
 // all it still answers, and its report says CG-HOST-NOT-READY.
 
+import type { SoundStreamEvent } from '@cg/contracts/sound';
 import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, FromMainFansly } from '@cg/contracts/bridge-messages-fansly';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
@@ -388,6 +389,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   }
 
   // ── MAIN's stream ──
+  let soundEvents: SoundStreamEvent[] = [];
   /**
    * Another creator (§5.7): a new login epoch and a new generation — what MAIN said of the old one's chat is gone,
    * the route's group is focused again under a new epoch, and only the answer to that names the chat. The first
@@ -396,6 +398,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
    */
   const changeCreator = (next: string | null): boolean => {
     if (next === creator) return false;
+    // Identity may change between two facts of one batch: none of the old
+    // account's pending sounds may be attributed to the new one at flush.
+    soundEvents = [];
     if (creator !== null) {
       chatWire = null;
       creatorChanges += 1;
@@ -467,10 +472,17 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // The person's send, proven by MAIN: linked to the draft read at its gesture (P7f).
       case 'fx.sent':
         return sends.sent(event.p);
-      // The stream's other facts — new messages, follows, coverage, deletions — are taken by the work packages that act
-      // on them (P8b1, P14a); here they are acknowledged with their batch.
-      case 'fx.incoming':
+      // Sound facts stay together until the end of this MAIN batch (P14a).
+      case 'fx.incoming': {
+        const p = event.p;
+        // The account at capture time survives a backed-up MAIN stream and a login switch.
+        // Older facts lacking attribution are not enough to classify our own aliases.
+        if (p.senderId !== undefined && creator !== null && p.accountId === creator) soundEvents.push({ kind: 'message', id: p.msgId, conversationRef: p.groupId, senderId: p.senderId, fromFan: p.fromFan, automatic: p.automated, tip: p.tip, sentAt: p.createdAt });
+        return;
+      }
       case 'fx.follow':
+        soundEvents.push({ kind: 'subscriber', id: event.p.eventId, accountId: event.p.accountId, followerId: event.p.followerId });
+        return;
       case 'fx.coverage':
       case 'fx.deleted':
         return;
@@ -485,6 +497,11 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
           {
             state: onState,
             event: onEvent,
+            batch() {
+              const events = soundEvents;
+              soundEvents = [];
+              if (!disposed && creator !== null && events.length > 0) emit({ type: 'sound-batch', batch: { host: FANSLY_KIND, hostAccountId: creator, events } });
+            },
             lost(reason) {
               diag({ event: 'stream-lost', detail: { reason } });
               // Every chat unknown until the next state (FS-TAIL-5): the window the tab holds says so at once — and a

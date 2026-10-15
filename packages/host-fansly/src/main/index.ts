@@ -348,6 +348,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       groupId: m.groupId,
       fanId: identity.fan(m.groupId),
       msgId: m.id,
+      senderId: m.senderId,
+      accountId: identity.creator,
       fromFan,
       // The old rule (S4 HF-5, NF-033): the model's message of type 2, made by something without a reply, or a welcome text.
       automated: !fromFan && (madeBySomething(m.type, m.correlationId, m.inReplyTo) || automation.welcome(textHash(m.content))),

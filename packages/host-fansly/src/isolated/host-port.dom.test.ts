@@ -78,6 +78,44 @@ const open = (identity: HostIdentity | null): HostIdentity => {
   return identity;
 };
 
+describe('[host:fansly] [FS-SND-1] the socket batch for sound', () => {
+  it('[SN-016] preserves one MAIN delivery as one text-free host event, on the inbox too; old facts without authors stay silent', async () => {
+    const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });
+    const { events } = await startPort('/messages', main.client);
+    const incoming = { groupId: GROUP, fanId: null, msgId: '700000000000000101', fromFan: true, automated: false, tip: false, createdAt: null };
+    main.batch(1, identityEvent(CREATOR),
+      { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } },
+      { t: 'fx.follow', p: { eventId: '700000000000000102', accountId: CREATOR, followerId: FAN } },
+      { t: 'fx.incoming', p: incoming });
+    expect(events.filter((event) => event.type === 'sound-batch')).toEqual([{
+      type: 'sound-batch', batch: { host: 'fansly-web', hostAccountId: CREATOR, events: [
+        { kind: 'message', id: incoming.msgId, conversationRef: GROUP, senderId: FAN, fromFan: true, automatic: false, tip: false, sentAt: null },
+        { kind: 'subscriber', id: '700000000000000102', accountId: CREATOR, followerId: FAN },
+      ] },
+    }]);
+    main.batch(1, { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } });
+    expect(events.filter((event) => event.type === 'sound-batch')).toHaveLength(1);
+    main.batch(2, identityEvent(SECOND_CREATOR), { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } });
+    expect(events.filter((event) => event.type === 'sound-batch')).toHaveLength(1); // An old creator's queued message is not the new one's.
+  });
+
+  it('[SN-002] drops the old creator’s pending sounds when identity changes inside one MAIN batch', async () => {
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { events } = await startPort('/messages', main.client);
+    const incoming = { groupId: GROUP, fanId: null, msgId: '700000000000000101', senderId: FAN, accountId: CREATOR, fromFan: true, automated: false, tip: false, createdAt: null };
+    main.batch(1,
+      { t: 'fx.incoming', p: incoming },
+      { t: 'fx.follow', p: { eventId: '700000000000000102', accountId: CREATOR, followerId: FAN } },
+      identityEvent(SECOND_CREATOR),
+      { t: 'fx.incoming', p: { ...incoming, msgId: '700000000000000103', accountId: SECOND_CREATOR } });
+    expect(events.filter((event) => event.type === 'sound-batch')).toEqual([{
+      type: 'sound-batch', batch: { host: 'fansly-web', hostAccountId: SECOND_CREATOR, events: [
+        { kind: 'message', id: '700000000000000103', conversationRef: GROUP, senderId: FAN, fromFan: true, automatic: false, tip: false, sentAt: null },
+      ] },
+    }]);
+  });
+});
+
 describe('[host:fansly] who the tab is (FS-IDN-1, FS-IDN-2, FS-IDN-5)', () => {
   it('[UI-011] [AU-023] [AU-034] the initial binding: no account until the page’s /account/me, then exactly one — the creator, whose platform id is the hub page’s key', async () => {
     const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });

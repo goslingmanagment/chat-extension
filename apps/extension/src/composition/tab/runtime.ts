@@ -143,7 +143,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
       const parsed = TabRegisterResponseSchema.safeParse(payload);
       return parsed.success ? { ok: true, payload: parsed.data } : { ok: false };
     }
-    return type === 'tab.presence' && isAck(payload) ? { ok: true, payload } : { ok: false };
+    return (type === 'tab.presence' || type === 'sound.batch') && isAck(payload) ? { ok: true, payload } : { ok: false };
   };
   // A TEST build on the loopback stand may hold the port down (the probe; release has none): the client under it is the real one.
   const api = probe === null ? env.api : probe.api(env.api ?? defaultBrowser());
@@ -230,6 +230,8 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     if (life.aborted) return;
     const off = port.subscribe((event) => {
       if (event.type === 'route' || event.type === 'accounts') reportPresence();
+      // Socket facts are heard on the inbox too, before any application chunk loads.
+      if (event.type === 'sound-batch' && rpc.state() === 'ready') void rpc.request('sound.batch', event.batch);
     });
     life.addEventListener('abort', off);
     reportPresence(true);

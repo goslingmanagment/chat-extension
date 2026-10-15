@@ -94,7 +94,7 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     fan: observed,
     chatList: off('chatList'),
     sendObserve,
-    incoming: notReady('incoming'),
+    incoming: main ?? (identity.state !== 'on' ? identity : anchors.frames === 'shape' ? broken('frames') : anchors.socket === 'ok' && anchors.frames === 'ok' ? ON : degraded('socket')),
     navigate: identity,
     // The scheme and the palette are the page's own (P8d): once Fansly's theme controller has put its class on <html>.
     theme: dom.themeClass === 'ok' ? ON : degraded('themeClass'),

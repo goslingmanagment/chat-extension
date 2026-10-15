@@ -244,6 +244,11 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
         headerNames: value === undefined ? [] : Object.keys(value.headers).filter((name) => allowed.has(name) && /^[a-z][a-z0-9-]{0,63}$/.test(name)).sort().slice(0, 16),
       };
     },
+    /** IDs only, including disconnected templates: a previously seen model is still our own. */
+    aliases(accountId: string): readonly string[] {
+      if (!readable) return [];
+      return [...new Set([...templates.values()].filter((entry) => entry.legacyId === accountId || entry.canonicalId === accountId).flatMap((entry) => entry.canonicalId === null ? [entry.legacyId] : [entry.legacyId, entry.canonicalId]))];
+    },
     rateLimits(): readonly RateLimitFact[] { return readable ? limits.map((fact) => ({ ...fact })) : []; },
     idle: () => run(() => undefined),
   };

@@ -42,6 +42,8 @@ export interface StreamSink {
   state(state: FanslyState): void;
   /** One event of a batch, in MAIN's order. */
   event(event: FromMainFansly): void;
+  /** After the states and facts of one delivery were taken, before its acknowledgement. */
+  batch?(): void;
   /** Events were lost: every chat is unknown until the next state. */
   lost(reason: StreamLoss): void;
   /** A guarded failure of MAIN's own code (decision X22): its site and how often. */
@@ -195,6 +197,7 @@ export function consumeStream(bridge: FanslyMainBridgeClient, sink: StreamSink, 
       counts.events += 1;
       sink.event(item);
     }
+    sink.batch?.();
     ack(n);
     if (skipped) lose('skipped');
   });

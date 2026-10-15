@@ -153,10 +153,10 @@ describe('[SN-019] [host:fansly] the projections of one parse, through the bridg
     await settle();
     const stream = c.events().filter((e) => e.t === 'fx.incoming' || e.t === 'fx.follow');
     expect(stream).toEqual([
-      { t: 'fx.incoming', p: { groupId: GROUP, fanId: null, msgId: '700000000000000101', fromFan: true, automated: false, tip: false, createdAt: '2026-09-21T14:13:20.000Z' } },
-      { t: 'fx.incoming', p: { groupId: GROUP, fanId: null, msgId: '700000000000000102', fromFan: false, automated: true, tip: false, createdAt: '2026-09-21T14:13:20.000Z' } },
-      { t: 'fx.incoming', p: { groupId: GROUP, fanId: null, msgId: '700000000000000103', fromFan: false, automated: true, tip: false, createdAt: '2026-09-21T14:13:20.000Z' } },
-      { t: 'fx.incoming', p: { groupId: GROUP, fanId: null, msgId: '700000000000000104', fromFan: true, automated: false, tip: true, createdAt: null } },
+      { t: 'fx.incoming', p: { groupId: GROUP, fanId: null, msgId: '700000000000000101', senderId: FAN, accountId: CREATOR, fromFan: true, automated: false, tip: false, createdAt: '2026-09-21T14:13:20.000Z' } },
+      { t: 'fx.incoming', p: { groupId: GROUP, fanId: null, msgId: '700000000000000102', senderId: CREATOR, accountId: CREATOR, fromFan: false, automated: true, tip: false, createdAt: '2026-09-21T14:13:20.000Z' } },
+      { t: 'fx.incoming', p: { groupId: GROUP, fanId: null, msgId: '700000000000000103', senderId: CREATOR, accountId: CREATOR, fromFan: false, automated: true, tip: false, createdAt: '2026-09-21T14:13:20.000Z' } },
+      { t: 'fx.incoming', p: { groupId: GROUP, fanId: null, msgId: '700000000000000104', senderId: FAN, accountId: CREATOR, fromFan: true, automated: false, tip: true, createdAt: null } },
       { t: 'fx.follow', p: { eventId: '700000000000000201', accountId: CREATOR, followerId: FAN } },
       { t: 'fx.incoming', p: expect.objectContaining({ msgId: '700000000000000105' }) as unknown },
       { t: 'fx.incoming', p: expect.objectContaining({ msgId: '700000000000000106', groupId: OTHER_GROUP }) as unknown },

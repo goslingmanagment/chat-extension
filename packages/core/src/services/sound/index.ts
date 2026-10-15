@@ -38,6 +38,8 @@ export {
   type SoundPlayResult,
   type SoundPresencePort,
   type SoundScope,
+  type SoundStreamPolicy,
+  type SoundStreamPort,
   type SubscriberBatch,
 } from './arbiter';
 export { SUBSCRIBER_POLL_BACKOFF_MAX, SUBSCRIBER_POLL_JITTER, createSubscriberPoller, type SubscriberPage, type SubscriberPoller, type SubscriberPollerDeps } from './subscribers';
