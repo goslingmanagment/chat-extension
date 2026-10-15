@@ -224,6 +224,12 @@ describe('the Fansly stand next to the FBuddy-like neighbour', () => {
       }, BODY_LAYER_TAG, [NEIGHBOR_TAGS.templates, NEIGHBOR_TAGS.emoji, NEIGHBOR_TAGS.translate]);
     const group = String(ids.groups[1]);
     await openWithNeighbor(`/messages/${group}`, { mode: 'off' });
+    // The page is ready before its chat is: the composer comes with the group (from the cache or after `GET /group/<id>/`).
+    await browser.waitUntil(() => browser.execute((composer: string) => document.querySelector(`${composer} .collapsable-actions`) !== null && document.querySelector(`${composer} .message-entry`) !== null, FANSLY_MAIN.composer), {
+      timeout: 10_000,
+      interval: 50,
+      timeoutMsg: 'the main composer without the neighbour',
+    });
     const plain = await measure();
     expect(plain).toMatchObject({ contain: 'none', twoRows: false, layerIsOurs: false, widgets: [] });
     await openWithNeighbor(`/messages/${group}`, { mode: 'after' });
