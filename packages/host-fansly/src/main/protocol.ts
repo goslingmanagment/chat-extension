@@ -50,6 +50,7 @@ export const WHY_LATE = 'late-install';
 export const WHY_SOCKET = 'socket';
 export const WHY_FRAME = 'frame';
 export const WHY_UNSEEN = 'unseen';
+/** The contract's word for a recovery that did not overlap; since §5.12 a certificate after a loss always recovers. */
 export const WHY_NO_OVERLAP = 'no-overlap';
 export const WHY_EVICTED = 'evicted';
 export const WHY_PARSE_LIMIT = 'parse-limit';

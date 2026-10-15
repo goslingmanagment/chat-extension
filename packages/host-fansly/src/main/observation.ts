@@ -24,12 +24,14 @@
 //   a grace in which the socket may still bring it). Read receipts name no
 //   chat: they neither add nor lower anything. A nested `inReplyToMessage` is
 //   no message of the chat.
-// - **Merge order**: every observation has its number (the runtime's `seq`); an
-//   answer remembers the one of its `loadstart`. A late answer never undoes a
-//   newer socket event — a deletion, a cascade — never brings a deleted text
-//   back (tombstones win), and never moves a known boundary back: an answer
-//   older than the chat's last certificate adds nothing inside that
-//   certificate's span.
+// - **What a certificate says** (certificate.ts, the rule of §5.12): in its
+//   part of the chat the ring holds exactly its messages, those whose socket
+//   frame came after its request began, and the deleted (flagged, kept for
+//   `deletedIds`). Other answers add nothing there and remove nothing; one
+//   asked within the segment that names a message the chat lacks makes the
+//   chat wait for that message's frame, then lowers it. Tombstones come from
+//   the socket's deletions (`5/10`) only — a message is never undeleted — and
+//   win over any answer.
 // - **One memory account** (memory.ts): every ring, text and tombstone is
 //   counted as it comes and goes; over a limit the least recently active
 //   chat's texts go first, then whole chats — evicted, `unknown`. The focused
@@ -40,7 +42,7 @@
 import type { Plain } from '@cg/host-kit/main/check';
 
 import { madeBySomething, textHash, type Automation } from './automation';
-import { certifiable, certify, degrade, uncertified, type Completeness, type Stamp } from './certificate';
+import { certifiable, certify, compareIds, degrade, governor, governs, uncertified, type Completeness, type Stamp } from './certificate';
 import type { FrameMessage } from './frame-parse';
 import type { Identity } from './identity';
 import { enforce, type Memory } from './memory';
@@ -77,20 +79,19 @@ export const DELETED = 4;
 /** Made by something (`type 2`, a `correlationId` without `inReplyTo`) — the model's; the welcome rule adds its hash. */
 export const MADE = 8;
 export const TEXT = 16;
-/** Seen live: its socket frame `5/1` (or the page's own send) came — what an answer that lacks it cannot explain away. */
+/** Seen live: its socket frame `5/1` (or the page's own send) came; the record's second word is when. */
 export const LIVE = 32;
 
-/** Three 32-bit words a record: its time, its observation number, its welcome hash. */
+/** Three 32-bit words a record: its time, the observation number its frame came at (0 — none), its welcome hash. */
 const WORDS = 3;
 
-/** Snowflake order of two Fansly ids (contracts compareFanslyIds): the shorter is the older, then the string order. */
-export const compareIds = (a: string, b: string): number => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+export { compareIds };
 
 export interface Chat extends Completeness {
   readonly id: string;
   /** Message ids, oldest first. */
   ids: string[];
-  /** `[createdAt seconds (0 — unknown), observation number, welcome hash]` a record. */
+  /** `[createdAt seconds (0 — unknown), observation number of its `5/1` (0 — none), welcome hash]` a record. */
   words: Uint32Array;
   bits: Uint8Array;
   /** `correlationId` a record; null until the chat has one. */
@@ -136,12 +137,12 @@ export interface Observation {
   live(m: FrameMessage): void;
   /** The fresh end of a chat: a certificate, when `certifiable`; `limit` — the page's own (`limit=` of its address). */
   history(groupId: string, messages: readonly FrameMessage[], count: number, stamp: Stamp | undefined, socket: Socket, limit: number | null): void;
-  /** An older page, messages by id, a late fresh end: into the rings, never a certificate. */
-  answer(messages: readonly FrameMessage[], groupId: string | null): void;
+  /** An older page, messages by id, a fresh end that is no certificate: into the rings outside what certificates govern. */
+  answer(messages: readonly FrameMessage[], groupId: string | null, stamp: Stamp | undefined, socket: Socket): void;
   /** 5/10: a message deleted; a deleted mass-send parent (`cascade`) takes its copies in every chat. */
   deleted(id: string, groupId: string | null, cascade: boolean): void;
   /** A source named a message of a chat (`lastMessageId`, `lastMessage`, the unread list). */
-  hint(groupId: string, id: string): void;
+  hint(groupId: string, id: string, stamp: Stamp | undefined, socket: Socket): void;
   /** Who is in the group changed (4/6, 4/7). */
   participants(groupId: string): void;
   /** A loss: the chats named, or every one (null); every chat named is said, as the tap said it since P7a. */
@@ -170,7 +171,7 @@ export function createObservation(deps: ObservationDeps): Observation {
   const tombs = new Set<string>();
   const cascades = new Set<string>();
   /** Messages a source named, not seen yet: id → its chat and when its grace ends. */
-  const waited = new Map<string, { readonly g: string; readonly due: number }>();
+  const waited = new Map<string, { readonly g: string; readonly due: number; readonly since: number }>();
   let clock = 0;
   let textChats = 0;
   let allLoss = 0;
@@ -233,17 +234,10 @@ export function createObservation(deps: ObservationDeps): Observation {
     charge(chat, -(COST_RECORD + (corr === null ? 0 : COST_CORR)));
   };
 
-  /**
-   * Inserts a record at its place; -1 — it is older than a full ring holds. It is known by the observation number of
-   * now: the latest moment it is certain to have existed (a frame came, an answer was read), never the start of the
-   * request that brought it — when the server made that answer is not known.
-   */
+  /** Inserts a record at its place; -1 — it is older than a full ring holds. A live one (`LIVE`) notes when its frame came. */
   const insert = (chat: Chat, id: string, at: number, hash: number, bits: number, corr: string | null): number => {
     let i = find(chat, id);
-    if (i >= 0) {
-      chat.words[i * WORDS + 1] = seq();
-      return i;
-    }
+    if (i >= 0) return i;
     i = ~i;
     if (chat.ids.length >= RING_RECORDS) {
       if (i === 0) return -1;
@@ -259,7 +253,7 @@ export function createObservation(deps: ObservationDeps): Observation {
     chat.words.copyWithin((i + 1) * WORDS, i * WORDS, n * WORDS);
     chat.bits.copyWithin(i + 1, i, n);
     chat.words[i * WORDS] = at;
-    chat.words[i * WORDS + 1] = seq();
+    chat.words[i * WORDS + 1] = bits & LIVE ? seq() : 0;
     chat.words[i * WORDS + 2] = hash;
     chat.bits[i] = bits;
     chat.ids.splice(i, 0, id);
@@ -277,7 +271,6 @@ export function createObservation(deps: ObservationDeps): Observation {
     for (let i = chat.ids.length - 1; i >= 0; i -= 1) if (!((chat.bits[i] as number) & DELETED)) return i;
     return -1;
   };
-  const newestId = (chat: Chat): string | null => chat.ids[newest(chat)] ?? null;
 
   /** The least recently active chat but `keep`, the focused one only when no other is left; `texts` — only with texts. */
   const leastActive = (keep: Chat | null, texts: boolean): Chat | null => {
@@ -292,7 +285,7 @@ export function createObservation(deps: ObservationDeps): Observation {
 
   /** A loss of one chat; said when it was complete (an observation-made loss, not the tap's). */
   const lower = (chat: Chat, reason: string): void => {
-    if (degrade(chat, reason, newestId(chat), tick())) coverage([chat.id], UNKNOWN, reason);
+    if (degrade(chat, reason, tick())) coverage([chat.id], UNKNOWN, reason);
     if (chat.id === observation.focus) observation.dirty = true;
   };
 
@@ -371,9 +364,10 @@ export function createObservation(deps: ObservationDeps): Observation {
     const known = find(chat, m.id);
     const deleted = gone(m);
     if (known >= 0) {
-      // Seen again: now is the latest moment it existed.
-      chat.words[known * WORDS + 1] = seq();
-      if (live) chat.bits[known] = (chat.bits[known] as number) | LIVE;
+      if (live && !((chat.bits[known] as number) & LIVE)) {
+        chat.bits[known] = (chat.bits[known] as number) | LIVE;
+        chat.words[known * WORDS + 1] = seq();
+      }
       if (!deleted && m.content !== '' && !((chat.bits[known] as number) & DELETED)) {
         chat.bits[known] = (chat.bits[known] as number) | TEXT;
         setText(chat, known, m.content);
@@ -389,8 +383,16 @@ export function createObservation(deps: ObservationDeps): Observation {
     return { i, fresh: i >= 0 };
   };
 
-  /** Whether `id` lies in the chat's continuous interval (at or after its floor). */
-  const inside = (chat: Chat, id: string): boolean => chat.floor === null || compareIds(id, chat.floor) >= 0;
+  /** Whether `id` lies in what the chat's certificates govern: it is complete, and `id` is at or after its floor. */
+  const governed = (chat: Chat, id: string): boolean => chat.complete && (chat.floor === null || compareIds(id, chat.floor) >= 0);
+
+  /**
+   * A source names `id`, which the chat lacks inside what its certificates govern: a sign of a loss only if its request
+   * began within this segment and after the request of the certificate that governs `id` — an older one is explained
+   * by the time between them (a frame tells every change since the governing request began).
+   */
+  const signals = (chat: Chat, id: string, stamp: Stamp | undefined, socket: Socket): boolean =>
+    certifiable(stamp, socket.epoch, socket.confirmed, chat, allLoss) && stamp.seq > governor(chat, id);
 
   const wait = (chat: Chat, id: string): void => {
     if (waited.has(id)) return;
@@ -398,7 +400,7 @@ export function createObservation(deps: ObservationDeps): Observation {
       lower(chat, WHY_UNSEEN);
       return;
     }
-    waited.set(id, { g: chat.id, due: now() + UNSEEN_GRACE_MS });
+    waited.set(id, { g: chat.id, due: now() + UNSEEN_GRACE_MS, since: seq() });
     if (!woken) {
       woken = true;
       wake(UNSEEN_GRACE_MS);
@@ -423,55 +425,62 @@ export function createObservation(deps: ObservationDeps): Observation {
       if (identity.creator === null) return;
       const chat = ensure(groupId);
       chat.active = clock += 1;
-      // Not a certificate — or one asked before the chat's last certificate was: only a late answer.
-      if (stamp === undefined || !certifiable(stamp, socket.epoch, socket.confirmed, chat, allLoss) || stamp.seq < chat.certSeq) {
-        observation.answer(messages, groupId);
-        return;
-      }
       const own = sorted(messages, groupId);
-      const held = new Set(own.map((m) => m.id));
-      const oldest = own[0]?.id ?? null;
       // Short by the page's own count: a message left out here (another chat's) does not make a page short.
       const short = limit !== null && count < Math.min(limit, HISTORY_PAGE);
-      // What the chat holds within the answer's span and the answer lacks. Known to exist before the request began: the
-      // answer, made later, shows it deleted since — it goes, without a tombstone (a later sighting brings it back).
-      // Seen only after the request began: either answer may be the newer one. A socket frame of it explains the
-      // absence (it was made after this answer); without one it stays, and the chat waits for that frame (`unseen`).
-      const unexplained: string[] = [];
+      const lo = short ? null : (own[0]?.id ?? null);
+      // No certificate: begun before `t:1` or the chat's last loss, or a full page that showed nothing.
+      if (!certifiable(stamp, socket.epoch, socket.confirmed, chat, allLoss) || (!short && own.length === 0)) {
+        observation.answer(messages, groupId, stamp, socket);
+        return;
+      }
+      // Of its span, the part no certificate of a later request governs (none: it is only a late answer).
+      const part = governs(chat, stamp.seq, lo);
+      if (part === null) {
+        observation.answer(messages, groupId, stamp, socket);
+        return;
+      }
+      const hi = part.hi;
+      const mine = (id: string): boolean => (lo === null || compareIds(id, lo) >= 0) && (hi === undefined || compareIds(id, hi) < 0);
+      const held = new Set(own.map((m) => m.id));
+      // In its part the chat holds exactly: its messages, those whose frame came after its request began, the deleted.
+      // Anything else was gone by the time the server made it (and is not kept from a tombstone: a later sighting —
+      // a frame, a later certificate — brings it back).
       for (let i = chat.ids.length - 1; i >= 0; i -= 1) {
         const id = chat.ids[i] as string;
         const bits = chat.bits[i] as number;
-        if (bits & DELETED || held.has(id) || !(short || (oldest !== null && compareIds(id, oldest) >= 0))) continue;
-        if ((chat.words[i * WORDS + 1] as number) < stamp.seq) removeAt(chat, i);
-        else if (!(bits & LIVE)) unexplained.push(id);
+        if (bits & DELETED || held.has(id) || !mine(id)) continue;
+        if (bits & LIVE && (chat.words[i * WORDS + 1] as number) >= stamp.seq) continue;
+        removeAt(chat, i);
       }
-      for (const m of own) ingest(chat, m, false);
+      const part2 = own.filter((m) => mine(m.id));
+      for (const m of part2) ingest(chat, m, false);
       // A proof of the start rests on the whole answer: messages that came while it was in flight may have filled the
       // ring, so its older part never entered it.
-      const retained = own.every((m) => find(chat, m.id) >= 0);
-      const verdict = certify(chat, stamp, oldest, (id) => held.has(id), short, retained);
+      const retained = part2.every((m) => find(chat, m.id) >= 0);
+      const verdict = certify(chat, stamp.seq, lo, short && retained);
       // The interval cannot start below what the ring holds.
       const first = chat.ids[0];
       if (chat.floor !== null && first !== undefined && compareIds(first, chat.floor) > 0) chat.floor = first;
-      if (verdict !== 'no-overlap') {
-        // The answer shows what it shows: a waited-for message of its span is in it, or gone.
-        for (const [id, w] of waited) if (w.g === groupId && (short || (oldest !== null && compareIds(id, oldest) >= 0))) waited.delete(id);
-      }
-      if (chat.complete) for (const id of unexplained) wait(chat, id);
-      if (verdict === 'first' || verdict === 'recovered') coverage([groupId], COMPLETE, WHY_CERTIFICATE);
-      else if (verdict === 'no-overlap') coverage([groupId], UNKNOWN, chat.why);
+      // A message waited for since before this request began is settled by it: held, or gone.
+      for (const [id, w] of waited) if (w.g === groupId && w.since < stamp.seq && mine(id)) waited.delete(id);
+      if (verdict !== 'held') coverage([groupId], COMPLETE, WHY_CERTIFICATE);
       if (groupId === observation.focus) observation.dirty = true;
     },
-    answer(messages, groupId) {
+    answer(messages, groupId, stamp, socket) {
       if (identity.creator === null) return;
       const groups = groupId === null ? [...new Set(messages.map((m) => m.groupId))] : [groupId];
       for (const id of groups) {
         const chat = ensure(id);
         for (const m of sorted(messages, id)) {
-          // Present here is present: an answer that lacked it — even a certificate asked later — does not outrank it.
-          // New inside a complete chat, it waits for its socket frame (`unseen`).
-          const { fresh } = ingest(chat, m, false);
-          if (fresh && chat.complete && !gone(m) && inside(chat, m.id)) wait(chat, m.id);
+          // Outside what certificates govern — or known already (its text, say) — it is data.
+          if (!governed(chat, m.id) || find(chat, m.id) >= 0) {
+            ingest(chat, m, false);
+            continue;
+          }
+          // Inside, an answer adds nothing: it is older than what governs, or its frame is on the way. Asked within
+          // this segment, it names a message the chat lacks: a loss, unless that frame comes (`unseen`).
+          if (!gone(m) && signals(chat, m.id, stamp, socket)) wait(chat, m.id);
         }
         if (id === observation.focus) observation.dirty = true;
       }
@@ -509,10 +518,10 @@ export function createObservation(deps: ObservationDeps): Observation {
         observation.dirty = true;
       }
     },
-    hint(groupId, id) {
+    hint(groupId, id, stamp, socket) {
       const chat = chats.get(groupId);
-      if (chat === undefined || !chat.complete || tombs.has(id) || find(chat, id) >= 0 || !inside(chat, id)) return;
-      wait(chat, id);
+      if (chat === undefined || !governed(chat, id) || tombs.has(id) || find(chat, id) >= 0) return;
+      if (signals(chat, id, stamp, socket)) wait(chat, id);
     },
     participants(groupId) {
       const chat = chats.get(groupId);
@@ -523,14 +532,14 @@ export function createObservation(deps: ObservationDeps): Observation {
       const at = tick();
       if (groupIds === null || groupIds.length === 0 || groupIds.length > MAX_CHATS) {
         allLoss = at;
-        for (const chat of chats.values()) degrade(chat, reason, newestId(chat), at);
+        for (const chat of chats.values()) degrade(chat, reason, at);
         coverage('all', UNKNOWN, reason);
       } else {
         // A chat not observed yet still remembers the loss: a request begun before it is no certificate.
         for (const id of groupIds) {
           if (identity.creator === null && !chats.has(id)) continue;
           const chat = ensure(id);
-          degrade(chat, reason, newestId(chat), at);
+          degrade(chat, reason, at);
         }
         coverage(groupIds, UNKNOWN, reason);
       }

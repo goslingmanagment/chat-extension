@@ -177,7 +177,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   let contractSent = '';
   let chatSent = '';
 
-  // A gap of the stream: the isolated side lost events — every chat unknown until a certificate that overlaps (§5.6).
+  // A gap of the stream: the isolated side lost events — every chat unknown until the next certificate (§5.12).
   const emitter = createEmitter((t, payload) => context.post(t, payload), stringify, () => world().observation.lose(null, WHY_GAP));
   // eslint-disable-next-line prefer-const -- the queue's own drain needs the runtime's `end`, defined below it
   let queue: ReturnType<typeof createResponseQueue<Stamp>>;
@@ -331,12 +331,12 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   });
 
   /** A group of an answer asked at observation `seen`, and what its `lastMessage` says of the chat's observation. */
-  const group = (value: unknown, seen: number): void => {
+  const group = (value: unknown, seen: number, stamp: Stamp | undefined): void => {
     const { identity, observation } = world();
     const id = identity.readGroup(value, seen);
     if (id === null) return;
     const last = isPlain(value) && isPlain(value['lastMessage']) ? idOf(value['lastMessage']['id']) : null;
-    if (last !== null) observation.hint(id, last);
+    if (last !== null) observation.hint(id, last, stamp, { epoch, confirmed });
     if (id === observation.focus) observation.dirty = true;
   };
 
@@ -372,10 +372,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         return;
       }
       case 'older':
-        observation.answer(messagesIn(read.groupId).messages, read.groupId);
+        observation.answer(messagesIn(read.groupId).messages, read.groupId, stamp, { epoch, confirmed });
         return;
       case 'byIds':
-        observation.answer(messagesIn(null).messages, null);
+        observation.answer(messagesIn(null).messages, null, stamp, { epoch, confirmed });
         return;
       case 'receipt': {
         // The page's own `POST /message`: its new message, as live as the socket's (its echo; the send is P7f's).
@@ -388,20 +388,20 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
           if (!isPlain(item) || (item['deletedAt'] !== null && item['deletedAt'] !== undefined && item['deletedAt'] !== 0)) continue;
           const groupId = idOf(item['groupId']);
           const messageId = idOf(item['messageId']);
-          if (groupId !== null && messageId !== null) observation.hint(groupId, messageId);
+          if (groupId !== null && messageId !== null) observation.hint(groupId, messageId, stamp, { epoch, confirmed });
         }
         return;
       case 'group':
-        group(r, seen);
+        group(r, seen, stamp);
         return;
       case 'groups': {
         const aggregation = (r as Plain)['aggregationData'];
-        for (const item of listOf(isPlain(aggregation) ? aggregation['groups'] : null)) group(item, seen);
+        for (const item of listOf(isPlain(aggregation) ? aggregation['groups'] : null)) group(item, seen, stamp);
         for (const item of listOf(isPlain(aggregation) ? aggregation['accounts'] : null)) identity.readAccount(item);
         for (const item of listOf((r as Plain)['data'])) {
           const groupId = isPlain(item) ? idOf(item['groupId']) : null;
           const last = isPlain(item) ? idOf(item['lastMessageId']) : null;
-          if (groupId !== null && last !== null) observation.hint(groupId, last);
+          if (groupId !== null && last !== null) observation.hint(groupId, last, stamp, { epoch, confirmed });
         }
         return;
       }

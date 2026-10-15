@@ -245,7 +245,7 @@ describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () =>
     expect(certified(c)).toBe(true);
   });
 
-  it('[FS-TAIL-4] recovery after the page’s regular re-request: a new socket loses every chat; after its t:1 the fresh end overlaps the observation and the chat is complete again', async () => {
+  it('[FS-TAIL-4] recovery after the page’s regular re-request: a new socket loses every chat; after its t:1 the page’s fresh end makes it complete again, its interval starting anew at that answer', async () => {
     const { c, socket } = await tab();
     const server = conversation(1, 40);
     fresh(c.win).respond(200, freshEnd(server));
@@ -264,45 +264,28 @@ describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () =>
     await settle();
     const s = await snap(c);
     expect(s).toMatchObject({ completeness: 'complete' });
-    // The window reaches back through the interval kept from before the loss: 16…50, 35 messages.
-    expect(windowIds(s)).toEqual(ids(server.slice(15)));
+    // What was held before the loss is not joined to it: a deletion during the gap would never be told (§5.12).
+    expect(windowIds(s)).toEqual(ids(server.slice(-25)));
     expect(coverage(c).filter((p) => JSON.stringify(p).includes('certificate'))).toHaveLength(2);
   });
 
-  it('[FS-TAIL-4] no overlap, no recovery: more than a page came during the gap — unknown (`no-overlap`) until a certificate that overlaps', async () => {
-    const { c, socket } = await tab();
-    const server = conversation(1, 30);
-    fresh(c.win).respond(200, freshEnd(server));
-    socket.drop();
-    server.push(...conversation(31, 60));
-    const next = openSocket(c.win);
-    next.receive(session);
-    fresh(c.win).respond(200, freshEnd(server));
-    await settle();
-    expect(await snap(c)).toMatchObject({ completeness: 'unknown', gap: 'no-overlap' });
-    expect(coverage(c).at(-1)).toEqual({ groupIds: [GROUP], state: 'unknown', reason: 'no-overlap' });
-  });
-
-  it('[FS-TAIL-4] a deleted boundary proves no overlap: the chat stays unknown — and without the deletion the same answer restores it', async () => {
-    for (const deleted of [true, false]) {
+  it('[FS-TAIL-4] after a loss neither more than a page of news nor a deleted last message keeps the chat unknown: one fresh end of the page restores it (liveness, §5.12)', async () => {
+    for (const gap of ['a page of news', 'the last message deleted'] as const) {
       const { c, socket } = await tab();
       const server = conversation(1, 40);
       fresh(c.win).respond(200, freshEnd(server));
       socket.drop();
+      if (gap === 'a page of news') server.push(...conversation(41, 70));
+      else server.pop();
       const next = openSocket(c.win);
       next.receive(session);
-      if (deleted) {
-        // The boundary — the last message known before the loss — is deleted, and the new socket says so.
-        next.receive(deletion(id(40)));
-        server.pop();
-      }
-      // One more message, the page asks again.
-      server.push(message(id(41), FAN, { content: 'line 41' }));
       fresh(c.win).respond(200, freshEnd(server));
       await settle();
       const s = await snap(c);
-      expect(s?.completeness, `deleted: ${deleted}`).toBe(deleted ? 'unknown' : 'complete');
-      if (deleted) expect(s?.gap).toBe('no-overlap');
+      expect(s?.completeness, gap).toBe('complete');
+      expect(windowIds(s), gap).toEqual(ids(server.slice(-25)));
+      expect(windowIds(s)).not.toContain(id(40 + (gap === 'a page of news' ? 100 : 0)));
+      for (const cleanup of cleanups.splice(0)) cleanup();
     }
   });
 
@@ -377,7 +360,7 @@ describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () =>
     expect(coverage(c).filter((p) => JSON.stringify(p).includes('unseen'))).toEqual([{ groupIds: [GROUP], state: 'unknown', reason: 'unseen' }]);
   });
 
-  it('[FS-TAIL-4] merge order: a late answer neither undoes a newer deletion nor brings its text back; what it has and a later answer lacks stays, unproven', async () => {
+  it('[FS-TAIL-4] merge order: the certificate of the later request governs — a late answer to an earlier one adds nothing; a socket deletion wins over any answer', async () => {
     const { c, socket } = await tab();
     const server = conversation(1, 12);
     const first = fresh(c.win);
@@ -392,10 +375,9 @@ describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () =>
     late.respond(200, historyPage(without5));
     await settle();
     const s = await snap(c);
-    // Message 5: an absence does not outrank a presence (which answer is the newer cannot be told) — it stays, and the
-    // chat waits for its socket frame.
-    expect(windowIds(s)).toContain(id(5));
-    expect(s).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
+    // Message 5: the later request's answer lacks it — with no frame of it since, it was gone by then (§5.12).
+    expect(windowIds(s)).not.toContain(id(5));
+    expect(s?.completeness).toBe('complete');
     // Message 7: the socket said deleted — that wins over any answer.
     expect(windowIds(s)).not.toContain(id(7));
     expect(s?.deletedIds).toEqual([id(7)]);
@@ -625,20 +607,31 @@ describe('[host:fansly] the generation snapshot (FS-TAIL-6, FS-TAIL-7, §5.8)', 
     expect((await meta(c))?.window.startProven).toBe(true);
     // Not for another function.
     expect((await snap(c))?.startProof).toBeUndefined();
-    // A loss: no proof while the chat is unknown — not a zero count; the overlapping re-request restores it.
-    socket.drop();
-    const next = openSocket(c.win);
-    next.receive(session);
-    expect((await snap(c, { feature: 'hi', window: 25 }))?.startProof).toBeUndefined();
-    const all = [...server, ...Array.from({ length: 36 }, (_, i) => i + 6).map((n) => message(id(n), n % 4 === 0 ? FAN : CREATOR, { content: n % 4 === 0 ? `fan ${n}` : 'Welcome!' }))];
-    fresh(c.win).respond(200, freshEnd(all));
-    await settle();
-    expect((await snap(c, { feature: 'hi', window: 25 }))?.startProof?.coveredCount).toBe(41);
     // The ring rolls over the start (120 messages): the base is gone with it.
-    for (let n = 42; n <= 121; n += 1) next.receive(newMessage(id(n), CREATOR, { content: 'Welcome!' }));
+    for (let n = 42; n <= 121; n += 1) socket.receive(newMessage(id(n), CREATOR, { content: 'Welcome!' }));
     await settle();
     expect((await snap(c, { feature: 'hi', window: 25 }))?.startProof).toBeUndefined();
     expect((await meta(c))?.window).toMatchObject({ loaded: 120, startProven: false, completeness: 'complete' });
+  });
+
+  it('[FS-TAIL-6] a loss ends the start proof: what was held before it cannot be counted on (a deletion during the gap is never told); only a short page of the next segment proves the start again', async () => {
+    const { c, socket } = await tab();
+    const server = conversation(1, 10);
+    fresh(c.win).respond(200, freshEnd(server));
+    await settle();
+    expect((await snap(c, { feature: 'hi', window: 25 }))?.startProof).toMatchObject({ coveredCount: 10 });
+    socket.drop();
+    // During the gap message 3 is deleted: nobody tells the tab.
+    server.splice(2, 1);
+    const next = openSocket(c.win);
+    next.receive(session);
+    expect((await snap(c, { feature: 'hi', window: 25 }))?.startProof).toBeUndefined();
+    // The page's fresh end after the new t:1 is short: it proves the start again, and counts what is there now.
+    fresh(c.win).respond(200, freshEnd(server));
+    await settle();
+    const hi = await snap(c, { feature: 'hi', window: 25 });
+    expect(hi?.startProof).toMatchObject({ coveredCount: 9, startWitnessId: id(1) });
+    expect(windowIds(hi)).not.toContain(id(3));
   });
 
   it('[FS-TAIL-6] Hi on the first open of a 41-message chat: the fresh end is whole (25), the start is not proven — no proof (§5.8 а)', async () => {
@@ -754,7 +747,7 @@ describe('[host:fansly] the review of P7b: six cases that must hold (FS-TAIL-4�
     expect(windowIds(hi)).toEqual(Array.from({ length: 25 }, (_, i) => id(108 + i)));
   });
 
-  it('[FS-TAIL-4] two overlapping fresh ends give one history and one verdict whatever order they answer in: an absence never outranks a presence', async () => {
+  it('[FS-TAIL-4] two overlapping fresh ends give one history and one verdict whatever order they answer in: the later request’s certificate governs', async () => {
     const windows: string[][] = [];
     for (const order of ['A first', 'B first']) {
       const { c } = await tab();
@@ -772,14 +765,14 @@ describe('[host:fansly] the review of P7b: six cases that must hold (FS-TAIL-4�
       }
       await settle();
       const s = await snap(c);
-      // Message 2 was seen; that the other answer lacks it proves nothing — it stays, unproven: no socket frame of it.
-      expect(s, order).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
+      // B's request began later: it governs. Message 2, with no frame of it since B began, was gone by then.
+      expect(s?.completeness, order).toBe('complete');
       windows.push(windowIds(s));
       for (const cleanup of cleanups.splice(0)) cleanup();
     }
     expect(windows).toEqual([
-      [id(1), id(2), id(3)],
-      [id(1), id(2), id(3)],
+      [id(1), id(3)],
+      [id(1), id(3)],
     ]);
   });
 
@@ -850,20 +843,23 @@ describe('[host:fansly] the review of P7b: six cases that must hold (FS-TAIL-4�
 });
 
 describe('[host:fansly] the re-check of P7b: an absence never outranks a presence; an unknown membership change (FS-TAIL-4, FS-IDN-3)', () => {
-  it('[FS-TAIL-4] an answer that lacks a message another answer has does not delete it for good: its socket frame and a fresh history bring it back, the proof counts it', async () => {
+  it('[FS-TAIL-4] an answer that lacks a message another answer has never deletes it for good: B, asked later and made earlier, governs until the message’s frame comes and brings it back; the proof counts it', async () => {
     const { c, socket } = await tab();
     const a = fresh(c.win);
     const b = fresh(c.win);
-    // The server serves B first ([1]); message 2 is made; A, served after, has [1, 2]. The answers come A, then B.
+    // The server makes B first ([1]); message 2 is made; A, made after, has [1, 2]; its frame is late. A comes, then B.
     const one = message(id(1), FAN, { content: 'hi' });
     const two = message(id(2), CREATOR, { content: 'hello you' });
     a.respond(200, historyPage([one, two]));
     b.respond(200, historyPage([one]));
     await settle();
-    // Which answer is the newer one cannot be told: message 2 stays, and the chat waits for its socket frame.
-    expect(windowIds(await snap(c))).toEqual([id(1), id(2)]);
-    expect((await snap(c))?.completeness).toBe('unknown');
+    // B began later and governs: the state when the server made it — a true one, message 2 not made yet.
+    expect(windowIds(await snap(c))).toEqual([id(1)]);
+    expect((await snap(c))?.completeness).toBe('complete');
+    // Its frame came after B began: it is held again — no tombstone stood in the way.
     socket.receive(service(5, { type: 1, message: two }));
+    await settle();
+    expect(windowIds(await snap(c))).toEqual([id(1), id(2)]);
     fresh(c.win).respond(200, historyPage([one, two]));
     await settle();
     const hi = await snap(c, { feature: 'hi', window: 25 });

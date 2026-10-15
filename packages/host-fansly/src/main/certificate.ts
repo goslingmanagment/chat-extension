@@ -1,66 +1,71 @@
 // Completeness of a chat's observation and its certificates (docs/project-
-// unite/architecture.md §5.6; FS-TAIL-4): the state of one chat and the rules
-// that move it. The rings themselves are observation.ts's.
+// unite/architecture.md §5.6, §5.12 «Правило полноты»; FS-TAIL-4): the state
+// of one chat and the one rule that moves it. The rings themselves are
+// observation.ts's.
 //
-// - A **certificate** is the page's answer to its own `GET /message?groupId=…`
-//   of the fresh end (no `before`), whose request began after `t:1` of the
-//   current socket (its `loadstart` in that epoch, confirmed) and ended in the
-//   same epoch with no loss for the chat between the two — no new socket, no
-//   frame or answer of it lost, no gap of the bridge (`certifiable`). A request
-//   begun before `t:1` — the page's first one at load — is none.
-// - The **first** certificate of a chat in this document starts its continuous
-//   observation at the oldest message of the answer, whatever MAIN knew of the
-//   group before (the inbox and `/group` come before the history at a normal
-//   load).
-// - After a **loss** (`degrade`: a new socket or its end, a frame not read
-//   whole, an answer over the parse limit, a source naming a message never
-//   seen, an eviction, bfcache, `fx.gap`) a certificate restores the chat only
-//   if it overlaps the observation: it holds the last message known before the
-//   loss and not seen deleted (`boundary`), or it reaches the start of the
-//   conversation (shorter than a page). A deleted boundary proves nothing: the
-//   chat stays `unknown` until a certificate that overlaps, or a reload.
-// - A certificate shorter than a page (`limit`, 25 as the page asks) proves the
-//   **start** of the conversation (the old rule, S4 HF-5). The proof — and the
-//   count of personal messages on it — lives while its base does: an unbroken
-//   observation since, no record of the chat evicted (observation.ts drops it
-//   when the ring rolls over its oldest record).
-// - `lossSeq` and the runtime's `allLoss` are the observation numbers of the
-//   last loss of this chat and of every chat: a request is a certificate only if
-//   both are older than its `loadstart`.
+// The rule rests on what the page's socket guarantees: on one socket, after
+// its `t:1`, the server pushes every creation (`5/1`) and deletion (`5/10`)
+// in order, and nothing is lost without the tap seeing it (a closed or new
+// socket, a frame not read whole — a loss). Within such a **segment**:
+// - A **certificate** is the page's own fresh-end answer (`GET /message?
+//   groupId=…` without `before`) to a request begun after `t:1` of the current
+//   socket, with no loss of the chat since. Whatever moment the server made it
+//   at, that moment is after the request began, so every event since then
+//   comes as a frame. Its **span** — from its oldest message up (a page shorter
+//   than the page's `limit` reaches the start of the conversation: all of it).
+// - Inside a certificate's span the chat holds exactly: the certificate's
+//   messages, the messages whose frame came after its request began, less the
+//   deleted. That is the state at a moment after the request began.
+// - Of two certificates, the one whose request began later governs where their
+//   spans meet; an earlier one governs only below the later one's span. A late
+//   answer to an earlier request is no newer evidence than a later request.
+// - Any other answer (an older page, messages by id, a fresh end that is no
+//   certificate) adds nothing inside a governed span and removes nothing: what
+//   it says is either explained by frames, or older. One asked within this
+//   segment that names a message the chat lacks is a sign of a loss: the chat
+//   waits for that message's frame, then is lowered (observation.ts).
+// - A **loss** ends the segment for the chat: it is `unknown` until a
+//   certificate of a request begun after the loss, and its interval starts
+//   again at that certificate — what was held before cannot be trusted: a
+//   deletion during the gap is never told.
+// - A certificate shorter than a page proves the **start** of the conversation
+//   while the ring holds all of it and the segment lasts.
 
-import { WHY_NO_OVERLAP, WHY_NOT_CERTIFIED } from './protocol';
+import { WHY_NOT_CERTIFIED } from './protocol';
+
+/** Snowflake order of two Fansly ids (contracts compareFanslyIds): the shorter is the older, then the string order. */
+export const compareIds = (a: string, b: string): number => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+
+/** A certificate of the current segment that still governs a part of the chat. */
+export interface Governing {
+  /** The observation number of its request's `loadstart`. */
+  readonly ls: number;
+  /** Its oldest message; null — a short page: from the start of the conversation. */
+  readonly lo: string | null;
+}
+
+/** At most this many certificates kept per chat; one older than the dropped ones governs nothing. */
+const KEPT = 4;
 
 export interface Completeness {
-  /** A certificate came for this chat in this document: its observation has a continuous interval. */
+  /** Certified at least once in this document: the window is bounded by the interval. */
   ever: boolean;
   complete: boolean;
-  /** Certified once, then lost: only a certificate that overlaps restores it. */
-  loss: boolean;
-  /** The last message known before the loss, not seen deleted; null — none was known. */
-  boundary: string | null;
-  /** The oldest message of the continuous interval; null — the interval starts at the start of the conversation. */
+  /** Where the continuous interval starts; null — at the start of the conversation. */
   floor: string | null;
-  /** A short certificate proved the start, and its base lives. */
+  /** A short certificate of this segment proved the start, and the ring still holds all of it. */
   start: boolean;
   /** The observation number of the chat's last loss. */
   lossSeq: number;
-  /** The `loadstart` of its last certificate's request: one asked before it is only a late answer. */
-  certSeq: number;
   /** Why it is unknown (FANSLY_COVERAGE_REASONS). */
   why: string;
+  /** The certificates of this segment that govern a part of the chat, the latest request first. */
+  certs: Governing[];
+  /** A certificate whose request began at or before this governs nothing (one newer than it was dropped). */
+  cutoff: number;
 }
 
-export const uncertified = (): Completeness => ({
-  ever: false,
-  complete: false,
-  loss: false,
-  boundary: null,
-  floor: null,
-  start: false,
-  lossSeq: 0,
-  certSeq: 0,
-  why: WHY_NOT_CERTIFIED,
-});
+export const uncertified = (): Completeness => ({ ever: false, complete: false, floor: null, start: false, lossSeq: 0, why: WHY_NOT_CERTIFIED, certs: [], cutoff: 0 });
 
 /** The place of a request at its `loadstart`: its observation number, the socket epoch, whether `t:1` had come. */
 export interface Stamp {
@@ -69,51 +74,69 @@ export interface Stamp {
   readonly confirmed: boolean;
 }
 
-/** A loss at observation `at`; `newest` — the chat's newest message not seen deleted. True — it was complete. */
-export function degrade(chat: Completeness, reason: string, newest: string | null, at: number): boolean {
+/** A loss at observation `at`: the segment ends for the chat. True — it was complete. */
+export function degrade(chat: Completeness, reason: string, at: number): boolean {
   const was = chat.complete;
-  if (was) {
-    chat.loss = true;
-    chat.boundary = newest;
-  }
   chat.complete = false;
+  chat.certs = [];
+  chat.cutoff = 0;
+  chat.start = false;
   chat.lossSeq = at;
   if (chat.ever) chat.why = reason;
   return was;
 }
 
-/** The answer to the fresh end of a request with this stamp is a certificate (the header). */
-export function certifiable(stamp: Stamp | undefined, epoch: number, confirmed: boolean, chat: Completeness, allLoss: number): boolean {
+/** An answer to a request with this stamp is evidence of the current segment: begun after `t:1`, no loss since. */
+export function certifiable(stamp: Stamp | undefined, epoch: number, confirmed: boolean, chat: Completeness, allLoss: number): stamp is Stamp {
   return stamp !== undefined && stamp.confirmed && stamp.epoch === epoch && confirmed && chat.lossSeq < stamp.seq && allLoss < stamp.seq;
 }
 
-export type Verdict = 'first' | 'recovered' | 'held' | 'no-overlap';
+/**
+ * The part of the chat a certificate of a request begun at `ls`, from `lo` up, governs: up to (not including) `hi`,
+ * the oldest message of a certificate begun later (undefined — to the top). Null — none: a later short page, or a
+ * later one reaching as low, governs all of it.
+ */
+export function governs(chat: Completeness, ls: number, lo: string | null): { readonly hi: string | undefined } | null {
+  if (ls <= chat.cutoff) return null;
+  let hi: string | undefined;
+  for (const c of chat.certs) {
+    if (c.ls <= ls) continue;
+    if (c.lo === null) return null;
+    if (hi === undefined || compareIds(c.lo, hi) < 0) hi = c.lo;
+  }
+  if (lo !== null && hi !== undefined && compareIds(lo, hi) >= 0) return null;
+  return { hi };
+}
 
 /**
- * A certificate for the chat: `oldest` of the answer (null — empty), whether it holds an id, whether it is short, and
- * whether the ring retained all of it (`retained`: a proof of the start needs its whole base). The chat's ring already
- * holds what it could of the answer. `first`/`recovered` — complete now; `held` — it was complete; `no-overlap` — it
- * stays unknown.
+ * The `loadstart` of the certificate that governs `id` (the latest request whose span reaches it); the cutoff when the
+ * one that did was dropped. An answer to a request begun before it is older evidence than what governs.
  */
-export function certify(chat: Completeness, stamp: Stamp, oldest: string | null, holds: (id: string) => boolean, short: boolean, retained: boolean): Verdict {
-  let verdict: Verdict;
-  if (!chat.ever) verdict = 'first';
-  else if (chat.complete) verdict = 'held';
-  else if (short || (chat.boundary !== null && holds(chat.boundary))) verdict = 'recovered';
-  else {
-    chat.why = WHY_NO_OVERLAP;
-    return 'no-overlap';
-  }
-  if (verdict === 'first') chat.floor = oldest;
-  if (short) {
-    chat.floor = oldest;
-    // A short answer reaches the start; it proves it only while the ring holds all of it.
-    if (retained) chat.start = true;
-  }
+export function governor(chat: Completeness, id: string): number {
+  for (const c of chat.certs) if (c.lo === null || compareIds(c.lo, id) <= 0) return c.ls;
+  return chat.cutoff;
+}
+
+export type Verdict = 'first' | 'recovered' | 'held';
+
+/**
+ * A certificate (it governs a part: `governs`) is applied: the chat's ring holds its part already. `proves` — a short
+ * page the ring retained whole. `first`/`recovered` — complete now (the interval starts at it); `held` — it was.
+ */
+export function certify(chat: Completeness, ls: number, lo: string | null, proves: boolean): Verdict {
+  const verdict: Verdict = chat.certs.length > 0 ? 'held' : chat.ever ? 'recovered' : 'first';
+  if (verdict !== 'held') {
+    chat.floor = lo;
+    chat.start = false;
+  } else if (lo === null || (chat.floor !== null && compareIds(lo, chat.floor) < 0)) chat.floor = lo;
+  if (proves) chat.start = true;
+  // Those it covers whole, begun earlier, govern nothing any more.
+  const kept = chat.certs.filter((c) => !(c.ls < ls && (lo === null || (c.lo !== null && compareIds(c.lo, lo) >= 0))));
+  kept.push({ ls, lo });
+  kept.sort((a, b) => b.ls - a.ls);
+  for (const dropped of kept.splice(KEPT)) chat.cutoff = Math.max(chat.cutoff, dropped.ls);
+  chat.certs = kept;
   chat.ever = true;
   chat.complete = true;
-  chat.loss = false;
-  chat.boundary = null;
-  chat.certSeq = stamp.seq;
   return verdict;
 }

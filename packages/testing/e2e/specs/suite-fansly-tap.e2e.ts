@@ -381,7 +381,7 @@ describe('Fansly’s MAIN on its stand: the taps next to the neighbour, the stre
     expect(second.window.map((entry) => entry.id)).toEqual((await held()).slice(-60));
     expect(second.deletedIds).toEqual([target]);
     expect(second.tail?.at(-1)).toMatchObject({ platformMessageId: written, direction: 'fan', text: 'one more' });
-    // A new socket: every chat unknown, until the page asks the open chat's fresh end after the new t:1 — it overlaps.
+    // A new socket: every chat unknown, until the page asks the open chat's fresh end after the new t:1 (§5.12).
     const created = (await callFansly('socket'))?.created ?? 0;
     await fake.command({ op: 'socket', close: true });
     await waitFor(async () => ((await callFansly('socket'))?.created ?? 0) > created && (await callFansly('socket'))?.state === 'connected', 'a new socket of the page', 15_000);
