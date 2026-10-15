@@ -25,14 +25,18 @@ import {
 } from '@cg/contracts';
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import { CHATSPACE_STATUS_TEXTS } from '@cg/contracts/vm';
+import { type FanslyPages } from '@cg/core/application/hosts/fansly/pages';
 import { createPagesClient, type PageEnv, type PagePorts, type PageTimers, type PagesClient } from '@cg/core/application/pages';
+import { withFanslyPageTexts } from '@cg/core/domain/hosts/fansly/i18n/pages';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import { createI18n, type LiveI18n, type SitePhrases } from '@cg/core/domain/i18n';
-import { type PageDeps } from '@cg/ui/pages';
+import { fanslyOptionsSlots } from '@cg/ui/hosts/fansly/pages';
+import { type OptionsSlots, type PageDeps } from '@cg/ui/pages';
 
 import { NOW, SCENARIO_FEATURES, createFakeCatalog, ctxOf, iso, uuid } from '../scenarios/app-client';
 import { FakePageBackground, type BackgroundState, type SeenAccountFixture } from './background';
+import { FanslyPagesBackground, type FanslyFixture } from './fansly-settings';
 
 export const PAGES_NOW = NOW;
 /** The switches the working shift's pages have off (X8 is switched on by the owner only after its checklist). */
@@ -366,6 +370,8 @@ export interface PagesWorldOptions {
   readonly features?: PageEnv['features'];
   /** The sites of the build (R20 F7); default — ChatSpace alone, as the release build's. */
   readonly sites?: PageEnv['sites'];
+  /** R20 P14b1: Fansly's part of the background; given — the settings page has Fansly's controller, card, rows and steps. */
+  readonly fansly?: FanslyFixture;
 }
 
 export interface PagesWorld {
@@ -379,6 +385,10 @@ export interface PagesWorld {
   /** What `mountPopup` / `mountOptions` / the debug mounts take. */
   readonly deps: PageDeps;
   readonly now: () => number;
+  /** R20 P14b1: Fansly's part of the background and, on the settings page, its controller and its slots. */
+  readonly fanslyBackground: FanslyPagesBackground | null;
+  readonly fansly: FanslyPages | null;
+  readonly slots: OptionsSlots | undefined;
 }
 
 export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
@@ -522,10 +532,14 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
     systemScheme,
     language: i18n,
   };
-  const client = createPagesClient(env, ports);
+  const fanslyBackground = options.fansly === undefined ? null : new FanslyPagesBackground(options.fansly, page);
+  // As the pages' composition root makes it: on the settings page only, its sessions told to «Аккаунты».
+  const fansly = fanslyBackground === null || page !== 'options' ? null : fanslyBackground.pages((tone, volume) => background.request('sound.preview', { tone, volume }));
+  const client = createPagesClient(env, fansly === null ? ports : { ...ports, siteAccounts: [fansly.accounts] });
+  if (fansly !== null) void fansly.control.refresh();
   const deps: PageDeps = {
     client,
-    i18n,
+    i18n: fansly === null ? i18n : withFanslyPageTexts(i18n),
     catalog: createFakeCatalog(ctxOf({ lang: language, platform: env.hotkeyPlatform, now: now() })),
     clipboard: ports.clipboard,
     theme: client.theme,
@@ -533,7 +547,7 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
     hints: client.hints,
     now,
   };
-  return { background, state, browser: shell, client, i18n, systemScheme, env, deps, now };
+  return { background, state, browser: shell, client, i18n, systemScheme, env, deps, now, fanslyBackground, fansly, slots: fansly === null ? undefined : fanslyOptionsSlots(fansly.control) };
 }
 
 /**

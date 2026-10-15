@@ -7,7 +7,7 @@
 import { SETTINGS_SECTIONS, type CgErrorWire, type SettingsSection } from '@cg/contracts/errors';
 import { ONBOARDING_STEPS, type OnboardingStep, type OptionsBodyMap, type OptionsVM, type SaveStateVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
-import { accountKeyOf, answered, boundPageOf, button, codeError, currentAccountOf, errorOf, msg, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
+import { accountKeyOf, answered, boundPageOf, button, codeError, currentAccountOf, errorOf, knownAccounts, msg, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
 import { accountBody, accountsBody, appearanceBody, diagnosticsBody, generationBody, hotkeysBody, personasBody, signInVm } from './view-sections';
 import { hostReportOf, hubState, statusBody } from './view-status';
@@ -41,7 +41,7 @@ function sectionProblems(model: PagesModel): ReadonlySet<SettingsSection> {
   if (hubState(model) === 'down' || model.hubAccess === false) problems.add('account');
   const pages = valueOf(model.bootstrap)?.pages ?? [];
   if (answered(model.catalog) && pages.some((page) => personaOfPage(model, page.pageId).s !== 'set')) problems.add('personas');
-  if ((valueOf(model.accounts) ?? []).some((entry) => model.bindings.get(accountKeyOf(entry.account))?.ok === false)) problems.add('accounts');
+  if (knownAccounts(model).some((entry) => model.bindings.get(accountKeyOf(entry.account))?.ok === false)) problems.add('accounts');
   if (model.sound.error !== null) problems.add('appearance');
   if (valueOf(model.settings)?.readOnly === true || model.save.s === 'failed') problems.add('diagnostics');
   return problems;

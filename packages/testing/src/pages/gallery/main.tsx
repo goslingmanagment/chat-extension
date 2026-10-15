@@ -9,6 +9,8 @@ import { FANSLY_PAGE_SITES, fanslyPageState } from '../fansly';
 //   ?page=popup|options|debug-prompt|debug-journal
 //   &state=working|troubled|unreachable|signed-out|first-run|read-only|debug|no-chatspace|stale-tabs|same-title|long-title
 //   &theme=light|dark|system  &lang=ru|en  &platform=mac|win  &token=…
+//   &fansly=on|off — R20 P14b1: Fansly's part of the settings (on: switched on, a model, sessions; off: not yet)
+//   &deep=5000 — the hub takes Recap depth up to 5000 (Fansly's row of «Генерация»)
 // The hash is the page's own: `#appearance`, `#status:CG-QUOTA-DAILY`,
 // `#hub-calls` (the journal). `window.__pages` gives the e2e what it checks.
 
@@ -17,6 +19,7 @@ import { type KitFailure } from '@cg/ui/kit';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup } from '@cg/ui/pages';
 
 import { type BackgroundState } from '../background';
+import { fanslyOffFixture, fanslyOnFixture, withFanslyModel } from '../fansly-settings';
 import { PAGES_NOW, longTitleState, pagesWorld, sameTitleState, signedOutState, troubledState, workingState } from '../world';
 
 export interface PagesProbe {
@@ -45,6 +48,7 @@ const language: Locale = params.get('lang') === 'en' ? 'en' : 'ru';
 const themeParam = params.get('theme');
 const theme = themeParam === 'dark' || themeParam === 'system' ? themeParam : 'light';
 const stateName = params.get('state') ?? 'working';
+const fanslyParam = params.get('fansly') === 'on' ? 'on' : params.get('fansly') === 'off' ? 'off' : null;
 
 function stateOf(name: string): BackgroundState {
   const state =
@@ -70,7 +74,8 @@ function stateOf(name: string): BackgroundState {
     if (updated !== undefined) state.diagnostics = { ...state.diagnostics, extension: { ...state.diagnostics.extension, updated: { ...updated, staleTabs: 1 } } };
   }
   state.settings = { ...state.settings, ui: { ...state.settings.ui, theme, locale: language } };
-  return state;
+  if (params.get('deep') === '5000') state.bootstrap = { ...state.bootstrap, limits: { ...state.bootstrap.limits, deepMax: 5000 } };
+  return fanslyParam === null ? state : withFanslyModel(state, PAGES_NOW, fanslyParam === 'on');
 }
 
 const startedAt = performance.now();
@@ -87,6 +92,7 @@ const world = pagesWorld({
   state: stateOf(stateName),
   ...(['fansly', 'mixed', 'chatspace'].includes(stateName) ? { sites: FANSLY_PAGE_SITES } : {}),
   hash: location.hash,
+  ...(fanslyParam === null ? {} : { fansly: fanslyParam === 'on' ? fanslyOnFixture(PAGES_NOW) : fanslyOffFixture() }),
   // The clock starts at the mockup's «now» and runs with the page; the timers are the browser's own.
   now: () => PAGES_NOW + Math.round(performance.now() - startedAt),
 });
@@ -106,7 +112,7 @@ if (container === null) throw new Error('the gallery page has no #app');
 world.client.start();
 const deps = { ...world.deps, report };
 if (page === 'popup') mountPopup(container, deps);
-else if (page === 'options') mountOptions(container, { ...deps, location: world.client.location, helpUrl: 'https://ext.example.test/chat-extension/start.html' });
+else if (page === 'options') mountOptions(container, { ...deps, location: world.client.location, helpUrl: 'https://ext.example.test/chat-extension/start.html', ...(world.slots === undefined ? {} : { slots: world.slots }) });
 else if (page === 'debug-prompt') mountDebugPrompt(container, { ...deps, token: params.get('token') ?? 'prompt-token-1' });
 else mountDebugJournal(container, { ...deps, journal: journalOfHash(location.hash) });
 

@@ -24,12 +24,13 @@
 // - no text of a prompt or a journal is ever logged or reported.
 
 import { type CgCode, type CgErrorWire, type SettingsSection } from '@cg/contracts/errors';
+import { type HostKind } from '@cg/contracts/hosts';
 import { AI_USAGE_LIMITS } from '@cg/contracts/hub';
 import { type Locale } from '@cg/contracts/i18n/keys';
 import { type SessionIdentity } from '@cg/contracts/ids';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { HUB_ORIGIN_PATTERN } from '@cg/contracts/primitives';
-import { DEFAULT_HUB_ORIGIN, DEFAULT_SETTINGS, HOST_ACCOUNT_KEY_PATTERN, SETTINGS_RANGES, type HostAccountKey, type SettingsPatch, type SettingsState, type UiTheme } from '@cg/contracts/settings';
+import { DEFAULT_HUB_ORIGIN, DEFAULT_SETTINGS, HOST_ACCOUNT_KEY_PATTERN, SETTINGS_RANGES, hostAccountKeyOf, type HostAccountKey, type SettingsPatch, type SettingsState, type UiTheme } from '@cg/contracts/settings';
 import { type TabRequestPayload, type TabResponsePayload } from '@cg/contracts/tab-messages';
 import {
   UiActionSchema,
@@ -48,8 +49,8 @@ import {
 import { errorView } from '../../domain/errors';
 import { admission, onPage } from '../../domain/features/admission';
 import { createI18n, createTranslator, resolveLocale, type LiveI18n, type Translator } from '../../domain/i18n';
-import { IDLE, accountKeyOf, boundPageOf, currentAccountOf, isHostKind, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
-import { type OptionsLocation, type PageAnswer, type PageEnv, type PagePorts, type PageRequestType } from './ports';
+import { IDLE, accountKeyOf, aliasesOf, boundPageOf, currentAccountOf, isHostKind, knownAccounts, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
+import { type OptionsLocation, type PageAnswer, type PageEnv, type PagePorts, type PageRequestType, type SiteAccountsFacts } from './ports';
 import { hashOfRoute, routeOfHash } from './route';
 import { SettingsWriter, settingsWithPending, type WriteMode, type WriteOutcome } from './settings-writer';
 import { debugPromptView, isPromptToken, journalArtifact, journalText, journalView, promptText, PROMPT_ARTIFACT } from './view-debug';
@@ -165,6 +166,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let catalog: PagesModel['catalog'] = IDLE;
   let diagnostics: PagesModel['diagnostics'] = IDLE;
   let accounts: Slot<readonly SeenAccount[]> = IDLE;
+  /** R20 P14b1: what each site's background told «Аккаунты» (the options page reads it). */
+  let siteAccounts = new Map<HostKind, Slot<SiteAccountsFacts | null>>();
   let bindings = new Map<HostAccountKey, BindingSlot>();
   /** What the bindings on screen were resolved for (the sign-in, the hub config, the accounts): unchanged — not asked again. */
   let bindingsKey: string | null = null;
@@ -304,6 +307,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       catalog,
       diagnostics,
       accounts,
+      siteAccounts,
       bindings,
       quotas,
       ops,
@@ -486,6 +490,26 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       },
     );
 
+  /** R20 P14b1: the sites that tell «Аккаунты» more than their tabs' reports (sessions, tabs without an account); the options page only. */
+  const loadSiteAccounts = (): Promise<unknown> =>
+    env.page !== 'options'
+      ? Promise.resolve()
+      : Promise.all(
+          (ports.siteAccounts ?? []).map((site) =>
+            read(
+              `site-accounts:${site.host}`,
+              () => siteAccounts.get(site.host) ?? IDLE,
+              (slot) => {
+                siteAccounts = new Map(siteAccounts).set(site.host, slot);
+              },
+              () => site.read().catch((error: unknown): PageAnswer<SiteAccountsFacts | null> => {
+                report(`pages.site.${site.host}`, 'CG-RUNTIME-UNREACHABLE', error);
+                return { ok: false, error: UNREACHABLE };
+              }),
+            ),
+          ),
+        );
+
   const loadOps = (): Promise<unknown> =>
     read(
       'ops',
@@ -509,8 +533,11 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   async function loadBindings(force: boolean): Promise<void> {
     if (valueOf(session) === null) return;
     const generation = sessionGeneration;
-    const seen = valueOf(accounts) ?? [];
-    const key = [String(generation), String(valueOf(bootstrap)?.configRevision ?? '?'), ...seen.map((entry) => accountKeyOf(entry.account)).sort()].join('|');
+    // The reported accounts and the sites' sessions none of them names (R20 P14b1): a session-only account binds too —
+    // once its platform's id is known; before that there is nothing to bind it by, and it is not a problem of «Аккаунты».
+    const reported = new Set((valueOf(accounts) ?? []).map((entry) => accountKeyOf(entry.account)));
+    const seen = knownAccounts(model()).filter((entry) => entry.account.platformAccountId !== null || reported.has(accountKeyOf(entry.account)));
+    const key = [String(generation), String(valueOf(bootstrap)?.configRevision ?? '?'), ...seen.map((entry) => `${accountKeyOf(entry.account)}>${entry.account.platformAccountId ?? '?'}`).sort()].join('|');
     // An answer that was a passing failure (the background not reached) is asked again; a binding the hub does not have is an answer.
     const answered = [...bindings.values()].every((slot) => slot.ok || slot.error.code.startsWith('CG-BINDING-'));
     if (!force && key === bindingsKey && answered) return;
@@ -596,6 +623,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     await Promise.all([
       loadDiagnostics(),
       loadAccounts(),
+      loadSiteAccounts(),
       env.page === 'options' ? loadOps() : Promise.resolve(),
       checkAccess(),
       signedIn
@@ -826,6 +854,13 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     return HOST_ACCOUNT_KEY_PATTERN.test(handle) ? (handle as HostAccountKey) : null;
   }
 
+  /** The keys of an account's other ids (R20 P14b1, ST-079): its site's sessions name them. */
+  function aliasKeysOf(key: HostAccountKey): HostAccountKey[] {
+    const [host, hostAccountId] = key.split(':');
+    if (!isHostKind(host) || hostAccountId === undefined) return [];
+    return aliasesOf(model(), host, hostAccountId).map((alias) => hostAccountKeyOf(host, alias));
+  }
+
   async function doSignIn(action: UiActionOf<'SignIn'>): Promise<ActionReceipt> {
     // One sign-in at a time (AU-009): a second submit while the first is on its way sends nothing.
     if (signIn.busy) return done('SignIn', { outcome: 'noop' });
@@ -913,6 +948,13 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       const key = accountKeyOfHandle(to.accountHandle);
       const [host, hostAccountId] = (key ?? '').split(':');
       if (key === null || !isHostKind(host) || hostAccountId === undefined) return code('Navigate', 'CG-NAV-FAILED');
+      // A site with its own way to a tab of an account (R20 P14b1, ST-076): its tab to the front, no command sent to it.
+      const site = ports.siteAccounts?.find((entry) => entry.host === host);
+      if (site !== undefined) {
+        const answer = await site.focus(hostAccountId).catch((): PageAnswer<boolean> => ({ ok: false, error: UNREACHABLE }));
+        if (!answer.ok) return fail('Navigate', answer.error);
+        return answer.payload ? done('Navigate', { outcome: 'opened' }) : code('Navigate', 'CG-HOST-NOT-READY');
+      }
       return tabCommand('Navigate', { kind: 'account', host, hostAccountId });
     }
     if (to.kind === 'journal') {
@@ -992,14 +1034,18 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       const key = accountKeyOfHandle(action.accountHandle);
       if (key === null) return code('SetAccountLabel', 'CG-UNKNOWN', 'not an account');
       const label = action.label === null ? '' : action.label.trim();
-      return write('SetAccountLabel', { accounts: { labels: { [key]: label === '' ? null : label } } }, 'debounced');
+      // The account's own id carries it; one an alias carried goes (ST-079: the canonical id wins).
+      const cleared = Object.fromEntries(aliasKeysOf(key).map((alias) => [alias, null]));
+      return write('SetAccountLabel', { accounts: { labels: { ...cleared, [key]: label === '' ? null : label } } }, 'debounced');
     }
     if (action.type === 'SetAccountMuted') {
       const key = accountKeyOfHandle(action.accountHandle);
       const effective = effectiveSettings();
       if (key === null || effective === null) return code('SetAccountMuted', 'CG-UNKNOWN', 'not an account');
-      const muted = effective.sound.mutedAccounts.filter((entry) => entry !== key);
-      return write('SetAccountMuted', { sound: { mutedAccounts: action.muted ? [...muted, key] : muted } }, 'now');
+      // The model's sound is one switch for all its ids (ST-075, ST-079): whichever id a sound names, it stays quiet.
+      const ids = [key, ...aliasKeysOf(key)];
+      const muted = effective.sound.mutedAccounts.filter((entry) => !ids.includes(entry));
+      return write('SetAccountMuted', { sound: { mutedAccounts: action.muted ? [...muted, ...ids] : muted } }, 'now');
     }
     if (action.type === 'ChoosePersona') {
       const pageId = pageIdOfHandle(action.pageHandle);

@@ -30,6 +30,7 @@ import type { Bootstrap, HubFacade, HubRouteKey, ResolveHubError } from '@cg/con
 import type { PartRef } from '@cg/contracts/ids';
 import type { OpView } from '@cg/contracts/ops';
 import type { FreshnessCheckpoint, SendFuseState, SendJournalEntry } from '@cg/contracts/send';
+import type { SettingsExtPatch, SettingsExtState } from '@cg/contracts/settings-ext';
 import type { TabPayloadCheck, TabRequestPayload, TabRequestType } from '@cg/contracts/tab-messages';
 import type { ExtensionPage, TabSender } from '@cg/contracts/tab-protocol';
 import type { AcceptanceEvent } from '@cg/contracts/telemetry';
@@ -130,10 +131,14 @@ export interface NativeSendPort {
   register(view: OpView | null, part: PartRef, platformMessageId: string): Promise<NativeSendOutcome>;
 }
 
-/** Who sent a request of a site's own registry: a tab of the site, or the relay frame of a tab session (platform `SiteSenderContext`). */
+/**
+ * Who sent a request of a site's own registry: a tab of the site, the relay frame of a tab session, or (R20 P14b1) one
+ * of our pages, which the core routes to the site while it is on (platform `SiteSenderContext`).
+ */
 export type HostSiteSender =
   | { readonly kind: 'tab'; readonly host: HostKind; readonly tabSessionId: string; readonly tabId: number; readonly url: string }
-  | { readonly kind: 'relay'; readonly host: HostKind; readonly tabSessionId: string; readonly tabId: number; readonly frameId: number; readonly url: string };
+  | { readonly kind: 'relay'; readonly host: HostKind; readonly tabSessionId: string; readonly tabId: number; readonly frameId: number; readonly url: string }
+  | { readonly kind: 'page'; readonly host: HostKind; readonly page: ExtensionPage; readonly tabId: number | null; readonly url: string };
 
 /**
  * A site's own tab registry as its module plugs it (1.15.0; R20 P13b; architecture.md §1.6, §3.3, §12; platform
@@ -158,6 +163,36 @@ export interface SitePort {
   plug(registry: HostSiteRegistry): () => void;
 }
 
+/** `settings.ext` as its one owner in the core reads or writes it (core settings-owner `SettingsExtResult`): a failure carries the state as it stands. */
+export type SettingsExtAnswer = { readonly ok: true; readonly state: SettingsExtState } | { readonly ok: false; readonly error: CgErrorWire; readonly state: SettingsExtState };
+
+/**
+ * R20 P14b1: the key `settings.ext` (architecture.md §12), whose one owner is the core's: a site's module reads it and
+ * writes the fields its own pages change — never a second owner of the key.
+ */
+export interface SettingsExtPort {
+  state(): Promise<SettingsExtAnswer>;
+  patch(patch: SettingsExtPatch): Promise<SettingsExtAnswer>;
+}
+
+/** A registered tab document of the module's site: its tab and the accounts its last report named (presence). */
+export interface SiteTabRegistration {
+  readonly tabSessionId: string;
+  readonly tabId: number;
+  /** Host account ids of the site (not keys), as the tab's last `tab.presence` listed them; empty — not said yet. */
+  readonly accounts: readonly string[];
+}
+
+/** R20 P14b1: the module's site's tabs as the core knows them, without the `tabs` right (architecture.md §4). */
+export interface SiteTabsPort {
+  /** The site's tabs open in the browser, found by its granted addresses; null — the browser did not answer. */
+  open(): Promise<readonly number[] | null>;
+  /** The site's registered tab documents now. */
+  registered(): readonly SiteTabRegistration[];
+  /** The tab to the front of its window and the window forward; false — the browser refused (the tab is gone). */
+  focus(tabId: number): Promise<boolean>;
+}
+
 /** The ports of the core a site's module is started with. */
 export interface BackgroundKit {
   /** The one arbiter; waits for this registered tab's first account report. */
@@ -167,6 +202,10 @@ export interface BackgroundKit {
   readonly site?: SitePort;
   /** Passive session/429 state, owned and restored by the core. No site transport here. */
   readonly networkSession?: NetworkSession;
+  /** R20 P14b1: the key `settings.ext`, through its owner in the core. */
+  readonly settingsExt?: SettingsExtPort;
+  /** R20 P14b1: the site's tabs — open by its addresses, registered, brought to the front. */
+  readonly siteTabs?: SiteTabsPort;
   readonly hub: HubPort;
   readonly storage: StoragePort;
   readonly clock: Clock;

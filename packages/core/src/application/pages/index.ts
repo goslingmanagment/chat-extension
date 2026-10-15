@@ -22,8 +22,11 @@ export {
   type PageRequestType,
   type PageRpc,
   type PageSite,
+  type PageSiteAccounts,
   type PageTimers,
   type PageWindow,
+  type SiteAccountsFacts,
+  type SiteSessionFact,
 } from './ports';
 export { DEFAULT_SECTION, hashOfRoute, routeOfHash, sectionOfCode } from './route';
 export { AUTOSAVE_DEBOUNCE_MS, SettingsWriter, mergeSettingsPatch, ridesAlong, settingsWithPending, type SaveStatus, type SettingsWriterDeps, type WriteMode, type WriteOutcome } from './settings-writer';

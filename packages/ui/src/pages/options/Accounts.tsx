@@ -1,8 +1,11 @@
-// «Аккаунты» (architecture.md §9.9; ST-067…ST-078): the OnlyMonster accounts
-// this browser has seen, in three groups — at work now, seen before, never
-// opened here. A local label of up to 60 characters, the hub page and its
-// persona, the sound of the model, and «к вкладке»: ChatSpace's own router
-// opens the account, by this click only (Б13).
+// «Аккаунты» (architecture.md §9.9; ST-067…ST-078): the host accounts this
+// browser has seen, in three groups — at work now, seen before, never opened
+// here. A local label of up to 60 characters, the hub page and its persona,
+// the sound of the model, and «к вкладке»: ChatSpace's own router opens the
+// account, by this click only (Б13). R20 P14b1: a site's own card stands above
+// the groups (Fansly's: switching it on, its tabs, ST-077), and its models are
+// rows of the same groups — by its tabs' reports and its live sessions, their
+// legacy ids folded into the creator's (ST-079), «к вкладке» its own way.
 
 import { type JSX } from 'preact';
 
@@ -11,6 +14,7 @@ import { type AccountsBodyVM } from '@cg/contracts/vm';
 import { ActionButton, Button, Checkbox, useI18n } from '../../kit';
 import { PageTag, useAct } from '../shared';
 import { Field } from './controls';
+import { Slot } from './slots';
 
 type Row = AccountsBodyVM['rows'][number];
 
@@ -26,7 +30,7 @@ function AccountRow({ row, readOnly }: { readonly row: Row; readonly readOnly: b
   const locked = readOnly ? i18n.t('cg.storageVersion.title') : null;
   const hosted = row.status !== 'no-sessions';
   return (
-    <div class="pg-acc" data-pg-account={row.accountHandle}>
+    <div class="pg-acc" data-pg-account={row.accountHandle} {...(row.aliases === undefined || row.aliases.length === 0 ? {} : { 'data-pg-aliases': row.aliases.join(' ') })}>
       <div class="pg-acc__head">
         <b>{row.title}</b>
         {row.username === null || row.title.includes(row.username) ? null : <span class="pg-muted">@{row.username.replace(/^@/, '')}</span>}
@@ -88,11 +92,18 @@ export function AccountsSection({ body, readOnly }: { readonly body: AccountsBod
   const i18n = useI18n();
   const hosted = body.rows.filter((row) => row.status !== 'no-sessions');
   const live = hosted.filter((row) => row.status === 'working').length;
-  if (body.rows.length === 0) return <p class="pg-note">{i18n.t('settings.accounts.empty')}</p>;
+  if (body.rows.length === 0)
+    return (
+      <>
+        <Slot name="accounts" />
+        <p class="pg-note">{i18n.t('settings.accounts.empty')}</p>
+      </>
+    );
   return (
     <>
+      <Slot name="accounts" />
       <p class="pg-note pg-intro">
-        {i18n.t('settings.accounts.count', { live, total: hosted.length })} · {i18n.t('settings.accounts.workingHint')} {i18n.t('settings.accounts.labelHint')}.
+        {i18n.t('settings.accounts.count', { live, total: hosted.length })} · {i18n.t('settings.accounts.workingHint', body.phrases)} {i18n.t('settings.accounts.labelHint')}.
       </p>
       {GROUPS.map(([status, key]) => {
         const rows = body.rows.filter((row) => row.status === status);

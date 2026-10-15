@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FANSLY_TAB_REQUEST_FIXTURES } from '@cg/contracts/fixtures';
 import { fanslyEventTargets, isFanslyTabEventType, isFanslyTabRequestType, mayRequestFansly, parseFanslyTabPayload, FANSLY_TAB_TYPE_PREFIX } from '@cg/contracts/tab-messages-fansly';
 
-import { createBackgroundRpc, type BackgroundRpc, type SiteRpc, type SiteSenderContext } from './rpc-background';
+import { createBackgroundRpc, type BackgroundRpc, type PageSiteRoute, type SiteRpc, type SiteSenderContext } from './rpc-background';
 import { eventEnvelope, requestEnvelope, verifyPageSender, verifyRelaySender, verifyTabSender, urlMatchesPattern } from './rpc-common';
 import { createPageRpcClient } from './rpc-page';
 import { createTabRpcClient, type TabRpcClient } from './rpc-tab';
@@ -721,7 +721,7 @@ interface SiteWorld {
   readonly rejects: string[];
 }
 
-function siteWorld(): SiteWorld {
+function siteWorld(pageSite?: PageSiteRoute): SiteWorld {
   const fake = createFakeBrowser();
   const rejects: string[] = [];
   let sessions = 0;
@@ -730,6 +730,7 @@ function siteWorld(): SiteWorld {
     tabHosts: TAB_HOSTS,
     relayPages: RELAY_PAGES,
     siteWaitMs: 40,
+    ...(pageSite === undefined ? {} : { pageSite }),
     ready: Promise.resolve(),
     contractsVersion: CONTRACTS_VERSION,
     testBuild: true,
@@ -836,6 +837,48 @@ describe('[EX-015] [NF-027] a site’s own registry and the host rules (fansly-w
     await flush(30);
     expect(tab.answers).toHaveLength(1);
     expect(w.rejects).toEqual(['unknown-type:fansly.notes.read:tab']);
+  });
+
+  it('R20 P14b1: a page reaches a site’s registry through `pageSite` — the page’s types only, the site opened first; off — CG-RUNTIME-UNREACHABLE at once', async () => {
+    const opened: string[] = [];
+    let on = true;
+    const w = siteWorld({
+      hostOf: (type) => (type.startsWith(FANSLY_TAB_TYPE_PREFIX) ? 'fansly-web' : null),
+      open: (host) => {
+        opened.push(host);
+        return Promise.resolve(on);
+      },
+    });
+    const handled: { type: string; sender: SiteSenderContext }[] = [];
+    w.rpc.site(fanslySite(handled));
+    const validate = (kind: 'req' | 'res' | 'evt', type: string, payload: unknown) => (isFanslyTabRequestType(type) ? parseFanslyTabPayload(kind, type, payload) : parseTabPayload(kind, type, payload));
+    const options = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'options')).api, validate, requestTimeoutMs: 100 });
+    expect(await options.request('fansly.accounts.read' as never, {} as never)).toEqual({ ok: true, payload: FANSLY_TAB_REQUEST_FIXTURES['fansly.accounts.read'].res.valid[0] });
+    expect(handled).toEqual([{ type: 'fansly.accounts.read', sender: { kind: 'page', host: 'fansly-web', page: 'options', tabId: null, url: `${w.fake.base}options.html` } }]);
+    expect(opened).toEqual(['fansly-web']);
+    // A tab's type from a page, the settings page's type from the popup, a type of no site: refused without an answer.
+    expect((await options.request('fansly.notes.read' as never, notesRead as never)).ok).toBe(false);
+    const popup = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'popup')).api, validate, requestTimeoutMs: 100 });
+    expect((await popup.request('fansly.accounts.read' as never, {} as never)).ok).toBe(false);
+    expect((await options.request('nope.nope' as never, {} as never)).ok).toBe(false);
+    expect(handled).toHaveLength(1);
+    // The site is off: answered at once, its module never asked.
+    on = false;
+    expect(await options.request('fansly.accounts.read' as never, {} as never)).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'site off' } });
+    expect(handled).toHaveLength(1);
+    expect(w.rejects.sort()).toEqual(['sender-kind:fansly.accounts.read:page', 'sender-kind:fansly.notes.read:page', 'unknown-type:nope.nope:page'].sort());
+  });
+
+  it('R20 P14b1: a page’s request waits for the module the site opened; none plugs — CG-RUNTIME-UNREACHABLE, not silence', async () => {
+    const w = siteWorld({ hostOf: () => 'fansly-web', open: () => Promise.resolve(true) });
+    const options = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'options')).api, validate: parseFanslyTabPayload, requestTimeoutMs: 200 });
+    expect(await options.request('fansly.accounts.read' as never, {} as never)).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'site not running' } });
+    const handled: { type: string; sender: SiteSenderContext }[] = [];
+    const answer = options.request('fansly.settings.read' as never, {} as never);
+    await flush(10);
+    w.rpc.site(fanslySite(handled));
+    expect((await answer).ok).toBe(true);
+    expect(handled.map((entry) => entry.type)).toEqual(['fansly.settings.read']);
   });
 
   it('a site’s answer is checked against its schema, and a throwing handler is an error answer', async () => {

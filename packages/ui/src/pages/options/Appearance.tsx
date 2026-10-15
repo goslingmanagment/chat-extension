@@ -12,6 +12,7 @@ import { type AppearanceBodyVM } from '@cg/contracts/vm';
 import { Button, Checkbox, Dot, Segmented, useI18n } from '../../kit';
 import { Card, Opt, useAct, withLink } from '../shared';
 import { Picker, Slider, StyleChoice, ThemeChoice } from './controls';
+import { Slot } from './slots';
 
 const THEME_KEYS: Readonly<Record<UiTheme, I18nKey>> = {
   host: 'settings.appearance.theme.host',
@@ -165,6 +166,8 @@ export function AppearanceSection({ body, readOnly }: { readonly body: Appearanc
       <Card title={i18n.t('settings.appearance.sounds')}>
         <SoundRow which="messages" label={i18n.t('settings.appearance.soundMessage')} hint={i18n.t('settings.appearance.soundMessageHint')} body={body} locked={locked} />
         <SoundRow which="subscribers" label={i18n.t('settings.appearance.soundSubscriber')} hint={i18n.t('settings.appearance.soundSubscriberHint')} body={body} locked={locked} />
+        {/* A site's own tones (R20 P14b1): Fansly's messages and subscribers, as its old extension rang them. */}
+        <Slot name="appearanceSound" />
         <Opt label={i18n.t('settings.appearance.volume')} hint={i18n.t('settings.appearance.volumeHint')} center>
           <Slider
             label={i18n.t('settings.appearance.volume')}

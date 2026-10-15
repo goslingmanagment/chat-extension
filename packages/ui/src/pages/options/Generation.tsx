@@ -13,6 +13,7 @@ import { type GenerationBodyVM, type PreferenceKey, type UiAction } from '@cg/co
 import { Checkbox, Segmented, useI18n } from '../../kit';
 import { Card, Columns, Opt, useAct } from '../shared';
 import { Stepper } from './controls';
+import { Slot } from './slots';
 
 type WindowKey = Extract<PreferenceKey, `generation.windows.${string}`>;
 
@@ -57,6 +58,8 @@ export function GenerationSection({ body, readOnly }: { readonly body: Generatio
               ) : null}
             </Opt>
           ))}
+          {/* A site's own window (R20 P14b1): Fansly's Recap depth above 3000, when the hub takes more. */}
+          <Slot name="generationWindows" />
 
           <Opt label={i18n.t('settings.generation.splitDefault')} hint={i18n.t('settings.generation.splitHint')}>
             <Checkbox

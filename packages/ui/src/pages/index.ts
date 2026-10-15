@@ -7,6 +7,7 @@
 
 export { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type OptionsPageDeps, type PageDeps } from './pages';
 export { type OptionsRoute } from './options/Options';
+export { type OptionsSlots } from './options/slots';
 export { JOURNAL_PAGE_SIZE, JOURNAL_REFRESH_MS } from './debug/Journal';
 export { PAGES_CSS, PAGES_SOURCE } from './styles';
 export { FONTS_SOURCE } from './brand/fonts';

@@ -6,6 +6,11 @@ import { FANSLY_STAND_MATCHES } from '../hosts/runtime';
 export const OPTIONAL_HOST = 'fansly-web' as const;
 export const SESSION_KEY = 'fansly.session';
 export const RELOAD_KEY = 'fansly.waitingReload';
+/**
+ * The prefix of the site's own request types (contracts tab-messages-fansly.ts `FANSLY_TAB_TYPE_PREFIX`, pinned by
+ * test/wiring-fansly.test.ts): a page's request of such a type goes to the site's module (R20 P14b1).
+ */
+export const SITE_TYPE_PREFIX = 'fansly.';
 export const siteMatches = (): string[] => __CG_TEST_HOSTS__ ? [...FANSLY_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES];
 export const permissionSet = () => ({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], permissions: ['webRequest'] });
 export const apiMatches = (): string[] => __CG_TEST_HOSTS__ ? [...FANSLY_API_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_API_MATCHES];

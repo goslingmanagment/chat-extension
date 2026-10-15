@@ -22,6 +22,7 @@ import { DiagnosticsSection } from './Diagnostics';
 import { GenerationSection } from './Generation';
 import { HotkeysSection } from './Hotkeys';
 import { PersonasSection } from './Personas';
+import { OptionsSlotsProvider, Slot, type OptionsSlots } from './slots';
 import { StatusSection, statusLead } from './Status';
 
 /** Where the page is: the section, the code of a deep link, and a counter that grows on every hash change. */
@@ -138,6 +139,8 @@ function Checklist({ checklist }: { readonly checklist: NonNullable<OptionsVM['c
           </li>
         ))}
       </ol>
+      {/* A site's own steps (R20 P14b1, ST-012): Fansly's three, under the eight. */}
+      <Slot name="checklist" />
     </section>
   );
 }
@@ -239,9 +242,19 @@ export interface OptionsProps {
   readonly location: ValueSignal<OptionsRoute>;
   /** The page of the site that helps with the sign-in (ST-050). */
   readonly helpUrl?: string | null;
+  /** R20 P14b1: a site's own parts of the shared sections (Fansly's card, rows and steps); none — the page as it was. */
+  readonly slots?: OptionsSlots;
 }
 
-export function Options({ location, helpUrl = null }: OptionsProps): JSX.Element {
+export function Options({ location, helpUrl = null, slots }: OptionsProps): JSX.Element {
+  return (
+    <OptionsSlotsProvider value={slots ?? {}}>
+      <OptionsPage location={location} helpUrl={helpUrl} />
+    </OptionsSlotsProvider>
+  );
+}
+
+function OptionsPage({ location, helpUrl }: { readonly location: ValueSignal<OptionsRoute>; readonly helpUrl: string | null }): JSX.Element {
   const route = useValueSignal(location).value;
   const vm: OptionsVM = useView({ of: 'options', section: route.section }).value;
   const i18n = useI18n();
@@ -283,7 +296,8 @@ export function Options({ location, helpUrl = null }: OptionsProps): JSX.Element
   }
 
   const title = i18n.text(vm.nav.find((item) => item.section === vm.section)?.label ?? { key: 'settings.label' });
-  const lead = vm.section === 'status' ? statusLead(i18n, vm.body) : i18n.t(LEADS[vm.section]);
+  // «Аккаунты» of more than one site name them all (R20 P14b1): «Аккаунты OnlyMonster и Fansly…».
+  const lead = vm.section === 'status' ? statusLead(i18n, vm.body) : i18n.t(LEADS[vm.section], vm.section === 'accounts' ? vm.body?.phrases : undefined);
   return (
     <div class="pg-page" data-pg-section={vm.section}>
       <Nav vm={vm} onGo={go} />

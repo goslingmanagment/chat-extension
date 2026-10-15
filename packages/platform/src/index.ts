@@ -51,6 +51,7 @@ export {
   type BackgroundRpc,
   type BackgroundRpcOptions,
   type HandledRequestType,
+  type PageSiteRoute,
   type RpcSenderContext,
   type SiteRpc,
   type SiteSenderContext,
