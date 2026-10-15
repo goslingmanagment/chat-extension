@@ -34,8 +34,9 @@
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
-//   keeps only the album the page loaded last, forgotten with every change of
-//   address.
+//   keeps only the album of the load the page STARTED last (MAIN's observation
+//   number — a late answer of an earlier load is not it), forgotten with every
+//   change of address and every loss of MAIN's facts, which it says.
 //
 // Before MAIN's first state the port knows only the address; without MAIN at
 // all it still answers, and its report says CG-HOST-NOT-READY.
@@ -91,9 +92,11 @@ export type FanslyVaultFact = Extract<FromMainFansly, { readonly t: 'fx.vaultAdd
 
 /** What the uploader (isolated/vault) reads of the stream. */
 export interface FanslyVaultFacts {
-  /** The album the page loaded last on this address; null — none since the address changed. */
+  /** The album of the load the page started last on this address; null — none since the address changed or a loss. */
   album(): Extract<FanslyVaultFact, { readonly t: 'fx.vaultLoaded' }>['p'] | null;
   onFact(cb: (fact: FanslyVaultFact) => void): Unsubscribe;
+  /** MAIN's facts were lost (`fx.gap`, a refused or skipped batch): what the page did meanwhile is not known. */
+  onLost(cb: () => void): Unsubscribe;
 }
 
 export interface FanslyPort extends FanslyHostPort {
@@ -230,6 +233,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
 
   let vaultLoad: ReturnType<FanslyVaultFacts['album']> = null;
   const vaultListeners = new Set<(fact: FanslyVaultFact) => void>();
+  const vaultLosses = new Set<() => void>();
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
   const slotListeners = new Set<(slot: FanslyHeaderSlot) => void>();
@@ -423,7 +427,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // The vault's facts go to the uploader, if one listens (§7.11, P13a).
       case 'fx.vaultLoaded':
       case 'fx.vaultAdded':
-        if (event.t === 'fx.vaultLoaded') vaultLoad = event.p;
+        if (event.t === 'fx.vaultLoaded' && (vaultLoad === null || event.p.seq > vaultLoad.seq)) vaultLoad = event.p;
         for (const listener of [...vaultListeners]) listener(event);
         return;
       // The stream's other facts — new messages, follows, coverage, deletions, sends — are taken by the work packages
@@ -450,6 +454,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
               // Every chat unknown until the next state (FS-TAIL-5): the window the tab holds says so at once — and a
               // proven start no longer stands, its unbroken observation is broken.
               if (chatWire !== null) setChat({ ...chatWire, window: { ...chatWire.window, completeness: 'unknown', startProven: false } });
+              // Which album the page loaded meanwhile is not known either.
+              vaultLoad = null;
+              for (const listener of [...vaultLosses]) listener();
             },
             fault(source, count) {
               // MAIN says a site's count at 1, 2, 4, 8…: one is logged when it at least doubled the last.
@@ -604,6 +611,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     contractListeners.clear();
     slotListeners.clear();
     vaultListeners.clear();
+    vaultLosses.clear();
   };
   const retire = (): void => {
     generation.advance();
@@ -673,6 +681,12 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         vaultListeners.add(cb);
         return () => {
           vaultListeners.delete(cb);
+        };
+      },
+      onLost(cb): Unsubscribe {
+        vaultLosses.add(cb);
+        return () => {
+          vaultLosses.delete(cb);
         };
       },
     },

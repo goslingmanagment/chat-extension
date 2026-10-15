@@ -50,6 +50,13 @@ const refOf = (file: VaultFileRef): VaultFileRef => ({ name: file.name, size: fi
 export const sameVaultFiles = (a: readonly VaultFileRef[], b: readonly VaultFileRef[]): boolean =>
   a.length === b.length && a.every((file, i) => file.name === b[i]?.name && file.size === b[i]?.size && file.lastModified === b[i]?.lastModified);
 
+/** The names of the files that share a card key with another one (dom.ts `vaultMediaKey`), in their order; empty — none. */
+export function vaultDuplicateKeys(files: readonly { readonly name: string }[]): string[] {
+  const counts = new Map<string, number>();
+  for (const file of files) counts.set(vaultMediaKey(file.name), (counts.get(vaultMediaKey(file.name)) ?? 0) + 1);
+  return files.filter((file) => (counts.get(vaultMediaKey(file.name)) ?? 0) > 1).map((file) => file.name);
+}
+
 /** What stands for an album when a run is about to begin. */
 export type VaultResume =
   /** Nothing to continue (none, or a forgotten one that was cleared). */
@@ -148,6 +155,10 @@ export function createVaultRun(init: VaultRunInit, deps: VaultRunDeps, onChange:
   const { uploader, store } = deps;
   const now = deps.now ?? (() => Date.now());
   if (files.length === 0 || files.length > VAULT_FILES_MAX) throw new RangeError(`a vault run takes 1–${VAULT_FILES_MAX} files`);
+  // The album tells its cards apart by the key alone: two files of one key, and the second would read as «in the
+  // album» and never go (the old plan builder refused them too).
+  const twins = vaultDuplicateKeys(files);
+  if (twins.length > 0) throw new RangeError(`files of one card key in a vault run: ${twins.join(', ')}`);
   const refs = files.map(refOf);
   const resumed = init.checkpoint;
   if (resumed !== null && (resumed.hostAccountId !== target.hostAccountId || resumed.albumId !== target.albumId || !sameVaultFiles(resumed.files, refs))) {
@@ -206,6 +217,9 @@ export function createVaultRun(init: VaultRunInit, deps: VaultRunDeps, onChange:
       return !stoppedNow();
     }
     if (view.uploader !== 'ready') return halt({ kind: view.uploader === 'busy' ? 'uploader-busy' : 'uploader-missing' });
+    // The page as the run saw it now: the handoff after the write takes nothing if it moved meanwhile (P7c's
+    // discipline — an answer is taken only in the generation it was asked in).
+    const ticket = uploader.ticket();
 
     // On disk before the page sees the file: a reload in between is exactly what it is for.
     pending = { index, passedAt: now() };
@@ -224,7 +238,7 @@ export function createVaultRun(init: VaultRunInit, deps: VaultRunDeps, onChange:
     abort = new AbortController();
     emit();
     // The step looks at the page again before it hands anything over: what changed during the write is a refusal.
-    const outcome = await uploader.upload(file, target, abort.signal);
+    const outcome = await uploader.upload(file, target, { signal: abort.signal, ticket });
     switch (outcome.state) {
       case 'refused':
         statuses[index] = 'pending';

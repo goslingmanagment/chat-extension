@@ -18,12 +18,15 @@ import { useNetworkTrap } from '../support/network-trap';
 /** The fake Fansly's first album (src/fake-fansly/data.ts). */
 const ALBUM = '807000000000000021';
 const ALBUM_TITLE = 'Stand album';
+const OTHER_ALBUM = '807000000000000022';
+const OTHER_ALBUM_TITLE = 'Stand album 2';
 
 interface VaultView {
   readonly route: boolean;
   readonly hostAccountId: string | null;
   readonly albumId: string | null;
   readonly title: string | null;
+  readonly loading: boolean;
   readonly uploader: 'ready' | 'busy' | 'missing';
   readonly cards: readonly string[];
 }
@@ -86,13 +89,13 @@ describe('the vault uploader on the Fansly stand: files into the open album, con
 
       // AU-036: the account is the creator of the page's own /account/me; the album, the id the page loaded it by.
       const opened = await openAlbum();
-      expect(opened).toEqual({ route: true, hostAccountId: ids.creator, albumId: ALBUM, title: ALBUM_TITLE, uploader: 'ready', cards: [] });
+      expect(opened).toEqual({ route: true, hostAccountId: ids.creator, albumId: ALBUM, title: ALBUM_TITLE, loading: false, uploader: 'ready', cards: [] });
       expect((await state()).album).toMatchObject({ albumId: ALBUM });
       // FS-VLT-2: nothing watched before a file is in flight.
       expect((await state()).stats).toEqual({ watching: false, watches: 0, mutations: 0 });
 
       const names = [`p13a-${mode}-1.jpg`, `p13a-${mode}-2.JPG`];
-      expect(await tap('vaultStart', names)).toEqual({ started: true, target: { hostAccountId: ids.creator, albumId: ALBUM } });
+      expect(await tap('vaultStart', names)).toEqual({ started: true, target: { hostAccountId: ids.creator, albumId: ALBUM, title: ALBUM_TITLE } });
       const done = await waitForTap(state, (s) => s.run?.state === 'complete' || s.run?.state === 'stopped', 'the run’s end', 30_000);
       expect(done.run).toMatchObject({ state: 'complete', confirmed: 2, stop: null, code: null });
       expect(done.run?.items.map((item) => item.status)).toEqual(['verified', 'verified']);
@@ -122,6 +125,13 @@ describe('the vault uploader on the Fansly stand: files into the open album, con
       expect((await state()).checkpoints.at(-1)).toEqual([0, null]);
       expect((await fakeFansly().calls('page', before)).filter((entry) => entry.route === 'media.create' || entry.route === 'vault.addMedia')).toEqual([]);
       expect((await state()).stats.watching).toBe(false);
+
+      // Another album: the uploader takes it for the album shown only once that album's own load is in (review P13a).
+      // The back bubble is an icon only (no icon font on the stand): its click, as the page's handler takes it.
+      await browser.execute(() => document.querySelector<HTMLElement>('app-media-vault-route [data-menu-item="vault-album-back"]')?.click());
+      await browser.$('app-media-vault-route .vault-albums > .vault-album:nth-child(2)').click();
+      const other = await waitForTap(view, (v) => v.albumId === OTHER_ALBUM, 'the other album bound to its own load');
+      expect(other).toMatchObject({ title: OTHER_ALBUM_TITLE, loading: false });
     });
   }
 });

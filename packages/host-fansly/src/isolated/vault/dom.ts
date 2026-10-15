@@ -10,7 +10,13 @@
 //       … div.proccessing-templates                                 files being processed (main:11752)
 //       … app-account-media-create-template                         a file uploading (main:11758)
 //       input[type=file]                                            the page's own input, one `change` (main:11941)
-//     div.vault-wrapper … div.vault-row … div.image-filename         a card: its file name (main:12393, :12438)
+//     div.vault-wrapper > div.vault-content                          the album's media, made anew by every load that
+//                                                                    answers (`*ngIf="!loadingVault"`, main:12443);
+//       … div.flex-row.flex-center                                  its spinner instead while a load is on the way
+//                                                                    (`*ngIf="loadingVault"`, main:12370, :12703)
+//       … div.render-container                                      a card: its date, its file name
+//         … div.image-filename                                      (main:12393, :12438); «Processing» on a medium
+//                                                                    Fansly is still making ready (the old extension)
 //
 // The same `app-media-vault` stands in the chat's «From Vault» modal: only the route's one counts. The album's id is
 // not on the page at all — MAIN names it from the address the page loads the album with (`fx.vaultLoaded`).
@@ -26,11 +32,16 @@ export const VAULT_SELECTORS = {
   uploader: 'app-media-upload-input',
   input: 'input[type=file]',
   busy: '.proccessing-templates, app-account-media-create-template',
-  card: '.vault-row .image-filename',
+  list: '.vault-wrapper > .vault-content',
+  spinner: ':scope > .flex-center',
+  card: '.vault-row .render-container',
+  name: '.image-filename',
 } as const;
 
 /** Fansly's own failure words on an upload it gave up (the old extension's, live-seen); nothing landed then. */
 const FAILURE = /\b(?:failed|error|retry)\b/i;
+/** A card of a medium Fansly is not done with (the old extension's, live-seen): not ready, whatever its name says. */
+const UNSETTLED = /verifying|processing|uploading|failed|error|\d+(?:\.\d+)?%/i;
 /** The extensions Fansly rewrites on its cards (`IMG_1.JPG` → `IMG_1.jpeg`): a match never takes part of them. */
 const MEDIA_EXTENSION = /\.(?:jpe?g|png|gif|webp|mp4|mov|m4v|webm|mp3|m4a)$/i;
 
@@ -58,17 +69,36 @@ export interface VaultPage {
   readonly busy: boolean;
   /** The uploader shows Fansly's failure words. */
   readonly failed: boolean;
+  /**
+   * The album's list as the page shows it now — a new element for every load that answered; its spinner while one
+   * is on the way (`loading`). null — no list.
+   */
+  readonly list: Element | null;
+  readonly loading: boolean;
   /** The album's cards, in the page's order (the newest upload first), as keys. */
   readonly cards: readonly string[];
+  /** The cards Fansly is done with: no «Processing», no failure on them. */
+  readonly settled: readonly string[];
 }
 
 const text = (element: Element | null): string => element?.textContent?.trim() ?? '';
 
 export function readVaultPage(doc: Document): VaultPage {
   const host = doc.querySelector(VAULT_SELECTORS.host);
-  if (host === null) return { host, albumOpen: false, title: null, input: null, busy: false, failed: false, cards: [] };
+  if (host === null) return { host, albumOpen: false, title: null, input: null, busy: false, failed: false, list: null, loading: false, cards: [], settled: [] };
   const uploader = host.querySelector(VAULT_SELECTORS.uploader);
   const title = text(host.querySelector(VAULT_SELECTORS.title));
+  const list = host.querySelector(VAULT_SELECTORS.list);
+  const cards: string[] = [];
+  const settled: string[] = [];
+  for (const card of host.querySelectorAll(VAULT_SELECTORS.card)) {
+    const name = text(card.querySelector(VAULT_SELECTORS.name));
+    const key = vaultMediaKey(name);
+    if (key === '') continue;
+    cards.push(key);
+    // The card's own words beside its file name — a name may say «processing» itself.
+    if (!UNSETTLED.test(text(card).replace(name, ''))) settled.push(key);
+  }
   return {
     host,
     albumOpen: host.querySelector(VAULT_SELECTORS.header) !== null,
@@ -76,6 +106,9 @@ export function readVaultPage(doc: Document): VaultPage {
     input: uploader === null ? null : uploader.querySelector<HTMLInputElement>(VAULT_SELECTORS.input),
     busy: uploader !== null && uploader.querySelector(VAULT_SELECTORS.busy) !== null,
     failed: uploader !== null && FAILURE.test(text(uploader)),
-    cards: [...host.querySelectorAll(VAULT_SELECTORS.card)].map((card) => vaultMediaKey(text(card))).filter((key) => key !== ''),
+    list,
+    loading: list !== null && list.querySelector(VAULT_SELECTORS.spinner) !== null,
+    cards,
+    settled,
   };
 }

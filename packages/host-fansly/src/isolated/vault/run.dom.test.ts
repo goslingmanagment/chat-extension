@@ -7,7 +7,7 @@ import { FANSLY_TAB_LIMITS, VaultCheckpointSchema, type VaultCheckpoint } from '
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createFakeVaultPage, createFakeVaultPort, type FakeVaultPage, type FakeVaultPort } from '../../testing/fake-vault';
-import { VAULT_CHECKPOINT_TTL_MS, VAULT_FILES_MAX, createVaultRun, findVaultCheckpoint, vaultStopCode, type VaultCheckpointStore, type VaultRunSnapshot } from './run';
+import { VAULT_CHECKPOINT_TTL_MS, VAULT_FILES_MAX, createVaultRun, findVaultCheckpoint, vaultDuplicateKeys, vaultStopCode, type VaultCheckpointStore, type VaultRunSnapshot } from './run';
 import { createVaultUploader, vaultTargetOf, type VaultTarget, type VaultTimer, type VaultUploader } from './upload';
 
 const CREATOR = '700000000000000001';
@@ -93,10 +93,13 @@ let album: string[];
 let pendingAtHandoff: Array<number | null | undefined>;
 let memory: ReturnType<typeof memoryStore>;
 
+/** MAIN's observation numbers: one order for the whole page, as MAIN's. */
+let seqNow = 100;
+const nextSeq = (): number => (seqNow += 1);
+
 /** The page answers the file it just took, a task later, as its fate says. */
 function drive(): void {
   const input = page.host.querySelector<HTMLInputElement>('app-media-upload-input input[type=file]');
-  let seq = 100;
   input?.addEventListener('change', () => {
     pendingAtHandoff.push(memory.row()?.pending?.index ?? null);
     const taken = page.taken.at(-1);
@@ -106,13 +109,12 @@ function drive(): void {
       if (fate === 'fail') return page.failUpload();
       if (fate === 'silent') return;
       page.uploaded();
-      seq += 1;
-      facts.added(seq);
+      facts.added(nextSeq());
       if (fate === 'below') album.push(taken.name);
       else album.unshift(taken.name);
+      page.loading();
       page.cards(album);
-      seq += 1;
-      facts.loaded(ALBUM, seq);
+      facts.loaded(ALBUM, nextSeq());
     }, 0);
   });
 }
@@ -122,6 +124,7 @@ beforeEach(() => {
   page = createFakeVaultPage();
   page.openAlbum('Set 1');
   page.expandUploader();
+  page.cards([]);
   facts = createFakeVaultPort(CREATOR);
   facts.loaded(ALBUM, 1);
   timer = manualTimer();
@@ -233,6 +236,7 @@ describe('[host:fansly] the vault run’s checkpoint (FS-VLT-1)', () => {
     page.taken.splice(0);
     album = [];
     page.cards(album);
+    facts.loaded(ALBUM, nextSeq());
     const reloaded: VaultCheckpoint = { hostAccountId: CREATOR, albumId: ALBUM, uploadId: UPLOAD_ID, files: refs(files), confirmed: 1, pending: { index: 1, passedAt: T0 - 1000 }, updatedAt: T0 - 1000 };
     memory.rows.set(`${CREATOR}:${ALBUM}`, reloaded);
     const again = runOf(files, reloaded);
@@ -251,6 +255,7 @@ describe('[host:fansly] the vault run’s stops and progress (FS-VLT-1)', () => 
   it('[VA-006] progress file by file; a file already in the album is not handed over; a pause stops after the file in flight; a stop with a file in flight leaves it not known', async () => {
     album = ['a.jpg'];
     page.cards(album);
+    facts.loaded(ALBUM, 2);
     const seen: VaultRunSnapshot[] = [];
     const files = [file('a.jpg'), file('b.jpg'), file('c.jpg'), file('d.jpg')];
     const run = runOf(files, null, (snapshot) => seen.push(snapshot));
@@ -305,7 +310,7 @@ describe('[host:fansly] the vault run’s stops and progress (FS-VLT-1)', () => 
   it('[VA-006] the page’s stops between files, nothing handed over: the album closed or another, the uploader collapsed or busy, the route left — each with its code; the run goes on from the same file', async () => {
     const files = [file('a.jpg'), file('b.jpg')];
     const cases: Array<[string, string, () => void, () => void]> = [
-      ['album-closed', 'CG-VAULT-NO-ALBUM', () => page.closeAlbum(), () => (page.openAlbum('Set 1'), page.expandUploader(), drive())],
+      ['album-closed', 'CG-VAULT-NO-ALBUM', () => page.closeAlbum(), () => (page.openAlbum('Set 1'), page.expandUploader(), drive(), page.cards([]), facts.loaded(ALBUM, 3))],
       ['album-changed', 'CG-VAULT-STOPPED', () => facts.loaded(OTHER_ALBUM, 5), () => facts.loaded(ALBUM, 6)],
       ['uploader-missing', 'CG-VAULT-NO-ALBUM', () => page.collapseUploader(), () => (page.expandUploader(), drive())],
       ['uploader-busy', 'CG-VAULT-STOPPED', () => page.host.querySelector('.media-wrapper')?.prepend(document.createElement('app-account-media-create-template')), () => page.uploaded()],
@@ -376,8 +381,11 @@ describe('[host:fansly] the vault run belongs to the tab’s creator (AU-036)', 
   it('[AU-036] no creator from the page — no run; another creator between files stops it before a handoff, and with a file in flight leaves that file not known', async () => {
     facts.creator(null);
     expect(vaultTargetOf(uploader.view())).toBeNull();
+    // The page's creator: another generation of the port — the album is the page's once it loads one.
     facts.creator(CREATOR);
-    expect(vaultTargetOf(uploader.view())).toEqual(target);
+    expect(vaultTargetOf(uploader.view())).toBeNull();
+    facts.loaded(ALBUM, 2);
+    expect(vaultTargetOf(uploader.view())).toEqual({ ...target, title: 'Set 1' });
 
     // `a` is confirmed; before the next file the page signs in as another creator.
     let switched = false;
@@ -393,6 +401,7 @@ describe('[host:fansly] the vault run belongs to the tab’s creator (AU-036)', 
     expect(memory.row()).toMatchObject({ hostAccountId: CREATOR, confirmed: 1, pending: null });
 
     facts.creator(CREATOR);
+    facts.loaded(ALBUM, nextSeq());
     switched = true;
     fates = { 'b.jpg': 'silent' };
     const resumed = run.start();
@@ -401,5 +410,41 @@ describe('[host:fansly] the vault run belongs to the tab’s creator (AU-036)', 
     expect(await resumed).toBe(true);
     expect(run.snapshot()).toMatchObject({ stop: { kind: 'account-changed' }, code: 'CG-VAULT-UNCERTAIN' });
     expect(statuses(run)).toEqual(['verified', 'uncertain', 'pending']);
+  });
+});
+
+describe('[host:fansly] review of P13a: the run’s own guards', () => {
+  it('[VA-006] leaving and coming back to the same album while the checkpoint is written hands nothing over; the checkpoint says so again', async () => {
+    const run = runOf([file('a.jpg'), file('b.jpg')]);
+    const save = memory.store.save.bind(memory.store);
+    let moved = false;
+    memory.store.save = (checkpoint) => {
+      if (!moved && checkpoint.pending !== null) {
+        moved = true;
+        // The person goes to the chats and back, and opens the same album again.
+        facts.navigate('/messages');
+        page.closeAlbum();
+        facts.navigate('/creator/vault');
+        page.openAlbum('Set 1');
+        page.expandUploader();
+        drive();
+        page.cards([]);
+        facts.loaded(ALBUM, 7);
+      }
+      return save(checkpoint);
+    };
+    expect(await run.start()).toBe(true);
+    expect(run.snapshot()).toMatchObject({ state: 'stopped', stop: { kind: 'route-left' }, confirmed: 0 });
+    expect(names()).toEqual([]);
+    expect(memory.row()).toMatchObject({ confirmed: 0, pending: null });
+    // The person starts again on the page as it is now.
+    expect(await run.start()).toBe(true);
+    expect(run.snapshot()).toMatchObject({ state: 'complete', confirmed: 2 });
+  });
+
+  it('[VA-006] two files of one card key — `cover.jpg` and `cover.mp4` — are refused before anything: the album could not tell them apart', () => {
+    expect(vaultDuplicateKeys([file('cover.jpg'), file('cover.mp4'), file('b.jpg'), file('B.JPEG')])).toEqual(['cover.jpg', 'cover.mp4', 'b.jpg', 'B.JPEG']);
+    expect(vaultDuplicateKeys([file('a.jpg'), file('b.jpg')])).toEqual([]);
+    expect(() => runOf([file('cover.jpg'), file('cover.mp4')])).toThrow(/cover\.jpg/);
   });
 });

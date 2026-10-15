@@ -20,8 +20,13 @@ export interface FakeVaultPage {
   readonly changes: number;
   /** The page ignores the files it is handed (a type it does not accept). */
   ignore: boolean;
-  /** An album opens (its header and title); its cards come with `cards()`. */
+  /**
+   * An album opens: its header and title, and the page's spinner while its media load (`loadingVault`, main:12370,
+   * :12703); its cards come with `cards()`.
+   */
   openAlbum(title: string): void;
+  /** The album is loaded again (`loadVault`): its list gives way to the spinner until `cards()`. */
+  loading(): void;
   /** Back to the list of albums: no header, no uploader, no cards. */
   closeAlbum(): void;
   /** «Upload to Vault» expanded: the page's upload input and its file input. */
@@ -31,8 +36,11 @@ export interface FakeVaultPage {
   uploaded(): void;
   /** The upload failed: Fansly's failure words in the uploader. */
   failUpload(): void;
-  /** The album's cards, the newest first (a load of the album renders them anew). */
-  cards(names: readonly string[]): void;
+  /**
+   * A load of the album answered: a NEW list (`*ngIf="!loadingVault"`, main:12443) with its cards, the newest first;
+   * a name in `processing` shows Fansly's «Processing» on its card.
+   */
+  cards(names: readonly string[], processing?: readonly string[]): void;
   /** The «From Vault» modal of a chat: the same album view outside the route. */
   modal(): HTMLElement;
   destroy(): void;
@@ -75,7 +83,10 @@ export function createFakeVaultPage(): FakeVaultPage {
         make('div', 'flex-1'),
       ]);
       host.prepend(header);
-      list();
+      page.loading();
+    },
+    loading() {
+      list().replaceChildren(make('div', 'vault-content', [make('div', 'flex-row flex-center margin-top-4', [make('i', 'fa fa-circle-notch dark-blue-1 fa-2x fa-spin')])]));
     },
     closeAlbum() {
       header?.remove();
@@ -115,17 +126,15 @@ export function createFakeVaultPage(): FakeVaultPage {
       uploader?.querySelector('.proccessing-templates')?.remove();
       uploader?.querySelector('app-account-media-create-template')?.append(' Upload failed, Retry ');
     },
-    cards(names) {
+    cards(names, processing = []) {
       const rows = list();
-      rows.replaceChildren(
-        make('div', 'vault-content', [
-          make(
-            'div',
-            'vault-row',
-            names.map((name) => make('div', 'render-container', [make('div', 'image-date', ['15 Oct']), make('div', 'image-filename blue-1-hover-only pointer', [make('i', 'fa-light fa-pencil'), ` ${name} `])])),
-          ),
-        ]),
-      );
+      const card = (name: string): HTMLElement =>
+        make('div', 'render-container', [
+          make('div', 'image-date', ['15 Oct']),
+          make('div', 'image-filename blue-1-hover-only pointer', [make('i', 'fa-light fa-pencil'), ` ${name} `]),
+          ...(processing.includes(name) ? [make('div', 'processing-overlay', ['Processing'])] : []),
+        ]);
+      rows.replaceChildren(make('div', 'vault-content', [make('div', 'spacer'), make('div', 'vault-row', names.map(card)), make('div', 'spacer')]));
     },
     modal() {
       const view = make('app-media-vault', undefined, [make('div', 'flex-row vault-header', [make('div', 'font-size-xl semi-bold flex-row', ['Modal album'])])]);
@@ -151,8 +160,10 @@ export interface FakeVaultPort {
   loaded(albumId: string | null, seq: number): void;
   /** The page's creator as its `/account/me` said it; null — not yet. */
   creator(id: string | null): void;
-  /** The address changed (the port says a route). */
+  /** The address changed (the port says a route under a new epoch). */
   navigate(path: string): void;
+  /** MAIN's stream lost facts (`fx.gap`, a refused batch). */
+  lose(): void;
   /** Listeners on the facts and the port's events now: what the uploader watches. */
   listeners(): number;
 }
@@ -161,12 +172,13 @@ const accountOf = (id: string): HostAccount => ({ host: 'fansly-web', hostAccoun
 
 export function createFakeVaultPort(creatorId: string | null): FakeVaultPort {
   const facts = new Set<(fact: FanslyVaultFact) => void>();
+  const losses = new Set<() => void>();
   const events = new Set<(event: HostEvent) => void>();
   let album: { readonly albumId: string | null; readonly seq: number } | null = null;
   let accounts: readonly HostAccount[] = creatorId === null ? [] : [accountOf(creatorId)];
   let epoch = 1;
   const fact = (value: FanslyVaultFact): void => {
-    if (value.t === 'fx.vaultLoaded') album = value.p;
+    if (value.t === 'fx.vaultLoaded' && (album === null || value.p.seq > album.seq)) album = value.p;
     for (const listener of [...facts]) listener(value);
   };
   const emit = (event: HostEvent): void => {
@@ -182,8 +194,14 @@ export function createFakeVaultPort(creatorId: string | null): FakeVaultPort {
             facts.delete(cb);
           };
         },
+        onLost(cb) {
+          losses.add(cb);
+          return () => {
+            losses.delete(cb);
+          };
+        },
       },
-      current: () => ({ accounts }) as HostSnapshot,
+      current: () => ({ accounts, route: { epoch, name: 'other', account: accounts[0] ?? null, chat: null } }) as HostSnapshot,
       subscribe(cb) {
         events.add(cb);
         return () => {
@@ -194,7 +212,10 @@ export function createFakeVaultPort(creatorId: string | null): FakeVaultPort {
     added: (seq) => fact({ t: 'fx.vaultAdded', p: { seq } }),
     loaded: (albumId, seq) => fact({ t: 'fx.vaultLoaded', p: { albumId, seq } }),
     creator(id) {
+      // Another creator is another generation of the port: its route moves first, then its accounts (host-port.ts).
       accounts = id === null ? [] : [accountOf(id)];
+      epoch += 1;
+      emit({ type: 'route', route: { epoch, name: 'other', account: accounts[0] ?? null, chat: null } });
       emit({ type: 'accounts', accounts });
     },
     navigate(path) {
@@ -203,6 +224,10 @@ export function createFakeVaultPort(creatorId: string | null): FakeVaultPort {
       epoch += 1;
       emit({ type: 'route', route: { epoch, name: 'other', account: accounts[0] ?? null, chat: null } });
     },
-    listeners: () => facts.size + events.size,
+    lose() {
+      album = null;
+      for (const listener of [...losses]) listener();
+    },
+    listeners: () => facts.size + losses.size + events.size,
   };
 }

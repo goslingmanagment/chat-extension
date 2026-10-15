@@ -959,6 +959,29 @@ describe('[host:fansly] the port over the real MAIN', () => {
 });
 
 
+describe('[host:fansly] the vault’s facts: start order and losses (review of P13a)', () => {
+  it('[VA-006] the album the page loaded last is the load it STARTED last; a loss of MAIN’s facts forgets it and is said to the uploader', async () => {
+    let lastBatch = 0;
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, lastBatch }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port } = await startPort('/creator/vault', main.client);
+    // A → B quickly; A's answer comes last.
+    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000302', seq: 5 } });
+    main.batch(2, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 4 } });
+    expect(port.vault.album()).toEqual({ albumId: '700000000000000302', seq: 5 });
+    let losses = 0;
+    const off = port.vault.onLost(() => (losses += 1));
+    // MAIN's queue overflowed: its next state says where its stream goes on.
+    lastBatch = 3;
+    main.gap();
+    expect(losses).toBe(1);
+    expect(port.vault.album()).toBeNull();
+    await settle();
+    main.batch(4, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 9 } });
+    expect(port.vault.album()).toEqual({ albumId: '700000000000000301', seq: 9 });
+    off();
+  });
+});
+
 describe('[host:fansly] coexistence invalidates the vault’s work (P13a over P7g)', () => {
   it('[AU-036] [VA-004] a port that steps aside forgets the album and says no account: a file in flight is not known, and no run belongs to the tab', async () => {
     const coexistence = watchCoexistence(window);
@@ -973,10 +996,11 @@ describe('[host:fansly] coexistence invalidates the vault’s work (P13a over P7
     cleanups.push(() => vaultPage.destroy());
     vaultPage.openAlbum('Set 1');
     vaultPage.expandUploader();
+    vaultPage.cards([]);
     main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 3 } });
     const uploader = createVaultUploader({ win: window, port });
     const target = vaultTargetOf(uploader.view());
-    expect(target).toEqual({ hostAccountId: CREATOR, albumId: '700000000000000301' });
+    expect(target).toEqual({ hostAccountId: CREATOR, albumId: '700000000000000301', title: 'Set 1' });
     if (target === null) return;
     const step = uploader.upload(new File(['x'], 'a.jpg', { type: 'image/jpeg' }), target);
     main.batch(2, { t: 'fx.identity', p: { ...fanslyIdentityWire, legacy: true } });
