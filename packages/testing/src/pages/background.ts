@@ -421,6 +421,7 @@ export class FakePageBackground implements PageRpc {
       case 'send.status':
       case 'settings.open':
       case 'debug.open':
+      case 'sound.batch':
       case 'sound.event':
       case 'spenders.board':
       case 'spenders.queue':

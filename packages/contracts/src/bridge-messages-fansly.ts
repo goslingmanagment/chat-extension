@@ -236,6 +236,10 @@ export const FROM_MAIN_FANSLY = {
     groupId: NativeIdSchema,
     fanId: z.nullable(NativeIdSchema),
     msgId: NativeIdSchema,
+    /** P14a: the actual author, also when the group has not been read. Older MAIN may omit it. */
+    senderId: z.optional(NativeIdSchema),
+    /** Creator at capture time: a queued fact must not move to the next login. */
+    accountId: z.optional(z.nullable(NativeIdSchema)),
     fromFan: z.boolean(),
     automated: z.boolean(),
     tip: z.boolean(),

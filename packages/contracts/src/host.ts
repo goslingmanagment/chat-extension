@@ -5,6 +5,7 @@ import type { PageDiagnostics } from './diagnostics';
 // a general send() or an arbitrary execute(). Writes: guarded insert,
 // navigation on a human action, and the X8 preview send (PreviewSendPort).
 
+import type { SoundBatch } from './sound';
 import * as z from 'zod/mini';
 
 import { CgCodeSchema } from './errors';
@@ -644,6 +645,7 @@ export interface HostSnapshot {
 }
 
 export type HostEvent =
+  | { readonly type: 'sound-batch'; readonly batch: SoundBatch }
   | { readonly type: 'route'; readonly route: RouteState }
   | { readonly type: 'composer'; readonly composer: ComposerState | null }
   | { readonly type: 'accounts'; readonly accounts: readonly HostAccount[] }

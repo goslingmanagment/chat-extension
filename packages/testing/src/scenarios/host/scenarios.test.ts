@@ -1,3 +1,4 @@
+import { SoundBatchSchema } from '@cg/contracts/sound';
 import {
   ChatRefSchema,
   ComposerStateSchema,
@@ -45,6 +46,8 @@ function eventValid(event: HostEvent): boolean {
       return event.accounts.every((account) => HostAccountSchema.safeParse(account).success);
     case 'chatCache':
       return ChatRefSchema.safeParse(event.chat).success;
+    case 'sound-batch':
+      return SoundBatchSchema.safeParse(event.batch).success;
     case 'incoming':
       return IncomingFactSchema.safeParse(event.fact).success;
     case 'coverage':
