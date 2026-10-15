@@ -224,6 +224,28 @@ export type VaultCheckpoint = z.infer<typeof VaultCheckpointSchema>;
 
 const AlbumRef = { hostAccountId: NativeIdSchema, albumId: NativeIdSchema };
 
+/**
+ * Whether `next` is a step a run of `row` takes from it (R20 P13b review; host-fansly isolated/vault/run.ts), as the
+ * background checks every write of the same upload: never back; from a row with no file in flight — that file handed
+ * over now, or one more file found in the album; from a row with one in flight — its outcome (in the album, or not),
+ * or, its confirmation's write lost, the next file. A second file over one in flight, or the same one again, is no
+ * step: a second tab's copy of the run would hand it over twice.
+ */
+export function vaultCheckpointFollows(row: VaultCheckpoint, next: VaultCheckpoint): boolean {
+  if (row.pending === null) return next.pending === null ? next.confirmed === row.confirmed || next.confirmed === row.confirmed + 1 : next.confirmed === row.confirmed && next.pending.index >= row.confirmed;
+  const landed = row.pending.index + 1;
+  return next.pending === null ? next.confirmed === row.confirmed || next.confirmed === landed : next.confirmed === landed && next.pending.index >= landed;
+}
+
+/**
+ * The vault's acknowledgement (R20 P13b review): `held` — another tab of this browser holds the album's upload (it
+ * wrote the album's checkpoint and is still open), nothing was written; without it, `recorded: false` — not kept for
+ * another reason (a write that does not follow the row on disk, the store failed).
+ */
+const VaultAck = z
+  .strictObject({ recorded: z.boolean(), held: z.optional(z.boolean()) })
+  .check(z.refine((ack) => ack.held !== true || !ack.recorded, { message: 'a held album keeps nothing' }));
+
 // ── fansly.relay.* — «Fansly через вкладку» (port `cg-relay`) ──────────────
 
 /** The only addresses the relay fetches (FS-NET-1); it checks this itself before any request. */
@@ -393,12 +415,16 @@ export const FANSLY_TAB_REQUESTS = {
   },
 
   // ── vault ──
-  /** Written before each file is handed to Fansly's form; `recorded: false` — not kept: the file is not handed over. */
-  'fansly.vault.checkpoint': { req: z.strictObject({ checkpoint: VaultCheckpointSchema }), res: Ack, from: TAB, hosts: FANSLY },
-  /** Where the last upload into this album stopped (FS-PERM-5: it stops at a checkpoint). */
-  'fansly.vault.resume': { req: z.strictObject(AlbumRef), res: z.strictObject({ checkpoint: z.nullable(VaultCheckpointSchema) }), from: TAB, hosts: FANSLY },
-  /** The upload is over or the person dropped it. */
-  'fansly.vault.clear': { req: z.strictObject({ ...AlbumRef, uploadId: UuidSchema }), res: Ack, from: TAB, hosts: FANSLY },
+  /**
+   * Written before each file is handed to Fansly's form; `recorded: false` — not kept: the file is not handed over. One
+   * upload per album and one tab at a time (P13b review): another tab that holds it — `held`; a write that does not
+   * follow the row on disk (`vaultCheckpointFollows`) — not kept.
+   */
+  'fansly.vault.checkpoint': { req: z.strictObject({ checkpoint: VaultCheckpointSchema }), res: VaultAck, from: TAB, hosts: FANSLY },
+  /** Where the last upload into this album stopped (FS-PERM-5: it stops at a checkpoint); `held` — another open tab holds it. */
+  'fansly.vault.resume': { req: z.strictObject(AlbumRef), res: z.strictObject({ checkpoint: z.nullable(VaultCheckpointSchema), held: z.optional(z.boolean()) }), from: TAB, hosts: FANSLY },
+  /** The upload is over or the person dropped it; `held` — another open tab holds it: nothing is cleared. */
+  'fansly.vault.clear': { req: z.strictObject({ ...AlbumRef, uploadId: UuidSchema }), res: VaultAck, from: TAB, hosts: FANSLY },
 
   // ── relay: its answers to `fansly.relay.fetch` ──
   /** Status and headers as soon as `fetch` has them: a 429 or a 401 counts even when its body never arrives. */

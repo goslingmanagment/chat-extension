@@ -115,15 +115,18 @@ export interface VaultRunVM {
 }
 
 /** Why Start is not offered now (its tooltip); null — it is. */
-export const VAULT_START_BLOCKS = ['files', 'problems', 'account', 'album', 'album-loading', 'uploader', 'uploader-busy', 'answer', 'other', 'checking', 'running', 'done'] as const;
+export const VAULT_START_BLOCKS = ['files', 'problems', 'account', 'album', 'album-loading', 'uploader', 'uploader-busy', 'answer', 'other', 'checking', 'running', 'done', 'held'] as const;
 export type VaultStartBlock = (typeof VAULT_START_BLOCKS)[number];
 
 /**
  * A step on the checkpoint that failed, said until the next one succeeds: `read-failed` — the album's checkpoint could
  * not be read, so nothing starts (a fresh run over it would upload its files again); `save-failed` — the person's
- * answer was not written; `clear-failed` — a reset was not; `left-behind` — a finished run's checkpoint stayed.
+ * answer was not written; `clear-failed` — a reset was not; `left-behind` — a finished run's checkpoint stayed;
+ * `held` — another tab of this browser holds the album's upload (the background's word): this one writes nothing;
+ * `moved` — another tab took the run further than this panel knew: the panel read the album's row again (review of
+ * P13b).
  */
-export type VaultPanelNote = 'read-failed' | 'save-failed' | 'clear-failed' | 'left-behind';
+export type VaultPanelNote = 'read-failed' | 'save-failed' | 'clear-failed' | 'left-behind' | 'held' | 'moved';
 
 export interface VaultPanelVM {
   /** On `/creator/vault` and admitted (the page's `vault`, the host's `vault`): the entry stands; false — nothing is drawn. */
@@ -225,6 +228,8 @@ export const FANSLY_VAULT_TEXT_KEYS = [
   'fansly.vault.note.saveFailed',
   'fansly.vault.note.clearFailed',
   'fansly.vault.note.leftBehind',
+  'fansly.vault.note.held',
+  'fansly.vault.note.moved',
   'fansly.vault.question.title',
   'fansly.vault.question.body',
   'fansly.vault.question.present',
@@ -278,6 +283,7 @@ export const FANSLY_VAULT_TEXT_KEYS = [
   'fansly.vault.blocked.checking',
   'fansly.vault.blocked.running',
   'fansly.vault.blocked.done',
+  'fansly.vault.blocked.held',
   'fansly.vault.errorFrom',
   'fansly.vault.footnote',
 ] as const;
