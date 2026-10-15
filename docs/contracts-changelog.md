@@ -634,6 +634,23 @@ HF-3, HF-4а, HF-4б, HF-12 и `fan-notes-fill` — все выложены в `
   (`voice-script` → `voice-script`, `fan-notes-fill` → `notes-fill`); вид снимка (`PromptSnapshotView.feature`)
   называет только общие фичи, у операции сайта — `null`.
 
+### P7a — счёт MAIN Fansly: `fx.health`
+
+Не PR этапа 4, но в его открытую версию (`docs/project-unite/architecture.md` §5.3, §5.4, §6, §8.13). MAIN Fansly
+считает кадры сокета и ответы страницы и меряет свой разбор (`frameParseMs`, `xhrParseMs` — HF-13), но провода, по
+которому это выходит из MAIN, контракт не давал: ни `fx.state`, ни пачка счёта не несут. Добавлен седьмой запрос.
+
+- **`fx.health`** (`TO_MAIN_FANSLY_TYPES`, `TO_MAIN_FANSLY`): тело пустое, ответ `FanslyHealthSchema` — что MAIN насчитал
+  с начала документа, по запросу, без таймеров: `frames {seen, parsed, lost}` — текстовые кадры сокетов страницы,
+  разобранные (известный `t`) и прочитанные не целиком (SN-020 «увидено, но не разобрано», FS-WS-2, FS-WS-5);
+  `responses {seen, parsed, deferred, lost}` — ответы API на `loadend`; `stream {batches, unacked, queued, heldBytes,
+  gaps}` — поток под кредитами (`unacked` ≤ `maxUnackedBatches`); `perf {frameParseMs, xhrParseMs}` —
+  `FanslyPerfCountsSchema`: счёт по корзинам границ метрики из `PERF_METRICS` (на одну больше границ), всего, сумма,
+  максимум; с именем и границами это `PerfHistogram` для `client_health`. Не запись, обычный тайм-аут.
+- Фикстуры: `test/fixtures/fansly.ts` — `fanslyHealth` и пустой счёт на `document_start`; неверные — неподтверждённых
+  больше кредитов, итог не равен сумме корзин, третья метрика, отрицательный счёт. Тесты: `packages/contracts/test/fansly.test.ts`
+  (корзин на одну больше границ обеих метрик; с именем и границами — верный `PerfHistogram`).
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

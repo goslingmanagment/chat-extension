@@ -25,14 +25,18 @@ const KiB = 1024;
 
 // ── Message types ──────────────────────────────────────────────────────────
 
-/** Requests isolated → MAIN (§6 `ToMainFansly`); payload and answer schemas: TO_MAIN_FANSLY in bridge-messages-fansly.ts. */
-export const TO_MAIN_FANSLY_TYPES = ['probe', 'fx.state', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta', 'fx.ack'] as const;
+/**
+ * Requests isolated → MAIN (§6 `ToMainFansly`); payload and answer schemas: TO_MAIN_FANSLY in bridge-messages-fansly.ts.
+ * `fx.health` (R20 P7a): MAIN's counts and parse times, read on demand.
+ */
+export const TO_MAIN_FANSLY_TYPES = ['probe', 'fx.state', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta', 'fx.ack', 'fx.health'] as const;
 export type ToMainFanslyType = (typeof TO_MAIN_FANSLY_TYPES)[number];
 
 /**
  * MAIN on Fansly writes nothing (§5, А4): it does not touch the DOM and sends no request and no frame of its own.
  * Inserts, file handoffs and navigation are the isolated world's; `fx.focus` and `fx.ack` only steer what MAIN
- * reports. So no request is deduplicated by id, and none has a «may have run» outcome (BRIDGE_WRITE_FAILURES).
+ * reports, `fx.health` only reads it. So no request is deduplicated by id, and none has a «may have run» outcome
+ * (BRIDGE_WRITE_FAILURES).
  */
 export const FANSLY_BRIDGE_WRITE_REQUESTS = [] as const satisfies readonly ToMainFanslyType[];
 

@@ -1020,6 +1020,7 @@ interface StartProofV1 {
 | `fx.generationSnapshot` | `{groupId, feature, window, withText}` | `FanslySnapshot` или `null` |
 | `fx.windowMeta` | `{groupId}` | сводка окна (для `chatWindow`) или `null` |
 | `fx.ack` | `{n}` | `null`; подтверждает все пачки до `n` включительно — и принятые, и отвергнутые |
+| `fx.health` | — | `FanslyHealth` (P7a): счёт кадров (`seen`, `parsed`, `lost`) и ответов страницы, поток (пачки, неподтверждённые, очередь, удержанные байты, `fx.gap`), время разбора MAIN по корзинам `frameParseMs`, `xhrParseMs` — для «Статуса», `client_health` и e2e; по запросу, без таймеров |
 
 **События из MAIN (`FromMainFansly`, внутри `fx.batch`):**
 

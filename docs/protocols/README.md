@@ -188,10 +188,11 @@ R01 делали четыре исполнителя, интегратор св�
 `MessagePort`, конверт `{v: 1, kind, id, t, documentEpoch, seq, payload}`, три ступени проверки, транспортные
 ошибки `BRIDGE_ERRORS`, `probe` отвечает сам загрузчик (`MainProbe`). Своё у Fansly:
 
-- **6 запросов в MAIN** (`TO_MAIN_FANSLY_TYPES`): `probe`, `fx.state` (личность, сокет, чат в фокусе, контракт,
+- **7 запросов в MAIN** (`TO_MAIN_FANSLY_TYPES`): `probe`, `fx.state` (личность, сокет, чат в фокусе, контракт,
   номер последней пачки — старт, перезапуск изолированного мира, после `fx.gap`), `fx.focus {groupId | null,
   routeEpoch}`, `fx.generationSnapshot {groupId, feature, window, withText}` → `FanslySnapshot` или `null`,
-  `fx.windowMeta {groupId}`, `fx.ack {n}`. Записей нет: MAIN на Fansly не пишет ни в DOM, ни в сеть.
+  `fx.windowMeta {groupId}`, `fx.ack {n}`, `fx.health` (P7a: счёт кадров и ответов, поток, время разбора MAIN —
+  `FanslyHealth`). Записей нет: MAIN на Fansly не пишет ни в DOM, ни в сеть.
 - **События идут пачками.** На порту — `fx.batch {n, events: [{t, p}]}` с 9 типами событий внутри
   (`FROM_MAIN_FANSLY_TYPES`), одно `fx.gap {reason}` и `fault`. Состояния (`fx.identity`, `fx.chat`, `fx.contract`) в
   пачке не повторяются; поток (`fx.incoming`, `fx.follow`, `fx.sent`, `fx.coverage`, `fx.deleted`, `fx.vaultAdded`)

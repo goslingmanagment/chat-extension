@@ -20,6 +20,7 @@ import {
   FANSLY_WIRE_EVENT_FIXTURES,
   START_PROOF_FIXTURES,
   fanslyChatWire,
+  fanslyHealth,
   fanslyHiSnapshot,
   fanslyIdentityWire,
   fanslyReplySnapshot,
@@ -115,6 +116,17 @@ describe('Fansly bridge registry (§6)', () => {
     expect(F.FANSLY_WIRE_EVENT_TYPES.filter((t) => (F.FROM_MAIN_FANSLY_TYPES as readonly string[]).includes(t))).toEqual([]);
     // fx.state answers with all three states whole.
     expect(Object.keys(M.FanslyStateSchema.def.shape)).toEqual(expect.arrayContaining(['identity', 'chat', 'contract']));
+  });
+
+  it('fx.health (R20 P7a) carries MAIN’s two parse times over the bounds of their HF-13 metrics: a bucket more than the bounds', () => {
+    for (const metric of ['frameParseMs', 'xhrParseMs'] as const) {
+      const counts = fanslyHealth.perf[metric].counts;
+      expect(counts.length, metric).toBe(C.PERF_METRICS[metric].bounds.length + 1);
+      // Read with its name and bounds, it is a client_health histogram.
+      const histogram = { metric, unit: 'ms', schemaVersion: C.PERF_METRICS[metric].schemaVersion, bounds: [...C.PERF_METRICS[metric].bounds], ...fanslyHealth.perf[metric] };
+      expect(C.PerfHistogramSchema.safeParse(histogram).success, metric).toBe(true);
+    }
+    expect(Object.keys(M.FanslyHealthSchema.def.shape.perf.def.shape)).toEqual(['frameParseMs', 'xhrParseMs']);
   });
 
   it('MAIN events carry no message text; only the snapshot does, for a draft function', () => {
