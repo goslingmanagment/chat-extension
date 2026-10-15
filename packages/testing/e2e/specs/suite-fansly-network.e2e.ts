@@ -156,7 +156,7 @@ describe('Fansly network: FS-NET-1, FS-NET-3 — our own requests, by the server
     await dockIs((dock) => dock.status === 'ready' && dock.actions['reply'] === true, 'Reply ready', 20_000);
     const mark = await fakeFansly().mark();
     const hubMark = await hub().mark();
-    await pressOurs('dock', 'button', 'Reply');
+    await pressOurs('dock', '.cg-strip button', /^Reply/);
     await dockIs((dock) => dock.result?.feature === 'reply' && dock.result.state === 'done', 'Reply generated', 30_000);
     expect(callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream')).toHaveLength(1);
     expect(await ours(mark)).toEqual([]);
