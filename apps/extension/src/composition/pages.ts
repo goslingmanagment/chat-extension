@@ -20,6 +20,7 @@
 //   opens in a new tab on a click and only when it is https.
 
 import { FANSLY_CONTRACT, FANSLY_STATUS_TEXTS } from '@cg/contracts/fansly-host';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
@@ -53,7 +54,8 @@ import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mount
 
 import { OPTIONAL_HOST, RELOAD_KEY, permissionSet } from './site-access';
 import { CHATSPACE_MATCHES, type PerHost } from '../hosts/runtime';
-import { featuresOf } from './features';
+import { CHATSPACE_FEATURE_SLICE } from './features/chatspace';
+import { FANSLY_FEATURE_SLICE } from './features/fansly';
 import { SITE_PAGES } from '../site';
 
 export type PageName = ExtensionPage;
@@ -89,6 +91,16 @@ const PAGE_SITES = {
   chatspace: { kind: 'chatspace', contract: CHATSPACE_CONTRACT, texts: CHATSPACE_STATUS_TEXTS },
   'fansly-web': { kind: 'fansly-web', contract: FANSLY_CONTRACT, texts: FANSLY_STATUS_TEXTS },
 } as const satisfies PerHost<PageSite>;
+
+/**
+ * Every site's slice of the feature manifest (R20 F4, P7i): the pages carry both sites (architecture.md §1.4, §3.4), so
+ * Fansly's slice is the pages' own here — the background's core gets it from Fansly's module instead. A new row of
+ * the hosts' runtime table does not typecheck until its slice is here.
+ */
+const PAGE_FEATURES = { chatspace: CHATSPACE_FEATURE_SLICE, 'fansly-web': FANSLY_FEATURE_SLICE } as const satisfies PerHost<FeatureSlice>;
+
+/** A site's slice; null — the extension has no such site. */
+const featuresOf = (host: HostKind): FeatureSlice | null => (PAGE_FEATURES as { readonly [K in HostKind]?: FeatureSlice })[host] ?? null;
 
 /**
  * Every site's phrases (R20 F9b), from its own text pack: the shared texts name no site and take these instead. The

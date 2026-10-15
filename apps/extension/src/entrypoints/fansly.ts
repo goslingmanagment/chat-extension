@@ -3,8 +3,9 @@
 // ≤ 3 ms). Wiring lives in composition/tab.ts; this entry assembles the Fansly
 // adapter for it (§1.3) from the starter of @cg/host-fansly.
 //
-// NOT in the manifest: the background registers it right after `fansly-main`
-// in one call (§4; P9a), on the stand the e2e does. It starts without WXT's
+// NOT in the manifest: the background's sync registers it right after
+// `fansly-main` in one call once Fansly is switched on (§4; P9a), on
+// fansly.com and, in a test build, on the stand. It starts without WXT's
 // wrapper (build/isolated-entry.ts): `main` is called bare.
 
 import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startFanslyTab, type FanslyPort, type Validation } from '@cg/host-fansly/isolated';
@@ -32,6 +33,8 @@ export const FANSLY_ADAPTER: HostAdapter<FanslyPort> = {
       navInsertTimeoutMs: env.navInsertTimeoutMs,
       onDiagnostic: env.onDiagnostic,
     }),
+  // Fansly's own rules for our keys (R20 P7i, §7.9): its message field — `textarea.message-input` under the route —,
+  // and its windows — `body.modal-opened`, the focus in FBuddy's `fb-*-ui` — to which our keys yield; Enter is Fansly's.
   keyProbe: createKeyboardProbe,
   keyPending: createKeyPendingMark,
   routeOfLocation,

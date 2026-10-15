@@ -1,21 +1,51 @@
 // Fansly's side of the early hotkey dispatcher (docs/project-unite/
-// architecture.md §7.9, §9.1). The probe itself — where the focus is, the
-// hand-over of a key to our own UI as a copy that cannot leave our closed
-// root, the mark of a waiting key — is the shared mechanics of the page
-// (@cg/host-kit/isolated/keyboard.ts). What is Fansly's own comes with the
-// work packages that know it: its message field and its own windows
-// (`body.modal-opened`, the neighbour's `fb-*-ui`, Enter left to the page) with
-// P7i. The route by the address is route.ts's (P7c). Until P7i the probe knows
-// no field of Fansly's as its composer and no window of its own as open.
+// architecture.md §7.9, §9.1; FS-HK-1). The probe itself — where the focus
+// is, the hand-over of a key to our own UI as a copy that cannot leave our
+// closed root, the mark of a waiting key — is the shared mechanics of the
+// page (@cg/host-kit/isolated/keyboard.ts). What is Fansly's own stands here
+// (R20 P7i):
+// - its message field: `textarea.message-input` under the conversation's
+//   route — the open chat's composer (its chain or a stray field the dock
+//   covers with an overlay, FS-PLC-3), never the mini-chat's, which repeats
+//   the classes outside the route (§7.3: anchors only through the route).
+//   Our keys work there as in ChatSpace's field, and Enter stays the page's:
+//   it is not a key of ours, so the dispatcher never touches it;
+// - a window of its own: while a modal of Fansly is open (`body.modal-opened`,
+//   an O(1) read — Fansly sets it for as long as any modal stands) or the
+//   focus is inside one of the neighbour's hosts (`fb-<feature>-ui`, FBuddy's
+//   shadow-root UI: its panel, its notes, its toasts), our keys yield as they
+//   yield to a dialog of ChatSpace: Esc and plain letters are that window's,
+//   a combination of ours runs nothing over it and says why. FBuddy's roots
+//   are open but its own: we never read inside them — the focus behind a host
+//   is enough, as `document.activeElement` names the outermost host.
+// The route by the address is route.ts's (P7c).
 
 import { createKeyboardProbe as createProbe, type KeyboardProbe } from '@cg/host-kit/isolated/keyboard';
 import type { ShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry';
 
-/** The shared probe without Fansly's two rules yet (P7i): no field is its message field, no window of its own is open. */
+import { FANSLY_SELECTORS } from './anchors';
+
+/** A host of FBuddy's UI (S5 §2.5): `fb-<feature>-ui`, a custom element with its own shadow root. */
+export const NEIGHBOR_HOST = /^fb-[a-z0-9-]+-ui$/;
+
+/** Fansly's message field: the field of the conversation under the route, its chain or not; the mini-chat's is another field. */
+export function isFanslyComposer(active: Element): boolean {
+  return active.matches(FANSLY_SELECTORS.textarea) && active.closest(FANSLY_SELECTORS.conversationRoute) !== null;
+}
+
+/** The focus is inside one of FBuddy's hosts: the active element is one, or stands in one (a slotted node). */
+export function focusInNeighbor(doc: Document): boolean {
+  for (let node: Element | null = doc.activeElement; node !== null && node !== doc.body && node !== doc.documentElement; node = node.parentElement) {
+    if (NEIGHBOR_HOST.test(node.localName)) return true;
+  }
+  return false;
+}
+
+/** A window of Fansly's own is open (`body.modal-opened`), or the focus is in FBuddy's: our keys yield (FS-HK-1). */
+export function fanslyWindowOpen(doc: Document): boolean {
+  return doc.body?.classList.contains(FANSLY_SELECTORS.modalFlag) === true || focusInNeighbor(doc);
+}
+
+/** The shared probe with Fansly's two rules: its message field, and a window of its own or of the neighbour's. */
 export const createKeyboardProbe = (doc: Document, registry: ShadowRootRegistry): KeyboardProbe =>
-  createProbe(
-    doc,
-    registry,
-    () => false,
-    () => false,
-  );
+  createProbe(doc, registry, isFanslyComposer, () => fanslyWindowOpen(doc));

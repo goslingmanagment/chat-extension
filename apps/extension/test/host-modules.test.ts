@@ -179,4 +179,22 @@ describe('the sites’ background modules (R20 F1)', () => {
     expect(w.modules.states()).toEqual([{ host: 'chatspace', state: 'started' }]);
     expect(w.modules.facts()).toEqual({ sends: { open: 1, uncertain: 2, journal: [] } });
   });
+
+  it('[R20-P7i] `running` is the module that runs now, never a start: idle, starting and failed answer null', async () => {
+    let finish: (handle: BackgroundHostHandle) => void = () => undefined;
+    const gate = new Promise<BackgroundHostHandle>((done) => (finish = done));
+    const w = world([() => gate]);
+    expect(w.modules.running('chatspace')).toBeNull();
+    expect(w.loads).toEqual([]);
+    const starting = w.modules.ensure('chatspace');
+    expect(w.modules.running('chatspace')).toBeNull();
+    const handle = fakeHandle();
+    finish(handle);
+    await starting;
+    expect(w.modules.running('chatspace')).toBe(handle);
+    expect(w.modules.running('fansly-web')).toBeNull();
+    const failed = world(['missing']);
+    await failed.modules.ensure('chatspace');
+    expect(failed.modules.running('chatspace')).toBeNull();
+  });
 });

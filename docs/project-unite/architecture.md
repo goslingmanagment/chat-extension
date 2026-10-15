@@ -197,8 +197,9 @@ interface FeatureOnHost<F, C, S = MountSurfaceKind> {
 страницы берут срезы по сайту из `composition/features/index.ts` (`satisfies PerHost<FeatureSlice>`), вкладка — из
 половины приложения своего адаптера (`HostAppAdapter.features`, §1.3). Срез Fansly ядро фона импортировать не может:
 `features/fansly.ts` — файл Fansly, и граф ядра его не содержит (§1.8, правило `background-core-graph`). Ядру его
-отдаст чанк `bg/fansly` при старте — порт кита рядом с прочими портами Fansly (§3.3; решает P9a); до того
-`featuresOf('fansly-web')` в фоне — `null`, и фон ничего Fansly не допускает. Тест сборки
+отдаёт работающий модуль `bg/fansly` (P7i, §7.22: поле `BackgroundHostHandle.features`); пока модуль не поднялся,
+`featuresOf('fansly-web')` в фоне — `null`, и фон ничего Fansly не допускает. Страницы расширения несут оба сайта и
+берут срез Fansly сами (`PAGE_FEATURES` в `composition/pages.ts`). Тест сборки
 `apps/extension/test/feature-slices.test.ts` дописывает в `features/fansly.ts` новую запись и собирает ленивые чанки
 ChatSpace: ни байта разницы, и сборка этот файл не загружает.
 
@@ -248,6 +249,7 @@ ChatSpace: ни байта разницы, и сборка этот файл н�
 | `notes`, `notes-fill` | `absent` | `notes`; заполнение — `notesFill` |
 | `registration`, `vault` | `absent` | `registration`, `vault` |
 | `via-tab` | `absent` | настройка, без флага |
+| `human-send` (P7i) | `wsTap` страницы операции: отправку видит сокет ChatSpace | без флага: отправку видит MAIN (жест, квитанция, эхо) |
 | `navigation`, `palette` | `navigation`; окно палитры — без флага, её переходы в чаты — `navigation` | `absent` до P17 |
 
 `wsTap` — только ChatSpace: он регистрирует отдельный тап `chatspace-ws.js`. У Fansly наблюдение сети — часть
@@ -719,8 +721,8 @@ I18n ставит фразы сайта на место `{site}`, `{onSite}`, `{
 ## 4. Права, регистрация скриптов, открытые вкладки
 
 **Сделано P9a.** Строка `fansly-web` входит в `RUNTIME_HOSTS` уже здесь: рукопожатие после первой выдачи прав
-должно восстановить `bg/fansly.js`. Это перенос минимального подключения из P7i; его адаптер, UI и допуск фич
-остаются в P7i (`HOST_FEATURES` для Fansly пока `null`). В core — службы `site-access` и `network-session`,
+должно восстановить `bg/fansly.js`. Это перенос минимального подключения из P7i; допуск фич в фоне — срез Fansly от
+его модуля — сделан в P7i (§7.22). В core — службы `site-access` и `network-session`,
 параметры сайта задаёт корень композиции; слушатели platform устанавливаются до первого await, доставленные при
 пробуждении события ждут восстановления настроек и сессии. Одна очередь platform сериализует также регистрации
 ChatSpace. `BackgroundKit.networkSession` даёт чанку единственного владельца шаблонов, алиасов и фактов 429;
@@ -1967,9 +1969,9 @@ app.ts`); таблица соответствия — `docs/ui-design.md` §2.1 
 - **Журнал** (LG-017): событие `human-send` — `link` (`linked`, `unmatched`, `mismatched`, `ambiguous`), `ours`, `edited`;
   ни текста, ни id. `health()` — `isolated.sends {gestures, linked, unmatched, mismatched, ambiguous}`; `ambiguous` —
   отправка с отравленным именем.
-- **Открыто для фона:** `op.reportSent` фон записывает, только если у страницы операции годен переключатель `wsTap`
-  (`humanSendObservable` — правило ChatSpace: отправку там говорит сокет ChatSpace). Тап Fansly не выключается
-  (FS-WS-4); как фон читает это правило для страницы Fansly — с подключением сайта (P7i) и `groupId` на поверхностях (P8a).
+- **Открыто для фона** (закрыто в P7i, §7.22): `op.reportSent` фон записывал, только если у страницы операции годен
+  переключатель `wsTap` (`humanSendObservable` — правило ChatSpace: отправку там говорит сокет ChatSpace). Тап Fansly не
+  выключается (FS-WS-4); с P7i правило — запись манифеста `human-send` сайта операции: у Fansly — без выключателя.
 - **Проверки:** юнит — `send-observe.dom.test.ts` (порт над сценарным MAIN: наша вставка и Enter — `humanSend` с
   намерением; клик по «Отправить» и правка — `edited`; свой текст человека — без намерения; совпадение без жеста,
   недоверенный Enter, Shift, IME, другая клавиша — ничего; чужой чат и изменённый текст — не связано; проглоченная
@@ -2061,6 +2063,65 @@ fansly.ts`; связка во вкладке — `apps/extension/src/composition
   стенде, вход только на vault и один клик, набор и порядок, загрузка по одному рядом с соседом `off` и `after`,
   снимки обеих тем (`.cache/e2e/suite-fansly-vault-*.png`), пауза → сон фона → перезагрузка вкладки → продолжение
   с точки.
+
+### 7.22 Сделано в P7i: сайт подключён для выпуска
+
+Код — `packages/host-fansly/src/isolated/keyboard.ts` (ранний щуп клавиш Fansly), `apps/extension/bg/fansly.ts` (срез
+манифеста фич в модуле фона), `apps/extension/src/composition/{background,pages,features/index}.ts`,
+`composition/background/host-module{,s}.ts`. Что сделано и что уточнено против §1.3–§1.5, §4, §7.9 и плана:
+
+- **Регистрация для выпуска** — синхронизация P9a (`composition/site-access.ts` `scriptSet`) уже регистрирует
+  `[fansly-main, fansly]` одним вызовом, MAIN первым, на `https://fansly.com/*` в выпуске и на стенде в тестовой
+  сборке; P7i своих изменений здесь не вносит, а проверяет это на сборке выпуска (`apps/extension/test/
+  wiring-fansly.test.ts`: «Включить Fansly» из настроек — оба скрипта на fansly.com, вкладка регистрируется как
+  `fansly-web`, её модуль поднимается). Устаревшие комментарии «на стенде регистрирует e2e» исправлены.
+- **Регистрация вкладки с хостом и допуск.** Вкладка регистрируется общим рантаймом (`tab.register` с `host:
+  'fansly-web'`), фон пускает её при активном сайте (P9a). Чего не хватало — допуска: ядро фона не знает среза Fansly
+  (§1.4), поэтому генерацию и токен `insert` вкладки Fansly оно отказывало (`CG-FEATURE-DISABLED`). Теперь
+  `BackgroundHostHandle.features` — срез сайта, который приносит его модуль; `bg/fansly` режет его так же, как корни
+  сайта (`featureSlice(FEATURES_COMMON, FANSLY_FEATURES)`). `featuresOf` фона — свой срез ядра (ChatSpace), иначе срез
+  работающего модуля (`HostModules.running`); `op.start` и `token.issue` вкладки сайта, чей срез приносит модуль,
+  сначала дожидаются модуля (фон, разбуженный этим запросом, мог его ещё не поднять). Модуль не поднялся — допуска нет,
+  в хаб ничего не уходит. Страницы расширения берут срез Fansly сами (`PAGE_FEATURES`), а не из таблицы ядра.
+- **Отправка человеком — правило сайта** (по сообщению координатора из отчёта P7f, #120). Фон берёт `op.reportSent` за
+  известное (телеметрия `sent`, регистрация приветствия в хабе) только где сайт отправку видит. Правило было ChatSpace
+  (`wsTap` страницы операции) прямо в коде фона (`humanSendObservable`), и `sent` Fansly отбрасывался бы всегда: у
+  страницы Fansly `wsTap` нет. Теперь это запись манифеста `human-send` (сервис, `contract-change`): ChatSpace — `wsTap`
+  и возможность `sendObserve`, Fansly — только `sendObserve`; фон спрашивает `admission` страницы операции по срезу её
+  сайта (возможности сайта — дело вкладки), для Fansly — сначала поднимая модуль. Имени сайта в общем коде нет.
+- **Профиль Fansly в общем resolver** — клиент схемы `fansly` (`HostAdapter.hotkeyClient`, F5) уже стоял во входе с
+  P7c; P7i проверяет его на настоящем диспетчере: строки `extension` и Coach работают, строка «Заметки» (⌘⇧K) — пока
+  зарезервированная буква (команды у диспетчера нет до P11b).
+- **Ранний щуп Fansly** (`createKeyboardProbe`, §7.9, FS-HK-1). Поле сайта — `textarea.message-input` под
+  `app-messages-conversation-route` (и в цепочке контейнера, и поле мимо неё под оверлеем, FS-PLC-3); поле мини-чата —
+  «другое поле сайта» (AI-клавиша там отказывает с причиной). «Окно сайта» (`nativeModalOpen`) — `body.modal-opened`
+  (O(1)) или фокус внутри хоста `fb-<…>-ui` соседа: `document.activeElement` называет самый внешний хост, в открытые
+  корни FBuddy мы не заглядываем. Уступка — общим правилом диспетчера для окна сайта: Esc и буквы — окну, наше
+  сочетание забирается и ничего не запускает, тост «сначала закройте открытое окно». Enter нашим не бывает: в поле
+  Fansly он отправляет сам, на нашей части — «Вставить», повтор зажатого Enter из нашего UI в поле не доходит (общее
+  правило `tab/keys.ts`). ⌘⇧L на Mac — наш Split раньше слушателя перевода FBuddy на поле (X37).
+- **Стенд.** Панель соседа `panel=desktop` получила поле заметок (у FBuddy в панели — «FBuddy Notes»): окно соседа с
+  полем, куда человек печатает.
+- **Байты ChatSpace.** Сдвинулись `background.js` (`featuresOf` через модуль и ожидание модуля, правило `human-send`) и
+  ленивые файлы ChatSpace, что несут его срез манифеста (`tab-app` и общие чанки, новая запись `human-send`); ранний
+  изолированный, MAIN, тап и `bg/chatspace.js` — те же. Закрепы переписаны `pnpm gates:bytes`, числа — в PR.
+- **Проверки:** юнит — `host-fansly/isolated/keyboard.dom.test.ts` (поле, мини-чат, поле под маршрутом, модалка, фокус в
+  хосте соседа), `composition/tab/hosts/fansly/keys.test.ts` (диспетчер вкладки с адаптером Fansly: клавиши в поле до
+  слушателей Fansly и FBuddy, Enter за страницей, ⌘⇧L и Ctrl+Alt+L — Split, Ctrl+Shift+L — FBuddy, модалка, окно
+  соседа, мини-чат, клавиша до приложения, повтор Enter), `test/wiring-fansly.test.ts` (выпуск: регистрация, вкладка,
+  Reply Fansly допущен и стримится, токен `insert`, флаг страницы `drafts`; ручная отправка части Fansly взята за
+  известную на странице без `wsTap`, ChatSpace без `wsTap` — нет; модуль не поднялся — ничего),
+  `test/account-switch.test.ts` (`humanSendObservable` по срезам обоих сайтов), `contracts/test/features.test.ts`,
+  `test/host-modules.test.ts` (`running`); e2e — `suite-fansly-host` (стенд, сосед `after`, вход в хаб, персона и флаги
+  страницы Fansly: клавиша до приложения на инбоксе, клавиши в поле и Help, Hi и Ping по клавишам, Enter на части и в поле, Split и перевод
+  FBuddy, ⌘⇧L при платформе Mac, Esc по очереди, модалка Fansly и заметки соседа, вкладки Fansly и ChatSpace рядом) и
+  `suite-fansly-neighbor` (FS-CO-4, последний PR цепочки «тап → док → вставка → отправка»: в десяти режимах соседа —
+  `off`, `after`, крючок после первого ответа, `before`, `reinject`, `legacy`, панель в шапке и сбоку, чужой Proxy и
+  подкласс — наш MAIN, док перед полем, Reply по клавише и вставка части Enter, модель страницы с текстом, Enter человека
+  отправляет её — хаб слышит `sent` операции (правило `human-send` Fansly), сосед видит ответы страницы как без нас,
+  ни одного нашего запроса к Fansly; с фильтром слов соседа отправка после нашей вставки проглочена — ни запроса, ни
+  `sent`, — текст вернулся, следующая уходит). Как MAIN распознаёт отправку человека и связывает её с вставкой —
+  `suite-fansly-send-observe` P7f (§7.20).
 
 ## 8. Фон: службы Fansly
 

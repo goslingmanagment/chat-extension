@@ -59,7 +59,7 @@ describe('the Fansly start without MAIN', () => {
     port.dispose();
   });
 
-  it('the keys: a conversation’s address is a chat (P7c); no field is Fansly’s message field and no window of its own is open yet (P7i)', async () => {
+  it('the keys: a conversation’s address is a chat (P7c); its field under the route is Fansly’s message field, one elsewhere is not, and its modal is a window of its own (P7i)', async () => {
     expect(routeOfLocation({ pathname: '/messages/123456789012345678' })).toEqual({ kind: 'chat', epoch: '/messages/123456789012345678' });
     const started = startFanslyTab({ win: window, validation: loadValidation, redeem: () => Promise.resolve(false), handshakeTimeoutMs: 20 });
     const probe = createKeyboardProbe(document, started.mounts.registry);
@@ -67,8 +67,13 @@ describe('the Fansly start without MAIN', () => {
     const field = document.querySelector('textarea');
     field?.focus();
     expect(probe.focus(new KeyboardEvent('keydown', { key: 'k' }))).toBe('field');
-    document.body.classList.add('modal-opened');
+    document.body.innerHTML = '<app-messages-conversation-route><app-group-message-container><app-group-message-input><textarea class="message-input"></textarea></app-group-message-input></app-group-message-container></app-messages-conversation-route>';
+    document.querySelector('textarea')?.focus();
+    expect(probe.focus(new KeyboardEvent('keydown', { key: 'k' }))).toBe('composer');
     expect(probe.nativeModalOpen()).toBe(false);
+    document.body.classList.add('modal-opened');
+    expect(probe.nativeModalOpen()).toBe(true);
+    document.body.classList.remove('modal-opened');
     started.mounts.dispose();
     (await started.host).dispose();
   });

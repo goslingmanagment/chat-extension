@@ -61,6 +61,7 @@ import {
   type ResolveHubError,
   type SettingsV1,
 } from '@cg/contracts';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { hashOfRoute } from '@cg/core/application/pages';
 import { LOCAL_KEYS, SESSION_KEYS, SYSTEM_LOCALE_REWRITE, resolveHubError, rewritesSystemLocale, storageBudgetOf } from '@cg/core/domain';
@@ -135,7 +136,7 @@ import { pickCommandTab } from './background/tab-command';
 import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
-import { featuresOf } from './features';
+import { featuresOf as coreFeaturesOf } from './features';
 import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily } from './site-access';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
@@ -466,8 +467,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       persona: (pageId) => (ours ? (current.personas.byPageId[String(pageId)] ?? null) : null),
       debug: current.debug.enabled,
       settingsLoaded: settingsRead(),
-      // What a feature needs on the chat's site: the site's slice of the feature manifest (./features).
-      features: featuresOf,
+      // What a feature needs on the chat's site: the site's slice of the feature manifest (./features; Fansly's — from
+      // its running module, R20 P7i).
+      features: (host) => featuresOf(host),
     };
   };
 
@@ -668,6 +670,19 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   }
   /** The site of a registered tab session; null — not a registered tab. */
   const hostOfTab = (tabSessionId: string): HostKind | null => rpc.tabs().find((tab) => tab.tabSessionId === tabSessionId)?.request.host ?? null;
+  /**
+   * A site's slice of the feature manifest (§1.4): the core's own (ChatSpace's), else the one the site's running module
+   * brought (Fansly's, R20 P7i: its file is not in the core's graph). Null until that module runs: nothing of the site is
+   * admitted, and a request of the site's tab that needs the slice starts the module first (`featuresFor`).
+   */
+  function featuresOf(host: HostKind): FeatureSlice | null {
+    return coreFeaturesOf(host, (site) => hostModules.running(site)?.features);
+  }
+  /** The slice for a request of the site's own tab, after the site's module is up: the background this request woke may not have started it yet. */
+  async function featuresFor(host: HostKind): Promise<FeatureSlice | null> {
+    await hostModules.ensure(host);
+    return featuresOf(host);
+  }
 
   /** §9.3 «Выключение отладки или выход очищают всё»: journals and the local spend; the facade drops its prompt echoes itself. */
   const clearDebug = (): void => clearDebugData({ journals: logging.journals, spend });
@@ -1024,6 +1039,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // operations
   rpc.handle('op.start', async (start, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    // The start is judged by the slice of its chat's site: a site whose slice its module brings has it up first.
+    const site = start.target.binding.host;
+    if (featuresOf(site) === null && hostOfTab(sender.tabSessionId) === site) await featuresFor(site);
     const outcome = await scheduler.start(sender.tabSessionId, start);
     return outcome.kind === 'admission' ? ok(outcome.admission) : fail(outcome.code);
   });
@@ -1045,13 +1063,17 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (view !== null) spend.recordInsert(view.feature, Date.now());
     return ok({ recorded: telemetry.report('inserted', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }) });
   });
-  rpc.handle('op.reportSent', ({ opId, part, platformMessageId, edited }, sender) => {
+  rpc.handle('op.reportSent', async ({ opId, part, platformMessageId, edited }, sender) => {
     const view = scheduler.view(opId);
-    // A human send is told by ChatSpace's socket, and whose socket may be listened to is the PAGE's own `wsTap`
-    // (the tab keeps one tap while any page has it). With the switch off on the operation's page the send is not
-    // ours to know: nothing is registered and no `sent` is reported — as on a tab that has no tap at all.
-    if (!humanSendObservable(view, hubInstance?.cachedBootstrap()?.bootstrap ?? null)) {
-      logger.info('bg.sends', 'human send not recorded: the tap is off for the page', { fields: { pageId: view?.target.binding.pageId ?? null } });
+    // How a human send is seen is the operation's site's, its slice of the manifest says when (`human-send`): on
+    // ChatSpace its socket tells it, and whose socket may be listened to is the PAGE's own `wsTap` (the tab keeps one
+    // tap while any page has it); Fansly's MAIN sees it with no switch. Not observable on the operation's page: the
+    // send is not ours to know — nothing is registered and no `sent` is reported, as on a tab that has no tap at all.
+    // A site whose slice its module brings has the module up first (a background this report woke).
+    const site = view?.target.binding.host ?? null;
+    if (site !== null && featuresOf(site) === null && sender.kind === 'tab' && hostOfTab(sender.tabSessionId) === site) await featuresFor(site);
+    if (!humanSendObservable(view, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf)) {
+      logger.info('bg.sends', 'human send not recorded: not observable on the page', { fields: { pageId: view?.target.binding.pageId ?? null } });
       return ok({ recorded: false });
     }
     // §6.6, §8.5: a human send proven by its receipt and echo. For a part of a preview or of a «Новые» card the
@@ -1198,7 +1220,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // list still navigates. Whose switch a navigation asks is its surface's: ours (`navigation`) or a board's own.
     // An insert is admitted by the feature manifest of the site the tab is on.
     const site = hostOfTab(sender.tabSessionId);
-    const siteFeatures = site === null ? null : featuresOf(site);
+    const siteFeatures = site === null ? null : (featuresOf(site) ?? (await featuresFor(site)));
     const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, surface, hubInstance, wireOf, siteFeatures);
     if (refusal !== null) {
       logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });

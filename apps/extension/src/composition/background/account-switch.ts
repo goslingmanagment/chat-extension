@@ -13,10 +13,14 @@
 //   it. Its page may well say «off», and `"*"` is not that page's answer.
 // - No bootstrap: `null`, unknown — nobody is signed in, and what needs no hub
 //   (the message sound) goes on.
+// And for an event that names an operation (a part sent by hand): its page and
+// its site's slice of the feature manifest (`humanSendObservable`).
 
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import { type Bootstrap, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { type HostAccount, type HostKind } from '@cg/contracts/ids';
-import { flagUsable, pageFlagState, starFlag } from '@cg/core/domain/ops';
+import { admission, onPage } from '@cg/core/domain/features';
+import { pageFlagState, starFlag } from '@cg/core/domain/ops';
 
 /** How the hub layer resolved an account (`ChatExtensionHub.resolveBinding`), as far as this rule reads it. */
 export type AccountBinding =
@@ -61,11 +65,18 @@ export function incomingFactUsable(fact: { readonly source: string; readonly hos
 
 /**
  * Whether a human send of an operation's part may be taken for known (`op.reportSent`: the hub's registration of
- * a greeting, telemetry `sent`). It is ChatSpace's socket that tells it, and the socket of a page may be listened
- * to only where the page's own `wsTap` is usable — the tab's tap is one for all its accounts, on while any page
- * has it. No operation (forgotten by now) or no bootstrap: there is no page to ask, and the report is taken as
- * before — its own checks follow.
+ * a greeting, telemetry `sent`). How a site sees a send by hand is the site's, and its slice of the feature manifest
+ * says when (`human-send`, R20 P7i): ChatSpace's socket tells it, and that socket may be listened to only where the
+ * page's own `wsTap` is usable; Fansly's MAIN sees it with no switch of the owner. Asked of the operation's page, the
+ * site's capabilities left to its tab. No operation (forgotten by now) or no bootstrap: there is no page to ask, and
+ * the report is taken as before — its own checks follow. No slice of the operation's site: nothing to say it is seen.
  */
-export function humanSendObservable(view: { readonly target: { readonly binding: { readonly pageId: number } } } | null, bootstrap: Bootstrap | null): boolean {
-  return view === null || bootstrap === null || flagUsable(bootstrap, view.target.binding.pageId, 'wsTap');
+export function humanSendObservable(
+  view: { readonly target: { readonly binding: { readonly pageId: number; readonly host: HostKind } } } | null,
+  bootstrap: Bootstrap | null,
+  features: (host: HostKind) => FeatureSlice | null,
+): boolean {
+  if (view === null || bootstrap === null) return true;
+  const { host, pageId } = view.target.binding;
+  return admission(features(host), 'human-send', null, onPage(bootstrap, bootstrap.pages.find((page) => page.pageId === pageId))).state === 'on';
 }

@@ -4,8 +4,9 @@
 // (docs/project-unite/architecture.md §1.2, §5). The registry entry
 // (../fansly.ts) reads its addresses from here.
 //
-// P9a joins this row to RUNTIME_HOSTS for the grant/reload handshake. The
-// application and feature admission remain P7i. Joining moves shared bytes.
+// P9a joined this row to RUNTIME_HOSTS for the grant/reload handshake; with
+// R20 P7i the background admits a Fansly tab's requests by Fansly's slice of
+// the feature manifest, which Fansly's background module brings.
 
 /** Fansly's pages, where its scripts run once the person switched Fansly on (§4). */
 export const FANSLY_MATCHES: readonly string[] = ['https://fansly.com/*'];

@@ -57,6 +57,8 @@ export interface HostModulesDeps {
 export interface HostModules {
   /** The running module of a site, starting it first; null — it is not there (`failed`, or no chunk for the site). */
   ensure(host: HostKind): Promise<BackgroundHostHandle | null>;
+  /** The site's module if it runs now, without starting it; null — idle, starting or failed. */
+  running(host: HostKind): BackgroundHostHandle | null;
   /** A request routed to its site's module; a module that does not start answers CG-RUNTIME-UNREACHABLE. */
   request(host: HostKind, message: VerifiedTabMessage): Promise<HostAnswer>;
   /** Tells every module that runs or is starting (or only the site's own), and waits; rejects if one failed to take it. */
@@ -136,6 +138,11 @@ export function createHostModules(deps: HostModulesDeps): HostModules {
 
   return {
     ensure,
+
+    running(host) {
+      const slot = slots.get(host);
+      return slot !== undefined && slot.state === 'started' ? slot.handle : null;
+    },
 
     async request(host, message) {
       const handle = await ensure(host);
