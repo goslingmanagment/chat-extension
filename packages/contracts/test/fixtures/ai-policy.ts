@@ -3,6 +3,14 @@
 // `unknown` — so the invalid samples are refused by the compiler (`@ts-expect-error`), as the profile's are.
 
 import type * as C from '../../src/index';
+import { hostIdentity } from './samples';
+
+const legacyAsk = { feature: 'fix', surface: 'dock', identity: hostIdentity, fresh: null } as const satisfies C.AiProofAsk;
+export const AI_PROOF_ASK_SAMPLES = {
+  valid: [legacyAsk, { ...legacyAsk, messageCount: 100 } satisfies C.AiProofAsk],
+  // @ts-expect-error The effective count is numeric, not an options object or a string.
+  invalid: [{ ...legacyAsk, messageCount: '100' } satisfies C.AiProofAsk],
+};
 
 /** A second site's proof and fingerprint, as a site would define them (Fansly: its snapshot, the ids it checked). */
 interface SiteProof {
