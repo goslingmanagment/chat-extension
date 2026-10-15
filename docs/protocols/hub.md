@@ -8,7 +8,7 @@
 
 | Модуль | Что внутри |
 |---|---|
-| `wire` | дата `YYYY-MM-DD`, `pageLabel`, курсор, тело ошибки хаба (`definitionId` и ключ персоны — в `primitives`, их делят настройки и запросы вкладки); известные значения открытых словарей (22 флага — с 1.15.0 и шесть флагов Fansly; 16 возможностей — с 1.15.0 и `conversation-recaps-v1`, `coverage-check-v1`, `manual-greeting-v1`, `voice-notes-v1`; причины недоступности с `client_outdated` и `lane_off`; возможности заголовка AI); `isFlagOn`, `hasCapability`, `narrowToken`; ключ привязки `onlymonster:<id>` |
+| `wire` | дата `YYYY-MM-DD`, `pageLabel`, курсор, тело ошибки хаба (`definitionId` и ключ персоны — в `primitives`, их делят настройки и запросы вкладки); известные значения открытых словарей (22 флага — с 1.15.0 и шесть флагов Fansly; 17 возможностей — с 1.15.0 и `conversation-recaps-v1`, `coverage-check-v1`, `manual-greeting-v1`, `voice-notes-v1`, `hi-start-proof-v1`; причины недоступности с `client_outdated` и `lane_off`; возможности заголовка AI); `isFlagOn`, `hasCapability`, `narrowToken`; ключ привязки `onlymonster:<id>` |
 | `auth` | вход (`authIssueDeviceTokenWithPassword` + `client` из H-3 и его эхо), отзыв, `me`, `health` с `compatibleClientSdks` |
 | `bootstrap` | H-2a: страницы, привязки, флаги, пределы, возможности |
 | `ai` | каталог персон, карта наших фич в фичи хаба, тело и запрос потока (H-4b/H-4c), все кадры SSE, маркеры Split; с 1.15.0 — функции хаба операций Fansly (`voice-script`, `fan-notes-fill`) и метки анкеты `noteFields` (п. 20) |

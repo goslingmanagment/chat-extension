@@ -19,19 +19,10 @@ import { HiFanAvatarUrlSchema as FanslyAvatarUrlSchema, START_PROOF_LIMITS, Star
 import type { Unsubscribe } from './host';
 import type { HostIdentity, HumanCause } from './ids';
 import { LIVE_TEXT_LIMITS } from './limits';
-import { CountSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText, type NativeId } from './primitives';
+import { nativeIdsAscending as ascending, CountSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText, type NativeId } from './primitives';
 
-/** Snowflake order of two Fansly ids: negative — `a` is older. Both are NATIVE_ID_PATTERN strings (no leading zero). */
-export function compareFanslyIds(a: string, b: string): number {
-  if (a.length !== b.length) return a.length - b.length;
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-/** Strictly ascending in snowflake order: oldest first, no repeats. */
-function ascending(ids: readonly string[]): boolean {
-  for (let i = 1; i < ids.length; i += 1) if (compareFanslyIds(ids[i - 1] as string, ids[i] as string) >= 0) return false;
-  return true;
-}
+// Preserve the site's public name; schemas share the host-neutral numeric order.
+export { compareNativeIds as compareFanslyIds } from './primitives';
 
 // ── Limits ─────────────────────────────────────────────────────────────────
 

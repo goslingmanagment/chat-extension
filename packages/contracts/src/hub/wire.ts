@@ -56,7 +56,8 @@ export type HubErrorBody = z.infer<typeof HubErrorBodySchema>;
 
 /**
  * Owner kill switches (`chatExtensionFeatures`); on the wire an open record. Where each one exists is the hub's
- * (R20 HF-2): a page of a platform without it reads `platform_unsupported`, whatever the owner's rows say.
+ * (R20 HF-2): a page of a platform without it reads `platform_unsupported`, whatever the page rows say.
+ * HF-15: the global master switch is checked first; off, every feature on every platform reads `disabled`.
  *
  * 1.15.0 (R20 P4b3; docs/project-unite/architecture.md §11.1): Fansly's own six, in the SDK's order — `drafts`
  * (Reply, Fix, Hi and Ping on a Fansly page, HF-12), `voice` (the voice script and the voice-note routes, HF-4б;

@@ -2,17 +2,13 @@
 // hub request schemas use these values without importing the site's snapshot, anchors or bridge vocabulary.
 import * as z from 'zod/mini';
 
-import { CountSchema, NativeIdSchema } from './primitives';
+import { compareNativeIds, nativeIdsAscending, CountSchema, NativeIdSchema } from './primitives';
 
 export const START_PROOF_LIMITS = { automatedIdsMax: 120, passPersonalWindow: 30 } as const;
 
 /** The hub's fanslyAvatarUrlSchema: the provider receives an image; neither this client nor the hub fetches it. */
 export const HI_FAN_AVATAR_URL_PATTERN = /^https:\/\/[a-z0-9-]+\.fansly\.com\//;
 export const HiFanAvatarUrlSchema = z.string().check(z.maxLength(4096), z.regex(HI_FAN_AVATAR_URL_PATTERN));
-
-/** Canonical numeric ids order by length, then lexically; never through Number. */
-const compareIds = (a: string, b: string): number => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
-const ascending = (ids: readonly string[]): boolean => ids.every((id, i) => i === 0 || compareIds(ids[i - 1] as string, id) < 0);
 
 // ── StartProofV1 (§5.8, FS-AI-2, HF-5) ─────────────────────────────────────
 
@@ -51,13 +47,13 @@ type StartProofShape = { readonly source: StartProofSource; readonly startWitnes
 function startWitnessHolds(p: StartProofShape): boolean {
   if ((p.startWitnessId === null) !== (p.coveredCount === 0)) return false;
   const first = p.automatedIds[0];
-  return p.startWitnessId === null || first === undefined || compareIds(p.startWitnessId, first) <= 0;
+  return p.startWitnessId === null || first === undefined || compareNativeIds(p.startWitnessId, first) <= 0;
 }
 
 /** The counts fit the history they come from: the pass counts personal messages among its last 30 only. */
 function startCountsHold(p: StartProofShape): boolean {
   const automated = p.automatedIds.length;
-  if (!ascending(p.automatedIds) || automated > p.coveredCount || p.personalCount > p.coveredCount) return false;
+  if (!nativeIdsAscending(p.automatedIds) || automated > p.coveredCount || p.personalCount > p.coveredCount) return false;
   if (p.source === 'pass-empty-page') return p.personalCount <= START_PROOF_LIMITS.passPersonalWindow;
   return p.personalCount + automated <= p.coveredCount;
 }

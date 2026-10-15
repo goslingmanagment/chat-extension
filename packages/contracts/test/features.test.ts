@@ -2,10 +2,11 @@
 // one file per site use the known vocabularies, a site's file says nothing of the other site, the features the plan
 // names are entered in full for both sites, and what is left of the client's flag table is its own transport need.
 
+import { NON_CHATSPACE_FEATURE_FLAGS } from './fixtures/feature-flags';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { FANSLY_CAPABILITIES } from '../src/fansly';
-import { CHATSPACE_FEATURES, type ChatSpaceFeatureKey } from '../src/features/chatspace';
+import { CHATSPACE_FEATURE_FLAGS, CHATSPACE_FEATURES, type ChatSpaceFeatureFlag, type ChatSpaceFeatureKey } from '../src/features/chatspace';
 import { FEATURES_COMMON, type CommonFeatureKey } from '../src/features/common';
 import { FANSLY_FEATURES, FANSLY_SURFACES_AHEAD, type FanslyFeatureKey } from '../src/features/fansly';
 import * as F from '../src/features/types';
@@ -14,9 +15,9 @@ import { DOCK_CHIP_SAMPLES, REQUIREMENT_SAMPLES, SITE_FILE_SAMPLES } from './fix
 
 type Entry = F.FeatureOnHost<string, string, string> & Partial<F.FeatureCommon>;
 /** Fansly's own switches (hub HF-12, HF-4б, HF-2): in the shared vocabulary since P4b3, named by Fansly's file alone. */
-const FANSLY_FLAGS = ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration'] as const satisfies readonly C.ClientFeatureFlag[];
+const FANSLY_FLAGS = NON_CHATSPACE_FEATURE_FLAGS;
 const SITES: readonly { readonly site: string; readonly file: Readonly<Record<string, Entry>>; readonly flags: readonly string[]; readonly capabilities: readonly string[]; readonly surfaces: readonly string[] }[] = [
-  { site: 'chatspace', file: CHATSPACE_FEATURES, flags: C.CLIENT_FEATURE_FLAG_NAMES, capabilities: C.HOST_CAPABILITIES, surfaces: C.MOUNT_SURFACES },
+  { site: 'chatspace', file: CHATSPACE_FEATURES, flags: CHATSPACE_FEATURE_FLAGS, capabilities: C.HOST_CAPABILITIES, surfaces: C.MOUNT_SURFACES },
   {
     site: 'fansly',
     file: FANSLY_FEATURES,
@@ -214,4 +215,11 @@ describe('the fixtures of the manifest and of the chips', () => {
       if (chip.action !== null) expect(C.UiActionSchema.safeParse(chip.action).success, chip.id).toBe(true);
     }
   });
+});
+
+it('ChatSpace admits only explicitly listed flags, including at the type boundary', () => {
+  expectTypeOf<'futureFanslyFlag'>().not.toExtend<ChatSpaceFeatureFlag>();
+  expectTypeOf<'voice'>().not.toExtend<ChatSpaceFeatureFlag>();
+  expectTypeOf<'insertion'>().toExtend<ChatSpaceFeatureFlag>();
+  expect(new Set(CHATSPACE_FEATURE_FLAGS).size).toBe(CHATSPACE_FEATURE_FLAGS.length);
 });
