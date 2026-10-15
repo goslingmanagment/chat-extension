@@ -22,7 +22,8 @@ X8 на любой сборке ChatSpace по профилю-метке хаб�
 разговор маршрута и навигации; P4a2 — мост Fansly: модули сайта `bridge-fansly`, `bridge-messages-fansly`, `fansly`;
 P4a3 — протокол вкладки Fansly, отправитель `relay`, ключ `settings.ext` и коды Fansly; P4b1 — свежесть и запрос: проверка
 окна HF-8в (`StartOp.proof`, `ServedContext.coverageCheck`, тело и кадр хаба, возможность `coverage-check-v1`), порты
-`HostPort.freshness?` и `HostPort.fansly?`, модуль сайта `fansly-host`; F4 — манифест фич
+`HostPort.freshness?` и `HostPort.fansly?`, модуль сайта `fansly-host`; P4b2 — окна операций и `messageCount` до 5000
+(HF-6), настройки v1 по-прежнему до 3000, пожелание выше — `settings.ext.windows.deep`, допуск — `limits.deepMax`; F4 — манифест фич
 `features/*` (только подпути), чипы полосы данными `DockVM.chips`, в `CLIENT_FLAG_REQUIREMENTS` — только нужда
 транспорта клиента; P4c — отправка приветствия Fansly по HTTP: модуль сайта `send-fansly` и типы тела брони хаба
 после HF-3 `hub/claim-body`; P2v — SDK перевендорен из выложенного `main` хаба `bd3eec06` (контракт `9137410d…`),

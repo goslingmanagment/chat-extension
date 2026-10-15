@@ -29,6 +29,7 @@
 
 import * as z from 'zod/mini';
 
+import { AI_REQUEST_LIMITS } from './limits';
 import { CountSchema } from './primitives';
 import { ToneIdSchema } from './settings';
 
@@ -47,7 +48,7 @@ export const SETTINGS_EXT_RANGES = {
    * (`generation.windows.deep`); the effective depth is this one when set, else v1's, and never above the hub's
    * `limits.deepMax` (P4b2).
    */
-  windowDeep: { min: 3001, max: 5000 },
+  windowDeep: { min: 3001, max: AI_REQUEST_LIMITS.messageCountMax },
 } as const;
 
 const intIn = (range: { readonly min: number; readonly max: number }) => z.int().check(z.gte(range.min), z.lte(range.max));

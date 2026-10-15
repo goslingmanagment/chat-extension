@@ -41,7 +41,7 @@ export const SETTINGS_RANGES = {
   windowPing: { min: 5, max: 200 },
   /** Fix (ST-092). */
   windowImprove: { min: 5, max: 200 },
-  /** Review, full Recap (ST-093); also capped by bootstrap `limits.deepMax`. */
+  /** Review, full Recap (ST-093): v1 stays ≤ 3000; a larger wish lives in settings.ext, admission in `limits.deepMax`. */
   windowDeep: { min: 100, max: 3000 },
   coachHistoryLimit: { min: 1, max: 20 },
   volume: { min: 5, max: 100, step: 5 },

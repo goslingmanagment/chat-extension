@@ -623,12 +623,12 @@ export const HUB_SCHEMA_FIXTURES = [
     { window: [{ id: COVERAGE_MSG.m1, dir: 'fan' }] },
     { window: [], deletedIds: [], knownFanMessageIds: [COVERAGE_MSG.m1] },
   ]),
-  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }, fanslyBody, voiceScriptBody, notesFillBody], [
+  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, messageCount: 3001 }, { ...streamBody, messageCount: 5000 }, { ...fanslyBody, messageCount: 5000 }, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }, fanslyBody, voiceScriptBody, notesFillBody], [
     // 1.15.0 (R20 P4b3): labels only — the merge mode's values never travel — and labels the hub takes.
     { ...notesFillBody, noteValues: ['Анна', '', '', ''] },
     { ...notesFillBody, noteFields: [] },
     { ...notesFillBody, noteFields: ['Имя', 'ИМЯ'] },
-    { ...streamBody, messageCount: 3001 },
+    { ...streamBody, messageCount: 5001 },
     { ...streamBody, clientContext: { transcript: 'x' } },
     { ...streamBody, conversationRef: 'chat-2002' },
     // The bounded set of §6.7.5: 1–10 distinct ids, never the old single field.

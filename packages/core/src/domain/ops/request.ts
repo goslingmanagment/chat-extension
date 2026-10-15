@@ -23,6 +23,7 @@ import {
 import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
 import { type StartOp } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
+import { type SettingsExt } from '@cg/contracts/settings-ext';
 
 import { type PersonaChoice } from './environment';
 import { flagUsable } from './flags';
@@ -33,9 +34,10 @@ export const FIXED_WINDOWS = { hi: 25, recapShort: 300 } as const;
 /**
  * Б5 / AI-134: the messageCount of a feature from the settings windows
  * (quick: Reply, Coach; improve: Fix; ping: Ping; deep: Review, full Recap),
- * the deep one never above the hub's `limits.deepMax`.
+ * the deep wish from settings.ext when present, otherwise v1; never above
+ * the hub's `limits.deepMax`. Storage itself is left unchanged.
  */
-export function messageWindowFor(feature: FeatureId, windows: SettingsV1['generation']['windows'], deepMax: number): number {
+export function messageWindowFor(feature: FeatureId, windows: SettingsV1['generation']['windows'], deepMax: number, extendedWindows?: SettingsExt['windows']): number {
   const cap = Math.max(AI_REQUEST_LIMITS.messageCountMin, Math.min(AI_REQUEST_LIMITS.messageCountMax, deepMax));
   const raw = (() => {
     switch (feature) {
@@ -50,7 +52,7 @@ export function messageWindowFor(feature: FeatureId, windows: SettingsV1['genera
         return FIXED_WINDOWS.hi;
       case 'review':
       case 'recap':
-        return windows.deep;
+        return extendedWindows?.deep ?? windows.deep;
       case 'recap-short':
         return Math.min(windows.deep, FIXED_WINDOWS.recapShort);
     }

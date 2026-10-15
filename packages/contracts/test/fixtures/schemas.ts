@@ -782,6 +782,10 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       // 1.2.0: a composite Coach turn — the recap first, then the question, under one admission (AI-096).
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 3000 } } },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { preset: 'situation', history: [], autoRecap: { length: 'short', window: 300 } } },
+      // 1.15.0 (R20 P4b2): wire depth above v1's 3000, up to HF-6's 5000.
+      { feature: 'recap', surface: 'dock', target, cause, tone: null, split: false, window: 3001 },
+      { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 5000 },
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 5000 } } },
       // 1.15.0 (R20 §9.1): Fansly — the proof instead of `fresh` and `checkpoint`; a Recap's without a text; a pass's in «Новые».
       fanslyStartReply,
       { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 3000, proof: { ...tabProof, tail: undefined } },
@@ -796,7 +800,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...startReply, window: 0 },
       // The hub body's messageCount starts at 5; a valid StartOp must be a valid hub request.
       { ...startReply, window: 4 },
-      { ...startReply, window: 3001 },
+      { ...startReply, window: 5001 },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: repeat('q', 2001), history: [] } },
       { ...startReply, fresh: undefined, checkpoint },
       { feature: 'hi', surface: 'newcomers', target, cause, tone: null, split: true, window: 25, variantCount: 1, checkpoint: { ...checkpoint, platformFanId: '2099' } },

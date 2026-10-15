@@ -47,7 +47,7 @@ describe('Coach (1.2.0)', () => {
     expectTypeOf<NonNullable<C.StartOp['coach']>['autoRecap']>().toEqualTypeOf<{ length: 'short' | 'full'; window: number } | undefined>();
     // The recap of a turn is not a feature of its own start: it belongs to a Coach start only.
     expect(C.StartOpSchema.safeParse({ ...base, feature: 'reply', surface: 'dock', coach: composite.coach }).success).toBe(false);
-    expect(C.StartOpSchema.safeParse({ ...base, coach: { ...composite.coach, autoRecap: { length: 'full', window: 3001 } } }).success).toBe(false);
+    expect(C.StartOpSchema.safeParse({ ...base, coach: { ...composite.coach, autoRecap: { length: 'full', window: 5001 } } }).success).toBe(false);
     // The answer step is named on the terminal view of the recap step.
     expectTypeOf<C.OpView['continuedBy']>().toEqualTypeOf<string | undefined>();
     expect(C.OpViewSchema.safeParse({ ...opView, continuedBy: '00000000-0000-4000-8000-000000000007' }).success).toBe(true);
