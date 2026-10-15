@@ -66,6 +66,7 @@ export interface FakeHubConfigPatch {
   readonly capabilities?: readonly string[];
   readonly minVersion?: string;
   readonly bindingsByHost?: Readonly<Record<string, number>>;
+  /** `config` control: deepMax is 1500, 3000 or 5000 (HF-6), shared by both platforms. */
   readonly limits?: Readonly<Record<string, unknown>>;
   /** H-3 deployed: `client: 'chat-extension'` issues a narrow token and echoes it. Off: the hub drops `client` (a full token, no echo). */
   readonly narrowTokens?: boolean;
@@ -79,7 +80,7 @@ export interface FakeHubConfigPatch {
   readonly spendersTotal?: number;
   /** Delay before each model-stream content chunk, ms. */
   readonly aiChunkDelayMs?: number;
-  /** Every part of a draft the model writes ends with ` @<fanRef>`: a test can tell whose chat a text was written for. */
+  /** Every part of a draft the model writes ends with ` @<conversationRef>`: a test can tell whose chat a text was written for. */
   readonly aiNameFan?: boolean;
   /**
    * What the model answers for a hub feature (`fast-reply`, `hi-greeting`, `fan-summary`, `chat-review`,
@@ -87,7 +88,7 @@ export interface FakeHubConfigPatch {
    * Features not named keep their synthetic answer; `{}` restores them all.
    */
   readonly aiTexts?: Readonly<Record<string, string>>;
-  /** Pages the hub's voice-notes lane does not serve (R20 HF-4б): their `voice` reads `lane_off` in the bootstrap. `[]` — it serves every page. */
+  /** Pages the hub's voice-notes lane does not serve (R20 HF-4б): their `voice` reads `lane_off` in the bootstrap. `[]` — it serves every page. Models the spend switch: existing renders remain readable/replayable. */
   readonly voiceLaneOff?: readonly string[];
 }
 
@@ -211,7 +212,7 @@ export interface FakeHubStatus {
 // ── Journal ────────────────────────────────────────────────────────────────
 
 /**
- * - `route` — one of the client's routes (HUB_ROUTES);
+ * - `route` — one of the client's routes (HUB_ROUTES), or an SDK-only voice route (P6c4);
  * - `forbidden` — an operation or route family the client must never call (§8.1 «Никогда»);
  * - `unknown` — any other path or method;
  * - `foreign-origin` — the in-process fetch was asked for another origin (the request never left);
@@ -233,7 +234,7 @@ export interface FakeHubJournalEntry {
   /** Pathname only: queries and bodies are in `request`, redacted. */
   readonly path: string;
   readonly kind: FakeHubCallKind;
-  readonly route: HubRouteKey | null;
+  readonly route: HubRouteKey | 'voiceNoteCreate' | 'voiceNoteStatus' | 'voiceNoteAudio' | null;
   /** Forbidden operation key or family (`ofapi`, `events`…). */
   readonly operation: string | null;
   readonly status: number;

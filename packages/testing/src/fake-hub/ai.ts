@@ -30,6 +30,9 @@ export interface Generation {
   completedAt: number | null;
   outcome: 'open' | 'done' | 'error' | 'aborted';
   text: string;
+  stopReason: string | null;
+  /** The actual reader window, retained for recap provenance even if the owner changes deepMax mid-stream. */
+  readonly window: { readonly requested: number; readonly served: number };
 }
 
 export const DEFAULT_CATALOG: readonly PersonaCatalogItem[] = [
@@ -47,7 +50,8 @@ export interface ModelStreamFacts {
   readonly freshTextFlag: boolean;
   readonly archive: { readonly head: { readonly messageRef: string; readonly at: string | null; readonly isFromFan: boolean } | null; readonly total: number; readonly state: (id: string) => string };
   readonly chunkDelayMs: number;
-  /** Every part of a draft ends with ` @<fanRef>` (the `aiNameFan` knob). */
+  readonly window?: { readonly requested: number; readonly limit: number };
+  /** Every part of a draft ends with ` @<conversationRef>` (the `aiNameFan` knob). */
   readonly nameFan?: boolean;
   /** The whole answer per feature, in place of the synthetic one (the `aiTexts` knob). */
   readonly texts?: Readonly<Record<string, string>>;
@@ -73,6 +77,8 @@ export function generationText(request: HubStreamRequest, splitAllFlag: boolean)
   const splitAllowed =
     wantsSplit && (feature === 'fast-reply' || feature === 'improve-draft' || (request.capabilities.includes('split-all-v1') && splitAllFlag && ['hi-greeting', 'ping', 'coach-chat'].includes(feature)));
   if (feature === 'fan-summary') return body.summaryMode === 'short' ? '## Short recap\nSynthetic short recap.' : '## Recap\nSynthetic recap of the conversation.\n\n- likes short replies';
+  if (feature === 'voice-script') return '[warmly] Hey you, it is lovely to hear from you.';
+  if (feature === 'fan-notes-fill') return (body.noteFields ?? []).map((label) => `${label}: Synthetic fact from the chat.`).join('\n');
   if (feature === 'hi-greeting') {
     const variants = ['Hi and welcome!', 'Hey, glad you are here!', 'Welcome in, nice to meet you!'].slice(0, body.variantCount ?? 1);
     return variants.map((variant) => (splitAllowed ? `${variant} ${SPLIT_MARKERS.next} Ask me anything.` : variant)).join(SPLIT_MARKERS.variant);
@@ -82,13 +88,13 @@ export function generationText(request: HubStreamRequest, splitAllFlag: boolean)
 }
 
 /** Features whose answer is a draft for the fan (parts and variants); the others are analysis. */
-const DRAFT_FEATURES: readonly string[] = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'];
+const DRAFT_FEATURES: readonly string[] = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'voice-script'];
 
-/** The draft with ` @<fanRef>` after every part and variant: whose chat each text was written for. */
+/** The draft with ` @<conversationRef>` after every part and variant: which chat each text was written for. */
 export function namedForFan(text: string, request: HubStreamRequest): string {
-  const fanRef = request.body.fanRef ?? request.body.conversationRef;
+  const conversationRef = request.body.conversationRef;
   if (!DRAFT_FEATURES.includes(request.feature)) return text;
-  const tag = ` @${fanRef}`;
+  const tag = ` @${conversationRef}`;
   return text
     .split(SPLIT_MARKERS.variant)
     .map((variant) =>
@@ -145,14 +151,14 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
   }
   if (capabilities.includes('context-v1')) {
     const live = body.liveTextContext;
-    const requested = body.messageCount ?? 100;
+    const requested = facts.window?.requested ?? body.messageCount ?? 100;
     const liveStatus = live === undefined ? 'not_sent' : facts.freshTextFlag ? 'served' : 'disabled';
     const context: ContextFrame = {
       type: 'context_v1',
       generationRef: facts.requestId,
       source: liveStatus === 'served' ? 'union' : 'archive',
       servedHead: facts.archive.head === null ? null : { messageRef: facts.archive.head.messageRef, occurredAt: facts.archive.head.at, isFromFan: facts.archive.head.isFromFan },
-      window: { requested, served: Math.min(requested, facts.archive.total) },
+      window: { requested, served: Math.min(facts.window?.limit ?? requested, facts.archive.total) },
       coverage: facts.archive.total === 0 ? 'unknown' : 'complete',
       ...(body.knownFanMessageIds === undefined ? {} : { knownFanMessages: body.knownFanMessageIds.map((id) => ({ id, state: facts.archive.state(id) })) }),
       ...(facts.coverageCheck === undefined ? {} : { coverageCheck: { window: [...facts.coverageCheck.window], deleted: [...facts.coverageCheck.deleted] } }),

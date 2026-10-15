@@ -152,6 +152,8 @@ export function checkCommand(value: unknown): FakeHubCommand {
     const patch = command['patch'] as Record<string, unknown>;
     const unknown = Object.keys(patch).filter((key) => !PATCH_KEYS.has(key));
     if (unknown.length > 0) throw new Error(`fake hub control: config patch has no field «${unknown.join('», «')}»`);
+    const limits = patch['limits'];
+    if (limits !== undefined && (!isObject(limits) || ((limits as Record<string, unknown>)['deepMax'] !== undefined && !oneOf(1500, 3000, 5000)((limits as Record<string, unknown>)['deepMax'])))) throw new Error('fake hub control: limits.deepMax must be 1500, 3000 or 5000');
     const texts = patch['aiTexts'];
     if (texts !== undefined && !(isObject(texts) && Object.values(texts as object).every(isString))) throw new Error('fake hub control: config.patch.aiTexts is not a map of feature → text');
   }

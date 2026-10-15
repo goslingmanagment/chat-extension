@@ -53,7 +53,7 @@ import {
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
-import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, resolveCoverageCheck, streamBodyRefusal, type BodySchemaLike } from './ai-rules';
+import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
@@ -76,6 +76,8 @@ import {
   type StreamOutcome,
   type UnscriptedPolicy,
 } from './types';
+
+import { matchVoiceRoute, voiceClientOutdated, VoiceModel, type VoiceCreateBody, type VoiceRouteMatch } from './voice';
 
 /** Control endpoints of the loopback mode (the harness only; the client never calls them). */
 export const FAKE_HUB_CONTROL_PREFIX = '/__fake-hub/';
@@ -107,7 +109,8 @@ export interface FakeHubOptions {
    * answer the model serves on a client/* route by the hub's own response
    * schema besides ours (an answer the SDK would refuse is a fake hub bug).
    * The e2e harness and the wiring tests pass it; this package's shipped-side
-   * code never imports the SDK.
+   * code never imports the SDK. The SDK-only voice routes require this option
+   * and check both requests and JSON responses with it (R20 P6c4).
    */
   readonly routeSchemas?: HubRouteTableLike;
 }
@@ -151,6 +154,7 @@ interface State {
   readonly claims: ClaimsModel;
   readonly data: DataModel;
   readonly generations: Map<string, Generation>;
+  readonly voice: VoiceModel;
   /** Pages granted per user id (FakeUser.pages, changed by `grantPages`). */
   readonly grants: Map<number, readonly string[]>;
   /** Platform accounts the owner linked to pages after the fact (`pageAccount`), by page label. */
@@ -183,7 +187,7 @@ export function hubErrorBody(error: HubErrorCode | (string & {}), status: number
   return reason === undefined ? body : { ...body, reason };
 }
 
-const statusOfCode = (error: string): number => (HUB_ERROR_STATUSES as Readonly<Record<string, number>>)[error] ?? 500;
+const statusOfCode = (error: string): number => (HUB_ERROR_STATUSES as Readonly<Record<string, number>>)[error] ?? (error.startsWith('gate_voice_') ? 400 : 500);
 
 /** The `error` and `reason` of an error answer's body, for the journal. */
 function errorFields(status: number, body: unknown): { error: string | null; reason: string | null } {
@@ -263,6 +267,7 @@ export class FakeHub {
       claims: new ClaimsModel(),
       data: new DataModel(new CursorSigner(crypto.randomUUID()), now),
       generations: new Map(),
+      voice: new VoiceModel(),
       grants: new Map(FAKE_USERS.map((user) => [user.userId, user.pages])),
       pageAccounts: new Map(),
       catalog: [...DEFAULT_CATALOG],
@@ -510,6 +515,12 @@ export class FakeHub {
       return json(status, hubErrorBody(error, status, reason, issues.length > 0 ? `fake hub: ${issues.join('; ')}` : undefined), retryAfterSec);
     };
 
+    const voice = matchVoiceRoute(method, url.pathname);
+    if (voice !== null) {
+      if (!verdict.ok) return refuse({ route: voice.route, servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
+      return this.handleVoice(voice, request, bodyText, { token: verdict.token, user: verdict.user }, base);
+    }
+
     if (match.kind !== 'route' && method === 'GET' && url.pathname === LEGACY_PAGES_PATH) {
       // The hub's own page list: the client reads it only in its dev/compat mode, with a full token (docs/hub-layer.md).
       const principal = verdict.ok ? { token: verdict.token, user: verdict.user } : null;
@@ -572,6 +583,10 @@ export class FakeHub {
       }
       const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body, capabilities) : null;
       if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, rule.reason, undefined, [rule.message]);
+      if (feature === 'voice-script' && typeof body === 'object' && body !== null) {
+        const error = voiceScriptRefusal(body, false);
+        if (error !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, error);
+      }
       // R20 HF-8в: a hub before it has no `coverageCheck` in its strict body — an unknown key, 400.
       if (typeof body === 'object' && body !== null && (body as { coverageCheck?: unknown }).coverageCheck !== undefined && !s.config.capabilities.includes('coverage-check-v1')) {
         return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['coverageCheck: an unknown key on a hub without coverage-check-v1']);
@@ -641,6 +656,41 @@ export class FakeHub {
     return this.respond(outcome, record, 'model', principal, signal, base);
   }
 
+  /** SDK-only voice routes, checked by the actual SDK schemas rather than a second facade schema. */
+  private handleVoice(match: VoiceRouteMatch, request: Request, bodyText: string, principal: Principal, base: Omit<JournalRecord, 'kind' | 'status' | 'servedBy'>): Response {
+    const s = this.state;
+    const record = { ...base, kind: 'route' as const, route: match.route, token: { id: principal.token.id, client: principal.token.client } };
+    let body: unknown;
+    const answer = (status: number, value: unknown, error: string | null = null, reason: string | null = null, issues: readonly string[] = []): Response => {
+      this.journal.record({ ...record, request: { ...match.params, body }, status, error, reason, issues, servedBy: error === null ? 'model' : 'check' });
+      return json(status, value);
+    };
+    const refuse = (status: number, error: string, reason?: string, issues: readonly string[] = []): Response => answer(status, hubErrorBody(error, status, reason), error, reason ?? null, issues);
+    if (bodyText !== '') {
+      if (!/^application\/json\b/i.test(request.headers.get('content-type') ?? '')) return refuse(400, 'bad_request');
+      try { body = JSON.parse(bodyText) as unknown; } catch { return refuse(400, 'bad_request'); }
+    }
+    const schema = this.options.routeSchemas?.[match.route];
+    // No permissive fallback: a test of these routes must inject the vendored schemas, like the e2e harness.
+    if (schema === undefined) return refuse(500, 'internal_error', 'fake_hub_bug', ['voice routes need FakeHubOptions.routeSchemas from the vendored SDK']);
+    const issues = hubSchemaRefusal(schema, { params: match.params, query: new URL(request.url).searchParams, body });
+    if (issues.length > 0) return refuse(400, 'bad_request', undefined, issues);
+    const page = this.pages().find((candidate) => candidate.pageLabel === match.params['pageLabel']);
+    if (page === undefined || !this.granted(principal.user.userId, page)) return principal.token.client === null ? refuse(404, 'not_found') : refuse(409, 'client_feature_disabled', 'not_granted');
+    if (principal.token.client !== null) {
+      const verdict = featureVerdict(s.config, page, 'voice');
+      if (!verdict.available) return refuse(409, 'client_feature_disabled', verdict.reason ?? 'flag_off');
+      if (voiceClientOutdated(s.config.minVersion, request.headers.get('x-client-version'))) return refuse(409, 'client_feature_disabled', 'client_outdated');
+    }
+    // A synthetic render stays queued: no provider is invoked; audio is not ready (the real route's 404).
+    const result = match.route === 'voiceNoteCreate'
+      ? s.voice.create(body as VoiceCreateBody, { userId: principal.user.userId, pageId: page.pageId, pageLabel: page.pageLabel, now: this.clock.now(), laneOff: s.config.voiceLaneOff.includes(page.pageLabel), generations: s.generations, pair: (conversation, fan) => s.data.pair(page.pageLabel, conversation, fan) })
+      : match.route === 'voiceNoteStatus' ? s.voice.status(Number(match.params['id']), page.pageId, principal.user.userId) : { status: 404 as const, error: 'not_found' };
+    if ('error' in result) return refuse(result.status, result.error);
+    if (schema.response[result.status]?.safeParse(result.body).success !== true) return refuse(500, 'internal_error', 'fake_hub_bug', ['voice response refused by the vendored SDK']);
+    return answer(result.status, result.body);
+  }
+
   private respond(
     outcome: Outcome,
     record: { readonly route: HubRouteKey; readonly token: { id: number; client: string | null } | null; readonly request: unknown },
@@ -694,6 +744,7 @@ export class FakeHub {
         if (frame === null || principal === null) return;
         if (frame.type === 'meta') generation = this.openGeneration(frame, outcome.request, principal);
         else if (frame.type === 'content_delta' && generation !== null) generation.text += frame.text;
+        else if (frame.type === 'done' && generation !== null) generation.stopReason = frame.stopReason ?? null;
       },
       onEnd: (end) => {
         s.openStreams -= 1;
@@ -892,7 +943,7 @@ export class FakeHub {
 
   private modelAi(request: HubStreamRequest, principal: Principal, page: FakePage): Outcome {
     const s = this.state;
-    const refusal = (error: HubErrorCode, reason?: string): Outcome => ({ kind: 'refuse', refusal: reason === undefined ? { error } : { error, reason } });
+    const refusal = (error: HubErrorCode | (string & {}), reason?: string): Outcome => ({ kind: 'refuse', refusal: reason === undefined ? { error } : { error, reason } });
     const { body, feature } = request;
     // H-3: the narrow token's AI switch, by the platform the body names (hub client-ai-switch.ts): a feature the
     // extension does not have there is `platform_unsupported`; one behind a flag — Coach, Recap, Review everywhere,
@@ -917,6 +968,10 @@ export class FakeHub {
       if (state === 'mismatch') return refusal('conversation_fan_mismatch');
       pair = state;
     }
+    if (feature === 'voice-script') {
+      const error = voiceScriptRefusal(body, s.config.voiceLaneOff.includes(page.pageLabel));
+      if (error !== null) return refusal(error);
+    }
     // Where a chat is its fan the transcript is the fan's; on Fansly it is the group's (the fan's data stay the fan's).
     const transcript = transcriptRefOf(page, body);
     let definitionId: string | null = null;
@@ -929,7 +984,8 @@ export class FakeHub {
     const hiByStartProof = s.config.capabilities.includes('hi-start-proof-v1') && hiStartProofDecides(feature, body, request.capabilities);
     // assertHiStartProofSent: no proof fails before reading the context, even if that read would fail too.
     if (hiByStartProof && body.startProof === undefined) return refusal('gate_hi_greeting_limit', 'history_unproven');
-    const served = s.data.served(page, transcript, body.messageCount ?? 100);
+    const window = transcriptWindow(request, s.config.limits.deepMax);
+    const served = s.data.served(page, transcript, window.limit);
     if (hiByStartProof) {
       // assertHiStartProof reads the served window AND the oldest live archive ref. In the fake, `stores` holds
       // every ref outside the window: checking all its live refs is equivalent to checking their oldest one.
@@ -945,6 +1001,7 @@ export class FakeHub {
       // OnlyFans and Fansly without the proof token keep assertHiGreetingFreshness and its reason-less envelope.
       return refusal('gate_hi_greeting_limit');
     }
+    if (feature === 'fan-notes-fill' && served.window.length === 0) return refusal('gate_min_messages');
     if (s.config.quotaRequestsToday === 0) {
       this.recordUsage(request, principal, 'quota-denied');
       return refusal('quota_denied');
@@ -973,12 +1030,20 @@ export class FakeHub {
           }
         : { head: newest === undefined ? null : { messageRef: newest.messageRef, at: newest.at, isFromFan: newest.isFromFan }, total: served.window.length, state: archive.states },
       chunkDelayMs: s.config.aiChunkDelayMs,
+      window,
       nameFan: s.config.aiNameFan,
       texts: s.config.aiTexts,
       ...(pair === undefined ? {} : { pair }),
       ...(coverageCheck === undefined ? {} : { coverageCheck }),
     });
     return { kind: 'sse', response: { kind: 'stream', steps }, request };
+  }
+
+  private generationWindow(request: HubStreamRequest): { requested: number; served: number } {
+    const window = transcriptWindow(request, this.state.config.limits.deepMax);
+    const page = this.pages().find((candidate) => candidate.pageLabel === request.body.pageLabel);
+    const total = page === undefined ? 0 : chatIsFan(page) ? this.state.data.archiveFacts(page, transcriptRefOf(page, request.body)).total : this.state.data.served(page, request.body.conversationRef, window.limit).window.length;
+    return { requested: window.requested, served: Math.min(window.limit, total) };
   }
 
   private openGeneration(meta: Extract<HubFrame, { type: 'meta' }>, request: HubStreamRequest, principal: Principal): Generation {
@@ -997,6 +1062,8 @@ export class FakeHub {
       completedAt: null,
       outcome: 'open',
       text: '',
+      stopReason: null,
+      window: this.generationWindow(request),
     };
     this.state.generations.set(meta.requestId, generation);
     return generation;
@@ -1008,14 +1075,14 @@ export class FakeHub {
     generation.outcome = end === 'done' ? 'done' : end === 'aborted' ? 'aborted' : 'error';
     this.recordUsage(request, principal, end === 'done' ? 'completed' : end === 'aborted' ? 'cancelled' : 'failed');
     if (generation.outcome !== 'done' || generation.feature !== 'fan-summary') return;
-    const requested = generation.messageCount ?? 100;
+    const { requested, served } = generation.window;
     const page = this.pages().find((candidate) => candidate.pageLabel === generation.pageLabel);
     const total = page === undefined ? 0 : this.state.data.archiveFacts(page, chatIsFan(page) ? generation.fanRef : generation.conversationRef).total;
     this.state.data.storeRecap(generation.pageLabel, generation.fanRef, generation.summaryMode === 'short' ? 'short' : 'full', {
       generationRef: generation.requestId,
       generatedAt: iso(now),
       personaDefinitionId: generation.personaDefinitionId,
-      coverage: { transcriptCoverage: total <= requested ? 'full-history' : 'window', requestedCount: requested, keptCount: Math.min(requested, total) },
+      coverage: { transcriptCoverage: total <= served ? 'full-history' : 'window', requestedCount: requested, keptCount: served },
       text: generation.text,
     }, generation.conversationRef);
   }
@@ -1039,7 +1106,7 @@ export class FakeHub {
     const s = this.state;
     const now = this.clock.now();
     const generation = s.generations.get(request.generationRef);
-    const refusal = (error: HubErrorCode, reason?: string): Outcome => ({ kind: 'refuse', refusal: reason === undefined ? { error } : { error, reason } });
+    const refusal = (error: HubErrorCode | (string & {}), reason?: string): Outcome => ({ kind: 'refuse', refusal: reason === undefined ? { error } : { error, reason } });
     if (generation === undefined) {
       const inFlight = request.clientRequestId !== undefined && [...s.generations.values()].some((g) => g.clientRequestId === request.clientRequestId);
       return inFlight ? refusal('generation_not_ready') : refusal('not_found');
