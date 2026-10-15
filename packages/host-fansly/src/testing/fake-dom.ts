@@ -45,8 +45,11 @@ export interface FakeFanslyPage {
   setPartners(count: number): void;
   /** The fan types (a typing line in the container, no height) or stops (P7d). */
   typing(on: boolean): void;
-  /** The inbox rows of these groups: `a[href="/messages/<id>"]`; a click on one opens it in the router's microtask. */
-  inbox(groupIds: readonly string[]): void;
+  /**
+   * The inbox rows of these groups: `a[href="/messages/<id>"]`; a click on one opens it in the router's microtask —
+   * unless `dead`: the router ignores the click and the address stays (what the SP-036 check is for).
+   */
+  inbox(groupIds: readonly string[], options?: { readonly dead?: boolean }): void;
   /** The router reads `popstate`: a task later, the address it finds is shown (Angular, S2 Q4). Off by default. */
   routing(on: boolean): void;
   /** The page's draft cache by group: typed text kept; a new field shows its group's a microtask after it appears. Off by default. */
@@ -223,7 +226,7 @@ export function createFakeFanslyPage(): FakeFanslyPage {
       container?.querySelector(':scope > .partner-is-typing')?.remove();
       if (on) container?.querySelector(':scope > .message-content-list')?.after(make('div', 'partner-is-typing'));
     },
-    inbox(groupIds) {
+    inbox(groupIds, options = {}) {
       ensureMessages();
       const list = messagesRoute?.querySelector('.messages-list-wrapper');
       if (list === null || list === undefined) return;
@@ -233,7 +236,7 @@ export function createFakeFanslyPage(): FakeFanslyPage {
           link.setAttribute('href', `/messages/${groupId}`);
           link.addEventListener('click', (event) => {
             event.preventDefault();
-            queueMicrotask(() => openChat(groupId));
+            if (options.dead !== true) queueMicrotask(() => openChat(groupId));
           });
           return link;
         }),

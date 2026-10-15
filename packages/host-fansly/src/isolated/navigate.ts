@@ -25,10 +25,14 @@
 //   writes only into an empty field or our own unchanged insert; a draft of the
 //   person is `rejected` with `confirm-human-draft`, and their answer comes
 //   back as an open insert. The deadline is the insert's own (`expiresAt`,
-//   capped by `limits.navInsertTimeoutSec`): CG-NAV-TIMEOUT. The person
-//   opening another chat, another write of ours, a newer navigation and the
-//   extension's own signal (sign-out, a persona or binding change) give it up:
-//   CG-INSERT-CANCELED — the navigation itself stays.
+//   capped by `limits.navInsertTimeoutSec`): CG-NAV-TIMEOUT. Any change of
+//   route while it waits — seen as it happens, not only where a look falls:
+//   away, or away and back — another write of ours, a newer navigation and
+//   the extension's own signal (sign-out, a persona or binding change) give
+//   it up: CG-INSERT-CANCELED — the navigation itself stays.
+// - Only the latest navigation lives: a newer one, a write of ours into the
+//   open chat and the port's end stop it, its 2-second check with it — a
+//   check of an older choice never loads a chat over a newer one.
 
 import type { CgCode } from '@cg/contracts/errors';
 import type { InsertReceipt, InsertWire, NavigateOptions, NavigationIntent, NavigationReceipt } from '@cg/contracts/host';
@@ -72,13 +76,15 @@ export interface NavigatorEnv {
   readonly timeoutMs?: () => number | undefined;
   /** The page loaded by its address (tests replace it). */
   readonly load?: (path: string) => void;
+  /** Each change of the port's route as it happens (after the port took it); returns the unsubscription. */
+  readonly onRoute: (listener: () => void) => () => void;
   /** Each navigation's way and outcome, for the tab's log. */
   readonly onNavigate?: (way: NavigationWay, receipt: NavigationReceipt) => void;
 }
 
 export interface Navigator {
   navigate(intent: NavigationIntent, options?: NavigateOptions): Promise<NavigationReceipt>;
-  /** Another write of ours: a deferred insert still waiting is given up. */
+  /** Another write of ours into the open chat: the latest navigation stops — its waiting insert, its 2-second check. */
   cancel(): void;
   dispose(): void;
 }
@@ -97,16 +103,12 @@ export function createNavigator(env: NavigatorEnv): Navigator {
   const { win } = env;
   const doc = win.document;
   const load = env.load ?? ((path: string) => win.location.assign(path));
-  /** The deferred insert waiting now: one at a time. */
-  let waiting: { readonly cancel: () => void } | null = null;
-  const timers = new Set<ReturnType<typeof setTimeout>>();
-  const later = (run: () => void, ms: number): void => {
-    const timer = win.setTimeout(() => {
-      timers.delete(timer);
-      run();
-    }, ms);
-    timers.add(timer);
-  };
+  let disposed = false;
+  /**
+   * The latest navigation: its wait and its 2-second check. A newer choice of the person, a write of ours into the
+   * open chat and the port's end stop it — its check never loads a chat over what came after (review of P7e).
+   */
+  let current: { readonly stop: () => void } | null = null;
 
   /** Into the chat the way a person goes: its inbox row, else the address and a `popstate` Angular reads. */
   const enter = (groupId: string, path: string): NavigationWay => {
@@ -120,17 +122,6 @@ export function createNavigator(env: NavigatorEnv): Navigator {
     return 'popstate';
   };
 
-  /** SP-036: did the chat open? If not — and the person did not go elsewhere — the page loads it by its address. */
-  const verify = (path: string, before: OpenChat, moved: number): void => {
-    const now = env.open();
-    const here = win.location.pathname === path;
-    const opened = before.container === null ? now.conversation : !before.container.isConnected || (now.container !== null && now.container !== before.container);
-    // The address went elsewhere after the click: the person's own navigation.
-    if ((here && opened) || (!here && now.generation !== moved)) return;
-    waiting?.cancel();
-    load(path);
-  };
-
   const navigate = (intent: NavigationIntent, options: NavigateOptions = {}): Promise<NavigationReceipt> => {
     const then = intent.thenInsert;
     const target = intent.target;
@@ -140,8 +131,10 @@ export function createNavigator(env: NavigatorEnv): Navigator {
       return receipt;
     };
     const failed = (code: CgCode): NavigationReceipt => said({ state: 'failed', code, insert: then === undefined ? null : rejected(code) });
-    // A newer navigation gives the older insert up (the person chose again).
-    waiting?.cancel();
+    // A newer navigation stops the older one: its insert is given up, its check will load nothing.
+    current?.stop();
+    current = null;
+    if (disposed) return Promise.resolve(failed('CG-NAV-FAILED'));
     const start = env.open();
     // Fansly's tab is one creator's: another account cannot be opened from it.
     if (target.hostAccountId !== env.creator()) return Promise.resolve(failed('CG-NAV-FAILED'));
@@ -154,15 +147,6 @@ export function createNavigator(env: NavigatorEnv): Navigator {
     const already = start.groupId === groupId;
     /** A field of this generation or before is not the target's: the field to write into comes after the click. */
     const since = already ? start.generation - 1 : start.generation;
-    if (!already) {
-      try {
-        way = enter(groupId, path);
-      } catch {
-        return Promise.resolve(failed('CG-NAV-FAILED'));
-      }
-      const moved = env.open().generation;
-      later(() => verify(path, start, moved), NAV_CHECK_MS);
-    }
     const timeout = env.timeoutMs?.() ?? NAV_INSERT_DEFAULT_MS;
     const deadline = then === undefined ? Date.now() + NAV_CHECK_MS : Math.min(then.expiresAt, Date.now() + (timeout > 0 ? timeout : NAV_INSERT_DEFAULT_MS));
 
@@ -170,57 +154,109 @@ export function createNavigator(env: NavigatorEnv): Navigator {
       let settled = false;
       let last = '';
       let stable = 0;
-      const signal = options.signal;
+      let step: ReturnType<typeof setTimeout> | null = null;
+      let check: ReturnType<typeof setTimeout> | null = null;
+      /** The generation the deferred insert's target was reached in; any change of route after it gives the insert up. */
+      let arrivedAt: number | null = already ? start.generation : null;
+      const signal = then === undefined ? undefined : options.signal;
+      let offRoute = (): void => undefined;
       const finish = (receipt: NavigationReceipt | Promise<NavigationReceipt>): void => {
         if (settled) return;
         settled = true;
-        signal?.removeEventListener('abort', step);
-        if (waiting === self) waiting = null;
+        if (step !== null) win.clearTimeout(step);
+        signal?.removeEventListener('abort', look);
+        offRoute();
         resolve(Promise.resolve(receipt).then(said));
       };
       const navigated = (insert: InsertReceipt | null): NavigationReceipt => ({ state: 'navigated', routeEpoch: env.open().generation, insert });
-      const self = { cancel: () => finish(navigated(then === undefined ? null : rejected('CG-INSERT-CANCELED'))) };
-      function step(): void {
-        if (settled) return;
-        if (then !== undefined && signal?.aborted === true) return self.cancel();
+      /** Given up: the insert is canceled, the navigation itself stays; a plain one that has not arrived did not happen. */
+      const giveUp = (): void => finish(then === undefined ? { state: 'failed', code: 'CG-NAV-FAILED', insert: null } : navigated(rejected('CG-INSERT-CANCELED')));
+      const self = {
+        stop() {
+          if (check !== null) win.clearTimeout(check);
+          check = null;
+          giveUp();
+        },
+      };
+      current = self;
+      const later = (run: () => void, ms: number): void => {
+        step = win.setTimeout(() => {
+          step = null;
+          run();
+        }, ms);
+      };
+
+      /** SP-036: did the chat open? If not — and the person did not go elsewhere — the page loads it by its address. */
+      const verify = (moved: number): void => {
+        check = null;
+        if (disposed) return;
         const now = env.open();
-        const arrived = now.groupId === groupId && now.generation > since;
-        // The address moved, and not to the target: the person went elsewhere.
-        if (!arrived && now.generation > since && now.groupId !== groupId) return then === undefined ? finish(failed('CG-NAV-FAILED')) : self.cancel();
+        const here = win.location.pathname === path;
+        const opened = start.container === null ? now.conversation : !start.container.isConnected || (now.container !== null && now.container !== start.container);
+        // The address went elsewhere after the click: the person's own navigation.
+        if ((here && opened) || (!here && now.generation !== moved)) return;
+        giveUp();
+        load(path);
+      };
+
+      function look(): void {
+        if (settled) return;
+        if (then !== undefined && signal?.aborted === true) return giveUp();
+        const now = env.open();
         if (then === undefined) {
-          if (arrived || already) return finish(navigated(null));
-          if (Date.now() > deadline) return finish(failed('CG-NAV-FAILED'));
-          return later(step, STEP_MS);
+          // The address moved, and not to the target: the person went elsewhere.
+          if (now.groupId === groupId && (already || now.generation > since)) return finish(navigated(null));
+          if ((now.generation > since && now.groupId !== groupId) || Date.now() > deadline) return finish(failed('CG-NAV-FAILED'));
+          return later(look, STEP_MS);
         }
+        // The page's life or its creator moved since the target was reached: not the visit the insert was meant for.
+        if (arrivedAt !== null && now.generation !== arrivedAt) return giveUp();
         if (Date.now() > deadline) return finish({ state: 'failed', code: 'CG-NAV-TIMEOUT', insert: rejected('CG-NAV-TIMEOUT') });
         const field = now.composer;
-        const key = arrived && now.fanId === target.platformFanId && field !== null && field.ready && !now.composing ? `${now.generation}:${field.instanceId}` : '';
+        const key = arrivedAt !== null && now.groupId === groupId && now.fanId === target.platformFanId && field !== null && field.ready && !now.composing ? `${now.generation}:${field.instanceId}` : '';
         stable = key !== '' && key === last ? stable + 1 : key === '' ? 0 : 1;
         last = key;
-        if (stable < 2 || field === null) return later(step, STEP_MS);
+        if (stable < 2 || field === null) return later(look, STEP_MS);
         // Written now, in this task: nothing gives it up any more.
         settled = true;
-        signal?.removeEventListener('abort', step);
-        if (waiting === self) waiting = null;
+        signal?.removeEventListener('abort', look);
+        offRoute();
         const receipt = env.write(then, { generation: now.generation, instanceId: field.instanceId });
         resolve(Promise.resolve(receipt).then((insert) => said({ state: 'navigated', routeEpoch: now.generation, insert })));
       }
+
       if (then !== undefined) {
-        waiting = self;
-        signal?.addEventListener('abort', step, { once: true });
+        signal?.addEventListener('abort', look, { once: true });
+        // Every change of route while the insert waits, seen as it happens — not only where a look of ours falls: the
+        // first one to the target is the arrival, any other one (away, or away and back) gives the insert up.
+        offRoute = env.onRoute(() => {
+          if (settled) return;
+          const now = env.open();
+          if (arrivedAt === null && now.groupId === groupId) arrivedAt = now.generation;
+          else giveUp();
+        });
+      }
+      if (!already) {
+        try {
+          way = enter(groupId, path);
+        } catch {
+          return finish(failed('CG-NAV-FAILED'));
+        }
+        const moved = env.open().generation;
+        check = win.setTimeout(() => verify(moved), NAV_CHECK_MS);
       }
       // The first look comes a task later: a link's navigation runs in the router's own microtasks first.
-      later(step, 0);
+      later(look, 0);
     });
   };
 
   return {
     navigate,
-    cancel: () => waiting?.cancel(),
+    cancel: () => current?.stop(),
     dispose() {
-      waiting?.cancel();
-      for (const timer of timers) win.clearTimeout(timer);
-      timers.clear();
+      disposed = true;
+      current?.stop();
+      current = null;
     },
   };
 }

@@ -91,6 +91,8 @@ export interface World {
   /** Pages loaded by their address (SP-036's fallback). */
   readonly loads: string[];
   allowRedeem(allowed: boolean): void;
+  /** The next `token.redeem` waits until the returned release is called (an answer of the background still on its way). */
+  holdRedeem(): () => void;
   /** MAIN stops naming fans for a while (its answer waits), or names them again. */
   holdChats(held: boolean): void;
   identity(): HostIdentity;
@@ -114,6 +116,7 @@ export async function startWorld(path: string, options: WorldOptions): Promise<W
   const loads: string[] = [];
   let allowed = true;
   let held = false;
+  let redeemGate: Promise<void> | null = null;
   let batch = 0;
   const waiting: Array<() => void> = [];
   const main = scriptedMain({
@@ -142,7 +145,9 @@ export async function startWorld(path: string, options: WorldOptions): Promise<W
     anchors,
     redeem: (request) => {
       redeemed.push(request.kind);
-      return Promise.resolve(allowed);
+      const gate = redeemGate;
+      redeemGate = null;
+      return gate === null ? Promise.resolve(allowed) : gate.then(() => allowed);
     },
     validation: loadValidation,
     ...(options.navInsertTimeoutMs === undefined ? {} : { navInsertTimeoutMs: () => options.navInsertTimeoutMs }),
@@ -167,6 +172,11 @@ export async function startWorld(path: string, options: WorldOptions): Promise<W
     redeemed,
     loads,
     allowRedeem: (next) => void (allowed = next),
+    holdRedeem() {
+      let release = (): void => undefined;
+      redeemGate = new Promise((resolve) => (release = resolve));
+      return release;
+    },
     holdChats(next) {
       held = next;
       if (!held) for (const name of waiting.splice(0)) name();

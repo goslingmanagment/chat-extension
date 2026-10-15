@@ -91,6 +91,62 @@ describe('[SP-036] opening a chat the way a person does', () => {
   });
 });
 
+describe('a navigation that is no longer the person’s choice (review of P7e)', () => {
+  it('[SP-036] a newer navigation stops the older one’s 2-second check: a click the router ignored never loads its chat over the newer choice', async () => {
+    const world = await onChat();
+    world.page.inbox([OTHER], { dead: true });
+    // B by its row: the router ignores the click, the address stays on A.
+    const older = world.port.navigate(world.navigation(OTHER));
+    await until('the click on B’s row', () => world.redeemed.length === 1);
+    await settle();
+    expect(location.pathname).toBe(`/messages/${GROUP}`);
+    // Within the 2 seconds the person chooses «Открыть и вставить» for A, open now: the older choice is over.
+    expect(await world.port.navigate(world.navigation(GROUP, 'into A'))).toMatchObject({ state: 'navigated', insert: { state: 'applied' } });
+    expect(await older).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: null });
+    await new Promise((resolve) => setTimeout(resolve, NAV_CHECK_MS + 100));
+    expect(world.loads).toEqual([]);
+    expect(valueOf(world)).toBe('into A');
+  });
+
+  it('a port disposed while a navigation waits for its schemas or its token: nothing moves, nothing is loaded later', async () => {
+    for (const when of ['schemas', 'token'] as const) {
+      const world = await onChat([OTHER]);
+      const release = world.holdRedeem();
+      const pending = world.port.navigate(world.navigation(OTHER, `after dispose (${when})`));
+      if (when === 'token') await until('the token asked', () => world.redeemed.length === 1);
+      world.port.dispose();
+      release();
+      expect(await pending).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'rejected', code: 'CG-NAV-FAILED' } });
+      expect(location.pathname).toBe(`/messages/${GROUP}`);
+      await new Promise((resolve) => setTimeout(resolve, NAV_CHECK_MS + 100));
+      expect(world.loads).toEqual([]);
+      world.dispose();
+      history.replaceState({}, '', '/');
+    }
+  });
+
+  it('[NEW-01] the person leaves the target and comes back between two looks: the insert of the first visit is given up, not written into the later one', async () => {
+    const world = await onChat([OTHER, THIRD]);
+    world.holdChats(true);
+    const pending = world.port.navigate(world.navigation(OTHER, 'meant for the first visit'));
+    await until('the address on B', () => location.pathname === `/messages/${OTHER}`);
+    const first = world.port.current().route.epoch;
+    // Away to C and back to B within one look of ours: two route changes the port sees, no look in between.
+    world.page.openChat(THIRD);
+    await Promise.resolve();
+    await Promise.resolve();
+    world.page.openChat(OTHER);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(world.port.current().route.epoch).toBe(first + 2);
+    world.holdChats(false);
+    expect(await pending).toMatchObject({ state: 'navigated', insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
+    await until('chat B again', () => atChat(world, OTHER_FAN));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(valueOf(world)).toBe('');
+  });
+});
+
 describe('[NEW-01] «Открыть и вставить» (FS-INS-4)', () => {
   it('[NEW-01] waits for the target’s own field — its group, its fan named by MAIN, two looks — and writes once, into it only', async () => {
     const world = await onChat([OTHER]);

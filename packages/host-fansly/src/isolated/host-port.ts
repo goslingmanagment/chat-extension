@@ -542,6 +542,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       }),
     ...(options.navInsertTimeoutMs === undefined ? {} : { timeoutMs: options.navInsertTimeoutMs }),
     ...(options.load === undefined ? {} : { load: options.load }),
+    onRoute: (listener) => route.onChange(() => listener()),
     onNavigate: (way: NavigationWay, receipt: NavigationReceipt) =>
       diag({ event: 'navigate', ...(receipt.state === 'failed' ? { code: receipt.code } : {}), detail: { way, state: receipt.state, insert: receipt.insert?.state ?? null, insertCode: receipt.insert !== null && receipt.insert.state !== 'applied' ? receipt.insert.code : null } }),
   });
@@ -665,6 +666,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     async insert(intent: InsertIntent): Promise<InsertReceipt> {
       const check = await validation();
       if (!check.isInsertIntent(intent) || intent.expected.kind !== 'open') throw new TypeError('insert() takes an open InsertIntent with its cause; a deferred one rides navigate()');
+      // The port ended while it waited (the tab goes): nothing of the page is touched any more.
+      if (disposed) return rejected('CG-HOST-NOT-READY');
       const { cause, ...wire } = intent;
       const refused = (receipt: InsertReceipt): InsertReceipt => (noteInsert(receipt, 'none', intent.mode), receipt);
       const blocked = writeBlocked();
@@ -672,7 +675,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       const early = insertCheck(wire);
       if (early !== null) return refused(early);
       if (Date.now() > intent.expiresAt || !(await redeem({ kind: 'insert', actionToken: cause.actionToken, intentId: intent.intentId })) || Date.now() > intent.expiresAt) return refused(rejected('CG-INSERT-FAILED'));
-      // Another write of ours: a deferred insert still waiting gives up.
+      if (disposed) return rejected('CG-HOST-NOT-READY');
+      // Another write of ours, into the open chat: the latest navigation stops — its waiting insert, its 2-second check.
       navigator.cancel();
       return composerField.write(wire, () => insertCheck(wire));
     },
@@ -682,8 +686,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       if (!check.isNavigationIntent(intent)) throw new TypeError('navigate() takes a NavigationIntent with its cause');
       const then = intent.thenInsert;
       const failed = (code: CgCode): NavigationReceipt => ({ state: 'failed', code, insert: then === undefined ? null : rejected(code) });
-      if (bridge === null || report.capabilities.navigate.state !== 'on') return failed('CG-NAV-FAILED');
-      if (!(await redeem({ kind: 'navigate', actionToken: intent.cause.actionToken, intentId: intent.intentId }))) return failed('CG-NAV-FAILED');
+      // After each wait the port may have ended (the tab goes): then nothing moves — no address, no check, no load.
+      if (disposed || bridge === null || report.capabilities.navigate.state !== 'on') return failed('CG-NAV-FAILED');
+      if (!(await redeem({ kind: 'navigate', actionToken: intent.cause.actionToken, intentId: intent.intentId })) || disposed) return failed('CG-NAV-FAILED');
       // The chat still opens, but its insert is refused at once instead of waiting out its deadline: copy only, or
       // given up already (sign-out, a persona or binding change, the preview closed).
       const skipped: CgCode | null = then === undefined ? null : navigateOptions?.signal?.aborted === true ? 'CG-INSERT-CANCELED' : writeBlocked();

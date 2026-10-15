@@ -224,6 +224,19 @@ describe('the field this port owns (FS-INS-1 п. 1–2, FS-RTE-4)', () => {
     expect(editorCalls).toEqual([]);
   });
 
+  it('a port disposed while an insert waits for its token writes nothing', async () => {
+    const world = await onChat();
+    const release = world.holdRedeem();
+    const pending = world.port.insert(await world.intent('after dispose'));
+    await until('the token asked', () => world.redeemed.length === 1);
+    const element = field(world);
+    world.port.dispose();
+    release();
+    expect(await pending).toEqual({ state: 'rejected', code: 'CG-HOST-NOT-READY' });
+    expect(element.value).toBe('');
+    expect(editorCalls).toEqual([]);
+  });
+
   it('[AI-125] the address moves first (Fansly’s `popstate`): the old chat’s field still on the page is nobody’s now — an intent read from it, or one for the new chat, writes nothing into it', async () => {
     const world = await onChat();
     const old = field(world);
