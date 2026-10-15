@@ -12,6 +12,8 @@ import * as M from '../src/bridge-messages-fansly';
 import * as H from '../src/fansly';
 import * as P from '../src/fansly-host';
 import * as C from '../src/index';
+import * as V from '../src/vault-fansly';
+import { I18N_KEYS } from '../src/i18n/catalog';
 import {
   FANSLY_BRIDGE_EVENT_FIXTURES,
   FANSLY_BRIDGE_REQUEST_FIXTURES,
@@ -329,6 +331,19 @@ describe('site modules stay out of the root (§1.8, §3.2)', () => {
     expect(manifest.exports['./bridge-fansly']).toBe('./src/bridge-fansly.ts');
     expect(manifest.exports['./bridge-messages-fansly']).toBe('./src/bridge-messages-fansly.ts');
     expect(manifest.exports['./fansly-host']).toBe('./src/fansly-host.ts');
+    expect(manifest.exports['./vault-fansly']).toBe('./src/vault-fansly.ts');
+    for (const name of Object.keys(V)) expect(root, name).not.toContain(name);
+  });
+
+  it('[R20-P13b] the vault panel’s module: its keys are Fansly’s own (`fansly.vault.*`), each once, none a shared one', () => {
+    const keys = [...V.FANSLY_VAULT_TEXT_KEYS, ...V.FANSLY_VAULT_PLURAL_KEYS];
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const key of keys) expect(key).toMatch(/^fansly\.vault\.[A-Za-z.-]+$/);
+    const shared = new Set<string>(I18N_KEYS);
+    for (const key of keys) expect(shared.has(key), key).toBe(false);
+    // Every stop the panel says has its words; the blocks of Start too.
+    for (const kind of V.VAULT_STOP_KINDS) expect(keys, kind).toContain(`fansly.vault.stop.${kind}`);
+    for (const block of V.VAULT_START_BLOCKS) expect(keys, block).toContain(`fansly.vault.blocked.${block}`);
   });
 
   it('fansly.ts takes nothing of host.ts or ids.ts at run time, so they may import from it', () => {
