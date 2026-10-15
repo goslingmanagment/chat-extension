@@ -86,6 +86,32 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
     expect((await captured()).templates).toEqual(before.templates);
   });
 
+  it('grant while the background sleeps notices an open tab; another wake preserves that notice', async () => {
+    await pages();
+    await revokeOptional({ origins: [FANSLY_STAND_PATTERN], permissions: ['webRequest'] });
+    await browser.waitUntil(async () => !(await access()).registered, { timeout: 10_000 });
+    await stand(); await browser.refresh(); await waitForFanslyStandReady(); await waitForFanslyStandIdle();
+    expect(await browser.execute(() => document.querySelector('[data-host="reload-notice"]') !== null)).toBe(false);
+    await pages(); expect(await suspendBackground()).toBe('stopped');
+    // Firefox's grant is delivered with no live background realm, as when
+    // Allow is clicked after the permission prompt outlives the event page.
+    await grantOptional({ origins: [FANSLY_STAND_PATTERN], permissions: ['webRequest'] });
+    await browser.waitUntil(async () => (await access()).registered, { timeout: 10_000 });
+    expect((await access()).waitingReload).toBe(1);
+    await stand();
+    await browser.waitUntil(() => browser.execute(() => document.querySelector('[data-host="reload-notice"]') !== null), { timeout: 10_000 });
+    await capturePage('p9a-grant-after-sleep');
+    await browser.execute(() => document.querySelector('[data-host="reload-notice"]')?.setAttribute('data-grant-notice', 'true'));
+    await pages(); expect(await suspendBackground()).toBe('stopped');
+    expect((await access()).waitingReload).toBe(1);
+    await stand();
+    expect(await browser.execute(() => document.querySelectorAll('[data-host="reload-notice"][data-grant-notice]').length)).toBe(1);
+    await browser.refresh(); await waitForFanslyStandReady();
+    await waitForReport((report) => report.rpc?.registered === true, 'handshake after sleeping grant');
+    await waitForFanslyStandIdle(); await pages();
+    expect((await access()).waitingReload).toBe(0);
+  });
+
   it('sleep → a page API request alone wakes the top-level listener and captures; it does not import the site chunk', async () => {
     await pages();
     // Model a document without an isolated script, so a reconnect cannot be the wake-up cause.
