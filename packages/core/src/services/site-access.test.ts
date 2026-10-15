@@ -8,19 +8,26 @@ function setup() {
   const store = createMemoryKv();
   let enabled = false;
   let granted = false;
+  // Browser-owned registrations survive an event-page sleep.
+  let scripts = false;
   let changed: (added: boolean) => void = () => undefined;
   let settingsChanged: () => void = () => undefined;
   let removed: (tab: number) => void = () => undefined;
   let live = [1, 2];
   const calls: string[] = [];
-  const service = createSiteAccess({ host: 'fansly-web', key: 'reload', storage: store.open(),
+  const wake = () => createSiteAccess({ host: 'fansly-web', key: 'reload', storage: store.open(),
     settings: {
       enabled: () => Promise.resolve(enabled),
       setEnabled: (value) => { enabled = value; settingsChanged(); return Promise.resolve(); },
       onChange: (listener) => { settingsChanged = listener; return () => undefined; },
     },
     permissions: { has: () => Promise.resolve(granted), onChange: (listener) => { changed = listener; return () => undefined; } },
-    syncScripts: (active) => { calls.push(`scripts ${active}`); return Promise.resolve(); },
+    syncScripts: (active) => {
+      calls.push(`scripts ${active}`);
+      const result = scripts === active ? 'unchanged' : active ? 'registered' : 'unregistered';
+      scripts = active;
+      return Promise.resolve(result);
+    },
     tabs: {
       list: () => { calls.push('query'); return Promise.resolve([...live]); },
       notice: (tab) => { calls.push(`notice ${tab}`); return Promise.resolve(); },
@@ -36,7 +43,11 @@ function setup() {
     startModule: () => { calls.push('module'); return Promise.resolve(); },
     failed: () => { calls.push('failed'); },
   });
-  return { service, store, calls, closedOnReload, vanishOnReload, settingsChanged: () => settingsChanged(), grant: (value: boolean) => { granted = value; changed(value); },
+  let service = wake();
+  return { get service() { return service; }, store, calls, closedOnReload, vanishOnReload,
+    sleep: () => { changed = () => undefined; settingsChanged = () => undefined; removed = () => undefined; },
+    wake: () => { service = wake(); },
+    settingsChanged: () => settingsChanged(), grant: (value: boolean) => { granted = value; changed(value); },
     retainedPermissions: () => { granted = true; }, close: (tab: number) => { live = live.filter((id) => id !== tab); removed(tab); } };
 }
 
@@ -57,6 +68,43 @@ describe('[host:fansly] [EX-004] FS-PERM-2 optional activation and serialized re
     world.grant(true); await world.service.idle();
     await world.service.setEnabled(false);
     expect(await world.service.state()).toMatchObject({ enabled: false, granted: true, registered: false });
+  });
+  it.each(['startup', 'onAdded', 'startup only'] as const)('a prompt left open across sleep: %s announces the grant exactly once', async (first) => {
+    const world = setup();
+    await world.service.start();
+    world.grant(true); await world.service.idle();
+    world.grant(false); await world.service.idle();
+    // As in P3b: settings stay enabled after revocation. Firefox's prompt is
+    // open, the popup closes, and the event page sleeps before Allow is clicked.
+    world.sleep(); world.calls.length = 0;
+    world.grant(true);
+    world.wake();
+    if (first === 'onAdded') world.grant(true);
+    const started = world.service.start();
+    if (first === 'startup') world.grant(true);
+    await started; await world.service.idle();
+    expect(await world.service.state()).toMatchObject({ enabled: true, granted: true, registered: true, waitingReload: 2 });
+    expect(world.store.read('reload')).toEqual([1, 2]);
+    expect(world.calls.filter((call) => call.startsWith('notice'))).toEqual(['notice 1', 'notice 2']);
+    expect(world.calls.filter((call) => call.startsWith('reload'))).toEqual([]);
+    if (first !== 'startup only') expect(world.calls).toContain('module');
+  });
+  it.each([false, true])('a restart with an announced grant adds no notice (tabs already reloaded: %s)', async (reloaded) => {
+    const world = setup(); await world.service.start(); world.grant(true); await world.service.idle();
+    if (reloaded) { await world.service.registered(1); await world.service.registered(2); }
+    world.sleep(); world.calls.length = 0; world.wake();
+    await world.service.start(); await world.service.idle();
+    expect(await world.service.state()).toMatchObject({ enabled: true, granted: true, registered: true, waitingReload: reloaded ? 0 : 2 });
+    expect(world.calls).not.toContain('query');
+    expect(world.calls.filter((call) => call.startsWith('notice'))).toEqual([]);
+  });
+  it('switching off and back on with retained rights notices tabs once', async () => {
+    const world = setup(); await world.service.start(); world.grant(true); await world.service.idle();
+    await world.service.setEnabled(false); await world.service.idle();
+    world.calls.length = 0;
+    await world.service.setEnabled(true); await world.service.idle();
+    expect((await world.service.state()).waitingReload).toBe(2);
+    expect(world.calls.filter((call) => call.startsWith('notice'))).toEqual(['notice 1', 'notice 2']);
   });
   it('FS-IDN-4 installs the notice after grant and update, keeps a durable count, clears it on handshake/close, reloads only on click', async () => {
     const world = setup(); await world.service.start(); world.grant(true); await world.service.idle();

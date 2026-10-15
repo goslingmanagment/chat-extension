@@ -14,7 +14,7 @@ export interface SiteAccessDeps {
     onChange(listener: () => void): () => void;
   };
   readonly permissions: { has(): Promise<boolean>; onChange(listener: (added: boolean) => void): () => void };
-  readonly syncScripts: (enabled: boolean) => Promise<unknown>;
+  readonly syncScripts: (enabled: boolean) => Promise<'registered' | 'unregistered' | 'unchanged'>;
   readonly tabs: {
     list(): Promise<number[]>;
     notice(tabId: number): Promise<void>;
@@ -52,17 +52,22 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     enabled = nextEnabled;
     granted = nextGranted;
     const active = enabled && granted;
+    let newlyRegistered = false;
     if (changed || force) {
       registered = false;
       synced = false;
       if (granted) deps.observe.attach(); else deps.observe.detach();
       await deps.setCaptureEnabled(active);
-      await deps.syncScripts(active);
+      newlyRegistered = await deps.syncScripts(active) === 'registered';
       registered = active;
       synced = true;
     }
     if (!active && waiting.size > 0) { waiting.clear(); await save(); }
-    if (notice && active && (changed || force)) {
+    // A startup sync can discover a grant before onAdded after event-page
+    // sleep. Announce the actual registration in that same queued operation;
+    // persistent, unchanged scripts on a plain restart need no new notice.
+    // Install/update still refreshes notices whose old listeners are dead.
+    if (active && (newlyRegistered || notice)) {
       const tabs = await deps.tabs.list();
       for (const tab of [...waiting]) if (!tabs.includes(tab)) waiting.delete(tab);
       // Persist the count before injecting: a tab may vanish between query and execution.
@@ -77,7 +82,7 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     // The permission exposes webRequest immediately, before the queue's asynchronous storage work.
     if (added) deps.observe.attach();
     else deps.observe.detach();
-    void schedule(added, added).then(async (next) => { if (added && next.registered) await deps.startModule(); }).catch(deps.failed);
+    void schedule(false, added).then(async (next) => { if (added && next.registered) await deps.startModule(); }).catch(deps.failed);
   });
   deps.settings.onChange(() => { void schedule().catch(deps.failed); });
   deps.tabs.onRemoved((tab) => { void chain(async () => { if (waiting.delete(tab)) await save(); }).catch(deps.failed); });
@@ -86,7 +91,7 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     installed: () => schedule(true, false, true),
     state: () => chain(async () => { await ready; return state(); }),
     setEnabled(value: boolean): Promise<SiteAccessState> {
-      return chain(async () => { if (await deps.settings.enabled() !== value) await deps.settings.setEnabled(value); return sync(value, false); });
+      return chain(async () => { if (await deps.settings.enabled() !== value) await deps.settings.setEnabled(value); return sync(false, false); });
     },
     registered(tabId: number): Promise<void> {
       return chain(async () => { await ready; if (waiting.delete(tabId)) await save(); });
