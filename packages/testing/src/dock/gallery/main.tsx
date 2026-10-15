@@ -78,7 +78,13 @@ const single = stateParam === null ? null : galleryState(stateParam);
 const selected: readonly GalleryState[] =
   single !== null
     ? [single]
-    : GALLERY_STATES.filter((item) => item.surface === 'dock' && (groupParam === null || !STATE_GROUPS.some((group) => group === groupParam) || item.group === groupParam))
+    : GALLERY_STATES.filter(
+        (item) =>
+          item.surface === 'dock' &&
+          // A state only some sites give is drawn in their galleries alone (R20 P8b2: Fansly's marks).
+          (item.sites === undefined || item.sites.includes(site.host)) &&
+          (groupParam === null || !STATE_GROUPS.some((group) => group === groupParam) || item.group === groupParam),
+      )
         // Group by group: a picture of one group is one unbroken piece of the page.
         .map((item, index) => ({ item, index }))
         .sort((a, b) => STATE_GROUPS.indexOf(a.item.group) - STATE_GROUPS.indexOf(b.item.group) || a.index - b.index)

@@ -6,17 +6,18 @@
 //   nothing sticks out, the bar stays 40 px, the closed list of accent dots holds; the bar is Fansly's card in
 //   Fansly's ink, the chips and the capsule its greys, the font the page's; the card keeps 4 px in from the column.
 // - The overlays — toasts, the cheatsheet, Coach, the expanded result, the error boundary's card — in both themes.
+// - The window check's marks over a result (R20 P8b2): drawn in Fansly's gallery alone, in their own words.
 // - The person switches Fansly's theme: the palette follows at once, nothing remounts.
 // - The boards and the kit in both themes.
-// Pictures in .cache/e2e/ (dock-fansly-*, overlay-fansly-*, boards-fansly-*, kit-fansly-*), compared by eye with
-// ui-design.md. ChatSpace's own galleries are the other specs, untouched by this profile.
+// Pictures in .cache/e2e/ (dock-fansly-*, dock-fansly-mark-*, overlay-fansly-*, boards-fansly-*, kit-fansly-*),
+// compared by eye with ui-design.md. ChatSpace's own galleries are the other specs, untouched by this profile.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 import { browser, expect } from '@wdio/globals';
 
 import { BOARDS_GALLERY_PATH, E2E_EVIDENCE_DIR, KIT_GALLERY_PATH } from '../../src/stand/paths';
-import { SMALL, THEMES, WINDOW, box, captureGroups, captureWindow, expectHealthy, health, open, resetWindow, shown } from '../support/dock-gallery';
+import { FANSLY_ACCENTS, SMALL, THEMES, WINDOW, box, captureGroups, captureWindow, expectHealthy, health, open, resetWindow, shown } from '../support/dock-gallery';
 import { useNetworkTrap } from '../support/network-trap';
 import { standOrigin } from '../support/stand';
 
@@ -25,6 +26,12 @@ const FANSLY_WIDTHS = [622, 489, 381] as const;
 /** The rows of the parity matrix this gallery closes on Fansly (parity-matrix.md, P8d): the dock's states and the toasts. */
 const DOCK_ROWS = '[UI-002] [UI-003] [UI-004] [UI-005] [UI-006] [UI-007] [UI-008] [UI-009] [UI-010] [UI-013] [UI-014] [UI-015] [UI-018] [UI-022] [UI-024] [UI-025] [UI-030] [UI-031] [UI-032]';
 const TOAST_ROWS = '[ER-009] [ER-010] [ER-011] [ER-013]';
+/** The window check's marks of Fansly's verdict (R20 P8b2) and the whole line each says, in its own words. */
+const MARKS = [
+  ['unverified', 'Свежесть не проверена: неизвестно, учёл ли ответ последние сообщения чата.'],
+  ['window-miss', 'Ответ мог не учесть последние сообщения чата.'],
+  ['deleted-served', 'Контекст устарел: ответ учитывает сообщение, удалённое из чата.'],
+] as const;
 
 /** What the dock is drawn in, per Fansly theme (host-fansly isolated/theme.ts over fansly.com's variables). */
 const LOOK = {
@@ -74,7 +81,7 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
         await open(`host=fansly&theme=${theme}&lang=ru&w=${width}`);
         // Pictures first: a failed check still leaves the evidence.
         await captureGroups(`dock-fansly-${theme}-ru-w${width}`);
-        expectHealthy(await health(), width);
+        expectHealthy(await health(), width, FANSLY_ACCENTS);
         await expectFanslyLook('1a', theme);
         // The phrases are Fansly's: no shared text names ChatSpace on its page.
         expect((await shown('9g', '.cg-dock')).join(' ')).toMatch(/Fansly обновился/);
@@ -87,9 +94,27 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
     it(`[UI-004] [UI-006] [UI-027] [host:fansly] every dock state · ${theme} · en · 622 px, Windows key labels; copy only in Fansly’s words`, async () => {
       await open(`host=fansly&theme=${theme}&lang=en&w=622&os=win`);
       await captureGroups(`dock-fansly-${theme}-en-w622-win`);
-      expectHealthy(await health(), 622);
+      expectHealthy(await health(), 622, FANSLY_ACCENTS);
       await expectFanslyLook('1a', theme);
+      expect(await shown('x-stale-window-miss', '.cg-stale__t')).toEqual(['The answer may have missed the latest messages of the chat.']);
       expect((await shown('9h', '.cg-dock')).join(' ')).toMatch(/The fan doesn’t accept messages/);
+    });
+
+    it(`[R20-P8b2] [host:fansly] the window check’s marks over a result · ${theme} · 622 px: the plate of 3c in their own words, the accent dot, «Ещё раз» (spec §3.5, ui-design §4.7)`, async () => {
+      for (const [reason, words] of MARKS) {
+        const id = `x-stale-${reason}`;
+        await open(`host=fansly&state=${id}&theme=${theme}&lang=ru&w=622`);
+        // Pictures first: a failed check still leaves the evidence.
+        await captureGroups(`dock-fansly-mark-${reason}-${theme}-ru-w622`);
+        const result = await health();
+        expect([result.failures, result.problems, result.accents]).toEqual([[], [], [`${id}:result-stale`]]);
+        expect(await shown(id, '.cg-stale__t')).toEqual([words]);
+        expect(await shown(id, '.cg-stale .cg-btn')).toEqual(['Ещё раз']);
+        await expectFanslyLook(id, theme);
+      }
+      // The same marks in ChatSpace's gallery: none — no ChatSpace verdict gives them, and its catalog has no words for them.
+      await open(`theme=${theme}&lang=ru&w=622&group=results`);
+      expect((await health()).accents.filter((accent) => accent.startsWith('x-stale-'))).toEqual([]);
     });
 
     it(`${TOAST_ROWS} [UI-014] [I18-006] [host:fansly] the overlays · ${theme}: toasts, the cheatsheet, Coach, the expanded result — drawn, nothing failed`, async () => {
