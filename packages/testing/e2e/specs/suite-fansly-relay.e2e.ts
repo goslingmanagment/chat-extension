@@ -7,8 +7,8 @@
 //   frame's, and it comes through the tab's proxy as ours (no Origin of the page), clean by FS-NET-1.
 // - The route is chosen before the custody: a call prepared through the tab and held, then the tab's document
 //   changes — the call is refused before it leaves: nothing reaches the server.
-// - With the switch on and no tab of the session, nothing goes direct instead.
-// - A 429 through the tab cools the creator down, counted as ours.
+// - With the switch on and no Fansly page in the session's tab, nothing goes direct instead.
+// - A 429 through the tab cools the creator down, counted as ours, for the tab's creator.
 
 import { browser, expect } from '@wdio/globals';
 
@@ -17,6 +17,7 @@ import { useFakeHub } from '../support/fake-hub';
 import { startFanslyShift } from '../support/fansly-shift';
 import { callFansly, fakeFansly, fanslyIds, fanslyStandOrigin, waitForFanslyStandIdle, waitForFanslyStandReady } from '../support/fansly-stand';
 import { fanslyProxyHost, routeTabThroughProxy, stopRoutingTabThroughProxy, tabProxyCounts } from '../support/fansly-proxy';
+import { openWithNeighbor } from '../support/fansly-neighbor';
 import { useNetworkTrap } from '../support/network-trap';
 
 /** The probe's storage.local keys (bg/fansly/api-probe.ts FANSLY_API_PROBE_KEYS). */
@@ -44,6 +45,18 @@ interface ProbeResult {
   readonly sent?: boolean;
   readonly stage?: string;
   readonly frames?: number;
+}
+
+interface Captured {
+  readonly limits: ReadonlyArray<{ readonly accountId: string | null; readonly source: string; readonly requestId: string; readonly clientRequestId?: string }>;
+}
+
+/** The core's session record in storage.session (P9a): its 429 facts. */
+async function captured(): Promise<Captured | undefined> {
+  return browser.execute(async () => {
+    const api = (globalThis as unknown as { browser: { storage: { session: { get(key: string): Promise<Record<string, unknown>> } } } }).browser;
+    return (await api.storage.session.get('fansly.session'))['fansly.session'] as Captured | undefined;
+  });
 }
 
 describe('Fansly through the tab: FS-NET-4, FX-001 — the relay frame, the tab’s proxy, the route before the custody', () => {
@@ -205,13 +218,32 @@ describe('Fansly through the tab: FS-NET-4, FX-001 — the relay frame, the tab�
     expect(await probe(registration())).toMatchObject({ ok: true, status: 200, frames: 1 });
   });
 
-  it('[FS-NET-4] with the switch on and no tab of the session, nothing goes direct instead', async () => {
+  it('[FS-NET-4] with the switch on and no Fansly page left in the session’s tab, nothing goes direct instead', async () => {
+    // The tab leaves Fansly: no registered tab holds the session any more, though the session itself is still known
+    // (a closed tab would take it along, and the call would end at `session` before any route).
     await stand();
-    await browser.closeWindow();
-    standTab = '';
+    await browser.url('about:blank');
     await pages();
     const mark = await fakeFansly().mark();
     expect(await probe(registration())).toMatchObject({ ok: false, kind: 'tab', code: 'CG-FAN-TAB', sent: false });
     expect(await ours(mark)).toEqual([]);
+  });
+
+  it('[FS-NET-3] [FS-NET-4] a 429 through the tab cools the creator down: counted as ours, for the tab’s creator — the next call waits, nothing leaves', async () => {
+    // Back on Fansly: a new document, its own frame for the next batch.
+    await stand();
+    await openWithNeighbor('/messages', { mode: 'off' });
+    await waitForReport((report) => report.rpc?.registered === true, 'the Fansly tab registered again');
+    await waitForFanslyStandIdle();
+    await pages();
+    const factsBefore = ((await captured())?.limits ?? []).filter((fact) => fact.source === 'own').length;
+    const mark = await fakeFansly().mark();
+    await fakeFansly().command({ op: 'api', rules: [{ route: 'group.detail', caller: 'ours', times: 1, outcome: { kind: 'status', status: 429, retryAfterS: 1 } }] });
+    expect(await probe(registration())).toMatchObject({ ok: false, kind: 'rate-limited', code: 'CG-FAN-RATE-LIMIT', httpStatus: 429, sent: true, frames: 1 });
+    // The core saw the frame's response (`onCompleted`, our own origin, the tab's id): one fact, ours, the tab's creator.
+    await browser.waitUntil(async () => ((await captured())?.limits ?? []).filter((fact) => fact.source === 'own').length > factsBefore, { timeout: 10_000, timeoutMsg: 'the core recorded no fact of our 429 through the tab' });
+    expect((await captured())?.limits.at(-1)).toMatchObject({ source: 'own', accountId: creator });
+    expect(await probe(registration())).toMatchObject({ ok: false, kind: 'cooling', sent: false });
+    expect(await ours(mark)).toEqual(['GET group.detail 429 proxy']);
   });
 });
