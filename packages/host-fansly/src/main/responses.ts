@@ -16,9 +16,15 @@
 // | `/account?ids=`                        | accounts  | an array — the page's account cache: avatars (P7b) |
 // | `/message/automated`                   | automated | an array — the welcome texts                     |
 // | exactly `/vault/albums/media`          | vault     | `success` alone: the page reads no more (P3a)    |
+// | `/media/vaultnew`                      | vaultLoad | not read: its address names the album (P13a)     |
 //
 // Every answer: status 2xx, `{success: true, response}` (the page's envelope,
-// main:28316-28420). The method is not known without a hook on `open`; the
+// main:28316-28420) — but `vaultLoad`'s: the page loads an album's media with
+// it (when the person opens an album, and after every successful
+// `POST /vault/albums/media`), and what MAIN needs of it is only the album its
+// address names (`albumId=`; none — a type album of the vault, `type=`). A 2xx
+// is enough; the body — the album's media, the page's own — is never read
+// (§7.11, P13a). The method is not known without a hook on `open`; the
 // page reads `/message` without `groupId` and `/vault/albums/media` only as
 // the answers of its `POST`s.
 //
@@ -42,7 +48,7 @@ import type { Guard } from '@cg/host-kit/main/guard';
 
 import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, DRAIN_CHARS_PER_MS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
 
-export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault';
+export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault' | 'vaultLoad';
 
 /** An answer of the API by its address: of the table, or `other` — an API answer MAIN does not read. */
 export interface ApiCall {
@@ -51,6 +57,8 @@ export interface ApiCall {
   readonly groupId: string | null;
   /** The page's `limit=` of the history (a positive integer); null — absent or another. */
   readonly limit?: number | null;
+  /** `vaultLoad`: the album its address names; null — a type album (no `albumId=`). */
+  readonly albumId?: string | null;
 }
 
 const OTHER: ApiCall = { kind: 'other', groupId: null };
@@ -111,6 +119,11 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
         return { kind: 'automated', groupId: null };
       case 'vault/albums/media':
         return { kind: 'vault', groupId: null };
+      case 'media/vaultnew': {
+        const album = param(query, 'albumId');
+        const albumId = album === null ? null : idOf(album);
+        return album !== null && albumId === null ? OTHER : { kind: 'vaultLoad', groupId: null, albumId };
+      }
       default: {
         const groupId = idOf(GROUP_PATH.exec(path)?.[1]);
         return groupId === null ? OTHER : { kind: 'group', groupId };
@@ -122,7 +135,7 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
 
 /** Whether `response` has the form the table asks of its kind (the header of this file). */
 function ofForm(call: ApiCall, response: unknown): boolean {
-  if (call.kind === 'other') return false;
+  if (call.kind === 'other' || call.kind === 'vaultLoad') return false;
   if (call.kind === 'vault') return true;
   if (call.kind === 'automated' || call.kind === 'accounts') return Array.isArray(response);
   if (!isPlain(response)) return false;

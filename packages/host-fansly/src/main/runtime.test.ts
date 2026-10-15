@@ -302,6 +302,47 @@ describe('[host:fansly] the XHR observer and its response table (§5.4)', () => 
     expect(c.events().filter((e) => e.t === 'fx.vaultAdded').map((e) => e.p)).toEqual([{ seq: 1 }]);
   });
 
+  it('[host:fansly] an album the page loads is fx.vaultLoaded with its address’s album and its observation number — after the addition it follows; the answer is never read (P13a)', async () => {
+    const c = await connect(page());
+    const ALBUM = '700000000000000301';
+    // The person opens an album: the page asks its media.
+    request(c.win, `${API}/media/vaultnew?albumId=${ALBUM}&mediaType=0&search=&before=0&after=0&ngsw-bypass=true`).respond(200, ok({ albumMedia: [], media: [] }));
+    // An upload: the page adds the new media to the album and, in its `load` listener, loads the album again — the
+    // reload starts before the addition's `loadend`, where MAIN reads the addition.
+    const add = new c.win.XMLHttpRequest() as unknown as XMLHttpRequest;
+    add.open('POST', `${API}/vault/albums/media?ngsw-bypass=true`);
+    add.send();
+    const reload = new c.win.XMLHttpRequest() as unknown as XMLHttpRequest;
+    reload.open('GET', `${API}/media/vaultnew?albumId=${ALBUM}&mediaType=0&search=&before=0&after=0&ngsw-bypass=true`);
+    add.addEventListener('load', () => reload.send());
+    add.respond(200, ok({}));
+    // The reload's answer — the album's media, of any size — is never read.
+    let reads = 0;
+    const body = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'responseText');
+    Object.defineProperty(reload, 'responseText', {
+      get() {
+        reads += 1;
+        return body?.get?.call(reload) as string;
+      },
+    });
+    reload.respond(200, `${'x'.repeat(RESPONSE_MAX_CHARS + 1)}`);
+    expect(reads).toBe(0);
+    // A type album has no id; a failed load and another address say nothing.
+    request(c.win, `${API}/media/vaultnew?type=1000&before=0&after=0&ngsw-bypass=true`).respond(200, ok({ albumMedia: [], media: [] }));
+    request(c.win, `${API}/media/vaultnew?albumId=${ALBUM}&mediaType=0`).respond(500, '');
+    await settle();
+    const vault = c.events().filter((e) => e.t === 'fx.vaultAdded' || e.t === 'fx.vaultLoaded');
+    expect(vault).toEqual([
+      { t: 'fx.vaultLoaded', p: { albumId: ALBUM, seq: 1 } },
+      { t: 'fx.vaultAdded', p: { seq: 2 } },
+      { t: 'fx.vaultLoaded', p: { albumId: ALBUM, seq: 3 } },
+      { t: 'fx.vaultLoaded', p: { albumId: null, seq: 4 } },
+    ]);
+    // Nothing of these answers was lost or deferred: none was read.
+    expect((await c.health()).responses).toMatchObject({ seen: 5, lost: 0, deferred: 0 });
+    expect(coverage(c)).toEqual([]);
+  });
+
   it('[EX-008] answers its requests by hand, as the contracts’ fixtures have them', async () => {
     const c = await connect(page());
     for (const t of ['fx.state', 'fx.ack', 'fx.health', 'fx.focus', 'fx.generationSnapshot', 'fx.windowMeta'] as const) {

@@ -92,6 +92,8 @@ export const RESPONSE_ADDRESSES: ReadonlyArray<{ readonly kind: ResponseKind; re
   { kind: 'accounts', written: '/account?ids=', exact: false, sample: '/account?ids=7' },
   { kind: 'automated', written: '/message/automated', exact: false, sample: '/message/automated' },
   { kind: 'vault', written: '/vault/albums/media', exact: true, sample: '/vault/albums/media' },
+  // The album the page loads (R20 P13a): its id is in the address the page builds (`main:30257`).
+  { kind: 'vaultLoad', written: '/media/vaultnew?albumId=', exact: false, sample: '/media/vaultnew?albumId=7&mediaType=0' },
 ];
 
 /** The socket envelope `{t, d}` MAIN reads (frame-parse.ts; the test pins the numbers to `readFrame`). */

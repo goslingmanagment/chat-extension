@@ -125,6 +125,7 @@ function mainLines(): string[] {
     '  let a = new C.Kd("GET", this.base + "/account?ids=" + ids.join(","), null);',
     '  let w = new C.Kd("GET", this.base + "/message/automated", null);',
     '  let v = new C.Kd("POST", this.base + "/vault/albums/media", { albumId: a, mediaIds: m });',
+    '  let n = new C.Kd("GET", this.base + "/media/vaultnew?albumId=" + a + "&mediaType=" + t + "&search=" + q, null);',
     '  this.renderer.addClass(document.body, "modal-opened");',
     '  "bright" === t ? (r.removeClass(document.body.parentElement, "dark-theme"), r.addClass(document.body.parentElement, "bright-theme")) : 0;',
     '  var nav = [["data-menu-item", "media-vault", "routerLink", "/creator/vault", 1, "nav-dropdown-item"]];',
@@ -174,6 +175,7 @@ const RESPONSE_KINDS: Readonly<Record<ResponseKind, true>> = {
   accounts: true,
   automated: true,
   vault: true,
+  vaultLoad: true,
 };
 
 describe('[host:fansly] host-contract-check --host fansly (R20 P7h; FS-CTR-1, FS-CTR-3)', () => {

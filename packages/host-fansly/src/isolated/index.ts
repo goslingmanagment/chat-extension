@@ -19,7 +19,7 @@ export { createKeyboardProbe } from './keyboard';
 export { groupIdOfPath, routeOfLocation, type FanslyRoute, type RouteStats, type RouteWatcher } from './route';
 export { FANSLY_SELECTORS, type AnchorStats, type AnchorWatcher, type ConversationAnchors, type PageAnchors } from './anchors';
 export { FANSLY_ADAPTER_VERSION } from './contract';
-export type { FanslyIsolatedHealth, FanslyPort, InsertionRecord, TokenRedeemer } from './host-port';
+export type { FanslyIsolatedHealth, FanslyPort, FanslyVaultFact, FanslyVaultFacts, InsertionRecord, TokenRedeemer } from './host-port';
 export { DELIVERED_KEY_MARK, KEY_PENDING_ATTRIBUTE, createKeyPendingMark, type KeyboardProbe } from '@cg/host-kit/isolated/keyboard';
 export { HOST_ATTRIBUTE, removeStaleHosts, type ClosedHost, type OverlayLayer } from '@cg/host-kit/isolated/hosts';
 export { connectFanslyMain, startFanslyHost, type StartFanslyHostOptions, type StartedFanslyHost } from './start';

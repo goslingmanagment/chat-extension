@@ -14,10 +14,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { installFanslyMain } from '../main/index';
 import { createFakeFanslyPage, type FakeFanslyPage } from '../testing/fake-dom';
 import { EPOCH, NO_ONE, scriptedMain, type Answer } from '../testing/scripted-main';
+import { createFakeVaultPage } from '../testing/fake-vault';
 import { createAnchorWatcher } from './anchors';
 import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from './host-port';
 import { watchCoexistence, type Coexistence } from './legacy';
+import { createVaultUploader, vaultTargetOf } from './vault/upload';
 import { createFanslyMounts } from './mount';
 import { createRouteWatcher } from './route';
 import { startFanslyHost } from './start';
@@ -315,6 +317,37 @@ describe('[host:fansly] the stream rebuilds the tab’s state (§6)', () => {
       { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'frame', count: 2 } },
     ]);
     expect(port.current().route.conversationRef).toBe(GROUP);
+  });
+});
+
+describe('[host:fansly] the vault’s facts for the uploader (§7.11, P13a)', () => {
+  it('[AU-036] [VA-006] an addition and an album load go to whoever listens, in order; the album the page loaded last is kept for this address only', async () => {
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, lastBatch: 0 }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port, page } = await startPort('/creator/vault', main.client);
+    const heard: unknown[] = [];
+    expect(port.vault.album()).toBeNull();
+    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 4 } });
+    const off = port.vault.onFact((fact) => heard.push(fact));
+    main.batch(2, { t: 'fx.vaultAdded', p: { seq: 7 } }, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 8 } });
+    expect(heard).toEqual([
+      { t: 'fx.vaultAdded', p: { seq: 7 } },
+      { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 8 } },
+    ]);
+    expect(port.vault.album()).toEqual({ albumId: '700000000000000301', seq: 8 });
+    // A type album («Posts») has no id.
+    main.batch(3, { t: 'fx.vaultLoaded', p: { albumId: null, seq: 9 } });
+    expect(port.vault.album()).toEqual({ albumId: null, seq: 9 });
+    // Another address: the page shows no album there until it loads one.
+    main.batch(4, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000302', seq: 10 } });
+    page.openInbox();
+    await settle();
+    expect(port.vault.album()).toBeNull();
+    expect(heard).toHaveLength(4);
+    // Nobody listens: acknowledged with its batch, said to no one.
+    off();
+    main.batch(5, { t: 'fx.vaultAdded', p: { seq: 11 } });
+    expect(heard).toHaveLength(4);
+    expect(main.asked('fx.ack').at(-1)).toEqual({ n: 5 });
   });
 });
 
@@ -925,6 +958,58 @@ describe('[host:fansly] the port over the real MAIN', () => {
   });
 });
 
+
+describe('[host:fansly] the vault’s facts: start order and losses (review of P13a)', () => {
+  it('[VA-006] the album the page loaded last is the load it STARTED last; a loss of MAIN’s facts forgets it and is said to the uploader', async () => {
+    let lastBatch = 0;
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, lastBatch }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port } = await startPort('/creator/vault', main.client);
+    // A → B quickly; A's answer comes last.
+    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000302', seq: 5 } });
+    main.batch(2, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 4 } });
+    expect(port.vault.album()).toEqual({ albumId: '700000000000000302', seq: 5 });
+    let losses = 0;
+    const off = port.vault.onLost(() => (losses += 1));
+    // MAIN's queue overflowed: its next state says where its stream goes on.
+    lastBatch = 3;
+    main.gap();
+    expect(losses).toBe(1);
+    expect(port.vault.album()).toBeNull();
+    await settle();
+    main.batch(4, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 9 } });
+    expect(port.vault.album()).toEqual({ albumId: '700000000000000301', seq: 9 });
+    off();
+  });
+});
+
+describe('[host:fansly] coexistence invalidates the vault’s work (P13a over P7g)', () => {
+  it('[AU-036] [VA-004] a port that steps aside forgets the album and says no account: a file in flight is not known, and no run belongs to the tab', async () => {
+    const coexistence = watchCoexistence(window);
+    cleanups.push(() => {
+      coexistence.dispose();
+      document.documentElement.removeAttribute('data-fx-instance');
+      document.querySelector('[data-host="reload-notice"]')?.remove();
+    });
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port } = await startPort('/creator/vault', main.client, undefined, undefined, coexistence);
+    const vaultPage = createFakeVaultPage();
+    cleanups.push(() => vaultPage.destroy());
+    vaultPage.openAlbum('Set 1');
+    vaultPage.expandUploader();
+    vaultPage.cards([]);
+    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 3 } });
+    const uploader = createVaultUploader({ win: window, port });
+    const target = vaultTargetOf(uploader.view());
+    expect(target).toEqual({ hostAccountId: CREATOR, albumId: '700000000000000301', title: 'Set 1' });
+    if (target === null) return;
+    const step = uploader.upload(new File(['x'], 'a.jpg', { type: 'image/jpeg' }), target);
+    main.batch(2, { t: 'fx.identity', p: { ...fanslyIdentityWire, legacy: true } });
+    expect(await step).toEqual({ state: 'unknown', halt: 'account-changed', path: 'data-transfer' });
+    expect(port.vault.album()).toBeNull();
+    expect(vaultTargetOf(uploader.view())).toBeNull();
+    expect(uploader.stats().watching).toBe(false);
+  });
+});
 
 describe('[host:fansly] coexistence invalidates pending work', () => {
   it('[NEW-12] [FS-CO-1] a late legacy identity retires the port, drops a pending snapshot, and cannot be revived by a later clean identity', async () => {

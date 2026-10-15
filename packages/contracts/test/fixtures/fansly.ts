@@ -359,6 +359,15 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
     // The page does not read that answer: no album, no media ids (P3a).
     invalid: [{ seq: 7, albumId: '700000000000000301' }, { seq: -1 }],
   },
+  'fx.vaultLoaded': {
+    // An album by its id; a type album of the vault («Posts», «Messages») has none.
+    valid: [
+      { albumId: '700000000000000301', seq: 8 },
+      { albumId: null, seq: 9 },
+    ],
+    // The album id is a snowflake string; the answer's media are not read.
+    invalid: [{ albumId: Number('700000000000000301'), seq: 8 }, { albumId: '700000000000000301' }, { albumId: '700000000000000301', seq: 8, mediaIds: ['700000000000000302'] }, { albumId: 'album', seq: 8 }],
+  },
 };
 
 const batchOf = (n: number, events: readonly unknown[]): unknown => ({ n, events });

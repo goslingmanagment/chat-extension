@@ -35,7 +35,8 @@
 // the page's `<meta>` tags: real XHR requests (http.ts, xhr-backend.ts) and a real socket (socket.ts), wired by
 // live.ts. Without it — a DOM test, `?stand-backend=local` — the page answers itself from its in-page world
 // (backend.ts). FBuddy is not the page's: the stand server puts the FBuddy-like neighbour (R20 P6d,
-// src/fake-fansly/neighbor) in front of this script when a test asks. Not here yet: the vault route.
+// src/fake-fansly/neighbor) in front of this script when a test asks. The vault (`/creator/vault`, vault.ts, R20
+// P13a): albums, an open album's cards and «Upload to Vault» with the page's own input, over the fake Fansly only.
 
 import './styles.css';
 

@@ -22,6 +22,7 @@ import { OldExtensionMarks } from './old-extension';
 import { FANSLY_STAND_DEFAULT_LATENCY_MS } from './protocol';
 import { Router, type Route } from './router';
 import { GroupService } from './store';
+import { VaultRoute } from './vault';
 
 /** The Angular version the live page declares (`ng-version`, chat-dom-2026-10-13.json). */
 export const NG_VERSION = '19.1.2';
@@ -43,6 +44,8 @@ export interface StandApp {
    */
   start(ready?: () => void): void;
   messages(): MessagesRoute | null;
+  /** `/creator/vault` over the fake Fansly (R20 P13a), if it stands. */
+  vault(): VaultRoute | null;
   /** The main chat's container (under `app-messages-conversation-route`), if one stands. */
   mainContainer(): MessageContainer | null;
   /** Takes the app down (DOM tests mount one per test). */
@@ -75,6 +78,7 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
   const outlet = el(s, 'router-outlet');
   const content = el(s, 'div', { class: 'content-wrapper' }, [outlet]);
   let messages: MessagesRoute | null = null;
+  let vault: VaultRoute | null = null;
   let other: HTMLElement | null = null;
 
   const activate = (route: Route): void => {
@@ -94,10 +98,21 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
       messages.destroy();
       messages = null;
     }
+    vault?.host.remove();
+    vault?.destroy();
+    vault = null;
     other?.remove();
+    other = null;
+    // The vault asks the fake Fansly (R20 P13a); the page answering itself has no vault.
+    if (route.kind === 'vault' && live !== null) {
+      vault = new VaultRoute(live.xhr);
+      outlet.after(vault.host);
+      record('route-created', { route: 'app-media-vault-route' });
+      return;
+    }
     const page = scope();
-    other = host(page, 'app-home-route');
-    other.append(el(page, 'div', { class: 'home-placeholder' }, [`Stand page ${route.path}`]));
+    other = host(page, route.kind === 'vault' ? 'app-media-vault-route' : 'app-home-route');
+    other.append(el(page, 'div', { class: 'home-placeholder' }, [`Stand page ${route.kind === 'vault' ? '/creator/vault' : route.path}`]));
     outlet.after(other);
   };
   const router = new Router((route) => activate(route));
@@ -153,12 +168,15 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
       app.latency = ms;
     },
     messages: () => messages,
+    vault: () => vault,
     mainContainer: () => messages?.conversation?.container ?? null,
     destroy: () => {
       live?.destroy();
       router.destroy();
       messages?.destroy();
       messages = null;
+      vault?.destroy();
+      vault = null;
       miniChat.destroy();
       oldMarks.set(false);
       root.replaceChildren();

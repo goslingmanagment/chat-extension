@@ -313,10 +313,31 @@ const ROUTES: readonly Route[] = [
     },
   },
   {
+    // The page loads an album's media: on opening it, and after each addition (main:12696-12712, :12818-12827).
+    name: 'vault.albumMedia',
+    method: 'GET',
+    path: /^\/media\/vaultnew$/,
+    run: ({ world, params }) => {
+      const albumId = params.get('albumId');
+      // A type album («Posts», «Messages»): the stand keeps none of its media.
+      if (albumId === null) return { response: { albumMedia: [], media: [] } };
+      const album = world.albums.find((item) => item.id === albumId);
+      return album === undefined ? missing('no album') : { response: world.wireAlbumMedia(album) };
+    },
+  },
+  {
     name: 'media.create',
     method: 'POST',
     path: /^\/account\/media$/,
-    run: ({ world, body }) => ({ response: (Array.isArray(body) ? body : []).map(() => ({ contentId: world.nextId(), contentType: 1 })) }),
+    run: ({ world, body }) => ({
+      response: (Array.isArray(body) ? body : []).map((item: unknown) => {
+        const file = asRecord(item);
+        const id = world.nextId();
+        // A medium with a file name is kept: an album it is added to shows its card (the vault, R20 P13a).
+        if (typeof file?.['name'] === 'string') world.media.set(id, { id, filename: file['name'], mimetype: typeof file['type'] === 'string' ? file['type'] : '', createdAt: Date.now() });
+        return { contentId: id, contentType: 1 };
+      }),
+    }),
   },
 ];
 

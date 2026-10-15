@@ -30,6 +30,7 @@ export const EVT_FOLLOW = 'fx.follow';
 export const EVT_COVERAGE = 'fx.coverage';
 export const EVT_DELETED = 'fx.deleted';
 export const EVT_VAULT = 'fx.vaultAdded';
+export const EVT_VAULT_LOADED = 'fx.vaultLoaded';
 
 /** TO_MAIN_FANSLY_TYPES MAIN answers itself (`probe` is the boot's). */
 export const REQ_STATE = 'fx.state';

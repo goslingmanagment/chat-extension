@@ -31,6 +31,12 @@
 // - `fansly` (FanslyPagePort): the header slot is said from the anchors (its
 //   mount is P7d's and P11a's); a file into the field (P12c), the vault (P13b)
 //   and the relay (P9c) are refused until then.
+// - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
+//   to an album and an album the page loaded — for the uploader, which comes in
+//   its own module (`isolated/vault`, never in this early bundle); the port
+//   keeps only the album of the load the page STARTED last (MAIN's observation
+//   number — a late answer of an earlier load is not it), forgotten with every
+//   change of address and every loss of MAIN's facts, which it says.
 //
 // Before MAIN's first state the port knows only the address; without MAIN at
 // all it still answers, and its report says CG-HOST-NOT-READY.
@@ -81,6 +87,18 @@ export interface FanslyIsolatedHealth {
   readonly staleChats: number;
 }
 
+/** A fact of the vault from MAIN's stream (§7.11): an addition to an album, an album the page loaded. */
+export type FanslyVaultFact = Extract<FromMainFansly, { readonly t: 'fx.vaultAdded' | 'fx.vaultLoaded' }>;
+
+/** What the uploader (isolated/vault) reads of the stream. */
+export interface FanslyVaultFacts {
+  /** The album of the load the page started last on this address; null — none since the address changed or a loss. */
+  album(): Extract<FanslyVaultFact, { readonly t: 'fx.vaultLoaded' }>['p'] | null;
+  onFact(cb: (fact: FanslyVaultFact) => void): Unsubscribe;
+  /** MAIN's facts were lost (`fx.gap`, a refused or skipped batch): what the page did meanwhile is not known. */
+  onLost(cb: () => void): Unsubscribe;
+}
+
 export interface FanslyPort extends FanslyHostPort {
   /** Resolves once MAIN's first state was taken (or asked in vain, or at once without MAIN). */
   readonly ready: Promise<void>;
@@ -95,6 +113,8 @@ export interface FanslyPort extends FanslyHostPort {
   insertion(): InsertionRecord | null;
   /** The open field's draft as a human send carries it (§5.9 п. 7, P7f): its revision, provenance and our insert; null — no field. */
   sentDraft(): SentDraft | null;
+  /** The vault's facts for the uploader (§7.11, P13a). */
+  readonly vault: FanslyVaultFacts;
 }
 
 export interface FanslyHostPortOptions {
@@ -211,6 +231,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     return token;
   };
 
+  let vaultLoad: ReturnType<FanslyVaultFacts['album']> = null;
+  const vaultListeners = new Set<(fact: FanslyVaultFact) => void>();
+  const vaultLosses = new Set<() => void>();
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
   const slotListeners = new Set<(slot: FanslyHeaderSlot) => void>();
@@ -401,14 +424,19 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       case 'fx.contract':
         network = event.p;
         return sync();
-      // The stream's facts — new messages, follows, coverage, deletions, sends, the vault — are taken by the work
-      // packages that act on them (P8b1, P14a, P7f, P13b); here they are acknowledged with their batch.
+      // The vault's facts go to the uploader, if one listens (§7.11, P13a).
+      case 'fx.vaultLoaded':
+      case 'fx.vaultAdded':
+        if (event.t === 'fx.vaultLoaded' && (vaultLoad === null || event.p.seq > vaultLoad.seq)) vaultLoad = event.p;
+        for (const listener of [...vaultListeners]) listener(event);
+        return;
+      // The stream's other facts — new messages, follows, coverage, deletions, sends — are taken by the work packages
+      // that act on them (P8b1, P14a, P7f); here they are acknowledged with their batch.
       case 'fx.incoming':
       case 'fx.follow':
       case 'fx.coverage':
       case 'fx.deleted':
       case 'fx.sent':
-      case 'fx.vaultAdded':
         return;
     }
   };
@@ -426,6 +454,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
               // Every chat unknown until the next state (FS-TAIL-5): the window the tab holds says so at once — and a
               // proven start no longer stands, its unbroken observation is broken.
               if (chatWire !== null) setChat({ ...chatWire, window: { ...chatWire.window, completeness: 'unknown', startProven: false } });
+              // Which album the page loaded meanwhile is not known either.
+              vaultLoad = null;
+              for (const listener of [...vaultLosses]) listener();
             },
             fault(source, count) {
               // MAIN says a site's count at 1, 2, 4, 8…: one is logged when it at least doubled the last.
@@ -446,6 +477,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const offRoute = route.onChange((change) => {
     // The new generation first: whatever is asked from here on is asked in it.
     routeNow();
+    // Another page (or a new life of it) shows no album yet: the next one it loads says which.
+    vaultLoad = null;
     // Back from bfcache: a new life (and a new route epoch, so what MAIN said before no longer fits); MAIN's states
     // are asked again whole (FS-RTE-2).
     if (change.restored) void stream?.resync();
@@ -577,12 +610,15 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     eventListeners.clear();
     contractListeners.clear();
     slotListeners.clear();
+    vaultListeners.clear();
+    vaultLosses.clear();
   };
   const retire = (): void => {
     generation.advance();
     creator = null;
     chatWire = null;
     composer = null;
+    vaultLoad = null;
     routeState = routeStateOf(routeNow(), null, null);
     slot = { state: 'none', reason: 'no-chat' };
     report = compute();
@@ -638,6 +674,21 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     async health() {
       const main = bridge === null || disposed ? null : await bridge.request('fx.health', {}).catch(() => null);
       return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats }, main };
+    },
+    vault: {
+      album: () => vaultLoad,
+      onFact(cb): Unsubscribe {
+        vaultListeners.add(cb);
+        return () => {
+          vaultListeners.delete(cb);
+        };
+      },
+      onLost(cb): Unsubscribe {
+        vaultLosses.add(cb);
+        return () => {
+          vaultLosses.delete(cb);
+        };
+      },
     },
 
     readDraft(expected: HostIdentity): Promise<DraftSnapshot> {
