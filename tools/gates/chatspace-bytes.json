@@ -1,7 +1,7 @@
 {
   "site": "chatspace",
   "files": {
-    "background.js": { "bytes": 806626, "sha256": "53e260610dbc56e8cd7d86fddd8b6dc2598fcf9bba593292a632e62679c0e545" },
+    "background.js": { "bytes": 806647, "sha256": "3f284914e6077b030a229716140daed670f45995f02342406ff31cf897c55382" },
     "bg/chatspace.js": { "bytes": 90691, "sha256": "047ef7c94de2a41f234cb8a7a36e5dfdb18795519f8d7788e55c0f611da25224" },
     "chatspace-ws.js": { "bytes": 12678, "sha256": "9ea75cf101e688d3835fa30324604c3929ddd15a6c189253c0e2a893a1177859" },
     "content-scripts/chatspace-main.js": { "bytes": 25166, "sha256": "6b284e55932e0f13475a104b8593ca8eea630ce98112dc479ad3b422b4e3c959" },
