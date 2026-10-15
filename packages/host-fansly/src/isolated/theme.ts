@@ -6,9 +6,11 @@
 // switches the theme.
 //
 // The page's colour variables (`--blue-1`, `--dark-1…8`, …) translated into
-// the kit's `--color-om-*` triplets are P8d's (the palette of Fansly's
-// profile): until then `tokens` is empty and the dock wears the kit's own
-// palette in the page's scheme. Fansly has no fixed-width workspace.
+// the kit's `--color-om-*` triplets are the palette of Fansly's profile
+// (./palette.ts, R20 P8d): only the application draws with it, so it rides in
+// Fansly's application chunk and reads the page on this reader's word — the
+// early bundle says the scheme alone, and `tokens` stay empty. Fansly has no
+// fixed-width workspace.
 //
 // Read when first asked for, not at document_start: nothing needs the theme
 // before the UI does, and Angular sets the class only once it runs.

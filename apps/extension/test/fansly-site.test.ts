@@ -9,13 +9,16 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import type { HostTheme } from '@cg/contracts/host';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
+import { fanslyProfile } from '@cg/testing/kit/profiles';
+import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
 import type { LazyEntryName } from '../lazy/entries/names.ts';
 import { describe, expect, it } from 'vitest';
 
 import { baseManifest, checkManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from '../build/manifest.ts';
 import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../lazy/entries/names.ts';
-import { FANSLY_APP, FANSLY_UI } from '../src/composition/tab/hosts/fansly/app.ts';
+import { FANSLY_APP, fanslyUi } from '../src/composition/tab/hosts/fansly/app.ts';
 import { LAZY as TAB_LAZY } from '../src/composition/tab/runtime.ts';
 import { lazyPath } from '../src/composition/tab/lazy.ts';
 import { FANSLY_ADAPTER } from '../src/entrypoints/fansly.ts';
@@ -116,11 +119,43 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
   it('[host:fansly] the application’s half of its adapter: no live configuration, its slice of the manifest, its contract, the dock’s variant `fansly` and its phrases', async () => {
     expect(FANSLY_APP.liveConfigOf(null, null)).toBeNull();
     expect(FANSLY_APP.contract.anchors).toContain('headerSubRow');
-    expect(FANSLY_UI.dock.variant).toBe('fansly');
-    expect(FANSLY_UI.phrases.ru.onSite).toBe('на Fansly');
-    expect(FANSLY_APP.ui({ current: () => ({ scheme: 'dark', tokens: {}, fixedWidth: false }), onChange: () => () => undefined, dispose: () => undefined })).toBe(FANSLY_UI);
+    const profile = FANSLY_APP.ui({ current: () => ({ scheme: 'dark', tokens: {}, fixedWidth: false }), onChange: () => () => undefined, dispose: () => undefined });
+    expect(profile.dock.variant).toBe('fansly');
+    expect(profile.phrases.ru.onSite).toBe('на Fansly');
     const policy = await FANSLY_APP.ai(() => Promise.reject(new Error('nothing to load')));
     expect([policy.proof({} as never, {} as never), policy.fields(null), policy.fingerprint(null)]).toEqual([null, {}, null]);
+  });
+
+  it('[R20-P8d] [host:fansly] its profile (§1.5): the palette of the page in the theme it shows, read anew on each switch; the variant’s sheet; the same parts the galleries draw Fansly in', () => {
+    let theme: HostTheme = { scheme: 'dark', tokens: {}, fixedWidth: false };
+    const listeners = new Set<(next: HostTheme) => void>();
+    const source = {
+      current: () => theme,
+      onChange: (listener: (next: HostTheme) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      dispose: () => undefined,
+    };
+    // A page with Fansly's card in each theme: `--modal-bg` is the card in light and in dark (ui-design §2.1 «Fansly»).
+    const card = { light: '#fefefe', dark: '#202020' } as const;
+    const page = (): Document =>
+      ({ documentElement: {}, defaultView: { getComputedStyle: () => ({ getPropertyValue: (name: string) => (name === '--modal-bg' ? card[theme.scheme] : '') }) } }) as unknown as Document;
+    const profile = fanslyUi(source, page);
+    expect([profile.dock.variant, profile.sheet, profile.phrases.ru.onSite]).toEqual(['fansly', FANSLY_DOCK_SHEET, 'на Fansly']);
+    expect(profile.palette?.value['--color-om-neutral-900']).toBe('32 32 32');
+    const heard: unknown[] = [];
+    const off = profile.palette?.subscribe((palette) => heard.push([palette['--color-om-neutral-0'], palette['--color-om-neutral-900']]));
+    theme = { scheme: 'light', tokens: {}, fixedWidth: false };
+    for (const listener of listeners) listener(theme);
+    // Light: the card is step 0 and the ink is Fansly's `--font-1` (not on this page: its value on fansly.com).
+    expect(heard).toEqual([['254 254 254', '20 30 40']]);
+    off?.();
+    expect(listeners.size).toBe(0);
+    // The tab's adapter builds the same; the galleries' `?host=fansly` (packages/testing kit/profiles.ts) is this profile, part for part.
+    expect(FANSLY_APP.ui(source)).toMatchObject({ dock: { variant: 'fansly' }, sheet: FANSLY_DOCK_SHEET, phrases: profile.phrases });
+    const gallery = fanslyProfile(source, page);
+    expect({ ...gallery, palette: gallery.palette?.value }).toEqual({ ...profile, palette: profile.palette?.value });
   });
 
   it('[host:fansly] the early half of its adapter is assembled in its entry point: its kind, its client of the key scheme, its own lazy build', () => {

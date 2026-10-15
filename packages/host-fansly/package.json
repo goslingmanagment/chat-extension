@@ -8,7 +8,9 @@
     "./main": "./src/main/index.ts",
     "./isolated/notice": "./src/isolated/notice.ts",
     "./isolated": "./src/isolated/index.ts",
-    "./isolated/validation": "./src/isolated/validate.ts"
+    "./isolated/validation": "./src/isolated/validate.ts",
+    "./isolated/theme": "./src/isolated/theme.ts",
+    "./isolated/palette": "./src/isolated/palette.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",
