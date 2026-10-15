@@ -5,6 +5,22 @@ import type { I18nCatalog } from '@cg/contracts/i18n/catalog';
 
 export const EN: I18nCatalog<'en'> = {
   // ── Common ──
+  // Optional-site activation and status (P9a).
+  'siteAccess.enable': 'Enable {site}',
+  'siteAccess.disable': 'Disable {site}',
+  'siteAccess.reload': 'Reload tabs',
+  'siteAccess.waiting': 'Waiting for reload: {count}',
+  'siteAccess.reloaded': 'Tabs reloaded: {count}',
+  'settings.status.site.title': '{site}',
+  'settings.status.site.closed': '{site} tab is closed',
+  'settings.status.site.closedNote': 'Open messages {onSite}.',
+  'settings.status.site.checking': 'Checking {site}…',
+  'settings.status.site.value': '{site} {build} · connected',
+  'settings.status.site.checked': 'Checked at {time}',
+  'settings.status.site.notYetNote': 'Open a chat to finish the check.',
+  'settings.status.site.partial': '{site} {build} · partly checked',
+  'settings.status.site.partialNote': 'Not found: {missing}. Insert is available.',
+  'settings.status.site.copyOnlyNote': 'Not found: {missing}. Use Copy.',
   'common.copy': 'Copy',
   'common.copied': 'Copied',
   'common.close': 'Close',

@@ -15,6 +15,8 @@ export const SiteAccessStateSchema = z.strictObject({
   granted: z.boolean(),
   registered: z.boolean(),
   waitingReload: CountSchema,
+  /** Present only in the reply to a reload action: successful browser reloads. */
+  reloaded: z.optional(CountSchema),
 });
 export type SiteAccessState = z.infer<typeof SiteAccessStateSchema>;
 
