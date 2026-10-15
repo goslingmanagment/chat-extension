@@ -1,11 +1,11 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json, docs/project-unite/plan.md и done/<PR id>, §10 docs/project-unite/parity-matrix.md, метки [ID] и [host:…] в названиях тестов",
   "testFiles": {
-    "unit": 290,
-    "e2e": 44,
+    "unit": 295,
+    "e2e": 45,
     "chatspace": 67,
-    "fansly": 43,
-    "free": 230
+    "fansly": 48,
+    "free": 231
   },
   "totals": {
     "name": "всего",
@@ -353,8 +353,8 @@
     "rows": 718,
     "notConcerned": 110,
     "required": 712,
-    "closed": 477,
-    "open": 235,
+    "closed": 483,
+    "open": 229,
     "afterPilot": 6,
     "byKind": [
       {
@@ -372,8 +372,8 @@
       {
         "name": "unit",
         "rows": 128,
-        "closed": 15,
-        "open": 113
+        "closed": 21,
+        "open": 107
       },
       {
         "name": "hub",
@@ -600,9 +600,9 @@
       {
         "name": "P9a",
         "rows": 6,
-        "closed": 0,
-        "open": 6,
-        "done": false
+        "closed": 6,
+        "open": 0,
+        "done": true
       },
       {
         "name": "P9b",
@@ -1281,8 +1281,8 @@
     {"id":"AU-028","function":"Повторная проверка персоны","target":"пилот","owner":"R08","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/test/domain-insert.test.ts","packages/core/test/domain-ops.test.ts","packages/core/test/domain-send.test.ts","packages/core/test/services-scheduler.test.ts","packages/hub/test/stream.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8b3","planned":"shared","closed":true,"by":["packages/core/test/domain-insert.test.ts","packages/core/test/domain-ops.test.ts","packages/core/test/domain-send.test.ts","packages/core/test/services-scheduler.test.ts","packages/hub/test/stream.test.ts"]}},
     {"id":"AU-029","function":"Ключей OFAPI на машине нет","target":"пилот","owner":"R08","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/hub/test/auth.test.ts","packages/hub/test/ingest-and-guards.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14b1","planned":"shared","closed":true,"by":["apps/extension/test/wiring-background.test.ts","packages/hub/test/auth.test.ts","packages/hub/test/ingest-and-guards.test.ts"]}},
     {"id":"AU-030","function":"Генерация только с живым хостом","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/isolated/stack.dom.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7c","planned":"unit","closed":false,"by":[]}},
-    {"id":"AU-031","function":"Сессия хоста Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":false,"by":[]}},
-    {"id":"AU-032","function":"Алиасы legacy ↔ canonical","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":false,"by":[]}},
+    {"id":"AU-031","function":"Сессия хоста Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":true,"by":["packages/core/src/services/network-session.test.ts","packages/testing/e2e/specs/suite-fansly-background.e2e.ts"]}},
+    {"id":"AU-032","function":"Алиасы legacy ↔ canonical","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":true,"by":["packages/core/src/services/network-session.test.ts"]}},
     {"id":"AU-033","function":"Чат из URL","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7c","planned":"unit","closed":false,"by":[]}},
     {"id":"AU-034","function":"Аккаунтов на вкладку","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["apps/extension/test/wiring-lifecycle.test.ts","packages/core/src/services/presence.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/pages/controller.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7c","planned":"unit","closed":false,"by":[]}},
     {"id":"AU-035","function":"Известные аккаунты и присутствие","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/core/src/services/presence.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P14b1","planned":"unit","closed":false,"by":[]}},
@@ -1344,7 +1344,7 @@
     {"id":"ER-047","function":"Настройки не прочитались","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8b3","planned":"shared","closed":true,"by":["packages/core/src/domain/errors/errors.test.ts"]}},
     {"id":"ER-048","function":"Хост не подключён","target":"пилот + Fansly","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts","packages/host-chatspace/src/isolated/contract.test.ts","packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/isolated/stack.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7c","planned":"unit","closed":false,"by":[]}},
     {"id":"ER-049","function":"Новый код: ChatSpace не готов / контракт хоста сломан","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/host-facts.test.ts","packages/core/src/domain/errors/errors.test.ts","packages/host-chatspace/src/isolated/contract.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-degrade.e2e.ts"],"covered":true,"fansly":{"planned":"n/a","closed":false,"by":[]}},
-    {"id":"ER-050","function":"Сессия Fansly истекла","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":false,"by":[]}},
+    {"id":"ER-050","function":"Сессия Fansly истекла","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":true,"by":["packages/core/src/services/network-session.test.ts"]}},
     {"id":"ER-051","function":"Fansly вернул ошибку","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9b","planned":"unit","closed":false,"by":[]}},
     {"id":"ER-052","function":"Неверный адрес хаба","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14b1","planned":"shared","closed":true,"by":["packages/core/src/domain/errors/errors.test.ts"]}},
     {"id":"ER-053","function":"Не вошли","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14b1","planned":"shared","closed":true,"by":["packages/core/src/domain/errors/errors.test.ts"]}},
@@ -1490,7 +1490,7 @@
     {"id":"BG-004","function":"Ремонт хранилища на старте","target":"пилот","owner":"R10","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/background-stores.test.ts","apps/extension/test/wiring-background.test.ts","apps/extension/test/wiring-lifecycle.test.ts","packages/core/src/services/background-lifecycle.test.ts","packages/core/src/services/readiness.test.ts","packages/core/src/services/results-store.test.ts","packages/core/src/services/settings-owner.test.ts","packages/core/test/services-greeting-leases.test.ts","packages/core/test/services-runtime.test.ts","packages/core/test/services-scheduler.test.ts","packages/platform/src/rpc.test.ts"],"e2e":["packages/testing/e2e/specs/background-wiring.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7i","planned":"shared","closed":true,"by":["apps/extension/test/background-stores.test.ts","apps/extension/test/wiring-background.test.ts","apps/extension/test/wiring-lifecycle.test.ts","packages/core/src/services/background-lifecycle.test.ts","packages/core/src/services/readiness.test.ts","packages/core/src/services/results-store.test.ts","packages/core/src/services/settings-owner.test.ts","packages/core/test/services-greeting-leases.test.ts","packages/core/test/services-runtime.test.ts","packages/core/test/services-scheduler.test.ts","packages/platform/src/rpc.test.ts"]}},
     {"id":"BG-005","function":"Рассылка изменений хранилища","target":"пилот","owner":"R10","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-lifecycle.test.ts","packages/core/test/services-runtime.test.ts"],"e2e":["packages/testing/e2e/specs/lifecycle.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7i","planned":"shared","closed":true,"by":["apps/extension/test/wiring-lifecycle.test.ts","packages/core/test/services-runtime.test.ts"]}},
     {"id":"BG-006","function":"Очистка при закрытии вкладки","target":"пилот","owner":"R10","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","apps/extension/test/wiring-lifecycle.test.ts","packages/core/test/domain-ops.test.ts","packages/core/test/services-scheduler.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P7i","planned":"shared","closed":true,"by":["apps/extension/test/wiring-background.test.ts","apps/extension/test/wiring-lifecycle.test.ts","packages/core/test/domain-ops.test.ts","packages/core/test/services-scheduler.test.ts"]}},
-    {"id":"BG-007","function":"Захват сессии Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":false,"by":[]}},
+    {"id":"BG-007","function":"Захват сессии Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":true,"by":["packages/core/src/services/network-session.test.ts","packages/testing/e2e/specs/suite-fansly-background.e2e.ts"]}},
     {"id":"BG-008","function":"Проба voice","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P12b3","planned":"unit","closed":false,"by":[]}},
     {"id":"BG-009","function":"Опрос маршрута 500 мс","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7c","planned":"unit","closed":false,"by":[]}},
     {"id":"UP-001","function":"Свой фид обновлений","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/cli.test.ts","tools/release/feed.test.ts","tools/release/publish.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["tools/release/cli.test.ts","tools/release/feed.test.ts","tools/release/publish.test.ts"]}},
@@ -1560,8 +1560,8 @@
     {"id":"CS-039","function":"Окно Electron","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/contracts.test.ts"],"e2e":[],"covered":true,"fansly":{"planned":"n/a","closed":false,"by":[]}},
     {"id":"EX-001","function":"Firefox MV3, event page","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["apps/extension/test/manifest.test.ts"]}},
     {"id":"EX-002","function":"Gecko id и минимальная версия","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["apps/extension/test/manifest.test.ts"]}},
-    {"id":"EX-003","function":"Права","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P9a","planned":"unit","closed":false,"by":[]}},
-    {"id":"EX-004","function":"`webRequest` и host permissions Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":false,"by":[]}},
+    {"id":"EX-003","function":"Права","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P9a","planned":"unit","closed":true,"by":["packages/platform/src/site-access.test.ts"]}},
+    {"id":"EX-004","function":"`webRequest` и host permissions Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P9a","planned":"unit","closed":true,"by":["packages/core/src/services/site-access.test.ts","packages/platform/src/site-access.test.ts","packages/testing/e2e/specs/suite-fansly-background.e2e.ts"]}},
     {"id":"EX-005","function":"Доступ к хабу","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["packages/platform/src/rpc.test.ts","packages/platform/src/services.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["packages/platform/src/rpc.test.ts","packages/platform/src/services.test.ts"]}},
     {"id":"EX-006","function":"`data_collection_permissions`","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["apps/extension/test/manifest.test.ts"]}},
     {"id":"EX-007","function":"MAIN-world скрипт на `document_start`","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/isolated/bridge.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","tools/size-budget/budget.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7a","planned":"unit","closed":true,"by":["packages/host-fansly/src/main/runtime.test.ts","packages/testing/e2e/specs/suite-fansly-tap.e2e.ts"]}},
