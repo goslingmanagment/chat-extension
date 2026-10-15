@@ -14,8 +14,12 @@
 // starts on a Fansly page — but on `/creator/vault`, where the vault's entry
 // has its place (P13b); the palette of the page's variables is P8d's.
 // P7g waits for coexistence admission before the shared tab registers or
-// starts background work. A retired copy stays off until reload.
+// starts background work. A retired copy stays off until reload. Once the
+// tab's port to the background exists, what the page hears for the sound
+// goes there from this early bundle, a report per batch of MAIN (R20 P14a):
+// a model's tab rings on any page of Fansly, application or not.
 
+import type { FanslySoundFacts } from '@cg/contracts/tab-messages-fansly';
 import { removeStaleHosts } from '@cg/host-kit/isolated/hosts';
 
 import { watchCoexistence } from './legacy';
@@ -37,6 +41,16 @@ export interface StartedFanslyTab extends StartedFanslyHost {
    * the application loads as for the dock's — and with it, if the page's owner switched the vault on, the entry.
    */
   readonly wantsApp: { current(): boolean; onChange(listener: () => void): () => void };
+  /**
+   * The tab's port to the background, once the tab has one (R20 P14a): the sound's facts of each batch of MAIN go by it
+   * as one request, from now on and what came before it. Nobody waits for the answer: the background decides.
+   */
+  report(port: FanslyReportPort): void;
+}
+
+/** The tab's port as this early bundle reports by it: a request of Fansly's own registry (contracts tab-messages-fansly.ts). */
+export interface FanslyReportPort {
+  request(type: 'fansly.sound.facts', payload: FanslySoundFacts): Promise<unknown>;
 }
 
 /** The vault's page (isolated/vault/dom.ts `isVaultPath`, which this early bundle does not carry). */
@@ -59,5 +73,11 @@ export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
       if (onVault(change.route.path) !== onVault(change.previous.path)) listener();
     }),
   };
-  return { staleHosts, ...started, activation: { ready, stopped: coexistence.stopped }, wantsApp };
+  const report = (port: FanslyReportPort): void => {
+    void started.host.then((host) => {
+      // The port's own disposal (a retired copy, the tab's end) drops this reader.
+      host.sound.onReport((facts) => void port.request('fansly.sound.facts', facts).catch(() => undefined));
+    });
+  };
+  return { staleHosts, ...started, activation: { ready, stopped: coexistence.stopped }, wantsApp, report };
 }

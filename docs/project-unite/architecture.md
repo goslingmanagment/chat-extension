@@ -1300,7 +1300,7 @@ P7g: эти проекции разбираются, но ещё никуда н
 |---|---|---|
 | `fx.identity` | креатор, `accountMeSeen`, легаси, FBuddy (булевы) | состояние: последнее побеждает |
 | `fx.chat` | `{groupId, fanId \| null, kind, dmAllowed, routeEpoch, window: {loaded, newestId, newestAt, completeness, startProven, fanScript}}` | состояние активной группы |
-| `fx.incoming` | `{groupId, fanId, msgId, fromFan, automated, tip, createdAt}` — каждое `5/1`, свои тоже | поток (свежесть, звук, эхо фоновых отправок) |
+| `fx.incoming` | `{groupId, fanId, senderId?, msgId, fromFan, automated, tip, createdAt}` — каждое `5/1`, свои тоже; `senderId` — с P14a | поток (свежесть, звук, эхо фоновых отправок) |
 | `fx.follow` | `{eventId, accountId, followerId}` | поток |
 | `fx.sent` | `{groupId, msgId, contentDigest, gestureAt}` — `gestureAt`: `timeStamp` события жеста (P7f) | поток |
 | `fx.coverage` | `{groupIds \| 'all', state, reason}` | поток |
@@ -2309,6 +2309,56 @@ uncertain → sent: только поздние эхо или история с 
 «чат открыт в окне в фокусе» — по фокусу и видимости, о которых сообщают вкладки, без права `tabs`. «Своё» — креатор
 вкладки, его алиасы и все модели, чьи вкладки видел этот браузер (сохраняемый набор, S3 G19). Подписчики Fansly — из сокета
 (`3/2`), а не из опроса хаба.
+
+**Сделано в P14a.** Код — `packages/host-fansly/src/isolated/sound.ts`, `stream.ts`, `host-port.ts`, `starter.ts`,
+`contract.ts`, `main/index.ts`; `apps/extension/src/entrypoints/fansly.ts`, `composition/tab/{adapter,runtime}.ts`;
+`apps/extension/bg/fansly.ts`, `composition/background{.ts,/sound.ts,/host-module.ts}`;
+`packages/core/src/{domain,services}/sound/*`, `core/src/domain/hosts/fansly/sound.ts`, `core/src/services/network-session.ts`.
+
+- **Факты страницы — пачкой.** MAIN шлёт `fx.incoming` (теперь и с `senderId`, кто написал) и `fx.follow`; изолированный
+  мир собирает их по пачке потока (`batchEnd` у `stream.ts`) и отдаёт одним отчётом с креатором, под которым пришла
+  пачка. Пачка без креатора (до `/account/me`) ничего не говорит: ни одно её сообщение не фана, у подписок нет
+  аккаунта вкладки. До порта вкладки ждут не больше 8 последних отчётов.
+- **Из раннего бандла, без приложения.** Общий рантайм вкладки сразу отдаёт хосту сайта свой порт (`StartedHost.attach`,
+  одна строка в `tab/runtime.ts`); вход Fansly (`withSoundReports`) шлёт отчёт запросом своего реестра
+  `fansly.sound.facts`, ответ не читает (до приложения порт проверяет только свои два ответа). Вкладка модели звенит
+  на любой странице Fansly — в инбоксе без открытого чата, в уведомлениях, — как у старого, а приложение ради звука не
+  грузится (FS-PERF-3).
+- **Один арбитр на оба сайта.** `bg/fansly` переводит отчёт (`core/domain/hosts/fansly/sound.ts`) в общий факт
+  (`IncomingFact` аккаунта креатора, источник `ws-tap`; чат — фан группы, а если MAIN группу ещё не знает, — отправитель)
+  с автором и в подписчика страницы (`PageFollow`) и отдаёт их через новый необязательный порт кита `sound` арбитру
+  ядра: одна цепочка, одни паузы (2 с, 10 с) и одна память решённого (`sound.state` в `storage.session`) на оба сайта.
+  Ответ запроса — «принято», решения — счётчики арбитра (диагностика, SN-015).
+- **«Своё»** (`ownAccountIds`): все аккаунты платформы из `presence` (сохраняемый набор моделей, чьи вкладки видел
+  браузер), креатор вкладки среди них, и другие имена из сессии фона (`networkSession.accountIds()`: legacy и canonical,
+  AU-032). Автор сообщения из «своих» — `not-fan`, подписчик из «своих» — тоже. Правило читает автора, только если сайт
+  его называет: факты ChatSpace (`sound.event`) идут как шли, их «своё» решает `fromFan` страницы.
+- **Подписчик страницы** (`handleFollow`): без хаба, без базовой линии и без возраста — толчок момента, как у старого
+  (у `3/2` времени нет). Выключено или выключатель `sound` страницы аккаунта выключен — `disabled`; нет права на хост —
+  `no-permission`; подписчик из «своих» — `not-fan`; аккаунт не «свой» — `account-unknown` (событие не занимается:
+  его может решить вкладка, которая аккаунт знает); модель заглушена — `muted`; ни одной вкладки — `tab-closed`;
+  дальше пробуждение звука и общий троттлинг. Ключ дубля — `(fansly, аккаунт, sub:<id события>)`.
+- **Фокус без права `tabs`** — общий `tab.presence` вкладки Fansly (чат маршрута, видимость, `document.hasFocus()`):
+  `open-chat` по ключу чата `fansly-web:<креатор>:<фан>`.
+- **Тоны (FS-SND-2).** `resolveTone(kind, sound, site)`: у сайта с тонами своего раздела звучат они. Корень композиции
+  фона (`SITE_TONES`, `PerHost`) берёт тоны Fansly из его раздела `settings.ext` — выбор человека, по умолчанию chime и
+  double (X26); у ChatSpace — тоны настроек v1, как было. Уточняет F9b: явный выбор v1 на Fansly больше не действует,
+  иначе выбор тонов Fansly в «Виде» (P14b1) ничего бы не менял.
+- **Подписчики Fansly — только из сокета.** `SUBSCRIBER_SOURCES` (`PerHost`: ChatSpace — `hub`, Fansly — `page`):
+  медленный опрос «Новых» страницу Fansly не спрашивает, прочитанное вкладкой «Новых» Fansly не звенит.
+- **Отчёт контракта:** возможность `incoming` Fansly включена — кадры сокета при известном креаторе (до P14a — `off`,
+  причина `incoming`); `follows` — кадры сокета, как было.
+- **Байты ChatSpace** (перепривязаны `pnpm gates:bytes`): `background.js` +2208 Б (арбитр, сессия, кит, разводка),
+  `content-scripts/chatspace.js` +14 Б (`host.attach?.(rpc)` в общем рантайме); ленивые файлы ChatSpace и
+  `bg/chatspace.js` — те же.
+- **Проверки:** юнит — `core/test/services-sound-fansly.test.ts` (арбитр с фактами Fansly: «своё», автоматика, чаевые,
+  свежесть, тишина модели, фокус, дубли, подписчики, паузы, тоны), `core/src/domain/hosts/fansly/sound.test.ts`
+  (перевод отчёта), `host-fansly/isolated/host-port.dom.test.ts` (отчёт на пачку, ожидание порта, без креатора),
+  `contract.test.ts` (`incoming`, `follows`), `apps/extension/src/composition/tab/startup.dom.test.ts` (настоящий рантайм
+  отдаёт порт, отчёт уходит без приложения), `apps/extension/test/fansly-sound.test.ts` (вкладка → порт → реестр Fansly
+  → арбитр, две вкладки, тоны раздела, опрос «Новых» без страницы Fansly); e2e — `suite-fansly-sound` (сообщение из
+  инбокса без приложения, своё молчит, подписчик из сокета и ни одного чтения «Новых» хаба, две вкладки — один звук,
+  открытый чат в окне в фокусе, тишина модели).
 
 ### 8.13 Телеметрия
 

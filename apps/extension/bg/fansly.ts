@@ -14,6 +14,13 @@
 // Forgotten checkpoints go with the module's first start and «Очистить
 // локальные данные».
 //
+// R20 P14a: what Fansly's page heard for the sound — a report per batch of
+// MAIN (`fansly.sound.facts`, sent by the tab's early bundle) — goes to the
+// core's one arbiter through the kit's `sound` port, as the shared fact of a
+// message with its author and as a subscriber the page heard itself
+// (core domain/hosts/fansly/sound.ts). The answer only says it was taken: the
+// arbiter decides, its outcomes are its counters.
+//
 // R20 P7i: the module brings Fansly's slice of the feature manifest
 // (docs/project-unite/architecture.md §1.4). The core's graph never has a file
 // of Fansly's, so it admits a generation of a Fansly chat and an insert token
@@ -33,6 +40,7 @@ import {
   type FanslyTabRequestPayload,
 } from '@cg/contracts/tab-messages-fansly';
 import { featureSlice } from '@cg/core/domain/features';
+import { fanslySoundOf } from '@cg/core/domain/hosts/fansly/sound';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry } from '../src/composition/background/host-module';
@@ -67,6 +75,13 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return ok(await vault.checkpoint((payload as FanslyTabRequestPayload<'fansly.vault.checkpoint'>).checkpoint, tab));
       case 'fansly.vault.clear':
         return ok(await vault.clear(payload as FanslyTabRequestPayload<'fansly.vault.clear'>, tab));
+      case 'fansly.sound.facts': {
+        if (kit.sound === undefined) return ok({ recorded: false });
+        const heard = fanslySoundOf(payload as FanslyTabRequestPayload<'fansly.sound.facts'>);
+        if (heard.messages.length > 0) kit.sound.messages(tab, heard.messages);
+        if (heard.follows.length > 0) kit.sound.follows(heard.follows);
+        return ok({ recorded: true });
+      }
       default:
         return { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: `${type}: not served yet` } };
     }

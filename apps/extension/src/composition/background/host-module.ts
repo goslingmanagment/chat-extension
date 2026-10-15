@@ -9,8 +9,8 @@ import type { NetworkSession } from '@cg/core/services/network-session';
 // the kit (composition/background.ts) and loads the chunks (./host-modules.ts).
 //
 // One owner of each thing. The hub layer, the settings, telemetry, the logs,
-// the action tokens, the operations and the journal of human sends are the
-// core's: a chunk reaches them only through the kit and never makes a second
+// the action tokens, the operations, the journal of human sends and the one
+// sound arbiter are the core's: a chunk reaches them only through the kit and never makes a second
 // owner of any. What a chunk owns is its site's own services and their
 // storage keys (bg/chatspace: the X8 custody with its journal and fuse, the
 // greeting leases of «Новые»).
@@ -23,6 +23,7 @@ import type { NetworkSession } from '@cg/core/services/network-session';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
+import type { IncomingFact } from '@cg/contracts/host';
 import type { Bootstrap, HubFacade, HubRouteKey, ResolveHubError } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { OpView } from '@cg/contracts/ops';
@@ -33,6 +34,7 @@ import type { AcceptanceEvent } from '@cg/contracts/telemetry';
 import type { OpEnvTag, OpsEnvironment } from '@cg/core/domain/ops';
 import type { PartPosition, SentProof } from '@cg/core/domain/telemetry';
 import type { ActionTokens, Clock, IdSource, KeyValuePort, KeyValueStore, LogSink, NativeSendOutcome, ServiceLog, TabEventSink } from '@cg/core/services';
+import type { PageFollow } from '@cg/core/services/sound';
 
 /** Who asked: a registered tab (its session) or one of our pages. Structurally the platform RPC's sender. */
 export type KitSender = { readonly kind: 'tab'; readonly tabSessionId: string } | { readonly kind: 'page' };
@@ -155,10 +157,31 @@ export interface SitePort {
   plug(registry: HostSiteRegistry): () => void;
 }
 
+/** A message a site's page heard, as the core's arbiter takes it: the shared fact and its author where the site names one. */
+export interface SiteSoundMessage {
+  readonly fact: IncomingFact;
+  /** The platform account that wrote it; one of this browser's own accounts is not a fan (SN-002). null — not named. */
+  readonly author: string | null;
+}
+
+/**
+ * The core's one sound arbiter as a site's module feeds it (R20 P14a; architecture.md §8.12): what the site's page
+ * heard, in batches, decided by the shared rules — one chain, one throttle and one memory of what rang for both
+ * sites. Fire and forget: the outcomes are the arbiter's counters (diagnostics).
+ */
+export interface SoundPort {
+  /** A fan's messages a tab of the site saw, in its order. */
+  messages(tabSessionId: string, messages: readonly SiteSoundMessage[]): void;
+  /** New subscribers the site's page heard itself (its socket): the subscriber sound of a site that does not poll the hub. */
+  follows(follows: readonly PageFollow[]): void;
+}
+
 /** The ports of the core a site's module is started with. */
 export interface BackgroundKit {
   /** R20 P13b: the site's own tab registry (`fansly.*`), plugged by its module. Absent — the core serves no site registry. */
   readonly site?: SitePort;
+  /** R20 P14a: the core's one sound arbiter, for what the site's page heard. Absent — the site's facts ring nothing. */
+  readonly sound?: SoundPort;
   /** Passive session/429 state, owned and restored by the core. No site transport here. */
   readonly networkSession?: NetworkSession;
   readonly hub: HubPort;

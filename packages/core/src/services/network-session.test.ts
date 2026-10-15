@@ -180,6 +180,17 @@ describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation',
     expect(restored.forAccount(other)?.canonicalId).toBe(other);
     await restored.forget(1); expect(restored.forAccount(other)).toBeNull();
   });
+  it('[AU-032] [SN-002] every name the session knows of its accounts — the legacy one and, once resolved, the canonical one — for the sound’s «own»; none while off', async () => {
+    const { service } = setup();
+    expect(service.accountIds()).toEqual([]);
+    await service.setEnabled(true);
+    await service.accept(request('one')); await service.accept(complete(request('one')));
+    expect(service.accountIds()).toEqual([account]);
+    await service.resolveIdentity(1, account, other);
+    expect(service.accountIds()).toEqual([account, other]);
+    await service.setEnabled(false);
+    expect(service.accountIds()).toEqual([]);
+  });
   it('[ER-050] expired sessions are unavailable until a new successful capture, without fallback', async () => {
     const { service } = setup(); await service.setEnabled(true);
     await service.accept(request('one')); await service.accept(complete(request('one')));

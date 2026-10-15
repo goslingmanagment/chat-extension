@@ -378,22 +378,22 @@ describe('[SN-013] the eight tones', () => {
     expect(normalizeVolume(Number.NaN)).toBe(50);
   });
 
-  it('[SN-013] a site rings its own default for an untouched tone; an explicit choice wins on every site', () => {
-    // A site whose default IS the settings' (ChatSpace): exactly what the settings page shows by default.
-    expect(resolveTone('message', SOUND, SOUND, null)).toBe('blip');
-    expect(resolveTone('subscriber', SOUND, SOUND, null)).toBe('arpeggio');
-    // A site with a pair of its own (the composition root's word, R20 F9b): what its own old client rang (X26).
-    const own = { message: 'chime', subscriber: 'double' } as const;
-    expect(resolveTone('message', SOUND, SOUND, own)).toBe('chime');
-    expect(resolveTone('subscriber', SOUND, SOUND, own)).toBe('double');
+  it('[SN-013] a site whose tones are the settings’ rings the settings’ choice; a site with tone settings of its own rings those', () => {
+    // A site whose tones ARE the settings' (ChatSpace): exactly what the settings page shows by default.
+    expect(resolveTone('message', SOUND, null)).toBe('blip');
+    expect(resolveTone('subscriber', SOUND, null)).toBe('arpeggio');
     // A tone stored before 1.12.0 (the old default) is a choice of its own: it rings on.
     const before = withSound({ messages: { on: true, tone: 'chime' }, subscribers: { on: true, tone: 'double' } });
-    expect(resolveTone('message', before, SOUND, null)).toBe('chime');
-    expect(resolveTone('subscriber', before, SOUND, null)).toBe('double');
+    expect(resolveTone('message', before, null)).toBe('chime');
+    expect(resolveTone('subscriber', before, null)).toBe('double');
     const chosen = withSound({ messages: { on: true, tone: 'bell' }, subscribers: { on: true, tone: 'knock' } });
-    for (const site of [null, own]) {
-      expect(resolveTone('message', chosen, SOUND, site)).toBe('bell');
-      expect(resolveTone('subscriber', chosen, SOUND, site)).toBe('knock');
+    expect(resolveTone('message', chosen, null)).toBe('bell');
+    expect(resolveTone('subscriber', chosen, null)).toBe('knock');
+    // A site with a pair of its own (the composition root's word, R20 F9b, P14a): that pair rings there, whatever the settings' tones say.
+    const own = { message: 'drop', subscriber: 'soft' } as const;
+    for (const sound of [SOUND, chosen]) {
+      expect(resolveTone('message', sound, own)).toBe('drop');
+      expect(resolveTone('subscriber', sound, own)).toBe('soft');
     }
     expect(HOST_PLATFORM).toEqual({ chatspace: 'onlyfans', 'fansly-web': 'fansly' });
   });

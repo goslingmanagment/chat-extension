@@ -12,33 +12,56 @@
 // PAGE's own (docs/protocols/hub.md «Флаги: решает страница»): a fan's
 // message asks the page its host account is bound to, a new subscriber the
 // page of its batch; the poll as a whole runs while at least one page has it.
+//
+// Each site's sound is wired here, by host kind (R20 P14a; docs/project-unite/
+// architecture.md §8.12): where its subscribers come from — ChatSpace's from
+// the hub's «Новые», Fansly's from its own page's socket, so a Fansly page is
+// never polled for them —, the tones it rings (Fansly: its section of
+// `settings.ext`, FS-SND-2) and the other names of its accounts its session
+// knows (Fansly's legacy ids, AU-032). A site's chunk feeds the arbiter what
+// its page heard through the kit's `sound` port.
 
 import { HOST_KINDS, HOST_PLATFORM } from '@cg/contracts/hosts';
 import { AUDIENCE_KINDS, type AudienceNewPage, type Bootstrap, type ClientFeatureFlag } from '@cg/contracts/hub';
-import { narrowPlatform, type HostKind } from '@cg/contracts/ids';
+import { narrowPlatform, type HostKind, type Platform } from '@cg/contracts/ids';
 import { type SettingsV1 } from '@cg/contracts/settings';
-import { DEFAULT_FANSLY_SETTINGS } from '@cg/contracts/settings-ext';
+import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { flagOnSomePage, flagUsable } from '@cg/core/domain/ops';
 import { type SoundTones } from '@cg/core/domain/sound';
 import { type Clock, type KeyValueStore as ThrowingStore, type LogSink, type PresenceService, type TabEventSink } from '@cg/core/services';
 import { SoundArbiter, createSubscriberPoller, type SoundAudioPort, type SubscriberPage, type SubscriberPoller } from '@cg/core/services/sound';
 
+import type { PerHost } from '../../hosts/runtime';
+import type { SoundPort } from './host-module';
+
 /** A page a tab read itself less than this long ago is left out of the slow poll (the tab asks every 30 s). */
 export const TAB_FED_FRESH_MS = 45_000;
 
 /**
- * What each site rings for a tone the person left untouched (decision X26: each site the pair its own old client
- * rang), by kind — a new host kind does not typecheck until it says. null — the settings' own pair (ChatSpace: the
- * desktop app's blip and arpeggio, what the settings page shows). Fansly: the Fansly extension's, the default of its
- * section of `settings.ext` (FS-SND-2; the person's own Fansly tones there are P14a's).
+ * What each site rings, by kind — a new host kind does not typecheck until it says. null — the settings' own pair
+ * (ChatSpace: the desktop app's blip and arpeggio by default, what the settings page shows). Fansly: its section of
+ * `settings.ext` (FS-SND-2, R20 P14a) — the person's choice there, else the Fansly extension's chime and double
+ * (decision X26: each site the pair its own old client rang, so a chatter working both hears which one rings).
  */
 export const SITE_TONES = {
-  chatspace: null,
-  'fansly-web': { message: DEFAULT_FANSLY_SETTINGS.sound.messagesTone, subscriber: DEFAULT_FANSLY_SETTINGS.sound.subscribersTone },
-} as const satisfies { readonly [K in HostKind]: SoundTones | null };
+  chatspace: () => null,
+  'fansly-web': (ext) => ({ message: ext.hosts['fansly-web'].sound.messagesTone, subscriber: ext.hosts['fansly-web'].sound.subscribersTone }),
+} as const satisfies PerHost<(ext: SettingsExt) => SoundTones | null>;
 
-/** The site's tones by the platform it serves: a sound knows its platform (a page's batch has no tab of a site). */
-const toneOfPlatform: ReadonlyMap<string, SoundTones | null> = new Map(HOST_KINDS.map((kind) => [HOST_PLATFORM[kind], SITE_TONES[kind]]));
+/**
+ * Where each site's subscriber sound comes from (FS-SND-1, §8.12): ChatSpace's — the hub's «Новые», polled; Fansly's —
+ * its own page's socket (`3/2`), as the Fansly extension heard them, so its pages are never polled for it (one
+ * subscriber, one sound).
+ */
+export const SUBSCRIBER_SOURCES = { chatspace: 'hub', 'fansly-web': 'page' } as const satisfies PerHost<'hub' | 'page'>;
+
+/** The site of each platform: a sound knows its platform (a page's batch has no tab of a site). */
+const siteOfPlatform: ReadonlyMap<string, HostKind> = new Map(HOST_KINDS.map((kind) => [HOST_PLATFORM[kind], kind]));
+/** A platform whose site hears its subscribers on its own page: the hub is not asked for them. */
+const pageHearsSubscribers = (platform: string): boolean => {
+  const site = siteOfPlatform.get(platform);
+  return site !== undefined && SUBSCRIBER_SOURCES[site] === 'page';
+};
 
 export interface BackgroundSoundDeps {
   readonly clock: Clock;
@@ -65,11 +88,17 @@ export interface BackgroundSoundDeps {
   /** storage.session. */
   readonly session: ThrowingStore;
   readonly log: LogSink;
+  /** `settings.ext` as it stands (defaults until read): a site's own tones (FS-SND-2). */
+  readonly ext: () => SettingsExt;
+  /** Other names of this browser's accounts on a platform its site's session knows (AU-032: Fansly's legacy ids). */
+  readonly aliases: (platform: Platform) => readonly string[];
 }
 
 export interface BackgroundSound {
   readonly arbiter: SoundArbiter;
   readonly poller: SubscriberPoller;
+  /** The kit's port: what a site's page heard, from its background chunk (R20 P14a). */
+  readonly port: SoundPort;
   /** Readiness step: what the previous instance of the event page knew (seen events, the throttle, the baselines). */
   start(): Promise<void>;
   /** The first page of «Новые» a tab read for itself: the same rows the poll would bring. */
@@ -97,7 +126,11 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     hostPermission: deps.hostPermission,
     session: deps.session,
     log: deps.log,
-    siteTones: (platform) => toneOfPlatform.get(platform) ?? null,
+    siteTones(platform) {
+      const site = siteOfPlatform.get(platform);
+      return site === undefined ? null : SITE_TONES[site](deps.ext());
+    },
+    aliases: deps.aliases,
   });
 
   /** When a tab last read a page's «Новые» itself (epoch ms by pageId). */
@@ -125,7 +158,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     const out: SubscriberPage[] = [];
     for (const page of bootstrap.pages) {
       const platform = narrowPlatform(page.platform);
-      if (platform === null || !deps.newcomersUsable(page.pageLabel) || !flagUsable(bootstrap, page.pageId, 'sound')) continue;
+      if (platform === null || pageHearsSubscribers(platform) || !deps.newcomersUsable(page.pageLabel) || !flagUsable(bootstrap, page.pageId, 'sound')) continue;
       if (now - (tabFed.get(page.pageId) ?? Number.NEGATIVE_INFINITY) < TAB_FED_FRESH_MS) continue;
       out.push({ pageId: page.pageId, pageLabel: page.pageLabel, platform, platformAccountId: page.platformAccountId });
     }
@@ -146,10 +179,19 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
   return {
     arbiter,
     poller,
+    port: {
+      messages(tabSessionId, messages) {
+        for (const { fact, author } of messages) void arbiter.handleIncoming(tabSessionId, fact, author).catch(() => undefined);
+      },
+      follows(follows) {
+        for (const follow of follows) void arbiter.handleFollow(follow).catch(() => undefined);
+      },
+    },
     start: () => arbiter.restore(),
     fed(page, answer, tabSessionId) {
       const platform = narrowPlatform(page.platform);
-      if (platform === null) return;
+      // A site that hears its subscribers on its page rings them from there only.
+      if (platform === null || pageHearsSubscribers(platform)) return;
       tabFed.set(page.pageId, deps.clock.now());
       void hear(
         {

@@ -95,15 +95,14 @@ export type SoundKind = 'message' | 'subscriber';
 export type SoundTones = Readonly<Record<SoundKind, ToneId>>;
 
 /**
- * The tone that rings (§9.8: «У OnlyFans и Fansly разные тона по умолчанию»): the person's explicit choice wins.
- * Settings v1 keep one tone per kind for every host, so «explicit» is «differs from the schema default»; an
- * untouched setting gives the site's own default — `siteDefault`, the pair its own old client rang (decision X26:
- * the Fansly extension's on Fansly, so a chatter working both hears which one rings). null — the site's default IS
- * the settings' (ChatSpace: the desktop app's blip and arpeggio, what the settings page shows, ST-127, ST-129).
- * Which site rings which pair is its composition root's word, not this module's (R20 F9b).
+ * The tone that rings (§9.8: «У OnlyFans и Fansly разные тона по умолчанию»). A site with tone settings of its own
+ * rings those — `site`, the pair the person chose for it or, untouched, the pair its own old client rang (R20 P14a,
+ * FS-SND-2, decision X26: Fansly's section of `settings.ext`, the Fansly extension's chime and double by default), so
+ * a chatter working both sites hears which one rings. null — the site's tones ARE the settings' (ChatSpace: the
+ * desktop app's blip and arpeggio by default, what the settings page shows, ST-127, ST-129). Which site rings which
+ * pair is its composition root's word, not this module's (R20 F9b).
  */
-export function resolveTone(kind: SoundKind, sound: SettingsV1['sound'], schemaDefault: SettingsV1['sound'], siteDefault: SoundTones | null): ToneId {
-  const chosen = kind === 'message' ? sound.messages.tone : sound.subscribers.tone;
-  const untouched = kind === 'message' ? schemaDefault.messages.tone : schemaDefault.subscribers.tone;
-  return chosen === untouched && siteDefault !== null ? siteDefault[kind] : chosen;
+export function resolveTone(kind: SoundKind, sound: SettingsV1['sound'], site: SoundTones | null): ToneId {
+  if (site !== null) return site[kind];
+  return kind === 'message' ? sound.messages.tone : sound.subscribers.tone;
 }

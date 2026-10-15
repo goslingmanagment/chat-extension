@@ -564,6 +564,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     tabs: () => rpc.tabs().map((tab) => tab.tabSessionId),
     session: throwingStoreOf(session),
     log: coreLog,
+    // A site's own tones (Fansly's section, FS-SND-2) and the other names its session knows of its accounts (R20 P14a).
+    ext: () => extSettings.current(),
+    aliases: (platform) => (platform === HOST_PLATFORM[OPTIONAL_HOST] ? networkSession.accountIds() : []),
   });
 
   // ── R18: telemetry, debug, diagnostics ─────────────────────────────────────
@@ -625,6 +628,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
     // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope.
     site: { plug: (registry) => rpc.site({ ...registry, host }) },
+    // What the site's page heard for the sound, for the one arbiter (R20 P14a).
+    sound: sound.port,
   });
   const hostModules = createHostModules({
     specs: HOST_MODULE_SPECS,

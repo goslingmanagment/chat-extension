@@ -35,6 +35,10 @@
 //   mount is P7d's and P11a's); a file into the field (P12c) and the relay
 //   (P9c) are refused until then; a file into the vault is the vault panel's
 //   upload (`vault.serve`, P13b), refused while its module is not up.
+// - `sound`: what the page heard for the sound (R20 P14a, sound.ts) — the new
+//   messages and subscribers of each batch of MAIN as one report with the
+//   creator it came under, for the background's one arbiter; the port decides
+//   nothing about it.
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
@@ -66,6 +70,7 @@ import type { FanslyMounts } from './mount';
 import { createNavigator, type NavigationWay } from './navigate';
 import type { FanslyRoute, RouteStats, RouteWatcher } from './route';
 import { createSendObserver, type SendObserveStats } from './send-observe';
+import { createSoundCollector, type FanslySoundSource } from './sound';
 import type { FanslyTheme } from './theme';
 import { consumeStream, type StreamStats } from './stream';
 import type { ValidationLoader } from './validation';
@@ -127,6 +132,8 @@ export interface FanslyPort extends FanslyHostPort {
   sentDraft(): SentDraft | null;
   /** The vault's facts for the uploader (§7.11, P13a). */
   readonly vault: FanslyVaultFacts;
+  /** What the page heard for the sound, a report per batch of MAIN (R20 P14a): the tab hands it to the background. */
+  readonly sound: FanslySoundSource;
 }
 
 export interface FanslyHostPortOptions {
@@ -249,6 +256,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const vaultListeners = new Set<(fact: FanslyVaultFact) => void>();
   const vaultLosses = new Set<() => void>();
   const eventListeners = new Set<(event: HostEvent) => void>();
+  /** The sound's facts of each batch, under the creator the batch came under (R20 P14a). */
+  const sound = createSoundCollector(() => creator);
   const contractListeners = new Set<(report: HostContractReport) => void>();
   const slotListeners = new Set<(slot: FanslyHeaderSlot) => void>();
   const emit = (event: HostEvent): void => {
@@ -463,10 +472,12 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // The person's send, proven by MAIN: linked to the draft read at its gesture (P7f).
       case 'fx.sent':
         return sends.sent(event.p);
-      // The stream's other facts — new messages, follows, coverage, deletions — are taken by the work packages that act
-      // on them (P8b1, P14a); here they are acknowledged with their batch.
+      // New messages and subscribers: the sound's, reported with their batch (P14a).
       case 'fx.incoming':
       case 'fx.follow':
+        return sound.take(event);
+      // The stream's other facts — coverage, deletions — are taken by the work packages that act on them (P8b1); here
+      // they are acknowledged with their batch.
       case 'fx.coverage':
       case 'fx.deleted':
         return;
@@ -481,6 +492,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
           {
             state: onState,
             event: onEvent,
+            batchEnd: () => sound.end(),
             lost(reason) {
               diag({ event: 'stream-lost', detail: { reason } });
               // Every chat unknown until the next state (FS-TAIL-5): the window the tab holds says so at once — and a
@@ -646,6 +658,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     vaultListeners.clear();
     vaultLosses.clear();
     vaultUpload = null;
+    sound.dispose();
   };
   const retire = (): void => {
     generation.advance();
@@ -730,6 +743,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         };
       },
     },
+    sound: { onReport: (cb) => sound.onReport(cb) },
 
     readDraft(expected: HostIdentity): Promise<DraftSnapshot> {
       const found = fieldFor(expected, 'readDraft');

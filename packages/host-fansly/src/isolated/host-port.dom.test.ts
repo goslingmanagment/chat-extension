@@ -9,6 +9,7 @@ import { FANSLY_CONTRACT, FanslyContractReportSchema } from '@cg/contracts/fansl
 import { FANSLY_IDS, fanslyChatWire, fanslyContractWire, fanslyIdentityWire, fanslyReplySnapshot, fanslyState, probe as PROBE } from '@cg/contracts/fixtures';
 import { HostContractReportSchema, RouteStateSchema, type HostEvent } from '@cg/contracts/host';
 import { HostIdentitySchema, type HostIdentity } from '@cg/contracts/ids';
+import { FanslySoundFactsSchema, type FanslySoundFacts, type FanslySoundMessage } from '@cg/contracts/tab-messages-fansly';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { installFanslyMain } from '../main/index';
@@ -23,6 +24,7 @@ import { vaultUploadOf } from './vault/serve';
 import { createVaultUploader, vaultTargetOf } from './vault/upload';
 import { createFanslyMounts } from './mount';
 import { createRouteWatcher } from './route';
+import { SOUND_REPORTS_WAITING } from './sound';
 import { startFanslyHost } from './start';
 import { loadValidation } from './validation';
 
@@ -1082,5 +1084,58 @@ describe('[host:fansly] coexistence invalidates pending work', () => {
     main.batch(3, identityEvent(CREATOR));
     expect(port.listCachedAccounts()).toEqual([]);
     expect(port.probe().capabilities.identity).toMatchObject({ state: 'off', reason: 'legacy' });
+  });
+});
+
+describe('[host:fansly] what the page heard for the sound (R20 P14a; FS-SND-1)', () => {
+  const message = (msgId: string, over: Partial<FanslySoundMessage> = {}): FanslyBatchEvent => ({
+    t: 'fx.incoming',
+    p: { groupId: GROUP, fanId: FAN, senderId: FAN, msgId, fromFan: true, automated: false, tip: false, createdAt: '2026-10-15T10:00:00.000Z', ...over },
+  });
+  const follow = (eventId: string): FanslyBatchEvent => ({ t: 'fx.follow', p: { eventId, accountId: CREATOR, followerId: FAN } });
+
+  it('[SN-001] [SN-012] [SN-016] the messages and follows of one batch of MAIN go as ONE report under the creator it came under — ours and the fan’s alike, the background decides; a batch without them says nothing', async () => {
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port } = await startPort('/messages', main.client);
+    const reports: FanslySoundFacts[] = [];
+    port.sound.onReport((facts) => reports.push(facts));
+    main.batch(1, message('700000000000000101'), message('700000000000000102', { fromFan: false, automated: true, senderId: CREATOR }), follow('700000000000000201'));
+    main.batch(2, chatOf(OTHER, 1));
+    main.batch(3, message('700000000000000103', { fanId: null }));
+    expect(reports).toEqual([
+      {
+        creatorId: CREATOR,
+        messages: [(message('700000000000000101') as { p: FanslySoundMessage }).p, (message('700000000000000102', { fromFan: false, automated: true, senderId: CREATOR }) as { p: FanslySoundMessage }).p],
+        follows: [{ eventId: '700000000000000201', accountId: CREATOR, followerId: FAN }],
+      },
+      { creatorId: CREATOR, messages: [(message('700000000000000103', { fanId: null }) as { p: FanslySoundMessage }).p], follows: [] },
+    ]);
+    // Each is a request the background's registry takes as it is.
+    for (const facts of reports) expect(FanslySoundFactsSchema.safeParse(facts).success).toBe(true);
+    // MAIN's credits are freed batch by batch as before.
+    expect(main.asked('fx.ack')).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }]);
+  });
+
+  it('[SN-016] before the tab’s port a few reports wait — the newest — and go to the first reader once; under no creator (before /account/me) a batch says nothing; a retired port reports nothing more', async () => {
+    const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port } = await startPort('/messages', main.client);
+    main.batch(1, message('700000000000000100'));
+    main.batch(2, identityEvent(CREATOR));
+    for (let n = 3; n < 3 + SOUND_REPORTS_WAITING + 2; n += 1) main.batch(n, message(`7000000000000002${String(n).padStart(2, '0')}`));
+    const reports: FanslySoundFacts[] = [];
+    port.sound.onReport((facts) => reports.push(facts));
+    expect(reports).toEqual([]);
+    await settle();
+    // The two oldest went; the batch before the creator was known never waited.
+    expect(reports.map((facts) => facts.messages[0]?.msgId)).toEqual(Array.from({ length: SOUND_REPORTS_WAITING }, (_, i) => `7000000000000002${String(i + 5).padStart(2, '0')}`));
+    const second: FanslySoundFacts[] = [];
+    port.sound.onReport((facts) => second.push(facts));
+    await settle();
+    expect(second).toEqual([]);
+    main.batch(20, follow('700000000000000301'));
+    expect([reports.length, second.length]).toEqual([SOUND_REPORTS_WAITING + 1, 1]);
+    port.dispose();
+    main.batch(21, follow('700000000000000302'));
+    expect([reports.length, second.length]).toEqual([SOUND_REPORTS_WAITING + 1, 1]);
   });
 });

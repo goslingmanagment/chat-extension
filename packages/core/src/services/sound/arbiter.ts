@@ -13,14 +13,19 @@
 //   (≤ 1.5 s, SN-011) → a fresh look at everything that may have changed
 //   meanwhile → one synchronous section: throttle, reserve, start.
 //
-// The message sound needs no hub sign-in: a live ChatSpace identity, the
+// The message sound needs no hub sign-in: a live identity of the site, the
 // host permission and the switch are enough. The subscriber sound comes from
-// the hub's «Новые» and needs it. Nothing here reads or logs a message.
+// the hub's «Новые» and needs it — or, on a site whose page hears a new
+// subscriber itself (R20 P14a: Fansly's socket `3/2`), from that page, as a
+// push of the moment that needs no hub. A site that names who wrote a message
+// or who followed has it checked against this browser's own accounts
+// (SN-002): the agency's models never ring for each other. Nothing here reads
+// or logs a message.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type IncomingFact } from '@cg/contracts/host';
 import { chatKeyOf, type ChatKey, type HostAccount, type HostKind, type Platform } from '@cg/contracts/ids';
-import { DEFAULT_SETTINGS, hostAccountKeyOf, type SettingsV1, type ToneId } from '@cg/contracts/settings';
+import { hostAccountKeyOf, type SettingsV1, type ToneId } from '@cg/contracts/settings';
 
 import {
   HOST_PLATFORM,
@@ -31,14 +36,17 @@ import {
   classifyFact,
   consumesEvent,
   gateMessage,
+  gatePageFollow,
   gateSubscriber,
   isThrottled,
+  ownAccountIds,
   reserveRing,
   resolveTone,
   seenKey,
   toneOf,
   volumeToGain,
   type FactPhase,
+  type PageFollow,
   type SoundKind,
   type SoundOutcome,
   type SoundTone,
@@ -87,14 +95,17 @@ export interface SoundArbiterDeps {
   /** storage.session: seen events, the throttle and the subscriber baselines survive an event-page unload. */
   readonly session?: KeyValueStore;
   readonly log?: LogSink;
-  /** The defaults the settings were created with: an untouched tone follows the site (resolveTone). */
-  readonly defaults?: SettingsV1['sound'];
   /**
-   * The tones a site rings for an untouched setting where they are not the settings' own (decision X26), by the
-   * platform of the sound (R20 F9b: the composition root's table — this module names no site); null or absent —
-   * the settings' tones.
+   * The tones of a site with tone settings of its own, by the platform of the sound (R20 F9b, P14a: the composition
+   * root's table — this module names no site; FS-SND-2: Fansly's section of `settings.ext`, X26's pair untouched):
+   * they ring there. null or absent — the settings' tones (resolveTone).
    */
   readonly siteTones?: (platform: Platform) => SoundTones | null;
+  /**
+   * Other names of this browser's own accounts on a platform that its sites' sessions know (R20 P14a; AU-032:
+   * Fansly's legacy ids): an author or a follower under one of them is ours too (`ownAccountIds`). Absent — none.
+   */
+  readonly aliases?: (platform: Platform) => readonly string[];
   /** Session state is written at most this often. */
   readonly persistAfterMs?: number;
 }
@@ -159,7 +170,6 @@ export class SoundArbiter {
   private readonly pageTimes = new Map<string, number>();
   private readonly counts = new Map<string, number>();
   private readonly log: LogSink;
-  private readonly defaults: SettingsV1['sound'];
   private throttle: ThrottleState = NO_RINGS;
   private lastIncomingAt: number | null = null;
   private lastPlayedAt: number | null = null;
@@ -168,7 +178,6 @@ export class SoundArbiter {
 
   constructor(private readonly deps: SoundArbiterDeps) {
     this.log = deps.log ?? NO_LOG;
-    this.defaults = deps.defaults ?? DEFAULT_SETTINGS.sound;
   }
 
   /** Reads the session state after the event page woke up; a damaged one starts empty. */
@@ -203,14 +212,31 @@ export class SoundArbiter {
     }
   }
 
-  /** `sound.event` (SN-016): a fact from the top frame of a ChatSpace tab; the RPC already checked the sender and the schema. */
-  handleIncoming(tabSessionId: string, fact: IncomingFact): Promise<SoundOutcome> {
+  /**
+   * `sound.event` (SN-016): a fact from the top frame of a site's tab; the RPC already checked the sender and the
+   * schema. `author` — the platform account that wrote it, where the site names one (R20 P14a: Fansly's sender): one of
+   * this browser's own accounts is not a fan (SN-002). null — the fact's `fromFan` decides alone (ChatSpace).
+   */
+  handleIncoming(tabSessionId: string, fact: IncomingFact, author: string | null = null): Promise<SoundOutcome> {
     this.lastIncomingAt = this.deps.clock.now();
     return this.chain
-      .run(() => this.decideMessage(tabSessionId, fact))
+      .run(() => this.decideMessage(tabSessionId, fact, author))
       .then(
         (outcome) => this.count('message', outcome),
         () => this.count('message', 'audio-error'),
+      );
+  }
+
+  /**
+   * A new subscriber a site's page heard itself (R20 P14a; FS-SND-1, SN-012): on the same chain as every other
+   * sound, its own tone and pause, counted with the subscriber outcomes.
+   */
+  handleFollow(follow: PageFollow): Promise<SoundOutcome> {
+    return this.chain
+      .run(() => this.decideFollow(follow))
+      .then(
+        (outcome) => this.count('subscriber', outcome),
+        () => this.count('subscriber', 'audio-error'),
       );
   }
 
@@ -286,7 +312,7 @@ export class SoundArbiter {
 
   // ── messages ──
 
-  private async decideMessage(tabSessionId: string, fact: IncomingFact): Promise<SoundOutcome> {
+  private async decideMessage(tabSessionId: string, fact: IncomingFact, author: string | null): Promise<SoundOutcome> {
     const platform = HOST_PLATFORM[fact.host];
     const key = seenKey(platform, fact.hostAccountId, fact.platformMessageId);
     const settle = (outcome: SoundOutcome): SoundOutcome => {
@@ -302,7 +328,7 @@ export class SoundArbiter {
     this.remember(sourceKey, classified.next);
     if (this.seen.has(key, this.deps.clock.now())) return 'duplicate';
 
-    const gated = await this.gate(fact, classified.phase);
+    const gated = await this.gate(fact, classified.phase, author);
     if (gated !== null) return settle(gated);
     const before = this.surroundings(fact);
     if (before !== null) return settle(before);
@@ -310,7 +336,7 @@ export class SoundArbiter {
     // SN-011: the audio may take up to 1.5 s to wake; everything is looked at again after it.
     if (this.deps.audio.prepare !== undefined) {
       if (!(await this.wake())) return settle('audio-error');
-      const regated = await this.gate(fact, classified.phase);
+      const regated = await this.gate(fact, classified.phase, author);
       if (regated !== null) return settle(regated);
       const after = this.surroundings(fact);
       if (after !== null) return settle(after);
@@ -318,15 +344,13 @@ export class SoundArbiter {
 
     const sound = this.deps.settings();
     if (sound === null) return settle('disabled');
-    return settle(await this.ring('message', resolveTone('message', sound, this.defaults, this.deps.siteTones?.(platform) ?? null), sound.volume));
+    return settle(await this.ring('message', resolveTone('message', sound, this.deps.siteTones?.(platform) ?? null), sound.volume));
   }
 
-  private async gate(fact: IncomingFact, phase: FactPhase): Promise<SoundOutcome | null> {
+  private async gate(fact: IncomingFact, phase: FactPhase, author: string | null): Promise<SoundOutcome | null> {
     const sound = this.deps.settings();
     if (sound === null) return 'disabled';
-    const hostPermission = await Promise.resolve()
-      .then(() => this.deps.hostPermission(fact.host))
-      .catch(() => false);
+    const hostPermission = await this.permitted(fact.host);
     const accountKey = accountKeyOf(fact);
     const known = this.deps.presence.accounts().some((account) => hostAccountKeyOf(account.host, account.hostAccountId) === accountKey);
     return gateMessage({
@@ -337,7 +361,20 @@ export class SoundArbiter {
       hostPermission,
       phase,
       account: { known, key: accountKey },
+      ...(author === null ? {} : { ownAuthor: this.ownIds(HOST_PLATFORM[fact.host]).has(author) }),
     });
+  }
+
+  /** The extension may run on the host; a port that throws is a host it may not. */
+  private permitted(host: HostKind): Promise<boolean> {
+    return Promise.resolve()
+      .then(() => this.deps.hostPermission(host))
+      .catch(() => false);
+  }
+
+  /** This browser's own accounts on the platform, read now: a model seen a moment ago counts at once. */
+  private ownIds(platform: Platform): ReadonlySet<string> {
+    return ownAccountIds(platform, this.deps.presence.accounts(), this.deps.aliases?.(platform) ?? []);
   }
 
   /** SN-007, SN-008: somebody still listens, and the chat is not the one in front of the person. */
@@ -420,7 +457,54 @@ export class SoundArbiter {
     }
     const sound = this.deps.settings();
     if (sound === null) return settle('disabled');
-    return settle(await this.ring('subscriber', resolveTone('subscriber', sound, this.defaults, this.deps.siteTones?.(batch.platform) ?? null), sound.volume));
+    return settle(await this.ring('subscriber', resolveTone('subscriber', sound, this.deps.siteTones?.(batch.platform) ?? null), sound.volume));
+  }
+
+  // ── subscribers a site's page heard itself (R20 P14a) ──
+
+  private async decideFollow(follow: PageFollow): Promise<SoundOutcome> {
+    const platform = HOST_PLATFORM[follow.host];
+    // The same key space as the hub's subscription events: a follow is a subscription, never a message.
+    const key = seenKey(platform, follow.accountId, `sub:${follow.eventId}`);
+    const settle = (outcome: SoundOutcome): SoundOutcome => {
+      if (consumesEvent(outcome)) {
+        this.seen.consume(key, this.deps.clock.now());
+        this.touch();
+      }
+      return outcome;
+    };
+    if (this.seen.has(key, this.deps.clock.now())) return 'duplicate';
+    const gate = async (): Promise<SoundOutcome | null> => {
+      const sound = this.deps.settings();
+      if (sound === null) return 'disabled';
+      const hostPermission = await this.permitted(follow.host);
+      const own = this.ownIds(platform);
+      const accounts = this.deps.presence
+        .accounts()
+        .filter((account) => account.platform === platform && account.platformAccountId === follow.accountId)
+        .map((account) => hostAccountKeyOf(account.host, account.hostAccountId));
+      const gated = gatePageFollow({
+        sound,
+        ownerSwitch: this.deps.ownerSwitch({ kind: 'account', host: follow.host, hostAccountId: follow.hostAccountId }),
+        hostPermission,
+        ownFollower: own.has(follow.followerId),
+        ownAccount: own.has(follow.accountId),
+        accounts,
+      });
+      if (gated !== null) return gated;
+      // The sound is for a person at work: no tab of ours left, nothing rings (SN-007).
+      return this.deps.presence.listeningTabs() === 0 ? 'tab-closed' : null;
+    };
+    const gated = await gate();
+    if (gated !== null) return settle(gated);
+    if (this.deps.audio.prepare !== undefined) {
+      if (!(await this.wake())) return settle('audio-error');
+      const regated = await gate();
+      if (regated !== null) return settle(regated);
+    }
+    const sound = this.deps.settings();
+    if (sound === null) return settle('disabled');
+    return settle(await this.ring('subscriber', resolveTone('subscriber', sound, this.deps.siteTones?.(platform) ?? null), sound.volume));
   }
 
   // ── the one synchronous section: throttle, reserve, start (SN-009) ──

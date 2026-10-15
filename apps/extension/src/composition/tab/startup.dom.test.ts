@@ -1,7 +1,8 @@
 // Real runtime, site hosts and application. Hold each startup boundary so a
 // retirement can win before the first UI appears (P7g review regression).
 import { startChatSpaceHost, loadValidation as chatspaceValidation } from '@cg/host-chatspace/isolated';
-import { startFanslyTab } from '@cg/host-fansly/isolated';
+import type { FanslySoundFacts } from '@cg/contracts/tab-messages-fansly';
+import { startFanslyTab, type FanslyPort } from '@cg/host-fansly/isolated';
 import * as fanslyValidation from '@cg/host-fansly/isolated/validation';
 import type * as Platform from '@cg/platform';
 import { createTabRpcClient, type TabRpcClient } from '@cg/platform';
@@ -14,6 +15,7 @@ import * as protocol from '../../../lazy/entries/tab-protocol';
 import * as chatspaceApp from '../../../lazy/entries/tab-app';
 import * as fanslyApp from '../../../lazy/fansly/tab-app';
 import type { LazyEntryName } from '../../../lazy/entries/names';
+import { withSoundReports } from '../../entrypoints/fansly';
 import type { StartedHost } from './adapter';
 import type { TabApp, TabAppEnv } from './app';
 import { startTabKeys } from './keys';
@@ -36,7 +38,8 @@ afterEach(async () => {
 });
 
 const sites: Array<{ kind: TabRuntimeEnv['kind']; start(): StartedHost; chunk: TabAppChunk }> = [
-  { kind: 'fansly-web', start: () => startFanslyTab({ win: window, validation: () => Promise.resolve(fanslyValidation), redeem: () => Promise.resolve(false), handshakeTimeoutMs: 1 }), chunk: fanslyApp },
+  // As the entry starts it: its sound's facts go by the tab's port (R20 P14a).
+  { kind: 'fansly-web', start: () => withSoundReports(startFanslyTab({ win: window, validation: () => Promise.resolve(fanslyValidation), redeem: () => Promise.resolve(false), handshakeTimeoutMs: 1 })), chunk: fanslyApp },
   { kind: 'chatspace', start: () => ({ staleHosts: 0, ...startChatSpaceHost({ win: window, validation: chatspaceValidation, redeem: () => Promise.resolve(false), handshakeTimeoutMs: 1 }) }), chunk: chatspaceApp },
 ];
 
@@ -175,5 +178,31 @@ describe('[host:fansly] a place of the site’s own without a composer (R20 P13b
     history.pushState({}, '', '/creator/vault');
     window.dispatchEvent(new PopStateEvent('popstate'));
     await vi.waitFor(() => expect(w.start).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('[host:fansly] the sound’s facts from the early bundle (R20 P14a)', () => {
+  const fansly = sites[0] as (typeof sites)[number];
+
+  it('[SN-016] the runtime hands the site’s host the tab’s port at once; a batch Fansly’s page heard goes by it as ONE `fansly.sound.facts` — on a page with no composer, no application loaded', async () => {
+    history.replaceState({}, '', '/notifications');
+    cleanups.push(() => history.replaceState({}, '', '/'));
+    const w = await setup(fansly, 'none');
+    let report: ((facts: FanslySoundFacts) => void) | null = null;
+    vi.spyOn((w.port as FanslyPort).sound, 'onReport').mockImplementation((cb) => {
+      report = cb;
+      return () => undefined;
+    });
+    startTabRuntime(w.env);
+    await vi.waitFor(() => expect(report).not.toBeNull());
+    const facts: FanslySoundFacts = {
+      creatorId: '700000000000000001',
+      messages: [{ groupId: '700000000000000003', fanId: '700000000000000002', senderId: '700000000000000002', msgId: '700000000000000101', fromFan: true, automated: false, tip: false, createdAt: null }],
+      follows: [{ eventId: '700000000000000201', accountId: '700000000000000001', followerId: '700000000000000002' }],
+    };
+    (report as unknown as (facts: FanslySoundFacts) => void)(facts);
+    expect(w.request.mock.calls.filter(([type]) => type === 'fansly.sound.facts')).toEqual([['fansly.sound.facts', facts]]);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(w.start).not.toHaveBeenCalled();
   });
 });

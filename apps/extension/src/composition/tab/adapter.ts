@@ -132,6 +132,12 @@ export interface StartedHost<P extends HostPort = HostPort> {
    * `/creator/vault`): while it holds, the application is loaded as for the dock's place. Absent — the dock's alone.
    */
   readonly wantsApp?: { current(): boolean; onChange(listener: () => void): () => void };
+  /**
+   * What the site's host reports to the background by itself, from the early bundle, application or not (R20 P14a:
+   * Fansly's sound facts, a batch of MAIN per request): called once with the tab's port as soon as the runtime made
+   * it. Absent — the host reports nothing by itself (ChatSpace: its facts go with the application, tab/host-facts.ts).
+   */
+  readonly attach?: (rpc: TabRpcClient) => void;
 }
 
 /** The route by the address alone (§9.1): `epoch` is the path, so a kept key runs only where it was pressed. */

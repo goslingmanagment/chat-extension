@@ -23,5 +23,6 @@ export type { FanslyIsolatedHealth, FanslyPort, FanslyVaultFact, FanslyVaultFact
 export { DELIVERED_KEY_MARK, KEY_PENDING_ATTRIBUTE, createKeyPendingMark, type KeyboardProbe } from '@cg/host-kit/isolated/keyboard';
 export { HOST_ATTRIBUTE, removeStaleHosts, type ClosedHost, type OverlayLayer } from '@cg/host-kit/isolated/hosts';
 export { connectFanslyMain, startFanslyHost, type StartFanslyHostOptions, type StartedFanslyHost } from './start';
-export { startFanslyTab, type FanslyDiagnostic, type FanslyStartEnv, type FanslyTheme, type StartedFanslyTab } from './starter';
+export { startFanslyTab, type FanslyDiagnostic, type FanslyReportPort, type FanslyStartEnv, type FanslyTheme, type StartedFanslyTab } from './starter';
+export { SOUND_REPORTS_WAITING, type FanslySoundSource } from './sound';
 export { UNDROPPABLE_EVENTS } from './wire';

@@ -15,10 +15,11 @@
 // creator. The person's send (R20 P7f) needs all of it: MAIN's creator for
 // the receipt, its socket's frames for the echo, the field for the gesture's
 // reading, the chat MAIN named. What only later work packages bring is `off`
-// with the same code and its own name as the reason: the facts of new
-// messages (P14a), the header's slot (P7d, P11a), a file into the field
-// (P12c), the relay (P9c). The vault (P13b) is on with MAIN's observer of the
-// page's requests: its facts confirm every file. X8's preview send, its receipt and the cached chat list are no part
+// with the same code and its own name as the reason: the header's slot (P7d,
+// P11a), a file into the field (P12c), the relay (P9c). The vault (P13b) is on
+// with MAIN's observer of the page's requests: its facts confirm every file.
+// The facts of new messages (R20 P14a: the sound's) are on with the socket's
+// frames under a known creator, as the follows are with the frames alone. X8's preview send, its receipt and the cached chat list are no part
 // of Fansly (§7.7): off by design.
 //
 // The anchor names and the capability names are repeated here as literals:
@@ -80,6 +81,8 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
   const field = gone(dom.container) || gone(dom.composer) || gone(dom.textarea) ? MISSING_FIELD : null;
   // The send (§5.9): MAIN's receipt names the creator, its echo comes by the socket's frames; read at the field's gesture.
   const sendObserve = main ?? field ?? (anchors.frames === 'shape' ? broken('frames') : identity.state !== 'on' ? identity : observed);
+  // The page's socket, as the sound hears it (R20 P14a): new messages and subscribers come by its frames.
+  const socket = main ?? (anchors.frames === 'shape' ? broken('frames') : anchors.socket === 'ok' && anchors.frames === 'ok' ? ON : degraded('socket'));
   const capabilities: Record<HostCapability, CapabilityState> = {
     identity,
     route: ON,
@@ -94,7 +97,8 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     fan: observed,
     chatList: off('chatList'),
     sendObserve,
-    incoming: notReady('incoming'),
+    // A message's side needs the creator: before `/account/me` none is the fan's, and the tab reports nothing.
+    incoming: main ?? (identity.state !== 'on' ? identity : socket),
     navigate: identity,
     // The scheme and the palette are the page's own (P8d): once Fansly's theme controller has put its class on <html>.
     theme: dom.themeClass === 'ok' ? ON : degraded('themeClass'),
@@ -103,7 +107,7 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
   };
   const own: Record<FanslyCapability, CapabilityState> = {
     freshness: observed,
-    follows: main ?? (anchors.frames === 'shape' ? broken('frames') : anchors.socket === 'ok' && anchors.frames === 'ok' ? ON : degraded('socket')),
+    follows: socket,
     headerSlot: notReady('headerSlot'),
     fileAttach: notReady('fileAttach'),
     // A file into the open vault album (P13b): the page's own input, confirmed by MAIN's facts of its requests (§7.11).

@@ -153,6 +153,8 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     ...(api === undefined ? {} : { api }),
   });
   life.addEventListener('abort', () => rpc.close());
+  // The site's own reports from the early bundle (R20 P14a: Fansly's sound facts): the port is theirs at once.
+  host.attach?.(rpc);
   /** How many times the background answered `tab.register`: more than one — it started again under this tab. */
   let registrations = 0;
   rpc.onState((state, tabSessionId) => {

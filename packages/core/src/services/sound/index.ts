@@ -26,6 +26,11 @@
 // 5. Tab side: every HostPort `incoming` event goes to the background as it
 //    is — `rpc.request('sound.event', { fact: event.fact })`; the tab decides
 //    nothing about sound.
+// 6. A site whose page hears more than the shared fact says (R20 P14a:
+//    Fansly — who wrote, a new subscriber on its socket) reports its facts
+//    in batches to its own background chunk, which hands them to this one
+//    arbiter: `handleIncoming(tab, fact, author)` and `handleFollow(follow)`;
+//    `aliases` and `siteTones` come from the composition root.
 
 export {
   SOUND_COUNTER_NAMES,
@@ -40,5 +45,6 @@ export {
   type SoundScope,
   type SubscriberBatch,
 } from './arbiter';
+export type { PageFollow } from '../../domain/sound';
 export { SUBSCRIBER_POLL_BACKOFF_MAX, SUBSCRIBER_POLL_JITTER, createSubscriberPoller, type SubscriberPage, type SubscriberPoller, type SubscriberPollerDeps } from './subscribers';
 export { soundRequestHandlers } from './handlers';

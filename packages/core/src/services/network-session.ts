@@ -232,6 +232,11 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
       return value?.connected === true ? { ...value, headers: { ...value.headers }, checks: { ...value.checks } } : null;
     },
     rateLimits(): readonly RateLimitFact[] { return readable ? limits.map((fact) => ({ ...fact })) : []; },
+    /** Every account id the session knows (AU-032): each template's legacy id and its canonical one once resolved — the sound's «own» (R20 P14a). */
+    accountIds(): readonly string[] {
+      if (!readable || !enabled) return [];
+      return [...templates.values()].flatMap((value) => (value.canonicalId === null ? [value.legacyId] : [value.legacyId, value.canonicalId]));
+    },
     idle: () => run(() => undefined),
   };
   return service;

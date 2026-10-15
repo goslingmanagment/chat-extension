@@ -347,6 +347,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     emitter.event(EVT_INCOMING, {
       groupId: m.groupId,
       fanId: identity.fan(m.groupId),
+      // Who wrote it (R20 P14a): the background counts the agency's other models as its own, and a group not known yet still has its fan.
+      senderId: m.senderId,
       msgId: m.id,
       fromFan,
       // The old rule (S4 HF-5, NF-033): the model's message of type 2, made by something without a reply, or a welcome text.

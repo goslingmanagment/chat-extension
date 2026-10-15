@@ -9,7 +9,7 @@
 
 import { type IncomingFact } from '@cg/contracts/host';
 import { HOST_PLATFORM as SITE_PLATFORM } from '@cg/contracts/hosts';
-import { type HostKind, type Platform } from '@cg/contracts/ids';
+import { type HostAccount, type HostKind, type Platform } from '@cg/contracts/ids';
 import { hostAccountKeyOf, type HostAccountKey, type SettingsV1 } from '@cg/contracts/settings';
 
 import { type SoundKind } from './tones';
@@ -23,7 +23,7 @@ export const SOUND_OUTCOMES = [
   'disabled',
   /** No host permission for this site: nothing of ours runs there. */
   'no-permission',
-  /** Not from the fan: our own or an outgoing message (SN-002). */
+  /** Not from the fan: our own or an outgoing message, or another model of this browser writing or following (SN-002). */
   'not-fan',
   /** Queued or automatic (SN-003). */
   'automatic',
@@ -43,7 +43,7 @@ export const SOUND_OUTCOMES = [
   'muted',
   /** Subscribers need the hub: not signed in, or the page has no «Новые». */
   'no-hub',
-  /** No ChatSpace tab is open any more (SN-007). */
+  /** No tab of ours is open any more (SN-007). */
   'tab-closed',
   /** The chat is open in a visible tab that has the focus (SN-008). */
   'open-chat',
@@ -90,6 +90,12 @@ export interface MessageGate {
   readonly hostPermission: boolean;
   readonly phase: FactPhase;
   readonly account: AccountView;
+  /**
+   * The author is one of this browser's own accounts on the platform (`ownAccountIds`; SN-002, S3 G19): another
+   * model of the agency writing to this one is ours, never a fan. Judged only where the site names the author
+   * (R20 P14a: Fansly's sender); absent — the fact's own `fromFan` decides alone.
+   */
+  readonly ownAuthor?: boolean;
 }
 
 /** Epoch ms of an ISO time; null — unreadable. */
@@ -112,7 +118,7 @@ export function gateMessage(input: MessageGate): SoundOutcome | null {
   const { fact, sound } = input;
   if (!sound.messages.on || input.ownerSwitch === false) return 'disabled';
   if (!input.hostPermission) return 'no-permission';
-  if (!fact.fromFan) return 'not-fan';
+  if (!fact.fromFan || input.ownAuthor === true) return 'not-fan';
   if (fact.automatic) return 'automatic';
   if (fact.tip) return 'tip';
   const sentAt = timeOf(fact.sentAt);
@@ -169,6 +175,58 @@ export function gateSubscriber(input: SubscriberGate): SoundOutcome | null {
   }
   if (input.accounts.length === 0) return 'account-unknown';
   // The model's switch silences both sounds (ST-075); every account of the creator must be unmuted to ring.
+  if (input.accounts.some((key) => isMuted(sound, key))) return 'muted';
+  return null;
+}
+
+/**
+ * The platform's accounts this browser counts as its own (SN-002; S3 G19): every model it has seen in a tab of a
+ * site of that platform — the persisted `presence`, so it outlives a closed tab and the event page — and the other
+ * names of those accounts the site's session knows (`aliases`: legacy ids, AU-032). A message or a follow of one of
+ * them is the agency's own, never a fan's.
+ */
+export function ownAccountIds(platform: Platform, seen: readonly HostAccount[], aliases: readonly string[] = []): ReadonlySet<string> {
+  const ids = new Set<string>(aliases);
+  for (const account of seen) if (account.platform === platform && account.platformAccountId !== null) ids.add(account.platformAccountId);
+  return ids;
+}
+
+/**
+ * A new subscriber a site's page heard itself, at the moment it happened (R20 P14a; FS-SND-1: Fansly's socket `3/2`,
+ * not the hub's «Новые»): a push, so it needs no hub, no baseline and no age. Ids of the platform, never a name.
+ */
+export interface PageFollow {
+  /** The tab's site and account: the model whose page heard it. */
+  readonly host: HostKind;
+  readonly hostAccountId: string;
+  /** The event's id on the platform: the key that keeps it from ringing twice, whichever tab heard it. */
+  readonly eventId: string;
+  /** The platform account followed: one of this browser's own, or it is not ours to ring. */
+  readonly accountId: string;
+  /** Who followed: one of this browser's own accounts is not a subscriber. */
+  readonly followerId: string;
+}
+
+/** What the gate of a follow a page heard reads (`PageFollow`). */
+export interface PageFollowGate {
+  readonly sound: SettingsV1['sound'];
+  /** The owner's `sound` switch of the page the followed account is bound to; null — unknown (not signed in). */
+  readonly ownerSwitch: boolean | null;
+  readonly hostPermission: boolean;
+  /** The follower is one of this browser's own accounts (`ownAccountIds`): a model following a model. */
+  readonly ownFollower: boolean;
+  /** The account followed is one of this browser's own: a follow of anybody else is not this browser's to ring. */
+  readonly ownAccount: boolean;
+  /** Host accounts of this browser for the account followed; any of them muted silences it (ST-075). */
+  readonly accounts: readonly HostAccountKey[];
+}
+
+export function gatePageFollow(input: PageFollowGate): SoundOutcome | null {
+  const { sound } = input;
+  if (!sound.subscribers.on || input.ownerSwitch === false) return 'disabled';
+  if (!input.hostPermission) return 'no-permission';
+  if (input.ownFollower) return 'not-fan';
+  if (!input.ownAccount || input.accounts.length === 0) return 'account-unknown';
   if (input.accounts.some((key) => isMuted(sound, key))) return 'muted';
   return null;
 }

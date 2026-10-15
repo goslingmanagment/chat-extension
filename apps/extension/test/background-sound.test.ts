@@ -4,6 +4,7 @@
 // its own tests in core; here it is the real arbiter over a fake clock.
 
 import { DEFAULT_SETTINGS, type AudienceNewPage, type Bootstrap, type HostAccount, type IncomingFact } from '@cg/contracts';
+import { DEFAULT_SETTINGS_EXT } from '@cg/contracts/settings-ext';
 import { flagUsable, starFlag } from '@cg/core/domain/ops';
 import { BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, WORLD, pageFeaturesOff } from '@cg/testing/hub';
 import { describe, expect, it } from 'vitest';
@@ -127,13 +128,16 @@ function world() {
     tabs: () => state.tabs,
     session: { get: (key) => Promise.resolve(stored.get(key)), set: (key, value) => Promise.resolve(void stored.set(key, value)) },
     log: { write: () => undefined },
+    ext: () => DEFAULT_SETTINGS_EXT,
+    aliases: () => [],
   });
   return { clock, state, reads, played, told, sound };
 }
 
 describe('each site’s tones (R20 F9b)', () => {
-  it('[SN-013] the composition root names them, not core: ChatSpace rings the settings’ own pair, Fansly the Fansly extension’s (X26)', () => {
-    expect(SITE_TONES).toEqual({ chatspace: null, 'fansly-web': { message: 'chime', subscriber: 'double' } });
+  it('[SN-013] the composition root names them, not core: ChatSpace rings the settings’ own pair, Fansly its own section of `settings.ext` — the Fansly extension’s pair untouched (X26)', () => {
+    expect(SITE_TONES.chatspace()).toBeNull();
+    expect(SITE_TONES['fansly-web'](DEFAULT_SETTINGS_EXT)).toEqual({ message: 'chime', subscriber: 'double' });
     // ChatSpace's pair is what the settings page shows by default.
     expect([DEFAULT_SETTINGS.sound.messages.tone, DEFAULT_SETTINGS.sound.subscribers.tone]).toEqual(['blip', 'arpeggio']);
   });
