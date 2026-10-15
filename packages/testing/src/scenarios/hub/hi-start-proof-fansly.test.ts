@@ -1,7 +1,7 @@
 // P4b4: contracts versus the deployed hub SDK, without a request to a live service.
 import { readFileSync } from 'node:fs';
 
-import { AI_REQUEST_LIMITS, AI_STREAM_CAPABILITIES, CLIENT_HUB_CAPABILITY_NAMES, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, AiFeatureStreamBodySchema } from '@cg/contracts';
+import { AI_REQUEST_LIMITS, AI_STREAM_CAPABILITIES, CLIENT_HUB_CAPABILITY_NAMES, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS, AiFeatureStreamBodySchema } from '@cg/contracts';
 import { FANSLY_LIMITS, FanslyAvatarUrlSchema, START_PROOF_SOURCES, StartProofV1Schema } from '@cg/contracts/fansly';
 import { ISO, uuid } from '@cg/contracts/fixtures';
 import { AI_START_PROOF_AUTOMATED_IDS_MAX, AI_START_PROOF_PASS_PERSONAL_WINDOW, AI_START_PROOF_SOURCES, AI_STREAM_CAPABILITIES as SDK_AI_STREAM_CAPABILITIES, CLIENT_HUB_CAPABILITY_NAMES as SDK_CLIENT_HUB_CAPABILITY_NAMES, routeSchemas } from '@kernel/sdk';
@@ -74,6 +74,7 @@ describe('[host:fansly] Hi wire values agree with the deployed HF-5 SDK (P4b4)',
       chatterQuestion: text(COACH_LIMITS.questionMaxChars),
       coachHistory: Array.from({ length: COACH_LIMITS.historyMaxTurns }, () => ({ question: text(COACH_LIMITS.questionMaxChars), answer: text(COACH_LIMITS.answerMaxChars) })),
       preset: 'situation', summaryMode: 'short', variantCount: 3,
+      noteFields: Array.from({ length: NOTE_FILL_LIMITS.fieldsMax }, (_, i) => text(NOTE_FILL_LIMITS.labelMaxChars - 2) + String(i).padStart(2, '0')),
       knownFanMessageIds: Array.from({ length: SEND_LIMITS.knownFanMessagesMax }, (_, i) => id(i)),
       liveTextContext: { capturedAt: ISO, items: Array.from({ length: LIVE_TEXT_LIMITS.maxItems }, (_, i) => ({ platformMessageId: id(i), direction: 'model', occurredAt: ISO, text: text(LIVE_TEXT_LIMITS.maxChars) })) },
       coverageCheck: {
