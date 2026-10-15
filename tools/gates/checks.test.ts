@@ -2,14 +2,17 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { readTree } from '../lib/files.ts';
+import { readSources, readTree } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/paths.ts';
 import {
   checkBrowserApiScope,
+  checkFanslyAddresses,
+  checkFetchScope,
   checkHtmlSinks,
   checkIsolatedStart,
   checkMainWorldBundles,
   checkMainWorldGuards,
+  checkMessageAck,
   checkOnlyMonsterReferences,
   checkReleaseBundle,
   checkSdkCustody,
@@ -18,6 +21,8 @@ import {
   checkTabStorageListeners,
   checkUiTexts,
   deriveSdkMarkers,
+  FANSLY_API_PREFIX,
+  FETCH_EXCEPTIONS,
   HOST_KIT_MAIN_SOURCES,
   isMainWorldSource,
   ISOLATED_BUNDLES,
@@ -144,6 +149,84 @@ describe('gate: send queue scope', () => {
   });
 });
 
+describe('gate: our requests — fetch, Fansly\'s addresses, no /message/ack (R20 P9b)', () => {
+  it('the global fetch only in the hub layer, fansly-api, the relay frame and the stand; a property, a key or a type is not it', () => {
+    const violations = checkFetchScope([
+      file('packages/hub/src/x.ts', "export const a = () => fetch('/api');"),
+      file('packages/fansly-api/src/client.ts', 'export const a = (u: string) => fetch(u);'),
+      file('apps/extension/src/entrypoints/fansly-relay/main.ts', 'export const a = (u: string) => globalThis.fetch(u);'),
+      file('packages/testing/src/fake-fansly/neighbor/own.ts', "export const a = () => fetch('/x');"),
+      file('packages/core/src/services/a.ts', "export const a = () => fetch('/x');"),
+      file('apps/extension/bg/fansly.ts', "export const a = () => self['fetch']('/x');"),
+      file('packages/platform/src/b.ts', 'export const b = { fetch };'),
+      file('packages/host-fansly/src/isolated/c.ts', "export const c = () => window.fetch('/x');"),
+      file('packages/host-chatspace/src/testing/live.ts', 'type F = typeof fetch;\nexport const net = { fetch: (x: string) => x };\nexport const c = (win: { fetch(x: string): void }) => win.fetch("/x");\nexport interface W { readonly nativeFetch: typeof fetch }'),
+      file('packages/ui/src/d.ts', 'export function d(fetch: (x: string) => void) { fetch("/x"); }'),
+    ]);
+    expect(violations.map((violation) => `${violation.path}:${violation.line}`)).toEqual([
+      'packages/core/src/services/a.ts:1',
+      'apps/extension/bg/fansly.ts:1',
+      'packages/platform/src/b.ts:1',
+      'packages/host-fansly/src/isolated/c.ts:1',
+    ]);
+    expect(gates(violations)).toEqual(['fetch-scope', 'fetch-scope', 'fetch-scope', 'fetch-scope']);
+  });
+
+  it('an exception holds its counted references only: one more is red, one fewer is a stale entry', () => {
+    const background = FETCH_EXCEPTIONS.find((entry) => entry.path === 'apps/extension/src/composition/background.ts');
+    expect(background?.count).toBe(1);
+    const one = 'export const hubFetch = (input: string) => fetch(input);';
+    expect(checkFetchScope([file('apps/extension/src/composition/background.ts', one)])).toEqual([]);
+    expect(gates(checkFetchScope([file('apps/extension/src/composition/background.ts', `${one}\nexport const more = () => fetch('/x');`)]))).toEqual(['fetch-scope', 'fetch-scope']);
+    expect(checkFetchScope([file('apps/extension/src/composition/background.ts', 'export const none = 1;')])[0]?.message).toMatch(/stale|shrink/);
+  });
+
+  it('in the code that requests Fansly every absolute address is under https://apiv3.fansly.com/api/v1/', () => {
+    expect(FANSLY_API_PREFIX).toBe('https://apiv3.fansly.com/api/v1/');
+    const violations = checkFanslyAddresses([
+      file('packages/fansly-api/src/allowlist.ts', "export const BASE = 'https://apiv3.fansly.com/api/v1/';"),
+      file('packages/fansly-api/src/a.ts', "export const a = 'https://apiv3.fansly.com/api/v2/account';"),
+      file('packages/fansly-api/src/b.ts', 'export const b = `https://fansly.com/api/v1/${x}`;'),
+      file('packages/fansly-api/src/c.ts', "export const c = 'http://localhost:4000/api/v1/';"),
+      file('apps/extension/src/entrypoints/fansly-relay/main.ts', "export const d = 'wss://wsv3.fansly.com';"),
+      file('packages/fansly-api/src/d.ts', '// https://example.com in prose\nexport const e = "a path, not an address: account/me";'),
+      file('apps/extension/bg/fansly/api-probe.ts', 'export const STAND = /^http:\\/\\/localhost:[0-9]+$/;'),
+    ]);
+    expect(violations.map((violation) => `${violation.gate} ${violation.path}`)).toEqual([
+      'fansly-addresses packages/fansly-api/src/a.ts',
+      'fansly-addresses packages/fansly-api/src/b.ts',
+      'fansly-addresses packages/fansly-api/src/c.ts',
+      'fansly-addresses apps/extension/src/entrypoints/fansly-relay/main.ts',
+    ]);
+  });
+
+  it('the string /message/ack is in no code of ours but the stand\'s — strings, templates, regular expressions; prose is free', () => {
+    const violations = checkMessageAck([
+      file('packages/fansly-api/src/x.ts', "export const x = '/api/v1/message/ack';"),
+      file('packages/host-fansly/src/main/y.ts', 'export const y = /\\/message\\/ack$/;'),
+      file('apps/extension/bg/fansly.ts', 'export const z = `${base}message/ack?ngsw-bypass=true`;\nexport const w = `${base}/message/ack`;'),
+      file('packages/host-fansly/src/main/send-gesture.ts', '// `/message/ack`, `/typing`: the response table\nexport const t = 1;'),
+      file('packages/testing/src/fake-fansly/api.ts', "export const route = /^\\/message\\/ack$/;\nexport const p = '/message/ack';"),
+      file('packages/fansly-api/src/z.ts', "export const typing = '/message/typing'; export const acks = '/message/acknowledged';"),
+    ]);
+    expect(violations.map((violation) => `${violation.gate} ${violation.path}:${violation.line}`)).toEqual([
+      'message-ack packages/fansly-api/src/x.ts:1',
+      'message-ack packages/host-fansly/src/main/y.ts:1',
+      'message-ack apps/extension/bg/fansly.ts:1',
+      'message-ack apps/extension/bg/fansly.ts:2',
+    ]);
+  });
+
+  it('this repository is clean, and the send-queue gate does not touch fansly-api', () => {
+    const sources = readSources();
+    expect(sources.some((source) => source.path.startsWith('packages/fansly-api/src/'))).toBe(true);
+    expect(checkFetchScope(sources)).toEqual([]);
+    expect(checkFanslyAddresses(sources)).toEqual([]);
+    expect(checkMessageAck(sources)).toEqual([]);
+    expect(checkSendQueueReferences(sources.filter((source) => source.path.startsWith('packages/fansly-api/') || source.path.startsWith('apps/extension/bg/fansly')))).toEqual([]);
+  });
+});
+
 describe('gate: stand-only hooks', () => {
   it('flags data-stand-*, __stand and x-stand-* in our code, not in the stand package or in comments', () => {
     const violations = checkStandHooks([
@@ -170,6 +253,11 @@ describe('gate: release bundle', () => {
       file('lazy/dock.js', 'export{}'),
     ]);
     expect(violations.map((violation) => violation.path)).toEqual(['background.js', 'content-scripts/chatspace.js', 'manifest.json']);
+  });
+
+  it("flags Fansly's API probe of the e2e (R20 P9b)", () => {
+    expect(gates(checkReleaseBundle([file('bg/fansly.js', 'const k={origin:"dev.fanslyApi.origin"};')]))).toEqual(['release-bundle']);
+    expect(checkReleaseBundle([file('bg/fansly.js', 'const k="dev.compatPageAccounts";')])).toEqual([]);
   });
 
   it('flags the background egress probe', () => {

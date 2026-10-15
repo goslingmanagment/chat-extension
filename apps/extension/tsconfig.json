@@ -18,6 +18,7 @@
     { "path": "../../packages/host-kit" },
     { "path": "../../packages/host-chatspace" },
     { "path": "../../packages/host-fansly" },
+    { "path": "../../packages/fansly-api" },
     { "path": "../../packages/ui" }
   ]
 }

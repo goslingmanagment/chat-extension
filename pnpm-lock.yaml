@@ -65,6 +65,9 @@ importers:
       '@cg/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@cg/fansly-api':
+        specifier: workspace:*
+        version: link:../../packages/fansly-api
       '@cg/host-chatspace':
         specifier: workspace:*
         version: link:../../packages/host-chatspace
@@ -111,6 +114,12 @@ importers:
       '@chatgoose/hotkeys':
         specifier: workspace:*
         version: link:../../vendor/chatgoose-hotkeys
+
+  packages/fansly-api:
+    dependencies:
+      '@cg/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/host-chatspace:
     dependencies:
@@ -174,6 +183,9 @@ importers:
       '@cg/core':
         specifier: workspace:*
         version: link:../core
+      '@cg/fansly-api':
+        specifier: workspace:*
+        version: link:../fansly-api
       '@cg/host-chatspace':
         specifier: workspace:*
         version: link:../host-chatspace
