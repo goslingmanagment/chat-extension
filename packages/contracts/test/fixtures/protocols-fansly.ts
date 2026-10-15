@@ -235,7 +235,7 @@ export const SETTINGS_EXT_FIXTURES = {
     ],
   },
   patch: {
-    valid: [{}, { hosts: { 'fansly-web': { enabled: true } } }, { hosts: { 'fansly-web': { sound: { subscribersTone: 'bell' } } }, windows: { deep: 5000 } }, { windows: { deep: null } }],
-    invalid: [{ hosts: { chatspace: { enabled: true } } }, { windows: { deep: 3001.5 } }, { hosts: { 'fansly-web': { sound: { messagesTone: 'beep' } } } }, { v: 2 }],
+    valid: [{}, { windows: { deep: 3001 } }, { hosts: { 'fansly-web': { enabled: true } } }, { hosts: { 'fansly-web': { sound: { subscribersTone: 'bell' } } }, windows: { deep: 5000 } }, { windows: { deep: null } }],
+    invalid: [{ windows: { deep: 3000 } }, { windows: { deep: 5001 } }, { hosts: { chatspace: { enabled: true } } }, { windows: { deep: 3001.5 } }, { hosts: { 'fansly-web': { sound: { messagesTone: 'beep' } } } }, { v: 2 }],
   },
 } as const satisfies Readonly<Record<string, Verdicts>>;

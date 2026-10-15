@@ -354,6 +354,7 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
     ['the pilot through "*"', BOOTSTRAP_PILOT_ON],
     ['a hub that declares no capability', hubServing(BOOTSTRAP_PILOT_PAGES, [])],
     ['fresh text and split-all off on the page', pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText', 'splitAll'])],
+    ['HF-6 at 5000', { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, deepMax: 5000 } }],
     ['a small deep window', { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, deepMax: 1500 } }],
   ];
 

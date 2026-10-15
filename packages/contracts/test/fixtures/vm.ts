@@ -120,7 +120,7 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
   fixture(
     'UserOptions',
     C.UserOptionsSchema,
-    [{}, { tone: 'flirty', split: true }, { tone: null }, { variants: 3 }, { window: 3000 }, { question: 'Что ему предложить?', attachMyDraft: true, preset: 'situation' }],
+    [{}, { tone: 'flirty', split: true }, { tone: null }, { variants: 3 }, { window: 3000 }, { window: 3001 }, { window: 5000 }, { question: 'Что ему предложить?', attachMyDraft: true, preset: 'situation' }],
     [
       { persona: 'lora' },
       { model: 'claude-sonnet' },
@@ -128,6 +128,7 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { variants: 2 },
       { window: 0 },
       { window: 4 },
+      { window: 5001 },
       { question: '' },
       { question: 'q'.repeat(2001) },
       { tone: 'rude' },

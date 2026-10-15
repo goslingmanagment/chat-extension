@@ -55,7 +55,7 @@ export const BootstrapLimitsSchema = z.object({
   freshTextMaxChars: CountSchema,
   /** Feed page size (100). */
   feedMax: PositiveIntSchema,
-  /** Deepest `messageCount` (1500 → 3000 after H-6, full Recap only). */
+  /** Owner's deep window (HF-6: 1500 / 3000 / 5000); every outgoing `messageCount` is capped by this value. */
   deepMax: PositiveIntSchema,
   /** Widest «Новые» window, hours (720). */
   audienceWindowHours: PositiveIntSchema,

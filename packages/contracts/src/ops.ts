@@ -188,7 +188,7 @@ export const StartOpSchema = z
     tone: z.nullable(ToneSchema),
     /** Б7: snapshot of the setting at start. */
     split: z.boolean(),
-    /** Б5: messageCount, within the hub body's bounds. */
+    /** Б5 / R20 P4b2: wire messageCount ≤ 5000; the planner and background cap it by bootstrap `limits.deepMax`. */
     window: z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax)),
     draft: z.optional(OpDraftSchema),
     /** Hi in the dock — 3, «Новые» — 1. */

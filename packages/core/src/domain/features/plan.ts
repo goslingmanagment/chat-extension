@@ -21,6 +21,7 @@ import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts
 import { StartOpSchema, type AiStartFields, type CoachTurn, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint } from '@cg/contracts/send';
 import { type SettingsV1 } from '@cg/contracts/settings';
+import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { type UserOptions } from '@cg/contracts/vm';
 
 import { messageWindowFor, splitAllowed } from '../ops/request';
@@ -32,9 +33,9 @@ export function hiVariantCount(surface: Surface): 1 | 3 {
 }
 
 /** Б5: the message window of a start — the person's option within bounds, else the settings window; never above `limits.deepMax`. */
-export function windowFor(feature: FeatureId, requested: number | undefined, settings: SettingsV1, bootstrap: Bootstrap): number {
+export function windowFor(feature: FeatureId, requested: number | undefined, settings: SettingsV1, bootstrap: Bootstrap, extendedWindows?: SettingsExt['windows']): number {
   const cap = Math.max(AI_REQUEST_LIMITS.messageCountMin, Math.min(AI_REQUEST_LIMITS.messageCountMax, bootstrap.limits.deepMax));
-  if (requested === undefined) return messageWindowFor(feature, settings.generation.windows, bootstrap.limits.deepMax);
+  if (requested === undefined) return messageWindowFor(feature, settings.generation.windows, bootstrap.limits.deepMax, extendedWindows);
   return Math.max(AI_REQUEST_LIMITS.messageCountMin, Math.min(cap, Math.trunc(requested)));
 }
 
@@ -87,6 +88,8 @@ export interface StartPlanInput {
   /** What the person chose for this one generation (the allowlist). */
   readonly options: UserOptions;
   readonly settings: SettingsV1;
+  /** R20 §12: the wish from settings.ext, when available; never written into or repaired as settings v1. */
+  readonly extendedWindows?: SettingsExt['windows'];
   readonly bootstrap: Bootstrap;
   /** The one-off tone chosen for this chat (Б1); used by Reply only. */
   readonly tone: Tone | null;
@@ -131,7 +134,7 @@ export function planStart(input: StartPlanInput): StartPlan {
     // Б1: a tone belongs to Reply only; an explicit choice of this click wins over the chat's one-off tone.
     tone: rule.tone ? (options.tone !== undefined ? options.tone : input.tone) : null,
     split: splitFor(feature, options.split ?? input.splitWanted ?? settings.generation.split, bootstrap, pageId),
-    window: windowFor(feature, options.window, settings, bootstrap),
+    window: windowFor(feature, options.window, settings, bootstrap, input.extendedWindows),
   };
 
   if (rule.requiresDraft) {
@@ -150,7 +153,7 @@ export function planStart(input: StartPlanInput): StartPlan {
       // AI-091: the draft goes with this one turn only; it is not fresh text.
       ...(options.attachMyDraft === true && hasDraft ? { attachDraft: draftText } : {}),
       // The recap has its own window: the deep one for the full recap, the fixed one for the short.
-      ...(input.autoRecap === undefined ? {} : { autoRecap: { length: input.autoRecap, window: windowFor(input.autoRecap === 'full' ? 'recap' : 'recap-short', undefined, settings, bootstrap) } }),
+      ...(input.autoRecap === undefined ? {} : { autoRecap: { length: input.autoRecap, window: windowFor(input.autoRecap === 'full' ? 'recap' : 'recap-short', undefined, settings, bootstrap, input.extendedWindows) } }),
     };
   }
   const { fresh: tail, ...site } = input.fields ?? {};

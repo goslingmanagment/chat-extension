@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs';
 
 import {
   AI_STREAM_CAPABILITIES,
+  AiFeatureStreamBodySchema,
   CLIENT_FEATURE_FLAG_NAMES,
   CLIENT_FEATURE_UNAVAILABLE_REASONS,
   CLIENT_HUB_CAPABILITY_NAMES,
@@ -183,5 +184,18 @@ describe('[host:fansly] the Fansly greeting claim body (contracts 1.15.0, P4c) a
   it('the manual group reads as the hub answers it: its prefix and the fingerprint\'s form', () => {
     expect(greetingGroupRef(fanslyManualGroup)).toBe(`${CLIENT_MANUAL_GROUP_REF_PREFIX}${TEXT_FINGERPRINT}`);
     expect(CLIENT_TEXT_FINGERPRINT_PATTERN.test(TEXT_FINGERPRINT)).toBe(true);
+  });
+});
+
+
+describe('[ST-093] [host:fansly] R20 P4b2: depth matches the deployed HF-6 body schema', () => {
+  const realBody = sdkRoutes['aiFeatureStream']?.body;
+  if (realBody === undefined) throw new Error('aiFeatureStream body');
+
+  it.each([5, 3000, 3001, 5000, 5001])('messageCount %i has the same verdict in both contracts', (messageCount) => {
+    const body = { clientRequestId: uuid(0x4b2), pageLabel: WORLD.pages.fansly.pageLabel, platform: 'fansly', conversationRef: '7203', fanRef: '7102', messageCount };
+    const accepted = messageCount <= 5000;
+    expect(realBody.safeParse(body).success).toBe(accepted);
+    expect(AiFeatureStreamBodySchema.safeParse(body).success).toBe(accepted);
   });
 });

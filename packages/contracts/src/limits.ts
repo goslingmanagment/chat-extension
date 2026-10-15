@@ -148,9 +148,9 @@ export const DEBUG_LIMITS = {
  * schemas accept is a body the hub accepts too (§8.4).
  */
 export const AI_REQUEST_LIMITS = {
-  /** `messageCount` (Б5). */
+  /** `messageCount` (Б5, HF-6): wire ceiling; admission still obeys bootstrap `limits.deepMax`. */
   messageCountMin: 5,
-  messageCountMax: 3000,
+  messageCountMax: 5000,
   /** `personaKey` and the catalog's `key`. */
   personaKeyMaxChars: 120,
   /** `draftText`: Fix's source, Coach's attached draft. */
