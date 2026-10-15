@@ -44,6 +44,7 @@ import { FANSLY_ADAPTER_VERSION, buildFanslyReport, buildOf, type Observation } 
 import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
+import type { Coexistence } from './legacy';
 import type { FanslyMounts } from './mount';
 import type { FanslyRoute, RouteStats, RouteWatcher } from './route';
 import type { FanslyTheme } from './theme';
@@ -81,6 +82,7 @@ export interface FanslyPort extends FanslyHostPort {
 
 export interface FanslyHostPortOptions {
   readonly win: Window;
+  readonly coexistence?: Coexistence;
   /** null — MAIN never answered the handshake. */
   readonly bridge: FanslyMainBridgeClient | null;
   readonly mounts: FanslyMounts;
@@ -192,7 +194,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   };
 
   function compute(): FanslyContractReport {
-    return buildFanslyReport({ bridge: bridge !== null, wire: network, creator: creator !== null, observation, dom, build, adapterVersion, checkedAt: clock() });
+    return buildFanslyReport({ blocked: options.coexistence?.reason() ?? null, bridge: bridge !== null, wire: network, creator: creator !== null, observation, dom, build, adapterVersion, checkedAt: clock() });
   }
 
   const loginEpoch = (): string | null => (creator === null ? null : `fansly-${logins}`);
@@ -352,6 +354,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
    * the port holds: its chat for the route's focus, or none: a chat it no longer names is gone.
    */
   const onState = (state: FanslyState): void => {
+    if (state.identity.legacy) options.coexistence?.stop('legacy');
+    if (disposed) return;
     network = state.contract;
     const changed = changeCreator(state.identity.creatorId);
     setChat(state.chat !== null && chatFits(routeNow(), state.chat) && focused === state.chat.routeEpoch ? state.chat : null);
@@ -359,8 +363,11 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   };
 
   const onEvent = (event: FromMainFansly): void => {
+    if (disposed) return;
     switch (event.t) {
       case 'fx.identity':
+        if (event.p.legacy) options.coexistence?.stop('legacy');
+        if (disposed) return;
         return setCreator(event.p.creatorId);
       case 'fx.chat':
         return takeChat(event.p);
@@ -423,7 +430,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   /** MAIN came after the page began (installed or updated under an open tab): the person is asked to reload (FS-IDN-4). */
   const noteLateStart = async (): Promise<void> => {
     const probe = await bridge?.probe().catch(() => null);
-    if (!probe || probe.readyStateAtStart === 'loading' || reloadNeeded) return;
+    if (disposed || !probe || probe.readyStateAtStart === 'loading' || reloadNeeded) return;
     reloadNeeded = true;
     diag({ event: 'late-start', detail: { startReadyState: probe.readyStateAtStart } });
     emit({ type: 'reloadNeeded' });
@@ -433,6 +440,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
 
   /** Our UI acts: the address is verified first (FS-RTE-3), the anchors read again. */
   const acting = (): void => {
+    options.coexistence?.check();
+    if (disposed) return;
     route.verify('ui');
     anchors.refresh();
     resyncIfNeeded();
@@ -442,14 +451,14 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const fieldFor = (expected: HostIdentity, t: string): HTMLTextAreaElement | BridgeCallError => {
     acting();
     const current = identity();
-    if (bridge === null || current === null) return new BridgeCallError('not-ready', t);
+    if (disposed || bridge === null || current === null) return new BridgeCallError('not-ready', t);
     if (!identityMatches(expected, current) || current.chat === null || composer === null || field === null || expected.composerInstanceId !== composer.instanceId) {
       return new BridgeCallError('identity-mismatch', t);
     }
     return field;
   };
 
-  const freshness = createFreshnessPort({ bridge, beforeAsk: acting, under: generation.under, onDiagnostic: diag });
+  const freshness = createFreshnessPort({ bridge, under: generation.under, onDiagnostic: diag });
 
   const page: FanslyPagePort = {
     headerSlot: () => slot,
@@ -464,13 +473,53 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     relay: { open: () => Promise.resolve('failed'), close: () => undefined },
   };
 
+  const dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+    generation.advance();
+    stream?.dispose();
+    offRoute();
+    offAnchors();
+    follow(null);
+    route.dispose();
+    anchors.dispose();
+    mounts.dispose();
+    theme.dispose();
+    options.coexistence?.dispose();
+    eventListeners.clear();
+    contractListeners.clear();
+    slotListeners.clear();
+  };
+  const retire = (): void => {
+    generation.advance();
+    creator = null;
+    chatWire = null;
+    composer = null;
+    routeState = routeStateOf(routeNow(), null, null);
+    slot = { state: 'none', reason: 'no-chat' };
+    report = compute();
+    emit({ type: 'accounts', accounts: [] });
+    emit({ type: 'route', route: routeState });
+    emit({ type: 'composer', composer: null });
+    for (const listener of [...contractListeners]) listener(report);
+    diag({ event: 'coexistence', detail: { reason: options.coexistence?.reason() ?? null } });
+    dispose();
+  };
+  options.coexistence?.stopped.addEventListener('abort', retire, { once: true });
+  if (options.coexistence?.stopped.aborted) retire();
+
   return {
     kind: FANSLY_KIND,
     platform: FANSLY_PLATFORM,
     ready,
     identity,
     previewSend: null,
-    freshness,
+    freshness: {
+      snapshot: (...args) => {
+        acting();
+        return disposed ? Promise.resolve(null) : freshness.snapshot(...args);
+      },
+    },
     fansly: page,
 
     probe: () => report,
@@ -491,13 +540,15 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       };
     },
     async recheck() {
+      options.coexistence?.check();
+      if (disposed) return report;
       if (stream !== null) await stream.resync();
       anchors.refresh();
       sync();
       return report;
     },
     async health() {
-      const main = bridge === null ? null : await bridge.request('fx.health', {}).catch(() => null);
+      const main = bridge === null || disposed ? null : await bridge.request('fx.health', {}).catch(() => null);
       return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats }, main };
     },
 
@@ -536,20 +587,6 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     theme: () => theme.current(),
     onTheme: (cb): Unsubscribe => theme.onChange(cb),
 
-    dispose() {
-      if (disposed) return;
-      disposed = true;
-      stream?.dispose();
-      offRoute();
-      offAnchors();
-      follow(null);
-      eventListeners.clear();
-      contractListeners.clear();
-      slotListeners.clear();
-      route.dispose();
-      anchors.dispose();
-      mounts.dispose();
-      theme.dispose();
-    },
+    dispose,
   };
 }

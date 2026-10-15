@@ -6,15 +6,18 @@
 //
 // Synchronous, without WXT's wrapper, at document_start: our hosts of a dead
 // instance go first (an already-open tab after an update still shows them, and
-// this instance owns the page now), then the host itself (start.ts) — the
+// a reload notice takes their place), then the host itself (start.ts) — the
 // mounts and the theme, the handshake with Fansly's MAIN, the route and the
 // search for the anchors — and, behind the bridge, Fansly's HostPort (R20
 // P7c) — which places the dock by Fansly's composer (R20 P7d) and reads the
 // page's theme. Until the dock has a place, nothing of the application
 // starts on a Fansly page; the palette of the page's variables is P8d's.
+// P7g waits for coexistence admission before the shared tab registers or
+// starts background work. A retired copy stays off until reload.
 
 import { removeStaleHosts } from '@cg/host-kit/isolated/hosts';
 
+import { watchCoexistence } from './legacy';
 import type { FanslyDiagnostic } from './host-port';
 import { startFanslyHost, type StartFanslyHostOptions, type StartedFanslyHost } from './start';
 
@@ -27,9 +30,19 @@ export type FanslyStartEnv = Pick<StartFanslyHostOptions, 'win' | 'validation' |
 export interface StartedFanslyTab extends StartedFanslyHost {
   /** Our hosts of a dead instance this start took out of the page. */
   readonly staleHosts: number;
+  readonly activation: { readonly ready: Promise<boolean>; readonly stopped: AbortSignal };
 }
 
 export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
   const staleHosts = removeStaleHosts(env.win.document);
-  return { staleHosts, ...startFanslyHost(env) };
+  const coexistence = watchCoexistence(env.win, staleHosts);
+  const started = startFanslyHost({ ...env, coexistence });
+  const ready = Promise.all([coexistence.ready, started.host]).then(async ([, port]) => {
+    if (coexistence.stopped.aborted) return false;
+    // MAIN's identity event and our DOM-ready timer have different task sources.
+    // Ask again after all DOMContentLoaded listeners before admitting the tab.
+    await port.recheck();
+    return !coexistence.stopped.aborted;
+  });
+  return { staleHosts, ...started, activation: { ready, stopped: coexistence.stopped } };
 }

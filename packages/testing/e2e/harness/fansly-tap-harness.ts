@@ -158,6 +158,7 @@ const methods: Record<string, (...args: never[]) => unknown> = {
       : { feature: snapshot.feature, group: snapshot.identity.groupId, fan: snapshot.identity.fanId, completeness: snapshot.completeness, window: snapshot.window.length, tail: snapshot.tail?.length ?? null };
   },
   diagnostics: () => diagnostics,
+  activation: async () => ({ ready: await started?.activation.ready, stopped: started?.activation.stopped.aborted }),
 };
 
 Object.defineProperty(globalThis, '__cgFanslyTap', {

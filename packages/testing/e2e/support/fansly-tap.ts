@@ -52,10 +52,11 @@ export interface FanslyTapHarness {
  * Every document loaded from now on gets the consumer — and, unless `main: 'late'`, Fansly's MAIN at its first
  * moment. With `late` the spec injects MAIN itself (`injectFanslyMain`) when the page is up.
  */
-export async function installFanslyTapHarness(options: { readonly main: 'start' | 'late'; readonly consumer?: 'raw' | 'port' } = { main: 'start' }): Promise<FanslyTapHarness> {
+export async function installFanslyTapHarness(options: { readonly main: 'start' | 'late'; readonly consumer?: 'raw' | 'port'; readonly legacy?: 'before' | 'after' | 'ready' } = { main: 'start' }): Promise<FanslyTapHarness> {
   const wrap = (code: string): string => `() => {\n${code}\n}`;
   const scripts: Array<{ readonly script: string }> = [];
-  if (options.main === 'start') scripts.push(await browser.scriptAddPreloadScript({ functionDeclaration: wrap(fanslyMainScript()) }));
+  const old = "Object.defineProperty(window, Symbol.for('chatgoose.socketTap'), { value: true });";
+  if (options.main === 'start') scripts.push(await browser.scriptAddPreloadScript({ functionDeclaration: wrap((options.legacy === 'before' ? old : '') + fanslyMainScript() + (options.legacy === 'after' ? old : options.legacy === 'ready' ? `document.addEventListener('DOMContentLoaded', () => { ${old} }, { once: true });` : '')) }));
   const choice = `globalThis.__cgFanslyTapConsumer = ${JSON.stringify(options.consumer ?? 'raw')};\n`;
   scripts.push(await browser.scriptAddPreloadScript({ functionDeclaration: wrap(choice + (await consumerBundle())), sandbox: FANSLY_TAP_SANDBOX }));
   return {

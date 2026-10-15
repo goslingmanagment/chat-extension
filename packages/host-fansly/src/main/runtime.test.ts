@@ -23,6 +23,7 @@ import {
   FakeWebSocket as WebSocket,
   FakeXMLHttpRequest as XMLHttpRequest,
   connect as connectTo,
+  controls,
   newMessage,
   ok,
   page,
@@ -383,5 +384,70 @@ describe('[EX-008] [host:fansly] the stream through the bridge (§6)', () => {
     // On a busy machine a unit test only catches a tenfold regression; the budget itself is measured in e2e.
     expect(times[10]).toBeLessThan(10);
     expect(vi.isFakeTimers()).toBe(false);
+  });
+});
+
+describe('[NEW-12] [FS-CO-1] [host:fansly] old ChatGoose, distinct from FBuddy', () => {
+  it('before MAIN: leaves the page constructors alone and answers legacy without any observed data, even after disabling', async () => {
+    const win = page();
+    Reflect.set(win, Symbol.for('chatgoose.socketTap'), true);
+    const c = await connect(win);
+    expect(win.WebSocket).toBe(WebSocket);
+    expect(win.XMLHttpRequest).toBe(XMLHttpRequest);
+    expect((await c.state()).identity).toMatchObject({ creatorId: null, legacy: true });
+    Reflect.deleteProperty(win, Symbol.for('chatgoose.socketTap'));
+    expect((await c.state()).identity.legacy).toBe(true);
+    expect(c.events()).toEqual([]);
+  });
+
+  it('after MAIN, at DOMContentLoaded: retires existing listeners, queued facts and deferred XHR, preserving a foreign Proxy', async () => {
+    const win = page();
+    const c = await connect(win, { start: false });
+    const socket = new win.WebSocket(SOCKET) as unknown as WebSocket;
+    const xhr = request(win, `${API}/account/me`);
+    socket.receive(newMessage('91'));
+    const other = new Proxy(win.WebSocket, {});
+    win.WebSocket = other;
+    Reflect.set(win, Symbol.for('chatgoose.socketTap'), true);
+    win.document.dispatchEvent(new Event('DOMContentLoaded'));
+    expect(win.WebSocket).toBe(other);
+    xhr.respond(200, ok({ account: { id: CREATOR } }));
+    socket.receive(newMessage('92'));
+    expect((await c.state()).identity).toMatchObject({ legacy: true, creatorId: null });
+    await settle();
+    expect(c.events().filter((event) => event.t === 'fx.incoming')).toEqual([]);
+    expect(await c.health()).toMatchObject({ frames: { seen: 1 }, responses: { seen: 0 } });
+  });
+
+  it('retirement also clears P7b’s observed creator and focused chat, rejects snapshots, and stays silent on bfcache wake', async () => {
+    const win = page();
+    const c = await connect(win);
+    request(win, `${API}/account/me`).respond(200, ok({ account: { id: CREATOR } }));
+    await c.client.request('fx.focus', { groupId: GROUP, routeEpoch: 1 });
+    expect((await c.state()).identity.creatorId).toBe(CREATOR);
+    Reflect.set(win, Symbol.for('chatgoose.socketTap'), true);
+    win.document.dispatchEvent(new Event('DOMContentLoaded'));
+    await settle();
+    const before = c.events().length;
+    controls(win).show(true);
+    await settle();
+    expect(c.events()).toHaveLength(before);
+    expect(await c.state()).toMatchObject({ identity: { creatorId: null, legacy: true }, chat: null });
+    await expect(c.client.request('fx.generationSnapshot', { groupId: GROUP, feature: 'reply', window: 30, withText: true })).rejects.toMatchObject({ failure: 'not-ready' });
+    await expect(c.client.request('fx.focus', { groupId: GROUP, routeEpoch: 2 })).rejects.toMatchObject({ failure: 'not-ready' });
+  });
+
+  it('DOM-only old extension is enough; FBuddy values are booleans, sampled again on fx.state', async () => {
+    const win = page();
+    const found = new Map<string, unknown>();
+    win.document.querySelector = (selector: string) => found.get(selector) ?? null;
+    const c = await connect(win);
+    found.set('script#fbuddy-window-bridge-script', {});
+    found.set('style#fb-fansly-style-fixes', {});
+    found.set('script#fbuddy-restricted-words-data', { textContent: '["secret word"]' });
+    Reflect.set(win, '__FBUDDY_NETWORK_HOOK__', { secret: 'never exported' });
+    expect((await c.state()).identity).toMatchObject({ legacy: false, fbuddy: { windowBridge: true, networkHook: true, styleFixes: true, wordFilter: true } });
+    found.set('#chatgoose-root, #chatgoose-followers-launcher, style#chatgoose-bootstrap-style, style#chatgoose-style', {});
+    expect((await c.state()).identity.legacy).toBe(true);
   });
 });

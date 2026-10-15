@@ -1,11 +1,12 @@
 // A closed-root notice, without a socket tap, page reads or network access.
 // Recognise only our old closed-host shape. Foreign data-host values and any
 // node with light-DOM children stay untouched (host-kit/X22).
+import { hasLegacyDom, type StopReason } from './legacy-markers';
 import { NOTICE_TEXT } from './i18n/notice';
 import { NOTICE_STYLE } from './notice-style';
 import { removeStaleHosts } from '@cg/host-kit/isolated/hosts';
 
-export function showReloadNotice(doc: Document): void {
+export function showReloadNotice(doc: Document, reason?: StopReason): void {
   removeStaleHosts(doc);
   // An update kills the previous isolated realm, but leaves its closed DOM.
   // Recreate even a same-instance notice so a dead listener never survives.
@@ -18,7 +19,7 @@ export function showReloadNotice(doc: Document): void {
   const style = doc.createElement('style');
   style.textContent = NOTICE_STYLE;
   const text = doc.createElement('span');
-  text.textContent = NOTICE_TEXT.message;
+  text.textContent = NOTICE_TEXT[reason ?? (hasLegacyDom(doc) ? 'legacy' : 'message')];
   const button = doc.createElement('button');
   button.type = 'button';
   button.textContent = NOTICE_TEXT.reload;

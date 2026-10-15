@@ -104,7 +104,7 @@ export function page(readyState: DocumentReadyState = 'loading', clock: () => nu
   FakeWebSocket.made = [];
   const win = {
     location: { origin: 'https://fansly.com', href: 'https://fansly.com/messages' },
-    document: { readyState },
+    document: Object.assign(new EventTarget(), { readyState, querySelector: () => null }),
     performance: { now: clock },
     crypto,
     URL,

@@ -50,6 +50,8 @@ export interface Emitter {
   gap(reason: string): void;
   /** Bytes the stream holds: the queue and the batches in flight. */
   held(): number;
+  /** Terminal coexistence transition: drop pending facts and release credits, keeping batch order. */
+  retire(): void;
   stats(): StreamStats;
 }
 
@@ -159,6 +161,7 @@ export function createEmitter(post: (t: string, payload: Plain) => void, stringi
       return n;
     },
     gap,
+    retire() { drop(); unacked.clear(); inFlight = 0; stopped = false; },
     held: () => queueBytes + inFlight,
     stats: () => ({ batches: n, unacked: unacked.size, queued: queue.length - head, heldBytes: queueBytes + inFlight, gaps }),
   };

@@ -17,6 +17,7 @@ import { connectMainBridge } from '@cg/host-kit/isolated/bridge-client';
 import { createAnchorWatcher, type AnchorWatcher } from './anchors';
 import type { FanslyBridge, FanslyMainBridgeClient } from './bridge-client';
 import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from './host-port';
+import type { Coexistence } from './legacy';
 import { createFanslyMounts, type FanslyMounts } from './mount';
 import { createFanslyTheme, type FanslyTheme } from './theme';
 import { createRouteWatcher, type RouteWatcher } from './route';
@@ -25,6 +26,7 @@ import { UNDROPPABLE_EVENTS } from './wire';
 
 export interface StartFanslyHostOptions {
   readonly win: Window;
+  readonly coexistence?: Coexistence;
   /**
    * Where Fansly's schema module comes from (validation.ts): the extension's loader of its lazy chunk, or
    * `loadValidation` for a bundle that can import a module of its own. Asked once; a failed load is asked again with
@@ -69,14 +71,14 @@ export function startFanslyHost(options: StartFanslyHostOptions): StartedFanslyH
   const doc = win.document;
   const mounts = createFanslyMounts(doc);
   const theme = createFanslyTheme(doc);
-  const bridge = connectFanslyMain(win, options.validation, options.handshakeTimeoutMs).catch(() => {
+  const bridge = options.coexistence?.stopped.aborted ? Promise.resolve(null) : connectFanslyMain(win, options.validation, options.handshakeTimeoutMs).catch(() => {
     options.onDiagnostic?.({ event: 'main-missing', code: 'CG-HOST-NOT-READY' });
     return null;
   });
   const route = createRouteWatcher(win, options.onDiagnostic);
   const anchors = createAnchorWatcher(doc, route, options.searchMs === undefined ? {} : { searchMs: options.searchMs });
   const host = bridge.then(async (client) => {
-    const port = createFanslyHostPort({ win, bridge: client, mounts, theme, route, anchors, ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}) });
+    const port = createFanslyHostPort({ ...(options.coexistence ? { coexistence: options.coexistence } : {}), win, bridge: client, mounts, theme, route, anchors, ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}) });
     await port.ready;
     return port;
   });

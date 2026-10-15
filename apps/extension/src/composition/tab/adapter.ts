@@ -116,6 +116,8 @@ export interface HostBridge {
 export interface StartedHost<P extends HostPort = HostPort> {
   /** Our hosts of a dead instance (an update, a reinstall) the start took out of the page (UP-009). */
   readonly staleHosts: number;
+  /** A host may wait for coexistence checks and retire the entire tab without a reload. */
+  readonly activation?: { readonly ready: Promise<boolean>; readonly stopped: AbortSignal };
   readonly mounts: HostMounts;
   readonly theme: HostThemeSource;
   /** The bridge once MAIN answered; null without MAIN. */

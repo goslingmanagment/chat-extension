@@ -17,6 +17,11 @@ const [A = '', B = ''] = GROUPS;
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
+  // Each scenario is a fresh document; a real stopped document retains these
+  // markers until reload so a second copy cannot silently resume.
+  document.documentElement.removeAttribute('data-fx-instance');
+  document.documentElement.removeAttribute('data-fx-reload');
+  document.querySelector('[data-host="reload-notice"]')?.remove();
   document.documentElement.className = '';
   history.replaceState({}, '', '/');
 });

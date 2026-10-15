@@ -128,6 +128,7 @@ const isAck = (value: unknown): value is { recorded: boolean } =>
 
 export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   const { win, life, host, probe } = env;
+  life.throwIfAborted();
   const doc = win.document;
 
   // ── the port ───────────────────────────────────────────────────────────────
@@ -225,6 +226,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     if (presenceTimer !== null) clearTimeout(presenceTimer);
   });
   void host.host.then((port) => {
+    if (life.aborted) return;
     const off = port.subscribe((event) => {
       if (event.type === 'route' || event.type === 'accounts') reportPresence();
     });
@@ -236,8 +238,10 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   let app: Promise<TabApp> | null = null;
   const ensureApp = (): Promise<TabApp> =>
     (app ??= (async () => {
+      life.throwIfAborted();
       const loadStarted = performance.now();
       const [protocol, chunk, port] = await Promise.all([env.lazy<typeof TabProtocolChunk>(LAZY.protocol), env.lazy<TabAppChunk>(LAZY.app), host.host]);
+      life.throwIfAborted();
       registry = protocol.parseTabPayload;
       const started = await chunk.startTabApp({
         win,
@@ -258,6 +262,11 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         takeDiagnostics: env.takeDiagnostics,
         probe,
       });
+      // Retirement can win between the application's resolution and this continuation.
+      if (life.aborted) {
+        started.dispose();
+        life.throwIfAborted();
+      }
       probe?.set('app', { loadMs: performance.now() - loadStarted });
       return started;
     })());
@@ -266,7 +275,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     ensureApp().catch((error: unknown) => {
       // Nothing reloads by itself (UP-016): the next composer or the next key of ours asks again.
       app = null;
-      probe?.set('appError', String(error));
+      if (!life.aborted) probe?.set('appError', String(error));
     });
   };
   // A click on the popup or the options page that acts here (`tab.command`, §9.9): the application is loaded for
@@ -275,12 +284,13 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     if (life.aborted) return;
     ensureApp().then(
       (ready) => {
+        if (life.aborted) return;
         const checked = registry?.('evt', 'tab.command', raw) ?? { ok: false as const };
         if (checked.ok) ready.command((checked.payload as typeof raw).command);
       },
       (error: unknown) => {
         app = null;
-        probe?.set('appError', String(error));
+        if (!life.aborted) probe?.set('appError', String(error));
       },
     );
   });
@@ -294,7 +304,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
 
   return {
     // A token is spent by the application that issued it; without it nothing is written.
-    redeem: (request) => (app === null ? Promise.resolve(false) : app.then((ready) => ready.redeem(request)).catch(() => false)),
+    redeem: (request) => (app === null || life.aborted ? Promise.resolve(false) : app.then((ready) => life.aborted ? false : ready.redeem(request)).catch(() => false)),
     wake,
   };
 }

@@ -15,6 +15,8 @@ import { startFanslyTab, type FanslyDiagnostic } from './starter';
 import { loadValidation } from './validation';
 
 afterEach(() => {
+  document.documentElement.removeAttribute('data-fx-instance');
+  document.documentElement.removeAttribute('data-fx-reload');
   document.documentElement.replaceChildren(document.createElement('head'), document.createElement('body'));
 });
 
@@ -24,7 +26,8 @@ describe('the Fansly start without MAIN', () => {
     const started = startFanslyTab({ win: window, validation: loadValidation, handshakeTimeoutMs: 20 });
     expect(started.staleHosts).toBe(2);
     // The one whose light DOM has content is no host of ours.
-    expect(document.querySelectorAll('[data-host]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-host]')).toHaveLength(2);
+    expect(started.activation.stopped.aborted).toBe(true);
     const { dock } = started.mounts;
     expect(dock.host.isConnected).toBe(false);
     expect(dock.host.getAttribute('data-host')).toBe('dock');
