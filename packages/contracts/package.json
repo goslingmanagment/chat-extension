@@ -45,7 +45,8 @@
     "./parity/exceptions": "./src/parity/exceptions.ts",
     "./vm": "./src/vm/index.ts",
     "./hub": "./src/hub/index.ts",
-    "./fixtures": "./test/fixtures/index.ts"
+    "./fixtures": "./test/fixtures/index.ts",
+    "./fansly-api": "./src/fansly-api.ts"
   },
   "dependencies": {
     "zod": "4.6.5"
