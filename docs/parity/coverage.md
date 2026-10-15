@@ -1,11 +1,11 @@
 # Покрытие паритета тестами
 
-<!-- node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json, docs/project-unite/plan.md, §10 docs/project-unite/parity-matrix.md, метки [ID] и [host:…] в названиях тестов -->
+<!-- node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json, docs/project-unite/plan.md и done/<PR id>, §10 docs/project-unite/parity-matrix.md, метки [ID] и [host:…] в названиях тестов -->
 
 Какие строки чек-листа паритета названы в тестах — отдельно на ChatSpace и на Fansly. Тест называет строку
 меткой `[ID]` в своём названии: `it('[ST-042] адрес хаба меняется только без входа', …)`. Отчёт собирает
 `pnpm parity:coverage` (`tools/parity/coverage.ts`) из манифеста паритета (`parity-manifest.json`), отметок
-сделанных PR в `docs/project-unite/plan.md`, подтверждений хаба (§10 матрицы паритета) и всех файлов тестов —
+сделанных PR (`docs/project-unite/done/<PR id>` или `✓` в `plan.md`), подтверждений хаба (§10 матрицы паритета) и всех файлов тестов —
 юнит-тестов (`*.test.ts`, `*.test.tsx`) и e2e (`*.e2e.ts`). Рядом лежит то же в машинном виде — `coverage.json`.
 
 Сам отчёт `pnpm check` не пересобирает; гейт по тем же правилам держит `pnpm parity` — для строк Fansly
@@ -24,7 +24,7 @@
 - пилотная строка — с целью «пилот», «пилот + ChatSpace» или «пилот + Fansly»;
 - строка с двумя этапами считается в обоих.
 
-Файлов тестов: 289 юнит и 44 e2e; на ChatSpace — 67, на Fansly — 43, без хоста — 229.
+Файлов тестов: 290 юнит и 44 e2e; на ChatSpace — 67, на Fansly — 43, без хоста — 230.
 
 ## ChatSpace
 
@@ -107,7 +107,7 @@
 только e2e на стенде Fansly, юнит — любой тест на Fansly; `общий` — ещё и тест без хоста; `хаб` — тест PR хаба,
 записанный в §10 матрицы; `отрицательная` — реестр исключений. Тест ChatSpace строку Fansly не закрывает.
 
-**Здесь гейт.** `pnpm parity` падает, если у PR, отмеченного сделанным (`✓` в `plan.md`), есть строка, открытая
+**Здесь гейт.** `pnpm parity` падает, если у PR, отмеченного сделанным (`done/<PR id>` или `✓` в `plan.md`), есть строка, открытая
 на Fansly, и — когда отмечен пилот (P16c) — если открыта любая строка Fansly, кроме «после пилота». Строки PR,
 которые ещё не сделаны, — план, не ошибка.
 

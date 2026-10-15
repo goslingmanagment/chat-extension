@@ -6,9 +6,9 @@
 //   rows Fansly does not concern (ID | Функция | Почему); §10 — the hub's
 //   confirmations of the `хаб` rows (ID | PR | Тест хаба | Коммит хаба).
 // - docs/project-unite/plan.md: the PR ids of its stage tables (§2) and which
-//   of them are marked done — `✓` after the id in the first cell
-//   (`| P1b ✓ | …`). A PR marks itself done in its own diff, so the gate holds
-//   its rows to their tests before it merges.
+//   of them are marked done — files in done/<PR id> plus legacy `✓` after
+//   the id in the first cell (`| P1b ✓ | …`). A PR marks itself done in its
+//   own diff, so the gate holds its rows to their tests before it merges.
 //
 // Relative imports carry `.ts`: this file runs under plain Node 26.
 
@@ -16,6 +16,7 @@ import { section, tableCells } from './map.ts';
 
 export const MATRIX_PATH = 'docs/project-unite/parity-matrix.md';
 export const PLAN_PATH = 'docs/project-unite/plan.md';
+export const DONE_PATH = 'docs/project-unite/done';
 
 /** A PR of the R20 plan: `P7e`, `P10b1`, `P2v`, `F2b`, `HF-7д0`. */
 export const PLAN_PR = /^(?:[PF]\d+[a-z]?\d*|HF-\d+[а-яё]?\d*)$/;
@@ -93,12 +94,12 @@ export function parseParityMatrix(markdown: string): ParityMatrix {
 export interface PlanPrs {
   /** Every PR of the stage tables (§2), in the order of the plan. */
   readonly all: readonly string[];
-  /** The PRs marked done (`✓`). */
+  /** The union of done files and legacy `✓` marks. */
   readonly done: ReadonlySet<string>;
 }
 
 /** PR ids of the stage tables of plan.md §2 and their done marks. */
-export function parsePlanPrs(markdown: string): PlanPrs {
+export function parsePlanPrs(markdown: string, doneFiles: readonly string[] = []): PlanPrs {
   const all: string[] = [];
   const done = new Set<string>();
   for (const line of section(markdown, '2. PR по этапам', 'plan.md').split('\n')) {
@@ -110,6 +111,10 @@ export function parsePlanPrs(markdown: string): PlanPrs {
     if (all.includes(id)) throw new Error(`plan.md §2: PR ${id} has two rows`);
     all.push(id);
     if (marked) done.add(id);
+  }
+  for (const id of doneFiles) {
+    if (!all.includes(id)) throw new Error(`${DONE_PATH}/${id}: unknown PR id (not in plan.md §2)`);
+    done.add(id);
   }
   return { all, done };
 }

@@ -11,7 +11,7 @@ import { hostOf, HOSTS } from '../../apps/extension/src/hosts/index.ts';
 import { PARITY_EXCEPTIONS } from '../../packages/contracts/src/parity/exceptions.ts';
 import { readSources, readTree, readTreeBytes } from '../lib/files.ts';
 import { fail, RELEASE_DIR, REPO_ROOT, TEST_DIR } from '../lib/paths.ts';
-import { parsePlanPrs, PLAN_PATH } from '../parity/matrix.ts';
+import { readPlanPrs } from '../parity/plan.ts';
 import { changeUnderCheck } from './change.ts';
 import {
   checkIsolatedStart,
@@ -45,7 +45,7 @@ const sources = readSources();
 const violations: Violation[] = [...runSourceGates(sources)];
 
 // Site literals: shared code names no site, but for the debt list — each entry with a PR of the plan that is not done.
-violations.push(...checkSiteLiterals(sources, SITE_LITERAL_DEBT, parsePlanPrs(readFileSync(`${REPO_ROOT}${PLAN_PATH}`, 'utf8'))));
+violations.push(...checkSiteLiterals(sources, SITE_LITERAL_DEBT, readPlanPrs(REPO_ROOT)));
 // …and no shared text says a site's name: it says the site's phrase (R20 F9b).
 violations.push(...checkSiteNames(sources));
 

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm webext-lint && pnpm size && pnpm gates && pnpm parity && pnpm archive-check",
+    "rebase:main": "node tools/rebase-main.ts",
     "typecheck": "tsc -b",
     "lint": "eslint . && depcruise packages apps/extension/src apps/extension/lazy apps/extension/bg --config .dependency-cruiser.cjs",
     "test": "vitest run",

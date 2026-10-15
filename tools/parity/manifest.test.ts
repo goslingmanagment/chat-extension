@@ -7,7 +7,7 @@ import { REPO_ROOT } from '../lib/paths.ts';
 import { closeOnFansly, tagsOfTestFile, type TaggedFile } from './coverage-report.ts';
 import type { ManifestRow, ParityManifest } from './derive.ts';
 import { checklistIds, checkParityManifest, fanslyGateProblems, hubConfirmationProblems, manifestRequired, PILOT_PR } from './manifest.ts';
-import type { HubConfirmation } from './matrix.ts';
+import { parsePlanPrs, type HubConfirmation } from './matrix.ts';
 
 const row = (overrides: Partial<ManifestRow> & Pick<ManifestRow, 'id'>): ManifestRow => ({
   function: 'f',
@@ -153,6 +153,16 @@ describe('the gate on Fansly: a row × its host × its level (plan.md §0, P1b)'
   const gate = (rows: readonly ManifestRow[], files: readonly TaggedFile[], done: readonly string[], hub: readonly HubConfirmation[] = []): string[] =>
     fanslyGateProblems(rows, closeOnFansly(rows, files, hub), new Set(done));
 
+  it('a done filename activates the same open-row gate as an inline mark', () => {
+    const doc = '# Plan\n## 2. PR по этапам\n| P10a | new subscribers |\n';
+    const rows = [realRow('NF-011')];
+    const closed = closeOnFansly(rows, [], []);
+    expect(fanslyGateProblems(rows, closed, parsePlanPrs(doc).done)).toEqual([]);
+    const byFile = fanslyGateProblems(rows, closed, parsePlanPrs(doc, ['P10a']).done);
+    expect(byFile).toHaveLength(1);
+    expect(byFile).toEqual(fanslyGateProblems(rows, closed, parsePlanPrs(doc.replace('| P10a |', '| P10a ✓ |')).done));
+  });
+
   it('[NF-011] of suite-preview — a ChatSpace spec — does not close the Fansly row; a test on Fansly does', () => {
     const path = 'packages/testing/e2e/specs/suite-preview.e2e.ts';
     const preview: TaggedFile = { path, ...tagsOfTestFile(path, readFileSync(`${REPO_ROOT}${path}`, 'utf8')) };
@@ -162,7 +172,7 @@ describe('the gate on Fansly: a row × its host × its level (plan.md §0, P1b)'
     expect(closeOnFansly([nf011], [preview], []).get('NF-011')).toEqual({ closed: false, by: [] });
     // Planned while P10a is not done; an error once it is marked done.
     expect(gate([nf011], [preview], [])).toEqual([]);
-    expect(gate([nf011], [preview], ['P10a'])).toEqual(['NF-011: P10a is done (✓ in plan.md), but the row is open on Fansly — needs a test on Fansly (hosts/fansly) with [NF-011]']);
+    expect(gate([nf011], [preview], ['P10a'])).toEqual(['NF-011: P10a is done (done file or ✓ in plan.md), but the row is open on Fansly — needs a test on Fansly (hosts/fansly) with [NF-011]']);
     const onFansly = file('packages/core/src/services/hosts/fansly/newcomers/open.test.ts', ['NF-011']);
     expect(gate([nf011], [preview, onFansly], ['P10a'])).toEqual([]);
   });
@@ -172,7 +182,7 @@ describe('the gate on Fansly: a row × its host × its level (plan.md §0, P1b)'
     expect(reply.fansly.check).toEqual({ kind: 'e2e', where: 'suite-fansly-tail' });
     const unit = file('packages/host-fansly/src/main/tail.test.ts', ['AI-001']);
     const marked = file('packages/core/test/reply.test.ts', ['AI-001'], ['fansly']);
-    expect(gate([reply], [unit, marked], ['P8b3'])).toEqual(['AI-001: P8b3 is done (✓ in plan.md), but the row is open on Fansly — needs a browser test on the Fansly stand (suite-fansly-tail) with [AI-001]']);
+    expect(gate([reply], [unit, marked], ['P8b3'])).toEqual(['AI-001: P8b3 is done (done file or ✓ in plan.md), but the row is open on Fansly — needs a browser test on the Fansly stand (suite-fansly-tail) with [AI-001]']);
     const spec = file('packages/testing/e2e/specs/suite-fansly-tail.e2e.ts', ['AI-001']);
     expect(closeOnFansly([reply], [unit, spec], []).get('AI-001')).toEqual({ closed: true, by: ['packages/testing/e2e/specs/suite-fansly-tail.e2e.ts'] });
     expect(gate([reply], [unit, spec], ['P8b3'])).toEqual([]);
@@ -204,7 +214,7 @@ describe('the gate on Fansly: a row × its host × its level (plan.md §0, P1b)'
   it('a hub row is closed only by the hub confirmation of its owner PR (§10 of the matrix), never by a test here', () => {
     const recap = row({ id: 'REC-01', fansly: { owner: 'R20/HF-10', check: { kind: 'hub', where: 'HF-10' } } });
     const here = file('packages/testing/e2e/specs/suite-fansly-ai.e2e.ts', ['REC-01']);
-    expect(gate([recap], [here], ['HF-10'])).toEqual(['REC-01: HF-10 is done (✓ in plan.md), but the row is open on Fansly — needs the hub\'s confirmation in parity-matrix.md §10 (HF-10) with [REC-01]']);
+    expect(gate([recap], [here], ['HF-10'])).toEqual(['REC-01: HF-10 is done (done file or ✓ in plan.md), but the row is open on Fansly — needs the hub\'s confirmation in parity-matrix.md §10 (HF-10) with [REC-01]']);
     const confirmed: HubConfirmation = { id: 'REC-01', pr: 'HF-10', test: '`packages/ai/src/recap/context.test.ts` «[REC-01] one recap body for every chatter»', commit: '03012453ab' };
     expect(gate([recap], [], ['HF-10'], [confirmed])).toEqual([]);
     expect(closeOnFansly([recap], [], [{ ...confirmed, pr: 'HF-6' }]).get('REC-01')?.closed).toBe(false);
@@ -244,6 +254,6 @@ describe('the gate on Fansly: a row × its host × its level (plan.md §0, P1b)'
     expect(gate(rows, [], [])).toEqual([]);
     expect(gate(rows, [], [PILOT_PR])).toEqual(['AI-001: open on Fansly at the pilot (P16c ✓) — P8b3 must close it: a browser test on the Fansly stand (suite-fansly-tail) with [AI-001]']);
     // After the pilot, its PR names the row's real check before it is done.
-    expect(gate(rows, [], ['P17'])).toEqual(['HK-036: P17 is done (✓ in plan.md), but the row\'s check is still «после пилота» — name it in parity-matrix.md']);
+    expect(gate(rows, [], ['P17'])).toEqual(['HK-036: P17 is done (done file or ✓ in plan.md), but the row\'s check is still «после пилота» — name it in parity-matrix.md']);
   });
 });

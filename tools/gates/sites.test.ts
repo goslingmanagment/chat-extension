@@ -11,7 +11,8 @@ import { HOST_KINDS, HOST_PLATFORM } from '../../packages/contracts/src/hosts.ts
 import { PARITY_EXCEPTIONS } from '../../packages/contracts/src/parity/exceptions.ts';
 import { readSources } from '../lib/files.ts';
 import { REPO_ROOT } from '../lib/paths.ts';
-import { parsePlanPrs, PLAN_PATH } from '../parity/matrix.ts';
+import { parsePlanPrs, type PlanPrs } from '../parity/matrix.ts';
+import { readPlanPrs } from '../parity/plan.ts';
 import type { SourceFile } from './checks.ts';
 import {
   BACKGROUND_CORE_FILE,
@@ -215,7 +216,7 @@ describe('gate: site literals (architecture §1.8)', () => {
     const debt: SiteLiteralDebt[] = [{ path, value: 'chatspace', count: 2, pr: 'F6a', note: 'binding.host' }];
     const plan = { all: ['F6a', 'F7'], done: new Set<string>() };
     const twice = "const a = { host: 'chatspace' };\nconst b = { host: 'chatspace' };";
-    const messages = (files: readonly SourceFile[], list: readonly SiteLiteralDebt[] = debt, state = plan): string[] =>
+    const messages = (files: readonly SourceFile[], list: readonly SiteLiteralDebt[] = debt, state: PlanPrs = plan): string[] =>
       checkSiteLiterals(files, list, state).map((violation) => `${violation.gate}: ${violation.path}:${violation.line} — ${violation.message}`);
 
     it('lets through exactly what it names', () => {
@@ -258,8 +259,9 @@ describe('gate: site literals (architecture §1.8)', () => {
       expect(messages([file(path, twice)], debt, { all: ['F7'], done: new Set() })).toEqual([
         `site-literal-debt: tools/gates/sites.ts:1 — the debt entry 'chatspace' in ${path} names F6a, which is no PR of docs/project-unite/plan.md.`,
       ]);
-      expect(messages([file(path, twice)], debt, { all: ['F6a'], done: new Set(['F6a']) })).toEqual([
-        `site-literal-debt: ${path}:1 — F6a is done (✓ in plan.md) but still owns 'chatspace' ×2 here (binding.host): remove the literal, or hand the entry to a later PR in tools/gates/sites.ts.`,
+      const done = parsePlanPrs('# Plan\n## 2. PR по этапам\n| F6a | host routing |\n', ['F6a']);
+      expect(messages([file(path, twice)], debt, done)).toEqual([
+        `site-literal-debt: ${path}:1 — F6a is done (done file or ✓ in plan.md) but still owns 'chatspace' ×2 here (binding.host): remove the literal, or hand the entry to a later PR in tools/gates/sites.ts.`,
       ]);
     });
 
@@ -272,7 +274,7 @@ describe('gate: site literals (architecture §1.8)', () => {
   });
 
   it('this repo: the debt list is exactly what shared code still names, each entry with a PR of the plan that is not done', () => {
-    const plan = parsePlanPrs(readFileSync(`${REPO_ROOT}${PLAN_PATH}`, 'utf8'));
+    const plan = readPlanPrs(REPO_ROOT);
     expect(checkSiteLiterals(readSources(), SITE_LITERAL_DEBT, plan)).toEqual([]);
     for (const entry of SITE_LITERAL_DEBT) {
       expect(plan.all, entry.path).toContain(entry.pr);

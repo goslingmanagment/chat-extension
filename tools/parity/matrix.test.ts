@@ -4,12 +4,13 @@ import { describe, expect, it } from 'vitest';
 
 import { REPO_ROOT } from '../lib/paths.ts';
 import { fanslyCheckOf } from './derive.ts';
-import { MATRIX_PATH, parseParityMatrix, parsePlanPrs, PLAN_PATH } from './matrix.ts';
+import { MATRIX_PATH, parseParityMatrix, parsePlanPrs } from './matrix.ts';
+import { readPlanPrs } from './plan.ts';
 
 const read = (path: string): string => readFileSync(`${REPO_ROOT}${path}`, 'utf8');
 const matrixText = read(MATRIX_PATH);
 const matrix = parseParityMatrix(matrixText);
-const plan = parsePlanPrs(read(PLAN_PATH));
+const plan = readPlanPrs(REPO_ROOT);
 
 const count = <T>(items: readonly T[], key: (item: T) => string): Record<string, number> => {
   const counts: Record<string, number> = {};
@@ -86,5 +87,13 @@ describe('the PRs of the R20 plan (docs/project-unite/plan.md §2)', () => {
     const doc = '# plan\n## 2. PR по этапам\n\n| PR | Что |\n|---|---|\n| P7e ✓ | вставка |\n| P7f | отправка |\n| HF-7д0 ✓ | хаб |\n\n## 3. Каталог\n\n| P9z ✓ | not in §2 |\n';
     expect(parsePlanPrs(doc)).toEqual({ all: ['P7e', 'P7f', 'HF-7д0'], done: new Set(['P7e', 'HF-7д0']) });
     expect(() => parsePlanPrs(`${doc.replace('| P7f |', '| P7e |')}`)).toThrow(/PR P7e has two rows/);
+  });
+
+  it('unions file ids with legacy marks, including hub ids, and rejects unknown ids', () => {
+    const doc = '# Plan\n## 2. PR по этапам\n| P7e ✓ | insertion |\n| P7f | send |\n| HF-7д0 | hub |\n';
+    expect(parsePlanPrs(doc, ['P7e', 'P7f', 'HF-7д0'])).toEqual({
+      all: ['P7e', 'P7f', 'HF-7д0'], done: new Set(['P7e', 'P7f', 'HF-7д0']),
+    });
+    expect(() => parsePlanPrs(doc, ['P99'])).toThrow('docs/project-unite/done/P99: unknown PR id');
   });
 });

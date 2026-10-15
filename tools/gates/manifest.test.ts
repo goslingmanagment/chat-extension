@@ -20,7 +20,8 @@ import { ROW_FEATURE } from '../../packages/core/src/domain/hotkeys/cheatsheet.t
 import { REPO_ROOT } from '../lib/paths.ts';
 import { MANIFEST_PATH, prOfOwner, type ManifestRow } from '../parity/derive.ts';
 import { closes, placeOfTest, type Host } from '../parity/hosts.ts';
-import { parsePlanPrs, PLAN_PATH } from '../parity/matrix.ts';
+import { parsePlanPrs } from '../parity/matrix.ts';
+import { readPlanPrs } from '../parity/plan.ts';
 import { readTestFiles } from '../parity/test-files.ts';
 import {
   APPLICATION_CHUNKS,
@@ -134,11 +135,12 @@ describe('gate: every entry has its parity rows and its e2e (architecture §1.8,
     ]);
   });
 
-  it('the e2e on a site’s stand is due once an owner there is done: ChatSpace’s work packages are, a Fansly PR when it is ✓', () => {
+  it('the e2e on a site’s stand is due once an owner there is done: including a Fansly PR with a done file', () => {
     const noE2e: ParityFacts = { ...FACTS, browserRows: { chatspace: new Set(['R-2', 'R-3']), fansly: new Set() } };
     expect(messages(checkManifestParity(SITES, noE2e, TABLE))).toEqual(['one: «reply» has no e2e on its stand — no spec on chatspace names R-1, and its owner there is done']);
     // Fansly's rows: nothing is due while their PRs are open; P8b3 marked done asks for its e2e on Fansly's stand.
-    const p8b3: ParityFacts = { ...FACTS, ownerDone: (owner) => prOfOwner(owner) === null || prOfOwner(owner) === 'P8b3' };
+    const done = parsePlanPrs('# Plan\n## 2. PR по этапам\n| P8b3 | reply |\n', ['P8b3']).done;
+    const p8b3: ParityFacts = { ...FACTS, ownerDone: (owner) => prOfOwner(owner) === null || done.has(prOfOwner(owner) ?? '') };
     expect(messages(checkManifestParity(SITES, p8b3, TABLE))).toEqual(['two: «reply» has no e2e on its stand — no spec on fansly names R-1, and its owner there is done']);
   });
 });
@@ -181,7 +183,7 @@ describe('this repo: the manifest is complete', () => {
       const { place } = placeOfTest(file.path, file.hosts);
       for (const host of ['chatspace', 'fansly'] as const) if (closes(place, host, 'e2e')) for (const tag of file.tags) browserRows[host].add(tag);
     }
-    const done = parsePlanPrs(readFileSync(`${REPO_ROOT}${PLAN_PATH}`, 'utf8')).done;
+    const done = readPlanPrs(REPO_ROOT).done;
     const ownerDone = (owner: string): boolean => {
       const pr = prOfOwner(owner);
       return pr === null || done.has(pr);

@@ -7,7 +7,8 @@ import { REPO_ROOT } from '../lib/paths.ts';
 import { deriveManifest, MANIFEST_PATH, serializeManifest, type ParityManifest } from './derive.ts';
 import { parseParityMap, tableCells, type MapRow } from './map.ts';
 import { checklistIds, checkParityManifest } from './manifest.ts';
-import { MATRIX_PATH, parseParityMatrix, parsePlanPrs, PLAN_PATH, type ParityMatrix } from './matrix.ts';
+import { MATRIX_PATH, parseParityMatrix, type ParityMatrix } from './matrix.ts';
+import { readPlanPrs } from './plan.ts';
 
 const read = (path: string): string => readFileSync(`${REPO_ROOT}${path}`, 'utf8');
 const mapRows = parseParityMap(read('docs/parity/parity-map.md'));
@@ -59,7 +60,7 @@ describe('parity manifest (docs/parity/parity-manifest.json)', () => {
 
   it('passes the gate checks', () => {
     const manifest = JSON.parse(read(MANIFEST_PATH)) as ParityManifest;
-    expect(checkParityManifest(manifest, checklistIds(read('docs/parity/parity-checklist.md')), PARITY_EXCEPTIONS, parsePlanPrs(read(PLAN_PATH)).all)).toEqual([]);
+    expect(checkParityManifest(manifest, checklistIds(read('docs/parity/parity-checklist.md')), PARITY_EXCEPTIONS, readPlanPrs(REPO_ROOT).all)).toEqual([]);
   });
 
   it('gives every removed and not-needed row a negative check owned by R02 on ChatSpace', () => {

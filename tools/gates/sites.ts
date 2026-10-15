@@ -263,7 +263,7 @@ export function checkSiteLiterals(files: readonly SourceFile[], debt: readonly S
         gate: 'site-literal-debt',
         path: entry.path,
         line: found.get(key)?.[0]?.line ?? 1,
-        message: `${entry.pr} is done (✓ in plan.md) but still owns ${quote(entry.value)} ×${entry.count} here (${entry.note}): remove the literal, or hand the entry to a later PR in ${DEBT_FILE}.`,
+        message: `${entry.pr} is done (done file or ✓ in plan.md) but still owns ${quote(entry.value)} ×${entry.count} here (${entry.note}): remove the literal, or hand the entry to a later PR in ${DEBT_FILE}.`,
       });
     }
   }
