@@ -114,6 +114,8 @@ export interface ListView {
   readonly resizeScrollBlock: boolean;
   /** Loaded messages of the group (oldest first). */
   readonly messages: number;
+  /** Their ids, oldest first — what the page holds; a test compares MAIN's observation with it (R20 P7b). */
+  readonly ids: readonly string[];
   /** `app-group-message` elements in the list (quotes would add more; the stand has none). */
   readonly rendered: number;
   /** No older page left on the server side. */

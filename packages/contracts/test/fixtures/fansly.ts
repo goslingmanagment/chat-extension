@@ -207,6 +207,8 @@ export const fanslyState = { identity: fanslyIdentityWire, socket: { epoch: 2, c
 const incoming = { groupId: group, fanId: fan, msgId: newer, fromFan: true, automated: false, tip: false, createdAt: ISO } as const;
 /** No time measured yet: 14 buckets for the 13 bounds of `frameParseMs` and `xhrParseMs`. */
 const noTimes = { counts: Array.from({ length: 14 }, () => 0), count: 0, sum: 0, max: 0 } as const;
+/** No snapshot taken yet: 15 buckets for the 14 bounds of `snapshotMs`. */
+const noSnapshots = { counts: Array.from({ length: 15 }, () => 0), count: 0, sum: 0, max: 0 } as const;
 /** After a while on a page: 120 frames, two of them too large to read, a deferred inbox answer, three batches in flight. */
 export const fanslyHealth = {
   frames: { seen: 120, parsed: 118, lost: 2 },
@@ -215,6 +217,7 @@ export const fanslyHealth = {
   perf: {
     frameParseMs: { counts: [80, 30, 6, 2, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0], count: 120, sum: 3.6, max: 6.2 },
     xhrParseMs: { counts: [0, 0, 1, 3, 3, 1, 1, 0, 0, 0, 0, 0, 0, 0], count: 9, sum: 1.9, max: 0.8 },
+    snapshotMs: { counts: [1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], count: 4, sum: 0.7, max: 0.4 },
   },
 } as const;
 
@@ -283,7 +286,7 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
           frames: { seen: 0, parsed: 0, lost: 0 },
           responses: { seen: 0, parsed: 0, deferred: 0, lost: 0 },
           stream: { batches: 0, unacked: 0, queued: 0, heldBytes: 0, gaps: 0 },
-          perf: { frameParseMs: noTimes, xhrParseMs: noTimes },
+          perf: { frameParseMs: noTimes, xhrParseMs: noTimes, snapshotMs: noSnapshots },
         },
       ],
       invalid: [
@@ -291,8 +294,9 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
         { ...fanslyHealth, stream: { ...fanslyHealth.stream, unacked: FANSLY_BRIDGE_LIMITS.maxUnackedBatches + 1 } },
         // A total that is not the sum of its buckets.
         { ...fanslyHealth, perf: { ...fanslyHealth.perf, xhrParseMs: { ...fanslyHealth.perf.xhrParseMs, count: 10 } } },
-        // Only MAIN's two parse times: the snapshot's are measured elsewhere.
-        { ...fanslyHealth, perf: { ...fanslyHealth.perf, snapshotMs: noTimes } },
+        // MAIN's own three times, no other: the round trip of a snapshot is the isolated side's (snapshotRoundTripMs).
+        { ...fanslyHealth, perf: { ...fanslyHealth.perf, snapshotRoundTripMs: noTimes } },
+        { ...fanslyHealth, perf: { frameParseMs: noTimes, xhrParseMs: noTimes } },
         { ...fanslyHealth, frames: { seen: 3, parsed: -1, lost: 0 } },
       ],
     },

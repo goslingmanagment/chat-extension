@@ -22,28 +22,74 @@ export const EVT_GAP = 'fx.gap';
 /** FANSLY_BRIDGE_STATE_EVENTS: at most once per batch, the latest wins. */
 export const EVT_IDENTITY = 'fx.identity';
 export const EVT_CONTRACT = 'fx.contract';
-/** FANSLY_BRIDGE_UNDROPPABLE_EVENTS (the ones MAIN sends from P7a on). */
+/** The focused group's state (P7b): the latest wins. */
+export const EVT_CHAT = 'fx.chat';
+/** FANSLY_BRIDGE_UNDROPPABLE_EVENTS MAIN sends (`fx.sent` is P7f's). */
 export const EVT_INCOMING = 'fx.incoming';
 export const EVT_FOLLOW = 'fx.follow';
 export const EVT_COVERAGE = 'fx.coverage';
+export const EVT_DELETED = 'fx.deleted';
 export const EVT_VAULT = 'fx.vaultAdded';
 
-/** TO_MAIN_FANSLY_TYPES MAIN answers itself from P7a on (`probe` is the boot's; the rest wait for the observation, P7b). */
+/** TO_MAIN_FANSLY_TYPES MAIN answers itself (`probe` is the boot's). */
 export const REQ_STATE = 'fx.state';
 export const REQ_ACK = 'fx.ack';
 export const REQ_HEALTH = 'fx.health';
-export const REQ_LATER: readonly string[] = ['fx.focus', 'fx.generationSnapshot', 'fx.windowMeta'];
+export const REQ_FOCUS = 'fx.focus';
+export const REQ_SNAPSHOT = 'fx.generationSnapshot';
+export const REQ_WINDOW = 'fx.windowMeta';
 
 /** FANSLY_GAP_REASONS. */
 export const GAP_OVERFLOW = 'overflow';
+export const GAP_MEMORY = 'memory';
 
-/** FANSLY_COVERAGE_REASONS MAIN gives from P7a on (every one lowers to `unknown`). */
+/** FANSLY_COVERAGE_REASONS: `certificate` makes a chat complete; every other one says why it is unknown. */
+export const WHY_CERTIFICATE = 'certificate';
+export const WHY_NOT_CERTIFIED = 'not-certified';
 export const WHY_LATE = 'late-install';
 export const WHY_SOCKET = 'socket';
 export const WHY_FRAME = 'frame';
+export const WHY_UNSEEN = 'unseen';
+/** The contract's word for a recovery that did not overlap; since §5.12 a certificate after a loss always recovers. */
+export const WHY_NO_OVERLAP = 'no-overlap';
+export const WHY_EVICTED = 'evicted';
 export const WHY_PARSE_LIMIT = 'parse-limit';
+export const WHY_PENDING_PARSE = 'pending-parse';
+export const WHY_PARTICIPANTS = 'participants';
+export const WHY_BFCACHE = 'bfcache';
+export const WHY_GAP = 'gap';
 /** FANSLY_COMPLETENESS. */
+export const COMPLETE = 'complete';
 export const UNKNOWN = 'unknown';
+/** CONVERSATION_KINDS. */
+export const KIND_DIRECT = 'direct';
+export const KIND_GROUP = 'group';
+/** FANSLY_FAN_SCRIPTS. */
+export const SCRIPT_CYRILLIC = 'cyrillic';
+export const SCRIPT_OTHER = 'other';
+
+/** FEATURE_IDS, FRESH_TEXT_FEATURES: who a snapshot is for, and who may get page text in it (D-14). */
+export const FEATURES: readonly string[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'recap-short', 'coach'];
+export const TEXT_FEATURES: readonly string[] = ['reply', 'fix', 'hi', 'ping'];
+/** The one function a start proof and the fan's avatar are for. */
+export const FEATURE_HI = 'hi';
+/** START_PROOF_SOURCES: the tab's own proof. */
+export const PROOF_TAB = 'tab-short-page';
+
+/** FANSLY_LIMITS: the ring of one chat, chats at once, the check window, the fan's known messages, a history page. */
+export const RING_RECORDS = 120;
+export const MAX_CHATS = 300;
+export const CHECK_WINDOW_MAX = 60;
+export const KNOWN_FAN_MAX = 10;
+export const HISTORY_PAGE = 25;
+export const AUTOMATED_IDS_MAX = 120;
+/** LIVE_TEXT_LIMITS.maxChars: one text of the tail (the hub's limit of one message). */
+export const TAIL_TEXT_MAX_CHARS = 5000;
+/** FANSLY_BRIDGE_LIMITS.maxSnapshotBytes: the snapshot's answer frame, UTF-8 bytes of its JSON. */
+export const SNAPSHOT_MAX_BYTES = 128 * 1024;
+/** HI_FAN_AVATAR_URL_PATTERN and its length: the hub's fanslyAvatarUrlSchema. */
+export const AVATAR_PATTERN = /^https:\/\/[a-z0-9-]+\.fansly\.com\//;
+export const AVATAR_MAX_CHARS = 4096;
 
 /** ANCHOR_STATES of the network anchors (FANSLY_NETWORK_ANCHORS). */
 export const ANCHOR_OK = 'ok';
@@ -56,6 +102,8 @@ export const TAP_SILENT = 'silent';
 
 /** PERF_METRICS.frameParseMs and .xhrParseMs bounds (HF-13: the same for both). */
 export const PARSE_BOUNDS: readonly number[] = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100];
+/** PERF_METRICS.snapshotMs bounds (HF-13): MAIN's step of a generation snapshot. */
+export const SNAPSHOT_BOUNDS: readonly number[] = [0.1, 0.25, 0.5, 1, 2, 3, 4, 5, 8, 16, 32, 50, 100, 250];
 
 /** contracts NATIVE_ID_PATTERN: what a Fansly id must look like to cross (host-kit's `idOf` holds the same). */
 export const ID_MAX_DIGITS = 30;
@@ -103,3 +151,55 @@ export const QUEUE_MAX_BYTES = 256 * 1024;
 export const QUEUE_MAX_EVENTS = 2048;
 /** What a batch frame carries besides its events, generously: `{v, kind, t, documentEpoch, seq, payload: {n, events: []}}`. */
 export const BATCH_ENVELOPE_BYTES = 256;
+
+// ── The observation's own limits (§5.5–§5.8; FS-TAIL-5) ───────────────────
+
+/** §5.5: texts are held for this many recently active chats… */
+export const TEXT_CHATS = 20;
+/** …the last this many of each (the check window is at most 60). */
+export const TEXTS_PER_CHAT = 60;
+/** FS-TAIL-5: everything the observation holds, by one account (memory.ts)… */
+export const MEMORY_MAX_BYTES = 4 * 1024 * 1024;
+/** …of it, texts. */
+export const TEXT_MAX_BYTES = 2 * 1024 * 1024;
+/** Ids seen deleted (5/10), so a late answer cannot bring one back (§5.6), the oldest forgotten first. */
+export const TOMBSTONES = 2048;
+/** Deleted mass-send parents (`type 3`), so a late answer cannot bring back one of their copies. */
+export const CASCADES = 256;
+/** Groups whose members, kind and DM rules MAIN knows (§5.7), the least recently touched forgotten first. */
+export const MAX_GROUPS = 600;
+/** Fans' avatar addresses from the page's answers (FX-018), the least recently seen forgotten first. */
+export const MAX_AVATARS = 300;
+/** Welcome texts of `/message/automated` (§5.8), as hashes. */
+export const WELCOME_MAX = 256;
+/**
+ * A source named a message the observation lacks (§5.6): the socket may still be bringing it — a message created
+ * while the page's request was being answered — so the chat is lowered only if it has not come this much later. Until
+ * then a snapshot of the chat is `unknown` (`unseen`).
+ */
+export const UNSEEN_GRACE_MS = 3000;
+/** Such messages waited for at once; past it the chat is lowered at once. */
+export const UNSEEN_MAX = 64;
+/** §5.4, FS-TAIL-6: a snapshot drains the deferred parse for this long at most; what is left makes it `pending-parse`. */
+export const SNAPSHOT_DRAIN_MS = 3;
+/**
+ * …and starts an answer only if it can be read in what is left of that, at this many characters a millisecond. Once
+ * started, an answer is read to its end, so the estimate is a slow one: P3a read a 115 KB inbox answer in 0.18 ms, the
+ * review of P7b a `/messages` answer of 987 K characters and 190 messages in 7.5–12.9 ms (≈ 100 K a millisecond).
+ */
+export const DRAIN_CHARS_PER_MS = 64 * 1024;
+
+/**
+ * The account's estimates (§5.5, spike P3a: a compact record measured 33 B, a text of 150 characters 220 B in Latin
+ * and 364 B in Cyrillic): an id string with its slot; a slot of the typed arrays (three 32-bit words and a byte); a
+ * chat's own object and arrays; a correlation id with its slot; a text — 64 + 2 a character; a tombstone; a group with
+ * its members; an avatar address — as a text.
+ */
+export const COST_RECORD = 40;
+export const COST_SLOT = 16;
+export const COST_CHAT = 256;
+export const COST_CORR = 48;
+export const COST_TEXT = 64;
+export const COST_TOMB = 64;
+export const COST_GROUP = 160;
+export const COST_MEMBER = 40;

@@ -220,6 +220,7 @@ export class MessageContainer implements View {
       scrollBlock: this.scrollBlock,
       resizeScrollBlock: this.resizeScrollBlock,
       messages: this.group.messages.length,
+      ids: this.group.messages.map((message) => message.id),
       rendered: this.list.querySelectorAll('app-group-message').length,
       loadedAll: this.group.complete,
       typing: this.typingIf.view !== null,

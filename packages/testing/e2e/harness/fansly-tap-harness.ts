@@ -107,6 +107,15 @@ const methods: Record<string, (...args: never[]) => unknown> = {
     return acking;
   },
   ack: (n: number) => need().request('fx.ack', { n }),
+  /** The isolated side's route (P7b): MAIN answers with `fx.chat` of the group. */
+  focus: (groupId: string | null, routeEpoch: number) => need().request('fx.focus', { groupId, routeEpoch }),
+  windowMeta: (groupId: string) => need().request('fx.windowMeta', { groupId }),
+  /** A generation snapshot as a click asks it (§5.8), with the round trip the isolated side sees. */
+  snapshot: async (request: { groupId: string; feature: 'reply' | 'hi' | 'recap'; window: number; withText: boolean }) => {
+    const started = performance.now();
+    const snapshot = await need().request('fx.generationSnapshot', request);
+    return { snapshot, roundTripMs: performance.now() - started };
+  },
   /** What the client dropped: frames refused at its first two stages, events and answers its schemas refused. */
   stats: () => need().stats(),
 

@@ -142,9 +142,10 @@ export const FanslyPerfCountsSchema = z
 export type FanslyPerfCounts = z.infer<typeof FanslyPerfCountsSchema>;
 
 /**
- * The answer of `fx.health` (R20 P7a; §5.3, §5.4, §6, §8.13): what MAIN counted since the document began, read on
- * demand — never pushed, never on a timer. The tap's «seen, not parsed» (SN-020, FS-WS-5), the observer's answers,
- * the stream under its credits, and MAIN's own parse times for client_health.
+ * The answer of `fx.health` (R20 P7a; §5.3, §5.4, §5.8, §6, §8.13): what MAIN counted since the document began, read
+ * on demand — never pushed, never on a timer. The tap's «seen, not parsed» (SN-020, FS-WS-5), the observer's answers,
+ * the stream under its credits, and MAIN's own times for client_health: its parse (P7a) and its step of a generation
+ * snapshot (P7b, `snapshotMs`: the bounded drain and the snapshot, ≤ 5 ms).
  */
 export const FanslyHealthSchema = z.strictObject({
   /** Text frames of the page's sockets: seen; parsed — a frame the page reads (a known `t`); lost — not read whole (FS-WS-2). */
@@ -159,7 +160,7 @@ export const FanslyHealthSchema = z.strictObject({
     heldBytes: CountSchema,
     gaps: CountSchema,
   }),
-  perf: z.strictObject({ frameParseMs: FanslyPerfCountsSchema, xhrParseMs: FanslyPerfCountsSchema }),
+  perf: z.strictObject({ frameParseMs: FanslyPerfCountsSchema, xhrParseMs: FanslyPerfCountsSchema, snapshotMs: FanslyPerfCountsSchema }),
 });
 export type FanslyHealth = z.infer<typeof FanslyHealthSchema>;
 
@@ -190,7 +191,7 @@ export const TO_MAIN_FANSLY = {
    * credits. Cumulative, so a late ack cannot hold credits forever.
    */
   'fx.ack': { payload: z.strictObject({ n: BridgeRequestIdSchema }), data: z.null(), write: false, timeout: 'call' },
-  /** MAIN's counts and parse times since the document began (R20 P7a): for «Статус», client_health and the e2e. */
+  /** MAIN's counts, parse and snapshot times since the document began (R20 P7a, P7b): for «Статус», client_health and the e2e. */
   'fx.health': { payload: EmptySchema, data: FanslyHealthSchema, write: false, timeout: 'call' },
 } as const satisfies Record<ToMainFanslyType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: false; readonly timeout: 'call' }>;
 

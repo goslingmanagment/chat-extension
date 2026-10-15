@@ -13,6 +13,7 @@
 // | `/group/<id>/` or `/group/<id>`         | group     | `id === <id>`, `type` a number, `users[]` — the same address answers a `POST` (members added) with less; a part is not the group |
 // | `/messaging/groups`                    | groups    | `data[]`                                         |
 // | `/account/me`                          | me        | `account.id` — the creator                       |
+// | `/account?ids=`                        | accounts  | an array — the page's account cache: avatars (P7b) |
 // | `/message/automated`                   | automated | an array — the welcome texts                     |
 // | exactly `/vault/albums/media`          | vault     | `success` alone: the page reads no more (P3a)    |
 //
@@ -25,27 +26,31 @@
 // inbox, up to 115 KB) is kept as its string — never the request — in a
 // queue of at most DEFERRED_MAX_ITEMS answers and DEFERRED_MAX_CHARS, read
 // when the page is idle (`requestIdleCallback`, within its slice) or drained
-// with a budget before a snapshot (P7b). An answer over RESPONSE_MAX_CHARS,
+// with a budget before a snapshot (P7b) — never an answer the budget left
+// could not read to its end. An answer over RESPONSE_MAX_CHARS,
 // or one the full queue cannot take, is not read: an explicit loss — the
 // area it names becomes unknown — never a long block (§5.4: the P3a
 // calibration, 115 KB in 0.2 ms).
 //
 // Which chats the table's answers certify, and what they say of groups and
-// fans, is the observation's (§5.5–§5.7, P7b); the creator (`me`) and the
-// vault's confirmation are read by the runtime from P7a on.
+// fans, is the observation's (observation.ts, identity.ts, P7b); the creator
+// (`me`) and the vault's confirmation are the runtime's. The fresh end keeps
+// the page's own `limit=`: an answer shorter than it proves the start (§5.6).
 
 import { idOf, isPlain } from '@cg/host-kit/main/check';
 import type { Guard } from '@cg/host-kit/main/guard';
 
-import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
+import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, DRAIN_CHARS_PER_MS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
 
-export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'automated' | 'vault';
+export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault';
 
 /** An answer of the API by its address: of the table, or `other` — an API answer MAIN does not read. */
 export interface ApiCall {
   readonly kind: ResponseKind | 'other';
   /** The chat its address names (`groupId=` of `/message`, `/group/<id>`); null — none. */
   readonly groupId: string | null;
+  /** The page's `limit=` of the history (a positive integer); null — absent or another. */
+  readonly limit?: number | null;
 }
 
 const OTHER: ApiCall = { kind: 'other', groupId: null };
@@ -89,7 +94,8 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
         const group = param(query, 'groupId');
         if (group === null) return { kind: 'receipt', groupId: null };
         const groupId = idOf(group);
-        return groupId === null ? OTHER : { kind: param(query, 'before') === null ? 'history' : 'older', groupId };
+        const limit = Number(param(query, 'limit') ?? NaN);
+        return groupId === null ? OTHER : { kind: param(query, 'before') === null ? 'history' : 'older', groupId, limit: Number.isSafeInteger(limit) && limit > 0 ? limit : null };
       }
       case 'messages':
         return param(query, 'ids') === null ? OTHER : { kind: 'byIds', groupId: null };
@@ -99,6 +105,8 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
         return { kind: 'groups', groupId: null };
       case 'account/me':
         return { kind: 'me', groupId: null };
+      case 'account':
+        return param(query, 'ids') === null ? OTHER : { kind: 'accounts', groupId: null };
       case 'message/automated':
         return { kind: 'automated', groupId: null };
       case 'vault/albums/media':
@@ -116,7 +124,7 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
 function ofForm(call: ApiCall, response: unknown): boolean {
   if (call.kind === 'other') return false;
   if (call.kind === 'vault') return true;
-  if (call.kind === 'automated') return Array.isArray(response);
+  if (call.kind === 'automated' || call.kind === 'accounts') return Array.isArray(response);
   if (!isPlain(response)) return false;
   switch (call.kind) {
     case 'history':
@@ -160,7 +168,10 @@ export interface Deferred<S> {
 export interface ResponseQueue<S> {
   /** Keeps the answer for later; false — the queue is full: the answer is lost. */
   push(item: Deferred<S>): boolean;
-  /** Reads waiting answers until `budgetMs` is spent (a snapshot's bounded drain, P7b); true — nothing waits. */
+  /**
+   * Reads waiting answers within `budgetMs` (a snapshot's bounded drain, P7b): an answer is started only if it can be
+   * read in what is left, at DRAIN_CHARS_PER_MS; true — nothing waits.
+   */
   drain(budgetMs: number): boolean;
   size(): number;
   /** Characters waiting (a string of them — two bytes a character at most: the memory account, §5.5). */
@@ -215,7 +226,12 @@ export function createResponseQueue<S>(natives: QueueNatives, read: (item: Defer
     },
     drain(budgetMs) {
       const until = now() + budgetMs;
-      while (items.length > 0 && now() < until) one();
+      for (let item = items[0]; item !== undefined; item = items[0]) {
+        const left = until - now();
+        // Once started, an answer is read to its end: one that would not fit what is left waits for an idle moment.
+        if (left <= 0 || item.text.length > left * DRAIN_CHARS_PER_MS) break;
+        one();
+      }
       return items.length === 0;
     },
     size: () => items.length,

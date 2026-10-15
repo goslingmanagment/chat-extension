@@ -60,7 +60,8 @@ interface Item {
   readonly b: number;
 }
 
-export function createEmitter(post: (t: string, payload: Plain) => void, stringify: (value: unknown) => string): Emitter {
+/** `gapped` — told after the one `fx.gap` went: every chat of the observation is unknown from then on (§5.6). */
+export function createEmitter(post: (t: string, payload: Plain) => void, stringify: (value: unknown) => string, gapped: (reason: string) => void = () => undefined): Emitter {
   const size = (t: string, p: Plain): number => stringify({ t, p }).length + 1;
   let queue: Item[] = [];
   let head = 0;
@@ -71,7 +72,7 @@ export function createEmitter(post: (t: string, payload: Plain) => void, stringi
   let inFlight = 0;
   let n = 0;
   let streaming = false;
-  let gapped = false;
+  let stopped = false;
   let gaps = 0;
 
   const drop = (): void => {
@@ -82,15 +83,16 @@ export function createEmitter(post: (t: string, payload: Plain) => void, stringi
   };
 
   const gap = (reason: string): void => {
-    if (gapped) return;
+    if (stopped) return;
     drop();
-    gapped = true;
+    stopped = true;
     gaps += 1;
     post(EVT_GAP, { reason });
+    gapped(reason);
   };
 
   const flush = (): void => {
-    if (!streaming || gapped || unacked.size >= MAX_UNACKED) return;
+    if (!streaming || stopped || unacked.size >= MAX_UNACKED) return;
     const room = Math.min(MAX_BATCH_BYTES, MAX_IN_FLIGHT_BYTES - inFlight) - BATCH_ENVELOPE_BYTES;
     const events: Array<{ t: string; p: Plain }> = [];
     let bytes = 0;
@@ -131,14 +133,14 @@ export function createEmitter(post: (t: string, payload: Plain) => void, stringi
 
   return {
     event(t, p) {
-      if (gapped) return;
+      if (stopped) return;
       const b = size(t, p);
       queue.push({ t, p, b });
       queueBytes += b;
       if (queueBytes > QUEUE_MAX_BYTES || queue.length - head > QUEUE_MAX_EVENTS) gap(GAP_OVERFLOW);
     },
     state(t, p) {
-      if (!gapped) states[t] = p;
+      if (!stopped) states[t] = p;
     },
     flush,
     ack(upTo) {
@@ -151,7 +153,7 @@ export function createEmitter(post: (t: string, payload: Plain) => void, stringi
     },
     start() {
       streaming = true;
-      gapped = false;
+      stopped = false;
       // The answer of `fx.state` carries every state whole.
       states = {};
       return n;
