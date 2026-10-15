@@ -117,13 +117,14 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     const entries = FANSLY.lazy.entries;
     for (const name of [...Object.values(TAB_LAZY), ...LAZY_LAYERS, 'i18n-ru', 'i18n-en', 'ai-analysis', 'ai-coach', 'tab-health']) expect(Object.keys(entries), name).toContain(name);
     // Every entry name is one the tab asks for by name — a shared one, or one of Fansly's own (R20 P8b1: its AI
-    // policy; P13b: the vault); its source is Fansly's own or the shared entry of that name.
+    // policy; P13b: the vault); its source is Fansly's own or the shared entry of that name. «Новые» (R20 P10a) are
+    // Fansly's own under the shared names: the boards with the background's pass and its window, never the hub's list.
     const own: readonly SiteLazyEntryName[] = ['ai-fansly', 'vault', 'registration'];
     for (const [name, source] of Object.entries(entries)) {
       expect([...Object.keys(LAZY_ENTRIES), ...own], name).toContain(name);
       expect([`fansly/${name}.ts`, LAZY_ENTRIES[name as keyof typeof LAZY_ENTRIES]], name).toContain(source);
     }
-    expect([entries['tab-app'], entries['bridge-validation'], entries['tab-protocol'], entries['i18n-ru'], entries['i18n-en'], entries['ai-fansly'], entries['vault']]).toEqual([
+    expect([entries['tab-app'], entries['bridge-validation'], entries['tab-protocol'], entries['i18n-ru'], entries['i18n-en'], entries['ai-fansly'], entries['vault'], entries['boards'], entries['newcomers']]).toEqual([
       'fansly/tab-app.ts',
       'fansly/bridge-validation.ts',
       'fansly/tab-protocol.ts',
@@ -131,10 +132,14 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
       'fansly/i18n-en.ts',
       'fansly/ai-fansly.ts',
       'fansly/vault.ts',
+      'fansly/boards.ts',
+      'fansly/newcomers.ts',
     ]);
     // No other build has a file of Fansly's own entry.
     for (const name of own) expect(Object.keys(CHATSPACE.lazy.entries), name).not.toContain(name);
-    for (const only of ['palette', 'preview', 'newcomers']) expect(Object.keys(entries), only).not.toContain(only);
+    for (const only of ['palette', 'preview']) expect(Object.keys(entries), only).not.toContain(only);
+    expect(entries['boards-preview']).toBe('fansly/boards-preview.ts');
+    expect([CHATSPACE.lazy.entries['boards'], CHATSPACE.lazy.entries['newcomers']]).toEqual(['entries/boards.ts', 'entries/newcomers.ts']);
   });
 
   it('[host:fansly] the application’s half of its adapter: no live configuration, its slice of the manifest, its contract, the dock’s variant `fansly` and its phrases', async () => {

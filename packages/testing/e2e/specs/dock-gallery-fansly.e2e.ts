@@ -9,6 +9,7 @@
 // - The window check's marks over a result (R20 P8b2): drawn in Fansly's gallery alone, in their own words.
 // - The person switches Fansly's theme: the palette follows at once, nothing remounts.
 // - The boards and the kit in both themes.
+// - «Новые» of the background's pass, Fansly's own window (R20 P10a), in both themes: states 13f–13j.
 // Pictures in .cache/e2e/ (dock-fansly-*, dock-fansly-mark-*, overlay-fansly-*, boards-fansly-*, kit-fansly-*),
 // compared by eye with ui-design.md. ChatSpace's own galleries are the other specs, untouched by this profile.
 
@@ -178,6 +179,29 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
         }, marker);
         expect(probe).toEqual({ failures: [], drawn: probe.drawn, overflow: [], scheme: theme, dispatched: [] });
         expect(probe.drawn).toBeGreaterThan(0);
+      }
+    });
+
+    it(`[NF-002] [NF-007] [NF-008] [FX-017] [host:fansly] «Новые» of the pass in Fansly’s ${theme} theme (R20 P10a): the queue with its card, «Уже писали», the list not read, the pause, the first page on its way`, async () => {
+      for (const state of ['13f', '13g', '13h', '13i', '13j'] as const) {
+        await openPage(BOARDS_GALLERY_PATH, `host=fansly&state=${state}&theme=${theme}&lang=ru`, 'data-boards-ready');
+        const context = await browser.getWindowHandle();
+        save(`boards-fansly-${state}-${theme}-ru-1440x900`, (await browser.browsingContextCaptureScreenshot({ context, origin: 'viewport' })).data);
+        const probe = await browser.execute(() => {
+          const boards = window.__boards;
+          if (boards === undefined) throw new Error('window.__boards is missing');
+          return {
+            failures: boards.failures.map((failure) => failure.code),
+            window: boards.count('.cg-fnw'),
+            overflow: [...boards.overflow()],
+            squeezed: [...boards.squeezed()],
+            scheme: boards.scheme(),
+            dispatched: [...boards.dispatched()],
+            // Nothing of ours is blue (nothing here reaches the fan) and no remote picture is loaded.
+            images: boards.count('img'),
+          };
+        });
+        expect({ state, ...probe }).toEqual({ state, failures: [], window: 1, overflow: [], squeezed: [], scheme: theme, dispatched: [], images: 0 });
       }
     });
 

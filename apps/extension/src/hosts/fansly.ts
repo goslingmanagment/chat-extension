@@ -36,9 +36,11 @@ export const FANSLY_TEST: TestHostConfig = { pageMatches: FANSLY_STAND_MATCHES }
  * tab's application loads — built again from the same source, cut by the same plan of layers as ChatSpace's (the
  * dock, the schemas, the protocol, the application, the AI and navigation controllers) — with Fansly's own `tab-app`
  * (the application's half of its adapter) and its texts (the shared catalog with Fansly's codes). The surfaces
- * ChatSpace alone has — its palette with its cached chats, the preview window of X8, its «Новые» — are not in it;
- * Fansly's panels and «Новые» come with their work packages: its AI policy (`ai-fansly`, P8b1) and the vault's panel
- * (P13b) are here, and with the vault Fansly's `tab-protocol`, which lets Fansly's own types through to the site's code.
+ * ChatSpace alone has — its palette with its cached chats, the preview window of X8, its «Новые» of the hub — are not
+ * in it; Fansly's panels and «Новые» come with their work packages: its AI policy (`ai-fansly`, P8b1) and the vault's
+ * panel (P13b) are here, and with the vault Fansly's `tab-protocol`, which lets Fansly's own types through to the
+ * site's code; «Новые» of the background's pass (P10a) are Fansly's own `boards` and `newcomers`, under the shared
+ * names the tab asks for.
  */
 export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   'bridge-validation': 'fansly/bridge-validation.ts',
@@ -65,9 +67,10 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   'fan-panel': 'entries/fan-panel.ts',
   // Fansly's AI policy (§1.6, §3.1): the proof of a start from MAIN's snapshot, loaded with the dock (R20 P8b1).
   'ai-fansly': 'fansly/ai-fansly.ts',
-  // Fansly's own panels (§3.1): the vault on `/creator/vault` (R20 P13b).
+  // Fansly's own panels (§3.1): the vault on `/creator/vault` (R20 P13b) and the «Новые» window (R20 P10a).
   vault: 'fansly/vault.ts',
   registration: 'fansly/registration.ts',
+  newcomers: 'fansly/newcomers.ts',
 };
 
 export const FANSLY: HostDescriptor = {
