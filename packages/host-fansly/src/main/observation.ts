@@ -173,7 +173,8 @@ export interface Observation {
 export function createObservation(deps: ObservationDeps): Observation {
   const { memory, identity, automation, event, now, wake, tick, seq } = deps;
   const chats = new Map<string, Chat>();
-  const tombs = new Set<string>();
+  /** Ids seen deleted (5/10) and their chat (null — not named). */
+  const tombs = new Map<string, string | null>();
   const cascades = new Set<string>();
   /** Messages a source named, not seen yet: id → its chat and when its grace ends. */
   const waited = new Map<string, { readonly g: string; readonly due: number; readonly since: number }>();
@@ -349,13 +350,20 @@ export function createObservation(deps: ObservationDeps): Observation {
     for (let j = 0; chat.textCount > TEXTS_PER_CHAT && j < chat.ids.length; j += 1) dropText(chat, j);
   };
 
-  const tomb = (id: string): void => {
+  /**
+   * A deletion remembered. Deletion knowledge is never forgotten silently: an answer still on its way may hold the
+   * message, and nothing would say it is gone. The oldest one forgotten makes its chat (or, unnamed, every chat)
+   * unknown until a certificate of a request begun after (§5.12).
+   */
+  const tomb = (id: string, groupId: string | null): void => {
     if (tombs.has(id)) return;
-    tombs.add(id);
+    tombs.set(id, groupId);
     memory.tombs += COST_TOMB;
     if (tombs.size > TOMBSTONES) {
-      tombs.delete(tombs.values().next().value as string);
+      const [oldest, chat] = tombs.entries().next().value as [string, string | null];
+      tombs.delete(oldest);
       memory.tombs -= COST_TOMB;
+      observation.lose(chat === null ? null : [chat], WHY_EVICTED);
     }
   };
 
@@ -519,10 +527,14 @@ export function createObservation(deps: ObservationDeps): Observation {
       }
     },
     deleted(id, groupId, cascade) {
-      tomb(id);
+      tomb(id, groupId);
       if (cascade && !cascades.has(id)) {
         cascades.add(id);
-        if (cascades.size > CASCADES) cascades.delete(cascades.values().next().value as string);
+        if (cascades.size > CASCADES) {
+          // A mass send's copies may be in any chat: forgetting its deletion loses every chat (above).
+          cascades.delete(cascades.values().next().value as string);
+          observation.lose(null, WHY_EVICTED);
+        }
       }
       waited.delete(id);
       const hits = new Map<Chat, string[]>();

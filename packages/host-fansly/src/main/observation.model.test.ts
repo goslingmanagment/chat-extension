@@ -231,6 +231,19 @@ class World {
     }
   }
 
+  private purged = 0;
+
+  /** The creator deletes `k` more mass sends, none with a copy in this chat: their parents' deletions (`type 3`). */
+  purge(k: number): void {
+    for (let i = 0; i < k; i += 1) {
+      this.event();
+      this.changes.push(this.clock);
+      this.purged += 1;
+      this.push(service(5, { type: 10, message: message(`7000000000003${String(this.purged).padStart(5, '0')}`, CREATOR, { type: 3, groupId: BROADCAST }) }), 0, { gone: [] });
+    }
+    this.trace.push(`${this.clock} delete ${k} more mass sends`);
+  }
+
   /** The page makes a socket; the server confirms it (`t:1`) after `confirmIn`. */
   connect(confirmIn = 0): void {
     this.socket = new this.win.WebSocket('wss://wsv3.fansly.com?v=3') as unknown as FakeWebSocket;
@@ -494,6 +507,14 @@ function play(world: World, seed: number): void {
     else if (roll < 0.61 && world.sent.length > 0) world.ask('older', at, arrives, early, { before: pick(world.sent).n });
     else if (roll < 0.65 && world.sent.length > 0) world.ask('ids', at, arrives, early, { ids: [pick(world.sent).n, pick(world.sent).n] });
     else if (roll < 0.7 && world.sent.length < 100) world.ask('send', at, arrives, early);
+    else if (roll < 0.72) {
+      // A mass deletion beyond what MAIN remembers (256 parents): a copy's parent first, then 257 more.
+      const copy = world.alive(world.clock).find((m) => m.corr !== null);
+      if (copy !== undefined) {
+        world.remove(copy, delay);
+        world.purge(257);
+      }
+    }
     else if (roll < 0.75) {
       if (world.connected()) world.break();
       else world.connect(Math.floor(random() * 30));
@@ -660,6 +681,22 @@ describe('[host:fansly] the reviews’ repros as fixed cases of the model (§5.1
     r.at(start + 400);
     expect(ids(r.check())).toEqual([1]);
     expect(r.settleDown().completeness).toBe('complete');
+  });
+
+  it('[FS-TAIL-4] the final check: a deleted mass send forgotten beyond 256 cannot let a late certificate bring its copy back', () => {
+    const w = new World();
+    const copy = w.make({ fan: false, copy: true });
+    w.make({ fan: true });
+    w.connect(1);
+    // The server makes the fresh end with the copy; it arrives after the parent and 256 more mass sends are deleted.
+    w.ask('fresh', w.clock + 1, w.clock + 1000);
+    w.at(w.clock + 2);
+    w.remove(copy);
+    w.purge(256);
+    w.at(w.clock + 1100);
+    // Never «complete» with the copy (check() holds it to the server's state): unknown until a later certificate.
+    expect(w.check().completeness).toBe('unknown');
+    expect(w.settleDown().startProof).toMatchObject({ coveredCount: 1, personalCount: 1 });
   });
 
   it('[FS-TAIL-6] round 1, 1: 121 messages while a short answer is in flight — no proof of the start from a part the ring could not hold', () => {

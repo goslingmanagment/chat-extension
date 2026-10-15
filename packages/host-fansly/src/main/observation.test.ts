@@ -937,3 +937,40 @@ describe('[host:fansly] the fourth review of P7b: a send’s late answer, a sock
     expect(windowIds(await snap(c))).toEqual([id(1), id(3)]);
   });
 });
+
+describe('[host:fansly] the final check of P7b: deletion knowledge is never forgotten silently (FS-TAIL-4, FS-TAIL-5)', () => {
+  const parent = (k: number): string => `7000000000009${String(k).padStart(5, '0')}`;
+
+  it('[FS-TAIL-4] 257 deleted mass sends: the first is forgotten — and every chat is unknown until a certificate asked after it, so a late answer cannot bring its copy back', async () => {
+    const { c, socket } = await tab();
+    const copy = message(id(2), CREATOR, { correlationId: parent(0), content: 'promo' });
+    // The server makes the answer with the copy; it arrives after the parent and 256 more mass sends are deleted.
+    const late = fresh(c.win);
+    for (let k = 0; k <= 256; k += 1) socket.receive(deletion(parent(k), { type: 3, groupId: '700000000000000099', senderId: CREATOR }));
+    late.respond(200, historyPage([message(id(1), FAN, { content: 'hi' }), copy]));
+    await settle();
+    const s = await snap(c, { feature: 'hi', window: 25 });
+    expect(s?.completeness).toBe('unknown');
+    expect(s?.startProof).toBeUndefined();
+    // A request asked after the eviction settles it: the copy is gone.
+    fresh(c.win).respond(200, historyPage([message(id(1), FAN, { content: 'hi' })]));
+    await settle();
+    const after = await snap(c, { feature: 'hi', window: 25 });
+    expect(after).toMatchObject({ completeness: 'complete', startProof: { coveredCount: 1, personalCount: 1 } });
+    expect(windowIds(after)).toEqual([id(1)]);
+  });
+
+  it('[FS-TAIL-5] the 2049th deletion forgets the first tombstone: its chat is unknown until a certificate asked after it', async () => {
+    const { c, socket } = await tab();
+    fresh(c.win).respond(200, freshEnd(conversation(1, 3)));
+    await settle();
+    socket.receive(deletion(id(3)));
+    // Deletions in other chats, enough to push the first tombstone out.
+    for (let k = 0; k < 2048; k += 1) socket.receive(deletion(`7000000000008${String(k).padStart(5, '0')}`, { groupId: OTHER_GROUP }));
+    await settle();
+    expect((await snap(c))?.completeness).toBe('unknown');
+    fresh(c.win).respond(200, freshEnd(conversation(1, 2)));
+    await settle();
+    expect(await snap(c)).toMatchObject({ completeness: 'complete' });
+  });
+});
