@@ -126,6 +126,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * the narrow token behind the page's `voice`, and the create body takes `fanRef` apart from the chat (HF-4а).
    */
   'voice-notes-v1',
+  /** 1.15.0 (R20 HF-5): Fansly Hi accepts the start proof, personal count and avatar at the top level. */
+  'hi-start-proof-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
@@ -152,8 +154,9 @@ export type ClientFeatureUnavailableReason = (typeof CLIENT_FEATURE_UNAVAILABLE_
  * Capabilities that travel only in the AI request header `x-kernel-ai-capabilities` (comma list), in the SDK's order.
  * 1.15.0 (R20 HF-8в): `coverage-check-v1` — a request with `coverageCheck` says it (with `context-v1`: the answer rides
  * in the context frame); only a request built from a proof does, so ChatSpace never says it.
+ * `hi-start-proof-v1` (HF-5) admits the three Hi fields on Fansly; ChatSpace never says it either.
  */
-export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1'] as const;
+export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1', 'hi-start-proof-v1'] as const;
 export const AiStreamCapabilitySchema = z.enum(AI_STREAM_CAPABILITIES);
 export type AiStreamCapability = z.infer<typeof AiStreamCapabilitySchema>;
 

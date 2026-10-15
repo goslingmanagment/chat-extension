@@ -406,6 +406,7 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
     expect(BOOTSTRAP_PILOT_PAGES.capabilities).toContain('coverage-check-v1');
     for (const { name, request } of built) {
       expect([name, request.body.coverageCheck, request.capabilities.includes('coverage-check-v1')]).toEqual([name, undefined, false]);
+      expect([name, request.body.startProof, request.body.personalMessageCount, request.body.fanAvatarUrl, request.capabilities.includes('hi-start-proof-v1')]).toEqual([name, undefined, undefined, undefined, false]);
       const draftFeature = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'].includes(request.feature);
       if (!draftFeature) expect([name, request.body.liveTextContext]).toEqual([name, undefined]);
       if (['chat-review', 'fan-summary'].includes(request.feature)) expect([name, request.body.replyMode]).toEqual([name, undefined]);

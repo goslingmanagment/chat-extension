@@ -543,7 +543,7 @@ export const HUB_SCHEMA_FIXTURES = [
     ],
     [{ error: 'bad_request', statusCode: 400 }, { error: 'x', message: 'm', statusCode: '400' }],
   ),
-  fixture('AiStreamCapability', C.AiStreamCapabilitySchema, ['context-v1', 'debug-input-v1', 'coverage-check-v1'], ['live-text-v1', 'hi-start-proof-v1']),
+  fixture('AiStreamCapability', C.AiStreamCapabilitySchema, ['context-v1', 'debug-input-v1', 'coverage-check-v1', 'hi-start-proof-v1'], ['live-text-v1', 'hi-start-proof-v2']),
 
   // ── auth ──
   fixture('DeviceTokenIssueRequest', C.DeviceTokenIssueRequestSchema, [issueRequest, { ...issueRequest, mode: 'pending', client: undefined }], [
