@@ -85,6 +85,7 @@ const ROW_LABELS: Record<CatalogActionId, I18nKey> = {
   'next-unread': 'cheatsheet.row.nextUnread',
   'quick-jump': 'quickJump.title',
   search: 'cheatsheet.row.search',
+  notes: 'cheatsheet.row.notes',
 };
 
 /** The key a page prints for an action: the catalog's when there is one, else the scheme's. */

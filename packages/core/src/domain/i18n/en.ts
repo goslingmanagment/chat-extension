@@ -688,6 +688,7 @@ export const EN: I18nCatalog<'en'> = {
   'cheatsheet.row.nextUnread': 'Next unread chat',
   'cheatsheet.row.search': 'Search the list',
   'cheatsheet.row.sendNote': 'no shortcut: it goes to the fan only on a click',
+  'cheatsheet.row.notes': 'Fan notes',
   'cheatsheet.note':
     'On a narrow message field (under 690 px) buttons carry no shortcut labels: they are listed here and in each button’s tooltip. Send in the preview has no shortcut: a message goes to the fan only on a click.',
   'toast.aiReady': 'AI ready · {fan}',

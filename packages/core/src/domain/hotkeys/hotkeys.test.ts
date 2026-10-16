@@ -601,7 +601,8 @@ describe('the action catalog', () => {
   });
 
   it('[ST-121] the rows outside the vendored scheme are marked; the scheme\'s twelve are not', () => {
-    expect(CATALOG_ACTION_IDS.filter((id) => !isOutsideScheme(id)).sort()).toEqual(hotkeysForClient('extension').map((def) => def.action).sort());
+    // R20 P11b: and Notes — the scheme's row of the `fansly` client.
+    expect(CATALOG_ACTION_IDS.filter((id) => !isOutsideScheme(id)).sort()).toEqual([...hotkeysForClient('extension').map((def) => def.action), 'notes'].sort());
     const rows = hotkeyReferenceRows(createActionCatalog('win'));
     expect(rows.find((row) => row.id === 'chat-next')).toMatchObject({ outsideScheme: true, hotkey: { display: 'J' } });
     expect(rows.find((row) => row.id === 'reply')).toMatchObject({ outsideScheme: false });
@@ -660,7 +661,7 @@ describe('the action catalog', () => {
     const nav = reserved.find((group) => group.id === 'navigation')?.rows ?? [];
     expect(nav[2]).toEqual({ label: { key: 'cheatsheet.row.nextUnread' }, hotkey: { display: 'Alt+U', aria: 'Alt+U', delivery: 'unverified', fallback: null }, note: { key: 'dock.reason.hotkeyReserved' } });
     const windows = reserved.find((group) => group.id === 'windows')?.rows ?? [];
-    expect(windows[3]).toEqual({ label: { key: 'palette.item.settings' }, hotkey: null, note: { key: 'dock.reason.hotkeyReserved' } });
+    expect(windows.at(-1)).toEqual({ label: { key: 'palette.item.settings' }, hotkey: null, note: { key: 'dock.reason.hotkeyReserved' } });
   });
 });
 
@@ -692,11 +693,14 @@ describe('[R20-F4] the keys and the feature manifest', () => {
     expect(hotkeysForClient('extension').map((def) => def.action)).not.toContain('notes');
   });
 
-  it('[HK-034] ChatSpace has every feature the cheatsheet lists: with its slice the cheatsheet is the one it always was', () => {
+  it('[HK-034] ChatSpace has every feature the cheatsheet lists but Fansly’s Notes: with its slice the cheatsheet is the one it always was', () => {
+    type Groups = ReturnType<typeof cheatsheetGroups>;
+    const withoutNotes = (groups: Groups): Groups => groups.map((group) => ({ ...group, rows: group.rows.filter((row) => row.label.key !== 'cheatsheet.row.notes') }));
     for (const platform of ['mac', 'win'] as const) {
       const catalog = createActionCatalog(platform);
-      expect(cheatsheetGroups(catalog, SLICES.chatspace)).toEqual(cheatsheetGroups(catalog));
-      expect(cheatsheetView(catalog, SLICES.chatspace)).toEqual(cheatsheetView(catalog));
+      expect(cheatsheetGroups(catalog, SLICES.chatspace)).toEqual(withoutNotes(cheatsheetGroups(catalog)));
+      const full = cheatsheetView(catalog);
+      expect(cheatsheetView(catalog, SLICES.chatspace)).toEqual({ ...full, groups: withoutNotes(full.groups) });
     }
   });
 
@@ -707,7 +711,7 @@ describe('[R20-F4] the keys and the feature manifest', () => {
     const labels = (groups: typeof all, id: string): string[] => (groups.find((group) => group.id === id)?.rows ?? []).map((row) => row.label.key);
     expect(fansly.map((group) => group.id)).toEqual(['ai', 'windows', 'before', 'result', 'navigation', 'preview']);
     expect(labels(fansly, 'ai')).toEqual(labels(all, 'ai'));
-    expect(labels(fansly, 'windows')).toEqual(['cheatsheet.row.spenders', 'cheatsheet.row.self', 'palette.item.settings']);
+    expect(labels(fansly, 'windows')).toEqual(['cheatsheet.row.spenders', 'cheatsheet.row.notes', 'cheatsheet.row.self', 'palette.item.settings']);
     expect(labels(fansly, 'navigation')).toEqual(['cheatsheet.row.fanPanel']);
     expect(labels(fansly, 'preview')).toEqual(['dock.action.reply', 'dock.action.fix', 'dock.action.hi', 'dock.action.ping', 'send.openAndInsert']);
     expect(labels(fansly, 'before')).toEqual(labels(all, 'before'));
@@ -732,8 +736,10 @@ describe('[R20-F5] the keys run as the site’s client of the scheme', () => {
     for (const client of ['extension', 'fansly', 'desktop'] as const) expect(command(panel(client, 'KeyS')), client).toBe('recap');
   });
 
-  it('Notes is the Fansly extension’s row: a reserved letter on ChatSpace, and on Fansly too until the dispatcher has its command — never the page’s key', () => {
+  it('Notes is the Fansly extension’s row: a reserved letter on ChatSpace, the `notes` command on Fansly (R20 P11b) — never the page’s key', () => {
     expect(panel('extension', 'KeyK')).toEqual({ kind: 'swallow', reason: 'reserved' });
-    expect(panel('fansly', 'KeyK')).toEqual({ kind: 'swallow', reason: 'reserved' });
+    expect(command(panel('fansly', 'KeyK'))).toBe('notes');
+    const win = createKeyResolver('win', 'fansly').keydown(ev('KeyK', { ctrlKey: true, altKey: true }));
+    expect(command(win)).toBe('notes');
   });
 });

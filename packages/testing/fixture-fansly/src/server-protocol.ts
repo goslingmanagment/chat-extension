@@ -87,6 +87,8 @@ export type FakeFanslyCommand =
   | { readonly op: 'follow'; readonly followerId?: string; readonly silent?: boolean }
   /** A group changes: its members other than the creator (`4/6`, `4/7` frames), its DM rules, its fan's status. */
   | { readonly op: 'group'; readonly groupId: string; readonly partners?: number; readonly dmRulesUnmet?: boolean; readonly status?: 1 | 2 | 3 | 4 }
+  /** R20 P11b: a note of the creator on a fan's account, as Fansly's own window (or FBuddy) would have written it. */
+  | { readonly op: 'note'; readonly fanId: string; readonly title: string; readonly note: string; readonly contentType?: 12000 | 12002 }
   /** Raw text frames to every verified socket as they are (a damaged frame, an unknown `t`); `batch` — inside one `t: 10001`. */
   | { readonly op: 'frames'; readonly frames: readonly string[]; readonly batch?: boolean }
   /**
@@ -132,6 +134,8 @@ export interface FakeFanslyResult {
   /** `broadcast`: the copies; `delete`: what went with a `type 3` parent. */
   readonly messages?: readonly WireMessage[];
   readonly follow?: WireFollow;
+  /** `note`: the note's id. */
+  readonly noteId?: string;
   /** `session.issue`: the new token. */
   readonly token?: string;
   /** How many sockets a frame went to. */

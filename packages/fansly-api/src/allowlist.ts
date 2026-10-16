@@ -136,8 +136,9 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   spenders: { 'messaging.groups': CLICK_READ, 'group.create': GROUP_WRITE, 'account.byIds': CLICK_READ },
   // «Регистрация»: `GET /group/<id>` when the fan's id is unknown, one attempt, nothing during a cooldown.
   registration: { 'group.detail': CLICK_READ },
-  // «Заметки»: the group and `GET /account?ids=` when the panel or the chat opens; the writes by the person's action.
-  notes: { 'group.detail': PASS_READ, 'account.byIds': PASS_READ, 'notes.create': WRITE, 'notes.edit': WRITE, 'notes.delete': WRITE },
+  // «Заметки»: the group and `GET /account?ids=` when the panel or the chat opens — once, and not at all while the
+  // creator cools down (FS-NOTE-3; R20 P11b: as a click's read, not a pass's); the writes by the person's action.
+  notes: { 'group.detail': CLICK_READ, 'account.byIds': CLICK_READ, 'notes.create': WRITE, 'notes.edit': WRITE, 'notes.delete': WRITE },
   // The identity, when the page's own answer did not give it.
   identity: { 'account.me': PASS_READ },
 };

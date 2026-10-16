@@ -36,7 +36,7 @@ import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendFuseState } from '@cg/contracts/send';
 import type { FanPanelVM, I18n, HostUiProfile, MountDeps } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
-import type { HotkeyClient, RouteKind } from '@cg/core/domain/hotkeys';
+import type { DispatcherCommandId, HotkeyClient, RouteKind } from '@cg/core/domain/hotkeys';
 import type { TabPayloadValidator, TabRpcClient } from '@cg/platform';
 import type { KitFailure } from '@cg/ui/kit';
 
@@ -192,6 +192,11 @@ export interface SiteAppEnv<P extends HostPort = HostPort> {
   readonly report: (failure: KitFailure) => void;
   /** Test builds only: what the e2e reads of the tab. */
   readonly probe: TabProbe | null;
+  /**
+   * R20 P11b: a command of the early dispatcher the site runs itself (Fansly's ⌘⇧K, «Заметки»): while a handler is
+   * registered, the key runs it instead of the shared runner. The answer unregisters it.
+   */
+  readonly keys: { handle(command: DispatcherCommandId, run: () => void): () => void };
 }
 
 /**
