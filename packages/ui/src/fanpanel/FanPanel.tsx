@@ -65,11 +65,6 @@ function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
   const kinds = (spent?.byKind ?? []).filter((entry) => entry.mills !== 0);
   return (
     <>
-      {vm.registration === undefined ? null : (
-        <div class="cg-fp__sec" data-registration-date={vm.registration.at}>
-          <dl class="cg-fp__kv cg-fp__kv--flush"><Kv label={vm.registration.label} value={i18n.formatTime(vm.registration.at, 'date')} /></dl>
-        </div>
-      )}
       <div class="cg-fp__sec">
         <div class="cg-fp__cap">{i18n.t('fanPanel.spent')}</div>
         {/* A known zero of money is not drawn (ui-design §1 п. 6): «трат нет» under the caption, and no rows of
@@ -93,6 +88,14 @@ function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
       <div class="cg-fp__sec">
         <div class="cg-fp__cap">{i18n.t('fanPanel.subscription')}</div>
         <dl class="cg-fp__kv cg-fp__kv--flush">
+          {/* Fansly's account date (R20 P11a, FS-REG-4), when the site's adapter knows it: a fact of the fan's
+              account, so it stands with the subscription's dates, before them, not above the money. */}
+          {vm.registration === undefined ? null : (
+            <>
+              <dt>{vm.registration.label}</dt>
+              <dd class="cg-num" data-registration-date={vm.registration.at}>{i18n.formatTime(vm.registration.at, 'date')}</dd>
+            </>
+          )}
           <Kv label={i18n.t('fanPanel.subscribedLabel')} value={subscription === null ? mark : subscribedText(i18n, subscription)} />
           <Kv
             label={i18n.t('fanPanel.autoRenew')}

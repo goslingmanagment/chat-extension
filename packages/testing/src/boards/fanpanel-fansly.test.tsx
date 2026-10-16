@@ -13,7 +13,8 @@ describe('[host:fansly] fan panel registration', () => {
     const scenario = { ...base, views: base.views.map((view) => view.selector.of === 'fan-panel'
       ? entry({ of: 'fan-panel' }, { ...(view.vm as FanPanelVM), registration: { label: 'Регистрация', at: '2024-01-01T12:00:00.000Z' } }) : view) };
     ui = await mountBoardSettled('fan-panel', scenario);
-    expect(ui.text('[data-registration-date]')).toContain('Регистрация');
+    // A row of «Подписка», before the subscription's own dates, not a block above the money.
+    expect(ui.$('[data-registration-date]')?.previousElementSibling?.textContent).toBe('Регистрация');
     expect(ui.text('[data-registration-date]')).toContain('2024');
     expect(ui.$('[data-registration-date]')?.getAttribute('data-registration-date')).toBe('2024-01-01T12:00:00.000Z');
   });
