@@ -75,6 +75,14 @@
   («хаб пока не умеет»), как в `architecture.md` §11.1.
 - Фикстур нет: схем нет. Тесты — `packages/contracts/test/features.test.ts`, `packages/core/test/hosts/fansly/hi-ping.test.ts`.
 
+### P10b2 — «Новые» на Fansly: «Нельзя написать» и «Исключить из очереди»
+
+- `vm/actions.ts`: `ExcludeNewcomer {targetHandle, excluded}` — «Исключить из очереди» (`true`) и «Вернуть в очередь»
+  (`false`) фана, которому Fansly не даёт написать (FS-NEW-2, FX-003), по ручке строки прохода. Запрос фона — прежний
+  `fansly.followers.exclude`. Фикстура — `test/fixtures/vm.ts`.
+- `vm/newcomers.ts`, только типы: `NewcomerCardVM.exclude?` (`exclude` | `restore` | null).
+- `newcomers-fansly`: ключи `fansly.newcomers.exclude`, `fansly.newcomers.restore`, `fansly.newcomers.excludeTooltip`.
+
 ### P10b1 — «Новые» на Fansly: очередь прохода и её кнопки
 
 - `vm/actions.ts`: `SetNewcomersPassRunning {running}` — «Пауза» (`false`) и «Проверить оставшихся» (`true`) очереди

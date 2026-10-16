@@ -27,6 +27,10 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.run.resume',
   'fansly.newcomers.checkNext',
   'fansly.newcomers.checkNow',
+  // 1.15.0 R20 P10b2: «Исключить из очереди» / «Вернуть в очередь» (FS-NEW-2, FX-003).
+  'fansly.newcomers.exclude',
+  'fansly.newcomers.restore',
+  'fansly.newcomers.excludeTooltip',
   'fansly.newcomers.stage.stopped',
   'fansly.newcomers.stage.failed',
   'fansly.newcomers.range',

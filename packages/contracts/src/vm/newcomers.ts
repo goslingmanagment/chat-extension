@@ -206,6 +206,12 @@ export interface NewcomerCardVM {
    * — the queue stands: this fan alone is checked now), NF-038; null or absent — nothing left to check of this fan.
    */
   readonly checkNext?: 'next' | 'now' | null;
+  /**
+   * 1.15.0 (R20 P10b2): a fan nobody can write to (FS-NEW-2) — «Исключить из очереди» (`exclude`: out of «К
+   * обработке») or «Вернуть в очередь» (`restore`), `ExcludeNewcomer`; the exclusion is kept in this browser and goes
+   * once the fan's DMs open. Null or absent — the fan can be written to, or nothing is known yet.
+   */
+  readonly exclude?: 'exclude' | 'restore' | null;
 }
 
 /** 1.15.0 (R20 P10b1): the queue's own buttons (NF-038): `SetNewcomersPassRunning`. */
