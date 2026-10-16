@@ -5,6 +5,7 @@ import { browser, expect } from '@wdio/globals';
 import type { OpView } from '@cg/contracts';
 import type { FanslyHealth } from '@cg/contracts/bridge-messages-fansly';
 import type { FanslySnapshot } from '@cg/contracts/fansly';
+import { SESSION_KEYS } from '@cg/core/domain';
 
 import { messageCreatedFrame, type WireMessage } from '../../fixture-fansly/src/wire';
 import { budgetMs } from '../../src/e2e-timing';
@@ -128,6 +129,9 @@ describe('suite-fansly-tail: the observed window, certificates, gaps and bounded
     await callFansly('forget', A.group); await callFansly('open', A.group);
     await waitForTap(() => snapshot(), (s) => s.completeness === 'unknown', 'lastMessage names a missing id');
     await waitForFanslyStandIdle();
+    // This held request began before lastMessage's unseen grace expired: its answer cannot certify after that loss.
+    expect((await snapshot()).completeness).toBe('unknown');
+    await recover();
     expect((await complete()).window.some((m) => m.id === later)).toBe(true);
   });
 
@@ -224,6 +228,7 @@ describe('suite-fansly-tail: Reply, Fix and a reopened result carry their own ev
     await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the Fansly dock ready', 20_000);
     await waitForFanslyStandIdle();
   });
+  afterEach(async () => { await shift.toFansly(); });
   after(async () => {
     expect((await fanslyStandServer.journal(standMark)).filter((e) => e.origin !== 'asset')).toEqual([]);
     await fakeFansly().assertOursClean(0, 'suite-fansly-tail');
@@ -265,9 +270,11 @@ describe('suite-fansly-tail: Reply, Fix and a reopened result carry their own ev
       const api = (globalThis as unknown as { browser: { storage: { session: { get(): Promise<Record<string, unknown>> } } } }).browser;
       return api.storage.session.get();
     });
-    const operations = Object.values(saved).flatMap((value) => typeof value === 'object' && value !== null && 'ops' in value ? (value as { ops: Array<{ view: OpView }> }).ops : []);
-    expect(operations.find((entry) => entry.view.opId === first)?.view.freshnessProof?.fingerprint.window).toEqual(check.window);
-    expect(operations.find((entry) => entry.view.opId === second)?.view.freshnessProof?.fingerprint.window.at(-1)?.id).toBe(written);
+    // The real background adapter stores one OpView per result, not the scheduler's in-memory { ops } envelope.
+    const firstSaved = saved[`${SESSION_KEYS.resultPrefix}${first}`] as OpView | undefined;
+    const secondSaved = saved[`${SESSION_KEYS.resultPrefix}${second}`] as OpView | undefined;
+    expect(firstSaved?.freshnessProof?.fingerprint.window).toEqual(check.window);
+    expect(secondSaved?.freshnessProof?.fingerprint.window.at(-1)?.id).toBe(written);
     expect(JSON.stringify(saved)).not.toContain('a different proof');
     await shift.toFansly();
   });

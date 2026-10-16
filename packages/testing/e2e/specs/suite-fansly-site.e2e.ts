@@ -107,11 +107,13 @@ describe('the Fansly site on its stand: both scripts at document_start, the brid
       // P9a accepts the tab; the dock has its place (P7d): the application of Fansly's build starts.
       const later = await waitForReport((r) => r.rpc?.registered === true && r.app !== undefined, 'the tab registered, the application started', 20_000);
       expect([later.appError, later.runtimeError]).toEqual([undefined, undefined]);
-      // One dock host of ours, in flow right before Fansly's composer.
+      // Loading the app is not the end of the page's initial route: its group answer can replace the composer.
+      await waitForFanslyStandIdle();
+      await browser.waitUntil(async () => browser.execute(() => document.querySelector('[data-host="dock"]')?.nextElementSibling?.localName === 'app-group-message-input'), { timeout: 10_000, timeoutMsg: 'the dock is placed by the settled composer' });
+      // Exactly one dock host of ours, in flow right before Fansly's composer.
       expect(await browser.execute(() => [...document.querySelectorAll('[data-host="dock"]')].map((host) => host.nextElementSibling?.localName ?? null))).toEqual(['app-group-message-input']);
 
       // The page goes on as its own: it settles, opens a chat, and only the page — never we — asked Fansly.
-      await waitForFanslyStandIdle();
       const mark = await fake.mark();
       const logMark = mode === 'off' ? 0 : ((await callNeighbor('log')).at(-1)?.seq ?? 0);
       await callFansly('open', second);
