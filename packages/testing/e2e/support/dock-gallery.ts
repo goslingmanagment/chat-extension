@@ -34,8 +34,8 @@ export const LANGUAGES = ['ru', 'en'] as const;
 export const PAGE_PADDING = 32;
 /** Accent dots the dock states show (ui-design §1 п. 4): the whole list, per state. */
 export const ACCENTS = ['18b:archive-lag', '1b:recap-ready', '3c:result-stale', 'x-recap-slots:recap-ready'];
-/** Fansly's gallery draws the window check's marks too (R20 P8b2): the same dot of a stale result. */
-export const FANSLY_ACCENTS = [...ACCENTS, ...['unverified', 'window-miss', 'deleted-served'].map((reason) => `x-stale-${reason}:result-stale`)].sort();
+/** Fansly's gallery draws the window check's marks too (R20 P8b2; over Recap and Review — P8c): the same dot of a stale result. */
+export const FANSLY_ACCENTS = [...ACCENTS, ...['unverified', 'window-miss', 'deleted-served', 'recap', 'review'].map((reason) => `x-stale-${reason}:result-stale`)].sort();
 
 export type Box = { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number; readonly width: number; readonly height: number };
 

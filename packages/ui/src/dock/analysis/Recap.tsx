@@ -31,6 +31,7 @@ import {
 } from '../../kit';
 import { useReadyAnnouncement, useStageAnnouncements } from '../announce';
 import { Head, Meta } from '../Head';
+import { StaleRow } from '../Result';
 import { useSteadyView, useStreamText } from '../Stream';
 import { Close, CopyAll, Expand, Fact, Facts, Running, debugFooter, running, type ViewProps } from './shared';
 
@@ -215,6 +216,8 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
   }
 
   const none = i18n.t('cg.recapNotFound.title');
+  const mark = recap.stale ?? null;
+  const againReason = recap.refresh.enabled ? null : recap.refresh.reason === null ? i18n.t('common.unknown') : i18n.text(recap.refresh.reason.text);
   return (
     <>
       <Head
@@ -241,6 +244,8 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
         <Meta texts={forFan} />
       </Head>
       <div class="cg-body">
+        {/* The site's verdict over the Recap this tab built (R20 P8c): «Ещё раз» builds it anew, as «↻ Обновить». */}
+        {mark === null ? null : <StaleRow mark={mark} onAgain={() => void dispatch(recap.refresh.action)} reason={againReason} />}
         {recap.blocks === null ? (
           <div class="cg-prose">
             <span />

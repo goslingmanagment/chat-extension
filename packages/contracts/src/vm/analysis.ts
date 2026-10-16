@@ -5,7 +5,7 @@
 // with «это не сообщение фану».
 
 import { type CgErrorView } from '../errors';
-import { type COACH_BLOCK_KINDS, type OpState, type REVIEW_SECTION_KINDS } from '../ops';
+import { type COACH_BLOCK_KINDS, type OpState, type REVIEW_SECTION_KINDS, type ResultMarkVM } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
 import { type RecapLength, type UiAction } from './actions';
 import { type ReasonVM } from './catalog';
@@ -73,6 +73,12 @@ export interface RecapViewVM {
   readonly splitReason: ReasonVM;
   readonly expanded: boolean;
   readonly debug: ResultDebugVM | null;
+  /**
+   * 1.15.0 (R20 P8c): the mark over a Recap this tab generated — the site's verdict on its window check (`ResultMarkVM`
+   * with a reason of `ResultMarkKey`, spec §3.5, FS-TAIL-8); its «Ещё раз» is `refresh`. What the fan wrote after it is
+   * the archive's lag (`archiveLag`), never a mark. Absent or null — none (ChatSpace's verdict never gives one).
+   */
+  readonly stale?: ResultMarkVM | null;
 }
 
 export interface ReviewItemVM {
@@ -121,6 +127,8 @@ export interface ReviewVM {
   readonly splitReason: ReasonVM;
   readonly expanded: boolean;
   readonly debug: ResultDebugVM | null;
+  /** 1.15.0 (R20 P8c): the mark over the Review — as `RecapViewVM.stale`; its «Ещё раз» is `regenerate`. */
+  readonly stale?: ResultMarkVM | null;
 }
 
 export interface CoachTurnVM {
@@ -153,6 +161,10 @@ export interface CoachTurnVM {
   readonly confirm?: ConfirmVM | null;
   /** The debug footer of the turn, in debug mode only (1.2.0, DB-019): time, tokens, cost, «Промпт», the stage profile. */
   readonly debug?: ResultDebugVM | null;
+  /** 1.15.0 (R20 P8c): the mark over a finished answer — as `RecapViewVM.stale`; null — none. */
+  readonly stale?: ResultMarkVM | null;
+  /** 1.15.0 (R20 P8c): «Ещё раз» of a marked answer — the turn's question asked again; null — no mark, or no chat to ask in. */
+  readonly again?: ActionButtonVM | null;
 }
 
 export interface CoachVM {

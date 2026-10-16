@@ -5,9 +5,11 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { type ResultDebugVM } from '@cg/contracts';
+import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import { DEFAULT_PARTS, DOCK_CSS, preloadPart, type DockParts } from '@cg/ui/dock';
 import { ANALYSIS_STYLE } from '@cg/ui/dock/analysis';
 
+import { FANSLY_SITE_TEXTS } from '../kit/profiles';
 import { cgError, entry, handles, FANS, msg, phase, reason, recapPicker, recapView, review, scenarioById, uuid, views } from '../scenarios/app-client';
 import { type MountedKit, ctx, dockScenario, dockVm, flush, keydown, mountDock, mountDockSettled, settle, text } from './harness';
 
@@ -272,6 +274,29 @@ describe('Review', () => {
       { type: 'ShowAnalysis', view: 'review', mode: 'hidden' },
     ]);
     expect(byLabel('Ещё раз').querySelector('kbd')?.textContent).toBe('⌘⇧B');
+  });
+
+  it('R20 P8c: Fansly’s window check marks Recap and Review too — the plate of a result in its words, the accent dot, «Ещё раз» that builds or rates anew; none without one', async () => {
+    const site = { phrases: FANSLY_PHRASES, texts: FANSLY_SITE_TEXTS };
+    kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, recapView(ctx, views.ready(), 'short', { stale: { reason: 'window-miss', at: null } }))]), { site });
+    await settle(1);
+    const plate = kit.$('.cg-sheet .cg-body > .cg-stale') as HTMLElement;
+    expect([plate.getAttribute('role'), text(plate.querySelector('.cg-stale__t')), plate.querySelector('.cg-dot--accent')?.getAttribute('data-accent-use')]).toEqual(['status', 'Ответ мог не учесть последние сообщения чата.', 'result-stale']);
+    await flush(() => (plate.querySelector('button') as HTMLElement).click());
+    expect(kit.client.dispatched).toEqual([{ type: 'RefreshRecap', length: 'short' }]);
+    kit.unmount();
+
+    kit = mountDock(dockScenario(reviewDock(), {}, [entry({ of: 'review' }, review(ctx, views.ready(), { stale: { reason: 'unverified', at: null } }))]), { site });
+    await settle(1);
+    expect(text(kit.$('.cg-sheet .cg-body > .cg-stale .cg-stale__t'))).toBe('Свежесть не проверена: неизвестно, учёл ли ответ последние сообщения чата.');
+    await flush(() => (kit?.$('.cg-stale button') as HTMLElement).click());
+    expect(kit.client.dispatched).toEqual([{ type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'review', options: {} }]);
+    kit.unmount();
+
+    // ChatSpace's Recap and Review: no mark.
+    kit = mountDock('review');
+    await settle(1);
+    expect(kit.$('.cg-stale')).toBeNull();
   });
 
   it('[AI-052] a Review that did not parse shows the raw text as it is', async () => {

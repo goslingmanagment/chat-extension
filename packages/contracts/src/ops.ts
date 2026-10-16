@@ -28,6 +28,7 @@ import {
   type IsoTimestamp,
 } from './primitives';
 import { FreshnessCheckpointSchema, checkpointMatches } from './send';
+import type { SettingsExt } from './settings-ext';
 import type { UNAVAILABLE_REASONS, UnavailableReasonId } from './vm/catalog';
 
 export const OP_STATES = ['admitted', 'requesting', 'streaming', 'done', 'failed', 'canceled', 'interrupted'] as const;
@@ -681,6 +682,12 @@ export interface AiHostPolicy<P = unknown, F = unknown> {
   fingerprint(proof: P | null): F | null;
   /** The verdict on a result: the ready mark the shared result shows over its parts; null — no mark. */
   verdict(view: OpView, fingerprint: F | null): ResultMarkVM | null;
+  /**
+   * 1.15.0 (R20 P8c): the person's wish of the deep window kept by the site (Fansly's `settings.ext`: 3001…5000, §12),
+   * asked only by a start whose window is the deep one (Review, the full Recap, Coach's full auto-Recap). The planner
+   * caps it by `limits.deepMax`; a one-off window still wins. Absent, null or failed — the v1 window (ChatSpace).
+   */
+  windows?(): Promise<SettingsExt['windows'] | null>;
 }
 
 // ── Operations of a site's own slice (1.15.0, R20 P4b3; architecture §1.6, §8.8) ───────────────────────────────

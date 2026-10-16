@@ -15,7 +15,7 @@ import { type ChatKey } from '@cg/contracts/ids';
 import { UUID_PATTERN } from '@cg/contracts/primitives';
 import { type RecapLength } from '@cg/contracts/vm';
 
-import { RecapSlots, copiesOfShared, copyOfResult, saveAnswered, saveStarted, type RecapCopy, type RecapSaveState, type RecapSlotKey } from '../../domain/recap';
+import { RecapSlots, analysisMark, copiesOfShared, copyOfResult, saveAnswered, saveStarted, type RecapCopy, type RecapSaveState, type RecapSlotKey } from '../../domain/recap';
 import { type OpRecord } from './op-store';
 import { type AiPorts } from './ports';
 
@@ -47,8 +47,8 @@ export interface RecapBookDeps {
 const idOf = (key: RecapSlotKey): string => [key.hubOrigin, key.pageId, key.fanRef, key.conversationRef, key.personaDefinitionId].join('\u0000');
 
 /** What a request about the key names: the page, the fan and — R20 F6b, only when it is not the fan — the conversation. */
-const asked = (key: RecapSlotKey): { readonly pageId: number; readonly fanRef: string; readonly conversationRef?: string } =>
-  key.conversationRef === undefined ? { pageId: key.pageId, fanRef: key.fanRef } : { pageId: key.pageId, fanRef: key.fanRef, conversationRef: key.conversationRef };
+const asked = ({ pageId, fanRef, conversationRef }: RecapSlotKey): { readonly pageId: number; readonly fanRef: string; readonly conversationRef?: string } =>
+  conversationRef === undefined ? { pageId, fanRef } : { pageId, fanRef, conversationRef };
 
 export class RecapBook {
   readonly slots = new RecapSlots();
@@ -96,8 +96,8 @@ export class RecapBook {
     return this.slots.both(key);
   }
 
-  private remember(key: RecapSlotKey, copy: RecapCopy): RecapCopy {
-    const stored = this.slots.put(key, copy);
+  private remember(key: RecapSlotKey, copy: RecapCopy, keepStoredMark?: boolean): RecapCopy {
+    const stored = this.slots.put(key, copy, keepStoredMark);
     this.owners.set(stored.id, key);
     // What the slots no longer hold (a newer recap took the slot, the oldest entries were evicted) keeps nothing here.
     for (const [id, owner] of this.owners) {
@@ -127,15 +127,16 @@ export class RecapBook {
    * change) is never filed under the current persona: `recap.read` tells
    * what the hub holds for it.
    */
-  generated(record: OpRecord): RecapCopy | null {
+  generated(record: OpRecord, refreshOnly?: boolean): RecapCopy | null {
     const { view } = record;
-    const { clock, ids } = this.deps.ports;
-    const personaDefinitionId = record.memo.personaDefinitionId;
+    const { clock, ids, policy } = this.deps.ports;
+    const { personaDefinitionId, fingerprint } = record.memo;
     if (personaDefinitionId === null) return null;
-    const copy = copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
-    if (copy === null) return null;
+    // A completed asynchronous window check updates only an existing copy, preserving its handles and timestamps.
+    const copy = refreshOnly ? this.byOp(view.opId) : copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
+    if (!copy) return null;
     const { binding, fanRef, conversationRef } = view.target;
-    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, ...(conversationRef === fanRef ? {} : { conversationRef }), personaDefinitionId }, copy);
+    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, conversationRef: conversationRef === fanRef ? undefined : conversationRef, personaDefinitionId }, { ...copy, stale: analysisMark(policy.verdict(view, fingerprint)) }, false);
     // The background's saver is on it for the tab that owns the operation; its toast ends the wait.
     if (stored.length === 'full' && record.own && !this.saves.has(stored.id)) this.saves.set(stored.id, saveStarted(clock.now()));
     this.deps.changed();
@@ -150,7 +151,7 @@ export class RecapBook {
 
   /** `recap.read`: the hub's two shared recaps become the two local copies. */
   loadShared(key: RecapSlotKey, force = false): void {
-    const { clock, ids, rpc } = this.deps.ports;
+    const { clock, ids, rpc, policy } = this.deps.ports;
     const id = idOf(key);
     const known = this.reads.get(id);
     const now = clock.now();
@@ -165,7 +166,7 @@ export class RecapBook {
         this.deps.changed();
         return;
       }
-      const copies = copiesOfShared(answer.payload, { newLocalId: () => ids.uuid(), now: clock.now() });
+      const copies = copiesOfShared(answer.payload, { newLocalId: () => ids.uuid(), now: clock.now(), stale: policy.unverifiedAnalysisMark ?? null });
       for (const length of ['short', 'full'] as const) {
         const copy = copies[length];
         if (copy !== null) {

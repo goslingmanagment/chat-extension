@@ -16,7 +16,8 @@
 // - Its AI policy (§1.6, F10; R20 P8b1): Fansly's own chunk `ai-fansly`,
 //   loaded with the dock — every start's proof is MAIN's generation snapshot
 //   (the window check, the fan's known ids, the deletions, a draft's texts),
-//   its window cut by the effective messageCount of that start.
+//   its window cut by the effective messageCount of that start; a start of
+//   the deep window asks the background for the person's depth (R20 P8c).
 // - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`.
 
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
@@ -103,7 +104,7 @@ export function fanslyApp(): HostAppAdapter<FanslyPort, null> {
     features: FANSLY_FEATURE_SLICE,
     contract: FANSLY_CONTRACT,
     ui: (theme) => fanslyUi(theme),
-    ai: (lazy) => lazy<typeof AiChunk>('ai-fansly').then((chunk) => chunk.createFanslyAi({ now: () => Date.now() })),
+    ai: (lazy, rpc) => lazy<typeof AiChunk>('ai-fansly').then((chunk) => chunk.startFanslyAi(rpc)),
     start: (env) => startFanslySurfaces(env),
     registrationOf: (fanId, i18n) => {
       const at = fanslyRegistrationDate(fanId);

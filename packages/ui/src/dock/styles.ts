@@ -31,6 +31,7 @@
 // panel open.
 
 import { type StyleSource } from '../kit';
+import { STALE_ROW_CSS, STALE_ROW_NARROW_CSS } from './stale-row.css';
 
 /** Text kept for screen readers while its button shows an icon only. */
 const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;';
@@ -141,13 +142,7 @@ ${/* ── Fix: «Ваш текст» is plain, «После Fix» is the draft
 .cg-done { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-2); padding: 0 6px 0 4px; white-space: nowrap; }
 
 ${/* ── «Фан написал новое»: a tinted notice over the parts ── */ ''}
-.cg-stale {
-  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; min-height: 34px; margin: 8px 8px 0; padding: 3px 4px 3px 2px;
-  border-radius: 9px; background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); font-size: var(--cg-text-sm2);
-}
-.cg-stale > .cg-gut { width: 22px; }
-.cg-stale__t { color: var(--cg-ink-2); }
-.cg-stale__t b { color: var(--cg-ink-strong); font-weight: 600; }
+${STALE_ROW_CSS}
 
 ${/* ── the refusal of a fourth generation: what runs now ── */ ''}
 .cg-card + .cg-ops { border-top: 1px solid var(--cg-rule); }
@@ -229,8 +224,7 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
   .cg-hide { width: 26px; padding: 0; justify-content: center; }
   .cg-hide .cg-ico { display: block; }
   .cg-hide .cg-btn__t { ${VISUALLY_HIDDEN} }
-  .cg-stale { grid-template-columns: 22px minmax(0, 1fr); row-gap: 4px; padding-bottom: 6px; }
-  .cg-stale > .cg-btn { grid-column: 2; justify-self: start; }
+${STALE_ROW_NARROW_CSS}
 }
 @container cg (max-width: 359px) {
   .cg-again { width: 26px; padding: 0; justify-content: center; }

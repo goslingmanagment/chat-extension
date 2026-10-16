@@ -1247,6 +1247,12 @@ clay-line`, скругление 9, заливка `draft`.
 Fansly — `dock-gallery-fansly.e2e.ts` (`dock-fansly-mark-*`) и стенд Fansly с настоящей сборкой —
 `suite-fansly-ids` (`suite-fansly-ids-mark-*`).
 
+**Над Recap, Review и ответом Coach** (R20 P8c) — та же плашка, точка и «Ещё раз»: первой строкой тела листа Recap и
+Review, у Coach — над текстом ответа. «Ещё раз» у Recap собирает его заново (как «↻ Обновить»), у Review оценивает
+заново, у Coach задаёт тот же вопрос. Только причины проверки окна: «Фан написал новое» над ними не ставится — это их
+строка «архив отстаёт» (NEW-02). На ChatSpace таких пометок нет. Снимки — `dock-gallery-fansly.e2e.ts`
+(`x-stale-recap`, `x-stale-review`, `x-stale-coach`) и `suite-fansly-ai-analysis` (Review и Coach на стенде).
+
 ### 4.8 Карточка ошибки
 
 Сетка `30 · 1fr`. `role="alert"` при появлении. В листе карточка стоит блоком, как

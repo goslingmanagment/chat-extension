@@ -229,9 +229,10 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    * its fields of the start, the fingerprint kept with the operation and the verdict on its result — the shared AI
    * controller calls them and never names a site. Asked once, as the application starts, together with the dock's
    * chunks: a site whose policy is a lazy chunk of its own build (Fansly's `ai-fansly`, §3.1) loads it here with
-   * `lazy`; ChatSpace's is in its `tab-app` and answers at once.
+   * `lazy`; ChatSpace's is in its `tab-app` and answers at once. `rpc` — what a policy asks of the background (R20
+   * P8c: Fansly's deep window in its `settings.ext`).
    */
-  ai(lazy: <T>(entry: LazyEntryName) => Promise<T>): AiHostPolicy | Promise<AiHostPolicy>;
+  ai(lazy: <T>(entry: LazyEntryName) => Promise<T>, rpc: TabRpcClient): AiHostPolicy | Promise<AiHostPolicy>;
   /**
    * The site's own surfaces, started once with the application (R20 P13b: Fansly's vault panel and its entry): they
    * mount into our layers, load their chunks of the site's build and stop with the answer. Absent — none (ChatSpace).

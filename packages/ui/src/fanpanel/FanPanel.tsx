@@ -12,6 +12,8 @@ import { type JSX } from 'preact';
 import { type I18nKey } from '@cg/contracts/errors';
 import { type FanPanelVM, type I18n, type RecapLength, type RecapViewVM } from '@cg/contracts/vm';
 
+import { StaleRow } from '../dock/Result';
+import { STALE_ROW_CSS, STALE_ROW_NARROW_CSS } from '../dock/stale-row.css';
 import { Button, Markdown, Money, OverlayLayer, Segmented, SidePanel, StageLine, Tabs, ViewState, hotkeyText, useDispatch, useHints, useI18n, useMinuteClock, useView } from '../kit';
 
 type Kind = NonNullable<FanPanelVM['spent']>['byKind'][number]['kind'];
@@ -149,6 +151,8 @@ function RecapTab({ archive }: { readonly archive: Coverage }): JSX.Element {
   const running = recap.state === 'admitted' || recap.state === 'requesting' || recap.state === 'streaming';
   const hasText = recap.markdown !== null && recap.view.s !== 'error' && recap.view.s !== 'forbidden';
   const retrySave = recap.saved.s === 'failed' ? recap.saved.retry : null;
+  const mark = recap.stale ?? null;
+  const againReason = refresh.enabled ? null : refresh.reason === null ? i18n.t('common.unknown') : i18n.text(refresh.reason.text);
   return (
     <>
       <div class="cg-fp__sec">
@@ -169,6 +173,7 @@ function RecapTab({ archive }: { readonly archive: Coverage }): JSX.Element {
             <StageLine phase={recap.phase} startedAt={recap.phase.startedAt} />
           </div>
         ) : null}
+        {hasText && mark !== null ? <StaleRow mark={mark} onAgain={() => void dispatch(refresh.action)} reason={againReason} /> : null}
         {hasText && recap.blocks === null ? <Markdown source={recap.markdown ?? ''} class="cg-fp__md" /> : null}
         {!hasText && !running ? <ViewState view={recap.view} /> : null}
       </div>
@@ -284,6 +289,10 @@ export function FanPanel(): JSX.Element {
 }
 
 export const FAN_PANEL_CSS = `
+${STALE_ROW_CSS}
+@container cg (max-width: 420px) {
+${STALE_ROW_NARROW_CSS}
+}
 .cg-fp { font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); }
 .cg-fp__head { flex: none; display: flex; align-items: flex-start; gap: 10px; padding: 14px 8px 10px 16px; }
 .cg-fp__av {

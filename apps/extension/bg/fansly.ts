@@ -246,6 +246,12 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return ok(await vault.checkpoint((payload as FanslyTabRequestPayload<'fansly.vault.checkpoint'>).checkpoint, tab));
       case 'fansly.vault.clear':
         return ok(await vault.clear(payload as FanslyTabRequestPayload<'fansly.vault.clear'>, tab));
+      // R20 P8c: a deep start's depth above 3000 — the `windows` of the key alone.
+      case 'fansly.settings.windows': {
+        if (kit.settingsExt === undefined) return unreachable('no settings.ext port');
+        const answer = await kit.settingsExt.state();
+        return answer.ok ? ok(answer.state.ext.windows) : { ok: false, error: answer.error };
+      }
       default:
         // «Новые» (R20 P10b1, P10b2): the pass, its queue and the exclusions; `send` comes with P10c.
         if (newcomers?.handles(type) === true) return ok(await newcomers.answer(type, payload, tab));

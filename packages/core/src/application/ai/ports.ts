@@ -10,7 +10,7 @@ import { type CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { type HostPort } from '@cg/contracts/host';
 import { type LogRecord } from '@cg/contracts/logs';
-import { type AiHostPolicy } from '@cg/contracts/ops';
+import { type AiHostPolicy, type ResultMarkVM } from '@cg/contracts/ops';
 import { type TabEventPayload, type TabEventType, type TabRequestPayload, type TabRequestType, type TabResponsePayload } from '@cg/contracts/tab-messages';
 import {
   type ActionCatalog,
@@ -69,6 +69,11 @@ export interface OverlaySwitch {
   isOpen?(surface: OverlaySurface): boolean;
 }
 
+/** Local policy state for an analysis read without its generation's proof; no wire contract changes. */
+export type AiPolicy<P = unknown, F = unknown> = AiHostPolicy<P, F> & {
+  readonly unverifiedAnalysisMark?: ResultMarkVM;
+};
+
 export interface AiPorts {
   readonly rpc: TabRpcPort;
   readonly host: HostPort;
@@ -82,7 +87,7 @@ export interface AiPorts {
    * The site's AI policy (the application's half of the site's adapter, R20 F10): the proof a start gathers, the
    * site's pre-check, its fields of the start, the fingerprint kept with the operation and the verdict on its result.
    */
-  readonly policy: AiHostPolicy;
+  readonly policy: AiPolicy;
   readonly clipboard: ClipboardPort;
   readonly toasts?: ToastSink;
   readonly journal?: JournalSink;

@@ -10,6 +10,12 @@
 // equality only: their size is not an order.
 
 import { type ChatWindow, type LiveTextTail } from '@cg/contracts/host';
+import { type ResultMarkVM } from '@cg/contracts/ops';
+
+/** Analysis shows only the window-check verdict; later messages are shown by its archive-lag line. */
+export function analysisMark(mark: ResultMarkVM | null): ResultMarkVM | null {
+  return mark?.reason === 'fan-wrote' || mark?.reason === 'archive-moved' ? null : mark;
+}
 
 /** Where the archive stood: a message, a moment, or both. */
 export interface ArchivePoint {
@@ -58,6 +64,7 @@ export function archiveLag(point: ArchivePoint | null, page: PageFacts): Archive
   const at = time(point.at);
   const window = page.window;
   if (at === null || window === null || window.state !== 'ready') return null;
-  const newest = Math.max(time(window.lastFanMessageAt) ?? -Infinity, time(window.lastModelMessageAt) ?? -Infinity);
+  // A host that keeps the chat's window itself says its newest message's time alone (Fansly's `newestAt`, R20 §7.7).
+  const newest = Math.max(time(window.lastFanMessageAt) ?? -Infinity, time(window.lastModelMessageAt) ?? -Infinity, time(window.newestAt ?? null) ?? -Infinity);
   return newest > at ? { messages: null } : null;
 }

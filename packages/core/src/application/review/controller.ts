@@ -18,6 +18,7 @@ import { type ActionReceipt, type Msg, type PartialGap, type ReviewItemVM, type 
 
 import { flagRefusal, flagStateOf, isTerminalOpState } from '../../domain/ops';
 import { streamPreview } from '../../domain/output';
+import { analysisMark } from '../../domain/recap';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
@@ -146,6 +147,8 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
       expanded,
       // The sheet is the opened result: the same footer in the sheet and in the window, so unfolding moves nothing.
       debug: view === null ? null : debugVm(view, { enabled: debugOn, opened: true, now, i18n }),
+      // The site's verdict over the finished Review (R20 P8c): its «Ещё раз» is `regenerate`.
+      stale: result === null || record === null ? null : analysisMark(ws.ports.policy.verdict(record.view, record.memo.fingerprint)),
     };
   }
 
