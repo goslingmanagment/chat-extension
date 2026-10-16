@@ -19,7 +19,7 @@
 //
 // The background is measured raw, as archive-check's tripwire is: the core
 // (`background.js`, the vendored SDK's route contract and the services both
-// sites need) under its signal threshold of 808 KiB, and each site's
+// sites need) under its signal threshold of 864 KiB, and each site's
 // background chunk (`bg/<site>.js`, docs/project-unite/architecture.md §3.3)
 // under its own ceiling from the host registry. The core's headroom to the
 // threshold is the number every later PR that grows the core is checked

@@ -34,10 +34,10 @@ describe('archive check', () => {
     expect(MAX_BACKGROUND_JS_BYTES).toBeGreaterThan(MAX_JS_BYTES);
   });
 
-  it('a site’s background chunk has its own ceiling, from the host registry; the core keeps the 808 KiB signal threshold (R20 F1)', () => {
+  it('a site’s background chunk has its own ceiling, from the host registry; the core keeps the 864 KiB signal threshold (R20 F1)', () => {
     const chunk = CHATSPACE.background;
     if (chunk === undefined) throw new Error('ChatSpace has a background chunk');
-    expect(MAX_BACKGROUND_JS_BYTES).toBe(808 * 1024);
+    expect(MAX_BACKGROUND_JS_BYTES).toBe(864 * 1024);
     expect(jsCeilingOf('background.js')).toBe(MAX_BACKGROUND_JS_BYTES);
     expect(jsCeilingOf(chunk.file)).toBe(chunk.rawBytes);
     expect(jsCeilingOf('bg/other.js')).toBe(MAX_JS_BYTES);
