@@ -255,7 +255,7 @@ describe('[host:fansly] «Заметки»: the controller (R20 P11b)', () => {
     expect(w.notes.panel()).toMatchObject({ body: 'loading', editor: null });
   });
 
-  it('[FX-008] «+ По шаблону» starts the agency’s questionnaire; one per fan', async () => {
+  it('[FX-008] «+ Анкета» starts the agency’s questionnaire; one per fan', async () => {
     expect(NOTE_TEMPLATE_LABELS).toEqual(['Имя', 'Локация', 'Возраст', 'Работа', 'График', 'Хобби', 'Планы и даты', 'Фетиши', 'Характеристика', 'Медиа', 'Другое']);
     expect(NOTE_TEMPLATE_TEXT).toBe('Имя: \nЛокация: \nВозраст: \nРабота: \nГрафик: \nХобби: \nПланы и даты: \nФетиши: \nХарактеристика: \nМедиа: \nДругое: ');
     expect(isQuestionnaire(NOTE_TEMPLATE_TEXT)).toBe(true);

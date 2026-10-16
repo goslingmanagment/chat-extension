@@ -72,8 +72,8 @@ describe('the R20 parity matrix (docs/project-unite/parity-matrix.md)', () => {
 
 describe('the PRs of the R20 plan (docs/project-unite/plan.md §2)', () => {
   it('reads every PR of the stage tables, hub PRs and P17 among them', () => {
-    expect(plan.all).toHaveLength(103);
-    for (const pr of ['P1a', 'P1b', 'HF-8а', 'HF-7д0', 'F2b', 'P7a0', 'P10b1', 'P16c', 'P17']) expect(plan.all, pr).toContain(pr);
+    expect(plan.all).toHaveLength(104);
+    for (const pr of ['P1a', 'P1b', 'HF-8а', 'HF-7д0', 'F2b', 'P7a0', 'P10b1', 'P11b2', 'P16c', 'P17']) expect(plan.all, pr).toContain(pr);
     // Every owner of a matrix row is a PR of the plan.
     for (const row of matrix.rows) expect(plan.all, row.id).toContain(row.pr);
   });

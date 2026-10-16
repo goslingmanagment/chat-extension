@@ -1,7 +1,7 @@
 // The «Заметки» panel of a Fansly tab (R20 P11b; FS-NOTE-2…5; FX-006…FX-013; the Fansly extension's notes-panel.ts):
 // the fan's native Fansly notes — the name for oneself in the head (Enter or leaving the field saves a changed name,
 // Esc reverts it, an empty one deletes it), the regular notes as a flat list (edit, delete after a confirmation),
-// «+ Заметка» and «+ По шаблону», and where the panel stands. FBuddy's «FBuddy Notes» is shown with a mark and no
+// «+ Заметка» and «+ Анкета», and where the panel stands. FBuddy's «FBuddy Notes» is shown with a mark and no
 // action: someone else's. Its model is the panel's own client (contracts notes-fansly.ts); nothing here reads the
 // page or the network.
 //

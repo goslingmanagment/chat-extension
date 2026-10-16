@@ -88,7 +88,7 @@ export interface NotesPanelVM {
   readonly deleteError: CgAnyErrorWire | null;
   /** A write of this fan is in flight: «Обновить» waits for it. */
   readonly writing: boolean;
-  /** «+ По шаблону»: the fan has no questionnaire yet (one per fan). */
+  /** «+ Анкета»: the fan has no questionnaire yet (one per fan). */
   readonly template: boolean;
   /** The questionnaires among `notes`, by `noteId`: read as a table of fields (R20 P11b2). */
   readonly forms: Readonly<Record<string, readonly NotesFormPartVM[]>>;

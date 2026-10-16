@@ -31,7 +31,7 @@ const OLD_FILLED = [
 ].join('\n');
 
 describe('[host:fansly] the questionnaire’s text, both ways with the Fansly extension (R20 P11b2)', () => {
-  it('[FX-008] [FS-NOTE-2] «+ По шаблону» is the old extension’s eleven entries, in its order and its stored text', () => {
+  it('[FX-008] [FS-NOTE-2] «+ Анкета» is the old extension’s eleven entries, in its order and its stored text', () => {
     expect(NOTE_TEMPLATE_TITLE).toBe('Анкета');
     expect(NOTE_TEMPLATE_LABELS).toEqual(['Имя', 'Локация', 'Возраст', 'Работа', 'График', 'Хобби', 'Планы и даты', 'Фетиши', 'Характеристика', 'Медиа', 'Другое']);
     expect(NOTE_TEMPLATE_TEXT).toBe(OLD_212_TEMPLATE);
