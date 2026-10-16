@@ -213,6 +213,7 @@ describe('fan panel', () => {
 
   it('the Recap tab: «Recap для Hubert», short or full, its facts and «Обновить Recap ⌘⇧S»', async () => {
     ui = await mountBoardSettled('fan-panel', '14b');
+    expect(ui.$('.cg-stale')).toBeNull();
     expect(ui.$('.cg-fp [role="tab"][aria-selected="true"]')?.textContent).toBe('Recap');
     expect(ui.$('.cg-fp__cap span')?.textContent).toBe('Recap для Hubert');
     const segments = ui.$$('.cg-fp .cg-seg__b');

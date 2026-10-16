@@ -377,7 +377,7 @@ describe('[REC-01] [AI-063] [AI-066] shared recaps as local copies', () => {
 
   it('there is nothing private in a copy: no user, no chatter, only the page, the fan and the persona key it', () => {
     const copy = copyOfShared(shared.full as NonNullable<SharedRecaps['full']>, 'full', false, ids());
-    expect(Object.keys(copy as RecapCopy).sort()).toEqual(['blocks', 'coverage', 'id', 'length', 'localId', 'markdown', 'opId', 'revision', 'savedToProfile', 'source', 'storedAt']);
+    expect(Object.keys(copy as RecapCopy).sort()).toEqual(['blocks', 'coverage', 'id', 'length', 'localId', 'markdown', 'opId', 'revision', 'savedToProfile', 'source', 'stale', 'storedAt']);
     expect(Object.keys(slotKey).sort()).toEqual(['fanRef', 'hubOrigin', 'pageId', 'personaDefinitionId']);
   });
 

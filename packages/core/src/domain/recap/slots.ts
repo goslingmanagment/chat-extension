@@ -9,7 +9,7 @@
 // lengths never overwrite each other. Memory only; when the store is full
 // the ten oldest entries go.
 
-import { type CoverageLevel } from '@cg/contracts/ops';
+import { type CoverageLevel, type ResultMarkVM } from '@cg/contracts/ops';
 import { type RecapLength } from '@cg/contracts/vm';
 
 import { type RecapBlock } from '../output/recap';
@@ -50,6 +50,8 @@ export interface RecapCopy {
   readonly source: 'hub' | 'generated';
   /** The operation that generated it in this tab; null for a copy read from the hub. */
   readonly opId: string | null;
+  /** The generation's verdict, kept with its text beyond the operation's lifetime. */
+  readonly stale: ResultMarkVM | null;
   readonly storedAt: number;
 }
 
@@ -95,7 +97,7 @@ export class RecapSlots {
     const current = this.entries.get(id);
     if (current !== undefined && !supersedes(copy, current)) return current;
     // The same artifact read again keeps the handle the UI already holds.
-    const next = current !== undefined && current.id === copy.id ? { ...copy, localId: current.localId, opId: copy.opId ?? current.opId } : copy;
+    const next = current !== undefined && current.id === copy.id ? { ...copy, localId: current.localId, opId: copy.opId ?? current.opId, stale: copy.source === 'hub' ? current.stale : copy.stale } : copy;
     this.entries.delete(id);
     this.entries.set(id, next);
     if (this.entries.size > this.limits.maxEntries) {

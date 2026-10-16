@@ -40,7 +40,6 @@ import { streamPreview } from '../../domain/output';
 import { latestLength, type RecapCopy } from '../../domain/recap';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
-import { analysisMark } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorVm, featureHotkey, isOfflineCode, msg, phaseVm, views } from '../ai/view-models';
 import { isOwnSurface, type AiWorkspace, type Situation } from '../ai/workspace';
@@ -249,8 +248,8 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       expanded,
       // The sheet is the opened result: the same footer in the sheet and in the window, so unfolding moves nothing.
       debug: op === null ? null : debugVm(op.view, { enabled: debugOn, opened: true, now, i18n }),
-      // The site's verdict over the copy this tab generated, while its operation is held (R20 P8c); a copy read from the hub has none.
-      stale: copy === null || copy.opId === null ? null : analysisMark(ws, ws.ops.get(copy.opId)),
+      // A verdict belongs to the saved text, even after its operation expires or the copy is read again.
+      stale: copy?.stale ?? null,
     };
   }
 

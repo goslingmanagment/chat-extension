@@ -129,10 +129,12 @@ export class RecapBook {
    */
   generated(record: OpRecord): RecapCopy | null {
     const { view } = record;
-    const { clock, ids } = this.deps.ports;
+    const { clock, ids, policy } = this.deps.ports;
     const personaDefinitionId = record.memo.personaDefinitionId;
     if (personaDefinitionId === null) return null;
-    const copy = copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
+    const mark = policy.verdict(view, record.memo.fingerprint);
+    const stale = mark === null || mark.reason === 'fan-wrote' || mark.reason === 'archive-moved' ? null : mark;
+    const copy = copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now(), stale });
     if (copy === null) return null;
     const { binding, fanRef, conversationRef } = view.target;
     const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, ...(conversationRef === fanRef ? {} : { conversationRef }), personaDefinitionId }, copy);
@@ -165,7 +167,7 @@ export class RecapBook {
         this.deps.changed();
         return;
       }
-      const copies = copiesOfShared(answer.payload, { newLocalId: () => ids.uuid(), now: clock.now() });
+      const copies = copiesOfShared(answer.payload, { newLocalId: () => ids.uuid(), now: clock.now(), stale: this.deps.ports.policy.unverifiedAnalysisMark ?? null });
       for (const length of ['short', 'full'] as const) {
         const copy = copies[length];
         if (copy !== null) {

@@ -40,9 +40,10 @@
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import type { FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { HostPort } from '@cg/contracts/host';
-import type { AiHostPolicy, AiProofAsk, CoverageProof } from '@cg/contracts/ops';
+import type { AiProofAsk, CoverageProof } from '@cg/contracts/ops';
 import type { SettingsExt } from '@cg/contracts/settings-ext';
 
+import { type AiPolicy } from '../../../ai/ports';
 import { hiFieldsOf, hiPingGate } from './hi-ping';
 import { checkWindowOf, startProofOf } from './proof';
 import { resultChecks } from './result-checks';
@@ -75,7 +76,7 @@ function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<Fa
   return freshness.snapshot(chat, request).then((snapshot) => (snapshot === null ? null : { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()) }));
 }
 
-export function createFanslyAi(deps: FanslyAiDeps): AiHostPolicy<FanslyStartProof, ProofFingerprint> {
+export function createFanslyAi(deps: FanslyAiDeps): AiPolicy<FanslyStartProof, ProofFingerprint> {
   const checks = resultChecks(deps.now);
   return {
     watch: (host, changed) => checks.watch(host, changed),
@@ -84,6 +85,7 @@ export function createFanslyAi(deps: FanslyAiDeps): AiHostPolicy<FanslyStartProo
     fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof, ...hiFieldsOf(gathered.snapshot) }),
     fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),
     verdict: (view, fingerprint) => verdictMark(view, checks.current(view, fingerprint)),
+    unverifiedAnalysisMark: { reason: 'unverified', at: null },
     windows: () => deps.windows?.() ?? Promise.resolve(null),
   };
 }

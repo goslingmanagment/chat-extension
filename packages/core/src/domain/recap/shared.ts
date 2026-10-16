@@ -7,7 +7,7 @@
 // into its headed blocks.
 
 import { RECAP_TRANSCRIPT_COVERAGES, type RecapBody, type SharedRecaps } from '@cg/contracts/hub';
-import { type CoverageLevel, type OpView } from '@cg/contracts/ops';
+import { type CoverageLevel, type OpView, type ResultMarkVM } from '@cg/contracts/ops';
 import { type RecapLength } from '@cg/contracts/vm';
 
 import { recapBlocks, recapText } from '../output/recap';
@@ -31,6 +31,7 @@ export interface CopyIds {
   /** A new local handle (UUID) for a copy the tab has not held before. */
   readonly newLocalId: () => string;
   readonly now: number;
+  readonly stale?: ResultMarkVM | null;
 }
 
 /** A shared recap body as a slot copy; null when the body has no text. */
@@ -48,6 +49,7 @@ export function copyOfShared(body: RecapBody, length: RecapLength, savedToProfil
     savedToProfile: length === 'full' ? savedToProfile : null,
     source: 'hub',
     opId: null,
+    stale: ids.stale ?? null,
     storedAt: ids.now,
   };
 }
@@ -81,6 +83,7 @@ export function copyOfResult(view: Pick<OpView, 'opId' | 'feature' | 'result' | 
     savedToProfile: length === 'full' ? false : null,
     source: 'generated',
     opId: view.opId,
+    stale: ids.stale ?? null,
     storedAt: ids.now,
   };
 }

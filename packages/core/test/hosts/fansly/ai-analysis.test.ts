@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type Bootstrap, type ChatRef, type ContextFrame, type FreshnessPort, type FreshnessRequest, type HubFrame, type UiAction } from '@cg/contracts';
+import { chatKeyOf, type Bootstrap, type ChatRef, type ContextFrame, type FreshnessPort, type FreshnessRequest, type HubFrame, type UiAction } from '@cg/contracts';
 import { FanslySnapshotSchema, type FanslySnapshot } from '@cg/contracts/fansly';
 import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { createFanslyAi } from '@cg/core/application/hosts/fansly/ai';
@@ -21,7 +21,7 @@ import { FakeHostPort, memory, startSnapshot } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
 import { settingsWithPersona } from '../../support/ai-background';
-import { readyHarness, type Harness } from '../../support/ai-harness';
+import { readyHarness, type Harness, type HarnessOptions } from '../../support/ai-harness';
 import { FANSLY as FANSLY_SLICE, featuresOfBoth } from '../../support/features';
 import { FANSLY, NOW_MS, WORLD, fanslyAccount, fanslyChat, withFanslyPage } from '../../support/world';
 
@@ -80,7 +80,7 @@ interface FanslyTab {
   readonly wishes: { count: number };
 }
 
-async function fanslyTab(options: { readonly bootstrap?: Bootstrap; readonly windows?: () => Promise<SettingsExt['windows'] | null> } = {}): Promise<FanslyTab> {
+async function fanslyTab(options: { readonly bootstrap?: Bootstrap; readonly windows?: () => Promise<SettingsExt['windows'] | null>; readonly shared?: HarnessOptions['shared'] } = {}): Promise<FanslyTab> {
   const port = freshness();
   const wishes = { count: 0 };
   const windows = options.windows;
@@ -88,7 +88,7 @@ async function fanslyTab(options: { readonly bootstrap?: Bootstrap; readonly win
   const fake = new FakeHostPort({ start: startSnapshot, memory, checkpoint: null, answers: {}, timeline: [] });
   const h = await readyHarness(
     { baseHost: fake, memory, catalog: createFakeCatalog(ctxOf({ now: NOW_MS })), bootstrap: options.bootstrap ?? BOOTSTRAP, resolve: resolveHubErrorReference, meta: (feature) => meta(feature as Parameters<typeof meta>[0]) },
-    { settings: SETTINGS, features: FANSLY_SLICE, served: featuresOfBoth, policy },
+    { settings: SETTINGS, features: FANSLY_SLICE, served: featuresOfBoth, policy, ...(options.shared === undefined ? {} : { shared: options.shared }) },
   );
   const window = memory.chatWindows[0];
   if (window === undefined) throw new Error('no chat window in the host world');
@@ -158,6 +158,43 @@ describe('[host:fansly] R20 P8c: the verdict over Recap, Review and Coach — th
     expect(tab.h.bg.hub.streams.map(({ body }) => [body.messageCount, body.coverageCheck?.window.length, body.liveTextContext])).toEqual([[300, 60, undefined]]);
     await recapShort(tab, null);
     expect(tab.h.recapView()).toMatchObject({ length: 'short', stale: null });
+  });
+
+  function shareRecap(tab: FanslyTab): void {
+    const record = tab.h.ai.workspace.ops.get(tab.h.recapView().opId ?? '');
+    const result = record?.view.result;
+    if (result?.kind !== 'recap') throw new Error('no generated Recap');
+    tab.h.bg.sharedRecaps = {
+      full: null,
+      short: { generationRef: result.shared.generationRef, generatedAt: tab.h.recapView().generatedAt ?? '', personaDefinitionId: PERSONA.definitionId, text: result.markdown, coverage: { transcriptCoverage: 'window', requestedCount: 300, keptCount: 60 } },
+      fullSavedToProfile: false,
+    };
+  }
+
+  it('[FS-TAIL-8] a window-miss Recap reopened in a second tab without its proof is unverified, with refresh and no generation', async () => {
+    const first = await fanslyTab();
+    await recapShort(first, NEWEST);
+    shareRecap(first);
+    const second = await fanslyTab({ shared: { bg: first.h.bg, clock: first.h.clock, tab: '00000000-0000-4000-8000-000000009000' } });
+    await second.h.dispatch({ type: 'ShowRecap', length: 'short' });
+    await second.h.settle();
+    expect(second.h.recapView()).toMatchObject({ markdown: 'A short recap.', stale: { reason: 'unverified', at: null }, refresh: { enabled: true, action: { type: 'RefreshRecap', length: 'short' } } });
+    expect(first.h.bg.hub.streams).toHaveLength(1);
+  });
+
+  it('[FS-TAIL-8] the saved Recap keeps window-miss after its operation expires and the same artifact is read again', async () => {
+    const tab = await fanslyTab();
+    await recapShort(tab, NEWEST);
+    shareRecap(tab);
+    const opId = tab.h.recapView().opId ?? '';
+    await tab.h.clock.advance(30 * 60_000);
+    await tab.h.ai.workspace.ops.syncChat(chatKeyOf(fanslyChat));
+    expect(tab.h.ai.workspace.ops.get(opId)).toBeNull();
+    expect(tab.h.recapView()).toMatchObject({ markdown: 'A short recap.', stale: { reason: 'window-miss', at: null } });
+    await tab.h.dispatch({ type: 'ShowRecap', length: 'short' });
+    await tab.h.settle();
+    expect(tab.h.recapView()).toMatchObject({ markdown: 'A short recap.', stale: { reason: 'window-miss', at: null }, refresh: { enabled: true } });
+    expect(tab.h.bg.hub.streams).toHaveLength(1);
   });
 
   it('[FS-TAIL-8] [FS-TAIL-10] coach: the answer carries the verdict, its «Ещё раз» asks the same question again; a fresh answer has neither', async () => {
