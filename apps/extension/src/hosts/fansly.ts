@@ -78,7 +78,7 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
 export const FANSLY: HostDescriptor = {
   kind: 'fansly-web',
   platform: 'fansly',
-  background: { source: 'bg/fansly.ts', file: 'bg/fansly.js', rawBytes: 200 * KIB },
+  background: { source: 'bg/fansly.ts', file: 'bg/fansly.js', rawBytes: 256 * KIB }, // 200 → 256 KiB, 2026-10-16: P10c's greeting put it 2.4 KiB over (owner: raise, no byte-hunting)
   // «Fansly через вкладку» (§8.5, R20 P9c): the relay page its tabs frame, web-accessible to Fansly's pages alone.
   relayPage: FANSLY_RELAY_PAGE,
   matches: FANSLY_MATCHES,
