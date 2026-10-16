@@ -9,9 +9,9 @@
 // Everything here is the site's answer in neutral words: a verdict is a `NewcomerCheck`, a failure a code (the site's
 // own registry may name it) and never a text, a conversation the site's id of it, never the fan's.
 
-import { type PassChange, type PassHistoryPage, type PassPage, type PassState, type SourceAnswer } from '../../domain/newcomers/pass';
+import { type PassChange, type PassHistoryPage, type PassPage, type PassQuery, type PassState, type SourceAnswer } from '../../domain/newcomers/pass';
 
-export type { PassChange, PassHistoryPage, PassPage, PassRow, PassRunState, PassState, SourceAnswer } from '../../domain/newcomers/pass';
+export type { PassChange, PassCounts, PassHistoryPage, PassPage, PassQuery, PassRow, PassRunState, PassState, SourceAnswer } from '../../domain/newcomers/pass';
 
 export interface NewcomersPassSource {
   /** The window's period (NF-003): its choices, hours; the first one. */
@@ -25,7 +25,8 @@ export interface NewcomersPassSource {
   readonly historyCap: number;
   /** Opens the pass of this creator and period, or answers the open one as it is. */
   scan(hostAccountId: string, windowHours: number): Promise<SourceAnswer<PassState>>;
-  read(passId: string, offset: number, limit: number): Promise<SourceAnswer<PassPage>>;
+  /** Search, tabs, filters and counts cover the whole pass; only the matching rows are paged. */
+  read(passId: string, offset: number, limit: number, query: PassQuery): Promise<SourceAnswer<PassPage>>;
   /** A fan's conversation as the pass reads it, newest first; `before` — the oldest message already shown. */
   history(passId: string, fanRef: string, before: string | null, limit: number): Promise<SourceAnswer<PassHistoryPage>>;
   /** The window closed: the pass keeps what it found; nothing new starts for this window. Nobody waits for it. */

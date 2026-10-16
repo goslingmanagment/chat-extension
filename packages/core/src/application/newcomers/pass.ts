@@ -34,14 +34,14 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
-import { filterLeavesTodo, historyReadable, inPassTab, matchesPassSearch, mergePassRows, passesCheckFilter, placePassPage, prependHistory, writable } from '../../domain/newcomers/pass';
+import { filterLeavesTodo, historyReadable, placePassPage, prependHistory, writable } from '../../domain/newcomers/pass';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
 import { type BoardsClock } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused } from '../boards/surface';
 import { dataView, failureView, loadingView, localError, msg, reason, stamp } from '../boards/views';
 import { type NewcomersController } from './controller';
-import { type NewcomersPassSource, type PassChange, type PassRow, type PassState } from './source';
+import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQuery, type PassRow, type PassState } from './source';
 
 /** The search waits this long after the last keystroke, as on the hub's list. */
 export const PASS_SEARCH_DEBOUNCE_MS = 150;
@@ -109,6 +109,9 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   let pass: PassState | null = null;
   let rows: PassRow[] = [];
   let total = 0;
+  let counts: PassCounts | null = null;
+  /** Changes with a query or a resync: older pages cannot replace this query's rows or counters. */
+  let readRun = 0;
   /** The last change applied; null — none known yet. */
   let seq: number | null = null;
   /** Changes heard while the first page was on its way. */
@@ -145,10 +148,12 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   /** Everything of the pass on screen goes; `close` — the pass is let go too (another period or identity, the window closed). */
   function letGo(close: boolean): void {
     run += 1;
+    readRun += 1;
     if (close && pass !== null) source.close(pass.passId);
     pass = null;
     rows = [];
     total = 0;
+    counts = null;
     seq = null;
     held = [];
     reading = false;
@@ -161,6 +166,20 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   }
 
   // ── the pass and its rows ──
+
+  const query = (): PassQuery => ({ search: applied, tab, filter });
+
+  /** A new query starts its own pages: it must reach the source even when the previous result had no list to scroll. */
+  function queryChanged(): Promise<void> {
+    if (pass === null || stage !== 'live') {
+      changed();
+      return Promise.resolve();
+    }
+    rows = [];
+    total = 0;
+    counts = null;
+    return firstPage(run, source.pageSize);
+  }
 
   /**
    * Opens the pass of this tab's creator and period, then reads its first page (NF-004). `close` — the pass on screen
@@ -199,18 +218,22 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   /** The first rows, or the rows on screen again (a gap in the changes, a port that came back): `limit` rows from the top. */
   async function firstPage(mine: number, limit: number): Promise<void> {
     if (pass === null) return;
+    const request = ++readRun;
+    const wanted = query();
     reading = true;
+    loadingMore = false;
     held = [];
     changed();
     const read: PassRow[] = [];
     let latest: PassState | null = null;
     let count = 0;
+    let latestCounts: PassCounts | null = null;
     // The first read's change: the rows of later reads are at least as new, and the changes after it are heard.
     let firstSeq: number | null | undefined;
     for (let offset = 0; offset < limit; ) {
       const step = Math.min(source.readMax, limit - offset);
-      const answer = await source.read(pass.passId, offset, step);
-      if (disposed || mine !== run) return;
+      const answer = await source.read(pass.passId, offset, step, wanted);
+      if (disposed || mine !== run || request !== readRun) return;
       if (!answer.ok) {
         reading = false;
         // Rows already on screen stay with the reason beside them; with none, the list was not read (FX-017).
@@ -223,6 +246,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       read.push(...answer.value.rows);
       latest = answer.value.pass;
       count = answer.value.total;
+      latestCounts = answer.value.counts;
       if (firstSeq === undefined) firstSeq = answer.value.seq;
       offset += answer.value.rows.length;
       if (answer.value.rows.length < step || offset >= answer.value.total) break;
@@ -233,13 +257,15 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (latest !== null) {
       pass = latest;
       total = count;
+      counts = latestCounts;
       rows = placePassPage([], 0, read);
       seq = firstSeq ?? null;
     }
     const pending = held;
     held = [];
-    // Changes heard meanwhile: past the page's own (all of them, when the source does not say which it holds).
-    for (const change of pending) apply(change, seq === null);
+    // An unfiltered event can move a fan into or out of this query, even beyond its loaded page. Read the query
+    // again for correct rows AND whole-pass counts; concurrent events are coalesced behind the in-flight read.
+    if (pending.some((change) => seq === null || change.seq > seq)) return firstPage(mine, limit);
     changed();
   }
 
@@ -254,47 +280,42 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   async function nextPage(): Promise<void> {
     if (pass === null || reading || loadingMore || rows.length >= total) return;
     const mine = run;
+    const request = readRun;
     loadingMore = true;
     moreFailure = null;
     changed();
-    const answer = await source.read(pass.passId, rows.length, source.pageSize);
-    if (disposed || mine !== run) return;
+    const answer = await source.read(pass.passId, rows.length, source.pageSize, query());
+    if (disposed || mine !== run || request !== readRun) return;
     loadingMore = false;
     if (!answer.ok) moreFailure = answer.failure;
     else if (answer.value.pass === null) return gone(mine);
     else {
       rows = placePassPage(rows, rows.length, answer.value.rows);
       total = answer.value.total;
+      counts = answer.value.counts;
       pass = answer.value.pass;
     }
+    const pending = held;
+    held = [];
+    if (pending.some((change) => seq === null || change.seq > seq)) return firstPage(mine, Math.max(rows.length, source.pageSize));
     changed();
   }
 
-  /** One change of the open pass: rows replaced where they stand; a gap in the sequence reads what is on screen again. */
-  function apply(change: PassChange, any: boolean): void {
+  /** Changes carry raw rows, not this query's counts: refresh its loaded pages, never filter a partial raw list. */
+  function apply(change: PassChange): void {
     if (pass === null || change.pass.passId !== pass.passId) return;
-    if (!any && seq !== null) {
-      if (change.seq <= seq) return;
-      if (change.seq > seq + 1) {
-        void firstPage(run, Math.max(rows.length, source.pageSize));
-        return;
-      }
-    }
-    seq = change.seq;
+    if (seq !== null && change.seq <= seq) return;
     pass = change.pass;
-    // A fan new to the list joins it only when the list on screen is read to its end; otherwise it comes with its page.
-    rows = mergePassRows(rows, change.rows, rows.length >= total);
-    total = Math.max(change.pass.total, rows.length);
+    void firstPage(run, Math.max(rows.length, source.pageSize));
   }
 
   function heard(change: PassChange): void {
     if (disposed || pass === null || change.pass.passId !== pass.passId) return;
-    if (reading) {
+    if (reading || loadingMore) {
       held.push(change);
       return;
     }
-    apply(change, false);
-    changed();
+    apply(change);
   }
 
   // ── the conversation of the card ──
@@ -349,20 +370,13 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     changed();
   }
 
-  /** The rows the window shows now: the search, the tab and the filter (NF-006). */
-  function visibleRows(): { readonly searched: PassRow[]; readonly inThisTab: PassRow[]; readonly visible: PassRow[] } {
-    const searched = rows.filter((row) => matchesPassSearch(row, applied));
-    const inThisTab = searched.filter((row) => inPassTab(row.check, tab));
-    return { searched, inThisTab, visible: inThisTab.filter((row) => passesCheckFilter(row.check, filter)) };
-  }
-
   /**
    * The card is on a fan of the list as it is now: the one chosen, else the first one a greeting may be written to,
    * else the first (the old window's choice). A new choice reads its conversation — after this change, never inside it.
    */
   function reselect(): void {
-    const { visible } = visibleRows();
-    if (selected === null || !visible.some((row) => row.fanRef === selected)) selected = (visible.find((row) => writable(row.check)) ?? visible[0])?.fanRef ?? null;
+    if (reading && rows.length === 0) return;
+    if (selected === null || !rows.some((row) => row.fanRef === selected)) selected = (rows.find((row) => writable(row.check)) ?? rows[0])?.fanRef ?? null;
     // The chosen fan's chat may have become readable meanwhile (the pass gave its verdict): it is read once.
     if (selected !== null && !histories.has(selected)) void Promise.resolve().then(ensureHistory);
   }
@@ -389,7 +403,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (stage === 'failed') return 'failed';
     if (stage !== 'live' || pass === null) return 'connecting';
     // A pass that stopped before it read anyone: the list was not read (FX-017), not «nobody».
-    if (pass.state === 'stopped' && pass.failure !== null && rows.length === 0 && total === 0) return 'failed';
+    if (pass.state === 'stopped' && pass.failure !== null && pass.total === 0) return 'failed';
     return pass.state;
   }
 
@@ -430,12 +444,11 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   function build(): NewcomersVM {
     const ctx = context.current();
     const now = stageOf();
-    const { searched, inThisTab, visible } = visibleRows();
     const passId = pass?.passId ?? null;
     const rowVMs: NewcomerRowVM[] =
       passId === null
         ? []
-        : visible.map((row) => ({
+        : rows.map((row) => ({
             handle: passHandle(passId, row.fanRef),
             name: nameOf(row),
             username: row.username,
@@ -455,9 +468,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       const failure = listFailure ?? pass?.failure ?? { code: 'CG-DATA-UNAVAILABLE', retryAt: null };
       view = failureView({ code: sharedCode(failure) }, i18n, RELOAD);
       // A failure the shared registry reads as `offline` or `forbidden` is still a list not read, not an empty one: the card says so.
-    } else if (now === 'connecting' || (rows.length === 0 && (reading || now === 'scanning' || now === 'queue'))) view = loadingView(null, msg('common.loading'));
+    } else if (now === 'connecting' || (rows.length === 0 && (reading || counts === null || ((now === 'scanning' || now === 'queue') && pass?.total === 0)))) view = loadingView(null, msg('common.loading'));
     else if (rows.length === 0) view = { s: 'empty', why: msg('common.empty') };
-    else if (rowVMs.length === 0) view = { s: 'empty', why: msg('spenders.empty') };
     else {
       const gaps: PartialGap[] = [];
       if (pass?.partial === true) gaps.push({ kind: 'coverage', level: 'partial' });
@@ -466,9 +478,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     }
 
     const selectedRow = selected === null ? null : rowOf(selected);
-    // Counts are known once the first page is read: before it they are unknown, never 0.
-    const counted = passId !== null && !(reading && rows.length === 0);
     const passVM: NewcomersPassVM = {
+      passId,
       creator: ctx.account?.username ?? null,
       stage: now,
       phase: pass !== null && now === 'scanning' ? pass.phase : null,
@@ -476,7 +487,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       total: pass === null ? null : Math.max(pass.total, rows.length),
       range: pass === null ? null : { from: new Date(Date.parse(pass.startedAt) - pass.windowHours * 3_600_000).toISOString(), to: pass.startedAt },
       cooldownUntil: pass?.state === 'cooldown' ? pass.cooldownUntil : null,
-      filters: NEWCOMER_CHECK_FILTERS.map((id) => ({ id, count: counted ? inThisTab.filter((row) => passesCheckFilter(row.check, id)).length : null, pressed: id === filter })),
+      filters: NEWCOMER_CHECK_FILTERS.map((id) => ({ id, count: counts?.filters[id] ?? null, pressed: id === filter })),
       failure: now === 'failed' ? (listFailure ?? pass?.failure ?? null) : (moreFailure ?? pass?.failure ?? null),
       card: selectedRow === null || passId === null || blocked !== null ? null : cardOf(selectedRow, passId),
     };
@@ -486,7 +497,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       pageName: ctx.page?.title ?? null,
       personaLabel: ctx.persona?.label ?? null,
       tab,
-      tabs: TABS.map((t) => ({ id: t, label: msg(t === 'todo' ? 'newcomers.tab.todo' : 'newcomers.tab.all'), count: counted ? searched.filter((row) => inPassTab(row.check, t)).length : null })),
+      tabs: TABS.map((t) => ({ id: t, label: msg(t === 'todo' ? 'newcomers.tab.todo' : 'newcomers.tab.all'), count: counts?.tabs[t] ?? null })),
       windowHours,
       windowOptions: source.windows.options,
       // The hub list's filters; a pass filters by its verdicts (`pass.filters`).
@@ -526,14 +537,12 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (action.type === 'SetNewcomersTab') {
       tab = action.tab;
       filter = 'any';
-      changed();
-      return Promise.resolve(done(type));
+      return queryChanged().then(() => done(type));
     }
     if (action.type === 'SetNewcomersCheckFilter') {
       filter = action.filter;
       if (filterLeavesTodo(action.filter)) tab = 'all';
-      changed();
-      return Promise.resolve(done(type));
+      return queryChanged().then(() => done(type));
     }
     if (action.type === 'SetNewcomersWindow') {
       const hours = clampHours(action.hours);
@@ -550,7 +559,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
         searchTimer = null;
         if (applied === typed) return;
         applied = typed;
-        changed();
+        void queryChanged();
       });
       cell.invalidate();
       return Promise.resolve(done(type));
@@ -562,8 +571,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       applied = '';
       if (searchTimer !== null) clock.clearTimer(searchTimer);
       searchTimer = null;
-      changed();
-      return Promise.resolve(done(type));
+      return queryChanged().then(() => done(type));
     }
     if (action.type === 'LoadMore') {
       if (action.list !== 'newcomers') return null;

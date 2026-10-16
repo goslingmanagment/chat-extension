@@ -24,6 +24,8 @@ import { NEWCOMER_CHECK_FILTERS, type NewcomersVM } from '@cg/contracts/vm';
 import { BOOTSTRAP_PILOT_PAGES } from '@cg/testing/hub';
 
 import { createI18n } from '../../../domain/i18n';
+import { checkOf, passRowOf } from '../../../domain/hosts/fansly/newcomers';
+import { inPassTab, matchesPassSearch, passesCheckFilter } from '../../../domain/newcomers/pass';
 import { Surfaces, type PageContextPort, type PageContextState } from '../../boards';
 import { parsePassHandle, passHandle } from '../../newcomers/pass';
 import { createPassNewcomersController } from '../../newcomers/pass';
@@ -211,7 +213,18 @@ class FakeFollowers implements FanslyFollowersPort {
         if (record === undefined) return { pass: null, rows: [], total: 0 };
         const offset = payload['offset'] as number;
         const limit = payload['limit'] as number;
-        return { pass: record.view, rows: record.rows.slice(offset, offset + limit), total: record.rows.length, seq: record.seq };
+        const query = payload['query'] as FanslyTabRequestPayload<'fansly.followers.read'>['query'];
+        if (query === undefined) return { pass: record.view, rows: record.rows.slice(offset, offset + limit), total: record.rows.length, seq: record.seq };
+        const searched = record.rows.filter((row) => matchesPassSearch(passRowOf(row), query.search));
+        const inTab = searched.filter((row) => inPassTab(checkOf(row), query.tab));
+        const visible = inTab.filter((row) => passesCheckFilter(checkOf(row), query.filter));
+        return {
+          pass: record.view, rows: visible.slice(offset, offset + limit), total: visible.length, seq: record.seq,
+          counts: {
+            tabs: { todo: searched.filter((row) => inPassTab(checkOf(row), 'todo')).length, all: searched.length },
+            filters: Object.fromEntries(NEWCOMER_CHECK_FILTERS.map((id) => [id, inTab.filter((row) => passesCheckFilter(checkOf(row), id)).length])),
+          },
+        };
       }
       case 'fansly.followers.history': {
         const record = this.passes.get(payload['passId'] as string);
@@ -315,7 +328,7 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     // The card opens on the first fan to write to, with the conversation the pass read.
     expect(w.background.requests.map((request) => request.type)).toEqual(['fansly.followers.scan', 'fansly.followers.read', 'fansly.followers.history']);
     expect(w.background.of('fansly.followers.scan')).toEqual([{ hostAccountId: CREATOR, windowHours: 48 }]);
-    expect(w.background.of('fansly.followers.read')).toEqual([{ passId: uuid(0x301), offset: 0, limit: 100 }]);
+    expect(w.background.of('fansly.followers.read')).toEqual([{ passId: uuid(0x301), offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'any' } }]);
     expect(w.vm().view.s).toBe('ready');
     expect(w.vm().rows.map((row) => row.username)).toEqual(['fan_1', 'fan_2']);
   });
@@ -346,13 +359,14 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     w.background.passes.get(passId)!.rows[0] = wireRow(1, { status: 'ready' });
     w.background.change(passId, [wireRow(2, { status: 'greeted' })], {}, 5);
     await settle();
-    expect(w.background.of('fansly.followers.read').at(-1)).toEqual({ passId, offset: 0, limit: 100 });
+    expect(w.background.of('fansly.followers.read').at(-1)).toEqual({ passId, offset: 0, limit: 100, query: { search: '', tab: 'all', filter: 'any' } });
     expect(statuses(w.vm())).toEqual(['fan_1:ready', 'fan_2:greeted', 'fan_3:pending']);
 
     // The port to the background came back: what is on screen is read again.
+    const reads = w.background.of('fansly.followers.read').length;
     w.background.reconnect();
     await settle();
-    expect(w.background.of('fansly.followers.read')).toHaveLength(3);
+    expect(w.background.of('fansly.followers.read')).toHaveLength(reads + 1);
   });
 
   it('[NF-004] changes heard while the first page is on its way: only those after the page’s own change apply', async () => {
@@ -422,8 +436,8 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     ];
     const w = world(rows);
     await w.open();
-    // Pages of 100 (NF-006): the first page now (two of it are not «К обработке»), the next ones as the person scrolls.
-    expect([w.vm().rows.length, w.vm().canLoadMore]).toEqual([98, true]);
+    // Pages of 100 matches (NF-006): written-to and excluded fans are filtered before the background slices a page.
+    expect([w.vm().rows.length, w.vm().canLoadMore]).toEqual([100, true]);
     await w.controller.dispatch({ type: 'LoadMore', list: 'newcomers' });
     await w.controller.dispatch({ type: 'LoadMore', list: 'newcomers' });
     expect(w.background.of('fansly.followers.read').map((payload) => (payload as { offset: number }).offset)).toEqual([0, 100, 200]);
@@ -460,7 +474,80 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
       expect(statuses(w.vm()), query).toEqual(expected);
     }
     await w.controller.dispatch({ type: 'ResetFilters', list: 'newcomers' });
-    expect([w.vm().query, w.vm().rows.length]).toEqual(['', 248]);
+    expect([w.vm().query, w.vm().rows.length]).toEqual(['', 100]);
+  });
+
+  it('[NF-006] search finds fan 150 of a 30-day pass before the second page is loaded, including after an empty search', async () => {
+    const w = world(Array.from({ length: 150 }, (_, i) => wireRow(i + 1)));
+    await w.open();
+    await w.controller.dispatch({ type: 'SetNewcomersWindow', hours: 720 });
+    expect(w.vm().rows).toHaveLength(100);
+    for (const [query, count] of [['no such fan', 0], [fan(150), 1]] as const) {
+      await w.controller.dispatch({ type: 'Search', list: 'newcomers', query });
+      await w.clock.advance(150);
+      expect(w.vm().rows).toHaveLength(count);
+    }
+    expect(w.vm().view.s).toBe('ready');
+    expect(statuses(w.vm())).toEqual(['fan_150:ready']);
+    expect(w.vm().tabs.map((tab) => tab.count)).toEqual([1, 1]);
+    expect(w.background.of('fansly.followers.read').at(-1)).toMatchObject({ offset: 0, limit: 100, query: { search: fan(150), tab: 'todo', filter: 'any' } });
+  });
+
+  it('[NF-006] tabs and filter counts include 50 pending fans after the first 100 greeted fans, before scrolling', async () => {
+    const w = world(Array.from({ length: 150 }, (_, i) => wireRow(i + 1, { status: i < 100 ? 'greeted' : 'pending', historyRevision: null })));
+    await w.open();
+    expect(w.vm().tabs.map((tab) => tab.count)).toEqual([50, 150]);
+    expect(w.vm().pass?.filters.find((filter) => filter.id === 'pending')?.count).toBe(50);
+    expect(w.vm().rows).toHaveLength(50);
+    expect(w.vm().rows[0]?.username).toBe('fan_101');
+    await w.controller.dispatch({ type: 'SetNewcomersTab', tab: 'all' });
+    expect(w.vm().rows).toHaveLength(100);
+    expect(w.vm().pass?.filters.find((filter) => filter.id === 'contacted')?.count).toBe(100);
+    await w.controller.dispatch({ type: 'SetNewcomersCheckFilter', filter: 'pending' });
+    expect(w.vm().rows).toHaveLength(50);
+    expect(w.vm().canLoadMore).toBe(false);
+    expect(w.vm().rows.at(-1)?.username).toBe('fan_150');
+  });
+
+  it('[NF-003] [NF-006] a new 200-row pass loads offset 100 after the previous pass already loaded it', async () => {
+    const w = world(Array.from({ length: 200 }, (_, i) => wireRow(i + 1)));
+    await w.open();
+    await w.controller.dispatch({ type: 'LoadMore', list: 'newcomers' });
+    await w.controller.dispatch({ type: 'SetNewcomersWindow', hours: 720 });
+    expect([w.vm().rows.length, w.vm().canLoadMore]).toEqual([100, true]);
+    const passId = w.background.last().view.passId;
+    await w.controller.dispatch({ type: 'LoadMore', list: 'newcomers' });
+    expect(w.background.of('fansly.followers.read').at(-1)).toMatchObject({ passId, offset: 100, limit: 100 });
+    expect([w.vm().rows.length, w.vm().canLoadMore]).toEqual([200, false]);
+  });
+
+  it('[NF-004] [NF-006] an off-page change refreshes whole-pass counts and can populate an empty filter', async () => {
+    const w = world(Array.from({ length: 150 }, (_, i) => wireRow(i + 1)));
+    await w.open();
+    const passId = w.background.last().view.passId;
+    await w.controller.dispatch({ type: 'SetNewcomersCheckFilter', filter: 'pending' });
+    expect(w.vm().view.s).toBe('empty');
+    w.background.change(passId, [wireRow(150, { status: 'pending', historyRevision: null })]);
+    await settle();
+    expect(statuses(w.vm())).toEqual(['fan_150:pending']);
+    expect(w.vm().pass?.filters.find((filter) => filter.id === 'pending')?.count).toBe(1);
+    expect(w.vm().pass?.filters.find((filter) => filter.id === 'ready')?.count).toBe(149);
+    expect(w.vm().tabs.map((tab) => tab.count)).toEqual([150, 150]);
+  });
+
+  it('[NF-006] a late second page of the old query cannot replace the search result or its counts', async () => {
+    const w = world(Array.from({ length: 150 }, (_, i) => wireRow(i + 1)));
+    await w.open();
+    w.background.held.add('fansly.followers.read');
+    const loading = w.controller.dispatch({ type: 'LoadMore', list: 'newcomers' });
+    await w.controller.dispatch({ type: 'Search', list: 'newcomers', query: fan(150) });
+    await w.clock.advance(150);
+    w.background.release();
+    await loading;
+    await settle();
+    expect(statuses(w.vm())).toEqual(['fan_150:ready']);
+    expect(w.vm().tabs.map((tab) => tab.count)).toEqual([1, 1]);
+    expect(w.vm().canLoadMore).toBe(false);
   });
 
   it('[NF-007] [NF-008] [NF-009] a row and the header: the name, @username, when they followed; the creator, the stage, the dates; the card of the first fan to write to', async () => {
