@@ -411,7 +411,8 @@ describe('«Новые»: the card', () => {
         ui = null;
       }
     }
-  });
+    // Both languages mount the whole preview/card gallery; allow loaded CI headroom for the aggregate.
+  }, 20_000);
 
   it('the own lease counts down and can be renewed or let go; the other lease states say what happened', async () => {
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => vm, (vm) => ({ ...vm, claim: claimMine(ctx, FANS.tomasz) })));
