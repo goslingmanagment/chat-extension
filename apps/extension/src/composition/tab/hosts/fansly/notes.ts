@@ -5,7 +5,8 @@
 //   flag `notes`, the host's capability `headerSlot`), in an open one-to-one chat: the button in the header slot after
 //   «Регистрация» (order 20), the panel in our layer 900, ⌘⇧K — the early dispatcher's `notes` command — while it runs.
 // - The controller (core application/hosts/fansly/notes) asks `fansly.notes.*` of the background; the page's boxes
-//   are measured when asked (host-fansly notes-place.ts): on the route, the header, a resize — no observer of ours.
+//   are measured when asked (host-fansly notes-place.ts): on the route, the header, a resize — no observer of ours;
+//   the panel over the chat stops above Fansly's composer (and our dock over it), never over them.
 // - The view is `settings.ext`'s, one for every tab: read once, followed by the background's event.
 // - «✨ Заполнить из чата» (R20 P11c, FS-NOTE-6): where the page's `notesFill` is on, the site operation `notes-fill` of
 //   the open chat through the shared admission (`fansly.ops.start`, a click's token): the group as the conversation,
@@ -21,7 +22,7 @@ import { createNotesController, type NotesPort } from '@cg/core/application/host
 import { admittedOn } from '@cg/core/domain/features';
 import { NOTES_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
-import { notesMeasure } from '@cg/host-fansly/isolated/notes-place';
+import { fanslyModalOpen, notesMeasure } from '@cg/host-fansly/isolated/notes-place';
 import { NOTES_SURFACE, notesButtonSurface, notesPanelSurface } from '@cg/ui/hosts/fansly/notes';
 import { mountKitSurface, type KitMount } from '@cg/ui/kit';
 
@@ -39,7 +40,7 @@ type Wire = { readonly ok: false; readonly error: { readonly code: string } };
 export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
   const { host, rpc, win } = env;
   const context = createPageContext({ rpc, host });
-  const measure = notesMeasure(win.document);
+  const measure = notesMeasure(win.document, env.mounts.dock.host);
   const allowed = (): boolean => {
     const ctx = context.current();
     const report = host.probe();
@@ -168,11 +169,26 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     controller.sync();
   };
   const onResize = (): void => controller.layout();
+  // Esc with the focus on the page itself puts the panel away, as in the Fansly extension; a key in our UI goes to its
+  // own element (the early dispatcher), where the panel and its button take it. A field of Fansly's keeps its Esc
+  // unless the panel is the centred window, a modal of Fansly's keeps it always, and «Всегда справа» in its free
+  // column is not put away by a key.
+  const onKey = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || !event.isTrusted) return;
+    const vm = controller.panel();
+    if (!vm.shown || (vm.view === 'docked' && !vm.narrow) || fanslyModalOpen(win.document)) return;
+    const active = win.document.activeElement as HTMLElement | null;
+    const field = active !== null && (active.isContentEditable || ['input', 'textarea', 'select'].includes(active.localName));
+    if (field && vm.view !== 'center') return;
+    event.preventDefault();
+    controller.dispatch({ type: 'close' });
+  };
   const onView = (payload: unknown): void => {
     const view = (payload as { readonly view?: FanslyNotesView } | null)?.view;
     if (view !== undefined) controller.applyView(view);
   };
   win.addEventListener('resize', onResize);
+  win.document.addEventListener('keydown', onKey);
   const offs = [
     host.subscribe((event) => {
       if (event.type === 'route' || event.type === 'accounts') sync();
@@ -190,6 +206,7 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       controller.toggle();
     }),
     () => win.removeEventListener('resize', onResize),
+    () => win.document.removeEventListener('keydown', onKey),
   ];
   void fanslyRequest(rpc, 'fansly.notes.view', {}, NOTES_REQUEST_TIMEOUT_MS).then((answer) => {
     if (answer.ok && !env.life.aborted) controller.applyView(answer.payload.view);

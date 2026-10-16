@@ -81,13 +81,23 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     }
   });
 
-  it('[FX-004] [FS-NOTE-1] the button follows «Регистрация» in the header row; «Справа по кнопке» reads nothing before it opens', async () => {
+  it('[FX-004] [FS-NOTE-1] the button follows «Регистрация» in the header row, beside it, not over it; «Справа по кнопке» reads nothing before it opens', async () => {
     expect(
       await browser.execute((selector) => {
         const host = document.querySelector(selector);
         return host?.parentElement?.classList.contains('content-header-sub-row') === true && host.previousElementSibling?.getAttribute('data-header-order') === '10';
       }, SLOT),
     ).toBe(true);
+    // Each slot is as wide as its words: the middle of «Регистрация» is «Регистрация»'s, not «Заметки»'s drawn over it
+    // (WebDriver's own check of a click does not look across shadow roots).
+    expect(
+      await browser.execute(() =>
+        [...document.querySelectorAll('[data-header-order]')].map((host) => {
+          const box = host.getBoundingClientRect();
+          return box.width > 0 && document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) === host;
+        }),
+      ),
+    ).toEqual([true, true]);
     expect(await shown()).toBe(false);
     await browser.pause(1000);
     expect(await routes(mark)).toEqual([]);
@@ -122,7 +132,8 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     await name.click();
     await browser.keys([Key.End, ...' Р'.split(''), Key.Enter]);
     await browser.waitUntil(async () => (await readOurs('panel', '.cg-notes__hint', (node) => node.getAttribute('data-status'))) === 'saved', { timeout: 15_000 });
-    expect(await routes(before)).toEqual(['notes.edit']);
+    // Every write of an existing note or of the name reads the fan's notes again first (a stale write is refused).
+    expect(await routes(before)).toEqual(['account.byIds', 'notes.edit']);
 
     await pressIn('.cg-notes__foot button', '+ Заметка');
     await type('[data-notes-editor="new"] input', 'Plan');
@@ -130,20 +141,20 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     await ours('panel', '[data-notes-save]').click();
     await browser.waitUntil(async () => (await noteIds()).length === 3, { timeout: 15_000, timeoutMsg: 'the new note is not listed' });
     const created = (await noteIds())[2] as string;
-    expect(await routes(before)).toEqual(['notes.edit', 'notes.create']);
+    expect(await routes(before)).toEqual(['account.byIds', 'notes.edit', 'notes.create']);
 
     await pressIn(`[data-note-id="${created}"] button`, 'Изменить');
     await type(`[data-notes-editor="${created}"] textarea`, '!');
     await ours('panel', '[data-notes-save]').click();
     await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')), { timeout: 15_000 });
-    expect(await routes(before)).toEqual(['notes.edit', 'notes.create', 'notes.edit']);
+    expect(await routes(before)).toEqual(['account.byIds', 'notes.edit', 'notes.create', 'account.byIds', 'notes.edit']);
 
     await pressIn(`[data-note-id="${created}"] button`, 'Удалить');
     expect(await oursExists('panel', '[data-notes-confirm]')).toBe(true);
-    expect(await routes(before)).toEqual(['notes.edit', 'notes.create', 'notes.edit']);
+    expect(await routes(before)).toEqual(['account.byIds', 'notes.edit', 'notes.create', 'account.byIds', 'notes.edit']);
     await pressIn('[data-notes-confirm] button', 'Удалить');
     await browser.waitUntil(async () => (await noteIds()).length === 2, { timeout: 15_000 });
-    expect(await routes(before)).toEqual(['notes.edit', 'notes.create', 'notes.edit', 'notes.delete']);
+    expect(await routes(before)).toEqual(['account.byIds', 'notes.edit', 'notes.create', 'account.byIds', 'notes.edit', 'notes.delete']);
   });
 
   it('[FX-013] [FS-NOTE-5] a note’s text reaches neither the hub nor the tab’s diagnostics', async () => {
@@ -203,9 +214,9 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     const since = await fakeFansly().mark();
     await ours('panel', '[data-notes-save]').click();
     await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')), { timeout: 15_000 });
-    expect(await routes(since)).toEqual(['notes.edit']);
+    expect(await routes(since)).toEqual(['account.byIds', 'notes.edit']);
     await ours('panel', 'button[aria-label="Обновить"]').click();
-    await browser.waitUntil(async () => (await routes(since)).length === 2, { timeout: 15_000 });
+    await browser.waitUntil(async () => (await routes(since)).length === 3, { timeout: 15_000 });
     await waitBody('ready');
     await pressIn(`[data-note-id="${old}"] button`, 'Изменить');
     await pressIn(`[data-notes-editor="${old}"] button`, 'Текстом');
@@ -254,7 +265,7 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     expect(await routes(since)).toEqual([]);
     await ours('panel', '[data-notes-save]').click();
     await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')), { timeout: 15_000 });
-    expect(await routes(since)).toEqual(['notes.edit']);
+    expect(await routes(since)).toEqual(['account.byIds', 'notes.edit']);
     expect(await tableLabels(`[data-note-id="${old}"] [data-notes-form]`)).toEqual(ASKED);
   });
 

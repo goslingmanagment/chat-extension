@@ -7,7 +7,8 @@
 // right; in the editor each value is its own box. The Goose's rewrite under a field is terracotta (the family's AI
 // colour) with its facts in serif, as AI text is everywhere; what it drops is struck through.
 //
-// A note here is a JS comment: a CSS one would ship in the chunk.
+// A note here is a JS comment: a CSS one would ship in the chunk. The button's root is no inline-size container (as
+// «Регистрация»'s): its slot takes the words' width and never lies over the slot before it.
 
 import { type MountSurfaceKind } from '@cg/contracts/vm';
 
@@ -18,6 +19,7 @@ export const NOTES_SURFACE = 'notes' as MountSurfaceKind;
 
 export const NOTES_BUTTON_CSS = `
 :host { display: inline-flex; }
+.cg-root[data-cg-surface='header-slot'] { container-type: normal; }
 .cg-nb { display: inline-flex; align-items: center; gap: 4px; color: var(--cg-ink-muted); font-size: 12px; line-height: 14px; white-space: nowrap; }
 .cg-nb__divider { margin: 0 2px; }
 .cg-nb__button { all: unset; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border-radius: 6px; }

@@ -118,6 +118,24 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     expect(ui.panel.$('.cg-notes')).toBeNull();
   });
 
+  it('[FX-009] a change of view keeps the card and the select in it; Esc on the header button puts the panel away', async () => {
+    const ui = await open();
+    const select = ui.panel.$('select') as HTMLSelectElement;
+    select.value = 'center';
+    await flush(() => select.dispatchEvent(new Event('change', { bubbles: true })));
+    const card = ui.panel.$('.cg-notes');
+    // Narrow: «Всегда справа» opens over the chat — the same card, the select still in it.
+    const again = ui.panel.$('select') as HTMLSelectElement;
+    again.value = 'docked';
+    await flush(() => again.dispatchEvent(new Event('change', { bubbles: true })));
+    expect(ui.panel.$('.cg-notes')).toBe(card);
+    expect(ui.panel.$('select')).toBe(again);
+    const button = ui.header.$('.cg-nb__button') as HTMLButtonElement;
+    await flush(() => button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+    expect(ui.panel.$('.cg-notes')).toBeNull();
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('[FS-NOTE-4] a version conflict shows the notice and keeps the note and name drafts', async () => {
     const ui = await open();
     const conflict = { ok: false, error: { code: 'CG-NOTE-WRITE', detail: 'changed' } } as const;

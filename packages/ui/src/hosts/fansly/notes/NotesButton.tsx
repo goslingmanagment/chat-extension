@@ -47,6 +47,14 @@ export function NotesButton({ client, texts }: { readonly client: NotesClient; r
         title={key === null ? copy.title : `${copy.title} (${key.display})`}
         {...(key === null || key.aria === '' ? {} : { 'aria-keyshortcuts': key.aria })}
         onClick={() => client.dispatch({ type: 'toggle' })}
+        onKeyDown={(event) => {
+          // Esc on the button puts away the panel it opened, as Esc in the panel does (where the panel may close).
+          if (event.key !== 'Escape' || event.defaultPrevented || !view.open) return;
+          const panel = client.panel();
+          if (panel.view === 'docked' && !panel.narrow) return;
+          event.preventDefault();
+          client.dispatch({ type: 'close' });
+        }}
       >
         <NoteIcon />
         <span>{copy.button}</span>
