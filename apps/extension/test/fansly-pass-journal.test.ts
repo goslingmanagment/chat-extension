@@ -278,7 +278,7 @@ describe('[host:fansly] the pass journal in IndexedDB (R20 P10b3)', () => {
       ids: { uuid: () => crypto.randomUUID() },
       log: { service: () => undefined },
       router: { tabs: () => ['tab-1'] },
-      networkSession: { ready: Promise.resolve(), idle: () => Promise.resolve(), rateLimits: () => [], forAccount: () => template, disconnect: () => Promise.resolve() },
+      networkSession: { ready: Promise.resolve(), idle: () => Promise.resolve(), rateLimits: () => [], forAccount: () => template, disconnect: () => Promise.resolve(), onOwnRequest: () => () => undefined },
       site: {
         plug(next: HostSiteRegistry) { registry = next; return () => undefined; },
         emit(_type: string, change: { pass: { state: string } }) { if (change.pass.state === 'stopped') stopped = true; },
