@@ -1,7 +1,7 @@
 {
   "site": "chatspace",
   "files": {
-    "background.js": { "bytes": 822877, "sha256": "81ef887288df3326d0f626f698c005674fa4f082ae7c95fc6b7f4b302a50f8c9" },
+    "background.js": { "bytes": 822973, "sha256": "7269cf7e29fb88a2f475e1e93859c39595f57c825af2a69ba4160e940c892204" },
     "bg/chatspace.js": { "bytes": 90745, "sha256": "4931e60e044dc67fef40fa7f24b89c0be9748a46aba11cd1e512cfe4ea17c83f" },
     "chatspace-ws.js": { "bytes": 12678, "sha256": "9ea75cf101e688d3835fa30324604c3929ddd15a6c189253c0e2a893a1177859" },
     "content-scripts/chatspace-main.js": { "bytes": 25166, "sha256": "6b284e55932e0f13475a104b8593ca8eea630ce98112dc479ad3b422b4e3c959" },
@@ -37,8 +37,8 @@
     "lazy/chatspace/dock-debug.js": { "bytes": 70, "sha256": "a00bfe1a05cda28cddaad848d7586eaf3644832a0bc84fcdb8b4cc6ba5dc93cb" },
     "lazy/chatspace/dock.js": { "bytes": 151, "sha256": "61371fde37de342dc8712303afadf1f910f0780c807171347adefd4f20143c33" },
     "lazy/chatspace/fan-panel.js": { "bytes": 11139, "sha256": "aa598a751cf331742bccad5f03d9ec740267a54e0a70378c4d40d286adc1aadb" },
-    "lazy/chatspace/i18n-en.js": { "bytes": 74307, "sha256": "e4fa98675f52fd2c19e1f7f804b35fe9cb3c510b0beaa0aba76b7e22c630f66f" },
-    "lazy/chatspace/i18n-ru.js": { "bytes": 102166, "sha256": "f0d1a9c59196d2c1df1eaccdacb3b2f1b8a081c5250fba80fb727806babd137d" },
+    "lazy/chatspace/i18n-en.js": { "bytes": 74344, "sha256": "610a09f0c5985c62c0942d0de70c0f61eab6ef4692d0e47d86efa22a24e6112d" },
+    "lazy/chatspace/i18n-ru.js": { "bytes": 102352, "sha256": "1e72223b1f9bd575496227ff3e0a8325c39cb6a33f2247569fe126d649fcaccd" },
     "lazy/chatspace/navigation.js": { "bytes": 354, "sha256": "5127f8c4d2a36d701a2574991e2ef620d2c3bb89c6c37d05b5d3e42e3dd2d897" },
     "lazy/chatspace/newcomers.js": { "bytes": 12457, "sha256": "7846c0d19996e1d6fb0ed4ae22a341390f82d20cb54a4ba37718728b8b9b416c" },
     "lazy/chatspace/palette.js": { "bytes": 10151, "sha256": "8c26cf5c6a1e900ca6e2515cd59ee8d0f90ebfe9cab4f857e894d6d7c368d9e9" },
