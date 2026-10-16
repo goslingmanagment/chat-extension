@@ -62,10 +62,10 @@ function browserWithBackground(): FakeBrowser {
   return fake;
 }
 
-function fanslyTab(fake: FakeBrowser): TabRpcClient {
+function fanslyTab(fake: FakeBrowser, tabId = 12): TabRpcClient {
   const url = `${FANSLY_ORIGIN}/messages`;
   return createTabRpcClient({
-    api: fake.context(tabSender(fake, { url, origin: FANSLY_ORIGIN, tab: { id: 12, url } })).api,
+    api: fake.context(tabSender(fake, { url, origin: FANSLY_ORIGIN, tab: { id: tabId, url } })).api,
     validate: fanslyProtocol,
     register: { host: 'fansly-web', lateInjection: false, contractsVersion: CONTRACTS_VERSION },
     reconnectDelaysMs: [5, 10, 20],
@@ -123,7 +123,12 @@ describe('[host:fansly] «Новые» of a Fansly tab over the core’s RPC and
   it('[FX-017] [NF-001] the window on a background without Fansly’s session: the dock’s «Новые» opens it, the pass stops before anyone, and it says the list was not read — not «nobody new»', async () => {
     const fake = browserWithBackground();
     const client = fanslyTab(fake);
-    await until(() => client.state() === 'ready', 'the tab registered');
+    const other = fanslyTab(fake, 13);
+    await until(() => client.state() === 'ready' && other.state() === 'ready', 'both tabs registered');
+    const ownChanges: unknown[] = [];
+    const otherChanges: unknown[] = [];
+    const offOwn = fanslyFollowersPort(client).onChanged((change) => ownChanges.push(change));
+    const offOther = fanslyFollowersPort(other).onChanged((change) => otherChanges.push(change));
     const asked: string[] = [];
     const rpc = {
       ...client,
@@ -142,7 +147,13 @@ describe('[host:fansly] «Новые» of a Fansly tab over the core’s RPC and
     expect(asked[0]).toBe('fansly.followers.scan');
     expect(asked).not.toContain('fansly.followers.history');
     expect(vm.pass?.filters.map((filter) => filter.id)).toEqual([...NEWCOMER_CHECK_FILTERS]);
+    // P9c's addressed SitePort is shared with the pass: a registered tab without its window hears nothing.
+    await until(() => ownChanges.length > 0, 'the pass told its own window');
+    expect(otherChanges).toEqual([]);
     controller.dispose();
+    offOwn();
+    offOther();
+    other.close();
     client.close();
   });
 
