@@ -36,6 +36,7 @@ export const STAND_SOURCE_PATHS = [
   'packages/testing/e2e/',
   'packages/testing/spike/',
   'packages/testing/src/p3b/',
+  'packages/testing/src/perf/',
   'tools/ci/e2e-docker-local-p3b.sh',
 ] as const;
 

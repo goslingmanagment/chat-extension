@@ -226,6 +226,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload Fansly perf evidence
+        if: always() && steps.scope.outputs.e2e != 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: fansly-perf-${{ github.run_id }}-${{ github.run_attempt }}-part-${{ strategy.job-index }}
+          path: .cache/e2e/perf-fansly/gate
+          if-no-files-found: ignore
+          retention-days: 7
+
   # The required check «pnpm e2e». It only reads the parts' result: green when
   # every part is (a part that saw documents alone is green too), red when any
   # failed, was cancelled or never ran. `always()`: without it a failed or

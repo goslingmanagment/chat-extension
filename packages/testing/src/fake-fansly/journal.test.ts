@@ -9,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createWorld, standIds } from '../../fixture-fansly/src/data';
 import { STAND_COOKIE } from './api';
+import { fakeFanslyControl } from './client';
 import type { FakeFansly } from './index';
 import { FS_NET_1, FanslyJournal, classifyCaller, describeViolations, violationsOf, type FanslyJournalEntry } from './journal';
 import { PAGE_ORIGIN, bypass, call, openSocket, startTestFansly } from './kit';
@@ -74,6 +75,18 @@ describe('who made a call', () => {
     expect(fake.journal.calls('ours', suiteStart)).toEqual([]);
     await call(fake, 'GET', bypass(`/group/${groupA}`), { as: 'ours' });
     expect(fake.journal.calls('ours', suiteStart).map((entry) => entry.route)).toEqual(['group.detail']);
+  });
+
+  it('an insert window excludes page sends before reset and still exposes any later send', async () => {
+    const client = fakeFanslyControl(fake.apiOrigin);
+    const send = () => call(fake, 'POST', bypass('/message'), { as: 'page', body: { type: 1, content: 'synthetic send', groupId: groupA, attachments: [], likes: [], scheduledFor: 0, inReplyTo: null, createdAt: Date.now() / 1000 } });
+    expect((await send()).status).toBe(200);
+    await client.command({ op: 'reset' });
+    const mark = await client.mark();
+    expect((await client.calls('page', since)).filter((entry) => entry.route === 'message.send')).toHaveLength(1);
+    expect((await client.calls('page', mark)).filter((entry) => entry.route === 'message.send')).toEqual([]);
+    expect((await send()).status).toBe(200);
+    expect((await client.calls('page', mark)).map((entry) => entry.route)).toEqual(['message.send']);
   });
 
   it('a token issued for a neighbour names its calls, whatever their `Origin`', async () => {

@@ -40,6 +40,8 @@ export interface MemoryReading {
   /** ms since the scenario opened the stand (the caller's clock). */
   readonly at: number;
   readonly tab: ProcessReading | null;
+  /** All processes holding this site, for the 10-tab profile (older P3d reports omit this). */
+  readonly siteProcesses?: readonly ProcessReading[];
   readonly extension: ProcessReading | null;
   /** Every content process's «explicit» and the parent's, bytes: the whole profile at a glance. */
   readonly processes: ReadonlyArray<{ readonly name: string; readonly explicit: number }>;
@@ -132,6 +134,7 @@ export async function readMemory(siteHost: string, extensionHost: string | null,
     const all = [...byProcess.values()];
     return {
       tab: numbers(all.find((entry) => entry.site)),
+      siteProcesses: all.filter((entry) => entry.site).map(numbers),
       // The process of the add-on's documents; with no add-on of ours, the process of Firefox's own (built-in) ones.
       extension: numbers(all.find((entry) => entry.extension && !entry.site) ?? all.find((entry) => entry.name.startsWith('extension'))),
       processes: all.map((entry) => ({ name: entry.name, explicit: entry.heap + entry.nonHeap })),
