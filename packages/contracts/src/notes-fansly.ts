@@ -1,4 +1,4 @@
-// 1.15.0, R20 P11b: «Заметки» of a Fansly tab (FS-NOTE-*) — the model, the actions and the client of its two
+// 1.15.0, R20 P11b (the questionnaire's fields: P11b2): «Заметки» of a Fansly tab (FS-NOTE-*) — the model, the actions and the client of its two
 // surfaces: the button in the header slot after «Регистрация» and the panel in our layer 900. Types only: the
 // controller is core application/hosts/fansly/notes, the requests are `fansly.notes.*` (tab-messages-fansly.ts).
 // A note's text lives here only between the panel and the background, never in a log or the hub (FS-NOTE-5).
@@ -26,6 +26,32 @@ export type NotesProblem =
   | { readonly kind: 'deleted' }
   | { readonly kind: 'failed'; readonly error: CgAnyErrorWire; readonly created: boolean };
 
+/** A fact of a questionnaire's field and the month the Goose stamped on it («Флорида (08.2026)»), R20 P11b2. */
+export interface NotesFactVM {
+  readonly text: string;
+  readonly date: string | null;
+}
+
+/** A rewrite of a filled field the Goose offers, shown under its field (R20 P11c fills it; P11b2 keeps its place):
+ * the facts it adds and drops — both empty when it only reorders or respaces, then `proposed` is shown whole. */
+export interface NotesSuggestionVM {
+  /** Its place in `NotesEditorVM.suggestions`: what «Принять» and «Не нужно» name. */
+  readonly index: number;
+  readonly label: string;
+  readonly added: readonly string[];
+  readonly removed: readonly string[];
+  readonly proposed: string;
+  /** The fan's words behind it: shown, never saved. */
+  readonly quotes: readonly string[];
+}
+
+/** A questionnaire as the panel shows it (R20 P11b2; the Fansly extension 2.12.0, E166): its fields in note order —
+ * the label, the facts (the value's «; » parts, then the lines written under it), `value` — the facts one per line
+ * as the field's box holds them, the Goose's rewrites of that field — and the lines of no field. */
+export type NotesFormPartVM =
+  | { readonly kind: 'field'; readonly label: string; readonly facts: readonly NotesFactVM[]; readonly value: string; readonly suggestions: readonly NotesSuggestionVM[] }
+  | { readonly kind: 'text'; readonly text: string };
+
 export interface NotesEditorVM {
   /** null — a new note. */
   readonly noteId: string | null;
@@ -35,6 +61,12 @@ export interface NotesEditorVM {
   /** A create failed after it may have landed: «Создать» waits for «Обновить». */
   readonly blocked: boolean;
   readonly problem: NotesProblem | null;
+  /** The draft is a questionnaire: its fields (R20 P11b2); null — a note of free text. */
+  readonly form: readonly NotesFormPartVM[] | null;
+  /** «Текстом»: the questionnaire edited as one text, as in Fansly's own window. */
+  readonly asText: boolean;
+  /** The Goose's rewrites of filled fields, in order (empty until R20 P11c's fill). */
+  readonly suggestions: readonly NotesSuggestionVM[];
 }
 
 export interface NotesPanelVM {
@@ -58,6 +90,8 @@ export interface NotesPanelVM {
   readonly writing: boolean;
   /** «+ По шаблону»: the fan has no questionnaire yet (one per fan). */
   readonly template: boolean;
+  /** The questionnaires among `notes`, by `noteId`: read as a table of fields (R20 P11b2). */
+  readonly forms: Readonly<Record<string, readonly NotesFormPartVM[]>>;
 }
 
 export interface NotesTriggerVM {
@@ -76,6 +110,12 @@ export type NotesAction =
   | { readonly type: 'create'; readonly template: boolean }
   | { readonly type: 'edit'; readonly noteId: string }
   | { readonly type: 'input'; readonly title: string; readonly text: string }
+  /** A questionnaire's field typed in its box: the facts one per line (R20 P11b2). */
+  | { readonly type: 'field'; readonly label: string; readonly value: string }
+  /** «Текстом» / «Полями». */
+  | { readonly type: 'as-text'; readonly on: boolean }
+  /** «Принять» (`accept`) or «Не нужно» on the Goose's rewrite `index`. */
+  | { readonly type: 'suggestion'; readonly index: number; readonly accept: boolean }
   | { readonly type: 'save' }
   | { readonly type: 'cancel' }
   | { readonly type: 'ask-delete'; readonly noteId: string }
@@ -127,4 +167,19 @@ export interface NotesCopy {
   readonly views: Readonly<Record<FanslyNotesView, string>>;
   readonly narrow: string;
   readonly hotkey: string;
+  /** R20 P11b2: an untitled questionnaire's title, «Текстом» / «Полями», the table's words, the Goose's rewrite. */
+  readonly questionnaire: string;
+  readonly asText: string;
+  readonly asTextHint: string;
+  readonly asFields: string;
+  readonly asFieldsHint: string;
+  readonly blank: string;
+  readonly freeLine: string;
+  readonly factDate: string;
+  readonly suggestReplace: string;
+  readonly suggestAdd: string;
+  /** «Гусь предлагает заменить» + « в «Работа»» where the rewrite is not under its field. */
+  readonly suggestIn: string;
+  readonly accept: string;
+  readonly dismiss: string;
 }
