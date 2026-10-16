@@ -100,6 +100,8 @@ export interface FakeGroup {
   readonly unread: Set<string>;
   /** The partner's DM rules are not met: the page hides its composer (E155). */
   dmRulesUnmet: boolean;
+  /** The pass fixture's unpaid DM price (R20 P10d), in Fansly's mills. */
+  dmPriceMills?: number;
 }
 
 export interface FakeFollow {
@@ -489,7 +491,7 @@ export class FanslyWorld {
       hasDmPermissionFlags: group.dmRulesUnmet,
       partnerMissingDmPermissionFlagsChecked: false,
       // One rule set, «follow the fan» (bit 2), which the creator does not meet: the composer hides (E155).
-      dmPermissionFlags: group.dmRulesUnmet && fan !== null ? [{ id: 1, accountId: fan, type: 1, flags: 2, metadata: '{}', verificationFlags: 0, verificationMetadata: '{}' }] : [],
+      dmPermissionFlags: group.dmRulesUnmet && fan !== null ? [{ id: 1, accountId: fan, type: 1, flags: group.dmPriceMills === undefined ? 2 : 1, metadata: group.dmPriceMills === undefined ? '{}' : JSON.stringify({ '1': JSON.stringify({ price: group.dmPriceMills }) }), verificationFlags: 0, verificationMetadata: '{}' }] : [],
       accountDmPermissionFlags: { flags: 0, metadata: '{}' },
       sendReadReceipts: true,
     };

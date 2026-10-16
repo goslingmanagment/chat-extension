@@ -33,6 +33,8 @@ export interface FanslyShiftOptions {
   readonly viewport?: { readonly width: number; readonly height: number };
   /** The hub's world is already set (a second browser of the same spec): only this browser's own shift is started. */
   readonly world?: false;
+  /** Another chatter in a second browser, against the same hub and page. */
+  readonly user?: { readonly username: string; readonly password: string };
 }
 
 export interface FanslyShift {
@@ -59,7 +61,7 @@ export async function startFanslyShift(hub: FakeHubControlClient, options: Fansl
   );
   // The password is taken only from the settings page (the sender rule of `session.signIn`).
   await browser.url(testBuildPage('options.html'));
-  const signedIn = await pageRpc('session.signIn', { login: WORLD.user.username, password: SHIFT_PASSWORD });
+  const signedIn = await pageRpc('session.signIn', { login: options.user?.username ?? WORLD.user.username, password: options.user?.password ?? SHIFT_PASSWORD });
   if (!signedIn.ok) throw new Error(`sign-in: ${signedIn.error.code}`);
   await assignPersona(WORLD.pages.fansly.pageLabel);
   // «Включить Fansly», as far as the stand goes: its origins and webRequest granted, the background registers both scripts.
