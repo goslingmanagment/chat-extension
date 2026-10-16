@@ -77,6 +77,14 @@
 
 ### P10a — «Новые» на Fansly: окно прохода
 
+- Исправление P1: необязательный `fansly.followers.read.req.query` (`search`, `tab`, `filter`) применяется фоном ко
+  всему проходу **до** `offset/limit`; `res.total` при таком запросе — число совпадений, `pass.counts.total` — весь
+  проход. Ответ на запрос с `query` обязан содержать `counts`: вкладки после поиска по всему проходу, фильтры
+  после поиска в выбранной вкладке, до выбора фильтра. Старый запрос без `query` и ответ без `counts` валидны;
+  новый читатель отсутствие счётчиков считает сбоем, а не нулём. Семантика статусов — `core/domain/newcomers/pass.ts`
+  (`inPassTab`, `passesCheckFilter`, `matchesPassSearch`), вердикт строки Fansly — `checkOf`. Обработчик прохода
+  P10b1 должен обслуживать этот запрос; в P10a он проверен тестовым фоном. `NewcomersPassVM.passId?` даёт окну
+  сбросить защиту `LoadMore` при смене прохода. Положительные и отрицательные фикстуры — `protocols-fansly.ts`.
 - Реестр Fansly (`tab-messages-fansly`), добавочно: у строки `FanslyFollowerRowSchema` — необязательные `customName`
   (своё имя фана, заметка 12002), `bio`, `fanWrote` («Ждёт ответа»), `proof` (личное сообщение модели для «Уже
   писали», `FanslyPreviewMessageSchema` — теперь объявлена до строки) и `error` (почему `failed`, `CgAnyErrorWire`);

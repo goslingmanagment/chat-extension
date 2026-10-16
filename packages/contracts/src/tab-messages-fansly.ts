@@ -49,6 +49,7 @@ import { FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly
 import { SettingsExtPatchSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
+import { NEWCOMER_CHECK_FILTERS, NEWCOMERS_TABS } from './vm/actions';
 
 /** Every type of this registry starts with it; no shared type does. */
 export const FANSLY_TAB_TYPE_PREFIX = 'fansly.';
@@ -177,6 +178,14 @@ export const FanslyFollowerRowSchema = z.strictObject({
 });
 export type FanslyFollowerRow = z.infer<typeof FanslyFollowerRowSchema>;
 
+/** P10a: the background filters the WHOLE pass before slicing `offset/limit`, never just the loaded page. */
+export const FanslyFollowersQuerySchema = z.strictObject({ search: displayText(200), tab: z.enum(NEWCOMERS_TABS), filter: z.enum(NEWCOMER_CHECK_FILTERS) });
+
+/** Counts after search, before the status filter: tabs over the whole pass, filters over the chosen tab. */
+export const FanslyFollowersCountsSchema = z.strictObject({
+  tabs: z.strictObject({ todo: CountSchema, all: CountSchema }),
+  filters: z.record(z.enum(NEWCOMER_CHECK_FILTERS), CountSchema),
+});
 
 const PassRef = { passId: UuidSchema };
 
@@ -374,11 +383,14 @@ export const FANSLY_TAB_REQUESTS = {
   },
   /** The window's snapshot when it opens or after a lost port; changes then come as `fansly.followers.changed`. */
   'fansly.followers.read': {
-    req: z.strictObject({ ...PassRef, offset: CountSchema, limit: z.int().check(z.gte(1), z.lte(FANSLY_TAB_LIMITS.followerRowsPerRead)) }),
+    req: z.strictObject({ ...PassRef, offset: CountSchema, limit: z.int().check(z.gte(1), z.lte(FANSLY_TAB_LIMITS.followerRowsPerRead)), query: z.optional(FanslyFollowersQuerySchema) }),
     res: z.strictObject({
       pass: z.nullable(FanslyPassViewSchema),
       rows: z.array(FanslyFollowerRowSchema).check(z.maxLength(FANSLY_TAB_LIMITS.followerRowsPerRead)),
+      /** With `query`, the number of matches BEFORE pagination; without it, all rows as before. */
       total: CountSchema,
+      /** Required by a reader that sent `query`; absent for a legacy, unfiltered read. */
+      counts: z.optional(FanslyFollowersCountsSchema),
       /**
        * P10a: the last `fansly.followers.changed` this snapshot already holds (its `seq`): the window applies only the
        * changes after it and reads again on a gap. Absent — not said: the window applies every change it heard meanwhile.
