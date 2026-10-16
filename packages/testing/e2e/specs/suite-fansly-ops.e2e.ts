@@ -2,7 +2,7 @@
 // P12a: no voice panel yet. The TEST-only loopback probe calls its real
 // application/RPC port; the extension, scheduler, journal and SDK are real.
 import { browser, expect } from '@wdio/globals';
-import type { Admission, SiteOpView } from '@cg/contracts';
+import { TAB_PROTOCOL_VERSION, type Admission, type SiteOpView } from '@cg/contracts';
 import { WORLD, meta } from '../../src/scenarios/hub';
 import { dockIs } from '../support/shift';
 import { readReport, waitForReport } from '../support/extension';
@@ -166,6 +166,23 @@ describe('Fansly parallel generations through the shared core (R20 P8e)', () => 
     await dockIs((dock) => dock.target?.endsWith(`:${first.fan}`) === true && dock.result?.opId === ops[0], 'the refusal opens the running chat');
     expect((await callFansly('route')).groupId).toBe(first.group);
     await open(fourth.group, fourth.fan);
+    // Dock readiness precedes the coalesced tab.presence report (200 ms). Until
+    // the background sees the fourth group it can suppress the first result's
+    // toast as belonging to the open chat. Read diagnostics in the other page
+    // without activating it, so this wait does not change visibility/presence.
+    await browser.waitUntil(async () => {
+      const result = await browser.scriptCallFunction({
+        target: { context: shift.pagesTab }, awaitPromise: true,
+        functionDeclaration: `async (version, group) => {
+          const answer = await browser.runtime.sendMessage({ v: version, kind: 'req', id: 1, type: 'diagnostics.get', payload: {} });
+          if (!answer.ok) throw new Error(JSON.stringify(answer.error));
+          return answer.payload.tabs.some((tab) => tab.conversationRef === group);
+        }`,
+        arguments: [{ type: 'number', value: TAB_PROTOCOL_VERSION }, { type: 'string', value: fourth.group }],
+      });
+      if (result.type !== 'success') throw new Error(`presence diagnostics: ${JSON.stringify(result.exceptionDetails)}`);
+      return result.result.type === 'boolean' && result.result.value;
+    }, { timeout: 15_000, interval: 100, timeoutMsg: 'the background did not observe the fourth group before completing Replies' });
     const handle = (chat: (typeof chats)[number]) => `nav.chat.${WORLD.pages.fansly.platformAccountId}.${chat.fan}.${chat.group}`;
     // ER-010: the same code/scope replaces the previous toast. Complete out of order,
     // observing each result's own group before the next completion can replace its toast.
