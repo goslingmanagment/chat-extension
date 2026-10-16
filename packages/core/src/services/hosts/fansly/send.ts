@@ -690,6 +690,8 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
       flagRevision: page.flagRevision,
     };
     let custody: ClaimState;
+    // Charge the whole round trip against the ticket, even when the two clocks differ.
+    const dispatchStartedAt = clock.now();
     try {
       custody = await deps.hub.claim({ pageLabel: page.pageLabel, fanRef: request.fanRef, body });
     } catch (error) {
@@ -700,7 +702,7 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
       await end(attempt, refused(lost ? 'not-enqueued' : 'before-dispatch', lost ? 'CG-HUB-TIMEOUT' : hubCode(error, 'dispatch')));
       return viewOf(attempt);
     }
-    const reading = readDispatch(custody, request.attemptId, 0, clock.now());
+    const reading = readDispatch(custody, request.attemptId, 0, dispatchStartedAt);
     if (reading.kind === 'no-ticket') {
       prepared.cancel();
       await end(attempt, refused(reading.opened ? 'not-enqueued' : 'before-dispatch', reading.code));

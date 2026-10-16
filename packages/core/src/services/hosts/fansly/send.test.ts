@@ -314,6 +314,26 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     }
   });
 
+  it('[NF-021] a dispatch answer delayed beyond its ticket: refused without starting the POST, even with a skewed local clock', async () => {
+    const w = world();
+    const dispatch = deferred<ClaimState>();
+    w.hub.onDispatch(() => dispatch.promise);
+    const view = w.send.send(click());
+    await settle();
+    expect(w.hub.actions()).toEqual(['claim', 'dispatch']);
+    expect(w.routes[0]?.starts).toBe(0);
+    w.clock.advance(12_000);
+    dispatch.resolve(claimState({ custody: { attemptId: uuid(1), state: 'dispatching', ticket: 'tkt-delayed', ticketExpiresAt: iso(SERVER + 10_000) } }));
+    await settle();
+    // Complete a wrongly started request too, so the regression fails with «sent» instead of hanging.
+    w.routes[0]?.answer.resolve(receipt());
+    w.send.echo([{ id: '830000000000000001', conversationRef: GROUP, fromFan: false }]);
+    await expect(view).resolves.toMatchObject({ state: 'refused', proof: 'not-enqueued', code: 'CG-TIMEOUT' });
+    expect(w.routes[0]).toMatchObject({ starts: 0, cancels: 1 });
+    await settle();
+    expect(w.hub.calls.find((call) => call.body.action === 'failed')?.body).toMatchObject({ action: 'failed', attemptId: uuid(1), reason: 'not_enqueued' });
+  });
+
   it('[NF-021] a change while the route was taken is refused before the custody: no dispatch at all', async () => {
     const w = world();
     w.live = { hostAccountId: CREATOR, groupId: GROUP, fanRef: FAN, tabSessionId: TAB, historyRevision: uuid(0x98), draftRevision: 2 };
