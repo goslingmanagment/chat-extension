@@ -2,13 +2,17 @@
 // Fansly's own lazy entry; none of its registry or host code reaches ChatSpace.
 export { Surfaces, createChatNavigator, createPageContext } from '@cg/core/application/boards';
 export { createFanPanelController } from '@cg/core/application/fanpanel';
-export { createNewcomersController } from '@cg/core/application/newcomers';
 export { createPaletteDirectory } from '@cg/core/application/preview';
 
 import { createSpendersController as create, type SpendersControllerDeps } from '@cg/core/application/spenders';
 import type { HostPort } from '@cg/contracts/host';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanslyRequest } from '../../src/composition/tab/hosts/fansly/requests';
+import type * as SharedBoards from '../entries/boards';
+import { createFanslyNewcomersController } from '../../src/composition/tab/hosts/fansly/newcomers';
+
+// R20 P10a (§8.17): «Новые» reads the background's pass; the shared entry keeps its hub source.
+export const createNewcomersController: typeof SharedBoards.createNewcomersController = (deps) => createFanslyNewcomersController(deps);
 
 export function createSpendersController(deps: SpendersControllerDeps & { readonly host: HostPort }) {
   const host = deps.host as FanslyPort;

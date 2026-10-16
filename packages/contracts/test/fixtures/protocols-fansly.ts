@@ -50,6 +50,16 @@ export const fanslyRow = {
   checkedAt: ISO,
 } as const;
 
+/** P10a: what the «Новые» window shows of a row — the person's name for the fan, the about, «Ждёт ответа», the proof, the failure. */
+export const fanslyRowShown = {
+  ...fanslyRow,
+  customName: 'Алекс',
+  bio: 'NYC · gym',
+  fanWrote: true,
+  proof: { messageId: '700000000000000041', fromFan: false, at: ISO, text: 'hey ❤️', automated: false, attachments: 0 },
+  error: null,
+} as const;
+
 export const fanslyNote = { noteId: '700000000000000010', title: 'Анкета', text: 'Имя: Алекс\nЛокация: ', foreign: false } as const;
 export const voiceNoteView = {
   voiceNoteId: 77,
@@ -73,6 +83,8 @@ export const vaultCheckpoint = {
   updatedAt: T0 + 1000,
 } as const;
 const passRef = { passId: uuid(301) } as const;
+const followersQuery = { search: '@fan_one', tab: 'todo', filter: 'ready' } as const;
+const followersCounts = { tabs: { todo: 1, all: 2 }, filters: { any: 1, ready: 1, pending: 0, reply: 0, unchecked: 0, 'dm-closed': 0, contacted: 0 } } as const;
 const noteTarget = { hostAccountId: F.creator, fanRef: F.fan } as const;
 const voiceRef = { attemptId: uuid(320), pageId: 12, voiceNoteId: 77 } as const;
 
@@ -109,11 +121,33 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     res: { valid: [{ ok: true, pass: fanslyPass }, { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } }], invalid: [{ ok: true }, { ok: false, error: { code: 'CG-API-02' } }] },
   },
   'fansly.followers.read': {
-    req: { valid: [{ ...passRef, offset: 0, limit: 500 }], invalid: [{ ...passRef, offset: 0, limit: 501 }, { ...passRef, offset: -1, limit: 10 }] },
+    req: {
+      valid: [{ ...passRef, offset: 0, limit: 500 }, { ...passRef, offset: 100, limit: 100, query: followersQuery }],
+      invalid: [
+        { ...passRef, offset: 0, limit: 501 }, { ...passRef, offset: -1, limit: 10 },
+        ...[{ ...followersQuery, tab: 'other' }, { ...followersQuery, filter: 'other' }, { ...followersQuery, search: 'x'.repeat(201) }].map((query) => ({ ...passRef, offset: 0, limit: 100, query })),
+      ],
+    },
     res: {
-      valid: [{ pass: fanslyPass, rows: [fanslyRow, { ...fanslyRow, fanRef: '700000000000000005', groupId: null, status: 'dm-closed', dmClosed: 'paid', historyRevision: null, checkedAt: null }], total: 2 }, { pass: null, rows: [], total: 0 }],
+      valid: [
+        { pass: fanslyPass, rows: [fanslyRow, { ...fanslyRow, fanRef: '700000000000000005', groupId: null, status: 'dm-closed', dmClosed: 'paid', historyRevision: null, checkedAt: null }], total: 2 },
+        { pass: null, rows: [], total: 0 },
+        { pass: fanslyPass, rows: [fanslyRow], total: 1, counts: followersCounts, seq: 7 },
+        // P10a: the window's fields of a row, the fast part's phase, the change the snapshot holds.
+        { pass: { ...fanslyPass, state: 'scanning', phase: 'profiles' }, rows: [fanslyRowShown, { ...fanslyRow, status: 'failed', historyRevision: null, error: { code: 'CG-FAN-REQUEST', httpStatus: 500 } }], total: 2, seq: 7 },
+      ],
       // A row whose conversation is not an id, and one whose status is not in the list.
-      invalid: [{ pass: fanslyPass, rows: [{ ...fanslyRow, groupId: 'group-1' }], total: 1 }, { pass: fanslyPass, rows: [{ ...fanslyRow, status: 'sent' }], total: 1 }],
+      invalid: [
+        { pass: fanslyPass, rows: [{ ...fanslyRow, groupId: 'group-1' }], total: 1 },
+        { pass: fanslyPass, rows: [{ ...fanslyRow, status: 'sent' }], total: 1 },
+        // P10a: a phase the pass does not have, a proof without its automation mark, a failure of no registry, a negative change.
+        { pass: { ...fanslyPass, phase: 'notes' }, rows: [], total: 0 },
+        { pass: fanslyPass, rows: [{ ...fanslyRowShown, proof: { messageId: '700000000000000041', fromFan: false, at: ISO, text: 'hey', attachments: 0 } }], total: 1 },
+        { pass: fanslyPass, rows: [{ ...fanslyRow, error: { code: 'CG-FAN-01' } }], total: 1 },
+        { pass: fanslyPass, rows: [], total: 0, seq: -1 },
+        { pass: fanslyPass, rows: [], total: 0, counts: { ...followersCounts, tabs: { todo: -1, all: 2 } } },
+        { pass: fanslyPass, rows: [], total: 0, counts: { ...followersCounts, filters: { any: 0 } } },
+      ],
     },
   },
   'fansly.followers.prioritize': { req: { valid: [{ ...passRef, fanRef: F.fan }], invalid: [{ ...passRef, fanRef: '0' }] }, res: ack },

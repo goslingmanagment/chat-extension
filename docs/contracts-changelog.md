@@ -75,6 +75,43 @@
   («хаб пока не умеет»), как в `architecture.md` §11.1.
 - Фикстур нет: схем нет. Тесты — `packages/contracts/test/features.test.ts`, `packages/core/test/hosts/fansly/hi-ping.test.ts`.
 
+### P10b1 — «Новые» на Fansly: очередь прохода и её кнопки
+
+- `vm/actions.ts`: `SetNewcomersPassRunning {running}` — «Пауза» (`false`) и «Проверить оставшихся» (`true`) очереди
+  прохода фона; `CheckNewcomerNext {targetHandle}` — «Проверить следующим» / «Проверить чат» по ручке строки прохода
+  (NF-038). Запросы фона — прежние `fansly.followers.{pause,resume,prioritize}`. Фикстура — `test/fixtures/vm.ts`.
+- `vm/newcomers.ts`, только типы: `NewcomersPassVM.run?` (`NewcomersPassRunVM`: можно ли «Пауза», «Проверить
+  оставшихся» и сколько осталось, кнопка ждёт ответа) и `NewcomerCardVM.checkNext?` (`next` | `now` | null).
+- `newcomers-fansly`: ключи `fansly.newcomers.run.pause`, `fansly.newcomers.run.resume`, `fansly.newcomers.checkNext`,
+  `fansly.newcomers.checkNow`.
+
+### P10a — «Новые» на Fansly: окно прохода
+
+- Исправление P1: необязательный `fansly.followers.read.req.query` (`search`, `tab`, `filter`) применяется фоном ко
+  всему проходу **до** `offset/limit`; `res.total` при таком запросе — число совпадений, `pass.counts.total` — весь
+  проход. Ответ на запрос с `query` обязан содержать `counts`: вкладки после поиска по всему проходу, фильтры
+  после поиска в выбранной вкладке, до выбора фильтра. Старый запрос без `query` и ответ без `counts` валидны;
+  новый читатель отсутствие счётчиков считает сбоем, а не нулём. Семантика статусов — `core/domain/newcomers/pass.ts`
+  (`inPassTab`, `passesCheckFilter`, `matchesPassSearch`), вердикт строки Fansly — `checkOf`. Обработчик прохода
+  P10b1 должен обслуживать этот запрос; в P10a он проверен тестовым фоном. `NewcomersPassVM.passId?` даёт окну
+  сбросить защиту `LoadMore` при смене прохода. Положительные и отрицательные фикстуры — `protocols-fansly.ts`.
+- Реестр Fansly (`tab-messages-fansly`), добавочно: у строки `FanslyFollowerRowSchema` — необязательные `customName`
+  (своё имя фана, заметка 12002), `bio`, `fanWrote` («Ждёт ответа»), `proof` (личное сообщение модели для «Уже
+  писали», `FanslyPreviewMessageSchema` — теперь объявлена до строки) и `error` (почему `failed`, `CgAnyErrorWire`);
+  у прохода `FanslyPassViewSchema.phase?` (`FANSLY_PASS_PHASES`: welcome, followers, profiles, checking); у ответа
+  `fansly.followers.read` — `seq?`, последнее изменение `fansly.followers.changed`, которое снимок уже содержит;
+  предел `FANSLY_TAB_LIMITS.bioMaxChars`. Старые строки и снимки без полей валидны. Фикстуры — `test/fixtures/
+  protocols-fansly.ts`, верные и неверные.
+- `vm/newcomers.ts`, только типы: `NewcomersVM.pass?` — список, который проверяет проход фона (`NewcomersPassVM`:
+  стадия и фаза, «Проверено N из M», даты окна, пауза, фильтры по вердикту, отказ, карточка `NewcomerCardVM` с
+  перепиской прохода `NewcomerHistoryVM` до предела и адресом «Открыть … ↗»); `NewcomerRowVM.check?`;
+  `NEWCOMER_CHECKS`, `NEWCOMERS_PASS_STAGES`, `NEWCOMERS_PASS_PHASES`. Сайта не называют.
+- `vm/actions.ts`: `NEWCOMER_CHECK_FILTERS` и действие `SetNewcomersCheckFilter` — фильтр списка прохода. Остальные
+  действия окна — прежние (`SetNewcomersWindow`, `SetNewcomersTab`, `Search`, `LoadMore`, `ResetFilters`,
+  `ReloadView`, `OpenPreview`/`LoadOlder`/`RefreshArchive` по ручке строки прохода). Фикстура — `test/fixtures/vm.ts`.
+- `newcomers-fansly` (новый, только подпуть): ключи текстов окна `fansly.newcomers.*`; тексты — пакет Fansly
+  (`core/src/domain/hosts/fansly/i18n/newcomers.ts`), приходят с чанком окна; общий каталог их не несёт.
+
 ### P8b2 — слова пометки проверки окна
 
 - **`vm`: `ResultMarkKey`** — ключи слов пометки, которую вердикт проверки окна ставит над результатом (`ResultVM.stale`

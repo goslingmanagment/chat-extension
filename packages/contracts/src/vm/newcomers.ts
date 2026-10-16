@@ -7,7 +7,7 @@
 import { type CgErrorView } from '../errors';
 import { type LEASE_HOLDERS } from '../hub/newcomers';
 import { type IsoTimestamp } from '../primitives';
-import { type GreetingFilter, type NewcomersTab } from './actions';
+import { type GreetingFilter, type NewcomerCheckFilter, type NewcomersTab } from './actions';
 import { type Msg } from './i18n';
 import { type TargetHandle } from './selectors';
 import { type ActionButtonVM, type DataStamp, type VmView } from './view';
@@ -78,6 +78,8 @@ export interface NewcomerRowVM {
   readonly hasDraft: boolean;
   readonly draftStale: boolean;
   readonly selected: boolean;
+  /** 1.15.0 (R20 P10a): the verdict of the background's pass, where a pass checks the list (`NewcomersVM.pass`). */
+  readonly check?: NewcomerCheckVM;
 }
 
 export interface NewcomersVM {
@@ -106,4 +108,138 @@ export interface NewcomersVM {
   readonly hint: Msg;
   /** «AI ничего не отправляет сам: только по вашему нажатию.» (NF-028). */
   readonly noAutoSend: Msg;
+  /**
+   * 1.15.0 (R20 P10a): the list comes from the background's own pass over the site, not from the hub — its progress,
+   * its filters and the card it reads. Absent — the hub's list; its card is the `preview` view.
+   */
+  readonly pass?: NewcomersPassVM;
+}
+
+// ── A list a background pass checks (1.15.0, R20 P10a; R20 architecture §8.7) ──
+//
+// Where no hub list says who is new, the background reads the site itself (a pass: the new followers, their
+// profiles, then one queue that checks each one's chat) and the window shows it as it goes: each row's verdict, the
+// pass's progress, and a card drawn from what the pass read — never the hub archive, never a chat the person did
+// not open. The rows change in place as the pass tells the window; the window never polls. The surface of such a
+// site draws `pass`; the words of its statuses are the site's own.
+
+/** The pass's verdict about one fan (NF-005). `unverified` — no personal message was found, but the history was not read to its end. */
+export const NEWCOMER_CHECKS = ['checking', 'pending', 'ready', 'reply', 'unverified', 'greeted', 'dm-closed', 'excluded', 'failed'] as const;
+export type NewcomerCheck = (typeof NEWCOMER_CHECKS)[number];
+
+/** Why a fan cannot be messaged: a paid DM, or rules of the fan's the creator does not meet (FS-NEW-2). */
+export type NewcomerDmClosed = 'paid' | 'permissions';
+
+export interface NewcomerCheckVM {
+  readonly status: NewcomerCheck;
+  /** The creator's own name for the fan, shown beside the name; null — none. */
+  readonly customName: string | null;
+  readonly dmClosed: NewcomerDmClosed | null;
+}
+
+/** A failure the pass or its window reports: the code may be the site's own (its registry and texts), never a raw text. */
+export interface NewcomersFailureVM {
+  readonly code: string;
+  /** A deadline the code waits for (a cooldown), epoch ms; null — none. */
+  readonly retryAt: number | null;
+}
+
+/** Where the pass stands: `connecting` — no answer of the background yet; `failed` — the list was not read (FX-017: never «nobody»). */
+export const NEWCOMERS_PASS_STAGES = ['connecting', 'scanning', 'queue', 'paused', 'cooldown', 'done', 'stopped', 'failed'] as const;
+export type NewcomersPassStage = (typeof NEWCOMERS_PASS_STAGES)[number];
+
+/** What the fast part reads while `scanning` (NF-008). */
+export const NEWCOMERS_PASS_PHASES = ['welcome', 'followers', 'profiles', 'checking'] as const;
+export type NewcomersPassPhase = (typeof NEWCOMERS_PASS_PHASES)[number];
+
+/** One message of the card's conversation (NF-010), as the pass read it; `automated` — a welcome or a mass message, marked. */
+export interface NewcomerMessageVM {
+  readonly id: string;
+  readonly fromFan: boolean;
+  readonly at: IsoTimestamp;
+  readonly text: string;
+  readonly automated: boolean;
+  readonly attachments: number;
+}
+
+/** The card's conversation, oldest first (NF-010). */
+export interface NewcomerHistoryVM {
+  /**
+   * `unchecked` — the pass has not read this fan's chat yet; `none` — no conversation to read (the pass found none);
+   * `loading` — the first page is on its way; `ready`; `failed` — the read failed (`failure`, «Повторить» is RefreshArchive).
+   */
+  readonly s: 'unchecked' | 'none' | 'loading' | 'ready' | 'failed';
+  readonly messages: readonly NewcomerMessageVM[];
+  /** Older messages are there: «Более ранние сообщения» (LoadOlder). */
+  readonly more: boolean;
+  readonly loadingMore: boolean;
+  /** The window's cap is reached (`cap` messages): the rest is in the chat itself. */
+  readonly capped: boolean;
+  readonly cap: number;
+  readonly failure: NewcomersFailureVM | null;
+}
+
+/** The card of the selected fan (NF-009…NF-011): the profile, the verdict, the conversation the pass read, and the way into the chat. */
+export interface NewcomerCardVM {
+  readonly handle: TargetHandle;
+  readonly name: string;
+  readonly username: string | null;
+  readonly customName: string | null;
+  readonly followedAt: IsoTimestamp;
+  /** When the pass checked the fan; null — not yet. */
+  readonly checkedAt: IsoTimestamp | null;
+  readonly bio: string | null;
+  readonly check: NewcomerCheck;
+  readonly dmClosed: NewcomerDmClosed | null;
+  /** `failed`: why. */
+  readonly failure: NewcomersFailureVM | null;
+  /** `greeted` — «Уже писали»: the creator's personal message that proves it, shown folded. */
+  readonly proof: NewcomerMessageVM | null;
+  readonly history: NewcomerHistoryVM;
+  /**
+   * «Открыть … ↗» (NF-011): the fan's chat on the site, opened by the person's own click in a new tab — the window
+   * stays open; null — no conversation is known.
+   */
+  readonly openHref: string | null;
+  /**
+   * 1.15.0 (R20 P10b1): «Проверить следующим» (`next` — the queue runs: this fan goes first) or «Проверить чат» (`now`
+   * — the queue stands: this fan alone is checked now), NF-038; null or absent — nothing left to check of this fan.
+   */
+  readonly checkNext?: 'next' | 'now' | null;
+}
+
+/** 1.15.0 (R20 P10b1): the queue's own buttons (NF-038): `SetNewcomersPassRunning`. */
+export interface NewcomersPassRunVM {
+  /** «Пауза»: the queue runs and may stop. */
+  readonly pause: boolean;
+  /** «Проверить оставшихся: N»: the queue stands with `remaining` fans left to check. */
+  readonly resume: boolean;
+  readonly remaining: number;
+  /** A button's request is on its way: the buttons wait. */
+  readonly busy: boolean;
+}
+
+export interface NewcomersPassVM {
+  /** The background's pass identity: another period must reset the window's pagination guard. */
+  readonly passId?: string | null;
+  /** The creator whose followers these are, «@lora» (NF-008); null — unknown. */
+  readonly creator: string | null;
+  readonly stage: NewcomersPassStage;
+  /** The fast part's step while `scanning`; null otherwise. */
+  readonly phase: NewcomersPassPhase | null;
+  /** «Проверено 40 из 120»; null — not known yet. */
+  readonly checked: number | null;
+  readonly total: number | null;
+  /** The window's dates (NF-008): from when to when the pass looks; null — no pass yet. */
+  readonly range: { readonly from: IsoTimestamp; readonly to: IsoTimestamp } | null;
+  /** `cooldown`: when the pass goes on, epoch ms. */
+  readonly cooldownUntil: number | null;
+  /** The status filters with counts (NF-006): `SetNewcomersCheckFilter`. */
+  readonly filters: readonly { readonly id: NewcomerCheckFilter; readonly count: number | null; readonly pressed: boolean }[];
+  /** The list was not read (`failed`) or the pass stopped (`stopped`): why. */
+  readonly failure: NewcomersFailureVM | null;
+  /** The selected fan's card; null — the list is empty. */
+  readonly card: NewcomerCardVM | null;
+  /** 1.15.0 (R20 P10b1): «Пауза» and «Проверить оставшихся» (NF-038); absent — none. */
+  readonly run?: NewcomersPassRunVM;
 }

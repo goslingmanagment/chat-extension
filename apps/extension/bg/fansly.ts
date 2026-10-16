@@ -23,6 +23,11 @@
 // Forgotten checkpoints go with the module's first start and «Очистить
 // локальные данные».
 //
+// R20 P10b1: «Новые» — the pass Б17 and its queue (core services/hosts/fansly/
+// newcomers.ts) answer `fansly.followers.{scan,read,pause,resume,prioritize,
+// history,close}` over FS-NET-1's purpose `newcomers`, and tell the rows that
+// change to the tabs whose window holds the pass (`fansly.followers.changed`).
+//
 // R20 P14b1: the settings page reaches this registry too (the core routes a
 // page's `fansly.*` request here while Fansly is on): Fansly's part of
 // `settings.ext` through the core's one owner of the key (`fansly.settings.*`),
@@ -58,8 +63,9 @@ import {
 import { createFanslyOperations } from '@cg/core/services/hosts/fansly/voice-operations';
 import { featureSlice } from '@cg/core/domain/features';
 import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
+import { createFanslyNewcomers, type FanslyNewcomers, type FanslyNewcomersApi } from '@cg/core/services/hosts/fansly/newcomers';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
-import { createFanslyApi, FanslyApiError, type FanslyApi } from '@cg/fansly-api';
+import { createFanslyApi, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
@@ -133,6 +139,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
   const operations = createFanslyOperations((view) => kit.site?.emit('fansly.ops.done', { view }));
+  const newcomers = kit.site === undefined ? null : startNewcomers(kit, session, api);
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
     // The registry's rules let a page send only the settings page's types (contracts tab-messages-fansly.ts).
     if (sender.kind === 'page') return pageRequest(kit, accounts, type, payload);
@@ -185,6 +192,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       case 'fansly.vault.clear':
         return ok(await vault.clear(payload as FanslyTabRequestPayload<'fansly.vault.clear'>, tab));
       default:
+        // «Новые» (R20 P10b1): the pass and its queue; `send` and `exclude` come with P10c and P10b2.
+        if (newcomers?.handles(type) === true) return ok(await newcomers.answer(type, payload, tab));
         return { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: `${type}: not served yet` } };
     }
   };
@@ -214,10 +223,69 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       offSettings?.();
       unplug();
       unprobe();
+      newcomers?.dispose();
       await spenders?.flush();
       await api?.pacer.flush();
     },
   };
+}
+
+/**
+ * «Новые» (R20 P10b1; core services/hosts/fansly/newcomers.ts): the pass over FS-NET-1's purpose `newcomers` — the
+ * creator's own session and pacer, never another's — and its changes to the tabs whose window holds it. A test build
+ * asks the stand's API the e2e names (`dev.fanslyApi.origin`, api-probe.ts) and nothing without it; a release build,
+ * Fansly's.
+ */
+function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | undefined, api: FanslyApi | null): FanslyNewcomers {
+  const client = api === null || session === undefined ? null : __CG_TEST_HOSTS__ ? fanslyStandClient(kit, session, api) : api.client;
+  const port: FanslyNewcomersApi = {
+    async call(call, signal) {
+      const asking = client;
+      // No session owner: nothing can be asked; a test build without the stand's API asks nothing either.
+      if (asking === null) throw new FanslyApiError(api === null || session === undefined ? 'session' : 'not-admitted', { sent: false });
+      const abort = new AbortController();
+      if (signal.aborted) abort.abort();
+      else signal.addEventListener('abort', () => abort.abort());
+      const answer = await asking.call({
+        purpose: 'newcomers',
+        route: call.route,
+        account: call.account,
+        ...(call.path === undefined ? {} : { path: call.path }),
+        ...(call.query === undefined ? {} : { query: call.query }),
+        ...(call.body === undefined ? {} : { body: call.body }),
+        signal: abort.signal,
+      });
+      return answer.response;
+    },
+    coolingUntil(account) {
+      const template = session?.forAccount(account) ?? null;
+      return template === null || api === null ? 0 : api.pacer.coolingUntil({ legacyId: template.legacyId, canonicalId: template.canonicalId });
+    },
+  };
+  return createFanslyNewcomers({
+    api: port,
+    now: () => kit.clock.now(),
+    uuid: () => kit.ids.uuid(),
+    sleep: (ms, signal) =>
+      new Promise<void>((resolve) => {
+        if (signal.aborted) return resolve();
+        const timer = kit.clock.setTimer(Math.max(0, ms), resolve);
+        signal.addEventListener('abort', () => {
+          kit.clock.clearTimer(timer);
+          resolve();
+        });
+      }),
+    emit: (tab, change) => kit.site?.emit('fansly.followers.changed', change, { tabSessionId: tab }),
+    alive: (tab) => kit.router.tabs().includes(tab),
+    tabOn(tab, creator) {
+      const registration = kit.siteTabs?.registered().find((entry) => entry.tabSessionId === tab);
+      // A tab that has not said its account yet is not refused; one on another account is (its aliases count).
+      if (registration === undefined || registration.accounts.length === 0 || registration.accounts.includes(creator)) return true;
+      const aliases = kit.networkSession?.aliases(creator) ?? [];
+      return registration.accounts.some((account) => aliases.includes(account));
+    },
+    log: kit.log.service,
+  });
 }
 
 /** One module per realm (an event page's start, or a new address in one): its start is idempotent. */
