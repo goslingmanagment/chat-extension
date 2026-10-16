@@ -1,7 +1,7 @@
 // The background's pass of «Новые» on Fansly as pure rules (R20 P10b1; docs/project-unite/architecture.md §5.8, §8.7;
 // FS-NEW-1, FS-NEW-7; NF-030…NF-033): how Fansly's answers read — the new followers, the start of the inbox, the
 // profiles, a group, a page of history, the welcome texts of `/message/automated` — and what a walked history proves.
-// The old extension's rules (E134; src/background/followers-service.ts, src/shared/followers.ts), carried over:
+// The old extension's rules (src/background/followers-service.ts, src/shared/followers.ts), carried over:
 // - a follow's moment is its id's (a snowflake from Fansly's epoch); ids are strings, never numbers;
 // - a group is a fact only with exactly its two users, the creator and the fan (the participants' fence);
 // - a page of history is a fact only when every message is of this group and of one of the two;
