@@ -300,8 +300,11 @@ describe('suite-fansly-tail: Reply, Fix and a reopened result carry their own ev
     expect(body.coverageCheck.window.some((m) => m.id === deleted)).toBe(false);
     expect(body.liveTextContext?.items.length).toBeGreaterThan(0);
     await waitOursText('dock', 'Контекст устарел', 'the deleted message is still served by the lagging hub', { selector: '.cg-stale__t' });
-    // Fix replaces its unchanged source through the same guarded insert, even under this mark.
-    await browser.waitUntil(async () => (await field.getValue()).length > 0 && (await field.getValue()) !== 'my draft for Fix', { timeout: 10_000, timeoutMsg: 'Fix did not replace its source under the stale mark' });
+    // Generation leaves the source alone; the explicit click replaces it even under this mark.
+    expect(await field.getValue()).toBe('my draft for Fix');
+    await pressOurs('dock', '.cg-dock button', /^Заменить мой черновик/);
+    await browser.waitUntil(async () => (await field.getValue()) === 'Here is a smoother version of your draft.', { timeout: 10_000, timeoutMsg: 'Fix did not replace its source under the stale mark' });
+    await waitOursText('dock', 'Контекст устарел', 'the result keeps its stale mark after replacement', { selector: '.cg-stale__t' });
     expect((await readReport())?.dock?.result?.opId).toBe(fixed.result?.opId);
   });
 });
