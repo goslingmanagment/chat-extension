@@ -118,6 +118,22 @@ export function judgeHiStartProof(input: { readonly proof: StartProofV1 | undefi
   return proof.personalCount > HI_GREETING_MAX_TRANSCRIPT ? 'too_many_personal' : null;
 }
 
+// ── Ping for an active fan (hub features/index.ts `gate_ping_active`, ping-segment.ts at 305f4e18) ─────────
+
+/** The hub's PING_ACTIVE_WINDOW_MS: a fan text this recent makes the fan `active`. */
+export const PING_ACTIVE_WINDOW_MS = 5 * 24 * 60 * 60 * 1000;
+
+/**
+ * The hub's Fansly reactivation gate: Ping is refused while the newest fan message WITH A TEXT of the transcript it
+ * reads — its archive and, on the live union, the page's texts — is at most five days old (inclusive, the hub's
+ * clock). Media-only messages do not count. OnlyFans never blocks a manual Ping (decision #295).
+ */
+export function pingActiveRefusal(input: { readonly platform: string; readonly fanTextTimes: readonly number[]; readonly now: number }): 'gate_ping_active' | null {
+  if (input.platform !== 'fansly') return null;
+  const newest = Math.max(-Infinity, ...input.fanTextTimes);
+  return newest >= input.now - PING_ACTIVE_WINDOW_MS ? 'gate_ping_active' : null;
+}
+
 /** HF-4а: after access and HF-9's pair check, before any spend. The old client-context form still needs fan/fan. */
 export function voiceScriptRefusal(body: Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown }, laneOff: boolean): string | null {
   if (body.platform !== 'fansly') return 'gate_voice_unsupported_platform';

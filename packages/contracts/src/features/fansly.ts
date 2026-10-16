@@ -42,11 +42,16 @@ const NOTHING: Req = { flags: [], hostCapabilities: [] };
 const DRAFTS: Req = { flags: ['drafts'], hostCapabilities: [] };
 /** Putting a result into Fansly's field: the owner's `insertion` and the isolated world's write there. */
 const INSERT: Req = { flags: ['insertion'], hostCapabilities: ['insert'] };
+/**
+ * Hi is generated only where the hub decides it by the client's start proof (FS-AI-2, HF-5, architecture.md §11.1):
+ * without `hi-start-proof-v1` it reads `hub_not_ready` — «хаб пока не умеет», never the hub's old count.
+ */
+const HI_BY_PROOF: Req = { flags: [], hostCapabilities: [], clientNeeds: ['hi-start-proof-v1'] };
 
 const FEATURES = {
   reply: { base: DRAFTS, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
   fix: { base: DRAFTS, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
-  hi: { base: DRAFTS, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'newcomers'], source: 'hub' },
+  hi: { base: DRAFTS, actions: { generate: HI_BY_PROOF, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'newcomers'], source: 'hub' },
   ping: { base: DRAFTS, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
   'fresh-text': { base: { flags: ['freshText'], hostCapabilities: [], clientNeeds: CLIENT_FLAG_REQUIREMENTS.freshText }, actions: {}, surfaces: ['dock'], source: 'page' },
   review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded'], source: 'hub' },

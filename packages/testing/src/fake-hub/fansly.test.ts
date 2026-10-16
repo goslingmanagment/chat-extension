@@ -263,6 +263,8 @@ describe('[host:fansly] the narrow token’s AI on Fansly (hub client-ai-switch.
     expect(await refusal(await stream('coach-chat', fanslyBody({ chatterQuestion: 'What now?' })))).toEqual({ status: 409, error: 'client_feature_disabled', reason: 'flag_off' });
     expect(quota()).toBe(left);
     hub.control({ op: 'config', patch: fanslyPageFlags({ drafts: true }) });
+    // Ping waits for a silent fan too (the hub's `gate_ping_active`, below): the group's archive holds no fan text.
+    hub.control({ op: 'archiveConversation', pageLabel: FANSLY, conversationRef: A.group, messages: [{ id: '810000000000009001', sender: 'model' }] });
     for (const feature of ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'] as const) expect([feature, (await stream(feature, draft(feature))).status]).toEqual([feature, 200]);
     expect(await refusal(await stream('chat-review', fanslyBody()))).toEqual({ status: 409, error: 'client_feature_disabled', reason: 'flag_off' });
     hub.control({ op: 'config', patch: fanslyPageFlags({ review: true, coach: true }) });
@@ -273,6 +275,26 @@ describe('[host:fansly] the narrow token’s AI on Fansly (hub client-ai-switch.
     hub.control({ op: 'config', patch: { master: false } });
     expect(await refusal(await stream('fast-reply', fanslyBody()))).toEqual({ status: 409, error: 'client_feature_disabled', reason: 'disabled' });
     expect(await refusal(await stream('fast-reply', streamBody({ clientRequestId: uuid(0xf901) })))).toEqual({ status: 409, error: 'client_feature_disabled', reason: 'disabled' });
+  });
+
+  it('[ER-034] [AI-036] the hub’s Ping gate on Fansly (features/index.ts `gate_ping_active`): a fan TEXT within five days — in its archive or in the page’s texts under context-v1 — refuses; media only, the model’s text, a week ago — served; OnlyFans never blocks a manual Ping', async () => {
+    hub.control({ op: 'config', patch: fanslyPageFlags() });
+    const seed = (messages: readonly { readonly id: string; readonly sender: 'fan' | 'model' }[]): void => void hub.control({ op: 'archiveConversation', pageLabel: FANSLY, conversationRef: A.group, messages });
+    const live = (direction: 'fan' | 'model', ageMs: number, text = 'are you there?'): Partial<AiFeatureStreamBody> => ({
+      liveTextContext: { capturedAt: new Date(hub.clock.now()).toISOString(), items: [{ platformMessageId: '810000000000009101', direction, occurredAt: new Date(hub.clock.now() - ageMs).toISOString(), text }] },
+    });
+    const DAY = 24 * 60 * 60 * 1000;
+    // The archive: a fan text of a minute ago (the seed's clock) — active.
+    seed([{ id: '810000000000009001', sender: 'fan' }]);
+    expect(await refusal(await stream('ping', fanslyBody()))).toEqual({ status: 400, error: 'gate_ping_active' });
+    // A silent archive; the page's text decides: the fan's, two days old — active; a week old, or the model's — served.
+    seed([{ id: '810000000000009001', sender: 'model' }]);
+    expect((await stream('ping', fanslyBody())).status).toBe(200);
+    expect(await refusal(await stream('ping', fanslyBody(live('fan', 2 * DAY))))).toEqual({ status: 400, error: 'gate_ping_active' });
+    expect((await stream('ping', fanslyBody(live('fan', 7 * DAY)))).status).toBe(200);
+    expect((await stream('ping', fanslyBody(live('model', 60_000)))).status).toBe(200);
+    // OnlyFans: a manual Ping is never blocked (decision #295), whatever its archive holds.
+    expect((await stream('ping', streamBody({ clientRequestId: uuid(0xf950) }))).status).toBe(200);
   });
 
   it('the switch’s table: Help is not the extension’s on Fansly; the voice script and the notes fill have their own switches there and none on OnlyFans', () => {

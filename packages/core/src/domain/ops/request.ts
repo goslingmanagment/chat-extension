@@ -15,9 +15,13 @@
 // the fan's known ids, a draft's texts as `liveTextContext` under the same
 // freshText switch, and a messageCount never below the check window — the hub
 // serves at least what it is asked about (FS-TAIL-1, HF-8г).
+//
+// Hi where the hub decides it by the client's start proof (1.15.0, R20 P8c: Fansly, HF-5) names
+// `hi-start-proof-v1` to a hub that declared it and carries the proof, its count and the fan's avatar.
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
+import { HI_BY_START_PROOF } from '@cg/contracts/ids';
 import {
   HUB_FEATURE_MAP,
   HubStreamRequestSchema,
@@ -109,6 +113,10 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // HF-8в: the window check only to a hub that declared it, beside the context frame its answer rides in.
   const coverageCheck = proof !== undefined && contextV1 && hasCapability(ctx.bootstrap.capabilities, 'coverage-check-v1');
   if (coverageCheck) capabilities.push('coverage-check-v1');
+  // HF-5: where the hub decides Hi by the start proof, every Hi names `hi-start-proof-v1` to a hub that declared it —
+  // without a proof too, so the hub refuses `history_unproven` instead of counting its archive (fail closed).
+  const hiByProof = start.feature === 'hi' && HI_BY_START_PROOF[start.target.binding.platform] && hasCapability(ctx.bootstrap.capabilities, 'hi-start-proof-v1');
+  if (hiByProof) capabilities.push('hi-start-proof-v1');
 
   const window = Math.max(Math.min(start.window, Math.max(AI_REQUEST_LIMITS.messageCountMin, ctx.bootstrap.limits.deepMax)), proof?.window.length ?? 0);
   const body: { -readonly [K in keyof AiFeatureStreamBody]: AiFeatureStreamBody[K] } = {
@@ -126,6 +134,10 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   if (start.feature === 'reply') body.replyTone = start.tone ?? 'none';
   if (start.feature === 'fix' && start.draft !== undefined) body.draftText = start.draft.text;
   if (start.feature === 'hi' && start.variantCount !== undefined) body.variantCount = start.variantCount;
+  // The proof of the start, its count and the fan's avatar (FX-018) ride only on that lane: ids and an address, no text.
+  if (hiByProof && start.startProof !== undefined) body.startProof = start.startProof;
+  if (hiByProof && start.personalMessageCount !== undefined) body.personalMessageCount = start.personalMessageCount;
+  if (hiByProof && start.fanAvatarUrl !== undefined) body.fanAvatarUrl = start.fanAvatarUrl;
   if (start.feature === 'recap-short') body.summaryMode = 'short';
   if (start.feature === 'coach' && start.coach !== undefined) {
     // A preset's question lives on the hub: the hub refuses a body that names both («coach-chat preset forbids

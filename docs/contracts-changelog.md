@@ -65,6 +65,16 @@
   старые политики остаются валидными. ChatSpace этот порт не реализует.
 - Положительные и отрицательные фикстуры: `test/fixtures/schemas.ts`; старые `OpView` проходят без изменений.
 
+### P8c, часть A — Hi на Fansly по доказательству начала
+
+- **`ids`: `HI_BY_START_PROOF`** — платформы, где хаб решает Hi по доказательству начала клиента (`StartProofV1`), когда
+  объявил `hi-start-proof-v1` (его `hiStartProofDecides`): Fansly. Там каждый Hi несёт этот токен — и без
+  доказательства, чтобы хаб отказал `history_unproven`, а не считал свой архив; OnlyFans — без изменений. Только
+  константа, схем нет.
+- **Манифест Fansly:** генерация Hi требует `hi-start-proof-v1` (`clientNeeds`); без неё Hi — `hub_not_ready`
+  («хаб пока не умеет»), как в `architecture.md` §11.1.
+- Фикстур нет: схем нет. Тесты — `packages/contracts/test/features.test.ts`, `packages/core/test/hosts/fansly/hi-ping.test.ts`.
+
 ### P8b2 — слова пометки проверки окна
 
 - **`vm`: `ResultMarkKey`** — ключи слов пометки, которую вердикт проверки окна ставит над результатом (`ResultVM.stale`

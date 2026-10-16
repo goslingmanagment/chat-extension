@@ -53,7 +53,7 @@ import {
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
-import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
+import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, pingActiveRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
@@ -1003,6 +1003,12 @@ export class FakeHub {
     } else if (feature === 'hi-greeting' && s.data.archiveFacts(page, transcript).total > HI_GREETING_MAX_TRANSCRIPT) {
       // OnlyFans and Fansly without the proof token keep assertHiGreetingFreshness and its reason-less envelope.
       return refusal('gate_hi_greeting_limit');
+    }
+    if (feature === 'ping') {
+      // The hub's segment reads its transcript: the archive the reader serves and, under context-v1, the page's texts.
+      const live = request.capabilities.includes('context-v1') ? (body.liveTextContext?.items ?? []).filter((item) => item.direction === 'fan' && item.text.trim() !== '').map((item) => Date.parse(item.occurredAt)) : [];
+      const active = pingActiveRefusal({ platform: page.platform, fanTextTimes: [...s.data.fanTextTimes(page, transcript, window.limit), ...live], now: this.clock.now() });
+      if (active !== null) return refusal(active);
     }
     if (feature === 'fan-notes-fill' && served.window.length === 0) return refusal('gate_min_messages');
     if (s.config.quotaRequestsToday === 0) {

@@ -27,6 +27,8 @@ export const JOURNAL_KEPT_STRING_KEYS: ReadonlySet<string> = new Set([
   'capabilities', 'direction', 'platformMessageId', 'knownFanMessageIds', 'capturedAt', 'occurredAt',
   // the window check of a Fansly start (R20 P8b1): message ids and sides, never a text
   'id', 'dir', 'deletedIds',
+  // Hi's start proof (R20 P8c): its source, the conversation and message ids — never a text (the avatar's address stays a length)
+  'source', 'groupId', 'startWitnessId', 'automatedIds',
   // claims and custody
   'action', 'attemptId', 'instanceId', 'leaseToken', 'purpose', 'generationRef', 'evidence', 'reason',
   // reads

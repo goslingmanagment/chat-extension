@@ -83,6 +83,11 @@ export type FakeFanslyCommand =
   | { readonly op: 'typing'; readonly groupId: string; readonly accountId?: string }
   /** A new follower and its `3/2` frame. */
   | { readonly op: 'follow'; readonly followerId?: string; readonly silent?: boolean }
+  /**
+   * A new conversation of the creator with `fanId` and no message yet, as `POST /group` makes one (its `4/8` frame;
+   * the fan's account is made up). The fan's existing conversation is a refusal: a test means a new one.
+   */
+  | { readonly op: 'conversation'; readonly fanId: string }
   /** A group changes: its members other than the creator (`4/6`, `4/7` frames), its DM rules, its fan's status. */
   | { readonly op: 'group'; readonly groupId: string; readonly partners?: number; readonly dmRulesUnmet?: boolean; readonly status?: 1 | 2 | 3 | 4 }
   /** Raw text frames to every verified socket as they are (a damaged frame, an unknown `t`); `batch` — inside one `t: 10001`. */
@@ -130,6 +135,8 @@ export interface FakeFanslyResult {
   /** `broadcast`: the copies; `delete`: what went with a `type 3` parent. */
   readonly messages?: readonly WireMessage[];
   readonly follow?: WireFollow;
+  /** `conversation`: the new group's id. */
+  readonly groupId?: string;
   /** `session.issue`: the new token. */
   readonly token?: string;
   /** How many sockets a frame went to. */
