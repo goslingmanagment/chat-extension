@@ -5,9 +5,12 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { type NewcomersVM } from '@cg/contracts/vm';
 import { SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
 
+import { entry } from '../scenarios/app-client';
 import { flush, keydown, mountBoardSettled, textOf, type MountedBoard } from './harness';
+import { boardScenario } from './states';
 
 let ui: MountedBoard | null = null;
 afterEach(() => {
@@ -43,6 +46,39 @@ describe('[host:fansly] «Новые» on Fansly: the window (R20 P10a)', () => 
     expect(items.find((item) => item.getAttribute('aria-checked') === 'true')?.textContent).toBe('48 часов');
     await flush(() => (items.at(-1) as HTMLElement).click());
     expect(board.actions().at(-1)).toEqual({ type: 'SetNewcomersWindow', hours: 720 });
+  });
+
+  it('[NF-003] [NF-006] scrolling requests the second page again after a period change to another 200-row pass', async () => {
+    const base = boardScenario('13f');
+    const vm = base.views.find((view) => view.selector.of === 'newcomers')!.vm as NewcomersVM;
+    const page = (passId: string, windowHours: number): NewcomersVM => ({
+      ...vm, windowHours, canLoadMore: true,
+      rows: Array.from({ length: 100 }, (_, i) => ({ ...vm.rows[0]!, handle: `pass:${passId}:${800000000000000001n + BigInt(i)}`, selected: i === 0 })),
+      pass: { ...vm.pass!, passId, total: 200, card: null },
+    });
+    const first = page('00000000-0000-4000-8000-000000000301', 48);
+    const second = page('00000000-0000-4000-8000-000000000302', 720);
+    ui = await mountBoardSettled('fansly-newcomers', {
+      ...base,
+      views: [entry({ of: 'newcomers' }, first)],
+      steps: [
+        { label: 'new period loading', at: 1, views: [entry({ of: 'newcomers' }, { ...second, rows: [], canLoadMore: false, view: { s: 'loading', stage: null, since: null } })] },
+        { label: 'new pass, first 100 of 200', at: 2, views: [entry({ of: 'newcomers' }, second)] },
+      ],
+    });
+    const board = ui;
+    const scrollToEnd = async (): Promise<void> => flush(() => {
+      const list = board.$('.cg-vlist') as HTMLElement;
+      list.scrollTop = 4_000;
+      list.dispatchEvent(new Event('scroll'));
+    });
+    await scrollToEnd();
+    expect(board.actionsOf('LoadMore')).toHaveLength(1);
+    // The same mounted window: a new pass has 100 rows again. Its scroll must reach the controller.
+    await flush(() => board.client.goTo(0));
+    await flush(() => board.client.goTo(1));
+    await scrollToEnd();
+    expect(board.actionsOf('LoadMore')).toHaveLength(2);
   });
 
   it('[NF-005] [NF-007] a row: the initial, the name and the person’s own name for the fan, @username, how long ago, the status in words — no colour', async () => {

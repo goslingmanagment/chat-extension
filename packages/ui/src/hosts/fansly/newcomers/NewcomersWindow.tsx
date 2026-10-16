@@ -518,6 +518,11 @@ export function FanslyNewcomersWindow(): JSX.Element {
   const frameRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const askedMore = useRef(-1);
+  const passId = pass?.passId ?? null;
+  const filter = pass?.filters.find((item) => item.pressed)?.id ?? 'any';
+  useLayoutEffect(() => {
+    askedMore.current = -1;
+  }, [passId, vm.tab, vm.query, filter]);
   const rows = vm.rows;
   const [activeHandle, setActiveHandle] = useState<string | null>(() => (rows.find((row) => row.selected) ?? rows[0])?.handle ?? null);
   const current = useMemo(() => {
@@ -559,7 +564,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
         void dispatch({ type: 'LoadMore', list: 'newcomers' });
       }
     },
-    [vm.canLoadMore, rows.length, dispatch, settle],
+    [passId, vm.canLoadMore, rows.length, dispatch, settle],
   );
 
   const move = (from: number, to: number): void => {

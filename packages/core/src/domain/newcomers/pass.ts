@@ -52,12 +52,27 @@ export interface PassRow {
 /** A source's answer: the value, or a failure as a code — never a guess, never an empty list in its place (FX-017). */
 export type SourceAnswer<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly failure: NewcomersFailureVM };
 
+/** Applied by the source over the whole pass, before pagination. */
+export interface PassQuery {
+  readonly search: string;
+  readonly tab: NewcomersTab;
+  readonly filter: NewcomerCheckFilter;
+}
+
+/** After search: tabs over the whole pass; status filters over the chosen tab, before the selected filter. */
+export interface PassCounts {
+  readonly tabs: Readonly<Record<NewcomersTab, number>>;
+  readonly filters: Readonly<Record<NewcomerCheckFilter, number>>;
+}
+
 export interface PassPage {
   /** null — the background holds no such pass any more (it ended, the event page restarted). */
   readonly pass: PassState | null;
   readonly rows: readonly PassRow[];
-  /** Rows of the pass in all. */
+  /** Matches of the query before pagination; `pass.total` still counts the whole pass. */
   readonly total: number;
+  /** null only when no such pass remains. */
+  readonly counts: PassCounts | null;
   /** The last change the page includes; changes up to it are in it already. Absent — the source does not say. */
   readonly seq: number | null;
 }

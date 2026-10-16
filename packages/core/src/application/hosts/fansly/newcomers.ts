@@ -54,11 +54,13 @@ export function createFanslyNewcomersSource(port: FanslyFollowersPort, origin: s
       const payload = answer.payload;
       return payload.ok ? { ok: true, value: passStateOf(payload.pass) } : { ok: false, failure: failureOf(payload.error) };
     },
-    async read(passId, offset, limit) {
-      const answer = await port.request('fansly.followers.read', { passId, offset, limit });
+    async read(passId, offset, limit, query) {
+      const answer = await port.request('fansly.followers.read', { passId, offset, limit, query });
       if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
-      const { pass, rows, total, seq } = answer.payload;
-      return { ok: true, value: { pass: pass === null ? null : passStateOf(pass), rows: rows.map(passRowOf), total, seq: seq ?? null } };
+      const { pass, rows, total, seq, counts } = answer.payload;
+      // A legacy unfiltered page cannot answer a whole-pass query: never pass its incomplete counts off as zero.
+      if (pass !== null && counts === undefined) return { ok: false, failure: { code: 'CG-DATA-UNAVAILABLE', retryAt: null } };
+      return { ok: true, value: { pass: pass === null ? null : passStateOf(pass), rows: rows.map(passRowOf), total, seq: seq ?? null, counts: counts ?? null } };
     },
     async history(passId, fanRef, before, limit) {
       const answer = await port.request('fansly.followers.history', { passId, fanRef, before, limit });
