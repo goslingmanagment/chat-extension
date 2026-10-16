@@ -1,6 +1,6 @@
 {
   "name": "@cg/extension",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "ChatGoose \u0434\u043b\u044f ChatSpace \u2014 Firefox MV3 extension (WXT entry points, manifest, composition roots).",
