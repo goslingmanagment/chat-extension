@@ -9,6 +9,7 @@
 import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { EXTENSION_NAME } from '../../apps/extension/build/manifest.ts';
 import { dropUploadUuid } from '../lib/web-ext.ts';
 import { readZip, type ZipEntry } from '../lib/zip.ts';
 import { ENV, type ReleaseTarget } from './config.ts';
@@ -116,9 +117,9 @@ export interface ReviewerNotesInput {
  */
 export function reviewerNotes(input: ReviewerNotesInput): string {
   return [
-    `ChatGoose for ChatSpace ${input.version}, built from commit ${input.commit}.`,
+    `${EXTENSION_NAME} ${input.version} for ChatSpace and Fansly, built from commit ${input.commit}.`,
     '',
-    'The uploaded source archive is the repository itself (a pnpm workspace). The code in the XPI is bundled and minified by WXT (Vite); nothing is fetched or evaluated at run time.',
+    'The uploaded source archive is the repository itself (a pnpm workspace). The code in the XPI is bundled and minified by WXT (Vite); no code is fetched or evaluated from the network.',
     '',
     'To rebuild (any OS; the build was made on macOS):',
     `1. Node ${input.nodeVersion} (the major version in .nvmrc) and pnpm ${input.pnpmVersion} (package.json "packageManager"; "npm install -g pnpm@${input.pnpmVersion}").`,

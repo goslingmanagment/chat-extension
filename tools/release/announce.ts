@@ -14,11 +14,12 @@
 // error text reaches the output. cli.ts remembers each send per version, so a
 // second `announce` of one version asks for `--again`.
 
+import { EXTENSION_NAME } from '../../apps/extension/build/manifest.ts';
 import { blocksMarkdown, type ChangelogSection } from './changelog.ts';
 
 /** Telegram's limit for one rich message, in characters. */
 export const POST_CHAR_LIMIT = 32_768;
-export const PRODUCT_NAME = 'ChatGoose для ChatSpace';
+export const PRODUCT_NAME = EXTENSION_NAME;
 
 export function composePost(section: ChangelogSection): string {
   const post = `# ${PRODUCT_NAME} ${section.version}\n\n${blocksMarkdown(section.blocks)}`;

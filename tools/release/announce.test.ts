@@ -32,7 +32,7 @@ function scripted(replies: Array<Reply | Error>): { fetchImpl: FetchLike; calls:
 describe('the Telegram announcement', () => {
   it('[UP-005] is the changelog section of the version under the product name, dollars escaped', () => {
     const post = composePost(sectionOf(parseChangelog(CHANGELOG), '0.2.0'));
-    expect(post).toBe('# ChatGoose для ChatSpace 0.2.0\n\nСтало быстрее, цена прежняя: \\$0.\n\n### Новое\n\n- **Сигнал.** Теперь `Double`.');
+    expect(post).toBe('# ChatGoose 0.2.0\n\nСтало быстрее, цена прежняя: \\$0.\n\n### Новое\n\n- **Сигнал.** Теперь `Double`.');
   });
 
   it('[UP-005] a section too long for one message is refused before anything is signed', () => {

@@ -1,8 +1,8 @@
 # Building the extension from this source archive
 
 For Mozilla's add-on reviewers. This archive is the source of the Firefox
-extension "ChatGoose для ChatSpace" (`chat-extension@gosling.agency`): a pnpm
-workspace in TypeScript. The submitted XPI is bundled and minified by WXT
+extension "ChatGoose" (`chat-extension@gosling.agency`), for OnlyMonster
+ChatSpace and Fansly: a pnpm workspace in TypeScript. The submitted XPI is bundled and minified by WXT
 (Vite); these steps rebuild it byte for byte.
 
 ## Requirements
@@ -47,11 +47,67 @@ of that folder.
 Tests, the test stand and internal documentation are not part of the archive:
 they are not needed to build the XPI.
 
+## Optional Fansly permissions
+
+Fansly is off until the user clicks "Включить Fansly" ("Enable Fansly") in
+the extension's popup or settings. That gesture requests these permissions
+together; installing or updating the extension does not grant them:
+
+- `https://fansly.com/*` — register the MAIN and isolated content scripts on
+  Fansly pages, observe the open chat and composer, and show the extension's
+  dock, notes, registration date and vault tools. The scripts are registered
+  dynamically after permission is granted, not as manifest content scripts.
+- `https://apiv3.fansly.com/*` — use the signed-in account's API for the
+  "New" queue, greetings, chat resolution, fan profiles and notes. Requests
+  are restricted to the allowlist under `https://apiv3.fansly.com/api/v1/`
+  in `packages/fansly-api/src/allowlist.ts`. "Fansly через вкладку"
+  ("Fansly through the tab") routes these requests through an extension
+  frame in the model's tab, using that tab's Firefox container and proxy;
+  it does not proxy them through the agency hub. When that mode is off,
+  the background makes the allowed requests directly.
+- `webRequest` — passive observation only, explained below.
+
+"Выключить Fansly" ("Disable Fansly") or revoking the permissions stops
+Fansly work and unregisters its scripts. Open tabs are asked to reload.
+ChatSpace remains available independently.
+
+The separate optional `https://*/*` permission supports an agency hub at a
+custom HTTPS address chosen by the user. It is requested for that address
+only, not for arbitrary browsing and not by the "Enable Fansly" action.
+
+## Why `webRequest` is needed
+
+`packages/platform/src/web-request.ts` listens to `onBeforeSendHeaders`
+with `requestHeaders`, `onCompleted` and `onErrorOccurred` for the Fansly
+API origins only. It does not request `webRequestBlocking`, modify or
+redirect traffic, or read request/response bodies through `webRequest`.
+
+The background accepts a session template only from requests belonging to
+a top-level Fansly page. It reads the request's URL, tab/frame and document
+identity, and the `authorization`, `fansly-client-id`, `fansly-session-id`,
+`fansly-client-ts` and `fansly-client-check` headers. These let the
+extension make its allowlisted API calls as the correct signed-in account;
+requests made by the extension itself are not mistaken for a page session.
+Completion/error facts also reveal HTTP 429 responses, including those
+from the page or other extensions, so our calls pause during a cooldown.
+
+Fansly credentials stay in the browser's session storage and are sent only
+to the Fansly API when needed for those calls. They are never sent to the
+agency hub, AI services, telemetry or logs. The observer sends no captured
+traffic elsewhere. Separately, an explicit AI action sends the relevant
+chat identifiers and, for Reply/Fix/Hi/Ping, fresh open-chat context to the
+agency hub; Recap, Review, Coach and "Заполнить из чата" use its archive.
+Existing Fansly note values are not sent to the hub; filling a form sends
+only its field names. Saving notes or sending a greeting requires the
+user's action. Vault files are attached/uploaded through Fansly's own UI.
+
 ## Remote code
 
-The extension loads and evaluates no remote code. It talks to one server, the
-agency's own (`https://gosling-agency.ru`), and receives data and settings
-from it, never scripts.
+The extension loads and evaluates no remote code. It talks to the agency
+hub (`https://gosling-agency.ru`, or the user's configured HTTPS hub) for
+AI, archive data and settings, and to Fansly as described above. Responses
+are data, never scripts. AI providers are called by the hub, not by the
+extension.
 
 Two of its files load others of the same package with
 `import(runtime.getURL(…))` (web-ext lint names them «Unsafe call to import»):
