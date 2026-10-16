@@ -45,7 +45,7 @@ export interface NotesSuggestionVM {
   readonly quotes: readonly string[];
 }
 
-/** A questionnaire as the panel shows it (R20 P11b2; the Fansly extension 2.12.0, E166): its fields in note order —
+/** A questionnaire as the panel shows it (R20 P11b2; the Fansly extension 2.12.0, decision 166): its fields in note order —
  * the label, the facts (the value's «; » parts, then the lines written under it), `value` — the facts one per line
  * as the field's box holds them, the Goose's rewrites of that field — and the lines of no field. */
 export type NotesFormPartVM =

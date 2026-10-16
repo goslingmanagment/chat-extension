@@ -1,5 +1,5 @@
-// The questionnaire as fields (R20 P11b2; FS-NOTE-2; the Fansly extension 2.12.0, `src/shared/fan-notes.ts`, E164,
-// E166). Pure. The note itself stays what Fansly stores and the old extension writes and reads: `Label: value` lines,
+// The questionnaire as fields (R20 P11b2; FS-NOTE-2; the Fansly extension 2.12.0, `src/shared/fan-notes.ts`, decisions 164,
+// 166). Pure. The note itself stays what Fansly stores and the old extension writes and reads: `Label: value` lines,
 // a value's facts joined with «; »; a line without a label right under a field is that field's continuation (chatters
 // write them by hand) and joins the field's own line only when the chatter edits that field. Every other line keeps
 // its bytes, so a chatter who switches between the old extension and this one sees the same questionnaire.

@@ -5,7 +5,7 @@
 // action: someone else's. Its model is the panel's own client (contracts notes-fansly.ts); nothing here reads the
 // page or the network.
 //
-// A questionnaire (R20 P11b2; the Fansly extension 2.12.0, E166) reads as a table — the label, its facts one per line,
+// A questionnaire (R20 P11b2; the Fansly extension 2.12.0, decision 166) reads as a table — the label, its facts one per line,
 // the month a fact was said at the right, the empty fields folded into one line — and is edited field by field, one
 // fact per line; «Текстом» / «Полями» switch to the note's one text and back. The Goose's rewrite of a field stands
 // under that field with «Принять» and «Не нужно».

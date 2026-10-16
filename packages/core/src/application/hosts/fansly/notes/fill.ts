@@ -1,4 +1,4 @@
-// «✨ Заполнить из чата» (R20 P11c; FS-NOTE-6; FX-014…FX-016; the Fansly extension 2.10–2.12, E159–E161, E164):
+// «✨ Заполнить из чата» (R20 P11c; FS-NOTE-6; FX-014…FX-016; the Fansly extension 2.10–2.12, decisions 159–161, 164):
 // what a fill asks of the hub and how its answer joins the questionnaire. Pure.
 //
 // - Asked: the questionnaire's labels in note order, then the template's labels it lacks, at most 30 — labels only, no
