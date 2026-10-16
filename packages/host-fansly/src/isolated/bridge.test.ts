@@ -8,7 +8,8 @@
 
 import { FANSLY_BRIDGE_LIMITS, FANSLY_WIRE_EVENT_TYPES } from '@cg/contracts/bridge-fansly';
 import { BridgeCallError, connectMainBridge, type MainBridgeClient } from '@cg/host-kit/isolated/bridge-client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { TAG_KEY, TAG_MAIN_READY } from '@cg/host-kit/main/protocol';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { installFanslyMain } from '../main/index';
 import type { FanslyBridge } from './bridge-client';
@@ -54,13 +55,15 @@ const EPOCH = 'a1b2c3d4e5f6a1b2c3d4e5f6';
 describe('Fansly’s bridge: its MAIN world and the shared client over its registry (R20 P7a0)', () => {
   it('connects to Fansly’s MAIN, whose boot answers `probe` itself through Fansly’s own schemas; its runtime answers `fx.state` and the observation’s requests (P7b)', async () => {
     const win = fakeWindow();
+    const announce = vi.spyOn(win, 'postMessage');
     const main = installFanslyMain(win, { socketHosts: ['localhost'], apiOrigins: ['http://localhost'] });
+    // The boot announces in the install's own task, before any client or handshake round trip.
+    expect(announce).toHaveBeenCalledExactlyOnceWith({ [TAG_KEY]: TAG_MAIN_READY, v: 1 }, win.location.origin);
+    expect(main.isConnected()).toBe(false);
     const client: MainBridgeClient<FanslyBridge> = await connectMainBridge<FanslyBridge>(win, loadValidation, UNDROPPABLE_EVENTS, 1000);
     cleanups.push(() => client.close(), () => main.dispose());
-    expect(await client.probe()).toEqual({ v: 1, readyStateAtStart: 'loading', installMs: expect.any(Number) as unknown, wsTap: false });
+    expect(await client.probe()).toEqual({ v: 1, readyStateAtStart: 'loading', installMs: main.installMs, wsTap: false });
     expect(main.isConnected()).toBe(true);
-    // On a busy machine a unit test only catches a tenfold regression; the budget itself is measured in e2e.
-    expect(main.installMs).toBeLessThan(10);
     expect(client.documentEpoch).toBe(main.documentEpoch);
     expect(await client.request('fx.state', {})).toEqual({
       identity: { creatorId: null, accountMeSeen: false, legacy: false, fbuddy: { windowBridge: false, networkHook: false, styleFixes: false, wordFilter: false } },
