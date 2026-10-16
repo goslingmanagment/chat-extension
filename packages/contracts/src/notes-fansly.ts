@@ -120,7 +120,7 @@ export interface NotesCopy {
   readonly saving: string;
   readonly saveHint: string;
   readonly cancel: string;
-  readonly problem: Readonly<Record<'empty' | 'too-long' | 'deleted' | 'failed-create' | 'failed-edit', string>>;
+  readonly problem: Readonly<Record<'empty' | 'too-long' | 'deleted' | 'changed' | 'failed-create' | 'failed-edit', string>>;
   readonly foreign: string;
   readonly foreignHint: string;
   readonly viewLabel: string;
