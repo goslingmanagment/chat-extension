@@ -23,7 +23,7 @@
 // calls go through the module's own transport (the relay of «Fansly через
 // вкладку» when the person's switch is on).
 
-import { createFanslyClient, FanslyApiError, type FanslyApi, type FanslyCall, type FanslyClient, type FanslyNetworkSession, type PreparedFanslyCall, type RelayHub } from '@cg/fansly-api';
+import { createFanslyClient, FanslyApiError, type FanslyApi, type FanslyCall, type FanslyClient, type FanslyNetworkSession, type FanslyTransport, type PreparedFanslyCall, type RelayHub } from '@cg/fansly-api';
 
 import type { BackgroundKit } from '../../src/composition/background/host-module';
 
@@ -147,13 +147,13 @@ export function startFanslyApiProbe(kit: BackgroundKit, session: FanslyNetworkSe
 
 /** TEST services use the stand origin too, read at the call (a background may start before the spec sets it).
  * Missing/invalid stand configuration refuses before any network; a test never falls back to the live API. */
-export function fanslyStandClient(kit: BackgroundKit, session: FanslyNetworkSession, api: FanslyApi): Pick<FanslyClient, 'call'> {
+export function fanslyStandClient(kit: BackgroundKit, session: FanslyNetworkSession, api: FanslyApi, transport: FanslyTransport = api.client.transport): Pick<FanslyClient, 'call'> {
   return {
     async call(request) {
       const stored = await kit.storage.local.get([FANSLY_API_PROBE_KEYS.origin]);
       const origin = stored.ok ? stored.value[FANSLY_API_PROBE_KEYS.origin] : null;
       if (typeof origin !== 'string' || !STAND_ORIGIN.test(origin)) throw new FanslyApiError('not-admitted', { sent: false });
-      return createFanslyClient({ session, pacer: api.pacer, base: `${origin}/api/v1/`, transport: api.client.transport, now: () => kit.clock.now() }).call(request);
+      return createFanslyClient({ session, pacer: api.pacer, base: `${origin}/api/v1/`, transport, now: () => kit.clock.now() }).call(request);
     },
   };
 }

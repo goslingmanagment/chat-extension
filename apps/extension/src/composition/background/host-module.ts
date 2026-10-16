@@ -23,6 +23,7 @@ import type { SettingsExtOwner } from '@cg/core/services';
 import type { SoundBatch } from '@cg/contracts/sound';
 import type { SoundStreamPolicy } from '@cg/core/services/sound';
 import type { NetworkSession } from '@cg/core/services/network-session';
+import type { PassJournal } from '@cg/core/services/logs';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
@@ -81,6 +82,7 @@ export interface HubPort {
 
 /** The bounded metadata store behind the kit (platform/idb.ts), with no browser dependency in a site's chunk. */
 export interface JournalStore {
+  latest(limit: number): Promise<readonly { readonly id: number; readonly value: unknown }[]>;
   append(records: readonly { readonly at: number; readonly group: number; readonly value: unknown }[]): Promise<{ readonly stored: number; readonly rejected: number }>;
   stats(): {
     readonly available: boolean;
@@ -123,6 +125,7 @@ export interface StoragePort {
 export interface LogPort {
   readonly sink: LogSink;
   readonly service: ServiceLog;
+  readonly passJournal?: PassJournal;
 }
 
 /** Telemetry of the core (consent, the queue, the health window): a module reports, the core decides what leaves. */

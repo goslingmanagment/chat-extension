@@ -2,11 +2,11 @@
 // the old extension's 8 large arrays. Only a small tail and a bounded write
 // queue live here. A slow/unavailable IDB loses diagnostics, never pass work.
 import { LOG_LIMITS } from '@cg/contracts/limits';
+import type { JournalKind } from '@cg/contracts/vm';
 import { STORAGE_KEYS, SettingsV1Schema } from '@cg/contracts/settings';
-import type { PassJournal, PassJournalEvent, PassJournalFields, PassJournalRun } from '@cg/core/services/hosts/fansly/newcomers';
-import type { BackgroundKit, JournalStore } from '../../src/composition/background/host-module';
+import type { JournalRead, PassJournal, PassJournalEvent, PassJournalFields, PassJournalRun } from '@cg/core/services/logs';
+import type { BackgroundKit, JournalStore } from './host-module';
 
-export const PASS_JOURNAL_DB = 'cg-fansly-newcomers';
 export const PASS_JOURNAL_BOUNDS = {
   maxGroups: LOG_LIMITS.newcomersJournalRuns,
   maxRecords: LOG_LIMITS.newcomersJournalEvents,
@@ -154,6 +154,22 @@ export function createPassJournal(deps: { readonly now: () => number; readonly m
     },
     clear,
     idle,
+    async read(limit: number): Promise<JournalRead> {
+      await idle();
+      const bounded = await store();
+      const rows = await bounded.latest(PASS_JOURNAL_BOUNDS.maxRecords);
+      const runs = new Map<string, { runId: string; startedAt: string; events: number }>();
+      const records = rows.map(({ id, value }) => {
+        const row = value as PassJournalRecord;
+        const run = runs.get(row.passId) ?? { runId: row.passId, startedAt: new Date(row.startedAt).toISOString(), events: 0 };
+        run.events += 1;
+        runs.set(row.passId, run);
+        return { ts: row.at, seq: id, level: 'debug' as const, scope: 'bg.newcomers.pass', msg: row.event, fields: { ...row.fields, passId: row.passId, hostAccountId: row.hostAccountId, windowHours: row.windowHours, offsetMs: row.offsetMs, omittedBefore: row.omittedBefore } };
+      });
+      const take = Math.max(0, Math.min(Math.floor(limit), LOG_LIMITS.exportRecentRecords));
+      const stats = bounded.stats();
+      return { records: take === 0 ? [] : records.slice(-take), runs: [...runs.values()], truncated: records.length > take || stats.evicted > 0 || stats.expired > 0 || rows.some(({ value }) => (value as PassJournalRecord).omittedBefore > 0) };
+    },
     tail: (): readonly PassJournalRecord[] => [...tail],
     stats: () => ({ tail: tail.length, pending: pending.length, inFlight, omitted, store: storeStats }),
     async dispose(): Promise<void> {
@@ -165,10 +181,10 @@ export function createPassJournal(deps: { readonly now: () => number; readonly m
 }
 
 /** Read-only observer of the existing debug setting; no settings writer or new UI. */
-export async function startPassJournal(kit: BackgroundKit) {
+export function startPassJournal(kit: Pick<BackgroundKit, 'storage' | 'clock'>, dbName: string) {
   const open = kit.storage.journal;
   if (open === undefined) return null;
-  const journal = createPassJournal({ now: () => kit.clock.now(), monotonicNow: () => performance.now(), open: () => open({ dbName: PASS_JOURNAL_DB, ...PASS_JOURNAL_BOUNDS, now: () => kit.clock.now() }) });
+  const journal = createPassJournal({ now: () => kit.clock.now(), monotonicNow: () => performance.now(), open: () => open({ dbName, ...PASS_JOURNAL_BOUNDS, now: () => kit.clock.now() }) });
   const local = kit.storage.local;
   let revision = 0;
   const apply = async (value: unknown): Promise<void> => {
@@ -181,8 +197,22 @@ export async function startPassJournal(kit: BackgroundKit) {
     void apply(changes[STORAGE_KEYS.settings]?.newValue).catch(() => undefined);
   });
   const readRevision = revision;
-  const settings = await local.get([STORAGE_KEYS.settings]);
-  // Selecting debug is synchronous; an IDB open/clear must not hold up the site's module.
-  if (revision === readRevision) void apply(settings.ok ? settings.value[STORAGE_KEYS.settings] : undefined).catch(() => undefined);
-  return { ...journal, async dispose() { off(); await journal.dispose(); } };
+  const ready = local.get([STORAGE_KEYS.settings]).then((settings) => {
+    // Select synchronously; slow/unavailable diagnostic storage never holds up the background.
+    if (revision === readRevision) void apply(settings.ok ? settings.value[STORAGE_KEYS.settings] : undefined).catch(() => undefined);
+  });
+  return { ...journal, ready, async dispose() { off(); await journal.dispose(); } };
+}
+
+/** The existing debug page/copy/export use this same bounded journal.read answer. */
+export async function readPassJournals(base: JournalRead, kind: JournalKind, limit: number, journals: readonly ReturnType<typeof createPassJournal>[]): Promise<JournalRead> {
+  if (kind !== 'newcomers-check' || journals.length === 0) return base;
+  const reads = await Promise.all(journals.map((journal) => journal.read(limit)));
+  const runs = [...(base.runs ?? []), ...reads.flatMap((read) => read.runs ?? [])].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const retained = runs.slice(-LOG_LIMITS.newcomersJournalRuns);
+  const ids = new Set(retained.map((run) => run.runId));
+  const baseRetained = (base.runs ?? []).every((run) => ids.has(run.runId));
+  const records = [...(baseRetained ? base.records : []), ...reads.flatMap((read) => read.records).filter((record) => ids.has(String(record.fields?.passId)))].sort((a, b) => a.ts.localeCompare(b.ts) || a.seq - b.seq);
+  const take = Math.max(0, Math.min(Math.floor(limit), LOG_LIMITS.exportRecentRecords));
+  return { records: take === 0 ? [] : records.slice(-take), runs: retained, truncated: base.truncated || reads.some((read) => read.truncated) || records.length > take || retained.length < runs.length };
 }

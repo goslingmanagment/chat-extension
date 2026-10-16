@@ -2,15 +2,21 @@ import { LOG_LIMITS } from '@cg/contracts/limits';
 import { DEFAULT_SETTINGS, STORAGE_KEYS } from '@cg/contracts/settings';
 import type { PassJournalRun } from '@cg/core/services/hosts/fansly/newcomers';
 import { openBoundedStore, type BoundedStoreOptions } from '@cg/platform';
+import { WORLD } from '@cg/testing/hub';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMemoryKv } from '../../../packages/core/src/services/test-support/memory-kv';
-import { createPassJournal, PASS_JOURNAL_BOUNDS, PASS_JOURNAL_DB, PASS_JOURNAL_MEMORY, startPassJournal } from '../bg/fansly/pass-journal';
+import { journalText } from '../../../packages/core/src/application/pages/view-debug';
+import { createPassJournal, PASS_JOURNAL_BOUNDS, PASS_JOURNAL_MEMORY, startPassJournal } from '../src/composition/background/pass-journal';
+import { HOST_MODULE_SPECS } from '../src/composition/background';
 import { fanslyModule } from '../bg/fansly';
 import type { BackgroundKit, HostSiteRegistry } from '../src/composition/background/host-module';
+import { signInWithPersona } from './support/tabs';
+import { createWorld, settingsFor } from './support/world';
 
 const T0 = Date.UTC(2026, 9, 16, 12);
+const PASS_JOURNAL_DB = HOST_MODULE_SPECS['fansly-web'].passJournalDb;
 const run = (n: number): PassJournalRun => ({ passId: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, hostAccountId: '700000000000000017', startedAt: T0, windowHours: 48 });
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -184,15 +190,17 @@ describe('[host:fansly] the pass journal in IndexedDB (R20 P10b3)', () => {
     await local.set({ [STORAGE_KEYS.settings]: { ...DEFAULT_SETTINGS, debug: { enabled: true, renderTrace: false } } });
     const set = vi.spyOn(local, 'set');
     const kit = { storage: { local, journal: openBoundedStore }, clock: { now: () => T0 } } as unknown as BackgroundKit;
-    const first = await startPassJournal(kit);
+    const first = startPassJournal(kit, PASS_JOURNAL_DB);
     if (first === null) throw new Error('no journal port');
+    await first.ready;
     first.start(run(1))?.('pass.start');
     await first.idle();
     await first.dispose();
     expect(set).not.toHaveBeenCalled();
     await local.set({ [STORAGE_KEYS.settings]: DEFAULT_SETTINGS });
-    const second = await startPassJournal(kit);
+    const second = startPassJournal(kit, PASS_JOURNAL_DB);
     if (second === null) throw new Error('no journal port');
+    await second.ready;
     cleanups.push(() => second.dispose());
     await second.idle();
     expect(second.start(run(2))).toBeUndefined();
@@ -208,7 +216,49 @@ describe('[host:fansly] the pass journal in IndexedDB (R20 P10b3)', () => {
     expect(second.tail()).toEqual([]);
   });
 
-  it('[NF-029] [FS-NEW-5] the wired background records actual HTTP attempts/statuses and retry gaps, then clears on owner change', async () => {
+  it.each(['data.clear', 'session.signOut', 'owner-change'] as const)('[NF-029] [FS-NEW-5] %s clears the persisted pass while the site stays idle; the existing reader and copy/export see it before clearing', async (command) => {
+    const idb = new IDBFactory();
+    vi.stubGlobal('indexedDB', idb);
+    const w = createWorld({ settings: settingsFor(undefined, { debug: { enabled: true, renderTrace: false } }) });
+    cleanups.push(() => { w.dispose(); return Promise.resolve(); });
+    w.start();
+    await signInWithPersona(w);
+    const previous = await setup(idb);
+    previous.journal.start(run(1))?.('message.classify', { fanRef: '710000000000000001', groupId: '810000000000000001', messageId: '910000000000000001', classification: 'personal' });
+    previous.journal.start(run(2))?.('pass.end', { state: 'done' });
+    await previous.journal.idle();
+    await previous.journal.dispose();
+    // No tab of the site survives this restart: there is no running module to notify.
+    w.fake.suspendBackground();
+    const debug = w.page('debug-journal');
+    const read = await debug.request('journal.read', { journal: 'newcomers-check', limit: 100 });
+    if (!read.ok) throw new Error(`journal.read: ${read.error.code}`);
+    expect(read.payload.runs).toEqual(expect.arrayContaining([
+      { runId: run(1).passId, startedAt: new Date(T0).toISOString(), events: 1 },
+      { runId: run(2).passId, startedAt: new Date(T0).toISOString(), events: 1 },
+    ]));
+    expect(read.payload.records.find((record) => record.msg === 'message.classify')).toMatchObject({ scope: 'bg.newcomers.pass', fields: { fanRef: '710000000000000001', groupId: '810000000000000001', messageId: '910000000000000001' } });
+    // Both existing actions format the answer of journal.read through journalText.
+    expect(journalText(read.payload)).toContain('message.classify');
+    expect(journalText(read.payload)).toContain(run(2).passId);
+    const limited = await debug.request('journal.read', { journal: 'newcomers-check', limit: 1 });
+    expect(limited).toMatchObject({ ok: true, payload: { truncated: true, records: [expect.objectContaining({ msg: 'pass.end' })] } });
+    expect(w.chunkLoads).toEqual([]);
+    const cleared = command === 'owner-change'
+      ? await w.page().request('session.signIn', { login: WORLD.otherUser.username, password: 'synthetic-password-2' })
+      : command === 'data.clear' ? await w.page().request(command, { confirmed: true }) : await w.page().request(command, {});
+    expect(cleared).toMatchObject({ ok: true, ...(command === 'data.clear' ? { payload: { cleared: true } } : {}) });
+    expect(await debug.request('journal.read', { journal: 'newcomers-check', limit: 100 })).toMatchObject({ ok: true, payload: { records: [], runs: [] } });
+    const stored = await openBoundedStore({ dbName: PASS_JOURNAL_DB, ...PASS_JOURNAL_BOUNDS, idb });
+    expect(await stored.latest(100)).toEqual([]);
+    stored.close();
+    // A later background must not restore the old owner's records from disk.
+    w.fake.suspendBackground();
+    expect(await w.page('debug-journal').request('journal.read', { journal: 'newcomers-check', limit: 100 })).toMatchObject({ ok: true, payload: { records: [], runs: [] } });
+    expect(w.chunkLoads).toEqual([]);
+  });
+
+  it('[NF-029] [FS-NEW-5] the wired background records actual HTTP attempts/statuses and retry gaps through the core journal port', async () => {
     vi.useFakeTimers({ now: T0, toFake: ['Date', 'setTimeout', 'clearTimeout', 'performance'] });
     const idb = new IDBFactory();
     const local = createMemoryKv().open();
@@ -234,13 +284,16 @@ describe('[host:fansly] the pass journal in IndexedDB (R20 P10b3)', () => {
         emit(_type: string, change: { pass: { state: string } }) { if (change.pass.state === 'stopped') stopped = true; },
       },
     } as unknown as BackgroundKit;
-    const handle = await fanslyModule().start(kit);
-    cleanups.push(async () => { vi.useRealTimers(); await handle.dispose(); });
+    const journal = startPassJournal(kit, PASS_JOURNAL_DB);
+    if (journal === null) throw new Error('no journal port');
+    await journal.ready;
+    const handle = await fanslyModule().start({ ...kit, log: { ...kit.log, passJournal: journal } });
+    cleanups.push(async () => { vi.useRealTimers(); await handle.dispose(); await journal.dispose(); });
     if (registry === null) throw new Error('registry not plugged');
     await (registry as HostSiteRegistry).handle('fansly.followers.scan', { hostAccountId: template.legacyId, windowHours: 48 }, { kind: 'tab', tabSessionId: 'tab-1', host: 'fansly-web', tabId: 12, url: 'https://fansly.com/messages' });
     await vi.waitFor(() => expect(stopped).toBe(true), { timeout: 10_000 });
-    // Drain through the real module's disposal before reopening the same IDB.
     await handle.dispose();
+    await journal.idle();
     const retained = await openBoundedStore({ dbName: PASS_JOURNAL_DB, ...PASS_JOURNAL_BOUNDS, idb });
     cleanups.push(() => { retained.close(); return Promise.resolve(); });
     const records = (await retained.latest(100)).map((row) => row.value as { event: string; fields: { httpStatus?: number; waitMs?: number } });
@@ -250,10 +303,5 @@ describe('[host:fansly] the pass journal in IndexedDB (R20 P10b3)', () => {
     expect(JSON.stringify(records)).not.toMatch(/PRIVATE_TOKEN|authorization/);
     expect(disk).toBeDefined();
     retained.close();
-    // A fresh realm sees the saved run; changing the signed-in owner erases it.
-    const next = await fanslyModule().start(kit);
-    cleanups.push(() => next.dispose());
-    await next.onEvent({ kind: 'session', ownerChanged: true, signedOut: false });
-    expect(disk?.stats().records).toBe(0);
   });
 });

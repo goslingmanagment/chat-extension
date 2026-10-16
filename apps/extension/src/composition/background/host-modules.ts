@@ -36,6 +36,8 @@ export const RETRY_AFTER_MS = 10_000;
 export const MAX_ATTEMPTS = 5;
 
 export interface HostModuleSpec {
+  /** Persistent diagnostics are owned by the core even while the site's chunk is idle. */
+  readonly passJournalDb?: string;
   /** The chunk inside the extension (`bg/<site>.js`; the host registry's `background.file`). */
   readonly chunk: string;
   /** Storage keys whose presence means unfinished work of the site: its module starts with the background. */

@@ -134,6 +134,7 @@ import { type BackgroundKit, type HostRequestType, type KitSender, type SiteTabs
 import { createHostModules, type HostModuleSpec } from './background/host-modules';
 import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
 import { createBackgroundLogging } from './background/logging';
+import { readPassJournals, startPassJournal } from './background/pass-journal';
 import { opsStoreOver } from './background/ops-store';
 import { CLOCK, IDS, TIMERS, eventSinkOf, hubLogOf, keyOf, logSinkOf, serviceLogOf, throwingStoreOf } from './background/ports';
 import { personaPatchRefusal } from './background/settings-guard';
@@ -165,7 +166,7 @@ export function wsTapSpec(): DynamicMainScriptSpec {
  * hub their reports), a tripped fuse («Статус» shows it), greeting leases.
  */
 export const HOST_MODULE_SPECS = {
-  'fansly-web': { chunk: 'bg/fansly.js', pending: { local: [], session: [] } },
+  'fansly-web': { chunk: 'bg/fansly.js', pending: { local: [], session: [] }, passJournalDb: 'cg-fansly-newcomers' },
   chatspace: { chunk: 'bg/chatspace.js', pending: { local: [STORAGE_KEYS.sendJournal, LOCAL_KEYS.sendFuse], session: [SESSION_KEYS.greetingLeases] } },
 } as const satisfies PerHost<HostModuleSpec>;
 
@@ -318,6 +319,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const { logger } = logging;
   const serviceLog = serviceLogOf(logger);
   const coreLog = logSinkOf(logger);
+  const passJournals = new Map<HostKind, NonNullable<ReturnType<typeof startPassJournal>>>();
+  for (const [host, spec] of Object.entries(HOST_MODULE_SPECS) as [HostKind, HostModuleSpec][]) {
+    if (spec.passJournalDb === undefined) continue;
+    const journal = startPassJournal({ storage: { local, session, localKeys: throwingStoreOf(local), sessionKeys: throwingStoreOf(session), journal: openBoundedStore }, clock: CLOCK }, spec.passJournalDb);
+    if (journal !== null) passJournals.set(host, journal);
+  }
+  const clearPassJournals = (): Promise<void[]> => Promise.all([...passJournals.values()].map((journal) => journal.clear()));
 
   const extSettings = createSettingsExtOwner({ local, session, log: serviceLog });
   const accessFailed = (): void => serviceLog({ level: 'warn', scope: 'bg.site-access', msg: 'site access or observation unavailable' });
@@ -689,6 +697,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   /** The kit of a site's module: what it counts goes to its site's `client_health` window (R20 F7). */
   const kitOf = (host: HostKind): BackgroundKit => ({
     ...kit,
+    log: { ...kit.log, ...(passJournals.has(host) ? { passJournal: passJournals.get(host)! } : {}) },
     telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
     // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope;
     // its events to the site's receivers, or one tab session — the tab or its relay frames (R20 P9c).
@@ -988,7 +997,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // unloads the page only once it is done (at most 5 s): started here and not handed over, it was cut by the unload
     // whenever the store was slower than the unload, and the record of this very suspend was lost (LG-018).
     logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.activeAll().length, sends: hostModules.facts().sends?.open ?? 0, uptimeMs: Date.now() - started } });
-    return Promise.allSettled([logging.logs.flush(), observations.then(() => networkSession.idle()), siteAccess.idle()]).then(() => undefined);
+    return Promise.allSettled([logging.logs.flush(), ...[...passJournals.values()].map((journal) => journal.idle()), observations.then(() => networkSession.idle()), siteAccess.idle()]).then(() => undefined);
   });
   lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));
 
@@ -1016,7 +1025,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         void local.remove([STORAGE_KEYS.newcomersDrafts]);
       }
       // §9.4: at sign-out what is finished of the X8 journal goes; open records stay until resolved.
-      if (ownerChanged || change.session === null) void hostModules.notify({ kind: 'session', ownerChanged, signedOut: change.session === null }).catch(() => undefined);
+      if (ownerChanged || change.session === null) {
+        void clearPassJournals().catch(() => undefined);
+        void hostModules.notify({ kind: 'session', ownerChanged, signedOut: change.session === null }).catch(() => undefined);
+      }
       sound.sync();
       if (change.session !== null) {
         void settings.setPersonaScope({ hubOrigin: change.session.hubOrigin, userId: change.session.userId });
@@ -1113,7 +1125,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       return { ok: false, error: wire };
     }
   });
-  rpc.handle('session.signOut', () => hubCall(() => hub().signOut()));
+  rpc.handle('session.signOut', () => hubCall(async () => { const outcome = await hub().signOut(); await clearPassJournals(); return outcome; }));
   rpc.handle('bootstrap.get', ({ force }) => hubCall(() => hub().bootstrap(force === true ? { force: true } : undefined)));
   rpc.handle('binding.resolve', ({ account }) => {
     const resolution = hub().resolveBinding(account);
@@ -1279,8 +1291,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok(await diagnostics.snapshot());
   });
   rpc.handle('diagnostics.export', async ({ format }) => ok(await diagnostics.exportFile(format)));
-  rpc.handle('journal.read', ({ journal, limit }) => {
-    const read = logging.journals.read(journal, limit);
+  rpc.handle('journal.read', async ({ journal, limit }) => {
+    const read = await readPassJournals(logging.journals.read(journal, limit), journal, limit, [...passJournals.values()]);
     return ok({ records: read.records, truncated: read.truncated, runs: read.runs === null ? null : [...read.runs] });
   });
   rpc.handle('debug.prompt', ({ token }) => {
@@ -1334,7 +1346,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('data.clear', async () => {
     const results = scheduler.clearFinished();
     clearDebug();
-    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), logging.clearCounters(), hostModules.notify({ kind: 'clear-finished' }), scheduler.idle()]);
+    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), logging.clearCounters(), clearPassJournals(), hostModules.notify({ kind: 'clear-finished' }), scheduler.idle()]);
     const cleared = done.every((step) => step.status === 'fulfilled');
     logger.info('bg.data', 'local data cleared', { fields: { results, cleared } });
     return ok({ cleared });
@@ -1411,6 +1423,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       name: 'settings',
       async run() {
         await settings.start();
+        await Promise.all([...passJournals.values()].map((journal) => journal.ready));
         previousSettings = settingsRead() ? settings.current() : null;
       },
     },
@@ -1441,6 +1454,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         hubInstance = instance;
         await instance.ready;
         lastOwner = ownerOf(instance.session());
+        if (lastOwner === null) void clearPassJournals().catch(() => undefined);
         // Once after the settings load: a full token does not outlive the dev/compat mode — debug off in a test
         // build, and any release build, which has no such mode — it is erased and revoked.
         void instance.notifyDebugChanged();
