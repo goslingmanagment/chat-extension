@@ -1,0 +1,2 @@
+# Append-only logs that every PR extends at the same place: a rebase keeps both sides (R20, 2026-10-16).
+docs/contracts-changelog.md merge=union
