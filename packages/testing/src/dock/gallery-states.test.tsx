@@ -47,6 +47,9 @@ describe('the dock gallery states', () => {
       ['x-stale-unverified', ['fansly']],
       ['x-stale-window-miss', ['fansly']],
       ['x-stale-deleted-served', ['fansly']],
+      ['x-stale-recap', ['fansly']],
+      ['x-stale-review', ['fansly']],
+      ['x-stale-coach', ['fansly']],
     ]);
   });
 

@@ -473,6 +473,20 @@ export const GALLERY_STATES: readonly GalleryState[] = [
   state('19', 'analysis', 'Review 7/10', (ctx) =>
     one(ctx, dock(ctx, 'ready', { analysis: 'review', options: { ...withSplit(ctx), splitReason: reason('not-a-message') }, actionsOptions: { active: 'review' } }), [entry({ of: 'review' }, reviewVm(ctx))]),
   ),
+  // The window check's mark over Recap and Review (R20 P8c; ui-design §4.7): the plate of 3c, «Ещё раз» builds or rates anew — Fansly's alone.
+  state('x-stale-recap', 'analysis', 'Recap: ответ мог не учесть последние сообщения (Fansly)', (ctx) => one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'full', views.ready(), { stale: { reason: 'window-miss', at: null } }))]), {
+    sites: ['fansly'],
+  }),
+  state(
+    'x-stale-review',
+    'analysis',
+    'Review: свежесть не проверена (Fansly)',
+    (ctx) =>
+      one(ctx, dock(ctx, 'ready', { analysis: 'review', options: { ...withSplit(ctx), splitReason: reason('not-a-message') }, actionsOptions: { active: 'review' } }), [
+        entry({ of: 'review' }, reviewVm(ctx, { stale: { reason: 'unverified', at: null } })),
+      ]),
+    { sites: ['fansly'] },
+  ),
   // ── ui-design §10: required, not drawn in the mockup ──
   state('x-one-part', 'extras', 'Split включён, пришла одна часть (AI-011)', (ctx) =>
     one(ctx, replyDock(ctx, reply(ctx, { parts: parts(OP.reply, [SINGLE]), meta: [meta.tone('flirty'), meta.onePart()], splitRequested: true }))),
@@ -655,6 +669,27 @@ export const GALLERY_STATES: readonly GalleryState[] = [
       entry({ of: 'coach' }, coach(ctx, views.partial({ kind: 'archive-lag', messages: 2, minutes: null }), [])),
     ],
     { surface: 'coach' },
+  ),
+  // The window check's mark over a Coach answer (R20 P8c): «Ещё раз» asks the question again — Fansly's alone.
+  state(
+    'x-stale-coach',
+    'overlays',
+    'Coach: контекст устарел (Fansly)',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })),
+      entry(
+        { of: 'coach' },
+        coach(
+          ctx,
+          views.ready(),
+          coachTurns(ctx, {
+            stale: { reason: 'deleted-served', at: null },
+            again: button('common.again', { type: 'Generate', targetHandle: handles.dock(FANS.theodore), feature: 'coach', options: { question: COACH[ctx.lang].question } }),
+          }),
+        ),
+      ),
+    ],
+    { surface: 'coach', sites: ['fansly'] },
   ),
   state(
     'x-coach-answering',

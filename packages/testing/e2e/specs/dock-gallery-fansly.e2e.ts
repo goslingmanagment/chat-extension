@@ -6,7 +6,8 @@
 //   nothing sticks out, the bar stays 40 px, the closed list of accent dots holds; the bar is Fansly's card in
 //   Fansly's ink, the chips and the capsule its greys, the font the page's; the card keeps 4 px in from the column.
 // - The overlays — toasts, the cheatsheet, Coach, the expanded result, the error boundary's card — in both themes.
-// - The window check's marks over a result (R20 P8b2): drawn in Fansly's gallery alone, in their own words.
+// - The window check's marks over a result (R20 P8b2), over Recap, Review and a Coach answer (P8c): drawn in Fansly's
+//   gallery alone, in their own words.
 // - The person switches Fansly's theme: the palette follows at once, nothing remounts.
 // - The boards and the kit in both themes.
 // - «Новые» of the background's pass, Fansly's own window (R20 P10a, P10b1, P10b2), in both themes: states 13f–13l.
@@ -116,6 +117,30 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
       // The same marks in ChatSpace's gallery: none — no ChatSpace verdict gives them, and its catalog has no words for them.
       await open(`theme=${theme}&lang=ru&w=622&group=results`);
       expect((await health()).accents.filter((accent) => accent.startsWith('x-stale-'))).toEqual([]);
+    });
+
+    it(`[R20-P8c] [host:fansly] the mark over Recap, Review and a Coach answer · ${theme}: the plate of 3c over their text, the accent dot, «Ещё раз» (ui-design §4.7)`, async () => {
+      for (const [id, words] of [
+        ['x-stale-recap', MARKS[1][1]],
+        ['x-stale-review', MARKS[0][1]],
+      ] as const) {
+        await open(`host=fansly&state=${id}&theme=${theme}&lang=ru&w=622`);
+        await captureGroups(`dock-fansly-mark-${id.slice('x-stale-'.length)}-${theme}-ru-w622`);
+        const result = await health();
+        expect([result.failures, result.problems, result.accents]).toEqual([[], [], [`${id}:result-stale`]]);
+        expect(await shown(id, '.cg-stale__t')).toEqual([words]);
+        expect(await shown(id, '.cg-stale .cg-btn')).toEqual(['Ещё раз']);
+        await expectFanslyLook(id, theme);
+      }
+      for (const size of [WINDOW, SMALL]) {
+        await open(`host=fansly&state=x-stale-coach&theme=${theme}&lang=ru`, 1, size);
+        await captureWindow(`overlay-fansly-x-stale-coach-${theme}-ru-${size.width}x${size.height}`);
+        const result = await health();
+        expect([result.failures, result.problems]).toEqual([[], []]);
+        expect(result.scrollWidth).toBeLessThanOrEqual(result.clientWidth);
+      }
+      expect(await shown('x-stale-coach', '.cg-stale__t')).toEqual([MARKS[2][1]]);
+      expect(await shown('x-stale-coach', '.cg-stale .cg-btn')).toEqual(['Ещё раз']);
     });
 
     it(`${TOAST_ROWS} [UI-014] [I18-006] [host:fansly] the overlays · ${theme}: toasts, the cheatsheet, Coach, the expanded result — drawn, nothing failed`, async () => {
