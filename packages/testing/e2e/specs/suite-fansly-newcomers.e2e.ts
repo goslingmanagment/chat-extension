@@ -16,7 +16,6 @@
 //   two real installs on one hub, and the person's own send after an insert. The journal awaits P10b3 (#144).
 
 import { browser, expect } from '@wdio/globals';
-import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 
 import type { NewcomerSeed } from '../../fixture-fansly/src/server-protocol';
@@ -238,7 +237,6 @@ const BUTTONS = `${CARD} .cg-fnc__gbar button`;
 const ROW = (fan: string): string => `${WINDOW} .cg-fnw__row[data-cg-fan$=":${fan}"]`;
 const checkOf = (fan: string): Promise<string | null> => readOurs('modal', ROW(fan), (node) => node.getAttribute('data-cg-check'));
 const fieldText = (): Promise<string | null> => readOurs('modal', FIELD, (node) => (node as HTMLTextAreaElement).value);
-const fingerprint = (text: string): string => createHash('sha256').update(text).digest('hex');
 const posts = async (mark: number, caller: 'ours' | 'page' = 'ours') => (await fakeFansly().calls(caller, mark)).filter((entry) => entry.route === 'message.send');
 
 async function closeWindow(): Promise<void> {
@@ -351,7 +349,9 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect(await oursExists('modal', ROW(old))).toBe(false);
     expect(await oursText('modal', ROW(fresh))).toContain('Мой новый фан');
     expect(await oursText('modal', CARD)).toContain(`About stand_account_${fresh.slice(-6)}`);
-    expect(await oursText('modal', `${WINDOW} .cg-fnw__meta`)).toContain('@stand_creator');
+    // Fansly's host account carries its id alone; the bound hub page supplies the window's display name.
+    expect(await oursText('modal', `${WINDOW} .cg-sp__page`)).toBe(PAGE.title);
+    expect(await oursText('modal', `${WINDOW} .cg-fnw__meta`)).toMatch(/ — .* · местное время/);
     await waitOursText('modal', 'Проверено 3 из 3', 'the pass’s progress', { selector: WINDOW, timeout: 30_000 });
     for (const [period, count, included, excluded] of [['1 час', 1, fresh, closed], ['30 дней', 4, old, '']] as const) {
       await ours('modal', `${WINDOW} .cg-fnw__period`).click();
@@ -368,6 +368,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await seed(followers);
     await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза', 'the queue can pause', 40_000);
     await waitOursText('modal', /Проверка на паузе/, 'the queue paused', { selector: WINDOW });
+    await waitOursText('modal', /Все 105\b/, 'the paused pass keeps all its followers', { selector: `${WINDOW} [role="tablist"]` });
     const hubMark = await hub().mark();
     await ours('modal', `${WINDOW} .cg-sp__search input`).setValue('За сотой строкой');
     const last = followers[104]?.fanId ?? '';
@@ -375,8 +376,13 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect(await oursText('modal', `${WINDOW} [role="tablist"]`)).toMatch(/Все 1\b/);
     await ours('modal', `${WINDOW} .cg-sp__search input`).setValue('no-such-follower');
     await browser.waitUntil(async () => oursExists('modal', `${WINDOW} [data-cg-empty]`), { timeout: 10_000 });
-    await ours('modal', `${WINDOW} .cg-sp__search input`).setValue('');
+    // WebDriver's elementClear (setValue('')) does not emit input in Firefox. Clear as a person does: Esc
+    // dispatches the empty query; a paused queue must still return its rows without being resumed.
+    await ours('modal', `${WINDOW} .cg-sp__search input`).click();
+    await browser.keys('Escape');
+    expect(await ours('modal', `${WINDOW} .cg-sp__search input`).getValue()).toBe('');
     await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все 105$/);
+    expect(await readOurs('modal', `${WINDOW} [data-cg-pass]`, (node) => node.getAttribute('data-cg-pass'))).toBe('paused');
     await pressOurs('modal', `${WINDOW} .cg-sp__tools button`, /^В очереди/);
     await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-fnw__row`), { timeout: 10_000 });
     expect((await oursText('modal', `${WINDOW} .cg-fnw__row`))).not.toContain('Уже писали');
@@ -552,7 +558,9 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await greeted(fan);
     expect(await calls(hubMark, 'aiFeatureStream')).toHaveLength(1);
     const dispatch = (await claims(hubMark, fan)).find((entry) => bodyOf(entry)['action'] === 'dispatch');
-    expect(dispatch === undefined ? null : bodyOf(dispatch)['group']).toMatchObject({ kind: 'manual', textFingerprint: fingerprint(edited) });
+    // The fake hub redacts fingerprints in its request journal; sentText below checks the exact edited text.
+    expect(dispatch?.status).toBe(200);
+    expect(dispatch === undefined ? null : bodyOf(dispatch)['group']).toMatchObject({ kind: 'manual', textFingerprint: '‹64 chars›' });
     expect(await posts(mark)).toHaveLength(1);
     await sentText(group, edited);
   });
@@ -754,12 +762,14 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await browser.waitUntil(async () => (await claim(fan))?.greeting === 'confirmed', { timeout: 25_000, timeoutMsg: 'the native greeting was not registered for everyone' });
     const registered = (await claims(hubMark, fan)).filter((entry) => bodyOf(entry)['action'] === 'registerNativeSend');
     expect(registered).toHaveLength(1);
-    expect(bodyOf(registered[0] as FakeHubJournalEntry)).toMatchObject({ purpose: 'greeting', platformMessageId: expect.stringMatching(/^\d+$/), group: { kind: 'manual', textFingerprint: fingerprint(text) } });
+    expect(registered[0]?.status).toBe(200);
+    expect(bodyOf(registered[0] as FakeHubJournalEntry)).toMatchObject({ purpose: 'greeting', platformMessageId: expect.stringMatching(/^\d+$/), group: { kind: 'manual', textFingerprint: '‹64 chars›' } });
     expect(await posts(sendMark)).toEqual([]);
     expect(await posts(sendMark, 'page')).toHaveLength(1);
     await openWindow(shift);
     await select(fan, 'greeted');
     expect(await oursExists('modal', FIELD)).toBe(false);
+    await sentText(group, text);
   });
 
   // #144 owns the bounded pass journal and wires it into journal.read. This scenario is ready to unskip on merge;
