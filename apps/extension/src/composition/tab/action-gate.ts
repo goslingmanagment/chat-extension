@@ -160,6 +160,9 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   OpenChatToVerify: ['navigate'],
   Navigate: ['navigate'],
   SendPart: ['send'],
+  // R20 P10c: a «Новые» card asks after writing and reading its draft — «Отправить» a send, «Открыть и вставить» a navigation.
+  SendNewcomerGreeting: ['send'],
+  InsertNewcomerGreeting: ['navigate'],
 };
 
 /** How long the action of a click or a key may ask for its tokens: it reads the page and the background first. */

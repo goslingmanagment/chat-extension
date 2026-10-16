@@ -353,6 +353,8 @@ describe('the action tokens of a tab', () => {
       OpenChatToVerify: ['navigate'],
       Navigate: ['navigate'],
       SendPart: ['send'],
+      SendNewcomerGreeting: ['send'],
+      InsertNewcomerGreeting: ['navigate'],
     });
     const s = seam();
     // A view switch asks for nothing, with or without a person behind it.
@@ -385,6 +387,25 @@ describe('the action tokens of a tab', () => {
     during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SendPart'));
     expect(await s.tokens.issue('send', 'preview')).toBe('token-1-0123456789abcdef');
     expect(s.asked).toEqual([['send', 'preview']]);
+    s.gate.dispose();
+  });
+
+  it('[NF-019] [FS-NEW-3] a «Новые» card asks after its draft is written and read: «Отправить» clicked in its window gets ONE send, «Открыть и вставить» a navigation; a key press sends nothing', async () => {
+    const s = seam();
+    during(s.w.overlayButton, event('keydown', true), () => s.tokens.granted('SendNewcomerGreeting'));
+    expect(await s.tokens.issue('send', 'newcomers')).toBeNull();
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SendNewcomerGreeting'));
+    // The click is over by the time the card has written and read its draft: the grant still holds its one send.
+    await Promise.resolve();
+    expect(await s.tokens.issue('navigate', 'newcomers')).toBeNull();
+    expect(await s.tokens.issue('send', 'newcomers')).toBe('token-1-0123456789abcdef');
+    expect(await s.tokens.issue('send', 'newcomers')).toBeNull();
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('InsertNewcomerGreeting'));
+    await Promise.resolve();
+    expect(await s.tokens.issue('send', 'newcomers')).toBeNull();
+    expect(await s.tokens.issue('navigate', 'newcomers')).toBe('token-2-0123456789abcdef');
+    expect(s.asked).toEqual([['send', 'newcomers'], ['navigate', 'newcomers']]);
+    expect(s.ungranted).toEqual([]);
     s.gate.dispose();
   });
 
