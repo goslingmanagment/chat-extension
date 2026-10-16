@@ -366,9 +366,14 @@ describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () =>
     const server = conversation(1, 11);
     fresh(c.win).respond(200, freshEnd(server.slice(0, 10)));
     request(c.win, `${API}/group/${GROUP}/`).respond(200, ok(group(GROUP, [CREATOR, FAN], { lastMessage: server.at(-1) })));
+    // The snapshot is unknown during the grace too; recovery must wait for the actual loss event.
+    expect(await snap(c)).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
+    expect(coverage(c)).not.toContainEqual({ groupIds: [GROUP], state: 'unknown', reason: 'unseen' });
     const held = fresh(c.win);
     skew += UNSEEN_GRACE_MS + 1;
     expect(await snap(c)).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
+    await settle();
+    expect(coverage(c)).toContainEqual({ groupIds: [GROUP], state: 'unknown', reason: 'unseen' });
     held.respond(200, freshEnd(server));
     expect(await snap(c)).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
     fresh(c.win).respond(200, freshEnd(server));

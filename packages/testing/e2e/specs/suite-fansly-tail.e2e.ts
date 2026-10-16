@@ -3,7 +3,7 @@
 import { browser, expect } from '@wdio/globals';
 
 import type { OpView } from '@cg/contracts';
-import type { FanslyHealth } from '@cg/contracts/bridge-messages-fansly';
+import type { FanslyHealth, FromMainFansly } from '@cg/contracts/bridge-messages-fansly';
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import { SESSION_KEYS } from '@cg/core/domain';
 
@@ -32,6 +32,12 @@ async function snapshot(groupId = A.group, feature: 'reply' | 'hi' | 'recap' = '
   return answer.snapshot;
 }
 const complete = () => waitForTap(() => snapshot(), (s) => s.completeness === 'complete', 'a certificate from the page’s fresh end');
+// A snapshot is already unknown during the unseen grace; only this event says the interval has ended.
+const unseenLoss = (from: number) => waitForTap(
+  () => tap<FromMainFansly[]>('events', from),
+  (events) => events.some((e) => e.t === 'fx.coverage' && e.p.state === 'unknown' && e.p.reason === 'unseen' && e.p.groupIds !== 'all' && e.p.groupIds.includes(A.group)),
+  'the unseen-message grace expired and ended the interval',
+);
 async function recover(): Promise<void> {
   await callFansly('cameBack', 31_000);
   await waitForFanslyStandIdle();
@@ -119,17 +125,22 @@ describe('suite-fansly-tail: the observed window, certificates, gaps and bounded
   });
 
   it('[FS-TAIL-3] [FS-TAIL-4] a by-id answer or lastMessage beyond the observed interval makes it unknown; a fresh end starts a new interval', async () => {
+    const byIdFrom = (await tap<FromMainFansly[]>('events')).length;
     const missing = (await fakeFansly().command({ op: 'message', groupId: A.group, text: 'not in the socket', silent: true })).message?.id ?? '';
     await callFansly('notify', [missing]);
     await waitForTap(() => snapshot(), (s) => s.completeness === 'unknown', 'a source named an unseen message');
+    await unseenLoss(byIdFrom);
     await recover();
     expect((await snapshot()).window.some((m) => m.id === missing)).toBe(true);
     // The same gap announced by the group’s lastMessage, with the history answer held back.
+    const lastMessageFrom = (await tap<FromMainFansly[]>('events')).length;
     const later = (await fakeFansly().command({ op: 'message', groupId: A.group, text: 'lastMessage only', silent: true })).message?.id ?? '';
     await callFansly('open', B.group); await waitForFanslyStandIdle();
-    await fakeFansly().command({ op: 'api', rules: [{ route: 'message.history', caller: 'page', times: 1, outcome: { kind: 'delay', ms: 1500 } }] });
+    // Hold the answer beyond MAIN's three-second unseen grace.
+    await fakeFansly().command({ op: 'api', rules: [{ route: 'message.history', caller: 'page', times: 1, outcome: { kind: 'delay', ms: 5000 } }] });
     await callFansly('forget', A.group); await callFansly('open', A.group);
     await waitForTap(() => snapshot(), (s) => s.completeness === 'unknown', 'lastMessage names a missing id');
+    await unseenLoss(lastMessageFrom);
     await waitForFanslyStandIdle();
     // This held request began before lastMessage's unseen grace expired: its answer cannot certify after that loss.
     expect((await snapshot()).completeness).toBe('unknown');
