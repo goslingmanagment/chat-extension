@@ -258,6 +258,7 @@ describe('gate: release bundle', () => {
   it("flags Fansly's API probe of the e2e (R20 P9b)", () => {
     expect(gates(checkReleaseBundle([file('bg/fansly.js', 'const k={origin:"dev.fanslyApi.origin"};')]))).toEqual(['release-bundle']);
     expect(gates(checkReleaseBundle([file('lazy/fansly/tab-app.js', 'const k="data-cg-ops-command";')]))).toEqual(['release-bundle']);
+    expect(gates(checkReleaseBundle([file('bg/fansly.js', 'const k={request:"dev.fanslySend.request"};')]))).toEqual(['release-bundle']);
     expect(checkReleaseBundle([file('bg/fansly.js', 'const k="dev.compatPageAccounts";')])).toEqual([]);
   });
 
