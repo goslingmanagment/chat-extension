@@ -407,8 +407,11 @@ describe('which changes run the e2e suite', () => {
     expect(part).toMatch(/- name: Checkout\n {8}uses: actions\/checkout@v6\n {8}with:\n {10}fetch-depth: 2\n/);
     expect(runLine('Does this change need e2e\\?')).toBe('tools/ci/e2e-needed.sh >> "$GITHUB_OUTPUT"');
     const steps = part.slice(part.indexOf('- name: Does this change need e2e?')).split(/\n {6}- name: /).slice(1);
-    expect(steps.map((step) => step.split('\n')[0])).toEqual(['Setup Node.js', 'Setup pnpm', 'Install dependencies', 'e2e (headless Firefox in the pinned image, no network)', 'Remove the e2e container, if one is left', 'Upload e2e logs']);
+    expect(steps.map((step) => step.split('\n')[0])).toEqual(['Setup Node.js', 'Setup pnpm', 'Install dependencies', 'e2e (headless Firefox in the pinned image, no network)', 'Remove the e2e container, if one is left', 'Upload e2e logs', 'Upload Fansly perf evidence']);
     for (const step of steps.slice(0, 5)) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: (always\(\) && )?steps\.scope\.outputs\.e2e != 'false'\n/);
+    const perf = steps.at(-1) ?? '';
+    expect(perf).toContain("if: always() && steps.scope.outputs.e2e != 'false'");
+    expect(perf).toContain('path: .cache/e2e/perf-fansly/gate');
     // No workflow-level path filter: a required check of a workflow that never starts would wait for ever.
     expect(WORKFLOW).not.toMatch(/^\s+paths(-ignore)?:/m);
   });
