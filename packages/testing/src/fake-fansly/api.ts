@@ -284,7 +284,9 @@ const ROUTES: readonly Route[] = [
       found.note.title = note.title;
       found.note.note = note.note;
       found.note.updatedAt = Date.now();
-      return { response: world.wireNote(found.note) };
+      // Live Fansly's edit answer carries less than the note (E170 of the old extension): its window reads the title
+      // and the text alone, so the stand answers with those and a client that asks for more is caught here.
+      return { response: { title: found.note.title, note: found.note.note } };
     },
   },
   {

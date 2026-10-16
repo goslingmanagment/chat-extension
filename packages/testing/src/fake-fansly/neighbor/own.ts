@@ -119,7 +119,8 @@ export class OwnRequests {
       mine === undefined
         ? await this.send<WireNote>('POST', '/notes', 'note-write', body)
         : await this.send<WireNote>('POST', '/notes/edit', 'note-write', { ...body, id: mine.id });
-    return written.response === null ? null : { id: written.response.id, created: mine === undefined };
+    // An edit's answer carries the title and the text alone, as on live Fansly: the note's id is the one it edited.
+    return written.response === null ? null : { id: mine?.id ?? written.response.id, created: mine === undefined };
   }
 }
 

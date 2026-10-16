@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { admit } from './allowlist';
-import { FANSLY_NAME_NOTE_TYPE, FANSLY_NOTE_TYPE, fanNotesOf, isForeignNote, notesCalls, writtenNote } from './notes';
+import { editedNote, FANSLY_NAME_NOTE_TYPE, FANSLY_NOTE_TYPE, fanNotesOf, isForeignNote, notesCalls, writtenNote } from './notes';
 
 const FAN = '920000000000000003';
 const note = (id: string, contentType: number, title: string, text: string, contentId = FAN) => ({ id, accountId: '700000000000000017', contentType, contentId, title, note: text, createdAt: 1, updatedAt: null });
@@ -42,6 +42,18 @@ describe('«Заметки»: Fansly’s own note calls and answers (R20 P11b)',
     expect(writtenNote(raw, FAN, FANSLY_NAME_NOTE_TYPE)).toBeNull();
     expect(writtenNote(note('801', FANSLY_NOTE_TYPE, 'T', 'x', '920000000000000032'), FAN, FANSLY_NOTE_TYPE)).toBeNull();
     expect(writtenNote(null, FAN, FANSLY_NOTE_TYPE)).toBeNull();
+  });
+
+  it('[FS-NOTE-4] an edit is confirmed by `success` as Fansly’s window confirms it; what the answer does name must be this note’s', () => {
+    const sent = { id: '801', contentType: FANSLY_NOTE_TYPE, contentId: FAN, title: 'Анкета', note: 'Имя: Алекс' };
+    // Live Fansly: the title and the text alone, or nothing at all (E170 of the old extension).
+    expect(editedNote({ title: 'Анкета', note: 'Имя: Алекс ' }, sent, 'Анкета', 'Имя: Алекс')).toEqual({ ...sent, note: 'Имя: Алекс ' });
+    for (const answer of [undefined, null, true, {}]) expect(editedNote(answer, sent, 'Анкета', 'Имя: Алекс')).toEqual(sent);
+    expect(editedNote(note('801', FANSLY_NOTE_TYPE, 'Анкета', 'Имя: Алекс'), sent, 'Анкета', 'Имя: Алекс')).toEqual(sent);
+    expect(editedNote({ id: '802', title: 'Анкета', note: 'x' }, sent, 'Анкета', 'x')).toBeNull();
+    expect(editedNote({ contentType: FANSLY_NAME_NOTE_TYPE }, sent, 'Анкета', 'x')).toBeNull();
+    expect(editedNote({ contentId: '920000000000000032' }, sent, 'Анкета', 'x')).toBeNull();
+    expect(editedNote({ id: 801 }, sent, 'Анкета', 'x')).toBeNull();
   });
 
   it('[FS-NOTE-3] [FS-NOTE-4] the calls are Fansly’s window’s, admitted by FS-NET-1’s `notes` row: reads once and never during a cooldown, writes once', () => {
