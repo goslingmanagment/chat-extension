@@ -6,6 +6,7 @@
 // asked for the whole snapshot every 700 ms). The port hands answers and events over already checked by Fansly's
 // registry (the composition's `fanslyRequest`, NF-027); here they become the neutral words of a pass
 // (domain/hosts/fansly/newcomers). A failure is a failure — of the envelope or of the payload — never an empty list.
+// R20 P10b1: the queue's buttons — `pause`, `resume`, `prioritize` (NF-038).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type FanslyTabEventPayload, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
@@ -26,7 +27,15 @@ import {
 import { type NewcomersPassSource, type SourceAnswer } from '../../newcomers/source';
 
 /** The window's requests of Fansly's registry. */
-export type FanslyFollowersRequest = 'fansly.followers.scan' | 'fansly.followers.read' | 'fansly.followers.history' | 'fansly.followers.close';
+export type FanslyFollowersRequest =
+  | 'fansly.followers.scan'
+  | 'fansly.followers.read'
+  | 'fansly.followers.history'
+  | 'fansly.followers.close'
+  // R20 P10b1: the queue's buttons (NF-038).
+  | 'fansly.followers.pause'
+  | 'fansly.followers.resume'
+  | 'fansly.followers.prioritize';
 
 export type FanslyFollowersAnswer<T extends FanslyFollowersRequest> = { readonly ok: true; readonly payload: FanslyTabResponsePayload<T> } | { readonly ok: false; readonly error: CgErrorWire };
 
@@ -67,6 +76,20 @@ export function createFanslyNewcomersSource(port: FanslyFollowersPort, origin: s
       if (!answer.ok) return { ok: false, failure: envelope(answer.error) } satisfies SourceAnswer<never>;
       const payload = answer.payload;
       return payload.ok ? { ok: true, value: { messages: payload.messages.map(messageOf), more: payload.more } } : { ok: false, failure: failureOf(payload.error) };
+    },
+    async setRunning(passId, running) {
+      if (running) {
+        const answer = await port.request('fansly.followers.resume', { passId });
+        if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
+        return answer.payload.ok ? { ok: true, value: passStateOf(answer.payload.pass) } : { ok: false, failure: failureOf(answer.payload.error) };
+      }
+      const answer = await port.request('fansly.followers.pause', { passId });
+      if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
+      return { ok: true, value: answer.payload.pass === null ? null : passStateOf(answer.payload.pass) };
+    },
+    async checkNext(passId, fanRef) {
+      const answer = await port.request('fansly.followers.prioritize', { passId, fanRef });
+      return answer.ok ? { ok: true, value: answer.payload.recorded } : { ok: false, failure: envelope(answer.error) };
     },
     close(passId) {
       // Nobody waits for it: the pass keeps its results either way.

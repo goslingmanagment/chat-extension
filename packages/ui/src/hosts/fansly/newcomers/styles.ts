@@ -24,6 +24,8 @@ export const FANSLY_NEWCOMERS_CSS = `
   font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-muted); border-bottom: 1px solid var(--cg-rule);
 }
 .cg-fnw__meta b { font-weight: 500; color: var(--cg-ink-2); }
+.cg-fnw__meta .cg-fnw__run { margin-left: auto; align-self: center; }
+.cg-fnc__check { display: flex; margin-top: 6px; }
 .cg-fnw__cool { border-top: 0; border-bottom: 1px solid var(--cg-rule); color: var(--cg-ink-strong); font-weight: 500; }
 .cg-fnw .cg-nc__incomplete { border-top: 0; border-bottom: 1px solid var(--cg-rule); }
 .cg-fnw__stopped { flex: none; padding: 6px 16px 8px 20px; border-bottom: 1px solid var(--cg-rule); }

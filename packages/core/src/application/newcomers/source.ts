@@ -29,6 +29,13 @@ export interface NewcomersPassSource {
   read(passId: string, offset: number, limit: number, query: PassQuery): Promise<SourceAnswer<PassPage>>;
   /** A fan's conversation as the pass reads it, newest first; `before` — the oldest message already shown. */
   history(passId: string, fanRef: string, before: string | null, limit: number): Promise<SourceAnswer<PassHistoryPage>>;
+  /**
+   * R20 P10b1, NF-038: «Пауза» (`false`) or «Проверить оставшихся» (`true`) — the pass as it stands after; null — it
+   * is gone.
+   */
+  setRunning(passId: string, running: boolean): Promise<SourceAnswer<PassState | null>>;
+  /** R20 P10b1, NF-038: «Проверить следующим» / «Проверить чат» — true: the queue took this fan. */
+  checkNext(passId: string, fanRef: string): Promise<SourceAnswer<boolean>>;
   /** The window closed: the pass keeps what it found; nothing new starts for this window. Nobody waits for it. */
   close(passId: string): void;
   onChange(listener: (change: PassChange) => void): () => void;

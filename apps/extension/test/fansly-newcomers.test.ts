@@ -1,8 +1,9 @@
 // «Новые» of a Fansly tab against the core's RPC and Fansly's background module (R20 P10a; docs/project-unite/
-// architecture.md §8.15; NF-027, FX-017, NF-004): the window's requests are checked by Fansly's registry on both sides
+// architecture.md §8.17; NF-027, FX-017, NF-004): the window's requests are checked by Fansly's registry on both sides
 // and asked only from the top frame of a fansly.com tab; an answer or an event that does not fit the registry is
-// never read; and against today's background — whose pass comes with P10b1 — the window says the list was not read,
-// never that nobody followed. The platform's fake browser stands for Firefox.
+// never read; and on a background without Fansly's session (R20 P10b1: the module serves the pass) the pass stops
+// before anyone — the window says the list was not read, never that nobody followed; the change reaches the window's
+// tab through the core's RPC. The platform's fake browser stands for Firefox.
 
 import { CONTRACTS_VERSION } from '@cg/contracts';
 import type { Bootstrap, BootstrapPage } from '@cg/contracts/hub';
@@ -36,10 +37,14 @@ function backgroundOf(context: FakeContext): BackgroundRpc {
   const rpc = createBackgroundRpc({ api: context.api, tabHosts: TAB_HOSTS, ready: Promise.resolve(), contractsVersion: CONTRACTS_VERSION, testBuild: true, siteWaitMs: 2_000 });
   const kit = {
     storage: { local: createMemoryKv().open() },
-    clock: { now: () => T0 },
+    clock: { now: () => T0, setTimer: (ms: number, fn: () => void) => setTimeout(fn, ms) as unknown as number, clearTimer: (handle: number) => clearTimeout(handle) },
+    ids: { uuid: () => crypto.randomUUID(), token: () => crypto.randomUUID() },
     log: { service: () => undefined },
     router: { tabs: () => rpc.tabs().map((tab) => tab.tabSessionId) },
-    site: { plug: (registry: HostSiteRegistry) => rpc.site({ ...registry, host: 'fansly-web' }) },
+    site: {
+      plug: (registry: HostSiteRegistry) => rpc.site({ ...registry, host: 'fansly-web' }),
+      emit: (type: string, payload: unknown, target?: { readonly tabSessionId: string }) => rpc.emitSite('fansly-web', type, payload, target),
+    },
   } as unknown as BackgroundKit;
   void fanslyModule().start(kit);
   return rpc;
@@ -110,12 +115,12 @@ describe('[host:fansly] «Новые» of a Fansly tab over the core’s RPC and
     await until(() => client.state() === 'ready', 'the tab registered');
     // A body outside the registry (721 hours) never reaches the module.
     expect(await fanslyRequest(client, 'fansly.followers.scan', { hostAccountId: CREATOR, windowHours: 721 })).toMatchObject({ ok: false, error: { code: 'CG-UNKNOWN', detail: 'invalid fansly.followers.scan request' } });
-    // Today's module does not serve the pass yet (P10b1): a shared code, never a guess.
-    expect(await fanslyRequest(client, 'fansly.followers.scan', { hostAccountId: CREATOR, windowHours: 48 })).toMatchObject({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } });
+    // The module serves the pass (P10b1): a valid scan is answered with the pass it opened.
+    expect(await fanslyRequest(client, 'fansly.followers.scan', { hostAccountId: CREATOR, windowHours: 48 })).toMatchObject({ ok: true, payload: { ok: true, pass: { hostAccountId: CREATOR, windowHours: 48 } } });
     client.close();
   });
 
-  it('[FX-017] [NF-001] the window on today’s background: the dock’s «Новые» opens it, the scan is asked once, and it says the list was not read — not «nobody new»', async () => {
+  it('[FX-017] [NF-001] the window on a background without Fansly’s session: the dock’s «Новые» opens it, the pass stops before anyone, and it says the list was not read — not «nobody new»', async () => {
     const fake = browserWithBackground();
     const client = fanslyTab(fake);
     await until(() => client.state() === 'ready', 'the tab registered');
@@ -132,9 +137,10 @@ describe('[host:fansly] «Новые» of a Fansly tab over the core’s RPC and
     await controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
     await until(() => controller.getSnapshot({ of: 'newcomers' }).pass?.stage === 'failed', 'the list failed');
     const vm: NewcomersVM = controller.getSnapshot({ of: 'newcomers' });
-    expect([vm.view.s, vm.pass?.failure?.code, vm.rows]).toEqual(['offline', 'CG-RUNTIME-UNREACHABLE', []]);
+    expect([vm.pass?.failure?.code, vm.rows]).toEqual(['CG-FAN-SESSION', []]);
     expect(vm.view.s).not.toBe('empty');
-    expect(asked).toEqual(['fansly.followers.scan']);
+    expect(asked[0]).toBe('fansly.followers.scan');
+    expect(asked).not.toContain('fansly.followers.history');
     expect(vm.pass?.filters.map((filter) => filter.id)).toEqual([...NEWCOMER_CHECK_FILTERS]);
     controller.dispose();
     client.close();

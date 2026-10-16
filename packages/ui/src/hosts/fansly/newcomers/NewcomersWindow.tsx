@@ -26,6 +26,7 @@ import {
   type NewcomerMessageVM,
   type NewcomerRowVM,
   type NewcomersFailureVM,
+  type NewcomersPassRunVM,
   type NewcomersPassVM,
   type NewcomersTab,
   type NewcomersVM,
@@ -302,12 +303,14 @@ function Cooldown({ until }: { readonly until: number }): JSX.Element | null {
 function PassLines({ vm, pass }: { readonly vm: NewcomersVM; readonly pass: NewcomersPassVM }): JSX.Element {
   const i18n = useI18n();
   const range = pass.range === null ? null : fanslyText(i18n, 'fansly.newcomers.range', { from: i18n.formatTime(pass.range.from, 'datetime'), to: i18n.formatTime(pass.range.to, 'datetime') });
+  const run = pass.run !== undefined && (pass.run.pause || pass.run.resume) ? pass.run : null;
   return (
     <>
-      {pass.creator === null && range === null ? null : (
+      {pass.creator === null && range === null && run === null ? null : (
         <div class="cg-fnw__meta">
           {pass.creator === null ? null : <b>@{pass.creator}</b>}
           {range === null ? null : <span>{range}</span>}
+          {run === null ? null : <RunButton run={run} />}
         </div>
       )}
       {pass.stage === 'cooldown' && pass.cooldownUntil !== null ? <Cooldown until={pass.cooldownUntil} /> : null}
@@ -323,6 +326,23 @@ function PassLines({ vm, pass }: { readonly vm: NewcomersVM; readonly pass: Newc
         </div>
       ) : null}
     </>
+  );
+}
+
+/** NF-038: «Пауза» while the queue runs, «Проверить оставшихся: N» while it stands with fans left (R20 P10b1). */
+function RunButton({ run }: { readonly run: NewcomersPassRunVM }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const label = run.pause ? fanslyText(i18n, 'fansly.newcomers.run.pause') : fanslyText(i18n, 'fansly.newcomers.run.resume', { n: run.remaining });
+  return (
+    <Button
+      label={label}
+      variant="line"
+      size="sm"
+      busy={run.busy}
+      class="cg-fnw__run"
+      onClick={() => void dispatch({ type: 'SetNewcomersPassRunning', running: !run.pause })}
+    />
   );
 }
 
@@ -444,6 +464,7 @@ function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
 /** Why nobody can write to the fan, or why the check failed: words, no colour; the code's own line for a failure. */
 function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
   const i18n = useI18n();
+  const dispatch = useDispatch();
   const strong = card.check === 'ready' || card.check === 'reply';
   return (
     <div class="cg-fnc__verdict" data-cg-check={card.check}>
@@ -454,6 +475,16 @@ function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
           {fanslyText(i18n, 'fansly.newcomers.errorFrom', { code: card.failure.code })} · {failureView(i18n, card.failure).title}
         </span>
       ) : null}
+      {card.checkNext === undefined || card.checkNext === null ? null : (
+        <span class="cg-fnc__check">
+          <Button
+            label={fanslyText(i18n, card.checkNext === 'next' ? 'fansly.newcomers.checkNext' : 'fansly.newcomers.checkNow')}
+            variant="line"
+            size="sm"
+            onClick={() => void dispatch({ type: 'CheckNewcomerNext', targetHandle: card.handle })}
+          />
+        </span>
+      )}
     </div>
   );
 }

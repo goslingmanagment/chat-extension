@@ -237,6 +237,17 @@ class FakeFollowers implements FanslyFollowersPort {
       }
       case 'fansly.followers.close':
         return { recorded: true };
+      // R20 P10b1: the queue's buttons.
+      case 'fansly.followers.pause': {
+        const record = this.passes.get(payload['passId'] as string);
+        return { pass: record === undefined ? null : { ...record.view, state: 'paused' } };
+      }
+      case 'fansly.followers.resume': {
+        const record = this.passes.get(payload['passId'] as string);
+        return record === undefined ? { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } } : { ok: true, pass: { ...record.view, state: 'queue' } };
+      }
+      case 'fansly.followers.prioritize':
+        return { recorded: this.rows.some((row) => row.fanRef === payload['fanRef'] && row.status === 'pending') };
     }
   }
 
@@ -759,5 +770,50 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     expect(parsePassHandle(handle)).toEqual({ passId: uuid(0x301), fanRef: fan(1) });
     expect(/^(spenders|newcomers|palette):/.test(handle)).toBe(false);
     expect(handle.split(':')).toHaveLength(3);
+  });
+});
+
+describe('[host:fansly] «Новые» on Fansly: the queue’s buttons (R20 P10b1)', () => {
+  it('[NF-038] «Пауза» while the queue runs, «Проверить оставшихся: N» while it stands; «Проверить следующим» / «Проверить чат» on the card of a fan not checked yet — each one request, the rest comes as the pass’s changes', async () => {
+    const w = world([wireRow(1, { status: 'pending', historyRevision: null, checkedAt: null }), wireRow(2), wireRow(3, { status: 'failed', historyRevision: null, error: { code: 'CG-FAN-REQUEST' } })]);
+    await w.open();
+    const passId = w.background.last().view.passId;
+    const handle = passHandle(passId, fan(1));
+    await w.controller.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    await settle();
+    // The fake background counts the failed fan as checked: one left.
+    expect(w.vm().pass?.run).toEqual({ pause: true, resume: false, remaining: 1, busy: false });
+    expect(w.vm().pass?.card?.checkNext).toBe('next');
+
+    w.background.held.add('fansly.followers.pause');
+    const pausing = w.controller.dispatch({ type: 'SetNewcomersPassRunning', running: false });
+    await settle();
+    expect(w.vm().pass?.run?.busy).toBe(true);
+    w.background.release();
+    expect(await pausing).toMatchObject({ ok: true, outcome: 'done' });
+    expect(w.background.of('fansly.followers.pause')).toEqual([{ passId }]);
+    // The state comes as the background's change, not from the answer.
+    w.background.change(passId, [], { state: 'paused' });
+    await settle();
+    expect(w.vm().pass?.run).toEqual({ pause: false, resume: true, remaining: 1, busy: false });
+    expect(w.vm().pass?.card?.checkNext).toBe('now');
+
+    expect(await w.controller.dispatch({ type: 'CheckNewcomerNext', targetHandle: handle })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(w.background.of('fansly.followers.prioritize')).toEqual([{ passId, fanRef: fan(1) }]);
+    // A fan the queue does not take: nothing happens, and the window says so quietly.
+    expect(await w.controller.dispatch({ type: 'CheckNewcomerNext', targetHandle: passHandle(passId, fan(3)) })).toMatchObject({ ok: true, outcome: 'noop' });
+    expect(await w.controller.dispatch({ type: 'SetNewcomersPassRunning', running: true })).toMatchObject({ ok: true });
+    expect(w.background.of('fansly.followers.resume')).toEqual([{ passId }]);
+    // A handle of another pass is nobody's.
+    expect(await w.controller.dispatch({ type: 'CheckNewcomerNext', targetHandle: passHandle(uuid(0x999), fan(1)) })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+
+    // A checked fan has nothing to check; a pass done with nobody left offers no button.
+    await w.controller.dispatch({ type: 'OpenPreview', targetHandle: passHandle(passId, fan(2)) });
+    const record = w.background.last();
+    record.view = { ...record.view, counts: { ...record.view.counts, checked: 3 } };
+    w.background.change(passId, [wireRow(1), wireRow(3)], { state: 'done' });
+    await settle();
+    expect(w.vm().pass?.card?.checkNext).toBeNull();
+    expect(w.vm().pass?.run).toMatchObject({ pause: false, resume: false });
   });
 });

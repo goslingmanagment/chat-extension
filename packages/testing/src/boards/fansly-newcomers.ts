@@ -158,6 +158,11 @@ export function fanslyNewcomersVM(ctx: ScenarioCtx, options: PassOptions): Newco
   const startedAt = ctx.now - 4 * MIN;
   const checked = followers.filter((follower) => follower.check !== 'pending' && follower.check !== 'checking').length;
   const live = options.stage !== 'failed' && options.stage !== 'connecting';
+  // R20 P10b1 (NF-038): the queue's buttons as the controller gives them.
+  const running = options.stage === 'queue' || options.stage === 'cooldown' || (options.stage === 'scanning' && (options.phase === 'profiles' || options.phase === 'checking'));
+  const remaining = followers.length - checked;
+  const checkable = (check: NewcomerCheck): boolean => check === 'pending' || check === 'failed' || check === 'unverified';
+  const checkNext = options.card === null || !checkable(options.card.check) ? null : running || options.stage === 'scanning' ? ('next' as const) : options.stage === 'paused' || options.stage === 'done' ? ('now' as const) : null;
   const pass: NewcomersPassVM = {
     creator: 'lora_vie',
     stage: options.stage,
@@ -168,7 +173,8 @@ export function fanslyNewcomersVM(ctx: ScenarioCtx, options: PassOptions): Newco
     cooldownUntil: options.cooldownUntil ?? null,
     filters: NEWCOMER_CHECK_FILTERS.map((id) => ({ id, count: live ? inTab.filter((follower) => passesCheckFilter(follower.check, id)).length : null, pressed: id === filter })),
     failure: options.failure ?? null,
-    card: options.card,
+    card: options.card === null ? null : { ...options.card, checkNext },
+    ...(live ? { run: { pause: running, resume: !running && options.stage !== 'scanning' && remaining > 0, remaining, busy: false } } : {}),
   };
   const view =
     options.stage === 'failed'
@@ -236,6 +242,13 @@ export function fanslyScanning(ctx: ScenarioCtx): ScenarioViewEntry[] {
       fanslyNewcomersVM(ctx, { stage: 'cooldown', phase: null, selected: 5, card, partial: true, cooldownUntil: ctx.now + 45_000 }),
     ),
   ];
+}
+
+/** `k` — R20 P10b1: the queue stands (the person's «Пауза»): «Проверить оставшихся: N»; the card of a fan in the queue — «Проверить чат». */
+export function fanslyPaused(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  const jake = follower(3);
+  const card = cardOf(ctx, jake, { history: history('unchecked', []) });
+  return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'paused', selected: 3, card }))];
 }
 
 /** `e` — the first page is on its way: the stage of the fast part, nothing to show yet. */

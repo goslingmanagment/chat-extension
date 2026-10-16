@@ -10,6 +10,9 @@
 // another period end everything in flight: late answers and changes of the old pass are dropped, the pass is let go.
 // A pass of another account is nobody's here.
 //
+// R20 P10b1, NF-038: the queue's buttons — «Пауза», «Проверить оставшихся» (`SetNewcomersPassRunning`), «Проверить
+// следующим» / «Проверить чат» (`CheckNewcomerNext`) — ask the source; what changed comes back as the pass's changes.
+//
 // Nothing here sends and nothing generates (P10c brings the greeting): the card's strip is not in this controller.
 // It names no site; the hub's list (ChatSpace) is ./controller.ts.
 
@@ -121,6 +124,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   let moreFailure: NewcomersFailureVM | null = null;
   let selected: string | null = null;
   let regone = false;
+  /** R20 P10b1: a button of the queue waits for the background's answer. */
+  let acting = false;
   const histories = new Map<string, History>();
   /** Grows with every window, period and identity: an answer of an older run is nobody's (NF-026). */
   let run = 0;
@@ -161,6 +166,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     moreFailure = null;
     listFailure = null;
     selected = null;
+    acting = false;
     histories.clear();
     stage = 'idle';
   }
@@ -489,7 +495,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       cooldownUntil: pass?.state === 'cooldown' ? pass.cooldownUntil : null,
       filters: NEWCOMER_CHECK_FILTERS.map((id) => ({ id, count: counts?.filters[id] ?? null, pressed: id === filter })),
       failure: now === 'failed' ? (listFailure ?? pass?.failure ?? null) : (moreFailure ?? pass?.failure ?? null),
-      card: selectedRow === null || passId === null || blocked !== null ? null : cardOf(selectedRow, passId),
+      card: selectedRow === null || passId === null || blocked !== null ? null : { ...cardOf(selectedRow, passId), checkNext: checkNextOf(selectedRow.check, now) },
+      ...(pass === null || blocked !== null || now === 'failed' || now === 'connecting' ? {} : { run: runOf(now, pass) }),
     };
 
     return {
@@ -513,6 +520,41 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       noAutoSend: msg('newcomers.noAutoSend'),
       pass: passVM,
     };
+  }
+
+  /** R20 P10b1, NF-038: «Пауза» while the queue runs (once the list itself is read), «Проверить оставшихся» while it stands. */
+  function runOf(now: NewcomersPassStage, state: PassState): NonNullable<NewcomersPassVM['run']> {
+    const running = now === 'queue' || now === 'cooldown' || (now === 'scanning' && (state.phase === 'profiles' || state.phase === 'checking'));
+    const remaining = Math.max(0, Math.max(state.total, rows.length) - state.checked);
+    return { pause: running, resume: !running && now !== 'scanning' && remaining > 0, remaining, busy: acting };
+  }
+
+  /** «Проверить следующим» while the queue runs, «Проверить чат» while it stands; nothing for a fan already checked. */
+  function checkNextOf(check: PassRow['check'], now: NewcomersPassStage): 'next' | 'now' | null {
+    if (check !== 'pending' && check !== 'failed' && check !== 'unverified') return null;
+    if (now === 'scanning' || now === 'queue' || now === 'cooldown') return 'next';
+    return now === 'paused' || now === 'done' ? 'now' : null;
+  }
+
+  /** A button of the queue: the background answers; the rows and the pass's state come as its changes (no poll). */
+  function act(type: UiAction['type'], ask: () => Promise<{ readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly failure: NewcomersFailureVM }>): Promise<ActionReceipt> {
+    const mine = run;
+    acting = true;
+    changed();
+    return ask().then(
+      (answer) => {
+        if (mine === run) acting = false;
+        changed();
+        if (disposed || mine !== run) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+        if (!answer.ok) return refused(type, localError(sharedCode(answer.failure), i18n));
+        return done(type, answer.value === false ? 'noop' : 'done');
+      },
+      () => {
+        if (mine === run) acting = false;
+        changed();
+        return refused(type, localError('CG-RUNTIME-UNREACHABLE', i18n));
+      },
+    );
   }
 
   // ── the actions ──
@@ -582,6 +624,18 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       if (action.selector.of !== 'newcomers') return null;
       const reads = context.current().phase === 'ready' ? Promise.resolve() : context.refresh();
       return reads.then(() => start(false)).then(() => done(type));
+    }
+    if (action.type === 'SetNewcomersPassRunning') {
+      if (pass === null || stage !== 'live') return stale(type);
+      const passId = pass.passId;
+      return act(type, () => source.setRunning(passId, action.running));
+    }
+    if (action.type === 'CheckNewcomerNext') {
+      if (parsePassHandle(action.targetHandle) === null) return null;
+      const fanRef = own(action.targetHandle);
+      if (fanRef === null || pass === null) return stale(type);
+      const passId = pass.passId;
+      return act(type, () => source.checkNext(passId, fanRef));
     }
     if (action.type === 'OpenPreview' || action.type === 'LoadOlder' || action.type === 'RefreshArchive') {
       // A handle of the pass is this window's; any other is a list's or the dock's.

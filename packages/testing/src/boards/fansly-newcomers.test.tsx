@@ -1,6 +1,6 @@
 // «Новые» on Fansly as drawn (R20 P10a; ui-design §3.6, §3.12, §4.17): Fansly's own surface for the shared
 // `NewcomersVM` with its `pass` — mounted as its chunk mounts it (the overlay's closed root, Fansly's profile and texts)
-// over the gallery's states 13f–13j. What is drawn and what is dispatched; the controller's side is
+// over the gallery's states 13f–13k (13k and the queue's buttons: R20 P10b1). What is drawn and what is dispatched; the controller's side is
 // core/src/application/hosts/fansly/newcomers.test.ts.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -131,7 +131,8 @@ describe('[host:fansly] «Новые» on Fansly: the window (R20 P10a)', () => 
     const board = await mount('13f');
     expect(board.text('[data-cg-stage]')).toBe('Уточняем переписку: осталось 2');
     expect(board.$('[data-cg-stage] .cg-spin')).not.toBeNull();
-    expect(board.text('.cg-fnw__meta')).toMatch(/^@lora_vie\d.+ — .+ · местное время$/);
+    // R20 P10b1: the queue's «Пауза» ends the line.
+    expect(board.text('.cg-fnw__meta')).toMatch(/^@lora_vie\d.+ — .+ · местное времяПауза$/);
     const loading = await (async () => {
       ui?.unmount();
       return mount('13j');
@@ -191,6 +192,25 @@ describe('[host:fansly] «Новые» on Fansly: the window (R20 P10a)', () => 
     expect(board.text('.cg-nc__incomplete')).toBe('Результат неполныйПроверка прошла не до конца: показаны не все, кто подписался за это время.');
     expect(board.text('.cg-fnw__cool')).toBe('Fansly ограничил частоту запросов. Пауза 45 с — проверка продолжится сама.');
     expect(board.text('.cg-fnc__verdict')).toBe('Нельзя написатьFansly не даёт написать: этот фан принимает только платные сообщения.');
+  });
+
+  it('[NF-038] the queue’s buttons (R20 P10b1): «Пауза» while it runs; «Проверить оставшихся: N» and «Проверить чат» while it stands — each one action', async () => {
+    const running = await mount('13f');
+    const pause = running.$$('.cg-fnw__meta button').find((button) => textOf(button) === 'Пауза') as HTMLElement;
+    await flush(() => pause.click());
+    expect(running.actions().at(-1)).toEqual({ type: 'SetNewcomersPassRunning', running: false });
+    // A fan already checked has nothing to check.
+    expect(running.$$('.cg-fnc button').map(textOf)).not.toContain('Проверить следующим');
+    running.unmount();
+    ui = null;
+
+    const board = await mount('13k');
+    expect(board.$$('.cg-fnw__meta button').map(textOf)).toEqual(['Проверить оставшихся: 2']);
+    await flush(() => (board.$('.cg-fnw__meta button') as HTMLElement).click());
+    expect(board.actions().at(-1)).toEqual({ type: 'SetNewcomersPassRunning', running: true });
+    const check = board.$$('.cg-fnc__check button').find((button) => textOf(button) === 'Проверить чат') as HTMLElement;
+    await flush(() => check.click());
+    expect(board.actions().at(-1)).toEqual({ type: 'CheckNewcomerNext', targetHandle: 'pass:00000000-0000-4000-8000-000000000301:800000000000000003' });
   });
 
   it('[NF-005] [I18-001] in English: the same window in the English words', async () => {

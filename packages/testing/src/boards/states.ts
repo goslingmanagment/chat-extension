@@ -47,7 +47,7 @@ import {
   type ScenarioViewEntry,
 } from '../scenarios/app-client';
 import { BOARD_FANS, GREETING_PARTS, HUBERT, NEWCOMER_FANS, REPLY_PARTS, boardHandle, boardShelves, boardStats, hubertFeed, manyFans, newcomerHandle, newcomerRows, paletteChat, type BoardFan } from './data';
-import { fanslyConnecting, fanslyGreeted, fanslyListFailed, fanslyQueue, fanslyScanning } from './fansly-newcomers';
+import { fanslyConnecting, fanslyGreeted, fanslyListFailed, fanslyPaused, fanslyQueue, fanslyScanning } from './fansly-newcomers';
 
 const OP = { reply: uuid(701), hi: uuid(702) };
 const SENT_AT = iso(NOW + MIN);
@@ -379,6 +379,7 @@ export const BOARD_STATES: readonly BoardState[] = [
   fansly('13h', 'Fansly: the list was not read (FX-017)', fanslyListFailed),
   fansly('13i', 'Fansly: a pause Fansly asked for, a partial result, a fan nobody can write to', fanslyScanning),
   fansly('13j', 'Fansly: the fast part reads the followers', fanslyConnecting),
+  fansly('13k', 'Fansly: the queue stands — «Проверить оставшихся», «Проверить чат» on a fan in the queue (R20 P10b1)', fanslyPaused),
   // 14 — the fan panel
   state('14a', 'Fan panel: the fan', 'fan-panel', (ctx) => fanPanelState(ctx, 'a')),
   state('14b', 'Fan panel: Recap', 'fan-panel', (ctx) => fanPanelState(ctx, 'b')),
