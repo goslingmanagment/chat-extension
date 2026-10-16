@@ -444,6 +444,8 @@ export const FANSLY_TAB_REQUESTS = {
       noteId: NativeIdSchema,
       title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars),
       text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars),
+      /** The version the editor opened on. Older callers parse, but cannot overwrite without a version. */
+      current: z.optional(z.strictObject({ title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars), text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars) })),
     }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), note: FanslyNoteSchema }), Failure]),
     from: TAB,

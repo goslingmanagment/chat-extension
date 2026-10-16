@@ -151,7 +151,10 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     res: { valid: [{ ok: true, note: fanslyNote }, { ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } }], invalid: [{ ok: true, note: { ...fanslyNote, foreign: 'no' } }] },
   },
   'fansly.notes.edit': {
-    req: { valid: [{ ...noteTarget, noteId: fanslyNote.noteId, title: 'Анкета', text: 'Имя: Алекс' }], invalid: [{ ...noteTarget, title: 'Анкета', text: 'Имя: Алекс' }] },
+    req: {
+      valid: [{ ...noteTarget, noteId: fanslyNote.noteId, title: 'Анкета', text: 'Имя: Алекс' }, { ...noteTarget, noteId: fanslyNote.noteId, title: 'Анкета', text: 'Имя: Алекс', current: { title: fanslyNote.title, text: fanslyNote.text } }],
+      invalid: [{ ...noteTarget, title: 'Анкета', text: 'Имя: Алекс' }, { ...noteTarget, noteId: fanslyNote.noteId, title: '', text: '', current: { title: '' } }, { ...noteTarget, noteId: fanslyNote.noteId, title: '', text: '', current: { title: '', text: 'x'.repeat(50_001) } }],
+    },
     res: { valid: [{ ok: true, note: fanslyNote }, { ok: false, error: { code: 'CG-NOTE-WRITE' } }], invalid: [{ ok: true, note: null }] },
   },
   'fansly.notes.delete': {
