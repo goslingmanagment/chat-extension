@@ -178,6 +178,8 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     expect(await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } })).toEqual({ ok: true, payload: { delivered: true } });
     await browser.url(testBuildPage(QUIET_PAGE));
     await shift.toFansly();
+    // Closing keeps the previous scenario's «Нельзя написать» filter, which hides this ready fan.
+    await pressOurs('modal', `${WINDOW} .cg-sp__tools button`, /^Все статусы/);
     await browser.waitUntil(async () => (await checkOf()) === 'ready', { timeout: 120_000, interval: 250, timeoutMsg: 'the new follower was not checked «Не писали»' });
     await ours('modal', ROW).click();
     // The card's chat is the group the pass resolved, never the fan's id (FS-IDN-6).
@@ -191,13 +193,8 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     await ours('modal', `${WINDOW} .cg-fnc__greet textarea`).click();
     await browser.keys([...'Hi there, welcome!']);
     await pressOurs('modal', `${WINDOW} .cg-fnc__gbar button`, 'Отправить →');
-    await waitOursText('modal', /Отправлено/, 'the greeting went', { timeout: 30_000, selector: `${WINDOW} .cg-fnc__gst` });
-    await browser.pause(400);
-    await picture('greeting-sent');
-    // One click, one request of ours (NF-019); nothing outside FS-NET-1.
-    const sends = (await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send');
-    expect(sends).toHaveLength(1);
-    await fakeFansly().assertOursClean(mark, 'the greeting of a «Новые» card');
+    // A receipt marks the row greeted and removes its greeting field, including the transient «Отправлено».
+    // Wait for durable custody, then inspect the final row instead of polling a status that may already be gone.
     // The hub's custody of this fan: one attempt, sent.
     await browser.waitUntil(
       async () => {
@@ -209,6 +206,16 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     // «Уже писали»: the card offers no second greeting.
     await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все \d+$/);
     await browser.waitUntil(async () => (await checkOf()) === 'greeted', { timeout: 10_000, timeoutMsg: 'the greeted fan is not «Уже писали»' });
+    await ours('modal', ROW).click();
+    await waitOursText('modal', /Уже писали/, 'the card shows the greeted fan', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
+    expect(await oursExists('modal', `${WINDOW} .cg-fnc__greet`)).toBe(false);
+    await browser.pause(400);
+    await picture('greeting-sent');
+    // One click, one request of ours (NF-019) to the resolved group (FS-IDN-6); nothing outside FS-NET-1.
+    const sends = (await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send');
+    expect(sends).toHaveLength(1);
+    expect(sends[0]).toMatchObject({ method: 'POST', status: 200, detail: { groupId: group } });
+    await fakeFansly().assertOursClean(mark, 'the greeting of a «Новые» card');
     await browser.keys(['Escape']);
     await browser.waitUntil(async () => !(await oursExists('modal', WINDOW)), { timeout: 5_000, timeoutMsg: 'Esc did not close «Новые»' });
   });

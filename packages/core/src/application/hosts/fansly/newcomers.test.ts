@@ -510,6 +510,13 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
 
     await w.controller.dispatch({ type: 'SetNewcomersCheckFilter', filter: 'dm-closed' });
     expect(statuses(w.vm())).toEqual(['fan_6:dm-closed']);
+    // Closing the window keeps its filter: a later greeting must choose «Все статусы» to see ready fans.
+    w.surfaces.setList('newcomers', false);
+    await w.open();
+    expect(w.vm().pass?.filters.find((filter) => filter.pressed)?.id).toBe('dm-closed');
+    expect(statuses(w.vm())).toEqual(['fan_6:dm-closed']);
+    await w.controller.dispatch({ type: 'SetNewcomersCheckFilter', filter: 'any' });
+    expect(statuses(w.vm())).toContain('fan_1:ready');
     // «Уже писали» is never «К обработке»: choosing it shows «Все».
     await w.controller.dispatch({ type: 'SetNewcomersCheckFilter', filter: 'contacted' });
     expect([w.vm().tab, statuses(w.vm())]).toEqual(['all', ['fan_3:greeted']]);
