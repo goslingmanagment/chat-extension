@@ -35,6 +35,7 @@
 // (`freshForSend`); inserting in the dock never waits for one.
 
 import { coverageCheckVerdict, type CoverageProof, type CoverageWindowEntry, type OpView, type ResultMarkVM, type ServedContext } from '@cg/contracts/ops';
+import { coverageFingerprintOf } from '../../../../domain/ops/proof';
 
 /** The verdict of the table: `fresh`, or the reason of the mark (`StaleReason`). */
 export type FreshnessVerdict = 'fresh' | 'unverified' | 'window-miss' | 'deleted-served';
@@ -55,15 +56,7 @@ export interface ProofFingerprint {
 }
 
 export function fingerprintOf(proof: CoverageProof): ProofFingerprint {
-  const snapshot = proof.kind === 'tab-snapshot';
-  return {
-    completeness: proof.completeness,
-    truncated: snapshot && proof.truncated,
-    window: proof.window.map((entry) => ({ id: entry.id, dir: entry.dir })),
-    knownFanMessageIds: [...proof.knownFanMessageIds],
-    deletedIds: [...proof.deletedIds],
-    text: snapshot && (proof.tail?.length ?? 0) > 0,
-  };
+  return coverageFingerprintOf(proof);
 }
 
 /** The hub's second answer about the fan's known ids, when it gave one: `counted`, a `miss`, or not checked. */
@@ -89,12 +82,18 @@ export function freshnessVerdict(fingerprint: ProofFingerprint | null, served: S
 }
 
 /**
- * The mark over a finished result (`AiHostPolicy.verdict`): the verdict's reason; a fresh one takes the background's
- * «фан написал новое» when it came; none — nothing to mark. A result still running, failed or canceled has none.
+ * The result's own evidence and its current window (P8b3), each against THIS result's hub answer. Current evidence
+ * may add a condition, never clear an original miss. A fresh result takes the background's «фан написал новое».
+ * A result still running, failed or canceled has no mark.
  */
 export function verdictMark(view: OpView, fingerprint: ProofFingerprint | null): ResultMarkVM | null {
   if (view.state !== 'done') return null;
-  const verdict = freshnessVerdict(fingerprint, view.servedContext);
+  // The current window can only add a condition. It never replaces the evidence of the generation itself:
+  // a miss cannot become fresh just because the hub caught up or a different start checked another window.
+  const own = view.freshnessProof?.fingerprint ?? fingerprint;
+  const original = freshnessVerdict(own, view.servedContext);
+  const current = freshnessVerdict(fingerprint === null ? null : { ...fingerprint, text: own?.text ?? false }, view.servedContext);
+  const verdict = (['unverified', 'window-miss', 'deleted-served'] as const).find((reason) => original === reason || current === reason) ?? 'fresh';
   return verdict === 'fresh' ? (view.stale ?? null) : { reason: verdict, at: null };
 }
 

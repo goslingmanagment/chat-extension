@@ -12,6 +12,7 @@ export * from './environment';
 export * from './flags';
 export * from './identity';
 export * from './mirror';
+export * from './proof';
 export * from './request';
 export * from './result';
 export * from './retry';
