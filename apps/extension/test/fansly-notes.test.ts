@@ -137,6 +137,9 @@ function twoTabs() {
       remove: (_who, note) => w.notes.remove({ ...target, ...note }, from),
       name: (_who, name, current) => w.notes.name({ ...target, name, current }, from),
       setView: () => undefined, fits: () => false, place: () => null,
+      fillAllowed: () => false,
+      fill: () => Promise.resolve({ ok: false, error: { code: 'CG-FEATURE-DISABLED' } }),
+      stopFill: () => undefined,
       setTimer: () => undefined, clearTimer: () => undefined,
     };
     return createNotesController(port);

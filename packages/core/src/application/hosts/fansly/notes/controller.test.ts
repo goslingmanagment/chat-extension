@@ -378,7 +378,7 @@ describe('[host:fansly] «✨ Заполнить из чата»: the controller
     w.notes.dispatch({ type: 'suggestion', index: 0, accept: true });
     w.notes.dispatch({ type: 'save' });
     await w.settle();
-    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '1', 'Анкета', 'Имя: Алекс; любит шахматы\nЛокация: Рига\nВозраст: 34\nХобби: шахматы; бег');
+    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '1', 'Анкета', 'Имя: Алекс; любит шахматы\nЛокация: Рига\nВозраст: 34\nХобби: шахматы; бег', { title: 'Анкета', text: QUESTIONNAIRE });
   });
 
   it('[FX-015] [FS-NOTE-5] only the labels go out, never a value; a stopped fill’s operation is cancelled and its answer never lands', async () => {

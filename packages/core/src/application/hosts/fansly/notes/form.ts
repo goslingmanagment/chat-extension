@@ -75,6 +75,8 @@ function fieldLines(text: string): NoteTemplateField[] {
   text.split('\n').forEach((raw, line) => {
     const match = FIELD_LINE.exec(raw);
     if (match === null || !isLabel(match[1] ?? '')) return;
+    // A colon inside a time is part of a fact, e.g. «пишет после работы в 23:00», never a field separator.
+    if (/(?:^|\s)(?:[01]?\d|2[0-3])$/.test(match[1] ?? '') && /^[0-5]\d(?:\D|$)/.test(match[2] ?? '')) return;
     const label = (match[1] ?? '').trim();
     const key = noteLabelKey(label);
     if (seen.has(key)) return;

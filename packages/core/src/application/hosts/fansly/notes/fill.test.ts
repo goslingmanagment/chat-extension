@@ -21,6 +21,12 @@ describe('[host:fansly] «✨ Заполнить из чата»: what is asked 
     expect(noteFillFields('Имя: Wayne')).toBeNull();
   });
 
+  it('[FX-015] [FS-NOTE-5] a continuation with 23:00 never becomes a label sent to the hub; real custom fields still do', () => {
+    const text = `${OLD.replace('нужно поддерживать вайб', 'нужно поддерживать вайб\nпишет после работы в 23:00')}\nПитомцы: кот`;
+    expect(noteFillFields(text)).toEqual([...ASKED.slice(0, 8), 'Питомцы', ...ASKED.slice(8)]);
+    expect(JSON.stringify(noteFillFields(text))).not.toMatch(/пишет|23|00|Wayne|медбрат|кот/);
+  });
+
   it('[FX-016] [FS-NOTE-6] adds, never wipes: an empty field takes the answer, a filled one offers its facts and the new ones, the template’s new lines go under the last field', () => {
     const answer = ASKED.map((label) => ({ label, value: '' }));
     const set = (label: string, value: string) => {

@@ -87,6 +87,13 @@ describe('[host:fansly] the questionnaire’s text, both ways with the Fansly ex
     expect(parts.map((part) => (part.kind === 'field' ? `${part.label}=${part.facts.join('|')}` : `text:${part.text}`))).toEqual(['text:whale', 'Имя=Ethan', 'Работа=', 'text:просил кастом', 'text:и душ']);
   });
 
+  it('[FX-015] [FS-NOTE-5] a time in a continuation belongs to the field’s facts, never to its labels', () => {
+    const text = 'Имя: Алекс\nГрафик: ночные смены\nпишет после работы в 23:00\nПитомцы: кот';
+    expect(parseNoteTemplate(text).map((field) => field.label)).toEqual(['Имя', 'График', 'Питомцы']);
+    expect(fields(text)).toEqual([['Имя', ['Алекс']], ['График', ['ночные смены', 'пишет после работы в 23:00']], ['Питомцы', ['кот']]]);
+    expect(setNoteFieldFacts(text, 'График', ['пишет после работы в 23:00'])).toBe(text.replace('ночные смены\n', ''));
+  });
+
   it('[FX-008] writes a field back as one line, the label as the chatter typed it', () => {
     const text = '- Имя:  Ethan\nДругое: кот\nмать после больницы\n\nпросил кастом';
     expect(setNoteFieldFacts(text, 'Другое', ['кот', ' мать после больницы ', '', 'сестра'])).toBe('- Имя:  Ethan\nДругое: кот; мать после больницы; сестра\n\nпросил кастом');

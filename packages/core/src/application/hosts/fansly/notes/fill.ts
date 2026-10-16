@@ -19,7 +19,8 @@ const isField = (part: NoteFormPart): part is NoteFormField => part.kind === 'fi
 /** A label the hub takes as is (`NoteFieldLabelSchema`): trimmed, one line, none of `:`, `<`, `>`, `&`, within its length. */
 const askable = (label: string): boolean => label !== '' && label.trim() === label && label.length <= NOTE_FILL_LIMITS.labelMaxChars && !/[\r\n\u2028\u2029:<>&]/.test(label);
 
-/** The labels a fill asks for; null when the text is not a questionnaire (nothing to fill). */
+/** Only the parser's field lines and the missing template labels go out, never continuation lines (including times).
+ * null when the text is not a questionnaire (nothing to fill). */
 export function noteFillFields(text: string): string[] | null {
   const parts = parseNoteForm(text);
   if (parts === null) return null;

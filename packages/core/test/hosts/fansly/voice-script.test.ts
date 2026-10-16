@@ -224,15 +224,16 @@ describe('[host:fansly] P12a voice-script through the shared admission', () => {
 describe('[host:fansly] P11c «✨ Заполнить из чата» through the shared admission', () => {
   it('[FX-015] [FS-NOTE-6] the labels only, never a value of the note; group ≠ fan; the depth by HF-6 — never under 3000, the owner’s deeper setting above it; the answer joins the questionnaire', async () => {
     const h = await harness();
-    const text = 'Имя: Wayne\nРабота: медбрат\nВозраст: ';
+    const text = 'Имя: Wayne\nРабота: медбрат\nпишет после работы в 23:00\nПитомцы: кот\nВозраст: ';
     const fields = noteFillFields(text) ?? [];
     const op = admitted(await h.start({ ...notes(A, fields), window: 5000, force: true }));
     await h.finish();
     const request = h.requests.at(-1);
     expect(request?.feature).toBe('fan-notes-fill');
     expect(request?.body).toMatchObject({ conversationRef: A.group, fanRef: A.fan, noteFields: fields, messageCount: 3000 });
+    expect(request?.body).toMatchObject({ noteFields: ['Имя', 'Работа', 'Питомцы', 'Возраст', 'Локация', 'График', 'Хобби', 'Планы и даты', 'Фетиши', 'Характеристика', 'Медиа', 'Другое'] });
     for (const key of ['noteValues', 'clientContext', 'liveTextContext', 'draftText']) expect(request?.body).not.toHaveProperty(key);
-    expect(JSON.stringify(request)).not.toMatch(/Wayne|медбрат/);
+    expect(JSON.stringify(request)).not.toMatch(/Wayne|медбрат|пишет|23:00|кот/);
     const view = h.scheduler.siteView(op, 'fansly-web');
     if (view?.result?.kind !== 'note-fields') throw new Error(`no fields: ${JSON.stringify(view)}`);
     expect(mergeNoteFill(text, view.result.fields).wrote).toContain('Возраст');
