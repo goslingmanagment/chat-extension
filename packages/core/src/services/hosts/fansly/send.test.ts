@@ -286,9 +286,20 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
       const w = world({ transport });
       const view = w.send.send(click());
       await settle();
+      // The server may have sent and echoed it. Without the receipt its id is not proof of this attempt.
+      const echo = { id: '830000000000000001', conversationRef: GROUP, fromFan: false };
+      w.send.echo([echo]);
       w.routes[0]?.answer.reject(apiError('network', true));
-      await expect(view).resolves.toMatchObject({ state: 'uncertain', cause: transport === 'direct' ? 'network' : 'relay' });
+      const cause = transport === 'direct' ? 'network' : 'relay';
+      await expect(view).resolves.toMatchObject({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause });
+      w.send.echo([echo]);
+      w.clock.advance(60_000);
+      await settle();
+      expect(w.journal()).toMatchObject([{ state: 'uncertain', cause }]);
+      expect(await w.send.send(click(uuid(2)))).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+      expect(w.routes).toHaveLength(1);
       expect(w.routes[0]?.starts).toBe(1);
+      expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
     }
   });
 

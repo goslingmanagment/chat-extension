@@ -425,6 +425,20 @@ describe('the fake Fansly API: scripted outcomes', () => {
     socket.socket.close();
   });
 
+  it('journals per-fetch UUIDs across a lost answer and its replay without keeping arbitrary header values', async () => {
+    const requestId = '00000000-0000-4000-8000-000000000001';
+    const body = { type: 1, content: 'a replay to diagnose', groupId: groupA, attachments: [] };
+    const mark = fake.journal.read().next;
+    fake.command({ op: 'api', rules: [{ route: 'message.send', caller: 'ours', times: 1, effect: true, outcome: { kind: 'drop' } }] });
+    const send = (id: string) => call(fake, 'POST', bypass('/message'), { as: 'ours', body, headers: { 'x-cg-request-id': id } });
+    await expect(send(requestId)).rejects.toThrow();
+    await send(requestId);
+    await send('not-a-request-uuid');
+    const posts = fake.journal.calls('ours', mark).filter((entry) => entry.route === 'message.send');
+    expect(posts.map((entry) => [entry.status, entry.detail?.['requestId']])).toEqual([[0, requestId], [200, requestId], [200, undefined]]);
+    expect(JSON.stringify(posts)).not.toContain('not-a-request-uuid');
+  });
+
   it('a delay keeps the normal answer back; a hang never answers until the reset', async () => {
     fake.command({ op: 'api', rules: [{ route: 'account.me', times: 1, outcome: { kind: 'delay', ms: 120 } }] });
     const started = Date.now();

@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 
 import { browser, expect } from '@wdio/globals';
 
+import { BOOTSTRAP_PILOT_PAGES } from '../../src/scenarios/hub/http';
 import { WORLD } from '../../src/scenarios/hub/world';
 import { suspendBackground } from '../support/background';
 import { pageRpc, readLocalStorage, waitForReport, writeLocalStorage } from '../support/extension';
@@ -271,10 +272,17 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     await fakeFansly().command({ op: 'api', rules: [{ route: 'message.send', caller: 'ours', times: 1, outcome: { kind: 'drop' }, effect: true }] });
     const mark = await fakeFansly().mark();
     const attempt = randomUUID();
-    expect((await answered(await click(3, [attempt])))[0]).toMatchObject({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    const result = (await answered(await click(3, [attempt])))[0];
+    // Keep the original pre-header drop. Check the journal before the view so a replay cannot hide behind
+    // a later receipt + echo reading `sent`; a failed length assertion prints every synthetic POST and its outcome.
+    expect((await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send')).toHaveLength(1);
+    expect(result).toMatchObject({ state: 'uncertain', cause: 'network', code: 'CG-SEND-UNCERTAIN' });
     await browser.pause(3_000);
     expect(await posts(mark)).toBe(1);
-    expect(await journal(attempt)).toMatchObject({ state: 'uncertain' });
+    expect((await answered(await click(3, [randomUUID()])))[0]).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+    expect(await posts(mark)).toBe(1);
+    expect((await custody(3)).map(([id]) => id)).toEqual([attempt]);
+    expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'network' });
   });
 
   it('[NF-021] the custody’s answer delayed: the history changes meanwhile → refused, NO POST; the custody hears «not enqueued»', async () => {
@@ -411,6 +419,9 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
   });
 
   it('[NF-021] two clients on one hub page: another install holds the fan’s lease — our click routes nothing, no POST', async () => {
+    // The earlier background-restart case cannot release its in-memory lease token. Resolving its custody
+    // frees the send, not that 120 s lease: let it expire at the fake hub before the rival takes its own.
+    await hub().command({ op: 'clock', advanceMs: BOOTSTRAP_PILOT_PAGES.limits.claimLeaseSec * 1000 + 1 });
     seq += 1;
     const rivalId = `p9d-rival-${seq}`;
     await pages();
@@ -419,7 +430,7 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
       const found = await read<{ id: string; ok: boolean }>(SEND.rivalResult);
       return found?.id === rivalId ? found : undefined;
     });
-    expect(rival.ok).toBe(true);
+    expect(rival).toMatchObject({ ok: true });
     const mark = await fakeFansly().mark();
     const attempt = randomUUID();
     expect((await answered(await click(4, [attempt])))[0]).toMatchObject({ state: 'refused', proof: 'before-dispatch', code: 'CG-CLAIM-BUSY' });

@@ -433,8 +433,11 @@ export async function handleFanslyApi(state: FanslyState, hub: FanslySocketHub, 
   const facts: RequestFacts = { ngswBypass: hasNgswBypass(url), cookie: (headerText(request.headers.cookie) ?? '').includes(`${STAND_COOKIE}=`) };
   // Which of Fansly's session headers the request carries — their names, never their values.
   const headers = FANSLY_SESSION_HEADERS.filter((name) => request.headers[name] !== undefined);
+  // The client's per-fetch UUID distinguishes a transport replay from another call of ours; no session value.
+  const requestId = headerText(request.headers['x-cg-request-id']);
+  const correlation = requestId !== undefined && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId) ? { requestId } : {};
   const log = (status: number, detail: Record<string, unknown> = {}): void => {
-    state.journal.record({ kind: 'http', caller, via, method, path, route, status, detail: { ...detail, headers } }, facts);
+    state.journal.record({ kind: 'http', caller, via, method, path, route, status, detail: { ...detail, headers, ...correlation } }, facts);
   };
 
   if (!state.isLive(token)) {
