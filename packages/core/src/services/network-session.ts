@@ -14,6 +14,12 @@ export interface RequestFact {
   readonly requestHeaders?: readonly { readonly name: string; readonly value?: string }[];
   readonly statusCode?: number;
 }
+/** Our origin's request only: the client's opaque id, phase and status, never headers or a URL. */
+export interface OwnRequestObservation {
+  readonly clientRequestId: string;
+  readonly phase: RequestFact['phase'];
+  readonly statusCode?: number;
+}
 export interface SessionTemplate {
   readonly legacyId: string;
   canonicalId: string | null;
@@ -83,6 +89,12 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
   const tabTimes = new Map<number, number>();
   const pending = new Map<string, Candidate>();
   const own = new Map<string, { legacyId: string; clientRequestId?: string }>();
+  const ownListeners = new Set<(fact: OwnRequestObservation) => void>();
+  const notifyOwn = (fact: OwnRequestObservation): void => {
+    for (const listener of ownListeners) {
+      try { listener(fact); } catch { /* Observation must not interfere with session capture. */ }
+    }
+  };
   const limits: RateLimitFact[] = [];
   let sequenceAt = 0;
   let readable = false;
@@ -166,6 +178,8 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
           if (legacyId !== null && isOwn) {
             const clientRequestId = fact.requestHeaders?.find((header) => header.name.toLowerCase() === deps.requestIdHeader)?.value;
             own.set(fact.requestId, { legacyId, ...(clientRequestId !== undefined && /^[a-zA-Z0-9-]{1,64}$/.test(clientRequestId) ? { clientRequestId } : {}) });
+            const known = own.get(fact.requestId)?.clientRequestId;
+            if (known !== undefined) notifyOwn({ clientRequestId: known, phase: 'headers' });
           }
           if (!isOwn && legacyId !== null && deps.pageRequest(fact) && deps.requiredHeaders.every((name) => !!headers[name])) {
             sequenceAt = Math.max(deps.now(), sequenceAt + 0.001);
@@ -181,7 +195,10 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
           const clientRequestId = isOwn ? own.get(fact.requestId)?.clientRequestId : undefined;
           limits.push({ ...(clientRequestId === undefined ? {} : { clientRequestId }), requestId: fact.requestId, at: deps.now(), accountId: legacy === undefined ? null : canonical(legacy), source: isOwn ? 'own' : deps.pageRequest(fact) ? 'page' : 'unknown' });
         }
-        own.delete(fact.requestId);
+        const clientRequestId = own.get(fact.requestId)?.clientRequestId;
+        if (clientRequestId !== undefined) notifyOwn({ clientRequestId, phase: fact.phase, ...(fact.statusCode === undefined ? {} : { statusCode: fact.statusCode }) });
+        // Keep a lost request's correlation for a late browser answer; `own` is bounded by MAX_PENDING.
+        if (fact.phase === 'completed') own.delete(fact.requestId);
         if (candidate !== undefined && fact.phase === 'completed' && fact.tabId === candidate.tabId && deps.pageRequest(fact) && (fact.statusCode ?? 0) >= 200 && (fact.statusCode ?? 0) < 300) {
           const previous = templates.get(candidate.legacyId);
           const oldLegacy = tabs.get(candidate.tabId);
@@ -260,6 +277,10 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
       return [...new Set([...templates.values()].filter((entry) => (entry.legacyId === accountId && entry.canonicalId === null) || entry.canonicalId === accountId).flatMap((entry) => entry.canonicalId === null ? [entry.legacyId] : [entry.legacyId, entry.canonicalId]))];
     },
     rateLimits(): readonly RateLimitFact[] { return readable ? limits.map((fact) => ({ ...fact })) : []; },
+    onOwnRequest(listener: (fact: OwnRequestObservation) => void): () => void {
+      ownListeners.add(listener);
+      return () => ownListeners.delete(listener);
+    },
     observationsPending: () => deps.observationsPending?.() ?? false,
     idle: async () => { await deps.settleObservations?.(); await run(() => undefined); },
   };

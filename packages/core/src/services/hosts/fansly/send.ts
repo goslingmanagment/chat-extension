@@ -1,8 +1,9 @@
 // The greeting send of fansly.com's «Новые» over HTTP with the hub's custody
 // (R20 P9d; docs/project-unite/architecture.md §8.6, §9.4; spec FS-NEW-3;
 // contracts send-fansly.ts; NF-020…022, NF-035, RB-007). One human click on
-// «Отправить» → one attempt → at most ONE `POST /message` of ours; nothing
-// here ever repeats a send, by itself, a timer or a restart.
+// «Отправить» → one attempt → at most ONE fetch of ours; nothing here ever
+// repeats a send, by itself, a timer or a restart. A browser transport resend
+// keeps that fetch's requestId and is annotated separately (X41).
 //
 // The order (§8.6). Everything that may wait comes before the custody:
 // - the lock (one open attempt per hub, page and fan — this install's), the
@@ -76,6 +77,7 @@ import { isNativeRefusalStatus } from '@cg/contracts/send-rules';
 
 import { leaseOfClaim, leasePolicy } from '../../../domain/newcomers/claim';
 import { REPORT_RETRY_DELAYS_MS, readDispatch, reportRetryable } from '../../../domain/send/custody';
+import type { OwnRequestObservation } from '../../network-session';
 import { WriteQueue, type Clock, type IdSource, type TimerHandle } from '../../ports';
 import { NO_LOG, type KeyValuePort, type ServiceLog } from '../../storage/ports';
 
@@ -98,6 +100,7 @@ export type FanslySendLive = (start: FanslySendStart) => Omit<FanslySendTuple, '
 
 /** A `POST /message` admitted, paced and routed, not sent yet (fansly-api `PreparedFanslyCall`, structurally). */
 export interface FanslyPreparedSend {
+  readonly requestId: string;
   readonly transport: FanslySendTuple['transport'];
   holds(): boolean;
   /** Synchronous up to `fetch`. Once. Rejects with the API's failure (`FanslyApiFailureLike`). */
@@ -217,6 +220,8 @@ const CHECK_CODES: Readonly<Record<keyof FanslySendTuple | 'ticket' | 'gone', Cg
 type JournalBase = Omit<FanslySendJournalEntry, 'state' | 'proof' | 'code' | 'httpStatus' | 'cause' | 'platformMessageId' | 'receiptMessageId' | 'reportPending'>;
 
 interface Attempt {
+  observedHeaders?: number;
+  observedLoss?: boolean;
   readonly attemptId: string;
   readonly fanRef: string;
   readonly groupId: string;
@@ -238,6 +243,8 @@ export interface FanslySend {
   readonly ready: Promise<void>;
   /** One click's attempt; resolves with its view once nothing is waited for any more (an end, or the receipt and a while for its echo). */
   send(start: FanslySendStart): Promise<FanslySendView>;
+  /** Passive browser facts: annotate a repeated/late response, never change the outcome or send again (X41). */
+  observeRequest(fact: OwnRequestObservation): Promise<void>;
   /** The tab's socket facts of a creator (`fansly.sound.batch`): our own messages may be echoes of receipts. */
   echo(events: readonly { readonly id: string; readonly conversationRef: string; readonly fromFan: boolean }[]): void;
   /** A history read of a group (the next pass): the ids it shows; `complete` — read to its start. */
@@ -475,6 +482,8 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
         ticketExpiresAt: entry.ticketExpiresAt,
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
+        ...(entry.requestId === undefined ? {} : { requestId: entry.requestId }),
+        ...(entry.browserResend === undefined ? {} : { browserResend: entry.browserResend }),
       };
       const outcome = outcomeOfEntry({ state: entry.state, ...rest });
       const attempt: Attempt = {
@@ -648,6 +657,7 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
     const now = clock.now();
     attempt.base = {
       attemptId: request.attemptId,
+      requestId: prepared.requestId,
       hubOrigin,
       pageId: page.pageId,
       hostAccountId: request.hostAccountId,
@@ -769,6 +779,26 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
 
   // ── proofs ─────────────────────────────────────────────────────────────
 
+  async function observeRequest(fact: OwnRequestObservation): Promise<void> {
+    await ready;
+    if (disposed) return;
+    const attempt = [...attempts.values()].find((value) => value.base?.requestId === fact.clientRequestId);
+    if (attempt === undefined || attempt.base === null) return;
+    if (fact.phase === 'headers') {
+      attempt.observedHeaders = (attempt.observedHeaders ?? 0) + 1;
+      return;
+    }
+    if (fact.phase === 'error') {
+      attempt.observedLoss = true;
+      return;
+    }
+    const lost = attempt.outcome.state === 'uncertain' && ['network', 'relay', 'restart'].includes(attempt.outcome.cause);
+    if ((fact.statusCode ?? 0) <= 0 || attempt.base.browserResend === true || (!lost && !attempt.observedLoss && (attempt.observedHeaders ?? 0) < 2)) return;
+    attempt.base = { ...attempt.base, browserResend: true, updatedAt: Math.max(attempt.base.createdAt, clock.now()) };
+    log({ level: 'warn', scope: 'fansly.send', msg: 'browser answered a repeated or lost greeting request', fields: { attemptId: attempt.attemptId, requestId: fact.clientRequestId, browserResend: true, status: fact.statusCode ?? null } });
+    await persist();
+  }
+
   const echoKey = (groupId: string, id: string): string => `${groupId}|${id}`;
 
   function takeEcho(groupId: string, id: string): boolean {
@@ -826,6 +856,7 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
   return {
     ready,
     send,
+    observeRequest,
     echo,
     history,
     view: (attemptId) => {

@@ -183,6 +183,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const spenders = api === null ? null : createSpendersLookup(__CG_TEST_HOSTS__ && session !== undefined ? fanslyStandClient(kit, session, api) : api.client, () => kit.clock.now(), kit.storage.local);
   const sendProbe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? fanslySendProbe(kit, session, api, relay.hub) : null;
   const greetings = api === null ? null : greetingSend(kit, api, (deps) => (sendProbe === null ? deps : sendProbe.wrap(deps)));
+  const offSendRequests = session?.onOwnRequest((fact) => { void greetings?.observeRequest(fact); });
   const unprobeSend = sendProbe !== null && greetings !== null ? sendProbe.start(greetings) : () => undefined;
   const offSettings = kit.settingsExt?.onChange(() => { void refreshSettings(); });
   await refreshSettings();
@@ -276,6 +277,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       disposed = true;
       if (retry !== null) kit.clock.clearTimer(retry);
       offSettings?.();
+      offSendRequests?.();
       unplug();
       unprobe();
       newcomers?.dispose();

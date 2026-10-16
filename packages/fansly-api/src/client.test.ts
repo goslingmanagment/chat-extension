@@ -285,12 +285,15 @@ describe('a write the hub\'s custody guards (§8.6)', () => {
     // fetch ran inside start(), before any await.
     expect(made.sent).toHaveLength(1);
     expect(made.sent[0]?.headers['authorization']).toBe('token-2');
+    expect(made.sent[0]?.headers['x-cg-request-id']).toBe(prepared.requestId);
     await settle(started);
     await expect(prepared.start()).rejects.toMatchObject({ kind: 'aborted', sent: false });
+    expect(made.sent).toHaveLength(1);
 
     // The caller gave up between the custody and the request: refused, nothing sent.
     const controller = new AbortController();
     const dropped = await settle(made.api.client.prepare(greeting(controller.signal)));
+    expect(dropped.requestId).not.toBe(prepared.requestId);
     controller.abort();
     await expect(dropped.start()).rejects.toMatchObject({ kind: 'aborted', sent: false });
     expect(made.sent).toHaveLength(1);

@@ -54,9 +54,11 @@ interface View {
 
 interface JournalEntry extends View {
   readonly reportPending?: boolean;
+  readonly requestId?: string;
+  readonly browserResend?: true;
 }
 
-describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the final check, at most one POST', () => {
+describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the final check, at most one extension fetch', () => {
   useNetworkTrap();
   const { hub } = useFakeHub();
   let standTab = '';
@@ -268,19 +270,28 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'rejected-200' });
   });
 
-  it('[NF-022] [RB-007] the lost answer of the POST: one request, uncertain, never asked again', async () => {
+  it('[NF-022] [RB-007] the lost answer: one extension fetch/requestId, uncertain, never asked again; a browser resend keeps that id (X41)', async () => {
     await fakeFansly().command({ op: 'api', rules: [{ route: 'message.send', caller: 'ours', times: 1, outcome: { kind: 'drop' }, effect: true }] });
     const mark = await fakeFansly().mark();
     const attempt = randomUUID();
     const result = (await answered(await click(3, [attempt])))[0];
-    // Keep the original pre-header drop. Check the journal before the view so a replay cannot hide behind
-    // a later receipt + echo reading `sent`; a failed length assertion prints every synthetic POST and its outcome.
-    expect((await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send')).toHaveLength(1);
+    const requestId = (await journal(attempt))?.requestId;
+    expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
+    // A reset before response bytes can make Firefox resend the SAME fetch. Raw hits are transport evidence,
+    // not extension attempts. A second extension fetch has a NEW id and must still fail NF-022.
+    const oneRequest = async (): Promise<void> => {
+      const seen = (await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send');
+      expect([...new Set(seen.map((entry) => entry.detail?.['requestId']))]).toEqual([requestId]);
+      expect(seen.some((entry) => entry.status === 0 && entry.detail?.['outcome'] === 'drop')).toBe(true);
+      expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'network', requestId });
+    };
+    await oneRequest();
     expect(result).toMatchObject({ state: 'uncertain', cause: 'network', code: 'CG-SEND-UNCERTAIN' });
     await browser.pause(3_000);
-    expect(await posts(mark)).toBe(1);
+    await oneRequest();
     expect((await answered(await click(3, [randomUUID()])))[0]).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
-    expect(await posts(mark)).toBe(1);
+    await oneRequest();
+    expect(await view(attempt)).toMatchObject({ state: 'uncertain', cause: 'network' });
     expect((await custody(3)).map(([id]) => id)).toEqual([attempt]);
     expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'network' });
   });

@@ -120,7 +120,7 @@ interface FakeRoute {
 }
 
 /** A routed `POST /message`: its route's `holds()` and its answer under the test's hand. */
-function fakeRoute(transport: FanslySendTuple['transport'] = 'direct'): FakeRoute {
+function fakeRoute(transport: FanslySendTuple['transport'] = 'direct', requestId = uuid(0x900)): FakeRoute {
   const answer = deferred<{ response: unknown; status: number }>();
   const route: FakeRoute = {
     holds: true,
@@ -128,6 +128,7 @@ function fakeRoute(transport: FanslySendTuple['transport'] = 'direct'): FakeRout
     cancels: 0,
     answer,
     prepared: {
+      requestId,
       transport,
       holds: () => route.holds,
       start: () => {
@@ -193,7 +194,7 @@ function world(options: { kv?: MemoryKv; hub?: ReturnType<typeof fakeHub>; trans
     },
     hub: hub.port,
     prepare: () => {
-      const route = fakeRoute(options.transport);
+      const route = fakeRoute(options.transport, uuid(0x900 + routes.length));
       routes.push(route);
       hub.order.push('prepare');
       return Promise.resolve(route.prepared);
@@ -239,6 +240,8 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     await settle();
     expect(w.routes).toHaveLength(1);
     expect(w.routes[0]?.starts).toBe(1);
+    await w.send.observeRequest({ clientRequestId: uuid(0x900), phase: 'headers' });
+    await w.send.observeRequest({ clientRequestId: uuid(0x900), phase: 'completed', statusCode: 200 });
     // The journal's first record before dispatch; the intent's write after the ticket and before the request.
     expect(w.hub.order).toEqual(['hub:claim', 'prepare', 'journal:routed', 'hub:dispatch', 'journal:intentWritten']);
     expect(w.hub.calls[1]?.body).toMatchObject({ action: 'dispatch', purpose: 'greeting', partIndex: 0, textRevision: 2, flagRevision: 4, group: { kind: 'manual', textFingerprint: 'a'.repeat(64) } });
@@ -251,6 +254,7 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release', 'sent']);
     expect(w.hub.calls.at(-1)?.body).toEqual({ action: 'sent', attemptId: uuid(1), instanceId: uuid(0x1d), platformMessageId: '830000000000000001', evidence: 'receipt+echo' });
     expect(w.journal()).toMatchObject([{ state: 'sent', reportPending: false }]);
+    expect(w.journal()[0]?.browserResend).toBeUndefined();
     expect(w.routes[0]?.starts).toBe(1);
   });
 
@@ -301,6 +305,48 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
       expect(w.routes[0]?.starts).toBe(1);
       expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
     }
+  });
+
+  it('[NF-022] X41: a late browser answer of the same request marks the journal, keeps uncertain and its lock, also after a restart', async () => {
+    for (const transport of ['direct', 'tab:abc'] as const) {
+      const w = world({ transport });
+      const view = w.send.send(click());
+      await settle();
+      w.routes[0]?.answer.reject(apiError('network', true));
+      await expect(view).resolves.toMatchObject({ state: 'uncertain' });
+      expect(w.journal()[0]?.requestId).toBe(uuid(0x900));
+      await w.send.observeRequest({ clientRequestId: uuid(0x901), phase: 'completed', statusCode: 200 });
+      expect(w.journal()[0]?.browserResend).toBeUndefined();
+      // The late answer can come after the event page slept; correlation is in the durable record.
+      w.send.dispose();
+      const restored = world({ kv: w.kv, hub: w.hub });
+      await restored.send.observeRequest({ clientRequestId: uuid(0x900), phase: 'completed', statusCode: 200 });
+      expect(restored.journal()).toMatchObject([{ state: 'uncertain', requestId: uuid(0x900), browserResend: true }]);
+      restored.clock.advance(60_000);
+      expect(await restored.send.send(click(uuid(2)))).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+      expect(w.routes[0]?.starts).toBe(1);
+      expect(restored.routes).toHaveLength(0);
+      expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
+      restored.send.dispose();
+      const again = world({ kv: w.kv, hub: w.hub });
+      await again.send.ready;
+      expect(again.journal()).toMatchObject([{ state: 'uncertain', browserResend: true }]);
+      again.send.dispose();
+    }
+  });
+
+  it('[NF-022] X41: passive loss and repeated headers before the fetch settles still mark one request, with no new send', async () => {
+    const w = world();
+    const view = w.send.send(click());
+    await settle();
+    for (const phase of ['headers', 'error', 'headers', 'completed'] as const) {
+      await w.send.observeRequest({ clientRequestId: uuid(0x900), phase, ...(phase === 'completed' ? { statusCode: 200 } : {}) });
+    }
+    w.routes[0]?.answer.reject(apiError('network', true));
+    await expect(view).resolves.toMatchObject({ state: 'uncertain' });
+    expect(w.journal()).toMatchObject([{ state: 'uncertain', requestId: uuid(0x900), browserResend: true }]);
+    expect(w.routes[0]?.starts).toBe(1);
+    expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
   });
 
   it('[NF-021] the intent\'s write paused: the history, the draft, the tab or the ticket changing meanwhile refuses with NO request; the custody hears «not enqueued»', async () => {
