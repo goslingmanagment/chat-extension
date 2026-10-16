@@ -26,3 +26,4 @@ export {
 } from './journals';
 export { acceptUiRecords, type UiRecordsOptions, type UiRecordsSender } from './ui-records';
 export { type KeyValuePort, type Scheduler } from '../ports';
+export type { PassJournal, PassJournalEvent, PassJournalFields, PassJournalRun, PassJournalSink } from './pass-journal';

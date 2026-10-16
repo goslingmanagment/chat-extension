@@ -34,6 +34,7 @@
 //
 // Never: a request for another creator's session, a send (P10c), a text in the log. The pass lives in the event
 // page's memory: an open window's port keeps the page awake; a pass nobody holds is let go by the next `scan`.
+// Its metadata journal is a separate port (P10b3, NF-029, FS-NEW-5): IDB with rotation and only a small memory tail.
 
 import { type CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { type StartProofV1 } from '@cg/contracts/fansly';
@@ -73,6 +74,9 @@ import { checkOf, passRowOf } from '../../../domain/hosts/fansly/newcomers/rows'
 import { inPassTab, matchesPassSearch, passesCheckFilter } from '../../../domain/newcomers/pass';
 import { AbortSwitch } from '../../ports';
 import { NO_LOG, type KeyValuePort, type ServiceLog } from '../../storage/ports';
+import type { PassJournal, PassJournalEvent, PassJournalFields, PassJournalRun, PassJournalSink } from './newcomers-journal';
+
+export type { PassJournal, PassJournalEvent, PassJournalFields, PassJournalRun, PassJournalSink } from './newcomers-journal';
 
 /** The routes of FS-NET-1's `newcomers` row (fansly-api allowlist.ts): the only ones the pass asks. */
 export type NewcomersRoute = 'followers.new' | 'messaging.groups' | 'account.byIds' | 'group.detail' | 'group.create' | 'message.history' | 'message.automated';
@@ -92,7 +96,7 @@ export interface NewcomersCall {
  * read structurally here: the core never imports fansly-api).
  */
 export interface FanslyNewcomersApi {
-  call(call: NewcomersCall, signal: AbortSignalLike): Promise<unknown>;
+  call(call: NewcomersCall, signal: AbortSignalLike, trace?: PassJournalSink): Promise<unknown>;
   /** When the creator's cooldown ends (epoch ms); 0 or past — none. */
   coolingUntil(account: string): number;
 }
@@ -103,6 +107,8 @@ export interface FanslyNewcomersDeps {
   readonly api: FanslyNewcomersApi;
   readonly now: () => number;
   readonly uuid: () => string;
+  readonly monotonicNow?: () => number;
+  readonly journal?: PassJournal;
   /** Resolves after `ms`, or as soon as `signal` aborts. */
   readonly sleep: (ms: number, signal: AbortSignalLike) => Promise<void>;
   /** One event to one tab session (and only to it). */
@@ -159,6 +165,7 @@ interface Pass {
   readonly creator: string;
   readonly windowHours: number;
   readonly startedAt: number;
+  readonly journal: PassJournalSink | undefined;
   base: Base;
   phase: Phase | null;
   partial: boolean;
@@ -225,6 +232,13 @@ export type FanslyNewcomers = ReturnType<typeof createFanslyNewcomers>;
 
 export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   const log = deps.log ?? NO_LOG;
+  const monotonicNow = deps.monotonicNow ?? deps.now;
+  const note = (pass: Pass, event: PassJournalEvent, fields?: PassJournalFields): void => {
+    try { pass.journal?.(event, fields); } catch { /* Diagnostics never stop the pass. */ }
+  };
+  const journalFor = (run: PassJournalRun): PassJournalSink | undefined => {
+    try { return deps.journal?.start(run); } catch { return undefined; }
+  };
   /** One pass per creator: the newest scan's. */
   const passes = new Map<string, Pass>();
   const byId_ = new Map<string, Pass>();
@@ -300,6 +314,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   }
 
   function set(pass: Pass, row: Row, patch: Partial<FanslyFollowerRow>): void {
+    if (patch.status !== undefined && patch.status !== row.view.status) note(pass, 'row.verdict', { fanRef: row.view.fanRef, groupId: row.chat?.groupId, status: patch.status, code: patch.error?.code, reason: patch.status === 'ready' ? 'history-start' : patch.status === 'greeted' ? 'creator-personal' : patch.status });
     row.view = { ...row.view, ...patch };
     touch(pass, row);
   }
@@ -310,15 +325,21 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   async function ask(pass: Pass, work: Work, call: Omit<NewcomersCall, 'account'>): Promise<unknown> {
     for (let round = 0; ; round += 1) {
       if (work.stop.aborted) throw new Aborted();
+      const started = monotonicNow();
+      note(pass, 'call.start', { route: call.route, attempt: round + 1 });
       try {
-        return await deps.api.call({ ...call, account: pass.creator }, work.stop);
+        const answer = await deps.api.call({ ...call, account: pass.creator }, work.stop, pass.journal === undefined ? undefined : (event, fields) => note(pass, event, fields));
+        note(pass, 'call.end', { route: call.route, durationMs: Math.max(0, monotonicNow() - started) });
+        return answer;
       } catch (error) {
+        const { kind, wire } = failureOf(error);
+        note(pass, 'call.failed', { route: call.route, kind, code: wire.code, httpStatus: wire.httpStatus, retryAt: wire.retryAt, durationMs: Math.max(0, monotonicNow() - started) });
         if (work.stop.aborted) throw new Aborted();
-        const { kind } = failureOf(error);
         // `cooling` never left (POST /group in a cooldown); `rate-limited` — the reads' own retries are spent.
         const waitable = kind === 'cooling' || (kind === 'rate-limited' && round === 0);
         const until = deps.api.coolingUntil(pass.creator);
         if (!waitable || round >= COOLING_ROUNDS || until <= deps.now()) throw error;
+        note(pass, 'call.wait', { route: call.route, waitMs: until - deps.now(), retryAt: until });
         look(pass);
         await deps.sleep(until - deps.now(), work.stop);
       }
@@ -353,6 +374,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     pass.life.addEventListener('abort', () => stop.abort());
     let running = true;
     pass.base = base;
+    note(pass, 'queue.start', { state: base });
     if (!pass.partial || pass.followers.read) pass.error = null;
     touch(pass);
     const work: Work = {
@@ -382,12 +404,14 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (pass.base === 'stopped' && to !== 'stopped') return;
     pass.phase = null;
     pass.base = to === 'paused' && !pass.rows.some(needsCheck) ? 'done' : to;
+    note(pass, 'pass.end', { state: pass.base, total: pass.rows.length, complete: !pass.partial });
   }
 
   function halt(pass: Pass, wire: CgAnyErrorWire): void {
     pass.base = 'stopped';
     pass.phase = null;
     pass.error = wire;
+    note(pass, 'pass.stop', { code: wire.code, total: pass.rows.length });
     log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the pass stopped', fields: { code: wire.code, rows: pass.rows.length } });
     pass.work?.stop.abort();
   }
@@ -395,6 +419,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   /** «Пауза», a closed window: the work stops after the request in flight; what it found stays. */
   function standStill(pass: Pass): void {
     if (pass.work === null) return;
+    note(pass, 'queue.pause', { state: pass.base });
     if (pass.base !== 'stopped') pass.base = 'paused';
     pass.work.stop.abort();
   }
@@ -403,12 +428,14 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   async function fastPart(pass: Pass, work: Work): Promise<void> {
     const phase = (next: Phase): void => {
       pass.phase = next;
+      note(pass, 'pass.phase', { phase: next });
       touch(pass);
     };
     phase('welcome');
     const welcome = readWelcomeTexts(await ask(pass, work, { route: 'message.automated' }));
     if (welcome === null) throw new PassFailure({ code: 'CG-FAN-REQUEST' });
     pass.welcome = welcome;
+    note(pass, 'welcome.refresh', { count: welcome.size });
 
     phase('followers');
     const cutoff = pass.startedAt - pass.windowHours * 3_600_000;
@@ -444,6 +471,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         );
         if (answer === null) throw new PassFailure({ code: 'CG-FAN-REQUEST' });
         progress.pages += 1;
+        note(pass, 'followers.page', { page: progress.pages, count: answer.follows.length });
         const profiles = new Map(answer.profiles.map((profile) => [profile.fanRef, profile]));
         let oldest = Infinity;
         for (const follow of answer.follows) {
@@ -491,6 +519,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         deps.now(),
       );
       for (const chat of page?.chats ?? []) pass.leads.set(chat.fanRef, chat);
+      note(pass, 'inbox.page', { page: Math.floor(offset / PASS_BOUNDS.inboxPage) + 1, count: page?.count ?? 0, total: pass.leads.size });
       return page;
     };
     try {
@@ -517,6 +546,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       const batch = missing.slice(at, at + PASS_BOUNDS.profileBatch);
       try {
         const read = readAccounts(await ask(pass, work, { route: 'account.byIds', query: { ids: batch.map((row) => row.view.fanRef).join(',') } }));
+        note(pass, 'profiles.batch', { page: Math.floor(at / PASS_BOUNDS.profileBatch) + 1, count: read?.length ?? 0 });
         for (const profile of read ?? []) {
           const row = pass.byFan.get(profile.fanRef);
           if (row !== undefined) set(pass, row, profileFields(profile, row.view));
@@ -598,6 +628,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const fan = row.view.fanRef;
     const users = [pass.creator, fan];
     let chat = row.chat ?? pass.leads.get(fan) ?? null;
+    if (chat !== null) note(pass, 'chat.reuse', { fanRef: fan, groupId: chat.groupId, reason: row.chat === null ? 'inbox' : 'checked' });
     if (chat === null && !create) return;
     set(pass, row, { status: 'checking', error: null });
     if (chat === null) {
@@ -615,7 +646,10 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (row.view.groupId !== chat.groupId) set(pass, row, { groupId: chat.groupId });
     const lastPersonal = chat.last !== null && isCreatorPersonal(chat.last, pass.creator, pass.welcome) ? chat.last : null;
     // The fast part trusts a last message of the creator's own as «Уже писали» without reading the history (the old).
-    if (lastPersonal !== null && !create) return greeted(pass, row, lastPersonal, [lastPersonal]);
+    if (lastPersonal !== null && !create) {
+      note(pass, 'message.classify', { fanRef: fan, groupId: chat.groupId, messageId: lastPersonal.id, classification: 'creator-personal' });
+      return greeted(pass, row, lastPersonal, [lastPersonal]);
+    }
 
     const walked = new Map<string, PassMessage>();
     let personal: PassMessage | null = null;
@@ -626,6 +660,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       if (cursor !== null) query['before'] = cursor;
       const messages = readHistoryPage(await ask(pass, work, { route: 'message.history', query }), chat.groupId, users, deps.now());
       if (messages === null) throw new PassFailure({ code: 'CG-FNEW-HISTORY' });
+      note(pass, 'history.page', { fanRef: fan, groupId: chat.groupId, page: page + 1, count: messages.length, complete: messages.length === 0 && !(page === 0 && chat.lastKnown) });
+      for (const message of messages) note(pass, 'message.classify', { fanRef: fan, groupId: chat.groupId, messageId: message.id, classification: message.senderId === fan ? 'fan' : isCreatorPersonal(message, pass.creator, pass.welcome) ? 'creator-personal' : 'automated-or-system' });
       for (const message of messages) walked.set(message.id, message);
       personal = messages.find((message) => isCreatorPersonal(message, pass.creator, pass.welcome)) ?? null;
       if (personal !== null) break;
@@ -750,11 +786,13 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     }
     const watchers = new Set(open?.watchers);
     if (open !== undefined) drop(open);
+    const run: PassJournalRun = { passId: deps.uuid(), hostAccountId: creator, startedAt: deps.now(), windowHours };
     const pass: Pass = {
-      id: deps.uuid(),
+      id: run.passId,
       creator,
       windowHours,
-      startedAt: deps.now(),
+      startedAt: run.startedAt,
+      journal: journalFor(run),
       base: 'scanning',
       phase: 'welcome',
       partial: false,
@@ -787,11 +825,13 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       // The terminal event makes old windows read again; their old id resolves to the current pass below.
       for (const watcher of watchers) if (deps.alive(watcher) && deps.tabOn(watcher, creator)) deps.emit(watcher, change);
     }
+    note(pass, 'pass.start', { state: pass.base });
     begin(pass, 'scanning', (work) => fastPart(pass, work));
     return { ok: true, pass: viewOf(pass) };
   }
 
   function drop(pass: Pass): void {
+    note(pass, 'pass.close', { state: pass.base, reason: 'released' });
     pass.life.abort();
     pass.watchers.clear();
     passes.delete(pass.creator);
@@ -844,6 +884,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const pass = find(payload.passId, tab);
     if (pass === null) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
     if (pass.work !== null || (pass.followers.read && !pass.rows.some(needsCheck))) return { ok: true, pass: viewOf(pass) };
+    note(pass, 'queue.resume', { state: pass.base });
     if (!pass.followers.read) {
       begin(pass, 'scanning', (work) => fastPart(pass, work));
       return { ok: true, pass: viewOf(pass) };
@@ -862,12 +903,14 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (running(pass)) {
       // «Проверить следующим»: the running queue takes this fan next.
       pass.preferred = row.view.fanRef;
+      note(pass, 'queue.prioritize', { fanRef: row.view.fanRef, reason: 'next' });
       return { recorded: true };
     }
     // A pause on its way: the request in flight ends first.
     if (pass.work !== null) return { recorded: false };
     // «Проверить чат»: the queue stands — this fan alone, now; then it stands again.
     const was = pass.base;
+    note(pass, 'queue.prioritize', { fanRef: row.view.fanRef, reason: 'now' });
     begin(pass, 'queue', async (work) => {
       await queue(pass, work, row.view.fanRef);
       // Not «done» while others wait: the queue stands as it stood.
@@ -881,6 +924,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const pass = window?.passId === payload.passId ? passes.get(window.creator) : byId_.get(payload.passId);
     if (pass === undefined || !pass.watchers.delete(tab)) return { recorded: false };
     windows.delete(tab);
+    note(pass, 'pass.close', { state: pass.base, reason: 'window' });
     if (pass.watchers.size === 0) {
       standStill(pass);
       touch(pass);
@@ -921,6 +965,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const kept = row.kept.filter((message) => older(message.id, payload.before));
     const messages = kept.slice(-payload.limit).reverse();
     if (messages.length === payload.limit || row.keptAll) {
+      note(pass, 'history.cache', { fanRef: row.view.fanRef, groupId, count: messages.length, complete: row.keptAll });
       return { ok: true, messages: messages.map((message) => previewOf(message, pass.creator, pass.welcome)), more: kept.length > payload.limit || !row.keptAll };
     }
     // Beyond what the pass kept: the pages before the oldest message in hand, through the pacer like the pass's own.

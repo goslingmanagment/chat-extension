@@ -23,6 +23,7 @@ import type { SettingsExtOwner } from '@cg/core/services';
 import type { SoundBatch } from '@cg/contracts/sound';
 import type { SoundStreamPolicy } from '@cg/core/services/sound';
 import type { NetworkSession } from '@cg/core/services/network-session';
+import type { PassJournal } from '@cg/core/services/logs';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
@@ -79,6 +80,36 @@ export interface HubPort {
   page(pageId: number, sender: KitSender): Promise<KitPageLookup>;
 }
 
+/** The bounded metadata store behind the kit (platform/idb.ts), with no browser dependency in a site's chunk. */
+export interface JournalStore {
+  latest(limit: number): Promise<readonly { readonly id: number; readonly value: unknown }[]>;
+  append(records: readonly { readonly at: number; readonly group: number; readonly value: unknown }[]): Promise<{ readonly stored: number; readonly rejected: number }>;
+  stats(): {
+    readonly available: boolean;
+    readonly records: number;
+    readonly bytes: number;
+    readonly groups: readonly number[];
+    readonly evicted: number;
+    readonly expired: number;
+    readonly rejected: number;
+    readonly failed: number;
+  };
+  prune(): Promise<void>;
+  clear(): Promise<boolean>;
+  close(): void;
+}
+
+/** A bounded metadata journal; IDB stays behind the kit, as browser storage does. */
+export interface JournalStoreOptions {
+  readonly dbName: string;
+  readonly maxRecords: number;
+  readonly maxBytes: number;
+  readonly maxAgeMs: number;
+  readonly maxGroups?: number;
+  readonly maxRecordBytes?: number;
+  readonly now?: () => number;
+}
+
 /** The browser's storage areas, in the two dialects the core's services speak. */
 export interface StoragePort {
   /** storage.local / storage.session with results, never a throw (R07). */
@@ -87,12 +118,14 @@ export interface StoragePort {
   /** The same areas one key at a time, a failure rejects with its code (R10, R17). */
   readonly localKeys: KeyValueStore;
   readonly sessionKeys: KeyValueStore;
+  readonly journal?: (options: JournalStoreOptions) => Promise<JournalStore>;
 }
 
 /** The one logger of the background, in the two dialects of the core's services. */
 export interface LogPort {
   readonly sink: LogSink;
   readonly service: ServiceLog;
+  readonly passJournal?: PassJournal;
 }
 
 /** Telemetry of the core (consent, the queue, the health window): a module reports, the core decides what leaves. */

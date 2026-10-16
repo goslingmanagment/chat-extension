@@ -81,7 +81,7 @@ import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hos
 import { createFanslyNewcomers, type FanslyNewcomers, type FanslyNewcomersApi } from '@cg/core/services/hosts/fansly/newcomers';
 import { createFanslySend, type FanslySend, type FanslySendDeps } from '@cg/core/services/hosts/fansly/send';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
-import { createFanslyApi, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
+import { createFanslyApi, createFanslyClient, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
@@ -207,7 +207,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
   const operations = createFanslyOperations((view) => kit.site?.emit('fansly.ops.done', { view }));
-  const newcomers = kit.site === undefined ? null : startNewcomers(kit, session, api);
+  const journal = kit.site === undefined ? null : kit.log.passJournal ?? null;
+  const newcomers = kit.site === undefined ? null : startNewcomers(kit, session, api, journal);
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
     // The registry's rules let a page send only the settings page's types (contracts tab-messages-fansly.ts).
     if (sender.kind === 'page') return pageRequest(kit, accounts, type, payload);
@@ -305,7 +306,10 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     },
     onTabMessage: () => Promise.resolve({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     async onEvent(event) {
-      if (event.kind === 'clear-finished') { await spenders?.clear(); await Promise.all([vault.sweep(), greetings?.clearFinished()]); }
+      if (event.kind === 'clear-finished') {
+        await spenders?.clear();
+        await Promise.all([vault.sweep(), greetings?.clearFinished()]);
+      }
       if (event.kind === 'session' && event.ownerChanged) await spenders?.clear();
       // The custody reports still owed go once the bootstrap names their pages again.
       if (event.kind === 'bootstrap' || event.kind === 'session') greetings?.pump();
@@ -333,13 +337,20 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
  * asks the stand's API the e2e names (`dev.fanslyApi.origin`, api-probe.ts) and nothing without it; a release build,
  * Fansly's.
  */
-function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | undefined, api: FanslyApi | null): FanslyNewcomers {
+function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | undefined, api: FanslyApi | null, journal: NonNullable<BackgroundKit['log']['passJournal']> | null): FanslyNewcomers {
   const client = api === null || session === undefined ? null : __CG_TEST_HOSTS__ ? fanslyStandClient(kit, session, api) : api.client;
   const port: FanslyNewcomersApi = {
-    async call(call, signal) {
-      const asking = client;
+    async call(call, signal, trace) {
+      let asking = client;
       // No session owner: nothing can be asked; a test build without the stand's API asks nothing either.
       if (asking === null) throw new FanslyApiError(api === null || session === undefined ? 'session' : 'not-admitted', { sent: false });
+      if (trace !== undefined && api !== null && session !== undefined) {
+        // Observe the selected transport while keeping the stand's origin check at each call.
+        const transport = traceFanslyTransport(api.client.transport, (event, fields) => trace(event, { ...fields, route: call.route }));
+        asking = __CG_TEST_HOSTS__
+          ? fanslyStandClient(kit, session, api, transport)
+          : createFanslyClient({ session, pacer: api.pacer, now: () => kit.clock.now(), transport });
+      }
       const abort = new AbortController();
       if (signal.aborted) abort.abort();
       else signal.addEventListener('abort', () => abort.abort());
@@ -363,6 +374,8 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
     api: port,
     now: () => kit.clock.now(),
     uuid: () => kit.ids.uuid(),
+    monotonicNow: () => performance.now(),
+    ...(journal === null ? {} : { journal }),
     sleep: (ms, signal) =>
       new Promise<void>((resolve) => {
         if (signal.aborted) return resolve();

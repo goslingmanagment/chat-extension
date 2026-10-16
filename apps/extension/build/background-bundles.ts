@@ -44,6 +44,15 @@ export function modulesMatching(modules: Readonly<Record<string, { readonly rend
 export function backgroundCorePlugin(): Plugin {
   return {
     name: 'cg-background-core',
+    transform: {
+      filter: { id: /\/vendor\/kernel-sdk\/dist\/shared\/ofapi-read-catalog\.js$/ },
+      // The SDK barrel re-exports this catalog, whose top-level calls only
+      // populate its own exported array. No extension code uses that array:
+      // let the bundler drop the module without changing the vendored SDK.
+      handler(code) {
+        return { code, moduleSideEffects: false };
+      },
+    },
     generateBundle(_options, bundle) {
       for (const item of Object.values(bundle)) {
         if (item.type !== 'chunk') continue;
