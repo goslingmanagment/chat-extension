@@ -204,6 +204,8 @@ export interface NewcomerCardVM {
 }
 
 export interface NewcomersPassVM {
+  /** The background's pass identity: another period must reset the window's pagination guard. */
+  readonly passId?: string | null;
   /** The creator whose followers these are, «@lora» (NF-008); null — unknown. */
   readonly creator: string | null;
   readonly stage: NewcomersPassStage;
