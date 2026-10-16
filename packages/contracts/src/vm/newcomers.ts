@@ -6,7 +6,7 @@
 
 import { type CgErrorView } from '../errors';
 import { type LEASE_HOLDERS } from '../hub/newcomers';
-import { type IsoTimestamp } from '../primitives';
+import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type GreetingFilter, type NewcomerCheckFilter, type NewcomersTab } from './actions';
 import { type Msg } from './i18n';
 import { type TargetHandle } from './selectors';
@@ -191,6 +191,8 @@ export interface NewcomerCardVM {
   readonly bio: string | null;
   readonly check: NewcomerCheck;
   readonly dmClosed: NewcomerDmClosed | null;
+  /** 1.15.0 (R20 P10b2): the lowest known paid-DM price per message, USD mills; absent or null — unknown. */
+  readonly dmPriceMills?: MoneyMills | null;
   /** `failed`: why. */
   readonly failure: NewcomersFailureVM | null;
   /** `greeted` — «Уже писали»: the creator's personal message that proves it, shown folded. */

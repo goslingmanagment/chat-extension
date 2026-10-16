@@ -44,7 +44,7 @@ import { AdmissionSchema, OpStateSchema } from './ops';
 import { ChatKeySchema } from './ids';
 import { STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
-import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
+import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
 import { SettingsExtPatchSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
@@ -161,6 +161,8 @@ export const FanslyFollowerRowSchema = z.strictObject({
   status: z.enum(FANSLY_FOLLOWER_STATUSES),
   /** Why the fan cannot be messaged: a paid DM, or `dmPermissionFlags` the model does not meet. */
   dmClosed: z.nullable(z.enum(['paid', 'permissions'])),
+  /** 1.15.0 R20 P10b2: the lowest known paid-DM price per message, USD mills; absent or null — unknown. */
+  dmPriceMills: z.optional(z.nullable(MoneyMillsSchema.check(z.gte(0)))),
   /** The revision of the history the pass checked in full (FS-NEW-6, FS-NEW-7); null — not checked in full. */
   historyRevision: z.nullable(UuidSchema),
   checkedAt: z.nullable(IsoTimestampSchema),

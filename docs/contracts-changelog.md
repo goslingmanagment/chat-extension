@@ -82,6 +82,10 @@
   `fansly.followers.exclude`. Фикстура — `test/fixtures/vm.ts`.
 - `vm/newcomers.ts`, только типы: `NewcomerCardVM.exclude?` (`exclude` | `restore` | null).
 - `newcomers-fansly`: ключи `fansly.newcomers.exclude`, `fansly.newcomers.restore`, `fansly.newcomers.excludeTooltip`.
+- Цена платного DM: необязательный `dmPriceMills` (`MoneyMills | null`, USD mills) в `FanslyFollowerRowSchema` и
+  `NewcomerCardVM` — минимальная известная цена за сообщение среди вариантов платного DM; отсутствие / null —
+  цена неизвестна. Ключ `fansly.newcomers.dmClosed.paidPrice` с параметром `price` добавляет её в прежнюю причину.
+  Положительные и отрицательные фикстуры — `test/fixtures/protocols-fansly.ts`; версия остаётся 1.15.0.
 
 ### P10b1 — «Новые» на Fansly: очередь прохода и её кнопки
 

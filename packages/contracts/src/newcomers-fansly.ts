@@ -73,6 +73,7 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.fanPrefix',
   'fansly.newcomers.ownPrefix',
   'fansly.newcomers.dmClosed.paid',
+  'fansly.newcomers.dmClosed.paidPrice',
   'fansly.newcomers.dmClosed.permissions',
   'fansly.newcomers.errorFrom',
   'fansly.newcomers.listFailed',

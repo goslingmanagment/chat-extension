@@ -132,6 +132,8 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       valid: [
         { pass: fanslyPass, rows: [fanslyRow, { ...fanslyRow, fanRef: '700000000000000005', groupId: null, status: 'dm-closed', dmClosed: 'paid', historyRevision: null, checkedAt: null }], total: 2 },
         { pass: null, rows: [], total: 0 },
+        // P10b2: the paid-DM price is optional; null is unknown, never a guessed zero.
+        ...[1700, null].map((dmPriceMills) => ({ pass: fanslyPass, rows: [{ ...fanslyRow, status: 'dm-closed', dmClosed: 'paid', dmPriceMills }], total: 1 })),
         { pass: fanslyPass, rows: [fanslyRow], total: 1, counts: followersCounts, seq: 7 },
         // P10a: the window's fields of a row, the fast part's phase, the change the snapshot holds.
         { pass: { ...fanslyPass, state: 'scanning', phase: 'profiles' }, rows: [fanslyRowShown, { ...fanslyRow, status: 'failed', historyRevision: null, error: { code: 'CG-FAN-REQUEST', httpStatus: 500 } }], total: 2, seq: 7 },
@@ -140,6 +142,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [
         { pass: fanslyPass, rows: [{ ...fanslyRow, groupId: 'group-1' }], total: 1 },
         { pass: fanslyPass, rows: [{ ...fanslyRow, status: 'sent' }], total: 1 },
+        ...[-1, 1.7, '1700'].map((dmPriceMills) => ({ pass: fanslyPass, rows: [{ ...fanslyRow, dmPriceMills }], total: 1 })),
         // P10a: a phase the pass does not have, a proof without its automation mark, a failure of no registry, a negative change.
         { pass: { ...fanslyPass, phase: 'notes' }, rows: [], total: 0 },
         { pass: fanslyPass, rows: [{ ...fanslyRowShown, proof: { messageId: '700000000000000041', fromFan: false, at: ISO, text: 'hey', attachments: 0 } }], total: 1 },
