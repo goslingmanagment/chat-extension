@@ -8,7 +8,10 @@
 // It draws the shared `NewcomersVM` with its `pass` (the hub's list of ChatSpace is ui/newcomers): the layout, the
 // header, the filters, the rows and the feed's bubbles of the family; the words are Fansly's own pack, laid over the
 // tab's I18n by the surface (index.tsx). No remote picture: a fan's avatar is the initial (ui-design §1 п. 12).
-// Nothing here sends: the greeting comes with P10c.
+// R20 P10c: the card's greeting at its foot (FS-NEW-3, FS-NEW-6; NF-012…NF-019, NF-028): the draft field, «Сгенерировать»
+// (a line), «Открыть и вставить» (quiet) and «Отправить →» — the only blue: it is what reaches the fan —, the «AI» mark of
+// an unchanged result and its verdict, where the click stands (sending, sent, refused with its code, unknown), and the
+// hint that AI sends nothing on its own.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -18,10 +21,12 @@ import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { isCgCode, type CgCode, type CgErrorView, type I18nKey } from '@cg/contracts/errors';
 import { cgBodyKey, cgTitleKey } from '@cg/contracts/i18n/keys';
 import { type FanslyNewcomersTextKey } from '@cg/contracts/newcomers-fansly';
+import { type StaleReason } from '@cg/contracts/ops';
 import {
   type I18n,
   type I18nParams,
   type NewcomerCardVM,
+  type NewcomerGreetingVM,
   type NewcomerCheck,
   type NewcomerMessageVM,
   type NewcomerRowVM,
@@ -45,6 +50,7 @@ import {
   SearchBox,
   Spinner,
   Tabs,
+  TextField,
   ViewState,
   VirtualList,
   isComposing,
@@ -61,6 +67,7 @@ import {
   useView,
   type MenuItem,
 } from '../../../kit';
+import { useOwnEchoes } from '../../../spenders/ownEchoes';
 import { rowKeyOf, useRowFocus } from '../../../spenders/rowFocus';
 import { DataFooter, FilterChip, WindowHeader, isPlainKey, isTextEntry } from '../../../spenders/window';
 
@@ -523,6 +530,138 @@ function OpenLink({ href }: { readonly href: string }): JSX.Element {
   );
 }
 
+/** The words of a mark over an unchanged AI text, by its reason (ui-design §4.7; Fansly's catalog has the window check's). */
+const MARK_WORDS = { 'fan-wrote': '', 'archive-moved': '', unverified: '.unverified', 'window-miss': '.windowMiss', 'deleted-served': '.deletedServed' } as const satisfies Record<StaleReason, string>;
+
+/** Where the card's click stands: a spinner while it runs, «✓ Отправлено 09:21», a dot and the code's line otherwise. */
+function GreetingState({ greeting }: { readonly greeting: NewcomerGreetingVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const state = greeting.state;
+  switch (state.s) {
+    case 'idle':
+      return null;
+    case 'generating':
+    case 'sending':
+      return (
+        <div class="cg-fnc__gst" role="status">
+          <Spinner />
+          <b>{fanslyText(i18n, state.s === 'sending' ? 'fansly.newcomers.greeting.sending' : 'fansly.newcomers.greeting.generating')}</b>
+        </div>
+      );
+    case 'inserted':
+      return (
+        <div class="cg-fnc__gst" role="status">
+          {fanslyText(i18n, 'fansly.newcomers.greeting.inserted')}
+        </div>
+      );
+    case 'sent':
+      return (
+        <div class="cg-fnc__gst is-sent" role="status">
+          <Icon name="check" />
+          <span>{fanslyText(i18n, 'fansly.newcomers.greeting.sent', { time: state.at === null ? '' : i18n.formatTime(state.at, 'time') })}</span>
+        </div>
+      );
+    case 'refused':
+    case 'uncertain': {
+      const error = failureView(i18n, state.failure);
+      return (
+        <div class="cg-fnc__gst" role="status" data-cg-code={state.failure.code}>
+          <Dot kind={state.s === 'refused' ? 'danger' : 'ink'} />
+          <b>{fanslyText(i18n, state.s === 'refused' ? 'fansly.newcomers.greeting.refused' : 'fansly.newcomers.greeting.uncertain')}</b>
+          <span class="cg-fnc__gcode">
+            <b>ChatGoose · {state.failure.code}:</b> {error.title}
+          </span>
+        </div>
+      );
+    }
+  }
+}
+
+/** The greeting of the card (R20 P10c): the field, its marks, the three buttons, where the click stands, the hint (NF-028). */
+function Greeting({ handle, greeting }: { readonly handle: string; readonly greeting: NewcomerGreetingVM }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const draft = useOwnEchoes(greeting.text, handle);
+  const running = greeting.state.s === 'generating' || greeting.state.s === 'sending';
+  const words = (reason: StaleReason, part: 'title' | 'body'): string => i18n.t(`result.stale${MARK_WORDS[reason]}.${part}` as I18nKey);
+  // Why a button is off, in the tooltip it always shows (ui-design §4): what runs, what the pass has not proven, how the click ended, an empty field.
+  const why = (): string => {
+    const s = greeting.state.s;
+    if (s === 'generating' || s === 'sending') return fanslyText(i18n, s === 'sending' ? 'fansly.newcomers.greeting.sending' : 'fansly.newcomers.greeting.generating');
+    if (greeting.waiting) return fanslyText(i18n, 'fansly.newcomers.greeting.waiting');
+    if (s === 'sent' || s === 'uncertain') return fanslyText(i18n, s === 'sent' ? 'fansly.newcomers.greeting.sent' : 'fansly.newcomers.greeting.uncertain', { time: '' }).trim();
+    return fanslyText(i18n, 'fansly.newcomers.greeting.placeholder');
+  };
+  const sendReason = greeting.canSend || greeting.state.s === 'sending' ? null : greeting.sendBlocked !== null ? failureView(i18n, greeting.sendBlocked).title : why();
+  return (
+    <div class="cg-fnc__greet" data-cg-greeting={greeting.state.s}>
+      {greeting.mark === null ? null : (
+        <div class="cg-stale cg-fnc__mark" role="status">
+          <span class="cg-gut">
+            <Dot kind="accent" use="result-stale" />
+          </span>
+          <span class="cg-stale__t">
+            <b>{words(greeting.mark, 'title')}</b> {words(greeting.mark, 'body')}
+          </span>
+        </div>
+      )}
+      {greeting.stale ? <div class="cg-fnc__gnote is-strong">{fanslyText(i18n, 'fansly.newcomers.greeting.stale')}</div> : null}
+      <div class="cg-fnc__field">
+        <TextField
+          value={draft.shown}
+          label={fanslyText(i18n, 'fansly.newcomers.greeting.label')}
+          placeholder={fanslyText(i18n, 'fansly.newcomers.greeting.placeholder')}
+          multiline
+          minHeight={56}
+          maxHeight={140}
+          maxLength={greeting.maxChars}
+          reason={running ? fanslyText(i18n, greeting.state.s === 'sending' ? 'fansly.newcomers.greeting.sending' : 'fansly.newcomers.greeting.generating') : null}
+          onValue={(typed) => {
+            const text = typed.slice(0, greeting.maxChars);
+            draft.sent(text);
+            void dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text });
+          }}
+        />
+        {greeting.ai ? (
+          <span class="cg-fnc__ai" title={fanslyText(i18n, 'fansly.newcomers.greeting.aiTooltip')}>
+            {fanslyText(i18n, 'fansly.newcomers.greeting.ai')}
+          </span>
+        ) : null}
+      </div>
+      {greeting.waiting ? <div class="cg-fnc__gnote">{fanslyText(i18n, 'fansly.newcomers.greeting.waiting')}</div> : null}
+      <div class="cg-fnc__gbar">
+        <Button
+          label={fanslyText(i18n, 'fansly.newcomers.greeting.generate')}
+          variant="line"
+          size="sm"
+          busy={greeting.state.s === 'generating'}
+          reason={greeting.canGenerate || greeting.state.s === 'generating' ? null : why()}
+          onClick={() => void dispatch({ type: 'Generate', targetHandle: handle, feature: 'hi', options: {} })}
+        />
+        <span class="cg-fnc__count">{fanslyText(i18n, 'fansly.newcomers.greeting.count', { n: draft.shown.length, max: greeting.maxChars })}</span>
+        <Button
+          label={fanslyText(i18n, 'fansly.newcomers.greeting.insert')}
+          variant="quiet"
+          size="sm"
+          tooltip={fanslyText(i18n, 'fansly.newcomers.greeting.insertTooltip')}
+          reason={greeting.canInsert ? null : why()}
+          onClick={() => void dispatch({ type: 'InsertNewcomerGreeting', targetHandle: handle })}
+        />
+        <Button
+          label={fanslyText(i18n, 'fansly.newcomers.greeting.send')}
+          variant="send"
+          size="sm"
+          busy={greeting.state.s === 'sending'}
+          reason={sendReason}
+          onClick={() => void dispatch({ type: 'SendNewcomerGreeting', targetHandle: handle })}
+        />
+      </div>
+      <GreetingState greeting={greeting} />
+      <div class="cg-fnc__noauto">{fanslyText(i18n, 'fansly.newcomers.noAutoSend')}</div>
+    </div>
+  );
+}
+
 function Card({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
   const i18n = useI18n();
   return (
@@ -552,6 +691,7 @@ function Card({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
         </details>
       )}
       <History card={card} />
+      {card.greeting === undefined || card.greeting === null ? null : <Greeting handle={card.handle} greeting={card.greeting} />}
     </section>
   );
 }

@@ -14,19 +14,24 @@ import {
   mayRequestFansly,
   parseFanslyTabPayload,
   type FanslyFollowerRow,
+  type FanslyGreetingProof,
+  type FanslyTabResponsePayload,
   type FanslyPassView,
   type FanslyPreviewMessage,
   type FanslyTabEventPayload,
   type FanslyTabRequestPayload,
 } from '@cg/contracts/tab-messages-fansly';
 import { NEWCOMER_CHECK_FILTERS, type NewcomersVM } from '@cg/contracts/vm';
+import { NavigationIntentSchema, type HostEvent, type HostPort, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
+import { StartOpSchema, type OpView, type StaleReason, type StartOp } from '@cg/contracts/ops';
 
 import { BOOTSTRAP_PILOT_PAGES } from '@cg/testing/hub';
 
 import { createI18n } from '../../../domain/i18n';
 import { checkOf, passRowOf } from '../../../domain/hosts/fansly/newcomers';
 import { inPassTab, matchesPassSearch, passesCheckFilter } from '../../../domain/newcomers/pass';
-import { Surfaces, type PageContextPort, type PageContextState } from '../../boards';
+import { Surfaces, type PageContextPort, type PageContextState, type TabRpc } from '../../boards';
+import { GREETING_DRAFT_DEBOUNCE_MS } from '../../newcomers/greeting';
 import { parsePassHandle, passHandle } from '../../newcomers/pass';
 import { createPassNewcomersController } from '../../newcomers/pass';
 import { createFanslyNewcomersSource, type FanslyFollowersAnswer, type FanslyFollowersPort, type FanslyFollowersRequest } from './newcomers';
@@ -177,6 +182,13 @@ class FakeFollowers implements FanslyFollowersPort {
   rows: FanslyFollowerRow[] = [];
   state: FanslyPassView['state'] = 'queue';
   partial = false;
+  // R20 P10c: the card's greeting as the module keeps it.
+  readonly drafts = new Map<string, { text: string; revision: number; historyRevision: string | null }>();
+  readonly proofs = new Map<string, FanslyGreetingProof>();
+  sendAnswer: (payload: FanslyTabRequestPayload<'fansly.followers.send'>) => FanslyTabResponsePayload<'fansly.followers.send'> = (payload) => ({
+    ok: true,
+    attempt: { attemptId: payload.attemptId, fanRef: payload.fanRef, state: 'sent', proof: 'echo', platformMessageId: '830000000000000001' },
+  });
 
   async request<T extends FanslyFollowersRequest>(type: T, payload: FanslyTabRequestPayload<T>): Promise<FanslyFollowersAnswer<T>> {
     // NF-027: what the window asks fits Fansly's registry, and only a tab of fansly.com may ask it.
@@ -251,6 +263,24 @@ class FakeFollowers implements FanslyFollowersPort {
       // R20 P10b2: only a fan nobody can write to.
       case 'fansly.followers.exclude':
         return { recorded: this.rows.some((row) => row.fanRef === payload['fanRef'] && (row.status === 'dm-closed' || row.status === 'excluded')) };
+      // R20 P10c: the card's greeting.
+      case 'fansly.followers.proof': {
+        const proof = this.proofs.get(payload['fanRef'] as string);
+        return proof === undefined ? { ok: false, error: { code: 'CG-FNEW-UNVERIFIED' } } : { ok: true, proof };
+      }
+      case 'fansly.followers.draft': {
+        const fanRef = payload['fanRef'] as string;
+        const now = this.drafts.get(fanRef) ?? { text: '', revision: 0, historyRevision: null };
+        if (payload['text'] === undefined) return { ok: true, draft: now };
+        const text = payload['text'] as string;
+        const next = { text, revision: now.revision + 1, historyRevision: text === '' ? null : (this.rows.find((row) => row.fanRef === fanRef)?.historyRevision ?? null) };
+        this.drafts.set(fanRef, next);
+        return { ok: true, draft: next };
+      }
+      case 'fansly.followers.send':
+        return this.sendAnswer(payload as FanslyTabRequestPayload<'fansly.followers.send'>);
+      case 'fansly.followers.sent':
+        return { recorded: true };
     }
   }
 
@@ -898,5 +928,348 @@ describe('[host:fansly] «Новые» on Fansly: «Нельзя написат�
     expect(await w.controller.dispatch({ type: 'ExcludeNewcomer', targetHandle: passHandle(passId, fan(2)), excluded: true })).toMatchObject({ ok: true, outcome: 'noop' });
     expect(await w.controller.dispatch({ type: 'ExcludeNewcomer', targetHandle: passHandle(uuid(0x999), fan(1)), excluded: true })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
     expect(w.background.of('fansly.followers.exclude')).toHaveLength(3);
+  });
+});
+
+// ── R20 P10c: the card's greeting ──
+
+const GEN = '00000000-0000-4000-8000-000000000601';
+const TOKEN = 'a'.repeat(32);
+const AVATAR = 'https://cdn3.fansly.com/a/300.jpeg?Key-Pair-Id=K1&Policy=P1&Signature=S1';
+
+/** The pass's proof of fan `n`: two messages of its group (the welcome, the fan's), its start, its avatar. */
+function proofOf(n: number, personal = 1): FanslyGreetingProof {
+  const welcome = String(600000000000000000n + BigInt(n * 10));
+  const fans = String(600000000000000000n + BigInt(n * 10 + 1));
+  return {
+    groupId: group(n),
+    historyRevision: uuid(0x500 + n),
+    window: [{ id: welcome, dir: 'model' }, { id: fans, dir: 'fan' }],
+    knownFanMessageIds: [fans],
+    startProof: { v: 1, source: 'pass-empty-page', groupId: group(n), startWitnessId: welcome, coveredCount: Math.max(2, personal + 1), personalCount: personal, automatedIds: [welcome] },
+    fanAvatarUrl: AVATAR,
+  };
+}
+
+/** The tab's port as the greeting uses it: action tokens, `op.start` held to its schema, the ends the test emits. */
+function fakeRpc() {
+  const started: StartOp[] = [];
+  const tokens: string[] = [];
+  const listeners = new Set<(payload: { view: OpView }) => void>();
+  let next = 0xc1;
+  const rpc = {
+    request(type: string, payload: unknown): Promise<unknown> {
+      if (type === 'token.issue') {
+        tokens.push((payload as { kind: string }).kind);
+        return Promise.resolve({ ok: true, payload: { actionToken: TOKEN, expiresAt: NOW + 60_000 } });
+      }
+      if (type === 'op.start') {
+        expect(StartOpSchema.safeParse(payload).success, JSON.stringify(StartOpSchema.safeParse(payload).error)).toBe(true);
+        started.push(payload as StartOp);
+        return Promise.resolve({ ok: true, payload: { ok: true, opId: uuid(next++) } });
+      }
+      return Promise.reject(new Error(`unexpected ${type}`));
+    },
+    onEvent(type: string, listener: (payload: { view: OpView }) => void) {
+      if (type === 'op.done') listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  } as unknown as TabRpc;
+  /** The background's end of a Hi: the one variant's parts. */
+  const done = (opId: string, parts: string[], patch: Partial<OpView> = {}): void => {
+    const view = { opId, feature: 'hi', surface: 'newcomers', state: 'done', result: { kind: 'variants', variants: [parts] }, generationRef: GEN, toneUsed: null, ...patch } as unknown as OpView;
+    for (const listener of [...listeners]) listener({ view });
+  };
+  return { rpc, started, tokens, done };
+}
+
+/** The host as the card uses it: the document, the person's own sends, «Открыть и вставить». */
+function fakeHost() {
+  const listeners = new Set<(event: HostEvent) => void>();
+  const navigations: NavigationIntent[] = [];
+  const host = {
+    current: () => ({ identity: { documentEpoch: 'doc-1' } }),
+    subscribe(listener: (event: HostEvent) => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    navigate(intent: NavigationIntent): Promise<NavigationReceipt> {
+      expect(NavigationIntentSchema.safeParse(intent).success).toBe(true);
+      navigations.push(intent);
+      return Promise.resolve({ state: 'navigated', routeEpoch: 2, insert: { state: 'applied', draftRevision: 1, draftDigest: 'ab'.repeat(8), ms: 4 } });
+    },
+  } as unknown as HostPort;
+  const sent = (intentId: string, platformMessageId: string, chat = { host: 'fansly-web' as const, hostAccountId: CREATOR, platformFanId: fan(1) }, edited = false): void => {
+    const event = {
+      type: 'humanSend',
+      fact: { chat, pendingId: 'p-1', platformMessageId, textDigest: 'ab'.repeat(8), draft: { revision: 3, provenance: edited ? 'mixed' : 'our-insert', insertIntentId: intentId, editedSinceInsert: edited } },
+    } as unknown as HostEvent;
+    for (const listener of [...listeners]) listener(event);
+  };
+  return { host, navigations, sent };
+}
+
+function greetingWorld(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2)], options: { readonly state?: PageContextState } = {}) {
+  const background = new FakeFollowers();
+  background.rows = rows;
+  for (const row of rows) background.proofs.set(row.fanRef, proofOf(Number(BigInt(row.fanRef) - 800000000000000000n)));
+  const context = fakeContext(options.state ?? readyState());
+  const surfaces = new Surfaces();
+  const clock = manualClock();
+  const i18n = createI18n({ language: 'ru', now: () => NOW, timeZone: 'Europe/Moscow' });
+  const tab = fakeRpc();
+  const site = fakeHost();
+  /** The site's verdict over a generation (spec §3.5), by operation: fresh unless the test says otherwise. */
+  const marks = new Map<string, StaleReason>();
+  let id = 0xa00;
+  const controller = createPassNewcomersController({
+    source: createFanslyNewcomersSource(background, ORIGIN),
+    i18n,
+    clock,
+    context,
+    surfaces,
+    greeting: { rpc: tab.rpc, host: site.host, ids: { uuid: () => uuid(id++) }, verdict: (view) => marks.get(view.opId) ?? null },
+  });
+  const vm = (): NewcomersVM => controller.getSnapshot({ of: 'newcomers' });
+  const card = () => vm().pass?.card ?? null;
+  const greeting = () => card()?.greeting ?? null;
+  const open = async (): Promise<void> => {
+    await controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
+    await settle();
+  };
+  const handle = (n: number): string => passHandle(background.last().view.passId, fan(n));
+  const pick = async (n: number): Promise<void> => {
+    await controller.dispatch({ type: 'OpenPreview', targetHandle: handle(n) });
+    await settle();
+  };
+  const type = async (n: number, text: string): Promise<void> => {
+    await controller.dispatch({ type: 'SetPreviewDraft', targetHandle: handle(n), text });
+    await clock.advance(GREETING_DRAFT_DEBOUNCE_MS);
+  };
+  const generate = (n: number) => controller.dispatch({ type: 'Generate', targetHandle: handle(n), feature: 'hi', options: {} });
+  const send = (n: number) => controller.dispatch({ type: 'SendNewcomerGreeting', targetHandle: handle(n) });
+  return { background, context, surfaces, clock, controller, vm, card, greeting, open, handle, pick, type, generate, send, tab, site, marks };
+}
+
+describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10c)', () => {
+  it('[NF-012] [NF-028] the draft is the field: read once when the card opens, written after a pause — not on every key; the card sends nothing by itself', async () => {
+    const w = greetingWorld();
+    w.background.drafts.set(fan(1), { text: 'saved yesterday', revision: 4, historyRevision: uuid(0x501) });
+    await w.open();
+    expect(w.background.of('fansly.followers.draft')).toEqual([{ passId: w.background.last().view.passId, fanRef: fan(1) }]);
+    expect(w.greeting()).toMatchObject({ text: 'saved yesterday', maxChars: 5000, ai: false, canSend: true, canInsert: true, state: { s: 'idle' } });
+    await w.controller.dispatch({ type: 'SetPreviewDraft', targetHandle: w.handle(1), text: 'H' });
+    await w.controller.dispatch({ type: 'SetPreviewDraft', targetHandle: w.handle(1), text: 'Hi' });
+    expect(w.greeting()?.text).toBe('Hi');
+    expect(w.background.of('fansly.followers.draft')).toHaveLength(1);
+    await w.clock.advance(GREETING_DRAFT_DEBOUNCE_MS);
+    expect(w.background.of('fansly.followers.draft').at(-1)).toEqual({ passId: w.background.last().view.passId, fanRef: fan(1), text: 'Hi' });
+    expect(w.background.drafts.get(fan(1))).toEqual({ text: 'Hi', revision: 5, historyRevision: uuid(0x501) });
+    // NF-028: nothing went anywhere by itself — no generation, no send.
+    await w.clock.advance(600_000);
+    expect([w.tab.started, w.background.of('fansly.followers.send')]).toEqual([[], []]);
+  });
+
+  it('[NF-013] [NF-034] «Сгенерировать»: one Hi of one variant on the pass’s proof — the group as the conversation (never the fan’s id), the history’s ids, the start and the fan’s avatar; the result goes into the field with «AI»', async () => {
+    const w = greetingWorld();
+    await w.open();
+    const generating = w.generate(1);
+    await settle();
+    expect(w.greeting()?.state).toEqual({ s: 'generating' });
+    const [start] = w.tab.started;
+    const proof = proofOf(1);
+    expect(start).toMatchObject({
+      feature: 'hi',
+      surface: 'newcomers',
+      variantCount: 1,
+      split: false,
+      tone: null,
+      cause: { kind: 'click', actionToken: TOKEN },
+      target: { fanRef: fan(1), conversationRef: group(1), chat: { hostAccountId: CREATOR, platformFanId: fan(1) } },
+      proof: { kind: 'pass', conversationRef: group(1), completeness: 'complete', window: proof.window, knownFanMessageIds: proof.knownFanMessageIds, deletedIds: [] },
+      startProof: proof.startProof,
+      personalMessageCount: 1,
+      fanAvatarUrl: AVATAR,
+    });
+    expect(start?.target.conversationRef).not.toBe(fan(1));
+    expect(w.tab.tokens).toEqual(['generate']);
+    w.tab.done(uuid(0xc1), ['  Hey Fan 1, welcome! 💕 ']);
+    expect(await generating).toMatchObject({ ok: true });
+    await settle();
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1, welcome! 💕', ai: true, mark: null, canSend: true, state: { s: 'idle' } });
+    // The result is the draft at once.
+    expect(w.background.drafts.get(fan(1))?.text).toBe('Hey Fan 1, welcome! 💕');
+  });
+
+  it('[NF-014] [NF-015] before the hub is asked: a fan whose history the pass has not read to its start gets no generation; more than ten personal messages among the last 30 — a dialogue, Reply’s: refused without a request', async () => {
+    const w = greetingWorld([wireRow(1, { status: 'ready', historyRevision: null }), wireRow(2)]);
+    w.background.proofs.set(fan(2), proofOf(2, 11));
+    await w.open();
+    await w.pick(1);
+    expect(w.card()?.check).toBe('unverified');
+    expect(w.greeting()).toMatchObject({ waiting: true, canGenerate: false, canSend: false });
+    expect(await w.generate(1)).toMatchObject({ ok: false, code: 'CG-DATA-NOT-READY' });
+    await w.pick(2);
+    expect(await w.generate(2)).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    expect(w.greeting()?.state).toEqual({ s: 'refused', failure: { code: 'CG-GATE-HI', retryAt: null } });
+    expect(w.tab.started).toEqual([]);
+    expect(w.background.of('fansly.followers.proof')).toHaveLength(1);
+  });
+
+  it('[NF-016] [NF-017] the sign-in, the binding and the persona are the same around the generation — else its result is not taken; an empty, split or marked result is unusable', async () => {
+    const w = greetingWorld();
+    await w.open();
+    const first = w.generate(1);
+    await settle();
+    // Another persona meanwhile (the same page): the result is not this card's.
+    w.context.set({ ...readyState(), persona: { key: 'p2', definitionId: 9, label: 'Lora · VIP' } as unknown as PageContextState['persona'] });
+    w.tab.done(uuid(0xc1), ['Hey!']);
+    expect(await first).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(w.greeting()?.text).toBe('');
+    for (const parts of [[''], ['Hey', 'there'], ['Hey [NEXT] there'], ['x'.repeat(5001)]]) {
+      const v = greetingWorld();
+      await v.open();
+      const run = v.generate(1);
+      await settle();
+      v.tab.done(uuid(0xc1), parts);
+      expect(await run, JSON.stringify(parts).slice(0, 40)).toMatchObject({ ok: false });
+      expect(v.greeting()).toMatchObject({ text: '', ai: false, state: { s: 'refused', failure: { code: 'CG-OUTPUT-UNUSABLE' } } });
+    }
+  });
+
+  it('[NF-019] [FS-NEW-6] «Отправить»: one click, one attempt of the background’s send — the field’s text trimmed, its revision, the history the card shows, the person’s own admission; it went — «Отправлено»', async () => {
+    const w = greetingWorld();
+    await w.open();
+    await w.type(1, '  Hi Fan 1!  ');
+    expect(await w.send(1)).toMatchObject({ ok: true });
+    expect(w.background.of('fansly.followers.send')).toEqual([
+      {
+        attemptId: uuid(0xa00),
+        passId: w.background.last().view.passId,
+        hostAccountId: CREATOR,
+        fanRef: fan(1),
+        // The group the pass resolved, never the fan's id (FS-IDN-6).
+        groupId: group(1),
+        text: 'Hi Fan 1!',
+        draftRevision: 1,
+        historyRevision: uuid(0x501),
+        admission: { kind: 'own' },
+        cause: { kind: 'click', actionToken: TOKEN },
+      },
+    ]);
+    expect(w.tab.tokens).toEqual(['send']);
+    expect(w.greeting()).toMatchObject({ state: { s: 'sent', at: new Date(NOW + GREETING_DRAFT_DEBOUNCE_MS).toISOString() }, canSend: false, canGenerate: false });
+    // Sent: never again from this card.
+    expect(await w.send(1)).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+    expect(w.background.of('fansly.followers.send')).toHaveLength(1);
+  });
+
+  it('[FS-NEW-6] the three admissions: an unchanged AI result as its generation (its operation, the history it was made on); an edited one as the person’s own with no «AI» mark', async () => {
+    const w = greetingWorld();
+    await w.open();
+    const run = w.generate(1);
+    await settle();
+    w.tab.done(uuid(0xc1), ['Hey Fan 1!']);
+    await run;
+    await settle();
+    await w.send(1);
+    expect(w.background.of('fansly.followers.send').at(-1)).toMatchObject({ text: 'Hey Fan 1!', admission: { kind: 'ai', generationRef: GEN, variant: 0 }, opId: uuid(0xc1), historyRevision: uuid(0x501) });
+
+    const e = greetingWorld();
+    await e.open();
+    const again = e.generate(1);
+    await settle();
+    e.tab.done(uuid(0xc1), ['Hey Fan 1!']);
+    await again;
+    await settle();
+    await e.type(1, 'Hey Fan 1! Boston, right?');
+    expect(e.greeting()).toMatchObject({ ai: false, mark: null });
+    await e.send(1);
+    const edited = e.background.of('fansly.followers.send').at(-1) as Record<string, unknown>;
+    expect(edited).toMatchObject({ text: 'Hey Fan 1! Boston, right?', admission: { kind: 'ai-edited', generationRef: GEN, variant: 0 } });
+    expect(edited['opId']).toBeUndefined();
+  });
+
+  it('[FS-TAIL-8] [NF-018] the hub caught up after an unverified generation — the old result is still not sent, only a new one; the pass checked the history again — the old result is not this history’s', async () => {
+    const w = greetingWorld();
+    await w.open();
+    const run = w.generate(1);
+    await settle();
+    // Its own verdict: the hub could not say it saw the last messages.
+    w.marks.set(uuid(0xc1), 'unverified');
+    w.tab.done(uuid(0xc1), ['Hey Fan 1!']);
+    await run;
+    await settle();
+    expect(w.greeting()).toMatchObject({ ai: true, mark: 'unverified', canSend: false, sendBlocked: { code: 'CG-SEND-FRESHNESS' } });
+    expect(await w.send(1)).toMatchObject({ ok: false, code: 'CG-SEND-FRESHNESS' });
+    expect(w.background.of('fansly.followers.send')).toEqual([]);
+    // A new generation with a fresh verdict may go.
+    const fresh = w.generate(1);
+    await settle();
+    w.tab.done(uuid(0xc2), ['Hey Fan 1, welcome!']);
+    await fresh;
+    await settle();
+    expect(w.greeting()).toMatchObject({ mark: null, canSend: true });
+    // The pass read the history again and it changed: the unchanged result waits for a new one (NF-018).
+    w.background.change(w.background.last().view.passId, [wireRow(1, { historyRevision: uuid(0x777) })]);
+    await settle();
+    expect(w.greeting()).toMatchObject({ canSend: false, sendBlocked: { code: 'CG-FNEW-HISTORY' } });
+    expect(await w.send(1)).toMatchObject({ ok: false });
+    expect(w.background.of('fansly.followers.send')).toEqual([]);
+  });
+
+  it('[NF-018] [NF-024] [NF-023] the background’s refusal names its reason and nothing is repeated — the history changed after the review, a colleague’s lease, an unknown outcome; a second click while one runs is busy', async () => {
+    const w = greetingWorld();
+    await w.open();
+    await w.type(1, 'Hi!');
+    w.background.sendAnswer = () => ({ ok: false, error: { code: 'CG-FNEW-HISTORY' } });
+    await w.send(1);
+    expect(w.greeting()?.state).toEqual({ s: 'refused', failure: { code: 'CG-FNEW-HISTORY', retryAt: null } });
+    w.background.sendAnswer = (payload) => ({ ok: true, attempt: { attemptId: payload.attemptId, fanRef: payload.fanRef, state: 'refused', proof: 'before-dispatch', code: 'CG-CLAIM-BUSY' } });
+    await w.send(1);
+    expect(w.greeting()?.state).toEqual({ s: 'refused', failure: { code: 'CG-CLAIM-BUSY', retryAt: null } });
+    w.background.sendAnswer = (payload) => ({ ok: true, attempt: { attemptId: payload.attemptId, fanRef: payload.fanRef, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' } });
+    await w.send(1);
+    expect(w.greeting()).toMatchObject({ state: { s: 'uncertain', failure: { code: 'CG-SEND-UNCERTAIN' } }, canSend: false });
+    // Unknown: never sent again from here.
+    expect(await w.send(1)).toMatchObject({ ok: false });
+    expect(w.background.of('fansly.followers.send')).toHaveLength(3);
+
+    const v = greetingWorld();
+    await v.open();
+    await v.type(1, 'Hi!');
+    v.background.held.add('fansly.followers.send');
+    const first = v.send(1);
+    await settle();
+    expect(await v.send(1)).toMatchObject({ ok: false, code: 'CG-SEND-BUSY' });
+    v.background.release();
+    await first;
+    expect(v.background.of('fansly.followers.send')).toHaveLength(1);
+  });
+
+  it('[FS-NEW-3] «Открыть и вставить»: the fan’s chat opens in this tab by its group with the field’s text; the person’s own send of it with Fansly’s button marks the fan greeted for everyone', async () => {
+    const w = greetingWorld();
+    await w.open();
+    await w.type(1, 'Hi Fan 1!');
+    expect(await w.controller.dispatch({ type: 'InsertNewcomerGreeting', targetHandle: w.handle(1) })).toMatchObject({ ok: true, outcome: 'opened' });
+    const [navigation] = w.site.navigations;
+    // The conversation is the group, never the fan's id (FS-IDN-6).
+    expect(navigation?.target).toEqual({ hostAccountId: CREATOR, platformFanId: fan(1), conversationRef: group(1) });
+    expect(navigation?.thenInsert).toMatchObject({ text: 'Hi Fan 1!', mode: 'replace', expected: { kind: 'deferred', documentEpoch: 'doc-1' } });
+    expect(w.tab.tokens).toEqual(['navigate']);
+    // The window gets out of the way of the chat.
+    expect(w.surfaces.current().newcomers).toBe(false);
+    // A send not linked to our insert is not ours to register.
+    w.site.sent(uuid(0x999), '830000000000000003');
+    w.site.sent(navigation?.thenInsert?.intentId ?? '', '830000000000000004', { host: 'fansly-web', hostAccountId: CREATOR, platformFanId: fan(2) });
+    await settle();
+    expect(w.background.of('fansly.followers.sent')).toEqual([]);
+    w.site.sent(navigation?.thenInsert?.intentId ?? '', '830000000000000005');
+    await settle();
+    expect(w.background.of('fansly.followers.sent')).toEqual([
+      { passId: w.background.last().view.passId, hostAccountId: CREATOR, fanRef: fan(1), groupId: group(1), platformMessageId: '830000000000000005', text: 'Hi Fan 1!', admission: { kind: 'own' } },
+    ]);
+    // No request of ours sent anything.
+    expect(w.background.of('fansly.followers.send')).toEqual([]);
   });
 });

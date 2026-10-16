@@ -56,6 +56,8 @@ describe('[host:fansly] «Новые» on Fansly: the rows of the pass (R20 P10a
       checkedAt: ISO,
       proof: { id: proof.messageId, fromFan: false, at: ISO, text: 'hey', automated: false, attachments: 0 },
       failure: { code: 'CG-FAN-REQUEST', retryAt: 99 },
+      // R20 P10c: the revision of the history checked in full, which a greeting is sent on.
+      historyRevision: '00000000-0000-4000-8000-000000000501',
     });
     // What an older background leaves out is unknown, not empty.
     expect(passRowOf(row({ groupId: null }))).toMatchObject({ conversationRef: null, customName: null, bio: null, proof: null, failure: null });

@@ -8,6 +8,7 @@
 import {
   NEWCOMER_CHECK_FILTERS,
   type NewcomerCardVM,
+  type NewcomerGreetingVM,
   type NewcomerCheck,
   type NewcomerCheckFilter,
   type NewcomerDmClosed,
@@ -260,6 +261,42 @@ export function fanslyExcluded(ctx: ScenarioCtx): ScenarioViewEntry[] {
   const ben = follower(10);
   const card = cardOf(ctx, ben, { history: history('ready', [message(ctx, 31, 30 * 60 - 1, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true)]) });
   return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'paused', tab: 'all', filter: 'dm-closed', selected: 10, card }))];
+}
+
+/** The card's greeting as the controller gives it (R20 P10c): a ready fan, its field, nothing running. */
+function greetingOf(patch: Partial<NewcomerGreetingVM> = {}): NewcomerGreetingVM {
+  return {
+    text: '',
+    maxChars: 5000,
+    ai: false,
+    mark: null,
+    stale: false,
+    waiting: false,
+    canGenerate: true,
+    canSend: false,
+    canInsert: false,
+    sendBlocked: null,
+    state: { s: 'idle' },
+    ...patch,
+  };
+}
+
+/** `m` — R20 P10c: the greeting generated and unchanged («AI»), its verdict fresh: «Отправить» and «Открыть и вставить». */
+export function fanslyGreeting(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  const tomasz = follower(1);
+  const welcome = message(ctx, 1, 13, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true);
+  const text = 'Hey Tomasz! So happy you’re here 💕 What made you follow me — the beach set or the gym pics? Tell me and I’ll pick something special for you 😉';
+  const card = { ...cardOf(ctx, tomasz, { history: history('ready', [welcome]) }), greeting: greetingOf({ text, ai: true, canSend: true, canInsert: true }) };
+  return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'done', selected: 1, card }))];
+}
+
+/** `n` — R20 P10c: the person's own text; the history changed after the review — «Не отправлено», CG-FNEW-HISTORY (NF-018). */
+export function fanslyGreetingRefused(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  const alex = follower(8);
+  const chat = [message(ctx, 40, 11 * 60 - 5, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true), message(ctx, 41, 4, true, 'hi! love your page')];
+  const greeting = greetingOf({ text: 'Hi Alex, welcome! Boston, right? 😊', stale: true, canSend: true, canInsert: true, state: { s: 'refused', failure: { code: 'CG-FNEW-HISTORY', retryAt: null } } });
+  const card = { ...cardOf(ctx, alex, { history: history('ready', chat) }), greeting };
+  return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'done', selected: 8, card }))];
 }
 
 /** `e` — the first page is on its way: the stage of the fast part, nothing to show yet. */

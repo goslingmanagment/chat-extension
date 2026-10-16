@@ -2901,6 +2901,33 @@ composition/tab/hosts/fansly/{newcomers,requests}.ts`, чанки `lazy/fansly/{
   второй блок `suite-fansly-newcomers` (проход на API стенда, только маршруты `newcomers`, «Пауза» и «Проверить
   оставшихся») и снимок 13k в `dock-gallery-fansly`.
 
+### 8.19 Сделано в P10c: приветствие карточки «Новых»
+
+Код: карточка — `core/src/application/newcomers/greeting.ts` (общий, сайта не называет) над портом `greeting` источника
+(`newcomers/source.ts`); фон — `core/src/services/hosts/fansly/greeting.ts` над проходом и отправкой P9d; запросы
+`fansly.followers.{proof,draft,send,sent}`; связка — `bg/fansly.ts`, `composition/tab/hosts/fansly/newcomers.ts`; вид —
+`ui/src/hosts/fansly/newcomers/NewcomersWindow.tsx` (13m, 13n). Что уточнено против §8.6, §8.7 и FS-NEW-*:
+
+- **Доказательство (FS-NEW-7, NF-034).** «Сгенерировать» спрашивает у фона доказательство строки (`proof`: окно проверки,
+  id фана, `StartProofV1` прохода, аватар профиля прохода по правилу `avatarOf` MAIN) и сам запускает Hi с одним
+  вариантом, `surface: newcomers`, `proof.kind: 'pass'`; `conversationRef` — группа. Больше 10 личных — отказ без
+  запроса (NF-015). Сверка входа, привязки и персоны вокруг генерации (NF-016), непригодный вывод — CG-OUTPUT-UNUSABLE.
+- **Черновик (NF-012).** Держит фон в общем `newcomers.drafts` (по хабу, пользователю, странице и фану, 24 ч), окно пишет
+  через 400 мс после клавиши и сразу перед отправкой; ревизия черновика «сейчас» для последней сверки — из памяти фона.
+- **Отправка (FS-NEW-3, FS-NEW-6, NF-036).** До попытки: строка `ready` той же группы, допуск (`ai` — по `opId`
+  операции: тот же текст и свежий вердикт этой генерации по таблице §3.5, перенесённой в `domain/hosts/fansly/verdict.ts`,
+  чтобы фон мог её звать), ревизия черновика, затем история перечитывается (`recheck`) и другая ревизия — CG-FNEW-HISTORY.
+  После `POST /group` очередь уже проверила историю до `ready`. Одна попытка на фана (NF-023). Квитанция или эхо —
+  «Уже писали» и черновик очищен. История каждого прохода подтверждает квитанции отправки (`onHistory` → `history`).
+- **Своя отправка кнопкой Fansly.** «Открыть и вставить» — навигация с отложенной вставкой текста поля в чат группы
+  (окно закрывается); `humanSend`, связанный с этой вставкой, → `fansly.followers.sent` → `registerNativeSend`
+  (ручная группа по sha256 текста или группа генерации) с журналом долгов `fansly.send.native` в `send.ts`; фан
+  поприветствован для всех. Вставка несёт свой `operationId`: отчёт `op.reportSent` ядра её не регистрирует второй раз.
+- **Проверки.** Юнит — `core/src/application/hosts/fansly/newcomers.test.ts` (NF-012…NF-019, NF-023, NF-024, NF-028,
+  три допуска, хаб догнал, `groupId ≠ id фана`), `core/src/services/hosts/fansly/{greeting,newcomers,send}.test.ts`
+  (NF-034, NF-036, долги регистрации), `testing/src/boards/fansly-newcomers.test.tsx`; e2e — блок P10c
+  `suite-fansly-newcomers` (свой текст, один `POST /message` в группу, опека `sent`, «Уже писали»), снимки 13m, 13n.
+
 ## 9. Сквозные потоки
 
 ### 9.1 Reply со свежестью

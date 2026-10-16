@@ -43,6 +43,15 @@
 // waiting for its echo. The journal (`fansly.send.journal`, storage.local)
 // holds ids, revisions and fingerprints only — never a text.
 //
+// R20 P10c: the person's own send of a «Новые» card's text with Fansly's
+// button after «Открыть и вставить» (FS-NEW-3) — `native`: the hub's
+// `registerNativeSend` (purpose `greeting`, the generation's group for an
+// unchanged AI text, else the manual group of the text's sha256), so the fan
+// is greeted for everyone. A report of what happened, never a send: journaled
+// (`fansly.send.native`, ids and a fingerprint only) before the first call and
+// owed until the hub answers — repeated on REPORT_RETRY_DELAYS_MS, after a
+// restart and whenever `pump` runs; given up after NATIVE_KEEP_MS.
+//
 // Fansly's own code (`bg/fansly` chunk): no ChatSpace bundle and not the
 // background core reach it. No browser API here: the chunk hands the
 // storage, the hub's custody routes, the client's `prepare` and sha256.
@@ -152,6 +161,50 @@ export interface FanslySendDeps {
 
 /** After the receipt, `send` answers once the echo came or after this; the attempt goes on waiting for it. */
 export const ECHO_WAIT_MS = 10_000;
+/** R20 P10c: storage.local — the registrations of the person's own greeting sends the hub has not answered yet. */
+export const FANSLY_NATIVE_SENDS_KEY = 'fansly.send.native';
+/** A registration nobody could deliver for this long is given up (the «Новые» window is long over). */
+export const NATIVE_KEEP_MS = 7 * 24 * 60 * 60_000;
+const NATIVE_MAX = 200;
+
+/** R20 P10c: the person sent a card's text with Fansly's own button (FS-NEW-3). */
+export interface FanslyNativeSend {
+  readonly page: FanslySendPage;
+  readonly fanRef: string;
+  readonly groupId: string;
+  readonly platformMessageId: string;
+  readonly admission: FanslyGreetingRequest['admission'];
+  /** The card's text as it was put into the chat: its sha256 is the manual group's fingerprint. */
+  readonly text: string;
+}
+
+/** One owed registration as it is journaled: ids, the group and the message id — never a text. */
+interface NativeOwed {
+  readonly attemptId: string;
+  readonly hubOrigin: string;
+  readonly pageId: number;
+  readonly fanRef: string;
+  readonly group: ReturnType<typeof fanslyGreetingGroup>;
+  readonly platformMessageId: string;
+  readonly at: number;
+}
+
+const isNativeOwed = (value: unknown): value is NativeOwed => {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Partial<Record<keyof NativeOwed, unknown>>;
+  const group = v.group as Record<string, unknown> | null | undefined;
+  return (
+    typeof v.attemptId === 'string' &&
+    typeof v.hubOrigin === 'string' &&
+    typeof v.pageId === 'number' &&
+    typeof v.fanRef === 'string' &&
+    typeof v.platformMessageId === 'string' &&
+    typeof v.at === 'number' &&
+    typeof group === 'object' &&
+    group !== null &&
+    (group['kind'] === 'manual' ? typeof group['textFingerprint'] === 'string' : typeof group['generationRef'] === 'string' && typeof group['variant'] === 'number')
+  );
+};
 /** Echoes kept for a receipt still to come: an echo can arrive before the HTTP answer (S2 Q1.8). */
 const EARLY_ECHOES_MAX = 500;
 const EARLY_ECHO_TTL_MS = 10 * 60_000;
@@ -253,6 +306,12 @@ export interface FanslySend {
   onChange(listener: (view: FanslySendView) => void): () => void;
   /** The reports still owed go now (a new bootstrap, a sign-in). */
   pump(): void;
+  /**
+   * R20 P10c: the person's own send of a card's text (`registerNativeSend`, FS-NEW-3): journaled, then told to the hub
+   * and owed until it answers. `registered` — the hub took it; `refused` — it answered and did not; `undelivered` — it
+   * stays owed.
+   */
+  native(sent: FanslyNativeSend): Promise<'registered' | 'refused' | 'undelivered'>;
   /** «Очистить локальные данные»: ended attempts go; open ones stay. */
   clearFinished(): Promise<void>;
   facts(): { readonly open: number; readonly uncertain: number; readonly reportsPending: number };
@@ -853,9 +912,104 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
     });
   }
 
+  // ── the person's own sends (R20 P10c) ───────────────────────────────
+
+  const owed = new Map<string, NativeOwed>();
+  const nativeTimers = new Map<string, TimerHandle>();
+  const nativeRunning = new Set<string>();
+  const nativeWrites = new WriteQueue();
+
+  function persistNative(): Promise<boolean> {
+    return nativeWrites.run(async () => {
+      const now = clock.now();
+      for (const [id, entry] of owed) if (now - entry.at > NATIVE_KEEP_MS) owed.delete(id);
+      const kept = [...owed.values()].sort((a, b) => a.at - b.at).slice(-NATIVE_MAX);
+      const written = await deps.local.set({ [FANSLY_NATIVE_SENDS_KEY]: kept });
+      if (!written.ok) log({ level: 'error', scope: 'fansly.send', msg: 'native send journal write failed', code: 'CG-STORAGE-WRITE', fields: { reason: written.code } });
+      return written.ok;
+    });
+  }
+
+  const nativeRestored = ready.then(async () => {
+    const read = await deps.local.get([FANSLY_NATIVE_SENDS_KEY]);
+    if (!read.ok) return;
+    const rows = read.value[FANSLY_NATIVE_SENDS_KEY];
+    for (const row of Array.isArray(rows) ? rows : []) if (isNativeOwed(row)) owed.set(row.attemptId, row);
+    // Owed from an earlier event page: told again as soon as the hub and its page are known (or at the next `pump`).
+    for (const entry of [...owed.values()]) void deliverNative(entry);
+  });
+
+  /** One delivery of an owed registration; a refusal of the hub ends the debt, a failure it may repeat waits. */
+  async function deliverNative(entry: NativeOwed, tries = 0): Promise<'registered' | 'refused' | 'undelivered'> {
+    if (disposed || nativeRunning.has(entry.attemptId) || !owed.has(entry.attemptId)) return 'undelivered';
+    const pageLabel = deps.hub.hubOrigin() === entry.hubOrigin ? deps.hub.pageLabel(entry.pageId) : null;
+    if (pageLabel === null) return 'undelivered';
+    nativeRunning.add(entry.attemptId);
+    try {
+      await deps.hub.claim({
+        pageLabel,
+        fanRef: entry.fanRef,
+        body: { action: 'registerNativeSend', attemptId: entry.attemptId, instanceId: deps.instanceId(), purpose: 'greeting', group: entry.group, partIndex: 0, platformMessageId: entry.platformMessageId },
+      });
+      owed.delete(entry.attemptId);
+      await persistNative();
+      log({ level: 'info', scope: 'fansly.send', msg: 'native greeting registered', fields: { attemptId: entry.attemptId } });
+      return 'registered';
+    } catch (error) {
+      const retry = isHubCallError(error) && reportRetryable(error.failure);
+      log({ level: 'warn', scope: 'fansly.send', msg: 'native greeting registration failed', fields: { attemptId: entry.attemptId, retry } });
+      if (!retry) {
+        owed.delete(entry.attemptId);
+        await persistNative();
+        return 'refused';
+      }
+      if (!nativeTimers.has(entry.attemptId) && !disposed) {
+        const delay = REPORT_RETRY_DELAYS_MS[Math.min(tries, REPORT_RETRY_DELAYS_MS.length - 1)] ?? 60_000;
+        nativeTimers.set(
+          entry.attemptId,
+          clock.setTimer(delay, () => {
+            nativeTimers.delete(entry.attemptId);
+            void deliverNative(entry, tries + 1);
+          }),
+        );
+      }
+      return 'undelivered';
+    } finally {
+      nativeRunning.delete(entry.attemptId);
+    }
+  }
+
+  async function native(sent: FanslyNativeSend): Promise<'registered' | 'refused' | 'undelivered'> {
+    await nativeRestored;
+    const hubOrigin = deps.hub.hubOrigin();
+    if (hubOrigin === null) return 'undelivered';
+    // The same message reported twice (two tabs heard it) is one registration.
+    for (const entry of owed.values()) if (entry.platformMessageId === sent.platformMessageId && entry.fanRef === sent.fanRef) return deliverNative(entry);
+    let fingerprint: string;
+    try {
+      fingerprint = await deps.sha256(sent.text);
+    } catch {
+      return 'undelivered';
+    }
+    const entry: NativeOwed = {
+      attemptId: deps.ids.uuid(),
+      hubOrigin,
+      pageId: sent.page.pageId,
+      fanRef: sent.fanRef,
+      group: fanslyGreetingGroup(sent.admission, fingerprint),
+      platformMessageId: sent.platformMessageId,
+      at: clock.now(),
+    };
+    owed.set(entry.attemptId, entry);
+    // Owed before the first call: a registration lost with the event page would leave the fan open for a second greeting.
+    await persistNative();
+    return deliverNative(entry);
+  }
+
   return {
     ready,
     send,
+    native,
     observeRequest,
     echo,
     history,
@@ -870,6 +1024,9 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
     pump() {
       void ready.then(() => {
         for (const attempt of attempts.values()) report(attempt);
+      });
+      void nativeRestored.then(() => {
+        for (const entry of [...owed.values()]) void deliverNative(entry);
       });
     },
     async clearFinished() {
@@ -892,6 +1049,8 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
       disposed = true;
       for (const timer of reportTimers.values()) clock.clearTimer(timer);
       reportTimers.clear();
+      for (const timer of nativeTimers.values()) clock.clearTimer(timer);
+      nativeTimers.clear();
       for (const attempt of attempts.values()) stopRenew(attempt);
     },
   };

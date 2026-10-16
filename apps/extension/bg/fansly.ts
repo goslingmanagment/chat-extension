@@ -51,10 +51,16 @@
 // services/hosts/fansly/send.ts; architecture.md §8.6): its journal is
 // restored as the module starts (a restart's ends and the custody reports
 // they owe), the tab's socket facts of our own messages prove its receipts
-// (the echo), a new bootstrap sends the reports still owed. Until «Новые»
-// clicks it (P10c) nothing in a release asks it to send: there is no pass to
-// say what the tuple is now, so `fansly.followers.send` stays unserved; a test
-// build's probe (bg/fansly/send-probe.ts) drives it for the e2e.
+// (the echo), a new bootstrap sends the reports still owed. A test build's
+// probe (bg/fansly/send-probe.ts) drives it for the e2e of P9d.
+//
+// R20 P10c: the card of «Новые» clicks it — `fansly.followers.{proof,draft,
+// send,sent}` (core services/hosts/fansly/greeting.ts): the pass's proof for
+// «Сгенерировать», the card's draft, the send with its three admissions and
+// the history read again before the custody, and the person's own send of
+// the card's text (`registerNativeSend`). The tuple «now» of the final check
+// is the pass's row and the draft's revision; every history the pass walks
+// confirms the receipts it shows.
 //
 // R20 P7i: the module brings Fansly's slice of the feature manifest
 // (docs/project-unite/architecture.md §1.4). The core's graph never has a file
@@ -79,7 +85,9 @@ import { createFanslyOperations } from '@cg/core/services/hosts/fansly/voice-ope
 import { featureSlice } from '@cg/core/domain/features';
 import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
 import { createFanslyNewcomers, type FanslyNewcomers, type FanslyNewcomersApi } from '@cg/core/services/hosts/fansly/newcomers';
-import { createFanslySend, type FanslySend, type FanslySendDeps } from '@cg/core/services/hosts/fansly/send';
+import { createFanslySend, type FanslySend, type FanslySendDeps, type FanslySendLive } from '@cg/core/services/hosts/fansly/send';
+import { createFanslyGreeting, type FanslyGreeting } from '@cg/core/services/hosts/fansly/greeting';
+import { freshForSend } from '@cg/core/domain/hosts/fansly/verdict';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 import { createFanslyApi, createFanslyClient, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { createSpendersLookup } from '@cg/fansly-api/spenders';
@@ -119,7 +127,7 @@ async function sha256(text: string): Promise<string> {
 }
 
 /** The greeting send over the kit: the custody through the core's facade, the request through Fansly's API. */
-function greetingSend(kit: BackgroundKit, api: FanslyApi, wrap: (deps: FanslySendDeps) => FanslySendDeps): FanslySend {
+function greetingSend(kit: BackgroundKit, api: FanslyApi, live: FanslySendLive, wrap: (deps: FanslySendDeps) => FanslySendDeps): FanslySend {
   // The kit's hub is read at each use.
   return createFanslySend(
     wrap({
@@ -136,8 +144,8 @@ function greetingSend(kit: BackgroundKit, api: FanslyApi, wrap: (deps: FanslySen
       // FS-NET-1's greeting: one `POST /message`, the body the old extension sends (fansly-client.ts:737).
       prepare: ({ account, groupId, text }) =>
         api.client.prepare({ purpose: 'greeting', route: 'message.send', account, body: { type: 1, content: text, groupId, attachments: [], likes: [], scheduledFor: 0, inReplyTo: null } }),
-      // The tuple now is the pass's and the window's (P10c); without them no attempt passes its checks.
-      live: () => null,
+      // The tuple now is the pass's and the draft's (P10c, the greeting service); without them no attempt passes its checks.
+      live,
       sha256,
       instanceId: () => kit.install.instanceId(),
       clock: kit.clock,
@@ -188,7 +196,9 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const unprobe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? startFanslyApiProbe(kit, session, api, relay.hub) : () => undefined;
   const spenders = api === null ? null : createSpendersLookup(__CG_TEST_HOSTS__ && session !== undefined ? fanslyStandClient(kit, session, api) : api.client, () => kit.clock.now(), kit.storage.local);
   const sendProbe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? fanslySendProbe(kit, session, api, relay.hub) : null;
-  const greetings = api === null ? null : greetingSend(kit, api, (deps) => (sendProbe === null ? deps : sendProbe.wrap(deps)));
+  // The send's «now» is the card's (P10c): the greeting service is made just below, over this very send.
+  let greeting: FanslyGreeting | null = null;
+  const greetings = api === null ? null : greetingSend(kit, api, (start) => greeting?.live(start) ?? null, (deps) => (sendProbe === null ? deps : sendProbe.wrap(deps)));
   const offSendRequests = session?.onOwnRequest((fact) => { void greetings?.observeRequest(fact); });
   const unprobeSend = sendProbe !== null && greetings !== null ? sendProbe.start(greetings) : () => undefined;
   // R20 P11b: the view of «Заметки» is one for every tab (FS-NOTE-2): a change, from any panel, goes to all of them.
@@ -208,7 +218,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
   const operations = createFanslyOperations((view) => kit.site?.emit('fansly.ops.done', { view }));
   const journal = kit.site === undefined ? null : kit.log.passJournal ?? null;
-  const newcomers = kit.site === undefined ? null : startNewcomers(kit, session, api, journal);
+  const newcomers = kit.site === undefined ? null : startNewcomers(kit, session, api, journal, greetings);
+  greeting = newcomers === null || greetings === null ? null : startGreeting(kit, newcomers, greetings);
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
     // The registry's rules let a page send only the settings page's types (contracts tab-messages-fansly.ts).
     if (sender.kind === 'page') return pageRequest(kit, accounts, type, payload);
@@ -285,8 +296,9 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return answer.ok ? ok(answer.state.ext.windows) : { ok: false, error: answer.error };
       }
       default:
-        // «Новые» (R20 P10b1, P10b2): the pass, its queue and the exclusions; `send` comes with P10c.
+        // «Новые» (R20 P10b1, P10b2): the pass, its queue and the exclusions; P10c: the card's greeting.
         if (newcomers?.handles(type) === true) return ok(await newcomers.answer(type, payload, tab));
+        if (greeting?.handles(type) === true) return ok(await greeting.answer(type, payload, tab));
         return { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: `${type}: not served yet` } };
     }
   };
@@ -322,6 +334,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       offSendRequests?.();
       unplug();
       unprobe();
+      greeting?.dispose();
       newcomers?.dispose();
       unprobeSend();
       greetings?.dispose();
@@ -337,7 +350,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
  * asks the stand's API the e2e names (`dev.fanslyApi.origin`, api-probe.ts) and nothing without it; a release build,
  * Fansly's.
  */
-function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | undefined, api: FanslyApi | null, journal: NonNullable<BackgroundKit['log']['passJournal']> | null): FanslyNewcomers {
+function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | undefined, api: FanslyApi | null, journal: NonNullable<BackgroundKit['log']['passJournal']> | null, send: FanslySend | null): FanslyNewcomers {
   const client = api === null || session === undefined ? null : __CG_TEST_HOSTS__ ? fanslyStandClient(kit, session, api) : api.client;
   const port: FanslyNewcomersApi = {
     async call(call, signal, trace) {
@@ -395,6 +408,57 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
       return registration.accounts.some((account) => aliases.includes(account));
     },
     local: kit.storage.local,
+    log: kit.log.service,
+    // A receipt the echo never confirmed is confirmed by a history that shows its id (§8.6).
+    onHistory: (groupId, ids, complete) => send?.history(groupId, ids, complete),
+  });
+}
+
+/** The tab is registered and on this creator's account (its aliases count); one that has not said its account yet is not refused. */
+function tabOnCreator(kit: BackgroundKit, tab: string, creator: string): boolean {
+  if (!kit.router.tabs().includes(tab)) return false;
+  const registration = kit.siteTabs?.registered().find((entry) => entry.tabSessionId === tab);
+  if (registration === undefined || registration.accounts.length === 0 || registration.accounts.includes(creator)) return true;
+  const aliases = kit.networkSession?.aliases(creator) ?? [];
+  return registration.accounts.some((account) => aliases.includes(account));
+}
+
+/**
+ * The greeting of a «Новые» card (R20 P10c; core services/hosts/fansly/greeting.ts): over the pass and the send. The
+ * creator's page is the bootstrap's Fansly page whose binding is the creator (or an alias of it), granted to the tab;
+ * an unchanged AI text is checked against its operation in this background and its own verdict (FS-TAIL-8).
+ */
+function startGreeting(kit: BackgroundKit, newcomers: FanslyNewcomers, send: FanslySend): FanslyGreeting {
+  return createFanslyGreeting({
+    newcomers,
+    send,
+    local: kit.storage.local,
+    session: () => kit.hub.session(),
+    async page(creator, tab) {
+      const bootstrap = kit.hub.bootstrap();
+      if (bootstrap === null) return { ok: false, code: 'CG-HUB-UNAVAILABLE' };
+      const ids = [creator, ...(kit.networkSession?.aliases(creator) ?? [])];
+      const page = bootstrap.pages.find((entry) => entry.platform === 'fansly' && entry.platformAccountId !== null && ids.includes(entry.platformAccountId));
+      if (page === undefined) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
+      const granted = await kit.hub.page(page.pageId, { kind: 'tab', tabSessionId: tab });
+      return granted.ok ? { ok: true, page: { pageId: granted.page.pageId, pageLabel: granted.page.pageLabel, flagRevision: bootstrap.configRevision } } : { ok: false, code: granted.code };
+    },
+    generation(opId) {
+      const view = kit.ops.view(opId);
+      if (view === null) return null;
+      const result = view.result;
+      const parts = result?.kind === 'variants' ? result.variants[0] : undefined;
+      return {
+        generationRef: view.generationRef ?? null,
+        fanRef: view.target.fanRef,
+        conversationRef: view.target.conversationRef,
+        text: parts?.length === 1 ? (parts[0] ?? null) : null,
+        // Its own evidence as the current one too: the background has no newer window of the pass to add (§3.5).
+        fresh: freshForSend(view, view.freshnessProof?.fingerprint ?? null),
+      };
+    },
+    tabOn: (tab, creator) => tabOnCreator(kit, tab, creator),
+    now: () => kit.clock.now(),
     log: kit.log.service,
   });
 }

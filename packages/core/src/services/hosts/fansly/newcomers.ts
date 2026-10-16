@@ -32,15 +32,22 @@
 // takes it out of «К обработке» and back, as the old window: only a fan Fansly will not let the creator write to, kept
 // in this browser (storage.local, one key per creator and fan) and dropped once a check reads the DMs open again.
 //
-// Never: a request for another creator's session, a send (P10c), a text in the log. The pass lives in the event
+// R20 P10c (FS-NEW-3, FS-NEW-7; NF-034, NF-036): the greeting takes what the pass proved — `greetingProof` (the
+// checked history's ids, the start, the avatar of the profile the pass read), `recheck` (the history read again right
+// before the custody: a changed one is a new revision), `live` (the tuple of the send's final check, from memory) and
+// `greeted` (the card's greeting went: the row is «Уже писали»). Every walked history is told to the send
+// (`onHistory`): a receipt the echo never confirmed is confirmed by it.
+// Never: a request for another creator's session, a send of its own, a text in the log. The pass lives in the event
 // page's memory: an open window's port keeps the page awake; a pass nobody holds is let go by the next `scan`.
 // Its metadata journal is a separate port (P10b3, NF-029, FS-NEW-5): IDB with rotation and only a small memory tail.
 
-import { type CgAnyErrorWire } from '@cg/contracts/errors-fansly';
+import { type CgAnyCode, type CgAnyErrorWire } from '@cg/contracts/errors-fansly';
+import { SEND_LIMITS } from '@cg/contracts/limits';
 import { type StartProofV1 } from '@cg/contracts/fansly';
 import {
   FANSLY_TAB_LIMITS,
   type FanslyFollowerRow,
+  type FanslyGreetingProof,
   type FanslyPassView,
   type FanslyPreviewMessage,
   type FanslyTabEventPayload,
@@ -120,6 +127,8 @@ export interface FanslyNewcomersDeps {
   /** storage.local: the person's exclusions (R20 P10b2), one key per creator and fan (`NEWCOMERS_EXCLUDED_PREFIX`). */
   readonly local: KeyValuePort;
   readonly log?: ServiceLog;
+  /** R20 P10c: a history the pass walked — its group, its ids, read to its start (the send confirms receipts by it). */
+  readonly onHistory?: (groupId: string, ids: readonly string[], complete: boolean) => void;
 }
 
 /** storage.local: `fansly.newcomers.excluded.<creator>.<fan>` → `{ at }` — the fan is out of «К обработке» (FS-NEW-2). */
@@ -153,6 +162,8 @@ interface Row {
   keptAll: boolean;
   revisionKey: string | null;
   proof: PassRowProof | null;
+  /** R20 P10c (FX-018): the avatar's address of the profile the pass read; null — none fit to send. */
+  avatar: string | null;
 }
 
 interface Work {
@@ -225,6 +236,13 @@ function failureOf(error: unknown): { readonly kind: string; readonly wire: CgAn
 }
 
 const CHECKED = new Set<FanslyFollowerRow['status']>(['ready', 'greeted', 'dm-closed', 'excluded']);
+/** Why a row has nothing to greet with: written to already, nobody can write, or its history is not proven (yet). */
+export function notReady(view: FanslyFollowerRow): CgAnyCode {
+  if (view.status === 'greeted') return 'CG-SEND-PART';
+  if (view.status === 'dm-closed' || view.status === 'excluded') return 'CG-FNEW-DM-CLOSED';
+  return 'CG-FNEW-UNVERIFIED';
+}
+
 /** A row the queue still has to check: never checked, failed, or interrupted. */
 const needsCheck = (row: Row): boolean => row.view.status === 'pending' || row.view.status === 'failed' || row.view.status === 'checking';
 
@@ -478,7 +496,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
           const at = snowflakeMs(follow.id, deps.now()) ?? 0;
           oldest = Math.min(oldest, at);
           if (at < cutoff || at > pass.startedAt || pass.byFan.has(follow.fanRef) || follow.fanRef === pass.creator) continue;
-          const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, revisionKey: null, proof: null };
+          const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, revisionKey: null, proof: null, avatar: profiles.get(follow.fanRef)?.avatarUrl ?? null };
           pass.rows.push(row);
           pass.byFan.set(follow.fanRef, row);
           touch(pass, row);
@@ -549,7 +567,9 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         note(pass, 'profiles.batch', { page: Math.floor(at / PASS_BOUNDS.profileBatch) + 1, count: read?.length ?? 0 });
         for (const profile of read ?? []) {
           const row = pass.byFan.get(profile.fanRef);
-          if (row !== undefined) set(pass, row, profileFields(profile, row.view));
+          if (row === undefined) continue;
+          if (profile.avatarUrl !== null) row.avatar = profile.avatarUrl;
+          set(pass, row, profileFields(profile, row.view));
         }
       } catch (error) {
         if (error instanceof Aborted || stopsPass(error)) throw error;
@@ -676,6 +696,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     }
     personal ??= lastPersonal;
     const history = [...walked.values()].sort(byId);
+    // A receipt of our greeting the echo never confirmed is confirmed by the history that shows its id (§8.6).
+    deps.onHistory?.(chat.groupId, history.map((message) => message.id), complete);
     if (personal !== null) return greeted(pass, row, personal, history);
     row.kept = history.slice(-PASS_BOUNDS.previewKept);
     row.keptAll = complete && history.length <= PASS_BOUNDS.previewKept;
@@ -993,6 +1015,76 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return { ok: true, messages: shown, more };
   }
 
+  // ── the greeting's part (R20 P10c) ──
+
+  /** The pass of this id, for a tab on its creator — exactly this pass, never its replacement; the tab's window is not touched. */
+  function exact(passId: string, tab: string): Pass | null {
+    const pass = byId_.get(passId);
+    return pass !== undefined && deps.alive(tab) && deps.tabOn(tab, pass.creator) ? pass : null;
+  }
+
+  /** A row of the tab's pass as the greeting reads it; null — no such pass or fan for this tab. */
+  function rowFor(passId: string, fanRef: string, tab: string): { readonly creator: string; readonly view: FanslyFollowerRow; readonly proof: PassRowProof | null } | null {
+    const pass = exact(passId, tab);
+    const row = pass?.byFan.get(fanRef);
+    return pass === null || row === undefined ? null : { creator: pass.creator, view: row.view, proof: row.proof };
+  }
+
+  /**
+   * «Сгенерировать» (FS-NEW-7, NF-013, NF-034): the proof of a row checked in full — the window of the coverage check,
+   * the fan's newest ids of it (newest first, ≤ 10), the start, the avatar the pass read. Ids and an address only.
+   */
+  function greetingProof(passId: string, fanRef: string, tab: string): { readonly ok: true; readonly proof: FanslyGreetingProof } | { readonly ok: false; readonly code: CgAnyCode } {
+    const pass = exact(passId, tab);
+    const row = pass?.byFan.get(fanRef);
+    if (pass === null || row === undefined) return { ok: false, code: 'CG-CONTEXT-CHANGED' };
+    if (row.view.status !== 'ready' || row.proof === null) return { ok: false, code: notReady(row.view) };
+    const proof = row.proof;
+    const known = proof.window.filter((entry) => entry.dir === 'fan').map((entry) => entry.id).reverse().slice(0, SEND_LIMITS.knownFanMessagesMax);
+    return { ok: true, proof: { groupId: proof.groupId, historyRevision: proof.historyRevision, window: [...proof.window], knownFanMessageIds: known, startProof: proof.startProof, fanAvatarUrl: row.avatar } };
+  }
+
+  /**
+   * NF-036: the fan's history read again right before the custody — the same check as the queue's (the participants'
+   * fence, the history to its empty page). A changed history gets a new revision; a personal message of the creator's
+   * makes the row «Уже писали». A failed read leaves the row as it was and refuses with its code.
+   */
+  async function recheck(passId: string, fanRef: string, tab: string): Promise<{ readonly ok: true; readonly historyRevision: string } | { readonly ok: false; readonly code: CgAnyCode }> {
+    const pass = exact(passId, tab);
+    const row = pass?.byFan.get(fanRef);
+    if (pass === null || row === undefined || pass.life.aborted) return { ok: false, code: 'CG-CONTEXT-CHANGED' };
+    if (row.view.status !== 'ready' || row.proof === null) return { ok: false, code: notReady(row.view) };
+    const before = row.view;
+    const stop = new AbortSwitch();
+    pass.life.addEventListener('abort', () => stop.abort());
+    const work: Work = { stop, done: Promise.resolve() };
+    try {
+      await check(pass, work, row, false);
+    } catch (error) {
+      if (byId_.get(passId) === pass && (row.view.status as FanslyFollowerRow['status']) === 'checking') set(pass, row, { status: before.status, error: before.error ?? null });
+      return { ok: false, code: error instanceof Aborted || stop.aborted ? 'CG-CONTEXT-CHANGED' : failureOf(error).wire.code };
+    }
+    return row.view.status === 'ready' && row.proof !== null ? { ok: true, historyRevision: row.proof.historyRevision } : { ok: false, code: notReady(row.view) };
+  }
+
+  /** The send's tuple now, from memory (§8.6 step 2): the row as the pass holds it; null — not a checked row any more. */
+  function live(passId: string, fanRef: string): { readonly hostAccountId: string; readonly groupId: string; readonly fanRef: string; readonly historyRevision: string } | null {
+    const pass = byId_.get(passId);
+    const row = pass?.byFan.get(fanRef);
+    if (pass === undefined || row === undefined || row.view.status !== 'ready' || row.proof === null) return null;
+    return { hostAccountId: pass.creator, groupId: row.proof.groupId, fanRef, historyRevision: row.proof.historyRevision };
+  }
+
+  /** The card's greeting went (sent, or the person's own send registered): the fan is «Уже писали» in the creator's pass. */
+  function markGreeted(creator: string, fanRef: string): void {
+    const pass = passes.get(creator);
+    const row = pass?.byFan.get(fanRef);
+    if (pass === undefined || row === undefined || row.view.status === 'greeted') return;
+    row.proof = null;
+    row.revisionKey = null;
+    set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: null, error: null, fanWrote: false, dmClosed: null, dmPriceMills: null });
+  }
+
   return {
     handles: (type: string): boolean => Object.prototype.hasOwnProperty.call(REQUESTS, type),
     /** A request of the window's (`fansly.followers.*` but `send`): its answer. */
@@ -1022,6 +1114,11 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     proof(passId: string, fanRef: string): PassRowProof | null {
       return byId_.get(passId)?.byFan.get(fanRef)?.proof ?? null;
     },
+    greetingProof,
+    row: rowFor,
+    recheck,
+    live,
+    greeted: markGreeted,
     /** The work in flight, for tests and the module's dispose. */
     idle: async (): Promise<void> => {
       for (const pass of passes.values()) await pass.work?.done;

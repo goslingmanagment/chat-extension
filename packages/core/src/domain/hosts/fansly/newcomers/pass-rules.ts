@@ -14,7 +14,7 @@
 // Nothing here asks Fansly, keeps a text or names a site.
 
 import { compareNativeIds, NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
-import { FANSLY_LIMITS, type StartProofV1 } from '@cg/contracts/fansly';
+import { FANSLY_AVATAR_URL_PATTERN, FANSLY_LIMITS, type StartProofV1 } from '@cg/contracts/fansly';
 import { FANSLY_TAB_LIMITS, type FanslyPreviewMessage } from '@cg/contracts/tab-messages-fansly';
 import { type NewcomerDmClosed } from '@cg/contracts/vm';
 
@@ -65,6 +65,49 @@ export interface PassProfile {
   readonly bio: string | null;
   /** Read only from an account that carried its notes; undefined — the answer did not say. */
   readonly customName: string | null | undefined;
+  /** R20 P10c (FX-018, NF-034): the avatar's address fit to send to the hub for Hi; null — none. */
+  readonly avatarUrl: string | null;
+}
+
+/** The hub's `fanslyAvatarUrlSchema`: at most this long. */
+const AVATAR_MAX_CHARS = 4096;
+/** The CDN's signature, kept from a location's metadata (as MAIN's avatarOf, host-fansly main/identity.ts). */
+const SIGNATURE_KEYS = ['Key-Pair-Id', 'Policy', 'Signature'] as const;
+const AVATAR_ORIGIN = /^https:\/\/([-a-z0-9]+\.fansly\.com)(\/[^\s#]*)?$/i;
+const amount = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+
+/**
+ * The fan's avatar address by the rule of MAIN's `avatarOf` (the old extension's and the hub's): the largest variant up
+ * to 512 px, then the image itself; its first location, https on a `*.fansly.com` host with no user or port, the CDN's
+ * signature from the location's metadata. A pure reading of the string — the core has no URL parser.
+ */
+export function avatarUrlOf(account: Record<string, unknown>): string | null {
+  const avatar = record(account['avatar']);
+  if (avatar === null) return null;
+  const variants = (Array.isArray(avatar['variants']) ? (avatar['variants'] as unknown[]) : [])
+    .map(record)
+    .filter((v): v is Record<string, unknown> => v !== null && amount(v['width']) > 0 && amount(v['width']) <= 512)
+    .sort((a, b) => amount(b['width']) - amount(a['width']));
+  for (const candidate of [...variants, avatar]) {
+    const locations = candidate['locations'];
+    const first = Array.isArray(locations) ? record((locations as unknown[])[0]) : null;
+    const location = first?.['location'];
+    const raw = typeof location === 'string' && location !== '' ? location : candidate['location'];
+    if (typeof raw !== 'string') continue;
+    const match = AVATAR_ORIGIN.exec(raw);
+    if (match === null) continue;
+    let href = `https://${(match[1] as string).toLowerCase()}${match[2] ?? '/'}`;
+    const metadata = record(first?.['metadata']);
+    if (metadata !== null) {
+      for (const key of SIGNATURE_KEYS) {
+        const value = metadata[key];
+        if (typeof value !== 'string' || new RegExp(`[?&]${key}=`).test(href)) continue;
+        href += `${href.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(value)}`;
+      }
+    }
+    if (href.length <= AVATAR_MAX_CHARS && FANSLY_AVATAR_URL_PATTERN.test(href)) return href;
+  }
+  return null;
 }
 
 export function profileOf(value: unknown): PassProfile | null {
@@ -82,6 +125,7 @@ export function profileOf(value: unknown): PassProfile | null {
     displayName: text(account['displayName'], 128),
     bio: text(account['about'], FANSLY_TAB_LIMITS.bioMaxChars),
     customName,
+    avatarUrl: avatarUrlOf(account),
   };
 }
 

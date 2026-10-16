@@ -15,7 +15,8 @@
 // R20 P10b2, FS-NEW-2: «Исключить из очереди» / «Вернуть в очередь» (`ExcludeNewcomer`) of a fan nobody can write to,
 // the same way: one request, the row comes back as the pass's change (and leaves «К обработке» or returns).
 //
-// Nothing here sends and nothing generates (P10c brings the greeting): the card's strip is not in this controller.
+// R20 P10c (FS-NEW-3, FS-NEW-6, FS-NEW-7): the card's greeting — the draft, «Сгенерировать», «Отправить», «Открыть и
+// вставить» — is ./greeting.ts over the source's greeting port; this controller hands it the card and its actions.
 // It names no site; the hub's list (ChatSpace) is ./controller.ts.
 
 import { isCgCode, type CgCode, type CgErrorView } from '@cg/contracts/errors';
@@ -46,6 +47,7 @@ import { type GreetingDesk, type PreviewDirectory, type Surfaces } from '../boar
 import { ViewCell, done, refused } from '../boards/surface';
 import { dataView, failureView, loadingView, localError, msg, reason, stamp } from '../boards/views';
 import { type NewcomersController } from './controller';
+import { createCardGreeting, type PassGreetingDeps } from './greeting';
 import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQuery, type PassRow, type PassState } from './source';
 
 /** The search waits this long after the last keystroke, as on the hub's list. */
@@ -64,6 +66,8 @@ export interface PassNewcomersDeps {
   readonly clock: BoardsClock;
   readonly context: PageContextPort;
   readonly surfaces: Surfaces;
+  /** R20 P10c: what the card's greeting needs of the tab (its port, the host, ids, the site's verdict); absent — no greeting. */
+  readonly greeting?: PassGreetingDeps;
 }
 
 /** The selected fan's conversation, per pass. */
@@ -141,6 +145,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     reselect();
     cell.invalidate();
   };
+  const greetingSource = source.greeting;
+  const card = deps.greeting === undefined || greetingSource === undefined ? null : createCardGreeting({ greeting: deps.greeting, source: greetingSource, i18n, clock, context, surfaces, changed });
 
   function clampHours(hours: number): number {
     return Math.min(source.windows.max, Math.max(source.windows.min, Math.round(hours)));
@@ -170,6 +176,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     selected = null;
     acting = false;
     histories.clear();
+    card?.reset();
     stage = 'idle';
   }
 
@@ -402,6 +409,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (selected === null || !rows.some((row) => row.fanRef === selected)) selected = (rows.find((row) => writable(row.check)) ?? rows[0])?.fanRef ?? null;
     // The chosen fan's chat may have become readable meanwhile (the pass gave its verdict): it is read once.
     if (selected !== null && !histories.has(selected)) void Promise.resolve().then(ensureHistory);
+    // R20 P10c: the card's draft is read once it is on screen.
+    if (selected !== null && pass !== null) card?.open(pass.passId, selected);
   }
 
   /** The card shows the selected fan's conversation when the pass read it: asked once per fan and pass. */
@@ -513,7 +522,10 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       cooldownUntil: pass?.state === 'cooldown' ? pass.cooldownUntil : null,
       filters: NEWCOMER_CHECK_FILTERS.map((id) => ({ id, count: counts?.filters[id] ?? null, pressed: id === filter })),
       failure: now === 'failed' ? (listFailure ?? pass?.failure ?? null) : (moreFailure ?? pass?.failure ?? null),
-      card: selectedRow === null || passId === null || blocked !== null ? null : { ...cardOf(selectedRow, passId), checkNext: checkNextOf(selectedRow.check, now), exclude: excludeOf(selectedRow.check) },
+      card:
+        selectedRow === null || passId === null || blocked !== null
+          ? null
+          : { ...cardOf(selectedRow, passId), checkNext: checkNextOf(selectedRow.check, now), exclude: excludeOf(selectedRow.check), ...(card === null ? {} : { greeting: card.vm(passId, selectedRow) }) },
       ...(pass === null || blocked !== null || now === 'failed' || now === 'connecting' ? {} : { run: runOf(now, pass) }),
     };
 
@@ -667,6 +679,14 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       const passId = pass.passId;
       return act(type, () => source.exclude(passId, fanRef, action.excluded));
     }
+    if (action.type === 'SetPreviewDraft' || action.type === 'Generate' || action.type === 'SendNewcomerGreeting' || action.type === 'InsertNewcomerGreeting') {
+      // R20 P10c: the card's greeting; a handle that is not the pass's is a preview's or the dock's.
+      if (parsePassHandle(action.targetHandle) === null) return null;
+      const fanRef = own(action.targetHandle);
+      const row = fanRef === null ? null : rowOf(fanRef);
+      if (row === null || pass === null || card === null) return stale(type);
+      return card.dispatch(action, pass.passId, row) ?? stale(type);
+    }
     if (action.type === 'OpenPreview' || action.type === 'LoadOlder' || action.type === 'RefreshArchive') {
       // A handle of the pass is this window's; any other is a list's or the dock's.
       if (parsePassHandle(action.targetHandle) === null) return null;
@@ -737,6 +757,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     draftsChanged: () => undefined,
     dispose() {
       disposed = true;
+      card?.dispose();
       for (const off of offs.splice(0)) off();
       if (pass !== null) source.close(pass.passId);
       if (searchTimer !== null) clock.clearTimer(searchTimer);

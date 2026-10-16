@@ -6,10 +6,14 @@
 // checked by Fansly's registry here, in the chunk that asks (NF-027; requests.ts) —, and opens a fan's chat on the
 // page's own origin. The dock's chip and the popup open it as on ChatSpace (`Navigate` to `newcomers`); its window is
 // Fansly's own surface (lazy/fansly/newcomers.ts). The hub's list of ChatSpace is not in this build.
+// R20 P10c: the card's greeting (core application/newcomers/greeting.ts) — the tab's port for its Hi and its human
+// action tokens, the host for «Открыть и вставить» and the person's own send, and Fansly's verdict over a generation
+// (spec §3.5): an unchanged AI text goes only on its own fresh verdict (FS-TAIL-8).
 
 import { createFanslyNewcomersSource, type FanslyFollowersPort } from '@cg/core/application/hosts/fansly/newcomers';
 import type { NewcomersController, NewcomersControllerDeps } from '@cg/core/application/newcomers';
 import { createPassNewcomersController } from '@cg/core/application/newcomers/pass';
+import { verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
 
 import { fanslyEvent, fanslyRequest } from './requests';
 
@@ -38,5 +42,18 @@ export function fanslyFollowersPort(rpc: NewcomersControllerDeps['rpc'], timeout
 /** The boards' «Новые» on a Fansly tab: the shared factory's signature, the pass over Fansly's own module. */
 export function createFanslyNewcomersController(deps: NewcomersControllerDeps, origin: string = globalThis.location.origin): NewcomersController {
   const source = createFanslyNewcomersSource(fanslyFollowersPort(deps.rpc), origin);
-  return createPassNewcomersController({ source, i18n: deps.i18n, clock: deps.clock, context: deps.context, surfaces: deps.surfaces });
+  return createPassNewcomersController({
+    source,
+    i18n: deps.i18n,
+    clock: deps.clock,
+    context: deps.context,
+    surfaces: deps.surfaces,
+    greeting: {
+      rpc: deps.rpc,
+      host: deps.host,
+      ids: { uuid: () => globalThis.crypto.randomUUID() },
+      // The generation's own evidence is its current one too: the card has no newer window of the pass to add.
+      verdict: (view) => verdictMark(view, view.freshnessProof?.fingerprint ?? null)?.reason ?? null,
+    },
+  });
 }

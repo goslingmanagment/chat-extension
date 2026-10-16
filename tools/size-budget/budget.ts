@@ -58,7 +58,8 @@ export interface BudgetLine {
 /** The lazy chunks' budgets; the sites' scripts have theirs in the host registry. */
 export const BUDGETS = {
   firstDockChunk: 45 * KIB,
-  lazyChunk: 30 * KIB,
+  // R20 P10c: 30 → 36 KiB — Fansly's boards chunk now carries the «Новые» card's greeting (draft, Hi, send, insert).
+  lazyChunk: 36 * KIB,
 } as const;
 
 /** The background core: the event page itself. */

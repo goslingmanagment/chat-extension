@@ -1,8 +1,9 @@
 // The look of «Новые» on Fansly (R20 P10a; ui-design §3.6, §3.12, §4.17): the family's list window — the 52 px header,
 // the filters, flat rows on hairlines — with three columns (Фан · Подписка · Статус), the initial as the avatar, and
 // the card of 480 px: the profile, the verdict in words, «Уже писали» folded, the conversation in the host's own
-// bubble colours. No colour of meaning beyond the family's list: no blue (nothing here reaches the fan), the
-// terracotta only where the kit puts it (focus, the selected row), red only beside a code.
+// bubble colours. No colour of meaning beyond the family's list: blue only on «Отправить» of the card's greeting (R20
+// P10c: what reaches the fan), the terracotta only where the kit puts it (focus, the selected row, the mark's dot), red
+// only beside a code.
 
 import { FEED_CSS } from '../../../spenders/preview/Feed';
 
@@ -61,5 +62,24 @@ export const FANSLY_NEWCOMERS_CSS = `
 .cg-fnc__auto { display: block; font-size: var(--cg-text-xs); line-height: 16px; color: var(--cg-ink-muted); margin-bottom: 2px; }
 .cg-fnc__fail { align-self: stretch; display: flex; flex-direction: column; gap: 6px; margin: auto 0; color: var(--cg-ink-2); }
 .cg-fnc .cg-feed__empty { display: inline-flex; align-items: center; gap: 6px; }
+/* R20 P10c: the card's greeting at its foot — the field, the bar of buttons, the click's state, the hint. */
+.cg-fnc__greet { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 10px 16px; border-top: 1px solid var(--cg-rule); background: var(--cg-surface); }
+.cg-fnc__field { position: relative; }
+.cg-fnc__field .cg-field { width: 100%; box-sizing: border-box; padding-right: 36px; }
+.cg-fnc__ai {
+  position: absolute; top: 6px; right: 8px; padding: 0 5px; border-radius: var(--cg-r-sm, 4px); font-size: var(--cg-text-xs); line-height: 16px;
+  font-weight: 600; color: var(--cg-ink-2); background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule-2);
+}
+.cg-fnc__gnote { font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-muted); }
+.cg-fnc__gnote.is-strong { color: var(--cg-ink-strong); font-weight: 500; }
+.cg-fnc__mark { margin: 0; }
+.cg-fnc__gbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cg-fnc__count { margin-right: auto; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
+.cg-fnc__gst { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); }
+.cg-fnc__gst > b { font-weight: 500; color: var(--cg-ink-strong); }
+.cg-fnc__gst.is-sent { color: var(--cg-ink-2); }
+.cg-fnc__gcode { flex-basis: 100%; font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-ink-muted); }
+.cg-fnc__gcode > b { font-weight: 500; color: var(--cg-ink-2); }
+.cg-fnc__noauto { font-size: var(--cg-text-xs); line-height: 16px; color: var(--cg-ink-muted); }
 ${FEED_CSS}
 `;

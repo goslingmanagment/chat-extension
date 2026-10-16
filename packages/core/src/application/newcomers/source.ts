@@ -9,6 +9,9 @@
 // Everything here is the site's answer in neutral words: a verdict is a `NewcomerCheck`, a failure a code (the site's
 // own registry may name it) and never a text, a conversation the site's id of it, never the fan's.
 
+import { type HumanCause } from '@cg/contracts/ids';
+import { type CoverageWindowEntry, type StartOp } from '@cg/contracts/ops';
+
 import { type PassChange, type PassHistoryPage, type PassPage, type PassQuery, type PassState, type SourceAnswer } from '../../domain/newcomers/pass';
 
 export type { PassChange, PassCounts, PassHistoryPage, PassPage, PassQuery, PassRow, PassRunState, PassState, SourceAnswer } from '../../domain/newcomers/pass';
@@ -48,4 +51,75 @@ export interface NewcomersPassSource {
   onReconnect(listener: () => void): () => void;
   /** «Открыть … ↗» (NF-011): the address of the fan's chat on the site, opened by the person in a new tab; null — none. */
   chatHref(conversationRef: string): string | null;
+  /** R20 P10c: the card's greeting (FS-NEW-3, FS-NEW-6, FS-NEW-7); absent — the site greets from no card. */
+  readonly greeting?: PassGreetingSource;
+}
+
+// ── the greeting of a card (R20 P10c) ──
+
+/** What a greeting's generation takes of the pass (FS-NEW-7): ids and an address, never a text. */
+export interface PassGreetingProof {
+  readonly conversationRef: string;
+  readonly historyRevision: string;
+  /** The checked history's ids, both directions, the newest 60, oldest first. */
+  readonly window: readonly CoverageWindowEntry[];
+  /** The fan's newest ids of the window, newest first. */
+  readonly knownFanMessageIds: readonly string[];
+  readonly startProof: NonNullable<StartOp['startProof']>;
+  /** The avatar of the profile the pass read (FX-018); null — none fit to send. */
+  readonly fanAvatarUrl: string | null;
+}
+
+/** The card's draft as the site keeps it (NF-012): its text, its revision, the history revision it was written on (NF-018). */
+export interface PassDraft {
+  readonly text: string;
+  readonly revision: number;
+  readonly historyRevision: string | null;
+}
+
+/** How a text is admitted (FS-NEW-6): the person's own, an unchanged AI result, an edited one. */
+export type PassAdmission = { readonly kind: 'own' } | { readonly kind: 'ai' | 'ai-edited'; readonly generationRef: string; readonly variant: number };
+
+/** One click of «Отправить» (FS-NEW-3): the field's text and what the person saw. */
+export interface PassGreetingSend {
+  readonly attemptId: string;
+  readonly passId: string;
+  readonly hostAccountId: string;
+  readonly fanRef: string;
+  readonly conversationRef: string;
+  readonly text: string;
+  readonly draftRevision: number;
+  readonly historyRevision: string;
+  readonly admission: PassAdmission;
+  readonly cause: HumanCause;
+  /** With an unchanged AI text: its operation. */
+  readonly opId?: string;
+}
+
+/** Where the attempt stands when the site stops waiting for it: gone out, refused (with why), or unknown. */
+export type PassSendOutcome =
+  | { readonly s: 'sent' }
+  | { readonly s: 'refused'; readonly code: string }
+  | { readonly s: 'uncertain'; readonly code: string }
+  /** Still under way (the site answers before its end only on a timeout of its own). */
+  | { readonly s: 'pending' };
+
+/** The person sent the card's text with the site's own button after «Открыть и вставить». */
+export interface PassNativeSend {
+  readonly passId: string;
+  readonly hostAccountId: string;
+  readonly fanRef: string;
+  readonly conversationRef: string;
+  readonly platformMessageId: string;
+  readonly text: string;
+  readonly admission: PassAdmission;
+}
+
+export interface PassGreetingSource {
+  proof(passId: string, fanRef: string): Promise<SourceAnswer<PassGreetingProof>>;
+  /** Without `text` — reads the draft; with it — writes it (an empty one clears it). */
+  draft(passId: string, fanRef: string, text?: string): Promise<SourceAnswer<PassDraft>>;
+  send(click: PassGreetingSend): Promise<SourceAnswer<PassSendOutcome>>;
+  /** True — the site took the report (the hub hears it now or later). */
+  sent(report: PassNativeSend): Promise<SourceAnswer<boolean>>;
 }

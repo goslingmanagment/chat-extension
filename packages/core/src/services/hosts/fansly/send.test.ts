@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Clock } from '../../ports';
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
-import { createFanslySend, fanslyReceiptOutcome, fanslySendFailureOutcome, type FanslyPreparedSend, type FanslySend, type FanslySendStart } from './send';
+import { FANSLY_NATIVE_SENDS_KEY, createFanslySend, fanslyReceiptOutcome, fanslySendFailureOutcome, type FanslyPreparedSend, type FanslySend, type FanslySendStart } from './send';
 
 const CREATOR = '700000000000000017';
 const FAN = '920000000000000003';
@@ -530,5 +530,60 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     expect(fanslyReceiptOutcome({ id: '1', groupId: GROUP, senderId: CREATOR }, { groupId: GROUP, hostAccountId: CREATOR })).toEqual({ state: 'receipted', platformMessageId: '1' });
     expect(fanslyReceiptOutcome({ id: '1', groupId: '810000000000000002', senderId: CREATOR }, { groupId: GROUP, hostAccountId: CREATOR })).toMatchObject({ state: 'uncertain', cause: 'bad-receipt' });
     expect(fanslyReceiptOutcome(undefined, { groupId: GROUP, hostAccountId: CREATOR })).toMatchObject({ state: 'uncertain', cause: 'bad-receipt' });
+  });
+});
+
+describe('[host:fansly] the person’s own send of a «Новые» card (R20 P10c, FS-NEW-3)', () => {
+  const native = (over: Partial<Parameters<FanslySend['native']>[0]> = {}): Parameters<FanslySend['native']>[0] => ({
+    page: PAGE,
+    fanRef: FAN,
+    groupId: GROUP,
+    platformMessageId: '830000000000000077',
+    admission: { kind: 'own' },
+    text: TEXT,
+    ...over,
+  });
+  const owed = (kv: MemoryKv): unknown[] => kv.read<unknown[]>(FANSLY_NATIVE_SENDS_KEY) ?? [];
+
+  it('[NF-019] after «Открыть и вставить» the card’s text sent by Fansly’s own button is registered (`registerNativeSend`, greeting): journaled first, ids and the manual fingerprint only, never a text', async () => {
+    const w = world();
+    const outcome = await w.send.native(native());
+    expect(outcome).toBe('registered');
+    const body = w.hub.calls.at(-1)?.body;
+    expect(body).toEqual({ action: 'registerNativeSend', attemptId: uuid(0x100), instanceId: uuid(0x1d), purpose: 'greeting', group: { kind: 'manual', textFingerprint: 'a'.repeat(64) }, partIndex: 0, platformMessageId: '830000000000000077' });
+    // Owed before the call, gone once the hub took it; never a POST of ours.
+    expect(w.routes).toHaveLength(0);
+    expect(owed(w.kv)).toEqual([]);
+    // An unchanged AI text is registered as its generation.
+    await w.send.native(native({ platformMessageId: '830000000000000078', admission: { kind: 'ai', generationRef: uuid(0x60), variant: 0 } }));
+    expect(w.hub.calls.at(-1)?.body).toMatchObject({ action: 'registerNativeSend', group: { generationRef: uuid(0x60), variant: 0, partCount: 1 } });
+  });
+
+  it('[NF-019] the registration stays owed while the hub does not answer — repeated with the same attempt, after a restart too; a refusal of the hub ends the debt', async () => {
+    const kv = createMemoryKv();
+    const hub = fakeHub();
+    let failing = true;
+    const original = hub.port.claim.bind(hub.port);
+    hub.port.claim = (op) => (op.body.action === 'registerNativeSend' && failing ? Promise.reject(hubError({ kind: 'transport', failure: 'network' })) : original(op));
+    const w = world({ kv, hub });
+    expect(await w.send.native(native())).toBe('undelivered');
+    const [entry] = owed(kv) as { attemptId: string; group: unknown }[];
+    expect(entry).toMatchObject({ attemptId: uuid(0x100), fanRef: FAN, platformMessageId: '830000000000000077', group: { kind: 'manual', textFingerprint: 'a'.repeat(64) } });
+    expect(JSON.stringify(owed(kv))).not.toContain(TEXT);
+    // The same message heard again (another tab) is the same registration.
+    expect(await w.send.native(native())).toBe('undelivered');
+    expect(owed(kv)).toHaveLength(1);
+    // A restart: the next event page delivers it with the same attempt id.
+    failing = false;
+    const again = world({ kv, hub });
+    await again.send.ready;
+    await settle();
+    const registrations = hub.calls.filter((call) => call.body.action === 'registerNativeSend');
+    expect(registrations.at(-1)?.body).toMatchObject({ attemptId: uuid(0x100) });
+    expect(owed(kv)).toEqual([]);
+    // A refusal of the hub (not to be repeated) ends the debt at once.
+    hub.port.claim = (op) => (op.body.action === 'registerNativeSend' ? Promise.reject(hubError({ kind: 'http', status: 409, code: 'conflict' } as unknown as HubFailure)) : original(op));
+    expect(await again.send.native(native({ platformMessageId: '830000000000000079' }))).toBe('refused');
+    expect(owed(kv)).toEqual([]);
   });
 });
