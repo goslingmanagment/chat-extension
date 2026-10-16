@@ -62,7 +62,7 @@ describe('FS-NET-1', () => {
       greeting: { 'message.send': 'dispatch×1' },
       spenders: { 'messaging.groups': 'check×1', 'group.create': 'queue-or-refuse×1', 'account.byIds': 'check×1' },
       registration: { 'group.detail': 'check×1' },
-      notes: { 'group.detail': 'queue×4', 'account.byIds': 'queue×4', 'notes.create': 'dispatch×1', 'notes.edit': 'dispatch×1', 'notes.delete': 'dispatch×1' },
+      notes: { 'group.detail': 'check×1', 'account.byIds': 'check×1', 'notes.create': 'dispatch×1', 'notes.edit': 'dispatch×1', 'notes.delete': 'dispatch×1' },
       identity: { 'account.me': 'queue×4' },
     });
     // A write is never asked twice.

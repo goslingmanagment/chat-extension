@@ -29,6 +29,7 @@ import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
 
 import type * as AiChunk from '../../../../../lazy/fansly/ai-fansly';
 import { fanslyRegistrationDate } from '@cg/core/domain/hosts/fansly/snowflake';
+import type * as NotesChunk from '../../../../../lazy/fansly/notes';
 import type * as RegistrationChunk from '../../../../../lazy/fansly/registration';
 import type * as VaultChunk from '../../../../../lazy/fansly/vault';
 import { FANSLY_FEATURE_SLICE } from '../../../features/fansly';
@@ -54,13 +55,14 @@ export function fanslyUi(theme: HostThemeSource, doc: () => Document = page): Ho
 const onVault = (path: string): boolean => path === '/creator/vault' || path === '/creator/vault/';
 
 /**
- * Fansly's own surfaces (R20 P11a/P13b): registration first on /messages, then kept for its cache; the vault's chunk the first time the tab is on `/creator/vault` (FS-PERF-3), kept
+ * Fansly's own surfaces (R20 P11a/P11b/P13b): registration and «Заметки» first on /messages, then kept for their caches and drafts; the vault's chunk the first time the tab is on `/creator/vault` (FS-PERF-3), kept
  * from then on — it says itself where its entry stands. A chunk that did not load is asked again on the next visit.
  */
 export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   let offOps: () => void = () => undefined;
   if (__CG_TEST_HOSTS__ && env.probe !== null) void import('./ops-probe').then((probe) => { if (!env.life.aborted) offOps = probe.startFanslyOpsProbe(env); }, () => undefined);
   let registration: Promise<(() => void) | null> | null = null;
+  let notes: Promise<(() => void) | null> | null = null;
   let vault: Promise<(() => void) | null> | null = null;
   const sync = (): void => {
     if (env.life.aborted) return;
@@ -68,6 +70,13 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
       registration = env.lazy<typeof RegistrationChunk>('registration').then((chunk) => env.life.aborted ? null : chunk.startFanslyRegistration(env), () => {
         registration = null;
         env.report({ kind: 'render', surface: 'header-slot' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'RegistrationChunk' });
+        return null;
+      });
+    }
+    if (notes === null && /^\/messages(?:\/[1-9]\d*)?$/.test(env.win.location.pathname)) {
+      notes = env.lazy<typeof NotesChunk>('notes').then((chunk) => (env.life.aborted ? null : chunk.startFanslyNotes(env)), () => {
+        notes = null;
+        env.report({ kind: 'render', surface: 'notes' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'NotesChunk' });
         return null;
       });
     }
@@ -89,6 +98,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
     offOps();
     off();
     void registration?.then((stop) => stop?.());
+    void notes?.then((stop) => stop?.());
     void vault?.then((stop) => stop?.());
   };
 }

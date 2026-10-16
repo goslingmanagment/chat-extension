@@ -71,6 +71,8 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   vault: 'fansly/vault.ts',
   registration: 'fansly/registration.ts',
   newcomers: 'fansly/newcomers.ts',
+  // «Заметки» (R20 P11b): their button, panel and controller, with «Регистрация» on /messages.
+  notes: 'fansly/notes.ts',
 };
 
 export const FANSLY: HostDescriptor = {

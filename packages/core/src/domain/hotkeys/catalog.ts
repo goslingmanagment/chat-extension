@@ -62,6 +62,8 @@ const ROWS: Readonly<Record<CatalogActionId, Row>> = {
   'next-unread': { label: 'cheatsheet.row.nextUnread', tooltip: null, scope: 'list', status: 'active', key: extra('next-unread') },
   'quick-jump': { label: 'cheatsheet.row.quickJump', tooltip: null, scope: 'list', status: 'active', key: extra('quick-jump') },
   search: { label: 'cheatsheet.row.search', tooltip: null, scope: 'list', status: 'active', key: local('/', '/') },
+  // R20 P11b: Fansly's «Заметки» — a row of the `fansly` client of the scheme; only a site with the feature draws it.
+  notes: { label: 'cheatsheet.row.notes', tooltip: null, scope: 'chat', status: 'active', key: scheme('notes') },
 };
 
 const extraDef = (command: DispatcherCommandId, fallback: boolean): ExtraKeyDef | undefined => EXTRA_KEYS.find((def) => def.command === command && def.fallback === fallback);

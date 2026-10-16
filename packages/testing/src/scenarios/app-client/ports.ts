@@ -235,6 +235,7 @@ const CATALOG_LABELS: Record<CatalogActionId, { readonly label: I18nKey; readonl
   'next-unread': { label: 'cheatsheet.row.nextUnread', tooltip: null },
   'quick-jump': { label: 'quickJump.title', tooltip: null },
   search: { label: 'cheatsheet.row.search', tooltip: null },
+  notes: { label: 'cheatsheet.row.notes', tooltip: null },
 };
 
 export function createFakeCatalog(ctx: ScenarioCtx): ActionCatalog {

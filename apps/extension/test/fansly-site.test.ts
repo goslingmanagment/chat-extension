@@ -119,7 +119,7 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     // Every entry name is one the tab asks for by name — a shared one, or one of Fansly's own (R20 P8b1: its AI
     // policy; P13b: the vault); its source is Fansly's own or the shared entry of that name. «Новые» (R20 P10a) are
     // Fansly's own under the shared names: the boards with the background's pass and its window, never the hub's list.
-    const own: readonly SiteLazyEntryName[] = ['ai-fansly', 'vault', 'registration'];
+    const own: readonly SiteLazyEntryName[] = ['ai-fansly', 'vault', 'registration', 'notes'];
     for (const [name, source] of Object.entries(entries)) {
       expect([...Object.keys(LAZY_ENTRIES), ...own], name).toContain(name);
       expect([`fansly/${name}.ts`, LAZY_ENTRIES[name as keyof typeof LAZY_ENTRIES]], name).toContain(source);
