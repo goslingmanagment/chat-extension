@@ -3,9 +3,9 @@
 // carries, before anything is generated, held or sent, never from a failed `POST /message`.
 //
 // Fansly's own answer, `verifyNew` (main.2e6b96097a4bb73b.js, read 2026-10-12), as the old extension ported it
-// (fansly-chat src/shared/fansly-dm-permissions.ts:46-89). A group names the fan's rule sets (`dmPermissionFlags`) and
+// (the old extension's src/shared/fansly-dm-permissions.ts:46-89). A group names the fan's rule sets (`dmPermissionFlags`) and
 // what the creator already has toward the fan (`accountDmPermissionFlags`: tips sent, a price paid). Any one rule set
-// met is enough; Fansly hides its composer while none is (E155). No tip is ever attached, so a price is unmet unless
+// met is enough; Fansly hides its composer while none is. No tip is ever attached, so a price is unmet unless
 // paid already; a price Fansly's own reader could not read is unmet too, never a free chat. The subscription-tier and
 // list names Fansly reads there only label its own screen; they never change the bits, so they are not read here.
 // Nothing here asks Fansly, keeps a text or names a site.
