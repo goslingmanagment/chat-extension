@@ -26,14 +26,19 @@
 //   The result keeps its own fingerprint in the background too (P8b3). After
 //   a reload its hub answer is checked against that evidence and MAIN's current
 //   window; no newer start can lend it a fresh verdict.
-// - Not yet: Hi's start proof, its avatar and the pre-checks of Hi and Ping
-//   (P8c); until then the hub decides its gates by itself.
+// - Hi and Ping (R20 P8c, ./hi-ping.ts): a Hi start carries the snapshot's
+//   proof of the conversation's start, its count and the fan's avatar
+//   (FX-018); the pre-check, asked again with the start's snapshot before the
+//   token, refuses Hi only on MORE than ten proven personal messages and Ping
+//   only for a fan the page's own texts show active (five days). Everything
+//   else is the hub's to decide (`history_unproven`, `gate_ping_active`).
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import type { FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { HostPort } from '@cg/contracts/host';
 import type { AiHostPolicy, AiProofAsk, CoverageProof } from '@cg/contracts/ops';
 
+import { hiFieldsOf, hiPingGate } from './hi-ping';
 import { checkWindowOf, startProofOf } from './proof';
 import { resultChecks } from './result-checks';
 import { fingerprintOf, verdictMark, type ProofFingerprint } from './verdict';
@@ -67,9 +72,9 @@ export function createFanslyAi(deps: FanslyAiDeps): AiHostPolicy<FanslyStartProo
   const checks = resultChecks(deps.now);
   return {
     watch: (host, changed) => checks.watch(host, changed),
-    preflight: () => null,
+    preflight: (feature, _window, gathered) => hiPingGate(feature, gathered?.snapshot ?? null, deps.now()),
     proof: (host, ask) => gather(host, ask, deps),
-    fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof }),
+    fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof, ...hiFieldsOf(gathered.snapshot) }),
     fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),
     verdict: (view, fingerprint) => verdictMark(view, checks.current(view, fingerprint)),
   };

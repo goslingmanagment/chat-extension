@@ -130,10 +130,11 @@ describe('the feature manifest: the entries F4 writes in full, for both sites (a
     expect(FEATURES_COMMON.reply).toEqual({ kind: 'ai', chip: { group: 'reply', priority: 10, icon: null }, hotkey: 'reply' });
     expect(CHATSPACE_FEATURES.reply).toEqual({ base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub', switches: ['splitAll'] });
     expect(FANSLY_FEATURES.reply).toEqual({ base: { flags: ['drafts'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded'], source: 'hub' });
-    // The four drafts are admitted alike on a site.
+    // The four drafts are admitted alike on a site — but Hi on Fansly, which the hub decides by the start proof (R20 P8c).
     for (const id of ['fix', 'hi', 'ping'] as const) {
       expect([CHATSPACE_FEATURES[id].base, CHATSPACE_FEATURES[id].actions], id).toEqual([CHATSPACE_FEATURES.reply.base, CHATSPACE_FEATURES.reply.actions]);
-      expect([FANSLY_FEATURES[id].base, FANSLY_FEATURES[id].actions], id).toEqual([FANSLY_FEATURES.reply.base, FANSLY_FEATURES.reply.actions]);
+      const fansly = id === 'hi' ? { ...FANSLY_FEATURES.reply.actions, generate: { ...NOTHING, clientNeeds: ['hi-start-proof-v1'] } } : FANSLY_FEATURES.reply.actions;
+      expect([FANSLY_FEATURES[id].base, FANSLY_FEATURES[id].actions], id).toEqual([FANSLY_FEATURES.reply.base, fansly]);
     }
   });
 
@@ -189,11 +190,12 @@ describe('the feature manifest: the entries F4 writes in full, for both sites (a
 });
 
 describe('what is left of the client’s flag table: its own transport need', () => {
-  it('fresh text needs `context-v1`, and the manifest names it as the client need of `fresh-text` on both sites — and of nothing else', () => {
+  it('fresh text needs `context-v1`, and the manifest names it as the client need of `fresh-text` on both sites — and, on Fansly, `hi-start-proof-v1` for generating Hi (R20 P8c) — of nothing else', () => {
     expect(C.CLIENT_FLAG_REQUIREMENTS).toEqual({ freshText: ['context-v1'] });
+    expect(FANSLY_FEATURES.hi.actions.generate).toEqual({ flags: [], hostCapabilities: [], clientNeeds: ['hi-start-proof-v1'] });
     for (const { site, file } of SITES) {
       const needy = Object.entries(file).filter(([, entry]) => requirementsOf(entry).some((requirement) => requirement.clientNeeds !== undefined));
-      expect(needy.map(([id]) => id), site).toEqual(['fresh-text']);
+      expect(needy.map(([id]) => id), site).toEqual(file === FANSLY_FEATURES ? ['hi', 'fresh-text'] : ['fresh-text']);
       expect(file['fresh-text']?.base, site).toEqual({ flags: ['freshText'], hostCapabilities: [], clientNeeds: C.CLIENT_FLAG_REQUIREMENTS.freshText });
     }
   });

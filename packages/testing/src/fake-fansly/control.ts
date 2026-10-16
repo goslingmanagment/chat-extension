@@ -3,7 +3,7 @@
 // deleted, a receipt comes, somebody follows, a group changes, the socket
 // closes or stalls, the API answers 429. Each command changes the world first
 // and then tells the page's sockets the way Fansly would; `silent` skips the
-// frame (the socket «lost» the event). In-process (`FakeFansly.command`) and
+// frame (the socket «lost» the event); a new empty conversation appears. In-process (`FakeFansly.command`) and
 // over HTTP (api.ts, the control header) alike.
 
 import type { FakeFanslyCommand, FakeFanslyResult, FakeFanslyStatus } from '../../fixture-fansly/src/server-protocol';
@@ -87,6 +87,11 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
     case 'follow': {
       const follow = world.wireFollow(world.follow(command.followerId));
       return { ok: true, follow, sent: command.silent === true ? 0 : hub.emit([followFrame(follow)], '3/2') };
+    }
+    case 'conversation': {
+      const { group, created } = world.createConversation(command.fanId);
+      if (!created) throw new FakeFanslyCommandError(`the fan ${command.fanId} already has the conversation ${group.id}`);
+      return { ok: true, groupId: group.id, sent: hub.emit([groupCreatedFrame(group.id)], '4/8') };
     }
     case 'group': {
       const group = groupOf(state, command.groupId);
