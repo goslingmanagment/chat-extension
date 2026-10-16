@@ -461,7 +461,10 @@ function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
   );
 }
 
-/** Why nobody can write to the fan, or why the check failed: words, no colour; the code's own line for a failure. */
+/**
+ * Why nobody can write to the fan, or why the check failed: words, no colour; the code's own line for a failure. A fan
+ * nobody can write to leaves «К обработке» by the person's «Исключить из очереди» and comes back (R20 P10b2, FS-NEW-2).
+ */
 function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
@@ -482,6 +485,17 @@ function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
             variant="line"
             size="sm"
             onClick={() => void dispatch({ type: 'CheckNewcomerNext', targetHandle: card.handle })}
+          />
+        </span>
+      )}
+      {card.exclude === undefined || card.exclude === null ? null : (
+        <span class="cg-fnc__check">
+          <Button
+            label={fanslyText(i18n, card.exclude === 'exclude' ? 'fansly.newcomers.exclude' : 'fansly.newcomers.restore')}
+            tooltip={card.exclude === 'exclude' ? fanslyText(i18n, 'fansly.newcomers.excludeTooltip') : null}
+            variant="line"
+            size="sm"
+            onClick={() => void dispatch({ type: 'ExcludeNewcomer', targetHandle: card.handle, excluded: card.exclude === 'exclude' })}
           />
         </span>
       )}

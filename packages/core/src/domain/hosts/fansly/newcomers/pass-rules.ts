@@ -10,11 +10,15 @@
 //   that is not automated; a fan's message is always personal for the count (§5.8);
 // - only a history walked to its empty page proves the start: `StartProofV1` with `source: 'pass-empty-page'`,
 //   `coveredCount` — every message walked, `personalCount` — the personal ones among the last 30 (HF-5, as the old).
+// - a group's DM rules (`dmPermissionFlags`): may the creator write to the fan at all (R20 P10b2, ./dm-permissions.ts).
 // Nothing here asks Fansly, keeps a text or names a site.
 
 import { compareNativeIds, NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 import { FANSLY_LIMITS, type StartProofV1 } from '@cg/contracts/fansly';
 import { FANSLY_TAB_LIMITS, type FanslyPreviewMessage } from '@cg/contracts/tab-messages-fansly';
+import { type NewcomerDmClosed } from '@cg/contracts/vm';
+
+import { groupDmClosed } from './dm-permissions';
 
 /** Fansly's epoch: the milliseconds of a snowflake count from here (old fansly-id-time.ts). */
 export const FANSLY_EPOCH_MS = 1_561_494_360_000;
@@ -233,6 +237,12 @@ export interface PassChat {
   readonly lastKnown: boolean;
   /** The known head must occur in the walked history before it can prove the chat ready. */
   readonly lastMessageId: string | null;
+  /**
+   * R20 P10b2, FS-NEW-2: the fan's DM rules this answer carried (`dmPermissionFlags`) — `dmRead` — and, when the creator
+   * meets none of them, why (`dmClosed`); an answer without the rules (a thin inbox entry) says nothing either way.
+   */
+  readonly dmRead: boolean;
+  readonly dmClosed: NewcomerDmClosed | null;
 }
 
 /** A richer group object cannot erase the inbox's evidence that the chat already has messages. */
@@ -253,7 +263,8 @@ export function readGroup(response: unknown, creatorId: string, fanRef: string, 
   const users = usersOf(group);
   if (users.length !== 2 || !users.includes(creatorId) || !users.includes(fanRef) || creatorId === fanRef) return null;
   const last = group['lastMessage'] === null || group['lastMessage'] === undefined ? null : messageOf(group['lastMessage'], group['id'], [creatorId, fanRef], now, true);
-  const chat: PassChat = { fanRef, groupId: group['id'], verified: true, last, lastKnown: group['lastMessage'] !== null && group['lastMessage'] !== undefined, lastMessageId: zeroless(record(group['lastMessage'])?.['id']) };
+  const dm = groupDmClosed(group);
+  const chat: PassChat = { fanRef, groupId: group['id'], verified: true, last, lastKnown: group['lastMessage'] !== null && group['lastMessage'] !== undefined, lastMessageId: zeroless(record(group['lastMessage'])?.['id']), dmRead: dm.read, dmClosed: dm.closed };
   return withChatHead(chat, zeroless(group['lastMessageId']));
 }
 
@@ -284,7 +295,7 @@ export function readInboxPage(response: unknown, creatorId: string, wanted: Read
     if (!isId(fanRef) || !isId(groupId) || seen.has(fanRef) || !wanted.has(fanRef)) continue;
     seen.add(fanRef);
     const chat = readGroup(groups.get(groupId), creatorId, fanRef, now, groupId);
-    chats.push(withChatHead(chat ?? { fanRef, groupId, verified: false, last: null, lastKnown: false, lastMessageId: null }, zeroless(entry?.['lastMessageId'])));
+    chats.push(withChatHead(chat ?? { fanRef, groupId, verified: false, last: null, lastKnown: false, lastMessageId: null, dmRead: false, dmClosed: null }, zeroless(entry?.['lastMessageId'])));
   }
   const tail = record(data.at(-1))?.['lastMessageId'];
   return { chats, count: data.length, tail: isId(tail) ? tail : null };
