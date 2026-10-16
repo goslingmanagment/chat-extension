@@ -237,6 +237,13 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * (FS-NEW-2, `NewcomerCardVM.exclude`): out of «К обработке» and back, kept in this browser.
    */
   act('ExcludeNewcomer', { targetHandle: HandleSchema, excluded: z.boolean() }),
+  /**
+   * 1.15.0 (R20 P10c): «Отправить» on the card of a fan a background pass checked (FS-NEW-3, NF-019): one click, one
+   * attempt of the background's send with the hub's custody; the field's content goes, never repeated.
+   */
+  act('SendNewcomerGreeting', { targetHandle: HandleSchema }),
+  /** 1.15.0 (R20 P10c): «Открыть и вставить» of that card: the fan's chat opens with the field's text for the person's own send. */
+  act('InsertNewcomerGreeting', { targetHandle: HandleSchema }),
   act('SetNewcomersWindow', { hours: z.int().check(z.gte(NEWCOMERS_WINDOW_HOURS.min), z.lte(NEWCOMERS_WINDOW_HOURS.max)) }),
   act('LoadMore', { list: z.enum(['spenders', 'newcomers']) }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */

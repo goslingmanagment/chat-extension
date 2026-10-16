@@ -40,12 +40,13 @@ import { SoundBatchSchema } from './sound';
 
 import { CgAnyErrorWireSchema } from './errors-fansly';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
-import { AdmissionSchema, OpStateSchema } from './ops';
+import { AdmissionSchema, CoverageWindowSchema, OpStateSchema } from './ops';
+import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { ChatKeySchema } from './ids';
-import { STORAGE_LIMITS } from './limits';
+import { SEND_LIMITS, STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
-import { FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
+import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
 import { FANSLY_NOTES_VIEWS, SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
@@ -190,6 +191,34 @@ export const FanslyFollowersCountsSchema = z.strictObject({
 });
 
 const PassRef = { passId: UuidSchema };
+
+/**
+ * 1.15.0 R20 P10c (FS-NEW-7, NF-013, NF-034): what a greeting's generation takes of the pass — the proof of the fan's
+ * checked history, ids only, never a text: its group, its revision, the window of the coverage check (both directions,
+ * the newest 60, oldest first), the fan's newest ids of it (newest first), the proof of the start (`pass-empty-page`)
+ * and the avatar of the profile the pass read (FX-018; null — none fit to send).
+ */
+export const FanslyGreetingProofSchema = z
+  .strictObject({
+    groupId: NativeIdSchema,
+    historyRevision: UuidSchema,
+    window: CoverageWindowSchema,
+    knownFanMessageIds: z.array(NativeIdSchema).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax)),
+    startProof: StartProofV1Schema,
+    fanAvatarUrl: z.nullable(HiFanAvatarUrlSchema),
+  })
+  .check(
+    z.refine((p) => p.startProof.groupId === p.groupId && p.startProof.source === 'pass-empty-page', { message: 'the pass proves the start of this group' }),
+    z.refine((p) => p.knownFanMessageIds.every((id) => p.window.some((entry) => entry.id === id && entry.dir === 'fan')), { message: 'known fan ids are of the window' }),
+  );
+export type FanslyGreetingProof = z.infer<typeof FanslyGreetingProofSchema>;
+
+/** 1.15.0 R20 P10c (NF-012): the card's draft, kept per creator and fan; `historyRevision` — the row's when it was written (NF-018). */
+const GreetingDraftSchema = z.strictObject({
+  text: z.string().check(z.maxLength(SEND_LIMITS.previewDraftMaxChars)),
+  revision: CountSchema,
+  historyRevision: z.nullable(UuidSchema),
+});
 
 // ── fansly.notes.* — «Заметки» (FS-NOTE-*) ─────────────────────────────────
 
@@ -436,6 +465,43 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.followers.send': {
     req: FanslyGreetingRequestSchema,
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), attempt: FanslySendViewSchema }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /** 1.15.0 R20 P10c: the pass's proof of a checked fan for «Сгенерировать» (FS-NEW-7); ids only. */
+  'fansly.followers.proof': {
+    req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), proof: FanslyGreetingProofSchema }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * 1.15.0 R20 P10c (NF-012, FS-NEW-6): the card's draft — read without `text`, written with it (an empty one clears
+   * it). The background keeps it per creator and fan (the shared `newcomers.drafts`, 24 h) and knows its revision at
+   * the send's final check.
+   */
+  'fansly.followers.draft': {
+    req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema, text: z.optional(z.string().check(z.maxLength(SEND_LIMITS.previewDraftMaxChars))) }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), draft: GreetingDraftSchema }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * 1.15.0 R20 P10c (FS-NEW-3): the person sent the card's text with Fansly's own button after «Открыть и вставить»
+   * (the tab linked the send to our insert, P7f): the hub registers it (`registerNativeSend`, purpose `greeting`) and
+   * the fan is greeted for everyone. A report of what happened, never a send.
+   */
+  'fansly.followers.sent': {
+    req: z.strictObject({
+      ...PassRef,
+      hostAccountId: NativeIdSchema,
+      fanRef: NativeIdSchema,
+      groupId: NativeIdSchema,
+      platformMessageId: NativeIdSchema,
+      text: z.string().check(z.minLength(1), z.maxLength(FANSLY_SEND_LIMITS.greetingMaxChars), z.refine((text) => text.trim() === text, { message: 'trimmed' })),
+      admission: FanslyGreetingAdmissionSchema,
+    }),
+    res: Ack,
     from: TAB,
     hosts: FANSLY,
   },

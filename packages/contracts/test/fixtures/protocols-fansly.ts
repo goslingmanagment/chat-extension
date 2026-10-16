@@ -8,6 +8,7 @@ import type { RequestFixtures, Verdicts } from './protocols';
 import { FANSLY_IDS, ISO, T0, uuid } from './samples';
 import { FANSLY_START_OP_FIXTURES, FANSLY_OP_VIEW_FIXTURES, fanslyVoiceView } from './ops-fansly';
 import { FANSLY_GREETING_REQUEST_FIXTURES, FANSLY_SEND_VIEW_FIXTURES } from './send-fansly';
+import { FANSLY_MSG, passStartProof } from './fansly';
 
 const F = FANSLY_IDS;
 const ack = { valid: [{ recorded: true }, { recorded: false }], invalid: [{ recorded: 'yes' }, {}] } as const;
@@ -24,6 +25,25 @@ const extState = {
   ext: { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'drawer', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: null } },
   revision: 2,
   readOnly: false,
+} as const;
+
+/** R20 P10c: the pass's proof of a checked fan's history, ids only. */
+const greetingProof = {
+  groupId: F.group,
+  historyRevision: uuid(0x501),
+  window: [{ id: FANSLY_MSG.m1, dir: 'model' }, { id: FANSLY_MSG.m2, dir: 'fan' }],
+  knownFanMessageIds: [FANSLY_MSG.m2],
+  startProof: passStartProof,
+  fanAvatarUrl: 'https://cdn3.fansly.com/avatar/1.jpeg?Key-Pair-Id=K&Policy=P&Signature=S',
+} as const;
+const greetingSent = {
+  passId: uuid(301),
+  hostAccountId: F.creator,
+  fanRef: F.fan,
+  groupId: F.group,
+  platformMessageId: '700000000000000050',
+  text: 'Привет!',
+  admission: { kind: 'own' },
 } as const;
 
 export const fanslyPass = {
@@ -169,6 +189,35 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       valid: [...FANSLY_SEND_VIEW_FIXTURES.valid.map((attempt) => ({ ok: true, attempt })), failure, sharedFailure],
       invalid: [...FANSLY_SEND_VIEW_FIXTURES.invalid.slice(0, 4).map((attempt) => ({ ok: true, attempt })), unknownFailure, { ok: true }],
     },
+  },
+
+  // R20 P10c: the pass's proof for «Сгенерировать», the card's draft, the person's own send of the card's text.
+  'fansly.followers.proof': {
+    req: { valid: [{ ...passRef, fanRef: F.fan }], invalid: [{ ...passRef }, { ...passRef, fanRef: F.fan, groupId: F.group }] },
+    res: {
+      valid: [{ ok: true, proof: greetingProof }, { ok: true, proof: { ...greetingProof, fanAvatarUrl: null, knownFanMessageIds: [] } }, failure],
+      invalid: [
+        { ok: true, proof: { ...greetingProof, fanAvatarUrl: 'https://example.com/a.jpg' } },
+        { ok: true, proof: { ...greetingProof, groupId: F.otherGroup } },
+        { ok: true, proof: { ...greetingProof, knownFanMessageIds: [FANSLY_MSG.m1] } },
+        { ok: true, proof: { ...greetingProof, startProof: { ...passStartProof, source: 'tab-short-page' } } },
+        { ok: true, proof: { ...greetingProof, text: 'hi' } },
+      ],
+    },
+  },
+  'fansly.followers.draft': {
+    req: { valid: [{ ...passRef, fanRef: F.fan }, { ...passRef, fanRef: F.fan, text: '' }, { ...passRef, fanRef: F.fan, text: 'x'.repeat(5000) }], invalid: [{ ...passRef, fanRef: F.fan, text: 'x'.repeat(5001) }, { ...passRef, fanRef: F.fan, text: null }] },
+    res: {
+      valid: [{ ok: true, draft: { text: 'Привет!', revision: 3, historyRevision: uuid(0x501) } }, { ok: true, draft: { text: '', revision: 0, historyRevision: null } }, failure],
+      invalid: [{ ok: true, draft: { text: 'Привет!', revision: -1, historyRevision: null } }, { ok: true, draft: { text: 'Привет!', revision: 1 } }],
+    },
+  },
+  'fansly.followers.sent': {
+    req: {
+      valid: [greetingSent, { ...greetingSent, admission: { kind: 'ai', generationRef: uuid(0x601), variant: 0 } }],
+      invalid: [{ ...greetingSent, text: ' Привет' }, { ...greetingSent, text: '' }, { ...greetingSent, platformMessageId: 'msg-1' }, { ...greetingSent, admission: { kind: 'ai' } }],
+    },
+    res: ack,
   },
 
   'fansly.notes.read': {

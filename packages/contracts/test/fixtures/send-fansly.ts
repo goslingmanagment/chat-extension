@@ -41,6 +41,8 @@ export const FANSLY_GREETING_REQUEST_FIXTURES: Verdicts = {
     { ...fanslyGreetingRequest, admission: { kind: 'ai-edited', generationRef: GENERATION, variant: 2 }, cause: { kind: 'key', actionToken: ACTION_TOKEN } },
     { ...fanslyGreetingRequest, fanRef: FANSLY_OLD_FAN, groupId: FANSLY_LONG_GROUP },
     { ...fanslyGreetingRequest, text: 'x'.repeat(5000), draftRevision: 2_147_483_647 },
+    // P10c: an unchanged AI text names its operation for the background's own check.
+    { ...fanslyGreetingRequest, admission: { kind: 'ai', generationRef: GENERATION, variant: 0 }, opId: '00000000-0000-4000-8000-0000000000c1' },
   ],
   invalid: [
     { ...fanslyGreetingRequest, fanRef: Number(F.fan) },
@@ -59,6 +61,8 @@ export const FANSLY_GREETING_REQUEST_FIXTURES: Verdicts = {
     { ...fanslyGreetingRequest, admission: { kind: 'template' } },
     { ...fanslyGreetingRequest, cause: undefined },
     { ...fanslyGreetingRequest, textFingerprint: TEXT_FINGERPRINT },
+    { ...fanslyGreetingRequest, opId: '00000000-0000-4000-8000-0000000000c1' },
+    { ...fanslyGreetingRequest, admission: { kind: 'ai-edited', generationRef: GENERATION, variant: 0 }, opId: '00000000-0000-4000-8000-0000000000c1' },
   ],
 };
 
