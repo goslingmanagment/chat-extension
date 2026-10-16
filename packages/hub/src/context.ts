@@ -4,7 +4,7 @@
 // the 401 rule (AU-010/011/014) and the dispositions that concern the hub
 // layer's own state (refresh the catalog or the bootstrap).
 
-import { type ClaimAction, type HubFailure, type HubRouteKey, type HubErrorResolution, type AbortSignalLike } from '@cg/contracts';
+import { type ClaimAction, type HubFailure, type HubRequestCheck, type HubRouteKey, type HubErrorResolution, type AbortSignalLike } from '@cg/contracts';
 import { resolveHubError } from '@cg/core/domain';
 
 import { type AuthCustody } from './auth';
@@ -44,6 +44,8 @@ export interface CallOptions {
   /** null: no deadline of ours. */
   readonly timeoutMs?: number | null;
   readonly facts?: CallFacts;
+  /** A client/* request's strict schema of its site (R20 P9d), instead of the registry's. */
+  readonly check?: HubRequestCheck;
 }
 
 export interface ContextHooks {
@@ -119,7 +121,7 @@ export class HubContext {
   /** A client/* route under the current sign-in (or an explicit connection). */
   async client(route: ClientFamilyKey, request: unknown, options: CallOptions = {}, connection: Connection = this.connection(route)): Promise<unknown> {
     const started = this.clock.monotonic();
-    const result = await this.wire.client(route, this.wireCall(connection, options), request);
+    const result = await this.wire.client(route, this.wireCall(connection, options), request, options.check);
     this.noteSlow(route, started, result, connection);
     return this.unwrap(route, result, connection, options.facts);
   }

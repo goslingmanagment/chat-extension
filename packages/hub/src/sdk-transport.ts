@@ -7,7 +7,7 @@
 // echo the SDK's sign-in schema strips. A per-call client binds the call's
 // AbortSignal (the SDK's request path takes none).
 
-import { HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HubRouteKey } from '@cg/contracts';
+import { HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HubRequestCheck, type HubRouteKey } from '@cg/contracts';
 import { createClient, kernelOperations, routeSchemas, type KernelClientOptions } from '@kernel/sdk';
 
 import { type FetchLike } from './ports';
@@ -58,9 +58,9 @@ export interface SdkRawInput {
  * Throws a TypeError when the request fails its strict contract schema —
  * never sent (HB-006).
  */
-export function sdkInputOf(operation: SdkRouteKey, request: unknown): SdkRawInput {
+export function sdkInputOf(operation: SdkRouteKey, request: unknown, check?: HubRequestCheck): SdkRawInput {
   const def = kernelOperations[operation];
-  const { params, rest } = requestParts(operation, def.path, request);
+  const { params, rest } = requestParts(operation, def.path, request, check);
   const input: { params?: Record<string, string | number>; query?: Record<string, unknown>; body?: unknown } = {};
   if (Object.keys(params).length > 0) input.params = { ...params };
   if (def.method === 'GET' || def.method === 'DELETE') {

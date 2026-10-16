@@ -10,7 +10,7 @@
 // Nothing here retries, wipes a sign-in or shows anything: the facade reads
 // the facts (errors, dispositions, the 401 rule).
 
-import { type AbortSignalLike, type HubFailure, type HubRouteKey } from '@cg/contracts';
+import { type AbortSignalLike, type HubFailure, type HubRequestCheck, type HubRouteKey } from '@cg/contracts';
 
 import { transportFailure } from './errors';
 import { type FetchLike, type HubClock } from './ports';
@@ -66,12 +66,12 @@ export class HubWire {
     }
   }
 
-  async client(route: ClientFamilyKey, call: WireCall & { readonly token: string }, request: unknown): Promise<WireResult> {
+  async client(route: ClientFamilyKey, call: WireCall & { readonly token: string }, request: unknown, check?: HubRequestCheck): Promise<WireResult> {
     // A route of the contract the vendored SDK does not have: nobody can send it.
     if (!isSdkRoute(route)) return contractFailure();
     let input: SdkRawInput;
     try {
-      input = sdkInputOf(route, request);
+      input = sdkInputOf(route, request, check);
     } catch {
       return contractFailure();
     }
