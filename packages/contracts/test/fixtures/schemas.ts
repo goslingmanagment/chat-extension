@@ -68,6 +68,11 @@ const fixture = (name: string, schema: z.ZodMiniType, valid: readonly unknown[],
 
 const repeat = (text: string, times: number): string => text.repeat(times);
 
+const coverageFingerprint: C.CoverageFingerprint = {
+  completeness: tabProof.completeness, truncated: false, window: tabProof.window,
+  knownFanMessageIds: tabProof.knownFanMessageIds, deletedIds: tabProof.deletedIds, text: true,
+};
+
 export const message = { platformMessageId: IDS.msg1, direction: 'fan', sentAt: ISO, text: 'hey' } as const;
 export const messages = (n: number) => Array.from({ length: n }, (_, i) => ({ ...message, platformMessageId: String(4000 + i + 1) }));
 export const composerState = { chat, instanceId: 'composer1', ready: true, hidden: false, draft: { revision: 4, provenance: 'empty' } } as const;
@@ -733,6 +738,18 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [Array.from({ length: 61 }, (_unused, i) => String(800_000 + i)), ['0800'], [800_001]],
   ),
   fixture(
+    'CoverageFingerprint',
+    C.CoverageFingerprintSchema,
+    [coverageFingerprint, { ...coverageFingerprint, window: [], knownFanMessageIds: [], text: false }],
+    [
+      { ...coverageFingerprint, tail: [{ text: 'page text must never be stored here' }] },
+      { ...coverageFingerprint, text: 'yes' },
+      { ...coverageFingerprint, window: [...tabProof.window, ...tabProof.window] },
+      { ...coverageFingerprint, knownFanMessageIds: ['999'] },
+      { ...coverageFingerprint, deletedIds: [tabProof.window[0]?.id] },
+    ],
+  ),
+  fixture(
     'CoverageProof',
     C.CoverageProofSchema,
     [
@@ -919,8 +936,13 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...opView, target: fanslyTarget, stale: { reason: 'unverified', at: null } },
       { ...opView, target: fanslyTarget, stale: { reason: 'window-miss', at: null } },
       { ...opView, target: fanslyTarget, stale: { reason: 'deleted-served', at: null } },
+      { ...opView, freshnessProof: { windowSize: 60, fingerprint: coverageFingerprint } },
     ],
-    [{ ...opView, state: 'queued' }, { ...opView, continuedBy: 'the-answer-step' }, { ...opView, stale: { reason: 'miss', at: null } }],
+    [
+      { ...opView, state: 'queued' }, { ...opView, continuedBy: 'the-answer-step' }, { ...opView, stale: { reason: 'miss', at: null } },
+      ...[0, 61, 1.5].map((windowSize) => ({ ...opView, freshnessProof: { windowSize, fingerprint: coverageFingerprint } })),
+      { ...opView, freshnessProof: { windowSize: 60, fingerprint: { ...coverageFingerprint, text: 'the tail text' } } },
+    ],
   ),
 
   // ── telemetry ──
