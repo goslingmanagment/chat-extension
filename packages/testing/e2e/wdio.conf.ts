@@ -75,8 +75,8 @@ function fixedPorts(): { fansly?: number; fanslyApi?: number; fanslySocket?: num
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
-  // P16a is mandatory in CI too, not just an opt-in `pnpm perf`. Each of the
-  // first two parts gets one neighbour (fresh base + new, 10 minutes each).
+  // P16a is mandatory in CI too, not just an opt-in `pnpm perf`. Only the
+  // first part gets the probe, with both neighbours (fresh base + new each).
   specs: [...(shardFiles === null ? ['./specs/**/*.e2e.ts'] : shardFiles.map((name) => `./specs/${name}`)), ...(perfNeighbors(shard).length > 0 ? [FANSLY_PERF_SPEC] : [])],
   maxInstances: 1,
   capabilities: [

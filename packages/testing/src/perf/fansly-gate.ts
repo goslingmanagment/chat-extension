@@ -16,9 +16,9 @@ export const P3D = {
   off: { tabMB: 6.7, backgroundMB: 50.7, tabTimers: 328, backgroundTimers: 7, tabCpuDeltaMs: 238 - 65, backgroundCpuMs: 2063, typingDeltaMs: 2.5, awakeDelta: 724 - 237, backgroundAwake: 10_521 },
 } as const;
 
-/** At most two parts run perf, one neighbour each; an unsharded run runs both. */
+/** Only the first part runs the probe, with both neighbours, as does pnpm perf. */
 export function perfNeighbors(shard: Shard | null): NeighborSetting[] {
-  return (['off', 'after'] as const).filter((_, index) => shard === null || index % shard.of === shard.part - 1);
+  return shard === null || shard.part === 1 ? ['off', 'after'] : [];
 }
 
 export interface PerfCheck { readonly name: string; readonly actual: number; readonly limit: number; readonly pass: boolean }

@@ -1,5 +1,5 @@
-// P16a: the P3d scenario, now an acceptance gate. CI runs one neighbour per
-// part (wdio.conf.ts); `pnpm perf` runs both, beside the ChatSpace probe.
+// P16a: the P3d scenario, now an acceptance gate. CI runs this probe once,
+// with both neighbours; `pnpm perf` runs it beside the ChatSpace probe.
 // Fresh Firefox per subject, the same stand and clock as P3d, loopback only.
 // Reports, raw about:memory and Firefox profiles: .cache/e2e/perf-fansly/gate/.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -299,7 +299,7 @@ for (const neighbor of neighbors) {
         }
         save(dir, 'insert', values);
         assertChecks(dir, 'insert-budget', [ceiling('insert p95 ms', percentiles(values).p95, budgetMs(100))]);
-        expect((await fakeFansly().calls('page')).filter((call) => call.route === 'message.send')).toEqual([]);
+        expect((await fakeFansly().calls('page', apiMark)).filter((call) => call.route === 'message.send')).toEqual([]);
       } finally { await harness.remove(); }
     });
   });

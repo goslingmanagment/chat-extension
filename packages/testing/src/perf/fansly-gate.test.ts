@@ -94,12 +94,12 @@ describe('Fansly perf acceptance (P16a)', () => {
     expect(failures({ ...current, typing: { ...current.typing, plain: { ...current.typing.plain, keys: 0 } } })).toContain('typing: every key measured');
   });
 
-  it('runs each neighbour exactly once across every CI shard shape and exposes both through pnpm perf', () => {
+  it('runs the probe in exactly one CI shard, with both neighbours, and exposes both through pnpm perf', () => {
     expect(perfNeighbors(null)).toEqual(['off', 'after']);
     for (const of of [1, 2, 5, 8]) {
       const parts = Array.from({ length: of }, (_, n) => perfNeighbors({ part: n + 1, of }));
       expect(parts.flat()).toEqual(['off', 'after']);
-      expect(parts.filter((part) => part.length > 0)).toHaveLength(Math.min(of, 2));
+      expect(parts.filter((part) => part.length > 0)).toEqual([['off', 'after']]);
     }
     const config = readFileSync(new URL('../../e2e/wdio.conf.ts', import.meta.url), 'utf8');
     expect(config).toContain('perfNeighbors(shard).length > 0 ? [FANSLY_PERF_SPEC]');

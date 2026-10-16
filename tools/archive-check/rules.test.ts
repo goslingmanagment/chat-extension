@@ -110,6 +110,9 @@ describe('archive check', () => {
       // The world of the signed-build checks (R20 P3b) and the script that runs them in Docker.
       'packages/testing/src/p3b/world.ts',
       'tools/ci/e2e-docker-local-p3b.sh',
+      // Perf gates import the excluded e2e harness too (R20 P16a).
+      'packages/testing/src/perf/fansly-gate.ts',
+      'packages/testing/src/perf/gecko-profile.ts',
     ]) {
       expect(rules(stand, 'sources', 'export {};'), stand).toEqual(['stand-in-sources']);
     }
@@ -117,7 +120,7 @@ describe('archive check', () => {
     for (const kept of STAND_SOURCE_KEPT) expect(rules(kept, 'sources', '{}'), kept).toEqual([]);
     expect(STAND_SOURCE_KEPT).toEqual(expect.arrayContaining(['packages/testing/fixture-fansly/tsconfig.json', 'packages/testing/fixture-fansly/src/protocol.ts']));
     expect(STAND_SOURCE_GLOBS).toEqual(
-      expect.arrayContaining(['packages/testing/e2e/**', 'packages/testing/fixture-chatspace/src/!(protocol.ts)', 'packages/testing/fixture-chatspace/src/*/**', 'packages/testing/fixture-fansly/src/!(protocol.ts)', 'packages/testing/src/fixture-fansly/**']),
+      expect.arrayContaining(['packages/testing/e2e/**', 'packages/testing/src/perf/**', 'packages/testing/fixture-chatspace/src/!(protocol.ts)', 'packages/testing/fixture-chatspace/src/*/**', 'packages/testing/fixture-fansly/src/!(protocol.ts)', 'packages/testing/src/fixture-fansly/**']),
     );
     expect(isStandSource('packages/testing/fixture-chatspace/src/protocol.ts')).toBe(false);
     expect(isStandSource('packages/testing/fixture-fansly/src/protocol.ts')).toBe(false);
