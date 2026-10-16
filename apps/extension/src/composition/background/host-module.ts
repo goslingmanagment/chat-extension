@@ -161,13 +161,19 @@ export interface HostSiteRegistry {
   /** Who an event of the registry goes to; null — not one of its events. */
   eventTargets(type: string): readonly TabSender[] | null;
   handle(type: string, payload: unknown, sender: HostSiteSender): HostAnswer | Promise<HostAnswer>;
+  /** R20 P9c: a relay frame of the site went (its port closed, or its tab's document went): it answers nothing more. */
+  relayGone?(sender: Extract<HostSiteSender, { readonly kind: 'relay' }>): void;
 }
 
 /** The core's RPC as a site's module reaches it: its own registry, plugged while the module runs (R20 P13b). */
 export interface SitePort {
   /** Requests of the site's types are answered by `registry` from now on; the answer unplugs it. */
   plug(registry: HostSiteRegistry): () => void;
-  emit(type: string, payload: unknown): void;
+  /**
+   * An event of the site's registry, checked by its schema, to the site's receivers, or (R20 P9c) one tab session
+   * and its relay frames, as the event names; how many got it (0 — nobody: the post went nowhere).
+   */
+  emit(type: string, payload: unknown, target?: { readonly tabSessionId: string }): number;
 }
 
 /** `settings.ext` as its one owner in the core reads or writes it (core settings-owner `SettingsExtResult`): a failure carries the state as it stands. */

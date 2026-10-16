@@ -12,7 +12,8 @@
 // - any other target is refused and journaled: nothing leaves the machine
 //   through it.
 // How Firefox is told to use it for one tab — a helper that copies
-// Multi-Account Containers' decision — is the relay suite's own (P9c).
+// Multi-Account Containers' decision — is the relay suite's own (P9c,
+// e2e/support/fansly-proxy.ts).
 
 import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { connect as netConnect, type Socket } from 'node:net';

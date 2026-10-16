@@ -19,7 +19,7 @@
 // core services/hosts/fansly/vault-checkpoints.ts) over storage.local: a
 // checkpoint outlives a reload of the tab and the event page's sleep; one tab
 // at a time holds an album's upload (its tab session, while registered). The other
-// families answer CG-RUNTIME-UNREACHABLE until their PRs (P9c, P10*, P11b, P12b*).
+// families answer CG-RUNTIME-UNREACHABLE until their PRs (P10*, P11b, P12b*).
 // Forgotten checkpoints go with the module's first start and «Очистить
 // локальные данные».
 //
@@ -29,6 +29,13 @@
 // and «Аккаунты» — the captured sessions with their legacy ↔ canonical
 // reconciliation, the tabs no account is known for and «к вкладке» without the
 // `tabs` right (`fansly.accounts.*`, core services/hosts/fansly/accounts.ts).
+//
+// R20 P9c: «Fansly через вкладку» (bg/fansly/relay.ts; architecture.md §8.5):
+// the API's requests leave through the transport of packages/fansly-api — the
+// event page's own `fetch`, or with the person's switch on the relay frame of
+// the model's tab, raised for a batch of work and 60 s after; never the direct
+// route instead. The frame's own requests (`fansly.relay.*`) and its going
+// (`relayGone`) come here through Fansly's registry.
 //
 // R20 P7i: the module brings Fansly's slice of the feature manifest
 // (docs/project-unite/architecture.md §1.4). The core's graph never has a file
@@ -56,6 +63,7 @@ import { createFanslyApi, type FanslyApi } from '@cg/fansly-api';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
 import { startFanslyApiProbe } from './fansly/api-probe';
+import { createRelayService } from './fansly/relay';
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
 const unreachable = (detail: string): HostAnswer => ({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail } });
@@ -82,7 +90,7 @@ async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, 
 const FANSLY_SLICE = featureSlice(FEATURES_COMMON, FANSLY_FEATURES);
 
 /** Fansly's registry for the core's RPC: its rules and schemas, and what this module answers so far. */
-export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegistry {
+export function fanslyRegistry(handle: HostSiteRegistry['handle'], relayGone?: HostSiteRegistry['relayGone']): HostSiteRegistry {
   return {
     prefix: FANSLY_TAB_TYPE_PREFIX,
     isRequestType: isFanslyTabRequestType,
@@ -90,16 +98,13 @@ export function fanslyRegistry(handle: HostSiteRegistry['handle']): HostSiteRegi
     parse: parseFanslyTabPayload,
     eventTargets: (type) => (isFanslyTabEventType(type) ? fanslyEventTargets(type) : null),
     handle,
+    ...(relayGone === undefined ? {} : { relayGone }),
   };
 }
 
 async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const session = kit.networkSession;
   await session?.ready.catch(() => undefined);
-  // Fansly's API over the core's session owner; none without it (a kit without P9a's session asks Fansly nothing).
-  const api: FanslyApi | null = session === undefined ? null : createFanslyApi({ session, storage: kit.storage.session, now: () => kit.clock.now(), warn: (reason) => kit.log.service({ level: 'warn', scope: 'fansly.pacer', msg: 'request pacing state unavailable; cooling all creators', fields: { reason } }) });
-  await api?.pacer.ready;
-  const unprobe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? startFanslyApiProbe(kit, session, api) : () => undefined;
   let settingsReady = false;
   let disposed = false;
   let retry: ReturnType<BackgroundKit['clock']['setTimer']> | null = null;
@@ -111,6 +116,14 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       retry = kit.clock.setTimer(1000, () => { retry = null; void refreshSettings(); });
     }
   })().finally(() => { reading = null; }));
+  // «Fansly через вкладку», read at each route: off without the site's settings owner (its default); unknown until read
+  // (a route asks the settings once more first, and refuses if they still cannot be read).
+  const viaTab = (): boolean | null => (kit.settingsExt === undefined ? false : settingsReady ? kit.settingsExt.current().hosts['fansly-web'].viaTab : null);
+  const relay = createRelayService(kit, viaTab, { settled: refreshSettings });
+  // Fansly's API over the core's session owner; none without it (a kit without P9a's session asks Fansly nothing).
+  const api: FanslyApi | null = session === undefined ? null : createFanslyApi({ session, storage: kit.storage.session, transport: relay.hub, now: () => kit.clock.now(), warn: (reason) => kit.log.service({ level: 'warn', scope: 'fansly.pacer', msg: 'request pacing state unavailable; cooling all creators', fields: { reason } }) });
+  await api?.pacer.ready;
+  const unprobe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? startFanslyApiProbe(kit, session, api, relay.hub) : () => undefined;
   const offSettings = kit.settingsExt?.onChange(() => { void refreshSettings(); });
   await refreshSettings();
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
@@ -121,6 +134,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     // The registry's rules let a page send only the settings page's types (contracts tab-messages-fansly.ts).
     if (sender.kind === 'page') return pageRequest(kit, accounts, type, payload);
     const tab = sender.tabSessionId;
+    const relayed = relay.handle(type, payload, sender);
+    if (relayed !== null) return relayed;
     switch (type) {
       case 'fansly.ops.start': {
         const start = payload as FanslyTabRequestPayload<'fansly.ops.start'>;
@@ -150,7 +165,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: `${type}: not served yet` } };
     }
   };
-  const unplug = kit.site?.plug(fanslyRegistry(handle)) ?? (() => undefined);
+  const unplug = kit.site?.plug(fanslyRegistry(handle, (sender) => relay.gone(sender))) ?? (() => undefined);
   // Runs once a background: whatever was left for more than 14 days goes.
   void vault.sweep().catch(() => 0);
   return {

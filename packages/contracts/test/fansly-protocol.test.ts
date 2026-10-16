@@ -87,6 +87,11 @@ describe('[EX-015] [DB-029] [host:fansly] the tab protocol of fansly.com (fansly
       expect(T.mayRequestFansly(type, 'page', 'options', null), type).toBe(false);
     }
     expect(T.fanslyEventTargets('fansly.relay.fetch')).toEqual(['relay']);
+    expect(T.fanslyEventTargets('fansly.relay.abort')).toEqual(['relay']);
+    // R20 P9c: the tab mounts the frame; the frame says it is up.
+    expect(T.fanslyEventTargets('fansly.relay.open')).toEqual(['tab']);
+    expect(T.mayRequestFansly('fansly.relay.hello', 'relay', null, 'fansly-web')).toBe(true);
+    expect(T.mayRequestFansly('fansly.relay.hello', 'tab', null, 'fansly-web')).toBe(false);
     expect(T.fanslyEventTargets('fansly.followers.changed')).toEqual(['tab']);
   });
 

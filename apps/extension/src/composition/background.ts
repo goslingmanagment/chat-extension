@@ -143,7 +143,7 @@ import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
-import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily } from './site-access';
+import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily } from './site-access';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
@@ -363,6 +363,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     api,
     // ChatSpace's loopback stand counts as ChatSpace in a test build only (the constant keeps it out of release).
     tabHosts: { chatspace: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES, 'fansly-web': siteMatches() } satisfies PerHost<readonly string[]>,
+    // R20 P9c: the relay frame of «Fansly через вкладку» (`cg-relay`), from the site's row of the host table.
+    relayPages: { [OPTIONAL_HOST]: FANSLY_RELAY_PAGE },
     ready: barrier.ready,
     contractsVersion: CONTRACTS_VERSION,
     testBuild,
@@ -687,8 +689,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const kitOf = (host: HostKind): BackgroundKit => ({
     ...kit,
     telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
-    // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope.
-    site: { plug: (registry) => rpc.site({ ...registry, host }), emit: (type, payload) => { rpc.emitSite(host, type, payload); } },
+    // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope;
+    // its events to the site's receivers, or one tab session — the tab or its relay frames (R20 P9c).
+    site: { plug: (registry) => rpc.site({ ...registry, host }), emit: (type, payload, target) => rpc.emitSite(host, type, payload, target) },
     // R20 P14b1: `settings.ext` through its one owner; the site's tabs by its addresses and registrations, no `tabs` right.
     siteTabs: siteTabsOf(host),
   });

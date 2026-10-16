@@ -17,7 +17,7 @@
 // reading, the chat MAIN named. What only later work packages bring is `off`
 // with the same code and its own name as the reason: the facts of new
 // messages (P14a), the header's slot (P7d, P11a), a file into the field
-// (P12c), the relay (P9c). The vault (P13b) is on with MAIN's observer of the
+// (P12c). The relay (P9c) is on with the tab's account, in a build that has its page. The vault (P13b) is on with MAIN's observer of the
 // page's requests: its facts confirm every file. X8's preview send, its receipt and the cached chat list are no part
 // of Fansly (§7.7): off by design.
 //
@@ -57,6 +57,8 @@ export interface FanslyContractInput {
   readonly build: string | null;
   readonly adapterVersion: string;
   readonly checkedAt: number;
+  /** R20 P9c: this build has the relay page of «Fansly через вкладку»; absent — no relay. */
+  readonly relay?: boolean;
 }
 
 const ON: CapabilityState = { state: 'on' };
@@ -108,7 +110,8 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     fileAttach: notReady('fileAttach'),
     // A file into the open vault album (P13b): the page's own input, confirmed by MAIN's facts of its requests (§7.11).
     vault: main ?? (anchors.xhr === 'shape' ? broken('xhr') : anchors.xhr === 'ok' ? ON : notReady('xhr')),
-    relay: notReady('relay'),
+    // «Fansly через вкладку» (P9c): a frame for the account the tab is on — none without one.
+    relay: input.relay === true ? identity : notReady('relay'),
   };
   if (input.blocked) {
     for (const key of Object.keys(capabilities) as HostCapability[]) capabilities[key] = notReady(input.blocked);

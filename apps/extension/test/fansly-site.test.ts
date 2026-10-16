@@ -33,7 +33,7 @@ import { FANSLY_ADAPTER } from '../src/entrypoints/fansly.ts';
 import { CHATSPACE } from '../src/hosts/chatspace.ts';
 import { FANSLY, FANSLY_TEST } from '../src/hosts/fansly.ts';
 import { HOSTS, lazySitesOf, pageMatchesOf, scriptsOf } from '../src/hosts/index.ts';
-import { FANSLY_LAZY_ROOT, FANSLY_MATCHES } from '../src/hosts/runtime/fansly.ts';
+import { FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_RELAY_PAGE } from '../src/hosts/runtime/fansly.ts';
 import { FANSLY_STAND_MATCHES, RUNTIME_HOSTS } from '../src/hosts/runtime/index.ts';
 
 const entrypoints = fileURLToPath(new URL('../src/entrypoints/', import.meta.url));
@@ -79,7 +79,8 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     for (const script of scriptsOf(FANSLY)) expect(existsSync(`${entrypoints}${script.entry}.ts`), script.entry).toBe(true);
     expect(FANSLY.budgets.scripts.map((line) => [line.entry, line.gzipBytes])).toEqual([
       ['fansly-main', 16 * 1024],
-      ['fansly', 36 * 1024],
+      // R20 P9c: 36 → 38 KiB, the relay frame and its lease (hosts/fansly.ts).
+      ['fansly', 38 * 1024],
       ['fansly-notice', 2 * 1024],
     ]);
     expect(FANSLY.mainWorldSources).toEqual(['packages/host-fansly/src/main/']);
@@ -99,13 +100,13 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     expect(manifestOf('release')['optional_host_permissions']).not.toEqual(expect.arrayContaining(['http://localhost/*']));
   });
 
-  it('[EX-010] [host:fansly] its lazy build is its own web resource entry, for its own pages — the stand too in a test build; ChatSpace’s stays ChatSpace’s', () => {
+  it('[EX-010] [FX-001] [host:fansly] its lazy build — and its relay page (P9c) — is its own web resource entry, for its own pages — the stand too in a test build; ChatSpace’s stays ChatSpace’s', () => {
     expect([FANSLY.lazy.root, FANSLY.lazy.layers, FANSLY.lazy.beforeTheDock]).toEqual(['lazy/fansly', LAZY_LAYERS, BEFORE_THE_DOCK]);
     for (const source of Object.values(FANSLY.lazy.entries)) expect(existsSync(`${lazyRoot}${source}`), source).toBe(true);
     const war = (flavor: BuildFlavor): Array<{ resources: string[]; matches: string[] }> => manifestOf(flavor)['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
     for (const flavor of ['release', 'test'] as const) {
       const [chatspace, fansly] = war(flavor);
-      expect(fansly).toEqual({ resources: Object.keys(FANSLY.lazy.entries).map((entry) => `lazy/fansly/${entry}.js`).sort(), matches: pageMatchesOf(FANSLY, flavor === 'test') });
+      expect(fansly).toEqual({ resources: [...Object.keys(FANSLY.lazy.entries).map((entry) => `lazy/fansly/${entry}.js`).sort(), FANSLY_RELAY_PAGE], matches: pageMatchesOf(FANSLY, flavor === 'test') });
       expect(chatspace?.matches).toEqual(pageMatchesOf(CHATSPACE, flavor === 'test'));
       expect(chatspace?.resources.every((resource) => resource.startsWith('lazy/chatspace/'))).toBe(true);
     }

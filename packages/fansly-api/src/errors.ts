@@ -29,6 +29,12 @@ export type FanslyFailureKind =
   | 'cooling'
   /** The caller gave up (a pause, a closed window). */
   | 'aborted'
+  /**
+   * «Fansly через вкладку» (FS-NET-4, R20 P9c): no tab of the session holds a relay frame that came up in time, the
+   * route no longer holds (its document, account or tab changed), or the frame refused by its own last check. Never
+   * the direct route instead; with `sent: false` — provably no request.
+   */
+  | 'tab'
   /** Fansly answered 429. */
   | 'rate-limited'
   /** Fansly answered 401 or 403. */
@@ -49,6 +55,7 @@ const CODES: Readonly<Record<FanslyFailureKind, CgAnyCode>> = {
   session: 'CG-FAN-SESSION',
   cooling: 'CG-FAN-RATE-LIMIT',
   aborted: 'CG-OP-INTERRUPTED',
+  tab: 'CG-FAN-TAB',
   'rate-limited': 'CG-FAN-RATE-LIMIT',
   expired: 'CG-FAN-EXPIRED',
   refused: 'CG-FAN-REQUEST',

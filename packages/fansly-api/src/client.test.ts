@@ -6,7 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_API_BASE } from './allowlist';
-import type { FanslyCall, FanslyFetch, FanslyHttpResponse, FanslySessionTemplate } from './client';
+import type { FanslyCall, FanslySessionTemplate } from './client';
+import type { FanslyFetch, FanslyHttpResponse } from './transport';
 import { FanslyApiError } from './errors';
 import { createFanslyApi, type FanslyNetworkSession } from './index';
 import type { RateLimitFactLike } from './pacer';

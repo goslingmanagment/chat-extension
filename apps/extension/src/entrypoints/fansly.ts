@@ -12,9 +12,10 @@ import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startFansly
 import type { UnlistedScriptDefinition } from 'wxt';
 import { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';
 
+import { bothTransports, relayTransport } from '../composition/tab/hosts/fansly/relay';
 import { soundTransport } from '../composition/tab/hosts/fansly/sound';
 import { composeTab, type HostAdapter } from '../composition/tab';
-import { FANSLY_LAZY_ROOT } from '../hosts/runtime/fansly';
+import { FANSLY_LAZY_ROOT, FANSLY_RELAY_PAGE } from '../hosts/runtime/fansly';
 
 /**
  * The early half of the Fansly adapter (R20 P7c: its start brings up Fansly's HostPort — the route by signals, the
@@ -32,9 +33,12 @@ export const FANSLY_ADAPTER: HostAdapter<FanslyPort> = {
       // The writes of R20 P7e: the token of the click or key, the owner's deadline of «Открыть и вставить».
       redeem: env.redeem,
       navInsertTimeoutMs: env.navInsertTimeoutMs,
+      // R20 P9c: the relay frame of «Fansly через вкладку», its address asked at its first mount (never at document_start).
+      relayUrl: () => import('@cg/platform/runtime').then(({ extensionUrl }) => extensionUrl(FANSLY_RELAY_PAGE)),
       onDiagnostic: env.onDiagnostic,
     });
-    return { ...started, background: soundTransport(started.host, env.onDiagnostic) };
+    // The site's own early transports: the socket's sounds (P14a) and the relay frame's lease (P9c).
+    return { ...started, background: bothTransports(soundTransport(started.host, env.onDiagnostic), relayTransport(started.host, env.onDiagnostic)) };
   },
   // Fansly's own rules for our keys (R20 P7i, §7.9): its message field — `textarea.message-input` under the route —,
   // and its windows — `body.modal-opened`, the focus in FBuddy's `fb-*-ui` — to which our keys yield; Enter is Fansly's.
