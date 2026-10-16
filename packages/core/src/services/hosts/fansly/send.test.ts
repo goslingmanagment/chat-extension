@@ -152,6 +152,8 @@ interface World {
   live: Omit<FanslySendTuple, 'transport'> | null;
   /** Runs inside the intent's write, before it lands. */
   duringIntent: (() => Promise<void> | void) | null;
+  /** Fansly on and its rights granted (FS-PERM-5). */
+  on: boolean;
   journal(): FanslySendJournalEntry[];
 }
 
@@ -168,6 +170,7 @@ function world(options: { kv?: MemoryKv; hub?: ReturnType<typeof fakeHub>; trans
     routes,
     live: { hostAccountId: CREATOR, groupId: GROUP, fanRef: FAN, tabSessionId: TAB, historyRevision: HISTORY, draftRevision: 2 },
     duringIntent: null,
+    on: true,
     journal() {
       const entries = (kv.read<{ entries: unknown[] }>(FANSLY_SEND_JOURNAL_KEY)?.entries ?? []) as FanslySendJournalEntry[];
       // Every record is the contract's: ids and states, never a text.
@@ -200,6 +203,7 @@ function world(options: { kv?: MemoryKv; hub?: ReturnType<typeof fakeHub>; trans
       return Promise.resolve(route.prepared);
     },
     live: () => w.live,
+    active: () => w.on,
     sha256: () => Promise.resolve('a'.repeat(64)),
     instanceId: () => uuid(0x1d),
     clock,
@@ -449,6 +453,81 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     expect(await w.send.send(click())).toMatchObject({ state: 'refused', proof: 'before-dispatch', code: 'CG-FNEW-HISTORY' });
     expect(w.hub.actions()).toEqual(['claim', 'release']);
     expect(w.routes[0]?.cancels).toBe(1);
+  });
+
+  it('[FS-PERM-5] Fansly switched off or its rights taken back: a new click starts nothing — refused before the hub hears of it, no route, no request', async () => {
+    const w = world();
+    w.on = false;
+    expect(await w.send.send(click())).toEqual({ attemptId: uuid(1), fanRef: FAN, state: 'refused', proof: 'before-dispatch', code: 'CG-FAN-OFF' });
+    await settle();
+    expect([w.hub.calls, w.routes]).toEqual([[], []]);
+    // Switched on again, the next click of the fan goes as any other.
+    w.on = true;
+    void w.send.send(click(uuid(2)));
+    await settle();
+    expect(w.routes[0]?.starts).toBe(1);
+  });
+
+  it('[FS-PERM-5] switched off while the route was taken: refused before the custody — no dispatch, the lease given back', async () => {
+    const w = world();
+    const claimed = deferred<void>();
+    w.hub.onClaim(async (op) => {
+      await claimed.promise;
+      return claimState({ lease: { state: 'owned', leaseToken: (op.body as { leaseToken: string }).leaseToken, expiresAt: iso(SERVER + 120_000), heldBy: null } });
+    });
+    const view = w.send.send(click());
+    await settle();
+    w.on = false;
+    claimed.resolve();
+    await expect(view).resolves.toMatchObject({ state: 'refused', proof: 'before-dispatch', code: 'CG-FAN-OFF' });
+    expect(w.hub.actions()).toEqual(['claim', 'release']);
+    expect(w.routes[0]).toMatchObject({ starts: 0, cancels: 1 });
+  });
+
+  it('[FS-PERM-5] switched off during the custody\'s answer or the intent\'s write: refused at the final check with NO request, the custody hears «not enqueued»', async () => {
+    for (const during of ['custody', 'intent'] as const) {
+      const w = world();
+      const dispatch = deferred<ClaimState>();
+      if (during === 'custody') w.hub.onDispatch(() => dispatch.promise);
+      else w.duringIntent = () => { w.on = false; };
+      const view = w.send.send(click());
+      await settle();
+      if (during === 'custody') {
+        w.on = false;
+        dispatch.resolve(claimState({ custody: { attemptId: uuid(1), state: 'dispatching', ticket: 'tkt-1', ticketExpiresAt: iso(SERVER + 10_000) } }));
+      }
+      expect([during, await view]).toEqual([during, { attemptId: uuid(1), fanRef: FAN, state: 'refused', proof: 'not-enqueued', code: 'CG-FAN-OFF' }]);
+      expect([during, w.routes[0]?.starts, w.routes[0]?.cancels]).toEqual([during, 0, 1]);
+      await settle();
+      expect(w.hub.calls.find((call) => call.body.action === 'failed')?.body).toEqual({ action: 'failed', attemptId: uuid(1), instanceId: uuid(0x1d), reason: 'not_enqueued' });
+      expect(w.journal()).toMatchObject([{ state: 'refused', proof: 'not-enqueued', reportPending: false }]);
+    }
+  });
+
+  it('[FS-PERM-5] switched off after the request left: it ends by its own rules — the receipt and its echo → sent; a lost answer → uncertain, never repeated, also once on again', async () => {
+    const sent = world();
+    const view = sent.send.send(click());
+    await settle();
+    expect(sent.routes[0]?.starts).toBe(1);
+    sent.on = false;
+    sent.routes[0]?.answer.resolve(receipt());
+    await settle();
+    sent.send.echo([{ id: '830000000000000001', conversationRef: GROUP, fromFan: false }]);
+    await expect(view).resolves.toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: '830000000000000001' });
+    await settle();
+    expect(sent.hub.actions().at(-1)).toBe('sent');
+
+    const lost = world();
+    const pending = lost.send.send(click());
+    await settle();
+    lost.on = false;
+    lost.routes[0]?.answer.reject(new TypeError('NetworkError when attempting to fetch resource.'));
+    await expect(pending).resolves.toMatchObject({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' });
+    lost.on = true;
+    // The fan stays held: a new click of the same fan routes nothing.
+    expect(await lost.send.send(click(uuid(2)))).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+    expect(lost.routes).toHaveLength(1);
+    expect(lost.routes[0]?.starts).toBe(1);
   });
 
   it('[NF-021] the custody\'s answer lost: refused, nothing sent, «not enqueued» reported (repeated until taken); a hub refusal opens nothing and owes nothing', async () => {

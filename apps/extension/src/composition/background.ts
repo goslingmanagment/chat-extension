@@ -704,6 +704,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     site: { plug: (registry) => rpc.site({ ...registry, host }), emit: (type, payload, target) => rpc.emitSite(host, type, payload, target) },
     // R20 P14b1: `settings.ext` through its one owner; the site's tabs by its addresses and registrations, no `tabs` right.
     siteTabs: siteTabsOf(host),
+    // R20 P14c: switched off or its rights taken back, the module's tabs finish what they started and begin nothing (FS-PERM-5).
+    siteActive: () => host !== OPTIONAL_HOST || siteAccess.active(),
   });
   /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */
   function siteTabsOf(host: HostKind): SiteTabsPort {

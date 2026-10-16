@@ -52,6 +52,13 @@
 // owed until the hub answers — repeated on REPORT_RETRY_DELAYS_MS, after a
 // restart and whenever `pump` runs; given up after NATIVE_KEEP_MS.
 //
+// R20 P14c: Fansly switched off or its rights taken back in the middle
+// (FS-PERM-5; `active`): no new attempt starts (`refused`, CG-FAN-OFF, before
+// the hub hears of it); one that has not reached its request is refused by its
+// own checks — before the custody, and at the final check, synchronously with
+// `start()`, «not enqueued»; one whose request left ends by its own rules
+// (`receipted` → its echo, else `uncertain`) and is never repeated.
+//
 // Fansly's own code (`bg/fansly` chunk): no ChatSpace bundle and not the
 // background core reach it. No browser API here: the chunk hands the
 // storage, the hub's custody routes, the client's `prepare` and sha256.
@@ -157,6 +164,8 @@ export interface FanslySendDeps {
   readonly countUncertain?: () => void;
   /** How long `send` waits for the echo after the receipt before it answers; default ECHO_WAIT_MS. */
   readonly echoWaitMs?: number;
+  /** Fansly is on and its rights granted (FS-PERM-5), read synchronously; false — nothing new leaves. Absent — on. */
+  readonly active?: () => boolean;
 }
 
 /** After the receipt, `send` answers once the echo came or after this; the attempt goes on waiting for it. */
@@ -324,6 +333,7 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
   const log = deps.log ?? NO_LOG;
   const { clock } = deps;
   const echoWaitMs = deps.echoWaitMs ?? ECHO_WAIT_MS;
+  const on = (): boolean => deps.active?.() !== false;
   const attempts = new Map<string, Attempt>();
   const locks = new Map<FanslySendLockKey, string>();
   const echoes = new Map<string, number>();
@@ -653,6 +663,8 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
       return viewOf(attempt);
     };
     if (hubOrigin === null) return stop('CG-AUTH-REQUIRED');
+    // FS-PERM-5: switched off or its rights taken back — no new attempt; the hub hears nothing of it.
+    if (!on()) return stop('CG-FAN-OFF');
 
     // The fan lock: one open attempt per hub, page and fan (an uncertain one holds it until a proof).
     const holderId = locks.get(lockKey);
@@ -740,7 +752,11 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
       attempt.base = null;
       return stop('CG-STORAGE-WRITE');
     }
-    // What changed while it waited is refused before the custody (§8.5).
+    // What changed while it waited is refused before the custody (§8.5) — Fansly switched off too (FS-PERM-5).
+    if (!on()) {
+      prepared.cancel();
+      return stop('CG-FAN-OFF');
+    }
     const before = current(prepared);
     const checked = before === null ? ({ ok: false, field: 'gone' } as const) : fanslyFinalCheck(taken(prepared.transport), before, Number.POSITIVE_INFINITY, now);
     if (!checked.ok) {
@@ -793,6 +809,13 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
       return viewOf(attempt);
     }
     // 2. The final check, synchronous, by memory; 3. the request at once — no `await` between.
+    // Switched off or its rights taken back during the custody or the write (FS-PERM-5): not enqueued.
+    if (!on()) {
+      prepared.cancel();
+      log({ level: 'warn', scope: 'fansly.send', msg: 'Fansly switched off before the request', fields: { attemptId: request.attemptId } });
+      await end(attempt, refused('not-enqueued', 'CG-FAN-OFF'));
+      return viewOf(attempt);
+    }
     const live = current(prepared);
     const final = live === null ? ({ ok: false, field: 'gone' } as const) : fanslyFinalCheck(taken(prepared.transport), live, ticketExpiresAt, clock.now());
     if (!final.ok) {

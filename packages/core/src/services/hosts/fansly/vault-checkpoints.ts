@@ -23,6 +23,10 @@
 //   the module's first start in a background (`sweep`).
 // - Writes of one key run one after another: a slow write never lands after a later one.
 // - Names of the person's files are in the row (the run checks the same files by them); the log hears ids and counts.
+// - Fansly switched off or its rights taken back (FS-PERM-5; R20 P14c): a write that hands a file over (`pending`) is
+//   refused (`recorded: false` — the tab hands nothing over and its run stops there); a write of what already happened
+//   (a confirmation, the person's answer, a file found in the album) is still kept. So a run stops at its checkpoint:
+//   the file in flight lands and is recorded, the next one is not begun, and the row says exactly where to go on from.
 
 import { VaultCheckpointSchema, vaultCheckpointFollows, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 
@@ -45,6 +49,8 @@ export interface VaultCheckpointsDeps {
   readonly log?: ServiceLog;
   /** Whether the tab session that holds an album is still registered; absent — a holder holds for the background's life. */
   readonly alive?: (holder: string) => boolean;
+  /** Fansly on and its rights granted (FS-PERM-5); false — no file is handed over. Absent — on. */
+  readonly active?: () => boolean;
 }
 
 /** `held` — another open tab holds the album: nothing was read for writing, nothing written. */
@@ -121,6 +127,10 @@ export function createVaultCheckpoints(deps: VaultCheckpointsDeps): VaultCheckpo
     checkpoint(checkpoint, holder) {
       const key = vaultCheckpointKey(checkpoint.hostAccountId, checkpoint.albumId);
       return serial(key, async (): Promise<VaultAck> => {
+        if (checkpoint.pending !== null && deps.active?.() === false) {
+          log({ level: 'info', scope: 'bg.fansly.vault', msg: 'checkpoint refused: Fansly is off, no file is handed over', fields: { confirmed: checkpoint.confirmed } });
+          return { recorded: false };
+        }
         if (heldFrom(key, holder)) {
           log({ level: 'warn', scope: 'bg.fansly.vault', msg: 'checkpoint refused: another tab holds the album' });
           return HELD;

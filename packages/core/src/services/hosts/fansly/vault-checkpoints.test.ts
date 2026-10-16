@@ -35,8 +35,9 @@ function world() {
   const kv = createMemoryKv();
   const clock = manualClock(T0);
   const logs: string[] = [];
-  const start = () => createVaultCheckpoints({ local: kv.open(), now: () => clock.now(), log: (entry) => logs.push(entry.msg) });
-  return { kv, clock, logs, start };
+  const access = { on: true };
+  const start = () => createVaultCheckpoints({ local: kv.open(), now: () => clock.now(), log: (entry) => logs.push(entry.msg), active: () => access.on });
+  return { kv, clock, logs, start, access };
 }
 
 describe('[host:fansly] the vault’s checkpoints in the background (R20 P13b)', () => {
@@ -52,6 +53,23 @@ describe('[host:fansly] the vault’s checkpoints in the background (R20 P13b)',
     // The event page unloads; a new background over the same storage.local answers the next panel.
     const second = w.start();
     expect(answer('fansly.vault.resume', await second.resume(ref))).toEqual({ checkpoint: row({ confirmed: 1, pending: null }) });
+  });
+
+  it('[FS-PERM-5] Fansly switched off or its rights taken back mid-run: the file in flight is recorded, the next one is not handed over — the row says where to go on from; on again, it goes on', async () => {
+    const w = world();
+    const store = w.start();
+    expect(await store.checkpoint(row())).toEqual({ recorded: true });
+    w.access.on = false;
+    // The file in flight landed: its confirmation is kept.
+    expect(answer('fansly.vault.checkpoint', await store.checkpoint(row({ confirmed: 1, pending: null })))).toEqual({ recorded: true });
+    // The next handoff is refused: nothing goes to the page, the row stays at the confirmation.
+    expect(answer('fansly.vault.checkpoint', await store.checkpoint(row({ confirmed: 1, pending: { index: 1, passedAt: T0 + 1 } })))).toEqual({ recorded: false });
+    expect(w.kv.read(vaultCheckpointKey(CREATOR, ALBUM))).toEqual(row({ confirmed: 1, pending: null }));
+    expect(w.logs).toContain('checkpoint refused: Fansly is off, no file is handed over');
+    // Reading and the person's reset are not handoffs.
+    expect(await store.resume(ref)).toEqual({ checkpoint: row({ confirmed: 1, pending: null }) });
+    w.access.on = true;
+    expect(await store.checkpoint(row({ confirmed: 1, pending: { index: 1, passedAt: T0 + 2 } }))).toEqual({ recorded: true });
   });
 
   it('[VA-005] one upload per album: another upload’s write is refused while the album’s row is alive; the person’s reset clears exactly that upload', async () => {

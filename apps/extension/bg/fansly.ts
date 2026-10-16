@@ -62,6 +62,14 @@
 // is the pass's row and the draft's revision; every history the pass walks
 // confirms the receipts it shows.
 //
+// R20 P14c: Fansly switched off or its rights taken back while tabs still run
+// our copies (FS-PERM-5; `kit.siteActive`): nothing new begins — an AI start, a
+// pass of «Новые», a greeting, a read of Fansly's — and the send and the vault
+// stop by their own rules (core send.ts: refused before the request; core
+// vault-checkpoints.ts: no file handed over after the one in flight). What
+// finishes started work still goes: the tab's echoes, the vault's
+// confirmations, the relay frame's requests in flight, reads of what is kept.
+//
 // R20 P7i: the module brings Fansly's slice of the feature manifest
 // (docs/project-unite/architecture.md §1.4). The core's graph never has a file
 // of Fansly's, so it admits a generation of a Fansly chat and an insert token
@@ -103,6 +111,12 @@ const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
 const unreachable = (detail: string): HostAnswer => ({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail } });
 /** A read or a write of `settings.ext`: its state, or the owner's code (CG-STORAGE-READ, -WRITE, -VERSION). */
 const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? ok(answer.state) : { ok: false, error: answer.error });
+
+/**
+ * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
+ * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself.
+ */
+const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve']);
 
 /** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
 async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, type: string, payload: unknown): Promise<HostAnswer> {
@@ -152,6 +166,8 @@ function greetingSend(kit: BackgroundKit, api: FanslyApi, live: FanslySendLive, 
       ids: kit.ids,
       log: kit.log.service,
       countUncertain: () => kit.telemetry.countCode('CG-SEND-UNCERTAIN'),
+      // FS-PERM-5: switched off or its rights taken back — no new attempt; one not yet requested is refused.
+      active: () => kit.siteActive?.() !== false,
     }),
   );
 }
@@ -173,6 +189,8 @@ export function fanslyRegistry(handle: HostSiteRegistry['handle'], relayGone?: H
 }
 
 async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
+  /** Fansly on and its rights granted now (FS-PERM-5); a kit without the switch — on. */
+  const active = (): boolean => kit.siteActive?.() !== false;
   const session = kit.networkSession;
   await session?.ready.catch(() => undefined);
   let settingsReady = false;
@@ -214,7 +232,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const clientNow = async () => (__CG_TEST_HOSTS__ ? (session === undefined || api === null ? null : await standFanslyClient(kit, session, api)) : (api?.client ?? null));
   const notes = createNotesService(kit, clientNow);
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
-  const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
+  const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session), active });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
   const operations = createFanslyOperations((view) => kit.site?.emit('fansly.ops.done', { view }));
   const journal = kit.site === undefined ? null : kit.log.passJournal ?? null;
@@ -226,6 +244,10 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     const tab = sender.tabSessionId;
     const relayed = relay.handle(type, payload, sender);
     if (relayed !== null) return relayed;
+    if (!active()) {
+      if (type === 'fansly.ops.start') return unreachable('Fansly is off');
+      if (BEGINS.has(type)) return ok({ ok: false, error: { code: 'CG-FAN-OFF' } });
+    }
     if (type === 'fansly.spenders.names' || type === 'fansly.spenders.resolve') {
       if (spenders === null) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
       const account = (payload as { hostAccountId: string }).hostAccountId;

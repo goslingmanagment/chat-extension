@@ -48,7 +48,7 @@ interface Background {
 }
 
 /** The core's RPC and Fansly's module as an event page starts them: the kit's `site` port is the core's (composition/background.ts). */
-function backgroundOf(context: FakeContext, kv: MemoryKv): Background {
+function backgroundOf(context: FakeContext, kv: MemoryKv, access: { on: boolean } = { on: true }): Background {
   const rpc = createBackgroundRpc({ api: context.api, tabHosts: TAB_HOSTS, ready: Promise.resolve(), contractsVersion: CONTRACTS_VERSION, testBuild: true, siteWaitMs: 2_000 });
   const kit = {
     storage: { local: kv.open() },
@@ -56,6 +56,8 @@ function backgroundOf(context: FakeContext, kv: MemoryKv): Background {
     log: { service: () => undefined },
     router: { tabs: () => rpc.tabs().map((tab) => tab.tabSessionId) },
     site: { plug: (registry: HostSiteRegistry) => rpc.site({ ...registry, host: 'fansly-web' }) },
+    // R20 P14c: «Включить Fansly» and the browser's rights, as the core's site access reads them now (FS-PERM-5).
+    siteActive: () => access.on,
   } as unknown as BackgroundKit;
   return { rpc, module: fanslyModule().start(kit) };
 }
@@ -63,6 +65,8 @@ function backgroundOf(context: FakeContext, kv: MemoryKv): Background {
 interface World {
   readonly fake: FakeBrowser;
   readonly kv: MemoryKv;
+  /** Fansly on and its rights granted (the core's site access). */
+  readonly access: { on: boolean };
   readonly backgrounds: Background[];
   tab(id?: number): TabRpcClient;
 }
@@ -76,10 +80,12 @@ function world(): World {
   const fake = createFakeBrowser();
   const kv = createMemoryKv();
   const backgrounds: Background[] = [];
-  fake.onWake((context) => backgrounds.push(backgroundOf(context, kv)));
+  const access = { on: true };
+  fake.onWake((context) => backgrounds.push(backgroundOf(context, kv, access)));
   const w: World = {
     fake,
     kv,
+    access,
     backgrounds,
     tab(id = 12) {
       const url = `${FANSLY_ORIGIN}/creator/vault`;
@@ -135,6 +141,27 @@ describe('[host:fansly] the vault’s checkpoints between the tab and the backgr
     await until(() => second.state() === 'ready', 'the reloaded tab registered');
     expect(await vaultStoreOf(second).load(target)).toEqual(checkpoint(1, 1));
     expect(w.kv.read(`fansly.vault.${CREATOR}.${ALBUM}`)).toEqual(checkpoint(1, 1));
+  });
+
+  it('[FS-PERM-5] Fansly switched off or its rights taken back while the tab runs (R20 P14c): nothing new begins — a pass, a greeting, a read of Fansly’s answer CG-FAN-OFF; the vault hands no next file over, the one in flight is still recorded', async () => {
+    const w = world();
+    const client = w.tab();
+    await until(() => client.state() === 'ready', 'the tab registered');
+    const store = vaultStoreOf(client);
+    expect(await store.save(checkpoint(0, 0))).toBe(true);
+    w.access.on = false;
+    // The file in flight landed: its confirmation is kept; the next one is not handed over.
+    expect(await store.save(checkpoint(1, null))).toBe(true);
+    expect(await store.save(checkpoint(1, 1))).toBe(false);
+    expect(await store.load(target)).toEqual(checkpoint(1, null));
+    const off = { ok: true, payload: { ok: false, error: { code: 'CG-FAN-OFF' } } };
+    expect(await fanslyRequest(client, 'fansly.followers.scan', { hostAccountId: CREATOR, windowHours: 48 })).toEqual(off);
+    expect(await fanslyRequest(client, 'fansly.registration.read', { pageId: 13, hostAccountId: CREATOR, groupId: '810000000000000001' })).toEqual(off);
+    expect(await fanslyRequest(client, 'fansly.spenders.names', { hostAccountId: CREATOR, fanRefs: ['920000000000000003'] })).toEqual(off);
+    // On again: the run goes on from its checkpoint.
+    w.access.on = true;
+    expect(await store.save(checkpoint(1, 1))).toBe(true);
+    expect(await fanslyRequest(client, 'fansly.registration.read', { pageId: 13, hostAccountId: CREATOR, groupId: '810000000000000001' })).not.toEqual(off);
   });
 
   it('[VA-005] one tab at a time (review of P13b): the tab that wrote the album’s row holds it while its session is registered — another tab’s write is answered `held` and its read says so; the holder’s tab gone, the album is free', async () => {
