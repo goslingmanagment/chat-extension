@@ -4,14 +4,19 @@
 // «+ Заметка» and «+ По шаблону», and where the panel stands. FBuddy's «FBuddy Notes» is shown with a mark and no
 // action: someone else's. Its model is the panel's own client (contracts notes-fansly.ts); nothing here reads the
 // page or the network.
+//
+// A questionnaire (R20 P11b2; the Fansly extension 2.12.0, E166) reads as a table — the label, its facts one per line,
+// the month a fact was said at the right, the empty fields folded into one line — and is edited field by field, one
+// fact per line; «Текстом» / «Полями» switch to the note's one text and back. The Goose's rewrite of a field stands
+// under that field with «Принять» and «Не нужно» (R20 P11c fills it).
 
-import type { JSX } from 'preact';
+import type { JSX, Ref } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import type { I18nKey } from '@cg/contracts/errors';
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NotesClient, NotesCopy, NotesEditorVM, NotesPanelVM } from '@cg/contracts/notes-fansly';
+import type { NotesClient, NotesCopy, NotesEditorVM, NotesFormPartVM, NotesPanelVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
 import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
@@ -69,6 +74,118 @@ function NameField({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }):
   );
 }
 
+type FieldPart = Extract<NotesFormPartVM, { readonly kind: 'field' }>;
+
+/** A questionnaire to read: the label, its facts one per line, the month a fact was said at the right. */
+function FormView({ copy, form }: { readonly copy: NotesCopy; readonly form: readonly NotesFormPartVM[] }): JSX.Element {
+  const blank = form.filter((part): part is FieldPart => part.kind === 'field' && part.facts.length === 0).map((part) => part.label);
+  return (
+    <div class="cg-notes__form" data-notes-form="">
+      <dl class="cg-notes__fields">
+        {form.map((part, at) =>
+          part.kind === 'text' ? (
+            <div key={`t${String(at)}`} class="cg-notes__free">
+              {part.text}
+            </div>
+          ) : part.facts.length === 0 ? null : (
+            <div key={`f${part.label}`} class="cg-notes__pair" data-notes-field={part.label}>
+              <dt class="cg-notes__label">{part.label}</dt>
+              <dd class="cg-notes__value" {...(part.facts.length > 1 ? { 'data-many': '' } : {})}>
+                {part.facts.map((fact, index) => (
+                  <span key={index} class="cg-notes__fact">
+                    <span class="cg-notes__fact-t">{fact.text}</span>
+                    {fact.date === null ? null : (
+                      <span class="cg-notes__fact-date" title={copy.factDate}>
+                        {fact.date}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </dd>
+            </div>
+          ),
+        )}
+      </dl>
+      {blank.length === 0 ? null : <p class="cg-notes__blank">{`${copy.blank}: ${blank.join(', ')}`}</p>}
+    </div>
+  );
+}
+
+/** The Goose's rewrite of a field: what it adds and drops, the fan's words behind it, «Принять» and «Не нужно». */
+function Suggestion({ client, copy, suggestion, named, saving }: Props & { readonly suggestion: NotesSuggestionVM; readonly named: boolean; readonly saving: boolean }): JSX.Element {
+  // A rewrite that only reorders or respaces has no fact to single out: shown whole.
+  const whole = suggestion.added.length === 0 && suggestion.removed.length === 0;
+  const title = whole || suggestion.removed.length > 0 ? copy.suggestReplace : copy.suggestAdd;
+  return (
+    <div class="cg-notes__suggest" data-notes-suggestion={suggestion.index}>
+      <div class="cg-notes__suggest-head">
+        <span class="cg-notes__suggest-t">{named ? `${title} ${copy.suggestIn} «${suggestion.label}»` : title}</span>
+        <Button variant="quiet" size="sm" label={copy.accept} {...(saving ? { reason: copy.saving } : {})} onClick={() => client.dispatch({ type: 'suggestion', index: suggestion.index, accept: true })} />
+        <Button variant="quiet" size="sm" iconOnly icon="x" label={copy.dismiss} onClick={() => client.dispatch({ type: 'suggestion', index: suggestion.index, accept: false })} />
+      </div>
+      <div class="cg-notes__suggest-facts">
+        {suggestion.removed.map((fact) => (
+          <del key={`-${fact}`} class="cg-notes__fact-del">
+            {fact}
+          </del>
+        ))}
+        {(whole ? [suggestion.proposed] : suggestion.added).map((fact) => (
+          <ins key={`+${fact}`} class="cg-notes__fact-add">
+            {fact}
+          </ins>
+        ))}
+      </div>
+      {suggestion.quotes.length === 0 ? null : (
+        <ul class="cg-notes__quotes">
+          {suggestion.quotes.map((quote) => (
+            <li key={quote}>«{quote}»</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** A field's facts as the note keeps them: one per line in the box, «; » in the note. */
+const factsOf = (value: string): string =>
+  value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('; ')
+    .replace(/;\s+/g, '; ');
+
+/** A field's box: one fact per line. What the person typed stays as typed (a new empty line, a trailing space) while
+ * the note holds the same facts; a change from elsewhere (a rewrite accepted, the text edited) replaces it. */
+function FieldRow({ client, copy, part, saving, inputRef }: Props & { readonly part: FieldPart; readonly saving: boolean; readonly inputRef?: Ref<HTMLInputElement | HTMLTextAreaElement> }): JSX.Element {
+  const typed = useRef<string | null>(null);
+  const value = typed.current !== null && factsOf(typed.current) === factsOf(part.value) ? typed.current : part.value;
+  return (
+    <div class="cg-notes__frow" data-notes-field={part.label}>
+      <span class="cg-notes__label">{part.label}</span>
+      <div class="cg-notes__cell">
+        <TextField
+          multiline
+          minHeight={28}
+          maxHeight={200}
+          value={value}
+          label={part.label}
+          {...(inputRef === undefined ? {} : { inputRef })}
+          onValue={(next) => {
+            typed.current = next;
+            client.dispatch({ type: 'field', label: part.label, value: next });
+          }}
+          onEscape={() => true}
+          {...(saving ? { reason: copy.saving } : {})}
+        />
+        {part.suggestions.map((suggestion) => (
+          <Suggestion key={suggestion.index} client={client} copy={copy} suggestion={suggestion} named={false} saving={saving} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditorVM }): JSX.Element {
   const text = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const errorText = useErrorText();
@@ -79,6 +196,11 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
     field.setSelectionRange(field.value.length, field.value.length);
   }, [editor.noteId]);
   const problem = editor.problem;
+  const fields = editor.asText ? null : editor.form;
+  const first = fields?.find((part): part is FieldPart => part.kind === 'field');
+  // A rewrite stands under its field; with no field to stand under (the text, a field edited away) — after them.
+  const placed = new Set(fields?.flatMap((part) => (part.kind === 'field' ? part.suggestions.map((suggestion) => suggestion.index) : [])));
+  const loose = editor.suggestions.filter((suggestion) => !placed.has(suggestion.index));
   return (
     <div
       class="cg-notes__edit"
@@ -90,20 +212,50 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
         }
       }}
     >
-      <TextField value={editor.title} label={copy.titlePlaceholder} placeholder={copy.titlePlaceholder} onValue={(title) => client.dispatch({ type: 'input', title, text: editor.text })} {...(editor.saving ? { reason: copy.saving } : {})} />
-      <TextField
-        multiline
-        minHeight={72}
-        maxHeight={320}
-        value={editor.text}
-        label={copy.textPlaceholder}
-        placeholder={copy.textPlaceholder}
-        inputRef={text}
-        onValue={(value) => client.dispatch({ type: 'input', title: editor.title, text: value })}
-        // The field's Esc keeps the draft and the panel: nothing typed goes by a stray key.
-        onEscape={() => true}
-        {...(editor.saving ? { reason: copy.saving } : {})}
-      />
+      <div class="cg-notes__edit-head">
+        <TextField value={editor.title} label={copy.titlePlaceholder} placeholder={copy.titlePlaceholder} onValue={(title) => client.dispatch({ type: 'input', title, text: editor.text })} {...(editor.saving ? { reason: copy.saving } : {})} />
+        {editor.form === null ? null : (
+          <Button
+            variant="quiet"
+            size="sm"
+            label={editor.asText ? copy.asFields : copy.asText}
+            tooltip={editor.asText ? copy.asFieldsHint : copy.asTextHint}
+            class="cg-notes__mode"
+            {...(editor.saving ? { reason: copy.saving } : {})}
+            onClick={() => client.dispatch({ type: 'as-text', on: !editor.asText })}
+          />
+        )}
+      </div>
+      {fields === null ? (
+        <TextField
+          multiline
+          minHeight={72}
+          maxHeight={320}
+          value={editor.text}
+          label={copy.textPlaceholder}
+          placeholder={copy.textPlaceholder}
+          inputRef={text}
+          onValue={(value) => client.dispatch({ type: 'input', title: editor.title, text: value })}
+          // The field's Esc keeps the draft and the panel: nothing typed goes by a stray key.
+          onEscape={() => true}
+          {...(editor.saving ? { reason: copy.saving } : {})}
+        />
+      ) : (
+        <div class="cg-notes__rows" data-notes-fields="">
+          {fields.map((part, at) =>
+            part.kind === 'text' ? (
+              <div key={`t${String(at)}`} class="cg-notes__free" title={copy.freeLine}>
+                {part.text}
+              </div>
+            ) : (
+              <FieldRow key={`f${part.label}`} client={client} copy={copy} part={part} saving={editor.saving} {...(part === first ? { inputRef: text } : {})} />
+            ),
+          )}
+        </div>
+      )}
+      {loose.map((suggestion) => (
+        <Suggestion key={suggestion.index} client={client} copy={copy} suggestion={suggestion} named saving={editor.saving} />
+      ))}
       {problem === null ? null : (
         <p class="cg-notes__problem" role="alert" data-notes-problem={problem.kind}>
           {problem.kind === 'failed' ? problem.error.code === 'CG-NOTE-WRITE' && problem.error.detail === 'changed' ? copy.problem.changed : `${errorText(problem.error)}. ${copy.problem[problem.created ? 'failed-create' : 'failed-edit']}` : copy.problem[problem.kind]}
@@ -117,10 +269,11 @@ function NoteItem({ client, copy, vm, note }: Props & { readonly vm: NotesPanelV
   const errorText = useErrorText();
   const asked = vm.confirmDelete === note.noteId;
   const deleting = vm.deleting === note.noteId;
+  const form = vm.forms[note.noteId];
   return (
     <li class={`cg-notes__note${note.foreign ? ' is-foreign' : ''}`} data-note-id={note.noteId} {...(note.foreign ? { 'data-foreign': 'true' } : {})}>
       <div class="cg-notes__note-head">
-        <span class="cg-notes__note-title">{note.title === '' ? copy.untitled : note.title}</span>
+        <span class="cg-notes__note-title">{note.title !== '' ? note.title : form === undefined ? copy.untitled : copy.questionnaire}</span>
         {note.foreign ? (
           <span class="cg-notes__tag" title={copy.foreignHint}>
             <Icon name="lock" size={12} />
@@ -133,7 +286,7 @@ function NoteItem({ client, copy, vm, note }: Props & { readonly vm: NotesPanelV
           </span>
         ) : null}
       </div>
-      {note.text === '' ? null : <p class="cg-notes__note-text">{note.text}</p>}
+      {form !== undefined ? <FormView copy={copy} form={form} /> : note.text === '' ? null : <p class="cg-notes__note-text">{note.text}</p>}
       {asked ? (
         <div class="cg-notes__confirm" role="alert" data-notes-confirm="">
           <span class="cg-notes__confirm-t">{vm.deleteError === null ? copy.removeAsk : errorText(vm.deleteError)}</span>

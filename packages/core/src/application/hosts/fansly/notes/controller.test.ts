@@ -256,8 +256,8 @@ describe('[host:fansly] «Заметки»: the controller (R20 P11b)', () => {
   });
 
   it('[FX-008] «+ По шаблону» starts the agency’s questionnaire; one per fan', async () => {
-    expect(NOTE_TEMPLATE_LABELS).toEqual(['Имя', 'Локация', 'Возраст', 'Работа', 'Хобби', 'Фетиши', 'Характеристика', 'Медиа']);
-    expect(NOTE_TEMPLATE_TEXT).toBe('Имя: \nЛокация: \nВозраст: \nРабота: \nХобби: \nФетиши: \nХарактеристика: \nМедиа: ');
+    expect(NOTE_TEMPLATE_LABELS).toEqual(['Имя', 'Локация', 'Возраст', 'Работа', 'График', 'Хобби', 'Планы и даты', 'Фетиши', 'Характеристика', 'Медиа', 'Другое']);
+    expect(NOTE_TEMPLATE_TEXT).toBe('Имя: \nЛокация: \nВозраст: \nРабота: \nГрафик: \nХобби: \nПланы и даты: \nФетиши: \nХарактеристика: \nМедиа: \nДругое: ');
     expect(isQuestionnaire(NOTE_TEMPLATE_TEXT)).toBe(true);
     expect(isQuestionnaire('Имя: Алекс\nрассказал про собаку')).toBe(false);
     const w = world();
@@ -268,5 +268,37 @@ describe('[host:fansly] «Заметки»: the controller (R20 P11b)', () => {
     w.go(B);
     await w.tick();
     expect(w.notes.panel().template).toBe(true);
+  });
+
+  it('[FX-008] [FS-NOTE-2] a questionnaire reads as fields; a field typed rewrites its own line; «Текстом» edits the one text (R20 P11b2)', async () => {
+    const w = world();
+    w.notes.toggle();
+    await w.settle();
+    // Note 1 is a questionnaire, FBuddy’s is someone else’s text.
+    expect(w.notes.panel().forms['1']).toEqual([
+      { kind: 'field', label: 'Имя', facts: [{ text: 'Алекс', date: null }], value: 'Алекс', suggestions: [] },
+      { kind: 'field', label: 'Локация', facts: [{ text: 'Рига', date: null }], value: 'Рига', suggestions: [] },
+    ]);
+    expect(w.notes.panel().forms['2']).toBeUndefined();
+    w.notes.dispatch({ type: 'edit', noteId: '1' });
+    expect(w.notes.panel().editor).toMatchObject({ asText: false, suggestions: [], form: [{ label: 'Имя' }, { label: 'Локация' }] });
+    w.notes.dispatch({ type: 'field', label: 'Локация', value: 'Рига\n\nпереехал в Берлин (10.2026)\n' });
+    expect(w.notes.panel().editor?.text).toBe('Имя: Алекс\nЛокация: Рига; переехал в Берлин (10.2026)');
+    expect(w.notes.panel().editor?.form?.[1]).toMatchObject({ facts: [{ text: 'Рига', date: null }, { text: 'переехал в Берлин', date: '10.2026' }], value: 'Рига\nпереехал в Берлин (10.2026)' });
+    w.notes.dispatch({ type: 'as-text', on: true });
+    expect(w.notes.panel().editor).toMatchObject({ asText: true });
+    w.notes.dispatch({ type: 'input', title: 'Анкета', text: 'просто текст' });
+    expect(w.notes.panel().editor).toMatchObject({ form: null, text: 'просто текст' });
+    // A field of no questionnaire, a rewrite that is not there: nothing changes.
+    w.notes.dispatch({ type: 'field', label: 'Имя', value: 'Саша' });
+    w.notes.dispatch({ type: 'suggestion', index: 0, accept: true });
+    expect(w.notes.panel().editor?.text).toBe('просто текст');
+    w.notes.dispatch({ type: 'cancel' });
+    w.notes.dispatch({ type: 'create', template: true });
+    expect(w.notes.panel().editor?.form?.map((part) => (part.kind === 'field' ? part.label : part.text))).toEqual(NOTE_TEMPLATE_LABELS);
+    w.notes.dispatch({ type: 'field', label: 'График', value: 'ночные смены' });
+    w.notes.dispatch({ type: 'save' });
+    await w.settle();
+    expect(w.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, 'Анкета', NOTE_TEMPLATE_TEXT.replace('График: ', 'График: ночные смены').trimEnd());
   });
 });

@@ -1,4 +1,4 @@
-// P11b: «Заметки» on the Fansly stand — the actual MV3 extension in headless Firefox, the page's MAIN, the background's
+// P11b, P11b2: «Заметки» on the Fansly stand — the actual MV3 extension in headless Firefox, the page's MAIN, the background's
 // real `fansly-api` client and pacer against the fake Fansly's own note endpoints, all on loopback (FS-NOTE-1…5,
 // FX-004…FX-013). The stand's chat spans the window, so «Всегда справа» finds no free column here until a test caps it.
 import type { DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
@@ -22,6 +22,11 @@ const B = WORLD.fansly.chats.b;
 const SLOT = '[data-header-order="20"]';
 /** Never anywhere but between the panel and the background (FS-NOTE-5). */
 const SECRET = 'zebra-quartz-7731';
+/** The questionnaire as the Fansly extension 2.11–2.12 stores it (R20 P11b2): the text both clients read and write. */
+const LABELS = ['Имя', 'Локация', 'Возраст', 'Работа', 'График', 'Хобби', 'Планы и даты', 'Фетиши', 'Характеристика', 'Медиа', 'Другое'];
+const TEMPLATE = LABELS.map((label) => `${label}: `).join('\n');
+/** One its 2.10 left: eight entries, a stamped month, a line written under a field, a line after a blank one. */
+const OLD = 'Имя: Wayne\nЛокация: Флорида (08.2026)\nВозраст: \nРабота: медбрат\nХобби: \nФетиши: \nХарактеристика: депрессивный чел\nнужно поддерживать вайб\nМедиа: \n\nпросил кастом';
 
 const button = () => $(SLOT).shadow$('.cg-nb__button');
 const shown = () => oursExists('panel', '.cg-notes');
@@ -39,6 +44,9 @@ const type = async (selector: string, text: string) => {
   await ours('panel', selector).click();
   await browser.keys(text.split(''));
 };
+const value = (selector: string) => readOurs('panel', selector, (node) => (node as HTMLTextAreaElement).value);
+const fieldRows = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll('[data-notes-field]')].map((item) => item.getAttribute('data-notes-field')));
+const tableLabels = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll('dt')].map((item) => item.textContent));
 
 describe('Fansly «Заметки» (R20 P11b)', () => {
   useNetworkTrap();
@@ -147,6 +155,55 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')) && (await body()) === 'ready', { timeout: 15_000, timeoutMsg: 'B’s notes without A’s draft' });
     await callFansly('open', A.group, 'router');
     await browser.waitUntil(async () => (await readOurs('panel', '[data-notes-editor="new"] textarea', (node) => (node as HTMLTextAreaElement).value)) === 'half typed', { timeout: 15_000, timeoutMsg: 'A’s draft is lost' });
+    await pressIn('.cg-notes__foot button', 'Отмена');
+  });
+
+  it('[FX-008] [FX-011] [FS-NOTE-2] the questionnaire: eleven fields typed one by one, «Текстом» the text Fansly keeps; an old one read as a table and edited field by field, its other lines as they were (R20 P11b2)', async () => {
+    await waitBody('ready');
+    const before = await fakeFansly().mark();
+    await pressIn('.cg-notes__foot button', '+ По шаблону');
+    const editor = '[data-notes-editor="new"]';
+    expect(await fieldRows(editor)).toEqual(LABELS);
+    await type(`${editor} [data-notes-field="Имя"] textarea`, 'Alex');
+    await type(`${editor} [data-notes-field="График"] textarea`, 'nights');
+    await browser.keys([Key.Enter, ...'weekends'.split('')]);
+    expect(await value(`${editor} [data-notes-field="График"] textarea`)).toBe('nights\nweekends');
+    await pressIn(`${editor} button`, 'Текстом');
+    const typed = TEMPLATE.replace('Имя: ', 'Имя: Alex').replace('График: ', 'График: nights; weekends');
+    expect(await value(`${editor} textarea`)).toBe(typed);
+    await pressIn(`${editor} button`, 'Полями');
+    mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
+    for (const theme of ['bright', 'dark'] as const) {
+      await callFansly('setTheme', theme);
+      await browser.waitUntil(async () => (await $(SLOT).getAttribute('data-scheme')) === (theme === 'bright' ? 'light' : 'dark'));
+      await browser.saveScreenshot(`${E2E_EVIDENCE_DIR}/suite-fansly-notes-form-${theme}.png`);
+    }
+    await ours('panel', '[data-notes-save]').click();
+    await browser.waitUntil(async () => (await noteIds()).length === 3, { timeout: 15_000, timeoutMsg: 'the questionnaire is not listed' });
+    expect(await routes(before)).toEqual(['notes.create']);
+    const created = (await noteIds())[2] as string;
+    expect(await tableLabels(`[data-note-id="${created}"] [data-notes-form]`)).toEqual(['Имя', 'График']);
+    expect(await readOurs('panel', '.cg-notes__foot', (node) => node.textContent ?? '')).not.toContain('+ По шаблону');
+
+    // What the old extension wrote: read as a table, one field edited, every other line kept byte for byte.
+    await fakeFansly().command({ op: 'note', fanId: A.fan, title: 'Анкета', note: OLD });
+    await ours('panel', 'button[aria-label="Обновить"]').click();
+    await browser.waitUntil(async () => (await noteIds()).length === 4, { timeout: 15_000, timeoutMsg: 'the old questionnaire is not read' });
+    const old = (await noteIds())[3] as string;
+    expect(await tableLabels(`[data-note-id="${old}"] [data-notes-form]`)).toEqual(['Имя', 'Локация', 'Работа', 'Характеристика']);
+    await pressIn(`[data-note-id="${old}"] button`, 'Изменить');
+    await ours('panel', `[data-notes-editor="${old}"] [data-notes-field="Работа"] textarea`).click();
+    await browser.keys([Key.End, Key.Enter, ...'nights'.split('')]);
+    const since = await fakeFansly().mark();
+    await ours('panel', '[data-notes-save]').click();
+    await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')), { timeout: 15_000 });
+    expect(await routes(since)).toEqual(['notes.edit']);
+    await ours('panel', 'button[aria-label="Обновить"]').click();
+    await browser.waitUntil(async () => (await routes(since)).length === 2, { timeout: 15_000 });
+    await waitBody('ready');
+    await pressIn(`[data-note-id="${old}"] button`, 'Изменить');
+    await pressIn(`[data-notes-editor="${old}"] button`, 'Текстом');
+    expect(await value(`[data-notes-editor="${old}"] textarea`)).toBe(OLD.replace('Работа: медбрат', 'Работа: медбрат; nights'));
     await pressIn('.cg-notes__foot button', 'Отмена');
   });
 

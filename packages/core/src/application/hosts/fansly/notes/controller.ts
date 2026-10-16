@@ -12,14 +12,18 @@
 //   have landed); a text over the limits is refused, never cut.
 // - Drafts are kept per fan (FS-NOTE-2): another chat in the middle of an edit loses nothing.
 // - FBuddy's «FBuddy Notes» (`foreign`) is shown, never edited or deleted.
+// - A questionnaire (R20 P11b2, the Fansly extension 2.12.0) reads as a table of fields and is edited field by field
+//   over the same text (form.ts): a field typed rewrites its own line, every other line keeps its bytes; «Текстом»
+//   edits it as one text. The Goose's rewrites wait under their field until «Принять» or «Не нужно» (R20 P11c).
 // - A note's text never leaves through here but to the background (FS-NOTE-5): nothing is logged.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
-import type { NotesAction, NotesClient, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
+import type { NotesAction, NotesClient, NotesEditorVM, NotesFormPartVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesSuggestionVM, NotesTriggerVM } from '@cg/contracts/notes-fansly';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
-import { NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE, isQuestionnaire } from './template';
+import { applyFieldSuggestion, diffNoteFacts, noteLabelKey, parseNoteForm, setNoteFieldFacts, splitFactDate, type NoteFieldSuggestion, type NoteFormPart } from './form';
+import { NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
 
 /** «Всегда справа» follows the open chat only once the person stays on it this long (FS-NOTE-3). */
 export const NOTES_FOLLOW_DELAY_MS = 700;
@@ -28,6 +32,42 @@ const KEPT_CHATS = 300;
 
 type Failure = { readonly ok: false; readonly error: CgAnyErrorWire };
 type CustomName = { readonly noteId: string; readonly name: string };
+
+function suggestionVM(suggestion: NoteFieldSuggestion, index: number): NotesSuggestionVM {
+  const { added, removed } = diffNoteFacts(suggestion.current, suggestion.proposed);
+  return { index, label: suggestion.label, added, removed, proposed: suggestion.proposed, quotes: suggestion.quotes };
+}
+
+/** The questionnaire's parts for the panel; each field carries the Goose's rewrites of it. */
+function formVM(parts: readonly NoteFormPart[], suggestions: readonly NotesSuggestionVM[]): NotesFormPartVM[] {
+  return parts.map((part) =>
+    part.kind === 'text'
+      ? { kind: 'text', text: part.text }
+      : {
+          kind: 'field',
+          label: part.label,
+          facts: part.facts.map(splitFactDate),
+          value: part.facts.join('\n'),
+          suggestions: suggestions.filter((suggestion) => noteLabelKey(suggestion.label) === noteLabelKey(part.label)),
+        },
+  );
+}
+
+function editorVM(draft: Draft): NotesEditorVM {
+  const suggestions = draft.suggestions.map(suggestionVM);
+  const parts = parseNoteForm(draft.text);
+  return {
+    noteId: draft.noteId,
+    title: draft.title,
+    text: draft.text,
+    saving: draft.saving,
+    blocked: draft.blocked,
+    problem: draft.problem,
+    form: parts === null ? null : formVM(parts, suggestions),
+    asText: draft.asText,
+    suggestions,
+  };
+}
 
 /** The open one-to-one chat where the owner switched «Заметки» on. `fanId` null — MAIN has not named its fan. */
 export interface NotesTarget {
@@ -78,6 +118,9 @@ interface Draft {
   saving: boolean;
   blocked: boolean;
   problem: NotesProblem | null;
+  asText: boolean;
+  /** The Goose's rewrites of filled fields (R20 P11c puts them here). */
+  suggestions: NoteFieldSuggestion[];
 }
 
 interface NameState {
@@ -122,6 +165,15 @@ export function createNotesController(port: NotesPort): NotesController {
   let panelVM: NotesPanelVM | null = null;
   let triggerVM: NotesTriggerVM | null = null;
   let shape = '';
+  /** A note's questionnaire, parsed once per note read (the panel builds on every keystroke). */
+  const forms = new WeakMap<FanslyNote, readonly NotesFormPartVM[] | null>();
+  const formOf = (note: FanslyNote): readonly NotesFormPartVM[] | null => {
+    if (!forms.has(note)) {
+      const parts = note.foreign ? null : parseNoteForm(note.text);
+      forms.set(note, parts === null ? null : formVM(parts, []));
+    }
+    return forms.get(note) ?? null;
+  };
 
   const target = (): NotesTarget | null => {
     const next = port.session();
@@ -164,12 +216,16 @@ export function createNotesController(port: NotesPort): NotesController {
       error: entry?.kind === 'error' ? entry.error : null,
       notes: data?.notes ?? [],
       name: { value: (fanId === null ? undefined : nameDrafts.get(fanId)?.value) ?? data?.customName?.name ?? '', status: name?.status ?? 'idle', error: name?.error ?? null },
-      editor: draft === undefined ? null : { noteId: draft.noteId, title: draft.title, text: draft.text, saving: draft.saving, blocked: draft.blocked, problem: draft.problem },
+      editor: draft === undefined ? null : editorVM(draft),
       confirmDelete: confirm !== null && confirm.fanId === fanId ? confirm.noteId : null,
       deleting: deleting !== null && deleting.fanId === fanId ? deleting.noteId : null,
       deleteError: deleteError !== null && deleteError.fanId === fanId ? deleteError.error : null,
       writing: fanId !== null && writing(fanId),
-      template: data !== null && !data.notes.some((note) => !note.foreign && isQuestionnaire(note.text)),
+      template: data !== null && !data.notes.some((note) => formOf(note) !== null),
+      forms: Object.fromEntries((data?.notes ?? []).flatMap((note) => {
+        const form = formOf(note);
+        return form === null ? [] : [[note.noteId, form] as const];
+      })),
     };
     triggerVM = { shown: t !== null, count: data === null ? null : data.notes.length, open: shown };
     shape = JSON.stringify([shown, panelVM.place, narrow, triggerVM.shown]);
@@ -315,7 +371,7 @@ export function createNotesController(port: NotesPort): NotesController {
     const data = current();
     if (data === null || drafts.has(data.fanRef)) return;
     confirm = null;
-    drafts.set(data.fanRef, { noteId, current: { title, text }, title, text, saving: false, blocked: false, problem: null });
+    drafts.set(data.fanRef, { noteId, current: { title, text }, title, text, saving: false, blocked: false, problem: null, asText: false, suggestions: [] });
     emit();
   }
 
@@ -435,6 +491,22 @@ export function createNotesController(port: NotesPort): NotesController {
         draft.text = action.text;
         if (draft.problem?.kind === 'empty' || draft.problem?.kind === 'too-long') draft.problem = null;
         return emit();
+      case 'field':
+        if (draft === undefined || draft.saving) return;
+        draft.text = setNoteFieldFacts(draft.text, action.label, action.value.split('\n'));
+        if (draft.problem?.kind === 'empty' || draft.problem?.kind === 'too-long') draft.problem = null;
+        return emit();
+      case 'as-text':
+        if (draft === undefined || draft.saving) return;
+        draft.asText = action.on;
+        return emit();
+      case 'suggestion': {
+        const suggestion = draft?.suggestions[action.index];
+        if (draft === undefined || draft.saving || suggestion === undefined) return;
+        if (action.accept) draft.text = applyFieldSuggestion(draft.text, suggestion);
+        draft.suggestions.splice(action.index, 1);
+        return emit();
+      }
       case 'save':
         void save();
         return;
