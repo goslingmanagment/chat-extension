@@ -72,9 +72,9 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     expect(ui.panel.$('[data-note-id="1"]')?.querySelectorAll('button').length).toBe(2);
   });
 
-  it('[FX-007] [FX-008] [FS-NOTE-4] «+ По шаблону» opens the questionnaire; «Создать» writes it once; a delete asks first', async () => {
+  it('[FX-007] [FX-008] [FS-NOTE-4] «+ Анкета» opens the questionnaire; «Создать» writes it once; a delete asks first', async () => {
     const ui = await open();
-    await flush(() => button(ui.panel, '+ По шаблону').click());
+    await flush(() => button(ui.panel, '+ Анкета').click());
     expect(ui.panel.$$('[data-notes-editor="new"] [data-notes-field]').map((row) => row.getAttribute('data-notes-field'))).toEqual(NOTE_TEMPLATE_LABELS);
     await flush(() => ui.panel.$('[data-notes-save]')?.click());
     await flush();
@@ -143,12 +143,12 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     expect(card?.querySelector('[data-notes-field="Локация"] .cg-notes__fact-date')?.textContent).toBe('08.2026');
     expect(card?.querySelector('.cg-notes__blank')?.textContent).toBe('Не заполнено: Возраст, Хобби, Фетиши, Медиа');
     // One questionnaire per fan.
-    expect(() => button(ui.panel, '+ По шаблону')).toThrow();
+    expect(() => button(ui.panel, '+ Анкета')).toThrow();
   });
 
   it('[FX-008] [FS-NOTE-2] the questionnaire is edited field by field, one fact per line; «Текстом» shows the one text Fansly keeps (R20 P11b2)', async () => {
     const ui = await open();
-    await flush(() => button(ui.panel, '+ По шаблону').click());
+    await flush(() => button(ui.panel, '+ Анкета').click());
     const field = (label: string) => ui.panel.$(`[data-notes-editor="new"] [data-notes-field="${label}"] textarea`) as HTMLTextAreaElement;
     // The first field takes the focus.
     expect(ui.panel.root.activeElement).toBe(field('Имя'));
@@ -169,6 +169,27 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     await flush(() => ui.panel.$('[data-notes-save]')?.click());
     await flush();
     expect(ui.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, 'Анкета', text.trimEnd());
+  });
+
+  it('[FS-NOTE-2] typing two field-like lines in «+ Заметка» keeps the same textarea and focus until «Полями» is clicked', async () => {
+    const ui = await open();
+    await flush(() => button(ui.panel, '+ Заметка').click());
+    const text = ui.panel.$('[data-notes-editor="new"] textarea') as HTMLTextAreaElement;
+    expect(ui.panel.root.activeElement).toBe(text);
+    for (const value of ['Сегодня: спросил про кастом', 'Сегодня: спросил про кастом\nЗавтра:', 'Сегодня: спросил про кастом\nЗавтра: обсудить']) {
+      text.value = value;
+      await flush(() => text.dispatchEvent(new Event('input', { bubbles: true })));
+      expect(ui.panel.$('[data-notes-editor="new"] textarea')).toBe(text);
+      expect(ui.panel.root.activeElement).toBe(text);
+      expect(text.value).toBe(value);
+      expect(ui.panel.$('[data-notes-fields]')).toBeNull();
+      expect(ui.notes.panel().editor?.text).toBe(value);
+    }
+    // Detection may offer the switch, but only the person's click changes the view.
+    await flush(() => button(ui.panel, 'Полями').click());
+    expect(ui.panel.$('[data-notes-fields]')).not.toBeNull();
+    await flush(() => button(ui.panel, 'Текстом').click());
+    expect((ui.panel.$('[data-notes-editor="new"] textarea') as HTMLTextAreaElement).value).toBe('Сегодня: спросил про кастом\nЗавтра: обсудить');
   });
 
   it('[FX-008] the Goose’s rewrite stands under its field: what it adds and drops, the fan’s words, «Принять» and «Не нужно» (R20 P11b2; the fill is P11c)', async () => {

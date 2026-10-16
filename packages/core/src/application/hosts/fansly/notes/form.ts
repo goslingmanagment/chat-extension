@@ -124,7 +124,7 @@ export function parseNoteForm(text: string): NoteFormPart[] | null {
   return parts;
 }
 
-/** A note that already is the questionnaire (one per fan): «+ По шаблону» leaves, the note reads as a table. */
+/** A note that already is the questionnaire (one per fan): «+ Анкета» leaves, the note reads as a table. */
 export function isQuestionnaire(text: string): boolean {
   return parseNoteTemplate(text).length > 0;
 }

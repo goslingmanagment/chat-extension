@@ -161,7 +161,7 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
   it('[FX-008] [FX-011] [FS-NOTE-2] the questionnaire: eleven fields typed one by one, «Текстом» the text Fansly keeps; an old one read as a table and edited field by field, its other lines as they were (R20 P11b2)', async () => {
     await waitBody('ready');
     const before = await fakeFansly().mark();
-    await pressIn('.cg-notes__foot button', '+ По шаблону');
+    await pressIn('.cg-notes__foot button', '+ Анкета');
     const editor = '[data-notes-editor="new"]';
     expect(await fieldRows(editor)).toEqual(LABELS);
     await type(`${editor} [data-notes-field="Имя"] textarea`, 'Alex');
@@ -183,7 +183,7 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     expect(await routes(before)).toEqual(['notes.create']);
     const created = (await noteIds())[2] as string;
     expect(await tableLabels(`[data-note-id="${created}"] [data-notes-form]`)).toEqual(['Имя', 'График']);
-    expect(await readOurs('panel', '.cg-notes__foot', (node) => node.textContent ?? '')).not.toContain('+ По шаблону');
+    expect(await readOurs('panel', '.cg-notes__foot', (node) => node.textContent ?? '')).not.toContain('+ Анкета');
 
     // What the old extension wrote: read as a table, one field edited, every other line kept byte for byte.
     await fakeFansly().command({ op: 'note', fanId: A.fan, title: 'Анкета', note: OLD });

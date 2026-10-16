@@ -371,7 +371,8 @@ export function createNotesController(port: NotesPort): NotesController {
     const data = current();
     if (data === null || drafts.has(data.fanRef)) return;
     confirm = null;
-    drafts.set(data.fanRef, { noteId, current: { title, text }, title, text, saving: false, blocked: false, problem: null, asText: false, suggestions: [] });
+    // Decide the view at opening: typing field-like lines must never replace the focused textarea.
+    drafts.set(data.fanRef, { noteId, current: { title, text }, title, text, saving: false, blocked: false, problem: null, asText: parseNoteForm(text) === null, suggestions: [] });
     emit();
   }
 
