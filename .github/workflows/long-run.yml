@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       minutes:
-        description: 'Accelerated event window, ×8: 5 = smoke, 60 = 8-hour shift (5..120)'
+        description: 'Accelerated event window, ×8: 3 = smoke, 60 = 8-hour shift (3..120)'
         type: number
         required: true
         default: 60
@@ -35,8 +35,8 @@ jobs:
     steps:
       - name: Validate duration
         run: |
-          [[ "$CG_LONG_RUN_MINUTES" =~ ^[0-9]{1,3}$ ]] && (( 10#$CG_LONG_RUN_MINUTES >= 5 && 10#$CG_LONG_RUN_MINUTES <= 120 )) || {
-            echo '::error::minutes must be an integer from 5 to 120'; exit 1;
+          [[ "$CG_LONG_RUN_MINUTES" =~ ^[0-9]{1,3}$ ]] && (( 10#$CG_LONG_RUN_MINUTES >= 3 && 10#$CG_LONG_RUN_MINUTES <= 120 )) || {
+            echo '::error::minutes must be an integer from 3 to 120'; exit 1;
           }
 
       - name: Checkout the requested ref

@@ -1,5 +1,4 @@
-// Actions on synthetic pages only. Existing TEST-only probes exercise the real scheduler, API pacer and send custody.
-import { randomUUID } from 'node:crypto';
+// Actions on synthetic pages only. TEST-only probes remain for the scheduler and native notes CRUD.
 import { writeFileSync } from 'node:fs';
 
 import type { Admission, SiteOpView } from '@cg/contracts';
@@ -8,11 +7,11 @@ import { browser, expect } from '@wdio/globals';
 import type { FakeHubControlClient } from '../../src/fake-hub/control-client';
 import type { Action } from '../../src/long-run/report';
 import { WORLD, meta } from '../../src/scenarios/hub';
-import { MOD } from '../support/chat';
-import { readLocalStorage, waitForReport, writeLocalStorage } from '../support/extension';
+import { pageRpc, readLocalStorage, waitForReport, writeLocalStorage } from '../support/extension';
+import { testBuildPage } from '../support/fake-hub';
 import { type FanslyShift } from '../support/fansly-shift';
-import { callFansly, fakeFansly, openFanslyStand, waitForFanslyStandIdle } from '../support/fansly-stand';
-import { ours, oursExists, oursText, pressOurs, waitOursByText } from '../support/ours';
+import { FANSLY_MAIN, callFansly, fakeFansly, openFanslyStand } from '../support/fansly-stand';
+import { ours, oursExists, pressOurs, readOurs, waitOursByText } from '../support/ours';
 import { dockIs } from '../support/shift';
 
 export interface Chat { readonly group: string; readonly fan: string }
@@ -93,26 +92,42 @@ export class LongRunActions {
     this.count('admission');
   }
 
+  private async openNewcomers(): Promise<void> {
+    // Fansly has no palette. Focus it before the popup command, with ChatSpace beside it.
+    await this.shift.toFansly();
+    await this.shift.toPages();
+    await browser.url(testBuildPage('popup.html'));
+    try {
+      expect(await pageRpc('site.access', { host: 'fansly-web' })).toMatchObject({ ok: true, payload: { enabled: true, granted: true, registered: true } });
+      expect(await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } })).toMatchObject({ ok: true, payload: { delivered: true } });
+    } finally {
+      await browser.url(testBuildPage());
+      await this.shift.toFansly();
+    }
+    await browser.waitUntil(() => oursExists('modal', '.cg-fnw'), { timeout: 15_000, timeoutMsg: 'popup did not open Fansly newcomers' });
+  }
+
+  private async closeNewcomers(): Promise<void> {
+    await browser.keys(['Escape']);
+    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-fnw')), { timeout: 5000, timeoutMsg: 'newcomers window stuck' });
+  }
+
   /** The existing pass UI: let the queue check at least one fan, pause/resume and close. */
   async newcomers(): Promise<void> {
-    await this.shift.toFansly();
-    await browser.$('.message-content-header').click();
-    await browser.keys([MOD, 'k']);
-    await pressOurs('modal', '.cg-pal__item', /^Новые$/, 'Новые in the palette', 20_000);
+    await this.openNewcomers();
     await browser.waitUntil(() => oursExists('modal', '.cg-fnw__row[data-cg-check]:not([data-cg-check="pending"]):not([data-cg-check="checking"])'), { timeout: 60_000, timeoutMsg: 'newcomers checked no fan' });
     await pressOurs('modal', '.cg-fnw__meta button', 'Пауза', 'pause the newcomers queue', 20_000);
     await waitOursByText('modal', '.cg-fnw__meta button', /^Проверить оставшихся/, 'queue paused', 15_000);
     await pressOurs('modal', '.cg-fnw__meta button', /^Проверить оставшихся/);
     await waitOursByText('modal', '.cg-fnw__meta button', 'Пауза', 'queue resumed', 15_000);
-    await browser.keys(['Escape']);
-    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-fnw')), { timeout: 5000, timeoutMsg: 'newcomers window stuck' });
+    await this.closeNewcomers();
     this.count('newcomers');
   }
 
-  /** A fresh fan: Hi through the dock/SDK/fake hub, then one explicit synthetic click through P9d's send service. */
+  /** P10c/P10d: generate in the fresh fan's card, then one real send click and durable custody/row confirmation. */
   async greeting(): Promise<Chat> {
     const fan = String(930_000_000_000_000_000n + BigInt(++this.sequence));
-    await fakeFansly().command({ op: 'follow', followerId: fan });
+    await fakeFansly().command({ op: 'follow', followerId: fan, silent: true });
     const created = await fakeFansly().command({ op: 'conversation', fanId: fan });
     if (created.groupId === undefined) throw new Error('no greeting group');
     const chat = { group: created.groupId, fan };
@@ -120,28 +135,27 @@ export class LongRunActions {
     await this.hub.command({ op: 'archiveConversation', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: chat.group, messages: [] });
     const text = `Hello from the synthetic long run ${this.sequence}.`;
     await this.hub.command({ op: 'config', patch: { aiTexts: { 'hi-greeting': text } } });
-    await this.open(chat);
-    await browser.waitUntil(async () => (await callFansly('list'))?.groupId === chat.group && (await callFansly('list'))?.messages === 0, { timeout: 15_000, timeoutMsg: 'no proof of the new empty chat' });
-    await waitForFanslyStandIdle();
-    await pressOurs('dock', '.cg-strip button', /^Hi/);
-    const dock = await dockIs((dock) => dock.result?.feature === 'hi' && ['done', 'failed'].includes(dock.result.state), 'Hi from the fake hub', 30_000);
-    expect(dock.result?.state).toBe('done');
-    expect(await oursText('dock')).toContain(text);
-    const id = `long-send-${this.sequence}`;
-    const attemptId = randomUUID();
+    await this.openNewcomers();
+    await pressOurs('modal', '.cg-fnw [role="tab"]', /^Все \d+$/);
+    const row = `.cg-fnw__row[data-cg-fan$=":${fan}"]`;
+    const card = '.cg-fnc';
+    const field = `${card} .cg-fnc__greet textarea`;
+    const buttons = `${card} .cg-fnc__gbar button`;
+    const check = () => readOurs('modal', row, (node) => node.getAttribute('data-cg-check'));
+    await browser.waitUntil(async () => (await check()) === 'ready', { timeout: 90_000, timeoutMsg: 'the new follower was not checked ready' });
+    await ours('modal', row).click();
+    await pressOurs('modal', buttons, 'Сгенерировать');
+    await browser.waitUntil(async () => (await readOurs('modal', field, (node) => (node as HTMLTextAreaElement).value)) === text && await oursExists('modal', `${card} .cg-fnc__ai`), { timeout: 30_000, timeoutMsg: 'no AI greeting in the newcomer card' });
     this.expectSend();
-    await this.shift.toPages();
-    await writeLocalStorage({ 'dev.fanslySend.request': { id, account: WORLD.pages.fansly.platformAccountId, pageId: WORLD.pages.fansly.pageId,
-      fanRef: fan, groupId: chat.group, text, historyRevision: randomUUID(), draftRevision: 1, attempts: [attemptId] } });
+    await pressOurs('modal', buttons, 'Отправить →');
     await browser.waitUntil(async () => {
-      const result = (await readLocalStorage(['dev.fanslySend.result']))['dev.fanslySend.result'] as { id: string; views?: Array<{ state: string }>; error?: string } | undefined;
-      if (result?.id !== id) return false;
-      if (result.error !== undefined || result.views?.[0]?.state !== 'sent') throw new Error(`greeting send: ${JSON.stringify(result)}`);
-      return true;
-    }, { timeout: 30_000, timeoutMsg: 'greeting send stuck' });
-    const claim = (await this.hub.status()).claims.find((claim) => claim.fanRef === fan);
-    expect(claim?.attempts).toContainEqual(expect.objectContaining({ attemptId, state: 'sent' }));
-    await this.shift.toFansly();
+      const claim = (await this.hub.status()).claims.find((claim) => claim.pageLabel === WORLD.pages.fansly.pageLabel && claim.fanRef === fan);
+      return claim?.greeting === 'confirmed' && claim.attempts.length === 1 && claim.attempts[0]?.state === 'sent';
+    }, { timeout: 35_000, timeoutMsg: 'greeting custody did not confirm exactly one send' });
+    await browser.waitUntil(async () => (await check()) === 'greeted', { timeout: 10_000, timeoutMsg: 'the newcomer was not marked greeted' });
+    await this.closeNewcomers();
+    await this.open(chat);
+    await browser.waitUntil(async () => (await browser.$(FANSLY_MAIN.list).getText()).includes(text), { timeout: 15_000, timeoutMsg: 'the native chat did not show the greeting text' });
     this.count('greeting');
     return chat;
   }

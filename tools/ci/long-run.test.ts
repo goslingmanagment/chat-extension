@@ -21,8 +21,8 @@ describe('P16b accelerated soak job', () => {
     const validation = / {6}- name: Validate duration\n {8}run: \|\n([\s\S]*?)\n {6}- name:/.exec(workflow)?.[1]?.replace(/^ {10}/gm, '');
     expect(validation).toBeDefined();
     for (const [input, accepted] of [
-      ['5', true], ['60', true], ['060', true], ['120', true],
-      ['0', false], ['4', false], ['121', false], ['480', false], ['481', false], ['-1', false],
+      ['3', true], ['4', true], ['5', true], ['60', true], ['060', true], ['120', true],
+      ['0', false], ['2', false], ['121', false], ['480', false], ['481', false], ['-1', false],
       ['', false], ['NaN', false], ['5.5', false], ['1e2', false], ['5; exit 0', false],
     ] as const) {
       const result = spawnSync('bash', ['-e', '-c', validation ?? 'exit 99'], {

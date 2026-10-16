@@ -8,7 +8,7 @@ function good(minutes = 60): RunEvidence {
     minutes, elapsedMs: minutes * 60_000, finished: true, metadata: { sha: 'synthetic' },
     chatsWithEvents: 320, messages: events, typing: events,
     actions: { reload: 2, accountSwitch: 1, backgroundWake: 1, newcomers: 1, greeting: 1, vault: 1, notes: 1, admission: 1 },
-    memory: Array.from({ length: minutes / 5 + 1 }, (_, index) => ({ atMs: index * 300_000, epoch: 0, fanslyOverheadMB: 7, chatspaceOverheadMB: 9, backgroundMB: 20 })),
+    memory: Array.from({ length: Math.ceil(minutes / 5) + 1 }, (_, index) => ({ atMs: Math.min(index * 300_000, minutes * 60_000), epoch: 0, fanslyOverheadMB: 7, chatspaceOverheadMB: 9, backgroundMB: 20 })),
     idle: [0, minutes * 60_000 - 60_000].map((atMs) => ({ atMs, cpuWindowMs: 30_000, profileWindowMs: 30_000, tabCpuMs: 100, baselineTabCpuMs: 80,
       backgroundCpuMs: 80, baselineBackgroundCpuMs: 5, tabTimers: 0, backgroundTimers: 0, backgroundWakeups: 12 })),
     expectedSends: 1, sends: [{ seq: 1, requestId: 'request-a', groupId: 'group-a', messageId: 'message-a' }],
@@ -20,10 +20,11 @@ describe('P16b manual long-run report', () => {
   it('defaults to 60 minutes; accepts smoke and 120 minutes, refuses anything longer', () => {
     expect(longRunMinutes(undefined)).toBe(60);
     expect(longRunMinutes('')).toBe(60);
+    expect(longRunMinutes('3')).toBe(3);
     expect(longRunMinutes('5')).toBe(5);
     expect(longRunMinutes('60')).toBe(60);
     expect(longRunMinutes('120')).toBe(120);
-    for (const input of ['0', '4', '121', '480', '481', '-1', 'NaN', '5.5', '1e2', '5; exit 0']) expect(() => longRunMinutes(input)).toThrow(/CG_LONG_RUN_MINUTES/);
+    for (const input of ['0', '2', '121', '480', '481', '-1', 'NaN', '5.5', '1e2', '5; exit 0']) expect(() => longRunMinutes(input)).toThrow(/CG_LONG_RUN_MINUTES/);
   });
 
   it('requires the requested window, but no run result gates the pilot or closes the harness PR', () => {
@@ -31,11 +32,20 @@ describe('P16b manual long-run report', () => {
     expect(report).toMatchObject({ status: 'passed', pilotGate: false, accelerationFactor: 8, eventMinutes: 480 });
     expect(report).not.toHaveProperty('rowComplete');
     expect(buildLongRunReport(good(120))).toMatchObject({ status: 'passed', pilotGate: false });
-    const smoke = buildLongRunReport(good(5));
+    const smoke = buildLongRunReport(good(3));
     expect(smoke).toMatchObject({ status: 'smoke-passed', pilotGate: false });
     expect(longRunSummary(smoke)).toContain('не ворота пилота; P16b закрывается слиянием harness и job');
     expect(buildLongRunReport({ ...good(), finished: false })).toMatchObject({ status: 'incomplete', pilotGate: false });
     expect(buildLongRunReport({ ...good(), elapsedMs: 59 * 60_000 })).toMatchObject({ status: 'failed', pilotGate: false });
+    expect(buildLongRunReport({ ...good(3), elapsedMs: 37_000, finished: false }).status).toBe('incomplete');
+    expect(buildLongRunReport({ ...good(3), elapsedMs: 179_999 }).status).toBe('failed');
+    expect(buildLongRunReport({ ...good(3), messages: 463 }).status).toBe('failed');
+    expect(buildLongRunReport({ ...good(3), actions: { ...good(3).actions, greeting: 0 } }).status).toBe('failed');
+  });
+
+  it('prints the primary failure in the job summary, before a generic incomplete assertion can hide it', () => {
+    const report = buildLongRunReport({ ...good(3), finished: false, errors: ['popup did not open Fansly newcomers\nstack'] });
+    expect(longRunSummary(report)).toContain('Первая ошибка: popup did not open Fansly newcomers\n');
   });
 
   it('compresses the 8-hour shift by ×8 and rejects an hour of unaccelerated traffic', () => {
