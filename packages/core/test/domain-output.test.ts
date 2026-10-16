@@ -106,6 +106,86 @@ describe('[AI-135] answer cleanup', () => {
     expect(cleanPart('<THINK reason="x">secret</THINK>  hi there ')).toBe('hi there');
   });
 
+  // The cases below are the hub's (hub#621, tests/ai-prompts-reply-output.test.ts):
+  // the copies behave the same.
+
+  // Production leak, 2026-10-09 (fast reply, Opus 5.5): `<think\b` did not match `<thinking>`.
+  it('strips <thinking> and <reasoning> blocks, not only <think>', () => {
+    expect(parseParts('<thinking>He already told her… No dashes.</thinking>good boy 😏 save it for me[NEXT]wait did your mom really call lmao 😭')).toEqual([
+      'good boy 😏 save it for me',
+      'wait did your mom really call lmao 😭',
+    ]);
+    expect(cleanPart('<reasoning>keep it short</reasoning>\n"sup"')).toBe('sup');
+    expect(parseParts('<THINKING mode="plan">a [NEXT] b</Thinking >hey you')).toEqual(['hey you']);
+    expect(parseParts('<thinking>quote </think> here</thinking>hey you')).toEqual(['hey you']);
+    expect(parseVariants('<thinking>three openers? a [VARIANT] b [NEXT] c</thinking>hey you[VARIANT]sup stranger')).toEqual([['hey you'], ['sup stranger']]);
+  });
+
+  it('drops everything from a bare tag that never closes and opens the text or a line', () => {
+    expect(parseParts('<thinking>plan without close')).toEqual([]);
+    expect(parseParts('hey\n<thinking>plan')).toEqual(['hey']);
+    expect(parseParts('<thinking>he said no dashes so [NEXT] maybe')).toEqual([]);
+    // The part the tag opens is dropped when each part is cleaned.
+    expect(parseParts('hey you[NEXT]<reasoning>now the follow-up')).toEqual(['hey you']);
+    // A close tag of another name does not end the block: nothing after it is a reply.
+    expect(parseParts('<think>plan</thinking>hey you')).toEqual([]);
+    // An opener on its own line inside a fenced block goes with the block.
+    expect(parseParts('```thinking\nopen with\n<think>\n```\nhey you')).toEqual(['hey you']);
+  });
+
+  it('keeps replies that only mention thinking or quote a reasoning tag', () => {
+    expect(parseParts("can't stop thinking about you <3")).toEqual(["can't stop thinking about you <3"]);
+    expect(parseParts('i think so[NEXT]<thinkpad> lol')).toEqual(['i think so', '<thinkpad> lol']);
+    expect(parseParts('omg <thinking of you> all day[NEXT]come here')).toEqual(['omg <thinking of you> all day', 'come here']);
+    expect(parseParts('what does `<think>` mean lol')).toEqual(['what does `<think>` mean lol']);
+    expect(parseParts('<think-tank> lol')).toEqual(['<think-tank> lol']);
+  });
+
+  // Production leaks, 2026-10-10..11 (fast reply, Opus 5.5 at low effort).
+  it('strips <thinking_mode> and <mental_model> blocks', () => {
+    expect(
+      parseParts("<thinking_mode>\nThe fan joked about being a gentleman. Keep it short, no em dashes.\n</thinking_mode>\n\nhaha such a gentleman 😏 i'm holding you to that"),
+    ).toEqual(["haha such a gentleman 😏 i'm holding you to that"]);
+    expect(parseParts('<mental_model>\nHe asks what would excite her. A trip fits.\n</mental_model>\n\nhonestly a random trip to japan 😌[NEXT]what about you?')).toEqual([
+      'honestly a random trip to japan 😌',
+      'what about you?',
+    ]);
+    expect(parseParts('<Reasoning_Trace step="1">a [NEXT] b</reasoning_trace>hey you')).toEqual(['hey you']);
+    expect(parseParts('<thinking_mode>never closed\nso no reply')).toEqual([]);
+  });
+
+  // Production leaks, 2026-10-09..14 (Opus 5.5 at low effort): reasoning as plain text.
+  it('drops a plain-text plan note and everything before it in its part', () => {
+    expect(parseParts("Fan writes in Russian, so reply in Russian. He asked what she's doing.\n\nахах да, лежу с котом 🙈[NEXT]а ты где?)")).toEqual([
+      'ахах да, лежу с котом 🙈',
+      'а ты где?)',
+    ]);
+    expect(parseVariants('Cold opener. The display name is Jay, so a name hook works. No long dashes.\n\nok jay... are you a dj 👀[VARIANT]hey jay')).toEqual([
+      ['ok jay... are you a dj 👀'],
+      ['hey jay'],
+    ]);
+    // A draft, the model's check of it, then the draft it settled on.
+    expect(cleanPart('so what caught your eye? 😏\n\nWait, the rules say no full stop at end, question mark fine.\n\nso what caught your eye then? 😏')).toBe(
+      'so what caught your eye then? 😏',
+    );
+    expect(parseParts('long night huh 😭\n\n(rule check) no period at end, no dash. Fine.\n\nlong night huh 😭 any break?')).toEqual(['long night huh 😭 any break?']);
+    // With nothing after it, the note goes alone; it never cuts another part.
+    expect(parseParts('hey you\nCheck: no em dash, lowercase.')).toEqual(['hey you']);
+    expect(parseParts('first part[NEXT]Cold opener, no fan lines.\n\nsecond part')).toEqual(['first part', 'second part']);
+    expect(parseParts('No long dashes.')).toEqual([]);
+  });
+
+  it('keeps replies that mention dashes, display names, fans or thinking in passing', () => {
+    for (const reply of [
+      'no dash cam?? lol\n\nok tell me everything',
+      'your display name is giving superhero lol\n\nso what are you up to',
+      'haha ur in the fan club for everything 😂\n\na fan wrote me a poem once',
+      'thinking of me while busy is the bare minimum 😂\n\nwhen are you back',
+    ]) {
+      expect(parseParts(reply)).toEqual([reply]);
+    }
+  });
+
   it('drops lines that leak the prompt, keeps in-character lines', () => {
     expect(cleanPart('Output only the message text.\nhey babe')).toBe('hey babe');
     expect(cleanPart('As an AI I cannot\nmiss you')).toBe('miss you');
@@ -413,6 +493,17 @@ describe('stream preview: no marker, no piece of a marker, no reasoning', () => 
     expect(streamPreview('reply', '<think>still thinking about [NEXT]')).toBe('');
     expect(streamPreview('reply', 'hey <think>a</think>you')).toBe('hey you');
     expect(streamPreview('recap', '<think>x</think> text <')).toBe('text');
+  });
+
+  it('hides every reasoning tag name while it streams, and only the start of one at the end', () => {
+    for (const opener of ['<thinking>', '<reasoning>', '<thinking_mode>', '<mental_model>', '<REASONING mode="x">']) {
+      expect(hideOpenThinkBlock(`hey ${opener}plan [NEXT]`), opener).toBe('hey ');
+    }
+    for (const tail of ['<', '<thi', '<thinki', '<thinking', '<r', '<reaso', '<m', '<mental_', '<thinking_mo']) {
+      expect(hideOpenThinkBlock(`hey ${tail}`), tail).toBe('hey ');
+    }
+    for (const tail of ['<3', '<thinkpad', '<rating', '<b']) expect(hideOpenThinkBlock(`hey ${tail}`), tail).toBe(`hey ${tail}`);
+    expect(streamPreview('reply', '<thinking_mode>x</thinking_mode>hey [NEXT] you')).toBe('hey\n\nyou');
   });
 });
 

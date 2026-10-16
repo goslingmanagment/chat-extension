@@ -32,19 +32,87 @@ const META_LEAK_PATTERNS: readonly RegExp[] = [
   /\bgenerated\s+(?:reply|message|response)\b/i,
 ];
 
-/** `<think>…</think>` and fenced reasoning blocks; they may hold markers of their own, so they go first. */
+// The reasoning rules are the hub's (prompts/output/reply-output.ts,
+// hub#621); the copies behave the same.
+
+/** The tag names a model puts its reasoning in; a suffix after an underscore counts too (`<thinking_mode>`). */
+const REASONING_TAG_NAMES: readonly string[] = ['think', 'thinking', 'reasoning', 'mental_model'];
+
+/**
+ * A reasoning block closes with its own tag name, in any case. `<think\b`
+ * alone missed the `<thinking>`, `<reasoning>`, `<thinking_mode>` and
+ * `<mental_model>` blocks Opus 5.5 leaked into drafts on 2026-10-09..14.
+ */
+const REASONING_BLOCK = /<((?:think|thinking|reasoning|mental_model)(?:_\w+)?)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+
+/**
+ * A block that never closes counts from a bare tag that opens the text or
+ * its own line, so «omg <thinking of you> all day» stays whole. It runs after
+ * the fences are gone: an opener quoted inside one cuts nothing.
+ */
+const OPEN_REASONING_BLOCK = /(?:^|\n)\s*<(?:think|thinking|reasoning|mental_model)(?:_\w+)?>[\s\S]*$/i;
+
+/** While streaming, any opener may still close. */
+const REASONING_OPENER = /<(?:think|thinking|reasoning|mental_model)(?:_\w+)?\b[^>]*>/i;
+
+/** Reasoning blocks, closed, fenced or never closed; they may hold markers of their own, so they go first. */
 export function stripThinkBlocks(text: string): string {
   return text
-    .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
-    .replace(/```(?:think|thinking|reasoning|chain-of-thought)[^\n]*\n[\s\S]*?```/gi, '');
+    .replace(REASONING_BLOCK, '')
+    .replace(/```(?:think|thinking|reasoning|chain-of-thought)[^\n]*\n[\s\S]*?```/gi, '')
+    .replace(OPEN_REASONING_BLOCK, '');
+}
+
+/** `<`, `<thi`, `<reasoning`, `<thinking_mo`: the end of the stream may still become an opener. */
+function mayOpenReasoning(name: string): boolean {
+  const lower = name.toLowerCase();
+  return REASONING_TAG_NAMES.some((tag) => tag.startsWith(lower) || lower.startsWith(`${tag}_`));
 }
 
 /** While streaming: a reasoning block that is still open, or the start of its tag, is not shown. */
 export function hideOpenThinkBlock(text: string): string {
   const closed = stripThinkBlocks(text);
-  const open = /<think\b[^>]*>/i.exec(closed);
+  const open = REASONING_OPENER.exec(closed);
   const visible = open === null ? closed : closed.slice(0, open.index);
-  return visible.replace(/<(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/i, '');
+  const tail = /<(\w*)$/.exec(visible);
+  return tail !== null && mayOpenReasoning(tail[1] ?? '') ? visible.slice(0, tail.index) : visible;
+}
+
+/**
+ * Reasoning written as plain text: a line that checks the house style rules
+ * («No long dashes.», «no em dash, no full stop at end»), says «Cold opener»
+ * or opens with «Fan writes…». None of 39,214 production generations said
+ * these outside such reasoning (hub, 2026-10-16). «no dash» needs an end of
+ * phrase after it, so «no dash cam» stays.
+ */
+const PLAN_NOTE_PATTERNS: readonly RegExp[] = [
+  /\b(?:em|en|long)\s+dash(?:es)?\b/i,
+  /\bno\s+dash(?:es\b|\s*[.,;)]|\s*$)/i,
+  /\bno\s+(?:final\s+)?full\s+stop\b/i,
+  /\bfull\s+stop\s+at\s+(?:the\s+)?end\b/i,
+  /\bcold\s+opener\b/i,
+  /^\s*(?:the\s+)?fan\s+(?:just\s+)?(?:writes|wrote|asks|asked|says|said|joked|replied|mentioned)\b/i,
+];
+
+function isPlanNoteLine(line: string): boolean {
+  return PLAN_NOTE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+/**
+ * Within one part, the text after the last plan-note line is the reply;
+ * before it is the plan or a draft the model went on to correct. With
+ * nothing after it, the plan-note lines alone go. It runs on a part, never
+ * across `[NEXT]` or `[VARIANT]`.
+ */
+function stripPlanNotes(text: string): string {
+  const lines = text.split('\n');
+  let last = -1;
+  lines.forEach((line, index) => {
+    if (isPlanNoteLine(line)) last = index;
+  });
+  if (last < 0) return text;
+  const after = lines.slice(last + 1).join('\n');
+  return after.trim().length > 0 ? after : lines.filter((line) => !isPlanNoteLine(line)).join('\n');
 }
 
 export function isMetaLeakLine(line: string): boolean {
@@ -99,7 +167,7 @@ function normalizeDashes(text: string): string {
 
 /** AI-135: one part as a person may send it. */
 export function cleanPart(part: string): string {
-  return normalizeDashes(stripWrappingQuotes(stripReplyPrefix(removeMetaLeakLines(stripThinkBlocks(part)))));
+  return normalizeDashes(stripWrappingQuotes(stripReplyPrefix(removeMetaLeakLines(stripPlanNotes(stripThinkBlocks(part))))));
 }
 
 /** A cleaned part worth showing as a message: not empty, not bracket garbage, not a leaked prompt line. */
