@@ -56,6 +56,24 @@ export interface ApiRule {
 /** When the socket echo of a `POST /message` goes out relative to its HTTP answer (both orders happen, architecture.md §5.9). */
 export type SendEcho = 'after' | 'before' | 'none';
 
+/** A small pass fixture, served through the real fake API (R20 P10d); no extension state is scripted. */
+export interface NewcomerSeed {
+  readonly fanId: string;
+  readonly ageHours?: number;
+  readonly customName?: string;
+  readonly dmRulesUnmet?: boolean;
+  /** An unpaid price per DM, in mills; the fixture makes the conversation carrying this rule. */
+  readonly dmPriceMills?: number;
+  /** Omit for a fan without a conversation; [] makes an existing empty conversation. */
+  readonly messages?: readonly {
+    readonly from: 'fan' | 'creator';
+    readonly text: string;
+    readonly type?: number;
+    readonly correlationId?: string;
+    readonly inReplyTo?: string;
+  }[];
+}
+
 export type FakeFanslyCommand =
   /** The world, the scripts and the socket settings back to the start; every socket closed; the journal kept. */
   | { readonly op: 'reset' }
@@ -87,6 +105,8 @@ export type FakeFanslyCommand =
   | { readonly op: 'typing'; readonly groupId: string; readonly accountId?: string }
   /** A new follower and its `3/2` frame; `dmRulesUnmet` — the fan's DM rules the creator does not meet, in the chat `POST /group` makes. */
   | { readonly op: 'follow'; readonly followerId?: string; readonly silent?: boolean; readonly dmRulesUnmet?: boolean }
+  /** Replace only the followers with this pass fixture; profiles, notes and optional histories use normal API shapes. No socket events. */
+  | { readonly op: 'newcomers'; readonly followers: readonly NewcomerSeed[] }
   /**
    * A new conversation of the creator with `fanId` and no message yet, as `POST /group` makes one (its `4/8` frame;
    * the fan's account is made up). The fan's existing conversation is a refusal: a test means a new one.

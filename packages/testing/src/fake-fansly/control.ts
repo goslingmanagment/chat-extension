@@ -7,8 +7,8 @@
 // over HTTP (api.ts, the control header) alike.
 
 import type { FakeFanslyCommand, FakeFanslyResult, FakeFanslyStatus } from '../../fixture-fansly/src/server-protocol';
-import { EVENT, SERVICE, ackFrame, followFrame, groupUserFrame, messageCreatedFrame, messageDeletedFrame, serviceFrame, typingFrame } from '../../fixture-fansly/src/wire';
-import type { FakeGroup } from './data';
+import { EVENT, SERVICE, ackFrame, compareIds, followFrame, groupUserFrame, messageCreatedFrame, messageDeletedFrame, serviceFrame, snowflakeAt, typingFrame, type WireMessage } from '../../fixture-fansly/src/wire';
+import { NOTE_TYPE, type FakeGroup } from './data';
 import type { FanslySocketHub } from './socket';
 import type { FanslyState } from './state';
 
@@ -93,6 +93,35 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
     case 'follow': {
       const follow = world.wireFollow(world.follow(command.followerId, command.dmRulesUnmet === true));
       return { ok: true, follow, sent: command.silent === true ? 0 : hub.emit([followFrame(follow)], '3/2') };
+    }
+    case 'newcomers': {
+      for (const account of world.accounts.values()) account.followsCreator = false;
+      world.follows.length = 0;
+      const messages: WireMessage[] = [];
+      const now = Date.now();
+      for (const [index, seed] of command.followers.entries()) {
+        world.follow(seed.fanId, seed.dmRulesUnmet === true);
+        world.follows[0] = { id: snowflakeAt(now - (seed.ageHours ?? 0) * 3_600_000, index), followerId: seed.fanId };
+        if (seed.customName !== undefined) world.createNote(seed.fanId, NOTE_TYPE.customName, '', seed.customName);
+        if (seed.messages === undefined && seed.dmPriceMills === undefined) continue;
+        const { group } = world.createConversation(seed.fanId);
+        if (seed.dmPriceMills !== undefined) {
+          group.dmPriceMills = seed.dmPriceMills;
+          group.dmRulesUnmet = true;
+        }
+        for (const message of seed.messages ?? []) {
+          messages.push(world.wireMessage(world.addMessage({
+            groupId: group.id,
+            senderId: message.from === 'creator' ? world.creatorId : seed.fanId,
+            content: message.text,
+            ...(message.type === undefined ? {} : { type: message.type }),
+            ...(message.correlationId === undefined ? {} : { correlationId: message.correlationId }),
+            ...(message.inReplyTo === undefined ? {} : { inReplyTo: message.inReplyTo }),
+          })));
+        }
+      }
+      world.follows.sort((a, b) => compareIds(b.id, a.id));
+      return { ok: true, messages };
     }
     case 'conversation': {
       const { group, created } = world.createConversation(command.fanId);
