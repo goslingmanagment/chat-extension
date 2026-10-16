@@ -237,6 +237,7 @@ const ROUTES: readonly Route[] = [
       const { echo: order, receiptDelayMs, echoDelayMs } = state.send;
       return {
         response: wire,
+        journal: { messageId: message.id, groupId: group.id, senderId: world.creatorId },
         delayMs: receiptDelayMs,
         ...(order === 'before' ? { before: echo } : {}),
         ...(order === 'after' ? { after: () => (echoDelayMs > 0 ? void setTimeout(echo, echoDelayMs) : echo()) } : {}),

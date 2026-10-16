@@ -349,6 +349,33 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
   });
 
+  it('[NF-022] X41: the browser resend answers the one fetch — only its own receipt+echo proves sent, not the first message or an unrelated echo', async () => {
+    const w = world();
+    const view = w.send.send(click());
+    await settle();
+    for (const phase of ['headers', 'error', 'headers', 'completed'] as const) {
+      await w.send.observeRequest({ clientRequestId: uuid(0x900), phase, ...(phase === 'completed' ? { statusCode: 200 } : {}) });
+    }
+    const id = '830000000000000002';
+    w.send.echo([{ id: '830000000000000001', conversationRef: GROUP, fromFan: false }]);
+    w.routes[0]?.answer.resolve(receipt(id));
+    await settle();
+    w.send.echo([
+      { id, conversationRef: '810000000000000099', fromFan: false },
+      { id, conversationRef: GROUP, fromFan: true },
+    ]);
+    await settle();
+    expect(w.journal()).toMatchObject([{ state: 'receipted', requestId: uuid(0x900), platformMessageId: id, browserResend: true }]);
+    expect(w.hub.actions()).not.toContain('sent');
+    w.send.echo([{ id, conversationRef: GROUP, fromFan: false }]);
+    await expect(view).resolves.toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: id });
+    await settle();
+    expect(w.journal()).toMatchObject([{ state: 'sent', proof: 'echo', platformMessageId: id, requestId: uuid(0x900), browserResend: true }]);
+    expect(w.hub.calls.at(-1)?.body).toMatchObject({ action: 'sent', platformMessageId: id, evidence: 'receipt+echo' });
+    expect(w.routes).toHaveLength(1);
+    expect(w.routes[0]?.starts).toBe(1);
+  });
+
   it('[NF-021] the intent\'s write paused: the history, the draft, the tab or the ticket changing meanwhile refuses with NO request; the custody hears «not enqueued»', async () => {
     const cases: Array<[string, (w: World) => void, string]> = [
       ['history', (w) => (w.live = w.live === null ? null : { ...w.live, historyRevision: uuid(0x99) }), 'CG-FNEW-HISTORY'],

@@ -4,7 +4,8 @@
 // custody of the fake hub, final check and `POST /message` to the fake Fansly — and holds them at the boundaries:
 // - one click → one POST; the receipt and its echo (also an echo before the receipt) → `sent`, the custody `sent`;
 //   two clicks at once → one POST; the journal holds ids, never the text;
-// - `200 {success:false}` and a lost answer → `uncertain`, never repeated, the fan held;
+// - `200 {success:false}` and a lost answer without proof → `uncertain`, never repeated, the fan held;
+//   X41: a browser resend may store TWO messages; only its own receipt+echo proves `sent`;
 // - the custody's answer delayed, the intent's write itself delayed: the history, the tab's document (the relay
 //   frame's too) or the ticket's end changing in that pause → `refused` with no POST, the custody told «not enqueued»;
 // - the background gone at each boundary: before the intent → refused and told; after it → uncertain with no POST;
@@ -270,7 +271,7 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'rejected-200' });
   });
 
-  it('[NF-022] [RB-007] the lost answer: one extension fetch/requestId, uncertain, never asked again; a browser resend keeps that id (X41)', async () => {
+  it('[NF-022] [RB-007] the lost answer: one fetch/requestId, never asked again; X41 browser resend may store TWO messages — sent only by its receipt+echo, otherwise uncertain', async () => {
     await fakeFansly().command({ op: 'api', rules: [{ route: 'message.send', caller: 'ours', times: 1, outcome: { kind: 'drop' }, effect: true }] });
     const mark = await fakeFansly().mark();
     const attempt = randomUUID();
@@ -279,21 +280,40 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
     // A reset before response bytes can make Firefox resend the SAME fetch. Raw hits are transport evidence,
     // not extension attempts. A second extension fetch has a NEW id and must still fail NF-022.
+    const seen = (await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send');
+    expect([...new Set(seen.map((entry) => entry.detail?.['requestId']))]).toEqual([requestId]);
+    expect(seen[0]).toMatchObject({ status: 0, detail: { outcome: 'drop', effect: true } });
+    const messageIds = seen.flatMap((entry) => typeof entry.detail?.['messageId'] === 'string' ? [entry.detail['messageId']] : []);
+    if (seen.length === 2) {
+      // The accepted X41 duplicate window: both POSTs took effect, not merely two HTTP hits.
+      expect(messageIds).toHaveLength(2);
+      expect(new Set(messageIds).size).toBe(2);
+      expect(seen[1]).toMatchObject({ status: 200, detail: { requestId, groupId: fanOf(3).group, senderId: creator } });
+    } else {
+      expect(seen).toHaveLength(1);
+      expect(messageIds).toHaveLength(1);
+    }
+    const sent = result?.state === 'sent';
+    if (sent) expect(messageIds).toHaveLength(2);
+    // A late status alone is insufficient: `sent` must name the receipt/echo id of THIS requestId's replay,
+    // not the first (lost) message, another request or a message with the same text.
+    const expected = sent
+      ? { state: 'sent', proof: 'echo', platformMessageId: messageIds[1] }
+      : { state: 'uncertain', cause: 'network', code: 'CG-SEND-UNCERTAIN' };
+    expect(result).toMatchObject(expected);
+    if (sent) await custodyIs(3, attempt, 'sent');
+    console.info('NF-022 X41', { requestId, recordedMessages: messageIds.length, messageIds, result });
     const oneRequest = async (): Promise<void> => {
-      const seen = (await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send');
-      expect([...new Set(seen.map((entry) => entry.detail?.['requestId']))]).toEqual([requestId]);
-      expect(seen.some((entry) => entry.status === 0 && entry.detail?.['outcome'] === 'drop')).toBe(true);
-      expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'network', requestId });
+      expect((await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send')).toEqual(seen);
+      expect(await journal(attempt)).toMatchObject({ ...expected, requestId });
     };
     await oneRequest();
-    expect(result).toMatchObject({ state: 'uncertain', cause: 'network', code: 'CG-SEND-UNCERTAIN' });
     await browser.pause(3_000);
     await oneRequest();
-    expect((await answered(await click(3, [randomUUID()])))[0]).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+    expect((await answered(await click(3, [randomUUID()])))[0]).toMatchObject({ state: 'refused', code: sent ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN' });
     await oneRequest();
-    expect(await view(attempt)).toMatchObject({ state: 'uncertain', cause: 'network' });
+    expect(await view(attempt)).toMatchObject(expected);
     expect((await custody(3)).map(([id]) => id)).toEqual([attempt]);
-    expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'network' });
   });
 
   it('[NF-021] the custody’s answer delayed: the history changes meanwhile → refused, NO POST; the custody hears «not enqueued»', async () => {
