@@ -22,7 +22,7 @@ export function siteDetails(model: PagesModel, site: PageSite): readonly Detail[
   const rows: Detail[] = [];
   const add = (key: I18nTextKey, value: string): void => { rows.push({ label: model.t.text(key), value }); };
   add('status.details.access', access === undefined ? noData : model.t.text('status.details.accessValue', { enabled: yesNo(access.enabled), granted: yesNo(access.granted), registered: yesNo(access.registered) }));
-  if ((access?.waitingReload ?? 0) > 0) add('siteAccess.reload', model.t.text('popup.waitingReload', { n: access?.waitingReload ?? 0 }));
+  if ((access?.waitingReload ?? 0) > 0) add('siteAccess.reload', model.t.plural('popup.waitingReload', access?.waitingReload ?? 0));
   add('settings.status.row.sound', model.t.text('status.details.tabs', { n: tabs.filter((tab) => tab.host?.capabilities.incoming?.state === 'on').length, m: tabs.length + (access?.waitingReload ?? 0), unknown: tabs.filter((tab) => tab.host?.capabilities.identity?.state !== 'on').length }));
   const mode = diagnostic?.requestModes?.find((entry) => entry.host === site.kind)?.mode;
   add('status.details.mode', mode === undefined ? noData : model.t.text(mode === 'relay' ? 'status.details.relay' : 'status.details.background'));

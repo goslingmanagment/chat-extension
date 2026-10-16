@@ -154,6 +154,34 @@ const modules = async (w: World): Promise<ReadonlyArray<{ host: string; state: s
 };
 
 describe('[host:fansly] a Fansly tab and the background (R20 P7i)', () => {
+  it.each(['switched off', 'permissions revoked'] as const)('[FS-PERM-5] Fansly %s: shared Reply and Hi starts with existing tokens and new generation tokens are refused; ChatSpace still starts', async (change) => {
+    const w = world(); w.start(); await switchFanslyOn(w); await signIn(w);
+    const tab = await fanslyTab(w);
+    const binding = await fanslyBinding(tab);
+    const starts: StartOp[] = [];
+    for (const feature of ['reply', 'hi'] as const) {
+      const token = await tab.client.request('token.issue', { kind: 'generate', surface: 'dock' });
+      if (!token.ok) throw new Error(`token.issue: ${token.error.code}`);
+      starts.push({ feature, surface: 'dock', target: { binding, chat: FANSLY_CHAT, fanRef: fan, conversationRef: group }, cause: { kind: 'click', actionToken: token.payload.actionToken }, tone: null, split: false, window: 100 });
+    }
+    if (change === 'switched off') {
+      expect(await w.page('popup').request('site.access', { host: 'fansly-web', enabled: false })).toMatchObject({ ok: true, payload: { enabled: false, registered: false } });
+    } else {
+      w.fake.revokeFromBrowserUi({ origins: [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], permissions: ['webRequest'] });
+      await until(async () => {
+        const access = await w.page().request('site.access', { host: 'fansly-web' });
+        return access.ok && !access.payload.granted && !access.payload.registered;
+      }, 'Fansly permissions revoked');
+    }
+    for (const start of starts) expect(await tab.client.request('op.start', start)).toMatchObject({ ok: false, error: { code: 'CG-FEATURE-DISABLED' } });
+    expect(await tab.client.request('token.issue', { kind: 'generate', surface: 'dock' })).toMatchObject({ ok: false, error: { code: 'CG-FEATURE-DISABLED' } });
+    expect(await opsOf(tab)).toHaveLength(0);
+    expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(0);
+    const chatspace = await workingTab(w);
+    admitted(await startReply(chatspace, await bindingOf(chatspace)));
+    await until(() => callsTo(w.hub.read().entries, 'aiFeatureStream').length === 1, 'ChatSpace’s Reply reached the hub');
+  });
+
   it('[NF-021] own and ai-edited greetings: the real kit adapter passes the manual group’s site schema to the hub', async () => {
     let kit: BackgroundKit | undefined;
     const w = world('present', (_session, given) => { kit = given; });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { showReloadNotice } from './notice';
+import { noticeReason, showReloadNotice } from './notice';
 
 describe('FS-IDN-4 reload notice', () => {
   it('cleans only recognised empty orphan hosts and preserves foreign/unrecognised nodes; repeated injection adds one banner', () => {
@@ -10,6 +10,25 @@ describe('FS-IDN-4 reload notice', () => {
     expect(document.querySelector('div[data-host="overlay"]')).toBeNull();
     expect(document.querySelector('div[data-host="foreign"]')).not.toBeNull();
     expect(document.querySelector('fb-extension-panel')?.textContent).toBe('neighbour');
+  });
+
+  it('[FS-IDN-4] [UP-009] says why (R20 P14c): switched on — reload to switch it on; a copy of ours ran here — the extension was updated; the old extension — switch it off first', () => {
+    document.body.innerHTML = '';
+    document.documentElement.removeAttribute('data-fx-instance');
+    const texts = (): string[] => {
+      const attach = vi.spyOn(Element.prototype, 'attachShadow');
+      showReloadNotice(document);
+      const root = attach.mock.results[0]?.value as ShadowRoot;
+      vi.restoreAllMocks();
+      return [noticeReason(document), root.querySelector('span')?.textContent ?? ''];
+    };
+    expect(texts()).toEqual(['message', 'ChatGoose: перезагрузите вкладку, чтобы включить расширение на Fansly.']);
+    document.documentElement.setAttribute('data-fx-instance', '1');
+    expect(texts()).toEqual(['update', 'ChatGoose обновлён: перезагрузите вкладку, чтобы продолжить работу на Fansly.']);
+    document.body.innerHTML = '<div id="chatgoose-root"></div>';
+    expect(texts()).toEqual(['legacy', 'ChatGoose: выключите старое расширение ChatGoose для Fansly и перезагрузите вкладку.']);
+    document.documentElement.removeAttribute('data-fx-instance');
+    document.body.innerHTML = '';
   });
 });
 

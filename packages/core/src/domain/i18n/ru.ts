@@ -11,7 +11,7 @@ export const RU: I18nCatalog<'ru'> = {
   'status.details.accountTabs': 'Вкладок: {n}',
   'status.details.tabs': 'Слушаем {n} из {m} вкладок; без атрибуции: {unknown}',
   'popup.siteLabel': '{site}: {state}',
-  'popup.waitingReload': '{n} вкладок ждут перезагрузки',
+  'popup.waitingReload': { one: '{n} вкладка ждёт перезагрузки', few: '{n} вкладки ждут перезагрузки', many: '{n} вкладок ждут перезагрузки', other: '{n} вкладки ждут перезагрузки' },
   'status.details.access': 'Доступ к сайту',
   'status.details.accessValue': 'Включён: {enabled} · права: {granted} · скрипты: {registered}',
   'status.details.noData': 'нет данных',

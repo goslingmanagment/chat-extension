@@ -251,6 +251,11 @@ export interface BackgroundKit {
   readonly settingsExt?: SettingsExtPort;
   /** R20 P14b1: the site's tabs — open by its addresses, registered, brought to the front. */
   readonly siteTabs?: SiteTabsPort;
+  /**
+   * R20 P14c: the site is on and its optional rights granted, now (FS-PERM-5). The module keeps running while its
+   * open tabs finish what they started; nothing new starts while false. Absent — a site with no switch: always on.
+   */
+  readonly siteActive?: () => boolean;
   readonly hub: HubPort;
   readonly storage: StoragePort;
   readonly clock: Clock;

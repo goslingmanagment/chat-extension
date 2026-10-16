@@ -377,7 +377,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     ready: barrier.ready,
     contractsVersion: CONTRACTS_VERSION,
     testBuild,
-    allowTab: (host) => host !== OPTIONAL_HOST || siteAccess.active(),
+    allowTab: siteActive,
     // R20 P14b1: the settings page speaks to Fansly's module (its part of `settings.ext`, its sessions and tabs) while
     // Fansly is on; the module comes up for it. Off — the page hears so at once.
     pageSite: {
@@ -627,7 +627,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
     newcomersUsable: (pageLabel) => hubInstance?.flagState('newcomers', pageLabel).usable === true,
     accountFlag,
-    hostPermission: async (host) => (host !== OPTIONAL_HOST || siteAccess.active()) && (await Promise.all((hostOrigins[host] ?? []).map((origin) => hostPermissions.has(origin)))).some(Boolean),
+    hostPermission: async (host) => siteActive(host) && (await Promise.all((hostOrigins[host] ?? []).map((origin) => hostPermissions.has(origin)))).some(Boolean),
     read: (pageLabel, windowHours) => hub().audienceNew({ pageLabel, windowHours }),
     online: () => navigator.onLine,
     events,
@@ -704,6 +704,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     site: { plug: (registry) => rpc.site({ ...registry, host }), emit: (type, payload, target) => rpc.emitSite(host, type, payload, target) },
     // R20 P14b1: `settings.ext` through its one owner; the site's tabs by its addresses and registrations, no `tabs` right.
     siteTabs: siteTabsOf(host),
+    // R20 P14c: switched off or its rights taken back, the module's tabs finish what they started and begin nothing (FS-PERM-5).
+    siteActive: () => siteActive(host),
   });
   /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */
   function siteTabsOf(host: HostKind): SiteTabsPort {
@@ -764,6 +766,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   }
   /** The site of a registered tab session; null — not a registered tab. */
   const hostOfTab = (tabSessionId: string): HostKind | null => rpc.tabs().find((tab) => tab.tabSessionId === tabSessionId)?.request.host ?? null;
+  /** The same activity port shared starts and tokens use as the site's own module; sites without a switch stay on. */
+  function siteActive(host: HostKind | null): boolean {
+    return host !== OPTIONAL_HOST || siteAccess.active();
+  }
   /**
    * A site's slice of the feature manifest (§1.4): the core's own (ChatSpace's), else the one the site's running module
    * brought (Fansly's, R20 P7i: its file is not in the core's graph). Null until that module runs: nothing of the site is
@@ -1162,7 +1168,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     // The start is judged by the slice of its chat's site: a site whose slice its module brings has it up first.
     const site = start.target.binding.host;
-    if (featuresOf(site) === null && hostOfTab(sender.tabSessionId) === site && !(await moduleUnderSameSignIn(site))) return fail('CG-CONTEXT-CHANGED', 'the sign-in changed');
+    const tabSite = hostOfTab(sender.tabSessionId);
+    if (featuresOf(site) === null && tabSite === site && !(await moduleUnderSameSignIn(site))) return fail('CG-CONTEXT-CHANGED', 'the sign-in changed');
+    if (!siteActive(tabSite)) return fail('CG-FEATURE-DISABLED');
     const outcome = await scheduler.start(sender.tabSessionId, start);
     return outcome.kind === 'admission' ? ok(outcome.admission) : fail(outcome.code);
   });
@@ -1368,6 +1376,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });
       return { ok: false, error: refusal };
     }
+    if (!siteActive(site)) return fail('CG-FEATURE-DISABLED');
     return ok(tokens.issue(sender.tabSessionId, kind, surface));
   });
   rpc.handle('token.redeem', ({ kind, surface, actionToken }, sender) => {

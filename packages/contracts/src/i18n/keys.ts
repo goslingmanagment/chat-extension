@@ -31,7 +31,6 @@ export const UI_TEXT_KEYS = [
   'status.details.accountTabs',
   // 1.15.0 P14b2: local per-site diagnostics.
   'popup.siteLabel',
-  'popup.waitingReload',
   'status.details.access',
   'status.details.accessValue',
   'status.details.noData',
@@ -292,6 +291,7 @@ export type UiTextKey = (typeof UI_TEXT_KEYS)[number];
 
 /** Plural messages (`PluralMessage`): the form is chosen by `Intl.PluralRules` on `{n}`. */
 export const UI_PLURAL_KEYS = [
+  'popup.waitingReload',
   'common.minutes', 'common.hours', 'common.days', 'common.messages', 'common.fans', 'common.money.dollars',
   'dock.quota.lowTooltip',
   'result.meta.parts', 'result.meta.variants', 'result.meta.partsEach', 'result.announce.ready', 'result.announce.retryIn',
