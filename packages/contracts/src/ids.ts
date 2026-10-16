@@ -59,6 +59,14 @@ export const CHAT_IS_FAN: Readonly<Record<Platform, boolean>> = { onlyfans: true
  */
 export const HI_BY_START_PROOF: Readonly<Record<Platform, boolean>> = { onlyfans: false, fansly: true };
 
+/**
+ * 1.15.0 (R20 P9d): the page's switches the hub admits a greeting's custody `dispatch` under, by platform (hub HF-3,
+ * admission by platform, purpose and action). OnlyFans' greeting leaves through the preview's queue (X8): `previewSend`
+ * and `newcomers`. Fansly's is our own HTTP send of «Новые»: `newcomers` alone — `previewSend` is no switch of a
+ * Fansly page. A platform this client does not know asks for both.
+ */
+export const GREETING_DISPATCH_FLAGS: Readonly<Record<Platform, readonly ('previewSend' | 'newcomers')[]>> = { onlyfans: ['previewSend', 'newcomers'], fansly: ['newcomers'] };
+
 /** HOST_PLATFORM of hosts.ts, typed: every host serves a platform this client knows. */
 const PLATFORM_OF_HOST: Readonly<Record<HostKind, Platform>> = HOST_PLATFORM;
 

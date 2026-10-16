@@ -74,6 +74,12 @@ describe('sites (1.15.0, R20)', () => {
     }
   });
 
+  it('R20 P9d: a greeting\'s dispatch needs `previewSend` too only where it leaves through the preview\'s queue (OnlyFans); every known platform says which', () => {
+    expect(C.GREETING_DISPATCH_FLAGS).toEqual({ onlyfans: ['previewSend', 'newcomers'], fansly: ['newcomers'] });
+    expect(Object.keys(C.GREETING_DISPATCH_FLAGS).sort()).toEqual([...C.KNOWN_PLATFORMS].sort());
+    for (const flags of Object.values(C.GREETING_DISPATCH_FLAGS)) for (const flag of flags) expect(C.CLIENT_FEATURE_FLAG_NAMES).toContain(flag);
+  });
+
   it('a route names its conversation only where it fits (conversationFits)', () => {
     const fansly = { host: 'fansly-web', hostAccountId: '700000000000000001', platformFanId: '700000000000000002' } as const;
     const chatspace = { host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' } as const;
