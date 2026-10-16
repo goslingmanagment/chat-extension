@@ -270,6 +270,8 @@ export class AiWorkspace {
   /** Subscribes to the host and the background and reads the first state. */
   start(): void {
     const { host, i18n, rpc } = this.ports;
+    const stopWatching = this.ports.policy.watch?.(host, () => this.bump());
+    if (stopWatching !== undefined) this.offs.push(stopWatching);
     this.offs.push(
       this.env.subscribe((change) => this.onEnvironment(change)),
       this.ops.subscribe((event) => this.onOp(event)),

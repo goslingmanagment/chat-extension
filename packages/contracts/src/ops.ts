@@ -164,6 +164,22 @@ export const CoverageProofSchema = z
   .check(z.refine(proofIdsHold, { message: 'proof ids: each once, all of its window' }));
 export type CoverageProof = z.infer<typeof CoverageProofSchema>;
 
+/** The start's evidence kept with its result (1.15.0, R20 P8b3): ids and flags only, never page text. */
+export const CoverageFingerprintSchema = z.strictObject({
+  completeness: proofShape.completeness,
+  truncated: z.boolean(),
+  window: CoverageWindowSchema,
+  knownFanMessageIds: proofShape.knownFanMessageIds,
+  deletedIds: CoverageDeletedIdsSchema,
+  /** The original draft carried a non-empty tail; its text is discarded. */
+  text: z.boolean(),
+}).check(z.refine((p) =>
+  coverageIdsOnce(p.window, p.deletedIds) &&
+  new Set(p.knownFanMessageIds).size === p.knownFanMessageIds.length &&
+  p.knownFanMessageIds.every((id) => p.window.some((entry) => entry.id === id && entry.dir === 'fan')),
+));
+export type CoverageFingerprint = z.infer<typeof CoverageFingerprintSchema>;
+
 /** A start proves its freshness one way: a proof is the target's, never beside ChatSpace's tail or X8's checkpoint. */
 function proofFits(op: {
   readonly feature: FeatureId;
@@ -564,6 +580,11 @@ export const OpViewSchema = z.strictObject({
   /** The tone the result was generated with; Regenerate repeats it (AI-007). */
   toneUsed: z.nullable(ToneSchema),
   servedContext: z.optional(z.nullable(ServedContextSchema)),
+  /** The operation's own evidence survives a reload. An older result without it is unverified. */
+  freshnessProof: z.optional(z.strictObject({
+    windowSize: z.number().check(z.int(), z.minimum(1), z.maximum(COVERAGE_CHECK_LIMITS.windowMax)),
+    fingerprint: CoverageFingerprintSchema,
+  })),
   /** The result is not shown as fresh (the dock may still insert; previews hold sends, §6.7.5): STALE_REASONS. */
   stale: z.optional(z.strictObject({ reason: z.enum(STALE_REASONS), at: z.nullable(IsoTimestampSchema) })),
   /** Only when debug.enabled. */
@@ -636,6 +657,8 @@ export interface AiStartFields {
  * opaque to the shared controller: it only hands them back to the policy.
  */
 export interface AiHostPolicy<P = unknown, F = unknown> {
+  /** Optional result observation from page memory. Calls changed after an asynchronous verdict check; disposed with the workspace. */
+  watch?(host: HostPort, changed: () => void): () => void;
   /**
    * The pre-check: the site's own reason a feature cannot start in the open chat, from what the page holds — after
    * the shared rules (the chat is loading, Fix without a draft, a short history for Review and Recap), before a token

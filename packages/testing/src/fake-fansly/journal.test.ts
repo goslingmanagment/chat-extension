@@ -64,6 +64,18 @@ describe('who made a call', () => {
     expect(fake.journal.calls('ours', since).map((entry) => entry.route)).toEqual(['group.detail']);
   });
 
+  it('reset keeps earlier requests; a suite cursor excludes them and still catches every later request of ours', async () => {
+    await call(fake, 'GET', bypass('/account/me'), { as: 'ours' });
+    const earlier = fake.journal.calls('ours', since);
+    fake.command({ op: 'reset' });
+    expect(fake.journal.calls('ours', since)).toEqual(earlier);
+    const suiteStart = fake.journal.next;
+    await call(fake, 'GET', bypass('/account/me'), { as: 'page' });
+    expect(fake.journal.calls('ours', suiteStart)).toEqual([]);
+    await call(fake, 'GET', bypass(`/group/${groupA}`), { as: 'ours' });
+    expect(fake.journal.calls('ours', suiteStart).map((entry) => entry.route)).toEqual(['group.detail']);
+  });
+
   it('a token issued for a neighbour names its calls, whatever their `Origin`', async () => {
     const token = fake.command({ op: 'session', issue: 'neighbour' }).token as string;
     await call(fake, 'GET', bypass('/message/unread?limit=100&offset=0&before=0'), { as: 'page', token });

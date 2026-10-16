@@ -23,7 +23,9 @@
 //   over the finished result is the verdict of spec §3.5's table on what the
 //   hub answered — «свежесть не проверена», «ответ мог не учесть последние
 //   сообщения», «контекст устарел» — or the background's «фан написал новое».
-//   An operation this tab did not start has no fingerprint: «не проверена».
+//   The result keeps its own fingerprint in the background too (P8b3). After
+//   a reload its hub answer is checked against that evidence and MAIN's current
+//   window; no newer start can lend it a fresh verdict.
 // - Not yet: Hi's start proof, its avatar and the pre-checks of Hi and Ping
 //   (P8c); until then the hub decides its gates by itself.
 
@@ -33,6 +35,7 @@ import type { HostPort } from '@cg/contracts/host';
 import type { AiHostPolicy, AiProofAsk, CoverageProof } from '@cg/contracts/ops';
 
 import { checkWindowOf, startProofOf } from './proof';
+import { resultChecks } from './result-checks';
 import { fingerprintOf, verdictMark, type ProofFingerprint } from './verdict';
 
 export interface FanslyAiDeps {
@@ -61,11 +64,13 @@ function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<Fa
 }
 
 export function createFanslyAi(deps: FanslyAiDeps): AiHostPolicy<FanslyStartProof, ProofFingerprint> {
+  const checks = resultChecks(deps.now);
   return {
+    watch: (host, changed) => checks.watch(host, changed),
     preflight: () => null,
     proof: (host, ask) => gather(host, ask, deps),
     fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof }),
     fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),
-    verdict: verdictMark,
+    verdict: (view, fingerprint) => verdictMark(view, checks.current(view, fingerprint)),
   };
 }

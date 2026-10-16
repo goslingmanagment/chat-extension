@@ -16,7 +16,7 @@ describe('[host:fansly] request identity: the coverage proof (R20 P4b1)', () => 
   const identity = (over: Parameters<typeof startOf>[0] = {}, archiveHead: string | null = null) =>
     requestIdentityOf({ session, start: startOf(over), persona, archiveHead });
 
-  it('[host:fansly] R20 P4b1: the proof is in the key by its fingerprint — another window, deletion, observation or tail is another request, the moment it was taken is not', () => {
+  it('[AI-128] R20 P8b3: the proof is in the key by its fingerprint — another window, deletion, observation or tail is another request, the moment it was taken is not', () => {
     const proof: CoverageProof = {
       kind: 'tab-snapshot',
       conversationRef: FANSLY.group,
@@ -40,6 +40,8 @@ describe('[host:fansly] request identity: the coverage proof (R20 P4b1)', () => 
     expect(requestKeyOf(base)).not.toContain('the model said this');
     const variants = [
       withProof({ ...proof, window: [...proof.window, { id: '7304', dir: 'fan' }] }),
+      withProof({ ...proof, window: [{ id: '7301', dir: 'model' }, { id: '7302', dir: 'model' }], knownFanMessageIds: [] }),
+      withProof({ ...proof, conversationRef: '7309' }),
       withProof({ ...proof, deletedIds: [] }),
       withProof({ ...proof, knownFanMessageIds: [] }),
       withProof({ ...proof, completeness: 'unknown' }),

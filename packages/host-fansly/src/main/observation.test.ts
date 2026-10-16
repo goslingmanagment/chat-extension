@@ -360,6 +360,23 @@ describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () =>
     expect(coverage(c).filter((p) => JSON.stringify(p).includes('unseen'))).toEqual([{ groupIds: [GROUP], state: 'unknown', reason: 'unseen' }]);
   });
 
+  it('[FS-TAIL-3] [FS-TAIL-4] a fresh end started before lastMessage becomes a loss cannot recover it; a request after that loss can', async () => {
+    let skew = 0;
+    const { c } = await tab({ win: page('loading', () => performance.now() + skew) });
+    const server = conversation(1, 11);
+    fresh(c.win).respond(200, freshEnd(server.slice(0, 10)));
+    request(c.win, `${API}/group/${GROUP}/`).respond(200, ok(group(GROUP, [CREATOR, FAN], { lastMessage: server.at(-1) })));
+    const held = fresh(c.win);
+    skew += UNSEEN_GRACE_MS + 1;
+    expect(await snap(c)).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
+    held.respond(200, freshEnd(server));
+    expect(await snap(c)).toMatchObject({ completeness: 'unknown', gap: 'unseen' });
+    fresh(c.win).respond(200, freshEnd(server));
+    const recovered = await snap(c);
+    expect(recovered?.completeness).toBe('complete');
+    expect(windowIds(recovered)).toEqual(ids(server));
+  });
+
   it('[FS-TAIL-4] merge order: the certificate of the later request governs — a late answer to an earlier one adds nothing; a socket deletion wins over any answer', async () => {
     const { c, socket } = await tab();
     const server = conversation(1, 12);

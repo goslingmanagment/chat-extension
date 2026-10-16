@@ -41,9 +41,10 @@ import {
   type ResolveHubError,
 } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
-import { OP_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
+import { COVERAGE_CHECK_LIMITS, OP_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
 import { OpViewSchema, type Admission, type OpDebugView, type OpState, type OpView, type AnyOpView, type SiteOpView, type SiteStartOp, type AnyStartOp, type AnyOpResult, type Phase, type StartOp } from '@cg/contracts/ops';
 import { FreshnessCheckpointSchema, type FreshnessCheckpoint } from '@cg/contracts/send';
+import { coverageFingerprintOf } from '../domain/ops/proof';
 import { type AiQuotaSnapshot, type BackgroundToast } from '@cg/contracts/tab-messages';
 
 import {
@@ -456,6 +457,7 @@ export class OpScheduler {
         phase: { name: 'admitted', since: now },
         startedAt: now,
         toneUsed: start.tone,
+        ...(start.proof === undefined ? {} : { freshnessProof: { windowSize: Math.min(COVERAGE_CHECK_LIMITS.windowMax, Math.max(start.window, start.proof.window.length)), fingerprint: coverageFingerprintOf(start.proof) } }),
       },
       site,
       startedBy: tabSessionId,
