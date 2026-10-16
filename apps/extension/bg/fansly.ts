@@ -90,6 +90,7 @@ import { createNotesService } from './fansly/notes';
 import { readRegistration } from './fansly/registration';
 import { createRelayService } from './fansly/relay';
 import { fanslySendProbe } from './fansly/send-probe';
+import { startPassJournal } from './fansly/pass-journal';
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
 const unreachable = (detail: string): HostAnswer => ({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail } });
@@ -207,7 +208,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
   const operations = createFanslyOperations((view) => kit.site?.emit('fansly.ops.done', { view }));
-  const newcomers = kit.site === undefined ? null : startNewcomers(kit, session, api);
+  const journal = kit.site === undefined ? null : await startPassJournal(kit);
+  const newcomers = kit.site === undefined ? null : startNewcomers(kit, session, api, journal);
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
     // The registry's rules let a page send only the settings page's types (contracts tab-messages-fansly.ts).
     if (sender.kind === 'page') return pageRequest(kit, accounts, type, payload);
@@ -305,8 +307,13 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     },
     onTabMessage: () => Promise.resolve({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     async onEvent(event) {
-      if (event.kind === 'clear-finished') { await spenders?.clear(); await Promise.all([vault.sweep(), greetings?.clearFinished()]); }
+      if (event.kind === 'clear-finished') {
+        await spenders?.clear();
+        await Promise.all([vault.sweep(), greetings?.clearFinished()]);
+        await journal?.clear();
+      }
       if (event.kind === 'session' && event.ownerChanged) await spenders?.clear();
+      if (event.kind === 'session' && (event.ownerChanged || event.signedOut)) await journal?.clear();
       // The custody reports still owed go once the bootstrap names their pages again.
       if (event.kind === 'bootstrap' || event.kind === 'session') greetings?.pump();
     },
@@ -322,6 +329,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       unprobeSend();
       greetings?.dispose();
       await spenders?.flush();
+      await journal?.dispose();
       await api?.pacer.flush();
     },
   };
@@ -333,7 +341,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
  * asks the stand's API the e2e names (`dev.fanslyApi.origin`, api-probe.ts) and nothing without it; a release build,
  * Fansly's.
  */
-function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | undefined, api: FanslyApi | null): FanslyNewcomers {
+function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | undefined, api: FanslyApi | null, journal: Awaited<ReturnType<typeof startPassJournal>> | null): FanslyNewcomers {
   const client = api === null || session === undefined ? null : __CG_TEST_HOSTS__ ? fanslyStandClient(kit, session, api) : api.client;
   const port: FanslyNewcomersApi = {
     async call(call, signal) {
@@ -363,6 +371,8 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
     api: port,
     now: () => kit.clock.now(),
     uuid: () => kit.ids.uuid(),
+    monotonicNow: () => performance.now(),
+    ...(journal === null ? {} : { journal }),
     sleep: (ms, signal) =>
       new Promise<void>((resolve) => {
         if (signal.aborted) return resolve();

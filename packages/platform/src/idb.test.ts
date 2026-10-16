@@ -92,6 +92,24 @@ describe('bounded IndexedDB store (§9.2)', () => {
     expect((await store.latest(5, { group: 3 })).map((r) => (r.value as { seq: number }).seq)).toEqual([30, 31]);
   });
 
+  it('[LG-005] rotating whole groups accounts counts and bytes without retaining their record values', async () => {
+    const clock = { now: MINUTE };
+    const store = await openBoundedStore(options(new IDBFactory(), clock, { maxGroups: 2, maxRecords: 12, maxBytes: 6000, maxAgeMs: MINUTE }));
+    for (let group = 1; group <= 10; group++) {
+      await store.append(Array.from({ length: 4 }, (_, n) => ({ at: clock.now, group, value: { n, metadata: 'x'.repeat(100 * (n + 1)) } })));
+      const rows = await store.latest(20);
+      const stats = store.stats();
+      expect(stats.records).toBe(rows.length);
+      expect(stats.bytes).toBe(rows.reduce((sum, row) => sum + row.bytes, 0));
+      expect(stats.records + stats.evicted).toBe(group * 4);
+      expect(stats.groups).toEqual(group === 1 ? [1] : [group - 1, group]);
+    }
+    clock.now += 2 * MINUTE;
+    await store.prune();
+    expect(store.stats()).toMatchObject({ records: 0, bytes: 0, groups: [], expired: 8, evicted: 32 });
+    store.close();
+  });
+
   it('never throws: oversized or non-JSON records are refused, an unavailable database counts losses', async () => {
     const clock = { now: MINUTE };
     const store = await openBoundedStore(options(new IDBFactory(), clock, { maxRecordBytes: 200 }));

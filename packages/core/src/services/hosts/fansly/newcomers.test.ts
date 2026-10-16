@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
-import { COOLING_LOOK_MS, NEWCOMERS_EXCLUDED_PREFIX, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute } from './newcomers';
+import { COOLING_LOOK_MS, NEWCOMERS_EXCLUDED_PREFIX, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal, type PassJournalEvent, type PassJournalFields } from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
 const C = '700000000000000017';
@@ -171,7 +171,7 @@ function fansly() {
 // The fake's own `chat` for `POST /group` of a fan without one (a new empty technical chat).
 let this_: ReturnType<typeof fansly>;
 
-function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?: MemoryKv } = {}) {
+function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?: MemoryKv; journal?: PassJournal } = {}) {
   const world = fansly();
   this_ = world;
   const kv = options.kv ?? createMemoryKv();
@@ -196,6 +196,7 @@ function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?
     alive: () => true,
     tabOn: options.tabOn ?? (() => true),
     local: kv.open(),
+    ...(options.journal === undefined ? {} : { journal: options.journal }),
   });
   const ask = async <T extends keyof typeof FANSLY_TAB_REQUESTS>(type: T, payload: unknown, tab = TAB): Promise<FanslyTabResponsePayload<T>> => {
     expect(FANSLY_TAB_REQUESTS[type].req.safeParse(payload).success, `${type} request`).toBe(true);
@@ -232,6 +233,39 @@ afterEach(() => {
 });
 
 describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)', () => {
+  it('[NF-029] [FS-NEW-5] journals phases, calls, pagination, classifications, verdicts and cache use by id; no conversation or profile text', async () => {
+    const records: Array<{ event: PassJournalEvent; fields: PassJournalFields | undefined }> = [];
+    const start = vi.fn<PassJournal['start']>(() => (event, fields) => { records.push({ event, fields }); });
+    const t = setup({ journal: { start } });
+    const fan = t.world.follow(1, T0 - minutes(5), { notes: false, name: 'PRIVATE NAME' });
+    const group = t.world.chat(fan, [{ from: 'fan', content: 'PRIVATE MESSAGE' }, { from: 'model', type: 2, content: 'PRIVATE AUTOMATION' }]);
+    const passId = await t.scan();
+    await t.settle();
+    await t.ask('fansly.followers.history', { passId, fanRef: fan, before: null, limit: 10 });
+    expect(start).toHaveBeenCalledWith({ passId, hostAccountId: C, startedAt: T0, windowHours: 48 });
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(records.map((record) => record.event)).toEqual(expect.arrayContaining(['pass.start', 'pass.phase', 'call.start', 'call.end', 'welcome.refresh', 'followers.page', 'inbox.page', 'profiles.batch', 'chat.reuse', 'history.page', 'message.classify', 'row.verdict', 'pass.end', 'history.cache']));
+    expect(records.find((record) => record.event === 'row.verdict' && record.fields?.status === 'ready')?.fields).toMatchObject({ fanRef: fan, groupId: group.id, status: 'ready', reason: 'history-start' });
+    expect(records).toContainEqual({ event: 'message.classify', fields: { fanRef: fan, groupId: group.id, messageId: group.messages[0]?.id, classification: 'fan' } });
+    expect(JSON.stringify(records)).not.toMatch(/PRIVATE|Thanks|about 1|fan_1/);
+  });
+
+  it('[NF-029] [FS-NEW-5] records a failed call and the stopped pass by code, never the thrown error text; a broken journal cannot break a scan', async () => {
+    const events: Array<{ event: PassJournalEvent; fields: PassJournalFields | undefined }> = [];
+    const t = setup({ journal: { start: () => (event, fields) => { events.push({ event, fields }); } } });
+    t.world.failures.set('message.automated', new Error('PRIVATE ERROR'));
+    const passId = await t.scan();
+    await t.settle();
+    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 10 })).pass?.state).toBe('stopped');
+    expect(events.find((record) => record.event === 'call.failed')?.fields).toMatchObject({ route: 'message.automated', code: 'CG-FAN-REQUEST' });
+    expect(events).toContainEqual({ event: 'pass.stop', fields: { code: 'CG-FAN-REQUEST', total: 0 } });
+    expect(JSON.stringify(events)).not.toContain('PRIVATE ERROR');
+    const broken = setup({ journal: { start: () => () => { throw new Error('journal failed'); } } });
+    const second = await broken.scan();
+    await broken.settle();
+    expect((await broken.ask('fansly.followers.read', { passId: second, offset: 0, limit: 10 })).pass?.state).toBe('done');
+  });
+
   it('[FS-NEW-4] [NF-030] [NF-031] nothing is asked before a window scans; then the welcome texts, the period’s followers by the moment in their follow id, the inbox, the profiles with the creator’s own names', async () => {
     const t = setup();
     const a = t.world.follow(1, T0 - minutes(5), { custom: 'Lucky' });

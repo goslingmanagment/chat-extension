@@ -156,11 +156,12 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
     db = null;
   }
 
-  const account = (row: Pick<StoredRow, 'group' | 'bytes'>, sign: 1 | -1): void => {
-    records += sign;
+  // A sweep accounts whole groups at once: `bytes` is their sum, `count` their row count.
+  const account = (row: Pick<StoredRow, 'group' | 'bytes'>, sign: 1 | -1, count = 1): void => {
+    records += sign * count;
     bytes += sign * row.bytes;
     const entry = groups.get(row.group) ?? { count: 0, bytes: 0 };
-    entry.count += sign;
+    entry.count += sign * count;
     entry.bytes += sign * row.bytes;
     if (entry.count <= 0) groups.delete(row.group);
     else groups.set(row.group, entry);
@@ -209,7 +210,9 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
     const t = transaction('readwrite');
     if (!t) return 0;
     let removed = 0;
-    const gone: StoredRow[] = [];
+    // Retain totals only, never the removed journal values (up to 100 000
+    // events). Accounting is still committed only when the transaction is.
+    const gone = new Map<number, { count: number; bytes: number }>();
     try {
       await walk(open(t.store), (cursor) => {
         const row = cursor.value as StoredRow;
@@ -217,7 +220,10 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
         if (verdict === 'stop') return false;
         if (verdict === 'delete') {
           cursor.delete();
-          gone.push(row);
+          const group = gone.get(row.group) ?? { count: 0, bytes: 0 };
+          group.count += 1;
+          group.bytes += row.bytes;
+          gone.set(row.group, group);
           removed += 1;
         }
         return true;
@@ -227,7 +233,7 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
       failed += 1;
       return 0;
     }
-    for (const row of gone) account(row, -1);
+    for (const [group, totals] of gone) account({ group, bytes: totals.bytes }, -1, totals.count);
     return removed;
   }
 
