@@ -1,9 +1,10 @@
-// «Заметки» of a Fansly tab drawn (R20 P11b): the panel and the header button over the real controller and a port
+// «Заметки» of a Fansly tab drawn (R20 P11b, P11b2): the panel and the header button over the real controller and a port
 // that answers like the background — what a person sees and presses, before the stand's e2e (`suite-fansly-notes`).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { NotesAction, NotesClient, NotesPanelVM } from '@cg/contracts/notes-fansly';
 import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
-import { createNotesController, type NotesPort, type NotesTarget } from '@cg/core/application/hosts/fansly/notes';
+import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, createNotesController, type NotesPort, type NotesTarget } from '@cg/core/application/hosts/fansly/notes';
 import { NOTES_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import { NotesButton, NotesPanel } from '@cg/ui/hosts/fansly/notes';
 
@@ -15,11 +16,14 @@ const notes: FanslyNote[] = [
   { noteId: '2', title: 'FBuddy Notes', text: 'likes cats', foreign: true },
 ];
 
-function controller() {
+/** A questionnaire the Fansly extension 2.10 left: its eight entries, a stamped month, a line written under a field. */
+const OLD_FORM = 'Имя: Wayne\nЛокация: Флорида (08.2026)\nВозраст: \nРабота: медбрат; ночные смены\nХобби: \nФетиши: \nХарактеристика: депрессивный чел\nнужно поддерживать вайб\nМедиа: ';
+
+function controller(list: readonly FanslyNote[] = notes) {
   const port = {
     session: () => '7|1',
     target: () => A,
-    read: vi.fn(() => Promise.resolve({ ok: true as const, fanRef: '91', notes, customName: null })),
+    read: vi.fn(() => Promise.resolve({ ok: true as const, fanRef: '91', notes: [...list], customName: null })),
     create: vi.fn((_who, title: string, text: string) => Promise.resolve({ ok: true as const, note: { noteId: '9', title, text, foreign: false } })),
     edit: vi.fn((_who, noteId: string, title: string, text: string) => Promise.resolve({ ok: true as const, note: { noteId, title, text, foreign: false } })),
     remove: vi.fn(() => Promise.resolve({ ok: true as const })),
@@ -44,8 +48,8 @@ const button = (ui: MountedKit, label: string): HTMLButtonElement => {
   return found as HTMLButtonElement;
 };
 
-async function open() {
-  const c = controller();
+async function open(list?: readonly FanslyNote[]) {
+  const c = controller(list);
   const header = await mountKitSettled(() => <NotesButton client={c.notes} texts={NOTES_TEXTS} />, { kind: 'header-slot' as never, language: 'ru' });
   const panel = await mountKitSettled(() => <NotesPanel client={c.notes} texts={NOTES_TEXTS} />, { kind: 'notes' as never, language: 'ru' });
   mounted.push(header, panel);
@@ -71,8 +75,7 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
   it('[FX-007] [FX-008] [FS-NOTE-4] «+ По шаблону» opens the questionnaire; «Создать» writes it once; a delete asks first', async () => {
     const ui = await open();
     await flush(() => button(ui.panel, '+ По шаблону').click());
-    expect(ui.panel.$('[data-notes-editor="new"] textarea')).not.toBeNull();
-    expect((ui.panel.$('[data-notes-editor="new"] textarea') as HTMLTextAreaElement).value).toContain('Локация: ');
+    expect(ui.panel.$$('[data-notes-editor="new"] [data-notes-field]').map((row) => row.getAttribute('data-notes-field'))).toEqual(NOTE_TEMPLATE_LABELS);
     await flush(() => ui.panel.$('[data-notes-save]')?.click());
     await flush();
     expect(ui.port.create).toHaveBeenCalledTimes(1);
@@ -127,5 +130,89 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     await flush();
     expect(ui.panel.$('.cg-notes__hint')?.textContent).toBe(NOTES_TEXTS.ru.problem.changed);
     expect((ui.panel.$('[data-notes-name]') as HTMLInputElement).value).toBe('Саша');
+  });
+
+  it('[FX-008] [FS-NOTE-2] a questionnaire the old extension wrote reads as a table: facts one per line, the month at the right, the empty fields in one line (R20 P11b2)', async () => {
+    const ui = await open([{ noteId: '1', title: '', text: OLD_FORM, foreign: false }]);
+    const card = ui.panel.$('[data-note-id="1"]');
+    expect(card?.querySelector('.cg-notes__note-title')?.textContent).toBe('Анкета');
+    expect([...(card?.querySelectorAll('[data-notes-form] dt') ?? [])].map((node) => node.textContent)).toEqual(['Имя', 'Локация', 'Работа', 'Характеристика']);
+    const facts = (label: string) => [...(card?.querySelectorAll(`[data-notes-field="${label}"] .cg-notes__fact-t`) ?? [])].map((node) => node.textContent);
+    expect(facts('Работа')).toEqual(['медбрат', 'ночные смены']);
+    expect(facts('Характеристика')).toEqual(['депрессивный чел', 'нужно поддерживать вайб']);
+    expect(card?.querySelector('[data-notes-field="Локация"] .cg-notes__fact-date')?.textContent).toBe('08.2026');
+    expect(card?.querySelector('.cg-notes__blank')?.textContent).toBe('Не заполнено: Возраст, Хобби, Фетиши, Медиа');
+    // One questionnaire per fan.
+    expect(() => button(ui.panel, '+ По шаблону')).toThrow();
+  });
+
+  it('[FX-008] [FS-NOTE-2] the questionnaire is edited field by field, one fact per line; «Текстом» shows the one text Fansly keeps (R20 P11b2)', async () => {
+    const ui = await open();
+    await flush(() => button(ui.panel, '+ По шаблону').click());
+    const field = (label: string) => ui.panel.$(`[data-notes-editor="new"] [data-notes-field="${label}"] textarea`) as HTMLTextAreaElement;
+    // The first field takes the focus.
+    expect(ui.panel.root.activeElement).toBe(field('Имя'));
+    const typeIn = async (label: string, value: string) => {
+      field(label).value = value;
+      await flush(() => field(label).dispatchEvent(new Event('input', { bubbles: true })));
+    };
+    await typeIn('Имя', 'Alex');
+    await typeIn('График', 'ночные смены\n');
+    // A new line being typed stays in its box.
+    expect(field('График').value).toBe('ночные смены\n');
+    await typeIn('График', 'ночные смены\nвыходные — суббота');
+    await flush(() => button(ui.panel, 'Текстом').click());
+    const text = NOTE_TEMPLATE_TEXT.replace('Имя: ', 'Имя: Alex').replace('График: ', 'График: ночные смены; выходные — суббота');
+    expect((ui.panel.$('[data-notes-editor="new"] textarea') as HTMLTextAreaElement).value).toBe(text);
+    await flush(() => button(ui.panel, 'Полями').click());
+    expect(field('График').value).toBe('ночные смены\nвыходные — суббота');
+    await flush(() => ui.panel.$('[data-notes-save]')?.click());
+    await flush();
+    expect(ui.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, 'Анкета', text.trimEnd());
+  });
+
+  it('[FX-008] the Goose’s rewrite stands under its field: what it adds and drops, the fan’s words, «Принять» and «Не нужно» (R20 P11b2; the fill is P11c)', async () => {
+    const c = controller([{ noteId: '1', title: 'Анкета', text: OLD_FORM, foreign: false }]);
+    const live = c.notes;
+    const suggestion = { index: 0, label: 'Работа', added: ['медбрат в больнице'], removed: ['медбрат'], proposed: 'медбрат в больнице; ночные смены', quotes: ['я работаю в больнице'] };
+    const loose = { index: 1, label: 'Питомцы', added: [], removed: [], proposed: 'кот', quotes: [] };
+    const panel = (): NotesPanelVM => {
+      const vm = live.panel();
+      const editor = vm.editor;
+      if (editor === null) return vm;
+      const form = editor.form?.map((part) => (part.kind === 'field' && part.label === 'Работа' ? { ...part, suggestions: [suggestion] } : part)) ?? null;
+      return { ...vm, editor: { ...editor, form, suggestions: [suggestion, loose] } };
+    };
+    const dispatch = vi.fn<(action: NotesAction) => void>();
+    const client: NotesClient = {
+      panel,
+      trigger: () => live.trigger(),
+      subscribe: (listener) => live.subscribe(listener),
+      dispatch: (action) => {
+        if (action.type === 'suggestion') dispatch(action);
+        else live.dispatch(action);
+      },
+    };
+    const ui = await mountKitSettled(() => <NotesPanel client={client} texts={NOTES_TEXTS} />, { kind: 'notes' as never, language: 'ru' });
+    mounted.push(ui);
+    live.sync();
+    live.toggle();
+    await flush();
+    await flush(() => live.dispatch({ type: 'edit', noteId: '1' }));
+    const under = ui.$('[data-notes-field="Работа"] [data-notes-suggestion="0"]');
+    expect(under?.querySelector('.cg-notes__suggest-t')?.textContent).toBe('Гусь предлагает заменить');
+    expect(under?.querySelector('del')?.textContent).toBe('медбрат');
+    expect(under?.querySelector('ins')?.textContent).toBe('медбрат в больнице');
+    expect(under?.querySelector('.cg-notes__quotes')?.textContent).toBe('«я работаю в больнице»');
+    // A rewrite of no field in the form stands after the fields, named.
+    const after = ui.$('[data-notes-editor="1"] > [data-notes-suggestion="1"]');
+    expect(after?.querySelector('.cg-notes__suggest-t')?.textContent).toBe('Гусь предлагает заменить в «Питомцы»');
+    expect(after?.querySelector('ins')?.textContent).toBe('кот');
+    await flush(() => (under?.querySelector('button') as HTMLButtonElement).click());
+    await flush(() => (after?.querySelector('button[aria-label="Не нужно"]') as HTMLButtonElement).click());
+    expect(dispatch.mock.calls.map(([action]) => action)).toEqual([
+      { type: 'suggestion', index: 0, accept: true },
+      { type: 'suggestion', index: 1, accept: false },
+    ]);
   });
 });

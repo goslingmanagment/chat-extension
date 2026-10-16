@@ -1,7 +1,11 @@
-// «Заметки»'s sheets (R20 P11b; ui-design §1, §2, §3.4, §3.7): the button in Fansly's header row — the row's own size
+// «Заметки»'s sheets (R20 P11b, P11b2; ui-design §1, §2, §3.4, §3.7): the button in Fansly's header row — the row's own size
 // and colour, as «Регистрация» beside it — and the panel in our layer 900, in the site's profile (Fansly's palette in
 // both of its themes). The family's surfaces: the raised card, the sunken capsule of the view, hairlines between notes,
 // terracotta only for our main action (Создать / Сохранить) and the open button. Nothing here reaches the fan: no blue.
+//
+// A questionnaire (P11b2) is a table: the label column muted, the facts in the page's ink, the month in mono at the
+// right; in the editor each value is its own box. The Goose's rewrite under a field is terracotta (the family's AI
+// colour) with its facts in serif, as AI text is everywhere; what it drops is struck through.
 //
 // A note here is a JS comment: a CSS one would ship in the chunk.
 
@@ -64,6 +68,43 @@ ${p}__edit { margin: 8px -6px; padding: 8px; border-radius: var(--cg-r-md); back
 ${p}__edit .cg-field { width: 100%; box-sizing: border-box; }
 ${p}__edit .cg-field--area { font-size: var(--cg-text-sm); line-height: 18px; }
 ${p}__problem { margin: 0; color: var(--cg-ink-strong); font-size: var(--cg-text-sm); line-height: 16px; }
+${p}__edit-head { display: flex; align-items: center; gap: 4px; }
+${p}__edit-head .cg-field { flex: 1; min-width: 0; }
+${p}__mode { flex: none; }
+
+${p}__body { container-type: inline-size; }
+${p}__form { margin-top: 4px; }
+${p}__fields, ${p}__frow { display: grid; grid-template-columns: var(--cg-notes-label) minmax(0, 1fr); column-gap: 12px; }
+${p} { --cg-notes-label: 96px; }
+${p}__fields { row-gap: 4px; margin: 0; align-items: start; }
+${p}__frow { align-items: start; }
+${p}__pair { display: contents; }
+${p}__label { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 18px; overflow-wrap: anywhere; }
+${p}__value { display: grid; gap: 2px; min-width: 0; margin: 0; }
+${p}__fact { position: relative; display: flex; align-items: baseline; gap: 8px; color: var(--cg-ink-2); font-size: var(--cg-text-sm); line-height: 18px; }
+${p}__value[data-many] ${p}__fact::before { content: ''; position: absolute; left: -8px; top: 8px; width: 3px; height: 3px; border-radius: 50%; background: var(--cg-ink-faint); }
+${p}__fact-t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+${p}__fact-date { flex: none; color: var(--cg-ink-faint); font-family: var(--cg-mono); font-size: var(--cg-text-2xs); font-variant-numeric: tabular-nums; }
+${p}__free { grid-column: 1 / -1; color: var(--cg-ink-2); font-size: var(--cg-text-sm); line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+${p}__blank { margin: 6px 0 0; color: var(--cg-ink-faint); font-size: var(--cg-text-xs); line-height: 15px; }
+${p}__rows { display: grid; gap: 4px; }
+${p}__rows ${p}__label { padding-top: 5px; }
+${p}__rows ${p}__free { color: var(--cg-ink-muted); cursor: default; }
+${p}__cell { display: grid; gap: 4px; min-width: 0; }
+${p}__cell .cg-field--area { min-height: 28px; padding-top: 4px; padding-bottom: 4px; }
+${p}__suggest { display: grid; gap: 2px; padding: 2px 4px 6px 8px; border-radius: var(--cg-r-sm); background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); }
+${p}__suggest-head { display: flex; align-items: center; gap: 2px; }
+${p}__suggest-t { flex: 1; min-width: 0; color: var(--cg-clay-ink); font-size: var(--cg-text-xs); font-weight: 600; }
+${p}__suggest-facts { display: grid; gap: 1px; padding-right: 4px; font-family: var(--cg-serif); font-size: var(--cg-text-sm); line-height: 19px; overflow-wrap: anywhere; }
+${p}__fact-add { color: var(--cg-ink); text-decoration: none; }
+${p}__fact-add::before { content: '+ '; color: var(--cg-clay-ink); font-family: var(--cg-font); font-weight: 700; }
+${p}__fact-del { color: var(--cg-ink-muted); text-decoration: line-through; }
+${p}__quotes { margin: 2px 4px 0 0; padding: 0 0 0 8px; list-style: none; border-left: 2px solid var(--cg-clay-line); color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 16px; }
+@container (max-width: 280px) {
+  ${p}__fields, ${p}__frow { grid-template-columns: minmax(0, 1fr); row-gap: 1px; }
+  ${p}__value { margin-bottom: 4px; padding-left: 8px; }
+  ${p}__rows ${p}__label { padding-top: 0; }
+}
 ${p}__problem-code { color: var(--cg-ink-muted); font-weight: 400; }
 
 ${p}__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px 8px 14px; border-top: 1px solid var(--cg-rule); }

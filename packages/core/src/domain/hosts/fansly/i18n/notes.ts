@@ -1,4 +1,4 @@
-// «Заметки» of a Fansly tab (R20 P11b; the Fansly extension's notes-panel.ts): the button's and the panel's words, a
+// «Заметки» of a Fansly tab (R20 P11b, P11b2; the Fansly extension's notes-panel.ts): the button's and the panel's words, a
 // host-local catalog that comes with their chunk (as «Регистрация»'s).
 import type { NotesCopy } from '@cg/contracts/notes-fansly';
 
@@ -50,6 +50,19 @@ const RU: NotesCopy = {
   views: { docked: 'Всегда справа', drawer: 'Справа по кнопке', center: 'Окно по центру' },
   narrow: 'Справа от чата мало места — панель открыта поверх чата.',
   hotkey: 'Открыть и закрыть заметки',
+  questionnaire: 'Анкета',
+  asText: 'Текстом',
+  asTextHint: 'Править заметку одним текстом, как в Fansly',
+  asFields: 'Полями',
+  asFieldsHint: 'Вернуться к полям анкеты',
+  blank: 'Не заполнено',
+  freeLine: 'Строка без поля: правится в режиме «Текстом»',
+  factDate: 'Когда фан это сказал',
+  suggestReplace: 'Гусь предлагает заменить',
+  suggestAdd: 'Гусь предлагает добавить',
+  suggestIn: 'в',
+  accept: 'Принять',
+  dismiss: 'Не нужно',
 };
 
 const EN: NotesCopy = {
@@ -100,6 +113,19 @@ const EN: NotesCopy = {
   views: { docked: 'Always on the right', drawer: 'On the right by the button', center: 'Centred window' },
   narrow: 'Little room right of the chat — the panel is open over the chat.',
   hotkey: 'Open and close the notes',
+  questionnaire: 'Questionnaire',
+  asText: 'As text',
+  asTextHint: 'Edit the note as one text, as in Fansly',
+  asFields: 'As fields',
+  asFieldsHint: 'Back to the questionnaire’s fields',
+  blank: 'Not filled',
+  freeLine: 'A line of no field: edited «As text»',
+  factDate: 'When the fan said it',
+  suggestReplace: 'The Goose suggests replacing',
+  suggestAdd: 'The Goose suggests adding',
+  suggestIn: 'in',
+  accept: 'Accept',
+  dismiss: 'Not needed',
 };
 
 export const NOTES_TEXTS: { readonly ru: NotesCopy; readonly en: NotesCopy } = { ru: RU, en: EN };
