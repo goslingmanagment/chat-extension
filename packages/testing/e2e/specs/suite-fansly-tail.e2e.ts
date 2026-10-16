@@ -48,11 +48,13 @@ describe('suite-fansly-tail: the observed window, certificates, gaps and bounded
   useNetworkTrap();
   let harness: FanslyTapHarness;
   let since = 0;
+  let apiSince = 0;
   before(async () => { harness = await installFanslyTapHarness({ main: 'start' }); });
   beforeEach(async () => {
     await fakeFansly().command({ op: 'reset' });
     await setFanslyNeighbor(null);
     since = await fanslyStandServer.mark();
+    apiSince = await fakeFansly().mark();
     await openWithNeighbor(`/messages/${A.group}`, { mode: 'after' });
     await waitForFanslyTap();
     await waitForFanslyStandIdle();
@@ -61,7 +63,7 @@ describe('suite-fansly-tail: the observed window, certificates, gaps and bounded
   });
   afterEach(async () => {
     expect((await fanslyStandServer.journal(since)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
-    expect(await fakeFansly().calls('ours', 0)).toEqual([]);
+    expect(await fakeFansly().calls('ours', apiSince)).toEqual([]);
     expect(await tap('stats')).toMatchObject({ invalidEvents: 0, invalidAnswers: 0 });
   });
   after(async () => { await harness.remove(); await setFanslyNeighbor(null); });
@@ -217,6 +219,7 @@ describe('suite-fansly-tail: Reply, Fix and a reopened result carry their own ev
   const { hub } = useFakeHub();
   let shift: FanslyShift;
   let standMark = 0;
+  let apiMark = 0;
   const streams = async (since: number): Promise<FakeHubJournalEntry[]> => (await hub().journal(since)).entries.filter((entry) => entry.route === 'aiFeatureStream');
   const done = (feature: string, previous?: string | null) => dockIs((d) => d.result?.feature === feature && d.result.state === 'done' && (previous === undefined || d.result.opId !== previous), `${feature} done`, 30_000);
   const seed = (window: readonly { id: string; dir: 'fan' | 'model' }[]) => hub().command({ op: 'archiveConversation', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: A.group, messages: window.map((m) => ({ id: m.id, sender: m.dir })) });
@@ -224,6 +227,7 @@ describe('suite-fansly-tail: Reply, Fix and a reopened result carry their own ev
     await fakeFansly().command({ op: 'reset' });
     await setFanslyNeighbor(null);
     standMark = await fanslyStandServer.mark();
+    apiMark = await fakeFansly().mark();
     shift = await startFanslyShift(hub(), { path: `/messages/${A.group}`, neighbor: { mode: 'after' } });
     await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the Fansly dock ready', 20_000);
     await waitForFanslyStandIdle();
@@ -231,7 +235,7 @@ describe('suite-fansly-tail: Reply, Fix and a reopened result carry their own ev
   afterEach(async () => { await shift.toFansly(); });
   after(async () => {
     expect((await fanslyStandServer.journal(standMark)).filter((e) => e.origin !== 'asset')).toEqual([]);
-    await fakeFansly().assertOursClean(0, 'suite-fansly-tail');
+    await fakeFansly().assertOursClean(apiMark, 'suite-fansly-tail');
     await setFanslyNeighbor(null);
   });
 
