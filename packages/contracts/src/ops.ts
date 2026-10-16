@@ -516,6 +516,16 @@ export function coverageCheckVerdict(
 export const STALE_REASONS = ['fan-wrote', 'archive-moved', 'unverified', 'window-miss', 'deleted-served'] as const;
 export type StaleReason = (typeof STALE_REASONS)[number];
 
+/** A greeting draft keeps its generation's own verdict across windows, tabs and background restarts. */
+export const GreetingDraftGenerationSchema = z.strictObject({
+  opId: UuidSchema,
+  generationRef: z.nullable(GenerationRefSchema),
+  text: boundedText(SEND_LIMITS.previewDraftMaxChars),
+  historyRevision: UuidSchema,
+  mark: z.nullable(z.enum(STALE_REASONS)),
+});
+export type GreetingDraftGeneration = z.infer<typeof GreetingDraftGenerationSchema>;
+
 /** Debug-only details (debug.enabled): profiler stages, usage and cost, reasoning, prompt token. */
 /** Debug only: the exact start proof (including its draft tail) and the narrowed hub answer. Never logged. */
 export const GenerationDebugSchema = z.strictObject({ proof: CoverageProofSchema, served: z.nullable(ServedContextSchema) });

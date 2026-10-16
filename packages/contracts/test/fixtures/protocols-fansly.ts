@@ -45,6 +45,7 @@ const greetingSent = {
   text: 'Привет!',
   admission: { kind: 'own' },
 } as const;
+const greetingGeneration = { opId: uuid(0xc1), generationRef: uuid(0x601), text: 'Привет!', historyRevision: uuid(0x501), mark: 'unverified' } as const;
 
 export const fanslyPass = {
   passId: uuid(301),
@@ -206,10 +207,10 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     },
   },
   'fansly.followers.draft': {
-    req: { valid: [{ ...passRef, fanRef: F.fan }, { ...passRef, fanRef: F.fan, text: '' }, { ...passRef, fanRef: F.fan, text: 'x'.repeat(5000) }], invalid: [{ ...passRef, fanRef: F.fan, text: 'x'.repeat(5001) }, { ...passRef, fanRef: F.fan, text: null }] },
+    req: { valid: [{ ...passRef, fanRef: F.fan }, { ...passRef, fanRef: F.fan, text: '' }, { ...passRef, fanRef: F.fan, text: 'x'.repeat(5000) }, { ...passRef, fanRef: F.fan, text: 'Привет!', generation: { opId: greetingGeneration.opId, historyRevision: greetingGeneration.historyRevision } }], invalid: [{ ...passRef, fanRef: F.fan, text: 'x'.repeat(5001) }, { ...passRef, fanRef: F.fan, text: null }, { ...passRef, fanRef: F.fan, text: 'Привет!', generation: { opId: 'bad-id', historyRevision: uuid(0x501) } }] },
     res: {
-      valid: [{ ok: true, draft: { text: 'Привет!', revision: 3, historyRevision: uuid(0x501) } }, { ok: true, draft: { text: '', revision: 0, historyRevision: null } }, failure],
-      invalid: [{ ok: true, draft: { text: 'Привет!', revision: -1, historyRevision: null } }, { ok: true, draft: { text: 'Привет!', revision: 1 } }],
+      valid: [{ ok: true, draft: { text: 'Привет!', revision: 3, historyRevision: uuid(0x501) } }, { ok: true, draft: { text: '', revision: 0, historyRevision: null } }, { ok: true, draft: { text: 'Привет!', revision: 3, historyRevision: uuid(0x501), generation: greetingGeneration, attempt: { attemptId: uuid(0xa1), fanRef: F.fan, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' } } }, failure],
+      invalid: [{ ok: true, draft: { text: 'Привет!', revision: -1, historyRevision: null } }, { ok: true, draft: { text: 'Привет!', revision: 1 } }, { ok: true, draft: { text: 'Привет!', revision: 3, historyRevision: uuid(0x501), generation: { ...greetingGeneration, mark: 'fresh' } } }],
     },
   },
   'fansly.followers.sent': {

@@ -40,7 +40,7 @@ import { SoundBatchSchema } from './sound';
 
 import { CgAnyErrorWireSchema } from './errors-fansly';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
-import { AdmissionSchema, CoverageWindowSchema, OpStateSchema } from './ops';
+import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, OpStateSchema } from './ops';
 import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { ChatKeySchema } from './ids';
 import { SEND_LIMITS, STORAGE_LIMITS } from './limits';
@@ -218,6 +218,9 @@ const GreetingDraftSchema = z.strictObject({
   text: z.string().check(z.maxLength(SEND_LIMITS.previewDraftMaxChars)),
   revision: CountSchema,
   historyRevision: z.nullable(UuidSchema),
+  generation: z.optional(GreetingDraftGenerationSchema),
+  /** Read from the background's durable send journal, including an attempt whose answer the tab lost. */
+  attempt: z.optional(FanslySendViewSchema),
 });
 
 // ── fansly.notes.* — «Заметки» (FS-NOTE-*) ─────────────────────────────────
@@ -481,7 +484,7 @@ export const FANSLY_TAB_REQUESTS = {
    * the send's final check.
    */
   'fansly.followers.draft': {
-    req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema, text: z.optional(z.string().check(z.maxLength(SEND_LIMITS.previewDraftMaxChars))) }),
+    req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema, text: z.optional(z.string().check(z.maxLength(SEND_LIMITS.previewDraftMaxChars))), generation: z.optional(z.strictObject({ opId: UuidSchema, historyRevision: UuidSchema })) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), draft: GreetingDraftSchema }), Failure]),
     from: TAB,
     hosts: FANSLY,
