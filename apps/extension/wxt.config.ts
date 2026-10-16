@@ -64,7 +64,7 @@ export default defineConfig({
     // After WXT cleaned the output dir, before entry points are built.
     'entrypoints:grouped': async (wxt) => {
       // Each site's own lazy build (lazy/<site>/), for its own pages.
-      lazyChunks = await buildLazyChunks(wxt.config.outDir, lazySitesOf(flavor === 'test'));
+      lazyChunks = await buildLazyChunks(wxt.config.outDir, lazySitesOf(flavor === 'test'), flavor === 'test');
       // The sites' background chunks (bg/<site>.js): only the event page loads them, so they are no web resource.
       await buildBackgroundChunks(wxt.config.outDir, flavor === 'test');
     },

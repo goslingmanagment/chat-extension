@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
+import { FANSLY_OP_VIEW_FIXTURES } from './fixtures/ops-fansly';
 import { FANSLY_FEATURES } from '../src/features/fansly';
 import * as C from '../src/index';
 import * as O from '../src/ops-fansly';
@@ -30,6 +31,15 @@ function expectVerdicts(label: string, schema: { safeParse(value: unknown): { su
 }
 
 describe('[host:fansly] the operations of Fansly’s slice (architecture §1.6, §8.8)', () => {
+  it('P12a: display metadata of a site stays beside the closed common summaries', () => {
+    const summary = { opId: '00000000-0000-4000-8000-000000000550', feature: 'voice-script', surface: 'dock', chat: fanslyVoiceScriptStart.target.chat, fanLabel: null, state: 'streaming', startedAt: 1, inThisTab: true };
+    expectVerdicts('SiteActiveOpSummary', C.SiteActiveOpSummarySchema, { valid: [summary], invalid: [{ ...summary, feature: {} }, { ...summary, feature: 'not a token' }] });
+    expect(C.ActiveOpSummarySchema.safeParse(summary).success).toBe(false);
+    expect(C.AdmissionSchema.safeParse({ ok: false, code: 'CG-OP-TAB-LIMIT', active: [], siteActive: [summary, summary, summary, summary] }).success).toBe(false);
+  });
+
+  it('P12a: the kept view stays in the site registry; result and source agree', () => { expectVerdicts('FanslyOpView', O.FanslyOpViewSchema, FANSLY_OP_VIEW_FIXTURES); });
+
   it('are the shared type’s site operations, none of them a shared feature', () => {
     expect(O.FANSLY_OPS).toEqual(['voice-script', 'notes-fill']);
     expectTypeOf<O.FanslyOp>().toEqualTypeOf<C.SiteOpId>();

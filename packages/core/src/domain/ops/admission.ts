@@ -9,7 +9,7 @@
 
 import { type ChatKey } from '@cg/contracts/ids';
 import { OP_LIMITS } from '@cg/contracts/limits';
-import { type ActiveOpSummary, type Admission } from '@cg/contracts/ops';
+import { type ActiveOpSummary, type AnyActiveOpSummary, type Admission } from '@cg/contracts/ops';
 
 /** A running operation as admission sees it. */
 export interface ActiveOpEntry {
@@ -19,7 +19,8 @@ export interface ActiveOpEntry {
   readonly ownerTab: string | null;
   /** The full request identity (cache key): equal keys are the same request. */
   readonly requestKey: string;
-  readonly summary: Omit<ActiveOpSummary, 'inThisTab'>;
+  readonly summary: Omit<AnyActiveOpSummary, 'inThisTab'>;
+  readonly site?: boolean;
 }
 
 export interface AdmissionRequest {
@@ -36,10 +37,17 @@ export type AdmissionDecision =
   | { readonly kind: 'reopen'; readonly opId: string }
   | { readonly kind: 'refuse'; readonly refusal: AdmissionRefusal };
 
-const summaryFor = (entry: ActiveOpEntry, tabSessionId: string): ActiveOpSummary => ({
+const summaryFor = (entry: ActiveOpEntry, tabSessionId: string): AnyActiveOpSummary => ({
   ...entry.summary,
   inThisTab: entry.ownerTab === tabSessionId,
 });
+
+/** The common list stays closed; a site's display metadata is additive and never executable. */
+function refusal(code: AdmissionRefusal['code'], entries: readonly ActiveOpEntry[], tab: string): AdmissionRefusal {
+  const active = entries.filter((entry) => entry.site !== true).map((entry) => summaryFor(entry, tab) as ActiveOpSummary);
+  const siteActive = entries.filter((entry) => entry.site === true).map((entry) => summaryFor(entry, tab));
+  return { ok: false, code, active, ...(siteActive.length === 0 ? {} : { siteActive }) };
+}
 
 /** Oldest first: the refusal list reads in the order the person started them. */
 const byStart = (a: ActiveOpEntry, b: ActiveOpEntry): number => a.summary.startedAt - b.summary.startedAt;
@@ -51,18 +59,14 @@ export function decideAdmission(active: readonly ActiveOpEntry[], request: Admis
     if ((first.ownerTab === request.tabSessionId || first.ownerTab === null) && first.requestKey === request.requestKey) return { kind: 'reopen', opId: first.opId };
     return {
       kind: 'refuse',
-      refusal: {
-        ok: false,
-        code: 'CG-OP-CHAT-BUSY',
-        active: sameChat.slice(0, OP_LIMITS.perTab).map((entry) => summaryFor(entry, request.tabSessionId)),
-      },
+      refusal: refusal('CG-OP-CHAT-BUSY', sameChat.slice(0, OP_LIMITS.perTab), request.tabSessionId),
     };
   }
   const inTab = active.filter((entry) => entry.ownerTab === request.tabSessionId).sort(byStart);
   if (inTab.length >= OP_LIMITS.perTab) {
     return {
       kind: 'refuse',
-      refusal: { ok: false, code: 'CG-OP-TAB-LIMIT', active: inTab.slice(0, OP_LIMITS.perTab).map((entry) => summaryFor(entry, request.tabSessionId)) },
+      refusal: refusal('CG-OP-TAB-LIMIT', inTab.slice(0, OP_LIMITS.perTab), request.tabSessionId),
     };
   }
   return { kind: 'admit' };

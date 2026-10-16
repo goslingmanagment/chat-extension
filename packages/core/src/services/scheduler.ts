@@ -25,7 +25,10 @@ import { generationDebug } from '../domain/debug/op-debug';
 // names it (`OpView.continuedBy`).
 
 import { type CgCode } from '@cg/contracts/errors';
-import { type FeatureId } from '@cg/contracts/features';
+import { FEATURE_IDS, type FeatureId, type SiteOpId } from '@cg/contracts/features';
+import type { HostKind } from '@cg/contracts/hosts';
+import { TargetSchema } from '@cg/contracts/ids';
+import type { ScheduledStart, SiteOperations } from './site-ops';
 import { type IncomingFact } from '@cg/contracts/host';
 import {
   type ContextFrame,
@@ -39,7 +42,7 @@ import {
 } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { OP_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
-import { OpViewSchema, type Admission, type OpDebugView, type OpResult, type OpState, type OpView, type Phase, type StartOp } from '@cg/contracts/ops';
+import { OpViewSchema, type Admission, type OpDebugView, type OpState, type OpView, type AnyOpView, type SiteOpView, type SiteStartOp, type AnyStartOp, type AnyOpResult, type Phase, type StartOp } from '@cg/contracts/ops';
 import { FreshnessCheckpointSchema, type FreshnessCheckpoint } from '@cg/contracts/send';
 import { type AiQuotaSnapshot, type BackgroundToast } from '@cg/contracts/tab-messages';
 
@@ -53,7 +56,7 @@ import {
   chatKeyOfStart,
   decideAdmission,
   isTerminalOpState,
-  nextDeadline,
+  nextDeadlineFor,
   readFrame,
   requestIdentityOf,
   requestKeyOf,
@@ -112,7 +115,7 @@ export interface OpSchedulerHooks {
   /** debug_input_v1 arrived: the debug store keeps it and answers an opaque token (DB-004). */
   debugInput?(opId: string, frame: Extract<HubFrame, { type: 'debug_input_v1' }>): string | null;
   /** A `usage` frame arrived (numbers only): the local spend journal of debug mode counts it (DB-022). */
-  usage?(feature: FeatureId, usage: Extract<HubFrame, { type: 'usage' }>['usage']): void;
+  usage?(feature: string, usage: Extract<HubFrame, { type: 'usage' }>['usage']): void;
 }
 
 export interface OpSchedulerDeps {
@@ -137,6 +140,8 @@ export interface OpSchedulerDeps {
    * be delivered — not a hub that was slow to answer (CG-HUB-TIMEOUT).
    */
   readonly online?: () => boolean;
+  /** Loads only the owning site module, including when its journal is restored. */
+  readonly siteOps?: (host: HostKind) => Promise<SiteOperations | null>;
 }
 
 export interface StartOptions {
@@ -166,7 +171,8 @@ interface PersistedMeta {
 }
 
 interface Run {
-  view: OpView;
+  view: AnyOpView;
+  readonly site: SiteOperations | null;
   readonly startedBy: string | null;
   ownerTab: string | null;
   readonly requestKey: string;
@@ -177,10 +183,11 @@ interface Run {
   readonly checkpoint: FreshnessCheckpoint | null;
   readonly split: boolean;
   /** Kept only while running: the request may hold draft or fresh text. */
-  start: StartOp | null;
+  start: ScheduledStart | null;
   /** The answer step of a composite Coach turn whose recap step this run is; kept only while running (it holds the question). */
   then: StartOp | null;
   request: HubStreamRequest | null;
+  stopReason: string | null;
   stream: StreamState;
   attempt: number;
   times: StreamTimes;
@@ -214,7 +221,7 @@ interface Settled {
   readonly httpStatus?: number | null;
   /** The technical line of the error (machine words only: which deadline, how far the request got). */
   readonly detail?: string;
-  readonly result?: OpResult;
+  readonly result?: AnyOpResult;
   /** Show a toast to the owning tab when it is elsewhere. */
   readonly toast: boolean;
 }
@@ -257,10 +264,10 @@ export class OpScheduler {
    */
   async restore(): Promise<{ readonly restored: number; readonly interrupted: number; readonly dropped: number }> {
     const now = this.deps.clock.now();
-    const records = readStore(await this.deps.store.get(OPS_STORE_KEY));
+    const records = await readStore(await this.deps.store.get(OPS_STORE_KEY), this.deps.siteOps);
     let interrupted = 0;
     let dropped = records.dropped;
-    for (const { view, meta } of records.items) {
+    for (const { view, meta, site } of records.items) {
       if (this.runs.has(view.opId)) continue;
       let next = view;
       if (!isTerminalOpState(view.state)) {
@@ -271,7 +278,7 @@ export class OpScheduler {
         dropped += 1;
         continue;
       }
-      const run = this.restoredRun(next, meta);
+      const run = this.restoredRun(next, meta, site);
       this.runs.set(next.opId, run);
       if (next.state === 'done' && next.endedAt !== undefined) this.cache.remember({ requestKey: meta.requestKey, opId: next.opId, startedAt: next.startedAt, endedAt: next.endedAt });
     }
@@ -282,9 +289,10 @@ export class OpScheduler {
     return { restored: this.runs.size, interrupted, dropped };
   }
 
-  private restoredRun(view: OpView, meta: PersistedMeta): Run {
+  private restoredRun(view: AnyOpView, meta: PersistedMeta, site: SiteOperations | null): Run {
     return {
       view,
+      site,
       startedBy: meta.startedBy,
       ownerTab: null,
       requestKey: meta.requestKey,
@@ -297,6 +305,7 @@ export class OpScheduler {
       start: null,
       then: null,
       request: null,
+      stopReason: null,
       stream: INITIAL_STREAM_STATE,
       attempt: 0,
       times: { opRequestAt: view.startedAt, attemptAt: view.startedAt, metaAt: null, firstChunkAt: null, lastFrameAt: null },
@@ -316,15 +325,19 @@ export class OpScheduler {
 
   // ── start ────────────────────────────────────────────────────────────────
 
-  async start(tabSessionId: string, asked: StartOp, options: StartOptions = {}): Promise<StartOutcome> {
+  async start(tabSessionId: string, input: AnyStartOp, options: StartOptions = {}): Promise<StartOutcome> {
     const { clock, tokens } = this.deps;
+    const site = isSharedFeature(input.feature) ? null : await this.deps.siteOps?.(input.target.binding.host) ?? null;
+    const siteDriver = site?.drivers[input.feature as SiteOpId];
+    if (!isSharedFeature(input.feature) && (site === null || site.host !== input.target.binding.host || siteDriver === undefined)) return { kind: 'refused', code: 'CG-FEATURE-DISABLED' };
+    const asked: ScheduledStart = isSharedFeature(input.feature) ? input as StartOp : siteDriver!.prepare(input as SiteStartOp);
     // BG-001, AI-120: only a trusted click of our own UI starts a generation.
     if (!tokens.redeem({ tabSessionId, kind: 'generate', surface: asked.surface, actionToken: asked.cause.actionToken })) {
       this.log.write({ level: 'warn', scope: 'bg.ops', msg: 'start without a valid action token', code: 'CG-UI-FAILED', ctx: { tabSessionId } });
       return { kind: 'refused', code: 'CG-UI-FAILED' };
     }
     const env = this.deps.environment();
-    const precondition = startPrecondition(env, asked);
+    const precondition = startPrecondition(env, asked, siteDriver?.feature);
     if (precondition !== null) return { kind: 'refused', code: precondition };
     const session = env.session;
     const persona = env.persona(asked.target.binding.pageId);
@@ -333,7 +346,7 @@ export class OpScheduler {
     // §7 «ход Coach с авто-рекапом — один составной слот»: this one start and its one token admit the recap
     // step now and the answer step after it. A recap that may not run here at all (its owner switch is off)
     // is not a reason to lose the question: the Coach is asked right away.
-    const steps = coachTurnSteps(asked);
+    const steps = isSharedFeature(asked.feature) ? coachTurnSteps(asked as StartOp) : null;
     const composite = steps !== null && startPrecondition(env, steps.recap) === null;
     const start = steps === null ? asked : composite ? steps.recap : steps.answer;
     const then = steps !== null && composite ? steps.answer : null;
@@ -354,13 +367,13 @@ export class OpScheduler {
     const decision = decideAdmission(this.activeEntries(), { tabSessionId, chatKey, requestKey });
     if (decision.kind === 'reopen') {
       // A run whose tab went away (reload, closed tab) follows the tab that asked for it again.
-      if (this.runs.get(decision.opId)?.ownerTab === null) this.attachTab(decision.opId, tabSessionId);
+      if (this.runs.get(decision.opId)?.ownerTab === null) this.attachRun(decision.opId, tabSessionId);
       return { kind: 'admission', admission: { ok: true, opId: decision.opId }, reopened: true };
     }
     if (decision.kind === 'refuse') return { kind: 'admission', admission: decision.refusal, reopened: false };
 
     const opId = this.deps.ids.uuid();
-    const run = this.newRun(opId, tabSessionId, start, requestKey, chatKey, persona, session, options.fanLabel ?? null, now);
+    const run = this.newRun(opId, tabSessionId, start, requestKey, chatKey, persona, session, options.fanLabel ?? null, now, site);
     run.then = then;
     this.runs.set(opId, run);
 
@@ -419,13 +432,14 @@ export class OpScheduler {
   private newRun(
     opId: string,
     tabSessionId: string,
-    start: StartOp,
+    start: ScheduledStart,
     requestKey: string,
     chatKey: ChatKey,
     persona: PersonaChoice,
     session: NonNullable<OpsEnvironment['session']>,
     fanLabel: string | null,
     now: number,
+    site: SiteOperations | null = null,
   ): Run {
     const knownIds = new Set<string>();
     for (const message of start.fresh?.messages ?? []) knownIds.add(message.platformMessageId);
@@ -443,6 +457,7 @@ export class OpScheduler {
         startedAt: now,
         toneUsed: start.tone,
       },
+      site,
       startedBy: tabSessionId,
       ownerTab: tabSessionId,
       requestKey,
@@ -462,6 +477,7 @@ export class OpScheduler {
       start,
       then: null,
       request: null,
+      stopReason: null,
       stream: INITIAL_STREAM_STATE,
       attempt: 0,
       times: { opRequestAt: now, attemptAt: now, metaAt: null, firstChunkAt: null, lastFrameAt: null },
@@ -487,6 +503,38 @@ export class OpScheduler {
       build: custom?.build ?? buildStreamRequest,
       parse: custom?.parse ?? ((text, ctx) => basicParseResult(ctx.feature, text, ctx)),
     };
+  }
+
+  private timeouts(run: Run) {
+    return run.site?.drivers[run.view.feature as SiteOpId]?.timeouts ?? timeoutsOf(run.view.feature as FeatureId);
+  }
+
+  private build(run: Run, start: ScheduledStart, ctx: StreamRequestContext): BuildResult {
+    if (run.site !== null) return run.site.drivers[start.feature as SiteOpId]!.build(start, ctx);
+    return this.driver(start.feature as FeatureId).build(start as StartOp, ctx);
+  }
+
+  private parse(run: Run, text: string, ctx: ParseContext) {
+    if (run.site !== null) return run.site.drivers[run.view.feature as SiteOpId]!.parse(text, { ...ctx, start: run.start!, stopReason: run.stopReason });
+    return this.driver(run.view.feature as FeatureId).parse(text, { ...ctx, feature: run.view.feature as FeatureId });
+  }
+
+  private emitDone(run: Run): void {
+    if (run.site !== null) run.site.done(this.publicView(run) as SiteOpView);
+    else this.deps.events.emit(null, 'op.done', { view: this.publicView(run) as OpView });
+  }
+
+  /** The site's panel reads its own views; shared op.list and send paths remain closed. */
+  siteView(opId: string, host: HostKind): SiteOpView | null {
+    const run = this.runs.get(opId);
+    return run?.site?.host === host && !resultExpired(run.view, this.deps.clock.now()) ? this.publicView(run) as SiteOpView : null;
+  }
+
+  siteList(tab: string, host: HostKind, chatKey?: ChatKey): { readonly ops: SiteOpView[]; readonly truncated: boolean } {
+    const mine = [...this.runs.values()].filter((run) => run.site?.host === host && !resultExpired(run.view, this.deps.clock.now()) &&
+      (chatKey === undefined ? run.startedBy === tab || run.ownerTab === tab : run.chatKey === chatKey));
+    mine.sort((a, b) => b.view.startedAt - a.view.startedAt);
+    return { ops: mine.slice(0, STORAGE_LIMITS.resultsPerTab).map((run) => this.publicView(run) as SiteOpView), truncated: mine.length > STORAGE_LIMITS.resultsPerTab };
   }
 
   /**
@@ -517,7 +565,7 @@ export class OpScheduler {
     const env = this.deps.environment();
     const start = run.start;
     if (start === null || env.bootstrap === null) return this.settle(run, { state: 'failed', code: 'CG-HUB-UNAVAILABLE', toast: true });
-    const built = this.driver(start.feature).build(start, {
+    const built = this.build(run, start, {
       opId: run.view.opId,
       persona: { key: run.tag.personaKey, definitionId: run.tag.personaDefinitionId },
       bootstrap: env.bootstrap,
@@ -627,7 +675,7 @@ export class OpScheduler {
   private waitForRetry(run: Run, delayMs: number): Promise<boolean> {
     const now = this.deps.clock.now();
     this.setPhase(run, { name: 'retry-wait', since: now, retryAt: now + delayMs });
-    this.armDeadline(run, { at: run.times.opRequestAt + timeoutsOf(run.view.feature).maxMs, kind: 'max' });
+    this.armDeadline(run, { at: run.times.opRequestAt + this.timeouts(run).maxMs, kind: 'max' });
     return new Promise<boolean>((resolve) => {
       const timer = this.deps.clock.setTimer(delayMs, () => {
         run.wait = null;
@@ -641,6 +689,7 @@ export class OpScheduler {
   private onFrame(run: Run, frame: HubFrame): void {
     if (run.ended) return;
     const now = this.deps.clock.now();
+    if (frame.type === 'done' && run.stream.terminal === null) run.stopReason = frame.stopReason;
     const { state, effect } = readFrame(run.stream, frame, { opId: run.view.opId, personaDefinitionId: run.tag.personaDefinitionId, debug: this.deps.environment().debug });
     run.stream = state;
     if (effect.kind !== 'ignored') run.times = { ...run.times, lastFrameAt: now };
@@ -721,8 +770,7 @@ export class OpScheduler {
     const now = this.deps.clock.now();
     this.setPhase(run, { name: 'parsing', since: now }, false);
     const text = run.stream.text;
-    const parsed = this.driver(run.view.feature).parse(text, {
-      feature: run.view.feature,
+    const parsed = this.parse(run, text, {
       splitRequested: run.split,
       generationRef: run.stream.generationRef,
     });
@@ -886,6 +934,11 @@ export class OpScheduler {
    */
   attachTab(opId: string, tabSessionId: string): OpView | null {
     const run = this.runs.get(opId);
+    return run === undefined || run.site !== null ? null : this.attachRun(opId, tabSessionId) as OpView;
+  }
+
+  private attachRun(opId: string, tabSessionId: string): AnyOpView | null {
+    const run = this.runs.get(opId);
     if (run === undefined) return null;
     if (!run.ended) {
       if (run.flushTimer !== null) {
@@ -908,7 +961,7 @@ export class OpScheduler {
       if (mark === null) continue;
       run.view = { ...run.view, stale: mark };
       marked.push(run.view.opId);
-      if (run.ended) this.deps.events.emit(null, 'op.done', { view: this.publicView(run) });
+      if (run.ended) this.emitDone(run);
     }
     if (marked.length > 0) void this.persist().catch(() => undefined);
     return marked;
@@ -918,21 +971,25 @@ export class OpScheduler {
 
   view(opId: string): OpView | null {
     const run = this.runs.get(opId);
-    return run === undefined ? null : this.publicView(run);
+    return run === undefined || run.site !== null ? null : this.publicView(run) as OpView;
   }
 
   /** `op.list`: this tab's results (or the chat's), or the newest across tabs. */
   list(tabSessionId: string, scope: 'tab' | 'all', chatKey?: ChatKey): { readonly ops: OpView[]; readonly truncated: boolean } {
     const now = this.deps.clock.now();
-    const visible = [...this.runs.values()].filter((run) => !resultExpired(run.view, now));
+    const visible = [...this.runs.values()].filter((run) => run.site === null && !resultExpired(run.view, now));
     const mine = visible.filter((run) => (chatKey === undefined || run.chatKey === chatKey) && (scope === 'all' || run.startedBy === tabSessionId || run.ownerTab === tabSessionId || chatKey !== undefined));
     mine.sort((a, b) => b.view.startedAt - a.view.startedAt);
     const cap = scope === 'tab' ? STORAGE_LIMITS.resultsPerTab : STORAGE_LIMITS.opListMax;
-    return { ops: mine.slice(0, cap).map((run) => this.publicView(run)), truncated: mine.length > cap };
+    return { ops: mine.slice(0, cap).map((run) => this.publicView(run) as OpView), truncated: mine.length > cap };
   }
 
   /** Running operations (palette, diagnostics). */
   active(): readonly OpView[] {
+    return this.activeAll().filter((view): view is OpView => isSharedFeature(view.feature));
+  }
+
+  activeAll(): readonly AnyOpView[] {
     return [...this.runs.values()].filter((run) => !run.ended).map((run) => this.publicView(run));
   }
 
@@ -944,8 +1001,8 @@ export class OpScheduler {
   /** What the send coordinator needs about the operation a send comes from. */
   forSend(opId: string): { readonly view: OpView; readonly checkpoint: FreshnessCheckpoint | null; readonly tag: OpEnvTag } | null {
     const run = this.runs.get(opId);
-    if (run === undefined) return null;
-    return { view: run.view, checkpoint: run.checkpoint, tag: run.tag };
+    if (run === undefined || run.site !== null) return null;
+    return { view: run.view as OpView, checkpoint: run.checkpoint, tag: run.tag };
   }
 
   /** Resolves when every journal write so far settled (tests, shutdown). */
@@ -964,6 +1021,7 @@ export class OpScheduler {
         chatKey: run.chatKey,
         ownerTab: run.ownerTab,
         requestKey: run.requestKey,
+        site: run.site !== null,
         summary: { opId: run.view.opId, feature: run.view.feature, surface: run.view.surface, chat: run.view.target.chat, fanLabel: run.fanLabel, state: run.view.state, startedAt: run.view.startedAt },
       });
     }
@@ -1044,7 +1102,7 @@ export class OpScheduler {
   private armDeadline(run: Run, at?: Deadline): void {
     this.clearDeadline(run);
     if (run.ended) return;
-    const deadline = at ?? nextDeadline(run.view.feature, run.times);
+    const deadline = at ?? nextDeadlineFor(this.timeouts(run), run.times);
     const delay = Math.max(0, deadline.at - this.deps.clock.now());
     run.deadline = this.deps.clock.setTimer(delay, () => {
       run.deadline = null;
@@ -1111,20 +1169,20 @@ export class OpScheduler {
             ...(settled.retryAt === undefined || settled.retryAt === null ? {} : { retryAt: settled.retryAt }),
             ...(settled.httpStatus === undefined || settled.httpStatus === null ? {} : { httpStatus: settled.httpStatus }),
           };
-    const view: OpView = {
+    const view = {
       ...run.view,
       state: settled.state,
       phase: { name: 'settled', since: now },
       endedAt: now,
       ...(settled.result === undefined ? {} : { result: settled.result }),
       ...(error === undefined ? {} : { error }),
-    };
+    } as AnyOpView;
     if (settled.state !== 'done') delete (view as { text?: string }).text;
     run.view = view;
     this.stage(run, 'settled', now);
     const debug = this.deps.environment().debug ? this.debugView(run) : undefined;
     if (debug !== undefined) run.view = { ...run.view, debug };
-    if (run.start !== null && run.attempt > 0) this.deps.hooks?.settled?.(run.view, run.start, run.ownerTab);
+    if (run.site === null && run.start !== null && run.attempt > 0) this.deps.hooks?.settled?.(run.view as OpView, run.start as StartOp, run.ownerTab);
     // Texts the request carried (draft, fresh tail, Coach question) leave memory with the run.
     const then = run.then;
     run.start = null;
@@ -1145,7 +1203,7 @@ export class OpScheduler {
       fields: { state: settled.state, feature: run.view.feature, attempts: run.attempt, ms: now - run.view.startedAt },
       ctx: { opId: run.view.opId, chatKey: run.chatKey },
     });
-    this.deps.events.emit(null, 'op.done', { view: this.publicView(run) });
+    this.emitDone(run);
     // The turn is not over while its answer step runs: that one says «AI готово» or «не получилось».
     if (settled.toast && next === null) this.toast(run, settled);
     const written = this.persist();
@@ -1181,7 +1239,7 @@ export class OpScheduler {
       kind: settled.state === 'done' ? 'success' : 'error',
       scope: settled.state === 'done' ? 'op.ready' : 'op.failed',
       opId: run.view.opId,
-      feature: run.view.feature,
+      ...(isSharedFeature(run.view.feature) ? { feature: run.view.feature } : {}),
       chat: target.chat,
       // «Открыть чат» opens the operation's own conversation (on Fansly the group); on ChatSpace it is the fan, and absent.
       ...conversationOf(target.fanRef, target.conversationRef),
@@ -1234,8 +1292,8 @@ export class OpScheduler {
   }
 
   /** The view a tab sees: while running, with the text so far (never Fix's: its stream is not shown, AI-138). */
-  private publicView(run: Run): OpView {
-    if (run.ended || !showsStream(run.view.feature)) return run.view;
+  private publicView(run: Run): AnyOpView {
+    if (run.ended || !(run.site !== null || showsStream(run.view.feature as FeatureId))) return run.view;
     const text = run.stream.text;
     if (text.length === 0 || text.length > VIEW_TEXT_MAX) return run.view;
     return { ...run.view, text };
@@ -1263,9 +1321,9 @@ export class OpScheduler {
 
 // ── persistence helpers ──────────────────────────────────────────────────
 
-function withoutText(view: OpView): OpView {
+function withoutText(view: AnyOpView): AnyOpView {
   if (view.text === undefined) return view;
-  const copy: OpView = { ...view };
+  const copy: AnyOpView = { ...view };
   delete (copy as { text?: string }).text;
   return copy;
 }
@@ -1301,17 +1359,27 @@ function pruned(runs: readonly Run[], now: number): Run[] {
   return kept;
 }
 
-function readStore(raw: unknown): { readonly items: { readonly view: OpView; readonly meta: PersistedMeta }[]; readonly dropped: number } {
+async function readStore(raw: unknown, load?: OpSchedulerDeps['siteOps']): Promise<{ readonly items: { readonly view: AnyOpView; readonly meta: PersistedMeta; readonly site: SiteOperations | null }[]; readonly dropped: number }> {
   if (typeof raw !== 'object' || raw === null || (raw as { v?: unknown }).v !== 1 || !Array.isArray((raw as { ops?: unknown }).ops)) {
     return { items: [], dropped: raw === undefined || raw === null ? 0 : 1 };
   }
-  const items: { view: OpView; meta: PersistedMeta }[] = [];
+  const items: { view: AnyOpView; meta: PersistedMeta; site: SiteOperations | null }[] = [];
   let dropped = 0;
   for (const item of (raw as { ops: unknown[] }).ops) {
-    const view = OpViewSchema.safeParse((item as { view?: unknown } | null)?.view);
+    const rawView = (item as { view?: unknown } | null)?.view;
+    const common = OpViewSchema.safeParse(rawView);
+    let site: SiteOperations | null = null;
+    let view: AnyOpView | null = common.success ? common.data : null;
+    if (view === null && load !== undefined) {
+      const target = TargetSchema.safeParse((rawView as { target?: unknown } | null)?.target);
+      if (target.success) {
+        site = await load(target.data.binding.host);
+        view = site?.readView(rawView) ?? null;
+      }
+    }
     const meta = readMeta((item as { meta?: unknown } | null)?.meta);
-    if (!view.success || meta === null) dropped += 1;
-    else items.push({ view: view.data, meta });
+    if (view === null || meta === null) dropped += 1;
+    else items.push({ view, meta, site });
   }
   return { items, dropped };
 }
@@ -1339,8 +1407,12 @@ function readMeta(raw: unknown): PersistedMeta | null {
   return ok ? (raw as PersistedMeta) : null;
 }
 
-function withoutGenerationTail(view: OpView): OpView {
+function withoutGenerationTail(view: AnyOpView): AnyOpView {
   if (view.debug?.generation === undefined) return view;
   const { generation: _generation, ...debug } = view.debug;
   return { ...view, debug };
+}
+
+function isSharedFeature(feature: string): feature is FeatureId {
+  return (FEATURE_IDS as readonly string[]).includes(feature);
 }

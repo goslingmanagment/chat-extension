@@ -202,7 +202,8 @@ describe('the neighbour: reinject and legacy', () => {
     await mount({ mode: 'legacy' });
     await s().neighbor.whenReady();
     s().control.setPartners(first, 1);
-    await quiet();
+    // The fetch answer and its bridged report are asynchronous; CPU load can exceed quiet()'s fixed pause.
+    await until(() => s().neighbor.log().some((entry) => entry.url.includes('/__stand/fansly')), 'the legacy hook reported the control request');
     const control = s().neighbor.log().filter((entry) => entry.url.includes('/__stand/fansly'));
     expect(control).toEqual([expect.objectContaining({ kind: 'fetch', method: 'POST', requestBody: true })]);
     await s().neighbor.reinject();

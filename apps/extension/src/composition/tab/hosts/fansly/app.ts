@@ -55,6 +55,8 @@ const onVault = (path: string): boolean => path === '/creator/vault' || path ===
  * from then on — it says itself where its entry stands. A chunk that did not load is asked again on the next visit.
  */
 export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
+  let offOps: () => void = () => undefined;
+  if (__CG_TEST_HOSTS__ && env.probe !== null) void import('./ops-probe').then((probe) => { if (!env.life.aborted) offOps = probe.startFanslyOpsProbe(env); }, () => undefined);
   let vault: Promise<(() => void) | null> | null = null;
   const sync = (): void => {
     if (vault !== null || env.life.aborted || !onVault(env.win.location.pathname)) return;
@@ -72,6 +74,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   });
   sync();
   return () => {
+    offOps();
     off();
     void vault?.then((stop) => stop?.());
   };

@@ -78,8 +78,8 @@ export function toneOf(error: Pick<CgErrorView, 'code' | 'tone'>): CgErrorTone {
 }
 
 /** The name of a function as the strip and a result head print it (Latin, never translated). */
-export function featureKey(feature: FeatureId): I18nKey {
-  return feature === 'recap-short' ? 'dock.action.recap' : `dock.action.${feature}`;
+export function featureKey(feature: string): I18nKey {
+  return feature === 'recap-short' ? 'dock.action.recap' : (`dock.action.${feature}` as I18nKey);
 }
 
 /** The strip button of a feature; both Recap lengths belong to Recap. */

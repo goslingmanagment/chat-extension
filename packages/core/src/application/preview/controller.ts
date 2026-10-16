@@ -1506,7 +1506,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   // ── actions: generation ──
 
-  function runningVMs(active: readonly { readonly opId: string; readonly feature: FeatureId; readonly chat: Target['chat']; readonly fanLabel: string | null; readonly startedAt: number; readonly inThisTab: boolean }[]): RunningOpVM[] {
+  function runningVMs(active: readonly { readonly opId: string; readonly feature: string; readonly chat: Target['chat']; readonly fanLabel: string | null; readonly startedAt: number; readonly inThisTab: boolean }[]): RunningOpVM[] {
     const binding = context.current().binding;
     return active.map((op) => ({
       opId: op.opId,
@@ -1600,7 +1600,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (disposed || atEpoch !== epoch) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     if (!admission.ok) return refusedAfterLease(refused(type, errorOf(admission.error, i18n)));
     if (!admission.payload.ok) {
-      return refusedAfterLease({ ok: false, type, code: admission.payload.code, error: localError(admission.payload.code, i18n), running: runningVMs(admission.payload.active) });
+      return refusedAfterLease({ ok: false, type, code: admission.payload.code, error: localError(admission.payload.code, i18n), running: runningVMs([...admission.payload.active, ...(admission.payload.siteActive ?? [])].sort((a, b) => a.startedAt - b.startedAt)) });
     }
     const opId = admission.payload.opId;
     // The tone was for this one Reply (Б1).

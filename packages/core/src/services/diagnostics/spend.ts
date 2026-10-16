@@ -30,7 +30,7 @@ export class SpendService {
     }
   }
 
-  recordUsage(feature: FeatureId, usage: UsageNumbers, at: number): void {
+  recordUsage(feature: string, usage: UsageNumbers, at: number): void {
     this.journal.recordUsage(feature, usage, at);
     this.persist();
   }

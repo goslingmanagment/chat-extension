@@ -6,6 +6,7 @@
 import type { FanslyTabEventType, FanslyTabRequestType } from '../../src/tab-messages-fansly';
 import type { RequestFixtures, Verdicts } from './protocols';
 import { FANSLY_IDS, ISO, T0, uuid } from './samples';
+import { FANSLY_START_OP_FIXTURES, FANSLY_OP_VIEW_FIXTURES, fanslyVoiceView } from './ops-fansly';
 import { FANSLY_GREETING_REQUEST_FIXTURES, FANSLY_SEND_VIEW_FIXTURES } from './send-fansly';
 
 const F = FANSLY_IDS;
@@ -76,6 +77,13 @@ const noteTarget = { hostAccountId: F.creator, fanRef: F.fan } as const;
 const voiceRef = { attemptId: uuid(320), pageId: 12, voiceNoteId: 77 } as const;
 
 export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]: RequestFixtures } = {
+  'fansly.ops.start': {
+    req: FANSLY_START_OP_FIXTURES,
+    res: { valid: [{ ok: true, opId: uuid(0x550) }, { ok: false, code: 'CG-OP-CHAT-BUSY', active: [], siteActive: [{ opId: uuid(0x550), feature: 'voice-script', surface: 'dock', chat: fanslyVoiceView.target.chat, fanLabel: null, state: 'streaming', startedAt: T0, inThisTab: true }] }], invalid: [{ ok: true }, { ok: false, code: 'wrong', active: [] }] },
+  },
+  'fansly.ops.read': { req: { valid: [{ opId: uuid(0x550) }], invalid: [{ opId: 'x' }] }, res: { valid: [{ view: fanslyVoiceView }, { view: null }], invalid: [{ view: {} }] } },
+  'fansly.ops.list': { req: { valid: [{}], invalid: [{ chatKey: 'x' }] }, res: { valid: [{ ops: [fanslyVoiceView], truncated: false }], invalid: [{ ops: [{}], truncated: false }] } },
+  'fansly.ops.cancel': { req: { valid: [{ opId: uuid(0x550) }], invalid: [{}] }, res: { valid: [{ state: 'canceled' }, { state: null }], invalid: [{ state: 'queued' }] } },
   'fansly.followers.scan': {
     req: { valid: [{ hostAccountId: F.creator, windowHours: 48 }, { hostAccountId: F.creator, windowHours: 720 }], invalid: [{ hostAccountId: F.creator, windowHours: 721 }, { hostAccountId: F.creator, windowHours: 0 }, { windowHours: 48 }] },
     res: { valid: [{ ok: true, pass: fanslyPass }, failure, sharedFailure], invalid: [{ ok: true, pass: { ...fanslyPass, state: 'running' } }, unknownFailure, { pass: fanslyPass }] },
@@ -245,6 +253,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
 };
 
 export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Verdicts } = {
+  'fansly.ops.done': { valid: FANSLY_OP_VIEW_FIXTURES.valid.map((view) => ({ view })), invalid: FANSLY_OP_VIEW_FIXTURES.invalid.map((view) => ({ view })) },
   'fansly.followers.changed': {
     valid: [{ pass: fanslyPass, seq: 3, rows: [fanslyRow] }, { pass: { ...fanslyPass, state: 'cooldown', cooldownUntil: T0 + 30_000 }, seq: 4, rows: [] }],
     invalid: [{ pass: fanslyPass, seq: 3, rows: Array.from({ length: 101 }, () => fanslyRow) }, { pass: fanslyPass, rows: [] }],

@@ -37,7 +37,11 @@ export function timeoutsOf(feature: FeatureId): OpTimeouts {
 
 /** The earliest deadline that applies now; ties resolve to the more specific one. */
 export function nextDeadline(feature: FeatureId, times: StreamTimes): Deadline {
-  const t = timeoutsOf(feature);
+  return nextDeadlineFor(timeoutsOf(feature), times);
+}
+
+/** A driver supplies its deadlines without adding its operation to the common feature table. */
+export function nextDeadlineFor(t: OpTimeouts, times: StreamTimes): Deadline {
   const candidates: Deadline[] = [];
   if (times.metaAt === null) candidates.push({ at: times.attemptAt + t.untilMetaMs, kind: 'until-meta' });
   else {

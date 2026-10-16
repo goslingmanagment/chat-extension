@@ -38,7 +38,7 @@ export interface OpsEnvironment {
 }
 
 /** AI-121: the reason a start cannot run, or null. Checked before admission; nothing is spent on a refusal. */
-export function startPrecondition(env: OpsEnvironment, start: StartOp): CgCode | null {
+export function startPrecondition(env: OpsEnvironment, start: Pick<StartOp, 'target'> & { readonly feature: string }, feature: string = featureKeyOf(start.feature)): CgCode | null {
   if (!env.settingsLoaded) return 'CG-STORAGE-READ';
   const session = env.session;
   if (session === null) return 'CG-AUTH-REQUIRED';
@@ -56,7 +56,7 @@ export function startPrecondition(env: OpsEnvironment, start: StartOp): CgCode |
   if (pageSwitchedOff(page)) return 'CG-FEATURE-DISABLED';
   // What the feature needs on the chat's site to be generated (the hub checks the same, §4.12); the site's own
   // capabilities are the tab's to check.
-  const admitted = admittedOn(env.features(binding.host), featureKeyOf(start.feature), 'generate', bootstrap, page);
+  const admitted = admittedOn(env.features(binding.host), feature, 'generate', bootstrap, page);
   return admitted.usable ? null : flagRefusalCode(admitted.reason);
 }
 

@@ -9,7 +9,7 @@
 // anything different is a new generation. The cache never crosses users
 // because the user and the sign-in epoch are part of the key.
 
-import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
+import { type OpFeature, type Surface, type Tone } from '@cg/contracts/features';
 import { chatKeyOf, type SessionIdentity } from '@cg/contracts/ids';
 import { type CoverageProof, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint } from '@cg/contracts/send';
@@ -46,7 +46,7 @@ export interface RequestIdentity {
   readonly conversationRef?: string;
   readonly personaKey: string;
   readonly personaDefinitionId: string;
-  readonly feature: FeatureId;
+  readonly feature: OpFeature;
   readonly surface: Surface;
   readonly recapMode: 'full' | 'short' | null;
   readonly window: number;
@@ -67,16 +67,18 @@ export interface RequestIdentity {
    * anything else is a new generation. Absent without a proof, so a ChatSpace key is the one it was before.
    */
   readonly proofDigest?: string;
+  /** Extra parameters of an injected site driver, as a fingerprint only. */
+  readonly parametersDigest?: string;
 }
 
 export interface IdentityInputs {
   readonly session: SessionIdentity;
-  readonly start: StartOp;
+  readonly start: Omit<StartOp, 'feature'> & { readonly feature: OpFeature; readonly parametersDigest?: string };
   readonly persona: { readonly key: string; readonly definitionId: string };
   readonly archiveHead: string | null;
 }
 
-const recapModeOf = (feature: FeatureId): RequestIdentity['recapMode'] => (feature === 'recap' ? 'full' : feature === 'recap-short' ? 'short' : null);
+const recapModeOf = (feature: OpFeature): RequestIdentity['recapMode'] => (feature === 'recap' ? 'full' : feature === 'recap-short' ? 'short' : null);
 
 /**
  * The proof as the request key sees it: everything but the moment it was taken (`takenAt`), as a checkpoint is keyed
@@ -104,6 +106,7 @@ export function requestIdentityOf({ session, start, persona, archiveHead }: Iden
     personaKey: persona.key,
     personaDefinitionId: persona.definitionId,
     feature: start.feature,
+    ...(start.parametersDigest === undefined ? {} : { parametersDigest: start.parametersDigest }),
     surface: start.surface,
     recapMode: recapModeOf(start.feature),
     window: start.window,
@@ -131,6 +134,6 @@ export function requestDigestOf(identity: RequestIdentity): string {
 }
 
 /** The chat a start works on, as the one string key of the extension. */
-export function chatKeyOfStart(start: StartOp): ReturnType<typeof chatKeyOf> {
+export function chatKeyOfStart(start: Pick<StartOp, 'target'>): ReturnType<typeof chatKeyOf> {
   return chatKeyOf(start.target.chat);
 }

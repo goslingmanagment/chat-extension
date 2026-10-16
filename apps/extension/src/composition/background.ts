@@ -65,6 +65,8 @@ import {
   type ResolveHubError,
   type SettingsV1,
 } from '@cg/contracts';
+import { TargetSchema } from '@cg/contracts/ids';
+import { OpViewSchema, type AnyOpView } from '@cg/contracts/ops';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { hashOfRoute } from '@cg/core/application/pages';
@@ -444,7 +446,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const settingsRead = (): boolean => settings.mode() === 'ok' || settings.mode() === 'newer';
 
   // ── R07 stores ─────────────────────────────────────────────────────────────
-  const results = createResultsStore({ session, log: serviceLog });
+  const results = createResultsStore<AnyOpView>({ session, log: serviceLog, readView: async (value) => {
+    const common = OpViewSchema.safeParse(value);
+    if (common.success) return common.data;
+    const target = TargetSchema.safeParse((value as { target?: unknown } | null)?.target);
+    if (!target.success || !(await moduleUnderSameSignIn(target.data.binding.host))) return null;
+    return hostModules.running(target.data.binding.host)?.operations?.readView(value) ?? null;
+  } });
   const presence = createPresence({ local, log: serviceLog });
   const consentPort = createConsent(api);
   const consent = createConsentState({ port: consentPort, log: serviceLog });
@@ -527,6 +535,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // R11: how each feature's start becomes the hub's request and its answer a result ([NEXT] parts, Hi variants,
     // the Review frame, Recap blocks, Coach drafts).
     drivers: AI_FEATURE_DRIVERS,
+    siteOps: async (host) => {
+      if (!(await moduleUnderSameSignIn(host))) return null;
+      return hostModules.running(host)?.operations ?? null;
+    },
     // «Нет связи» vs «хаб не ответил вовремя» at a deadline: what the browser itself says about the connection.
     online: () => navigator.onLine,
     hooks: {
@@ -665,7 +677,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     ids: IDS,
     log: { sink: coreLog, service: serviceLog },
     router: { events, tabs: () => rpc.tabs().map((tab) => tab.tabSessionId) },
-    ops: { forSend: (opId) => scheduler.forSend(opId), view: (opId) => scheduler.view(opId), environment },
+    ops: { start: (tab, start) => scheduler.start(tab, start), siteView: (id, host) => scheduler.siteView(id, host), siteList: (tab, host, key) => scheduler.siteList(tab, host, key), cancel: (id) => scheduler.cancel(id), forSend: (opId) => scheduler.forSend(opId), view: (opId) => scheduler.view(opId), environment },
     tokens,
     install: { instanceId: () => instanceId, owner: () => ownerOf(hubInstance?.session() ?? null) },
     networkSession,
@@ -676,7 +688,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     ...kit,
     telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
     // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope.
-    site: { plug: (registry) => rpc.site({ ...registry, host }) },
+    site: { plug: (registry) => rpc.site({ ...registry, host }), emit: (type, payload) => { rpc.emitSite(host, type, payload); } },
     // R20 P14b1: `settings.ext` through its one owner; the site's tabs by its addresses and registrations, no `tabs` right.
     siteTabs: siteTabsOf(host),
   });
@@ -793,7 +805,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const status = hubInstance?.status() ?? null;
     const current = settings.current();
     const shown = new Map(presence.tabs().map((tab) => [tab.tabSessionId, tab]));
-    const active = scheduler.active();
+    const active = scheduler.activeAll();
     const modules = hostModules.facts();
     return {
       now,
@@ -971,7 +983,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // The last word of this instance: what was logged goes to the store now. The write is handed to Firefox, which
     // unloads the page only once it is done (at most 5 s): started here and not handed over, it was cut by the unload
     // whenever the store was slower than the unload, and the record of this very suspend was lost (LG-018).
-    logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.active().length, sends: hostModules.facts().sends?.open ?? 0, uptimeMs: Date.now() - started } });
+    logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.activeAll().length, sends: hostModules.facts().sends?.open ?? 0, uptimeMs: Date.now() - started } });
     return Promise.allSettled([logging.logs.flush(), observations.then(() => networkSession.idle()), siteAccess.idle()]).then(() => undefined);
   });
   lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));

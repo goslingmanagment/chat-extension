@@ -26,8 +26,8 @@
 // is built in `tab-app` — so the chips' code loads with it there, not in the
 // `ai` layer, whose headroom the AI policy ports need (F10, §3.2).
 
+import type { FeatureId } from '@cg/contracts/features';
 import { type I18nKey } from '@cg/contracts/errors';
-import { type FeatureId } from '@cg/contracts/features';
 import type { AdmissionAction, FeatureCommon, FeatureEntry, FeatureOnHost, FeatureSlice, HotkeyActionId } from '@cg/contracts/features/types';
 import { hasCapability, type Bootstrap, type BootstrapPage, type ClientHubCapability } from '@cg/contracts/hub';
 import { DOCK_CHIP_GROUPS, type ChipVM, type DockActionId, type DockActionVM, type HotkeyLabel, type OverlaySurface, type TargetHandle, type UiAction } from '@cg/contracts/vm';
@@ -61,7 +61,7 @@ export function featureSlice(common: Readonly<Record<string, FeatureCommon>>, si
 }
 
 /** The manifest's key of an AI feature: the two lengths of Recap are one feature. */
-export function featureKeyOf(feature: FeatureId): string {
+export function featureKeyOf(feature: string): string {
   return feature === 'recap-short' ? 'recap' : feature;
 }
 

@@ -822,6 +822,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     ],
   ),
   fixture('ActiveOpSummary', C.ActiveOpSummarySchema, [activeOp], [{ ...activeOp, fanLabel: undefined }]),
+  fixture('SiteActiveOpSummary', C.SiteActiveOpSummarySchema, [{ ...activeOp, feature: 'voice-script' }], [{ ...activeOp, feature: 'not a token' }, { ...activeOp, feature: {} }]),
   fixture(
     'Admission',
     C.AdmissionSchema,
