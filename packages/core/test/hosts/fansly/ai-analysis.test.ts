@@ -274,6 +274,7 @@ describe('[host:fansly] R20 P8c: the deep window — the person’s depth above 
       await run(tab, hubFeature, action, 'Text.', []);
       const request = tab.h.bg.hub.streams[before];
       counts[feature] = request?.body.messageCount;
+      expect(request?.body.summaryMode, feature).toBe(feature === 'recap-short' ? 'short' : undefined);
       expect([feature, request?.body.coverageCheck?.window.length]).toEqual([feature, 60]);
     }
     expect(counts).toEqual({ recap: 5000, review: 5000, 'recap-short': 300, reply: WINDOWS.quick, coach: WINDOWS.quick });
@@ -284,7 +285,7 @@ describe('[host:fansly] R20 P8c: the deep window — the person’s depth above 
     const capped = await fanslyTab({ bootstrap: withDeepMax(3000), windows: () => Promise.resolve({ deep: 5000 }) });
     await recapShort(capped, null);
     await run(capped, 'fan-summary', { type: 'RefreshRecap', length: 'full' }, 'Text.', []);
-    expect(capped.h.bg.hub.streams.map(({ body }) => body.messageCount)).toEqual([300, 3000]);
+    expect(capped.h.bg.hub.streams.map(({ body }) => [body.summaryMode ?? null, body.messageCount])).toEqual([['short', 300], [null, 3000]]);
 
     for (const windows of [() => Promise.resolve({ deep: null }), () => Promise.reject(new Error('the background did not answer'))]) {
       const tab = await fanslyTab({ bootstrap: withDeepMax(5000), windows });

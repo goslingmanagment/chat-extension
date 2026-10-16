@@ -54,9 +54,9 @@ import {
 import { windowFor } from '../../domain/features';
 import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState } from '../../domain/ops';
 import { coachAnswerText, streamPreview } from '../../domain/output';
-import { latestLength, type ArchivePoint } from '../../domain/recap';
+import { analysisMark, latestLength, type ArchivePoint } from '../../domain/recap';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
-import { analysisMark, confirmVm, partVms } from '../ai/result-vm';
+import { confirmVm, partVms } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorActions, errorVm, msg, phaseVm, views } from '../ai/view-models';
 import { type AiWorkspace, type ReadyTarget, type Situation } from '../ai/workspace';
@@ -249,7 +249,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     let recap: 'short' | 'full' | null = null;
     if (mode !== 'off' && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
       // The depth a full recap is built at takes the person's deep window the site keeps (R20 §12): one built at it is no stale one.
-      const [read, extended] = await Promise.all([ws.recaps.readStatus(ws.slotKey(ready)), ws.extendedWindows()]);
+      const [read, extended] = await Promise.all([ws.recaps.readStatus(ws.slotKey(ready)), ws.windows()]);
       // The person left the chat while the status was read: nothing is started for another fan.
       if (stillOpen(session) === null) return giveUp({ code: 'CG-CONTEXT-CHANGED' });
       const deepWindow = windowFor('recap', undefined, ready.settings, ready.bootstrap, extended);

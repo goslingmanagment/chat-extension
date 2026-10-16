@@ -666,11 +666,11 @@ export class AiWorkspace {
   // ── starting a generation ────────────────────────────────────────────────
 
   /** The site's deep-window preference, or the v1 window when the port is absent or fails. */
-  async extendedWindows(): Promise<SettingsExt['windows'] | undefined> {
+  async windows(): Promise<SettingsExt['windows'] | undefined> {
     try {
       return (await this.ports.policy.windows?.()) ?? undefined;
     } catch {
-      return undefined;
+      // No preference: the planner uses the v1 window.
     }
   }
 
@@ -685,6 +685,7 @@ export class AiWorkspace {
     const { chat, ready } = situation;
     if (chat === null || chat.identity === null) return failed('CG-GATE-CHAT-LOADING');
     if (ready === null) return { kind: 'failed', error: this.blockedError(situation) };
+    const { bootstrap, settings } = ready;
     const { feature, surface } = request;
     const rule = policyOf(feature);
     if (situation.quotaZero) return failed('CG-QUOTA-DAILY', situation.quota === null ? {} : { retryAt: Date.parse(situation.quota.resetsAt) });
@@ -706,8 +707,8 @@ export class AiWorkspace {
     // The recap step of a composite Coach turn is asked for only when the conversation allows one (AI-051
     // «мало истории»): its gate never costs the person the question. Its owner switch is the caller's and
     // the background's to check.
-    const recapFeature: FeatureId | null = feature !== 'coach' || request.autoRecap === undefined ? null : request.autoRecap === 'full' ? 'recap' : 'recap-short';
-    const autoRecap = recapFeature !== null && featureGate(recapFeature, { window: situation.window, draftEmpty: null }, policy) === null ? request.autoRecap : undefined;
+    let autoRecap = feature === 'coach' ? request.autoRecap : undefined;
+    if (autoRecap !== undefined && featureGate(autoRecap === 'full' ? 'recap' : 'recap-short', { window: situation.window, draftEmpty: null }, policy) !== null) autoRecap = undefined;
 
     let draft: { plainText: string; revision: number; digest: string } | null = source === null ? null : { plainText: source.text, revision: source.revision, digest: source.digest };
     if (draft === null && (rule.requiresDraft || request.options.attachMyDraft === true)) {
@@ -719,14 +720,14 @@ export class AiWorkspace {
         if (rule.requiresDraft) return failed('CG-HOST-NOT-READY');
       }
     }
-    const limits = freshTextLimits(feature, surface, ready.bootstrap, freshTextAdmitted(this.ports.features, ready.bootstrap, ready.page.pageId));
+    const limits = freshTextLimits(feature, surface, bootstrap, freshTextAdmitted(this.ports.features, bootstrap, ready.page.pageId));
     // The person's deep window kept by the site, asked only by a start of the deep window (R20 §12).
-    const extended = rule.window === 'deep' || autoRecap === 'full' ? await this.extendedWindows() : undefined;
+    const extended = rule.window === 'deep' || autoRecap === 'full' ? await this.windows() : undefined;
     // The site's proof of the open chat (R20 F10): on ChatSpace the visible tail, read only when the start may carry
     // fresh text. A proof that fails is no proof: the start goes on without one.
     let proof: unknown = null;
     try {
-      proof = await policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits, messageCount: windowFor(feature, request.options.window, ready.settings, ready.bootstrap, extended) });
+      proof = await policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits, messageCount: windowFor(feature, request.options.window, settings, bootstrap, extended) });
     } catch {
       // A missing or rejected proof leaves the start unverified.
     }
@@ -744,8 +745,8 @@ export class AiWorkspace {
       target: ready.target,
       cause: token.payload,
       options: request.options,
-      settings: ready.settings,
-      bootstrap: ready.bootstrap,
+      settings,
+      bootstrap,
       tone: original !== undefined ? toneForRegenerate(original.view) : this.tone(chat.key),
       draft,
       fields: policy.fields(proof),
@@ -753,8 +754,9 @@ export class AiWorkspace {
       coachHistory: request.coachHistory,
       autoRecap,
       extendedWindows: extended,
-      ...(original === undefined ? {} : { regenerateOf: original.view.opId, splitWanted: original.memo.split }),
-      ...(request.force === true ? { force: true } : {}),
+      regenerateOf: original?.view.opId,
+      splitWanted: original?.memo.split,
+      force: request.force === true,
     });
     if (!plan.ok) return failed(plan.code);
 
@@ -1144,7 +1146,7 @@ export class AiWorkspace {
       const wire = view.error;
       if (wire?.retryAt !== undefined) this.wakeAt(wire.retryAt);
       // A finished recap is the shared artifact now: the slot holds its copy whichever surface asked for it.
-      if (view.state === 'done' && (view.feature === 'recap' || view.feature === 'recap-short')) this.recaps.generated(event.record);
+      if (view.state === 'done') this.recaps.generated(event.record);
     }
     for (const listener of [...this.opListeners]) listener(event);
     this.bump();

@@ -27,7 +27,7 @@ export interface RecapSlotKey {
   readonly pageId: number;
   readonly fanRef: string;
   /** R20 F6b: the conversation, only when it is not the fan (on Fansly the group); the hub's recaps are read by it. */
-  readonly conversationRef?: string;
+  readonly conversationRef?: string | undefined;
   readonly personaDefinitionId: string;
 }
 

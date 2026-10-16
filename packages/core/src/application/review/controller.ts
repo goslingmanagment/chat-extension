@@ -18,9 +18,9 @@ import { type ActionReceipt, type Msg, type PartialGap, type ReviewItemVM, type 
 
 import { flagRefusal, flagStateOf, isTerminalOpState } from '../../domain/ops';
 import { streamPreview } from '../../domain/output';
+import { analysisMark } from '../../domain/recap';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
-import { analysisMark } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorVm, featureHotkey, msg, phaseVm, views } from '../ai/view-models';
 import { isOwnSurface, type AiWorkspace } from '../ai/workspace';

@@ -106,11 +106,11 @@ export interface StartPlanInput {
   /** Previews: the freshness checkpoint of the Generate click (X8). */
   readonly checkpoint?: FreshnessCheckpoint;
   /** «Ещё раз»: the operation this one repeats. */
-  readonly regenerateOf?: string;
+  readonly regenerateOf?: string | undefined;
   /** Bypass the result cache (Regenerate, Refresh, every Recap build). */
   readonly force?: boolean;
   /** «Ещё раз» keeps the Split snapshot of the original instead of the setting. */
-  readonly splitWanted?: boolean;
+  readonly splitWanted?: boolean | undefined;
   /** AI-096: the recap a Coach turn builds first — the same start, one admission (§7 «один составной слот»). */
   readonly autoRecap?: 'short' | 'full' | undefined;
 }

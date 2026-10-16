@@ -15,10 +15,9 @@ import { type ChatKey } from '@cg/contracts/ids';
 import { UUID_PATTERN } from '@cg/contracts/primitives';
 import { type RecapLength } from '@cg/contracts/vm';
 
-import { RecapSlots, copiesOfShared, copyOfResult, saveAnswered, saveStarted, type RecapCopy, type RecapSaveState, type RecapSlotKey } from '../../domain/recap';
+import { RecapSlots, analysisMark, copiesOfShared, copyOfResult, saveAnswered, saveStarted, type RecapCopy, type RecapSaveState, type RecapSlotKey } from '../../domain/recap';
 import { type OpRecord } from './op-store';
 import { type AiPorts } from './ports';
-import { analysisMark } from './result-vm';
 
 /** The recap status of a chat is asked this long after the chat settled, and kept this long. */
 export const RECAP_STATUS = { settleMs: 1_500, ttlMs: 10 * 60_000 } as const;
@@ -48,8 +47,8 @@ export interface RecapBookDeps {
 const idOf = (key: RecapSlotKey): string => [key.hubOrigin, key.pageId, key.fanRef, key.conversationRef, key.personaDefinitionId].join('\u0000');
 
 /** What a request about the key names: the page, the fan and — R20 F6b, only when it is not the fan — the conversation. */
-const asked = (key: RecapSlotKey): { readonly pageId: number; readonly fanRef: string; readonly conversationRef?: string } =>
-  key.conversationRef === undefined ? { pageId: key.pageId, fanRef: key.fanRef } : { pageId: key.pageId, fanRef: key.fanRef, conversationRef: key.conversationRef };
+const asked = ({ pageId, fanRef, conversationRef }: RecapSlotKey): { readonly pageId: number; readonly fanRef: string; readonly conversationRef?: string } =>
+  conversationRef === undefined ? { pageId, fanRef } : { pageId, fanRef, conversationRef };
 
 export class RecapBook {
   readonly slots = new RecapSlots();
@@ -131,13 +130,13 @@ export class RecapBook {
   generated(record: OpRecord, refreshOnly?: boolean): RecapCopy | null {
     const { view } = record;
     const { clock, ids, policy } = this.deps.ports;
-    const personaDefinitionId = record.memo.personaDefinitionId;
+    const { personaDefinitionId, fingerprint } = record.memo;
     if (personaDefinitionId === null) return null;
     // A completed asynchronous window check updates only an existing copy, preserving its handles and timestamps.
     const copy = refreshOnly ? this.byOp(view.opId) : copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
     if (!copy) return null;
     const { binding, fanRef, conversationRef } = view.target;
-    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, ...(conversationRef === fanRef ? {} : { conversationRef }), personaDefinitionId }, { ...copy, stale: analysisMark(policy.verdict(view, record.memo.fingerprint)) }, false);
+    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, conversationRef: conversationRef === fanRef ? undefined : conversationRef, personaDefinitionId }, { ...copy, stale: analysisMark(policy.verdict(view, fingerprint)) }, false);
     // The background's saver is on it for the tab that owns the operation; its toast ends the wait.
     if (stored.length === 'full' && record.own && !this.saves.has(stored.id)) this.saves.set(stored.id, saveStarted(clock.now()));
     this.deps.changed();
@@ -152,7 +151,7 @@ export class RecapBook {
 
   /** `recap.read`: the hub's two shared recaps become the two local copies. */
   loadShared(key: RecapSlotKey, force = false): void {
-    const { clock, ids, rpc } = this.deps.ports;
+    const { clock, ids, rpc, policy } = this.deps.ports;
     const id = idOf(key);
     const known = this.reads.get(id);
     const now = clock.now();
@@ -167,7 +166,7 @@ export class RecapBook {
         this.deps.changed();
         return;
       }
-      const copies = copiesOfShared(answer.payload, { newLocalId: () => ids.uuid(), now: clock.now(), stale: this.deps.ports.policy.unverifiedAnalysisMark ?? null });
+      const copies = copiesOfShared(answer.payload, { newLocalId: () => ids.uuid(), now: clock.now(), stale: policy.unverifiedAnalysisMark ?? null });
       for (const length of ['short', 'full'] as const) {
         const copy = copies[length];
         if (copy !== null) {

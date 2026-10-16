@@ -10,6 +10,12 @@
 // equality only: their size is not an order.
 
 import { type ChatWindow, type LiveTextTail } from '@cg/contracts/host';
+import { type ResultMarkVM } from '@cg/contracts/ops';
+
+/** Analysis shows only the window-check verdict; later messages are shown by its archive-lag line. */
+export function analysisMark(mark: ResultMarkVM | null): ResultMarkVM | null {
+  return mark?.reason === 'fan-wrote' || mark?.reason === 'archive-moved' ? null : mark;
+}
 
 /** Where the archive stood: a message, a moment, or both. */
 export interface ArchivePoint {

@@ -200,9 +200,10 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     await waitOursText('dock', 'Synthetic short recap.', 'the short Recap', { timeout: 30_000 });
 
     const streams = await streamsSince(mark);
+    // The hub's full Recap omits summaryMode: its schema accepts only the literal 'short'.
     expect(streams.map(({ feature, status, body }) => [feature, status, body.summaryMode ?? null, body.messageCount])).toEqual([
-      ['fan-summary', 200, 'full', 5000],
-      ['fan-summary', 200, 'full', 3000],
+      ['fan-summary', 200, null, 5000],
+      ['fan-summary', 200, null, 3000],
       ['fan-summary', 200, 'short', 300],
     ]);
     const window = Math.min(60, (await held()).length);

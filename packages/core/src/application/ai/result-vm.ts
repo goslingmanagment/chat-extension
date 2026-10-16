@@ -7,7 +7,7 @@
 
 import { type FeatureId, type Tone } from '@cg/contracts/features';
 import { chatKeyOf, type PartRef } from '@cg/contracts/ids';
-import { type OpResult, type ResultMarkVM } from '@cg/contracts/ops';
+import { type OpResult } from '@cg/contracts/ops';
 import { type ConfirmVM, type FixVM, type Msg, type PartVM, type ReasonVM, type ResultVM, type UiAction, type VariantVM } from '@cg/contracts/vm';
 
 import { TONE_LABEL_KEYS, isDraftFeature, policyOf } from '../../domain/features';
@@ -120,11 +120,6 @@ function fixVm(ws: AiWorkspace, record: OpRecord): FixVM | null {
     restoreUntil: fix.restoreUntil,
     restoreExpired: fix.restoreExpired,
   };
-}
-
-/** Analysis shows only the window-check verdict; later messages are shown by its archive-lag line. */
-export function analysisMark(mark: ResultMarkVM | null): ResultMarkVM | null {
-  return mark?.reason === 'fan-wrote' || mark?.reason === 'archive-moved' ? null : mark;
 }
 
 /** Б2 of an operation: the question about one of its parts the person must answer first; null — nothing is asked. */
