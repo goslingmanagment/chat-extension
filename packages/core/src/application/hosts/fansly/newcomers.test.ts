@@ -774,6 +774,51 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
 });
 
 describe('[host:fansly] «Новые» on Fansly: the queue’s buttons (R20 P10b1)', () => {
+  it.each(['change', 'page'] as const)('[FS-NEW-4] [NF-026] [NF-038] another window replaces the pass during a %s: adopt its period and fresh conversation, then send the buttons to its id', async (during) => {
+    const pending = (n: number) => wireRow(n, { status: 'pending', historyRevision: null });
+    const w = world(during === 'page' ? Array.from({ length: 101 }, (_, i) => pending(i + 1)) : [pending(1)]);
+    await w.open();
+    const old = w.background.last();
+    const oldId = old.view.passId;
+    old.history.set(fan(1), [message(1, { text: 'old pass' })]);
+    w.background.change(oldId, [wireRow(1)]);
+    await settle();
+    expect(w.vm().pass?.card?.history.messages[0]?.text).toBe('old pass');
+
+    const liveId = uuid(0x900);
+    w.background.rows = [wireRow(1, { groupId: group(99) }), wireRow(2, { status: 'pending', historyRevision: null })];
+    w.background.passes.set(liveId, {
+      view: w.background.viewOf(liveId, CREATOR, 24),
+      rows: [...w.background.rows], seq: 0,
+      history: new Map([[fan(1), [message(2, { text: 'current pass' })]]]),
+    });
+    // The terminal event prompts a read of the old id; the background redirects it to the live pass.
+    w.background.next.set('fansly.followers.read', await w.background.request('fansly.followers.read', { passId: liveId, offset: during === 'page' ? 100 : 0, limit: 100, query: { search: '', tab: 'todo', filter: 'any' } }));
+    let loading: ReturnType<typeof w.controller.dispatch> = null;
+    if (during === 'page') {
+      w.background.held.add('fansly.followers.read');
+      loading = w.controller.dispatch({ type: 'LoadMore', list: 'newcomers' });
+      await settle();
+    }
+    w.background.change(oldId, [], { state: 'stopped', error: { code: 'CG-CONTEXT-CHANGED' } });
+    w.background.release();
+    await loading;
+    await settle();
+    expect(w.vm().windowHours).toBe(24);
+    expect(w.vm().pass).toMatchObject({ passId: liveId, stage: 'queue', card: { history: { messages: [{ text: 'current pass' }] } } });
+    expect(w.background.of('fansly.followers.scan')).toHaveLength(1);
+    expect(await w.controller.dispatch({ type: 'OpenPreview', targetHandle: passHandle(oldId, fan(1)) })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(await w.controller.dispatch({ type: 'SetNewcomersPassRunning', running: false })).toMatchObject({ ok: true });
+    expect(w.background.of('fansly.followers.pause')).toEqual([{ passId: liveId }]);
+    w.background.change(liveId, [], { state: 'paused' });
+    await settle();
+    expect(w.vm().pass?.stage).toBe('paused');
+    expect(await w.controller.dispatch({ type: 'SetNewcomersPassRunning', running: true })).toMatchObject({ ok: true });
+    expect(w.background.of('fansly.followers.resume')).toEqual([{ passId: liveId }]);
+    await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+    expect(w.background.of('fansly.followers.close')).toEqual([{ passId: liveId }]);
+  });
+
   it('[NF-038] «Пауза» while the queue runs, «Проверить оставшихся: N» while it stands; «Проверить следующим» / «Проверить чат» on the card of a fan not checked yet — each one request, the rest comes as the pass’s changes', async () => {
     const w = world([wireRow(1, { status: 'pending', historyRevision: null, checkedAt: null }), wireRow(2), wireRow(3, { status: 'failed', historyRevision: null, error: { code: 'CG-FAN-REQUEST' } })]);
     await w.open();

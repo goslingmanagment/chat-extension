@@ -4,7 +4,7 @@
 // as `fansly.followers.changed` to the tabs whose window holds the pass — the window never polls (the old one asked
 // for the whole snapshot every 700 ms).
 //
-// The pass, as the old extension made it (fansly-chat src/background/followers-service.ts), over FS-NET-1's purpose
+// The pass, as the old extension made it (src/background/followers-service.ts), over FS-NET-1's purpose
 // `newcomers` alone — every request through `fansly-api`'s allowlist and the creator's pacer (the port `api`):
 // 1. the fast part (`scanning`): the creator's welcome texts (`/message/automated`), the new followers of the period
 //    (`followersnew`, ≤ 20 pages of 100, the moment of a follow from its id — NF-030), the start of the inbox (≤ 10
@@ -56,6 +56,7 @@ import {
   readInboxPage,
   readWelcomeTexts,
   snowflakeMs,
+  withChatHead,
   windowOf,
   type PassChat,
   type PassMessage,
@@ -152,6 +153,8 @@ interface Pass {
   error: CgAnyErrorWire | null;
   coolingUntil: number | null;
   welcome: Set<string>;
+  /** Successful follower pages survive a failed request; a continuation retries its cursor. */
+  readonly followers: { before: string; pages: number; read: boolean; readonly cursors: Set<string> };
   readonly rows: Row[];
   readonly byFan: Map<string, Row>;
   /** Chats the inbox named: leads the check confirms. */
@@ -211,6 +214,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   /** One pass per creator: the newest scan's. */
   const passes = new Map<string, Pass>();
   const byId_ = new Map<string, Pass>();
+  /** One open window per tab; its old id may follow a replacement until the window reads the new id. */
+  const windows = new Map<string, { readonly passId: string; readonly creator: string }>();
 
   const iso = (ms: number): string => new Date(ms).toISOString();
 
@@ -255,7 +260,12 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   function flush(pass: Pass): void {
     pass.flushing = false;
-    for (const tab of [...pass.watchers]) if (!deps.alive(tab)) pass.watchers.delete(tab);
+    for (const tab of [...pass.watchers]) {
+      if (!deps.alive(tab)) {
+        pass.watchers.delete(tab);
+        windows.delete(tab);
+      }
+    }
     if (pass.watchers.size === 0) {
       pass.dirty.clear();
       pass.passDirty = false;
@@ -329,7 +339,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     pass.life.addEventListener('abort', () => stop.abort());
     let running = true;
     pass.base = base;
-    pass.error = null;
+    if (!pass.partial || pass.followers.read) pass.error = null;
     touch(pass);
     const work: Work = {
       stop,
@@ -388,42 +398,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
     phase('followers');
     const cutoff = pass.startedAt - pass.windowHours * 3_600_000;
-    const cursors = new Set<string>();
-    let before = '0';
-    let complete = false;
-    for (let page = 0; page < PASS_BOUNDS.followerPages; page += 1) {
-      const answer = readFollowersPage(
-        await ask(pass, work, {
-          route: 'followers.new',
-          path: { account: pass.creator },
-          query: { before, after: '0', limit: String(PASS_BOUNDS.followerPage), offset: '0', search: '', lastSeenAfter: '' },
-        }),
-      );
-      if (answer === null) throw new PassFailure({ code: 'CG-FAN-REQUEST' });
-      const profiles = new Map(answer.profiles.map((profile) => [profile.fanRef, profile]));
-      let oldest = Infinity;
-      for (const follow of answer.follows) {
-        const at = snowflakeMs(follow.id, deps.now()) ?? 0;
-        oldest = Math.min(oldest, at);
-        if (at < cutoff || at > pass.startedAt || pass.byFan.has(follow.fanRef) || follow.fanRef === pass.creator) continue;
-        const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, revisionKey: null, proof: null };
-        pass.rows.push(row);
-        pass.byFan.set(follow.fanRef, row);
-        touch(pass, row);
-      }
-      if (answer.follows.length < PASS_BOUNDS.followerPage || oldest < cutoff) {
-        complete = true;
-        break;
-      }
-      const next = answer.follows.at(-1)?.id ?? before;
-      if (cursors.has(next)) break;
-      cursors.add(next);
-      before = next;
-    }
-    // «Результат неполный» (NF-025): Fansly did not let the period be read to its end.
-    if (!complete) pass.partial = true;
-    pass.rows.sort((a, b) => Date.parse(b.view.followedAt) - Date.parse(a.view.followedAt));
-    touch(pass);
+    await followers(pass, work, cutoff);
 
     if (pass.rows.length > 0) await inbox(pass, work, cutoff);
     phase('profiles');
@@ -438,6 +413,54 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     pass.base = 'queue';
     touch(pass);
     await queue(pass, work, null);
+  }
+
+  async function followers(pass: Pass, work: Work, cutoff: number): Promise<void> {
+    const progress = pass.followers;
+    if (progress.read) return;
+    let complete = false;
+    try {
+      while (progress.pages < PASS_BOUNDS.followerPages) {
+        const answer = readFollowersPage(
+          await ask(pass, work, {
+            route: 'followers.new',
+            path: { account: pass.creator },
+            query: { before: progress.before, after: '0', limit: String(PASS_BOUNDS.followerPage), offset: '0', search: '', lastSeenAfter: '' },
+          }),
+        );
+        if (answer === null) throw new PassFailure({ code: 'CG-FAN-REQUEST' });
+        progress.pages += 1;
+        const profiles = new Map(answer.profiles.map((profile) => [profile.fanRef, profile]));
+        let oldest = Infinity;
+        for (const follow of answer.follows) {
+          const at = snowflakeMs(follow.id, deps.now()) ?? 0;
+          oldest = Math.min(oldest, at);
+          if (at < cutoff || at > pass.startedAt || pass.byFan.has(follow.fanRef) || follow.fanRef === pass.creator) continue;
+          const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, revisionKey: null, proof: null };
+          pass.rows.push(row);
+          pass.byFan.set(follow.fanRef, row);
+          touch(pass, row);
+        }
+        if (answer.follows.length < PASS_BOUNDS.followerPage || oldest < cutoff) {
+          complete = true;
+          break;
+        }
+        const next = answer.follows.at(-1)?.id ?? progress.before;
+        if (progress.cursors.has(next)) break;
+        progress.cursors.add(next);
+        progress.before = next;
+      }
+    } catch (error) {
+      pass.partial = true;
+      touch(pass);
+      throw error;
+    }
+    // «Результат неполный» (NF-025): Fansly did not let the period be read to its end.
+    progress.read = true;
+    pass.partial = !complete;
+    if (complete) pass.error = null;
+    pass.rows.sort((a, b) => Date.parse(b.view.followedAt) - Date.parse(a.view.followedAt));
+    touch(pass);
   }
 
   /** The start of the inbox (NF-031): chats of the period's followers. Positive only; a failure leaves no lead. */
@@ -572,7 +595,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       // The participants' fence: a lead is a fact only once its group lists exactly the two.
       const confirmed = readGroup(await ask(pass, work, { route: 'group.detail', path: { group: chat.groupId } }), pass.creator, fan, deps.now(), chat.groupId);
       if (confirmed === null) throw new PassFailure({ code: 'CG-FAN-GROUP' });
-      chat = confirmed;
+      chat = withChatHead(confirmed, chat.lastMessageId, chat.lastKnown);
     }
     row.chat = chat;
     if (row.view.groupId !== chat.groupId) set(pass, row, { groupId: chat.groupId });
@@ -592,10 +615,9 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       for (const message of messages) walked.set(message.id, message);
       personal = messages.find((message) => isCreatorPersonal(message, pass.creator, pass.welcome)) ?? null;
       if (personal !== null) break;
-      // An empty first page of a chat whose object names a last message is a lagging read, not an empty chat.
-      if (page === 0 && messages.length === 0 && chat.lastKnown) break;
       if (messages.length === 0) {
-        complete = true;
+        // An empty page proves the start only when the walk also covers every known fact about the head.
+        complete = (!chat.lastKnown || walked.size > 0) && (chat.lastMessageId === null || walked.has(chat.lastMessageId));
         break;
       }
       const oldest = [...messages].sort(byId)[0]?.id ?? null;
@@ -658,10 +680,10 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   // ── the requests ──
 
   function holds(pass: Pass, tab: string): boolean {
-    if (pass.watchers.has(tab)) return true;
     // A window that came back after a lost port reads again from its tab: it holds the pass if it is on its creator.
     if (!deps.tabOn(tab, pass.creator)) return false;
     pass.watchers.add(tab);
+    windows.set(tab, { passId: pass.id, creator: pass.creator });
     return true;
   }
 
@@ -672,9 +694,10 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (!deps.tabOn(tab, creator)) return { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } };
     const open = passes.get(creator);
     if (open !== undefined && open.windowHours === windowHours && open.base !== 'done' && open.base !== 'stopped' && (open.watchers.has(tab) || running(open))) {
-      open.watchers.add(tab);
+      holds(open, tab);
       return { ok: true, pass: viewOf(open) };
     }
+    const watchers = new Set(open?.watchers);
     if (open !== undefined) drop(open);
     const pass: Pass = {
       id: deps.uuid(),
@@ -687,10 +710,11 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       error: null,
       coolingUntil: null,
       welcome: new Set(),
+      followers: { before: '0', pages: 0, read: false, cursors: new Set() },
       rows: [],
       byFan: new Map(),
       leads: new Map(),
-      watchers: new Set([tab]),
+      watchers,
       life: new AbortSwitch(),
       work: null,
       preferred: null,
@@ -701,6 +725,17 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     };
     passes.set(creator, pass);
     byId_.set(pass.id, pass);
+    holds(pass, tab);
+    if (open !== undefined) {
+      open.base = 'stopped';
+      open.phase = null;
+      open.coolingUntil = null;
+      open.error = { code: 'CG-CONTEXT-CHANGED' };
+      open.seq += 1;
+      const change: FollowersChange = { pass: viewOf(open), seq: open.seq, rows: [] };
+      // The terminal event makes old windows read again; their old id resolves to the current pass below.
+      for (const watcher of watchers) if (deps.alive(watcher) && deps.tabOn(watcher, creator)) deps.emit(watcher, change);
+    }
     begin(pass, 'scanning', (work) => fastPart(pass, work));
     return { ok: true, pass: viewOf(pass) };
   }
@@ -714,7 +749,10 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   function find(passId: string, tab: string): Pass | null {
     const pass = byId_.get(passId);
-    return pass !== undefined && holds(pass, tab) ? pass : null;
+    if (pass !== undefined) return holds(pass, tab) ? pass : null;
+    const window = windows.get(tab);
+    const current = window?.passId === passId ? passes.get(window.creator) : undefined;
+    return current !== undefined && current.watchers.has(tab) && deps.tabOn(tab, current.creator) ? current : null;
   }
 
   function read(payload: Payload<'fansly.followers.read'>, tab: string): Answer<'fansly.followers.read'> {
@@ -754,8 +792,11 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   function resume(payload: Payload<'fansly.followers.resume'>, tab: string): Answer<'fansly.followers.resume'> {
     const pass = find(payload.passId, tab);
     if (pass === null) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
-    if (pass.work !== null || !pass.rows.some(needsCheck)) return { ok: true, pass: viewOf(pass) };
-    pass.error = null;
+    if (pass.work !== null || (pass.followers.read && !pass.rows.some(needsCheck))) return { ok: true, pass: viewOf(pass) };
+    if (!pass.followers.read) {
+      begin(pass, 'scanning', (work) => fastPart(pass, work));
+      return { ok: true, pass: viewOf(pass) };
+    }
     begin(pass, 'queue', async (work) => {
       await profiles(pass, work);
       await queue(pass, work, null, true);
@@ -785,8 +826,10 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   }
 
   function close(payload: Payload<'fansly.followers.close'>, tab: string): Answer<'fansly.followers.close'> {
-    const pass = byId_.get(payload.passId);
+    const window = windows.get(tab);
+    const pass = window?.passId === payload.passId ? passes.get(window.creator) : byId_.get(payload.passId);
     if (pass === undefined || !pass.watchers.delete(tab)) return { recorded: false };
+    windows.delete(tab);
     if (pass.watchers.size === 0) {
       standStill(pass);
       touch(pass);
@@ -865,6 +908,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     },
     dispose(): void {
       for (const pass of [...passes.values()]) drop(pass);
+      windows.clear();
     },
   };
 }

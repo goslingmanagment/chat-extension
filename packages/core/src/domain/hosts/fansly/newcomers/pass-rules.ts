@@ -1,7 +1,7 @@
 // The background's pass of «Новые» on Fansly as pure rules (R20 P10b1; docs/project-unite/architecture.md §5.8, §8.7;
 // FS-NEW-1, FS-NEW-7; NF-030…NF-033): how Fansly's answers read — the new followers, the start of the inbox, the
 // profiles, a group, a page of history, the welcome texts of `/message/automated` — and what a walked history proves.
-// The old extension's rules (fansly-chat src/background/followers-service.ts, src/shared/followers.ts), carried over:
+// The old extension's rules (E134; src/background/followers-service.ts, src/shared/followers.ts), carried over:
 // - a follow's moment is its id's (a snowflake from Fansly's epoch); ids are strings, never numbers;
 // - a group is a fact only with exactly its two users, the creator and the fan (the participants' fence);
 // - a page of history is a fact only when every message is of this group and of one of the two;
@@ -231,6 +231,14 @@ export interface PassChat {
   readonly last: PassMessage | null;
   /** Its object named a last message (an empty first page of history is then a lagging read, not an empty chat). */
   readonly lastKnown: boolean;
+  /** The known head must occur in the walked history before it can prove the chat ready. */
+  readonly lastMessageId: string | null;
+}
+
+/** A richer group object cannot erase the inbox's evidence that the chat already has messages. */
+export function withChatHead(chat: PassChat, lastMessageId: string | null, lastKnown = lastMessageId !== null): PassChat {
+  const head = [chat.lastMessageId, lastMessageId].filter((id): id is string => id !== null).sort(compareNativeIds).at(-1) ?? null;
+  return { ...chat, lastMessageId: head, lastKnown: chat.lastKnown || lastKnown || head !== null };
 }
 
 function usersOf(group: Record<string, unknown>): string[] {
@@ -245,7 +253,8 @@ export function readGroup(response: unknown, creatorId: string, fanRef: string, 
   const users = usersOf(group);
   if (users.length !== 2 || !users.includes(creatorId) || !users.includes(fanRef) || creatorId === fanRef) return null;
   const last = group['lastMessage'] === null || group['lastMessage'] === undefined ? null : messageOf(group['lastMessage'], group['id'], [creatorId, fanRef], now, true);
-  return { fanRef, groupId: group['id'], verified: true, last, lastKnown: record(group['lastMessage']) !== null };
+  const chat: PassChat = { fanRef, groupId: group['id'], verified: true, last, lastKnown: group['lastMessage'] !== null && group['lastMessage'] !== undefined, lastMessageId: zeroless(record(group['lastMessage'])?.['id']) };
+  return withChatHead(chat, zeroless(group['lastMessageId']));
 }
 
 export interface InboxPage {
@@ -275,7 +284,7 @@ export function readInboxPage(response: unknown, creatorId: string, wanted: Read
     if (!isId(fanRef) || !isId(groupId) || seen.has(fanRef) || !wanted.has(fanRef)) continue;
     seen.add(fanRef);
     const chat = readGroup(groups.get(groupId), creatorId, fanRef, now, groupId);
-    chats.push(chat ?? { fanRef, groupId, verified: false, last: null, lastKnown: isId(entry?.['lastMessageId']) });
+    chats.push(withChatHead(chat ?? { fanRef, groupId, verified: false, last: null, lastKnown: false, lastMessageId: null }, zeroless(entry?.['lastMessageId'])));
   }
   const tail = record(data.at(-1))?.['lastMessageId'];
   return { chats, count: data.length, tail: isId(tail) ? tail : null };

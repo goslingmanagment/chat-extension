@@ -273,6 +273,106 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     expect([read.total, read.pass?.partial, read.pass?.state]).toEqual([2000, true, 'paused']);
   });
 
+  it('[NF-030] [NF-025] a failed follower page stays incomplete with its warning; continuing retries that page before checking the whole list', async () => {
+    const t = setup();
+    for (let i = 0; i < 101; i += 1) t.world.follow(i, T0 - minutes(i + 1));
+    const call = t.world.api.call.bind(t.world.api);
+    let broken = true;
+    vi.spyOn(t.world.api, 'call').mockImplementation(async (request) => {
+      const response = await call(request);
+      if (request.route === 'followers.new' && request.query?.['before'] !== '0' && broken) throw new ApiError('network', 'CG-FAN-REQUEST');
+      return response;
+    });
+    const passId = await t.scan();
+    await t.settle();
+    const read = () => t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 });
+    expect((await read()).pass).toMatchObject({ state: 'stopped', partial: true, error: { code: 'CG-FAN-REQUEST' }, counts: { total: 100, checked: 0 } });
+
+    // Continuing while the network is still broken cannot turn 100 of 101 into a complete list.
+    expect(await t.ask('fansly.followers.resume', { passId })).toMatchObject({ ok: true, pass: { partial: true, error: { code: 'CG-FAN-REQUEST' } } });
+    await t.settle();
+    expect((await read()).pass).toMatchObject({ state: 'stopped', partial: true, error: { code: 'CG-FAN-REQUEST' }, counts: { total: 100 } });
+
+    broken = false;
+    const release = t.world.hold('followers.new');
+    await t.ask('fansly.followers.resume', { passId });
+    await t.until(() => t.routes().filter((route) => route === 'followers.new').length === 4);
+    expect((await read()).pass).toMatchObject({ state: 'scanning', partial: true, error: { code: 'CG-FAN-REQUEST' }, counts: { total: 100 } });
+    release();
+    await t.settle();
+    expect((await read()).pass).toMatchObject({ state: 'done', partial: false, error: null, counts: { total: 101, checked: 101 } });
+    expect(t.world.calls.filter((request) => request.route === 'followers.new').map((request) => request.query?.['before'])).toEqual(['0', ...Array<string>(3).fill(t.world.follows[99]?.id as string)]);
+  });
+
+  it.each(['full', 'thin', 'no'] as const)('[NF-032] [FS-NEW-7] a known lastMessageId survives a %s inbox entry and a thin group; lagging empty or older history gives no proof', async (inInbox) => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(5));
+    const group = t.world.chat(fan, [{ from: 'fan' }, { from: 'fan' }], inInbox);
+    const lastMessageId = group.messages.at(-1)?.id;
+    const call = t.world.api.call.bind(t.world.api);
+    let lag: 'empty' | 'older' | null = 'empty';
+    vi.spyOn(t.world.api, 'call').mockImplementation(async (request) => {
+      const response = (await call(request)) as Record<string, unknown>;
+      if (request.route === 'messaging.groups') {
+        const aggregation = response['aggregationData'] as { groups: Record<string, unknown>[] };
+        return { ...response, aggregationData: { ...aggregation, groups: aggregation.groups.map((entry) => ({ ...entry, lastMessage: null })) } };
+      }
+      // A thin lead's confirmation has no last message; a get-or-create carries only its id.
+      if (request.route === 'group.detail' || request.route === 'group.create') return { ...response, lastMessage: null, ...(request.route === 'group.create' ? { lastMessageId } : {}) };
+      if (request.route === 'message.history' && lag !== null) {
+        return { messages: lag === 'older' && request.query?.['before'] === undefined ? [{ ...group.messages[0], groupId: group.id }] : [] };
+      }
+      return response;
+    });
+    const passId = await t.scan();
+    await t.settle();
+    const unproven = async () => {
+      expect(await t.row(passId, fan)).toMatchObject({ status: 'failed', error: { code: 'CG-FNEW-HISTORY' }, historyRevision: null });
+      expect(t.service.proof(passId, fan)).toBeNull();
+    };
+    await unproven();
+    // Reaching the start of an older prefix still does not cover the known newest message.
+    lag = 'older';
+    await t.ask('fansly.followers.resume', { passId });
+    await t.settle();
+    await unproven();
+    lag = null;
+    await t.ask('fansly.followers.resume', { passId });
+    await t.settle();
+    expect(await t.row(passId, fan)).toMatchObject({ status: 'ready', fanWrote: true });
+    expect(t.service.proof(passId, fan)?.startProof).toMatchObject({ coveredCount: 2, personalCount: 2 });
+  });
+
+  it('[FS-NEW-4] [NF-038] two tabs share the live pass after either changes its period: the old pass ends, and its tab can read, pause, continue and read the conversation', async () => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(5));
+    t.world.chat(fan, [{ from: 'fan' }], 'no');
+    const welcome = t.world.hold('message.automated');
+    const creating = t.world.hold('group.create');
+    const oldId = await t.scan(48);
+    expect(await t.scan(48, OTHER_TAB)).toBe(oldId);
+    const liveId = await t.scan(24, OTHER_TAB);
+    expect(liveId).not.toBe(oldId);
+    expect(t.heard.filter((entry) => entry.tab === TAB && entry.change.pass.passId === oldId).at(-1)?.change.pass).toMatchObject({ state: 'stopped', error: { code: 'CG-CONTEXT-CHANGED' } });
+    const read = () => t.ask('fansly.followers.read', { passId: oldId, offset: 0, limit: 10 });
+    expect((await read()).pass).toMatchObject({ passId: liveId, windowHours: 24 });
+    // A stale id is a redirect only for the window that actually held it.
+    expect((await t.ask('fansly.followers.read', { passId: oldId, offset: 0, limit: 10 }, 'tab-3')).pass).toBeNull();
+    welcome();
+    await t.until(() => t.creates().length === 1);
+    expect((await t.ask('fansly.followers.pause', { passId: oldId })).pass).toMatchObject({ passId: liveId, state: 'paused' });
+    creating();
+    await t.settle();
+    expect(await t.ask('fansly.followers.resume', { passId: oldId })).toMatchObject({ ok: true, pass: { passId: liveId, state: 'queue' } });
+    await t.settle();
+    expect((await read()).pass).toMatchObject({ passId: liveId, state: 'done', counts: { total: 1, checked: 1 } });
+    expect(await t.ask('fansly.followers.history', { passId: oldId, fanRef: fan, before: null, limit: 10 })).toMatchObject({ ok: true, messages: [{ fromFan: true }] });
+    for (const tab of [TAB, OTHER_TAB]) expect(t.heard.some((entry) => entry.tab === tab && entry.change.pass.passId === liveId && entry.change.pass.state === 'done')).toBe(true);
+    expect(await t.ask('fansly.followers.close', { passId: oldId })).toEqual({ recorded: true });
+    expect((await read()).pass).toBeNull();
+    expect(t.service.proof(oldId, fan)).toBeNull();
+  });
+
   it('[NF-032] [NF-033] the check: the participants’ fence, the history to its empty page; automation is not personal; a personal message of the creator’s is «Уже писали»; the start proof counts the last 30', async () => {
     const t = setup();
     const ready = t.world.follow(1, T0 - minutes(5));

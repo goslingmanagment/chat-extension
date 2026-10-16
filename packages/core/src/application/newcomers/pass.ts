@@ -221,6 +221,19 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     changed();
   }
 
+  /** Another window replaced the pass: its period, rows and conversations now belong to the current pass. */
+  function replaced(current: PassState): Promise<void> {
+    if (current.hostAccountId !== account) {
+      fail({ code: 'CG-CONTEXT-CHANGED', retryAt: null });
+      return Promise.resolve();
+    }
+    letGo(false);
+    pass = current;
+    windowHours = clampHours(current.windowHours);
+    stage = 'live';
+    return firstPage(run, source.pageSize);
+  }
+
   /** The first rows, or the rows on screen again (a gap in the changes, a port that came back): `limit` rows from the top. */
   async function firstPage(mine: number, limit: number): Promise<void> {
     if (pass === null) return;
@@ -249,6 +262,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       }
       if (answer.value.pass === null) return gone(mine);
       if (answer.value.pass.hostAccountId !== account) return fail({ code: 'CG-CONTEXT-CHANGED', retryAt: null });
+      if (answer.value.pass.passId !== pass.passId) return replaced(answer.value.pass);
       read.push(...answer.value.rows);
       latest = answer.value.pass;
       count = answer.value.total;
@@ -295,6 +309,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     loadingMore = false;
     if (!answer.ok) moreFailure = answer.failure;
     else if (answer.value.pass === null) return gone(mine);
+    else if (answer.value.pass.passId !== pass.passId) return replaced(answer.value.pass);
     else {
       rows = placePassPage(rows, rows.length, answer.value.rows);
       total = answer.value.total;
