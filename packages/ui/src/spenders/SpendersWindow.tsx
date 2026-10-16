@@ -26,6 +26,7 @@ export function SpendersWindow(): JSX.Element {
   const { root, deps } = useKit();
   const board = useView({ of: 'spenders.board' }).value;
   const stats = useView({ of: 'spenders.stats' }).value;
+  // A host without the statistics (Fansly, R20 P9e): no column, no S, the preview next to the list alone.
   const statistics = board.statistics !== false;
   const expanded = statistics && stats.expanded;
   const boardRef = useRef<BoardHandle>(null);
@@ -184,6 +185,7 @@ export const SPENDERS_CSS = `
 @media (max-width: 1360px) {
   .cg-sp__cols { grid-template-columns: minmax(0, 1fr) 240px; }
   .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 392px 240px; }
+  .cg-sp__cols.no-stats.is-preview { grid-template-columns: minmax(0, 1fr) 392px; }
 }
 @media (max-width: 1120px) {
   .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 392px; }

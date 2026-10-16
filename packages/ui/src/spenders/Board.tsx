@@ -46,6 +46,8 @@ export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
 const PRIMARY_FILTERS: readonly SpendersFilter[] = ['all', 'waiting', 'new'];
 /** What «Обновить» of the board's footer reads again: the list and the statistics column next to it. */
 const BOARD_REFRESH: readonly RefreshableView[] = ['spenders.board', 'spenders.stats'];
+/** A board without the statistics (R20 P9e) reads only the list again. */
+const LIST_REFRESH: readonly RefreshableView[] = ['spenders.board'];
 /** Ask for the next page this many rows before the end of the loaded list. */
 const LOAD_MORE_MARGIN = 20;
 
@@ -472,7 +474,7 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
         />
       )}
       {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
-      <DataFooter left={footerText} stamp={board.footer.stamp} refresh={BOARD_REFRESH} />
+      <DataFooter left={footerText} stamp={board.footer.stamp} refresh={board.statistics === false ? LIST_REFRESH : BOARD_REFRESH} />
     </section>
   );
 }
