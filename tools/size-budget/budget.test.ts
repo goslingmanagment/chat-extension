@@ -144,7 +144,7 @@ describe('size budgets of the sites’ scripts (host registry)', () => {
     expect(() => scriptBudgets([stray])).toThrow(/budgets gone, a script it does not declare/);
   });
 
-  it('[R20 F1] the background is measured raw: the core under the 808 KiB signal threshold, each site’s chunk under its registry ceiling; a second site adds its own line', () => {
+  it('[R20 F1] the background is measured raw: the core under the 864 KiB signal threshold, each site’s chunk under its registry ceiling; a second site adds its own line', () => {
     const chunk = CHATSPACE.background;
     if (chunk === undefined) throw new Error('ChatSpace has a background chunk');
     expect(backgroundBudgets([CHATSPACE])).toEqual([

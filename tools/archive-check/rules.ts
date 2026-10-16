@@ -109,7 +109,7 @@ export const MAX_JS_BYTES = 400 * 1024;
  * leaves the core for that site's chunk (docs/project-unite/architecture.md
  * §3.3), and the number is raised only by a decision of its own.
  */
-export const MAX_BACKGROUND_JS_BYTES = 808 * 1024; // P14a: shared sound state puts the rebased core 280 B above 800 KiB.
+export const MAX_BACKGROUND_JS_BYTES = 864 * 1024; // R20 2026-10-16: P10/P11/P8c/P9d merges put the core ~4 KiB over 808 KiB (owner: raise, no byte-hunting).
 
 /**
  * The ceiling of one file of the XPI, by file: the background core's, each site's background chunk's (`bg/<site>.js`,
