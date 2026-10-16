@@ -1,10 +1,12 @@
-// P11b, P11b2: «Заметки» on the Fansly stand — the actual MV3 extension in headless Firefox, the page's MAIN, the background's
-// real `fansly-api` client and pacer against the fake Fansly's own note endpoints, all on loopback (FS-NOTE-1…5,
-// FX-004…FX-013). The stand's chat spans the window, so «Всегда справа» finds no free column here until a test caps it.
+// P11b, P11b2, P11c: «Заметки» on the Fansly stand — the actual MV3 extension in headless Firefox, the page's MAIN, the
+// background's real `fansly-api` client and pacer against the fake Fansly's own note endpoints, all on loopback
+// (FS-NOTE-1…6, FX-004…FX-016); «✨ Заполнить из чата» through the shared admission against the fake hub, which checks
+// the body by the vendored SDK's schema and the hub's own rules (`fake-hub/ai-rules.ts`). The stand's chat spans the window, so «Всегда справа» finds no free column here until a test caps it.
 import type { DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
 import { mkdirSync } from 'node:fs';
 import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
+import { callsTo } from '../../src/fake-hub/journal';
 import { WORLD } from '../../src/scenarios/hub';
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
 import { PANEL } from '../support/chat';
@@ -46,6 +48,10 @@ const type = async (selector: string, text: string) => {
 };
 const value = (selector: string) => readOurs('panel', selector, (node) => (node as HTMLTextAreaElement).value);
 const fieldRows = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll('[data-notes-field]')].map((item) => item.getAttribute('data-notes-field')));
+/** What the fake hub's `fan-notes-fill` writes for every label (fake-hub/ai.ts). */
+const FACT = 'Synthetic fact from the chat.';
+/** What a fill of `OLD` asks: its labels in note order, then the template's it lacks. */
+const ASKED = ['Имя', 'Локация', 'Возраст', 'Работа', 'Хобби', 'Фетиши', 'Характеристика', 'Медиа', 'График', 'Планы и даты', 'Другое'];
 const tableLabels = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll('dt')].map((item) => item.textContent));
 
 describe('Fansly «Заметки» (R20 P11b)', () => {
@@ -205,6 +211,51 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     await pressIn(`[data-notes-editor="${old}"] button`, 'Текстом');
     expect(await value(`[data-notes-editor="${old}"] textarea`)).toBe(OLD.replace('Работа: медбрат', 'Работа: медбрат; nights'));
     await pressIn('.cg-notes__foot button', 'Отмена');
+  });
+
+  it('[FX-014] [FX-015] [FX-016] [FS-NOTE-6] «✨ Заполнить из чата»: only the labels reach the hub, the empty fields take the answer, the filled ones get additions under them; nothing is written before «Сохранить» (R20 P11c)', async () => {
+    await waitBody('ready');
+    const old = (await noteIds())[3] as string;
+    await pressIn(`[data-note-id="${old}"] button`, 'Изменить');
+    const editor = `[data-notes-editor="${old}"]`;
+    const since = await fakeFansly().mark();
+    const hubMark = await hub().mark();
+    await pressIn('.cg-notes__foot button', '✨ Заполнить из чата');
+    await browser.waitUntil(async () => (await readOurs('panel', editor, (node) => node.getAttribute('data-notes-fill'))) === 'done', { timeout: 30_000, timeoutMsg: 'the fill did not end' });
+    // The hub took it (its schema and rules): the questionnaire's labels, then the template's it lacks — the journal keeps
+    // their lengths only —, the group and the fan apart, the depth of HF-6, and no value.
+    const fills = callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream');
+    expect(fills.map((call) => call.status)).toEqual([200]);
+    const request = fills[0]?.request as { feature: string; body: Record<string, unknown> };
+    expect(request.feature).toBe('fan-notes-fill');
+    expect(request.body).toMatchObject({ conversationRef: A.group, fanRef: A.fan, messageCount: 3000, noteFields: ASKED.map((label) => `‹${String(label.length)} chars›`) });
+    expect(request.body).not.toHaveProperty('noteValues');
+    expect(JSON.stringify(await hub().journal(0))).not.toMatch(/Wayne|Флорида|медбрат|вайб|кастом/);
+    // Empty fields took the answer, the template's new lines stand after the last field (the answer named them exactly);
+    // the filled ones keep theirs.
+    expect(await fieldRows(editor)).toEqual(ASKED);
+    expect(await value(`${editor} [data-notes-field="Возраст"] textarea`)).toBe(FACT);
+    expect(await value(`${editor} [data-notes-field="Имя"] textarea`)).toBe('Wayne');
+    expect(await readOurs('panel', editor, (node) => [...node.querySelectorAll('[data-notes-suggestion]')].map((item) => item.closest('[data-notes-field]')?.getAttribute('data-notes-field')))).toEqual(['Имя', 'Локация', 'Работа', 'Характеристика']);
+    expect(await readOurs('panel', `${editor} [data-notes-field="Работа"] [data-notes-suggestion]`, (node) => [node.querySelectorAll('del').length, node.querySelector('ins')?.textContent])).toEqual([0, FACT]);
+    expect(await readOurs('panel', '[data-notes-fill-line]', (node) => node.textContent)).toBe('Гусь вписал: Возраст, Хобби, Фетиши, Медиа, График, Планы и даты, Другое. Добавки под полями: 4.');
+    expect(await routes(since)).toEqual([]);
+    mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
+    for (const theme of ['bright', 'dark'] as const) {
+      await callFansly('setTheme', theme);
+      await browser.waitUntil(async () => (await $(SLOT).getAttribute('data-scheme')) === (theme === 'bright' ? 'light' : 'dark'));
+      await browser.saveScreenshot(`${E2E_EVIDENCE_DIR}/suite-fansly-notes-fill-${theme}.png`);
+    }
+    // «Принять» adds to its field, «Не нужно» leaves the field as it was; «Сохранить» writes once.
+    await pressIn(`${editor} [data-notes-field="Имя"] [data-notes-suggestion] button`, 'Принять');
+    await ours('panel', `${editor} [data-notes-field="Локация"] [data-notes-suggestion] button[aria-label="Не нужно"]`).click();
+    expect(await value(`${editor} [data-notes-field="Имя"] textarea`)).toBe(`Wayne\n${FACT}`);
+    expect(await value(`${editor} [data-notes-field="Локация"] textarea`)).toBe('Флорида (08.2026)');
+    expect(await routes(since)).toEqual([]);
+    await ours('panel', '[data-notes-save]').click();
+    await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')), { timeout: 15_000 });
+    expect(await routes(since)).toEqual(['notes.edit']);
+    expect(await tableLabels(`[data-note-id="${old}"] [data-notes-form]`)).toEqual(ASKED);
   });
 
   it('[FX-009] [FS-NOTE-2] the panel over the chat in both of Fansly’s themes; «Окно по центру» belongs to its chat; the view is the same in a reloaded tab', async () => {

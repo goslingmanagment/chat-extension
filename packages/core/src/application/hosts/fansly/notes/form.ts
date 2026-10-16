@@ -38,7 +38,8 @@ export interface NoteFormText {
 
 export type NoteFormPart = NoteFormField | NoteFormText;
 
-/** A rewrite of a filled field the Goose offers (R20 P11c fills it; shown under its field, never saved by itself). */
+/** A rewrite of a filled field the Goose offers (R20 P11c fills it; shown under its field, never saved by itself);
+ * `current` — the field's facts as the rewrite saw them, joined with «; ». */
 export interface NoteFieldSuggestion {
   readonly label: string;
   readonly current: string;
@@ -167,12 +168,11 @@ export function diffNoteFacts(current: string, proposed: string): { readonly add
   return { added: after.filter((fact) => !had.has(comparable(fact))), removed: before.filter((fact) => !has.has(comparable(fact))) };
 }
 
-/** «Принять»: the field takes the proposed value. A field the chatter has since edited away is left alone. */
+/** «Принять»: the field takes the proposed facts, as if typed — its line, the lines written under it joined (R20 P11c:
+ * the fill's `current` holds those too). A field the chatter has since edited away is left alone. */
 export function applyFieldSuggestion(text: string, suggestion: NoteFieldSuggestion): string {
   const key = noteLabelKey(suggestion.label);
-  const field = fieldLines(text).find((entry) => noteLabelKey(entry.label) === key);
-  if (field === undefined || comparable(field.value) !== comparable(suggestion.current)) return text;
-  const lines = text.split('\n');
-  lines[field.line] = withValue(lines[field.line] ?? '', suggestion.proposed);
-  return lines.join('\n');
+  const field = parseNoteForm(text)?.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === key);
+  if (field === undefined || comparable(field.facts.join('; ')) !== comparable(suggestion.current)) return text;
+  return setNoteFieldFacts(text, field.label, splitNoteFacts(suggestion.proposed));
 }

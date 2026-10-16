@@ -7,7 +7,13 @@
 // - The controller (core application/hosts/fansly/notes) asks `fansly.notes.*` of the background; the page's boxes
 //   are measured when asked (host-fansly notes-place.ts): on the route, the header, a resize — no observer of ours.
 // - The view is `settings.ext`'s, one for every tab: read once, followed by the background's event.
+// - «✨ Заполнить из чата» (R20 P11c, FS-NOTE-6): where the page's `notesFill` is on, the site operation `notes-fill` of
+//   the open chat through the shared admission (`fansly.ops.start`, a click's token): the group as the conversation,
+//   the fan apart, the questionnaire's labels only; the background's driver sets the depth (HF-6). Each press is a
+//   fresh read of the chat (`force`); its end comes as `fansly.ops.done`, or with the read right after the admission.
 
+import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
+import type { SiteOpView } from '@cg/contracts/ops';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext } from '@cg/core/application/boards';
@@ -38,6 +44,11 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     const ctx = context.current();
     const report = host.probe();
     return ctx.phase === 'ready' && admittedOn(env.features, 'notes', null, ctx.bootstrap, ctx.page, { ...report.capabilities, ...report.extensions['fansly-web'].capabilities }).usable;
+  };
+  const fillAllowed = (): boolean => {
+    const ctx = context.current();
+    const report = host.probe();
+    return ctx.phase === 'ready' && admittedOn(env.features, 'notes-fill', 'generate', ctx.bootstrap, ctx.page, { ...report.capabilities, ...report.extensions['fansly-web'].capabilities }).usable;
   };
   const pageId = (): number | undefined => context.current().page?.pageId;
   const refused = { ok: false, error: { code: 'CG-BINDING-NOT-GRANTED' } } as const;
@@ -87,6 +98,34 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     async name(who, name, current) {
       const to = target(who.accountId, who.fanId);
       return to === null ? refused : ((await ask('fansly.notes.name', { ...to, name, current })) as Awaited<ReturnType<NotesPort['name']>>);
+    },
+    fillAllowed,
+    async fill(t, fanId, fields) {
+      const { route, accounts, identity } = host.current();
+      const chat = route.chat;
+      const account = accounts.find((entry) => entry.hostAccountId === identity?.hostAccountId);
+      // The chat the person pressed in, still open: the operation is that group's, for that fan.
+      if (!fillAllowed() || chat === null || account === undefined || route.conversationRef !== t.groupId || chat.platformFanId !== fanId) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
+      const binding = await rpc.request('binding.resolve', { account });
+      if (!binding.ok) return binding;
+      const token = await rpc.request('token.issue', { kind: 'generate', surface: 'dock' });
+      if (!token.ok) return token;
+      const started = await fanslyRequest(rpc, 'fansly.ops.start', {
+        feature: 'notes-fill',
+        target: { binding: binding.payload.binding, chat, fanRef: fanId, conversationRef: t.groupId },
+        cause: { kind: 'click', actionToken: token.payload.actionToken },
+        window: AI_REQUEST_LIMITS.messageCountMax,
+        fields: [...fields],
+        force: true,
+      }, NOTES_REQUEST_TIMEOUT_MS);
+      if (!started.ok) return started;
+      if (!started.payload.ok) return { ok: false, error: { code: started.payload.code } };
+      const { opId } = started.payload;
+      const read = await fanslyRequest(rpc, 'fansly.ops.read', { opId }, NOTES_REQUEST_TIMEOUT_MS);
+      return { ok: true, opId, view: read.ok ? read.payload.view : null };
+    },
+    stopFill(opId) {
+      void fanslyRequest(rpc, 'fansly.ops.cancel', { opId }, NOTES_REQUEST_TIMEOUT_MS);
     },
     setView(view) {
       void fanslyRequest(rpc, 'fansly.notes.setView', { view }, NOTES_REQUEST_TIMEOUT_MS).then((answer) => {
@@ -143,6 +182,10 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     context.subscribe(sync),
     controller.subscribe(report),
     (rpc.onEvent as unknown as (type: string, listener: (payload: unknown) => void) => () => void)('fansly.notes.viewChanged', onView),
+    (rpc.onEvent as unknown as (type: string, listener: (payload: unknown) => void) => () => void)('fansly.ops.done', (payload) => {
+      const view = (payload as { readonly view?: SiteOpView } | null)?.view;
+      if (view !== undefined) controller.fillDone(view);
+    }),
     env.keys.handle('notes', () => {
       controller.toggle();
     }),

@@ -106,6 +106,9 @@ ${p}__quotes { margin: 2px 4px 0 0; padding: 0 0 0 8px; list-style: none; border
   ${p}__rows ${p}__label { padding-top: 0; }
 }
 ${p}__problem-code { color: var(--cg-ink-muted); font-weight: 400; }
+${p}__fill { display: flex; align-items: baseline; gap: 6px; margin: 0; color: var(--cg-clay-ink); font-size: var(--cg-text-sm); line-height: 17px; overflow-wrap: anywhere; }
+${p}__fill.is-failed { color: var(--cg-ink-strong); }
+${p}__fill-act { color: var(--cg-clay-ink); }
 
 ${p}__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px 8px 14px; border-top: 1px solid var(--cg-rule); }
 ${p}__spacer { flex: 1; }

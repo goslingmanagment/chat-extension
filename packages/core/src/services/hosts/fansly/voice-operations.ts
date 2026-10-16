@@ -1,7 +1,7 @@
 // R20 P12a: Fansly's drivers, in its own chunk. These are generation
 // operations, not paid voice attempts (P12b1/P12b2).
 import { HubStreamRequestSchema, hasCapability, type HubStreamRequest } from '@cg/contracts/hub';
-import { FANSLY_OP_DRIVERS, FanslyOpViewSchema, FanslyStartOpSchema, NoteFieldsResultSchema, VoiceScriptResultSchema, type FanslyOp } from '@cg/contracts/ops-fansly';
+import { FANSLY_OP_DRIVERS, FANSLY_OP_LIMITS, FanslyOpViewSchema, FanslyStartOpSchema, NoteFieldsResultSchema, VoiceScriptResultSchema, type FanslyOp } from '@cg/contracts/ops-fansly';
 import type { SiteStartOp } from '@cg/contracts/ops';
 import type { BuildResult, StreamRequestContext } from '../../../domain/ops';
 import { stableDigest } from '../../../domain/ops/digest';
@@ -26,6 +26,9 @@ function build(feature: FanslyOp, start: ScheduledStart, ctx: StreamRequestConte
   const parsed = FanslyStartOpSchema.safeParse(start.site);
   if (!parsed.success || parsed.data.feature !== feature) return { ok: false, issues: 'invalid site operation start' };
   const input = parsed.data;
+  // HF-6 (R20 P11c): the notes fill reads the whole chat — never fewer than 3000 messages, the owner's deeper setting
+  // above it; the hub's reader takes the same (`max(3000, deepMax)` with `context-v1`). The rest — up to `deepMax`.
+  const depth = input.feature === 'notes-fill' ? Math.max(FANSLY_OP_LIMITS.notesFillDepthMin, ctx.bootstrap.limits.deepMax) : ctx.bootstrap.limits.deepMax;
   const capabilities: HubStreamRequest['capabilities'][number][] = [];
   if (hasCapability(ctx.bootstrap.capabilities, 'context-v1')) capabilities.push('context-v1');
   if (ctx.debug) capabilities.push('debug-input-v1');
@@ -37,7 +40,7 @@ function build(feature: FanslyOp, start: ScheduledStart, ctx: StreamRequestConte
       pageLabel: input.target.binding.pageLabel,
       conversationRef: input.target.conversationRef, fanRef: input.target.fanRef,
       personaKey: ctx.persona.key, expectedPersonaDefinitionId: ctx.persona.definitionId,
-      messageCount: Math.min(input.window, ctx.bootstrap.limits.deepMax),
+      messageCount: Math.min(input.window, depth),
       isRegeneration: input.regenerateOf !== undefined,
       ...(input.feature === 'voice-script' ? { draftText: input.draft.text, replyTone: input.tone ?? 'none' } : { noteFields: input.fields }),
     },

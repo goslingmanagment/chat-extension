@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { SiteOpView } from '@cg/contracts/ops';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
@@ -10,10 +11,31 @@ const A: NotesTarget = { accountId: '7', groupId: '81', fanId: '91', fan: { name
 const B: NotesTarget = { accountId: '7', groupId: '82', fanId: '92', fan: null };
 const note = (noteId: string, title = 'T', text = 'x', foreign = false): FanslyNote => ({ noteId, title, text, foreign });
 
+type FillAnswer = Awaited<ReturnType<NotesPort['fill']>>;
+
+/** A notes-fill operation as `fansly.ops.done` brings it. */
+const fillView = (opId: string, state: SiteOpView['state'], fields: readonly { label: string; value: string }[] = []): SiteOpView => ({
+  opId,
+  feature: 'notes-fill',
+  surface: 'dock',
+  target: { chat: { hostAccountId: '7', platformFanId: '91' }, fanRef: '91', conversationRef: '81' },
+  state,
+  phase: 'done',
+  startedAt: 1,
+  toneUsed: null,
+  ...(state === 'done' ? { result: { kind: 'note-fields', fields }, generationRef: 'g' } : {}),
+  ...(state === 'failed' ? { error: { code: 'CG-OUTPUT-UNUSABLE' } } : {}),
+}) as unknown as SiteOpView;
+
 function world(opts: { fits?: boolean } = {}) {
   let target: NotesTarget | null = A;
   let session = '7|1';
   let fits = opts.fits ?? false;
+  let fillOn = true;
+  let opIds = 0;
+  /** The fill's start resolves when the test says so (`admit`), or at once. */
+  let held: ((answer: FillAnswer) => void) | null = null;
+  let hold = false;
   const timers: Array<{ run: () => void; ms: number; live: boolean }> = [];
   const stored = new Map<string, FanslyNote[]>([['91', [note('1', 'Анкета', 'Имя: Алекс\nЛокация: Рига'), note('2', 'FBuddy Notes', 'likes cats', true)]], ['92', []]]);
   const port = {
@@ -25,6 +47,11 @@ function world(opts: { fits?: boolean } = {}) {
     remove: vi.fn(() => Promise.resolve({ ok: true as const })),
     name: vi.fn((_who, name: string) => Promise.resolve({ ok: true as const, customName: name === '' ? null : { noteId: '5', name } })),
     setView: vi.fn((_view: FanslyNotesView) => undefined),
+    fillAllowed: () => fillOn,
+    fill: vi.fn((_t: NotesTarget, _fanId: string, _fields: readonly string[]) =>
+      hold ? new Promise<FillAnswer>((resolve) => (held = resolve)) : Promise.resolve<FillAnswer>({ ok: true, opId: `op${String((opIds += 1))}`, view: null }),
+    ),
+    stopFill: vi.fn((_opId: string) => undefined),
     fits: () => fits,
     place: () => ({ kind: fits ? ('docked' as const) : ('over' as const), top: 60, bottom: 12, left: 900, width: 340 }),
     setTimer: (ms: number, run: () => void) => {
@@ -60,6 +87,16 @@ function world(opts: { fits?: boolean } = {}) {
     },
     room(next: boolean) {
       fits = next;
+    },
+    fillSwitch(on: boolean) {
+      fillOn = on;
+    },
+    holdFill(on: boolean) {
+      hold = on;
+    },
+    admit(answer: FillAnswer) {
+      held?.(answer);
+      held = null;
     },
   };
 }
@@ -300,5 +337,113 @@ describe('[host:fansly] «Заметки»: the controller (R20 P11b)', () => {
     w.notes.dispatch({ type: 'save' });
     await w.settle();
     expect(w.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, 'Анкета', NOTE_TEMPLATE_TEXT.replace('График: ', 'График: ночные смены').trimEnd());
+  });
+});
+
+describe('[host:fansly] «✨ Заполнить из чата»: the controller (R20 P11c)', () => {
+  const QUESTIONNAIRE = 'Имя: Алекс\nЛокация: Рига';
+  const editing = async (w: ReturnType<typeof world>) => {
+    w.notes.toggle();
+    await w.settle();
+    w.notes.dispatch({ type: 'edit', noteId: '1' });
+  };
+
+  it('[FX-014] [FX-016] [FS-NOTE-6] the empty fields filled, the filled ones’ additions under them; «Сохранить» waits for the fill and nothing is written before it', async () => {
+    const w = world();
+    await editing(w);
+    expect(w.notes.panel().editor?.fill).toEqual({ status: 'idle', wrote: [], error: null });
+    w.notes.dispatch({ type: 'fill' });
+    expect(w.notes.panel().editor?.fill?.status).toBe('running');
+    await w.settle();
+    w.notes.dispatch({ type: 'save' });
+    await w.settle();
+    expect(w.port.edit).not.toHaveBeenCalled();
+    const [, fanId, fields] = w.port.fill.mock.calls[0] ?? [];
+    expect(fanId).toBe('91');
+    expect(fields).toEqual(['Имя', 'Локация', ...NOTE_TEMPLATE_LABELS.slice(2)]);
+    w.notes.fillDone(fillView('op1', 'done', [
+      { label: 'Имя', value: 'алекс; любит шахматы' },
+      { label: 'Локация', value: 'Рига' },
+      { label: 'Возраст', value: '34' },
+      { label: 'Хобби', value: 'шахматы; бег' },
+      ...NOTE_TEMPLATE_LABELS.slice(2).filter((label) => label !== 'Возраст' && label !== 'Хобби').map((label) => ({ label, value: '' })),
+    ]));
+    const editor = w.notes.panel().editor;
+    expect(editor?.text).toBe('Имя: Алекс\nЛокация: Рига\nВозраст: 34\nХобби: шахматы; бег');
+    expect(editor?.fill).toEqual({ status: 'done', wrote: ['Возраст', 'Хобби'], error: null });
+    expect(editor?.suggestions).toEqual([{ index: 0, label: 'Имя', added: ['любит шахматы'], removed: [], proposed: 'Алекс; любит шахматы', quotes: [] }]);
+    expect(editor?.form?.[0]).toMatchObject({ label: 'Имя', suggestions: [{ index: 0 }] });
+    expect(w.port.create).not.toHaveBeenCalled();
+    expect(w.port.edit).not.toHaveBeenCalled();
+    w.notes.dispatch({ type: 'suggestion', index: 0, accept: true });
+    w.notes.dispatch({ type: 'save' });
+    await w.settle();
+    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '1', 'Анкета', 'Имя: Алекс; любит шахматы\nЛокация: Рига\nВозраст: 34\nХобби: шахматы; бег');
+  });
+
+  it('[FX-015] [FS-NOTE-5] only the labels go out, never a value; a stopped fill’s operation is cancelled and its answer never lands', async () => {
+    const w = world();
+    await editing(w);
+    w.holdFill(true);
+    w.notes.dispatch({ type: 'fill' });
+    expect(JSON.stringify(w.port.fill.mock.calls)).not.toMatch(/Алекс|Рига/);
+    // Stopped before the admission came back: the admitted operation is cancelled as it comes.
+    w.notes.dispatch({ type: 'fill-stop' });
+    expect(w.notes.panel().editor?.fill?.status).toBe('idle');
+    w.admit({ ok: true, opId: 'late', view: null });
+    await w.settle();
+    expect(w.port.stopFill).toHaveBeenCalledExactlyOnceWith('late');
+    w.notes.fillDone(fillView('late', 'done', [{ label: 'Имя', value: 'Пётр' }]));
+    expect(w.notes.panel().editor?.text).toBe(QUESTIONNAIRE);
+    // Stopped while running.
+    w.holdFill(false);
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    w.notes.dispatch({ type: 'fill-stop' });
+    expect(w.port.stopFill).toHaveBeenLastCalledWith('op1');
+    w.notes.fillDone(fillView('op1', 'done', [{ label: 'Возраст', value: '34' }]));
+    expect(w.notes.panel().editor?.text).toBe(QUESTIONNAIRE);
+    // «Отмена» drops a running fill with the draft.
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    w.notes.dispatch({ type: 'cancel' });
+    expect(w.port.stopFill).toHaveBeenLastCalledWith('op2');
+    expect(w.notes.panel().editor).toBeNull();
+  });
+
+  it('[FX-014] [FS-OPS-1] the shared admission decides: a chat busy with Reply is said, not retried; a failed fill says why; an answer that ended before its start was read lands at once', async () => {
+    const w = world();
+    await editing(w);
+    w.port.fill.mockResolvedValueOnce({ ok: false, error: { code: 'CG-OP-CHAT-BUSY' } });
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    expect(w.notes.panel().editor?.fill).toEqual({ status: 'failed', wrote: [], error: { code: 'CG-OP-CHAT-BUSY' } });
+    expect(w.port.fill).toHaveBeenCalledTimes(1);
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    w.notes.fillDone(fillView('op1', 'failed'));
+    expect(w.notes.panel().editor?.fill).toEqual({ status: 'failed', wrote: [], error: { code: 'CG-OUTPUT-UNUSABLE' } });
+    // Done before the start’s read (a reopened one sends no event): it lands with the start; nothing new is nothing new.
+    w.port.fill.mockResolvedValueOnce({ ok: true, opId: 'fast', view: fillView('fast', 'done', [{ label: 'Имя', value: 'Алекс' }]) });
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    expect(w.notes.panel().editor).toMatchObject({ text: QUESTIONNAIRE, suggestions: [], fill: { status: 'done', wrote: [] } });
+  });
+
+  it('[FX-014] no fill where the page’s switch is off or the draft is no questionnaire', async () => {
+    const w = world();
+    await editing(w);
+    w.fillSwitch(false);
+    w.notes.layout();
+    expect(w.notes.panel().editor?.fill).toBeNull();
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    expect(w.port.fill).not.toHaveBeenCalled();
+    w.fillSwitch(true);
+    w.notes.dispatch({ type: 'input', title: 'Анкета', text: 'просто текст' });
+    expect(w.notes.panel().editor?.fill).toBeNull();
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    expect(w.port.fill).not.toHaveBeenCalled();
   });
 });

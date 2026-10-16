@@ -1,8 +1,9 @@
-// «Заметки» of a Fansly tab drawn (R20 P11b, P11b2): the panel and the header button over the real controller and a port
+// «Заметки» of a Fansly tab drawn (R20 P11b, P11b2, P11c): the panel and the header button over the real controller and a port
 // that answers like the background — what a person sees and presses, before the stand's e2e (`suite-fansly-notes`).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { NotesAction, NotesClient, NotesPanelVM } from '@cg/contracts/notes-fansly';
+import type { SiteOpView } from '@cg/contracts/ops';
 import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
 import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, createNotesController, type NotesPort, type NotesTarget } from '@cg/core/application/hosts/fansly/notes';
 import { NOTES_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
@@ -29,6 +30,9 @@ function controller(list: readonly FanslyNote[] = notes) {
     remove: vi.fn(() => Promise.resolve({ ok: true as const })),
     name: vi.fn((_who, name: string) => Promise.resolve({ ok: true as const, customName: { noteId: '5', name } })),
     setView: vi.fn(),
+    fillAllowed: () => true,
+    fill: vi.fn(() => Promise.resolve({ ok: true as const, opId: 'op1', view: null })),
+    stopFill: vi.fn(),
     fits: () => false,
     place: () => ({ kind: 'over' as const, top: 60, bottom: 12, left: 600, width: 340 }),
     setTimer: (ms: number, run: () => void) => setTimeout(run, ms),
@@ -235,5 +239,40 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
       { type: 'suggestion', index: 0, accept: true },
       { type: 'suggestion', index: 1, accept: false },
     ]);
+  });
+
+  it('[FX-014] [FX-016] «✨ Заполнить из чата» at the foot of a questionnaire: «Сохранить» waits while the Goose reads, «Остановить» stops it; then the line of what it wrote and its additions under their fields (R20 P11c)', async () => {
+    const c = controller([{ noteId: '1', title: 'Анкета', text: OLD_FORM, foreign: false }]);
+    const ui = await mountKitSettled(() => <NotesPanel client={c.notes} texts={NOTES_TEXTS} />, { kind: 'notes' as never, language: 'ru' });
+    mounted.push(ui);
+    c.notes.sync();
+    c.notes.toggle();
+    await flush();
+    await flush(() => c.notes.dispatch({ type: 'edit', noteId: '1' }));
+    await flush(() => button(ui, '✨ Заполнить из чата').click());
+    expect(ui.$('[data-notes-editor="1"]')?.getAttribute('data-notes-fill')).toBe('running');
+    expect(ui.$('[data-notes-fill-line]')?.textContent).toBe('Гусь читает переписку…');
+    expect(ui.$('[data-notes-save]')?.getAttribute('aria-disabled')).toBe('true');
+    expect(button(ui, 'Остановить')).toBeDefined();
+    const view = {
+      opId: 'op1',
+      feature: 'notes-fill',
+      state: 'done',
+      result: { kind: 'note-fields', fields: [{ label: 'Возраст', value: '41' }, { label: 'Работа', value: 'медбрат; в больнице' }, { label: 'Другое', value: 'просил кастом' }] },
+    } as unknown as SiteOpView;
+    await flush(() => c.notes.fillDone(view));
+    expect(ui.$('[data-notes-editor="1"]')?.getAttribute('data-notes-fill')).toBe('done');
+    expect(ui.$('[data-notes-fill-line]')?.textContent).toBe('Гусь вписал: Возраст, Другое. Добавки под полями: 1.');
+    expect((ui.$('[data-notes-field="Возраст"] textarea') as HTMLTextAreaElement | null)?.value).toBe('41');
+    const under = ui.$('[data-notes-field="Работа"] [data-notes-suggestion="0"]');
+    expect(under?.querySelector('.cg-notes__suggest-t')?.textContent).toBe('Гусь предлагает добавить');
+    expect(under?.querySelector('del')).toBeNull();
+    expect(under?.querySelector('ins')?.textContent).toBe('в больнице');
+    expect(ui.$('[data-notes-save]')?.getAttribute('aria-disabled')).toBeNull();
+    expect(c.port.edit).not.toHaveBeenCalled();
+    await flush(() => button(ui, '✨ Заполнить из чата').click());
+    await flush(() => button(ui, 'Остановить').click());
+    expect(c.port.stopFill).toHaveBeenCalledExactlyOnceWith('op1');
+    expect(ui.$('[data-notes-fill-line]')).toBeNull();
   });
 });

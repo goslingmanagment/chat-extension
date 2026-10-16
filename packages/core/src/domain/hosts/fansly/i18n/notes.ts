@@ -63,6 +63,14 @@ const RU: NotesCopy = {
   suggestIn: 'в',
   accept: 'Принять',
   dismiss: 'Не нужно',
+  fill: '✨ Заполнить из чата',
+  fillHint: 'Гусь прочитает всю переписку и допишет анкету: пустые поля заполнит, к заполненным предложит добавить. В хаб уходят только названия полей; в Fansly ничего не пишется до «Создать» или «Сохранить».',
+  filling: 'Гусь читает переписку…',
+  fillStop: 'Остановить',
+  fillWrote: 'Гусь вписал:',
+  fillOffers: 'Добавки под полями:',
+  fillNothing: 'В переписке не нашлось ничего нового для анкеты.',
+  fillFailed: 'Не заполнено',
 };
 
 const EN: NotesCopy = {
@@ -126,6 +134,14 @@ const EN: NotesCopy = {
   suggestIn: 'in',
   accept: 'Accept',
   dismiss: 'Not needed',
+  fill: '✨ Fill from the chat',
+  fillHint: 'The Goose reads the whole chat and adds to the questionnaire: fills the empty fields, offers additions to the filled ones. Only the field names go to the hub; nothing is written to Fansly before «Create» or «Save».',
+  filling: 'The Goose is reading the chat…',
+  fillStop: 'Stop',
+  fillWrote: 'The Goose wrote into:',
+  fillOffers: 'Additions under the fields:',
+  fillNothing: 'Nothing new for the questionnaire in the chat.',
+  fillFailed: 'Not filled',
 };
 
 export const NOTES_TEXTS: { readonly ru: NotesCopy; readonly en: NotesCopy } = { ru: RU, en: EN };

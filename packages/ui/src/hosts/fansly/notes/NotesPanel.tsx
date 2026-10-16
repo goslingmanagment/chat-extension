@@ -8,7 +8,11 @@
 // A questionnaire (R20 P11b2; the Fansly extension 2.12.0, E166) reads as a table — the label, its facts one per line,
 // the month a fact was said at the right, the empty fields folded into one line — and is edited field by field, one
 // fact per line; «Текстом» / «Полями» switch to the note's one text and back. The Goose's rewrite of a field stands
-// under that field with «Принять» and «Не нужно» (R20 P11c fills it).
+// under that field with «Принять» and «Не нужно».
+//
+// «✨ Заполнить из чата» (R20 P11c, FS-NOTE-6) stands at the foot of a questionnaire being edited, where the page's
+// owner switched it on: while the hub reads the chat it is «Остановить» and «Сохранить» waits; then a line says which
+// fields the Goose wrote into and how many additions wait under the filled ones.
 
 import type { JSX, Ref } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -16,7 +20,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { I18nKey } from '@cg/contracts/errors';
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NotesClient, NotesCopy, NotesEditorVM, NotesFormPartVM, NotesPanelVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
+import type { NotesClient, NotesCopy, NotesEditorVM, NotesFillVM, NotesFormPartVM, NotesPanelVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
 import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
@@ -186,6 +190,26 @@ function FieldRow({ client, copy, part, saving, inputRef }: Props & { readonly p
   );
 }
 
+/** What the fill is doing or did, in a line: «Гусь вписал: Возраст, Хобби. Добавки под полями: 2.» */
+function FillLine({ copy, fill, offered }: { readonly copy: NotesCopy; readonly fill: NotesFillVM; readonly offered: number }): JSX.Element | null {
+  const errorText = useErrorText();
+  if (fill.status === 'idle') return null;
+  const text =
+    fill.status === 'running'
+      ? copy.filling
+      : fill.status === 'failed' && fill.error !== null
+        ? `${copy.fillFailed}: ${errorText(fill.error)}`
+        : fill.wrote.length === 0 && offered === 0
+          ? copy.fillNothing
+          : [fill.wrote.length === 0 ? '' : `${copy.fillWrote} ${fill.wrote.join(', ')}.`, offered === 0 ? '' : `${copy.fillOffers} ${String(offered)}.`].filter(Boolean).join(' ');
+  return (
+    <p class={`cg-notes__fill is-${fill.status}`} role={fill.status === 'failed' ? 'alert' : 'status'} data-notes-fill-line="">
+      {fill.status === 'running' ? <Dot kind="pulse" /> : fill.status === 'failed' ? <Dot kind="danger" /> : null}
+      {text}
+    </p>
+  );
+}
+
 function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditorVM }): JSX.Element {
   const text = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const errorText = useErrorText();
@@ -205,6 +229,7 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
     <div
       class="cg-notes__edit"
       data-notes-editor={editor.noteId ?? 'new'}
+      {...(editor.fill === null ? {} : { 'data-notes-fill': editor.fill.status })}
       onKeyDown={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !isComposing(event)) {
           event.preventDefault();
@@ -256,6 +281,7 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
       {loose.map((suggestion) => (
         <Suggestion key={suggestion.index} client={client} copy={copy} suggestion={suggestion} named saving={editor.saving} />
       ))}
+      {editor.fill === null ? null : <FillLine copy={copy} fill={editor.fill} offered={editor.suggestions.length} />}
       {problem === null ? null : (
         <p class="cg-notes__problem" role="alert" data-notes-problem={problem.kind}>
           {problem.kind === 'failed' ? problem.error.code === 'CG-NOTE-WRITE' && problem.error.detail === 'changed' ? copy.problem.changed : `${errorText(problem.error)}. ${copy.problem[problem.created ? 'failed-create' : 'failed-edit']}` : copy.problem[problem.kind]}
@@ -342,13 +368,14 @@ function Foot({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }): JSX.
   const mac = key?.display.includes('⌘') === true;
   const editor = vm.editor;
   if (editor !== null) {
-    const off = editor.saving || editor.blocked;
+    const filling = editor.fill?.status === 'running';
+    const off = editor.saving || editor.blocked || filling;
     return (
       <footer class="cg-notes__foot">
         <button
           type="button"
           class={`cg-act cg-act--main${editor.saving ? ' is-busy' : ''}`}
-          title={copy.saveHint}
+          title={filling ? copy.filling : copy.saveHint}
           data-notes-save=""
           {...(off ? { 'aria-disabled': 'true' } : {})}
           onClick={() => off || client.dispatch({ type: 'save' })}
@@ -358,7 +385,11 @@ function Foot({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }): JSX.
         </button>
         <Button variant="plain" label={copy.cancel} {...(editor.saving ? { reason: copy.saving } : {})} onClick={() => client.dispatch({ type: 'cancel' })} />
         <span class="cg-notes__spacer" />
-        {/* R20 P11c: «✨ Заполнить из чата» stands here, beside a questionnaire being edited. */}
+        {editor.fill === null ? null : filling ? (
+          <Button variant="line" label={copy.fillStop} class="cg-notes__fill-act" onClick={() => client.dispatch({ type: 'fill-stop' })} />
+        ) : (
+          <Button variant="line" label={copy.fill} tooltip={copy.fillHint} class="cg-notes__fill-act" {...(editor.saving ? { reason: copy.saving } : {})} onClick={() => client.dispatch({ type: 'fill' })} />
+        )}
       </footer>
     );
   }

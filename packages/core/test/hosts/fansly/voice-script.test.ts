@@ -5,6 +5,7 @@ import { createClient, routeSchemas } from '@kernel/sdk';
 import { BootstrapSchema, HubFrameSchema, type HubStreamRequest, type Target, type AnyStartOp, type SiteOpView, type VoiceScriptStart, type NotesFillStart } from '@cg/contracts';
 import { VoiceScriptStartSchema, FanslyOpViewSchema } from '@cg/contracts/ops-fansly';
 import { createVoiceScript, voiceScriptResult } from '@cg/core/application/hosts/fansly/voice';
+import { mergeNoteFill, noteFillFields } from '@cg/core/application/hosts/fansly/notes';
 import { LocalSpendJournal } from '@cg/core/domain/debug';
 import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
@@ -217,5 +218,28 @@ describe('[host:fansly] P12a voice-script through the shared admission', () => {
     expect(h.scheduler.siteView(op, 'fansly-web')?.state).toBe('failed');
     expect(voiceScriptResult(h.scheduler.siteView(op, 'fansly-web'))).toBeNull();
     expect(h.requests).toHaveLength(1);
+  });
+});
+
+describe('[host:fansly] P11c «✨ Заполнить из чата» through the shared admission', () => {
+  it('[FX-015] [FS-NOTE-6] the labels only, never a value of the note; group ≠ fan; the depth by HF-6 — never under 3000, the owner’s deeper setting above it; the answer joins the questionnaire', async () => {
+    const h = await harness();
+    const text = 'Имя: Wayne\nРабота: медбрат\nВозраст: ';
+    const fields = noteFillFields(text) ?? [];
+    const op = admitted(await h.start({ ...notes(A, fields), window: 5000, force: true }));
+    await h.finish();
+    const request = h.requests.at(-1);
+    expect(request?.feature).toBe('fan-notes-fill');
+    expect(request?.body).toMatchObject({ conversationRef: A.group, fanRef: A.fan, noteFields: fields, messageCount: 3000 });
+    for (const key of ['noteValues', 'clientContext', 'liveTextContext', 'draftText']) expect(request?.body).not.toHaveProperty(key);
+    expect(JSON.stringify(request)).not.toMatch(/Wayne|медбрат/);
+    const view = h.scheduler.siteView(op, 'fansly-web');
+    if (view?.result?.kind !== 'note-fields') throw new Error(`no fields: ${JSON.stringify(view)}`);
+    expect(mergeNoteFill(text, view.result.fields).wrote).toContain('Возраст');
+    h.fake.control({ op: 'config', patch: { limits: { deepMax: 5000 } } });
+    await h.refresh();
+    admitted(await h.start({ ...notes(A, fields), window: 5000, force: true }));
+    await h.finish();
+    expect(h.requests.at(-1)?.body).toMatchObject({ messageCount: 5000 });
   });
 });
