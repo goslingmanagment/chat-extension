@@ -441,6 +441,11 @@ describe('revocation and «Выключить Fansly» in the middle of work: FS
 
   for (const how of ['off', 'revoke'] as const) {
     it(`[FS-PERM-5] the vault (${how === 'off' ? '«Выключить Fansly»' : 'the rights taken back'}) in the middle of a run: the file in flight lands and is recorded, the next is not handed over; Start while off hands nothing; on again, the run goes on from its checkpoint`, async () => {
+      // Restore access before navigating: a failed predecessor may have left the switch off or the rights revoked.
+      await pages();
+      if (!(await access()).granted) await grantOptional(BUNDLE);
+      if (!(await settled({ granted: true })).enabled) await (await popupButton('Включить Fansly')).click();
+      await settled({ enabled: true, granted: true, registered: true });
       const names = [`p14c-${how}-1.jpg`, `p14c-${how}-2.jpg`, `p14c-${how}-3.jpg`];
       const paths = setOnDisk(how, names);
       await fakeFansly().command({ op: 'reset' });
@@ -457,6 +462,9 @@ describe('revocation and «Выключить Fansly» in the middle of work: FS
         await browser.$('app-media-vault-route .close-toggle').click();
         await ours('panel', '.cg-vault__card').moveTo();
         await waitForPanel((panel) => panel.uploader === 'ready', 'the form ready');
+        // The assertions follow the list from its first item. The default «first on top» uploads it LAST.
+        // Pick the same order after a reload, so the checkpoint names the same upload sequence.
+        await (await waitOursByText('panel', '.cg-vault__order button', 'последний файл сверху', 'the upload order')).click();
         if (checkpoint) await waitForPanel((panel) => panel.resume?.kind === 'found', 'the album’s checkpoint, read from the background');
         await ours('panel', 'input[data-cg-vault-input="files"]').addValue(paths.join('\n'));
       };
@@ -474,7 +482,7 @@ describe('revocation and «Выключить Fansly» in the middle of work: FS
       await waitForPanel((panel) => panel.controls.blocked === null, 'the set ready');
       const since = await fakeFansly().mark();
       await (await waitOursByText('panel', '[data-cg-vault-start]:not([aria-disabled="true"])', 'Начать', 'the start button')).click();
-      await waitForPanel((panel) => panel.items?.[0]?.state === 'uploading', 'the first file in flight', 10_000);
+      await waitForPanel((panel) => panel.run?.done === 0 && panel.items?.[0]?.state === 'uploading', 'the first file in flight', 10_000);
 
       if (how === 'off') {
         await pages();

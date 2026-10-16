@@ -10,6 +10,7 @@ import type { HostEvent } from '@cg/contracts/host';
 import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 import { createLiveI18n } from '@cg/core/domain/i18n/live';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
+import { createVaultPanel, vaultMediaKey, type VaultUploader } from '@cg/host-fansly/isolated/vault';
 import { createBackgroundRpc, createTabRpcClient, type BackgroundRpc, type TabRpcClient } from '@cg/platform';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -162,6 +163,60 @@ describe('[host:fansly] the vault’s checkpoints between the tab and the backgr
     w.access.on = true;
     expect(await store.save(checkpoint(1, 1))).toBe(true);
     expect(await fanslyRequest(client, 'fansly.registration.read', { pageId: 13, hostAccountId: CREATOR, groupId: '810000000000000001' })).not.toEqual(off);
+  });
+
+  it.each(['first-on-top', 'last-on-top'] as const)('[FS-PERM-5] the panel in album order %s: the first upload can be at either end of its list; off mid-file, it records one and stops before the next handoff, then resumes', async (order) => {
+    const w = world();
+    const client = w.tab();
+    await until(() => client.state() === 'ready', 'the tab registered');
+    const store = vaultStoreOf(client);
+    const taken: string[] = [];
+    let land = (): void => undefined;
+    const uploader: VaultUploader = {
+      view: () => ({ route: true, ...target, title: null, loading: false, uploader: 'ready', cards: [] }),
+      ticket: () => 'same-album',
+      async upload(file) {
+        taken.push(file.name);
+        if (taken.length === 1) await new Promise<void>((resolve) => { land = resolve; });
+        return { state: 'done', path: 'data-transfer', top: vaultMediaKey(file.name) };
+      },
+      stats: () => ({ watching: false, watches: taken.length, mutations: 0 }),
+      dispose: () => undefined,
+    };
+    const panel = createVaultPanel({ uploader, store, account: () => null, onPage: () => () => undefined, now: () => T0, newId: () => ID });
+    try {
+      panel.setShown(true);
+      panel.dispatch({ type: 'open' });
+      panel.dispatch({ type: 'order', order });
+      panel.dispatch({ type: 'pick', files: ['a.jpg', 'b.jpg', 'c.jpg'].map((name) => new File(['x'], name, { lastModified: T0 })) });
+      await until(() => panel.view().controls.blocked === null, 'the set ready');
+      panel.dispatch({ type: 'start' });
+      await until(() => taken.length === 1, 'the first file handed over');
+      const states = () => panel.view().selection?.items.map((item) => item.state);
+      expect(panel.view().run).toMatchObject({ state: 'running', done: 0, total: 3 });
+      expect(states()).toEqual(order === 'first-on-top' ? ['pending', 'pending', 'uploading'] : ['uploading', 'pending', 'pending']);
+
+      w.access.on = false;
+      land();
+      await until(() => panel.view().run?.state === 'stopped', 'the run stopped at its checkpoint');
+      expect(panel.view().run).toMatchObject({ done: 1, total: 3, code: 'CG-VAULT-STOPPED' });
+      expect(states()).toEqual(order === 'first-on-top' ? ['pending', 'pending', 'verified'] : ['verified', 'pending', 'pending']);
+      expect(taken).toEqual([order === 'first-on-top' ? 'c.jpg' : 'a.jpg']);
+      expect(await store.load(target)).toMatchObject({ confirmed: 1, pending: null });
+
+      panel.dispatch({ type: 'start' });
+      expect(panel.view().run?.state).toBe('running');
+      await until(() => panel.view().run?.state === 'stopped', 'Start while off stopped again');
+      expect(taken).toHaveLength(1);
+      w.access.on = true;
+      panel.dispatch({ type: 'start' });
+      await until(() => panel.view().run?.state === 'complete', 'the run resumed from its checkpoint');
+      expect(taken).toEqual(order === 'first-on-top' ? ['c.jpg', 'b.jpg', 'a.jpg'] : ['a.jpg', 'b.jpg', 'c.jpg']);
+      expect(await store.load(target)).toBeNull();
+    } finally {
+      panel.dispose();
+      client.close();
+    }
   });
 
   it('[VA-005] one tab at a time (review of P13b): the tab that wrote the album’s row holds it while its session is registered — another tab’s write is answered `held` and its read says so; the holder’s tab gone, the album is free', async () => {
