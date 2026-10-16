@@ -145,6 +145,7 @@ docker run --name "$name" --label "$label" --rm --init --network none --shm-size
   --workdir "$root" "${mounts[@]}" \
   --env "CG_NODE_BIN=$node_home/bin" --env "CG_PNPM_BIN=$pnpm_home/bin" --env "CG_NODE_LIBS=$node_libs" \
   --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env CG_E2E_SHARD --env CG_E2E_TIMING_SLACK --env "CG_E2E_CHOWN=$chown_to" \
+  --env CG_LONG_RUN_MINUTES --env CG_LONG_RUN_REF --env CG_LONG_RUN_SHA --env CG_E2E_IMAGE --env GITHUB_RUN_ID \
   --entrypoint bash "$CG_E2E_IMAGE" "$root/tools/ci/e2e-in-container.sh" "$@" &
 client=$!
 status=0

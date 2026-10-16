@@ -1,0 +1,101 @@
+# R20 P16b. An agent's manual checklist, never PR/push CI and never a GitHub-hosted/Mac browser run.
+name: R20 long run
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'Accelerated event window, ×8: 5 = smoke, 60 = 8-hour shift (5..120)'
+        type: number
+        required: true
+        default: 60
+      ref:
+        description: 'Merged commit, tag or branch to test'
+        type: string
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+# One soak at a time on the PC; parallel to release prep, never a pilot gate (X42).
+concurrency:
+  group: r20-long-run
+  cancel-in-progress: false
+
+jobs:
+  long-run:
+    name: Manual Fansly long run
+    runs-on: [self-hosted, ci-pc]
+    timeout-minutes: 150
+    env:
+      CG_LONG_RUN_MINUTES: ${{ inputs.minutes }}
+      CG_LONG_RUN_REF: ${{ inputs.ref }}
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - name: Validate duration
+        run: |
+          [[ "$CG_LONG_RUN_MINUTES" =~ ^[0-9]{1,3}$ ]] && (( 10#$CG_LONG_RUN_MINUTES >= 5 && 10#$CG_LONG_RUN_MINUTES <= 120 )) || {
+            echo '::error::minutes must be an integer from 5 to 120'; exit 1;
+          }
+
+      - name: Checkout the requested ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Record the tested SHA and clear earlier evidence
+        run: |
+          echo "CG_LONG_RUN_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          rm -rf .cache/e2e/long-run .cache/wdio
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup pinned pnpm
+        run: |
+          pinned="$(node -p 'require("./package.json").packageManager')"
+          pinned="${pinned%%+*}"
+          prefix="$RUNNER_TEMP/pnpm"
+          npm install --global --prefix "$prefix" --prefer-offline --no-audit --no-fund --loglevel=error "$pinned"
+          running="$("$prefix/bin/pnpm" --version)"
+          [ "pnpm@$running" = "$pinned" ] || { echo '::error::pnpm pin mismatch'; exit 1; }
+          echo "$prefix/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: |
+          export npm_config_store_dir="$HOME/.local/share/pnpm/store"
+          pnpm install --frozen-lockfile
+
+      # The ordinary e2e wrapper supplies the exact image digest, Firefox/geckodriver version checks,
+      # --network none, the silent audio sink, and cancellation/container cleanup. No live credentials.
+      - name: Run the manual harness in the pinned Firefox image
+        run: exec tools/ci/e2e-docker.sh long-run
+
+      - name: Remove the container if one is left
+        if: always()
+        run: if [ -x tools/ci/e2e-docker.sh ]; then tools/ci/e2e-docker.sh --remove-container; fi
+
+      - name: Publish the short summary
+        if: always()
+        run: |
+          if [ -f .cache/e2e/long-run/summary.md ]; then
+            cat .cache/e2e/long-run/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Harness did not write a report; no passing run result. The soak is not a pilot gate (X42).' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload report, profiles and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: r20-long-run-${{ inputs.minutes }}m-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .cache/e2e/long-run
+            .cache/wdio
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

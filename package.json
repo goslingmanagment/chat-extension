@@ -23,6 +23,7 @@
     "archive-check": "node tools/archive-check/index.ts",
     "e2e": "pnpm build && pnpm build:test && pnpm --filter @cg/testing e2e",
     "perf": "pnpm build:test && pnpm --filter @cg/testing perf",
+    "long-run": "pnpm build:test && pnpm --filter @cg/testing long-run",
     "dev": "node tools/dev/index.ts",
     "sign:dry-run": "node tools/sign-dry-run/index.ts",
     "release": "node tools/release/index.ts"

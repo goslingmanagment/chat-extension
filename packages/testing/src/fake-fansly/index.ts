@@ -101,7 +101,7 @@ export async function startFakeFansly(options: FakeFanslyOptions): Promise<FakeF
     state,
     journal: state.journal,
     hub,
-    token: state.token,
+    get token() { return state.token; },
     command: (command) => runCommand(state, hub, command),
     close: async () => {
       state.releaseHanging();
