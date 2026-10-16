@@ -281,6 +281,9 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     res: ack,
   },
 
+  // R20 P8c: a Fansly tab's deep start asks for the person's depth above 3000 alone.
+  'fansly.settings.windows': { req: { valid: [{}], invalid: [{ deep: 4000 }] }, res: { valid: [{ deep: null }, { deep: 5000 }], invalid: [{ deep: 3000 }, { deep: 5001 }, {}] } },
+
   // R20 P14b1: the settings page.
   'fansly.settings.read': { req: { valid: [{}], invalid: [{ host: 'fansly-web' }] }, res: { valid: [extState], invalid: [{ ...extState, revision: -1 }, { ext: extState.ext, revision: 1 }] } },
   'fansly.settings.write': {

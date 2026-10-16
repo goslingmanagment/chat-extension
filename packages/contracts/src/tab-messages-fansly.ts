@@ -46,7 +46,7 @@ import { STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
-import { SettingsExtPatchSchema, SettingsExtStateSchema } from './settings-ext';
+import { SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { NEWCOMER_CHECK_FILTERS, NEWCOMERS_TABS } from './vm/actions';
@@ -580,6 +580,12 @@ export const FANSLY_TAB_REQUESTS = {
     hosts: FANSLY,
   },
   'fansly.relay.failure': { req: z.strictObject({ requestId: UuidSchema, reason: z.enum(FANSLY_RELAY_FAILURES) }), res: Ack, from: RELAY, hosts: FANSLY },
+  /**
+   * R20 P8c: the person's Recap depth above 3000 (`settings.ext` `windows`; FS-AI-1, architecture §12), asked by a start
+   * of the deep window — Review, the full Recap, Coach's full auto-Recap; the planner still caps it by `limits.deepMax`.
+   * Only the depth: the rest of the key stays the settings page's.
+   */
+  'fansly.settings.windows': { req: Empty, res: SettingsExtSchema.shape.windows, from: TAB, hosts: FANSLY },
 
   // ── the settings page (R20 P14b1): its requests reach the module while Fansly is on (platform rpc-background) ──
   /** Fansly's part of `settings.ext` as it is stored, with its revision (FS-SET-1). */

@@ -139,6 +139,20 @@
 - `newcomers-fansly` (новый, только подпуть): ключи текстов окна `fansly.newcomers.*`; тексты — пакет Fansly
   (`core/src/domain/hosts/fansly/i18n/newcomers.ts`), приходят с чанком окна; общий каталог их не несёт.
 
+### P8c, часть B — пометка над Recap, Review и Coach, глубина Recap выше 3000
+
+- **`vm`: пометка над анализом.** Необязательные `RecapViewVM.stale`, `ReviewVM.stale`, `CoachTurnVM.stale`
+  (`ResultMarkVM`) и `CoachTurnVM.again` (`ActionButtonVM`, «Ещё раз» помеченного ответа — тот же вопрос заново).
+  Это вердикт проверки окна сайта (спецификация R20 §3.5, FS-TAIL-8) над Recap, Review и ответом Coach, которые эта
+  вкладка сгенерировала; «Ещё раз» у Recap — `refresh`, у Review — `regenerate`. То, что фан написал после генерации, у
+  них по-прежнему строка отставания архива (NEW-02), а не пометка: вердикт ChatSpace даёт только `fan-wrote`, и на
+  ChatSpace над анализом пометок нет.
+- **`ops`: `AiHostPolicy.windows?()`** — желание глубокого окна, которое хранит сайт (`settings.ext` `windows`, 3001…5000):
+  его спрашивает только старт глубокого окна (Review, полный Recap, полный авто-Recap Coach); планировщик ограничивает
+  его `limits.deepMax`, разовое окно приоритетнее. Нет порта, `null` или сбой — окно v1. Только типы.
+- **`tab-messages-fansly`: `fansly.settings.windows`** (вкладка Fansly → фон): `windows` ключа `settings.ext` и больше
+  ничего; остальное в ключе — по-прежнему только страницы настроек. Фикстуры — `test/fixtures/protocols-fansly.ts`.
+
 ### P8b2 — слова пометки проверки окна
 
 - **`vm`: `ResultMarkKey`** — ключи слов пометки, которую вердикт проверки окна ставит над результатом (`ResultVM.stale`
