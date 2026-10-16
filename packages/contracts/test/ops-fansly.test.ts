@@ -86,6 +86,9 @@ describe('[host:fansly] the operations of Fansly’s slice (architecture §1.6, 
     expect(O.FANSLY_OP_LIMITS.voiceScriptMaxChars).toBe(FANSLY_TAB_LIMITS.voiceScriptMaxChars);
     // Each driver names the kind its result parses to.
     expect(O.FANSLY_OPS.map((op) => O.FANSLY_OP_DRIVERS[op].result)).toEqual([voiceScriptResult.kind, noteFieldsResult.kind]);
+    // HF-6 (R20 P11c): the fill's depth floor is a window the wire carries.
+    expect(O.FANSLY_OP_LIMITS.notesFillDepthMin).toBe(3000);
+    expect(O.FANSLY_OP_LIMITS.notesFillDepthMin).toBeLessThanOrEqual(C.AI_REQUEST_LIMITS.messageCountMax);
   });
 
   it('the shared types and the site’s schemas say the same (the union is the types’ alone)', () => {

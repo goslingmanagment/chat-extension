@@ -1,4 +1,4 @@
-// 1.15.0, R20 P11b (the questionnaire's fields: P11b2): «Заметки» of a Fansly tab (FS-NOTE-*) — the model, the actions and the client of its two
+// 1.15.0, R20 P11b (the questionnaire's fields: P11b2; «✨ Заполнить из чата»: P11c): «Заметки» of a Fansly tab (FS-NOTE-*) — the model, the actions and the client of its two
 // surfaces: the button in the header slot after «Регистрация» and the panel in our layer 900. Types only: the
 // controller is core application/hosts/fansly/notes, the requests are `fansly.notes.*` (tab-messages-fansly.ts).
 // A note's text lives here only between the panel and the background, never in a log or the hub (FS-NOTE-5).
@@ -52,6 +52,15 @@ export type NotesFormPartVM =
   | { readonly kind: 'field'; readonly label: string; readonly facts: readonly NotesFactVM[]; readonly value: string; readonly suggestions: readonly NotesSuggestionVM[] }
   | { readonly kind: 'text'; readonly text: string };
 
+/** «✨ Заполнить из чата» of a questionnaire being edited (R20 P11c; FS-NOTE-6): `running` — the hub reads the chat
+ * («Остановить» drops it); `done` — `wrote`: the fields the Goose wrote into (empty ones and the template's new lines),
+ * in note order, while its additions to filled ones wait under them (`NotesEditorVM.suggestions`); `failed` — why. */
+export interface NotesFillVM {
+  readonly status: 'idle' | 'running' | 'done' | 'failed';
+  readonly wrote: readonly string[];
+  readonly error: CgAnyErrorWire | null;
+}
+
 export interface NotesEditorVM {
   /** null — a new note. */
   readonly noteId: string | null;
@@ -67,6 +76,8 @@ export interface NotesEditorVM {
   readonly asText: boolean;
   /** The Goose's rewrites of filled fields, in order (empty until R20 P11c's fill). */
   readonly suggestions: readonly NotesSuggestionVM[];
+  /** R20 P11c: null — no fill here (the page's «Заполнить из чата» is off, or the draft is no questionnaire). */
+  readonly fill: NotesFillVM | null;
 }
 
 export interface NotesPanelVM {
@@ -116,6 +127,9 @@ export type NotesAction =
   | { readonly type: 'as-text'; readonly on: boolean }
   /** «Принять» (`accept`) or «Не нужно» on the Goose's rewrite `index`. */
   | { readonly type: 'suggestion'; readonly index: number; readonly accept: boolean }
+  /** «✨ Заполнить из чата» and «Остановить» (R20 P11c). */
+  | { readonly type: 'fill' }
+  | { readonly type: 'fill-stop' }
   | { readonly type: 'save' }
   | { readonly type: 'cancel' }
   | { readonly type: 'ask-delete'; readonly noteId: string }
@@ -182,4 +196,13 @@ export interface NotesCopy {
   readonly suggestIn: string;
   readonly accept: string;
   readonly dismiss: string;
+  /** R20 P11c: «✨ Заполнить из чата», its run and its outcome — «Гусь вписал: …», «Правки под полями: N». */
+  readonly fill: string;
+  readonly fillHint: string;
+  readonly filling: string;
+  readonly fillStop: string;
+  readonly fillWrote: string;
+  readonly fillOffers: string;
+  readonly fillNothing: string;
+  readonly fillFailed: string;
 }
