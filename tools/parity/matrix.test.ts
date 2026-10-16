@@ -40,8 +40,8 @@ describe('the R20 parity matrix (docs/project-unite/parity-matrix.md)', () => {
     expect(count(matrix.rows, (row) => row.pr)).toEqual(summary);
   });
 
-  it('holds the hub confirmations in §10 (none yet)', () => {
-    expect(matrix.hub).toEqual([]);
+  it('holds the hub confirmations in §10: each a row of kind hub, confirmed by its owner', () => {
+    expect(matrix.hub.map((confirmation) => confirmation.id)).toEqual(['AI-033', 'AI-034', 'AI-037', 'AI-144', 'AI-145', 'AI-146', 'AI-147', 'AI-148']);
   });
 
   it('reads §7, §9 and §10 rows; a row of the wrong width stops the reading', () => {

@@ -1337,3 +1337,11 @@ P14b1 — 130; P14b2 — 86; P14c — 1; P16a — 1; P16g — 20; P17 — 24.
 
 | ID | PR | Тест хаба | Коммит хаба |
 |---|---|---|---|
+| AI-033 | HF-7д | `tests/ai-fansly-automation.test.ts` «[AI-033] the automation marks are the released Fansly extension's (chat-extension R20 HF-7д)» | `f36f48b8c` |
+| AI-034 | HF-7б | `tests/ai-fansly-fan-identity.test.ts` «[AI-034] Hi turns the pair round: display name first, the username beside it» | `f36f48b8c` |
+| AI-037 | HF-7д | `tests/fansly-automation-transcript.integration.test.ts` «[AI-037] Ping's segment and silence on Fansly are 2.10.1's on the same chat (chat-extension R20 HF-7д)» | `f36f48b8c` |
+| AI-144 | HF-7в | `tests/fansly-transcript-ppv.integration.test.ts` «[AI-144] Fansly PPV purchase state in the hub-loaded transcript (chat-extension R20 HF-7в)» | `f36f48b8c` |
+| AI-145 | HF-7г | `tests/ai-fansly-money-context.test.ts` «[AI-145] the Fansly spend block is the extension's, with the ledger's type names» | `f36f48b8c` |
+| AI-146 | HF-7б | `tests/ai-fansly-fan-identity.test.ts` «[AI-146] every feature gets the fields the released client sends for the same account» | `f36f48b8c` |
+| AI-147 | HF-7а | `tests/fansly-transcript-media.integration.test.ts` «[AI-147] Fansly media in the hub-loaded transcript (chat-extension R20 HF-7a)» | `f36f48b8c` |
+| AI-148 | HF-7д | `tests/ai-fansly-automation.test.ts` «[AI-148] transcriptCoverage of a Fansly transcript the hub loads itself (chat-extension R20 HF-7д)» | `f36f48b8c` |
