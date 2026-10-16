@@ -51,6 +51,7 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
     let epoch = 0;
     let started: number | null = null;
     let finished = false;
+    let failure: Error | null = null;
     let baseline: WebdriverIO.Browser | null = null;
     let shift: FanslyShift | null = null;
     let chatspace = '';
@@ -68,7 +69,7 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
       metadata: { sha: process.env['CG_LONG_RUN_SHA'] ?? null, requestedRef: process.env['CG_LONG_RUN_REF'] ?? null,
         runId: process.env['GITHUB_RUN_ID'] ?? null, image: process.env['CG_E2E_IMAGE'] ?? null, platform: process.platform,
         firefox: browser.capabilities.browserVersion, neighbour, baseline: 'simultaneous separate Firefox, no extension',
-        notes: 'native CRUD via TEST API probe; notes-fill via real scheduler', greetings: 'dock Hi + TEST send probe (P10c UI not yet on this base)' },
+        notes: 'native CRUD via TEST API probe; notes-fill via real scheduler', greetings: 'P10c/P10d newcomer card: generate + explicit send click, site access checked' },
       chatsWithEvents: coverage.size, messages, typing, actions, memory, idle, expectedSends, sends, stuckOps, leakedSlots, errors, warnings });
     const save = (): void => {
       const report = buildLongRunReport(evidence());
@@ -259,7 +260,8 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
       let nextWork = EVENT_TIMING.workMs;
       let nextWake = EVENT_TIMING.wakeMs;
       let tick = 0;
-      while (elapsed() < durationMs - 75_000) {
+      // Even the shortest smoke must exercise navigation and ChatSpace Reply beside Fansly.
+      while (tick === 0 || elapsed() < durationMs - 75_000) {
         for (let index = 0; index < 4; index += 1) {
           const chat = chats[(tick++ % chats.length)];
           if (chat !== undefined) { await work.open(chat); await inBaseline(() => callFansly('open', chat.group, 'router')); }
@@ -300,7 +302,8 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
       await health(); await takeMemory();
       finished = true;
     } catch (error) {
-      errors.push(error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error));
+      failure = error instanceof Error ? error : new Error(String(error));
+      errors.push(`${failure.message}\n${failure.stack ?? ''}`);
       monitor.record('failure', errors.at(-1));
     } finally {
       await stopTraffic();
@@ -313,6 +316,8 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
     }
     const report = buildLongRunReport(evidence());
     process.stdout.write(longRunSummary(report));
+    if (failure !== null) throw failure;
+    expect(report.checks.filter((check) => !check.passed)).toEqual([]);
     expect(report.status).toBe(minutes >= DEFAULT_MINUTES ? 'passed' : 'smoke-passed');
   });
 });

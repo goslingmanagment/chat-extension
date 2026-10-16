@@ -29,8 +29,8 @@ export const OLD_BASELINE = {
 
 export function longRunMinutes(text: string | undefined): number {
   if (text === undefined || text === '') return DEFAULT_MINUTES;
-  if (!/^[0-9]{1,3}$/.test(text) || Number(text) < 5 || Number(text) > MAX_MINUTES) {
-    throw new Error('CG_LONG_RUN_MINUTES: целое число от 5 до 120 (по умолчанию 60, ускорение ×8)');
+  if (!/^[0-9]{1,3}$/.test(text) || Number(text) < 3 || Number(text) > MAX_MINUTES) {
+    throw new Error('CG_LONG_RUN_MINUTES: целое число от 3 до 120 (по умолчанию 60, ускорение ×8)');
   }
   return Number(text);
 }
@@ -185,6 +185,7 @@ export function longRunSummary(report: ReturnType<typeof buildLongRunReport>): s
     'Прогон — операция, не ворота пилота; P16b закрывается слиянием harness и job. Находки исправляются в пилоте.',
     `Проверок: ${report.checks.filter((check) => check.passed).length}/${report.checks.length}.`,
     ...(failed.length === 0 ? [] : [`Не прошли: ${failed.join(', ')}.`]),
+    ...(report.errors.length === 0 ? [] : [`Первая ошибка: ${report.errors[0]?.split('\n')[0] ?? '?'}`]),
     ...(report.warnings.length === 0 ? [] : [`Предупреждения: ${report.warnings.length} (см. JSON и журналы).`]),
     '',
     'Числа, пороги, SHA, сырые замеры и ограничения метода — report.json; журналы и профили — рядом.',
