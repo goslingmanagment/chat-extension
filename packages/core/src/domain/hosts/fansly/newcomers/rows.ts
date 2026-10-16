@@ -54,6 +54,7 @@ export function passRowOf(row: FanslyFollowerRow): PassRow {
     followedAt: row.followedAt,
     check: checkOf(row),
     dmClosed: row.dmClosed,
+    dmPriceMills: row.dmPriceMills ?? null,
     checkedAt: row.checkedAt,
     proof: row.proof === undefined || row.proof === null ? null : messageOf(row.proof),
     failure: row.error === undefined || row.error === null ? null : failureOf(row.error),

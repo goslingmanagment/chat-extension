@@ -453,6 +453,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       bio: row.bio,
       check: row.check,
       dmClosed: row.dmClosed,
+      dmPriceMills: row.dmPriceMills ?? null,
       failure: row.failure,
       proof: row.proof,
       history: historyVM(row),

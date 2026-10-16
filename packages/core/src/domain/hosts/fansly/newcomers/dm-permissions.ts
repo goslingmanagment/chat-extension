@@ -96,8 +96,9 @@ export function dmClosedOf(unmet: readonly DmRequirement[] | null): NewcomerDmCl
 }
 
 /** The fan's DMs as a group object (`GET /group/<id>/`, `POST /group`, the inbox's aggregation) carries them. */
-export function groupDmClosed(group: unknown): { readonly read: boolean; readonly closed: NewcomerDmClosed | null } {
+export function groupDmClosed(group: unknown): { readonly read: boolean; readonly closed: NewcomerDmClosed | null; readonly priceMills: number | null } {
   const value = plain(group);
   const unmet = unmetDmRequirements(value?.['dmPermissionFlags'], value?.['accountDmPermissionFlags']);
-  return { read: unmet !== null, closed: dmClosedOf(unmet) };
+  const prices = (unmet ?? []).flatMap(({ flags, price }) => (flags === DM_PRICE_BIT && price !== null && price > 0 ? [price] : []));
+  return { read: unmet !== null, closed: dmClosedOf(unmet), priceMills: prices.length === 0 ? null : Math.round(Math.min(...prices)) };
 }

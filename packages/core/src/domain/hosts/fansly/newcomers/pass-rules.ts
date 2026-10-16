@@ -243,6 +243,7 @@ export interface PassChat {
    */
   readonly dmRead: boolean;
   readonly dmClosed: NewcomerDmClosed | null;
+  readonly dmPriceMills?: number | null;
 }
 
 /** A richer group object cannot erase the inbox's evidence that the chat already has messages. */
@@ -264,7 +265,7 @@ export function readGroup(response: unknown, creatorId: string, fanRef: string, 
   if (users.length !== 2 || !users.includes(creatorId) || !users.includes(fanRef) || creatorId === fanRef) return null;
   const last = group['lastMessage'] === null || group['lastMessage'] === undefined ? null : messageOf(group['lastMessage'], group['id'], [creatorId, fanRef], now, true);
   const dm = groupDmClosed(group);
-  const chat: PassChat = { fanRef, groupId: group['id'], verified: true, last, lastKnown: group['lastMessage'] !== null && group['lastMessage'] !== undefined, lastMessageId: zeroless(record(group['lastMessage'])?.['id']), dmRead: dm.read, dmClosed: dm.closed };
+  const chat: PassChat = { fanRef, groupId: group['id'], verified: true, last, lastKnown: group['lastMessage'] !== null && group['lastMessage'] !== undefined, lastMessageId: zeroless(record(group['lastMessage'])?.['id']), dmRead: dm.read, dmClosed: dm.closed, dmPriceMills: dm.priceMills };
   return withChatHead(chat, zeroless(group['lastMessageId']));
 }
 

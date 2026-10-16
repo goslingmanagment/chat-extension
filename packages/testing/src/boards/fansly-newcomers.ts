@@ -40,6 +40,7 @@ interface Follower {
   readonly minutesAgo: number;
   readonly customName?: string;
   readonly dmClosed?: NewcomerDmClosed;
+  readonly dmPriceMills?: number;
   readonly bio?: string;
   readonly failure?: NewcomersFailureVM;
   readonly group?: boolean;
@@ -50,7 +51,7 @@ const FOLLOWERS: readonly Follower[] = [
   { n: 2, name: 'Leo', username: 'leo.k', check: 'reply', minutesAgo: 41 },
   { n: 3, name: 'Jake', username: 'jake88', check: 'pending', minutesAgo: 2 * 60, group: false },
   { n: 4, name: 'Marco R.', username: 'marco_r', check: 'checking', minutesAgo: 3 * 60, group: false },
-  { n: 5, name: 'Daniel', username: 'dan_p', check: 'dm-closed', dmClosed: 'paid', minutesAgo: 5 * 60, bio: 'Only paid DMs, sorry' },
+  { n: 5, name: 'Daniel', username: 'dan_p', check: 'dm-closed', dmClosed: 'paid', dmPriceMills: 1700, minutesAgo: 5 * 60, bio: 'Only paid DMs, sorry' },
   { n: 6, name: 'Ryan T.', username: 'ryan_t', check: 'failed', minutesAgo: 7 * 60, failure: { code: 'CG-FAN-REQUEST', retryAt: null }, group: false },
   { n: 7, name: 'Chris', username: 'chris_77', check: 'unverified', minutesAgo: 9 * 60 },
   { n: 8, name: 'Alex M.', username: 'alex_m', check: 'ready', minutesAgo: 11 * 60, customName: 'Алекс из Бостона' },
@@ -116,6 +117,7 @@ function cardOf(ctx: ScenarioCtx, follower: Follower, options: CardOptions): New
     bio: follower.bio ?? null,
     check: follower.check,
     dmClosed: follower.dmClosed ?? null,
+    dmPriceMills: follower.dmPriceMills ?? null,
     failure: follower.failure ?? null,
     proof: options.proof ?? null,
     history: options.history,

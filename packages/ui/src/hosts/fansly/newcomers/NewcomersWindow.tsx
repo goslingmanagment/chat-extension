@@ -469,10 +469,15 @@ function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const strong = card.check === 'ready' || card.check === 'reply';
+  const hasPrice = card.dmClosed === 'paid' && card.dmPriceMills !== undefined && card.dmPriceMills !== null;
   return (
     <div class="cg-fnc__verdict" data-cg-check={card.check}>
       <span class={strong ? 'is-strong' : ''}>{checkText(i18n, card.check)}</span>
-      {card.dmClosed === null || (card.check !== 'dm-closed' && card.check !== 'excluded') ? null : <span class="cg-fnc__why">{fanslyText(i18n, `fansly.newcomers.dmClosed.${card.dmClosed}`)}</span>}
+      {card.dmClosed === null || (card.check !== 'dm-closed' && card.check !== 'excluded') ? null : (
+        <span class="cg-fnc__why">
+          {hasPrice ? fanslyText(i18n, 'fansly.newcomers.dmClosed.paidPrice', { price: i18n.formatMoneyMills(card.dmPriceMills ?? null, { cents: true, zero: 'show' }) }) : fanslyText(i18n, `fansly.newcomers.dmClosed.${card.dmClosed}`)}
+        </span>
+      )}
       {card.check === 'failed' && card.failure !== null ? (
         <span class="cg-fnc__why">
           {fanslyText(i18n, 'fansly.newcomers.errorFrom', { code: card.failure.code })} · {failureView(i18n, card.failure).title}

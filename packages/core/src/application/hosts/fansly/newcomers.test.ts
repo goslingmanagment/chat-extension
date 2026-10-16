@@ -868,20 +868,20 @@ describe('[host:fansly] «Новые» on Fansly: the queue’s buttons (R20 P10
 
 describe('[host:fansly] «Новые» on Fansly: «Нельзя написать» and «Исключить из очереди» (R20 P10b2)', () => {
   it('[FX-003] [FS-NEW-2] a fan nobody can write to: the reason on the card and «Исключить из очереди» — one request; the row leaves «К обработке» as the pass’s change; «Вернуть в очередь» under «Все»', async () => {
-    const w = world([wireRow(1, { status: 'dm-closed', dmClosed: 'paid' }), wireRow(2), wireRow(3, { status: 'excluded', dmClosed: 'permissions' })]);
+    const w = world([wireRow(1, { status: 'dm-closed', dmClosed: 'paid', dmPriceMills: 1700 }), wireRow(2), wireRow(3, { status: 'excluded', dmClosed: 'permissions' })]);
     await w.open();
     const passId = w.background.last().view.passId;
     const handle = passHandle(passId, fan(1));
     await w.controller.dispatch({ type: 'OpenPreview', targetHandle: handle });
     await settle();
-    expect(w.vm().pass?.card).toMatchObject({ check: 'dm-closed', dmClosed: 'paid', exclude: 'exclude', checkNext: null });
+    expect(w.vm().pass?.card).toMatchObject({ check: 'dm-closed', dmClosed: 'paid', dmPriceMills: 1700, exclude: 'exclude', checkNext: null });
     // «К обработке» holds the fan nobody can write to until the person takes them out; the excluded one is under «Все».
     expect([statuses(w.vm()), w.vm().tabs.map((tab) => tab.count)]).toEqual([['fan_1:dm-closed', 'fan_2:ready'], [2, 3]]);
 
     expect(await w.controller.dispatch({ type: 'ExcludeNewcomer', targetHandle: handle, excluded: true })).toMatchObject({ ok: true, outcome: 'done' });
     expect(w.background.of('fansly.followers.exclude')).toEqual([{ passId, fanRef: fan(1), excluded: true }]);
     // The row comes back as the background's change, not from the answer.
-    w.background.change(passId, [wireRow(1, { status: 'excluded', dmClosed: 'paid' })]);
+    w.background.change(passId, [wireRow(1, { status: 'excluded', dmClosed: 'paid', dmPriceMills: 1700 })]);
     await settle();
     expect([statuses(w.vm()), w.vm().tabs.map((tab) => tab.count)]).toEqual([['fan_2:ready'], [1, 3]]);
     // The card goes on to a fan the person can write to.
@@ -890,7 +890,7 @@ describe('[host:fansly] «Новые» on Fansly: «Нельзя написат�
     await w.controller.dispatch({ type: 'SetNewcomersTab', tab: 'all' });
     await w.controller.dispatch({ type: 'OpenPreview', targetHandle: handle });
     await settle();
-    expect(w.vm().pass?.card).toMatchObject({ check: 'excluded', dmClosed: 'paid', exclude: 'restore' });
+    expect(w.vm().pass?.card).toMatchObject({ check: 'excluded', dmClosed: 'paid', dmPriceMills: 1700, exclude: 'restore' });
     expect(await w.controller.dispatch({ type: 'ExcludeNewcomer', targetHandle: handle, excluded: false })).toMatchObject({ ok: true, outcome: 'done' });
     expect(w.background.of('fansly.followers.exclude').at(-1)).toEqual({ passId, fanRef: fan(1), excluded: false });
 

@@ -603,12 +603,12 @@ describe('[host:fansly] «Нельзя написать» and «Исключит
     expect(t.creates()).toEqual([created]);
 
     const view = async (fan: string) => t.row(passId, fan);
-    expect(await view(paid)).toMatchObject({ status: 'dm-closed', dmClosed: 'paid', historyRevision: null, proof: null });
+    expect(await view(paid)).toMatchObject({ status: 'dm-closed', dmClosed: 'paid', dmPriceMills: 1700, historyRevision: null, proof: null });
     expect(await view(rules)).toMatchObject({ status: 'dm-closed', dmClosed: 'permissions', historyRevision: null });
     expect(await view(thin)).toMatchObject({ status: 'dm-closed', dmClosed: 'permissions' });
-    expect(await view(created)).toMatchObject({ status: 'dm-closed', dmClosed: 'paid' });
-    expect(await view(open)).toMatchObject({ status: 'ready', dmClosed: null, fanWrote: true });
-    expect(await view(greeted)).toMatchObject({ status: 'greeted', dmClosed: null });
+    expect(await view(created)).toMatchObject({ status: 'dm-closed', dmClosed: 'paid', dmPriceMills: 1700 });
+    expect(await view(open)).toMatchObject({ status: 'ready', dmClosed: null, dmPriceMills: null, fanWrote: true });
+    expect(await view(greeted)).toMatchObject({ status: 'greeted', dmClosed: null, dmPriceMills: null });
     // Nothing to greet with: the greeting (P10c) takes a proof only of a fan who can be written to.
     expect(t.service.proof(passId, paid)).toBeNull();
     expect(t.service.proof(passId, rules)).toBeNull();

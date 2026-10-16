@@ -579,7 +579,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         throw new Aborted();
       }
       const { wire } = failureOf(error);
-      set(pass, row, { status: 'failed', error: wire, checkedAt: iso(deps.now()), historyRevision: null, dmClosed: null });
+      set(pass, row, { status: 'failed', error: wire, checkedAt: iso(deps.now()), historyRevision: null, dmClosed: null, dmPriceMills: null });
       row.proof = null;
       if (stopsPass(error) || fails + 1 >= PASS_FUSE) {
         halt(pass, wire);
@@ -644,7 +644,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     row.kept = history.slice(-PASS_BOUNDS.previewKept);
     row.keptAll = complete && history.length <= PASS_BOUNDS.previewKept;
     // FS-NEW-2: Fansly will not let the creator write — whatever the history: nothing is generated, held or sent.
-    if (chat.dmClosed !== null) return closed(pass, work, row, chat.dmClosed);
+    if (chat.dmClosed !== null) return closed(pass, work, row, chat.dmClosed, chat.dmPriceMills ?? null);
     // Only a history read to its confirmed end is evidence that nobody wrote (the old fail-closed rule).
     if (!complete) throw new PassFailure({ code: 'CG-FNEW-HISTORY' });
     // The DMs are open (again): an exclusion made while they were closed is over. An answer without the rules says nothing.
@@ -662,16 +662,17 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       proof: null,
       error: null,
       dmClosed: null,
+      dmPriceMills: null,
     });
   }
 
   /** «Нельзя написать» (FS-NEW-2), or «Исключён · нельзя написать» as the person left it in this browser: no proof to greet with. */
-  async function closed(pass: Pass, work: Work, row: Row, why: NewcomerDmClosed): Promise<void> {
+  async function closed(pass: Pass, work: Work, row: Row, why: NewcomerDmClosed, priceMills: number | null): Promise<void> {
     const excluded = await isExcluded(pass.creator, row.view.fanRef);
     if (work.stop.aborted) throw new Aborted();
     row.proof = null;
     row.revisionKey = null;
-    set(pass, row, { status: excluded ? 'excluded' : 'dm-closed', dmClosed: why, historyRevision: null, checkedAt: iso(deps.now()), fanWrote: false, proof: null, error: null });
+    set(pass, row, { status: excluded ? 'excluded' : 'dm-closed', dmClosed: why, dmPriceMills: priceMills, historyRevision: null, checkedAt: iso(deps.now()), fanWrote: false, proof: null, error: null });
   }
 
   function greeted(pass: Pass, row: Row, personal: PassMessage, history: readonly PassMessage[]): void {
@@ -679,7 +680,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     row.keptAll = false;
     row.proof = null;
     row.revisionKey = null;
-    set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: previewOf(personal, pass.creator, pass.welcome), error: null, fanWrote: false, dmClosed: null });
+    set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: previewOf(personal, pass.creator, pass.welcome), error: null, fanWrote: false, dmClosed: null, dmPriceMills: null });
   }
 
   // ── the person's exclusions (R20 P10b2, FS-NEW-2): in this browser, as the old window kept them ──

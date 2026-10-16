@@ -36,6 +36,18 @@ describe('[host:fansly] «Нельзя написать»: the fan’s DM rules 
     expect(unmetDmRequirements([{ flags: 1, metadata: meta({ 1: {} }), verificationFlags: 0 }], null)).toEqual([{ flags: 1, price: null }]);
   });
 
+  it('[FX-003] [FS-NEW-2] the paid-DM reason carries the lowest known per-message price; unknown prices, other conditions and already-paid DMs never invent one', () => {
+    const group = (rules: unknown[], account: unknown = null) => groupDmClosed({ dmPermissionFlags: rules, accountDmPermissionFlags: account });
+    const unknown = { flags: 1, metadata: '{"1":"oops"}', verificationFlags: 0 };
+    const conditional = { flags: 1 | 2, metadata: meta({ 1: { price: 500 } }), verificationFlags: 0 };
+    expect(group([paid(5000), unknown, conditional, paid(1700)])).toEqual({ read: true, closed: 'paid', priceMills: 1700 });
+    expect(group([paid(405)])).toMatchObject({ closed: 'paid', priceMills: 405 });
+    expect(group([unknown])).toMatchObject({ closed: 'paid', priceMills: null });
+    expect(group([conditional])).toMatchObject({ closed: 'permissions', priceMills: null });
+    expect(group([paid(1700)], { metadata: meta({ 1: { price: 1700 } }) })).toMatchObject({ closed: null, priceMills: null });
+    expect(group([paid(1700), { flags: 16, verificationFlags: 16 }])).toMatchObject({ closed: null, priceMills: null });
+  });
+
   it('[FX-003] open as soon as one rule set is met; tips and media purchases count against what was already sent', () => {
     expect(unmetDmRequirements([paid(1700), { flags: 16, verificationFlags: 16 }], null)).toEqual([]);
     const tips = { flags: 8, metadata: meta({ 8: { minAmount: 5000 } }), verificationFlags: 0 };
@@ -60,10 +72,10 @@ describe('[host:fansly] «Нельзя написать»: the fan’s DM rules 
   it('[FX-003] the group object as Fansly answers it: its rules and what the creator has; garbage reads as no rules', () => {
     // The stand's rule (fake-fansly data.ts): «follow the fan», not met.
     const closed = { id: '1', dmPermissionFlags: [{ id: 1, accountId: '2', type: 1, flags: 2, metadata: '{}', verificationFlags: 0, verificationMetadata: '{}' }], accountDmPermissionFlags: { flags: 0, metadata: '{}' } };
-    expect(groupDmClosed(closed)).toEqual({ read: true, closed: 'permissions' });
-    expect(groupDmClosed({ id: '1', dmPermissionFlags: [], accountDmPermissionFlags: { flags: 0, metadata: '{}' } })).toEqual({ read: true, closed: null });
-    expect(groupDmClosed({ id: '1' })).toEqual({ read: false, closed: null });
-    expect(groupDmClosed(null)).toEqual({ read: false, closed: null });
-    expect(groupDmClosed({ dmPermissionFlags: [null, 7, 'x'] })).toEqual({ read: true, closed: null });
+    expect(groupDmClosed(closed)).toEqual({ read: true, closed: 'permissions', priceMills: null });
+    expect(groupDmClosed({ id: '1', dmPermissionFlags: [], accountDmPermissionFlags: { flags: 0, metadata: '{}' } })).toEqual({ read: true, closed: null, priceMills: null });
+    expect(groupDmClosed({ id: '1' })).toEqual({ read: false, closed: null, priceMills: null });
+    expect(groupDmClosed(null)).toEqual({ read: false, closed: null, priceMills: null });
+    expect(groupDmClosed({ dmPermissionFlags: [null, 7, 'x'] })).toEqual({ read: true, closed: null, priceMills: null });
   });
 });
