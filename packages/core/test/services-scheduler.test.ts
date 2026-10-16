@@ -1091,6 +1091,34 @@ describe('R20 F6a, Fansly: the background toast names the operation\'s own conve
     expect(TAB_EVENTS.toast.payload.safeParse(toasts[0]?.payload).success).toBe(true);
     expect(h.hub.streams.map((request) => request.body)).toMatchObject([{ platform: 'fansly', conversationRef: FANSLY.group, fanRef: FANSLY.fan }]);
   });
+
+  it.each([false, true])('out-of-order results keep their groups; the first toast requires reported presence elsewhere (%s)', async (reportedFourth) => {
+    const h = harness({ env: { bootstrap: withFanslyPage(BOOTSTRAP_PILOT_PAGES), features: featuresOfBoth } });
+    const targets = Array.from({ length: 4 }, (_, index) => ({
+      ...fanslyTarget, chat: { ...fanslyChat, platformFanId: String(7102 + index) }, fanRef: String(7102 + index), conversationRef: String(7203 + index),
+    }));
+    const ops: string[] = [];
+    for (const [index, target] of targets.slice(0, 3).entries()) {
+      const op = uuid(0x100 + index);
+      h.hub.streamScript.push(...forOp([{ kind: 'stream', steps: [metaStep(), deltaStep(`Reply ${index}`, [200, 100, 300][index]), doneStep] }], op));
+      expect(opIdOf(await h.start(TAB, startOf({ target })))).toBe(op);
+      ops.push(op);
+    }
+    const shown = targets[reportedFourth ? 3 : 0];
+    if (shown === undefined) throw new Error('no shown chat');
+    // The stand returns from the refusal's first chat to the fourth. A ready
+    // dock alone does not mean its delayed presence has reached the background.
+    h.presence.set(TAB, { chat: shown.chat, routeEpoch: 5, visible: true, focused: true });
+    await h.clock.advance(250);
+    expect(h.scheduler.active().map(({ opId }) => opId)).toEqual([ops[2]]);
+    expect(h.events.of('op.done').map(({ payload: { view } }) => ({ opId: view.opId, state: view.state, target: view.target })))
+      .toEqual([1, 0].map((index) => ({ opId: ops[index], state: 'done', target: targets[index] })));
+    expect(h.events.of('toast').map(({ payload: { toast } }) => ({ opId: toast.opId, chat: toast.chat, group: toast.conversationRef })))
+      .toEqual((reportedFourth ? [1, 0] : [1]).map((index) => ({ opId: ops[index], chat: targets[index]?.chat, group: targets[index]?.conversationRef })));
+    await h.clock.advance(100);
+    expect(h.events.of('op.done').map(({ payload: { view } }) => view.target)).toEqual([targets[1], targets[0], targets[2]]);
+    expect(h.events.of('toast').at(-1)?.payload.toast).toMatchObject({ opId: ops[2], chat: targets[2]?.chat, conversationRef: targets[2]?.conversationRef });
+  });
 });
 
 
