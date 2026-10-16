@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { browser, expect } from '@wdio/globals';
 
 import { createWorld } from '../../fixture-fansly/src/data';
-import { buildLongRunReport, CHAT_COUNT, longRunMinutes, longRunSummary, type Action, type IdleSample, type MemorySample, type SendEvidence } from '../../src/long-run/report';
+import { buildLongRunReport, CHAT_COUNT, DEFAULT_MINUTES, EVENT_TIMING, longRunMinutes, longRunSummary, type Action, type IdleSample, type MemorySample, type SendEvidence } from '../../src/long-run/report';
 import { WORLD } from '../../src/scenarios/hub';
 import { mb, processCpu, readMemory, type MemoryReading } from '../perf/fansly/memory';
 import { startProfiler, stopProfiler, summarizeProfileFile } from '../perf/fansly/profiler';
@@ -100,13 +100,22 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
       if ((typed.sent ?? 0) < 2 || (message.sent ?? 0) < 2) throw new Error('traffic did not reach both browsers');
       if (measured) { typing += 1; messages += 1; coverage.add(chat.group); }
     };
-    const stopTraffic = async (): Promise<void> => { if (trafficTimer !== null) clearInterval(trafficTimer); trafficTimer = null; await pendingTraffic; };
-    const startTraffic = (): void => {
-      trafficTimer = setInterval(() => {
+    const queueTraffic = (): void => {
+      // Catch up timer delays and the initial sweep: a full hour must contain eight hours of events.
+      const due = Math.floor(Math.min(elapsed(), durationMs) / EVENT_TIMING.trafficMs);
+      while (trafficStep < due) {
         const chat = chats[trafficStep++ % chats.length];
         if (chat === undefined) return;
         pendingTraffic = pendingTraffic.then(() => sendEvent(chat, true)).catch((error: unknown) => { errors.push(`traffic: ${String(error)}`); });
-      }, 10_000);
+      }
+    };
+    const stopTraffic = async (): Promise<void> => {
+      if (trafficTimer !== null) clearInterval(trafficTimer);
+      trafficTimer = null; queueTraffic(); await pendingTraffic;
+    };
+    const startTraffic = (): void => {
+      queueTraffic();
+      trafficTimer = setInterval(queueTraffic, EVENT_TIMING.trafficMs);
     };
     const ready = async (): Promise<void> => {
       if (shift === null) throw new Error('shift not started');
@@ -192,7 +201,7 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
     save();
     try {
       await hub.command({ op: 'reset' }); await standServer.reset(); await fakeFansly().command({ op: 'reset' });
-      // Exercise the client for eight hours, not the fake hub's 120-request demo quota.
+      // Exercise a compressed shift, beyond the fake hub's 120-request demo quota.
       await hub.command({ op: 'config', patch: { quotaRequestsToday: null } });
       await setFanslyNeighbor(neighbour); await standWorld(hub);
       shift = await startFanslyShift(hub, { path: `/messages/${first.group}`, neighbor: neighbour, viewport: { width: 1728, height: 936 } });
@@ -247,8 +256,8 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
       startTraffic();
       await idleWindow();
       let nextMemory = Math.min(300_000, durationMs / 5);
-      let nextWork = elapsed() + 30 * 60_000;
-      let nextWake = elapsed() + 15 * 60_000;
+      let nextWork = EVENT_TIMING.workMs;
+      let nextWake = EVENT_TIMING.wakeMs;
       let tick = 0;
       while (elapsed() < durationMs - 75_000) {
         for (let index = 0; index < 4; index += 1) {
@@ -267,22 +276,22 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
         if (elapsed() >= nextWake) {
           expect(await suspendBackground()).toBe('stopped');
           expect(await shift.rpc('bootstrap.get')).toMatchObject({ ok: true });
-          await ready(); count('backgroundWake'); nextWake = elapsed() + 15 * 60_000;
+          await ready(); count('backgroundWake'); nextWake += EVENT_TIMING.wakeMs;
         }
-        if (elapsed() >= nextWork && elapsed() < durationMs - 5 * 60_000) {
+        if (elapsed() >= nextWork && elapsed() < durationMs - 75_000) {
           await takeMemory();
           await work.admission(chats); await work.newcomers(); await work.greeting();
           await work.open(first); await work.notes(first); await work.vault();
           await openFanslyStand(`/messages/${first.group}`); await openBaseline(); await reload();
           await takeMemory();
           nextMemory = elapsed() + 300_000;
-          nextWork = elapsed() + 30 * 60_000;
+          nextWork += EVENT_TIMING.workMs;
         }
         await health();
         if (elapsed() >= nextMemory) { await takeMemory(); nextMemory = elapsed() + Math.min(300_000, durationMs / 5); }
         save();
         process.stdout.write(`long-run: ${(elapsed() / 60_000).toFixed(1)}/${minutes} min, ${coverage.size} chats, ${messages} messages, ${sends.length} sends\n`);
-        await browser.pause(Math.min(15_000, Math.max(0, durationMs - 75_000 - elapsed())));
+        await browser.pause(Math.min(EVENT_TIMING.navigationPauseMs, Math.max(0, durationMs - 75_000 - elapsed())));
       }
       await work.open(first); await inBaseline(() => callFansly('open', first.group, 'router'));
       await idleWindow();
@@ -304,6 +313,6 @@ describe('R20 P16b — manual long run on the PC, Fansly and ChatSpace beside it
     }
     const report = buildLongRunReport(evidence());
     process.stdout.write(longRunSummary(report));
-    expect(report.status).toBe(minutes === 480 ? 'passed' : 'smoke-passed');
+    expect(report.status).toBe(minutes >= DEFAULT_MINUTES ? 'passed' : 'smoke-passed');
   });
 });

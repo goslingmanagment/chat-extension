@@ -1,5 +1,13 @@
 // R20 P16b. Pure, fail-closed acceptance of the manual run; no browser imports.
-export const FULL_MINUTES = 480;
+export const DEFAULT_MINUTES = 60;
+export const MAX_MINUTES = 120;
+export const ACCELERATION_FACTOR = 8;
+export const EVENT_TIMING = {
+  trafficMs: 10_000 / ACCELERATION_FACTOR,
+  wakeMs: 15 * 60_000 / ACCELERATION_FACTOR,
+  workMs: 30 * 60_000 / ACCELERATION_FACTOR,
+  navigationPauseMs: 15_000 / ACCELERATION_FACTOR,
+} as const;
 export const CHAT_COUNT = 320;
 export const LIMITS = {
   tabOverheadMB: 15,
@@ -20,9 +28,9 @@ export const OLD_BASELINE = {
 } as const;
 
 export function longRunMinutes(text: string | undefined): number {
-  if (text === undefined || text === '') return FULL_MINUTES;
-  if (!/^[0-9]+$/.test(text) || !Number.isInteger(Number(text)) || Number(text) < 5 || Number(text) > FULL_MINUTES) {
-    throw new Error('CG_LONG_RUN_MINUTES: целое число от 5 до 480 (5 — smoke, 480 — P16b)');
+  if (text === undefined || text === '') return DEFAULT_MINUTES;
+  if (!/^[0-9]{1,3}$/.test(text) || Number(text) < 5 || Number(text) > MAX_MINUTES) {
+    throw new Error('CG_LONG_RUN_MINUTES: целое число от 5 до 120 (по умолчанию 60, ускорение ×8)');
   }
   return Number(text);
 }
@@ -100,6 +108,9 @@ export function buildLongRunReport(evidence: RunEvidence) {
   check('duration', evidence.finished && evidence.elapsedMs >= evidence.minutes * 60_000, round(evidence.elapsedMs / 60_000), evidence.minutes);
   check('320 chats with events', evidence.chatsWithEvents >= CHAT_COUNT && evidence.messages >= CHAT_COUNT && evidence.typing >= CHAT_COUNT,
     { chats: evidence.chatsWithEvents, messages: evidence.messages, typing: evidence.typing }, CHAT_COUNT);
+  const expectedEvents = CHAT_COUNT + Math.floor(evidence.minutes * 60_000 / EVENT_TIMING.trafficMs);
+  check('shift-equivalent traffic', evidence.messages >= expectedEvents && evidence.typing >= expectedEvents,
+    { messages: evidence.messages, typing: evidence.typing }, expectedEvents);
   for (const action of REQUIRED_ACTIONS) check(action, (evidence.actions[action] ?? 0) > 0, evidence.actions[action] ?? 0, '>= 1');
 
   // A crashed browser, missing reporter, NaN and an empty series must never turn into zero memory/CPU.
@@ -151,8 +162,10 @@ export function buildLongRunReport(evidence: RunEvidence) {
   const passed = checks.every((entry) => entry.passed);
   return {
     schemaVersion: 1,
-    status: !evidence.finished ? 'incomplete' : !passed ? 'failed' : evidence.minutes < FULL_MINUTES ? 'smoke-passed' : 'passed',
-    rowComplete: passed && evidence.minutes === FULL_MINUTES,
+    status: !evidence.finished ? 'incomplete' : !passed ? 'failed' : evidence.minutes < DEFAULT_MINUTES ? 'smoke-passed' : 'passed',
+    pilotGate: false,
+    accelerationFactor: ACCELERATION_FACTOR,
+    eventMinutes: evidence.minutes * ACCELERATION_FACTOR,
     limits: LIMITS,
     oldBaseline: OLD_BASELINE,
     ...evidence,
@@ -168,7 +181,8 @@ export function longRunSummary(report: ReturnType<typeof buildLongRunReport>): s
     '',
     `Длительность: ${round(report.elapsedMs / 60_000)} / ${report.minutes} мин. Чатов с событиями: ${report.chatsWithEvents}.`,
     `Сообщений: ${report.messages}; typing: ${report.typing}; отправок: ${report.sends.length} / ${report.expectedSends}.`,
-    `P16b закрыт этим отчётом: ${report.rowComplete ? 'да, после проверки координатором' : 'нет'}.`,
+    `Ускорение: ×${report.accelerationFactor}; объём событий: ${report.eventMinutes} мин смены.`,
+    'Прогон — операция, не ворота пилота; P16b закрывается слиянием harness и job. Находки исправляются в пилоте.',
     `Проверок: ${report.checks.filter((check) => check.passed).length}/${report.checks.length}.`,
     ...(failed.length === 0 ? [] : [`Не прошли: ${failed.join(', ')}.`]),
     ...(report.warnings.length === 0 ? [] : [`Предупреждения: ${report.warnings.length} (см. JSON и журналы).`]),

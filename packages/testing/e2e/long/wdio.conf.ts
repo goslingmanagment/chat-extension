@@ -4,7 +4,7 @@ import { longRunMinutes } from '../../src/long-run/report';
 import { config as normal } from '../wdio.conf';
 
 if (process.env['CG_E2E_SHARD']) throw new Error('long-run is manual, never an e2e shard');
-if (process.platform === 'darwin') throw new Error('long-run belongs on the owner’s PC: dispatch long-run.yml, never run Firefox for eight hours on the Mac');
+if (process.platform === 'darwin') throw new Error('long-run belongs on the owner’s PC: dispatch long-run.yml, never run the soak on the Mac');
 const minutes = longRunMinutes(process.env['CG_LONG_RUN_MINUTES']);
 
 export const config: WebdriverIO.Config = {
