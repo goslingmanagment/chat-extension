@@ -32,8 +32,11 @@ describe('CHANGELOG.md', () => {
     const version = readPackageVersion(readFileSync(`${REPO_ROOT}${VERSION_FILE}`, 'utf8'));
     expect(changelog.title).toBe('Что нового');
     expect(sectionOf(changelog, version).blocks.length).toBeGreaterThan(0);
-    // The newest section is the current version: nothing is described ahead of its release.
-    expect(changelog.sections[0]?.version).toBe(version);
+    // Future release texts may be prepared without a package-version bump,
+    // but must say so explicitly. The newest section without that label is
+    // still the current release (and the label must go when it is cut).
+    const releases = changelog.sections.filter((section) => !section.label.endsWith('готовится к выпуску'));
+    expect(releases[0]?.version).toBe(version);
   });
 
   it('reads sections newest first, with paragraphs, subheadings, wrapped list items and inline marks', () => {

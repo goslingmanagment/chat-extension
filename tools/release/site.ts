@@ -13,10 +13,12 @@
 //
 // `pnpm release site` rewrites them; a test fails while the committed pages
 // lag behind the version or the changelog, so the site in git is always the
-// site of the version in git. No I/O here.
+// site of the version in git. Pilot privacy and cutover copy is generated
+// from site-copy.ts as well. No I/O here.
 
 import { blocksHtml, escapeHtml, sectionOf, type Changelog, type ChangelogSection } from './changelog.ts';
 import { signedXpiName, type ReleaseTarget } from './config.ts';
+import { renderSiteCopy } from './site-copy.ts';
 
 /** Every page of the site; the first is its index. */
 export const SITE_PAGES = ['index.html', 'start.html', 'guide.html', 'whats-new.html', 'changelog.html', 'privacy.html'] as const;
@@ -80,7 +82,7 @@ export function renderPage(html: string, context: SiteContext): string {
 
 /** Every file of the site as it must be for `context` (the stylesheet as it is). */
 export function renderSite(files: ReadonlyMap<string, string>, context: SiteContext): Map<string, string> {
-  return new Map([...files].map(([name, text]) => [name, name.endsWith('.html') ? renderPage(text, context) : text]));
+  return new Map([...files].map(([name, text]) => [name, name.endsWith('.html') ? renderPage(renderSiteCopy(name, text), context) : text]));
 }
 
 const count = (text: string, pattern: RegExp): number => [...text.matchAll(pattern)].length;

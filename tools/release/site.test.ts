@@ -51,6 +51,8 @@ describe('the site in the repository', () => {
       expect(links.map(([href]) => href), page).toEqual([...SITE_PAGES]);
       expect(links.filter(([, current]) => current).map(([href]) => href), page).toEqual([page]);
       expect(html, page).toMatch(/[а-яё]{4,}/i);
+      expect(html, page).toContain('<span class="nav__host">для ChatSpace и Fansly</span>');
+      expect(html, page).not.toMatch(/<title>[^<]*ChatGoose для ChatSpace/);
     }
   });
 
@@ -60,6 +62,17 @@ describe('the site in the repository', () => {
       expect(text, name).not.toMatch(/data-cg=|cg:begin/);
       expect(text, name).not.toContain(context.version);
     }
+  });
+
+  it('regenerates stale pilot privacy and cutover copy without changing the current release or install link', () => {
+    const outdated = new Map(committed);
+    outdated.set('privacy.html', (committed.get('privacy.html') ?? '').replace('https://apiv3.fansly.com/api/v1/', 'obsolete API address'));
+    outdated.set('start.html', (committed.get('start.html') ?? '').replace(/ {8}<section id="fansly-cutover">[\s\S]*?<\/section>\n\n/, ''));
+    expect(siteProblems(outdated, context, linked).sort()).toEqual(['privacy.html', 'start.html'].map((name) => `${name} is behind the version or the changelog — run \`pnpm release site\``));
+    const refreshed = renderSite(outdated, context);
+    expect(refreshed).toEqual(committed);
+    expect(renderSite(refreshed, context)).toEqual(refreshed);
+    expect(siteProblems(refreshed, context, linked)).toEqual([]);
   });
 });
 

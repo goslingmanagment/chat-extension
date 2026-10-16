@@ -24,8 +24,8 @@ import {
   type ScriptSpec,
 } from '../src/hosts/index.ts';
 
-export const EXTENSION_NAME = 'ChatGoose для ChatSpace';
-export const EXTENSION_DESCRIPTION = 'AI-помощник ChatGoose для чаттеров агентства поверх OnlyMonster ChatSpace.';
+export const EXTENSION_NAME = 'ChatGoose';
+export const EXTENSION_DESCRIPTION = 'AI-помощник для ChatSpace и Fansly: ответы, сводки и инструменты чаттера агентства.';
 export const GECKO_ID = 'chat-extension@gosling.agency';
 export const TEST_GECKO_ID = 'chat-extension-test@gosling.agency';
 export const UPDATE_URL = 'https://ext.gosling-agency.ru/chat-extension/firefox/updates.json';
