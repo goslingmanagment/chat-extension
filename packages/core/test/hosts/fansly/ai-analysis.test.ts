@@ -119,9 +119,15 @@ function contextOf(hubFeature: string, requested: number, absent: string | null)
 
 /** Runs an action whose generation the hub answers with `text` and `frames`. */
 async function run(tab: FanslyTab, hubFeature: string, action: UiAction, text: string, frames: readonly HubFrame[]): Promise<void> {
-  tab.h.script(tab.h.streamOf(hubFeature, [text], frames));
-  expect(await tab.h.dispatch(action)).toMatchObject({ ok: true });
-  await tab.h.finish();
+  // The open surface is subscribed on the page: it starts and follows the policy's current-window check (P8b3).
+  const unmount = tab.h.mount({ of: hubFeature === 'chat-review' ? 'review' : hubFeature === 'coach-chat' ? 'coach' : 'recap.view' });
+  try {
+    tab.h.script(tab.h.streamOf(hubFeature, [text], frames));
+    expect(await tab.h.dispatch(action)).toMatchObject({ ok: true });
+    await tab.h.finish();
+  } finally {
+    unmount();
+  }
 }
 
 const target = (tab: FanslyTab): string => tab.h.dock().targetHandle ?? '';
@@ -194,6 +200,29 @@ describe('[host:fansly] R20 P8c: the verdict over Recap, Review and Coach — th
     await tab.h.dispatch({ type: 'ShowRecap', length: 'short' });
     await tab.h.settle();
     expect(tab.h.recapView()).toMatchObject({ markdown: 'A short recap.', stale: { reason: 'window-miss', at: null }, refresh: { enabled: true } });
+    expect(tab.h.bg.hub.streams).toHaveLength(1);
+  });
+
+  it('[FS-TAIL-8] a pending window check updates the Recap copy even after it is reread from the hub, and its verdict survives the operation', async () => {
+    const tab = await fanslyTab();
+    let checked: ((snapshot: FanslySnapshot) => void) | undefined;
+    // The generation's proof answers immediately; the current-window check stays pending.
+    const snapshot = tab.port.snapshot.bind(tab.port);
+    let calls = 0;
+    tab.h.host.freshness = { snapshot: (chat, request) => ++calls === 1 ? snapshot(chat, request) : new Promise((resolve) => { checked = resolve; }) };
+    await recapShort(tab, NEWEST);
+    expect(tab.h.recapView().stale?.reason).toBe('unverified');
+    shareRecap(tab);
+    await tab.h.clock.advance(60_001);
+    await tab.h.dispatch({ type: 'ShowRecap', length: 'short' });
+    await tab.h.settle();
+    if (checked === undefined) throw new Error('no current-window check');
+    checked(snapshotOf({ feature: 'recap-short', conversationRef: FANSLY.group, window: 60, withText: false }));
+    await tab.h.settle();
+    expect(tab.h.recapView().stale?.reason).toBe('window-miss');
+    await tab.h.clock.advance(30 * 60_000);
+    await tab.h.ai.workspace.ops.syncChat(chatKeyOf(fanslyChat));
+    expect(tab.h.recapView().stale?.reason).toBe('window-miss');
     expect(tab.h.bg.hub.streams).toHaveLength(1);
   });
 

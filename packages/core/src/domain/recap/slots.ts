@@ -91,13 +91,13 @@ export class RecapSlots {
 
   constructor(private readonly limits: RecapSlotLimits = RECAP_SLOT_LIMITS) {}
 
-  /** Stores a copy unless the slot already holds a newer revision; returns what the slot holds after. */
-  put(key: RecapSlotKey, copy: RecapCopy): RecapCopy {
+  /** Stores a copy unless the slot holds a newer revision; a completed window check may replace its stored mark. */
+  put(key: RecapSlotKey, copy: RecapCopy, keepStoredMark = copy.source === 'hub'): RecapCopy {
     const id = slotKey(key, copy.length);
     const current = this.entries.get(id);
-    if (current !== undefined && !supersedes(copy, current)) return current;
+    if (current && !supersedes(copy, current)) return current;
     // The same artifact read again keeps the handle the UI already holds.
-    const next = current !== undefined && current.id === copy.id ? { ...copy, localId: current.localId, opId: copy.opId ?? current.opId, stale: copy.source === 'hub' ? current.stale : copy.stale } : copy;
+    const next = current?.id === copy.id ? { ...copy, localId: current.localId, opId: copy.opId ?? current.opId, stale: keepStoredMark ? current.stale : copy.stale } : copy;
     this.entries.delete(id);
     this.entries.set(id, next);
     if (this.entries.size > this.limits.maxEntries) {

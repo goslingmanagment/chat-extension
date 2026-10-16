@@ -122,18 +122,12 @@ function fixVm(ws: AiWorkspace, record: OpRecord): FixVM | null {
   };
 }
 
-/** Б2 of an operation: the question about one of its parts the person must answer first; null — nothing is asked. */
-/**
- * The mark over a finished Recap, Review or Coach answer this tab generated (R20 P8c; spec FS-TAIL-1, FS-TAIL-8,
- * FS-TAIL-10): the site's verdict on its window check alone. What the fan wrote after the generation these say by the
- * archive's lag (NEW-02), so the background's «фан написал новое» — ChatSpace's only mark — is not put over them.
- */
-export function analysisMark(ws: AiWorkspace, record: OpRecord | null): ResultMarkVM | null {
-  if (record === null) return null;
-  const mark = ws.ports.policy.verdict(record.view, record.memo.fingerprint);
-  return mark === null || mark.reason === 'fan-wrote' || mark.reason === 'archive-moved' ? null : mark;
+/** Analysis shows only the window-check verdict; later messages are shown by its archive-lag line. */
+export function analysisMark(mark: ResultMarkVM | null): ResultMarkVM | null {
+  return mark?.reason === 'fan-wrote' || mark?.reason === 'archive-moved' ? null : mark;
 }
 
+/** Б2 of an operation: the question about one of its parts the person must answer first; null — nothing is asked. */
 export function confirmVm(ws: AiWorkspace, opId: string): ConfirmVM | null {
   const pending = ws.inserts.confirmation(opId);
   return pending === null ? null : { confirmationId: pending.confirmationId, kind: pending.kind, part: pending.part, formatLoss: pending.formatLoss };

@@ -271,7 +271,10 @@ export class AiWorkspace {
   /** Subscribes to the host and the background and reads the first state. */
   start(): void {
     const { host, i18n, rpc } = this.ports;
-    const stopWatching = this.ports.policy.watch?.(host, () => this.bump());
+    const stopWatching = this.ports.policy.watch?.(host, () => {
+      for (const record of this.ops.all()) this.recaps.generated(record, true);
+      this.bump();
+    });
     if (stopWatching !== undefined) this.offs.push(stopWatching);
     this.offs.push(
       this.env.subscribe((change) => this.onEnvironment(change)),
@@ -662,16 +665,10 @@ export class AiWorkspace {
 
   // ── starting a generation ────────────────────────────────────────────────
 
-  /**
-   * The person's deep window kept by the site (R20 §12: Fansly's `settings.ext`, 3001…5000) for a start or a decision
-   * of the deep window; the planner caps it by the hub's `limits.deepMax`. None, or a failed read — undefined: the v1
-   * window (ChatSpace's policy keeps none).
-   */
+  /** The site's deep-window preference, or the v1 window when the port is absent or fails. */
   async extendedWindows(): Promise<SettingsExt['windows'] | undefined> {
-    const { policy } = this.ports;
-    if (policy.windows === undefined) return undefined;
     try {
-      return (await policy.windows()) ?? undefined;
+      return (await this.ports.policy.windows?.()) ?? undefined;
     } catch {
       return undefined;
     }
@@ -724,15 +721,14 @@ export class AiWorkspace {
     }
     const limits = freshTextLimits(feature, surface, ready.bootstrap, freshTextAdmitted(this.ports.features, ready.bootstrap, ready.page.pageId));
     // The person's deep window kept by the site, asked only by a start of the deep window (R20 §12).
-    const extendedWindows = rule.window === 'deep' || autoRecap === 'full' ? await this.extendedWindows() : undefined;
+    const extended = rule.window === 'deep' || autoRecap === 'full' ? await this.extendedWindows() : undefined;
     // The site's proof of the open chat (R20 F10): on ChatSpace the visible tail, read only when the start may carry
     // fresh text. A proof that fails is no proof: the start goes on without one.
     let proof: unknown = null;
     try {
-      const pending = policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits, messageCount: windowFor(feature, request.options.window, ready.settings, ready.bootstrap, extendedWindows) });
-      if (pending !== null) proof = await pending;
+      proof = await policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits, messageCount: windowFor(feature, request.options.window, ready.settings, ready.bootstrap, extended) });
     } catch {
-      proof = null;
+      // A missing or rejected proof leaves the start unverified.
     }
     // The site's pre-check once more, now with the proof: a site whose rule needs it refuses here, before the token.
     const late = featureGate(feature, { ...facts, proof }, policy);
@@ -754,9 +750,9 @@ export class AiWorkspace {
       draft,
       fields: policy.fields(proof),
       freshText: limits !== null,
-      ...(request.coachHistory === undefined ? {} : { coachHistory: request.coachHistory }),
-      ...(autoRecap === undefined ? {} : { autoRecap }),
-      ...(extendedWindows === undefined ? {} : { extendedWindows }),
+      coachHistory: request.coachHistory,
+      autoRecap,
+      extendedWindows: extended,
       ...(original === undefined ? {} : { regenerateOf: original.view.opId, splitWanted: original.memo.split }),
       ...(request.force === true ? { force: true } : {}),
     });

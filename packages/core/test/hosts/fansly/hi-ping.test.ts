@@ -172,6 +172,19 @@ describe('[host:fansly] R20 P8c: Hi with the proof of the conversation’s start
     expect([admitted.ok, admitted.request?.body.startProof?.personalCount]).toEqual([true, 10]);
   });
 
+  it('[ER-038] Hi refusals too_many_personal and history_unproven show the greeting gate’s words on Fansly', async () => {
+    for (const reason of ['too_many_personal', 'history_unproven']) {
+      const tab = await fanslyTab(greeted());
+      tab.h.script({ kind: 'http-error', status: 400, body: { error: 'gate_hi_greeting_limit', reason } });
+      expect(await tab.h.generate('hi')).toMatchObject({ ok: true });
+      await tab.h.finish();
+      expect(tab.h.dock().result).toMatchObject({
+        feature: 'hi', state: 'failed',
+        error: { code: 'CG-GATE-HI', title: 'Это уже диалог', body: 'Hi — для первого сообщения. Здесь нужен Reply.' },
+      });
+    }
+  });
+
   it('[FS-AI-2] a hub without hi-start-proof-v1 (before HF-5): Hi is «хаб пока не умеет» — not offered, MAIN and the hub asked nothing; Reply goes', async () => {
     const before: Bootstrap = { ...BOOTSTRAP, capabilities: CLIENT_HUB_CAPABILITY_NAMES.filter((capability) => capability !== 'hi-start-proof-v1' && capability !== 'client-health-perf-v1') };
     const held = greeted();

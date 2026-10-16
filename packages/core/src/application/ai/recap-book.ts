@@ -18,6 +18,7 @@ import { type RecapLength } from '@cg/contracts/vm';
 import { RecapSlots, copiesOfShared, copyOfResult, saveAnswered, saveStarted, type RecapCopy, type RecapSaveState, type RecapSlotKey } from '../../domain/recap';
 import { type OpRecord } from './op-store';
 import { type AiPorts } from './ports';
+import { analysisMark } from './result-vm';
 
 /** The recap status of a chat is asked this long after the chat settled, and kept this long. */
 export const RECAP_STATUS = { settleMs: 1_500, ttlMs: 10 * 60_000 } as const;
@@ -96,8 +97,8 @@ export class RecapBook {
     return this.slots.both(key);
   }
 
-  private remember(key: RecapSlotKey, copy: RecapCopy): RecapCopy {
-    const stored = this.slots.put(key, copy);
+  private remember(key: RecapSlotKey, copy: RecapCopy, keepStoredMark?: boolean): RecapCopy {
+    const stored = this.slots.put(key, copy, keepStoredMark);
     this.owners.set(stored.id, key);
     // What the slots no longer hold (a newer recap took the slot, the oldest entries were evicted) keeps nothing here.
     for (const [id, owner] of this.owners) {
@@ -127,17 +128,16 @@ export class RecapBook {
    * change) is never filed under the current persona: `recap.read` tells
    * what the hub holds for it.
    */
-  generated(record: OpRecord): RecapCopy | null {
+  generated(record: OpRecord, refreshOnly?: boolean): RecapCopy | null {
     const { view } = record;
     const { clock, ids, policy } = this.deps.ports;
     const personaDefinitionId = record.memo.personaDefinitionId;
     if (personaDefinitionId === null) return null;
-    const mark = policy.verdict(view, record.memo.fingerprint);
-    const stale = mark === null || mark.reason === 'fan-wrote' || mark.reason === 'archive-moved' ? null : mark;
-    const copy = copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now(), stale });
-    if (copy === null) return null;
+    // A completed asynchronous window check updates only an existing copy, preserving its handles and timestamps.
+    const copy = refreshOnly ? this.byOp(view.opId) : copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
+    if (!copy) return null;
     const { binding, fanRef, conversationRef } = view.target;
-    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, ...(conversationRef === fanRef ? {} : { conversationRef }), personaDefinitionId }, copy);
+    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, ...(conversationRef === fanRef ? {} : { conversationRef }), personaDefinitionId }, { ...copy, stale: analysisMark(policy.verdict(view, record.memo.fingerprint)) }, false);
     // The background's saver is on it for the tab that owns the operation; its toast ends the wait.
     if (stored.length === 'full' && record.own && !this.saves.has(stored.id)) this.saves.set(stored.id, saveStarted(clock.now()));
     this.deps.changed();

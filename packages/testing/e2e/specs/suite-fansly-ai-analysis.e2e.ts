@@ -139,7 +139,7 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
   });
 
-  it('[FS-TAIL-8] [FS-TAIL-10] [NEW-02] Coach: a question answered from the hub’s history; the answer marked while the hub lacks the window’s newest message, «Ещё раз» asks it again; then the fan writes — «архив отстаёт» in Coach', async function () {
+  it('[AI-080] [FS-TAIL-8] [FS-TAIL-10] [NEW-02] Coach: a question answered from the hub’s history; the answer marked while the hub lacks the window’s newest message, «Ещё раз» asks it again; then the fan writes — «архив отстаёт» in Coach', async function () {
     this.timeout(180_000);
     // The hub lags the page by its newest message (the fan wrote, the chatter asks at once).
     const window = (await streamsSince(0)).at(-1)?.body.coverageCheck?.window ?? [];

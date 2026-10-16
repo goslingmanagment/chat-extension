@@ -67,7 +67,7 @@ export function copiesOfShared(shared: SharedRecaps, ids: CopyIds): { readonly s
  * become on the hub. Its id is the generation ref of the result; nothing of
  * it is private to this chatter.
  */
-export function copyOfResult(view: Pick<OpView, 'opId' | 'feature' | 'result' | 'endedAt'>, ids: CopyIds): RecapCopy | null {
+export function copyOfResult(view: Pick<OpView, 'opId' | 'feature' | 'result' | 'endedAt'>, ids: Omit<CopyIds, 'stale'>): RecapCopy | null {
   const result = view.result;
   if (result === undefined || result.kind !== 'recap' || (view.feature !== 'recap' && view.feature !== 'recap-short')) return null;
   const length: RecapLength = view.feature === 'recap' ? 'full' : 'short';
@@ -83,7 +83,7 @@ export function copyOfResult(view: Pick<OpView, 'opId' | 'feature' | 'result' | 
     savedToProfile: length === 'full' ? false : null,
     source: 'generated',
     opId: view.opId,
-    stale: ids.stale ?? null,
+    stale: null,
     storedAt: ids.now,
   };
 }

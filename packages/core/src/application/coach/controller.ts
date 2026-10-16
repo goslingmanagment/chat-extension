@@ -249,10 +249,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     let recap: 'short' | 'full' | null = null;
     if (mode !== 'off' && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
       // The depth a full recap is built at takes the person's deep window the site keeps (R20 §12): one built at it is no stale one.
-      const [read, extendedWindows] = await Promise.all([ws.recaps.readStatus(ws.slotKey(ready)), ws.extendedWindows()]);
+      const [read, extended] = await Promise.all([ws.recaps.readStatus(ws.slotKey(ready)), ws.extendedWindows()]);
       // The person left the chat while the status was read: nothing is started for another fan.
       if (stillOpen(session) === null) return giveUp({ code: 'CG-CONTEXT-CHANGED' });
-      const deepWindow = windowFor('recap', undefined, ready.settings, ready.bootstrap, extendedWindows);
+      const deepWindow = windowFor('recap', undefined, ready.settings, ready.bootstrap, extended);
       recap = autoRecapFor({ mode, attempted: false, hasExchanges: false, status: read.ok ? read.status : null, deepWindow });
     }
 
@@ -365,7 +365,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
   function exchangeVm(exchange: CoachExchange, outside: ReadonlySet<string>, situation: Situation, handle: string | null, askReason: ReasonVM | null): CoachTurnVM {
     const record = ws.ops.get(exchange.opId);
     // The site's verdict over the answer (R20 P8c): its «Ещё раз» asks the same question again, when a question may be asked.
-    const mark = analysisMark(ws, record);
+    const mark = analysisMark(record === null ? null : ws.ports.policy.verdict(record.view, record.memo.fingerprint));
     const again = mark === null || handle === null ? null : button('common.again', retryAction(handle, exchange), { enabled: askReason === null, reason: askReason });
     const state = [exchangeState(exchange, outside.has(exchange.turnId), record, situation), mark?.reason ?? '', again === null ? '' : `${handle ?? ''}:${askReason?.id ?? ''}`].join('|');
     const known = built.get(exchange.turnId);

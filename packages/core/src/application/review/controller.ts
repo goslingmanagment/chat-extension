@@ -148,7 +148,7 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
       // The sheet is the opened result: the same footer in the sheet and in the window, so unfolding moves nothing.
       debug: view === null ? null : debugVm(view, { enabled: debugOn, opened: true, now, i18n }),
       // The site's verdict over the finished Review (R20 P8c): its «Ещё раз» is `regenerate`.
-      stale: result === null ? null : analysisMark(ws, record),
+      stale: result === null || record === null ? null : analysisMark(ws.ports.policy.verdict(record.view, record.memo.fingerprint)),
     };
   }
 

@@ -89,7 +89,7 @@ export interface StartPlanInput {
   readonly options: UserOptions;
   readonly settings: SettingsV1;
   /** R20 §12: the wish from settings.ext, when available; never written into or repaired as settings v1. */
-  readonly extendedWindows?: SettingsExt['windows'];
+  readonly extendedWindows?: SettingsExt['windows'] | undefined;
   readonly bootstrap: Bootstrap;
   /** The one-off tone chosen for this chat (Б1); used by Reply only. */
   readonly tone: Tone | null;
@@ -102,7 +102,7 @@ export interface StartPlanInput {
   readonly fields?: AiStartFields;
   /** The page admits fresh page text (`freshTextAdmitted`); absent — it does not. */
   readonly freshText?: boolean;
-  readonly coachHistory?: readonly CoachTurn[];
+  readonly coachHistory?: readonly CoachTurn[] | undefined;
   /** Previews: the freshness checkpoint of the Generate click (X8). */
   readonly checkpoint?: FreshnessCheckpoint;
   /** «Ещё раз»: the operation this one repeats. */
@@ -112,7 +112,7 @@ export interface StartPlanInput {
   /** «Ещё раз» keeps the Split snapshot of the original instead of the setting. */
   readonly splitWanted?: boolean;
   /** AI-096: the recap a Coach turn builds first — the same start, one admission (§7 «один составной слот»). */
-  readonly autoRecap?: 'short' | 'full';
+  readonly autoRecap?: 'short' | 'full' | undefined;
 }
 
 export type StartPlan = { readonly ok: true; readonly start: StartOp } | { readonly ok: false; readonly code: CgCode };
