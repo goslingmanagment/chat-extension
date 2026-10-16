@@ -218,6 +218,7 @@ function feedConversationOf(info: PreviewTargetInfo, platform: Platform | null):
 }
 
 export interface PreviewControllerDeps {
+  readonly previewSend?: boolean;
   readonly rpc: TabRpc;
   readonly host: HostPort;
   readonly i18n: I18n;
@@ -252,6 +253,9 @@ export interface PreviewController extends SurfaceController<'preview'> {
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
   const { rpc, host, i18n, clock, ids, context, surfaces, navigator } = deps;
+  // A host without preview-send has no X8 journal. Its gesture-linked humanSend
+  // still names the insert: remember that provenance before navigation can write.
+  const manualInserts = new Map<string, { readonly opId: string; readonly part: PartRef }>();
 
   const targets = new Map<TargetHandle, TargetState>();
   let kept: KeptFeed[] = [];
@@ -817,6 +821,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   /** Reads what the background's journal knows of the sends to a fan; false — it did not answer (or the fan's card is gone). */
   async function loadSends(pageId: number, fanRef: string): Promise<boolean> {
+    if (deps.previewSend === false) return true;
     const atEpoch = epoch;
     const uncertainNow = new Set<string>();
     for (const track of tracks.values()) {
@@ -1161,7 +1166,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const settled = row.s === 'sent' || row.s === 'uncertain' || row.s === 'queued' || row.s === 'sending' || row.s === 'accepted';
     const order = group === null || settled ? null : partOrder(group, index, attempts);
     return {
-      send: row,
+      ...(deps.previewSend === false && row.s !== 'sent' ? {} : { send: row }),
       order,
       openInsert: openInsertRow({ row, waitingUntil: track.openInsert?.key === key ? track.openInsert.until : null, blocked: openInsertBlock(track, v, sends) }),
     };
@@ -1282,6 +1287,19 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // A send holds the fan on every card of the fan, not only on the one of this result.
     changed();
     if (!inFlight(view.state)) void refreshPreflight(track);
+  }
+
+  /** Receipt and echo already proved this human send; no dispatch or X8 read. */
+  function manualSent(opId: string, part: PartRef, platformMessageId: string): void {
+    if (disposed || deps.previewSend !== false) return;
+    const track = tracks.get(opId);
+    if (track === undefined || identityChanged(track) || partsOfResult(track.mirror.done?.result, part.variant ?? 0)?.[part.index] === undefined) return;
+    const key = partKey(part.variant ?? 0, part.index);
+    if (track.attempts.get(key)?.view.state === 'sentObserved') return;
+    const attemptId = ids.uuid();
+    const view: SendAttemptView = { attemptId, state: 'sentObserved', platformMessageId };
+    track.attempts.set(key, { attemptId, view, sentAt: nowIso(), uncertainSince: null });
+    afterAttempt(track, view);
   }
 
   // ── view model ──
@@ -1446,7 +1464,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         fanWroteAt: info.fanWroteAt,
         newcomer: info.newcomer,
       },
-      openChat: button('common.openChat', openChat, chatUnknown ? { enabled: false, reason: reason('conversation-unknown') } : {}),
+      openChat: button('common.openChat', openChat, chatUnknown && deps.directories[source]?.canResolve !== true ? { enabled: false, reason: reason('conversation-unknown') } : {}),
       close: CLOSE_PREVIEW,
       unread: sendStarted || sends.started ? 'read-after-send' : 'kept',
       archive: {
@@ -1645,8 +1663,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (sender === null || view === null || text === undefined || group === null) return refused(type, localError('CG-SEND-PART', i18n));
     const key = partKey(variant, index);
     const rows = rowsOf(track, variant, index);
+    if (rows.send === undefined) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
     if (!clickable(rows.send, rows.order)) {
-      const code: CgCode = rows.order !== null ? 'CG-SEND-BUSY' : rows.send.s === 'unavailable' || rows.send.s === 'rejected' ? rows.send.code : rows.send.s === 'held-stale' ? 'CG-SEND-STALE' : rows.send.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY';
+      const code: CgCode = rows.order !== null ? 'CG-SEND-BUSY' : rows.send.s === 'unavailable' || rows.send.s === 'rejected' ? rows.send.code : rows.send.s === 'held-stale' ? 'CG-SEND-STALE' : rows.send?.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY';
       return refused(type, localError(code, i18n));
     }
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
@@ -1755,7 +1774,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (journal !== null || tracks.get(track.opId) !== track) return refused(type, localError(journal ?? 'CG-CONTEXT-CHANGED', i18n));
     const rows = rowsOf(track, variant, index);
     if (rows.openInsert.s !== 'available') {
-      const code: CgCode = rows.openInsert.s === 'unavailable' ? reasonCode(rows.openInsert.reason) : rows.send.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-INSERT-FAILED';
+      const code: CgCode = rows.openInsert.s === 'unavailable' ? reasonCode(rows.openInsert.reason) : rows.send?.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-INSERT-FAILED';
       return refused(type, localError(code, i18n));
     }
     // The text was written for another sign-in, binding or persona: it is not put into a chat (the click says why).
@@ -1797,8 +1816,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     touchDesk(track);
     changedFor(track.handle);
 
+    if (deps.previewSend === false) {
+      manualInserts.set(insert.intent.intentId, { opId: track.opId, part });
+      if (manualInserts.size > 64) manualInserts.delete(manualInserts.keys().next().value ?? '');
+    }
     // A bridge failure of a write may have run: the navigation failed, the insert's outcome is unknown and is never repeated.
     const receipt = await host.navigate(navigation.intent, { signal: abort }).catch((): NavigationReceipt => ({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } }));
+    if (receipt.insert === null || receipt.insert.state === 'rejected') manualInserts.delete(insert.intent.intentId);
     if (receipt.state === 'navigated') closeForNavigation();
     const applied = receipt.insert;
     if (applied !== null) void rpc.request('op.reportInsert', { opId: track.opId, part, receipt: applied });
@@ -1854,6 +1878,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return state !== undefined && SOURCES.some((s) => surfaces.current().preview[s] === handle) ? state : null;
   };
 
+  let previewOpenRun = 0;
   function dispatch(action: UiAction): Promise<ActionReceipt> | null {
     const type = action.type;
     if (action.type === 'OpenPreview') {
@@ -1861,8 +1886,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (parsed === null) return null;
       const info = deps.directories[parsed.source]?.resolve(action.targetHandle) ?? null;
       if (info === null) return Promise.resolve(refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n)));
-      surfaces.setPreview(parsed.source, action.targetHandle);
-      return Promise.resolve(done(type, 'opened'));
+      const atEpoch = epoch;
+      const run = ++previewOpenRun;
+      const directory = deps.directories[parsed.source];
+      if (directory?.prepare === undefined) {
+        surfaces.setPreview(parsed.source, action.targetHandle);
+        return Promise.resolve(done(type, 'opened'));
+      }
+      return directory.prepare(action.targetHandle).catch(() => undefined).then(() => {
+        if (disposed || epoch !== atEpoch || run !== previewOpenRun) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+        surfaces.setPreview(parsed.source, action.targetHandle);
+        return done(type, 'opened');
+      });
     }
     if (action.type === 'Navigate') {
       const to = action.to;
@@ -1939,7 +1974,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         if (!rule.allowed) return Promise.resolve(refused(type, localError(rule.reason === null ? 'CG-SEND-BUSY' : reasonCode(rule.reason), i18n)));
         return generate(type, state, track.feature, {}, track);
       }
-      if (action.type === 'SendPart') return sendPart(type, track, action.variant ?? 0, action.part);
+      if (action.type === 'SendPart') return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, track, action.variant ?? 0, action.part);
       return openAndInsert(type, track, action.variant ?? 0, action.part);
     }
     if (action.type === 'ReloadView') {
@@ -1959,6 +1994,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const offs: (() => void)[] = [];
   offs.push(
     surfaces.subscribe((state, previous) => {
+      if ((!state.spenders && previous.spenders) || (!state.newcomers && previous.newcomers)) previewOpenRun++;
       for (const s of SOURCES) {
         const before = previous.preview[s];
         const after = state.preview[s];
@@ -1981,6 +2017,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         docked.clear();
         currentOp.clear();
         attemptOwner.clear();
+        manualInserts.clear();
         unclaimed.clear();
         listed.clear();
         for (const s of SOURCES) surfaces.setPreview(s, null);
@@ -2008,6 +2045,16 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       } else if (connection !== 'connecting') portWasDown = true;
     }) ?? ((): void => undefined),
     host.subscribe((event: HostEvent) => {
+      if (event.type === 'humanSend' && deps.previewSend === false) {
+        const { draft, platformMessageId, chat } = event.fact;
+        if (platformMessageId === null || draft.insertIntentId === null || draft.editedSinceInsert === null) return;
+        const origin = manualInserts.get(draft.insertIntentId);
+        const track = origin === undefined ? undefined : tracks.get(origin.opId);
+        if (origin === undefined || track === undefined || chatKeyOf(track.target.chat) !== chatKeyOf(chat)) return;
+        manualInserts.delete(draft.insertIntentId);
+        manualSent(origin.opId, origin.part, platformMessageId);
+        return;
+      }
       if (event.type === 'route') {
         const pending = pendingInsert;
         if (pending !== null && event.route.chat !== null) {
@@ -2081,6 +2128,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     },
     results: {
       part: dockedPart,
+      manualSent,
       async sync(opId): Promise<BoardSync> {
         const track = tracks.get(opId);
         if (track === undefined || !docked.has(opId)) return 'gone';
@@ -2105,6 +2153,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       dockListeners.clear();
       offStore?.();
       draftListeners.clear();
+      manualInserts.clear();
       for (const off of offs) off();
       for (const target of targets.values()) stopPoll(target);
       for (const track of tracks.values()) clearHoldTimers(track);

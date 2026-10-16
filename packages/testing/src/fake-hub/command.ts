@@ -25,6 +25,7 @@ const either =
 
 const SEED_FIELDS: Readonly<Record<string, FieldCheck>> = {
   fanRef: (value) => typeof value === 'string' && /^[1-9]\d{0,29}$/.test(value),
+  conversationRef: either((value) => typeof value === 'string' && /^[1-9]\d{0,29}$/.test(value), oneOf(null)),
   username: isString,
   displayName: either(isString, oneOf(null)),
   lifetimeUsd: isNumber,

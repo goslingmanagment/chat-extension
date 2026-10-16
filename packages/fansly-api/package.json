@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
-  "exports": { ".": "./src/index.ts" },
+  "exports": { ".": "./src/index.ts", "./spenders": "./src/spenders.ts" },
   "dependencies": { "@cg/contracts": "workspace:*" }
 }

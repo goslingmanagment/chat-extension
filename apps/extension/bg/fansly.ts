@@ -59,10 +59,11 @@ import { createFanslyOperations } from '@cg/core/services/hosts/fansly/voice-ope
 import { featureSlice } from '@cg/core/domain/features';
 import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
-import { createFanslyApi, type FanslyApi } from '@cg/fansly-api';
+import { createFanslyApi, FanslyApiError, type FanslyApi } from '@cg/fansly-api';
+import { createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
-import { startFanslyApiProbe } from './fansly/api-probe';
+import { fanslyStandClient, startFanslyApiProbe } from './fansly/api-probe';
 import { createRelayService } from './fansly/relay';
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
@@ -124,6 +125,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const api: FanslyApi | null = session === undefined ? null : createFanslyApi({ session, storage: kit.storage.session, transport: relay.hub, now: () => kit.clock.now(), warn: (reason) => kit.log.service({ level: 'warn', scope: 'fansly.pacer', msg: 'request pacing state unavailable; cooling all creators', fields: { reason } }) });
   await api?.pacer.ready;
   const unprobe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? startFanslyApiProbe(kit, session, api, relay.hub) : () => undefined;
+  const spenders = api === null ? null : createSpendersLookup(__CG_TEST_HOSTS__ && session !== undefined ? fanslyStandClient(kit, session, api) : api.client, () => kit.clock.now(), kit.storage.local);
   const offSettings = kit.settingsExt?.onChange(() => { void refreshSettings(); });
   await refreshSettings();
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
@@ -136,6 +138,22 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     const tab = sender.tabSessionId;
     const relayed = relay.handle(type, payload, sender);
     if (relayed !== null) return relayed;
+    if (type === 'fansly.spenders.names' || type === 'fansly.spenders.resolve') {
+      if (spenders === null) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
+      const account = (payload as { hostAccountId: string }).hostAccountId;
+      const template = session?.forTab(sender.tabId);
+      if (template === null || template === undefined || (template.canonicalId ?? template.legacyId) !== account) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
+      try {
+        if (type === 'fansly.spenders.names') {
+          const request = payload as FanslyTabRequestPayload<'fansly.spenders.names'>;
+          return ok({ ok: true, names: await spenders.names(request.hostAccountId, request.fanRefs) });
+        }
+        const request = payload as FanslyTabRequestPayload<'fansly.spenders.resolve'>;
+        return ok({ ok: true, groupId: await spenders.resolve(request.hostAccountId, request) });
+      } catch (error) {
+        return ok({ ok: false, error: error instanceof FanslyApiError ? error.toWire() : { code: 'CG-FAN-REQUEST' } });
+      }
+    }
     switch (type) {
       case 'fansly.ops.start': {
         const start = payload as FanslyTabRequestPayload<'fansly.ops.start'>;
@@ -181,7 +199,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     },
     onTabMessage: () => Promise.resolve({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     async onEvent(event) {
-      if (event.kind === 'clear-finished') await vault.sweep();
+      if (event.kind === 'clear-finished') { await spenders?.clear(); await vault.sweep(); }
+      if (event.kind === 'session' && event.ownerChanged) await spenders?.clear();
     },
     facts: () => ({}),
     dispose: async () => {
@@ -190,6 +209,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       offSettings?.();
       unplug();
       unprobe();
+      await spenders?.flush();
       await api?.pacer.flush();
     },
   };

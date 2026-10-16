@@ -10,13 +10,13 @@
 // (`conversation.platformConversationId`). On ChatSpace the conversation is
 // the fan, as before (its requests are pinned as recorded on main elsewhere).
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { type ChatRef, type HubRouteKey, type PersonaCatalog, type SettingsV1, type SpenderListItem, type SpendersPage, type Surface } from '@cg/contracts';
 import { Surfaces, fanHandle, type BoardSwitch, type ChatNavigator, type PageContextPort, type PageContextState, type PreviewDirectory, type PreviewTargetInfo } from '@cg/core/application/boards';
 import { createFanPanelController } from '@cg/core/application/fanpanel';
 import { createPreviewController } from '@cg/core/application/preview';
-import { createSpendersController } from '@cg/core/application/spenders';
+import { createSpendersController, type SpendersSource } from '@cg/core/application/spenders';
 import { createI18n } from '@cg/core/domain/i18n';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, memory, startSnapshot } from '@cg/testing/host';
@@ -96,16 +96,80 @@ const rowOf = (rank: number, fan: string, platform: 'onlyfans' | 'fansly', conve
 };
 
 describe('[host:fansly] R20 P8a: the Spenders board names the chat of a Fansly fan from the hub’s own row', () => {
-  async function board(context: PageContextPort, rows: readonly SpenderListItem[]) {
+  async function board(context: PageContextPort, rows: readonly SpenderListItem[], source?: SpendersSource) {
     const clock = new FakeClock(NOW_MS);
     const bg = new BoardsBackground({ clock, call: spendersHub(rows), session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId, features: featuresOfBoth });
     const navigator = recordingNavigator();
-    const spenders = createSpendersController({ rpc: bg.rpc, i18n, clock, context, surfaces: new Surfaces(), navigator, timeZone: 'Europe/Moscow' });
+    const spenders = createSpendersController({ rpc: bg.rpc, i18n, clock, context, surfaces: new Surfaces(), navigator, timeZone: 'Europe/Moscow', statistics: false, ...(source === undefined ? {} : { source }) });
     spenders.subscribe({ of: 'spenders.board' }, () => undefined);
     await spenders.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } });
     await settle(20);
-    return { spenders, navigator };
+    return { spenders, navigator, bg };
   }
+
+  it.each(['Hub alias', FANSLY.fan])('[FS-SPD-1] [SP-012] [SP-032] [SP-040] hub alias precedes display/username; known names and groups ask nothing of the site; no statistics or queue on Fansly (%s)', async (alias) => {
+    const row = rowOf(0, FANSLY.fan, 'fansly', FANSLY.group);
+    const source = { names: vi.fn(() => Promise.resolve([])), cached: vi.fn(() => Promise.resolve(null)), resolve: vi.fn(() => Promise.resolve(null)) };
+    const { spenders, bg } = await board(fanslyContext, [{ ...row, fan: { ...row.fan, pageAlias: alias, displayName: 'Display', username: 'username' } }], source);
+    const handle = fanHandle('spenders', FANSLY_PAGE, FANSLY.fan);
+    await spenders.directory.prepare?.(handle);
+    expect(spenders.directory.resolve(handle)?.name).toBe(alias);
+    expect(source.names).not.toHaveBeenCalled();
+    expect(source.cached).not.toHaveBeenCalled();
+    expect(source.resolve).not.toHaveBeenCalled();
+    expect(spenders.getSnapshot({ of: 'spenders.board' }).statistics).toBe(false);
+    expect(spenders.command('toggle-stats', null)).toBeNull();
+    await spenders.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    expect(bg.requests.filter(({ type }) => type === 'spenders.stats' || type === 'spenders.queue')).toEqual([]);
+    spenders.dispose();
+  });
+
+  it('[SP-037] passive cache supplies a missing group; only an open-chat click can search; the alias never becomes the search term', async () => {
+    const row = rowOf(0, FANSLY.fan, 'fansly', null);
+    const source = { names: vi.fn(() => Promise.resolve([])), cached: vi.fn(() => Promise.resolve(null as string | null)), resolve: vi.fn(() => Promise.resolve(FANSLY.group)) };
+    const { spenders, navigator } = await board(fanslyContext, [{ ...row, fan: { ...row.fan, pageAlias: 'Alias', displayName: 'Search me', username: 'handle' } }], source);
+    const handle = fanHandle('spenders', FANSLY_PAGE, FANSLY.fan);
+    await spenders.directory.prepare?.(handle);
+    expect(source.resolve).not.toHaveBeenCalled();
+    await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: handle } });
+    expect(source.resolve).toHaveBeenCalledWith(fanslyBinding.platformAccountId, { fanRef: FANSLY.fan, displayName: 'Search me', username: 'handle' });
+    expect(navigator.opened[0]?.conversationRef).toBe(FANSLY.group);
+    expect(spenders.directory.resolve(handle)?.conversationRef).toBe(FANSLY.group);
+    spenders.dispose();
+    source.cached.mockResolvedValue(FANSLY.group);
+    source.resolve.mockClear();
+    const cached = await board(fanslyContext, [row], source);
+    await cached.spenders.directory.prepare?.(handle);
+    expect(cached.spenders.directory.resolve(handle)?.conversationRef).toBe(FANSLY.group);
+    expect(source.resolve).not.toHaveBeenCalled();
+    cached.spenders.dispose();
+  });
+
+  it('an unavailable page context refuses before any passive lookup or site request', async () => {
+    let state = fanslyContext.current();
+    const context = { ...fanslyContext, current: () => state };
+    const source = { names: vi.fn(() => Promise.resolve([])), cached: vi.fn(() => Promise.resolve(null)), resolve: vi.fn(() => Promise.resolve(FANSLY.group)) };
+    const { spenders, navigator } = await board(context, [rowOf(0, FANSLY.fan, 'fansly', null)], source);
+    state = { ...state, phase: 'blocked', blocker: { code: 'CG-RUNTIME-UNREACHABLE' } };
+    expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', FANSLY_PAGE, FANSLY.fan) } })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(source.cached).not.toHaveBeenCalled();
+    expect(source.resolve).not.toHaveBeenCalled();
+    expect(navigator.opened).toEqual([]);
+    spenders.dispose();
+  });
+
+  it('closing the board while a group lookup waits prevents its late navigation', async () => {
+    let finish!: (group: string) => void;
+    const source: SpendersSource = { names: () => Promise.resolve([]), cached: () => Promise.resolve(null), resolve: () => new Promise((resolve) => { finish = resolve; }) };
+    const { spenders, navigator } = await board(fanslyContext, [rowOf(0, FANSLY.fan, 'fansly', null)], source);
+    const opening = spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', FANSLY_PAGE, FANSLY.fan) } });
+    await settle(3);
+    await spenders.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
+    finish(FANSLY.group);
+    expect(await opening).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(navigator.opened).toEqual([]);
+    spenders.dispose();
+  });
 
   it('a row with the hub’s group gives the preview that group; a row without one gives none — never the fan’s id; «Открыть чат» opens the group or nothing', async () => {
     const { spenders, navigator } = await board(fanslyContext, [rowOf(0, FANSLY.fan, 'fansly', FANSLY.group), rowOf(1, STRANGER, 'fansly', null)]);

@@ -95,7 +95,7 @@ export function partsOfResult(result: OpResult | undefined, variant: number): re
 }
 
 export interface PartRows {
-  readonly send: PreviewSendView;
+  readonly send?: PreviewSendView;
   readonly order: SendOrderVM | null;
   readonly openInsert: OpenInsertVM;
 }
@@ -127,7 +127,7 @@ export interface PreviewResultInput {
 
 function partVM(input: PreviewResultInput, opId: string, variant: number | null, index: number, text: string, count: number, firstOpen: number): PartVM {
   const rows = input.rows(variant, index);
-  const sent = rows.send.s === 'sent';
+  const sent = rows.send?.s === 'sent';
   return {
     index,
     variant,
@@ -143,7 +143,7 @@ function partVM(input: PreviewResultInput, opId: string, variant: number | null,
     copyError: input.copy(variant, index) === 'failed' ? errorOf({ code: 'CG-CLIPBOARD' }, input.i18n) : null,
     copyHandle: partHandle(opId, variant, index),
     collapsed: sent,
-    send: rows.send,
+    ...(rows.send === undefined ? {} : { send: rows.send }),
     sendOrder: rows.order,
     openInsert: rows.openInsert,
   };
@@ -151,8 +151,8 @@ function partVM(input: PreviewResultInput, opId: string, variant: number | null,
 
 function partList(input: PreviewResultInput, opId: string, variant: number | null, texts: readonly string[]): PartVM[] {
   // The first part that is not on its way and not delivered is the next one to act on.
-  const states = texts.map((_, index) => input.rows(variant, index).send.s);
-  const firstOpen = states.findIndex((s) => s === 'available' || s === 'unavailable' || s === 'held-stale' || s === 'rejected');
+  const states = texts.map((_, index) => input.rows(variant, index).send?.s);
+  const firstOpen = states.findIndex((s) => s === undefined || s === 'available' || s === 'unavailable' || s === 'held-stale' || s === 'rejected');
   return texts.map((text, index) => partVM(input, opId, variant, index, text, texts.length, firstOpen));
 }
 

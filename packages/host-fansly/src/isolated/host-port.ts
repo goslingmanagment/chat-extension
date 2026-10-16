@@ -123,6 +123,8 @@ export interface FanslyPort extends FanslyHostPort {
   readonly ready: Promise<void>;
   /** The identity reads and writes are checked against now; null when there is none. */
   identity(): HostIdentity | null;
+  /** A direct group the page already received, under its current creator. No site request. */
+  groupForFan(creatorId: string, fanId: string): Promise<string | null>;
   probe(): FanslyContractReport;
   /** «Проверить»: MAIN's state and the anchors read again — nothing of Fansly's network. */
   recheck(): Promise<FanslyContractReport>;
@@ -719,6 +721,11 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     platform: FANSLY_PLATFORM,
     ready,
     identity,
+    async groupForFan(creatorId, fanId) {
+      if (bridge === null || creator !== creatorId || disposed) return null;
+      const taken = await generation.under(() => bridge.request('fx.groupForFan', { creatorId, fanId }));
+      return taken.ok && taken.fresh() && creator === creatorId && !disposed ? taken.value.groupId : null;
+    },
     previewSend: null,
     freshness: {
       snapshot: (...args) => {

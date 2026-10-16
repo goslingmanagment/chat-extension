@@ -76,6 +76,7 @@ import {
   REQ_SNAPSHOT,
   REQ_STATE,
   REQ_WINDOW,
+  REQ_GROUP_FOR_FAN,
   RESPONSE_MAX_CHARS,
   RESPONSE_NOW_CHARS,
   SILENT_MS,
@@ -94,7 +95,7 @@ import {
 } from './protocol';
 import { classifyAddress, createResponseQueue, readResponse, type ApiCall, type Deferred, type ResponseRead } from './responses';
 import { createSendGesture, type Gesture } from './send-gesture';
-import { createViews, isFocus, isSnapshotRequest, isWindowRequest, type Views } from './snapshot';
+import { createViews, isFocus, isSnapshotRequest, isWindowRequest, isGroupForFan, type Views } from './snapshot';
 import { installWsTap, type TapNatives } from './ws-tap';
 import { installXhrTap } from './xhr-tap';
 
@@ -648,6 +649,12 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         chatSent = '';
         context.setTimer(end, 0);
         return null;
+      }
+      if (t === REQ_GROUP_FOR_FAN) {
+        if (!isGroupForFan(payload)) return ERR_BAD_REQUEST;
+        const asked = payload as { creatorId: string; fanId: string };
+        const { identity } = world();
+        return { groupId: identity.creator === asked.creatorId ? identity.groupForFan(asked.fanId) : null };
       }
       if (t === REQ_WINDOW) {
         if (!isWindowRequest(payload)) return ERR_BAD_REQUEST;

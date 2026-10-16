@@ -87,7 +87,8 @@ function waitsForEarlierPart(part: PartVM): boolean {
  */
 export function offersOpenInsert(part: PartVM): boolean {
   const send = part.send;
-  if (send === undefined || waitsForEarlierPart(part)) return false;
+  if (send === undefined) return part.openInsert !== undefined && part.openInsert.s !== 'hidden';
+  if (waitsForEarlierPart(part)) return false;
   return send.s === 'available' || send.s === 'unavailable' || (send.s === 'rejected' && !send.canRetry);
 }
 
@@ -198,7 +199,17 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
   const hints = useHints();
   const dispatch = useDispatch();
   const send = part.send;
-  if (send === undefined) return null;
+  if (send === undefined) {
+    // A host with no send from the preview (Fansly: no X8 there, R20 P9e): «Открыть и вставить» and «Копировать»
+    // only — quiet, as next to a refused part (ui-design §4.13); nothing blue, nothing reaches the fan from here.
+    if (part.openInsert === undefined) return null;
+    return (
+      <div class="cg-pvs" data-cg-send="none">
+        <OpenAndInsert part={part} opId={result.opId} />
+        <CopyIcon part={part} />
+      </div>
+    );
+  }
   const opId = result.opId;
   const order = part.sendOrder ?? null;
 

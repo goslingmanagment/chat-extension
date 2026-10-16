@@ -115,6 +115,10 @@ export interface PreviewTargetInfo {
 
 /** How a list answers for its fans. */
 export interface PreviewDirectory {
+  /** A passive lookup before opening the card, without marking the conversation read. */
+  prepare?(handle: TargetHandle): Promise<void>;
+  /** Its chat button can resolve a conversation on the person's click. */
+  readonly canResolve?: boolean;
   resolve(handle: TargetHandle): PreviewTargetInfo | null;
   /** The fans before and after in the order the list shows them. */
   neighbours(handle: TargetHandle): { readonly previous: TargetHandle | null; readonly next: TargetHandle | null };

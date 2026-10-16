@@ -338,7 +338,7 @@ export async function startBoards(
     // The statistics' calendar falls back to UTC.
   }
 
-  const spenders = chunk.createSpendersController({ rpc, i18n, clock, context, surfaces, navigator, timeZone });
+  const spenders = chunk.createSpendersController({ rpc, host: boardsHost, i18n, clock, context, surfaces, navigator, timeZone });
   // The preview keeps the drafts and «Новые» shows whether a fan has one: the two meet through this late binding.
   const late: { preview: ReturnType<typeof previewChunk.createPreviewController> | null } = { preview: null };
   const onlineListeners = new Set<(online: boolean) => void>();

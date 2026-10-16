@@ -387,6 +387,18 @@ export const FANSLY_TAB_REQUESTS = {
     hosts: FANSLY,
   },
 
+  // ── Spenders (R20 P9e): only missing names and the person's one chat-resolution click. ──
+  'fansly.spenders.names': {
+    req: z.strictObject({ hostAccountId: NativeIdSchema, fanRefs: z.array(NativeIdSchema).check(z.minLength(1), z.maxLength(100)) }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), names: z.array(z.strictObject({ fanRef: NativeIdSchema, name: displayText(1000), displayName: z.nullable(displayText(1000)), username: z.nullable(displayText(1000)) })).check(z.maxLength(100)) }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  'fansly.spenders.resolve': {
+    req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, displayName: z.nullable(displayText(1000)), username: z.nullable(displayText(1000)) }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), groupId: z.nullable(NativeIdSchema) }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+
   // ── «Заметки» ──
   /** Group and `GET /account?ids=` through the pacer, one attempt; `force` — «Обновить» (FS-NOTE-3). */
   'fansly.notes.read': {

@@ -311,7 +311,9 @@ export class DataModel {
   /** A row as this page's hub serves it: where a chat has an id of its own, the row names the fan's group or none. */
   private onPage(page: FakePage, row: SpenderListItem): SpenderListItem {
     if (CHAT_IS_FAN[page.platform]) return row;
-    return { ...row, conversation: { ...row.conversation, platformConversationId: this.threadOf(page.pageLabel, row.fan.platformUserId) } };
+    const seed = this.seeds.find((seed) => seed.fanRef === row.fan.platformUserId);
+    const ref = seed?.conversationRef;
+    return { ...row, conversation: { ...row.conversation, platformConversationId: ref === undefined ? this.threadOf(page.pageLabel, row.fan.platformUserId) : ref } };
   }
 
   private threadFan(pageLabel: string, fanRef: string): boolean {

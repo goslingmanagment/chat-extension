@@ -1054,6 +1054,7 @@ export class AiWorkspace {
     if (platformMessageId === null || draft.insertIntentId === null || draft.editedSinceInsert === null) return;
     const origin = this.inserts.intent(draft.insertIntentId);
     if (origin === null) return;
+    if (this.boardOps.has(origin.opId)) this.boards?.manualSent?.(origin.opId, origin.part, platformMessageId);
     this.reportSent({ opId: origin.opId, part: origin.part, pendingId: fact.pendingId, platformMessageId, edited: draft.editedSinceInsert });
   }
 

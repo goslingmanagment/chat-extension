@@ -202,7 +202,9 @@ export const TO_MAIN_FANSLY = {
   'fx.focus': { payload: z.strictObject({ groupId: z.nullable(NativeIdSchema), routeEpoch: CountSchema }), data: z.null(), write: false, timeout: 'call' },
   /** null — MAIN does not know the chat's creator, group and fan (never seen, a group chat): no snapshot (FS-TAIL-7). */
   'fx.generationSnapshot': { payload: FanslySnapshotRequestSchema, data: z.nullable(FanslySnapshotSchema), write: false, timeout: 'call' },
-  /** The window summary of any group MAIN observes, as `fx.chat` would give it; null — not observed. */
+  /** Passive group cache only: never opens a conversation or requests the site (R20 P9e). */
+  'fx.groupForFan': { payload: z.strictObject({ creatorId: NativeIdSchema, fanId: NativeIdSchema }), data: z.strictObject({ groupId: z.nullable(NativeIdSchema) }), write: false, timeout: 'call' },
+  /** The window summary of any group MAIN observes; null — not observed. */
   'fx.windowMeta': { payload: z.strictObject({ groupId: NativeIdSchema }), data: z.nullable(FanslyChatWireSchema), write: false, timeout: 'call' },
   /**
    * The isolated side took every batch up to `n`, parsed or not (a rejected one is a gap of its own): MAIN frees their
@@ -366,6 +368,7 @@ export const FanslyBridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('fx.state'),
   requestFrame('fx.focus'),
   requestFrame('fx.generationSnapshot'),
+  requestFrame('fx.groupForFan'),
   requestFrame('fx.windowMeta'),
   requestFrame('fx.ack'),
   requestFrame('fx.health'),

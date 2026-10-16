@@ -17,6 +17,7 @@ import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { assignPersona, installTestBuild, pageRpc, writeLocalStorage } from './extension';
 import { fakeHubOrigin, QUIET_PAGE, testBuildPage } from './fake-hub';
 import { openWithNeighbor } from './fansly-neighbor';
+import { fakeFansly } from './fansly-stand';
 import { switchFanslyOnForTheStand } from './fansly-site';
 import { focusTab } from './focus';
 import { SHIFT_PASSWORD } from './shift';
@@ -48,7 +49,7 @@ export async function startFanslyShift(hub: FakeHubControlClient, options: Fansl
   await installTestBuild();
   await browser.url(testBuildPage(QUIET_PAGE));
   const settings: SettingsV1 = { ...DEFAULT_SETTINGS, hub: { baseUrl: fakeHubOrigin() }, generation: { ...DEFAULT_SETTINGS.generation, ...options.settings?.generation } };
-  await writeLocalStorage({ [STORAGE_KEYS.settings]: settings });
+  await writeLocalStorage({ [STORAGE_KEYS.settings]: settings, 'dev.fanslyApi.origin': fakeFansly().apiOrigin });
   await browser.waitUntil(
     async () => {
       const state = await pageRpc<{ settings: SettingsV1 }>('settings.get');
