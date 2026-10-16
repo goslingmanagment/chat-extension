@@ -44,6 +44,10 @@
 
 ### P9d — опека приветствия Fansly в фасаде
 
+- X41: у записи `fansly.send.journal` добавлены необязательные `requestId` (UUID одного `fetch`, заголовок
+  `x-cg-request-id`) и `browserResend: true` (наблюдался повторный/поздний ответ браузера с этим id). Без `requestId`
+  отметка невалидна; старые записи проходят. Это диагностика, состояние и запрет повторной отправки не меняются.
+  Положительные и отрицательные фикстуры — `test/fixtures/send-fansly.ts`.
 - `HubFacade.claim(op: HubClaimOp, check?: HubRequestCheck)`: тело хаба после HF-3 (тело OnlyFans `ClaimOp` или тело
   приветствия Fansly с ручной группой) — тип, которым P4c назвал оба тела для фасада. Строгая проверка до отправки
   (HB-006) — по `check`, если сайт принёс свою схему (Fansly — `FanslyGreetingClaimOpSchema`, её нет ни в одном общем
