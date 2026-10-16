@@ -11,14 +11,16 @@ import { type CgCode } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
 import { type FeatureSlice } from '@cg/contracts/features/types';
 import { type HostPort, type NavigationItem } from '@cg/contracts/host';
-import { type ChatRef } from '@cg/contracts/ids';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 import { type ActionReceipt, type I18n, type NavigationTarget, type ToastPort, type UiAction } from '@cg/contracts/vm';
 
 import { rowPresent } from '../../domain/hotkeys/cheatsheet';
 import { chatAtSlot, nextUnreadChat, stepChat } from '../../domain/navigation';
+import { CHAT_HANDLE } from './chat-handle';
 import { type OverlayState } from './overlays';
 import { failedReceipt, type IdPort, type SurfaceController, type TabClock, type TabRpc } from './ports';
+
+export { chatHandle } from './chat-handle';
 
 /** The surface every navigation token of R17 is issued for; the redeemer of HostPort uses the same one. */
 export const NAVIGATION_SURFACE: Surface = 'overlay';
@@ -36,17 +38,7 @@ export const LIST_SETTLE_MS = 150;
 /** A list settled this recently is the list ChatSpace shows: the next key in a row does not wait again. */
 export const LIST_FRESH_MS = 1000;
 
-const CHAT_HANDLE = 'nav.chat.';
 const ACCOUNT_HANDLE = 'nav.acc.';
-
-/**
- * `nav.chat.<account>.<fan>`: the palette's, the quick jump's and a toast's name for a chat; opaque to the UI. A chat
- * whose conversation is not its fan (on Fansly the group id of an operation's target) is `nav.chat.<account>.<fan>.<conversation>`.
- */
-export function chatHandle(chat: Pick<ChatRef, 'hostAccountId' | 'platformFanId'>, conversationRef?: string): string {
-  const conversation = conversationRef === undefined || conversationRef === chat.platformFanId ? '' : `.${conversationRef}`;
-  return `${CHAT_HANDLE}${chat.hostAccountId}.${chat.platformFanId}${conversation}`;
-}
 
 export function accountHandle(hostAccountId: string): string {
   return `${ACCOUNT_HANDLE}${hostAccountId}`;

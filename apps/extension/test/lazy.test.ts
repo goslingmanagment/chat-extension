@@ -8,11 +8,12 @@ import { STORAGE_KEYS } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../lazy/entries/names.ts';
-import { LAZY_DIR } from '../lazy/vite.config.ts';
+import { LAZY_DIR, layerPlan } from '../lazy/vite.config.ts';
 import { importWithRetry, lazyPath, LAZY_RETRY_DELAY_MS } from '../src/composition/tab/lazy.ts';
 import { LAZY, NEWCOMER_DRAFTS_KEY } from '../src/composition/tab/runtime.ts';
 import { CHATSPACE_ADAPTER } from '../src/entrypoints/chatspace.content.ts';
 import { CHATSPACE } from '../src/hosts/chatspace.ts';
+import { lazySitesOf } from '../src/hosts/index.ts';
 
 const URL_OF_CHUNK = 'moz-extension://00000000-0000-4000-8000-000000000001/lazy/dock.js';
 
@@ -92,6 +93,12 @@ describe('the lazy entries of the tab', () => {
     for (const layer of LAZY_LAYERS) expect(Object.keys(LAZY_ENTRIES)).toContain(layer);
     // What the dock shares with these goes to the kernel chunk: the dock never pulls the schemas in.
     expect(BEFORE_THE_DOCK).toEqual(['bridge-validation', 'tab-protocol', 'tab-app']);
+  });
+
+  it.each(lazySitesOf(false))('[EX-009] $site: naming a running chat does not pull its navigation controller into the AI layer', async (site) => {
+    const plan = await layerPlan(site.build);
+    const navigation = fileURLToPath(new URL('../../../packages/core/src/application/navigation/navigation-controller.ts', import.meta.url));
+    expect(plan?.get(navigation)).toBe('navigation');
   });
 
   it('the early bundle names the drafts key of storage.local by hand (the settings module is schemas it must not carry): it is the contracts’ key', () => {

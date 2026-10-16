@@ -166,12 +166,22 @@ describe('Fansly parallel generations through the shared core (R20 P8e)', () => 
     await dockIs((dock) => dock.target?.endsWith(`:${first.fan}`) === true && dock.result?.opId === ops[0], 'the refusal opens the running chat');
     expect((await callFansly('route')).groupId).toBe(first.group);
     await open(fourth.group, fourth.fan);
-    for (const gate of [...gates].reverse()) await hub().command({ op: 'release', gate });
     const handle = (chat: (typeof chats)[number]) => `nav.chat.${WORLD.pages.fansly.platformAccountId}.${chat.fan}.${chat.group}`;
-    await waitForReport((report) => running.every((chat) => report.toasts?.some((toast) => toast.chats.includes(handle(chat))) === true), 'all three background results name their own groups');
-    expect((await callFansly('route')).groupId).toBe(fourth.group); // completion never navigates or inserts
-    expect(await composer()).toMatchObject({ groupId: fourth.group, value: '', model: '', cached: '' });
-    expect((await readReport())?.dock?.result).toBeNull();
+    // ER-010: the same code/scope replaces the previous toast. Complete out of order,
+    // observing each result's own group before the next completion can replace its toast.
+    for (const index of [1, 0, 2]) {
+      const chat = running[index];
+      const gate = gates[index];
+      if (chat === undefined || gate === undefined) throw new Error('no held Reply');
+      await hub().command({ op: 'release', gate });
+      const report = await waitForReport((now) => now.toasts?.some((toast) => toast.chats.includes(handle(chat))) === true, `the background result names group ${chat.group}`);
+      expect(report.toasts?.filter((toast) => toast.chats.length > 0).map(({ kind, chats }) => ({ kind, chats }))).toEqual([
+        { kind: 'success', chats: [handle(chat)] },
+      ]);
+      expect((await callFansly('route')).groupId).toBe(fourth.group); // completion never navigates or inserts
+      expect(await composer()).toMatchObject({ groupId: fourth.group, value: '', model: '', cached: '' });
+      expect(report.dock?.result).toBeNull();
+    }
 
     // One real toast click proves the whole route, including the absent navigation switch on Fansly.
     const third = running[2];

@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { UiActionSchema, type BackgroundToast, type TabEventPayload, type ToastsVM, type UiAction } from '@cg/contracts';
+import { chatHandle } from '@cg/core/application/navigation';
 import { createShellController, type ShellTab } from '@cg/core/application/shell';
 import { createI18n } from '@cg/core/domain/i18n';
 
@@ -53,7 +54,7 @@ function harness(tab: Partial<ShellTab> = {}) {
       },
       ...tab,
     },
-    chatHandle: (chat) => `nav.chat.${chat.hostAccountId}.${chat.platformFanId}`,
+    chatHandle,
   });
   const seen: ToastsVM[] = [];
   shell.subscribe({ of: 'toasts' }, (view) => seen.push(view));
@@ -128,6 +129,21 @@ describe('the shell controller: toasts of the background', () => {
     for (const [index, scope] of ['s1', 's2', 's3'].entries()) h.toast({ toastId: uuid(10 + index), scope, feature: 'fix', fanLabel: scope });
     expect(h.view().toasts.map((toast) => toast.id)).toEqual([uuid(12), uuid(11), uuid(10)]);
     expect(h.timers()).toBe(3);
+  });
+
+  it('[ER-010] [ER-014] three ready operations replace one another; each toast still names its own group', () => {
+    const h = harness();
+    const groups = ['700003', '700001', '700002'];
+    for (const [index, conversationRef] of groups.entries()) {
+      const chat = { host: 'fansly-web' as const, hostAccountId: '900001', platformFanId: String(800001 + index) };
+      h.toast({ toastId: uuid(index + 1), opId: uuid(100 + index), feature: 'reply', chat, conversationRef });
+      expect(h.view().toasts).toHaveLength(1);
+      expect(h.view().toasts[0]).toMatchObject({ id: uuid(index + 1), kind: 'success', actions: [
+        { action: { type: 'Navigate', to: { kind: 'chat', targetHandle: `nav.chat.900001.${chat.platformFanId}.${conversationRef}` } } },
+      ] });
+      expect(h.timers()).toBe(1);
+    }
+    expect(h.seen).toHaveLength(3);
   });
 
   it('[ER-013] a toast under the pointer keeps its time and goes on with what was left; «Закрыть» removes it', async () => {

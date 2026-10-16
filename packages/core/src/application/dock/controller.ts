@@ -37,7 +37,7 @@ import { dockChips, featureGate, featurePresent, isDraftFeature, policyOf, toggl
 import { contractBroken } from '../../domain/host';
 import { flagUsable, isTerminalOpState } from '../../domain/ops';
 import { targetHandle } from '../ai/handles';
-import { chatHandle } from '../navigation/navigation-controller';
+import { chatHandle } from '../navigation/chat-handle';
 import { type OpRecord } from '../ai/op-store';
 import { resultVm } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
