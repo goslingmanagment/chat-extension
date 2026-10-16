@@ -22,6 +22,11 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.stage.queue',
   'fansly.newcomers.stage.paused',
   'fansly.newcomers.stage.cooldown',
+  // 1.15.0 R20 P10b1: the queue's buttons (NF-038).
+  'fansly.newcomers.run.pause',
+  'fansly.newcomers.run.resume',
+  'fansly.newcomers.checkNext',
+  'fansly.newcomers.checkNow',
   'fansly.newcomers.stage.stopped',
   'fansly.newcomers.stage.failed',
   'fansly.newcomers.range',

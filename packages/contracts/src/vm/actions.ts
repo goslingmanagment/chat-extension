@@ -225,6 +225,13 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('SetNewcomersFilter', { filter: z.enum(GREETING_FILTERS) }),
   /** 1.15.0 (R20 P10a): a status filter of a list a background pass checks. */
   act('SetNewcomersCheckFilter', { filter: z.enum(NEWCOMER_CHECK_FILTERS) }),
+  /**
+   * 1.15.0 (R20 P10b1): the queue of a background pass (`NewcomersVM.pass.run`, NF-038) — «Пауза» (`false`: it stops
+   * after the request in flight) or «Проверить оставшихся» (`true`: it checks the fans left).
+   */
+  act('SetNewcomersPassRunning', { running: z.boolean() }),
+  /** 1.15.0 (R20 P10b1): «Проверить следующим» / «Проверить чат» (NF-038): this fan's chat is checked next, or now. */
+  act('CheckNewcomerNext', { targetHandle: HandleSchema }),
   act('SetNewcomersWindow', { hours: z.int().check(z.gte(NEWCOMERS_WINDOW_HOURS.min), z.lte(NEWCOMERS_WINDOW_HOURS.max)) }),
   act('LoadMore', { list: z.enum(['spenders', 'newcomers']) }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */

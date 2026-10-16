@@ -75,6 +75,16 @@
   («хаб пока не умеет»), как в `architecture.md` §11.1.
 - Фикстур нет: схем нет. Тесты — `packages/contracts/test/features.test.ts`, `packages/core/test/hosts/fansly/hi-ping.test.ts`.
 
+### P10b1 — «Новые» на Fansly: очередь прохода и её кнопки
+
+- `vm/actions.ts`: `SetNewcomersPassRunning {running}` — «Пауза» (`false`) и «Проверить оставшихся» (`true`) очереди
+  прохода фона; `CheckNewcomerNext {targetHandle}` — «Проверить следующим» / «Проверить чат» по ручке строки прохода
+  (NF-038). Запросы фона — прежние `fansly.followers.{pause,resume,prioritize}`. Фикстура — `test/fixtures/vm.ts`.
+- `vm/newcomers.ts`, только типы: `NewcomersPassVM.run?` (`NewcomersPassRunVM`: можно ли «Пауза», «Проверить
+  оставшихся» и сколько осталось, кнопка ждёт ответа) и `NewcomerCardVM.checkNext?` (`next` | `now` | null).
+- `newcomers-fansly`: ключи `fansly.newcomers.run.pause`, `fansly.newcomers.run.resume`, `fansly.newcomers.checkNext`,
+  `fansly.newcomers.checkNow`.
+
 ### P10a — «Новые» на Fansly: окно прохода
 
 - Исправление P1: необязательный `fansly.followers.read.req.query` (`search`, `tab`, `filter`) применяется фоном ко

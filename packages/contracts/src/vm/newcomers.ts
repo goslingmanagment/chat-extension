@@ -201,6 +201,22 @@ export interface NewcomerCardVM {
    * stays open; null — no conversation is known.
    */
   readonly openHref: string | null;
+  /**
+   * 1.15.0 (R20 P10b1): «Проверить следующим» (`next` — the queue runs: this fan goes first) or «Проверить чат» (`now`
+   * — the queue stands: this fan alone is checked now), NF-038; null or absent — nothing left to check of this fan.
+   */
+  readonly checkNext?: 'next' | 'now' | null;
+}
+
+/** 1.15.0 (R20 P10b1): the queue's own buttons (NF-038): `SetNewcomersPassRunning`. */
+export interface NewcomersPassRunVM {
+  /** «Пауза»: the queue runs and may stop. */
+  readonly pause: boolean;
+  /** «Проверить оставшихся: N»: the queue stands with `remaining` fans left to check. */
+  readonly resume: boolean;
+  readonly remaining: number;
+  /** A button's request is on its way: the buttons wait. */
+  readonly busy: boolean;
 }
 
 export interface NewcomersPassVM {
@@ -224,4 +240,6 @@ export interface NewcomersPassVM {
   readonly failure: NewcomersFailureVM | null;
   /** The selected fan's card; null — the list is empty. */
   readonly card: NewcomerCardVM | null;
+  /** 1.15.0 (R20 P10b1): «Пауза» and «Проверить оставшихся» (NF-038); absent — none. */
+  readonly run?: NewcomersPassRunVM;
 }
