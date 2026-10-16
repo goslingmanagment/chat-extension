@@ -310,7 +310,8 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
       style.textContent = 'app-messages-route { max-width: 1000px; }';
       document.head.append(style);
     });
-    await browser.setWindowSize(1500, 900);
+    // The shift pins the tab's viewport (BiDi): a wider window would not widen the page.
+    await browser.browsingContextSetViewport({ context: shift.fanslyTab, viewport: { width: 1500, height: 900 } });
     await waitShown(true);
     const before = await fakeFansly().mark();
     await callFansly('open', A.group, 'router');
@@ -319,9 +320,10 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
   });
 
   it('[FX-010] [FS-NOTE-3] a 429 is not asked again by itself; during the cooldown «Повторить» sends nothing', async () => {
-    await browser.setWindowSize(1180, 850);
+    await browser.browsingContextSetViewport({ context: shift.fanslyTab, viewport: { width: 1180, height: 850 } });
     await browser.refresh();
-    await browser.waitUntil(() => $(SLOT).isExisting(), { timeout: 20_000 });
+    // The slot stands before the chat is known; the button only with it.
+    await browser.waitUntil(() => button().isExisting(), { timeout: 20_000, timeoutMsg: 'no «Заметки» button after the reload' });
     const before = await fakeFansly().mark();
     await fakeFansly().command({ op: 'api', rules: [{ route: 'account.byIds', caller: 'ours', times: 1, outcome: { kind: 'status', status: 429, retryAfterS: 60 } }] });
     await button().click();
