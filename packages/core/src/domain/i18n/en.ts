@@ -7,7 +7,7 @@ export const EN: I18nCatalog<'en'> = {
   'status.details.accountTabs': 'Tabs: {n}',
   'status.details.tabs': 'Listening in {n} of {m} tabs; unattributed: {unknown}',
   'popup.siteLabel': '{site}: {state}',
-  'popup.waitingReload': '{n} tabs need a reload',
+  'popup.waitingReload': { one: '{n} tab needs a reload', other: '{n} tabs need a reload' },
   'status.details.access': 'Site access',
   'status.details.accessValue': 'Enabled: {enabled} · permission: {granted} · scripts: {registered}',
   'status.details.noData': 'no data',

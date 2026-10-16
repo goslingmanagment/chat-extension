@@ -94,7 +94,7 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
       await open(`page=popup&state=${profile}&theme=light`, POPUP);
       const sites = await count('[data-pg-site]');
       expect(sites).toBe(profile === 'mixed' ? 2 : 1);
-      if (profile !== 'chatspace') expect(await text('[data-pg-site="fansly-web"]')).toContain('2 вкладок ждут перезагрузки');
+      if (profile !== 'chatspace') expect(await text('[data-pg-site="fansly-web"]')).toContain('2 вкладки ждут перезагрузки');
       await capture(`p14b2-popup-${profile}`);
       expectHealthy(await probe(), 'light');
     });

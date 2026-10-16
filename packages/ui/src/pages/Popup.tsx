@@ -54,7 +54,7 @@ function Pills({ vm }: { readonly vm: PopupVM }): JSX.Element {
       {vm.sites === undefined ? <Pill label={i18n.t('popup.pill.chatspace', { state: i18n.t(hostKey) })} mark={hostMark} /> : vm.sites.map((site) => (
         <span key={site.host} data-pg-site={site.host} class={vm.sites!.length > 1 || site.waitingReload > 0 ? 'pg-site-pill' : undefined}>
           <Pill label={i18n.t('popup.siteLabel', { site: site.label, state: i18n.t(host[site.state][0]) })} mark={host[site.state][1]} />
-          {site.waitingReload > 0 ? <small>{i18n.t('popup.waitingReload', { n: site.waitingReload })}</small> : null}
+          {site.waitingReload > 0 ? <small>{i18n.plural('popup.waitingReload', site.waitingReload)}</small> : null}
         </span>
       ))}
       <Pill label={i18n.t('popup.pill.hub', { state: i18n.t(hubKey) })} mark={hubMark} />
