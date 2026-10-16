@@ -21,6 +21,7 @@ import { CHAT_IS_FAN, chatKeyOf, type ChatKey, type ChatRef, type HostAccount, t
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
+import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
 import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
@@ -662,6 +663,21 @@ export class AiWorkspace {
   // ── starting a generation ────────────────────────────────────────────────
 
   /**
+   * The person's deep window kept by the site (R20 §12: Fansly's `settings.ext`, 3001…5000) for a start or a decision
+   * of the deep window; the planner caps it by the hub's `limits.deepMax`. None, or a failed read — undefined: the v1
+   * window (ChatSpace's policy keeps none).
+   */
+  async extendedWindows(): Promise<SettingsExt['windows'] | undefined> {
+    const { policy } = this.ports;
+    if (policy.windows === undefined) return undefined;
+    try {
+      return (await policy.windows()) ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
    * Starts a feature in the open chat: the gates, the draft and the site's
    * proof (on ChatSpace the fresh tail it may carry), the token, the plan,
    * the admission. Nothing is spent on a refusal; what was typed stays with
@@ -707,11 +723,13 @@ export class AiWorkspace {
       }
     }
     const limits = freshTextLimits(feature, surface, ready.bootstrap, freshTextAdmitted(this.ports.features, ready.bootstrap, ready.page.pageId));
+    // The person's deep window kept by the site, asked only by a start of the deep window (R20 §12).
+    const extendedWindows = rule.window === 'deep' || autoRecap === 'full' ? await this.extendedWindows() : undefined;
     // The site's proof of the open chat (R20 F10): on ChatSpace the visible tail, read only when the start may carry
     // fresh text. A proof that fails is no proof: the start goes on without one.
     let proof: unknown = null;
     try {
-      const pending = policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits, messageCount: windowFor(feature, request.options.window, ready.settings, ready.bootstrap) });
+      const pending = policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits, messageCount: windowFor(feature, request.options.window, ready.settings, ready.bootstrap, extendedWindows) });
       if (pending !== null) proof = await pending;
     } catch {
       proof = null;
@@ -738,6 +756,7 @@ export class AiWorkspace {
       freshText: limits !== null,
       ...(request.coachHistory === undefined ? {} : { coachHistory: request.coachHistory }),
       ...(autoRecap === undefined ? {} : { autoRecap }),
+      ...(extendedWindows === undefined ? {} : { extendedWindows }),
       ...(original === undefined ? {} : { regenerateOf: original.view.opId, splitWanted: original.memo.split }),
       ...(request.force === true ? { force: true } : {}),
     });
@@ -929,8 +948,13 @@ export class AiWorkspace {
     return entry.tail;
   }
 
-  /** The script the fan writes in, told from the page tail once per read of it. */
+  /**
+   * The script the fan writes in, told from the page tail once per read of it — or, where the host keeps the open
+   * chat's window itself, as that window says it (Fansly: MAIN's `fanScript`, R20 §7.7; no copy of a text in the tab).
+   */
   fanScript(key: ChatKey): FanScript {
+    const { chat, window } = this.situation();
+    if (chat !== null && chat.key === key && window?.fanScript !== undefined) return window.fanScript;
     const tail = this.pageTail(key);
     const entry = this.tails.get(key);
     if (entry === undefined) return fanScriptOf(tail);

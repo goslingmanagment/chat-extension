@@ -48,6 +48,7 @@ import { DEFAULT_PARTS } from '../../dock/lazy';
 import { DebugSlot } from '../../dock/lazy-part';
 import { isRunning, msgOf, toneOf } from '../../dock/model';
 import { Parts } from '../../dock/Parts';
+import { StaleRow } from '../../dock/Result';
 import { StreamText, useSteadyView, useStreamText } from '../../dock/Stream';
 import { DOCK_STYLE } from '../../dock/styles';
 import { overlayRootCss } from '../layer';
@@ -87,6 +88,9 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
   const answer = turn.answer;
   const confirm = turn.confirm ?? null;
   const debug = turn.debug ?? null;
+  const mark = turn.stale ?? null;
+  const again = turn.again ?? null;
+  const dispatch = useDispatch();
   // The live region: the stages of the wait, then «Ответ готов: 2 части» when the answer brought a draft.
   const said = turn.opId ?? turn.id;
   const waiting = isRunning(turn.state);
@@ -117,6 +121,8 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
         ) : null}
         {answer === null ? null : (
           <>
+            {/* The site's verdict over the answer (R20 P8c): «Ещё раз» asks the question again. */}
+            {mark === null ? null : <StaleRow mark={mark} onAgain={again === null ? null : () => void dispatch(again.action)} reason={again === null || again.enabled ? null : again.reason === null ? i18n.t('common.unknown') : i18n.text(again.reason.text)} />}
             {answer.prose === '' ? null : <Markdown source={answer.prose} class="cg-co__md" />}
             {(answer.blocks ?? []).map((block, index) => (
               <div key={index} class="cg-co__block" data-cg-block={block.kind}>
@@ -371,6 +377,8 @@ ${overlayRootCss('coach', 'panel')}
 .cg-co__turns { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 6px 0 12px; }
 .cg-co__turn { padding: 10px 16px 4px; }
 .cg-co__who { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-bottom: 2px; }
+.cg-co__turn > .cg-stale { margin: 2px 0 8px; grid-template-columns: 22px minmax(0, 1fr); row-gap: 4px; padding-bottom: 6px; }
+.cg-co__turn > .cg-stale > .cg-btn { grid-column: 2; justify-self: start; }
 .cg-co__turn p, .cg-co__md { font-size: var(--cg-text-md); line-height: 20px; color: var(--cg-ink); overflow-wrap: anywhere; }
 .cg-co__md, .cg-co__md p { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; }
 .cg-co__turn.is-you { display: grid; justify-items: end; }

@@ -6,10 +6,12 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { type CoachTurnVM, type CoachVM, type ConfirmVM } from '@cg/contracts';
+import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import { DEFAULT_PARTS, preloadPart } from '@cg/ui/dock';
 import { UNSENT_QUESTIONS_MAX, coachSurface, forgetUnsentQuestions } from '@cg/ui/overlays/coach';
 
-import { FANS, cgError, coach, coachTurn, dock, entry, handles, msg, parts, reason, scenarioById, uuid, views, type ScenarioStep } from '../scenarios/app-client';
+import { FANSLY_SITE_TEXTS } from '../kit/profiles';
+import { FANS, button, cgError, coach, coachTurn, dock, entry, handles, msg, parts, reason, scenarioById, uuid, views, type ScenarioStep } from '../scenarios/app-client';
 import { type MountedKit, ctx, flush, keydown, mountSurface, scenarioOf, settle, text } from '../dock/harness';
 
 let kit: MountedKit | null = null;
@@ -58,6 +60,22 @@ describe('the Coach panel', () => {
     await flush(() => byLabel('Закрыть').click());
     expect(kit.client.dispatched).toEqual(Array(2).fill({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } }));
     expect(restored).toBe(1);
+  });
+
+  it('R20 P8c: Fansly’s window check marks a Coach answer too — the plate in its words above it, «Ещё раз» asks the question again; none without one', async () => {
+    const again = button('common.again', { type: 'Generate', targetHandle: HANDLE, feature: 'coach', options: { question: 'Как вернуть его к покупкам?' } });
+    const vm = coach(ctx, views.ready(), [coachTurn(ctx, 1, { stale: { reason: 'deleted-served', at: null }, again })]);
+    kit = mountSurface(coachSurface.view, scenarioOf([entry({ of: 'dock' }, dock(ctx, 'ready')), entry({ of: 'coach' }, vm)]), 'coach', coachSurface.styles ?? [], { site: { phrases: FANSLY_PHRASES, texts: FANSLY_SITE_TEXTS } });
+    await settle(1);
+    const plate = kit.$('[data-cg-answer="turn-1"] > .cg-stale') as HTMLElement;
+    expect([text(plate.querySelector('.cg-stale__t')), plate.querySelector('.cg-dot--accent')?.getAttribute('data-accent-use')]).toEqual(['Контекст устарел: ответ учитывает сообщение, удалённое из чата.', 'result-stale']);
+    await flush(() => (plate.querySelector('button') as HTMLElement).click());
+    expect(kit.client.dispatched).toEqual([again.action]);
+    kit.unmount();
+
+    kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1)]));
+    await settle(1);
+    expect(kit.$('.cg-stale')).toBeNull();
   });
 
   it('[AI-081] [AI-094] the empty state invites a question and offers ready ones; a chip asks at once', async () => {

@@ -20,6 +20,7 @@ import { flagRefusal, flagStateOf, isTerminalOpState } from '../../domain/ops';
 import { streamPreview } from '../../domain/output';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
+import { analysisMark } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorVm, featureHotkey, msg, phaseVm, views } from '../ai/view-models';
 import { isOwnSurface, type AiWorkspace } from '../ai/workspace';
@@ -146,6 +147,8 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
       expanded,
       // The sheet is the opened result: the same footer in the sheet and in the window, so unfolding moves nothing.
       debug: view === null ? null : debugVm(view, { enabled: debugOn, opened: true, now, i18n }),
+      // The site's verdict over the finished Review (R20 P8c): its «Ещё раз» is `regenerate`.
+      stale: result === null ? null : analysisMark(ws, record),
     };
   }
 

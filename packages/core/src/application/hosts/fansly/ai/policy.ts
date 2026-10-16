@@ -32,11 +32,16 @@
 //   token, refuses Hi only on MORE than ten proven personal messages and Ping
 //   only for a fan the page's own texts show active (five days). Everything
 //   else is the hub's to decide (`history_unproven`, `gate_ping_active`).
+// - The deep window (R20 P8c; FS-AI-1, §12): the person's Recap depth above
+//   3000 from Fansly's `settings.ext`, asked of the background by a start of
+//   the deep window only (`windows`); the shared planner caps it by the hub's
+//   `limits.deepMax`.
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import type { FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { HostPort } from '@cg/contracts/host';
 import type { AiHostPolicy, AiProofAsk, CoverageProof } from '@cg/contracts/ops';
+import type { SettingsExt } from '@cg/contracts/settings-ext';
 
 import { hiFieldsOf, hiPingGate } from './hi-ping';
 import { checkWindowOf, startProofOf } from './proof';
@@ -45,6 +50,8 @@ import { fingerprintOf, verdictMark, type ProofFingerprint } from './verdict';
 
 export interface FanslyAiDeps {
   readonly now: () => number;
+  /** The person's deep window in Fansly's `settings.ext` (`fansly.settings.windows`); absent — none (the v1 window). */
+  readonly windows?: () => Promise<SettingsExt['windows'] | null>;
 }
 
 /** What a start on Fansly gathered: the snapshot MAIN gave and the start's proof made of it. */
@@ -77,5 +84,6 @@ export function createFanslyAi(deps: FanslyAiDeps): AiHostPolicy<FanslyStartProo
     fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof, ...hiFieldsOf(gathered.snapshot) }),
     fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),
     verdict: (view, fingerprint) => verdictMark(view, checks.current(view, fingerprint)),
+    windows: () => deps.windows?.() ?? Promise.resolve(null),
   };
 }

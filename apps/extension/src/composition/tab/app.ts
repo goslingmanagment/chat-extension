@@ -161,7 +161,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     env.lazy<typeof DockChunk>('dock'),
     env.lazy<typeof AiChunk>('ai'),
     env.lazy<typeof NavigationChunk>('navigation'),
-    site.ai(env.lazy),
+    site.ai(env.lazy, rpc),
   ]);
   // No listeners or UI exist before this last asynchronous startup boundary.
   // From here initialization and installing the abort listener are synchronous.

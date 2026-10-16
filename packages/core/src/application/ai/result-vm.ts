@@ -7,7 +7,7 @@
 
 import { type FeatureId, type Tone } from '@cg/contracts/features';
 import { chatKeyOf, type PartRef } from '@cg/contracts/ids';
-import { type OpResult } from '@cg/contracts/ops';
+import { type OpResult, type ResultMarkVM } from '@cg/contracts/ops';
 import { type ConfirmVM, type FixVM, type Msg, type PartVM, type ReasonVM, type ResultVM, type UiAction, type VariantVM } from '@cg/contracts/vm';
 
 import { TONE_LABEL_KEYS, isDraftFeature, policyOf } from '../../domain/features';
@@ -123,6 +123,17 @@ function fixVm(ws: AiWorkspace, record: OpRecord): FixVM | null {
 }
 
 /** Б2 of an operation: the question about one of its parts the person must answer first; null — nothing is asked. */
+/**
+ * The mark over a finished Recap, Review or Coach answer this tab generated (R20 P8c; spec FS-TAIL-1, FS-TAIL-8,
+ * FS-TAIL-10): the site's verdict on its window check alone. What the fan wrote after the generation these say by the
+ * archive's lag (NEW-02), so the background's «фан написал новое» — ChatSpace's only mark — is not put over them.
+ */
+export function analysisMark(ws: AiWorkspace, record: OpRecord | null): ResultMarkVM | null {
+  if (record === null) return null;
+  const mark = ws.ports.policy.verdict(record.view, record.memo.fingerprint);
+  return mark === null || mark.reason === 'fan-wrote' || mark.reason === 'archive-moved' ? null : mark;
+}
+
 export function confirmVm(ws: AiWorkspace, opId: string): ConfirmVM | null {
   const pending = ws.inserts.confirmation(opId);
   return pending === null ? null : { confirmationId: pending.confirmationId, kind: pending.kind, part: pending.part, formatLoss: pending.formatLoss };

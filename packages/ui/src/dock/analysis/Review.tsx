@@ -11,6 +11,7 @@ import { type ReviewSectionVM } from '@cg/contracts/vm';
 import { Markdown, ViewState, useDispatch, useI18n, useView } from '../../kit';
 import { spokenStage, useReadyAnnouncement, useStageAnnouncements } from '../announce';
 import { AgainButton, Head, Meta } from '../Head';
+import { StaleRow } from '../Result';
 import { useSteadyView, useStreamText } from '../Stream';
 import { Close, CopyAll, Expand, Fact, Facts, Running, debugFooter, running, type ViewProps } from './shared';
 
@@ -74,6 +75,8 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
   }
 
   const again = review.regenerate;
+  const againReason = again.enabled ? null : again.reason === null ? i18n.t('common.unknown') : i18n.text(again.reason.text);
+  const mark = review.stale ?? null;
   // The lead repeats the verdict in the hub's format: shown on its own only when no block carries it.
   const lead = review.lead !== null && !review.sections.some((section) => section.body === review.lead) ? review.lead : null;
   const coverage = review.stamp.coverage;
@@ -90,7 +93,7 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
               label={i18n.text(again.label)}
               hotkey={again.hotkey}
               tooltip={i18n.t('review.againTooltip')}
-              reason={again.enabled ? null : again.reason === null ? i18n.t('common.unknown') : i18n.text(again.reason.text)}
+              reason={againReason}
               onClick={() => void dispatch(again.action)}
             />
             {close}
@@ -106,6 +109,8 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
         <Meta texts={review.meta.map((line) => i18n.text(line))} />
       </Head>
       <div class="cg-body">
+        {/* The site's verdict over the Review (R20 P8c): «Ещё раз» rates the chat anew. */}
+        {mark === null ? null : <StaleRow mark={mark} onAgain={() => void dispatch(again.action)} reason={againReason} />}
         {review.unparsed || review.sections.length === 0 ? (
           <div class="cg-prose">
             <span />

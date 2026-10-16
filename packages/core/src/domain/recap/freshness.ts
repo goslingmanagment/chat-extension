@@ -58,6 +58,7 @@ export function archiveLag(point: ArchivePoint | null, page: PageFacts): Archive
   const at = time(point.at);
   const window = page.window;
   if (at === null || window === null || window.state !== 'ready') return null;
-  const newest = Math.max(time(window.lastFanMessageAt) ?? -Infinity, time(window.lastModelMessageAt) ?? -Infinity);
+  // A host that keeps the chat's window itself says its newest message's time alone (Fansly's `newestAt`, R20 §7.7).
+  const newest = Math.max(time(window.lastFanMessageAt) ?? -Infinity, time(window.lastModelMessageAt) ?? -Infinity, time(window.newestAt ?? null) ?? -Infinity);
   return newest > at ? { messages: null } : null;
 }

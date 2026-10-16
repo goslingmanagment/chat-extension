@@ -34,6 +34,7 @@ import { FakeEvent, pageSender, tabSender } from '../../../packages/platform/src
 import { createFanslyApi } from '@cg/fansly-api';
 import type { BackgroundKit } from '../src/composition/background/host-module.ts';
 
+import { readFanslyWindows } from '../lazy/fansly/ai-fansly.ts';
 import { parseTabPayload as fanslyProtocol } from '../lazy/fansly/tab-protocol.ts';
 import { fanslyRequest } from '../src/composition/tab/hosts/fansly/requests.ts';
 import { fanslyModule } from '../bg/fansly.ts';
@@ -587,6 +588,18 @@ describe('[host:fansly] the settings page and Fansly’s module (R20 P14b1)', ()
     expect(stored['settings.ext']).toMatchObject({ v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: true, sound: { subscribersTone: 'bell' } } } });
     // «Fansly включён» changes through site.access only: the page's write of it is refused by Fansly's own schema.
     expect(await page.request('fansly.settings.write', { patch: { hosts: { 'fansly-web': { enabled: false } } } })).toMatchObject({ ok: false, error: { code: 'CG-UNKNOWN' } });
+    page.close();
+  });
+
+  it('[FS-AI-1] [host:fansly] a deep start’s depth (R20 P8c): a Fansly tab reads the `windows` of `settings.ext` alone, as the settings page wrote them', async () => {
+    const w = world();
+    w.start();
+    await switchFanslyOn(w);
+    const tab = await fanslyTab(w, 21);
+    expect(await readFanslyWindows(tab.client)).toEqual({ deep: null });
+    const page = fanslySettingsPage(w);
+    expect(await page.request('fansly.settings.write', { patch: { windows: { deep: 4000 } } })).toMatchObject({ ok: true, payload: { ext: { windows: { deep: 4000 } } } });
+    expect(await readFanslyWindows(tab.client)).toEqual({ deep: 4000 });
     page.close();
   });
 

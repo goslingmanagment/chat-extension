@@ -56,7 +56,7 @@ import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState } from '../../d
 import { coachAnswerText, streamPreview } from '../../domain/output';
 import { latestLength, type ArchivePoint } from '../../domain/recap';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
-import { confirmVm, partVms } from '../ai/result-vm';
+import { analysisMark, confirmVm, partVms } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorActions, errorVm, msg, phaseVm, views } from '../ai/view-models';
 import { type AiWorkspace, type ReadyTarget, type Situation } from '../ai/workspace';
@@ -248,10 +248,12 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const mode = ready.settings.generation.coach.autoRecap;
     let recap: 'short' | 'full' | null = null;
     if (mode !== 'off' && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
-      const read = await ws.recaps.readStatus(ws.slotKey(ready));
+      // The depth a full recap is built at takes the person's deep window the site keeps (R20 §12): one built at it is no stale one.
+      const [read, extendedWindows] = await Promise.all([ws.recaps.readStatus(ws.slotKey(ready)), ws.extendedWindows()]);
       // The person left the chat while the status was read: nothing is started for another fan.
       if (stillOpen(session) === null) return giveUp({ code: 'CG-CONTEXT-CHANGED' });
-      recap = autoRecapFor({ mode, attempted: false, hasExchanges: false, status: read.ok ? read.status : null, deepWindow: windowFor('recap', undefined, ready.settings, ready.bootstrap) });
+      const deepWindow = windowFor('recap', undefined, ready.settings, ready.bootstrap, extendedWindows);
+      recap = autoRecapFor({ mode, attempted: false, hasExchanges: false, status: read.ok ? read.status : null, deepWindow });
     }
 
     // One start for the whole turn: the question, the history, the draft read now (AI-091) — and, when a recap
@@ -360,12 +362,15 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     return state.join('|');
   }
 
-  function exchangeVm(exchange: CoachExchange, outside: ReadonlySet<string>, situation: Situation): CoachTurnVM {
+  function exchangeVm(exchange: CoachExchange, outside: ReadonlySet<string>, situation: Situation, handle: string | null, askReason: ReasonVM | null): CoachTurnVM {
     const record = ws.ops.get(exchange.opId);
-    const state = exchangeState(exchange, outside.has(exchange.turnId), record, situation);
+    // The site's verdict over the answer (R20 P8c): its «Ещё раз» asks the same question again, when a question may be asked.
+    const mark = analysisMark(ws, record);
+    const again = mark === null || handle === null ? null : button('common.again', retryAction(handle, exchange), { enabled: askReason === null, reason: askReason });
+    const state = [exchangeState(exchange, outside.has(exchange.turnId), record, situation), mark?.reason ?? '', again === null ? '' : `${handle ?? ''}:${askReason?.id ?? ''}`].join('|');
     const known = built.get(exchange.turnId);
     if (known !== undefined && known.state === state) return known.vm;
-    const vm = buildExchange(exchange, outside, record);
+    const vm = { ...buildExchange(exchange, outside, record), stale: mark, again };
     built.set(exchange.turnId, { state, vm });
     return vm;
   }
@@ -505,7 +510,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
     const outside = session === null ? new Set<string>() : outsideMemory(session, historyLimit);
     const feed = session?.feed ?? [];
-    const turns: CoachTurnVM[] = feed.map((item) => (item.kind === 'exchange' ? exchangeVm(item, outside, situation) : failedVm(item, chat?.handle ?? null, canAsk)));
+    const turns: CoachTurnVM[] = feed.map((item) => (item.kind === 'exchange' ? exchangeVm(item, outside, situation, chat?.handle ?? null, askReason) : failedVm(item, chat?.handle ?? null, canAsk)));
     if (pending !== null) turns.push(pendingVm(pending));
     // Views of exchanges no dialog shows any more are not kept.
     if (built.size > feed.length + COACH_BUILT_SLACK) {

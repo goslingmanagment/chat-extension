@@ -150,10 +150,21 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     expect(profile.phrases.ru.onSite).toBe('на Fansly');
     // Its AI policy is its own chunk (R20 P8b1), asked for by name; a chunk that does not load is no policy.
     const asked: string[] = [];
-    const policy = await FANSLY_APP.ai(<T,>(entry: string): Promise<T> => (asked.push(entry), import('../lazy/fansly/ai-fansly.ts') as Promise<T>));
+    // The deep window of a start is asked of the background (R20 P8c): its answer checked by its own schema, a wrong one is none.
+    const requests: string[] = [];
+    let answer: unknown = { ok: true, payload: { deep: 4000 } };
+    const rpc = { request: (type: string) => (requests.push(type), Promise.resolve(answer)) } as unknown as Parameters<typeof FANSLY_APP.ai>[1];
+    const policy = await FANSLY_APP.ai(<T,>(entry: string): Promise<T> => (asked.push(entry), import('../lazy/fansly/ai-fansly.ts') as Promise<T>), rpc);
     expect(asked).toEqual(['ai-fansly']);
     expect([policy.fields(null), policy.fingerprint(null), policy.preflight('hi', { chat: null, state: 'ready', loaded: 40, hasOlder: true } as never, null)]).toEqual([{}, null, null]);
-    await expect(FANSLY_APP.ai(() => Promise.reject(new Error('nothing to load')))).rejects.toThrow('nothing to load');
+    expect(requests).toEqual([]);
+    expect(await policy.windows?.()).toEqual({ deep: 4000 });
+    answer = { ok: true, payload: { deep: 3000 } };
+    expect(await policy.windows?.()).toBeNull();
+    answer = { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } };
+    expect(await policy.windows?.()).toBeNull();
+    expect(requests).toEqual(['fansly.settings.windows', 'fansly.settings.windows', 'fansly.settings.windows']);
+    await expect(FANSLY_APP.ai(() => Promise.reject(new Error('nothing to load')), rpc)).rejects.toThrow('nothing to load');
   });
 
   it('[R20-P8d] [host:fansly] its profile (§1.5): the palette of the page in the theme it shows, read anew on each switch; the variant’s sheet; the same parts the galleries draw Fansly in', () => {

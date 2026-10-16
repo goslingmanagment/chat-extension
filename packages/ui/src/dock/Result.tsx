@@ -45,8 +45,11 @@ export interface ResultContentProps {
  */
 const MARK_WORDS = { 'fan-wrote': '', 'archive-moved': '', unverified: '.unverified', 'window-miss': '.windowMiss', 'deleted-served': '.deletedServed' } as const satisfies Record<StaleReason, string>;
 
-/** The mark above the parts (ui-design §4.7): the answer may not know what the chat holds now; inserting stays allowed. `onAgain` null — the result has no «Ещё раз» here. */
-function StaleRow({ mark, onAgain, reason }: { readonly mark: ResultMarkVM; readonly onAgain: (() => void) | null; readonly reason: string | null }): JSX.Element {
+/**
+ * The mark above the parts (ui-design §4.7): the answer may not know what the chat holds now; inserting stays allowed.
+ * `onAgain` null — the result has no «Ещё раз» here. Recap, Review and a Coach answer draw it too (R20 P8c).
+ */
+export function StaleRow({ mark, onAgain, reason }: { readonly mark: ResultMarkVM; readonly onAgain: (() => void) | null; readonly reason: string | null }): JSX.Element {
   const i18n = useI18n();
   const words = (part: 'title' | 'body'): string => i18n.t(`result.stale${MARK_WORDS[mark.reason]}.${part}` as const satisfies I18nKey | ResultMarkKey as I18nKey);
   return (
