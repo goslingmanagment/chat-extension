@@ -110,4 +110,22 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     await flush(() => ui.panel.$('.cg-notes')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     expect(ui.panel.$('.cg-notes')).toBeNull();
   });
+
+  it('[FS-NOTE-4] a version conflict shows the notice and keeps the note and name drafts', async () => {
+    const ui = await open();
+    const conflict = { ok: false, error: { code: 'CG-NOTE-WRITE', detail: 'changed' } } as const;
+    ui.port.edit.mockResolvedValueOnce(conflict as never);
+    await flush(() => ui.notes.dispatch({ type: 'edit', noteId: '1' }));
+    await flush(() => ui.notes.dispatch({ type: 'input', title: 'Hobbies', text: 'My draft' }));
+    await flush(() => ui.notes.dispatch({ type: 'save' }));
+    await flush();
+    expect(ui.panel.$('[role="alert"]')?.textContent).toBe(NOTES_TEXTS.ru.problem.changed);
+    expect((ui.panel.$('[data-notes-editor] textarea') as HTMLTextAreaElement).value).toBe('My draft');
+    ui.port.name.mockResolvedValueOnce(conflict as never);
+    await flush(() => ui.notes.dispatch({ type: 'name-input', value: 'Саша' }));
+    await flush(() => ui.notes.dispatch({ type: 'name-commit' }));
+    await flush();
+    expect(ui.panel.$('.cg-notes__hint')?.textContent).toBe(NOTES_TEXTS.ru.problem.changed);
+    expect((ui.panel.$('[data-notes-name]') as HTMLInputElement).value).toBe('Саша');
+  });
 });

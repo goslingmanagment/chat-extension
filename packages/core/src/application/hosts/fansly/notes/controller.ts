@@ -49,7 +49,7 @@ export interface NotesPort {
   target(): NotesTarget | null;
   read(target: NotesTarget, force: boolean): Promise<{ readonly ok: true; readonly fanRef: string; readonly notes: readonly FanslyNote[]; readonly customName: CustomName | null } | Failure>;
   create(who: NotesWho, title: string, text: string): Promise<{ readonly ok: true; readonly note: FanslyNote } | Failure>;
-  edit(who: NotesWho, noteId: string, title: string, text: string): Promise<{ readonly ok: true; readonly note: FanslyNote } | Failure>;
+  edit(who: NotesWho, noteId: string, title: string, text: string, current: Pick<FanslyNote, 'title' | 'text'>): Promise<{ readonly ok: true; readonly note: FanslyNote } | Failure>;
   remove(who: NotesWho, note: FanslyNote): Promise<{ readonly ok: true } | Failure>;
   name(who: NotesWho, name: string, current: CustomName | null): Promise<{ readonly ok: true; readonly customName: CustomName | null } | Failure>;
   /** The person chose a view: the background stores it for every tab. */
@@ -72,6 +72,7 @@ type Entry = { readonly kind: 'loading'; readonly token: number } | { readonly k
 
 interface Draft {
   noteId: string | null;
+  readonly current: Pick<FanslyNote, 'title' | 'text'>;
   title: string;
   text: string;
   saving: boolean;
@@ -102,7 +103,7 @@ export function createNotesController(port: NotesPort): NotesController {
   const listeners = new Set<() => void>();
   const entries = new Map<string, Entry>();
   const drafts = new Map<string, Draft>();
-  const nameDrafts = new Map<string, string>();
+  const nameDrafts = new Map<string, { value: string; readonly current: CustomName | null }>();
   const nameStates = new Map<string, NameState>();
   let view: FanslyNotesView = 'drawer';
   /** The person wants the panel (for «Всегда справа»: unless closed). */
@@ -162,7 +163,7 @@ export function createNotesController(port: NotesPort): NotesController {
       body: entry === undefined || entry.kind === 'loading' ? 'loading' : entry.kind,
       error: entry?.kind === 'error' ? entry.error : null,
       notes: data?.notes ?? [],
-      name: { value: (fanId === null ? undefined : nameDrafts.get(fanId)) ?? data?.customName?.name ?? '', status: name?.status ?? 'idle', error: name?.error ?? null },
+      name: { value: (fanId === null ? undefined : nameDrafts.get(fanId)?.value) ?? data?.customName?.name ?? '', status: name?.status ?? 'idle', error: name?.error ?? null },
       editor: draft === undefined ? null : { noteId: draft.noteId, title: draft.title, text: draft.text, saving: draft.saving, blocked: draft.blocked, problem: draft.problem },
       confirmDelete: confirm !== null && confirm.fanId === fanId ? confirm.noteId : null,
       deleting: deleting !== null && deleting.fanId === fanId ? deleting.noteId : null,
@@ -214,7 +215,7 @@ export function createNotesController(port: NotesPort): NotesController {
       if (draft.noteId !== null && !notes.some((note) => note.noteId === draft.noteId)) {
         draft.noteId = null;
         draft.problem = { kind: 'deleted' };
-      } else if (draft.problem?.kind === 'failed') draft.problem = null;
+      } else if (draft.problem?.kind === 'failed' && draft.problem.error.detail !== 'changed') draft.problem = null;
     }
     if (nameStates.get(fanId)?.status === 'unconfirmed') nameStates.delete(fanId);
   }
@@ -314,7 +315,7 @@ export function createNotesController(port: NotesPort): NotesController {
     const data = current();
     if (data === null || drafts.has(data.fanRef)) return;
     confirm = null;
-    drafts.set(data.fanRef, { noteId, title, text, saving: false, blocked: false, problem: null });
+    drafts.set(data.fanRef, { noteId, current: { title, text }, title, text, saving: false, blocked: false, problem: null });
     emit();
   }
 
@@ -339,7 +340,7 @@ export function createNotesController(port: NotesPort): NotesController {
     draft.problem = null;
     emit();
     const under = epoch;
-    const answer = await (draft.noteId === null ? port.create(to, title, text) : port.edit(to, draft.noteId, title, text)).catch(toFailure);
+    const answer = await (draft.noteId === null ? port.create(to, title, text) : port.edit(to, draft.noteId, title, text, draft.current)).catch(toFailure);
     if (disposed || under !== epoch || drafts.get(data.fanRef) !== draft) return;
     draft.saving = false;
     if (answer.ok) {
@@ -382,7 +383,7 @@ export function createNotesController(port: NotesPort): NotesController {
     const fanId = data.fanRef;
     const typed = nameDrafts.get(fanId);
     if (typed === undefined || nameStates.get(fanId)?.status === 'saving' || nameStates.get(fanId)?.status === 'unconfirmed') return;
-    const name = typed.trim();
+    const name = typed.value.trim();
     // Only a changed text is written (Enter, or the field left).
     if (name === (data.customName?.name ?? '')) {
       nameDrafts.delete(fanId);
@@ -396,7 +397,7 @@ export function createNotesController(port: NotesPort): NotesController {
     nameStates.set(fanId, { status: 'saving', error: null });
     emit();
     const under = epoch;
-    const answer = await port.name(to, name, data.customName).catch(toFailure);
+    const answer = await port.name(to, name, typed.current).catch(toFailure);
     if (disposed || under !== epoch) return;
     if (answer.ok) {
       const saved = answer.customName;
@@ -458,7 +459,8 @@ export function createNotesController(port: NotesPort): NotesController {
         if (data === null) return;
         const state = nameStates.get(data.fanRef)?.status;
         if (state === 'saving' || state === 'unconfirmed') return;
-        nameDrafts.set(data.fanRef, action.value);
+        const typed = nameDrafts.get(data.fanRef);
+        nameDrafts.set(data.fanRef, { value: action.value, current: typed === undefined ? data.customName : typed.current });
         nameStates.delete(data.fanRef);
         return emit();
       }

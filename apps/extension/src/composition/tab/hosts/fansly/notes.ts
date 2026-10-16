@@ -76,9 +76,9 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       const to = target(who.accountId, who.fanId);
       return to === null ? refused : ((await ask('fansly.notes.create', { ...to, title, text })) as Awaited<ReturnType<NotesPort['create']>>);
     },
-    async edit(who, noteId, title, text) {
+    async edit(who, noteId, title, text, current) {
       const to = target(who.accountId, who.fanId);
-      return to === null ? refused : ((await ask('fansly.notes.edit', { ...to, noteId, title, text })) as Awaited<ReturnType<NotesPort['edit']>>);
+      return to === null ? refused : ((await ask('fansly.notes.edit', { ...to, noteId, title, text, current })) as Awaited<ReturnType<NotesPort['edit']>>);
     },
     async remove(who, note) {
       const to = target(who.accountId, who.fanId);

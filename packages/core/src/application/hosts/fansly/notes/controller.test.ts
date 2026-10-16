@@ -161,7 +161,7 @@ describe('[host:fansly] «Заметки»: the controller (R20 P11b)', () => {
     w.notes.dispatch({ type: 'input', title: 'Анкета', text: 'Имя: Саша' });
     w.notes.dispatch({ type: 'save' });
     await w.settle();
-    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '1', 'Анкета', 'Имя: Саша');
+    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '1', 'Анкета', 'Имя: Саша', { title: 'Анкета', text: 'Имя: Алекс\nЛокация: Рига' });
     expect(w.notes.panel().notes[0]?.text).toBe('Имя: Саша');
     w.notes.dispatch({ type: 'ask-delete', noteId: '9' });
     expect(w.notes.panel().confirmDelete).toBe('9');

@@ -62,7 +62,7 @@ function NameField({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }):
       />
       {focused || status !== 'idle' ? (
         <p class="cg-notes__hint" data-status={status} role={status === 'idle' ? undefined : 'status'}>
-          {copy.name[status]}
+          {vm.name.error?.code === 'CG-NOTE-WRITE' && vm.name.error.detail === 'changed' ? copy.problem.changed : copy.name[status]}
         </p>
       ) : null}
     </>
@@ -106,7 +106,7 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
       />
       {problem === null ? null : (
         <p class="cg-notes__problem" role="alert" data-notes-problem={problem.kind}>
-          {problem.kind === 'failed' ? `${errorText(problem.error)}. ${copy.problem[problem.created ? 'failed-create' : 'failed-edit']}` : copy.problem[problem.kind]}
+          {problem.kind === 'failed' ? problem.error.code === 'CG-NOTE-WRITE' && problem.error.detail === 'changed' ? copy.problem.changed : `${errorText(problem.error)}. ${copy.problem[problem.created ? 'failed-create' : 'failed-edit']}` : copy.problem[problem.kind]}
         </p>
       )}
     </div>
