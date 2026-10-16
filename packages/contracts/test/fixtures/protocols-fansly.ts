@@ -73,7 +73,7 @@ export const vaultCheckpoint = {
   updatedAt: T0 + 1000,
 } as const;
 const passRef = { passId: uuid(301) } as const;
-const noteTarget = { hostAccountId: F.creator, fanRef: F.fan } as const;
+const noteTarget = { pageId: 12, hostAccountId: F.creator, fanRef: F.fan } as const;
 const voiceRef = { attemptId: uuid(320), pageId: 12, voiceNoteId: 77 } as const;
 
 export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]: RequestFixtures } = {
@@ -135,14 +135,15 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   },
 
   'fansly.notes.read': {
-    req: { valid: [{ ...noteTarget, groupId: F.group }, { ...noteTarget, groupId: null, force: true }], invalid: [{ ...noteTarget }, { fanRef: F.fan, groupId: F.group }] },
+    // P11b: the fan unknown to MAIN (`fanRef: null`) — the background reads the group; a target without its page is refused.
+    req: { valid: [{ ...noteTarget, groupId: F.group }, { ...noteTarget, groupId: null, force: true }, { ...noteTarget, fanRef: null, groupId: F.group }], invalid: [{ ...noteTarget }, { fanRef: F.fan, groupId: F.group }, { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group }] },
     res: {
       valid: [
-        { ok: true, notes: [fanslyNote, { ...fanslyNote, noteId: '700000000000000011', title: 'FBuddy Notes', foreign: true }], customName: { noteId: '700000000000000012', name: 'Алекс' }, readAt: ISO },
-        { ok: true, notes: [], customName: null, readAt: ISO },
+        { ok: true, fanRef: F.fan, notes: [fanslyNote, { ...fanslyNote, noteId: '700000000000000011', title: 'FBuddy Notes', foreign: true }], customName: { noteId: '700000000000000012', name: 'Алекс' }, readAt: ISO },
+        { ok: true, fanRef: F.fan, notes: [], customName: null, readAt: ISO },
         { ok: false, error: { code: 'CG-NOTE-READ' } },
       ],
-      invalid: [{ ok: true, notes: [{ ...fanslyNote, text: 'x'.repeat(50_001) }], customName: null, readAt: ISO }, { ok: true, notes: [], readAt: ISO }],
+      invalid: [{ ok: true, fanRef: F.fan, notes: [{ ...fanslyNote, text: 'x'.repeat(50_001) }], customName: null, readAt: ISO }, { ok: true, fanRef: F.fan, notes: [], readAt: ISO }, { ok: true, notes: [], customName: null, readAt: ISO }],
     },
   },
   'fansly.notes.create': {
@@ -154,13 +155,18 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     res: { valid: [{ ok: true, note: fanslyNote }, { ok: false, error: { code: 'CG-NOTE-WRITE' } }], invalid: [{ ok: true, note: null }] },
   },
   'fansly.notes.delete': {
-    req: { valid: [{ ...noteTarget, noteId: fanslyNote.noteId }], invalid: [{ ...noteTarget, noteId: 'note-1' }] },
+    req: { valid: [{ ...noteTarget, noteId: fanslyNote.noteId, title: fanslyNote.title, text: fanslyNote.text }], invalid: [{ ...noteTarget, noteId: 'note-1', title: '', text: '' }, { ...noteTarget, noteId: fanslyNote.noteId }] },
     res: { valid: [{ ok: true }, { ok: false, error: { code: 'CG-FAN-EXPIRED' } }], invalid: [{ ok: true, deleted: 1 }] },
   },
   'fansly.notes.name': {
-    req: { valid: [{ ...noteTarget, name: 'Алекс' }, { ...noteTarget, name: '' }], invalid: [{ ...noteTarget, name: 'n'.repeat(1001) }] },
+    req: {
+      valid: [{ ...noteTarget, name: 'Алекс', current: null }, { ...noteTarget, name: '', current: { noteId: '700000000000000012', name: 'Алекс' } }],
+      invalid: [{ ...noteTarget, name: 'n'.repeat(1001), current: null }, { ...noteTarget, name: 'Алекс' }],
+    },
     res: { valid: [{ ok: true, customName: { noteId: '700000000000000012', name: 'Алекс' } }, { ok: true, customName: null }], invalid: [{ ok: true }] },
   },
+  'fansly.notes.view': { req: { valid: [{}], invalid: [{ view: 'docked' }] }, res: { valid: [{ view: 'docked' }, { view: 'drawer' }, { view: 'center' }], invalid: [{ view: 'left' }, {}] } },
+  'fansly.notes.setView': { req: { valid: [{ view: 'center' }], invalid: [{ view: 'left' }, {}] }, res: { valid: [{ view: 'drawer' }], invalid: [{ view: null }] } },
 
   'fansly.voice.create': {
     req: {
@@ -274,6 +280,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
 
 export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Verdicts } = {
   'fansly.ops.done': { valid: FANSLY_OP_VIEW_FIXTURES.valid.map((view) => ({ view })), invalid: FANSLY_OP_VIEW_FIXTURES.invalid.map((view) => ({ view })) },
+  'fansly.notes.viewChanged': { valid: [{ view: 'docked' }], invalid: [{ view: 'left' }, { view: 'drawer', text: 'never' }] },
   'fansly.followers.changed': {
     valid: [{ pass: fanslyPass, seq: 3, rows: [fanslyRow] }, { pass: { ...fanslyPass, state: 'cooldown', cooldownUntil: T0 + 30_000 }, seq: 4, rows: [] }],
     invalid: [{ pass: fanslyPass, seq: 3, rows: Array.from({ length: 101 }, () => fanslyRow) }, { pass: fanslyPass, rows: [] }],

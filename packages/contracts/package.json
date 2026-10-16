@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./registration-fansly": "./src/registration-fansly.ts",
+    "./notes-fansly": "./src/notes-fansly.ts",
     ".": "./src/index.ts",
     "./primitives": "./src/primitives.ts",
     "./features": "./src/features.ts",
