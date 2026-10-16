@@ -52,6 +52,7 @@ function world() {
     view: (attemptId: string): FanslySendView => ({ attemptId, fanRef: FAN, state: 'sent', proof: 'echo', platformMessageId: '830000000000000001' }),
     tabOn: true,
     sendGate: null as Promise<void> | null,
+    status: null as FanslySendView | null,
   };
   const starts: FanslySendStart[] = [];
   const natives: FanslyNativeSend[] = [];
@@ -76,7 +77,8 @@ function world() {
         log.push('send');
         starts.push(start);
         await state.sendGate;
-        return state.view(start.request.attemptId);
+        state.status = state.view(start.request.attemptId);
+        return state.status;
       },
       native(sent) {
         log.push('native');
@@ -87,6 +89,7 @@ function world() {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
+      status: () => Promise.resolve(state.status),
     },
     local: kv.open(),
     session: () => ({ hubOrigin: 'https://hub.example.test', userId: 7 }),
@@ -95,7 +98,7 @@ function world() {
     tabOn: () => state.tabOn,
     now: () => T0,
   };
-  const greeting = createFanslyGreeting(deps);
+  let greeting = createFanslyGreeting(deps);
   const ask = async <T extends 'fansly.followers.draft' | 'fansly.followers.send' | 'fansly.followers.sent'>(type: T, payload: unknown): Promise<FanslyTabResponsePayload<T>> => {
     expect(FANSLY_TAB_REQUESTS[type].req.safeParse(payload).success, `${type} request`).toBe(true);
     const answer = await greeting.answer(type, payload, TAB);
@@ -121,7 +124,7 @@ function world() {
     ...over,
   });
   const stored = () => readDraftStore(kv.read(STORAGE_KEYS.newcomersDrafts), T0);
-  return { greeting, state, log, starts, natives, greeted, ask, draft, request, stored, emit: (view: FanslySendView) => listeners.forEach((listener) => listener(view)) };
+  return { get greeting() { return greeting; }, state, log, starts, natives, greeted, ask, draft, request, stored, restart() { greeting.dispose(); greeting = createFanslyGreeting(deps); }, emit: (view: FanslySendView) => { state.status = view; listeners.forEach((listener) => listener(view)); } };
 }
 
 describe('[host:fansly] the greeting of a «Новые» card in the background (R20 P10c)', () => {
@@ -145,6 +148,46 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     expect(w.greeted).toEqual([`${C}|${FAN}`]);
     await settle();
     expect(w.stored().drafts).toEqual([]);
+  });
+
+  it('[FS-TAIL-8] [NF-012] an unverified AI draft keeps its generation, text and verdict after a background restart; neither own nor ai can bypass it, but an actual edit can', async () => {
+    const w = world();
+    w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: false, mark: 'unverified' };
+    await w.ask('fansly.followers.draft', { passId: PASS, fanRef: FAN, text: 'Hey you', generation: { opId: OP, historyRevision: REV } });
+    w.restart();
+    w.state.generation = null;
+    expect(await w.draft()).toMatchObject({ text: 'Hey you', generation: { opId: OP, generationRef: GEN, text: 'Hey you', historyRevision: REV, mark: 'unverified' } });
+    for (const admission of [{ kind: 'own' }, { kind: 'ai-edited', generationRef: GEN, variant: 0 }, { kind: 'ai', generationRef: GEN, variant: 0 }] as const) {
+      expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission, ...(admission.kind === 'ai' ? { opId: OP } : {}) }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
+    }
+    expect(w.starts).toHaveLength(0);
+    const edited = await w.draft('Hey you, welcome!');
+    expect(edited.generation?.opId).toBe(OP);
+    expect(await w.ask('fansly.followers.send', w.request({ text: edited.text, draftRevision: edited.revision, admission: { kind: 'ai-edited', generationRef: GEN, variant: 0 } }))).toMatchObject({ ok: true });
+  });
+
+  it('[FS-NEW-6] a saved fresh verdict remains usable when the background no longer holds the operation', async () => {
+    const w = world();
+    w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: true };
+    await w.ask('fansly.followers.draft', { passId: PASS, fanRef: FAN, text: 'Hey you', generation: { opId: OP, historyRevision: REV } });
+    w.restart();
+    w.state.generation = null;
+    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: { kind: 'ai', generationRef: GEN, variant: 0 }, opId: OP }))).toMatchObject({ ok: true });
+  });
+
+  it('[FS-NEW-3] the reopened draft reads uncertain and sent from the durable send service, including after the greeting service restarts', async () => {
+    const w = world();
+    await w.draft('Hi there!');
+    w.state.view = (attemptId) => ({ attemptId, fanRef: FAN, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' });
+    await w.ask('fansly.followers.send', w.request());
+    w.restart();
+    expect(await w.draft()).toMatchObject({ attempt: { state: 'uncertain' } });
+    expect(await w.ask('fansly.followers.send', w.request())).toEqual({ ok: false, error: { code: 'CG-SEND-UNCERTAIN' } });
+    w.emit({ attemptId: w.request().attemptId, fanRef: FAN, state: 'sent', proof: 'resolved-sent' });
+    w.restart();
+    expect(await w.draft()).toMatchObject({ attempt: { state: 'sent' } });
+    expect(await w.ask('fansly.followers.send', w.request())).toEqual({ ok: false, error: { code: 'CG-SEND-PART' } });
+    expect(w.starts).toHaveLength(1);
   });
 
   it('[NF-018] [NF-024] what stops a click before any attempt, each with its own reason: the history changed since the review, the draft changed, the fan is written to or closed, not checked in full, another account, another conversation', async () => {

@@ -708,6 +708,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   const offs: (() => void)[] = [
     source.onChange(heard),
     source.onReconnect(() => {
+      card?.refresh();
       // The changes while the port was down are lost: what is on screen is read again.
       if (pass !== null && stage === 'live' && !disposed) void firstPage(run, Math.max(rows.length, source.pageSize));
     }),

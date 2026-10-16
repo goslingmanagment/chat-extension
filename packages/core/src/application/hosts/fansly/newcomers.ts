@@ -147,10 +147,12 @@ function greetingSource(port: FanslyFollowersPort): PassGreetingSource {
       // The group the pass resolved: the conversation, never the fan's id (FS-IDN-6).
       return { ok: true, value: { ...proof, conversationRef: groupId } };
     },
-    async draft(passId, fanRef, text) {
-      const answer = await port.request('fansly.followers.draft', text === undefined ? { passId, fanRef } : { passId, fanRef, text });
+    async draft(passId, fanRef, text, generation) {
+      const answer = await port.request('fansly.followers.draft', { passId, fanRef, ...(text === undefined ? {} : { text }), ...(generation === undefined ? {} : { generation }) });
       if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
-      return answer.payload.ok ? { ok: true, value: answer.payload.draft } : { ok: false, failure: failureOf(answer.payload.error) };
+      if (!answer.payload.ok) return { ok: false, failure: failureOf(answer.payload.error) };
+      const { attempt, generation: saved, ...draft } = answer.payload.draft;
+      return { ok: true, value: { ...draft, ...(saved === undefined ? {} : { generation: saved }), ...(attempt === undefined ? {} : { outcome: outcomeOf(attempt) }) } };
     },
     async send(click) {
       const { conversationRef, opId, ...rest } = click;

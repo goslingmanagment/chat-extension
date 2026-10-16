@@ -234,6 +234,31 @@ function click(attemptId = uuid(1), over: Partial<FanslyGreetingRequest> = {}): 
 const receipt = (id = '830000000000000001') => ({ response: { id, groupId: GROUP, senderId: CREATOR, content: TEXT }, status: 200 });
 
 describe('[host:fansly] the greeting send with the hub custody (R20 P9d, architecture §8.6)', () => {
+  it('[FS-NEW-3] a card reads pending, uncertain and sent by page and fan after a restart; only the matching hub resolution lifts uncertainty', async () => {
+    for (const resolution of ['resolved-sent', 'resolved-not-sent'] as const) {
+      const w = world();
+      const first = w.send.send(click());
+      await settle();
+      expect(await w.send.status(PAGE, FAN)).toMatchObject({ attemptId: uuid(1), state: 'requestStarted' });
+      w.routes[0]?.answer.reject(apiError('network', true));
+      await first;
+      await settle();
+      w.send.dispose();
+      const restored = world({ kv: w.kv, hub: w.hub });
+      expect(await restored.send.status(PAGE, FAN)).toMatchObject({ attemptId: uuid(1), state: 'uncertain' });
+      expect(await restored.send.status({ ...PAGE, pageId: PAGE.pageId + 1 }, FAN)).toBeNull();
+      expect(await restored.send.status(PAGE, '920000000000000099')).toBeNull();
+      restored.hub.port.claimStatus = () => Promise.resolve(claimState({ custody: { attemptId: uuid(1), state: resolution, ticket: null, ticketExpiresAt: null } }));
+      expect(await restored.send.status(PAGE, FAN)).toMatchObject({ state: resolution === 'resolved-sent' ? 'sent' : 'refused', proof: resolution });
+      await settle();
+      restored.send.dispose();
+      const again = world({ kv: w.kv, hub: w.hub });
+      expect(await again.send.status(PAGE, FAN)).toMatchObject({ state: resolution === 'resolved-sent' ? 'sent' : 'refused' });
+      expect(again.routes).toHaveLength(0);
+      again.send.dispose();
+    }
+  });
+
   it('[NF-020] [NF-021] [NF-035] one click: lease, route, journal before the custody, the intent before the request, ONE POST; the receipt and its echo → sent, reported once', async () => {
     const w = world();
     const view = w.send.send(click());

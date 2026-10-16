@@ -13,6 +13,7 @@
 // not undone by another tab that still held the old text.
 
 import { SEND_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
+import { GreetingDraftGenerationSchema, type GreetingDraftGeneration } from '@cg/contracts/ops';
 
 export const DRAFT_STORE_VERSION = 1;
 /** Left of the key's byte budget for the JSON around the texts. */
@@ -25,6 +26,7 @@ export interface PreviewDraft {
   readonly revision: number;
   /** The fan's thread as the list showed it when the draft was written (NF-018); null — not tracked. */
   readonly threadRevision: string | null;
+  readonly generation?: GreetingDraftGeneration;
   readonly updatedAt: number;
 }
 
@@ -79,7 +81,7 @@ export function utf8Bytes(text: string): number {
   return bytes;
 }
 
-const draftBytes = (draft: PreviewDraft): number => utf8Bytes(draft.text) + utf8Bytes(draft.key) + 96;
+const draftBytes = (draft: PreviewDraft): number => utf8Bytes(draft.text) + utf8Bytes(draft.key) + 96 + (draft.generation === undefined ? 0 : utf8Bytes(JSON.stringify(draft.generation)));
 
 function isDraft(value: unknown): value is PreviewDraft {
   if (value === null || typeof value !== 'object') return false;
@@ -95,6 +97,7 @@ function isDraft(value: unknown): value is PreviewDraft {
     Number.isInteger(d['revision']) &&
     d['revision'] >= 0 &&
     (d['threadRevision'] === null || typeof d['threadRevision'] === 'string') &&
+    (d['generation'] === undefined || GreetingDraftGenerationSchema.safeParse(d['generation']).success) &&
     typeof d['updatedAt'] === 'number' &&
     Number.isFinite(d['updatedAt'])
   );
@@ -173,14 +176,14 @@ export function findDraft(store: DraftStore, key: string, now: number): PreviewD
  * Writes a draft. An empty text removes it (its revision still moves, so a
  * result made from the old text is void). Text beyond the limit is cut at it.
  */
-export function putDraft(store: DraftStore, key: string, text: string, now: number, threadRevision: string | null = null): { readonly store: DraftStore; readonly draft: PreviewDraft | null; readonly revision: number } {
+export function putDraft(store: DraftStore, key: string, text: string, now: number, threadRevision: string | null = null, generation?: GreetingDraftGeneration): { readonly store: DraftStore; readonly draft: PreviewDraft | null; readonly revision: number } {
   const previous = store.drafts.find((d) => d.key === key)?.revision ?? store.removed?.find((mark) => mark.key === key)?.revision ?? 0;
   const revision = previous + 1;
   const rest = store.drafts.filter((d) => d.key !== key);
   const marks = (store.removed ?? []).filter((mark) => mark.key !== key);
   const clipped = text.slice(0, SEND_LIMITS.previewDraftMaxChars);
   if (clipped.trim().length === 0) return { store: storeOf(rest, [{ key, revision, removedAt: now }, ...marks], now), draft: null, revision };
-  const draft: PreviewDraft = { key, text: clipped, revision, threadRevision, updatedAt: now };
+  const draft: PreviewDraft = { key, text: clipped, revision, threadRevision, updatedAt: now, ...(generation === undefined ? {} : { generation }) };
   const next = storeOf([draft, ...rest], marks, now);
   return { store: next, draft: next.drafts.some((d) => d.key === key) ? draft : null, revision };
 }
@@ -212,7 +215,7 @@ export function keepOnlyUser(store: DraftStore, hubOrigin: string, userId: numbe
 
 type Entry = { readonly kind: 'draft'; readonly at: number; readonly revision: number; readonly draft: PreviewDraft } | { readonly kind: 'removed'; readonly at: number; readonly revision: number; readonly mark: DraftRemoval };
 
-const entryText = (entry: Entry): string => (entry.kind === 'draft' ? `${entry.draft.text}\u0000${entry.draft.threadRevision ?? ''}` : '');
+const entryText = (entry: Entry): string => (entry.kind === 'draft' ? `${entry.draft.text}\u0000${entry.draft.threadRevision ?? ''}\u0000${entry.draft.generation === undefined ? '' : JSON.stringify(entry.draft.generation)}` : '');
 
 /** The newer of two entries of one draft; the same answer whichever is passed first, so every tab merges alike. */
 function newer(a: Entry, b: Entry): Entry {

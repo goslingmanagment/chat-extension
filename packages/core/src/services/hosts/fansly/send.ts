@@ -303,6 +303,8 @@ export interface FanslySend {
   /** A history read of a group (the next pass): the ids it shows; `complete` — read to its start. */
   history(groupId: string, ids: readonly string[], complete: boolean): void;
   view(attemptId: string): FanslySendView | null;
+  /** A card reopening in any tab reads the same durable attempt; a proved resolution may lift uncertainty. */
+  status(page: FanslySendPage, fanRef: string): Promise<FanslySendView | null>;
   onChange(listener: (view: FanslySendView) => void): () => void;
   /** The reports still owed go now (a new bootstrap, a sign-in). */
   pump(): void;
@@ -1016,6 +1018,19 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
     view: (attemptId) => {
       const attempt = attempts.get(attemptId);
       return attempt === undefined ? null : viewOf(attempt);
+    },
+    async status(page, fanRef) {
+      await ready;
+      const key = fanslySendLockKey({ hubOrigin: deps.hub.hubOrigin() ?? '', pageId: page.pageId, fanRef });
+      const holder = attempts.get(locks.get(key) ?? '');
+      if (holder !== undefined) {
+        if (holder.outcome.state === 'uncertain') await liftUncertain(holder, page.pageLabel);
+        return viewOf(holder);
+      }
+      const known = [...attempts.values()].reverse().filter((attempt) => attempt.lockKey === key);
+      // A later refused duplicate must never hide the earlier message that went out.
+      const latest = known.find((attempt) => attempt.outcome.state === 'sent' || attempt.outcome.state === 'receipted') ?? known[0];
+      return latest === undefined ? null : viewOf(latest);
     },
     onChange(listener) {
       listeners.add(listener);

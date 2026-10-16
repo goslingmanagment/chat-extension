@@ -87,7 +87,7 @@ import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hos
 import { createFanslyNewcomers, type FanslyNewcomers, type FanslyNewcomersApi } from '@cg/core/services/hosts/fansly/newcomers';
 import { createFanslySend, type FanslySend, type FanslySendDeps, type FanslySendLive } from '@cg/core/services/hosts/fansly/send';
 import { createFanslyGreeting, type FanslyGreeting } from '@cg/core/services/hosts/fansly/greeting';
-import { freshForSend } from '@cg/core/domain/hosts/fansly/verdict';
+import { freshForSend, verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 import { createFanslyApi, createFanslyClient, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { createSpendersLookup } from '@cg/fansly-api/spenders';
@@ -455,6 +455,7 @@ function startGreeting(kit: BackgroundKit, newcomers: FanslyNewcomers, send: Fan
         text: parts?.length === 1 ? (parts[0] ?? null) : null,
         // Its own evidence as the current one too: the background has no newer window of the pass to add (§3.5).
         fresh: freshForSend(view, view.freshnessProof?.fingerprint ?? null),
+        mark: verdictMark(view, view.freshnessProof?.fingerprint ?? null)?.reason ?? null,
       };
     },
     tabOn: (tab, creator) => tabOnCreator(kit, tab, creator),

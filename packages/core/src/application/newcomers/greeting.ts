@@ -23,7 +23,7 @@
 import { isCgCode, type CgCode } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort, type NavigationReceipt } from '@cg/contracts/host';
 import { SEND_LIMITS } from '@cg/contracts/limits';
-import { type OpView, type StaleReason, type StartOp } from '@cg/contracts/ops';
+import { OP_TERMINAL_STATES, type GreetingDraftGeneration, type OpView, type StaleReason, type StartOp } from '@cg/contracts/ops';
 import { type ActionReceipt, type I18n, type NewcomerGreetingStateVM, type NewcomerGreetingVM, type NewcomersFailureVM, type UiAction } from '@cg/contracts/vm';
 
 import { buildDeferredInsert, buildOpenAndInsert } from '../../domain/insert/intent';
@@ -55,19 +55,10 @@ export interface PassGreetingDeps {
   verdict(view: OpView): StaleReason | null;
 }
 
-interface Generation {
-  readonly opId: string;
-  readonly generationRef: string | null;
-  readonly text: string;
-  /** The history revision of the proof it was made on: an unchanged result goes only on it (FS-NEW-6). */
-  readonly historyRevision: string;
-  view: OpView;
-}
-
 interface Card {
   readonly passId: string;
   readonly fanRef: string;
-  loaded: 'no' | 'loading' | 'yes';
+  loaded: 'no' | 'loading' | 'yes' | 'failed';
   /** The draft as the site holds it. */
   stored: PassDraft | null;
   /** The field. */
@@ -76,7 +67,7 @@ interface Card {
   dirty: boolean;
   timer: number | null;
   writing: Promise<void> | null;
-  gen: Generation | null;
+  gen: GreetingDraftGeneration | null;
   state: NewcomerGreetingStateVM;
   /** NF-023: a generation, a send or an insert is under way. */
   busy: boolean;
@@ -95,6 +86,8 @@ export interface CardGreeting {
   vm(passId: string, row: PassRow): NewcomerGreetingVM | null;
   /** The card is on screen: its draft is read once. */
   open(passId: string, fanRef: string): void;
+  /** The port returned: read durable drafts and attempts again. */
+  refresh(): void;
   /** An action of the card; null — not the greeting's. */
   dispatch(action: UiAction, passId: string, row: PassRow): Promise<ActionReceipt> | null;
   /** Another pass, sign-in or account: everything of the old one goes. */
@@ -126,6 +119,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
   const inserts = new Map<string, Inserted>();
   /** Generations waiting for their end, by operation; null — it never came. */
   const waiting = new Map<string, (view: OpView | null) => void>();
+  const ended = new Map<string, OpView>();
   const offs: (() => void)[] = [];
   let generation = 0;
   let disposed = false;
@@ -149,25 +143,38 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
 
   // ── the draft (NF-012) ──
 
+  function restore(card: Card, draft: PassDraft): void {
+    card.stored = draft;
+    if (!card.dirty) {
+      card.text = draft.text;
+      card.gen = draft.generation ?? null;
+    } else if (card.gen === null) card.gen = draft.generation ?? null;
+    const outcome = draft.outcome;
+    if (outcome?.s === 'sent') card.state = { s: 'sent', at: new Date(clock.now()).toISOString() };
+    else if (outcome?.s === 'uncertain' || outcome?.s === 'pending') card.state = { s: 'uncertain', failure: failure(outcome.s === 'pending' ? 'CG-SEND-UNCERTAIN' : outcome.code) };
+    else if (outcome?.s === 'refused') card.state = { s: 'refused', failure: failure(outcome.code) };
+  }
+
+  async function read(card: Card): Promise<boolean> {
+    const at = generation;
+    try {
+      const answer = await source.draft(card.passId, card.fanRef);
+      if (at !== generation || disposed) return false;
+      card.loaded = answer.ok ? 'yes' : 'failed';
+      if (answer.ok) restore(card, answer.value);
+      changed();
+      return answer.ok;
+    } catch {
+      if (at === generation) card.loaded = 'failed';
+      return false;
+    }
+  }
+
   function open(passId: string, fanRef: string): void {
     const card = cardOf(passId, fanRef);
     if (card.loaded !== 'no') return;
     card.loaded = 'loading';
-    const at = generation;
-    void source.draft(passId, fanRef).then(
-      (answer) => {
-        if (at !== generation || disposed) return;
-        card.loaded = 'yes';
-        if (answer.ok) {
-          card.stored = answer.value;
-          if (!card.dirty) card.text = answer.value.text;
-        }
-        changed();
-      },
-      () => {
-        if (at === generation) card.loaded = 'yes';
-      },
-    );
+    void read(card);
   }
 
   /** Writes the field now; a write that failed leaves the field as it is (the next one carries it). */
@@ -176,14 +183,19 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     card.timer = null;
     if (!card.dirty) return card.writing ?? Promise.resolve();
     const text = card.text;
+    const gen = card.gen;
+    const link = gen !== null && text.trim() === gen.text.trim() && gen.opId !== card.stored?.generation?.opId ? { opId: gen.opId, historyRevision: gen.historyRevision } : undefined;
     card.dirty = false;
     const at = generation;
     const previous = card.writing ?? Promise.resolve();
     const write = previous.then(() =>
-      source.draft(card.passId, card.fanRef, text).then(
+      source.draft(card.passId, card.fanRef, text, link).then(
         (answer) => {
           if (at !== generation) return;
-          if (answer.ok) card.stored = answer.value;
+          if (answer.ok) {
+            card.stored = answer.value;
+            if (card.gen === gen) card.gen = answer.value.generation ?? null;
+          }
           else {
             card.dirty = card.dirty || card.text === text;
             said(card, { s: 'refused', failure: answer.failure });
@@ -226,14 +238,14 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
   }
 
   /** The mark over an unchanged AI text: its own verdict (FS-TAIL-8); null — fresh, or not an AI text. */
-  const markOf = (card: Card): StaleReason | null => (card.gen !== null && unchanged(card) ? deps.greeting.verdict(card.gen.view) : null);
+  const markOf = (card: Card): StaleReason | null => (card.gen !== null && unchanged(card) ? card.gen.mark : null);
 
   /** Why «Отправить» or «Открыть и вставить» may not take the field now; null — it may. */
   function blockedOf(card: Card, row: PassRow, send: boolean): NewcomersFailureVM | null {
     if (card.text.trim() === '') return null;
     if (!proven(row)) return failure('CG-FNEW-UNVERIFIED');
     if (send && card.gen !== null && unchanged(card)) {
-      if (markOf(card) !== null) return failure('CG-SEND-FRESHNESS');
+      if (markOf(card) !== null || card.gen.generationRef === null) return failure('CG-SEND-FRESHNESS');
       // The pass checked the history again since: the old result is not this history's (FS-NEW-6) — only a new one.
       if (card.gen.historyRevision !== row.historyRevision) return failure('CG-FNEW-HISTORY');
     }
@@ -253,9 +265,9 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       mark: markOf(card),
       stale: filled && card.stored !== null && card.stored.historyRevision !== null && (row.historyRevision ?? null) !== null && card.stored.historyRevision !== row.historyRevision,
       waiting: !proven(row),
-      canGenerate: proven(row) && !card.busy && !final,
-      canSend: filled && !card.busy && !final && sendBlocked === null && proven(row),
-      canInsert: filled && !card.busy && !final && proven(row),
+      canGenerate: card.loaded === 'yes' && proven(row) && !card.busy && !final,
+      canSend: card.loaded === 'yes' && filled && !card.busy && !final && sendBlocked === null && proven(row),
+      canInsert: card.loaded === 'yes' && filled && !card.busy && !final && proven(row),
       sendBlocked: filled ? sendBlocked : null,
       state: card.state,
     };
@@ -265,6 +277,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
 
   offs.push(
     rpc.onEvent('op.done', ({ view }) => {
+      if (view.surface === 'newcomers' && view.feature === 'hi') ended.set(view.opId, view);
       const resolve = waiting.get(view.opId);
       if (resolve === undefined) return;
       waiting.delete(view.opId);
@@ -309,6 +322,9 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       split: false,
       window: Math.min(FIXED_WINDOWS.hi, bootstrap.limits.deepMax),
       variantCount: 1,
+      // Every deliberate click asks for a new result, as Reply's «Ещё раз» does.
+      force: true,
+      ...(card.gen === null ? {} : { regenerateOf: card.gen.opId }),
       // FS-NEW-7: the pass's proof instead of a tab's snapshot — ids only; the greeting is built from the hub's history.
       proof: {
         kind: 'pass',
@@ -337,6 +353,22 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
         clock.clearTimer(timer);
         resolve(ended);
       });
+      const finish = (view: OpView): void => {
+        const settle = waiting.get(opId);
+        if (settle === undefined) return;
+        waiting.delete(opId);
+        settle(view);
+      };
+      const known = ended.get(opId);
+      if (known !== undefined) finish(known);
+      else {
+        // A cached/reopened operation emits no new op.done. Install the listener BEFORE this read, closing both races.
+        void rpc.request('op.list', { scope: 'all' }).then((answer) => {
+          if (!answer.ok || at !== generation || disposed) return;
+          const known = answer.payload.ops.find((view) => view.opId === opId);
+          if (known !== undefined && (OP_TERMINAL_STATES as readonly string[]).includes(known.state)) finish(known);
+        }).catch(() => undefined);
+      }
     });
     if (!same()) return stop('CG-CONTEXT-CHANGED');
     if (view === null) return stop('CG-OP-INTERRUPTED');
@@ -344,7 +376,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     const parts = view.result?.kind === 'variants' ? view.result.variants[0] : undefined;
     const text = parts?.length === 1 ? (parts[0] ?? '') : '';
     if (!usable(text)) return stop('CG-OUTPUT-UNUSABLE');
-    card.gen = { opId, generationRef: view.generationRef ?? null, text: text.trim(), historyRevision: evidence.historyRevision, view };
+    card.gen = { opId, generationRef: view.generationRef ?? null, text: text.trim(), historyRevision: evidence.historyRevision, mark: deps.greeting.verdict(view) };
     card.text = text.trim();
     card.dirty = true;
     card.busy = false;
@@ -364,16 +396,25 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       return refused(type, localError(isShared(blocked.code) ? blocked.code : 'CG-DATA-UNAVAILABLE', i18n));
     }
     const at = generation;
+    const clickedText = card.text;
     card.busy = true;
     said(card, { s: 'sending' });
     const stop = (code: string, uncertain = false): ActionReceipt => {
       card.busy = false;
-      said(card, uncertain ? { s: 'uncertain', failure: failure(code) } : { s: 'refused', failure: failure(code) });
+      said(card, code === 'CG-SEND-PART' ? { s: 'sent', at: new Date(clock.now()).toISOString() } : uncertain || code === 'CG-SEND-UNCERTAIN' ? { s: 'uncertain', failure: failure(code) } : { s: 'refused', failure: failure(code) });
       return refused(type, localError(isShared(code) ? code : 'CG-DATA-UNAVAILABLE', i18n));
     };
     // The field as it goes is the field as stored: its revision is the one the send's final check compares (FS-NEW-6).
     await flush(card);
+    if (!await read(card)) return stop('CG-RUNTIME-UNREACHABLE');
     if (at !== generation || disposed) return stop('CG-CONTEXT-CHANGED');
+    if (card.state.s === 'sent' || card.state.s === 'uncertain') {
+      card.busy = false;
+      return refused(type, localError(card.state.s === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN', i18n));
+    }
+    if (card.text !== clickedText) return stop('CG-DRAFT-CHANGED');
+    const currentBlock = blockedOf(card, row, true);
+    if (currentBlock !== null) return stop(currentBlock.code);
     const text = card.text.trim();
     if (card.dirty || card.stored === null || card.stored.text.trim() !== text) return stop('CG-DRAFT-CHANGED');
     const issued = await issueCause(rpc, 'send', 'newcomers');
@@ -381,22 +422,27 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (!issued.ok) return stop(issued.code);
     const admission = admissionOf(card);
     const gen = card.gen;
-    const answer = await source.send({
-      attemptId: ids.uuid(),
-      passId: card.passId,
-      hostAccountId: account,
-      fanRef: card.fanRef,
-      conversationRef: row.conversationRef,
-      text,
-      draftRevision: card.stored.revision,
-      // An unchanged AI text goes on the history it was made from; the person's own on the one the card shows.
-      historyRevision: admission.kind === 'ai' && gen !== null ? gen.historyRevision : (row.historyRevision as string),
-      admission,
-      cause: issued.cause,
-      ...(admission.kind === 'ai' && gen !== null ? { opId: gen.opId } : {}),
-    });
+    let answer: Awaited<ReturnType<PassGreetingSource['send']>>;
+    try {
+      answer = await source.send({
+        attemptId: ids.uuid(),
+        passId: card.passId,
+        hostAccountId: account,
+        fanRef: card.fanRef,
+        conversationRef: row.conversationRef,
+        text,
+        draftRevision: card.stored.revision,
+        // An unchanged AI text goes on the history it was made from; the person's own on the one the card shows.
+        historyRevision: admission.kind === 'ai' && gen !== null ? gen.historyRevision : (row.historyRevision as string),
+        admission,
+        cause: issued.cause,
+        ...(admission.kind === 'ai' && gen !== null ? { opId: gen.opId } : {}),
+      });
+    } catch {
+      return stop('CG-SEND-UNCERTAIN', true);
+    }
     if (at !== generation || disposed) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
-    if (!answer.ok) return stop(answer.failure.code);
+    if (!answer.ok) return stop(answer.failure.code, answer.failure.code === 'CG-RUNTIME-UNREACHABLE' || answer.failure.code === 'CG-RUNTIME-RELOADED' || answer.failure.code === 'CG-TIMEOUT');
     const outcome = answer.value;
     card.busy = false;
     if (outcome.s === 'sent') {
@@ -419,6 +465,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (card.text.trim() === '' || account === null || row.conversationRef === null || !proven(row)) return refused(type, localError('CG-DATA-NOT-READY', i18n));
     if (identity === null) return refused(type, localError('CG-HOST-NOT-READY', i18n));
     const at = generation;
+    const clickedText = card.text;
     card.busy = true;
     changed();
     const stop = (code: CgCode): ActionReceipt => {
@@ -427,7 +474,13 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       return refused(type, localError(code, i18n));
     };
     await flush(card);
+    if (!await read(card)) return stop('CG-RUNTIME-UNREACHABLE');
     if (at !== generation || disposed) return stop('CG-CONTEXT-CHANGED');
+    if (card.state.s === 'sent' || card.state.s === 'uncertain') {
+      card.busy = false;
+      return refused(type, localError(card.state.s === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN', i18n));
+    }
+    if (card.text !== clickedText || card.dirty) return stop('CG-DRAFT-CHANGED');
     const issued = await issueCause(rpc, 'navigate', 'newcomers');
     if (at !== generation || disposed) return stop('CG-CONTEXT-CHANGED');
     if (!issued.ok) return stop(issued.code);
@@ -483,11 +536,18 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     // Our inserts stay: a send the person makes after the window closed is still theirs to register.
     for (const resolve of [...waiting.values()]) resolve(null);
     waiting.clear();
+    ended.clear();
   }
 
   return {
     vm,
     open,
+    refresh() {
+      for (const card of cards.values()) {
+        card.loaded = 'loading';
+        void read(card);
+      }
+    },
     dispatch(action, passId, row) {
       const card = cardOf(passId, row.fanRef);
       const type = action.type;
@@ -498,6 +558,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       }
       if (action.type !== 'Generate' && action.type !== 'SendNewcomerGreeting' && action.type !== 'InsertNewcomerGreeting') return null;
       if (action.type === 'Generate' && action.feature !== 'hi') return Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n)));
+      if (card.loaded !== 'yes') return Promise.resolve(refused(type, localError('CG-DATA-NOT-READY', i18n)));
       // NF-023: one action of a fan at a time.
       if (card.busy) return Promise.resolve(refused(type, localError('CG-SEND-BUSY', i18n)));
       // Gone out, or it may have: never again from this card (FS-NEW-3).

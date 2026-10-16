@@ -22,11 +22,12 @@
 // Fansly's own code (`bg/fansly` chunk); it names no site and asks Fansly nothing itself.
 
 import { type CgAnyCode } from '@cg/contracts/errors-fansly';
+import { type GreetingDraftGeneration, type StaleReason } from '@cg/contracts/ops';
 import { type FanslyGreetingRequest, type FanslySendView } from '@cg/contracts/send-fansly';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
 import { type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 
-import { EMPTY_DRAFTS, draftKey, findDraft, mergeDraftStores, putDraft, readDraftStore, removeDraft, type DraftStore } from '../../../domain/newcomers/drafts';
+import { EMPTY_DRAFTS, draftKey, findDraft, mergeDraftStores, putDraft, readDraftStore, removeDraft, type DraftStore, type PreviewDraft } from '../../../domain/newcomers/drafts';
 import { WriteQueue } from '../../ports';
 import { NO_LOG, type KeyValuePort, type ServiceLog } from '../../storage/ports';
 import { notReady, type FanslyNewcomers } from './newcomers';
@@ -43,11 +44,12 @@ export interface GreetingGeneration {
   readonly text: string | null;
   /** Its own verdict is fresh (spec §3.5): nothing else lets an unchanged AI text go. */
   readonly fresh: boolean;
+  readonly mark?: StaleReason | null;
 }
 
 export interface FanslyGreetingDeps {
   readonly newcomers: Pick<FanslyNewcomers, 'row' | 'greetingProof' | 'recheck' | 'live' | 'greeted'>;
-  readonly send: Pick<FanslySend, 'send' | 'native' | 'onChange'>;
+  readonly send: Pick<FanslySend, 'send' | 'native' | 'onChange' | 'status'>;
   /** storage.local: the drafts (the shared `newcomers.drafts`). */
   readonly local: KeyValuePort;
   /** Who is signed in; null — nobody (no draft is anybody's then). */
@@ -71,8 +73,8 @@ export type FanslyGreeting = ReturnType<typeof createFanslyGreeting>;
 
 export function createFanslyGreeting(deps: FanslyGreetingDeps) {
   const log = deps.log ?? NO_LOG;
-  /** NF-023: one action at a time per pass and fan. */
-  const busy = new Set<string>();
+  /** NF-023: one action at a time per creator and fan, across passes and tabs. */
+  const busy = new Map<string, string>();
   /** The card's attempts: whose greeting each one is, to mark the fan once it went. */
   const started = new Map<string, { readonly creator: string; readonly fanRef: string; readonly pageId: number }>();
 
@@ -104,18 +106,18 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
   }
 
   /** Writes (or, with `null`, removes) a draft: what the tabs stored is merged in first; memory follows only a write that landed. */
-  function write(key: string, text: string | null, historyRevision: string | null): Promise<{ readonly ok: true; readonly text: string; readonly revision: number } | { readonly ok: false }> {
+  function write(key: string, text: string | null, historyRevision: string | null, generation?: GreetingDraftGeneration): Promise<{ readonly ok: true; readonly draft: PreviewDraft | null; readonly revision: number } | { readonly ok: false }> {
     return writes.run(async () => {
       const now = deps.now();
       const merged = mergeDraftStores(await stored(), await loaded(), now);
-      const put = text === null ? { store: removeDraft(merged, key, now), draft: null, revision: 0 } : putDraft(merged, key, text, now, historyRevision);
+      const put = text === null ? { store: removeDraft(merged, key, now), draft: null, revision: 0 } : putDraft(merged, key, text, now, historyRevision, generation ?? findDraft(merged, key, now)?.generation);
       const written = await deps.local.set({ [DRAFTS_KEY]: put.store });
       if (!written.ok) {
         log({ level: 'warn', scope: 'bg.fansly.greeting', msg: 'draft not written', code: 'CG-STORAGE-WRITE', fields: { reason: written.code } });
         return { ok: false };
       }
       store = put.store;
-      return { ok: true, text: put.draft?.text ?? '', revision: put.revision };
+      return { ok: true, draft: put.draft, revision: put.revision };
     });
   }
 
@@ -126,16 +128,28 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
     if (!page.ok) return { ok: false, error: { code: page.code } };
     const key = keyOf(page.page.pageId, payload.fanRef);
     if (key === null) return { ok: false, error: { code: 'CG-AUTH-REQUIRED' } };
+    const known = await deps.send.status(page.page, payload.fanRef);
+    const active = busy.get(`${row.creator}|${payload.fanRef}`);
+    const attempt = active !== undefined && known?.attemptId !== active ? { attemptId: active, fanRef: payload.fanRef, state: 'ready' as const } : known;
+    const status = attempt === null ? {} : { attempt };
+    const viewOf = (found: PreviewDraft | null, revision: number) => ({ text: found?.text ?? '', revision, historyRevision: found?.threadRevision ?? null, ...(found?.generation === undefined ? {} : { generation: found.generation }), ...status });
     if (payload.text === undefined) {
       const held = await loaded();
       const found = findDraft(held, key, deps.now());
-      return { ok: true, draft: { text: found?.text ?? '', revision: found?.revision ?? held.removed?.find((mark) => mark.key === key)?.revision ?? 0, historyRevision: found?.threadRevision ?? null } };
+      return { ok: true, draft: viewOf(found, found?.revision ?? held.removed?.find((mark) => mark.key === key)?.revision ?? 0) };
+    }
+    let generation: GreetingDraftGeneration | undefined;
+    if (payload.generation !== undefined) {
+      const op = deps.generation(payload.generation.opId);
+      if (op === null || op.text === null || op.fanRef !== payload.fanRef || op.conversationRef !== row.view.groupId || op.text.trim() !== payload.text.trim()) return { ok: false, error: { code: 'CG-SEND-FRESHNESS' } };
+      // The tab supplies the link, never the verdict: keep THIS operation's evidence with its text.
+      generation = { ...payload.generation, generationRef: op.generationRef, text: op.text.trim(), mark: op.mark ?? (op.fresh ? null : 'unverified') };
     }
     // The revision of the history the person looked at when they wrote it (NF-018).
     const historyRevision = row.view.historyRevision;
-    const written = await write(key, payload.text, historyRevision);
+    const written = await write(key, payload.text, historyRevision, generation);
     if (!written.ok) return { ok: false, error: { code: 'CG-STORAGE-WRITE' } };
-    return { ok: true, draft: { text: written.text, revision: written.revision, historyRevision: written.text === '' ? null : historyRevision } };
+    return { ok: true, draft: viewOf(written.draft, written.revision) };
   }
 
   // ── the generation's proof (FS-NEW-7) ──
@@ -166,9 +180,9 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       log({ level: 'info', scope: 'bg.fansly.greeting', msg: 'greeting refused before an attempt', fields: { attemptId: request.attemptId, code } });
       return { ok: false, error: { code } };
     };
-    const lock = `${request.passId}|${request.fanRef}`;
+    const lock = `${request.hostAccountId}|${request.fanRef}`;
     if (busy.has(lock)) return fail('CG-SEND-BUSY');
-    busy.add(lock);
+    busy.set(lock, request.attemptId);
     try {
       const row = deps.newcomers.row(request.passId, request.fanRef, tab);
       if (row === null) return fail('CG-CONTEXT-CHANGED');
@@ -176,16 +190,32 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       if (row.view.status !== 'ready' || row.proof === null) return fail(notReady(row.view));
       // The conversation the pass resolved, never the fan's id (FS-IDN-6).
       if (row.proof.groupId !== request.groupId) return fail('CG-CONTEXT-CHANGED');
+      const page = await deps.page(request.hostAccountId, tab);
+      if (!page.ok) return fail(page.code);
+      const prior = await deps.send.status(page.page, request.fanRef);
+      if (prior?.state === 'sent' || prior?.state === 'receipted') return fail('CG-SEND-PART');
+      if (prior?.state === 'uncertain') return fail('CG-SEND-UNCERTAIN');
+      if (prior !== null && prior.state !== 'refused') return fail('CG-SEND-BUSY');
+      const held = await loaded();
+      const key = keyOf(page.page.pageId, request.fanRef);
+      const saved = key === null ? undefined : findDraft(held, key, deps.now())?.generation;
+      if (saved !== undefined && saved.text.trim() === request.text) {
+        // A reopened or older tab cannot relabel the unchanged AI draft as its own text.
+        if (request.admission.kind !== 'ai' || request.opId !== saved.opId || request.admission.generationRef !== saved.generationRef || saved.mark !== null) return fail('CG-SEND-FRESHNESS');
+        if (request.historyRevision !== saved.historyRevision) return fail('CG-FNEW-HISTORY');
+      }
       if (request.admission.kind === 'ai') {
         // FS-NEW-6, FS-TAIL-8: THIS generation's result, unchanged, with its own fresh verdict — else only a new one.
         const generation = request.opId === undefined ? null : deps.generation(request.opId);
-        if (generation === null || generation.generationRef !== request.admission.generationRef || generation.fanRef !== request.fanRef || generation.conversationRef !== request.groupId) return fail('CG-SEND-FRESHNESS');
-        if (generation.text?.trim() !== request.text) return fail('CG-DRAFT-CHANGED');
-        if (!generation.fresh) return fail('CG-SEND-FRESHNESS');
+        if (generation === null) {
+          // The operations list may have been pruned/restarted; only its saved fresh verdict can replace it.
+          if (saved === undefined || saved.opId !== request.opId || saved.generationRef !== request.admission.generationRef || saved.text !== request.text || saved.mark !== null) return fail('CG-SEND-FRESHNESS');
+        } else {
+          if (generation.generationRef !== request.admission.generationRef || generation.fanRef !== request.fanRef || generation.conversationRef !== request.groupId) return fail('CG-SEND-FRESHNESS');
+          if (generation.text?.trim() !== request.text) return fail('CG-DRAFT-CHANGED');
+          if (!generation.fresh) return fail('CG-SEND-FRESHNESS');
+        }
       }
-      const page = await deps.page(request.hostAccountId, tab);
-      if (!page.ok) return fail(page.code);
-      await loaded();
       if (revisionNow(page.page.pageId, request.fanRef) !== request.draftRevision) return fail('CG-DRAFT-CHANGED');
       // NF-036: the history read again before the custody; another revision than the one reviewed refuses (NF-018).
       const again = await deps.newcomers.recheck(request.passId, request.fanRef, tab);

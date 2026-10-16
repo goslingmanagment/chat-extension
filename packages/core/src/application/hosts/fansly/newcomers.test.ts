@@ -23,7 +23,8 @@ import {
 } from '@cg/contracts/tab-messages-fansly';
 import { NEWCOMER_CHECK_FILTERS, type NewcomersVM } from '@cg/contracts/vm';
 import { NavigationIntentSchema, type HostEvent, type HostPort, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
-import { StartOpSchema, type OpView, type StaleReason, type StartOp } from '@cg/contracts/ops';
+import { StartOpSchema, type GreetingDraftGeneration, type OpView, type StaleReason, type StartOp } from '@cg/contracts/ops';
+import { type FanslySendView } from '@cg/contracts/send-fansly';
 
 import { BOOTSTRAP_PILOT_PAGES } from '@cg/testing/hub';
 
@@ -183,7 +184,9 @@ class FakeFollowers implements FanslyFollowersPort {
   state: FanslyPassView['state'] = 'queue';
   partial = false;
   // R20 P10c: the card's greeting as the module keeps it.
-  readonly drafts = new Map<string, { text: string; revision: number; historyRevision: string | null }>();
+  readonly drafts = new Map<string, { text: string; revision: number; historyRevision: string | null; generation?: GreetingDraftGeneration }>();
+  readonly attempts = new Map<string, FanslySendView>();
+  generation: (opId: string) => Omit<GreetingDraftGeneration, 'historyRevision'> | null = () => null;
   readonly proofs = new Map<string, FanslyGreetingProof>();
   sendAnswer: (payload: FanslyTabRequestPayload<'fansly.followers.send'>) => FanslyTabResponsePayload<'fansly.followers.send'> = (payload) => ({
     ok: true,
@@ -271,14 +274,22 @@ class FakeFollowers implements FanslyFollowersPort {
       case 'fansly.followers.draft': {
         const fanRef = payload['fanRef'] as string;
         const now = this.drafts.get(fanRef) ?? { text: '', revision: 0, historyRevision: null };
-        if (payload['text'] === undefined) return { ok: true, draft: now };
+        const attempt = this.attempts.get(fanRef);
+        const status = attempt === undefined ? {} : { attempt };
+        if (payload['text'] === undefined) return { ok: true, draft: { ...now, ...status } };
         const text = payload['text'] as string;
-        const next = { text, revision: now.revision + 1, historyRevision: text === '' ? null : (this.rows.find((row) => row.fanRef === fanRef)?.historyRevision ?? null) };
+        const link = payload['generation'] as { opId: string; historyRevision: string } | undefined;
+        const gen = link === undefined ? now.generation : this.generation(link.opId);
+        const generation = gen === null || gen === undefined || text === '' ? undefined : { ...gen, historyRevision: link?.historyRevision ?? now.generation?.historyRevision ?? uuid(0x501) };
+        const next = { text, revision: now.revision + 1, historyRevision: text === '' ? null : (this.rows.find((row) => row.fanRef === fanRef)?.historyRevision ?? null), ...(generation === undefined ? {} : { generation }) };
         this.drafts.set(fanRef, next);
-        return { ok: true, draft: next };
+        return { ok: true, draft: { ...next, ...status } };
       }
-      case 'fansly.followers.send':
-        return this.sendAnswer(payload as FanslyTabRequestPayload<'fansly.followers.send'>);
+      case 'fansly.followers.send': {
+        const answer = this.sendAnswer(payload as FanslyTabRequestPayload<'fansly.followers.send'>);
+        if (answer.ok) this.attempts.set(answer.attempt.fanRef, answer.attempt);
+        return answer;
+      }
       case 'fansly.followers.sent':
         return { recorded: true };
     }
@@ -956,6 +967,8 @@ function fakeRpc() {
   const started: StartOp[] = [];
   const tokens: string[] = [];
   const listeners = new Set<(payload: { view: OpView }) => void>();
+  const views = new Map<string, OpView>();
+  const state = { existingOpId: null as string | null, onStart: null as ((opId: string) => void) | null };
   let next = 0xc1;
   const rpc = {
     request(type: string, payload: unknown): Promise<unknown> {
@@ -966,8 +979,11 @@ function fakeRpc() {
       if (type === 'op.start') {
         expect(StartOpSchema.safeParse(payload).success, JSON.stringify(StartOpSchema.safeParse(payload).error)).toBe(true);
         started.push(payload as StartOp);
-        return Promise.resolve({ ok: true, payload: { ok: true, opId: uuid(next++) } });
+        const opId = state.existingOpId ?? uuid(next++);
+        state.onStart?.(opId);
+        return Promise.resolve({ ok: true, payload: { ok: true, opId } });
       }
+      if (type === 'op.list') return Promise.resolve({ ok: true, payload: { ops: [...views.values()], truncated: false } });
       return Promise.reject(new Error(`unexpected ${type}`));
     },
     onEvent(type: string, listener: (payload: { view: OpView }) => void) {
@@ -976,11 +992,12 @@ function fakeRpc() {
     },
   } as unknown as TabRpc;
   /** The background's end of a Hi: the one variant's parts. */
-  const done = (opId: string, parts: string[], patch: Partial<OpView> = {}): void => {
+  const done = (opId: string, parts: string[], patch: Partial<OpView> = {}, emit = true): void => {
     const view = { opId, feature: 'hi', surface: 'newcomers', state: 'done', result: { kind: 'variants', variants: [parts] }, generationRef: GEN, toneUsed: null, ...patch } as unknown as OpView;
-    for (const listener of [...listeners]) listener({ view });
+    views.set(opId, view);
+    if (emit) for (const listener of [...listeners]) listener({ view });
   };
-  return { rpc, started, tokens, done };
+  return { rpc, started, tokens, done, views, state };
 }
 
 /** The host as the card uses it: the document, the person's own sends, «Открыть и вставить». */
@@ -1009,8 +1026,8 @@ function fakeHost() {
   return { host, navigations, sent };
 }
 
-function greetingWorld(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2)], options: { readonly state?: PageContextState } = {}) {
-  const background = new FakeFollowers();
+function greetingWorld(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2)], options: { readonly state?: PageContextState; readonly background?: FakeFollowers } = {}) {
+  const background = options.background ?? new FakeFollowers();
   background.rows = rows;
   for (const row of rows) background.proofs.set(row.fanRef, proofOf(Number(BigInt(row.fanRef) - 800000000000000000n)));
   const context = fakeContext(options.state ?? readyState());
@@ -1021,6 +1038,11 @@ function greetingWorld(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2)], opt
   const site = fakeHost();
   /** The site's verdict over a generation (spec §3.5), by operation: fresh unless the test says otherwise. */
   const marks = new Map<string, StaleReason>();
+  background.generation = (opId) => {
+    const view = tab.views.get(opId);
+    const parts = view?.result?.kind === 'variants' ? view.result.variants[0] : undefined;
+    return parts?.length === 1 ? { opId, generationRef: view?.generationRef ?? null, text: (parts[0] ?? '').trim(), mark: marks.get(opId) ?? null } : null;
+  };
   let id = 0xa00;
   const controller = createPassNewcomersController({
     source: createFanslyNewcomersSource(background, ORIGIN),
@@ -1052,6 +1074,132 @@ function greetingWorld(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2)], opt
 }
 
 describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10c)', () => {
+  it('[FS-TAIL-8] an unverified AI draft stays AI and blocked after close/open, a reload or another tab; only a changed text becomes own', async () => {
+    const w = greetingWorld();
+    await w.open();
+    const run = w.generate(1);
+    await settle();
+    w.marks.set(uuid(0xc1), 'unverified');
+    w.tab.done(uuid(0xc1), ['Hey Fan 1!']);
+    await run;
+    await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+    await w.open();
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1!', ai: true, mark: 'unverified', canSend: false });
+    const other = greetingWorld(undefined, { background: w.background });
+    await other.open();
+    expect(other.greeting()).toMatchObject({ ai: true, mark: 'unverified', canSend: false });
+    expect(await other.send(1)).toMatchObject({ ok: false, code: 'CG-SEND-FRESHNESS' });
+    expect(w.background.of('fansly.followers.send')).toHaveLength(0);
+    await other.type(1, 'Hey Fan 1, welcome!');
+    expect(other.greeting()).toMatchObject({ ai: false, mark: null, canSend: true });
+    await other.send(1);
+    expect(w.background.of('fansly.followers.send').at(-1)).toMatchObject({ admission: { kind: 'ai-edited', generationRef: GEN }, text: 'Hey Fan 1, welcome!' });
+  });
+
+  it('[FS-NEW-3] uncertain and sent survive reopening and another tab, disabling both send and native insert', async () => {
+    for (const state of ['uncertain', 'sent'] as const) {
+      const w = greetingWorld();
+      await w.open();
+      await w.type(1, 'Hi!');
+      w.background.sendAnswer = (click) => ({ ok: true, attempt: state === 'uncertain' ? { attemptId: click.attemptId, fanRef: click.fanRef, state, code: 'CG-SEND-UNCERTAIN', cause: 'network' } : { attemptId: click.attemptId, fanRef: click.fanRef, state, proof: 'echo', platformMessageId: '830000000000000001' } });
+      await w.send(1);
+      await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+      await w.open();
+      expect(w.greeting()).toMatchObject({ state: { s: state }, canSend: false, canInsert: false, canGenerate: false });
+      const other = greetingWorld(undefined, { background: w.background });
+      await other.open();
+      expect(other.greeting()).toMatchObject({ state: { s: state }, canSend: false, canInsert: false });
+      expect(await other.controller.dispatch({ type: 'InsertNewcomerGreeting', targetHandle: other.handle(1) })).toMatchObject({ ok: false });
+      expect(await other.send(1)).toMatchObject({ ok: false });
+      expect(other.site.navigations).toHaveLength(0);
+      expect(w.background.of('fansly.followers.send')).toHaveLength(1);
+    }
+  });
+
+  it('[FS-TAIL-8] reconnect cannot relabel an unsaved unverified result when the generation’s draft write lost its answer', async () => {
+    const w = greetingWorld();
+    await w.open();
+    const run = w.generate(1);
+    await settle();
+    w.marks.set(uuid(0xc1), 'unverified');
+    w.background.next.set('fansly.followers.draft', { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } });
+    w.tab.done(uuid(0xc1), ['Hey Fan 1!']);
+    await run;
+    w.background.reconnect();
+    await settle();
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1!', ai: true, mark: 'unverified', canSend: false });
+    expect(await w.send(1)).toMatchObject({ ok: false, code: 'CG-SEND-FRESHNESS' });
+    expect(w.background.of('fansly.followers.send')).toHaveLength(0);
+  });
+
+  it('[FS-NEW-3] a background refusal because another tab already sent or is uncertain keeps the native-insert ban', async () => {
+    for (const code of ['CG-SEND-UNCERTAIN', 'CG-SEND-PART'] as const) {
+      const w = greetingWorld();
+      await w.open();
+      await w.type(1, 'Hi!');
+      w.background.sendAnswer = () => ({ ok: false, error: { code } });
+      await w.send(1);
+      expect(w.greeting()).toMatchObject({ state: { s: code === 'CG-SEND-PART' ? 'sent' : 'uncertain' }, canSend: false, canInsert: false });
+    }
+  });
+
+  it('[FS-NEW-3] a send answer lost to timeout/port loss is uncertain; reopen reads the running attempt and reconnect reads its durable resolution without another send', async () => {
+    for (const code of ['CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-RELOADED', 'CG-TIMEOUT'] as const) {
+      const w = greetingWorld();
+      await w.open();
+      await w.type(1, 'Hi!');
+      w.background.held.add('fansly.followers.send');
+      const send = w.send(1);
+      await settle();
+      const click = w.background.of('fansly.followers.send')[0] as FanslyTabRequestPayload<'fansly.followers.send'>;
+      expect(click).toBeDefined();
+      w.background.attempts.set(fan(1), { attemptId: click.attemptId, fanRef: fan(1), state: 'requestStarted' });
+      w.background.next.set('fansly.followers.send', { ok: false, error: { code } });
+      w.background.release();
+      await send;
+      expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' }, canSend: false, canInsert: false });
+      await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+      await w.open();
+      expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' }, canInsert: false });
+      w.background.attempts.set(fan(1), { attemptId: click.attemptId, fanRef: fan(1), state: 'sent', proof: 'resolved-sent' });
+      w.background.reconnect();
+      await settle();
+      expect(w.greeting()).toMatchObject({ state: { s: 'sent' }, canSend: false, canInsert: false });
+      expect(w.background.of('fansly.followers.send')).toHaveLength(1);
+    }
+  });
+
+  it('[NF-013] re-generate bypasses the cache and names the previous operation; an already-finished returned opId is consumed immediately', async () => {
+    const w = greetingWorld();
+    await w.open();
+    const first = w.generate(1);
+    await settle();
+    w.tab.done(uuid(0xc1), ['Hey Fan 1!']);
+    await first;
+    const second = w.generate(1);
+    await settle();
+    expect(w.tab.started[1]).toMatchObject({ force: true, regenerateOf: uuid(0xc1) });
+    w.tab.done(uuid(0xc2), ['Welcome back!']);
+    await second;
+    // A different tab's cached operation: no op.done event in this window at all.
+    const cached = greetingWorld();
+    await cached.open();
+    cached.tab.done(uuid(0xc3), ['Already finished'], {}, false);
+    cached.tab.state.existingOpId = uuid(0xc3);
+    const reopened = cached.generate(1);
+    await settle();
+    expect(cached.greeting()).toMatchObject({ text: 'Already finished', state: { s: 'idle' } });
+    expect(await reopened).toMatchObject({ ok: true });
+    // Completion may also beat the admission answer.
+    const fast = greetingWorld();
+    await fast.open();
+    fast.tab.state.onStart = (opId) => fast.tab.done(opId, ['Finished before admission']);
+    const early = fast.generate(1);
+    await settle();
+    expect(fast.greeting()?.text).toBe('Finished before admission');
+    expect(await early).toMatchObject({ ok: true });
+  });
+
   it('[NF-012] [NF-028] the draft is the field: read once when the card opens, written after a pause — not on every key; the card sends nothing by itself', async () => {
     const w = greetingWorld();
     w.background.drafts.set(fan(1), { text: 'saved yesterday', revision: 4, historyRevision: uuid(0x501) });

@@ -10,7 +10,7 @@
 // own registry may name it) and never a text, a conversation the site's id of it, never the fan's.
 
 import { type HumanCause } from '@cg/contracts/ids';
-import { type CoverageWindowEntry, type StartOp } from '@cg/contracts/ops';
+import { type CoverageWindowEntry, type GreetingDraftGeneration, type StartOp } from '@cg/contracts/ops';
 
 import { type PassChange, type PassHistoryPage, type PassPage, type PassQuery, type PassState, type SourceAnswer } from '../../domain/newcomers/pass';
 
@@ -75,6 +75,8 @@ export interface PassDraft {
   readonly text: string;
   readonly revision: number;
   readonly historyRevision: string | null;
+  readonly generation?: GreetingDraftGeneration;
+  readonly outcome?: PassSendOutcome;
 }
 
 /** How a text is admitted (FS-NEW-6): the person's own, an unchanged AI result, an edited one. */
@@ -118,7 +120,7 @@ export interface PassNativeSend {
 export interface PassGreetingSource {
   proof(passId: string, fanRef: string): Promise<SourceAnswer<PassGreetingProof>>;
   /** Without `text` — reads the draft; with it — writes it (an empty one clears it). */
-  draft(passId: string, fanRef: string, text?: string): Promise<SourceAnswer<PassDraft>>;
+  draft(passId: string, fanRef: string, text?: string, generation?: { readonly opId: string; readonly historyRevision: string }): Promise<SourceAnswer<PassDraft>>;
   send(click: PassGreetingSend): Promise<SourceAnswer<PassSendOutcome>>;
   /** True — the site took the report (the hub hears it now or later). */
   sent(report: PassNativeSend): Promise<SourceAnswer<boolean>>;
