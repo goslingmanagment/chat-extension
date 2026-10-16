@@ -332,8 +332,10 @@ describe('the vault panel on the Fansly stand: one click to it on `/creator/vaul
     await waitForFanslyStandIdle();
     creator = (await fanslyIds()).creator;
     await waitForPanel((panel) => panel.shown && panel.mounted, 'the vault’s entry');
-    await ours('panel', '[data-cg-vault-entry]').click();
+    // The controller's report can precede Preact's render; wait for the actual controls in the closed root.
+    await (await waitOursByText('panel', '[data-cg-vault-entry]', /Загрузка/, 'the vault’s entry button')).click();
     await waitForPanel((panel) => panel.mode === 'open', 'the panel');
+    await browser.$('app-media-vault-route .vault-album').waitForExist({ timeout: 10_000, timeoutMsg: 'the stand’s albums' });
     await browser.$('app-media-vault-route .vault-album').click();
     await browser.$('app-media-vault-route .vault-header').waitForExist({ timeout: 5000 });
     await browser.$('app-media-vault-route .close-toggle').click();
@@ -342,7 +344,7 @@ describe('the vault panel on the Fansly stand: one click to it on `/creator/vaul
     const paths = setOnDisk('resume', ['r-1.jpg', 'r-2.jpg', 'r-3.jpg']);
     await pick(paths);
     await waitForPanel((panel) => panel.controls.blocked === null, 'the set ready');
-    await ours('panel', '[data-cg-vault-start]').click();
+    await (await waitOursByText('panel', '[data-cg-vault-start]:not([aria-disabled="true"])', 'Начать', 'the start button')).click();
     // «Пауза после текущего»: the file in flight goes, then nothing.
     await (await waitOursByText('panel', 'button', 'Пауза после текущего', 'the pause')).click();
     const paused = await waitForPanel((panel) => panel.run?.state === 'paused', 'the run paused', 30_000);
@@ -357,8 +359,9 @@ describe('the vault panel on the Fansly stand: one click to it on `/creator/vaul
     await browser.refresh();
     await waitForFanslyStandReady();
     await waitForPanel((panel) => panel.shown && panel.mounted, 'the vault’s entry after the reload');
-    await ours('panel', '[data-cg-vault-entry]').click();
+    await (await waitOursByText('panel', '[data-cg-vault-entry]', /Загрузка/, 'the vault’s entry button after the reload')).click();
     await waitForPanel((panel) => panel.mode === 'open', 'the panel after the reload');
+    await browser.$('app-media-vault-route .vault-album').waitForExist({ timeout: 10_000, timeoutMsg: 'the stand’s albums after the reload' });
     await browser.$('app-media-vault-route .vault-album').click();
     await browser.$('app-media-vault-route .vault-header').waitForExist({ timeout: 5000 });
     await browser.$('app-media-vault-route .close-toggle').click();
@@ -369,7 +372,7 @@ describe('the vault panel on the Fansly stand: one click to it on `/creator/vaul
     expect([resumed.resume, resumed.controls.start]).toEqual([{ kind: 'continue', done: 1, total: 3 }, 'resume']);
     await shootVault('resume-bright');
     const since = await fakeFansly().mark();
-    await ours('panel', '[data-cg-vault-start]').click();
+    await (await waitOursByText('panel', '[data-cg-vault-start]:not([aria-disabled="true"])', 'Продолжить', 'the resume button')).click();
     const done = await waitForPanel((panel) => panel.run?.state === 'complete', 'the rest uploaded', 60_000);
     expect(done.run?.report).toEqual({ uploaded: 2, present: 0, previous: 1 });
     // Only the two not done went to the page.
