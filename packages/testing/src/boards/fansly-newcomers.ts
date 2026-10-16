@@ -1,7 +1,8 @@
 // «Новые» on Fansly in the boards gallery and its tests (R20 P10a; ui-design §3.12): the shared `NewcomersVM` with its
 // `pass`, as the pass controller builds it over Fansly's background module — a queue running with the card of the
 // first fan to write to, a fan written to already with the proof and a long conversation, the list that was not read
-// (FX-017), and the fast part still reading profiles with a pause Fansly asked for and a fan nobody can write to.
+// (FX-017), and the fast part still reading profiles with a pause Fansly asked for and a fan nobody can write to — «Исключить
+// из очереди» —, and one the person took out of the queue — «Вернуть в очередь» (R20 P10b2).
 // Synthetic people and ids only.
 
 import {
@@ -39,6 +40,7 @@ interface Follower {
   readonly minutesAgo: number;
   readonly customName?: string;
   readonly dmClosed?: NewcomerDmClosed;
+  readonly dmPriceMills?: number;
   readonly bio?: string;
   readonly failure?: NewcomersFailureVM;
   readonly group?: boolean;
@@ -49,7 +51,7 @@ const FOLLOWERS: readonly Follower[] = [
   { n: 2, name: 'Leo', username: 'leo.k', check: 'reply', minutesAgo: 41 },
   { n: 3, name: 'Jake', username: 'jake88', check: 'pending', minutesAgo: 2 * 60, group: false },
   { n: 4, name: 'Marco R.', username: 'marco_r', check: 'checking', minutesAgo: 3 * 60, group: false },
-  { n: 5, name: 'Daniel', username: 'dan_p', check: 'dm-closed', dmClosed: 'paid', minutesAgo: 5 * 60, bio: 'Only paid DMs, sorry' },
+  { n: 5, name: 'Daniel', username: 'dan_p', check: 'dm-closed', dmClosed: 'paid', dmPriceMills: 1700, minutesAgo: 5 * 60, bio: 'Only paid DMs, sorry' },
   { n: 6, name: 'Ryan T.', username: 'ryan_t', check: 'failed', minutesAgo: 7 * 60, failure: { code: 'CG-FAN-REQUEST', retryAt: null }, group: false },
   { n: 7, name: 'Chris', username: 'chris_77', check: 'unverified', minutesAgo: 9 * 60 },
   { n: 8, name: 'Alex M.', username: 'alex_m', check: 'ready', minutesAgo: 11 * 60, customName: 'Алекс из Бостона' },
@@ -115,6 +117,7 @@ function cardOf(ctx: ScenarioCtx, follower: Follower, options: CardOptions): New
     bio: follower.bio ?? null,
     check: follower.check,
     dmClosed: follower.dmClosed ?? null,
+    dmPriceMills: follower.dmPriceMills ?? null,
     failure: follower.failure ?? null,
     proof: options.proof ?? null,
     history: options.history,
@@ -173,7 +176,8 @@ export function fanslyNewcomersVM(ctx: ScenarioCtx, options: PassOptions): Newco
     cooldownUntil: options.cooldownUntil ?? null,
     filters: NEWCOMER_CHECK_FILTERS.map((id) => ({ id, count: live ? inTab.filter((follower) => passesCheckFilter(follower.check, id)).length : null, pressed: id === filter })),
     failure: options.failure ?? null,
-    card: options.card === null ? null : { ...options.card, checkNext },
+    // R20 P10b2 (FS-NEW-2): a fan nobody can write to leaves «К обработке» by hand, and comes back.
+    card: options.card === null ? null : { ...options.card, checkNext, exclude: options.card.check === 'dm-closed' ? 'exclude' : options.card.check === 'excluded' ? 'restore' : null },
     ...(live ? { run: { pause: running, resume: !running && options.stage !== 'scanning' && remaining > 0, remaining, busy: false } } : {}),
   };
   const view =
@@ -249,6 +253,13 @@ export function fanslyPaused(ctx: ScenarioCtx): ScenarioViewEntry[] {
   const jake = follower(3);
   const card = cardOf(ctx, jake, { history: history('unchecked', []) });
   return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'paused', selected: 3, card }))];
+}
+
+/** `l` — R20 P10b2 (FS-NEW-2): «Все», «Нельзя написать»: a fan the person took out of the queue — «Вернуть в очередь». */
+export function fanslyExcluded(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  const ben = follower(10);
+  const card = cardOf(ctx, ben, { history: history('ready', [message(ctx, 31, 30 * 60 - 1, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true)]) });
+  return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'paused', tab: 'all', filter: 'dm-closed', selected: 10, card }))];
 }
 
 /** `e` — the first page is on its way: the stage of the fast part, nothing to show yet. */

@@ -36,6 +36,11 @@ export interface NewcomersPassSource {
   setRunning(passId: string, running: boolean): Promise<SourceAnswer<PassState | null>>;
   /** R20 P10b1, NF-038: «Проверить следующим» / «Проверить чат» — true: the queue took this fan. */
   checkNext(passId: string, fanRef: string): Promise<SourceAnswer<boolean>>;
+  /**
+   * R20 P10b2, FS-NEW-2: «Исключить из очереди» (`true`) / «Вернуть в очередь» (`false`) of a fan nobody can write to —
+   * true: kept; false — the fan is not such a fan (any more), or the exclusion could not be kept.
+   */
+  exclude(passId: string, fanRef: string, excluded: boolean): Promise<SourceAnswer<boolean>>;
   /** The window closed: the pass keeps what it found; nothing new starts for this window. Nobody waits for it. */
   close(passId: string): void;
   onChange(listener: (change: PassChange) => void): () => void;

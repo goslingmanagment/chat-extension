@@ -6,7 +6,7 @@
 // asked for the whole snapshot every 700 ms). The port hands answers and events over already checked by Fansly's
 // registry (the composition's `fanslyRequest`, NF-027); here they become the neutral words of a pass
 // (domain/hosts/fansly/newcomers). A failure is a failure — of the envelope or of the payload — never an empty list.
-// R20 P10b1: the queue's buttons — `pause`, `resume`, `prioritize` (NF-038).
+// R20 P10b1: the queue's buttons — `pause`, `resume`, `prioritize` (NF-038). R20 P10b2: `exclude` (FS-NEW-2).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type FanslyTabEventPayload, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
@@ -35,7 +35,9 @@ export type FanslyFollowersRequest =
   // R20 P10b1: the queue's buttons (NF-038).
   | 'fansly.followers.pause'
   | 'fansly.followers.resume'
-  | 'fansly.followers.prioritize';
+  | 'fansly.followers.prioritize'
+  // R20 P10b2: «Исключить из очереди» / «Вернуть в очередь» (FS-NEW-2).
+  | 'fansly.followers.exclude';
 
 export type FanslyFollowersAnswer<T extends FanslyFollowersRequest> = { readonly ok: true; readonly payload: FanslyTabResponsePayload<T> } | { readonly ok: false; readonly error: CgErrorWire };
 
@@ -89,6 +91,10 @@ export function createFanslyNewcomersSource(port: FanslyFollowersPort, origin: s
     },
     async checkNext(passId, fanRef) {
       const answer = await port.request('fansly.followers.prioritize', { passId, fanRef });
+      return answer.ok ? { ok: true, value: answer.payload.recorded } : { ok: false, failure: envelope(answer.error) };
+    },
+    async exclude(passId, fanRef, excluded) {
+      const answer = await port.request('fansly.followers.exclude', { passId, fanRef, excluded });
       return answer.ok ? { ok: true, value: answer.payload.recorded } : { ok: false, failure: envelope(answer.error) };
     },
     close(passId) {

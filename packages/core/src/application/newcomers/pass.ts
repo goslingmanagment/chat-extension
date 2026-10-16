@@ -12,6 +12,8 @@
 //
 // R20 P10b1, NF-038: the queue's buttons — «Пауза», «Проверить оставшихся» (`SetNewcomersPassRunning`), «Проверить
 // следующим» / «Проверить чат» (`CheckNewcomerNext`) — ask the source; what changed comes back as the pass's changes.
+// R20 P10b2, FS-NEW-2: «Исключить из очереди» / «Вернуть в очередь» (`ExcludeNewcomer`) of a fan nobody can write to,
+// the same way: one request, the row comes back as the pass's change (and leaves «К обработке» or returns).
 //
 // Nothing here sends and nothing generates (P10c brings the greeting): the card's strip is not in this controller.
 // It names no site; the hub's list (ChatSpace) is ./controller.ts.
@@ -451,6 +453,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       bio: row.bio,
       check: row.check,
       dmClosed: row.dmClosed,
+      dmPriceMills: row.dmPriceMills ?? null,
       failure: row.failure,
       proof: row.proof,
       history: historyVM(row),
@@ -510,7 +513,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       cooldownUntil: pass?.state === 'cooldown' ? pass.cooldownUntil : null,
       filters: NEWCOMER_CHECK_FILTERS.map((id) => ({ id, count: counts?.filters[id] ?? null, pressed: id === filter })),
       failure: now === 'failed' ? (listFailure ?? pass?.failure ?? null) : (moreFailure ?? pass?.failure ?? null),
-      card: selectedRow === null || passId === null || blocked !== null ? null : { ...cardOf(selectedRow, passId), checkNext: checkNextOf(selectedRow.check, now) },
+      card: selectedRow === null || passId === null || blocked !== null ? null : { ...cardOf(selectedRow, passId), checkNext: checkNextOf(selectedRow.check, now), exclude: excludeOf(selectedRow.check) },
       ...(pass === null || blocked !== null || now === 'failed' || now === 'connecting' ? {} : { run: runOf(now, pass) }),
     };
 
@@ -549,6 +552,11 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (check !== 'pending' && check !== 'failed' && check !== 'unverified') return null;
     if (now === 'scanning' || now === 'queue' || now === 'cooldown') return 'next';
     return now === 'paused' || now === 'done' ? 'now' : null;
+  }
+
+  /** R20 P10b2, FS-NEW-2: only a fan nobody can write to leaves «К обработке» by hand, and comes back. */
+  function excludeOf(check: PassRow['check']): 'exclude' | 'restore' | null {
+    return check === 'dm-closed' ? 'exclude' : check === 'excluded' ? 'restore' : null;
   }
 
   /** A button of the queue: the background answers; the rows and the pass's state come as its changes (no poll). */
@@ -651,6 +659,13 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       if (fanRef === null || pass === null) return stale(type);
       const passId = pass.passId;
       return act(type, () => source.checkNext(passId, fanRef));
+    }
+    if (action.type === 'ExcludeNewcomer') {
+      if (parsePassHandle(action.targetHandle) === null) return null;
+      const fanRef = own(action.targetHandle);
+      if (fanRef === null || pass === null) return stale(type);
+      const passId = pass.passId;
+      return act(type, () => source.exclude(passId, fanRef, action.excluded));
     }
     if (action.type === 'OpenPreview' || action.type === 'LoadOlder' || action.type === 'RefreshArchive') {
       // A handle of the pass is this window's; any other is a list's or the dock's.

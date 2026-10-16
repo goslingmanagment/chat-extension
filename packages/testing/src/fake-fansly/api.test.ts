@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createWorld, standIds } from '../../fixture-fansly/src/data';
-import { EVENT, SERVICE, compareIds, snowflakeMs, type WireAccount, type WireAccountMe, type WireAutomatedMessage, type WireFollowersPage, type WireGroup, type WireHistoryPage, type WireInboxPage, type WireMessage, type WireNote, type WireUnreadPage, type WireVaultAlbumMediaPage, type WireVaultAlbums } from '../../fixture-fansly/src/wire';
+import { EVENT, SERVICE, compareIds, snowflakeMs, type WireAccount, type WireAccountMe, type WireAutomatedMessage, type WireFollow, type WireFollowersPage, type WireGroup, type WireHistoryPage, type WireInboxPage, type WireMessage, type WireNote, type WireUnreadPage, type WireVaultAlbumMediaPage, type WireVaultAlbums } from '../../fixture-fansly/src/wire';
 import { STAND_COOKIE } from './api';
 import { SEED_FOLLOWERS, SEED_FOLLOWERS_WITH_CHAT } from './data';
 import type { FakeFansly } from './index';
@@ -296,6 +296,15 @@ describe('the fake Fansly API: «Новые», notes, vault', () => {
     expect((await call(fake, 'POST', bypass('/group'), { body: { users: [{ userId: ids.creator }] } })).status).toBe(400);
     expect((await call(fake, 'POST', bypass('/group'), { body: { users: [{ userId: fanA }, { userId: ids.creator }] } })).status).toBe(400);
     socket.socket.close();
+  });
+
+  it('a follower whose DMs are closed to the creator (R20 P10b2): the chat `POST /group` makes carries the unmet rules', async () => {
+    const body = (fanId: string) => ({ users: [{ userId: fanId, permissionFlags: 0 }, { userId: ids.creator, permissionFlags: 0 }], recipients: [], lastMessage: null, userSettings: null, type: 1 });
+    const follow = fake.command({ op: 'follow', silent: true, dmRulesUnmet: true }).follow as WireFollow;
+    const closed = (await call<WireGroup>(fake, 'POST', bypass('/group'), { body: body(follow.followerId) })).response as WireGroup;
+    expect(closed.dmPermissionFlags).toEqual([expect.objectContaining({ accountId: follow.followerId, flags: 2, verificationFlags: 0 })]);
+    const open = fake.command({ op: 'follow', silent: true }).follow as WireFollow;
+    expect(((await call<WireGroup>(fake, 'POST', bypass('/group'), { body: body(open.followerId) })).response as WireGroup).dmPermissionFlags).toEqual([]);
   });
 
   it('`/account?ids=` gives accounts with the creator’s notes; notes are created, edited and deleted by Fansly’s own endpoints', async () => {

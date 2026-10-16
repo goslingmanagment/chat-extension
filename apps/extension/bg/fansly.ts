@@ -27,6 +27,7 @@
 // newcomers.ts) answer `fansly.followers.{scan,read,pause,resume,prioritize,
 // history,close}` over FS-NET-1's purpose `newcomers`, and tell the rows that
 // change to the tabs whose window holds the pass (`fansly.followers.changed`).
+// P10b2: `fansly.followers.exclude` — the person's exclusions in storage.local.
 //
 // R20 P14b1: the settings page reaches this registry too (the core routes a
 // page's `fansly.*` request here while Fansly is on): Fansly's part of
@@ -192,7 +193,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       case 'fansly.vault.clear':
         return ok(await vault.clear(payload as FanslyTabRequestPayload<'fansly.vault.clear'>, tab));
       default:
-        // «Новые» (R20 P10b1): the pass and its queue; `send` and `exclude` come with P10c and P10b2.
+        // «Новые» (R20 P10b1, P10b2): the pass, its queue and the exclusions; `send` comes with P10c.
         if (newcomers?.handles(type) === true) return ok(await newcomers.answer(type, payload, tab));
         return { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: `${type}: not served yet` } };
     }
@@ -284,6 +285,7 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
       const aliases = kit.networkSession?.aliases(creator) ?? [];
       return registration.accounts.some((account) => aliases.includes(account));
     },
+    local: kit.storage.local,
     log: kit.log.service,
   });
 }

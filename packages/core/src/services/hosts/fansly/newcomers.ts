@@ -1,6 +1,6 @@
 // «Новые» on Fansly in the background: the pass Б17 and its queue (R20 P10b1; docs/project-unite/architecture.md §5.8,
 // §8.7; spec FS-NEW-1, FS-NEW-4, FS-NEW-7; NF-030…NF-033, NF-038, NF-039). The answers of `fansly.followers.{scan,
-// read,pause,resume,prioritize,history,close}` for Fansly's background chunk (`bg/fansly`), and the rows that change
+// read,pause,resume,prioritize,history,close,exclude}` for Fansly's background chunk (`bg/fansly`), and the rows that change
 // as `fansly.followers.changed` to the tabs whose window holds the pass — the window never polls (the old one asked
 // for the whole snapshot every 700 ms).
 //
@@ -25,6 +25,13 @@
 // out by the pacer; meanwhile the pass says `cooldown` with its end — the window's banner — and goes on by itself.
 // Five failures in a row stop it (`stopped`); a session Fansly refused stops it at once.
 //
+// R20 P10b2, FS-NEW-2, FX-003: «Нельзя написать» — the group's own DM rules (`dmPermissionFlags`, Fansly's
+// `verifyNew`, domain dm-permissions.ts) the creator meets none of: decided by the check, before anything is
+// generated, held or sent, never by a failed `POST /message`; a personal message of the creator's still wins
+// («Уже писали»). Such a row keeps no proof for the greeting. «Исключить из очереди» (`fansly.followers.exclude`)
+// takes it out of «К обработке» and back, as the old window: only a fan Fansly will not let the creator write to, kept
+// in this browser (storage.local, one key per creator and fan) and dropped once a check reads the DMs open again.
+//
 // Never: a request for another creator's session, a send (P10c), a text in the log. The pass lives in the event
 // page's memory: an open window's port keeps the page awake; a pass nobody holds is let go by the next `scan`.
 
@@ -41,7 +48,7 @@ import {
 } from '@cg/contracts/tab-messages-fansly';
 import { type AbortSignalLike } from '@cg/contracts/hub';
 import { compareNativeIds } from '@cg/contracts/primitives';
-import { NEWCOMER_CHECK_FILTERS } from '@cg/contracts/vm';
+import { NEWCOMER_CHECK_FILTERS, type NewcomerDmClosed } from '@cg/contracts/vm';
 
 import {
   PASS_BOUNDS,
@@ -65,7 +72,7 @@ import {
 import { checkOf, passRowOf } from '../../../domain/hosts/fansly/newcomers/rows';
 import { inPassTab, matchesPassSearch, passesCheckFilter } from '../../../domain/newcomers/pass';
 import { AbortSwitch } from '../../ports';
-import { NO_LOG, type ServiceLog } from '../../storage/ports';
+import { NO_LOG, type KeyValuePort, type ServiceLog } from '../../storage/ports';
 
 /** The routes of FS-NET-1's `newcomers` row (fansly-api allowlist.ts): the only ones the pass asks. */
 export type NewcomersRoute = 'followers.new' | 'messaging.groups' | 'account.byIds' | 'group.detail' | 'group.create' | 'message.history' | 'message.automated';
@@ -104,8 +111,13 @@ export interface FanslyNewcomersDeps {
   readonly alive: (tabSessionId: string) => boolean;
   /** The tab is on this creator's account (or has not said which yet): a window of another account gets nothing. */
   readonly tabOn: (tabSessionId: string, hostAccountId: string) => boolean;
+  /** storage.local: the person's exclusions (R20 P10b2), one key per creator and fan (`NEWCOMERS_EXCLUDED_PREFIX`). */
+  readonly local: KeyValuePort;
   readonly log?: ServiceLog;
 }
+
+/** storage.local: `fansly.newcomers.excluded.<creator>.<fan>` → `{ at }` — the fan is out of «К обработке» (FS-NEW-2). */
+export const NEWCOMERS_EXCLUDED_PREFIX = 'fansly.newcomers.excluded.';
 
 /** What the greeting (P10c) takes of a checked row (FS-NEW-7): only a history walked to its empty page has one. */
 export interface PassRowProof {
@@ -179,6 +191,8 @@ const REQUESTS = {
   'fansly.followers.prioritize': true,
   'fansly.followers.history': true,
   'fansly.followers.close': true,
+  // R20 P10b2: «Исключить из очереди» / «Вернуть в очередь» (FS-NEW-2).
+  'fansly.followers.exclude': true,
 } as const;
 
 /** A failure the pass names itself (a malformed answer, a group whose users are not the two). */
@@ -565,7 +579,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         throw new Aborted();
       }
       const { wire } = failureOf(error);
-      set(pass, row, { status: 'failed', error: wire, checkedAt: iso(deps.now()), historyRevision: null });
+      set(pass, row, { status: 'failed', error: wire, checkedAt: iso(deps.now()), historyRevision: null, dmClosed: null, dmPriceMills: null });
       row.proof = null;
       if (stopsPass(error) || fails + 1 >= PASS_FUSE) {
         halt(pass, wire);
@@ -629,8 +643,13 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (personal !== null) return greeted(pass, row, personal, history);
     row.kept = history.slice(-PASS_BOUNDS.previewKept);
     row.keptAll = complete && history.length <= PASS_BOUNDS.previewKept;
+    // FS-NEW-2: Fansly will not let the creator write — whatever the history: nothing is generated, held or sent.
+    if (chat.dmClosed !== null) return closed(pass, work, row, chat.dmClosed, chat.dmPriceMills ?? null);
     // Only a history read to its confirmed end is evidence that nobody wrote (the old fail-closed rule).
     if (!complete) throw new PassFailure({ code: 'CG-FNEW-HISTORY' });
+    // The DMs are open (again): an exclusion made while they were closed is over. An answer without the rules says nothing.
+    if (chat.dmRead) await forgetExclusion(pass.creator, fan);
+    if (work.stop.aborted) throw new Aborted();
     const key = history.map((message) => message.id).join(',');
     const historyRevision = key === row.revisionKey && row.view.historyRevision !== null ? row.view.historyRevision : deps.uuid();
     row.revisionKey = key;
@@ -642,7 +661,18 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       fanWrote: history.some((message) => message.senderId === fan && message.type === 1),
       proof: null,
       error: null,
+      dmClosed: null,
+      dmPriceMills: null,
     });
+  }
+
+  /** «Нельзя написать» (FS-NEW-2), or «Исключён · нельзя написать» as the person left it in this browser: no proof to greet with. */
+  async function closed(pass: Pass, work: Work, row: Row, why: NewcomerDmClosed, priceMills: number | null): Promise<void> {
+    const excluded = await isExcluded(pass.creator, row.view.fanRef);
+    if (work.stop.aborted) throw new Aborted();
+    row.proof = null;
+    row.revisionKey = null;
+    set(pass, row, { status: excluded ? 'excluded' : 'dm-closed', dmClosed: why, dmPriceMills: priceMills, historyRevision: null, checkedAt: iso(deps.now()), fanWrote: false, proof: null, error: null });
   }
 
   function greeted(pass: Pass, row: Row, personal: PassMessage, history: readonly PassMessage[]): void {
@@ -650,7 +680,28 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     row.keptAll = false;
     row.proof = null;
     row.revisionKey = null;
-    set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: previewOf(personal, pass.creator, pass.welcome), error: null, fanWrote: false });
+    set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: previewOf(personal, pass.creator, pass.welcome), error: null, fanWrote: false, dmClosed: null, dmPriceMills: null });
+  }
+
+  // ── the person's exclusions (R20 P10b2, FS-NEW-2): in this browser, as the old window kept them ──
+
+  const exclusionKey = (creator: string, fanRef: string): string => `${NEWCOMERS_EXCLUDED_PREFIX}${creator}.${fanRef}`;
+
+  /** A store that could not be read excludes nobody: the fan stays «К обработке», where the person sees them. */
+  async function isExcluded(creator: string, fanRef: string): Promise<boolean> {
+    const key = exclusionKey(creator, fanRef);
+    const read = await deps.local.get([key]);
+    if (read.ok) return Boolean(read.value[key]);
+    log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the exclusions were not read', fields: { code: read.code } });
+    return false;
+  }
+
+  async function forgetExclusion(creator: string, fanRef: string): Promise<void> {
+    const key = exclusionKey(creator, fanRef);
+    const read = await deps.local.get([key]);
+    if (!read.ok || !read.value[key]) return;
+    const removed = await deps.local.remove([key]);
+    if (!removed.ok) log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'an exclusion was not dropped', fields: { code: removed.code } });
   }
 
   function rowView(fanRef: string, followedAt: number, profile: PassProfile | undefined): FanslyFollowerRow {
@@ -837,6 +888,28 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return { recorded: true };
   }
 
+  /**
+   * «Исключить из очереди» / «Вернуть в очередь» (FS-NEW-2, as the old window): only a fan Fansly will not let the
+   * creator write to leaves «К обработке» by hand; kept in this browser. Nothing is asked of Fansly or the hub.
+   */
+  async function exclude(payload: Payload<'fansly.followers.exclude'>, tab: string): Promise<Answer<'fansly.followers.exclude'>> {
+    const pass = find(payload.passId, tab);
+    const row = pass?.byFan.get(payload.fanRef);
+    const closedNow = (): boolean => row !== undefined && (row.view.status === 'dm-closed' || row.view.status === 'excluded');
+    if (pass === null || pass === undefined || row === undefined || !closedNow()) return { recorded: false };
+    const key = exclusionKey(pass.creator, row.view.fanRef);
+    const written = payload.excluded ? await deps.local.set({ [key]: { at: deps.now() } }) : await deps.local.remove([key]);
+    if (!written.ok) {
+      log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'an exclusion was not kept', fields: { code: written.code, excluded: payload.excluded } });
+      return { recorded: false };
+    }
+    // A check of the queue may have opened the DMs meanwhile: then the row stays as the check left it.
+    if (!closedNow()) return { recorded: false };
+    const status = payload.excluded ? 'excluded' : 'dm-closed';
+    if (row.view.status !== status) set(pass, row, { status });
+    return { recorded: true };
+  }
+
   /** The card's conversation as the pass read it, newest first (NF-010); older pages are read again from Fansly. */
   async function history(payload: Payload<'fansly.followers.history'>, tab: string): Promise<Answer<'fansly.followers.history'>> {
     const pass = find(payload.passId, tab);
@@ -877,7 +950,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   return {
     handles: (type: string): boolean => Object.prototype.hasOwnProperty.call(REQUESTS, type),
-    /** A request of the window's (`fansly.followers.*` but `send` and `exclude`): its answer. */
+    /** A request of the window's (`fansly.followers.*` but `send`): its answer. */
     async answer(type: string, payload: unknown, tab: string): Promise<unknown> {
       switch (type) {
         case 'fansly.followers.scan':
@@ -894,6 +967,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
           return history(payload as Payload<'fansly.followers.history'>, tab);
         case 'fansly.followers.close':
           return close(payload as Payload<'fansly.followers.close'>, tab);
+        case 'fansly.followers.exclude':
+          return exclude(payload as Payload<'fansly.followers.exclude'>, tab);
         default:
           throw new Error(`${type}: not the pass's`);
       }

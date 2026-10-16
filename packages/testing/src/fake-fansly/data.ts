@@ -158,6 +158,8 @@ export class FanslyWorld {
   readonly messages = new Map<string, FakeMessage>();
   /** Newest first. */
   readonly follows: FakeFollow[] = [];
+  /** Fans whose DM rules the creator does not meet: the chat `POST /group` makes for one carries them (R20 P10b2). */
+  private readonly dmClosed = new Set<string>();
   readonly automated: WireAutomatedMessage[];
   readonly albums: FakeAlbum[];
   /** The account's media by id: what the page uploaded. */
@@ -275,7 +277,7 @@ export class FanslyWorld {
     const known = this.conversationWith(fanId);
     if (known !== null) return { group: known, created: false };
     this.ensureAccount(fanId);
-    const group: FakeGroup = { id: this.nextId(), type: GROUP_TYPE.conversation, createdBy: this.creatorId, fanId, users: [this.creatorId, fanId], history: [], unread: new Set(), dmRulesUnmet: false };
+    const group: FakeGroup = { id: this.nextId(), type: GROUP_TYPE.conversation, createdBy: this.creatorId, fanId, users: [this.creatorId, fanId], history: [], unread: new Set(), dmRulesUnmet: this.dmClosed.has(fanId) };
     this.groups.set(group.id, group);
     return { group, created: true };
   }
@@ -396,9 +398,10 @@ export class FanslyWorld {
 
   // ── followers ──
 
-  /** A new follower, now: a made-up account unless one is named. */
-  follow(followerId?: string): FakeFollow {
+  /** A new follower, now: a made-up account unless one is named; `dmRulesUnmet` — the fan's DMs are closed to the creator. */
+  follow(followerId?: string, dmRulesUnmet = false): FakeFollow {
     const id = followerId ?? String(FOLLOWER_ACCOUNT_BASE + 900_000n + BigInt(this.follows.length * 17 + 5));
+    if (dmRulesUnmet) this.dmClosed.add(id);
     const account = this.ensureAccount(id);
     account.followsCreator = true;
     const follow: FakeFollow = { id: this.nextId(), followerId: id };

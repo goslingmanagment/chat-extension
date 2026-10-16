@@ -187,11 +187,23 @@ describe('[host:fansly] «Новые» on Fansly: the window (R20 P10a)', () => 
     expect(board.actions().at(-1)).toEqual({ type: 'ReloadView', selector: { of: 'newcomers' } });
   });
 
+  it.each([
+    { language: 'en' as const, price: 1700, text: 'Fansly won’t let you write: this fan takes paid messages only — $1.70 per message.' },
+    { language: 'ru' as const, price: 405, text: 'Fansly не даёт написать: этот фан принимает только платные сообщения — $0.405 за сообщение.' },
+    { language: 'ru' as const, price: null, text: 'Fansly не даёт написать: этот фан принимает только платные сообщения.' },
+  ])('[FX-003] [FS-NEW-2] the paid-DM reason in $language, price $price mills; an unknown price keeps the existing reason', async ({ language, price, text }) => {
+    const base = boardScenario('13i');
+    const vm = base.views.find((view) => view.selector.of === 'newcomers')!.vm as NewcomersVM;
+    const pass = vm.pass!;
+    ui = await mountBoardSettled('fansly-newcomers', { ...base, views: [entry({ of: 'newcomers' }, { ...vm, pass: { ...pass, card: { ...pass.card!, dmPriceMills: price } } })] }, { language });
+    expect(ui.text('.cg-fnc__why')).toBe(text);
+  });
+
   it('[NF-025] [NF-008] «Результат неполный», the pause Fansly asked for; a fan nobody can write to says why', async () => {
     const board = await mount('13i');
     expect(board.text('.cg-nc__incomplete')).toBe('Результат неполныйПроверка прошла не до конца: показаны не все, кто подписался за это время.');
     expect(board.text('.cg-fnw__cool')).toBe('Fansly ограничил частоту запросов. Пауза 45 с — проверка продолжится сама.');
-    expect(board.text('.cg-fnc__verdict')).toBe('Нельзя написатьFansly не даёт написать: этот фан принимает только платные сообщения.');
+    expect(board.text('.cg-fnc__verdict')).toMatch(/^Нельзя написатьFansly не даёт написать: этот фан принимает только платные сообщения — \$1\.70 за сообщение\.Исключить из очереди/);
   });
 
   it('[NF-038] the queue’s buttons (R20 P10b1): «Пауза» while it runs; «Проверить оставшихся: N» and «Проверить чат» while it stands — each one action', async () => {
@@ -211,6 +223,25 @@ describe('[host:fansly] «Новые» on Fansly: the window (R20 P10a)', () => 
     const check = board.$$('.cg-fnc__check button').find((button) => textOf(button) === 'Проверить чат') as HTMLElement;
     await flush(() => check.click());
     expect(board.actions().at(-1)).toEqual({ type: 'CheckNewcomerNext', targetHandle: 'pass:00000000-0000-4000-8000-000000000301:800000000000000003' });
+  });
+
+  it('[FX-003] [FS-NEW-2] a fan nobody can write to (R20 P10b2): the reason, «Исключить из очереди»; taken out — «Вернуть в очередь» under «Все»; each one action', async () => {
+    const closed = await mount('13i');
+    expect(closed.$$('.cg-fnc__check button').map(textOf)).toEqual(['Исключить из очереди']);
+    await flush(() => (closed.$('.cg-fnc__check button') as HTMLElement).click());
+    expect(closed.actions().at(-1)).toEqual({ type: 'ExcludeNewcomer', targetHandle: 'pass:00000000-0000-4000-8000-000000000301:800000000000000005', excluded: true });
+    closed.unmount();
+    ui = null;
+
+    const board = await mount('13l');
+    expect(board.text('.cg-fnc__verdict')).toBe('Исключён · нельзя написатьFansly не даёт написать: модель не проходит правила фана для личных сообщений.Вернуть в очередь');
+    await flush(() => (board.$('.cg-fnc__check button') as HTMLElement).click());
+    expect(board.actions().at(-1)).toEqual({ type: 'ExcludeNewcomer', targetHandle: 'pass:00000000-0000-4000-8000-000000000301:800000000000000010', excluded: false });
+    // A fan who can be written to has neither button.
+    board.unmount();
+    ui = null;
+    const ready = await mount('13f');
+    expect(ready.$$('.cg-fnc__check button').map(textOf)).not.toContain('Исключить из очереди');
   });
 
   it('[NF-005] [I18-001] in English: the same window in the English words', async () => {

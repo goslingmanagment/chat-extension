@@ -52,6 +52,7 @@ describe('[host:fansly] «Новые» on Fansly: the rows of the pass (R20 P10a
       followedAt: ISO,
       check: 'ready',
       dmClosed: null,
+      dmPriceMills: null,
       checkedAt: ISO,
       proof: { id: proof.messageId, fromFan: false, at: ISO, text: 'hey', automated: false, attachments: 0 },
       failure: { code: 'CG-FAN-REQUEST', retryAt: 99 },

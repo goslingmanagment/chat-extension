@@ -232,6 +232,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('SetNewcomersPassRunning', { running: z.boolean() }),
   /** 1.15.0 (R20 P10b1): «Проверить следующим» / «Проверить чат» (NF-038): this fan's chat is checked next, or now. */
   act('CheckNewcomerNext', { targetHandle: HandleSchema }),
+  /**
+   * 1.15.0 (R20 P10b2): «Исключить из очереди» (`true`) / «Вернуть в очередь» (`false`) of a fan nobody can write to
+   * (FS-NEW-2, `NewcomerCardVM.exclude`): out of «К обработке» and back, kept in this browser.
+   */
+  act('ExcludeNewcomer', { targetHandle: HandleSchema, excluded: z.boolean() }),
   act('SetNewcomersWindow', { hours: z.int().check(z.gte(NEWCOMERS_WINDOW_HOURS.min), z.lte(NEWCOMERS_WINDOW_HOURS.max)) }),
   act('LoadMore', { list: z.enum(['spenders', 'newcomers']) }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */

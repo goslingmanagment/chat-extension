@@ -6,7 +6,7 @@
 
 import { type CgErrorView } from '../errors';
 import { type LEASE_HOLDERS } from '../hub/newcomers';
-import { type IsoTimestamp } from '../primitives';
+import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type GreetingFilter, type NewcomerCheckFilter, type NewcomersTab } from './actions';
 import { type Msg } from './i18n';
 import { type TargetHandle } from './selectors';
@@ -191,6 +191,8 @@ export interface NewcomerCardVM {
   readonly bio: string | null;
   readonly check: NewcomerCheck;
   readonly dmClosed: NewcomerDmClosed | null;
+  /** 1.15.0 (R20 P10b2): the lowest known paid-DM price per message, USD mills; absent or null — unknown. */
+  readonly dmPriceMills?: MoneyMills | null;
   /** `failed`: why. */
   readonly failure: NewcomersFailureVM | null;
   /** `greeted` — «Уже писали»: the creator's personal message that proves it, shown folded. */
@@ -206,6 +208,12 @@ export interface NewcomerCardVM {
    * — the queue stands: this fan alone is checked now), NF-038; null or absent — nothing left to check of this fan.
    */
   readonly checkNext?: 'next' | 'now' | null;
+  /**
+   * 1.15.0 (R20 P10b2): a fan nobody can write to (FS-NEW-2) — «Исключить из очереди» (`exclude`: out of «К
+   * обработке») or «Вернуть в очередь» (`restore`), `ExcludeNewcomer`; the exclusion is kept in this browser and goes
+   * once the fan's DMs open. Null or absent — the fan can be written to, or nothing is known yet.
+   */
+  readonly exclude?: 'exclude' | 'restore' | null;
 }
 
 /** 1.15.0 (R20 P10b1): the queue's own buttons (NF-038): `SetNewcomersPassRunning`. */

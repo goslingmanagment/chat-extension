@@ -7,8 +7,10 @@
 //   nothing of ours asks the Fansly stand or the hub for the list.
 // - P10b1 — the pass on the stand's API: the period's followers, the queue checking them through FS-NET-1's
 //   `newcomers` routes alone (no send, no ack), «Пауза» and «Проверить оставшихся».
-// «Нельзя написать», the three admissions of a greeting, two clients and the person's own send are the blocks of
-// P10b2…P10d.
+// - P10b2 — «Нельзя написать» (FS-NEW-2, FX-003): a follower whose DM rules the creator does not meet says why as soon
+//   as the queue reads their chat — nothing is generated or sent —; «Исключить из очереди» takes them out of «К
+//   обработке», «Вернуть в очередь» under «Все» brings them back.
+// The three admissions of a greeting, two clients and the person's own send are the blocks of P10c…P10d.
 
 import { browser, expect } from '@wdio/globals';
 import { mkdirSync } from 'node:fs';
@@ -21,7 +23,7 @@ import { setFanslyNeighbor } from '../support/fansly-neighbor';
 import { startFanslyShift, type FanslyShift } from '../support/fansly-shift';
 import { fakeFansly, fanslyStandServer } from '../support/fansly-stand';
 import { useNetworkTrap } from '../support/network-trap';
-import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
+import { ours, oursExists, oursText, pressOurs, readOurs, waitOursByText, waitOursText } from '../support/ours';
 import { dockIs } from '../support/shift';
 
 const A = WORLD.fansly.chats.a;
@@ -107,6 +109,54 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     // «Проверить оставшихся»: the queue goes on.
     await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, /^Проверить оставшихся/);
     await waitOursByText('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза', 'the queue runs again', 15_000);
+    await browser.keys(['Escape']);
+    await browser.waitUntil(async () => !(await oursExists('modal', WINDOW)), { timeout: 5_000, timeoutMsg: 'Esc did not close «Новые»' });
+  });
+
+  it('[FX-003] [FS-NEW-2] «Нельзя написать» before anything is generated or sent: a follower whose DMs are closed to the creator says why; «Исключить из очереди» takes them out of «К обработке», «Вернуть в очередь» brings them back', async () => {
+    // A new follower whose DM rules the creator does not meet: the chat the queue's `POST /group` makes carries them.
+    const followed = await fakeFansly().command({ op: 'follow', silent: true, dmRulesUnmet: true });
+    const fan = followed.follow?.followerId ?? '';
+    expect(fan).toMatch(/^\d+$/);
+    const ROW = `${WINDOW} .cg-fnw__row[data-cg-fan$=":${fan}"]`;
+    const checkOf = async (): Promise<string | null> => readOurs('modal', ROW, (node) => node.getAttribute('data-cg-check'));
+    const todo = async (): Promise<number> => Number(/К обработке (\d+)/.exec(await oursText('modal', `${WINDOW} [role="tablist"]`))?.[1] ?? Number.NaN);
+    const mark = await fakeFansly().mark();
+    await shift.toPages();
+    await browser.url(testBuildPage('popup.html'));
+    await writeLocalStorage({ [STAND_API]: fakeFansly().apiOrigin });
+    expect(await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } })).toEqual({ ok: true, payload: { delivered: true } });
+    await browser.url(testBuildPage(QUIET_PAGE));
+    await shift.toFansly();
+    // The newest follower: the first the queue checks after the fast part.
+    await browser.waitUntil(async () => (await checkOf()) === 'dm-closed', { timeout: 120_000, interval: 250, timeoutMsg: 'the follower with closed DMs was not «Нельзя написать»' });
+    // The queue stands: the counts hold still.
+    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза', 'the queue runs: «Пауза»', 15_000);
+    await waitOursText('modal', /Проверка на паузе/, 'the queue stands', { timeout: 15_000, selector: WINDOW });
+    await ours('modal', ROW).click();
+    await waitOursText('modal', /Нельзя написать.*Fansly не даёт написать: модель не проходит правила фана для личных сообщений\..*Исключить из очереди/, 'the card says why', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
+    await browser.pause(400);
+    await picture('dm-closed');
+    const before = await todo();
+    expect(before).toBeGreaterThan(0);
+
+    await pressOurs('modal', `${WINDOW} .cg-fnc__check button`, 'Исключить из очереди');
+    await browser.waitUntil(async () => !(await oursExists('modal', ROW)) && (await todo()) === before - 1, { timeout: 10_000, timeoutMsg: 'the excluded fan did not leave «К обработке»' });
+
+    await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все \d+$/);
+    await pressOurs('modal', `${WINDOW} .cg-sp__tools button`, /^Нельзя написать/);
+    await browser.waitUntil(async () => (await checkOf()) === 'excluded', { timeout: 10_000, timeoutMsg: 'the excluded fan is not under «Все»' });
+    await ours('modal', ROW).click();
+    await waitOursText('modal', /Исключён · нельзя написать.*Вернуть в очередь/, 'the card of the excluded fan', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
+    await browser.pause(400);
+    await picture('excluded');
+    await pressOurs('modal', `${WINDOW} .cg-fnc__check button`, 'Вернуть в очередь');
+    await browser.waitUntil(async () => (await checkOf()) === 'dm-closed' && (await todo()) === before, { timeout: 10_000, timeoutMsg: 'the fan did not come back to «К обработке»' });
+
+    // Nothing was sent and nothing outside the list was asked: FS-NET-1's `newcomers` routes alone.
+    await fakeFansly().assertOursClean(mark, '«Нельзя написать» in «Новые»');
+    const routes = new Set((await fakeFansly().calls('ours', mark)).map((entry) => entry.route));
+    expect([...routes].filter((route) => route === null || route === undefined || !NEWCOMERS_ROUTES.includes(route))).toEqual([]);
     await browser.keys(['Escape']);
     await browser.waitUntil(async () => !(await oursExists('modal', WINDOW)), { timeout: 5_000, timeoutMsg: 'Esc did not close «Новые»' });
   });

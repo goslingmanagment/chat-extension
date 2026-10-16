@@ -42,6 +42,7 @@ export interface PassRow {
   readonly followedAt: IsoTimestamp;
   readonly check: NewcomerCheck;
   readonly dmClosed: NewcomerDmClosed | null;
+  readonly dmPriceMills?: number | null;
   readonly checkedAt: IsoTimestamp | null;
   /** `greeted`: the creator's personal message the pass found. */
   readonly proof: NewcomerMessageVM | null;

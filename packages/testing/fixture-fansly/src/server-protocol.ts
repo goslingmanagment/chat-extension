@@ -83,8 +83,8 @@ export type FakeFanslyCommand =
   | { readonly op: 'ack'; readonly messageIds: readonly string[]; readonly userId?: string; readonly type?: number }
   /** `5/22`: the group's fan types (or the account named). */
   | { readonly op: 'typing'; readonly groupId: string; readonly accountId?: string }
-  /** A new follower and its `3/2` frame. */
-  | { readonly op: 'follow'; readonly followerId?: string; readonly silent?: boolean }
+  /** A new follower and its `3/2` frame; `dmRulesUnmet` — the fan's DM rules the creator does not meet, in the chat `POST /group` makes. */
+  | { readonly op: 'follow'; readonly followerId?: string; readonly silent?: boolean; readonly dmRulesUnmet?: boolean }
   /**
    * A new conversation of the creator with `fanId` and no message yet, as `POST /group` makes one (its `4/8` frame;
    * the fan's account is made up). The fan's existing conversation is a refusal: a test means a new one.

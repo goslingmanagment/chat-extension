@@ -7,7 +7,8 @@ import { StartProofV1Schema } from '@cg/contracts/fansly';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
-import { COOLING_LOOK_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute } from './newcomers';
+import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
+import { COOLING_LOOK_MS, NEWCOMERS_EXCLUDED_PREFIX, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute } from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
 const C = '700000000000000017';
@@ -48,6 +49,8 @@ interface Group {
   /** The inbox lists it (its users in the aggregation, or thin). */
   inInbox: 'full' | 'thin' | 'no';
   users?: string[];
+  /** R20 P10b2: the fan's DM rules as the group object carries them; absent — the answer names none. */
+  dm?: { rules: unknown[]; account?: unknown };
 }
 
 function fansly() {
@@ -66,6 +69,7 @@ function fansly() {
     id: group.id,
     users: (group.users ?? [C, group.fan]).map((userId) => ({ userId })),
     lastMessage: group.messages.length === 0 ? null : wireMessage(group, group.messages.at(-1) as Msg),
+    ...(group.dm === undefined ? {} : { dmPermissionFlags: group.dm.rules, accountDmPermissionFlags: group.dm.account ?? { flags: 0, metadata: '{}' } }),
   });
   const wireMessage = (group: Group, message: Msg): Record<string, unknown> => ({ ...message, groupId: group.id, createdAt: 0, attachments: [] });
 
@@ -167,9 +171,10 @@ function fansly() {
 // The fake's own `chat` for `POST /group` of a fan without one (a new empty technical chat).
 let this_: ReturnType<typeof fansly>;
 
-function setup(options: { tabOn?: (tab: string, creator: string) => boolean } = {}) {
+function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?: MemoryKv } = {}) {
   const world = fansly();
   this_ = world;
+  const kv = options.kv ?? createMemoryKv();
   const heard: Array<{ tab: string; change: FollowersChange }> = [];
   let uuid = 0;
   const service = createFanslyNewcomers({
@@ -190,6 +195,7 @@ function setup(options: { tabOn?: (tab: string, creator: string) => boolean } = 
     },
     alive: () => true,
     tabOn: options.tabOn ?? (() => true),
+    local: kv.open(),
   });
   const ask = async <T extends keyof typeof FANSLY_TAB_REQUESTS>(type: T, payload: unknown, tab = TAB): Promise<FanslyTabResponsePayload<T>> => {
     expect(FANSLY_TAB_REQUESTS[type].req.safeParse(payload).success, `${type} request`).toBe(true);
@@ -215,7 +221,7 @@ function setup(options: { tabOn?: (tab: string, creator: string) => boolean } = 
     expect(done()).toBe(true);
   };
   const creates = (): string[] => world.calls.filter((call) => call.route === 'group.create').map((call) => (call.body as { users: { userId: string }[] }).users[0]?.userId ?? '');
-  return { world, service, heard, ask, scan, settle, rows, row, routes, until, creates };
+  return { world, service, kv, heard, ask, scan, settle, rows, row, routes, until, creates };
 }
 
 beforeEach(() => {
@@ -565,5 +571,136 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     expect([older.messages.map((m) => m.text), older.more]).toEqual([['one'], false]);
     // A fan whose chat the pass did not find has no conversation to show.
     expect(await t.ask('fansly.followers.history', { passId, fanRef: pending, before: null, limit: 2 })).toEqual({ ok: false, error: { code: 'CG-FNEW-UNVERIFIED' } });
+  });
+});
+
+/** Fansly's metadata: a JSON object whose values are JSON strings. */
+const dmMeta = (byFlag: Record<number, unknown>): string => JSON.stringify(Object.fromEntries(Object.entries(byFlag).map(([flag, value]) => [flag, JSON.stringify(value)])));
+const PAID = { rules: [{ flags: 1, metadata: dmMeta({ 1: { price: 1700 } }), verificationFlags: 0, verificationMetadata: '{}' }] };
+/** The stand's rule: «follow the fan», not met. */
+const FOLLOW_FAN = { rules: [{ flags: 2, metadata: '{}', verificationFlags: 0, verificationMetadata: '{}' }] };
+const OPEN = { rules: [{ flags: 16, metadata: '', verificationFlags: 16, verificationMetadata: '{}' }] };
+
+describe('[host:fansly] «Нельзя написать» and «Исключить из очереди» in the background (R20 P10b2)', () => {
+  it('[FX-003] [FS-NEW-2] the group’s own DM rules decide «Нельзя написать» in the check — a paid DM or rules the creator does not meet —, before anything is generated or sent: no proof to greet with; a personal message of the creator’s still wins', async () => {
+    const t = setup();
+    const paid = t.world.follow(1, T0 - minutes(5));
+    const rules = t.world.follow(2, T0 - minutes(6));
+    const open = t.world.follow(3, T0 - minutes(7));
+    const greeted = t.world.follow(4, T0 - minutes(8));
+    const created = t.world.follow(5, T0 - minutes(9));
+    const thin = t.world.follow(6, T0 - minutes(10));
+    t.world.chat(paid, [{ from: 'fan', content: 'hi' }]).dm = PAID;
+    t.world.chat(rules, []).dm = FOLLOW_FAN;
+    t.world.chat(open, [{ from: 'fan' }]).dm = OPEN;
+    t.world.chat(greeted, [{ from: 'fan' }, { from: 'model', content: 'hey, personal' }]).dm = PAID;
+    // The inbox's thin entry carries no rules; `GET /group` does.
+    t.world.chat(thin, [], 'thin').dm = FOLLOW_FAN;
+    // Not in the inbox: the queue's `POST /group` answers the rules too.
+    t.world.chat(created, [], 'no').dm = PAID;
+    const passId = await t.scan();
+    await t.settle();
+    expect(t.creates()).toEqual([created]);
+
+    const view = async (fan: string) => t.row(passId, fan);
+    expect(await view(paid)).toMatchObject({ status: 'dm-closed', dmClosed: 'paid', dmPriceMills: 1700, historyRevision: null, proof: null });
+    expect(await view(rules)).toMatchObject({ status: 'dm-closed', dmClosed: 'permissions', historyRevision: null });
+    expect(await view(thin)).toMatchObject({ status: 'dm-closed', dmClosed: 'permissions' });
+    expect(await view(created)).toMatchObject({ status: 'dm-closed', dmClosed: 'paid', dmPriceMills: 1700 });
+    expect(await view(open)).toMatchObject({ status: 'ready', dmClosed: null, dmPriceMills: null, fanWrote: true });
+    expect(await view(greeted)).toMatchObject({ status: 'greeted', dmClosed: null, dmPriceMills: null });
+    // Nothing to greet with: the greeting (P10c) takes a proof only of a fan who can be written to.
+    expect(t.service.proof(passId, paid)).toBeNull();
+    expect(t.service.proof(passId, rules)).toBeNull();
+    expect(t.service.proof(passId, open)).not.toBeNull();
+    // Only FS-NET-1's `newcomers` routes: nothing is sent, nothing else is asked.
+    expect(new Set(t.routes())).toEqual(new Set(['message.automated', 'followers.new', 'messaging.groups', 'group.detail', 'message.history', 'group.create']));
+    // «Нельзя написать» stays in «К обработке» until the person takes the fan out; its filter counts it.
+    const read = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'dm-closed' } });
+    expect([read.rows.map((entry) => entry.fanRef).sort(), read.counts?.tabs.todo, read.pass?.counts.dmClosed]).toEqual([[paid, rules, thin, created].sort(), 5, 4]);
+    // The card's conversation of a closed fan is the one the pass read.
+    const history = await t.ask('fansly.followers.history', { passId, fanRef: paid, before: null, limit: 250 });
+    expect(history.ok && history.messages.map((message) => message.text)).toEqual(['hi']);
+  });
+
+  it('[FX-003] [FS-NEW-2] «Исключить из очереди»: only a fan nobody can write to leaves «К обработке» — kept in this browser, back by «Вернуть в очередь»; nothing is asked of Fansly', async () => {
+    const kv = createMemoryKv();
+    const t = setup({ kv });
+    const closed = t.world.follow(1, T0 - minutes(5));
+    const open = t.world.follow(2, T0 - minutes(6));
+    t.world.chat(closed, [{ from: 'fan' }]).dm = PAID;
+    t.world.chat(open, [{ from: 'fan' }]).dm = OPEN;
+    const passId = await t.scan();
+    await t.settle();
+    const calls = t.world.calls.length;
+    const heard = t.heard.length;
+    const todo = async (): Promise<number | undefined> => (await t.ask('fansly.followers.read', { passId, offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'any' } })).counts?.tabs.todo;
+    expect(await todo()).toBe(2);
+
+    // A fan who can be written to is not taken out; neither is a fan of another pass.
+    expect(await t.ask('fansly.followers.exclude', { passId, fanRef: open, excluded: true })).toEqual({ recorded: false });
+    expect(await t.ask('fansly.followers.exclude', { passId: '00000000-0000-4000-8000-000000000999', fanRef: closed, excluded: true })).toEqual({ recorded: false });
+    expect(await t.ask('fansly.followers.exclude', { passId, fanRef: closed, excluded: true })).toEqual({ recorded: true });
+    expect(Object.keys(kv.data.get(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${closed}`) as object)).toEqual(['at']);
+    await t.settle();
+    expect(await t.row(passId, closed)).toMatchObject({ status: 'excluded', dmClosed: 'paid' });
+    expect(await todo()).toBe(1);
+    // The window hears it as a change of the row, no poll.
+    expect(t.heard.slice(heard).flatMap((entry) => entry.change.rows.map((row) => `${row.fanRef}:${row.status}`))).toEqual([`${closed}:excluded`]);
+    expect(t.heard.at(-1)?.change.pass.counts).toMatchObject({ dmClosed: 0, excluded: 1 });
+
+    expect(await t.ask('fansly.followers.exclude', { passId, fanRef: closed, excluded: false })).toEqual({ recorded: true });
+    await t.settle();
+    expect(await t.row(passId, closed)).toMatchObject({ status: 'dm-closed' });
+    expect(kv.data.has(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${closed}`)).toBe(false);
+    expect(await todo()).toBe(2);
+    expect(t.world.calls).toHaveLength(calls);
+
+    // A store that could not keep it: nothing changes, the window hears so.
+    kv.failNext('set');
+    expect(await t.ask('fansly.followers.exclude', { passId, fanRef: closed, excluded: true })).toEqual({ recorded: false });
+    expect(await t.row(passId, closed)).toMatchObject({ status: 'dm-closed' });
+  });
+
+  it('[FX-003] the exclusion outlives the pass, as the old window kept it, and goes once a check reads the fan’s DMs open', async () => {
+    const kv = createMemoryKv();
+    const first = setup({ kv });
+    const fan = first.world.follow(1, T0 - minutes(5));
+    const group = first.world.chat(fan, [{ from: 'fan' }]);
+    group.dm = FOLLOW_FAN;
+    let passId = await first.scan();
+    await first.settle();
+    expect(await first.ask('fansly.followers.exclude', { passId, fanRef: fan, excluded: true })).toEqual({ recorded: true });
+    first.service.dispose();
+
+    // The next pass (a new event page): the fan is still out of «К обработке».
+    const second = setup({ kv });
+    second.world.follow(1, T0 - minutes(5));
+    const again = second.world.chat(fan, [{ from: 'fan' }]);
+    again.dm = FOLLOW_FAN;
+    passId = await second.scan();
+    await second.settle();
+    expect(await second.row(passId, fan)).toMatchObject({ status: 'excluded', dmClosed: 'permissions' });
+    second.service.dispose();
+
+    // The fan opened the DMs: the row is workable again and the exclusion is gone.
+    const third = setup({ kv });
+    third.world.follow(1, T0 - minutes(5));
+    third.world.chat(fan, [{ from: 'fan' }]).dm = OPEN;
+    passId = await third.scan();
+    await third.settle();
+    expect(await third.row(passId, fan)).toMatchObject({ status: 'ready', dmClosed: null });
+    expect(kv.data.has(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${fan}`)).toBe(false);
+    third.service.dispose();
+
+    // An answer without the rules says nothing about them: a fresh exclusion stays.
+    kv.data.set(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${fan}`, { at: T0 });
+    const fourth = setup({ kv });
+    fourth.world.follow(1, T0 - minutes(5));
+    fourth.world.chat(fan, [{ from: 'fan' }]);
+    passId = await fourth.scan();
+    await fourth.settle();
+    expect(await fourth.row(passId, fan)).toMatchObject({ status: 'ready' });
+    expect(kv.data.has(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${fan}`)).toBe(true);
   });
 });
