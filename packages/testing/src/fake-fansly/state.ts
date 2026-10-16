@@ -47,7 +47,8 @@ export class FanslyState {
    * `<accountId>:…`, the creator's id first — the legacy account id a client reads from it (architecture.md §8.2
    * «Шаблон»; the old extension's `decodeLegacyAccountKey`, which the perf baseline runs, R20 P3d).
    */
-  readonly token = Buffer.from(`${this.world.creatorId}:1:2:${randomBytes(12).toString('hex')}`).toString('base64');
+  private readonly sessionSuffix = randomBytes(12).toString('hex');
+  get token(): string { return Buffer.from(`${this.world.creatorId}:1:2:${this.sessionSuffix}`).toString('base64'); }
   /** Tokens issued for someone else (`session.issue`). */
   readonly labelled = new Map<string, 'neighbour'>();
   expired = false;
@@ -96,8 +97,8 @@ export class FanslyState {
     this.hanging.clear();
   }
 
-  reset(): void {
-    this.world = new FanslyWorld();
+  reset(creatorId?: string): void {
+    this.world = new FanslyWorld(Date.now(), creatorId);
     this.labelled.clear();
     this.expired = false;
     this.socket = { pong: true, verify: true, verifyDelayMs: DEFAULT_VERIFY_DELAY_MS, stall: 0 };

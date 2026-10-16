@@ -33,6 +33,12 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
       state.reset();
       return { ok: true };
     }
+    case 'account': {
+      if (!/^[0-9]{17,18}$/.test(command.creatorId)) throw new FakeFanslyCommandError('account: expected a synthetic creator id');
+      hub.closeAll();
+      state.reset(command.creatorId);
+      return { ok: true };
+    }
     case 'status':
       return { ok: true, status: statusOf(state, hub) };
     case 'message': {

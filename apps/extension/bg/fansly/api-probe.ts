@@ -4,8 +4,8 @@
 // background (R20 P9b, `suite-fansly-network`): until the services that ask
 // Fansly arrive (P9c–P9e, P10*, P11*), a spec makes ONE call through the real
 // client — FS-NET-1's admission, the session the core captured, the pacer and
-// its cooldowns — and reads how it ended. Nothing is answered but the outcome:
-// no body, no header.
+// its cooldowns — and reads how it ended. Only the outcome is answered (no header), except
+// P16b's explicit `readNotesResponse: true`: the synthetic native notes body for CRUD read-back.
 //
 // storage.local, written by an extension page of the test build:
 // - `dev.fanslyApi.origin` — the fake Fansly's API origin on the stand
@@ -93,7 +93,8 @@ export function startFanslyApiProbe(kit: BackgroundKit, session: FanslyNetworkSe
       } else {
         try {
           const answer = await client.call(call);
-          outcome = { ok: true, status: answer.status };
+          // P16b's synthetic notes CRUD needs the created note's id and a read-back. No session/header is returned.
+          outcome = { ok: true, status: answer.status, ...(raw['readNotesResponse'] === true && raw['purpose'] === 'notes' ? { response: answer.response } : {}) };
         } catch (error) {
           outcome = failureOf(error);
         }

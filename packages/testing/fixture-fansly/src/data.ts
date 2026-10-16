@@ -75,7 +75,8 @@ const fanOf = (index: number): Account => ({ id: String(FAN_BASE + BigInt(index 
 /** The first conversation has a long history: three older pages of 25 above the latest one. */
 const historyLength = (index: number): number => (index === 0 ? 90 : ((index * 7) % 23) + 3);
 
-export function createWorld(): World {
+export function createWorld(creatorId: string = CREATOR.id): World {
+  const creator = { ...CREATOR, id: creatorId };
   let sequence = 0;
   const groups: ServerGroup[] = [];
   for (let index = 0; index < GROUP_COUNT; index += 1) {
@@ -91,7 +92,7 @@ export function createWorld(): World {
         // Two messages of one second differ by the id's low bits.
         id: snowflakeAt(createdAt * 1000, sequence),
         groupId: id,
-        senderId: mine ? CREATOR.id : fan.id,
+        senderId: mine ? creator.id : fan.id,
         content: mine ? `Stand reply ${k + 1} to fan ${index + 1}` : `Stand line ${k + 1} from fan ${index + 1}`,
         createdAt,
         attachments: [],
@@ -100,7 +101,7 @@ export function createWorld(): World {
     groups.push({ id, partners: [fan], fan, dmRulesUnmet: false, status: index % 3 === 0 ? 1 : 3, unread: index % 4 === 1 ? 2 : 0, history });
   }
   // New messages of the in-page world come after every seeded one.
-  return { creator: CREATOR, groups, byId: new Map(groups.map((group) => [group.id, group])), nextMessage: BigInt(snowflakeAt(EPOCH_S * 1000, 0)), nextMedia: MEDIA_BASE };
+  return { creator, groups, byId: new Map(groups.map((group) => [group.id, group])), nextMessage: BigInt(snowflakeAt(EPOCH_S * 1000, 0)), nextMedia: MEDIA_BASE };
 }
 
 export function standIds(world: World): FanslyStandIds {

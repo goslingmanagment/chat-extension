@@ -168,8 +168,8 @@ export class FanslyWorld {
   readonly broadcastGroupId = BROADCAST_GROUP_ID;
   private readonly ids = new Snowflakes();
 
-  constructor(readonly startedAt = Date.now()) {
-    const seed = createWorld();
+  constructor(readonly startedAt = Date.now(), creatorId?: string) {
+    const seed = createWorld(creatorId);
     this.creatorId = seed.creator.id;
     this.accounts.set(seed.creator.id, this.newAccount(seed.creator.id, seed.creator.username, seed.creator.displayName, 1));
     for (const seeded of seed.groups) {

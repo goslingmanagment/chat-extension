@@ -59,6 +59,8 @@ export type SendEcho = 'after' | 'before' | 'none';
 export type FakeFanslyCommand =
   /** The world, the scripts and the socket settings back to the start; every socket closed; the journal kept. */
   | { readonly op: 'reset' }
+  /** P16b: switch the synthetic creator, with a fresh world/session. The test reloads its tabs afterwards. */
+  | { readonly op: 'account'; readonly creatorId: string }
   | { readonly op: 'status' }
   /** A message appears in a group and its `5/1` frame goes out (`silent` — no frame: the socket «lost» it). */
   | {
