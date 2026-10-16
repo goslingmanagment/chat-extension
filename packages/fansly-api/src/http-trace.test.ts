@@ -8,14 +8,15 @@ describe('pass HTTP diagnostics at the existing request boundary', () => {
     const response = new Response('{}', { status: 503 });
     const error = new TypeError('offline');
     const send = vi.fn<FanslyRoute['send']>().mockResolvedValueOnce(response).mockRejectedValueOnce(error);
-    const holds = () => true;
+    const holds = vi.fn(() => true);
     const transport: FanslyTransport = { route: () => Promise.resolve({ transport: label, holds, send }) };
     const events: string[] = [];
     const traced = traceFanslyTransport(transport, (event) => events.push(event));
     const request: FanslyWireRequest = { url: 'https://example.invalid/api/', path: '', method: 'GET', headers: {}, signal: new AbortController().signal };
     const route = await traced.route({ legacyId: '1', canonicalId: null });
     expect(route.transport).toBe(label);
-    expect(route.holds).toBe(holds);
+    expect(route.holds()).toBe(true);
+    expect(holds).toHaveBeenCalledOnce();
     const first = route.send(request);
     expect(send).toHaveBeenCalledExactlyOnceWith(request);
     await expect(first).resolves.toBe(response);
