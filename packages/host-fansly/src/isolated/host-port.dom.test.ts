@@ -139,6 +139,32 @@ describe('[host:fansly] [FS-SND-1] the socket batch for sound', () => {
 });
 
 describe('[host:fansly] who the tab is (FS-IDN-1, FS-IDN-2, FS-IDN-5)', () => {
+  it('[AI-123] [ER-014] P8e: names from the open main header stay available for busy-chat lists and ready toasts; no old DM permission or creator survives', async () => {
+    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
+    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
+    const label = (name: string): void => {
+      const username = page.route()?.querySelector('.message-content-header-contact app-account-username');
+      if (username === null || username === undefined) throw new Error('no main contact');
+      const span = document.createElement('span');
+      span.className = 'display-name'; span.textContent = name;
+      username.replaceChildren(span);
+    };
+    page.openChat(GROUP); label('Fan Aspen');
+    await settle();
+    main.batch(1, chatOf(GROUP, 1));
+    const first = { host: 'fansly-web', hostAccountId: CREATOR, platformFanId: FAN } as const;
+    expect(port.fan(first)).toMatchObject({ displayName: 'Fan Aspen', canReceiveMessages: true });
+    page.openChat(OTHER); label('Fan Birch');
+    await settle();
+    main.batch(2, chatOf(OTHER, 2, { fanId: '7103' }));
+    const second = { ...first, platformFanId: '7103' };
+    expect(port.fan(second)).toMatchObject({ displayName: 'Fan Birch', canReceiveMessages: true });
+    expect(port.fan(first)).toMatchObject({ displayName: 'Fan Aspen', canReceiveMessages: null });
+    main.batch(3, identityEvent(SECOND_CREATOR));
+    expect(port.fan(first)).toBeNull();
+    expect(port.fan(second)).toBeNull();
+  });
+
   it('[UI-011] [AU-023] [AU-034] the initial binding: no account until the page’s /account/me, then exactly one — the creator, whose platform id is the hub page’s key', async () => {
     const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });
     const { port, events, page } = await startPort(`/messages/${GROUP}`, main.client);

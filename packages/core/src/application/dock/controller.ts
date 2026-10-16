@@ -37,6 +37,7 @@ import { dockChips, featureGate, featurePresent, isDraftFeature, policyOf, toggl
 import { contractBroken } from '../../domain/host';
 import { flagUsable, isTerminalOpState } from '../../domain/ops';
 import { targetHandle } from '../ai/handles';
+import { chatHandle } from '../navigation/navigation-controller';
 import { type OpRecord } from '../ai/op-store';
 import { resultVm } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
@@ -48,13 +49,14 @@ import { flagReasonVm } from '../flag-reason';
 export const KEYS_FOOTER_RESULTS = 5;
 
 export function runningVm(ws: AiWorkspace, summary: Pick<AnyActiveOpSummary, 'opId' | 'feature' | 'chat' | 'fanLabel' | 'startedAt' | 'inThisTab'>): RunningOpVM {
+  const conversation = ws.ops.get(summary.opId)?.view.target.conversationRef;
   return {
     opId: summary.opId,
     feature: summary.feature,
     fanLabel: summary.fanLabel ?? ws.ports.host.fan(summary.chat)?.displayName ?? null,
     startedAt: summary.startedAt,
     inThisTab: summary.inThisTab,
-    go: { type: 'Navigate', to: { kind: 'chat', targetHandle: targetHandle('dock', summary.chat) } },
+    go: { type: 'Navigate', to: { kind: 'chat', targetHandle: conversation === undefined || conversation === summary.chat.platformFanId ? targetHandle('dock', summary.chat) : chatHandle(summary.chat, conversation) } },
     cancel: { type: 'CancelGeneration', operationId: summary.opId },
   };
 }

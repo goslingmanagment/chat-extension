@@ -193,6 +193,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   let network: FanslyContractWire | null = null;
   /** MAIN's chat for the current route's group and epoch; null — not known. */
   let chatWire: FanslyChatWire | null = null;
+  /** Decoration for the three running chats and their ready toasts, never old DM permissions or message text. */
+  const fanLabels = new Map<string, HostFan>();
   let observation: Observation = 'unknown';
   /** The route epoch `fx.focus` was last asked for; null — none yet. */
   let focused: number | null = null;
@@ -422,6 +424,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
    */
   const changeCreator = (next: string | null): boolean => {
     if (next === creator) return false;
+    fanLabels.clear();
     // Identity may change between two facts of one batch: none of the old
     // account's pending sounds may be attributed to the new one at flush.
     soundEvents = [];
@@ -675,6 +678,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
+    fanLabels.clear();
     generation.advance();
     stream?.dispose();
     offRoute();
@@ -816,7 +820,25 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       return chatWire !== null && sameChat(chat, routeState.chat) ? chatWindowOf(chat, chatWire) : null;
     },
     fan(chat: ChatRef): HostFan | null {
-      return chatWire !== null && sameChat(chat, routeState.chat) ? fanOf(chat, chatWire) : null;
+      const key = `${chat.hostAccountId}:${chat.platformFanId}`;
+      const cached = fanLabels.get(key) ?? null;
+      if (disposed || chat.host !== FANSLY_KIND || chat.hostAccountId !== creator) return null;
+      if (chatWire === null || !sameChat(chat, routeState.chat)) return cached;
+      // Only the main conversation's contact, never a mini-chat's header. The name is display data alone;
+      // MAIN's group/fan identity remains the source of every target and every insert guard.
+      const contact = composer?.ready === true ? anchors.current().conversation?.contact : null;
+      const text = (selector: string): string | null => contact?.querySelector(selector)?.textContent?.trim().slice(0, 256) || null;
+      const displayName = text('app-account-username .display-name') ?? text('app-account-username .user-name') ?? cached?.displayName ?? null;
+      const fan = { ...fanOf(chat, chatWire), displayName };
+      if (displayName !== null) {
+        fanLabels.delete(key);
+        fanLabels.set(key, { ...fan, canReceiveMessages: null });
+        if (fanLabels.size > 128) {
+          const oldest = fanLabels.keys().next().value;
+          if (oldest !== undefined) fanLabels.delete(oldest);
+        }
+      }
+      return fan;
     },
     listCachedChats: () => [],
     listCachedAccounts: accounts,

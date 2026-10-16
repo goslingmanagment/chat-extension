@@ -1,15 +1,18 @@
+// P8e: the real dock's parallel generations, refusal list, toasts and guarded inserts on Fansly's stand.
 // P12a: no voice panel yet. The TEST-only loopback probe calls its real
 // application/RPC port; the extension, scheduler, journal and SDK are real.
 import { browser, expect } from '@wdio/globals';
 import type { Admission, SiteOpView } from '@cg/contracts';
-import { WORLD } from '../../src/scenarios/hub';
+import { WORLD, meta } from '../../src/scenarios/hub';
 import { dockIs } from '../support/shift';
-import { readReport } from '../support/extension';
+import { readReport, waitForReport } from '../support/extension';
 import { useFakeHub } from '../support/fake-hub';
-import { setFanslyNeighbor } from '../support/fansly-neighbor';
-import { startFanslyShift } from '../support/fansly-shift';
-import { callFansly, fakeFansly } from '../support/fansly-stand';
+import { openWithNeighbor, setFanslyNeighbor } from '../support/fansly-neighbor';
+import { startFanslyShift, type FanslyShift } from '../support/fansly-shift';
+import { callFansly, fakeFansly, fanslyIds } from '../support/fansly-stand';
+import { focusTab } from '../support/focus';
 import { useNetworkTrap } from '../support/network-trap';
+import { pressOurs, readOurs, waitOursByText } from '../support/ours';
 
 const A = WORLD.fansly.chats.a;
 const B = WORLD.fansly.chats.b;
@@ -95,5 +98,127 @@ describe('Fansly site operations share Reply’s admission (R20 P12a)', () => {
     expect(streams.map((entry) => entry.status)).toEqual([200, 200]);
     await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0 } });
     await open(A.group, A.fan);
+  });
+});
+
+describe('Fansly parallel generations through the shared core (R20 P8e)', () => {
+  useNetworkTrap();
+  const { hub } = useFakeHub();
+  let shift: FanslyShift;
+  const gates: string[] = [];
+  const ops: string[] = [];
+  let chats: { group: string; fan: string; name: string; text: string }[] = [];
+
+  before(async () => {
+    await setFanslyNeighbor(null);
+    await fakeFansly().command({ op: 'reset' });
+    shift = await startFanslyShift(hub(), { path: `/messages/${A.group}`, viewport: { width: 1440, height: 900 } });
+    const ids = await fanslyIds();
+    chats = ids.groups.slice(0, 4).map((group, index) => ({ group, fan: ids.fans[group] ?? '', name: `Stand Fan ${index + 1}`, text: `Reply only for fan ${index + 1}.` }));
+    expect(chats).toHaveLength(4);
+    for (const chat of chats) await hub().command({ op: 'thread', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: chat.group, fanRef: chat.fan });
+    await open(A.group, A.fan);
+  });
+  afterEach(async () => {
+    for (const gate of gates.splice(0)) await hub().command({ op: 'release', gate });
+    for (const opId of ops.splice(0)) await command({ op: 'cancel', feature: 'reply', opId });
+    await hub().command({ op: 'clearScripts' });
+  });
+
+  const composer = async () => {
+    const found = (await callFansly('composers')).find((field) => field.place === 'main' && field.connected);
+    if (found === undefined) throw new Error('no main composer');
+    return found;
+  };
+  const holdReply = async (gate: string, text: string): Promise<void> => {
+    gates.push(gate);
+    await hub().command({ op: 'scriptSse', feature: 'fast-reply', responses: [{ kind: 'stream', steps: [
+      { kind: 'frame', frame: meta('fast-reply', { pageLabel: WORLD.pages.fansly.pageLabel }) }, { kind: 'gate', name: gate },
+      { kind: 'frame', frame: { type: 'content_delta', text } },
+      { kind: 'frame', frame: { type: 'done', stopReason: 'end_turn' } }, { kind: 'eof' },
+    ] }] });
+  };
+
+  it('[AI-123] [AI-124] [ER-014] three chats at once, the fourth refused with its busy-chat list; a toast opens its own group and each result inserts only there', async function () {
+    this.timeout(120_000);
+    const running = chats.slice(0, 3);
+    const fourth = chats[3];
+    if (fourth === undefined) throw new Error('no fourth chat');
+    const mark = await hub().mark();
+    for (const [index, chat] of running.entries()) {
+      await open(chat.group, chat.fan);
+      await holdReply(`p8e-${index}`, chat.text);
+      await pressOurs('dock', '.cg-strip button', /^Reply/);
+      const shown = await dockIs((dock) => dock.result?.feature === 'reply' && dock.result.state === 'streaming', 'Reply is running in its chat');
+      if (shown.result === null) throw new Error('no operation');
+      ops.push(shown.result.opId);
+    }
+    await open(fourth.group, fourth.fan);
+    await pressOurs('dock', '.cg-strip button', /^Reply/);
+    const refused = await dockIs((dock) => dock.refusal === 'CG-OP-TAB-LIMIT', 'the fourth start is refused');
+    expect(refused.refusalRunning).toEqual(ops);
+    expect(await readOurs('dock', '.cg-ops', (node) => Array.from(node.querySelectorAll('.cg-op__fan'), (fan) => fan.textContent))).toEqual(running.map(({ name }) => name));
+
+    // The existing refusal's «Перейти» carries the group's id, without adding a new surface.
+    const first = running[0];
+    if (first === undefined) throw new Error('no first chat');
+    await pressOurs('dock', `[data-cg-op="${ops[0]}"] button`, /^Перейти$/);
+    await dockIs((dock) => dock.target?.endsWith(`:${first.fan}`) === true && dock.result?.opId === ops[0], 'the refusal opens the running chat');
+    expect((await callFansly('route')).groupId).toBe(first.group);
+    await open(fourth.group, fourth.fan);
+    for (const gate of [...gates].reverse()) await hub().command({ op: 'release', gate });
+    const handle = (chat: (typeof chats)[number]) => `nav.chat.${WORLD.pages.fansly.platformAccountId}.${chat.fan}.${chat.group}`;
+    await waitForReport((report) => running.every((chat) => report.toasts?.some((toast) => toast.chats.includes(handle(chat))) === true), 'all three background results name their own groups');
+    expect((await callFansly('route')).groupId).toBe(fourth.group); // completion never navigates or inserts
+    expect(await composer()).toMatchObject({ groupId: fourth.group, value: '', model: '', cached: '' });
+    expect((await readReport())?.dock?.result).toBeNull();
+
+    // One real toast click proves the whole route, including the absent navigation switch on Fansly.
+    const third = running[2];
+    if (third === undefined) throw new Error('no third chat');
+    const toast = await waitOursByText('toast', '.cg-toast', new RegExp(third.name), 'the third fan’s ready toast');
+    await toast.$('.cg-toast__acts button').click();
+    await dockIs((dock) => dock.target?.endsWith(`:${third.fan}`) === true && dock.result !== null && dock.result.opId === ops[2] && dock.result.state === 'done', 'the toast opens only its result');
+    expect((await callFansly('route')).groupId).toBe(third.group);
+
+    for (const [index, chat] of running.entries()) {
+      await open(chat.group, chat.fan);
+      await dockIs((dock) => dock.result !== null && dock.result.opId === ops[index] && dock.result.state === 'done', 'the kept result belongs to this chat');
+      expect(await composer()).toMatchObject({ groupId: chat.group, value: '', model: '', cached: '' });
+      await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/);
+      await browser.waitUntil(async () => (await composer()).model === chat.text, { timeout: 5000, timeoutMsg: 'the result did not reach its own composer' });
+      expect(await composer()).toMatchObject({ groupId: chat.group, value: chat.text, model: chat.text, cached: chat.text });
+    }
+    await open(fourth.group, fourth.fan);
+    expect(await composer()).toMatchObject({ groupId: fourth.group, value: '', model: '', cached: '' });
+    const streams = (await hub().journal(mark)).entries.filter((entry) => entry.route === 'aiFeatureStream');
+    expect(streams.map((entry) => entry.status)).toEqual([200, 200, 200]);
+    expect(streams.map((entry) => { const { body } = entry.request as { body: { conversationRef: string; fanRef: string } }; return [body.conversationRef, body.fanRef]; })).toEqual(running.map(({ group, fan }) => [group, fan]));
+  });
+
+  it('[ER-033] [RB-021] [NEW-11] the same chat in another tab is refused by the shared admission; explicit cancellation releases it', async () => {
+    await open(A.group, A.fan);
+    const mark = await hub().mark();
+    await holdReply('p8e-other-tab', 'A reply held across tabs.');
+    const first = opOf(await command<Admission>({ op: 'start', feature: 'reply' }));
+    ops.push(first);
+    const other = (await browser.createWindow('tab')).handle;
+    try {
+      await browser.switchToWindow(other);
+      await openWithNeighbor(`/messages/${A.group}`, { mode: 'off' });
+      await focusTab();
+      await dockIs((dock) => dock.status === 'ready' && dock.actions['reply'] === true, 'the second tab is ready');
+      expect(await command<Admission>({ op: 'start', feature: 'reply' })).toMatchObject({ ok: false, code: 'CG-OP-CHAT-BUSY', active: [{ opId: first, chat: { platformFanId: A.fan }, inThisTab: false }] });
+      expect((await hub().journal(mark)).entries.filter((entry) => entry.route === 'aiFeatureStream')).toHaveLength(1);
+      expect(await command({ op: 'cancel', feature: 'reply', opId: first })).toEqual({ state: 'canceled' });
+      const next = opOf(await command<Admission>({ op: 'start', feature: 'reply' }));
+      ops.push(next);
+      await browser.waitUntil(async () => (await hub().journal(mark)).entries.filter((entry) => entry.route === 'aiFeatureStream').length === 2, { timeout: 10_000, timeoutMsg: 'the released chat did not start a new request' });
+      expect((await hub().journal(mark)).entries.filter((entry) => entry.route === 'aiFeatureStream').map((entry) => entry.status)).toEqual([200, 200]);
+    } finally {
+      await browser.switchToWindow(other);
+      await browser.closeWindow();
+      await shift.toFansly();
+    }
   });
 });

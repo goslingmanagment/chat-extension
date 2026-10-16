@@ -155,9 +155,9 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
   };
 
   const open: NavigationController['open'] = async (target, cause = 'click') => {
-    // The switch of the account the chat is in: opening a chat marks it read on OnlyFans, so a page whose owner
-    // left navigation off is never walked into by our keys or lists.
-    if ((await deps.ownerSwitch?.(target.hostAccountId)) === false) return fail('CG-FEATURE-DISABLED');
+    // A site's navigation feature owns its switch (opening a chat marks it read). A site without that feature
+    // still opens an explicitly clicked result/toast through its router; its absent switch cannot block that.
+    if (rowPresent('chat-next', deps.features) && (await deps.ownerSwitch?.(target.hostAccountId)) === false) return fail('CG-FEATURE-DISABLED');
     const capability = host.current().contract.capabilities.navigate;
     if (capability.state === 'off' || capability.state === 'contractBroken') return fail('CG-HOST-CONTRACT');
     // One navigation at a time: a second key while ChatSpace's router is still moving is not queued.
