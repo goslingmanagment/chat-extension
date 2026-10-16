@@ -29,6 +29,8 @@
 export const RELAY_TARGET = 'https://apiv3.fansly.com/api/v1/';
 /** Response headers the client reads; the rest stays in the frame. */
 export const RELAY_RESPONSE_HEADERS = ['content-type', 'content-length', 'retry-after'] as const;
+/** Full encoded URL (contracts FANSLY_TAB_LIMITS.relayRequestUrlMaxChars; allowlist.test.ts checks every route). */
+export const RELAY_URL_MAX_CHARS = 128 * 1024;
 /** The longest body handed back (contracts FANSLY_TAB_LIMITS.relayResponseBodyMaxChars). */
 export const RELAY_BODY_MAX_CHARS = 4 * 1024 * 1024;
 
@@ -71,7 +73,7 @@ export function readRelayFetch(raw: unknown): RelayFetch | null {
   const { requestId, method, url, headers, body, expect } = raw;
   if (typeof requestId !== 'string' || !UUID.test(requestId)) return null;
   if (method !== 'GET' && method !== 'POST') return null;
-  if (typeof url !== 'string' || url.length > 2048) return null;
+  if (typeof url !== 'string' || url.length > RELAY_URL_MAX_CHARS) return null;
   if (!Array.isArray(headers) || headers.length > 32) return null;
   const list: Array<readonly [string, string]> = [];
   for (const entry of headers as unknown[]) {

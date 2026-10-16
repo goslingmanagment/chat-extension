@@ -207,6 +207,29 @@ describe('[host:fansly] «Fansly через вкладку» on the fake browser
     expect([w.frame.mounts, w.leases.length]).toEqual([0, 0]);
   });
 
+  it.each([false, true])('[FS-NET-4] a newcomers batch of 100 eighteen-digit account ids is one fetch (viaTab=%s)', async (viaTab) => {
+    const w = await world();
+    w.viaTab = viaTab;
+    const ids = Array.from({ length: 100 }, (_, index) => String(700000000000000001n + BigInt(index))).join(',');
+    expect(ids).toHaveLength(1899);
+    const url = `https://apiv3.fansly.com/api/v1/account?ids=${encodeURIComponent(ids)}&ngsw-bypass=true`;
+    expect(url).toHaveLength(2158);
+    const prepared = await w.api.client.prepare({ purpose: 'newcomers', route: 'account.byIds', account: CREATOR, query: { ids } });
+    expect(prepared.transport).toMatch(viaTab ? /^tab:/ : /^direct$/);
+    await expect(prepared.start()).resolves.toEqual({ response: { id: GROUP }, status: 200 });
+    expect(w.direct).toEqual(viaTab ? [] : [url]);
+    expect(w.frame.fetched.map((entry) => entry.url)).toEqual(viaTab ? [url] : []);
+  });
+
+  it.each([false, true])('[FS-NET-4] an account ids value over the client limit is refused before either route (viaTab=%s)', async (viaTab) => {
+    const w = await world();
+    w.viaTab = viaTab;
+    const ids = Array.from({ length: 108 }, (_, index) => String(700000000000000001n + BigInt(index))).join(',');
+    expect(ids).toHaveLength(2051);
+    await expect(w.api.client.prepare({ purpose: 'newcomers', route: 'account.byIds', account: CREATOR, query: { ids } })).rejects.toMatchObject({ kind: 'not-admitted', sent: false });
+    expect([w.direct, w.frame.fetched, w.frame.mounts]).toEqual([[], [], 0]);
+  });
+
   it('[FX-001] [FS-NET-4] on: the tab raises its frame for the batch, the frame says it is up, the request is the frame’s fetch — none of the event page’s own; 60 s after the last work the frame goes', async () => {
     const w = await world();
     // Nothing yet: lazily, for work.

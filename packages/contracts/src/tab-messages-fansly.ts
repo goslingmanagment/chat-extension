@@ -89,6 +89,8 @@ export const FANSLY_TAB_LIMITS = {
   /** One MP3 voice note, as base64 in `fansly.voice.audio` (4 characters a 3 bytes). */
   voiceAudioMaxBytes: 8 * 1024 * 1024,
   vaultFilesPerUpload: 500,
+  /** Full URL: up to 7 query values × 2048 UTF-16 units × 9 percent-encoded chars, plus base, path and keys. */
+  relayRequestUrlMaxChars: 128 * 1024,
   /** The relay: a request body we send, a response body it hands back, and the headers each way. */
   relayRequestBodyMaxChars: 256 * 1024,
   relayResponseBodyMaxChars: 4 * 1024 * 1024,
@@ -555,7 +557,7 @@ export const FANSLY_TAB_EVENTS = {
     payload: z.strictObject({
       requestId: UuidSchema,
       method: z.enum(['GET', 'POST']),
-      url: z.string().check(z.maxLength(2048), z.startsWith(FANSLY_RELAY_TARGET)),
+      url: z.string().check(z.maxLength(FANSLY_TAB_LIMITS.relayRequestUrlMaxChars), z.startsWith(FANSLY_RELAY_TARGET)),
       headers: HeaderListSchema(FANSLY_TAB_LIMITS.relayRequestHeadersMax),
       body: z.optional(displayText(FANSLY_TAB_LIMITS.relayRequestBodyMaxChars)),
       /**

@@ -3,7 +3,7 @@
 // `settings.ext` key and a Fansly failure on the wire. Synthetic 18-digit ids
 // (FANSLY_IDS); the conversation is the group, never the fan.
 
-import type { FanslyTabEventType, FanslyTabRequestType } from '../../src/tab-messages-fansly';
+import { FANSLY_RELAY_TARGET, FANSLY_TAB_LIMITS, type FanslyTabEventType, type FanslyTabRequestType } from '../../src/tab-messages-fansly';
 import type { RequestFixtures, Verdicts } from './protocols';
 import { FANSLY_IDS, ISO, T0, uuid } from './samples';
 import { FANSLY_START_OP_FIXTURES, FANSLY_OP_VIEW_FIXTURES, fanslyVoiceView } from './ops-fansly';
@@ -271,6 +271,7 @@ export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Ve
       { requestId: uuid(330), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/account/me?ngsw-bypass=true', headers: [['authorization', 'x']], expect: { hostAccountId: F.creator } },
       { requestId: uuid(331), method: 'POST', url: 'https://apiv3.fansly.com/api/v1/notes?ngsw-bypass=true', headers: [], body: '{}', expect: { hostAccountId: F.creator } },
       { requestId: uuid(332), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/group/1?ngsw-bypass=true', headers: [], expect: { hostAccountId: F.creator, relayId: uuid(340) } },
+      { requestId: uuid(333), method: 'GET', url: FANSLY_RELAY_TARGET + 'x'.repeat(FANSLY_TAB_LIMITS.relayRequestUrlMaxChars - FANSLY_RELAY_TARGET.length), headers: [], expect: { hostAccountId: F.creator } },
     ],
     // Any other address, even of Fansly; a method we never use; no expectation for the frame's own check.
     invalid: [
@@ -278,6 +279,7 @@ export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Ve
       { requestId: uuid(330), method: 'DELETE', url: 'https://apiv3.fansly.com/api/v1/notes', headers: [], expect: { hostAccountId: F.creator } },
       { requestId: uuid(330), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/account/me', headers: [] },
       { requestId: uuid(330), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/account/me', headers: [], expect: { hostAccountId: F.creator, relayId: 'frame-1' } },
+      { requestId: uuid(333), method: 'GET', url: FANSLY_RELAY_TARGET + 'x'.repeat(FANSLY_TAB_LIMITS.relayRequestUrlMaxChars - FANSLY_RELAY_TARGET.length + 1), headers: [], expect: { hostAccountId: F.creator } },
     ],
   },
   'fansly.relay.abort': { valid: [{ requestId: uuid(330) }], invalid: [{ requestId: 'r1' }] },

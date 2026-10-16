@@ -35,7 +35,7 @@ export const NGSW_BYPASS = 'ngsw-bypass';
 /** Fansly's ids in a path or a list: decimal strings (18–19 digits today), never numbers. */
 const ID = /^[1-9][0-9]{0,23}$/;
 /** A query value of ours: short, printable. */
-const QUERY_VALUE_MAX = 2048;
+export const QUERY_VALUE_MAX = 2048;
 
 export type FanslyMethod = 'GET' | 'POST';
 

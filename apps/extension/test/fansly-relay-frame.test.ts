@@ -5,7 +5,7 @@
 import { FANSLY_RELAY_TARGET, FANSLY_TAB_EVENTS, FANSLY_TAB_LIMITS } from '@cg/contracts/tab-messages-fansly';
 import { describe, expect, it } from 'vitest';
 
-import { accountOfAddress, readRelayFetch, RELAY_BODY_MAX_CHARS, RELAY_TARGET, serveFrom, startFanslyRelay, type RelayChannel } from '../src/entrypoints/fansly-relay/relay.ts';
+import { accountOfAddress, readRelayFetch, RELAY_BODY_MAX_CHARS, RELAY_TARGET, RELAY_URL_MAX_CHARS, serveFrom, startFanslyRelay, type RelayChannel } from '../src/entrypoints/fansly-relay/relay.ts';
 
 const CREATOR = '700000000000000001';
 const OTHER = '700000000000000002';
@@ -104,6 +104,7 @@ describe('[host:fansly] the relay frame (R20 P9c, FS-NET-4)', () => {
     // Its answers fit the contract it shares with the background.
     expect(FANSLY_TAB_EVENTS['fansly.relay.fetch'].payload.safeParse(fetchOf(1)).success).toBe(true);
     expect(RELAY_TARGET).toBe(FANSLY_RELAY_TARGET);
+    expect(RELAY_URL_MAX_CHARS).toBe(FANSLY_TAB_LIMITS.relayRequestUrlMaxChars);
     expect(RELAY_BODY_MAX_CHARS).toBe(FANSLY_TAB_LIMITS.relayResponseBodyMaxChars);
   });
 
@@ -174,6 +175,9 @@ describe('[host:fansly] the relay frame (R20 P9c, FS-NET-4)', () => {
     expect(accountOfAddress(`#a=${CREATOR}`)).toBe(CREATOR);
     for (const hash of ['', '#', '#a=', '#a=abc', '#b=1', `#a=0${CREATOR}`]) expect(accountOfAddress(hash), hash).toBeNull();
     expect(readRelayFetch(fetchOf(12))).toEqual(fetchOf(12));
+    const longestUrl = RELAY_TARGET + 'x'.repeat(RELAY_URL_MAX_CHARS - RELAY_TARGET.length);
+    expect(readRelayFetch(fetchOf(12, { url: longestUrl }))).not.toBeNull();
+    expect(readRelayFetch(fetchOf(12, { url: `${longestUrl}x` }))).toBeNull();
     for (const bad of [null, [], fetchOf(13, { requestId: 'r1' }), fetchOf(13, { method: 'DELETE' }), fetchOf(13, { headers: [['Authorization', 'x']] }), fetchOf(13, { expect: { hostAccountId: 'creator' } }), fetchOf(13, { expect: { hostAccountId: CREATOR, relayId: 'frame' } })]) {
       expect(readRelayFetch(bad), JSON.stringify(bad)).toBeNull();
     }
