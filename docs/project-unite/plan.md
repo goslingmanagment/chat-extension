@@ -3,8 +3,11 @@
 Версия 8, 2026-10-13: после матрицы паритета (P1a, `parity-matrix.md` §4). Версия 7 — после арены-ревью (Opus 5.5 + astra,
 max, два раунда; решение X36). Что строим — `spec.md`
 (требования `FS-*`); как устроено — `architecture.md` (разделы `§N` ниже — оттуда); факты о странице — `fansly-web.md`;
-решения владельца — X33, X34, X37 в `docs/decisions.md`, решения координатора — X35, X36. Пути файлов — стартовые: исполнитель
+решения владельца — X33, X34, X37, X40 в `docs/decisions.md`, решения координатора — X35, X36. Пути файлов — стартовые: исполнитель
 сверяет их с текущим `main`.
+
+**Объём пилота уточнён 2026-10-16 (X40): Fansly без войсов.** Слитый P12a остаётся (общий допуск операций
+сайта и `voice-script`, без UI). P12b1–P12c выполняются после пилота и его приёмку не блокируют.
 
 **Список PR зафиксирован матрицей паритета** (`parity-matrix.md`, P1a): у каждой строки, касающейся Fansly, — один
 PR-владелец из таблиц ниже. Что матрица изменила в версии 8: аватар фана для Hi (FX-018) — поле в HF-5 и P4b4, URL из
@@ -89,12 +92,12 @@ PR-владелец из таблиц ниже. Что матрица измен
 | 9 | Права, `fansly-api`, relay, отправка, Spenders | chat-extension | P9a–P9e | таблица этапа |
 | 10 | «Новые» | chat-extension | P10a, P10b1–3, P10c, P10d | таблица этапа |
 | 11 | «Регистрация», «Заметки», «Заполнить из чата» | chat-extension | P11a, P11b, P11c | таблица этапов 11–14 |
-| 12 | Войсы | chat-extension | P12a, P12b1–3, P12c | таблица этапов 11–14 |
+| 12 | Операции сайта (P12a слит); войсы — после пилота (X40) | chat-extension | P12a, P12b1–3, P12c | таблица этапов 11–14 |
 | 13 | Vault | chat-extension | P13a, P13b | таблица этапов 11–14 |
 | 14 | Звук, страницы, «Включить Fansly» | chat-extension | P14a, P14b1, P14b2, P14c | таблица этапов 11–14 |
 | 15 | Переход и откат | — | снят (X34) | — |
 | 16 | Приёмка, выпуск и пилот | chat-extension | P16a, P16b, P16g, P16c, P16d, P16f (P16e снят X34) | таблица этапа |
-| 17 | После пилота: навигация на Fansly | chat-extension | P17 | 16 |
+| 17 | После пилота: навигация, статистика Spenders и паритет войсов на Fansly | chat-extension | P17 | 16; для войсов — P12c |
 
 ### 1.1 Порядок
 
@@ -109,12 +112,13 @@ PR-владелец из таблиц ниже. Что матрица измен
 | 3 | F6b; F9b; P5; P3d; P4b1 | HF-2 (← HF-3, HF-4б, HF-12) |
 | 4 | P7a0; P4b2; P4b3; P4b4; P6c1 | выкладка, «SDK для выпуска» |
 | 5 | P7a → P7b → P7c → P7d → (P7e → P7f; P7h; P8d; P13a → P13b) → P7i (← P7f); P9a (← P7a0) → P7g (← P7c); P6c2; P6c3; P6c4 | — |
-| 6 | после P7i: P8a; P9b; P14a; P14b1; P14b2. Затем P8a → P8b1 → (P8b2 → P8b3 → P8e; P8c; P12a → P12b1 → P12b2 → P12b3 → P12c); P9b → (P9c → P9d; P9e; P10a → P10b1 → (P10b2; P10b3); P11a → P11b → P11c) | — |
-| 7 | P10c (← P10b2, P9d, P8c, P7f) → P10d; P14c (← P10c, P12c, P13b) | — |
+| 6 | после P7i: P8a; P9b; P14a; P14b1; P14b2. Затем P8a → P8b1 → (P8b2 → P8b3 → P8e; P8c; P12a); P9b → (P9c → P9d; P9e; P10a → P10b1 → (P10b2; P10b3); P11a → P11b → P11c) | — |
+| 7 | P10c (← P10b2, P9d, P8c, P7f) → P10d; P14c (← P9a, P10c, P13b) | — |
 | 8 | P16a → (P16b; P16g) → P16c → P16d → P16f | — |
+| после пилота (X40) | P12b1 (← P12a, P16d) → P12b2 → P12b3 → P12c; P17 (← этап 16, для войсов — P12c) | — |
 
-Критический путь: F2 → F3 → F4 → F9b → P7a0 → P7a → P7b → P7c → P7d → P7e → P7f → P7i → P8a → P8b1 → P12a → P12b1 →
-P12b2 → P12b3 → P12c → P14c → P16a → P16b → P16c.
+Войсы P12b1–P12c исключены из критического пути к пилоту (X40). P14c ждёт P9a, P10c и P13b;
+P16a принимает пилотный объём этапов 1–14, затем P16b и P16g открывают P16c. Голосовая цепочка начинается после P16d.
 
 ## 2. PR по этапам
 
@@ -289,38 +293,41 @@ ChatSpace проходят без изменений, кроме мест из �
 | P11a | «Регистрация»: контроллер слота шапки (идемпотентная вставка по наблюдателю маршрута и узкому наблюдателю шапки), дата из snowflake, одна попытка `GET /group/<id>`, дубль в панели фана | `host-fansly/isolated/header-slot.ts`, `core/src/domain/hosts/fansly/snowflake.ts`, `packages/ui/src/fanpanel/*` | `src/content/{fan-registration,header-row-slot}.ts`, `src/shared/fansly-id-time.ts` | FX-002, FS-REG-1…4; пересоздание блока контакта без смены адреса; рядом с соседом `panel=mobile` слот переживает его узлы | P7d, P9b |
 | P11b | «Заметки»: кнопка со счётчиком в слоте после «Регистрации», ⌘⇧K (клиент схемы `fansly`), панель (три вида, имя для себя, заметки, «+ По шаблону», черновики по фану), заметка «FBuddy Notes» — чужая, только чтение | `packages/ui/src/hosts/fansly/notes/*`, `core/src/application/hosts/fansly/notes/*`, `packages/fansly-api/src/notes.ts` | `src/content/fan-notes/*`, `src/shared/fan-notes.ts`, заметки в `fansly-client.ts` | FX-004…FX-013, FS-NOTE-1…5, `suite-fansly-notes` | P11a |
 | P11c | «✨ Заполнить из чата» — операция сайта `notes-fill` (`fan-notes-fill`) через общий допуск: только названия полей анкеты в хаб, глубина по HF-6, `conversationRef = groupId`, `fanRef`; «было → станет» | `core/src/application/hosts/fansly/notes/fill.ts`, `packages/ui/src/hosts/fansly/notes/*` | E159–E161 старого (`@ff30d00`) | FX-014…FX-016; в хаб не уходят значения полей; одновременно с Reply в том же чате — по общему допуску | P11b, P4b3, P6c4; SDK не старше `a3449f77` |
-| P12a | `voice-script` — операция сайта через общий допуск: `groupId` и `fanRef` раздельно, без `clientContext` | `core/src/application/hosts/fansly/voice/*` | — | AI-111; скрипт при разных id; Reply, `voice-script` и `notes-fill` одновременно в одном и разных чатах, отмена, перезапуск фона | P8b1, P4b3, P6c4 |
-| P12b1 | хранилище оплаченных попыток: опека в фоне, переживающая выгрузку event page, CAS по ревизии, RPC-подтверждения | `core/src/domain/hosts/fansly/voice/attempts.ts`, `core/src/services/hosts/fansly/voice-attempts.ts`, `packages/platform/src/storage.ts` | `src/background/voice-attempt-store.ts`, `src/content/voice/attempt-store.ts` | AI-113: потерянное подтверждение записи, перезапуск фона, конфликт версий; без двойной оплаты | P12a |
-| P12b2 | поток войса: скрипт → варианты → оплата → статус → аудио (`fetchVoiceNoteAudio`); граница оплаты проверяет сохранённую попытку | `core/src/services/hosts/fansly/voice.ts` | `src/background/voice-service.ts` (в т. ч. `:995-1014`) | AI-112, AI-115, ER-075…078 | P12b1; HF-4б |
-| P12b3 | панель войса, «Новый войс», «Скачать MP3» | `packages/ui/src/hosts/fansly/voice/*` | `src/content/voice/{voice-panel,attempt-controller,voice-studio}.ts` | AI-110; снимки обеих тем | P12b2 |
-| P12c | прикрепление в поле этого чата: передача файла (два пути), модалка Fansly, подтверждение по `app-account-media-create-template` | `host-fansly/isolated/voice-attach.ts` | `src/content/voice/attach-adapter.ts`, `src/content/native-file-handoff.ts` | AI-114, `suite-fansly-voice` целиком; мини-чат не получает файла; модалка закрыта без вложения — «неизвестно» | P12b3, P7d |
+| P12a | **Слит (`done/P12a`), остаётся в пилоте без UI (X40).** `voice-script` — операция сайта через общий допуск: `groupId` и `fanRef` раздельно, без `clientContext` | `core/src/application/hosts/fansly/voice/*` | — | AI-111; скрипт при разных id; Reply, `voice-script` и `notes-fill` одновременно в одном и разных чатах, отмена, перезапуск фона | P8b1, P4b3, P6c4 |
+| P12b1 | **После пилота (X40).** Хранилище оплаченных попыток: опека в фоне, переживающая выгрузку event page, CAS по ревизии, RPC-подтверждения | `core/src/domain/hosts/fansly/voice/attempts.ts`, `core/src/services/hosts/fansly/voice-attempts.ts`, `packages/platform/src/storage.ts` | `src/background/voice-attempt-store.ts`, `src/content/voice/attempt-store.ts` | AI-113: потерянное подтверждение записи, перезапуск фона, конфликт версий; без двойной оплаты | P12a, P16d |
+| P12b2 | **После пилота (X40).** Поток войса: скрипт → варианты → оплата → статус → аудио (`fetchVoiceNoteAudio`); граница оплаты проверяет сохранённую попытку | `core/src/services/hosts/fansly/voice.ts` | `src/background/voice-service.ts` (в т. ч. `:995-1014`) | AI-112, AI-115, ER-075…078 | P12b1; HF-4б |
+| P12b3 | **После пилота (X40).** Панель войса, «Новый войс», «Скачать MP3» | `packages/ui/src/hosts/fansly/voice/*` | `src/content/voice/{voice-panel,attempt-controller,voice-studio}.ts` | AI-110; снимки обеих тем | P12b2 |
+| P12c | **После пилота (X40).** Прикрепление в поле этого чата: передача файла (два пути), модалка Fansly, подтверждение по `app-account-media-create-template` | `host-fansly/isolated/voice-attach.ts` | `src/content/voice/attach-adapter.ts`, `src/content/native-file-handoff.ts` | AI-114, `suite-fansly-voice` целиком; мини-чат не получает файла; модалка закрыта без вложения — «неизвестно»; отзыв прав/выключение посреди платного войса (FS-PERM-5) — дополнение `suite-fansly-perms` | P12b3, P7d, P14c |
 | P13a | загрузчик vault: файл на `change`, подтверждение `fx.vaultAdded` (успешный `POST` ровно `/vault/albums/media`; тело ответа страница не читает — альбом из контрольной точки, P3a) и перезагрузка альбома, контрольные точки | `host-fansly/isolated/vault/*` | `src/content/vault/{upload-runner,vault-dom,checkpoint-store}.ts` | VA-004…006, AU-036 | P7d, P4a3 |
 | P13b | панель vault; вход в неё на `/creator/vault` — одним кликом, как у старого; хранилище контрольных точек в фоне — обработчик `fansly.vault.{resume,checkpoint,clear}` в `bg/fansly` и связка с портом `VaultCheckpointStore` загрузчика P13a (решение координатора по ревью P13a) | `packages/ui/src/hosts/fansly/vault/*`, `apps/extension/bg/fansly.ts` | `src/content/vault/vault-panel.ts`, `src/content/vault/checkpoint-store.ts` | VA-001…003, `suite-fansly-vault` целиком; точка переживает перезагрузку вкладки и сон фона | P13a |
 | P14a | звуки: факты пачкой, подписчики из сокета, фокус без права `tabs`, набор «своих», тоны Fansly | `core/src/services/sound/*`, `core/src/domain/sound/*` | `src/background/message-sound-service.ts` | FS-SND-1, 2, `suite-fansly-sound` | P7a, P7i |
 | P14b1 | настройки: раздел сайта в `settings.ext` («Fansly через вкладку», звук подписчиков), шаги Fansly в «Как начать»; «Аккаунты» для моделей Fansly — список по регистрациям вкладок и сессиям, присутствие, подписи, персона по странице хаба, звук модели, «к вкладке» без права `tabs`, «Вкладки без атрибуции», сверка legacy ↔ canonical | `packages/ui/src/pages/*`, `core/src/application/pages/*` | `src/options/*` («Аккаунты», «Генерация → Служебное», «Вид»), `account-presence.ts`, `account-labels.ts` | ST-012, ST-067…079, AU-035; FS-SET-1 | P9a, P4a3, P7i |
 | P14b2 | popup (строка на сайт, «N вкладок ждут перезагрузки»), «Статус» (строка на сайт, FBuddy, фильтр слов, «ждут перезагрузки», контракт по якорям, сборка `main.*`, режим запросов, пейсер и охлаждение, свежесть за сутки), отладка для Fansly | `packages/ui/src/pages/*`, `core/src/application/pages/*` | `src/popup/*`, `src/options/*` («Статус»), `src/debug-*` | PU-005, PU-008, ST-023, ST-025, ST-031, ST-032, LG-003, LG-016, LG-026, DB-009, DB-010, DB-015; FS-SET-2, FS-SET-3, FS-TAIL-9; смешанный профиль ChatSpace + Fansly: два отчёта окна, две строки «Статуса» | F7, P9a, P7i |
-| P14c | «Включить Fansly», отзыв прав и выключение посреди отправки, платного войса, загрузки vault; баннер после обновления и перезагрузка вкладок из popup | `core/src/application/pages/*`, `packages/platform/src/permissions.ts` | — | FS-PERM-1…5, FS-IDN-4, `suite-fansly-perms` | P9a, P10c, P12c, P13b |
+| P14c | «Включить Fansly», отзыв прав и выключение посреди отправки и загрузки vault; баннер после обновления и перезагрузка вкладок из popup. Сценарий с платным войсом — после пилота в P12c (X40) | `core/src/application/pages/*`, `packages/platform/src/permissions.ts` | — | FS-PERM-1…5 в объёме пилота, FS-IDN-4, `suite-fansly-perms` | P9a, P10c, P13b |
 
 ### Этап 16. Приёмка, выпуск и пилот
 
 | PR | Что | Файлы | Зависит от |
 |---|---|---|---|
-| P16a | perf для Fansly: бюджеты §4 как гейт; профиль 10 вкладок Fansly с ChatSpace; 300+ чатов; несколько ответов по 115 КБ перед снимком; медленный потребитель моста; рост памяти после 100 переключений и 20 циклов оверлея; сосед выключен и включён; сравнение с базой P3d | `packages/testing/e2e/perf/fansly-perf-probe.e2e.ts`, `packages/testing/package.json`, `packages/testing/e2e/wdio.conf.ts` | 1–14 |
+| P16a | perf для Fansly без войсов (X40): бюджеты §4 как гейт; профиль 10 вкладок Fansly с ChatSpace; 300+ чатов; несколько ответов по 115 КБ перед снимком; медленный потребитель моста; рост памяти после 100 переключений и 20 циклов оверлея; сосед выключен и включён; сравнение с базой P3d | `packages/testing/e2e/perf/fansly-perf-probe.e2e.ts`, `packages/testing/package.json`, `packages/testing/e2e/wdio.conf.ts` | 1–14 в объёме пилота, без P12b1–P12c; `suite-fansly-voice` не требуется |
 | P16b | долгий прогон: 8 ч событий 300+ чатов на стенде — задача агента с чек-листом, не CI | `docs/project-unite/long-run.md` | P16a |
 | P16g | выпуск: имя и описание в манифесте («ChatGoose», «для ChatSpace и Fansly»), `BUILD.md` для Mozilla (опциональные адреса, `webRequest`), `CHANGELOG.md`, инструкция перехода (FS-CO-2), «О данных» при изменившемся поведении; сайт — через `pnpm release site` | `apps/extension/build/manifest.ts`, `BUILD.md`, `CHANGELOG.md`, `site/*` (генерируется) | P16a |
-| P16c | пилот: все 6 страниц Fansly и все 11 чаттеров сразу (X37); флаги страниц (владелец); все чаттеры переводимых страниц в один день выключают старое, нажимают «Включить Fansly», ждут регистрации и перезагружают вкладки; согласие на телеметрию; инструкция: войсы и vault доделать в старом до перехода | `docs/project-unite/pilot.md` | все обязательные сюиты; P16b; P16g; P3b; «SDK для выпуска»; HF-13 выложен; HF-6 выложен (глубина 3000 уже стоит, X37) |
-| P16d | наблюдение пилота вместо smoke: агент по чек-листу читает «Статус», `client_health` и журналы — хвосты и пометки, якоря, `sent`, приветствия, войсы, vault, ошибки, бюджеты против базы P3d; что видно только глазами — один вопрос владельцу | `docs/project-unite/pilot.md` | P16c |
+| P16c | пилот без войсов (X40): все 6 страниц Fansly и все 11 чаттеров сразу (X37); флаги страниц (владелец); все чаттеры переводимых страниц в один день выключают старое, нажимают «Включить Fansly», ждут регистрации и перезагружают вкладки; согласие на телеметрию; инструкция: войсы и vault доделать в старом до перехода; во время пилота войсов на Fansly нет | `docs/project-unite/pilot.md` | все обязательные сюиты пилота (§3), кроме `suite-fansly-voice`; P12b1–P12c не требуются (X40); P16b; P16g; P3b; «SDK для выпуска»; HF-13 выложен; HF-6 выложен (глубина 3000 уже стоит, X37) |
+| P16d | наблюдение пилота вместо smoke: агент по чек-листу читает «Статус», `client_health` и журналы — хвосты и пометки, якоря, `sent`, приветствия, vault, ошибки, бюджеты против базы P3d; что видно только глазами — один вопрос владельцу. Войсы — после пилота (X40) | `docs/project-unite/pilot.md` | P16c |
 | P16f | вкладка-хранитель присутствия и отчёты здоровья только при изменении (архитектура §10.3): после пилота; в пилотный артефакт — только с повторными смешанным профилем, perf, восстановлением и долгим прогоном на итоговой сборке | `apps/extension/src/composition/tab/runtime.ts` | P16a; P16d или повторная приёмка |
 
 ### Этап 17. После пилота
 
 | PR | Что | Зависит от |
 |---|---|---|
-| P17 | навигация J/K, ⌘1–9, ⌘U и палитра на Fansly — из данных, которые страница уже получила; инбокс виртуальный, расширение его не листает | 16 |
+| P17 | паритет после пилота: войсы (X40, реализация P12b1–P12c), статистика Spenders SP-044…049; навигация J/K, ⌘1–9, ⌘U и палитра на Fansly — из данных, которые страница уже получила; инбокс виртуальный, расширение его не листает. Перед закрытием — вернуть отложенным строкам конкретные проверки в матрице | 16; для голосовых строк — P12c |
 
 ## 3. Каталог e2e для Fansly
 
 Каждый спек помечен сайтом (`fansly`); владелец стоит после P7a0.
+
+Для пилота обязательны сюиты его объёма; **`suite-fansly-voice` — после пилота, не ворота P16a/P16c (X40)**.
+`suite-fansly-ops` с проверками общего допуска и `voice-script` из слитого P12a остаётся в приёмке.
 
 | Спек | Владелец (последний PR цепочки) | Что проверяет | Требования |
 |---|---|---|---|
@@ -340,10 +347,10 @@ ChatSpace проходят без изменений, кроме мест из �
 | `suite-fansly-newcomers.e2e.ts` | P10d | окно, Б17, «Нельзя написать», три допуска, два клиента, ручная отправка карточки | FS-NEW-* |
 | `suite-fansly-registration.e2e.ts` | P11a | «Регистрация» | FS-REG-* |
 | `suite-fansly-notes.e2e.ts` | P11b, P11c | «Заметки»: виды, чтения, записи по действию, охлаждение, «FBuddy Notes»; «Заполнить из чата» | FS-NOTE-* |
-| `suite-fansly-voice.e2e.ts` | P12c | скрипт, оплата, прикрепление через модалку | FS-VOI-* |
+| `suite-fansly-voice.e2e.ts` | P12c — после пилота (X40) | скрипт, оплата, прикрепление через модалку; для пилота не требуется | FS-VOI-* |
 | `suite-fansly-vault.e2e.ts` | P13b | загрузка, контрольные точки | FS-VLT-* |
 | `suite-fansly-sound.e2e.ts` | P14a | звуки, дедупликация, фокус | FS-SND-* |
-| `suite-fansly-perms.e2e.ts` | P14c | «Включить Fansly», отзыв посреди операций, баннер после обновления, перезагрузка из popup | FS-PERM-*, FS-IDN-4 |
+| `suite-fansly-perms.e2e.ts` | P14c; P12c — голосовое дополнение после пилота | «Включить Fansly», отзыв посреди отправки и vault, баннер после обновления, перезагрузка из popup; платный войс — после пилота (X40) | FS-PERM-*, FS-IDN-4 |
 | `perf/fansly-perf-probe.e2e.ts` | P16a | бюджеты, 10 вкладок, рост памяти, сосед вкл/выкл | FS-PERF-* |
 
 ## 4. Бюджеты и реестр байтов
@@ -387,8 +394,8 @@ ChatSpace проходят без изменений, кроме мест из �
 | память наблюдения MAIN | ≤ 4 МиБ (тексты ≤ 2 МиБ), единый учёт | ускоренный тест (P7b), долгий прогон (P16b) | P7b, P16b |
 | `routeToDockMs`, `insertMs` | p95 ≤ 50 мс winpc / ≤ 30 мс Mac; p95 ≤ 100 мс | perf-проба | P7d, P7e, P16a |
 | первый чанк дока | ≤ 45 КиБ gzip в каждой сборке сайта | `tools/size-budget` | F4 и далее |
-| ленивые чанки Fansly | ≤ 30 КиБ каждый; войсы при превышении — делить | `tools/size-budget` | P8b1, P10a, P11a, P11b, P12b3, P13b |
-| фон | ≤ 30 МБ на профиль (бодрствует, пока Fansly активен) | `about:memory`, сценарий 10 вкладок | после P9d, P10b3, P12b2 и в P16a |
+| ленивые чанки Fansly | ≤ 30 КиБ каждый; войсы при превышении — делить | `tools/size-budget` | P8b1, P10a, P11a, P11b, P13b; P12b3 — после пилота |
+| фон | ≤ 30 МБ на профиль (бодрствует, пока Fansly активен) | `about:memory`, сценарий 10 вкладок | после P9d, P10b3 и в P16a; после пилота — повторно с P12b2 |
 | вкладка | **+≤ 15 МБ** (FS-PERF-1): рост памяти процесса вкладки после GC, окно 10 минут, та же база, FBuddy включён; 25 МБ — аварийный порог пробы, не зелёный результат; рост ≤ 5 МБ за 100 переключений и 20 циклов оверлея | perf-проба | P16a |
 | простой | наблюдение DOM и маршрута — без таймеров и опросов; keepalive 10 с, склейка присутствия, тайм-ауты relay учтены отдельно; p95 ввода ≤ база + 5 мс; сравнение с P3d; сосед вкл/выкл | Firefox Profiler на стенде | P16a |
 
@@ -410,8 +417,8 @@ ChatSpace проходят без изменений, кроме мест из �
 | Пилот отнимает инструменты на других страницах | все 6 страниц и 11 чаттеров переходят сразу (X37) |
 | Потеря настроек Fansly при откате на старую сборку | отдельный ключ `settings.ext`, приёмка отката (P4a3) |
 | Открытые вкладки после обновления молча без дока | баннер через `executeScript`, счёт в popup (P9a, P14c) |
-| Войс не проходит хаб | HF-4а целиком до `createVoiceNote`, `suite-fansly-voice` |
-| Двойная оплата войса | P12b1 (фоновая опека и CAS); при переходе войсы доделываются в старом |
+| Войс не проходит хаб (после пилота, X40) | HF-4а целиком до `createVoiceNote`, `suite-fansly-voice` |
+| Двойная оплата войса (после пилота, X40) | P12b1 (фоновая опека и CAS); при переходе войсы доделываются в старом, во время пилота их нет |
 | Новая сборка Fansly ломает якоря | контракт по ожидаемому набору, деградация по одной функции, `host-contract-check --host fansly` |
 | Fansly переходит на `withFetch` | якоря ответов покажут; запасной наблюдатель `fetch` |
 | Proxy заметны скриптам страницы | только `construct`, без правки прототипов; страница Fansly таких проверок не делает (S2 Q10) |

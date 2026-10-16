@@ -153,7 +153,8 @@ export const FEATURE_PARITY: Readonly<Record<string, readonly string[]>> = {
   'preview-send': ['SP-054', 'X8-02'],
   navigation: ['HK-037'],
   palette: ['HK-036', 'CS-014'],
-  voice: ['AI-110', 'AI-114'],
+  // X40: the UI and attachment are after the pilot; P12a's voice-script remains planned and tested on Fansly.
+  voice: ['AI-110', 'AI-111', 'AI-114'],
   notes: ['FX-004', 'FX-005'],
   'notes-fill': ['FX-014'],
   registration: ['FX-002'],

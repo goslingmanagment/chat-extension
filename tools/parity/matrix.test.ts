@@ -26,17 +26,17 @@ describe('the R20 parity matrix (docs/project-unite/parity-matrix.md)', () => {
     expect(count(matrix.rows, (row) => row.origin)).toEqual({ старое: 599, ChatSpace: 118, новое: 1 });
     const kinds = count(matrix.rows, (row) => fanslyCheckOf(row).kind);
     expect({ browser: (kinds.e2e ?? 0) + (kinds['stand-visual'] ?? 0), unit: kinds.unit, hub: kinds.hub, shared: kinds.shared, negative: kinds.negative, afterPilot: kinds['after-pilot'] }).toEqual({
-      browser: 111,
-      unit: 128,
+      browser: 109,
+      unit: 119,
       hub: 12,
       shared: 438,
       negative: 17,
-      afterPilot: 12,
+      afterPilot: 23,
     });
     // «Строк на PR: HF-6 — 1; HF-7а — 1; …» — the same per PR.
     const line = /Строк на PR: ([^]*?)\n\n/.exec(matrixText)?.[1] ?? '';
     const summary = Object.fromEntries([...line.replace(/\n/g, ' ').matchAll(/(\S+) — (\d+)/g)].map(([, pr = '', rows = '']) => [pr, Number(rows)]));
-    expect(Object.keys(summary)).toHaveLength(55);
+    expect(Object.keys(summary)).toHaveLength(51);
     expect(count(matrix.rows, (row) => row.pr)).toEqual(summary);
   });
 
