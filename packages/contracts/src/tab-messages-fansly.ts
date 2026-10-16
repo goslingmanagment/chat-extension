@@ -46,7 +46,7 @@ import { STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
-import { SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
+import { FANSLY_NOTES_VIEWS, SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { NEWCOMER_CHECK_FILTERS, NEWCOMERS_TABS } from './vm/actions';
@@ -205,8 +205,12 @@ export type FanslyNote = z.infer<typeof FanslyNoteSchema>;
 /** The one «Custom Username» note (contentType 12002): the name for oneself. */
 export const FanslyCustomNameSchema = z.strictObject({ noteId: NativeIdSchema, name: displayText(FANSLY_TAB_LIMITS.customNameMaxChars) });
 
-/** Notes are the creator's, about one fan: every request names both, and the background writes only under that creator's session. */
-const NoteTarget = { hostAccountId: NativeIdSchema, fanRef: NativeIdSchema };
+/**
+ * Notes are the creator's, about one fan: every request names both, and the background writes only under that
+ * creator's session. P11b: and the hub page the tab is bound to — the background admits the request by that page's
+ * own switch `notes` (as `fansly.registration.read`).
+ */
+const NoteTarget = { pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema };
 
 // ── fansly.voice.* — paid voice notes (HF-4) ───────────────────────────────
 
@@ -449,12 +453,17 @@ export const FANSLY_TAB_REQUESTS = {
   },
 
   // ── «Заметки» ──
-  /** Group and `GET /account?ids=` through the pacer, one attempt; `force` — «Обновить» (FS-NOTE-3). */
+  /**
+   * Group and `GET /account?ids=` through the pacer, one attempt; `force` — «Обновить» (FS-NOTE-3). P11b: `fanRef`
+   * null — MAIN has not named the open group's fan: the background reads the group once and answers whose notes
+   * these are (`fanRef`).
+   */
   'fansly.notes.read': {
-    req: z.strictObject({ ...NoteTarget, groupId: z.nullable(NativeIdSchema), force: z.optional(z.boolean()) }),
+    req: z.strictObject({ ...NoteTarget, fanRef: z.nullable(NativeIdSchema), groupId: z.nullable(NativeIdSchema), force: z.optional(z.boolean()) }),
     res: z.discriminatedUnion('ok', [
       z.strictObject({
         ok: z.literal(true),
+        fanRef: NativeIdSchema,
         notes: z.array(FanslyNoteSchema).check(z.maxLength(FANSLY_TAB_LIMITS.notesPerFan)),
         customName: z.nullable(FanslyCustomNameSchema),
         readAt: IsoTimestampSchema,
@@ -477,20 +486,39 @@ export const FANSLY_TAB_REQUESTS = {
       noteId: NativeIdSchema,
       title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars),
       text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars),
+      /** The version the editor opened on. Older callers parse, but cannot overwrite without a version. */
+      current: z.optional(z.strictObject({ title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars), text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars) })),
     }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), note: FanslyNoteSchema }), Failure]),
     from: TAB,
     hosts: FANSLY,
   },
-  /** After the person confirmed it in the panel. */
-  'fansly.notes.delete': { req: z.strictObject({ ...NoteTarget, noteId: NativeIdSchema }), res: z.discriminatedUnion('ok', [Done, Failure]), from: TAB, hosts: FANSLY },
-  /** The name for oneself (12002 «Custom Username»): an empty name deletes the note. */
+  /** After the person confirmed it in the panel. P11b: the note as the panel read it — Fansly's delete takes the note. */
+  'fansly.notes.delete': {
+    req: z.strictObject({
+      ...NoteTarget,
+      noteId: NativeIdSchema,
+      title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars),
+      text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars),
+    }),
+    res: z.discriminatedUnion('ok', [Done, Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * The name for oneself (12002 «Custom Username»): an empty name deletes the note. P11b: `current` — the name note
+   * the panel read (null — none): it is edited or deleted, a new one is created only where there was none.
+   */
   'fansly.notes.name': {
-    req: z.strictObject({ ...NoteTarget, name: displayText(FANSLY_TAB_LIMITS.customNameMaxChars) }),
+    req: z.strictObject({ ...NoteTarget, name: displayText(FANSLY_TAB_LIMITS.customNameMaxChars), current: z.nullable(FanslyCustomNameSchema) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), customName: z.nullable(FanslyCustomNameSchema) }), Failure]),
     from: TAB,
     hosts: FANSLY,
   },
+  /** P11b: the panel's view as `settings.ext` holds it (FS-NOTE-2: chosen in the panel, the same for every tab). */
+  'fansly.notes.view': { req: Empty, res: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), from: TAB, hosts: FANSLY },
+  /** P11b: the person chose another view in the panel; the answer is the view as stored (the old one if the write failed). */
+  'fansly.notes.setView': { req: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), res: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), from: TAB, hosts: FANSLY },
 
   // ── voice notes ──
   /**
@@ -607,6 +635,8 @@ export type FanslyTabResponsePayload<T extends FanslyTabRequestType> = z.infer<(
 
 export const FANSLY_TAB_EVENTS = {
   'fansly.ops.done': { payload: z.strictObject({ view: FanslyOpViewSchema }), to: TAB },
+  /** P11b: the view of «Заметки» changed (in a panel of any tab): every Fansly tab follows it. */
+  'fansly.notes.viewChanged': { payload: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), to: TAB },
   /** Rows of an open pass changed (the window is told, it does not poll); `seq` grows per pass. */
   'fansly.followers.changed': {
     payload: z.strictObject({

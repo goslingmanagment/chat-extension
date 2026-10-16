@@ -21,7 +21,6 @@ import { type AnyActiveOpSummary } from '@cg/contracts/ops';
 import {
   DOCK_ACTION_IDS,
   type ActionReceipt,
-  type CatalogActionId,
   type DockActionId,
   type DockActionVM,
   type DockVM,
@@ -220,7 +219,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       },
       actions: actionVms,
       // The bar's chips as data: what has a chip on this site, in the manifest's order (`dockChips`, domain/features/admission.ts).
-      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action as CatalogActionId).hotkey),
+      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey),
       result,
       analysis: sheet?.kind === 'recap' ? 'recap' : sheet?.kind === 'review' ? 'review' : null,
       refusal: sheet?.kind === 'refusal' ? refusalVm(ws, sheet.refusal) : null,

@@ -6,7 +6,7 @@
 // ./texts.ts), the words of the window check's marks over a result, which only
 // its verdict gives (R20 P8b2, ./marks.ts), and the texts of Fansly's own
 // surfaces — the vault panel's `fansly.vault.*` (R20 P13b, ./vault.ts), which
-// come with the surface's own chunk. A ChatSpace bundle never imports it.
+// come with the surface's own chunk, and «Заметки» (R20 P11b, ./notes.ts). A ChatSpace bundle never imports it.
 
 import type { CgFanslyCatalog } from '@cg/contracts/errors-fansly';
 import type { Locale } from '@cg/contracts/i18n/keys';
@@ -23,3 +23,4 @@ export { FANSLY_VAULT_TEXTS, type FanslyVaultCatalog } from './vault';
 export const FANSLY_CG_CATALOGS: { readonly [L in Locale]: CgFanslyCatalog } = { ru: FANSLY_CG_RU, en: FANSLY_CG_EN };
 
 export { REGISTRATION_TEXTS, REGISTRATION_I18N } from './registration';
+export { NOTES_TEXTS } from './notes';

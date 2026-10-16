@@ -44,6 +44,8 @@ export const DISPATCHER_COMMAND_IDS = [
   'fan-panel',
   'next-unread',
   'quick-jump',
+  // R20 P11b: «Заметки» on Fansly — the `fansly` client's row; a client that does not serve it keeps the letter reserved.
+  'notes',
 ] as const;
 export type DispatcherCommandId = (typeof DISPATCHER_COMMAND_IDS)[number];
 

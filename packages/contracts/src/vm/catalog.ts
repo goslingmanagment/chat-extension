@@ -66,6 +66,8 @@ export const CATALOG_ACTION_IDS = [
   'next-unread',
   'quick-jump',
   'search',
+  /** 1.15.0 (R20 P11b): ⌘⇧K / Ctrl+Alt+K — «Заметки» of a Fansly chat; a site without the feature has no such row. */
+  'notes',
 ] as const;
 export type CatalogActionId = (typeof CATALOG_ACTION_IDS)[number];
 

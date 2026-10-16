@@ -49,6 +49,7 @@ export const DELIVERY_KEYS: readonly DeliveryKey[] = [
   'next-unread:fallback',
   'quick-jump',
   'quick-jump:fallback',
+  'notes',
 ];
 
 export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryKey, HotkeyDelivery>>>> = {
@@ -76,6 +77,8 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     'next-unread:fallback': 'unverified',
     'quick-jump': 'unverified',
     'quick-jump:fallback': 'unverified',
+    // ⌘⇧K: nothing of Firefox's (its web console is ⌘⌥K); the Fansly extension has served it since 2.9.0.
+    notes: 'delivered',
   },
   win: {
     reply: 'cancelable',
@@ -101,6 +104,7 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     'next-unread:fallback': 'unverified',
     'quick-jump': 'unverified',
     'quick-jump:fallback': 'unverified',
+    notes: 'delivered',
   },
 };
 

@@ -12,6 +12,7 @@ import { createFanslyPacer, type FanslyPacer, type PacerDeps, type RateLimitFact
 export * from './allowlist';
 export * from './errors';
 export * from './client';
+export * from './notes';
 export * from './pacer';
 export * from './transport';
 

@@ -1,6 +1,8 @@
 // «Регистрация» in Fansly's own chat header (R20 P11a, FS-REG-1): after «Last seen … | Gallery», in that row's size
 // and colour (12 px, Fansly's `--dark-blue-1` — our muted ink on its profile), so the row keeps its 14 px height; only
 // the hover and the focus ring are ours. One click reveals the date; the shown date is text, not a dead button.
+// The kit's root is an inline-size container (kit/base.ts), which would leave the slot 0 px wide with the date spilling
+// past it: here it is no container, so the slot is as wide as its words and the next slot («Заметки») stands after them.
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { I18nKey } from '@cg/contracts/errors';
@@ -57,6 +59,7 @@ export function registrationSurface(client: RegistrationClient, texts: Readonly<
         id: 'cg-registration',
         css: `
     :host { display: inline-flex; }
+    .cg-root[data-cg-surface='header-slot'] { container-type: normal; }
     .cg-reg { display: inline-flex; align-items: center; gap: 4px; color: var(--cg-ink-muted); font-size: 12px; line-height: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .cg-reg__divider { margin: 0 2px; }
     .cg-reg__value { display: inline-flex; align-items: center; gap: 4px; }

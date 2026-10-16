@@ -35,6 +35,7 @@ import { createShellController } from '@cg/core/application/shell';
 import { toastKindOf, viewOfCode } from '@cg/core/domain/errors';
 import { createLiveI18n, resolveLocale, translatorOf } from '@cg/core/domain/i18n/live';
 import { createLogForwarder, createLogger, installErrorCapture, logEvent, logHostContract } from '@cg/core/domain/logging';
+import type { DispatcherCommandId } from '@cg/core/domain/hotkeys';
 import type { TabRpcClient } from '@cg/platform';
 
 import type * as AiChunk from '../../../lazy/entries/ai';
@@ -49,7 +50,7 @@ import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
-import type { HostAppAdapter, HostDiagnostic, HostMounts, HostThemeSource, TokenRedeemer } from './adapter';
+import type { HostAppAdapter, HostDiagnostic, HostMounts, HostThemeSource, SiteAppEnv, TokenRedeemer } from './adapter';
 import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, paletteReceiptToast } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { createContractLog } from './contract-log';
@@ -543,8 +544,18 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   });
   const mounted = surfaces;
   offs.push(() => mounted.dispose());
-  // The site's own surfaces (R20 P13b: Fansly's vault), with what every surface of the tab is mounted with.
-  if (site.start !== undefined) offs.push(site.start({ win, life: env.life, rpc, host, mounts, lazy: env.lazy, deps: { ...deps, geometry: panelGeometry }, features: site.features, report: reportSurface, probe }));
+  // The site's own surfaces (R20 P13b: Fansly's vault), with what every surface of the tab is mounted with; R20 P11b:
+  // and the keys it runs itself (Fansly's ⌘⇧K), ahead of the shared runner.
+  const siteKeys = new Map<DispatcherCommandId, () => void>();
+  const keysOfSite: SiteAppEnv['keys'] = {
+    handle(command, run) {
+      siteKeys.set(command, run);
+      return () => {
+        if (siteKeys.get(command) === run) siteKeys.delete(command);
+      };
+    },
+  };
+  if (site.start !== undefined) offs.push(site.start({ win, life: env.life, rpc, host, mounts, lazy: env.lazy, deps: { ...deps, geometry: panelGeometry }, features: site.features, report: reportSurface, probe, keys: keysOfSite }));
 
   // ── what the dock's view says about our overlays ───────────────────────────
   // «Развернуть ↗» is a window while a result, a Recap or a Review is expanded; a Б2 question is a dialog for
@@ -680,7 +691,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
         ...navigation.sink,
         run(command) {
           health?.action('key');
-          navigation.sink.run(command);
+          const own = siteKeys.get(command.id);
+          if (own !== undefined) own();
+          else navigation.sink.run(command);
         },
       });
     });

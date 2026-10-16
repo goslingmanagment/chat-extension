@@ -36,6 +36,8 @@ export function isFanslyOp(feature: string): feature is FanslyOp {
 export const FANSLY_OP_LIMITS = {
   /** The voice script a result may carry: the bound of `fansly.voice.create`'s `script` (the hub checks the script itself; the editor holds about 600). */
   voiceScriptMaxChars: 5_000,
+  /** HF-6: «Заполнить из чата» reads the whole chat, never fewer than this many messages, as the Fansly extension did; above it — the hub's `limits.deepMax` (R20 P11c). */
+  notesFillDepthMin: 3_000,
 } as const;
 
 // ── The driver's data ──────────────────────────────────────────────────────

@@ -26,6 +26,7 @@
     "./hosts/fansly": "./src/hosts/fansly/index.ts",
     "./hosts/fansly/vault": "./src/hosts/fansly/vault/index.tsx",
     "./hosts/fansly/newcomers": "./src/hosts/fansly/newcomers/index.tsx",
+    "./hosts/fansly/notes": "./src/hosts/fansly/notes/index.tsx",
     "./hosts/fansly/pages": "./src/hosts/fansly/pages/index.tsx"
   },
   "dependencies": {

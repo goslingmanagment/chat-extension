@@ -19,7 +19,7 @@
 // core services/hosts/fansly/vault-checkpoints.ts) over storage.local: a
 // checkpoint outlives a reload of the tab and the event page's sleep; one tab
 // at a time holds an album's upload (its tab session, while registered). The other
-// families answer CG-RUNTIME-UNREACHABLE until their PRs (P10*, P11b, P12b*).
+// families answer CG-RUNTIME-UNREACHABLE until their PRs (P10*, P12b*).
 // Forgotten checkpoints go with the module's first start and «Очистить
 // локальные данные».
 //
@@ -28,6 +28,10 @@
 // history,close}` over FS-NET-1's purpose `newcomers`, and tell the rows that
 // change to the tabs whose window holds the pass (`fansly.followers.changed`).
 // P10b2: `fansly.followers.exclude` — the person's exclusions in storage.local.
+//
+// R20 P11b: «Заметки» (`fansly.notes.*`, bg/fansly/notes.ts) — the fan's native notes over Fansly's own note calls
+// through this realm's client and pacer, admitted by the page's switch `notes`; their view lives in `settings.ext`
+// and every Fansly tab hears when it changes (`fansly.notes.viewChanged`).
 //
 // R20 P14b1: the settings page reaches this registry too (the core routes a
 // page's `fansly.*` request here while Fansly is on): Fansly's part of
@@ -82,6 +86,7 @@ import { createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
 import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
+import { createNotesService } from './fansly/notes';
 import { readRegistration } from './fansly/registration';
 import { createRelayService } from './fansly/relay';
 import { fanslySendProbe } from './fansly/send-probe';
@@ -186,8 +191,18 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const greetings = api === null ? null : greetingSend(kit, api, (deps) => (sendProbe === null ? deps : sendProbe.wrap(deps)));
   const offSendRequests = session?.onOwnRequest((fact) => { void greetings?.observeRequest(fact); });
   const unprobeSend = sendProbe !== null && greetings !== null ? sendProbe.start(greetings) : () => undefined;
-  const offSettings = kit.settingsExt?.onChange(() => { void refreshSettings(); });
+  // R20 P11b: the view of «Заметки» is one for every tab (FS-NOTE-2): a change, from any panel, goes to all of them.
+  let notesView = kit.settingsExt?.current().hosts['fansly-web'].notesView ?? null;
+  const offSettings = kit.settingsExt?.onChange(() => {
+    void refreshSettings();
+    const view = kit.settingsExt?.current().hosts['fansly-web'].notesView ?? null;
+    if (view !== null && view !== notesView) kit.site?.emit('fansly.notes.viewChanged', { view });
+    notesView = view;
+  });
   await refreshSettings();
+  // The client of a feature's call: the realm's own; a test build's, on the stand's loopback API.
+  const clientNow = async () => (__CG_TEST_HOSTS__ ? (session === undefined || api === null ? null : await standFanslyClient(kit, session, api)) : (api?.client ?? null));
+  const notes = createNotesService(kit, clientNow);
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session) });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
@@ -231,9 +246,25 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         const { opId } = payload as FanslyTabRequestPayload<'fansly.ops.cancel'>;
         return ok({ state: kit.ops.siteView(opId, 'fansly-web') === null ? null : kit.ops.cancel(opId) });
       }
-      case 'fansly.registration.read': {
-        const client = __CG_TEST_HOSTS__ ? session === undefined || api === null ? null : await standFanslyClient(kit, session, api) : api?.client ?? null;
-        return ok(await readRegistration(kit, client, payload as FanslyTabRequestPayload<'fansly.registration.read'>, sender));
+      case 'fansly.registration.read':
+        return ok(await readRegistration(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.registration.read'>, sender));
+      case 'fansly.notes.read':
+        return ok(await notes.read(payload as FanslyTabRequestPayload<'fansly.notes.read'>, sender));
+      case 'fansly.notes.create':
+        return ok(await notes.create(payload as FanslyTabRequestPayload<'fansly.notes.create'>, sender));
+      case 'fansly.notes.edit':
+        return ok(await notes.edit(payload as FanslyTabRequestPayload<'fansly.notes.edit'>, sender));
+      case 'fansly.notes.delete':
+        return ok(await notes.remove(payload as FanslyTabRequestPayload<'fansly.notes.delete'>, sender));
+      case 'fansly.notes.name':
+        return ok(await notes.name(payload as FanslyTabRequestPayload<'fansly.notes.name'>, sender));
+      case 'fansly.notes.view':
+        return kit.settingsExt === undefined ? unreachable('no settings.ext port') : ok({ view: (await kit.settingsExt.state()).state.ext.hosts['fansly-web'].notesView });
+      case 'fansly.notes.setView': {
+        const { view } = payload as FanslyTabRequestPayload<'fansly.notes.setView'>;
+        if (kit.settingsExt === undefined) return unreachable('no settings.ext port');
+        const answer = await kit.settingsExt.patch({ hosts: { 'fansly-web': { notesView: view } } });
+        return ok({ view: answer.state.ext.hosts['fansly-web'].notesView });
       }
       case 'fansly.sound.batch':
         // Our own messages of the batch may be the echoes of greeting receipts (§8.6).

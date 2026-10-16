@@ -49,7 +49,7 @@ export const ROW_FEATURE: Readonly<Partial<Record<CatalogActionId, string>>> = {
   'quick-jump': 'navigation',
   send: 'preview-send',
 };
-const FEATURE_ROWS: readonly CatalogActionId[] = [...DOCK_ACTION_IDS, 'spenders', 'palette', 'fan-panel'];
+const FEATURE_ROWS: readonly CatalogActionId[] = [...DOCK_ACTION_IDS, 'spenders', 'palette', 'fan-panel', 'notes'];
 
 /**
  * Whether the site has what a row of the reference does: its feature is in the site's slice, or the row belongs to no
@@ -74,7 +74,7 @@ export function cheatsheetGroups(catalog: ActionCatalog, features?: FeatureSlice
     {
       id: 'windows',
       title: msg('cheatsheet.group.windows'),
-      rows: rows('palette', 'spenders', 'cheatsheet', 'settings'),
+      rows: rows('palette', 'spenders', 'notes', 'cheatsheet', 'settings'),
     },
     { id: 'before', title: msg('cheatsheet.group.before'), rows: rows('tone', 'split') },
     {

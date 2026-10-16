@@ -187,14 +187,14 @@ function world(scheme: Scheme, path = `/messages/${GROUP}`): World {
 const panel = (scheme: Scheme): Omit<Mods, 'mod'> => (scheme === 'mac' ? { shift: true } : { alt: true });
 
 describe('[host:fansly] the early keys of a Fansly tab (FS-HK-1)', () => {
-  it('[R20-F5] the keys run as Fansly’s client of the scheme: `fansly` — Coach of the extension’s rows, and its Notes row, which no command has yet, a reserved letter in a chat', () => {
+  it('[R20-F5] [FX-005] the keys run as Fansly’s client of the scheme: `fansly` — Coach of the extension’s rows, and its Notes row (R20 P11b: the `notes` command)', () => {
     expect(FANSLY_ADAPTER.hotkeyClient).toBe('fansly');
     const w = world('win');
     w.connect();
     w.field.focus();
     w.chord(w.field, 'KeyC', 'c', panel('win'));
     const notes = w.chord(w.field, 'KeyK', 'k', panel('win'));
-    expect(w.ran).toEqual(['coach@dock']);
+    expect(w.ran).toEqual(['coach@dock', 'notes@dock']);
     expect(notes.defaultPrevented).toBe(true);
     expect(w.refused).toEqual([]);
   });

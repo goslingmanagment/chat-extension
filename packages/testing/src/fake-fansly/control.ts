@@ -111,6 +111,8 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
       if (command.status !== undefined && group.fanId !== null) world.ensureAccount(group.fanId).statusId = command.status;
       return { ok: true, sent };
     }
+    case 'note':
+      return { ok: true, noteId: world.createNote(command.fanId, command.contentType ?? 12000, command.title, command.note).id };
     case 'frames':
       return { ok: true, sent: hub.emit(command.frames, 'raw', command.batch === true) };
     case 'socket': {
