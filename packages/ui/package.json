@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./hosts/fansly/registration": "./src/hosts/fansly/Registration.tsx",
     ".": "./src/index.ts",
     "./kit": "./src/kit/index.ts",
     "./dock": "./src/dock/index.ts",

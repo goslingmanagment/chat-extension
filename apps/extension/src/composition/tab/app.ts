@@ -358,6 +358,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     }),
     host,
     features: site.features,
+    ...(site.registrationOf === undefined ? {} : { registrationOf: site.registrationOf }),
     aiPolicy,
     i18n,
     clock,

@@ -19,7 +19,7 @@
 
 import type { ShadowRootRegistry } from './shadow-registry';
 
-/** What a host is: `dock` or `overlay`. */
+/** What a host is: `dock`, `overlay`, or an inline `header-slot`. */
 export const HOST_ATTRIBUTE = 'data-host';
 /** The dock's mode when it is not in the composer frame: `copy-only` (the row) or `overlay` (fixed over the composer). */
 export const MODE_ATTRIBUTE = 'data-mode';
@@ -69,7 +69,7 @@ export function removeStaleHosts(doc: Document): number {
   // Only our host shape — a `div` with nothing in its light DOM: a neutral name could be some other element's too.
   // `data-cg` — a host of a build from before X22.
   const stale = [...doc.querySelectorAll(`div[${HOST_ATTRIBUTE}], div[data-cg]`)].filter(
-    (node) => node.childNodes.length === 0 && (node.hasAttribute('data-cg') || ['dock', 'overlay'].includes(node.getAttribute(HOST_ATTRIBUTE) ?? '')),
+    (node) => node.childNodes.length === 0 && (node.hasAttribute('data-cg') || ['dock', 'overlay', 'header-slot'].includes(node.getAttribute(HOST_ATTRIBUTE) ?? '')),
   );
   stale.forEach((node) => node.remove());
   return stale.length;

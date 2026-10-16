@@ -16,7 +16,7 @@
 // the receipt, its socket's frames for the echo, the field for the gesture's
 // reading, the chat MAIN named. What only later work packages bring is `off`
 // with the same code and its own name as the reason: the facts of new
-// messages (P14a), the header's slot (P7d, P11a), a file into the field
+// messages (P14a), a file into the field
 // (P12c). The relay (P9c) is on with the tab's account, in a build that has its page. The vault (P13b) is on with MAIN's observer of the
 // page's requests: its facts confirm every file. X8's preview send, its receipt and the cached chat list are no part
 // of Fansly (§7.7): off by design.
@@ -106,7 +106,7 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
   const own: Record<FanslyCapability, CapabilityState> = {
     freshness: observed,
     follows: main ?? (anchors.frames === 'shape' ? broken('frames') : anchors.socket === 'ok' && anchors.frames === 'ok' ? ON : degraded('socket')),
-    headerSlot: notReady('headerSlot'),
+    headerSlot: main ?? (gone(dom.headerContact) ? broken('headerContact') : gone(dom.headerSubRow) ? broken('headerSubRow') : ON),
     fileAttach: notReady('fileAttach'),
     // A file into the open vault album (P13b): the page's own input, confirmed by MAIN's facts of its requests (§7.11).
     vault: main ?? (anchors.xhr === 'shape' ? broken('xhr') : anchors.xhr === 'ok' ? ON : notReady('xhr')),

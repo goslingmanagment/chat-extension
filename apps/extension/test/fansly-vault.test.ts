@@ -177,6 +177,7 @@ describe('[host:fansly] the vault’s chunk comes with `/creator/vault` (R20 P13
         },
       },
       lazy(entry: string) {
+        if (entry === 'registration') return Promise.resolve({ startFanslyRegistration: () => () => undefined });
         loads.push(entry);
         if (failNext) {
           failNext = false;

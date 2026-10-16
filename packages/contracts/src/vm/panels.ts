@@ -35,6 +35,8 @@ export const CHURN_RISK_BY_RETENTION = {
  * missing source is null, never a guess.
  */
 export interface FanPanelVM {
+  /** 1.15.0 P11a: locally known account registration; absent when this host/owner does not offer it. */
+  readonly registration?: { readonly label: string; readonly at: IsoTimestamp };
   /** `empty` — «Выберите чат»; `partial` — some blocks unknown (no dossier, host scores not loaded). */
   readonly view: VmView;
   readonly tab: 'fan' | 'recap';

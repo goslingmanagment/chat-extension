@@ -25,6 +25,16 @@ describe('[host:fansly] the early bundle’s copies of the contracts', () => {
     for (const capability of FANSLY_CONTRACT.switchedCapabilities) expect(report.capabilities[capability].state).toBe('off');
   });
 
+  it('[FS-REG-4] only the missing header anchor breaks the slot, leaving the fan and other capabilities usable', () => {
+    const base = { bridge: true, wire: null, creator: true, observation: 'ready', dom: { ...DOM_ANCHORS_NOT_YET, headerContact: 'ok', headerSubRow: 'ok' }, build: null, adapterVersion: '0.1.0', checkedAt: 1 } as const;
+    expect(buildFanslyReport(base).extensions['fansly-web'].capabilities.headerSlot).toEqual({ state: 'on' });
+    for (const anchor of ['headerContact', 'headerSubRow'] as const) {
+      const report = buildFanslyReport({ ...base, dom: { ...base.dom, [anchor]: 'missing' } });
+      expect(report.extensions['fansly-web'].capabilities.headerSlot).toEqual({ state: 'contractBroken', reason: anchor, code: 'CG-HOST-CONTRACT' });
+      expect(report.capabilities.fan).toEqual({ state: 'on' });
+    }
+  });
+
   it('[FS-PLC-7] [R20-P8d] the theme is the page’s own once Fansly’s theme class is on <html>; before it, degraded — the scheme dark by default, the palette fansly.com’s values', () => {
     const report = (themeClass: 'ok' | 'notYet') => buildFanslyReport({ bridge: true, wire: null, creator: false, observation: 'unknown', dom: { ...DOM_ANCHORS_NOT_YET, themeClass }, build: null, adapterVersion: '0.1.0', checkedAt: 1 });
     expect(report('ok').capabilities.theme).toEqual({ state: 'on' });

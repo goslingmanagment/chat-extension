@@ -63,7 +63,8 @@ import { createFanslyApi, FanslyApiError, type FanslyApi } from '@cg/fansly-api'
 import { createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
-import { fanslyStandClient, startFanslyApiProbe } from './fansly/api-probe';
+import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
+import { readRegistration } from './fansly/registration';
 import { createRelayService } from './fansly/relay';
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
@@ -169,6 +170,10 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       case 'fansly.ops.cancel': {
         const { opId } = payload as FanslyTabRequestPayload<'fansly.ops.cancel'>;
         return ok({ state: kit.ops.siteView(opId, 'fansly-web') === null ? null : kit.ops.cancel(opId) });
+      }
+      case 'fansly.registration.read': {
+        const client = __CG_TEST_HOSTS__ ? session === undefined || api === null ? null : await standFanslyClient(kit, session, api) : api?.client ?? null;
+        return ok(await readRegistration(kit, client, payload as FanslyTabRequestPayload<'fansly.registration.read'>, sender));
       }
       case 'fansly.sound.batch':
         await kit.sound?.batch(tab, payload as FanslyTabRequestPayload<'fansly.sound.batch'>);

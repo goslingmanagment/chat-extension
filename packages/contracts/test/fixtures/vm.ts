@@ -365,6 +365,7 @@ export const FAN_PANEL_BIO_SAMPLES: { readonly valid: readonly C.FanPanelVM[]; r
     FAN_PANEL_BASE,
     { ...FAN_PANEL_BASE, bio: '## Fan\nLikes short replies.', bioSource: 'hub' },
     { ...FAN_PANEL_BASE, bio: 'Works shifts, writes in the evening.', bioSource: 'host' },
+    { ...FAN_PANEL_BASE, registration: { label: 'Регистрация', at: '2024-01-01T00:00:00.000Z' } },
   ],
   invalid: [
     // @ts-expect-error the source is one of the two, not a free word

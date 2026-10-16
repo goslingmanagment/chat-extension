@@ -41,6 +41,13 @@ const failureOf = (error: unknown): Record<string, unknown> =>
     ? { ok: false, kind: error.kind, code: error.code, sent: error.sent, httpStatus: error.httpStatus ?? null, retryAt: error.retryAt ?? null, fanslyCode: error.fanslyCode ?? null }
     : { ok: false, kind: 'thrown' };
 
+/** Real feature handlers in the test build use the same client and pacer, only on loopback. */
+export async function standFanslyClient(kit: BackgroundKit, session: FanslyNetworkSession, api: FanslyApi) {
+  const stored = await kit.storage.local.get([FANSLY_API_PROBE_KEYS.origin]);
+  const origin = stored.ok ? stored.value[FANSLY_API_PROBE_KEYS.origin] : null;
+  return typeof origin === 'string' && STAND_ORIGIN.test(origin) ? createFanslyClient({ session, pacer: api.pacer, base: `${origin}/api/v1/`, transport: api.client.transport, now: () => kit.clock.now() }) : null;
+}
+
 export function startFanslyApiProbe(kit: BackgroundKit, session: FanslyNetworkSession, api: FanslyApi, relay: RelayHub): () => void {
   const keys = FANSLY_API_PROBE_KEYS;
   let base: string | null = null;

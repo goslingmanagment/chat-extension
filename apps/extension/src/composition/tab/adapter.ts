@@ -34,7 +34,7 @@ import type { HostKind } from '@cg/contracts/hosts';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendFuseState } from '@cg/contracts/send';
-import type { HostUiProfile, MountDeps } from '@cg/contracts/vm';
+import type { FanPanelVM, I18n, HostUiProfile, MountDeps } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
 import type { HotkeyClient, RouteKind } from '@cg/core/domain/hotkeys';
 import type { TabPayloadValidator, TabRpcClient } from '@cg/platform';
@@ -211,6 +211,8 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    * the dock's chips, the cheatsheet's rows and every admission of the tab read it.
    */
   readonly features: FeatureSlice;
+  /** Local account metadata for the shared fan panel; absent on hosts without it. */
+  readonly registrationOf?: (fanId: string, i18n: I18n) => FanPanelVM['registration'];
   /**
    * What the site's contract report must name (R20 §7.12, F7): its expected anchors — one the report does not name is
    * `missing` in the tab's log — and the parts the owner switches on separately, which are no break while off.
