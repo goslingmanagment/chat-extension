@@ -90,6 +90,26 @@
   («хаб пока не умеет»), как в `architecture.md` §11.1.
 - Фикстур нет: схем нет. Тесты — `packages/contracts/test/features.test.ts`, `packages/core/test/hosts/fansly/hi-ping.test.ts`.
 
+### P10c — «Новые» на Fansly: приветствие карточки
+
+- Исправления P1: необязательный `generation: {opId, historyRevision}` в записи `fansly.followers.draft`; фон
+  сохраняет собственный вердикт, id и текст генерации (`GreetingDraftGenerationSchema`, `ops`), возвращает их вместе
+  с черновиком (`generation?`) и попыткой из журнала отправки (`attempt?`). Закрытие окна, перезагрузка и другая
+  вкладка не превращают AI в свой текст и не снимают запрет после неопределённой отправки. Старые фикстуры валидны.
+- `tab-messages-fansly`: запросы `fansly.followers.proof` (доказательство прохода для «Сгенерировать»: группа, ревизия
+  истории, окно проверки покрытия, известные id фана, `StartProofV1` прохода, аватар из профиля — только id и адрес,
+  FS-NEW-7, NF-034), `fansly.followers.draft` (черновик карточки: чтение без `text`, запись с ним; фон знает его ревизию
+  для последней сверки, NF-012) и `fansly.followers.sent` (человек отправил текст карточки кнопкой Fansly после
+  «Открыть и вставить» — фон регистрирует `registerNativeSend`, FS-NEW-3). Схема `FanslyGreetingProofSchema`.
+- `send-fansly`: необязательный `opId` в `FanslyGreetingRequestSchema` — только при допуске `ai`: фон читает результат
+  этой операции и её вердикт и отказывает, если текст не тот или вердикт не свежий (FS-TAIL-8).
+- `vm/actions.ts`: `SendNewcomerGreeting {targetHandle}` и `InsertNewcomerGreeting {targetHandle}`; поле — прежний
+  `SetPreviewDraft`, генерация — прежний `Generate` с ручкой карточки. Фикстуры — `test/fixtures/vm.ts`.
+- `vm/newcomers.ts`, только типы: `NewcomerCardVM.greeting?` (`NewcomerGreetingVM`, `NewcomerGreetingStateVM`).
+- `newcomers-fansly`: ключи `fansly.newcomers.greeting.*` и `fansly.newcomers.noAutoSend` (NF-028).
+- Положительные и отрицательные фикстуры — `test/fixtures/protocols-fansly.ts`, `test/fixtures/send-fansly.ts`; версия
+  остаётся 1.15.0.
+
 ### P10b2 — «Новые» на Fansly: «Нельзя написать» и «Исключить из очереди»
 
 - `vm/actions.ts`: `ExcludeNewcomer {targetHandle, excluded}` — «Исключить из очереди» (`true`) и «Вернуть в очередь»

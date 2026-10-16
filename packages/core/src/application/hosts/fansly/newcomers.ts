@@ -7,8 +7,10 @@
 // registry (the composition's `fanslyRequest`, NF-027); here they become the neutral words of a pass
 // (domain/hosts/fansly/newcomers). A failure is a failure — of the envelope or of the payload — never an empty list.
 // R20 P10b1: the queue's buttons — `pause`, `resume`, `prioritize` (NF-038). R20 P10b2: `exclude` (FS-NEW-2).
+// R20 P10c: the card's greeting — `proof`, `draft`, `send`, `sent` (FS-NEW-3, FS-NEW-6, FS-NEW-7).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
+import { type FanslySendView } from '@cg/contracts/send-fansly';
 import { type FanslyTabEventPayload, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 import { type NewcomersFailureVM } from '@cg/contracts/vm';
 
@@ -24,7 +26,7 @@ import {
   passRowOf,
   passStateOf,
 } from '../../../domain/hosts/fansly/newcomers';
-import { type NewcomersPassSource, type SourceAnswer } from '../../newcomers/source';
+import { type NewcomersPassSource, type PassGreetingSource, type PassSendOutcome, type SourceAnswer } from '../../newcomers/source';
 
 /** The window's requests of Fansly's registry. */
 export type FanslyFollowersRequest =
@@ -37,7 +39,12 @@ export type FanslyFollowersRequest =
   | 'fansly.followers.resume'
   | 'fansly.followers.prioritize'
   // R20 P10b2: «Исключить из очереди» / «Вернуть в очередь» (FS-NEW-2).
-  | 'fansly.followers.exclude';
+  | 'fansly.followers.exclude'
+  // R20 P10c: the card's greeting.
+  | 'fansly.followers.proof'
+  | 'fansly.followers.draft'
+  | 'fansly.followers.send'
+  | 'fansly.followers.sent';
 
 export type FanslyFollowersAnswer<T extends FanslyFollowersRequest> = { readonly ok: true; readonly payload: FanslyTabResponsePayload<T> } | { readonly ok: false; readonly error: CgErrorWire };
 
@@ -104,5 +111,59 @@ export function createFanslyNewcomersSource(port: FanslyFollowersPort, origin: s
     onChange: (listener) => port.onChanged((change) => listener(passChangeOf(change))),
     onReconnect: (listener) => port.onReconnect(listener),
     chatHref: (conversationRef) => `${origin}${fanslyChatPath(conversationRef)}`,
+    greeting: greetingSource(port),
+  };
+}
+
+/** Where the background's attempt stands as the card reads it: gone out (a receipt is a message Fansly made), refused, unknown. */
+function outcomeOf(attempt: FanslySendView): PassSendOutcome {
+  switch (attempt.state) {
+    case 'sent':
+    case 'receipted':
+      return { s: 'sent' };
+    case 'refused':
+      return { s: 'refused', code: attempt.code ?? 'CG-SEND-REJECTED' };
+    case 'uncertain':
+      return { s: 'uncertain', code: attempt.code };
+    case 'ready':
+    case 'claimed':
+    case 'routed':
+    case 'dispatched':
+    case 'intentWritten':
+    case 'requestStarted':
+      return { s: 'pending' };
+  }
+}
+
+/** R20 P10c: the card's greeting over Fansly's module — the pass's proof, the draft, the send, the person's own send. */
+function greetingSource(port: FanslyFollowersPort): PassGreetingSource {
+  return {
+    async proof(passId, fanRef) {
+      const answer = await port.request('fansly.followers.proof', { passId, fanRef });
+      if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
+      const payload = answer.payload;
+      if (!payload.ok) return { ok: false, failure: failureOf(payload.error) };
+      const { groupId, ...proof } = payload.proof;
+      // The group the pass resolved: the conversation, never the fan's id (FS-IDN-6).
+      return { ok: true, value: { ...proof, conversationRef: groupId } };
+    },
+    async draft(passId, fanRef, text, generation) {
+      const answer = await port.request('fansly.followers.draft', { passId, fanRef, ...(text === undefined ? {} : { text }), ...(generation === undefined ? {} : { generation }) });
+      if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
+      if (!answer.payload.ok) return { ok: false, failure: failureOf(answer.payload.error) };
+      const { attempt, generation: saved, ...draft } = answer.payload.draft;
+      return { ok: true, value: { ...draft, ...(saved === undefined ? {} : { generation: saved }), ...(attempt === undefined ? {} : { outcome: outcomeOf(attempt) }) } };
+    },
+    async send(click) {
+      const { conversationRef, opId, ...rest } = click;
+      const answer = await port.request('fansly.followers.send', { ...rest, groupId: conversationRef, ...(opId === undefined ? {} : { opId }) });
+      if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
+      return answer.payload.ok ? { ok: true, value: outcomeOf(answer.payload.attempt) } : { ok: false, failure: failureOf(answer.payload.error) };
+    },
+    async sent(report) {
+      const { conversationRef, ...rest } = report;
+      const answer = await port.request('fansly.followers.sent', { ...rest, groupId: conversationRef });
+      return answer.ok ? { ok: true, value: answer.payload.recorded } : { ok: false, failure: envelope(answer.error) };
+    },
   };
 }

@@ -6,6 +6,7 @@
 
 import { type CgErrorView } from '../errors';
 import { type LEASE_HOLDERS } from '../hub/newcomers';
+import { type StaleReason } from '../ops';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type GreetingFilter, type NewcomerCheckFilter, type NewcomersTab } from './actions';
 import { type Msg } from './i18n';
@@ -214,6 +215,51 @@ export interface NewcomerCardVM {
    * once the fan's DMs open. Null or absent — the fan can be written to, or nothing is known yet.
    */
   readonly exclude?: 'exclude' | 'restore' | null;
+  /**
+   * 1.15.0 (R20 P10c): the greeting of a fan the pass checked (FS-NEW-3, FS-NEW-6, FS-NEW-7): the draft field, «Сгенерировать»,
+   * «Отправить», «Открыть и вставить». Absent or null — no greeting for this fan (written to already, nobody can write).
+   */
+  readonly greeting?: NewcomerGreetingVM | null;
+}
+
+/** 1.15.0 (R20 P10c): what the card's greeting is doing, or how its last click ended. */
+export type NewcomerGreetingStateVM =
+  | { readonly s: 'idle' }
+  | { readonly s: 'generating' }
+  | { readonly s: 'sending' }
+  /** «Открыть и вставить» went: the person sends with the site's own button. */
+  | { readonly s: 'inserted' }
+  | { readonly s: 'sent'; readonly at: IsoTimestamp | null }
+  /** Proven not sent: why (NF-024); a new click may try again unless the code says it never can. */
+  | { readonly s: 'refused'; readonly failure: NewcomersFailureVM }
+  /** It may have gone out: never repeated (CG-SEND-UNCERTAIN). */
+  | { readonly s: 'uncertain'; readonly failure: NewcomersFailureVM };
+
+export const NEWCOMER_GREETING_STATES = ['idle', 'generating', 'sending', 'inserted', 'sent', 'refused', 'uncertain'] as const satisfies readonly NewcomerGreetingStateVM['s'][];
+
+/**
+ * 1.15.0 (R20 P10c): the card's greeting (NF-012…NF-019, NF-028). The field is the draft (up to 5000 characters, kept per
+ * creator and fan); «Отправить» sends the FIELD's content by one click (`SendNewcomerGreeting`), «Сгенерировать» writes
+ * a Hi into it (`Generate` with the card's handle), «Открыть и вставить» puts it into the fan's chat for the person's own
+ * send (`InsertNewcomerGreeting`). Edits are `SetPreviewDraft` with the card's handle.
+ */
+export interface NewcomerGreetingVM {
+  readonly text: string;
+  readonly maxChars: number;
+  /** The field holds THIS generation's result unchanged: the «AI» mark (FS-NEW-6). */
+  readonly ai: boolean;
+  /** The verdict over that result (spec §3.5, FS-TAIL-8): its reason; null — fresh, or no AI text. */
+  readonly mark: StaleReason | null;
+  /** NF-018: the fan's history changed after the draft was written — «Проверка изменилась — подтвердите черновик». */
+  readonly stale: boolean;
+  /** The pass has not checked the history in full yet: the draft may be typed, nothing goes (the old «Отправка после проверки»). */
+  readonly waiting: boolean;
+  readonly canGenerate: boolean;
+  readonly canSend: boolean;
+  readonly canInsert: boolean;
+  /** Why «Отправить» is off while the field has a text; null — it is not, or the field is empty. */
+  readonly sendBlocked: NewcomersFailureVM | null;
+  readonly state: NewcomerGreetingStateVM;
 }
 
 /** 1.15.0 (R20 P10b1): the queue's own buttons (NF-038): `SetNewcomersPassRunning`. */

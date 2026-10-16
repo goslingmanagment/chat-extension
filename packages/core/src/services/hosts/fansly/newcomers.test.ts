@@ -4,6 +4,7 @@
 
 import { FANSLY_TAB_REQUESTS, FANSLY_TAB_EVENTS, type FanslyFollowerRow, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 import { StartProofV1Schema } from '@cg/contracts/fansly';
+import { FanslyGreetingProofSchema } from '@cg/contracts/tab-messages-fansly';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
@@ -86,7 +87,7 @@ function fansly() {
         open();
       };
     },
-    follow(n: number, at: number, profile: { notes?: boolean; name?: string; custom?: string } = {}): string {
+    follow(n: number, at: number, profile: { notes?: boolean; name?: string; custom?: string; avatar?: unknown } = {}): string {
       const fan = fanId(n);
       follows.push({ id: sf(at), followerId: fan });
       follows.sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1));
@@ -96,6 +97,7 @@ function fansly() {
         displayName: profile.name ?? `Fan ${n}`,
         about: `about ${n}`,
         ...(profile.notes === false ? {} : { notes: profile.custom === undefined ? [] : [{ contentType: 12002, note: profile.custom }] }),
+        ...(profile.avatar === undefined ? {} : { avatar: profile.avatar }),
       });
       return fan;
     },
@@ -171,7 +173,7 @@ function fansly() {
 // The fake's own `chat` for `POST /group` of a fan without one (a new empty technical chat).
 let this_: ReturnType<typeof fansly>;
 
-function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?: MemoryKv; journal?: PassJournal } = {}) {
+function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?: MemoryKv; journal?: PassJournal; onHistory?: (groupId: string, ids: readonly string[], complete: boolean) => void } = {}) {
   const world = fansly();
   this_ = world;
   const kv = options.kv ?? createMemoryKv();
@@ -197,6 +199,7 @@ function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?
     tabOn: options.tabOn ?? (() => true),
     local: kv.open(),
     ...(options.journal === undefined ? {} : { journal: options.journal }),
+    ...(options.onHistory === undefined ? {} : { onHistory: options.onHistory }),
   });
   const ask = async <T extends keyof typeof FANSLY_TAB_REQUESTS>(type: T, payload: unknown, tab = TAB): Promise<FanslyTabResponsePayload<T>> => {
     expect(FANSLY_TAB_REQUESTS[type].req.safeParse(payload).success, `${type} request`).toBe(true);
@@ -736,5 +739,99 @@ describe('[host:fansly] «Нельзя написать» and «Исключит
     await fourth.settle();
     expect(await fourth.row(passId, fan)).toMatchObject({ status: 'ready' });
     expect(kv.data.has(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${fan}`)).toBe(true);
+  });
+});
+
+describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
+  const SIGNED = { 'Key-Pair-Id': 'K1', Policy: 'P1', Signature: 'S1' };
+
+  it('[NF-034] [FS-NEW-7] the proof of a checked fan: the window of the history (ids only), the fan’s newest ids, the start, and the avatar of the profile the pass read — the largest variant up to 512 px, signed', async () => {
+    const histories: [string, readonly string[], boolean][] = [];
+    const t = setup({ onHistory: (groupId, ids, complete) => histories.push([groupId, ids, complete]) });
+    const fan = t.world.follow(1, T0 - minutes(5), {
+      avatar: {
+        location: 'https://cdn3.fansly.com/a/original.jpeg',
+        variants: [
+          { width: 1080, locations: [{ location: 'https://cdn3.fansly.com/a/1080.jpeg' }] },
+          { width: 300, locations: [{ location: 'https://cdn3.fansly.com/a/300.jpeg', metadata: SIGNED }] },
+        ],
+      },
+    });
+    const plain = t.world.follow(2, T0 - minutes(6), { avatar: { location: 'http://cdn3.fansly.com/a/insecure.jpeg' } });
+    const chat = t.world.chat(fan, [{ from: 'model', type: 2 }, { from: 'fan', content: 'hi' }, { from: 'fan', content: 'there?' }]);
+    t.world.chat(plain, [{ from: 'fan' }]);
+    const passId = await t.scan();
+    await t.settle();
+    const row = await t.row(passId, fan);
+    const answer = t.service.greetingProof(passId, fan, TAB);
+    if (!answer.ok) throw new Error(answer.code);
+    expect(FanslyGreetingProofSchema.safeParse(answer.proof).success).toBe(true);
+    const [welcome, first, second] = chat.messages.map((message) => message.id);
+    expect(answer.proof).toEqual({
+      // The conversation is the group, never the fan’s id (FS-IDN-6).
+      groupId: chat.id,
+      historyRevision: row.historyRevision,
+      window: [{ id: welcome, dir: 'model' }, { id: first, dir: 'fan' }, { id: second, dir: 'fan' }],
+      knownFanMessageIds: [second, first],
+      startProof: { v: 1, source: 'pass-empty-page', groupId: chat.id, startWitnessId: welcome, coveredCount: 3, personalCount: 2, automatedIds: [welcome] },
+      fanAvatarUrl: 'https://cdn3.fansly.com/a/300.jpeg?Key-Pair-Id=K1&Policy=P1&Signature=S1',
+    });
+    expect(chat.id).not.toBe(fan);
+    // An address the hub would refuse is no avatar.
+    const other = t.service.greetingProof(passId, plain, TAB);
+    expect(other.ok && other.proof.fanAvatarUrl).toBeNull();
+    // Every walked history went to the send: it confirms a receipt its echo never did.
+    expect(histories).toContainEqual([chat.id, [welcome, first, second], true]);
+    // A tab on another account gets no proof.
+    const elsewhere = setup({ tabOn: (tab) => tab !== OTHER_TAB });
+    expect(elsewhere.service.greetingProof(passId, fan, OTHER_TAB)).toEqual({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+  });
+
+  it('[NF-036] the history is read again right before the custody: the same history keeps its revision, a new message makes a new one, a personal message of the creator’s ends the greeting; after `POST /group` the queue checked the history before the row became ready', async () => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(5));
+    const hidden = t.world.follow(2, T0 - minutes(6));
+    const chat = t.world.chat(fan, [{ from: 'fan', content: 'hi' }]);
+    const passId = await t.scan();
+    await t.settle();
+    // NF-036 «после POST /group»: the queue’s get-or-create is followed by the same check of that group’s history.
+    const created = t.world.calls.findIndex((call) => call.route === 'group.create');
+    const hiddenRow = await t.row(passId, hidden);
+    const read = t.world.calls.findIndex((call) => call.route === 'message.history' && call.query?.['groupId'] === hiddenRow.groupId);
+    expect([created >= 0, read > created, hiddenRow.status, typeof hiddenRow.historyRevision]).toEqual([true, true, 'ready', 'string']);
+
+    const revision = (await t.row(passId, fan)).historyRevision as string;
+    expect(t.service.live(passId, fan)).toEqual({ hostAccountId: C, groupId: chat.id, fanRef: fan, historyRevision: revision });
+    const before = t.world.calls.length;
+    expect(await t.service.recheck(passId, fan, TAB)).toEqual({ ok: true, historyRevision: revision });
+    expect(t.world.calls.slice(before).map((call) => call.route)).toContain('message.history');
+
+    chat.messages.push({ id: sf(T0), senderId: fan, type: 1, content: 'are you there?', correlationId: null, inReplyTo: null });
+    const changed = await t.service.recheck(passId, fan, TAB);
+    expect(changed.ok && changed.historyRevision !== revision).toBe(true);
+    expect((await t.row(passId, fan)).historyRevision).toBe(changed.ok ? changed.historyRevision : null);
+
+    chat.messages.push({ id: sf(T0 + 1000), senderId: C, type: 1, content: 'hey you', correlationId: null, inReplyTo: null });
+    expect(await t.service.recheck(passId, fan, TAB)).toEqual({ ok: false, code: 'CG-SEND-PART' });
+    expect(await t.row(passId, fan)).toMatchObject({ status: 'greeted' });
+    expect(t.service.live(passId, fan)).toBeNull();
+
+    // A read that failed leaves the row as it was and refuses with its code.
+    t.world.failures.set('message.history', new ApiError('http', 'CG-FAN-REQUEST'));
+    expect(await t.service.recheck(passId, hidden, TAB)).toEqual({ ok: false, code: 'CG-FAN-REQUEST' });
+    expect(await t.row(passId, hidden)).toMatchObject({ status: 'ready' });
+  });
+
+  it('[NF-019] the card’s greeting went: the fan is «Уже писали» at once, with no proof to greet with again', async () => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(5));
+    t.world.chat(fan, [{ from: 'fan' }]);
+    const passId = await t.scan();
+    await t.settle();
+    t.service.greeted(C, fan);
+    await t.settle();
+    expect(await t.row(passId, fan)).toMatchObject({ status: 'greeted', historyRevision: null });
+    expect(t.service.greetingProof(passId, fan, TAB)).toEqual({ ok: false, code: 'CG-SEND-PART' });
+    expect(t.heard.at(-1)?.change.rows.map((entry) => [entry.fanRef, entry.status])).toContainEqual([fan, 'greeted']);
   });
 });

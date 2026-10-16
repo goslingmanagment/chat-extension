@@ -49,6 +49,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   SetNewcomersPassRunning: { type: 'SetNewcomersPassRunning', running: false },
   CheckNewcomerNext: { type: 'CheckNewcomerNext', targetHandle: 'pass:00000000-0000-4000-8000-000000000001:700000000000000001' },
   ExcludeNewcomer: { type: 'ExcludeNewcomer', targetHandle: 'pass:00000000-0000-4000-8000-000000000001:700000000000000001', excluded: true },
+  SendNewcomerGreeting: { type: 'SendNewcomerGreeting', targetHandle: 'pass:00000000-0000-4000-8000-000000000001:700000000000000001' },
+  InsertNewcomerGreeting: { type: 'InsertNewcomerGreeting', targetHandle: 'pass:00000000-0000-4000-8000-000000000001:700000000000000001' },
   SetNewcomersWindow: { type: 'SetNewcomersWindow', hours: 48 },
   LoadMore: { type: 'LoadMore', list: 'newcomers' },
   RenewClaim: { type: 'RenewClaim', targetHandle: 'newcomers:f2' },

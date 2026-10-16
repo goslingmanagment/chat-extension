@@ -176,7 +176,12 @@ export const FanslyGreetingRequestSchema = z.strictObject({
   admission: FanslyGreetingAdmissionSchema,
   /** The trusted click or key that asked for it: no send without one. */
   cause: HumanCauseSchema,
-});
+  /**
+   * 1.15.0 R20 P10c: with an `ai` admission, the operation of that generation in this background — the background reads
+   * its result and its own verdict (FS-TAIL-8) and refuses a text that is not the result or a verdict that is not fresh.
+   */
+  opId: z.optional(UuidSchema),
+}).check(z.refine((request) => request.opId === undefined || request.admission.kind === 'ai', { message: 'an operation names an unchanged AI text only' }));
 export type FanslyGreetingRequest = z.infer<typeof FanslyGreetingRequestSchema>;
 
 // ── The attempt's state machine ───────────────────────────────────────────

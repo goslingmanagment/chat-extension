@@ -58,6 +58,7 @@ export function passRowOf(row: FanslyFollowerRow): PassRow {
     checkedAt: row.checkedAt,
     proof: row.proof === undefined || row.proof === null ? null : messageOf(row.proof),
     failure: row.error === undefined || row.error === null ? null : failureOf(row.error),
+    historyRevision: row.historyRevision,
   };
 }
 

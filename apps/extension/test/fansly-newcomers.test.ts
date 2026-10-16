@@ -85,7 +85,8 @@ function contextOf(): PageContextPort {
 function depsOf(rpc: NewcomersControllerDeps['rpc']): NewcomersControllerDeps {
   return {
     rpc,
-    host: {} as NewcomersControllerDeps['host'],
+    // The card's greeting (P10c) listens to the person's own sends; nothing here sends one.
+    host: { subscribe: () => () => undefined } as unknown as NewcomersControllerDeps['host'],
     i18n: createI18n({ language: 'ru', now: () => T0, timeZone: 'Europe/Moscow' }),
     clock: { now: () => T0, setTimer: () => 0, clearTimer: () => undefined },
     context: contextOf(),

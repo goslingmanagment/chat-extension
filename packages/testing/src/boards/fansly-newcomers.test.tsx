@@ -1,6 +1,6 @@
 // «Новые» on Fansly as drawn (R20 P10a; ui-design §3.6, §3.12, §4.17): Fansly's own surface for the shared
 // `NewcomersVM` with its `pass` — mounted as its chunk mounts it (the overlay's closed root, Fansly's profile and texts)
-// over the gallery's states 13f–13k (13k and the queue's buttons: R20 P10b1). What is drawn and what is dispatched; the controller's side is
+// over the gallery's states 13f–13n (13k and the queue's buttons: R20 P10b1; 13m, 13n — the card's greeting: R20 P10c). What is drawn and what is dispatched; the controller's side is
 // core/src/application/hosts/fansly/newcomers.test.ts.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -242,6 +242,39 @@ describe('[host:fansly] «Новые» on Fansly: the window (R20 P10a)', () => 
     ui = null;
     const ready = await mount('13f');
     expect(ready.$$('.cg-fnc__check button').map(textOf)).not.toContain('Исключить из очереди');
+  });
+
+  it('[NF-012] [NF-019] [NF-028] [host:fansly] the card’s greeting (R20 P10c): the field, «AI» on an unchanged result, «Сгенерировать», «Открыть и вставить», «Отправить →» — the only blue —, and the hint that AI sends nothing by itself', async () => {
+    const board = await mount('13m');
+    const greeting = board.$('.cg-fnc__greet') as HTMLElement;
+    const field = greeting.querySelector('textarea') as HTMLTextAreaElement;
+    expect([field.getAttribute('aria-label'), field.value.startsWith('Hey Tomasz!'), field.maxLength]).toEqual(['Личное сообщение', true, 5000]);
+    expect(board.text('.cg-fnc__ai')).toBe('AI');
+    expect(board.$$('.cg-fnc__gbar button').map(textOf)).toEqual(['Сгенерировать', 'Открыть и вставить', 'Отправить →']);
+    // Blue only on what reaches the fan.
+    expect(board.$$('.cg-fnc .cg-btn--send').map(textOf)).toEqual(['Отправить →']);
+    expect(board.text('.cg-fnc__noauto')).toBe('AI ничего не отправляет автоматически: только по вашему нажатию.');
+    const handle = 'pass:00000000-0000-4000-8000-000000000301:800000000000000001';
+    const click = async (label: string): Promise<void> => flush(() => (board.$$('.cg-fnc__gbar button').find((button) => textOf(button) === label) as HTMLElement).click());
+    await click('Отправить →');
+    expect(board.actions().at(-1)).toEqual({ type: 'SendNewcomerGreeting', targetHandle: handle });
+    await click('Открыть и вставить');
+    expect(board.actions().at(-1)).toEqual({ type: 'InsertNewcomerGreeting', targetHandle: handle });
+    await click('Сгенерировать');
+    expect(board.actions().at(-1)).toEqual({ type: 'Generate', targetHandle: handle, feature: 'hi', options: {} });
+    await flush(() => {
+      field.value = 'Hey Tomasz!';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(board.actions().at(-1)).toEqual({ type: 'SetPreviewDraft', targetHandle: handle, text: 'Hey Tomasz!' });
+  });
+
+  it('[NF-018] [NF-024] [host:fansly] a refused greeting names its reason — «Не отправлено», the code and its title; «Проверка изменилась — подтвердите черновик»', async () => {
+    const board = await mount('13n');
+    expect(board.text('.cg-fnc__gnote')).toBe('Проверка изменилась — подтвердите черновик');
+    const state = board.$('.cg-fnc__gst') as HTMLElement;
+    expect([state.getAttribute('data-cg-code'), textOf(state)]).toEqual(['CG-FNEW-HISTORY', 'Не отправленоChatGoose · CG-FNEW-HISTORY: Проверка изменилась']);
+    expect(board.$$('.cg-fnc__gst .cg-dot--danger')).toHaveLength(1);
   });
 
   it('[NF-005] [I18-001] in English: the same window in the English words', async () => {

@@ -65,6 +65,8 @@ export function fanslySendProbe(kit: BackgroundKit, session: FanslyNetworkSessio
   const keys = FANSLY_SEND_PROBE_KEYS;
   let base: string | null = null;
   let live: { historyRevision?: string; draftRevision?: number } = {};
+  /** The probe's own attempts: only theirs take the spec's `live` (a card's send of P10c reads the pass and the draft). */
+  const probed = new Set<string>();
   /** The attempts of the running request and how each is held. */
   const holds = new Map<string, { readonly id: string; readonly hold: Hold | null; readonly lose: boolean }>();
   const waiting = new Map<string, () => void>();
@@ -125,6 +127,7 @@ export function fanslySendProbe(kit: BackgroundKit, session: FanslyNetworkSessio
         return client.prepare({ purpose: 'greeting', route: 'message.send', account: call.account, body: { type: 1, content: call.text, groupId: call.groupId, attachments: [], likes: [], scheduledFor: 0, inReplyTo: null } });
       },
       live(start: FanslySendStart) {
+        if (!probed.has(start.request.attemptId)) return deps.live(start);
         const tab = tabOf(start.request.hostAccountId);
         if (tab === null) return null;
         return {
@@ -168,7 +171,10 @@ export function fanslySendProbe(kit: BackgroundKit, session: FanslyNetworkSessio
         await kit.storage.local.set({ [keys.result]: { id, error: page.code, at: kit.clock.now() } });
         return;
       }
-      for (const attemptId of attemptIds) holds.set(attemptId, { id, hold, lose: raw['lose'] === 'custody' });
+      for (const attemptId of attemptIds) {
+        holds.set(attemptId, { id, hold, lose: raw['lose'] === 'custody' });
+        probed.add(attemptId);
+      }
       const starts = attemptIds.map((attemptId) => {
         const request: FanslyGreetingRequest = {
           attemptId,

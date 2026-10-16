@@ -10,7 +10,9 @@
 // - P10b2 — «Нельзя написать» (FS-NEW-2, FX-003): a follower whose DM rules the creator does not meet says why as soon
 //   as the queue reads their chat — nothing is generated or sent —; «Исключить из очереди» takes them out of «К
 //   обработке», «Вернуть в очередь» under «Все» brings them back.
-// The three admissions of a greeting, two clients and the person's own send are the blocks of P10c…P10d.
+// - P10c — the card's greeting (FS-NEW-3, FS-NEW-6, FS-IDN-6): the person's own text, one click — ONE `POST /message`
+//   of ours to the group the pass resolved (never the fan's id), the hub's custody «sent», the fan «Уже писали».
+// The AI admissions, two clients and the person's own send by Fansly's button are P10d's blocks.
 
 import { browser, expect } from '@wdio/globals';
 import { mkdirSync } from 'node:fs';
@@ -27,6 +29,7 @@ import { ours, oursExists, oursText, pressOurs, readOurs, waitOursByText, waitOu
 import { dockIs } from '../support/shift';
 
 const A = WORLD.fansly.chats.a;
+const PAGE = WORLD.pages.fansly;
 const WINDOW = '.cg-fnw';
 /** The test build's key for the stand's API (bg/fansly/api-probe.ts): the pass asks there, and nothing without it. */
 const STAND_API = 'dev.fanslyApi.origin';
@@ -157,6 +160,62 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     await fakeFansly().assertOursClean(mark, '«Нельзя написать» in «Новые»');
     const routes = new Set((await fakeFansly().calls('ours', mark)).map((entry) => entry.route));
     expect([...routes].filter((route) => route === null || route === undefined || !NEWCOMERS_ROUTES.includes(route))).toEqual([]);
+    await browser.keys(['Escape']);
+    await browser.waitUntil(async () => !(await oursExists('modal', WINDOW)), { timeout: 5_000, timeoutMsg: 'Esc did not close «Новые»' });
+  });
+
+  it('[NF-019] [FS-NEW-3] [FS-IDN-6] the card’s own greeting (R20 P10c): one click — ONE `POST /message` of ours to the group the pass resolved, never the fan’s id; the hub’s custody «sent»; the fan «Уже писали»', async () => {
+    // A new follower with no chat yet: the queue's `POST /group` makes it, then reads its empty history — «Не писали».
+    const followed = await fakeFansly().command({ op: 'follow', silent: true });
+    const fan = followed.follow?.followerId ?? '';
+    expect(fan).toMatch(/^\d+$/);
+    const ROW = `${WINDOW} .cg-fnw__row[data-cg-fan$=":${fan}"]`;
+    const checkOf = async (): Promise<string | null> => readOurs('modal', ROW, (node) => node.getAttribute('data-cg-check'));
+    const mark = await fakeFansly().mark();
+    await shift.toPages();
+    await browser.url(testBuildPage('popup.html'));
+    await writeLocalStorage({ [STAND_API]: fakeFansly().apiOrigin });
+    expect(await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } })).toEqual({ ok: true, payload: { delivered: true } });
+    await browser.url(testBuildPage(QUIET_PAGE));
+    await shift.toFansly();
+    // Closing keeps the previous scenario's «Нельзя написать» filter, which hides this ready fan.
+    await pressOurs('modal', `${WINDOW} .cg-sp__tools button`, /^Все статусы/);
+    await browser.waitUntil(async () => (await checkOf()) === 'ready', { timeout: 120_000, interval: 250, timeoutMsg: 'the new follower was not checked «Не писали»' });
+    await ours('modal', ROW).click();
+    // The card's chat is the group the pass resolved, never the fan's id (FS-IDN-6).
+    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-fnc__greet textarea`), { timeout: 10_000, timeoutMsg: 'the card has no greeting' });
+    const href = await readOurs('modal', `${WINDOW} .cg-fnc__open`, (node) => node.getAttribute('href'));
+    const group = /\/messages\/(\d+)$/.exec(href ?? '')?.[1] ?? '';
+    expect(group).toMatch(/^\d+$/);
+    expect(group).not.toBe(fan);
+    expect(await oursText('modal', `${WINDOW} .cg-fnc__greet`)).toMatch(/AI ничего не отправляет автоматически/);
+
+    await ours('modal', `${WINDOW} .cg-fnc__greet textarea`).click();
+    await browser.keys([...'Hi there, welcome!']);
+    await pressOurs('modal', `${WINDOW} .cg-fnc__gbar button`, 'Отправить →');
+    // A receipt marks the row greeted and removes its greeting field, including the transient «Отправлено».
+    // Wait for durable custody, then inspect the final row instead of polling a status that may already be gone.
+    // The hub's custody of this fan: one attempt, sent.
+    await browser.waitUntil(
+      async () => {
+        const claim = (await hub().status()).claims.find((entry) => entry.pageLabel === PAGE.pageLabel && entry.fanRef === fan);
+        return (claim?.attempts ?? []).length === 1 && claim?.attempts[0]?.state === 'sent';
+      },
+      { timeout: 30_000, interval: 250, timeoutMsg: 'the hub’s custody of the fan is not «sent»' },
+    );
+    // «Уже писали»: the card offers no second greeting.
+    await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все \d+$/);
+    await browser.waitUntil(async () => (await checkOf()) === 'greeted', { timeout: 10_000, timeoutMsg: 'the greeted fan is not «Уже писали»' });
+    await ours('modal', ROW).click();
+    await waitOursText('modal', /Уже писали/, 'the card shows the greeted fan', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
+    expect(await oursExists('modal', `${WINDOW} .cg-fnc__greet`)).toBe(false);
+    await browser.pause(400);
+    await picture('greeting-sent');
+    // One click, one request of ours (NF-019) to the resolved group (FS-IDN-6); nothing outside FS-NET-1.
+    const sends = (await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'message.send');
+    expect(sends).toHaveLength(1);
+    expect(sends[0]).toMatchObject({ method: 'POST', status: 200, detail: { groupId: group } });
+    await fakeFansly().assertOursClean(mark, 'the greeting of a «Новые» card');
     await browser.keys(['Escape']);
     await browser.waitUntil(async () => !(await oursExists('modal', WINDOW)), { timeout: 5_000, timeoutMsg: 'Esc did not close «Новые»' });
   });

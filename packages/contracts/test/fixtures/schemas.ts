@@ -914,6 +914,15 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     ],
   ),
   fixture(
+    'GreetingDraftGeneration',
+    C.GreetingDraftGenerationSchema,
+    [
+      { opId: uuid(2), generationRef: uuid(6), text: 'hey', historyRevision: uuid(9), mark: 'unverified' },
+      { opId: uuid(2), generationRef: null, text: 'hey', historyRevision: uuid(9), mark: null },
+    ],
+    [{ opId: uuid(2), generationRef: uuid(6), text: 'hey', historyRevision: uuid(9), mark: 'fresh' }],
+  ),
+  fixture(
     'OpDebugView',
     C.OpDebugViewSchema,
     [debugView, { ...debugView, model: 'model-synthetic', hubStages: [{ name: 'prompt-build', ms: 182 }] }, { ...debugView, model: null, hubStages: [] }],
