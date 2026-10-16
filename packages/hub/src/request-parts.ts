@@ -5,9 +5,11 @@
 // `body`).
 //
 // The request is checked against its strict contract schema first: a request
-// that fails it is our bug and is never sent (HB-006).
+// that fails it is our bug and is never sent (HB-006). R20 P9d: a site may
+// bring its own strict schema of a request instead (`HubRequestCheck`: Fansly's
+// greeting claim body, which the registry does not name).
 
-import { HUB_ROUTE_SCHEMAS, type HubRouteKey } from '@cg/contracts';
+import { HUB_ROUTE_SCHEMAS, type HubRequestCheck, type HubRouteKey } from '@cg/contracts';
 
 export interface RequestParts {
   /** Path parameters by name, as the request gave them. */
@@ -22,8 +24,8 @@ export function pathParamNames(template: string): string[] {
 }
 
 /** Throws a TypeError when the request fails its contract schema or lacks a path parameter. */
-export function requestParts(route: HubRouteKey, template: string, request: unknown): RequestParts {
-  const schema = HUB_ROUTE_SCHEMAS[route].request;
+export function requestParts(route: HubRouteKey, template: string, request: unknown, check?: HubRequestCheck): RequestParts {
+  const schema = check ?? HUB_ROUTE_SCHEMAS[route].request;
   let fields: Record<string, unknown> = {};
   if (schema !== null) {
     const parsed = schema.safeParse(request);

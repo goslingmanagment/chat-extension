@@ -229,6 +229,7 @@ describe('[host:fansly] the journal, a restart and the custody', () => {
       [
         'admission',
         'attemptId',
+        'browserResend',
         'cause',
         'code',
         'createdAt',
@@ -245,6 +246,7 @@ describe('[host:fansly] the journal, a restart and the custody', () => {
         'proof',
         'receiptMessageId',
         'reportPending',
+        'requestId',
         'state',
         'ticketExpiresAt',
         'transport',

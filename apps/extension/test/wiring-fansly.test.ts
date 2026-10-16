@@ -15,6 +15,7 @@
 //   nothing reaches the hub; ChatSpace as before.
 
 import { CONTRACTS_VERSION, parseTabPayload, type HubBinding, type StartOp } from '@cg/contracts';
+import { FanslyGreetingClaimOpSchema } from '@cg/contracts/send-fansly';
 import type { SoundBatch } from '@cg/contracts/sound';
 import { soundTransport } from '../src/composition/tab/hosts/fansly/sound';
 import type { StartedHost } from '../src/composition/tab/adapter';
@@ -72,13 +73,13 @@ const release = (held: ChunkGate): void => {
 };
 
 /** The world with Fansly's chunk loadable — or missing, as a build without it would be, or held at a gate. */
-function world(chunk: 'present' | 'missing' | ChunkGate = 'present', captureSession?: (session: NetworkSession) => void): World {
+function world(chunk: 'present' | 'missing' | ChunkGate = 'present', captureSession?: (session: NetworkSession, kit: BackgroundKit) => void): World {
   const loadFansly = (): Promise<unknown> => {
     if (chunk === 'missing') return Promise.reject(new TypeError('error loading dynamically imported module'));
     // A module of its own for every load: each instance of the event page is a realm of its own.
     const module = fanslyModule();
     const loaded = { default: { ...module, start: (kit: Parameters<typeof module.start>[0]) => {
-      if (kit.networkSession !== undefined) captureSession?.(kit.networkSession);
+      if (kit.networkSession !== undefined) captureSession?.(kit.networkSession, kit);
       return module.start(kit);
     } } };
     if (chunk === 'present' || !chunk.held) return Promise.resolve(loaded);
@@ -152,6 +153,25 @@ const modules = async (w: World): Promise<ReadonlyArray<{ host: string; state: s
 };
 
 describe('[host:fansly] a Fansly tab and the background (R20 P7i)', () => {
+  it('[NF-021] own and ai-edited greetings: the real kit adapter passes the manual group’s site schema to the hub', async () => {
+    let kit: BackgroundKit | undefined;
+    const w = world('present', (_session, given) => { kit = given; });
+    w.start(); await switchFanslyOn(w); await signIn(w); await fanslyTab(w);
+    await until(() => kit !== undefined, 'the real kit supplied');
+    const given = kit!;
+    const instanceId = given.install.instanceId();
+    const leaseToken = given.ids.uuid();
+    const attemptId = given.ids.uuid();
+    const target = { pageLabel: PAGE.pageLabel, fanRef: fan };
+    await given.hub.facade.claim({ ...target, body: { action: 'claim', instanceId, leaseToken } }, FanslyGreetingClaimOpSchema);
+    const group = { kind: 'manual', textFingerprint: 'a'.repeat(64) } as const;
+    await expect(given.hub.facade.claim({
+      ...target,
+      body: { action: 'dispatch', attemptId, instanceId, purpose: 'greeting', group, partIndex: 0, textRevision: 2, leaseToken, flagRevision: given.hub.bootstrap()!.configRevision },
+    }, FanslyGreetingClaimOpSchema)).resolves.toMatchObject({ custody: { attemptId, state: 'dispatching', ticket: expect.any(String) as unknown } });
+    expect(callsTo(w.hub.read().entries, 'clientFanClaim').at(-1)).toMatchObject({ status: 200, request: { ...target, body: { action: 'dispatch', group: { kind: 'manual' } } } });
+  });
+
   it('[AI-111] P12a: the real site RPC streams a script, then an event-page restart restores it and interrupts the next script without a second POST', async () => {
     const w = world(); w.start(); await switchFanslyOn(w); await signIn(w);
     const tab = await fanslyTab(w);

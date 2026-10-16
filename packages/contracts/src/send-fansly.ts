@@ -402,6 +402,10 @@ export const FANSLY_SEND_TRANSPORTS = ['direct', 'tab'] as const;
 
 const JournalBase = {
   attemptId: UuidSchema,
+  /** The client's one fetch, also carried by x-cg-request-id; absent in older records. */
+  requestId: z.optional(UuidSchema),
+  /** Passive observation of a repeated/late browser response; never permission to send again (X41). */
+  browserResend: z.optional(z.literal(true)),
   /** The lock key's parts: one open attempt per (hubOrigin, pageId, fanRef). */
   hubOrigin: HubOriginSchema,
   pageId: HubIntIdSchema,
@@ -443,6 +447,7 @@ export const FanslySendJournalEntrySchema = /* @__PURE__ */ z
   .check(
     ...OUTCOME_CHECKS,
     z.refine((e) => e.updatedAt >= e.createdAt, { message: 'updatedAt never goes before createdAt' }),
+    z.refine((e) => e.browserResend !== true || e.requestId !== undefined, { message: 'a browser resend names the same client request' }),
     z.refine((e) => admissionFitsGroup(e.admission, e.group), { message: 'an unchanged AI text goes as its generation, any other text as a manual group' }),
     z.refine((e) => (e.state === 'routed' ? e.ticketExpiresAt === null : !TICKET_STATES.includes(e.state) || e.ticketExpiresAt !== null), {
       message: 'the ticket comes with the custody: none at routed, kept from dispatched on',

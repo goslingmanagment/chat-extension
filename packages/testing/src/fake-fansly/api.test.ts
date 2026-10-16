@@ -434,6 +434,34 @@ describe('the fake Fansly API: scripted outcomes', () => {
     socket.socket.close();
   });
 
+  it('X41: a lost answer and browser replay store TWO messages under one fetch UUID, with distinct receipt/echo ids; arbitrary headers stay out', async () => {
+    const requestId = '00000000-0000-4000-8000-000000000001';
+    const body = { type: 1, content: 'a replay to diagnose', groupId: groupA, attachments: [] };
+    const socket = await openSocket(fake);
+    await socket.next((frame) => frame.startsWith('{"t":1'));
+    const mark = fake.journal.read().next;
+    fake.command({ op: 'api', rules: [{ route: 'message.send', caller: 'ours', times: 1, effect: true, outcome: { kind: 'drop' } }] });
+    const send = (id: string) => call<WireMessage>(fake, 'POST', bypass('/message'), { as: 'ours', body, headers: { 'x-cg-request-id': id } });
+    await expect(send(requestId)).rejects.toThrow();
+    const replay = await send(requestId);
+    const posts = fake.journal.calls('ours', mark).filter((entry) => entry.route === 'message.send');
+    expect(posts.map((entry) => [entry.status, entry.detail?.['requestId']])).toEqual([[0, requestId], [200, requestId]]);
+    const stored = [...fake.state.world.messages.values()].filter((message) => message.content === body.content);
+    expect(stored).toHaveLength(2);
+    expect(new Set(stored.map((message) => message.id)).size).toBe(2);
+    expect(posts.map((entry) => entry.detail?.['messageId'])).toEqual(stored.map((message) => message.id));
+    expect(posts[1]?.detail).toMatchObject({ messageId: replay.response?.id, groupId: groupA, senderId: ids.creator });
+    for (const message of stored) {
+      const echo = serviceEvent(await socket.next(isEvent(SERVICE.message, EVENT.message.created)));
+      expect(echo?.event['message']).toMatchObject({ id: message.id, groupId: groupA, senderId: ids.creator });
+    }
+    await send('not-a-request-uuid');
+    const all = fake.journal.calls('ours', mark).filter((entry) => entry.route === 'message.send');
+    expect(all.map((entry) => [entry.status, entry.detail?.['requestId']])).toEqual([[0, requestId], [200, requestId], [200, undefined]]);
+    expect(JSON.stringify(all)).not.toContain('not-a-request-uuid');
+    socket.socket.close();
+  });
+
   it('a delay keeps the normal answer back; a hang never answers until the reset', async () => {
     fake.command({ op: 'api', rules: [{ route: 'account.me', times: 1, outcome: { kind: 'delay', ms: 120 } }] });
     const started = Date.now();

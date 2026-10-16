@@ -666,7 +666,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     } },
     hub: {
       // The facade is read at each call: it exists once the settings are read.
-      facade: { claim: (op) => hub().claim(op), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
+      facade: { claim: (op, check) => hub().claim(op, check), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
       call: forCore,
       resolve,
       errorWire: wireOf,

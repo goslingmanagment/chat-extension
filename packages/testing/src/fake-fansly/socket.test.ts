@@ -28,8 +28,9 @@ afterAll(async () => {
   await fake.close();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   fake.command({ op: 'reset' });
+  await expect.poll(() => fake.command({ op: 'status' }).status?.sockets, { timeout: 3000 }).toEqual([]);
   fake.command({ op: 'socket', verifyDelayMs: 0 });
   since = fake.journal.next;
 });
@@ -91,10 +92,10 @@ describe('the fake Fansly socket: sessions and epochs', () => {
     const firstId = fake.command({ op: 'status' }).status?.sockets[0]?.id ?? 0;
     expect(fake.command({ op: 'socket', close: true }).sent).toBe(1);
     expect(await first.closed()).toBe(STAND_CLOSE_CODE);
+    await expect.poll(() => fake.command({ op: 'status' }).status?.sockets, { timeout: 3000 }).toEqual([]);
     const second = await openSocket(fake);
     await second.next(isSession);
     expect(fake.command({ op: 'status' }).status?.sockets.map((socket) => socket.id)).toEqual([firstId + 1]);
-    // (Sockets of earlier tests may still be closing: only these two are read.)
     const own = fake.journal.read(since).entries.filter((entry) => (entry.kind === 'ws-open' || entry.kind === 'ws-close') && (entry.socketId ?? 0) >= firstId);
     expect(own.map((entry) => [entry.kind, entry.socketId])).toEqual([
       ['ws-open', firstId],

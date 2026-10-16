@@ -14,6 +14,7 @@ import {
   CHAT_EXTENSION_CLIENT,
   CHAT_IS_FAN,
   DeviceTokenIssueRequestSchema,
+  GREETING_DISPATCH_FLAGS,
   HUB_CLIENT_CHECK_CODES,
   HUB_FACADE_TIMING,
   HUB_ROUTE_SCHEMAS,
@@ -34,8 +35,8 @@ import {
   type AutoLists,
   type Bootstrap,
   type BootstrapOptions,
+  type BootstrapPage,
   type CgErrorWire,
-  type ClaimOp,
   type ClaimState,
   type ClientFeatureFlag,
   type ClientHealthV1,
@@ -48,6 +49,8 @@ import {
   type HostAccount,
   type HubAuthState,
   type HubBinding,
+  type HubClaimOp,
+  type HubRequestCheck,
   type HubFacade,
   type HubFrame,
   type HubHealth,
@@ -196,6 +199,24 @@ export function errorWireOf(error: unknown): CgErrorWire | null {
  */
 function byConversation(request: { readonly conversationRef?: string | undefined }): { readonly needs?: readonly ClientHubCapability[] } {
   return request.conversationRef === undefined ? {} : { needs: ['conversation-recaps-v1'] };
+}
+
+/** What a client/* call needs besides its route; `flags` may follow the page (its platform). */
+interface ClientOptions {
+  readonly flags?: readonly ClientFeatureFlag[] | ((page: BootstrapPage) => readonly ClientFeatureFlag[]);
+  readonly fresh?: boolean;
+  readonly facts?: CallFacts;
+  readonly signal?: AbortSignalLike | undefined;
+  /** What this request needs of the hub beyond its route (a field only a newer hub takes). */
+  readonly needs?: readonly ClientHubCapability[];
+  /** The site's own strict schema of the request (R20 P9d), instead of the registry's. */
+  readonly check?: HubRequestCheck;
+}
+
+/** The switches a greeting's `dispatch` is admitted under on the page's platform (hub HF-3); an unknown one asks both. */
+function greetingDispatchFlags(page: BootstrapPage): readonly ClientFeatureFlag[] {
+  const platform = narrowPlatform(page.platform);
+  return platform === null ? ['previewSend', 'newcomers'] : GREETING_DISPATCH_FLAGS[platform];
 }
 
 export class ChatExtensionHub implements HubFacade {
@@ -827,15 +848,20 @@ export class ChatExtensionHub implements HubFacade {
    * answer ends the attempt `held`, and only a new click makes a new one.
    * Taking work (claim, renew, dispatch) needs a fresh bootstrap and its
    * flags; reporting what happened (sent, failed, release, registerNativeSend)
-   * is never blocked by an expired one.
+   * is never blocked by an expired one. R20 P9d: a greeting's `dispatch` asks
+   * for the switches its page's platform admits it under
+   * (GREETING_DISPATCH_FLAGS: Fansly's own HTTP send — `newcomers` alone).
    */
-  async claim(op: ClaimOp): Promise<ClaimState> {
+  async claim(op: HubClaimOp, check?: HubRequestCheck): Promise<ClaimState> {
     const { action } = op.body;
     const taking = action === 'claim' || action === 'renew' || action === 'dispatch';
-    let flags: readonly ClientFeatureFlag[] = [];
+    let flags: ClientOptions['flags'] = [];
     if (action === 'claim' || action === 'renew') flags = ['newcomers'];
-    if (op.body.action === 'dispatch') flags = op.body.purpose === 'greeting' ? ['previewSend', 'newcomers'] : ['previewSend'];
-    return (await this.client('clientFanClaim', op, op.pageLabel, { flags, fresh: taking, facts: { claimAction: action } })) as ClaimState;
+    if (op.body.action === 'dispatch') flags = op.body.purpose === 'greeting' ? greetingDispatchFlags : ['previewSend'];
+    // A manual group (HF-3) is a field only a hub with `manual-greeting-v1` takes (contracts routes.ts).
+    const manual = (op.body.action === 'dispatch' || op.body.action === 'registerNativeSend') && 'kind' in op.body.group;
+    const options: ClientOptions = { flags, fresh: taking, facts: { claimAction: action }, ...(manual ? { needs: ['manual-greeting-v1'] } : {}), ...(check === undefined ? {} : { check }) };
+    return (await this.client('clientFanClaim', op, op.pageLabel, options)) as ClaimState;
   }
 
   async claimStatus(pageLabel: string, fanRef: NativeId): Promise<ClaimState> {
@@ -940,31 +966,21 @@ export class ChatExtensionHub implements HubFacade {
    * every capability the route needs declared (else CG-HUB-CAPABILITY — so
    * a hub without the route is never asked); the page granted; its flags.
    */
-  private async client(
-    route: ClientFamilyKey,
-    request: unknown,
-    pageLabel: string,
-    options: {
-      readonly flags?: readonly ClientFeatureFlag[];
-      readonly fresh?: boolean;
-      readonly facts?: CallFacts;
-      readonly signal?: AbortSignalLike | undefined;
-      /** What this request needs of the hub beyond its route (a field only a newer hub takes). */
-      readonly needs?: readonly ClientHubCapability[];
-    } = {},
-  ): Promise<unknown> {
+  private async client(route: ClientFamilyKey, request: unknown, pageLabel: string, options: ClientOptions = {}): Promise<unknown> {
     await this.ready;
     const connection = this.ctx.connection(route);
     const entry = options.fresh === true ? await this.bootstrapService.fresh() : (this.bootstrapService.cached() ?? (await this.bootstrapService.fresh()));
     const missing = [...HUB_ROUTES[route].capabilities, ...(options.needs ?? [])].filter((capability) => !hasCapability(entry.bootstrap.capabilities, capability));
     if (missing.length > 0) throw new FacadeCheckError('capabilityMissing', route, connection.epoch, missing.join(','));
-    if (pageOf(entry.bootstrap, pageLabel) === null) throw new FacadeCheckError('pageNotGranted', route, connection.epoch);
+    const page = pageOf(entry.bootstrap, pageLabel);
+    if (page === null) throw new FacadeCheckError('pageNotGranted', route, connection.epoch);
     const routeFlag = HUB_ROUTES[route].flag;
-    for (const flag of options.flags ?? (routeFlag === null ? [] : [routeFlag])) {
+    const flags = typeof options.flags === 'function' ? options.flags(page) : options.flags;
+    for (const flag of flags ?? (routeFlag === null ? [] : [routeFlag])) {
       const state = flagState(entry.bootstrap, flag, pageLabel);
       if (!state.usable) throw flagRefused(flag, state.reason, route, connection.epoch);
     }
-    return this.ctx.client(route, request, { signal: options.signal, facts: { pageLabel, ...options.facts } }, connection);
+    return this.ctx.client(route, request, { signal: options.signal, facts: { pageLabel, ...options.facts }, ...(options.check === undefined ? {} : { check: options.check }) }, connection);
   }
 
   /**

@@ -18,7 +18,8 @@ import { type HubHealth, type SignOutOutcome } from './auth';
 import { type Bootstrap } from './bootstrap';
 import { type HubClientCheck, type HubErrorResolution, type HubFailure } from './error-map';
 import { type FeedPage, type FeedQuery } from './feed';
-import { type AudienceNewPage, type AudienceNewQuery, type ClaimOp, type ClaimState } from './newcomers';
+import { type HubClaimOp } from './claim-body';
+import { type AudienceNewPage, type AudienceNewQuery, type ClaimState } from './newcomers';
 import {
   type Dossier,
   type DossierQuery,
@@ -117,6 +118,14 @@ export interface BootstrapOptions {
   readonly ifRevision?: number;
 }
 
+/**
+ * 1.15.0 (R20 P9d): a site's own strict schema of a request (a zod schema fits): what the facade checks a request by
+ * instead of the registry's, and sends as it parsed it. A request that fails it is never sent.
+ */
+export interface HubRequestCheck {
+  safeParse(value: unknown): { readonly success: true; readonly data: unknown } | { readonly success: false };
+}
+
 export interface HubFacade {
   /** Narrow token (`client: 'chat-extension'`, mode active); FIFO with sign-out (AU-009); 20 s. */
   signIn(login: string, password: string): Promise<SessionIdentity>;
@@ -149,8 +158,13 @@ export interface HubFacade {
   feed(query: FeedQuery): Promise<FeedPage>;
   /** H-7c. */
   audienceNew(query: AudienceNewQuery): Promise<AudienceNewPage>;
-  /** H-7b: lease claim|renew|release, custody dispatch|sent|failed, registerNativeSend. */
-  claim(op: ClaimOp): Promise<ClaimState>;
+  /**
+   * H-7b: lease claim|renew|release, custody dispatch|sent|failed, registerNativeSend. 1.15.0 (R20 P9d): the body the
+   * hub takes since HF-3 (`HubClaimOp`: OnlyFans' ClaimOp, or a Fansly greeting's, its group possibly manual). The op is
+   * checked strictly before it is sent (HB-006): by `check` when the caller brings its site's own schema (Fansly's
+   * `FanslyGreetingClaimOpSchema`, which no shared bundle carries), else by the registry's `ClaimOpSchema`.
+   */
+  claim(op: HubClaimOp, check?: HubRequestCheck): Promise<ClaimState>;
   /** H-7b GET: the same state, never a ticket. */
   claimStatus(pageLabel: string, fanRef: NativeId): Promise<ClaimState>;
   /** `ai_acceptance` always; `client_health` only under `client-health-perf-v1`, in its own batch. */

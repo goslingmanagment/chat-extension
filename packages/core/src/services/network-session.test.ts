@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createNetworkSession, legacyAccount, type RequestFact } from './network-session';
+import { createNetworkSession, legacyAccount, type OwnRequestObservation, type RequestFact } from './network-session';
 import { createMemoryKv } from './test-support/memory-kv';
 
 declare function btoa(value: string): string;
@@ -31,6 +31,27 @@ function setup(store = createMemoryKv()) {
 // Firefox cannot identify an MV3 neighbour which repeats a page's headers.
 // A rejected replay must not replace the template; an accepted one may.
 describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation', () => {
+  it('observes our lost request and its late answer under the client id, without exposing headers or accepting a neighbour', async () => {
+    const { service } = setup();
+    await service.setEnabled(true);
+    const seen: OwnRequestObservation[] = [];
+    const off = service.onOwnRequest((fact) => seen.push(fact));
+    const own = request('browser-id', { originUrl: OWN, tabId: -1, requestHeaders: [...headers(), { name: 'x-cg-request-id', value: 'client-id' }] });
+    const neighbour = { ...own, requestId: 'neighbour', originUrl: 'moz-extension://neighbour/' };
+    await service.accept(neighbour);
+    await service.accept(complete(neighbour));
+    await service.accept(own);
+    await service.accept({ ...own, phase: 'error' });
+    await service.accept(complete(own));
+    expect(seen).toEqual([
+      { clientRequestId: 'client-id', phase: 'headers' },
+      { clientRequestId: 'client-id', phase: 'error' },
+      { clientRequestId: 'client-id', phase: 'completed', statusCode: 200 },
+    ]);
+    off();
+    await service.accept(own);
+    expect(seen).toHaveLength(3);
+  });
   it('commits only after the matching 2xx, and survives sleep with route checks and precise ids', async () => {
     const { service, store } = setup();
     await service.setEnabled(true);

@@ -22,7 +22,7 @@ async function world(readable = true) {
   };
   const module = await fanslyModule().start({
     settingsExt: settings,
-    networkSession: { ready: Promise.resolve(), forTab: () => ({ legacyId: state.legacy, canonicalId: state.canonical }), aliases: (id: string) => id === state.canonical ? [id, state.legacy] : [] },
+    networkSession: { ready: Promise.resolve(), forTab: () => ({ legacyId: state.legacy, canonicalId: state.canonical }), aliases: (id: string) => id === state.canonical ? [id, state.legacy] : [], onOwnRequest: () => () => undefined },
     storage: { local: kv.open() }, router: { tabs: () => ['tab'] },
     clock: { now: () => Date.now(), setTimer: (ms: number, fn: () => void) => setTimeout(fn, ms), clearTimer: (id: ReturnType<typeof setTimeout>) => clearTimeout(id) },
     log: { service: () => undefined },

@@ -43,6 +43,15 @@
 // route instead. The frame's own requests (`fansly.relay.*`) and its going
 // (`relayGone`) come here through Fansly's registry.
 //
+// R20 P9d: the greeting's HTTP send with the hub's custody (core
+// services/hosts/fansly/send.ts; architecture.md §8.6): its journal is
+// restored as the module starts (a restart's ends and the custody reports
+// they owe), the tab's socket facts of our own messages prove its receipts
+// (the echo), a new bootstrap sends the reports still owed. Until «Новые»
+// clicks it (P10c) nothing in a release asks it to send: there is no pass to
+// say what the tuple is now, so `fansly.followers.send` stays unserved; a test
+// build's probe (bg/fansly/send-probe.ts) drives it for the e2e.
+//
 // R20 P7i: the module brings Fansly's slice of the feature manifest
 // (docs/project-unite/architecture.md §1.4). The core's graph never has a file
 // of Fansly's, so it admits a generation of a Fansly chat and an insert token
@@ -51,6 +60,7 @@
 // features/fansly.ts): the common part and Fansly's own file, never
 // ChatSpace's.
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
+import { FanslyGreetingClaimOpSchema } from '@cg/contracts/send-fansly';
 import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
 import {
   FANSLY_TAB_TYPE_PREFIX,
@@ -65,6 +75,7 @@ import { createFanslyOperations } from '@cg/core/services/hosts/fansly/voice-ope
 import { featureSlice } from '@cg/core/domain/features';
 import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
 import { createFanslyNewcomers, type FanslyNewcomers, type FanslyNewcomersApi } from '@cg/core/services/hosts/fansly/newcomers';
+import { createFanslySend, type FanslySend, type FanslySendDeps } from '@cg/core/services/hosts/fansly/send';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 import { createFanslyApi, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { createSpendersLookup } from '@cg/fansly-api/spenders';
@@ -73,6 +84,7 @@ import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAns
 import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
 import { readRegistration } from './fansly/registration';
 import { createRelayService } from './fansly/relay';
+import { fanslySendProbe } from './fansly/send-probe';
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
 const unreachable = (detail: string): HostAnswer => ({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail } });
@@ -93,6 +105,42 @@ async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, 
     default:
       return unreachable(`${type}: not a page's`);
   }
+}
+
+/** sha256 of a text's UTF-8 bytes, lower-case hex: the manual group's `textFingerprint` (HF-3). */
+async function sha256(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/** The greeting send over the kit: the custody through the core's facade, the request through Fansly's API. */
+function greetingSend(kit: BackgroundKit, api: FanslyApi, wrap: (deps: FanslySendDeps) => FanslySendDeps): FanslySend {
+  // The kit's hub is read at each use.
+  return createFanslySend(
+    wrap({
+      local: kit.storage.local,
+      hub: {
+        // Checked by Fansly's own strict body (a manual group the registry does not name), never sent otherwise.
+        claim: (op) => kit.hub.call('clientFanClaim', () => kit.hub.facade.claim(op, FanslyGreetingClaimOpSchema)),
+        claimStatus: (pageLabel, fanRef) => kit.hub.call('clientFanClaimStatus', () => kit.hub.facade.claimStatus(pageLabel, fanRef)),
+        resolve: (failure, context) => kit.hub.resolve(failure, context),
+        hubOrigin: () => kit.hub.session()?.hubOrigin ?? null,
+        pageLabel: (pageId) => kit.hub.bootstrap()?.pages.find((page) => page.pageId === pageId)?.pageLabel ?? null,
+        limits: () => kit.hub.bootstrap()?.limits ?? null,
+      },
+      // FS-NET-1's greeting: one `POST /message`, the body the old extension sends (fansly-client.ts:737).
+      prepare: ({ account, groupId, text }) =>
+        api.client.prepare({ purpose: 'greeting', route: 'message.send', account, body: { type: 1, content: text, groupId, attachments: [], likes: [], scheduledFor: 0, inReplyTo: null } }),
+      // The tuple now is the pass's and the window's (P10c); without them no attempt passes its checks.
+      live: () => null,
+      sha256,
+      instanceId: () => kit.install.instanceId(),
+      clock: kit.clock,
+      ids: kit.ids,
+      log: kit.log.service,
+      countUncertain: () => kit.telemetry.countCode('CG-SEND-UNCERTAIN'),
+    }),
+  );
 }
 
 /** Fansly's slice of the feature manifest, as its tab and the extension pages hold it. */
@@ -134,6 +182,10 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   await api?.pacer.ready;
   const unprobe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? startFanslyApiProbe(kit, session, api, relay.hub) : () => undefined;
   const spenders = api === null ? null : createSpendersLookup(__CG_TEST_HOSTS__ && session !== undefined ? fanslyStandClient(kit, session, api) : api.client, () => kit.clock.now(), kit.storage.local);
+  const sendProbe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? fanslySendProbe(kit, session, api, relay.hub) : null;
+  const greetings = api === null ? null : greetingSend(kit, api, (deps) => (sendProbe === null ? deps : sendProbe.wrap(deps)));
+  const offSendRequests = session?.onOwnRequest((fact) => { void greetings?.observeRequest(fact); });
+  const unprobeSend = sendProbe !== null && greetings !== null ? sendProbe.start(greetings) : () => undefined;
   const offSettings = kit.settingsExt?.onChange(() => { void refreshSettings(); });
   await refreshSettings();
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
@@ -184,6 +236,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return ok(await readRegistration(kit, client, payload as FanslyTabRequestPayload<'fansly.registration.read'>, sender));
       }
       case 'fansly.sound.batch':
+        // Our own messages of the batch may be the echoes of greeting receipts (§8.6).
+        greetings?.echo((payload as FanslyTabRequestPayload<'fansly.sound.batch'>).events.flatMap((event) => (event.kind === 'message' ? [event] : [])));
         await kit.sound?.batch(tab, payload as FanslyTabRequestPayload<'fansly.sound.batch'>);
         return ok({ recorded: kit.sound !== undefined });
       case 'fansly.vault.resume':
@@ -214,17 +268,22 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     },
     onTabMessage: () => Promise.resolve({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     async onEvent(event) {
-      if (event.kind === 'clear-finished') { await spenders?.clear(); await vault.sweep(); }
+      if (event.kind === 'clear-finished') { await spenders?.clear(); await Promise.all([vault.sweep(), greetings?.clearFinished()]); }
       if (event.kind === 'session' && event.ownerChanged) await spenders?.clear();
+      // The custody reports still owed go once the bootstrap names their pages again.
+      if (event.kind === 'bootstrap' || event.kind === 'session') greetings?.pump();
     },
     facts: () => ({}),
     dispose: async () => {
       disposed = true;
       if (retry !== null) kit.clock.clearTimer(retry);
       offSettings?.();
+      offSendRequests?.();
       unplug();
       unprobe();
       newcomers?.dispose();
+      unprobeSend();
+      greetings?.dispose();
       await spenders?.flush();
       await api?.pacer.flush();
     },

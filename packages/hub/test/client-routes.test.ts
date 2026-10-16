@@ -5,8 +5,9 @@
 // expected reading (parity NF-010, NF-023, NF-026, SN-012, AI-060…AI-071,
 // AI-097, NEW-02, HB-006).
 
-import { CLAIM_REVISION_MAX, CLIENT_FEATURE_FLAG_NAMES, HUB_ROUTE_KEYS, HUB_ROUTES, isHubCallError, isHubCheckError, type ClaimOp } from '@cg/contracts';
+import { CLAIM_REVISION_MAX, CLIENT_FEATURE_FLAG_NAMES, HUB_ROUTE_KEYS, HUB_ROUTES, isHubCallError, isHubCheckError, type ClaimOp, type ClaimSendGroup, type HubClaimOp } from '@cg/contracts';
 import { HUB_SAMPLES } from '@cg/contracts/fixtures';
+import { FanslyGreetingClaimOpSchema } from '@cg/contracts/send-fansly';
 import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, WORLD, hubServing, uuid, type HttpExchange, pageFeaturesOff } from '@cg/testing/hub';
 import { kernelOperations } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -375,6 +376,41 @@ describe('R20 F6b: the reads by conversation (architecture §11.1, hub HF-10)', 
       await f.facade.dossier({ pageLabel: PAGE, fanRef: WORLD.fan });
       expect(f.hub.of('pageConversationProfile').map((request) => request.path)).toEqual([`/api/v1/pages/${PAGE}/conversations/${WORLD.fan}/profile`]);
       expect(f.hub.of('pageFanProfile')).toHaveLength(1);
+    } finally {
+      f.facade.dispose();
+    }
+  });
+
+  it('[NF-021] R20 P9d: a Fansly greeting\'s dispatch asks `newcomers` alone (HF-3) — `previewSend` off on the page does not stop it, a manual group goes as it is; OnlyFans\' still needs both', async () => {
+    const f = await signedIn(pageFeaturesOff(FANSLY_ON, ['previewSend']));
+    try {
+      const greeting = (pageLabel: string, fanRef: string, group: ClaimSendGroup): HubClaimOp => ({
+        pageLabel,
+        fanRef,
+        body: { action: 'dispatch', attemptId: uuid(0x4b1), instanceId: WORLD.instanceId, purpose: 'greeting', group, partIndex: 0, textRevision: 3, leaseToken: uuid(0x301), flagRevision: WORLD.configRevision },
+      });
+      const manual = { kind: 'manual', textFingerprint: 'a'.repeat(64) } as const;
+      f.hub.on('clientFanClaim', () => json(200, scenarioNamed(HTTP_SCENARIOS, 'claim-greeting-two-parts').exchanges[1]?.response.body));
+      // The registry's ClaimOpSchema names no manual group: without the site's own schema it is never sent (HB-006).
+      const unchecked = await f.facade.claim(greeting(FANSLY_PAGE, FAN, manual)).catch((reason: unknown) => reason);
+      expect(isHubCallError(unchecked) && unchecked.failure).toEqual({ kind: 'transport', failure: 'contract' });
+      expect(f.hub.of('clientFanClaim')).toEqual([]);
+      const fansly = await f.facade.claim(greeting(FANSLY_PAGE, FAN, manual), FanslyGreetingClaimOpSchema).catch((reason: unknown) => reason);
+      expect(errorWireOf(fansly) ?? (isHubCallError(fansly) ? fansly.failure : null)).toBeNull();
+      expect(f.hub.of('clientFanClaim')).toHaveLength(1);
+      expect(f.hub.of('clientFanClaim')[0]).toMatchObject({ method: 'POST', path: `/api/v1/client/pages/${FANSLY_PAGE}/fans/${FAN}/claim`, body: { action: 'dispatch', group: manual } });
+      // A hub without `manual-greeting-v1` is never asked a manual group.
+      const older = await signedIn(hubServing(pageFeaturesOff(FANSLY_ON, ['previewSend']), FANSLY_ON.capabilities.filter((capability) => capability !== 'manual-greeting-v1')));
+      try {
+        const refused = await older.facade.claim(greeting(FANSLY_PAGE, FAN, manual), FanslyGreetingClaimOpSchema).catch((reason: unknown) => reason);
+        expect(isHubCheckError(refused) && refused.code).toBe('CG-HUB-CAPABILITY');
+        expect(older.hub.of('clientFanClaim')).toEqual([]);
+      } finally {
+        older.facade.dispose();
+      }
+      const onlyfans = await f.facade.claim(greeting(PAGE, WORLD.newFan, { generationRef: uuid(0x200), variant: 0, partCount: 1 }), FanslyGreetingClaimOpSchema).catch((reason: unknown) => reason);
+      expect(errorWireOf(onlyfans)).toEqual({ code: 'CG-SEND-OFF', detail: 'flag_off' });
+      expect(f.hub.of('clientFanClaim')).toHaveLength(1);
     } finally {
       f.facade.dispose();
     }

@@ -5,7 +5,7 @@ import { ClaimStateSchema, type ClaimState, type HubClaimBody } from '@cg/contra
 import { createClient, routeSchemas } from '@kernel/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { WORLD, uuid } from '../scenarios/hub';
+import { BOOTSTRAP_PILOT_PAGES, WORLD, uuid } from '../scenarios/hub';
 import { fanslyPageFlags, PILOT_CAPABILITIES } from './config';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall } from './kit';
@@ -157,6 +157,18 @@ describe('[host:fansly] HF-3 custody through the deployed SDK', () => {
     expect((await post({ action: 'failed', attemptId: body.attemptId, instanceId: INSTANCE, reason: 'not_enqueued' })).custody?.state).toBe('failed');
     expect((await post(lease('release'))).lease.state).toBe('released');
     expect((await post(native())).greeting.state).toBe('confirmed');
+  });
+
+  it('resolving an interrupted send leaves its install’s lease active until expiry; then a rival can take it', async () => {
+    await post(lease());
+    const body = dispatch();
+    await post(body);
+    advance(10_001);
+    hub.control({ op: 'resolveCustody', pageLabel: PAGE, fanRef: FAN, attemptId: body.attemptId, outcome: 'not_sent' });
+    const rival = lease('claim', WORLD.otherInstanceId, next());
+    await refused(rival, 'claim_busy');
+    advance(BOOTSTRAP_PILOT_PAGES.limits.claimLeaseSec * 1000 + 1);
+    expect((await post(rival)).lease.state).toBe('owned');
   });
 
   it('two clients race for one fan: one lease and one dispatch, while a second install reads held without a lease token', async () => {

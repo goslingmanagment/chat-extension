@@ -82,6 +82,8 @@ export interface FanslyAnswer {
 
 /** A call admitted, paced and routed, not sent yet. */
 export interface PreparedFanslyCall {
+  /** One client fetch, even if the browser resends it internally (X41). */
+  readonly requestId: string;
   /** Where it goes (§8.5): `direct`, or `tab:<tabSessionId>` of the relay frame — a part of P9d's tuple. */
   readonly transport: FanslyTransportLabel;
   /** The route's part of the last check, synchronous (transport.ts `FanslyRoute.holds`); `start` asks it too. */
@@ -171,8 +173,10 @@ export function createFanslyClient(deps: FanslyClientDeps) {
       pass.release();
       throw notSent(error instanceof FanslyRouteUnavailable && error.reason === 'aborted' ? 'aborted' : 'tab');
     }
+    const requestId = crypto.randomUUID();
     let used = false;
     return {
+      requestId,
       transport: route.transport,
       holds: () => route.holds(),
       cancel() {
@@ -198,7 +202,6 @@ export function createFanslyClient(deps: FanslyClientDeps) {
           pass.release();
           return Promise.reject(notSent('tab'));
         }
-        const requestId = crypto.randomUUID();
         const headers: Record<string, string> = { [REQUEST_ID_HEADER]: requestId };
         for (const name of SESSION_HEADERS) {
           const value = live.headers[name];

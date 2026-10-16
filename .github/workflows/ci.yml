@@ -70,13 +70,10 @@ jobs:
     runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     timeout-minutes: 25
     env:
-      # ESLint with type information needs about 3.5 GiB of heap for this
-      # workspace. Node sizes its default heap from the machine's memory —
-      # about 2 GiB on a small runner — and the lint step then dies with «heap
-      # out of memory» (seen in a 4 GiB container). The same bound the hub's CI
-      # sets. It is a ceiling for every Node process of the job, not a
-      # reservation.
-      NODE_OPTIONS: --max-old-space-size=4096
+      # Type-aware ESLint exhausted the former 4 GiB heap in run 38855233102
+      # as the workspace grew. Leave headroom for its TypeScript projects;
+      # this is a ceiling per Node process, not a reservation.
+      NODE_OPTIONS: --max-old-space-size=8192
 
     steps:
       # Two commits deep: on a PR this is GitHub's merge commit, and `pnpm

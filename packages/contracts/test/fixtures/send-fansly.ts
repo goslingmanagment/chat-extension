@@ -207,6 +207,8 @@ export const FANSLY_SEND_JOURNAL_FIXTURES: Verdicts = {
     { ...fanslyJournalEntry, state: 'refused', proof: 'before-dispatch', code: 'CG-CLAIM-BUSY', reportPending: false },
     { ...fanslyJournalEntry, state: 'refused', proof: 'not-enqueued', code: 'CG-OP-INTERRUPTED', reportPending: true },
     { ...ticketed, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'restart' },
+    { ...ticketed, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network', requestId: uuid(406), browserResend: true },
+    { ...ticketed, state: 'requestStarted', requestId: uuid(406) },
     { ...ticketed, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'rejected-200', admission: { kind: 'ai-edited', generationRef: GENERATION, variant: 1 } },
     { ...fanslyJournalEntry, fanRef: FANSLY_OLD_FAN, groupId: FANSLY_LONG_GROUP },
   ],
@@ -229,6 +231,9 @@ export const FANSLY_SEND_JOURNAL_FIXTURES: Verdicts = {
     { ...ticketed, state: 'sent', proof: 'echo', reportPending: true },
     { ...fanslyJournalEntry, transport: 'relay' },
     { ...fanslyJournalEntry, hubOrigin: 'hub.example.test' },
+    { ...fanslyJournalEntry, requestId: 'not-a-uuid' },
+    { ...fanslyJournalEntry, browserResend: true },
+    { ...fanslyJournalEntry, requestId: uuid(406), browserResend: false },
   ],
 };
 
