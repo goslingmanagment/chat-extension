@@ -48,7 +48,7 @@ export const CHATSPACE: HostDescriptor = {
       // 0.9 KiB (decision X25). Nothing of them runs at document_start: the tap's own work there is the constructor
       // wrap.
       { entry: 'chatspace-ws', label: 'MAIN WS tap (chatspace-ws)', gzipBytes: 6 * KIB },
-      { entry: 'chatspace', label: 'isolated early bootstrap (chatspace)', gzipBytes: 30 * KIB },
+      { entry: 'chatspace', label: 'isolated early bootstrap (chatspace)', gzipBytes: 32 * KIB }, // X44: the dock focus and its key guard left no room; 30 → 32 KiB, as #152 and #159 raised theirs.
     ],
     // What ChatSpace's bundles pay for its slices of the contracts (docs/protocols/README.md, the light/heavy split):
     // the early isolated start loads only the light modules, and the two big registries stay in their lazy chunks.
