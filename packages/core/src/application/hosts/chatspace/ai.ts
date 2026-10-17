@@ -32,6 +32,13 @@ import type { AiHostPolicy, LivePpvState } from '@cg/contracts/ops';
 /** AI-031: Hi is for a conversation with at most this many messages — of either side, as the hub counts them (`gate_hi_greeting_limit`). */
 export const HI_MAX_MESSAGES = 10;
 
+/**
+ * X54: the starts that carry the PPV state — the draft features, as the start's schema admits it (`StartOp.livePpv`).
+ * Its own list, not the fresh text's: a later start that may carry fresh text (Review, Coach) does not carry the state
+ * until it is admitted on its own.
+ */
+const LIVE_PPV_FEATURES: ReadonlySet<string> = new Set(['reply', 'fix', 'hi', 'ping']);
+
 /** What a ChatSpace start gathers of the open chat: the visible tail (D-14) and the PPV state (X54); each may be absent. */
 export interface ChatSpaceProof {
   readonly tail: LiveTextTail | null;
@@ -88,7 +95,7 @@ export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
     const chat = ask.identity.chat;
     // Both reads at once: the tail from page memory, the PPV state from the host's API (the slower of the two).
     const tail = host.readVisibleTail(ask.identity, ask.fresh.maxItems).catch(() => null);
-    const livePpv = ask.livePpv === true && chat !== null ? readLivePpv(host, chat) : Promise.resolve(null);
+    const livePpv = ask.livePpv === true && chat !== null && LIVE_PPV_FEATURES.has(ask.feature) ? readLivePpv(host, chat) : Promise.resolve(null);
     return Promise.all([tail, livePpv]).then(([read, state]) => ({ tail: read, livePpv: state }));
   },
   fields: (proof) => ({ fresh: proof?.tail ?? null, ...(proof?.livePpv ? { livePpv: proof.livePpv } : {}) }),

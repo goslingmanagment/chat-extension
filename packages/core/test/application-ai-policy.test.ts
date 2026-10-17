@@ -164,6 +164,10 @@ describe('[X54] ChatSpace’s PPV state of the open chat (OnlyMonster’s API)',
       const slow = CHATSPACE_AI.proof(host, ask);
       await vi.advanceTimersByTimeAsync(LIVE_PPV_LIMITS.waitMs);
       expect(await slow).toEqual({ tail: TAIL, livePpv: null });
+      // A start the state does not belong to, even one that carries fresh text (Review, Coach): the API is not asked.
+      const before = asked.length;
+      for (const feature of ['review', 'coach', 'recap'] as const) expect(await CHATSPACE_AI.proof(host, { ...ask, feature })).toEqual({ tail: TAIL, livePpv: null });
+      expect(asked).toHaveLength(before);
       // A host without the API (Fansly's port has none): no state, nothing asked.
       const bare = { readVisibleTail: () => Promise.resolve(TAIL) } as unknown as Parameters<typeof CHATSPACE_AI.proof>[0];
       expect(await readLivePpv(bare, identity.chat)).toBeNull();
