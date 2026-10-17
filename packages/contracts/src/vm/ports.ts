@@ -48,11 +48,26 @@ export function resultCap(geometry: Pick<SurfaceGeometry, 'feedHeight' | 'viewpo
 }
 export type GeometrySignal = ValueSignal<SurfaceGeometry>;
 
+/**
+ * 1.17.0. Where the page's focus is now, as the early key dispatcher names it (architecture.md §9.1): `none` — no
+ * element has it (the page's body); `page` — an element of the site that takes no typing (a button, a row of its
+ * list); `composer` — the open chat's message field; `field` — another field of the site; `ours` and `ours-field` —
+ * inside one of our closed roots, outside or inside a field of ours. The host side knows which field is the
+ * composer; the UI never looks into the site's DOM for it. Types only.
+ */
+export type FocusPlace = 'none' | 'page' | 'composer' | 'field' | 'ours' | 'ours-field';
+
 /** The element that had focus before a dialog opened stays on the host side; the UI only asks to go back (§10.1). */
 export interface FocusReturn {
   readonly token: string | null;
   /** True when focus went back to where it was. */
   restore(): boolean;
+  /**
+   * 1.17.0. Where the focus is right now (`FocusPlace`): the dock hands the focus to the next part of an answer only
+   * while the person is not typing elsewhere (ui-design §6.3, decision X44). Absent — unknown (an extension page, a
+   * test): the UI then moves no focus by itself.
+   */
+  where?(): FocusPlace;
 }
 
 /** Metrics the UI marks; the start mark comes from the controller, the end is the UI's paint. */

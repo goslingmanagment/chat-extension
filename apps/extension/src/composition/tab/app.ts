@@ -505,6 +505,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
         target.focus();
         return doc.activeElement === target;
       },
+      // Where the focus is now, by the site's own probe: the dock moves it to the next part only from the composer,
+      // the page's body or the dock itself (decision X44).
+      where: () => keys.focusPlace(),
     },
     marks: {
       // Telemetry `shown` only for a result that was really visible (§9.6).

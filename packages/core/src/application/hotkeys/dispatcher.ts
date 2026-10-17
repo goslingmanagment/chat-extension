@@ -82,6 +82,8 @@ export interface KeyOwnership {
    * past it; true when our UI took it (called preventDefault).
    */
   deliver(event: unknown): boolean;
+  /** The focus is inside the dock's own root (decision X44: J, K and `]` do nothing there). Absent — never. */
+  focusInDock?(): boolean;
 }
 
 /** What the tab knows right now; every getter is synchronous and cheap. */
@@ -330,6 +332,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     overlays: state.overlays().filter((overlay) => overlay !== 'quick-jump'),
     dockSheet: state.dockSheet(),
     combo: isComboLike(event),
+    inDock: ownership.focusInDock?.() ?? false,
   });
 
   /** ⌘/Ctrl went down alone, outside any field, with the chat list on screen: the quick jump may open. */

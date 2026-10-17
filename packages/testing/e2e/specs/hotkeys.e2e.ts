@@ -233,8 +233,18 @@ describe('R17 — the early key dispatcher on the stand', () => {
       await open(chatPath(ACC, a1));
     });
 
-    it('[HK-037] [HK-039] [HK-034] J, K, ] and ? on our card are chat navigation, the fan panel and the cheatsheet; typed into a field they are text', async () => {
+    it('[HK-037] [HK-039] [HK-034] J, K, ] and ? on a card of ours outside the dock are chat navigation, the fan panel and the cheatsheet; on the dock\'s card J, K and ] do nothing (X44); typed into a field they are text', async () => {
+      // The dock's card — a part that may have taken the focus by itself: a stray letter opens no other fan's chat.
       await focusOurs('dock-card');
+      await browser.keys(['j']);
+      await browser.keys(['k']);
+      await browser.keys([']']);
+      expect((await inputLog()).ran).toEqual([]);
+      expect((await inputLog()).ui.filter((entry) => !MODIFIER.test(entry))).toEqual(['dock-card:j:delivered', 'dock-card:k:delivered', 'dock-card:]:delivered']);
+      await input('clear');
+      // A card of a side panel of ours (the fan panel stands open beside the chat): there they run as before.
+      await input('overlay', 'fan-panel', true);
+      await focusOurs('overlay-card');
       await browser.keys(['j']);
       await browser.keys(['k']);
       await browser.keys([']']);
@@ -520,7 +530,11 @@ describe('R17 — the early key dispatcher on the stand', () => {
         // Focus on our own card: outside any field, in an open chat — every row of the table is in its own context.
         for (const item of combos(scheme)) {
           for (const overlay of ['palette', 'cheatsheet', 'spenders', 'fan-panel', 'quick-jump']) await input('overlay', overlay, false);
-          await focusOurs('dock-card');
+          // J, K and ] do nothing on a part of the dock (X44): the plain letters are judged on a card of ours outside it.
+          const plain = item.keys.length === 1 && item.id !== 'close';
+          // A side panel covers nothing: on its card the plain letters are in the same context as on the dock's before X44.
+          if (plain) await input('overlay', 'fan-panel', true);
+          await focusOurs(plain ? 'overlay-card' : 'dock-card');
           await input('clear');
           const before = (await browser.getWindowHandles()).length;
           await browser.keys(item.keys);

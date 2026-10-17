@@ -462,6 +462,26 @@ describe('whose key is it', () => {
     }
   });
 
+  it('[HK-037] [HK-039] [UI-023] J, K and ] on a part or a button of the dock do nothing — kept from the site, handed to the dock (X44); elsewhere in ours they still run', () => {
+    for (const id of ['chat-next', 'chat-previous', 'fan-panel'] as const) {
+      for (const dockSheet of [false, true]) expect([id, decideKey(cmd(id, { plain: true }), ctx({ focus: 'ours', inDock: true, dockSheet, combo: false }))]).toEqual([id, { act: 'isolate', otherwise: null }]);
+      // Held down: still nothing.
+      expect(decideKey(cmd(id, { plain: true, repeat: true }), ctx({ focus: 'ours', inDock: true, combo: false }))).toEqual({ act: 'isolate', otherwise: null });
+      // Next to the open fan panel too: another fan's chat is never one stray letter away from the dock.
+      expect(decideKey(cmd(id, { plain: true }), ctx({ focus: 'ours', inDock: true, overlays: ['fan-panel'], combo: false }))).toEqual({ act: 'isolate', otherwise: null });
+      // On the page, or on a control of ours outside the dock (a side panel), they run as before.
+      expect(ran(decideKey(cmd(id, { plain: true }), ctx({ focus: 'page', combo: false })))).not.toBeNull();
+      expect(ran(decideKey(cmd(id, { plain: true }), ctx({ focus: 'ours', inDock: false, combo: false })))).not.toBeNull();
+      // Typed into a field — the composer, a field of ours in the dock — they are letters.
+      for (const focus of ['composer', 'ours-field'] as const) expect(decideKey(cmd(id, { plain: true }), ctx({ focus, inDock: true, combo: false }))).toEqual({ act: 'pass' });
+    }
+    // `?` is the cheatsheet from the dock as from anywhere: it opens a reference, it moves to no chat.
+    expect(ran(decideKey(cmd('cheatsheet', { plain: true }), ctx({ focus: 'ours', inDock: true, combo: false })))).toBe('cheatsheet@global');
+    // Combinations from the dock still run: ⌘U, ⌘1–9 are a deliberate chord, not a letter typed by mistake.
+    expect(ran(decideKey(cmd('next-unread'), ctx({ focus: 'ours', inDock: true })))).toBe('next-unread@global');
+    expect(ran(decideKey(cmd('reply'), ctx({ focus: 'ours', inDock: true })))).toBe('reply@dock');
+  });
+
   it('[HK-039] ] toggles the fan panel only in an open chat', () => {
     expect(ran(decideKey(cmd('fan-panel'), ctx()))).toBe('fan-panel@dock');
     expect(decideKey(cmd('fan-panel'), ctx({ route: 'account' }))).toEqual({ act: 'pass' });

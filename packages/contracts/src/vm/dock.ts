@@ -6,7 +6,7 @@
 import { type CgErrorView } from '../errors';
 import { type FeatureId, type Tone } from '../features';
 import { type UiResultStyle } from '../settings';
-import { type IsoTimestamp } from '../primitives';
+import { type IsoTimestamp, type Uuid } from '../primitives';
 // `import type` (as below for `Msg`): the chips' types add no run-time edge to this module — it is in the early isolated bundle's graph.
 import type { UiAction } from './actions';
 import { type ReasonVM, type HotkeyLabel } from './catalog';
@@ -145,6 +145,16 @@ export interface DockVM {
   readonly chips?: readonly ChipVM[];
   /** The draft result sheet (Reply, Fix, Hi, Ping); null — collapsed strip. */
   readonly result: ResultVM | null;
+  /**
+   * 1.17.0 (decision X44; ui-design §6.3). The part of `result` the dock may hand the focus to now, so the person's
+   * own Enter on it inserts it (UI-023) — the old extension's ⌘E → Enter → Enter. Set only for a finished answer of
+   * the dock's own (Reply, Ping, a Hi of one variant; never Fix, three Hi variants or a board's result) in `insert`
+   * mode, with no Б2 question open, while the composer of the open chat is ready and EMPTY (and was when the answer
+   * was first seen finished); after a part was inserted — only once the composer has held that part unchanged and is
+   * empty again (the person sent it); a part they changed, or their own text, offers nothing more. The UI moves the focus at most once per part and only from the composer, the page's body
+   * or the dock itself (`FocusReturn.where`). Absent or null — nothing to focus; nothing is ever inserted by itself.
+   */
+  readonly focusPart?: { readonly opId: Uuid; readonly part: number } | null;
   /** Recap or Review open in the sheet; their content is the `recap.*` / `review` views (ui-design §9.1 п. 3). */
   readonly analysis: 'recap' | 'review' | null;
   /** A refused start in place of a result (CG-OP-TAB-LIMIT with «Идут сейчас», CG-OP-CHAT-BUSY). */

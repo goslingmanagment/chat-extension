@@ -6,9 +6,10 @@
 // - in ChatSpace's message field our keys are ours before its editor sees
 //   them: ⌘E / ⌘I start Reply and Fix, TipTap toggles neither inline code nor
 //   italic; a key that is not ours (⌘B) is untouched;
-// - with the focus on a part of ours J/K walk ChatSpace's chat list through
-//   its own router, `]` opens the fan panel, `?` the cheatsheet; typed into
-//   ChatSpace's field the same letters are text;
+// - with the focus off the dock J/K walk ChatSpace's chat list through its
+//   own router, `]` opens the fan panel, `?` the cheatsheet; on a part of the
+//   dock J, K and `]` do nothing (X44); typed into ChatSpace's field the same
+//   letters are text;
 // - Esc closes OUR windows one by one and the chat tab stays; with nothing of
 //   ours open Esc is ChatSpace's own again;
 // - under the Spenders window J/K and the arrows move its rows, Space opens
@@ -16,6 +17,9 @@
 //   reason; what is typed into its search field — two layouts, `]`, `?` — is
 //   text and starts nothing;
 // - Enter on a part of ours is «Вставить»: ChatSpace sends nothing;
+// - ⌘E → Enter → Enter → Enter → Enter (X44): over the empty field the
+//   finished Reply and each send of our part hand the focus to the next part;
+//   a person typing in the field keeps it there;
 // - ⌘/Ctrl held alone opens «Быстрый переход» only where the owner's
 //   `navigation` is on for the page: with it off the hold opens nothing and
 //   says nothing, ⌘1–9 and J are refused aloud, and no chat is opened;
@@ -27,7 +31,7 @@ import { Key } from 'webdriverio';
 
 import { pilotPageFlags } from '../../src/fake-hub/config';
 import { callsTo } from '../../src/fake-hub/journal';
-import { composerText, historyLoads, MOD, pageJournal, pageJournalMark, PANEL, sendsOf, serverSince, typeDraft, waitForComposerText } from '../support/chat';
+import { clearDraft, composerText, historyLoads, MOD, pageJournal, pageJournalMark, PANEL, sendsOf, serverSince, typeDraft, waitForComposerText } from '../support/chat';
 import { pageRpc } from '../support/extension';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
@@ -153,13 +157,22 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       expect(await pageEvents(page, 'queue-added')).toBe(0);
     });
 
-    it('[HK-037] J and K with the focus on a part of ours walk ChatSpace’s chat list through its own router; typed into ChatSpace’s field they are text', async () => {
+    it('[HK-037] J and K walk ChatSpace’s chat list through its own router — from the page, never from a part of the dock (X44); typed into ChatSpace’s field they are text', async () => {
       const standMark = await standServer.mark();
       const list = await chatList();
       expect(list.length).toBeGreaterThanOrEqual(3);
       // The open chat is far down ChatSpace's list (not on its first page): «next» from it is the list's first chat.
       expect(list.slice(0, 2)).not.toContain(a1);
+      // On a part of the dock — where a finished Reply may have put the focus by itself — J, K and ] do nothing:
+      // no other fan's chat is opened (on OnlyFans that marks it read), no panel.
       await focusPart(1);
+      await browser.keys(['j', 'k', ']']);
+      await browser.pause(400);
+      expect(await route()).toBe(a1);
+      expect(await overlays()).toEqual([]);
+      expect(historyLoads(await serverSince(standMark))).toEqual([]);
+      // Off the dock (the chat's header): they are the chat list's keys.
+      await $('[data-stand-conversation-header]').click();
       await browser.keys(['j']);
       await browser.waitUntil(async () => (await route()) === list[0], { timeout: 5000, timeoutMsg: `J did not open the first chat of the list (${String(list[0])}); the route is ${String(await route())}` });
       await waitForChatReady(ACC, list[0] ?? '');
@@ -183,7 +196,8 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       await callStand('openChat', ACC, a1);
       await dockIs((d) => d.target?.endsWith(`:${a1}`) === true && d.result !== null, 'back in the first chat, with its result');
       const page = await pageJournalMark();
-      await focusPart(1);
+      // Off the dock: on a part of it `]` does nothing (X44).
+      await $('[data-stand-conversation-header]').click();
       await browser.keys([']']);
       await waitOverlays(['fan-panel'], '`]` opens the fan panel');
       await waitOursText('panel', 'Fan Alder', 'the fan panel of the open chat');
@@ -264,6 +278,73 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       // Three Esc presses inside our window, and ChatSpace's chat tab is still there.
       expect(await route()).toBe(a2);
       expect(await pageEvents(page, 'chat-tab-closed')).toBe(0);
+    });
+  });
+
+  describe('⌘E → Enter → Enter → Enter → Enter: the next part takes the focus (decision X44)', () => {
+    const { a4 } = STAND_IDS.fans;
+    /** The focus is in ChatSpace's message field of the open chat. */
+    const inComposer = (): Promise<boolean> => browser.execute(() => (document.activeElement?.closest('.composer-frame') ?? null) !== null);
+    const waitPartFocus = async (label: string, message: string): Promise<void> => {
+      await browser.waitUntil(async () => (await oursFocus('dock'))?.label === label, { timeout: 10_000, timeoutMsg: `${message}: the focus is on ${JSON.stringify(await oursFocus('dock'))}` });
+    };
+
+    before(async () => {
+      await callStand('openChat', ACC, a4);
+      await waitForChatReady(ACC, a4);
+      await dockIs((d) => d.status === 'ready' && d.target?.endsWith(`:${a4}`) === true, 'the dock of a chat with an empty field');
+    });
+
+    it('[UI-023] [UI-019] over the empty field the finished Reply hands the focus to part 1; Enter inserts it, Enter in the field sends it, part 2 takes the focus, Enter, Enter — two sends, both ChatSpace’s own', async () => {
+      const standMark = await standServer.mark();
+      const page = await pageJournalMark();
+      await typeDraft('');
+      expect(await inComposer()).toBe(true);
+      await browser.keys([MOD, 'e']);
+      await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.result.parts === 2 && d.target?.endsWith(`:${a4}`) === true, 'a Reply with two parts', 20_000);
+      await waitPartFocus('Часть 1', 'the finished Reply did not hand the focus to its first part');
+      // The focus alone wrote nothing.
+      expect(await composerText(ACC, a4)).toBe('');
+      await browser.keys(Key.Enter);
+      await waitForComposerText(ACC, a4, reply(a4)[0], 'Enter on the focused part inserts it');
+      // UI-019: the insert put the focus into the field — and not yet on the next part.
+      await browser.waitUntil(inComposer, { timeout: 5000, timeoutMsg: 'the insert did not put the focus into ChatSpace’s field' });
+      expect(await oursFocus('dock')).toBeNull();
+      await browser.keys(Key.Enter);
+      await waitForComposerText(ACC, a4, '', 'Enter in ChatSpace’s field sends the part');
+      await waitPartFocus('Часть 2', 'the send did not hand the focus to the second part');
+      await browser.keys(Key.Enter);
+      await waitForComposerText(ACC, a4, reply(a4)[1], 'Enter on the second part inserts it');
+      await browser.waitUntil(inComposer, { timeout: 5000, timeoutMsg: 'the second insert did not put the focus into ChatSpace’s field' });
+      await browser.keys(Key.Enter);
+      await waitForComposerText(ACC, a4, '', 'Enter in ChatSpace’s field sends the second part');
+      await browser.waitUntil(async () => sendsOf(await serverSince(standMark), a4).length === 2, { timeout: 10_000, timeoutMsg: 'ChatSpace did not send both parts' });
+      // Every send was ChatSpace's own, from its field and through its own queue — the person's two Enter presses there.
+      expect(sendsOf(await serverSince(standMark), a4).map((entry) => [entry.origin, entry.detail?.['plain']])).toEqual(reply(a4).map((text) => ['native', text]));
+      expect(await pageEvents(page, 'queue-added')).toBe(2);
+      // Nothing is left to hand the focus to: it stays in the field.
+      await browser.pause(400);
+      expect(await inComposer()).toBe(true);
+    });
+
+    it('[UI-023] a person typing in the field keeps the focus there: the Reply finished over their words takes nothing, nor does the field they empty', async () => {
+      const { a5 } = STAND_IDS.fans;
+      await callStand('openChat', ACC, a5);
+      await waitForChatReady(ACC, a5);
+      await dockIs((d) => d.status === 'ready' && d.target?.endsWith(`:${a5}`) === true, 'the dock of another chat');
+      await typeDraft('my own line');
+      await browser.keys([MOD, 'e']);
+      await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.target?.endsWith(`:${a5}`) === true, 'a Reply over the person’s words', 20_000);
+      await browser.pause(400);
+      expect(await oursFocus('dock')).toBeNull();
+      expect(await inComposer()).toBe(true);
+      await browser.keys(' x'.split(''));
+      await waitForComposerText(ACC, a5, 'my own line x', 'what is typed goes on into the field');
+      await clearDraft();
+      await waitForComposerText(ACC, a5, '', 'the person empties the field');
+      await browser.pause(400);
+      expect(await oursFocus('dock')).toBeNull();
+      expect(await inComposer()).toBe(true);
     });
   });
 

@@ -10,7 +10,8 @@
 //   neighbour's listeners hear them; `?` typed there is text, a key that is
 //   not ours is Fansly's; Enter in the field is Fansly's own — it sends;
 //   Enter on a part of ours inserts it into the field, and Fansly sends
-//   nothing (HK-028, HK-026, UI-023);
+//   nothing (HK-028, HK-026, UI-023); a Reply finished over the empty field
+//   and the send of our part hand the focus to the next part (X44);
 // - ⌘⇧L / Ctrl+Alt+L is our Split, a switch with its toast; on a Mac it is
 //   also FBuddy's translate on the field — ours wins (X37); FBuddy's Ctrl+Shift+L
 //   elsewhere stays its own (HK-011);
@@ -153,6 +154,11 @@ describe('Fansly wired for release: its keys, our dock next to the neighbour, an
     // The field is the person's as it was; neither Fansly nor the neighbour saw the letter.
     expect(await fieldValue()).toBe('');
     expect(await heard()).toEqual([]);
+    // X44: the Reply finished over the empty field hands the focus to its first part (the person's Enter would insert
+    // it); the person goes back into the field — a click, no key — for what follows.
+    await browser.waitUntil(async () => (await oursFocus('dock'))?.label === 'Часть 1', { timeout: 5000, timeoutMsg: `the finished Reply did not hand the focus to its first part: ${JSON.stringify(await oursFocus('dock'))}` });
+    await $(FANSLY_MAIN.field).click();
+    expect(await browser.execute((selector: string) => document.activeElement === document.querySelector(selector), FANSLY_MAIN.field)).toBe(true);
     // A key of ours that has nothing to run is still ours in a chat: Help, removed, says so.
     await browser.keys([...PANEL, 'h']);
     await waitOursText('toast', 'Help пока убран', 'Help’s key says it is gone');
@@ -185,7 +191,7 @@ describe('Fansly wired for release: its keys, our dock next to the neighbour, an
     await intoField();
   });
 
-  it('[UI-023] Enter on a part of ours is «Вставить»: the part goes into Fansly’s field and Fansly sends nothing; Enter in Fansly’s field is Fansly’s own — it sends', async () => {
+  it('[UI-023] Enter on a part of ours is «Вставить»: the part goes into Fansly’s field and Fansly sends nothing; Enter in Fansly’s field is Fansly’s own — it sends; then the next part takes the focus (X44)', async () => {
     const mark = await pageMark();
     const focused = await readOurs('dock', '[data-cg-part="0"]', (node) => {
       node.focus();
@@ -205,6 +211,12 @@ describe('Fansly wired for release: its keys, our dock next to the neighbour, an
     await browser.keys(Key.Enter);
     await browser.waitUntil(async () => (await sendsSince(mark)) === 1, { timeout: 5000, timeoutMsg: 'Enter in Fansly’s field did not send' });
     expect(inserted.trim().length).toBeGreaterThan(0);
+    // X44: the part is sent and the field is empty — the next part takes the focus, so the person's next Enter inserts
+    // it (⌘E → Enter → Enter → Enter → Enter, as in the old extension). The focus alone writes nothing.
+    await browser.waitUntil(async () => (await oursFocus('dock'))?.label === 'Часть 2', { timeout: 5000, timeoutMsg: `the send did not hand the focus to the next part: ${JSON.stringify(await oursFocus('dock'))}` });
+    expect(await fieldValue()).toBe('');
+    await browser.pause(400);
+    expect(await sendsSince(mark)).toBe(1);
   });
 
   it(`[HK-011] ${MAC ? '⌘⇧L' : 'Ctrl+Alt+L'} in Fansly’s field is our Split — a switch with its toast, the draft untouched${MAC ? '' : '; FBuddy’s own Ctrl+Shift+L is not ours and still translates'}`, async () => {

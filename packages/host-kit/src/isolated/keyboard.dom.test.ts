@@ -122,6 +122,30 @@ describe('where the focus is', () => {
   });
 });
 
+describe('the focus inside the dock (decision X44)', () => {
+  it('[UI-023] [HK-037] a card or a button of the dock is «in the dock»; an overlay of ours, the site\'s field and nothing at all are not', () => {
+    expect(probe.focusInDock()).toBe(false);
+    inOurRoot('div').focus();
+    expect(probe.focusInDock()).toBe(true);
+    document.querySelector<HTMLElement>('.site-field')?.focus();
+    expect(probe.focusInDock()).toBe(false);
+    const panel = mountClosedHost(document.body, 'overlay', 'last', registry);
+    const card = document.createElement('div');
+    card.tabIndex = 0;
+    panel.root.append(card);
+    card.focus();
+    expect(probe.focusInDock()).toBe(false);
+    panel.remove();
+    // A page element that only looks like our host is not ours.
+    const fake = document.createElement('div');
+    fake.setAttribute('data-host', 'dock');
+    fake.tabIndex = 0;
+    document.body.append(fake);
+    fake.focus();
+    expect(probe.focusInDock()).toBe(false);
+  });
+});
+
 describe('a window of the site itself', () => {
   it('[HK-029] is the site\'s own answer, asked at every key: the probe adds nothing to it, and a window of ours changes nothing', () => {
     expect(probe.nativeModalOpen()).toBe(false);

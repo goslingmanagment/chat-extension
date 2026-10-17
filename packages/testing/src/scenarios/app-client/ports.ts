@@ -13,6 +13,7 @@ import {
   type ConfirmDialogRequest,
   type DialogPort,
   type DurationStyle,
+  type FocusPlace,
   type FocusReturn,
   type I18n,
   type I18nKey,
@@ -257,7 +258,21 @@ export function createFakeCatalog(ctx: ScenarioCtx): ActionCatalog {
   };
 }
 
+/** The host side's focus port: `restore` always succeeds; `where` answers what the test put in `place` (1.16.0). */
+export class FakeFocus implements FocusReturn {
+  readonly token = 'focus-1';
+  /** Where the page's focus is, as the host side would say: the composer unless a test says otherwise. */
+  place: FocusPlace = 'composer';
+  restore(): boolean {
+    return true;
+  }
+  where(): FocusPlace {
+    return this.place;
+  }
+}
+
 export interface FakeMountDeps extends MountDeps {
+  readonly focus: FakeFocus;
   readonly i18n: FakeI18n;
   readonly toasts: FakeToasts;
   readonly clipboard: FakeClipboard;
@@ -269,7 +284,7 @@ export interface FakeMountDeps extends MountDeps {
 
 /** Everything `mountSurface` needs, around a FakeAppClient. */
 export function createFakeMountDeps(client: FakeAppClient, ctx: ScenarioCtx): FakeMountDeps {
-  const focus: FocusReturn = { token: 'focus-1', restore: () => true };
+  const focus = new FakeFocus();
   return {
     client,
     i18n: createFakeI18n(client.scenario.language, () => client.now()),

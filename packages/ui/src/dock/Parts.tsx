@@ -7,6 +7,11 @@
 // the part being inserted, with focus on «Отмена» (X18): a stray Enter or
 // Space changes nothing in the field. Fix and the drafts of a Coach turn ask
 // it the same way (ConfirmRow, useConfirmFocus).
+// The dock may offer the next part the focus (`DockVM.focusPart`, decision
+// X44): the part takes it once, and only while the person is not typing
+// elsewhere — the focus is in the composer, on the page's body or in this
+// dock. Then the person's own Enter inserts it; nothing is inserted here by
+// itself.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useLayoutEffect, useRef } from 'preact/hooks';
@@ -204,11 +209,39 @@ function Rows({ parts, stop, mode, confirm, actions }: RowsProps): JSX.Element {
 
 const tabStop = (parts: readonly PartVM[]): PartVM | null => parts.find((part) => part.next) ?? parts[0] ?? null;
 
-/** The parts of Reply, Fix, Ping or a one-variant Hi. */
-export function Parts({ parts, ...scope }: PartsScope & { readonly parts: readonly PartVM[] }): JSX.Element {
+/** The parts each root of ours has offered the focus to already (`opId:index`), whatever was mounted between. */
+const GIVEN = new WeakMap<object, Set<string>>();
+/** A long shift's tab remembers this many; the oldest go first. */
+const GIVEN_KEPT = 64;
+
+/**
+ * The part the dock offers takes the focus (decision X44; ui-design §6.3): once per part of an operation — a person
+ * who moved the focus away keeps it there, also when the result is hidden and opened again — and only from the
+ * composer, the page's body or this dock (`FocusReturn.where`; a host side that cannot say moves nothing).
+ */
+function useOfferedFocus(list: { readonly current: HTMLElement | null }, opId: string, part: number | null): void {
+  const { deps, root } = useKit();
+  useLayoutEffect(() => {
+    if (part === null) return;
+    const key = `${opId}:${part}`;
+    const given = GIVEN.get(root) ?? new Set<string>();
+    GIVEN.set(root, given);
+    if (given.has(key)) return;
+    given.add(key);
+    if (given.size > GIVEN_KEPT) given.delete(given.values().next().value as string);
+    const where = deps.focus.where?.();
+    const idle = where === 'composer' || where === 'none' || (where === 'ours' && activeIn(root) !== null);
+    if (idle) focusQuietly(list.current?.querySelector<HTMLElement>(`.cg-part[data-cg-part="${part}"]`));
+  }, [opId, part]);
+}
+
+/** The parts of Reply, Fix, Ping or a one-variant Hi; `focus` — the part the dock offers the focus to (X44). */
+export function Parts({ parts, focus = null, ...scope }: PartsScope & { readonly parts: readonly PartVM[]; readonly focus?: number | null }): JSX.Element {
   const actions = usePartActions(scope.opId);
+  const list = useRef<HTMLDivElement>(null);
+  useOfferedFocus(list, scope.opId, focus);
   return (
-    <div class="cg-parts" data-cg-parts="">
+    <div ref={list} class="cg-parts" data-cg-parts="">
       <Rows parts={parts} stop={tabStop(parts)} actions={actions} {...scope} />
     </div>
   );

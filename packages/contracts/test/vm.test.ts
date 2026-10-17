@@ -10,8 +10,10 @@ import {
   BOARDS_I18N_KEYS,
   CLAIM_RENEW_SAMPLES,
   COACH_TURN_VM_SAMPLES,
+  DOCK_FOCUS_PART_SAMPLES,
   DOCK_NOTICE_SAMPLES,
   FAN_PANEL_BIO_SAMPLES,
+  FOCUS_PLACE_SAMPLES,
   MONEY_CENTS_SAMPLES,
   NEWCOMERS_INCOMPLETE_SAMPLES,
   OPTIONS_FOOTER_SAMPLES,
@@ -455,6 +457,23 @@ describe('«Результат неполный» in «Новые» (1.2.0, the 
     // The view model never repeats the title the window already prints.
     expect(NEWCOMERS_INCOMPLETE_SAMPLES.valid.map((msg) => msg.key)).not.toContain('newcomers.incomplete');
     expect(NEWCOMERS_INCOMPLETE_SAMPLES.invalid).toHaveLength(2);
+  });
+});
+
+describe('the focus handed to the next part (1.17.0, decision X44)', () => {
+  it('[UI-023] the dock may name the part it hands the focus to — by operation and index — and the host side says where the focus is', () => {
+    expectTypeOf<C.DockVM['focusPart']>().toEqualTypeOf<{ readonly opId: C.Uuid; readonly part: number } | null | undefined>();
+    const [absent, none, first, second] = DOCK_FOCUS_PART_SAMPLES.valid;
+    expect(absent).toBeUndefined();
+    expect(none).toBeNull();
+    expect([first?.part, second?.part]).toEqual([0, 1]);
+    expect(DOCK_FOCUS_PART_SAMPLES.invalid).toHaveLength(3);
+    // Optional on the port: an extension page or a test that does not say where the focus is moves nothing.
+    expectTypeOf<C.FocusReturn['where']>().toEqualTypeOf<(() => C.FocusPlace) | undefined>();
+    expect(new Set(FOCUS_PLACE_SAMPLES.valid).size).toBe(6);
+    expect(FOCUS_PLACE_SAMPLES.invalid).toHaveLength(2);
+    // Nothing that inserts: the person's own Enter on the focused part is the insert (no new action type).
+    expect(C.UI_ACTION_TYPES).not.toContain('InsertNextPart');
   });
 });
 

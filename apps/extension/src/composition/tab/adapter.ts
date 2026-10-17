@@ -34,7 +34,7 @@ import type { HostKind } from '@cg/contracts/hosts';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendFuseState } from '@cg/contracts/send';
-import type { FanPanelVM, I18n, HostUiProfile, MountDeps } from '@cg/contracts/vm';
+import type { FanPanelVM, FocusPlace, I18n, HostUiProfile, MountDeps } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
 import type { DispatcherCommandId, HotkeyClient, RouteKind } from '@cg/core/domain/hotkeys';
 import type { TabPayloadValidator, TabRpcClient } from '@cg/platform';
@@ -158,8 +158,11 @@ export interface HostAdapter<P extends HostPort = HostPort> {
   readonly kind: HostKind;
   /** Brings the site's host up: the mount layers and the theme at once, the bridge to MAIN and the HostPort behind them. */
   start(env: HostStartEnv): StartedHost<P>;
-  /** Whose field has the focus and whether a window of the site itself is open: the early key dispatcher's port (§9.1). */
-  keyProbe(doc: Document, roots: ShadowRegistry): KeyOwnership;
+  /**
+   * Whose field has the focus and whether a window of the site itself is open: the early key dispatcher's port (§9.1).
+   * `now` — where the focus is with no key in hand, for the dock's hand-over to the next part (decision X44).
+   */
+  keyProbe(doc: Document, roots: ShadowRegistry): KeyOwnership & { now(): FocusPlace };
   /** Marks the dock host while a key of ours waits for the lazy part (HK-024): the one sign of it that early. */
   keyPending(dock: Element): (waiting: boolean) => void;
   /** The route by the address, for a key pressed before the host reported one. */

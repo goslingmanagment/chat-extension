@@ -114,7 +114,7 @@ describe('size budgets of the sites’ scripts (host registry)', () => {
     expect(lines.slice(0, 3).map((line) => [line.label, line.files, line.limitBytes])).toEqual([
       ['MAIN bridge: boot + runtime (chatspace-main)', ['content-scripts/chatspace-main.js'], 10 * 1024],
       ['MAIN WS tap (chatspace-ws)', ['chatspace-ws.js'], 6 * 1024],
-      ['isolated early bootstrap (chatspace)', ['content-scripts/chatspace.js'], 30 * 1024],
+      ['isolated early bootstrap (chatspace)', ['content-scripts/chatspace.js'], 32 * 1024],
     ]);
   });
 

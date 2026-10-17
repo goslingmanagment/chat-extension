@@ -36,6 +36,8 @@ export interface ResultContentProps {
   readonly onFirstPaint?: () => void;
   /** The «Развернуть ↗» window: the dock sheet already says the stages and the readiness of this operation. */
   readonly quiet?: boolean;
+  /** The part the dock offers the focus to (`DockVM.focusPart`, decision X44); the dock sheet only. */
+  readonly focusPart?: number | null;
 }
 
 /**
@@ -159,7 +161,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
         ) : result.variants !== null ? (
           <Variants variants={result.variants} {...scope} />
         ) : (
-          <Parts parts={result.parts ?? []} {...scope} />
+          <Parts parts={result.parts ?? []} focus={props.focusPart ?? null} {...scope} />
         )}
       </div>
       {props.keysFooter && fix === null ? (

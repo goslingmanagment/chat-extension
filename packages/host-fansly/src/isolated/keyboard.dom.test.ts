@@ -98,6 +98,22 @@ describe('[host:fansly] where the focus is (FS-HK-1)', () => {
   });
 });
 
+describe('[host:fansly] where the focus is now, with no key in hand (decision X44)', () => {
+  it('[UI-023] the dock asks before it hands the focus to the next part: none, the conversation’s field, the mini-chat’s, ours', () => {
+    expect(probe.now()).toBe('none');
+    page.textarea()?.focus();
+    expect(probe.now()).toBe('composer');
+    page.miniChat(true);
+    document.querySelector<HTMLTextAreaElement>('app-messaging-overlay textarea.message-input')?.focus();
+    expect(probe.now()).toBe('field');
+    const card = document.createElement('div');
+    card.tabIndex = 0;
+    ours.root.append(card);
+    card.focus();
+    expect(probe.now()).toBe('ours');
+  });
+});
+
 describe('[host:fansly] a window that is not ours (FS-HK-1)', () => {
   it('[HK-029] a modal of Fansly: `body.modal-opened` while any stands — read in O(1), and gone with it', () => {
     expect(probe.nativeModalOpen()).toBe(false);

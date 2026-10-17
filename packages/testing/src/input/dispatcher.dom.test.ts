@@ -287,23 +287,37 @@ describe('inside our closed roots', () => {
     expect([inserted, native]).toEqual([2, ['document:Enter']]);
   });
 
-  it('[HK-037] [HK-039] [HK-034] J, K, ] and ? typed into our field are text; on our card in the dock they are navigation, the panel and the cheatsheet', () => {
+  it('[HK-037] [HK-039] [HK-034] J, K, ] and ? typed into our field are text; on a card of the dock J, K and ] do nothing (X44) and ? is the cheatsheet; on a card of a side panel they are navigation and the panel', () => {
     const field = document.createElement('input');
     dock.root.append(field);
     field.focus();
     const typed = [press(field, { key: 'j', code: 'KeyJ' }), press(field, { key: 'k', code: 'KeyK' }), press(field, { key: ']', code: 'BracketRight' }), press(field, { key: '?', code: 'Slash', shiftKey: true })];
     for (const event of typed) expect([event.key, event.defaultPrevented]).toEqual([event.key, false]);
     expect(ran).toEqual([]);
-    const card = ourCard(dock.root, () => undefined);
+    // A part of the dock — one that took the focus by itself after a Reply (X44): a stray letter opens no other chat.
+    const heard: string[] = [];
+    const card = ourCard(dock.root, (event) => heard.push(event.key));
     card.focus();
+    native.length = 0;
     press(card, { key: 'j', code: 'KeyJ' });
     press(card, { key: 'k', code: 'KeyK' });
     press(card, { key: ']', code: 'BracketRight' });
-    press(card, { key: '?', code: 'Slash', shiftKey: true });
-    expect(ran).toEqual(['chat-next@global', 'chat-previous@global', 'fan-panel@dock', 'cheatsheet@global']);
-    // Russian layout: the same physical keys.
     press(card, { key: 'о', code: 'KeyJ' });
-    expect(ran[4]).toBe('chat-next@global');
+    expect(ran).toEqual([]);
+    // Kept from the page: no listener of ChatSpace saw them; the dock's own card got them and did nothing.
+    expect(native).toEqual([]);
+    expect(heard).toEqual(['j', 'k', ']', 'о']);
+    press(card, { key: '?', code: 'Slash', shiftKey: true });
+    expect(ran).toEqual(['cheatsheet@global']);
+    // A card of a side panel of ours (the fan panel, Coach): there they are the chat navigation and the panel, as before.
+    const side = ourCard(mounts.overlay('panel').root, () => undefined);
+    side.focus();
+    press(side, { key: 'j', code: 'KeyJ' });
+    press(side, { key: 'k', code: 'KeyK' });
+    press(side, { key: ']', code: 'BracketRight' });
+    // Russian layout: the same physical keys.
+    press(side, { key: 'о', code: 'KeyJ' });
+    expect(ran).toEqual(['cheatsheet@global', 'chat-next@global', 'chat-previous@global', 'fan-panel@dock', 'chat-next@global']);
   });
 
   it('[SP-033] in a board of ours J/K and the arrows are the board\'s rows; the translator and ChatSpace\'s Esc do not fire under it', () => {
