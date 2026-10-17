@@ -310,7 +310,8 @@ describe('what the strip asks for', () => {
   it('[NEW-01] Spenders and «Новые» open from the strip by one click: what their rows of the palette ask for', async () => {
     kit = mountDock(dockScenario(dockVm()));
     expect(described(button('Spenders'))).toMatch(/^Spenders {2}\S+\nКто сколько потратил: полки, превью переписки, статистика$/);
-    expect(described(button('Новые'))).toBe('Новые\nНовые подписчики: с кем ещё не поздоровались');
+    // X55: «Новые» has its key now, next to Spenders'.
+    expect(described(button('Новые'))).toBe('Новые  ⌘⇧U\nНовые подписчики: с кем ещё не поздоровались');
     await flush(() => button('Новые').click());
     await flush(() => button('Spenders').click());
     expect(kit.client.dispatched).toEqual([

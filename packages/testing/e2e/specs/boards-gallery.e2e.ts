@@ -188,6 +188,18 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
     }
   }
 
+  it('[X55] «Размер текста: Крупнее»: Spenders with a preview and its statistics, «Новые» with a card, the fan panel, the palette — a step larger, nothing sticks out', async () => {
+    const found: string[] = [];
+    for (const state of ['11a', '11i', '13a', '14a', '15a'] as const) {
+      for (const theme of THEMES) {
+        await open(`state=${state}&theme=${theme}&lang=ru&text=large`, VIEWPORTS[0]);
+        await capture(`boards-large-${state}-${theme}-ru-1440x900`);
+        for (const problem of problems(await probe(STATES[state] ?? ''), theme)) found.push(`${state} ${theme}: ${problem}`);
+      }
+    }
+    expect(found).toEqual([]);
+  });
+
   it('a narrow window: the list keeps its width — the statistics give way to a preview, then Spenders and «Новые» become one column', async () => {
     for (const viewport of ZOOMED) {
       await open('state=11a&theme=light&lang=ru', viewport);

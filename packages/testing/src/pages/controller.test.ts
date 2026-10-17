@@ -829,7 +829,7 @@ describe('options: «Статус»', () => {
         'Хаб пропускает любую сборку ChatSpace (профиль «any-build»). Если после отправки что-то пойдёт не так, предохранитель выключит её сам. Открытых попыток: 0, с неизвестным исходом: 0.',
       );
       await w.client.dispatch({ type: 'SetPreference', key: 'debug.enabled', value: true });
-      expect(text(w, row(w, 'contract')?.note)).toBe(`Все якоря на месте: ${String(Object.keys(hostReport(PAGES_NOW).anchors).length)}. Профиль квитанции «any-build»: любая сборка, без проверки.`);
+      expect(text(w, row(w, 'contract')?.note)).toBe(`Все элементы страницы на месте: ${String(Object.keys(hostReport(PAGES_NOW).anchors).length)}. Профиль квитанции «any-build»: любая сборка, без проверки.`);
       await w.client.dispatch({ type: 'CopyReport', scope: 'status' });
       expect(w.browser.record.clipboard.at(-1)).toContain('Отправка из превью: включена · сборка ChatSpace не проверена');
     });
@@ -1323,21 +1323,21 @@ describe('options: generation, hotkeys, appearance, diagnostics', () => {
 });
 
 describe('options: first run (§9.9 онбординг, §9.6 согласие)', () => {
-  it('[ST-012] eight steps, each with what is known; hidden for good once dismissed', async () => {
+  it('[ST-012] [X55] the chatter’s three steps, then the team lead’s under «Ещё», each with what is known; hidden for good once dismissed', async () => {
     const state = workingState();
     state.settings = { ...state.settings, onboarding: { ...state.settings.onboarding, checklistDismissed: false } };
     state.diagnostics = { ...state.diagnostics, telemetry: { ...state.diagnostics.telemetry, consent: false } };
     const w = await open({ state });
     const checklist = options(w, 'status').checklist;
-    expect(checklist?.steps.map((step) => [step.id, step.done])).toEqual([
-      ['install', true],
-      ['host-permission', true],
-      ['sign-in', true],
-      ['persona', true],
-      ['open-chatspace', true],
-      ['binding', true],
-      ['consent', false],
-      ['sound-hotkeys', false],
+    // X55: no «Установить расширение» (a page of the extension is open); the team lead's steps are `more`.
+    expect(checklist?.steps.map((step) => [step.id, step.done, step.more === true])).toEqual([
+      ['host-permission', true, false],
+      ['sign-in', true, false],
+      ['open-chatspace', true, false],
+      ['persona', true, true],
+      ['binding', true, true],
+      ['consent', false, true],
+      ['sound-hotkeys', false, true],
     ]);
     const consent = checklist?.steps.find((step) => step.id === 'consent');
     expect(consent?.action?.action).toEqual({ type: 'RequestPermission', kind: 'data-collection' });

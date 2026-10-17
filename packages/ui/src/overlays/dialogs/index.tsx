@@ -16,7 +16,7 @@ import { render, type JSX } from 'preact';
 
 import { SCHEME_ATTRIBUTE, type ConfirmDialogRequest, type DialogPort, type MountDeps } from '@cg/contracts/vm';
 
-import { ConfirmDialog, KitRoot, LAYERS, OverlayLayer, ROOT_CLASS, bindScheme, createKitEnv, holdAttribute, retainKitStyles, type KitFailure, type StyleSource } from '../../kit';
+import { ConfirmDialog, KitRoot, LAYERS, OverlayLayer, ROOT_CLASS, bindScheme, createKitEnv, bindTextSize, holdAttribute, retainKitStyles, type KitFailure, type StyleSource } from '../../kit';
 
 export interface DialogHost extends DialogPort {
   /** The question on screen; null — none. */
@@ -77,6 +77,7 @@ export function mountDialogs(root: ShadowRoot, deps: MountDeps, options: { reado
   const container = root.ownerDocument.createElement('div');
   container.className = ROOT_CLASS;
   container.setAttribute('data-cg-surface', DIALOGS_ROOT);
+  const offTextSize = bindTextSize(container, deps.textSize);
   root.append(container);
   const env = createKitEnv({ deps, root, host: hostElement, surface: null, ...(options.report === undefined ? {} : { report: options.report }) });
   render(
@@ -95,6 +96,7 @@ export function mountDialogs(root: ShadowRoot, deps: MountDeps, options: { reado
       env.dispose();
       offScheme();
       releaseScheme();
+      offTextSize();
       styles.release();
     },
   };

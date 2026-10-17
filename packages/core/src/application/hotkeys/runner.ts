@@ -51,7 +51,14 @@ export interface HotkeyRunner extends HotkeySink {
   dispose(): void;
 }
 
-const TOGGLED: Readonly<Partial<Record<DispatcherCommandId, OverlaySurface>>> = { spenders: 'spenders', palette: 'palette', cheatsheet: 'cheatsheet', 'fan-panel': 'fan-panel', coach: 'coach' };
+const TOGGLED: Readonly<Partial<Record<DispatcherCommandId, OverlaySurface>>> = {
+  spenders: 'spenders',
+  newcomers: 'newcomers',
+  palette: 'palette',
+  cheatsheet: 'cheatsheet',
+  'fan-panel': 'fan-panel',
+  coach: 'coach',
+};
 const STATUS_REASON: Readonly<Record<DockStatus, UnavailableReasonId>> = {
   ready: 'chat-loading',
   'loading-chat': 'chat-loading',
@@ -260,7 +267,14 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
       return;
     }
     if (top === 'result-expanded') {
-      const opId = dockView().result?.opId ?? null;
+      const dock = dockView();
+      // A Recap or a Review in the window — where they open since X55 — folds into its sheet, as its «Свернуть» does;
+      // the focus need not be in the window (a finished Review took its «Отменить» away under it).
+      if (dock.analysis === 'recap' || dock.analysis === 'review') {
+        send({ type: 'ShowAnalysis', view: dock.analysis, mode: 'sheet' });
+        return;
+      }
+      const opId = dock.result?.opId ?? null;
       if (opId !== null) send({ type: 'ExpandResult', operationId: opId, expanded: false });
       return;
     }
@@ -286,6 +300,11 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
 
   const run = (command: KeyCommand): void => {
     const id = command.id;
+    // X55: under the «Развернуть ↗» window only the analysis it shows answers its key; any other one stands behind it.
+    if ((id === 'recap' || id === 'review') && overlays.top() === 'result-expanded' && dockView().analysis !== id) {
+      unavailable(id, reasonOf('overlay-open'));
+      return;
+    }
     if (id === 'reply' || id === 'fix' || id === 'hi' || id === 'ping' || id === 'review') return generate(id, command.target);
     if (id === 'recap') return recap();
     if (id === 'tone') return tone(command.target);

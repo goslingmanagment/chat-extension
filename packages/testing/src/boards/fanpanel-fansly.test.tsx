@@ -35,7 +35,7 @@ it('[host:fansly] [FS-TAIL-8] the fan panel’s Recap tab reuses the result mark
     const plate = marked.$('.cg-fp .cg-stale') as HTMLElement;
     expect([plate.getAttribute('role'), textOf(plate.querySelector('.cg-stale__t')), plate.querySelector('.cg-dot--accent')?.getAttribute('data-accent-use')]).toEqual(['status', 'Ответ мог не учесть последние сообщения чата.', 'result-stale']);
     await flush(() => (plate.querySelector('button') as HTMLElement).click());
-    expect(marked.client.dispatched).toEqual([{ type: 'RefreshRecap', length: 'short' }]);
+    expect(marked.client.dispatched).toEqual([{ type: 'RefreshRecap', length: 'short', panel: true }]);
     const css = marked.root.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules].map((rule) => rule.cssText)).join('\n');
     expect(css).toMatch(/\.cg-stale \{[^}]*display: grid/);
   } finally {

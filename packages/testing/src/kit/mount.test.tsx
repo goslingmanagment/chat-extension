@@ -2,7 +2,7 @@ import { act } from 'preact/test-utils';
 import { useState } from 'preact/hooks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SCHEME_ATTRIBUTE, type ToastsVM } from '@cg/contracts';
+import { SCHEME_ATTRIBUTE, TEXT_SIZE_ATTRIBUTE, type ToastsVM } from '@cg/contracts';
 import {
   DISMISSIBLE_OPEN_ATTRIBUTE,
   Dialog,
@@ -10,6 +10,7 @@ import {
   LAYERS,
   OverlayLayer,
   ROOT_CLASS,
+  SettableSignal,
   SidePanel,
   ViewState,
   capturePageErrors,
@@ -89,6 +90,31 @@ describe('[EX-012] the kit mounts a surface into the closed shadow root the host
     expect(root.adoptedStyleSheets).toEqual([own]);
     expect(host.hasAttribute(SCHEME_ATTRIBUTE)).toBe(false);
     expect(attributeHolds(host, SCHEME_ATTRIBUTE)).toBe(0);
+  });
+
+  it('[X55] «Размер текста» goes on each surface root inside the closed root, now and on every change — never on the host the page sees (X22)', () => {
+    const world = kitWorld();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = host.attachShadow({ mode: 'closed' });
+    const textSize = new SettableSignal<'normal' | 'large'>('large');
+    const port = createMountPort({ palette: { view: () => <p>palette</p> }, 'fan-panel': { view: () => <p>fan</p> } });
+    const closePalette = port.mountSurface('palette', root, { ...world.deps, textSize });
+    const closePanel = port.mountSurface('fan-panel', root, { ...world.deps, textSize });
+    const sizes = (): Array<string | null> => [...root.querySelectorAll(`.${ROOT_CLASS}`)].map((node) => node.getAttribute(TEXT_SIZE_ATTRIBUTE));
+    expect(sizes()).toEqual(['large', 'large']);
+    expect(host.hasAttribute(TEXT_SIZE_ATTRIBUTE)).toBe(false);
+    textSize.set('normal');
+    expect(sizes()).toEqual(['normal', 'normal']);
+    closePanel();
+    textSize.set('large');
+    expect(sizes()).toEqual(['large']);
+    closePalette();
+    expect(host.hasAttribute(TEXT_SIZE_ATTRIBUTE)).toBe(false);
+    // No signal (an extension page, a test): nothing is set.
+    const bare = port.mountSurface('palette', root, world.deps);
+    expect(sizes()).toEqual([null]);
+    bare();
   });
 
   it('createMountPort is the UI’s MountPort: one definition per surface, an unknown one is an error', () => {

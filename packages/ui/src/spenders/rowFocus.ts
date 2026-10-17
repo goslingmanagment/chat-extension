@@ -8,7 +8,7 @@
 // pressed on a row must act on the fan that row shows (opening a chat marks
 // it read on OnlyFans).
 
-import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { focusQuietly, type VirtualListHandle } from '../kit';
 
@@ -66,4 +66,37 @@ export function useRowFocus(activeKey: string | null): RowFocus {
     [settle],
   );
   return { wrapRef, listRef, focusRow, settle };
+}
+
+/** The open card follows the keyboard's row this long after the last J / K (decision X55): a held key reads no card per row. */
+export const CARD_FOLLOW_MS = 150;
+
+export interface CardFollow {
+  /** Opens the card of `key` once the keys stop: a later step replaces it. */
+  readonly follow: (key: string) => void;
+  /** Drops a card still waited for (Enter, Space, a click: the card opens now). */
+  readonly stop: () => void;
+}
+
+/** The card that follows J / K in «Новые» (X55). `open` is read when the wait ends, never earlier. */
+export function useCardFollow(open: (key: string) => void): CardFollow {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = useRef(open);
+  latest.current = open;
+  const stop = useCallback((): void => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+  const follow = useCallback(
+    (key: string): void => {
+      stop();
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        latest.current(key);
+      }, CARD_FOLLOW_MS);
+    },
+    [stop],
+  );
+  useEffect(() => stop, [stop]);
+  return { follow, stop };
 }

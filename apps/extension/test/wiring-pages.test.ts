@@ -76,7 +76,9 @@ describe('the settings page before a sign-in', () => {
     const { page, root } = open(w, 'options');
     await until(() => root.querySelector('.pg-signin') !== null, 'the sign-in screen');
     expect(root.querySelector('.pg-page')?.hasAttribute('data-pg-gate')).toBe(true);
-    expect([...root.querySelectorAll('.pg-check__item')].map((item) => item.getAttribute('data-pg-step'))).toEqual(['install', 'host-permission', 'sign-in', 'persona', 'open-chatspace', 'binding', 'consent', 'sound-hotkeys']);
+    // X55: the chatter's three, then the team lead's four under «Ещё»; no «Установить расширение».
+    expect([...root.querySelectorAll('.pg-check__item')].map((item) => item.getAttribute('data-pg-step'))).toEqual(['host-permission', 'sign-in', 'open-chatspace', 'persona', 'binding', 'consent', 'sound-hotkeys']);
+    expect([...root.querySelectorAll('.pg-check__more .pg-check__item')].map((item) => item.getAttribute('data-pg-step'))).toEqual(['persona', 'binding', 'consent', 'sound-hotkeys']);
     // The version of the manifest, the address the next sign-in goes to, the help page of the site.
     expect(page.client.getSnapshot({ of: 'options', section: 'account' })).toMatchObject({ version: '1.2.3', view: { s: 'forbidden', error: { code: 'CG-AUTH-REQUIRED' } }, signIn: { hubOrigin: WORLD.hubOrigin } });
     expect(root.querySelector<HTMLAnchorElement>('a.pg-link[target="_blank"]')?.href).toBe(SITE_PAGES.start);

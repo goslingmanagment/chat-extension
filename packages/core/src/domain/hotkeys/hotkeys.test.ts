@@ -7,7 +7,7 @@ import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
 import { HOTKEY_ACTION_IDS, type HotkeyActionId } from '@cg/contracts/features/types';
-import { FORBIDDEN_CODES, HOTKEYS, HOTKEY_SCHEME_VERSION, hotkeysForClient, servesClient, type HotkeyAction, type HotkeyClient } from '@chatgoose/hotkeys';
+import { FORBIDDEN_CODES, HOTKEYS, HOTKEY_SCHEME_VERSION, MAC_SHIFT_ALIASES, MAC_SHIFT_SWALLOWED, hotkeysForClient, servesClient, type HotkeyAction, type HotkeyClient } from '@chatgoose/hotkeys';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { featureSlice } from '../features';
@@ -142,6 +142,23 @@ describe('the vendored scheme through the tab resolver', () => {
     // …and never collide with a text-level key of the scheme.
     const textCodes = HOTKEYS.filter((def) => def.level === 'text').map((def) => def.code);
     for (const code of primaryExtras) expect(textCodes).not.toContain(code);
+    // X55: a row on the panel modifiers takes a letter no scheme row of any client and no mac alias has, and none
+    // the scheme forbids on that level — so ⌘⇧U / Ctrl+Alt+U stays «Новые» when the scheme is vendored again.
+    const panelExtras = EXTRA_KEYS.filter((def) => def.mods === 'panel').flatMap((def) => def.codes);
+    expect(panelExtras).toEqual(['KeyU']);
+    const panelCodes = HOTKEYS.filter((def) => def.level === 'panel').map((def) => def.code);
+    for (const code of panelExtras) {
+      expect(panelCodes).not.toContain(code);
+      expect(Object.keys(FORBIDDEN_CODES.panel)).not.toContain(code);
+      expect(Object.keys(MAC_SHIFT_ALIASES)).not.toContain(code);
+      expect(MAC_SHIFT_SWALLOWED).not.toContain(code);
+    }
+    expect(command(press('mac', 'KeyU', { shiftKey: true }))).toBe('newcomers');
+    expect(command(press('win', 'KeyU', { altKey: true }))).toBe('newcomers');
+    // Strict: ⌘U alone stays «следующий непрочитанный», Ctrl+Shift+U is nobody's (HK-015), ⌘⌥⇧U is somebody else's.
+    expect(command(press('mac', 'KeyU'))).toBe('next-unread');
+    expect(press('win', 'KeyU', { shiftKey: true })).toBeNull();
+    expect(press('mac', 'KeyU', { shiftKey: true, altKey: true })).toBeNull();
     // ChatSpace's composer marks: bold (B) is nobody's on ⌘/Ctrl alone; italic (I), inline code (E) and
     // strikethrough (⇧S) are Fix, Reply and Recap — taken before TipTap sees them (§9.1 table).
     expect(press('mac', 'KeyB')).toBeNull();
@@ -363,7 +380,7 @@ describe('whose key is it', () => {
       expect(decideKey(cmd(id), ctx({ route: 'other' }))).toEqual({ act: 'pass' });
       expect(decideKey(cmd(id), ctx({ route: 'account' }))).toEqual({ act: 'pass' });
     }
-    for (const id of ['spenders', 'palette', 'settings', 'cheatsheet'] as const) {
+    for (const id of ['spenders', 'newcomers', 'palette', 'settings', 'cheatsheet'] as const) {
       expect(ran(decideKey(cmd(id), ctx({ route: 'other' })))).toBe(`${id}@global`);
       expect(ran(decideKey(cmd(id), ctx()))).toBe(`${id}@global`);
     }
@@ -396,9 +413,15 @@ describe('whose key is it', () => {
   it('[HK-027] under the cheatsheet, a board, the palette or a dialog of ours only the cheatsheet, the board and Cancel work', () => {
     for (const overlay of COVERING_OVERLAYS) {
       const under = ctx({ overlays: [overlay] });
-      for (const id of AI) expect(decideKey(cmd(id), under)).toEqual({ act: 'claim', run: null, refusal: 'overlay-open', command: id });
+      // X55: in the «Развернуть ↗» window — where Review and the full Recap open — their keys are its own buttons.
+      for (const id of AI) {
+        if (overlay === 'result-expanded' && (id === 'recap' || id === 'review')) expect(ran(decideKey(cmd(id), under))).toBe(`${id}@dock`);
+        else expect(decideKey(cmd(id), under)).toEqual({ act: 'claim', run: null, refusal: 'overlay-open', command: id });
+      }
       expect(ran(decideKey(cmd('cheatsheet'), under))).toBe('cheatsheet@global');
       expect(ran(decideKey(cmd('spenders'), under))).toBe('spenders@global');
+      // X55: «Новые» is the other board — it opens over a covering window as Spenders does, and shuts its own.
+      expect(ran(decideKey(cmd('newcomers'), under))).toBe('newcomers@global');
       expect(ran(decideKey(cmd('cancel'), under))).toBe('cancel@dock');
       expect(decideKey(cmd('next-unread'), under)).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
       if (overlay !== 'palette') expect(decideKey(cmd('palette'), under)).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
@@ -629,7 +652,9 @@ describe('the action catalog', () => {
     expect(mac.entry('copy-part').hotkey?.display).toBe('⌘C');
     expect(win.entry('copy-part').hotkey?.display).toBe('Ctrl+C');
     expect(mac.entry('help')).toMatchObject({ status: 'removed', hotkey: { display: '⌘⇧H' } });
-    expect(mac.entry('newcomers').hotkey).toBeNull();
+    // X55: «Новые» on the scheme's panel modifiers, outside the scheme — not pressed by hand yet.
+    expect(mac.entry('newcomers').hotkey).toEqual({ display: '⌘⇧U', aria: 'Meta+Shift+U', delivery: 'unverified', fallback: null });
+    expect(win.entry('newcomers').hotkey).toEqual({ display: 'Ctrl+Alt+U', aria: 'Control+Alt+U', delivery: 'unverified', fallback: null });
     expect(mac.reason('overlay-open')).toEqual({ id: 'overlay-open', code: 'CG-GATE-OVERLAY', text: { key: 'dock.reason.overlayOpen' } });
     expect(mac.reason('quota-zero', { time: '03:00' }).text).toEqual({ key: 'dock.reason.quotaZero', params: { time: '03:00' } });
   });
@@ -641,7 +666,7 @@ describe('the action catalog', () => {
     expect(rows.find((row) => row.id === 'chat-next')).toMatchObject({ outsideScheme: true, hotkey: { display: 'J' } });
     expect(rows.find((row) => row.id === 'reply')).toMatchObject({ outsideScheme: false });
     expect(rows.find((row) => row.id === 'send')).toMatchObject({ hotkey: null });
-    expect(rows.some((row) => row.id === 'newcomers')).toBe(false);
+    expect(rows.find((row) => row.id === 'newcomers')).toMatchObject({ outsideScheme: true, hotkey: { display: 'Ctrl+Alt+U' } });
   });
 
   it('the delivery table names every printed combination on both systems; a reserved one is never printed as working', () => {
@@ -650,7 +675,7 @@ describe('the action catalog', () => {
       expect(Object.keys(DELIVERY[platform]).sort()).toEqual([...DELIVERY_KEYS].sort());
       for (const key of DELIVERY_KEYS) expect(values).toContain(DELIVERY[platform][key]);
       // Not pressed in a real browser yet: named unverified, never printed as measured.
-      for (const key of ['palette', 'next-unread', 'next-unread:fallback', 'quick-jump'] as const) expect(DELIVERY[platform][key]).toBe('unverified');
+      for (const key of ['palette', 'next-unread', 'next-unread:fallback', 'quick-jump', 'newcomers'] as const) expect(DELIVERY[platform][key]).toBe('unverified');
     }
     // ⌘, on macOS is Firefox's own «Settings…» menu item (§9.1): reserved until a hand check says otherwise — it is not printed as working.
     expect([DELIVERY.mac.settings, DELIVERY.win.settings]).toEqual(['reserved', 'unverified']);
@@ -677,7 +702,7 @@ describe('the action catalog', () => {
     const preview = groups[5]?.rows ?? [];
     expect(preview[preview.length - 1]).toEqual({ label: { key: 'send.button' }, hotkey: null, note: { key: 'cheatsheet.row.sendNote' } });
     const printed = groups.flatMap((group) => group.rows.map((row) => row.hotkey?.display));
-    for (const key of ['⌘E', '⌘K', '⌘⇧M', '?', '⌘⇧O', '⌘⇧L', '⌘.', 'J', 'K', '⌘U', '⌥1–9', ']', 'Esc', '↵']) expect(printed).toContain(key);
+    for (const key of ['⌘E', '⌘K', '⌘⇧M', '⌘⇧U', '?', '⌘⇧O', '⌘⇧L', '⌘.', 'J', 'K', '⌘U', '⌥1–9', ']', 'Esc', '↵']) expect(printed).toContain(key);
     expect(printed).not.toContain('⌘1–9');
     // Firefox keeps ⌘, on macOS: not printed there; on Windows Ctrl+, is.
     expect(printed).not.toContain('⌘,');
@@ -746,7 +771,7 @@ describe('[R20-F4] the keys and the feature manifest', () => {
     const labels = (groups: typeof all, id: string): string[] => (groups.find((group) => group.id === id)?.rows ?? []).map((row) => row.label.key);
     expect(fansly.map((group) => group.id)).toEqual(['ai', 'windows', 'before', 'result', 'navigation', 'preview']);
     expect(labels(fansly, 'ai')).toEqual(labels(all, 'ai'));
-    expect(labels(fansly, 'windows')).toEqual(['cheatsheet.row.spenders', 'cheatsheet.row.notes', 'cheatsheet.row.self', 'palette.item.settings']);
+    expect(labels(fansly, 'windows')).toEqual(['cheatsheet.row.spenders', 'newcomers.title', 'cheatsheet.row.notes', 'cheatsheet.row.self', 'palette.item.settings']);
     expect(labels(fansly, 'navigation')).toEqual(['cheatsheet.row.fanPanel']);
     expect(labels(fansly, 'preview')).toEqual(['dock.action.reply', 'dock.action.fix', 'dock.action.hi', 'dock.action.ping', 'send.openAndInsert']);
     expect(labels(fansly, 'before')).toEqual(labels(all, 'before'));

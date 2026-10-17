@@ -386,12 +386,18 @@ describe('options: the shell (ui-design §4.24)', () => {
     expect(page.$$('.pg-step').length).toBeGreaterThan(0);
   });
 
-  it('[ST-012] the first-run checklist: eight steps, hidden for good by «Скрыть навсегда»', async () => {
+  it('[ST-012] [X55] the first-run checklist: the chatter’s three steps, the team lead’s four folded under «Ещё»; hidden for good by «Скрыть навсегда»', async () => {
     const state = workingState();
     state.settings = { ...state.settings, onboarding: { ...state.settings.onboarding, checklistDismissed: false } };
     const page = await mount('options', { state });
-    expect(page.$$('.pg-check__item')).toHaveLength(8);
-    expect(page.$('.pg-check__head span')?.textContent).toBe('7 из 8');
+    expect(page.$$('.pg-check > .pg-check__list > .pg-check__item').map((node) => node.getAttribute('data-pg-step'))).toEqual(['host-permission', 'sign-in', 'open-chatspace']);
+    expect(page.$('.pg-check__head span')?.textContent).toBe('3 из 3');
+    const more = page.$('.pg-check__more') as HTMLDetailsElement;
+    expect(more.open).toBe(false);
+    expect(more.querySelector('summary b')?.textContent).toBe('Ещё — для тимлида');
+    expect([...more.querySelectorAll('.pg-check__item')].map((node) => node.getAttribute('data-pg-step'))).toEqual(['persona', 'binding', 'consent', 'sound-hotkeys']);
+    expect(page.$('[data-pg-step="install"]')).toBeNull();
+    expect(page.$('.pg-check__lead')?.textContent).toBe('Три шага до первой смены. Остальное настраивает тимлид — оно в «Ещё». Список можно скрыть — он не вернётся.');
     await flush(() => button(page, 'Скрыть навсегда').click());
     expect(page.$('.pg-check')).toBeNull();
     expect(page.world.state.settings.onboarding.checklistDismissed).toBe(true);
@@ -402,10 +408,14 @@ describe('options: the shell (ui-design §4.24)', () => {
     state.diagnostics = { ...state.diagnostics, telemetry: { ...state.diagnostics.telemetry, consent: false } };
     const page = await mount('options', { state, before: (world) => world.browser.granted.clear() });
     expect(page.$('[data-pg-gate]')).not.toBeNull();
-    expect(page.$$('.pg-check__item')).toHaveLength(8);
+    expect(page.$$('.pg-check__item')).toHaveLength(7);
+    expect(page.$('.pg-check__head span')?.textContent).toBe('1 из 3');
     const todo = (id: string): HTMLElement | null => page.$(`.pg-check__item[data-pg-step="${id}"]`);
-    expect(todo('install')?.classList.contains('is-done')).toBe(true);
     for (const id of ['host-permission', 'sign-in', 'consent']) expect(todo(id)?.classList.contains('is-done'), id).toBe(false);
+    // The consent is the team lead's: under «Ещё», which a click on its summary unfolds.
+    expect(todo('consent')?.closest('.pg-check__more')).not.toBeNull();
+    await flush(() => (page.$('.pg-check__more > summary') as HTMLElement).click());
+    expect((page.$('.pg-check__more') as HTMLDetailsElement).open).toBe(true);
     // «Дать права на хосты» and the consent are asked from here, inside the click.
     await flush(() => todo('host-permission')?.querySelector('button')?.click());
     await flush(() => todo('host-permission')?.querySelector('button')?.click());
@@ -730,6 +740,21 @@ describe('options: the sections', () => {
       await settle();
     });
     expect(page.world.state.settings.sound.volume).toBe(35);
+  });
+
+  it('[X55] «Размер текста: Крупнее» saves the larger scale and back; a store from before reads as normal', async () => {
+    const page = await mount('options', { hash: '#appearance' });
+    const box = (): HTMLElement => page.$('[role="checkbox"][aria-label="Размер текста"]') as HTMLElement;
+    expect(box().getAttribute('aria-checked')).toBe('false');
+    expect(box().textContent).toBe('Крупнее');
+    expect(page.text()).toContain('Текст 15 px вместо 13, подписи 13 px. Страницы расширения не меняются.');
+    await flush(() => box().click());
+    expect(page.world.state.settings.ui.textSize).toBe('large');
+    expect(box().getAttribute('aria-checked')).toBe('true');
+    // The page itself keeps the agency's scale: nothing of the setting lands on it.
+    expect(document.documentElement.hasAttribute('data-text-size')).toBe(false);
+    await flush(() => box().click());
+    expect(page.world.state.settings.ui.textSize).toBe('normal');
   });
 
   it('[ST-131] [ST-132] [ST-133] «Проверить», the sound state, the way to the per-model switch', async () => {

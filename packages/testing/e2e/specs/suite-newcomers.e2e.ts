@@ -55,7 +55,7 @@ describe('§12 п. 4 on the wired extension — «Новые»: the greeting lea
     }
     expect(await oursExists('modal', '[aria-label="Новые"]')).toBe(false);
     await browser.keys([MOD, 'k']);
-    await pressOurs('modal', '.cg-pal__item', /^Новые$/, 'the «Новые» row of the palette', 20_000);
+    await pressOurs('modal', '.cg-pal__item', /^Новые(?:\s*(?:⌘⇧U|Ctrl\+Alt\+U))?$/, 'the «Новые» row of the palette (its key since X55)', 20_000);
     await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: LIST });
     // The palette is a launcher: it went away with the row it ran.
     expect(await oursExists('modal', '[aria-label="Палитра команд"]')).toBe(false);

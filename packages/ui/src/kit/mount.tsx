@@ -24,7 +24,7 @@ import { ROOT_CLASS } from './base';
 import { createKitEnv, type KitEnv, type KitFailure } from './context';
 import { holdAttribute } from './holds';
 import { KitRoot } from './root';
-import { bindScheme } from './scheme';
+import { bindScheme, bindTextSize } from './scheme';
 import { retainKitStyles } from './sheets';
 import { adoptSheets, type StyleMode, type StyleSource } from './styles';
 import { paletteSource } from './tokens';
@@ -74,6 +74,8 @@ export function mountKitSurface(kind: MountSurfaceKind, root: ShadowRoot, deps: 
   const container = root.ownerDocument.createElement('div');
   container.className = ROOT_CLASS;
   container.setAttribute('data-cg-surface', kind);
+  // «Размер текста» on the surface's own root, inside the closed shadow root: never on the host the page sees (X22, X55).
+  const offTextSize = bindTextSize(container, deps.textSize);
   root.append(container);
   const env = createKitEnv({ deps, root, host, surface: kind, ...envOptions(options) });
   const View = definition.view;
@@ -92,6 +94,7 @@ export function mountKitSurface(kind: MountSurfaceKind, root: ShadowRoot, deps: 
     env.dispose();
     offScheme();
     releaseScheme();
+    offTextSize();
     offPalette?.();
     releaseVariant?.();
     styles.release();

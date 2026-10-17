@@ -104,7 +104,7 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
       if (profile !== 'chatspace') {
         await browser.execute(() => { for (const detail of document.querySelectorAll<HTMLDetailsElement>('[data-pg-site-details]')) detail.open = true; });
         const facts = await text('[data-pg-site-details="fansly-web"]');
-        for (const expected of ['FBuddy', 'Фильтр слов', 'main.2e6b96097a4bb73b', 'Пейсер / охлаждение', '3/20']) expect(facts).toContain(expected);
+        for (const expected of ['FBuddy', 'Фильтр слов', 'main.2e6b96097a4bb73b', 'Темп запросов / пауза', '3/20']) expect(facts).toContain(expected);
       }
       await capture(`p14b2-status-${profile}`);
       expectHealthy(await probe(), 'light');
@@ -300,18 +300,21 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
       expectHealthy(await probe(), theme);
       expect(await count('.pg-nav')).toBe(0);
       expect(await count('form input[type="password"]')).toBe(1);
-      // ST-012: the first run starts here — the checklist stands under the form, the sign-in still to do.
-      expect(await count('.pg-check__item')).toBe(8);
+      // ST-012: the first run starts here — the checklist stands under the form, the sign-in still to do; the chatter's
+      // three steps, the team lead's four folded under «Ещё» (X55).
+      expect(await count('.pg-check__item')).toBe(7);
+      expect(await count('.pg-check > .pg-check__list > .pg-check__item')).toBe(3);
+      expect(await count('.pg-check__more:not([open])')).toBe(1);
       expect(await count('.pg-check__item.is-done[data-pg-step="sign-in"]')).toBe(0);
     }
     await open('page=options&state=signed-out&theme=light', PHONE);
     await capture('pages-options-sign-in-w320');
     expectHealthy(await probe(), 'light');
-    expect(await count('.pg-check__item')).toBe(8);
+    expect(await count('.pg-check__item')).toBe(7);
     await open('page=options&state=first-run&theme=light', LAPTOP);
     await capture('pages-options-first-run-light');
     expectHealthy(await probe(), 'light');
-    expect(await count('.pg-check__item')).toBe(8);
+    expect(await count('.pg-check__item')).toBe(7);
     await open('page=options&state=read-only&theme=light', LAPTOP, 1, '#appearance');
     await capture('pages-options-read-only-light');
     expectHealthy(await probe(), 'light');

@@ -9,7 +9,7 @@ import { LAYER_ATTRIBUTE, OVERLAY_Z } from '@cg/host-kit/isolated/hosts';
 
 import { createFakeFanslyPage } from '../testing/fake-dom';
 import { createFanslyLauncher, type LauncherTarget } from './launcher';
-import { BUSY_MS, drawFanslyLauncher, LAUNCHER_TEXT, spendersKeyLabel } from './launcher-view';
+import { BUSY_MS, drawFanslyLauncher, LAUNCHER_TEXT, newcomersKeyLabel, spendersKeyLabel } from './launcher-view';
 import { createFanslyMounts, FANSLY_OVERLAY_Z, LAUNCHER_LAYER, PAGE_Z } from './mount';
 import { startFanslyTab } from './starter';
 import { loadValidation } from './validation';
@@ -108,7 +108,7 @@ describe('[host:fansly] the launcher’s buttons (X46, ui-design §3.13)', () =>
       ['newcomers', 'Новые', 'Открыть «Новые»'],
     ]);
     expect(button('spenders').title).toBe('Spenders · ⌘⇧M');
-    expect(button('newcomers').title).toBe('Новые фоловеры');
+    expect(button('newcomers').title).toBe('Новые фоловеры · ⌘⇧U');
     button('newcomers').click();
     expect(launcher.pending()).toBe('newcomers');
   });
@@ -118,6 +118,9 @@ describe('[host:fansly] the launcher’s buttons (X46, ui-design §3.13)', () =>
     expect(spendersKeyLabel('Win32')).toBe('Ctrl+Alt+M');
     expect(spendersKeyLabel('Linux x86_64')).toBe('Ctrl+Alt+M');
     expect(drawn('Win32').button('spenders').title).toBe('Spenders · Ctrl+Alt+M');
+    // X55: «Новые» on the same panel modifiers.
+    expect([newcomersKeyLabel('MacIntel'), newcomersKeyLabel('Win32')]).toEqual(['⌘⇧U', 'Ctrl+Alt+U']);
+    expect(drawn('Win32').button('newcomers').title).toBe('Новые фоловеры · Ctrl+Alt+U');
   });
 
   it('[SP-001] the page’s scheme on the host, live; the kept click shows its wait until it is taken, at most BUSY_MS', () => {

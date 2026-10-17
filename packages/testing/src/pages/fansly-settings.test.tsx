@@ -229,15 +229,15 @@ describe('[host:fansly] «Аккаунты» for Fansly models (R20 P14b1)', () 
 });
 
 describe('[host:fansly] Fansly’s part of the settings, `settings.ext` (R20 P14b1, FS-SET-1)', () => {
-  it('[ST-012] the first run: Fansly’s three steps under the eight — switch it on (the prompt inside the click), open Fansly as the model, reload the tabs', async () => {
+  it('[ST-012] the first run: Fansly’s three steps under the chatter’s own — switch it on (the prompt inside the click), open Fansly as the model, reload the tabs', async () => {
     const state = withFanslyModel(workingState(), PAGES_NOW, false);
     state.settings = { ...state.settings, onboarding: { ...state.settings.onboarding, checklistDismissed: false } };
     const page = await mount({ state, fansly: fanslyOffFixture(), hash: '#status' });
     const group = (): Element | null => page.$('.pg-check__group');
     expect(clean(group()?.querySelector('.pg-check__sub'))).toBe('На Fansly0 из 3');
     expect(page.$$('.pg-check__group [data-pg-step]').map((node) => node.getAttribute('data-pg-step'))).toEqual(['fansly-enable', 'fansly-open', 'fansly-reload']);
-    // The eight of the shared list stay eight.
-    expect(page.$$('.pg-check > .pg-check__list > [data-pg-step]')).toHaveLength(8);
+    // The chatter's three of the shared list stay three (X55: the team lead's four are under «Ещё»).
+    expect(page.$$('.pg-check > .pg-check__list > [data-pg-step]')).toHaveLength(3);
     await flush(() => button(group() as Element, 'Включить Fansly').click());
     expect(page.world.fanslyBackground?.prompts).toBe(1);
     expect(page.$('[data-pg-step="fansly-enable"]')?.classList.contains('is-done')).toBe(true);

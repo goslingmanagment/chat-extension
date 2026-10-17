@@ -38,7 +38,7 @@ const ESC: HotkeyLabel = { display: 'Esc', aria: 'Escape', delivery: 'delivered'
 
 /**
  * The feature of the manifest a row belongs to, where it is not the row's own id (an action of the dock, Spenders,
- * the palette and the fan panel are features by their own names). A row of no feature — the cheatsheet itself,
+ * the palette, the fan panel and «Новые» are features by their own names). A row of no feature — the cheatsheet itself,
  * the settings, the keys of a result — is always there. Exported for the manifest's completeness (tools/gates/
  * manifest.ts): every row of the reference is a feature's or the reference's own.
  */
@@ -49,7 +49,7 @@ export const ROW_FEATURE: Readonly<Partial<Record<CatalogActionId, string>>> = {
   'quick-jump': 'navigation',
   send: 'preview-send',
 };
-const FEATURE_ROWS: readonly CatalogActionId[] = [...DOCK_ACTION_IDS, 'spenders', 'palette', 'fan-panel', 'notes'];
+const FEATURE_ROWS: readonly CatalogActionId[] = [...DOCK_ACTION_IDS, 'spenders', 'newcomers', 'palette', 'fan-panel', 'notes'];
 
 /**
  * Whether the site has what a row of the reference does: its feature is in the site's slice, or the row belongs to no
@@ -74,7 +74,7 @@ export function cheatsheetGroups(catalog: ActionCatalog, features?: FeatureSlice
     {
       id: 'windows',
       title: msg('cheatsheet.group.windows'),
-      rows: rows('palette', 'spenders', 'notes', 'cheatsheet', 'settings'),
+      rows: rows('palette', 'spenders', 'newcomers', 'notes', 'cheatsheet', 'settings'),
     },
     { id: 'before', title: msg('cheatsheet.group.before'), rows: rows('tone', 'split') },
     {

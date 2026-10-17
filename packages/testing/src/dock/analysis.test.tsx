@@ -89,7 +89,8 @@ describe('Recap', () => {
     expect(facts()).toEqual(['Сделан 1 д назад', 'архив полный']);
     // Its head holds a segment and up to four buttons: below 360 px they take a second line (the e2e measures it at 320 px).
     expect(kit.$('.cg-head')?.classList.contains('cg-head--tools')).toBe(true);
-    expect(DOCK_CSS).toMatch(/@container cg \(max-width: 359px\) \{[^@]*\.cg-head--tools \{ flex-wrap: wrap;/);
+    // The widths are in the root's own text since X55: 359 px at the base 13 px.
+    expect(DOCK_CSS).toMatch(/@container cg \(max-width: calc\(359em \/ 13\)\) \{[^@]*\.cg-head--tools \{ flex-wrap: wrap;/);
     // No Insert, no parts: a Recap is not a message to the fan.
     expect(kit.$$('.cg-part')).toEqual([]);
     expect(kit.$('[data-cg-draft]')).toBeNull();
@@ -258,6 +259,23 @@ describe('Review', () => {
     // An example is shown, never inserted.
     expect(kit.$$('.cg-sheet .cg-ins')).toEqual([]);
     expect(facts()).toEqual(['Сделан только что', 'архив на 06:18']);
+  });
+
+  it('[X55] while a Review or a full Recap stands in its «Развернуть ↗» window, the sheet under it keeps only its head — the text is read once, up there', async () => {
+    kit = mountDock(dockScenario(reviewDock(), {}, [entry({ of: 'review' }, review(ctx, views.ready(), { expanded: true }))]));
+    await settle(1);
+    expect(text(kit.$('.cg-sheet .cg-head__title'))).toBe('Review');
+    expect(text(kit.$('.cg-sheet .cg-head__score'))).toBe('7/10');
+    expect(kit.$$('.cg-sheet .cg-block')).toEqual([]);
+    expect(kit.$$('.cg-sheet .cg-facts')).toEqual([]);
+    // «Скрыть Esc» stays: it hides the Review, the window with it.
+    await flush(() => byLabel('Скрыть').click());
+    expect(kit.client.dispatched.at(-1)).toEqual({ type: 'ShowAnalysis', view: 'review', mode: 'hidden' });
+    kit.unmount();
+    kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, recapView(ctx, views.ready(), 'full', { expanded: true }))]));
+    await settle(1);
+    expect(text(kit.$('.cg-sheet .cg-head__title'))).toBe('Recap');
+    expect(kit.$$('.cg-sheet .cg-block')).toEqual([]);
   });
 
   it('[AI-054] Copy writes the whole Review; «Ещё раз ⌘⇧B» asks for a new one; hide and expand name the view, not an operation', async () => {

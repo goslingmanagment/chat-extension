@@ -5,7 +5,7 @@
 // and never sends telemetry: it only marks what became visible or painted.
 
 import { type CgCode } from '../errors';
-import { type UiResultStyle } from '../settings';
+import { type UiResultStyle, type UiTextSize } from '../settings';
 import { type PerfMetric } from '../telemetry';
 import { type Uuid } from '../primitives';
 import { type AppClient } from './app-client';
@@ -134,6 +134,12 @@ export interface MountDeps {
    * site goes on the host.
    */
   readonly profile?: HostUiProfile;
+  /**
+   * «Размер текста» (1.26.0, decision X55): mirrored as `data-text-size` (TEXT_SIZE_ATTRIBUTE) on each surface root
+   * inside the closed shadow root by the mount, never on the host element; the type tokens key the larger scale on it.
+   * Absent — an extension page or a test: the normal scale.
+   */
+  readonly textSize?: ValueSignal<UiTextSize>;
 }
 
 /**

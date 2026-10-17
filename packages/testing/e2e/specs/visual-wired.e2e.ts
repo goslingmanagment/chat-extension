@@ -325,13 +325,21 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
       await look('dock-10-recap-empty', { all: false });
       await pressOurs('dock', '.cg-dock button', /^Собрать полностью/);
-      await waitOursText('dock', 'Hubert, 34', 'the full Recap', { timeout: 20_000 });
-      await look('dock-11-recap-full', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      // X55: the full Recap opens in the «Развернуть ↗» window, as the old Fansly extension's overlay; the sheet keeps it.
+      await waitOursText('modal', 'Hubert, 34', 'the full Recap in its window', { timeout: 20_000, selector: '.cg-xdlg' });
+      await look('dock-11-recap-full', { check: async () => void (await inWindow('modal', '.cg-xdlg')) });
+      await browser.keys(Key.Escape);
+      await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not fold the Recap window into the sheet' });
+      expect((await dockIs(() => true, 'the dock')).analysis).toBe('recap');
+      await waitOursText('dock', 'Hubert, 34', 'the full Recap in the sheet');
+      await look('dock-11b-recap-full-sheet', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
       await browser.keys(Key.Escape);
       await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
       await pressOurs('dock', '.cg-strip button', /^Review/);
-      await waitOursText('dock', 'разговор живой', 'the Review', { timeout: 20_000 });
-      await look('dock-12-review', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await waitOursText('modal', 'разговор живой', 'the Review in its window', { timeout: 20_000, selector: '.cg-xdlg' });
+      await look('dock-12-review', { check: async () => void (await inWindow('modal', '.cg-xdlg')) });
+      await browser.keys(Key.Escape);
+      await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not fold the Review window into the sheet' });
       await browser.keys(Key.Escape);
       await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
     });
@@ -399,13 +407,12 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await ready(a1);
       await pressOurs('dock', '.cg-strip button', /^Recap/);
       await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
-      await waitOursText('dock', 'Hubert, 34', 'the full Recap of the long chat');
+      // X55: the saved full Recap opens in its «Развернуть ↗» window; «Обновить» there makes it anew, in the window.
+      await waitOursText('modal', 'Hubert, 34', 'the full Recap of the long chat in its window', { selector: '.cg-xdlg' });
       const remade = await hub().mark();
-      await pressOurs('dock', '.cg-dock button', /^Обновить/);
+      await pressOurs('modal', '.cg-xdlg button', /^Обновить/);
       await browser.waitUntil(async () => callsTo((await hub().journal(remade)).entries, 'aiFeatureStream').some((call) => call.stream?.outcome === 'done'), { timeout: 20_000, timeoutMsg: 'the Recap was not made anew' });
-      await waitOursText('dock', 'Hubert, 34', 'the Recap made anew');
-      await ours('dock', '.cg-expand').click();
-      await browser.waitUntil(() => oursExists('modal', '.cg-xdlg'), { timeout: 10_000, timeoutMsg: 'the result did not unfold into its dialog' });
+      await waitOursText('modal', 'Hubert, 34', 'the Recap made anew', { selector: '.cg-xdlg' });
       facts['debugFooterInUnfoldedResult'] = await oursExists('modal', '.cg-debug');
       await look('modal-04-recap-unfolded-debug', { all: false, check: async () => void (await inWindow('modal', '.cg-xdlg')) });
       await browser.keys(Key.Escape);
@@ -579,7 +586,7 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       this.timeout(240_000);
       await leaveField();
       await browser.keys([MOD, 'k']);
-      await pressOurs('modal', '.cg-pal__item', /^Новые$/, 'the «Новые» row of the palette', 20_000);
+      await pressOurs('modal', '.cg-pal__item', /^Новые(?:\s*(?:⌘⇧U|Ctrl\+Alt\+U))?$/, 'the «Новые» row of the palette (its key since X55)', 20_000);
       await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nc' });
       await look('board-05-newcomers', { check: async () => void (await inWindow('modal', '.cg-nc')) });
       await ours('modal', '.cg-nc [data-cg-key]').click();
@@ -594,6 +601,38 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       });
       await closeAll();
       expect(await oursExists('modal', '.cg-nc')).toBe(false);
+    });
+
+    it('[X55] «Размер текста: Крупнее»: the dock with a result and «Новые» a step larger, still inside the window', async function () {
+      this.timeout(240_000);
+      await shift.patch({ ui: { textSize: 'large' } });
+      await open(a1);
+      await ready(a1);
+      const rootSize = (where: Where, selector: string): Promise<string | null> => readOurs(where, selector, (node) => getComputedStyle(node).fontSize);
+      await browser.waitUntil(async () => (await rootSize('dock', '.cg-root')) === '15px', { timeout: 5000, timeoutMsg: 'the dock did not take the larger text' });
+      await generate(/^Reply/);
+      // The token itself on the dock's root, and the text of a part not yet sent: a sent part is a muted line of its own
+      // size (`is-done`, the md step: 15.5 px when larger), and the dock may still show one of the result before.
+      expect(await readOurs('dock', '.cg-root', (node) => getComputedStyle(node).getPropertyValue('--cg-text-ai').trim())).toBe('16.5px');
+      await browser.waitUntil(() => oursExists('dock', '.cg-part:not(.is-done) .cg-part__t'), { timeout: 10_000, timeoutMsg: 'no unsent part of the Reply' });
+      expect(await readOurs('dock', '.cg-part:not(.is-done) .cg-part__t', (node) => getComputedStyle(node).fontSize)).toBe('16.5px');
+      await look('dock-20-large-text', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await hideResult();
+      await leaveField();
+      await browser.keys([...PANEL, 'u']);
+      await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nc' });
+      await browser.waitUntil(() => oursExists('modal', '.cg-pv'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
+      expect(await rootSize('modal', '.cg-root')).toBe('15px');
+      await look('board-20-large-text-newcomers', {
+        all: false,
+        check: async () => {
+          await inWindow('modal', '.cg-nc');
+          await inWindow('modal', '.cg-pv');
+        },
+      });
+      await closeAll();
+      await shift.patch({ ui: { textSize: 'normal' } });
+      await browser.waitUntil(async () => (await rootSize('dock', '.cg-root')) === '13px', { timeout: 5000, timeoutMsg: 'the dock did not go back to the normal text' });
     });
 
     it('the fan panel: the fan, its Recap', async function () {

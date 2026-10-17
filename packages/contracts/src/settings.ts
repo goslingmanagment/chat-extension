@@ -30,6 +30,12 @@ export type UiLocale = (typeof UI_LOCALES)[number];
 /** «Вид ответа» (ui-design §7, X10): the dock result printed on the feed, or on a sheet. */
 export const UI_RESULT_STYLES = ['bare', 'sheet'] as const;
 export type UiResultStyle = (typeof UI_RESULT_STYLES)[number];
+/**
+ * «Размер текста» (1.26.0, decision X55): `large` — our surfaces in a site's tab (the dock, the windows, the panels,
+ * the toasts) read the type scale a step up (base 13 → 15 px, captions 11–12 → 13 px). The extension pages keep theirs.
+ */
+export const UI_TEXT_SIZES = ['normal', 'large'] as const;
+export type UiTextSize = (typeof UI_TEXT_SIZES)[number];
 export const COACH_AUTO_RECAP = ['off', 'short', 'full'] as const;
 export type CoachAutoRecap = (typeof COACH_AUTO_RECAP)[number];
 
@@ -95,6 +101,11 @@ export const SettingsV1Schema = z.strictObject({
     locale: z.enum(UI_LOCALES),
     hints: z.boolean(),
     resultStyle: z.enum(UI_RESULT_STYLES),
+    /**
+     * 1.26.0 (X55): optional — a store written before reads as `normal`, with nothing to repair; a build before 1.26.0
+     * drops it (its repair keeps only the fields it knows), and the text is normal there.
+     */
+    textSize: z.optional(z.enum(UI_TEXT_SIZES)),
   }),
   generation: z.strictObject({
     /** Б7: snapshot of this flag is taken when an operation starts. */
@@ -171,7 +182,7 @@ export const DEFAULT_HUB_ORIGIN = 'https://gosling-agency.ru';
 export const DEFAULT_SETTINGS: SettingsV1 = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
   hub: { baseUrl: DEFAULT_HUB_ORIGIN },
-  ui: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare' },
+  ui: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal' },
   generation: {
     split: false,
     rememberTone: true,

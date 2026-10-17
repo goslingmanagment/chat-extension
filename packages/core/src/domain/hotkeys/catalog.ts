@@ -44,7 +44,8 @@ const ROWS: Readonly<Record<CatalogActionId, Row>> = {
   tone: { label: 'cheatsheet.row.tone', tooltip: null, scope: 'chat', status: 'active', key: scheme('tone') },
   split: { label: 'cheatsheet.row.split', tooltip: null, scope: 'chat', status: 'active', key: scheme('split') },
   spenders: { label: 'cheatsheet.row.spenders', tooltip: null, scope: 'global', status: 'active', key: scheme('spenders') },
-  newcomers: { label: 'newcomers.title', tooltip: null, scope: 'global', status: 'active', key: null },
+  /** Decision X55: ⌘⇧U / Ctrl+Alt+U, a row outside the scheme on its panel modifiers. */
+  newcomers: { label: 'newcomers.title', tooltip: null, scope: 'global', status: 'active', key: extra('newcomers') },
   palette: { label: 'cheatsheet.row.palette', tooltip: 'dock.paletteHint.tooltip', scope: 'global', status: 'active', key: extra('palette') },
   cheatsheet: { label: 'cheatsheet.row.self', tooltip: null, scope: 'global', status: 'active', key: extra('cheatsheet') },
   settings: { label: 'palette.item.settings', tooltip: null, scope: 'global', status: 'active', key: extra('settings') },

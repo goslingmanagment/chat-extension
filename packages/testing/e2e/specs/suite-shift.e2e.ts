@@ -99,8 +99,12 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await browser.keys('Escape');
     await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
     await pressOurs('dock', '.cg-strip button', /^Review/);
-    await waitOursText('dock', 'Synthetic review of the chat.', 'the Review', { timeout: 20_000 });
+    // X55: the Review opens in its «Развернуть ↗» window; Esc folds it into the sheet, the next Esc hides the sheet.
+    await waitOursText('modal', 'Synthetic review of the chat.', 'the Review in its window', { timeout: 20_000, selector: '.cg-xdlg' });
     await browser.keys('Escape');
+    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not fold the Review window' });
+    await browser.keys('Escape');
+    await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
     await pressOurs('dock', '.cg-strip button', /^Coach/);
     await browser.waitUntil(async () => (await oursFocus('panel'))?.label === 'Вопрос Coach', { timeout: 10_000, timeoutMsg: 'the Coach field did not take the focus' });
     await browser.keys('What do I say next?'.split(''));
@@ -136,7 +140,7 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
 
   it('a greeting from «Новые»: Hi takes the lease, one click sends it', async () => {
     await browser.keys([MOD, 'k']);
-    await pressOurs('modal', '.cg-pal__item', /^Новые$/, 'the «Новые» row of the palette', 20_000);
+    await pressOurs('modal', '.cg-pal__item', /^Новые(?:\s*(?:⌘⇧U|Ctrl\+Alt\+U))?$/, 'the «Новые» row of the palette (its key since X55)', 20_000);
     const username = `newfan_${a5}`;
     await pressOurs('modal', '[aria-label="Новые подписчики"] [data-cg-key]', new RegExp(`@${username}\\b`), 'the row of the stand’s new subscriber', 20_000);
     await pressOurs('modal', '.cg-pv button', /^Hi/);

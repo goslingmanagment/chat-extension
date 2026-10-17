@@ -4,8 +4,8 @@
 // `host` means `system`). The result is a value signal; the mount mirrors it
 // to `data-scheme` on our host element, which the dark token values key on.
 
-import { type UiTheme } from '@cg/contracts/settings';
-import { SCHEME_ATTRIBUTE, type ColorScheme, type ValueSignal } from '@cg/contracts/vm';
+import { type UiTextSize, type UiTheme } from '@cg/contracts/settings';
+import { SCHEME_ATTRIBUTE, TEXT_SIZE_ATTRIBUTE, type ColorScheme, type ValueSignal } from '@cg/contracts/vm';
 
 export interface SchemeInputs {
   /** ChatSpace's scheme from its <html> class; null on extension pages (no host). */
@@ -91,6 +91,18 @@ export function resolvedSchemeSignal(
       for (const off of offs) off();
     },
   };
+}
+
+/**
+ * «Размер текста» as `data-text-size` on a surface's own root (`.cg-root`, inside the closed shadow root), now and on
+ * every change (decision X55): the type tokens key the larger scale on it. Never on the host element — the page sees
+ * nothing of ours there but neutral attributes (X22). No signal (an extension page, a test): nothing is set, the scale
+ * is the normal one. Returns the unsubscribe; the root leaves with its surface.
+ */
+export function bindTextSize(surfaceRoot: Element, textSize: ValueSignal<UiTextSize> | undefined): () => void {
+  if (textSize === undefined) return () => undefined;
+  surfaceRoot.setAttribute(TEXT_SIZE_ATTRIBUTE, textSize.value);
+  return textSize.subscribe((value) => surfaceRoot.setAttribute(TEXT_SIZE_ATTRIBUTE, value));
 }
 
 /** Mirrors the scheme on our host element (or <html> of a page) as `data-scheme`, now and on every change. */

@@ -509,7 +509,7 @@ describe('R17 — the early key dispatcher on the stand', () => {
         return { id: def.action, combo: name(mods, def.code), keys: [...mods, keycap(def.code)], code: def.code };
       });
       for (const def of EXTRA_KEYS) {
-        const mods = def.mods === 'primary' ? [primary] : def.mods === 'alt' ? [Key.Alt] : def.mods === 'shift' ? [Key.Shift] : [];
+        const mods = def.mods === 'primary' ? [primary] : def.mods === 'panel' ? panel : def.mods === 'alt' ? [Key.Alt] : def.mods === 'shift' ? [Key.Shift] : [];
         // Every slot of Alt+1–9 is one row of the table: the first and the last digit stand for the nine.
         const codes = def.codes.length > 1 ? [def.codes[0] ?? '', def.codes[def.codes.length - 1] ?? ''] : def.codes;
         for (const code of codes) list.push({ id: def.fallback ? `${def.command}:fallback` : def.command, combo: name(mods, code), keys: [...mods, keycap(code)], code });
@@ -532,7 +532,7 @@ describe('R17 — the early key dispatcher on the stand', () => {
         }
         // Focus on our own card: outside any field, in an open chat — every row of the table is in its own context.
         for (const item of combos(scheme)) {
-          for (const overlay of ['palette', 'cheatsheet', 'spenders', 'fan-panel', 'quick-jump']) await input('overlay', overlay, false);
+          for (const overlay of ['palette', 'cheatsheet', 'spenders', 'newcomers', 'fan-panel', 'quick-jump']) await input('overlay', overlay, false);
           // J, K and ] do nothing on a part of the dock (X44): the plain letters are judged on a card of ours outside it.
           const plain = item.keys.length === 1 && item.id !== 'close';
           // A side panel covers nothing: on its card the plain letters are in the same context as on the dock's before X44.

@@ -10,7 +10,7 @@ import * as z from 'zod/mini';
 import { CgCodeSchema, SettingsRouteSchema } from '../errors';
 import { FeatureIdSchema, ToneSchema } from '../features';
 import { PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
-import { SettingsV1Schema } from '../settings';
+import { SettingsV1Schema, UI_TEXT_SIZES } from '../settings';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
 import { type SpendersPeriodSchema } from '../tab-messages';
 import { HandleSchema, JOURNAL_KINDS, MOUNT_SURFACES, OVERLAY_SURFACES, ViewSelectorSchema } from './selectors';
@@ -35,6 +35,8 @@ export const PREFERENCE_VALUE_SCHEMAS = {
   'ui.locale': ui.locale,
   'ui.hints': ui.hints,
   'ui.resultStyle': ui.resultStyle,
+  // 1.26.0 (X55): stored as optional (absent — normal), set as one of the two sizes.
+  'ui.textSize': z.enum(UI_TEXT_SIZES),
   'generation.split': generation.split,
   // 1.18.0 (X45): stored as optional (absent — on), set as a plain boolean.
   'generation.rememberTone': z.boolean(),
@@ -195,10 +197,13 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('LoadOlder', { targetHandle: HandleSchema }),
   /** The local draft of a preview (Fix source, a greeting): never goes to ChatSpace by itself. */
   act('SetPreviewDraft', { targetHandle: HandleSchema, text: displayText(SEND_LIMITS.previewDraftMaxChars) }),
-  /** «Коротко | Полностью», «Открыть последний»: shows a saved slot, never generates. */
-  act('ShowRecap', { length: z.enum(RECAP_LENGTHS) }),
-  /** «↻ Обновить»: a new Recap from the fresh archive, bypassing the cache. */
-  act('RefreshRecap', { length: z.enum(RECAP_LENGTHS) }),
+  /**
+   * «Коротко | Полностью», «Открыть последний»: shows a saved slot, never generates. 1.26.0 (X55): the full one opens in
+   * the «Развернуть ↗» window; `panel` — asked from the fan panel's Recap tab, which shows it itself: no window over it.
+   */
+  act('ShowRecap', { length: z.enum(RECAP_LENGTHS), panel: z.optional(z.literal(true)) }),
+  /** «↻ Обновить»: a new Recap from the fresh archive, bypassing the cache. `panel` (1.26.0, X55) — as for ShowRecap. */
+  act('RefreshRecap', { length: z.enum(RECAP_LENGTHS), panel: z.optional(z.literal(true)) }),
   act('NewCoachDialog', {}),
   /** CG-RECAP-SAVE «Сохранить ещё раз»: the idempotent dossier reference write only, never a new generation. */
   act('RetryRecapSave', { length: z.enum(RECAP_LENGTHS) }),

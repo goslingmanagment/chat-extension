@@ -146,7 +146,8 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
     await pressOurs('dock', '.cg-dock button', /^Собрать полностью/);
-    await waitOursText('dock', 'Hubert, 34', 'the full Recap', { timeout: 20_000 });
+    // X55: the full Recap opens in its «Развернуть ↗» window.
+    await waitOursText('modal', 'Hubert, 34', 'the full Recap in its window', { timeout: 20_000, selector: '.cg-xdlg' });
     await browser.waitUntil(async () => callsTo((await hub().journal(0)).entries, 'clientFanProfileFromGeneration').some((call) => call.status === 200), { timeout: 10_000, timeoutMsg: 'the Recap was not saved to the hub' });
 
     // …and the tab is loaded anew: it remembers nothing of it.

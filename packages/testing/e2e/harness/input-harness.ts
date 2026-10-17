@@ -134,7 +134,7 @@ function setOverlay(overlay: OverlayKind, open: boolean): void {
   else root.querySelector('[data-e2e="overlay"]')?.remove();
 }
 
-const TOGGLED: Partial<Record<DispatcherCommandId, OverlayKind>> = { palette: 'palette', cheatsheet: 'cheatsheet', spenders: 'spenders', 'fan-panel': 'fan-panel' };
+const TOGGLED: Partial<Record<DispatcherCommandId, OverlayKind>> = { palette: 'palette', cheatsheet: 'cheatsheet', spenders: 'spenders', newcomers: 'newcomers', 'fan-panel': 'fan-panel' };
 
 /** The chat's first authoritative state as the lazy part would know it. */
 let dockSettled = params.get('cg-dock') !== 'loading';

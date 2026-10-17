@@ -97,7 +97,7 @@ const claim = (command: DispatcherCommandId | null, run: KeyCommand | null = nul
 /** The generation keys of a preview (HK-042): the same letters, the preview's own target. «Отправить» has no key at all. */
 export const PREVIEW_COMMANDS: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping', 'cancel', 'tone', 'split'];
 /** Works anywhere in ChatSpace, not only in an open chat. */
-export const GLOBAL_COMMANDS: readonly DispatcherCommandId[] = ['spenders', 'palette', 'cheatsheet', 'settings'];
+export const GLOBAL_COMMANDS: readonly DispatcherCommandId[] = ['spenders', 'newcomers', 'palette', 'cheatsheet', 'settings'];
 /** Need the chat list of an account: the open chat or the account's list. */
 export const LIST_COMMANDS: readonly DispatcherCommandId[] = ['chat-next', 'chat-previous', 'next-unread', 'quick-jump'];
 /**
@@ -105,8 +105,8 @@ export const LIST_COMMANDS: readonly DispatcherCommandId[] = ['chat-next', 'chat
  * (HK-027), so under them only their own toggles and Cancel work.
  */
 export const COVERING_OVERLAYS: readonly OverlayKind[] = ['cheatsheet', 'spenders', 'newcomers', 'palette', 'dialog', 'result-expanded'];
-/** What still runs under a covering window: the two reference windows and Cancel. */
-export const UNDER_COVER_COMMANDS: readonly DispatcherCommandId[] = ['cheatsheet', 'spenders', 'cancel', 'close'];
+/** What still runs under a covering window: the reference windows (the cheatsheet and the two boards, X55) and Cancel. */
+export const UNDER_COVER_COMMANDS: readonly DispatcherCommandId[] = ['cheatsheet', 'spenders', 'newcomers', 'cancel', 'close'];
 /** Side panels next to the chat: the chat stays visible and usable, so they own no keys but their own. */
 export const SIDE_PANELS: readonly OverlayKind[] = ['fan-panel', 'coach'];
 
@@ -202,6 +202,9 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
   if (!ourContext) return PASS;
   if (id === 'help') return refuse('help-removed');
   if (cover === 'preview') return PREVIEW_COMMANDS.includes(id) ? run('preview') : refuse('overlay-open');
+  // X55: Review and the full Recap open in the «Развернуть ↗» window; their keys are its own «Ещё раз» and «Обновить»
+  // (the runner checks that the window shows that very one).
+  if (cover === 'result-expanded' && (id === 'recap' || id === 'review') && inChat) return run('dock');
   if (covered) return refuse('overlay-open');
   if (!inChat) return PASS;
   // AI keys work in ChatSpace's own message field and in our UI, not in an arbitrary field of the site: taken there, with the reason (HK-026).

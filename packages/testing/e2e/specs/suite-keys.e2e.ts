@@ -25,12 +25,19 @@
 //   are Firefox's tabs): with it off the hold opens nothing and says
 //   nothing, Alt+1–9 and J are refused aloud, and no chat is opened;
 // - a browser on Windows (a second Firefox that says so): Ctrl+Alt+S is
-//   Recap and ChatSpace's translator, which listens for Alt+S, does not flip.
+//   Recap and ChatSpace's translator, which listens for Alt+S, does not flip;
+// - «Новые» from the keyboard (X55): ⌘⇧U / Ctrl+Alt+U opens the window on
+//   the first fan who can be greeted, with that fan's card; J walks and the
+//   card follows; Enter on the card's row is Hi; nothing is sent; the same
+//   key closes the window.
+
+import { mkdirSync } from 'node:fs';
 
 import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
 import { pilotPageFlags } from '../../src/fake-hub/config';
+import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
 import { callsTo } from '../../src/fake-hub/journal';
 import { clearDraft, composerText, historyLoads, MOD, pageJournal, pageJournalMark, PANEL, sendsOf, serverSince, typeDraft, waitForComposerText } from '../support/chat';
 import { pageRpc } from '../support/extension';
@@ -269,6 +276,46 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       // Three Esc presses inside our window, and ChatSpace's chat tab is still there.
       expect(await route()).toBe(a2);
       expect(await pageEvents(page, 'chat-tab-closed')).toBe(0);
+    });
+  });
+
+  describe('«Новые» from the keyboard (decision X55)', () => {
+    it('[NF-001] [NF-002] [X55] ⌘⇧U / Ctrl+Alt+U opens «Новые» on the first fan who can be greeted, with the card; J walks and the card follows; Enter is Hi — nothing is sent; the same key closes the window', async () => {
+      await callStand('openChat', ACC, a2);
+      await waitForChatReady(ACC, a2);
+      const hubMark = await hub().mark();
+      const standMark = await standServer.mark();
+      const list = '[aria-label="Новые подписчики"]';
+      await browser.keys([...PANEL, 'u']);
+      await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: list });
+      /** The @handle of the row with the keyboard's focus. */
+      const focusedFan = async (): Promise<string> => /@(newfan_\d+)/.exec((await oursFocus('modal'))?.text ?? '')?.[1] ?? '';
+      await browser.waitUntil(async () => (await focusedFan()).startsWith('newfan_'), { timeout: 10_000, timeoutMsg: 'no row of the list has the focus' });
+      const first = await focusedFan();
+      // The card of that fan is open at once: no empty right column, no hint to pick somebody.
+      await waitOursText('modal', `@${first}`, 'the card of the first fan', { selector: '.cg-pv', timeout: 20_000 });
+      await waitOursText('modal', 'строка', 'the keys under the list', { selector: '.cg-nc .cg-keys' });
+      mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
+      // The window's own fade is over before the picture.
+      await browser.pause(400);
+      await browser.saveScreenshot(`${E2E_EVIDENCE_DIR}suite-keys-newcomers-open.png`);
+      await browser.keys(['j']);
+      await browser.waitUntil(async () => (await focusedFan()) !== first, { timeout: 5000, timeoutMsg: 'J did not move to the next row' });
+      const second = await focusedFan();
+      await waitOursText('modal', `@${second}`, 'the card follows the row once the key is up', { selector: '.cg-pv', timeout: 10_000 });
+      // Enter on the card's own row is its greeting: Hi of one variant — a draft, nothing sent.
+      await browser.keys(Key.Enter);
+      await waitOursText('modal', 'Hi and welcome!', 'the greeting of the second fan', { selector: '.cg-pv', timeout: 20_000 });
+      expect(await oursText('modal', '.cg-pv')).toContain('черновик · не отправлено');
+      await browser.saveScreenshot(`${E2E_EVIDENCE_DIR}suite-keys-newcomers-hi.png`);
+      const greetings = callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').filter((call) => (call.request as { feature?: string }).feature === 'hi-greeting');
+      expect(greetings).toHaveLength(1);
+      expect(sendsOf(await serverSince(standMark))).toEqual([]);
+      expect(historyLoads(await serverSince(standMark))).toEqual([]);
+      // The same key closes it, wherever the focus is inside the window; the chat behind it is still the one open.
+      await browser.keys([...PANEL, 'u']);
+      await waitOverlays([], 'the second ⌘⇧U closes «Новые»');
+      expect(await route()).toBe(a2);
     });
   });
 

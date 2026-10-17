@@ -9,16 +9,16 @@ import { type StyleSource } from '../../kit';
 
 export const ANALYSIS_CSS = `
 .cg-prose { display: grid; grid-template-columns: var(--cg-lead, calc(var(--cg-gutter) - 1px)) minmax(0, 1fr); padding: 10px 12px 12px 0; }
-.cg-raw { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; }
+.cg-raw { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; }
 .cg-blocks { display: grid; grid-template-columns: var(--cg-lead, calc(var(--cg-gutter) - 1px)) minmax(0, 1fr); padding: 2px 12px 8px 0; }
 .cg-block { grid-column: 2; display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 2px 16px; padding: 8px 0; border-top: 1px solid var(--cg-rule); }
 .cg-block:first-child { border-top: 0; }
 .cg-block > b { font-weight: 600; color: var(--cg-clay-ink); font-size: var(--cg-text-sm); line-height: 21px; }
-.cg-block .cg-md { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; }
+.cg-block .cg-md { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); }
 .cg-block__main { min-width: 0; }
 .cg-block__main > * + * { margin-top: 6px; }
 .cg-rv-ex { margin-top: 4px; padding: 5px 10px 6px; border: 1px dashed var(--cg-clay-line); border-radius: 9px; background: var(--cg-draft); }
-.cg-rv-ex__t { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; color: var(--cg-ink); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; }
+.cg-rv-ex__t { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); color: var(--cg-ink); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; }
 .cg-rv-item > * + * { margin-top: 4px; }
 .cg-facts {
   flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; min-height: 30px; padding: 4px 6px 4px var(--cg-lead, var(--cg-gutter));

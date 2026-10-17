@@ -30,7 +30,7 @@ describe('[host:fansly] P14b2 popup, status and debug pages', () => {
     const w = await open('fansly', true);
     const row = status(w)?.rows.find((row) => row.host === 'fansly-web');
     const facts = JSON.stringify(row?.details);
-    for (const text of ['main.2e6b96097a4bb73b', 'conversationRoute: ok', 'textarea: ok', 'FBuddy', 'Фильтр слов', '2 вкладки ждут перезагрузки', '70001', '@lora_test', '65 с', 'authorization', 'main.frames.lost: 2', 'Пейсер / охлаждение', 'нет данных', 'без атрибуции']) expect(facts).toContain(text);
+    for (const text of ['main.2e6b96097a4bb73b', 'conversationRoute: ok', 'textarea: ok', 'FBuddy', 'Фильтр слов', '2 вкладки ждут перезагрузки', '70001', '@lora_test', '65 с', 'authorization', 'main.frames.lost: 2', 'Темп запросов / пауза', 'нет данных', 'без атрибуции']) expect(facts).toContain(text);
     const binding = status(w)?.rows.find((entry) => entry.id === 'binding')?.value;
     expect(typeof binding === 'object' ? w.i18n.text(binding) : binding).toBe('Fansly 70001 → Lora Test');
     const hub = status(w)?.rows.find((entry) => entry.id === 'hub')?.note;

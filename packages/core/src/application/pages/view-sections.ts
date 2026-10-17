@@ -286,6 +286,7 @@ export function appearanceBody(model: PagesModel): AppearanceBodyVM | null {
     locale: settings.ui.locale,
     hints: settings.ui.hints,
     resultStyle: settings.ui.resultStyle,
+    textSize: settings.ui.textSize ?? 'normal',
     sound: {
       messages: { ...settings.sound.messages },
       subscribers: { ...settings.sound.subscribers },
