@@ -1,9 +1,12 @@
 import type { PageDiagnostics } from './diagnostics';
 // The host port (architecture.md §5.2, §6): everything the extension may know
-// about and do to the host page. Page memory only — never the network. The
-// port never has, and never will have, fetchHistory(), markRead(), setStore(),
-// a general send() or an arbitrary execute(). Writes: guarded insert,
-// navigation on a human action, and the X8 preview send (PreviewSendPort).
+// about and do to the host page. Page memory, with one read of the network
+// since 1.22.0 (X54): the messages of the chat the person has open, from the
+// host's own API (`openChatMessages`) — never another chat's, whose history
+// load would mark it read. The port never has, and never will have,
+// fetchHistory() of any chat, markRead(), setStore(), a general send() or an
+// arbitrary execute(). Writes: guarded insert, navigation on a human action,
+// and the X8 preview send (PreviewSendPort).
 
 import * as z from 'zod/mini';
 
@@ -24,7 +27,7 @@ import {
   type HostKind,
   type Platform,
 } from './ids';
-import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, STORAGE_LIMITS } from './limits';
+import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -444,6 +447,74 @@ export const TailSnapshotSchema = z.strictObject({
 });
 export type TailSnapshot = z.infer<typeof TailSnapshotSchema>;
 
+/** 1.22.0 (X54): above any price OnlyFans allows on a message; a bigger number is not a price. */
+export const OPEN_CHAT_PRICE_MAX = 10_000;
+
+/**
+ * 1.22.0 (X54): one message of the open chat as the host's API returns it (OnlyMonster's `GET
+ * …/chats/{fan}/messages`), cut to what our features read. The API passes OnlyFans' own message almost raw, so the
+ * money fields mean what OnlyFans means: `price` — the listed price of a paid message, USD (null — free or not given);
+ * `isOpened` — the fan opened the model's message, and on a paid one that is the purchase (null — not given);
+ * `isFree` — OnlyFans' own flag. `automatic` — sent from OnlyFans' queue (a mass or scheduled message), not typed in
+ * the chat. `text` — the plain text, empty for media alone.
+ */
+export const OpenChatMessageSchema = z.strictObject({
+  platformMessageId: NativeIdSchema,
+  direction: z.enum(['fan', 'model']),
+  sentAt: IsoTimestampSchema,
+  text: displayText(LIVE_TEXT_LIMITS.maxChars),
+  price: z.nullable(z.number().check(z.gt(0), z.lte(OPEN_CHAT_PRICE_MAX))),
+  isFree: z.nullable(z.boolean()),
+  isOpened: z.nullable(z.boolean()),
+  mediaCount: CountSchema,
+  tip: z.boolean(),
+  automatic: z.boolean(),
+});
+export type OpenChatMessage = z.infer<typeof OpenChatMessageSchema>;
+
+/** 1.22.0 (X54): one page of the open chat's messages, newest first, as the API pages them. */
+export const OpenChatPageSchema = z.strictObject({
+  capturedAt: IsoTimestampSchema,
+  items: z.array(OpenChatMessageSchema).check(z.maxLength(OPEN_CHAT_LIMITS.pageMax)),
+  /** The API says older messages exist; null — it did not say. */
+  hasMore: z.nullable(z.boolean()),
+  /** The oldest id of the page: the next page's `cursor`; null — an empty page. */
+  cursor: z.nullable(NativeIdSchema),
+});
+export type OpenChatPage = z.infer<typeof OpenChatPageSchema>;
+
+/**
+ * 1.22.0 (X54): why a read of the open chat brought no page. From MAIN: `endpoint` — the page has made no request to
+ * its API yet, so its address is unknown (nothing was requested); `session` — no session token on the page (signed
+ * out, or the page's session provider changed), `http` — the API answered with an error status, `timeout`, `network` —
+ * no answer at all, `invalid` — an answer of another shape. From the port: `not-open` — the chat is not the open one
+ * (nothing was requested), `unavailable` — no bridge, or no answer from MAIN.
+ */
+export const OPEN_CHAT_FAILURES = ['endpoint', 'session', 'http', 'timeout', 'network', 'invalid'] as const;
+export type OpenChatFailure = (typeof OPEN_CHAT_FAILURES)[number] | 'not-open' | 'unavailable';
+
+/** 1.22.0 (X54): MAIN's answer to `openChatMessages`; `status` — the HTTP status of an `http` failure, else null. */
+export const OpenChatAnswerSchema = z.union([
+  z.strictObject({ ok: z.literal(true), page: OpenChatPageSchema }),
+  z.strictObject({ ok: z.literal(false), failure: z.enum(OPEN_CHAT_FAILURES), status: z.nullable(z.int().check(z.gte(100), z.lte(599))) }),
+]);
+export type OpenChatAnswer = z.infer<typeof OpenChatAnswerSchema>;
+
+/** 1.22.0 (X54): HostPort.openChatMessages options. */
+export interface OpenChatReadOptions {
+  /** Messages to read, newest first: 1…OPEN_CHAT_LIMITS.pageMax. */
+  readonly limit: number;
+  /** The page before this id (OpenChatPage.cursor); absent — the newest page. Pages with a cursor are never cached. */
+  readonly cursor?: NativeId;
+  /** A cached newest page of the open chat younger than this answers without a request (default OPEN_CHAT_LIMITS.cacheMs; 0 — always ask). */
+  readonly maxAgeMs?: number;
+}
+
+/** 1.22.0 (X54): what HostPort.openChatMessages resolves with; it never rejects. `cached` — no request was made for it. */
+export type OpenChatRead =
+  | { readonly ok: true; readonly page: OpenChatPage; readonly cached: boolean }
+  | { readonly ok: false; readonly reason: OpenChatFailure; readonly status: number | null };
+
 /**
  * 1.15.0 (R20 §7.7): what the fan's own lines among the texts a host holds say about the fan's script — the language
  * gate's word (AI-087): Cyrillic in any of them — `cyrillic`; fan lines without — `other`; none — `unknown`.
@@ -732,6 +803,13 @@ export interface HostPort {
   readDraft(expected: HostIdentity): Promise<DraftSnapshot>;
   /** Fresh text, D-14; null when the capability is off. */
   readVisibleTail(expected: HostIdentity, max: number): Promise<LiveTextTail | null>;
+  /**
+   * 1.22.0 (X54): the open chat's messages from the host's own API, with what page memory does not hold or holds stale
+   * (a purchase updates no loaded message). Only the chat the person has open: for any other `not-open`, and nothing is
+   * requested. One request serves the callers that ask at the same time; the newest page is kept `maxAgeMs`, and a
+   * message of that chat coming in or the person leaving the chat drops it. Absent on a host without such an API.
+   */
+  openChatMessages?(chat: ChatRef, options: OpenChatReadOptions): Promise<OpenChatRead>;
   /** Prechecks of the open chat. */
   chatWindow(chat: ChatRef, max: number): ChatWindow | null;
   /** Decoration only, when already in memory. */

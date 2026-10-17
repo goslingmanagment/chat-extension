@@ -120,6 +120,12 @@ const WS_TAP_FILE = 'packages/host-chatspace/src/main/ws-tap.ts';
  * there too: it never makes a request of its own.
  */
 const RECEIPT_FILE = 'packages/host-chatspace/src/main/receipt.ts';
+/**
+ * Our reads of ChatSpace's API (decision X54) are the one MAIN file that calls the page's `fetch` (`win.fetch`): a
+ * GET with the page's own session, only what the runtime asks for (the open chat's messages). The global `fetch`
+ * stays banned there too.
+ */
+const OM_API_FILE = 'packages/host-chatspace/src/main/om-api.ts';
 
 const APP_RESTRICTION: Restriction = {
   // `wxt` and `wxt/utils/*` stay allowed for the define helpers and types;
@@ -282,7 +288,7 @@ export default defineConfig(
     },
   },
   {
-    files: [RECEIPT_FILE],
+    files: [RECEIPT_FILE, OM_API_FILE],
     rules: {
       'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['fetch'])],
     },

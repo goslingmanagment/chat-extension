@@ -4,7 +4,7 @@
 
 import { count, int, is, isDigest, isId, isToken, isUuid, orNull, shape, type Check, type Plain } from '@cg/host-kit/main/check';
 import { type Checkpoint } from './live';
-import { KNOWN_FAN_MESSAGES, MAX_PARTS, MAX_SNAPSHOT, MAX_STRING, MAX_VARIANTS, SEND_MAX_CHARS } from './protocol';
+import { KNOWN_FAN_MESSAGES, MAX_PARTS, MAX_SNAPSHOT, MAX_STRING, MAX_VARIANTS, OPEN_CHAT_PAGE_MAX, SEND_MAX_CHARS } from './protocol';
 
 const isChat = shape({ host: is('chatspace'), hostAccountId: isId, platformFanId: isId });
 
@@ -152,4 +152,5 @@ export const PAYLOAD: Record<string, Check> = {
   previewSendPreflight: isSend,
   previewSendCommit: isSend,
   flags: shape({ wsTap: is(true, false), previewSend: is(true, false), 'attribution?': is(true, false) }),
+  openChatMessages: shape({ ...accFan, limit: int(1, OPEN_CHAT_PAGE_MAX), 'cursor?': isId }),
 };

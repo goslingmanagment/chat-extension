@@ -185,6 +185,14 @@ export const PART_LIMITS = { maxVariants: 3, maxParts: 10 } as const;
 export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 
 /**
+ * 1.22.0 (X54): our own read of the open chat from OnlyMonster's API (`openChatMessages`). `pageMax` — messages one
+ * request asks for (ChatSpace itself asks up to 100); `requestMs` — MAIN aborts its request after this; `bridgeMs` —
+ * the isolated side's deadline for the answer (the request plus the frame); `cacheMs` — how long a read of the open
+ * chat answers again without a new request, unless a message of that chat came in.
+ */
+export const OPEN_CHAT_LIMITS = { pageMax: 100, requestMs: 10 * SECOND, bridgeMs: 12 * SECOND, cacheMs: 15 * SECOND } as const;
+
+/**
  * 1.15.0 (R20): hub limits of the window coverage check (HF-8в `AI_COVERAGE_CHECK_WINDOW_MAX` / `_DELETED_MAX`):
  * the ids of the check window and the ids of its messages the tab saw deleted, each list at most this many.
  */

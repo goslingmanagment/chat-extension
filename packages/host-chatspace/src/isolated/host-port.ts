@@ -3,6 +3,14 @@
 // page memory only through the MAIN bridge, the DOM for mounting, and the
 // page's draft key through a storage port.
 //
+// - One read goes past page memory (X54): `openChatMessages`, the open chat's
+//   messages from ChatSpace's API, which MAIN requests with the page's own
+//   session. Only for the chat on the route (another chat's history load would
+//   mark it read on OnlyFans): any other is `not-open` here, before MAIN, and
+//   MAIN checks its route again. Callers that ask at once share one request;
+//   the newest page stays for `maxAgeMs`, and a change of the chat's cache, an
+//   incoming message of it or a move to another chat drops it.
+//
 // - State comes from MAIN's snapshot and events (route, composer, accounts,
 //   chat cache, contract), checked by the bridge client; the synchronous
 //   reads (`chatWindow`, `fan`, `listCachedChats`) answer from a cache that
@@ -37,12 +45,12 @@
 //   because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
-import type { ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
 import { PREVIEW_SEND_CONDITION_CODES, sendFuseHolds, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
-import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
+import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { buildContractReport, type ContractWireInput } from './contract';
@@ -138,6 +146,9 @@ const keyOf = (chat: ChatRef): ChatKey => `${chat.host}:${chat.hostAccountId}:${
 type ReadKind = 'chatWindow' | 'fan' | 'listChats' | 'listAccounts';
 const sameChat = (a: ChatRef | null | undefined, b: ChatRef | null | undefined): boolean => !!a && !!b && keyOf(a) === keyOf(b);
 const rejected = (code: CgCode): InsertReceipt => ({ state: 'rejected', code });
+/** A newest page cut to `limit` messages: what one asking for fewer than were read gets. */
+const firstOf = (page: OpenChatPage, limit: number): OpenChatPage =>
+  page.items.length <= limit ? page : { ...page, items: page.items.slice(0, limit), hasMore: true, cursor: page.items[limit - 1]?.platformMessageId ?? null };
 /** How long a cached chat list counts as fresh before a read asks MAIN again (no timer). */
 const LIST_FRESH_MS = 1000;
 /** Fans of other chats kept for decoration. */
@@ -220,6 +231,16 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   const failedReads = new Set<string>();
   /** The run of identical failures of each kind of read: the log hears its 1st, 10th, 100th… one and how it ended. */
   const failing = new Map<ReadKind, { readonly failure: string; count: number }>();
+  /** X54: the open chat's newest page from ChatSpace's API, the read of it in flight, and what drops them (`staleOpen`). */
+  let openPage: { readonly key: ChatKey; readonly at: number; readonly limit: number; readonly page: OpenChatPage } | null = null;
+  let openRead: { readonly key: ChatKey; readonly generation: number; readonly limit: number; readonly done: Promise<OpenChatRead> } | null = null;
+  let openGeneration = 0;
+  /** The chat's messages may have changed: no read started before serves a later caller or the cache. */
+  const staleOpen = (chat?: ChatRef): void => {
+    if (chat !== undefined && !sameChat(chat, route.chat)) return;
+    openGeneration += 1;
+    openPage = null;
+  };
 
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
@@ -416,6 +437,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     syncComposer();
     if (moved) emit({ type: 'route', route });
     if (moved) refreshReceipt();
+    if (moved) staleOpen();
     recompute();
     refreshOpenChat();
   };
@@ -467,6 +489,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       case 'chatCache': {
         const chat: ChatRef = { host: 'chatspace', hostAccountId: event.payload.acc, platformFanId: event.payload.fan };
         if (!sameChat(chat, route.chat)) return;
+        staleOpen(chat);
         if (capability('chatWindow')) refreshWindow(chat);
         if (capability('fan')) refreshFan(chat, true);
         staleList(chat.hostAccountId);
@@ -484,6 +507,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       // Facts of the tap and the receipt observer: never coalesced, never with a message's text.
       case 'incoming': {
         const { acc, fan, msgId, ...rest } = event.payload;
+        staleOpen({ host: 'chatspace', hostAccountId: acc, platformFanId: fan });
         return emit({ type: 'incoming', fact: { host: 'chatspace', hostAccountId: acc, platformFanId: fan, platformMessageId: msgId, ...rest, source: 'ws-tap' } });
       }
       case 'coverage':
@@ -739,6 +763,41 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       } catch {
         return null;
       }
+    },
+
+    async openChatMessages(chat: ChatRef, options: OpenChatReadOptions): Promise<OpenChatRead> {
+      const { limit, cursor } = options;
+      if (!Number.isInteger(limit) || limit < 1 || limit > OPEN_CHAT_LIMITS.pageMax || (cursor !== undefined && !/^[1-9]\d{0,29}$/.test(cursor))) {
+        throw new HostContractError('openChatMessages: limit 1…pageMax, cursor a native id');
+      }
+      if (!sameChat(chat, route.chat)) return { ok: false, reason: 'not-open', status: null };
+      if (!bridge || disposed) return { ok: false, reason: 'unavailable', status: null };
+      const key = keyOf(chat);
+      const newest = cursor === undefined;
+      if (newest && openPage?.key === key && openPage.limit >= limit && clock() - openPage.at < (options.maxAgeMs ?? OPEN_CHAT_LIMITS.cacheMs)) {
+        return { ok: true, page: firstOf(openPage.page, limit), cached: true };
+      }
+      if (newest && openRead?.key === key && openRead.generation === openGeneration && openRead.limit >= limit) {
+        const read = await openRead.done;
+        return read.ok ? { ...read, page: firstOf(read.page, limit) } : read;
+      }
+      const generation = openGeneration;
+      /** A settled read serves no later caller: the cache does, or a new request. */
+      const settled = (read: OpenChatRead): OpenChatRead => {
+        if (openRead?.done === done) openRead = null;
+        return read;
+      };
+      const done: Promise<OpenChatRead> = bridge.request('openChatMessages', { acc: chat.hostAccountId, fan: chat.platformFanId, limit, ...(newest ? {} : { cursor }) }, OPEN_CHAT_LIMITS.bridgeMs).then(
+        (answer) => {
+          if (!answer.ok) return settled({ ok: false, reason: answer.failure, status: answer.status });
+          // Kept only while nothing of the chat moved since the read started: a later message may be missing from it.
+          if (newest && generation === openGeneration && sameChat(chat, route.chat)) openPage = { key, at: clock(), limit, page: answer.page };
+          return settled({ ok: true, page: answer.page, cached: false });
+        },
+        (error: unknown) => settled({ ok: false, reason: error instanceof BridgeCallError && error.failure === 'identity-mismatch' ? 'not-open' : 'unavailable', status: null }),
+      );
+      if (newest) openRead = { key, generation, limit, done };
+      return done;
     },
 
     /** `max` does not narrow the window: it covers what ChatSpace has loaded, up to the snapshot limit (ui-contract.md п. 11). */

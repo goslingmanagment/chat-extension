@@ -217,12 +217,17 @@ a boundary you need to cross is a design question, not a lint exception.
   insert the draft through `__omComposerBridge`); from a preview (Spenders,
   "New") a click sends through ChatSpace's own send queue in the page (X8),
   never through a request of ours. Never auto-retry anything indeterminate.
-- **Quiet mode toward OnlyMonster.** No network requests of our own to
-  OnlyMonster: read page memory and passive events, insert through their bridge.
-  The only write is the human-clicked preview send through their own queue (X8).
-- **Opening a chat in ChatSpace marks it read on OnlyFans** (live-verified).
-  Never load the history of a chat the human did not open; other fans' data
-  come from the hub only.
+- **Quiet mode toward OnlyMonster, with reads of our own (X54).** Read page
+  memory and passive events, insert through their bridge. Since 2026-10-17 the
+  owner allows our own reads of OnlyMonster's API: they go through MAIN's
+  `omRequest` (`host-chatspace/src/main/om-api.ts`) with the page's own session, as
+  the page makes them; the first is the open chat's messages
+  (`HostPort.openChatMessages`). Never a write of our own: the only write is the
+  human-clicked preview send through their own queue (X8).
+- **Opening a chat in ChatSpace marks it read on OnlyFans** (live-verified), and
+  so does our own read of its history. Never load the history of a chat the
+  human did not open: `openChatMessages` refuses any chat but the one on the
+  route; other fans' data come from the hub only.
 - **Fresh page text goes to the hub only for draft features** (Reply, Fix, Hi,
   Ping), never for Recap/Review/Coach, and never into the hub archive, money or
   dossiers. Skip queued (`isFromQueue`) and unsent messages.

@@ -72,6 +72,8 @@ describe('[EX-008] MAIN bridge literals', () => {
       'KEY_INSIGHTS',
       'STORE_ACCOUNTS',
       'WS_PATH',
+      'API_PATH',
+      'API_ACCOUNTS_PATH',
       'WS_NEW_MESSAGE',
       'WS_AUTHENTICATED',
       'PERMISSION_NO_SEND',

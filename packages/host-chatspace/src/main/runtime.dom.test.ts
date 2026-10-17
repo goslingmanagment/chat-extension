@@ -3,7 +3,7 @@
 // flushed by the test, events are recorded. Answers are checked with the
 // contracts' own schemas (what the isolated side will check).
 
-import { ChatWindowSchema, HostFanSchema, InsertReceiptSchema, NavigationItemSchema, NavigationReceiptSchema, TailSnapshotSchema } from '@cg/contracts/host';
+import { ChatWindowSchema, HostFanSchema, InsertReceiptSchema, NavigationItemSchema, NavigationReceiptSchema, OpenChatAnswerSchema, TailSnapshotSchema } from '@cg/contracts/host';
 import { DraftWireSchema, MainSnapshotSchema } from '@cg/contracts/bridge-messages';
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakeEditor, type FakePage } from '../testing/fake-page';
 import { type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
 import { faultCounter, guardWith } from '@cg/host-kit/main/guard';
+import { createOmApi } from './om-api';
 import { createMainRuntime } from './runtime';
 
 /** The boot's guard and fault counter as MainContext takes them. */
@@ -1104,5 +1105,164 @@ describe('MAIN runtime — requests', () => {
     // While #app is not there (still searching or given up), only `app` is reported, as missing.
     expect((bare.handle('snapshot', {}) as { contract: unknown }).contract).toEqual({ build: null, missing: ['app'], shape: [], notYet: [], receiptModules: {} });
     bare.dispose();
+  });
+});
+
+describe('MAIN runtime — our read of the open chat from the API (X54)', () => {
+  const API = 'https://api.example.test/api/v0/';
+  const raw = (id: string, over: Record<string, unknown> = {}, meta: Record<string, unknown> = {}) => ({
+    id,
+    content: '<p>for <b>you</b></p>',
+    sent_at: '2026-10-17T06:00:00+00:00',
+    is_from_fan: false,
+    platform_metadata: { price: 0, isFree: true, isOpened: false, mediaCount: 0, media: [], isTip: false, isFromQueue: false, ...meta },
+    ...over,
+  });
+  let token: unknown;
+  let entries: Array<{ name: string }>;
+  let fetches: Array<{ url: string; auth: string | null }>;
+  let reply: () => Promise<Response>;
+
+  beforeEach(async () => {
+    token = 'jwt-1';
+    entries = [{ name: 'https://chat.example.test/assets/index-abc.js' }, { name: `${API}accounts?limit=10` }];
+    fetches = [];
+    reply = () => Promise.resolve(new Response(JSON.stringify({ items: [], has_more: false })));
+    Object.defineProperty(window, 'Clerk', { configurable: true, value: { session: { getToken: () => Promise.resolve(token) } } });
+    vi.spyOn(window.performance, 'getEntriesByType').mockImplementation(() => entries as unknown as PerformanceEntryList);
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      fetches.push({ url: input instanceof Request ? input.url : input instanceof URL ? input.href : input, auth: new Headers(init?.headers).get('authorization') });
+      return reply();
+    });
+    await start();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window, 'Clerk');
+  });
+
+  it('[X54] only the chat on the route: another chat is refused before any request', async () => {
+    const h = harness as Harness;
+    expect(await h.call('openChatMessages', { acc: ACC, fan: OTHER, limit: 50 })).toBe('identity-mismatch');
+    expect(await h.call('openChatMessages', { acc: '1009', fan: FAN, limit: 50 })).toBe('identity-mismatch');
+    h.page.go(ACC, OTHER);
+    expect(await h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 50 })).toBe('identity-mismatch');
+    h.page.go(ACC, undefined, 'accounts-overview');
+    expect(await h.call('openChatMessages', { acc: ACC, fan: OTHER, limit: 50 })).toBe('identity-mismatch');
+    expect(fetches).toEqual([]);
+    expect(h.runtime.handle('openChatMessages', { acc: ACC, fan: FAN, limit: 101 })).toBe('bad-request');
+    expect(h.runtime.handle('openChatMessages', { acc: ACC, fan: FAN, limit: 5, cursor: 'x' })).toBe('bad-request');
+  });
+
+  it('[X54] the page’s own address, session and transport; money fields as OnlyFans gives them', async () => {
+    const h = harness as Harness;
+    reply = () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            items: [
+              raw('9003', { is_from_fan: true, content: '<p>wow</p><p>thanks</p>' }),
+              raw('9002', {}, { price: '25.00', isFree: false, isOpened: true, mediaCount: 2, isFromQueue: true }),
+              raw('9001', { content: '' }, { price: 15, isFree: false, isOpened: false, media: [{}, {}, {}], mediaCount: undefined, isTip: true }),
+              { id: 'not-an-id', sent_at: '2026-10-17T06:00:00Z', is_from_fan: false },
+            ],
+            has_more: true,
+          }),
+        ),
+      );
+    const answer = OpenChatAnswerSchema.parse(await h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 50, cursor: '9100' }));
+    // Past OnlyMonster's own cache (its Refresh): a purchase changes a message, only a fresh read says it.
+    expect(fetches).toEqual([{ url: `${API}accounts/${ACC}/chats/${FAN}/messages?limit=50&cursor=9100&force=true`, auth: 'Bearer jwt-1' }]);
+    if (!answer.ok) throw new Error('no page');
+    expect(Date.parse(answer.page.capturedAt)).not.toBeNaN();
+    expect({ ...answer, page: { ...answer.page, capturedAt: null } }).toEqual({
+      ok: true,
+      page: {
+        capturedAt: null,
+        items: [
+          { platformMessageId: '9003', direction: 'fan', sentAt: '2026-10-17T06:00:00.000Z', text: 'wow\nthanks', price: null, isFree: true, isOpened: false, mediaCount: 0, tip: false, automatic: false },
+          { platformMessageId: '9002', direction: 'model', sentAt: '2026-10-17T06:00:00.000Z', text: 'for you', price: 25, isFree: false, isOpened: true, mediaCount: 2, tip: false, automatic: true },
+          { platformMessageId: '9001', direction: 'model', sentAt: '2026-10-17T06:00:00.000Z', text: '', price: 15, isFree: false, isOpened: false, mediaCount: 3, tip: true, automatic: false },
+        ],
+        hasMore: true,
+        cursor: '9001',
+      },
+    });
+  });
+
+  it('[X54] the person leaves the chat while the token is fetched: refused before the request, nothing is read', async () => {
+    const h = harness as Harness;
+    let release: (value: unknown) => void = () => undefined;
+    Object.defineProperty(window, 'Clerk', { configurable: true, value: { session: { getToken: () => new Promise((resolve) => (release = resolve)) } } });
+    const asked = h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 });
+    await Promise.resolve();
+    h.page.go(ACC, OTHER);
+    release('jwt-late');
+    expect(await asked).toBe('identity-mismatch');
+    expect(fetches).toEqual([]);
+  });
+
+  it('[X54] only the page’s own read of its accounts names the API: another `/api/v0/` address carries no token', async () => {
+    (harness as Harness).dispose();
+    entries = [{ name: 'https://elsewhere.example.test/api/v0/chats/1' }];
+    const fresh = await start();
+    expect(OpenChatAnswerSchema.parse(await fresh.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 }))).toEqual({ ok: false, failure: 'endpoint', status: null });
+    expect(fetches).toEqual([]);
+  });
+
+  it('[X54] what fails is an answer, never a throw: no address yet, no session, an error status, a broken body', async () => {
+    const h = harness as Harness;
+    const ask = async () => OpenChatAnswerSchema.parse(await h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 }));
+    token = null;
+    expect(await ask()).toEqual({ ok: false, failure: 'session', status: null });
+    token = 'jwt-2';
+    reply = () => Promise.resolve(new Response('{}', { status: 429 }));
+    expect(await ask()).toEqual({ ok: false, failure: 'http', status: 429 });
+    reply = () => Promise.resolve(new Response('not json'));
+    expect(await ask()).toEqual({ ok: false, failure: 'invalid', status: null });
+    reply = () => Promise.resolve(new Response(JSON.stringify({ items: 'none' })));
+    expect(await ask()).toEqual({ ok: false, failure: 'invalid', status: null });
+    reply = () => Promise.reject(new TypeError('offline'));
+    expect(await ask()).toEqual({ ok: false, failure: 'network', status: null });
+    expect(fetches.every((call) => call.auth === 'Bearer jwt-2')).toBe(true);
+    // A new document whose page has not asked its API yet: the address is unknown, nothing is requested.
+    h.dispose();
+    entries = [];
+    const fresh = await start();
+    const before = fetches.length;
+    expect(OpenChatAnswerSchema.parse(await fresh.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 }))).toEqual({ ok: false, failure: 'endpoint', status: null });
+    expect(fetches).toHaveLength(before);
+  });
+
+  it('[X54] omRequest: a POST carries its JSON body and type beside the bearer, as the page sends it', async () => {
+    const seen: Array<{ url: string; method: string | undefined; type: string | null; body: unknown }> = [];
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      seen.push({ url: input instanceof Request ? input.url : input instanceof URL ? input.href : input, method: init?.method, type: new Headers(init?.headers).get('content-type'), body: init?.body });
+      return Promise.resolve(new Response(JSON.stringify({ items: [] })));
+    });
+    const om = createOmApi(window, (callback, ms) => setTimeout(callback, ms));
+    expect(await om.omRequest('accounts/1001/platforms/onlyfans/vault/media/release-forms', { method: 'POST', json: { media_ids: [1, 2] } })).toEqual({ ok: true, body: { items: [] } });
+    expect(await om.omRequest('accounts')).toEqual({ ok: true, body: { items: [] } });
+    expect(seen).toEqual([
+      { url: `${API}accounts/1001/platforms/onlyfans/vault/media/release-forms`, method: 'POST', type: 'application/json', body: '{"media_ids":[1,2]}' },
+      { url: `${API}accounts`, method: 'GET', type: null, body: undefined },
+    ]);
+  });
+
+  it('[X54] the answer never outgrows one frame, and stops at the limit', async () => {
+    const h = harness as Harness;
+    const long = `<p>${'я'.repeat(5000)}</p>`;
+    reply = () => Promise.resolve(new Response(JSON.stringify({ items: Array.from({ length: 100 }, (_, i) => raw(String(8000 - i), { content: long })), has_more: false })));
+    const answer = OpenChatAnswerSchema.parse(await h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 100 }));
+    if (!answer.ok) throw new Error('no page');
+    expect(answer.page.items.length).toBeGreaterThan(0);
+    expect(answer.page.items.length).toBeLessThan(100);
+    expect(answer.page.hasMore).toBe(true);
+    expect(answer.page.cursor).toBe(answer.page.items.at(-1)?.platformMessageId);
+    expect(new TextEncoder().encode(JSON.stringify(answer)).length).toBeLessThan(BRIDGE_LIMITS.maxFrameBytes - 1024);
+    reply = () => Promise.resolve(new Response(JSON.stringify({ items: [raw('7003'), raw('7002'), raw('7001')], has_more: false })));
+    const two = OpenChatAnswerSchema.parse(await h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 2 }));
+    expect(two.ok && two.page.items.map((item) => item.platformMessageId)).toEqual(['7003', '7002']);
+    expect(two.ok && two.page.hasMore).toBe(true);
   });
 });
