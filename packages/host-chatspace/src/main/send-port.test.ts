@@ -63,6 +63,60 @@ describe('[X8-02] the one queue call (§6.7.1)', () => {
     expect(toHtml('<img src=x onerror=alert(1)>')).toBe('<p>&lt;img src=x onerror=alert(1)&gt;</p>');
   });
 
+  it('[X53] the picked media go in the same call, as ChatSpace’s own composer puts them: ids as numbers, audio with a thumb, the price in USD, the free previews and the release-form tags', async () => {
+    const live = start();
+    const media = {
+      items: [
+        { id: '660000155', type: 'photo', duration: 0, thumb: 'https://pw365.ompcdn.com/a.jpg', free: true },
+        { id: '660000160', type: 'video', duration: 75, thumb: null, free: false },
+        { id: '660000170', type: 'audio', duration: 12, thumb: null, free: false },
+      ],
+      priceCents: 2499,
+      tags: { users: ['77'], guests: ['91'] },
+    };
+    const answer = live.commit(live.request(5, { plainText: 'just for you', media }));
+    expect(answer.state).toBe('nativeEnqueued');
+    expect(live.queue.sends).toEqual([
+      {
+        accountId: ACC,
+        chatId: FAN,
+        platform: 'onlyfans',
+        text: '<p>just for you</p>',
+        hasAttachments: true,
+        isAiGenerated: true,
+        isCopied: false,
+        platformMetadata: { mediaFiles: [660000155, 660000160, { id: 660000170, thumbId: 0 }], rfTag: ['77'], rfGuest: ['91'], price: 24.99, previews: [660000155] },
+        composerContent: {
+          html: '<p>just for you</p>',
+          media: {
+            medias: [
+              { id: '660000155', type: 'photo', duration: 0, isFree: true, imageUrl: 'https://pw365.ompcdn.com/a.jpg' },
+              { id: '660000160', type: 'video', duration: 75, isFree: false, imageUrl: undefined },
+              { id: '660000170', type: 'audio', duration: 12, isFree: false, imageUrl: undefined },
+            ],
+            price: 24.99,
+            lockedText: false,
+          },
+          gif: null,
+          taggedCreators: [
+            { id: '77', name: '77', avatarUrl: null, type: 'user' },
+            { id: '91', name: '91', avatarUrl: null, type: 'guest' },
+          ],
+        },
+      },
+    ]);
+    await live.settle();
+    // One native request to that chat, made by ChatSpace's own client.
+    expect(live.calls.map((call) => [call.method, new URL(call.url).pathname])).toEqual([['POST', `/api/v0/accounts/${ACC}/chats/${FAN}/messages`]]);
+  });
+
+  it('[X53] free media: no price and no previews on the wire', () => {
+    const live = start();
+    live.commit(live.request(6, { media: { items: [{ id: '11', type: 'gif', duration: 0, thumb: null, free: false }], priceCents: 0, tags: { users: [], guests: [] } } }));
+    expect(live.queue.sends[0]).toMatchObject({ hasAttachments: true, platformMetadata: { mediaFiles: [11] }, composerContent: { media: { price: null } } });
+    expect(Object.keys(live.queue.sends[0]?.['platformMetadata'] as object)).toEqual(['mediaFiles']);
+  });
+
   it('`isAiGenerated` is the request’s (ChatSpace’s own mark, decided before MAIN); `isCopied` is always false, the metadata always empty', () => {
     const live = start();
     live.commit(live.request(2, { isAiGenerated: false, plainText: 'a\nb' }));

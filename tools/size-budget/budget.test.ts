@@ -113,7 +113,7 @@ describe('size budgets of the sites’ scripts (host registry)', () => {
     const lines = computeBudgets(() => noise(100), dockOnly, [CHATSPACE], [SITE]);
     expect(lines.slice(0, 3).map((line) => [line.label, line.files, line.limitBytes])).toEqual([
       ['MAIN bridge: boot + runtime (chatspace-main)', ['content-scripts/chatspace-main.js'], 12 * 1024],
-      ['MAIN WS tap (chatspace-ws)', ['chatspace-ws.js'], 6.25 * 1024],
+      ['MAIN WS tap (chatspace-ws)', ['chatspace-ws.js'], 6.5 * 1024],
       ['isolated early bootstrap (chatspace)', ['content-scripts/chatspace.js'], 32 * 1024],
     ]);
   });
@@ -221,7 +221,7 @@ describe('size budgets of the sites’ lazy builds and contract probes (R20 F2b)
       ['contracts: limits only', 2 * 1024],
       ['chatspace: contracts: early isolated (bridge guard, envelopes, tab.register)', 12 * 1024],
       ['chatspace: contracts: UiAction schema', 16 * 1024],
-      ['chatspace: contracts: tab request registry (parseTabPayload)', 30 * 1024],
+      ['chatspace: contracts: tab request registry (parseTabPayload)', 31 * 1024],
     ]);
     const fansly: HostDescriptor = { ...CHATSPACE, kind: 'fansly-web', budgets: { ...CHATSPACE.budgets, contracts: [{ label: 'contracts: its bridge registry', entry: 'export {};', gzipBytes: 30 * 1024 }] } };
     expect(contractsProbes([CHATSPACE, fansly])).toEqual([...contractsProbes([CHATSPACE]), { label: 'fansly-web: contracts: its bridge registry', entry: 'export {};', limitBytes: 30 * 1024 }]);

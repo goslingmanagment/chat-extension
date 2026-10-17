@@ -742,7 +742,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // R20 P14c: switched off or its rights taken back, the module's tabs finish what they started and begin nothing (FS-PERM-5).
     siteActive: () => siteActive(host),
     // 1.21.0 (X48): who sent a message the site's module proved — a preview's send the person clicked.
-    attributions: { sent: ({ pageId, fanRef, platformMessageId }) => void attribute(host, pageId, { platformMessageId, fanRef, observedAt: new Date(CLOCK.now()).toISOString(), priced: false, withMedia: false }) },
+    attributions: { sent: ({ pageId, fanRef, platformMessageId, priced, withMedia }) => void attribute(host, pageId, { platformMessageId, fanRef, observedAt: new Date(CLOCK.now()).toISOString(), priced, withMedia }) },
   });
   /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */
   function siteTabsOf(host: HostKind): SiteTabsPort {

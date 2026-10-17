@@ -27,7 +27,7 @@ import { type CgCode, type CgErrorWire, type I18nKey } from '@cg/contracts/error
 import { TONES, type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
 import { type HostEvent, type HostPort, type NavigationReceipt } from '@cg/contracts/host';
 import { type SpenderDetail } from '@cg/contracts/hub';
-import { CHAT_IS_FAN, chatKeyOf, type PartRef, type Platform, type Target } from '@cg/contracts/ids';
+import { CHAT_IS_FAN, chatKeyOf, type ChatRef, type PartRef, type Platform, type Target } from '@cg/contracts/ids';
 import { OP_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
 import { type OpView, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint, type PreviewSendPreflight, type PreviewSendRequest, type SendAttemptView, type SendGroup } from '@cg/contracts/send';
@@ -74,6 +74,7 @@ import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type Draft
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
+import { MediaDesk } from './media';
 import { partsOfResult, previewResult, type PartRows } from './result';
 import { clickable, fanAttempts, fanSendsOf, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type FanSendFact, type FanSends, type PartAttempt } from './send-rows';
 
@@ -298,6 +299,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   let epoch = context.current().epoch;
   let disposed = false;
   let saveChain: Promise<void> = Promise.resolve();
+  /**
+   * Decision X53: the media picker of the previews — the vault's media a part takes along. Its changes draw every
+   * open card again (a fan's picks show on each of its cards).
+   */
+  const media = new MediaDesk({ port: host.media, clock, i18n, changed: () => changed() });
+  /** Sends that took media, by attempt: their picks are gone once the send reached the platform (or may have). */
+  const mediaAttempts = new Map<string, ChatRef>();
 
   const cells: Record<PreviewSource, ViewCell<PreviewVM>> = {
     spenders: new ViewCell(() => build('spenders')),
@@ -323,6 +331,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   };
 
   const nowIso = (): string => new Date(clock.now()).toISOString();
+  /** The fan's chat on the page's bound account; null — no binding yet. */
+  const chatOf = (state: Pick<TargetState, 'fanRef'>): ChatRef | null => {
+    const binding = context.current().binding;
+    return binding === null ? null : { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef };
+  };
   const surfaceOf = (source: PreviewSource): Surface => (source === 'newcomers' ? 'newcomers' : 'preview');
   const purposeOf = (source: PreviewSource): 'greeting' | 'preview-reply' => (source === 'newcomers' ? 'greeting' : 'preview-reply');
   const featuresOf = (source: PreviewSource): readonly PreviewActionId[] => (source === 'newcomers' ? ['hi'] : DRAFT_FEATURES);
@@ -603,6 +616,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     stopPoll(state);
     if (state.feed !== null && state.feedConversation !== null) kept = keepFeed(kept, { key: handle, conversationRef: state.feedConversation.conversationRef ?? state.fanRef, first: state.feed, keptAt: state.feedLoadedAt ?? clock.now() });
     targets.delete(handle);
+    // Decision X53: the picks are the open card's; another card of the same fan keeps them.
+    const chat = chatOf(state);
+    if (chat !== null && ![...targets.values()].some((other) => other.pageId === state.pageId && other.fanRef === state.fanRef)) media.drop(chat);
     // The person closed the preview before the chat opened: the pending insert is given up (§6.5).
     if (pendingInsert !== null && pendingInsert.track.handle === handle && !closingForNavigation) cancelInsert('preview-closed');
     // What the journal listed for the fan is read again when a card of the fan opens.
@@ -1169,6 +1185,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const unsent = row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'rejected';
     if (unsent && sends.uncertain !== null && sends.uncertain.opId !== track.opId) row = { s: 'unavailable', code: 'CG-SEND-UNCERTAIN', reason: msg(SEND_REASON_KEYS['CG-SEND-UNCERTAIN']) };
     else if (row.s === 'available' && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
+    // Decision X53: picked media that cannot go yet (the price, the release forms) hold the part's «Отправить».
+    if (row.s === 'available') {
+      const attached = media.attachment(track.target.chat);
+      if (attached.kind === 'blocked') row = { s: 'unavailable', code: 'CG-SEND-MEDIA', reason: attached.reason };
+    }
     const settled = row.s === 'sent' || row.s === 'uncertain' || row.s === 'queued' || row.s === 'sending' || row.s === 'accepted';
     const order = group === null || settled ? null : partOrder(group, index, attempts);
     return {
@@ -1266,6 +1287,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   function afterAttempt(track: OpTrack, view: SendAttemptView): void {
+    // Decision X53: the picks went with this send once the platform took it, or may have: they never go twice.
+    const pickedFor = mediaAttempts.get(view.attemptId);
+    if (pickedFor !== undefined && (view.state === 'nativeAccepted' || view.state === 'sentObserved' || view.state === 'uncertain')) {
+      mediaAttempts.delete(view.attemptId);
+      media.sent(pickedFor);
+    } else if (pickedFor !== undefined && (view.state === 'rejected' || view.state === 'held' || view.state === 'notEnqueued')) mediaAttempts.delete(view.attemptId);
     if (view.state === 'held' && view.code === 'CG-SEND-STALE') markFanWrote(track, null);
     if (view.code === 'CG-CLAIM-EXPIRED' || view.code === 'CG-CLAIM-BUSY') deps.greeting?.noteRefusal(track.fanRef, view.code);
     if (view.state === 'held' && view.code === 'CG-HUB-RATE-LIMIT') {
@@ -1400,12 +1427,20 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       draft: { text: '', maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg(draftPlaceholder(source)) },
       bar: { actions: {}, tone: null, tones: TONES, split: false, locked: false, toneReason: null, splitReason: null },
       result: null,
+      media: null,
       idleHint: null,
       neighbors: { previous: null, next: null },
       claim: null,
       greeting: null,
       stoppedNote: null,
     };
+  }
+
+  /** Decision X53: the picker where a part may be sent from this card — the page's preview send, a host with a vault. */
+  function mediaVm(state: TargetState): PreviewVM['media'] {
+    const chat = chatOf(state);
+    if (chat === null || deps.sender === null || deps.previewSend === false || !media.available || !pageFlag(context.current(), 'previewSend')) return null;
+    return media.vm(chat);
   }
 
   function build(source: PreviewSource): PreviewVM {
@@ -1504,6 +1539,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       draft: { text: draftText(state), maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg(draftPlaceholder(source)) },
       bar: barOf(state, track),
       result,
+      media: mediaVm(state),
       idleHint: result === null && feed !== null && blocked === null ? msg('preview.empty') : null,
       neighbors: {
         previous: around.previous === null ? null : { type: 'OpenPreview', targetHandle: around.previous },
@@ -1691,6 +1727,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       return refused(type, localError(code, i18n));
     }
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
+    // Decision X53: the picked media go with this part, as they are at the click.
+    const attached = media.attachment(track.target.chat);
+    if (attached.kind === 'blocked') return refused(type, localError('CG-SEND-MEDIA', i18n));
     // The button is off from the first click, before anything answers (§6.7.7, lock 1).
     track.clicked.add(key);
     reportProgress(track);
@@ -1722,6 +1761,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       hostBuild: host.current().contract.build,
       plainText: text,
       isAiGenerated: pageFlag(context.current(), 'previewSendMarkAiGenerated'),
+      ...(attached.kind === 'media' ? { media: attached.media } : {}),
     };
     let answered: SendAttemptView;
     try {
@@ -1739,6 +1779,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     unclaimed.delete(answered.attemptId);
     const latest = early !== undefined && attemptReachable(answered.state, early.state) ? early : answered;
     attemptOwner.set(latest.attemptId, { opId: track.opId, key });
+    if (attached.kind === 'media') mediaAttempts.set(latest.attemptId, track.target.chat);
     track.attempts.set(key, {
       attemptId: latest.attemptId,
       view: latest,
@@ -1900,6 +1941,45 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return state !== undefined && SOURCES.some((s) => surfaces.current().preview[s] === handle) ? state : null;
   };
 
+  type MediaAction = Extract<UiAction, { type: 'SetMediaOpen' | 'ChooseMediaFolder' | 'LoadMoreMedia' | 'PickMedia' | 'ToggleMediaFree' | 'SetMediaPrice' | 'ClearMedia' | 'RetryMedia' }>;
+  const isMediaAction = (action: UiAction): action is MediaAction =>
+    action.type === 'SetMediaOpen' ||
+    action.type === 'ChooseMediaFolder' ||
+    action.type === 'LoadMoreMedia' ||
+    action.type === 'PickMedia' ||
+    action.type === 'ToggleMediaFree' ||
+    action.type === 'SetMediaPrice' ||
+    action.type === 'ClearMedia' ||
+    action.type === 'RetryMedia';
+
+  /** Decision X53: one move of the person in the picker; false — nothing changed. */
+  function mediaAction(action: MediaAction, chat: ChatRef): boolean {
+    switch (action.type) {
+      case 'SetMediaOpen':
+        media.setOpen(chat, action.open);
+        return true;
+      case 'ChooseMediaFolder':
+        media.chooseFolder(chat, action.folder);
+        return true;
+      case 'LoadMoreMedia':
+        media.more(chat, action.what);
+        return true;
+      case 'PickMedia':
+        return media.pick(chat, action.mediaId);
+      case 'ToggleMediaFree':
+        return media.toggleFree(chat, action.mediaId);
+      case 'SetMediaPrice':
+        media.setPrice(chat, action.text);
+        return true;
+      case 'ClearMedia':
+        media.clear(chat);
+        return true;
+      case 'RetryMedia':
+        media.retry(chat);
+        return true;
+    }
+  }
+
   let previewOpenRun = 0;
   function dispatch(action: UiAction): Promise<ActionReceipt> | null {
     const type = action.type;
@@ -1956,6 +2036,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         return Promise.resolve(done(type));
       }
       return generate(type, state, action.feature, action.options, null);
+    }
+    if (isMediaAction(action)) {
+      if (parseFanHandle(action.targetHandle) === null) return null;
+      const state = stateOf(action.targetHandle);
+      const chat = state === null ? null : chatOf(state);
+      if (state === null || chat === null || mediaVm(state) === null) return Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n)));
+      return Promise.resolve(mediaAction(action, chat) ? done(type) : done(type, 'noop'));
     }
     if (action.type === 'Copy') {
       const part = parsePartHandle(action.artifactHandle);
@@ -2034,6 +2121,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         for (const target of targets.values()) stopPoll(target);
         for (const track of tracks.values()) clearHoldTimers(track);
         targets.clear();
+        media.reset();
+        mediaAttempts.clear();
         kept = [];
         tracks.clear();
         docked.clear();

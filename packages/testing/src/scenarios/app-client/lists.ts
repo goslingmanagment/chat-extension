@@ -222,6 +222,7 @@ export function preview(ctx: ScenarioCtx, source: PreviewSource, view: VmView, o
     draft: { text: '', maxChars: 5000, placeholder: msg(source === 'newcomers' ? 'newcomers.greetingDraft.placeholder' : 'preview.draft.placeholder') },
     bar: previewBar(ctx, source, barPatch),
     result: null,
+    media: null,
     idleHint: hasData ? msg('preview.empty') : null,
     neighbors: {
       previous: { type: 'OpenPreview', targetHandle: handles.spenders(FANS.theodore) },

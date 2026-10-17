@@ -15,7 +15,7 @@ import { SEARCH_DEBOUNCE_MS } from '@cg/core/application/spenders';
 import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
 import { PreviewSendDriver } from '@cg/core/services';
 import { createFakeHub, hubCall, type FakeHub, type FakeHubConfigPatch } from '@cg/testing/fake-hub';
-import { DOCUMENT, FakeHostPort, HOST_IDS, contractReport, hostAccount, memory as hostMemory, startSnapshot, type HostAnswers, type HostScript, type HostStep } from '@cg/testing/host';
+import { DOCUMENT, FakeHostPort, HOST_IDS, contractReport, hostAccount, memory as hostMemory, startSnapshot, type FakeMediaVault, type HostAnswers, type HostScript, type HostStep } from '@cg/testing/host';
 import { NOW_MS, WORLD, contextFrame, meta, pageFeaturesOff } from '@cg/testing/hub';
 
 import { BoardsBackground } from './support/boards-background';
@@ -59,6 +59,8 @@ interface Options {
   readonly slowNavigate?: boolean;
   /** 1.20.0: the site's own fan panel stands next to the chat (ChatSpace 0.195). */
   readonly fanPanelBesideHost?: boolean;
+  /** 1.24.0 (X53): the vault the media picker reads; absent — the host has none. */
+  readonly media?: FakeMediaVault;
 }
 
 interface Harness {
@@ -157,6 +159,7 @@ async function harness(options: Options = {}): Promise<Harness> {
           },
     answers: options.answers ?? {},
     timeline,
+    ...(options.media === undefined ? {} : { media: options.media }),
   };
   const host = new FakeHostPort(script, NOW_MS);
   const waiting: { aborted: boolean; run(): void }[] = [];
@@ -3806,5 +3809,174 @@ describe('R20 F6b, ChatSpace: a preview and the fan panel on ChatSpace read the 
     const reads = h.bg.requests.filter((request) => ['feed.read', 'fan.card', 'fan.dossier'].includes(request.type));
     // The cursor is the hub's own token: named, the rest compared as is.
     expect(JSON.stringify(reads).replace(/"cursor":"[^"]+"/g, '"cursor":"<cursor>"')).toBe(CHATSPACE_RECORDED.boardReads);
+  });
+});
+
+// ── decision X53: the media picker of a preview ──
+
+const photo = (id: string, extra: Record<string, unknown> = {}) => ({ id, type: 'photo' as const, duration: 0, ready: true, thumb: `https://pw365.ompcdn.com/${id}.jpg`, createdAt: null, ...extra });
+const VAULT: FakeMediaVault = {
+  folders: [
+    { id: '880001', name: 'Messages', kind: 'messages', photos: 6215, videos: 1067, other: 2 },
+    { id: '880002', name: 'Stand set', kind: 'custom', photos: 14, videos: 0, other: 0 },
+  ],
+  items: {
+    all: [photo('11'), photo('12'), photo('13', { type: 'video', duration: 75 }), photo('14', { ready: false })],
+    '880002': [photo('21'), photo('22')],
+  },
+  states: { '5000': [{ id: '11', state: 'paid', priceCents: 1500 }, { id: '12', state: 'free', priceCents: null }] },
+  tags: { '12': { users: ['77'], guests: [] } },
+};
+const pv = (h: Harness) => h.boards.preview.getSnapshot(preview('spenders'));
+
+describe('[X53] media from the vault go with a part sent from the preview', () => {
+  it('the picker reads nothing until it is opened; then the folders, every medium and what this fan got of them — never a chat', async () => {
+    const { h, handle } = await withReply({ media: VAULT });
+    expect(pv(h).media).toMatchObject({ open: false, picks: 0, attached: null, blocked: null });
+    expect(h.host.calls.media).toEqual([]);
+    expect(await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true })).toMatchObject({ ok: true });
+    await h.flush();
+    expect(h.host.calls.media).toEqual([
+      { of: 'folders', acc: HOST_IDS.acc, offset: 0 },
+      { of: 'items', acc: HOST_IDS.acc, folder: 'all', offset: 0 },
+      { of: 'states', acc: HOST_IDS.acc, fan: '5000', ids: ['11', '12', '13', '14'] },
+    ]);
+    const media = pv(h).media!;
+    expect(media.folders.items.map((folder) => [folder.id, folder.name, folder.selected])).toEqual([
+      ['all', null, true],
+      ['880001', 'Messages', false],
+      ['880002', 'Stand set', false],
+    ]);
+    expect(media.grid.items.map((cell) => [cell.id, cell.fan, cell.ready, cell.order])).toEqual([
+      ['11', 'paid', true, null],
+      ['12', 'free', true, null],
+      ['13', null, true, null],
+      ['14', null, false, null],
+    ]);
+    // Another folder: its own media, its own statuses once.
+    await h.dispatch({ type: 'ChooseMediaFolder', targetHandle: handle, folder: '880002' });
+    await h.flush();
+    expect(pv(h).media?.grid.items.map((cell) => cell.id)).toEqual(['21', '22']);
+    expect(h.host.calls.media.slice(3)).toEqual([
+      { of: 'items', acc: HOST_IDS.acc, folder: '880002', offset: 0 },
+      { of: 'states', acc: HOST_IDS.acc, fan: '5000', ids: ['21', '22'] },
+    ]);
+    // Nothing of the vault touched a chat, inserted or sent.
+    expect(h.host.calls.navigations).toEqual([]);
+    expect(h.host.calls.commits).toEqual([]);
+  });
+
+  it('picks in the order of the clicks, a medium not ready is never picked; the price and the release forms decide whether a part may take them', async () => {
+    const { h, handle, opId } = await withReply({ media: VAULT });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11' });
+    expect(await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '14' })).toMatchObject({ ok: true, outcome: 'noop' });
+    // The release forms are being read: the parts wait for them.
+    expect(pv(h).media).toMatchObject({ picks: 2, tags: 'loading', attached: null, blocked: { key: 'preview.media.blocked.tagsLoading' } });
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-MEDIA', reason: { key: 'preview.media.blocked.tagsLoading' } });
+    await h.advance(300);
+    expect(h.host.calls.media.at(-1)).toEqual({ of: 'tags', acc: HOST_IDS.acc, ids: ['12', '11'] });
+    expect(pv(h).media).toMatchObject({ tags: 'ok', attached: { count: 2, priceCents: 0 }, blocked: null, summary: { key: 'preview.media.summaryFree' } });
+    expect(pv(h).media?.grid.items.slice(0, 2).map((cell) => cell.order)).toEqual([2, 1]);
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'available' });
+
+    // A price below OnlyFans' $3: the field says so, the part's «Отправить» is held, a click sends nothing.
+    await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '2' });
+    expect(pv(h).media?.price).toEqual({ text: '2', problem: { key: 'preview.media.price.min' } });
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-MEDIA', reason: { key: 'preview.media.blocked.price' } });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-MEDIA' });
+    expect(h.clicks).toEqual([]);
+
+    // A priced message whose every medium is a free preview cannot go either.
+    await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '24.99' });
+    await h.dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: '12' });
+    await h.dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: '11' });
+    expect(pv(h).media).toMatchObject({ priced: true, allFree: true, blocked: { key: 'preview.media.blocked.allFree' } });
+    await h.dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: '11' });
+    expect(pv(h).media).toMatchObject({ allFree: false, attached: { count: 2, priceCents: 2499 }, blocked: null });
+  });
+
+  it('«Отправить» of a part takes the picks: one click, one message — the text, the media in order, the price, the previews, the tags; once the platform took it they are gone', async () => {
+    const { h, handle, opId } = await withReply({ media: VAULT });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '13' });
+    await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '$25' });
+    await h.dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: '12' });
+    await h.advance(300);
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
+    await h.flush();
+    const media = {
+      items: [
+        { id: '12', type: 'photo', duration: 0, thumb: 'https://pw365.ompcdn.com/12.jpg', free: true },
+        { id: '13', type: 'video', duration: 75, thumb: 'https://pw365.ompcdn.com/13.jpg', free: false },
+      ],
+      priceCents: 2500,
+      tags: { users: ['77'], guests: [] },
+    };
+    expect(h.clicks).toHaveLength(1);
+    expect(h.clicks[0]?.media).toEqual(media);
+    expect(h.host.calls.commits.map((commit) => [commit.request.plainText, commit.request.media])).toEqual([['Hey you', media]]);
+    // The background never sees the media, only their two marks for who sent it (X48); MAIN does.
+    expect(JSON.stringify(h.bg.begins)).not.toContain('pw365');
+    expect(JSON.stringify(h.bg.begins)).not.toContain('"media"');
+    expect(h.bg.begins.map((begin) => begin.marks)).toEqual([{ priced: true, withMedia: true }]);
+    // Queued: the picks stay until the platform took the message.
+    expect(pv(h).media?.picks).toBe(2);
+    const attemptId = h.host.calls.commits[0]!.request.attemptId;
+    h.sendState({ attemptId, state: 'nativeAccepted', platformMessageId: '9001' });
+    await h.flush();
+    expect(pv(h).media).toMatchObject({ open: false, picks: 0, attached: null });
+    // The next part goes as text alone.
+    expect(partsOf(h, 'spenders')[1]?.send?.s).not.toBe('unavailable');
+  });
+
+  it('a failed read is a card with «Повторить»; failed release forms hold the parts until read again', async () => {
+    const { h, handle } = await withReply({ media: { ...VAULT, fail: { folders: 'session', tags: 'http' } } });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    expect(pv(h).media?.folders.error).toMatchObject({ code: 'CG-HOST-SESSION' });
+    expect(pv(h).media?.grid.items).toHaveLength(4);
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11' });
+    await h.advance(300);
+    expect(pv(h).media).toMatchObject({ tags: 'failed', blocked: { key: 'preview.media.blocked.tagsFailed' } });
+    const before = h.host.calls.media.length;
+    await h.dispatch({ type: 'RetryMedia', targetHandle: handle });
+    await h.advance(300);
+    expect(h.host.calls.media.slice(before).map((request) => request.of)).toEqual(['folders', 'tags']);
+  });
+
+  it('a closed panel lets the vault go: the picks stay with the card, the next opening reads the vault again', async () => {
+    const { h, handle } = await withReply({ media: VAULT });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11' });
+    const reads = h.host.calls.media.filter((request) => request.of !== 'tags').length;
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: false });
+    expect(pv(h).media).toMatchObject({ open: false, picks: 1, grid: { items: [] }, folders: { items: [{ id: 'all' }] } });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    expect(h.host.calls.media.filter((request) => request.of !== 'tags').slice(reads).map((request) => request.of)).toEqual(['folders', 'items', 'states']);
+    expect(pv(h).media?.grid.items.find((cell) => cell.id === '11')).toMatchObject({ order: 1, fan: 'paid' });
+  });
+
+  it('the picks are the card’s: closing the preview drops them; a host without a vault, or X8 off, has no picker', async () => {
+    const { h, handle } = await withReply({ media: VAULT });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11' });
+    await h.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    await h.flush();
+    expect(pv(h).media).toMatchObject({ open: false, picks: 0 });
+
+    const none = await withReply();
+    expect(pv(none.h).media).toBeNull();
+    expect(await none.h.dispatch({ type: 'SetMediaOpen', targetHandle: none.handle, open: true })).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+    const off = await withReply({ media: VAULT, config: { flags: { previewSend: false } } });
+    expect(pv(off.h).media).toBeNull();
   });
 });

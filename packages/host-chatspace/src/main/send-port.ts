@@ -67,7 +67,7 @@ import {
   QUEUE_MAX_PER_CHAT,
   STORE_TRANSLATOR,
 } from './protocol';
-import { type SendRequest } from './requests';
+import { type SendMedia, type SendRequest } from './requests';
 
 /** The queue's action that sends; the bridge listens for it by this name and never calls it. */
 export const QUEUE_SEND = 'enqueue';
@@ -112,6 +112,23 @@ export const toHtml = (text: string): string =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>')}</p>`;
+
+/**
+ * Decision X53: the picks as ChatSpace's own composer puts them on the wire (its `zk` and `Rk`): ids as numbers, audio
+ * as `{id, thumbId: 0}`, the release-form tags as strings, the price in USD and the free previews only on a priced
+ * message.
+ */
+const metadata = (media: SendMedia): Plain => {
+  const meta: Plain = { mediaFiles: media.items.map(({ id, type }) => (type === 'audio' ? { id: +id, thumbId: 0 } : +id)) };
+  if (media.tags.users.length) meta['rfTag'] = media.tags.users;
+  if (media.tags.guests.length) meta['rfGuest'] = media.tags.guests;
+  if (media.priceCents) {
+    meta['price'] = media.priceCents / 100;
+    const free = media.items.filter((item) => item.free).map((item) => +item.id);
+    if (free.length) meta['previews'] = free;
+  }
+  return meta;
+};
 
 /** §6.7.4 п. 13: the account's queue is sending or has something waiting (a send of ours would wait behind it). */
 export const queueBusy = (host: LiveHost, queue: PageStore, acc: string): boolean => {
@@ -216,16 +233,26 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
     }
     try {
       // The one write into ChatSpace's store (D-07, §6.7.1): still the synchronous step of the checks above.
+      const media = req.media;
       entry = (host.queue() as unknown as { enqueue(input: Plain): unknown }).enqueue({
         accountId: req.acc,
         chatId: req.fan,
         platform: PLATFORM,
         text: html,
-        hasAttachments: false,
+        hasAttachments: !!media,
         isAiGenerated: req.isAiGenerated,
         isCopied: false,
-        platformMetadata: {},
-        composerContent: { html, media: null, gif: null, taggedCreators: [] },
+        platformMetadata: media ? metadata(media) : {},
+        composerContent: media
+          ? // What «back to the composer» of a failed send restores: the media with their marks, the price, the tags (as ChatSpace's
+            // composer keeps a creator it knows by id only, its `Pk`).
+            {
+              html,
+              media: { medias: media.items.map(({ id, type, duration, thumb, free }) => ({ id, type, duration, isFree: free, imageUrl: thumb ?? undefined })), price: media.priceCents / 100 || null, lockedText: false },
+              gif: null,
+              taggedCreators: [...media.tags.users.map((id) => ({ id, name: id, avatarUrl: null, type: 'user' })), ...media.tags.guests.map((id) => ({ id, name: id, avatarUrl: null, type: 'guest' }))],
+            }
+          : { html, media: null, gif: null, taggedCreators: [] },
       });
     } catch {
       // The call boundary is not intact: the queue may hold the entry.
