@@ -6,9 +6,10 @@
 // - in ChatSpace's message field our keys are ours before its editor sees
 //   them: ⌘E / ⌘I start Reply and Fix, TipTap toggles neither inline code nor
 //   italic; a key that is not ours (⌘B) is untouched;
-// - with the focus on a part of ours J/K walk ChatSpace's chat list through
-//   its own router, `]` opens the fan panel, `?` the cheatsheet; typed into
-//   ChatSpace's field the same letters are text;
+// - with the focus off the dock J/K walk ChatSpace's chat list through its
+//   own router, `]` opens the fan panel, `?` the cheatsheet; on a part of the
+//   dock J, K and `]` do nothing (X44); typed into ChatSpace's field the same
+//   letters are text;
 // - Esc closes OUR windows one by one and the chat tab stays; with nothing of
 //   ours open Esc is ChatSpace's own again;
 // - under the Spenders window J/K and the arrows move its rows, Space opens
@@ -156,13 +157,22 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       expect(await pageEvents(page, 'queue-added')).toBe(0);
     });
 
-    it('[HK-037] J and K with the focus on a part of ours walk ChatSpace’s chat list through its own router; typed into ChatSpace’s field they are text', async () => {
+    it('[HK-037] J and K walk ChatSpace’s chat list through its own router — from the page, never from a part of the dock (X44); typed into ChatSpace’s field they are text', async () => {
       const standMark = await standServer.mark();
       const list = await chatList();
       expect(list.length).toBeGreaterThanOrEqual(3);
       // The open chat is far down ChatSpace's list (not on its first page): «next» from it is the list's first chat.
       expect(list.slice(0, 2)).not.toContain(a1);
+      // On a part of the dock — where a finished Reply may have put the focus by itself — J, K and ] do nothing:
+      // no other fan's chat is opened (on OnlyFans that marks it read), no panel.
       await focusPart(1);
+      await browser.keys(['j', 'k', ']']);
+      await browser.pause(400);
+      expect(await route()).toBe(a1);
+      expect(await overlays()).toEqual([]);
+      expect(historyLoads(await serverSince(standMark))).toEqual([]);
+      // Off the dock (the chat's header): they are the chat list's keys.
+      await $('[data-stand-conversation-header]').click();
       await browser.keys(['j']);
       await browser.waitUntil(async () => (await route()) === list[0], { timeout: 5000, timeoutMsg: `J did not open the first chat of the list (${String(list[0])}); the route is ${String(await route())}` });
       await waitForChatReady(ACC, list[0] ?? '');
@@ -186,7 +196,8 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       await callStand('openChat', ACC, a1);
       await dockIs((d) => d.target?.endsWith(`:${a1}`) === true && d.result !== null, 'back in the first chat, with its result');
       const page = await pageJournalMark();
-      await focusPart(1);
+      // Off the dock: on a part of it `]` does nothing (X44).
+      await $('[data-stand-conversation-header]').click();
       await browser.keys([']']);
       await waitOverlays(['fan-panel'], '`]` opens the fan panel');
       await waitOursText('panel', 'Fan Alder', 'the fan panel of the open chat');

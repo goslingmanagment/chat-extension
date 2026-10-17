@@ -54,6 +54,12 @@ export interface KeyContext {
   readonly dockSheet: boolean;
   /** The key is one ChatSpace's global listener would look at (`isComboLike`): ⌘/Ctrl/Alt held, or a named key. */
   readonly combo: boolean;
+  /**
+   * The focus is inside the dock (its strip, its sheet, a part — one the dock may have given the focus to by itself,
+   * decision X44). There J, K and `]` do nothing: a person who meant to type into the composer must not open another
+   * fan's chat (on OnlyFans that marks it read) or the fan panel. Absent — not inside the dock.
+   */
+  readonly inDock?: boolean;
 }
 
 /** An overlay of ours as the policy sees it: the contract's surfaces plus our own confirmation dialog and the expanded result. */
@@ -160,6 +166,8 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
   if (verdict.plain) {
     if (typing(context.focus)) return PASS;
     if (id === 'cheatsheet') return run('global');
+    // On a part or a button of the dock: kept from the site and handed to the dock, which does nothing with them (X44).
+    if (context.inDock === true && inOurs(context.focus)) return { act: 'isolate', otherwise: null };
     // Under a window of ours these letters belong to that window's own lists.
     if (windowOpen) return decideUnmatched(context);
     if (id === 'fan-panel') return inChat ? run('dock') : PASS;

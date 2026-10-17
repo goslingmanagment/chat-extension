@@ -22,6 +22,7 @@
 //   root. For «a write only on a trusted action» (§14) it counts as one; our
 //   UI tells it by DELIVERED_KEY_MARK (ui-contract.md, decision 12).
 
+import { HOST_ATTRIBUTE } from './hosts';
 import type { ShadowRootRegistry } from './shadow-registry';
 
 /** Where the focus is, as the key policy names it (`@cg/core/domain/hotkeys` FocusKind). */
@@ -35,6 +36,8 @@ export interface KeyboardProbe {
    * another field.
    */
   now(): KeyFocus | 'none';
+  /** The focus is inside the dock's root (`data-host="dock"`): J, K and `]` do nothing there (decision X44). */
+  focusInDock(): boolean;
   /** A dialog, menu or list of the site itself is open and visible. */
   nativeModalOpen(): boolean;
   /** Dispatches a copy of the key on the focused element of our root; true — our UI called preventDefault on it. */
@@ -127,6 +130,10 @@ export function createKeyboardProbe(doc: Document, registry: ShadowRootRegistry,
       // Focus on one of our hosts with nothing focused inside its root.
       if (active !== null && registry.hosts().includes(active)) return 'ours';
       return onPage();
+    },
+    focusInDock() {
+      const active = doc.activeElement;
+      return active !== null && active.getAttribute(HOST_ATTRIBUTE) === 'dock' && registry.hosts().includes(active);
     },
     nativeModalOpen,
     deliver(event) {
