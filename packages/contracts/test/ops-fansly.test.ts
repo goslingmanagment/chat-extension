@@ -119,7 +119,7 @@ describe('[host:fansly] the hub’s side of the two (contracts/src/hub, HF-4а, 
     expect(C.HUB_FEATURE_ONLY_FIELDS.noteFields).toEqual(['fan-notes-fill']);
     // Fresh page text stays the four drafts' (D-14): neither the script nor the fill takes it.
     for (const hub of ['voice-script', 'fan-notes-fill'] as const) expect(C.HUB_FEATURE_ONLY_FIELDS.liveTextContext as readonly string[], hub).not.toContain(hub);
-    // 1.27.0 (X43): the questionnaire's values are the fill's alone, beside its labels — never on another feature.
+    // 1.28.0 (X43): the questionnaire's values are the fill's alone, beside its labels — never on another feature.
     expect(C.HUB_FEATURE_ONLY_FIELDS.noteValues).toEqual(['fan-notes-fill']);
   });
 });

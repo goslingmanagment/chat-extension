@@ -91,7 +91,7 @@ export const VoiceScriptStartSchema = z
   );
 
 /**
- * «Дополнить из чата»: the questionnaire's labels and, 1.27.0 (X43, the owner's ruling of 2026-10-17), their values,
+ * «Дополнить из чата»: the questionnaire's labels and, 1.28.0 (X43, the owner's ruling of 2026-10-17), their values,
  * index-aligned — the body's `noteValues`, never anything else of the note (FS-NOTE-5, FX-024). Without `values` the
  * request carries one empty value per label (the merge mode of 1.16.0).
  */

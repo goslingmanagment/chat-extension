@@ -58,7 +58,7 @@ export const FANSLY_START_OP_FIXTURES: Verdicts = {
     { ...fanslyVoiceScriptStart, regenerateOf: uuid(0x501), force: true },
     fanslyNotesFillStart,
     { ...fanslyNotesFillStart, window: 5, regenerateOf: uuid(0x502) },
-    // 1.27.0 (X43): the questionnaire's values beside its labels, index-aligned.
+    // 1.28.0 (X43): the questionnaire's values beside its labels, index-aligned.
     { ...fanslyNotesFillStart, values: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] },
   ],
   invalid: [
@@ -69,7 +69,7 @@ export const FANSLY_START_OP_FIXTURES: Verdicts = {
     { ...fanslyVoiceScriptStart, draft: undefined },
     { ...fanslyVoiceScriptStart, draft: { ...draft, text: '   ' } },
     { ...fanslyVoiceScriptStart, tone: 'calm' },
-    // The notes fill sends labels it can send and one value the hub takes per label (1.27.0, X43): one line, trimmed, ≤ 2000.
+    // The notes fill sends labels it can send and one value the hub takes per label (1.28.0, X43): one line, trimmed, ≤ 2000.
     { ...fanslyNotesFillStart, fields: [] },
     { ...fanslyNotesFillStart, fields: ['Имя: Анна'] },
     { ...fanslyNotesFillStart, values: ['Анна', ''] },
@@ -162,7 +162,7 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'voice-script', body: { ...voiceScriptBody, replyTone: undefined, isRegeneration: true }, capabilities: [] },
     { feature: 'fan-notes-fill', body: notesFillBody, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound() }, capabilities: ['debug-input-v1', 'context-v1'] },
-    // 1.16.0 (R20 P11b2): the hub's merge mode — one value per label; 1.27.0 (X43): the questionnaire's own.
+    // 1.16.0 (R20 P11b2): the hub's merge mode — one value per label; 1.28.0 (X43): the questionnaire's own.
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: NOTE_LABELS.map(() => '') }, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound(), noteValues: noteLabelsAtTheBound().map(() => '') }, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] }, capabilities: ['context-v1'] },

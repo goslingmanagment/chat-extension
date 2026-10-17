@@ -72,7 +72,7 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   livePpvContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
   /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */
   noteFields: ['fan-notes-fill'],
-  /** 1.16.0 (R20 P11b2): the merge mode — the questionnaire's values (`NoteValuesSchema`; empty only before 1.27.0). */
+  /** 1.16.0 (R20 P11b2): the merge mode — the questionnaire's values (`NoteValuesSchema`; empty only before 1.28.0). */
   noteValues: ['fan-notes-fill'],
 } as const satisfies Record<string, readonly HubAiFeature[]>;
 
@@ -155,7 +155,7 @@ export const NoteFieldsSchema = z
   );
 
 /**
- * 1.27.0 (decision X43, the owner's ruling of 2026-10-17): one value of `noteValues` — what a field's own line holds,
+ * 1.28.0 (decision X43, the owner's ruling of 2026-10-17): one value of `noteValues` — what a field's own line holds,
  * trimmed, one line (the client flattens its line breaks), within 2000 UTF-16 code units (`aiNoteValueSchema`: the hub
  * trims too, so this client sends exactly what the hub reads); `''` for an empty field and a template label the note
  * lacks. 1.16.0 allowed only `''`.
@@ -169,7 +169,7 @@ const NoteValueSchema = z
   );
 
 /**
- * `noteValues` of `fan-notes-fill` (1.16.0, R20 P11b2; values since 1.27.0, X43): index-aligned with `noteFields`, the
+ * `noteValues` of `fan-notes-fill` (1.16.0, R20 P11b2; values since 1.28.0, X43): index-aligned with `noteFields`, the
  * questionnaire's current values — the hub's merge mode, as the Fansly extension 2.11.0 sends it (decision 164). The
  * hub answers `Label: =` for a field the chat adds nothing to, its rewrite for one it changes, `+ Label: value` for one
  * it names itself. The values travel in this body and nowhere else: never a log, diagnostics, `client_health` or
@@ -230,7 +230,7 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   coverageCheck: z.optional(CoverageCheckBodySchema),
   /** 1.15.0 (R20 P4b3): `fan-notes-fill` only, and required there — the labels (their values: `noteValues`). */
   noteFields: z.optional(NoteFieldsSchema),
-  /** 1.16.0 (R20 P11b2): the hub's merge mode, one value per label — the questionnaire's, since 1.27.0 (X43). */
+  /** 1.16.0 (R20 P11b2): the hub's merge mode, one value per label — the questionnaire's, since 1.28.0 (X43). */
   noteValues: z.optional(NoteValuesSchema),
   /** 1.15.0 (R20 HF-5): only Fansly hi-greeting under hi-start-proof-v1; ids only, never a text. */
   startProof: z.optional(StartProofV1Schema),

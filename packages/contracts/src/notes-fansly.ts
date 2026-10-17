@@ -89,7 +89,7 @@ export interface NotesFillVM {
   readonly status: 'idle' | 'running' | 'done' | 'failed';
   readonly wrote: readonly string[];
   readonly error: CgAnyErrorWire | null;
-  /** 1.27.0 (X43; the Fansly extension 2.11.0, decision 164): the fields the hub named that found no place — no line
+  /** 1.28.0 (X43; the Fansly extension 2.11.0, decision 164): the fields the hub named that found no place — no line
    * of their own under 30 and no «Другое» to join: «Не хватило места в анкете: …». Absent — none. */
   readonly unplaced?: readonly string[];
 }
@@ -259,7 +259,7 @@ export interface NotesCopy {
   readonly fillOffers: string;
   readonly fillNothing: string;
   readonly fillFailed: string;
-  /** 1.27.0 (X43): «Не хватило места в анкете:» + « Питомцы, Машина.» — the fields the hub named that found no place. */
+  /** 1.28.0 (X43): «Не хватило места в анкете:» + « Питомцы, Машина.» — the fields the hub named that found no place. */
   readonly fillUnplaced: string;
   /** 1.16.0 (R20 P11b2): «Слова фана» and its hint, «Принять все», «В Другое», a field the Goose named, a note's date. */
   readonly sources: string;
