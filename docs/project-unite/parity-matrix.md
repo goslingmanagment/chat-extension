@@ -1345,3 +1345,7 @@ P14b1 — 130; P14b2 — 86; P14c — 1; P16a — 1; P16g — 20; P17 — 24.
 | AI-146 | HF-7б | `tests/ai-fansly-fan-identity.test.ts` «[AI-146] every feature gets the fields the released client sends for the same account» | `f36f48b8c` |
 | AI-147 | HF-7а | `tests/fansly-transcript-media.integration.test.ts` «[AI-147] Fansly media in the hub-loaded transcript (chat-extension R20 HF-7a)» | `f36f48b8c` |
 | AI-148 | HF-7д | `tests/ai-fansly-automation.test.ts` «[AI-148] transcriptCoverage of a Fansly transcript the hub loads itself (chat-extension R20 HF-7д)» | `f36f48b8c` |
+| AI-061 | HF-10 | `tests/client-recaps-contract.test.ts` «[AI-061] [R20 HF-10] the recaps of one conversation of one fan» | `0284c5541` |
+| AI-067 | HF-10 | `tests/client-profile-from-generation-contract.test.ts` «[AI-067] [R20 HF-10] a conversation with an id of its own (a Fansly group)» | `0284c5541` |
+| AI-143 | HF-6 | `tests/client-ai-recap-depth.integration.test.ts` «[AI-143] Fansly: one setting for both platforms on the hub's own transcript, and the old extension's own transcript untouched» | `0284c5541` |
+| REC-01 | HF-10 | `tests/client-recaps.integration.test.ts` «[REC-01] two chatters of one page read the same recap, whoever generated it; text and provenance only» | `0284c5541` |
