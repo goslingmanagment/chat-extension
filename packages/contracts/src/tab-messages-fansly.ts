@@ -484,7 +484,7 @@ export const FANSLY_TAB_REQUESTS = {
   },
   /**
    * 1.15.0 R20 P10c (NF-012, FS-NEW-6): the card's draft — read without `text`, written with it (an empty one clears
-   * it). The background keeps it per creator and fan (the shared `newcomers.drafts`, 24 h) and knows its revision at
+   * it). The background keeps it per creator and fan (the shared `newcomers.drafts`, at most 7 days) and knows its revision at
    * the send's final check.
    */
   'fansly.followers.draft': {

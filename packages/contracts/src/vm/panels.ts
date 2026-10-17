@@ -71,6 +71,20 @@ export interface FanPanelVM {
    * profile. Absent — no bio, or a controller that does not say.
    */
   readonly bioSource?: 'hub' | 'host';
+  /**
+   * 1.20.0 (decision X47): the hub's profile of the fan cut into its headed blocks, as a full Recap is (its sections
+   * — «Досье», «Психологический портрет»…, a heading the hub wrote in English capitals named in the reader's
+   * language). Only with `bioSource: 'hub'`; absent — the profile is shown as one text.
+   */
+  readonly bioBlocks?: readonly { readonly heading: string; readonly markdown: string }[];
+  /**
+   * 1.20.0 (decision X47): the site shows a fan panel of its own next to the chat — the spending summary, the
+   * subscription, its own scores, the lists, the profile (ChatSpace 0.195) — and ours shows only what that one
+   * lacks: the hub's money by kind, the churn risk, the hub's profile of the fan and Recap. Then `host`, `lists`
+   * and ChatSpace's own «О себе» are empty, and of `subscription` only `churnRisk` is drawn. Absent — the whole panel
+   * (a site without such a panel: Fansly).
+   */
+  readonly besideHostPanel?: true;
   readonly lists: readonly string[];
   /** «Данные на 09:18», «архив полный, 412 сообщений». */
   readonly footer: { readonly stamp: DataStamp; readonly archiveMessages: number | null };

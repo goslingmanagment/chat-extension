@@ -200,6 +200,21 @@ export interface AccountBodyVM {
   readonly lastDossierSave: IsoTimestamp | null;
   readonly signOut: ActionButtonVM | null;
   readonly signInAgain: ActionButtonVM | null;
+  /**
+   * 1.20.0 (DB-027, decision X47): «Дополнительно», in debug mode only — the sign-in of this device (the hub's display
+   * prefix of its key, when it was issued, when it expires), «Поток» (each site's build and contract) and
+   * «Приложение» (version · browser · OS). Absent or null — debug is off, or the background did not answer.
+   */
+  readonly advanced?: AccountAdvancedVM | null;
+}
+
+/** 1.20.0: «Аккаунт → Дополнительно» (DB-027). */
+export interface AccountAdvancedVM {
+  readonly signIn: { readonly key: string | null; readonly issuedAt: IsoTimestamp | null; readonly expiresAt: IsoTimestamp | null } | null;
+  /** «Поток»: one row per site with a tab open now; `label` — the site as people call it. */
+  readonly hosts: readonly { readonly label: string; readonly build: string | null; readonly contract: 'ok' | 'broken' | 'unknown' }[];
+  /** «Приложение»: «0.3.1 · Firefox 158 · macos». */
+  readonly app: string;
 }
 
 export interface PersonasBodyVM {
@@ -311,6 +326,30 @@ export interface DiagnosticsBodyVM {
   readonly counters: readonly { readonly code: CgCode; readonly count: number }[];
   /** Debug mode only. */
   readonly journals: readonly { readonly journal: JournalKind; readonly open: UiAction }[] | null;
+  /**
+   * 1.20.0 (DB-022, decision X47): what this browser spent on AI by feature — today and the 7 days — in debug mode
+   * only (Б4). Absent or null — debug is off, or the journal was not read.
+   */
+  readonly aiSpend?: AiSpendVM | null;
+}
+
+/** 1.20.0: one row of «Расходы AI»: a feature (or the total), its runs, inserts, tokens, cache share and cost. */
+export interface AiSpendRowVM {
+  /** The feature's name; a site's own operation without a shared name — its id as is. */
+  readonly feature: Msg | string;
+  readonly runs: number;
+  readonly inserts: number;
+  /** «in 3 412 · out 286». */
+  readonly tokens: string;
+  /** «47 %»; null — no input. */
+  readonly cache: string | null;
+  /** «$0.0143», «≈$0.0143» when some cost was approximate. */
+  readonly cost: string;
+}
+
+/** 1.20.0 (DB-022): the local spend journal of this browser, «только этот браузер». */
+export interface AiSpendVM {
+  readonly periods: readonly { readonly label: Msg; readonly rows: readonly AiSpendRowVM[]; readonly total: AiSpendRowVM }[];
 }
 
 export interface OptionsBodyMap {

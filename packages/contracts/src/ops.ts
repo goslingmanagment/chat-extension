@@ -255,6 +255,12 @@ export const StartOpSchema = z
     regenerateOf: z.optional(UuidSchema),
     /** Bypass the result cache (Regenerate, Refresh). */
     force: z.optional(z.boolean()),
+    /**
+     * 1.20.0 (decision X47): the fan as the starting surface already names them (the site's header or memory, the
+     * hub's page alias of a board row) — for the refusal list, the toasts and the pages' «Идут сейчас». Display only:
+     * not part of the request's identity, never sent to the hub, never logged.
+     */
+    fanLabel: z.optional(displayText(256)),
   })
   .check(
     z.refine((op) => op.fresh === undefined || (op.surface === 'dock' && isFreshTextFeature(op.feature)), {

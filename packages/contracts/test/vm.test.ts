@@ -383,7 +383,15 @@ describe('the fan panel\'s bio names its source (1.2.0)', () => {
     expect(none?.bioSource).toBeUndefined();
     expect(hub).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
     expect(host).toMatchObject({ bioSource: 'host' });
-    expect(FAN_PANEL_BIO_SAMPLES.invalid).toHaveLength(1);
+    expect(FAN_PANEL_BIO_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[CS-035] [CS-031] 1.20.0: the hub profile may come in its headed blocks, and a panel beside the site\'s own says so', () => {
+    expectTypeOf<C.FanPanelVM['besideHostPanel']>().toEqualTypeOf<true | undefined>();
+    expectTypeOf<NonNullable<C.FanPanelVM['bioBlocks']>[number]>().toEqualTypeOf<{ readonly heading: string; readonly markdown: string }>();
+    const blocks = FAN_PANEL_BIO_SAMPLES.valid.find((vm) => vm.bioBlocks !== undefined);
+    expect(blocks?.bioBlocks?.map((block) => block.heading)).toEqual(['Досье', 'Стратегия']);
+    expect(FAN_PANEL_BIO_SAMPLES.valid.some((vm) => vm.besideHostPanel === true)).toBe(true);
   });
 });
 
@@ -568,6 +576,10 @@ describe('pages of one title are told apart (1.3.0)', () => {
     expectTypeOf<C.PersonasBodyVM['pages'][number]['page']>().toEqualTypeOf<C.PageTagVM | undefined>();
     expectTypeOf<C.AccountsBodyVM['rows'][number]['page']>().toEqualTypeOf<C.PageTagVM | null | undefined>();
     expectTypeOf<C.AccountBodyVM['pages'][number]['pageLabel']>().toEqualTypeOf<string | undefined>();
+    // 1.20.0 (DB-027, DB-022): debug-only «Дополнительно» and the AI spend by feature.
+    expectTypeOf<C.AccountBodyVM['advanced']>().toEqualTypeOf<C.AccountAdvancedVM | null | undefined>();
+    expectTypeOf<C.DiagnosticsBodyVM['aiSpend']>().toEqualTypeOf<C.AiSpendVM | null | undefined>();
+    expectTypeOf<C.AccountAdvancedVM['hosts'][number]['contract']>().toEqualTypeOf<'ok' | 'broken' | 'unknown'>();
     expectTypeOf<Extract<C.PopupVM['persona'], { s: 'set' }>['page']>().toEqualTypeOf<C.PageTagVM | undefined>();
     expect(PAGE_TAG_SAMPLES.valid.map((tag) => tag.platform)).toEqual(['onlyfans', 'fansly', 'somewhere-new', 'onlyfans']);
     // 1.15.0 (R20 F9b): the name is optional — a tag without it prints the token.

@@ -68,7 +68,11 @@ export const STORAGE_LIMITS = {
   listVisibleRows: 1000,
   previewDrafts: 100,
   previewDraftsTotalBytes: 1 * MiB,
-  previewDraftTtlMs: 24 * 60 * MINUTE,
+  /**
+   * 1.20.0 (decision X47): a draft of a greeting or a preview stays until it is sent or cleared, at most 7 days
+   * (it was 24 hours). The count and byte caps above stay.
+   */
+  previewDraftTtlMs: 7 * 24 * 60 * MINUTE,
   /** Host accounts kept in the `presence` store. */
   seenAccountsMax: 500,
 } as const;

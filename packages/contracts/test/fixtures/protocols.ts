@@ -92,9 +92,13 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
         // 1.8.0: the route's account, chat open or not; null — the route names none.
         { chat: null, routeEpoch: 2, visible: true, focused: true, accounts: [account], routeAccount: account },
         { chat, routeEpoch: 3, visible: true, focused: false, routeAccount: null },
+        // 1.20.0 (X47): the open chat's fan as the tab names it; null — the tab knows no name.
+        { chat, routeEpoch: 4, visible: true, focused: true, fanLabel: 'Hubert' },
+        { chat, routeEpoch: 4, visible: true, focused: true, fanLabel: null },
       ],
       invalid: [
         { chat, visible: true, focused: true },
+        { chat, routeEpoch: 4, visible: true, focused: true, fanLabel: 'x'.repeat(257) },
         { chat: null, routeEpoch: 0, visible: false, focused: false, accounts: [{ ...account, hostAccountId: 'acc' }] },
         { chat: null, routeEpoch: 2, visible: true, focused: true, routeAccount: { ...account, hostAccountId: 'acc' } },
         { chat: null, routeEpoch: 2, visible: true, focused: true, routeAccount: account.hostAccountId },
@@ -150,7 +154,11 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'op.start': {
     // 1.15.0 (R20 P4b1): a Fansly start proves its freshness by its proof, never beside ChatSpace's tail.
-    req: { valid: [startReply, fanslyStartReply], invalid: [{ ...startReply, surface: 'preview' }, { ...fanslyStartReply, fresh: startReply.fresh }] },
+    // 1.20.0 (X47): the fan's name as the starting surface knows it, display only.
+    req: {
+      valid: [startReply, fanslyStartReply, { ...startReply, fanLabel: 'Hubert' }],
+      invalid: [{ ...startReply, surface: 'preview' }, { ...fanslyStartReply, fresh: startReply.fresh }, { ...startReply, fanLabel: null }, { ...startReply, fanLabel: 'x'.repeat(257) }],
+    },
     res: { valid: [{ ok: true, opId: uuid(2) }], invalid: [{ ok: false, code: 'CG-OP-CHAT-BUSY' }] },
   },
   'op.cancel': {
@@ -396,6 +404,52 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'usage.get': {
     req: { valid: [{ pageId: 11, date: '2026-10-03' }, { pageId: 11, date: '2026-10-03', days: 7 }], invalid: [{ pageId: 11, date: '2026-10-03', days: 8 }, { pageId: 11, date: '2026-02-30' }] },
     res: { valid: [{ report: H.usageReport }, { report: null }], invalid: [{ report: { ...H.usageReport, moneyUnit: 'USD-mills' } }] },
+  },
+  // 1.20.0 (DB-022, X47): this browser's AI spend by feature; null while debug is off.
+  'usage.local': {
+    req: { valid: [{ days: 1 }, { days: 7 }], invalid: [{ days: 0 }, { days: 8 }, {}] },
+    res: {
+      valid: [
+        { report: null },
+        {
+          report: {
+            source: 'local-browser',
+            fromDay: '2026-10-11',
+            toDay: '2026-10-17',
+            total: { runs: 3, inserts: 1, inputTokens: 6824, outputTokens: 286, cacheReadTokens: 6000, cacheWriteTokens: 0, costMicroUsd: 28_600, approximate: false, cacheShare: 0.47 },
+            byFeature: [{ feature: 'reply', runs: 3, inserts: 1, inputTokens: 6824, outputTokens: 286, cacheReadTokens: 6000, cacheWriteTokens: 0, costMicroUsd: 28_600, approximate: false, cacheShare: 0.47 }],
+          },
+        },
+      ],
+      invalid: [
+        { report: { source: 'hub', fromDay: '2026-10-17', toDay: '2026-10-17', total: {}, byFeature: [] } },
+        { report: { source: 'local-browser', fromDay: 'today', toDay: '2026-10-17', total: { runs: 0, inserts: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, costMicroUsd: 0, approximate: false, cacheShare: null }, byFeature: [] } },
+        { report: { source: 'local-browser', fromDay: '2026-10-17', toDay: '2026-10-17', total: { runs: 0, inserts: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, costMicroUsd: 0, approximate: false, cacheShare: 2 }, byFeature: [] } },
+      ],
+    },
+  },
+  // 1.20.0 (DB-027, X47): «Аккаунт → Дополнительно»; the key's display prefix, never the secret.
+  'account.advanced': {
+    req: { valid: [{}], invalid: [{ token: true }] },
+    res: {
+      valid: [
+        { info: null },
+        { info: { signIn: { key: 'agh_dev_Zx81kQ', issuedAt: ISO, expiresAt: null }, hosts: [{ host: 'chatspace', build: 'index-p8xPkCj8', contractOk: true }], app: '0.3.1 · Firefox 158 · macos' } },
+        { info: { signIn: null, hosts: [], app: '0.3.1 · Firefox · other' } },
+      ],
+      invalid: [
+        { info: { signIn: { key: 'agh', issuedAt: 'yesterday', expiresAt: null }, hosts: [], app: 'x' } },
+        { info: { signIn: null, hosts: [{ host: 'onlyfans', build: null, contractOk: null }], app: 'x' } },
+      ],
+    },
+  },
+  // 1.20.0 (X47): the names the tabs already know, by chat.
+  'fans.labels': {
+    req: { valid: [{}], invalid: [{ chatKey: 'chatspace:1001:2002' }] },
+    res: {
+      valid: [{ fans: [] }, { fans: [{ chatKey: 'chatspace:1001:2002', label: 'Hubert' }] }],
+      invalid: [{ fans: [{ chatKey: 'chatspace:1001:2002', label: 'x'.repeat(257) }] }, { fans: [{ chatKey: 'not a key', label: 'Hubert' }] }],
+    },
   },
   'diagnostics.export': {
     req: { valid: [{ format: 'json' }, { format: 'txt' }], invalid: [{ format: 'zip' }] },
