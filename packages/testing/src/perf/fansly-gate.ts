@@ -42,14 +42,18 @@ export function backgroundMB(shot: MemoryReading | undefined): number {
 
 /** Only the shared 10 s keepalive, its 200 ms presence coalescer and 60 s health report.
  * Require both the file and interval: a new 500 ms DOM poll in tab-app must fail.
- * Firefox prints intervals as e.g. 9999 ms, one below the requested value.
+ * Firefox prints intervals as e.g. 9999 ms, one below the requested value. A setInterval's next delay is
+ * also shortened by however late its last call ran: on the busy PC the keepalive printed 9895 and 9899 ms
+ * (Perf run 39010222535), so a repeating timer may print up to a second less; a setTimeout may not.
  */
 export function unexpectedTabTimers(thread: ThreadSummary | null): Readonly<Record<string, number>> {
   return Object.fromEntries(Object.entries(thread?.addonTimers ?? {}).filter(([handler]) => {
     const interval = Number(/interval (\d+)ms/.exec(handler)?.[1]);
+    const slack = handler.startsWith('setInterval ') ? 1000 : 10;
+    const near = (ms: number): boolean => interval >= ms - slack && interval <= ms + 10;
     const runtime = /(?:fansly\.js|lazy\/fansly\/tab-app\.js):/.test(handler);
     const health = /lazy\/fansly\/tab-health\.js:/.test(handler);
-    return !((runtime && ((interval >= 9990 && interval <= 10_010) || (interval >= 190 && interval <= 210))) || (health && interval >= 59_990 && interval <= 60_010));
+    return !((runtime && (near(10_000) || near(200))) || (health && near(60_000)));
   }));
 }
 

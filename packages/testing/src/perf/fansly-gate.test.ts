@@ -75,6 +75,16 @@ describe('Fansly perf acceptance (P16a)', () => {
     expect(failures({ ...current, idle: { ...current.idle, profile: { file: 'x', durationMs: 60_000, tab: thread({ [poll]: 120 }), extension: thread() } } })).toContain('idle tab: undocumented observation timers');
   });
 
+  it('takes a keepalive or health interval shortened by a late call (busy PC) as itself, but not a timeout or a far one', () => {
+    // As Perf run 39010222535 printed them: the 10 s keepalive after calls 101 and 105 ms late.
+    const late = ['setInterval handler with interval 9899ms: Os/y< (fansly.js:9)', 'setInterval handler with interval 9895ms: Os/y< (fansly.js:9)', 'setInterval handler with interval 59120ms: h (lazy/fansly/tab-health.js:1)'];
+    expect(unexpectedTabTimers(thread(Object.fromEntries(late.map((handler) => [handler, 1]))))).toEqual({});
+    const far = 'setInterval handler with interval 8500ms: Os/y< (fansly.js:9)';
+    const early = 'setTimeout handler with interval 9895ms: once (fansly.js:9)';
+    const quick = 'setTimeout handler with interval 150ms: presence (lazy/fansly/tab-app.js:2)';
+    expect(unexpectedTabTimers(thread({ [far]: 1, [early]: 1, [quick]: 1 }))).toEqual({ [far]: 1, [early]: 1, [quick]: 1 });
+  });
+
   it('counts the mixed profile once per process, includes extra site processes, and rejects absent readings', () => {
     const first = reading('mixed', 20, true);
     const second = reading('mixed', 20, true);
