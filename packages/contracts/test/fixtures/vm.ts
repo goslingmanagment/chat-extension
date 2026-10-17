@@ -173,6 +173,9 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { type: 'SetPreference', key: 'ui.theme', value: 'neon' },
       { type: 'SetPreference', key: 'sound.volume', value: 7 },
       { type: 'SetPreference', key: 'auth.token', value: 'x' },
+      // 1.18.0: «Помнить тон в чате» is a switch, set as a boolean — absent means on only in the stored settings.
+      { type: 'SetPreference', key: 'generation.rememberTone', value: 'on' },
+      { type: 'SetPreference', key: 'generation.rememberTone', value: null },
       { type: 'ClearLocalData', confirmed: false },
       { type: 'ResetSendFuse', build: 'index-p8xPkCj8' },
       { type: 'SendAll', operationId: OP },
@@ -441,11 +444,25 @@ const REFUSAL_BASE: C.RefusalVM = {
   running: [],
 };
 
+/**
+ * 1.18.0 (decision X45): the card of a start that failed before anything was generated may carry «Повторить» of the
+ * same start — a button the person presses, built by the controller from the registry entry of the code.
+ */
+const REFUSAL_RETRY: C.RefusalVM = {
+  feature: 'reply',
+  error: { code: 'CG-HUB-TIMEOUT', title: 'Хаб не ответил вовремя', body: 'Ничего не создано.', tone: 'failure' },
+  running: [],
+  at: 1_790_000_000_000,
+  actions: [{ label: { key: 'common.retry' }, action: { type: 'Generate', targetHandle: TARGET, feature: 'reply', options: {} }, enabled: true, reason: null, hotkey: null }],
+};
+
 export const REFUSAL_VM_SAMPLES: { readonly valid: readonly C.RefusalVM[]; readonly invalid: readonly unknown[] } = {
-  valid: [REFUSAL_BASE, { ...REFUSAL_BASE, at: 1_790_000_000_000 }],
+  valid: [REFUSAL_BASE, { ...REFUSAL_BASE, at: 1_790_000_000_000 }, REFUSAL_RETRY, { ...REFUSAL_BASE, actions: [] }],
   invalid: [
     // @ts-expect-error the moment of the refused start is epoch ms, not an ISO string
     { ...REFUSAL_BASE, at: '2026-10-04T00:00:00.000Z' } satisfies C.RefusalVM,
+    // @ts-expect-error a button, never a bare action to run: what repeats is the person's click
+    { ...REFUSAL_RETRY, actions: [{ type: 'Generate', targetHandle: TARGET, feature: 'reply', options: {} }] } satisfies C.RefusalVM,
   ],
 };
 

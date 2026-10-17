@@ -340,4 +340,10 @@ export interface RefusalVM {
    * feature and code alone.
    */
   readonly at?: number;
+  /**
+   * The card's recovery buttons (1.18.0, decision X45): «Повторить» of the same start where the registry says a new
+   * human click may repeat it (the hub or the extension did not answer, a timeout: nothing was generated, sent or
+   * written), else nothing. Never pressed by itself. Absent or empty — the card has only «Скопировать код».
+   */
+  readonly actions?: readonly ActionButtonVM[];
 }

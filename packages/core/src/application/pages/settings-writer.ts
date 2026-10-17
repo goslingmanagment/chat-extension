@@ -62,6 +62,8 @@ export function mergeSettingsPatch(earlier: SettingsPatch, later: SettingsPatch)
     const generation: { -readonly [P in keyof NonNullable<SettingsPatch['generation']>]: NonNullable<SettingsPatch['generation']>[P] } = {};
     const split = later.generation?.split ?? earlier.generation?.split;
     if (split !== undefined) generation.split = split;
+    const rememberTone = later.generation?.rememberTone ?? earlier.generation?.rememberTone;
+    if (rememberTone !== undefined) generation.rememberTone = rememberTone;
     const windows = overlay(earlier.generation?.windows, later.generation?.windows);
     if (windows !== undefined) generation.windows = windows;
     const coach = overlay(earlier.generation?.coach, later.generation?.coach);

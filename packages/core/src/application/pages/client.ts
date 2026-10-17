@@ -754,6 +754,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         return { ui: { resultStyle: action.value } };
       case 'generation.split':
         return { generation: { split: action.value } };
+      case 'generation.rememberTone':
+        return { generation: { rememberTone: action.value } };
       case 'generation.windows.quick':
         return { generation: { windows: { quick: action.value } } };
       case 'generation.windows.ping':
