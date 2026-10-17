@@ -58,6 +58,15 @@ const FEATURES = {
   'human-send': { base: { flags: ['wsTap'], hostCapabilities: ['sendObserve'] }, actions: {}, surfaces: [], source: 'page' },
 
   // ── only ChatSpace ──
+  // 1.21.0 (decision X48): who sent each message, told to the hub. The send is seen as `human-send` sees it (the page's
+  // own `wsTap`), and the hub must record it (`send-attribution-v1`). No switch of its own: the owner asked for it.
+  'send-attribution': {
+    kind: 'service',
+    base: { flags: ['wsTap'], hostCapabilities: ['sendObserve'], clientNeeds: ['send-attribution-v1'] },
+    actions: {},
+    surfaces: [],
+    source: 'page',
+  },
   // `wsTap`: the passive freshness of the chat a part is sent to (CG-SEND-FRESHNESS without it); the AI mark of the send.
   'preview-send': {
     kind: 'host-action',

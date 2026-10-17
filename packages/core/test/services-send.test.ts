@@ -203,7 +203,8 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(h.coordinator.status(A)).toEqual({ attemptId: A, state: 'sentObserved', platformMessageId: WORLD.messages.sentByUs });
     expect(actions(h)).toEqual(['dispatch', 'sent']);
     expect(h.hub.claims[1]?.body).toEqual({ action: 'sent', attemptId: A, instanceId: WORLD.instanceId, platformMessageId: WORLD.messages.sentByUs, evidence: 'receipt+echo' });
-    expect(h.sent).toEqual([{ attemptId: A, opId: OP, purpose: 'preview-reply', part: 0, variant: 0, generationRef: GEN, platformMessageId: WORLD.messages.sentByUs }]);
+    // With its page and fan: who sent the message is the background's to record (decision X48).
+    expect(h.sent).toEqual([{ attemptId: A, opId: OP, purpose: 'preview-reply', part: 0, variant: 0, generationRef: GEN, platformMessageId: WORLD.messages.sentByUs, pageId: previewTarget.binding.pageId, fanRef: previewTarget.fanRef }]);
     const journal = h.store.data.get(STORAGE_KEYS.sendJournal) as { state: string; pendingId?: string }[];
     expect(journal[0]).toMatchObject({ state: 'sentObserved', pendingId: 'pending-1' });
     expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 0 });

@@ -583,6 +583,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/profile/from-generation";
     };
+    readonly clientSendAttributions: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/send-attributions";
+    };
     readonly clientSendCustodyList: {
         readonly method: "GET";
         readonly path: "/api/v1/client-send-custody";
@@ -966,6 +970,102 @@ export declare const kernelOperations: {
     readonly overviewRevenueDaily: {
         readonly method: "GET";
         readonly path: "/api/v1/overview/revenue/daily";
+    };
+    readonly pageBrowserDraftDelete: {
+        readonly method: "DELETE";
+        readonly path: "/api/v1/page-browser/drafts/:name";
+    };
+    readonly pageBrowserDraftSave: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/page-browser/drafts/:name";
+    };
+    readonly pageBrowserDrafts: {
+        readonly method: "GET";
+        readonly path: "/api/v1/page-browser/drafts";
+    };
+    readonly pageBrowserLoginCode: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/pages/:pageLabel/login/code";
+    };
+    readonly pageBrowserLoginFinish: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/pages/:pageLabel/login/finish";
+    };
+    readonly pageBrowserLoginGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/page-browser/pages/:pageLabel/login";
+    };
+    readonly pageBrowserLoginOpen: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/pages/:pageLabel/login/open";
+    };
+    readonly pageBrowserLoginScreenshot: {
+        readonly method: "GET";
+        readonly path: "/api/v1/page-browser/pages/:pageLabel/login/screenshot";
+    };
+    readonly pageBrowserLoginStart: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/pages/:pageLabel/login/start";
+    };
+    readonly pageBrowserLoginSubmit: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/pages/:pageLabel/login/submit";
+    };
+    readonly pageBrowserProfileClose: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/close";
+    };
+    readonly pageBrowserProfileGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/page-browser/profiles/:profileId";
+    };
+    readonly pageBrowserProfileLoginCode: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/login/code";
+    };
+    readonly pageBrowserProfileLoginFinish: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/login/finish";
+    };
+    readonly pageBrowserProfileLoginOpen: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/login/open";
+    };
+    readonly pageBrowserProfileLoginScreenshot: {
+        readonly method: "GET";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/login/screenshot";
+    };
+    readonly pageBrowserProfileLoginStart: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/login/start";
+    };
+    readonly pageBrowserProfileLoginSubmit: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/login/submit";
+    };
+    readonly pageBrowserProfilePin: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/pin";
+    };
+    readonly pageBrowserProfileProxy: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/proxy";
+    };
+    readonly pageBrowserProfileScreen: {
+        readonly method: "GET";
+        readonly path: "/api/v1/page-browser/profiles/:profileId/screen/*";
+    };
+    readonly pageBrowserProfiles: {
+        readonly method: "GET";
+        readonly path: "/api/v1/page-browser/profiles";
+    };
+    readonly pageBrowserProxyCheck: {
+        readonly method: "POST";
+        readonly path: "/api/v1/page-browser/proxy-check";
+    };
+    readonly pageBrowserScreen: {
+        readonly method: "GET";
+        readonly path: "/api/v1/page-browser/pages/:pageLabel/screen/*";
     };
     readonly pageConversationMessages: {
         readonly method: "GET";

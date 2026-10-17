@@ -151,6 +151,8 @@ export const FEATURE_PARITY: Readonly<Record<string, readonly string[]>> = {
   sound: ['SN-001', 'SN-012'],
   // A part sent by hand, taken for known: telemetry `sent` (and with it the hub's registration of a greeting).
   'human-send': ['TL-004'],
+  // 1.21.0 (X48): who sent each message rides on the same proof as a part's `sent` — the receipt and the echo with one id.
+  'send-attribution': ['TL-004'],
   'preview-send': ['SP-054', 'X8-02'],
   navigation: ['HK-037'],
   palette: ['HK-036', 'CS-014'],

@@ -13,6 +13,7 @@ export * from './feed';
 export * from './newcomers';
 export type * from './claim-body';
 export * from './usage';
+export * from './attribution';
 export * from './routes';
 export * from './registry';
 export * from './error-map';

@@ -18,6 +18,13 @@
 //   the page writes the text first and answers a frame later, and the
 //   person's Send may be seen in between — a send whose insert is not known
 //   yet would be dropped for good;
+// - who sent each message (decision X48): every human send whose own
+//   response named the message — a draft of ours or the person's own — goes
+//   to the background as one fact (`attribution.report`: the chat, the
+//   message id, when, a price and media as marks). The background reports it
+//   to the hub under the person signed in, where its page has the feature
+//   `send-attribution`; it is said again until the background acknowledges
+//   it, as a human send of a part is;
 // - what the bootstrap switches in the site's host port goes to it through
 //   the application's half of the site's adapter (tab/adapter.ts; ChatSpace:
 //   the owner's switches and the receipt profiles configure its part B — the
@@ -38,7 +45,7 @@
 //
 // Facts only: ids, digests, booleans. Never a message text.
 
-import type { HostContractReport, HostContractShape, HostPort, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent } from '@cg/contracts/host';
+import type { HostContractReport, HostContractShape, HostPort, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent, SendAttributionFact } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { SendFuseFact, SendFuseState } from '@cg/contracts/send';
@@ -55,6 +62,8 @@ export const SENT_REPORT_TRIES = 4;
 const SENT_REPORTS_KEPT = 32;
 /** Fuse trips that wait for the port; the oldest go (one is enough to keep the fuse). */
 const FUSE_REPORTS_KEPT = 8;
+/** Who-sent facts that wait for the port (decision X48); the oldest go. */
+const ATTRIBUTIONS_KEPT = 64;
 
 type SentReport = { readonly opId: string; readonly part: PartRef; readonly pendingId: string; readonly platformMessageId: string; readonly edited: boolean };
 
@@ -122,6 +131,8 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
   readonly rpc: ControllerRpc;
   readonly setNavInsertTimeoutMs: (ms: number) => void;
   readonly onFailure: (what: string) => void;
+  /** The tab's clock (tests); Date.now by default. */
+  readonly now?: () => number;
 }): HostFacts {
   const { host, site, rpc } = deps;
   const inserts = new Map<string, { readonly opId: string; readonly part: PartRef }>();
@@ -134,6 +145,9 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
   const waiting: { readonly report: SentReport; readonly tries: number }[] = [];
   /** Fuse trips the background has not acknowledged. */
   const fuseWaiting: { readonly fact: SendFuseFact; readonly build: string | null; readonly tries: number }[] = [];
+  /** Who-sent facts the background has not acknowledged (decision X48). */
+  const attributionsWaiting: { readonly fact: SendAttributionFact; readonly tries: number }[] = [];
+  const now = deps.now ?? Date.now;
 
   const apply = (): void => {
     if (bootstrapNow === undefined) return;
@@ -179,10 +193,23 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
   function flush(): void {
     for (const { report, tries } of waiting.splice(0)) reportSent(report, tries);
   }
+  /** Who sent a message (X48): the background owes it to the hub. Said again only when nobody answered. */
+  const reportAttribution = (fact: SendAttributionFact, tries = 1): void => {
+    void rpc.request('attribution.report', { fact }).then((answer) => {
+      if (answer.ok || answer.error.code !== 'CG-RUNTIME-UNREACHABLE' || tries >= SENT_REPORT_TRIES) return;
+      attributionsWaiting.push({ fact, tries: tries + 1 });
+      if (attributionsWaiting.length > ATTRIBUTIONS_KEPT) attributionsWaiting.shift();
+      if (rpc.state() === 'ready') flushAttributions();
+    });
+  };
+  function flushAttributions(): void {
+    for (const { fact, tries } of attributionsWaiting.splice(0)) reportAttribution(fact, tries);
+  }
   const offState = rpc.onState((state) => {
     if (state !== 'ready') return;
     flush();
     flushFuse();
+    flushAttributions();
     // A new port may be a new event page: the fuse is read again.
     readFuse();
   });
@@ -197,7 +224,11 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
       return;
     }
     if (event.type !== 'humanSend') return;
-    const { draft, platformMessageId, pendingId } = event.fact;
+    const { draft, platformMessageId, pendingId, cargo } = event.fact;
+    // X48: who sent the message — any human send whose own response named it, a draft of ours or the person's own.
+    if (platformMessageId !== null) {
+      reportAttribution({ chat: event.fact.chat, platformMessageId, observedAt: new Date(now()).toISOString(), priced: cargo?.priced ?? false, media: cargo?.media ?? false });
+    }
     // §6.6 п. 5: no id from the send's own response, or a draft that is not our insert — no `sent`, no greeting.
     if (platformMessageId === null || draft.insertIntentId === null || draft.editedSinceInsert === null) return;
     const origin = inserts.get(draft.insertIntentId);
@@ -226,6 +257,7 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
       inserts.clear();
       waiting.length = 0;
       fuseWaiting.length = 0;
+      attributionsWaiting.length = 0;
     },
   };
 }

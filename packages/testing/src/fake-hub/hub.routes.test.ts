@@ -11,7 +11,7 @@ import { HUB_ROUTE_KEYS, HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HubRouteKey } from 
 import { createClient, routeSchemas } from '@kernel/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { PAGE, WORLD, uuid } from '../scenarios/hub';
+import { NOW_MS, PAGE, WORLD, uuid } from '../scenarios/hub';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall, readSse } from './kit';
 import { type HubRouteTableLike } from './routing';
@@ -245,6 +245,20 @@ describe('fake hub routes: new client routes (H-2…H-15)', () => {
     await refused('clientAiUsageDaily', { pageLabel: PAGE, date: '2026-09-20' }, 400, 'bad_request', 'date_too_old');
   });
 
+  it('clientSendAttributions: who sent each message — the token’s person, the first report wins, a time out of range is stored nowhere, Fansly takes none yet', async () => {
+    covers('clientSendAttributions');
+    const fact = { platformMessageId: '7001000001', fanRef: WORLD.fan, observedAt: new Date(NOW_MS).toISOString(), priced: true, withMedia: true };
+    const late = { ...fact, platformMessageId: '7001000002', observedAt: new Date(NOW_MS + 6 * 60_000).toISOString() };
+    const first = (await ok('clientSendAttributions', { pageLabel: PAGE, source: 'chatspace-extension', facts: [fact, late] })) as { results: Array<{ outcome: string }> };
+    expect(first.results.map((result) => result.outcome)).toEqual(['recorded', 'out_of_range']);
+    const again = (await ok('clientSendAttributions', { pageLabel: PAGE, source: 'chatspace-extension', facts: [fact, { ...fact, fanRef: '74001999' }] })) as { results: Array<{ outcome: string }> };
+    expect(again.results.map((result) => result.outcome)).toEqual(['duplicate', 'conflict']);
+    expect(hub.sendAttributions()).toEqual([{ pageLabel: PAGE, userId: WORLD.user.userId, source: 'chatspace-extension', ...fact }]);
+    // The body names no person and no text: the hub's own strict schema refuses one that does.
+    await refused('clientSendAttributions', { pageLabel: PAGE, source: 'chatspace-extension', facts: [{ ...fact, userId: 7 }] }, 400, 'bad_request');
+    await refused('clientSendAttributions', { pageLabel: PAGE, source: 'fansly-extension', facts: [fact] }, 409, 'client_feature_disabled', 'platform_unsupported');
+  });
+
   it('every route of the route table is covered above', () => {
     expect([...served].sort()).toEqual([...HUB_ROUTE_KEYS].sort());
   });
@@ -417,6 +431,7 @@ function sampleRequest(route: HubRouteKey): unknown {
     clientSpenderAwaitingReply: { pageLabel: PAGE },
     clientAudienceNew: { pageLabel: PAGE, windowHours: 48 },
     clientAiUsageDaily: { pageLabel: PAGE, date: '2026-10-03' },
+    clientSendAttributions: { pageLabel: PAGE, source: 'chatspace-extension', facts: [{ platformMessageId: '7001000001', fanRef: WORLD.fan, observedAt: '2026-10-03T12:00:00.000Z', priced: false, withMedia: false }] },
   };
   if (!(route in samples)) throw new Error(`no sample for ${route}`);
   return samples[route];

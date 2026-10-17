@@ -13,6 +13,8 @@ import { FANSLY_IDS, COVERAGE_MSG, IDS, ISO, ISO_LATER, tabProof, uuid } from '.
 const fixture = (name: string, schema: z.ZodMiniType, valid: readonly unknown[], invalid: readonly unknown[]) => ({ name, schema, valid, invalid });
 
 const PAGE = 'model-one';
+/** 1.21.0 (X48): one send as the hub takes it. */
+const attributionHubFact = { platformMessageId: '7001000001', fanRef: '74001001', observedAt: '2026-10-17T12:00:00.000Z', priced: false, withMedia: false };
 /** A persona definition id: opaque, 16–100 characters. */
 export const PDEF = 'pdef_0123456789abcdef';
 const GEN = uuid(6);
@@ -927,4 +929,21 @@ export const HUB_SCHEMA_FIXTURES = [
   fixture('AiUsageTotals', C.AiUsageTotalsSchema, [usageTotals], [{ ...usageTotals, tokens: { input: 1 } }]),
   fixture('AiUsageDay', C.AiUsageDaySchema, [usageDay], [{ ...usageDay, features: [usageTotals] }]),
   fixture('AiUsageReport', C.AiUsageReportSchema, [usageReport, { ...usageReport, quota: null }], [{ ...usageReport, moneyUnit: 'USD-mills' }]),
+  // 1.21.0 (X48): who sent each message. The body mirrors the hub's strict one: ids, a time and two marks — no text,
+  // no person; the answer is open like every hub answer.
+  fixture('SendAttributionHubFact', C.SendAttributionHubFactSchema, [attributionHubFact, { ...attributionHubFact, observedAt: '2026-10-17T15:00:00+03:00', priced: true, withMedia: true }], [
+    { ...attributionHubFact, text: 'hey' },
+    { ...attributionHubFact, userId: 7 },
+    { ...attributionHubFact, observedAt: '2026-10-17' },
+    { ...attributionHubFact, platformMessageId: '0123' },
+  ]),
+  fixture('SendAttributionsRequest', C.SendAttributionsRequestSchema, [{ pageLabel: PAGE, source: 'chatspace-extension', facts: [attributionHubFact] }], [
+    { pageLabel: PAGE, source: 'chatspace-extension', facts: [] },
+    { pageLabel: PAGE, source: 'chatspace-extension', facts: Array.from({ length: 51 }, () => attributionHubFact) },
+    { source: 'chatspace-extension', facts: [attributionHubFact] },
+  ]),
+  fixture('SendAttributionsResult', C.SendAttributionsResultSchema, [
+    { pageLabel: PAGE, results: [{ platformMessageId: '7001000001', outcome: 'recorded' }], serverNow: '2026-10-17T12:00:01.000Z' },
+    { pageLabel: PAGE, results: [{ platformMessageId: '7001000001', outcome: 'superseded', by: 3 }], serverNow: '2026-10-17T12:00:01.000Z', later: true },
+  ], [{ pageLabel: PAGE, results: [{ outcome: 'recorded' }], serverNow: '2026-10-17T12:00:01.000Z' }]),
 ];

@@ -35,6 +35,7 @@ import {
   SpendersStatsSchema,
   StatsQuerySchema,
 } from './spenders';
+import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
 import { AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
 import { PageFanParamsSchema, PageParamsSchema } from './wire';
 
@@ -69,4 +70,5 @@ export const HUB_ROUTE_SCHEMAS = {
   clientFanClaimStatus: { request: PageFanParamsSchema, response: ClaimStateSchema },
   clientAudienceNew: { request: AudienceNewQuerySchema, response: AudienceNewPageSchema },
   clientAiUsageDaily: { request: AiUsageQuerySchema, response: AiUsageReportSchema },
+  clientSendAttributions: { request: SendAttributionsRequestSchema, response: SendAttributionsResultSchema },
 } as const satisfies Record<HubRouteKey, HubRouteSchemas>;

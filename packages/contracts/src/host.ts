@@ -594,24 +594,52 @@ export const SentDraftSchema = z
 export type SentDraft = z.infer<typeof SentDraftSchema>;
 
 /**
+ * 1.21.0 (decision X48): what a send carried besides its text, as the queue action of the page named it — a price (a
+ * PPV) and media. Marks only: never the price, the media or the text.
+ */
+export const SendCargoSchema = z.strictObject({ priced: z.boolean(), media: z.boolean() });
+export type SendCargo = z.infer<typeof SendCargoSchema>;
+
+/**
  * A human pressed ChatSpace's Send in the composer (§6.6); the link to our
  * insert is by id, never by text. MAIN emits it once per send, when the
  * native chain settled (the intercepted response of exactly this send, a
  * refusal or the native timeout), with the draft recorded at the queue
  * action; the outgoing echo with the same id may come before it (the
  * isolated side keeps a short buffer). `platformMessageId: null` or a draft
- * without `insertIntentId` — attribution unknown: no `sent`, no greeting.
+ * without `insertIntentId` — not a send of a part of ours: no `sent`, no
+ * greeting. 1.21.0 (X48): with the hub's `send-attribution-v1` MAIN follows the
+ * receipt of every such send, a draft of the person's own too, so the message
+ * id of a draft that is not ours may be known: it says who sent the message
+ * (SendAttributionFact), never that a part of ours was sent.
  */
 export const HumanSendFactSchema = z.strictObject({
   chat: ChatRefSchema,
   pendingId: boundedText(128),
-  /** From the intercepted response of exactly this send; null when attribution is unknown. */
+  /** From the intercepted response of exactly this send; null when it is not known. */
   platformMessageId: z.nullable(NativeIdSchema),
   /** Integrity check of an already linked send only. */
   textDigest: DigestSchema,
   draft: SentDraftSchema,
+  /** 1.21.0 (X48): absent — not observed (an older MAIN). */
+  cargo: z.optional(SendCargoSchema),
 });
 export type HumanSendFact = z.infer<typeof HumanSendFactSchema>;
+
+/**
+ * 1.21.0 (decision X48): who sent a message — the tab's word to the background (`attribution.report`) after a
+ * human send whose message id the page's own response named. The person is whoever is signed in when the
+ * background takes it; the hub reads them from the token. Ids, a time and two marks; never a text.
+ */
+export const SendAttributionFactSchema = z.strictObject({
+  chat: ChatRefSchema,
+  platformMessageId: NativeIdSchema,
+  /** When the tab heard of the send. */
+  observedAt: IsoTimestampSchema,
+  priced: z.boolean(),
+  media: z.boolean(),
+});
+export type SendAttributionFact = z.infer<typeof SendAttributionFactSchema>;
 
 export const CoverageEventSchema = z.strictObject({
   hostAccountId: NativeIdSchema,

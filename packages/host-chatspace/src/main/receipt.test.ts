@@ -197,7 +197,7 @@ describe('[X8-06] the observer only watches (§6.7.6 п. 1–3, §14)', () => {
     Object.defineProperty(live.win, 'fetch', { configurable: true, get: () => live.nativeFetch });
     live.live.draft = { digest: 'feedbeef00000061', draft: { revision: 5, provenance: 'our-insert', insertIntentId: uuid(0x60), editedSinceInsert: false } };
     const entry = live.queue.send({ accountId: ACC, chatId: OPEN_FAN, platform: 'onlyfans', text: '<p>x</p>', composerContent: { html: '<p>x</p>' } });
-    expect(live.posted('humanSend')).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: 'feedbeef00000061', draft: live.live.draft.draft }]);
+    expect(live.posted('humanSend')).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: 'feedbeef00000061', draft: live.live.draft.draft, cargo: { priced: false, media: false } }]);
     await live.settle();
     expect(live.calls).toHaveLength(1);
   });
@@ -611,6 +611,8 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
   const composerSend = (live: LiveHarness, fan = OPEN_FAN, text = '<p>inserted</p>') =>
     live.queue.send({ accountId: ACC, chatId: fan, platform: 'onlyfans', text, hasAttachments: false, platformMetadata: {}, composerContent: { html: text, media: null, gif: null, taggedCreators: [] } });
   const facts = (live: LiveHarness) => live.posted('humanSend');
+  /** A send of text alone (decision X48): no price, no media. */
+  const NONE = { priced: false, media: false };
 
   it('our unchanged insert, a free queue: the receipt of exactly this send and its echo go out as one fact, once, with the draft recorded before the send', async () => {
     const live = start();
@@ -633,7 +635,7 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     live.socket.receive(frames.message(ACC, OPEN_FAN, '8101', true));
     expect(facts(live)).toEqual([]);
     live.socket.receive(frames.message(ACC, OPEN_FAN, '8101', false));
-    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: '8101', textDigest: ours.digest, draft: ours.draft }]);
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: '8101', textDigest: ours.digest, draft: ours.draft, cargo: NONE }]);
     expect(FROM_MAIN.humanSend.safeParse(facts(live)[0]).success).toBe(true);
     // Once; and the isolated side heard of the echo before the fact that it completes.
     live.socket.receive(frames.message(ACC, OPEN_FAN, '8101', false));
@@ -655,14 +657,14 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     expect(facts(live)).toEqual([]);
     live.calls[0]?.respond(200, { id: '8109' });
     await live.settle();
-    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: '8109', textDigest: ours.digest, draft: ours.draft }]);
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: '8109', textDigest: ours.digest, draft: ours.draft, cargo: NONE }]);
   });
 
   it('a client that did not take the observer for a human send: a fact without a receipt, and X8 is not closed by it', async () => {
     const live = start({ queue: { earlyFetch: true } });
     live.live.draft = ours;
     const entry = composerSend(live);
-    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: ours.digest, draft: ours.draft }]);
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: ours.digest, draft: ours.draft, cargo: NONE }]);
     await live.settle();
     live.calls[0]?.respond(200, { id: '8110' });
     await live.settle();
@@ -695,7 +697,7 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     expect(facts(live)).toEqual([]);
     // The entry came after the echo: what was seen for the chat before is not this send's to claim; the next echo is.
     live.socket.receive(frames.message(ACC, OPEN_FAN, '8105', false));
-    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: 'entry-1', platformMessageId: '8105', textDigest: ours.digest, draft: ours.draft }]);
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: 'entry-1', platformMessageId: '8105', textDigest: ours.digest, draft: ours.draft, cargo: NONE }]);
   });
 
   it('the queue’s state is watched only while a send is followed', async () => {
@@ -758,7 +760,7 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     };
     const entry = composerSend(live);
     // The fact goes out at once: there is nothing to wait for.
-    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: ours.digest, draft: ours.draft }]);
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: ours.digest, draft: ours.draft, cargo: NONE }]);
     // The waiting send creates its request later, when the first is done: the observer is long gone.
     live.calls[0]?.respond(200, { id: '8001' });
     await live.settle();
@@ -777,7 +779,7 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     };
     const entry = composerSend(live);
     expect(during).toBe(live.nativeFetch);
-    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: 'feedbeef00000063', draft: live.live.draft.draft }]);
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: 'feedbeef00000063', draft: live.live.draft.draft, cargo: NONE }]);
   });
 
   it('no receipt, no id: a refusal, a 5xx or a 401 chain leave the attribution unknown', async () => {
@@ -843,6 +845,81 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     await live.settle();
     expect(facts(live)).toEqual([]);
     expect(states(live, 41)).toEqual(['nativeAccepted']);
+  });
+  describe('[X48] who sent each message: while the hub records it, every human send of the composer is followed', () => {
+    const typed = { digest: 'feedbeef00000071', draft: { revision: 3, provenance: 'human-or-unknown' as const, insertIntentId: null, editedSinceInsert: null } };
+    const attributing = (options?: Parameters<typeof startLive>[0]): LiveHarness => {
+      const live = start(options);
+      expect(live.port.handle('flags', { wsTap: true, previewSend: true, attribution: true })).toEqual({ wsTap: true, previewSend: true, attribution: true });
+      live.live.draft = typed;
+      return live;
+    };
+
+    it('the person’s own text, a free queue: the receipt of exactly this send and its echo name the message, once', async () => {
+      const live = attributing();
+      let during: unknown = null;
+      live.queue.during = () => {
+        during = live.win.fetch;
+      };
+      const entry = composerSend(live, OPEN_FAN, '<p>my own words</p>');
+      expect(during).not.toBe(live.nativeFetch);
+      expect(live.win.fetch).toBe(live.nativeFetch);
+      await live.settle();
+      live.calls[0]?.respond(200, { id: '8201' });
+      await live.settle();
+      expect(facts(live)).toEqual([]);
+      live.socket.receive(frames.message(ACC, OPEN_FAN, '8201', false));
+      expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: '8201', textDigest: typed.digest, draft: typed.draft, cargo: NONE }]);
+      expect(FROM_MAIN.humanSend.safeParse(facts(live)[0]).success).toBe(true);
+      // Never a part of ours: the draft names no insert, so nothing downstream takes it for one.
+      expect(facts(live)[0]?.['draft']).toMatchObject({ insertIntentId: null });
+      expect(live.states()).toEqual([]);
+    });
+
+    it('a PPV: a price above zero and its media are two marks — never the price, the media or the text', async () => {
+      const live = attributing();
+      const text = '<p>for you</p>';
+      live.queue.send({ accountId: ACC, chatId: OPEN_FAN, platform: 'onlyfans', text, hasAttachments: true, platformMetadata: { price: 25, mediaFiles: [{ processId: 'p1' }], previews: [] }, composerContent: { html: text, media: [{ id: 1 }], gif: null, taggedCreators: [] } });
+      await live.settle();
+      live.calls[0]?.respond(200, { id: '8202' });
+      await live.settle();
+      live.socket.receive(frames.message(ACC, OPEN_FAN, '8202', false));
+      expect(facts(live)).toMatchObject([{ platformMessageId: '8202', cargo: { priced: true, media: true } }]);
+      expect(JSON.stringify(facts(live))).not.toMatch(/25|p1|for you/);
+      // Free media with a price of zero, or a price the queue writes as text.
+      live.queue.send({ accountId: ACC, chatId: OPEN_FAN, platform: 'onlyfans', text, hasAttachments: true, platformMetadata: { price: 0, mediaFiles: [{ processId: 'p2' }] }, composerContent: { html: text, media: null } });
+      await live.settle();
+      live.calls[1]?.respond(200, { id: '8203' });
+      await live.settle();
+      live.socket.receive(frames.message(ACC, OPEN_FAN, '8203', false));
+      live.queue.send({ accountId: ACC, chatId: OPEN_FAN, platform: 'onlyfans', text, hasAttachments: false, platformMetadata: { price: '9.99', lockedText: true }, composerContent: { html: text, media: null } });
+      await live.settle();
+      live.calls[2]?.respond(200, { id: '8204' });
+      await live.settle();
+      live.socket.receive(frames.message(ACC, OPEN_FAN, '8204', false));
+      expect(facts(live).map((fact) => fact['cargo'])).toEqual([{ priced: true, media: true }, { priced: false, media: true }, { priced: true, media: false }]);
+    });
+
+    it('a send that waits in a busy queue still has no receipt: its request comes later, when the observer is long gone', async () => {
+      const live = attributing();
+      await sent(live, 42);
+      const entry = composerSend(live);
+      expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: typed.digest, draft: typed.draft, cargo: NONE }]);
+    });
+
+    it('off again, or without the tap: the person’s own text is not watched, as before', () => {
+      const live = attributing();
+      expect(live.port.handle('flags', { wsTap: true, previewSend: true })).toEqual({ wsTap: true, previewSend: true, attribution: false });
+      let during: unknown = null;
+      live.queue.during = () => {
+        during = live.win.fetch;
+      };
+      composerSend(live);
+      expect(during).toBe(live.nativeFetch);
+      expect(facts(live)).toMatchObject([{ platformMessageId: null }]);
+      // The tap told to stand down takes the latch with it.
+      expect(live.port.handle('flags', { wsTap: false, previewSend: true, attribution: true })).toMatchObject({ wsTap: false, attribution: false });
+    });
   });
 });
 

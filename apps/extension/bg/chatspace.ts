@@ -12,9 +12,10 @@
 //   requests `send.*`;
 // - the greeting leases of «Новые» (H-7) — `newcomers.claim`.
 // What it does not own: the hub layer, the settings, telemetry, the logs, the
-// operations, the action tokens, and the registration of a human send with
-// its journal of debts (`registerNativeSend`, both sites need it) — those are
-// the core's, reached through the kit. The core tells it what it must know
+// operations, the action tokens, the registration of a human send with its
+// journal of debts (`registerNativeSend`, both sites need it) and the record
+// of who sent each message (X48) — those are the core's, reached through the
+// kit. The core tells it what it must know
 // (a new bootstrap, a change of the person, «Очистить локальные данные», a
 // human send of a part) as events.
 //
@@ -65,8 +66,13 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
       return install.instanceId();
     },
     log: log.sink,
-    onSent: (fact) =>
-      void telemetry.report('sent', ops.view(fact.opId), fact.opId, { part: fact.part, variant: fact.variant }, { via: 'preview', platformMessageId: fact.platformMessageId, attemptId: fact.attemptId }),
+    onSent: (fact) => {
+      void telemetry.report('sent', ops.view(fact.opId), fact.opId, { part: fact.part, variant: fact.variant }, { via: 'preview', platformMessageId: fact.platformMessageId, attemptId: fact.attemptId });
+      // Decision X48: the person clicked «Отправить» of the preview — the hub records who sent the message. Only while
+      // the operation is still theirs: another sign-in since (an attempt outlives a sign-out) took the operation away,
+      // and the send is not the next person's to report.
+      if (ops.view(fact.opId) !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId });
+    },
     fuse: sendFuse,
   });
 

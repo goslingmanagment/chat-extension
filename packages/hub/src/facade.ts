@@ -67,6 +67,8 @@ import {
   type QueueQuery,
   type RecapStatus,
   type RecapStatusQuery,
+  type SendAttributionsRequest,
+  type SendAttributionsResult,
   type SessionIdentity,
   type SharedRecaps,
   type SharedRecapsQuery,
@@ -850,6 +852,15 @@ export class ChatExtensionHub implements HubFacade {
 
   async audienceNew(query: AudienceNewQuery): Promise<AudienceNewPage> {
     return (await this.client('clientAudienceNew', query, query.pageLabel)) as AudienceNewPage;
+  }
+
+  /**
+   * 1.21.0 (decision X48): who sent these messages of the page — the person signed in. No owner switch (the hub takes
+   * a send that happened on the page grant alone); refused here without `send-attribution-v1` and for a page this
+   * bootstrap does not grant. Never repeated: the background's journal owns what is owed.
+   */
+  async sendAttributions(request: SendAttributionsRequest): Promise<SendAttributionsResult> {
+    return (await this.client('clientSendAttributions', request, request.pageLabel)) as SendAttributionsResult;
   }
 
   /**

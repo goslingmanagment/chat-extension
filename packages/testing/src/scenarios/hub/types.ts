@@ -41,6 +41,7 @@ export const HUB_ROUTE_PATHS = {
   clientFanClaimStatus: '/api/v1/client/pages/:pageLabel/fans/:fanRef/claim',
   clientAudienceNew: '/api/v1/client/pages/:pageLabel/audience-new',
   clientAiUsageDaily: '/api/v1/client/pages/:pageLabel/ai-usage',
+  clientSendAttributions: '/api/v1/client/pages/:pageLabel/send-attributions',
 } as const satisfies Record<HubRouteKey, string>;
 
 /** What the client must make of an error answer (HubErrorResolution without the clock-dependent parts). */

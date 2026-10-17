@@ -14,7 +14,12 @@
 //   observed step — attribution unknown, no `sent`, though the text did go.
 // The observation itself — the receipt of exactly that request, the echo with
 // the same id — has its spec on the adapter (x8-send.e2e.ts, §6.6).
+// And who sent each message (decision X48): every one of these sends whose own
+// response named the message — a part of ours or the person's own text — is
+// told to the hub (`clientSendAttributions`, the person is the token's), the
+// one whose request came later is not.
 
+import type { SendAttributionsRequest } from '@cg/contracts/hub';
 import { browser, expect } from '@wdio/globals';
 
 import { callsTo } from '../../src/fake-hub/journal';
@@ -46,6 +51,7 @@ describe('§12 п. 4 on the wired extension — the person’s own Send: `sent` 
   const { hub } = useFakeHub();
   let shift: Shift;
   let journalStart = 0;
+  let hubStart = 0;
 
   /** `ai_acceptance` events the hub ingested since `mark`, in order. */
   const acceptance = async (mark: number): Promise<Acceptance[]> =>
@@ -93,6 +99,7 @@ describe('§12 п. 4 on the wired extension — the person’s own Send: `sent` 
     // The stand's socket names its accounts soon after their subscription: ChatSpace's sends are observed from then on.
     await standServer.traffic({ firstSummaryMs: 150 });
     journalStart = await standServer.mark();
+    hubStart = await hub().mark();
     await hub().command({ op: 'config', patch: { aiNameFan: true } });
     shift = await startShift(hub(), { viewport: { width: 1440, height: 900 } });
     // The person allows the technical measurements on the settings page (ST-034): acceptance events leave the browser only then.
@@ -236,5 +243,37 @@ describe('§12 п. 4 on the wired extension — the person’s own Send: `sent` 
     } finally {
       await callStand('setQueueTimeoutMs', 30_000);
     }
+  });
+  it('[TL-004] [X48] who sent each message: the hub is told every send whose own response named it — the parts of ours and the person’s own texts, ids and two marks, never a text; the send whose request came later is not', async () => {
+    const told = async (): Promise<Array<{ readonly pageLabel: string; readonly source: string; readonly fact: SendAttributionsRequest['facts'][number] }>> =>
+      callsTo((await hub().journal(hubStart)).entries, 'clientSendAttributions')
+        .filter((call) => call.status === 200)
+        .flatMap((call) => {
+          const request = call.request as SendAttributionsRequest;
+          return request.facts.map((fact) => ({ pageLabel: request.pageLabel, source: request.source, fact }));
+        });
+    const idsOf = async (fan: string): Promise<string[]> => (await sent(journalStart, fan)).map((message) => message.id);
+    const expected = new Map<string, string>();
+    for (const fan of [a1, a2, a4, a5]) for (const id of await idsOf(fan)) expected.set(id, fan);
+    // The insert of our part, the edited one, the person's own text, and both sends of the frozen clock.
+    expect(expected.size).toBe(5);
+    let facts: Awaited<ReturnType<typeof told>> = [];
+    await browser.waitUntil(
+      async () => {
+        facts = await told();
+        return [...expected.keys()].every((id) => facts.some((each) => each.fact.platformMessageId === id));
+      },
+      { timeout: 15_000, interval: 500, timeoutMsg: 'the hub was not told who sent each message' },
+    );
+    for (const { pageLabel, source, fact } of facts.filter((each) => expected.has(each.fact.platformMessageId))) {
+      expect([pageLabel, source]).toEqual([facts[0]?.pageLabel, 'chatspace-extension']);
+      expect(fact).toMatchObject({ fanRef: expected.get(fact.platformMessageId), priced: false, withMedia: false });
+      expect(Number.isNaN(Date.parse(fact.observedAt))).toBe(false);
+    }
+    // Once each, and never a text.
+    expect(facts.filter((each) => expected.has(each.fact.platformMessageId))).toHaveLength(expected.size);
+    expect(JSON.stringify(facts)).not.toMatch(/typed by the person|Hey you|holds the queue/);
+    // The part that waited in the busy queue went out later, outside the step we observe: its sender is not guessed.
+    for (const id of await idsOf(a6)) expect(facts.some((each) => each.fact.platformMessageId === id)).toBe(false);
   });
 });

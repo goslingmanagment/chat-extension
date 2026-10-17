@@ -61,12 +61,18 @@ function world(state = 'ready') {
   const eventListeners = new Map<string, (payload: unknown) => void>();
   /** The X8 fuse the background keeps (decision X25): read apart from the other requests. */
   const fuse = { state: { fuse: null, resetAt: null } as SendFuseState, reads: 0 };
+  /** Who-sent facts (decision X48), apart from the other requests: every human send with an id has one. */
+  const attributions = { sent: [] as unknown[], answers: [] as unknown[] };
   const rpc = {
     state: () => port.state,
     request(type: string, payload: unknown) {
       if (type === 'send.fuseState') {
         fuse.reads += 1;
         return Promise.resolve({ ok: true, payload: fuse.state });
+      }
+      if (type === 'attribution.report') {
+        attributions.sent.push(payload);
+        return Promise.resolve(attributions.answers.shift() ?? { ok: true, payload: { queued: true } });
       }
       sent.push([type, payload]);
       return Promise.resolve(answers.shift() ?? { ok: true, payload: { recorded: true } });
@@ -80,7 +86,7 @@ function world(state = 'ready') {
       return () => eventListeners.delete(type);
     },
   } as unknown as ControllerRpc;
-  const facts = forwardHostFacts({ host, site: CHATSPACE_APP, rpc, setNavInsertTimeoutMs: (ms) => void timeouts.push(ms), onFailure: (what) => void failures.push(what) });
+  const facts = forwardHostFacts({ host, site: CHATSPACE_APP, rpc, setNavInsertTimeoutMs: (ms) => void timeouts.push(ms), onFailure: (what) => void failures.push(what), now: () => Date.parse('2026-10-17T12:00:00.000Z') });
   const setState = (next: string): void => {
     port.state = next;
     for (const heard of [...stateListeners]) heard(next);
@@ -94,6 +100,7 @@ function world(state = 'ready') {
     answers,
     setState,
     fuse,
+    attributions,
     event: (type: string, payload: unknown) => eventListeners.get(type)?.(payload),
     emit: (event: HostEvent) => listener(event),
     subscribed: () => subscribed,
@@ -105,7 +112,7 @@ const turns = async (): Promise<void> => {
 };
 
 const incoming: Extract<HostEvent, { type: 'incoming' }>['fact'] = { host: 'chatspace', hostAccountId: '910101', platformFanId: '74001001', platformMessageId: '5001', fromFan: true, automatic: false, tip: false, sentAt: null, socketEpoch: 1, fanSequence: 3, source: 'ws-tap' };
-const humanSend = (over: { platformMessageId?: string | null; insertIntentId?: string | null; edited?: boolean | null } = {}): HostEvent => ({
+const humanSend = (over: { platformMessageId?: string | null; insertIntentId?: string | null; edited?: boolean | null; cargo?: { priced: boolean; media: boolean } } = {}): HostEvent => ({
   type: 'humanSend',
   fact: {
     chat: CHAT,
@@ -113,17 +120,18 @@ const humanSend = (over: { platformMessageId?: string | null; insertIntentId?: s
     platformMessageId: over.platformMessageId === undefined ? '9001' : over.platformMessageId,
     textDigest: 'd'.repeat(16),
     draft: { revision: 4, provenance: 'our-insert-edited', insertIntentId: over.insertIntentId === undefined ? 'intent-1' : over.insertIntentId, editedSinceInsert: over.edited === undefined ? true : over.edited },
+    ...(over.cargo === undefined ? {} : { cargo: over.cargo }),
   } as never,
 });
 
 describe('the bootstrap → part B of the ChatSpace host port (the application’s half of the ChatSpace adapter)', () => {
   it('nobody signed in: the tap, X8 and the AI mark are off, no receipt profile', () => {
-    expect(liveConfigOf(null)).toEqual({ wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [] });
+    expect(liveConfigOf(null)).toEqual({ wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [], attribution: false });
   });
 
   it('[X8-01] each part is on while its switch is usable on at least one granted page — the page\'s own feature, never the top-level flags; the receipt profiles of `limits` go as they are', () => {
     // The pilot switched on page by page: every top-level flag false, and the adapter is on.
-    expect(liveConfigOf(bootstrap())).toEqual({ wsTap: true, previewSend: true, markAiGenerated: true, receiptProfiles: [PROFILE] });
+    expect(liveConfigOf(bootstrap())).toEqual({ wsTap: true, previewSend: true, markAiGenerated: true, receiptProfiles: [PROFILE], attribution: false });
     // A switch the page's own row has off is off, whatever the owner's `"*"` row says.
     expect(liveConfigOf(bootstrap({ off: ['previewSend'], star: { previewSend: true } })).previewSend).toBe(false);
     expect(liveConfigOf(bootstrap({ off: ['wsTap', 'previewSendMarkAiGenerated'], star: { wsTap: true, previewSendMarkAiGenerated: true }, profiles: [] }))).toMatchObject({ wsTap: false, markAiGenerated: false, receiptProfiles: [] });
@@ -133,6 +141,14 @@ describe('the bootstrap → part B of the ChatSpace host port (the application�
     // No granted page, or pages that list no such feature: «off», never «on» — whatever `"*"` says.
     expect(liveConfigOf(bootstrap({ pages: 0, star: { wsTap: true, previewSend: true, previewSendMarkAiGenerated: true } }))).toMatchObject({ wsTap: false, previewSend: false, markAiGenerated: false });
     expect(liveConfigOf({ ...bootstrap(), pages: [{ pageId: 11, pageLabel: 'page-0', platform: 'onlyfans', features: {} }] } as unknown as Bootstrap)).toMatchObject({ wsTap: false, previewSend: false, markAiGenerated: false });
+  });
+
+  it('[X48] every human send is followed to its receipt while the hub records who sent each message and the tap is on somewhere', () => {
+    expect(liveConfigOf(bootstrap({ capabilities: ['send-attribution-v1'] })).attribution).toBe(true);
+    // The receipt pairs with the tap's echo: no tap, nothing to follow it with.
+    expect(liveConfigOf(bootstrap({ capabilities: ['send-attribution-v1'], off: ['wsTap'] })).attribution).toBe(false);
+    // A hub that does not record it is never told, and MAIN follows only drafts of ours, as before.
+    expect(liveConfigOf(bootstrap({ capabilities: ['preview-send-custody-v1'] })).attribution).toBe(false);
   });
 
   it('the adapter is configured once per change, and the deadline of «Открыть и вставить» is the bootstrap’s', async () => {
@@ -320,6 +336,44 @@ describe('facts of the page → the background', () => {
     await opening;
     plain.emit(humanSend());
     expect(plain.sent).toEqual([]);
+  });
+
+  it('[X48] who sent each message: every human send whose own response named it goes to the background — ours or the person’s own, a PPV as two marks', () => {
+    const w = world();
+    w.facts.noteInsert('intent-1', 'op-1', { index: 1 });
+    w.emit(humanSend());
+    w.emit(humanSend({ platformMessageId: '9002', insertIntentId: null, edited: null, cargo: { priced: true, media: true } }));
+    // No id from the send's own response: nobody can say which message it was.
+    w.emit(humanSend({ platformMessageId: null, insertIntentId: null, edited: null }));
+    expect(w.attributions.sent).toEqual([
+      { fact: { chat: CHAT, platformMessageId: '9001', observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false } },
+      { fact: { chat: CHAT, platformMessageId: '9002', observedAt: '2026-10-17T12:00:00.000Z', priced: true, media: true } },
+    ]);
+    // The part's own report is the one it always was.
+    expect(w.sent).toEqual([['op.reportSent', { opId: 'op-1', part: { index: 1 }, pendingId: 'pending-1', platformMessageId: '9001', edited: true }]]);
+  });
+
+  it('[X48] a fact the background never acknowledged is said again when the port is back, a bounded number of times; its own answer is not repeated', async () => {
+    const w = world();
+    const lost = { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'port lost' } };
+    w.attributions.answers.push(lost, lost, lost, lost, lost);
+    w.setState('reconnecting');
+    w.emit(humanSend({ insertIntentId: null, edited: null }));
+    await turns();
+    expect(w.attributions.sent).toHaveLength(1);
+    for (let i = 0; i < SENT_REPORT_TRIES + 1; i += 1) {
+      w.setState('ready');
+      await turns();
+      w.setState('reconnecting');
+    }
+    expect(w.attributions.sent).toHaveLength(SENT_REPORT_TRIES);
+    const answered = world();
+    answered.attributions.answers.push({ ok: true, payload: { queued: false, reason: 'not_admitted' } });
+    answered.emit(humanSend({ insertIntentId: null, edited: null }));
+    await turns();
+    answered.setState('ready');
+    await turns();
+    expect(answered.attributions.sent).toHaveLength(1);
   });
 
   it('only the last 64 inserts are remembered; dispose stops listening', () => {

@@ -40,6 +40,7 @@ import {
   type HubRouteKey,
   type HubStreamRequest,
   type IngestBatch,
+  type SendAttributionsRequest,
   type PersonaCatalogItem,
   type ProfileFromGenerationRequest,
   type QueueQuery,
@@ -59,7 +60,7 @@ import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagV
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
 import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
-import { CursorSigner, DataModel, type Read, type Refusal } from './data';
+import { CursorSigner, DataModel, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
 import { Gates, sseBody } from './sse';
@@ -477,6 +478,11 @@ export class FakeHub {
   /** Ingested telemetry (tests assert on acceptance fields; no texts by contract). */
   ingested(): IngestBatch['events'] {
     return this.state.data.ingestedEvents();
+  }
+
+  /** 1.21.0 (X48): the sends recorded with their person (tests assert who sent what; no texts by contract). */
+  sendAttributions(): readonly FakeSendAttribution[] {
+    return this.state.data.sendAttributionRows();
   }
 
   /** Ends every open stream like a reset connection (server close). Streams opened later are closed by the next call. */
@@ -940,6 +946,8 @@ export class FakeHub {
       }
       case 'clientAiUsageDaily':
         return read(s.data.aiUsage(need(page), request as AiUsageQuery, need(principal).user.userId, now, s.config.quotaRequestsToday));
+      case 'clientSendAttributions':
+        return read(s.data.sendAttributions(need(page), need(principal).user.userId, request as SendAttributionsRequest, now));
     }
   }
 

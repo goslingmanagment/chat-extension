@@ -61,6 +61,8 @@ export const HUB_ROUTES = {
   clientFanClaimStatus: { method: 'GET', routeClass: 'claim', since: 'sdk', flag: null, capabilities: ['preview-send-custody-v1'], narrowToken: true },
   clientAudienceNew: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'newcomers', capabilities: ['audience-new-v1'], narrowToken: true },
   clientAiUsageDaily: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['ai-usage-v1'], narrowToken: true },
+  /** 1.21.0 (X48): who sent each outgoing message. No owner switch: the hub takes a send that happened on the page grant alone. */
+  clientSendAttributions: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['send-attribution-v1'], narrowToken: true },
 } as const satisfies Record<string, HubRouteSpec>;
 
 export type HubRouteKey = keyof typeof HUB_ROUTES;

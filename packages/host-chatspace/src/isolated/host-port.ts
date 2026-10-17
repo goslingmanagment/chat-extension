@@ -68,6 +68,11 @@ export interface ChatSpaceLiveConfig {
   /** Bootstrap `limits.previewSendReceiptProfiles`; none — X8 is off. */
   readonly receiptProfiles: readonly ReceiptProfile[];
   /**
+   * 1.21.0 (decision X48): the hub records who sent each message (`send-attribution-v1`) — MAIN follows the receipt of
+   * every human send of the composer, so that its `humanSend` names the message. Absent — off.
+   */
+  readonly attribution?: boolean;
+  /**
    * The X8 fuse as the background keeps it (decision X25); absent or null — not known yet: only a trip seen in this
    * document holds. A fuse holds while this page runs the build it names; a reset after a trip of this document
    * lifts that one too.
@@ -711,7 +716,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       live = config;
       refreshReceipt();
       // MAIN's latch follows the flag at once (§6.7.11); `wsTap: false` switches the tap off for this document.
-      tap = bridge ? await bridge.request('flags', { wsTap: config.wsTap, previewSend: config.previewSend }).then((flags) => flags.wsTap, () => false) : false;
+      tap = bridge ? await bridge.request('flags', { wsTap: config.wsTap, previewSend: config.previewSend, attribution: config.attribution === true }).then((flags) => flags.wsTap, () => false) : false;
       tapKnown = true;
       recompute();
       return report;

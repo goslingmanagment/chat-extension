@@ -54,6 +54,9 @@ import {
   toast,
 } from './schemas';
 import { DEFAULT_SETTINGS } from '../../src/index';
+
+/** 1.21.0 (X48): who sent a message, as the tab tells the background. */
+const attributionFact = { chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false };
 import { HUB_SAMPLES as H } from './hub';
 
 export interface Verdicts {
@@ -462,6 +465,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ fact: incomingFact }], invalid: [{ fact: { ...incomingFact, source: 'dom' } }] },
     res: { valid: [{ played: true }, { played: false, reason: 'chat-open' }], invalid: [{ reason: 'chat-open' }] },
   },
+  'attribution.report': {
+    req: {
+      valid: [{ fact: attributionFact }, { fact: { ...attributionFact, priced: true, media: true } }],
+      // Ids, a time and two marks: never a text, never a person (the hub reads the person from the token), always an id.
+      invalid: [{ fact: { ...attributionFact, text: 'hey' } }, { fact: { ...attributionFact, userId: 7 } }, { fact: { ...attributionFact, platformMessageId: null } }, { fact: { ...attributionFact, observedAt: 'now' } }],
+    },
+    res: { valid: [{ queued: true }, { queued: false, reason: 'not_admitted' }], invalid: [{ queued: 'yes' }, { reason: 'not_admitted' }] },
+  },
   'data.clear': {
     req: { valid: [{ confirmed: true }], invalid: [{ confirmed: false }, {}] },
     res: { valid: [{ cleared: true }, { cleared: false }], invalid: [{ cleared: 'yes' }] },
@@ -616,8 +627,8 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
     data: { valid: [{ state: 'nativeEnqueued', pendingId: uuid(7) }], invalid: [{ state: 'nativeAccepted', pendingId: uuid(7) }] },
   },
   flags: {
-    payload: { valid: [{ wsTap: true, previewSend: false }], invalid: [{ wsTap: true }] },
-    data: { valid: [{ wsTap: true, previewSend: false }], invalid: [{ wsTap: 'on', previewSend: false }] },
+    payload: { valid: [{ wsTap: true, previewSend: false }, { wsTap: true, previewSend: false, attribution: true }], invalid: [{ wsTap: true }, { wsTap: true, previewSend: false, attribution: 'on' }] },
+    data: { valid: [{ wsTap: true, previewSend: false }, { wsTap: true, previewSend: false, attribution: false }], invalid: [{ wsTap: 'on', previewSend: false }] },
   },
 };
 
@@ -636,9 +647,13 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
     valid: [
       { ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST, draft: humanDraft },
       { ...accFan, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST, draft: ourDraft },
+      // 1.21.0 (X48): a PPV the person sent themselves, its id from its own response.
+      { ...accFan, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST, draft: humanDraft, cargo: { priced: true, media: true } },
     ],
     invalid: [
       { ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST, draft: humanDraft, text: 'hey' },
+      // Marks only: never the price.
+      { ...accFan, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST, draft: humanDraft, cargo: { priced: 25, media: true } },
       // Without the draft recorded at the queue action, `sent` and `edited` would be guessed.
       { ...accFan, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST },
     ],

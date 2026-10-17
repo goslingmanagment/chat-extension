@@ -151,5 +151,5 @@ export const PAYLOAD: Record<string, Check> = {
   checkpoint: shape(accFan),
   previewSendPreflight: isSend,
   previewSendCommit: isSend,
-  flags: shape({ wsTap: is(true, false), previewSend: is(true, false) }),
+  flags: shape({ wsTap: is(true, false), previewSend: is(true, false), 'attribution?': is(true, false) }),
 };

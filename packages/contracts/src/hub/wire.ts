@@ -129,6 +129,13 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'voice-notes-v1',
   /** 1.15.0 (R20 HF-5): Fansly Hi accepts the start proof, personal count and avatar at the top level. */
   'hi-start-proof-v1',
+  /**
+   * 1.21.0 (decision X48): the hub records who sent each outgoing message (`clientSendAttributions`). While the
+   * bootstrap lists it the background reports every send the person made in the site's own composer whose message id
+   * the page's own response named, and ChatSpace's MAIN follows the receipt of every such send, not only of a draft of
+   * ours. A hub without it is never asked and MAIN follows only drafts of ours, as before.
+   */
+  'send-attribution-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
