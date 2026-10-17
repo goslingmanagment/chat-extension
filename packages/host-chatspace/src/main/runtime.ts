@@ -13,7 +13,9 @@
 //   over its live port (live.ts): the freshness checkpoint, the X8 send port,
 //   the flags and the `wsFrames` anchor. Without it those requests are
 //   `disabled` and nothing of §6.6–§6.8 runs.
-// Never (§6.10): requests of its own, history loads, store/cache writes,
+// One request of its own (X51): the open chat's messages from ChatSpace's API
+// (om-api.ts), only for the chat on the route now — it is read already.
+// Never (§6.10): any other request of its own, history loads, store/cache writes,
 // resend/cancel/confirmEchoedMessage/reset*, ensure*/refresh*/fetch/
 // invalidate*, insertMessage/setInsertPayload, synthetic paste, body
 // observers with subtree, DOM polling on a timer, faked focus/visibility,
@@ -54,6 +56,7 @@ import {
   STORE_QUEUE,
   STORE_TABS,
 } from './protocol';
+import { createOmApi } from './om-api';
 import { PAYLOAD, type Identity, type InsertWire, type NavigationWire } from './requests';
 import { QUEUE_SEND, queueShape } from './send-port';
 
@@ -71,6 +74,7 @@ const GLOBAL_ANCHOR_KEYS = [KEY_ACCOUNTS, KEY_PERMISSIONS, KEY_MIMIC_SETTINGS, K
 export function createMainRuntime(context: MainContext): MainRuntime {
   const { win, now, setTimer, frame, emit, guard, fault } = context;
   const doc = win.document;
+  const om = createOmApi(win, setTimer);
   const clock = Date.now;
   let app: App | null = null;
   let reader: Reader = createReader(doc, null);
@@ -599,6 +603,11 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         return reader.fan(acc, fan);
       case 'listChats':
         return reader.chatList(acc, payload['limit'] as number);
+      case 'openChatMessages': {
+        // The chat on the route now, or nothing is requested: another chat's history load would mark it read.
+        const read = route();
+        return read.name === 'chat' && read.acc === acc && read.fan === fan ? om.openChatMessages(acc, fan, payload['limit'] as number, payload['cursor'] as string | undefined) : ERR_IDENTITY;
+      }
       case 'readTail':
         return identityMatches(expected) && expected.chat ? reader.tail(expected.chat.hostAccountId, expected.chat.platformFanId, payload['max'] as number) : ERR_IDENTITY;
       case 'readDraft': {

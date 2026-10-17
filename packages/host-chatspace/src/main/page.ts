@@ -67,6 +67,15 @@ export const iso = (value: unknown): string | null => {
 };
 export const chatRef = (acc: string, fan: string) => ({ host: 'chatspace', hostAccountId: acc, platformFanId: fan });
 
+let parser: DOMParser | null = null;
+/** HTML of a message → plain text; nothing of it is ever attached to a live document. */
+export const plain = (html: unknown): string => {
+  if (typeof html !== 'string') return '';
+  parser ??= new DOMParser();
+  const marked = html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>\s*<p[^>]*>/gi, '\n');
+  return (parser.parseFromString(marked, 'text/html').body.textContent ?? '').trim().slice(0, LIVE_TEXT_MAX_CHARS);
+};
+
 export interface App {
   readonly app: object;
   readonly router: PageRouter | null;
@@ -173,15 +182,6 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
     items.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
     const last = list(isPlain(value) ? value['pages'] : null).at(-1);
     return { items, loading: value === undefined || found?.asyncStatus?.value === 'loading', hasOlder: isPlain(last) ? flag(last['hasMore']) : null };
-  };
-
-  let parser: DOMParser | null = null;
-  /** HTML of a message → plain text; nothing of it is ever attached to a live document. */
-  const plain = (html: unknown): string => {
-    if (typeof html !== 'string') return '';
-    parser ??= new DOMParser();
-    const marked = html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>\s*<p[^>]*>/gi, '\n');
-    return (parser.parseFromString(marked, 'text/html').body.textContent ?? '').trim().slice(0, LIVE_TEXT_MAX_CHARS);
   };
 
   return {

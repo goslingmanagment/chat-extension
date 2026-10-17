@@ -87,9 +87,9 @@ describe('size budgets', () => {
     expect(shuffled.find((line) => line.label.includes(' tab-app '))?.files).toEqual([at('chunks/app.js'), at('tab-app.js')]);
   });
 
-  it('[EX-007] the MAIN bridge line is the shipped document_start bundle — boot and runtime together — within 10 KiB (X11)', () => {
+  it('[EX-007] the MAIN bridge line is the shipped document_start bundle — boot and runtime together — within 12 KiB (X11, X51)', () => {
     const mainBridge = scriptBudgets([CHATSPACE]).find((budget) => budget.file === 'content-scripts/chatspace-main.js')?.limitBytes;
-    expect(mainBridge).toBe(10 * 1024);
+    expect(mainBridge).toBe(12 * 1024);
     const files = (main: number): Record<string, Uint8Array> => ({
       'content-scripts/chatspace-main.js': noise(main),
       'chatspace-ws.js': noise(500),
@@ -102,7 +102,7 @@ describe('size budgets', () => {
     const line = (main: number) => computeBudgets((file) => files(main)[file] ?? new Uint8Array(), chunks, [CHATSPACE], [SITE]).find((item) => item.files.includes('content-scripts/chatspace-main.js'));
     expect(line(9000)?.ok).toBe(true);
     expect(line(9000)?.limitBytes).toBe(mainBridge);
-    expect(line(11_000)?.ok).toBe(false);
+    expect(line(13_000)?.ok).toBe(false);
   });
 });
 
@@ -112,7 +112,7 @@ describe('size budgets of the sites’ scripts (host registry)', () => {
   it('ChatSpace’s three lines come first, in the size report’s order, with their files and ceilings', () => {
     const lines = computeBudgets(() => noise(100), dockOnly, [CHATSPACE], [SITE]);
     expect(lines.slice(0, 3).map((line) => [line.label, line.files, line.limitBytes])).toEqual([
-      ['MAIN bridge: boot + runtime (chatspace-main)', ['content-scripts/chatspace-main.js'], 10 * 1024],
+      ['MAIN bridge: boot + runtime (chatspace-main)', ['content-scripts/chatspace-main.js'], 12 * 1024],
       ['MAIN WS tap (chatspace-ws)', ['chatspace-ws.js'], 6.25 * 1024],
       ['isolated early bootstrap (chatspace)', ['content-scripts/chatspace.js'], 32 * 1024],
     ]);

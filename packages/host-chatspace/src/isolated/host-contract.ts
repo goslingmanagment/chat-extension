@@ -53,6 +53,12 @@ export const WS_PATH = '/api/chat-space/ws';
 /** Socket events the tap parses; any other frame only tells its account (§6.8 п. 4). */
 export const WS_NEW_MESSAGE = 'account_new_message';
 export const WS_AUTHENTICATED = 'authenticated';
+/**
+ * The path of ChatSpace's own API under its origin (`r2.onlyMonsterUrl` + `api/v0/…`). Our one read of it, the open
+ * chat's messages (X51), takes the origin from the page's own requests to this path: the path, not the origin — MAIN
+ * names no origin.
+ */
+export const API_PATH = '/api/v0/';
 /** The native send request, `POST api/v0/accounts/{acc}/chats/{chat}/messages` (§6.7.2): account and chat of a URL's path. */
 export const SEND_PATH = /(?:^|\/)api\/v0\/accounts\/(\d+)\/chats\/(\d+)\/messages$/;
 /** The role permission that takes the Send button away (§6.7.4 п. 8). */
