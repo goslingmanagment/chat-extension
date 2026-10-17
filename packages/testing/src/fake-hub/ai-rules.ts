@@ -46,7 +46,7 @@ const REQUIRES_DRAFT: readonly string[] = ['improve-draft', 'voice-script'];
 
 const blank = (value: string | null | undefined): boolean => value === undefined || value === null || value.trim() === '';
 
-type StreamRuleBody = Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown; readonly noteValues?: readonly string[] };
+type StreamRuleBody = Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown; readonly noteValues?: readonly string[] | undefined };
 
 export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabilities: readonly string[] = []): StreamBodyRefusal | null {
   if (REQUIRES_DRAFT.includes(feature) && blank(body.draftText)) return { error: 'gate_draft_required', message: `${feature} requires draftText` };

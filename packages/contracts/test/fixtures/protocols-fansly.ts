@@ -228,9 +228,15 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       valid: [
         { ok: true, fanRef: F.fan, notes: [fanslyNote, { ...fanslyNote, noteId: '700000000000000011', title: 'FBuddy Notes', foreign: true }], customName: { noteId: '700000000000000012', name: 'Алекс' }, readAt: ISO },
         { ok: true, fanRef: F.fan, notes: [], customName: null, readAt: ISO },
+        // 1.16.0 (R20 P11b2, decision 171): when each note was created, ms; null — Fansly gave none.
+        { ok: true, fanRef: F.fan, notes: [{ ...fanslyNote, createdAtMs: 1_790_790_855_000 }, { ...fanslyNote, noteId: '700000000000000011', createdAtMs: null }], customName: null, readAt: ISO },
         { ok: false, error: { code: 'CG-NOTE-READ' } },
       ],
-      invalid: [{ ok: true, fanRef: F.fan, notes: [{ ...fanslyNote, text: 'x'.repeat(50_001) }], customName: null, readAt: ISO }, { ok: true, fanRef: F.fan, notes: [], readAt: ISO }, { ok: true, notes: [], customName: null, readAt: ISO }],
+      invalid: [
+        { ok: true, fanRef: F.fan, notes: [{ ...fanslyNote, createdAtMs: 0 }], customName: null, readAt: ISO },
+        { ok: true, fanRef: F.fan, notes: [{ ...fanslyNote, createdAtMs: 1.5 }], customName: null, readAt: ISO },
+        { ok: true, fanRef: F.fan, notes: [{ ...fanslyNote, createdAtMs: '1790790855' }], customName: null, readAt: ISO },
+        { ok: true, fanRef: F.fan, notes: [{ ...fanslyNote, text: 'x'.repeat(50_001) }], customName: null, readAt: ISO }, { ok: true, fanRef: F.fan, notes: [], readAt: ISO }, { ok: true, notes: [], customName: null, readAt: ISO }],
     },
   },
   'fansly.notes.create': {

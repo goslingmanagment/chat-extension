@@ -75,6 +75,7 @@ describe('[host:fansly] Hi wire values agree with the deployed HF-5 SDK (P4b4)',
       coachHistory: Array.from({ length: COACH_LIMITS.historyMaxTurns }, () => ({ question: text(COACH_LIMITS.questionMaxChars), answer: text(COACH_LIMITS.answerMaxChars) })),
       preset: 'situation', summaryMode: 'short', variantCount: 3,
       noteFields: Array.from({ length: NOTE_FILL_LIMITS.fieldsMax }, (_, i) => text(NOTE_FILL_LIMITS.labelMaxChars - 2) + String(i).padStart(2, '0')),
+      noteValues: Array.from({ length: NOTE_FILL_LIMITS.fieldsMax }, () => '' as const),
       knownFanMessageIds: Array.from({ length: SEND_LIMITS.knownFanMessagesMax }, (_, i) => id(i)),
       liveTextContext: { capturedAt: ISO, items: Array.from({ length: LIVE_TEXT_LIMITS.maxItems }, (_, i) => ({ platformMessageId: id(i), direction: 'model', occurredAt: ISO, text: text(LIVE_TEXT_LIMITS.maxChars) })) },
       coverageCheck: {

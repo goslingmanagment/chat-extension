@@ -597,6 +597,12 @@ export function createNotesController(port: NotesPort): NotesController {
         draft.suggestions.splice(action.index, 1);
         return emit();
       }
+      // 1.16.0: the read view's fill, «Слова фана», «Принять все» and «В Другое» come with R20 P11b2's panel.
+      case 'fill-note':
+      case 'sources':
+      case 'suggestion-all':
+      case 'to-other':
+        return;
       case 'fill':
         void startFill();
         return;

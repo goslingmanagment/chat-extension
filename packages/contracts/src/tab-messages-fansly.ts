@@ -225,12 +225,16 @@ const GreetingDraftSchema = z.strictObject({
 
 // ── fansly.notes.* — «Заметки» (FS-NOTE-*) ─────────────────────────────────
 
-/** A regular note (contentType 12000). `foreign` — FBuddy's «FBuddy Notes»: shown read-only, never edited or cleaned. */
+/** A regular note (contentType 12000). `foreign` — FBuddy's «FBuddy Notes»: shown read-only, never edited or cleaned.
+ * 1.16.0 (R20 P11b2; the Fansly extension 2.13.0, decision 171): `createdAtMs` — when the note was created, Fansly's own
+ * `createdAt` (seconds) in ms; null or absent — Fansly gave none (an edit's answer carries none: the panel keeps the
+ * time it read). Fansly keeps no edit time. */
 export const FanslyNoteSchema = z.strictObject({
   noteId: NativeIdSchema,
   title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars),
   text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars),
   foreign: z.boolean(),
+  createdAtMs: z.optional(z.nullable(z.int().check(z.gt(0)))),
 });
 export type FanslyNote = z.infer<typeof FanslyNoteSchema>;
 
