@@ -87,7 +87,8 @@ export async function mediaRead(om: OmApi, pacc: string | null, payload: Plain):
           : `accounts/${acc}/platforms/onlyfans/vault/media/release-forms`,
     of === 'tags' ? { method: 'POST', json: { media_ids: ids.map(Number) } } : undefined,
   );
-  if (!answer.ok) return answer;
+  // No route check is passed (the picker reads no chat), so `identity-mismatch` never comes back; typed, it is a refusal.
+  if (typeof answer === 'string' || !answer.ok) return typeof answer === 'string' ? { ok: false, failure: 'invalid', status: null } : answer;
   const body = answer.body;
   if (of === 'folders' || of === 'items') {
     const page = cut(body, of === 'folders' ? folder : medium);

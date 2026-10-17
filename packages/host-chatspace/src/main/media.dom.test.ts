@@ -128,4 +128,16 @@ describe('[X53] MAIN media reads', () => {
     const om = { omRequest: () => Promise.resolve({ ok: false, failure: 'http', status: 400 }) } as unknown as OmApi;
     expect(await mediaRead(om, PACC, { of: 'folders', acc: '1001', offset: 0 })).toEqual({ ok: false, failure: 'http', status: 400 });
   });
+
+  it('asks the shared client with no route check — the picker reads no chat —, and a route refusal it could still give is an invalid answer', async () => {
+    const asked: unknown[][] = [];
+    const om = {
+      omRequest: (...args: unknown[]) => {
+        asked.push(args);
+        return Promise.resolve('identity-mismatch');
+      },
+    } as unknown as OmApi;
+    expect(await mediaRead(om, PACC, { of: 'folders', acc: '1001', offset: 0 })).toEqual({ ok: false, failure: 'invalid', status: null });
+    expect(asked).toEqual([[`platforms/onlyfans/accounts/${PACC}/vault/folders?offset=0&limit=10`, undefined]]);
+  });
 });
