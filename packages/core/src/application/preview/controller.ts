@@ -99,6 +99,12 @@ export const RATE_LIMIT_HOLD_MS = 60_000;
 const SOURCES = ['spenders', 'newcomers', 'palette'] as const satisfies readonly PreviewSource[];
 const DRAFT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
 const CLOSE_PREVIEW: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } };
+/** The fan's name as the list shows it, when it is a name and not the bare id. */
+function fanLabelOf(info: PreviewTargetInfo): string | null {
+  const name = info.name.trim();
+  return name === '' || name === info.fanRef ? null : name.slice(0, 256);
+}
+
 /** The words in the empty draft field: a Fix source in a preview, the greeting's own draft on a «Новые» card (NF-012). */
 const draftPlaceholder = (source: PreviewSource): I18nKey => (source === 'newcomers' ? 'newcomers.greetingDraft.placeholder' : 'preview.draft.placeholder');
 
@@ -1274,8 +1280,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         );
       }
     }
-    if (view.state === 'sentObserved' && track.source === 'newcomers') {
-      // NF-012: the greeting draft has done its work once a part is confirmed.
+    // NF-012, decision X47: a draft lives until it is sent or cleared. The greeting draft has done its work once a
+    // part is confirmed; the draft a Fix was made from — once every part of that Fix is (earlier, the parts still to go
+    // would lose the revision they answer).
+    if (view.state === 'sentObserved' && (track.source === 'newcomers' || (track.feature === 'fix' && fixSent(track, view.attemptId)))) {
       const key = ownerKey(track.source, track.pageId, track.fanRef);
       if (key !== null && findDraft(drafts, key, clock.now()) !== null) {
         drafts = removeDraft(drafts, key, clock.now());
@@ -1287,6 +1295,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // A send holds the fan on every card of the fan, not only on the one of this result.
     changed();
     if (!inFlight(view.state)) void refreshPreflight(track);
+  }
+
+  /** Every part of the variant this attempt belongs to is confirmed sent (a Fix whose draft has done its work). */
+  function fixSent(track: OpTrack, attemptId: string): boolean {
+    const owner = attemptOwner.get(attemptId)?.key ?? [...track.attempts].find(([, attempt]) => attempt.attemptId === attemptId)?.[0];
+    if (owner === undefined) return false;
+    const variant = Number(owner.split(':')[0] ?? 0);
+    const texts = partsOfResult(track.mirror.done?.result, variant);
+    return texts !== null && texts.length > 0 && texts.every((_, index) => {
+      const attempt = track.attempts.get(partKey(variant, index));
+      return attempt !== undefined && (attempt.view.state === 'sentObserved' || attempt.resolved === 'sent');
+    });
   }
 
   /** Receipt and echo already proved this human send; no dispatch or X8 read. */
@@ -1613,6 +1633,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       ...(feature === 'hi' ? { variantCount: state.source === 'newcomers' ? (1 as const) : (options.variants ?? 3) } : {}),
       ...(checkpoint === null ? {} : { checkpoint }),
       ...(regenerateOf === null ? {} : { regenerateOf: regenerateOf.opId, force: true }),
+      // 1.20.0 (X47): the name the list already shows, for «Идут сейчас» — display only, never sent to the hub.
+      ...(fanLabelOf(state.info) === null ? {} : { fanLabel: fanLabelOf(state.info) as string }),
     };
     const admission = await rpc.request('op.start', start);
     if (disposed || atEpoch !== epoch) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));

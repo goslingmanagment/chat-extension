@@ -477,7 +477,21 @@ describe('[NF-012] [NEW-10] local drafts: 5000 characters, 24 hours, 100 drafts,
     expect(keepOnly(merged, () => false)).toEqual({ v: 1, drafts: [] });
   });
 
-  it('longer than 5000 is cut at 5000; older than 24 hours is gone', () => {
+  it('[NF-012] a draft is kept until it is sent or cleared, at most 7 days — a day-old draft is still there (decision X47)', () => {
+    const day = 24 * 60 * 60_000;
+    expect(STORAGE_LIMITS.previewDraftTtlMs).toBe(7 * day);
+    const typed = putDraft(EMPTY_DRAFTS, key, 'hey, back from the trip?', 0).store;
+    expect(findDraft(typed, key, day + 60 * 60_000)?.text).toBe('hey, back from the trip?');
+    expect(findDraft(readDraftStore(typed, 6 * day), key, 6 * day)?.text).toBe('hey, back from the trip?');
+    expect(readDraftStore(typed, 7 * day).drafts).toEqual([]);
+    // Cleared by the person: gone at once, whatever its age; its mark lives as long as a draft would.
+    const cleared = putDraft(typed, key, '', day).store;
+    expect(findDraft(cleared, key, day)).toBeNull();
+    expect(readDraftStore(cleared, 7 * day).removed).toEqual([{ key, revision: 2, removedAt: day }]);
+    expect(removeDraft(typed, key, day).drafts).toEqual([]);
+  });
+
+  it('longer than 5000 is cut at 5000; older than its 7 days is gone', () => {
     const long = putDraft(EMPTY_DRAFTS, key, 'x'.repeat(6000), 0);
     expect(long.draft?.text).toHaveLength(SEND_LIMITS.previewDraftMaxChars);
     expect(findDraft(long.store, key, STORAGE_LIMITS.previewDraftTtlMs - 1)).not.toBeNull();

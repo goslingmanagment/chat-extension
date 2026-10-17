@@ -1,15 +1,16 @@
 // Local drafts of previews (architecture.md §9.4 «черновики превью», §5.6
 // `newcomers.drafts`; NF-012, NEW-10): the text a chatter types in a preview
 // — the source of Fix in a Spenders preview, a greeting draft in «Новые».
-// It never goes to ChatSpace by itself. Up to 5000 characters each, kept 24
-// hours, at most 100 drafts and one MiB together; the oldest go first. Kept
+// It never goes to ChatSpace by itself. Up to 5000 characters each, kept until
+// it is sent or cleared, at most 7 days (decision X47; it was 24 hours), at
+// most 100 drafts and one MiB together; the oldest go first. Kept
 // per hub, user, page, list and fan, so one person's draft never shows to
 // another. Pure: the controller reads and writes the store through its port.
 //
 // Several ChatSpace tabs share the one key, so a store is never written over
 // whole: a write merges, draft by draft, what the tab holds with what is
 // stored, and the newer entry of each draft wins. A removed draft leaves a
-// small mark without text (`removed`, 24 hours), so a removal in one tab is
+// small mark without text (`removed`, as long as a draft lives), so a removal in one tab is
 // not undone by another tab that still held the old text.
 
 import { SEND_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
@@ -118,7 +119,7 @@ function isRemoval(value: unknown): value is DraftRemoval {
   );
 }
 
-/** Removal marks within their 24 hours, one per draft, newest first, at most REMOVALS_MAX. */
+/** Removal marks within their lifetime (STORAGE_LIMITS.previewDraftTtlMs), one per draft, newest first, at most REMOVALS_MAX. */
 function fitRemovals(removed: readonly DraftRemoval[], now: number): DraftRemoval[] {
   const seen = new Set<string>();
   const out: DraftRemoval[] = [];
@@ -137,7 +138,7 @@ function storeOf(drafts: readonly PreviewDraft[], removed: readonly DraftRemoval
   return marks.length === 0 ? { v: DRAFT_STORE_VERSION, drafts: kept } : { v: DRAFT_STORE_VERSION, drafts: kept, removed: marks };
 }
 
-/** Drops drafts past their 24 hours and the oldest beyond the count and byte caps. */
+/** Drops drafts past their lifetime (7 days) and the oldest beyond the count and byte caps. */
 function fit(drafts: readonly PreviewDraft[], now: number): PreviewDraft[] {
   const fresh = drafts
     .filter((draft) => now - draft.updatedAt < STORAGE_LIMITS.previewDraftTtlMs && draft.updatedAt <= now + 60_000)
