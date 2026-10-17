@@ -728,6 +728,36 @@ describe('Spenders statistics', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'SetStatsExpanded', expanded: false });
   });
 
+  it('[SP-044] [X49] a known zero of the period is «трат нет» — in the column and in the tiles, as the rows and the fan panel say it; unknown stays «—»', async () => {
+    const base = stats(ctx, views.ready());
+    const quiet = {
+      ...base,
+      today: { ...base.today, mills: 0 },
+      d7: { ...base.d7, mills: 0, changePct: null, prev7: null },
+      d30: { ...base.d30, mills: 0, purchases: 0 },
+      avgCheck: { ...base.avgCheck, mills: null },
+      days: base.days.map((day) => ({ ...day, gross: 0 })),
+    };
+    ui = await mountBoardSettled('spenders', boardOnly(boardOf(ctx, BOARD_FANS), quiet));
+    const column = ui.$('.cg-st') as HTMLElement;
+    expect(textOf(column.querySelector('.cg-st__big'))).toBe('трат нет');
+    expect(column.querySelector('.cg-st__big')?.classList.contains('is-none')).toBe(true);
+    const values = [...column.querySelectorAll('.cg-st__kv .cg-st__v')];
+    expect(values.slice(0, 4).map((value) => value.firstChild?.textContent)).toEqual(['трат нет', 'трат нет', '20', '—']);
+    expect(values.slice(0, 4).map((value) => value.classList.contains('is-none'))).toEqual([true, true, false, false]);
+    expect(column.textContent).not.toContain('$0');
+    ui.unmount();
+    ui = await mountBoardSettled('spenders', boardOnly(boardOf(ctx, BOARD_FANS), { ...quiet, expanded: true }));
+    expect(ui.$$('.cg-stx__cell').map((cell) => [...cell.children].map(textOf))).toEqual([
+      ['Сегодня', 'трат нет', 'день ещё идёт'],
+      ['7 дней', 'трат нет'],
+      ['30 дней', 'трат нет'],
+      ['Платящие', '20'],
+    ]);
+    // No day with money: no «максимум $0» over the chart.
+    expect(ui.$('.cg-stx__chart .cg-st__cap')?.textContent).toBe('Выручка по дням');
+  });
+
   it('[SP-046] [SP-047] [SP-048] the attention numbers come with their own data time; unknown is «—»', async () => {
     const partial = { ...stats(ctx, views.partial({ kind: 'coverage', level: 'partial' })) };
     const unknown = { ...partial, attention: { ...partial.attention, silentOver21: { count: null, stamp: partial.stamp } } };

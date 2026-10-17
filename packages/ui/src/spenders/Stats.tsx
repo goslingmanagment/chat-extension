@@ -2,8 +2,10 @@
 // the right of the board (240–272 px) with «Развернуть», and the expanded
 // view that takes the place of the list and the preview. Every number is the
 // hub's, with its coverage and time (SpendersStatsVM); unknown is `—`, never
-// 0. Sums are plain ink: green belongs only to `+$N`. A failed statistics
-// read is its own error card — the board next to it keeps working.
+// 0. A known zero of money is the words «трат нет» in muted ink, as the board's
+// rows and the fan panel say it (decision X49; ui-design §1 п. 6). Sums are plain
+// ink: green belongs only to `+$N`. A failed statistics read is its own error
+// card — the board next to it keeps working.
 
 import { type JSX } from 'preact';
 
@@ -68,12 +70,30 @@ function countText(i18n: I18n, stat: CountStat): string {
   return stat.count === null ? unknownMark(i18n) : String(stat.count);
 }
 
+/** A known zero of the period (X49): said in words, never «$0»; unknown stays `—`. */
+const noSpend = (stat: MoneyStat): boolean => stat.mills === 0;
+
 function moneyText(i18n: I18n, stat: MoneyStat): string {
-  return i18n.formatMoneyMills(stat.mills, { zero: 'show' });
+  return noSpend(stat) ? i18n.t('stats.none') : i18n.formatMoneyMills(stat.mills, { zero: 'show' });
 }
 
 /** One key–value row; the value's tooltip says how fresh and how complete that very number is. */
-function Kv({ label, value, stamp, delta, hint }: { readonly label: string; readonly value: string; readonly stamp: DataStamp; readonly delta?: string | null; readonly hint?: string | null }): JSX.Element {
+function Kv({
+  label,
+  value,
+  stamp,
+  delta,
+  hint,
+  none = false,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly stamp: DataStamp;
+  readonly delta?: string | null;
+  readonly hint?: string | null;
+  /** The value is «трат нет»: muted words, not a sum. */
+  readonly none?: boolean;
+}): JSX.Element {
   const i18n = useI18n();
   const tip = useTooltip(stampText(i18n, stamp));
   const labelTip = useTooltip(hint ?? null);
@@ -83,7 +103,7 @@ function Kv({ label, value, stamp, delta, hint }: { readonly label: string; read
         {label}
         {labelTip.description}
       </span>
-      <span class="cg-st__v cg-num" {...tip.props}>
+      <span class={`cg-st__v cg-num${none ? ' is-none' : ''}`} {...tip.props}>
         {value}
         {tip.description}
       </span>
@@ -114,6 +134,8 @@ function Chart({ stats, axisMiddle }: { readonly stats: SpendersStatsVM; readonl
   const first = days[0];
   const middle = days[Math.floor((days.length - 1) / 2)];
   const dayName = (date: string): string => statsDayName(i18n, date);
+  // A day without money is «трат нет» in its tooltip and its row for a screen reader, as everywhere (X49).
+  const dayMoney = (gross: number | null): string => (gross === 0 ? i18n.t('stats.none') : i18n.formatMoneyMills(gross, { zero: 'show' }));
   return (
     <>
       <div class="cg-spark" role="img" aria-label={i18n.t('stats.chart.title')}>
@@ -122,7 +144,7 @@ function Chart({ stats, axisMiddle }: { readonly stats: SpendersStatsVM; readonl
             key={day.date}
             share={day.gross === null ? null : max > 0 ? day.gross / max : 0}
             today={day.today}
-            tip={i18n.t('stats.chart.dayTip', { date: dayName(day.date), money: i18n.formatMoneyMills(day.gross, { zero: 'show' }) })}
+            tip={i18n.t('stats.chart.dayTip', { date: dayName(day.date), money: dayMoney(day.gross) })}
           />
         ))}
       </div>
@@ -138,7 +160,7 @@ function Chart({ stats, axisMiddle }: { readonly stats: SpendersStatsVM; readonl
           {days.map((day) => (
             <tr key={day.date}>
               <th scope="row">{dayName(day.date)}</th>
-              <td>{i18n.formatMoneyMills(day.gross, { zero: 'show' })}</td>
+              <td>{dayMoney(day.gross)}</td>
             </tr>
           ))}
         </tbody>
@@ -202,15 +224,21 @@ export function StatsColumn({ stats, onShelf }: StatsProps): JSX.Element {
             <div class="cg-st__cap">
               <span>{period}</span>
             </div>
-            <Money mills={stats.d30.mills} zero="show" class="cg-st__big" />
+            {noSpend(stats.d30) ? <span class="cg-st__big is-none">{i18n.t('stats.none')}</span> : <Money mills={stats.d30.mills} zero="show" class="cg-st__big" />}
             <Chart stats={stats} axisMiddle={false} />
           </div>
           <div class="cg-st__sec">
             <div class="cg-st__kv">
-              <Kv label={i18n.t('stats.today')} value={moneyText(i18n, stats.today)} stamp={stats.today.stamp} />
-              <Kv label={i18n.t('stats.d7')} value={moneyText(i18n, stats.d7)} stamp={stats.d7.stamp} delta={stats.d7.changePct === null ? null : formatPct(stats.d7.changePct)} />
+              <Kv label={i18n.t('stats.today')} value={moneyText(i18n, stats.today)} none={noSpend(stats.today)} stamp={stats.today.stamp} />
+              <Kv
+                label={i18n.t('stats.d7')}
+                value={moneyText(i18n, stats.d7)}
+                none={noSpend(stats.d7)}
+                stamp={stats.d7.stamp}
+                delta={stats.d7.changePct === null ? null : formatPct(stats.d7.changePct)}
+              />
               <Kv label={i18n.t('stats.payers')} value={countText(i18n, stats.payers)} stamp={stats.payers.stamp} />
-              <Kv label={i18n.t('stats.avgCheck')} value={moneyText(i18n, stats.avgCheck)} stamp={stats.avgCheck.stamp} />
+              <Kv label={i18n.t('stats.avgCheck')} value={moneyText(i18n, stats.avgCheck)} none={noSpend(stats.avgCheck)} stamp={stats.avgCheck.stamp} />
             </div>
           </div>
           {stats.shelves.length === 0 ? null : (
@@ -250,13 +278,13 @@ export function StatsColumn({ stats, onShelf }: StatsProps): JSX.Element {
   );
 }
 
-function Tile({ caption, value, sub }: { readonly caption: string; readonly value: string; readonly sub: string | null }): JSX.Element {
+function Tile({ caption, value, sub, none = false }: { readonly caption: string; readonly value: string; readonly sub: string | null; readonly none?: boolean }): JSX.Element {
   return (
     <div class="cg-stx__cell">
       <div class="cg-st__cap">
         <span>{caption}</span>
       </div>
-      <div class="cg-st__big cg-num">{value}</div>
+      <div class={`cg-st__big cg-num${none ? ' is-none' : ''}`}>{value}</div>
       {sub === null ? null : <div class="cg-stx__sub cg-num">{sub}</div>}
     </div>
   );
@@ -280,17 +308,24 @@ export function StatsExpanded({ stats }: { readonly stats: SpendersStatsVM }): J
         <>
           {stats.view.s === 'offline' ? <ViewState view={stats.view} /> : null}
           <div class="cg-stx__grid">
-            <Tile caption={i18n.t('stats.today')} value={moneyText(i18n, stats.today)} sub={i18n.t('stats.tile.todaySub')} />
+            <Tile caption={i18n.t('stats.today')} value={moneyText(i18n, stats.today)} none={noSpend(stats.today)} sub={i18n.t('stats.tile.todaySub')} />
             <Tile
               caption={i18n.t('stats.d7')}
               value={moneyText(i18n, stats.d7)}
+              none={noSpend(stats.d7)}
               sub={
                 stats.d7.changePct === null || stats.d7.prev7 === null
                   ? null
                   : i18n.t('stats.tile.d7Sub', { pct: formatPct(stats.d7.changePct), money: i18n.formatMoneyMills(stats.d7.prev7, { zero: 'show' }) })
               }
             />
-            <Tile caption={period} value={moneyText(i18n, stats.d30)} sub={stats.d30.purchases === null ? null : i18n.plural('stats.tile.d30Sub', stats.d30.purchases)} />
+            {/* «трат нет» says the purchases too: no «0 покупок» under it. */}
+            <Tile
+              caption={period}
+              value={moneyText(i18n, stats.d30)}
+              none={noSpend(stats.d30)}
+              sub={stats.d30.purchases === null || (noSpend(stats.d30) && stats.d30.purchases === 0) ? null : i18n.plural('stats.tile.d30Sub', stats.d30.purchases)}
+            />
             <Tile
               caption={i18n.t('stats.payers')}
               value={countText(i18n, stats.payers)}
@@ -300,7 +335,8 @@ export function StatsExpanded({ stats }: { readonly stats: SpendersStatsVM }): J
           <div class="cg-stx__chart">
             <div class="cg-st__cap">
               <span>{i18n.t('stats.chart.title')}</span>
-              <span class="cg-num">{i18n.t('stats.chart.max', { money: i18n.formatMoneyMills(max, { zero: 'show' }) })}</span>
+              {/* No day with money: the chart's bars say it, «максимум $0» would not. */}
+              {max > 0 ? <span class="cg-num">{i18n.t('stats.chart.max', { money: i18n.formatMoneyMills(max, { zero: 'show' }) })}</span> : null}
             </div>
             <Chart stats={stats} axisMiddle />
           </div>
@@ -361,10 +397,13 @@ export const STATS_CSS = `
 .cg-st__sec { padding: 10px 16px 12px; border-top: 1px solid var(--cg-rule); }
 .cg-st__cap { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; }
 .cg-st__big { display: block; font-size: var(--cg-text-3xl); line-height: 28px; font-weight: 600; color: var(--cg-ink-strong); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+/* A known zero (X49): the words in muted ink on the number's line, so the tiles keep their height. */
+.cg-st__big.is-none { font-size: var(--cg-text-xl); font-weight: 500; color: var(--cg-ink-muted); letter-spacing: 0; }
 .cg-st__kv { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 10px; align-items: baseline; }
 .cg-st__kv > * { line-height: 24px; }
 .cg-st__k { color: var(--cg-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-st__v { color: var(--cg-ink); font-weight: 500; text-align: right; }
+.cg-st__v.is-none { color: var(--cg-ink-muted); font-weight: 400; }
 .cg-st__d { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); text-align: right; min-width: 30px; }
 .cg-st__foot { padding: 10px 16px 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); border-top: 1px solid var(--cg-rule); }
 .cg-st__state { border-top: 1px solid var(--cg-rule); }
