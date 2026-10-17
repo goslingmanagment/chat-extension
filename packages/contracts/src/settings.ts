@@ -99,6 +99,13 @@ export const SettingsV1Schema = z.strictObject({
   generation: z.strictObject({
     /** Б7: snapshot of this flag is taken when an operation starts. */
     split: z.boolean(),
+    /**
+     * «Помнить тон в чате» (1.18.0, decision X45): on — a tone chosen for Reply stays for that chat until the person
+     * changes it or opens another chat, as in the OnlyFans desktop; off — the one-off tone of Б1, gone once a Reply
+     * took it. Optional: a store written before 1.18.0 has no such field and reads as on, with nothing to repair; a
+     * build before 1.18.0 drops it (its repair keeps only the fields it knows), and the choice reads as on again.
+     */
+    rememberTone: z.optional(z.boolean()),
     /** Б5: messageCount per feature group. */
     windows: z.strictObject({
       quick: intIn(SETTINGS_RANGES.windowQuick),
@@ -167,6 +174,7 @@ export const DEFAULT_SETTINGS: SettingsV1 = {
   ui: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare' },
   generation: {
     split: false,
+    rememberTone: true,
     windows: { quick: 100, ping: 100, improve: 25, deep: 3000 },
     coach: { historyLimit: 10, autoRecap: 'off' },
   },
@@ -196,6 +204,7 @@ export const SettingsPatchSchema = z.strictObject({
   generation: z.optional(
     z.strictObject({
       split: z.optional(z.boolean()),
+      rememberTone: z.optional(z.boolean()),
       windows: z.optional(z.partial(SettingsV1Schema.shape.generation.shape.windows)),
       coach: z.optional(z.partial(SettingsV1Schema.shape.generation.shape.coach)),
     }),

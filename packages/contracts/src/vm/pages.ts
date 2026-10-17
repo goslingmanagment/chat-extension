@@ -259,6 +259,8 @@ export interface GenerationBodyVM {
     readonly savedAs: number | null;
   };
   readonly split: boolean;
+  /** «Помнить тон в чате» (1.18.0, X45); absent — on. */
+  readonly rememberTone?: boolean;
   readonly coach: { readonly historyLimit: number; readonly autoRecap: CoachAutoRecap };
   readonly debug: { readonly enabled: boolean; readonly renderTrace: boolean };
 }

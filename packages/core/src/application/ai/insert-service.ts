@@ -8,12 +8,21 @@
 // and its 30-second «Вернуть мой текст», the receipt, and the telemetry
 // report (`inserted` only for an applied write).
 //
-// Fix never asks Б2 (decision X26): the person asked for their draft to be
-// rewritten, so the click on the result is the consent to replace it —
-// «Заменить мой черновик» replaces what the field holds at the click, and
-// «Вставить» of a part of a Split Fix replaces the draft the Fix was made
-// from. Either way the write is a CAS on the draft read at the click, and
-// the field's own undo (and «Вернуть мой текст») brings the text back.
+// The click is the consent (decision X45, the owner reversing the agent's
+// default Б2): «Вставить» over the person's own text replaces it at once, as
+// the old Fansly extension did — Reply, Hi, Ping, a part of a Split Fix — and
+// so does Fix's «Заменить мой черновик» (X26). The write is a
+// CAS on the draft read at the click, in that chat only, with a one-time
+// consent for exactly that revision; the field's own undo (Ctrl/⌘+Z: on
+// ChatSpace the write is a transaction of its TipTap editor, on Fansly an
+// `execCommand('insertText')` over the whole field) brings the text back.
+// The question «Заменить / Добавить в конец / Отмена» stays only where there
+// is no such CAS — a composer whose editor is not observed (`draftRead` off)
+// —, for a Coach draft (the old extension asked there too), and where the
+// write was not this click's: the draft moved between the
+// read and the write (MAIN refused it), «Вернуть мой текст» over what the
+// person typed after the Fix, and a board's «Открыть и вставить» into a
+// chat that holds the person's text (§6.5).
 //
 // One write of an operation at a time: the mark is taken synchronously when
 // the click arrives, before anything is awaited, so a double click or a key
@@ -120,8 +129,6 @@ interface PendingWrite {
 }
 
 const keyOf = (opId: string, part: PartRef): string => `${opId}:${part.variant ?? '-'}:${part.index}`;
-/** Two drafts as a person reads them: the same words, whatever the spaces around and between them. */
-const sameWords = (a: string, b: string): boolean => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim();
 const failed = (code: CgCode): WriteOutcome => ({ kind: 'failed', error: { code } });
 
 /** The text of one part of a finished result; null — no such part. */
@@ -239,25 +246,17 @@ export class InsertService {
     if (block !== null) return failed(block.code);
     const ready = await this.prepare(record, part);
     if (!ready.ok) return ready.outcome;
-    const decision = decideDraft(ready.draft, { editorObserved: this.deps.context(record).editorObserved });
+    const editorObserved = this.deps.context(record).editorObserved;
+    const decision = decideDraft(ready.draft, { editorObserved });
     if (decision.kind === 'confirm') {
-      // A part of a Split Fix over the very draft the Fix rewrote: the click is the consent, as «Заменить мой черновик» is.
-      if (this.holdsFixSource(record, ready.draft)) return this.write(record, part, text, 'replace', ready.draft, this.deps.ports.ids.uuid(), cause, 'insert');
+      // X45: the click is the consent to replace the person's text as the field holds it now — a one-time consent
+      // for exactly the revision read above, checked again by MAIN in the same step as the write. Without an
+      // observed editor there is no such CAS: the question stays, and says what an append would lose. A Coach
+      // draft keeps its question, as in the old Fansly extension.
+      if (editorObserved && record.view.feature !== 'coach') return this.write(record, part, text, 'replace', ready.draft, this.deps.ports.ids.uuid(), cause, 'insert');
       return this.ask(record, part, text, 'insert', decision.reason, ready.draft, decision.formatLoss);
     }
     return this.write(record, part, text, 'replace', ready.draft, null, cause, 'insert');
-  }
-
-  /**
-   * The field holds the draft this Fix was made from — by its revision, or word for word (the revision also moves
-   * for what a person does not see as a change). Only with an observed editor: without one there is no CAS, and the
-   * common question says what the write would lose.
-   */
-  private holdsFixSource(record: OpRecord, draft: DraftSnapshot): boolean {
-    if (record.view.feature !== 'fix' || !this.deps.context(record).editorObserved) return false;
-    const source = this.restoredSources.get(record.view.opId) ?? record.memo.fixSource;
-    if (source === null) return false;
-    return (draft.revision === source.revision && draft.digest === source.digest) || sameWords(draft.plainText, source.text);
   }
 
   /** `recheck` of the deps: what holds the part by a look taken at this very click; the views hear what it found. */

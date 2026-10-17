@@ -11,7 +11,7 @@ export {
   hotkeyPlatformOf,
   isComboLike,
   isModifierKey,
-  isPrimaryModifierKey,
+  isJumpModifierKey,
   matchExtraKey,
   printExtraKey,
   printSchemeKey,

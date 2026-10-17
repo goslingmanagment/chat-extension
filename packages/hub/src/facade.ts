@@ -640,6 +640,15 @@ export class ChatExtensionHub implements HubFacade {
     return state.usable && !this.bootstrapService.isFresh(entry) ? { usable: false, reason: 'bootstrap_expired' } : state;
   }
 
+  /**
+   * The switch as the CACHED bootstrap of this sign-in says it, fresh or expired (decision X45): the insert of a ready
+   * result while the hub does not answer the read again. Everything else gates on `flagState`.
+   */
+  cachedFlagState(flag: ClientFeatureFlag, pageLabel: string | null): FlagState {
+    const entry = this.bootstrapService.cached();
+    return entry === null ? { usable: false, reason: 'hub_not_ready' } : flagState(entry.bootstrap, flag, pageLabel);
+  }
+
   async catalog(): Promise<PersonaCatalog> {
     await this.ready;
     return this.catalogService.get();

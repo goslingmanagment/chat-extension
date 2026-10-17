@@ -7,7 +7,7 @@
 import { NON_CHATSPACE_FEATURE_FLAGS } from '@cg/contracts/fixtures';
 import { describe, expect, it } from 'vitest';
 
-import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, OP_LIMITS, UI_TEXT_KEYS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
+import { CLIENT_FEATURE_FLAG_NAMES, DEFAULT_SETTINGS, DOCK_ACTION_IDS, OP_LIMITS, UI_TEXT_KEYS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
 import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, SENT_REPORT_TRIES, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
@@ -762,17 +762,51 @@ describe('dock: Reply from the click to the parts', () => {
 });
 
 describe('dock: tones and Split', () => {
-  it('[AI-005] [AI-003] a tone picked in the menu starts Reply in it and is gone after', async () => {
+  /** «Помнить тон в чате» off: the one-off tone of Б1. */
+  const oneOff = { settings: settingsWithPersona({ generation: { ...DEFAULT_SETTINGS.generation, rememberTone: false } }) };
+
+  it('[AI-005] [AI-003] a tone picked in the menu starts Reply in it and stays for the chat (X45, «Помнить тон в чате» on by default)', async () => {
     const h = await start();
     await reply(h, 'flirty answer', { tone: 'flirty' });
     expect((h.bg.callsOf('op.start')[0] as { tone: string }).tone).toBe('flirty');
     expect(result(h).toneUsed).toBe('flirty');
     expect(result(h).meta).toContainEqual({ key: 'result.meta.tone', params: { tone: 'Flirt' } });
+    expect(h.dock().options.tone).toBe('flirty');
+    // The next Reply of the chat goes in it too, until the person changes it.
+    await h.dispatch({ type: 'HideResult', operationId: result(h).opId });
+    await reply(h, 'second');
+    expect((h.bg.callsOf('op.start')[1] as { tone: unknown }).tone).toBe('flirty');
+    // Picking it again takes it off (AI-006); the Reply after that has none.
+    await h.dispatch({ type: 'SetTone', targetHandle: h.dock().targetHandle as string, tone: 'flirty' });
+    expect(h.dock().options.tone).toBeNull();
+    await h.dispatch({ type: 'HideResult', operationId: result(h).opId });
+    await reply(h, 'third');
+    expect((h.bg.callsOf('op.start')[2] as { tone: unknown }).tone).toBeNull();
     expect(h.dock().options.tone).toBeNull();
   });
 
-  it('[AI-003] [AI-004] [AI-006] the chosen tone goes with the next Reply only; picking it again takes it off', async () => {
+  it('[AI-003] a kept tone lasts until the chat switches, as in the desktop (X45): back in the chat it has none', async () => {
     const h = await start();
+    await reply(h, 'sell', { tone: 'upsell' });
+    expect(h.dock().options.tone).toBe('upsell');
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(h.dock().options.tone).toBeNull();
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(h.dock().options.tone).toBeNull();
+  });
+
+  it('[AI-003] [AI-005] «Помнить тон в чате» off: a tone picked in the menu starts Reply in it and is gone after (Б1)', async () => {
+    const h = await start(oneOff);
+    await reply(h, 'flirty answer', { tone: 'flirty' });
+    expect((h.bg.callsOf('op.start')[0] as { tone: string }).tone).toBe('flirty');
+    expect(result(h).toneUsed).toBe('flirty');
+    expect(h.dock().options.tone).toBeNull();
+  });
+
+  it('[AI-003] [AI-004] [AI-006] «Помнить тон в чате» off: the chosen tone goes with the next Reply only; picking it again takes it off', async () => {
+    const h = await start(oneOff);
     const handle = h.dock().targetHandle as string;
     expect(h.dock().options.tone).toBeNull();
     await h.dispatch({ type: 'SetTone', targetHandle: handle, tone: 'upsell' });
@@ -788,8 +822,8 @@ describe('dock: tones and Split', () => {
     expect((h.bg.callsOf('op.start')[1] as { tone: unknown }).tone).toBeNull();
   });
 
-  it('the tone belongs to its chat: another chat has none', async () => {
-    const h = await start();
+  it('«Помнить тон в чате» off: an unused tone belongs to its chat — another chat has none, and it waits for its Reply when the person comes back', async () => {
+    const h = await start(oneOff);
     await h.dispatch({ type: 'SetTone', targetHandle: h.dock().targetHandle as string, tone: 'casual' });
     h.host.openChat(previewChat);
     await h.settle();
@@ -797,6 +831,13 @@ describe('dock: tones and Split', () => {
     h.host.openChat(openChat);
     await h.settle();
     expect(h.dock().options.tone).toBe('casual');
+  });
+
+  it('[AI-003] settings stored before 1.18.0 have no «Помнить тон в чате»: they read as on', async () => {
+    const { rememberTone: _absent, ...older } = DEFAULT_SETTINGS.generation;
+    const h = await start({ settings: settingsWithPersona({ generation: older }) });
+    await reply(h, 'kept', { tone: 'spicy' });
+    expect(h.dock().options.tone).toBe('spicy');
   });
 
   it('[AI-007] [AI-129] «Ещё раз» repeats the tone of the original, past the cache', async () => {
@@ -1014,6 +1055,26 @@ describe('dock: fresh page text', () => {
 });
 
 describe('dock: inserting a part', () => {
+  it('[HB-011] the hub goes silent and the bootstrap can no longer be read: the result already made is still inserted, by the binding last read (X45); a hub that answers «no» is heard', async () => {
+    const h = await start();
+    const opId = await reply(h, 'the answer');
+    h.bg.bootstrap = { error: { code: 'CG-HUB-UNAVAILABLE' } };
+    h.bg.emit(null, 'bootstrap.changed', { configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1, issuedAt: new Date(NOW_MS).toISOString() });
+    await h.settle();
+    expect(h.dock().status).toBe('hub-down');
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('the answer');
+
+    // The hub answered — the access is refused: what was last read is not taken for what holds now.
+    const other = await start();
+    const next = await reply(other, 'the answer');
+    other.bg.bootstrap = { error: { code: 'CG-HUB-FORBIDDEN' } };
+    other.bg.emit(null, 'bootstrap.changed', { configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1, issuedAt: new Date(NOW_MS).toISOString() });
+    await other.settle();
+    expect(await other.dispatch({ type: 'InsertPart', operationId: next, part: 0 })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(other.fake.calls.inserts).toHaveLength(0);
+  });
+
   it('[UI-018] [AI-125] «Вставить» puts one part into the operation\'s own chat, by a token and a CAS on the draft', async () => {
     const h = await start({}, {});
     const opId = await reply(h, 'one [NEXT] two', { split: true });
@@ -1049,20 +1110,52 @@ describe('dock: inserting a part', () => {
     expect(result(h).confirm).toBeNull();
   });
 
-  it('[UI-020] the person\'s own text in the field asks «Заменить / Добавить в конец / Отмена» for that revision', async () => {
+  it('[UI-020] the person\'s own text in the field is replaced at once (X45): the click is the consent, a CAS on that revision, nothing asked', async () => {
     const h = await start();
     const opId = await reply(h, 'the answer');
+    h.host.type('my own words');
+    await h.settle();
+    const receipt = await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
+    expect(receipt).toMatchObject({ ok: true, outcome: 'done' });
+    expect(result(h).confirm).toBeNull();
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    // A one-time consent for exactly the revision read at the click: MAIN replaces a person's draft only with one.
+    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'replace', text: 'the answer', target: openChat, expected: { kind: 'open', draftRevision: 5, composerInstanceId: 'composer-1' } });
+    expect(h.fake.calls.inserts[0]?.confirmationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(h.host.draftOf(openChat)).toMatchObject({ plainText: 'the answer', provenance: 'our-insert' });
+    // The person types again and inserts once more: a new consent for the new revision, never the old one.
+    h.host.type('more of mine');
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts[1]?.expected).toMatchObject({ draftRevision: 7 });
+    expect(h.fake.calls.inserts[1]?.confirmationId).not.toBe(h.fake.calls.inserts[0]?.confirmationId);
+  });
+
+  it('[UI-020] the draft moved between the read and the write: MAIN refuses, nothing is written, and the question is asked about the draft as it is now (X45)', async () => {
+    const h = await start({}, { insert: [{ state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-changed-draft' }] });
+    const opId = await reply(h, 'the answer');
+    h.host.type('my own words');
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(result(h).confirm).toMatchObject({ kind: 'draft-changed', part: { index: 0 } });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('my own words');
+  });
+
+  it('without an observed editor the question stays: «Добавить в конец» appends to that revision', async () => {
+    const h = await start();
+    const opId = await reply(h, 'the answer');
+    h.host.setCapability('draftRead', { state: 'degraded', reason: 'editor' });
     h.host.type('my own words');
     await h.settle();
     const receipt = await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
     expect(receipt).toMatchObject({ ok: true, outcome: 'needs-confirm' });
     expect(h.fake.calls.inserts).toHaveLength(0);
     const confirm = result(h).confirm;
-    expect(confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 }, formatLoss: false });
+    expect(confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 }, formatLoss: true });
 
     const answered = await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'append' });
     expect(answered).toMatchObject({ ok: true, outcome: 'done' });
-    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'append', text: 'the answer', confirmationId: confirm?.confirmationId, expected: { draftRevision: 5 } });
+    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'append', text: 'the answer', confirmationId: confirm?.confirmationId });
     expect(result(h).confirm).toBeNull();
     expect(h.host.draftOf(openChat)?.plainText).toBe('my own words\nthe answer');
   });
@@ -1070,6 +1163,7 @@ describe('dock: inserting a part', () => {
   it('«Отмена» writes nothing and the question is gone', async () => {
     const h = await start();
     const opId = await reply(h, 'the answer');
+    h.host.setCapability('draftRead', { state: 'degraded', reason: 'editor' });
     h.host.type('my own words');
     await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
     const id = result(h).confirm?.confirmationId as string;
@@ -1082,6 +1176,7 @@ describe('dock: inserting a part', () => {
   it('a draft that changed after the question voids the consent: the question is asked again about the new revision', async () => {
     const h = await start();
     const opId = await reply(h, 'the answer');
+    h.host.setCapability('draftRead', { state: 'degraded', reason: 'editor' });
     h.host.type('my own words');
     await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
     const first = result(h).confirm?.confirmationId as string;
@@ -1486,7 +1581,7 @@ describe('dock: Fix', () => {
     expect(h.fake.calls.inserts[1]).toMatchObject({ mode: 'replace', text: 'so much', confirmationId: null });
   });
 
-  it('[AI-023] a Split Fix over the same words at another revision asks nothing; over a draft the person rewrote since it asks, as any insert does', async () => {
+  it('[AI-023] a Split Fix over the same words at another revision asks nothing; over a draft the person rewrote since it asks nothing either (X45)', async () => {
     const h = await withDraft();
     h.script(h.streamOf('improve-draft', ['I miss you [NEXT] so much']));
     const receipt = await h.generate('fix', { split: true });
@@ -1497,19 +1592,21 @@ describe('dock: Fix', () => {
     await h.settle();
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
     expect(result(h).confirm).toBeNull();
-    // Other words: the field holds the person's own text, which no Fix was asked for.
+    // Other words: the field holds the person's own text — the click replaces it as any «Вставить» does (X45).
     h.host.type('something else entirely');
     await h.settle();
-    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
-    expect(result(h).confirm).toMatchObject({ kind: 'human-draft', part: { index: 1 } });
-    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(result(h).confirm).toBeNull();
+    expect(h.fake.calls.inserts).toHaveLength(2);
+    expect(h.fake.calls.inserts[1]?.confirmationId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('[UI-020] a Reply over the person\'s own text still asks: only Fix was asked to rewrite it', async () => {
+  it('[UI-020] a Reply over the person\'s own text replaces it at once too (X45): every «Вставить» is its own consent', async () => {
     const h = await withDraft();
     const opId = await reply(h, 'the answer');
-    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
-    expect(h.fake.calls.inserts).toHaveLength(0);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.host.draftOf(openChat)?.plainText).toBe('the answer');
   });
 
   it('without an observed editor «Заменить мой черновик» is off with its reason; copy is the way', async () => {
@@ -1878,6 +1975,58 @@ describe('dock: a start the background did not admit is never silent', () => {
     recap.bg.startErrors.push({ code: 'CG-STORAGE-WRITE' });
     expect(await recap.dispatch({ type: 'RefreshRecap', length: 'full' })).toMatchObject({ ok: false, code: 'CG-STORAGE-WRITE' });
     expect(recap.dock().refusal).toMatchObject({ feature: 'recap', error: { code: 'CG-STORAGE-WRITE' }, running: [] });
+  });
+
+  it('[ER-006] the card of a start that failed before anything was generated offers «Повторить» of the same start where the registry lets a new click repeat it (X45); pressed, it starts again; never by itself', async () => {
+    const h = await start();
+    // The hub or the background did not answer: nothing was generated, sent or written.
+    h.bg.startErrors.push({ code: 'CG-HUB-TIMEOUT' });
+    expect(await h.generate('reply', { tone: 'flirty' })).toMatchObject({ ok: false, code: 'CG-HUB-TIMEOUT' });
+    const card = h.dock().refusal;
+    expect(card?.actions).toHaveLength(1);
+    const retry = card?.actions?.[0];
+    expect(retry).toMatchObject({ label: { key: 'common.retry' }, enabled: true, reason: null, action: { type: 'Generate', feature: 'reply', options: { tone: 'flirty' } } });
+    expect(retry?.hotkey?.display).toBe(h.dock().actions.reply.hotkey?.display);
+    // Nothing repeats by itself, however long the card stands.
+    await h.clock.advance(60_000);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    h.script(h.streamOf('fast-reply', ['now it runs']));
+    expect(await h.dispatch(retry?.action as never)).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(h.dock().refusal).toBeNull();
+    expect((h.bg.callsOf('op.start')[1] as { tone: unknown }).tone).toBe('flirty');
+
+    // A code the registry does not let a click repeat: the card has only its code to copy.
+    for (const code of ['CG-HUB-FORBIDDEN', 'CG-FEATURE-DISABLED', 'CG-HUB-OUTDATED'] as const) {
+      const other = await start();
+      other.bg.startErrors.push({ code });
+      await other.generate('ping');
+      expect([code, other.dock().refusal?.actions]).toEqual([code, undefined]);
+    }
+  });
+
+  it('[ER-006] «Повторить» of a failed «Ещё раз», Review and a Recap build repeats exactly that start (X45)', async () => {
+    const h = await start();
+    const first = await (async () => {
+      h.script(h.streamOf('fast-reply', ['one']));
+      const receipt = await h.generate('reply');
+      await h.finish();
+      return (receipt as { opId: string }).opId;
+    })();
+    h.bg.startErrors.push({ code: 'CG-NETWORK' });
+    expect(await h.dispatch({ type: 'Regenerate', operationId: first })).toMatchObject({ ok: false, code: 'CG-NETWORK' });
+    expect(h.dock().refusal?.actions?.[0]?.action).toEqual({ type: 'Regenerate', operationId: first });
+
+    const review = await start();
+    review.bg.startErrors.push({ code: 'CG-HUB-UNAVAILABLE' });
+    await review.generate('review');
+    expect(review.dock().refusal?.actions?.[0]?.action).toMatchObject({ type: 'Generate', feature: 'review', options: {} });
+
+    const recap = await start();
+    await recap.generate('recap');
+    recap.bg.startErrors.push({ code: 'CG-TIMEOUT' });
+    await recap.dispatch({ type: 'RefreshRecap', length: 'full' });
+    expect(recap.dock().refusal?.actions?.[0]?.action).toEqual({ type: 'RefreshRecap', length: 'full' });
   });
 
   it('a Coach question that did not start is said by a toast with its code; the question is not turned into a turn', async () => {
@@ -3119,6 +3268,8 @@ describe('the focus handed to the next part (decision X44, ui-design §6.3)', ()
   it('[UI-023] a Б2 question, Fix and Hi with three variants offer nothing', async () => {
     const h = await start();
     const opId = await reply(h, 'the answer');
+    // The question stands only where the editor is not observed (X45).
+    h.host.setCapability('draftRead', { state: 'degraded', reason: 'editor' });
     h.host.type('my own words');
     await h.settle();
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ outcome: 'needs-confirm' });

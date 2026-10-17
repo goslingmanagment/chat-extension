@@ -313,6 +313,17 @@ describe('options: the shell (ui-design §4.24)', () => {
     expect(page.world.state.settings.generation.split).toBe(true);
   });
 
+  it('[AI-003] «Помнить тон в чате» (X45) is on by default and saved off by a click, as any switch', async () => {
+    const page = await mount('options', { hash: '#generation' });
+    const box = (): HTMLElement | null => page.$<HTMLElement>('[role="checkbox"][aria-label="Помнить тон в чате"]');
+    expect(box()?.getAttribute('aria-checked')).toBe('true');
+    expect(page.text()).toContain('пока вы его не смените или не откроете другой чат');
+    await flush(() => box()?.click());
+    expect(page.$('[data-pg-save="saved"]')).not.toBeNull();
+    expect(page.world.state.settings.generation.rememberTone).toBe(false);
+    expect(box()?.getAttribute('aria-checked')).toBe('false');
+  });
+
   it('[ST-016] a store newer than the build: the barrier is shown and the controls do nothing', async () => {
     const state = workingState();
     state.readOnly = true;

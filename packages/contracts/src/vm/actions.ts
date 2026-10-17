@@ -36,6 +36,8 @@ export const PREFERENCE_VALUE_SCHEMAS = {
   'ui.hints': ui.hints,
   'ui.resultStyle': ui.resultStyle,
   'generation.split': generation.split,
+  // 1.18.0 (X45): stored as optional (absent — on), set as a plain boolean.
+  'generation.rememberTone': z.boolean(),
   'generation.windows.quick': generation.windows.shape.quick,
   'generation.windows.ping': generation.windows.shape.ping,
   'generation.windows.improve': generation.windows.shape.improve,

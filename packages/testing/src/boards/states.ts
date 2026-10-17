@@ -391,7 +391,7 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('15a', 'Palette: empty query', 'palette', (ctx) => paletteState(ctx, 'a')),
   state('15b', 'Palette: search', 'palette', (ctx) => paletteState(ctx, 'b')),
   // not drawn in the mockup (ui-design §10)
-  state('quick-jump', 'Quick jump ⌘1–9', 'quick-jump', (ctx) => [entry({ of: 'quick-jump' }, quickJump(ctx, views.ready()))]),
+  state('quick-jump', 'Quick jump Alt+1–9', 'quick-jump', (ctx) => [entry({ of: 'quick-jump' }, quickJump(ctx, views.ready()))]),
   state('online-a', '«Онлайн» of the palette: the preview in its own window (X24)', 'preview', (ctx) => onlineState(ctx, null)),
   state('online-b', '«Онлайн» of the palette: Reply of three parts, «Отправить» on each (X24)', 'preview', (ctx) => onlineState(ctx, [AVAILABLE, AVAILABLE, AVAILABLE])),
   state('online-c', '«Онлайн» of the palette before the page’s first chat: «Отправить» says to open any chat (CG-SEND-HOST, contracts 1.10.0)', 'preview', (ctx) =>

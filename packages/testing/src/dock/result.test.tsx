@@ -1144,6 +1144,20 @@ describe('errors in the sheet', () => {
   });
 });
 
+describe('the card of a start that failed before anything was generated (X45)', () => {
+  it('[ER-006] «Повторить» from the controller stands first, «Скопировать код» last; a click repeats the same start, nothing repeats by itself', async () => {
+    const again: UiAction = { type: 'Generate', targetHandle: 'dock:t1', feature: 'reply', options: { tone: 'flirty' } };
+    const refusal = { feature: 'reply' as const, error: { ...cgError(ctx, 'CG-HUB-TIMEOUT'), tone: 'failure' as const }, running: [], actions: [{ label: { key: 'common.retry' as const }, action: again, enabled: true, reason: null, hotkey: null }] };
+    kit = mountDock(dockScenario(dockVm('ready', { refusal })));
+    const card = kit.$('.cg-card') as HTMLElement;
+    expect(text(card.querySelector('.cg-card__code'))).toBe('ChatGoose · CG-HUB-TIMEOUT');
+    expect([...card.querySelectorAll('.cg-card__acts button')].map(text)).toEqual(['Повторить', 'Скопировать код']);
+    expect(kit.client.dispatched).toEqual([]);
+    await flush(() => byLabel('Повторить', card).click());
+    expect(kit.client.dispatched).toEqual([again]);
+  });
+});
+
 describe('the refusal of a fourth generation', () => {
   const list = [running(ctx, FANS.theodore, 'reply', 14, uuid(111)), running(ctx, FANS.marco, 'recap', 40, uuid(112)), running(ctx, FANS.jake, 'hi', 6, uuid(113))];
   const refusal = { feature: 'reply' as const, error: cgError(ctx, 'CG-OP-TAB-LIMIT'), running: list };

@@ -57,6 +57,8 @@ describe('the token gate over the bootstrap', () => {
     session: object | null;
     bootstrap: object | null;
     flags: Record<string, { usable: boolean; reason: string | null }>;
+    /** What the cached bootstrap says of a switch, fresh or expired (X45); absent — usable. */
+    cached: Record<string, { usable: boolean; reason: string | null }>;
     refresh: () => Promise<void>;
     refreshes: number;
   }
@@ -64,12 +66,13 @@ describe('the token gate over the bootstrap', () => {
     session: () => state.session,
     cachedBootstrap: () => state.bootstrap,
     flagState: (flag) => state.flags[flag] ?? { usable: true, reason: null },
+    cachedFlagState: (flag) => state.cached[flag] ?? { usable: true, reason: null },
     bootstrap: () => {
       state.refreshes += 1;
       return state.refresh();
     },
   });
-  const state = (over: Partial<State> = {}): State => ({ session: {}, bootstrap: {}, flags: {}, refresh: () => Promise.resolve(), refreshes: 0, ...over });
+  const state = (over: Partial<State> = {}): State => ({ session: {}, bootstrap: {}, flags: {}, cached: {}, refresh: () => Promise.resolve(), refreshes: 0, ...over });
   const wire = (error: unknown): CgErrorWire => ({ code: 'CG-NETWORK', detail: String((error as Error).message) });
 
   it('a generation and a send are not judged here: their own requests read the bootstrap', async () => {
@@ -97,10 +100,11 @@ describe('the token gate over the bootstrap', () => {
     expect(s.refreshes).toBe(1);
   });
 
-  it('[AU-027] an expired bootstrap is read again once: a hub that answers lets the action through, a silent one refuses it with its own reason', async () => {
+  it('[AU-027] an expired bootstrap is read again once: a hub that answers lets the action through, a silent one refuses a navigation with its own reason — and lets a ready result be inserted by the cached bootstrap (X45)', async () => {
     const s = state({ flags: { insertion: { usable: false, reason: 'bootstrap_expired' }, navigation: { usable: false, reason: 'bootstrap_expired' } } });
     s.refresh = () => Promise.reject(new Error('offline'));
-    expect(await tokenRefusal('insert', 'dock', hubOf(s), wire, FEATURES)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
+    // X45 (X12 п. 19 reversed for inserts): the hub does not answer — the cached bootstrap still admits the insert.
+    expect(await tokenRefusal('insert', 'dock', hubOf(s), wire, FEATURES)).toBeNull();
     expect(await tokenRefusal('navigate', 'overlay', hubOf(s), wire, FEATURES)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
     expect(s.refreshes).toBe(2);
     s.refresh = () => {
@@ -114,6 +118,34 @@ describe('the token gate over the bootstrap', () => {
       return Promise.resolve();
     };
     expect(await tokenRefusal('navigate', 'overlay', hubOf(s), wire, FEATURES)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
+  });
+
+  it('[AU-027] the insert of a ready result on an expired bootstrap with a silent hub (X45): what the cached one admits goes, what it switched off does not; a hub that answers is heard; without a cached one nothing goes', async () => {
+    const expired = { usable: false, reason: 'bootstrap_expired' };
+    for (const code of ['CG-HUB-UNAVAILABLE', 'CG-HUB-TIMEOUT', 'CG-NETWORK', 'CG-TIMEOUT'] as const) {
+      const s = state({ flags: { insertion: expired } });
+      s.refresh = () => Promise.reject(new Error(code));
+      expect([code, await tokenRefusal('insert', 'dock', hubOf(s), () => ({ code }), FEATURES)]).toEqual([code, null]);
+      // The cached bootstrap had the owner's switch off: the insert stays refused, with that reason.
+      s.cached['insertion'] = { usable: false, reason: 'flag_off' };
+      expect([code, await tokenRefusal('insert', 'dock', hubOf(s), () => ({ code }), FEATURES)]).toEqual([code, { code: 'CG-FEATURE-DISABLED', detail: 'flag_off' }]);
+    }
+    // The hub answered — signed out, refused, outdated: its word stands, the cached bootstrap is not asked.
+    for (const code of ['CG-AUTH-REVOKED', 'CG-HUB-FORBIDDEN', 'CG-HUB-OUTDATED', 'CG-HUB-RATE-LIMIT'] as const) {
+      const s = state({ flags: { insertion: expired } });
+      s.refresh = () => Promise.reject(new Error(code));
+      expect(await tokenRefusal('insert', 'dock', hubOf(s), () => ({ code }), FEATURES)).toEqual({ code });
+    }
+    // No bootstrap was ever read in this sign-in: nothing to judge by.
+    const none = state({ bootstrap: null, flags: { insertion: { usable: false, reason: 'hub_not_ready' } } });
+    none.refresh = () => Promise.reject(new Error('offline'));
+    expect(await tokenRefusal('insert', 'dock', hubOf(none), wire, FEATURES)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
+    // A hub layer that cannot say what its cached bootstrap holds admits nothing on an expired one.
+    const bare = state({ flags: { insertion: expired } });
+    bare.refresh = () => Promise.reject(new Error('offline'));
+    const full = hubOf(bare);
+    const older: TokenGateHub = { session: () => full.session(), cachedBootstrap: () => full.cachedBootstrap(), flagState: (flag, page) => full.flagState(flag, page), bootstrap: () => full.bootstrap() };
+    expect(await tokenRefusal('insert', 'dock', older, wire, FEATURES)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
   });
 
   it('a fresh bootstrap: the owner’s switch decides, and nothing is read again', async () => {

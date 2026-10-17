@@ -12,6 +12,7 @@ import {
   HUB_ROUTE_KEYS,
   HubStreamRequestSchema,
   PREFERENCE_KEYS,
+  PREFERENCE_VALUE_SCHEMAS,
   STORAGE_KEYS,
 } from '@cg/contracts';
 import { PARITY_EXCEPTIONS } from '@cg/contracts/parity/exceptions';
@@ -138,8 +139,11 @@ describe('[AI-098] [ST-098] [ST-099] [ST-100] [TL-014] [RU-003] NEG-HUB-OWNS-AI'
   });
 
   it('settings have no default tone, model, reasoning or prompt cache; the UI cannot set one', () => {
-    expect(SETTING_PATHS.filter((path) => /tone$|model|reasoning|effort|cache|prompt|provider|temperature/i.test(path) && !path.startsWith('sound.'))).toEqual([]);
-    expect(PREFERENCE_KEYS.filter((key) => /tone|model|reasoning|effort|cache|prompt/i.test(key) && !key.startsWith('sound.'))).toEqual([]);
+    // «Помнить тон в чате» (1.18.0, X45) says how long a tone the person chose lasts — a switch, never a tone.
+    const memory = (path: string): boolean => path === 'generation.rememberTone';
+    expect(SETTING_PATHS.filter((path) => /tone$|model|reasoning|effort|cache|prompt|provider|temperature/i.test(path) && !path.startsWith('sound.') && !memory(path))).toEqual([]);
+    expect(PREFERENCE_KEYS.filter((key) => /tone|model|reasoning|effort|cache|prompt/i.test(key) && !key.startsWith('sound.') && !memory(key))).toEqual([]);
+    expect(PREFERENCE_VALUE_SCHEMAS['generation.rememberTone'].safeParse('casual').success).toBe(false);
   });
 
   it('an AI request cannot pick a model, an effort or a prompt, nor carry a transcript or usage: the contract and the hub refuse it', async () => {

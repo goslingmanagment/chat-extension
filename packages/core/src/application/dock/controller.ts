@@ -40,7 +40,7 @@ import { chatHandle } from '../navigation/chat-handle';
 import { type OpRecord } from '../ai/op-store';
 import { resultVm } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
-import { errorVm, msg, views } from '../ai/view-models';
+import { errorActions, errorVm, featureHotkey, msg, views } from '../ai/view-models';
 import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
 import { flagReasonVm } from '../flag-reason';
 import { createPartFocus } from './focus-part';
@@ -61,12 +61,24 @@ export function runningVm(ws: AiWorkspace, summary: Pick<AnyActiveOpSummary, 'op
   };
 }
 
+/**
+ * A refused start (ui-design §4.9). One that failed before admission and carries its action may offer «Повторить»
+ * of the same start (X45) — only where the CG registry lets a new click repeat the code (a silent hub, a timeout,
+ * the network): nothing was generated, sent or written. Pressed by the person only; a deadline only enables it.
+ */
 export function refusalVm(ws: AiWorkspace, refusal: RefusalState): RefusalVM {
+  const { catalog, clock, i18n } = ws.ports;
+  const retry = refusal.retry;
+  const actions =
+    retry === undefined || refusal.running.length > 0
+      ? []
+      : errorActions(refusal.error, { catalog, now: clock.now(), again: retry, againHotkey: featureHotkey(catalog, refusal.feature), openChat: null }).filter((button) => button.action === retry);
   return {
     feature: refusal.feature,
-    error: errorVm(refusal.error, ws.ports.i18n),
+    error: errorVm(refusal.error, i18n),
     running: refusal.running.map((summary) => runningVm(ws, summary)),
     ...(refusal.at === undefined ? {} : { at: refusal.at }),
+    ...(actions.length === 0 ? {} : { actions }),
   };
 }
 
@@ -278,7 +290,8 @@ export function createDockController(ws: AiWorkspace): DockController {
           result.refusal.running.map((summary) => runningVm(ws, summary)),
         );
       case 'failed':
-        ws.startFailed(chat.key, action.feature, result.error);
+        // «Повторить» repeats this very start: «Ещё раз» of the same operation, or the same Generate (X45).
+        ws.startFailed(chat.key, action.feature, result.error, regenerateOf === undefined ? action : { type: 'Regenerate', operationId: regenerateOf.view.opId });
         return refused(ws, action.type, result.error);
     }
   }

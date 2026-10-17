@@ -20,9 +20,10 @@
 // - ⌘E → Enter → Enter → Enter → Enter (X44): over the empty field the
 //   finished Reply and each send of our part hand the focus to the next part;
 //   a person typing in the field keeps it there;
-// - ⌘/Ctrl held alone opens «Быстрый переход» only where the owner's
-//   `navigation` is on for the page: with it off the hold opens nothing and
-//   says nothing, ⌘1–9 and J are refused aloud, and no chat is opened;
+// - Alt (⌥) held alone opens «Быстрый переход» only where the owner's
+//   `navigation` is on for the page (X45: its digits are Alt+1–9, ⌘/Ctrl+1–9
+//   are Firefox's tabs): with it off the hold opens nothing and says
+//   nothing, Alt+1–9 and J are refused aloud, and no chat is opened;
 // - a browser on Windows (a second Firefox that says so): Ctrl+Alt+S is
 //   Recap and ChatSpace's translator, which listens for Alt+S, does not flip.
 
@@ -129,28 +130,18 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.result.parts === 2, 'a Reply with two parts', 20_000);
     });
 
-    it('[HK-030] Enter on a part of ours is «Вставить»: the part goes into ChatSpace’s field only by the person’s own answer, and ChatSpace sends nothing', async () => {
+    it('[HK-030] Enter on a part of ours is «Вставить»: the part replaces the person’s words by that key (X45), Ctrl/⌘+Z in the field brings them back, and ChatSpace sends nothing', async () => {
       const standMark = await standServer.mark();
       const page = await pageJournalMark();
-      const asked = 'В поле ввода уже есть ваш текст.';
       await focusPart(0);
       await browser.keys(Key.Enter);
-      // The field holds the person's own words: Enter asked first (Б2), with the focus on «Отмена» (X18) — Enter again changes nothing.
-      await waitOursText('dock', asked, 'the question about the person’s own text');
-      expect((await oursFocus('dock'))?.text).toMatch(/^Отмена/);
-      await browser.keys(Key.Enter);
-      await waitOursText('dock', asked, 'the question is gone after Enter on «Отмена»', { gone: true });
-      expect(await composerText(ACC, a1)).toBe('some words of mine');
-      // The focus is back on «Вставить» of that part: Enter asks again, Shift+Tab goes to «Добавить в конец», Enter there adds the part.
-      expect((await oursFocus('dock'))?.text).toMatch(/^Вставить/);
-      await browser.keys(Key.Enter);
-      await waitOursText('dock', asked, 'the question, asked again');
-      expect((await oursFocus('dock'))?.text).toMatch(/^Отмена/);
-      await browser.keys([Key.Shift, Key.Tab]);
-      expect((await oursFocus('dock'))?.text).toBe('Добавить в конец');
-      await browser.keys(Key.Enter);
-      await waitForComposerText(ACC, a1, `some words of mine\n${reply(a1)[0]}`, 'the part is added to the person’s words');
-      // Four Enter presses inside our root, and not one reached ChatSpace's editor as a send.
+      // The field held the person's own words: the key is the consent (decision X45), no question.
+      await waitForComposerText(ACC, a1, reply(a1)[0], 'the part replaced the person’s words');
+      expect(await oursExists('dock', '.cg-confirm')).toBe(false);
+      // The insert left the focus in ChatSpace's field (UI-019): the person's own undo there restores their words.
+      await browser.keys([MOD, 'z']);
+      await waitForComposerText(ACC, a1, 'some words of mine', 'the undo restored the person’s words');
+      // A held Enter after the insert, and the undo, reached ChatSpace's editor as no send.
       await browser.pause(400);
       expect(sendsOf(await serverSince(standMark))).toEqual([]);
       expect(await pageEvents(page, 'composer-submit')).toBe(0);
@@ -348,7 +339,7 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
     });
   });
 
-  describe('the ⌘-hold quick jump under the owner’s `navigation` switch', () => {
+  describe('the Alt-hold quick jump under the owner’s `navigation` switch (X45)', () => {
     const popup = (): Promise<boolean> => oursExists('modal', '[data-cg-quickjump]');
     /** The background reads the owner's switches again (as its 5-minute refresh does); the tab hears `bootstrap.changed`. */
     const setNavigation = async (on: boolean): Promise<void> => {
@@ -360,29 +351,29 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
         await shift.toStand();
       }
     };
-    /** ⌘/Ctrl goes down alone, outside any field, and stays down past the 400 ms of the hold. */
+    /** Alt goes down alone, outside any field, and stays down past the 400 ms of the hold. */
     const hold = async (): Promise<void> => {
       await $('[data-stand-conversation-header]').click();
-      await browser.action('key').down(MOD).pause(900).perform(true);
+      await browser.action('key').down(Key.Alt).pause(900).perform(true);
     };
-    const letGo = (): Promise<void> => browser.action('key').up(MOD).perform();
+    const letGo = (): Promise<void> => browser.action('key').up(Key.Alt).perform();
 
     after(async () => {
       await browser.releaseActions();
       await hub().command({ op: 'config', patch: pilotPageFlags({ navigation: true }) });
     });
 
-    it('[NEW-07] [HK-037] `navigation` on: the hold opens «Быстрый переход» with the chats of ChatSpace’s list, letting go closes it. `navigation` off for the page: the hold opens nothing and says nothing, ⌘2 and J are refused aloud, no chat is opened; on again — the popup is back', async function () {
+    it('[NEW-07] [HK-037] `navigation` on: the hold opens «Быстрый переход» with the chats of ChatSpace’s list, letting go closes it. `navigation` off for the page: the hold opens nothing and says nothing, Alt+2 and J are refused aloud, no chat is opened; on again — the popup is back', async function () {
       this.timeout(120_000);
       const here = await route();
       await hold();
-      await browser.waitUntil(popup, { timeout: 5000, timeoutMsg: 'the quick jump did not open under a held ⌘/Ctrl with `navigation` on' });
+      await browser.waitUntil(popup, { timeout: 5000, timeoutMsg: 'the quick jump did not open under a held Alt with `navigation` on' });
       expect(await overlays()).toEqual(['quick-jump']);
       const shown = await oursText('modal', '[data-cg-quickjump]');
       expect(shown).toContain('Быстрый переход');
       expect(shown).toMatch(/Fan \w+/);
       await letGo();
-      await waitOverlays([], 'letting ⌘/Ctrl go closes the quick jump');
+      await waitOverlays([], 'letting Alt go closes the quick jump');
       expect(await popup()).toBe(false);
 
       // The owner leaves `navigation` off for the page — the live case of 2026-10-07.
@@ -397,7 +388,7 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       expect(await oursText('toast')).not.toContain('CG-FEATURE-DISABLED');
       // A digit under the held modifier is one, and it is refused with the reason — no chat opens.
       await browser.action('key').down('2').up('2').perform(true);
-      await waitOursText('toast', 'CG-FEATURE-DISABLED', '⌘2 on a page without `navigation` says why it does nothing');
+      await waitOursText('toast', 'CG-FEATURE-DISABLED', 'Alt+2 on a page without `navigation` says why it does nothing');
       await letGo();
       expect(await popup()).toBe(false);
       await browser.keys(['j']);

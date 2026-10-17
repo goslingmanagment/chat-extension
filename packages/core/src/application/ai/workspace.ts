@@ -23,9 +23,9 @@ import { type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
-import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
+import { type DockStatus, type ReasonVM, type TargetHandle, type UiAction, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
-import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, windowFor, type FanScript, type GateFacts } from '../../domain/features';
+import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, remembersTone, toneAfterStart, toneForRegenerate, toneOnLeave, windowFor, type FanScript, type GateFacts } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
 import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
@@ -59,10 +59,15 @@ export interface RefusalState {
   readonly running: readonly AnyActiveOpSummary[];
   /** When it was refused: a start refused again is another refusal, and is shown again after «Скрыть». */
   readonly at?: number;
+  /**
+   * The same start once more (X45): the action the card's «Повторить» dispatches where the registry lets a new click
+   * repeat the code. Only a start that failed before admission has one — nothing was generated, sent or written.
+   */
+  readonly retry?: UiAction;
 }
 
 interface ChatUi {
-  /** Б1: the one-off tone of the next Reply in this chat. */
+  /** The tone of the next Reply in this chat: kept while the chat is open (X45), or one-off (Б1) — `remembersTone`. */
   tone: Tone | null;
   sheet: Sheet | null;
   /** The hub page of the chat when its sheet was set; null — not known then. */
@@ -640,9 +645,9 @@ export class AiWorkspace {
    * key that did nothing must never look like a dock that is ready. Only a
    * click that was for a chat the person has already left stays quiet.
    */
-  startFailed(key: ChatKey, feature: FeatureId, error: CgErrorWire): void {
+  startFailed(key: ChatKey, feature: FeatureId, error: CgErrorWire, retry?: UiAction): void {
     if (error.code === 'CG-CONTEXT-CHANGED') return;
-    this.showRefusal(key, { feature, error, running: [] });
+    this.showRefusal(key, { feature, error, running: [], ...(retry === undefined ? {} : { retry }) });
   }
 
   isExpanded(id: string): boolean {
@@ -771,8 +776,8 @@ export class AiWorkspace {
       case 'refused':
         return { kind: 'refused', refusal: { feature, error: { code: outcome.admission.code }, running: [...outcome.admission.active, ...(outcome.admission.siteActive ?? [])].sort((a, b) => a.startedAt - b.startedAt) } };
       case 'started': {
-        // Б1: the tone went with this request and is gone.
-        if (rule.tone) this.ui(chat.key).tone = toneAfterStart();
+        // The tone went with this request: it stays for the chat (X45, «Помнить тон в чате»), or is gone (Б1).
+        if (rule.tone) this.ui(chat.key).tone = toneAfterStart(plan.start.tone, remembersTone(settings));
         const record = this.ops.get(outcome.opId);
         if (record !== null) for (const listener of [...this.startListeners]) listener(record);
         this.bump();
@@ -797,7 +802,8 @@ export class AiWorkspace {
     return {
       current: {
         signInEpoch: session?.epoch ?? null,
-        bindingRevision: this.env.page(pageId)?.bindingRevision ?? null,
+        // X45: with the hub silent the result already made is checked against the binding last read in this sign-in.
+        bindingRevision: (this.env.page(pageId) ?? this.env.pageWhileHubSilent(pageId))?.bindingRevision ?? null,
         personaDefinitionId: persona.definitionId,
       },
       blocked: sameChat ? situation.copyOnly : null,
@@ -1107,8 +1113,11 @@ export class AiWorkspace {
     const key = route.name === 'chat' && route.chat !== null ? chatKeyOf(route.chat) : null;
     // The page tail is kept for the open chat only: a chat that was left is read again when it is opened.
     for (const other of [...this.tails.keys()]) if (other !== key) this.tails.delete(other);
+    const remember = remembersTone(this.env.settings?.settings);
     for (const [other, ui] of this.chats) {
       if (other === key) continue;
+      // A tone kept in the chat lasts until the chat switches, as in the desktop (X45); a one-off one waits for its Reply.
+      ui.tone = toneOnLeave(ui.tone, remember);
       // A start that failed before admission names no run that could end it: its card stays only while the
       // person stays in the chat.
       if (ui.sheet !== null && ui.sheet.kind === 'refusal' && ui.sheet.refusal.running.length === 0) ui.sheet = null;

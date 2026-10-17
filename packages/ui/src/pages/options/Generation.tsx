@@ -1,5 +1,6 @@
 // «Генерация» (architecture.md §9.4, §9.9; ST-090…ST-097): how many messages
-// each group of features reads (Б5), Split by default, Coach's memory and
+// each group of features reads (Б5), Split by default, «Помнить тон в чате»
+// (X45: absent — on), Coach's memory and
 // its Recap, and debug mode. The deep window never exceeds what the hub
 // takes: a larger one is cut when it is saved and the page says so. The
 // field always shows the number that is stored: one stored above the hub's
@@ -69,6 +70,17 @@ export function GenerationSection({ body, readOnly }: { readonly body: Generatio
               size={14}
               reason={locked}
               onChange={(value) => void act({ type: 'SetPreference', key: 'generation.split', value }, { quiet: true })}
+            />
+          </Opt>
+
+          <Opt label={i18n.t('settings.generation.rememberTone')} hint={i18n.t('settings.generation.rememberToneHint')}>
+            <Checkbox
+              label={i18n.t('settings.generation.rememberTone')}
+              stateWord={i18n.t('settings.generation.on')}
+              checked={body.rememberTone !== false}
+              size={14}
+              reason={locked}
+              onChange={(value) => void act({ type: 'SetPreference', key: 'generation.rememberTone', value }, { quiet: true })}
             />
           </Opt>
         </Card>

@@ -40,7 +40,9 @@ import {
   planStart,
   splitFor,
   toggleTone,
+  remembersTone,
   toneAfterStart,
+  toneOnLeave,
   toneForRegenerate,
   trimFreshTail,
   windowFor,
@@ -147,9 +149,17 @@ describe('tones', () => {
     expect(planned().tone).toBeNull();
   });
 
-  it('[AI-003] a tone is one-off: gone once the reply was admitted', () => {
+  it('[AI-003] a tone stays for the chat while «Помнить тон в чате» is on (X45, the default; absent in an older store is on), is gone once the reply was admitted when it is off (Б1), and a kept one goes when the chat switches', () => {
     expect(planned({ tone: 'flirty' }).tone).toBe('flirty');
-    expect(toneAfterStart()).toBeNull();
+    expect(toneAfterStart('flirty', true)).toBe('flirty');
+    expect(toneAfterStart(null, true)).toBeNull();
+    expect(toneAfterStart('flirty', false)).toBeNull();
+    expect(remembersTone(DEFAULT_SETTINGS)).toBe(true);
+    expect(remembersTone({ generation: {} })).toBe(true);
+    expect(remembersTone({ generation: { rememberTone: false } })).toBe(false);
+    expect(remembersTone(null)).toBe(true);
+    expect(toneOnLeave('spicy', true)).toBeNull();
+    expect(toneOnLeave('spicy', false)).toBe('spicy');
   });
 
   it('[AI-005] a tone picked in the menu goes with that click, over the chat tone', () => {

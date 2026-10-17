@@ -195,6 +195,9 @@ describe('[HB-011] [AU-022] the bootstrap and its cache', () => {
     expect(h.facade.flagState('navigation', null)).toEqual({ usable: false, reason: 'bootstrap_expired' });
     // A switch that is off says so, expired or not.
     expect(h.facade.flagState('previewSend', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
+    // X45: what the cached bootstrap itself says, for the insert of a ready result while the hub is silent.
+    expect(h.facade.cachedFlagState('insertion', one.pageLabel)).toEqual({ usable: true, reason: null });
+    expect(h.facade.cachedFlagState('previewSend', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
     // The binding still resolves: it is identity, not an action.
     expect(h.facade.resolveBinding(account())).toMatchObject({ state: 'bound' });
     const dispatch = {

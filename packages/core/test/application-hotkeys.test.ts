@@ -73,6 +73,8 @@ type Mods = ConstructorParameters<typeof FakeKey>[1];
 const primaryMods = (platform: HotkeyPlatform): Mods => (platform === 'mac' ? { metaKey: true } : { ctrlKey: true });
 const primaryKey = (platform: HotkeyPlatform, down: boolean): FakeKey =>
   platform === 'mac' ? new FakeKey('MetaLeft', { key: 'Meta', metaKey: down }) : new FakeKey('ControlLeft', { key: 'Control', ctrlKey: down });
+/** Alt (⌥) by itself: the modifier of the chat slots, whose lone hold opens the quick jump (X45). */
+const jumpKey = (down: boolean, mods: Mods = {}): FakeKey => new FakeKey('AltLeft', { key: 'Alt', altKey: down, ...mods });
 
 /** A key by itself. */
 function tap(r: Rig, code: string, mods: Mods = {}): FakeKey {
@@ -150,17 +152,27 @@ describe('the early dispatcher', () => {
     expect(r.sink.ran).toEqual([]);
   });
 
-  it.each(['mac', 'win'] as const)('[HK-026] %s: in a chat ⌘U / Ctrl+U and ⌘1–9 / Ctrl+1–9 pressed while typing never reach the browser — no page source, no tab switch — and say why', (platform) => {
+  it.each(['mac', 'win'] as const)('[HK-026] %s: in a chat ⌘U / Ctrl+U pressed while typing never reaches the browser — no page source — and says why; ⌘1–9 / Ctrl+1–9 are the browser’s tab keys, never ours (X45)', (platform) => {
     const r = rig(platform);
     for (const focus of ['composer', 'field', 'ours-field'] as const) {
       r.own.kind = focus;
-      for (const event of [chord(r, 'KeyU'), chord(r, 'Digit3')]) {
-        expect([focus, event.code, event.defaultPrevented, event.stopped]).toEqual([focus, event.code, true, true]);
-        expect(r.native).not.toContain(event);
-      }
+      const unread = chord(r, 'KeyU');
+      expect([focus, unread.defaultPrevented, unread.stopped]).toEqual([focus, true, true]);
+      expect(r.native).not.toContain(unread);
+      // The browser gets it (no preventDefault); in our own field it is kept from ChatSpace only, as any combination.
+      const digit = chord(r, 'Digit3');
+      expect([focus, digit.defaultPrevented, digit.stopped]).toEqual([focus, false, focus === 'ours-field']);
     }
     expect(r.sink.ran).toEqual([]);
-    expect(r.sink.refused).toEqual(['composer', 'field', 'ours-field'].flatMap(() => [{ command: 'next-unread', refusal: 'in-field' }, { command: 'quick-jump', refusal: 'in-field' }]));
+    expect(r.sink.refused).toEqual(['composer', 'field', 'ours-field'].map(() => ({ command: 'next-unread', refusal: 'in-field' })));
+    // Off any field too: ⌘3 / Ctrl+3 is Firefox's third tab, the chat list's third chat is Alt+3.
+    r.own.kind = 'page';
+    const tab = chord(r, 'Digit3');
+    expect([tab.defaultPrevented, tab.stopped]).toEqual([false, false]);
+    expect(r.native).toContain(tab);
+    const slot = tap(r, 'Digit3', { altKey: true });
+    expect([slot.defaultPrevented, slot.stopped]).toEqual([true, true]);
+    expect(r.sink.ids[r.sink.ids.length - 1]).toBe('quick-jump:3@global');
     // An AI key in a field that is not the message field: ours, with the same reason.
     r.own.kind = 'field';
     const reply = chord(r, 'KeyE');
@@ -556,16 +568,16 @@ describe('the early dispatcher', () => {
     expect(r.sink.ran).toEqual([]);
   });
 
-  it('[NEW-07] ⌘/Ctrl held alone for 400 ms opens the quick jump; a digit under it jumps; letting go closes it', async () => {
+  it('[NEW-07] Alt (⌥) held alone for 400 ms opens the quick jump (X45); a digit under it jumps; letting go closes it, and that keyup is ours — no menu bar of Firefox', async () => {
     const r = rig('win');
-    r.win.fire('keydown', primaryKey('win', true));
+    r.win.fire('keydown', jumpKey(true));
     await r.clock.advance(QUICK_JUMP_HOLD_MS - 1);
     expect(r.sink.quick).toEqual([]);
     await r.clock.advance(1);
     expect(r.sink.quick).toEqual([true]);
     // The popup is an overlay of ours from now on (the real OverlayState lists it): it takes no key from anything.
     r.page.overlays = ['quick-jump'];
-    const digit = new FakeKey('Digit3', { ctrlKey: true });
+    const digit = new FakeKey('Digit3', { altKey: true });
     r.win.fire('keydown', digit);
     expect([digit.defaultPrevented, digit.stopped]).toEqual([true, true]);
     expect(r.sink.quick).toEqual([true, false]);
@@ -574,39 +586,45 @@ describe('the early dispatcher', () => {
     // The digit runs against the popup as the person saw it; only then the popup goes.
     expect(r.sink.order).toEqual(['popup:open', 'run:quick-jump', 'popup:close']);
     r.page.overlays = [];
-    r.win.fire('keyup', primaryKey('win', false));
+    const afterDigit = jumpKey(false);
+    r.win.fire('keyup', afterDigit);
     expect(r.sink.quick).toEqual([true, false]);
+    // The popup had already closed with the digit: this keyup is Firefox's, as any Alt keyup.
+    expect(afterDigit.defaultPrevented).toBe(false);
 
     // Released before 400 ms, or another key under it: no popup.
-    r.win.fire('keydown', primaryKey('win', true));
+    r.win.fire('keydown', jumpKey(true));
     await r.clock.advance(200);
-    r.win.fire('keyup', primaryKey('win', false));
+    r.win.fire('keyup', jumpKey(false));
     await r.clock.advance(1000);
-    r.win.fire('keydown', primaryKey('win', true));
-    r.win.fire('keydown', new FakeKey('KeyC', { ctrlKey: true }));
+    r.win.fire('keydown', jumpKey(true));
+    r.win.fire('keydown', new FakeKey('KeyC', { altKey: true }));
     await r.clock.advance(1000);
     expect(r.sink.quick).toEqual([true, false]);
-    r.win.fire('keyup', primaryKey('win', false));
+    r.win.fire('keyup', jumpKey(false));
 
-    // Open, then let go: it closes. Open, then the window loses focus: it closes too.
-    r.win.fire('keydown', primaryKey('win', true));
+    // Open, then let go: it closes, and the lone Alt's keyup is ours (Firefox on Windows would focus its menu bar).
+    r.win.fire('keydown', jumpKey(true));
     await r.clock.advance(QUICK_JUMP_HOLD_MS);
-    r.win.fire('keyup', primaryKey('win', false));
+    const letGo = jumpKey(false);
+    r.win.fire('keyup', letGo);
     expect(r.sink.quick).toEqual([true, false, true, false]);
-    r.win.fire('keydown', primaryKey('win', true));
+    expect(letGo.defaultPrevented).toBe(true);
+    // Open, then the window loses focus: it closes too.
+    r.win.fire('keydown', jumpKey(true));
     await r.clock.advance(QUICK_JUMP_HOLD_MS);
     r.win.fire('blur');
     expect(r.sink.quick).toEqual([true, false, true, false, true, false]);
   });
 
-  it('[NEW-07] win: a held Ctrl that auto-repeats (keyboard delay under 400 ms) still opens the quick jump at 400 ms, once', async () => {
+  it('[NEW-07] win: a held Alt that auto-repeats (keyboard delay under 400 ms) still opens the quick jump at 400 ms, once', async () => {
     const r = rig('win');
-    r.win.fire('keydown', primaryKey('win', true));
+    r.win.fire('keydown', jumpKey(true));
     // Windows' shortest repeat delay is 250 ms, then about 30 keys a second.
     await r.clock.advance(250);
-    r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+    r.win.fire('keydown', new FakeKey('AltLeft', { key: 'Alt', altKey: true, repeat: true }));
     await r.clock.advance(33);
-    r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+    r.win.fire('keydown', new FakeKey('AltLeft', { key: 'Alt', altKey: true, repeat: true }));
     await r.clock.advance(116);
     expect(r.sink.quick).toEqual([]);
     await r.clock.advance(1);
@@ -614,27 +632,27 @@ describe('the early dispatcher', () => {
     // The repeats go on while the popup is open: it neither closes nor opens again.
     for (let i = 0; i < 5; i += 1) {
       await r.clock.advance(33);
-      r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+      r.win.fire('keydown', new FakeKey('AltLeft', { key: 'Alt', altKey: true, repeat: true }));
     }
     await r.clock.advance(1000);
     expect(r.sink.quick).toEqual([true]);
-    r.win.fire('keyup', primaryKey('win', false));
+    r.win.fire('keyup', jumpKey(false));
     expect(r.sink.quick).toEqual([true, false]);
     // A repeat alone never arms a hold: Ctrl was down before the page had the focus (the engine was reset).
     r.win.fire('blur');
-    r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+    r.win.fire('keydown', new FakeKey('AltLeft', { key: 'Alt', altKey: true, repeat: true }));
     await r.clock.advance(1000);
     expect(r.sink.quick).toEqual([true, false]);
   });
 
-  it('[NEW-07] the open popup closes when the hold is no longer a lone ⌘/Ctrl: Shift or Alt goes down, the lazy part goes away; the hold is judged again when its time comes', async () => {
+  it('[NEW-07] the open popup closes when the hold is no longer a lone Alt: Shift or ⌘ goes down, the lazy part goes away; the hold is judged again when its time comes', async () => {
     for (const end of [
-      (r: Rig) => r.win.fire('keydown', new FakeKey('ShiftLeft', { key: 'Shift', shiftKey: true, metaKey: true })),
-      (r: Rig) => r.win.fire('keydown', new FakeKey('AltLeft', { key: 'Alt', altKey: true, metaKey: true })),
+      (r: Rig) => r.win.fire('keydown', new FakeKey('ShiftLeft', { key: 'Shift', shiftKey: true, altKey: true })),
+      (r: Rig) => r.win.fire('keydown', new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, altKey: true })),
       (r: Rig) => r.dispatcher.disconnect(),
     ]) {
       const r = rig('mac');
-      r.win.fire('keydown', primaryKey('mac', true));
+      r.win.fire('keydown', jumpKey(true));
       await r.clock.advance(QUICK_JUMP_HOLD_MS);
       expect(r.sink.quick).toEqual([true]);
       end(r);
@@ -642,13 +660,13 @@ describe('the early dispatcher', () => {
     }
     // Shift before the 400 ms are over: the hold is off, no popup later.
     const early = rig('mac');
-    early.win.fire('keydown', primaryKey('mac', true));
+    early.win.fire('keydown', jumpKey(true));
     await early.clock.advance(200);
-    early.win.fire('keydown', new FakeKey('ShiftLeft', { key: 'Shift', shiftKey: true, metaKey: true }));
+    early.win.fire('keydown', new FakeKey('ShiftLeft', { key: 'Shift', shiftKey: true, altKey: true }));
     await early.clock.advance(1000);
     expect(early.sink.quick).toEqual([]);
 
-    // The engine no longer sees a lone ⌘ when the 400 ms are over (whatever ended it without a keydown of ours): no popup.
+    // The engine no longer sees a lone Alt when the 400 ms are over (whatever ended it without a keydown of ours): no popup.
     const resolver = createKeyResolver('mac', 'extension');
     let alone = true;
     const win = new FakeWindow();
@@ -662,10 +680,10 @@ describe('the early dispatcher', () => {
       state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false },
       timers: clock,
       now: () => clock.now(),
-      resolver: { ...resolver, primaryHeldAlone: () => alone && resolver.primaryHeldAlone() },
+      resolver: { ...resolver, jumpHeldAlone: () => alone && resolver.jumpHeldAlone() },
     });
     dispatcher.connect(sink);
-    win.fire('keydown', primaryKey('mac', true));
+    win.fire('keydown', jumpKey(true));
     await clock.advance(QUICK_JUMP_HOLD_MS - 1);
     alone = false;
     await clock.advance(1000);
@@ -686,7 +704,7 @@ describe('the early dispatcher', () => {
     for (const [name, go] of Object.entries(leave)) {
       // The popup is open: it closes, and the keyup that never comes is not waited for.
       const open = rig('mac');
-      open.win.fire('keydown', primaryKey('mac', true));
+      open.win.fire('keydown', jumpKey(true));
       await open.clock.advance(QUICK_JUMP_HOLD_MS);
       expect([name, open.sink.quick]).toEqual([name, [true]]);
       go(open);
@@ -694,7 +712,7 @@ describe('the early dispatcher', () => {
       expect([name, open.win.count('mousemove')]).toEqual([name, 0]);
       // The hold is armed and not over yet: it ends, nothing opens later.
       const armed = rig('mac');
-      armed.win.fire('keydown', primaryKey('mac', true));
+      armed.win.fire('keydown', jumpKey(true));
       await armed.clock.advance(QUICK_JUMP_HOLD_MS / 2);
       go(armed);
       await armed.clock.advance(5000);
@@ -703,11 +721,11 @@ describe('the early dispatcher', () => {
     }
   });
 
-  it('[HK-022] [NEW-07] a ⌘/Ctrl that was «held» before the focus came back opens nothing: only a fresh, trusted, non-repeated keydown arms the hold', async () => {
+  it('[HK-022] [NEW-07] an Alt that was «held» before the focus came back opens nothing: only a fresh, trusted, non-repeated keydown arms the hold', async () => {
     for (const platform of ['mac', 'win'] as const) {
       const r = rig(platform);
-      // ⌘ goes down, the person ⌘-Tabs away: the keyup goes to the system, the window loses the focus.
-      r.win.fire('keydown', primaryKey(platform, true));
+      // Alt goes down, the person switches apps: the keyup goes to the system, the window loses the focus.
+      r.win.fire('keydown', jumpKey(true));
       r.page.focused = false;
       r.win.fire('blur');
       await r.clock.advance(5000);
@@ -717,49 +735,49 @@ describe('the early dispatcher', () => {
       await r.clock.advance(5000);
       expect(r.sink.quick).toEqual([]);
       // A key that was down all along repeats (Windows): a repeat is not a press.
-      r.win.fire('keydown', platform === 'mac' ? new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, repeat: true }) : new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+      r.win.fire('keydown', platform === 'mac' ? new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, repeat: true }) : new FakeKey('AltLeft', { key: 'Alt', altKey: true, repeat: true }));
       await r.clock.advance(5000);
       expect(r.sink.quick).toEqual([]);
       // A forged keydown of the page is not one either (§14).
-      r.win.fire('keydown', platform === 'mac' ? new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, isTrusted: false }) : new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, isTrusted: false }));
+      r.win.fire('keydown', new FakeKey('AltLeft', { key: 'Alt', altKey: true, isTrusted: false }));
       await r.clock.advance(5000);
       expect(r.sink.quick).toEqual([]);
       // The person lets go and presses it anew: that is a hold.
-      r.win.fire('keyup', primaryKey(platform, false));
-      r.win.fire('keydown', primaryKey(platform, true));
+      r.win.fire('keyup', jumpKey(false));
+      r.win.fire('keydown', jumpKey(true));
       await r.clock.advance(QUICK_JUMP_HOLD_MS);
       expect(r.sink.quick).toEqual([true]);
-      r.win.fire('keyup', primaryKey(platform, false));
+      r.win.fire('keyup', jumpKey(false));
       expect(r.sink.quick).toEqual([true, false]);
     }
   });
 
   it('[HK-022] [NEW-07] a keydown that reaches a page without the focus, or a hidden one, arms nothing; a focus that left without a blur is seen when the hold’s time comes', async () => {
-    // The live case (2026-10-07): ⌘ came down as the window was losing the focus — the blur was already heard, no
+    // The live case (2026-10-07, then on ⌘): the modifier came down as the window was losing the focus — the blur was already heard, no
     // keyup would ever come, and 400 ms later the popup opened in a window nobody was typing in, and stayed.
     const unfocused = rig('mac');
     unfocused.page.focused = false;
     unfocused.win.fire('blur');
-    unfocused.win.fire('keydown', primaryKey('mac', true));
+    unfocused.win.fire('keydown', jumpKey(true));
     await unfocused.clock.advance(5000);
     expect(unfocused.sink.quick).toEqual([]);
     expect([unfocused.clock.pending, unfocused.win.count('mousemove')]).toEqual([0, 0]);
 
     const hidden = rig('mac');
     hidden.page.hidden = true;
-    hidden.win.fire('keydown', primaryKey('mac', true));
+    hidden.win.fire('keydown', jumpKey(true));
     await hidden.clock.advance(5000);
     expect(hidden.sink.quick).toEqual([]);
 
     // The focus was there at the keydown and is gone when the 400 ms are over — and no blur said so.
     const silent = rig('mac');
-    silent.win.fire('keydown', primaryKey('mac', true));
+    silent.win.fire('keydown', jumpKey(true));
     await silent.clock.advance(QUICK_JUMP_HOLD_MS - 1);
     silent.page.focused = false;
     await silent.clock.advance(5000);
     expect(silent.sink.quick).toEqual([]);
     expect(silent.win.count('mousemove')).toEqual(0);
-    // Nothing is left armed: with the focus back, the stale ⌘ still opens nothing.
+    // Nothing is left armed: with the focus back, the stale Alt still opens nothing.
     silent.page.focused = true;
     await silent.clock.advance(5000);
     expect(silent.sink.quick).toEqual([]);
@@ -770,19 +788,19 @@ describe('the early dispatcher', () => {
     const sink = new RecordingSink();
     const plain = createEarlyKeyDispatcher({ platform: 'mac', client: 'extension', window: win, ownership: new FakeOwnership(), state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false }, timers: clock, now: () => clock.now() });
     plain.connect(sink);
-    win.fire('keydown', primaryKey('mac', true));
+    win.fire('keydown', jumpKey(true));
     await clock.advance(QUICK_JUMP_HOLD_MS);
     expect(sink.quick).toEqual([true]);
   });
 
-  it('[NEW-07] a keyup the system took is told by the pointer: a trusted mouse move without ⌘/Ctrl ends the hold and closes the popup; one with it, or a forged one, changes nothing', async () => {
+  it('[NEW-07] a keyup the system took is told by the pointer: a trusted mouse move without Alt ends the hold and closes the popup; one with it, or a forged one, changes nothing', async () => {
     for (const platform of ['mac', 'win'] as const) {
-      const held = platform === 'mac' ? { isTrusted: true, metaKey: true, ctrlKey: false } : { isTrusted: true, metaKey: false, ctrlKey: true };
-      const up = { isTrusted: true, metaKey: false, ctrlKey: false };
+      const held = { isTrusted: true, altKey: true };
+      const up = { isTrusted: true, altKey: false };
       const r = rig(platform);
       // Nothing armed: the pointer is not listened to.
       expect(r.win.count('mousemove')).toBe(0);
-      r.win.fire('keydown', primaryKey(platform, true));
+      r.win.fire('keydown', jumpKey(true));
       // Armed: listened to. The person moves the mouse with the modifier down — towards a row, say: the hold goes on.
       expect(r.win.count('mousemove')).toBe(1);
       r.win.fire('mousemove', held);
@@ -797,13 +815,10 @@ describe('the early dispatcher', () => {
       r.win.fire('mousemove', up);
       expect(r.sink.quick).toEqual([true, false]);
       expect(r.win.count('mousemove')).toBe(0);
-      // The engine was reset with it: the «held» modifier fires nothing under the next key.
-      r.win.fire('keydown', new FakeKey('KeyE', primaryMods(platform)));
-      expect(r.sink.ran).toEqual([]);
 
       // The same while the hold is only armed: it ends before the popup ever opens.
       const armed = rig(platform);
-      armed.win.fire('keydown', primaryKey(platform, true));
+      armed.win.fire('keydown', jumpKey(true));
       await armed.clock.advance(QUICK_JUMP_HOLD_MS / 2);
       armed.win.fire('mousemove', up);
       await armed.clock.advance(5000);
@@ -812,14 +827,14 @@ describe('the early dispatcher', () => {
 
       // Every way the popup ends stops the listening: the keyup, a digit, another key.
       for (const end of [
-        (x: Rig) => x.win.fire('keyup', primaryKey(platform, false)),
-        (x: Rig) => x.win.fire('keydown', new FakeKey('Digit2', primaryMods(platform))),
-        (x: Rig) => x.win.fire('keydown', new FakeKey('KeyC', primaryMods(platform))),
+        (x: Rig) => x.win.fire('keyup', jumpKey(false)),
+        (x: Rig) => x.win.fire('keydown', new FakeKey('Digit2', { altKey: true })),
+        (x: Rig) => x.win.fire('keydown', new FakeKey('KeyC', { altKey: true })),
         (x: Rig) => x.dispatcher.disconnect(),
         (x: Rig) => x.dispatcher.dispose(),
       ]) {
         const x = rig(platform);
-        x.win.fire('keydown', primaryKey(platform, true));
+        x.win.fire('keydown', jumpKey(true));
         await x.clock.advance(QUICK_JUMP_HOLD_MS);
         expect(x.win.count('mousemove')).toBe(1);
         end(x);
@@ -828,17 +843,17 @@ describe('the early dispatcher', () => {
     }
   });
 
-  it('a forged keyup never moves the engine either: the page cannot end a real ⌘ hold or close the popup (§14)', async () => {
+  it('a forged keyup never moves the engine either: the page cannot end a real Alt hold or close the popup (§14)', async () => {
     const r = rig('mac');
-    r.win.fire('keydown', primaryKey('mac', true));
-    r.win.fire('keyup', new FakeKey('MetaLeft', { key: 'Meta', isTrusted: false }));
-    // ⌘ is still down for the engine: the hold goes on and opens the popup…
+    r.win.fire('keydown', jumpKey(true));
+    r.win.fire('keyup', new FakeKey('AltLeft', { key: 'Alt', isTrusted: false }));
+    // Alt is still down for the engine: the hold goes on and opens the popup…
     await r.clock.advance(QUICK_JUMP_HOLD_MS);
     expect(r.sink.quick).toEqual([true]);
     // …which a forged keyup does not close; the real one does.
-    r.win.fire('keyup', new FakeKey('MetaLeft', { key: 'Meta', isTrusted: false }));
+    r.win.fire('keyup', new FakeKey('AltLeft', { key: 'Alt', isTrusted: false }));
     expect(r.sink.quick).toEqual([true]);
-    r.win.fire('keyup', primaryKey('mac', false));
+    r.win.fire('keyup', jumpKey(false));
     expect(r.sink.quick).toEqual([true, false]);
   });
 
@@ -853,14 +868,14 @@ describe('the early dispatcher', () => {
     ]) {
       const r = rig('mac');
       arrange(r);
-      r.win.fire('keydown', primaryKey('mac', true));
+      r.win.fire('keydown', jumpKey(true));
       await r.clock.advance(1000);
       expect(r.sink.quick).toEqual([]);
     }
-    // ⌘ pressed with Shift already down is the start of a panel combination, not a lone hold.
+    // Alt pressed with Shift already down (Alt+Shift switches the input language on Windows) is not a lone hold.
     const r = rig('mac');
     r.win.fire('keydown', new FakeKey('ShiftLeft', { key: 'Shift', shiftKey: true }));
-    r.win.fire('keydown', new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, shiftKey: true }));
+    r.win.fire('keydown', new FakeKey('AltLeft', { key: 'Alt', altKey: true, shiftKey: true }));
     await r.clock.advance(1000);
     expect(r.sink.quick).toEqual([]);
   });

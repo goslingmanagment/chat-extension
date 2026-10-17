@@ -397,10 +397,15 @@ describe('the dock and Coach (1.2.0)', () => {
 
   it('[UI-015] a refusal may say when its start was refused, so a second one is told from the first', () => {
     expectTypeOf<C.RefusalVM['at']>().toEqualTypeOf<number | undefined>();
-    const [plain, timed] = REFUSAL_VM_SAMPLES.valid;
+    const [plain, timed, retry, none] = REFUSAL_VM_SAMPLES.valid;
     expect(plain?.at).toBeUndefined();
     expect(timed?.at).toBeGreaterThan(0);
-    expect(REFUSAL_VM_SAMPLES.invalid).toHaveLength(1);
+    // 1.18.0 (X45): «Повторить» of the same start where it is safe; absent or empty — only «Скопировать код».
+    expectTypeOf<C.RefusalVM['actions']>().toEqualTypeOf<readonly C.ActionButtonVM[] | undefined>();
+    expect(plain?.actions).toBeUndefined();
+    expect(retry?.actions?.[0]?.action.type).toBe('Generate');
+    expect(none?.actions).toEqual([]);
+    expect(REFUSAL_VM_SAMPLES.invalid).toHaveLength(2);
   });
 
   it('[AI-086] [DB-019] a Coach turn may carry the Б2 question of a draft part and its debug footer', () => {

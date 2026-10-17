@@ -286,26 +286,13 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/);
       await dockIs((d) => d.result?.inserted === 1, 'the first part is inserted');
       await look('dock-05-split-inserted', { all: false });
+      // Б2 after decision X45: «Вставить» over the person's own words replaces them by the click, no question — the
+      // question's own pictures (`final-6`, «Отмена» in focus) are the dock gallery's; here it no longer stands.
       await clearDraft();
       await typeDraft('привет, это мой текст');
       await pressOurs('dock', '[data-cg-part="1"] button', /^Вставить/);
-      await waitOursText('dock', 'Добавить в конец', 'the Б2 question');
-      // The person's own insert asked: the question holds the focus on «Отмена» (X18). Whether its ring is drawn after a
-      // click is the browser's call (Firefox draws none); it is in the picture and in the facts.
-      const confirmFocus: unknown[] = [];
-      const focusOnCancel = (ring: boolean | null) => async (): Promise<void> => {
-        const focus = await readOurs('dock', '.cg-confirm :focus', (node) => ({ text: node.querySelector('.cg-btn__t')?.textContent ?? '', ring: node.matches(':focus-visible') }));
-        expect(focus?.text).toBe(current.lang === 'ru' ? 'Отмена' : 'Cancel');
-        if (ring !== null) expect(focus?.ring).toBe(ring);
-        confirmFocus.push({ ...current, ...focus });
-      };
-      await look('dock-06-confirm', { check: focusOnCancel(null) });
-      // The same focus reached by the keys (Shift+Tab to «Добавить в конец», Tab back): the ring on the quiet «Отмена».
-      await browser.keys([Key.Shift, Key.Tab]);
-      await browser.keys(Key.Tab);
-      await look('dock-06-confirm-keys', { check: focusOnCancel(true) });
-      facts['confirmFocus'] = confirmFocus;
-      await browser.keys(Key.Escape);
+      await dockIs((d) => d.result?.inserted === 2, 'the second part replaced the person’s words');
+      expect(await oursExists('dock', '.cg-confirm')).toBe(false);
       await clearDraft();
       await hideResult();
     });

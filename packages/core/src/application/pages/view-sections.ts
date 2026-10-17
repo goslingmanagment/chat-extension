@@ -215,6 +215,8 @@ export function generationBody(model: PagesModel): GenerationBodyVM | null {
     section: 'generation',
     windows: { ...settings.generation.windows, deepMax: valueOf(model.bootstrap)?.limits.deepMax ?? null, savedAs: model.deepSavedAs },
     split: settings.generation.split,
+    // «Помнить тон в чате» (X45): absent in a store from before 1.18.0 — on.
+    rememberTone: settings.generation.rememberTone !== false,
     coach: { ...settings.generation.coach },
     debug: { ...settings.debug },
   };

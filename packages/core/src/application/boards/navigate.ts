@@ -7,7 +7,7 @@
 // A click on one fan in Spenders, in a preview or in «Новые» is the person
 // choosing that fan; it is not our navigation. The owner's `navigation`
 // switch covers what walks or jumps between chats by our keys and lists
-// (J/K, ⌘U, ⌘1–9, quick jump, the palette's chats) and is never asked here:
+// (J/K, ⌘U, Alt+1–9, quick jump, the palette's chats) and is never asked here:
 // a pilot page with `navigation` off still opens the fan the person clicked
 // in its board, and a board that is off on its page opens nothing —
 // whatever `navigation` says on any other page.

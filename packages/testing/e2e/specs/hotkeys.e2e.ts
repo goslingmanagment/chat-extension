@@ -399,63 +399,66 @@ describe('R17 — the early key dispatcher on the stand', () => {
       expect((await composer(a1))?.html).toBe('<p>q</p>');
     });
 
-    it('[NEW-07] ⌘/Ctrl held alone for 400 ms opens the quick jump, a digit under it jumps, letting go closes it; in the message field nothing opens', async () => {
+    it('[NEW-07] Alt (⌥) held alone for 400 ms opens the quick jump (X45), a digit under it jumps, letting go closes it; in the message field nothing opens; ⌘/Ctrl+1–9 are never ours', async () => {
       await open(chatPath(ACC, a1));
       await focusOurs('dock-card');
       // `perform(true)`: WebdriverIO does not release the held key at the end of the sequence.
-      await browser.action('key').down(MOD).pause(700).perform(true);
+      await browser.action('key').down(Key.Alt).pause(700).perform(true);
       expect((await inputLog()).quick).toEqual([true]);
-      await browser.action('key').down('3').up('3').up(MOD).perform();
+      await browser.action('key').down('3').up('3').up(Key.Alt).perform();
       const log = await inputLog();
       expect(log.quick).toEqual([true, false]);
       expect(log.ran).toEqual(['quick-jump:3@global']);
       await input('clear');
-      await browser.action('key').down(MOD).pause(700).up(MOD).perform();
+      await browser.action('key').down(Key.Alt).pause(700).up(Key.Alt).perform();
       expect((await inputLog()).quick).toEqual([true, false]);
       await input('clear');
       // A short press never opens it.
-      await browser.action('key').down(MOD).pause(100).up(MOD).perform();
+      await browser.action('key').down(Key.Alt).pause(100).up(Key.Alt).perform();
       await browser.pause(500);
       expect((await inputLog()).quick).toEqual([]);
       await inComposer();
-      await browser.action('key').down(MOD).pause(700).up(MOD).perform();
+      await browser.action('key').down(Key.Alt).pause(700).up(Key.Alt).perform();
       expect((await inputLog()).quick).toEqual([]);
-      // ⌘1–9 with the cursor in the message field stays the browser's.
+      // ⌘/Ctrl+1–9 are the browser's tab keys (X45): in the message field and off it, nothing of ours runs or is refused.
+      await browser.keys([MOD, '2']);
+      await focusOurs('dock-card');
       await browser.keys([MOD, '2']);
       expect((await inputLog()).ran).toEqual([]);
+      expect((await inputLog()).refused).toEqual([]);
     });
 
-    it('[HK-022] [NEW-07] a keyup the system took: the popup lives only until the mouse says ⌘/Ctrl is up; with the key really down the mouse changes nothing', async () => {
+    it('[HK-022] [NEW-07] a keyup the system took: the popup lives only until the mouse says Alt is up; with the key really down the mouse changes nothing', async () => {
       await open(chatPath(ACC, a1));
       await focusOurs('dock-card');
       expect(await input('focusState')).toEqual({ focused: true, hidden: false });
-      // The keyup goes «to the system»: the page hears ⌘/Ctrl go down and nothing after it.
+      // The keyup goes «to the system»: the page hears Alt go down and nothing after it.
       await input('loseKeyup');
-      await browser.action('key').down(MOD).pause(700).up(MOD).perform();
+      await browser.action('key').down(Key.Alt).pause(700).up(Key.Alt).perform();
       expect((await inputLog()).quick).toEqual([true]);
       // Nothing tells the page — until the mouse moves: its event carries no modifier.
       await browser.action('pointer', { parameters: { pointerType: 'mouse' } }).move({ x: 320, y: 240 }).move({ x: 340, y: 260 }).perform();
       expect((await inputLog()).quick).toEqual([true, false]);
       expect((await inputLog()).overlays).toEqual([]);
-      // The engine was reset with it: a digit now is a digit, not ⌘N.
+      // The engine was reset with it: a digit now is a digit, not Alt+N.
       await browser.keys(['3']);
       expect((await inputLog()).ran).toEqual([]);
       await input('clear');
 
       // The key is really held: the mouse moves under it (towards a row) and the popup stays; letting go closes it.
-      await browser.action('key').down(MOD).pause(700).perform(true);
+      await browser.action('key').down(Key.Alt).pause(700).perform(true);
       expect((await inputLog()).quick).toEqual([true]);
       await browser.action('pointer', { parameters: { pointerType: 'mouse' } }).move({ x: 360, y: 280 }).move({ x: 380, y: 300 }).perform(true);
       expect((await inputLog()).quick).toEqual([true]);
-      await browser.action('key').up(MOD).perform();
+      await browser.action('key').up(Key.Alt).perform();
       expect((await inputLog()).quick).toEqual([true, false]);
     });
 
-    it('[HK-022] [NEW-07] the focus leaves under a held ⌘/Ctrl (another tab comes to the front): the popup closes, and back in the tab the stale modifier opens nothing', async () => {
+    it('[HK-022] [NEW-07] the focus leaves under a held Alt (another tab comes to the front): the popup closes, and back in the tab the stale modifier opens nothing', async () => {
       await open(chatPath(ACC, a1));
       await focusOurs('dock-card');
       const tab = await browser.getWindowHandle();
-      await browser.action('key').down(MOD).pause(700).perform(true);
+      await browser.action('key').down(Key.Alt).pause(700).perform(true);
       expect((await inputLog()).quick).toEqual([true]);
       // Another tab takes the front: this one is hidden and loses the focus; its keyup will never come here.
       await browser.newWindow('about:blank', { type: 'tab' });
@@ -473,7 +476,7 @@ describe('R17 — the early key dispatcher on the stand', () => {
       expect((await inputLog()).quick).toEqual([true, false]);
       // A fresh hold works as ever.
       await focusOurs('dock-card');
-      await browser.action('key').down(MOD).pause(700).up(MOD).perform();
+      await browser.action('key').down(Key.Alt).pause(700).up(Key.Alt).perform();
       expect((await inputLog()).quick).toEqual([true, false, true, false]);
     });
   });
@@ -507,7 +510,7 @@ describe('R17 — the early key dispatcher on the stand', () => {
       });
       for (const def of EXTRA_KEYS) {
         const mods = def.mods === 'primary' ? [primary] : def.mods === 'alt' ? [Key.Alt] : def.mods === 'shift' ? [Key.Shift] : [];
-        // Every slot of ⌘1–9 is one row of the table: the first and the last digit stand for the nine.
+        // Every slot of Alt+1–9 is one row of the table: the first and the last digit stand for the nine.
         const codes = def.codes.length > 1 ? [def.codes[0] ?? '', def.codes[def.codes.length - 1] ?? ''] : def.codes;
         for (const code of codes) list.push({ id: def.fallback ? `${def.command}:fallback` : def.command, combo: name(mods, code), keys: [...mods, keycap(code)], code });
       }
@@ -570,7 +573,8 @@ describe('R17 — the early key dispatcher on the stand', () => {
       expect(results.filter((result) => result.id !== 'close' && result.ran === null).map((result) => `${result.scheme}:${result.combo}`)).toEqual([]);
       expect(results.some((result) => result.browserActed)).toBe(false);
       // Every scheme judged, every dispatcher command with a key, the fallbacks included.
-      expect(results).toHaveLength((2 - skipped.length) * (schemeActions().length + EXTRA_KEYS.length + 2));
+      // A row of the nine slots is judged on its first and its last digit.
+      expect(results).toHaveLength((2 - skipped.length) * (schemeActions().length + EXTRA_KEYS.reduce((n, def) => n + Math.min(def.codes.length, 2), 0)));
       expect(skipped.length).toBeLessThan(2);
     });
   });

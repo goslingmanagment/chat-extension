@@ -55,7 +55,7 @@ export interface ExtraKeyDef {
   /** Physical keys; several for the nine chat slots. */
   readonly codes: readonly string[];
   readonly mods: 'primary' | 'alt' | 'none' | 'shift';
-  /** The same command on a combination the browser surely hands over (Alt+U, Alt+1–9). */
+  /** The same command on a combination the browser surely hands over (Alt+U for ⌘U). */
   readonly fallback: boolean;
   /** What the cheatsheet prints for the key itself: «K», «1–9», «]». */
   readonly keycap: string;
@@ -74,8 +74,8 @@ export const EXTRA_KEYS: readonly ExtraKeyDef[] = [
   { command: 'palette', codes: ['KeyK'], mods: 'primary', fallback: false, keycap: 'K', ariaKey: 'K' },
   { command: 'next-unread', codes: ['KeyU'], mods: 'primary', fallback: false, keycap: 'U', ariaKey: 'U' },
   { command: 'next-unread', codes: ['KeyU'], mods: 'alt', fallback: true, keycap: 'U', ariaKey: 'U' },
-  { command: 'quick-jump', codes: DIGITS, mods: 'primary', fallback: false, keycap: '1–9', ariaKey: '1' },
-  { command: 'quick-jump', codes: DIGITS, mods: 'alt', fallback: true, keycap: '1–9', ariaKey: '1' },
+  // Decision X45: ⌘/Ctrl+1–9 are Firefox's again (its tabs); the chat slots are Alt+1–9 alone, the main key now.
+  { command: 'quick-jump', codes: DIGITS, mods: 'alt', fallback: false, keycap: '1–9', ariaKey: '1' },
   { command: 'settings', codes: ['Comma'], mods: 'primary', fallback: false, keycap: ',', ariaKey: ',' },
   { command: 'chat-next', codes: ['KeyJ'], mods: 'none', fallback: false, keycap: 'J', ariaKey: 'J' },
   { command: 'chat-previous', codes: ['KeyK'], mods: 'none', fallback: false, keycap: 'K', ariaKey: 'K' },
@@ -159,10 +159,12 @@ export function isModifierKey(event: Pick<HotkeyKeyEvent, 'key'>): boolean {
   return MODIFIER_KEYS.has(event.key);
 }
 
-/** The primary modifier itself (⌘ on macOS, Ctrl elsewhere): its lone hold opens the quick jump. */
-export function isPrimaryModifierKey(event: Pick<HotkeyKeyEvent, 'key' | 'code'>, platform: HotkeyPlatform): boolean {
-  if (platform === 'mac') return event.key === 'Meta' || event.key === 'OS' || event.code === 'MetaLeft' || event.code === 'MetaRight' || event.code === 'OSLeft' || event.code === 'OSRight';
-  return event.key === 'Control' || event.code === 'ControlLeft' || event.code === 'ControlRight';
+/**
+ * The modifier of the chat slots itself — Alt (⌥ on macOS), never AltGr: its lone hold opens the quick jump, whose
+ * digits are Alt+1–9 (decision X45; until then ⌘/Ctrl, now Firefox's tab keys again).
+ */
+export function isJumpModifierKey(event: Pick<HotkeyKeyEvent, 'key' | 'code'>): boolean {
+  return event.key === 'Alt' || event.code === 'AltLeft' || event.code === 'AltRight';
 }
 
 /**

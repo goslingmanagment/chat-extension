@@ -1115,6 +1115,8 @@ export const RU: I18nCatalog<'ru'> = {
   'settings.generation.less': 'Меньше',
   'settings.generation.more': 'Больше',
   'settings.generation.splitHint': 'Ответ несколькими короткими сообщениями',
+  'settings.generation.rememberTone': 'Помнить тон в чате',
+  'settings.generation.rememberToneHint': 'Выбранный тон Reply держится в этом чате, пока вы его не смените или не откроете другой чат. Выключено — тон действует на один Reply',
   'settings.generation.on': 'Включён',
   'settings.generation.coachHistoryHint': 'Сколько прошлых вопросов помнит Coach',
   'settings.generation.coachAutoRecapHint': 'Recap фана в шапке Coach',

@@ -1,4 +1,4 @@
-// @cg/ui/palette — the ⌘K palette and the ⌘1–9 quick-jump popup (R15;
+// @cg/ui/palette — the ⌘K palette and the Alt+1–9 quick-jump popup (R15;
 // architecture.md §9.1, §10.1; ui-design §3.8, §4.20, §10). Lazy surfaces of
 // the overlay host over `palette` and `quick-jump`, through AppClient.
 

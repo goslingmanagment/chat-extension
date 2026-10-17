@@ -46,7 +46,7 @@ export interface KeyContext {
   readonly route: RouteKind;
   /**
    * Our open overlays, bottom first; a confirmation of ours counts as
-   * `dialog`. The quick-jump popup is not listed: it lives only while ⌘/Ctrl
+   * `dialog`. The quick-jump popup is not listed: it lives only while Alt
    * is held and never takes a key from anything.
    */
   readonly overlays: readonly OverlayKind[];
@@ -69,7 +69,7 @@ export type OverlayKind = OverlaySurface | 'dialog' | 'result-expanded';
 export type KeyRefusal =
   /** HK-027: «сначала закройте открытое окно» — a window of ours, or a modal window of ChatSpace itself. */
   | 'overlay-open'
-  /** HK-026: the cursor is in a field where the combination does not work (⌘U and ⌘1–9 while typing, an AI key in a field that is not the message field). */
+  /** HK-026: the cursor is in a field where the combination does not work (⌘U while typing, an AI key in a field that is not the message field). */
   | 'in-field'
   /** HK-025: the chat's first state did not come while the key was still fresh. */
   | 'chat-loading'
@@ -178,9 +178,11 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
   if (LIST_COMMANDS.includes(id)) {
     if (context.route === 'other') return decideUnmatched(context);
     if (typing(context.focus)) {
-      // Outside a chat only the global keys are ours. The Alt fallbacks type characters in a field (⌥U is a dead key on macOS): never ours there.
-      if (!inChat || verdict.fallback) return decideUnmatched(context);
-      // HK-026: in a chat ⌘U and ⌘1–9 stay ours while a person types — Firefox opens no page source and switches no tab — and say why they do nothing.
+      // Outside a chat only the global keys are ours. The Alt keys (Alt+U, Alt+1–9) type characters in a field (⌥U is a
+      // dead key, ⌥1 «¡» on macOS): never ours there.
+      if (!inChat || verdict.fallback || verdict.alt === true) return decideUnmatched(context);
+      // HK-026: in a chat ⌘U stays ours while a person types — Firefox opens no page source — and says why it does
+      // nothing. ⌘/Ctrl+1–9 are not ours at all (X45): Firefox switches its tabs by them.
       return refuse(windowOpen ? 'overlay-open' : 'in-field');
     }
     return windowOpen ? refuse('overlay-open') : run('global');

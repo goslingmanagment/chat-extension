@@ -1,12 +1,12 @@
 // Chat navigation over the list the person sees (architecture.md §6.9;
-// HK-037, NEW-07): J/K, ⌘U and ⌘1–9 walk ChatSpace's own cached `chatList`
+// HK-037, NEW-07): J/K, ⌘U and Alt+1–9 walk ChatSpace's own cached `chatList`
 // order — the active list entry, exactly as loaded. Nothing is loaded for
 // navigation: a chat beyond the loaded rows is simply not reachable from the
 // keyboard, and the list never grows by our doing.
 
 import { type NavigationItem } from '@cg/contracts/host';
 
-/** ⌘1–9. */
+/** Alt+1–9. */
 export const QUICK_JUMP_SLOTS = 9;
 
 const indexOfFan = (items: readonly NavigationItem[], fanId: string | null): number =>

@@ -69,6 +69,17 @@ describe('settings', () => {
     expect(C.UI_LOCALES).toEqual(['system', 'ru', 'en']);
   });
 
+  it('[AI-003] «Помнить тон в чате» (1.18.0, X45): on by default, optional in the store — a store from before reads, a non-boolean does not', () => {
+    expect(C.DEFAULT_SETTINGS.generation.rememberTone).toBe(true);
+    const { rememberTone: _dropped, ...older } = C.DEFAULT_SETTINGS.generation;
+    expect(C.SettingsV1Schema.safeParse({ ...C.DEFAULT_SETTINGS, generation: older }).success).toBe(true);
+    expect(C.SettingsV1Schema.safeParse({ ...C.DEFAULT_SETTINGS, generation: { ...older, rememberTone: false } }).success).toBe(true);
+    expect(C.SettingsV1Schema.safeParse({ ...C.DEFAULT_SETTINGS, generation: { ...older, rememberTone: 'yes' } }).success).toBe(false);
+    expect(C.SettingsPatchSchema.safeParse({ generation: { rememberTone: false } }).success).toBe(true);
+    expect(C.SettingsPatchSchema.safeParse({ generation: { rememberTone: 1 } }).success).toBe(false);
+    expect(C.PREFERENCE_KEYS).toContain('generation.rememberTone');
+  });
+
   it('a forward migration chain is typed from one version to the next', () => {
     const toV1: C.SettingsMigrationStep = {
       from: 0,

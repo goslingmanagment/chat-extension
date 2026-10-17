@@ -23,6 +23,9 @@ export type Loaded<T> =
 const IDLE = { s: 'idle' } as const;
 const LOADING = { s: 'loading' } as const;
 
+/** The hub did not answer — away, timed out, the network down — as opposed to answering «no» (X45). */
+const SILENT_HUB: readonly string[] = ['CG-HUB-UNAVAILABLE', 'CG-HUB-TIMEOUT', 'CG-NETWORK', 'CG-TIMEOUT'];
+
 export type EnvironmentChange = 'session' | 'settings' | 'bootstrap' | 'catalog' | 'quota' | 'binding' | 'connection';
 
 export interface PersonaState {
@@ -44,6 +47,8 @@ export class TabEnvironment {
   private sessionValue: SessionIdentity | null | undefined = undefined;
   private settingsValue: SettingsState | null = null;
   private bootstrapValue: Loaded<Bootstrap> = IDLE;
+  /** The last bootstrap this sign-in read (X45): kept across a failed read again, dropped with the sign-in. */
+  private lastBootstrap: Bootstrap | null = null;
   private catalogValue: Loaded<PersonaCatalog> = IDLE;
   private readonly quotas = new Map<number, AiQuotaSnapshot>();
   private readonly quotaAsked = new Set<number>();
@@ -155,6 +160,18 @@ export class TabEnvironment {
   page(pageId: number): BootstrapPage | null {
     const bootstrap = this.bootstrapValue;
     return bootstrap.s === 'ready' ? (bootstrap.value.pages.find((page) => page.pageId === pageId) ?? null) : null;
+  }
+
+  /**
+   * The page as the last bootstrap of this sign-in said it, while the bootstrap cannot be read now because the hub
+   * is silent (decision X45): the insert of a result already made checks its binding against it, and the background
+   * judges the insert by its own cached bootstrap. null — the bootstrap reads, the hub answered «no», or nothing was
+   * read in this sign-in.
+   */
+  pageWhileHubSilent(pageId: number): BootstrapPage | null {
+    const bootstrap = this.bootstrapValue;
+    if (bootstrap.s !== 'error' || !SILENT_HUB.includes(bootstrap.error.code)) return null;
+    return this.lastBootstrap?.pages.find((page) => page.pageId === pageId) ?? null;
   }
 
   /** The page's quota as the last generation's `meta` reported it; null — unknown. Asked once per page. */
@@ -318,6 +335,7 @@ export class TabEnvironment {
       this.quotaAsked.clear();
       this.starRevision = 0;
       this.bootstrapValue = IDLE;
+      this.lastBootstrap = null;
       this.catalogValue = IDLE;
     }
     this.emit('session');
@@ -335,6 +353,7 @@ export class TabEnvironment {
       if (generation !== this.generation) return;
       const before = this.bootstrapValue;
       this.bootstrapValue = answer.ok ? { s: 'ready', value: answer.payload } : { s: 'error', error: answer.error };
+      if (answer.ok) this.lastBootstrap = answer.payload;
       // A new config may bind accounts differently: the bindings are resolved again.
       if (answer.ok && (before.s !== 'ready' || before.value.configRevision !== answer.payload.configRevision)) this.dropBindings();
       this.emit('bootstrap');
