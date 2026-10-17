@@ -100,8 +100,11 @@ describe('Fansly perf acceptance (P16a)', () => {
     const config = readFileSync(new URL('../../e2e/wdio.conf.ts', import.meta.url), 'utf8');
     expect(/^ {2}specs: (.+),$/m.exec(config)?.[1]).toBe("shardFiles === null ? ['./specs/**/*.e2e.ts'] : shardFiles.map((name) => `./specs/${name}`)");
     expect(config).not.toContain('fansly-gate');
+    // Each probe by its path: wdio globs a --spec pattern from the config's folder (e2e/), so the pattern
+    // 'e2e/perf/*perf-probe.e2e.ts' matched nothing and `pnpm perf` ended in a second (Perf run 39009440048).
     const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { scripts: { perf: string } };
-    expect(pkg.scripts.perf).toContain("--spec 'e2e/perf/*perf-probe.e2e.ts'");
-    expect(existsSync(new URL('../../e2e/perf/fansly-perf-probe.e2e.ts', import.meta.url))).toBe(true);
+    const specs = [...pkg.scripts.perf.matchAll(/--spec (\S+)/g)].map((match) => match[1] ?? '');
+    expect(specs).toEqual(['e2e/perf/perf-probe.e2e.ts', 'e2e/perf/fansly-perf-probe.e2e.ts']);
+    for (const spec of specs) expect(existsSync(new URL(`../../${spec}`, import.meta.url)), spec).toBe(true);
   });
 });
