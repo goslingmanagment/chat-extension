@@ -1,11 +1,12 @@
 // R20 P12a: Fansly's drivers, in its own chunk. These are generation
 // operations, not paid voice attempts (P12b1/P12b2).
 import { HubStreamRequestSchema, hasCapability, type HubStreamRequest } from '@cg/contracts/hub';
-import { FANSLY_OP_DRIVERS, FANSLY_OP_LIMITS, FanslyOpViewSchema, FanslyStartOpSchema, NoteFieldsResultSchema, VoiceScriptResultSchema, type FanslyOp } from '@cg/contracts/ops-fansly';
+import { FANSLY_OP_DRIVERS, FANSLY_OP_LIMITS, FanslyOpViewSchema, FanslyStartOpSchema, VoiceScriptResultSchema, type FanslyOp } from '@cg/contracts/ops-fansly';
 import type { SiteStartOp } from '@cg/contracts/ops';
 import type { BuildResult, StreamRequestContext } from '../../../domain/ops';
 import { stableDigest } from '../../../domain/ops/digest';
 import type { ScheduledStart, SiteOpDriver, SiteOperations } from '../../../domain/ops/site';
+import { parseNoteFillAnswer } from './notes-fill-answer';
 
 const UNUSABLE = { ok: false, code: 'CG-OUTPUT-UNUSABLE' } as const;
 
@@ -42,7 +43,9 @@ function build(feature: FanslyOp, start: ScheduledStart, ctx: StreamRequestConte
       personaKey: ctx.persona.key, expectedPersonaDefinitionId: ctx.persona.definitionId,
       messageCount: Math.min(input.window, depth),
       isRegeneration: input.regenerateOf !== undefined,
-      ...(input.feature === 'voice-script' ? { draftText: input.draft.text, replyTone: input.tone ?? 'none' } : { noteFields: input.fields }),
+      // R20 P11b2 (X43): the notes fill asks the hub's merge mode — the fan's words, the month of a stale fact — with
+      // one empty value per label: what the chatter wrote never leaves the tab (FS-NOTE-5).
+      ...(input.feature === 'voice-script' ? { draftText: input.draft.text, replyTone: input.tone ?? 'none' } : { noteFields: input.fields, noteValues: input.fields.map(() => '' as const) }),
     },
   });
   return request.success ? { ok: true, request: request.data } : { ok: false, issues: request.error.issues.map((issue) => issue.message).join('; ') };
@@ -62,14 +65,8 @@ export function createFanslyOperations(done: SiteOperations['done']): SiteOperat
       }
       const start = ctx.start.site;
       if (start?.feature !== 'notes-fill') return UNUSABLE;
-      if (text.trim().split(/\r?\n/).some((line) => !line.includes(':'))) return UNUSABLE;
-      const fields = text.trim().split(/\r?\n/).map((line) => {
-        const colon = line.indexOf(':');
-        return { label: line.slice(0, colon).trim(), value: line.slice(colon + 1).trim() };
-      });
-      const result = NoteFieldsResultSchema.safeParse({ kind: 'note-fields', fields });
-      if (!result.success || result.data.fields.length !== start.fields.length || result.data.fields.some((field, n) => field.label !== start.fields[n])) return UNUSABLE;
-      return { ok: true, result: result.data };
+      const result = parseNoteFillAnswer(text, start.fields);
+      return result === null ? UNUSABLE : { ok: true, result };
     },
   });
   return {

@@ -81,7 +81,7 @@ export const FANSLY_ROUTES = {
   'message.automated': { method: 'GET', path: 'message/automated', query: [], write: false, checkFamily: 'message', pace: 'GET /message/automated' },
   'message.send': { method: 'POST', path: 'message', query: [], write: true, checkFamily: 'message', pace: 'POST /message' },
   'notes.create': { method: 'POST', path: 'notes', query: [], write: true, checkFamily: null, pace: 'POST /notes' },
-  // An edit's answer may be `success` alone, as Fansly's own window reads it (E170 of the old extension).
+  // decision 170 of the Fansly extension: Fansly's window takes `success` alone as an edit's confirmation.
   'notes.edit': { method: 'POST', path: 'notes/edit', query: [], write: true, checkFamily: null, pace: 'POST /notes', emptyAnswer: true },
   'notes.delete': { method: 'POST', path: 'notes/delete', query: [], write: true, checkFamily: null, pace: 'POST /notes', emptyAnswer: true },
 } as const satisfies Record<string, FanslyRouteSpec>;

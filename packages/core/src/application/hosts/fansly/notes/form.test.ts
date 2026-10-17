@@ -3,7 +3,7 @@
 // byte for byte. The cases of the old `tests/fan-notes-form.test.ts` (E166) come along.
 import { describe, expect, it } from 'vitest';
 
-import { applyFieldSuggestion, diffNoteFacts, isQuestionnaire, parseNoteForm, parseNoteTemplate, setNoteFieldFacts, splitFactDate, splitNoteFacts, type NoteFormField } from './form';
+import { applyFieldSuggestion, diffNoteFacts, isQuestionnaire, moveFieldToOther, parseNoteForm, parseNoteTemplate, setNoteFieldFacts, splitFactDate, splitNoteFacts, type NoteFormField } from './form';
 import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
 
 const fields = (text: string) =>
@@ -117,5 +117,17 @@ describe('[host:fansly] the questionnaire’s text, both ways with the Fansly ex
     const suggestion = { label: 'работа', current: 'медбрат; ночные смены (09.2026)', proposed: 'медбрат в больнице; ночные смены (09.2026)', quotes: ['работаю в больнице'] };
     expect(applyFieldSuggestion(OLD_FILLED, suggestion)).toBe(OLD_FILLED.replace('Работа: медбрат;', 'Работа: медбрат в больнице;'));
     expect(applyFieldSuggestion(OLD_FILLED.replace('медбрат;', 'фельдшер;'), suggestion)).toBe(OLD_FILLED.replace('медбрат;', 'фельдшер;'));
+  });
+});
+
+describe('[host:fansly] «В Другое» (R20 P11b2; the Fansly extension 2.11.0, decision 164)', () => {
+  it('[FX-023] a field the Goose named leaves its line and joins «Другое» as one fact; without «Другое» its line becomes one', () => {
+    const text = 'Имя: Wayne\nДругое: из Техаса\nПитомцы: кот; собака\n\nпросил кастом';
+    expect(moveFieldToOther(text, 'Питомцы', 'Другое')).toBe('Имя: Wayne\nДругое: из Техаса; Питомцы: кот; собака\n\nпросил кастом');
+    expect(moveFieldToOther('Имя: Wayne\nПитомцы: кот\nВозраст: 41', 'Питомцы', 'Другое')).toBe('Имя: Wayne\nДругое: Питомцы: кот\nВозраст: 41');
+    // Two fields, one of them «Другое»: still a questionnaire while «Другое» takes the fact.
+    expect(moveFieldToOther('Другое: \nПитомцы: кот', 'Питомцы', 'Другое')).toBe('Другое: Питомцы: кот');
+    expect(moveFieldToOther(text, 'Другое', 'Другое')).toBe(text);
+    expect(moveFieldToOther(text, 'Хобби', 'Другое')).toBe(text);
   });
 });

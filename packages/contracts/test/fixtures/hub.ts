@@ -610,6 +610,8 @@ export const HUB_SCHEMA_FIXTURES = [
   // 1.15.0 (R20 P4b3): the questionnaire's labels of `fan-notes-fill` (the hub's `aiNoteFieldsSchema`, sent trimmed).
   fixture('NoteFieldLabel', C.NoteFieldLabelSchema, ['Имя', 'Ник в TG', 'я'.repeat(60)], ['', 'я'.repeat(61), 'Имя: Анна', ' Имя', 'Tom & Jerry', 'a<b']),
   fixture('NoteFields', C.NoteFieldsSchema, NOTE_FIELDS_FIXTURES.valid, NOTE_FIELDS_FIXTURES.invalid),
+  // 1.16.0 (R20 P11b2, X43): the merge mode's switch — empty values, one or more.
+  fixture('NoteValues', C.NoteValuesSchema, [[''], Array.from({ length: 30 }, () => '')], [[], ['Анна'], [' '], Array.from({ length: 31 }, () => '')]),
   fixture('LiveTextContext', C.LiveTextContextSchema, [liveText], [
     { ...liveText, items: [] },
     { ...liveText, items: [{ platformMessageId: '0123', direction: 'fan', occurredAt: ISO, text: 'x' }] },
@@ -623,9 +625,12 @@ export const HUB_SCHEMA_FIXTURES = [
     { window: [{ id: COVERAGE_MSG.m1, dir: 'fan' }] },
     { window: [], deletedIds: [], knownFanMessageIds: [COVERAGE_MSG.m1] },
   ]),
-  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, messageCount: 3001 }, { ...streamBody, messageCount: 5000 }, { ...fanslyBody, messageCount: 5000 }, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }, fanslyBody, voiceScriptBody, notesFillBody], [
+  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, messageCount: 3001 }, { ...streamBody, messageCount: 5000 }, { ...fanslyBody, messageCount: 5000 }, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }, fanslyBody, voiceScriptBody, notesFillBody, { ...notesFillBody, noteValues: ['', '', '', ''] }], [
     // 1.15.0 (R20 P4b3): labels only — the merge mode's values never travel — and labels the hub takes.
+    // 1.16.0 (R20 P11b2, X43): the merge mode's switch, empty values only.
     { ...notesFillBody, noteValues: ['Анна', '', '', ''] },
+    { ...notesFillBody, noteValues: [] },
+    { ...notesFillBody, noteValues: [' ', '', '', ''] },
     { ...notesFillBody, noteFields: [] },
     { ...notesFillBody, noteFields: ['Имя', 'ИМЯ'] },
     { ...streamBody, messageCount: 5001 },

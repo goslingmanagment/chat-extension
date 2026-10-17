@@ -63,7 +63,7 @@ const RU: NotesCopy = {
   suggestIn: 'в',
   accept: 'Принять',
   dismiss: 'Не нужно',
-  fill: '✨ Заполнить из чата',
+  fill: '✨ Дополнить из чата',
   fillHint: 'Гусь прочитает всю переписку и допишет анкету: пустые поля заполнит, к заполненным предложит добавить. В хаб уходят только названия полей; в Fansly ничего не пишется до «Создать» или «Сохранить».',
   filling: 'Гусь читает переписку…',
   fillStop: 'Остановить',
@@ -71,6 +71,16 @@ const RU: NotesCopy = {
   fillOffers: 'Добавки под полями:',
   fillNothing: 'В переписке не нашлось ничего нового для анкеты.',
   fillFailed: 'Не заполнено',
+  sources: 'Слова фана',
+  sourcesHide: 'Скрыть слова фана',
+  sourcesHint: 'Показать под каждым полем, что именно написал фан',
+  acceptAll: 'Принять все',
+  toOther: 'В Другое',
+  toOtherHint: 'Убрать строку и дописать её в поле «Другое»',
+  proposedHere: 'Это поле завёл Гусь',
+  proposedNamed: 'Гусь завёл поле',
+  created: 'Создана',
+  createdAt: 'в',
 };
 
 const EN: NotesCopy = {
@@ -134,7 +144,7 @@ const EN: NotesCopy = {
   suggestIn: 'in',
   accept: 'Accept',
   dismiss: 'Not needed',
-  fill: '✨ Fill from the chat',
+  fill: '✨ Add from the chat',
   fillHint: 'The Goose reads the whole chat and adds to the questionnaire: fills the empty fields, offers additions to the filled ones. Only the field names go to the hub; nothing is written to Fansly before «Create» or «Save».',
   filling: 'The Goose is reading the chat…',
   fillStop: 'Stop',
@@ -142,6 +152,16 @@ const EN: NotesCopy = {
   fillOffers: 'Additions under the fields:',
   fillNothing: 'Nothing new for the questionnaire in the chat.',
   fillFailed: 'Not filled',
+  sources: 'Fan’s words',
+  sourcesHide: 'Hide the fan’s words',
+  sourcesHint: 'Show under each field what exactly the fan wrote',
+  acceptAll: 'Accept all',
+  toOther: 'Into «Other»',
+  toOtherHint: 'Remove the line and add it to the «Other» field',
+  proposedHere: 'The Goose started this field',
+  proposedNamed: 'The Goose started the field',
+  created: 'Created',
+  createdAt: 'at',
 };
 
 export const NOTES_TEXTS: { readonly ru: NotesCopy; readonly en: NotesCopy } = { ru: RU, en: EN };

@@ -419,8 +419,8 @@ export class FanslyWorld {
 
   // ── notes ──
 
-  createNote(fanId: string, contentType: number, title: string, note: string): FakeNote {
-    const created: FakeNote = { id: this.nextId(), contentType, contentId: fanId, title, note, createdAt: Date.now(), updatedAt: null };
+  createNote(fanId: string, contentType: number, title: string, note: string, createdAt = Date.now()): FakeNote {
+    const created: FakeNote = { id: this.nextId(), contentType, contentId: fanId, title, note, createdAt, updatedAt: null };
     this.ensureAccount(fanId).notes.push(created);
     return created;
   }
@@ -515,7 +515,9 @@ export class FanslyWorld {
   }
 
   wireNote(note: FakeNote): WireNote {
-    return { id: note.id, accountId: this.creatorId, contentType: note.contentType, contentId: note.contentId, title: note.title, note: note.note, createdAt: note.createdAt, updatedAt: note.updatedAt };
+    // Fansly serves a note's times in seconds (R20 P11b2; decision 171 of the Fansly extension: `createdAt` 1790790855).
+    const seconds = (ms: number): number => Math.floor(ms / 1000);
+    return { id: note.id, accountId: this.creatorId, contentType: note.contentType, contentId: note.contentId, title: note.title, note: note.note, createdAt: seconds(note.createdAt), updatedAt: note.updatedAt === null ? null : seconds(note.updatedAt) };
   }
 
   wireAccount(account: FakeAccount): WireAccount {

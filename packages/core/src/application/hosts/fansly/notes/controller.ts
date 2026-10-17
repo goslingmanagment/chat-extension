@@ -15,21 +15,26 @@
 // - A questionnaire (R20 P11b2, the Fansly extension 2.12.0) reads as a table of fields and is edited field by field
 //   over the same text (form.ts): a field typed rewrites its own line, every other line keeps its bytes; «Текстом»
 //   edits it as one text. The Goose's rewrites wait under their field until «Принять» or «Не нужно» (R20 P11c).
-// - «✨ Заполнить из чата» (R20 P11c, FS-NOTE-6, fill.ts): the site operation `notes-fill` through the shared admission
-//   (one operation per chat with Reply and the rest, three per tab), with the questionnaire's labels only; its answer
-//   joins the fan's draft — the empty fields filled, the filled ones' additions under them — and nothing is written
-//   before «Создать» or «Сохранить», which waits for the fill; «Остановить» or «Отмена» drop it and its late answer.
+// - «✨ Дополнить из чата» (R20 P11c, P11b2, FS-NOTE-6, fill.ts): the site operation `notes-fill` through the shared
+//   admission (one operation per chat with Reply and the rest, three per tab), with the questionnaire's labels only; its
+//   answer joins the fan's draft — the empty fields filled and marked, the filled ones' additions under them, the
+//   fields the hub named itself as new lines with «В Другое» — and nothing is written before «Создать» or «Сохранить»,
+//   which waits for the fill; «Остановить» or «Отмена» drop it and its late answer. It also starts from a
+//   questionnaire being read: one press opens it and fills (the Fansly extension 2.12.0). The fan's words behind what
+//   it wrote wait beside the draft for «Слова фана»; a rewrite shows its own.
+// - Every note but a questionnaire shows when it was created (R20 P11b2; the Fansly extension 2.13.0, decision 171): Fansly's
+//   own time, in the chatter's clock; an edit keeps the time read, a new note Fansly answered without one is «now».
 // - A note's text never leaves through here but to the background (FS-NOTE-5): nothing is logged.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
-import type { NotesAction, NotesClient, NotesEditorVM, NotesFillVM, NotesFormPartVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesSuggestionVM, NotesTriggerVM } from '@cg/contracts/notes-fansly';
+import type { NotesAction, NotesClient, NotesDateVM, NotesEditorVM, NotesFillVM, NotesFormPartVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesQuoteVM, NotesSuggestionVM, NotesTriggerVM } from '@cg/contracts/notes-fansly';
 import type { SiteOpView } from '@cg/contracts/ops';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
-import { mergeNoteFill, noteFillFields } from './fill';
-import { applyFieldSuggestion, diffNoteFacts, noteLabelKey, parseNoteForm, setNoteFieldFacts, splitFactDate, type NoteFieldSuggestion, type NoteFormPart } from './form';
-import { NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
+import { mergeNoteFill, noteFillFields, type NoteFillSource } from './fill';
+import { applyFieldSuggestion, diffNoteFacts, moveFieldToOther, noteLabelKey, parseNoteForm, setNoteFieldFacts, splitFactDate, type NoteFieldSuggestion, type NoteFormPart } from './form';
+import { NOTE_OTHER_LABEL, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
 
 /** «Всегда справа» follows the open chat only once the person stays on it this long (FS-NOTE-3). */
 export const NOTES_FOLLOW_DELAY_MS = 700;
@@ -44,19 +49,41 @@ function suggestionVM(suggestion: NoteFieldSuggestion, index: number): NotesSugg
   return { index, label: suggestion.label, added, removed, proposed: suggestion.proposed, quotes: suggestion.quotes };
 }
 
-/** The questionnaire's parts for the panel; each field carries the Goose's rewrites of it. */
-function formVM(parts: readonly NoteFormPart[], suggestions: readonly NotesSuggestionVM[]): NotesFormPartVM[] {
-  return parts.map((part) =>
-    part.kind === 'text'
-      ? { kind: 'text', text: part.text }
-      : {
-          kind: 'field',
-          label: part.label,
-          facts: part.facts.map(splitFactDate),
-          value: part.facts.join('\n'),
-          suggestions: suggestions.filter((suggestion) => noteLabelKey(suggestion.label) === noteLabelKey(part.label)),
-        },
-  );
+const pad2 = (value: number): string => String(value).padStart(2, '0');
+
+/** «16.10» («16.10.2025» outside the current year) and the hover's day and time, in the chatter's clock (decision 171). */
+export function noteDateVM(ms: number, now: number): NotesDateVM {
+  const date = new Date(ms);
+  const day = `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}`;
+  const full = `${day}.${String(date.getFullYear())}`;
+  return { day: date.getFullYear() === new Date(now).getFullYear() ? day : full, full, time: `${pad2(date.getHours())}:${pad2(date.getMinutes())}`, iso: date.toISOString() };
+}
+
+/** What the fill left beside a draft's fields (decisions 164, 166): the rows it wrote into, the fan's words while «Слова фана» is
+ * open — under the field they speak of, or under «Другое» named, where that field has no line —, the fields it named. */
+interface FillMarks {
+  readonly marked: ReadonlySet<string>;
+  readonly quotes: ReadonlyMap<string, readonly NotesQuoteVM[]>;
+  readonly proposed: ReadonlySet<string>;
+}
+
+/** The questionnaire's parts for the panel; each field carries the Goose's rewrites of it and, in a draft, its marks. */
+function formVM(parts: readonly NoteFormPart[], suggestions: readonly NotesSuggestionVM[], marks?: FillMarks): NotesFormPartVM[] {
+  return parts.map((part) => {
+    if (part.kind === 'text') return { kind: 'text', text: part.text };
+    const key = noteLabelKey(part.label);
+    const quotes = marks?.quotes.get(key);
+    return {
+      kind: 'field',
+      label: part.label,
+      facts: part.facts.map(splitFactDate),
+      value: part.facts.join('\n'),
+      suggestions: suggestions.filter((suggestion) => noteLabelKey(suggestion.label) === key),
+      ...(marks?.marked.has(key) === true ? { ai: true } : {}),
+      ...(quotes === undefined ? {} : { quotes }),
+      ...(marks?.proposed.has(key) === true ? { proposed: true } : {}),
+    };
+  });
 }
 
 function fillVM(fill: Fill): NotesFillVM {
@@ -66,6 +93,23 @@ function fillVM(fill: Fill): NotesFillVM {
 function editorVM(draft: Draft, fillable: boolean): NotesEditorVM {
   const suggestions = draft.suggestions.map(suggestionVM);
   const parts = parseNoteForm(draft.text);
+  const keys = new Set((parts ?? []).flatMap((part) => (part.kind === 'field' ? [noteLabelKey(part.label)] : [])));
+  const otherKey = noteLabelKey(NOTE_OTHER_LABEL);
+  // A source whose field has no line (moved «В Другое», edited away) speaks under «Другое», named; else apart.
+  const home = (label: string): string | null => (keys.has(noteLabelKey(label)) ? noteLabelKey(label) : keys.has(otherKey) ? otherKey : null);
+  const quotes = new Map<string, NotesQuoteVM[]>();
+  const loose: NotesQuoteVM[] = [];
+  if (draft.sourcesOpen) {
+    for (const source of draft.sources) {
+      const key = draft.asText ? null : home(source.label);
+      for (const quote of source.quotes) {
+        if (key === null) loose.push({ label: source.label, quote });
+        else quotes.set(key, [...(quotes.get(key) ?? []), { label: key === noteLabelKey(source.label) ? null : source.label, quote }]);
+      }
+    }
+  }
+  const proposed = draft.proposed.filter((label) => keys.has(noteLabelKey(label)));
+  const marks: FillMarks = { marked: draft.marked, quotes, proposed: new Set(proposed.map(noteLabelKey)) };
   return {
     noteId: draft.noteId,
     title: draft.title,
@@ -73,10 +117,14 @@ function editorVM(draft: Draft, fillable: boolean): NotesEditorVM {
     saving: draft.saving,
     blocked: draft.blocked,
     problem: draft.problem,
-    form: parts === null ? null : formVM(parts, suggestions),
+    form: parts === null ? null : formVM(parts, suggestions, marks),
     asText: draft.asText,
     suggestions,
     fill: parts !== null && (fillable || draft.fill.status === 'running') ? fillVM(draft.fill) : null,
+    sourceCount: draft.sources.reduce((count, source) => count + source.quotes.length, 0),
+    sourcesOpen: draft.sourcesOpen,
+    looseQuotes: loose,
+    proposed,
   };
 }
 
@@ -118,6 +166,8 @@ export interface NotesPort {
   place(): NotesPlace | null;
   setTimer(ms: number, run: () => void): unknown;
   clearTimer(handle: unknown): void;
+  /** The chatter's clock (a note's date, decision 171); absent — `Date.now()`. */
+  now?(): number;
 }
 
 interface Data {
@@ -140,6 +190,13 @@ interface Draft {
   /** The Goose's rewrites of filled fields (R20 P11c puts them here). */
   suggestions: NoteFieldSuggestion[];
   fill: Fill;
+  /** R20 P11b2: the fan's words behind what the fill wrote; «Слова фана» shows them. */
+  sources: NoteFillSource[];
+  sourcesOpen: boolean;
+  /** The fields the fill wrote into or whose rewrite was taken (label keys): their rows are marked. */
+  marked: Set<string>;
+  /** The fields the hub named itself that got a line: «В Другое». */
+  proposed: string[];
 }
 
 /** «✨ Заполнить из чата» of a draft: `opId` null — its start is on its way. */
@@ -193,6 +250,7 @@ export function createNotesController(port: NotesPort): NotesController {
   let panelVM: NotesPanelVM | null = null;
   let triggerVM: NotesTriggerVM | null = null;
   let shape = '';
+  const now = (): number => port.now?.() ?? Date.now();
   /** The running fills, by operation: whose draft each one fills. */
   const fills = new Map<string, string>();
   /** A note's questionnaire, parsed once per note read (the panel builds on every keystroke). */
@@ -256,6 +314,9 @@ export function createNotesController(port: NotesPort): NotesController {
         const form = formOf(note);
         return form === null ? [] : [[note.noteId, form] as const];
       })),
+      // Every note but a questionnaire is dated: its facts carry their months (decision 171).
+      dates: Object.fromEntries((data?.notes ?? []).flatMap((note) => (note.createdAtMs === undefined || note.createdAtMs === null || formOf(note) !== null ? [] : [[note.noteId, noteDateVM(note.createdAtMs, now())] as const]))),
+      fill: fanId !== null && draft === undefined && port.fillAllowed() && !writing(fanId),
     };
     triggerVM = { shown: t !== null, count: data === null ? null : data.notes.length, open: shown };
     shape = JSON.stringify([shown, panelVM.place, narrow, triggerVM.shown]);
@@ -402,7 +463,7 @@ export function createNotesController(port: NotesPort): NotesController {
     if (data === null || drafts.has(data.fanRef)) return;
     confirm = null;
     // Decide the view at opening: typing field-like lines must never replace the focused textarea.
-    drafts.set(data.fanRef, { noteId, current: { title, text }, title, text, saving: false, blocked: false, problem: null, asText: parseNoteForm(text) === null, suggestions: [], fill: { status: 'idle' } });
+    drafts.set(data.fanRef, { noteId, current: { title, text }, title, text, saving: false, blocked: false, problem: null, asText: parseNoteForm(text) === null, suggestions: [], fill: { status: 'idle' }, sources: [], sourcesOpen: false, marked: new Set(), proposed: [] });
     emit();
   }
 
@@ -432,8 +493,14 @@ export function createNotesController(port: NotesPort): NotesController {
     if (disposed || under !== epoch || drafts.get(data.fanRef) !== draft) return;
     draft.saving = false;
     if (answer.ok) {
+      // Fansly answers an edit without its creation time (decision 170): the note keeps the one read; a new one without it is
+      // «now» until a reread brings Fansly's (decision 171).
+      const dated = (note: FanslyNote, time: number | null | undefined): FanslyNote => (note.createdAtMs !== undefined && note.createdAtMs !== null ? note : time === undefined || time === null ? note : { ...note, createdAtMs: time });
       const saved = answer.note;
-      patch(data.fanRef, (d) => ({ ...d, notes: d.notes.some((note) => note.noteId === saved.noteId) ? d.notes.map((note) => (note.noteId === saved.noteId ? saved : note)) : [...d.notes, saved] }));
+      patch(data.fanRef, (d) => ({
+        ...d,
+        notes: d.notes.some((note) => note.noteId === saved.noteId) ? d.notes.map((note) => (note.noteId === saved.noteId ? dated(saved, note.createdAtMs) : note)) : [...d.notes, dated(saved, now())],
+      }));
       drafts.delete(data.fanRef);
     } else {
       // A create may have landed: another one now could make a duplicate.
@@ -508,6 +575,10 @@ export function createNotesController(port: NotesPort): NotesController {
     const run: Fill & { status: 'running' } = { status: 'running', opId: null };
     draft.fill = run;
     draft.suggestions = [];
+    draft.sources = [];
+    draft.sourcesOpen = false;
+    draft.marked = new Set();
+    draft.proposed = [];
     emit();
     const under = epoch;
     const answer = await port.fill(t, fanId, fields).catch(toFailure);
@@ -545,13 +616,23 @@ export function createNotesController(port: NotesPort): NotesController {
     const draft = drafts.get(fanId);
     if (draft === undefined || draft.fill.status !== 'running' || draft.fill.opId !== view.opId) return;
     if (view.state === 'done' && view.result?.kind === 'note-fields') {
-      const merged = mergeNoteFill(draft.text, view.result.fields);
+      const merged = mergeNoteFill(draft.text, view.result.fields, view.result.proposed ?? []);
       draft.text = merged.text;
       draft.suggestions = merged.suggestions;
+      draft.sources = merged.sources;
+      draft.marked = new Set(merged.wrote.map(noteLabelKey));
+      draft.proposed = merged.proposed;
       draft.fill = { status: 'done', wrote: merged.wrote };
     } else draft.fill = view.state === 'canceled' ? { status: 'idle' } : { status: 'failed', error: view.error ?? { code: 'CG-OUTPUT-UNUSABLE' } };
     if (draft.problem?.kind === 'empty' || draft.problem?.kind === 'too-long') draft.problem = null;
     emit();
+  }
+
+  /** «Принять»: the field takes the rewrite as if typed, and its row is marked as the Goose's. */
+  function accept(draft: Draft, suggestion: NoteFieldSuggestion): void {
+    const next = applyFieldSuggestion(draft.text, suggestion);
+    if (next !== draft.text) draft.marked.add(noteLabelKey(suggestion.label));
+    draft.text = next;
   }
 
   function dispatch(action: NotesAction): void {
@@ -593,13 +674,36 @@ export function createNotesController(port: NotesPort): NotesController {
       case 'suggestion': {
         const suggestion = draft?.suggestions[action.index];
         if (draft === undefined || draft.saving || suggestion === undefined) return;
-        if (action.accept) draft.text = applyFieldSuggestion(draft.text, suggestion);
+        if (action.accept) accept(draft, suggestion);
         draft.suggestions.splice(action.index, 1);
         return emit();
       }
+      case 'suggestion-all':
+        if (draft === undefined || draft.saving) return;
+        for (const suggestion of draft.suggestions) accept(draft, suggestion);
+        draft.suggestions = [];
+        return emit();
+      case 'sources':
+        if (draft === undefined) return;
+        draft.sourcesOpen = action.open;
+        return emit();
+      case 'to-other':
+        if (draft === undefined || draft.saving || draft.fill.status === 'running' || !draft.proposed.some((label) => noteLabelKey(label) === noteLabelKey(action.label))) return;
+        draft.text = moveFieldToOther(draft.text, action.label, NOTE_OTHER_LABEL);
+        draft.proposed = draft.proposed.filter((label) => noteLabelKey(label) !== noteLabelKey(action.label));
+        draft.marked.add(noteLabelKey(NOTE_OTHER_LABEL));
+        return emit();
       case 'fill':
         void startFill();
         return;
+      case 'fill-note': {
+        // «✨ Дополнить из чата» on the questionnaire being read: open it and fill (the Fansly extension 2.12.0).
+        const note = data?.notes.find((entry) => entry.noteId === action.noteId);
+        if (data === null || draft !== undefined || note === undefined || note.foreign || !port.fillAllowed() || writing(data.fanRef) || parseNoteForm(note.text) === null) return;
+        startDraft(note.noteId, note.title, note.text);
+        void startFill();
+        return;
+      }
       case 'fill-stop':
         if (draft === undefined) return;
         stopFill(draft);

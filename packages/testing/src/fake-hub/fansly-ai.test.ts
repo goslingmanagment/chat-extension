@@ -180,10 +180,12 @@ describe('[host:fansly] notes fill and conversation markers', () => {
   it('fills the requested labels through SDK, requires a fan and labels, isolates notes fields, obeys notesFill', async () => {
     const noteFields = ['Name', 'Hobbies'];
     expect(textOf(await generate('fan-notes-fill', { noteFields }))).toBe('Name: Synthetic fact from the chat.\nHobbies: Synthetic fact from the chat.');
+    // R20 P11b2: the merge mode, by its switch alone — quotes under each value, a field the hub names itself.
+    expect(textOf(await generate('fan-notes-fill', { noteFields, noteValues: ['', ''] }))).toBe('Name: Synthetic fact from the chat.\n> «my Name, in synthetic words»\nHobbies: Synthetic fact from the chat.\n> «my Hobbies, in synthetic words»\n+ Питомцы: synthetic cat\n> «my synthetic cat»');
     await expect(generate('fan-notes-fill')).rejects.toMatchObject(error('bad_request'));
     await expect(generate('fan-notes-fill', { noteFields, fanRef: undefined })).rejects.toMatchObject(error('bad_request'));
     await expect(generate('fast-reply', { noteFields })).rejects.toMatchObject(error('bad_request'));
-    expect(streamBodyRefusal('fan-notes-fill', { noteFields, noteValues: ['one'] })).toEqual({ error: 'bad_request', message: 'noteValues must hold exactly one value per noteFields label' });
+    expect(streamBodyRefusal('fan-notes-fill', { noteFields, noteValues: [''] })).toEqual({ error: 'bad_request', message: 'noteValues must hold exactly one value per noteFields label' });
     expect(streamBodyRefusal('fast-reply', { noteValues: [] })?.message).toBe('fast-reply does not accept noteValues');
     hub.control({ op: 'config', patch: fanslyPageFlags({ notesFill: false }) });
     await expect(generate('fan-notes-fill', { noteFields })).rejects.toMatchObject(error('client_feature_disabled', 409));

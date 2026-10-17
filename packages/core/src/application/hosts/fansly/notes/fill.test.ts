@@ -55,7 +55,39 @@ describe('[host:fansly] «✨ Заполнить из чата»: what is asked 
     const accepted = applyFieldSuggestion(merged.text, character);
     expect(accepted).toBe(merged.text.replace('Характеристика: депрессивный чел\nнужно поддерживать вайб', 'Характеристика: депрессивный чел; нужно поддерживать вайб; одинок'));
     // Nothing found, or nothing new: the text keeps its bytes.
-    expect(mergeNoteFill(OLD, ASKED.map((label) => ({ label, value: '' })))).toEqual({ text: OLD, wrote: [], suggestions: [] });
-    expect(mergeNoteFill(OLD, [{ label: 'Имя', value: 'WAYNE' }])).toEqual({ text: OLD, wrote: [], suggestions: [] });
+    const nothing = { text: OLD, wrote: [], suggestions: [], sources: [], proposed: [] };
+    expect(mergeNoteFill(OLD, ASKED.map((label) => ({ label, value: '' })))).toEqual(nothing);
+    expect(mergeNoteFill(OLD, [{ label: 'Имя', value: 'WAYNE' }])).toEqual(nothing);
+  });
+});
+
+describe('[host:fansly] «✨ Дополнить из чата»: the merge mode’s answer joins (R20 P11b2)', () => {
+  const answer = (values: Readonly<Record<string, { value: string; quotes?: string[] }>>) => ASKED.map((label) => ({ label, value: '', ...values[label] }));
+
+  it('[FX-023] [FS-NOTE-6] the fan’s words stay beside the draft: under a filled field as its sources, under a rewrite as its own; the month stays on its fact', () => {
+    const merged = mergeNoteFill(OLD, answer({ Возраст: { value: '41', quotes: ['I am 41'] }, Работа: { value: 'медбрат; ночные смены (10.2026)', quotes: ['night shifts again'] }, График: { value: 'ночи (10.2026)' } }));
+    expect(merged.wrote).toEqual(['Возраст', 'График']);
+    expect(merged.sources).toEqual([{ label: 'Возраст', quotes: ['I am 41'] }]);
+    expect(merged.suggestions).toEqual([{ label: 'Работа', current: 'медбрат', proposed: 'медбрат; ночные смены (10.2026)', quotes: ['night shifts again'] }]);
+    expect(merged.text).toContain('\nГрафик: ночи (10.2026)\n');
+    expect(JSON.stringify(merged.text)).not.toContain('I am 41');
+  });
+
+  it('[FX-023] [FS-NOTE-6] a field the hub named itself gets a line of its own (with «В Другое»); one the note already has, or with no room, joins «Другое» as `Label: value`', () => {
+    const merged = mergeNoteFill(OLD, answer({ Другое: { value: 'есть брат' } }), [
+      { label: 'Питомцы', value: 'кот', quotes: ['my cat'] },
+      { label: 'работа', value: 'ночные смены' },
+    ]);
+    expect(merged.proposed).toEqual(['Питомцы']);
+    expect(merged.wrote).toEqual(['Другое', 'Питомцы']);
+    expect(merged.text).toBe('Имя: Wayne\nЛокация: Флорида (08.2026)\nВозраст: \nРабота: медбрат\nХобби: \nФетиши: \nХарактеристика: депрессивный чел\nнужно поддерживать вайб\nМедиа: \nДругое: есть брат; работа: ночные смены\nПитомцы: кот\n\nпросил кастом');
+    expect(merged.sources).toEqual([{ label: 'Питомцы', quotes: ['my cat'] }]);
+    // A filled «Другое» takes the moved fact on both sides of its pending rewrite, so «Принять» still applies.
+    const filled = `${OLD.replace('Медиа: ', 'Медиа: \nДругое: из Техаса')}`;
+    const both = mergeNoteFill(filled, answer({ Другое: { value: 'есть брат' } }), [{ label: 'Работа', value: 'ночные смены' }]);
+    expect(both.suggestions).toEqual([{ label: 'Другое', current: 'из Техаса; Работа: ночные смены', proposed: 'из Техаса; есть брат; Работа: ночные смены', quotes: [] }]);
+    const other = both.suggestions[0];
+    if (other === undefined) throw new Error('no rewrite of «Другое»');
+    expect(applyFieldSuggestion(both.text, other)).toContain('Другое: из Техаса; есть брат; Работа: ночные смены');
   });
 });

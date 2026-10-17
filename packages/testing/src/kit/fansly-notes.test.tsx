@@ -259,7 +259,7 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     ]);
   });
 
-  it('[FX-014] [FX-016] «✨ Заполнить из чата» at the foot of a questionnaire: «Сохранить» waits while the Goose reads, «Остановить» stops it; then the line of what it wrote and its additions under their fields (R20 P11c)', async () => {
+  it('[FX-014] [FX-016] «✨ Дополнить из чата» at the foot of a questionnaire: «Сохранить» waits while the Goose reads, «Остановить» stops it; then the line of what it wrote and its additions under their fields (R20 P11c)', async () => {
     const c = controller([{ noteId: '1', title: 'Анкета', text: OLD_FORM, foreign: false }]);
     const ui = await mountKitSettled(() => <NotesPanel client={c.notes} texts={NOTES_TEXTS} />, { kind: 'notes' as never, language: 'ru' });
     mounted.push(ui);
@@ -267,7 +267,7 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     c.notes.toggle();
     await flush();
     await flush(() => c.notes.dispatch({ type: 'edit', noteId: '1' }));
-    await flush(() => button(ui, '✨ Заполнить из чата').click());
+    await flush(() => button(ui, '✨ Дополнить из чата').click());
     expect(ui.$('[data-notes-editor="1"]')?.getAttribute('data-notes-fill')).toBe('running');
     expect(ui.$('[data-notes-fill-line]')?.textContent).toBe('Гусь читает переписку…');
     expect(ui.$('[data-notes-save]')?.getAttribute('aria-disabled')).toBe('true');
@@ -288,9 +288,80 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     expect(under?.querySelector('ins')?.textContent).toBe('в больнице');
     expect(ui.$('[data-notes-save]')?.getAttribute('aria-disabled')).toBeNull();
     expect(c.port.edit).not.toHaveBeenCalled();
-    await flush(() => button(ui, '✨ Заполнить из чата').click());
+    await flush(() => button(ui, '✨ Дополнить из чата').click());
     await flush(() => button(ui, 'Остановить').click());
     expect(c.port.stopFill).toHaveBeenCalledExactlyOnceWith('op1');
     expect(ui.$('[data-notes-fill-line]')).toBeNull();
+  });
+});
+
+describe('[host:fansly] «Заметки» drawn as in the Fansly extension 2.11–2.13 (R20 P11b2)', () => {
+  it('[FX-019] [FX-022] a free note is dated in its head, an untitled one by the date alone, the questionnaire not; «✨ Дополнить из чата» stands on the questionnaire being read and opens it filling', async () => {
+    const created = new Date(new Date().getFullYear(), 0, 2, 9, 7).getTime();
+    const c = controller([
+      { noteId: '1', title: 'Анкета', text: OLD_FORM, foreign: false, createdAtMs: created },
+      { noteId: '3', title: 'кастом', text: 'хочет видео', foreign: false, createdAtMs: created },
+      { noteId: '4', title: '', text: 'без заголовка', foreign: false, createdAtMs: created },
+    ]);
+    const ui = await mountKitSettled(() => <NotesPanel client={c.notes} texts={NOTES_TEXTS} />, { kind: 'notes' as never, language: 'ru' });
+    mounted.push(ui);
+    c.notes.sync();
+    c.notes.toggle();
+    await flush();
+    await flush();
+    const head = (id: string) => ui.$(`[data-note-id="${id}"] .cg-notes__note-head`);
+    expect(head('3')?.querySelector('.cg-notes__note-title')?.textContent).toBe('кастом');
+    expect(head('3')?.querySelector('time')?.textContent).toBe('02.01');
+    expect(head('3')?.querySelector('time')?.getAttribute('title')).toBe(`Создана 02.01.${String(new Date().getFullYear())} в 09:07`);
+    expect(head('4')?.querySelector('.cg-notes__note-title')).toBeNull();
+    expect(head('4')?.querySelector('time')?.textContent).toBe('02.01');
+    expect(head('1')?.querySelector('time')).toBeNull();
+    expect([...(head('3')?.querySelectorAll('button') ?? [])].map((node) => node.textContent)).toEqual(['Изменить', 'Удалить']);
+    await flush(() => (head('1')?.querySelector('button') as HTMLButtonElement).click());
+    expect(head('1')?.querySelector('button')?.textContent).toBe(undefined);
+    expect(ui.$('[data-notes-editor="1"]')?.getAttribute('data-notes-fill')).toBe('running');
+    expect(c.port.fill).toHaveBeenCalledOnce();
+  });
+
+  it('[FX-023] the fan’s words: under a rewrite at once, under the fields the Goose wrote by «Слова фана»; its rows marked; «Принять все»; «В Другое»', async () => {
+    const c = controller([{ noteId: '1', title: 'Анкета', text: OLD_FORM, foreign: false }]);
+    const ui = await mountKitSettled(() => <NotesPanel client={c.notes} texts={NOTES_TEXTS} />, { kind: 'notes' as never, language: 'ru' });
+    mounted.push(ui);
+    c.notes.sync();
+    c.notes.toggle();
+    await flush();
+    await flush(() => c.notes.dispatch({ type: 'fill-note', noteId: '1' }));
+    const view = {
+      opId: 'op1',
+      feature: 'notes-fill',
+      state: 'done',
+      result: {
+        kind: 'note-fields',
+        fields: [
+          { label: 'Возраст', value: '41', quotes: ['I am 41'] },
+          { label: 'Работа', value: 'медбрат; в больнице', quotes: ['at the hospital'] },
+          { label: 'Характеристика', value: 'одинок' },
+        ],
+        proposed: [{ label: 'Питомцы', value: 'кот', quotes: ['my cat'] }],
+      },
+    } as unknown as SiteOpView;
+    await flush(() => c.notes.fillDone(view));
+    const row = (label: string) => ui.$(`[data-notes-editor="1"] [data-notes-field="${label}"]`);
+    expect(row('Возраст')?.hasAttribute('data-notes-ai')).toBe(true);
+    expect(row('Имя')?.hasAttribute('data-notes-ai')).toBe(false);
+    expect(row('Работа')?.querySelector('[data-notes-suggestion] [data-notes-quotes]')?.textContent).toBe('«at the hospital»');
+    expect(row('Возраст')?.querySelector('[data-notes-quotes]')).toBeNull();
+    await flush(() => button(ui, 'Слова фана').click());
+    expect(row('Возраст')?.querySelector('[data-notes-quotes]')?.textContent).toBe('«I am 41»');
+    expect(button(ui, 'Скрыть слова фана')).toBeDefined();
+    expect(row('Питомцы')?.querySelector('[data-notes-proposed]')?.textContent).toContain('Это поле завёл Гусь');
+    await flush(() => button(ui, 'Принять все').click());
+    expect((row('Работа')?.querySelector('textarea') as HTMLTextAreaElement | null)?.value).toBe('медбрат\nночные смены\nв больнице');
+    expect(ui.$('[data-notes-suggestion]')).toBeNull();
+    await flush(() => button(ui, 'В Другое').click());
+    expect(row('Питомцы')).toBeNull();
+    expect((row('Другое')?.querySelector('textarea') as HTMLTextAreaElement | null)?.value).toBe('Питомцы: кот');
+    expect(row('Другое')?.querySelector('[data-notes-quotes]')?.textContent).toBe('Питомцы — «my cat»');
+    expect(c.port.edit).not.toHaveBeenCalled();
   });
 });

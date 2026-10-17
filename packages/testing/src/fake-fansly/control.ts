@@ -141,7 +141,7 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
       return { ok: true, sent };
     }
     case 'note':
-      return { ok: true, noteId: world.createNote(command.fanId, command.contentType ?? 12000, command.title, command.note).id };
+      return { ok: true, noteId: world.createNote(command.fanId, command.contentType ?? 12000, command.title, command.note, command.createdAt).id };
     case 'frames':
       return { ok: true, sent: hub.emit(command.frames, 'raw', command.batch === true) };
     case 'socket': {

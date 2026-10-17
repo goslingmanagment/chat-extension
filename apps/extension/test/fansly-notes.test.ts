@@ -86,6 +86,25 @@ describe('[host:fansly] «Заметки» in the background (R20 P11b)', () => 
     expect(writeFailure(new FanslyApiError('http', { sent: true, httpStatus: 502 }))).toEqual({ code: 'CG-NOTE-UNCERTAIN' });
   });
 
+  it('[FX-011] [FX-020] [FS-NOTE-4] an edit is confirmed by `success`, as Fansly’s own window confirms it: the whole note, its title and text, or nothing; another note is no confirmation (decision 170 of the Fansly extension 2.13.0)', async () => {
+    const w = world();
+    const current = { title: 'T', text: 'x' };
+    const before = [{ id: FAN, notes: [{ id: '901', contentType: 12000, contentId: FAN, title: 'T', note: 'x', createdAt: 1_790_790_855 }] }];
+    w.answers.push(before, { title: 'T', note: 'y' });
+    expect(await w.notes.edit({ ...target, noteId: '901', title: 'T', text: 'y', current }, sender)).toEqual({ ok: true, note: { noteId: '901', title: 'T', text: 'y', foreign: false } });
+    w.answers.push(before, undefined);
+    expect(await w.notes.edit({ ...target, noteId: '901', title: 'T2', text: 'y', current }, sender)).toEqual({ ok: true, note: { noteId: '901', title: 'T2', text: 'y', foreign: false } });
+    w.answers.push(before, { id: '901', contentType: 12000, contentId: FAN, title: 'T', note: 'y', createdAt: 1_790_790_855 });
+    expect(await w.notes.edit({ ...target, noteId: '901', title: 'T', text: 'y', current }, sender)).toEqual({ ok: true, note: { noteId: '901', title: 'T', text: 'y', foreign: false, createdAtMs: 1_790_790_855_000 } });
+    w.answers.push(before, { id: '901', contentType: 12000, contentId: '999', title: 'T', note: 'y' });
+    expect(await w.notes.edit({ ...target, noteId: '901', title: 'T', text: 'y', current }, sender)).toEqual({ ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } });
+    // The name rides the same edit; a create stays strict.
+    w.answers.push([account], undefined);
+    expect(await w.notes.name({ ...target, name: 'Алекс Р', current: { noteId: '802', name: 'Алекс' } }, sender)).toEqual({ ok: true, customName: { noteId: '802', name: 'Алекс Р' } });
+    w.answers.push(undefined);
+    expect(await w.notes.create({ ...target, title: 'T', text: 'x' }, sender)).toEqual({ ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } });
+  });
+
   it('[FS-NOTE-2] FBuddy’s «FBuddy Notes» is never created, edited or deleted from here', async () => {
     const w = world();
     expect(await w.notes.remove({ ...target, noteId: '803', title: 'FBuddy Notes', text: 'x' }, sender)).toMatchObject({ ok: false, error: { code: 'CG-NOTE-WRITE' } });

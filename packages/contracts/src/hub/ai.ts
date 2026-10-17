@@ -70,6 +70,8 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
   /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */
   noteFields: ['fan-notes-fill'],
+  /** 1.16.0 (R20 P11b2): the merge mode's switch — empty values only (`NoteValuesSchema`). */
+  noteValues: ['fan-notes-fill'],
 } as const satisfies Record<string, readonly HubAiFeature[]>;
 
 export interface HubFeatureSpec {
@@ -151,9 +153,18 @@ export const NoteFieldsSchema = z
   );
 
 /**
+ * 1.16.0 (R20 P11b2): `noteValues` of `fan-notes-fill` as this client sends them — one empty value per label, never
+ * the note's own (FS-NOTE-5, FX-015). The hub's merge mode is chosen by the field's presence, «even with every value
+ * empty» (`docs/ai-gateway-contract.md` of the hub): it answers with the fan's quotes, the month of a stale fact and
+ * the stricter field definitions, and it reads every field as empty — what the chatter wrote stays in the tab
+ * (decision X43). A value that is not empty is refused here, before the hub.
+ */
+export const NoteValuesSchema = z.array(z.literal('')).check(z.minLength(1), z.maxLength(NOTE_FILL_LIMITS.fieldsMax));
+
+/**
  * The body this client sends (a strict subset of the hub's body: no model or
  * effort override, no `clientContext` (also on Fansly), no deprecated
- * `greetingMode`, no `noteValues` of the notes fill's merge mode: the values of
+ * `greetingMode`; the notes fill's `noteValues` only empty: the values of
  * the fan's notes never leave the tab). On OnlyFans conversationRef = fanRef = the fan id.
  */
 export const AiFeatureStreamBodySchema = z.strictObject({
@@ -196,8 +207,10 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   liveTextContext: z.optional(LiveTextContextSchema),
   /** 1.15.0 (R20 HF-8в): the window check — only from a start's proof, under `coverage-check-v1`. */
   coverageCheck: z.optional(CoverageCheckBodySchema),
-  /** 1.15.0 (R20 P4b3): `fan-notes-fill` only, and required there — the labels, never the values (no `noteValues`). */
+  /** 1.15.0 (R20 P4b3): `fan-notes-fill` only, and required there — the labels, never the values. */
   noteFields: z.optional(NoteFieldsSchema),
+  /** 1.16.0 (R20 P11b2): the hub's merge mode, one empty value per label — never a value of the note (X43). */
+  noteValues: z.optional(NoteValuesSchema),
   /** 1.15.0 (R20 HF-5): only Fansly hi-greeting under hi-start-proof-v1; ids only, never a text. */
   startProof: z.optional(StartProofV1Schema),
   /** Optional repetition of startProof.personalCount; alone it proves nothing. */
@@ -242,6 +255,8 @@ export const HubStreamRequestSchema = z
     }),
     z.refine((r) => r.feature !== 'voice-script' || (r.body.draftText ?? '').trim() !== '', { message: 'voice-script needs draftText' }),
     z.refine((r) => r.feature !== 'fan-notes-fill' || r.body.noteFields !== undefined, { message: 'fan-notes-fill needs noteFields' }),
+    // The hub: `noteValues must hold exactly one value per noteFields label` (400).
+    z.refine((r) => r.body.noteValues === undefined || r.body.noteValues.length === r.body.noteFields?.length, { message: 'noteValues: one per noteFields label' }),
     z.refine((r) => r.body.summaryMode === undefined || r.feature === 'fan-summary', { message: 'summaryMode is fan-summary only' }),
     // 1.3.0, the hub's own rule of `coach-chat` (400 otherwise): a preset carries its question on the hub and
     // forbids ours; without a preset a question is required.

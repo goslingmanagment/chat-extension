@@ -92,9 +92,29 @@ export const noteFieldsResult = {
   ],
 } as const;
 
+/** 1.16.0 (R20 P11b2): the hub's merge mode — the fan's quotes under a value, the fields it named itself. */
+export const noteFieldsMergeResult = {
+  kind: 'note-fields',
+  fields: [
+    { label: 'Имя', value: 'Анна', quotes: ['I am Anna btw', 'call me Anna'] },
+    { label: 'Возраст', value: '' },
+    { label: 'Локация', value: 'Флорида (08.2026)', quotes: ['just moved to Florida'] },
+    { label: 'Медиа', value: '', quotes: [] },
+  ],
+  proposed: [{ label: 'Питомцы', value: 'кот Барсик', quotes: ['my cat Barsik'] }],
+} as const;
+
 export const FANSLY_OP_RESULT_FIXTURES: Verdicts = {
-  valid: [voiceScriptResult, noteFieldsResult, { kind: 'note-fields', fields: [{ label: 'Имя', value: '' }] }, { kind: 'voice-script', script: 'с'.repeat(5000) }],
+  valid: [voiceScriptResult, noteFieldsResult, noteFieldsMergeResult, { ...noteFieldsResult, proposed: [] }, { kind: 'note-fields', fields: [{ label: 'Имя', value: '' }] }, { kind: 'voice-script', script: 'с'.repeat(5000) }],
   invalid: [
+    // 1.16.0: three quotes a value, each one line and not empty; a proposed field has a value and is not an asked one.
+    { kind: 'note-fields', fields: [{ label: 'Имя', value: 'Анна', quotes: ['a', 'b', 'c', 'd'] }] },
+    { kind: 'note-fields', fields: [{ label: 'Имя', value: 'Анна', quotes: ['a\nb'] }] },
+    { kind: 'note-fields', fields: [{ label: 'Имя', value: 'Анна', quotes: [''] }] },
+    { kind: 'note-fields', fields: [{ label: 'Имя', value: 'Анна', quotes: ['я'.repeat(401)] }] },
+    { ...noteFieldsMergeResult, proposed: [{ label: 'имя', value: 'Аня' }] },
+    { ...noteFieldsMergeResult, proposed: [{ label: 'Питомцы', value: ' ' }] },
+    { ...noteFieldsMergeResult, proposed: Array.from({ length: 6 }, (_, i) => ({ label: `Поле ${String(i)}`, value: 'x' })) },
     { kind: 'voice-script', script: '' },
     { kind: 'voice-script', script: '  \n ' },
     { kind: 'voice-script', script: 'с'.repeat(5001) },
@@ -137,6 +157,9 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'voice-script', body: { ...voiceScriptBody, replyTone: undefined, isRegeneration: true }, capabilities: [] },
     { feature: 'fan-notes-fill', body: notesFillBody, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound() }, capabilities: ['debug-input-v1', 'context-v1'] },
+    // 1.16.0 (R20 P11b2, X43): the hub's merge mode by its switch — one empty value per label.
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: NOTE_LABELS.map(() => '') }, capabilities: ['context-v1'] },
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound(), noteValues: noteLabelsAtTheBound().map(() => '') }, capabilities: ['context-v1'] },
   ],
   invalid: [
     // A Fansly page's, the fan named: the hub refuses the voice script elsewhere (`gate_voice_unsupported_platform`) and without the fan.
@@ -152,6 +175,8 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     // The labels are the fill's alone; values never travel; a fill speaks no tone and fills no draft.
     { feature: 'fast-reply', body: { ...voiceScriptBody, draftText: undefined, noteFields: [...NOTE_LABELS] }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна', '', '', ''] }, capabilities: [] },
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['', ''] }, capabilities: [] },
+    { feature: 'voice-script', body: { ...voiceScriptBody, noteValues: [''] }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, replyTone: 'flirty' }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, draftText: 'x' }, capabilities: [] },
     // Fresh page text is a draft feature's only (D-14): the voice script reads the hub's history.

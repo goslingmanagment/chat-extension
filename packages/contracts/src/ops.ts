@@ -736,10 +736,13 @@ export type SiteStartOp = VoiceScriptStart | NotesFillStart;
 /** What the scheduler admits: a shared feature's start or a site operation's. */
 export type AnyStartOp = StartOp | SiteStartOp;
 
-/** One label of the questionnaire and what the chat says of it; `''` — nothing (the panel leaves the field as it is). */
+/** One label of the questionnaire and what the chat says of it; `''` — nothing (the panel leaves the field as it is).
+ * 1.16.0 (R20 P11b2): `quotes` — the fan's own words behind the value, as the hub's merge mode quotes them (shown,
+ * never saved). */
 export interface NoteFieldValue {
   readonly label: string;
   readonly value: string;
+  readonly quotes?: readonly string[] | undefined;
 }
 
 /**
@@ -747,7 +750,8 @@ export interface NoteFieldValue {
  * `generationRef` — the source of the paid voicing, HF-4а — is the view's), or the asked labels with what the chat
  * gave each one, in the asked order.
  */
-export type SiteOpResult = { readonly kind: 'voice-script'; readonly script: string } | { readonly kind: 'note-fields'; readonly fields: readonly NoteFieldValue[] };
+/** 1.16.0 (R20 P11b2): `proposed` of `note-fields` — the fields the hub named itself (`+ Label: value`), in its order. */
+export type SiteOpResult = { readonly kind: 'voice-script'; readonly script: string } | { readonly kind: 'note-fields'; readonly fields: readonly NoteFieldValue[]; readonly proposed?: readonly NoteFieldValue[] | undefined };
 /** What the scheduler keeps as a result: a shared feature's or a site operation's. */
 export type AnyOpResult = OpResult | SiteOpResult;
 
