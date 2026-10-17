@@ -319,9 +319,12 @@ describe('the fake Fansly API: «Новые», notes, vault', () => {
     ]);
     expect(accounts[1]?.notes).toEqual([]);
 
-    const edited = (await call<WireNote>(fake, 'POST', bypass('/notes/edit'), { body: { id: created.id, contentType: 12000, contentId: fanA, title: 'Stand note', note: 'Likes: other things' } })).response as WireNote;
-    expect(edited).toMatchObject({ id: created.id, note: 'Likes: other things' });
-    expect(edited.updatedAt).not.toBeNull();
+    // An edit answers with the title and the text alone, as live Fansly's window reads it.
+    const edited = (await call(fake, 'POST', bypass('/notes/edit'), { body: { id: created.id, contentType: 12000, contentId: fanA, title: 'Stand note', note: 'Likes: other things' } })).response;
+    expect(edited).toEqual({ title: 'Stand note', note: 'Likes: other things' });
+    const stored = ((await call<WireAccount[]>(fake, 'GET', bypass(`/account?ids=${fanA}`))).response as WireAccount[])[0]?.notes.find((note) => note.id === created.id);
+    expect(stored).toMatchObject({ note: 'Likes: other things' });
+    expect(stored?.updatedAt).not.toBeNull();
     // A delete has nothing to hand back: `success` is its whole answer.
     const deleted = await call(fake, 'POST', bypass('/notes/delete'), { body: { id: name.id, contentType: 12002, contentId: fanA, title: 'Custom Username', note: 'Stand nickname' } });
     expect(deleted.json).toEqual({ success: true });

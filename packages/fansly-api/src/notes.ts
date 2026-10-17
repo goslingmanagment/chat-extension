@@ -92,6 +92,24 @@ export function writtenNote(raw: unknown, fanId: string, contentType: number, ex
   return note === null || note.contentId !== fanId || note.contentType !== contentType || (expectedId !== undefined && note.id !== expectedId) ? null : note;
 }
 
+/**
+ * The note an edit answered with. Fansly's own window confirms an edit by `success` alone and takes only the title and
+ * the text from the answer, which may carry nothing more (E170 of the old extension: a live edit that landed was
+ * refused here for asking for an id). An id, a kind or a fan the answer does name must be this note's: null otherwise.
+ */
+export function editedNote(raw: unknown, sent: StoredNote, title: string, text: string): StoredNote | null {
+  const answer = record(raw) ? raw : {};
+  const names = (key: 'id' | 'contentType' | 'contentId', ours: string | number): boolean => answer[key] === undefined || answer[key] === null || answer[key] === ours;
+  if (!names('id', sent.id) || !names('contentType', sent.contentType) || !names('contentId', sent.contentId)) return null;
+  return {
+    id: sent.id,
+    contentType: sent.contentType,
+    contentId: sent.contentId,
+    title: typeof answer['title'] === 'string' ? answer['title'] : title,
+    note: typeof answer['note'] === 'string' ? answer['note'] : text,
+  };
+}
+
 /** The calls of «Заметки», as the client takes them (FS-NET-1 row `notes`). */
 export const notesCalls = {
   /** The open group, when MAIN has not named its fan: once a chat. */
