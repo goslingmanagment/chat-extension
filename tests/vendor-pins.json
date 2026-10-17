@@ -1,9 +1,9 @@
 {
   "kernelSdk": {
     "contractHash": "10063d879124b1bfd21a496aae7235a36db9ded3712b08743ae86f5966bcb590",
-    "sourceCommit": "fd664699ff9ba595b5aa4c7d53f447f8f771bcbf",
+    "sourceCommit": "c1b96aafea15d04bb4ea496fab07cf4a7ce8a3a9",
     "distSha256": "86ea6f787169890f4597e9e7fea0ee886365983b0c90e9dde57a33b5c3881961",
-    "note": "Interim: vendored from the hub PR branch feat/chatter-send-attribution (fd664699, hub #656) for CI; re-vendored from that PR's merge commit on hub main before this PR merges."
+    "note": "Vendored on 2026-10-17 (decision X48) with the hub's scripts/vendor-sdk.mjs from hub main c1b96aaf (#656, merged 2026-10-17): adds clientSendAttributions (send-attribution-v1) and everything the hub contract grew since bd3eec06 (#607), among it the page-browser routes. NOT deployed yet: production still runs bd3eec06's contract (9137410d…), so a release of this extension waits for the hub's deploy — the release rule (vendored only from a merged and deployed hub commit) and `pnpm release preflight --online` hold it until then. Every route, operation and schema this extension calls for ChatSpace keeps its form. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
