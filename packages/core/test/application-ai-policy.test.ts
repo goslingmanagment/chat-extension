@@ -242,10 +242,15 @@ describe('[X52] ChatSpace’s tail of the open chat from OnlyMonster’s API', (
       } as unknown as Parameters<typeof CHATSPACE_AI.proof>[0];
       const identity = startSnapshot.identity;
       if (identity === null || identity.chat === null) throw new Error('the host world has an open chat');
-      const ask = { feature: 'coach' as const, surface: 'coach' as const, identity, fresh: { maxItems: 60, maxChars: 5000 }, livePpv: false };
+      // Coach on a hub that takes the PPV state (`ask.livePpv`): the API is read for the tail, no state goes.
+      const ask = { feature: 'coach' as const, surface: 'coach' as const, identity, fresh: { maxItems: 60, maxChars: 5000 }, livePpv: true };
       const both = await CHATSPACE_AI.proof(host, ask);
+      expect(both).toMatchObject({ livePpv: null });
       expect(both?.tail?.messages.map((m) => m.platformMessageId)).toEqual(['4004', '9300']);
       expect(asked).toEqual([{ limit: 60 }]);
+      // A hub without it: nothing of ours is read, the tail is page memory's (X54's switch of a start's own reads).
+      expect(await CHATSPACE_AI.proof(host, { ...ask, livePpv: false })).toEqual({ tail: TAIL, livePpv: null });
+      expect(asked).toHaveLength(1);
       answer = new Promise(() => undefined);
       const slow = CHATSPACE_AI.proof(host, ask);
       await vi.advanceTimersByTimeAsync(LIVE_PPV_LIMITS.waitMs);

@@ -6,7 +6,9 @@
 // - the proof — read only when the start may carry fresh page text (D-14: a
 //   draft feature in the dock, Review in the dock and Coach on its panel since
 //   X52, admitted on the page): the open chat's newest messages from
-//   OnlyMonster's API and its visible tail from page memory, both at once. The
+//   OnlyMonster's API — on a hub that takes the PPV state (`live-ppv-v1`), the
+//   one switch of a start's own reads — and its visible tail from page memory,
+//   both at once. The
 //   tail is the API's messages typed in the chat, with what page memory holds
 //   that the page does not (a message that came in during the read); without
 //   the API's page it is page memory's, as before. The shared plan trims it
@@ -138,9 +140,9 @@ export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
     const chat = ask.identity.chat;
     const ppv = ask.livePpv === true && LIVE_PPV_FEATURES.has(ask.feature);
     // Both reads at once: page memory's tail and the host's API page (the slower of the two), one page for the tail
-    // and the PPV state.
+    // and the PPV state. The API only where the hub takes the state: a hub without it is asked of nothing of ours.
     const memory = host.readVisibleTail(ask.identity, fresh.maxItems).catch(() => null);
-    const page = chat === null ? Promise.resolve(null) : readOpenPage(host, chat, Math.max(fresh.maxItems, ppv ? LIVE_PPV_LIMITS.readMessages : 0));
+    const page = ask.livePpv !== true || chat === null ? Promise.resolve(null) : readOpenPage(host, chat, Math.max(fresh.maxItems, ppv ? LIVE_PPV_LIMITS.readMessages : 0));
     return Promise.all([memory, page]).then(([tail, read]) => ({ tail: tailOf(read, tail, fresh.maxItems), livePpv: ppv && read !== null ? livePpvOf(read) : null }));
   },
   fields: (proof) => ({ fresh: proof?.tail ?? null, ...(proof?.livePpv ? { livePpv: proof.livePpv } : {}) }),
