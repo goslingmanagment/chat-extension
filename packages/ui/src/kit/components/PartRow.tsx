@@ -225,7 +225,7 @@ export const PART_CSS = `
 .cg-part:focus-visible { border-radius: 9px; }
 .cg-part__n { text-align: center; font-family: var(--cg-mono); font-size: var(--cg-text-xs); line-height: 21px; font-weight: 600; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
 .cg-part.is-next .cg-part__n { color: var(--cg-clay-ink); }
-.cg-part__t { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; color: var(--cg-ink); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.cg-part__t { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); color: var(--cg-ink); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
 .cg-part__a { display: flex; align-items: center; gap: 4px; margin: -3px 0 -3px 10px; }
 .cg-part .cg-ins, .cg-part .cg-copy-main { background: var(--cg-raised); }
 .cg-part.is-next .cg-ins:not([aria-disabled="true"]), .cg-part.is-next .cg-copy-main { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); }

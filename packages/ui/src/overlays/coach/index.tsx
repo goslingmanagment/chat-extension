@@ -380,7 +380,7 @@ ${overlayRootCss('coach', 'panel')}
 .cg-co__turn > .cg-stale { margin: 2px 0 8px; grid-template-columns: 22px minmax(0, 1fr); row-gap: 4px; padding-bottom: 6px; }
 .cg-co__turn > .cg-stale > .cg-btn { grid-column: 2; justify-self: start; }
 .cg-co__turn p, .cg-co__md { font-size: var(--cg-text-md); line-height: 20px; color: var(--cg-ink); overflow-wrap: anywhere; }
-.cg-co__md, .cg-co__md p { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; }
+.cg-co__md, .cg-co__md p { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); }
 .cg-co__turn.is-you { display: grid; justify-items: end; }
 .cg-co__turn.is-you p { max-width: 92%; padding: 6px 10px; border-radius: 10px 10px 3px 10px; background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-ink); white-space: pre-wrap; }
 .cg-co__sent { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }

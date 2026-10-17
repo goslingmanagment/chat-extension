@@ -15,7 +15,7 @@
 
 import { type ColorScheme, type Locale, type MountSurfaceKind, type SurfaceGeometry, type UiResultStyle } from '@cg/contracts';
 import { dockSurface, preloadPart, DEFAULT_PARTS } from '@cg/ui/dock';
-import { mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
+import { SettableSignal, mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
 import { lazyOverlays, toastsSurface } from '@cg/ui/overlays';
 
 import { setFanslyTheme } from '../../kit/fansly-page';
@@ -66,6 +66,8 @@ const params = new URLSearchParams(location.search);
 const scheme: ColorScheme = params.get('theme') === 'dark' ? 'dark' : 'light';
 const language: Locale = params.get('lang') === 'en' ? 'en' : 'ru';
 const style: UiResultStyle = params.get('style') === 'sheet' ? 'sheet' : 'bare';
+/** `text=large`: «Размер текста: Крупнее» (X49), on our hosts as the site's tab puts it. */
+const textSize = new SettableSignal<'normal' | 'large'>(params.get('text') === 'large' ? 'large' : 'normal');
 let width = Math.max(240, Number(params.get('w') ?? '853') || 853);
 const feedHeight = Number(params.get('feed') ?? '574') || 574;
 const viewportHeight = Number(params.get('vh') ?? '900') || 900;
@@ -100,7 +102,7 @@ if (single !== null) html.setAttribute('data-gal-single', single.id);
 // A menu opens upwards, over the feed: a page of one such state gives it room.
 if (single?.open !== undefined) html.style.setProperty('--gal-feed', '260px');
 const config = document.querySelector('[data-gal-config]');
-if (config !== null) config.textContent = `${scheme} · ${language} · ${width} px · ${style}${groupParam === null ? '' : ` · ${groupParam}`}${site.host === 'chatspace' ? '' : ` · ${site.host}`}`;
+if (config !== null) config.textContent = `${scheme} · ${language} · ${width} px · ${style}${textSize.value === 'large' ? ' · крупнее' : ''}${groupParam === null ? '' : ` · ${groupParam}`}${site.host === 'chatspace' ? '' : ` · ${site.host}`}`;
 
 const gallery = document.getElementById('gallery') as HTMLElement;
 const failures: KitFailure[] = [];
@@ -131,7 +133,7 @@ function worldOf(item: GalleryState): KitWorld {
 function mountInto(item: GalleryState, world: KitWorld, host: HTMLElement, kind: MountSurfaceKind, definition: SurfaceDefinition): Mounted {
   const root = host.attachShadow({ mode: 'closed' });
   // As the site's tab mounts it: with the site's profile (its palette, the dock's variant and sheet).
-  const mount = mountKitSurface(kind, root, { ...world.deps, profile: site.profile }, definition, { now: () => world.client.now(), report: (failure) => failures.push(failure) });
+  const mount = mountKitSurface(kind, root, { ...world.deps, profile: site.profile, textSize }, definition, { now: () => world.client.now(), report: (failure) => failures.push(failure) });
   const entryOf: Mounted = { state: item, world, host, root, mount };
   mounted.push(entryOf);
   return entryOf;

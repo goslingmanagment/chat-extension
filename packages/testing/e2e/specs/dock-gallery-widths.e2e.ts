@@ -7,7 +7,7 @@
 
 import { browser, expect } from '@wdio/globals';
 
-import { COLUMN, LANGUAGES, SMALL, THEMES, WIDTHS, WINDOW, box, captureWindow, focused, health, measure, open, resetWindow, shown } from '../support/dock-gallery';
+import { COLUMN, LANGUAGES, SMALL, THEMES, WIDTHS, WINDOW, box, captureGroups, captureWindow, expectHealthy, focused, health, measure, open, resetWindow, shown } from '../support/dock-gallery';
 import { useNetworkTrap } from '../support/network-trap';
 
 describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
@@ -23,6 +23,18 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
   const SEVEN = [...FOUR, ...keyed(['Review', 'Recap', 'Coach'])];
   const WINDOWS = ['Spenders+key', 'Новые+key'];
   const caps = (id: string): Promise<readonly string[]> => browser.execute((state) => [...(window.__dock?.caps(state) ?? [])], id);
+
+  for (const width of [853, 693, 489] as const) {
+    it(`[X49] «Размер текста: Крупнее» · ${width} px · light/dark: every dock state a step larger — the bar stays 40 px, nothing sticks out`, async () => {
+      for (const theme of THEMES) {
+        await open(`theme=${theme}&lang=ru&w=${width}&text=large`);
+        // Pictures first: a failed check still leaves the evidence.
+        await captureGroups(`dock-large-${theme}-ru-w${width}`);
+        expectHealthy(await health(), width);
+        expect(await box('1a', '.cg-strip')).toMatchObject({ height: 40 });
+      }
+    });
+  }
 
   it('[UI-002] [UI-006] [UI-009] [AI-002] [NEW-01] 853 px: Reply with its capsule, the six other actions, Spenders and «Новые» — every tone and both windows one click away; the quota is a count over Reply\'s corner', async () => {
     await open('theme=light&lang=ru&w=853');

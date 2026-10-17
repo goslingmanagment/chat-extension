@@ -742,6 +742,21 @@ describe('options: the sections', () => {
     expect(page.$('main h1')?.textContent).toBe('Аккаунты');
   });
 
+  it('[X49] «Размер текста: Крупнее» saves the larger scale and back; a store from before reads as normal', async () => {
+    const page = await mount('options', { hash: '#appearance' });
+    const box = (): HTMLElement => page.$('[role="checkbox"][aria-label="Размер текста"]') as HTMLElement;
+    expect(box().getAttribute('aria-checked')).toBe('false');
+    expect(box().textContent).toBe('Крупнее');
+    expect(page.text()).toContain('Текст 15 px вместо 13, подписи 13 px. Страницы расширения не меняются.');
+    await flush(() => box().click());
+    expect(page.world.state.settings.ui.textSize).toBe('large');
+    expect(box().getAttribute('aria-checked')).toBe('true');
+    // The page itself keeps the agency's scale: nothing of the setting lands on it.
+    expect(document.documentElement.hasAttribute('data-text-size')).toBe(false);
+    await flush(() => box().click());
+    expect(page.world.state.settings.ui.textSize).toBe('normal');
+  });
+
   it('[ST-061] [ST-073] [ST-074] a page with an archived persona asks for a replacement; choosing one saves it', async () => {
     const state = workingState();
     state.settings = { ...state.settings, personas: { ...state.settings.personas, byPageId: { ...state.settings.personas.byPageId, '13': { key: 'lora-old', definitionId: 'persona-definition-lora-old-0001' } } } };

@@ -4,7 +4,9 @@
 // of raised chips with Reply's options in a sunken capsule, a result is a
 // panel of draft cards. The narrow rules are container queries on the kit's
 // `cg` container (the dock's own width, not the window's) and go one way: what
-// hides at a width stays hidden below it.
+// hides at a width stays hidden below it. Their widths are measured in the
+// root's own text (`atBase`: N px at the base 13 px): «Размер текста: Крупнее»
+// (X49) widens every chip, and the same rules then hold a step earlier.
 //
 //   widest  everything in words: the capsule with the word «Split», Spenders
 //           and «Новые», the status in words, the persona, the palette key
@@ -41,6 +43,12 @@ const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1
  * in it would ship too: prose for nobody. So a note here is a JS comment in an empty `${…}`, which the minifier
  * drops; it stands where a CSS comment would.
  */
+/**
+ * A width of the narrow rules, given at the base text of 13 px, in the root's own text (X49): «Размер текста: Крупнее»
+ * moves every breakpoint with the wider chips (Firefox reads `em` of a container query on the container itself).
+ */
+const atBase = (px: number): string => `calc(${px}em / 13)`;
+
 export const DOCK_CSS = `
 ${/* The bar is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. In the dock the gutter is the number cell of a draft card. */ ''}
 .cg-dock { position: relative; display: flex; flex-direction: column-reverse; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); --cg-gutter: 31px; --cg-lead: 12px; }
@@ -55,7 +63,7 @@ ${/* What is left of a low quota: a count on the bar's frame over Reply's corner
 .cg-quota {
   position: absolute; top: -7px; left: -4px; z-index: 2; min-width: 15px; height: 13px; padding: 0 3px; border-radius: var(--cg-r-pill);
   background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line), 0 0 0 2px var(--cg-raised); color: var(--cg-clay-ink);
-  font-family: var(--cg-mono); font-size: 9.5px; line-height: 13px; font-weight: 600; text-align: center; cursor: default;
+  font-family: var(--cg-mono); font-size: var(--cg-text-kbd); line-height: 13px; font-weight: 600; text-align: center; cursor: default;
 }
 .cg-quota.is-zero { background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-danger), 0 0 0 2px var(--cg-raised); color: var(--cg-danger); }
 .cg-slot { display: inline-flex; align-items: center; gap: 4px; flex: none; min-width: 0; }
@@ -110,7 +118,7 @@ ${/* ── parts: Hi variants, the Б2 question ── */ ''}
 .cg-vhead b { color: var(--cg-ink-2); font-weight: 600; }
 .cg-hi { display: grid; gap: 8px; padding: 6px 8px 8px; }
 .cg-hi__col { display: grid; gap: 6px; align-content: start; min-width: 0; }
-@container cg (min-width: 680px) {
+@container cg (min-width: ${atBase(680)}) {
   .cg-hi { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
   .cg-hi .cg-part { grid-template-columns: 24px minmax(0, 1fr); }
   .cg-hi .cg-part__t { font-size: var(--cg-text-lg); line-height: 20px; }
@@ -131,7 +139,7 @@ ${/* ── Fix: «Ваш текст» is plain, «После Fix» is the draft
 .cg-fix:last-child { border: 1px dashed var(--cg-clay-line); background: var(--cg-draft); }
 .cg-fixbox > .cg-fix:only-child { border: 1px solid var(--cg-rule); background: none; }
 .cg-cap { font-size: var(--cg-text-xs); line-height: 16px; color: var(--cg-ink-muted); margin-bottom: 1px; }
-.cg-fix__t { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cg-fix__t { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); white-space: pre-wrap; overflow-wrap: anywhere; }
 .cg-fix__t.is-was { font-family: inherit; font-size: var(--cg-text-base); line-height: 19px; color: var(--cg-ink-muted); }
 .cg-fix__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 8px; }
 .cg-fix__go:not([aria-disabled="true"]) { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); }
@@ -164,69 +172,69 @@ ${/* ── «Вид ответа: без подложки» (the default): the 
 .cg-bare .cg-strip:has(+ .cg-sheet) { border-radius: 0 0 var(--cg-r-lg) var(--cg-r-lg); border-top-color: var(--cg-rule); }
 
 ${/* ── narrow composer (ui-design §3.3) ── */ ''}
-@container cg (max-width: 999px) {
+@container cg (max-width: ${atBase(999)}) {
   .cg-slot--persona, .cg-hint, .cg-status-word .cg-long { display: none; }
   .cg-status-word .cg-short { display: inline; }
 }
-@container cg (max-width: 899px) {
+@container cg (max-width: ${atBase(899)}) {
   .cg-split .cg-act__t { ${VISUALLY_HIDDEN} }
   .cg-tones .cg-split { width: 26px; padding: 0; }
 }
-@container cg (max-width: 819px) {
+@container cg (max-width: ${atBase(819)}) {
   .cg-lock { display: none; }
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 8px; }
 }
-@container cg (max-width: 719px) {
+@container cg (max-width: ${atBase(719)}) {
   .cg-strip, .cg-strip__acts, .cg-strip__opts, .cg-slot { gap: 3px; }
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 7px; }
 }
-@container cg (max-width: 689px) {
+@container cg (max-width: ${atBase(689)}) {
   ${/* The windows are their icons alone; the word is in the hint and in the name. While the chat loads the status in their place is its spinner alone. */ ''}
   .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
   .cg-strip .cg-slot--boards .cg-act--ico { width: 28px; padding: 0; }
   .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
   .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
-@container cg (max-width: 609px) {
+@container cg (max-width: ${atBase(609)}) {
   ${/* Review, Recap, Coach too. */ ''}
   .cg-strip .cg-slot--two .cg-act--ico { width: 28px; padding: 0; }
   .cg-slot--two .cg-act--ico > .cg-ico { display: block; }
   .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
-@container cg (max-width: 529px) {
+@container cg (max-width: ${atBase(529)}) {
   .cg-strip .cg-act:not(.cg-opt):not(.cg-act--ico) { padding: 0 6px; }
   .cg-strip__opts { padding-left: 4px; }
   ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
   .cg-tones .cg-opt { width: 22px; }
   .cg-tones__track { gap: 2px; }
 }
-@container cg (max-width: 499px) {
+@container cg (max-width: ${atBase(499)}) {
   ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. */ ''}
   .cg-slot--two, .cg-slot--boards { display: none; }
   .cg-slot--more { display: inline-flex; }
 }
-@container cg (max-width: 600px) {
+@container cg (max-width: ${atBase(600)}) {
   .cg-head__meta, .cg-head__acts kbd { display: none; }
   .cg-refresh .cg-btn__t { ${VISUALLY_HIDDEN} }
   .cg-op { grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr) 44px auto; }
   .cg-op__feat { display: none; }
 }
-@container cg (max-width: 479px) {
+@container cg (max-width: ${atBase(479)}) {
   .cg-strip .cg-div { display: none; }
 }
-@container cg (max-width: 439px) {
+@container cg (max-width: ${atBase(439)}) {
   .cg-strip { padding: 0 3px; }
   ${/* While the chat loads «Ещё» would open nothing: its place is the status spinner's. */ ''}
   .cg-strip.has-status .cg-slot--more { display: none; }
 }
-@container cg (max-width: 420px) {
+@container cg (max-width: ${atBase(420)}) {
   .cg-head { gap: 6px; padding-left: 10px; }
   .cg-hide { width: 26px; padding: 0; justify-content: center; }
   .cg-hide .cg-ico { display: block; }
   .cg-hide .cg-btn__t { ${VISUALLY_HIDDEN} }
 ${STALE_ROW_NARROW_CSS}
 }
-@container cg (max-width: 359px) {
+@container cg (max-width: ${atBase(359)}) {
   .cg-again { width: 26px; padding: 0; justify-content: center; }
   .cg-again .cg-ico { display: block; }
   .cg-again .cg-btn__t { ${VISUALLY_HIDDEN} }

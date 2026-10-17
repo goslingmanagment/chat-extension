@@ -24,7 +24,7 @@ import { ROOT_CLASS } from './base';
 import { createKitEnv, type KitEnv, type KitFailure } from './context';
 import { holdAttribute } from './holds';
 import { KitRoot } from './root';
-import { bindScheme } from './scheme';
+import { bindScheme, holdTextSize } from './scheme';
 import { retainKitStyles } from './sheets';
 import { adoptSheets, type StyleMode, type StyleSource } from './styles';
 import { paletteSource } from './tokens';
@@ -68,6 +68,7 @@ export function mountKitSurface(kind: MountSurfaceKind, root: ShadowRoot, deps: 
   const styles = retainKitStyles(root, [...(definition.styles ?? []), ...site]);
   const releaseScheme = holdAttribute(host, SCHEME_ATTRIBUTE, deps.scheme.value);
   const offScheme = bindScheme(host, deps.scheme);
+  const releaseTextSize = holdTextSize(host, deps.textSize);
   const releaseVariant = profile === undefined ? null : holdAttribute(host, DOCK_VARIANT_ATTRIBUTE, profile.dock.variant);
   // A new palette rewrites the one shared sheet (the same id): every root of ours shows it at once.
   const offPalette = palette?.subscribe((value) => adoptSheets(root, [paletteSource(value)]));
@@ -92,6 +93,7 @@ export function mountKitSurface(kind: MountSurfaceKind, root: ShadowRoot, deps: 
     env.dispose();
     offScheme();
     releaseScheme();
+    releaseTextSize();
     offPalette?.();
     releaseVariant?.();
     styles.release();

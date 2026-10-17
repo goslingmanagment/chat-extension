@@ -13,7 +13,7 @@
 
 import { type ColorScheme, type Locale, type MountSurfaceKind, type UiAction } from '@cg/contracts';
 import { fanPanelSurface } from '@cg/ui/fanpanel';
-import { mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
+import { SettableSignal, mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
 import { newcomersSurface } from '@cg/ui/newcomers';
 import { paletteSurface, quickJumpSurface } from '@cg/ui/palette';
 import { previewWindowSurface } from '@cg/ui/preview';
@@ -102,7 +102,9 @@ if (kind === 'fan-panel') {
 const fans = rowsParam > 0 ? manyFans(rowsParam) : null;
 const live = fans === null ? null : new LiveBoardClient(world.client, world.ctx, fans);
 if (fans !== null) world.client.goTo(-1);
-const deps = { ...world.deps, ...(live === null ? {} : { client: live }), profile };
+// `text=large`: «Размер текста: Крупнее» (X49), on our host as the site's tab puts it.
+const textSize = new SettableSignal<'normal' | 'large'>(params.get('text') === 'large' ? 'large' : 'normal');
+const deps = { ...world.deps, ...(live === null ? {} : { client: live }), profile, textSize };
 
 const host = document.createElement('div');
 host.setAttribute('data-host', 'overlay');

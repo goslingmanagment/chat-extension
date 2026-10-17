@@ -1,5 +1,5 @@
 // «Вид и звук» (ui-design §4.24, §7, final-21b; ST-122…ST-135): the look of
-// the answer, the theme with what the system is now, the language, tooltips,
+// the answer, the text size on the site (X49), the theme with what the system is now, the language, tooltips,
 // the two sounds with their tones, the volume and the sound state. Every
 // change is the person's own and applies at once, in every open tab.
 
@@ -160,6 +160,18 @@ export function AppearanceSection({ body, readOnly }: { readonly body: Appearanc
             onChange={(value) => void act({ type: 'SetPreference', key: 'ui.hints', value }, { quiet: true })}
           />
           <div class="pg-sub">{i18n.t('settings.appearance.hintsNote')}</div>
+        </Opt>
+        {/* «Размер текста» (decision X49): the type scale of our surfaces on the site, both sites; the pages keep theirs. */}
+        <Opt label={i18n.t('settings.appearance.textSize')} hint={i18n.t('settings.appearance.textSizeHint')}>
+          <Checkbox
+            label={i18n.t('settings.appearance.textSize')}
+            stateWord={i18n.t('settings.appearance.textSizeLarge')}
+            checked={body.textSize === 'large'}
+            size={14}
+            reason={locked}
+            onChange={(value) => void act({ type: 'SetPreference', key: 'ui.textSize', value: value ? 'large' : 'normal' }, { quiet: true })}
+          />
+          <div class="pg-sub">{i18n.t('settings.appearance.textSizeNote')}</div>
         </Opt>
       </Card>
 

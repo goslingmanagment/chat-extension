@@ -89,7 +89,8 @@ describe('Recap', () => {
     expect(facts()).toEqual(['Сделан 1 д назад', 'архив полный']);
     // Its head holds a segment and up to four buttons: below 360 px they take a second line (the e2e measures it at 320 px).
     expect(kit.$('.cg-head')?.classList.contains('cg-head--tools')).toBe(true);
-    expect(DOCK_CSS).toMatch(/@container cg \(max-width: 359px\) \{[^@]*\.cg-head--tools \{ flex-wrap: wrap;/);
+    // The widths are in the root's own text since X49: 359 px at the base 13 px.
+    expect(DOCK_CSS).toMatch(/@container cg \(max-width: calc\(359em \/ 13\)\) \{[^@]*\.cg-head--tools \{ flex-wrap: wrap;/);
     // No Insert, no parts: a Recap is not a message to the fan.
     expect(kit.$$('.cg-part')).toEqual([]);
     expect(kit.$('[data-cg-draft]')).toBeNull();

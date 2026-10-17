@@ -93,6 +93,13 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
         expect((await shown('9h', '.cg-dock')).join(' ')).not.toMatch(/заблокирован/);
       });
     }
+    it(`[X49] [host:fansly] «Размер текста: Крупнее» · ${theme} · ru · 622 px: every dock state a step larger on Fansly too — its card, its ink, nothing sticks out`, async () => {
+      await open(`host=fansly&theme=${theme}&lang=ru&w=622&text=large`);
+      await captureGroups(`dock-fansly-large-${theme}-ru-w622`);
+      expectHealthy(await health(), 622, FANSLY_ACCENTS);
+      await expectFanslyLook('1a', theme);
+    });
+
     it(`[UI-004] [UI-006] [UI-027] [host:fansly] every dock state · ${theme} · en · 622 px, Windows key labels; copy only in Fansly’s words`, async () => {
       await open(`host=fansly&theme=${theme}&lang=en&w=622&os=win`);
       await captureGroups(`dock-fansly-${theme}-en-w622-win`);

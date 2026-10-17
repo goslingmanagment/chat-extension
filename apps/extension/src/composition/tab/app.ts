@@ -26,7 +26,7 @@ import type { HostContractReport, HostContractShape, HostPort } from '@cg/contra
 import type { ChatRef } from '@cg/contracts/ids';
 import { DEFAULT_LOCALE, type Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
-import type { UiLocale, UiTheme } from '@cg/contracts/settings';
+import type { UiLocale, UiTextSize, UiTheme } from '@cg/contracts/settings';
 import type { PageCommand } from '@cg/contracts/tab-messages';
 import type { TabHealthReport } from '@cg/contracts/telemetry';
 import { PREVIEW_SOURCES, type ActionReceipt, type ColorScheme, type MountDeps, type MountSurfaceKind, type SurfaceGeometry, type UiAction } from '@cg/contracts/vm';
@@ -105,10 +105,12 @@ export interface TabApp {
 interface UiSettings {
   readonly locale: UiLocale;
   readonly theme: UiTheme;
+  /** «Размер текста» (X49): absent in a store from before 1.22.0 — normal. */
+  readonly textSize: UiTextSize;
   readonly debug: boolean;
 }
 /** Settings that could not be read: what a fresh install has (DEFAULT_SETTINGS.ui; the tab does not carry the settings schemas). */
-const UNKNOWN_SETTINGS: UiSettings = { locale: DEFAULT_LOCALE, theme: 'host', debug: false };
+const UNKNOWN_SETTINGS: UiSettings = { locale: DEFAULT_LOCALE, theme: 'host', textSize: 'normal', debug: false };
 
 /** Rows of ChatSpace's cached chat list read for the name of a toast's fan. */
 const TOAST_NAME_ROWS = 200;
@@ -137,9 +139,12 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
 
   // ── settings the UI depends on ─────────────────────────────────────────────
   let ui: UiSettings = UNKNOWN_SETTINGS;
-  const readSettings = (state: { readonly settings: { readonly ui: { readonly locale: UiLocale; readonly theme: UiTheme }; readonly debug: { readonly enabled: boolean } } }): UiSettings => ({
+  const readSettings = (state: {
+    readonly settings: { readonly ui: { readonly locale: UiLocale; readonly theme: UiTheme; readonly textSize?: UiTextSize | undefined }; readonly debug: { readonly enabled: boolean } };
+  }): UiSettings => ({
     locale: state.settings.ui.locale,
     theme: state.settings.ui.theme,
+    textSize: state.settings.ui.textSize ?? 'normal',
     debug: state.settings.debug.enabled,
   });
   const firstSettings = await rpc.request('settings.get', {});
@@ -248,6 +253,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   };
   const scheme = new Value<ColorScheme>(schemeOf());
   const onScheme = (): void => scheme.set(schemeOf());
+  // «Размер текста» (X49): every surface of the tab, both sites, follows it at once.
+  const textSize = new Value<UiTextSize>(ui.textSize);
   darkQuery.addEventListener('change', onScheme);
   offs.push(() => darkQuery.removeEventListener('change', onScheme), env.theme.onChange(onScheme));
 
@@ -497,6 +504,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     },
     clipboard,
     scheme,
+    textSize,
     geometry,
     focus: {
       token: null,
@@ -670,6 +678,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       ui = readSettings(state);
       // The theme follows the settings at once (ST-122): host, system, light or dark.
       scheme.set(schemeOf());
+      textSize.set(ui.textSize);
       const language = languageOf(ui);
       if (language === languageOf(before)) return;
       // The language switches on the fly (I18-001): the port tells every controller, every view is said anew.

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { UI_THEMES, type UiTheme } from '@cg/contracts/settings';
-import { SCHEME_ATTRIBUTE, type ColorScheme } from '@cg/contracts/vm';
+import { UI_THEMES, type UiTextSize, type UiTheme } from '@cg/contracts/settings';
+import { SCHEME_ATTRIBUTE, TEXT_SIZE_ATTRIBUTE, type ColorScheme } from '@cg/contracts/vm';
 
-import { SettableSignal, bindScheme, mediaSchemeSignal, resolveScheme, resolvedSchemeSignal, type MediaQuerySource } from './scheme';
+import { SettableSignal, bindScheme, holdTextSize, mediaSchemeSignal, resolveScheme, resolvedSchemeSignal, type MediaQuerySource } from './scheme';
 
 class FakeQuery implements MediaQuerySource {
   private readonly listeners = new Set<() => void>();
@@ -91,6 +91,25 @@ describe('[I18-005] theme host / system / light / dark (ui-design §2.1)', () =>
     release();
     scheme.set('light');
     expect(attributes.get(SCHEME_ATTRIBUTE)).toBe('dark');
+  });
+
+  it('[X49] mirrors «Размер текста» on our host element as data-text-size, held like the scheme: the last surface takes it away; no signal sets nothing', () => {
+    const attributes = new Map<string, string>();
+    const element = { setAttribute: (name: string, value: string) => attributes.set(name, value), removeAttribute: (name: string) => attributes.delete(name) } as unknown as Element;
+    const size = new SettableSignal<UiTextSize>('normal');
+    const first = holdTextSize(element, size);
+    const second = holdTextSize(element, size);
+    expect(attributes.get(TEXT_SIZE_ATTRIBUTE)).toBe('normal');
+    size.set('large');
+    expect(attributes.get(TEXT_SIZE_ATTRIBUTE)).toBe('large');
+    first();
+    expect(attributes.get(TEXT_SIZE_ATTRIBUTE)).toBe('large');
+    second();
+    expect(attributes.has(TEXT_SIZE_ATTRIBUTE)).toBe(false);
+    size.set('normal');
+    expect(attributes.has(TEXT_SIZE_ATTRIBUTE)).toBe(false);
+    holdTextSize(element, undefined)();
+    expect(attributes.has(TEXT_SIZE_ATTRIBUTE)).toBe(false);
   });
 
   it('a settable signal skips equal values and survives a listener leaving mid-notification', () => {
