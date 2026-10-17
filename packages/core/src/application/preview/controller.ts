@@ -74,6 +74,7 @@ import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type Draft
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
+import { type Attachment } from '../../domain/media/attachment';
 import { MediaDesk } from './media';
 import { partsOfResult, previewResult, type PartRows } from './result';
 import { clickable, fanAttempts, fanSendsOf, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type FanSendFact, type FanSends, type PartAttempt } from './send-rows';
@@ -304,8 +305,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    * open card again (a fan's picks show on each of its cards).
    */
   const media = new MediaDesk({ port: host.media, clock, i18n, changed: () => changed() });
-  /** Sends that took media, by attempt: their picks are gone once the send reached the platform (or may have). */
-  const mediaAttempts = new Map<string, ChatRef>();
+  /**
+   * Sends that took media, by attempt: the picks left the picker with the click, and come back to it only when the send
+   * proved it never reached the platform (held, not queued, refused).
+   */
+  const mediaAttempts = new Map<string, { readonly chat: ChatRef; readonly taken: Attachment }>();
 
   const cells: Record<PreviewSource, ViewCell<PreviewVM>> = {
     spenders: new ViewCell(() => build('spenders')),
@@ -1287,12 +1291,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   function afterAttempt(track: OpTrack, view: SendAttemptView): void {
-    // Decision X53: the picks went with this send once the platform took it, or may have: they never go twice.
-    const pickedFor = mediaAttempts.get(view.attemptId);
-    if (pickedFor !== undefined && (view.state === 'nativeAccepted' || view.state === 'sentObserved' || view.state === 'uncertain')) {
+    // Decision X53: picks that went with this send are given back only when it proved it never reached the platform; a
+    // send that did, or may have, keeps them — they never go twice.
+    const picked = mediaAttempts.get(view.attemptId);
+    if (picked !== undefined && (view.state === 'rejected' || view.state === 'held' || view.state === 'notEnqueued')) {
       mediaAttempts.delete(view.attemptId);
-      media.sent(pickedFor);
-    } else if (pickedFor !== undefined && (view.state === 'rejected' || view.state === 'held' || view.state === 'notEnqueued')) mediaAttempts.delete(view.attemptId);
+      media.restore(picked.chat, picked.taken);
+    } else if (picked !== undefined && (view.state === 'nativeAccepted' || view.state === 'sentObserved' || view.state === 'uncertain')) mediaAttempts.delete(view.attemptId);
     if (view.state === 'held' && view.code === 'CG-SEND-STALE') markFanWrote(track, null);
     if (view.code === 'CG-CLAIM-EXPIRED' || view.code === 'CG-CLAIM-BUSY') deps.greeting?.noteRefusal(track.fanRef, view.code);
     if (view.state === 'held' && view.code === 'CG-HUB-RATE-LIMIT') {
@@ -1727,9 +1732,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       return refused(type, localError(code, i18n));
     }
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
-    // Decision X53: the picked media go with this part, as they are at the click.
-    const attached = media.attachment(track.target.chat);
+    // Decision X53: the picked media go with this part, as they are at the click. They leave the picker with it: what the
+    // person does in the picker meanwhile neither changes nor repeats what goes.
+    const chat = track.target.chat;
+    const attached = media.attachment(chat);
     if (attached.kind === 'blocked') return refused(type, localError('CG-SEND-MEDIA', i18n));
+    const taken = attached.kind === 'media' ? media.take(chat) : null;
     // The button is off from the first click, before anything answers (§6.7.7, lock 1).
     track.clicked.add(key);
     reportProgress(track);
@@ -1740,6 +1748,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const issued = await issueCause(rpc, 'send', track.surface);
     if (!issued.ok) {
       settle();
+      if (taken !== null) media.restore(chat, taken);
       reportProgress(track);
       changed();
       return refused(type, localError(issued.code, i18n));
@@ -1768,6 +1777,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       answered = await sender.send(click);
     } catch {
       settle();
+      if (taken !== null) media.restore(chat, taken);
       reportProgress(track);
       changed();
       // The click never reached the coordinator's journal: nothing was sent.
@@ -1779,7 +1789,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     unclaimed.delete(answered.attemptId);
     const latest = early !== undefined && attemptReachable(answered.state, early.state) ? early : answered;
     attemptOwner.set(latest.attemptId, { opId: track.opId, key });
-    if (attached.kind === 'media') mediaAttempts.set(latest.attemptId, track.target.chat);
+    if (taken !== null) mediaAttempts.set(latest.attemptId, { chat, taken });
     track.attempts.set(key, {
       attemptId: latest.attemptId,
       view: latest,

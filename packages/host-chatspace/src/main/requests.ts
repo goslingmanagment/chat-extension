@@ -112,12 +112,14 @@ export interface SendMedia {
 }
 
 const isIds: Check = (value) => Array.isArray(value) && value.length <= MEDIA_IDS && value.every(isId);
+/** A medium's id that goes on the wire as a number (ChatSpace's `Lk`): never past 2^53, where it would name another. */
+const isMediaId: Check = (value) => isId(value) && Number.isSafeInteger(Number(value));
 const isMediaKeys = shape({
   items: (value) =>
     Array.isArray(value) &&
     value.length > 0 &&
     value.length <= MEDIA_MAX &&
-    value.every(shape({ id: isId, type: is(...MEDIA_TYPES), duration: count, thumb: orNull((thumb) => typeof thumb === 'string' && thumb.length <= 4096 && /^https:\/\/[^\s"'<>]+$/.test(thumb)), free: is(true, false) })),
+    value.every(shape({ id: isMediaId, type: is(...MEDIA_TYPES), duration: count, thumb: orNull((thumb) => typeof thumb === 'string' && thumb.length <= 4096 && /^https:\/\/[^\s"'<>]+$/.test(thumb)), free: is(true, false) })),
   priceCents: count,
   tags: shape({ users: isIds, guests: isIds }),
 });
@@ -202,5 +204,5 @@ export const PAYLOAD: Record<string, Check> = {
     shape({ of: is('folders'), acc: isId, offset: int(0, 100_000) })(value) ||
     shape({ of: is('items'), acc: isId, folder: (folder) => folder === 'all' || isId(folder), offset: int(0, 100_000) })(value) ||
     shape({ of: is('states'), ...accFan, ids: (ids) => isIds(ids) && (ids as unknown[]).length > 0 })(value) ||
-    shape({ of: is('tags'), acc: isId, ids: (ids) => isIds(ids) && (ids as unknown[]).length > 0 })(value),
+    shape({ of: is('tags'), acc: isId, ids: (ids) => isIds(ids) && (ids as unknown[]).length > 0 && (ids as unknown[]).every(isMediaId) })(value),
 };

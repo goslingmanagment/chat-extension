@@ -85,8 +85,11 @@ import { CG_SEND_GUARD, CG_SEND_REJECTED, CG_SEND_UNCERTAIN, ENTRY_FAILED, ERROR
 import { isRef, queueBusy, type SendObserver } from './send-port';
 import { sameShown, shownForms } from './shown';
 
-/** Characters of a kept copy that are parsed; a longer one is not ours to judge. */
-const MAX_BODY = 65_536;
+/**
+ * Characters of a kept copy that are parsed; a longer one is not ours to judge. Decision X53: 1 MiB — the answer to a
+ * send with forty media may carry their signed addresses, ~1.3 KB each, several per medium.
+ */
+const MAX_BODY = 1_048_576;
 /** Receipts whose echo has not come; the oldest goes first. */
 const MAX_AWAITING = 32;
 /** Outgoing ids kept with one followed send (its chat's, from the queue call to the receipt). */

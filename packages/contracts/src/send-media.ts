@@ -24,6 +24,9 @@ export const MediaTagsSchema = z.strictObject({
 });
 export type MediaTags = z.infer<typeof MediaTagsSchema>;
 
+/** A medium's id as it goes on the wire, a number (ChatSpace's `Lk`): never past 2^53, where it would name another. */
+export const MediaIdSchema = NativeIdSchema.check(z.refine((id) => Number.isSafeInteger(Number(id)), { message: 'unsafe' }));
+
 /** A price in cents a message may carry: 0 (free media) or OnlyFans' PPV range. */
 export const isMediaPriceCents = (cents: number): boolean => Number.isInteger(cents) && (cents === 0 || (cents >= MEDIA_LIMITS.priceMinCents && cents <= MEDIA_LIMITS.priceMaxCents));
 
@@ -38,7 +41,7 @@ export const SendMediaSchema = z
     items: z
       .array(
         z.strictObject({
-          id: NativeIdSchema,
+          id: MediaIdSchema,
           type: MediaTypeSchema,
           duration: CountSchema,
           thumb: z.nullable(MediaThumbSchema),

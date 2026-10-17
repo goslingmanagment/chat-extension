@@ -701,6 +701,7 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
         { of: 'items', acc: IDS.acc, folder: 'favorites', offset: 0 },
         { of: 'states', acc: IDS.acc, ids: ['660000155'] },
         { of: 'tags', acc: IDS.acc, ids: [] },
+        { of: 'tags', acc: IDS.acc, ids: ['123456789012345678'] },
         { of: 'history', acc: IDS.acc, fan: IDS.fan },
       ],
     },

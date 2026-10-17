@@ -98,6 +98,9 @@ describe('[X53] MAIN media reads', () => {
           { media_id: '1', message_id: '9', price: 15, sent_at: 'x', purchased_at: '2026-10-03T22:32:32.612Z' },
           { media_id: '2', message_id: '9', price: '24.99', sent_at: 'x', purchased_at: null },
           { media_id: '3', message_id: '9', price: null, sent_at: 'x', purchased_at: null },
+          // The same medium in two more messages: one state per medium, the strongest.
+          { media_id: '1', message_id: '8', price: null, sent_at: 'x', purchased_at: null },
+          { media_id: '3', message_id: '7', price: 10, sent_at: 'x', purchased_at: null },
         ],
       }).om,
       PACC,
@@ -108,13 +111,13 @@ describe('[X53] MAIN media reads', () => {
       value: [
         { id: '1', state: 'paid', priceCents: 1500 },
         { id: '2', state: 'unpaid', priceCents: 2499 },
-        { id: '3', state: 'free', priceCents: null },
+        { id: '3', state: 'unpaid', priceCents: 1000 },
       ],
     });
     expect(MediaAnswerSchema.safeParse(states).success).toBe(true);
 
     const tags = await mediaRead(
-      fakeOm({ items: [{ type: 'user', user: { id: 77, name: 'A' } }, { type: 'guest', id: '91', name: 'B' }, { type: 'other', id: '5' }] }).om,
+      fakeOm({ items: [{ type: 'user', user: { id: 77, name: 'A' } }, { type: 'guest', id: '91', name: 'B' }, { type: 'other', id: '5' }, { type: 'user', user: { id: 77, name: 'A' } }] }).om,
       PACC,
       { of: 'tags', acc: '1001', ids: ['1'] },
     );

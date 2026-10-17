@@ -482,7 +482,7 @@ describe('[X8-06] what is not a receipt (§6.7.6 п. 4, §6.7.8)', () => {
   it('an answer too long to be a receipt is not parsed: no id, nothing claimed', async () => {
     const live = start();
     const { call } = await sent(live, 36);
-    call.respond(200, { id: '8001', padding: 'x'.repeat(70_000) });
+    call.respond(200, { id: '8001', padding: 'x'.repeat(1_100_000) });
     await live.settle();
     expect(live.states(uuid(36))).toEqual([{ attemptId: uuid(36), state: 'uncertain', code: 'CG-SEND-UNCERTAIN', detail: { upstream: 'HTTP 200' } }]);
   });
@@ -732,7 +732,7 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
   it('a text too long to compare is not ours to attribute', async () => {
     const live = start();
     live.live.draft = ours;
-    composerSend(live, OPEN_FAN, `<p>${'x'.repeat(70_000)}</p>`);
+    composerSend(live, OPEN_FAN, `<p>${'x'.repeat(1_100_000)}</p>`);
     await live.settle();
     live.calls[0]?.respond(200, { id: '8106' });
     await live.settle();

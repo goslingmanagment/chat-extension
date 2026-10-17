@@ -14,6 +14,8 @@ import { iso, plain } from './page';
 import { MEDIA_FOLDERS_PAGE, MEDIA_ITEMS_PAGE } from './protocol';
 
 const TYPES = ['photo', 'video', 'gif', 'audio'];
+/** A medium's states for a fan, strongest first (`none` — not seen yet). */
+const STATES = ['paid', 'unpaid', 'free', 'none'];
 const KINDS = ['messages', 'posts', 'custom'];
 
 const items = (body: unknown): unknown[] => (isPlain(body) && Array.isArray(body['items']) ? body['items'] : []);
@@ -93,14 +95,19 @@ export async function mediaRead(om: OmApi, pacc: string | null, payload: Plain):
     // The media answer has no `has_more`: a full page says there may be more, as ChatSpace reads it.
     return { ok: true, value: { items: page.slice(0, size), hasMore: isPlain(body) && typeof body['has_more'] === 'boolean' ? body['has_more'] : items(body).length >= size } };
   }
-  if (of === 'states') return { ok: true, value: cut(body, state) };
-  const users: string[] = [];
-  const guests: string[] = [];
+  if (of === 'states') {
+    // One row per message a medium went in: one state per medium, the strongest (bought, sent priced, sent free).
+    const byId = new Map<unknown, Plain>();
+    for (const row of cut(body, state)) if (STATES.indexOf(row['state'] as string) < STATES.indexOf((byId.get(row['id'])?.['state'] as string) ?? 'none')) byId.set(row['id'], row);
+    return { ok: true, value: [...byId.values()] };
+  }
+  const users = new Set<string>();
+  const guests = new Set<string>();
   for (const raw of items(body)) {
     if (!isPlain(raw)) continue;
-    // ChatSpace tags only these two kinds of form (its `Mk`).
+    // ChatSpace tags only these two kinds of form (its `Mk`); a creator of two picks is tagged once.
     const id = idOf(raw['type'] === 'guest' ? raw['id'] : raw['type'] === 'user' && isPlain(raw['user']) ? raw['user']['id'] : null);
-    if (id !== null) (raw['type'] === 'guest' ? guests : users).push(id);
+    if (id !== null) (raw['type'] === 'guest' ? guests : users).add(id);
   }
-  return { ok: true, value: { users, guests } };
+  return { ok: true, value: { users: [...users], guests: [...guests] } };
 }

@@ -3924,14 +3924,36 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     expect(JSON.stringify(h.bg.begins)).not.toContain('pw365');
     expect(JSON.stringify(h.bg.begins)).not.toContain('"media"');
     expect(h.bg.begins.map((begin) => begin.marks)).toEqual([{ priced: true, withMedia: true }]);
-    // Queued: the picks stay until the platform took the message.
-    expect(pv(h).media?.picks).toBe(2);
+    // The picks left the picker with the click: what the person does there now changes nothing of this send.
+    expect(pv(h).media).toMatchObject({ open: false, picks: 0, attached: null });
     const attemptId = h.host.calls.commits[0]!.request.attemptId;
     h.sendState({ attemptId, state: 'nativeAccepted', platformMessageId: '9001' });
     await h.flush();
     expect(pv(h).media).toMatchObject({ open: false, picks: 0, attached: null });
     // The next part goes as text alone.
     expect(partsOf(h, 'spenders')[1]?.send?.s).not.toBe('unavailable');
+  });
+
+  it('picks come back only when the send proved it never reached the platform; picks made meanwhile stand', async () => {
+    const { h, handle, opId } = await withReply({ media: VAULT, answers: { commit: [{ state: 'notEnqueued', code: 'CG-SEND-QUEUE' }] } });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
+    await h.advance(300);
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
+    await h.flush();
+    // The queue refused it: nothing went, the pick is back for the next click.
+    expect(pv(h).media).toMatchObject({ picks: 1 });
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'rejected', canRetry: true });
+    // A send that may have gone keeps its picks: an uncertain outcome gives nothing back.
+    const second = await withReply({ media: VAULT, answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+    await second.h.dispatch({ type: 'SetMediaOpen', targetHandle: second.handle, open: true });
+    await second.h.flush();
+    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '12' });
+    await second.h.advance(300);
+    await second.h.dispatch({ type: 'SendPart', operationId: second.opId, part: 0 });
+    await second.h.flush();
+    expect(pv(second.h).media).toMatchObject({ picks: 0 });
   });
 
   it('a failed read is a card with «Повторить»; failed release forms hold the parts until read again', async () => {
