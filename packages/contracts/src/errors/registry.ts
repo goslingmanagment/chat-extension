@@ -98,6 +98,9 @@ const SPECS = {
   'CG-HOST-NOT-READY': { kind: 'host', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-HOST-CONTRACT': { kind: 'host', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count+sample', settings: 'status' },
   'CG-HOST-COMPOSER-MISSING': { kind: 'host', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count+sample' },
+  // 1.30.0 (X53): a read of the vault from the host's API failed; the page has no session token for it.
+  'CG-HOST-MEDIA': { kind: 'host', severity: 'warn', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
+  'CG-HOST-SESSION': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
   'CG-RUNTIME-RELOADED': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
   'CG-INSERT-CHAT-CHANGED': { kind: 'insert', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
   'CG-INSERT-FAILED': { kind: 'insert', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count+sample' },
@@ -130,6 +133,8 @@ const SPECS = {
   'CG-SEND-GUARD': { kind: 'send', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-SEND-REJECTED': { kind: 'send', severity: 'error', recovery: 'none', retry: 'none', telemetry: 'count+sample' },
   'CG-SEND-UNCERTAIN': { kind: 'send', severity: 'error', recovery: 'open-chat', retry: 'never', telemetry: 'count+sample' },
+  /** 1.30.0 (X53): the picked media cannot go yet — the price, a message of free previews only, the release forms. */
+  'CG-SEND-MEDIA': { kind: 'send', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-NETWORK': { kind: 'network', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
   'CG-TIMEOUT': { kind: 'network', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
   'CG-STORAGE-READ': { kind: 'storage', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count+sample', settings: 'diagnostics' },

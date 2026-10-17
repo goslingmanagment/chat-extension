@@ -181,6 +181,26 @@ export const COACH_LIMITS = {
  */
 export const PART_LIMITS = { maxVariants: 3, maxParts: 10 } as const;
 
+/** 1.30.0 (X53): the media picker of a preview and the media a part takes along (media.ts). */
+export const MEDIA_LIMITS = {
+  /** Folders of one page: the API takes at most 10. */
+  foldersPage: 10,
+  /** Media of one page: ChatSpace's own vault dialog asks 40. */
+  mediasPage: 40,
+  /** Media of one message (OnlyFans and ChatSpace's composer take 40). */
+  maxMedia: 40,
+  /** Media ids of one status or release-form request (the API takes 100). */
+  idsPerRequest: 100,
+  /** A PPV price, cents: OnlyFans takes $3…$200 on a message. */
+  priceMinCents: 300,
+  priceMaxCents: 20_000,
+  /** Characters of a thumbnail address (OnlyMonster's signed proxy addresses are ~1.3 KB). */
+  maxThumbChars: 4096,
+  /** MAIN aborts its request after this; the isolated side's deadline adds the frame. */
+  requestMs: 10 * SECOND,
+  bridgeMs: 12 * SECOND,
+} as const;
+
 /** Hub limits for fresh text (H-4c `AI_LIVE_TEXT_MAX_ITEMS` / `_MAX_CHARS`). */
 export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 

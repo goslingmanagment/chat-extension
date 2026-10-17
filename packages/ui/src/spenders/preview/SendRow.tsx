@@ -23,6 +23,7 @@ import { cgBodyKey } from '@cg/contracts/i18n/keys';
 import { SEND_REASON_KEYS, isSendReasonCode, type I18n, type PartVM, type PreviewSendView, type ResultVM, type UiAction } from '@cg/contracts/vm';
 
 import { Button, Dot, Icon, Spinner, useCountdown, useDispatch, useHints, useI18n, useNowFn } from '../../kit';
+import { sendWithMediaLabel, useMediaAttached } from './MediaPicker';
 
 /** The text after «ChatGoose · CG-…:» split off its prefix, so the prefix can be set in its own ink. */
 export function codeLineParts(i18n: I18n, code: string, text: string): { readonly prefix: string; readonly text: string } {
@@ -199,6 +200,8 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
   const hints = useHints();
   const dispatch = useDispatch();
   const send = part.send;
+  // Decision X53: the picked media go with this part — the button says what goes, the price included.
+  const withMedia = sendWithMediaLabel(i18n, useMediaAttached());
   if (send === undefined) {
     // A host with no send from the preview (Fansly: no X8 there, R20 P9e): «Открыть и вставить» and «Копировать»
     // only — quiet, as next to a refused part (ui-design §4.13); nothing blue, nothing reaches the fan from here.
@@ -234,7 +237,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
     case 'available':
       return (
         <div class="cg-pvs" data-cg-send="available">
-          <SendButton part={part} opId={opId} label={i18n.t('send.button')} tooltip={i18n.t('send.buttonTooltip')} />
+          <SendButton part={part} opId={opId} label={withMedia ?? i18n.t('send.button')} tooltip={i18n.t(withMedia === null ? 'send.buttonTooltip' : 'send.buttonMediaTooltip')} />
           <OpenAndInsert part={part} opId={opId} />
           <CopyIcon part={part} />
         </div>
@@ -287,7 +290,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
             <Dot kind="danger" />
             {i18n.t('send.rejected')}
           </State>
-          {send.canRetry ? <SendButton part={part} opId={opId} label={i18n.t('send.retry')} tooltip={i18n.t('send.retryTooltip')} /> : <OpenAndInsert part={part} opId={opId} />}
+          {send.canRetry ? <SendButton part={part} opId={opId} label={withMedia ?? i18n.t('send.retry')} tooltip={i18n.t('send.retryTooltip')} /> : <OpenAndInsert part={part} opId={opId} />}
           <CopyIcon part={part} />
           <CodeLine code={send.code} text={rejectedText(i18n, send)} />
         </div>

@@ -13,8 +13,11 @@
 //   over its live port (live.ts): the freshness checkpoint, the X8 send port,
 //   the flags and the `wsFrames` anchor. Without it those requests are
 //   `disabled` and nothing of §6.6–§6.8 runs.
-// One request of its own (X54): the open chat's messages from ChatSpace's API
-// (om-api.ts), only for the chat on the route now — it is read already.
+// Requests of its own to ChatSpace's API (om-api.ts): the open chat's messages
+// (X54), only for the chat on the route now — it is read already; the vault
+// reads of a preview's media picker (X53, media.ts) — folders, a folder's
+// media, a fan's media statuses, the picks' release forms — none of them a
+// chat's history.
 // Never (§6.10): any other request of its own, history loads, store/cache writes,
 // resend/cancel/confirmEchoedMessage/reset*, ensure*/refresh*/fetch/
 // invalidate*, insertMessage/setInsertPayload, synthetic paste, body
@@ -56,6 +59,7 @@ import {
   STORE_QUEUE,
   STORE_TABS,
 } from './protocol';
+import { mediaRead } from './media';
 import { createOmApi } from './om-api';
 import { PAYLOAD, type Identity, type InsertWire, type NavigationWire } from './requests';
 import { QUEUE_SEND, queueShape } from './send-port';
@@ -611,6 +615,9 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         };
         return open() ? om.openChatMessages(acc, fan, payload['limit'] as number, payload['cursor'] as string | undefined, open) : ERR_IDENTITY;
       }
+      case 'media':
+        // Decision X53: the vault of an account the page has loaded, by its OnlyFans id; never a chat's history.
+        return mediaRead(om, reader.accounts().find((account) => account.hostAccountId === acc)?.platformAccountId ?? null, payload);
       case 'readTail':
         return identityMatches(expected) && expected.chat ? reader.tail(expected.chat.hostAccountId, expected.chat.platformFanId, payload['max'] as number) : ERR_IDENTITY;
       case 'readDraft': {

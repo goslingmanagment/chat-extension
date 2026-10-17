@@ -14,6 +14,7 @@ import { type I18nKey } from '@cg/contracts/errors';
 import { type DockActionVM, type I18n, type PingSegmentVM, type PreviewActionId, type PreviewVM, type UiAction } from '@cg/contracts/vm';
 
 import { CheckGlyph, GooseMark, Icon, StripButton, focusQuietly, rovingIndex, useDispatch, useHints, useI18n } from '../../kit';
+import { MediaToggle } from './MediaPicker';
 
 /** UI-002 order; the model says which of them this preview has. */
 const ORDER: readonly PreviewActionId[] = ['reply', 'fix', 'hi', 'ping'];
@@ -179,6 +180,8 @@ export function MiniStrip({ vm, hiHint = null }: MiniStripProps): JSX.Element {
         })}
       </div>
       {bar.actions.reply === undefined ? <div class="cg-pvb__opts">{capsule}</div> : null}
+      {/* Decision X53: the vault's media that go with the next part sent. */}
+      {vm.media !== null && vm.handle !== null ? <MediaToggle vm={vm.media} handle={vm.handle} /> : null}
     </div>
   );
 }

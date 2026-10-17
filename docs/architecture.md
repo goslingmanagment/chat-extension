@@ -1745,6 +1745,26 @@ uncertain → sentObserved только когда поздно пришла в�
 со слоем Sentry над `fetch` (§6.2): наблюдатель квитанции отдаёт вызов его обёртке, и на
 сервер должен уйти тот же запрос.
 
+#### 6.7.14 Медиа из vault с частью (X53)
+
+Решение X53. Часть ответа может взять с собой медиа из vault, выбранные в панели «Медиа» превью: тот же один вызов
+`enqueue`, что и в §6.7.1, только `hasAttachments: true`, `platformMetadata` и `composerContent.media` собраны, как их
+собирает composer ChatSpace (`zk`, `Rk`):
+
+| Поле | Значение |
+|---|---|
+| `platformMetadata.mediaFiles` | id медиа числами в порядке выбора; аудио — `{id, thumbId: 0}` |
+| `platformMetadata.price` | цена в долларах, только если больше нуля ($3–$200) |
+| `platformMetadata.previews` | id бесплатных превью, только при цене; при цене хотя бы одно медиа за ней |
+| `platformMetadata.rfTag` / `rfGuest` | отметки соавторов из release forms медиа (строки), если есть |
+| `composerContent.media` | `{medias: [{id, type, duration, isFree, imageUrl}], price, lockedText: false}` — для их «вернуть в поле ввода» |
+
+Условия §6.7.4 те же; добавлено своё: выбранные медиа с неверной ценой, «всё бесплатно при цене» или с непрочитанными
+отметками держат «Отправить» (`CG-SEND-MEDIA`). Квитанция §6.7.6 сверяет текст запроса, как и прежде; ответ она
+разбирает до 1 МиБ — в нём могут быть подписанные адреса медиа. Что читает панель
+(папки, медиа, статусы для фана, release forms) — свои запросы MAIN к API ChatSpace (`media`, X54, X53): ни один не
+история чата.
+
 ### 6.8 Тап WebSocket
 
 **Зачем.** Шина событий WebSocket ChatSpace закрыта внутри их модуля
@@ -3328,6 +3348,8 @@ M2–M6 — не строгая очередь, а точки сборки. По
 | CG-HOST-NOT-READY | хост ещё не загрузился (оба адаптера) | — | HOST-01 / HOST-NOT-READY |
 | CG-HOST-CONTRACT | хост обновился — часть функций выключена | — | HOST-02 / HOST-CONTRACT |
 | CG-HOST-COMPOSER-MISSING | поле ввода недоступно — только копирование | — | HOST-03 / — |
+| CG-HOST-MEDIA | vault не прочитан из API хоста (X53) | чтение | — / — |
+| CG-HOST-SESSION | у страницы хоста нет входа для запроса к её API (X53) | — | — / — |
 | CG-RUNTIME-RELOADED | расширение обновилось — перезагрузите вкладку | — | HOST-04 / RUNTIME-RELOADED |
 | CG-INSERT-CHAT-CHANGED | чат сменился — текст не вставлен | клик | HOST-05 / — |
 | CG-INSERT-FAILED | текст не вставился | клик | HOST-06 / INSERT-FAILED |
@@ -3360,6 +3382,7 @@ M2–M6 — не строгая очередь, а точки сборки. По
 | CG-SEND-GUARD | Message Guard ChatSpace не пропустил текст (отказ ChatSpace, не наш Guard) | — | — / SEND-09 |
 | CG-SEND-REJECTED | точный нативный отказ до принятия сообщения; автоповтора нет | — | — / SEND-10 |
 | CG-SEND-UNCERTAIN | неизвестно, ушло ли сообщение — повтор запрещён (Spenders и «Новые») | никогда | NEW-03 / SEND-08 |
+| CG-SEND-MEDIA | выбранные медиа ещё не готовы к отправке: цена, отметки соавторов (X53) | — | — / — |
 | CG-NETWORK | нет связи | чтение | NET-01 / NETWORK |
 | CG-TIMEOUT | время ожидания истекло (не хаб) | чтение | NET-02 / TIMEOUT |
 | CG-STORAGE-READ | настройки или данные не прочитались | чтение | SYS-02 / STORAGE-READ |

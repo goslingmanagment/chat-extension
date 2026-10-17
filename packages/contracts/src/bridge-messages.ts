@@ -28,6 +28,8 @@ import {
 } from './host';
 import { DraftProvenanceSchema, HostAccountSchema, HostIdentitySchema, PartRefSchema } from './ids';
 import { BRIDGE_LIMITS, OPEN_CHAT_LIMITS, SEND_LIMITS } from './limits';
+import { MediaAnswerSchema, MediaRequestSchema } from './media';
+import { SendMediaSchema } from './send-media';
 import { CountSchema, DigestSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FreshnessCheckpointSchema, PendingIdSchema, PreviewSendCommitSchema, PreviewSendPreflightSchema, SendAttemptViewSchema, SendFuseFactSchema, checkpointMatches } from './send';
 
@@ -108,6 +110,8 @@ export const MainSendRequestSchema = z
     checkpoint: FreshnessCheckpointSchema,
     /** The ticket's deadline on the local clock (send-rules localDeadline). */
     expiresAt: EpochMsSchema,
+    /** 1.30.0 (X53): the vault media the part takes along (PreviewSendRequest.media). */
+    media: z.optional(SendMediaSchema),
   })
   .check(z.refine((r) => checkpointMatches(r.checkpoint, r.acc, r.fan), { message: 'the checkpoint belongs to acc/fan' }));
 export type MainSendRequest = z.infer<typeof MainSendRequestSchema>;
@@ -186,6 +190,12 @@ export const TO_MAIN = {
     write: false,
     timeout: 'network',
   },
+  /**
+   * 1.30.0 (X53): one read of a preview's media picker from the host's own API (MediaRequest): the vault's folders, a
+   * folder's media, what a fan got of them, their release forms. Never a chat's history. A failed request is an answer
+   * (`ok: false`), not a bridge error. Its deadline is MEDIA_LIMITS.bridgeMs.
+   */
+  media: { payload: MediaRequestSchema, data: MediaAnswerSchema, write: false, timeout: 'network' },
 } as const satisfies Record<ToMainType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: boolean; readonly timeout: 'call' | 'navInsert' | 'network' }>;
 
 export type ToMainPayload<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['payload']>;
@@ -275,6 +285,7 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('previewSendCommit'),
   requestFrame('flags'),
   requestFrame('openChatMessages'),
+  requestFrame('media'),
 ]);
 export type BridgeRequest = z.infer<typeof BridgeRequestSchema>;
 

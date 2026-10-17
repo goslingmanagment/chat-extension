@@ -49,8 +49,9 @@ export const CHATSPACE: HostDescriptor = {
       // 5 KiB was met with 0.03 KiB to spare; the X8 fuse's checks live with the receipt observer and add about
       // 0.9 KiB (decision X25); who sent each message (decision X48: the receipt of every human send, its price and
       // media as marks) brings it to 6.08 KiB (6221 B): 0.25 KiB more room. Nothing of them runs at document_start:
-      // the tap's own work there is the constructor wrap.
-      { entry: 'chatspace-ws', label: 'MAIN WS tap (chatspace-ws)', gzipBytes: 6.25 * KIB },
+      // the tap's own work there is the constructor wrap. X53: 6.25 → 6.5 KiB — the vault media a preview part takes along
+      // (their `platformMetadata` and what ChatSpace's «back to the composer» restores) went into the send port.
+      { entry: 'chatspace-ws', label: 'MAIN WS tap (chatspace-ws)', gzipBytes: 6.5 * KIB },
       { entry: 'chatspace', label: 'isolated early bootstrap (chatspace)', gzipBytes: 32 * KIB }, // X44: the dock focus and its key guard left no room; 30 → 32 KiB, as #152 and #159 raised theirs.
     ],
     // What ChatSpace's bundles pay for its slices of the contracts (docs/protocols/README.md, the light/heavy split):
@@ -65,7 +66,9 @@ export const CHATSPACE: HostDescriptor = {
         gzipBytes: 12 * KIB,
       },
       { label: 'contracts: UiAction schema', entry: `export { UiActionSchema } from '${CONTRACTS}/vm/actions.ts';`, gzipBytes: 16 * KIB },
-      { label: 'contracts: tab request registry (parseTabPayload)', entry: `export { parseTabPayload } from '${CONTRACTS}/tab-messages.ts';`, gzipBytes: 30 * KIB }, // R20 P4b3: room for Fansly's operations in the shared registry.
+      // R20 P4b3: room for Fansly's operations in the shared registry. X53: 30 → 31 KiB — the marks of a send's media
+      // (`SendBegin.marks`, the journal's) and the media a part takes along (`PreviewSendRequest.media`).
+      { label: 'contracts: tab request registry (parseTabPayload)', entry: `export { parseTabPayload } from '${CONTRACTS}/tab-messages.ts';`, gzipBytes: 31 * KIB },
     ],
   },
   // Local only, never in CI: the bundles are OnlyMonster's code and stay outside the repository

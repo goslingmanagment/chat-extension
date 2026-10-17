@@ -21,6 +21,8 @@ export * from './errors';
 export * from './settings';
 export * from './send-rules';
 export * from './send';
+export * from './media';
+export * from './send-media';
 export * from './host';
 export * from './ops';
 export * from './telemetry';
@@ -41,4 +43,4 @@ export * from './hub';
  * minor bump, a new meaning a major one; every bump has its entry in
  * docs/contracts-changelog.md (architecture.md §5).
  */
-export const CONTRACTS_VERSION = '1.29.0';
+export const CONTRACTS_VERSION = '1.30.0';

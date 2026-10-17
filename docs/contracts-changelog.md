@@ -28,6 +28,39 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
+## 1.30.0 — 2026-10-17 (медиа из vault и PPV из превью; решение X53)
+
+Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.29.0 (#181, X52). Собиралась как 1.24.0 и перенумерована при перебазировании на
+main.
+
+- **`media` (новый модуль):** что читает панель медиа превью — `MediaFolder` (папка vault: id, имя, вид `messages` /
+  `posts` / `custom` / `other`, счётчики), `MediaItem` (id, тип,
+  длительность, `ready`, миниатюра только `https`, время), страницы `MediaFoldersPage` (до 10) и `MediaItemsPage`
+  (до 40), `MediaFanState` (что фан уже получил: `paid`, `unpaid`, `free`, с ценой в центах), список
+  `MEDIA_READ_FAILURES`; запрос моста `MediaRequest` (`folders`, `items`, `states`, `tags`) и ответ `MediaAnswer`;
+  порт `MediaPort` и `MediaRead<T>` (никогда не бросает).
+- **`send-media` (новый модуль):** что часть берёт с собой — `SendMedia` (медиа в порядке выбора: id, тип,
+  длительность, миниатюра, `free`; `priceCents` 0 или 300…20000; отметки соавторов `MediaTags`) с правилами: медиа не
+  повторяются, бесплатные превью только при цене, при цене хотя бы одно медиа за ней. `MEDIA_TYPES`, `MediaThumb`,
+  `isMediaPriceCents`, а также `MediaFolderId` (`all` — «Все медиа», или id папки), который берут действия панели.
+  Отдельно от `media`, чтобы реестр вкладки и чанки досок, проверяющие действия, не платили за схемы чтения панели.
+- **`send`:** `PreviewSendRequest.media?` (`SendMedia`); `SendMarksSchema` (`priced`, `withMedia`) и
+  `SendJournalEntry.marks?`.
+- **`tab-messages`:** `SendBegin.marks?` — фон получает только отметки цены и медиа (кто отправил, X48), сами медиа —
+  нет.
+- **`bridge`, `bridge-messages`:** запрос в MAIN `media` (`MediaRequest` → `MediaAnswer`, класс тайм-аута `network`,
+  `MEDIA_LIMITS.bridgeMs`); `MainSendRequest.media?`.
+- **`host`:** необязательный `HostPort.media?: MediaPort` (у ChatSpace есть, у Fansly нет).
+- **`limits`:** `MEDIA_LIMITS` — страницы 10 и 40, до 40 медиа в сообщении, до 100 id в запросе, цена 300…20000
+  центов, миниатюра до 4096 символов, запрос 10 с, мост 12 с.
+- **`vm`:** `PreviewVM.media: MediaPickerVM | null` (папки, сетка, выбор, цена, сводка, что уйдёт с частью, почему не
+  уйдёт); действия `SetMediaOpen`, `ChooseMediaFolder`, `LoadMoreMedia`, `PickMedia`, `ToggleMediaFree`,
+  `SetMediaPrice`, `ClearMedia`, `RetryMedia`; `SEND_REASON_KEYS['CG-SEND-MEDIA']`.
+- **CG:** `CG-HOST-MEDIA` (vault не прочитан), `CG-HOST-SESSION` (у страницы нет входа для запроса), `CG-SEND-MEDIA`
+  (выбранные медиа ещё не готовы к отправке).
+- **i18n:** ключи `preview.media.*`, `send.buttonMedia`, `send.buttonMediaPaid`, `send.buttonMediaTooltip`,
+  `send.reason.media`; множественные `preview.media.count`, `preview.media.previews`.
+
 ## 1.29.0 — 2026-10-17 (свежий хвост открытого чата для Review и Coach, решение X52)
 
 Хаб принимает `liveTextContext` и на `chat-review`, и на `coach-chat`, если объявляет `live-text-review-coach-v1`;

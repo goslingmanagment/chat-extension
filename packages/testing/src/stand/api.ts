@@ -6,7 +6,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { CallOrigin, SendOutcome } from '../../fixture-chatspace/src/protocol';
-import { plainText, type StandChat, type StandMessage } from './dataset';
+import { STAND_VAULT, plainText, type StandChat, type StandMessage } from './dataset';
 import type { ServerJournal } from './journal';
 import type { SocketHub } from './socket-hub';
 import type { StandState } from './state';
@@ -105,6 +105,45 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
     });
     sendJson(response, 200, { items });
     return log(200);
+  }
+
+  // 1.30.0 (X53): the vault of a creator by its OnlyFans id — folders, a folder's media, a fan's media statuses — as
+  // ChatSpace's vault dialog and our media picker read it. None of it is a chat's history (no `history-load`).
+  const vaultMatch = /^v0\/platforms\/onlyfans\/accounts\/([^/]+)\/(.+)$/.exec(route);
+  if (method === 'GET' && vaultMatch) {
+    const creator = state.dataset.accounts.find((candidate) => candidate.platformAccountId === vaultMatch[1]);
+    const sub = vaultMatch[2] ?? '';
+    const limit = Number(url.searchParams.get('limit') ?? DEFAULT_PAGE);
+    const offset = Number(url.searchParams.get('offset') ?? 0);
+    const medias = /^vault\/folders\/([^/]+)\/medias$/.exec(sub);
+    const stats = /^fans\/([^/]+)\/medias\/stats$/.exec(sub);
+    if (creator === undefined) {
+      sendJson(response, 404, errorBody(404));
+      return log(404);
+    }
+    if (sub === 'vault/folders') {
+      // The real API takes at most 10 folders a page (live 2026-10-17).
+      if (limit > 10) {
+        sendJson(response, 400, { message: 'querystring/limit must be <= 10' });
+        return log(400);
+      }
+      sendJson(response, 200, { items: STAND_VAULT.folders.slice(offset, offset + limit), has_more: offset + limit < STAND_VAULT.folders.length, sort: 'default', order: 'asc' });
+      return log(200, { accountId: creator.id });
+    }
+    if (medias) {
+      const folder = medias[1] ?? '';
+      const all = STAND_VAULT.media.filter((item) => folder === 'all' || item.folder === folder).map(({ folder: _folder, ...item }) => item);
+      // As the real API: no `has_more` here.
+      sendJson(response, 200, { items: all.slice(offset, offset + limit) });
+      return log(200, { accountId: creator.id });
+    }
+    if (stats) {
+      const asked = new Set(list('media_ids'));
+      sendJson(response, 200, { items: (STAND_VAULT.stats[stats[1] ?? ''] ?? []).filter((item) => asked.has(String(item['media_id']))) });
+      return log(200, { accountId: creator.id, chatId: stats[1] ?? '' });
+    }
+    sendJson(response, 404, errorBody(404));
+    return log(404);
   }
 
   const accountMatch = /^v0\/accounts\/([^/]+)\/(.+)$/.exec(route) ?? /^stats\/accounts\/([^/]+)\/(.+)$/.exec(route);
@@ -214,6 +253,14 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
     const online = asked.filter((fanId) => (typeof fanId === 'number' || typeof fanId === 'string') && state.isOnline(accountId, String(fanId)));
     sendJson(response, 200, { online, timed_out: false });
     return log(200, { accountId, detail: { asked: asked.map(String), online: online.map(String) } });
+  }
+
+  // 1.30.0 (X53): the release forms of media, as ChatSpace's composer asks before it tags a message with them.
+  if (method === 'POST' && rest === 'platforms/onlyfans/vault/media/release-forms') {
+    const body = await readJson(request);
+    const ids = typeof body === 'object' && body !== null && Array.isArray((body as Record<string, unknown>)['media_ids']) ? ((body as Record<string, unknown>)['media_ids'] as unknown[]).map(String) : [];
+    sendJson(response, 200, { items: ids.flatMap((id) => STAND_VAULT.forms[id] ?? []) });
+    return log(200, { accountId, detail: { mediaIds: ids } });
   }
 
   if (method === 'GET' && rest === 'fans/transactions/latest') {

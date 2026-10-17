@@ -10,6 +10,11 @@
 //   MAIN checks its route again. Callers that ask at once share one request;
 //   the newest page stays for `maxAgeMs`, and a change of the chat's cache, an
 //   incoming message of it or a move to another chat drops it.
+// - The media picker of a preview reads the vault past page memory too (X53,
+//   `media`): folders, a folder's media, a fan's media statuses, the picks'
+//   release forms — MAIN asks ChatSpace's API for the account the page has
+//   loaded; no chat's history. Nothing is cached here: the picker keeps what
+//   it read.
 //
 // - State comes from MAIN's snapshot and events (route, composer, accounts,
 //   chat cache, contract), checked by the bridge client; the synchronous
@@ -50,7 +55,9 @@ import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
 import { PREVIEW_SEND_CONDITION_CODES, sendFuseHolds, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
-import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
+import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
+import type { MediaFanState, MediaFoldersPage, MediaItemsPage, MediaRead, MediaRequest } from '@cg/contracts/media';
+import type { MediaTags } from '@cg/contracts/send-media';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { buildContractReport, type ContractWireInput } from './contract';
@@ -630,6 +637,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     isAiGenerated: live?.markAiGenerated === true && req.isAiGenerated,
     checkpoint: req.checkpoint,
     expiresAt,
+    // X53: the vault media the part takes along go to MAIN as they are (MainSendRequest.media).
+    ...(req.media === undefined ? {} : { media: req.media }),
   });
 
   /** What this side can refuse before MAIN is asked: the capability (flag, anchors, tap, receipt profile) and the host of the target. */
@@ -700,6 +709,19 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         if (set.size === 0) sendListeners.delete(attemptId);
       };
     },
+  };
+
+  /**
+   * 1.30.0 (X53): one read of a preview's media picker (MediaPort). The bridge checked MAIN's answer against the union
+   * of the four kinds; `kind` keeps only the one this request asks for. Never rejects.
+   */
+  const mediaRead = <T>(request: MediaRequest, kind: (value: object) => boolean): Promise<MediaRead<T>> => {
+    if (!bridge || disposed) return Promise.resolve({ ok: false, reason: 'unavailable', status: null });
+    return bridge.request('media', request, MEDIA_LIMITS.bridgeMs).then(
+      (answer): MediaRead<T> =>
+        !answer.ok ? { ok: false, reason: answer.failure, status: answer.status } : kind(answer.value) ? { ok: true, value: answer.value as T } : { ok: false, reason: 'invalid', status: null },
+      (): MediaRead<T> => ({ ok: false, reason: 'unavailable', status: null }),
+    );
   };
 
   const port: ChatSpaceHostPort = {
@@ -798,6 +820,13 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       );
       if (newest) openRead = { key, generation, limit, done };
       return done;
+    },
+
+    media: {
+      folders: (hostAccountId, offset) => mediaRead<MediaFoldersPage>({ of: 'folders', acc: hostAccountId, offset }, (value) => 'items' in value),
+      items: (hostAccountId, folder, offset) => mediaRead<MediaItemsPage>({ of: 'items', acc: hostAccountId, folder, offset }, (value) => 'items' in value),
+      fanStates: (chat, ids) => mediaRead<readonly MediaFanState[]>({ of: 'states', acc: chat.hostAccountId, fan: chat.platformFanId, ids: [...ids] }, Array.isArray),
+      tags: (hostAccountId, ids) => mediaRead<MediaTags>({ of: 'tags', acc: hostAccountId, ids: [...ids] }, (value) => 'users' in value),
     },
 
     /** `max` does not narrow the window: it covers what ChatSpace has loaded, up to the snapshot limit (ui-contract.md п. 11). */

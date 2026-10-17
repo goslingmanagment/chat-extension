@@ -42,6 +42,8 @@ import {
   humanDraft,
   incomingFact,
   mainSend,
+  mediaFolder,
+  mediaItem,
   messages,
   navItem,
   ourDraft,
@@ -50,6 +52,7 @@ import {
   quota,
   routeState,
   sendBegin,
+  sendMedia,
   tabHealth,
   toast,
 } from './schemas';
@@ -637,11 +640,23 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
   },
   checkpoint: { payload: { valid: [accFan], invalid: [{ ...accFan, fan: '0' }] }, data: { valid: [checkpoint], invalid: [{ ...checkpoint, coverage: 'maybe' }] } },
   previewSendPreflight: {
-    payload: { valid: [{ req: mainSend }], invalid: [{ req: { ...mainSend, binding } }] },
+    payload: {
+      valid: [{ req: mainSend }, { req: { ...mainSend, media: sendMedia } }],
+      invalid: [
+        { req: { ...mainSend, binding } },
+        // 1.30.0 (X53): a price below OnlyFans' $3, a free preview of a free message, a medium twice.
+        { req: { ...mainSend, media: { ...sendMedia, priceCents: 299 } } },
+        { req: { ...mainSend, media: { ...sendMedia, priceCents: 0 } } },
+        { req: { ...mainSend, media: { ...sendMedia, items: [sendMedia.items[1], sendMedia.items[1]] } } },
+      ],
+    },
     data: { valid: [{ ok: true }, { ok: false, code: 'CG-SEND-MIMIC' }], invalid: [{ ok: 'yes' }] },
   },
   previewSendCommit: {
-    payload: { valid: [{ req: mainSend }], invalid: [{ req: { ...mainSend, ticket: 'ticket-1' } }] },
+    payload: {
+      valid: [{ req: mainSend }, { req: { ...mainSend, media: sendMedia } }],
+      invalid: [{ req: { ...mainSend, ticket: 'ticket-1' } }, { req: { ...mainSend, media: { ...sendMedia, items: sendMedia.items.map((item) => ({ ...item, free: true })) } } }],
+    },
     data: { valid: [{ state: 'nativeEnqueued', pendingId: uuid(7) }], invalid: [{ state: 'nativeAccepted', pendingId: uuid(7) }] },
   },
   flags: {
@@ -668,6 +683,41 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
         { ok: false, failure: 'not-open', status: null },
         { ok: false, failure: 'http', status: 42 },
         { ok: true },
+      ],
+    },
+  },
+  // 1.30.0 (X53): the media picker's reads from the host's API; a failed request is an answer, not an error.
+  media: {
+    payload: {
+      valid: [
+        { of: 'folders', acc: IDS.acc, offset: 0 },
+        { of: 'items', acc: IDS.acc, folder: 'all', offset: 40 },
+        { of: 'items', acc: IDS.acc, folder: '880001', offset: 0 },
+        { of: 'states', acc: IDS.acc, fan: IDS.fan, ids: ['660000155', '660000154'] },
+        { of: 'tags', acc: IDS.acc, ids: ['660000155'] },
+      ],
+      invalid: [
+        { of: 'folders', acc: IDS.acc, offset: -1 },
+        { of: 'items', acc: IDS.acc, folder: 'favorites', offset: 0 },
+        { of: 'states', acc: IDS.acc, ids: ['660000155'] },
+        { of: 'tags', acc: IDS.acc, ids: [] },
+        { of: 'tags', acc: IDS.acc, ids: ['123456789012345678'] },
+        { of: 'history', acc: IDS.acc, fan: IDS.fan },
+      ],
+    },
+    data: {
+      valid: [
+        { ok: true, value: { items: [mediaFolder], hasMore: true } },
+        { ok: true, value: { items: [mediaItem], hasMore: false } },
+        { ok: true, value: [{ id: '660000155', state: 'paid', priceCents: 1500 }] },
+        { ok: true, value: { users: ['77'], guests: [] } },
+        { ok: false, failure: 'account', status: null },
+        { ok: false, failure: 'http', status: 400 },
+      ],
+      invalid: [
+        { ok: true, value: { items: [{ ...mediaItem, thumb: 'http://cdn.example/x.jpg' }], hasMore: false } },
+        { ok: true, value: [{ id: '660000155', state: 'unsent', priceCents: null }] },
+        { ok: false, failure: 'not-open', status: null },
       ],
     },
   },

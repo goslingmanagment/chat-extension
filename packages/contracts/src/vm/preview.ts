@@ -12,6 +12,7 @@ import { type UiAction } from './actions';
 import { type ReasonVM } from './catalog';
 import { type DockActionVM } from './dock';
 import { type Msg } from './i18n';
+import { type MediaPickerVM } from './media';
 import { type ClaimVM, type GreetingStatusVM, type NewcomerKind } from './newcomers';
 import { type ResultVM } from './result';
 import { type PreviewSource, type TargetHandle } from './selectors';
@@ -95,6 +96,11 @@ export interface PreviewVM {
     readonly splitReason: ReasonVM | null;
   };
   readonly result: ResultVM | null;
+  /**
+   * 1.30.0 (X53): the media picker — the vault's media that go with the next part sent; null — no preview send here, or
+   * the host has no vault to read.
+   */
+  readonly media: MediaPickerVM | null;
   /** Before the first generation: «Нажмите Reply, Hi или Ping — ответ появится здесь…». */
   readonly idleHint: Msg | null;
   readonly neighbors: { readonly previous: UiAction | null; readonly next: UiAction | null };

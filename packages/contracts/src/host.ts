@@ -1,12 +1,14 @@
 import type { PageDiagnostics } from './diagnostics';
 // The host port (architecture.md §5.2, §6): everything the extension may know
-// about and do to the host page. Page memory, with one read of the network
-// since 1.22.0 (X54): the messages of the chat the person has open, from the
-// host's own API (`openChatMessages`) — never another chat's, whose history
-// load would mark it read. The port never has, and never will have,
-// fetchHistory() of any chat, markRead(), setStore(), a general send() or an
-// arbitrary execute(). Writes: guarded insert, navigation on a human action,
-// and the X8 preview send (PreviewSendPort).
+// about and do to the host page. Page memory, with reads of the network from
+// the host's own API: since 1.22.0 (X54) the messages of the chat the person
+// has open (`openChatMessages`) — never another chat's, whose history load
+// would mark it read —, since 1.30.0 (X53) the vault of a preview's media
+// picker (`media`: folders, media, a fan's media statuses, release forms). The
+// port never has, and never will have, fetchHistory() of any chat,
+// markRead(), setStore(), a general send() or an arbitrary execute(). Writes:
+// guarded insert, navigation on a human action, and the X8 preview send
+// (PreviewSendPort), which may take vault media along (X53).
 
 import * as z from 'zod/mini';
 
@@ -42,6 +44,7 @@ import {
   type IsoTimestamp,
   type NativeId,
 } from './primitives';
+import { type MediaPort } from './media';
 import { type FreshnessCheckpoint, type PreviewSendPort, type SendFuseFact } from './send';
 import { RECEIPT_MATCH_KINDS } from './send-rules';
 
@@ -843,6 +846,11 @@ export interface HostPort {
   onTheme(cb: (theme: HostTheme) => void): Unsubscribe;
   /** X8; null when the capability is off. */
   readonly previewSend: PreviewSendPort | null;
+  /**
+   * 1.30.0 (X53): the vault a preview send takes media from, read from the host's own API; absent — a host without one
+   * (Fansly). Reads only: the folders, a folder's media, what a fan got of them, their release-form tags — never a chat.
+   */
+  readonly media?: MediaPort;
   /**
    * 1.15.0 (R20 §7.7): the generation snapshot (FS-TAIL-6), only on a host whose tab observes its chats itself
    * (Fansly); absent on ChatSpace, whose fresh text is `readVisibleTail` and whose freshness is `checkpoint`.

@@ -22,6 +22,7 @@
     "./fanpanel": "./src/fanpanel/index.ts",
     "./palette": "./src/palette/index.ts",
     "./preview": "./src/preview/index.ts",
+    "./preview/media": "./src/spenders/preview/media-panel.tsx",
     "./pages": "./src/pages/index.ts",
     "./hosts/fansly": "./src/hosts/fansly/index.ts",
     "./hosts/fansly/vault": "./src/hosts/fansly/vault/index.tsx",

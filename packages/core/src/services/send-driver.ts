@@ -29,8 +29,11 @@ export interface BackgroundSendPort {
   report(view: SendAttemptView, pendingId?: string): Promise<void>;
 }
 
-/** What the preview controller knows at the click (the part, its frozen operation and checkpoint, the click's cause). */
-export type SendClick = Omit<SendBegin, 'attemptId'> & Pick<PreviewSendRequest, 'plainText' | 'isAiGenerated'>;
+/**
+ * What the preview controller knows at the click (the part, its frozen operation and checkpoint, the click's cause)
+ * and what goes to MAIN only: the text and, since 1.30.0 (X53), the vault media the part takes along.
+ */
+export type SendClick = Omit<SendBegin, 'attemptId'> & Pick<PreviewSendRequest, 'plainText' | 'isAiGenerated' | 'media'>;
 
 export interface SendDriverDeps {
   /** HostPort.previewSend; null — X8 is off on this page or build. */
@@ -112,6 +115,7 @@ export class PreviewSendDriver {
       isAiGenerated: click.isAiGenerated,
       checkpoint: click.checkpoint,
       cause: click.cause,
+      ...(click.media === undefined ? {} : { media: click.media }),
     };
     if (port === null) return this.local({ attemptId, state: 'held', code: 'CG-SEND-HOST' });
     let preflight;
@@ -122,8 +126,9 @@ export class PreviewSendDriver {
     }
     if (!preflight.ok) return this.local({ attemptId, state: 'held', code: preflight.code });
 
-    const { plainText: _text, isAiGenerated: _ai, ...rest } = click;
-    const begun = await this.deps.background.begin({ ...rest, attemptId });
+    const { plainText: _text, isAiGenerated: _ai, media: _media, ...rest } = click;
+    // The background never sees the media, only their marks (who sent it, X48).
+    const begun = await this.deps.background.begin({ ...rest, attemptId, ...(click.media === undefined ? {} : { marks: { priced: click.media.priceCents > 0, withMedia: true } }) });
     if (!begun.ok) {
       this.deps.onView?.(begun.view);
       return begun.view;

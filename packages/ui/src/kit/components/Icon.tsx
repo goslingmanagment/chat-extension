@@ -77,6 +77,16 @@ const PATHS = {
       <path d="M4.3 6.5v.01M11.7 9.5v.01" />
     </>
   ),
+  /** Media of the vault (X53): a picture in a frame. */
+  media: (
+    <>
+      <rect x="2.2" y="3" width="11.6" height="10" rx="1.6" />
+      <circle cx="5.8" cy="6.3" r="1.2" />
+      <path d="M2.6 11.4l3.3-3 2.4 2.1 1.9-1.6 3.2 2.8" />
+    </>
+  ),
+  /** A video's mark on a thumbnail. */
+  play: <path d="M5.8 4.4v7.2L11.6 8z" />,
   /** «Новые»: a fan with a plus. */
   userPlus: (
     <>

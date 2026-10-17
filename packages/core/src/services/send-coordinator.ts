@@ -39,7 +39,7 @@ import { type Bootstrap, type ClaimBody, type ClaimState, type CustodyState, typ
 import { type PartRef } from '@cg/contracts/ids';
 import { BRIDGE_LIMITS, OP_LIMITS } from '@cg/contracts/limits';
 import { type OpView } from '@cg/contracts/ops';
-import { sendLockKey, type DispatchTicket, type FreshnessCheckpoint, type SendAttemptView, type SendJournalEntry, type SendLockKey } from '@cg/contracts/send';
+import { sendLockKey, type DispatchTicket, type FreshnessCheckpoint, type SendAttemptView, type SendJournalEntry, type SendLockKey, type SendMarks } from '@cg/contracts/send';
 import { isRetryableEnd } from '@cg/contracts/send-rules';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
 import { SEND_LIST_MAX, type SendBegin, type SendListItem } from '@cg/contracts/tab-messages';
@@ -132,6 +132,9 @@ export interface SendCoordinatorDeps {
     readonly platformMessageId: string;
     readonly pageId: number;
     readonly fanRef: string;
+    /** 1.30.0 (X53): what the part took along (a price, media), as the hub records who sent it. */
+    readonly priced: boolean;
+    readonly withMedia: boolean;
   }) => void;
   /** How long an ended attempt is kept (memory and journal); the results' lifetime by default. */
   readonly keepEndedMs?: number;
@@ -170,6 +173,8 @@ interface Attempt {
   resolved?: 'sent' | 'not-sent';
   /** The ChatSpace build of the tab that began it (`SendBegin.hostBuild`); undefined — restored, or a tab before 1.11.0. */
   readonly hostBuild?: string | null;
+  /** 1.30.0 (X53): what the part takes along (`SendBegin.marks`, kept in the journal); undefined — its text alone. */
+  readonly marks?: SendMarks;
 }
 
 /**
@@ -264,6 +269,7 @@ export class SendCoordinator {
       createdAt: now,
       updatedAt: now,
       ...(begin.hostBuild === undefined ? {} : { hostBuild: begin.hostBuild }),
+      ...(begin.marks === undefined ? {} : { marks: begin.marks }),
     };
     this.attempts.set(begin.attemptId, attempt);
     this.byKey.set(key, begin.attemptId);
@@ -635,6 +641,8 @@ export class SendCoordinator {
         platformMessageId: track.view.platformMessageId,
         pageId: attempt.pageId,
         fanRef: attempt.fanRef,
+        priced: attempt.marks?.priced ?? false,
+        withMedia: attempt.marks?.withMedia ?? false,
       });
     }
   }
@@ -808,6 +816,7 @@ export class SendCoordinator {
         ticketExpiresAt: null,
         silence: null,
         restored: true,
+        ...(entry.marks === undefined ? {} : { marks: entry.marks }),
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt,
       };

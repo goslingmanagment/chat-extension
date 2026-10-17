@@ -29,6 +29,16 @@ import {
   type InsertIntent,
   type InsertReceipt,
   type LiveTextTail,
+  type MediaFanState,
+  type MediaFolder,
+  type MediaFoldersPage,
+  type MediaItem,
+  type MediaItemsPage,
+  type MediaPort,
+  type MediaRead,
+  type MediaReadFailure,
+  type MediaRequest,
+  type MediaTags,
   type MountPoints,
   type NavigationIntent,
   type NavigationItem,
@@ -70,8 +80,23 @@ export type HostStep =
   | { readonly kind: 'mounts'; readonly at: number; readonly mounts: MountPoints }
   | { readonly kind: 'theme'; readonly at: number; readonly theme: HostTheme };
 
+/**
+ * 1.30.0 (X53): the account's vault as the host's API answers the media picker: folders in order, the media of a folder
+ * by its id (`all` — every medium), what each fan got of them, the release forms of a medium; `fail` — a kind of read
+ * that answers this failure instead.
+ */
+export interface FakeMediaVault {
+  readonly folders: readonly MediaFolder[];
+  readonly items: Readonly<Record<string, readonly MediaItem[]>>;
+  readonly states?: Readonly<Record<string, readonly MediaFanState[]>>;
+  readonly tags?: Readonly<Record<string, MediaTags>>;
+  readonly fail?: { readonly [K in MediaRequest['of']]?: MediaReadFailure };
+}
+
 export interface HostScript {
   readonly start: HostSnapshot;
+  /** 1.30.0 (X53): the vault the media picker reads; absent — a host without one (HostPort.media absent). */
+  readonly media?: FakeMediaVault;
   readonly memory: HostMemory;
   /** The checkpoint MAIN gives when the answers queue is empty. */
   readonly checkpoint: FreshnessCheckpoint | null;
@@ -115,6 +140,47 @@ export interface HostCalls {
   readonly preflights: PreviewSendRequest[];
   /** Queue calls that reached MAIN, one per attempt. */
   readonly commits: { readonly request: PreviewSendRequest; readonly ticket: DispatchTicket }[];
+  /** 1.30.0 (X53): every read of the media picker. */
+  readonly media: MediaRequest[];
+}
+
+/** 1.30.0 (X53): the vault of FakeMediaVault, paged as the host pages it. */
+class FakeMediaPort implements MediaPort {
+  constructor(
+    private readonly host: FakeHostPort,
+    private readonly vault: FakeMediaVault,
+  ) {}
+
+  private answer<T>(request: MediaRequest, value: () => T): Promise<MediaRead<T>> {
+    this.host.calls.media.push(request);
+    const failure = this.vault.fail?.[request.of];
+    return Promise.resolve(failure === undefined ? { ok: true, value: value() } : { ok: false, reason: failure, status: failure === 'http' ? 500 : null });
+  }
+
+  folders(hostAccountId: string, offset: number): Promise<MediaRead<MediaFoldersPage>> {
+    return this.answer({ of: 'folders', acc: hostAccountId, offset }, () => ({ items: this.vault.folders.slice(offset, offset + 10), hasMore: offset + 10 < this.vault.folders.length }));
+  }
+
+  items(hostAccountId: string, folder: string, offset: number): Promise<MediaRead<MediaItemsPage>> {
+    const all = this.vault.items[folder] ?? [];
+    return this.answer({ of: 'items', acc: hostAccountId, folder, offset }, () => ({ items: all.slice(offset, offset + 40), hasMore: offset + 40 < all.length }));
+  }
+
+  fanStates(chat: ChatRef, ids: readonly string[]): Promise<MediaRead<readonly MediaFanState[]>> {
+    return this.answer({ of: 'states', acc: chat.hostAccountId, fan: chat.platformFanId, ids: [...ids] }, () => (this.vault.states?.[chat.platformFanId] ?? []).filter((state) => ids.includes(state.id)));
+  }
+
+  tags(hostAccountId: string, ids: readonly string[]): Promise<MediaRead<MediaTags>> {
+    return this.answer({ of: 'tags', acc: hostAccountId, ids: [...ids] }, () => {
+      const users = new Set<string>();
+      const guests = new Set<string>();
+      for (const id of ids) {
+        for (const user of this.vault.tags?.[id]?.users ?? []) users.add(user);
+        for (const guest of this.vault.tags?.[id]?.guests ?? []) guests.add(guest);
+      }
+      return { users: [...users], guests: [...guests] };
+    });
+  }
 }
 
 class FakePreviewSendPort implements PreviewSendPort {
@@ -152,7 +218,9 @@ class FakePreviewSendPort implements PreviewSendPort {
 export class FakeHostPort implements HostPort {
   readonly kind = 'chatspace' as const;
   readonly platform = 'onlyfans' as const;
-  readonly calls: HostCalls = { redeemed: [], inserts: [], navigations: [], checkpoints: [], preflights: [], commits: [] };
+  readonly calls: HostCalls = { redeemed: [], inserts: [], navigations: [], checkpoints: [], preflights: [], commits: [], media: [] };
+  /** 1.30.0 (X53): present only when the script has a vault. */
+  declare readonly media?: MediaPort;
 
   private snapshot: HostSnapshot;
   private readonly queues: { -readonly [K in keyof HostAnswers]-?: NonNullable<HostAnswers[K]>[number][] };
@@ -178,6 +246,7 @@ export class FakeHostPort implements HostPort {
       commit: [...(script.answers.commit ?? [])],
     };
     this.sendPort = new FakePreviewSendPort(this);
+    if (script.media !== undefined) Object.defineProperty(this, 'media', { value: new FakeMediaPort(this, script.media), enumerable: true });
   }
 
   /** As the adapter's: a port only while the capability in the current report is on (a `contract` step moves it). */

@@ -5,7 +5,9 @@
 // needs that the dock does not use itself — its own code and the kit parts
 // only overlays use (Dialog, VirtualList, fields, Markdown…) — whatever chunk
 // the bundler puts them in. They also keep zod (which the contracts' schema
-// modules build at load) out of every surface.
+// modules build at load) out of every surface. A part a surface loads only on
+// a click of its own (`import()`, the preview's media panel, X53) is not the
+// surface's: it is measured as an entry of its own.
 
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -43,6 +45,8 @@ const SURFACES = {
   'fan-panel': `export { fanPanelSurface } from ${JSON.stringify(`${UI}fanpanel/index.ts`)};`,
   palette: `export { paletteSurface, quickJumpSurface } from ${JSON.stringify(`${UI}palette/index.ts`)};`,
   preview: `export { previewWindowSurface } from ${JSON.stringify(`${UI}preview/index.ts`)};`,
+  // X53: the media panel of the three previews, loaded with the first «Медиа» click.
+  'preview-send': `export { mediaPanelPart } from ${JSON.stringify(`${UI}spenders/preview/media-panel.tsx`)};`,
 } as const;
 
 type Surface = keyof typeof SURFACES;
@@ -74,9 +78,20 @@ async function modulesOf(source: string): Promise<Map<string, string>> {
       },
     });
     const outputs = (Array.isArray(result) ? result : [result]) as Rolldown.RolldownOutput[];
+    const chunks = outputs.flatMap((output) => output.output).filter((item): item is Rolldown.OutputChunk => item.type === 'chunk');
+    // What loads with the entry: its chunk and every chunk it imports statically; a chunk only an `import()` reaches
+    // loads later, on its own.
+    const byName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+    const loaded = new Set<string>();
+    const walk = (fileName: string): void => {
+      if (loaded.has(fileName)) return;
+      loaded.add(fileName);
+      for (const next of byName.get(fileName)?.imports ?? []) walk(next);
+    };
+    for (const chunk of chunks) if (chunk.isEntry) walk(chunk.fileName);
     const modules = new Map<string, string>();
-    for (const item of outputs.flatMap((output) => output.output)) {
-      if (item.type !== 'chunk') continue;
+    for (const item of chunks) {
+      if (!loaded.has(item.fileName)) continue;
       for (const [id, module] of Object.entries(item.modules)) if (id !== entry && module.code !== null && module.code !== '') modules.set(id, module.code);
     }
     return modules;
@@ -105,17 +120,21 @@ describe('[EX-009] the boards’ lazy chunks fit the budget (architecture.md §1
     expect(size).toBeLessThanOrEqual(LAZY_CHUNK);
   });
 
-  it('the sizes are known: Spenders ≤ 27, «Новые» ≤ 22, the palette’s preview window ≤ 16, the fan panel ≤ 10 and the palette ≤ 8 KiB', () => {
+  it('the sizes are known: Spenders ≤ 29, «Новые» ≤ 23, the palette’s preview window ≤ 18, the fan panel ≤ 10, the palette ≤ 8 and the media panel ≤ 5 KiB', () => {
     const sizes = Object.fromEntries((Object.keys(SURFACES) as Surface[]).map((name) => [name, beyondDock(name)]));
     // gzip is not one number: the same bytes come out about 0.2 % larger from the zlib of an official Node build
     // (what CI installs) than from a Node linked against the system zlib (the owner's Mac). Spenders was 26 KiB
-    // with 83 bytes over on CI's Node; the pin has room for the tool, the budget above is the rule.
-    expect(sizes['spenders']).toBeLessThanOrEqual(27 * KIB);
-    expect(sizes['newcomers']).toBeLessThanOrEqual(22 * KIB);
+    // with 83 bytes over on CI's Node; the pin has room for the tool, the budget above is the rule. X53: the media picker's
+    // toggle and the loader of its panel (its closed line is the panel's chunk) cost the three previews up to 1.7 KiB each, and the bundler's helper of
+    // a dynamic import 1.1 KiB more here (in the extension it is the dock's layer's already): 27 → 29, 22 → 23, 16 → 18.
+    expect(sizes['spenders']).toBeLessThanOrEqual(29 * KIB);
+    expect(sizes['newcomers']).toBeLessThanOrEqual(23 * KIB);
     expect(sizes['fan-panel']).toBeLessThanOrEqual(10 * KIB);
     expect(sizes['palette']).toBeLessThanOrEqual(8 * KIB);
+    // X53: the media panel, beyond the dock (the preview's own share of it is in the three above).
+    expect(sizes['preview-send']).toBeLessThanOrEqual(5 * KIB);
     // The preview's own window (X24) is the Spenders pane without the board and the statistics.
-    expect(sizes['preview']).toBeLessThanOrEqual(16 * KIB);
+    expect(sizes['preview']).toBeLessThanOrEqual(18 * KIB);
   });
 
   it('«the dock» here is the dock of the kit’s own size guard: its list of imports, read and not copied', () => {
