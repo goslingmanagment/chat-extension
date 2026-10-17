@@ -1075,6 +1075,16 @@ describe('dock: inserting a part', () => {
     expect(other.fake.calls.inserts).toHaveLength(0);
   });
 
+  it('[AI-126] [AI-140] the owner edited the page’s persona after the result was made (its key stays, the choice followed): the result stays and is inserted', async () => {
+    const h = await start();
+    const opId = await reply(h, 'one [NEXT] two');
+    h.bg.changePersona(WORLD.pages.one.pageId, { key: WORLD.persona.key, definitionId: WORLD.persona.otherDefinitionId });
+    await h.settle();
+    expect(result(h).opId).toBe(opId);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('one');
+  });
+
   it('[UI-018] [AI-125] «Вставить» puts one part into the operation\'s own chat, by a token and a CAS on the draft', async () => {
     const h = await start({}, {});
     const opId = await reply(h, 'one [NEXT] two', { split: true });

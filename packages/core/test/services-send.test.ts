@@ -267,7 +267,8 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     h.ops.set(OP, doneView());
     h.env = { ...h.env, bootstrap: BOOTSTRAP_PILOT_PAGES };
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502), previewRevision: 2 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-OFF' } });
-    h.env = { ...h.env, bootstrap: withX8(BOOTSTRAP_PILOT_PAGES), persona: () => ({ ...persona, definitionId: WORLD.persona.otherDefinitionId }) };
+    // Another persona of the page (an owner's edit of the same one — another definition, the same key — is no other).
+    h.env = { ...h.env, bootstrap: withX8(BOOTSTRAP_PILOT_PAGES), persona: () => ({ key: 'second', definitionId: WORLD.persona.otherDefinitionId }) };
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503), previewRevision: 3 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-CONTEXT-CHANGED' } });
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x504), opId: uuid(0x199), previewRevision: 4 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-PART' } });
     h.env = { ...h.env, persona: () => persona, bootstrap: { ...withX8(BOOTSTRAP_PILOT_PAGES), pages: withX8(BOOTSTRAP_PILOT_PAGES).pages.map((p) => ({ ...p, bindingRevision: p.bindingRevision + 1 })) } };

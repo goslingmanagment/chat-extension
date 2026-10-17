@@ -59,7 +59,7 @@ interface Harness {
   nextOp(): string;
 }
 
-function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clock?: FakeClock; firstId?: number; online?: () => boolean; drivers?: OpSchedulerDeps['drivers']; promptToken?: (opId: string) => string | null } = {}): Harness {
+function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clock?: FakeClock; firstId?: number; online?: () => boolean; drivers?: OpSchedulerDeps['drivers']; promptToken?: (opId: string) => string | null; personaNow?: OpSchedulerDeps['personaNow'] } = {}): Harness {
   const clock = over.clock ?? new FakeClock(NOW_MS);
   const hub = new FakeHub(clock);
   const ids = sequentialIds(over.firstId ?? 0x100);
@@ -120,6 +120,7 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
     hooks,
     ...(over.online === undefined ? {} : { online: over.online }),
     ...(over.drivers === undefined ? {} : { drivers: over.drivers }),
+    ...(over.personaNow === undefined ? {} : { personaNow: over.personaNow }),
   });
   return h;
 }
@@ -326,8 +327,9 @@ describe('[AI-133] [RB-001] the single retry and nothing else', () => {
       await h.clock.advance(1000);
       if (how === 'cancel') h.scheduler.cancel(op);
       else {
-        h.env = { ...h.env, persona: () => ({ ...persona, definitionId: WORLD.persona.otherDefinitionId }) };
-        h.scheduler.environmentChanged({ kind: 'persona', pageId: WORLD.pages.one.pageId, next: { ...persona, definitionId: WORLD.persona.otherDefinitionId } });
+        const other = { key: 'second', definitionId: WORLD.persona.otherDefinitionId };
+        h.env = { ...h.env, persona: () => other };
+        h.scheduler.environmentChanged({ kind: 'persona', pageId: WORLD.pages.one.pageId, next: other });
       }
       await h.clock.advance(10_000);
       expect(h.hub.streams).toHaveLength(1);
@@ -564,6 +566,71 @@ describe('[RB-002] [RB-003] [RB-004] [RB-005] [RB-006] [AI-132] how an operation
     expect(inMeta.view).toMatchObject({ state: 'failed', error: { code: 'CG-PERSONA-CHANGED' } });
     expect(inMeta.view?.result).toBeUndefined();
     expect(inMeta.h.hooks.catalog).toBe(1);
+  });
+
+  it('[AI-126] [AI-140] the owner edited the persona: a 409 before any frame is asked once more at once, with the definition the hub has now', async () => {
+    const edited = { ...persona, definitionId: WORLD.persona.otherDefinitionId };
+    const asked: number[] = [];
+    const h = harness({ personaNow: (pageId) => (asked.push(pageId), Promise.resolve(edited)) });
+    const op = h.nextOp();
+    h.hub.streamScript.push(...scenario('persona-409'), ...forOp([{ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply', { personaDefinitionId: edited.definitionId }) }, deltaStep('Hey you'), doneStep] }], op));
+    opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(5_000);
+    expect(asked).toEqual([WORLD.pages.one.pageId]);
+    const named = h.hub.streams.map((request) => ({ id: request.body.clientRequestId, definition: (request.body as { expectedPersonaDefinitionId?: string }).expectedPersonaDefinitionId }));
+    // The same operation, the same id (the hub refused it before taking it), the persona as the hub has it now.
+    expect(named).toEqual([{ id: op, definition: persona.definitionId }, { id: op, definition: edited.definitionId }]);
+    expect(h.scheduler.view(op)).toMatchObject({ state: 'done' });
+    expect(h.scheduler.view(op)?.error).toBeUndefined();
+    // At once: no «Сервис недоступен, повтор через 5 с…» wait in between.
+    expect(h.events.of('op.update').map((event) => event.payload.phase.name)).not.toContain('retry-wait');
+    expect(h.log.entries.find((entry) => entry.msg === 'persona definition followed')).toMatchObject({ level: 'info', ctx: { opId: op } });
+  });
+
+  it('[AI-133] [AI-140] the re-ask with the edited persona is not the 503 retry: a 503 after it still gets its one retry', async () => {
+    const edited = { ...persona, definitionId: WORLD.persona.otherDefinitionId };
+    const h = harness({ personaNow: () => Promise.resolve(edited) });
+    const op = h.nextOp();
+    const unavailable = scenario('unavailable-503-then-stream')[0]!;
+    h.hub.streamScript.push(...scenario('persona-409'), unavailable, ...forOp([{ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply', { personaDefinitionId: edited.definitionId }) }, deltaStep('Hey you'), doneStep] }], op));
+    opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(10_000);
+    expect(h.hub.streams).toHaveLength(3);
+    expect(h.scheduler.view(op)).toMatchObject({ state: 'done' });
+  });
+
+  it('[AI-126] [AI-140] the refusal stands when the hub has the same definition, another persona or none — and a second refusal is never asked again', async () => {
+    const answers = [persona, { key: 'second', definitionId: WORLD.persona.otherDefinitionId }, null] as const;
+    for (const answer of answers) {
+      const h = harness({ personaNow: () => Promise.resolve(answer) });
+      h.hub.streamScript.push(...scenario('persona-409'));
+      const op = opIdOf(await h.start(TAB, startOf()));
+      await h.clock.advance(5_000);
+      expect(h.hub.streams).toHaveLength(1);
+      expect(h.scheduler.view(op)).toMatchObject({ state: 'failed', error: { code: 'CG-PERSONA-CHANGED' } });
+    }
+    let asked = 0;
+    const twice = harness({ personaNow: () => (asked++, Promise.resolve({ ...persona, definitionId: WORLD.persona.otherDefinitionId })) });
+    twice.hub.streamScript.push(...scenario('persona-409'), ...scenario('persona-409'));
+    const op = opIdOf(await twice.start(TAB, startOf()));
+    await twice.clock.advance(5_000);
+    expect(asked).toBe(1);
+    expect(twice.hub.streams).toHaveLength(2);
+    expect(twice.scheduler.view(op)).toMatchObject({ state: 'failed', error: { code: 'CG-PERSONA-CHANGED' } });
+  });
+
+  it('[AI-126] [AI-140] another definition of the same persona cancels nothing that runs; another persona does', async () => {
+    const h = harness();
+    h.hub.streamScript.push({ kind: 'hang' });
+    const op = opIdOf(await h.start(TAB, startOf()));
+    const edited = { ...persona, definitionId: WORLD.persona.otherDefinitionId };
+    h.env = { ...h.env, persona: () => edited };
+    expect(h.scheduler.environmentChanged({ kind: 'persona', pageId: WORLD.pages.one.pageId, next: edited })).toEqual([]);
+    expect(h.scheduler.view(op)?.state).toBe('requesting');
+    const other = { key: 'second', definitionId: WORLD.persona.otherDefinitionId };
+    h.env = { ...h.env, persona: () => other };
+    expect(h.scheduler.environmentChanged({ kind: 'persona', pageId: WORLD.pages.one.pageId, next: other })).toEqual([op]);
+    expect(h.scheduler.view(op)).toMatchObject({ state: 'canceled', error: { code: 'CG-PERSONA-CHANGED' } });
   });
 
   it('[AI-132] every SSE scenario ends as the reference reading says', async () => {

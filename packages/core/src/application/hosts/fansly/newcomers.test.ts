@@ -1281,6 +1281,17 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     w.tab.done(uuid(0xc1), ['Hey!']);
     expect(await first).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
     expect(w.greeting()?.text).toBe('');
+    // The owner edited the persona meanwhile (its key stays, the choice followed): the same persona — the result is taken.
+    const edited = greetingWorld();
+    const lora = (definitionId: string) => ({ ...readyState(), persona: { key: 'lora', definitionId, label: 'Lora' } as PageContextState['persona'] });
+    edited.context.set(lora('pdef_0000000000000001'));
+    await edited.open();
+    const kept = edited.generate(1);
+    await settle();
+    edited.context.set(lora('pdef_0000000000000002'));
+    edited.tab.done(uuid(0xc1), ['Hey!']);
+    expect(await kept).toMatchObject({ ok: true });
+    expect(edited.greeting()?.text).toBe('Hey!');
     for (const parts of [[''], ['Hey', 'there'], ['Hey [NEXT] there'], ['x'.repeat(5001)]]) {
       const v = greetingWorld();
       await v.open();

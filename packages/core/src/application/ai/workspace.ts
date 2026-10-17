@@ -35,7 +35,7 @@ import { PAGE_OFF_REASON, flagReasonVm } from '../flag-reason';
 import { TabEnvironment, type EnvironmentChange, type PersonaState } from './environment';
 import { artifactHandle, readArtifactHandle, targetHandle, type Artifact } from './handles';
 import { InsertService, partText, type InsertContext, type PartBlock } from './insert-service';
-import { OpStore, type OpRecord, type OpStoreEvent } from './op-store';
+import { OpStore, type OpRecord, type OpStoreEvent, type PersonaFollow } from './op-store';
 import { type AiPorts, type RpcAnswer } from './ports';
 import { RecapBook, type RecapOwner } from './recap-book';
 
@@ -231,6 +231,7 @@ export class AiWorkspace {
   private readonly startListeners = new Set<(record: OpRecord) => void>();
   private readonly insertListeners = new Set<(record: OpRecord, part: PartRef) => void>();
   private readonly resetListeners = new Set<(filter: (chatKey: ChatKey, pageId: number) => boolean) => void>();
+  private readonly followListeners = new Set<(moves: readonly PersonaFollow[]) => void>();
   /** Results a board made that the dock shows in their own chat (§6.5). */
   private readonly boardOps = new Set<string>();
   private boards: BoardResults | null = null;
@@ -415,6 +416,14 @@ export class AiWorkspace {
     this.resetListeners.add(listener);
     return () => {
       this.resetListeners.delete(listener);
+    };
+  }
+
+  /** The owner edited a page's persona (its key stays): what is held under the old definition is the same persona's. */
+  onPersonaFollowed(listener: (moves: readonly PersonaFollow[]) => void): () => void {
+    this.followListeners.add(listener);
+    return () => {
+      this.followListeners.delete(listener);
     };
   }
 
@@ -1210,10 +1219,18 @@ export class AiWorkspace {
       const before = this.personas;
       this.personas = next;
       const changed = new Set<number>();
+      const followed: PersonaFollow[] = [];
       for (const pageId of new Set([...Object.keys(before), ...Object.keys(next)])) {
         const a = before[pageId];
         const b = next[pageId];
-        if (a !== undefined && (b === undefined || a.key !== b.key || a.definitionId !== b.definitionId)) changed.add(Number(pageId));
+        if (a === undefined || (b !== undefined && a.key === b.key && a.definitionId === b.definitionId)) continue;
+        // The owner edited the persona: its key stays, the choice followed its new definition — the same persona.
+        if (b !== undefined && a.key === b.key) followed.push({ pageId: Number(pageId), from: a.definitionId, to: b.definitionId });
+        else changed.add(Number(pageId));
+      }
+      if (followed.length > 0) {
+        this.ops.followPersona(followed);
+        for (const listener of [...this.followListeners]) listener(followed);
       }
       if (changed.size > 0) {
         // AI-126: a persona change drops the results and the Coach dialogs of that page.

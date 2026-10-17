@@ -253,6 +253,17 @@ export class CoachSessions {
     return this.sessions.find((session) => session.pending?.opId === opId) ?? null;
   }
 
+  /** The owner edited the persona (its key stays): its dialogs are the same persona's, under the new definition. */
+  follow(from: string, to: string): number {
+    let moved = 0;
+    this.sessions = this.sessions.map((session) => {
+      if (session.key.personaDefinitionId !== from) return session;
+      moved += 1;
+      return { ...session, key: { ...session.key, personaDefinitionId: to } };
+    });
+    return moved;
+  }
+
   /** AI-089: a change of persona, account or sign-in wipes the dialogs it belonged to (all, when no filter is given). */
   reset(filter?: (session: CoachSession) => boolean): number {
     const before = this.sessions.length;

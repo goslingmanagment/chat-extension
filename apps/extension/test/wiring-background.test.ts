@@ -232,6 +232,53 @@ describe('operations (§7)', () => {
     expect(await w.page().request('settings.patchRestricted', { patch: { hub: { baseUrl: 'https://other-hub.example.test' } }, baseRevision: null })).toMatchObject({ ok: false, error: { code: 'CG-HUB-URL' } });
   });
 
+  it('[AI-140] the owner edited the page’s persona after it was chosen: the Reply goes through with the new definition, and the choice follows it', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    // The owner edits the persona on the hub: the same key, another definition. This background read the catalog before.
+    w.hub.control({ op: 'persona', key: WORLD.persona.key, definitionId: WORLD.persona.otherDefinitionId });
+    const opId = admitted(await startReply(tab, await bindingOf(tab)));
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state === 'done', 'the reply is done', 15_000);
+    expect((await opsOf(tab)).find((op) => op.opId === opId)?.error).toBeUndefined();
+    // The hub refused the old definition before it took the request; the same request was asked once more, at once.
+    const asked = callsTo(w.hub.read().entries, 'aiFeatureStream').map((entry) => ({ status: entry.status, ...(entry.request as { body: { clientRequestId: string; expectedPersonaDefinitionId?: string } }).body }));
+    expect(asked.map(({ status, clientRequestId, expectedPersonaDefinitionId }) => ({ status, clientRequestId, expectedPersonaDefinitionId }))).toEqual([
+      { status: 409, clientRequestId: opId, expectedPersonaDefinitionId: WORLD.persona.definitionId },
+      { status: 200, clientRequestId: opId, expectedPersonaDefinitionId: WORLD.persona.otherDefinitionId },
+    ]);
+    // The page's choice follows: the next generation names the new definition from the start.
+    await until(async () => {
+      const read = await w.page().request('settings.get', {});
+      return read.ok && read.payload.settings.personas.byPageId[String(PAGE_ID)]?.definitionId === WORLD.persona.otherDefinitionId;
+    }, 'the choice follows the edited persona');
+    const next = admitted(await startReply(tab, await bindingOf(tab), '2003'));
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === next)?.state === 'done', 'the next reply is done', 15_000);
+    expect(callsTo(w.hub.read().entries, 'aiFeatureStream').map((entry) => entry.status)).toEqual([409, 200, 200]);
+  });
+
+  it('[AI-140] a choice left behind by an earlier edit follows the catalog when the background starts, before any generation', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    w.hub.control({ op: 'persona', key: WORLD.persona.key, definitionId: WORLD.persona.otherDefinitionId });
+    // «Проверить связь» reads the catalog again: the choice follows it at once.
+    await w.page().request('catalog.get', { force: true });
+    const definitionOf = async (): Promise<string | undefined> => {
+      const read = await w.page().request('settings.get', {});
+      return read.ok ? read.payload.settings.personas.byPageId[String(PAGE_ID)]?.definitionId : undefined;
+    };
+    await until(async () => (await definitionOf()) === WORLD.persona.otherDefinitionId, 'the choice follows the new catalog');
+    // A choice stored with the old definition (as an older build left it), under a catalog that does not change again.
+    expect(await w.page().request('persona.set', { pageId: PAGE_ID, key: WORLD.persona.key, definitionId: WORLD.persona.definitionId })).toMatchObject({ ok: true });
+    expect(await definitionOf()).toBe(WORLD.persona.definitionId);
+    w.fake.suspendBackground();
+    await until(async () => (await definitionOf()) === WORLD.persona.otherDefinitionId, 'the choice follows the stored catalog');
+    expect(w.starts()).toBe(2);
+    expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(0);
+  });
+
   it('[AI-133] the hub layer’s one retry of a 503 is the operation’s `retry-wait` phase with its time, then the stream', async () => {
     const w = world();
     w.start();

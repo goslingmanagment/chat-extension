@@ -198,6 +198,12 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     archives.clear();
     ws.bump();
   });
+  // The owner edited the persona (its key stays): the dialogs go on under its new definition.
+  const offFollowed = ws.onPersonaFollowed((moves) => {
+    let moved = 0;
+    for (const move of moves) moved += sessions.follow(move.from, move.to);
+    if (moved > 0) ws.bump();
+  });
 
   // ── asking ───────────────────────────────────────────────────────────────
 
@@ -614,6 +620,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       offStarted();
       offInserted();
       offReset();
+      offFollowed();
     },
   });
 }

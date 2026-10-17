@@ -8,11 +8,15 @@
 // an operation is canceled by itself
 // only when its page's persona, the sign-in or the hub address changes —
 // never by a chat switch or a closed tab (AI-124, BG-006).
+// The person chooses a persona, not one version of it: the owner edits a
+// persona on the hub (its key stays, its definition changes), the choice
+// follows the catalog (`followedPersonas`), and that is no change of persona —
+// nothing running is canceled for it.
 
 import { type CgCode } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { type HostKind } from '@cg/contracts/hosts';
-import { type Bootstrap } from '@cg/contracts/hub';
+import { type Bootstrap, type PersonaCatalog } from '@cg/contracts/hub';
 import { type SessionIdentity } from '@cg/contracts/ids';
 import { type StartOp } from '@cg/contracts/ops';
 
@@ -22,6 +26,29 @@ import { flagRefusalCode, pageSwitchedOff } from './flags';
 export interface PersonaChoice {
   readonly key: string;
   readonly definitionId: string;
+}
+
+/**
+ * A choice as the catalog has it now: the definition the hub has for its key today. A persona the catalog no
+ * longer lists as active stays as chosen — the hub's own check says so (CG-PERSONA-UNAVAILABLE).
+ */
+export function currentPersona(choice: PersonaChoice, catalog: PersonaCatalog | null): PersonaChoice {
+  const item = catalog?.personas.find((persona) => persona.key === choice.key && persona.status === 'active');
+  return item === undefined || item.definitionId === choice.definitionId ? choice : { key: choice.key, definitionId: item.definitionId };
+}
+
+/**
+ * The pages whose persona the owner edited since it was chosen, with the definition the catalog has now; null —
+ * every choice is current. Without it each generation of such a page would ask for the old definition, and the
+ * hub refuses that for ever (CG-PERSONA-CHANGED).
+ */
+export function followedPersonas(byPageId: Readonly<Record<string, PersonaChoice>>, catalog: PersonaCatalog): Record<string, PersonaChoice> | null {
+  const followed: Record<string, PersonaChoice> = {};
+  for (const [pageId, choice] of Object.entries(byPageId)) {
+    const current = currentPersona(choice, catalog);
+    if (current !== choice) followed[pageId] = current;
+  }
+  return Object.keys(followed).length === 0 ? null : followed;
 }
 
 /** A read of the background's state at one moment. */
@@ -65,7 +92,7 @@ export function chatLoadingGate(window: { readonly state: 'loading' | 'ready' } 
   return window === null || window.state === 'loading' ? 'CG-GATE-CHAT-LOADING' : null;
 }
 
-/** What an operation is bound to; any change of these cancels it (§7 «Отмена», AI-126). */
+/** What an operation is bound to; a change of these cancels it (§7 «Отмена», AI-126) — of the persona, its key only. */
 export interface OpEnvTag {
   readonly hubOrigin: string;
   readonly userId: number;
@@ -88,6 +115,7 @@ export function canceledByChange(tag: OpEnvTag, change: EnvironmentChange): bool
     case 'hub':
       return change.origin !== tag.hubOrigin;
     case 'persona':
-      return change.pageId === tag.pageId && (change.next === null || change.next.definitionId !== tag.personaDefinitionId || change.next.key !== tag.personaKey);
+      // Another definition of the same persona (the owner edited it) is no other persona: the operation goes on.
+      return change.pageId === tag.pageId && (change.next === null || change.next.key !== tag.personaKey);
   }
 }

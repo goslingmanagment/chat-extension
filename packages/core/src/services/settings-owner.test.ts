@@ -352,6 +352,25 @@ describe('persona scope (§5.6): set by the background on sign-in, never guessed
     expect(other.ok && other.state.settings.personas).toEqual({ scope: { hubOrigin: HUB, userId: 8 }, byPageId: {} });
     expect(other.ok && other.state.settings.accounts.labels[`chatspace:${IDS.acc}`]).toBe('Main model');
   });
+
+  it('[AI-140] a patch the background makes from the settings is made at its turn among the writes: it sees a choice queued before it and never undoes it', async () => {
+    const local = createMemoryKv();
+    local.data.set(KEY, clone(customSettings));
+    const { owner } = setup({ local });
+    await owner.state();
+    const page = Object.keys(customSettings.personas.byPageId)[0] ?? '11';
+    const chosen = { key: 'night', definitionId: 'pdef_0000000000000009' };
+    const seen: (string | undefined)[] = [];
+    // The person's choice is queued first; the background's follow-up is made after it, from what it left.
+    const asked = owner.patch({ personas: { byPageId: { [page]: chosen } } }, { baseRevision: null, restricted: false });
+    const followed = owner.patchWith((current) => {
+      seen.push(current.personas.byPageId[page]?.key);
+      return current.personas.byPageId[page]?.key === 'night' ? null : { personas: { byPageId: { [page]: { key: 'stale', definitionId: 'pdef_0000000000000001' } } } };
+    }, { restricted: false });
+    expect(await asked).toMatchObject({ ok: true });
+    expect(await followed).toMatchObject({ ok: true, state: { settings: { personas: { byPageId: { [page]: chosen } } } } });
+    expect(seen).toEqual(['night']);
+  });
 });
 
 describe('[BG-004] background unload and restart', () => {

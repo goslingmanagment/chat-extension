@@ -16,6 +16,7 @@ import {
   canMoveOp,
   canceledByChange,
   canonicalJson,
+  currentPersona,
   chatLoadingGate,
   checkpointEquivalent,
   decideAdmission,
@@ -23,6 +24,7 @@ import {
   expiredDeadline,
   flagStateOf,
   flagUsable,
+  followedPersonas,
   isActiveOpState,
   isNewerOpState,
   isTerminalOpState,
@@ -375,9 +377,10 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
     expect(chatLoadingGate({ state: 'ready' })).toBeNull();
   });
 
-  it('[AI-126] persona, sign-in and hub changes cancel; other pages and the same persona do not', () => {
+  it('[AI-126] persona, sign-in and hub changes cancel; other pages, the same persona and its edited definition do not', () => {
     const tag = { hubOrigin: session.hubOrigin, userId: session.userId, signInEpoch: session.epoch, pageId: binding.pageId, personaKey: persona.key, personaDefinitionId: persona.definitionId };
-    expect(canceledByChange(tag, { kind: 'persona', pageId: binding.pageId, next: { ...persona, definitionId: WORLD.persona.otherDefinitionId } })).toBe(true);
+    // The owner edited the persona: the same persona, another definition — no other persona.
+    expect(canceledByChange(tag, { kind: 'persona', pageId: binding.pageId, next: { ...persona, definitionId: WORLD.persona.otherDefinitionId } })).toBe(false);
     expect(canceledByChange(tag, { kind: 'persona', pageId: binding.pageId, next: { ...persona, key: 'other' } })).toBe(true);
     expect(canceledByChange(tag, { kind: 'persona', pageId: binding.pageId, next: null })).toBe(true);
     expect(canceledByChange(tag, { kind: 'persona', pageId: binding.pageId, next: persona })).toBe(false);
@@ -387,6 +390,21 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
     expect(canceledByChange(tag, { kind: 'session', next: session })).toBe(false);
     expect(canceledByChange(tag, { kind: 'hub', origin: 'https://other.example.test' })).toBe(true);
     expect(canceledByChange(tag, { kind: 'hub', origin: session.hubOrigin })).toBe(false);
+  });
+
+  it('[AI-140] a choice follows the persona the owner edited: same key, the definition the catalog has now', () => {
+    const edited = WORLD.persona.otherDefinitionId;
+    const catalog = (definitionId: string, status: 'active' | 'archived' = 'active') => ({ personas: [{ key: persona.key, displayName: 'Lora', version: 2, definitionId, status }] });
+    expect(currentPersona(persona, catalog(edited))).toEqual({ key: persona.key, definitionId: edited });
+    // Current, archived, unknown or no catalog: the choice stays as it is (the same object).
+    expect(currentPersona(persona, catalog(persona.definitionId))).toBe(persona);
+    expect(currentPersona(persona, catalog(edited, 'archived'))).toBe(persona);
+    expect(currentPersona({ ...persona, key: 'gone' }, catalog(edited))).toEqual({ ...persona, key: 'gone' });
+    expect(currentPersona(persona, null)).toBe(persona);
+    const other = { key: 'ari', definitionId: 'pdef_aaaaaaaaaaaaaaaa' };
+    expect(followedPersonas({ '11': persona, '15': persona, '20': other }, catalog(edited))).toEqual({ '11': { key: persona.key, definitionId: edited }, '15': { key: persona.key, definitionId: edited } });
+    expect(followedPersonas({ '11': persona, '20': other }, catalog(persona.definitionId))).toBeNull();
+    expect(followedPersonas({}, catalog(edited))).toBeNull();
   });
 });
 
