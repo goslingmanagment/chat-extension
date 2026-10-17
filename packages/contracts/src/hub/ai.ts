@@ -72,7 +72,7 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   livePpvContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
   /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */
   noteFields: ['fan-notes-fill'],
-  /** 1.16.0 (R20 P11b2): the merge mode's switch — empty values only (`NoteValuesSchema`). */
+  /** 1.16.0 (R20 P11b2): the merge mode — the questionnaire's values (`NoteValuesSchema`; empty only before 1.27.0). */
   noteValues: ['fan-notes-fill'],
 } as const satisfies Record<string, readonly HubAiFeature[]>;
 
@@ -155,19 +155,33 @@ export const NoteFieldsSchema = z
   );
 
 /**
- * 1.16.0 (R20 P11b2): `noteValues` of `fan-notes-fill` as this client sends them — one empty value per label, never
- * the note's own (FS-NOTE-5, FX-015). The hub's merge mode is chosen by the field's presence, «even with every value
- * empty» (`docs/ai-gateway-contract.md` of the hub): it answers with the fan's quotes, the month of a stale fact and
- * the stricter field definitions, and it reads every field as empty — what the chatter wrote stays in the tab
- * (decision X43). A value that is not empty is refused here, before the hub.
+ * 1.27.0 (decision X43, the owner's ruling of 2026-10-17): one value of `noteValues` — what a field's own line holds,
+ * trimmed, one line (the client flattens its line breaks), within 2000 UTF-16 code units (`aiNoteValueSchema`: the hub
+ * trims too, so this client sends exactly what the hub reads); `''` for an empty field and a template label the note
+ * lacks. 1.16.0 allowed only `''`.
  */
-export const NoteValuesSchema = z.array(z.literal('')).check(z.minLength(1), z.maxLength(NOTE_FILL_LIMITS.fieldsMax));
+const NoteValueSchema = z
+  .string()
+  .check(
+    z.maxLength(NOTE_FILL_LIMITS.valueMaxChars),
+    z.refine((value) => value === value.trim(), { message: 'a note value is trimmed' }),
+    z.regex(/^[^\r\n\u2028\u2029]*$/, { message: 'a note value holds no line break' }),
+  );
+
+/**
+ * `noteValues` of `fan-notes-fill` (1.16.0, R20 P11b2; values since 1.27.0, X43): index-aligned with `noteFields`, the
+ * questionnaire's current values — the hub's merge mode, as the Fansly extension 2.11.0 sends it (decision 164). The
+ * hub answers `Label: =` for a field the chat adds nothing to, its rewrite for one it changes, `+ Label: value` for one
+ * it names itself. The values travel in this body and nowhere else: never a log, diagnostics, `client_health` or
+ * telemetry (FS-NOTE-5).
+ */
+export const NoteValuesSchema = z.array(NoteValueSchema).check(z.minLength(1), z.maxLength(NOTE_FILL_LIMITS.fieldsMax));
 
 /**
  * The body this client sends (a strict subset of the hub's body: no model or
  * effort override, no `clientContext` (also on Fansly), no deprecated
- * `greetingMode`; the notes fill's `noteValues` only empty: the values of
- * the fan's notes never leave the tab). On OnlyFans conversationRef = fanRef = the fan id.
+ * `greetingMode`; the notes fill's `noteValues` — the questionnaire's values,
+ * here and nowhere else, X43). On OnlyFans conversationRef = fanRef = the fan id.
  */
 export const AiFeatureStreamBodySchema = z.strictObject({
   /** = opId (§8.4). */
@@ -214,9 +228,9 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   livePpvContext: z.optional(LivePpvStateSchema),
   /** 1.15.0 (R20 HF-8в): the window check — only from a start's proof, under `coverage-check-v1`. */
   coverageCheck: z.optional(CoverageCheckBodySchema),
-  /** 1.15.0 (R20 P4b3): `fan-notes-fill` only, and required there — the labels, never the values. */
+  /** 1.15.0 (R20 P4b3): `fan-notes-fill` only, and required there — the labels (their values: `noteValues`). */
   noteFields: z.optional(NoteFieldsSchema),
-  /** 1.16.0 (R20 P11b2): the hub's merge mode, one empty value per label — never a value of the note (X43). */
+  /** 1.16.0 (R20 P11b2): the hub's merge mode, one value per label — the questionnaire's, since 1.27.0 (X43). */
   noteValues: z.optional(NoteValuesSchema),
   /** 1.15.0 (R20 HF-5): only Fansly hi-greeting under hi-start-proof-v1; ids only, never a text. */
   startProof: z.optional(StartProofV1Schema),

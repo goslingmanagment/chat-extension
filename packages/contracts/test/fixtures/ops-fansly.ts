@@ -58,6 +58,8 @@ export const FANSLY_START_OP_FIXTURES: Verdicts = {
     { ...fanslyVoiceScriptStart, regenerateOf: uuid(0x501), force: true },
     fanslyNotesFillStart,
     { ...fanslyNotesFillStart, window: 5, regenerateOf: uuid(0x502) },
+    // 1.27.0 (X43): the questionnaire's values beside its labels, index-aligned.
+    { ...fanslyNotesFillStart, values: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] },
   ],
   invalid: [
     // A ChatSpace chat has no operation of Fansly's.
@@ -67,10 +69,13 @@ export const FANSLY_START_OP_FIXTURES: Verdicts = {
     { ...fanslyVoiceScriptStart, draft: undefined },
     { ...fanslyVoiceScriptStart, draft: { ...draft, text: '   ' } },
     { ...fanslyVoiceScriptStart, tone: 'calm' },
-    // The notes fill sends labels and nothing of the note: no values, no labels it cannot send.
+    // The notes fill sends labels it can send and one value the hub takes per label (1.27.0, X43): one line, trimmed, ≤ 2000.
     { ...fanslyNotesFillStart, fields: [] },
     { ...fanslyNotesFillStart, fields: ['Имя: Анна'] },
-    { ...fanslyNotesFillStart, values: ['Анна', '', '', ''] },
+    { ...fanslyNotesFillStart, values: ['Анна', ''] },
+    { ...fanslyNotesFillStart, values: ['Анна\nБрюс', '', '', ''] },
+    { ...fanslyNotesFillStart, values: [' Анна', '', '', ''] },
+    { ...fanslyNotesFillStart, values: ['я'.repeat(2001), '', '', ''] },
     { ...fanslyNotesFillStart, tone: null },
     { ...fanslyVoiceScriptStart, fields: [...NOTE_LABELS] },
     // The body's bounds of the window; a shared feature is no operation of this table.
@@ -157,9 +162,10 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'voice-script', body: { ...voiceScriptBody, replyTone: undefined, isRegeneration: true }, capabilities: [] },
     { feature: 'fan-notes-fill', body: notesFillBody, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound() }, capabilities: ['debug-input-v1', 'context-v1'] },
-    // 1.16.0 (R20 P11b2, X43): the hub's merge mode by its switch — one empty value per label.
+    // 1.16.0 (R20 P11b2): the hub's merge mode — one value per label; 1.27.0 (X43): the questionnaire's own.
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: NOTE_LABELS.map(() => '') }, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound(), noteValues: noteLabelsAtTheBound().map(() => '') }, capabilities: ['context-v1'] },
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] }, capabilities: ['context-v1'] },
   ],
   invalid: [
     // A Fansly page's, the fan named: the hub refuses the voice script elsewhere (`gate_voice_unsupported_platform`) and without the fan.
@@ -172,9 +178,11 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'voice-script', body: { ...voiceScriptBody, draftText: undefined }, capabilities: [] },
     { feature: 'voice-script', body: { ...voiceScriptBody, draftText: '   ' }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: undefined }, capabilities: [] },
-    // The labels are the fill's alone; values never travel; a fill speaks no tone and fills no draft.
+    // The labels and values are the fill's alone, one value per label, each one the hub takes; a fill speaks no tone and fills no draft.
     { feature: 'fast-reply', body: { ...voiceScriptBody, draftText: undefined, noteFields: [...NOTE_LABELS] }, capabilities: [] },
-    { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна', '', '', ''] }, capabilities: [] },
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна\u2028Брюс', '', '', ''] }, capabilities: [] },
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна ', '', '', ''] }, capabilities: [] },
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['я'.repeat(2001), '', '', ''] }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['', ''] }, capabilities: [] },
     { feature: 'voice-script', body: { ...voiceScriptBody, noteValues: [''] }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, replyTone: 'flirty' }, capabilities: [] },

@@ -758,9 +758,11 @@ export interface VoiceScriptStart extends SiteStartBase<'voice-script'> {
   readonly draft: { readonly text: string; readonly revision: number; readonly digest: string };
 }
 
-/** «Заполнить из чата» (`notes-fill`): the questionnaire's labels only — the values of the fan's notes never leave the tab (FS-NOTE-5). */
+/** «Дополнить из чата» (`notes-fill`): the questionnaire's labels and, 1.27.0 (X43), their values — the hub body's
+ * `noteValues` and nowhere else (FS-NOTE-5). */
 export interface NotesFillStart extends SiteStartBase<'notes-fill'> {
   readonly fields: readonly string[];
+  readonly values?: readonly string[] | undefined;
 }
 
 export type SiteStartOp = VoiceScriptStart | NotesFillStart;
