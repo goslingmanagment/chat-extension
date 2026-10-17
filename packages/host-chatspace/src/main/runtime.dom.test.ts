@@ -1171,7 +1171,8 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
         ),
       );
     const answer = OpenChatAnswerSchema.parse(await h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 50, cursor: '9100' }));
-    expect(fetches).toEqual([{ url: `${API}accounts/${ACC}/chats/${FAN}/messages?limit=50&cursor=9100`, auth: 'Bearer jwt-1' }]);
+    // Past OnlyMonster's own cache (its Refresh): a purchase changes a message, only a fresh read says it.
+    expect(fetches).toEqual([{ url: `${API}accounts/${ACC}/chats/${FAN}/messages?limit=50&cursor=9100&force=true`, auth: 'Bearer jwt-1' }]);
     if (!answer.ok) throw new Error('no page');
     expect(Date.parse(answer.page.capturedAt)).not.toBeNaN();
     expect({ ...answer, page: { ...answer.page, capturedAt: null } }).toEqual({
@@ -1187,6 +1188,26 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
         cursor: '9001',
       },
     });
+  });
+
+  it('[X51] the person leaves the chat while the token is fetched: refused before the request, nothing is read', async () => {
+    const h = harness as Harness;
+    let release: (value: unknown) => void = () => undefined;
+    Object.defineProperty(window, 'Clerk', { configurable: true, value: { session: { getToken: () => new Promise((resolve) => (release = resolve)) } } });
+    const asked = h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 });
+    await Promise.resolve();
+    h.page.go(ACC, OTHER);
+    release('jwt-late');
+    expect(await asked).toBe('identity-mismatch');
+    expect(fetches).toEqual([]);
+  });
+
+  it('[X51] only the page’s own read of its accounts names the API: another `/api/v0/` address carries no token', async () => {
+    (harness as Harness).dispose();
+    entries = [{ name: 'https://elsewhere.example.test/api/v0/chats/1' }];
+    const fresh = await start();
+    expect(OpenChatAnswerSchema.parse(await fresh.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 }))).toEqual({ ok: false, failure: 'endpoint', status: null });
+    expect(fetches).toEqual([]);
   });
 
   it('[X51] what fails is an answer, never a throw: no address yet, no session, an error status, a broken body', async () => {

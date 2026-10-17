@@ -49,6 +49,8 @@ export const WS_NEW_MESSAGE = 'account_new_message';
 export const WS_AUTHENTICATED = 'authenticated';
 /** The path of ChatSpace's own API under its origin; our one read of it (X51) takes the origin from the page's requests. */
 export const API_PATH = '/api/v0/';
+/** The request that names that origin: the page's own read of its accounts, the first it makes (X51). */
+export const API_ACCOUNTS_PATH = '/api/v0/accounts';
 /** The native send request, `POST api/v0/accounts/{acc}/chats/{chat}/messages` (§6.7.2): account and chat of a URL's path. */
 export const SEND_PATH = /(?:^|\/)api\/v0\/accounts\/(\d+)\/chats\/(\d+)\/messages$/;
 /** The role permission that takes the Send button away (§6.7.4 п. 8). */

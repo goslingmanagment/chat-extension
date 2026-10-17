@@ -605,8 +605,11 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         return reader.chatList(acc, payload['limit'] as number);
       case 'openChatMessages': {
         // The chat on the route now, or nothing is requested: another chat's history load would mark it read.
-        const read = route();
-        return read.name === 'chat' && read.acc === acc && read.fan === fan ? om.openChatMessages(acc, fan, payload['limit'] as number, payload['cursor'] as string | undefined) : ERR_IDENTITY;
+        const open = (): boolean => {
+          const read = route();
+          return read.name === 'chat' && read.acc === acc && read.fan === fan;
+        };
+        return open() ? om.openChatMessages(acc, fan, payload['limit'] as number, payload['cursor'] as string | undefined, open) : ERR_IDENTITY;
       }
       case 'readTail':
         return identityMatches(expected) && expected.chat ? reader.tail(expected.chat.hostAccountId, expected.chat.platformFanId, payload['max'] as number) : ERR_IDENTITY;

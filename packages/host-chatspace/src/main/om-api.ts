@@ -9,8 +9,9 @@
 // the isolated side checks the answer with its schema.
 
 import { count, idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
+import { ERR_IDENTITY } from '@cg/host-kit/main/protocol';
 import { iso, plain, utf8Bytes } from './page';
-import { API_PATH, FRAME_DATA_BUDGET, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS } from './protocol';
+import { API_ACCOUNTS_PATH, API_PATH, FRAME_DATA_BUDGET, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS } from './protocol';
 
 type PageWindow = Window & { readonly Clerk?: { readonly session?: { readonly getToken?: () => unknown } | null } };
 
@@ -52,12 +53,15 @@ export type OmApi = ReturnType<typeof createOmApi>;
 
 /** Our requests to ChatSpace's API in one document. */
 export function createOmApi(win: Window, setTimer: Timer) {
-  /** `<origin>/api/v0/` of the page's first request to its API, once seen; the page's API host is not the page's own. */
+  /**
+   * `<origin>/api/v0/` of the page's first request to its accounts (`/api/v0/accounts…`, what ChatSpace asks first),
+   * once seen; the page's API host is not the page's own. Only that path names it: the session token goes nowhere else.
+   */
   let base: string | null = null;
   const apiBase = (): string | null => {
     if (base === null) {
       for (const entry of win.performance.getEntriesByType('resource')) {
-        const at = entry.name.indexOf(API_PATH);
+        const at = entry.name.indexOf(API_ACCOUNTS_PATH);
         if (at > 0 && /^https?:\/\/[^/]+$/.test(entry.name.slice(0, at))) return (base = entry.name.slice(0, at + API_PATH.length));
       }
     }
@@ -68,9 +72,14 @@ export function createOmApi(win: Window, setTimer: Timer) {
    * A request to ChatSpace's API at `path` (under `…/api/v0/`) with the page's own session, as the page makes it: a GET,
    * or with `init` the method and the JSON body the page itself sends there. Resolves with the parsed JSON body or a
    * refusal, never rejects. Every request of ours goes through here; the caller chooses which path may be asked, when,
-   * and whether it may be anything but a read (X51: reads only, unless a decision says otherwise).
+   * and whether it may be anything but a read (X51: reads only, unless a decision says otherwise). `still` is asked once
+   * more right before the request, after the token's wait: false — `identity-mismatch`, and nothing is requested.
    */
-  const omRequest = async (path: string, init?: { readonly method: 'GET' | 'POST'; readonly json?: unknown }): Promise<{ readonly ok: true; readonly body: unknown } | Failed> => {
+  const omRequest = async (
+    path: string,
+    init?: { readonly method: 'GET' | 'POST'; readonly json?: unknown },
+    still?: () => boolean,
+  ): Promise<{ readonly ok: true; readonly body: unknown } | Failed | typeof ERR_IDENTITY> => {
     const root = apiBase();
     if (root === null) return fail('endpoint');
     let token: unknown;
@@ -80,6 +89,7 @@ export function createOmApi(win: Window, setTimer: Timer) {
       token = null;
     }
     if (typeof token !== 'string' || token === '') return fail('session');
+    if (still !== undefined && !still()) return ERR_IDENTITY;
     const abort = new AbortController();
     setTimer(() => abort.abort(), OPEN_CHAT_REQUEST_MS);
     try {
@@ -97,10 +107,14 @@ export function createOmApi(win: Window, setTimer: Timer) {
 
   return {
     omRequest,
-    /** The open chat's newest `limit` messages (before `cursor`), newest first, within one frame's byte budget. */
-    async openChatMessages(acc: string, fan: string, limit: number, cursor?: string): Promise<Plain> {
-      const read = await omRequest(`accounts/${acc}/chats/${fan}/messages?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`);
-      if (!read.ok) return read;
+    /**
+     * The open chat's newest `limit` messages (before `cursor`), newest first, within one frame's byte budget — read
+     * past OnlyMonster's own cache (`force=true`, its Refresh): a purchase changes a message, and only a fresh read
+     * says it. `open` — the chat is still the one on the route; asked again right before the request.
+     */
+    async openChatMessages(acc: string, fan: string, limit: number, cursor: string | undefined, open: () => boolean): Promise<Plain | typeof ERR_IDENTITY> {
+      const read = await omRequest(`accounts/${acc}/chats/${fan}/messages?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}&force=true`, undefined, open);
+      if (typeof read === 'string' || !read.ok) return read;
       const raws = isPlain(read.body) ? read.body['items'] : null;
       if (!Array.isArray(raws)) return fail('invalid');
       const items: Plain[] = [];

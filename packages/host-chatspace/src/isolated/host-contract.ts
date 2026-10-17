@@ -59,6 +59,8 @@ export const WS_AUTHENTICATED = 'authenticated';
  * names no origin.
  */
 export const API_PATH = '/api/v0/';
+/** The page's own read of its accounts, the first request it makes to its API: the one our read takes the origin from. */
+export const API_ACCOUNTS_PATH = '/api/v0/accounts';
 /** The native send request, `POST api/v0/accounts/{acc}/chats/{chat}/messages` (§6.7.2): account and chat of a URL's path. */
 export const SEND_PATH = /(?:^|\/)api\/v0\/accounts\/(\d+)\/chats\/(\d+)\/messages$/;
 /** The role permission that takes the Send button away (§6.7.4 п. 8). */
