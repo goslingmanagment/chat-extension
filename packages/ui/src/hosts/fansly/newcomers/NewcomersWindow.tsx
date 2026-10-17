@@ -46,8 +46,6 @@ import {
   Dot,
   ErrorCard,
   Icon,
-  Menu,
-  MenuAnchor,
   OverlayLayer,
   SearchBox,
   Spinner,
@@ -57,7 +55,6 @@ import {
   VirtualList,
   focusQuietly,
   isComposing,
-  menuTriggerKeys,
   rovingIndex,
   useDispatch,
   useHints,
@@ -68,11 +65,10 @@ import {
   useCountdown,
   useTooltip,
   useView,
-  type MenuItem,
 } from '../../../kit';
 import { useOwnEchoes } from '../../../spenders/ownEchoes';
 import { rowKeyOf, useCardFollow, useRowFocus } from '../../../spenders/rowFocus';
-import { DataFooter, FilterChip, WindowHeader, isPlainKey, isTextEntry } from '../../../spenders/window';
+import { ChoiceMenu, DataFooter, InitialAvatar, WindowHeader, isPlainKey, isTextEntry } from '../../../spenders/window';
 
 const ROW_HEIGHT = 52;
 const HEADER_HEIGHT = 28;
@@ -103,12 +99,6 @@ export function checkText(i18n: I18n, check: NewcomerCheck): string {
   return fanslyText(i18n, `fansly.newcomers.status.${check}`);
 }
 
-/** The first letter of the name: the avatar (no remote picture is ever loaded). */
-function initialOf(name: string): string {
-  const letter = [...name.trim()][0] ?? '?';
-  return letter.toLocaleUpperCase();
-}
-
 /** A failure as the error card shows it: the code's own texts, of the shared registry or of Fansly's (both in the tab's catalog). */
 export function failureView(i18n: I18n, failure: NewcomersFailureVM): CgErrorView {
   const code: CgAnyCode = isCgAnyCode(failure.code) ? failure.code : 'CG-UNKNOWN';
@@ -117,14 +107,6 @@ export function failureView(i18n: I18n, failure: NewcomersFailureVM): CgErrorVie
   const body = shared === null ? (cgBodyKey(code) as unknown as I18nKey) : shared.body;
   // The card prints the code as it is: Fansly's own codes are not in the shared union, the text is.
   return { code: code as CgCode, title: i18n.t(title), body: i18n.t(body), ...(failure.retryAt === null ? {} : { retryAt: failure.retryAt }) };
-}
-
-function Avatar({ name, large }: { readonly name: string; readonly large?: boolean }): JSX.Element {
-  return (
-    <span class={`cg-fnw__ava${large === true ? ' is-lg' : ''}`} aria-hidden="true">
-      {initialOf(name)}
-    </span>
-  );
 }
 
 /** The status column: actionable verdicts strong, the rest in the list's ink; never a colour (ui-design §1 п. 5). */
@@ -180,9 +162,9 @@ function Row({ row, index, active, onPick }: { readonly row: NewcomerRowVM; read
         void dispatch({ type: 'OpenPreview', targetHandle: row.handle });
       }}
     >
-      <span role="cell" class="cg-fnw__who">
-        <Avatar name={row.name} />
-        <span class="cg-fnw__names">
+      <span role="cell" class="cg-nc__who">
+        <InitialAvatar name={row.name} />
+        <span class="cg-nc__names">
           <span class="cg-nc__name">
             {row.name}
             {custom === null ? null : <span class="cg-fnw__custom"> ({custom})</span>}
@@ -213,49 +195,53 @@ function ColumnHeader(): JSX.Element {
   );
 }
 
-/** The period of the window (NF-003): 1 hour to 30 days, 48 hours first. */
-function PeriodMenu({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
+/** The period of the window (NF-003): 1 hour to 30 days, 48 hours first; the dates it covers in the tooltip. */
+function PeriodMenu({ vm, range }: { readonly vm: NewcomersVM; readonly range: string | null }): JSX.Element | null {
   const i18n = useI18n();
   const hints = useHints();
   const dispatch = useDispatch();
-  const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const close = useCallback(() => setOpen(false), []);
-  const returnFocus = useCallback(() => buttonRef.current, []);
-  if (vm.windowOptions.length < 2) return null;
-  const items: MenuItem[] = vm.windowOptions.map((hours) => ({ id: String(hours), label: periodText(i18n, hours), checked: hours === vm.windowHours }));
   return (
-    <MenuAnchor>
-      <Button
-        label={periodText(i18n, vm.windowHours)}
-        variant="quiet"
-        tooltip={hints ? fanslyText(i18n, 'fansly.newcomers.window') : null}
-        haspopup="menu"
-        expanded={open}
-        buttonRef={buttonRef}
-        class="cg-fnw__period"
-        trailing={<Icon name="chevronDown" size={14} />}
-        onClick={() => setOpen((value) => !value)}
-        onKeyDown={(event) => {
-          if (!open) menuTriggerKeys(event, () => setOpen(true));
-        }}
-      />
-      <Menu
-        open={open}
-        kind="radio"
-        label={fanslyText(i18n, 'fansly.newcomers.window')}
-        items={items}
-        align="end"
-        placement="bottom"
-        onClose={close}
-        returnFocusTo={returnFocus}
-        onSelect={(id) => {
-          const hours = vm.windowOptions.find((value) => String(value) === id);
-          if (hours !== undefined && hours !== vm.windowHours) void dispatch({ type: 'SetNewcomersWindow', hours });
-        }}
-      />
-    </MenuAnchor>
+    <ChoiceMenu
+      label={periodText(i18n, vm.windowHours)}
+      menuLabel={fanslyText(i18n, 'fansly.newcomers.window')}
+      tooltip={range ?? (hints ? fanslyText(i18n, 'fansly.newcomers.window') : null)}
+      class="cg-fnw__period"
+      align="end"
+      items={vm.windowOptions.map((hours) => ({ id: String(hours), label: periodText(i18n, hours), checked: hours === vm.windowHours }))}
+      onSelect={(id) => {
+        const hours = vm.windowOptions.find((value) => String(value) === id);
+        if (hours !== undefined && hours !== vm.windowHours) void dispatch({ type: 'SetNewcomersWindow', hours });
+      }}
+    />
   );
+}
+
+/** The status filter (NF-004): one menu, as the old window's select, not seven chips. */
+function StatusMenu({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const on = pass.filters.find((filter) => filter.pressed) ?? pass.filters[0];
+  if (on === undefined) return null;
+  const label = (id: (typeof pass.filters)[number]['id']): string => fanslyText(i18n, `fansly.newcomers.filter.${id}`);
+  return (
+    <ChoiceMenu
+      label={on.count === null ? label(on.id) : `${label(on.id)} ${on.count}`}
+      menuLabel={fanslyText(i18n, 'fansly.newcomers.filter.label')}
+      pressed={on.id !== 'any'}
+      class="cg-nc__filter"
+      items={pass.filters.map((filter) => ({ id: filter.id, label: label(filter.id), count: filter.count, checked: filter.pressed }))}
+      onSelect={(id) => {
+        const filter = pass.filters.find((item) => item.id === id);
+        if (filter !== undefined && !filter.pressed) void dispatch({ type: 'SetNewcomersCheckFilter', filter: filter.id });
+      }}
+    />
+  );
+}
+
+/** «1 окт, 09:16 — 3 окт, 09:16 · местное время»: the dates the pass covers. */
+function rangeText(i18n: I18n, pass: NewcomersPassVM | null): string | null {
+  if (pass === null || pass.range === null) return null;
+  return fanslyText(i18n, 'fansly.newcomers.range', { from: i18n.formatTime(pass.range.from, 'datetime'), to: i18n.formatTime(pass.range.to, 'datetime') });
 }
 
 /** «Проверено 12 из 40», the phase of the fast part, the queue (NF-008); a spinner while the pass reads. */
@@ -316,20 +302,11 @@ function Cooldown({ until }: { readonly until: number }): JSX.Element | null {
   );
 }
 
-/** Under the filters: whose followers, from when to when (NF-008); the pause; «Результат неполный» (NF-025); why the pass stopped. */
+/** Under the filters, only when there is something to say: the pause Fansly asked for, «Результат неполный» (NF-025), why the pass stopped. */
 function PassLines({ vm, pass }: { readonly vm: NewcomersVM; readonly pass: NewcomersPassVM }): JSX.Element {
   const i18n = useI18n();
-  const range = pass.range === null ? null : fanslyText(i18n, 'fansly.newcomers.range', { from: i18n.formatTime(pass.range.from, 'datetime'), to: i18n.formatTime(pass.range.to, 'datetime') });
-  const run = pass.run !== undefined && (pass.run.pause || pass.run.resume) ? pass.run : null;
   return (
     <>
-      {pass.creator === null && range === null && run === null ? null : (
-        <div class="cg-fnw__meta">
-          {pass.creator === null ? null : <b>@{pass.creator}</b>}
-          {range === null ? null : <span>{range}</span>}
-          {run === null ? null : <RunButton run={run} />}
-        </div>
-      )}
       {pass.stage === 'cooldown' && pass.cooldownUntil !== null ? <Cooldown until={pass.cooldownUntil} /> : null}
       {vm.incomplete === null ? null : (
         <div class="cg-sp__line cg-nc__incomplete" role="status">
@@ -369,7 +346,6 @@ function ListFailed({ failure }: { readonly failure: NewcomersFailureVM | null }
   const dispatch = useDispatch();
   return (
     <div class="cg-fnw__failed" data-cg-list="failed">
-      <p class="cg-fnw__failedTitle">{fanslyText(i18n, 'fansly.newcomers.listFailed')}</p>
       <ErrorCard error={failureView(i18n, failure ?? { code: 'CG-DATA-UNAVAILABLE', retryAt: null })} tone="failure">
         <Button label={i18n.t('common.retry')} variant="line" onClick={() => void dispatch(RELOAD)} />
       </ErrorCard>
@@ -677,7 +653,7 @@ function Card({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
   return (
     <section class="cg-pv cg-fnc" aria-label={fanslyText(i18n, 'fansly.newcomers.cardLabel')} data-cg-card={card.handle}>
       <header class="cg-fnc__head">
-        <Avatar name={card.name} large />
+        <InitialAvatar name={card.name} large />
         <div class="cg-fnc__who">
           <h3 class="cg-fnc__name">
             {card.name}
@@ -831,7 +807,8 @@ export function FanslyNewcomersWindow(): JSX.Element {
   const filterOn = pass?.filters.some((filter) => filter.pressed && filter.id !== 'any') ?? false;
   const showList = hasRows && !failed && vm.view.s !== 'error' && vm.view.s !== 'forbidden' && vm.view.s !== 'empty';
   const forbidden = vm.view.s === 'forbidden' || (pass === null && vm.view.s !== 'loading');
-  const footer = fanslyText(i18n, 'fansly.newcomers.footer', { n: vm.footer.count, window: periodText(i18n, vm.windowHours) });
+  const range = rangeText(i18n, pass);
+  const footer = [fanslyText(i18n, 'fansly.newcomers.footer', { n: vm.footer.count, window: periodText(i18n, vm.windowHours) }), range].filter((part) => part !== null).join(' · ');
   const card = pass?.card ?? null;
   // The card's column: once there is something to show in it (not while the first page is on its way).
   const cardColumn = !forbidden && !failed && (card !== null || vm.view.s !== 'loading');
@@ -850,7 +827,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
               value={vm.tab}
               onChange={(tab) => void dispatch({ type: 'SetNewcomersTab', tab })}
             />
-            {pass === null ? null : <Stage pass={pass} />}
+            {pass === null || failed ? null : <Stage pass={pass} />}
             <span class="cg-sp__grow" />
             <SearchBox
               value={vm.query}
@@ -863,19 +840,12 @@ export function FanslyNewcomersWindow(): JSX.Element {
           </WindowHeader>
           <div class={`cg-nc__cols${cardColumn ? ' is-card' : ''}`}>
             <section class="cg-nc" aria-label={fanslyText(i18n, 'fansly.newcomers.listLabel')} data-cg-newcomers={vm.view.s} data-cg-pass={pass?.stage ?? 'none'}>
-              {pass === null || forbidden ? null : (
+              {pass === null || forbidden || failed ? null : (
                 <div class="cg-sp__tools" role="group" aria-label={fanslyText(i18n, 'fansly.newcomers.filter.label')}>
-                  {pass.filters.map((filter) => (
-                    <FilterChip
-                      key={filter.id}
-                      label={fanslyText(i18n, `fansly.newcomers.filter.${filter.id}`)}
-                      count={filter.count}
-                      pressed={filter.pressed}
-                      onPress={() => void dispatch({ type: 'SetNewcomersCheckFilter', filter: filter.id })}
-                    />
-                  ))}
+                  <StatusMenu pass={pass} />
+                  {pass.run !== undefined && (pass.run.pause || pass.run.resume) ? <RunButton run={pass.run} /> : null}
                   <span class="cg-sp__grow" />
-                  <PeriodMenu vm={vm} />
+                  <PeriodMenu vm={vm} range={range} />
                 </div>
               )}
               {pass === null || forbidden ? null : <PassLines vm={vm} pass={pass} />}
@@ -906,11 +876,6 @@ export function FanslyNewcomersWindow(): JSX.Element {
               ) : (
                 <div class="cg-nc__state">
                   <ViewState view={vm.view} />
-                </div>
-              )}
-              {forbidden ? null : (
-                <div class="cg-nc__hint">
-                  <p>{fanslyText(i18n, 'fansly.newcomers.hint', { window: periodText(i18n, vm.windowHours) })}</p>
                 </div>
               )}
               {forbidden || failed || vm.view.s === 'loading' ? null : <DataFooter left={footer} stamp={{ asOf: null, coverage: vm.footer.stamp.coverage }} />}

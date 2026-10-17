@@ -611,7 +611,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.status.greeted': 'поздоровались',
   'newcomers.hint':
     'Здесь те, кто подписался, продлил подписку или вернулся за последние {window}. Пока вы здороваетесь, фан забронирован за вами, и другой чаттер не напишет ему одновременно с вами.',
-  'newcomers.footer': '{n} за {window}, {coverage}',
+  'newcomers.footer': '{n} за {window}',
   'newcomers.cardMeta': '{kind}, подписка {age} назад',
   'newcomers.stopped': 'Дальше не отправляем, пока неясно, ушла ли часть {n}. Удержание снимет тимлид или владелец после проверки.',
   'newcomers.listLabel': 'Новые подписчики',
@@ -619,7 +619,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.noAutoSend': 'AI ничего не отправляет сам: только по вашему нажатию.',
   'newcomers.tab.todo': 'Поздороваться',
   'newcomers.tab.all': 'Все',
-  'newcomers.filter.any': 'Все',
+  'newcomers.filter.any': 'Все статусы',
   'newcomers.filter.none': 'Не поздоровались',
   'newcomers.filter.claimed': 'Бронь',
   'newcomers.filter.sending': 'Отправляются',

@@ -5,12 +5,12 @@
 // «is the person typing in one of our fields».
 
 import { type ComponentChildren, type JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type DataStamp, type I18n } from '@cg/contracts/vm';
 
-import { Button, useDispatch, useHints, useI18n, type StyleSource } from '../kit';
+import { Button, Icon, Menu, MenuAnchor, menuTriggerKeys, useDispatch, useHints, useI18n, type MenuItem, type StyleSource } from '../kit';
 
 const COVERAGE_KEYS: Readonly<Record<DataStamp['coverage'], I18nKey>> = {
   complete: 'common.coverage.complete',
@@ -96,6 +96,66 @@ export function FilterChip({ label, count, pressed, onPress }: { readonly label:
   );
 }
 
+export interface ChoiceItem {
+  readonly id: string;
+  readonly label: string;
+  readonly count?: number | null;
+  readonly checked: boolean;
+}
+
+/**
+ * A quiet button with a radio menu under it — the period, the status filter, «Ещё» of a list: one control where a
+ * row of chips stood (the old clients' select). The button names what is chosen; the menu gives the counts.
+ */
+export function ChoiceMenu({ label, menuLabel, items, onSelect, pressed, tooltip, align, class: extra }: {
+  readonly label: string;
+  readonly menuLabel: string;
+  readonly items: readonly ChoiceItem[];
+  readonly onSelect: (id: string) => void;
+  /** A filter other than «all» is on: the button reads as pressed. */
+  readonly pressed?: boolean;
+  readonly tooltip?: string | null;
+  /** The menu's edge under the button: `end` for a button at the right end of its row. */
+  readonly align?: 'start' | 'end';
+  readonly class?: string;
+}): JSX.Element | null {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const returnFocus = useCallback(() => buttonRef.current, []);
+  if (items.length < 2) return null;
+  const menuItems: MenuItem[] = items.map((item) => ({ id: item.id, label: item.label, checked: item.checked, ...(item.count === null || item.count === undefined ? {} : { hint: String(item.count) }) }));
+  return (
+    <MenuAnchor>
+      <Button
+        label={label}
+        variant="quiet"
+        tooltip={tooltip ?? null}
+        haspopup="menu"
+        expanded={open}
+        buttonRef={buttonRef}
+        class={`cg-choice${pressed === true ? ' is-on' : ''}${extra === undefined ? '' : ` ${extra}`}`}
+        trailing={<Icon name="chevronDown" size={14} />}
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (!open) menuTriggerKeys(event, () => setOpen(true));
+        }}
+      />
+      <Menu open={open} kind="radio" label={menuLabel} items={menuItems} align={align ?? 'start'} placement="bottom" onClose={close} returnFocusTo={returnFocus} onSelect={onSelect} />
+    </MenuAnchor>
+  );
+}
+
+/** The first letter of the name in a circle: the avatar of a list row (no remote picture is ever loaded). */
+export function InitialAvatar({ name, large }: { readonly name: string; readonly large?: boolean }): JSX.Element {
+  const letter = ([...name.trim()][0] ?? '?').toLocaleUpperCase();
+  return (
+    <span class={`cg-ava${large === true ? ' is-lg' : ''}`} aria-hidden="true">
+      {letter}
+    </span>
+  );
+}
+
 /** Views whose data «Обновить» reads again (the controllers take `ReloadView` for them). */
 export type RefreshableView = 'spenders.board' | 'spenders.stats';
 
@@ -171,6 +231,15 @@ export const WINDOW_CSS = `
 .cg-flt:hover { background: var(--cg-hover); color: var(--cg-ink); }
 .cg-flt[aria-pressed="true"] { background: var(--cg-hover); color: var(--cg-ink-strong); font-weight: 500; }
 .cg-flt__n { color: var(--cg-ink-muted); margin-left: 4px; font-weight: 400; }
+.cg-choice .cg-btn__t { font-variant-numeric: tabular-nums; }
+.cg-choice.is-on { background: var(--cg-hover); color: var(--cg-ink-strong); }
+.cg-sp__tools .cg-menu { z-index: 6; }
+.cg-ava {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--cg-sunk); color: var(--cg-ink-2); font-weight: 600; font-size: var(--cg-text-sm); line-height: 1;
+  box-shadow: inset 0 0 0 1px var(--cg-rule);
+}
+.cg-ava.is-lg { width: 36px; height: 36px; font-size: var(--cg-text-base); }
 .cg-sp__foot {
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 32px; padding: 0 16px 0 20px;
   border-top: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap;

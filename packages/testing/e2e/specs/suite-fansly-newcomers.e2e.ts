@@ -37,6 +37,12 @@ import { inBrowser, startSecondBrowser } from '../support/second';
 const A = WORLD.fansly.chats.a;
 const PAGE = WORLD.pages.fansly;
 const WINDOW = '.cg-fnw';
+
+/** The status filter is one menu: open it, choose the status. */
+async function chooseStatus(status: RegExp): Promise<void> {
+  await pressOurs('modal', `${WINDOW} .cg-sp__tools button.cg-nc__filter`, /./);
+  await pressOurs('modal', `${WINDOW} [role="menuitemradio"]`, status);
+}
 /** The test build's key for the stand's API (bg/fansly/api-probe.ts): the pass asks there, and nothing without it. */
 const STAND_API = 'dev.fanslyApi.origin';
 const NEWCOMERS_ROUTES = ['followers.new', 'messaging.groups', 'account.byIds', 'group.detail', 'group.create', 'message.history', 'message.automated'];
@@ -103,10 +109,10 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     // The followers of 48 hours, as the pass read them; the queue runs and may stop.
     await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-fnw__row`), { timeout: 30_000, timeoutMsg: 'no row of the pass in the window' });
     expect(await oursText('modal', WINDOW)).not.toMatch(/Список не загружен/);
-    await waitOursByText('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза', 'the queue runs: «Пауза»', 30_000);
-    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза');
+    await waitOursByText('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'the queue runs: «Пауза»', 30_000);
+    await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза');
     await waitOursText('modal', /Проверка на паузе/, 'the queue stands', { timeout: 15_000, selector: WINDOW });
-    await waitOursByText('modal', `${WINDOW} .cg-fnw__meta button`, /^Проверить оставшихся: \d+$/, 'the rest can be checked', 15_000);
+    await waitOursByText('modal', `${WINDOW} button.cg-fnw__run`, /^Проверить оставшихся: \d+$/, 'the rest can be checked', 15_000);
     await browser.pause(400);
     await picture('paused');
     // Every request of ours was one of FS-NET-1's `newcomers` routes: no send, no ack, nothing outside the list.
@@ -116,8 +122,8 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     expect([...routes].filter((route) => route === null || route === undefined || !NEWCOMERS_ROUTES.includes(route))).toEqual([]);
     expect(routes.has('followers.new') && routes.has('message.automated')).toBe(true);
     // «Проверить оставшихся»: the queue goes on.
-    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, /^Проверить оставшихся/);
-    await waitOursByText('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза', 'the queue runs again', 15_000);
+    await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, /^Проверить оставшихся/);
+    await waitOursByText('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'the queue runs again', 15_000);
     await browser.keys(['Escape']);
     await browser.waitUntil(async () => !(await oursExists('modal', WINDOW)), { timeout: 5_000, timeoutMsg: 'Esc did not close «Новые»' });
   });
@@ -140,7 +146,7 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     // The newest follower: the first the queue checks after the fast part.
     await browser.waitUntil(async () => (await checkOf()) === 'dm-closed', { timeout: 120_000, interval: 250, timeoutMsg: 'the follower with closed DMs was not «Нельзя написать»' });
     // The queue stands: the counts hold still.
-    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза', 'the queue runs: «Пауза»', 15_000);
+    await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'the queue runs: «Пауза»', 15_000);
     await waitOursText('modal', /Проверка на паузе/, 'the queue stands', { timeout: 15_000, selector: WINDOW });
     await ours('modal', ROW).click();
     await waitOursText('modal', /Нельзя написать.*Fansly не даёт написать: модель не проходит правила фана для личных сообщений\..*Исключить из очереди/, 'the card says why', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
@@ -153,7 +159,7 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     await browser.waitUntil(async () => !(await oursExists('modal', ROW)) && (await todo()) === before - 1, { timeout: 10_000, timeoutMsg: 'the excluded fan did not leave «К обработке»' });
 
     await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все \d+$/);
-    await pressOurs('modal', `${WINDOW} .cg-sp__tools button`, /^Нельзя написать/);
+    await chooseStatus(/^Нельзя написать/);
     await browser.waitUntil(async () => (await checkOf()) === 'excluded', { timeout: 10_000, timeoutMsg: 'the excluded fan is not under «Все»' });
     await ours('modal', ROW).click();
     await waitOursText('modal', /Исключён · нельзя написать.*Вернуть в очередь/, 'the card of the excluded fan', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
@@ -186,7 +192,7 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     await browser.url(testBuildPage(QUIET_PAGE));
     await shift.toFansly();
     // Closing keeps the previous scenario's «Нельзя написать» filter, which hides this ready fan.
-    await pressOurs('modal', `${WINDOW} .cg-sp__tools button`, /^Все статусы/);
+    await chooseStatus(/^Все статусы/);
     await browser.waitUntil(async () => (await checkOf()) === 'ready', { timeout: 120_000, interval: 250, timeoutMsg: 'the new follower was not checked «Не писали»' });
     await ours('modal', ROW).click();
     // The card's chat is the group the pass resolved, never the fan's id (FS-IDN-6).
@@ -351,7 +357,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect(await oursText('modal', CARD)).toContain(`About stand_account_${fresh.slice(-6)}`);
     // Fansly's host account carries its id alone; the bound hub page supplies the window's display name.
     expect(await oursText('modal', `${WINDOW} .cg-sp__page`)).toBe(PAGE.title);
-    expect(await oursText('modal', `${WINDOW} .cg-fnw__meta`)).toMatch(/ — .* · местное время/);
+    await waitOursText('modal', / — .* · местное время/, 'the dates of the pass in the footer', { selector: `${WINDOW} .cg-nc > .cg-sp__foot`, timeout: 30_000 });
     await waitOursText('modal', 'Проверено 3 из 3', 'the pass’s progress', { selector: WINDOW, timeout: 30_000 });
     for (const [period, count, included, excluded] of [['1 час', 1, fresh, closed], ['30 дней', 4, old, '']] as const) {
       await ours('modal', `${WINDOW} .cg-fnw__period`).click();
@@ -366,7 +372,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
   it('[NF-006] [NF-030] [FS-NEW-1] whole-pass search and filters, then a second page after row 100; looking takes no custody', async () => {
     const followers = Array.from({ length: 105 }, (_, index) => ({ fanId: fanId(), ageHours: index / 1000, customName: index === 104 ? 'За сотой строкой' : `Фан ${index + 1}` }));
     await seed(followers);
-    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза', 'the queue can pause', 40_000);
+    await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'the queue can pause', 40_000);
     await waitOursText('modal', /Проверка на паузе/, 'the queue paused', { selector: WINDOW });
     await waitOursText('modal', /Все 105\b/, 'the paused pass keeps all its followers', { selector: `${WINDOW} [role="tablist"]` });
     const hubMark = await hub().mark();
@@ -383,10 +389,10 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect(await ours('modal', `${WINDOW} .cg-sp__search input`).getValue()).toBe('');
     await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все 105$/);
     expect(await readOurs('modal', `${WINDOW} [data-cg-pass]`, (node) => node.getAttribute('data-cg-pass'))).toBe('paused');
-    await pressOurs('modal', `${WINDOW} .cg-sp__tools button`, /^В очереди/);
+    await chooseStatus(/^В очереди/);
     await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-fnw__row`), { timeout: 10_000 });
     expect((await oursText('modal', `${WINDOW} .cg-fnw__row`))).not.toContain('Уже писали');
-    await pressOurs('modal', `${WINDOW} .cg-sp__tools button`, /^Все статусы/);
+    await chooseStatus(/^Все статусы/);
     await ours('modal', ROW(followers[0]?.fanId ?? '')).click();
     await browser.keys('End');
     await browser.waitUntil(async () => oursExists('modal', `${WINDOW} [aria-rowindex="101"]`), { timeout: 10_000, timeoutMsg: 'the end of the first 100 rows did not render' });
@@ -480,9 +486,9 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect(await oursText('modal', `${WINDOW} [role="tablist"]`)).toMatch(/Все 100\b/);
     const beforeRetry = (await fakeFansly().calls('ours', mark)).filter((entry) => entry.route === 'followers.new');
     expect(beforeRetry.map((entry) => entry.status)).toEqual([200, 500, 500, 500, 500]);
-    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, /^Проверить оставшихся/);
+    await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, /^Проверить оставшихся/);
     await waitOursText('modal', /Все 101\b/, 'the retry finished the list', { selector: `${WINDOW} [role="tablist"]`, timeout: 40_000 });
-    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза', 'pause the completed list’s queue', 30_000);
+    await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'pause the completed list’s queue', 30_000);
     expect(await oursExists('modal', `${WINDOW} .cg-nc__incomplete`)).toBe(false);
     expect(await posts(mark)).toEqual([]);
   });
@@ -494,10 +500,10 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await seed([{ fanId: fan, messages: [{ from: 'fan', text: 'hello' }] }, { fanId: next, ageHours: 0.01 }]);
     await select(fan, 'reply');
     await ours('modal', FIELD).setValue('My draft survives the pause');
-    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, 'Пауза');
+    await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза');
     await waitOursText('modal', /Проверка на паузе/, 'the queue stands', { selector: WINDOW });
     expect(await fieldText()).toBe('My draft survives the pause');
-    await pressOurs('modal', `${WINDOW} .cg-fnw__meta button`, /^Проверить оставшихся/);
+    await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, /^Проверить оставшихся/);
     await browser.waitUntil(async () => (await checkOf(next)) === 'ready', { timeout: 30_000 });
     expect(await fieldText()).toBe('My draft survives the pause');
     // Wait on the stored draft, not on a guessed debounce duration.

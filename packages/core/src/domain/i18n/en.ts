@@ -582,7 +582,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.status.greeted': 'greeted',
   'newcomers.hint':
     'Here are those who subscribed, renewed or came back in the last {window}. While you greet, the fan is on hold for you, so another chatter will not write at the same time.',
-  'newcomers.footer': '{n} in {window}, {coverage}',
+  'newcomers.footer': '{n} in {window}',
   'newcomers.cardMeta': '{kind}, subscribed {age} ago',
   'newcomers.stopped': 'Not sending further until we know whether part {n} went out. A team lead or the owner lifts the hold after checking.',
   'newcomers.listLabel': 'New subscribers',
@@ -590,7 +590,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.noAutoSend': 'AI never sends on its own: only when you press.',
   'newcomers.tab.todo': 'To greet',
   'newcomers.tab.all': 'All',
-  'newcomers.filter.any': 'All',
+  'newcomers.filter.any': 'All statuses',
   'newcomers.filter.none': 'Not greeted',
   'newcomers.filter.claimed': 'On hold',
   'newcomers.filter.sending': 'Sending',

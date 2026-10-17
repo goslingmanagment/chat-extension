@@ -9,10 +9,8 @@
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 
-import { type SpendersPeriod } from '@cg/contracts/vm';
-
-import { Boundary, Dialog, OverlayLayer, SearchBox, Tabs, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
-import { BOARD_CSS, Board, PERIOD_KEYS, focusIsIdle, type BoardHandle } from './Board';
+import { Boundary, Dialog, OverlayLayer, SearchBox, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
+import { BOARD_CSS, Board, focusIsIdle, type BoardHandle } from './Board';
 import { Preview } from './preview/Preview';
 import { STATS_CSS, StatsColumn, StatsExpanded } from './Stats';
 import { WindowHeader, isPlainKey, isTextEntry } from './window';
@@ -119,12 +117,6 @@ export function SpendersWindow(): JSX.Element {
       <Dialog open label={i18n.t('spenders.title')} size="window" scrim={false} class="cg-sp cg-spw" onClose={close} initialFocus={() => frameRef.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}>
         <div ref={frameRef} class="cg-sp__frame" onKeyDown={onKeyDown}>
           <WindowHeader title={i18n.t('spenders.title')} pageName={board.pageName} onClose={() => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } })}>
-            <Tabs<SpendersPeriod>
-              label={i18n.t('spenders.period.label')}
-              tabs={board.periods.map((period) => ({ value: period, label: i18n.t(PERIOD_KEYS[period]) }))}
-              value={board.period}
-              onChange={(period) => void dispatch({ type: 'SetSpendersPeriod', period })}
-            />
             <span class="cg-sp__grow" />
             <SearchBox
               value={board.query}
@@ -173,7 +165,7 @@ export function SpendersWindow(): JSX.Element {
 //
 // ≤ 860 px — the list and the preview do not fit side by side either: one column, read top to bottom — the list
 // in a window of its own, then the preview, then the statistics. The column scrolls; a list or a feed at its end
-// hands the wheel on to it. The header puts the period tabs on a line of their own.
+// hands the wheel on to it.
 export const SPENDERS_CSS = `
 .cg-sp__cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; }
 .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 420px 264px; }
@@ -201,13 +193,6 @@ export const SPENDERS_CSS = `
   .cg-sp__cols > .cg-st, .cg-sp__cols > .cg-stx { overflow-y: visible; }
   .cg-sp__cols > .cg-pv .cg-feed { flex: 0 0 200px; }
   .cg-sp__cols .cg-vlist, .cg-sp__cols .cg-feed, .cg-sp__cols .cg-pv__work { overscroll-behavior: auto; }
-  .cg-spw .cg-sp__top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-rows: 52px auto; height: auto; column-gap: 12px; }
-  .cg-spw .cg-sp__title { grid-area: 1 / 1; }
-  .cg-spw .cg-sp__page { grid-area: 1 / 2; }
-  .cg-spw .cg-sp__top .cg-sp__search { grid-area: 1 / 3; }
-  .cg-spw .cg-sp__close { grid-area: 1 / 4; }
-  .cg-spw .cg-sp__top .cg-tabs { grid-area: 2 / 1 / 3 / -1; margin: 0 0 8px -8px; overflow-x: auto; scrollbar-width: none; }
-  .cg-spw .cg-sp__grow { display: none; }
 }
 ${BOARD_CSS}
 ${STATS_CSS}

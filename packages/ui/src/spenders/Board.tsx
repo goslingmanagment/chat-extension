@@ -14,13 +14,11 @@ import { type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFil
 
 import {
   ActionButton,
-  KeysFooter,
   Money,
   Spinner,
   ViewState,
   VirtualList,
   activeIn,
-  hotkeyText,
   isComposing,
   useAnnounce,
   useDispatch,
@@ -32,7 +30,7 @@ import {
 } from '../kit';
 import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
-import { DataFooter, FilterChip, ageOrUnknown, coverageWord, isPlainKey, type RefreshableView } from './window';
+import { ChoiceMenu, DataFooter, FilterChip, ageOrUnknown, coverageWord, isPlainKey, type RefreshableView } from './window';
 
 export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
   lifetime: 'spenders.period.lifetime',
@@ -42,8 +40,10 @@ export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
   today: 'spenders.period.today',
 };
 
-/** The first row of filters (ui-design §4.14); the others stand in a second row (§10, SP-020). */
+/** The chips of the list (ui-design §4.14); the others go into «Ещё» — one row, as the old clients had (SP-020). */
 const PRIMARY_FILTERS: readonly SpendersFilter[] = ['all', 'waiting', 'new'];
+/** «Фан писал» is «Ждут ответа» under another name: a second chip with the same count only adds noise. */
+const SAME_AS_WAITING: SpendersFilter = 'fan-wrote';
 /** What «Обновить» of the board's footer reads again: the list and the statistics column next to it. */
 const BOARD_REFRESH: readonly RefreshableView[] = ['spenders.board', 'spenders.stats'];
 /** A board without the statistics (R20 P9e) reads only the list again. */
@@ -151,7 +151,7 @@ function ShelfRow({ shelf, rowIndex }: { readonly shelf: ShelfVM; readonly rowIn
           {shelf.fans === null ? null : <span class="cg-bd__shelfn cg-num">{shelf.fans}</span>}
         </span>
         <span role="cell" class="cg-bd__last" />
-        <Money mills={shelf.lifetime} cell class="cg-bd__num cg-bd__shelfsum" />
+        {shelf.lifetime === null ? <span role="cell" class="cg-bd__num" /> : <Money mills={shelf.lifetime} cell class="cg-bd__num cg-bd__shelfsum" />}
         <Money mills={shelf.period} sign="plus" cell class="cg-bd__num cg-bd__shelfsum" />
         <span role="cell" class="cg-bd__num" />
         <span role="cell" class="cg-bd__num" />
@@ -196,7 +196,6 @@ function FanRow({ row, itemKey, index, rowIndex, active, onPick }: FanRowProps):
     >
       <span role="cell" class="cg-bd__who" {...who.props}>
         <span class="cg-bd__name">{row.name}</span>
-        {row.isNew ? <span class="cg-bd__tag">{i18n.t('spenders.tag.new')}</span> : null}
         {row.deleted ? <span class="cg-bd__tag">{i18n.t('spenders.tag.deleted')}</span> : null}
         {row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
         {who.description}
@@ -372,11 +371,16 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
   };
 
   const primary = board.filters.filter((filter) => PRIMARY_FILTERS.includes(filter.id));
-  const secondary = board.filters.filter((filter) => !PRIMARY_FILTERS.includes(filter.id));
+  const hasWaiting = primary.some((filter) => filter.id === 'waiting');
+  const secondary = board.filters.filter((filter) => !PRIMARY_FILTERS.includes(filter.id) && !(hasWaiting && filter.id === SAME_AS_WAITING && !filter.pressed));
+  const secondaryOn = secondary.filter((filter) => filter.pressed);
   const cut = truncation(board);
   const coverage = coverageWord(i18n, board.footer.stamp.coverage);
-  const loaded =
-    board.footer.total === null
+  // «40 фанов» when everything is here; «из», the coverage only when something is missing.
+  const whole = board.footer.stamp.coverage === 'complete' && (board.footer.total === null || board.footer.total === board.footer.loaded);
+  const loaded = whole
+    ? i18n.plural('common.fans', board.footer.loaded)
+    : board.footer.total === null
       ? i18n.plural('spenders.footerNoTotal', board.footer.loaded, { coverage })
       : i18n.plural('spenders.footer', board.footer.total, { loaded: board.footer.loaded, coverage });
   const footerText = shown === null ? loaded : `${loaded}${i18n.t('spenders.footerShown', { n: shown })}`;
@@ -390,18 +394,32 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
         {primary.map((filter) => (
           <FilterButton key={filter.id} filter={filter} />
         ))}
-        <span class="cg-bd__sortnote">
-          {board.view.s === 'loading' && hasRows ? <Spinner label={i18n.t('common.loading')} /> : null}
-          {i18n.t(board.sort === 'sum' ? 'spenders.sortNote.sum' : 'spenders.sortNote.fanAge')}
-        </span>
+        {secondary.length === 0 ? null : (
+          <ChoiceMenu
+            label={secondaryOn.length === 0 ? i18n.t('dock.action.more') : secondaryOn.map((filter) => i18n.text(filter.label)).join(' · ')}
+            menuLabel={i18n.t('dock.action.more')}
+            pressed={secondaryOn.length > 0}
+            items={secondary.map((filter) => ({ id: filter.id, label: i18n.text(filter.label), count: filter.count, checked: filter.pressed }))}
+            onSelect={(id) => {
+              const filter = secondary.find((item) => item.id === id);
+              if (filter !== undefined) void dispatch({ type: 'SetSpendersFilter', filter: filter.id });
+            }}
+          />
+        )}
+        {board.view.s === 'loading' && hasRows ? <Spinner label={i18n.t('common.loading')} /> : null}
+        <span class="cg-sp__grow" />
+        <ChoiceMenu
+          label={i18n.t(PERIOD_KEYS[board.period])}
+          menuLabel={i18n.t('spenders.period.label')}
+          items={board.periods.map((period) => ({ id: period, label: i18n.t(PERIOD_KEYS[period]), checked: period === board.period }))}
+          class="cg-bd__period"
+          align="end"
+          onSelect={(id) => {
+            const period = board.periods.find((item) => item === id);
+            if (period !== undefined && period !== board.period) void dispatch({ type: 'SetSpendersPeriod', period });
+          }}
+        />
       </div>
-      {secondary.length === 0 ? null : (
-        <div class="cg-sp__tools cg-sp__tools--more">
-          {secondary.map((filter) => (
-            <FilterButton key={filter.id} filter={filter} />
-          ))}
-        </div>
-      )}
       {board.view.s === 'offline' ? (
         <div class="cg-bd__banner">
           <ViewState view={board.view} />
@@ -467,12 +485,6 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
           <ActionButton vm={board.reset} variant="plain" size="sm" />
         </div>
       ) : null}
-      {board.keys.length === 0 ? null : (
-        <KeysFooter
-          hide={null}
-          hints={board.keys.map((entry) => ({ keys: hotkeyText(entry.hotkey)?.display ?? '', label: i18n.text(entry.label) })).filter((hint) => hint.keys !== '')}
-        />
-      )}
       {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
       <DataFooter left={footerText} stamp={board.footer.stamp} refresh={board.statistics === false ? LIST_REFRESH : BOARD_REFRESH} />
     </section>
@@ -487,8 +499,7 @@ export function focusIsIdle(root: ShadowRoot | Document, box: HTMLElement | null
 
 export const BOARD_CSS = `
 .cg-bd { display: flex; flex-direction: column; min-height: 0; min-width: 0; container: cgboard / inline-size; }
-.cg-bd__sortnote .cg-spin { margin-right: 8px; vertical-align: -1px; }
-.cg-bd__sortnote { margin-left: auto; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; padding-left: 8px; }
+.cg-bd > .cg-sp__tools > .cg-spin { margin-left: 8px; }
 .cg-bd__list { flex: 1; min-height: 0; min-width: 0; }
 .cg-bd__state { padding: 0; }
 .cg-bd__state .cg-state--empty { justify-content: flex-start; text-align: left; padding: 24px 20px; }
@@ -530,7 +541,6 @@ export const BOARD_CSS = `
 .cg-bd__more { display: flex; align-items: center; height: 32px; padding: 0 16px 0 12px; border-bottom: 1px solid var(--cg-rule); }
 .cg-bd__morebtn { height: 24px; padding: 0 8px; border-radius: var(--cg-r-sm); color: var(--cg-ink-muted); font-size: var(--cg-text-sm); }
 .cg-bd__morebtn:hover { background: var(--cg-hover); color: var(--cg-ink-strong); }
-.cg-bd .cg-keys { padding-left: 20px; }
 @container cgboard (max-width: 620px) {
   .cg-bd__grid { grid-template-columns: minmax(0, 1fr) 0 76px 64px 60px 64px; padding: 0 12px 0 16px; }
   .cg-bd__num { padding-left: 4px; }

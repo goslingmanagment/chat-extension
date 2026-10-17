@@ -8,30 +8,13 @@
 import { FEED_CSS } from '../../../spenders/preview/Feed';
 
 export const FANSLY_NEWCOMERS_CSS = `
-.cg-fnw .cg-nc__grid { grid-template-columns: minmax(0, 1fr) 84px minmax(136px, 0.55fr); }
-.cg-fnw__who { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.cg-fnw__names { display: block; min-width: 0; }
-.cg-fnw__ava {
-  flex: none; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--cg-sunk); color: var(--cg-ink-2); font-weight: 600; font-size: var(--cg-text-sm); line-height: 1;
-  box-shadow: inset 0 0 0 1px var(--cg-rule);
-}
-.cg-fnw__ava.is-lg { width: 36px; height: 36px; font-size: var(--cg-text-base); }
 .cg-fnw__custom { font-weight: 400; color: var(--cg-ink-muted); }
 .cg-nc__st.is-2 { color: var(--cg-ink-2); }
-.cg-fnw__period .cg-btn__t { font-variant-numeric: tabular-nums; }
-.cg-fnw__meta {
-  flex: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 6px 16px 6px 20px;
-  font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-muted); border-bottom: 1px solid var(--cg-rule);
-}
-.cg-fnw__meta b { font-weight: 500; color: var(--cg-ink-2); }
-.cg-fnw__meta .cg-fnw__run { margin-left: auto; align-self: center; }
 .cg-fnc__check { display: flex; margin-top: 6px; }
 .cg-fnw__cool { border-top: 0; border-bottom: 1px solid var(--cg-rule); color: var(--cg-ink-strong); font-weight: 500; }
 .cg-fnw .cg-nc__incomplete { border-top: 0; border-bottom: 1px solid var(--cg-rule); }
 .cg-fnw__stopped { flex: none; padding: 6px 16px 8px 20px; border-bottom: 1px solid var(--cg-rule); }
 .cg-fnw__failed { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 8px; max-width: 72ch; }
-.cg-fnw__failedTitle { font-weight: 600; color: var(--cg-ink-strong); }
 .cg-fnw__hint2 { font-size: var(--cg-text-sm2); line-height: 18px; color: var(--cg-ink-muted); }
 .cg-fnw__empty { padding: 24px 20px; color: var(--cg-ink-muted); max-width: 64ch; }
 .cg-fnc { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--cg-surface); }
