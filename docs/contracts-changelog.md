@@ -28,6 +28,32 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
+## 1.21.0 — 2026-10-17 (кто отправил каждое сообщение, решение X48)
+
+Хаб записывает, кто из чаттеров отправил каждое сообщение и PPV на OnlyFans (hub `clientSendAttributions`,
+capability `send-attribution-v1`, таблица `client_send_attributions`). Человек жмёт Send в ChatSpace или «Отправить»
+в превью, ответ страницы на этот самый запрос называет id сообщения — фон сообщает хабу: страница, сообщение, фан,
+время, есть ли цена и медиа. Чаттера хаб берёт из токена входа; текста нет нигде. Всё добавочное, старые фикстуры
+проходят без изменений.
+
+- **Хаб.** Маршрут `clientSendAttributions` (`POST`, класс `page`, без флага владельца, `send-attribution-v1`, узкий
+  токен), `HubFacade.sendAttributions`, `hub/attribution.ts`: тело `SendAttributionsRequestSchema` — точное зеркало
+  строгого тела хаба (`pageLabel` в пути; `source`, 1–50 фактов: id, фан, время, `priced`, `withMedia`), ответ открытый:
+  исход на каждый факт (`recorded`, `duplicate`, `conflict`, `out_of_range`), каждый окончательный. Capability в
+  `CLIENT_HUB_CAPABILITY_NAMES`; `HOST_SEND_ATTRIBUTION_SOURCE` — каким именем сайт называет себя хабу
+  (ChatSpace — `chatspace-extension`, Fansly — `null`, позже).
+- **MAIN ChatSpace.** `flags.attribution` (необязательное, нет — выключено): пока хаб записывает отправителей, MAIN
+  следит за квитанцией каждой отправки человека из composer, а не только черновика из нашей вставки. `humanSend.cargo`
+  и `HumanSendFact.cargo` (`SendCargoSchema`): цена больше нуля и медиа — только два признака, никогда сама цена,
+  медиа или текст. Без поля — не наблюдалось (старый MAIN).
+- **Вкладка → фон.** `attribution.report` (`SendAttributionFactSchema`): чат, id сообщения из ответа его же запроса,
+  время, два признака. Ответ — `queued` или причина, по которой это не наш отчёт (`site`, `unbound`, `not_admitted`,
+  `signed_out`).
+- **Реестр фич.** `send-attribution` — только ChatSpace: `wsTap` (квитанция связывается с эхо сокета),
+  `sendObserve`, `clientNeeds: ['send-attribution-v1']`. У Fansly нет — отдельная задача.
+
+Фикстуры: `test/fixtures/hub.ts`, `schemas.ts`, `protocols.ts`.
+
 ## 1.20.0 — 2026-10-17 (черновики до 7 дней, панель фана рядом с панелью ChatSpace, имена фанов и отладка на страницах; решение X47)
 
 Одобрено владельцем 2026-10-17. Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.18.0;
@@ -54,94 +80,6 @@
 
 Фикстуры: `test/fixtures/protocols.ts` (`tab.presence`, `op.start`, `usage.local`, `account.advanced`,
 `fans.labels`, событие `fans.changed`), `test/fixtures/vm.ts` (`FAN_PANEL_BIO_SAMPLES`).
-
-## 1.18.0 — 2026-10-17 (решение X45: тон в чате, «Повторить» у отказа запуска)
-
-Своя минорная версия поверх 1.17.0. Всё добавочное; старые сохранённые настройки и старые модели видов проходят без
-изменений.
-
-- **`SettingsV1.generation.rememberTone?: boolean`** — «Помнить тон в чате» (AI-003). Включено — тон Reply держится в
-  этом чате, пока человек его не сменит или не откроет другой чат (как в десктопе OnlyFans); выключено — разовый тон Б1.
-  Поле необязательное: в хранилище до 1.18.0 его нет, и такие настройки читаются как «включено» без починки (в
-  журнале нет «broken settings reset»). Сборка до 1.18.0 при своей записи его отбрасывает (её починка оставляет только
-  известные поля) — выбор «выключено» тогда читается снова как «включено». `DEFAULT_SETTINGS.generation.rememberTone =
-  true`. В `SettingsPatchSchema.generation` — то же необязательное поле. Версия схемы настроек
-  (`SETTINGS_SCHEMA_VERSION`) не растёт.
-- **Ключ `SetPreference` `generation.rememberTone`** — значение `boolean` (не `undefined`): переключатель на странице
-  «Генерация».
-- **`GenerationBodyVM.rememberTone?: boolean`** — значение переключателя для страницы; нет поля — включено.
-- **Ключи текста** `settings.generation.rememberTone`, `settings.generation.rememberToneHint`.
-- **`RefusalVM.actions?: readonly ActionButtonVM[]`** — кнопки карточки запуска, который не состоялся до генерации:
-  «Повторить» того же запуска, где реестр CG разрешает повтор новым кликом (`retry` — `safe-read` или `new-click`,
-  `recovery` — `retry` или `new-generation`): хаб или расширение не ответили, вышло время. Ничего не повторяется само.
-  Нет поля или пусто — у карточки только «Скопировать код», как до 1.18.0.
-- Фикстуры: `REFUSAL_VM_SAMPLES` (с кнопкой и с пустым списком; неверная — голое действие вместо кнопки),
-  `UI_ACTION_SAMPLES` (неверные `SetPreference` `generation.rememberTone` со строкой и `null`); тест настроек
-  `test/schemas.test.ts` (старое хранилище без поля читается, не `boolean` — нет).
-
-## 1.17.0 — 2026-10-17 (фокус на следующую часть, решение X44)
-
-Своя минорная версия поверх 1.16.0 («Заметки» Fansly). Всё добавочное и только типы: схем и фикстур протоколов не
-прибавилось, старые модели видов проходят без изменений.
-
-- `DockVM.focusPart?: { opId, part } | null` — часть показанного результата, которой док может передать фокус, чтобы
-  Enter человека на ней вставил её (UI-023): готовый Reply, Ping или Hi из одного варианта, режим вставки, нет вопроса
-  Б2, поле ввода открытого чата пусто; после вставки — только когда поле держало эту часть без правок и снова пусто
-  (часть отправлена). Нет поля или `null` — фокус никуда не переводится. Само ничего не вставляется; нового `UiAction` нет.
-- `FocusPlace` — где фокус страницы: `none` (ни один элемент), `page` (элемент сайта без ввода), `composer`, `field`,
-  `ours`, `ours-field` — словарь раннего диспетчера клавиш и `none`.
-- `FocusReturn.where?(): FocusPlace` — где фокус сейчас, по щупу клавиш сайта (поле ввода сайта знает только он).
-  Нет метода (страницы расширения, тесты) — UI сам фокус не переводит.
-- Фикстуры: `DOCK_FOCUS_PART_SAMPLES`, `FOCUS_PLACE_SAMPLES` (`test/fixtures/vm.ts`), верные и неверные.
-
-## 1.16.0 — 2026-10-17 («Заметки» Fansly до старого 2.13.0, R20 P11b2; добавочное)
-
-Первая версия после выпуска 0.3.0: 1.15.0 вышла в нём и своего состава больше не меняет (правило раздела 1.15.0).
-Старые фикстуры проходят без изменений.
-
-### P11b2 — «Заметки» как в старом 2.11–2.13
-
-- `tab-messages-fansly.ts`: у `FanslyNote` — необязательное `createdAtMs` (когда заметку создали: `createdAt` Fansly в
-  секундах → мс, целое > 0; `null` — Fansly его не дал). Правки Fansly не датирует (E171 старого). Фикстуры —
-  `test/fixtures/protocols-fansly.ts` (`fansly.notes.read`).
-- `hub/ai.ts`: в теле `fan-notes-fill` — необязательное `noteValues` (`NoteValuesSchema`): только пустые строки, по одной
-  на метку `noteFields` (иначе отказ до хаба, как и хаб — 400). Его наличие включает режим дополнения хаба: слова фана
-  `> «…»`, месяц у устаревающих фактов, поля `+ Label: value`, правило «один факт — одно поле»; значения заметки
-  по-прежнему не уходят (FS-NOTE-5, решение X43). `HUB_FEATURE_ONLY_FIELDS.noteValues = ['fan-notes-fill']`. Фикстуры —
-  `test/fixtures/hub.ts`, `test/fixtures/ops-fansly.ts` (`FANSLY_OP_REQUEST_FIXTURES`).
-- `ops.ts`, `ops-fansly.ts`: у `NoteFieldValue` — необязательные `quotes` (до 3, по строке до 400 символов), у
-  результата `note-fields` — необязательное `proposed` (поля, названные хабом: с непустым значением, не повторяют
-  спрошенные метки, до 5); `FANSLY_OP_LIMITS.noteQuotesMax`, `.noteQuoteMaxChars`, `.noteProposedMax`. Фикстуры —
-  `FANSLY_OP_RESULT_FIXTURES`.
-- `notes-fansly.ts`: `NotesDateVM` и `NotesPanelVM.dates?` (дата свободной заметки), `NotesPanelVM.fill?` («✨ Дополнить из
-  чата» на читаемой анкете); у поля анкеты — `ai?`, `quotes?`, `proposed?`; у редактора — `sourceCount?`, `sourcesOpen?`,
-  `looseQuotes?` (`NotesQuoteVM`), `proposed?`; действия `fill-note`, `sources`, `suggestion-all`, `to-other`; слова в
-  `NotesCopy`. Только типы.
-## 1.21.0 — 2026-10-17 (кто отправил каждое сообщение, решение X48)
-
-Хаб записывает, кто из чаттеров отправил каждое сообщение и PPV на OnlyFans (hub `clientSendAttributions`,
-capability `send-attribution-v1`, таблица `client_send_attributions`). Человек жмёт Send в ChatSpace или «Отправить»
-в превью, ответ страницы на этот самый запрос называет id сообщения — фон сообщает хабу: страница, сообщение, фан,
-время, есть ли цена и медиа. Чаттера хаб берёт из токена входа; текста нет нигде. Всё добавочное, старые фикстуры
-проходят без изменений.
-
-- **Хаб.** Маршрут `clientSendAttributions` (`POST`, класс `page`, без флага владельца, `send-attribution-v1`, узкий
-  токен), `HubFacade.sendAttributions`, `hub/attribution.ts`: тело `SendAttributionsRequestSchema` — точное зеркало
-  строгого тела хаба (`pageLabel` в пути; `source`, 1–50 фактов: id, фан, время, `priced`, `withMedia`), ответ открытый:
-  исход на каждый факт (`recorded`, `duplicate`, `conflict`, `out_of_range`), каждый окончательный. Capability в
-  `CLIENT_HUB_CAPABILITY_NAMES`; `HOST_SEND_ATTRIBUTION_SOURCE` — каким именем сайт называет себя хабу
-  (ChatSpace — `chatspace-extension`, Fansly — `null`, позже).
-- **MAIN ChatSpace.** `flags.attribution` (необязательное, нет — выключено): пока хаб записывает отправителей, MAIN
-  следит за квитанцией каждой отправки человека из composer, а не только черновика из нашей вставки. `humanSend.cargo`
-  и `HumanSendFact.cargo` (`SendCargoSchema`): цена больше нуля и медиа — только два признака, никогда сама цена,
-  медиа или текст. Без поля — не наблюдалось (старый MAIN).
-- **Вкладка → фон.** `attribution.report` (`SendAttributionFactSchema`): чат, id сообщения из ответа его же запроса,
-  время, два признака. Ответ — `queued` или причина, по которой это не наш отчёт (`site`, `unbound`, `not_admitted`,
-  `signed_out`).
-- **Реестр фич.** `send-attribution` — только ChatSpace: `wsTap` (квитанция связывается с эхо сокета),
-  `sendObserve`, `clientNeeds: ['send-attribution-v1']`. У Fansly нет — отдельная задача.
-
-Фикстуры: `test/fixtures/hub.ts`, `schemas.ts`, `protocols.ts`.
 
 ## 1.18.0 — 2026-10-17 (решение X45: тон в чате, «Повторить» у отказа запуска)
 
