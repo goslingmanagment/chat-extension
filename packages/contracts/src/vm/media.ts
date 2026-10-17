@@ -5,8 +5,8 @@
 // caption. The picker reads no chat and sends nothing by itself.
 
 import { type CgErrorView } from '../errors';
-import { type MediaFanState, type MediaFolderId } from '../media';
-import { type MediaType } from '../send-media';
+import { type MediaFanState } from '../media';
+import { type MediaFolderId, type MediaType } from '../send-media';
 import { type Msg } from './i18n';
 
 export interface MediaFolderVM {

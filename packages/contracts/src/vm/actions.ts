@@ -9,7 +9,7 @@ import * as z from 'zod/mini';
 
 import { CgCodeSchema, SettingsRouteSchema } from '../errors';
 import { FeatureIdSchema, ToneSchema } from '../features';
-import { MediaFolderIdSchema } from '../media';
+import { MediaFolderIdSchema } from '../send-media';
 import { NativeIdSchema, PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
 import { SettingsV1Schema } from '../settings';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
