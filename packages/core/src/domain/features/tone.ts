@@ -1,8 +1,11 @@
 // Reply tones (Б1; AI-002…AI-008). The parity set is Casual, Flirt, Sell,
 // Spice (ids `casual`, `flirty`, `upsell`, `spicy`); no tone means the
-// persona alone (the hub's `none`). A chosen tone is one-off: it goes with
-// the next Reply of that chat and is gone once that request is admitted.
-// There is no default tone. «Ещё раз» repeats the tone of the original.
+// persona alone (the hub's `none`). How long a chosen tone lives is the
+// person's setting «Помнить тон в чате» (decision X45): on (the default, as
+// in the OnlyFans desktop) the tone a Reply went with stays for that chat
+// until the person changes it or opens another chat; off — the one-off tone
+// of Б1, gone once that request is admitted. There is no default tone.
+// «Ещё раз» repeats the tone of the original.
 
 import { TONES, type Tone } from '@cg/contracts/features';
 import { type UiTextKey } from '@cg/contracts/i18n/keys';
@@ -33,9 +36,25 @@ export function toggleTone(current: Tone | null, picked: Tone | null): Tone | nu
   return picked === current ? null : picked;
 }
 
-/** AI-003: the tone left after a Reply was admitted with it — none. */
-export function toneAfterStart(): Tone | null {
-  return null;
+/**
+ * AI-003: the tone left in the chat after a Reply was admitted with `used` — the same one while the person keeps
+ * tones in the chat (X45), none when a tone is one-off (Б1).
+ */
+export function toneAfterStart(used: Tone | null, remember: boolean): Tone | null {
+  return remember ? used : null;
+}
+
+/** «Помнить тон в чате» as stored: absent (a store from before 1.18.0) is on. */
+export function remembersTone(settings: { readonly generation: { readonly rememberTone?: boolean | undefined } } | null | undefined): boolean {
+  return settings?.generation.rememberTone !== false;
+}
+
+/**
+ * AI-003: what a chat the person left keeps of its tone — nothing while tones are kept in the chat (the desktop's
+ * «until the chat switches», X45); the unused one-off tone otherwise, as before.
+ */
+export function toneOnLeave(tone: Tone | null, remember: boolean): Tone | null {
+  return remember ? null : tone;
 }
 
 /** AI-007: «Ещё раз» without a new choice repeats the original's tone. */

@@ -7,7 +7,7 @@
 import { NON_CHATSPACE_FEATURE_FLAGS } from '@cg/contracts/fixtures';
 import { describe, expect, it } from 'vitest';
 
-import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, OP_LIMITS, UI_TEXT_KEYS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
+import { CLIENT_FEATURE_FLAG_NAMES, DEFAULT_SETTINGS, DOCK_ACTION_IDS, OP_LIMITS, UI_TEXT_KEYS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
 import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, SENT_REPORT_TRIES, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
@@ -762,17 +762,51 @@ describe('dock: Reply from the click to the parts', () => {
 });
 
 describe('dock: tones and Split', () => {
-  it('[AI-005] [AI-003] a tone picked in the menu starts Reply in it and is gone after', async () => {
+  /** «Помнить тон в чате» off: the one-off tone of Б1. */
+  const oneOff = { settings: settingsWithPersona({ generation: { ...DEFAULT_SETTINGS.generation, rememberTone: false } }) };
+
+  it('[AI-005] [AI-003] a tone picked in the menu starts Reply in it and stays for the chat (X45, «Помнить тон в чате» on by default)', async () => {
     const h = await start();
     await reply(h, 'flirty answer', { tone: 'flirty' });
     expect((h.bg.callsOf('op.start')[0] as { tone: string }).tone).toBe('flirty');
     expect(result(h).toneUsed).toBe('flirty');
     expect(result(h).meta).toContainEqual({ key: 'result.meta.tone', params: { tone: 'Flirt' } });
+    expect(h.dock().options.tone).toBe('flirty');
+    // The next Reply of the chat goes in it too, until the person changes it.
+    await h.dispatch({ type: 'HideResult', operationId: result(h).opId });
+    await reply(h, 'second');
+    expect((h.bg.callsOf('op.start')[1] as { tone: unknown }).tone).toBe('flirty');
+    // Picking it again takes it off (AI-006); the Reply after that has none.
+    await h.dispatch({ type: 'SetTone', targetHandle: h.dock().targetHandle as string, tone: 'flirty' });
+    expect(h.dock().options.tone).toBeNull();
+    await h.dispatch({ type: 'HideResult', operationId: result(h).opId });
+    await reply(h, 'third');
+    expect((h.bg.callsOf('op.start')[2] as { tone: unknown }).tone).toBeNull();
     expect(h.dock().options.tone).toBeNull();
   });
 
-  it('[AI-003] [AI-004] [AI-006] the chosen tone goes with the next Reply only; picking it again takes it off', async () => {
+  it('[AI-003] a kept tone lasts until the chat switches, as in the desktop (X45): back in the chat it has none', async () => {
     const h = await start();
+    await reply(h, 'sell', { tone: 'upsell' });
+    expect(h.dock().options.tone).toBe('upsell');
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(h.dock().options.tone).toBeNull();
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(h.dock().options.tone).toBeNull();
+  });
+
+  it('[AI-003] [AI-005] «Помнить тон в чате» off: a tone picked in the menu starts Reply in it and is gone after (Б1)', async () => {
+    const h = await start(oneOff);
+    await reply(h, 'flirty answer', { tone: 'flirty' });
+    expect((h.bg.callsOf('op.start')[0] as { tone: string }).tone).toBe('flirty');
+    expect(result(h).toneUsed).toBe('flirty');
+    expect(h.dock().options.tone).toBeNull();
+  });
+
+  it('[AI-003] [AI-004] [AI-006] «Помнить тон в чате» off: the chosen tone goes with the next Reply only; picking it again takes it off', async () => {
+    const h = await start(oneOff);
     const handle = h.dock().targetHandle as string;
     expect(h.dock().options.tone).toBeNull();
     await h.dispatch({ type: 'SetTone', targetHandle: handle, tone: 'upsell' });
@@ -788,8 +822,8 @@ describe('dock: tones and Split', () => {
     expect((h.bg.callsOf('op.start')[1] as { tone: unknown }).tone).toBeNull();
   });
 
-  it('the tone belongs to its chat: another chat has none', async () => {
-    const h = await start();
+  it('«Помнить тон в чате» off: an unused tone belongs to its chat — another chat has none, and it waits for its Reply when the person comes back', async () => {
+    const h = await start(oneOff);
     await h.dispatch({ type: 'SetTone', targetHandle: h.dock().targetHandle as string, tone: 'casual' });
     h.host.openChat(previewChat);
     await h.settle();
@@ -797,6 +831,13 @@ describe('dock: tones and Split', () => {
     h.host.openChat(openChat);
     await h.settle();
     expect(h.dock().options.tone).toBe('casual');
+  });
+
+  it('[AI-003] settings stored before 1.18.0 have no «Помнить тон в чате»: they read as on', async () => {
+    const { rememberTone: _absent, ...older } = DEFAULT_SETTINGS.generation;
+    const h = await start({ settings: settingsWithPersona({ generation: older }) });
+    await reply(h, 'kept', { tone: 'spicy' });
+    expect(h.dock().options.tone).toBe('spicy');
   });
 
   it('[AI-007] [AI-129] «Ещё раз» repeats the tone of the original, past the cache', async () => {
