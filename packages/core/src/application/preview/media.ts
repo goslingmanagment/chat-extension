@@ -23,8 +23,8 @@
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type ChatRef } from '@cg/contracts/ids';
 import { MEDIA_LIMITS } from '@cg/contracts/limits';
-import { MEDIA_ALL_FOLDER, type MediaFanState, type MediaFolder, type MediaFolderId, type MediaItem, type MediaPort, type MediaRead } from '@cg/contracts/media';
-import { type MediaTags, type SendMedia } from '@cg/contracts/send-media';
+import { type MediaFanState, type MediaFolder, type MediaItem, type MediaPort, type MediaRead } from '@cg/contracts/media';
+import { MEDIA_ALL_FOLDER, type MediaFolderId, type MediaTags, type SendMedia } from '@cg/contracts/send-media';
 import { type I18n, type MediaCellVM, type MediaFolderVM, type MediaPickerVM, type Msg } from '@cg/contracts/vm';
 
 import { EMPTY_ATTACHMENT, attachmentProblem, attachmentSummary, sendMediaOf, toggleFree, togglePick, type Attachment, type PriceProblem } from '../../domain/media/attachment';

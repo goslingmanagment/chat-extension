@@ -59,9 +59,10 @@ function scenario(media: MediaPickerVM | null): AppClientScenario {
 }
 
 /** The panel is a chunk of its own: mounted, it shows once the chunk is here. */
-async function panelShown(): Promise<void> {
-  for (let i = 0; i < 50 && ui?.$('.cg-pvm') === null; i++) await settle();
-  expect(ui?.$('.cg-pvm')).not.toBeNull();
+/** The panel's chunk is loaded on demand: the open panel, or the closed line, once it is here. */
+async function panelShown(selector = '.cg-pvm'): Promise<void> {
+  for (let i = 0; i < 50 && ui?.$(selector) === null; i++) await settle();
+  expect(ui?.$(selector)).not.toBeNull();
 }
 
 const media = (): UiAction[] => (ui?.actions() ?? []).filter((action) => /Media/.test(action.type));
@@ -86,6 +87,7 @@ describe('[X53] the media picker of a preview', () => {
 
   it('closed with picks: one line says what goes with the next part sent', async () => {
     ui = await mountBoardSettled('spenders', scenario(picker({ open: false })));
+    await panelShown('[data-cg-media-panel="closed"]');
     expect(ui.$('[data-cg-media-panel="open"]')).toBeNull();
     expect(textOf(ui.$('[data-cg-media-panel="closed"] .cg-pvm__sum'))).toBe('2 медиа · 1 бесплатное превью · $25 · Уйдёт с частью, которую отправите');
   });

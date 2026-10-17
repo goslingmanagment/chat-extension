@@ -125,7 +125,7 @@ describe('[EX-009] the boards’ lazy chunks fit the budget (architecture.md §1
     // gzip is not one number: the same bytes come out about 0.2 % larger from the zlib of an official Node build
     // (what CI installs) than from a Node linked against the system zlib (the owner's Mac). Spenders was 26 KiB
     // with 83 bytes over on CI's Node; the pin has room for the tool, the budget above is the rule. X53: the media picker's
-    // toggle, its line and the loader of its panel cost the three previews about 1.7 KiB each, and the bundler's helper of
+    // toggle and the loader of its panel (its closed line is the panel's chunk) cost the three previews up to 1.7 KiB each, and the bundler's helper of
     // a dynamic import 1.1 KiB more here (in the extension it is the dock's layer's already): 27 → 29, 22 → 23, 16 → 18.
     expect(sizes['spenders']).toBeLessThanOrEqual(29 * KIB);
     expect(sizes['newcomers']).toBeLessThanOrEqual(23 * KIB);
