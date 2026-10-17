@@ -47,9 +47,9 @@ export const STORE_ACCOUNTS = 'accounts';
 export const WS_PATH = '/api/chat-space/ws';
 export const WS_NEW_MESSAGE = 'account_new_message';
 export const WS_AUTHENTICATED = 'authenticated';
-/** The path of ChatSpace's own API under its origin; our one read of it (X51) takes the origin from the page's requests. */
+/** The path of ChatSpace's own API under its origin; our one read of it (X54) takes the origin from the page's requests. */
 export const API_PATH = '/api/v0/';
-/** The request that names that origin: the page's own read of its accounts, the first it makes (X51). */
+/** The request that names that origin: the page's own read of its accounts, the first it makes (X54). */
 export const API_ACCOUNTS_PATH = '/api/v0/accounts';
 /** The native send request, `POST api/v0/accounts/{acc}/chats/{chat}/messages` (§6.7.2): account and chat of a URL's path. */
 export const SEND_PATH = /(?:^|\/)api\/v0\/accounts\/(\d+)\/chats\/(\d+)\/messages$/;
@@ -84,7 +84,7 @@ export const SEND_MAX_CHARS = 5000;
 export const NATIVE_TIMEOUT_MS = 30_000;
 export const QUEUE_MAX_PER_CHAT = 50;
 export const KNOWN_FAN_MESSAGES = 10;
-/** contracts OPEN_CHAT_LIMITS, OPEN_CHAT_PRICE_MAX (X51). */
+/** contracts OPEN_CHAT_LIMITS, OPEN_CHAT_PRICE_MAX (X54). */
 export const OPEN_CHAT_PAGE_MAX = 100;
 export const OPEN_CHAT_REQUEST_MS = 10_000;
 export const OPEN_CHAT_PRICE_MAX = 10_000;

@@ -55,7 +55,7 @@ export const WS_NEW_MESSAGE = 'account_new_message';
 export const WS_AUTHENTICATED = 'authenticated';
 /**
  * The path of ChatSpace's own API under its origin (`r2.onlyMonsterUrl` + `api/v0/…`). Our one read of it, the open
- * chat's messages (X51), takes the origin from the page's own requests to this path: the path, not the origin — MAIN
+ * chat's messages (X54), takes the origin from the page's own requests to this path: the path, not the origin — MAIN
  * names no origin.
  */
 export const API_PATH = '/api/v0/';

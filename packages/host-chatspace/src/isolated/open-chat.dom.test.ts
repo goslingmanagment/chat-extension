@@ -1,5 +1,5 @@
 // The open chat's messages from ChatSpace's API through the HostPort (decision
-// X51) over a scripted bridge client: only the chat on the route, one request
+// X54) over a scripted bridge client: only the chat on the route, one request
 // for callers that ask at once, the newest page kept until the chat moves.
 
 import type { ToMainType } from '@cg/contracts/bridge';
@@ -78,7 +78,7 @@ async function start(openChat: Answer) {
 
 afterEach(() => vi.useRealTimers());
 
-describe('[X51] HostPort.openChatMessages — the open chat from ChatSpace’s API', () => {
+describe('[X54] HostPort.openChatMessages — the open chat from ChatSpace’s API', () => {
   it('only the chat on the route: another chat is `not-open` and MAIN is not asked', async () => {
     const { host, reads } = await start(() => ({ ok: true, page: page(['9002']) }));
     expect(await host.openChatMessages?.(chatOf(OTHER), { limit: 50 })).toEqual({ ok: false, reason: 'not-open', status: null });

@@ -32,7 +32,7 @@ async function boot(): Promise<void> {
   installSidePanel();
   record('boot', { breaks: env.breaks });
   // ChatSpace's session provider is Clerk, on the page as `window.Clerk` (facts.md «Авторизация»): what the page's own
-  // requests use, and our one read of its API (X51) too.
+  // requests use, and our one read of its API (X54) too.
   Object.defineProperty(window, 'Clerk', { configurable: true, value: { session: { getToken: () => getToken() } } });
   await getToken();
 

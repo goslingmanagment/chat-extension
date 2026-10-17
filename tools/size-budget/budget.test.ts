@@ -87,7 +87,7 @@ describe('size budgets', () => {
     expect(shuffled.find((line) => line.label.includes(' tab-app '))?.files).toEqual([at('chunks/app.js'), at('tab-app.js')]);
   });
 
-  it('[EX-007] the MAIN bridge line is the shipped document_start bundle — boot and runtime together — within 12 KiB (X11, X51)', () => {
+  it('[EX-007] the MAIN bridge line is the shipped document_start bundle — boot and runtime together — within 12 KiB (X11, X54)', () => {
     const mainBridge = scriptBudgets([CHATSPACE]).find((budget) => budget.file === 'content-scripts/chatspace-main.js')?.limitBytes;
     expect(mainBridge).toBe(12 * 1024);
     const files = (main: number): Record<string, Uint8Array> => ({

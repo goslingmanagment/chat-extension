@@ -185,7 +185,7 @@ export const PART_LIMITS = { maxVariants: 3, maxParts: 10 } as const;
 export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 
 /**
- * 1.22.0 (X51): our own read of the open chat from OnlyMonster's API (`openChatMessages`). `pageMax` — messages one
+ * 1.22.0 (X54): our own read of the open chat from OnlyMonster's API (`openChatMessages`). `pageMax` — messages one
  * request asks for (ChatSpace itself asks up to 100); `requestMs` — MAIN aborts its request after this; `bridgeMs` —
  * the isolated side's deadline for the answer (the request plus the frame); `cacheMs` — how long a read of the open
  * chat answers again without a new request, unless a message of that chat came in.

@@ -3,7 +3,7 @@
 // page memory only through the MAIN bridge, the DOM for mounting, and the
 // page's draft key through a storage port.
 //
-// - One read goes past page memory (X51): `openChatMessages`, the open chat's
+// - One read goes past page memory (X54): `openChatMessages`, the open chat's
 //   messages from ChatSpace's API, which MAIN requests with the page's own
 //   session. Only for the chat on the route (another chat's history load would
 //   mark it read on OnlyFans): any other is `not-open` here, before MAIN, and
@@ -231,7 +231,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   const failedReads = new Set<string>();
   /** The run of identical failures of each kind of read: the log hears its 1st, 10th, 100th… one and how it ended. */
   const failing = new Map<ReadKind, { readonly failure: string; count: number }>();
-  /** X51: the open chat's newest page from ChatSpace's API, the read of it in flight, and what drops them (`staleOpen`). */
+  /** X54: the open chat's newest page from ChatSpace's API, the read of it in flight, and what drops them (`staleOpen`). */
   let openPage: { readonly key: ChatKey; readonly at: number; readonly limit: number; readonly page: OpenChatPage } | null = null;
   let openRead: { readonly key: ChatKey; readonly generation: number; readonly limit: number; readonly done: Promise<OpenChatRead> } | null = null;
   let openGeneration = 0;

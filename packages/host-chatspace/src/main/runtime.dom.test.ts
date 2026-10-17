@@ -1108,7 +1108,7 @@ describe('MAIN runtime — requests', () => {
   });
 });
 
-describe('MAIN runtime — our read of the open chat from the API (X51)', () => {
+describe('MAIN runtime — our read of the open chat from the API (X54)', () => {
   const API = 'https://api.example.test/api/v0/';
   const raw = (id: string, over: Record<string, unknown> = {}, meta: Record<string, unknown> = {}) => ({
     id,
@@ -1141,7 +1141,7 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
     Reflect.deleteProperty(window, 'Clerk');
   });
 
-  it('[X51] only the chat on the route: another chat is refused before any request', async () => {
+  it('[X54] only the chat on the route: another chat is refused before any request', async () => {
     const h = harness as Harness;
     expect(await h.call('openChatMessages', { acc: ACC, fan: OTHER, limit: 50 })).toBe('identity-mismatch');
     expect(await h.call('openChatMessages', { acc: '1009', fan: FAN, limit: 50 })).toBe('identity-mismatch');
@@ -1154,7 +1154,7 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
     expect(h.runtime.handle('openChatMessages', { acc: ACC, fan: FAN, limit: 5, cursor: 'x' })).toBe('bad-request');
   });
 
-  it('[X51] the page’s own address, session and transport; money fields as OnlyFans gives them', async () => {
+  it('[X54] the page’s own address, session and transport; money fields as OnlyFans gives them', async () => {
     const h = harness as Harness;
     reply = () =>
       Promise.resolve(
@@ -1190,7 +1190,7 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
     });
   });
 
-  it('[X51] the person leaves the chat while the token is fetched: refused before the request, nothing is read', async () => {
+  it('[X54] the person leaves the chat while the token is fetched: refused before the request, nothing is read', async () => {
     const h = harness as Harness;
     let release: (value: unknown) => void = () => undefined;
     Object.defineProperty(window, 'Clerk', { configurable: true, value: { session: { getToken: () => new Promise((resolve) => (release = resolve)) } } });
@@ -1202,7 +1202,7 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
     expect(fetches).toEqual([]);
   });
 
-  it('[X51] only the page’s own read of its accounts names the API: another `/api/v0/` address carries no token', async () => {
+  it('[X54] only the page’s own read of its accounts names the API: another `/api/v0/` address carries no token', async () => {
     (harness as Harness).dispose();
     entries = [{ name: 'https://elsewhere.example.test/api/v0/chats/1' }];
     const fresh = await start();
@@ -1210,7 +1210,7 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
     expect(fetches).toEqual([]);
   });
 
-  it('[X51] what fails is an answer, never a throw: no address yet, no session, an error status, a broken body', async () => {
+  it('[X54] what fails is an answer, never a throw: no address yet, no session, an error status, a broken body', async () => {
     const h = harness as Harness;
     const ask = async () => OpenChatAnswerSchema.parse(await h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 }));
     token = null;
@@ -1234,7 +1234,7 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
     expect(fetches).toHaveLength(before);
   });
 
-  it('[X51] omRequest: a POST carries its JSON body and type beside the bearer, as the page sends it', async () => {
+  it('[X54] omRequest: a POST carries its JSON body and type beside the bearer, as the page sends it', async () => {
     const seen: Array<{ url: string; method: string | undefined; type: string | null; body: unknown }> = [];
     vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
       seen.push({ url: input instanceof Request ? input.url : input instanceof URL ? input.href : input, method: init?.method, type: new Headers(init?.headers).get('content-type'), body: init?.body });
@@ -1249,7 +1249,7 @@ describe('MAIN runtime — our read of the open chat from the API (X51)', () => 
     ]);
   });
 
-  it('[X51] the answer never outgrows one frame, and stops at the limit', async () => {
+  it('[X54] the answer never outgrows one frame, and stops at the limit', async () => {
     const h = harness as Harness;
     const long = `<p>${'я'.repeat(5000)}</p>`;
     reply = () => Promise.resolve(new Response(JSON.stringify({ items: Array.from({ length: 100 }, (_, i) => raw(String(8000 - i), { content: long })), has_more: false })));

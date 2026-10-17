@@ -41,7 +41,7 @@ export const CHATSPACE: HostDescriptor = {
   budgets: {
     scripts: [
       // Boot + runtime, one bundle: ≤ 10 KiB (decision X11; §11 started at 5 KiB for the boot alone). Its work at
-      // document_start stays ≤ 1 ms (e2e). X51: 10 → 12 KiB — our requests to ChatSpace's API (`omRequest`, the
+      // document_start stays ≤ 1 ms (e2e). X54: 10 → 12 KiB — our requests to ChatSpace's API (`omRequest`, the
       // open chat's messages) took 0.7 KiB of a bundle that had 0.06 left; the rest is room for one more request of
       // the same API. None of it runs at document_start.
       { entry: 'chatspace-main', label: 'MAIN bridge: boot + runtime (chatspace-main)', gzipBytes: 12 * KIB },

@@ -175,7 +175,7 @@ export const TO_MAIN = {
     timeout: 'call',
   },
   /**
-   * 1.22.0 (X51): the open chat's messages, newest first, from the host's own API — a request MAIN makes with the
+   * 1.22.0 (X54): the open chat's messages, newest first, from the host's own API — a request MAIN makes with the
    * page's own session, as the page makes it. MAIN refuses with `identity-mismatch` before any request unless the route
    * is that very chat now. A failed request is an answer (`ok: false`), not a bridge error. Its deadline is
    * OPEN_CHAT_LIMITS.bridgeMs.

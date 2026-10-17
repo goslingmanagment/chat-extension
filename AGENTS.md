@@ -217,7 +217,7 @@ a boundary you need to cross is a design question, not a lint exception.
   insert the draft through `__omComposerBridge`); from a preview (Spenders,
   "New") a click sends through ChatSpace's own send queue in the page (X8),
   never through a request of ours. Never auto-retry anything indeterminate.
-- **Quiet mode toward OnlyMonster, with reads of our own (X51).** Read page
+- **Quiet mode toward OnlyMonster, with reads of our own (X54).** Read page
   memory and passive events, insert through their bridge. Since 2026-10-17 the
   owner allows our own reads of OnlyMonster's API: they go through MAIN's
   `omRequest` (`host-chatspace/src/main/om-api.ts`) with the page's own session, as

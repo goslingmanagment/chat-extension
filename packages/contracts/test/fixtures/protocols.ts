@@ -648,7 +648,7 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
     payload: { valid: [{ wsTap: true, previewSend: false }, { wsTap: true, previewSend: false, attribution: true }], invalid: [{ wsTap: true }, { wsTap: true, previewSend: false, attribution: 'on' }] },
     data: { valid: [{ wsTap: true, previewSend: false }, { wsTap: true, previewSend: false, attribution: false }], invalid: [{ wsTap: 'on', previewSend: false }] },
   },
-  // 1.22.0 (X51): the open chat's messages from the host's API; a failed request is an answer, not an error.
+  // 1.22.0 (X54): the open chat's messages from the host's API; a failed request is an answer, not an error.
   openChatMessages: {
     payload: {
       valid: [{ ...accFan, limit: 50 }, { ...accFan, limit: 100, cursor: '9001' }],

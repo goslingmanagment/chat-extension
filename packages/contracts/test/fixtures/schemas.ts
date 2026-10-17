@@ -222,7 +222,7 @@ export const tabHealth = {
   footprint: { cachesKB: 120, domNodes: 340 },
 } as const;
 
-/** 1.22.0 (X51): a paid message of the model the fan bought, as `openChatMessages` reads it. */
+/** 1.22.0 (X54): a paid message of the model the fan bought, as `openChatMessages` reads it. */
 const openChatPaid = {
   platformMessageId: '9002',
   direction: 'model',
@@ -674,7 +674,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ capturedAt: ISO, messages: [] }, { capturedAt: ISO, messages: messages(61) }],
   ),
   fixture('TailSnapshot', C.TailSnapshotSchema, [{ capturedAt: ISO, messages: messages(200) }], [{ capturedAt: ISO, messages: messages(201) }]),
-  // 1.22.0 (X51): the open chat's messages from the host's API.
+  // 1.22.0 (X54): the open chat's messages from the host's API.
   fixture(
     'OpenChatMessage',
     C.OpenChatMessageSchema,

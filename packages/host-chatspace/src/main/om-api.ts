@@ -1,4 +1,4 @@
-// Our own read of the open chat from OnlyMonster's API (decision X51; contracts
+// Our own read of the open chat from OnlyMonster's API (decision X54; contracts
 // TO_MAIN.openChatMessages): the one request MAIN makes, made the way
 // ChatSpace makes its own — the page's `fetch`, its Clerk session token as the
 // bearer, the API address the page itself requests. The address comes from the
@@ -72,7 +72,7 @@ export function createOmApi(win: Window, setTimer: Timer) {
    * A request to ChatSpace's API at `path` (under `…/api/v0/`) with the page's own session, as the page makes it: a GET,
    * or with `init` the method and the JSON body the page itself sends there. Resolves with the parsed JSON body or a
    * refusal, never rejects. Every request of ours goes through here; the caller chooses which path may be asked, when,
-   * and whether it may be anything but a read (X51: reads only, unless a decision says otherwise). `still` is asked once
+   * and whether it may be anything but a read (X54: reads only, unless a decision says otherwise). `still` is asked once
    * more right before the request, after the token's wait: false — `identity-mismatch`, and nothing is requested.
    */
   const omRequest = async (

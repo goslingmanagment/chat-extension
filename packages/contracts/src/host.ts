@@ -1,7 +1,7 @@
 import type { PageDiagnostics } from './diagnostics';
 // The host port (architecture.md §5.2, §6): everything the extension may know
 // about and do to the host page. Page memory, with one read of the network
-// since 1.22.0 (X51): the messages of the chat the person has open, from the
+// since 1.22.0 (X54): the messages of the chat the person has open, from the
 // host's own API (`openChatMessages`) — never another chat's, whose history
 // load would mark it read. The port never has, and never will have,
 // fetchHistory() of any chat, markRead(), setStore(), a general send() or an
@@ -447,11 +447,11 @@ export const TailSnapshotSchema = z.strictObject({
 });
 export type TailSnapshot = z.infer<typeof TailSnapshotSchema>;
 
-/** 1.22.0 (X51): above any price OnlyFans allows on a message; a bigger number is not a price. */
+/** 1.22.0 (X54): above any price OnlyFans allows on a message; a bigger number is not a price. */
 export const OPEN_CHAT_PRICE_MAX = 10_000;
 
 /**
- * 1.22.0 (X51): one message of the open chat as the host's API returns it (OnlyMonster's `GET
+ * 1.22.0 (X54): one message of the open chat as the host's API returns it (OnlyMonster's `GET
  * …/chats/{fan}/messages`), cut to what our features read. The API passes OnlyFans' own message almost raw, so the
  * money fields mean what OnlyFans means: `price` — the listed price of a paid message, USD (null — free or not given);
  * `isOpened` — the fan opened the model's message, and on a paid one that is the purchase (null — not given);
@@ -472,7 +472,7 @@ export const OpenChatMessageSchema = z.strictObject({
 });
 export type OpenChatMessage = z.infer<typeof OpenChatMessageSchema>;
 
-/** 1.22.0 (X51): one page of the open chat's messages, newest first, as the API pages them. */
+/** 1.22.0 (X54): one page of the open chat's messages, newest first, as the API pages them. */
 export const OpenChatPageSchema = z.strictObject({
   capturedAt: IsoTimestampSchema,
   items: z.array(OpenChatMessageSchema).check(z.maxLength(OPEN_CHAT_LIMITS.pageMax)),
@@ -484,7 +484,7 @@ export const OpenChatPageSchema = z.strictObject({
 export type OpenChatPage = z.infer<typeof OpenChatPageSchema>;
 
 /**
- * 1.22.0 (X51): why a read of the open chat brought no page. From MAIN: `endpoint` — the page has made no request to
+ * 1.22.0 (X54): why a read of the open chat brought no page. From MAIN: `endpoint` — the page has made no request to
  * its API yet, so its address is unknown (nothing was requested); `session` — no session token on the page (signed
  * out, or the page's session provider changed), `http` — the API answered with an error status, `timeout`, `network` —
  * no answer at all, `invalid` — an answer of another shape. From the port: `not-open` — the chat is not the open one
@@ -493,14 +493,14 @@ export type OpenChatPage = z.infer<typeof OpenChatPageSchema>;
 export const OPEN_CHAT_FAILURES = ['endpoint', 'session', 'http', 'timeout', 'network', 'invalid'] as const;
 export type OpenChatFailure = (typeof OPEN_CHAT_FAILURES)[number] | 'not-open' | 'unavailable';
 
-/** 1.22.0 (X51): MAIN's answer to `openChatMessages`; `status` — the HTTP status of an `http` failure, else null. */
+/** 1.22.0 (X54): MAIN's answer to `openChatMessages`; `status` — the HTTP status of an `http` failure, else null. */
 export const OpenChatAnswerSchema = z.union([
   z.strictObject({ ok: z.literal(true), page: OpenChatPageSchema }),
   z.strictObject({ ok: z.literal(false), failure: z.enum(OPEN_CHAT_FAILURES), status: z.nullable(z.int().check(z.gte(100), z.lte(599))) }),
 ]);
 export type OpenChatAnswer = z.infer<typeof OpenChatAnswerSchema>;
 
-/** 1.22.0 (X51): HostPort.openChatMessages options. */
+/** 1.22.0 (X54): HostPort.openChatMessages options. */
 export interface OpenChatReadOptions {
   /** Messages to read, newest first: 1…OPEN_CHAT_LIMITS.pageMax. */
   readonly limit: number;
@@ -510,7 +510,7 @@ export interface OpenChatReadOptions {
   readonly maxAgeMs?: number;
 }
 
-/** 1.22.0 (X51): what HostPort.openChatMessages resolves with; it never rejects. `cached` — no request was made for it. */
+/** 1.22.0 (X54): what HostPort.openChatMessages resolves with; it never rejects. `cached` — no request was made for it. */
 export type OpenChatRead =
   | { readonly ok: true; readonly page: OpenChatPage; readonly cached: boolean }
   | { readonly ok: false; readonly reason: OpenChatFailure; readonly status: number | null };
@@ -804,7 +804,7 @@ export interface HostPort {
   /** Fresh text, D-14; null when the capability is off. */
   readVisibleTail(expected: HostIdentity, max: number): Promise<LiveTextTail | null>;
   /**
-   * 1.22.0 (X51): the open chat's messages from the host's own API, with what page memory does not hold or holds stale
+   * 1.22.0 (X54): the open chat's messages from the host's own API, with what page memory does not hold or holds stale
    * (a purchase updates no loaded message). Only the chat the person has open: for any other `not-open`, and nothing is
    * requested. One request serves the callers that ask at the same time; the newest page is kept `maxAgeMs`, and a
    * message of that chat coming in or the person leaving the chat drops it. Absent on a host without such an API.

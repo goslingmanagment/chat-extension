@@ -121,7 +121,7 @@ const WS_TAP_FILE = 'packages/host-chatspace/src/main/ws-tap.ts';
  */
 const RECEIPT_FILE = 'packages/host-chatspace/src/main/receipt.ts';
 /**
- * Our reads of ChatSpace's API (decision X51) are the one MAIN file that calls the page's `fetch` (`win.fetch`): a
+ * Our reads of ChatSpace's API (decision X54) are the one MAIN file that calls the page's `fetch` (`win.fetch`): a
  * GET with the page's own session, only what the runtime asks for (the open chat's messages). The global `fetch`
  * stays banned there too.
  */

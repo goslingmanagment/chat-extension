@@ -13,7 +13,7 @@
 //   over its live port (live.ts): the freshness checkpoint, the X8 send port,
 //   the flags and the `wsFrames` anchor. Without it those requests are
 //   `disabled` and nothing of §6.6–§6.8 runs.
-// One request of its own (X51): the open chat's messages from ChatSpace's API
+// One request of its own (X54): the open chat's messages from ChatSpace's API
 // (om-api.ts), only for the chat on the route now — it is read already.
 // Never (§6.10): any other request of its own, history loads, store/cache writes,
 // resend/cancel/confirmEchoedMessage/reset*, ensure*/refresh*/fetch/
