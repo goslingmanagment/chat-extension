@@ -104,7 +104,7 @@ Recap его по-прежнему не принимает. Всё добаво�
 хвоста (X52).
 
 - **`media` (новый модуль):** что читает панель медиа превью — `MediaFolder` (папка vault: id, имя, вид `messages` /
-  `posts` / `custom` / `other`, счётчики), `MediaFolderId` (`all` — «Все медиа», или id папки), `MediaItem` (id, тип,
+  `posts` / `custom` / `other`, счётчики), `MediaItem` (id, тип,
   длительность, `ready`, миниатюра только `https`, время), страницы `MediaFoldersPage` (до 10) и `MediaItemsPage`
   (до 40), `MediaFanState` (что фан уже получил: `paid`, `unpaid`, `free`, с ценой в центах), список
   `MEDIA_READ_FAILURES`; запрос моста `MediaRequest` (`folders`, `items`, `states`, `tags`) и ответ `MediaAnswer`;
@@ -112,7 +112,8 @@ Recap его по-прежнему не принимает. Всё добаво�
 - **`send-media` (новый модуль):** что часть берёт с собой — `SendMedia` (медиа в порядке выбора: id, тип,
   длительность, миниатюра, `free`; `priceCents` 0 или 300…20000; отметки соавторов `MediaTags`) с правилами: медиа не
   повторяются, бесплатные превью только при цене, при цене хотя бы одно медиа за ней. `MEDIA_TYPES`, `MediaThumb`,
-  `isMediaPriceCents`. Отдельно от `media`, чтобы реестр вкладки не платил за схемы панели.
+  `isMediaPriceCents`, а также `MediaFolderId` (`all` — «Все медиа», или id папки), который берут действия панели.
+  Отдельно от `media`, чтобы реестр вкладки и чанки досок, проверяющие действия, не платили за схемы чтения панели.
 - **`send`:** `PreviewSendRequest.media?` (`SendMedia`); `SendMarksSchema` (`priced`, `withMedia`) и
   `SendJournalEntry.marks?`.
 - **`tab-messages`:** `SendBegin.marks?` — фон получает только отметки цены и медиа (кто отправил, X48), сами медиа —

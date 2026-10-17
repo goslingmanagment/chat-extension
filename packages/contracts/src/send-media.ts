@@ -3,12 +3,19 @@
 // optional price (PPV) and the free previews among them, the creators their
 // release forms tag. The price is in cents and goes as OnlyFans takes it —
 // USD, $3…$200 — or 0 for free media. Apart from media.ts (what the picker
-// reads) so that what imports the send's schemas does not pay for the picker's.
+// reads) so that what imports the send's schemas does not pay for the picker's;
+// the picker's folder id is here too: the UI actions take it, and a board's
+// chunk that validates them must not carry the picker's reads.
 
 import * as z from 'zod/mini';
 
 import { MEDIA_LIMITS } from './limits';
 import { CountSchema, NativeIdSchema } from './primitives';
+
+/** A vault folder: «all media», or one of the account's folders by its id. */
+export const MEDIA_ALL_FOLDER = 'all';
+export const MediaFolderIdSchema = z.union([z.literal(MEDIA_ALL_FOLDER), NativeIdSchema]);
+export type MediaFolderId = z.infer<typeof MediaFolderIdSchema>;
 
 export const MEDIA_TYPES = ['photo', 'video', 'gif', 'audio'] as const;
 export const MediaTypeSchema = z.enum(MEDIA_TYPES);

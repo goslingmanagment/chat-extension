@@ -12,12 +12,9 @@ import * as z from 'zod/mini';
 import { type ChatRef } from './ids';
 import { MEDIA_LIMITS } from './limits';
 import { CountSchema, IsoTimestampSchema, NativeIdSchema, displayText, type NativeId } from './primitives';
-import { MediaIdSchema, MediaTagsSchema, MediaThumbSchema, MediaTypeSchema, type MediaTags } from './send-media';
+import { MediaFolderIdSchema, MediaIdSchema, MediaTagsSchema, MediaThumbSchema, MediaTypeSchema, type MediaFolderId, type MediaTags } from './send-media';
 
 /** The folder of every medium (OnlyMonster's «All Media»), then the vault's own folders by id. */
-export const MEDIA_ALL_FOLDER = 'all';
-export const MediaFolderIdSchema = z.union([z.literal(MEDIA_ALL_FOLDER), NativeIdSchema]);
-export type MediaFolderId = z.infer<typeof MediaFolderIdSchema>;
 
 /** `messages`, `posts` — the platform's own folders; `custom` — the model's; anything else — `other`. */
 export const MEDIA_FOLDER_KINDS = ['messages', 'posts', 'custom', 'other'] as const;
