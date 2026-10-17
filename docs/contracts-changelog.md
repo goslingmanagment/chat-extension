@@ -97,7 +97,8 @@ X54).
 - **`ops`:** правило `StartOp.fresh` — по `freshTextSurface` (было: черновики в доке).
 - **`hub`:** `live-text-review-coach-v1` в `CLIENT_HUB_CAPABILITY_NAMES`; `LIVE_TEXT_HUB_NEEDS` — что нужно хабу
   для свежего текста функции сверх флага страницы (Review и Coach — этот токен); `HUB_FEATURE_ONLY_FIELDS.
-  liveTextContext` — плюс `chat-review` и `coach-chat`.
+  liveTextContext` — плюс `chat-review` и `coach-chat`. В том же списке и `live-ppv-v1`: его называет SDK выкаченного
+  хаба 451810af, которым завендорен этот PR; пользуется им 1.27.0 (#177).
 
 ## 1.22.0 — 2026-10-17 (своё чтение открытого чата из API OnlyMonster; решение X54)
 
