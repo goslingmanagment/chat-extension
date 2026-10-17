@@ -435,7 +435,11 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
         return opened !== '';
       }, { timeout: 10_000, timeoutMsg: 'the chat did not open in a new tab' });
       await browser.switchToWindow(opened);
-      expect(await browser.getUrl()).toBe(fanslyStandUrl(`/messages/${group}`));
+      // A new tab is about:blank until its navigation commits: on a busy runner the first read came that early
+      // (CI 39015196894, 39014303064, 38997557324, 38988941619). Wait for the address, as pages-wiring does.
+      const expected = fanslyStandUrl(`/messages/${group}`);
+      await browser.waitUntil(async () => (await browser.getUrl()) === expected, { timeout: 10_000, timeoutMsg: `the new tab did not reach ${expected}` });
+      expect(await browser.getUrl()).toBe(expected);
     } finally {
       if (opened !== '') { await browser.switchToWindow(opened); await browser.closeWindow(); }
       await shift.toFansly();
