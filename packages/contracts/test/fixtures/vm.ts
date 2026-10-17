@@ -594,6 +594,34 @@ export const DOCK_NOTICE_SAMPLES: { readonly valid: readonly DockNotice[]; reado
 };
 
 /**
+ * The part the dock may hand the focus to (1.17.0, decision X44): optional, so a dock without it still is a DockVM;
+ * when present it names one part of the shown operation by its index, or is null.
+ */
+type DockFocusPart = C.DockVM['focusPart'];
+export const DOCK_FOCUS_PART_SAMPLES: { readonly valid: readonly DockFocusPart[]; readonly invalid: readonly unknown[] } = {
+  valid: [undefined, null, { opId: OP, part: 0 }, { opId: OP, part: 1 }],
+  invalid: [
+    // @ts-expect-error the part is named with its operation: an index alone may outlive the answer it was for
+    { part: 0 } satisfies DockFocusPart,
+    // @ts-expect-error by its index, not by a ready element id or a selector
+    { opId: OP, part: '[data-cg-part="0"]' } satisfies DockFocusPart,
+    // @ts-expect-error never a flag: «focus the next one» is the controller's decision, made per part
+    true satisfies DockFocusPart,
+  ],
+};
+
+/** Where the page's focus is (1.17.0, `FocusReturn.where`): the dispatcher's places and `none` for the page's body. */
+export const FOCUS_PLACE_SAMPLES: { readonly valid: readonly C.FocusPlace[]; readonly invalid: readonly unknown[] } = {
+  valid: ['none', 'page', 'composer', 'field', 'ours', 'ours-field'],
+  invalid: [
+    // @ts-expect-error the place, not the element: the UI never holds an element of the site
+    { tagName: 'DIV' } satisfies C.FocusPlace,
+    // @ts-expect-error `body` is `none`: no element has the focus
+    'body' satisfies C.FocusPlace,
+  ],
+};
+
+/**
  * What tells two pages of one title apart (1.3.0): the platform and the hub's
  * page label, next to the title wherever pages are listed or chosen. Optional
  * everywhere: a list without it prints titles as before.
