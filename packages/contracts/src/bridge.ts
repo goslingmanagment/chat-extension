@@ -173,6 +173,7 @@ export const TO_MAIN_TYPES = [
   'previewSendPreflight',
   'previewSendCommit',
   'flags',
+  'openChatMessages',
 ] as const;
 export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 

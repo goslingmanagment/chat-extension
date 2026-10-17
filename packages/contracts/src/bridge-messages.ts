@@ -16,6 +16,7 @@ import {
   ComposerStateSchema,
   HostFanSchema,
   InsertReceiptSchema,
+  OpenChatAnswerSchema,
   InsertWireSchema,
   NavigationItemSchema,
   NavigationReceiptSchema,
@@ -26,7 +27,7 @@ import {
   thenInsertFits,
 } from './host';
 import { DraftProvenanceSchema, HostAccountSchema, HostIdentitySchema, PartRefSchema } from './ids';
-import { BRIDGE_LIMITS, SEND_LIMITS } from './limits';
+import { BRIDGE_LIMITS, OPEN_CHAT_LIMITS, SEND_LIMITS } from './limits';
 import { CountSchema, DigestSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FreshnessCheckpointSchema, PendingIdSchema, PreviewSendCommitSchema, PreviewSendPreflightSchema, SendAttemptViewSchema, SendFuseFactSchema, checkpointMatches } from './send';
 
@@ -173,7 +174,19 @@ export const TO_MAIN = {
     write: false,
     timeout: 'call',
   },
-} as const satisfies Record<ToMainType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: boolean; readonly timeout: 'call' | 'navInsert' }>;
+  /**
+   * 1.22.0 (X51): the open chat's messages, newest first, from the host's own API — a request MAIN makes with the
+   * page's own session, as the page makes it. MAIN refuses with `identity-mismatch` before any request unless the route
+   * is that very chat now. A failed request is an answer (`ok: false`), not a bridge error. Its deadline is
+   * OPEN_CHAT_LIMITS.bridgeMs.
+   */
+  openChatMessages: {
+    payload: z.strictObject({ ...AccFan, limit: z.int().check(z.gte(1), z.lte(OPEN_CHAT_LIMITS.pageMax)), cursor: z.optional(NativeIdSchema) }),
+    data: OpenChatAnswerSchema,
+    write: false,
+    timeout: 'network',
+  },
+} as const satisfies Record<ToMainType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: boolean; readonly timeout: 'call' | 'navInsert' | 'network' }>;
 
 export type ToMainPayload<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['payload']>;
 export type ToMainData<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['data']>;
@@ -261,6 +274,7 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('previewSendPreflight'),
   requestFrame('previewSendCommit'),
   requestFrame('flags'),
+  requestFrame('openChatMessages'),
 ]);
 export type BridgeRequest = z.infer<typeof BridgeRequestSchema>;
 

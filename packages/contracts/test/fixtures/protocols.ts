@@ -572,6 +572,24 @@ export interface BridgeRequestFixtures {
 }
 
 const accFan = { acc: IDS.acc, fan: IDS.fan } as const;
+const openChatPaid = {
+  platformMessageId: '9002',
+  direction: 'model',
+  sentAt: ISO,
+  text: 'just for you',
+  price: 25,
+  isFree: false,
+  isOpened: true,
+  mediaCount: 2,
+  tip: false,
+  automatic: false,
+} as const;
+const openChatPage = {
+  capturedAt: ISO,
+  items: [{ ...openChatPaid, platformMessageId: '9003', direction: 'fan', text: 'wow', price: null, isFree: null, isOpened: null, mediaCount: 0 }, openChatPaid],
+  hasMore: true,
+  cursor: '9002',
+} as const;
 const draftWire = { composerInstanceId: 'composer1', revision: 4, plainText: 'my draft', provenance: 'human-or-unknown', digest: DIGEST } as const;
 
 export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeRequestFixtures } = {
@@ -629,6 +647,29 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
   flags: {
     payload: { valid: [{ wsTap: true, previewSend: false }, { wsTap: true, previewSend: false, attribution: true }], invalid: [{ wsTap: true }, { wsTap: true, previewSend: false, attribution: 'on' }] },
     data: { valid: [{ wsTap: true, previewSend: false }, { wsTap: true, previewSend: false, attribution: false }], invalid: [{ wsTap: 'on', previewSend: false }] },
+  },
+  // 1.22.0 (X51): the open chat's messages from the host's API; a failed request is an answer, not an error.
+  openChatMessages: {
+    payload: {
+      valid: [{ ...accFan, limit: 50 }, { ...accFan, limit: 100, cursor: '9001' }],
+      invalid: [{ ...accFan, limit: 0 }, { ...accFan, limit: 101 }, { ...accFan, limit: 50, cursor: 'oldest' }, { acc: IDS.acc, limit: 50 }],
+    },
+    data: {
+      valid: [
+        { ok: true, page: openChatPage },
+        { ok: true, page: { capturedAt: ISO, items: [], hasMore: false, cursor: null } },
+        { ok: false, failure: 'http', status: 429 },
+        { ok: false, failure: 'session', status: null },
+      ],
+      invalid: [
+        { ok: true, page: { ...openChatPage, items: [{ ...openChatPaid, price: 0 }] } },
+        { ok: true, page: { ...openChatPage, items: [{ ...openChatPaid, direction: 'creator' }] } },
+        { ok: true, page: { ...openChatPage, items: [{ ...openChatPaid, mediaCount: -1 }] } },
+        { ok: false, failure: 'not-open', status: null },
+        { ok: false, failure: 'http', status: 42 },
+        { ok: true },
+      ],
+    },
   },
 };
 

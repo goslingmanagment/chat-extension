@@ -222,6 +222,20 @@ export const tabHealth = {
   footprint: { cachesKB: 120, domNodes: 340 },
 } as const;
 
+/** 1.22.0 (X51): a paid message of the model the fan bought, as `openChatMessages` reads it. */
+const openChatPaid = {
+  platformMessageId: '9002',
+  direction: 'model',
+  sentAt: ISO,
+  text: 'just for you',
+  price: 25,
+  isFree: false,
+  isOpened: true,
+  mediaCount: 2,
+  tip: false,
+  automatic: false,
+} as const;
+
 export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   { name: 'GenerationDebugSchema', schema: C.GenerationDebugSchema, valid: [generation], invalid: [{}] },
   // ── primitives ──
@@ -660,6 +674,25 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ capturedAt: ISO, messages: [] }, { capturedAt: ISO, messages: messages(61) }],
   ),
   fixture('TailSnapshot', C.TailSnapshotSchema, [{ capturedAt: ISO, messages: messages(200) }], [{ capturedAt: ISO, messages: messages(201) }]),
+  // 1.22.0 (X51): the open chat's messages from the host's API.
+  fixture(
+    'OpenChatMessage',
+    C.OpenChatMessageSchema,
+    [openChatPaid, { ...openChatPaid, direction: 'fan', text: '', price: null, isFree: null, isOpened: null, mediaCount: 1, tip: true }],
+    [{ ...openChatPaid, price: 0 }, { ...openChatPaid, price: C.OPEN_CHAT_PRICE_MAX + 1 }, { ...openChatPaid, text: 'x'.repeat(5001) }, { ...openChatPaid, platformMessageId: 'm1' }],
+  ),
+  fixture(
+    'OpenChatPage',
+    C.OpenChatPageSchema,
+    [{ capturedAt: ISO, items: [openChatPaid], hasMore: null, cursor: '9002' }, { capturedAt: ISO, items: [], hasMore: false, cursor: null }],
+    [{ capturedAt: ISO, items: Array.from({ length: 101 }, () => openChatPaid), hasMore: true, cursor: '9002' }, { capturedAt: ISO, items: [openChatPaid], hasMore: true }],
+  ),
+  fixture(
+    'OpenChatAnswer',
+    C.OpenChatAnswerSchema,
+    [{ ok: true, page: { capturedAt: ISO, items: [], hasMore: false, cursor: null } }, { ok: false, failure: 'timeout', status: null }],
+    [{ ok: false, failure: 'unavailable', status: null }, { ok: false, failure: 'http' }],
+  ),
   fixture('ChatWindow', C.ChatWindowSchema, [chatWindow, { ...chatWindow, state: 'loading', loaded: 0, lastFanMessageId: null, hasOlder: null }], [{ ...chatWindow, loaded: 201 }]),
   fixture(
     'HostFan',
