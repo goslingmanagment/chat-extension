@@ -22,6 +22,7 @@
 
 import { TEXT_SIZE_ATTRIBUTE, THEME_TOKEN_NAMES, type ColorScheme, type HostPalette, type ThemeTokenName } from '@cg/contracts/vm';
 
+import { ROOT_CLASS } from './base';
 import { type StyleSource } from './styles';
 
 /** ChatSpace 0.172.0 values of the steps we read: the fallback of each triplet (ui-design §2.2). */
@@ -245,8 +246,9 @@ function block(selector: string, scheme: ColorScheme, onlyDiffering: boolean): s
 
 /**
  * «Размер текста: крупнее» (decision X55): the type scale a step up — the base 13 → 15 px, the captions 11–12 → 13 px,
- * the AI text 14.5 → 16.5 px, the keycaps in proportion. Only on our host elements in a site's tab (the mount writes
- * `data-text-size` there from the setting); the extension pages keep the agency's own scale.
+ * the AI text 14.5 → 16.5 px, the keycaps in proportion. Only on our surface roots in a site's tab (the mount writes
+ * `data-text-size` on each `.cg-root` inside the closed shadow root, never on the host the page sees); the extension
+ * pages keep the agency's own scale.
  */
 export const LARGE_TEXT: Readonly<Partial<Record<ThemeTokenName, string>>> = {
   '--cg-text-2xs': '12px',
@@ -263,11 +265,11 @@ export const LARGE_TEXT: Readonly<Partial<Record<ThemeTokenName, string>>> = {
   '--cg-leading-ai': '24px',
   '--cg-text-kbd': '11px',
 };
-export const LARGE_TEXT_SCOPE = `:host([${TEXT_SIZE_ATTRIBUTE}="large"])`;
+export const LARGE_TEXT_SCOPE = `.${ROOT_CLASS}[${TEXT_SIZE_ATTRIBUTE}="large"]`;
 /** The root's own line goes with its larger text; a component's fixed line keeps its box. */
 const LARGE_TEXT_CSS = `${LARGE_TEXT_SCOPE} { ${Object.entries(LARGE_TEXT)
   .map(([name, value]) => `${name}: ${value};`)
-  .join(' ')} }\n${LARGE_TEXT_SCOPE} .cg-root { line-height: 21px; }\n`;
+  .join(' ')} line-height: 21px; }\n`;
 
 /** The token sheet: every token in light, the differing ones again under dark, the larger type scale (X55). */
 export const THEME_CSS = `${block(LIGHT_SCOPE, 'light', false)}\n${block(DARK_SCOPE, 'dark', true)}\n${LARGE_TEXT_CSS}`;

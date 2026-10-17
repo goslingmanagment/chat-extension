@@ -177,7 +177,7 @@ describe('[I18-007] fonts: the host’s own, locally installed only on our pages
     expect(TOKEN_VALUES['--cg-gutter']).toBe('36px');
   });
 
-  it('[X55] «Крупнее»: the type scale a step up under `data-text-size="large"` of our host — base 15, captions 13, AI text 16.5 — and nothing else moves', () => {
+  it('[X55] «Крупнее»: the type scale a step up under `data-text-size="large"` of a surface root — base 15, captions 13, AI text 16.5 — and nothing else moves', () => {
     expect(LARGE_TEXT).toMatchObject({ '--cg-text-base': '15px', '--cg-text-xs': '13px', '--cg-text-sm': '13px', '--cg-text-ai': '16.5px', '--cg-leading-ai': '24px', '--cg-text-kbd': '11px' });
     // Every larger value is a type token, and larger than the normal one.
     for (const [name, value] of Object.entries(LARGE_TEXT)) {
@@ -185,8 +185,12 @@ describe('[I18-007] fonts: the host’s own, locally installed only on our pages
       expect(Number.parseFloat(value), name).toBeGreaterThan(Number.parseFloat(TOKEN_VALUES[name as keyof typeof TOKEN_VALUES] as string));
     }
     expect(THEME_CSS).toContain(`${LARGE_TEXT_SCOPE} { --cg-text-2xs: 12px;`);
-    expect(LARGE_TEXT_SCOPE).toBe(':host([data-text-size="large"])');
-    // Only the host of our roots carries it: no page rule, so the extension pages keep the agency's own scale.
+    expect(LARGE_TEXT_SCOPE).toBe('.cg-root[data-text-size="large"]');
+    // The root's own line goes with it, above the base 18 px of `.cg-root`.
+    expect(THEME_CSS).toMatch(/\.cg-root\[data-text-size="large"\] \{[^}]* line-height: 21px; \}/);
+    // Inside our closed root only: nothing keys on the host element the page sees (X22), and no page rule, so the
+    // extension pages keep the agency's own scale.
+    expect(THEME_CSS).not.toContain(':host([data-text-size');
     expect(THEME_CSS).not.toContain(':root[data-text-size');
   });
 });

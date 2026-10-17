@@ -111,7 +111,10 @@ export type ColorScheme = (typeof COLOR_SCHEMES)[number];
 /** Set by the mount on our host element; the stylesheets key the dark values on it. The page sees it: a neutral name (X22). */
 export const SCHEME_ATTRIBUTE = 'data-scheme';
 
-/** 1.26.0 (X55): `normal` or `large` («Размер текста»), set by the mount on our host element; the type tokens key the larger scale on it. */
+/**
+ * 1.26.0 (X55): `normal` or `large` («Размер текста»), set by the mount on each surface root (`.cg-root`) inside our
+ * closed shadow root — never on the host element the page sees (X22); the type tokens key the larger scale on it.
+ */
 export const TEXT_SIZE_ATTRIBUTE = 'data-text-size';
 
 /**

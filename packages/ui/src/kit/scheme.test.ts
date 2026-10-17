@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { UI_THEMES, type UiTextSize, type UiTheme } from '@cg/contracts/settings';
 import { SCHEME_ATTRIBUTE, TEXT_SIZE_ATTRIBUTE, type ColorScheme } from '@cg/contracts/vm';
 
-import { SettableSignal, bindScheme, holdTextSize, mediaSchemeSignal, resolveScheme, resolvedSchemeSignal, type MediaQuerySource } from './scheme';
+import { SettableSignal, bindScheme, bindTextSize, mediaSchemeSignal, resolveScheme, resolvedSchemeSignal, type MediaQuerySource } from './scheme';
 
 class FakeQuery implements MediaQuerySource {
   private readonly listeners = new Set<() => void>();
@@ -93,23 +93,20 @@ describe('[I18-005] theme host / system / light / dark (ui-design §2.1)', () =>
     expect(attributes.get(SCHEME_ATTRIBUTE)).toBe('dark');
   });
 
-  it('[X55] mirrors «Размер текста» on our host element as data-text-size, held like the scheme: the last surface takes it away; no signal sets nothing', () => {
+  it('[X55] mirrors «Размер текста» as data-text-size on the surface root, now and on every change, until the surface leaves; no signal sets nothing', () => {
     const attributes = new Map<string, string>();
     const element = { setAttribute: (name: string, value: string) => attributes.set(name, value), removeAttribute: (name: string) => attributes.delete(name) } as unknown as Element;
     const size = new SettableSignal<UiTextSize>('normal');
-    const first = holdTextSize(element, size);
-    const second = holdTextSize(element, size);
+    const off = bindTextSize(element, size);
     expect(attributes.get(TEXT_SIZE_ATTRIBUTE)).toBe('normal');
     size.set('large');
     expect(attributes.get(TEXT_SIZE_ATTRIBUTE)).toBe('large');
-    first();
-    expect(attributes.get(TEXT_SIZE_ATTRIBUTE)).toBe('large');
-    second();
-    expect(attributes.has(TEXT_SIZE_ATTRIBUTE)).toBe(false);
+    off();
     size.set('normal');
-    expect(attributes.has(TEXT_SIZE_ATTRIBUTE)).toBe(false);
-    holdTextSize(element, undefined)();
-    expect(attributes.has(TEXT_SIZE_ATTRIBUTE)).toBe(false);
+    expect(attributes.get(TEXT_SIZE_ATTRIBUTE)).toBe('large');
+    const bare = new Map<string, string>();
+    bindTextSize({ setAttribute: (name: string, value: string) => bare.set(name, value) } as unknown as Element, undefined)();
+    expect(bare.size).toBe(0);
   });
 
   it('a settable signal skips equal values and survives a listener leaving mid-notification', () => {

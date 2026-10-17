@@ -27,7 +27,7 @@ export { attributeHolds, holdAttribute } from './holds';
 export {
   SettableSignal,
   bindScheme,
-  holdTextSize,
+  bindTextSize,
   mediaSchemeSignal,
   resolveScheme,
   resolvedSchemeSignal,

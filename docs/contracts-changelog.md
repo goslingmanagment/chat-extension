@@ -50,7 +50,8 @@
   `normal`, ремонта не нужно; сборка до 1.26.0 его отбрасывает и показывает обычный текст), в `DEFAULT_SETTINGS.ui` —
   `normal`.
 - **`vm`:** ключ `SetPreference` `ui.textSize` (одно из двух значений); `MountDeps.textSize?` — сигнал размера, который
-  монтирование кладёт атрибутом `TEXT_SIZE_ATTRIBUTE` (`data-text-size`) на хост наших корней; токены темы
+  монтирование кладёт атрибутом `TEXT_SIZE_ATTRIBUTE` (`data-text-size`) на корень каждой поверхности (`.cg-root`)
+  внутри закрытого shadow root — на хосте, который видит страница, его нет (X22); токены темы
   `--cg-text-ai`, `--cg-leading-ai` (текст AI с засечками и его строка) и `--cg-text-kbd` (кепка клавиши на чипе);
   `AppearanceBodyVM.textSize?`; `OptionsVM.checklist.steps[].more?: true` — шаг тимлида, свёрнутый под «Ещё»;
   `ShowRecap.panel?: true`, `RefreshRecap.panel?: true` — Recap попросила вкладка Recap панели фана: полный Recap

@@ -102,7 +102,7 @@ if (kind === 'fan-panel') {
 const fans = rowsParam > 0 ? manyFans(rowsParam) : null;
 const live = fans === null ? null : new LiveBoardClient(world.client, world.ctx, fans);
 if (fans !== null) world.client.goTo(-1);
-// `text=large`: «Размер текста: Крупнее» (X55), on our host as the site's tab puts it.
+// `text=large`: «Размер текста: Крупнее» (X55), on our surface roots as the site's tab puts it.
 const textSize = new SettableSignal<'normal' | 'large'>(params.get('text') === 'large' ? 'large' : 'normal');
 const deps = { ...world.deps, ...(live === null ? {} : { client: live }), profile, textSize };
 

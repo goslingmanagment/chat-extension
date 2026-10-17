@@ -7,8 +7,6 @@
 import { type UiTextSize, type UiTheme } from '@cg/contracts/settings';
 import { SCHEME_ATTRIBUTE, TEXT_SIZE_ATTRIBUTE, type ColorScheme, type ValueSignal } from '@cg/contracts/vm';
 
-import { holdAttribute } from './holds';
-
 export interface SchemeInputs {
   /** ChatSpace's scheme from its <html> class; null on extension pages (no host). */
   readonly host: ColorScheme | null;
@@ -96,18 +94,15 @@ export function resolvedSchemeSignal(
 }
 
 /**
- * «Размер текста» on our host element as `data-text-size`, now and on every change (decision X55): the type tokens key
- * the larger scale on it. Held like the scheme — several surfaces share the overlay host. No signal (an extension page,
- * a test): nothing is set, the scale is the normal one. Returns the release.
+ * «Размер текста» as `data-text-size` on a surface's own root (`.cg-root`, inside the closed shadow root), now and on
+ * every change (decision X55): the type tokens key the larger scale on it. Never on the host element — the page sees
+ * nothing of ours there but neutral attributes (X22). No signal (an extension page, a test): nothing is set, the scale
+ * is the normal one. Returns the unsubscribe; the root leaves with its surface.
  */
-export function holdTextSize(host: Element, textSize: ValueSignal<UiTextSize> | undefined): () => void {
+export function bindTextSize(surfaceRoot: Element, textSize: ValueSignal<UiTextSize> | undefined): () => void {
   if (textSize === undefined) return () => undefined;
-  const release = holdAttribute(host, TEXT_SIZE_ATTRIBUTE, textSize.value);
-  const off = textSize.subscribe((value) => host.setAttribute(TEXT_SIZE_ATTRIBUTE, value));
-  return () => {
-    off();
-    release();
-  };
+  surfaceRoot.setAttribute(TEXT_SIZE_ATTRIBUTE, textSize.value);
+  return textSize.subscribe((value) => surfaceRoot.setAttribute(TEXT_SIZE_ATTRIBUTE, value));
 }
 
 /** Mirrors the scheme on our host element (or <html> of a page) as `data-scheme`, now and on every change. */

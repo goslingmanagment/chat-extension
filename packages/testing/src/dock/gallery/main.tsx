@@ -66,7 +66,7 @@ const params = new URLSearchParams(location.search);
 const scheme: ColorScheme = params.get('theme') === 'dark' ? 'dark' : 'light';
 const language: Locale = params.get('lang') === 'en' ? 'en' : 'ru';
 const style: UiResultStyle = params.get('style') === 'sheet' ? 'sheet' : 'bare';
-/** `text=large`: «Размер текста: Крупнее» (X55), on our hosts as the site's tab puts it. */
+/** `text=large`: «Размер текста: Крупнее» (X55), on our surface roots as the site's tab puts it. */
 const textSize = new SettableSignal<'normal' | 'large'>(params.get('text') === 'large' ? 'large' : 'normal');
 let width = Math.max(240, Number(params.get('w') ?? '853') || 853);
 const feedHeight = Number(params.get('feed') ?? '574') || 574;
