@@ -132,9 +132,8 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     // Nobody is signed in: the sign-in screen stands instead of the settings, whatever the address says.
     expect(page).toMatchObject({ gate: true, section: null, hubAddress: DEAD_HUB, lang: 'ru' });
     expect(page.documentTitle).toBe('Настройки ChatGoose');
-    // The first run starts here: eight steps, the install done, the sign-in still to do.
-    expect(page.checklist.map((step) => step.id)).toEqual(['install', 'host-permission', 'sign-in', 'persona', 'open-chatspace', 'binding', 'consent', 'sound-hotkeys']);
-    expect(page.checklist.find((step) => step.id === 'install')?.done).toBe(true);
+    // The first run starts here: the chatter's three steps, then the team lead's under «Ещё» (X49); the sign-in still to do.
+    expect(page.checklist.map((step) => step.id)).toEqual(['host-permission', 'sign-in', 'open-chatspace', 'persona', 'binding', 'consent', 'sound-hotkeys']);
     expect(page.checklist.find((step) => step.id === 'sign-in')?.done).toBe(false);
     const diagnostics = await pageRpc<Diagnostics>('diagnostics.get');
     expect(diagnostics).toMatchObject({ ok: true, payload: { extension: { testBuild: true, contractsVersion: CONTRACTS_VERSION }, session: { signedIn: false, hubOrigin: null }, hub: { reachable: null }, tabs: [] } });
@@ -371,7 +370,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(status.rows['binding']?.text).toContain(WORLD.pages.one.title);
     expect(status.rows['persona']?.level).toBe('ok');
     // Signed in, the first-run checklist stands over «Статус» with the steps already done.
-    expect(status.checklist.filter((step) => step.done).map((step) => step.id)).toEqual(expect.arrayContaining(['install', 'host-permission', 'sign-in', 'persona', 'open-chatspace', 'binding']));
+    expect(status.checklist.filter((step) => step.done).map((step) => step.id)).toEqual(expect.arrayContaining(['host-permission', 'sign-in', 'persona', 'open-chatspace', 'binding']));
     await capturePage('ext-options-status-ready');
 
     await openOptions('accounts');

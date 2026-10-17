@@ -294,6 +294,15 @@ ${/* R20 P14b1: a site's own steps under the eight, a subheading over their own 
 .pg-check__sub b { font-family: var(--pg-display); font-weight: 800; font-size: 16px; line-height: 22px; color: var(--cg-ink-strong); }
 .pg-check__sub span { color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-check__item > .pg-site-access { justify-self: end; }
+${/* X49: the team lead's steps, folded under «Ещё — для тимлида» below the chatter's own. */ ''}
+.pg-check__more { margin-top: 10px; border-top: 1px solid var(--cg-rule); }
+.pg-check__more > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; padding: 10px 0 8px; cursor: pointer; list-style: none; }
+.pg-check__more > summary::-webkit-details-marker { display: none; }
+.pg-check__more > summary::before { content: '▸'; color: var(--cg-ink-muted); width: 12px; }
+.pg-check__more[open] > summary::before { content: '▾'; }
+.pg-check__more > summary b { font-weight: 600; color: var(--cg-ink-2); }
+.pg-check__more > summary span { color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-check__more > summary:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 2px; border-radius: 4px; }
 
 /* R20 P14b1: a site's own card in a shared section («Аккаунты», the sign-in screen) */
 .pg-sitecard { position: relative; }

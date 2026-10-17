@@ -154,7 +154,8 @@ describe('the extension pages wired: the popup and the settings of the installed
     const tab = await settingsTab();
     await browser.waitUntil(async () => (await browser.getUrl()).endsWith('options.html#account:CG-AUTH-REQUIRED'), { timeout: 10_000, timeoutMsg: 'the settings tab is not at «Аккаунт»' });
     const shown = await waitForOptions((state) => state.gate, 'the sign-in screen');
-    expect(shown.checklist).toHaveLength(8);
+    // X49: the chatter's three steps and the team lead's four under «Ещё».
+    expect(shown.checklist).toHaveLength(7);
     // The person wandered off to another address of the page; the popup's button brings the same tab back.
     await browser.execute(() => {
       location.hash = '#hotkeys';

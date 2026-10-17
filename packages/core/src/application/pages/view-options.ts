@@ -62,9 +62,16 @@ function saveState(model: PagesModel): SaveStateVM {
 const open = (section: SettingsSection): UiAction => ({ type: 'OpenSettings', route: { section } });
 
 /**
- * The first-run checklist: the eight steps of §9.9, each with what is known
- * about it now. It stands on the sign-in screen too — the first run starts
- * there, with «Дать права на хосты», «Войти в хаб» and the consent still to
+ * The steps of the first run a chatter does (decision X49, as the old Fansly extension's three): the site's access,
+ * the sign-in, the site open. The others are the team lead's — the persona, the binding, the consent, the sound and
+ * the keys — and fold under «Ещё» (`more`). «Установить расширение» is not a step: a page of the extension is open.
+ */
+const CHATTER_STEPS: readonly OnboardingStep[] = ['host-permission', 'sign-in', 'open-chatspace'];
+
+/**
+ * The first-run checklist: the steps of §9.9 but the install, each with what is known
+ * about it now — the chatter's three first, the team lead's under «Ещё» (X49). It stands on the sign-in screen too —
+ * the first run starts there, with «Дать права на хосты» and «Войти в хаб» still to
  * do; a step that needs a sign-in has no action until there is one.
  */
 export function checklistOf(model: PagesModel): OptionsVM['checklist'] {
@@ -94,11 +101,13 @@ export function checklistOf(model: PagesModel): OptionsVM['checklist'] {
     if (action.type !== 'RequestPermission') return 'common.go';
     return action.kind === 'data-collection' ? 'settings.status.consentAsk' : 'settings.account.grantAccess';
   };
+  const step = (id: OnboardingStep): NonNullable<OptionsVM['checklist']>['steps'][number] => {
+    const fact = facts[id];
+    const action = fact.done || fact.action === null ? null : button(actionLabel(fact.action), fact.action);
+    return { id, label: msg(fact.label), done: fact.done, action, ...(CHATTER_STEPS.includes(id) ? {} : { more: true as const }) };
+  };
   return {
-    steps: ONBOARDING_STEPS.map((id) => {
-      const fact = facts[id];
-      return { id, label: msg(fact.label), done: fact.done, action: fact.done || fact.action === null ? null : button(actionLabel(fact.action), fact.action) };
-    }),
+    steps: [...CHATTER_STEPS, ...ONBOARDING_STEPS.filter((id) => id !== 'install' && !CHATTER_STEPS.includes(id))].map(step),
     dismiss: { type: 'SetPreference', key: 'onboarding.checklistDismissed', value: true },
   };
 }

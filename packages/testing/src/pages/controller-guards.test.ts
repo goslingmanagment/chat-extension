@@ -748,11 +748,10 @@ describe('the first run (ST-012)', () => {
     expect(options(w, 'status').view.s).toBe('forbidden');
     const checklist = options(w, 'status').checklist;
     expect(checklist?.steps.map((entry) => [entry.id, entry.done])).toEqual([
-      ['install', true],
       ['host-permission', false],
       ['sign-in', false],
-      ['persona', false],
       ['open-chatspace', false],
+      ['persona', false],
       ['binding', false],
       ['consent', false],
       ['sound-hotkeys', false],
