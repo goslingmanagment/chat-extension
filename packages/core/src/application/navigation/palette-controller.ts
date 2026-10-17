@@ -284,7 +284,7 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
     }
     rows.push(
       item('action.spenders', text({ key: 'palette.item.spenders' }), { type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } }, { hotkey: hotkeyOf(catalog.entry('spenders').hotkey) }),
-      item('action.newcomers', text({ key: 'palette.item.newcomers' }), { type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } }),
+      item('action.newcomers', text({ key: 'palette.item.newcomers' }), { type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } }, { hotkey: hotkeyOf(catalog.entry('newcomers').hotkey) }),
       item('action.cheatsheet', text({ key: 'palette.item.cheatsheet' }), { type: 'Navigate', to: { kind: 'surface', surface: 'cheatsheet', open: true } }, { hotkey: hotkeyOf(catalog.entry('cheatsheet').hotkey) }),
       item('action.settings', text({ key: 'palette.item.settings' }), { type: 'OpenSettings', route: { section: 'status' } }, { hotkey: hotkeyOf(catalog.entry('settings').hotkey) }),
     );

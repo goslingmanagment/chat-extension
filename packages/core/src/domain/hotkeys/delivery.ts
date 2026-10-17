@@ -7,8 +7,8 @@
 //   browser has an action of its own on them, `delivered` where it has none;
 // - plain keys (J, K, `]`, `?`, Esc) always reach the page — `delivered`;
 // - the rows this client adds on ⌘/Ctrl (⌘K, ⌘U, Ctrl+,), the Alt fallback of
-//   ⌘U and the chat slots Alt+1–9 (X45: ⌘/Ctrl+1–9 are Firefox's tab keys
-//   again, not ours) are `unverified` until somebody presses them in a real Firefox
+//   ⌘U, the chat slots Alt+1–9 (X45: ⌘/Ctrl+1–9 are Firefox's tab keys
+//   again, not ours) and «Новые» on ⌘⇧U / Ctrl+Alt+U (X49) are `unverified` until somebody presses them in a real Firefox
 //   on winpc and the Mac: the headless e2e proves only that the page gets a
 //   synthetic key, never that the browser or the OS gives up a real one;
 // - ⌘, on macOS is Firefox's own «Settings…» item of the application menu
@@ -39,6 +39,7 @@ export const DELIVERY_KEYS: readonly DeliveryKey[] = [
   'split',
   'spenders',
   'coach',
+  'newcomers',
   'palette',
   'cheatsheet',
   'settings',
@@ -66,6 +67,8 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     split: 'delivered',
     spenders: 'delivered',
     coach: 'delivered',
+    // ⌘⇧U (X49): nothing of Firefox's on it, by its key table; nobody has pressed it in a real Firefox yet.
+    newcomers: 'unverified',
     palette: 'unverified',
     cheatsheet: 'delivered',
     settings: 'reserved',
@@ -93,6 +96,8 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     split: 'delivered',
     spenders: 'delivered',
     coach: 'delivered',
+    // Ctrl+Alt+U (X49): nothing of Firefox's on it; not pressed by hand yet.
+    newcomers: 'unverified',
     palette: 'unverified',
     cheatsheet: 'delivered',
     settings: 'unverified',

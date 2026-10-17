@@ -21,14 +21,14 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
   const REPLY = ['Reply+key', ...TONES, 'Split+key'];
   const FOUR = [...REPLY, ...keyed(['Fix', 'Hi', 'Ping'])];
   const SEVEN = [...FOUR, ...keyed(['Review', 'Recap', 'Coach'])];
-  const WINDOWS = ['Spenders+key', 'Новые'];
+  const WINDOWS = ['Spenders+key', 'Новые+key'];
   const caps = (id: string): Promise<readonly string[]> => browser.execute((state) => [...(window.__dock?.caps(state) ?? [])], id);
 
   it('[UI-002] [UI-006] [UI-009] [AI-002] [NEW-01] 853 px: Reply with its capsule, the six other actions, Spenders and «Новые» — every tone and both windows one click away; the quota is a count over Reply\'s corner', async () => {
     await open('theme=light&lang=ru&w=853');
     await captureWindow('dock-bar-light-ru-w853');
     expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
-    expect(await caps('1a')).toEqual(['⌘E', '⌘⇧L', '⌘I', '⌘G', '⌘P', '⌘⇧B', '⌘⇧S', '⌘⇧C', '⌘⇧M']);
+    expect(await caps('1a')).toEqual(['⌘E', '⌘⇧L', '⌘I', '⌘G', '⌘P', '⌘⇧B', '⌘⇧S', '⌘⇧C', '⌘⇧M', '⌘⇧U']);
     // The capsule is a groove: the tones are emoji cells, Split is its glyph alone below 900 px.
     expect(await shown('1a', '.cg-tones .cg-tone__e')).toEqual(['😌', '😏', '💰', '🔥']);
     expect((await box('1a', '.cg-split'))?.width).toBe(26);
@@ -81,7 +81,7 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     await open('theme=dark&lang=ru&w=853&os=win');
     await captureWindow('dock-bar-dark-ru-win-w853');
     expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
-    expect(await caps('1a')).toEqual(['Ctrl+E', 'Ctrl+Alt+L', 'Ctrl+I', 'Ctrl+G', 'Ctrl+P', 'Ctrl+Alt+B', 'Ctrl+Alt+S', 'Ctrl+Alt+C', 'Ctrl+Alt+M']);
+    expect(await caps('1a')).toEqual(['Ctrl+E', 'Ctrl+Alt+L', 'Ctrl+I', 'Ctrl+G', 'Ctrl+P', 'Ctrl+Alt+B', 'Ctrl+Alt+S', 'Ctrl+Alt+C', 'Ctrl+Alt+M', 'Ctrl+Alt+U']);
     expect((await health()).problems).toEqual([]);
     for (const width of [1000, 693, 548, 489, 360, COLUMN]) {
       await open(`theme=dark&lang=ru&w=${width}&os=win`);
@@ -165,7 +165,7 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     await open('theme=light&lang=ru&w=489');
     expect((await measure('1a'))?.buttons).toEqual([...FOUR, 'Ещё']);
     // 1d is the same bar with «Ещё» pressed: the five live in its menu, with their keys.
-    expect(await shown('1d', '.cg-menu [role="menuitem"]')).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C', 'Spenders⌘⇧M', 'Новые']);
+    expect(await shown('1d', '.cg-menu [role="menuitem"]')).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C', 'Spenders⌘⇧M', 'Новые⌘⇧U']);
     // «Ещё» stands for Recap here: its point is on «Ещё».
     expect(await shown('1b', '.cg-slot--more .cg-badge')).toHaveLength(1);
     expect(await shown('1b', '.cg-slot--reply .cg-quota')).toEqual(['12']);
@@ -208,7 +208,7 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
       const items = await shown('1d', '.cg-menu [role^="menuitem"]');
       // From 500 px every chip is on the bar (words or icons): there is no «Ещё» to open.
       if (width >= 500) expect(items).toEqual([]);
-      else expect(items).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C', 'Spenders⌘⇧M', width > 600 ? 'Новые' : 'New']);
+      else expect(items).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C', 'Spenders⌘⇧M', width > 600 ? 'Новые⌘⇧U' : 'New⌘⇧U']);
       expect((await health()).problems).toEqual([]);
       if (items.length === 0) continue;
       const menu = await box('1d', '.cg-menu');

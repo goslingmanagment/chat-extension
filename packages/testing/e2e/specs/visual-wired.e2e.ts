@@ -579,7 +579,7 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       this.timeout(240_000);
       await leaveField();
       await browser.keys([MOD, 'k']);
-      await pressOurs('modal', '.cg-pal__item', /^Новые$/, 'the «Новые» row of the palette', 20_000);
+      await pressOurs('modal', '.cg-pal__item', /^Новые(?:\s*(?:⌘⇧U|Ctrl\+Alt\+U))?$/, 'the «Новые» row of the palette (its key since X49)', 20_000);
       await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nc' });
       await look('board-05-newcomers', { check: async () => void (await inWindow('modal', '.cg-nc')) });
       await ours('modal', '.cg-nc [data-cg-key]').click();

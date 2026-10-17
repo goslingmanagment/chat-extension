@@ -6,12 +6,18 @@
 // name and no countdown (ui-design §12 п. 5). Hi is one variant split into
 // parts; each part goes out by its own click, and the progress «отправлено N
 // из M» is the model's.
+//
+// The keyboard (decision X49, as the old Fansly extension's window): the
+// window opens on the first fan who can be greeted now, with that fan's card;
+// J / K and ↑ ↓ walk the rows and the card follows once the keys stop; Enter
+// on a row is its greeting — Hi when the card has nothing yet, the result's
+// first part when it has. «Отправить» stays a click: no key sends.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
-import { type GreetingStatusVM, type I18n, type NewcomerRowVM, type NewcomersTab, type NewcomersVM, type UiAction } from '@cg/contracts/vm';
+import { type GreetingStatusVM, type I18n, type NewcomerRowVM, type NewcomersTab, type NewcomersVM, type PreviewVM, type UiAction } from '@cg/contracts/vm';
 
 import {
   Boundary,
@@ -19,6 +25,7 @@ import {
   Dialog,
   Dot,
   Icon,
+  KeysFooter,
   Menu,
   MenuAnchor,
   OverlayLayer,
@@ -27,6 +34,7 @@ import {
   Tabs,
   ViewState,
   VirtualList,
+  focusQuietly,
   isComposing,
   menuTriggerKeys,
   rovingIndex,
@@ -39,13 +47,31 @@ import {
   useView,
   type MenuItem,
 } from '../kit';
+import { generateAction } from '../spenders/preview/MiniStrip';
 import { Preview } from '../spenders/preview/Preview';
-import { rowKeyOf, useRowFocus } from '../spenders/rowFocus';
+import { rowKeyOf, useCardFollow, useRowFocus } from '../spenders/rowFocus';
 import { DataFooter, FilterChip, WindowHeader, coverageWord, isPlainKey, isTextEntry } from '../spenders/window';
 
 const ROW_HEIGHT = 52;
 const HEADER_HEIGHT = 28;
 const LOAD_MORE_MARGIN = 20;
+/** A fan who can be greeted now: nobody has greeted or holds them, or the lease is ours. */
+const ACTIONABLE: readonly GreetingStatusVM['s'][] = ['none', 'claim-mine'];
+
+/** The row the window opens on (X49): the first fan who can be greeted now, else the first row. */
+export function firstActionable(rows: readonly NewcomerRowVM[]): NewcomerRowVM | null {
+  return rows.find((row) => ACTIONABLE.includes(row.greeting.s)) ?? rows[0] ?? null;
+}
+
+/**
+ * Enter on a row of the card's fan (X49): Hi when the card has no result yet and Hi can run, nothing to start
+ * otherwise (the result is there, or Hi is off with its reason). Never a send, never an insert.
+ */
+export function greetingStart(card: PreviewVM): UiAction | null {
+  if (card.result !== null) return null;
+  const hi = card.bar.actions.hi;
+  return hi !== undefined && hi.enabled && !hi.busy ? generateAction(card, 'hi') : null;
+}
 
 const KIND_KEYS: Readonly<Record<NewcomerRowVM['kind'], I18nKey>> = {
   new: 'newcomers.kind.new',
@@ -211,6 +237,8 @@ export function NewcomersWindow(): JSX.Element {
   const dispatch = useDispatch();
   const { root } = useKit();
   const vm = useView({ of: 'newcomers' }).value;
+  // The card's model, read only when Enter asks for it: the list does not render with every chunk of a greeting.
+  const card = useView({ of: 'preview', from: 'newcomers' });
   // «14 мин», «2 ч» move with the clock.
   useMinuteClock(vm.rows.length > 0);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -219,7 +247,7 @@ export function NewcomersWindow(): JSX.Element {
   const rows = vm.rows;
   // The keyboard's row is a fan, remembered by its handle and never by its place: the list changes under the
   // person (a new subscriber on top, a fan greeted and gone from «К обработке») and the row stays on its fan.
-  const [activeHandle, setActiveHandle] = useState<string | null>(() => (rows.find((row) => row.selected) ?? rows[0])?.handle ?? null);
+  const [activeHandle, setActiveHandle] = useState<string | null>(() => (rows.find((row) => row.selected) ?? firstActionable(rows))?.handle ?? null);
   const current = useMemo(() => {
     const at = activeHandle === null ? -1 : rows.findIndex((row) => row.handle === activeHandle);
     // Its fan left the list: back to the selected row, else the first.
@@ -233,6 +261,9 @@ export function NewcomersWindow(): JSX.Element {
   const focusCurrent = useCallback((): void => {
     if (currentHandle !== null) focusRow(current, currentHandle);
   }, [current, currentHandle, focusRow]);
+
+  // The card that follows J / K, once the keys stop.
+  const cardFollow = useCardFollow((handle) => void dispatch(openCard(handle)));
 
   const close = useCallback((): void => {
     // Esc in turn: the search, the card, the window.
@@ -248,15 +279,24 @@ export function NewcomersWindow(): JSX.Element {
     cardWasOpen.current = vm.cardOpen;
   }, [vm.cardOpen, focusCurrent]);
 
-  // The window opens on the selected row, or the first — also when the rows arrive later, unless the person
-  // has moved focus meanwhile.
+  // The window opens on the selected row; with no card open, on the first fan who can be greeted now, and with that
+  // fan's card (X49: as the old Fansly extension's window) — also when the rows arrive later, unless the person has
+  // moved focus meanwhile. Opening a card reads the hub only: no lease, no chat of the site.
   const hasRows = rows.length > 0;
   const openedOn = useRef<Element | null | undefined>(undefined);
   useLayoutEffect(() => {
     const first = openedOn.current === undefined;
     const box = frameRef.current?.closest<HTMLElement>('.cg-dialog') ?? null;
     const focused = root.activeElement;
-    if (hasRows && (first || focused === openedOn.current || focused === null || focused === box)) focusCurrent();
+    if (hasRows && (first || focused === openedOn.current || focused === null || focused === box)) {
+      const pick = vm.cardOpen ? null : firstActionable(rows);
+      if (pick === null) focusCurrent();
+      else {
+        setActiveHandle(pick.handle);
+        focusRow(rows.indexOf(pick), pick.handle);
+        void dispatch(openCard(pick.handle));
+      }
+    }
     if (first) openedOn.current = root.activeElement;
     // Only when rows first appear.
   }, [hasRows]);
@@ -277,6 +317,27 @@ export function NewcomersWindow(): JSX.Element {
     if (row === undefined || to === from) return;
     setActiveHandle(row.handle);
     focusRow(to, row.handle);
+    // An open card follows the keyboard's row, once the keys stop (X49).
+    if (vm.cardOpen) cardFollow.follow(row.handle);
+  };
+
+  /** Enter on a row (X49): the fan's card first; on the card's own fan, Hi — or, with a result there, its first part. */
+  const greet = (row: NewcomerRowVM): void => {
+    cardFollow.stop();
+    const shown = card.peek();
+    if (!vm.cardOpen || shown.handle !== row.handle) {
+      void dispatch(openCard(row.handle));
+      return;
+    }
+    const start = greetingStart(shown);
+    if (start !== null) {
+      void dispatch(start);
+      return;
+    }
+    // Nothing to start: the result's first part takes the focus (Enter there is «Открыть и вставить»), or Hi, whose
+    // tooltip says why it is off. «Отправить» never does: it is a click.
+    const pane = frameRef.current?.querySelector<HTMLElement>('.cg-pv') ?? null;
+    focusQuietly(pane?.querySelector<HTMLElement>('[data-cg-part][tabindex="0"]') ?? pane?.querySelector<HTMLElement>('[data-cg-strip="hi"] button') ?? null);
   };
 
   const onListKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
@@ -301,8 +362,14 @@ export function NewcomersWindow(): JSX.Element {
       move(at, edge);
       return;
     }
-    if (event.code === 'Enter' || event.code === 'NumpadEnter' || event.code === 'Space') {
+    if (event.code === 'Enter' || event.code === 'NumpadEnter') {
       event.preventDefault();
+      greet(row);
+      return;
+    }
+    if (event.code === 'Space') {
+      event.preventDefault();
+      cardFollow.stop();
       void dispatch(openCard(row.handle));
     }
   };
@@ -316,6 +383,13 @@ export function NewcomersWindow(): JSX.Element {
   };
 
   const showList = hasRows && vm.view.s !== 'error' && vm.view.s !== 'forbidden' && vm.view.s !== 'empty';
+  // The window's own keys (X49), as the Spenders board's footer says its own: none of them sends.
+  const keyHints = [
+    { keys: 'J / K', label: i18n.t('spenders.keys.row') },
+    { keys: '↵', label: i18n.t('dock.action.hi') },
+    { keys: '/', label: i18n.t('cheatsheet.row.search'), optional: true },
+    { keys: 'Esc', label: i18n.t('common.close') },
+  ];
   const footer = i18n.t('newcomers.footer', { n: vm.footer.count, window: windowText(i18n, vm.windowHours), coverage: coverageWord(i18n, vm.footer.stamp.coverage) });
 
   return (
@@ -390,6 +464,7 @@ export function NewcomersWindow(): JSX.Element {
                 <p>{i18n.text(vm.hint)}</p>
                 <p>{i18n.text(vm.noAutoSend)}</p>
               </div>
+              {showList ? <KeysFooter hide={null} hints={keyHints} /> : null}
               <DataFooter left={footer} stamp={vm.footer.stamp} />
             </section>
             {vm.cardOpen ? (

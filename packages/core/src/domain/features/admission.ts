@@ -30,7 +30,7 @@ import type { FeatureId } from '@cg/contracts/features';
 import { type I18nKey } from '@cg/contracts/errors';
 import type { AdmissionAction, FeatureCommon, FeatureEntry, FeatureOnHost, FeatureSlice, HotkeyActionId } from '@cg/contracts/features/types';
 import { hasCapability, type Bootstrap, type BootstrapPage, type ClientHubCapability } from '@cg/contracts/hub';
-import { DOCK_CHIP_GROUPS, type ChipVM, type DockActionId, type DockActionVM, type HotkeyLabel, type OverlaySurface, type TargetHandle, type UiAction } from '@cg/contracts/vm';
+import { CATALOG_ACTION_IDS, DOCK_CHIP_GROUPS, type CatalogActionId, type ChipVM, type DockActionId, type DockActionVM, type HotkeyLabel, type OverlaySurface, type TargetHandle, type UiAction } from '@cg/contracts/vm';
 
 import { pageFlagState, type FlagState } from '../ops/flags';
 
@@ -147,7 +147,7 @@ export function dockChips(
   slice: FeatureSlice,
   actions: Readonly<Record<DockActionId, DockActionVM>>,
   handle: TargetHandle | null,
-  keyOf: (action: HotkeyActionId) => HotkeyLabel | null,
+  keyOf: (action: HotkeyActionId | CatalogActionId) => HotkeyLabel | null,
 ): ChipVM[] {
   return Object.entries(slice)
     .flatMap(([id, entry]) => (entry.chip === undefined ? [] : [{ id, entry, chip: entry.chip }]))
@@ -169,8 +169,9 @@ export function dockChips(
       }
       if (entry.kind !== 'board') return [];
       const open: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: id as OverlaySurface, open: true } };
-      return [
-        { id, group, icon, label: { key: `${id}.title` as I18nKey }, hint, action: open, enabled: true, busy: false, active: false, reason: null, hotkey: entry.hotkey === undefined ? null : keyOf(entry.hotkey), badge: null },
-      ];
+      // A board's key: the scheme's row it names (Spenders), else the catalog's own row of the board — «Новые» has one
+      // outside the scheme (decision X49).
+      const key = entry.hotkey ?? ((CATALOG_ACTION_IDS as readonly string[]).includes(id) ? (id as CatalogActionId) : null);
+      return [{ id, group, icon, label: { key: `${id}.title` as I18nKey }, hint, action: open, enabled: true, busy: false, active: false, reason: null, hotkey: key === null ? null : keyOf(key), badge: null }];
     });
 }

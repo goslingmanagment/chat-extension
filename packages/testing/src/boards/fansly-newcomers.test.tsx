@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type NewcomersVM } from '@cg/contracts/vm';
 import { SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
+import { CARD_FOLLOW_MS } from '@cg/ui/newcomers';
 
 import { entry } from '../scenarios/app-client';
 import { flush, keydown, mountBoardSettled, textOf, type MountedBoard } from './harness';
@@ -267,6 +268,37 @@ describe('[host:fansly] «Новые» on Fansly: the window (R20 P10a)', () => 
       field.dispatchEvent(new Event('input', { bubbles: true }));
     });
     expect(board.actions().at(-1)).toEqual({ type: 'SetPreviewDraft', targetHandle: handle, text: 'Hey Tomasz!' });
+  });
+
+  it('[X49] [host:fansly] J / K: the card follows once the keys stop; Enter on the card’s own row is «Сгенерировать» with an empty field, the field otherwise — never a send', async () => {
+    vi.useFakeTimers();
+    const handle = 'pass:00000000-0000-4000-8000-000000000301:800000000000000001';
+    const base = boardScenario('13m');
+    const list = base.views.find((view) => view.selector.of === 'newcomers')?.vm as NewcomersVM;
+    const card = list.pass?.card ?? null;
+    if (card === null || card.greeting === undefined || card.greeting === null) throw new Error('13m has a card with a greeting');
+    const empty = { ...list, pass: { ...(list.pass as NonNullable<NewcomersVM['pass']>), card: { ...card, greeting: { ...card.greeting, text: '', ai: false, canSend: false, canInsert: false } } } };
+    const board = await mountBoardSettled('fansly-newcomers', { ...base, views: base.views.map((view) => (view.selector.of === 'newcomers' ? entry({ of: 'newcomers' }, empty) : view)) });
+    ui = board;
+    const row = (at: number): HTMLElement => board.$$('.cg-fnw__row')[at] as HTMLElement;
+    await flush(() => keydown(row(0), 'Enter', { code: 'Enter' }));
+    expect(board.actions().at(-1)).toEqual({ type: 'Generate', targetHandle: handle, feature: 'hi', options: {} });
+    // J twice: the focus moves at once, one card is asked for once the keys stop.
+    const before = board.actionsOf('OpenPreview').length;
+    await flush(() => keydown(row(0), 'о', { code: 'KeyJ' }));
+    await flush(() => keydown(board.root.activeElement as HTMLElement, 'о', { code: 'KeyJ' }));
+    expect(board.root.activeElement).toBe(row(2));
+    expect(board.actionsOf('OpenPreview').length).toBe(before);
+    await flush(() => vi.advanceTimersByTime(CARD_FOLLOW_MS));
+    expect(board.actionsOf('OpenPreview').slice(before)).toEqual([{ type: 'OpenPreview', targetHandle: row(2).getAttribute('data-cg-key') }]);
+    ui.unmount();
+    // The field has the draft: Enter starts nothing and gives the field the focus; «Отправить →» stays a click.
+    const drafted = await mount('13m');
+    const at = drafted.actions().length;
+    await flush(() => keydown(drafted.$$('.cg-fnw__row')[0] as HTMLElement, 'Enter', { code: 'Enter' }));
+    expect(drafted.actions().slice(at)).toEqual([]);
+    expect(drafted.root.activeElement).toBe(drafted.$('.cg-fnc__field textarea'));
+    expect(drafted.actions().some((action) => action.type === 'SendNewcomerGreeting')).toBe(false);
   });
 
   it('[NF-018] [NF-024] [host:fansly] a refused greeting names its reason — «Не отправлено», the code and its title; «Проверка изменилась — подтвердите черновик»', async () => {

@@ -13,7 +13,8 @@
 //   modal of Fansly's covers it, as it covers Fansly's own page. FBuddy's toasts stand bottom right, our toasts top
 //   right, the vault's entry bottom right: the corner is nobody's.
 // - The glyphs are the dock's own chips' (`bill`, `userPlus`, ui kit Icon.tsx); the key in the tooltip is the
-//   scheme's panel level (⌘⇧M / Ctrl+Alt+M, the vendored key scheme; a test of the stand holds the two together).
+//   scheme's panel level (⌘⇧M / Ctrl+Alt+M, the vendored key scheme; «Новые» ⌘⇧U / Ctrl+Alt+U, its row outside the
+//   scheme on the same modifiers, decision X49; a test of the stand holds them to the tab's catalog).
 
 import type { ClosedHost } from '@cg/host-kit/isolated/hosts';
 
@@ -26,8 +27,11 @@ export const LAUNCHER_TEXT: Readonly<Record<LauncherTarget, { readonly label: st
   newcomers: { label: 'Новые', title: 'Новые фоловеры', aria: 'Открыть «Новые»' },
 };
 
+const isMac = (platform: string): boolean => /mac|darwin|iphone|ipad|ipod/i.test(platform);
 /** ⌘⇧M on a Mac, Ctrl+Alt+M elsewhere: the scheme's `spenders` row at its panel level. */
-export const spendersKeyLabel = (platform: string): string => (/mac|darwin|iphone|ipad|ipod/i.test(platform) ? '⌘⇧M' : 'Ctrl+Alt+M');
+export const spendersKeyLabel = (platform: string): string => (isMac(platform) ? '⌘⇧M' : 'Ctrl+Alt+M');
+/** ⌘⇧U on a Mac, Ctrl+Alt+U elsewhere: «Новые», a row outside the scheme on its panel modifiers (decision X49). */
+export const newcomersKeyLabel = (platform: string): string => (isMac(platform) ? '⌘⇧U' : 'Ctrl+Alt+U');
 
 /** The dock chips' glyphs on the 16 px grid: [element, attributes] per stroke. */
 const GLYPHS: Readonly<Record<LauncherTarget, readonly (readonly [string, Readonly<Record<string, string>>])[]>> = {
@@ -108,7 +112,7 @@ export function drawFanslyLauncher(env: LauncherViewEnv): () => void {
     button.type = 'button';
     button.setAttribute('data-launcher', target);
     button.setAttribute('aria-label', text.aria);
-    button.title = target === 'spenders' ? `${text.title} · ${spendersKeyLabel(env.platform)}` : text.title;
+    button.title = `${text.title} · ${(target === 'spenders' ? spendersKeyLabel : newcomersKeyLabel)(env.platform)}`;
     const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 16 16');
     svg.setAttribute('aria-hidden', 'true');

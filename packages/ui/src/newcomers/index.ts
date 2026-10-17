@@ -9,7 +9,8 @@ import { PREVIEW_STYLES } from '../spenders/preview/Preview';
 import { WINDOW_STYLES } from '../spenders/window';
 import { NEWCOMERS_CSS, NewcomersWindow } from './NewcomersWindow';
 
-export { NewcomersWindow, windowText } from './NewcomersWindow';
+export { NewcomersWindow, firstActionable, greetingStart, windowText } from './NewcomersWindow';
+export { CARD_FOLLOW_MS } from '../spenders/rowFocus';
 
 export const NEWCOMERS_STYLES: StyleSource = { id: 'cg-newcomers', css: NEWCOMERS_CSS };
 
