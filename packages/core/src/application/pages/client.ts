@@ -49,7 +49,7 @@ import {
 import { errorView } from '../../domain/errors';
 import { admission, onPage } from '../../domain/features/admission';
 import { createI18n, createTranslator, resolveLocale, type LiveI18n, type Translator } from '../../domain/i18n';
-import { IDLE, accountKeyOf, aliasesOf, boundPageOf, currentAccountOf, isHostKind, knownAccounts, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
+import { IDLE, accountKeyOf, aliasesOf, boundPageOf, currentAccountOf, isHostKind, knownAccounts, openChatOf, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
 import { type OptionsLocation, type PageAnswer, type PageEnv, type PagePorts, type PageRequestType, type SiteAccountsFacts } from './ports';
 import { hashOfRoute, routeOfHash } from './route';
 import { SettingsWriter, settingsWithPending, type WriteMode, type WriteOutcome } from './settings-writer';
@@ -72,6 +72,15 @@ export const POPUP_NEWCOMERS_WINDOW_HOURS = 48;
 const OPS_REFRESH_MIN_INTERVAL_MS = 2_000;
 /** Bindings of the seen accounts (up to `seenAccountsMax`) are asked this many at a time. */
 export const BINDING_RESOLVE_CONCURRENCY = 8;
+/**
+ * What the persona of a page hangs on and the background could not say yet — a binding it answered
+ * `CG-DATA-NOT-READY` (ChatSpace had not loaded the account's creator id, or the bootstrap was still on its way), or
+ * the open chat's account not among the seen ones — is read again this often while the page is open, at most
+ * `BINDING_RETRY_TRIES` times. Read once, a popup opened in a tab's first seconds on a slow machine said «Не
+ * подключено» until it was opened again (PU-005: CI runs 39055789759 and 39058084537).
+ */
+export const BINDING_RETRY_MS = 1_000;
+export const BINDING_RETRY_TRIES = 30;
 
 /** Runs `task` over `items`, at most `limit` at a time. */
 async function pooled<T>(items: readonly T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
@@ -218,6 +227,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let recheckTimer: unknown = null;
   let pollTimer: unknown = null;
   let opsTimer: unknown = null;
+  let bindingRetryTimer: unknown = null;
+  let bindingRetries = 0;
   let lastFocusCheck = 0;
 
   const report = (scope: string, code: string, error: unknown): void => {
@@ -578,6 +589,35 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     emit();
   }
 
+  /** A binding not answered yet, or the open chat's account not seen yet: the persona cannot be named. */
+  function bindingsPending(): boolean {
+    if (valueOf(session) === null) return false;
+    if ([...bindings.values()].some((slot) => !slot.ok && !slot.error.code.startsWith('CG-BINDING-'))) return true;
+    const chat = openChatOf(model());
+    return chat !== null && !(valueOf(accounts) ?? []).some((entry) => entry.account.host === chat.host && entry.account.hostAccountId === chat.hostAccountId);
+  }
+
+  /** The tab's accounts and the bindings again, a little later, while they are pending (`BINDING_RETRY_MS`). */
+  function scheduleBindingRetry(): void {
+    if (bindingRetryTimer !== null || disposed || (env.page !== 'popup' && env.page !== 'options')) return;
+    if (!bindingsPending()) {
+      bindingRetries = 0;
+      return;
+    }
+    if (bindingRetries >= BINDING_RETRY_TRIES) return;
+    bindingRetries += 1;
+    bindingRetryTimer = timers.set(() => {
+      bindingRetryTimer = null;
+      if (disposed) return;
+      void (async () => {
+        await Promise.all([loadDiagnostics(), loadAccounts(), loadSiteAccounts()]);
+        await loadBindings(false);
+        await loadPopupExtras();
+        scheduleBindingRetry();
+      })();
+    }, BINDING_RETRY_MS);
+  }
+
   /**
    * 1.20.0 (X47): the names of fans the tabs already know — nothing is read anywhere for them. Read when the page
    * opens and again on every `fans.changed`; only the newest answer is applied.
@@ -681,6 +721,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     if (signedIn) {
       await Promise.all([loadBindings(fresh), loadFanLabels(), debugOpen() ? loadDebugExtras() : Promise.resolve()]);
       await loadPopupExtras();
+      scheduleBindingRetry();
     }
   }
 
@@ -1295,7 +1336,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       if (disposed) return;
       disposed = true;
       for (const off of offs.splice(0)) off();
-      for (const timer of [recheckTimer, pollTimer, opsTimer]) if (timer !== null) timers.clear(timer);
+      for (const timer of [recheckTimer, pollTimer, opsTimer, bindingRetryTimer]) if (timer !== null) timers.clear(timer);
       writer.dispose();
       listeners.clear();
     },
