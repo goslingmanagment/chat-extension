@@ -56,6 +56,8 @@ const QUOTE = (label: string) => `my ${label}, in synthetic words`;
 const NAMED = 'Питомцы';
 /** What a fill of `OLD` asks: its labels in note order, then the template's it lacks. */
 const ASKED = ['Имя', 'Локация', 'Возраст', 'Работа', 'Хобби', 'Фетиши', 'Характеристика', 'Медиа', 'График', 'Планы и даты', 'Другое'];
+/** And their values (X43): what stands on each field's own line once the test above added «nights» to «Работа». */
+const VALUES = ['Wayne', 'Флорида (08.2026)', '', 'медбрат; nights', '', '', 'депрессивный чел', '', '', '', ''];
 const tableLabels = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll('dt')].map((item) => item.textContent));
 const quotesUnder = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll(':scope > .cg-notes__cell > [data-notes-quotes] li')].map((item) => item.textContent));
 
@@ -248,7 +250,7 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     await pressIn('.cg-notes__foot button', 'Отмена');
   });
 
-  it('[FX-014] [FX-015] [FX-016] [FX-023] [FX-024] [FS-NOTE-6] «✨ Дополнить из чата»: only the labels reach the hub, with empty values; the empty fields take the answer (marked), the filled ones get additions under them with the fan’s words, «Слова фана» shows the rest, the month stays on its fact, a field the hub named goes «В Другое»; nothing is written before «Сохранить» (R20 P11c, P11b2)', async () => {
+  it('[FX-014] [FX-015] [FX-016] [FX-023] [FX-024] [FS-NOTE-5] [FS-NOTE-6] «✨ Дополнить из чата»: the labels reach the hub with the values of their lines (X43) and nothing else of the note, and the values reach no diagnostics; the empty fields take the answer (marked), the filled ones get the hub’s rewrites under them with the fan’s words, «Слова фана» shows the rest, the month stays on its fact, a field the hub named goes «В Другое»; nothing is written before «Сохранить» (R20 P11c, P11b2)', async () => {
     await waitBody('ready');
     const old = (await noteIds())[3] as string;
     await pressIn(`[data-note-id="${old}"] button`, 'Изменить');
@@ -257,15 +259,20 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     const hubMark = await hub().mark();
     await pressIn('.cg-notes__foot button', '✨ Дополнить из чата');
     await browser.waitUntil(async () => (await readOurs('panel', editor, (node) => node.getAttribute('data-notes-fill'))) === 'done', { timeout: 30_000, timeoutMsg: 'the fill did not end' });
-    // The hub took it (its schema and rules): the questionnaire's labels, then the template's it lacks — the journal keeps
-    // their lengths only —, the group and the fan apart, the depth of HF-6, and no value: one empty one per label (X43).
+    // The hub took it (its schema and rules): the questionnaire's labels, then the template's it lacks, with the values of
+    // their own lines (X43) — the journal keeps their lengths only —, the group and the fan apart, the depth of HF-6; the
+    // line written under «Характеристика» and the free line below are no value and never travel.
     const fills = callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream');
     expect(fills.map((call) => call.status)).toEqual([200]);
     const request = fills[0]?.request as { feature: string; body: Record<string, unknown> };
     expect(request.feature).toBe('fan-notes-fill');
     expect(request.body).toMatchObject({ conversationRef: A.group, fanRef: A.fan, messageCount: 3000, noteFields: ASKED.map((label) => `‹${String(label.length)} chars›`) });
-    expect(request.body['noteValues']).toEqual(ASKED.map(() => '‹0 chars›'));
+    expect(request.body['noteValues']).toEqual(VALUES.map((value) => `‹${String(value.length)} chars›`));
     expect(JSON.stringify(await hub().journal(0))).not.toMatch(/Wayne|Флорида|медбрат|вайб|кастом/);
+    // The values went to the hub's request body alone: the tab's diagnostics name none of them (FS-NOTE-5).
+    const diagnostics = await shift.rpc<DiagnosticsSnapshot>('diagnostics.get');
+    expect(diagnostics.ok).toBe(true);
+    expect(JSON.stringify(diagnostics)).not.toMatch(/Флорида|медбрат|nights|депрессивный|вайб|кастом/);
     // Empty fields took the answer, the template's new lines stand after the last field (the answer named them exactly),
     // then the field the hub named; the filled ones keep theirs. What the Goose wrote is marked.
     expect(await fieldRows(editor)).toEqual([...ASKED, NAMED]);
@@ -281,7 +288,7 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     expect(await quotesUnder(`${editor} [data-notes-field="${NAMED}"]`)).toEqual(['«my synthetic cat»']);
     expect(await readOurs('panel', editor, (node) => [...node.querySelectorAll('[data-notes-suggestion]')].map((item) => item.closest('[data-notes-field]')?.getAttribute('data-notes-field')))).toEqual(['Имя', 'Локация', 'Работа', 'Характеристика']);
     expect(await readOurs('panel', `${editor} [data-notes-field="Работа"] [data-notes-suggestion]`, (node) => [node.querySelectorAll('del').length, node.querySelector('ins')?.textContent])).toEqual([0, FACT]);
-    expect(await readOurs('panel', '[data-notes-fill-line]', (node) => node.textContent)).toBe(`Гусь вписал: Возраст, Хобби, Фетиши, Медиа, График, Планы и даты, Другое, ${NAMED}. Добавки под полями: 4.`);
+    expect(await readOurs('panel', '[data-notes-fill-line]', (node) => node.textContent)).toBe(`Гусь вписал: Возраст, Хобби, Фетиши, Медиа, График, Планы и даты, Другое, ${NAMED}. Правки под полями: 4.`);
     expect(await routes(since)).toEqual([]);
     mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
     for (const theme of ['bright', 'dark'] as const) {
@@ -294,7 +301,7 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     expect(await fieldRows(editor)).toEqual(ASKED);
     expect(await value(`${editor} [data-notes-field="Другое"] textarea`)).toBe(`${FACT}\n${NAMED}: synthetic cat`);
     expect(await quotesUnder(`${editor} [data-notes-field="Другое"]`)).toEqual([`«${QUOTE('Другое')}»`, `${NAMED} — «my synthetic cat»`]);
-    // «Принять» adds to its field, «Не нужно» leaves the field as it was; «Сохранить» writes once.
+    // «Принять» rewrites its field's line, «Не нужно» leaves the field as it was; «Сохранить» writes once.
     await pressIn(`${editor} [data-notes-field="Имя"] [data-notes-suggestion] button`, 'Принять');
     await ours('panel', `${editor} [data-notes-field="Локация"] [data-notes-suggestion] button[aria-label="Не нужно"]`).click();
     expect(await value(`${editor} [data-notes-field="Имя"] textarea`)).toBe(`Wayne\n${FACT}`);
@@ -319,8 +326,11 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     const editor = `[data-notes-editor="${old}"]`;
     await browser.waitUntil(async () => (await readOurs('panel', editor, (node) => node.getAttribute('data-notes-fill'))) === 'done', { timeout: 30_000, timeoutMsg: 'the fill from the read view did not end' });
     expect(callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').map((call) => call.status)).toEqual([200]);
-    // Every field was filled before: the answer waits under them, nothing is written.
+    // Every field was filled before: the answer waits under them, nothing is written. What already holds the hub's fact
+    // was answered `=` (X43): no rewrite under it.
     expect(await readOurs('panel', editor, (node) => node.querySelectorAll('[data-notes-suggestion]').length)).toBeGreaterThan(0);
+    for (const label of ['Имя', 'Возраст']) expect(await oursExists('panel', `${editor} [data-notes-field="${label}"] [data-notes-suggestion]`)).toBe(false);
+    expect(await oursExists('panel', `${editor} [data-notes-field="Локация"] [data-notes-suggestion]`)).toBe(true);
     expect(await readOurs('panel', '.cg-notes__foot', (node) => node.textContent ?? '')).toContain('✨ Дополнить из чата');
     await pressIn('.cg-notes__foot button', 'Отмена');
     await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')), { timeout: 10_000 });

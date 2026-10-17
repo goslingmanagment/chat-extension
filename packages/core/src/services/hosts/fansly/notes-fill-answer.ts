@@ -1,8 +1,10 @@
 // The answer of «✨ Дополнить из чата» (R20 P11b2; FS-NOTE-6; the Fansly extension 2.11.0, `parseFilledFields`, decision 164):
-// the hub's `fan-notes-fill` in its merge mode, asked with one empty value per label (decision X43), read into the
+// the hub's `fan-notes-fill` in its merge mode, asked with the questionnaire's values (decision X43), read into the
 // operation's result. Pure.
 //
-// - One `Label: value` line per asked label, in order: `Label: =` and `Label:` are nothing for that field; a label is
+// - One `Label: value` line per asked label, in order: `Label: =` (the chat adds nothing to what is written) and
+//   `Label:` are nothing for that field, and the words under them are dropped; any other value is the field's value as
+//   the chat makes it — for a filled field, the hub's whole rewrite of it (the panel offers it); a label is
 //   matched as the panel matches labels (trimmed, a list marker dropped, NFC, case-insensitive) and given back as asked.
 // - Up to three `> «…»` lines after a field or a `+` line are the fan's words behind it: guillemets or quotes stripped,
 //   a fourth ignored, one with nothing above it ignored. They are shown, never written into the note.

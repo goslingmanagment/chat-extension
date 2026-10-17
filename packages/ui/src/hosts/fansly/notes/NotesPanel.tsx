@@ -238,7 +238,7 @@ function FillStrip({ client, copy, editor }: Props & { readonly editor: NotesEdi
   );
 }
 
-/** What the fill is doing or did, in a line: «Гусь вписал: Возраст, Хобби. Добавки под полями: 2.» */
+/** What the fill is doing or did, in a line: «Гусь вписал: Возраст, Хобби. Правки под полями: 2. Не хватило места в анкете: Питомцы.» */
 function FillLine({ copy, fill, offered }: { readonly copy: NotesCopy; readonly fill: NotesFillVM; readonly offered: number }): JSX.Element | null {
   const errorText = useErrorText();
   if (fill.status === 'idle') return null;
@@ -247,9 +247,15 @@ function FillLine({ copy, fill, offered }: { readonly copy: NotesCopy; readonly 
       ? copy.filling
       : fill.status === 'failed' && fill.error !== null
         ? `${copy.fillFailed}: ${errorText(fill.error)}`
-        : fill.wrote.length === 0 && offered === 0
+        : fill.wrote.length === 0 && offered === 0 && (fill.unplaced ?? []).length === 0
           ? copy.fillNothing
-          : [fill.wrote.length === 0 ? '' : `${copy.fillWrote} ${fill.wrote.join(', ')}.`, offered === 0 ? '' : `${copy.fillOffers} ${String(offered)}.`].filter(Boolean).join(' ');
+          : [
+              fill.wrote.length === 0 ? '' : `${copy.fillWrote} ${fill.wrote.join(', ')}.`,
+              offered === 0 ? '' : `${copy.fillOffers} ${String(offered)}.`,
+              (fill.unplaced ?? []).length === 0 ? '' : `${copy.fillUnplaced} ${(fill.unplaced ?? []).join(', ')}.`,
+            ]
+              .filter(Boolean)
+              .join(' ');
   return (
     <p class={`cg-notes__fill is-${fill.status}`} role={fill.status === 'failed' ? 'alert' : 'status'} data-notes-fill-line="">
       {fill.status === 'running' ? <Dot kind="pulse" /> : fill.status === 'failed' ? <Dot kind="danger" /> : null}

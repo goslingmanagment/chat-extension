@@ -123,11 +123,11 @@ describe('[host:fansly] the questionnaire’s text, both ways with the Fansly ex
 describe('[host:fansly] «В Другое» (R20 P11b2; the Fansly extension 2.11.0, decision 164)', () => {
   it('[FX-023] a field the Goose named leaves its line and joins «Другое» as one fact; without «Другое» its line becomes one', () => {
     const text = 'Имя: Wayne\nДругое: из Техаса\nПитомцы: кот; собака\n\nпросил кастом';
-    expect(moveFieldToOther(text, 'Питомцы', 'Другое')).toBe('Имя: Wayne\nДругое: из Техаса; Питомцы: кот; собака\n\nпросил кастом');
-    expect(moveFieldToOther('Имя: Wayne\nПитомцы: кот\nВозраст: 41', 'Питомцы', 'Другое')).toBe('Имя: Wayne\nДругое: Питомцы: кот\nВозраст: 41');
+    expect(moveFieldToOther(text, 'Питомцы', 'Другое')).toEqual({ text: 'Имя: Wayne\nДругое: из Техаса; Питомцы: кот; собака\n\nпросил кастом', fact: 'Питомцы: кот; собака' });
+    expect(moveFieldToOther('Имя: Wayne\nПитомцы: кот\nВозраст: 41', 'Питомцы', 'Другое').text).toBe('Имя: Wayne\nДругое: Питомцы: кот\nВозраст: 41');
     // Two fields, one of them «Другое»: still a questionnaire while «Другое» takes the fact.
-    expect(moveFieldToOther('Другое: \nПитомцы: кот', 'Питомцы', 'Другое')).toBe('Другое: Питомцы: кот');
-    expect(moveFieldToOther(text, 'Другое', 'Другое')).toBe(text);
-    expect(moveFieldToOther(text, 'Хобби', 'Другое')).toBe(text);
+    expect(moveFieldToOther('Другое: \nПитомцы: кот', 'Питомцы', 'Другое').text).toBe('Другое: Питомцы: кот');
+    expect(moveFieldToOther(text, 'Другое', 'Другое')).toEqual({ text, fact: null });
+    expect(moveFieldToOther(text, 'Хобби', 'Другое')).toEqual({ text, fact: null });
   });
 });

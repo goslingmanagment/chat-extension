@@ -5,7 +5,7 @@ import { createClient, routeSchemas } from '@kernel/sdk';
 import { BootstrapSchema, HubFrameSchema, type HubStreamRequest, type Target, type AnyStartOp, type SiteOpView, type VoiceScriptStart, type NotesFillStart } from '@cg/contracts';
 import { VoiceScriptStartSchema, FanslyOpViewSchema } from '@cg/contracts/ops-fansly';
 import { createVoiceScript, voiceScriptResult } from '@cg/core/application/hosts/fansly/voice';
-import { mergeNoteFill, noteFillFields } from '@cg/core/application/hosts/fansly/notes';
+import { mergeNoteFill, noteFillRequest } from '@cg/core/application/hosts/fansly/notes';
 import { LocalSpendJournal } from '@cg/core/domain/debug';
 import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
@@ -26,7 +26,7 @@ const B = HUB.fansly.chats.b;
 type Pair = { readonly group: string; readonly fan: string };
 const target = (pair: Pair = A): Target => ({ binding: fanslyBinding, chat: { host: 'fansly-web', hostAccountId: fanslyBinding.hostAccountId, platformFanId: pair.fan }, fanRef: pair.fan, conversationRef: pair.group });
 const voice = (pair: Pair = A, text = 'A synthetic draft.', tone: VoiceScriptStart['tone'] = null): VoiceScriptStart => ({ feature: 'voice-script', target: target(pair), cause: { kind: 'click', actionToken: 'tok_00000000000000000000' }, window: 100, tone, draft: { text, revision: 1, digest: stableDigest(text) } });
-const notes = (pair: Pair = A, fields = ['Name', 'City']): NotesFillStart => ({ feature: 'notes-fill', target: target(pair), cause: voice().cause, window: 3000, fields });
+const notes = (pair: Pair = A, fields = ['Name', 'City'], values?: string[]): NotesFillStart => ({ feature: 'notes-fill', target: target(pair), cause: voice().cause, window: 3000, fields, ...(values === undefined ? {} : { values }) });
 const reply = (pair: Pair = A): AnyStartOp => ({ feature: 'reply', target: target(pair), cause: voice().cause, surface: 'dock', window: 100, tone: null, split: false });
 const admitted = (outcome: Awaited<ReturnType<OpScheduler['start']>>): string => {
   if (outcome.kind !== 'admission' || !outcome.admission.ok) throw new Error(JSON.stringify(outcome));
@@ -222,31 +222,71 @@ describe('[host:fansly] P12a voice-script through the shared admission', () => {
 });
 
 describe('[host:fansly] P11c «✨ Заполнить из чата» through the shared admission', () => {
-  it('[FX-015] [FX-024] [FS-NOTE-6] the labels only, never a value of the note — the hub’s merge mode by one empty value per label (X43); group ≠ fan; the depth by HF-6 — never under 3000, the owner’s deeper setting above it; the answer joins the questionnaire with the fan’s words', async () => {
+  it('[FX-015] [FX-024] [FS-NOTE-6] the labels with the values of their lines — the hub’s merge mode (X43, the owner’s ruling); nothing else of the note; group ≠ fan; the depth by HF-6 — never under 3000, the owner’s deeper setting above it; the answer joins the questionnaire: `=` for what the chat adds nothing to, a rewrite of a filled field, the fan’s words', async () => {
     const h = await harness();
-    const text = 'Имя: Wayne\nРабота: медбрат\nпишет после работы в 23:00\nПитомцы: кот\nВозраст: ';
-    const fields = noteFillFields(text) ?? [];
-    const op = admitted(await h.start({ ...notes(A, fields), window: 5000, force: true }));
+    const text = 'Имя: Wayne\nРабота: медбрат\nпишет после работы в 23:00\nПитомцы: кот\nВозраст: \nХобби: Synthetic fact from the chat.';
+    const asked = noteFillRequest(text);
+    if (asked === null) throw new Error('not a questionnaire');
+    const op = admitted(await h.start({ ...notes(A, asked.fields, asked.values), window: 5000, force: true }));
     await h.finish();
     const request = h.requests.at(-1);
     expect(request?.feature).toBe('fan-notes-fill');
-    expect(request?.body).toMatchObject({ conversationRef: A.group, fanRef: A.fan, noteFields: fields, messageCount: 3000 });
-    expect(request?.body).toMatchObject({ noteFields: ['Имя', 'Работа', 'Питомцы', 'Возраст', 'Локация', 'График', 'Хобби', 'Планы и даты', 'Фетиши', 'Характеристика', 'Медиа', 'Другое'] });
-    expect(request?.body).toMatchObject({ noteValues: fields.map(() => '') });
+    expect(request?.body).toMatchObject({ conversationRef: A.group, fanRef: A.fan, noteFields: asked.fields, messageCount: 3000 });
+    expect(request?.body).toMatchObject({ noteFields: ['Имя', 'Работа', 'Питомцы', 'Возраст', 'Хобби', 'Локация', 'График', 'Планы и даты', 'Фетиши', 'Характеристика', 'Медиа', 'Другое'] });
+    expect(request?.body).toMatchObject({ noteValues: ['Wayne', 'медбрат', 'кот', '', 'Synthetic fact from the chat.', '', '', '', '', '', '', ''] });
     for (const key of ['clientContext', 'liveTextContext', 'draftText']) expect(request?.body).not.toHaveProperty(key);
-    expect(JSON.stringify(request)).not.toMatch(/Wayne|медбрат|пишет|23:00|кот/);
+    // The line written under a field is not its value: it never travels.
+    expect(JSON.stringify(request)).not.toMatch(/пишет|23:00/);
     const view = h.scheduler.siteView(op, 'fansly-web');
     if (view?.result?.kind !== 'note-fields') throw new Error(`no fields: ${JSON.stringify(view)}`);
     expect(view.result.fields.find((field) => field.label === 'Возраст')?.quotes).toEqual(['my Возраст, in synthetic words']);
+    // The fake hub's `=`: nothing for a field that already holds what the chat says.
+    expect(view.result.fields.find((field) => field.label === 'Хобби')).toEqual({ label: 'Хобби', value: '' });
     // The hub's own «+ Питомцы» repeats a label the note has (and so was asked): no field of its own.
     expect(view.result.proposed).toBeUndefined();
     const merged = mergeNoteFill(text, view.result.fields, view.result.proposed);
     expect(merged.wrote).toContain('Возраст');
     expect(merged.sources).toContainEqual({ label: 'Возраст', quotes: ['my Возраст, in synthetic words'] });
+    expect(merged.suggestions.map((suggestion) => [suggestion.label, suggestion.current, suggestion.proposed])).toEqual([
+      ['Имя', 'Wayne', 'Wayne; Synthetic fact from the chat.'],
+      ['Работа', 'медбрат', 'медбрат; Synthetic fact from the chat.'],
+      ['Питомцы', 'кот', 'кот; Synthetic fact from the chat.'],
+    ]);
     h.fake.control({ op: 'config', patch: { limits: { deepMax: 5000 } } });
     await h.refresh();
-    admitted(await h.start({ ...notes(A, fields), window: 5000, force: true }));
+    admitted(await h.start({ ...notes(A, asked.fields, asked.values), window: 5000, force: true }));
     await h.finish();
     expect(h.requests.at(-1)?.body).toMatchObject({ messageCount: 5000 });
+  });
+
+  it('[FX-024] [FS-NOTE-5] the questionnaire’s values reach the hub’s request body and nothing else: no log, no tab event, no stored journal, no spend journal, no hook that feeds diagnostics or client_health', async () => {
+    const SECRET = 'zebra-quartz-7731';
+    const h = await harness();
+    const hooked: unknown[] = [];
+    const record = (name: string) => (...args: unknown[]) => { hooked.push([name, ...args]); return null; };
+    const original = h.deps.hooks;
+    const hooks: NonNullable<OpSchedulerDeps['hooks']> = {
+      settled: record('settled'), recapDone: record('recapDone'), debugInput: record('debugInput'), promptToken: record('promptToken'),
+      usage(feature, usage) { hooked.push(['usage', feature, usage]); original?.usage?.(feature, usage); },
+    };
+    Object.assign(h.deps, { hooks });
+    // The hub answers `=` for the secret: the answer itself does not carry it back.
+    h.fake.control({ op: 'scriptSse', feature: 'fan-notes-fill', responses: [{ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fan-notes-fill') }, { kind: 'frame', frame: { type: 'content_delta', text: 'Name: =\nCity: Rome\n> «I live in Rome»' } }, { kind: 'frame', frame: { type: 'usage', usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, costMicroUsd: 5, costApproximate: false }, providerResponseId: null, cacheHit: false } }, { kind: 'frame', frame: { type: 'done', stopReason: 'end_turn' } }, { kind: 'eof' }] }] });
+    const op = admitted(await h.start(notes(A, ['Name', 'City'], [SECRET, ''])));
+    await h.finish();
+    expect(h.scheduler.siteView(op, 'fansly-web')).toMatchObject({ state: 'done', result: { kind: 'note-fields', fields: [{ label: 'Name', value: '' }, { label: 'City', value: 'Rome' }] } });
+    // Where it goes: the hub's body, once.
+    expect(h.requests.map((request) => request.body.noteValues)).toEqual([[SECRET, '']]);
+    // Nowhere else.
+    expect(h.log.entries.length).toBeGreaterThan(0);
+    expect(JSON.stringify(h.log.entries)).not.toContain(SECRET);
+    expect(JSON.stringify(h.events.events)).not.toContain(SECRET);
+    expect(JSON.stringify([...h.store.data.entries()])).not.toContain(SECRET);
+    expect(JSON.stringify(h.spend.snapshot())).not.toContain(SECRET);
+    expect(JSON.stringify(h.spend.report(h.clock.now()))).not.toContain(SECRET);
+    expect(JSON.stringify(h.done)).not.toContain(SECRET);
+    expect(JSON.stringify(h.scheduler.siteView(op, 'fansly-web'))).not.toContain(SECRET);
+    expect(hooked.map((entry) => (entry as unknown[])[0])).toContain('usage');
+    expect(JSON.stringify(hooked)).not.toContain(SECRET);
   });
 });

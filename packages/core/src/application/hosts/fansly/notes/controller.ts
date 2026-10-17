@@ -16,15 +16,17 @@
 //   over the same text (form.ts): a field typed rewrites its own line, every other line keeps its bytes; «Текстом»
 //   edits it as one text. The Goose's rewrites wait under their field until «Принять» or «Не нужно» (R20 P11c).
 // - «✨ Дополнить из чата» (R20 P11c, P11b2, FS-NOTE-6, fill.ts): the site operation `notes-fill` through the shared
-//   admission (one operation per chat with Reply and the rest, three per tab), with the questionnaire's labels only; its
-//   answer joins the fan's draft — the empty fields filled and marked, the filled ones' additions under them, the
+//   admission (one operation per chat with Reply and the rest, three per tab), with the questionnaire's labels and the
+//   values of their lines (the owner's ruling, X43); its answer joins the fan's draft — the empty fields filled and
+//   marked, the hub's rewrites of filled ones under them, a fact with no place named, the
 //   fields the hub named itself as new lines with «В Другое» — and nothing is written before «Создать» or «Сохранить»,
 //   which waits for the fill; «Остановить» or «Отмена» drop it and its late answer. It also starts from a
 //   questionnaire being read: one press opens it and fills (the Fansly extension 2.12.0). The fan's words behind what
 //   it wrote wait beside the draft for «Слова фана»; a rewrite shows its own.
 // - Every note but a questionnaire shows when it was created (R20 P11b2; the Fansly extension 2.13.0, decision 171): Fansly's
 //   own time, in the chatter's clock; an edit keeps the time read, a new note Fansly answered without one is «now».
-// - A note's text never leaves through here but to the background (FS-NOTE-5): nothing is logged.
+// - A note's text never leaves through here but to the background (FS-NOTE-5), and from there only a fill's values, in
+//   the hub's request body: nothing is logged.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import type { NotesAction, NotesClient, NotesDateVM, NotesEditorVM, NotesFillVM, NotesFormPartVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesQuoteVM, NotesSuggestionVM, NotesTriggerVM } from '@cg/contracts/notes-fansly';
@@ -32,8 +34,8 @@ import type { SiteOpView } from '@cg/contracts/ops';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
-import { mergeNoteFill, noteFillFields, type NoteFillSource } from './fill';
-import { applyFieldSuggestion, diffNoteFacts, moveFieldToOther, noteLabelKey, parseNoteForm, setNoteFieldFacts, splitFactDate, type NoteFieldSuggestion, type NoteFormPart } from './form';
+import { mergeNoteFill, noteFillRequest, type NoteFillSource } from './fill';
+import { appendNoteFact, applyFieldSuggestion, diffNoteFacts, moveFieldToOther, noteLabelKey, parseNoteForm, setNoteFieldFacts, splitFactDate, type NoteFieldSuggestion, type NoteFormPart } from './form';
 import { NOTE_OTHER_LABEL, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
 
 /** «Всегда справа» follows the open chat only once the person stays on it this long (FS-NOTE-3). */
@@ -87,7 +89,12 @@ function formVM(parts: readonly NoteFormPart[], suggestions: readonly NotesSugge
 }
 
 function fillVM(fill: Fill): NotesFillVM {
-  return { status: fill.status, wrote: fill.status === 'done' ? fill.wrote : [], error: fill.status === 'failed' ? fill.error : null };
+  return {
+    status: fill.status,
+    wrote: fill.status === 'done' ? fill.wrote : [],
+    error: fill.status === 'failed' ? fill.error : null,
+    ...(fill.status === 'done' && fill.unplaced.length > 0 ? { unplaced: fill.unplaced } : {}),
+  };
 }
 
 function editorVM(draft: Draft, fillable: boolean): NotesEditorVM {
@@ -153,9 +160,10 @@ export interface NotesPort {
   name(who: NotesWho, name: string, current: CustomName | null): Promise<{ readonly ok: true; readonly customName: CustomName | null } | Failure>;
   /** The page's «Заполнить из чата» is on (the manifest's `notes-fill`: the page's `notesFill`, R20 P11c). */
   fillAllowed(): boolean;
-  /** Start `notes-fill` in the open chat with the questionnaire's labels — never a value of the note (FS-NOTE-5); `view`
+  /** Start `notes-fill` in the open chat with the questionnaire's labels and, index-aligned, their values (the owner's
+   * ruling of 2026-10-17, X43: they go to the hub's request body and nowhere else, FS-NOTE-5); `view`
    * — the operation as read right after its admission: one that ended before (a reopened one) sends no `fansly.ops.done`. */
-  fill(target: NotesTarget, fanId: string, fields: readonly string[]): Promise<{ readonly ok: true; readonly opId: string; readonly view: SiteOpView | null } | Failure>;
+  fill(target: NotesTarget, fanId: string, fields: readonly string[], values: readonly string[]): Promise<{ readonly ok: true; readonly opId: string; readonly view: SiteOpView | null } | Failure>;
   /** «Остановить», «Отмена», a stopped start: the operation is cancelled, its answer never lands. */
   stopFill(opId: string): void;
   /** The person chose a view: the background stores it for every tab. */
@@ -203,7 +211,7 @@ interface Draft {
 type Fill =
   | { readonly status: 'idle' }
   | { readonly status: 'running'; opId: string | null }
-  | { readonly status: 'done'; readonly wrote: readonly string[] }
+  | { readonly status: 'done'; readonly wrote: readonly string[]; readonly unplaced: readonly string[] }
   | { readonly status: 'failed'; readonly error: CgAnyErrorWire };
 
 interface NameState {
@@ -570,8 +578,8 @@ export function createNotesController(port: NotesPort): NotesController {
     const fanId = data.fanRef;
     const draft = drafts.get(fanId);
     if (draft === undefined || draft.saving || draft.fill.status === 'running') return;
-    const fields = noteFillFields(draft.text);
-    if (fields === null) return;
+    const asked = noteFillRequest(draft.text);
+    if (asked === null) return;
     const run: Fill & { status: 'running' } = { status: 'running', opId: null };
     draft.fill = run;
     draft.suggestions = [];
@@ -581,7 +589,7 @@ export function createNotesController(port: NotesPort): NotesController {
     draft.proposed = [];
     emit();
     const under = epoch;
-    const answer = await port.fill(t, fanId, fields).catch(toFailure);
+    const answer = await port.fill(t, fanId, asked.fields, asked.values).catch(toFailure);
     if (disposed || under !== epoch || drafts.get(fanId) !== draft || draft.fill !== run) {
       // Stopped or gone while the start was on its way: its operation is not wanted.
       if (answer.ok) port.stopFill(answer.opId);
@@ -622,7 +630,7 @@ export function createNotesController(port: NotesPort): NotesController {
       draft.sources = merged.sources;
       draft.marked = new Set(merged.wrote.map(noteLabelKey));
       draft.proposed = merged.proposed;
-      draft.fill = { status: 'done', wrote: merged.wrote };
+      draft.fill = { status: 'done', wrote: merged.wrote, unplaced: merged.unplaced };
     } else draft.fill = view.state === 'canceled' ? { status: 'idle' } : { status: 'failed', error: view.error ?? { code: 'CG-OUTPUT-UNUSABLE' } };
     if (draft.problem?.kind === 'empty' || draft.problem?.kind === 'too-long') draft.problem = null;
     emit();
@@ -687,12 +695,19 @@ export function createNotesController(port: NotesPort): NotesController {
         if (draft === undefined) return;
         draft.sourcesOpen = action.open;
         return emit();
-      case 'to-other':
+      case 'to-other': {
         if (draft === undefined || draft.saving || draft.fill.status === 'running' || !draft.proposed.some((label) => noteLabelKey(label) === noteLabelKey(action.label))) return;
-        draft.text = moveFieldToOther(draft.text, action.label, NOTE_OTHER_LABEL);
+        const { text, fact } = moveFieldToOther(draft.text, action.label, NOTE_OTHER_LABEL);
+        draft.text = text;
+        // A rewrite of «Другое» waiting under it keeps applying: the moved fact is on both of its sides (decision 164).
+        if (fact !== null) {
+          const otherKey = noteLabelKey(NOTE_OTHER_LABEL);
+          draft.suggestions = draft.suggestions.map((suggestion) => (noteLabelKey(suggestion.label) === otherKey ? { ...suggestion, current: appendNoteFact(suggestion.current, fact), proposed: appendNoteFact(suggestion.proposed, fact) } : suggestion));
+        }
         draft.proposed = draft.proposed.filter((label) => noteLabelKey(label) !== noteLabelKey(action.label));
         draft.marked.add(noteLabelKey(NOTE_OTHER_LABEL));
         return emit();
+      }
       case 'fill':
         void startFill();
         return;

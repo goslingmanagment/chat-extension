@@ -70,23 +70,27 @@ const TEXTS: Readonly<Record<string, { readonly single: string; readonly split: 
 };
 
 /** What the fake's `fan-notes-fill` writes. Labels-only mode (no `noteValues`, the released 2.10.1 and older): one
- * `Label: value` line per label. Merge mode (R20 P11b2): each value followed by a quote of the fan, «График» with the
- * month the fan said it, then one field the hub names itself — the shape of the hub's merge answer. */
+ * `Label: value` line per label. Merge mode (R20 P11b2; values since X43): an empty field gets the fact, a filled one
+ * the hub's rewrite of it — its value, then the fact —, one that already holds the fact `Label: =` (the chat adds
+ * nothing); each value followed by a quote of the fan, «График» with the month the fan said it, then one field the hub
+ * names itself — the shape of the hub's merge answer. */
 export const NOTES_FILL_FAKE = {
   fact: 'Synthetic fact from the chat.',
   quote: (label: string) => `my ${label}, in synthetic words`,
   month: '10.2026',
   proposed: { label: 'Питомцы', value: 'synthetic cat', quote: 'my synthetic cat' },
+  unchanged: '=',
 } as const;
 
-function notesFillText(labels: readonly string[], merge: boolean): string {
+function notesFillText(labels: readonly string[], values: readonly string[] | undefined): string {
   const f = NOTES_FILL_FAKE;
-  if (!merge) return labels.map((label) => `${label}: ${f.fact}`).join('\n');
-  return [
-    ...labels.flatMap((label) => [`${label}: ${f.fact}${label === 'График' ? ` (${f.month})` : ''}`, `> «${f.quote(label)}»`]),
-    `+ ${f.proposed.label}: ${f.proposed.value}`,
-    `> «${f.proposed.quote}»`,
-  ].join('\n');
+  if (values === undefined) return labels.map((label) => `${label}: ${f.fact}`).join('\n');
+  const field = (label: string, value: string): string[] => {
+    if (value.includes(f.fact)) return [`${label}: ${f.unchanged}`];
+    const fact = `${f.fact}${label === 'График' ? ` (${f.month})` : ''}`;
+    return [`${label}: ${value === '' ? fact : `${value}; ${fact}`}`, `> «${f.quote(label)}»`];
+  };
+  return [...labels.flatMap((label, index) => field(label, values[index] ?? '')), `+ ${f.proposed.label}: ${f.proposed.value}`, `> «${f.proposed.quote}»`].join('\n');
 }
 
 /** The synthetic text of one generation, with Split markers only where the hub honours them. */
@@ -98,7 +102,7 @@ export function generationText(request: HubStreamRequest, splitAllFlag: boolean)
     wantsSplit && (feature === 'fast-reply' || feature === 'improve-draft' || (request.capabilities.includes('split-all-v1') && splitAllFlag && ['hi-greeting', 'ping', 'coach-chat'].includes(feature)));
   if (feature === 'fan-summary') return body.summaryMode === 'short' ? '## Short recap\nSynthetic short recap.' : '## Recap\nSynthetic recap of the conversation.\n\n- likes short replies';
   if (feature === 'voice-script') return '[warmly] Hey you, it is lovely to hear from you.';
-  if (feature === 'fan-notes-fill') return notesFillText(body.noteFields ?? [], body.noteValues !== undefined);
+  if (feature === 'fan-notes-fill') return notesFillText(body.noteFields ?? [], body.noteValues);
   if (feature === 'hi-greeting') {
     const variants = ['Hi and welcome!', 'Hey, glad you are here!', 'Welcome in, nice to meet you!'].slice(0, body.variantCount ?? 1);
     return variants.map((variant) => (splitAllowed ? `${variant} ${SPLIT_MARKERS.next} Ask me anything.` : variant)).join(SPLIT_MARKERS.variant);
