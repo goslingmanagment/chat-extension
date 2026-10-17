@@ -143,6 +143,29 @@ capability `send-attribution-v1`, таблица `client_send_attributions`). Ч
 
 Фикстуры: `test/fixtures/hub.ts`, `schemas.ts`, `protocols.ts`.
 
+## 1.16.0 — 2026-10-17 («Заметки» Fansly до старого 2.13.0, R20 P11b2; добавочное)
+
+Первая версия после выпуска 0.3.0: 1.15.0 вышла в нём и своего состава больше не меняет (правило раздела 1.15.0).
+Старые фикстуры проходят без изменений.
+
+### P11b2 — «Заметки» как в старом 2.11–2.13
+
+- `tab-messages-fansly.ts`: у `FanslyNote` — необязательное `createdAtMs` (когда заметку создали: `createdAt` Fansly в
+  секундах → мс, целое > 0; `null` — Fansly его не дал). Правки Fansly не датирует (E171 старого). Фикстуры —
+  `test/fixtures/protocols-fansly.ts` (`fansly.notes.read`).
+- `hub/ai.ts`: в теле `fan-notes-fill` — необязательное `noteValues` (`NoteValuesSchema`): только пустые строки, по одной
+  на метку `noteFields` (иначе отказ до хаба, как и хаб — 400). Его наличие включает режим дополнения хаба: слова фана
+  `> «…»`, месяц у устаревающих фактов, поля `+ Label: value`, правило «один факт — одно поле»; значения заметки
+  по-прежнему не уходят (FS-NOTE-5, решение X43). `HUB_FEATURE_ONLY_FIELDS.noteValues = ['fan-notes-fill']`. Фикстуры —
+  `test/fixtures/hub.ts`, `test/fixtures/ops-fansly.ts` (`FANSLY_OP_REQUEST_FIXTURES`).
+- `ops.ts`, `ops-fansly.ts`: у `NoteFieldValue` — необязательные `quotes` (до 3, по строке до 400 символов), у
+  результата `note-fields` — необязательное `proposed` (поля, названные хабом: с непустым значением, не повторяют
+  спрошенные метки, до 5); `FANSLY_OP_LIMITS.noteQuotesMax`, `.noteQuoteMaxChars`, `.noteProposedMax`. Фикстуры —
+  `FANSLY_OP_RESULT_FIXTURES`.
+- `notes-fansly.ts`: `NotesDateVM` и `NotesPanelVM.dates?` (дата свободной заметки), `NotesPanelVM.fill?` («✨ Дополнить из
+  чата» на читаемой анкете); у поля анкеты — `ai?`, `quotes?`, `proposed?`; у редактора — `sourceCount?`, `sourcesOpen?`,
+  `looseQuotes?` (`NotesQuoteVM`), `proposed?`; действия `fill-note`, `sources`, `suggestion-all`, `to-other`; слова в
+  `NotesCopy`. Только типы.
 ## 1.15.0 — 2026-10-13 (второй сайт: fansly.com, R20, этап 4; добавочное, пока этап открыт)
 
 ### R20 P9e — Spenders на Fansly
