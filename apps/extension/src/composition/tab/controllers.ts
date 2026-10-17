@@ -53,6 +53,8 @@ export interface DraftStore {
 /** What every family gets from the application. */
 export interface TabWorld {
   readonly registrationOf?: (fanId: string, i18n: I18n) => FanPanelVM['registration'];
+  /** 1.20.0: the site's own fan panel stands next to the chat (the adapter's `fanPanelBesideHost`). */
+  readonly fanPanelBesideHost?: true;
   readonly win: Window;
   /** The background's client with `token.issue` behind the gate (client.ts). */
   readonly rpc: ControllerRpc;
@@ -421,7 +423,7 @@ export async function startBoards(
   late.preview = preview;
   dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
-  const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }) });
+  const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
   // R12's order: the preview first — it answers for the parts of its own results.
   const controllers = [preview, spenders, newcomers, fanPanel];

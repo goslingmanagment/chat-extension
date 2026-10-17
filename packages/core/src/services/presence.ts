@@ -33,6 +33,8 @@ export interface TabPresenceReport {
   readonly accounts?: readonly HostAccount[] | undefined;
   /** The account the tab's route is on; absent — a tab from before contracts 1.8.0. */
   readonly routeAccount?: HostAccount | null | undefined;
+  /** 1.20.0: the open chat's fan as the tab names it; null or absent — no name (display only, memory alone). */
+  readonly fanLabel?: string | null | undefined;
 }
 
 export interface TabPresence {
@@ -50,6 +52,8 @@ export interface TabPresence {
    * so `accounts` may hold several. null — the route names none, or the tab did not say (before 1.8.0).
    */
   readonly routeAccount: HostAccountKey | null;
+  /** 1.20.0 (decision X47): the open chat's fan as the tab named it; null — no name. Never stored. */
+  readonly fanLabel: string | null;
   readonly updatedAt: number;
 }
 
@@ -196,6 +200,7 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         // Every report carries the route as it is now (the tab sends it with each); an older tab's report
         // says nothing of it, and nothing is assumed.
         routeAccount: report.routeAccount ? hostAccountKeyOf(report.routeAccount.host, report.routeAccount.hostAccountId) : null,
+        fanLabel: report.chat !== null && typeof report.fanLabel === 'string' && report.fanLabel.trim() !== '' ? report.fanLabel.trim() : null,
         updatedAt: now,
       });
       notify();

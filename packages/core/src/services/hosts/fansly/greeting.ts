@@ -6,7 +6,7 @@
 // - `proof` — what «Сгенерировать» takes of the pass (FS-NEW-7): the checked history's ids, the start, the avatar of the
 //   profile the pass read (FX-018). The generation itself is the tab's: the hub builds it from its own history (X4).
 // - `draft` — the card's field (NF-012): kept per creator (its hub page) and fan in the shared `newcomers.drafts` (5000
-//   characters, 24 hours), merged draft by draft with what the tabs wrote; read without a text, written with one. The
+//   characters, until sent or cleared, at most 7 days), merged draft by draft with what the tabs wrote; read without a text, written with one. The
 //   background holds the revision, so the final check compares the click's with the one now.
 // - `send` — one click (FS-NEW-3): one open action per pass and fan (NF-023: a second click while one runs is
 //   CG-SEND-BUSY); the three admissions (FS-NEW-6): the person's own text and an edited AI result need a history the

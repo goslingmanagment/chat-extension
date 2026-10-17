@@ -66,6 +66,60 @@ describe('popup view model', () => {
     expect(vm.newcomersCount).toBe(3);
   });
 
+  it('[PU-008] the open chat is named by the name the tab already knows; without one, by the id — nothing is read for it (X47)', async () => {
+    const state = workingState();
+    const w = await open({ page: 'popup', state });
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('фан 2002');
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.copyIds.fanId).toBeUndefined();
+    world?.client.dispose();
+    const named = { ...state, fanLabels: [{ chatKey: 'chatspace:1001:2002' as const, label: 'Hubert' }] };
+    const w2 = await open({ page: 'popup', state: named });
+    expect(w2.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('Hubert');
+    // The id is not lost: the name copies it.
+    expect(w2.client.getSnapshot({ of: 'popup' }).chat?.copyIds).toMatchObject({ fanId: '2002', hostAccountId: '1001' });
+    // The names come from the background's memory alone: no hub read, no other fan's data.
+    expect(w2.background.requests('fans.labels')).toEqual([{}]);
+    expect(w2.background.calls.some((call) => call.type === 'fan.card' || call.type === 'fan.dossier')).toBe(false);
+  });
+
+  it('[PU-008] a slow answer of the names (CI run 39000333690): the persona is drawn first with the id, the name follows when the answer lands (X47)', async () => {
+    const state = workingState();
+    state.fanLabels = [{ chatKey: 'chatspace:1001:2002', label: 'Hubert' }];
+    world = pagesWorld({ now: () => clock, page: 'popup', state });
+    const release = world.background.hold('fans.labels');
+    world.client.start();
+    await settle();
+    // What the e2e read on the PC runner: ready, the persona set — and the dialog still by its id.
+    const early = world.client.getSnapshot({ of: 'popup' });
+    expect(early.view.s).toBe('ready');
+    expect(early.persona).toMatchObject({ s: 'set' });
+    expect(early.chat?.fanName).toBe('фан 2002');
+    release();
+    await settle();
+    expect(world.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('Hubert');
+  });
+
+  it('[PU-008] a name the tab tells after the popup opened shows at once: `fans.changed` and a new read, no reopening (X47)', async () => {
+    const w = await open({ page: 'popup' });
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('фан 2002');
+    const seen: string[] = [];
+    w.client.subscribe({ of: 'popup' }, (vm) => seen.push(vm.chat?.fanName ?? ''));
+    w.background.state.fanLabels = [{ chatKey: 'chatspace:1001:2002', label: 'Hubert' }];
+    w.background.emit('fans.changed', {});
+    await settle();
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('Hubert');
+    expect(seen.at(-1)).toBe('Hubert');
+    expect(w.background.requests('fans.labels')).toEqual([{}, {}]);
+    // An answer that comes after a newer one is not applied over it.
+    const release = w.background.hold('fans.labels');
+    w.background.emit('fans.changed', {});
+    w.background.state.fanLabels = [{ chatKey: 'chatspace:1001:2002', label: 'Hubert P.' }];
+    release();
+    w.background.emit('fans.changed', {});
+    await settle();
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('Hubert P.');
+  });
+
   it('[R20-F4] [NEW-01] the count of «Новые» is asked of the hub only where the site’s manifest admits them and names the hub as their source', async () => {
     const asked = (w: PagesWorld): boolean => w.background.calls.some((call) => call.type === 'newcomers.list');
     // ChatSpace: the hub's `audience-new`, under the page's own `newcomers`.
@@ -458,6 +512,10 @@ describe('options: saving (§9.4)', () => {
     expect(w.background.requests('settings.patchRestricted')).toEqual([{ patch: { debug: { enabled: true } }, baseRevision: 7 }]);
     expect(w.background.requests('settings.patch')).toEqual([]);
     expect(options(w, 'diagnostics').body?.journals?.map((entry) => entry.journal)).toEqual(['operations', 'hub-calls', 'send-attempts', 'newcomers-check']);
+    // [DB-022] [DB-027] (1.20.0): turned on, the page asks for this browser's AI spend and «Дополнительно» once.
+    await settle();
+    expect(w.background.requests('usage.local')).toEqual([{ days: 1 }, { days: 7 }]);
+    expect(w.background.requests('account.advanced')).toEqual([{}]);
   });
 });
 
@@ -903,9 +961,14 @@ describe('options: «Статус»', () => {
     expect(await w.client.dispatch({ type: 'CopyReport', scope: 'status' })).toMatchObject({ ok: false, code: 'CG-CLIPBOARD' });
   });
 
-  it('[ST-029] running generations are listed by feature; a page knows a fan only by id', async () => {
+  it('[ST-029] running generations are listed by feature and by the fan\'s name the tabs told; the id where none is known', async () => {
     const w = await open();
     expect(text(w, row(w, 'running')?.note)).toBe('Reply для фана 2003, Recap для фана 2004, Hi для фана 2005.');
+    world?.client.dispose();
+    const state = workingState();
+    const named = await open({ state: { ...state, fanLabels: [{ chatKey: 'chatspace:1001:2003', label: 'Hubert' }, { chatKey: 'chatspace:1001:2005', label: 'Mark' }] } });
+    expect(text(named, row(named, 'running')?.note)).toBe('Reply для Hubert, Recap для фана 2004, Hi для Mark.');
+    expect(options(named, 'status').body?.running.map((op) => op.fanLabel)).toEqual(['Hubert', null, 'Mark']);
     const [first] = options(w, 'status').body?.running ?? [];
     await w.client.dispatch(first?.cancel as UiAction);
     expect(w.background.requests('op.cancel')).toEqual([{ opId: first?.opId }]);
@@ -1341,6 +1404,42 @@ describe('debug pages (§9.3)', () => {
     state.settings = { ...state.settings, debug: { enabled: true, renderTrace: false } };
     return state;
   };
+
+  const spendTotals = (runs: number, cost: number) => ({ runs, inserts: 1, inputTokens: 824, outputTokens: 286, cacheReadTokens: 6000, cacheWriteTokens: 0, costMicroUsd: cost, approximate: false, cacheShare: 6000 / 6824 });
+
+  it('[DB-022] «Расходы AI по функциям»: this browser\'s journal today and 7 days, only in debug mode, never from the hub\'s report (X47)', async () => {
+    const state = debugState();
+    const report = { source: 'local-browser' as const, fromDay: '2026-10-03', toDay: '2026-10-03', total: spendTotals(2, 28_600), byFeature: [{ feature: 'reply', ...spendTotals(2, 28_600) }] };
+    state.localSpend = report;
+    const w = await open({ state });
+    const spend = options(w, 'diagnostics').body?.aiSpend;
+    expect(spend?.periods.map((period) => w.i18n.text(period.label))).toEqual(['Сегодня', '7 дней']);
+    expect(spend?.periods[0]?.rows).toEqual([{ feature: { key: 'dock.action.reply' }, runs: 2, inserts: 1, tokens: `${new Intl.NumberFormat('ru').format(6824)} / 286`, cache: '88 %', cost: '$0.0286' }]);
+    expect(spend?.periods[0]?.total).toMatchObject({ feature: { key: 'settings.diagnostics.aiSpend.total' }, runs: 2, cost: '$0.0286' });
+    expect(w.background.requests('usage.local')).toEqual([{ days: 1 }, { days: 7 }]);
+    // Off: nothing is asked and nothing shows; turning it off drops what was read.
+    world?.client.dispose();
+    const off = await open({ state: { ...state, settings: { ...state.settings, debug: { enabled: false, renderTrace: false } } } });
+    expect(options(off, 'diagnostics').body?.aiSpend ?? null).toBeNull();
+    expect(off.background.requests('usage.local')).toEqual([]);
+  });
+
+  it('[DB-027] «Аккаунт → Дополнительно» in debug mode: the key\'s display prefix, its dates, each site\'s build and contract, the app line (X47)', async () => {
+    const state = debugState();
+    state.advanced = { signIn: { key: 'agh_dev_Zx81kQ…', issuedAt: '2026-10-01T10:00:00.000Z', expiresAt: null }, hosts: [{ host: 'chatspace', build: 'index-p8xPkCj8', contractOk: false }], app: '0.4.3 · Firefox 158 · macos' };
+    const w = await open({ state });
+    const advanced = options(w, 'account').body?.advanced;
+    expect(advanced).toEqual({
+      signIn: { key: 'agh_dev_Zx81kQ…', issuedAt: '2026-10-01T10:00:00.000Z', expiresAt: null },
+      hosts: [{ label: 'ChatSpace', build: 'index-p8xPkCj8', contract: 'broken' }],
+      app: '0.4.3 · Firefox 158 · macos',
+    });
+    expect(w.background.requests('account.advanced')).toEqual([{}]);
+    world?.client.dispose();
+    const off = await open({ state: { ...state, settings: { ...state.settings, debug: { enabled: false, renderTrace: false } } } });
+    expect(options(off, 'account').body?.advanced ?? null).toBeNull();
+    expect(off.background.requests('account.advanced')).toEqual([]);
+  });
 
   it('[DB-007] the prompt snapshot is shown by its token: blocks, the manifest, when it goes; a cut block makes the view partial', async () => {
     const w = await open({ page: 'debug-prompt', state: debugState() });
@@ -1779,7 +1878,7 @@ describe('the page protocol', () => {
     // every scenario above ran through that check. Here: the popup's whole start.
     const w = await open({ page: 'popup' });
     expect([...new Set(w.background.calls.map((call) => call.type))].sort()).toEqual(
-      ['accounts.seen', 'binding.resolve', 'bootstrap.get', 'catalog.get', 'diagnostics.get', 'newcomers.list', 'quota.get', 'session.get', 'settings.get'].sort(),
+      ['accounts.seen', 'binding.resolve', 'bootstrap.get', 'catalog.get', 'diagnostics.get', 'fans.labels', 'newcomers.list', 'quota.get', 'session.get', 'settings.get'].sort(),
     );
   });
 

@@ -4,27 +4,34 @@
 // is shown here and changed only while signed out (ST-042); money of AI is
 // nowhere outside debug.
 
-import { isCgCode, type CgCode } from '@cg/contracts/errors';
+import { type LocalSpendReport } from '@cg/contracts/diagnostics';
+import { isCgCode, type CgCode, type I18nKey } from '@cg/contracts/errors';
 import { HOST_KINDS, HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { SOUND_TONE_IDS, hostAccountKeyOf } from '@cg/contracts/settings';
 import {
   JOURNAL_KINDS,
+  type AccountAdvancedVM,
   type AccountBodyVM,
+  type AiSpendRowVM,
+  type AiSpendVM,
   type AccountsBodyVM,
   type AppearanceBodyVM,
   type DiagnosticsBodyVM,
   type GenerationBodyVM,
   type HostPhrases,
   type HotkeysBodyVM,
+  type Msg,
   type PersonasBodyVM,
   type ReasonVM,
   type SignInVM,
 } from '@cg/contracts/vm';
 
+import { formatMicroUsd } from '../../domain/debug';
 import { hotkeyRows } from './hotkeys';
 import { accountKeyOf, aliasesOf, boundPageOf, boundPageTagOf, button, errorOf, knownAccounts, msg, pageTagOf, personaOfPage, platformNameOf, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
-import { hubState } from './view-status';
+import { siteLabel } from './site-details';
+import { FEATURE_LABEL_KEYS, hubState } from './view-status';
 
 /** Opaque handles: a hub page and a host account, as the controller reads them back. */
 export const pageHandleOf = (pageId: number): string => `page-${String(pageId)}`;
@@ -76,7 +83,48 @@ export function accountBody(model: PagesModel): AccountBodyVM {
     lastDossierSave: null,
     signOut: session === null ? null : button('settings.account.signOut', { type: 'SignOut' }),
     signInAgain: session === null ? null : button('settings.account.signInAgain', { type: 'OpenSettings', route: { section: 'account', code: 'CG-AUTH-REQUIRED' } }),
+    advanced: session === null ? null : advancedVm(model),
   };
+}
+
+/** «Аккаунт → Дополнительно» (DB-027, 1.20.0): debug only, from the background's `account.advanced`. */
+function advancedVm(model: PagesModel): AccountAdvancedVM | null {
+  if (model.effective?.debug.enabled !== true || model.advanced === null) return null;
+  const info = model.advanced;
+  return {
+    signIn: info.signIn,
+    hosts: info.hosts.map((entry) => ({ label: siteLabel(model, entry.host), build: entry.build, contract: entry.contractOk === null ? 'unknown' : entry.contractOk ? 'ok' : 'broken' })),
+    app: info.app,
+  };
+}
+
+const SPEND_FEATURE_KEYS: Readonly<Record<string, I18nKey>> = FEATURE_LABEL_KEYS;
+
+/** One row of «Расходы AI»: the numbers as a person reads them; the cost in the debug notation. */
+function spendRow(model: PagesModel, feature: Msg | string, totals: LocalSpendReport['total']): AiSpendRowVM {
+  const number = new Intl.NumberFormat(model.locale, { maximumFractionDigits: 0 });
+  return {
+    feature,
+    runs: totals.runs,
+    inserts: totals.inserts,
+    tokens: `${number.format(totals.inputTokens + totals.cacheReadTokens + totals.cacheWriteTokens)} / ${number.format(totals.outputTokens)}`,
+    cache: totals.cacheShare === null ? null : `${Math.round(totals.cacheShare * 100)} %`,
+    cost: `${totals.approximate ? '≈' : ''}${formatMicroUsd(totals.costMicroUsd)}`,
+  };
+}
+
+/** «Расходы AI по функциям» (DB-022, 1.20.0): this browser's journal, today and 7 days; debug only. */
+function aiSpendVm(model: PagesModel): AiSpendVM | null {
+  if (model.effective?.debug.enabled !== true || model.localSpend === null) return null;
+  const period = (label: Msg, report: LocalSpendReport): AiSpendVM['periods'][number] => ({
+    label,
+    rows: report.byFeature.map((entry) => {
+      const key = SPEND_FEATURE_KEYS[entry.feature];
+      return spendRow(model, key === undefined ? entry.feature : msg(key), entry);
+    }),
+    total: spendRow(model, msg('settings.diagnostics.aiSpend.total'), report.total),
+  });
+  return { periods: [period(msg('settings.diagnostics.aiSpend.today'), model.localSpend.today), period(msg('settings.diagnostics.aiSpend.week'), model.localSpend.week)] };
 }
 
 export function signInVm(model: PagesModel): SignInVM {
@@ -268,5 +316,6 @@ export function diagnosticsBody(model: PagesModel): DiagnosticsBodyVM {
     clear: button('settings.diagnostics.clear', { type: 'ClearLocalData', confirmed: true }),
     counters: todayCounters(model, null),
     journals: model.effective?.debug.enabled === true ? JOURNAL_KINDS.map((journal) => ({ journal, open: { type: 'Navigate', to: { kind: 'journal', journal } } })) : null,
+    aiSpend: aiSpendVm(model),
   };
 }

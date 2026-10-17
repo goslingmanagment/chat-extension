@@ -3,7 +3,9 @@
 // of ChatSpace's container — who this is and when they were last seen, money
 // by kind, the subscription with the churn risk, ChatSpace's own scores when
 // it already holds them, the bio and lists, the Recap tab, and how old and
-// how complete the data is. With no chat open it says «Выберите чат». It does
+// how complete the data is. Beside a site's own fan panel (ChatSpace 0.195,
+// decision X47) only what that one lacks: the hub's money by kind, the churn
+// risk, the hub's profile by its sections, Recap. With no chat open it says «Выберите чат». It does
 // not hold focus; Esc inside closes it. Avatars are initials: no remote
 // images. A missing source is «—», never a guess.
 
@@ -65,6 +67,7 @@ function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
   const { spent, subscription, host } = vm;
   const mark = unknown(i18n);
   const kinds = (spent?.byKind ?? []).filter((entry) => entry.mills !== 0);
+  const lean = vm.besideHostPanel === true;
   return (
     <>
       <div class="cg-fp__sec">
@@ -98,18 +101,31 @@ function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
               <dd class="cg-num" data-registration-date={vm.registration.at}>{i18n.formatTime(vm.registration.at, 'date')}</dd>
             </>
           )}
-          <Kv label={i18n.t('fanPanel.subscribedLabel')} value={subscription === null ? mark : subscribedText(i18n, subscription)} />
-          <Kv
-            label={i18n.t('fanPanel.autoRenew')}
-            value={subscription === null || subscription.autoRenew === null ? mark : i18n.t(subscription.autoRenew ? 'fanPanel.autoRenew.on' : 'fanPanel.autoRenew.off')}
-          />
+          {/* Beside the site's own panel (X47) its subscription rows are there: only the churn risk is ours. */}
+          {lean ? null : (
+            <>
+              <Kv label={i18n.t('fanPanel.subscribedLabel')} value={subscription === null ? mark : subscribedText(i18n, subscription)} />
+              <Kv
+                label={i18n.t('fanPanel.autoRenew')}
+                value={subscription === null || subscription.autoRenew === null ? mark : i18n.t(subscription.autoRenew ? 'fanPanel.autoRenew.on' : 'fanPanel.autoRenew.off')}
+              />
+            </>
+          )}
           <Kv label={i18n.t('fanPanel.churn')} value={subscription === null || subscription.churnRisk === null ? i18n.t('fanPanel.churn.unknown') : i18n.t(CHURN_KEYS[subscription.churnRisk])} />
           {/* ChatSpace's own estimates, only when it already holds them (D-29): shown as it names them. */}
           {host === null || host.buyingPower === null ? null : <Kv label={i18n.t('fanPanel.buyingPower')} value={host.buyingPower} />}
           {host === null ? null : host.scores.map((score) => <Kv key={score.label} label={score.label} value={score.value} />)}
         </dl>
       </div>
-      {vm.bio === null || vm.bio === '' ? null : (
+      {vm.bio === null || vm.bio === '' ? null : vm.bioBlocks !== undefined && vm.bioBlocks.length > 0 ? (
+        // The hub's profile by its sections, as Recap shows a full one (X47): «Досье», «Психологический портрет»…
+        vm.bioBlocks.map((block, index) => (
+          <div key={`${index}:${block.heading}`} class="cg-fp__sec" data-cg-dossier-block={index}>
+            <div class="cg-fp__cap">{block.heading === '' ? i18n.t('fanPanel.bio') : block.heading}</div>
+            <Markdown source={block.markdown} class="cg-fp__md" />
+          </div>
+        ))
+      ) : (
         <div class="cg-fp__sec">
           <div class="cg-fp__cap">{i18n.t('fanPanel.bio')}</div>
           {/* The hub's profile of the fan is a Markdown document (the saved full Recap); ChatSpace's own «О себе» is plain text. */}

@@ -375,10 +375,23 @@ export const FAN_PANEL_BIO_SAMPLES: { readonly valid: readonly C.FanPanelVM[]; r
     { ...FAN_PANEL_BASE, bio: '## Fan\nLikes short replies.', bioSource: 'hub' },
     { ...FAN_PANEL_BASE, bio: 'Works shifts, writes in the evening.', bioSource: 'host' },
     { ...FAN_PANEL_BASE, registration: { label: 'Регистрация', at: '2024-01-01T00:00:00.000Z' } },
+    // 1.20.0 (X47): the hub's profile in its headed blocks; the lean panel beside a site's own one.
+    {
+      ...FAN_PANEL_BASE,
+      bio: '1. DOSSIER\nLikes hiking.\n\n7. STRATEGY\nAsk about the trip.',
+      bioSource: 'hub',
+      bioBlocks: [
+        { heading: 'Досье', markdown: 'Likes hiking.' },
+        { heading: 'Стратегия', markdown: 'Ask about the trip.' },
+      ],
+    },
+    { ...FAN_PANEL_BASE, besideHostPanel: true },
   ],
   invalid: [
     // @ts-expect-error the source is one of the two, not a free word
     { ...FAN_PANEL_BASE, bio: 'x', bioSource: 'fansMap' } satisfies C.FanPanelVM,
+    // @ts-expect-error a lean panel is said by `true` alone
+    { ...FAN_PANEL_BASE, besideHostPanel: false } satisfies C.FanPanelVM,
   ],
 };
 

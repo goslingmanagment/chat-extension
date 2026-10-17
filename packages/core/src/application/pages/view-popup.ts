@@ -1,4 +1,5 @@
 import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
+import { chatKeyOf } from '@cg/contracts/ids';
 import { siteLabel } from './site-details';
 // The toolbar popup (architecture.md §9.9; ui-design §4.23; PU-001…PU-022):
 // what is connected, who is signed in, which chat is open and how much AI
@@ -86,6 +87,8 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
   const pageName = bound === null ? null : (bound.page?.title ?? bound.binding.pageLabel);
   const persona = bound === null ? null : personaOfPage(model, bound.binding.pageId);
   const chat = session === null ? null : openChatOf(model);
+  // PU-008 «имя фана или id»: the name a tab already knows (1.20.0, X47); the id stays one click away.
+  const fanLabel = chat === null ? undefined : model.fanLabels.get(chatKeyOf(chat));
   const quota = bound === null ? null : (model.quotas.get(bound.binding.pageId) ?? null);
   const debug = model.effective?.debug.enabled === true;
   const platform = ports.catalog?.platform ?? model.env.hotkeyPlatform;
@@ -116,11 +119,11 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
       chat === null
         ? null
         : {
-            // Pages are told no fan names (§5.4): the id is what the popup knows (PU-008 «имя фана или id»).
-            fanName: model.t.text('popup.fanId', { id: chat.platformFanId }),
+            fanName: fanLabel ?? model.t.text('popup.fanId', { id: chat.platformFanId }),
             fanUsername: null,
             hostAccountLabel: model.t.text('popup.dialogAccount', { ...model.env.platformPhrases(HOST_PLATFORM[chat.host])?.[model.locale], id: chat.hostAccountId }),
-            copyIds: { ...(chat.conversationRef === undefined ? {} : { conversationRef: chat.conversationRef, fanId: chat.platformFanId }), hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },
+            // A named fan's id is copied from the name (and its tooltip says it); without a name the id is the text itself.
+            copyIds: { ...(chat.conversationRef === undefined ? (fanLabel === undefined ? {} : { fanId: chat.platformFanId }) : { conversationRef: chat.conversationRef, fanId: chat.platformFanId }), hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },
           },
     quota: bound === null ? null : { remaining: quota?.remainingRequestsToday ?? null, resetsAt: quota?.resetsAt ?? null, low: quota !== null && quota.remainingRequestsToday !== null && quota.remainingRequestsToday <= QUOTA_LOW },
     // Money of AI only in debug (Б4, PU-016); the hub's own number for this person and page.

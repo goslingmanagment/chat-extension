@@ -187,6 +187,11 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let addressWrite: Promise<WriteOutcome> | null = null;
   let newcomers: number | null = null;
   let aiTodayMicroUsd: number | null = null;
+  let fanLabels: ReadonlyMap<string, string> = new Map();
+  let localSpend: PagesModel['localSpend'] = null;
+  let advanced: PagesModel['advanced'] = null;
+  /** The debug extras of the options page were asked for since debug was last turned on (or the person signed in). */
+  let debugExtrasAsked = false;
   const prompts = new Map<string, Slot<TabResponsePayload<'debug.prompt'>>>();
   const journals = new Map<JournalKind, Slot<JournalData>>();
   /** The number of the latest request of each read: only its answer is applied. */
@@ -247,6 +252,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   function syncDebug(): void {
     if (debugOpen()) {
       for (const entry of listeners.values()) if (entry.set.size > 0) ensureLoaded(entry.selector);
+      // Debug turned on after the page's first reading: its extras now (the first reading asks for them itself).
+      if (started && !debugExtrasAsked && check.lastAt !== null && env.page === 'options') void loadDebugExtras();
       return;
     }
     dropDebug();
@@ -255,6 +262,10 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   function dropDebug(): void {
     prompts.clear();
     journals.clear();
+    localSpend = null;
+    advanced = null;
+    debugExtrasAsked = false;
+    readSeq.set('debug-extras', (readSeq.get('debug-extras') ?? 0) + 1);
     for (const [key, seq] of readSeq) if (key.startsWith('prompt:') || key.startsWith('journal:')) readSeq.set(key, seq + 1);
   }
 
@@ -322,6 +333,9 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       systemScheme: ports.systemScheme.value,
       newcomers,
       aiTodayMicroUsd,
+      fanLabels,
+      localSpend,
+      advanced,
       prompts,
       journals,
     };
@@ -437,6 +451,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       quotas = new Map();
       newcomers = null;
       aiTodayMicroUsd = null;
+      fanLabels = new Map();
       if (next !== null) sessionEnd = null;
       // The prompt and the journals of the previous sign-in are not this one's either (§9.3).
       if (!first) dropDebug();
@@ -563,6 +578,34 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     emit();
   }
 
+  /**
+   * 1.20.0 (X47): the names of fans the tabs already know — nothing is read anywhere for them. Read when the page
+   * opens and again on every `fans.changed`; only the newest answer is applied.
+   */
+  async function loadFanLabels(): Promise<void> {
+    if (valueOf(session) === null) return;
+    const generation = sessionGeneration;
+    const seq = (readSeq.get('fan-labels') ?? 0) + 1;
+    readSeq.set('fan-labels', seq);
+    const answer = await ask('fans.labels', {});
+    if (disposed || generation !== sessionGeneration || readSeq.get('fan-labels') !== seq || !answer.ok) return;
+    fanLabels = new Map(answer.payload.fans.map((fan) => [fan.chatKey, fan.label]));
+    emit();
+  }
+
+  /** 1.20.0 (DB-022, DB-027): the options page in debug mode — this browser's AI spend and «Аккаунт → Дополнительно». */
+  async function loadDebugExtras(): Promise<void> {
+    if (env.page !== 'options' || !debugOpen()) return;
+    debugExtrasAsked = true;
+    const seq = (readSeq.get('debug-extras') ?? 0) + 1;
+    readSeq.set('debug-extras', seq);
+    const [today, week, account] = await Promise.all([ask('usage.local', { days: 1 }), ask('usage.local', { days: 7 }), ask('account.advanced', {})]);
+    if (disposed || readSeq.get('debug-extras') !== seq || !debugOpen()) return;
+    localSpend = today.ok && week.ok && today.payload.report !== null && week.payload.report !== null ? { today: today.payload.report, week: week.payload.report } : null;
+    advanced = account.ok ? account.payload.info : null;
+    emit();
+  }
+
   /** The popup's own extras for the page of the open chat: new subscribers, and in debug today's own AI spend. */
   async function loadPopupExtras(): Promise<void> {
     if (env.page !== 'popup') return;
@@ -636,7 +679,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     // What the background says about the connection was read before the hub answered this check: read it again.
     if (force && signedIn) await loadDiagnostics();
     if (signedIn) {
-      await loadBindings(fresh);
+      await Promise.all([loadBindings(fresh), loadFanLabels(), debugOpen() ? loadDebugExtras() : Promise.resolve()]);
       await loadPopupExtras();
     }
   }
@@ -1152,7 +1195,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     if (opsTimer !== null || env.page !== 'options') return;
     opsTimer = timers.set(() => {
       opsTimer = null;
-      void loadOps();
+      // A new operation may name a fan the page has not heard of (1.20.0): the names come along.
+      void Promise.all([loadOps(), loadFanLabels()]);
     }, OPS_REFRESH_MIN_INTERVAL_MS);
   }
 
@@ -1205,6 +1249,10 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         rpc.onEvent('bootstrap.changed', () => void loadBootstrap(false).then(() => loadBindings(true))),
         rpc.onEvent('flags.changed', () => void loadBootstrap(false)),
         rpc.onEvent('catalog.changed', () => void loadCatalog(false)),
+        // A tab named a fan (or another one) after the page read the names: the popup and «Статус» follow at once.
+        rpc.onEvent('fans.changed', () => {
+          if (env.page === 'popup' || env.page === 'options') void loadFanLabels();
+        }),
         rpc.onEvent('quota.changed', (payload) => {
           quotas = new Map(quotas).set(payload.quota.pageId, payload.quota);
           emit();

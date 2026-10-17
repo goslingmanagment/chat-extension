@@ -19,6 +19,7 @@ import { type CoverageLevel } from '@cg/contracts/ops';
 import { type ActionReceipt, type FanPanelVM, type I18n, type PartialGap, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { fanPanelModel } from '../../domain/fanpanel/model';
+import { recapBlocks, recapHeadingText, recapText } from '../../domain/output/recap';
 import { type SpenderRow } from '../../domain/spenders/rows';
 import { coverageLevel } from '../../domain/spenders/stats';
 import { type PageContextPort, flagFailure, pageFlag } from '../boards/context';
@@ -67,6 +68,12 @@ export interface FanPanelControllerDeps {
   readonly rowOf?: (pageId: number, fanRef: string) => SpenderRow | null;
   /** The board's rows changed (it loaded, or was dropped): the panel reads its row again. */
   readonly rowsChanged?: (listener: () => void) => () => void;
+  /**
+   * 1.20.0 (decision X47): the site shows a fan panel of its own next to the chat (ChatSpace 0.195: spend, subscription,
+   * scores, lists, profile). Ours then shows only what that one lacks: the hub's money by kind, the churn risk, the
+   * hub's profile of the fan, Recap.
+   */
+  readonly besideHostPanel?: boolean;
 }
 
 export type FanPanelController = SurfaceController<'fan-panel'>;
@@ -225,6 +232,11 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     }
 
     const registration = pageFlag(ctx, 'registration') ? deps.registrationOf?.(chat.platformFanId, i18n) : undefined;
+    // Beside the site's own panel (X47) ChatSpace's own data is its panel's: no scores, lists or «О себе» of it here.
+    const lean = deps.besideHostPanel === true;
+    const bioSource = lean && model.bioSource === 'host' ? null : model.bioSource;
+    const bio = bioSource === null ? null : model.bio;
+    const blocks = bioSource === 'hub' && bio !== null ? dossierBlocks(bio) : null;
     return {
       ...base,
       view,
@@ -232,12 +244,24 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       ...(registration === undefined ? {} : { registration }),
       spent: model.spent,
       subscription: model.subscription,
-      host: model.host,
-      bio: model.bio,
-      ...(model.bioSource === null ? {} : { bioSource: model.bioSource }),
-      lists: model.lists,
+      host: lean ? null : model.host,
+      bio,
+      ...(bioSource === null ? {} : { bioSource }),
+      ...(blocks === null ? {} : { bioBlocks: blocks }),
+      ...(lean ? { besideHostPanel: true as const } : {}),
+      lists: lean ? [] : model.lists,
       footer: { stamp: stamp(model.asOf, model.coverage), archiveMessages: model.archiveMessages },
     };
+  }
+
+  /** The hub's profile in its headed blocks, its sections named in the reader's language (X47); null — one text. */
+  let dossierMemo: { readonly bio: string; readonly language: string; readonly blocks: NonNullable<FanPanelVM['bioBlocks']> | null } | null = null;
+  function dossierBlocks(bio: string): NonNullable<FanPanelVM['bioBlocks']> | null {
+    if (dossierMemo !== null && dossierMemo.bio === bio && dossierMemo.language === i18n.language) return dossierMemo.blocks;
+    const cut = recapBlocks(recapText(bio));
+    const blocks = cut === null ? null : cut.map((block) => ({ heading: block.heading === '' ? '' : recapHeadingText(block.heading, (key) => i18n.t(key)), markdown: block.markdown }));
+    dossierMemo = { bio, language: i18n.language, blocks };
+    return blocks;
   }
 
   function dispatch(action: UiAction): Promise<ActionReceipt> | null {

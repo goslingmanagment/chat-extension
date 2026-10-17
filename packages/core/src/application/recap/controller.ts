@@ -36,7 +36,7 @@ import {
 
 import { featureGate } from '../../domain/features';
 import { flagRefusal, flagStateOf, isTerminalOpState } from '../../domain/ops';
-import { streamPreview } from '../../domain/output';
+import { recapHeadingText, streamPreview } from '../../domain/output';
 import { latestLength, type RecapCopy } from '../../domain/recap';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
@@ -237,7 +237,8 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       phase: op === null ? null : phaseVm(op.view, now),
       streamText: preview.length > 0 ? preview : null,
       markdown: copy?.markdown ?? null,
-      blocks: copy?.blocks ?? null,
+      // 1.20.0 (X47): the hub's English capitals («1. DOSSIER») in the reader's language.
+      blocks: copy?.blocks?.map((block) => (block.heading === '' ? block : { heading: recapHeadingText(block.heading, (key) => i18n.t(key)), markdown: block.markdown })) ?? null,
       generatedAt: copy?.revision ?? null,
       saved: saveVm(copy),
       stamp: { asOf: point?.at ?? null, coverage: copy?.coverage.level ?? 'unknown' },

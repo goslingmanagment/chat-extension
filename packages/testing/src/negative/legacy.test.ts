@@ -76,7 +76,8 @@ describe('[HB-010] [RB-027] NEG-NO-LOCAL-ARCHIVE', () => {
     // At most ten previews of a hundred messages each — a preview's working set, not a local copy of the archive.
     expect(STORAGE_LIMITS.previewFeeds * STORAGE_LIMITS.previewFeedMessages).toBeLessThanOrEqual(1000);
     expect(OP_LIMITS.resultTtlMs).toBeLessThanOrEqual(60 * 60_000);
-    expect(STORAGE_LIMITS.previewDraftTtlMs).toBeLessThanOrEqual(24 * 60 * 60_000);
+    // A draft of the person's own greeting or preview text: until sent or cleared, at most 7 days (decision X47, 1.20.0).
+    expect(STORAGE_LIMITS.previewDraftTtlMs).toBeLessThanOrEqual(7 * 24 * 60 * 60_000);
     // (`generation.coach.historyLimit` is how many Coach exchanges go to the hub, not a store.)
     expect([...SETTING_PATHS, ...PREFERENCE_KEYS].filter((key) => /offline|cache|archive/i.test(key))).toEqual([]);
   });

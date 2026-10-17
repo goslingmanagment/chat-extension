@@ -53,4 +53,7 @@ export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfi
   ui: () => CHATSPACE_UI,
   // ChatSpace's policy is small and rides here, in its `tab-app`: nothing to load.
   ai: () => CHATSPACE_AI,
+  // ChatSpace 0.195 shows its own fan panel next to the chat (spend, subscription, scores, lists, profile): ours shows
+  // only what it lacks (decision X47).
+  fanPanelBesideHost: true,
 };

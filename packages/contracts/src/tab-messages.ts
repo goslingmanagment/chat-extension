@@ -5,7 +5,7 @@
 // own module (1.15.0: tab-messages-fansly.ts), never imported here.
 
 import * as z from 'zod/mini';
-import { PageDiagnosticsSchema, NetworkSessionSnapshotSchema, FreshnessDaySchema } from './diagnostics';
+import { AccountAdvancedSchema, FreshnessDaySchema, LocalSpendReportSchema, NetworkSessionSnapshotSchema, PageDiagnosticsSchema } from './diagnostics';
 import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
 
 import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
@@ -62,6 +62,9 @@ const PageFan = { pageId: HubIntIdSchema, fanRef: NativeIdSchema };
  * conversation is the fan, as on ChatSpace before 1.15.0. The card, the dossier and the lease are the fan's alone.
  */
 const PageFanConversation = { ...PageFan, conversationRef: z.optional(NativeIdSchema) };
+
+/** 1.20.0: names one `fans.labels` answer carries. */
+export const FAN_LABELS_MAX = 64;
 
 /** Attempts one `send.list` answer carries. */
 export const SEND_LIST_MAX = 100;
@@ -309,6 +312,12 @@ export const TAB_REQUESTS = {
        * from before 1.8.0: its route is not known.
        */
       routeAccount: z.optional(z.nullable(HostAccountSchema)),
+      /**
+       * 1.20.0 (decision X47): the open chat's fan as the tab already names it (the site's header or memory) — for
+       * the popup and «Идут сейчас», display only, kept in the background's memory alone. null — the tab knows no
+       * name; absent — a tab before 1.20.0. Never read from anywhere for this.
+       */
+      fanLabel: z.optional(z.nullable(displayText(256))),
     }),
     res: Ack,
     from: TAB,
@@ -577,6 +586,34 @@ export const TAB_REQUESTS = {
     from: PAGE,
     pages: ['popup', 'options', 'debug-journal'],
   },
+  /**
+   * 1.20.0 (DB-022, decision X47): this browser's own AI spend journal by feature over `days` local days, debug only
+   * (Б4): null while debug is off. «Только этот браузер» — never presented as the person's full spend.
+   */
+  'usage.local': {
+    req: z.strictObject({ days: z.int().check(z.gte(1), z.lte(7)) }),
+    res: z.strictObject({ report: z.nullable(LocalSpendReportSchema) }),
+    from: PAGE,
+    pages: ['options', 'debug-journal'],
+  },
+  /** 1.20.0 (DB-027, decision X47): «Аккаунт → Дополнительно», debug only: null while debug is off or nobody is signed in. */
+  'account.advanced': {
+    req: Empty,
+    res: z.strictObject({ info: z.nullable(AccountAdvancedSchema) }),
+    from: PAGE,
+    pages: ['options'],
+  },
+  /**
+   * 1.20.0 (decision X47): the names of fans the tabs already know — the open chats' (`tab.presence`) and those the
+   * tabs started an operation for (`StartOp.fanLabel`) — for the popup and «Идут сейчас» instead of «фан <id>».
+   * The background's memory alone: nothing is read anywhere for it, nothing is stored, a sign-out empties it.
+   */
+  'fans.labels': {
+    req: Empty,
+    res: z.strictObject({ fans: z.array(z.strictObject({ chatKey: ChatKeySchema, label: displayText(256) })).check(z.maxLength(FAN_LABELS_MAX)) }),
+    from: PAGE,
+    pages: ['popup', 'options'],
+  },
   /** The page saves it through a Blob; no `downloads` permission (§3). */
   'diagnostics.export': {
     req: z.strictObject({ format: z.enum(['json', 'txt']) }),
@@ -690,6 +727,11 @@ export const TAB_EVENTS = {
   /** A newer bootstrap is cached; receivers call `bootstrap.get`. */
   'bootstrap.changed': { payload: z.strictObject({ configRevision: CountSchema, issuedAt: IsoTimestampSchema }), to: ANY },
   'catalog.changed': { payload: Empty, to: ANY },
+  /**
+   * 1.20.0 (decision X47): the names of fans the tabs told the background changed (an open chat's fan was named,
+   * renamed or left, a start named its fan); pages that show names read `fans.labels` again.
+   */
+  'fans.changed': { payload: Empty, to: PAGE },
   'newcomers.changed': { payload: z.strictObject({ pageId: HubIntIdSchema }), to: TAB },
   /** A generation's `meta` moved a page's quota. */
   'quota.changed': { payload: z.strictObject({ quota: AiQuotaSnapshotSchema }), to: ANY },

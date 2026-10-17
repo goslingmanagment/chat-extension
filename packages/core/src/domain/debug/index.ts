@@ -45,13 +45,11 @@ export {
 } from './usage';
 export { OpDebugBuilder, REASONING_MAX_CHARS, ReasoningBuffer, contextCard, type ContextFrame } from './op-debug';
 export {
-  advancedAccountInfo,
   createRenderTrace,
   debugFeatures,
   maskedTail,
   showDebugBlock,
   withDebugCapability,
-  type AdvancedAccountInfo,
   type DebugFeatures,
 } from './mode';
 

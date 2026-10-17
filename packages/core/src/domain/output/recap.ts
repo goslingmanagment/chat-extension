@@ -5,6 +5,8 @@
 // a short one stays one paragraph. Recap is never a message to the fan: no
 // Split, no markers, nothing insertable.
 
+import { type UiTextKey } from '@cg/contracts/i18n/keys';
+
 import { normalizeNewlines } from '../text';
 import { stripThinkBlocks } from './cleanup';
 
@@ -67,4 +69,47 @@ export function recapBlocks(markdown: string): RecapBlock[] | null {
     .map((block) => ({ heading: block.heading, markdown: block.lines.join('\n').trim() }))
     .filter((block) => block.markdown.length > 0);
   return out.length < 2 || out.length > BLOCKS_MAX ? null : out;
+}
+
+/** 1.20.0 (decision X47): the sections the hub's fan-summary prompt asks for, as the reader's language names them. */
+export const RECAP_SECTION_KEYS = {
+  dossier: 'recap.section.dossier',
+  portrait: 'recap.section.portrait',
+  stage: 'recap.section.stage',
+  communication: 'recap.section.communication',
+  money: 'recap.section.money',
+  openLoops: 'recap.section.openLoops',
+  strategy: 'recap.section.strategy',
+} as const satisfies Readonly<Record<string, UiTextKey>>;
+
+/** The prompt's headings («1. DOSSIER» …, `templates.ts` FAN_SUMMARY_TEMPLATE) and the Russian a model may write instead. */
+const SECTION_OF: Readonly<Record<string, keyof typeof RECAP_SECTION_KEYS>> = {
+  DOSSIER: 'dossier',
+  'ДОСЬЕ': 'dossier',
+  'PSYCHOLOGICAL PORTRAIT': 'portrait',
+  'ПСИХОЛОГИЧЕСКИЙ ПОРТРЕТ': 'portrait',
+  'STAGE AND TRAJECTORY': 'stage',
+  'СТАДИЯ И ТРАЕКТОРИЯ': 'stage',
+  'COMMUNICATION DYNAMICS': 'communication',
+  'ДИНАМИКА ОБЩЕНИЯ': 'communication',
+  'FINANCIAL PROFILE': 'money',
+  'ФИНАНСОВЫЙ ПРОФИЛЬ': 'money',
+  'OPEN LOOPS': 'openLoops',
+  'ОТКРЫТЫЕ ПЕТЛИ': 'openLoops',
+  STRATEGY: 'strategy',
+  'СТРАТЕГИЯ': 'strategy',
+};
+
+/**
+ * A block's heading as the reader sees it (1.20.0, decision X47): a section of the hub's fan profile in the reader's
+ * language («1. DOSSIER» → «Досье»); any other heading in capitals in sentence case («KEY QUOTES» → «Key quotes»);
+ * the rest as written.
+ */
+export function recapHeadingText(heading: string, text: (key: UiTextKey) => string): string {
+  const bare = heading.replace(/^\d{1,2}[.)][ \t]+/, '').trim();
+  const section = SECTION_OF[bare.toUpperCase().replace(/\s+/g, ' ')];
+  if (section !== undefined) return text(RECAP_SECTION_KEYS[section]);
+  if (!isUpperCase(bare)) return bare;
+  const lower = bare.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
 }

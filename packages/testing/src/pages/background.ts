@@ -15,6 +15,7 @@ import {
   type AudienceNewItem,
   type AiUsageReport,
   type Bootstrap,
+  type ChatKey,
   type CgCode,
   type CgErrorWire,
   type DiagnosticsSnapshot,
@@ -36,6 +37,7 @@ import {
   type TabRequestType,
   type TabResponsePayload,
 } from '@cg/contracts';
+import { type AccountAdvanced, type LocalSpendReport } from '@cg/contracts/diagnostics';
 import { type PageAnswer, type PageRequestType, type PageRpc } from '@cg/core/application/pages';
 import { applySettingsPatch } from '@cg/core/domain';
 
@@ -71,6 +73,12 @@ export interface BackgroundState {
   journals: Partial<Record<JournalKind, JournalFixture>>;
   prompts: Record<string, PromptSnapshotView>;
   usage: AiUsageReport | null;
+  /** 1.20.0: `usage.local` — this browser's spend journal, answered while debug is on. */
+  localSpend?: LocalSpendReport | null;
+  /** 1.20.0: `account.advanced`, answered while debug is on and somebody is signed in. */
+  advanced?: AccountAdvanced | null;
+  /** 1.20.0: `fans.labels` — the names the tabs told the background. */
+  fanLabels?: { chatKey: ChatKey; label: string }[];
   newcomers: number;
   /** What `session.signOut` reports about the hub's revoke. */
   serverRevoked: boolean | null;
@@ -373,6 +381,12 @@ export class FakePageBackground implements PageRpc {
       }
       case 'usage.get':
         return { ok: true, payload: { report: state.settings.debug.enabled ? state.usage : null } };
+      case 'usage.local':
+        return { ok: true, payload: { report: state.settings.debug.enabled ? (state.localSpend ?? null) : null } };
+      case 'account.advanced':
+        return { ok: true, payload: { info: state.settings.debug.enabled && state.session !== null ? (state.advanced ?? null) : null } };
+      case 'fans.labels':
+        return { ok: true, payload: { fans: state.session === null ? [] : (state.fanLabels ?? []) } };
       case 'newcomers.list': {
         const blocked = needsSession();
         if (blocked !== null) return blocked;
