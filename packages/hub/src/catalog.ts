@@ -49,6 +49,8 @@ export type PersonaVerdict = { readonly ok: true } | { readonly ok: false; reado
 export class CatalogService {
   private entry: CatalogEntry | null = null;
   private inFlight: { readonly epoch: number; readonly promise: Promise<PersonaCatalog> } | null = null;
+  /** Reads made so far: only the latest one's answer is adopted. */
+  private reads = 0;
   private timer: unknown = null;
   private readonly listeners = new Set<() => void>();
 
@@ -83,9 +85,11 @@ export class CatalogService {
       return Promise.reject(toError(error));
     }
     if (this.inFlight !== null && this.inFlight.epoch === connection.epoch) return this.inFlight.promise;
+    const read = ++this.reads;
     const promise = (this.ctx.sdk('aiPersonaCatalog', {}, {}, connection) as Promise<PersonaCatalog>)
       .then((catalog) => {
-        if (this.ctx.isCurrent(connection)) this.adopt(catalog, connection);
+        // A read that a later one replaced (`invalidate`) may have left before the change it was replaced for.
+        if (this.ctx.isCurrent(connection) && read === this.reads) this.adopt(catalog, connection);
         return catalog;
       })
       .finally(() => {
@@ -129,9 +133,17 @@ export class CatalogService {
     this.cancelTimer();
   }
 
-  /** A persona changed on the hub: read the catalog again in the background (AI-140). */
+  /**
+   * A persona changed on the hub: read the catalog again in the background (AI-140). Both stamps of the fetch go —
+   * the monotonic one is the one `get` reads — so a `get` meanwhile waits for that read, not the old catalog.
+   */
   invalidate(): void {
-    this.entry = this.entry === null ? null : { ...this.entry, fetchedAt: Number.NEGATIVE_INFINITY };
+    if (this.entry !== null) {
+      const { fetchedMono: _mono, ...entry } = this.entry;
+      this.entry = { ...entry, fetchedAt: Number.NEGATIVE_INFINITY };
+    }
+    // A read already on its way may have left before the change: a new one is made, and only its answer counts.
+    this.inFlight = null;
     this.refresh().catch(() => undefined);
   }
 

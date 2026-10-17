@@ -10,7 +10,9 @@ import { generationDebug } from '../domain/debug/op-debug';
 // a change of the page's persona, the sign-in or the hub address does.
 // Stream text reaches the owning tab in 50 ms batches. The only automatic
 // repeat is the one 503-before-first-frame retry, and an environment that
-// went away interrupts it. After an unload a running operation is
+// went away interrupts it. A hub that refuses the page's persona as edited
+// since (`persona_definition_changed`, before any frame: nothing was made)
+// is asked once more at once, with the persona the catalog has now. After an unload a running operation is
 // `interrupted` and never POSTed again. Results live 30 minutes. A tab that
 // re-attaches to a running operation (reload, palette «Перейти», a mirror's
 // gap) gets the text so far in the view and the batches start again at seq 1
@@ -143,6 +145,12 @@ export interface OpSchedulerDeps {
   readonly online?: () => boolean;
   /** Loads only the owning site module, including when its journal is restored. */
   readonly siteOps?: (host: HostKind) => Promise<SiteOperations | null>;
+  /**
+   * The page's persona as the hub has it now — the catalog read again, the page's choice following it (an owner's
+   * edit gives a persona another definition under the same key); null — none. Asked when the hub refused the
+   * definition a request named; absent — such a refusal is shown as it is.
+   */
+  readonly personaNow?: (pageId: number) => Promise<PersonaChoice | null>;
 }
 
 export interface StartOptions {
@@ -177,7 +185,8 @@ interface Run {
   readonly startedBy: string | null;
   ownerTab: string | null;
   readonly requestKey: string;
-  readonly tag: OpEnvTag;
+  /** Its persona definition follows the hub once (`followPersona`); everything else stays as admitted. */
+  tag: OpEnvTag;
   readonly fanLabel: string | null;
   readonly chatKey: ChatKey;
   readonly knownIds: string[];
@@ -191,6 +200,8 @@ interface Run {
   stopReason: string | null;
   stream: StreamState;
   attempt: number;
+  /** The request was asked again with the persona's current definition (once per operation). */
+  personaFollowed: boolean;
   times: StreamTimes;
   abort: AbortSwitch | null;
   deadline: TimerHandle | null;
@@ -309,6 +320,7 @@ export class OpScheduler {
       stopReason: null,
       stream: INITIAL_STREAM_STATE,
       attempt: 0,
+      personaFollowed: false,
       times: { opRequestAt: view.startedAt, attemptAt: view.startedAt, metaAt: null, firstChunkAt: null, lastFrameAt: null },
       abort: null,
       deadline: null,
@@ -482,6 +494,7 @@ export class OpScheduler {
       stopReason: null,
       stream: INITIAL_STREAM_STATE,
       attempt: 0,
+      personaFollowed: false,
       times: { opRequestAt: now, attemptAt: now, metaAt: null, firstChunkAt: null, lastFrameAt: null },
       abort: null,
       deadline: null,
@@ -564,26 +577,13 @@ export class OpScheduler {
   }
 
   private async drive(run: Run): Promise<void> {
-    const env = this.deps.environment();
-    const start = run.start;
-    if (start === null || env.bootstrap === null) return this.settle(run, { state: 'failed', code: 'CG-HUB-UNAVAILABLE', toast: true });
-    const built = this.build(run, start, {
-      opId: run.view.opId,
-      persona: { key: run.tag.personaKey, definitionId: run.tag.personaDefinitionId },
-      bootstrap: env.bootstrap,
-      debug: env.debug,
-      freshText: freshTextAdmitted(env.features(start.target.binding.host), env.bootstrap, start.target.binding.pageId),
-    });
-    if (!built.ok) {
-      this.log.write({ level: 'error', scope: 'bg.ops', msg: 'request refused before the hub', code: 'CG-HUB-REQUEST', fields: { issues: built.issues }, ctx: { opId: run.view.opId } });
-      return this.settle(run, { state: 'failed', code: 'CG-HUB-REQUEST', toast: true });
-    }
-    run.request = built.request;
+    if (!this.buildRequest(run)) return;
     this.move(run, 'requesting', { name: 'connecting', since: this.deps.clock.now() });
 
     for (;;) {
       const retryIn = await this.attempt(run);
       if (retryIn === null || run.ended) return;
+      if (retryIn === 'again') continue;
       const go = await this.waitForRetry(run, retryIn);
       if (run.ended) return;
       if (!go) {
@@ -595,8 +595,52 @@ export class OpScheduler {
     }
   }
 
-  /** One POST of the stream. Resolves with the pause before the single transparent retry, or null when it ended. */
-  private async attempt(run: Run): Promise<number | null> {
+  /** The hub request of a start, for the run's persona; false — the operation ended with the reason. */
+  private buildRequest(run: Run): boolean {
+    const env = this.deps.environment();
+    const start = run.start;
+    if (start === null || env.bootstrap === null) {
+      this.settle(run, { state: 'failed', code: 'CG-HUB-UNAVAILABLE', toast: true });
+      return false;
+    }
+    const built = this.build(run, start, {
+      opId: run.view.opId,
+      persona: { key: run.tag.personaKey, definitionId: run.tag.personaDefinitionId },
+      bootstrap: env.bootstrap,
+      debug: env.debug,
+      freshText: freshTextAdmitted(env.features(start.target.binding.host), env.bootstrap, start.target.binding.pageId),
+    });
+    if (!built.ok) {
+      this.log.write({ level: 'error', scope: 'bg.ops', msg: 'request refused before the hub', code: 'CG-HUB-REQUEST', fields: { issues: built.issues }, ctx: { opId: run.view.opId } });
+      this.settle(run, { state: 'failed', code: 'CG-HUB-REQUEST', toast: true });
+      return false;
+    }
+    run.request = built.request;
+    return true;
+  }
+
+  /**
+   * The hub refused the persona definition the request named, before any frame: the owner edited the persona
+   * since. Nothing was made or spent (the hub checks the persona before it takes the request), so this is no
+   * repeat of anything indeterminate: the request is asked once more, at once, with the definition the hub has
+   * now for the same persona. Another persona, none, or the same definition again — the refusal stands.
+   */
+  private async followPersona(run: Run): Promise<boolean> {
+    if (run.personaFollowed || run.stream.frames > 0 || this.deps.personaNow === undefined) return false;
+    run.personaFollowed = true;
+    const now = await this.deps.personaNow(run.tag.pageId).catch(() => null);
+    if (run.ended || this.environmentLost(run) || now === null || now.key !== run.tag.personaKey || now.definitionId === run.tag.personaDefinitionId) return false;
+    run.tag = { ...run.tag, personaDefinitionId: now.definitionId };
+    this.log.write({ level: 'info', scope: 'bg.ops', msg: 'persona definition followed', fields: { feature: run.view.feature, attempt: run.attempt }, ctx: { opId: run.view.opId } });
+    void this.persist().catch(() => undefined);
+    return this.buildRequest(run);
+  }
+
+  /**
+   * One POST of the stream. Resolves with the pause before the single transparent retry, `again` — at once (the
+   * persona followed), or null when it ended.
+   */
+  private async attempt(run: Run): Promise<number | 'again' | null> {
     const { clock, hub } = this.deps;
     const request = run.request;
     if (request === null) return null;
@@ -653,9 +697,12 @@ export class OpScheduler {
         return null;
       }
       const resolution = this.resolve(run, failure, isHubCallError(error) ? error.epoch : null);
+      if (resolution.code === 'CG-PERSONA-CHANGED' && (await this.followPersona(run))) return run.ended ? null : 'again';
+      if (run.ended) return null;
       const retry = retryDecision({
         disposition: resolution.disposition,
-        attempt: run.attempt,
+        // The persona's own re-ask is not the 503 retry: it leaves that one as it was.
+        attempt: run.attempt - (run.personaFollowed ? 1 : 0),
         frameSeen: run.stream.frames > 0,
         outputSeen: run.stream.outputSeen || run.times.firstChunkAt !== null,
         environmentLost: this.environmentLost(run),
@@ -1047,13 +1094,14 @@ export class OpScheduler {
     return run.ended || this.tagLost(run.tag);
   }
 
-  /** The sign-in or the page's persona is no longer the one an operation was admitted under. */
+  /** The sign-in or the page's persona (its key) is no longer the one an operation was admitted under. */
   private tagLost(tag: OpEnvTag): boolean {
     const env = this.deps.environment();
     const session = env.session;
     if (session === null || session.hubOrigin !== tag.hubOrigin || session.userId !== tag.userId || session.epoch !== tag.signInEpoch) return true;
     const persona = env.persona(tag.pageId);
-    return persona === null || persona.definitionId !== tag.personaDefinitionId || persona.key !== tag.personaKey;
+    // Another definition of the same persona (the owner edited it) is no other persona.
+    return persona === null || persona.key !== tag.personaKey;
   }
 
   private move(run: Run, state: OpState, phase: Phase): void {

@@ -110,7 +110,7 @@ function opOf(over: Partial<OpForSend> = {}): OpForSend {
     checkpoint,
     servedContext: served,
     stale: false,
-    personaDefinitionId: WORLD.persona.definitionId,
+    personaKey: WORLD.persona.key,
     session: { hubOrigin: session.hubOrigin, userId: session.userId, epoch: session.epoch },
     ...over,
   };
@@ -118,7 +118,7 @@ function opOf(over: Partial<OpForSend> = {}): OpForSend {
 
 const gate: SendGate = {
   session: { hubOrigin: session.hubOrigin, userId: session.userId, epoch: session.epoch },
-  personaDefinitionId: WORLD.persona.definitionId,
+  personaKey: WORLD.persona.key,
   bindingRevision: WORLD.pages.one.bindingRevision,
   previewSend: true,
   newcomers: true,
@@ -504,7 +504,8 @@ describe('[SP-054] [NF-019] the background send conditions (§6.7.4: 1–4, 14)'
     expect(beginCondition(beginOf({ target: targetOf('2050'), checkpoint: checkpointFor('2050') }), opOf(), gate)).toBe('CG-CONTEXT-CHANGED');
     expect(beginCondition(beginOf(), opOf(), { ...gate, session: null })).toBe('CG-CONTEXT-CHANGED');
     expect(beginCondition(beginOf(), opOf(), { ...gate, session: { ...gate.session!, epoch: 4 } })).toBe('CG-CONTEXT-CHANGED');
-    expect(beginCondition(beginOf(), opOf(), { ...gate, personaDefinitionId: WORLD.persona.otherDefinitionId })).toBe('CG-CONTEXT-CHANGED');
+    expect(beginCondition(beginOf(), opOf(), { ...gate, personaKey: 'second' })).toBe('CG-CONTEXT-CHANGED');
+    expect(beginCondition(beginOf(), opOf(), { ...gate, personaKey: null })).toBe('CG-CONTEXT-CHANGED');
     expect(beginCondition(beginOf(), opOf(), { ...gate, bindingRevision: WORLD.pages.one.bindingRevision + 1 })).toBe('CG-CONTEXT-CHANGED');
     expect(beginCondition(beginOf(), opOf(), { ...gate, bindingRevision: null })).toBe('CG-CONTEXT-CHANGED');
     expect(beginCondition(beginOf(), opOf(), { ...gate, previewSend: false })).toBe('CG-SEND-OFF');

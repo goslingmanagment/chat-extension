@@ -3,7 +3,7 @@
 // retry, the persona fence and catalog, the prompt echo and the quota
 // (parity AI-140, AI-141, AU-026…AU-028, DB-002/003/006/008, TL-013).
 
-import { AI_STREAM_CAPABILITIES, HUB_AI_FEATURES, STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode, type HubFrame, type HubStreamRequest } from '@cg/contracts';
+import { AI_STREAM_CAPABILITIES, HUB_AI_FEATURES, STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode, type HubFrame, type HubStreamRequest, type PersonaCatalog } from '@cg/contracts';
 import {
   BOOTSTRAP_ALL_OFF,
   BOOTSTRAP_PILOT_ON,
@@ -385,6 +385,54 @@ describe('[AI-140] [AU-028] the stream is a sensitive action: checked before any
     expect(h.hub.of('aiFeatureStream')[0]?.headers['x-kernel-ai-capabilities']).toBeUndefined();
     await flush(20);
     expect(h.hub.of('aiPersonaCatalog').length).toBe(reads + 1);
+  });
+
+  it('[AI-140] after a persona refusal the catalog is the hub\'s new one at once: a read meanwhile waits for it, not the old one', async () => {
+    h = makeHarness({ paths: HUB_ROUTE_PATHS });
+    await signIn(h, WORLD_PILOT);
+    await flush(20);
+    const edited = { personas: (WORLD_PILOT.catalog as PersonaCatalog).personas.map((persona) => ({ ...persona, version: persona.version + 1, definitionId: WORLD.persona.otherDefinitionId })) };
+    // The hub answers the catalog read later than anyone asks for the catalog.
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    h.hub.on('aiPersonaCatalog', async () => {
+      await answered;
+      return json(200, edited);
+    });
+    h.hub.on('aiFeatureStream', () => hubError(409, 'persona_definition_changed'));
+    expect((await run(h, reply)).code).toBe('CG-PERSONA-CHANGED');
+    const read = h.facade.catalog();
+    answer();
+    expect(await read).toEqual(edited);
+  });
+
+  it('[AI-140] a catalog read that left before the edit and answers after the read the refusal made is not adopted', async () => {
+    h = makeHarness({ paths: HUB_ROUTE_PATHS });
+    await signIn(h, WORLD_PILOT);
+    await flush(20);
+    const old = WORLD_PILOT.catalog as PersonaCatalog;
+    const edited = { personas: old.personas.map((persona) => ({ ...persona, version: persona.version + 1, definitionId: WORLD.persona.otherDefinitionId })) };
+    // The 5-min read leaves first and is answered last, with the catalog from before the edit.
+    let answerOld: () => void = () => undefined;
+    const oldAnswered = new Promise<void>((resolve) => (answerOld = resolve));
+    let reads = 0;
+    h.hub.on('aiPersonaCatalog', async () => {
+      reads += 1;
+      if (reads === 1) {
+        await oldAnswered;
+        return json(200, old);
+      }
+      return json(200, edited);
+    });
+    await vi.advanceTimersByTimeAsync(CATALOG_TTL_MS);
+    expect(reads).toBe(1);
+    h.hub.on('aiFeatureStream', () => hubError(409, 'persona_definition_changed'));
+    expect((await run(h, reply)).code).toBe('CG-PERSONA-CHANGED');
+    expect(await h.facade.catalog()).toEqual(edited);
+    answerOld();
+    await flush(20);
+    expect(reads).toBe(2);
+    expect(await h.facade.catalog()).toEqual(edited);
   });
 });
 

@@ -293,9 +293,12 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (!proven(row) || row.conversationRef === null) return refused(type, localError('CG-DATA-NOT-READY', i18n));
     const at = generation;
     const epoch = ctx.epoch;
-    const persona = ctx.persona?.definitionId ?? null;
-    /** NF-016: the same sign-in, binding and persona as at the click — else nothing of it is taken. */
-    const same = (): boolean => !disposed && at === generation && context.current().epoch === epoch && (context.current().persona?.definitionId ?? null) === persona;
+    const persona = ctx.persona?.key ?? null;
+    /**
+     * NF-016: the same sign-in, binding and persona as at the click — else nothing of it is taken. The persona is its
+     * key: an owner's edit of it (a new definition) is the same persona.
+     */
+    const same = (): boolean => !disposed && at === generation && context.current().epoch === epoch && (context.current().persona?.key ?? null) === persona;
     card.busy = true;
     said(card, { s: 'generating' });
     const stop = (code: string): ActionReceipt => {

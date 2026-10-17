@@ -130,7 +130,8 @@ interface OpTrack {
   readonly fixSource: string | null;
   toneUsed: Tone | null;
   splitRequested: boolean;
-  readonly personaDefinitionId: string | null;
+  /** Follows the page's choice when the owner edits the persona (its key stays): the same persona. */
+  personaDefinitionId: string | null;
   hidden: boolean;
   expanded: boolean;
   cachedAt: number | null;
@@ -298,6 +299,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   /** The boards are closing because a chat is being opened by us: not the person closing the preview. */
   let closingForNavigation = false;
   let epoch = context.current().epoch;
+  let persona = context.current().persona;
   let disposed = false;
   let saveChain: Promise<void> = Promise.resolve();
   /**
@@ -2124,6 +2126,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       }
     }),
     context.subscribe((state) => {
+      const before = persona;
+      persona = state.persona;
+      // The owner edited the persona (its key stays): the page's choice followed its new definition, and so do the
+      // generations made under the old one — the same persona's, inserted and sent as before.
+      if (state.epoch === epoch && before !== null && state.persona !== null && before.key === state.persona.key && before.definitionId !== state.persona.definitionId) {
+        for (const track of tracks.values()) if (track.personaDefinitionId === before.definitionId) track.personaDefinitionId = state.persona.definitionId;
+      }
       if (state.epoch !== epoch) {
         // Another sign-in, hub or account: nothing of the old identity is shown, inserted or kept.
         epoch = state.epoch;

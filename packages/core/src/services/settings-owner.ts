@@ -87,6 +87,11 @@ export interface SettingsOwner {
   mode(): SettingsMode;
   /** `settings.patch` (restricted: false) and `settings.patchRestricted` (true, options page only). */
   patch(patch: SettingsPatch, options: { readonly baseRevision: number | null; readonly restricted: boolean }): Promise<SettingsWriteResult>;
+  /**
+   * A patch made from the settings as they are when its turn among the writes comes (null — nothing to write): a
+   * write of the background's own that must not undo a choice the person made while it waited.
+   */
+  patchWith(make: (settings: SettingsV1) => SettingsPatch | null, options: { readonly restricted: boolean }): Promise<SettingsWriteResult>;
   /** Sign-in of a hub user: another scope clears the persona choices (§5.6 `personas.scope`). */
   setPersonaScope(scope: SettingsV1['personas']['scope']): Promise<SettingsWriteResult>;
   /** Every confirmed change and every change read from outside (besides `deps.onChange`). */
@@ -267,6 +272,26 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
     void chain(reconcile);
   });
 
+  async function patchMade(make: (settings: SettingsV1) => SettingsPatch | null, options: { readonly baseRevision: number | null; readonly restricted: boolean }): Promise<SettingsWriteResult> {
+    await ensureStarted();
+    return chain(async () => {
+      await refresh();
+      const blocked = writeBlocked();
+      if (blocked) return blocked;
+      const patch = make(settings);
+      if (patch === null) return { ok: true, state: snapshot() };
+      const outcome = applySettingsPatch(settings, patch, { restricted: options.restricted });
+      // Defensive: the RPC schema refuses both before the handler. Not a storage failure — a retry cannot help.
+      if (!outcome.ok) return fail('CG-UNKNOWN', outcome.reason === 'restricted' ? 'restricted section' : 'invalid settings');
+      if (options.baseRevision !== null && options.baseRevision !== revision) {
+        log({ level: 'info', scope: SCOPE, msg: 'patch on an older revision merged field by field', fields: { base: options.baseRevision, revision } });
+      }
+      // Nothing changes (a resent patch after a lost confirmation): confirm without a write.
+      if (!outcome.changed) return { ok: true, state: snapshot() };
+      return write(outcome.settings, outcome.hubChanged ? 'hub' : 'patch');
+    });
+  }
+
   const owner: SettingsOwner = {
     start() {
       started ??= chain(async () => {
@@ -288,22 +313,11 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
     },
     current: () => copy(settings),
     mode: () => mode,
-    async patch(patch, options) {
-      await ensureStarted();
-      return chain(async () => {
-        await refresh();
-        const blocked = writeBlocked();
-        if (blocked) return blocked;
-        const outcome = applySettingsPatch(settings, patch, { restricted: options.restricted });
-        // Defensive: the RPC schema refuses both before the handler. Not a storage failure — a retry cannot help.
-        if (!outcome.ok) return fail('CG-UNKNOWN', outcome.reason === 'restricted' ? 'restricted section' : 'invalid settings');
-        if (options.baseRevision !== null && options.baseRevision !== revision) {
-          log({ level: 'info', scope: SCOPE, msg: 'patch on an older revision merged field by field', fields: { base: options.baseRevision, revision } });
-        }
-        // Nothing changes (a resent patch after a lost confirmation): confirm without a write.
-        if (!outcome.changed) return { ok: true, state: snapshot() };
-        return write(outcome.settings, outcome.hubChanged ? 'hub' : 'patch');
-      });
+    patch(patch, options) {
+      return patchMade(() => patch, { ...options });
+    },
+    patchWith(make, options) {
+      return patchMade(make, { baseRevision: null, restricted: options.restricted });
     },
     async setPersonaScope(scope) {
       await ensureStarted();

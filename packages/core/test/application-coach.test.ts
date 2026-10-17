@@ -561,6 +561,18 @@ describe('coach: history and sessions', () => {
     expect(lastTurn(h).answer?.drafts).toHaveLength(2);
   });
 
+  it('[AI-089] [AI-140] the owner edited the persona (its key stays, the choice followed): the dialog goes on, its history is sent with the next question', async () => {
+    const h = await start();
+    await exchange(h, 'before the edit');
+    h.bg.changePersona(WORLD.pages.one.pageId, { key: WORLD.persona.key, definitionId: WORLD.persona.otherDefinitionId });
+    await h.settle();
+    expect(h.coach().turns.map((turn) => turn.question)).toEqual(['before the edit']);
+    expect(lastTurn(h).answer?.drafts).toHaveLength(2);
+    await exchange(h, 'after the edit', 'ok');
+    expect((h.bg.callsOf('op.start')[1] as { coach: { history: unknown[] } }).coach.history).not.toEqual([]);
+    expect(h.coach().turns.map((turn) => turn.question)).toEqual(['before the edit', 'after the edit']);
+  });
+
   it('[AI-090] «Новый диалог» starts clean — nothing of the old one is sent as history; not while the Coach answers', async () => {
     const h = await start();
     await exchange(h, 'old question');

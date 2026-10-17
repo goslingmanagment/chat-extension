@@ -65,6 +65,7 @@ import {
   type HubErrorResolution,
   type HubFailure,
   type HubRouteKey,
+  type PersonaCatalog,
   type ResolveHubError,
   type SettingsV1,
 } from '@cg/contracts';
@@ -77,7 +78,7 @@ import { LOCAL_KEYS, SESSION_KEYS, SYSTEM_LOCALE_REWRITE, resolveHubError, rewri
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
-import { flagsOnSomePage, type OpsEnvironment } from '@cg/core/domain/ops';
+import { currentPersona, flagsOnSomePage, followedPersonas, type OpsEnvironment, type PersonaChoice } from '@cg/core/domain/ops';
 import { profileRequestOf, recapSaveAnswer } from '@cg/core/domain/recap';
 import {
   ActionTokens,
@@ -511,13 +512,18 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
    */
   const bootstrapForOps = (): Bootstrap | null => hubInstance?.cachedBootstrap()?.bootstrap ?? null;
 
-  const environment = (): OpsEnvironment => {
-    const current = settings.current();
+  /** The persona choices of the settings belong to whoever is signed in now (they hold pageIds of one hub and user). */
+  const personasOurs = (current: SettingsV1): boolean => {
     const signedIn = hubInstance?.session() ?? null;
     const scope = current.personas.scope;
-    const ours = signedIn !== null && scope !== null && scope.hubOrigin === signedIn.hubOrigin && scope.userId === signedIn.userId;
+    return signedIn !== null && scope !== null && scope.hubOrigin === signedIn.hubOrigin && scope.userId === signedIn.userId;
+  };
+
+  const environment = (): OpsEnvironment => {
+    const current = settings.current();
+    const ours = personasOurs(current);
     return {
-      session: signedIn,
+      session: hubInstance?.session() ?? null,
       bootstrap: bootstrapForOps(),
       persona: (pageId) => (ours ? (current.personas.byPageId[String(pageId)] ?? null) : null),
       debug: current.debug.enabled,
@@ -526,6 +532,33 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       // its running module, R20 P7i).
       features: (host) => featuresOf(host),
     };
+  };
+
+  /**
+   * The person chooses a persona, not one version of it. The owner edits a persona on the hub: its key stays, its
+   * definition changes — and the choice of every page follows here as soon as the catalog says so. Otherwise each
+   * generation of such a page would name the old definition and the hub would refuse it for ever
+   * (CG-PERSONA-CHANGED, «Ещё раз» included). A store that cannot be written keeps the old one: the next
+   * refusal follows the catalog for that request alone (`personaNow`). The patch is made when its turn among the
+   * writes comes: a persona the person chose meanwhile is never put back.
+   */
+  const followPersonas = async (catalog: PersonaCatalog): Promise<void> => {
+    if (settings.mode() !== 'ok') return;
+    let pages = 0;
+    const saved = await settings.patchWith((current) => {
+      const followed = personasOurs(current) ? followedPersonas(current.personas.byPageId, catalog) : null;
+      pages = followed === null ? 0 : Object.keys(followed).length;
+      return followed === null ? null : { personas: { byPageId: followed } };
+    }, { restricted: false });
+    if (!saved.ok) logger.warn('bg.personas', 'persona definition not followed', { code: saved.error.code });
+    else if (pages > 0) logger.info('bg.personas', 'persona definition followed', { fields: { pages } });
+  };
+  /** The page's persona as the hub has it now: the catalog read again (the refusal already asked for it), the choice following it. */
+  const personaNow = async (pageId: number): Promise<PersonaChoice | null> => {
+    const catalog = await hub().catalog();
+    await followPersonas(catalog);
+    const choice = environment().persona(pageId);
+    return choice === null ? null : currentPersona(choice, catalog);
   };
 
   const saver = new RecapProfileSaver({
@@ -557,6 +590,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     },
     // «Нет связи» vs «хаб не ответил вовремя» at a deadline: what the browser itself says about the connection.
     online: () => navigator.onLine,
+    personaNow,
     hooks: {
       settled(view, start, ownerTab) {
         if (view.target.chat.host !== OPTIONAL_HOST) return;
@@ -1097,7 +1131,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       attributions.resume();
       sound.sync();
     });
-    instance.onCatalogChange(() => rpc.emit('catalog.changed', {}));
+    instance.onCatalogChange(() => {
+      rpc.emit('catalog.changed', {});
+      void instance.catalog().then(followPersonas).catch(() => undefined);
+    });
     instance.onQuotaChange((quota) => rpc.emit('quota.changed', { quota }));
     // §7 «Сервис недоступен, повтор через 5 с…»: the facade waits before its one retry; the operation says so.
     instance.onStreamNotice((notice) => {
@@ -1556,6 +1593,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         hubInstance = instance;
         await instance.ready;
         lastOwner = ownerOf(instance.session());
+        // A choice made before the owner's last edit of its persona follows it now (the catalog of the previous
+        // event page, or the read that starts with this one), not only at the next change of the catalog.
+        if (lastOwner !== null) void instance.catalog().then(followPersonas).catch(() => undefined);
         if (lastOwner === null) void clearPassJournals().catch(() => undefined);
         // Once after the settings load: a full token does not outlive the dev/compat mode — debug off in a test
         // build, and any release build, which has no such mode — it is erased and revoked.
