@@ -116,10 +116,10 @@ export class LongRunActions {
   async newcomers(): Promise<void> {
     await this.openNewcomers();
     await browser.waitUntil(() => oursExists('modal', '.cg-fnw__row[data-cg-check]:not([data-cg-check="pending"]):not([data-cg-check="checking"])'), { timeout: 60_000, timeoutMsg: 'newcomers checked no fan' });
-    await pressOurs('modal', '.cg-fnw__meta button', 'Пауза', 'pause the newcomers queue', 20_000);
-    await waitOursByText('modal', '.cg-fnw__meta button', /^Проверить оставшихся/, 'queue paused', 15_000);
-    await pressOurs('modal', '.cg-fnw__meta button', /^Проверить оставшихся/);
-    await waitOursByText('modal', '.cg-fnw__meta button', 'Пауза', 'queue resumed', 15_000);
+    await pressOurs('modal', 'button.cg-fnw__run', 'Пауза', 'pause the newcomers queue', 20_000);
+    await waitOursByText('modal', 'button.cg-fnw__run', /^Проверить оставшихся/, 'queue paused', 15_000);
+    await pressOurs('modal', 'button.cg-fnw__run', /^Проверить оставшихся/);
+    await waitOursByText('modal', 'button.cg-fnw__run', 'Пауза', 'queue resumed', 15_000);
     await this.closeNewcomers();
     this.count('newcomers');
   }

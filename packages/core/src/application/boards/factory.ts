@@ -130,6 +130,9 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     handover: deps.handover ?? null,
   });
   late.preview = preview;
+  // 1.32.0: a batch of a list starts its generations through the preview's own Generate.
+  spenders.attachBatch(preview);
+  newcomers.attachBatch?.(preview);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = createFanPanelController({ rpc, host, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(deps.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 

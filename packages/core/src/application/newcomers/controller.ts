@@ -33,7 +33,9 @@ import { draftStale } from '../../domain/newcomers/greeting';
 import { NO_SEEN_EVENTS, nextPollDelay, observeEvents, pollMode, resumeDelay, unprime, type SeenEvents } from '../../domain/newcomers/poll';
 import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, rowTooLongForHi, subscriptionCurrent, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
 import { WINDOW_HOURS, appendAudiencePage, clampWindow, startWalk, walkHasMore, walkIncomplete, windowLimit, windowOptions, type AudienceWalk } from '../../domain/newcomers/window';
-import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
+import { batchDispatch, createBatch, isBatchAction, type BatchPreviewPort } from '../boards/batch';
+import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
+import { flagReasonVm } from '../flag-reason';
 import { fanHandle, parseFanHandle } from '../boards/handles';
 import { type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type Connectivity, type RandomSource, type TabRpc } from '../boards/ports';
@@ -102,6 +104,8 @@ export interface NewcomersController extends SurfaceController<'newcomers'> {
   refresh(): Promise<void>;
   /** A greeting draft was written or cleared: the rows' «есть черновик» follows. */
   draftsChanged(): void;
+  /** 1.32.0: the preview that starts a batch's Hi (made after the list); a list without it has no batch. */
+  attachBatch?(port: BatchPreviewPort): void;
 }
 
 export function createNewcomersController(deps: NewcomersControllerDeps): NewcomersController {
@@ -131,6 +135,23 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
   const locks = new RowLocks();
   const deskListeners = new Set<() => void>();
   const directoryListeners = new Set<() => void>();
+
+  /** 1.32.0: the batch of Hi; nothing is sent by it. */
+  let batchPort: BatchPreviewPort | null = null;
+  let offBatch: (() => void) | null = null;
+  const batch = createBatch({
+    clock,
+    start: (handle) => (batchPort === null || own(handle) === null ? Promise.resolve({ s: 'failed', code: 'CG-CONTEXT-CHANGED' }) : batchPort.batchStart('newcomers', handle, 'hi')),
+    // A fan nobody greeted, holds or is sending to — as Hi of the card would start.
+    pickable: (handle) => {
+      const fanRef = own(handle);
+      return fanRef !== null && hiBlock(statusOf(fanRef)) === null && !rowTooLongForHi(rowOf(fanRef));
+    },
+    live: (handle) => batchPort?.batchLive(handle) ?? null,
+    changed: () => {
+      if (!disposed) cell.invalidate();
+    },
+  });
 
   const cell = new ViewCell(build);
   const changed = (): void => {
@@ -356,6 +377,11 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     giveBack(fanRef) {
       if (leaseOf(fanRef).s === 'mine') void claimCall(fanRef, 'release');
     },
+    reclaim(fanRef) {
+      const lease = leaseOf(fanRef).s;
+      recordOf(fanRef).lastActivityAt = clock.now();
+      if ((lease === 'expired' || lease === 'none') && hiBlock(statusOf(fanRef)) === null) void claimCall(fanRef, 'claim');
+    },
     leaseToken(fanRef) {
       const lease = leaseOf(fanRef);
       return lease.s === 'mine' ? lease.leaseToken : null;
@@ -575,6 +601,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
         hasDraft: draft !== null,
         draftStale: draft !== null && draftStale(draft.threadRevision, threadRevision(row)),
         selected: row.fanRef === selected,
+        ...(batchPort === null ? {} : { batch: batch.row(fanHandle('newcomers', id ?? 0, row.fanRef)) }),
       };
     });
 
@@ -613,6 +640,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       canLoadMore: walkHasMore(walk) && !loading && !loadingMore,
       hint: msg('newcomers.hint', { window: windowText(windowHours) }),
       noAutoSend: msg('newcomers.noAutoSend'),
+      ...(batchPort === null ? {} : { batch: batch.vm(pageFlag(ctx, 'preview') ? null : flagReasonVm(pageFlagOf(ctx, 'preview')).text) }),
     };
   }
 
@@ -669,6 +697,10 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
 
   function dispatch(action: UiAction): Promise<ActionReceipt> | null {
     const type = action.type;
+    if (isBatchAction(action)) {
+      if (action.list !== 'newcomers' || batchPort === null) return null;
+      return Promise.resolve(batchDispatch(batch, action, (handle) => own(handle) !== null));
+    }
     if (action.type === 'Navigate') {
       const to = action.to;
       if (to.kind === 'surface' && to.surface === 'newcomers') {
@@ -757,6 +789,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
         // NF-026: another sign-in, hub or account — the list, the leases and the pass in flight are dropped.
         epoch = state.epoch;
         reset();
+        batch.reset();
         surfaces.setList('newcomers', false);
       } else windowHours = clampWindow(windowHours, limit());
       changed();
@@ -826,8 +859,18 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     draftsChanged() {
       if (!disposed) cell.invalidate();
     },
+    attachBatch(port) {
+      offBatch?.();
+      batchPort = port;
+      offBatch = port.onBatch(() => {
+        if (!disposed) cell.invalidate();
+      });
+      cell.invalidate();
+    },
     dispose() {
       disposed = true;
+      offBatch?.();
+      batch.dispose();
       for (const off of offs) off();
       stopPoll();
       for (const record of leases.values()) stopTimer(record);

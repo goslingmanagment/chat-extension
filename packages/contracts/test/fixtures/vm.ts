@@ -61,6 +61,10 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   InsertNewcomerGreeting: { type: 'InsertNewcomerGreeting', targetHandle: 'pass:00000000-0000-4000-8000-000000000001:700000000000000001' },
   SetNewcomersWindow: { type: 'SetNewcomersWindow', hours: 48 },
   LoadMore: { type: 'LoadMore', list: 'newcomers' },
+  SetBatchPick: { type: 'SetBatchPick', list: 'spenders', targetHandles: ['spenders:f1', 'spenders:f2'], picked: true },
+  GenerateBatch: { type: 'GenerateBatch', list: 'newcomers' },
+  StopBatch: { type: 'StopBatch', list: 'spenders' },
+  ClearBatch: { type: 'ClearBatch', list: 'newcomers' },
   RenewClaim: { type: 'RenewClaim', targetHandle: 'newcomers:f2' },
   ReleaseClaim: { type: 'ReleaseClaim', targetHandle: 'newcomers:f2' },
   SetFanPanelTab: { type: 'SetFanPanelTab', tab: 'recap' },
@@ -115,6 +119,21 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { of: 'journal', journal: 'send-attempts' },
     ],
     [{ of: 'preview' }, { of: 'dock', fan: '2002' }, { of: 'billing' }, { of: 'options', section: 'advanced' }, { of: 'debug-prompt', token: '' }],
+  ),
+  // 1.32.0: a batch names its list and ticks one row or many; never a send.
+  fixture(
+    'SetBatchPick',
+    C.UiActionSchema,
+    [
+      { type: 'SetBatchPick', list: 'newcomers', targetHandles: ['newcomers:f2'], picked: false },
+      { type: 'GenerateBatch', list: 'spenders' },
+    ],
+    [
+      { type: 'SetBatchPick', list: 'palette', targetHandles: ['spenders:f1'], picked: true },
+      { type: 'SetBatchPick', list: 'spenders', targetHandles: [], picked: true },
+      { type: 'GenerateBatch', list: 'spenders', send: true },
+      { type: 'GenerateBatch' },
+    ],
   ),
   // 1.9.0: the palette's preview window is a surface of its own, and «Перезагрузить панель» reaches it.
   fixture(

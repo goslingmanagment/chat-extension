@@ -59,7 +59,9 @@ export interface BudgetLine {
 export const BUDGETS = {
   firstDockChunk: 45 * KIB,
   // R20 P10c: 30 → 36 KiB — Fansly's boards chunk now carries the «Новые» card's greeting (draft, Hi, send, insert).
-  lazyChunk: 36 * KIB,
+  // 1.32.0: 36 → 38 KiB — the batch of a list (check boxes, its bar, a line under each fan, the queue) is in Fansly's
+  // boards chunk with «Новые» and its card: 37.0 KiB at the change.
+  lazyChunk: 38 * KIB,
 } as const;
 
 /** The background core: the event page itself. */

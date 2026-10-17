@@ -70,6 +70,7 @@ import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pag
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
 import { boardOpenRefusal, issueCause, type BoardSwitch, type ChatNavigator } from '../boards/navigate';
+import { type BatchOutcome } from '../boards/batch';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
@@ -258,6 +259,15 @@ export interface PreviewController extends SurfaceController<'preview'> {
   onDrafts(listener: () => void): () => void;
   /** What this controller knows of the parts of the results it handed to the dock (§6.5). */
   readonly results: BoardResults;
+  /**
+   * 1.32.0: one fan of a list's batch — the preview's own Generate on the fan's card, open or not; resolves when the
+   * generation ended (or did not start). The result stays on the fan's card, for the person's own «Отправить».
+   */
+  batchStart(source: 'spenders' | 'newcomers', handle: TargetHandle, feature: PreviewActionId): Promise<BatchOutcome>;
+  /** The fan's result as the preview has it now: its first part, and whether it all went out; null — none. */
+  batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null;
+  /** A result a batch made moved on (it ended, a part went out). */
+  onBatch(listener: () => void): () => void;
 }
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
@@ -296,6 +306,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const dockChanged = (): void => {
     if (docked.size > 0) for (const listener of [...dockListeners]) listener();
   };
+  /** 1.32.0: fans a batch started, with what their rows last showed; the cards a batch opened unseen; their ends. */
+  const batched = new Map<TargetHandle, string>();
+  const shadows = new Set<TargetHandle>();
+  const batchWaiters = new Map<string, (outcome: BatchOutcome) => void>();
+  const batchListeners = new Set<() => void>();
   /** The boards are closing because a chat is being opened by us: not the person closing the preview. */
   let closingForNavigation = false;
   let epoch = context.current().epoch;
@@ -334,6 +349,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (open === handle || (fan !== null && other !== null && other.pageId === fan.pageId && other.fanRef === fan.fanRef)) cells[s].invalidate();
     }
     dockChanged();
+    batchChanged(handle);
   };
 
   const nowIso = (): string => new Date(clock.now()).toISOString();
@@ -578,9 +594,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     state.poll = { timer: clock.setTimer(SEND_LIMITS.archivePollMs, tick), until, head };
   }
 
-  function openTarget(source: PreviewSource, handle: TargetHandle): void {
+  function newTarget(source: PreviewSource, handle: TargetHandle): TargetState | null {
     const info = deps.directories[source]?.resolve(handle) ?? null;
-    if (info === null) return;
+    if (info === null) return null;
     const conversation = feedConversationOf(info, context.current().binding?.platform ?? null);
     kept = kept.filter((entry) => entry.key !== handle || (conversation !== null && entry.conversationRef === (conversation.conversationRef ?? info.fanRef)));
     const saved = kept.find((entry) => entry.key === handle) ?? null;
@@ -605,6 +621,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       poll: null,
       rows: null,
     };
+    return state;
+  }
+
+  function openTarget(source: PreviewSource, handle: TargetHandle): void {
+    shadows.delete(handle);
+    const state = newTarget(source, handle);
+    if (state === null) return;
+    const info = state.info;
     targets.set(handle, state);
     // Opening the card is the person working with the fan (the lease of «Новые» renews only while they do).
     if (source === 'newcomers') deps.greeting?.touch(info.fanRef, busyOf(info.pageId, info.fanRef));
@@ -614,6 +638,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // The page conditions may have moved while the card was closed: its result asks MAIN again.
     const shown = tracks.get(currentOp.get(handle) ?? '');
     if (shown !== undefined) void refreshPreflight(shown);
+    // 1.32.0: a greeting a batch made while nobody looked: opening it is the person working with the fan, and the
+    // lease that ran out meanwhile is taken again (a colleague's stays theirs), so its parts can be sent.
+    if (source === 'newcomers' && shown !== undefined && shown.feature === 'hi' && shown.mirror.done?.state === 'done' && progress(shown) === null) deps.greeting?.reclaim?.(info.fanRef);
   }
 
   function closeTarget(handle: TargetHandle): void {
@@ -659,6 +686,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   function dropTrack(track: OpTrack): void {
+    settleBatch(track, { s: 'failed', code: 'CG-OP-INTERRUPTED' });
     clearHoldTimers(track);
     tracks.delete(track.opId);
     docked.delete(track.opId);
@@ -989,6 +1017,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const step = applyOpDone(track.mirror, view);
       if (step.outcome !== 'applied') return;
       track.mirror = step.mirror;
+      settleBatch(track);
       track.toneUsed = view.toneUsed;
       if (view.result?.kind === 'parts') track.splitRequested = view.result.splitRequested;
       touchDesk(track);
@@ -1716,6 +1745,85 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return done(type, 'started', { opId });
   }
 
+  // ── a batch of a list (1.32.0) ──
+
+  /** The first part of a finished result, as its card shows it. */
+  function firstPart(view: OpView | null): string | null {
+    const result = view?.result;
+    if (result?.kind === 'parts') return result.parts[0] ?? null;
+    if (result?.kind === 'variants') return result.variants[0]?.[0] ?? null;
+    return null;
+  }
+
+  /** The batch that waits for this result hears how it ended. */
+  function settleBatch(track: OpTrack, outcome?: BatchOutcome): void {
+    const settle = batchWaiters.get(track.opId);
+    const view = track.mirror.done;
+    if (settle === undefined || (outcome === undefined && view === null)) return;
+    batchWaiters.delete(track.opId);
+    settle(outcome ?? (view?.state === 'done' ? { s: 'ready', text: firstPart(view) } : { s: 'failed', code: view?.error?.code ?? 'CG-OP-INTERRUPTED' }));
+  }
+
+  function batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null {
+    const track = tracks.get(currentOp.get(handle) ?? '');
+    if (track === undefined || track.mirror.done === null) return null;
+    const sent = progress(track);
+    return { text: firstPart(track.mirror.done), sent: sent !== null && sent.total > 0 && sent.sent >= sent.total };
+  }
+
+  /** A row of a batch follows its fan's result only when what it shows changes — never on every streamed word. */
+  function batchChanged(handle: TargetHandle): void {
+    const last = batched.get(handle);
+    if (last === undefined) return;
+    const live = batchLive(handle);
+    const now = live === null ? '' : `${live.sent ? 1 : 0}${live.text ?? ''}`;
+    if (now === last) return;
+    batched.set(handle, now);
+    for (const listener of [...batchListeners]) listener();
+  }
+
+  async function batchStart(source: 'spenders' | 'newcomers', handle: TargetHandle, feature: PreviewActionId): Promise<BatchOutcome> {
+    if (disposed) return { s: 'failed', code: 'CG-CONTEXT-CHANGED' };
+    const shown = (): boolean => SOURCES.some((s) => surfaces.current().preview[s] === handle);
+    let state = targets.get(handle) ?? null;
+    let shadow: TargetState | null = null;
+    if (state === null) {
+      // The fan's card, opened unseen for this one Generate: what a click on the card checks, the batch checks too.
+      await deps.directories[source]?.prepare?.(handle).catch(() => undefined);
+      if (disposed) return { s: 'failed', code: 'CG-CONTEXT-CHANGED' };
+      state = targets.get(handle) ?? newTarget(source, handle);
+      if (state === null) return { s: 'failed', code: 'CG-GATE-FAN-UNKNOWN' };
+      if (!targets.has(handle)) {
+        targets.set(handle, state);
+        shadows.add(handle);
+        shadow = state;
+      }
+    }
+    let receipt: ActionReceipt;
+    try {
+      // NF-015: a dialogue gets no Hi — the archive's count is read first, as an open card has it.
+      if (feature === 'hi' && state.feed === null) await loadFeed(state);
+      receipt = await generate('GenerateBatch', state, feature, {}, null);
+    } finally {
+      if (shadow !== null && targets.get(handle) === shadow && !shown()) closeTarget(handle);
+      shadows.delete(handle);
+    }
+    if (!receipt.ok) {
+      if (receipt.code === 'CG-OP-TAB-LIMIT') return { s: 'busy' };
+      // No token: the click's grant is spent, or the list is no longer on screen.
+      if (receipt.code === 'CG-UI-FAILED') return { s: 'spent', code: receipt.code };
+      return { s: 'failed', code: receipt.code };
+    }
+    const track = receipt.opId === undefined ? undefined : tracks.get(receipt.opId);
+    if (track === undefined) return { s: 'failed', code: 'CG-OP-INTERRUPTED' };
+    batched.set(handle, '');
+    return new Promise<BatchOutcome>((resolve) => {
+      batchWaiters.set(track.opId, resolve);
+      // The same request may have reopened a result that already ended.
+      if (track.mirror.done !== null) settleBatch(track);
+    });
+  }
+
   // ── actions: send ──
 
   async function sendPart(type: UiActionType, track: OpTrack, variant: number, index: number): Promise<ActionReceipt> {
@@ -2121,7 +2229,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         const after = state.preview[s];
         if (before === after) continue;
         if (before !== null && !SOURCES.some((other) => state.preview[other] === before)) closeTarget(before);
-        if (after !== null && !targets.has(after)) openTarget(s, after);
+        // A card a batch opened unseen is opened for real: it reads what an open card reads.
+        if (after !== null && (!targets.has(after) || shadows.has(after))) openTarget(s, after);
         cells[s].invalidate();
       }
     }),
@@ -2143,6 +2252,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         media.reset();
         mediaAttempts.clear();
         kept = [];
+        for (const settle of [...batchWaiters.values()]) settle({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
+        batchWaiters.clear();
+        batched.clear();
+        shadows.clear();
         tracks.clear();
         docked.clear();
         currentOp.clear();
@@ -2256,6 +2369,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         draftListeners.delete(listener);
       };
     },
+    batchStart,
+    batchLive,
+    onBatch(listener) {
+      batchListeners.add(listener);
+      return () => {
+        batchListeners.delete(listener);
+      };
+    },
     results: {
       part: dockedPart,
       manualSent,
@@ -2281,6 +2402,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     dispose() {
       disposed = true;
       dockListeners.clear();
+      batchListeners.clear();
+      for (const settle of [...batchWaiters.values()]) settle({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
+      batchWaiters.clear();
       offStore?.();
       draftListeners.clear();
       manualInserts.clear();

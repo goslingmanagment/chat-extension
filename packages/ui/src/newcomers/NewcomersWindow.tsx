@@ -21,13 +21,9 @@ import { type GreetingStatusVM, type I18n, type NewcomerRowVM, type NewcomersTab
 
 import {
   Boundary,
-  Button,
   Dialog,
   Dot,
   Icon,
-  KeysFooter,
-  Menu,
-  MenuAnchor,
   OverlayLayer,
   SearchBox,
   Spinner,
@@ -36,7 +32,6 @@ import {
   VirtualList,
   focusQuietly,
   isComposing,
-  menuTriggerKeys,
   rovingIndex,
   useDispatch,
   useHints,
@@ -45,12 +40,12 @@ import {
   useMinuteClock,
   useTooltip,
   useView,
-  type MenuItem,
 } from '../kit';
+import { BatchBar, BatchCheck, BatchCheckAll, BatchLine, inBatch } from '../spenders/batch';
 import { generateAction } from '../spenders/preview/MiniStrip';
 import { Preview } from '../spenders/preview/Preview';
 import { rowKeyOf, useCardFollow, useRowFocus } from '../spenders/rowFocus';
-import { DataFooter, FilterChip, WindowHeader, coverageWord, isPlainKey, isTextEntry } from '../spenders/window';
+import { ChoiceMenu, DataFooter, InitialAvatar, WindowHeader, isPlainKey, isTextEntry } from '../spenders/window';
 
 const ROW_HEIGHT = 52;
 const HEADER_HEIGHT = 28;
@@ -155,14 +150,23 @@ function Row({ row, index, active, onPick }: { readonly row: NewcomerRowVM; read
       }}
     >
       <span role="cell" class="cg-nc__who">
-        <span class="cg-nc__name">
-          {row.name}
-          {row.hasDraft ? <span class="cg-nc__tag">{i18n.t(row.draftStale ? 'newcomers.draftStale' : 'newcomers.draft')}</span> : null}
+        {row.batch === undefined ? null : <BatchCheck list="newcomers" handle={row.handle} row={row.batch} name={row.name} />}
+        <InitialAvatar name={row.name} />
+        <span class="cg-nc__names">
+          <span class="cg-nc__name">
+            {row.name}
+            {row.hasDraft ? <span class="cg-nc__tag">{i18n.t(row.draftStale ? 'newcomers.draftStale' : 'newcomers.draft')}</span> : null}
+          </span>
+          {/* In a batch the second line says how its Hi went, with the text that came out. */}
+          {row.batch !== undefined && inBatch(row) ? (
+            <BatchLine row={row.batch} />
+          ) : (
+            <span class="cg-nc__handle">
+              {row.username === null ? '' : `@${row.username} · `}
+              {i18n.t(KIND_KEYS[row.kind])}
+            </span>
+          )}
         </span>
-        {row.username === null ? null : <span class="cg-nc__handle">@{row.username}</span>}
-      </span>
-      <span role="cell" class="cg-nc__kind">
-        {i18n.t(KIND_KEYS[row.kind])}
       </span>
       <span role="cell" class="cg-nc__ago cg-num">
         {i18n.formatAge(row.subscribedAt)}
@@ -179,51 +183,50 @@ function WindowMenu({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
   const i18n = useI18n();
   const hints = useHints();
   const dispatch = useDispatch();
-  const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const close = useCallback(() => setOpen(false), []);
-  const returnFocus = useCallback(() => buttonRef.current, []);
-  if (vm.windowOptions.length < 2) return null;
-  const items: MenuItem[] = vm.windowOptions.map((hours) => ({ id: String(hours), label: windowText(i18n, hours), checked: hours === vm.windowHours }));
   return (
-    <MenuAnchor>
-      <Button
-        label={windowText(i18n, vm.windowHours)}
-        variant="quiet"
-        tooltip={hints ? i18n.t('newcomers.window.label') : null}
-        haspopup="menu"
-        expanded={open}
-        buttonRef={buttonRef}
-        trailing={<Icon name="chevronDown" size={14} />}
-        onClick={() => setOpen((value) => !value)}
-        onKeyDown={(event) => {
-          if (!open) menuTriggerKeys(event, () => setOpen(true));
-        }}
-      />
-      <Menu
-        open={open}
-        kind="radio"
-        label={i18n.t('newcomers.window.label')}
-        items={items}
-        align="end"
-        placement="bottom"
-        onClose={close}
-        returnFocusTo={returnFocus}
-        onSelect={(id) => {
-          const hours = vm.windowOptions.find((value) => String(value) === id);
-          if (hours !== undefined && hours !== vm.windowHours) void dispatch({ type: 'SetNewcomersWindow', hours });
-        }}
-      />
-    </MenuAnchor>
+    <ChoiceMenu
+      label={windowText(i18n, vm.windowHours)}
+      menuLabel={i18n.t('newcomers.window.label')}
+      tooltip={hints ? i18n.t('newcomers.window.label') : null}
+      align="end"
+      items={vm.windowOptions.map((hours) => ({ id: String(hours), label: windowText(i18n, hours), checked: hours === vm.windowHours }))}
+      onSelect={(id) => {
+        const hours = vm.windowOptions.find((value) => String(value) === id);
+        if (hours !== undefined && hours !== vm.windowHours) void dispatch({ type: 'SetNewcomersWindow', hours });
+      }}
+    />
   );
 }
 
-function ColumnHeader(): JSX.Element {
+/** The greeting's status filter (NF-004): one menu, as the old Fansly window's select, not a row of chips. */
+function StatusMenu({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const on = vm.filters.find((filter) => filter.pressed) ?? vm.filters[0];
+  if (on === undefined) return null;
+  return (
+    <ChoiceMenu
+      label={on.count === null ? i18n.text(on.label) : `${i18n.text(on.label)} ${on.count}`}
+      menuLabel={i18n.t('newcomers.col.greeting')}
+      pressed={on.id !== 'any'}
+      class="cg-nc__filter"
+      items={vm.filters.map((filter) => ({ id: filter.id, label: i18n.text(filter.label), count: filter.count, checked: filter.pressed }))}
+      onSelect={(id) => {
+        const filter = vm.filters.find((item) => item.id === id);
+        if (filter !== undefined && !filter.pressed) void dispatch({ type: 'SetNewcomersFilter', filter: filter.id });
+      }}
+    />
+  );
+}
+
+function ColumnHeader({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   const i18n = useI18n();
   return (
     <div class="cg-nc__grid cg-nc__colhead" role="row" aria-rowindex={1}>
-      <span role="columnheader">{i18n.t('newcomers.col.fan')}</span>
-      <span role="columnheader">{i18n.t('newcomers.col.kind')}</span>
+      <span role="columnheader" class="cg-nc__who">
+        {vm.batch === undefined ? null : <BatchCheckAll list="newcomers" handles={vm.rows.map((row) => row.handle)} batch={vm.batch} />}
+        {i18n.t('newcomers.col.fan')}
+      </span>
       <span role="columnheader" class="cg-nc__ago">
         {i18n.t('newcomers.col.subscription')}
       </span>
@@ -383,14 +386,13 @@ export function NewcomersWindow(): JSX.Element {
   };
 
   const showList = hasRows && vm.view.s !== 'error' && vm.view.s !== 'forbidden' && vm.view.s !== 'empty';
-  // The window's own keys (X55), as the Spenders board's footer says its own: none of them sends.
-  const keyHints = [
-    { keys: 'J / K', label: i18n.t('spenders.keys.row') },
-    { keys: '↵', label: i18n.t('dock.action.hi') },
-    { keys: '/', label: i18n.t('cheatsheet.row.search'), optional: true },
-    { keys: 'Esc', label: i18n.t('common.close') },
-  ];
-  const footer = i18n.t('newcomers.footer', { n: vm.footer.count, window: windowText(i18n, vm.windowHours), coverage: coverageWord(i18n, vm.footer.stamp.coverage) });
+  // What is in the list, and whose name Hi greets in: the footer, not a line of the header.
+  const footer = [
+    i18n.t('newcomers.footer', { n: vm.footer.count, window: windowText(i18n, vm.windowHours) }),
+    vm.personaLabel === null ? null : i18n.t('newcomers.personaNote', { persona: vm.personaLabel }),
+  ]
+    .filter((part) => part !== null)
+    .join(' · ');
 
   return (
     <OverlayLayer>
@@ -421,17 +423,15 @@ export function NewcomersWindow(): JSX.Element {
               inputRef={searchRef}
               onQuery={(query) => void dispatch({ type: 'Search', list: 'newcomers', query })}
             />
-            {vm.personaLabel === null ? null : <span class="cg-sp__note">{i18n.t('newcomers.personaNote', { persona: vm.personaLabel })}</span>}
           </WindowHeader>
           <div class={`cg-nc__cols${vm.cardOpen ? ' is-card' : ''}`}>
             <section class="cg-nc" aria-label={i18n.t('newcomers.listLabel')} data-cg-newcomers={vm.view.s}>
               <div class="cg-sp__tools" role="group" aria-label={i18n.t('newcomers.col.greeting')}>
-                {vm.filters.map((filter) => (
-                  <FilterChip key={filter.id} label={i18n.text(filter.label)} count={filter.count} pressed={filter.pressed} onPress={() => void dispatch({ type: 'SetNewcomersFilter', filter: filter.id })} />
-                ))}
+                <StatusMenu vm={vm} />
                 <span class="cg-sp__grow" />
                 <WindowMenu vm={vm} />
               </div>
+              {vm.batch === undefined ? null : <BatchBar list="newcomers" batch={vm.batch} />}
               {vm.incomplete === null ? null : (
                 <div class="cg-sp__line cg-nc__incomplete" role="status">
                   <b>{i18n.t('newcomers.incomplete')}</b>
@@ -447,7 +447,7 @@ export function NewcomersWindow(): JSX.Element {
                     getKey={(row) => row.handle}
                     role="table"
                     label={i18n.t('newcomers.listLabel')}
-                    header={<ColumnHeader />}
+                    header={<ColumnHeader vm={vm} />}
                     headerHeight={HEADER_HEIGHT}
                     listRef={listRef}
                     onRangeChange={onRange}
@@ -460,11 +460,6 @@ export function NewcomersWindow(): JSX.Element {
                   <ViewState view={vm.view} />
                 </div>
               )}
-              <div class="cg-nc__hint">
-                <p>{i18n.text(vm.hint)}</p>
-                <p>{i18n.text(vm.noAutoSend)}</p>
-              </div>
-              {showList ? <KeysFooter hide={null} hints={keyHints} /> : null}
               <DataFooter left={footer} stamp={vm.footer.stamp} />
             </section>
             {vm.cardOpen ? (
@@ -485,11 +480,9 @@ export const NEWCOMERS_CSS = `
 .cg-nc__cols > * { min-height: 0; min-width: 0; }
 .cg-nc__cols > * + * { border-left: 1px solid var(--cg-rule); }
 .cg-nc { display: flex; flex-direction: column; min-height: 0; }
-/* Six filters and the window menu: on a narrow list they go on to a second line instead of running into the card. */
-.cg-nc > .cg-sp__tools { border-bottom: 1px solid var(--cg-rule); flex-wrap: wrap; align-content: center; height: auto; min-height: 44px; padding-top: 4px; padding-bottom: 4px; row-gap: 2px; }
-.cg-nc > .cg-sp__tools > .cg-menu-anchor { margin-left: auto; }
+.cg-nc > .cg-sp__tools { border-bottom: 1px solid var(--cg-rule); flex-wrap: wrap; align-content: center; height: auto; min-height: 44px; padding-top: 4px; padding-bottom: 4px; gap: 4px 8px; }
 .cg-nc__list { flex: 0 1 auto; min-height: 0; }
-.cg-nc__grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px 72px minmax(148px, 0.6fr); align-items: center; padding: 0 16px 0 20px; }
+.cg-nc__grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px minmax(148px, 0.6fr); align-items: center; padding: 0 16px 0 20px; }
 .cg-nc__grid > * { min-width: 0; }
 .cg-nc__colhead { height: 28px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); border-bottom: 1px solid var(--cg-rule); }
 /* A column title longer than its 56 px («Subscription») keeps the numbers' right edge and grows to the left. */
@@ -498,23 +491,22 @@ export const NEWCOMERS_CSS = `
 .cg-nc__row:hover { background: var(--cg-sunk); }
 .cg-nc__row:focus-visible { background: var(--cg-hover); outline-offset: -2px; }
 .cg-nc__row.is-sel, .cg-nc__row.is-sel:hover, .cg-nc__row.is-sel:focus-visible { background: var(--cg-sel); }
-.cg-nc__who { display: block; }
+.cg-nc__who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cg-nc__names { display: block; min-width: 0; }
+.cg-nc__names .cg-bt__line { padding-left: 0; }
+.cg-nc__who .cg-bt__check { margin-right: -2px; }
 .cg-nc__name { display: block; font-weight: 500; color: var(--cg-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-nc__tag { margin-left: 8px; font-size: var(--cg-text-sm); font-weight: 400; color: var(--cg-ink-2); }
 .cg-nc__handle { display: block; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cg-nc__kind { color: var(--cg-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-nc__ago { color: var(--cg-ink-muted); text-align: right; padding-right: 16px; white-space: nowrap; }
 .cg-nc__status { overflow: hidden; }
 .cg-nc__st { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-nc__st.is-strong { color: var(--cg-ink-strong); font-weight: 500; }
 .cg-nc__st > .cg-dot, .cg-nc__st > .cg-spin, .cg-nc__st > .cg-ico { flex: none; }
-.cg-nc__hint { flex: none; padding: 14px 20px; font-size: var(--cg-text-sm2); line-height: 18px; color: var(--cg-ink-muted); max-width: 64ch; }
-.cg-nc__hint p + p { margin-top: 6px; }
 .cg-nc__state { flex: none; }
 .cg-nc .cg-sp__foot { margin-top: auto; }
 .cg-nc__incomplete b { font-weight: 600; color: var(--cg-ink-strong); white-space: nowrap; }
 .cg-nc__scan { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-2); white-space: nowrap; font-size: var(--cg-text-sm); }
-.cg-ncw .cg-menu { z-index: 6; }
 @media (max-width: 1100px) { .cg-nc__cols.is-card { grid-template-columns: minmax(0, 1fr) 420px; } }
 /* A narrow window (the browser's zoom of 200 %, ui-design §11): one column — the list in a window of its own, the card under it. */
 @media (max-width: 900px) {

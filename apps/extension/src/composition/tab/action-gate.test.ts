@@ -3,6 +3,7 @@
 // else can; here a trusted event is a synthetic one with that flag forced on.
 
 import type { Surface } from '@cg/contracts/features';
+import { BATCH_LIMITS } from '@cg/contracts/vm';
 import { createShadowRootRegistry } from '@cg/host-chatspace/isolated';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -266,6 +267,24 @@ describe('the action tokens of a tab', () => {
     clock += GRANT_TTL_MS + 1;
     expect(await s.tokens.issue('navigate', 'overlay')).toBeNull();
     expect(s.asked).toEqual([]);
+    s.gate.dispose();
+  });
+
+  it('1.32.0 «Сгенерировать для N»: one click of a list gives its batch generate tokens over minutes — counted, never another kind', async () => {
+    let clock = 1_000_000;
+    const s = seam(() => clock);
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('GenerateBatch'));
+    // Later, from the queue: no event is in flight, the batch's grant answers.
+    clock += 60_000;
+    expect(await s.tokens.issue('generate', 'preview')).toBe('token-1-0123456789abcdef');
+    expect(await s.tokens.issue('generate', 'newcomers')).toBe('token-2-0123456789abcdef');
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    expect(await s.tokens.issue('insert', 'dock')).toBeNull();
+    for (let n = 2; n < BATCH_LIMITS.grantTokens; n += 1) await s.tokens.issue('generate', 'preview');
+    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('GenerateBatch'));
+    clock += BATCH_LIMITS.grantTtlMs + 1;
+    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
     s.gate.dispose();
   });
 

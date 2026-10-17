@@ -33,15 +33,19 @@ function boardOnly(vm: ReturnType<typeof boardOf>, statsVm = stats(ctx, views.re
 }
 
 describe('Spenders window', () => {
-  it('[SP-002] is a modal dialog named Spenders with the page name, period tabs and the search', async () => {
+  it('[SP-002] is a modal dialog named Spenders with the page name, the period menu and the search', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     const dialog = ui.$('[role="dialog"]') as HTMLElement;
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-label')).toBe('Spenders');
     expect(ui.text('.cg-sp__title')).toBe('Spenders');
     expect(ui.text('.cg-sp__page')).toBe('LoraVie VIP');
-    expect(ui.$$('[role="tablist"] [role="tab"]').map(textOf)).toEqual(['Всё время', '30 дней', 'Месяц', '7 дней', 'Сегодня']);
-    expect(ui.$('[role="tab"][aria-selected="true"]')?.textContent).toBe('30 дней');
+    // The period is one menu at the end of the filters' row, not five tabs in the header.
+    expect(ui.$$('.cg-sp__top [role="tab"]')).toHaveLength(0);
+    expect(textOf(ui.$('.cg-bd__period'))).toBe('30 дней');
+    await flush(() => (ui?.$('.cg-bd__period') as HTMLElement).click());
+    expect(ui.$$('[role="menuitemradio"] .cg-menu__t').map(textOf)).toEqual(['Всё время', '30 дней', 'Месяц', '7 дней', 'Сегодня']);
+    expect(ui.$('[role="menuitemradio"][aria-checked="true"]')?.textContent).toBe('30 дней');
     expect(ui.$('.cg-sp__search input')?.getAttribute('placeholder')).toBe('Имя или @handle');
     // While it is open ChatSpace's Esc leaves its tab alone (§6.3).
     expect(ui.host.hasAttribute('data-dismissible-open')).toBe(true);
@@ -75,13 +79,14 @@ describe('Spenders window', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
   });
 
-  it('«Закрыть Esc» closes the window; a period tab asks for that period', async () => {
+  it('«Закрыть Esc» closes the window; the period menu asks for that period', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     const close = ui.$('.cg-sp__close') as HTMLElement;
     expect(textOf(close)).toBe('ЗакрытьEsc');
     await flush(() => close.click());
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
-    await flush(() => (ui?.$$('[role="tab"]')[3] as HTMLElement).click());
+    await flush(() => (ui?.$('.cg-bd__period') as HTMLElement).click());
+    await flush(() => (ui?.$$('[role="menuitemradio"]')[3] as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'SetSpendersPeriod', period: '7d' });
   });
 
@@ -104,14 +109,19 @@ describe('Spenders board: shelves and rows', () => {
     expect(filters.map((filter) => filter.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false']);
     await flush(() => (filters[1] as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'SetSpendersFilter', filter: 'waiting' });
-    expect(ui.text('.cg-bd__sortnote')).toBe('в полке по сумме');
+    // No «в полке по сумме» beside them: the arrow of the column says the sort.
+    expect(ui.$('.cg-bd__sortnote')).toBeNull();
   });
 
-  it('[SP-020] the «мы / фан» and history filters stand in a second row', async () => {
+  it('[SP-020] the «мы» and history filters wait in «Ещё» — one row of filters; «Фан писал», the same as «Ждут ответа», is not repeated', async () => {
     ui = await mountBoardSettled('spenders', boardOnly({ ...boardOf(ctx, BOARD_FANS), filters: board(ctx, views.ready()).filters }));
-    const rows = ui.$$('.cg-sp__tools');
-    expect(rows).toHaveLength(2);
-    expect([...(rows[1] as HTMLElement).querySelectorAll('.cg-flt')].map((filter) => filter.firstChild?.textContent)).toEqual(['Мы писали', 'Фан писал', 'С перепиской', 'Без переписки']);
+    expect(ui.$$('.cg-sp__tools')).toHaveLength(1);
+    const more = ui.$$('.cg-sp__tools .cg-choice')[0] as HTMLElement;
+    expect(textOf(more)).toBe('Ещё');
+    await flush(() => more.click());
+    expect(ui.$$('[role="menuitemradio"] .cg-menu__t').map(textOf)).toEqual(['Мы писали', 'С перепиской', 'Без переписки']);
+    await flush(() => (ui?.$$('[role="menuitemradio"]')[0] as HTMLElement).click());
+    expect(ui.actions().at(-1)).toEqual({ type: 'SetSpendersFilter', filter: 'we-wrote' });
   });
 
   it('[SP-011] a shelf row carries its name from the tier bounds, its fans and its sums', async () => {
@@ -177,12 +187,11 @@ describe('Spenders board: shelves and rows', () => {
     expect(sheet).not.toMatch(/\.cg-bd__per\s*\{[^}]*--cg-money/);
   });
 
-  it('[SP-014] a new payer carries the word «новый»', async () => {
+  it('[SP-014] a new payer is found by «Новые», not by a word on every row', async () => {
     ui = await mountBoardSettled('spenders', boardOnly(boardOf(ctx, BOARD_FANS.filter((fan) => fan.isNew === true))));
     const jake = row('b021');
-    expect([...jake.querySelectorAll('.cg-bd__tag')].map(textOf)).toEqual(['новый']);
-    // The word stands right after the name, before the @handle.
-    expect(textOf(jake.querySelector('.cg-bd__who'))).toMatch(/^Jake Morrisonновый@jake\.m\.88/);
+    expect(jake.querySelectorAll('.cg-bd__tag')).toHaveLength(0);
+    expect(textOf(jake.querySelector('.cg-bd__who'))).toMatch(/^Jake Morrison@jake\.m\.88/);
   });
 
   it('[SP-015] a deleted account: a muted name and the word «удалён», no strike-through', async () => {
@@ -236,13 +245,13 @@ describe('Spenders board: shelves and rows', () => {
     expect(ui.root.getElementById(we.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Мы писали');
   });
 
-  it('[SP-021] the footer: «40 из 40 фанов, охват полный», «данные на 09:18», and «Показано: 7» under a filter', async () => {
+  it('[SP-021] the footer: «40 фанов», «данные на 09:18», and «Показано: 7» under a filter', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
-    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 из 40 фанов, охват полный', 'данные на 09:18']);
+    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 фанов', 'данные на 09:18']);
     ui.unmount();
     const vm = boardOf(ctx, BOARD_FANS);
     ui = await mountBoardSettled('spenders', boardOnly({ ...vm, footer: { ...vm.footer, shown: 7 }, reset: button('spenders.filter.all', { type: 'ResetFilters', list: 'spenders' }) }));
-    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe('40 из 40 фанов, охват полный. Показано: 7');
+    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe('40 фанов. Показано: 7');
     await flush(() => (ui?.$('.cg-sp__line .cg-btn') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'ResetFilters', list: 'spenders' });
   });
@@ -257,9 +266,9 @@ describe('Spenders board: shelves and rows', () => {
     expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 фанов, охват неизвестен']);
   });
 
-  it('[SP-034] the keys footer of the model stands under the list', async () => {
+  it('[SP-034] no line of keys under the list: the keys are in the cheatsheet and the tooltips', async () => {
     ui = await mountBoardSettled('spenders', boardOnly({ ...boardOf(ctx, BOARD_FANS), keys: board(ctx, views.ready()).keys }));
-    expect(ui.$$('.cg-bd .cg-keys .cg-key').map(textOf)).toEqual(['/Имя или @handle', 'EscЗакрыть Esc']);
+    expect(ui.$$('.cg-bd .cg-keys')).toHaveLength(0);
   });
 
   it('a thousand fans: at most 150 rows are in the DOM, and the keyboard still reaches the last one', async () => {
@@ -323,7 +332,7 @@ describe('Spenders board: states of the source', () => {
   it('nothing after a filter: the words and «Сбросить»', async () => {
     ui = await mountBoardSettled('spenders', 'board-empty');
     expect(ui.text('.cg-bd .cg-state--empty')).toBe('Никого не нашли. Проверьте фильтр или поиск.');
-    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe('40 из 40 фанов, охват полный. Показано: 0');
+    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe('40 фанов. Показано: 0');
     expect(ui.$('.cg-bd__reset .cg-btn')).not.toBeNull();
   });
 
@@ -377,7 +386,7 @@ describe('Spenders board: states of the source', () => {
   it('[SP-043] the board speaks the chosen language', async () => {
     ui = await mountBoardSettled('spenders', 'board-list', { language: 'en' });
     expect(ui.$$('.cg-sp__tools .cg-flt').map((filter) => filter.firstChild?.textContent)).toEqual(['All', 'Awaiting reply', 'New']);
-    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 of 40 fans, full coverage', 'data as of 09:18']);
+    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 fans', 'data as of 09:18']);
     expect(textOf(row('b012').querySelector('.cg-bd__tag'))).toBe('deleted');
   });
 });
@@ -612,7 +621,7 @@ describe('Spenders board: keyboard', () => {
     const expected = fans.filter((fan) => fan.name.toLowerCase().includes('aaron')).length;
     expect(expected).toBeGreaterThan(10);
     await settle();
-    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe(`1000 из 1000 фанов, охват полный. Показано: ${expected}`);
+    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe(`1000 фанов. Показано: ${expected}`);
     // Said, not only printed (ui-design §6.2). The live region speaks a render later than the foot (the board's effect,
     // then the announcement's own render): on a busy runner settle()'s 30 ms ended between the two (#184's check).
     const live = ui.$('[data-cg-live]');

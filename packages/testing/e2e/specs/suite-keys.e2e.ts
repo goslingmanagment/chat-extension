@@ -294,7 +294,6 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       const first = await focusedFan();
       // The card of that fan is open at once: no empty right column, no hint to pick somebody.
       await waitOursText('modal', `@${first}`, 'the card of the first fan', { selector: '.cg-pv', timeout: 20_000 });
-      await waitOursText('modal', 'строка', 'the keys under the list', { selector: '.cg-nc .cg-keys' });
       mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
       // The window's own fade is over before the picture.
       await browser.pause(400);

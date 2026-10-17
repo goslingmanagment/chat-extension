@@ -41,6 +41,12 @@
 // HK-025) runs after its keydown is over; `resume` lets exactly that keydown
 // open a grant, within the dispatcher's own freshness bound.
 //
+// One click buys more than one token: «Сгенерировать для N» of a list's batch (contracts 1.32.0, vm/batch). The
+// person names the fans and asks for all of them at once, and the queue starts them a few at a time over minutes.
+// Its grant is a BATCH grant: generate tokens only, at most BATCH_LIMITS.grantTokens of them, for
+// BATCH_LIMITS.grantTtlMs, kept apart from the grants of single actions (which are asked first), and replaced by
+// the next batch click. It can never insert, send or navigate.
+//
 // One human action happens outside this document: a click on our own popup
 // or options page that acts in ChatSpace (`tab.command`, §9.9). The
 // background brings this tab to the front and hands the command over its
@@ -50,7 +56,7 @@
 
 import type { CgErrorWire } from '@cg/contracts/errors';
 import type { Surface } from '@cg/contracts/features';
-import type { UiAction } from '@cg/contracts/vm';
+import { BATCH_LIMITS, type UiAction } from '@cg/contracts/vm';
 
 import type { HostMounts } from './adapter';
 
@@ -209,12 +215,23 @@ interface Grant {
   readonly at: number;
 }
 
+/** The grant of a batch click: generate tokens, counted, for longer. */
+interface BatchGrant {
+  readonly gesture: Gesture;
+  left: number;
+  readonly at: number;
+}
+
+/** The action whose one click is a batch of generations. */
+export const BATCH_ACTION: UiAction['type'] = 'GenerateBatch';
+
 export function createGestureGate(win: Window, env: GateEnv, now: () => number = () => Date.now()): GestureGate {
   let current: Event | null = null;
   /** The kept key being handed over right now. */
   let resumed: Event | null = null;
   const given = new WeakMap<Event, Set<ActionKind>>();
   let grants: Grant[] = [];
+  let batch: BatchGrant | null = null;
   // A synthetic event never replaces the human one in flight (a page script may dispatch its own inside it).
   const note = (event: Event): void => {
     if (event.isTrusted) current = event;
@@ -240,6 +257,12 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       return spend(gesture.event, kind) ? null : 'spent';
     },
     open(action) {
+      if (action === BATCH_ACTION) {
+        const gesture = inFlight();
+        if (typeof gesture === 'string') return gesture;
+        batch = { gesture, left: BATCH_LIMITS.grantTokens, at: now() };
+        return null;
+      }
       const kinds = GRANTED_KINDS[action];
       if (kinds === undefined) return null;
       const gesture = inFlight();
@@ -265,6 +288,17 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         if (grant.kinds.size === 0) grants.splice(index, 1);
         return spend(grant.gesture.event, kind) ? null : 'spent';
       }
+      // A batch's next start: counted, not «one per event» — the one click named every fan of it.
+      if (kind === 'generate' && batch !== null) {
+        if (now() - batch.at > BATCH_LIMITS.grantTtlMs || batch.left <= 0) {
+          batch = null;
+          return 'expired';
+        }
+        const refused = kindRefusal(batch.gesture, kind, surface, env);
+        if (refused !== null) return refused;
+        batch.left -= 1;
+        return null;
+      }
       return refusal;
     },
     note,
@@ -289,6 +323,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       current = null;
       resumed = null;
       grants = [];
+      batch = null;
     },
   };
 }

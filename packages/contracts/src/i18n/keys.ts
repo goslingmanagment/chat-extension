@@ -149,6 +149,7 @@ export const UI_TEXT_KEYS = [
   'send.reason.permission', 'send.reason.fan', 'send.reason.mimic', 'send.reason.translator', 'send.reason.freshness', 'send.reason.busy',
   'send.reason.queue', 'send.reason.part', 'send.reason.guard', 'send.reason.claimExpired', 'send.reason.history',
   'send.reason.contextChanged', 'send.reason.claimBusy', 'send.reason.rateLimit', 'send.reason.otherUncertain',
+  'batch.pick', 'batch.pickAll', 'batch.picked', 'batch.generate', 'batch.generateTooltip', 'batch.unpick', 'batch.stop', 'batch.clear', 'batch.progress', 'batch.failedCount', 'batch.hint', 'batch.max', 'batch.state.queued', 'batch.state.generating', 'batch.state.ready', 'batch.state.sent', 'batch.state.failed',
   'newcomers.title', 'newcomers.personaNote', 'newcomers.col.fan', 'newcomers.col.kind', 'newcomers.col.subscription', 'newcomers.col.greeting',
   'newcomers.kind.new', 'newcomers.kind.renewed', 'newcomers.kind.returning', 'newcomers.status.none', 'newcomers.status.claimMine',
   'newcomers.status.claimOther', 'newcomers.status.claimOtherTooltip', 'newcomers.status.claimElsewhere', 'newcomers.status.sending', 'newcomers.status.stopped',
