@@ -10,6 +10,12 @@
 // Actions: `Generate { feature: 'review' }` starts the review of the open
 // chat or reopens the same one; `Regenerate` («Ещё раз ⌘⇧B») asks again past
 // the cache; `HideResult` / `ExpandResult` take the review's operation id.
+//
+// Where it opens (decision X49): in the «Развернуть ↗» window, as the old
+// Fansly extension's large overlay showed it — six blocks do not read in a
+// sheet of `--cg-cap`. «Свернуть Esc» puts it into the dock's sheet, which
+// keeps it; «Ещё раз» rates anew where the Review stands (the window or the
+// sheet), the next start or reopen opens the window again.
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { chatKeyOf } from '@cg/contracts/ids';
@@ -156,15 +162,19 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
     const chat = ws.situation().chat;
     if (chat === null) return refused(ws, type, { code: 'CG-CONTEXT-CHANGED' });
     const running = ws.running(chat.key);
-    // AI-127: the review of this chat is already running — bring its sheet back.
+    // AI-127: the review of this chat is already running — bring it back, in its window (X49).
     if (running !== null && running.view.feature === 'review') {
       ws.setSheet(chat.key, { kind: 'review' });
+      ws.setExpanded(running.view.opId, true);
       return done(type, 'noop', { opId: running.view.opId });
     }
     const result = await ws.startFeature({ feature: 'review', surface: 'dock', options: {}, cause, ...(original === null ? {} : { regenerateOf: original, force: true }) });
     switch (result.kind) {
       case 'started':
         ws.setSheet(chat.key, { kind: 'review' });
+        // X49: a review — new, or the same one reopened — opens in the window; the sheet keeps it under. «Ещё раз» rates
+        // anew where the person keeps it: in the window, or in the sheet they folded it into.
+        ws.setExpanded(result.opId, original === null || ws.isExpanded(original.view.opId));
         return done(type, result.reopened ? 'noop' : 'started', { opId: result.opId });
       case 'refused':
         ws.showRefusal(chat.key, result.refusal);

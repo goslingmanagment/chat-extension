@@ -246,10 +246,11 @@ describe('fan panel', () => {
     ]);
     const refresh = ui.$('.cg-fp__acts .cg-btn') as HTMLElement;
     expect(textOf(refresh)).toBe('Обновить Recap⌘⇧S');
+    // X49: asked here, the full Recap stays the panel's — the actions say so, and no «Развернуть ↗» window opens over it.
     await flush(() => refresh.click());
-    expect(ui.actions().at(-1)).toEqual({ type: 'RefreshRecap', length: 'short' });
+    expect(ui.actions().at(-1)).toEqual({ type: 'RefreshRecap', length: 'short', panel: true });
     await flush(() => (segments[1] as HTMLElement).click());
-    expect(ui.actions().at(-1)).toEqual({ type: 'ShowRecap', length: 'full' });
+    expect(ui.actions().at(-1)).toEqual({ type: 'ShowRecap', length: 'full', panel: true });
   });
 
   it('a full Recap is its blocks; a lagging archive and a failed save are said, and only the save is retried', async () => {

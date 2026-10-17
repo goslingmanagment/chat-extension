@@ -111,7 +111,8 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     const page = await held();
     const mark = await hub().mark();
     await pressOurs('dock', '.cg-strip button', /^Review/);
-    await waitOursText('dock', 'Synthetic review of the chat.', 'the Review', { timeout: 30_000 });
+    // X49: a Review opens in its «Развернуть ↗» window, over the page; the sheet under it keeps its head.
+    await waitOursText('modal', 'Synthetic review of the chat.', 'the Review in its window', { timeout: 30_000, selector: '.cg-xdlg' });
     const [first] = await streamsSince(mark);
     if (first === undefined) throw new Error('the Review asked the hub nothing');
     expect([first.feature, first.status, first.body.conversationRef, first.body.fanRef]).toEqual(['chat-review', 200, A.group, A.fan]);
@@ -122,19 +123,22 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     expect(first.body.messageCount).toBe(3000);
 
     // The hub's archive holds none of the page's ids: the Review is marked, its «Ещё раз» on the mark.
-    await waitOursText('dock', MISS, 'the mark over the Review', { selector: '.cg-sheet .cg-stale__t' });
-    expect(await oursText('dock', '.cg-sheet .cg-stale button')).toBe('Ещё раз');
+    await waitOursText('modal', MISS, 'the mark over the Review', { selector: '.cg-xdlg .cg-stale__t' });
+    expect(await oursText('modal', '.cg-xdlg .cg-stale button')).toBe('Ещё раз');
     await inBothThemes('suite-fansly-ai-analysis-review-mark');
 
     // The hub catches up with the page: «Ещё раз» on the mark rates the chat anew, with no mark.
     await seed(first.body.coverageCheck?.window ?? []);
     const again = await hub().mark();
-    await pressOurs('dock', '.cg-sheet .cg-stale button', /^Ещё раз/);
-    await browser.waitUntil(async () => (await streamsSince(again)).length === 1 && !(await oursExists('dock', '.cg-sheet .cg-stale')), {
+    await pressOurs('modal', '.cg-xdlg .cg-stale button', /^Ещё раз/);
+    await browser.waitUntil(async () => (await streamsSince(again)).length === 1 && !(await oursExists('modal', '.cg-xdlg .cg-stale')), {
       timeout: 30_000,
       timeoutMsg: 'the Review was not rated anew without a mark',
     });
-    await waitOursText('dock', 'Synthetic review of the chat.', 'the new Review');
+    await waitOursText('modal', 'Synthetic review of the chat.', 'the new Review', { selector: '.cg-xdlg' });
+    // Esc folds the window into the sheet, the next one hides the sheet.
+    await browser.keys(['Escape']);
+    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not fold the Review window' });
     await browser.keys(['Escape']);
     await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
   });
@@ -186,16 +190,19 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
     await pressOurs('dock', '.cg-dock button', /^Собрать полностью/);
-    await waitOursText('dock', 'Synthetic recap of the conversation.', 'the full Recap', { timeout: 30_000 });
+    // X49: the full Recap opens in its «Развернуть ↗» window.
+    await waitOursText('modal', 'Synthetic recap of the conversation.', 'the full Recap in its window', { timeout: 30_000, selector: '.cg-xdlg' });
 
     // The hub takes 3000 now: the same wish asks for 3000.
     await hub().command({ op: 'config', patch: { limits: { deepMax: 3000 } } });
     expect(await shift.rpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
-    await pressOurs('dock', '.cg-sheet button', /Обновить/);
+    await pressOurs('modal', '.cg-xdlg button', /Обновить/);
     await browser.waitUntil(async () => (await streamsSince(mark)).length === 2, { timeout: 30_000, timeoutMsg: 'the Recap was not built anew' });
-    await waitOursText('dock', 'Synthetic recap of the conversation.', 'the full Recap built anew', { timeout: 30_000 });
+    await waitOursText('modal', 'Synthetic recap of the conversation.', 'the full Recap built anew', { timeout: 30_000, selector: '.cg-xdlg' });
 
-    await pressOurs('dock', '.cg-sheet button', /^Коротко$/);
+    // «Коротко» in the window: the short one is the sheet's — the window folds, the sheet offers to build it.
+    await pressOurs('modal', '.cg-xdlg button', /^Коротко$/);
+    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'the window did not give the short Recap to the sheet' });
     await pressOurs('dock', '.cg-dock button', /^Собрать коротко/);
     await waitOursText('dock', 'Synthetic short recap.', 'the short Recap', { timeout: 30_000 });
 

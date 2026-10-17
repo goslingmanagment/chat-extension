@@ -325,13 +325,21 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
       await look('dock-10-recap-empty', { all: false });
       await pressOurs('dock', '.cg-dock button', /^Собрать полностью/);
-      await waitOursText('dock', 'Hubert, 34', 'the full Recap', { timeout: 20_000 });
-      await look('dock-11-recap-full', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      // X49: the full Recap opens in the «Развернуть ↗» window, as the old Fansly extension's overlay; the sheet keeps it.
+      await waitOursText('modal', 'Hubert, 34', 'the full Recap in its window', { timeout: 20_000, selector: '.cg-xdlg' });
+      await look('dock-11-recap-full', { check: async () => void (await inWindow('modal', '.cg-xdlg')) });
+      await browser.keys(Key.Escape);
+      await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not fold the Recap window into the sheet' });
+      expect((await dockIs(() => true, 'the dock')).analysis).toBe('recap');
+      await waitOursText('dock', 'Hubert, 34', 'the full Recap in the sheet');
+      await look('dock-11b-recap-full-sheet', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
       await browser.keys(Key.Escape);
       await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
       await pressOurs('dock', '.cg-strip button', /^Review/);
-      await waitOursText('dock', 'разговор живой', 'the Review', { timeout: 20_000 });
-      await look('dock-12-review', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await waitOursText('modal', 'разговор живой', 'the Review in its window', { timeout: 20_000, selector: '.cg-xdlg' });
+      await look('dock-12-review', { check: async () => void (await inWindow('modal', '.cg-xdlg')) });
+      await browser.keys(Key.Escape);
+      await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not fold the Review window into the sheet' });
       await browser.keys(Key.Escape);
       await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
     });
@@ -399,13 +407,12 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await ready(a1);
       await pressOurs('dock', '.cg-strip button', /^Recap/);
       await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
-      await waitOursText('dock', 'Hubert, 34', 'the full Recap of the long chat');
+      // X49: the saved full Recap opens in its «Развернуть ↗» window; «Обновить» there makes it anew, in the window.
+      await waitOursText('modal', 'Hubert, 34', 'the full Recap of the long chat in its window', { selector: '.cg-xdlg' });
       const remade = await hub().mark();
-      await pressOurs('dock', '.cg-dock button', /^Обновить/);
+      await pressOurs('modal', '.cg-xdlg button', /^Обновить/);
       await browser.waitUntil(async () => callsTo((await hub().journal(remade)).entries, 'aiFeatureStream').some((call) => call.stream?.outcome === 'done'), { timeout: 20_000, timeoutMsg: 'the Recap was not made anew' });
-      await waitOursText('dock', 'Hubert, 34', 'the Recap made anew');
-      await ours('dock', '.cg-expand').click();
-      await browser.waitUntil(() => oursExists('modal', '.cg-xdlg'), { timeout: 10_000, timeoutMsg: 'the result did not unfold into its dialog' });
+      await waitOursText('modal', 'Hubert, 34', 'the Recap made anew', { selector: '.cg-xdlg' });
       facts['debugFooterInUnfoldedResult'] = await oursExists('modal', '.cg-debug');
       await look('modal-04-recap-unfolded-debug', { all: false, check: async () => void (await inWindow('modal', '.cg-xdlg')) });
       await browser.keys(Key.Escape);

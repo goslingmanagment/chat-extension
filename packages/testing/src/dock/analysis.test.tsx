@@ -260,6 +260,23 @@ describe('Review', () => {
     expect(facts()).toEqual(['Сделан только что', 'архив на 06:18']);
   });
 
+  it('[X49] while a Review or a full Recap stands in its «Развернуть ↗» window, the sheet under it keeps only its head — the text is read once, up there', async () => {
+    kit = mountDock(dockScenario(reviewDock(), {}, [entry({ of: 'review' }, review(ctx, views.ready(), { expanded: true }))]));
+    await settle(1);
+    expect(text(kit.$('.cg-sheet .cg-head__title'))).toBe('Review');
+    expect(text(kit.$('.cg-sheet .cg-head__score'))).toBe('7/10');
+    expect(kit.$$('.cg-sheet .cg-block')).toEqual([]);
+    expect(kit.$$('.cg-sheet .cg-facts')).toEqual([]);
+    // «Скрыть Esc» stays: it hides the Review, the window with it.
+    await flush(() => byLabel('Скрыть').click());
+    expect(kit.client.dispatched.at(-1)).toEqual({ type: 'ShowAnalysis', view: 'review', mode: 'hidden' });
+    kit.unmount();
+    kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, recapView(ctx, views.ready(), 'full', { expanded: true }))]));
+    await settle(1);
+    expect(text(kit.$('.cg-sheet .cg-head__title'))).toBe('Recap');
+    expect(kit.$$('.cg-sheet .cg-block')).toEqual([]);
+  });
+
   it('[AI-054] Copy writes the whole Review; «Ещё раз ⌘⇧B» asks for a new one; hide and expand name the view, not an operation', async () => {
     kit = mountDock('review');
     await settle(1);

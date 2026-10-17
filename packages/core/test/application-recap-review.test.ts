@@ -156,7 +156,8 @@ describe('recap: the sheet and what is saved', () => {
     await openRecap(h);
     const view = h.recapView();
     expect(view.view).toEqual({ s: 'ready' });
-    expect(view).toMatchObject({ length: 'full', lengths: { short: true, full: true }, markdown: FULL_TEXT, generatedAt: FULL_AT, state: null, phase: null, streamText: null, targetName: 'Fan Two', expanded: false, debug: null });
+    // X49: the full recap opens in the «Развернуть ↗» window.
+    expect(view).toMatchObject({ length: 'full', lengths: { short: true, full: true }, markdown: FULL_TEXT, generatedAt: FULL_AT, state: null, phase: null, streamText: null, targetName: 'Fan Two', expanded: true, debug: null });
     expect(view.blocks).toEqual([
       { heading: 'Кто он', markdown: 'Марк, 34, Остин.' },
       { heading: 'Деньги', markdown: 'Купил сет за $30.' },
@@ -235,14 +236,18 @@ describe('recap: the sheet and what is saved', () => {
     expect(h.dock().actions.recap.active).toBe(false);
   });
 
-  it('[AI-060] [UI-014] ShowAnalysis: the strip\'s Recap opens the sheet without a generation, «Развернуть ↗» the window, «Свернуть» the sheet again, «Скрыть» keeps the recap', async () => {
+  it('[AI-060] [UI-014] [X49] ShowAnalysis: the strip\'s Recap opens without a generation — the full one in its window —, «Свернуть» the sheet, «Развернуть ↗» the window again, «Скрыть» keeps the recap', async () => {
     const h = await start();
     h.bg.sharedRecaps = { full: body(), short: shortBody(), fullSavedToProfile: true };
     expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'sheet' })).toMatchObject({ ok: true, type: 'ShowAnalysis', outcome: 'opened' });
     await h.settle();
     expect(h.dock()).toMatchObject({ analysis: 'recap', result: null });
     expect(h.bg.hub.streams).toHaveLength(0);
-    expect(h.recapView()).toMatchObject({ expanded: false });
+    // X49: the full recap is in the window, the sheet under it; «Свернуть» (the sheet of the open one) leaves the sheet.
+    expect(h.recapView()).toMatchObject({ expanded: true, length: 'full' });
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'sheet' })).toMatchObject({ ok: true });
+    expect(h.recapView()).toMatchObject({ expanded: false, length: 'full' });
+    expect(h.dock().analysis).toBe('recap');
     // The person looks at the short one; the window and the way back keep that length.
     expect(await h.dispatch({ type: 'ShowRecap', length: 'short' })).toMatchObject({ ok: true });
     expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'expanded' })).toMatchObject({ ok: true, outcome: 'opened' });
@@ -258,6 +263,66 @@ describe('recap: the sheet and what is saved', () => {
     expect(h.dock().analysis).toBe('recap');
     expect(h.recapView().expanded).toBe(true);
     expect(h.bg.hub.streams).toHaveLength(0);
+  });
+
+  it('[X49] the window shows a recap there is: with nothing saved the sheet stays, with its build buttons; the short one is the sheet’s', async () => {
+    const h = await start();
+    await openRecap(h);
+    expect(h.recapView()).toMatchObject({ view: { s: 'empty' }, length: 'full', expanded: false });
+    expect(h.dock().analysis).toBe('recap');
+    const short = await start({ background: (bg) => (bg.sharedRecaps = { full: null, short: shortBody(), fullSavedToProfile: false }) });
+    await openRecap(short, 'recap-short');
+    expect(short.recapView()).toMatchObject({ length: 'short', expanded: false });
+  });
+
+  it('[X49] a full Recap folded into the sheet stays there when it is built anew from the sheet; asked for again, it opens in its window', async () => {
+    const h = await start();
+    h.bg.hub.profileScript.push(saved);
+    await openRecap(h);
+    h.script(recapStream(FULL_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.finish();
+    // Asked for in full (⌘⇧S over an empty sheet, then «Собрать полностью»): the build is in the window.
+    expect(h.recapView()).toMatchObject({ markdown: FULL_TEXT, expanded: true });
+    await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'sheet' });
+    h.bg.hub.profileScript.push(saved);
+    h.script(recapStream(FULL_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.finish();
+    expect(h.recapView()).toMatchObject({ markdown: FULL_TEXT, expanded: false });
+    expect(await h.dispatch({ type: 'ShowRecap', length: 'full' })).toMatchObject({ ok: true });
+    expect(h.recapView().expanded).toBe(true);
+  });
+
+  it('[X49] «Ещё раз» rates the chat anew where the Review stands: in its window, or in the sheet it was folded into', async () => {
+    const h = await start();
+    h.script(reviewStream(REVIEW));
+    const started = await h.ai.command('review');
+    const first = (started as { receipt: { opId: string } }).receipt.opId;
+    await h.finish();
+    expect(h.review()).toMatchObject({ opId: first, expanded: true });
+    h.script(reviewStream(REVIEW));
+    await h.dispatch({ type: 'Regenerate', operationId: first });
+    await h.finish();
+    const second = h.review().opId as string;
+    expect(second).not.toBe(first);
+    expect(h.review().expanded).toBe(true);
+    await h.dispatch({ type: 'ShowAnalysis', view: 'review', mode: 'sheet' });
+    h.script(reviewStream(REVIEW));
+    await h.dispatch({ type: 'Regenerate', operationId: second });
+    await h.finish();
+    expect(h.review().opId).not.toBe(second);
+    expect(h.review().expanded).toBe(false);
+  });
+
+  it('[X49] the fan panel’s Recap tab shows the full Recap itself: asked from there, no «Развернуть ↗» window opens over the panel', async () => {
+    const h = await start({ background: (bg) => (bg.sharedRecaps = { full: body(), short: shortBody(), fullSavedToProfile: true }) });
+    expect(await h.dispatch({ type: 'ShowRecap', length: 'full', panel: true })).toMatchObject({ ok: true });
+    await h.settle();
+    expect(h.recapView()).toMatchObject({ length: 'full', expanded: false });
+    // The same in the dock: the window.
+    expect(await h.dispatch({ type: 'ShowRecap', length: 'full' })).toMatchObject({ ok: true });
+    expect(h.recapView()).toMatchObject({ length: 'full', expanded: true });
   });
 
   it('the Recap switch of the owner off: the button is off and the views say «недоступно»', async () => {
@@ -946,6 +1011,9 @@ describe('review', () => {
     h.script(recapStream(FULL_TEXT));
     await h.dispatch({ type: 'RefreshRecap', length: 'full' });
     await h.finish();
+    // X49: the full one built opens in its window; «Свернуть» puts it into the sheet.
+    expect(h.recapView()).toMatchObject({ markdown: FULL_TEXT, expanded: true });
+    await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'sheet' });
     const inSheet = h.recapView();
     expect(inSheet).toMatchObject({ markdown: FULL_TEXT, expanded: false });
     expect(inSheet.debug).not.toBeNull();
@@ -970,15 +1038,21 @@ describe('review', () => {
     expect(plain.recapView().debug).toBeNull();
   });
 
-  it('the Review key starts it; while it runs the key brings the sheet back and ⌘. cancels', async () => {
+  it('the Review key starts it — in its window (X49); while it runs the key brings it back and ⌘. cancels', async () => {
     const h = await start();
     h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('chat-review') }, { kind: 'stall' }] });
     const outcome = await h.ai.command('review');
     expect(outcome).toMatchObject({ kind: 'dispatched', receipt: { ok: true, outcome: 'started' } });
     const opId = (outcome as { receipt: { opId: string } }).receipt.opId;
+    expect(h.review()).toMatchObject({ opId, expanded: true });
+    // «Свернуть»: the sheet keeps it; the key brings the window back.
+    await h.dispatch({ type: 'ShowAnalysis', view: 'review', mode: 'sheet' });
+    expect(h.review()).toMatchObject({ opId, expanded: false });
+    expect(h.dock().analysis).toBe('review');
     await h.dispatch({ type: 'HideResult', operationId: opId });
     expect(await h.ai.command('review')).toMatchObject({ kind: 'dispatched', receipt: { ok: true, outcome: 'noop', opId } });
     expect(h.dock().analysis).toBe('review');
+    expect(h.review().expanded).toBe(true);
     expect(await h.ai.command('cancel')).toMatchObject({ kind: 'dispatched', receipt: { ok: true } });
     await h.settle();
     expect(h.review()).toMatchObject({ opId: null, state: null });

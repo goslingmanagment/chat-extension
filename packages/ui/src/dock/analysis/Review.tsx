@@ -8,7 +8,7 @@ import { type JSX } from 'preact';
 
 import { type ReviewSectionVM } from '@cg/contracts/vm';
 
-import { Markdown, ViewState, useDispatch, useI18n, useView } from '../../kit';
+import { Markdown, Spinner, ViewState, useDispatch, useI18n, useView } from '../../kit';
 import { spokenStage, useReadyAnnouncement, useStageAnnouncements } from '../announce';
 import { AgainButton, Head, Meta } from '../Head';
 import { StaleRow } from '../Result';
@@ -56,6 +56,21 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
   const said = place === 'sheet' ? (review.opId ?? 'review') : null;
   useStageAnnouncements(title, running(review.state) ? said : null, review.phase);
   useReadyAnnouncement(place === 'sheet' ? 'review' : null, running(review.state), review.sections.length > 0 || review.raw !== null, () => spokenStage(i18n, title, i18n.t('review.madeNow')));
+
+  // In the «Развернуть ↗» window (X49: where a Review opens) the sheet keeps only its head: the text is read once, up there.
+  if (place === 'sheet' && review.expanded) {
+    return (
+      <Head title={title} gutter={running(review.state) ? <Spinner /> : null} acts={close}>
+        {review.rating === null ? null : (
+          <span class="cg-head__score" data-cg-score={review.rating}>
+            {review.rating}
+            <span>/10</span>
+          </span>
+        )}
+        <Meta texts={review.meta.map((line) => i18n.text(line))} />
+      </Head>
+    );
+  }
 
   if (running(review.state)) return <Running title={title} opId={review.opId} phase={review.phase} text={text} debug={debug} />;
 

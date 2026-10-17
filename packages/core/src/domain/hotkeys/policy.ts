@@ -202,6 +202,9 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
   if (!ourContext) return PASS;
   if (id === 'help') return refuse('help-removed');
   if (cover === 'preview') return PREVIEW_COMMANDS.includes(id) ? run('preview') : refuse('overlay-open');
+  // X49: Review and the full Recap open in the «Развернуть ↗» window; their keys are its own «Ещё раз» and «Обновить»
+  // (the runner checks that the window shows that very one).
+  if (cover === 'result-expanded' && (id === 'recap' || id === 'review') && inChat) return run('dock');
   if (covered) return refuse('overlay-open');
   if (!inChat) return PASS;
   // AI keys work in ChatSpace's own message field and in our UI, not in an arbitrary field of the site: taken there, with the reason (HK-026).

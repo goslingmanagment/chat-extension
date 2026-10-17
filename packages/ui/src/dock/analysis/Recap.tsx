@@ -199,6 +199,15 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
   useStageAnnouncements(title, running(recap.state) ? said : null, recap.phase);
   useReadyAnnouncement(place === 'sheet' ? 'recap' : null, running(recap.state), recap.markdown !== null, () => i18n.t('dock.badge.recapReady'));
 
+  // In the «Развернуть ↗» window (X49: where the full Recap opens) the sheet keeps only its head: the text is read once, up there.
+  if (place === 'sheet' && recap.expanded) {
+    return (
+      <Head title={title} gutter={running(recap.state) ? <Spinner /> : null} acts={close}>
+        <Meta texts={forFan} />
+      </Head>
+    );
+  }
+
   if (running(recap.state)) return <Running title={title} opId={recap.opId} phase={recap.phase} text={text} debug={debug} />;
 
   if (recap.markdown === null) {

@@ -162,7 +162,8 @@ function RecapTab({ archive }: { readonly archive: Coverage }): JSX.Element {
   const dispatch = useDispatch();
   const recap = useView({ of: 'recap.view' }).value;
   useMinuteClock(recap.generatedAt !== null);
-  const refresh = recap.refresh;
+  // Asked here, the full Recap is the panel's to show: no «Развернуть ↗» window over the panel (X49).
+  const refresh = recap.refresh.action.type === 'RefreshRecap' ? { ...recap.refresh, action: { ...recap.refresh.action, panel: true as const } } : recap.refresh;
   const keys = hotkeyText(refresh.hotkey);
   const running = recap.state === 'admitted' || recap.state === 'requesting' || recap.state === 'streaming';
   const hasText = recap.markdown !== null && recap.view.s !== 'error' && recap.view.s !== 'forbidden';
@@ -181,7 +182,7 @@ function RecapTab({ archive }: { readonly archive: Coverage }): JSX.Element {
               { value: 'short', label: i18n.t('recap.short') },
               { value: 'full', label: i18n.t('recap.full') },
             ]}
-            onChange={(length) => void dispatch({ type: 'ShowRecap', length })}
+            onChange={(length) => void dispatch({ type: 'ShowRecap', length, panel: true })}
           />
         </div>
         {running && recap.phase !== null ? (

@@ -58,6 +58,15 @@ interface RecapUi {
   opId: string | null;
   /** The sheet's own id, for hide and expand while nothing else names it. */
   readonly sheetId: string;
+  /**
+   * Decision X49: the full recap opens in the «Развернуть ↗» window, as the old Fansly extension's overlay showed it —
+   * when the person asks for it in the dock (⌘⇧S, the bar's button, «Полностью»); a build asked from there follows it
+   * (the picker's «Собрать полностью» of a recap asked for in full). «Свернуть» and «Скрыть» clear it, and a build from
+   * the sheet then stays in the sheet; the fan panel's Recap tab (`panel`) shows the recap itself and clears it too.
+   * The window shows only a full recap there is (saved or being built): the short one and an empty one with its build
+   * buttons stay in the sheet.
+   */
+  window: boolean;
 }
 
 export interface RecapController extends AiController {
@@ -77,7 +86,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
   function uiOf(key: ChatKey): RecapUi {
     let ui = uis.get(key);
     if (ui === undefined) {
-      ui = { length: 'full', opId: null, sheetId: ids.uuid() };
+      ui = { length: 'full', opId: null, sheetId: ids.uuid(), window: false };
       uis.set(key, ui);
       // The sheet state of the chats visited longest ago goes: a shift opens hundreds of chats.
       while (uis.size > RECAP_UI_CHATS_MAX) {
@@ -195,7 +204,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     const failed = op !== null && (op.view.state === 'failed' || op.view.state === 'interrupted');
     const copy = running || failed ? null : slots[length];
     const id = op?.view.opId ?? copy?.localId ?? ui?.sheetId ?? null;
-    const expanded = id !== null && ws.isExpanded(id);
+    const expanded = id !== null && (ws.isExpanded(id) || (ui?.window === true && length === 'full' && blocked === null && (copy !== null || running)));
 
     // The archive point this recap stands on: the served head of its generation, else the moment it was made.
     const head = op?.view.state === 'done' ? (op.view.servedContext?.servedHead ?? null) : null;
@@ -278,11 +287,14 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       ui.length = lengthOf(running.view.feature);
       ui.opId = running.view.opId;
     } else ui.opId = null;
+    // X49: the full one in its window.
+    ui.window = ui.length === 'full';
     ws.setSheet(chat.key, { kind: 'recap' });
     return done(type, 'opened');
   }
 
-  async function generate(type: UiAction['type'], length: RecapLength, cause: CauseKind): Promise<ActionReceipt> {
+  /** `panel` — asked from the fan panel's Recap tab, which shows it itself: no window over the panel (X49). */
+  async function generate(type: UiAction['type'], length: RecapLength, cause: CauseKind, panel = false): Promise<ActionReceipt> {
     const chat = ws.situation().chat;
     if (chat === null) return refused(ws, type, { code: 'CG-CONTEXT-CHANGED' });
     const ui = uiOf(chat.key);
@@ -291,6 +303,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     if (running !== null && isRecap(running.view.feature) && lengthOf(running.view.feature) === length) {
       ui.length = length;
       ui.opId = running.view.opId;
+      if (panel) ui.window = false;
       ws.setSheet(chat.key, { kind: 'recap' });
       return done(type, 'noop', { opId: running.view.opId });
     }
@@ -308,6 +321,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       case 'started':
         ui.length = length;
         ui.opId = result.opId;
+        if (panel) ui.window = false;
         ws.setSheet(chat.key, { kind: 'recap' });
         return done(type, 'started', { opId: result.opId });
       case 'refused':
@@ -339,12 +353,15 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       const ui = uiOf(chat.key);
       ui.length = action.length;
       ui.opId = null;
+      // X49: the full one in its window — asked in the dock; the fan panel shows it itself.
+      if (action.panel === true) ui.window = false;
+      else if (action.length === 'full') ui.window = true;
       const key = ready === null ? null : ws.slotKey(ready);
       if (key !== null) book.loadShared(key);
       ws.setSheet(chat.key, { kind: 'recap' });
       return Promise.resolve(done(action.type, key !== null && book.get(key, action.length) !== null ? 'opened' : 'noop'));
     },
-    RefreshRecap: (action, cause) => generate(action.type, action.length, cause),
+    RefreshRecap: (action, cause) => generate(action.type, action.length, cause, action.panel === true),
     // Where the Recap of the open chat is shown (ui-contract.md, decision 13): the strip's button and the window's
     // «Свернуть» ask for the sheet, «Развернуть ↗» for the window, «Скрыть» hides — the recap stays. Never a
     // generation (AI-060): a sheet with nothing saved shows the build buttons.
@@ -357,14 +374,19 @@ export function createRecapController(ws: AiWorkspace): RecapController {
         if (!shown) return Promise.resolve(done(action.type, 'noop'));
         const id = viewVm().opId;
         if (id !== null) ws.setExpanded(id, false);
+        uiOf(chat.key).window = false;
         ws.setSheet(chat.key, null);
         return Promise.resolve(done(action.type));
       }
-      // A sheet that is already open keeps the length the person chose.
+      // A sheet that is already open keeps the length the person chose; one that opens now shows the full recap in its
+      // window (X49) — `open` says so. «Свернуть» of the window asks for the sheet of the open one: it stays in the sheet.
       const opened = shown ? null : open(action.type, null);
       if (opened !== null && !opened.ok) return Promise.resolve(opened);
-      const id = viewVm().opId;
-      if (id !== null) ws.setExpanded(id, action.mode === 'expanded');
+      if (shown || action.mode === 'expanded') {
+        uiOf(chat.key).window = false;
+        const id = viewVm().opId;
+        if (id !== null) ws.setExpanded(id, action.mode === 'expanded');
+      }
       return Promise.resolve(done(action.type, 'opened'));
     },
     Regenerate(action, cause) {
@@ -385,12 +407,14 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     HideResult(action) {
       const chat = ws.situation().chat;
       if (chat === null || ws.sheet(chat.key)?.kind !== 'recap' || !sheetOwns(chat.key, action.operationId)) return null;
+      uiOf(chat.key).window = false;
       ws.setSheet(chat.key, null);
       return Promise.resolve(done(action.type));
     },
     ExpandResult(action) {
       const chat = ws.situation().chat;
       if (chat === null || ws.sheet(chat.key)?.kind !== 'recap' || !sheetOwns(chat.key, action.operationId)) return null;
+      uiOf(chat.key).window = false;
       ws.setExpanded(action.operationId, action.expanded);
       return Promise.resolve(done(action.type, action.expanded ? 'opened' : 'done'));
     },

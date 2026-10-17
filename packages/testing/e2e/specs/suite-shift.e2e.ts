@@ -99,8 +99,12 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await browser.keys('Escape');
     await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
     await pressOurs('dock', '.cg-strip button', /^Review/);
-    await waitOursText('dock', 'Synthetic review of the chat.', 'the Review', { timeout: 20_000 });
+    // X49: the Review opens in its «Развернуть ↗» window; Esc folds it into the sheet, the next Esc hides the sheet.
+    await waitOursText('modal', 'Synthetic review of the chat.', 'the Review in its window', { timeout: 20_000, selector: '.cg-xdlg' });
     await browser.keys('Escape');
+    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not fold the Review window' });
+    await browser.keys('Escape');
+    await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
     await pressOurs('dock', '.cg-strip button', /^Coach/);
     await browser.waitUntil(async () => (await oursFocus('panel'))?.label === 'Вопрос Coach', { timeout: 10_000, timeoutMsg: 'the Coach field did not take the focus' });
     await browser.keys('What do I say next?'.split(''));

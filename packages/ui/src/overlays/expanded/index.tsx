@@ -8,6 +8,7 @@
 // model says `expanded`. A lazy overlay.
 
 import { type JSX } from 'preact';
+import { useLayoutEffect } from 'preact/hooks';
 
 import { type MountDeps } from '@cg/contracts/vm';
 
@@ -17,6 +18,7 @@ import {
   Dialog,
   OverlayLayer,
   Spinner,
+  focusQuietly,
   mountKitSurface,
   useDispatch,
   useI18n,
@@ -61,7 +63,16 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
   const all: DockParts = { ...DEFAULT_PARTS, ...parts };
   const result = dock.result !== null && dock.result.expanded && dock.result.state !== 'canceled' ? dock.result : null;
   const which = recap.expanded ? 'recap' : review.expanded ? 'review' : null;
-  if (which === null && result === null) return null;
+  const open = which !== null || result !== null;
+  // A Review or a Recap that finished in the window took its «Отменить» with it (X49: they open here): the focus fell to the
+  // page's body — it goes to «Свернуть», so the keys stay the window's. Focus anywhere else is left alone.
+  useLayoutEffect(() => {
+    if (!open || root.activeElement !== null) return;
+    const page = root.ownerDocument;
+    if (page === null || (page.activeElement !== null && page.activeElement !== page.body)) return;
+    focusQuietly(root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse'));
+  });
+  if (!open) return null;
 
   const collapse = (): void => {
     if (which !== null) void dispatch({ type: 'ShowAnalysis', view: which, mode: 'sheet' });
