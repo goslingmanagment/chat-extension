@@ -1,9 +1,9 @@
 {
   "kernelSdk": {
     "contractHash": "5578288885437558dcb108815dc53086155a0062f6199a5829dfdc0315805177",
-    "sourceCommit": "451810afd6b2b8c03dfaae93f7e169dfff859a0a",
-    "distSha256": "513d52a99560495033e655759dd7887122841ecfc405f32db00c265a0e117a46",
-    "note": "Vendored on 2026-10-17 (decision X54) with the hub's scripts/vendor-sdk.mjs from hub main 451810af (#661 livePpvContext and live-ppv-v1, #659 live-text-review-coach-v1), the commit that runs in production since 2026-10-17 ~13:15 UTC (prod health: contractHash 55782888…, compatibleClientSdks lists it, 03012453… and the older ones), so this vendor satisfies the release rule (a release is vendored only from a merged and deployed hub commit). Against c1b96aaf (#656) the contract only grew; every route, operation and schema this extension calls keeps its form. Re-vendor with the same script, then update this pin in the same commit."
+    "sourceCommit": "85931f83e96a333cf1303ff5eafdb715fa5cef63",
+    "distSha256": "c88bf0b50b34e9011da91d1792447bf93e09f10c44b3df0dad3a1b8cd958c1aa",
+    "note": "Vendored on 2026-10-17 (decision X52) with the hub's scripts/vendor-sdk.mjs from hub main 85931f83 (#663), deployed to production the same day; the contract hash is unchanged from 451810af (55782888…): against it the SDK only names the capability live-text-recap-v1 (Recap takes the open chat's fresh text and stays shared). Every route, operation and schema this extension calls for ChatSpace keeps its form. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
