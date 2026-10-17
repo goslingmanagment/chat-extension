@@ -34,9 +34,12 @@ jobs:
     name: pnpm perf
     if: github.event_name != 'schedule' || vars.CI_POOL == 'pc'
     runs-on: [self-hosted, ci-pc]
-    # About 60 minutes with setup; the PC's priority hook may hold the job up
-    # to 12 minutes before it starts, inside this limit.
-    timeout-minutes: 100
+    # 40-60 minutes with setup. Before that the PC's priority hook holds the
+    # job, inside this limit, while any other heavy CI job runs (this
+    # repository's CI too), up to 30 minutes: run beside eight e2e parts on
+    # 17.10 it pushed the load to 3x the CPUs and both went red (ci-runners
+    # README, «Приоритет»).
+    timeout-minutes: 120
     env:
       NODE_OPTIONS: --max-old-space-size=8192
     steps:
