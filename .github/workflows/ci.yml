@@ -46,7 +46,8 @@
 # repository variable CI_POOL=pc sends the first attempt to the owner's
 # self-hosted runners; any other value, and every re-run (the PC may have died
 # mid-run), uses GitHub-hosted runners. On the PC the suite runs as five parts
-# (six runners: `check` and five parts at once); on GitHub as one, so the paid
+# (six runners: `check` and five parts at once; the gate «pnpm e2e» goes to the
+# light runner, label ci-pc-control); on GitHub as one, so the paid
 # minutes stay what they were. Branch protection matches a required check by
 # the job's `name:` — «pnpm check» and «pnpm e2e»: keep the names.
 #
@@ -282,10 +283,14 @@ jobs:
     name: pnpm e2e
     needs: [check, e2e-part]
     if: always() && (github.event.pull_request.draft != true || vars.CI_POOL == 'pc')
-    # One shell line: off the PC the smallest GitHub runner does (as hub's
-    # gates).
-    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-slim' }}
-    # Seconds of work; the rest is room for the PC's priority hook.
+    # Seconds of shell. On the PC it asks for ci-pc-control, as hub's gates:
+    # the light runner winpc-chat-extension-gate-1 carries only that label,
+    # so the gate no longer waits behind other runs' parts for a heavy runner,
+    # and a job there skips the priority hook (ci-runners README «Раннеры под
+    # гейты»). The heavy runners carry it too: with the light one busy or down
+    # the gate falls back to them. Off the PC the smallest GitHub runner does.
+    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc-control"]') || 'ubuntu-slim' }}
+    # Seconds of work; the rest is room for the PC's priority hook on a heavy runner.
     timeout-minutes: 15
 
     steps:
