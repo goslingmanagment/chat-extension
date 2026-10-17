@@ -396,7 +396,7 @@ describe('which changes run the e2e suite', () => {
     expect(needed({ cwd: r.dir, env: {} }).line).toBe('e2e=true');
   });
 
-  it('the workflow: `check` always runs in full; in each part of the suite every step after the question is skipped only on a plain «false»', () => {
+  it('the workflow: `check` runs in full unless its tree is proven; in each part of the suite every step after the questions is skipped only on a plain «false» or a proof', () => {
     const check = job('check');
     const part = job('e2e-part');
     expect(check).toContain('name: pnpm check');
@@ -407,8 +407,14 @@ describe('which changes run the e2e suite', () => {
     expect(part).toMatch(/- name: Checkout\n {8}uses: actions\/checkout@v6\n {8}with:\n {10}fetch-depth: 2\n/);
     expect(runLine('Does this change need e2e\\?')).toBe('tools/ci/e2e-needed.sh >> "$GITHUB_OUTPUT"');
     const steps = part.slice(part.indexOf('- name: Does this change need e2e?')).split(/\n {6}- name: /).slice(1);
-    expect(steps.map((step) => step.split('\n')[0])).toEqual(['Setup Node.js', 'Setup pnpm', 'Install dependencies', 'e2e (headless Firefox in the pinned image, no network)', 'Remove the e2e container, if one is left', 'Upload e2e logs']);
-    for (const step of steps.slice(0, 5)) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: (always\(\) && )?steps\.scope\.outputs\.e2e != 'false'\n/);
+    expect(steps.map((step) => step.split('\n')[0])).toEqual(['Setup Node.js', 'Did this tree already pass?', 'Setup pnpm', 'Install dependencies', 'e2e (headless Firefox in the pinned image, no network)', 'Remove the e2e container, if one is left', 'Upload e2e logs']);
+    // The clean-up step runs on a proof too: it only removes what an earlier run may have left.
+    for (const step of [...steps.slice(0, 2), steps[5] ?? '']) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: (always\(\) && )?steps\.scope\.outputs\.e2e != 'false'\n/);
+    for (const step of steps.slice(2, 5)) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: steps\.scope\.outputs\.e2e != 'false' && steps\.proof\.outputs\.proven_by == ''\n/);
+    // `check`: every step after the question, on a proof alone.
+    const checkSteps = check.slice(check.indexOf('- name: Did this tree already pass?')).split(/\n {6}- name: /).slice(1);
+    expect(checkSteps.map((step) => step.split('\n')[0])).toEqual(['Setup pnpm', 'Install dependencies', 'Check', 'Dependency audit (warnings only)']);
+    for (const step of checkSteps) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: steps\.proof\.outputs\.proven_by == ''\n/);
     // No workflow-level path filter: a required check of a workflow that never starts would wait for ever.
     expect(WORKFLOW).not.toMatch(/^\s+paths(-ignore)?:/m);
   });
@@ -435,7 +441,7 @@ describe('the e2e suite in parts', () => {
     expect(WORKFLOW.match(/^ {4}name: pnpm check$/gm)).toHaveLength(1);
     expect(WORKFLOW.match(/^ {4}name: pnpm e2e$/gm)).toHaveLength(1);
     expect(GATE).toContain('    name: pnpm e2e\n');
-    expect(GATE).toContain('    needs: [e2e-part]\n');
+    expect(GATE).toContain('    needs: [check, e2e-part]\n');
     // Runs whatever the parts did: «skipped» would read as passed.
     expect(GATE).toContain(`    if: always() && (${DRAFT_RULE})\n`);
     expect(GATE).toContain('          PARTS: ${{ needs.e2e-part.result }}\n');

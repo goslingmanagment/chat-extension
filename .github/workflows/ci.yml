@@ -19,8 +19,19 @@
 # costs no runner and counts as passed for a required check) — and marking the
 # PR ready starts them. Marking a PR that ran on the PC ready runs CI once more:
 # GitHub tests the PR merged into its base, and the base may have moved since
-# the Draft's run; telling a still-valid green run from a stale one would need
-# a gate job reading the API, whose «skipped» would also read as passed.
+# the Draft's run. If it has not, the merge is the same tree, and the run ends
+# green at once (next paragraph).
+#
+# A tree that already passed does not run again. A green run leaves the proof
+# of the tree it tested — an artifact `ci-proof-<tree>` from the job «pnpm
+# e2e», once `check` and every part passed. Each job of a later run asks for
+# its own tree first (tools/ci/ci-proof.ts): with a proof from a completed,
+# successful run of this workflow, every step after the question is skipped
+# and the job ends green — the jobs still run, so no required check reads a
+# «skipped». That is a PR marked ready while its base stayed put, and a push
+# to main after merging such a PR: in 13–16.10, 98 of 336 full runs. A tree is
+# the whole checkout, workflow files included; a manual run and a re-run
+# always run in full, and a failed lookup is a miss.
 #
 # A change of documents alone — docs/**, site/**, *.md in the root — does not
 # run the e2e suite: each part starts, sees what changed (its second step,
@@ -72,6 +83,14 @@ jobs:
     if: github.event.pull_request.draft != true || vars.CI_POOL == 'pc'
     runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     timeout-minutes: 25
+    # Reading earlier runs' proofs (tools/ci/ci-proof.ts) needs actions:read.
+    permissions:
+      actions: read
+      contents: read
+    # For the gate job: the tree this run tested, and the run that already had.
+    outputs:
+      tree: ${{ steps.proof.outputs.tree }}
+      proven_by: ${{ steps.proof.outputs.proven_by }}
     env:
       # Type-aware ESLint exhausted the former 4 GiB heap in run 38855233102
       # as the workspace grew. Leave headroom for its TypeScript projects;
@@ -95,12 +114,21 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # The same tree already passed (see the top of the file): every step
+      # below is skipped and the job ends green.
+      - name: Did this tree already pass?
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci/ci-proof.ts >> "$GITHUB_OUTPUT"
+
       # Node 26 ships no corepack (the other repositories take pnpm from the
       # corepack of Node 22), so npm installs pnpm at the exact version
       # package.json "packageManager" pins — one pin, no drift — into this
       # job's runner temp: nothing shared between runners changes. npm's own
       # cache in $HOME serves the next job on the PC without the registry.
       - name: Setup pnpm
+        if: steps.proof.outputs.proven_by == ''
         run: |
           pinned="$(node -p 'require("./package.json").packageManager')"
           pinned="${pinned%%+*}"
@@ -116,6 +144,7 @@ jobs:
       # Hosted runners use pnpm's default store and no Actions cache: they are
       # the fallback, and a cold install here is under a minute.
       - name: Install dependencies
+        if: steps.proof.outputs.proven_by == ''
         env:
           PNPM_PC_STORE: ${{ runner.environment == 'self-hosted' && '1' || '' }}
         run: |
@@ -123,11 +152,13 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Check
+        if: steps.proof.outputs.proven_by == ''
         run: pnpm check
 
       # architecture.md §14: known vulnerabilities are reported, they do not
       # fail the job (the registry's answer changes without a commit of ours).
       - name: Dependency audit (warnings only)
+        if: steps.proof.outputs.proven_by == ''
         run: pnpm audit --audit-level high || echo "::warning title=pnpm audit::pnpm audit reports vulnerabilities or could not reach the registry — see the log of this step"
 
   e2e-part:
@@ -137,6 +168,9 @@ jobs:
     # The whole suite is about 20 minutes on the PC and 28 on a GitHub runner
     # (one part there); slower runners and the PC's priority hook get room.
     timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
     strategy:
       # Every part reports: a red part does not cancel the others, so one run
       # names every failing spec file. On the PC the parts cost nothing.
@@ -172,10 +206,19 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # The same tree already passed: the steps below are skipped, as for
+      # documents alone.
+      - name: Did this tree already pass?
+        id: proof
+        if: steps.scope.outputs.e2e != 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci/ci-proof.ts >> "$GITHUB_OUTPUT"
+
       # The same step as in `check`; tools/ci/e2e-docker.sh mounts this prefix
       # into the container.
       - name: Setup pnpm
-        if: steps.scope.outputs.e2e != 'false'
+        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == ''
         run: |
           pinned="$(node -p 'require("./package.json").packageManager')"
           pinned="${pinned%%+*}"
@@ -187,7 +230,7 @@ jobs:
           echo "$prefix/bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
-        if: steps.scope.outputs.e2e != 'false'
+        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == ''
         env:
           PNPM_PC_STORE: ${{ runner.environment == 'self-hosted' && '1' || '' }}
         run: |
@@ -206,7 +249,7 @@ jobs:
       # dies, and the container goes on running the suite in this checkout.
       # With it the script takes the signal and removes its container.
       - name: e2e (headless Firefox in the pinned image, no network)
-        if: steps.scope.outputs.e2e != 'false'
+        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == ''
         env:
           CG_E2E_SHARD: ${{ matrix.shard }}
           # Parallel jobs share the PC: timings catch a 3× regression; local runs stay strict.
@@ -234,9 +277,10 @@ jobs:
   # failed, was cancelled or never ran. `always()`: without it a failed or
   # cancelled part would make this job «skipped», and a required check reads
   # «skipped» as passed. A Draft on GitHub's runners skips it with the parts.
+  # It also waits for `check`: with both green it leaves the proof of the tree.
   e2e:
     name: pnpm e2e
-    needs: [e2e-part]
+    needs: [check, e2e-part]
     if: always() && (github.event.pull_request.draft != true || vars.CI_POOL == 'pc')
     # One shell line: off the PC the smallest GitHub runner does (as hub's
     # gates).
@@ -251,3 +295,24 @@ jobs:
         run: |
           echo "the parts of the e2e suite: $PARTS"
           [ "$PARTS" = success ] || { echo "::error title=pnpm e2e::a part of the e2e suite did not pass ($PARTS) — see the e2e jobs of this run"; exit 1; }
+
+      # The proof for a later run of the same tree (tools/ci/ci-proof.ts):
+      # `pnpm check` and every part green, and the tree not proven before.
+      # The run's own success is what the lookup checks; this only names it.
+      - name: Record the proof of this tree
+        if: needs.check.result == 'success' && needs.e2e-part.result == 'success' && needs.check.outputs.proven_by == ''
+        env:
+          TREE: ${{ needs.check.outputs.tree }}
+        run: |
+          [[ "$TREE" =~ ^[0-9a-f]{40}$ ]] || { echo "::error title=pnpm e2e::pnpm check named no tree ($TREE)"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/ci-proof"
+          printf '%s\n' "$GITHUB_RUN_ID" > "$RUNNER_TEMP/ci-proof/run-id"
+
+      - name: Publish the proof
+        if: needs.check.result == 'success' && needs.e2e-part.result == 'success' && needs.check.outputs.proven_by == ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-proof-${{ needs.check.outputs.tree }}
+          path: ${{ runner.temp }}/ci-proof/run-id
+          if-no-files-found: error
+          retention-days: 30
