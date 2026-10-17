@@ -1309,6 +1309,19 @@ describe('the hotkey runner', () => {
     expect(await r.run('close', 'global')).toEqual({ type: 'HideResult', operationId: opId });
     r.overlays.set('result-expanded', true);
     expect(await r.run('close', 'global')).toEqual({ type: 'ExpandResult', operationId: opId, expanded: false });
+    // X55: in the window its own analysis answers its key («Обновить ⌘⇧S», «Ещё раз ⌘⇧B»); the other one stands behind it.
+    const shown = runnerRig({ analysis: 'recap' });
+    shown.overlays.set('result-expanded', true);
+    shown.client.set({ of: 'recap.view' }, recapView(CTX, views.ready(), 'full'));
+    expect(await shown.run('recap')).toEqual({ type: 'RefreshRecap', length: 'full' });
+    expect(await shown.run('review')).toBeUndefined();
+    expect(shown.toasts.shown.at(-1)?.toast.title).toMatchObject({ key: 'dock.action.unavailable', params: { action: 'Review' } });
+    // X55: a Review or a full Recap opens in that window; Esc from anywhere folds it into its sheet, as «Свернуть».
+    for (const view of ['review', 'recap'] as const) {
+      const rig = runnerRig({ result: result(CTX, { opId, feature: 'reply', state: 'done' }), analysis: view });
+      rig.overlays.set('result-expanded', true);
+      expect(await rig.run('close', 'global')).toEqual({ type: 'ShowAnalysis', view, mode: 'sheet' });
+    }
   });
 
   it('[HK-029] Esc with a confirmation of ours on top and the focus outside it is its «Отмена» (ui-design §6.3, Б2) — never «Заменить» or «Добавить»', async () => {

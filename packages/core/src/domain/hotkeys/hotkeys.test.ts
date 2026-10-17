@@ -413,7 +413,11 @@ describe('whose key is it', () => {
   it('[HK-027] under the cheatsheet, a board, the palette or a dialog of ours only the cheatsheet, the board and Cancel work', () => {
     for (const overlay of COVERING_OVERLAYS) {
       const under = ctx({ overlays: [overlay] });
-      for (const id of AI) expect(decideKey(cmd(id), under)).toEqual({ act: 'claim', run: null, refusal: 'overlay-open', command: id });
+      // X55: in the «Развернуть ↗» window — where Review and the full Recap open — their keys are its own buttons.
+      for (const id of AI) {
+        if (overlay === 'result-expanded' && (id === 'recap' || id === 'review')) expect(ran(decideKey(cmd(id), under))).toBe(`${id}@dock`);
+        else expect(decideKey(cmd(id), under)).toEqual({ act: 'claim', run: null, refusal: 'overlay-open', command: id });
+      }
       expect(ran(decideKey(cmd('cheatsheet'), under))).toBe('cheatsheet@global');
       expect(ran(decideKey(cmd('spenders'), under))).toBe('spenders@global');
       // X55: «Новые» is the other board — it opens over a covering window as Spenders does, and shuts its own.

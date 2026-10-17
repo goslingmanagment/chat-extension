@@ -155,11 +155,18 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     if ((await oursText('dock')).includes('Командировка в Берлин')) return;
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
-    // A full Recap saved earlier opens from its row; the first one is built.
-    await browser.waitUntil(async () => (await oursByText('dock', '.cg-dock button', /^Собрать полностью/)) !== null, { timeout: 10_000, timeoutMsg: 'the Recap picker did not show' });
-    if (await oursExists('dock', '[data-cg-slot="full"] button')) await ours('dock', '[data-cg-slot="full"] button').click();
-    else await pressOurs('dock', '.cg-dock button', /^Собрать полностью/);
-    await waitOursText('dock', 'Командировка в Берлин', 'the full Recap in the dock', { timeout: 20_000 });
+    // X55: a full Recap saved earlier opens in its «Развернуть ↗» window at once; the first one is built from the picker.
+    const shown = async (): Promise<boolean> => oursExists('modal', '.cg-xdlg');
+    await browser.waitUntil(async () => (await shown()) || (await oursByText('dock', '.cg-dock button', /^Собрать полностью/)) !== null, { timeout: 10_000, timeoutMsg: 'neither the Recap window nor its picker showed' });
+    if (!(await shown())) {
+      if (await oursExists('dock', '[data-cg-slot="full"] button')) await ours('dock', '[data-cg-slot="full"] button').click();
+      else await pressOurs('dock', '.cg-dock button', /^Собрать полностью/);
+    }
+    await waitOursText('modal', 'Командировка в Берлин', 'the full Recap in its window', { timeout: 20_000, selector: '.cg-xdlg' });
+    // «Свернуть Esc» puts it into the dock's sheet, where these pictures want it — the tallest sheet next to the panels.
+    await browser.keys(Key.Escape);
+    await browser.waitUntil(async () => !(await shown()), { timeout: 5000, timeoutMsg: 'Esc did not fold the Recap window into the sheet' });
+    await waitOursText('dock', 'Командировка в Берлин', 'the full Recap in the dock', { timeout: 5000 });
   };
   /** Pictures in both themes at the owner's window, with the pointer off our controls (no hover) and colours settled. */
   const pictures = async (name: string): Promise<void> => {
