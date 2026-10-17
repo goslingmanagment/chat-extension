@@ -611,7 +611,11 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       const rootSize = (where: Where, selector: string): Promise<string | null> => readOurs(where, selector, (node) => getComputedStyle(node).fontSize);
       await browser.waitUntil(async () => (await rootSize('dock', '.cg-root')) === '15px', { timeout: 5000, timeoutMsg: 'the dock did not take the larger text' });
       await generate(/^Reply/);
-      expect(await readOurs('dock', '.cg-part__t, .cg-pvp__t', (node) => getComputedStyle(node).fontSize)).toBe('16.5px');
+      // The token itself on the dock's root, and the text of a part not yet sent: a sent part is a muted line of its own
+      // size (`is-done`, the md step: 15.5 px when larger), and the dock may still show one of the result before.
+      expect(await readOurs('dock', '.cg-root', (node) => getComputedStyle(node).getPropertyValue('--cg-text-ai').trim())).toBe('16.5px');
+      await browser.waitUntil(() => oursExists('dock', '.cg-part:not(.is-done) .cg-part__t'), { timeout: 10_000, timeoutMsg: 'no unsent part of the Reply' });
+      expect(await readOurs('dock', '.cg-part:not(.is-done) .cg-part__t', (node) => getComputedStyle(node).fontSize)).toBe('16.5px');
       await look('dock-20-large-text', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
       await hideResult();
       await leaveField();
