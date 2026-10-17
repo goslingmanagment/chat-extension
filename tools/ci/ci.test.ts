@@ -463,16 +463,17 @@ describe('the e2e suite in parts', () => {
   });
 
   it('a Draft runs every job while CI is on the PC and none on GitHub’s runners; every job asks the same pool', () => {
-    const pool = (hosted: string): string => `    runs-on: \${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || '${hosted}' }}\n`;
-    for (const [id, hosted] of [
-      ['check', 'ubuntu-24.04'],
-      ['e2e-part', 'ubuntu-24.04'],
-      ['e2e', 'ubuntu-slim'],
+    const pool = (label: string, hosted: string): string => `    runs-on: \${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","${label}"]') || '${hosted}' }}\n`;
+    // The gate asks for the light runner's label on the PC (the heavy runners carry it too); the work, for ci-pc.
+    for (const [id, label, hosted] of [
+      ['check', 'ci-pc', 'ubuntu-24.04'],
+      ['e2e-part', 'ci-pc', 'ubuntu-24.04'],
+      ['e2e', 'ci-pc-control', 'ubuntu-slim'],
     ] as const) {
       const text = job(id);
       expect(text, id).toContain(DRAFT_RULE);
       expect(text, id).not.toMatch(/draft != true\n/);
-      expect(text, id).toContain(pool(hosted));
+      expect(text, id).toContain(pool(label, hosted));
     }
     // A newer push to the PR — a Draft's too — cancels its run.
     expect(WORKFLOW).toContain("  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n");
