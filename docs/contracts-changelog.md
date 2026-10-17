@@ -28,6 +28,19 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
+## 1.29.0 — 2026-10-17 (свежий хвост открытого чата для Review и Coach, решение X52)
+
+Хаб принимает `liveTextContext` и на `chat-review`, и на `coach-chat`, если объявляет `live-text-review-coach-v1`;
+Recap его по-прежнему не принимает. Всё добавочное, старые фикстуры проходят без изменений. Следует за 1.28.0 (#182).
+
+- **`features`:** `ANSWER_FRESH_TEXT_FEATURES` (`review`, `coach`) и `freshTextSurface(feature)`: где старт может нести
+  свежий текст — док для Reply, Fix, Hi, Ping и Review, своя панель для Coach, для Recap нигде. `FRESH_TEXT_FEATURES`
+  и `isFreshTextFeature` по-прежнему значат D-14 черновиков: тексты снимка Fansly — только для них.
+- **`ops`:** правило `StartOp.fresh` — по `freshTextSurface` (было: черновики в доке).
+- **`hub`:** `live-text-review-coach-v1` в `CLIENT_HUB_CAPABILITY_NAMES`; `LIVE_TEXT_HUB_NEEDS` — что нужно хабу
+  для свежего текста функции сверх флага страницы (Review и Coach — этот токен); `HUB_FEATURE_ONLY_FIELDS.
+  liveTextContext` — плюс `chat-review` и `coach-chat`.
+
 ## 1.28.0 — 2026-10-17 (значения анкеты в «✨ Дополнить из чата»; решение владельца X43, п. 6)
 
 Владелец, 2026-10-17: «4 да» — исключение 4 матрицы паритета снято, анкета уходит в хаб, как у старого 2.11.0 (E164).
@@ -47,7 +60,6 @@
 Фикстуры: `test/fixtures/hub.ts` (`NoteValues`, тело `fan-notes-fill` со значениями и неверные — перенос строки,
 пробел по краю, 2001 символ), `test/fixtures/ops-fansly.ts` (старт с `values` и неверные — не по одному на метку,
 перенос, пробел, 2001; запрос хаба со значениями).
-
 ## 1.27.0 — 2026-10-17 (статус покупки PPV открытого чата в генерации; решение X54)
 
 Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.26.0 (X55): сначала этот PR нёс номер 1.27.0, его
@@ -85,21 +97,6 @@
 
 Фикстуры: `test/schemas.test.ts` (настройка и токены), `test/fixtures/vm.ts` (неверные `SetPreference` `ui.textSize`,
 `ShowRecap` и `RefreshRecap` с `panel` не `true`).
-## 1.23.0 — 2026-10-17 (свежий хвост открытого чата для Review и Coach, решение X52)
-
-Хаб принимает `liveTextContext` и на `chat-review`, и на `coach-chat`, если объявляет `live-text-review-coach-v1`;
-Recap его по-прежнему не принимает. Всё добавочное, старые фикстуры проходят без изменений. Следует за 1.22.0 (#173,
-X54).
-
-- **`features`:** `ANSWER_FRESH_TEXT_FEATURES` (`review`, `coach`) и `freshTextSurface(feature)`: где старт может нести
-  свежий текст — док для Reply, Fix, Hi, Ping и Review, своя панель для Coach, для Recap нигде. `FRESH_TEXT_FEATURES`
-  и `isFreshTextFeature` по-прежнему значат D-14 черновиков: тексты снимка Fansly — только для них.
-- **`ops`:** правило `StartOp.fresh` — по `freshTextSurface` (было: черновики в доке).
-- **`hub`:** `live-text-review-coach-v1` в `CLIENT_HUB_CAPABILITY_NAMES`; `LIVE_TEXT_HUB_NEEDS` — что нужно хабу
-  для свежего текста функции сверх флага страницы (Review и Coach — этот токен); `HUB_FEATURE_ONLY_FIELDS.
-  liveTextContext` — плюс `chat-review` и `coach-chat`. В том же списке и `live-ppv-v1`: его называет SDK выкаченного
-  хаба 451810af, которым завендорен этот PR; пользуется им 1.27.0 (#177).
-
 ## 1.22.0 — 2026-10-17 (своё чтение открытого чата из API OnlyMonster; решение X54)
 
 Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.21.0 (#169, кто отправил, X48).

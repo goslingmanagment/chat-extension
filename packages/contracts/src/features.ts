@@ -33,7 +33,7 @@ export type Tone = z.infer<typeof ToneSchema>;
 export const FRESH_TEXT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly FeatureId[];
 
 /**
- * 1.23.0 (decision X52): fresh page text for Review (in the dock) and Coach (its own panel) too — each the answer of
+ * 1.29.0 (decision X52): fresh page text for Review (in the dock) and Coach (its own panel) too — each the answer of
  * the one person who asked, which no one else reads. The hub takes it there from `live-text-review-coach-v1` on
  * (`LIVE_TEXT_HUB_NEEDS`). Recap never takes it: recaps are shared (architecture §19 п. 1).
  */

@@ -67,7 +67,7 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   coachHistory: ['coach-chat'],
   preset: ['coach-chat'],
   /**
-   * Fresh text (D-14, H-4c): draft features; 1.23.0 (decision X52) Review and Coach too, on a hub that lists
+   * Fresh text (D-14, H-4c): draft features; 1.29.0 (decision X52) Review and Coach too, on a hub that lists
    * `live-text-review-coach-v1` (`LIVE_TEXT_HUB_NEEDS`); Recap never.
    */
   liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat'],
@@ -102,7 +102,7 @@ export const HUB_FEATURE_MAP = {
 } as const satisfies Record<FeatureId, HubFeatureSpec>;
 
 /**
- * 1.23.0 (decision X52): what a feature's fresh text needs of the hub beyond the page's `freshText` — Review and Coach
+ * 1.29.0 (decision X52): what a feature's fresh text needs of the hub beyond the page's `freshText` — Review and Coach
  * take it only on a hub that lists `live-text-review-coach-v1` (an older one answers 400 `live_text_not_allowed`).
  * The draft features need nothing more. The planner asks for no tail and the request builder sends none without it.
  */

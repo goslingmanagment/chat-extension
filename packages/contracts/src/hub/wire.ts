@@ -143,7 +143,7 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    */
   'live-ppv-v1',
   /**
-   * 1.23.0 (decision X52): the AI stream takes `liveTextContext` on `chat-review` and `coach-chat` too
+   * 1.29.0 (decision X52): the AI stream takes `liveTextContext` on `chat-review` and `coach-chat` too
    * (`LIVE_TEXT_HUB_NEEDS`); a hub without it refuses the field there (400 `live_text_not_allowed`).
    */
   'live-text-review-coach-v1',

@@ -253,7 +253,7 @@ export const StartOpSchema = z
       }),
     ),
     /**
-     * Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14); 1.23.0 (decision X52) also review in
+     * Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14); 1.29.0 (decision X52) also review in
      * the dock and coach on its panel (`freshTextSurface`).
      */
     fresh: z.optional(LiveTextTailSchema),

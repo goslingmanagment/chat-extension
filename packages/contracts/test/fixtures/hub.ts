@@ -655,7 +655,7 @@ export const HUB_SCHEMA_FIXTURES = [
       // Coach (1.3.0): a question of ours, or the hub's preset — which carries its own question.
       { feature: 'coach-chat', body: { ...reviewBody, chatterQuestion: 'What do I offer him?', coachHistory: [] }, capabilities: [] },
       { feature: 'coach-chat', body: { ...reviewBody, preset: 'situation' }, capabilities: [] },
-      // 1.23.0 (decision X52): Review and Coach take fresh text too, on a hub with `live-text-review-coach-v1`.
+      // 1.29.0 (decision X52): Review and Coach take fresh text too, on a hub with `live-text-review-coach-v1`.
       { feature: 'chat-review', body: { ...reviewBody, liveTextContext: liveText }, capabilities: ['context-v1'] },
       { feature: 'coach-chat', body: { ...reviewBody, chatterQuestion: 'What now?', liveTextContext: liveText }, capabilities: ['context-v1'] },
       // 1.15.0 (R20 HF-8в): the window check rides with both tokens — the hub answers it in the context frame.
@@ -668,7 +668,7 @@ export const HUB_SCHEMA_FIXTURES = [
       { feature: 'coach-chat', body: { ...reviewBody, preset: 'situation', chatterQuestion: 'What is going on in the chat?' }, capabilities: [] },
       { feature: 'coach-chat', body: { ...reviewBody, chatterQuestion: '   ' }, capabilities: [] },
       { feature: 'coach-chat', body: reviewBody, capabilities: [] },
-      // 1.23.0 (decision X52): Recap never takes fresh text; Review and Coach do (`valid` above).
+      // 1.29.0 (decision X52): Recap never takes fresh text; Review and Coach do (`valid` above).
       { feature: 'fan-summary', body: { ...reviewBody, liveTextContext: liveText }, capabilities: ['context-v1'] },
       { feature: 'fast-reply', body: { ...streamBody, liveTextContext: liveText }, capabilities: [] },
       { feature: 'improve-draft', body: reviewBody, capabilities: [] },
