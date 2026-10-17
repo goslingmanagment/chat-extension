@@ -235,12 +235,12 @@ describe('hub routes, flags and the feature map', () => {
     expect(splitHub.sort()).toEqual([...C.SPLIT_FEATURES].sort());
     const liveHub = C.HUB_FEATURE_ONLY_FIELDS.liveTextContext;
     const live = [...C.FRESH_TEXT_FEATURES, ...C.ANSWER_FRESH_TEXT_FEATURES];
-    expect([...liveHub].sort()).toEqual(live.map((f) => C.HUB_FEATURE_MAP[f].hub).sort());
+    expect([...liveHub].sort()).toEqual([...new Set(live.map((f) => C.HUB_FEATURE_MAP[f].hub))].sort());
     // 1.29.0 (decision X52): Review and Coach need the hub's token for it; the draft features need nothing more.
-    expect(C.FEATURE_IDS.filter((f) => C.LIVE_TEXT_HUB_NEEDS[f] !== undefined)).toEqual(['review', 'coach']);
-    for (const f of C.ANSWER_FRESH_TEXT_FEATURES) expect(C.LIVE_TEXT_HUB_NEEDS[f]).toBe('live-text-review-coach-v1');
+    expect(C.FEATURE_IDS.filter((f) => C.LIVE_TEXT_HUB_NEEDS[f] !== undefined)).toEqual(['review', 'recap', 'recap-short', 'coach']);
+    expect(C.FEATURE_IDS.map((f) => C.LIVE_TEXT_HUB_NEEDS[f] ?? null)).toEqual([null, null, null, null, 'live-text-review-coach-v1', 'live-text-recap-v1', 'live-text-recap-v1', 'live-text-review-coach-v1']);
     expect(C.FEATURE_IDS.map((f) => [f, C.freshTextSurface(f)])).toEqual([
-      ['reply', 'dock'], ['fix', 'dock'], ['hi', 'dock'], ['ping', 'dock'], ['review', 'dock'], ['recap', null], ['recap-short', null], ['coach', 'coach'],
+      ['reply', 'dock'], ['fix', 'dock'], ['hi', 'dock'], ['ping', 'dock'], ['review', 'dock'], ['recap', 'dock'], ['recap-short', 'dock'], ['coach', 'coach'],
     ]);
   });
 
