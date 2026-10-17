@@ -175,7 +175,7 @@ a boundary you need to cross is a design question, not a lint exception.
   interfaces as built; `docs/pages.md`, `docs/hub-layer.md`,
   `docs/hotkeys-delivery.md`, `packages/*/README.md` — how each part is built.
 - `docs/parity/` — the parity checklist, its map to modules and work
-  packages, the machine manifest (828 rows, `pnpm parity`) and the coverage
+  packages, the machine manifest (834 rows, `pnpm parity`) and the coverage
   report (`coverage.md`).
 - `docs/release.md` — the runbook: CI and the PC runners, how to cut a release,
   how an update reaches chatters, rollback, coexistence with the Fansly

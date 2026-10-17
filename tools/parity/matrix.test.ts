@@ -20,14 +20,14 @@ const count = <T>(items: readonly T[], key: (item: T) => string): Record<string,
 
 describe('the R20 parity matrix (docs/project-unite/parity-matrix.md)', () => {
   it('matches its own summary (§2): rows, origins, checks, owning PRs', () => {
-    expect(matrix.rows).toHaveLength(718);
-    expect(matrix.rows.filter((row) => row.id.startsWith('FX-'))).toHaveLength(18);
+    expect(matrix.rows).toHaveLength(724);
+    expect(matrix.rows.filter((row) => row.id.startsWith('FX-'))).toHaveLength(24);
     expect(matrix.notFansly).toHaveLength(110);
-    expect(count(matrix.rows, (row) => row.origin)).toEqual({ старое: 599, ChatSpace: 118, новое: 1 });
+    expect(count(matrix.rows, (row) => row.origin)).toEqual({ старое: 605, ChatSpace: 118, новое: 1 });
     const kinds = count(matrix.rows, (row) => fanslyCheckOf(row).kind);
     expect({ browser: (kinds.e2e ?? 0) + (kinds['stand-visual'] ?? 0), unit: kinds.unit, hub: kinds.hub, shared: kinds.shared, negative: kinds.negative, afterPilot: kinds['after-pilot'] }).toEqual({
-      browser: 109,
-      unit: 119,
+      browser: 113,
+      unit: 121,
       hub: 12,
       shared: 438,
       negative: 17,
@@ -36,7 +36,7 @@ describe('the R20 parity matrix (docs/project-unite/parity-matrix.md)', () => {
     // «Строк на PR: HF-6 — 1; HF-7а — 1; …» — the same per PR.
     const line = /Строк на PR: ([^]*?)\n\n/.exec(matrixText)?.[1] ?? '';
     const summary = Object.fromEntries([...line.replace(/\n/g, ' ').matchAll(/(\S+) — (\d+)/g)].map(([, pr = '', rows = '']) => [pr, Number(rows)]));
-    expect(Object.keys(summary)).toHaveLength(51);
+    expect(Object.keys(summary)).toHaveLength(52);
     expect(count(matrix.rows, (row) => row.pr)).toEqual(summary);
   });
 

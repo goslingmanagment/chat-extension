@@ -152,6 +152,33 @@ export function setNoteFieldFacts(text: string, label: string, facts: readonly s
   return lines.join('\n');
 }
 
+/**
+ * «В Другое» (the Fansly extension 2.11.0, decision 164): a field the Goose named itself leaves its line and joins «Другое» as one
+ * fact `Label: a; b` — at the end of «Другое», or, with no «Другое» in the note, as a «Другое» line where it stood. A
+ * text without that field, or that field being «Другое», comes back as is.
+ */
+export function moveFieldToOther(text: string, label: string, otherLabel: string): string {
+  const parts = parseNoteForm(text);
+  const key = noteLabelKey(label);
+  const otherKey = noteLabelKey(otherLabel);
+  const field = parts?.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === key);
+  if (parts === null || field === undefined || key === otherKey) return text;
+  const fact = field.facts.length === 0 ? null : `${field.label}: ${field.facts.join('; ')}`;
+  const other = parts.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === otherKey);
+  if (other === undefined) {
+    const lines = text.split('\n');
+    lines.splice(field.line, field.lastLine - field.line + 1, ...(fact === null ? [] : [`${otherLabel}: ${fact}`]));
+    return lines.join('\n');
+  }
+  // «Другое» first, while the text is still a questionnaire; then the field's own lines, found again.
+  const joined = fact === null ? text : setNoteFieldFacts(text, other.label, [...other.facts, fact]);
+  const moved = parseNoteForm(joined)?.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === key);
+  if (moved === undefined) return joined;
+  const rest = joined.split('\n');
+  rest.splice(moved.line, moved.lastLine - moved.line + 1);
+  return rest.join('\n');
+}
+
 /** «Флорида (08.2026)»: the fact and the month the Goose stamped on it. */
 export function splitFactDate(fact: string): { readonly text: string; readonly date: string | null } {
   const match = /^(.*\S)\s*\((\d{2}\.\d{4})\)$/.exec(fact);

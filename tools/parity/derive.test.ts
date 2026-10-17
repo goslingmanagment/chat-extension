@@ -19,7 +19,7 @@ const byId = new Map(derived.rows.map((row) => [row.id, row]));
 describe('parity map', () => {
   it('reads every checklist row and every new row', () => {
     const checklist = checklistIds(read('docs/parity/parity-checklist.md'));
-    expect(checklist).toHaveLength(805);
+    expect(checklist).toHaveLength(811);
     expect(mapRows.filter((row) => row.origin === 'checklist').map((row) => row.id)).toEqual(checklist);
     const added = mapRows.filter((row) => row.origin === 'new').map((row) => row.id);
     expect(added).toHaveLength(23);
@@ -33,7 +33,7 @@ describe('parity map', () => {
       пилот: 596,
       'пилот + ChatSpace': 4,
       'пилот + Fansly': 5,
-      Fansly: 85,
+      Fansly: 91,
       'даёт ChatSpace': 28,
       'не нужно': 73,
       'убрано владельцем': 13,
@@ -98,7 +98,7 @@ describe('parity manifest (docs/parity/parity-manifest.json)', () => {
     expect(byId.get('AI-032')?.chatspace).toEqual({ owner: 'R20', check: { kind: 'n/a', reason: 'строка только Fansly: на ChatSpace её нет, проверка — в части fansly' } });
     expect(byId.get('AI-032')?.fansly).toEqual({ owner: 'R20/P8c', check: { kind: 'e2e', where: 'suite-fansly-ai' } });
     const fanslyOnly = derived.rows.filter((row) => row.target === 'Fansly');
-    expect(fanslyOnly).toHaveLength(86);
+    expect(fanslyOnly).toHaveLength(92);
     for (const row of fanslyOnly) expect(row.fansly.check.kind, row.id).not.toBe('n/a');
   });
 

@@ -1,4 +1,5 @@
-// P11b, P11b2, P11c: «Заметки» on the Fansly stand — the actual MV3 extension in headless Firefox, the page's MAIN, the
+// P11b, P11b2, P11c: «Заметки» on the Fansly stand (P11b2 — as in the Fansly extension 2.11–2.13: dates, the fill on
+// the questionnaire being read, the fan's words, the month, the fields the hub names) — the actual MV3 extension in headless Firefox, the page's MAIN, the
 // background's real `fansly-api` client and pacer against the fake Fansly's own note endpoints, all on loopback
 // (FS-NOTE-1…6, FX-004…FX-016); «✨ Заполнить из чата» through the shared admission against the fake hub, which checks
 // the body by the vendored SDK's schema and the hub's own rules (`fake-hub/ai-rules.ts`). The stand's chat spans the window, so «Всегда справа» finds no free column here until a test caps it.
@@ -48,11 +49,15 @@ const type = async (selector: string, text: string) => {
 };
 const value = (selector: string) => readOurs('panel', selector, (node) => (node as HTMLTextAreaElement).value);
 const fieldRows = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll('[data-notes-field]')].map((item) => item.getAttribute('data-notes-field')));
-/** What the fake hub's `fan-notes-fill` writes for every label (fake-hub/ai.ts). */
+/** What the fake hub's `fan-notes-fill` writes for every label in its merge mode (fake-hub/ai.ts `NOTES_FILL_FAKE`):
+ * the fact, the fan's words under it, «График» with the month, and one field it names itself. */
 const FACT = 'Synthetic fact from the chat.';
+const QUOTE = (label: string) => `my ${label}, in synthetic words`;
+const NAMED = 'Питомцы';
 /** What a fill of `OLD` asks: its labels in note order, then the template's it lacks. */
 const ASKED = ['Имя', 'Локация', 'Возраст', 'Работа', 'Хобби', 'Фетиши', 'Характеристика', 'Медиа', 'График', 'Планы и даты', 'Другое'];
 const tableLabels = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll('dt')].map((item) => item.textContent));
+const quotesUnder = (selector: string) => readOurs('panel', selector, (node) => [...node.querySelectorAll(':scope > .cg-notes__cell > [data-notes-quotes] li')].map((item) => item.textContent));
 
 describe('Fansly «Заметки» (R20 P11b)', () => {
   useNetworkTrap();
@@ -175,7 +180,25 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     await pressIn('.cg-notes__foot button', 'Отмена');
   });
 
-  it('[FX-008] [FX-011] [FS-NOTE-2] the questionnaire: eleven fields typed one by one, «Текстом» the text Fansly keeps; an old one read as a table and edited field by field, its other lines as they were (R20 P11b2)', async () => {
+  it('[FX-019] [FS-NOTE-2] every free note shows when it was created — the day, the year outside this one, the full time on hover; the questionnaire does not (R20 P11b2, decision 171)', async () => {
+    await waitBody('ready');
+    const lastYear = new Date(new Date().getFullYear() - 1, 2, 4, 8, 5).getTime();
+    await fakeFansly().command({ op: 'note', fanId: A.fan, title: '', note: 'old one', createdAt: lastYear });
+    await ours('panel', 'button[aria-label="Обновить"]').click();
+    await browser.waitUntil(async () => (await noteIds()).length === 3, { timeout: 15_000, timeoutMsg: 'the dated note is not read' });
+    const [hobbies, , old] = await noteIds();
+    const date = (id: string | null | undefined) => readOurs('panel', `[data-note-id="${String(id)}"] [data-notes-date]`, (node) => [node.textContent, node.getAttribute('title'), node.previousElementSibling?.textContent ?? null]);
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    expect(await date(hobbies)).toEqual([`${pad(today.getDate())}.${pad(today.getMonth() + 1)}`, expect.stringMatching(new RegExp(`^Создана ${pad(today.getDate())}\\.${pad(today.getMonth() + 1)}\\.${String(today.getFullYear())} в \\d{2}:\\d{2}$`)), 'Hobbies']);
+    // Untitled: the date alone heads it.
+    expect(await date(old)).toEqual([`04.03.${String(today.getFullYear() - 1)}`, `Создана 04.03.${String(today.getFullYear() - 1)} в 08:05`, null]);
+    await pressIn(`[data-note-id="${String(old)}"] button`, 'Удалить');
+    await pressIn('[data-notes-confirm] button', 'Удалить');
+    await browser.waitUntil(async () => (await noteIds()).length === 2, { timeout: 15_000 });
+  });
+
+  it('[FX-008] [FX-011] [FX-021] [FS-NOTE-2] the questionnaire: eleven fields typed one by one, «Текстом» the text Fansly keeps; an old one read as a table and edited field by field, its other lines as they were (R20 P11b2)', async () => {
     await waitBody('ready');
     const before = await fakeFansly().mark();
     await pressIn('.cg-notes__foot button', '+ Анкета');
@@ -200,6 +223,7 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     expect(await routes(before)).toEqual(['notes.create']);
     const created = (await noteIds())[2] as string;
     expect(await tableLabels(`[data-note-id="${created}"] [data-notes-form]`)).toEqual(['Имя', 'График']);
+    expect(await oursExists('panel', `[data-note-id="${created}"] [data-notes-date]`)).toBe(false);
     expect(await readOurs('panel', '.cg-notes__foot', (node) => node.textContent ?? '')).not.toContain('+ Анкета');
 
     // What the old extension wrote: read as a table, one field edited, every other line kept byte for byte.
@@ -224,32 +248,40 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     await pressIn('.cg-notes__foot button', 'Отмена');
   });
 
-  it('[FX-014] [FX-015] [FX-016] [FS-NOTE-6] «✨ Заполнить из чата»: only the labels reach the hub, the empty fields take the answer, the filled ones get additions under them; nothing is written before «Сохранить» (R20 P11c)', async () => {
+  it('[FX-014] [FX-015] [FX-016] [FX-023] [FX-024] [FS-NOTE-6] «✨ Дополнить из чата»: only the labels reach the hub, with empty values; the empty fields take the answer (marked), the filled ones get additions under them with the fan’s words, «Слова фана» shows the rest, the month stays on its fact, a field the hub named goes «В Другое»; nothing is written before «Сохранить» (R20 P11c, P11b2)', async () => {
     await waitBody('ready');
     const old = (await noteIds())[3] as string;
     await pressIn(`[data-note-id="${old}"] button`, 'Изменить');
     const editor = `[data-notes-editor="${old}"]`;
     const since = await fakeFansly().mark();
     const hubMark = await hub().mark();
-    await pressIn('.cg-notes__foot button', '✨ Заполнить из чата');
+    await pressIn('.cg-notes__foot button', '✨ Дополнить из чата');
     await browser.waitUntil(async () => (await readOurs('panel', editor, (node) => node.getAttribute('data-notes-fill'))) === 'done', { timeout: 30_000, timeoutMsg: 'the fill did not end' });
     // The hub took it (its schema and rules): the questionnaire's labels, then the template's it lacks — the journal keeps
-    // their lengths only —, the group and the fan apart, the depth of HF-6, and no value.
+    // their lengths only —, the group and the fan apart, the depth of HF-6, and no value: one empty one per label (X43).
     const fills = callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream');
     expect(fills.map((call) => call.status)).toEqual([200]);
     const request = fills[0]?.request as { feature: string; body: Record<string, unknown> };
     expect(request.feature).toBe('fan-notes-fill');
     expect(request.body).toMatchObject({ conversationRef: A.group, fanRef: A.fan, messageCount: 3000, noteFields: ASKED.map((label) => `‹${String(label.length)} chars›`) });
-    expect(request.body).not.toHaveProperty('noteValues');
+    expect(request.body['noteValues']).toEqual(ASKED.map(() => '‹0 chars›'));
     expect(JSON.stringify(await hub().journal(0))).not.toMatch(/Wayne|Флорида|медбрат|вайб|кастом/);
-    // Empty fields took the answer, the template's new lines stand after the last field (the answer named them exactly);
-    // the filled ones keep theirs.
-    expect(await fieldRows(editor)).toEqual(ASKED);
+    // Empty fields took the answer, the template's new lines stand after the last field (the answer named them exactly),
+    // then the field the hub named; the filled ones keep theirs. What the Goose wrote is marked.
+    expect(await fieldRows(editor)).toEqual([...ASKED, NAMED]);
     expect(await value(`${editor} [data-notes-field="Возраст"] textarea`)).toBe(FACT);
+    expect(await value(`${editor} [data-notes-field="График"] textarea`)).toBe(`${FACT} (10.2026)`);
     expect(await value(`${editor} [data-notes-field="Имя"] textarea`)).toBe('Wayne');
+    expect(await readOurs('panel', editor, (node) => [...node.querySelectorAll('[data-notes-ai]')].map((item) => item.getAttribute('data-notes-field')))).toEqual(['Возраст', 'Хобби', 'Фетиши', 'Медиа', 'График', 'Планы и даты', 'Другое', NAMED]);
+    // The words behind a rewrite stand under it; the rest wait for «Слова фана».
+    expect(await readOurs('panel', `${editor} [data-notes-field="Работа"] [data-notes-suggestion] [data-notes-quotes]`, (node) => node.textContent)).toBe(`«${QUOTE('Работа')}»`);
+    expect(await quotesUnder(`${editor} [data-notes-field="Возраст"]`)).toEqual([]);
+    await pressIn(`${editor} button`, 'Слова фана');
+    expect(await quotesUnder(`${editor} [data-notes-field="Возраст"]`)).toEqual([`«${QUOTE('Возраст')}»`]);
+    expect(await quotesUnder(`${editor} [data-notes-field="${NAMED}"]`)).toEqual(['«my synthetic cat»']);
     expect(await readOurs('panel', editor, (node) => [...node.querySelectorAll('[data-notes-suggestion]')].map((item) => item.closest('[data-notes-field]')?.getAttribute('data-notes-field')))).toEqual(['Имя', 'Локация', 'Работа', 'Характеристика']);
     expect(await readOurs('panel', `${editor} [data-notes-field="Работа"] [data-notes-suggestion]`, (node) => [node.querySelectorAll('del').length, node.querySelector('ins')?.textContent])).toEqual([0, FACT]);
-    expect(await readOurs('panel', '[data-notes-fill-line]', (node) => node.textContent)).toBe('Гусь вписал: Возраст, Хобби, Фетиши, Медиа, График, Планы и даты, Другое. Добавки под полями: 4.');
+    expect(await readOurs('panel', '[data-notes-fill-line]', (node) => node.textContent)).toBe(`Гусь вписал: Возраст, Хобби, Фетиши, Медиа, График, Планы и даты, Другое, ${NAMED}. Добавки под полями: 4.`);
     expect(await routes(since)).toEqual([]);
     mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
     for (const theme of ['bright', 'dark'] as const) {
@@ -257,6 +289,11 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
       await browser.waitUntil(async () => (await $(SLOT).getAttribute('data-scheme')) === (theme === 'bright' ? 'light' : 'dark'));
       await browser.saveScreenshot(`${E2E_EVIDENCE_DIR}/suite-fansly-notes-fill-${theme}.png`);
     }
+    // «В Другое»: the named field's line leaves, its fact joins «Другое», its words with it.
+    await pressIn(`${editor} [data-notes-proposed="${NAMED}"] button`, 'В Другое');
+    expect(await fieldRows(editor)).toEqual(ASKED);
+    expect(await value(`${editor} [data-notes-field="Другое"] textarea`)).toBe(`${FACT}\n${NAMED}: synthetic cat`);
+    expect(await quotesUnder(`${editor} [data-notes-field="Другое"]`)).toEqual([`«${QUOTE('Другое')}»`, `${NAMED} — «my synthetic cat»`]);
     // «Принять» adds to its field, «Не нужно» leaves the field as it was; «Сохранить» writes once.
     await pressIn(`${editor} [data-notes-field="Имя"] [data-notes-suggestion] button`, 'Принять');
     await ours('panel', `${editor} [data-notes-field="Локация"] [data-notes-suggestion] button[aria-label="Не нужно"]`).click();
@@ -267,6 +304,27 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')), { timeout: 15_000 });
     expect(await routes(since)).toEqual(['account.byIds', 'notes.edit']);
     expect(await tableLabels(`[data-note-id="${old}"] [data-notes-form]`)).toEqual(ASKED);
+    // The month the fan said it, at the right of its fact (FX-023).
+    expect(await readOurs('panel', `[data-note-id="${old}"] [data-notes-field="График"] .cg-notes__fact-date`, (node) => node.textContent)).toBe('10.2026');
+    // The questionnaire is not dated; its facts are.
+    expect(await oursExists('panel', `[data-note-id="${old}"] [data-notes-date]`)).toBe(false);
+  });
+
+  it('[FX-022] [FS-NOTE-6] «✨ Дополнить из чата» stands on the questionnaire being read: one press opens it and fills; «Отмена» drops both (R20 P11b2)', async () => {
+    await waitBody('ready');
+    const old = (await noteIds())[3] as string;
+    const since = await fakeFansly().mark();
+    const hubMark = await hub().mark();
+    await pressIn(`[data-note-id="${old}"] button`, '✨ Дополнить из чата');
+    const editor = `[data-notes-editor="${old}"]`;
+    await browser.waitUntil(async () => (await readOurs('panel', editor, (node) => node.getAttribute('data-notes-fill'))) === 'done', { timeout: 30_000, timeoutMsg: 'the fill from the read view did not end' });
+    expect(callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').map((call) => call.status)).toEqual([200]);
+    // Every field was filled before: the answer waits under them, nothing is written.
+    expect(await readOurs('panel', editor, (node) => node.querySelectorAll('[data-notes-suggestion]').length)).toBeGreaterThan(0);
+    expect(await readOurs('panel', '.cg-notes__foot', (node) => node.textContent ?? '')).toContain('✨ Дополнить из чата');
+    await pressIn('.cg-notes__foot button', 'Отмена');
+    await browser.waitUntil(async () => !(await oursExists('panel', '[data-notes-editor]')), { timeout: 10_000 });
+    expect(await routes(since)).toEqual([]);
   });
 
   it('[FX-009] [FS-NOTE-2] the panel over the chat in both of Fansly’s themes; «Окно по центру» belongs to its chat; the view is the same in a reloaded tab', async () => {

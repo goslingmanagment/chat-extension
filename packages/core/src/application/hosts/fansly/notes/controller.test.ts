@@ -447,3 +447,119 @@ describe('[host:fansly] «✨ Заполнить из чата»: the controller
     expect(w.port.fill).not.toHaveBeenCalled();
   });
 });
+
+describe('[host:fansly] «Заметки» as in the Fansly extension 2.11–2.13: the controller (R20 P11b2)', () => {
+  const opened = async (w: ReturnType<typeof world>) => {
+    w.notes.toggle();
+    await w.settle();
+  };
+  /** A merge-mode answer: the fan's words under a value, a field the hub named itself. */
+  const mergeView = (opId: string): SiteOpView => {
+    const view = fillView(opId, 'done') as unknown as { result: unknown };
+    return {
+      ...view,
+      result: {
+        kind: 'note-fields',
+        fields: [
+          { label: 'Имя', value: 'Алекс; любит шахматы', quotes: ['I love chess'] },
+          { label: 'Локация', value: 'Рига; Юрмала (08.2026)', quotes: ['moved to Jurmala'] },
+          { label: 'Возраст', value: '34', quotes: ['I am 34'] },
+          { label: 'Работа', value: 'медбрат (09.2026)' },
+          ...NOTE_TEMPLATE_LABELS.slice(4).map((label) => ({ label, value: '' })),
+        ],
+        proposed: [{ label: 'Питомцы', value: 'кот Барсик', quotes: ['my cat Barsik'] }],
+      },
+    } as unknown as SiteOpView;
+  };
+
+  it('[FX-022] [FS-NOTE-6] «✨ Дополнить из чата» on the questionnaire being read opens it and fills; not on a free note or FBuddy’s, not while a note is edited', async () => {
+    const w = world();
+    await opened(w);
+    expect(w.notes.panel().fill).toBe(true);
+    w.notes.dispatch({ type: 'fill-note', noteId: '2' });
+    await w.settle();
+    expect(w.port.fill).not.toHaveBeenCalled();
+    expect(w.notes.panel().editor).toBeNull();
+    w.notes.dispatch({ type: 'fill-note', noteId: '1' });
+    await w.settle();
+    expect(w.notes.panel().editor).toMatchObject({ noteId: '1', fill: { status: 'running' } });
+    expect(w.notes.panel().fill).toBe(false);
+    expect(w.port.fill).toHaveBeenCalledOnce();
+    expect(w.port.fill.mock.calls[0]?.[2]).toEqual(['Имя', 'Локация', ...NOTE_TEMPLATE_LABELS.slice(2)]);
+    w.notes.dispatch({ type: 'fill-note', noteId: '1' });
+    await w.settle();
+    expect(w.port.fill).toHaveBeenCalledOnce();
+    w.fillSwitch(false);
+    w.notes.dispatch({ type: 'cancel' });
+    expect(w.notes.panel().fill).toBe(false);
+  });
+
+  it('[FX-023] [FS-NOTE-6] the fan’s words wait for «Слова фана» under the fields the Goose wrote (marked); a rewrite shows its own; «Принять все»; a field the hub named gets a line and «В Другое»', async () => {
+    const w = world();
+    await opened(w);
+    w.notes.dispatch({ type: 'fill-note', noteId: '1' });
+    await w.settle();
+    w.notes.fillDone(mergeView('op1'));
+    let editor = w.notes.panel().editor;
+    expect(editor?.text).toBe('Имя: Алекс\nЛокация: Рига\nВозраст: 34\nРабота: медбрат (09.2026)\nПитомцы: кот Барсик');
+    expect(editor?.fill).toEqual({ status: 'done', wrote: ['Возраст', 'Работа', 'Питомцы'], error: null });
+    expect(editor?.sourceCount).toBe(2);
+    expect(editor?.sourcesOpen).toBe(false);
+    const field = (label: string) => w.notes.panel().editor?.form?.find((part) => part.kind === 'field' && part.label === label);
+    expect(field('Возраст')).toMatchObject({ ai: true });
+    expect(field('Возраст')).not.toHaveProperty('quotes');
+    expect(field('Имя')).not.toHaveProperty('ai');
+    expect(field('Работа')).toMatchObject({ ai: true, facts: [{ text: 'медбрат', date: '09.2026' }] });
+    expect(field('Питомцы')).toMatchObject({ ai: true, proposed: true });
+    expect(editor?.suggestions.map((suggestion) => [suggestion.label, suggestion.added, suggestion.quotes])).toEqual([
+      ['Имя', ['любит шахматы'], ['I love chess']],
+      ['Локация', ['Юрмала (08.2026)'], ['moved to Jurmala']],
+    ]);
+    w.notes.dispatch({ type: 'sources', open: true });
+    expect(field('Возраст')).toMatchObject({ quotes: [{ label: null, quote: 'I am 34' }] });
+    expect(field('Питомцы')).toMatchObject({ quotes: [{ label: null, quote: 'my cat Barsik' }] });
+    // The text view: the words follow the text, named; the named field keeps its «В Другое».
+    w.notes.dispatch({ type: 'as-text', on: true });
+    expect(w.notes.panel().editor?.looseQuotes).toEqual([{ label: 'Возраст', quote: 'I am 34' }, { label: 'Питомцы', quote: 'my cat Barsik' }]);
+    expect(w.notes.panel().editor?.proposed).toEqual(['Питомцы']);
+    w.notes.dispatch({ type: 'as-text', on: false });
+    // «В Другое»: no «Другое» in the note — the line becomes one, its words go with it.
+    w.notes.dispatch({ type: 'to-other', label: 'Питомцы' });
+    editor = w.notes.panel().editor;
+    expect(editor?.text).toBe('Имя: Алекс\nЛокация: Рига\nВозраст: 34\nРабота: медбрат (09.2026)\nДругое: Питомцы: кот Барсик');
+    expect(editor?.proposed).toEqual([]);
+    expect(field('Другое')).toMatchObject({ ai: true, quotes: [{ label: 'Питомцы', quote: 'my cat Barsik' }] });
+    w.notes.dispatch({ type: 'suggestion-all' });
+    editor = w.notes.panel().editor;
+    expect(editor?.suggestions).toEqual([]);
+    expect(editor?.text).toBe('Имя: Алекс; любит шахматы\nЛокация: Рига; Юрмала (08.2026)\nВозраст: 34\nРабота: медбрат (09.2026)\nДругое: Питомцы: кот Барсик');
+    expect(field('Имя')).toMatchObject({ ai: true });
+    expect(w.port.edit).not.toHaveBeenCalled();
+    // A new fill starts clean.
+    w.notes.dispatch({ type: 'fill' });
+    expect(w.notes.panel().editor).toMatchObject({ sourceCount: 0, sourcesOpen: false, proposed: [] });
+  });
+
+  it('[FX-019] [FS-NOTE-2] every free note shows when it was created, the questionnaire does not; an edit keeps the time read, a new note without one is dated now', async () => {
+    const w = world();
+    const created = new Date(2026, 9, 16, 19, 56).getTime();
+    const lastYear = new Date(2025, 2, 4, 8, 5).getTime();
+    w.port.read.mockResolvedValueOnce({ ok: true, fanRef: '91', notes: [{ ...note('1', 'Анкета', 'Имя: Алекс\nЛокация: Рига'), createdAtMs: created }, { ...note('3', 'кастом', 'хочет видео'), createdAtMs: created }, { ...note('4', '', 'old'), createdAtMs: lastYear }, note('6', 'no time')], customName: null });
+    (w.port as NotesPort).now = () => new Date(2026, 9, 17, 12, 0).getTime();
+    await opened(w);
+    expect(w.notes.panel().dates).toEqual({
+      '3': { day: '16.10', full: '16.10.2026', time: '19:56', iso: new Date(created).toISOString() },
+      '4': { day: '04.03.2025', full: '04.03.2025', time: '08:05', iso: new Date(lastYear).toISOString() },
+    });
+    w.notes.dispatch({ type: 'edit', noteId: '3' });
+    w.notes.dispatch({ type: 'input', title: 'кастом', text: 'хочет видео!' });
+    w.notes.dispatch({ type: 'save' });
+    await w.settle();
+    expect(w.notes.panel().notes.find((entry) => entry.noteId === '3')).toMatchObject({ text: 'хочет видео!', createdAtMs: created });
+    w.notes.dispatch({ type: 'create', template: false });
+    w.notes.dispatch({ type: 'input', title: '', text: 'new' });
+    w.notes.dispatch({ type: 'save' });
+    await w.settle();
+    expect(w.notes.panel().dates?.['9']).toMatchObject({ day: '17.10', time: '12:00' });
+  });
+});

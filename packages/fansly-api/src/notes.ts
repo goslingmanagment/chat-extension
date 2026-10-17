@@ -8,6 +8,11 @@
 //   contentType 12002, title «Custom Username», its text the name.
 // - FBuddy keeps its fan profile in a regular note titled «FBuddy Notes» (and may mark it `[FBUDDY_SYNC]`, S5 §3.11):
 //   someone else's — read, shown, never written.
+// - A note's creation time is Fansly's own `createdAt`, in seconds (R20 P11b2; the Fansly extension 2.13.0, decision 171): every
+//   note carries it, no note carries an edit time.
+// - An edit is confirmed as Fansly's own notes window confirms it: by `success` (R20 P11b2; decision 170 of the Fansly
+//   extension 2.13.0) — its answer may hold the whole note, its title and text, or nothing; what it does name must be
+//   this note. A create stays strict: only its answer gives the new note's id.
 // - Nothing here logs, keeps or returns more than the note itself (FS-NOTE-5).
 
 import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
@@ -33,6 +38,8 @@ export interface StoredNote {
   readonly contentId: string;
   readonly title: string;
   readonly note: string;
+  /** When it was created, ms; null — the answer gave no time (an edit's answer as a rule). */
+  readonly createdAtMs: number | null;
 }
 
 /** The fan's notes as the panel shows them. */
@@ -42,6 +49,12 @@ export interface FanNotes {
 }
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Fansly's `createdAt` is in seconds (`1790790855`); a value that already reads as milliseconds is taken as is. */
+export function readNoteTimeMs(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  return Math.round(value < 1e11 ? value * 1000 : value);
+}
 
 /** A stored note, or null for anything a write could not address. */
 export function storedNote(raw: unknown, fanId: string): StoredNote | null {
@@ -56,13 +69,14 @@ export function storedNote(raw: unknown, fanId: string): StoredNote | null {
     contentId: typeof contentId === 'string' && FANSLY_ID.test(contentId) ? contentId : fanId,
     title: typeof raw['title'] === 'string' ? raw['title'] : '',
     note: typeof raw['note'] === 'string' ? raw['note'] : '',
+    createdAtMs: readNoteTimeMs(raw['createdAt']),
   };
 }
 
 /** FBuddy's own note: its title, or its sync mark in the text. */
 export const isForeignNote = (note: Pick<StoredNote, 'title' | 'note'>): boolean => note.title.trim() === FBUDDY_NOTE_TITLE || note.note.includes(FBUDDY_MARK);
 
-export const panelNote = (note: StoredNote): FanslyNote => ({ noteId: note.id, title: note.title, text: note.note, foreign: isForeignNote(note) });
+export const panelNote = (note: StoredNote): FanslyNote => ({ noteId: note.id, title: note.title, text: note.note, foreign: isForeignNote(note), ...(note.createdAtMs === null ? {} : { createdAtMs: note.createdAtMs }) });
 
 /**
  * The fan's notes from `GET /account?ids=<fan>` (the envelope already unwrapped): the regular ones in Fansly's own order
@@ -93,20 +107,24 @@ export function writtenNote(raw: unknown, fanId: string, contentType: number, ex
 }
 
 /**
- * The note an edit answered with. Fansly's own window confirms an edit by `success` alone and takes only the title and
- * the text from the answer, which may carry nothing more (E170 of the old extension: a live edit that landed was
- * refused here for asking for an id). An id, a kind or a fan the answer does name must be this note's: null otherwise.
+ * The note an edit wrote (decision 170 of the Fansly extension): Fansly's window takes `success` as the confirmation and reads
+ * only the title and the text of the answer. So an answer with the whole note, with the title and the text alone, or
+ * with nothing confirms it; an id, a kind or a fan it does name must be this note's, else it is no confirmation of
+ * this write (null). The title and the text are the answer's where it gives them, else the ones sent.
  */
-export function editedNote(raw: unknown, sent: StoredNote, title: string, text: string): StoredNote | null {
+export function editedNote(raw: unknown, fanId: string, sent: Pick<StoredNote, 'id' | 'contentType' | 'title' | 'note'>): StoredNote | null {
   const answer = record(raw) ? raw : {};
-  const names = (key: 'id' | 'contentType' | 'contentId', ours: string | number): boolean => answer[key] === undefined || answer[key] === null || answer[key] === ours;
-  if (!names('id', sent.id) || !names('contentType', sent.contentType) || !names('contentId', sent.contentId)) return null;
+  const id = answer['id'];
+  const contentType = answer['contentType'];
+  const contentId = answer['contentId'];
+  if ((id !== undefined && id !== sent.id) || (contentType !== undefined && contentType !== sent.contentType) || (contentId !== undefined && contentId !== fanId)) return null;
   return {
     id: sent.id,
     contentType: sent.contentType,
-    contentId: sent.contentId,
-    title: typeof answer['title'] === 'string' ? answer['title'] : title,
-    note: typeof answer['note'] === 'string' ? answer['note'] : text,
+    contentId: fanId,
+    title: typeof answer['title'] === 'string' ? answer['title'] : sent.title,
+    note: typeof answer['note'] === 'string' ? answer['note'] : sent.note,
+    createdAtMs: readNoteTimeMs(answer['createdAt']),
   };
 }
 

@@ -7,7 +7,8 @@
 //   before the call is prepared and again just before it leaves (FS-NOTE-4: the same session and account).
 // - Reads (the group when MAIN has not named its fan — once a chat; then `GET /account?ids=`) are one attempt and
 //   nothing during a cooldown (FS-NET-1 `notes`, FS-NOTE-3). Writes are one attempt, never repeated here; a write
-//   whose fate is unknown answers CG-NOTE-UNCERTAIN.
+//   whose fate is unknown answers CG-NOTE-UNCERTAIN. An edit (of a note or of the name) is confirmed by `success`, as
+//   Fansly's own window confirms it (R20 P11b2; decision 170 of the Fansly extension 2.13.0); a create only by the new note.
 // - FBuddy's «FBuddy Notes» is someone else's: never created, edited or deleted from here.
 // - A note's text is answered to the tab and to nobody else: nothing of it is logged (FS-NOTE-5).
 
@@ -18,8 +19,8 @@ import {
   FANSLY_NAME_NOTE_TITLE,
   FANSLY_NAME_NOTE_TYPE,
   FANSLY_NOTE_TYPE,
-  editedNote,
   FanslyApiError,
+  editedNote,
   fanNotesOf,
   isForeignNote,
   notesCalls,
@@ -139,7 +140,7 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
   }
 
   /** A write of a regular note or of the name; the note Fansly answered with, or why not. */
-  async function write(target: Target & { readonly fanRef: string }, sender: HostSiteSender, prepare: FanslyCall | ((allowed: () => boolean) => Promise<FanslyCall | null>), confirm: (response: unknown) => StoredNote | null): Promise<{ readonly ok: true; readonly note: StoredNote | null } | { readonly ok: false; readonly error: CgAnyErrorWire }> {
+  async function write(target: Target & { readonly fanRef: string }, sender: HostSiteSender, prepare: FanslyCall | ((allowed: () => boolean) => Promise<FanslyCall | null>), confirm: (response: unknown, request: FanslyCall) => StoredNote | null): Promise<{ readonly ok: true; readonly note: StoredNote | null } | { readonly ok: false; readonly error: CgAnyErrorWire }> {
     try {
       const allowed = await admit(target, sender);
       const key = `${target.hostAccountId}|${target.fanRef}`;
@@ -147,7 +148,7 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
         const request = typeof prepare === 'function' ? await prepare(allowed) : prepare;
         if (request === null) return { ok: true as const, note: null };
         const answer = await call(request, allowed, true);
-        const note = confirm(answer.response);
+        const note = confirm(answer.response, request);
         return note === null && request.route !== 'notes.delete' ? { ok: false as const, error: { code: 'CG-NOTE-UNCERTAIN' as const } } : { ok: true as const, note };
       });
       writes.set(key, pending.catch(() => undefined));
@@ -175,30 +176,34 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
         const note = (await fresh(request, allowed)).notes.find((note) => note.noteId === request.noteId);
         if (note === undefined || request.current === undefined || note.title !== request.current.title || note.text !== request.current.text) throw new Refused(changed);
         if (note.foreign) throw new Refused(foreign);
-        const stored: StoredNote = { id: note.noteId, contentType: FANSLY_NOTE_TYPE, contentId: request.fanRef, title: note.title, note: note.text };
+        const stored: StoredNote = { id: note.noteId, contentType: FANSLY_NOTE_TYPE, contentId: request.fanRef, title: note.title, note: note.text, createdAtMs: note.createdAtMs ?? null };
         return notesCalls.edit(request.hostAccountId, stored, request.title, request.text);
-      }, (raw) => editedNote(raw, { id: request.noteId, contentType: FANSLY_NOTE_TYPE, contentId: request.fanRef, title: request.title, note: request.text }, request.title, request.text));
+      }, (raw) => editedNote(raw, request.fanRef, { id: request.noteId, contentType: FANSLY_NOTE_TYPE, title: request.title, note: request.text }));
       return done.ok && done.note !== null ? { ok: true, note: panelNote(done.note) } : { ok: false, error: done.ok ? { code: 'CG-NOTE-UNCERTAIN' } : done.error };
     },
     async remove(request: FanslyTabRequestPayload<'fansly.notes.delete'>, sender: HostSiteSender): Promise<Answer<'fansly.notes.delete'>> {
       if (isForeignNote({ title: request.title, note: request.text })) return { ok: false, error: foreign };
-      const stored: StoredNote = { id: request.noteId, contentType: FANSLY_NOTE_TYPE, contentId: request.fanRef, title: request.title, note: request.text };
+      const stored: StoredNote = { id: request.noteId, contentType: FANSLY_NOTE_TYPE, contentId: request.fanRef, title: request.title, note: request.text, createdAtMs: null };
       const done = await write(request, sender, notesCalls.remove(request.hostAccountId, stored), () => null);
       return done.ok ? { ok: true } : { ok: false, error: done.error };
     },
     /** The name for oneself: edited or deleted where there is one, created only where there was none. */
     async name(request: FanslyTabRequestPayload<'fansly.notes.name'>, sender: HostSiteSender): Promise<Answer<'fansly.notes.name'>> {
       const name = request.name.trim();
-      let edited: StoredNote | null = null;
+      let expectedId: string | undefined;
       const done = await write(request, sender, async (allowed) => {
         const latest = (await fresh(request, allowed)).customName;
         if (latest?.noteId !== request.current?.noteId || latest?.name !== request.current?.name) throw new Refused(changed);
-        const current: StoredNote | null = latest === null ? null : { id: latest.noteId, contentType: FANSLY_NAME_NOTE_TYPE, contentId: request.fanRef, title: FANSLY_NAME_NOTE_TITLE, note: latest.name };
-        edited = current;
+        const current: StoredNote | null = latest === null ? null : { id: latest.noteId, contentType: FANSLY_NAME_NOTE_TYPE, contentId: request.fanRef, title: FANSLY_NAME_NOTE_TITLE, note: latest.name, createdAtMs: null };
+        expectedId = current?.id;
         // Fansly's own «trash-undo»: no note, the fan's display name again.
         if (name === '') return current === null ? null : notesCalls.remove(request.hostAccountId, current);
         return current === null ? notesCalls.create(request.hostAccountId, request.fanRef, FANSLY_NAME_NOTE_TYPE, FANSLY_NAME_NOTE_TITLE, name) : notesCalls.edit(request.hostAccountId, current, FANSLY_NAME_NOTE_TITLE, name);
-      }, (raw) => (edited === null ? writtenNote(raw, request.fanRef, FANSLY_NAME_NOTE_TYPE) : editedNote(raw, edited, FANSLY_NAME_NOTE_TITLE, name)));
+      }, (raw, sent) =>
+        // The name rides the same edit as a note (decision 170): confirmed by `success`; a created name only by its note.
+        sent.route === 'notes.edit' && expectedId !== undefined
+          ? editedNote(raw, request.fanRef, { id: expectedId, contentType: FANSLY_NAME_NOTE_TYPE, title: FANSLY_NAME_NOTE_TITLE, note: name })
+          : writtenNote(raw, request.fanRef, FANSLY_NAME_NOTE_TYPE, expectedId));
       if (name === '') return done.ok ? { ok: true, customName: null } : { ok: false, error: done.error };
       return done.ok && done.note !== null ? { ok: true, customName: { noteId: done.note.id, name: done.note.note } } : { ok: false, error: done.ok ? { code: 'CG-NOTE-UNCERTAIN' } : done.error };
     },

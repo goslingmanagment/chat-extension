@@ -10,9 +10,14 @@
 // fact per line; «Текстом» / «Полями» switch to the note's one text and back. The Goose's rewrite of a field stands
 // under that field with «Принять» and «Не нужно».
 //
-// «✨ Заполнить из чата» (R20 P11c, FS-NOTE-6) stands at the foot of a questionnaire being edited, where the page's
-// owner switched it on: while the hub reads the chat it is «Остановить» and «Сохранить» waits; then a line says which
-// fields the Goose wrote into and how many additions wait under the filled ones.
+// «✨ Дополнить из чата» (R20 P11c, P11b2, FS-NOTE-6) stands at the foot of a questionnaire being edited and on a
+// questionnaire being read (the Fansly extension 2.12.0: one press opens it and fills), where the page's owner switched
+// it on: while the hub reads the chat it is «Остановить» and «Сохранить» waits; then a line over the fields says which
+// ones the Goose wrote into (their rows marked ✦) and how many additions wait under the filled ones, with «Слова фана»
+// (the fan's words under each field it wrote) and «Принять все»; a field the Goose named itself has «В Другое».
+//
+// Every note but a questionnaire shows when it was created (R20 P11b2; the Fansly extension 2.13.0, decision 171): «кастом · 16.10»,
+// the full time on hover.
 
 import type { JSX, Ref } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -20,7 +25,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { I18nKey } from '@cg/contracts/errors';
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NotesClient, NotesCopy, NotesEditorVM, NotesFillVM, NotesFormPartVM, NotesPanelVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
+import type { NotesClient, NotesCopy, NotesDateVM, NotesEditorVM, NotesFillVM, NotesFormPartVM, NotesPanelVM, NotesQuoteVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
 import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
@@ -139,13 +144,35 @@ function Suggestion({ client, copy, suggestion, named, saving }: Props & { reado
           </ins>
         ))}
       </div>
-      {suggestion.quotes.length === 0 ? null : (
-        <ul class="cg-notes__quotes">
-          {suggestion.quotes.map((quote) => (
-            <li key={quote}>«{quote}»</li>
-          ))}
-        </ul>
+      <Quotes quotes={suggestion.quotes} />
+    </div>
+  );
+}
+
+/** The fan's own words behind what the Goose wrote: shown while reviewing, never saved. */
+function Quotes({ quotes }: { readonly quotes: readonly (string | NotesQuoteVM)[] }): JSX.Element | null {
+  if (quotes.length === 0) return null;
+  return (
+    <ul class="cg-notes__quotes" data-notes-quotes="">
+      {quotes.map((quote, index) =>
+        typeof quote === 'string' || quote.label === null ? (
+          <li key={index}>«{typeof quote === 'string' ? quote : quote.quote}»</li>
+        ) : (
+          <li key={index}>
+            <span class="cg-notes__quote-label">{quote.label} — </span>«{quote.quote}»
+          </li>
+        ),
       )}
+    </ul>
+  );
+}
+
+/** A field the Goose named itself: «В Другое» puts it into «Другое» (decision 164). */
+function Proposed({ client, copy, label, text, busy }: Props & { readonly label: string; readonly text: string; readonly busy: string | null }): JSX.Element {
+  return (
+    <div class="cg-notes__proposed" data-notes-proposed={label}>
+      <span class="cg-notes__proposed-t">{text}</span>
+      <Button variant="quiet" size="sm" label={copy.toOther} tooltip={copy.toOtherHint} {...(busy === null ? {} : { reason: busy })} onClick={() => client.dispatch({ type: 'to-other', label })} />
     </div>
   );
 }
@@ -161,11 +188,11 @@ const factsOf = (value: string): string =>
 
 /** A field's box: one fact per line. What the person typed stays as typed (a new empty line, a trailing space) while
  * the note holds the same facts; a change from elsewhere (a rewrite accepted, the text edited) replaces it. */
-function FieldRow({ client, copy, part, saving, inputRef }: Props & { readonly part: FieldPart; readonly saving: boolean; readonly inputRef?: Ref<HTMLInputElement | HTMLTextAreaElement> }): JSX.Element {
+function FieldRow({ client, copy, part, saving, busy, inputRef }: Props & { readonly part: FieldPart; readonly saving: boolean; readonly busy: string | null; readonly inputRef?: Ref<HTMLInputElement | HTMLTextAreaElement> }): JSX.Element {
   const typed = useRef<string | null>(null);
   const value = typed.current !== null && factsOf(typed.current) === factsOf(part.value) ? typed.current : part.value;
   return (
-    <div class="cg-notes__frow" data-notes-field={part.label}>
+    <div class="cg-notes__frow" data-notes-field={part.label} {...(part.ai === true ? { 'data-notes-ai': '' } : {})}>
       <span class="cg-notes__label">{part.label}</span>
       <div class="cg-notes__cell">
         <TextField
@@ -182,10 +209,31 @@ function FieldRow({ client, copy, part, saving, inputRef }: Props & { readonly p
           onEscape={() => true}
           {...(saving ? { reason: copy.saving } : {})}
         />
+        <Quotes quotes={part.quotes ?? []} />
+        {part.proposed === true ? <Proposed client={client} copy={copy} label={part.label} text={copy.proposedHere} busy={busy} /> : null}
         {part.suggestions.map((suggestion) => (
           <Suggestion key={suggestion.index} client={client} copy={copy} suggestion={suggestion} named={false} saving={saving} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/** What the fill is doing or did, in a line over the fields, with «Слова фана» and «Принять все» (decision 166). */
+function FillStrip({ client, copy, editor }: Props & { readonly editor: NotesEditorVM }): JSX.Element | null {
+  const fill = editor.fill;
+  if (fill === null || fill.status === 'idle') return null;
+  const sources = editor.sourceCount ?? 0;
+  const open = editor.sourcesOpen === true;
+  return (
+    <div class="cg-notes__strip">
+      <FillLine copy={copy} fill={fill} offered={editor.suggestions.length} />
+      {fill.status !== 'done' || (sources === 0 && editor.suggestions.length < 2) ? null : (
+        <div class="cg-notes__strip-acts">
+          {sources === 0 ? null : <Button variant="quiet" size="sm" label={open ? copy.sourcesHide : copy.sources} tooltip={copy.sourcesHint} class="cg-notes__sources" onClick={() => client.dispatch({ type: 'sources', open: !open })} />}
+          {editor.suggestions.length < 2 ? null : <Button variant="quiet" size="sm" label={copy.acceptAll} {...(editor.saving ? { reason: copy.saving } : {})} onClick={() => client.dispatch({ type: 'suggestion-all' })} />}
+        </div>
+      )}
     </div>
   );
 }
@@ -225,6 +273,7 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
   // A rewrite stands under its field; with no field to stand under (the text, a field edited away) — after them.
   const placed = new Set(fields?.flatMap((part) => (part.kind === 'field' ? part.suggestions.map((suggestion) => suggestion.index) : [])));
   const loose = editor.suggestions.filter((suggestion) => !placed.has(suggestion.index));
+  const busy = editor.saving ? copy.saving : editor.fill?.status === 'running' ? copy.filling : null;
   return (
     <div
       class="cg-notes__edit"
@@ -251,6 +300,7 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
           />
         )}
       </div>
+      <FillStrip client={client} copy={copy} editor={editor} />
       {fields === null ? (
         <TextField
           multiline
@@ -273,15 +323,17 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
                 {part.text}
               </div>
             ) : (
-              <FieldRow key={`f${part.label}`} client={client} copy={copy} part={part} saving={editor.saving} {...(part === first ? { inputRef: text } : {})} />
+              <FieldRow key={`f${part.label}`} client={client} copy={copy} part={part} saving={editor.saving} busy={busy} {...(part === first ? { inputRef: text } : {})} />
             ),
           )}
         </div>
       )}
+      {/* Without fields to stand under (the text view, a field gone), the fill's notes follow the text. */}
+      {fields === null ? (editor.proposed ?? []).map((label) => <Proposed key={label} client={client} copy={copy} label={label} text={`${copy.proposedNamed} «${label}»`} busy={busy} />) : null}
       {loose.map((suggestion) => (
         <Suggestion key={suggestion.index} client={client} copy={copy} suggestion={suggestion} named saving={editor.saving} />
       ))}
-      {editor.fill === null ? null : <FillLine copy={copy} fill={editor.fill} offered={editor.suggestions.length} />}
+      <Quotes quotes={editor.looseQuotes ?? []} />
       {problem === null ? null : (
         <p class="cg-notes__problem" role="alert" data-notes-problem={problem.kind}>
           {problem.kind === 'failed' ? problem.error.code === 'CG-NOTE-WRITE' && problem.error.detail === 'changed' ? copy.problem.changed : `${errorText(problem.error)}. ${copy.problem[problem.created ? 'failed-create' : 'failed-edit']}` : copy.problem[problem.kind]}
@@ -291,15 +343,29 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
   );
 }
 
+/** When a note was created, in its head: «16.10», the full time on hover (decision 171). */
+function NoteDate({ copy, date }: { readonly copy: NotesCopy; readonly date: NotesDateVM }): JSX.Element {
+  return (
+    <time class="cg-notes__note-date" dateTime={date.iso} title={`${copy.created} ${date.full} ${copy.createdAt} ${date.time}`} data-notes-date="">
+      {date.day}
+    </time>
+  );
+}
+
 function NoteItem({ client, copy, vm, note }: Props & { readonly vm: NotesPanelVM; readonly note: FanslyNote }): JSX.Element {
   const errorText = useErrorText();
   const asked = vm.confirmDelete === note.noteId;
   const deleting = vm.deleting === note.noteId;
   const form = vm.forms[note.noteId];
+  const date = vm.dates?.[note.noteId];
+  // An untitled free note with a date is headed by the date alone (decision 171).
+  const title = note.title !== '' ? note.title : form !== undefined ? copy.questionnaire : date === undefined ? copy.untitled : null;
   return (
     <li class={`cg-notes__note${note.foreign ? ' is-foreign' : ''}`} data-note-id={note.noteId} {...(note.foreign ? { 'data-foreign': 'true' } : {})}>
       <div class="cg-notes__note-head">
-        <span class="cg-notes__note-title">{note.title !== '' ? note.title : form === undefined ? copy.untitled : copy.questionnaire}</span>
+        {title === null ? null : <span class="cg-notes__note-title">{title}</span>}
+        {date === undefined ? null : <NoteDate copy={copy} date={date} />}
+        {title === null ? <span class="cg-notes__spacer" /> : null}
         {note.foreign ? (
           <span class="cg-notes__tag" title={copy.foreignHint}>
             <Icon name="lock" size={12} />
@@ -307,6 +373,7 @@ function NoteItem({ client, copy, vm, note }: Props & { readonly vm: NotesPanelV
           </span>
         ) : vm.editor === null && !asked ? (
           <span class="cg-notes__note-acts">
+            {form !== undefined && vm.fill === true ? <Button variant="quiet" size="sm" label={copy.fill} tooltip={copy.fillHint} class="cg-notes__fill-act" onClick={() => client.dispatch({ type: 'fill-note', noteId: note.noteId })} /> : null}
             <Button variant="quiet" size="sm" label={copy.edit} onClick={() => client.dispatch({ type: 'edit', noteId: note.noteId })} />
             <Button variant="quiet" size="sm" label={copy.remove} onClick={() => client.dispatch({ type: 'ask-delete', noteId: note.noteId })} />
           </span>
