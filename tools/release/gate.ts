@@ -38,6 +38,40 @@ export function evaluateTagFree(version: string, existsLocally: boolean, existsO
   return pass(existsOnOrigin === null ? `v${version} is free locally` : `v${version} is free locally and on origin`);
 }
 
+interface CheckRun {
+  readonly id?: number;
+  readonly name?: string;
+  readonly status?: string;
+  readonly conclusion?: string | null;
+}
+
+/**
+ * The CI of the release commit on main. `answer` is GitHub's `commits/<commit>/check-runs`; null — GitHub could not
+ * be asked. Each of `jobs` must have run on the commit, and its latest run (a re-run, a manual run) ended green: a PR
+ * runs no e2e, so this is where the suite gates the release.
+ */
+export function evaluateMainCi(answer: string | null, commit: string, jobs: readonly string[], error = ''): Verdict {
+  const short = commit.slice(0, 12);
+  if (answer === null) return fail(`could not ask GitHub about the CI of ${short}${error === '' ? '' : ` (${error})`}`);
+  let runs: readonly CheckRun[];
+  try {
+    const parsed = JSON.parse(answer) as { check_runs?: unknown };
+    if (!Array.isArray(parsed.check_runs)) throw new Error('no check_runs');
+    runs = parsed.check_runs as CheckRun[];
+  } catch {
+    return fail(`GitHub's answer about the CI of ${short} cannot be read`);
+  }
+  const problems = jobs.flatMap((job) => {
+    const latest = runs.filter((run) => run.name === job).reduce<CheckRun | null>((last, run) => (last === null || (run.id ?? 0) > (last.id ?? 0) ? run : last), null);
+    if (latest === null) return [`«${job}» has not run on it`];
+    if (latest.status !== 'completed') return [`«${job}» is ${latest.status ?? 'in an unknown state'}`];
+    return latest.conclusion === 'success' ? [] : [`«${job}» ended ${latest.conclusion ?? 'with no conclusion'}`];
+  });
+  return problems.length === 0
+    ? pass(`the CI of ${short} on main is green: ${jobs.join(', ')}`)
+    : fail(`the CI of ${short} on main is not green: ${problems.join('; ')} — wait for a run in progress; a red main is fixed by whoever releases, then the gate again`);
+}
+
 export interface FeedObservation {
   /** HTTP status of the feed address; 0 — no answer at all. */
   readonly status: number;

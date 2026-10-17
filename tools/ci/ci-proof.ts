@@ -3,9 +3,9 @@
 // A green run of ci.yml leaves an artifact `ci-proof-<tree>` (the job «pnpm e2e» uploads it once `pnpm check` and
 // every part of the suite have passed). Before its work, each job of a later run asks for the tree it checked out —
 // on a PR GitHub's merge commit, on a push the pushed commit: when such a proof exists, the tree is the same to the
-// last byte, workflow files included, and the job ends green without running again. This is what a PR marked ready
-// after a green Draft is, and a push to main after the merge of a PR whose base had not moved: in 13–16.10 these
-// were 98 of 336 full runs.
+// last byte, workflow files included, and the job ends green without running again. Since 18.10 a PR runs no e2e, so
+// only a full run on main leaves a proof, and a later run meets the same tree rarely (a revert to it); before, a PR
+// marked ready after a green Draft and the push of its merge were 98 of 336 full runs in 13–16.10.
 //
 // Only a proof that holds counts: the artifact is not expired, it belongs to a completed, successful ci.yml run of
 // this repository (not a fork's), and that run is not this one. Anything else — no token, an API error, a manual
