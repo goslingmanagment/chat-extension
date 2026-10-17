@@ -15,7 +15,8 @@ import { testBuildPage } from '../support/fake-hub';
 //   anew, the DM rules unmet (copy only), the gallery, the inbox and the
 //   mini-chat (no dock), the feed's bottom by Fansly's 350 px, the typing
 //   line over the dock, the narrow column of the neighbour's panel, our
-//   overlay layers under Fansly's modals; screenshots in both themes in
+//   overlay layers over Fansly's modals and the dock under them (X46);
+//   screenshots in both themes in
 //   .cache/e2e/ (suite-fansly-dock-*.png).
 // Nobody is signed in: the dock shows its first-run state — this spec is
 // about its place, not its features (they come with P8*).
@@ -534,14 +535,14 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
     expect(await oursText('toast')).not.toMatch(/CG-UI-FAILED|Сбой интерфейса/);
   });
 
-  it('[UI-017] [CS-005] our overlay layers: hosts in <html> outside Fansly’s app, fixed, 900/950/960 — over its feed and mini-chat, under its modals, alerts and FBuddy’s layer', async () => {
+  it('[UI-017] [CS-005] our overlay layers: hosts in <html> outside Fansly’s app, fixed, 1900/1950/1960 — over its feed, mini-chat, modals, menus and cards, under its alerts and FBuddy’s layer (X46)', async () => {
     const [first, second] = ids.groups as [string, string];
     await openWithNeighbor(`/messages/${first}?stand-mini=${second}`, { mode: 'after' });
     await dockShown('the dock');
     // The toasts' layer comes with the application; the others with their first window.
     await browser.waitUntil(async () => browser.execute(() => document.querySelector('[data-host="overlay"][data-layer="toast"]') !== null), { timeout: 5000, timeoutMsg: 'the toast layer' });
     const layers = await browser.execute(() => {
-      const ours = [...document.querySelectorAll<HTMLElement>('[data-host="overlay"]')].map((host) => ({
+      const ours = [...document.querySelectorAll<HTMLElement>('[data-host="overlay"]:not([data-layer="launcher"])')].map((host) => ({
         layer: host.getAttribute('data-layer'),
         parent: host.parentElement === document.documentElement,
         position: getComputedStyle(host).position,
@@ -557,14 +558,16 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
     expect(layers.ours.length).toBeGreaterThan(0);
     for (const layer of layers.ours) {
       expect(layer).toMatchObject({ parent: true, position: 'fixed', clickThrough: true });
-      expect([900, 950, 960]).toContain(layer.z);
-      if (layers.modal !== null) expect(layer.z).toBeLessThan(layers.modal);
+      expect([1900, 1950, 1960]).toContain(layer.z);
+      // Over Fansly's modals (998) and its menus and cards (999–1000), as the old extension's were.
+      expect(layer.z).toBeGreaterThan(1000);
+      if (layers.modal !== null) expect(layer.z).toBeGreaterThan(layers.modal);
       if (layers.alerts !== null) expect(layer.z).toBeLessThan(layers.alerts);
       if (layers.mini !== null) expect(layer.z).toBeGreaterThan(layers.mini);
       if (layers.neighbour !== null) expect(layer.z).toBeLessThan(layers.neighbour);
     }
     expect(layers.modal).toBe(998);
-    // A modal of Fansly's over our layers: opened, it takes the point where a window of ours would stand.
+    // The dock stays the page's: a modal of Fansly's opened over the chat takes the point where the dock stands.
     await browser.execute((selector: string) => {
       const input = document.querySelector<HTMLInputElement>(`${selector} input[type="file"]`);
       if (input === null) throw new Error('no file input');
@@ -574,11 +577,14 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }, FANSLY_MAIN.composer);
     await browser.waitUntil(async () => (await callFansly('modals')).length > 0, { timeout: 5000, timeoutMsg: 'Fansly’s upload modal' });
-    const centre = await browser.execute(() => {
-      const hit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
-      return { ours: hit?.closest('[data-host]') !== null && hit !== null, modal: hit?.closest('.modal-wrapper') !== null && hit !== null };
-    });
-    expect(centre).toEqual({ ours: false, modal: true });
-    await $('body').click();
+    const onDock = await browser.execute((selector: string) => {
+      const dock = document.querySelector(selector)?.getBoundingClientRect();
+      if (dock === undefined) return null;
+      const hit = document.elementFromPoint(dock.left + 8, dock.top + dock.height / 2);
+      return { ours: hit !== null && hit.closest('[data-host]') !== null, modal: hit !== null && hit.closest('.modal-wrapper') !== null };
+    }, DOCK);
+    expect(onDock).toEqual({ ours: false, modal: true });
+    await browser.action('pointer').move({ x: 700, y: 40 }).down().up().perform();
+    await browser.waitUntil(async () => (await callFansly('modals')).length === 0, { timeout: 5000, timeoutMsg: 'Fansly’s modal did not close' });
   });
 });

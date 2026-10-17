@@ -33,19 +33,28 @@
 // would load older history.
 //
 // Overlays: `<div data-host="overlay">` hosts in <html>, outside Fansly's
-// app, each with a closed root, `position: fixed`, on its layer — 900 panels,
-// 950 windows, 960 toasts: over the feed, Fansly's dropdowns and its
-// mini-chat, under its modals (998), menus and cards (999–1000) and
-// notifications (9999); FBuddy's layer in <body> (1 000 000) is above all,
-// and our toasts stand top right, his bottom right (FS-PLC-6). Styles live in
-// the closed roots, adopted — nothing global (FS-PLC-7).
+// app, each with a closed root, `position: fixed`, on its layer — Fansly's
+// own table, FANSLY_OVERLAY_Z: 1900 panels, 1950 windows, 1960 toasts — over
+// the feed, Fansly's dropdowns, its mini-chat, its modals (998), menus and
+// cards (999–1000), as the old extension's were (decision X46: our notes and
+// Coach «Окно по центру» stayed under an open modal of Fansly's); under its
+// notifications (9999, top left) and FBuddy's layer in <body> (1 000 000);
+// our toasts stand top right, his bottom right (FS-PLC-6). ChatSpace keeps
+// host-kit's 900/950/960 under its PrimeVue dialogs. The dock — in flow or
+// fixed over a stray field — and the launcher stay under Fansly's modals, as
+// the page they stand in: a modal of Fansly's covers them as it covers its own
+// field. Styles live in the closed roots, adopted — nothing global (FS-PLC-7).
+//
+// The launcher (launcher-view.ts, X46): one more `overlay` host in <html>,
+// `data-layer="launcher"`, fixed in the bottom left corner, made when the
+// tab is admitted — never at document_start.
 //
 // Nothing here touches an element's `style` in the synchronous start: its
 // first touch in a page's content-script global costs ~0.3 ms (§3.1); the
 // dock host is dressed when it is first placed.
 
 import type { MountPoints } from '@cg/contracts/host';
-import { HOST_ATTRIBUTE, LAYER_ATTRIBUTE, MODE_ATTRIBUTE, mountClosedHost, OVERLAY_Z, type ClosedHost, type OverlayLayer } from '@cg/host-kit/isolated/hosts';
+import { HOST_ATTRIBUTE, LAYER_ATTRIBUTE, MODE_ATTRIBUTE, mountClosedHost, type ClosedHost, type OverlayLayer } from '@cg/host-kit/isolated/hosts';
 import { createBottomKeeper } from '@cg/host-kit/isolated/keep-bottom';
 import { createShadowRootRegistry, type ShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry';
 
@@ -55,8 +64,17 @@ import type { ConversationAnchors } from './anchors';
 export const FANSLY_NEAR_BOTTOM_PX = 350;
 /** Over Fansly's typing line (`z-index: 2`) in the container's stacking. */
 export const DOCK_Z = 3;
-/** The dock as a fixed overlay sits on the panel layer. */
-const FIXED_DOCK_Z = OVERLAY_Z.panel;
+/**
+ * Our overlay layers on a Fansly page (FS-PLC-6, X46): over Fansly's modals (998), menus and cards (999–1000), under
+ * its notifications (9999) and FBuddy's layer (1 000 000). The order of host-kit's table (OVERLAY_Z), a thousand higher.
+ */
+export const FANSLY_OVERLAY_Z: Readonly<Record<OverlayLayer, number>> = { panel: 1900, modal: 1950, toast: 1960 };
+/** The dock as a fixed overlay, and the launcher: over the feed and the mini-chat, under Fansly's modals — the page's own place. */
+export const PAGE_Z = 900;
+/** `data-layer` of the launcher's host. */
+export const LAUNCHER_LAYER = 'launcher';
+/** The launcher's corner (ui-design §3.13): the old extension's bottom left, at the vault entry's 16 px. */
+const LAUNCHER_INSET_PX = 16;
 
 type DockKind = MountPoints['dock']['kind'];
 
@@ -89,6 +107,8 @@ export interface FanslyMounts {
   readonly dock: ClosedHost;
   /** The overlay host of a layer, created in <html> on first use. */
   overlay(layer: OverlayLayer): ClosedHost;
+  /** The launcher's host (X46), created in <html> on first use: fixed in the bottom left corner, under Fansly's modals. */
+  launcher(): ClosedHost;
   points(): MountPoints;
   onChange(listener: (points: MountPoints) => void): () => void;
   /** Puts the dock where the open chat says (the port calls it whenever the anchors or the chat moved); idempotent. */
@@ -175,7 +195,7 @@ export function createFanslyMounts(doc: Document, options: FanslyMountOptions = 
     style.setProperty('left', `${rect.left}px`);
     style.setProperty('width', `${rect.width}px`);
     style.setProperty('bottom', `${Math.max(0, live.win.innerHeight - rect.top)}px`);
-    style.setProperty('z-index', String(FIXED_DOCK_Z));
+    style.setProperty('z-index', String(PAGE_Z));
     style.setProperty('contain', 'layout style');
   };
   const onWindowResize = (): void => {
@@ -277,15 +297,29 @@ export function createFanslyMounts(doc: Document, options: FanslyMountOptions = 
       style.setProperty('position', 'fixed');
       style.setProperty('inset', '0');
       style.setProperty('pointer-events', 'none');
-      style.setProperty('z-index', String(OVERLAY_Z[layer]));
+      style.setProperty('z-index', String(FANSLY_OVERLAY_Z[layer]));
       overlays.set(layer, found);
     }
     return found;
+  };
+  let launcherHost: ClosedHost | null = null;
+  const launcher = (): ClosedHost => {
+    if (launcherHost !== null) return launcherHost;
+    if ((doc.documentElement as HTMLElement | null) === null) throw new Error('launcher before <html> exists');
+    launcherHost = mountClosedHost(doc.documentElement, 'overlay', 'last', registry);
+    launcherHost.host.setAttribute(LAYER_ATTRIBUTE, LAUNCHER_LAYER);
+    const style = launcherHost.host.style;
+    style.setProperty('position', 'fixed');
+    style.setProperty('left', `${LAUNCHER_INSET_PX}px`);
+    style.setProperty('bottom', `${LAUNCHER_INSET_PX}px`);
+    style.setProperty('z-index', String(PAGE_Z));
+    return launcherHost;
   };
 
   return {
     dock,
     overlay,
+    launcher,
     points,
     onChange(listener) {
       listeners.add(listener);
@@ -309,6 +343,8 @@ export function createFanslyMounts(doc: Document, options: FanslyMountOptions = 
       dock.remove();
       for (const host of overlays.values()) host.remove();
       overlays.clear();
+      launcherHost?.remove();
+      launcherHost = null;
       listeners.clear();
     },
   };

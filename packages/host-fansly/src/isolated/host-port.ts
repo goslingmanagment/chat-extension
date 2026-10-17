@@ -66,6 +66,7 @@ import { createGeneration } from './generation';
 import { createHeaderSlots, type HeaderSlots } from './header-slot';
 import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
+import { createFanslyLauncher, type FanslyLauncher } from './launcher';
 import type { Coexistence } from './legacy';
 import type { FanslyMounts } from './mount';
 import { createNavigator, type NavigationWay } from './navigate';
@@ -139,6 +140,8 @@ export interface FanslyPort extends FanslyHostPort {
   sentDraft(): SentDraft | null;
   /** The vault's facts for the uploader (§7.11, P13a). */
   readonly vault: FanslyVaultFacts;
+  /** What the person asked of the floating launcher (X46): the application's half serves it (launcher.ts). */
+  readonly launcher: FanslyLauncher;
 }
 
 export interface FanslyHostPortOptions {
@@ -150,6 +153,8 @@ export interface FanslyHostPortOptions {
   readonly theme: FanslyTheme;
   readonly route: RouteWatcher;
   readonly anchors: AnchorWatcher;
+  /** The floating launcher's asks (X46); absent — a launcher of the port's own, which nobody draws. */
+  readonly launcher?: FanslyLauncher;
   /** The background's `token.redeem` for the click or key of a write. */
   readonly redeem: TokenRedeemer;
   /** Fansly's schema module (validation.ts): the checks of our own controllers' intents. */
@@ -786,6 +791,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       const main = bridge === null || disposed ? null : await bridge.request('fx.health', {}).catch(() => null);
       return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats, sends: sends.stats() }, main };
     },
+    launcher: options.launcher ?? createFanslyLauncher(),
     vault: {
       album: () => vaultLoad,
       onFact(cb): Unsubscribe {

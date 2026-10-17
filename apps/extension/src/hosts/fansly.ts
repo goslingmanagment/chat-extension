@@ -73,6 +73,8 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   newcomers: 'fansly/newcomers.ts',
   // «Заметки» (R20 P11b): their button, panel and controller, with «Регистрация» on /messages.
   notes: 'fansly/notes.ts',
+  // The floating launcher of Spenders and «Новые» (X46): plain DOM, every page of an admitted tab, before any application.
+  launcher: 'fansly/launcher.ts',
 };
 
 export const FANSLY: HostDescriptor = {
@@ -103,6 +105,7 @@ export const FANSLY: HostDescriptor = {
       // P7g: admission, retirement and notices alongside P7d's dock (30.43 KiB measured); R20 P7e: → 36 KiB (33.41 measured) — the writes
       // (the field's revision and record, the insert, «Открыть и вставить») start with the port; R20 P9c: → 38 KiB (36.04
       // measured) — the relay frame and its lease, early: the background's work may route through a tab without a chat.
+      // X46: the floating launcher's asks and its chunk's load after admission, early — +0.32 (37.18 measured on ed642327).
       { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 38 * KIB },
       { entry: 'fansly-notice', label: 'reload notice (fansly-notice)', gzipBytes: 2 * KIB },
     ],

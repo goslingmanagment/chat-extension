@@ -17,13 +17,20 @@
 //   yield to a dialog of ChatSpace: Esc and plain letters are that window's,
 //   a combination of ours runs nothing over it and says why. FBuddy's roots
 //   are open but its own: we never read inside them — the focus behind a host
-//   is enough, as `document.activeElement` names the outermost host.
+//   is enough, as `document.activeElement` names the outermost host;
+// - but a window of ours stands over Fansly's modals (FS-PLC-6, X46): while
+//   the focus is inside one of our overlay hosts — a panel, a window — the
+//   keys are that window's, as if no modal of Fansly's stood under it (its
+//   Esc closes it, its keys run). The dock and the launcher stay under the
+//   modal: focus there yields as before.
 // The route by the address is route.ts's (P7c).
 
+import { HOST_ATTRIBUTE, LAYER_ATTRIBUTE } from '@cg/host-kit/isolated/hosts';
 import { createKeyboardProbe as createProbe, type KeyboardProbe } from '@cg/host-kit/isolated/keyboard';
 import type { ShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry';
 
 import { FANSLY_SELECTORS } from './anchors';
+import { LAUNCHER_LAYER } from './mount';
 
 /** A host of FBuddy's UI (S5 §2.5): `fb-<feature>-ui`, a custom element with its own shadow root. */
 export const NEIGHBOR_HOST = /^fb-[a-z0-9-]+-ui$/;
@@ -46,6 +53,17 @@ export function fanslyWindowOpen(doc: Document): boolean {
   return doc.body?.classList.contains(FANSLY_SELECTORS.modalFlag) === true || focusInNeighbor(doc);
 }
 
-/** The shared probe with Fansly's two rules: its message field, and a window of its own or of the neighbour's. */
+/**
+ * The focus is inside one of our windows over Fansly's modals (X46): an overlay host of ours — not the launcher, which
+ * stands under them — whose closed root holds it. `document.activeElement` names the host: an O(1) read.
+ */
+export function focusInOurWindow(doc: Document, registry: ShadowRootRegistry): boolean {
+  const active = doc.activeElement;
+  if (active === null || active.getAttribute(HOST_ATTRIBUTE) !== 'overlay' || active.getAttribute(LAYER_ATTRIBUTE) === LAUNCHER_LAYER) return false;
+  const focused = registry.rootOf(active)?.activeElement;
+  return focused !== null && focused !== undefined;
+}
+
+/** The shared probe with Fansly's rules: its message field; a window of its own or of the neighbour's — unless ours is over it. */
 export const createKeyboardProbe = (doc: Document, registry: ShadowRootRegistry): KeyboardProbe =>
-  createProbe(doc, registry, isFanslyComposer, () => fanslyWindowOpen(doc));
+  createProbe(doc, registry, isFanslyComposer, () => fanslyWindowOpen(doc) && !focusInOurWindow(doc, registry));

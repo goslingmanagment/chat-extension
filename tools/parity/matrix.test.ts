@@ -26,10 +26,10 @@ describe('the R20 parity matrix (docs/project-unite/parity-matrix.md)', () => {
     expect(count(matrix.rows, (row) => row.origin)).toEqual({ старое: 605, ChatSpace: 118, новое: 1 });
     const kinds = count(matrix.rows, (row) => fanslyCheckOf(row).kind);
     expect({ browser: (kinds.e2e ?? 0) + (kinds['stand-visual'] ?? 0), unit: kinds.unit, hub: kinds.hub, shared: kinds.shared, negative: kinds.negative, afterPilot: kinds['after-pilot'] }).toEqual({
-      browser: 113,
-      unit: 121,
+      browser: 115,
+      unit: 120,
       hub: 12,
-      shared: 438,
+      shared: 437,
       negative: 17,
       afterPilot: 23,
     });
