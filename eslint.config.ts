@@ -161,6 +161,8 @@ export default defineConfig(
       '.dev-profile/**',
       '.cache/**',
       'tests/fixtures/**',
+      // Worktrees of agent sessions inside the checkout (`.claude/worktrees/*`): whole copies of the repo, linted in their own.
+      '.claude/**',
       // The P3a spike's probe code (docs/project-unite/spike.md): browser-run scripts and test extensions, never shipped.
       'packages/testing/spike/**',
     ],
