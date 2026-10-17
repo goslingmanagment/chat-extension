@@ -44,6 +44,8 @@
   отладки, DB-022), `account.advanced` (настройки; «Аккаунт → Дополнительно» в отладке: отображаемый префикс ключа
   входа, когда выдан и когда истекает, сборка и контракт каждого сайта с открытой вкладкой, строка «Приложение»;
   null вне отладки, DB-027). Схемы `LocalSpendReportSchema`, `AccountAdvancedSchema` — в `diagnostics.ts`.
+  Событие страницам `fans.changed` (без данных): имена, которые знает фон, изменились — popup и «Статус» читают
+  `fans.labels` заново, имя появляется, как только фон его узнал.
 - **`vm`:** `FanPanelVM.bioBlocks?` — профиль фана из хаба по разделам, как полный Recap; `FanPanelVM.besideHostPanel?:
   true` — у сайта своя панель фана рядом с чатом (ChatSpace 0.195): наша показывает только то, чего там нет.
   `AccountBodyVM.advanced?` (`AccountAdvancedVM`), `DiagnosticsBodyVM.aiSpend?` (`AiSpendVM`, `AiSpendRowVM`).
@@ -51,7 +53,7 @@
   `settings.diagnostics.aiSpend*`.
 
 Фикстуры: `test/fixtures/protocols.ts` (`tab.presence`, `op.start`, `usage.local`, `account.advanced`,
-`fans.labels`), `test/fixtures/vm.ts` (`FAN_PANEL_BIO_SAMPLES`).
+`fans.labels`, событие `fans.changed`), `test/fixtures/vm.ts` (`FAN_PANEL_BIO_SAMPLES`).
 
 ## 1.18.0 — 2026-10-17 (решение X45: тон в чате, «Повторить» у отказа запуска)
 

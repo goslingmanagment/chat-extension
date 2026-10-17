@@ -727,6 +727,11 @@ export const TAB_EVENTS = {
   /** A newer bootstrap is cached; receivers call `bootstrap.get`. */
   'bootstrap.changed': { payload: z.strictObject({ configRevision: CountSchema, issuedAt: IsoTimestampSchema }), to: ANY },
   'catalog.changed': { payload: Empty, to: ANY },
+  /**
+   * 1.20.0 (decision X47): the names of fans the tabs told the background changed (an open chat's fan was named,
+   * renamed or left, a start named its fan); pages that show names read `fans.labels` again.
+   */
+  'fans.changed': { payload: Empty, to: PAGE },
   'newcomers.changed': { payload: z.strictObject({ pageId: HubIntIdSchema }), to: TAB },
   /** A generation's `meta` moved a page's quota. */
   'quota.changed': { payload: z.strictObject({ quota: AiQuotaSnapshotSchema }), to: ANY },

@@ -540,6 +540,8 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
   },
   'bootstrap.changed': { valid: [{ configRevision: 9, issuedAt: ISO }], invalid: [{ configRevision: 9 }] },
   'catalog.changed': empty,
+  // 1.20.0 (X47): a nudge only; the names come with `fans.labels`.
+  'fans.changed': empty,
   'newcomers.changed': { valid: [{ pageId: 11 }], invalid: [{ pageId: '11' }] },
   'quota.changed': { valid: [{ quota }], invalid: [{ quota: { ...quota, observedAt: null } }, {}] },
   'flags.changed': {
