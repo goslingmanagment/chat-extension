@@ -2,8 +2,8 @@
 // tools/ci/e2e-docker.sh, tools/ci/e2e-needed.sh) and its local variant
 // (tools/ci/e2e-docker-local.sh) — what can be checked without Docker and
 // without GitHub:
-//   - the shape of the workflow: the parts of the suite, the required check
-//     «pnpm e2e» that is green only when every part is, Drafts on the PC only;
+//   - the shape of the workflow: the parts of the suite, the check «pnpm e2e»
+//     that is green only when every part is, a PR that runs `check` alone;
 //   - a cancelled job does not leave its container: the workflow's own `run:`
 //     line is started the way the runner starts a step, signalled the way the
 //     runner cancels one, against a stand-in `docker` that keeps "containers"
@@ -425,7 +425,7 @@ describe('which changes run the e2e suite', () => {
 describe('the e2e suite in parts', () => {
   const PART = job('e2e-part');
   const GATE = job('e2e');
-  const DRAFT_RULE = "github.event.pull_request.draft != true || vars.CI_POOL == 'pc'";
+  const NOT_ON_A_PR = "github.event_name != 'pull_request'";
 
   it('runs as five parts on the PC and one on GitHub, each part named «e2e <k>/<n>» and run with CG_E2E_SHARD=<k>/<n>', () => {
     expect(PART).toContain('    name: e2e ${{ matrix.shard }}\n');
@@ -437,13 +437,13 @@ describe('the e2e suite in parts', () => {
     expect(PART).toContain('name: e2e-logs-${{ github.run_id }}-${{ github.run_attempt }}-part-${{ strategy.job-index }}\n');
   });
 
-  it('keeps the two required checks by name: one job «pnpm check», one «pnpm e2e» — the gate over the parts', () => {
+  it('keeps the two checks by name: one job «pnpm check» (main’s ruleset requires it), one «pnpm e2e» — the gate over the parts the release gate reads', () => {
     expect(WORKFLOW.match(/^ {4}name: pnpm check$/gm)).toHaveLength(1);
     expect(WORKFLOW.match(/^ {4}name: pnpm e2e$/gm)).toHaveLength(1);
     expect(GATE).toContain('    name: pnpm e2e\n');
     expect(GATE).toContain('    needs: [check, e2e-part]\n');
     // Runs whatever the parts did: «skipped» would read as passed.
-    expect(GATE).toContain(`    if: always() && (${DRAFT_RULE})\n`);
+    expect(GATE).toContain(`    if: always() && ${NOT_ON_A_PR}\n`);
     expect(GATE).toContain('          PARTS: ${{ needs.e2e-part.result }}\n');
   });
 
@@ -462,7 +462,7 @@ describe('the e2e suite in parts', () => {
     }
   });
 
-  it('a Draft runs every job while CI is on the PC and none on GitHub’s runners; every job asks the same pool', () => {
+  it('a PR runs `check` alone, a push to main and a manual run run every job; every job asks the same pool', () => {
     const pool = (label: string, hosted: string): string => `    runs-on: \${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","${label}"]') || '${hosted}' }}\n`;
     // The gate asks for the light runner's label on the PC (the heavy runners carry it too); the work, for ci-pc.
     for (const [id, label, hosted] of [
@@ -471,13 +471,15 @@ describe('the e2e suite in parts', () => {
       ['e2e', 'ci-pc-control', 'ubuntu-slim'],
     ] as const) {
       const text = job(id);
-      expect(text, id).toContain(DRAFT_RULE);
-      expect(text, id).not.toMatch(/draft != true\n/);
+      expect(text, id).not.toContain('draft');
       expect(text, id).toContain(pool(label, hosted));
     }
-    // A newer push to the PR — a Draft's too — cancels its run.
+    expect(job('check')).not.toMatch(/^ {4}if:/m);
+    expect(PART).toContain(`    if: ${NOT_ON_A_PR}\n`);
+    // A newer push to the PR cancels its run.
     expect(WORKFLOW).toContain("  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n");
-    expect(WORKFLOW).toMatch(/pull_request:\n {4}types: \[opened, synchronize, reopened, ready_for_review\]\n/);
+    expect(WORKFLOW).toMatch(/pull_request:\n {4}types: \[opened, synchronize, reopened\]\n/);
+    expect(WORKFLOW).toMatch(/push:\n {4}branches:\n {6}- main\n/);
   });
 });
 

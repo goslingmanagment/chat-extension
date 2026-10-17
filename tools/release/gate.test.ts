@@ -10,6 +10,7 @@ import {
   evaluateHead,
   evaluateHubAncestry,
   evaluateHubCompatibility,
+  evaluateMainCi,
   evaluateTagFree,
   evaluateVendor,
   evaluateVersions,
@@ -72,6 +73,25 @@ describe('the pre-release gate: what each check concludes', () => {
     expect(evaluateHubAncestry('diverged', COMMIT, 'org/hub')).toMatchObject({ ok: false, detail: expect.stringContaining('re-vendor') as string });
     expect(evaluateHubAncestry('behind', COMMIT, 'org/hub').ok).toBe(false);
     expect(evaluateHubAncestry(null, COMMIT, 'org/hub', 'gh: Not Found (HTTP 404)')).toMatchObject({ ok: false, detail: expect.stringContaining('HTTP 404') as string });
+  });
+
+  it('the release commit’s CI on main is green: `pnpm check` and `pnpm e2e` ran on it, and the latest run of each passed', () => {
+    const JOBS = ['pnpm check', 'pnpm e2e'];
+    const runs = (...list: Array<[number, string, string, string | null]>): string => JSON.stringify({ total_count: list.length, check_runs: list.map(([id, name, status, conclusion]) => ({ id, name, status, conclusion })) });
+    const green = runs([1, 'pnpm check', 'completed', 'success'], [2, 'e2e 1/5', 'completed', 'success'], [3, 'pnpm e2e', 'completed', 'success']);
+    expect(evaluateMainCi(green, COMMIT, JOBS)).toEqual({ ok: true, detail: `the CI of ${COMMIT.slice(0, 12)} on main is green: pnpm check, pnpm e2e` });
+    // A part re-run green after a red one: the latest run of a job counts.
+    expect(evaluateMainCi(runs([1, 'pnpm check', 'completed', 'success'], [3, 'pnpm e2e', 'completed', 'failure'], [9, 'pnpm e2e', 'completed', 'success']), COMMIT, JOBS).ok).toBe(true);
+    expect(evaluateMainCi(runs([1, 'pnpm check', 'completed', 'success'], [9, 'pnpm e2e', 'completed', 'failure'], [3, 'pnpm e2e', 'completed', 'success']), COMMIT, JOBS)).toMatchObject({ ok: false, detail: expect.stringContaining('«pnpm e2e» ended failure') as string });
+    // Still running, cancelled, skipped or never run is not green.
+    expect(evaluateMainCi(runs([1, 'pnpm check', 'completed', 'success'], [3, 'pnpm e2e', 'in_progress', null]), COMMIT, JOBS)).toMatchObject({ ok: false, detail: expect.stringContaining('«pnpm e2e» is in_progress') as string });
+    expect(evaluateMainCi(runs([1, 'pnpm check', 'completed', 'cancelled'], [3, 'pnpm e2e', 'completed', 'skipped']), COMMIT, JOBS)).toMatchObject({ ok: false, detail: expect.stringContaining('«pnpm check» ended cancelled; «pnpm e2e» ended skipped') as string });
+    expect(evaluateMainCi(runs([1, 'pnpm check', 'completed', 'success']), COMMIT, JOBS)).toMatchObject({ ok: false, detail: expect.stringContaining('«pnpm e2e» has not run on it') as string });
+    expect(evaluateMainCi(runs(), COMMIT, JOBS).ok).toBe(false);
+    // GitHub could not be asked, or answered something else.
+    expect(evaluateMainCi(null, COMMIT, JOBS, 'gh: Not Found (HTTP 404)')).toMatchObject({ ok: false, detail: expect.stringContaining('HTTP 404') as string });
+    expect(evaluateMainCi('ahead', COMMIT, JOBS)).toMatchObject({ ok: false, detail: expect.stringContaining('cannot be read') as string });
+    expect(evaluateMainCi('{}', COMMIT, JOBS).ok).toBe(false);
   });
 
   it('[UP-004] the vendored packages are exact, clean and the pinned ones', () => {

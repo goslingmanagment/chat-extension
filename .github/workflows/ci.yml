@@ -1,6 +1,8 @@
 # CI (docs/architecture.md §13, docs/release.md «CI»).
 #
-# On a PR, on every push to main and on a manual run:
+# A PR runs `check` alone — the check main's ruleset requires; a PR is opened
+# ready and merges itself (auto-merge) once it is green. Every push to main and
+# a manual run run everything:
 #   check      `pnpm check` — typecheck, lint, test, build, webext-lint, size,
 #              gates, parity, archive-check (§3);
 #   e2e-part   `pnpm e2e` in parts side by side — headless Firefox and
@@ -8,39 +10,36 @@
 #              tools/ci/e2e-image.sh, in a container with no network; each part
 #              builds for itself and runs its share of the spec files
 #              (CG_E2E_SHARD, packages/testing/src/e2e-shards.ts);
-#   e2e        «pnpm e2e», the required check: green only when every part is.
+#   e2e        «pnpm e2e»: green only when every part is.
+#
+# The e2e suite gates the release, not the PR: `pnpm release preflight
+# --online` (check `main-ci`, tools/release/gate.ts) requires «pnpm check» and
+# «pnpm e2e» green on the release commit's run here. A red main is fixed by
+# whoever releases.
 #
 # Not here: `pnpm perf` (the §11 and Fansly P16a probes, about 50 minutes)
 # runs every night and on demand in perf.yml.
 #
-# Drafts: while CI runs on the owner's PC (CI_POOL=pc, free) a Draft PR runs
-# everything, so an executor needs no full e2e run of its own; on GitHub's
-# runners (paid) a Draft runs nothing — every job is skipped (a skipped job
-# costs no runner and counts as passed for a required check) — and marking the
-# PR ready starts them. Marking a PR that ran on the PC ready runs CI once more:
-# GitHub tests the PR merged into its base, and the base may have moved since
-# the Draft's run. If it has not, the merge is the same tree, and the run ends
-# green at once (next paragraph).
-#
-# A tree that already passed does not run again. A green run leaves the proof
-# of the tree it tested — an artifact `ci-proof-<tree>` from the job «pnpm
-# e2e», once `check` and every part passed. Each job of a later run asks for
-# its own tree first (tools/ci/ci-proof.ts): with a proof from a completed,
+# A tree that already passed does not run again. A full green run leaves the
+# proof of the tree it tested — an artifact `ci-proof-<tree>` from the job
+# «pnpm e2e», once `check` and every part passed. Each job of a later run asks
+# for its own tree first (tools/ci/ci-proof.ts): with a proof from a completed,
 # successful run of this workflow, every step after the question is skipped
-# and the job ends green — the jobs still run, so no required check reads a
-# «skipped». That is a PR marked ready while its base stayed put, and a push
-# to main after merging such a PR: in 13–16.10, 98 of 336 full runs. A tree is
-# the whole checkout, workflow files included; a manual run and a re-run
-# always run in full, and a failed lookup is a miss.
+# and the job ends green — the jobs still run, so no check reads a «skipped».
+# Since PRs run no e2e, only a full run on main leaves a proof, and a later run
+# meets the same tree rarely (a revert to it). A tree is the whole checkout,
+# workflow files included; a manual run and a re-run always run in full, and a
+# failed lookup is a miss.
 #
 # A change of documents alone — docs/**, site/**, *.md in the root — does not
-# run the e2e suite: each part starts, sees what changed (its second step,
-# tools/ci/e2e-needed.sh) and ends green within seconds instead of running its
-# share. `check` always runs in full: it is what tests the site, the changelog
-# and the parity tables. Why inside the job and not `paths-ignore` on the
-# workflow: a workflow that does not start reports nothing, and a PR with a
-# required check would wait for it forever. Why not a job of its own in front:
-# that is a second wait for a runner (and for the PC's priority hook).
+# run the e2e suite: each part starts, sees what the push changed (its second
+# step, tools/ci/e2e-needed.sh) and ends green within seconds instead of
+# running its share. `check` always runs in full: it is what tests the site,
+# the changelog and the parity tables. Why inside the job and not
+# `paths-ignore` on the workflow: a workflow that does not start reports
+# nothing, and a PR with a required check would wait for it forever. Why not a
+# job of its own in front: that is a second wait for a runner (and for the
+# PC's priority hook).
 #
 # Runner pool, as in hub, fansly-chat, onlyfans-chat and taskindex: the
 # repository variable CI_POOL=pc sends the first attempt to the owner's
@@ -48,8 +47,9 @@
 # mid-run), uses GitHub-hosted runners. On the PC the suite runs as five parts
 # (six runners: `check` and five parts at once; the gate «pnpm e2e» goes to the
 # light runner, label ci-pc-control); on GitHub as one, so the paid
-# minutes stay what they were. Branch protection matches a required check by
-# the job's `name:` — «pnpm check» and «pnpm e2e»: keep the names.
+# minutes stay what they were. The ruleset of main requires «pnpm check» by the
+# job's `name:`, and the release gate reads «pnpm check» and «pnpm e2e» by
+# theirs: keep the names.
 #
 # No secret is read here and none is needed: the jobs build, lint and test
 # against the synthetic stand and the fake hub on loopback. The runners hold no
@@ -59,7 +59,7 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened]
   push:
     branches:
       - main
@@ -68,8 +68,8 @@ on:
 permissions:
   contents: read
 
-# A superseded PR head has nothing left to prove — cancel its run (a Draft's
-# too: the group is the PR's). Each push to main (and each manual run) gets a
+# A superseded PR head has nothing left to prove — cancel its run (the group
+# is the PR's). Each push to main (and each manual run) gets a
 # group of its own: GitHub keeps only ONE pending run per group, so a shared
 # group would let a newer push evict an older pending one, and main keeps a
 # finished run per commit.
@@ -80,8 +80,6 @@ concurrency:
 jobs:
   check:
     name: pnpm check
-    # A Draft runs only on the PC (see the top of the file).
-    if: github.event.pull_request.draft != true || vars.CI_POOL == 'pc'
     runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     timeout-minutes: 25
     # Reading earlier runs' proofs (tools/ci/ci-proof.ts) needs actions:read.
@@ -164,7 +162,8 @@ jobs:
 
   e2e-part:
     name: e2e ${{ matrix.shard }}
-    if: github.event.pull_request.draft != true || vars.CI_POOL == 'pc'
+    # Not on a PR: the suite runs on main and gates the release (see the top of the file).
+    if: github.event_name != 'pull_request'
     runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     # The whole suite is about 20 minutes on the PC and 28 on a GitHub runner
     # (one part there); slower runners and the PC's priority hook get room.
@@ -185,8 +184,8 @@ jobs:
         shard: ${{ fromJSON(vars.CI_POOL == 'pc' && '["1/5","2/5","3/5","4/5","5/5"]' || '["1/1"]') }}
 
     steps:
-      # Two commits deep: on a PR this is GitHub's merge commit, and the next
-      # step compares it with its first parent, the base branch.
+      # Two commits deep: the next step compares the pushed commit with the one
+      # main was at before (on a PR — GitHub's merge commit with its base).
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -273,16 +272,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The required check «pnpm e2e». It only reads the parts' result: green when
-  # every part is (a part that saw documents alone is green too), red when any
-  # failed, was cancelled or never ran. `always()`: without it a failed or
-  # cancelled part would make this job «skipped», and a required check reads
-  # «skipped» as passed. A Draft on GitHub's runners skips it with the parts.
-  # It also waits for `check`: with both green it leaves the proof of the tree.
+  # «pnpm e2e», the check the release gate reads. It only reads the parts'
+  # result: green when every part is (a part that saw documents alone is green
+  # too), red when any failed, was cancelled or never ran. `always()`: without
+  # it a failed or cancelled part would make this job «skipped». Not on a PR,
+  # as the parts. It also waits for `check`: with both green it leaves the
+  # proof of the tree.
   e2e:
     name: pnpm e2e
     needs: [check, e2e-part]
-    if: always() && (github.event.pull_request.draft != true || vars.CI_POOL == 'pc')
+    if: always() && github.event_name != 'pull_request'
     # Seconds of shell. On the PC it asks for ci-pc-control, as hub's gates:
     # the light runner winpc-chat-extension-gate-1 carries only that label,
     # so the gate no longer waits behind other runs' parts for a heavy runner,

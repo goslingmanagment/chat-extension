@@ -53,6 +53,8 @@ export interface World {
   // ── the gate ──
   checkExit: number;
   hubCompare: string | null;
+  /** GitHub's check runs of a commit of this repository (`commits/<sha>/check-runs`): the CI of main. */
+  mainCi: string;
   // ── public addresses ──
   /** null — the feed is what lies in the server folder (404 while nothing is published). */
   feed: { status: number; body: string } | null;
@@ -147,6 +149,7 @@ export function makeHarness(): Harness {
     noGit: false,
     checkExit: 0,
     hubCompare: 'ahead',
+    mainCi: JSON.stringify({ check_runs: ['pnpm check', 'pnpm e2e'].map((name, index) => ({ id: index + 1, name, status: 'completed', conclusion: 'success' })) }),
     feed: null,
     health: { status: 200, body: JSON.stringify({ status: 'ok', contractHash: SDK_HASH, compatibleClientSdks: [SDK_HASH] }) },
     signExit: 0,
@@ -174,6 +177,8 @@ export function makeHarness(): Harness {
     if (line === 'status --porcelain') return answer(world.porcelain);
     if (/^fetch origin main( --tags)? --quiet$/.test(line)) return answer();
     if (line === 'rev-parse origin/main') return answer(`${world.main.at(-1) ?? ''}\n`);
+    // The last commit that changed more than documents: HEAD itself here.
+    if (line.startsWith('log -1 --first-parent --format=%H HEAD -- ')) return answer(`${world.head}\n`);
     const verify = /^rev-parse (?:-q --verify )?refs\/tags\/(v[0-9.]+)(\^\{commit\})?$/.exec(line);
     if (verify !== null) {
       const tag = world.localTags.get(verify[1] ?? '');
@@ -212,6 +217,7 @@ export function makeHarness(): Harness {
     const line = [program, ...spec.args].join(' ');
     commands.push(line);
     if (program === 'git') return world.noGit ? Promise.reject(new Error('git: spawn git ENOENT')) : Promise.resolve(git(spec.args));
+    if (program === 'gh' && spec.args[0] === 'api' && spec.args[1]?.includes('/check-runs') === true) return Promise.resolve(answer(world.mainCi));
     if (program === 'gh' && spec.args[0] === 'api') return Promise.resolve(world.hubCompare === null ? answer('', 1, 'gh: Not Found (HTTP 404)') : answer(`${world.hubCompare}\n`));
     if (line === 'pnpm --version') return Promise.resolve(answer('10.33.1\n'));
     if (line === 'pnpm check') return Promise.resolve(answer('', world.checkExit));

@@ -6,8 +6,9 @@
 // Without --online it makes no network request at all: a rehearsal that checks
 // everything this machine can answer alone. With --online it also fetches
 // origin, reads the served feed and the production hub's health and asks
-// GitHub about the hub commit — read-only, all four — and only such a gate
-// lets `sign` run.
+// GitHub about the hub commit and about the CI of the release commit on main
+// (a PR runs no e2e: the suite gates the release here) — read-only, all five —
+// and only such a gate lets `sign` run.
 //
 // The cheap checks run first; the slow ones (`pnpm check`, the rebuild from
 // the sources archive) are not started while a cheap one is red.
@@ -17,7 +18,7 @@ import { join } from 'node:path';
 
 import { composePost } from './announce.ts';
 import { sectionOf } from './changelog.ts';
-import { DEFAULT_HUB_REPO, ENV, HUB_HEALTH_PATH, noteFile } from './config.ts';
+import { BEYOND_DOCUMENTS, DEFAULT_HUB_REPO, ENV, EXTENSION_REPO, HUB_HEALTH_PATH, MAIN_CI_JOBS, noteFile } from './config.ts';
 import type { Print } from './exec.ts';
 import {
   evaluateBranch,
@@ -27,6 +28,7 @@ import {
   evaluateHead,
   evaluateHubAncestry,
   evaluateHubCompatibility,
+  evaluateMainCi,
   evaluateNote,
   evaluateTagFree,
   evaluateVendor,
@@ -97,7 +99,21 @@ export async function runPreflight(checkout: Checkout, options: PreflightOptions
       await checkout.git('fetch', 'origin', 'main', '--tags', '--quiet');
       return evaluateHead(head, await checkout.git('rev-parse', 'origin/main'));
     });
-  } else skip('pushed');
+    // The CI of the push to main: `pnpm check` and the whole e2e suite, green on this very commit — and on the last
+    // commit that changed more than documents, if that is an earlier one: a push of documents alone runs no e2e.
+    await guarded('main-ci', async () => {
+      const code = await checkout.git('log', '-1', '--first-parent', '--format=%H', 'HEAD', '--', ...BEYOND_DOCUMENTS);
+      const verdicts: Verdict[] = [];
+      for (const commit of code === '' || code === head ? [head] : [head, code]) {
+        const result = await checkout.exec({ program: 'gh', args: ['api', `repos/${EXTENSION_REPO}/commits/${commit}/check-runs?per_page=100`] });
+        verdicts.push(evaluateMainCi(result.code === 0 ? result.stdout : null, commit, MAIN_CI_JOBS, result.stderr.trim().split('\n').at(-1) ?? ''));
+      }
+      return verdicts.find((verdict) => !verdict.ok) ?? { ok: true, detail: verdicts.map((verdict) => verdict.detail).join('; ') };
+    });
+  } else {
+    skip('pushed');
+    skip('main-ci');
+  }
 
   await guarded('tag-free', async () => {
     const local = (await checkout.gitCode('rev-parse', '-q', '--verify', `refs/tags/v${version}`)) === 0;

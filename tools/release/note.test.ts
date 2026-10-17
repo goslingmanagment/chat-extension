@@ -21,10 +21,10 @@ describe('the release note', () => {
   });
 
   it('a tick is x in either alphabet and may be followed by what was seen', () => {
-    const note = renderNote('0.1.0').replace('- [ ] `smoke` —', '- [х] `smoke` — ChatSpace 0.172.0, 12 октября.').replace('- [ ] `e2e`', '- [X] `e2e`');
+    const note = renderNote('0.1.0').replace('- [ ] `smoke` —', '- [х] `smoke` — ChatSpace 0.172.0, 12 октября.').replace('- [ ] `perf`', '- [X] `perf`');
     expect(readNote(note).get('smoke')).toBe(true);
-    expect(readNote(note).get('e2e')).toBe(true);
-    expect(readNote(note).get('perf')).toBe(false);
+    expect(readNote(note).get('perf')).toBe(true);
+    expect(readNote(note).get('texts')).toBe(false);
   });
 
   it('no note, the note of another version or a removed line do not pass', () => {

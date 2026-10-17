@@ -106,3 +106,17 @@ export const SECRET_ENV: readonly string[] = [ENV.amoKey, ENV.amoSecret, ENV.tel
 export const DEFAULT_HTTP_TIMEOUT_S = 120;
 
 export const DEFAULT_HUB_REPO = 'goslingmanagment/hub';
+
+/** This repository on GitHub: the gate reads the CI of the release commit on its main. */
+export const EXTENSION_REPO = 'goslingmanagment/chat-extension';
+/**
+ * The jobs of .github/workflows/ci.yml that must be green on the release commit. A PR runs `pnpm check` alone; the
+ * e2e suite runs on main, and «pnpm e2e» is green only when every part of it is.
+ */
+export const MAIN_CI_JOBS: readonly string[] = ['pnpm check', 'pnpm e2e'];
+/**
+ * Git pathspecs of everything but documents (docs/, site/, *.md in the root). A push of documents alone ends its e2e
+ * parts green without running them (tools/ci/e2e-needed.sh), so the gate also reads the CI of the last commit of main
+ * that changed anything else.
+ */
+export const BEYOND_DOCUMENTS: readonly string[] = ['.', ':(exclude)docs', ':(exclude)site', ':(exclude,glob)*.md'];

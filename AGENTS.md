@@ -103,17 +103,18 @@ a boundary you need to cross is a design question, not a lint exception.
   lock executable for install/build (unset: direct). Other conflicts stop: resolve, finish
   the rebase and rerun.
 - `pnpm check` — typecheck, lint, test, build, webext-lint, size, gates,
-  parity, archive-check. Green before every commit.
+  parity, archive-check. The one check a PR runs in CI (main's ruleset
+  requires it); not run whole locally.
 - `pnpm e2e` — both builds, the stand, the fake hub, headless Firefox
-  (about 18 minutes). No network beyond loopback. Green before Ready, and who
-  runs it depends on where CI runs (`ci-pool status`, the `chat-extension`
-  row). **CI on the owner's PC (`CI_POOL=pc`)** — executors run `pnpm check`
-  locally and leave the full e2e to CI: a Draft PR runs all of CI there, the
-  suite as five parts side by side (about 5 minutes); no full e2e on the Mac.
-  **CI on GitHub** — a Draft runs nothing: the full e2e locally
-  (`tools/ci/e2e-docker-local.sh`) before Ready, as before. The CI shape:
-  `docs/release.md` §2. `CG_E2E_SHARD=<k>/<n>` runs one part
-  (`packages/testing/src/e2e-shards.ts`).
+  (about 18 minutes). No network beyond loopback. Runs in CI on every push to
+  `main` (five parts side by side on the PC), never on a PR, and gates the
+  release: `preflight --online` refuses a commit whose `main` CI is not green,
+  e2e included (check `main-ci`). The CI shape: `docs/release.md` §2.
+  `CG_E2E_SHARD=<k>/<n>` runs one part (`packages/testing/src/e2e-shards.ts`).
+- **A PR.** Locally only typecheck, lint and `pnpm vitest run` of what you
+  touched — no full `pnpm check`, no local e2e. Open the PR ready (not Draft)
+  and `gh pr merge --auto --squash`: it merges once «pnpm check» is green. A
+  red `main` is fixed by whoever releases next.
 - CI e2e sets `CG_E2E_TIMING_SLACK=3`: timing assertions use 3× budgets and log measurements; local e2e (unset: 1×) and a local `pnpm perf` keep their strict limits.
 - `pnpm perf` (the §11 probe and the Fansly gate P16a, about 50 minutes) is not in the CI of a PR or a push: `.github/workflows/perf.yml` runs it every night on `main` and by hand on any branch, on the PC, with the same 3× (X49).
 - `pnpm vitest run <path>` and, from `packages/testing`,
@@ -139,11 +140,14 @@ a boundary you need to cross is a design question, not a lint exception.
   --online` also reads, and only reads: origin (`git fetch`, `git
   ls-remote`), the served feed, the production hub's health, and GitHub's API
   about the hub repository (`gh api repos/<hub>/compare/…`: is the vendored
-  SDK's commit on the hub's main). `sign`, `publish`, `pages`, `tag`,
+  SDK's commit on the hub's main) and about this one (`gh api
+  repos/<this>/commits/<head>/check-runs`: is the release commit's `main` CI
+  green). `sign`, `publish`, `pages`, `tag`,
   `announce`, `rollback` leave the machine: without `--confirm <version>` they
-  only print their plan and make no request at all. `--confirm` is the
-  owner's word: an agent passes it only when the owner asked for that very
-  step. A test of the tool never uses a real address: `tools/release/*.test.ts`
+  only print their plan and make no request at all. An agent passes
+  `--confirm` itself to `sign`, `publish`, `pages` and `tag` of merged work
+  whose `main` CI is green; `announce` (it posts to people) and `rollback`
+  only when the owner asked for that very step. A test of the tool never uses a real address: `tools/release/*.test.ts`
   run against loopback and a scripted world (`cli-world.ts`).
 - `tools/ci/e2e-docker-local.sh` — the CI e2e job on this machine: the whole
   `pnpm e2e` inside the pinned Firefox image with no network (needs Docker);
@@ -282,4 +286,5 @@ a boundary you need to cross is a design question, not a lint exception.
   the Firefox host is proven on the stand and then by watching the pilot.
 - Secrets via `op` (1Password); none in the repo. Owner-facing docs in Russian.
 - The owner's global rules apply (`~/.agents/AGENTS.md`): code changes in a
-  separate worktree, Draft PRs, paid CI.
+  separate worktree, PRs opened ready with auto-merge, CI not re-run when
+  green without a reason.
