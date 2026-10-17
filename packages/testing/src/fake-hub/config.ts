@@ -88,7 +88,7 @@ const allFlags = (on: (flag: ClientFeatureFlag) => boolean): Record<string, bool
 
 /**
  * Pilot capabilities: every one the hub serves but client-health (B′ ingest still off) and the PPV state of the open
- * chat (X51, `live-ppv-v1`). With it every draft start reads the open chat from the stand's API, our own read the
+ * chat (X54, `live-ppv-v1`). With it every draft start reads the open chat from the stand's API, our own read the
  * stand labels `ours`; the specs that count the stand's history loads of the page are written without it, and the
  * one that proves the PPV state switches it on (`suite-live-ppv`).
  */

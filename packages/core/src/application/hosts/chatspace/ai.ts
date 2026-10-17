@@ -6,7 +6,7 @@
 // - the proof — the open chat's visible tail from page memory, read only when
 //   the start may carry fresh page text (D-14: a draft feature in the dock,
 //   admitted on the page); the shared plan trims it and it goes to the hub as
-//   `fresh`. Beside it, when the hub takes it (X51, `live-ppv-v1`), the PPV
+//   `fresh`. Beside it, when the hub takes it (X54, `live-ppv-v1`), the PPV
 //   state of the chat's newest messages from OnlyMonster's API: the model's
 //   paid messages, their price and whether the fan bought them — what page
 //   memory holds stale, a purchase updating no loaded message. The click
@@ -32,14 +32,14 @@ import type { AiHostPolicy, LivePpvState } from '@cg/contracts/ops';
 /** AI-031: Hi is for a conversation with at most this many messages — of either side, as the hub counts them (`gate_hi_greeting_limit`). */
 export const HI_MAX_MESSAGES = 10;
 
-/** What a ChatSpace start gathers of the open chat: the visible tail (D-14) and the PPV state (X51); each may be absent. */
+/** What a ChatSpace start gathers of the open chat: the visible tail (D-14) and the PPV state (X54); each may be absent. */
 export interface ChatSpaceProof {
   readonly tail: LiveTextTail | null;
   readonly livePpv: LivePpvState | null;
 }
 
 /**
- * X51: the model's paid messages of a page as OnlyFans gives them — a listed price above zero, not free, and a known
+ * X54: the model's paid messages of a page as OnlyFans gives them — a listed price above zero, not free, and a known
  * `isOpened` (on the model's paid message, the purchase). One whose state OnlyFans did not give is left out: the hub's
  * own mark stands for it. A message the API names twice counts once (the first): one id with two answers would fail
  * the start's schema, and the click with it. null — none.
@@ -53,7 +53,7 @@ export function livePpvOf(page: OpenChatPage): LivePpvState | null {
   return items.length > 0 ? { capturedAt: page.capturedAt, items } : null;
 }
 
-/** X51: the open chat's PPV state, waited for at most `waitMs`; the read itself goes on and fills the port's cache. */
+/** X54: the open chat's PPV state, waited for at most `waitMs`; the read itself goes on and fills the port's cache. */
 export async function readLivePpv(host: HostPort, chat: ChatRef, waitMs: number = LIVE_PPV_LIMITS.waitMs): Promise<LivePpvState | null> {
   if (host.openChatMessages === undefined) return null;
   let timer: ReturnType<typeof setTimeout> | undefined;

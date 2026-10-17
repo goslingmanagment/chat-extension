@@ -229,7 +229,7 @@ export { HI_GREETING_MAX_TRANSCRIPT } from './ai-rules';
 function streamRefusalReason(request: unknown): string | undefined {
   if (typeof request !== 'object' || request === null) return undefined;
   const { feature, body, capabilities } = request as { feature?: unknown; body?: Partial<AiFeatureStreamBody>; capabilities?: unknown };
-  // X51 (hub `assertLivePpvRequestShape`): the PPV state where fresh text goes, on an OnlyFans page, the same reason.
+  // X54 (hub `assertLivePpvRequestShape`): the PPV state where fresh text goes, on an OnlyFans page, the same reason.
   if (body?.livePpvContext !== undefined) {
     const allowed = HUB_FEATURE_ONLY_FIELDS.livePpvContext as readonly string[];
     if ((typeof feature === 'string' && !allowed.includes(feature)) || body.platform !== 'onlyfans') return 'live_text_not_allowed';

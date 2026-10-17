@@ -113,7 +113,7 @@ describe('fake hub AI: the stream the model writes', () => {
     expect(await refusal(await stream('fan-summary', live, ['context-v1']))).toEqual({ status: 400, error: 'bad_request', reason: 'live_text_not_allowed' });
   });
 
-  it('[X51] the PPV state: taken where fresh text is, on an OnlyFans page; refused elsewhere with the fresh text’s reason', async () => {
+  it('[X54] the PPV state: taken where fresh text is, on an OnlyFans page; refused elsewhere with the fresh text’s reason', async () => {
     const state = { livePpvContext: { capturedAt: '2026-10-03T09:59:55.000Z', items: [{ platformMessageId: '6601', priceUsd: 25, purchased: true }] } };
     expect((await stream('fast-reply', state, ['context-v1'])).status).toBe(200);
     expect(await refusal(await stream('chat-review', state, ['context-v1']))).toEqual({ status: 400, error: 'bad_request', reason: 'live_text_not_allowed' });

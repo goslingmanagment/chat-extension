@@ -1,4 +1,4 @@
-// Decision X51 on the wired extension: the PPV state of the open chat reaches
+// Decision X54 on the wired extension: the PPV state of the open chat reaches
 // the generation. The TEST build on the ChatSpace-like stand against the fake
 // hub, every press a real click. What it proves end to end:
 // - a fan bought the model's paid message after the chat was opened: the page's
@@ -29,7 +29,7 @@ interface StreamBody {
   readonly livePpvContext?: { readonly items: ReadonlyArray<{ readonly platformMessageId: string; readonly priceUsd: number; readonly purchased: boolean }> };
 }
 
-describe('X51 on the wired extension — the PPV state of the open chat reaches the generation', () => {
+describe('X54 on the wired extension — the PPV state of the open chat reaches the generation', () => {
   useNetworkTrap();
   const { hub } = useFakeHub();
   let shift: Shift;
@@ -64,7 +64,7 @@ describe('X51 on the wired extension — the PPV state of the open chat reaches 
     expect(foreignCalls((await standServer.journal(journalStart)).entries)).toEqual([]);
   });
 
-  it('[X51] a purchase made after the chat opened reaches Reply as OnlyFans says it now; only the open chat is read', async () => {
+  it('[X54] a purchase made after the chat opened reaches Reply as OnlyFans says it now; only the open chat is read', async () => {
     const bought = await standServer.paidMessage(ACC, a1, 25);
     const unbought = await standServer.paidMessage(ACC, a1, 15);
     await open(a1);
@@ -84,7 +84,7 @@ describe('X51 on the wired extension — the PPV state of the open chat reaches 
     expect([...new Set(ours.map((entry) => entry.chatId))]).toEqual([a1]);
   });
 
-  it('[X51] another chat: its own state, read only once it is open; a chat without paid messages sends none', async () => {
+  it('[X54] another chat: its own state, read only once it is open; a chat without paid messages sends none', async () => {
     await open(a2);
     const mark = await standServer.mark();
     const body = await reply();
@@ -93,7 +93,7 @@ describe('X51 on the wired extension — the PPV state of the open chat reaches 
     expect([...new Set(ourCalls((await standServer.journal(mark)).entries).map((entry) => entry.chatId).filter((chat) => chat !== undefined))]).toEqual([a2]);
   });
 
-  it('[X51] a hub without live-ppv-v1: no field, and the start reads nothing from the API', async () => {
+  it('[X54] a hub without live-ppv-v1: no field, and the start reads nothing from the API', async () => {
     await hub().command({ op: 'config', patch: { capabilities: [...PILOT_CAPABILITIES] } });
     // The background reads the owner's settings again (as its refresh does) and tells the tab.
     expect(await shift.rpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });

@@ -188,7 +188,7 @@ interface Classified {
   readonly replayOf?: string;
 }
 
-/** X51: the path of a chat's messages on the API origin, the one our extension may read itself (the open chat's). */
+/** X54: the path of a chat's messages on the API origin, the one our extension may read itself (the open chat's). */
 const OUR_READ_PATH = /^\/api\/v0\/accounts\/\d+\/chats\/\d+\/messages$/;
 
 function classify(request: IncomingMessage, response: ServerResponse, nativeIds: NativeIds): Classified {
@@ -204,7 +204,7 @@ function classify(request: IncomingMessage, response: ServerResponse, nativeIds:
     const asked = (headerText(request.headers['access-control-request-headers']) ?? '').toLowerCase().split(',').map((name) => name.trim());
     return { origin: asked.includes(NATIVE_REQUEST_HEADER) ? 'native' : ourRead && request.headers['access-control-request-method'] === 'GET' ? 'ours' : 'foreign' };
   }
-  // X51: our read of a chat's messages with the page's bearer; whether it was the open chat's, the tests check.
+  // X54: our read of a chat's messages with the page's bearer; whether it was the open chat's, the tests check.
   if (ourRead && request.method === 'GET' && request.headers.authorization !== undefined) return { origin: 'ours' };
   // Navigations and page subresources name what they load; a fetch/XHR says `empty`.
   const dest = headerText(request.headers['sec-fetch-dest']);

@@ -464,7 +464,7 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     expect(recap.ok && recap.request.body.summaryMode).toBe('short');
   });
 
-  it('[X51] the open chat’s PPV state goes as livePpvContext only where fresh text may go, to a hub that lists live-ppv-v1', () => {
+  it('[X54] the open chat’s PPV state goes as livePpvContext only where fresh text may go, to a hub that lists live-ppv-v1', () => {
     const livePpv = { capturedAt: '2026-10-17T06:00:00.000Z', items: [{ platformMessageId: '9002', priceUsd: 25, purchased: true }] };
     // The pilot's hub before its deploy does not list it; a hub that does:
     expect(BOOTSTRAP_PILOT_PAGES.capabilities).not.toContain('live-ppv-v1');

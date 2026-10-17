@@ -3,7 +3,7 @@
     "contractHash": "5578288885437558dcb108815dc53086155a0062f6199a5829dfdc0315805177",
     "sourceCommit": "25787b5dac2e34c6edb92003db720f2101d6394a",
     "distSha256": "d5dd8531ebcecb220ffa0340f1f897ead68859a9c46fecac175bdafec65609dc",
-    "note": "INTERIM, not releasable: vendored on 2026-10-17 (decision X51) with the hub's scripts/vendor-sdk.mjs from the branch of hub #661 (25787b5d, livePpvContext, live-ppv-v1), not yet merged or deployed. Against c1b96aaf (#656) the contract only grows: the AI stream body's optional livePpvContext and the capability live-ppv-v1; every route, operation and schema this extension calls keeps its form. Before this PR merges: re-vendor from hub main after #661 merges and update this pin; a release waits for that commit's deploy (the release rule)."
+    "note": "INTERIM, not releasable: vendored on 2026-10-17 (decision X54) with the hub's scripts/vendor-sdk.mjs from the branch of hub #661 (25787b5d, livePpvContext, live-ppv-v1), not yet merged or deployed. Against c1b96aaf (#656) the contract only grows: the AI stream body's optional livePpvContext and the capability live-ppv-v1; every route, operation and schema this extension calls keeps its form. Before this PR merges: re-vendor from hub main after #661 merges and update this pin; a release waits for that commit's deploy (the release rule)."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

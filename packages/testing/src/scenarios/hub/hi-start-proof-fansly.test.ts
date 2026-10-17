@@ -78,7 +78,7 @@ describe('[host:fansly] Hi wire values agree with the deployed HF-5 SDK (P4b4)',
       noteValues: Array.from({ length: NOTE_FILL_LIMITS.fieldsMax }, () => '' as const),
       knownFanMessageIds: Array.from({ length: SEND_LIMITS.knownFanMessagesMax }, (_, i) => id(i)),
       liveTextContext: { capturedAt: ISO, items: Array.from({ length: LIVE_TEXT_LIMITS.maxItems }, (_, i) => ({ platformMessageId: id(i), direction: 'model', occurredAt: ISO, text: text(LIVE_TEXT_LIMITS.maxChars) })) },
-      // X51 (1.25.0): the open chat's PPV state at its caps — ids and numbers, no text.
+      // X54 (1.25.0): the open chat's PPV state at its caps — ids and numbers, no text.
       livePpvContext: { capturedAt: ISO, items: Array.from({ length: LIVE_PPV_LIMITS.maxItems }, (_, i) => ({ platformMessageId: id(i), priceUsd: OPEN_CHAT_PRICE_MAX, purchased: false })) },
       coverageCheck: {
         window: Array.from({ length: COVERAGE_CHECK_LIMITS.windowMax }, (_, i) => ({ id: id(i), dir: 'model' })),
@@ -97,7 +97,7 @@ describe('[host:fansly] Hi wire values agree with the deployed HF-5 SDK (P4b4)',
     expect(realBody.safeParse(request).success).toBe(true);
     // The limit is not exported by the public SDK. Pin its definition in the vendored artifact before comparing.
     const sdk = readFileSync(new URL('../../../../../vendor/kernel-sdk/dist/contracts/routes.js', import.meta.url), 'utf8');
-    // X51: the hub raised it to 13 MiB with `livePpvContext` (hub #661).
+    // X54: the hub raised it to 13 MiB with `livePpvContext` (hub #661).
     expect(sdk).toContain('export const AI_FEATURE_STREAM_BODY_LIMIT_BYTES = 13 * 1024 * 1024;');
     const bytes = Buffer.byteLength(JSON.stringify(request), 'utf8');
     expect(bytes).toBeGreaterThan(9_000_000);

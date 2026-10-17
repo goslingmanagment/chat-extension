@@ -119,7 +119,7 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ id: message.id, delivered });
     return;
   }
-  // X51: a model's paid message (PPV) in a chat, as the model's send would leave it; delivered on the socket like one.
+  // X54: a model's paid message (PPV) in a chat, as the model's send would leave it; delivered on the socket like one.
   if (path === '/__stand/paid-message' && method === 'POST') {
     const accountId = asString(body['accountId']);
     const fanId = asString(body['fanId']);
@@ -136,7 +136,7 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ id: message.id, delivered });
     return;
   }
-  // X51: the fan buys a paid message. OnlyFans changes the message; ChatSpace's socket says nothing of it (client-internals.md):
+  // X54: the fan buys a paid message. OnlyFans changes the message; ChatSpace's socket says nothing of it (client-internals.md):
   // the page's loaded copy keeps `isOpened: false` until it loads the history again.
   if (path === '/__stand/purchase' && method === 'POST') {
     const accountId = asString(body['accountId']);

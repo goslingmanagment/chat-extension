@@ -103,7 +103,7 @@ describe('R20 F10, ChatSpace: the gate rules give the verdicts they gave before 
   });
 });
 
-describe('[X51] ChatSpace’s PPV state of the open chat (OnlyMonster’s API)', () => {
+describe('[X54] ChatSpace’s PPV state of the open chat (OnlyMonster’s API)', () => {
   const page = (items: Array<Partial<OpenChatMessage>>): OpenChatPage => ({
     capturedAt: '2026-10-17T06:00:00.000Z',
     items: items.map((item, i) => ({ platformMessageId: String(9100 - i), direction: 'model', sentAt: '2026-10-17T05:59:00.000Z', text: '', price: null, isFree: null, isOpened: null, mediaCount: 0, tip: false, automatic: false, ...item })),

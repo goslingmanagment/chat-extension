@@ -141,7 +141,7 @@ describe('stand server: who called', () => {
     ]);
   });
 
-  it('[X51] our read of a chat’s messages with the page’s bearer is `ours`, its preflight too; any other request without the native header stays foreign', async () => {
+  it('[X54] our read of a chat’s messages with the page’s bearer is `ours`, its preflight too; any other request without the native header stays foreign', async () => {
     const since = stand.journal.read().next;
     const messages = `/api/v0/accounts/${accountA}/chats/${a1}/messages`;
     await fetch(`${stand.apiOrigin}${messages}?limit=50`, { method: 'OPTIONS', headers: { 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' } });

@@ -40,7 +40,7 @@ export interface StandMessage {
   readonly sentAt: string;
   readonly isFromFan: boolean;
   readonly isPinned?: boolean;
-  /** X51: a model's paid message (PPV): its listed price, USD, and whether the fan bought it (OnlyFans' `isOpened`). */
+  /** X54: a model's paid message (PPV): its listed price, USD, and whether the fan bought it (OnlyFans' `isOpened`). */
   readonly price?: number;
   isOpened?: boolean;
 }

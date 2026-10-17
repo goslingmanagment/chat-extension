@@ -19,7 +19,7 @@
 // Hi where the hub decides it by the client's start proof (1.15.0, R20 P8c: Fansly, HF-5) names
 // `hi-start-proof-v1` to a hub that declared it and carries the proof, its count and the fan's avatar.
 //
-// The open chat's PPV state (1.25.0, X51) goes as `livePpvContext` where fresh text may go, to a hub that lists
+// The open chat's PPV state (1.25.0, X54) goes as `livePpvContext` where fresh text may go, to a hub that lists
 // `live-ppv-v1`: the hub's body is strict, so a hub without it is never sent the field.
 
 import { type FeatureId } from '@cg/contracts/features';

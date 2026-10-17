@@ -46,7 +46,7 @@ export const STAND_SENTRY_PREFIX = '/sentry/';
  * - `control` — the test harness or `window.__stand`;
  * - `asset` — navigations and page subresources (`Sec-Fetch-Dest` other than
  *   `empty`): documents, scripts, styles, images;
- * - `ours` — the extension's own read of the open chat (decision X51,
+ * - `ours` — the extension's own read of the open chat (decision X54,
  *   `openChatMessages`): a GET of a chat's messages on the API origin with the
  *   page's bearer and without the native header, and its CORS preflight. Tests
  *   check that it reads only the chat the person opened;
