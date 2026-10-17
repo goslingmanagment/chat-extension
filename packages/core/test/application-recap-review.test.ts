@@ -401,9 +401,9 @@ describe('recap: building one', () => {
     expect(receipt).toMatchObject({ ok: true, type: 'RefreshRecap', outcome: 'started' });
     const started = h.bg.callsOf('op.start')[0] as { feature: string; surface: string; force: boolean; window: number; split: boolean; tone: unknown; fresh?: unknown };
     expect(started).toMatchObject({ feature: 'recap', surface: 'dock', force: true, window: 3000, split: false, tone: null });
-    // Built from the hub archive only: no page text goes with it.
-    expect(started.fresh).toBeUndefined();
-    expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'fan-summary', body: { messageCount: 3000 } });
+    // X52: over the hub archive and the open chat's fresh tail, on a hub that keeps such a recap shared.
+    expect(started.fresh).toMatchObject({ messages: [{ platformMessageId: '4004', direction: 'fan', text: 'hey' }] });
+    expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'fan-summary', body: { messageCount: 3000, liveTextContext: { items: [{ platformMessageId: '4004', text: 'hey' }] } } });
     expect(h.bg.hub.streams[0]?.body.summaryMode).toBeUndefined();
     expect(h.bg.hub.streams[0]?.body.replyMode).toBeUndefined();
 
@@ -740,7 +740,8 @@ describe('recap: the status line of the hub and the archive lag', () => {
   });
 
   it('[NEW-02] [AI-070] «архив отстаёт от чата на K сообщений»: the page holds messages after the recap\'s archive point', async () => {
-    const h = await start();
+    // A hub before X52's Recap (`live-text-recap-v1`): the recap stands on its archive alone.
+    const h = await start({ bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'live-text-recap-v1') } });
     h.bg.hub.profileScript.push(saved);
     const tail: LiveTextTail = {
       capturedAt: hostIso(0),

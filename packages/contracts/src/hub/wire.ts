@@ -147,6 +147,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * (`LIVE_TEXT_HUB_NEEDS`); a hub without it refuses the field there (400 `live_text_not_allowed`).
    */
   'live-text-review-coach-v1',
+  /**
+   * 1.31.0 (decision X52): Recap, full and short, takes `liveTextContext` too, and such a recap stays the fan's shared
+   * recap and a dossier's proof; a hub without it refuses the field there (400 `live_text_not_allowed`).
+   */
+  'live-text-recap-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

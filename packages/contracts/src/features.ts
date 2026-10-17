@@ -35,14 +35,15 @@ export const FRESH_TEXT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satis
 /**
  * 1.29.0 (decision X52): fresh page text for Review (in the dock) and Coach (its own panel) too — each the answer of
  * the one person who asked, which no one else reads. The hub takes it there from `live-text-review-coach-v1` on
- * (`LIVE_TEXT_HUB_NEEDS`). Recap never takes it: recaps are shared (architecture §19 п. 1).
+ * (`LIVE_TEXT_HUB_NEEDS`). 1.31.0 (X52, the owner's ruling 2026-10-17): Recap, full and short, in the dock too, on a
+ * hub with `live-text-recap-v1` — such a recap stays the fan's shared recap and goes to the dossier.
  */
-export const ANSWER_FRESH_TEXT_FEATURES = ['review', 'coach'] as const satisfies readonly FeatureId[];
+export const ANSWER_FRESH_TEXT_FEATURES = ['review', 'coach', 'recap', 'recap-short'] as const satisfies readonly FeatureId[];
 
 /** Where a start may carry fresh page text: the open chat's dock, Coach's own panel; null — never. */
 export function freshTextSurface(feature: FeatureId): Surface | null {
   if (feature === 'coach') return 'coach';
-  return isFreshTextFeature(feature) || feature === 'review' ? 'dock' : null;
+  return isFreshTextFeature(feature) || (ANSWER_FRESH_TEXT_FEATURES as readonly FeatureId[]).includes(feature) ? 'dock' : null;
 }
 
 /** D-15: features whose output is a message to the fan and may be split into parts. Recap and Review never are. */

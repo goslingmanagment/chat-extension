@@ -228,10 +228,12 @@ a boundary you need to cross is a design question, not a lint exception.
   so does our own read of its history. Never load the history of a chat the
   human did not open: `openChatMessages` refuses any chat but the one on the
   route; other fans' data come from the hub only.
-- **Fresh page text goes to the hub only for draft features** (Reply, Fix, Hi,
-  Ping) and, since X52, for Review and Coach on a hub that lists
-  `live-text-review-coach-v1`; never for Recap (recaps are shared), and never
-  into the hub archive, money or dossiers. Skip queued (`isFromQueue`) and
+- **Fresh page text goes to the hub only for AI starts in the open chat**
+  (Reply, Fix, Hi, Ping; since X52 Review and Coach on a hub that lists
+  `live-text-review-coach-v1`, Recap on one that lists `live-text-recap-v1`),
+  never into the hub archive or money. A recap built with it stays the fan's
+  shared recap and its dossier (the owner's ruling, 2026-10-17); every other
+  generation with it is scoped to its author. Skip queued (`isFromQueue`) and
   unsent messages.
 - **UI speaks the family language** (decision X28, which revises X7): raised
   chips, the sunken capsule of Reply's options, draft cards, the terracotta

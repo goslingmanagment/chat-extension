@@ -68,9 +68,9 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   preset: ['coach-chat'],
   /**
    * Fresh text (D-14, H-4c): draft features; 1.29.0 (decision X52) Review and Coach too, on a hub that lists
-   * `live-text-review-coach-v1` (`LIVE_TEXT_HUB_NEEDS`); Recap never.
+   * `live-text-review-coach-v1`; 1.31.0 Recap, on a hub that lists `live-text-recap-v1` (`LIVE_TEXT_HUB_NEEDS`).
    */
-  liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat'],
+  liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat', 'fan-summary'],
   /** 1.27.0 (X54): the open chat's PPV state, where fresh text goes (the hub refuses it elsewhere, 400). */
   livePpvContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
   /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */
@@ -109,6 +109,9 @@ export const HUB_FEATURE_MAP = {
 export const LIVE_TEXT_HUB_NEEDS: Readonly<Partial<Record<FeatureId, ClientHubCapability>>> = {
   review: 'live-text-review-coach-v1',
   coach: 'live-text-review-coach-v1',
+  /** 1.31.0 (X52): Recap, full and short — the hub keeps such a recap shared and a dossier's proof. */
+  recap: 'live-text-recap-v1',
+  'recap-short': 'live-text-recap-v1',
 };
 
 /** Split markers inside the generated text (D-15): `[VARIANT]` separates Hi variants, `[NEXT]` parts. */
