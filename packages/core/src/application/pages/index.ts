@@ -5,7 +5,7 @@
 // needs from the browser comes through the ports in ./ports, which have the
 // shapes of @cg/platform's adapters.
 
-export { createPagesClient, normalizeHubOrigin, BINDING_RESOLVE_CONCURRENCY, FOCUS_RECHECK_MIN_INTERVAL_MS, POPUP_NEWCOMERS_WINDOW_HOURS, RECHECK_MIN_INTERVAL_MS, SIGN_IN_TIMEOUT_MS, SOUND_STATE_POLL_MS, type PagesClient } from './client';
+export { createPagesClient, normalizeHubOrigin, BINDING_RESOLVE_CONCURRENCY, BINDING_RETRY_MS, BINDING_RETRY_TRIES, FOCUS_RECHECK_MIN_INTERVAL_MS, POPUP_NEWCOMERS_WINDOW_HOURS, RECHECK_MIN_INTERVAL_MS, SIGN_IN_TIMEOUT_MS, SOUND_STATE_POLL_MS, type PagesClient } from './client';
 export {
   type OptionsLocation,
   type PageAnswer,

@@ -29,15 +29,16 @@ export interface OpForSend {
   readonly servedContext: ServedContext | null | undefined;
   /** A fan message arrived after the generation started (§6.7.5). */
   readonly stale: boolean;
-  readonly personaDefinitionId: string;
+  /** The persona the generation was made with — its key: an owner's edit of it is the same persona. */
+  readonly personaKey: string;
   readonly session: { readonly hubOrigin: string; readonly userId: number; readonly epoch: number };
 }
 
 export interface SendGate {
   /** The current sign-in; null — signed out. */
   readonly session: { readonly hubOrigin: string; readonly userId: number; readonly epoch: number } | null;
-  /** The persona definition assigned to the page now. */
-  readonly personaDefinitionId: string | null;
+  /** The persona assigned to the page now (its key); null — none. */
+  readonly personaKey: string | null;
   /** The page's binding revision in the current bootstrap; null — the page is not there. */
   readonly bindingRevision: number | null;
   /** `previewSend` usable on the page (flag, page feature, capability). */
@@ -73,7 +74,7 @@ export function beginCondition(begin: SendBegin, op: OpForSend | null, gate: Sen
   if (op.generationRef !== begin.group.generationRef) return 'CG-CONTEXT-CHANGED';
   if (canonicalJson(op.target) !== canonicalJson(begin.target)) return 'CG-CONTEXT-CHANGED';
   if (gate.session === null || !sameSession(op.session, gate.session)) return 'CG-CONTEXT-CHANGED';
-  if (gate.personaDefinitionId !== op.personaDefinitionId) return 'CG-CONTEXT-CHANGED';
+  if (gate.personaKey !== op.personaKey) return 'CG-CONTEXT-CHANGED';
   if (gate.bindingRevision !== op.target.binding.bindingRevision) return 'CG-CONTEXT-CHANGED';
   // 3, 4 — the owner switch and a verified receipt profile (the hub re-checks the flag on dispatch).
   if (!gate.previewSend || (begin.purpose === 'greeting' && !gate.newcomers)) return 'CG-SEND-OFF';

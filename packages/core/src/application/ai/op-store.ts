@@ -54,6 +54,8 @@ export interface StartMemo {
    * persona changes, so a running one is of the current persona). A result
    * adopted already finished says nothing about its persona: it is never
    * inserted and never shown as the current persona's (§7 «Ограда», AI-126).
+   * When the owner edits the persona (its key stays) the page's choice follows
+   * its new definition, and so does this (`followPersona`): the same persona.
    */
   readonly personaDefinitionId: string | null;
   /**
@@ -85,6 +87,13 @@ export type OpStoreEvent =
   | { readonly kind: 'changed'; readonly opId: string }
   /** The terminal view arrived (once per operation; the stale mark comes as `changed`). */
   | { readonly kind: 'done'; readonly record: OpRecord };
+
+/** A page's persona the owner edited: its choice moved from one definition to another of the same key. */
+export interface PersonaFollow {
+  readonly pageId: number;
+  readonly from: string;
+  readonly to: string;
+}
 
 const NO_MEMO: StartMemo = { split: false, fixSource: null, personaDefinitionId: null, fingerprint: null };
 const EARLY_OPS_MAX = 16;
@@ -441,6 +450,19 @@ export class OpStore {
         this.resyncTimer = null;
         void this.resync(false);
       });
+    }
+  }
+
+  /**
+   * The owner edited a page's persona (its key stays): what this tab holds of it under the old definition is the
+   * same persona's, under the new one — inserted and shown as before.
+   */
+  followPersona(moves: readonly PersonaFollow[]): void {
+    for (const [opId, entry] of this.entries) {
+      const move = moves.find((candidate) => candidate.pageId === entry.view.target.binding.pageId && candidate.from === entry.memo.personaDefinitionId);
+      if (move === undefined) continue;
+      entry.memo = { ...entry.memo, personaDefinitionId: move.to };
+      this.emit({ kind: 'changed', opId });
     }
   }
 

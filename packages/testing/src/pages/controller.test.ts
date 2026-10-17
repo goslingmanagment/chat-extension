@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHATSPACE_STATUS_TEXTS, DEFAULT_SETTINGS, SETTINGS_SECTIONS, UiActionSchema, type DiagnosticsSnapshot, type HostKind, type OptionsVM, type SettingsSection, type StatusRowVM, type UiAction } from '@cg/contracts';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
-import { AUTOSAVE_DEBOUNCE_MS, RECHECK_MIN_INTERVAL_MS, routeOfHash, type PageSite } from '@cg/core/application/pages';
+import { AUTOSAVE_DEBOUNCE_MS, BINDING_RETRY_TRIES, RECHECK_MIN_INTERVAL_MS, routeOfHash, type PageSite } from '@cg/core/application/pages';
 
 import { SCENARIO_FEATURES } from '../scenarios/app-client';
 import { PAGES_HOST_ORIGIN, PAGES_NOW, PAGES_SITES, PAGES_VERSION, hostReport, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
@@ -64,6 +64,40 @@ describe('popup view model', () => {
     expect(vm.chat).toMatchObject({ hostAccountLabel: 'OnlyMonster 1001', copyIds: { hostAccountId: '1001', creatorId: '3003' } });
     expect(vm.quota).toEqual({ remaining: 12, resetsAt: '2026-10-04T00:00:00Z', low: true });
     expect(vm.newcomersCount).toBe(3);
+  });
+
+  it('[PU-005] a popup opened before ChatSpace loaded the creator id names the persona once it has — no reopening; it stops asking when named, and at BINDING_RETRY_TRIES', async () => {
+    // Timers of the controller by hand: the retry fires when the test says so.
+    const due: Array<() => void> = [];
+    const timers = { set: (callback: () => void) => (due.push(callback), due.length), clear: () => undefined };
+    const fire = async (): Promise<void> => {
+      for (const callback of due.splice(0)) callback();
+      await settle();
+    };
+    const pending = (): ReturnType<typeof workingState> => {
+      const state = workingState();
+      const [first, ...rest] = state.accounts;
+      if (first === undefined) throw new Error('no account');
+      return { ...state, accounts: [{ ...first, account: { ...first.account, platformAccountId: null } }, ...rest] };
+    };
+    const loaded = workingState().accounts;
+    const w = await open({ page: 'popup', state: pending(), timers });
+    expect(w.client.getSnapshot({ of: 'popup' }).persona).toEqual({ s: 'not-connected' });
+    expect(due).toHaveLength(1);
+    // A second goes by, nothing new: asked again, still not named, asked again later.
+    await fire();
+    expect(w.client.getSnapshot({ of: 'popup' }).persona).toEqual({ s: 'not-connected' });
+    // ChatSpace has loaded the creator id: the next read names the persona, and the asking stops.
+    w.background.state.accounts = loaded;
+    await fire();
+    expect(w.client.getSnapshot({ of: 'popup' }).persona).toMatchObject({ s: 'set', label: 'Лора · VIP', pageName: 'LoraVie VIP' });
+    expect(due).toEqual([]);
+    // Never loaded: asked BINDING_RETRY_TRIES times after the first read, then left to a reopening or a focus.
+    world?.client.dispose();
+    const never = await open({ page: 'popup', state: pending(), timers });
+    for (let n = 0; n < BINDING_RETRY_TRIES + 3; n += 1) await fire();
+    expect(never.client.getSnapshot({ of: 'popup' }).persona).toEqual({ s: 'not-connected' });
+    expect(never.background.requests('accounts.seen')).toHaveLength(1 + BINDING_RETRY_TRIES);
   });
 
   it('[PU-008] the open chat is named by the name the tab already knows; without one, by the id — nothing is read for it (X47)', async () => {

@@ -1597,6 +1597,15 @@ describe('[NF-016] the identity a generation was made for is checked before and 
     expect(h.host.calls.navigations).toEqual([]);
     expect((await h.dispatch({ type: 'Copy', artifactHandle: first!.copyHandle })).ok).toBe(true);
   });
+
+  it('[AI-140] the owner edited the persona after the generation (its key stays, the choice followed): the draft is still sent and inserted', async () => {
+    const { h } = await withReply();
+    h.bg.setSettings({ ...settings, personas: { ...settings.personas, byPageId: { [String(PAGE.pageId)]: { key: WORLD.persona.key, definitionId: WORLD.persona.otherDefinitionId } } } });
+    await h.flush();
+    const [first] = partsOf(h, 'spenders');
+    expect(first?.send).toEqual({ s: 'available' });
+    expect(first?.openInsert).toEqual({ s: 'available' });
+  });
 });
 
 describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one part; every state of its row', () => {

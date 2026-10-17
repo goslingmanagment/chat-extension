@@ -88,7 +88,7 @@ export const FALLBACK_TICKET_SEC = 10;
 export type BeginResult = { readonly ok: true; readonly ticket: DispatchTicket } | { readonly ok: false; readonly view: SendAttemptView };
 
 /** The page's switches and limits for X8, read from the bootstrap at the click. */
-export interface SendPageGate extends Omit<SendGate, 'session' | 'personaDefinitionId' | 'bindingRevision'> {
+export interface SendPageGate extends Omit<SendGate, 'session' | 'personaKey' | 'bindingRevision'> {
   readonly flagRevision: number;
   readonly ticketSec: number;
   readonly pageLabel: string | null;
@@ -359,7 +359,7 @@ export class SendCoordinator {
       checkpoint: op.checkpoint ?? undefined,
       servedContext: view.servedContext,
       stale: view.stale !== undefined,
-      personaDefinitionId: tag.personaDefinitionId,
+      personaKey: tag.personaKey,
       session: { hubOrigin: tag.hubOrigin, userId: tag.userId, epoch: tag.signInEpoch },
     };
   }
@@ -367,7 +367,7 @@ export class SendCoordinator {
   private gateOf(env: OpsEnvironment, page: SendPageGate, pageId: number): SendGate {
     return {
       session: env.session === null ? null : { hubOrigin: env.session.hubOrigin, userId: env.session.userId, epoch: env.session.epoch },
-      personaDefinitionId: env.persona(pageId)?.definitionId ?? null,
+      personaKey: env.persona(pageId)?.key ?? null,
       bindingRevision: env.bootstrap?.pages.find((page) => page.pageId === pageId)?.bindingRevision ?? null,
       previewSend: page.previewSend,
       newcomers: page.newcomers,
