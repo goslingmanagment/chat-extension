@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GREETING_STATUSES, type NewcomerRowVM, type NewcomersVM, type PreviewVM } from '@cg/contracts';
 import { MAX_DOM_ROWS, SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
-import { windowText } from '@cg/ui/newcomers';
+import { CARD_FOLLOW_MS, windowText } from '@cg/ui/newcomers';
 
 import { cgError, claimMine, ctxOf, entry, FANS, iso, MIN, msg, newcomerRow, views, type AppClientScenario } from '../scenarios/app-client';
 import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
@@ -238,6 +238,96 @@ describe('«Новые»: the window and the list', () => {
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, cardOpen: false })));
     await flush(() => keydown(ui?.$('[role="dialog"]') as HTMLElement, 'Escape'));
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+  });
+
+  it('[NF-002] [X55] with no card open the window opens on the first fan who can be greeted now — and on that fan’s card', async () => {
+    // Greeted and a colleague's lease first: the keyboard and the card start at the free fan below them.
+    ui = await mountBoardSettled(
+      'newcomers',
+      change('13a', (vm) => {
+        const [tomasz, jake, leo] = vm.rows;
+        return { ...vm, cardOpen: false, rows: [jake, leo, { ...tomasz, greeting: { s: 'none' } }].map((one) => ({ ...(one as NewcomerRowVM), selected: false })) };
+      }),
+    );
+    await settle();
+    expect(ui.actionsOf('OpenPreview')).toEqual([{ type: 'OpenPreview', targetHandle: 'newcomers:n001' }]);
+    expect(ui.root.activeElement).toBe(row('n001'));
+    ui.unmount();
+    // Nobody to greet: the first row, and its card.
+    ui = await mountBoardSettled(
+      'newcomers',
+      change('13a', (vm) => ({ ...vm, cardOpen: false, rows: vm.rows.slice(1).map((one) => ({ ...one, selected: false })) })),
+    );
+    await settle();
+    expect(ui.actionsOf('OpenPreview')).toEqual([{ type: 'OpenPreview', targetHandle: 'newcomers:n002' }]);
+    ui.unmount();
+    // A card already open stays: nothing is opened over it.
+    ui = await mountBoardSettled('newcomers', '13a');
+    await settle();
+    expect(ui.actionsOf('OpenPreview')).toEqual([]);
+    expect(ui.root.activeElement).toBe(row('n001'));
+  });
+
+  it('[X55] J / K walk the rows and the open card follows once the keys stop: one card for a run of keys', async () => {
+    vi.useFakeTimers();
+    ui = await mountBoardSettled('newcomers', '13a');
+    const press = async (code: string, key = code): Promise<void> => flush(() => keydown(ui?.root.activeElement as HTMLElement, key, { code }));
+    await press('KeyJ', 'о');
+    await press('ArrowDown');
+    expect(ui.root.activeElement).toBe(row('n003'));
+    await flush(() => vi.advanceTimersByTime(CARD_FOLLOW_MS - 1));
+    expect(ui.actionsOf('OpenPreview')).toEqual([]);
+    await flush(() => vi.advanceTimersByTime(1));
+    expect(ui.actionsOf('OpenPreview')).toEqual([{ type: 'OpenPreview', targetHandle: 'newcomers:n003' }]);
+    // Enter before the wait is over opens the row's card at once, and the wait is dropped.
+    await press('KeyK', 'л');
+    await press('Enter');
+    await flush(() => vi.advanceTimersByTime(CARD_FOLLOW_MS * 2));
+    expect(ui.actionsOf('OpenPreview')).toEqual([
+      { type: 'OpenPreview', targetHandle: 'newcomers:n003' },
+      { type: 'OpenPreview', targetHandle: 'newcomers:n002' },
+    ]);
+    ui.unmount();
+    // With the card closed (Esc), J / K only move: no card opens by itself.
+    ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, cardOpen: false })));
+    const before = ui.actionsOf('OpenPreview').length;
+    await press('KeyJ', 'о');
+    await flush(() => vi.advanceTimersByTime(CARD_FOLLOW_MS * 2));
+    expect(ui.actionsOf('OpenPreview').length).toBe(before);
+  });
+
+  it('[X55] Enter on the card’s own row: Hi when the card has nothing yet, the first part when it has, Hi’s reason when it is off — never a send', async () => {
+    const press = async (target: HTMLElement, code: string): Promise<void> => flush(() => keydown(target, code, { code }));
+    // The card has no result: Enter is Hi of one variant for that fan.
+    ui = await mountBoardSettled('newcomers', change('13a', (vm) => vm, (card) => ({ ...card, result: null })));
+    await press(row('n001'), 'Enter');
+    expect(ui.actions().at(-1)).toEqual({ type: 'Generate', targetHandle: 'newcomers:n001', feature: 'hi', options: { variants: 1 } });
+    ui.unmount();
+    // The greeting is there: Enter starts nothing and puts the focus on its first part (Enter there is «Открыть и вставить»).
+    ui = await mountBoardSettled('newcomers', '13a');
+    const before = ui.actions().length;
+    await press(row('n001'), 'Enter');
+    expect(ui.actions().slice(before)).toEqual([]);
+    expect(ui.root.activeElement?.closest('.cg-pv [data-cg-part]')).not.toBeNull();
+    ui.unmount();
+    // A colleague holds the fan: Hi is off — Enter starts nothing and shows Hi, whose tooltip says why.
+    ui = await mountBoardSettled('newcomers', '13c');
+    const held = ui.actions().length;
+    await press(row('n003'), 'Enter');
+    expect(ui.actions().slice(held)).toEqual([]);
+    expect(ui.root.activeElement?.closest('[data-cg-strip="hi"]')).not.toBeNull();
+    expect(ui.actions().filter((action) => action.type === 'SendPart' || action.type === 'InsertPart' || action.type === 'OpenAndInsertPart')).toEqual([]);
+  });
+
+  it('[X55] the window says its own keys under the list: J / K, Enter for Hi, the search and Esc', async () => {
+    ui = await mountBoardSettled('newcomers', '13a');
+    const keys = ui.$$('.cg-nc .cg-keys .cg-key').map((key) => [textOf(key.querySelector('kbd')), textOf(key).slice(textOf(key.querySelector('kbd')).length)]);
+    expect(keys).toEqual([
+      ['J / K', 'строка'],
+      ['↵', 'Hi'],
+      ['/', 'Поиск в списке'],
+      ['Esc', 'Закрыть'],
+    ]);
   });
 
   it('a key acts on the fan of the focused row when the list changed above it: Enter and Space never open a neighbour’s card', async () => {

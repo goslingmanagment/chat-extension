@@ -5,7 +5,9 @@
 //   Hi, Ping, Cancel on ⌘/Ctrl, the panels on ⌘⇧/Ctrl+Alt. Its engine owns the
 //   matching of those (strict modifiers, the fresh-press guard, mac aliases);
 // - the rows outside the scheme, which only this client has: the palette,
-//   chat navigation, the fan panel, the cheatsheet, settings, Esc.
+//   chat navigation, the fan panel, the cheatsheet, settings, Esc, and the
+//   window of «Новые» (decision X55) on the panel level of the scheme's own
+//   modifiers.
 //
 // Everything is matched by `KeyboardEvent.code`, the physical key, so the
 // keys work on the Russian layout without switching it (HK-017). `?` is the
@@ -35,6 +37,8 @@ export const DISPATCHER_COMMAND_IDS = [
   'split',
   'spenders',
   'coach',
+  // Decision X55: «Новые» — a row outside the scheme on its panel modifiers (⌘⇧U / Ctrl+Alt+U).
+  'newcomers',
   'palette',
   'cheatsheet',
   'settings',
@@ -54,7 +58,8 @@ export interface ExtraKeyDef {
   readonly command: Exclude<DispatcherCommandId, HotkeyAction>;
   /** Physical keys; several for the nine chat slots. */
   readonly codes: readonly string[];
-  readonly mods: 'primary' | 'alt' | 'none' | 'shift';
+  /** `panel` — the scheme's panel level: ⌘⇧ on macOS, Ctrl+Alt elsewhere (decision X55). */
+  readonly mods: 'primary' | 'panel' | 'alt' | 'none' | 'shift';
   /** The same command on a combination the browser surely hands over (Alt+U for ⌘U). */
   readonly fallback: boolean;
   /** What the cheatsheet prints for the key itself: «K», «1–9», «]». */
@@ -77,6 +82,10 @@ export const EXTRA_KEYS: readonly ExtraKeyDef[] = [
   // Decision X45: ⌘/Ctrl+1–9 are Firefox's again (its tabs); the chat slots are Alt+1–9 alone, the main key now.
   { command: 'quick-jump', codes: DIGITS, mods: 'alt', fallback: false, keycap: '1–9', ariaKey: '1' },
   { command: 'settings', codes: ['Comma'], mods: 'primary', fallback: false, keycap: ',', ariaKey: ',' },
+  // Decision X55: the window of «Новые», next to Spenders' ⌘⇧M / Ctrl+Alt+M. U is the one panel letter that is free on
+  // both systems: no scheme row (of any client) and no mac alias has it, Firefox has nothing on ⌘⇧U / Ctrl+Alt+U, and
+  // ⌘⇧J — the other free one — is Firefox's Browser Console. hotkeys.test.ts holds it off every scheme row.
+  { command: 'newcomers', codes: ['KeyU'], mods: 'panel', fallback: false, keycap: 'U', ariaKey: 'U' },
   { command: 'chat-next', codes: ['KeyJ'], mods: 'none', fallback: false, keycap: 'J', ariaKey: 'J' },
   { command: 'chat-previous', codes: ['KeyK'], mods: 'none', fallback: false, keycap: 'K', ariaKey: 'K' },
   { command: 'fan-panel', codes: ['BracketRight'], mods: 'none', fallback: false, keycap: ']', ariaKey: ']' },
@@ -137,7 +146,10 @@ export function matchExtraKey(event: HotkeyKeyEvent, platform: HotkeyPlatform): 
     const fits =
       def.mods === 'primary'
         ? primary && !event.altKey && !event.shiftKey
-        : def.mods === 'alt'
+        : def.mods === 'panel'
+          ? // The scheme's panel level, strictly: ⌘⇧ alone on macOS, Ctrl+Alt alone elsewhere (HK-015: never Ctrl+Shift).
+            primary && (mac ? event.shiftKey && !event.altKey : event.altKey && !event.shiftKey)
+          : def.mods === 'alt'
           ? event.altKey && !primary && !event.shiftKey
           : def.mods === 'shift'
             ? event.shiftKey && !primary && !event.altKey
@@ -185,9 +197,12 @@ export interface KeyPrint {
 
 const PRIMARY = { mac: { display: '⌘', aria: 'Meta' }, win: { display: 'Ctrl+', aria: 'Control' } } as const;
 const ALT = { mac: { display: '⌥', aria: 'Alt' }, win: { display: 'Alt+', aria: 'Alt' } } as const;
+/** The scheme's panel level, printed as the vendored labels print it (⌘⇧M, Ctrl+Alt+M). */
+const PANEL = { mac: { display: '⌘⇧', aria: 'Meta+Shift' }, win: { display: 'Ctrl+Alt+', aria: 'Control+Alt' } } as const;
 
 export function printExtraKey(def: ExtraKeyDef, platform: HotkeyPlatform): KeyPrint {
   if (def.mods === 'primary') return { display: `${PRIMARY[platform].display}${def.keycap}`, aria: `${PRIMARY[platform].aria}+${def.ariaKey}` };
+  if (def.mods === 'panel') return { display: `${PANEL[platform].display}${def.keycap}`, aria: `${PANEL[platform].aria}+${def.ariaKey}` };
   if (def.mods === 'alt') return { display: `${ALT[platform].display}${def.keycap}`, aria: `${ALT[platform].aria}+${def.ariaKey}` };
   return { display: def.keycap, aria: def.ariaKey };
 }

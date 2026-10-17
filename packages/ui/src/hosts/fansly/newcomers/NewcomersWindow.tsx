@@ -12,6 +12,8 @@
 // (a line), «Открыть и вставить» (quiet) and «Отправить →» — the only blue: it is what reaches the fan —, the «AI» mark of
 // an unchanged result and its verdict, where the click stands (sending, sent, refused with its code, unknown), and the
 // hint that AI sends nothing on its own.
+// Decision X55: Enter on the card's own row is its greeting — «Сгенерировать» while the field is empty and the
+// button is on, the field otherwise; «Отправить →» stays a click.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -53,6 +55,7 @@ import {
   TextField,
   ViewState,
   VirtualList,
+  focusQuietly,
   isComposing,
   menuTriggerKeys,
   rovingIndex,
@@ -68,7 +71,7 @@ import {
   type MenuItem,
 } from '../../../kit';
 import { useOwnEchoes } from '../../../spenders/ownEchoes';
-import { rowKeyOf, useRowFocus } from '../../../spenders/rowFocus';
+import { rowKeyOf, useCardFollow, useRowFocus } from '../../../spenders/rowFocus';
 import { DataFooter, FilterChip, WindowHeader, isPlainKey, isTextEntry } from '../../../spenders/window';
 
 const ROW_HEIGHT = 52;
@@ -77,6 +80,13 @@ const LOAD_MORE_MARGIN = 20;
 
 const CLOSE_WINDOW: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } };
 const RELOAD: UiAction = { type: 'ReloadView', selector: { of: 'newcomers' } };
+
+/** Enter on the card's own row (X55): «Сгенерировать» when the field is empty and the button is on; null — the field takes the focus instead. */
+export function greetingStart(card: NewcomerCardVM): UiAction | null {
+  const greeting = card.greeting ?? null;
+  if (greeting === null || !greeting.canGenerate || greeting.text.trim() !== '' || greeting.state.s === 'generating' || greeting.state.s === 'sending') return null;
+  return { type: 'Generate', targetHandle: card.handle, feature: 'hi', options: {} };
+}
 
 /** A text of Fansly's own pack (`fansly.newcomers.*`), through the I18n the surface laid it over. */
 export function fanslyText(i18n: I18n, key: FanslyNewcomersTextKey, params?: I18nParams): string {
@@ -757,12 +767,14 @@ export function FanslyNewcomersWindow(): JSX.Element {
     [passId, vm.canLoadMore, rows.length, dispatch, settle],
   );
 
+  // The card follows the keyboard's row once the keys stop (X55): a held J asks the pass for no card per row.
+  const cardFollow = useCardFollow((handle) => void dispatch({ type: 'OpenPreview', targetHandle: handle }));
   const move = (from: number, to: number): void => {
     const row = rows[to];
     if (row === undefined || to === from) return;
     setActiveHandle(row.handle);
     focusRow(to, row.handle);
-    void dispatch({ type: 'OpenPreview', targetHandle: row.handle });
+    cardFollow.follow(row.handle);
   };
 
   const onListKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
@@ -785,8 +797,24 @@ export function FanslyNewcomersWindow(): JSX.Element {
       move(at, edge);
       return;
     }
-    if (event.code === 'Enter' || event.code === 'NumpadEnter' || event.code === 'Space') {
+    if (event.code === 'Enter' || event.code === 'NumpadEnter') {
       event.preventDefault();
+      cardFollow.stop();
+      const shown = pass?.card ?? null;
+      if (shown === null || shown.handle !== row.handle) {
+        void dispatch({ type: 'OpenPreview', targetHandle: row.handle });
+        return;
+      }
+      const start = greetingStart(shown);
+      if (start !== null) void dispatch(start);
+      // The draft is there (or Generate is off): the field takes the focus — what goes to the fan is read there, and
+      // «Отправить →» is a click.
+      else focusQuietly(frameRef.current?.querySelector<HTMLElement>('.cg-fnc__field textarea') ?? null);
+      return;
+    }
+    if (event.code === 'Space') {
+      event.preventDefault();
+      cardFollow.stop();
       void dispatch({ type: 'OpenPreview', targetHandle: row.handle });
     }
   };

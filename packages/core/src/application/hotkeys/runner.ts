@@ -51,7 +51,14 @@ export interface HotkeyRunner extends HotkeySink {
   dispose(): void;
 }
 
-const TOGGLED: Readonly<Partial<Record<DispatcherCommandId, OverlaySurface>>> = { spenders: 'spenders', palette: 'palette', cheatsheet: 'cheatsheet', 'fan-panel': 'fan-panel', coach: 'coach' };
+const TOGGLED: Readonly<Partial<Record<DispatcherCommandId, OverlaySurface>>> = {
+  spenders: 'spenders',
+  newcomers: 'newcomers',
+  palette: 'palette',
+  cheatsheet: 'cheatsheet',
+  'fan-panel': 'fan-panel',
+  coach: 'coach',
+};
 const STATUS_REASON: Readonly<Record<DockStatus, UnavailableReasonId>> = {
   ready: 'chat-loading',
   'loading-chat': 'chat-loading',
