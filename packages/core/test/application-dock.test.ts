@@ -1049,20 +1049,52 @@ describe('dock: inserting a part', () => {
     expect(result(h).confirm).toBeNull();
   });
 
-  it('[UI-020] the person\'s own text in the field asks «Заменить / Добавить в конец / Отмена» for that revision', async () => {
+  it('[UI-020] the person\'s own text in the field is replaced at once (X45): the click is the consent, a CAS on that revision, nothing asked', async () => {
     const h = await start();
     const opId = await reply(h, 'the answer');
+    h.host.type('my own words');
+    await h.settle();
+    const receipt = await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
+    expect(receipt).toMatchObject({ ok: true, outcome: 'done' });
+    expect(result(h).confirm).toBeNull();
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    // A one-time consent for exactly the revision read at the click: MAIN replaces a person's draft only with one.
+    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'replace', text: 'the answer', target: openChat, expected: { kind: 'open', draftRevision: 5, composerInstanceId: 'composer-1' } });
+    expect(h.fake.calls.inserts[0]?.confirmationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(h.host.draftOf(openChat)).toMatchObject({ plainText: 'the answer', provenance: 'our-insert' });
+    // The person types again and inserts once more: a new consent for the new revision, never the old one.
+    h.host.type('more of mine');
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts[1]?.expected).toMatchObject({ draftRevision: 7 });
+    expect(h.fake.calls.inserts[1]?.confirmationId).not.toBe(h.fake.calls.inserts[0]?.confirmationId);
+  });
+
+  it('[UI-020] the draft moved between the read and the write: MAIN refuses, nothing is written, and the question is asked about the draft as it is now (X45)', async () => {
+    const h = await start({}, { insert: [{ state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-changed-draft' }] });
+    const opId = await reply(h, 'the answer');
+    h.host.type('my own words');
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(result(h).confirm).toMatchObject({ kind: 'draft-changed', part: { index: 0 } });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('my own words');
+  });
+
+  it('without an observed editor the question stays: «Добавить в конец» appends to that revision', async () => {
+    const h = await start();
+    const opId = await reply(h, 'the answer');
+    h.host.setCapability('draftRead', { state: 'degraded', reason: 'editor' });
     h.host.type('my own words');
     await h.settle();
     const receipt = await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
     expect(receipt).toMatchObject({ ok: true, outcome: 'needs-confirm' });
     expect(h.fake.calls.inserts).toHaveLength(0);
     const confirm = result(h).confirm;
-    expect(confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 }, formatLoss: false });
+    expect(confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 }, formatLoss: true });
 
     const answered = await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'append' });
     expect(answered).toMatchObject({ ok: true, outcome: 'done' });
-    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'append', text: 'the answer', confirmationId: confirm?.confirmationId, expected: { draftRevision: 5 } });
+    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'append', text: 'the answer', confirmationId: confirm?.confirmationId });
     expect(result(h).confirm).toBeNull();
     expect(h.host.draftOf(openChat)?.plainText).toBe('my own words\nthe answer');
   });
@@ -1070,6 +1102,7 @@ describe('dock: inserting a part', () => {
   it('«Отмена» writes nothing and the question is gone', async () => {
     const h = await start();
     const opId = await reply(h, 'the answer');
+    h.host.setCapability('draftRead', { state: 'degraded', reason: 'editor' });
     h.host.type('my own words');
     await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
     const id = result(h).confirm?.confirmationId as string;
@@ -1082,6 +1115,7 @@ describe('dock: inserting a part', () => {
   it('a draft that changed after the question voids the consent: the question is asked again about the new revision', async () => {
     const h = await start();
     const opId = await reply(h, 'the answer');
+    h.host.setCapability('draftRead', { state: 'degraded', reason: 'editor' });
     h.host.type('my own words');
     await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
     const first = result(h).confirm?.confirmationId as string;
@@ -1486,7 +1520,7 @@ describe('dock: Fix', () => {
     expect(h.fake.calls.inserts[1]).toMatchObject({ mode: 'replace', text: 'so much', confirmationId: null });
   });
 
-  it('[AI-023] a Split Fix over the same words at another revision asks nothing; over a draft the person rewrote since it asks, as any insert does', async () => {
+  it('[AI-023] a Split Fix over the same words at another revision asks nothing; over a draft the person rewrote since it asks nothing either (X45)', async () => {
     const h = await withDraft();
     h.script(h.streamOf('improve-draft', ['I miss you [NEXT] so much']));
     const receipt = await h.generate('fix', { split: true });
@@ -1497,19 +1531,21 @@ describe('dock: Fix', () => {
     await h.settle();
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
     expect(result(h).confirm).toBeNull();
-    // Other words: the field holds the person's own text, which no Fix was asked for.
+    // Other words: the field holds the person's own text — the click replaces it as any «Вставить» does (X45).
     h.host.type('something else entirely');
     await h.settle();
-    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
-    expect(result(h).confirm).toMatchObject({ kind: 'human-draft', part: { index: 1 } });
-    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(result(h).confirm).toBeNull();
+    expect(h.fake.calls.inserts).toHaveLength(2);
+    expect(h.fake.calls.inserts[1]?.confirmationId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('[UI-020] a Reply over the person\'s own text still asks: only Fix was asked to rewrite it', async () => {
+  it('[UI-020] a Reply over the person\'s own text replaces it at once too (X45): every «Вставить» is its own consent', async () => {
     const h = await withDraft();
     const opId = await reply(h, 'the answer');
-    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
-    expect(h.fake.calls.inserts).toHaveLength(0);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.host.draftOf(openChat)?.plainText).toBe('the answer');
   });
 
   it('without an observed editor «Заменить мой черновик» is off with its reason; copy is the way', async () => {
@@ -3119,6 +3155,8 @@ describe('the focus handed to the next part (decision X44, ui-design §6.3)', ()
   it('[UI-023] a Б2 question, Fix and Hi with three variants offer nothing', async () => {
     const h = await start();
     const opId = await reply(h, 'the answer');
+    // The question stands only where the editor is not observed (X45).
+    h.host.setCapability('draftRead', { state: 'degraded', reason: 'editor' });
     h.host.type('my own words');
     await h.settle();
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ outcome: 'needs-confirm' });

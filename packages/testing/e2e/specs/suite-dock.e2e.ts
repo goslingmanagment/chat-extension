@@ -8,14 +8,14 @@
 //   history, and keeps its bottom on a resize of the window; near its bottom,
 //   where ChatSpace holds the top message instead, the dock itself keeps the
 //   last messages in view (UI-016, keep-bottom.ts);
-// - Б2: a part is never written over the person's own draft without their
-//   answer — «Отмена» writes nothing, «Добавить в конец» keeps their words,
-//   «Заменить» replaces them only by its own click; the question takes the
-//   focus on «Отмена», so a stray Enter or Space right after it appears
-//   writes nothing (X18);
-// - the answer is for one revision of the draft: typing A→B→A, formatting,
-//   ChatSpace's translator and a restored draft each make it stale — the old
-//   answer writes nothing and the question is asked anew;
+// - Б2 after decision X45: «Вставить» over the person's own draft replaces it
+//   by that click — one write into this chat's field, a CAS on the revision
+//   read at the click — and one Ctrl/⌘+Z in ChatSpace's field brings their
+//   words back (the write is one step of its editor's own history). The
+//   question and its binding to one revision (A→B→A, formatting, the
+//   translator, a restored draft) stand only where the write is not the
+//   click's: MAIN's CAS is proven in host-adapter.e2e.ts, the question's
+//   binding in the unit tests;
 // - Fix writes nothing by itself: «Заменить мой черновик» is the explicit
 //   replace, «Вернуть мой текст» restores the person's text only while the
 //   field still holds what Fix wrote, and asks once they changed it;
@@ -28,16 +28,16 @@
 import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
-import { bridgeWrites, clearDraft, composerText, EDITOR, listAnchor, MOD, pageJournal, pageJournalMark, pressSend, scrollList, twoFrames, typeDraft, waitForComposerText } from '../support/chat';
+import { bridgeWrites, clearDraft, composerText, EDITOR, listAnchor, MOD, pageJournal, pageJournalMark, scrollList, sendsOf, twoFrames, typeDraft, waitForComposerText } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { expectOursFocus, oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
+import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, composerRoots, dockPlacement, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 import { setViewport } from '../support/visual';
 
 const ACC = STAND_IDS.accounts.a;
-const { a1, a2, a4, a5 } = STAND_IDS.fans;
+const { a1, a2 } = STAND_IDS.fans;
 /** The fake hub's model, with `aiNameFan`: each part says whose chat it was written for. */
 const reply = (fan: string): readonly [string, string] => [`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`];
 const fixed = (fan: string): string => `Here is a smoother version of your draft. @${fan}`;
@@ -194,163 +194,45 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
     });
   });
 
-  describe('Б2 — the person’s own draft (§6.4)', () => {
+  describe('Б2 — the person’s own draft (§6.4; decision X45: the click is the consent, the field’s undo brings it back)', () => {
     const [part1, part2] = reply(a2);
 
     before(async () => {
       await open(a2);
       await typeDraft('my own words');
       await generate();
+      // The person reads the answer before the click. Within 500 ms of the last keystroke TipTap's history would
+      // fold the write into that typing (its `newGroupDelay`): the undo would then also take back the last letters.
+      await browser.pause(600);
     });
 
-    it('[NEW-05] [UI-020] «Вставить» over a typed draft asks and writes nothing; «Отмена» leaves the draft as it was', async () => {
+    it('[NEW-05] [UI-020] «Вставить» over a typed draft replaces it at once — one write, into this chat’s field, and no question', async () => {
       const mark = await pageJournalMark();
       await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/);
-      await waitOursText('dock', HUMAN_DRAFT, 'the question about the person’s own text');
-      expect(await composerText(ACC, a2)).toBe('my own words');
-      for (const answer of ['Заменить', 'Добавить в конец', 'Отмена']) await waitOursByText('dock', '[data-cg-part="0"] button', new RegExp(`^${answer}`), `the answer «${answer}» of the question`);
-      await pressOurs('dock', '[data-cg-part="0"] button', /^Отмена/);
-      await waitOursText('dock', HUMAN_DRAFT, 'the question is gone', { gone: true });
-      expect(await composerText(ACC, a2)).toBe('my own words');
-      expect(await writesSince(mark)).toEqual([]);
-      expect((await dockIs(() => true, 'the dock')).result).toMatchObject({ inserted: 0, state: 'done' });
-    });
-
-    it('[NEW-05] [UI-020] a stray Enter or Space right after the question appears is «Отмена» (X18): the field keeps the person’s words, nothing is written', async () => {
-      const mark = await pageJournalMark();
-      for (const [name, key] of [['Enter', Key.Enter], ['Space', Key.Space]] as const) {
-        await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/, `${name}: «Вставить»`);
-        await waitOursText('dock', HUMAN_DRAFT, `${name}: the question about the person’s own text`);
-        await expectOursFocus('dock', /^Отмена/, `${name}: the question took the focus`);
-        await browser.keys(key);
-        await waitOursText('dock', HUMAN_DRAFT, `${name}: the question is gone`, { gone: true });
-        expect(await composerText(ACC, a2)).toBe('my own words');
-      }
-      await browser.pause(400);
-      expect(await composerText(ACC, a2)).toBe('my own words');
-      expect(await writesSince(mark)).toEqual([]);
-      expect((await dockIs(() => true, 'the dock')).result).toMatchObject({ inserted: 0, state: 'done' });
-    });
-
-    it('[NEW-05] «Добавить в конец» keeps the person’s words and adds the part after them — one write, into this chat’s field', async () => {
-      const mark = await pageJournalMark();
-      await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/);
-      await waitOursText('dock', HUMAN_DRAFT, 'the question about the person’s own text');
-      await pressOurs('dock', '[data-cg-part="0"] button', /^Добавить в конец/);
-      await waitForComposerText(ACC, a2, `my own words\n${part1}`, 'the part is appended to the person’s words');
+      await waitForComposerText(ACC, a2, part1, 'the part replaced the person’s words by the click');
+      expect(await oursExists('dock', '.cg-confirm')).toBe(false);
+      expect(await oursText('dock')).not.toContain(HUMAN_DRAFT);
       await dockIs((d) => d.result?.inserted === 1, 'the part is marked inserted');
       expect((await writesSince(mark)).map((write) => write.chatId)).toEqual([a2]);
     });
 
-    it('[NEW-05] the next part asks again — the person’s words are still in the field — and «Заменить» replaces them only by its own click', async () => {
+    it('[UI-020] Ctrl/⌘+Z in ChatSpace’s field brings the person’s words back: our write is one step of its editor’s own history', async () => {
+      const mark = await pageJournalMark();
+      // After the insert the focus is in the field (UI-019): one press of the person’s own undo, nothing of ours.
+      await $(EDITOR).click();
+      await browser.keys([MOD, 'z']);
+      await waitForComposerText(ACC, a2, 'my own words', 'one undo restored the person’s words');
+      expect(await writesSince(mark)).toEqual([]);
+    });
+
+    it('[NEW-05] the next part over the restored words replaces them at once as well; nothing is ever sent', async () => {
+      const standMark = await standServer.mark();
       const mark = await pageJournalMark();
       await pressOurs('dock', '[data-cg-part="1"] button', /^Вставить/);
-      await waitOursText('dock', HUMAN_DRAFT, 'the question about the person’s own text, again');
-      expect(await composerText(ACC, a2)).toBe(`my own words\n${part1}`);
-      expect(await writesSince(mark)).toEqual([]);
-      await pressOurs('dock', '[data-cg-part="1"] button', /^Заменить/);
       await waitForComposerText(ACC, a2, part2, 'the field holds the second part alone');
       expect((await writesSince(mark)).map((write) => write.chatId)).toEqual([a2]);
-    });
-  });
-
-  describe('[AI-022] the answer is for one revision of the draft', () => {
-    /** With the question standing, the person changes the draft with `change`; the old answer then writes nothing and the question is asked anew. */
-    const staleAnswer = async (label: string, change: () => Promise<void>, answer: RegExp, expected: () => Promise<void>): Promise<void> => {
-      await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/, `${label}: «Вставить»`);
-      await waitOursText('dock', HUMAN_DRAFT, `${label}: the question about the person’s own text`);
-      const mark = await pageJournalMark();
-      await change();
-      await pressOurs('dock', '[data-cg-part="0"] button', answer, `${label}: the answer to the old question`);
-      await waitOursText('dock', DRAFT_CHANGED, `${label}: the question about the changed draft`);
-      expect(await writesSince(mark)).toEqual([]);
-      await expected();
-      await pressOurs('dock', '[data-cg-part="0"] button', /^Отмена/);
-      await waitOursText('dock', DRAFT_CHANGED, `${label}: the question is gone`, { gone: true });
-      expect(await writesSince(mark)).toEqual([]);
-    };
-
-    before(async () => {
-      await open(a5, true);
-      await typeDraft('A');
-      await generate();
-    });
-
-    it('typing A→B→A: the text is the same, the revision is not', async () => {
-      await staleAnswer(
-        'A→B→A',
-        async () => {
-          await $(EDITOR).click();
-          await browser.keys([Key.Backspace, 'B', Key.Backspace, 'A']);
-        },
-        /^Заменить/,
-        async () => expect(await composerText(ACC, a5)).toBe('A'),
-      );
-    });
-
-    it('formatting: the same letters in bold are another draft', async () => {
-      await staleAnswer(
-        'formatting',
-        async () => {
-          await $(EDITOR).click();
-          await browser.keys([MOD, 'a']);
-          await browser.keys([MOD, 'b']);
-        },
-        /^Добавить в конец/,
-        async () => {
-          const state = await callStand('composerState', ACC, a5);
-          expect([state?.text, state?.marks['bold']]).toEqual(['A', true]);
-        },
-      );
-    });
-
-    it('ChatSpace’s translator rewrites the field on Send: the old answer does not write over its text', async () => {
-      await callStand('setPermissions', ['om_message_translator'], true);
-      await callStand('setTranslator', ACC, { enabled: true, autoTranslate: true });
-      await standServer.script(ACC, a5, [{ kind: 'hang' }]);
-      try {
-        await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/);
-        await waitOursText('dock', HUMAN_DRAFT, 'the question about the person’s own text');
-        const mark = await pageJournalMark();
-        const before = await callStand('composerState', ACC, a5);
-        // The person presses ChatSpace's Send: its translator clears the field and writes the translation (the send itself hangs on the stand).
-        await pressSend();
-        await browser.waitUntil(async () => (await callStand('composerState', ACC, a5))?.html !== before?.html, { timeout: 5000, timeoutMsg: 'the translator did not touch the field' });
-        const translated = await composerText(ACC, a5);
-        await pressOurs('dock', '[data-cg-part="0"] button', /^Заменить/);
-        await browser.pause(400);
-        // Whatever the field holds now is ChatSpace's and the person's: our part was not written by the stale answer.
-        expect(await writesSince(mark)).toEqual([]);
-        expect(await composerText(ACC, a5)).toBe(translated);
-        expect(await composerText(ACC, a5)).not.toContain(reply(a5)[0]);
-      } finally {
-        await callStand('setTranslator', ACC, { enabled: false, autoTranslate: false });
-        await callStand('setPermissions', [], true);
-      }
-    });
-
-    it('a restored draft (the chat tab closed and opened again) is a new field: the answer given to the old one writes nothing', async () => {
-      await open(a4, true);
-      await typeDraft('kept by ChatSpace');
-      await generate();
-      await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/);
-      await waitOursText('dock', HUMAN_DRAFT, 'the question about the person’s own text');
-      await callStand('closeActiveChatTab');
-      await open(a4, true);
-      // ChatSpace restored its draft from its own storage; the chat's result — and its open question — are ours and came back with the chat.
-      expect(await composerText(ACC, a4)).toBe('kept by ChatSpace');
-      const back = await dockIs((d) => d.target?.endsWith(`:${a4}`) === true && d.result?.state === 'done', 'the chat’s result is still there');
-      expect(back.result?.inserted).toBe(0);
-      await waitOursText('dock', HUMAN_DRAFT, 'the question came back with its chat');
-      // The question was about the old field. Its answer is void for the restored one: nothing is written, the person is asked about this field.
-      const mark = await pageJournalMark();
-      await pressOurs('dock', '[data-cg-part="0"] button', /^Заменить/);
-      await waitOursText('dock', DRAFT_CHANGED, 'the restored text needs the person’s own answer');
-      expect(await composerText(ACC, a4)).toBe('kept by ChatSpace');
-      expect(await writesSince(mark)).toEqual([]);
-      await pressOurs('dock', '[data-cg-part="0"] button', /^Заменить/);
-      await waitForComposerText(ACC, a4, reply(a4)[0], 'the part replaced the restored draft by the person’s click');
-      expect((await writesSince(mark)).map((write) => write.chatId)).toEqual([a4]);
+      await browser.pause(400);
+      expect(sendsOf((await standServer.journal(standMark)).entries)).toEqual([]);
     });
   });
 

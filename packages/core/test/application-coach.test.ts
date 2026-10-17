@@ -345,6 +345,7 @@ describe('coach: a turn', () => {
   });
 
   it('[AI-086] the person\'s own text in the field: the question «Заменить / Добавить в конец / Отмена» first, the panel folds only after the write', async () => {
+    // A Coach draft keeps its question after X45 (Reply, Hi, Ping and Fix replace at once): as in the old Fansly extension.
     const h = await start();
     const opId = await exchange(h, 'How do I reply?');
     h.host.type('my own words');
