@@ -353,6 +353,7 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
     ['the pilot, page by page', BOOTSTRAP_PILOT_PAGES],
     ['the pilot through "*"', BOOTSTRAP_PILOT_ON],
     ['a hub that declares no capability', hubServing(BOOTSTRAP_PILOT_PAGES, [])],
+    ['a hub before X52', hubServing(BOOTSTRAP_PILOT_PAGES, BOOTSTRAP_PILOT_PAGES.capabilities.filter((capability) => capability !== 'live-text-review-coach-v1'))],
     ['fresh text and split-all off on the page', pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText', 'splitAll'])],
     ['HF-6 at 5000', { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, deepMax: 5000 } }],
     ['a small deep window', { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, deepMax: 1500 } }],
@@ -402,14 +403,15 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
     expect(streamBodyRefusal(both.feature, both.body)).toEqual({ error: 'bad_request', message: 'coach-chat preset forbids chatterQuestion' });
   });
 
-  it('what a feature never sends: no fresh text outside the draft features, no Split for Recap and Review, nothing a hub older than the SDK did not declare', () => {
+  it('what a feature never sends: no fresh text outside the draft features, Review and Coach (those two only to a hub since X52), no Split for Recap and Review, nothing a hub older than the SDK did not declare', () => {
     // The pilot's hub declares the window check (HF-8в is deployed); a ChatSpace start has no proof, so none asks for it.
     expect(BOOTSTRAP_PILOT_PAGES.capabilities).toContain('coverage-check-v1');
     for (const { name, request } of built) {
       expect([name, request.body.coverageCheck, request.capabilities.includes('coverage-check-v1')]).toEqual([name, undefined, false]);
       expect([name, request.body.startProof, request.body.personalMessageCount, request.body.fanAvatarUrl, request.capabilities.includes('hi-start-proof-v1')]).toEqual([name, undefined, undefined, undefined, false]);
       const draftFeature = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'].includes(request.feature);
-      if (!draftFeature) expect([name, request.body.liveTextContext]).toEqual([name, undefined]);
+      const answerFeature = ['chat-review', 'coach-chat'].includes(request.feature);
+      if (!draftFeature && (!answerFeature || name.includes('a hub before X52'))) expect([name, request.body.liveTextContext]).toEqual([name, undefined]);
       if (['chat-review', 'fan-summary'].includes(request.feature)) expect([name, request.body.replyMode]).toEqual([name, undefined]);
       if (name.includes('declares no capability')) {
         expect([name, request.capabilities.filter((capability) => capability !== 'debug-input-v1')]).toEqual([name, []]);

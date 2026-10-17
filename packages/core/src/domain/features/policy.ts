@@ -8,7 +8,7 @@
 // (`@cg/contracts/features/*`), read by `admission` (./admission.ts). The
 // feature's key there is its `dockAction`.
 
-import { isFreshTextFeature, isSplitFeature, type FeatureId } from '@cg/contracts/features';
+import { freshTextSurface, isSplitFeature, type FeatureId } from '@cg/contracts/features';
 import { OP_TIMEOUTS, type OpTimeouts } from '@cg/contracts/limits';
 import { type OpResult } from '@cg/contracts/ops';
 
@@ -32,7 +32,7 @@ export interface FeaturePolicy {
   readonly split: boolean;
   /** Needs the person's draft (Fix). */
   readonly requiresDraft: boolean;
-  /** May carry fresh page text from the open chat (D-14). */
+  /** May carry fresh page text from the open chat (D-14; Review and Coach since X52 — `freshTextSurface`). */
   readonly freshText: boolean;
   /** Messages a deep feature needs (AI-051); 0 — no gate. */
   readonly minMessages: number;
@@ -49,7 +49,7 @@ export interface FeaturePolicy {
 export const MIN_MESSAGES_FOR_DEEP = 30;
 
 function policy(feature: FeatureId, row: Omit<FeaturePolicy, 'split' | 'freshText' | 'timeouts'>): FeaturePolicy {
-  return { ...row, split: isSplitFeature(feature), freshText: isFreshTextFeature(feature), timeouts: OP_TIMEOUTS[feature] };
+  return { ...row, split: isSplitFeature(feature), freshText: freshTextSurface(feature) !== null, timeouts: OP_TIMEOUTS[feature] };
 }
 
 export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {

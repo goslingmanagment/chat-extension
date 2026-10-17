@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ANSWER_FRESH_TEXT_FEATURES,
   FEATURE_IDS,
   FRESH_TEXT_FEATURES,
   HUB_FEATURE_MAP,
@@ -108,7 +109,7 @@ describe('[RU-001] feature policies', () => {
     for (const feature of FEATURE_IDS) {
       const rule = FEATURE_POLICIES[feature];
       expect(rule.split, feature).toBe((SPLIT_FEATURES as readonly string[]).includes(feature));
-      expect(rule.freshText, feature).toBe((FRESH_TEXT_FEATURES as readonly string[]).includes(feature));
+      expect(rule.freshText, feature).toBe([...FRESH_TEXT_FEATURES, ...ANSWER_FRESH_TEXT_FEATURES].includes(feature as never));
       expect(rule.timeouts, feature).toBe(OP_TIMEOUTS[feature]);
       expect(rule.tone, feature).toBe(feature === 'reply');
       expect(rule.requiresDraft, feature).toBe(feature === 'fix');
@@ -339,12 +340,20 @@ describe('the plan from a click to a StartOp', () => {
     expect(planned({ feature: 'ping' })).toMatchObject({ feature: 'ping', window: 100, tone: null });
   });
 
-  it('fresh page text only for Reply, Fix, Hi and Ping in the dock, with the switch and context-v1', () => {
+  it('fresh page text for Reply, Fix, Hi, Ping and Review in the dock, Coach on its panel (X52), with the switch and context-v1', () => {
     const fresh = tail([['fan', 'hey'], ['model', 'hi you']]);
-    for (const feature of ['reply', 'hi', 'ping'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toEqual(fresh);
+    for (const feature of ['reply', 'hi', 'ping', 'review'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toEqual(fresh);
     expect(planned({ feature: 'fix', draft: draft('x'), fields: { fresh } }).fresh).toEqual(fresh);
-    for (const feature of ['review', 'recap', 'recap-short'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toBeUndefined();
+    expect(planned({ feature: 'coach', surface: 'coach', options: { question: 'what now?' }, fields: { fresh } }).fresh).toEqual(fresh);
+    // Recap never (architecture §19 п. 1); Coach only on its own panel, Review only in the dock.
+    for (const feature of ['recap', 'recap-short'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toBeUndefined();
     expect(planned({ feature: 'coach', options: { question: 'what now?' }, fields: { fresh } }).fresh).toBeUndefined();
+    expect(freshTextLimits('review', 'coach', BOOTSTRAP_PILOT_PAGES, true)).toBeNull();
+    // Review and Coach only on a hub that takes it there (`live-text-review-coach-v1`); the draft features need nothing more.
+    const olderHub: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'live-text-review-coach-v1') };
+    expect(planned({ feature: 'review', fields: { fresh }, bootstrap: olderHub }).fresh).toBeUndefined();
+    expect(planned({ feature: 'coach', surface: 'coach', options: { question: 'what now?' }, fields: { fresh }, bootstrap: olderHub }).fresh).toBeUndefined();
+    expect(planned({ feature: 'reply', fields: { fresh }, bootstrap: olderHub }).fresh).toEqual(fresh);
     // Never from a preview or «Новые» ([NF-013]: the greeting of a new subscriber goes without page text).
     expect(planned({ surface: 'preview', fields: { fresh }, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
     expect(planned({ feature: 'hi', surface: 'newcomers', fields: { fresh }, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();

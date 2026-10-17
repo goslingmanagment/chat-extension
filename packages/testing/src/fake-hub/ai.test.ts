@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { PAGE, WORLD, streamBody, uuid } from '../scenarios/hub';
 import { generationText, namedForFan } from './ai';
 import { streamBodyRefusal } from './ai-rules';
-import { pilotPageFlags } from './config';
+import { PILOT_CAPABILITIES, pilotPageFlags } from './config';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall, readSse } from './kit';
 
@@ -101,7 +101,7 @@ describe('fake hub AI: the stream the model writes', () => {
     expect(feed).toMatchObject({ head: { messageRef: '6500' }, snapshotRevision: 'snap-2' });
   });
 
-  it('fresh text (H-4c): served with the freshText flag, ignored without it, refused without context-v1 or outside draft features', async () => {
+  it('fresh text (H-4c, X52): served with the freshText flag, ignored without it, refused without context-v1, on Recap, and on Review and Coach before live-text-review-coach-v1', async () => {
     const live = { liveTextContext: { capturedAt: '2026-10-03T09:59:55.000Z', items: [{ platformMessageId: '6600', direction: 'fan' as const, occurredAt: '2026-10-03T09:59:50.000Z', text: 'hey there' }] } };
     const served = await framesOf(await stream('fast-reply', live, ['context-v1']));
     expect(served.find((f) => f.type === 'context_v1')).toMatchObject({ source: 'union', live: { status: 'served', accepted: 1, rejected: 0 } });
@@ -109,8 +109,16 @@ describe('fake hub AI: the stream the model writes', () => {
     const ignored = await framesOf(await stream('fast-reply', live, ['context-v1']));
     expect(ignored.find((f) => f.type === 'context_v1')).toMatchObject({ source: 'archive', live: { status: 'disabled', accepted: 0 } });
     expect(await refusal(await stream('fast-reply', live))).toEqual({ status: 400, error: 'bad_request', reason: 'capability_required' });
-    expect(await refusal(await stream('chat-review', live, ['context-v1']))).toEqual({ status: 400, error: 'bad_request', reason: 'live_text_not_allowed' });
     expect(await refusal(await stream('fan-summary', live, ['context-v1']))).toEqual({ status: 400, error: 'bad_request', reason: 'live_text_not_allowed' });
+    hub.control({ op: 'config', patch: pilotPageFlags({ freshText: true }) });
+    for (const feature of ['chat-review', 'coach-chat'] as const) {
+      const taken = await framesOf(await stream(feature, { ...live, ...needs(feature) }, ['context-v1']));
+      expect([feature, taken.find((f) => f.type === 'context_v1')]).toMatchObject([feature, { live: { status: 'served', accepted: 1 } }]);
+    }
+    hub.control({ op: 'config', patch: { capabilities: PILOT_CAPABILITIES.filter((capability) => capability !== 'live-text-review-coach-v1') } });
+    for (const feature of ['chat-review', 'coach-chat'] as const) {
+      expect(await refusal(await stream(feature, { ...live, ...needs(feature) }, ['context-v1']))).toEqual({ status: 400, error: 'bad_request', reason: 'live_text_not_allowed' });
+    }
   });
 
   it('[X54] the PPV state: taken where fresh text is, on an OnlyFans page; refused elsewhere with the fresh text’s reason', async () => {

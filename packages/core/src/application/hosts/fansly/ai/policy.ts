@@ -8,7 +8,9 @@
 // - The proof — MAIN's generation snapshot of the open chat, through the host's
 //   `freshness` port (`fx.generationSnapshot`), in place of ChatSpace's visible
 //   tail: for EVERY start (FS-TAIL-1: Recap, Review and Coach are checked too),
-//   with the texts only where the start may carry them (D-14). Its group is the
+//   with the texts only where the start may carry them (D-14) and only for the
+//   draft features — Review and Coach take page text on ChatSpace since X52, not
+//   here (FS-TAIL-10 stands). Its group is the
 //   route's conversation of the very chat the start was made in — the target's
 //   (FS-IDN-6); its window is min(60, N) of the start's messageCount N
 //   (`checkWindowOf`). No snapshot — the bridge did not answer, the port has
@@ -38,6 +40,7 @@
 //   `limits.deepMax`.
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
+import { isFreshTextFeature } from '@cg/contracts/features';
 import type { FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { HostPort } from '@cg/contracts/host';
 import type { AiProofAsk, CoverageProof } from '@cg/contracts/ops';
@@ -72,7 +75,7 @@ function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<Fa
   // The chat the start was made in, on the route it was made on: its group is the target's conversation.
   const same = route.epoch === ask.identity.routeEpoch && route.chat !== null && route.chat.hostAccountId === chat.hostAccountId && route.chat.platformFanId === chat.platformFanId;
   if (!same || route.conversationRef === undefined) return null;
-  const request = { conversationRef: route.conversationRef, feature: ask.feature, window: checkWindowOf(ask.messageCount), withText: ask.fresh !== null };
+  const request = { conversationRef: route.conversationRef, feature: ask.feature, window: checkWindowOf(ask.messageCount), withText: ask.fresh !== null && isFreshTextFeature(ask.feature) };
   return freshness.snapshot(chat, request).then((snapshot) => (snapshot === null ? null : { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()) }));
 }
 

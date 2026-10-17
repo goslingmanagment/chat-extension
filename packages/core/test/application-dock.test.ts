@@ -3214,7 +3214,7 @@ describe('R20 F10, ChatSpace: the starts through ChatSpace’s AI policy are the
     return sent(h);
   };
 
-  it('Hi, Fix and Ping carry the tail the proof read, Review and Coach none: byte for byte as recorded on main before F10', async () => {
+  it('Hi, Fix and Ping carry the tail the proof read, Review and Coach none on a hub before X52: byte for byte as recorded on main before F10', async () => {
     const hi = await start();
     hi.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages: 1, modelMessages: 2, loaded: 3 }, openChat);
     await hi.settle();
@@ -3224,8 +3224,24 @@ describe('R20 F10, ChatSpace: the starts through ChatSpace’s AI policy are the
     await fix.settle();
     expect(await played(fix, 'fix', 'improve-draft', 'I miss you so much')).toBe(CHATSPACE_RECORDED_F10.fix);
     expect(await played(await start(), 'ping', 'ping', 'hey, you there?')).toBe(CHATSPACE_RECORDED_F10.ping);
-    expect(await played(await start(), 'review', 'chat-review', 'Оценка: 7/10')).toBe(CHATSPACE_RECORDED_F10.review);
-    expect(await played(await start(), 'coach', 'coach-chat', 'Спросите, как прошёл день.', { question: 'what now?' })).toBe(CHATSPACE_RECORDED_F10.coach);
+    // A hub without `live-text-review-coach-v1` gets Review and Coach as before.
+    const before: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'live-text-review-coach-v1') };
+    expect(await played(await start({ bootstrap: before }), 'review', 'chat-review', 'Оценка: 7/10')).toBe(CHATSPACE_RECORDED_F10.review);
+    expect(await played(await start({ bootstrap: before }), 'coach', 'coach-chat', 'Спросите, как прошёл день.', { question: 'what now?' })).toBe(CHATSPACE_RECORDED_F10.coach);
+  });
+
+  it('X52: on a hub that takes it, Review and Coach carry the tail too — the recorded start and body plus the tail, nothing else', async () => {
+    const withTail = (recorded: string, start: number): string => {
+      const { starts, streams } = JSON.parse(recorded) as { starts: Array<Record<string, unknown>>; streams: Array<{ body: Record<string, unknown> }> };
+      const fresh = { capturedAt: '2026-10-03T10:00:00.000Z', messages: [{ platformMessageId: '4004', direction: 'fan', sentAt: '2026-10-03T09:59:00.000Z', text: 'hey' }] };
+      const live = { capturedAt: fresh.capturedAt, items: [{ platformMessageId: '4004', direction: 'fan', occurredAt: '2026-10-03T09:59:00.000Z', text: 'hey' }] };
+      return JSON.stringify({
+        starts: starts.map((s, index) => (index === start ? { ...s, fresh } : s)),
+        streams: streams.map((s) => ({ ...s, body: { ...s.body, liveTextContext: live } })),
+      });
+    };
+    expect(await played(await start(), 'review', 'chat-review', 'Оценка: 7/10')).toBe(withTail(CHATSPACE_RECORDED_F10.review, 0));
+    expect(await played(await start(), 'coach', 'coach-chat', 'Спросите, как прошёл день.', { question: 'what now?' })).toBe(withTail(CHATSPACE_RECORDED_F10.coach, 0));
   });
 });
 
