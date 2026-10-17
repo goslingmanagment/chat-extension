@@ -9,8 +9,8 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { FEATURE_IDS, HOST_PLATFORM, LIVE_PPV_LIMITS, LivePpvStateSchema, UNAVAILABLE_REASONS, type AiHostPolicy, type AiProofAsk, type AiStartFields, type Bootstrap, type ChatWindow, type FeatureId, type LiveTextTail, type OpenChatMessage, type OpenChatPage, type OpenChatRead, type OpView, type PingSegment, type Platform } from '@cg/contracts';
-import { CHATSPACE_AI, livePpvOf, readLivePpv } from '@cg/core/application/hosts/chatspace/ai';
+import { FEATURE_IDS, HOST_PLATFORM, LIVE_PPV_LIMITS, LiveTextTailSchema, LivePpvStateSchema, UNAVAILABLE_REASONS, type AiHostPolicy, type AiProofAsk, type AiStartFields, type Bootstrap, type ChatWindow, type FeatureId, type LiveTextTail, type OpenChatMessage, type OpenChatPage, type OpenChatRead, type OpView, type PingSegment, type Platform } from '@cg/contracts';
+import { CHATSPACE_AI, livePpvOf, readLivePpv, readOpenPage, tailOf } from '@cg/core/application/hosts/chatspace/ai';
 import { FEATURE_POLICIES, featureGate, type GateFacts } from '@cg/core/domain/features';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, memory, openChat, startSnapshot } from '@cg/testing/host';
@@ -152,7 +152,8 @@ describe('[X54] ChatSpace’s PPV state of the open chat (OnlyMonster’s API)',
       const ask = { feature: 'reply' as const, surface: 'dock' as const, identity, fresh: { maxItems: 60, maxChars: 5000 }, livePpv: true };
       const state = { capturedAt: '2026-10-17T06:00:00.000Z', items: [{ platformMessageId: '9100', priceUsd: 25, purchased: true }] };
       expect(await CHATSPACE_AI.proof(host, ask)).toEqual({ tail: TAIL, livePpv: state });
-      expect(asked).toEqual([{ chat: identity.chat, options: { limit: LIVE_PPV_LIMITS.readMessages } }]);
+      // One page for the tail and the state: as many messages as the larger of the two needs (X52).
+      expect(asked).toEqual([{ chat: identity.chat, options: { limit: 60 } }]);
       expect(CHATSPACE_AI.fields({ tail: TAIL, livePpv: state })).toEqual({ fresh: TAIL, livePpv: state });
       // Not the open chat any more, or the API failed: no state, the tail still goes.
       answer = Promise.resolve({ ok: false, reason: 'not-open', status: null });
@@ -164,13 +165,97 @@ describe('[X54] ChatSpace’s PPV state of the open chat (OnlyMonster’s API)',
       const slow = CHATSPACE_AI.proof(host, ask);
       await vi.advanceTimersByTimeAsync(LIVE_PPV_LIMITS.waitMs);
       expect(await slow).toEqual({ tail: TAIL, livePpv: null });
-      // A start the state does not belong to, even one that carries fresh text (Review, Coach): the API is not asked.
+      // A start the state does not belong to, even one that carries fresh text (Review, Coach): the API is asked for
+      // the tail alone (X52), and no state goes.
+      answer = Promise.resolve({ ok: true, page: page([{ price: 25, isFree: false, isOpened: true }]), cached: false });
       const before = asked.length;
-      for (const feature of ['review', 'coach', 'recap'] as const) expect(await CHATSPACE_AI.proof(host, { ...ask, feature })).toEqual({ tail: TAIL, livePpv: null });
-      expect(asked).toHaveLength(before);
+      for (const feature of ['review', 'coach'] as const) expect(await CHATSPACE_AI.proof(host, { ...ask, feature })).toEqual({ tail: TAIL, livePpv: null });
+      expect(asked.slice(before)).toEqual([{ chat: identity.chat, options: { limit: 60 } }, { chat: identity.chat, options: { limit: 60 } }]);
       // A host without the API (Fansly's port has none): no state, nothing asked.
       const bare = { readVisibleTail: () => Promise.resolve(TAIL) } as unknown as Parameters<typeof CHATSPACE_AI.proof>[0];
       expect(await readLivePpv(bare, identity.chat)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('[X52] ChatSpace’s tail of the open chat from OnlyMonster’s API', () => {
+  const at = (minute: number): string => `2026-10-17T05:${String(minute).padStart(2, '0')}:00.000Z`;
+  const item = (id: string, minute: number, over: Partial<OpenChatMessage> = {}): OpenChatMessage => ({ platformMessageId: id, direction: 'fan', sentAt: at(minute), text: `m${id}`, price: null, isFree: null, isOpened: null, mediaCount: 0, tip: false, automatic: false, ...over });
+  const pageOf = (items: OpenChatMessage[]): OpenChatPage => ({ capturedAt: '2026-10-17T06:00:00.000Z', items, hasMore: false, cursor: null });
+
+  it('the API’s messages typed in the chat, oldest first; a queued one, media alone and a doubled id are left out', () => {
+    const page = pageOf([
+      item('9105', 50, { direction: 'model' }),
+      item('9104', 49, { automatic: true, direction: 'model' }),
+      item('9103', 48, { text: '', mediaCount: 1 }),
+      item('9102', 47, { text: '  ' }),
+      item('9101', 46),
+      item('9101', 46, { text: 'again' }),
+      item('9100', 45),
+    ]);
+    expect(tailOf(page, null, 60)).toEqual({
+      capturedAt: '2026-10-17T06:00:00.000Z',
+      messages: [
+        { platformMessageId: '9100', direction: 'fan', sentAt: at(45), text: 'm9100' },
+        { platformMessageId: '9101', direction: 'fan', sentAt: at(46), text: 'm9101' },
+        { platformMessageId: '9105', direction: 'model', sentAt: at(50), text: 'm9105' },
+      ],
+    });
+    expect(LiveTextTailSchema.safeParse(tailOf(page, null, 60)).success).toBe(true);
+    // The newest `max` only.
+    expect(tailOf(page, null, 2)?.messages.map((m) => m.platformMessageId)).toEqual(['9101', '9105']);
+  });
+
+  it('page memory adds what the page does not name (a message that came in during the read); one the page names as queued stays out', () => {
+    const page = pageOf([item('9101', 46), item('9100', 45, { automatic: true, direction: 'model' })]);
+    const memory: LiveTextTail = {
+      capturedAt: '2026-10-17T06:00:05.000Z',
+      messages: [
+        { platformMessageId: '9100', direction: 'model', sentAt: at(45), text: 'mass text' },
+        { platformMessageId: '9101', direction: 'fan', sentAt: at(46), text: '<p>m9101</p>' },
+        { platformMessageId: '9102', direction: 'fan', sentAt: at(51), text: 'just now' },
+      ],
+    };
+    expect(tailOf(page, memory, 60)).toEqual({
+      capturedAt: '2026-10-17T06:00:05.000Z',
+      messages: [
+        { platformMessageId: '9101', direction: 'fan', sentAt: at(46), text: 'm9101' },
+        { platformMessageId: '9102', direction: 'fan', sentAt: at(51), text: 'just now' },
+      ],
+    });
+    // No page (no API, a failure, late): page memory's tail as it was; a page with nothing usable: the same.
+    expect(tailOf(null, memory, 60)).toBe(memory);
+    expect(tailOf(pageOf([item('9200', 50, { text: '' })]), memory, 60)).toBe(memory);
+    expect(tailOf(pageOf([]), null, 60)).toBeNull();
+  });
+
+  it('a start reads one page for the tail and the state; the click waits for the API at most its budget and then goes with page memory', async () => {
+    vi.useFakeTimers();
+    try {
+      let answer: Promise<OpenChatRead> = Promise.resolve({ ok: true, page: pageOf([item('9300', 50, { text: 'fresh from the API' })]), cached: false });
+      const asked: unknown[] = [];
+      const host = {
+        readVisibleTail: () => Promise.resolve(TAIL),
+        openChatMessages: (chat: unknown, options: unknown) => (asked.push(options), answer),
+      } as unknown as Parameters<typeof CHATSPACE_AI.proof>[0];
+      const identity = startSnapshot.identity;
+      if (identity === null || identity.chat === null) throw new Error('the host world has an open chat');
+      // Coach on a hub that takes the PPV state (`ask.livePpv`): the API is read for the tail, no state goes.
+      const ask = { feature: 'coach' as const, surface: 'coach' as const, identity, fresh: { maxItems: 60, maxChars: 5000 }, livePpv: true };
+      const both = await CHATSPACE_AI.proof(host, ask);
+      expect(both).toMatchObject({ livePpv: null });
+      expect(both?.tail?.messages.map((m) => m.platformMessageId)).toEqual(['4004', '9300']);
+      expect(asked).toEqual([{ limit: 60 }]);
+      // A hub without it: nothing of ours is read, the tail is page memory's (X54's switch of a start's own reads).
+      expect(await CHATSPACE_AI.proof(host, { ...ask, livePpv: false })).toEqual({ tail: TAIL, livePpv: null });
+      expect(asked).toHaveLength(1);
+      answer = new Promise(() => undefined);
+      const slow = CHATSPACE_AI.proof(host, ask);
+      await vi.advanceTimersByTimeAsync(LIVE_PPV_LIMITS.waitMs);
+      expect(await slow).toEqual({ tail: TAIL, livePpv: null });
+      expect(await readOpenPage({ readVisibleTail: () => Promise.resolve(TAIL) } as unknown as Parameters<typeof CHATSPACE_AI.proof>[0], identity.chat, 60)).toBeNull();
     } finally {
       vi.useRealTimers();
     }
