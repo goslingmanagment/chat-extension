@@ -82,6 +82,23 @@ describe('popup view model', () => {
     expect(w2.background.calls.some((call) => call.type === 'fan.card' || call.type === 'fan.dossier')).toBe(false);
   });
 
+  it('[PU-008] a slow answer of the names (CI run 39000333690): the persona is drawn first with the id, the name follows when the answer lands (X47)', async () => {
+    const state = workingState();
+    state.fanLabels = [{ chatKey: 'chatspace:1001:2002', label: 'Hubert' }];
+    world = pagesWorld({ now: () => clock, page: 'popup', state });
+    const release = world.background.hold('fans.labels');
+    world.client.start();
+    await settle();
+    // What the e2e read on the PC runner: ready, the persona set — and the dialog still by its id.
+    const early = world.client.getSnapshot({ of: 'popup' });
+    expect(early.view.s).toBe('ready');
+    expect(early.persona).toMatchObject({ s: 'set' });
+    expect(early.chat?.fanName).toBe('фан 2002');
+    release();
+    await settle();
+    expect(world.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('Hubert');
+  });
+
   it('[PU-008] a name the tab tells after the popup opened shows at once: `fans.changed` and a new read, no reopening (X47)', async () => {
     const w = await open({ page: 'popup' });
     expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('фан 2002');
