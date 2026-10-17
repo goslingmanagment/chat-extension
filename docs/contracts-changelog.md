@@ -117,6 +117,32 @@
   чата» на читаемой анкете); у поля анкеты — `ai?`, `quotes?`, `proposed?`; у редактора — `sourceCount?`, `sourcesOpen?`,
   `looseQuotes?` (`NotesQuoteVM`), `proposed?`; действия `fill-note`, `sources`, `suggestion-all`, `to-other`; слова в
   `NotesCopy`. Только типы.
+## 1.21.0 — 2026-10-17 (кто отправил каждое сообщение, решение X48)
+
+Хаб записывает, кто из чаттеров отправил каждое сообщение и PPV на OnlyFans (hub `clientSendAttributions`,
+capability `send-attribution-v1`, таблица `client_send_attributions`). Человек жмёт Send в ChatSpace или «Отправить»
+в превью, ответ страницы на этот самый запрос называет id сообщения — фон сообщает хабу: страница, сообщение, фан,
+время, есть ли цена и медиа. Чаттера хаб берёт из токена входа; текста нет нигде. Всё добавочное, старые фикстуры
+проходят без изменений.
+
+- **Хаб.** Маршрут `clientSendAttributions` (`POST`, класс `page`, без флага владельца, `send-attribution-v1`, узкий
+  токен), `HubFacade.sendAttributions`, `hub/attribution.ts`: тело `SendAttributionsRequestSchema` — точное зеркало
+  строгого тела хаба (`pageLabel` в пути; `source`, 1–50 фактов: id, фан, время, `priced`, `withMedia`), ответ открытый:
+  исход на каждый факт (`recorded`, `duplicate`, `conflict`, `out_of_range`), каждый окончательный. Capability в
+  `CLIENT_HUB_CAPABILITY_NAMES`; `HOST_SEND_ATTRIBUTION_SOURCE` — каким именем сайт называет себя хабу
+  (ChatSpace — `chatspace-extension`, Fansly — `null`, позже).
+- **MAIN ChatSpace.** `flags.attribution` (необязательное, нет — выключено): пока хаб записывает отправителей, MAIN
+  следит за квитанцией каждой отправки человека из composer, а не только черновика из нашей вставки. `humanSend.cargo`
+  и `HumanSendFact.cargo` (`SendCargoSchema`): цена больше нуля и медиа — только два признака, никогда сама цена,
+  медиа или текст. Без поля — не наблюдалось (старый MAIN).
+- **Вкладка → фон.** `attribution.report` (`SendAttributionFactSchema`): чат, id сообщения из ответа его же запроса,
+  время, два признака. Ответ — `queued` или причина, по которой это не наш отчёт (`site`, `unbound`, `not_admitted`,
+  `signed_out`).
+- **Реестр фич.** `send-attribution` — только ChatSpace: `wsTap` (квитанция связывается с эхо сокета),
+  `sendObserve`, `clientNeeds: ['send-attribution-v1']`. У Fansly нет — отдельная задача.
+
+Фикстуры: `test/fixtures/hub.ts`, `schemas.ts`, `protocols.ts`.
+
 ## 1.15.0 — 2026-10-13 (второй сайт: fansly.com, R20, этап 4; добавочное, пока этап открыт)
 
 ### R20 P9e — Spenders на Fansly

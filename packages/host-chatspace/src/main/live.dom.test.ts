@@ -134,7 +134,7 @@ const sendRequest = (h: Harness, n: number, over: Record<string, unknown> = {}) 
 describe('[X8-04] the runtime and the tap script find each other (§6.8)', () => {
   it.each(['tap-first', 'bridge-first'] as const)('%s: the live port answers the flags and the checkpoint, and `wsFrames` follows the socket', async (order) => {
     const h = await start(order);
-    expect(h.call('flags', { wsTap: true, previewSend: true })).toEqual({ wsTap: true, previewSend: true });
+    expect(h.call('flags', { wsTap: true, previewSend: true })).toEqual({ wsTap: true, previewSend: true, attribution: false });
     const contract = (): { missing: string[]; shape: string[] } => (h.call('snapshot', {}) as { contract: { missing: string[]; shape: string[] } }).contract;
     // No authenticated socket yet: the frames are not proven.
     expect(contract().missing).toEqual(['wsFrames']);
@@ -177,7 +177,7 @@ describe('[X8-04] the runtime and the tap script find each other (§6.8)', () =>
       answers.push(runtime.handle('flags', { wsTap: true, previewSend: true }), runtime.handle('checkpoint', { acc: ACC, fan: TARGET }));
     });
     expect(answers).toEqual([{ wsTap: false, previewSend: false }, 'disabled']);
-    expect(h.call('flags', { wsTap: true, previewSend: true })).toEqual({ wsTap: true, previewSend: true });
+    expect(h.call('flags', { wsTap: true, previewSend: true })).toEqual({ wsTap: true, previewSend: true, attribution: false });
     h.socket();
     expect(parseBridgeData('checkpoint', h.call('checkpoint', { acc: ACC, fan: TARGET }))).toMatchObject({ coverage: 'ok' });
     expect(h.call('previewSendPreflight', sendRequest(h, 5))).toEqual({ ok: true });
@@ -235,7 +235,7 @@ describe('[X8-04] the runtime and the tap script find each other (§6.8)', () =>
     h.socket();
     const req = sendRequest(h, 3);
     expect(h.call('previewSendPreflight', req)).toEqual({ ok: true });
-    expect(h.call('flags', { wsTap: false, previewSend: true })).toEqual({ wsTap: false, previewSend: false });
+    expect(h.call('flags', { wsTap: false, previewSend: true })).toEqual({ wsTap: false, previewSend: false, attribution: false });
     expect(window.WebSocket).toBe(FakeSocket);
     expect(Reflect.get(window, Symbol.for('wsTap'))).toBeUndefined();
     expect(h.call('checkpoint', { acc: ACC, fan: TARGET })).toBe('disabled');

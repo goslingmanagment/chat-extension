@@ -705,6 +705,18 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     ],
     [{ chat, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST }, { chat, pendingId: uuid(7), platformMessageId: IDS.msg2, draft: ourDraft }],
   ),
+  // 1.21.0 (X48): marks only — never the price, the media or the text.
+  fixture('SendCargo', C.SendCargoSchema, [{ priced: true, media: true }, { priced: false, media: false }], [{ priced: 25, media: true }, { priced: true }, { priced: true, media: true, price: 25 }]),
+  fixture(
+    'SendAttributionFact',
+    C.SendAttributionFactSchema,
+    [{ chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: true, media: false }],
+    [
+      { chat, platformMessageId: null, observedAt: '2026-10-17T12:00:00.000Z', priced: true, media: false },
+      { chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: true, media: false, textDigest: DIGEST },
+      { chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: true },
+    ],
+  ),
   fixture('CoverageEvent', C.CoverageEventSchema, [{ hostAccountId: IDS.acc, state: 'unknown', reason: 'reconnect' }], [{ hostAccountId: IDS.acc, state: 'partial', reason: 'x' }]),
 
   // ── operations ──

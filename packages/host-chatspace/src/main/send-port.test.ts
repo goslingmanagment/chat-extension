@@ -176,7 +176,7 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
 
   it('[AI-120] nothing is sent before the flag is known to be on: the latch starts closed', () => {
     const live = start({ flags: false });
-    expect(live.port.handle('flags', { wsTap: true, previewSend: false })).toEqual({ wsTap: true, previewSend: false });
+    expect(live.port.handle('flags', { wsTap: true, previewSend: false })).toEqual({ wsTap: true, previewSend: false, attribution: false });
     expect(live.commit(live.request(10))).toEqual({ state: 'held', code: 'CG-SEND-OFF' });
     const fresh = startLive({ flags: false });
     expect(fresh.commit(fresh.request(11))).toEqual({ state: 'held', code: 'CG-SEND-OFF' });
@@ -189,7 +189,7 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
     const first = live.request(12);
     expect(live.commit(first).state).toBe('nativeEnqueued');
     const second = live.request(13, { fan: '2004' });
-    expect(live.port.handle('flags', { wsTap: true, previewSend: false })).toEqual({ wsTap: true, previewSend: false });
+    expect(live.port.handle('flags', { wsTap: true, previewSend: false })).toEqual({ wsTap: true, previewSend: false, attribution: false });
     expect(live.preflight(second)).toEqual({ ok: false, code: 'CG-SEND-OFF' });
     expect(live.commit(second)).toEqual({ state: 'held', code: 'CG-SEND-OFF' });
     expect(live.queue.sends).toHaveLength(1);

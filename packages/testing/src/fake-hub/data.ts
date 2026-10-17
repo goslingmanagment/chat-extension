@@ -32,6 +32,8 @@ import {
   type QueueQuery,
   type RecapBody,
   type RecapStatus,
+  type SendAttributionsRequest,
+  type SendAttributionsResult,
   type SharedRecaps,
   type SpenderBatch,
   type SpenderBatchQuery,
@@ -241,6 +243,8 @@ export class DataModel {
   /** generationRef of the dossier's current body (H-5 «existing»). */
   private readonly dossierSource = new Map<string, string>();
   private readonly ingested = new Map<string, IngestBatch['events'][number]>();
+  /** 1.21.0 (X48): who sent each message, by `page|message`; the first report wins (hub client_send_attributions). */
+  private readonly attributions = new Map<string, FakeSendAttribution>();
   /**
    * R20 P6c1: the page's capture of its chats (`page_dm_threads`), by page and conversation: the fan the thread
    * names, or null — a thread whose fan the hub does not know. A conversation without a thread is not here.
@@ -990,4 +994,42 @@ export class DataModel {
   ingestedEvents(): IngestBatch['events'] {
     return [...this.ingested.values()];
   }
+
+  /**
+   * 1.21.0 (X48), as the hub's `clientSendAttributions` does: the person is the token's, OnlyFans takes the extension
+   * on ChatSpace and Fansly nothing yet, one row per message of a page — the first report wins, a repeat of the same
+   * person and fan is `duplicate`, anything else `conflict` — and a time more than 5 minutes ahead or 30 days back
+   * is `out_of_range`, stored nowhere.
+   */
+  sendAttributions(page: FakePage, userId: number, request: SendAttributionsRequest, now: number): Read<SendAttributionsResult> {
+    if (page.platform !== 'onlyfans' || request.source !== 'chatspace-extension') return no('client_feature_disabled', 'platform_unsupported');
+    const results = request.facts.map((fact) => {
+      const at = Date.parse(fact.observedAt);
+      if (at > now + 5 * 60_000 || at < now - 30 * DAY_MS) return { platformMessageId: fact.platformMessageId, outcome: 'out_of_range' };
+      const key = `${page.pageLabel}|${fact.platformMessageId}`;
+      const known = this.attributions.get(key);
+      if (known === undefined) {
+        this.attributions.set(key, { pageLabel: page.pageLabel, userId, source: request.source, ...fact });
+        return { platformMessageId: fact.platformMessageId, outcome: 'recorded' };
+      }
+      return { platformMessageId: fact.platformMessageId, outcome: known.userId === userId && known.fanRef === fact.fanRef ? 'duplicate' : 'conflict' };
+    });
+    return ok({ pageLabel: page.pageLabel, results, serverNow: iso(now) });
+  }
+
+  sendAttributionRows(): readonly FakeSendAttribution[] {
+    return [...this.attributions.values()];
+  }
+}
+
+/** One recorded send (X48): ids, the person, a time and two marks; never a text. */
+export interface FakeSendAttribution {
+  readonly pageLabel: string;
+  readonly userId: number;
+  readonly source: string;
+  readonly platformMessageId: string;
+  readonly fanRef: string;
+  readonly observedAt: string;
+  readonly priced: boolean;
+  readonly withMedia: boolean;
 }

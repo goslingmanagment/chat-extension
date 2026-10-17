@@ -108,7 +108,8 @@ describe('the feature manifest: one file per site', () => {
 
   it('a feature only one site has is in that site’s file and in no other', () => {
     const only = (file: object, other: object): string[] => Object.keys(file).filter((id) => !(id in common) && !(id in other));
-    expect(only(CHATSPACE_FEATURES, FANSLY_FEATURES)).toEqual(['preview-send', 'navigation', 'palette']);
+    // 1.21.0 (X48): who sent each message — ChatSpace's for now; Fansly's is a later task.
+    expect(only(CHATSPACE_FEATURES, FANSLY_FEATURES)).toEqual(['send-attribution', 'preview-send', 'navigation', 'palette']);
     expect(only(FANSLY_FEATURES, CHATSPACE_FEATURES)).toEqual(['voice', 'notes', 'notes-fill', 'registration', 'vault', 'via-tab']);
     // Every common feature has its part on both sites today.
     for (const id of Object.keys(common)) expect([id in CHATSPACE_FEATURES, id in FANSLY_FEATURES], id).toEqual([true, true]);
@@ -190,14 +191,15 @@ describe('the feature manifest: the entries F4 writes in full, for both sites (a
 });
 
 describe('what is left of the client’s flag table: its own transport need', () => {
-  it('fresh text needs `context-v1`, and the manifest names it as the client need of `fresh-text` on both sites — and, on Fansly, `hi-start-proof-v1` for generating Hi (R20 P8c) — of nothing else', () => {
+  it('fresh text needs `context-v1`, and the manifest names it as the client need of `fresh-text` on both sites — and, on Fansly, `hi-start-proof-v1` for generating Hi (R20 P8c), on ChatSpace `send-attribution-v1` for who sent each message (X48) — of nothing else', () => {
     expect(C.CLIENT_FLAG_REQUIREMENTS).toEqual({ freshText: ['context-v1'] });
     expect(FANSLY_FEATURES.hi.actions.generate).toEqual({ flags: [], hostCapabilities: [], clientNeeds: ['hi-start-proof-v1'] });
     for (const { site, file } of SITES) {
       const needy = Object.entries(file).filter(([, entry]) => requirementsOf(entry).some((requirement) => requirement.clientNeeds !== undefined));
-      expect(needy.map(([id]) => id), site).toEqual(file === FANSLY_FEATURES ? ['hi', 'fresh-text'] : ['fresh-text']);
+      expect(needy.map(([id]) => id), site).toEqual(file === FANSLY_FEATURES ? ['hi', 'fresh-text'] : ['fresh-text', 'send-attribution']);
       expect(file['fresh-text']?.base, site).toEqual({ flags: ['freshText'], hostCapabilities: [], clientNeeds: C.CLIENT_FLAG_REQUIREMENTS.freshText });
     }
+    expect(CHATSPACE_FEATURES['send-attribution'].base).toEqual({ flags: ['wsTap'], hostCapabilities: ['sendObserve'], clientNeeds: ['send-attribution-v1'] });
   });
 });
 

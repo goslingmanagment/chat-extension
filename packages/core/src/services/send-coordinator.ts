@@ -121,8 +121,18 @@ export interface SendCoordinatorDeps {
   /** This install's id (H-7 `instanceId`). */
   readonly instanceId: string;
   readonly log?: LogSink;
-  /** sentObserved: telemetry `sent` via preview, «поприветствован» (R18, R12). */
-  readonly onSent?: (fact: { readonly attemptId: string; readonly opId: string; readonly purpose: SendBegin['purpose']; readonly part: number; readonly variant: number; readonly generationRef: string; readonly platformMessageId: string }) => void;
+  /** sentObserved: telemetry `sent` via preview, «поприветствован» (R18, R12), who sent the message (X48). */
+  readonly onSent?: (fact: {
+    readonly attemptId: string;
+    readonly opId: string;
+    readonly purpose: SendBegin['purpose'];
+    readonly part: number;
+    readonly variant: number;
+    readonly generationRef: string;
+    readonly platformMessageId: string;
+    readonly pageId: number;
+    readonly fanRef: string;
+  }) => void;
   /** How long an ended attempt is kept (memory and journal); the results' lifetime by default. */
   readonly keepEndedMs?: number;
   /** The X8 fuse of this browser (decision X25): whether it holds a build, and every move of an attempt. */
@@ -623,6 +633,8 @@ export class SendCoordinator {
         variant: attempt.group.variant,
         generationRef: attempt.group.generationRef,
         platformMessageId: track.view.platformMessageId,
+        pageId: attempt.pageId,
+        fanRef: attempt.fanRef,
       });
     }
   }

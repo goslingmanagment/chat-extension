@@ -171,6 +171,15 @@ export interface NativeSendPort {
 }
 
 /**
+ * 1.21.0 (decision X48): who sent each message — the core's, one owner for every site and its journal of debts. A
+ * module that proves a send of the person (ChatSpace: a preview's send they clicked, by its receipt and echo) says
+ * so here; the core owes it to the hub under their sign-in.
+ */
+export interface AttributionPort {
+  sent(fact: { readonly pageId: number; readonly fanRef: string; readonly platformMessageId: string }): void;
+}
+
+/**
  * Who sent a request of a site's own registry: a tab of the site, the relay frame of a tab session, or (R20 P14b1) one
  * of our pages, which the core routes to the site while it is on (platform `SiteSenderContext`).
  */
@@ -267,6 +276,7 @@ export interface BackgroundKit {
   readonly tokens: Pick<ActionTokens, 'redeem'>;
   readonly install: InstallPort;
   readonly nativeSends: NativeSendPort;
+  readonly attributions: AttributionPort;
 }
 
 /** What the core tells a running module. */

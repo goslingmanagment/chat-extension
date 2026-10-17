@@ -83,6 +83,7 @@ import {
   ActionTokens,
   NativeSendRegistrar,
   OpScheduler,
+  SendAttributionReporter,
   RecapProfileSaver,
   WsTapSwitch,
   createConsentState,
@@ -131,6 +132,7 @@ import {
 
 import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS, type PerHost, type RuntimeHostKind } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
+import { attributionTarget } from './background/attribution';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { type BackgroundKit, type HostRequestType, type KitSender, type SiteTabsPort, type VerifiedTabMessage } from './background/host-module';
@@ -596,6 +598,36 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     log: coreLog,
   });
 
+  // Who sent each message (decision X48): every send of the person that the page's own response named — in the
+  // composer (`attribution.report` of a tab) or from a preview (`kit.attributions` of the site's module) — goes to the
+  // hub under their sign-in. What the hub has not answered is owed and journaled (storage.local, ids only): the next
+  // instance of the event page and the next word of the hub deliver it again; the hub takes a repeat as `duplicate`.
+  const attributions = new SendAttributionReporter({
+    clock: CLOCK,
+    hub: { sendAttributions: (request) => hub().sendAttributions(request) },
+    owner: () => ownerOf(hubInstance?.session() ?? null),
+    store: throwingStoreOf(local),
+    log: coreLog,
+  });
+  /** The page a host account of this browser is bound to now; null — it cannot be told. */
+  const boundPageOf = (host: HostKind, hostAccountId: string): number | null => {
+    const seen = presence.seenAccounts().find((entry) => entry.account.host === host && entry.account.hostAccountId === hostAccountId);
+    const resolution = seen === undefined ? null : (hubInstance?.resolveBinding(seen.account) ?? null);
+    return resolution?.state === 'bound' ? resolution.binding.pageId : null;
+  };
+  /** One send for the hub's record (background/attribution.ts); the reason when there is nothing to owe. */
+  const attribute = (
+    host: HostKind,
+    pageId: number | null,
+    fact: { readonly platformMessageId: string; readonly fanRef: string; readonly observedAt: string; readonly priced: boolean; readonly withMedia: boolean },
+  ): { readonly queued: boolean; readonly reason?: string } => {
+    const target = attributionTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
+    const outcome = target.ok ? attributions.report({ pageLabel: target.pageLabel, source: target.source, ...fact }) : null;
+    const verdict = target.ok ? (outcome === 'signed-out' ? { queued: false, reason: 'signed_out' } : { queued: true }) : { queued: false, reason: target.reason };
+    if (!verdict.queued) logger.info('bg.attribution', 'send not attributed', { fields: { reason: verdict.reason ?? null } });
+    return verdict;
+  };
+
   // ── owner switches for what has no page of its own ─────────────────────────
   // An owner switch as it stands for a host account (background/account-switch.ts): the feature of the page the
   // account is bound to; only an account the hub definitely binds to no page follows the owner's `"*"` value;
@@ -670,7 +702,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   // ── the sites' background modules (docs/project-unite/architecture.md §3.3) ──
   // The ports of the core a site's chunk is started with: one owner of each thing stays here.
-  const kit: Omit<BackgroundKit, 'telemetry'> = {
+  const kit: Omit<BackgroundKit, 'telemetry' | 'attributions'> = {
     settingsExt: extSettings,
     sound: { batch: async (tabSessionId, batch) => {
       await tabAccounts.known(tabSessionId);
@@ -709,6 +741,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     siteTabs: siteTabsOf(host),
     // R20 P14c: switched off or its rights taken back, the module's tabs finish what they started and begin nothing (FS-PERM-5).
     siteActive: () => siteActive(host),
+    // 1.21.0 (X48): who sent a message the site's module proved — a preview's send the person clicked.
+    attributions: { sent: ({ pageId, fanRef, platformMessageId }) => void attribute(host, pageId, { platformMessageId, fanRef, observedAt: new Date(CLOCK.now()).toISOString(), priced: false, withMedia: false }) },
   });
   /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */
   function siteTabsOf(host: HostKind): SiteTabsPort {
@@ -1060,6 +1094,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       void hostModules.notify({ kind: 'bootstrap' }).catch(() => undefined);
       // The hub answered: what it was not told while it was silent (or before this person signed in again) goes now.
       nativeSends.resume();
+      attributions.resume();
       sound.sync();
     });
     instance.onCatalogChange(() => rpc.emit('catalog.changed', {}));
@@ -1251,6 +1286,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok({
       recorded: telemetry.report('sent', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }, { via: 'composer', platformMessageId, edited }),
     });
+  });
+
+  // Who sent a message (decision X48): a human send of the composer whose own response named it, a draft of ours or
+  // the person's own. A tab speaks for its own site; the account's page is known once the tab said which accounts it
+  // shows. The answer does not wait for the hub: the fact is journaled and owed until the hub answers.
+  rpc.handle('attribution.report', async ({ fact }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    if (hostOfTab(sender.tabSessionId) !== fact.chat.host) return ok({ queued: false, reason: 'site' });
+    await tabAccounts.known(sender.tabSessionId);
+    return ok(attribute(fact.chat.host, boundPageOf(fact.chat.host, fact.chat.hostAccountId), { platformMessageId: fact.platformMessageId, fanRef: fact.chat.platformFanId, observedAt: fact.observedAt, priced: fact.priced, withMedia: fact.media }));
   });
 
   // a site's own requests: its module answers them (X8 and the greeting leases of «Новые» — bg/chatspace)
@@ -1524,6 +1569,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // attempts hold their fans and owe the hub their reports); the others start with their first tab or request.
     { name: 'hosts', run: () => hostModules.resume(workPending) },
     { name: 'native-sends', run: () => nativeSends.restore() },
+    { name: 'send-attributions', run: () => attributions.restore() },
     { name: 'presence', run: () => presence.start() },
     { name: 'sound', run: () => sound.start() },
     { name: 'consent', run: () => consent.start() },

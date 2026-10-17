@@ -16,7 +16,7 @@
 // through the adapter and never by a site's name.
 
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
-import type { Bootstrap } from '@cg/contracts/hub';
+import { hasCapability, type Bootstrap } from '@cg/contracts/hub';
 import type { SendFuseState } from '@cg/contracts/send';
 import { CHATSPACE_AI } from '@cg/core/application/hosts/chatspace/ai';
 import { flagOnSomePage } from '@cg/core/domain/ops';
@@ -26,19 +26,24 @@ import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
 import { CHATSPACE_FEATURE_SLICE } from '../../../features/chatspace';
 import type { HostAppAdapter } from '../../adapter';
 
-const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [] };
+const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [], attribution: false };
 
 /** Part B of the port as the bootstrap sets it, with the browser's X8 fuse (null — not read yet). */
 export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | null = null): ChatSpaceLiveConfig {
   if (bootstrap === null) return LIVE_OFF;
   // Never the top-level `flags` (the owner's `"*"` row alone): a page switched on by itself must work.
+  const wsTap = flagOnSomePage(bootstrap, 'wsTap');
   return {
-    wsTap: flagOnSomePage(bootstrap, 'wsTap'),
+    wsTap,
     // On for at least one page of this sign-in; the preview checks its own page before a send, and the hub
     // checks the page's own flag again on every dispatch.
     previewSend: flagOnSomePage(bootstrap, 'previewSend'),
     markAiGenerated: flagOnSomePage(bootstrap, 'previewSendMarkAiGenerated'),
     receiptProfiles: bootstrap.limits.previewSendReceiptProfiles,
+    // Decision X48: while the hub records who sent each message, MAIN follows every human send to its receipt. The
+    // receipt pairs with the tap's echo, so it needs the tap; the background reports a send of a page where the
+    // feature `send-attribution` is on (its page's own `wsTap`).
+    attribution: wsTap && hasCapability(bootstrap.capabilities, 'send-attribution-v1'),
     // A fuse that never tripped and was never reset tells the port nothing: the configuration stays as it was.
     ...(fuse === null || (fuse.fuse === null && fuse.resetAt === null) ? {} : { fuse }),
   };

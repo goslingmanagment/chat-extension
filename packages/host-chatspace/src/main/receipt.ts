@@ -5,8 +5,10 @@
 // own echo matching compares plain text. The only exact link is the server's
 // message id in the response of the native POST. To read it:
 // - Only for the one synchronous stack of a queue call — ours (the X8 send),
-//   or a human's composer send whose draft descends from our insert and whose
-//   account queue is free (§6.6) — `fetch` of the page is replaced by an
+//   or a human's composer send whose draft descends from our insert, or any
+//   human composer send while the hub records who sent each message
+//   (`attribution`, decision X48), and whose account queue is free (§6.6) —
+//   `fetch` of the page is replaced by an
 //   observer. ChatSpace's HTTP client takes `globalThis.fetch` when it creates
 //   the request, synchronously inside that call; right after the call
 //   returned or threw the previous value is put back, if the global is still
@@ -112,6 +114,19 @@ type Trip = (reason: 'text' | 'count' | 'target', where: 'request' | 'response' 
 /** The length of a text as shown (shown.ts), for the logs: never the text. */
 const charsOf = (text: unknown): number => shownForms(text)?.[0]?.length ?? 0;
 
+const some = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
+
+/**
+ * What a composer send carried besides its text, as its queue call names it (decision X48; contracts SendCargoSchema):
+ * a price above zero — a PPV — and media, paid or free. Marks only: never the price, the media or the text.
+ */
+export const cargoOf = (args: Plain): { readonly priced: boolean; readonly media: boolean } => {
+  const meta = isPlain(args['platformMetadata']) ? args['platformMetadata'] : {};
+  const content = isPlain(args['composerContent']) ? args['composerContent'] : {};
+  const price = typeof meta['price'] === 'number' || typeof meta['price'] === 'string' ? Number(meta['price']) : Number.NaN;
+  return { priced: Number.isFinite(price) && price > 0, media: some(meta['mediaFiles']) || some(meta['previews']) || some(content['media']) };
+};
+
 /** A send whose native chain has not ended. */
 interface Followed {
   readonly chat: string;
@@ -139,6 +154,8 @@ export function createReceipts(
   win: Window & typeof globalThis,
   host: LiveHost,
   { guard, fail }: Pick<Tap, 'guard' | 'fail'>,
+  /** The hub records who sent each message (decision X48): every human send of the composer is followed, not only ours. */
+  attributes: () => boolean = () => false,
 ): SendObserver & { readonly send: QueueListener; readonly echo: (fact: Fact, content?: unknown) => void } {
   const open = new Set<Followed>();
   /** «The queue changed» for each send followed; one that fails leaves the others theirs. */
@@ -409,11 +426,12 @@ export function createReceipts(
       // The draft is read here, before the send clears the field.
       const from = acc && fan && queue && isPlain(args['composerContent']) ? host.draft(acc, fan) : null;
       if (!acc || !fan || !queue || !from) return;
-      const followed = follow(acc, fan, args['text'], null, { acc, fan, textDigest: from.digest, draft: from.draft });
-      // The observer goes in only when there is something to attribute and the request is created on this stack. A
-      // draft that is not from our insert, or a send that waits behind another (its request comes later), takes no
-      // observer: its fact goes out without a receipt — attribution unknown.
-      const release = from.draft.insertIntentId && !queueBusy(host, queue, acc) && !fixed() ? followed.capture() : null;
+      const followed = follow(acc, fan, args['text'], null, { acc, fan, textDigest: from.digest, draft: from.draft, cargo: cargoOf(args) });
+      // The observer goes in only when there is something to attribute and the request is created on this stack: a
+      // draft from our insert, or any draft while the hub records who sent each message (X48). Another draft, or a
+      // send that waits behind another (its request comes later), takes no observer: its fact goes out without a
+      // receipt — attribution unknown.
+      const release = (from.draft.insertIntentId || attributes()) && !queueBusy(host, queue, acc) && !fixed() ? followed.capture() : null;
       const restore = guard('release', () => release?.());
       // The observer never outlives this synchronous stack, even if the queue's action stopped being synchronous.
       if (release) queueMicrotask(restore);

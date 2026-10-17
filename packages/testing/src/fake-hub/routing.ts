@@ -148,6 +148,7 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientFanClaimStatus: { params: PAGE_FAN },
   clientAudienceNew: { params: PAGE, query: true, integers: ['windowHours', 'limit'] },
   clientAiUsageDaily: { params: PAGE, query: true, integers: ['days'] },
+  clientSendAttributions: { params: PAGE, body: 'merge' },
 };
 
 /** What arrived on the wire, already split (the hub's own request parsing). */

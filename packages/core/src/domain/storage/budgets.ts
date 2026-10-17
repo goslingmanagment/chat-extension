@@ -34,6 +34,8 @@ export const LOCAL_KEYS = {
   dayCounters: 'log.counters',
   /** The X8 fuse (decision X25): when and why it tripped, on which ChatSpace build, its last reset. No text. */
   sendFuse: 'send.fuse',
+  /** 1.21.0 (decision X48): who-sent facts the hub has not answered yet — ids, a time and two marks; no text. */
+  sendAttributions: 'send.attribution',
 } as const;
 
 /** One stored result (an OpView: up to 64k characters of stream plus the parsed result). */
@@ -62,6 +64,8 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [LOCAL_KEYS.dayCounters]: 16 * KiB,
   /** One fuse record and a counter: a few hundred bytes. */
   [LOCAL_KEYS.sendFuse]: 4 * KiB,
+  /** No text: at most 1000 facts of about 250 bytes. */
+  [LOCAL_KEYS.sendAttributions]: 512 * KiB,
   [SESSION_KEYS.resultsIndex]: 1 * MiB,
   [SESSION_KEYS.settingsRevision]: 64,
   [SESSION_KEYS.settingsExtRevision]: 64,
