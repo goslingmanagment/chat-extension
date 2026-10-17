@@ -466,6 +466,12 @@ ${/* «Как в системе» and «Как в ChatSpace» are both halves; C
   font: 500 12.5px/24px var(--cg-mono); color: var(--cg-ink-strong); text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .pg-table .pg-strong { color: var(--cg-ink-strong); font-weight: 600; }
+/* «Расходы AI по функциям» (DB-022): numbers to the right, two periods one under the other */
+.pg-spend { font-size: 13.5px; }
+.pg-spend + .pg-spend { margin-top: 12px; }
+.pg-spend th:not(:first-child), .pg-spend td.cg-num { text-align: right; white-space: nowrap; }
+.pg-spend .pg-table__group th { text-align: left; padding-top: 8px; font-size: 14px; }
+@media (max-width: 640px) { .pg-spend { display: block; overflow-x: auto; } }
 .pg-list { margin: 0; padding: 0; list-style: none; }
 .pg-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 12px 0; border-bottom: 1px solid var(--cg-rule); }
 .pg-list > li:last-child { border-bottom: 0; }

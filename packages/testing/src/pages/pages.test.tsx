@@ -1029,6 +1029,40 @@ describe('debug pages (§9.3)', () => {
     return state;
   };
 
+  it('[DB-022] «Диагностика» in debug mode: «Расходы AI по функциям» today and 7 days, the feature, its runs and cost; off — nothing (X47)', async () => {
+    const totals = { runs: 2, inserts: 1, inputTokens: 824, outputTokens: 286, cacheReadTokens: 6000, cacheWriteTokens: 0, costMicroUsd: 28_600, approximate: true, cacheShare: 6000 / 6824 };
+    const state = debugOn();
+    state.localSpend = { source: 'local-browser', fromDay: '2026-10-03', toDay: '2026-10-03', total: totals, byFeature: [{ feature: 'reply', ...totals }] };
+    const page = await mount('options', { state, hash: '#diagnostics' });
+    const tables = page.$$('table.pg-spend');
+    expect(tables.map((table) => table.getAttribute('data-pg-spend'))).toEqual(['today', 'week']);
+    const cells = [...(tables[0]?.querySelectorAll('tbody tr') ?? [])].map((row) => [...row.querySelectorAll('td')].map((cell) => (cell.textContent ?? '').trim()));
+    expect(cells[0]?.[0]).toBe('Reply');
+    expect(cells[0]?.slice(1, 3)).toEqual(['2', '1']);
+    expect(cells[0]?.[5]).toBe('≈$0.0286');
+    expect(cells[1]?.[0]).toBe('Всего');
+    expect(page.text()).toContain('Только этот браузер');
+    close(page);
+    const off = await mount('options', { hash: '#diagnostics' });
+    expect(off.$$('table.pg-spend')).toEqual([]);
+  });
+
+  it('[DB-027] «Аккаунт» in debug mode: «Дополнительно» with the key\'s prefix, its dates, «Поток» and «Приложение» (X47)', async () => {
+    const state = debugOn();
+    state.advanced = { signIn: { key: 'agh_dev_Zx81kQ…', issuedAt: '2026-10-01T10:00:00.000Z', expiresAt: '2027-01-01T10:00:00.000Z' }, hosts: [{ host: 'chatspace', build: 'index-p8xPkCj8', contractOk: false }], app: '0.4.3 · Firefox 158 · macos' };
+    const page = await mount('options', { state, hash: '#account' });
+    const text = page.text();
+    expect(text).toContain('Дополнительно');
+    expect(text).toContain('agh_dev_Zx81kQ…');
+    expect(text).toContain('ChatSpace · сборка index-p8xPkCj8');
+    expect(text).toContain('контракт нарушен');
+    expect(text).toContain('0.4.3 · Firefox 158 · macos');
+    expect(page.$('[data-pg-host-contract="broken"]')).not.toBeNull();
+    close(page);
+    const off = await mount('options', { hash: '#account' });
+    expect(off.text()).not.toContain('Поток');
+  });
+
   it('[DB-007] the prompt page: blocks and the manifest in monospace, the cut mark, an explicit «Копировать промпт»; the token is never drawn', async () => {
     const page = await mount('debug-prompt', { state: debugOn(), token: 'prompt-token-1' });
     expect(page.$$('.pg-block__head').map((node) => node.textContent)).toEqual(['system 1 · cache write', 'user 1 · cache noneобрезано', 'Манифест контекста']);

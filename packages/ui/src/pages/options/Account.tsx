@@ -8,7 +8,7 @@ import { type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { type CgErrorView, type I18nKey } from '@cg/contracts/errors';
-import { type AccountBodyVM, type AppearanceBodyVM, type SignInVM } from '@cg/contracts/vm';
+import { type AccountAdvancedVM, type AccountBodyVM, type AppearanceBodyVM, type SignInVM } from '@cg/contracts/vm';
 
 import { Button, Checkbox, CodeLine, Dot, useI18n } from '../../kit';
 import { ChatGooseLogo, TrioArt } from '../brand/art';
@@ -67,6 +67,44 @@ function Connection({ body }: { readonly body: AccountBodyVM }): JSX.Element {
       </span>
       {meta === null ? null : <div class="pg-sub">{meta}</div>}
     </Opt>
+  );
+}
+
+/** «Дополнительно» (DB-027, 1.20.0): the sign-in, «Поток» and «Приложение» — debug mode only, for support. */
+function Advanced({ info }: { readonly info: AccountAdvancedVM }): JSX.Element {
+  const i18n = useI18n();
+  const signIn = info.signIn;
+  const dates =
+    signIn === null || signIn.issuedAt === null
+      ? null
+      : signIn.expiresAt === null
+        ? i18n.t('settings.account.advanced.noExpiry', { issued: { time: signIn.issuedAt, style: 'date' } })
+        : i18n.t('settings.account.advanced.signInValue', { issued: { time: signIn.issuedAt, style: 'date' }, expires: { time: signIn.expiresAt, style: 'date' } });
+  const contract = { ok: 'settings.account.advanced.contract.ok', broken: 'settings.account.advanced.contract.broken', unknown: 'common.unknown' } as const;
+  return (
+    <Card title={i18n.t('settings.account.advanced')}>
+      <p class="pg-note">{i18n.t('settings.account.advanced.hint')}</p>
+      <Opt label={i18n.t('settings.account.advanced.signIn')} anchor="advanced">
+        <span class={(signIn?.key ?? null) === null ? 'pg-muted' : 'pg-value pg-mono'}>{signIn?.key ?? i18n.t('common.unknown')}</span>
+        {dates === null ? null : <div class="pg-sub">{dates}</div>}
+      </Opt>
+      <Opt label={i18n.t('settings.account.advanced.host')}>
+        {info.hosts.length === 0 ? (
+          <span class="pg-muted">{i18n.t('settings.account.advanced.noHosts')}</span>
+        ) : (
+          info.hosts.map((host) => (
+            <div key={host.label} class="pg-line" data-pg-host-contract={host.contract}>
+              {host.contract === 'broken' ? <Dot kind="danger" /> : null}
+              <span class="pg-value pg-mono">{i18n.t('settings.account.advanced.hostValue', { name: host.label, build: host.build ?? i18n.t('common.unknown') })}</span>
+              <span class="pg-muted">{i18n.t(contract[host.contract])}</span>
+            </div>
+          ))
+        )}
+      </Opt>
+      <Opt label={i18n.t('settings.account.advanced.app')}>
+        <span class="pg-value pg-mono">{info.app}</span>
+      </Opt>
+    </Card>
   );
 }
 
@@ -188,6 +226,7 @@ export function AccountSection({ body, signIn, anchor }: { readonly body: Accoun
               <span class={body.lastDossierSave === null ? 'pg-muted' : 'pg-value'}>{body.lastDossierSave === null ? i18n.t('common.unknown') : i18n.formatTime(body.lastDossierSave, 'datetime')}</span>
             </Opt>
           </Card>
+          {body.advanced === undefined || body.advanced === null ? null : <Advanced info={body.advanced} />}
         </>
       }
     />

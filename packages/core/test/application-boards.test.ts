@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
+import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type Dossier, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, pageFlag, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
 import { type BoardHandover } from '@cg/core/application/preview';
 import { FEED_PAGE_SIZE, RATE_LIMIT_HOLD_MS, RESYNC_RETRY_MS } from '@cg/core/application/preview';
@@ -57,6 +57,8 @@ interface Options {
   readonly storedDrafts?: unknown;
   /** The host answers a navigation only when the test releases it (a chat that takes its time to open). */
   readonly slowNavigate?: boolean;
+  /** 1.20.0: the site's own fan panel stands next to the chat (ChatSpace 0.195). */
+  readonly fanPanelBesideHost?: boolean;
 }
 
 interface Harness {
@@ -264,6 +266,7 @@ async function harness(options: Options = {}): Promise<Harness> {
     timeZone: 'Europe/Moscow',
     ...(options.queuePageSize === undefined ? {} : { queuePageSize: options.queuePageSize }),
     ...(options.watchForSound === undefined ? {} : { watchForSound: options.watchForSound }),
+    ...(options.fanPanelBesideHost === undefined ? {} : { fanPanelBesideHost: options.fanPanelBesideHost }),
     onNewSubscribers: (events) => fresh.push([...events]),
   });
   // The surfaces are mounted: every view has a listener and is rebuilt on each change, as in the page.
@@ -1913,6 +1916,40 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     const reply = await withReply();
     await reply.h.dispatch({ type: 'SetPreviewDraft', targetHandle: reply.handle, text: 'a note to myself' });
     expect(partsOf(reply.h, 'spenders')[0]?.send).toEqual({ s: 'available' });
+  });
+
+  it('[NF-012] [X8-01] the draft a Fix was made from has done its work once every part of the Fix is sent: it goes then, not before (decision X47)', async () => {
+    const h = await harness({ config: X8 });
+    await h.boards.preview.ready();
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: spender('5000'), text: 'hey you, miss me?' });
+    const { opId } = h.script(0, 'improve-draft', 'Hey you\n[NEXT]\nMissed me?');
+    expect(await h.dispatch({ type: 'Generate', targetHandle: spender('5000'), feature: 'fix', options: {} })).toMatchObject({ ok: true, opId });
+    await h.advance(200);
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
+    h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
+    await h.flush();
+    // One part of two: the draft stays, and the second part still answers its revision.
+    expect(h.boards.preview.draftOf('spenders', PAGE.pageId, '5000')?.text).toBe('hey you, miss me?');
+    expect(partsOf(h, 'spenders')[1]?.send).toEqual({ s: 'available' });
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 });
+    h.sendState({ attemptId: uuid(0x501), state: 'nativeAccepted', platformMessageId: '4101' });
+    h.sendState({ attemptId: uuid(0x501), state: 'sentObserved', platformMessageId: '4101' });
+    await h.flush();
+    expect(h.host.calls.commits).toHaveLength(2);
+    expect(h.boards.preview.draftOf('spenders', PAGE.pageId, '5000')).toBeNull();
+    // A Reply never touches the draft.
+    const reply = await withReply();
+    await reply.h.dispatch({ type: 'SetPreviewDraft', targetHandle: reply.handle, text: 'a note to myself' });
+    await reply.h.dispatch({ type: 'SendPart', operationId: reply.opId, part: 0 });
+    reply.h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
+    await reply.h.dispatch({ type: 'SendPart', operationId: reply.opId, part: 1 });
+    reply.h.sendState({ attemptId: uuid(0x501), state: 'sentObserved', platformMessageId: '4101' });
+    await reply.h.flush();
+    expect(reply.h.boards.preview.draftOf('spenders', PAGE.pageId, '5000')?.text).toBe('a note to myself');
   });
 
   it('[RB-020] a state of an attempt never moves back: a late or repeated view from the background changes nothing', async () => {
@@ -3610,6 +3647,42 @@ describe('[CS-031] [CS-033] [CS-034] [CS-035] [CS-036] [CS-037] the fan panel fo
     expect(failed.view.s === 'partial' && failed.view.gaps).toContainEqual({ kind: 'source-failed', source: 'fan.dossier', code: 'CG-HUB-UNAVAILABLE' });
     await failing.dispatch({ type: 'ReloadView', selector: PANEL });
     expect(failing.boards.fanPanel.getSnapshot(PANEL)).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
+  });
+
+  it('[CS-031] [CS-032] [CS-034] [CS-035] beside ChatSpace’s own fan panel: the hub’s money and the churn risk stay; its scores, lists and «О себе» are its panel’s (X47)', async () => {
+    const chatspace = { bio: 'Works shifts.', lists: ['VIP'], buyingPowerLabel: 'High', insights: [{ label: 'Tips', value: '8/10' }] };
+    const fans = [{ ...hostMemory.fans[0]!, ...chatspace }, { ...hostMemory.fans[0]!, ...chatspace, chat: chatOf('5001'), username: 'fan_1', displayName: 'Fan 1' }];
+    const h = await harness({ memory: { fans }, fanPanelBesideHost: true });
+    await h.dispatch(open('fan-panel'));
+    const hub = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(hub).toMatchObject({ besideHostPanel: true, bio: '## Fan\nLikes short replies.', bioSource: 'hub', host: null, lists: [] });
+    // A fan the hub has no profile for: ChatSpace's «О себе» is in ChatSpace's own panel, not repeated here.
+    h.hostEvent(routeTo('5001'));
+    await h.flush();
+    const host = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(host.bio).toBeNull();
+    expect('bioSource' in host).toBe(false);
+    expect(host.spent?.total).toBe(3_717_000);
+    // The same reads as the whole panel: nothing new is asked of anyone.
+    expect(count(h, 'fan.card')).toBe(4);
+  });
+
+  it('[CS-035] the hub’s profile in its sections: the prompt’s English capitals become the reader’s headings, as a full Recap’s do (X47)', async () => {
+    const h = await harness();
+    const request = { pageLabel: PAGE.pageLabel, fanRef: WORLD.fan };
+    const real = (await (await hubCall(h.hub.fetch, h.hub.origin, 'pageFanProfile', request, { token: h.hub.issueToken() })).json()) as Dossier;
+    const body = '1. DOSSIER\nHubert, 34, logistics.\n\n2. PSYCHOLOGICAL PORTRAIT\nWants attention.\n\nKEY QUOTES\n«coffee first»';
+    h.hub.control({ op: 'scriptHttp', match: 'route', unscripted: 'model', exchanges: [{ route: 'pageFanProfile', request, response: { status: 200, body: { ...real, profile: real.profile === null ? null : { ...real.profile, body } } } }] });
+    await h.dispatch(open('fan-panel'));
+    const vm = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(vm.bioSource).toBe('hub');
+    expect(vm.bioBlocks).toEqual([
+      { heading: 'Досье', markdown: 'Hubert, 34, logistics.' },
+      { heading: 'Психологический портрет', markdown: 'Wants attention.' },
+      { heading: 'Key quotes', markdown: '«coffee first»' },
+    ]);
+    // The text itself stays as the hub keeps it (a copy, a search) — only its reading is structured.
+    expect(vm.bio).toBe(body);
   });
 
   it('[SP-042] [CS-036] a read of the page identity that merely failed: the panel says «нет связи» over the fan it showed, and shows nobody once the access is gone', async () => {

@@ -6,7 +6,7 @@
 import { type JSX } from 'preact';
 
 import { type I18nKey } from '@cg/contracts/errors';
-import { type DiagnosticsBodyVM, type JournalKind } from '@cg/contracts/vm';
+import { type AiSpendRowVM, type AiSpendVM, type DiagnosticsBodyVM, type JournalKind } from '@cg/contracts/vm';
 
 import { Button, useI18n } from '../../kit';
 import { Card, Opt, useAct, usePageServices } from '../shared';
@@ -17,6 +17,65 @@ export const JOURNAL_NAME_KEYS: Readonly<Record<JournalKind, I18nKey>> = {
   'send-attempts': 'journal.kind.sendAttempts',
   'newcomers-check': 'journal.kind.newcomersCheck',
 };
+
+/**
+ * «Расходы AI по функциям» (DB-022, 1.20.0): this browser's journal, today and 7 days, in debug mode only — numbers,
+ * never a text. «Только этот браузер»: the hint says it is not the person's whole spend.
+ */
+function AiSpend({ spend }: { readonly spend: AiSpendVM }): JSX.Element {
+  const i18n = useI18n();
+  const name = (row: AiSpendRowVM): string => (typeof row.feature === 'string' ? row.feature : i18n.text(row.feature));
+  const cells = (row: AiSpendRowVM): JSX.Element[] => [
+    <td key="runs" class="cg-num">{row.runs}</td>,
+    <td key="inserts" class="cg-num">{row.inserts}</td>,
+    <td key="tokens" class="cg-num">{row.tokens}</td>,
+    <td key="cache" class="cg-num">{row.cache ?? '—'}</td>,
+    <td key="cost" class="cg-num">{row.cost}</td>,
+  ];
+  return (
+    <Opt label={i18n.t('settings.diagnostics.aiSpend')} hint={i18n.t('settings.diagnostics.aiSpendHint')} anchor="ai-spend">
+      {spend.periods.map((period, index) => (
+        <table key={index} class="pg-table pg-spend" data-pg-spend={index === 0 ? 'today' : 'week'} aria-label={`${i18n.t('settings.diagnostics.aiSpend')}: ${i18n.text(period.label)}`}>
+          <thead>
+            <tr class="pg-table__group">
+              <th colSpan={6}>{i18n.text(period.label)}</th>
+            </tr>
+            <tr>
+              <th>{i18n.t('settings.diagnostics.aiSpend.feature')}</th>
+              <th>{i18n.t('settings.diagnostics.aiSpend.runs')}</th>
+              <th>{i18n.t('settings.diagnostics.aiSpend.inserts')}</th>
+              <th>{i18n.t('settings.diagnostics.aiSpend.tokens')}</th>
+              <th>{i18n.t('settings.diagnostics.aiSpend.cache')}</th>
+              <th>{i18n.t('settings.diagnostics.aiSpend.cost')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {period.rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} class="pg-muted">
+                  {i18n.t('settings.diagnostics.aiSpend.none')}
+                </td>
+              </tr>
+            ) : (
+              [
+                ...period.rows.map((row) => (
+                  <tr key={name(row)}>
+                    <td>{name(row)}</td>
+                    {cells(row)}
+                  </tr>
+                )),
+                <tr key="total">
+                  <td class="pg-strong">{name(period.total)}</td>
+                  {cells(period.total)}
+                </tr>,
+              ]
+            )}
+          </tbody>
+        </table>
+      ))}
+    </Opt>
+  );
+}
 
 export function DiagnosticsSection({ body }: { readonly body: DiagnosticsBodyVM }): JSX.Element {
   const i18n = useI18n();
@@ -82,6 +141,7 @@ export function DiagnosticsSection({ body }: { readonly body: DiagnosticsBodyVM 
             </span>
           )}
         </Opt>
+        {body.aiSpend === undefined || body.aiSpend === null ? null : <AiSpend spend={body.aiSpend} />}
     </Card>
   );
 }

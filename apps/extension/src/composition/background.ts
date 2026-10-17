@@ -47,9 +47,12 @@ import type { SiteAccessState } from '@cg/contracts/site-access';
 // bootstrap blocks new sensitive actions (background/token-gate.ts and the
 // hub layer) and takes no result away.
 
+import { SPEND_REPORT_FEATURES_MAX } from '@cg/contracts/diagnostics';
+import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { hostAccountKeyOf } from '@cg/contracts/settings';
 import {
   CONTRACTS_VERSION,
+  FAN_LABELS_MAX,
   HUB_CLIENT_CHECK_CODES,
   STORAGE_KEYS,
   hasCapability,
@@ -93,7 +96,7 @@ import {
   settingsRequestHandlers,
   type SettingsOwner,
 } from '@cg/core/services';
-import { DiagnosticsService, SpendService, clearDebugData, type DiagnosticsFacts } from '@cg/core/services/diagnostics';
+import { DiagnosticsService, SpendService, advancedAccountInfo, clearDebugData, type DiagnosticsFacts } from '@cg/core/services/diagnostics';
 import { soundRequestHandlers } from '@cg/core/services/sound';
 import { createSiteAccess } from '@cg/core/services/site-access';
 import { createNetworkSession, legacyAccount } from '@cg/core/services/network-session';
@@ -1171,7 +1174,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const tabSite = hostOfTab(sender.tabSessionId);
     if (featuresOf(site) === null && tabSite === site && !(await moduleUnderSameSignIn(site))) return fail('CG-CONTEXT-CHANGED', 'the sign-in changed');
     if (!siteActive(tabSite)) return fail('CG-FEATURE-DISABLED');
-    const outcome = await scheduler.start(sender.tabSessionId, start);
+    // The fan's name is display only (1.20.0): it rides beside the start, never inside the request.
+    const { fanLabel, ...op } = start;
+    const shown = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId);
+    const label = fanLabel ?? (shown !== undefined && shown.chatKey === chatKeyOf(op.target.chat) ? shown.fanLabel : null);
+    const outcome = await scheduler.start(sender.tabSessionId, op, { fanLabel: label });
     return outcome.kind === 'admission' ? ok(outcome.admission) : fail(outcome.code);
   });
   rpc.handle('op.cancel', ({ opId }) => {
@@ -1260,6 +1267,35 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return answer;
   });
   rpc.handle('usage.get', data['usage.get']);
+  // 1.20.0 (DB-022, Б4): this browser's own spend journal by feature; a debug surface — off, the answer is «no report».
+  rpc.handle('usage.local', ({ days }) => {
+    if (!debugEnabled()) return ok({ report: null });
+    const report = spend.report(Date.now(), days);
+    return ok({ report: { ...report, byFeature: report.byFeature.slice(0, SPEND_REPORT_FEATURES_MAX) } });
+  });
+  // 1.20.0 (DB-027): «Аккаунт → Дополнительно» in debug mode. The key's display prefix, never the secret.
+  rpc.handle('account.advanced', () => {
+    if (!debugEnabled() || (hubInstance?.session() ?? null) === null) return ok({ info: null });
+    const token = hub().status().token;
+    return ok({
+      info: advancedAccountInfo({
+        token: token === null ? null : { keyPrefix: token.keyPrefix, issuedAt: token.issuedAt, expiresAt: token.expiresAt },
+        hosts: rpc.tabs().map((tab) => ({ host: tab.request.host, report: hostReports.get(tab.tabSessionId) ?? null })),
+        version: env.extensionVersion,
+        browserMajor: env.browserMajor ?? null,
+        os: env.os,
+      }),
+    });
+  });
+  // 1.20.0 (decision X47): the names the tabs already told — the open chats', then the operations' — for the popup and
+  // «Идут сейчас». Memory alone; nobody signed in — none.
+  rpc.handle('fans.labels', () => {
+    if ((hubInstance?.session() ?? null) === null) return ok({ fans: [] });
+    const fans = new Map<string, string>();
+    for (const tab of presence.tabs()) if (tab.chatKey !== null && tab.fanLabel !== null && !fans.has(tab.chatKey)) fans.set(tab.chatKey, tab.fanLabel);
+    for (const entry of scheduler.fanLabels(FAN_LABELS_MAX)) if (!fans.has(entry.chatKey)) fans.set(entry.chatKey, entry.label);
+    return ok({ fans: [...fans].slice(0, FAN_LABELS_MAX).map(([chatKey, label]) => ({ chatKey: chatKey as ChatKey, label })) });
+  });
 
   // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);

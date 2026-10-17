@@ -26,6 +26,7 @@ const seen = (n: number, over: { focused?: boolean; visible?: boolean; accounts?
   focused: over.focused ?? false,
   accounts: over.accounts ?? ['chatspace:1001'],
   routeAccount: null,
+  fanLabel: null,
   updatedAt: over.updatedAt ?? n,
 });
 

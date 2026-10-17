@@ -3,6 +3,7 @@
 // view models are built by pure functions. `null` is «неизвестно», never 0;
 // a failed read keeps its error instead of posing as an empty answer.
 
+import { type AccountAdvanced, type LocalSpendReport } from '@cg/contracts/diagnostics';
 import { type CgCode, type CgErrorView, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { HOST_KINDS, HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { type Bootstrap, type BootstrapPage, type PersonaCatalog, type PersonaCatalogItem } from '@cg/contracts/hub';
@@ -136,6 +137,15 @@ export interface PagesModel {
   readonly newcomers: number | null;
   /** Popup, debug only: today's own AI spend from the hub, micro-USD. */
   readonly aiTodayMicroUsd: number | null;
+  /**
+   * 1.20.0 (decision X47): the fans' names the tabs already told the background (`fans.labels`), by chat key — the
+   * popup and «Идут сейчас» name the fan by them; empty — none known (the id stands in).
+   */
+  readonly fanLabels: ReadonlyMap<string, string>;
+  /** 1.20.0 (DB-022): this browser's AI spend by feature, today and 7 days; debug only, options page. null — not read. */
+  readonly localSpend: { readonly today: LocalSpendReport; readonly week: LocalSpendReport } | null;
+  /** 1.20.0 (DB-027): «Аккаунт → Дополнительно»; debug only, options page. null — not read or off. */
+  readonly advanced: AccountAdvanced | null;
   readonly prompts: ReadonlyMap<string, Slot<PromptSnapshotView>>;
   readonly journals: ReadonlyMap<JournalKind, Slot<JournalData>>;
 }

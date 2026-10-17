@@ -986,6 +986,19 @@ export class OpScheduler {
     return { ops: mine.slice(0, cap).map((run) => this.publicView(run) as OpView), truncated: mine.length > cap };
   }
 
+  /**
+   * 1.20.0 (decision X47): the fans' names the tabs gave with their starts (`StartOp.fanLabel`), newest first, one per
+   * chat — for the pages' «Идут сейчас». Display only, from memory and the operations' own journal.
+   */
+  fanLabels(limit: number): { readonly chatKey: ChatKey; readonly label: string }[] {
+    const out = new Map<ChatKey, string>();
+    for (const run of [...this.runs.values()].sort((a, b) => b.view.startedAt - a.view.startedAt)) {
+      if (out.size >= limit) break;
+      if (run.fanLabel !== null && run.fanLabel.trim() !== '' && !out.has(run.chatKey)) out.set(run.chatKey, run.fanLabel);
+    }
+    return [...out].map(([chatKey, label]) => ({ chatKey, label }));
+  }
+
   /** Running operations (palette, diagnostics). */
   active(): readonly OpView[] {
     return this.activeAll().filter((view): view is OpView => isSharedFeature(view.feature));

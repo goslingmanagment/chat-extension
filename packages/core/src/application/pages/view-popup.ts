@@ -1,4 +1,5 @@
 import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
+import { chatKeyOf } from '@cg/contracts/ids';
 import { siteLabel } from './site-details';
 // The toolbar popup (architecture.md §9.9; ui-design §4.23; PU-001…PU-022):
 // what is connected, who is signed in, which chat is open and how much AI
@@ -116,8 +117,8 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
       chat === null
         ? null
         : {
-            // Pages are told no fan names (§5.4): the id is what the popup knows (PU-008 «имя фана или id»).
-            fanName: model.t.text('popup.fanId', { id: chat.platformFanId }),
+            // PU-008 «имя фана или id»: the name the tab already knows (1.20.0, X47), else the id.
+            fanName: model.fanLabels.get(chatKeyOf(chat)) ?? model.t.text('popup.fanId', { id: chat.platformFanId }),
             fanUsername: null,
             hostAccountLabel: model.t.text('popup.dialogAccount', { ...model.env.platformPhrases(HOST_PLATFORM[chat.host])?.[model.locale], id: chat.hostAccountId }),
             copyIds: { ...(chat.conversationRef === undefined ? {} : { conversationRef: chat.conversationRef, fanId: chat.platformFanId }), hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },

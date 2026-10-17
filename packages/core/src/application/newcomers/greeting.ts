@@ -309,6 +309,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     const evidence = proof.value;
     // NF-015 (FS-AI-2): a dialogue is Reply's: the hub is not asked.
     if (evidence.startProof.personalCount > GREETING_PERSONAL_MAX) return stop('CG-GATE-HI');
+    const fanLabel = (row.displayName ?? row.username)?.trim().slice(0, 256) || null;
     const issued = await issueCause(rpc, 'generate', 'newcomers');
     if (!same()) return stop('CG-CONTEXT-CHANGED');
     if (!issued.ok) return stop(issued.code);
@@ -338,6 +339,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       startProof: evidence.startProof,
       personalMessageCount: evidence.startProof.personalCount,
       ...(evidence.fanAvatarUrl === null ? {} : { fanAvatarUrl: evidence.fanAvatarUrl }),
+      // 1.20.0 (X47): the name the pass already read, for «Идут сейчас» — display only, never sent to the hub.
+      ...(fanLabel === null ? {} : { fanLabel }),
     };
     const admission = await rpc.request('op.start', start);
     if (!same()) return stop('CG-CONTEXT-CHANGED');

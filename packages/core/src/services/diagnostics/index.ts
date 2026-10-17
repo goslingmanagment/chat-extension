@@ -25,3 +25,4 @@ export {
   type PromptStoreStats,
 } from './export';
 export { clearDebugData, type DebugStores } from './lifecycle';
+export { advancedAccountInfo } from './advanced';

@@ -11,6 +11,8 @@ import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
 import { contractAnchorsOf, contractHostOf, type HostContractReport, type HostContractShape } from '@cg/contracts/host';
 import { type HostKind } from '@cg/contracts/hosts';
+import { chatKeyOf } from '@cg/contracts/ids';
+import { type OpView } from '@cg/contracts/ops';
 import { type ClientFeatureFlag } from '@cg/contracts/hub';
 import { type SendFuse } from '@cg/contracts/send';
 import { type DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
@@ -305,16 +307,17 @@ function quotaRow(model: PagesModel): StatusRowVM {
   return row('quota', worst.remaining <= QUOTA_LOW ? 'warn' : 'ok', msg('settings.status.row.quotaLeft', { n: worst.remaining }), note);
 }
 
-function fanOf(model: PagesModel, fanRef: string): string {
-  return model.t.text('settings.status.fanId', { id: fanRef });
+/** The fan of an operation: the name a tab already told (1.20.0, X47), else «фан <id>». */
+function fanOf(model: PagesModel, op: OpView): string {
+  return model.fanLabels.get(chatKeyOf(op.target.chat)) ?? model.t.text('settings.status.fanId', { id: op.target.fanRef });
 }
 
 export function runningVms(model: PagesModel): RunningOpVM[] {
   return runningOps(model).map((op) => ({
     opId: op.opId,
     feature: op.feature,
-    // The protocol gives pages no fan names: the id is all a page knows.
-    fanLabel: null,
+    // The name a tab already told the background (1.20.0, X47); null — none, the id stands in.
+    fanLabel: model.fanLabels.get(chatKeyOf(op.target.chat)) ?? null,
     startedAt: op.startedAt,
     inThisTab: false,
     go: { type: 'Navigate', to: { kind: 'account', accountHandle: accountKeyOf(op.target.chat) } },
@@ -326,7 +329,7 @@ function runningRow(model: PagesModel): StatusRowVM {
   if (model.ops.s === 'idle' || (model.ops.s === 'loading' && valueOf(model.ops) === null)) return row('running', 'unknown', msg('common.unknown'));
   const ops = runningOps(model);
   if (ops.length === 0) return row('running', 'ok', msg('settings.status.row.runningNone'));
-  const items = ops.map((op) => model.t.text('settings.status.row.runningItem', { feature: model.t.text(FEATURE_LABEL_KEYS[op.feature]), fan: fanOf(model, op.target.fanRef) }));
+  const items = ops.map((op) => model.t.text('settings.status.row.runningItem', { feature: model.t.text(FEATURE_LABEL_KEYS[op.feature]), fan: fanOf(model, op) }));
   return row('running', 'ok', msg('settings.status.row.runningCount', { n: ops.length }), `${items.join(', ')}.`);
 }
 

@@ -19,7 +19,6 @@ import {
   SPEND_DAYS_KEPT,
   StageMarks,
   TRUNCATED_MARK,
-  advancedAccountInfo,
   contextCard,
   createRenderTrace,
   cutText,
@@ -437,28 +436,9 @@ describe('[DB-022] local AI spend journal, «только этот браузе�
   });
 });
 
-describe('[DB-027] «Аккаунт → Дополнительно»', () => {
-  it('[DB-027] the sign-in tail, the ChatSpace build and the contract, the app line', () => {
-    const info = advancedAccountInfo({
-      token: 'agency_hub_device_Zx81kQpLm4Rt7Vw2Yb9N',
-      issuedAt: '2026-10-01T10:00:00.000Z',
-      expiresAt: null,
-      hostBuild: 'index-DEVowLko',
-      contractOk: true,
-      version: '0.1.0',
-      browserMajor: 157,
-      os: 'macos',
-    });
-    expect(info).toEqual({
-      signIn: { tail: '…Yb9N', issuedAt: '2026-10-01T10:00:00.000Z', expiresAt: null },
-      host: { build: 'index-DEVowLko', contractOk: true },
-      app: '0.1.0 · Firefox 157 · macos',
-    });
-    expect(advancedAccountInfo({ token: null, issuedAt: null, expiresAt: null, hostBuild: null, contractOk: null, version: '0.1.0', browserMajor: null, os: 'other' })).toEqual({
-      signIn: null,
-      host: { build: null, contractOk: null },
-      app: '0.1.0 · Firefox · other',
-    });
+describe('[DB-027] the tail of a secret', () => {
+  it('[DB-027] keeps the last characters of a long secret only', () => {
+    expect(maskedTail('agency_hub_device_Zx81kQpLm4Rt7Vw2Yb9N')).toBe('…Yb9N');
     expect(maskedTail('short')).toBeNull();
   });
 });

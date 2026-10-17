@@ -64,6 +64,24 @@ function stateOf(name: string): BackgroundState {
   if (name === 'first-run') state.settings = { ...state.settings, onboarding: { ...state.settings.onboarding, checklistDismissed: false, lastSeenVersion: '0.4.2' } };
   if (name === 'read-only') state.readOnly = true;
   if (name === 'debug' || (name === 'fansly' && page === 'debug-prompt')) state.settings = { ...state.settings, debug: { enabled: true, renderTrace: false } };
+  // 1.20.0 (X47): the fans' names the tabs told, this browser's AI spend and «Аккаунт → Дополнительно» (the last two in debug).
+  if (name === 'working' || name === 'debug') state.fanLabels = [{ chatKey: 'chatspace:1001:2002', label: 'Theodore Whitfield' }, { chatKey: 'chatspace:1001:2003', label: 'Marco Rinaldi' }];
+  if (name === 'debug') {
+    const totals = (runs: number, cost: number, cacheShare: number | null) => ({ runs, inserts: Math.max(0, runs - 1), inputTokens: 824 * runs, outputTokens: 286 * runs, cacheReadTokens: 6000 * runs, cacheWriteTokens: 0, costMicroUsd: cost, approximate: false, cacheShare });
+    const day = (scale: number) => ({
+      source: 'local-browser' as const,
+      fromDay: '2026-10-03',
+      toDay: '2026-10-03',
+      total: totals(14 * scale, 214_300 * scale, 0.87),
+      byFeature: [
+        { feature: 'reply', ...totals(9 * scale, 128_600 * scale, 0.88) },
+        { feature: 'fix', ...totals(3 * scale, 21_900 * scale, 0.86) },
+        { feature: 'recap', ...totals(2 * scale, 63_800 * scale, 0.84) },
+      ],
+    });
+    state.localSpend = day(1);
+    state.advanced = { signIn: { key: 'agh_dev_Zx81kQ…', issuedAt: '2026-10-01T10:00:00.000Z', expiresAt: '2027-01-01T10:00:00.000Z' }, hosts: [{ host: 'chatspace', build: 'index-p8xPkCj8', contractOk: true }], app: '0.4.3 · Firefox 158 · macos' };
+  }
   if (name === 'no-chatspace' || name === 'stale-tabs') {
     state.diagnostics = { ...state.diagnostics, tabs: [], sound: { ...state.diagnostics.sound, listeningTabs: 0 } };
     state.accounts = state.accounts.map((entry) => ({ ...entry, openTabs: 0, routeTabs: 0 }));

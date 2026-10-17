@@ -83,28 +83,3 @@ export function maskedTail(secret: string | null, keep = 4): string | null {
   if (secret === null || secret.length < keep * 3) return null;
   return `…${secret.slice(-keep)}`;
 }
-
-export interface AdvancedAccountInfo {
-  readonly signIn: { readonly tail: string | null; readonly issuedAt: string | null; readonly expiresAt: string | null } | null;
-  /** «Поток»: the ChatSpace build and the contract result. */
-  readonly host: { readonly build: string | null; readonly contractOk: boolean | null };
-  /** «Приложение»: version · browser · OS. */
-  readonly app: string;
-}
-
-export function advancedAccountInfo(facts: {
-  readonly token: string | null;
-  readonly issuedAt: string | null;
-  readonly expiresAt: string | null;
-  readonly hostBuild: string | null;
-  readonly contractOk: boolean | null;
-  readonly version: string;
-  readonly browserMajor: number | null;
-  readonly os: string;
-}): AdvancedAccountInfo {
-  return {
-    signIn: facts.token === null ? null : { tail: maskedTail(facts.token), issuedAt: facts.issuedAt, expiresAt: facts.expiresAt },
-    host: { build: facts.hostBuild, contractOk: facts.contractOk },
-    app: [facts.version, facts.browserMajor === null ? 'Firefox' : `Firefox ${facts.browserMajor}`, facts.os].join(' · '),
-  };
-}
