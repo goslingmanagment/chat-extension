@@ -23,7 +23,7 @@ import { type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
-import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
+import { type DockStatus, type ReasonVM, type TargetHandle, type UiAction, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
 import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, remembersTone, toneAfterStart, toneForRegenerate, toneOnLeave, windowFor, type FanScript, type GateFacts } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
@@ -59,6 +59,11 @@ export interface RefusalState {
   readonly running: readonly AnyActiveOpSummary[];
   /** When it was refused: a start refused again is another refusal, and is shown again after «Скрыть». */
   readonly at?: number;
+  /**
+   * The same start once more (X45): the action the card's «Повторить» dispatches where the registry lets a new click
+   * repeat the code. Only a start that failed before admission has one — nothing was generated, sent or written.
+   */
+  readonly retry?: UiAction;
 }
 
 interface ChatUi {
@@ -640,9 +645,9 @@ export class AiWorkspace {
    * key that did nothing must never look like a dock that is ready. Only a
    * click that was for a chat the person has already left stays quiet.
    */
-  startFailed(key: ChatKey, feature: FeatureId, error: CgErrorWire): void {
+  startFailed(key: ChatKey, feature: FeatureId, error: CgErrorWire, retry?: UiAction): void {
     if (error.code === 'CG-CONTEXT-CHANGED') return;
-    this.showRefusal(key, { feature, error, running: [] });
+    this.showRefusal(key, { feature, error, running: [], ...(retry === undefined ? {} : { retry }) });
   }
 
   isExpanded(id: string): boolean {

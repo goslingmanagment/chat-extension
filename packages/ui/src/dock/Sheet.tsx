@@ -129,7 +129,8 @@ function RunningRow({ op }: { readonly op: RunningOpVM }): JSX.Element {
 /**
  * A start that was not admitted (ui-design §4.9). The fourth generation: no queue, the three that run, «Перейти»
  * and «Отменить». A start that failed before any admission (a gate, storage, a background that did not answer)
- * names nothing that runs: its card carries the code to copy, as any failure's does (§4.8).
+ * names nothing that runs: its card carries the code to copy, as any failure's does (§4.8), and «Повторить» of
+ * the same start when the controller offers it (`RefusalVM.actions`, X45).
  */
 function RefusalContent({ refusal, onHide }: { readonly refusal: RefusalVM; readonly onHide: () => void }): JSX.Element {
   const i18n = useI18n();
@@ -139,7 +140,7 @@ function RefusalContent({ refusal, onHide }: { readonly refusal: RefusalVM; read
         <Meta texts={[i18n.t('result.meta.notStarted')]} />
       </Head>
       <div class="cg-body">
-        <ErrorCard error={refusal.error} tone={toneOf(refusal.error)} copyCode={refusal.running.length === 0} />
+        <ErrorCard error={refusal.error} tone={toneOf(refusal.error)} copyCode={refusal.running.length === 0} {...(refusal.actions === undefined ? {} : { actions: refusal.actions })} />
         {refusal.running.length === 0 ? null : (
           <div class="cg-ops" role="group" aria-label={i18n.t('cg.opTabLimit.listLabel')}>
             {refusal.running.map((op) => (

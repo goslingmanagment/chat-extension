@@ -1977,6 +1977,58 @@ describe('dock: a start the background did not admit is never silent', () => {
     expect(recap.dock().refusal).toMatchObject({ feature: 'recap', error: { code: 'CG-STORAGE-WRITE' }, running: [] });
   });
 
+  it('[ER-006] the card of a start that failed before anything was generated offers «Повторить» of the same start where the registry lets a new click repeat it (X45); pressed, it starts again; never by itself', async () => {
+    const h = await start();
+    // The hub or the background did not answer: nothing was generated, sent or written.
+    h.bg.startErrors.push({ code: 'CG-HUB-TIMEOUT' });
+    expect(await h.generate('reply', { tone: 'flirty' })).toMatchObject({ ok: false, code: 'CG-HUB-TIMEOUT' });
+    const card = h.dock().refusal;
+    expect(card?.actions).toHaveLength(1);
+    const retry = card?.actions?.[0];
+    expect(retry).toMatchObject({ label: { key: 'common.retry' }, enabled: true, reason: null, action: { type: 'Generate', feature: 'reply', options: { tone: 'flirty' } } });
+    expect(retry?.hotkey?.display).toBe(h.dock().actions.reply.hotkey?.display);
+    // Nothing repeats by itself, however long the card stands.
+    await h.clock.advance(60_000);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    h.script(h.streamOf('fast-reply', ['now it runs']));
+    expect(await h.dispatch(retry?.action as never)).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(h.dock().refusal).toBeNull();
+    expect((h.bg.callsOf('op.start')[1] as { tone: unknown }).tone).toBe('flirty');
+
+    // A code the registry does not let a click repeat: the card has only its code to copy.
+    for (const code of ['CG-HUB-FORBIDDEN', 'CG-FEATURE-DISABLED', 'CG-HUB-OUTDATED'] as const) {
+      const other = await start();
+      other.bg.startErrors.push({ code });
+      await other.generate('ping');
+      expect([code, other.dock().refusal?.actions]).toEqual([code, undefined]);
+    }
+  });
+
+  it('[ER-006] «Повторить» of a failed «Ещё раз», Review and a Recap build repeats exactly that start (X45)', async () => {
+    const h = await start();
+    const first = await (async () => {
+      h.script(h.streamOf('fast-reply', ['one']));
+      const receipt = await h.generate('reply');
+      await h.finish();
+      return (receipt as { opId: string }).opId;
+    })();
+    h.bg.startErrors.push({ code: 'CG-NETWORK' });
+    expect(await h.dispatch({ type: 'Regenerate', operationId: first })).toMatchObject({ ok: false, code: 'CG-NETWORK' });
+    expect(h.dock().refusal?.actions?.[0]?.action).toEqual({ type: 'Regenerate', operationId: first });
+
+    const review = await start();
+    review.bg.startErrors.push({ code: 'CG-HUB-UNAVAILABLE' });
+    await review.generate('review');
+    expect(review.dock().refusal?.actions?.[0]?.action).toMatchObject({ type: 'Generate', feature: 'review', options: {} });
+
+    const recap = await start();
+    await recap.generate('recap');
+    recap.bg.startErrors.push({ code: 'CG-TIMEOUT' });
+    await recap.dispatch({ type: 'RefreshRecap', length: 'full' });
+    expect(recap.dock().refusal?.actions?.[0]?.action).toEqual({ type: 'RefreshRecap', length: 'full' });
+  });
+
   it('a Coach question that did not start is said by a toast with its code; the question is not turned into a turn', async () => {
     const h = await start();
     h.bg.startErrors.push({ code: 'CG-STORAGE-WRITE' });
