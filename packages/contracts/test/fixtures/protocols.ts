@@ -644,7 +644,7 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
       valid: [{ req: mainSend }, { req: { ...mainSend, media: sendMedia } }],
       invalid: [
         { req: { ...mainSend, binding } },
-        // 1.28.0 (X53): a price below OnlyFans' $3, a free preview of a free message, a medium twice.
+        // 1.30.0 (X53): a price below OnlyFans' $3, a free preview of a free message, a medium twice.
         { req: { ...mainSend, media: { ...sendMedia, priceCents: 299 } } },
         { req: { ...mainSend, media: { ...sendMedia, priceCents: 0 } } },
         { req: { ...mainSend, media: { ...sendMedia, items: [sendMedia.items[1], sendMedia.items[1]] } } },
@@ -686,7 +686,7 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
       ],
     },
   },
-  // 1.28.0 (X53): the media picker's reads from the host's API; a failed request is an answer, not an error.
+  // 1.30.0 (X53): the media picker's reads from the host's API; a failed request is an answer, not an error.
   media: {
     payload: {
       valid: [

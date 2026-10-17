@@ -110,7 +110,7 @@ export const MainSendRequestSchema = z
     checkpoint: FreshnessCheckpointSchema,
     /** The ticket's deadline on the local clock (send-rules localDeadline). */
     expiresAt: EpochMsSchema,
-    /** 1.28.0 (X53): the vault media the part takes along (PreviewSendRequest.media). */
+    /** 1.30.0 (X53): the vault media the part takes along (PreviewSendRequest.media). */
     media: z.optional(SendMediaSchema),
   })
   .check(z.refine((r) => checkpointMatches(r.checkpoint, r.acc, r.fan), { message: 'the checkpoint belongs to acc/fan' }));
@@ -191,7 +191,7 @@ export const TO_MAIN = {
     timeout: 'network',
   },
   /**
-   * 1.28.0 (X53): one read of a preview's media picker from the host's own API (MediaRequest): the vault's folders, a
+   * 1.30.0 (X53): one read of a preview's media picker from the host's own API (MediaRequest): the vault's folders, a
    * folder's media, what a fan got of them, their release forms. Never a chat's history. A failed request is an answer
    * (`ok: false`), not a bridge error. Its deadline is MEDIA_LIMITS.bridgeMs.
    */

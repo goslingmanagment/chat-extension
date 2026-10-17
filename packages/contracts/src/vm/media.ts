@@ -1,4 +1,4 @@
-// 1.28.0 (decision X53): the media picker of a preview — the model's vault
+// 1.30.0 (decision X53): the media picker of a preview — the model's vault
 // read from the host's own API, the person's picks in order, the free
 // previews among them, the price. What it holds goes with the part whose
 // «Отправить» the person clicks next: one message, the part's text as its

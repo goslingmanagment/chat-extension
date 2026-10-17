@@ -181,7 +181,7 @@ export const COACH_LIMITS = {
  */
 export const PART_LIMITS = { maxVariants: 3, maxParts: 10 } as const;
 
-/** 1.28.0 (X53): the media picker of a preview and the media a part takes along (media.ts). */
+/** 1.30.0 (X53): the media picker of a preview and the media a part takes along (media.ts). */
 export const MEDIA_LIMITS = {
   /** Folders of one page: the API takes at most 10. */
   foldersPage: 10,

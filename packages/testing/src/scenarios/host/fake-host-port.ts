@@ -81,7 +81,7 @@ export type HostStep =
   | { readonly kind: 'theme'; readonly at: number; readonly theme: HostTheme };
 
 /**
- * 1.28.0 (X53): the account's vault as the host's API answers the media picker: folders in order, the media of a folder
+ * 1.30.0 (X53): the account's vault as the host's API answers the media picker: folders in order, the media of a folder
  * by its id (`all` — every medium), what each fan got of them, the release forms of a medium; `fail` — a kind of read
  * that answers this failure instead.
  */
@@ -95,7 +95,7 @@ export interface FakeMediaVault {
 
 export interface HostScript {
   readonly start: HostSnapshot;
-  /** 1.28.0 (X53): the vault the media picker reads; absent — a host without one (HostPort.media absent). */
+  /** 1.30.0 (X53): the vault the media picker reads; absent — a host without one (HostPort.media absent). */
   readonly media?: FakeMediaVault;
   readonly memory: HostMemory;
   /** The checkpoint MAIN gives when the answers queue is empty. */
@@ -140,11 +140,11 @@ export interface HostCalls {
   readonly preflights: PreviewSendRequest[];
   /** Queue calls that reached MAIN, one per attempt. */
   readonly commits: { readonly request: PreviewSendRequest; readonly ticket: DispatchTicket }[];
-  /** 1.28.0 (X53): every read of the media picker. */
+  /** 1.30.0 (X53): every read of the media picker. */
   readonly media: MediaRequest[];
 }
 
-/** 1.28.0 (X53): the vault of FakeMediaVault, paged as the host pages it. */
+/** 1.30.0 (X53): the vault of FakeMediaVault, paged as the host pages it. */
 class FakeMediaPort implements MediaPort {
   constructor(
     private readonly host: FakeHostPort,
@@ -219,7 +219,7 @@ export class FakeHostPort implements HostPort {
   readonly kind = 'chatspace' as const;
   readonly platform = 'onlyfans' as const;
   readonly calls: HostCalls = { redeemed: [], inserts: [], navigations: [], checkpoints: [], preflights: [], commits: [], media: [] };
-  /** 1.28.0 (X53): present only when the script has a vault. */
+  /** 1.30.0 (X53): present only when the script has a vault. */
   declare readonly media?: MediaPort;
 
   private snapshot: HostSnapshot;

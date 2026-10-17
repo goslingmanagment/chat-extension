@@ -176,7 +176,7 @@ export interface NativeSendPort {
  * so here; the core owes it to the hub under their sign-in.
  */
 export interface AttributionPort {
-  /** 1.28.0 (X53): `priced`, `withMedia` — what the part took along. */
+  /** 1.30.0 (X53): `priced`, `withMedia` — what the part took along. */
   sent(fact: { readonly pageId: number; readonly fanRef: string; readonly platformMessageId: string; readonly priced: boolean; readonly withMedia: boolean }): void;
 }
 

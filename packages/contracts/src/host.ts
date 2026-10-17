@@ -3,7 +3,7 @@ import type { PageDiagnostics } from './diagnostics';
 // about and do to the host page. Page memory, with reads of the network from
 // the host's own API: since 1.22.0 (X54) the messages of the chat the person
 // has open (`openChatMessages`) — never another chat's, whose history load
-// would mark it read —, since 1.28.0 (X53) the vault of a preview's media
+// would mark it read —, since 1.30.0 (X53) the vault of a preview's media
 // picker (`media`: folders, media, a fan's media statuses, release forms). The
 // port never has, and never will have, fetchHistory() of any chat,
 // markRead(), setStore(), a general send() or an arbitrary execute(). Writes:
@@ -847,7 +847,7 @@ export interface HostPort {
   /** X8; null when the capability is off. */
   readonly previewSend: PreviewSendPort | null;
   /**
-   * 1.28.0 (X53): the vault a preview send takes media from, read from the host's own API; absent — a host without one
+   * 1.30.0 (X53): the vault a preview send takes media from, read from the host's own API; absent — a host without one
    * (Fansly). Reads only: the folders, a folder's media, what a fan got of them, their release-form tags — never a chat.
    */
   readonly media?: MediaPort;

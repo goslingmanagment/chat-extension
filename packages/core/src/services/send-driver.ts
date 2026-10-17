@@ -31,7 +31,7 @@ export interface BackgroundSendPort {
 
 /**
  * What the preview controller knows at the click (the part, its frozen operation and checkpoint, the click's cause)
- * and what goes to MAIN only: the text and, since 1.28.0 (X53), the vault media the part takes along.
+ * and what goes to MAIN only: the text and, since 1.30.0 (X53), the vault media the part takes along.
  */
 export type SendClick = Omit<SendBegin, 'attemptId'> & Pick<PreviewSendRequest, 'plainText' | 'isAiGenerated' | 'media'>;
 

@@ -236,7 +236,7 @@ const openChatPaid = {
   automatic: false,
 } as const;
 
-/** 1.28.0 (X53): a custom folder of the vault, a ready photo of it and the media a part takes along. */
+/** 1.30.0 (X53): a custom folder of the vault, a ready photo of it and the media a part takes along. */
 export const mediaFolder = { id: '880002', name: 'Stand set', kind: 'custom', photos: 14, videos: 0, other: 0 } as const;
 export const mediaItem = {
   id: '660000155',
@@ -725,7 +725,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ ok: true, page: { capturedAt: ISO, items: [], hasMore: false, cursor: null } }, { ok: false, failure: 'timeout', status: null }],
     [{ ok: false, failure: 'unavailable', status: null }, { ok: false, failure: 'http' }],
   ),
-  // 1.28.0 (X53): the media picker of a preview and the media a part takes along.
+  // 1.30.0 (X53): the media picker of a preview and the media a part takes along.
   fixture('MediaId', C.MediaIdSchema, ['660000155', '9007199254740991'], ['9007199254740993', '0', 'm1']),
   fixture('MediaFolderId', C.MediaFolderIdSchema, ['all', '880001'], ['favorites', '', 880001]),
   fixture('MediaFolder', C.MediaFolderSchema, [mediaFolder, { ...mediaFolder, kind: 'messages', name: '' }], [{ ...mediaFolder, kind: 'stories' }, { ...mediaFolder, photos: -1 }]),

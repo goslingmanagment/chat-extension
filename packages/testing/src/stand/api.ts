@@ -107,7 +107,7 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
     return log(200);
   }
 
-  // 1.28.0 (X53): the vault of a creator by its OnlyFans id — folders, a folder's media, a fan's media statuses — as
+  // 1.30.0 (X53): the vault of a creator by its OnlyFans id — folders, a folder's media, a fan's media statuses — as
   // ChatSpace's vault dialog and our media picker read it. None of it is a chat's history (no `history-load`).
   const vaultMatch = /^v0\/platforms\/onlyfans\/accounts\/([^/]+)\/(.+)$/.exec(route);
   if (method === 'GET' && vaultMatch) {
@@ -255,7 +255,7 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
     return log(200, { accountId, detail: { asked: asked.map(String), online: online.map(String) } });
   }
 
-  // 1.28.0 (X53): the release forms of media, as ChatSpace's composer asks before it tags a message with them.
+  // 1.30.0 (X53): the release forms of media, as ChatSpace's composer asks before it tags a message with them.
   if (method === 'POST' && rest === 'platforms/onlyfans/vault/media/release-forms') {
     const body = await readJson(request);
     const ids = typeof body === 'object' && body !== null && Array.isArray((body as Record<string, unknown>)['media_ids']) ? ((body as Record<string, unknown>)['media_ids'] as unknown[]).map(String) : [];

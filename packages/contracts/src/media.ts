@@ -1,4 +1,4 @@
-// 1.28.0 (decision X53): media of the model's vault in a preview send — what
+// 1.30.0 (decision X53): media of the model's vault in a preview send — what
 // the picker reads and what a part takes along. The host reads its own API
 // for it (OnlyMonster's, with the page's own session), the way its own vault
 // dialog does: the folders, one folder's media, which of them this fan

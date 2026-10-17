@@ -199,7 +199,7 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** The local draft of a preview (Fix source, a greeting): never goes to ChatSpace by itself. */
   act('SetPreviewDraft', { targetHandle: HandleSchema, text: displayText(SEND_LIMITS.previewDraftMaxChars) }),
   /**
-   * 1.28.0 (X53): the media picker of a preview — open or close it; choose a folder; read the next page of the folders
+   * 1.30.0 (X53): the media picker of a preview — open or close it; choose a folder; read the next page of the folders
    * or of the folder's media; pick a medium or drop it (the order of the clicks is the message's); mark a pick a free
    * preview or take the mark off; the price as typed; drop every pick; read again what failed. None of it sends: the
    * picks go with the next part whose «Отправить» the person clicks.

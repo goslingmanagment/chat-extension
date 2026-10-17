@@ -59,7 +59,7 @@ interface Options {
   readonly slowNavigate?: boolean;
   /** 1.20.0: the site's own fan panel stands next to the chat (ChatSpace 0.195). */
   readonly fanPanelBesideHost?: boolean;
-  /** 1.28.0 (X53): the vault the media picker reads; absent — the host has none. */
+  /** 1.30.0 (X53): the vault the media picker reads; absent — the host has none. */
   readonly media?: FakeMediaVault;
 }
 
