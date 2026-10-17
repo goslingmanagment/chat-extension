@@ -45,6 +45,7 @@ export function journalEntryOf(begin: SendBegin, now: number): SendJournalEntry 
     previewRevision: begin.previewRevision,
     documentEpoch: begin.documentEpoch,
     state: 'preparing',
+    ...(begin.marks === undefined ? {} : { marks: begin.marks }),
     createdAt: now,
     updatedAt: now,
   };

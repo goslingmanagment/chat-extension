@@ -156,3 +156,39 @@ export function plainText(html: string): string {
     })
     .trim();
 }
+
+/**
+ * 1.24.0 (X53): the vault every stand account answers the media picker with (OnlyMonster's raw shapes): two folders,
+ * twelve media — the seventh still processing —, what fans a1 and a2 already got of them, and the release form of one.
+ * No thumbnail: the stand has no https origin, and the picker shows a medium without one by its type.
+ */
+export const STAND_VAULT = {
+  folders: [
+    { id: '880001', type: 'messages', name: 'Messages', photos_count: 8, videos_count: 4, gifs_count: 0, audios_count: 0 },
+    { id: '880002', type: 'custom', name: 'Stand set &amp; one', photos_count: 4, videos_count: 0, gifs_count: 0, audios_count: 0 },
+  ],
+  media: Array.from({ length: 12 }, (_, i) => ({
+    id: String(660_000_001 + i),
+    type: i % 3 === 2 ? 'video' : 'photo',
+    duration: i % 3 === 2 ? 30 + i : 0,
+    is_ready: i !== 6,
+    can_view: true,
+    has_error: false,
+    thumbnail_url: null,
+    created_at: new Date(BASE_TIME - i * 3_600_000).toISOString(),
+    folder: i < 8 ? '880001' : '880002',
+  })),
+  /** By fan: media sent to them, with the price and the purchase. */
+  stats: {
+    [STAND_IDS.fans.a2]: [
+      { media_id: '660000002', message_id: '5199999003', price: 25, sent_at: new Date(BASE_TIME).toISOString(), purchased_at: new Date(BASE_TIME + 60_000).toISOString() },
+      { media_id: '660000005', message_id: '5199999004', price: 10, sent_at: new Date(BASE_TIME).toISOString(), purchased_at: null },
+    ],
+    [STAND_IDS.fans.a1]: [
+      { media_id: '660000002', message_id: '5199999001', price: 15, sent_at: new Date(BASE_TIME).toISOString(), purchased_at: new Date(BASE_TIME + 60_000).toISOString() },
+      { media_id: '660000003', message_id: '5199999002', price: null, sent_at: new Date(BASE_TIME).toISOString(), purchased_at: null },
+    ],
+  } as Readonly<Record<string, readonly Record<string, unknown>[]>>,
+  /** By medium: the release forms OnlyFans tags a message with it. */
+  forms: { '660000004': [{ type: 'user', user: { id: 7_700_001, name: 'Stand Collab' } }] } as Readonly<Record<string, readonly Record<string, unknown>[]>>,
+} as const;

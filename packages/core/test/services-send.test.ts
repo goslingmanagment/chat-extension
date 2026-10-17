@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ClaimBodySchema,
   SendJournalEntrySchema,
+  type SendJournalEntry,
   SendListItemSchema,
   STORAGE_KEYS,
   sendLockKey,
@@ -192,6 +193,26 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(ClaimBodySchema.safeParse(dispatch?.body).success).toBe(true);
   });
 
+  it('[X53] a part with media: their two marks go to the journal and, once sent, to who sent it — after a restart too; never the media', async () => {
+    const store = new MemoryStore();
+    const clock = new FakeClock(NOW_MS);
+    const h = sendHarness({ clock, store });
+    h.hub.claimScript.push(ticketFor(A));
+    await h.coordinator.begin(TAB, h.begin({ marks: { priced: true, withMedia: true } }));
+    expect(await report(h, 'a', 'nativeEnqueued', {}, 'pending-1')).toBe(true);
+    const journal = store.data.get(STORAGE_KEYS.sendJournal) as SendJournalEntry[];
+    expect(journal[0]?.marks).toEqual({ priced: true, withMedia: true });
+    expect(SendJournalEntrySchema.safeParse(journal[0]).success).toBe(true);
+    // The event page unloads before the receipt; the next instance reports who sent it with the same marks.
+    const second = sendHarness({ clock, store });
+    second.hub.claimScript.push(okAnswer(A, 'sent'));
+    await second.coordinator.restore();
+    expect(await report(second, 'a', 'nativeAccepted', { platformMessageId: WORLD.messages.sentByUs })).toBe(true);
+    expect(await report(second, 'a', 'sentObserved', { platformMessageId: WORLD.messages.sentByUs })).toBe(true);
+    await second.coordinator.idle();
+    expect(second.sent).toMatchObject([{ attemptId: A, priced: true, withMedia: true }]);
+  });
+
   it('[SP-054] enqueued → accepted → echo: sentObserved, custody `sent` with the id, telemetry hook, lock released', async () => {
     const h = sendHarness();
     h.hub.claimScript.push(ticketFor(A), okAnswer(A, 'sent'));
@@ -204,7 +225,7 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(actions(h)).toEqual(['dispatch', 'sent']);
     expect(h.hub.claims[1]?.body).toEqual({ action: 'sent', attemptId: A, instanceId: WORLD.instanceId, platformMessageId: WORLD.messages.sentByUs, evidence: 'receipt+echo' });
     // With its page and fan: who sent the message is the background's to record (decision X48).
-    expect(h.sent).toEqual([{ attemptId: A, opId: OP, purpose: 'preview-reply', part: 0, variant: 0, generationRef: GEN, platformMessageId: WORLD.messages.sentByUs, pageId: previewTarget.binding.pageId, fanRef: previewTarget.fanRef }]);
+    expect(h.sent).toEqual([{ attemptId: A, opId: OP, purpose: 'preview-reply', part: 0, variant: 0, generationRef: GEN, platformMessageId: WORLD.messages.sentByUs, pageId: previewTarget.binding.pageId, fanRef: previewTarget.fanRef, priced: false, withMedia: false }]);
     const journal = h.store.data.get(STORAGE_KEYS.sendJournal) as { state: string; pendingId?: string }[];
     expect(journal[0]).toMatchObject({ state: 'sentObserved', pendingId: 'pending-1' });
     expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 0 });

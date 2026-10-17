@@ -88,6 +88,14 @@ export const KNOWN_FAN_MESSAGES = 10;
 export const OPEN_CHAT_PAGE_MAX = 100;
 export const OPEN_CHAT_REQUEST_MS = 10_000;
 export const OPEN_CHAT_PRICE_MAX = 10_000;
+/** contracts MEDIA_LIMITS, MEDIA_TYPES (decision X53). */
+export const MEDIA_FOLDERS_PAGE = 10;
+export const MEDIA_ITEMS_PAGE = 40;
+export const MEDIA_MAX = 40;
+export const MEDIA_IDS = 100;
+export const MEDIA_PRICE_MIN = 300;
+export const MEDIA_PRICE_MAX = 20_000;
+export const MEDIA_TYPES = ['photo', 'video', 'gif', 'audio'] as const;
 
 /** CG codes MAIN answers with (contracts CG_CODES). */
 export const CG_CHAT_CHANGED = 'CG-INSERT-CHAT-CHANGED';

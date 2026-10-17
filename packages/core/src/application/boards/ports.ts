@@ -43,7 +43,7 @@ export interface IdSource {
 }
 
 /** What the preview knows at a click of «Отправить» (the send driver's `SendClick`). */
-export type PreviewSendClick = Omit<SendBegin, 'attemptId'> & Pick<PreviewSendRequest, 'plainText' | 'isAiGenerated'>;
+export type PreviewSendClick = Omit<SendBegin, 'attemptId'> & Pick<PreviewSendRequest, 'plainText' | 'isAiGenerated' | 'media'>;
 
 /**
  * The tab side of the R10 send coordinator (`PreviewSendDriver`): one click —

@@ -36,6 +36,9 @@ export const LAZY_ENTRIES = {
   palette: 'entries/palette.ts',
   // The preview's own window, for a fan of the palette's «Онлайн» (X24).
   preview: 'entries/preview.ts',
+  // The preview send's own chunk (feature `preview-send`): the media panel of a preview (X53), with its first «Медиа»
+  // click; the three previews share it.
+  'preview-send': 'entries/preview-send.ts',
 } as const;
 
 /**

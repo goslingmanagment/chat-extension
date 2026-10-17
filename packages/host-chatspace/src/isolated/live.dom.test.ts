@@ -344,6 +344,27 @@ describe('[X8-02] [SP-054] the X8 port (§5.2, §6.7.7, §14)', () => {
     expect((sent[1]?.payload['req'] as { expiresAt: number }).expiresAt).toBe(deadline);
   });
 
+  it('[X53] the media a part takes along reach MAIN as they are, in the preflight and in the command', async () => {
+    loadModules();
+    const { host, bridge } = await start();
+    const media = {
+      items: [
+        { id: '660000155', type: 'photo' as const, duration: 0, thumb: 'https://pw365.ompcdn.com/a.jpg', free: true },
+        { id: '660000160', type: 'video' as const, duration: 75, thumb: null, free: false },
+      ],
+      priceCents: 2500,
+      tags: { users: ['77'], guests: [] },
+    };
+    const req = request({ attemptId: uuid(81), media });
+    await host.previewSend?.preflight(req);
+    await host.previewSend?.commit(req, ticket({ attemptId: uuid(81) }));
+    const sent = bridge.calls.filter((call) => call.t === 'previewSendPreflight' || call.t === 'previewSendCommit');
+    expect(sent.map((call) => MainSendRequestSchema.parse(call.payload['req']).media)).toEqual([media, media]);
+    // Without media nothing of them is sent.
+    await host.previewSend?.commit(request({ attemptId: uuid(82) }), ticket({ attemptId: uuid(82) }));
+    expect('media' in (bridge.calls.at(-1)?.payload['req'] as object)).toBe(false);
+  });
+
   it('the AI mark is the request’s, unless the owner turned the mark off', async () => {
     loadModules();
     const { host, bridge } = await start({}, { configure: { ...CONFIG, markAiGenerated: false } });

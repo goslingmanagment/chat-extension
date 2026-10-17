@@ -169,9 +169,15 @@ export class BoardsBackground {
     },
   };
 
+  /** Every `send.begin` the driver made, as the coordinator got it. */
+  readonly begins: SendBegin[] = [];
+
   /** The background half of a preview send, as the send driver calls it. */
   readonly sendPort: BackgroundSendPort = {
-    begin: (begin: SendBegin) => this.coordinator.begin(this.options.tab, begin),
+    begin: (begin: SendBegin) => {
+      this.begins.push(begin);
+      return this.coordinator.begin(this.options.tab, begin);
+    },
     report: async (view: SendAttemptView, pendingId?: string) => {
       await this.coordinator.report(this.options.tab, view, pendingId);
     },

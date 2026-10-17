@@ -3,7 +3,8 @@
 // «Чат не открыт, останется непрочитанным», the archive line with its
 // coverage and lag, the hub's archive feed, then the tools — the local draft
 // for Fix and the mini strip, which stay in place — and under them the work
-// zone, which scrolls: the result with «Отправить» on every part.
+// zone, which scrolls: the result with «Отправить» on every part. Under the
+// strip, the media picker (X53): the vault's media that go with the next part sent.
 // The same pane is the card of «Новые», where the draft is the greeting
 // draft (NF-012). It renders PreviewVM and nothing else: it never reads
 // ChatSpace and never loads a chat's history.
@@ -18,6 +19,7 @@ import { coverageWord, isPlainKey, isTextEntry, timeOrUnknown } from '../window'
 import { Feed, FEED_CSS } from './Feed';
 import { MINI_STRIP_CSS, MiniStrip, generateAction } from './MiniStrip';
 import { PreviewResult, RESULT_CSS } from './Result';
+import { MEDIA_PICKER_CSS, MediaAttachedContext, MediaPicker } from './MediaPicker';
 import { SEND_ROW_CSS } from './SendRow';
 
 const KIND_KEYS = { new: 'newcomers.kind.new', renewed: 'newcomers.kind.renewed', returning: 'newcomers.kind.returning' } as const;
@@ -259,11 +261,14 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
             ) : null}
             {vm.claim !== null && vm.claim.s === 'mine' ? <OwnLease claim={vm.claim} /> : null}
             <MiniStrip vm={vm} hiHint={hiHint ?? null} />
+            {vm.media !== null && handle !== null ? <MediaPicker vm={vm.media} handle={handle} /> : null}
           </div>
           <div class="cg-pv__work">
             {vm.claim === null ? null : <LeaseNote claim={vm.claim} hasResult={vm.result !== null} stoppedNote={vm.stoppedNote} />}
             {vm.result !== null ? (
-              <PreviewResult result={vm.result} stoppedNote={vm.stoppedNote} />
+              <MediaAttachedContext.Provider value={vm.media?.attached ?? null}>
+                <PreviewResult result={vm.result} stoppedNote={vm.stoppedNote} />
+              </MediaAttachedContext.Provider>
             ) : vm.idleHint === null ? null : (
               <div class="cg-pv__idle">{i18n.text(vm.idleHint)}</div>
             )}
@@ -316,6 +321,7 @@ ${FEED_CSS}
 ${MINI_STRIP_CSS}
 ${RESULT_CSS}
 ${SEND_ROW_CSS}
+${MEDIA_PICKER_CSS}
 `;
 
 /** The preview pane: the Spenders preview and the «Новые» card. */
