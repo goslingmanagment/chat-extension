@@ -269,6 +269,9 @@ export class FakePageBackground implements PageRpc {
     const { session, bootstrap } = this.state;
     if (session === null) return 'CG-AUTH-REQUIRED';
     const explicit = bootstrap.bindingsByHost[hostBindingKey(account.host, account.hostAccountId)];
+    // As the real rule (hub bootstrap-rules `resolveBinding`): without an explicit binding the creator id decides, and
+    // until ChatSpace has loaded it the answer is «not ready», not «not bound».
+    if (explicit === undefined && account.platformAccountId === null) return 'CG-DATA-NOT-READY';
     const pages = explicit === undefined ? bootstrap.pages.filter((page) => page.platformAccountId !== null && page.platformAccountId === account.platformAccountId) : bootstrap.pages.filter((page) => page.pageId === explicit);
     if (pages.length > 1) return 'CG-BINDING-AMBIGUOUS';
     const page = pages[0];
