@@ -36,13 +36,19 @@ describe('release XPI', () => {
     await browser.url(`moz-extension://${E2E_RELEASE_ADDON_UUID}/options.html`);
     await browser.waitUntil(async () => (await browser.execute(() => document.querySelector('.pg-page[data-pg-gate] .pg-signin') !== null)) === true, { timeout: 15_000, timeoutMsg: 'the release build did not draw its sign-in screen' });
     const screen = await browser.execute(() => ({
-      steps: document.querySelectorAll('.pg-check__item').length,
+      chatter: [...document.querySelectorAll('.pg-check > .pg-check__list > .pg-check__item')].map((item) => item.getAttribute('data-pg-step')),
+      lead: [...document.querySelectorAll('.pg-check__more:not([open]) .pg-check__item')].map((item) => item.getAttribute('data-pg-step')),
       address: document.querySelector<HTMLInputElement>('details[data-pg-anchor="hub-address"] input')?.value ?? null,
       access: document.querySelector('[data-pg-access]')?.getAttribute('data-pg-access') ?? null,
       title: document.title,
     }));
+    // The first run (X55): the chatter's three steps in sight, the team lead's folded under «Ещё»; no «install» step —
+    // a page of the extension is open.
+    expect(screen).toMatchObject({ chatter: ['host-permission', 'sign-in', 'open-chatspace'], address: 'https://gosling-agency.ru', access: 'granted', title: 'Настройки ChatGoose' });
+    expect(screen.lead).toHaveLength(4);
+    expect(screen.lead).not.toContain('install');
+    expect(screen.lead.filter((step) => screen.chatter.includes(step))).toEqual([]);
     // The hub of the manifest: its host access comes with the install, nothing is asked of the person.
-    expect(screen).toEqual({ steps: 8, address: 'https://gosling-agency.ru', access: 'granted', title: 'Настройки ChatGoose' });
     await browser.url(`moz-extension://${E2E_RELEASE_ADDON_UUID}/popup.html`);
     await browser.waitUntil(async () => (await browser.execute(() => document.querySelector('.pg-popup [data-cg-code="CG-AUTH-REQUIRED"]') !== null)) === true, { timeout: 15_000, timeoutMsg: 'the release build’s popup did not say that nobody is signed in' });
     // The status was read (the background answered), and the hub was not: the background knows nothing of its health.
