@@ -3,7 +3,9 @@
 // fields (clientRequestId = opId, pageLabel, conversationRef — the fan on
 // OnlyFans, the group on Fansly — and fanRef,
 // persona key + expected definition, messageCount, isRegeneration), fresh
-// text only for draft features in the open chat under the freshText switch,
+// text only for draft features in the open chat under the freshText switch —
+// and for Review and Coach where the hub lists `live-text-review-coach-v1`
+// (decision X52; `LIVE_TEXT_HUB_NEEDS`), never for Recap —
 // the known fan ids of a preview checkpoint, and the capability header. The
 // result is checked against the contracts' schema: a request the hub would
 // refuse with 400 is our bug and never leaves the background.
@@ -28,6 +30,7 @@ import { HI_BY_START_PROOF } from '@cg/contracts/ids';
 import {
   HUB_FEATURE_MAP,
   HubStreamRequestSchema,
+  LIVE_TEXT_HUB_NEEDS,
   hasCapability,
   type AiFeatureStreamBody,
   type AiStreamCapability,
@@ -157,7 +160,8 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // D-14: fresh page text goes only where the page admits it (the owner's `freshText` and the hub's `context-v1`) —
   // ChatSpace's tail, or a proof's texts taken in the same instant as its window.
   const tail = start.fresh ?? (proof?.kind === 'tab-snapshot' && proof.tail !== undefined && proof.tail.length > 0 ? { capturedAt: proof.takenAt, messages: proof.tail } : undefined);
-  if (tail !== undefined && ctx.freshText) body.liveTextContext = liveTextOf(tail);
+  const liveNeed = LIVE_TEXT_HUB_NEEDS[start.feature];
+  if (tail !== undefined && ctx.freshText && (liveNeed === undefined || hasCapability(ctx.bootstrap.capabilities, liveNeed))) body.liveTextContext = liveTextOf(tail);
   if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, 'live-ppv-v1')) body.livePpvContext = start.livePpv;
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };

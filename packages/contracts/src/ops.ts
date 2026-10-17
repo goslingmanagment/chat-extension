@@ -6,7 +6,7 @@
 import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
-import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
+import { FeatureIdSchema, SurfaceSchema, ToneSchema, freshTextSurface, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
 import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hiStartProofMatches } from './hi-start-proof';
 import { LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveTextTail } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
@@ -252,7 +252,10 @@ export const StartOpSchema = z
         ),
       }),
     ),
-    /** Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14). */
+    /**
+     * Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14); 1.29.0 (decision X52) also review in
+     * the dock and coach on its panel (`freshTextSurface`).
+     */
     fresh: z.optional(LiveTextTailSchema),
     /** 1.27.0 (X54): the open chat's PPV state, where `fresh` may go — a draft start in the dock. */
     livePpv: z.optional(LivePpvStateSchema),
@@ -283,8 +286,8 @@ export const StartOpSchema = z
     fanLabel: z.optional(displayText(256)),
   })
   .check(
-    z.refine((op) => op.fresh === undefined || (op.surface === 'dock' && isFreshTextFeature(op.feature)), {
-      message: 'fresh text only for reply|fix|hi|ping in the dock',
+    z.refine((op) => op.fresh === undefined || freshTextSurface(op.feature) === op.surface, {
+      message: 'fresh text only for reply|fix|hi|ping|review in the dock, coach in its panel',
     }),
     z.refine((op) => op.livePpv === undefined || (op.surface === 'dock' && isFreshTextFeature(op.feature)), { message: 'PPV state only for drafts in the dock' }),
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),

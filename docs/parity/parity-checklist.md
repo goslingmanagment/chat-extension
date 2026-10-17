@@ -88,7 +88,7 @@ Dnn — журнал решений десктопа, Ennn — журнал Fans
 
 | ID | Функция | Что делает | Fansly | Десктоп | Цель | Почему |
 |---|---|---|---|---|---|---|
-| AI-050 | Review | Оценка переписки по глубокому окну (`chat-review`) | src/shared/features.ts:93-104 | f/ai/AiHeaderMenu.tsx:143-150; s/features.ts:114-128 | pilot-chatspace | Строится по архиву хаба (X4) |
+| AI-050 | Review | Оценка переписки по глубокому окну (`chat-review`) | src/shared/features.ts:93-104 | f/ai/AiHeaderMenu.tsx:143-150; s/features.ts:114-128 | pilot-chatspace | По архиву хаба и свежему хвосту открытого чата (X52) |
 | AI-051 | Минимум 30 сообщений | Review и полный Recap на короткой истории → `not_enough_history` | src/background/operations.ts:2405-2412 | s/constants.ts:41; s/features.ts:33 | pilot-chatspace | На OF гейт хаба `gate_min_messages` |
 | AI-052 | Разбор XML ответа | rating 1–10, evaluation, recommendations; невалидный XML — сырой текст, не ошибка | src/shared/xml.ts:22-37 | s/output/xml.ts:26-53 | pilot-chatspace | |
 | AI-053 | Показ Review | Бейдж N/10; блоки ВЕРДИКТ / ДЕНЬГИ / ПЕРСОНА / ОШИБКИ с «Как надо было»; вставить нельзя | src/content/overlay/overlay-controller.ts:3009-3086; src/content/overlay/analysis-blocks.ts:1-40 | f/ai/AiDock.tsx:329-353 | pilot-chatspace | |
@@ -126,7 +126,7 @@ Dnn — журнал решений десктопа, Ennn — журнал Fans
 | AI-088 | История диалога в хаб | `coachHistory` до лимита (10, максимум 20), длинные ответы сжимаются | src/shared/coach-history.ts:19-60 | — | pilot-chatspace | |
 | AI-089 | Сессии Coach | LRU 5 по аккаунту и чату, до 50 обменов; сброс при смене персоны или аккаунта | src/content/coach-session.ts:18,34,38,262-300 | — | pilot-chatspace | |
 | AI-090 | «Новый диалог» | С подтверждением; во время ответа запрещён | src/content/overlay/overlay-controller.ts:1377-1408 | — | pilot-chatspace | |
-| AI-091 | «Приложить мой ответ» | Черновик читается один раз перед отправкой вопроса, галочка сбрасывается | src/shared/coach-draft-gate.ts:4-14; src/content/index.ts:2484-2497 | — | pilot-chatspace | Черновик — только для этого хода; не «свежий текст» для Coach (X4) |
+| AI-091 | «Приложить мой ответ» | Черновик читается один раз перед отправкой вопроса, галочка сбрасывается | src/shared/coach-draft-gate.ts:4-14; src/content/index.ts:2484-2497 | — | pilot-chatspace | Черновик — только для этого хода; не «свежий текст» (свежий хвост Coach — сообщения страницы, X52) |
 | AI-092 | Сбой, отмена, пустой ответ хода | «Остановлено вами» / «Не получилось…» и «Повторить»; пустой ответ не сохраняется | src/content/overlay/overlay-controller.ts:2310-2347; src/content/index.ts:2940-2955 | — | pilot-chatspace | |
 | AI-093 | «Отправлено коучу…» | Сколько сообщений, окно или вся история, какие рекапы приложены | src/content/overlay/overlay-controller.ts:2260-2305 | — | pilot-chatspace | На OF цифры даёт хаб |
 | AI-094 | Граница памяти и чипы | «выше не входит в память», чипы «Другой вариант / Сделай короче / А если откажет?» | src/content/overlay/overlay-controller.ts:373-377,2478-2509 | — | pilot-chatspace | |

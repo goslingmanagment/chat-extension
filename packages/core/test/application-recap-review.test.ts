@@ -841,7 +841,7 @@ describe('review', () => {
     return receipt.opId;
   };
 
-  it('[AI-050] Review grades the conversation over the deep window of the hub archive, without page text', async () => {
+  it('[AI-050] Review grades the conversation over the deep window of the hub archive and the open chat\'s fresh tail (X52)', async () => {
     const h = await start();
     expect(h.review()).toMatchObject({ opId: null, state: null, rating: null, sections: [], raw: null, unparsed: false, copyHandle: null });
     expect(h.review().view.s).toBe('empty');
@@ -850,9 +850,9 @@ describe('review', () => {
     expect(receipt).toMatchObject({ ok: true, outcome: 'started' });
     const started = h.bg.callsOf('op.start')[0] as { feature: string; surface: string; window: number; split: boolean; tone: unknown; fresh?: unknown };
     expect(started).toMatchObject({ feature: 'review', surface: 'dock', window: 3000, split: false, tone: null });
-    expect(started.fresh).toBeUndefined();
-    expect(h.host.reads.tail).toBe(0);
-    expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'chat-review', body: { messageCount: 3000 } });
+    expect(started.fresh).toMatchObject({ messages: [{ platformMessageId: '4004', direction: 'fan', text: 'hey' }] });
+    expect(h.host.reads.tail).toBe(1);
+    expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'chat-review', body: { messageCount: 3000, liveTextContext: { items: [{ platformMessageId: '4004', direction: 'fan', text: 'hey' }] } } });
     expect(h.bg.hub.streams[0]?.body.replyMode).toBeUndefined();
     expect(h.dock()).toMatchObject({ analysis: 'review', result: null });
     expect(h.dock().actions.review).toMatchObject({ busy: true, active: true });

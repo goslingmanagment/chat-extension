@@ -9,7 +9,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { FEATURE_IDS, HOST_PLATFORM, LIVE_PPV_LIMITS, LivePpvStateSchema, UNAVAILABLE_REASONS, type AiHostPolicy, type AiProofAsk, type AiStartFields, type ChatWindow, type FeatureId, type LiveTextTail, type OpenChatMessage, type OpenChatPage, type OpenChatRead, type OpView, type PingSegment, type Platform } from '@cg/contracts';
+import { FEATURE_IDS, HOST_PLATFORM, LIVE_PPV_LIMITS, LivePpvStateSchema, UNAVAILABLE_REASONS, type AiHostPolicy, type AiProofAsk, type AiStartFields, type Bootstrap, type ChatWindow, type FeatureId, type LiveTextTail, type OpenChatMessage, type OpenChatPage, type OpenChatRead, type OpView, type PingSegment, type Platform } from '@cg/contracts';
 import { CHATSPACE_AI, livePpvOf, readLivePpv } from '@cg/core/application/hosts/chatspace/ai';
 import { FEATURE_POLICIES, featureGate, type GateFacts } from '@cg/core/domain/features';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
@@ -294,12 +294,21 @@ describe('R20 F10: a second site’s policy decides through the same controller 
     expect(h.dock().result).toMatchObject({ opId: receipt.opId, state: 'done', stale: { reason: 'archive-moved', at: null } });
   });
 
-  it('the proof is gathered for a start without fresh text too (Review), and asked with no limits', async () => {
+  it('the proof is gathered for a start without fresh text too (Review on a hub before X52), and asked with no limits', async () => {
+    const asked: AiProofAsk[] = [];
+    const before: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'live-text-review-coach-v1') };
+    const h = await start({ bootstrap: before, policy: secondSite((ask) => (asked.push(ask), Promise.resolve({ personal: 0, windowIds: ['4001'] }))) });
+    h.script(h.streamOf('chat-review', ['Оценка: 7/10']));
+    expect(await h.generate('review')).toMatchObject({ ok: true, outcome: 'started' });
+    expect(asked).toEqual([{ feature: 'review', surface: 'dock', identity: h.host.current().identity, fresh: null, livePpv: false, messageCount: 3000 }]);
+  });
+
+  it('X52: on a hub that takes it, Review asks its proof with the limits of fresh text', async () => {
     const asked: AiProofAsk[] = [];
     const h = await start({ policy: secondSite((ask) => (asked.push(ask), Promise.resolve({ personal: 0, windowIds: ['4001'] }))) });
     h.script(h.streamOf('chat-review', ['Оценка: 7/10']));
     expect(await h.generate('review')).toMatchObject({ ok: true, outcome: 'started' });
-    expect(asked).toEqual([{ feature: 'review', surface: 'dock', identity: h.host.current().identity, fresh: null, livePpv: false, messageCount: 3000 }]);
+    expect(asked).toEqual([{ feature: 'review', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 }, livePpv: false, messageCount: 3000 }]);
   });
 
   it('a proof that fails is no proof: the start goes on, nothing is kept, and the verdict is asked with none', async () => {

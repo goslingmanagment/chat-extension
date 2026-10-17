@@ -6,16 +6,16 @@
 // for parts, the window from the settings (the deep one never above the
 // hub's `limits.deepMax`), three Hi variants in the dock and one in «Новые»,
 // the draft for Fix and for Coach's «приложить мой ответ», and fresh page
-// text only for the four draft features in the open chat while the page
-// admits it (the manifest's `fresh-text`: the owner's switch and the hub's
-// `context-v1`). The result is checked
+// text only for the four draft features in the open chat, Review and Coach
+// (X52), while the page admits it (the manifest's `fresh-text`: the owner's
+// switch and the hub's `context-v1`). The result is checked
 // against the frozen StartOp schema: a start the background would refuse is
 // never sent.
 
 import { type CgCode } from '@cg/contracts/errors';
-import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
+import { freshTextSurface, type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
-import { type Bootstrap } from '@cg/contracts/hub';
+import { LIVE_TEXT_HUB_NEEDS, hasCapability, type Bootstrap } from '@cg/contracts/hub';
 import { type DraftSnapshot, type HumanCause, type Target } from '@cg/contracts/ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { StartOpSchema, type AiStartFields, type CoachTurn, type StartOp } from '@cg/contracts/ops';
@@ -57,14 +57,18 @@ export interface FreshTextLimits {
 }
 
 /**
- * D-14: whether this start may carry fresh page text, and how much. Only
- * Reply, Fix, Hi and Ping, only in the open chat (surface `dock`), only
- * where the page admits it — `admitted`, the admission of the manifest's
- * `fresh-text` (`freshTextAdmitted`: the owner's `freshText` of the page and
- * the hub's `context-v1`). null — the generation runs on the hub archive alone.
+ * D-14: whether this start may carry fresh page text, and how much. Reply,
+ * Fix, Hi and Ping in the open chat (surface `dock`); since decision X52 also
+ * Review in the dock and Coach on its panel (`freshTextSurface`), on a hub that
+ * takes it there (`LIVE_TEXT_HUB_NEEDS`); Recap never. Only where the page
+ * admits it — `admitted`, the admission of the manifest's `fresh-text`
+ * (`freshTextAdmitted`: the owner's `freshText` of the page and the hub's
+ * `context-v1`). null — the generation runs on the hub archive alone.
  */
 export function freshTextLimits(feature: FeatureId, surface: Surface, bootstrap: Bootstrap, admitted: boolean): FreshTextLimits | null {
-  if (!admitted || surface !== 'dock' || !policyOf(feature).freshText) return null;
+  if (!admitted || !policyOf(feature).freshText || freshTextSurface(feature) !== surface) return null;
+  const need = LIVE_TEXT_HUB_NEEDS[feature];
+  if (need !== undefined && !hasCapability(bootstrap.capabilities, need)) return null;
   const maxItems = Math.min(LIVE_TEXT_LIMITS.maxItems, bootstrap.limits.freshTextMaxItems);
   const maxChars = Math.min(LIVE_TEXT_LIMITS.maxChars, bootstrap.limits.freshTextMaxChars);
   return maxItems >= 1 && maxChars >= 1 ? { maxItems, maxChars } : null;

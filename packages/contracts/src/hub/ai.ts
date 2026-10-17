@@ -21,7 +21,7 @@ import {
   UuidSchema,
   boundedText,
 } from '../primitives';
-import { AI_STREAM_CAPABILITIES, AiStreamCapabilitySchema, PageLabelSchema } from './wire';
+import { AI_STREAM_CAPABILITIES, AiStreamCapabilitySchema, PageLabelSchema, type ClientHubCapability } from './wire';
 
 // ── Persona catalog (`aiPersonaCatalog`: metadata only, never prompt text) ──
 
@@ -66,8 +66,11 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   chatterQuestion: ['coach-chat'],
   coachHistory: ['coach-chat'],
   preset: ['coach-chat'],
-  /** Fresh text (D-14, H-4c): draft features only; Recap/Review/Coach never. */
-  liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
+  /**
+   * Fresh text (D-14, H-4c): draft features; 1.29.0 (decision X52) Review and Coach too, on a hub that lists
+   * `live-text-review-coach-v1` (`LIVE_TEXT_HUB_NEEDS`); Recap never.
+   */
+  liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat'],
   /** 1.27.0 (X54): the open chat's PPV state, where fresh text goes (the hub refuses it elsewhere, 400). */
   livePpvContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
   /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */
@@ -97,6 +100,16 @@ export const HUB_FEATURE_MAP = {
   'recap-short': { hub: 'fan-summary', summaryMode: 'short', replyMode: null },
   coach: { hub: 'coach-chat', replyMode: 'split-all-v1' },
 } as const satisfies Record<FeatureId, HubFeatureSpec>;
+
+/**
+ * 1.29.0 (decision X52): what a feature's fresh text needs of the hub beyond the page's `freshText` — Review and Coach
+ * take it only on a hub that lists `live-text-review-coach-v1` (an older one answers 400 `live_text_not_allowed`).
+ * The draft features need nothing more. The planner asks for no tail and the request builder sends none without it.
+ */
+export const LIVE_TEXT_HUB_NEEDS: Readonly<Partial<Record<FeatureId, ClientHubCapability>>> = {
+  review: 'live-text-review-coach-v1',
+  coach: 'live-text-review-coach-v1',
+};
 
 /** Split markers inside the generated text (D-15): `[VARIANT]` separates Hi variants, `[NEXT]` parts. */
 export const SPLIT_MARKERS = { next: '[NEXT]', variant: '[VARIANT]' } as const;

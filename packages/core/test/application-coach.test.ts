@@ -254,12 +254,12 @@ describe('coach: a turn', () => {
     const started = h.bg.callsOf('op.start')[0] as { feature: string; surface: string; window: number; tone: unknown; coach: unknown; fresh?: unknown; cause: { kind: string } };
     expect(started).toMatchObject({ feature: 'coach', surface: 'coach', window: 100, tone: null, coach: { question: 'How do I bring him back?', history: [] } });
     expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'coach' }]);
-    // The Coach reads the hub archive only: no page text goes with the question.
-    expect(started.fresh).toBeUndefined();
-    expect(h.host.reads.tail).toBe(0);
+    // X52: the open chat's fresh tail goes with the question, as with a draft feature; the draft is not read.
+    expect(started.fresh).toMatchObject({ messages: [{ platformMessageId: '4004', direction: 'fan', text: 'hey' }] });
+    expect(h.host.reads.tail).toBe(1);
     expect(h.host.reads.draft).toBe(0);
     expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'coach-chat', body: { chatterQuestion: 'How do I bring him back?', messageCount: 100 } });
-    expect(h.bg.hub.streams[0]?.body.liveTextContext).toBeUndefined();
+    expect(h.bg.hub.streams[0]?.body.liveTextContext?.items).toEqual([{ platformMessageId: '4004', direction: 'fan', occurredAt: '2026-10-03T09:59:00.000Z', text: 'hey' }]);
     await h.finish();
 
     // Whitespace alone opens the panel instead of asking; too long a question never passes the UI contract.
@@ -591,8 +591,8 @@ describe('coach: history and sessions', () => {
     expect(h.host.reads.draft).toBe(1);
     expect((h.bg.callsOf('op.start')[0] as { coach: { attachDraft?: string }; draft?: unknown; fresh?: unknown }).coach.attachDraft).toBe('i mis you so much');
     expect(h.bg.hub.streams[0]?.body.draftText).toBe('i mis you so much');
-    // It is the person's own draft, not fresh page text.
-    expect(h.bg.hub.streams[0]?.body.liveTextContext).toBeUndefined();
+    // It is the person's own draft, not fresh page text: the tail is the page's messages alone.
+    expect(h.bg.hub.streams[0]?.body.liveTextContext?.items.map((item) => item.text)).toEqual(['hey']);
     expect(lastTurn(h).attachedDraft).toBe(true);
 
     // The next question goes without it, and the draft is not read again.
@@ -868,6 +868,8 @@ describe('coach: the recap it stands on', () => {
     await h.clock.advance(160);
     // The answer streams into the turn like any other.
     expect(lastTurn(h)).toMatchObject({ state: 'streaming', streamText: 'Сначала согрей, пото' });
+    // X52: the open chat's tail goes with the question only; the recap step stays on the hub's archive (§19 п. 1).
+    expect(h.bg.hub.streams.map((stream) => [stream.feature, stream.body.liveTextContext?.items.length])).toEqual([['fan-summary', undefined], ['coach-chat', 1]]);
     expect(h.ai.workspace.ops.get(answerOp)).toMatchObject({ own: true, desynced: false });
     await h.finish();
     expect(lastTurn(h)).toMatchObject({ opId: answerOp, state: 'done', question: 'How do I reply?' });

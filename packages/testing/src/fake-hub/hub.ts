@@ -602,6 +602,10 @@ export class FakeHub {
       if (typeof body === 'object' && body !== null && (body as { coverageCheck?: unknown }).coverageCheck !== undefined && !s.config.capabilities.includes('coverage-check-v1')) {
         return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['coverageCheck: an unknown key on a hub without coverage-check-v1']);
       }
+      // Decision X52: a hub before `live-text-review-coach-v1` takes fresh text on the four draft features only.
+      if (typeof body === 'object' && body !== null && (body as { liveTextContext?: unknown }).liveTextContext !== undefined && (feature === 'chat-review' || feature === 'coach-chat') && !s.config.capabilities.includes('live-text-review-coach-v1')) {
+        return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', 'live_text_not_allowed', undefined, [`${feature} does not accept liveTextContext`]);
+      }
     }
     // R20 F6b: a hub before HF-10 has no `conversationRef` in these strict queries and bodies — an unknown key, 400.
     if (CONVERSATION_ROUTES.includes(route) && namesConversation(facade.request) && !s.config.capabilities.includes('conversation-recaps-v1')) {

@@ -32,6 +32,19 @@ export type Tone = z.infer<typeof ToneSchema>;
 /** D-14: fresh page text is allowed only for these features, only in the open chat (surface `dock`). */
 export const FRESH_TEXT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly FeatureId[];
 
+/**
+ * 1.29.0 (decision X52): fresh page text for Review (in the dock) and Coach (its own panel) too — each the answer of
+ * the one person who asked, which no one else reads. The hub takes it there from `live-text-review-coach-v1` on
+ * (`LIVE_TEXT_HUB_NEEDS`). Recap never takes it: recaps are shared (architecture §19 п. 1).
+ */
+export const ANSWER_FRESH_TEXT_FEATURES = ['review', 'coach'] as const satisfies readonly FeatureId[];
+
+/** Where a start may carry fresh page text: the open chat's dock, Coach's own panel; null — never. */
+export function freshTextSurface(feature: FeatureId): Surface | null {
+  if (feature === 'coach') return 'coach';
+  return isFreshTextFeature(feature) || feature === 'review' ? 'dock' : null;
+}
+
 /** D-15: features whose output is a message to the fan and may be split into parts. Recap and Review never are. */
 export const SPLIT_FEATURES = ['reply', 'fix', 'hi', 'ping', 'coach'] as const satisfies readonly FeatureId[];
 

@@ -229,8 +229,10 @@ a boundary you need to cross is a design question, not a lint exception.
   human did not open: `openChatMessages` refuses any chat but the one on the
   route; other fans' data come from the hub only.
 - **Fresh page text goes to the hub only for draft features** (Reply, Fix, Hi,
-  Ping), never for Recap/Review/Coach, and never into the hub archive, money or
-  dossiers. Skip queued (`isFromQueue`) and unsent messages.
+  Ping) and, since X52, for Review and Coach on a hub that lists
+  `live-text-review-coach-v1`; never for Recap (recaps are shared), and never
+  into the hub archive, money or dossiers. Skip queued (`isFromQueue`) and
+  unsent messages.
 - **UI speaks the family language** (decision X28, which revises X7): raised
   chips, the sunken capsule of Reply's options, draft cards, the terracotta
   accent, serif AI text — as in the Fansly extension — in a layout of its own:

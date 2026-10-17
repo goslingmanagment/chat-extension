@@ -39,7 +39,7 @@ function startIssue(feature: FeatureId, start: StartOp): string | null {
   if (!rule.tone && start.tone !== null) return 'a tone belongs to Reply only';
   if (!rule.split && start.split) return 'Recap and Review are not messages to the fan: no Split';
   if (rule.requiresDraft && (start.draft === undefined || start.draft.text.trim().length === 0)) return 'Fix needs the draft';
-  if (!rule.freshText && start.fresh !== undefined) return 'fresh page text only for Reply, Fix, Hi and Ping';
+  if (!rule.freshText && start.fresh !== undefined) return 'fresh page text only for Reply, Fix, Hi, Ping, Review and Coach';
   if (feature === 'coach' && (start.coach === undefined || (start.coach.question === undefined && start.coach.preset === undefined))) return 'Coach needs a question or a preset';
   return null;
 }

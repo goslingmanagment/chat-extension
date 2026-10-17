@@ -234,7 +234,14 @@ describe('hub routes, flags and the feature map', () => {
     const splitHub = C.FEATURE_IDS.filter((f) => C.HUB_FEATURE_MAP[f].replyMode !== null);
     expect(splitHub.sort()).toEqual([...C.SPLIT_FEATURES].sort());
     const liveHub = C.HUB_FEATURE_ONLY_FIELDS.liveTextContext;
-    expect([...liveHub].sort()).toEqual(C.FRESH_TEXT_FEATURES.map((f) => C.HUB_FEATURE_MAP[f].hub).sort());
+    const live = [...C.FRESH_TEXT_FEATURES, ...C.ANSWER_FRESH_TEXT_FEATURES];
+    expect([...liveHub].sort()).toEqual(live.map((f) => C.HUB_FEATURE_MAP[f].hub).sort());
+    // 1.29.0 (decision X52): Review and Coach need the hub's token for it; the draft features need nothing more.
+    expect(C.FEATURE_IDS.filter((f) => C.LIVE_TEXT_HUB_NEEDS[f] !== undefined)).toEqual(['review', 'coach']);
+    for (const f of C.ANSWER_FRESH_TEXT_FEATURES) expect(C.LIVE_TEXT_HUB_NEEDS[f]).toBe('live-text-review-coach-v1');
+    expect(C.FEATURE_IDS.map((f) => [f, C.freshTextSurface(f)])).toEqual([
+      ['reply', 'dock'], ['fix', 'dock'], ['hi', 'dock'], ['ping', 'dock'], ['review', 'dock'], ['recap', null], ['recap-short', null], ['coach', 'coach'],
+    ]);
   });
 
   it('narrows open tokens: unknown flags are off, unknown capabilities absent', () => {

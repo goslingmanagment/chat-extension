@@ -90,7 +90,7 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await waitForComposerText(ACC, a1, 'a line of my own', 'the person’s own line');
   });
 
-  it('[AI-050] analysis asks the hub only: a short Recap, a Review, a question to Coach', async () => {
+  it('[AI-050] analysis asks the hub only: a short Recap on its archive, a Review and a question to Coach with the open chat\'s tail (X52)', async () => {
     const mark = await hub().mark();
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
@@ -111,7 +111,8 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await browser.keys('Enter');
     await waitOursText('panel', 'Ask about their weekend before you offer anything.', 'the Coach answer', { timeout: 20_000 });
     await closeWindows();
-    expect(callsTo((await hub().journal(mark)).entries, 'aiFeatureStream').map((call) => (call.request as { feature?: string }).feature)).toEqual(['fan-summary', 'chat-review', 'coach-chat']);
+    const asked = callsTo((await hub().journal(mark)).entries, 'aiFeatureStream').map((call) => call.request as { feature?: string; body?: Record<string, unknown> });
+    expect(asked.map((request) => [request.feature, request.body !== undefined && 'liveTextContext' in request.body])).toEqual([['fan-summary', false], ['chat-review', true], ['coach-chat', true]]);
     // The person's line in ChatSpace's field was not touched by any of it.
     expect((await callStand('composerState', ACC, a1))?.text).toBe('a line of my own');
   });
