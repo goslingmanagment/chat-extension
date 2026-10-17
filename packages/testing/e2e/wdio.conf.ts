@@ -27,7 +27,6 @@ import { startFakeHub, type FakeHubServer } from '../src/fake-hub/server';
 import { startStandServer, type StandServer } from '../src/stand-server';
 import { egressProxyPrefs, startEgressSink, type EgressSink } from '../src/stand/egress-sink';
 import { FANSLY_FIXTURE_BUILD_DIR, FIXTURE_BUILD_DIR } from '../src/stand/paths';
-import { FANSLY_PERF_SPEC, perfNeighbors } from '../src/perf/fansly-gate';
 import { E2E_ADDON_UUID, E2E_RELEASE_ADDON_UUID, RELEASE_GECKO_ID, TEST_GECKO_ID } from './support/constants';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -75,9 +74,10 @@ function fixedPorts(): { fansly?: number; fanslyApi?: number; fanslySocket?: num
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
-  // P16a is mandatory in CI too, not just an opt-in `pnpm perf`. Only the
-  // first part gets the probe, with both neighbours (fresh base + new each).
-  specs: [...(shardFiles === null ? ['./specs/**/*.e2e.ts'] : shardFiles.map((name) => `./specs/${name}`)), ...(perfNeighbors(shard).length > 0 ? [FANSLY_PERF_SPEC] : [])],
+  // Not the perf probes (e2e/perf, P16a among them): `pnpm perf` names them
+  // with --spec, and CI runs that every night and on demand
+  // (.github/workflows/perf.yml), not on a PR or a push.
+  specs: shardFiles === null ? ['./specs/**/*.e2e.ts'] : shardFiles.map((name) => `./specs/${name}`),
   maxInstances: 1,
   capabilities: [
     {

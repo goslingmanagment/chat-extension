@@ -10,6 +10,9 @@
 #              (CG_E2E_SHARD, packages/testing/src/e2e-shards.ts);
 #   e2e        «pnpm e2e», the required check: green only when every part is.
 #
+# Not here: `pnpm perf` (the §11 and Fansly P16a probes, about 50 minutes)
+# runs every night and on demand in perf.yml.
+#
 # Drafts: while CI runs on the owner's PC (CI_POOL=pc, free) a Draft PR runs
 # everything, so an executor needs no full e2e run of its own; on GitHub's
 # runners (paid) a Draft runs nothing — every job is skipped (a skipped job
@@ -223,15 +226,6 @@ jobs:
         with:
           name: e2e-logs-${{ github.run_id }}-${{ github.run_attempt }}-part-${{ strategy.job-index }}
           path: .cache/wdio
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload Fansly perf evidence
-        if: always() && steps.scope.outputs.e2e != 'false'
-        uses: actions/upload-artifact@v7
-        with:
-          name: fansly-perf-${{ github.run_id }}-${{ github.run_attempt }}-part-${{ strategy.job-index }}
-          path: .cache/e2e/perf-fansly/gate
           if-no-files-found: ignore
           retention-days: 7
 

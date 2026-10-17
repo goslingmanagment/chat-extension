@@ -1,5 +1,6 @@
-// P16a: the P3d scenario, now an acceptance gate. CI runs this probe once,
-// with both neighbours; `pnpm perf` runs it beside the ChatSpace probe.
+// P16a: the P3d scenario, now an acceptance gate, with both neighbours. Not part
+// of `pnpm e2e`: `pnpm perf` runs it beside the ChatSpace probe, and so does CI
+// every night and on demand (.github/workflows/perf.yml).
 // Fresh Firefox per subject, the same stand and clock as P3d, loopback only.
 // Reports, raw about:memory and Firefox profiles: .cache/e2e/perf-fansly/gate/.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -10,9 +11,8 @@ import type { InsertReceipt } from '@cg/contracts/host';
 import { browser, expect } from '@wdio/globals';
 
 import { messageCreatedFrame, type WireMessage } from '../../fixture-fansly/src/wire';
-import { parseShard } from '../../src/e2e-shards';
 import { budgetMs } from '../../src/e2e-timing';
-import { FANSLY_PERF_LIMITS, P3D, backgroundMB, ceiling, contentProfileMB, perfNeighbors, scenarioChecks, type PerfCheck } from '../../src/perf/fansly-gate';
+import { FANSLY_PERF_LIMITS, FANSLY_PERF_NEIGHBORS, P3D, backgroundMB, ceiling, contentProfileMB, scenarioChecks, type PerfCheck } from '../../src/perf/fansly-gate';
 import { fakeHub } from '../support/fake-hub';
 import { openWithNeighbor, setFanslyNeighbor, waitForNeighborComposer } from '../support/fansly-neighbor';
 import { callFansly, fakeFansly, fanslyIds, fanslyStandOrigin, fanslyStandUrl, waitForFanslyStandIdle, waitForFanslyStandReady } from '../support/fansly-stand';
@@ -26,8 +26,6 @@ import { DEFAULT_SCENARIO, FANSLY_PERF_EVIDENCE_DIR, runScenario, type NeighborS
 import { newSubject } from './fansly/subject-new';
 import { noneSubject } from './fansly/subject-none';
 
-const shardText = process.env['CG_E2E_SHARD'];
-const neighbors = perfNeighbors(shardText === undefined || shardText === '' ? null : parseShard(shardText));
 const ROOT = `${FANSLY_PERF_EVIDENCE_DIR}gate/`;
 const CHATS = 325;
 const TABS = 10;
@@ -122,7 +120,7 @@ async function mixed(subject: PerfSubject, neighbor: NeighborSetting, groups: re
   return report;
 }
 
-for (const neighbor of neighbors) {
+for (const neighbor of FANSLY_PERF_NEIGHBORS) {
   describe(`R20 P16a Fansly perf — FBuddy ${neighbor}`, function () {
     this.timeout(3_000_000);
     let base: ScenarioReport;

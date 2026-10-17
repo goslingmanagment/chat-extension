@@ -4,11 +4,9 @@
 // Mac CPU numbers are not a calibration of the PC. Memory and counts never get slack.
 import type { ScenarioReport, NeighborSetting } from '../../e2e/perf/fansly/scenario';
 import type { MemoryReading } from '../../e2e/perf/fansly/memory';
-import type { Shard } from '../e2e-shards';
 import { budgetMs } from '../e2e-timing';
 import type { ThreadSummary } from './gecko-profile';
 
-export const FANSLY_PERF_SPEC = './perf/fansly-perf-probe.e2e.ts';
 export const FANSLY_PERF_LIMITS = { tabMB: 15, backgroundMB: 30, growthMB: 5, typingDeltaMs: 5, backgroundCpuMs: 500 } as const;
 export const P3D = {
   // Worst of the two notes placements. The typing base varied by 1.5 ms in P3d.
@@ -16,10 +14,8 @@ export const P3D = {
   off: { tabMB: 6.7, backgroundMB: 50.7, tabTimers: 328, backgroundTimers: 7, tabCpuDeltaMs: 238 - 65, backgroundCpuMs: 2063, typingDeltaMs: 2.5, awakeDelta: 724 - 237, backgroundAwake: 10_521 },
 } as const;
 
-/** Only the first part runs the probe, with both neighbours, as does pnpm perf. */
-export function perfNeighbors(shard: Shard | null): NeighborSetting[] {
-  return shard === null || shard.part === 1 ? ['off', 'after'] : [];
-}
+/** Both neighbour settings, each against a fresh base of its own. */
+export const FANSLY_PERF_NEIGHBORS: readonly NeighborSetting[] = ['off', 'after'];
 
 export interface PerfCheck { readonly name: string; readonly actual: number; readonly limit: number; readonly pass: boolean }
 export function ceiling(name: string, actual: number, limit: number): PerfCheck {

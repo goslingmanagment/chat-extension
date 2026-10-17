@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SCENARIO, type ScenarioReport } from '../../e2e/perf/fansly/scenario';
 import type { MemoryReading } from '../../e2e/perf/fansly/memory';
-import { FANSLY_PERF_SPEC, contentProfileMB, perfNeighbors, scenarioChecks, unexpectedTabTimers } from './fansly-gate';
+import { FANSLY_PERF_NEIGHBORS, contentProfileMB, scenarioChecks, unexpectedTabTimers } from './fansly-gate';
 import type { ThreadSummary } from './gecko-profile';
 
 const MB = 1024 ** 2;
@@ -94,17 +94,14 @@ describe('Fansly perf acceptance (P16a)', () => {
     expect(failures({ ...current, typing: { ...current.typing, plain: { ...current.typing.plain, keys: 0 } } })).toContain('typing: every key measured');
   });
 
-  it('runs the probe in exactly one CI shard, with both neighbours, and exposes both through pnpm perf', () => {
-    expect(perfNeighbors(null)).toEqual(['off', 'after']);
-    for (const of of [1, 2, 5, 8]) {
-      const parts = Array.from({ length: of }, (_, n) => perfNeighbors({ part: n + 1, of }));
-      expect(parts.flat()).toEqual(['off', 'after']);
-      expect(parts.filter((part) => part.length > 0)).toEqual([['off', 'after']]);
-    }
+  it('runs both neighbours through pnpm perf only, never inside the e2e suite or its parts', () => {
+    expect(FANSLY_PERF_NEIGHBORS).toEqual(['off', 'after']);
+    // The suite takes its spec files from e2e/specs alone: the probe's ~50 minutes stay off a PR's and a push's CI.
     const config = readFileSync(new URL('../../e2e/wdio.conf.ts', import.meta.url), 'utf8');
-    expect(config).toContain('perfNeighbors(shard).length > 0 ? [FANSLY_PERF_SPEC]');
-    expect(FANSLY_PERF_SPEC).toBe('./perf/fansly-perf-probe.e2e.ts');
+    expect(/^ {2}specs: (.+),$/m.exec(config)?.[1]).toBe("shardFiles === null ? ['./specs/**/*.e2e.ts'] : shardFiles.map((name) => `./specs/${name}`)");
+    expect(config).not.toContain('fansly-gate');
     const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { scripts: { perf: string } };
     expect(pkg.scripts.perf).toContain("--spec 'e2e/perf/*perf-probe.e2e.ts'");
+    expect(existsSync(new URL('../../e2e/perf/fansly-perf-probe.e2e.ts', import.meta.url))).toBe(true);
   });
 });
