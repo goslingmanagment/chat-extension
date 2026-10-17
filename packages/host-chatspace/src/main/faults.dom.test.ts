@@ -265,6 +265,9 @@ describe('[X22] the runtime’s callbacks: ChatSpace’s own work goes on when o
     const h = await start();
     const editor = h.composer.editor;
     if (!editor) throw new Error('no editor');
+    // Ours are on the editor once the runtime has bound the composer, a frame or so after boot: start()'s 30 ms were
+    // not always enough on a busy runner, and then nothing of ours was there to throw (#184's check).
+    await vi.waitFor(() => expect([editor.listenerCount('transaction'), editor.listenerCount('destroy')]).toEqual([1, 1]), { timeout: 2000, interval: 10 });
     const theirs = vi.fn();
     editor.on('transaction', theirs);
     editor.on('destroy', theirs);
