@@ -125,6 +125,8 @@ export const UI_TEXT_KEYS = [
   'stats.table.period', 'stats.attention', 'stats.awaiting', 'stats.newPayers', 'stats.newPayersObserved', 'stats.silent8to21', 'stats.silentOver21', 'stats.noData',
   'stats.noSilenceData', 'stats.chart.title', 'stats.chart.max', 'stats.chart.axisToday', 'stats.chart.dayTip', 'stats.tile.todaySub',
   'stats.tile.d7Sub', 'stats.tile.payersSub', 'stats.footer', 'stats.footerFull', 'stats.regionLabel', 'stats.shelf.untiered', 'stats.shelf.unattributed',
+  // 1.22.0 (X49): a known zero of the period in words, as the rows and the fan panel say it.
+  'stats.none',
   'preview.label', 'preview.moneyIn', 'preview.meta', 'preview.metaFanUnknown', 'preview.metaOurUnknown', 'preview.closeAria', 'preview.notOpened',
   'preview.notOpenedTooltip', 'preview.notOpenedAfterSend', 'preview.notOpenedAfterSendTooltip', 'preview.archiveLag', 'preview.fanWroteNew', 'preview.feed.tip', 'preview.feed.bought', 'preview.feed.empty',
   'preview.feed.emptySubscribed', 'preview.feed.label', 'preview.feed.fanPrefix', 'preview.feed.deleted', 'preview.feed.automatic', 'preview.feed.priced',
@@ -225,6 +227,9 @@ export const UI_TEXT_KEYS = [
   'popup.openSettings', 'popup.problems', 'signIn.lead', 'signIn.help', 'signIn.accessNote', 'signIn.signedOut', 'signIn.signOutUnconfirmed',
   'signIn.againLead', 'signIn.sound', 'settings.save.saved', 'settings.save.failed', 'settings.nav.problem', 'settings.nav.new',
   'settings.onboarding.lead', 'settings.onboarding.progress', 'settings.onboarding.stepDone', 'settings.onboarding.stepTodo',
+  // 1.22.0 (X49): the team lead's steps folded under «Ещё»; «Размер текста» of «Вид и звук».
+  'settings.onboarding.more', 'settings.appearance.textSize', 'settings.appearance.textSizeHint', 'settings.appearance.textSizeLarge',
+  'settings.appearance.textSizeNote',
   'settings.status.warningOne', 'settings.status.warning.staleTabs', 'settings.status.row.extensionUpdatedToday',
   'settings.status.row.extensionUpdatedOn', 'settings.status.row.extensionStaleTabs', 'settings.status.leadPending', 'settings.status.checking',
   'settings.status.checkAllTooltip', 'settings.status.warning.quotaLow', 'settings.status.warning.quotaZero', 'settings.status.warning.sendUncertain', 'settings.status.warning.sendFused',

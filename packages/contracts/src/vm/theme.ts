@@ -74,6 +74,10 @@ export const THEME_TOKENS = {
     '--cg-text-xl',
     '--cg-text-2xl',
     '--cg-text-3xl',
+    /** 1.22.0 (X49): the serif AI-authored text and its line, the keycap of a chip — so «Крупнее» moves them too. */
+    '--cg-text-ai',
+    '--cg-leading-ai',
+    '--cg-text-kbd',
   ],
   space: [
     '--cg-s-1',
@@ -106,6 +110,9 @@ export type ColorScheme = (typeof COLOR_SCHEMES)[number];
 
 /** Set by the mount on our host element; the stylesheets key the dark values on it. The page sees it: a neutral name (X22). */
 export const SCHEME_ATTRIBUTE = 'data-scheme';
+
+/** 1.22.0 (X49): `normal` or `large` («Размер текста»), set by the mount on our host element; the type tokens key the larger scale on it. */
+export const TEXT_SIZE_ATTRIBUTE = 'data-text-size';
 
 /**
  * The resolved scheme as a signal: `host` follows ChatSpace's class on

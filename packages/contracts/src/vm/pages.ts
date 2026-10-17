@@ -9,7 +9,7 @@ import { type UiTextKey } from '../i18n/keys';
 import { type Role } from '../ids';
 import { type LogLevel } from '../logs';
 import { type IsoTimestamp } from '../primitives';
-import { type CoachAutoRecap, type ToneId, type UiLocale, type UiResultStyle, type UiTheme } from '../settings';
+import { type CoachAutoRecap, type ToneId, type UiLocale, type UiResultStyle, type UiTextSize, type UiTheme } from '../settings';
 import { type UiAction } from './actions';
 import { type CatalogActionId, type HotkeyLabel, type HotkeyPlatform } from './catalog';
 import { type Msg } from './i18n';
@@ -300,6 +300,8 @@ export interface AppearanceBodyVM {
   readonly locale: UiLocale;
   readonly hints: boolean;
   readonly resultStyle: UiResultStyle;
+  /** 1.22.0 (X49): «Размер текста»; absent — a model of a build before it: the normal size. */
+  readonly textSize?: UiTextSize;
   readonly sound: {
     readonly messages: { readonly on: boolean; readonly tone: ToneId };
     readonly subscribers: { readonly on: boolean; readonly tone: ToneId };
@@ -378,7 +380,11 @@ interface OptionsVMOf<S extends SettingsSection> {
   readonly signIn: SignInVM | null;
   /** The first-run checklist until dismissed for good (ST-012). */
   readonly checklist: {
-    readonly steps: readonly { readonly id: OnboardingStep; readonly label: Msg; readonly done: boolean; readonly action: ActionButtonVM | null }[];
+    /**
+     * 1.22.0 (X49): `more` — a step of the team lead's (the persona, the binding, the consent, the sound and the keys),
+     * drawn folded under «Ещё»; absent — one the chatter does: the site's access, the sign-in, the site open.
+     */
+    readonly steps: readonly { readonly id: OnboardingStep; readonly label: Msg; readonly done: boolean; readonly action: ActionButtonVM | null; readonly more?: true }[];
     readonly dismiss: UiAction;
   } | null;
   readonly body: OptionsBodyMap[S] | null;

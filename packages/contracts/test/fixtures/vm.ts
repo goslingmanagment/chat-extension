@@ -176,6 +176,13 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       // 1.18.0: «Помнить тон в чате» is a switch, set as a boolean — absent means on only in the stored settings.
       { type: 'SetPreference', key: 'generation.rememberTone', value: 'on' },
       { type: 'SetPreference', key: 'generation.rememberTone', value: null },
+      // 1.22.0 (X49): «Размер текста» is one of its two sizes, never a number of pixels or absent.
+      { type: 'SetPreference', key: 'ui.textSize', value: 'huge' },
+      { type: 'SetPreference', key: 'ui.textSize', value: 15 },
+      { type: 'SetPreference', key: 'ui.textSize', value: null },
+      // 1.22.0 (X49): `panel` is said only as `true` — asked from the fan panel's Recap tab.
+      { type: 'ShowRecap', length: 'full', panel: false },
+      { type: 'RefreshRecap', length: 'full', panel: 'yes' },
       { type: 'ClearLocalData', confirmed: false },
       { type: 'ResetSendFuse', build: 'index-p8xPkCj8' },
       { type: 'SendAll', operationId: OP },
