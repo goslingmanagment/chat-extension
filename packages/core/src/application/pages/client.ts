@@ -578,12 +578,17 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     emit();
   }
 
-  /** 1.20.0 (X47): the names of fans the tabs already know — nothing is read anywhere for them. */
+  /**
+   * 1.20.0 (X47): the names of fans the tabs already know — nothing is read anywhere for them. Read when the page
+   * opens and again on every `fans.changed`; only the newest answer is applied.
+   */
   async function loadFanLabels(): Promise<void> {
     if (valueOf(session) === null) return;
     const generation = sessionGeneration;
+    const seq = (readSeq.get('fan-labels') ?? 0) + 1;
+    readSeq.set('fan-labels', seq);
     const answer = await ask('fans.labels', {});
-    if (disposed || generation !== sessionGeneration || !answer.ok) return;
+    if (disposed || generation !== sessionGeneration || readSeq.get('fan-labels') !== seq || !answer.ok) return;
     fanLabels = new Map(answer.payload.fans.map((fan) => [fan.chatKey, fan.label]));
     emit();
   }
@@ -1244,6 +1249,10 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         rpc.onEvent('bootstrap.changed', () => void loadBootstrap(false).then(() => loadBindings(true))),
         rpc.onEvent('flags.changed', () => void loadBootstrap(false)),
         rpc.onEvent('catalog.changed', () => void loadCatalog(false)),
+        // A tab named a fan (or another one) after the page read the names: the popup and «Статус» follow at once.
+        rpc.onEvent('fans.changed', () => {
+          if (env.page === 'popup' || env.page === 'options') void loadFanLabels();
+        }),
         rpc.onEvent('quota.changed', (payload) => {
           quotas = new Map(quotas).set(payload.quota.pageId, payload.quota);
           emit();

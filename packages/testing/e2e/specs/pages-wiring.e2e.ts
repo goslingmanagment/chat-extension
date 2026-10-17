@@ -298,16 +298,13 @@ describe('the extension pages wired: the popup and the settings of the installed
       },
       { timeout: 15_000, timeoutMsg: 'the background did not learn the chat of the ChatSpace tab' },
     );
-    // X47 (1.20.0): the tab tells the open chat's fan as ChatSpace names it; the popup reads the names when it opens.
-    await browser.waitUntil(
-      async () => {
-        const names = await pageRpc<{ fans: ReadonlyArray<{ chatKey: string; label: string }> }>('fans.labels');
-        return names.ok && names.payload.fans.some((fan) => fan.chatKey.endsWith(`:${a1}`));
-      },
-      { timeout: 15_000, timeoutMsg: 'the background did not learn the name of the open chat’s fan' },
-    );
     const popup = await openPopup();
-    const working = await waitForPopup((state) => state.view === 'ready' && state.pills[0] === 'ChatSpace: подключён' && !state.persona.includes('Не подключено'), 'the popup of a working shift');
+    // X47 (1.20.0): the fan by the name the tab knows. The popup reads the names as it opens and again whenever the
+    // background hears a new one (`fans.changed`), whichever comes first — so the test waits on what the popup shows.
+    const working = await waitForPopup(
+      (state) => state.view === 'ready' && state.pills[0] === 'ChatSpace: подключён' && !state.persona.includes('Не подключено') && state.dialog.includes(A1_NAME),
+      'the popup of a working shift, the open chat’s fan named',
+    );
     expect(popup.drawn).toBe(true);
     expect(working.pills).toEqual(['ChatSpace: подключён', 'Хаб: на связи']);
     expect(working.codes).toEqual([]);

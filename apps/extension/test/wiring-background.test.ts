@@ -376,6 +376,33 @@ describe('a tab that asks about its page before it said which accounts it shows 
     expect(callsTo(w.hub.read().entries, 'clientSpenderStats')).toHaveLength(1);
   });
 
+  it('[PU-008] the fan\'s name a tab tells reaches an open page at once: `fans.changed` once per change, `fans.labels` answers it; a sign-out forgets it (X47)', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const page = w.page('popup');
+    let nudges = 0;
+    page.onEvent('fans.changed', () => {
+      nudges += 1;
+    });
+    // The page's event port opens with its first request.
+    expect(await page.request('fans.labels', {})).toMatchObject({ ok: true, payload: { fans: [] } });
+    const { client } = w.tabClient(7);
+    await until(() => client.state() === 'ready', 'the tab registered');
+    expect(await client.request('tab.presence', { chat, routeEpoch: 1, visible: true, focused: true, accounts: [account], fanLabel: null })).toMatchObject({ ok: true });
+    await sleep(50);
+    expect(nudges).toBe(0);
+    expect(await client.request('tab.presence', { chat, routeEpoch: 1, visible: true, focused: true, fanLabel: 'Hubert' })).toMatchObject({ ok: true });
+    await until(() => nudges === 1, 'the page heard that the names changed');
+    expect(await page.request('fans.labels', {})).toMatchObject({ ok: true, payload: { fans: [{ label: 'Hubert' }] } });
+    // The keepalive repeats the same name: nothing to tell.
+    expect(await client.request('tab.presence', { chat, routeEpoch: 1, visible: true, focused: true, fanLabel: 'Hubert' })).toMatchObject({ ok: true });
+    await sleep(50);
+    expect(nudges).toBe(1);
+    expect(await page.request('session.signOut', {})).toMatchObject({ ok: true });
+    expect(await page.request('fans.labels', {})).toMatchObject({ ok: true, payload: { fans: [] } });
+  });
+
   it('a tab whose accounts are known and none of them is bound to the page is refused at once, and the hub is not asked', async () => {
     const w = world();
     w.start();

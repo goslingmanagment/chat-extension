@@ -82,6 +82,27 @@ describe('popup view model', () => {
     expect(w2.background.calls.some((call) => call.type === 'fan.card' || call.type === 'fan.dossier')).toBe(false);
   });
 
+  it('[PU-008] a name the tab tells after the popup opened shows at once: `fans.changed` and a new read, no reopening (X47)', async () => {
+    const w = await open({ page: 'popup' });
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('фан 2002');
+    const seen: string[] = [];
+    w.client.subscribe({ of: 'popup' }, (vm) => seen.push(vm.chat?.fanName ?? ''));
+    w.background.state.fanLabels = [{ chatKey: 'chatspace:1001:2002', label: 'Hubert' }];
+    w.background.emit('fans.changed', {});
+    await settle();
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('Hubert');
+    expect(seen.at(-1)).toBe('Hubert');
+    expect(w.background.requests('fans.labels')).toEqual([{}, {}]);
+    // An answer that comes after a newer one is not applied over it.
+    const release = w.background.hold('fans.labels');
+    w.background.emit('fans.changed', {});
+    w.background.state.fanLabels = [{ chatKey: 'chatspace:1001:2002', label: 'Hubert P.' }];
+    release();
+    w.background.emit('fans.changed', {});
+    await settle();
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('Hubert P.');
+  });
+
   it('[R20-F4] [NEW-01] the count of «Новые» is asked of the hub only where the site’s manifest admits them and names the hub as their source', async () => {
     const asked = (w: PagesWorld): boolean => w.background.calls.some((call) => call.type === 'newcomers.list');
     // ChatSpace: the hub's `audience-new`, under the page's own `newcomers`.

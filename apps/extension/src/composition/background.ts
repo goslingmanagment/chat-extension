@@ -1106,13 +1106,29 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   };
 
   // tab lifecycle
+  /**
+   * 1.20.0 (decision X47): the fans' names the tabs already told — the open chats' first, then the operations' — for
+   * the popup and «Идут сейчас». Memory alone; nobody signed in — none.
+   */
+  function fanLabels(): { readonly chatKey: ChatKey; readonly label: string }[] {
+    if ((hubInstance?.session() ?? null) === null) return [];
+    const fans = new Map<string, string>();
+    for (const tab of presence.tabs()) if (tab.chatKey !== null && tab.fanLabel !== null && !fans.has(tab.chatKey)) fans.set(tab.chatKey, tab.fanLabel);
+    for (const entry of scheduler.fanLabels(FAN_LABELS_MAX)) if (!fans.has(entry.chatKey)) fans.set(entry.chatKey, entry.label);
+    return [...fans].slice(0, FAN_LABELS_MAX).map(([chatKey, label]) => ({ chatKey: chatKey as ChatKey, label }));
+  }
+  const fanLabelsSignature = (): string => JSON.stringify(fanLabels());
+
   rpc.handle('tab.presence', async (report, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UNKNOWN', 'tab only');
     // «Focus» is a tab gaining it. A focused tab repeats its report every few seconds — its keepalive of
     // this event page (BG-003) — and that is not a reason to read the bootstrap again.
     const before = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId);
     if (report.focused && before?.focused !== true) hubInstance?.notifyFocus();
+    const namesBefore = fanLabelsSignature();
     const recorded = await presence.report(sender.tabSessionId, report);
+    // 1.20.0 (X47): an open page shows the name as soon as the tab tells it, not only when it is opened next.
+    if (fanLabelsSignature() !== namesBefore) rpc.emit('fans.changed', {});
     // From here the tab's own accounts are known: a request that waited for them is answered now.
     if (report.accounts !== undefined && report.accounts.length > 0) tabAccounts.reported(sender.tabSessionId);
     // A keepalive never waits behind audio or recomputes the site's aliases.
@@ -1178,7 +1194,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const { fanLabel, ...op } = start;
     const shown = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId);
     const label = fanLabel ?? (shown !== undefined && shown.chatKey === chatKeyOf(op.target.chat) ? shown.fanLabel : null);
+    const namesBefore = fanLabelsSignature();
     const outcome = await scheduler.start(sender.tabSessionId, op, { fanLabel: label });
+    if (fanLabelsSignature() !== namesBefore) rpc.emit('fans.changed', {});
     return outcome.kind === 'admission' ? ok(outcome.admission) : fail(outcome.code);
   });
   rpc.handle('op.cancel', ({ opId }) => {
@@ -1289,13 +1307,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   // 1.20.0 (decision X47): the names the tabs already told — the open chats', then the operations' — for the popup and
   // «Идут сейчас». Memory alone; nobody signed in — none.
-  rpc.handle('fans.labels', () => {
-    if ((hubInstance?.session() ?? null) === null) return ok({ fans: [] });
-    const fans = new Map<string, string>();
-    for (const tab of presence.tabs()) if (tab.chatKey !== null && tab.fanLabel !== null && !fans.has(tab.chatKey)) fans.set(tab.chatKey, tab.fanLabel);
-    for (const entry of scheduler.fanLabels(FAN_LABELS_MAX)) if (!fans.has(entry.chatKey)) fans.set(entry.chatKey, entry.label);
-    return ok({ fans: [...fans].slice(0, FAN_LABELS_MAX).map(([chatKey, label]) => ({ chatKey: chatKey as ChatKey, label })) });
-  });
+  rpc.handle('fans.labels', () => ok({ fans: fanLabels() }));
 
   // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);
