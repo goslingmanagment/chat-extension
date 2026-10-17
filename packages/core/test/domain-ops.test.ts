@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { AdmissionSchema, OP_STATES, OP_TIMEOUTS, chatKeyOf, type HubFrame, type IncomingFact, type OpState, type OpView } from '@cg/contracts';
+import { AdmissionSchema, HubStreamRequestSchema, OP_STATES, OP_TIMEOUTS, StartOpSchema, chatKeyOf, type HubFrame, type IncomingFact, type OpState, type OpView } from '@cg/contracts';
 import {
   INITIAL_STREAM_STATE,
   MAX_STREAM_ATTEMPTS,
@@ -462,6 +462,30 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     expect(preset.ok && 'coachHistory' in preset.request.body).toBe(false);
     const recap = buildStreamRequest(startOf({ feature: 'recap-short' }), ctx);
     expect(recap.ok && recap.request.body.summaryMode).toBe('short');
+  });
+
+  it('[X51] the open chat’s PPV state goes as livePpvContext only where fresh text may go, to a hub that lists live-ppv-v1', () => {
+    const livePpv = { capturedAt: '2026-10-17T06:00:00.000Z', items: [{ platformMessageId: '9002', priceUsd: 25, purchased: true }] };
+    // The pilot's hub before its deploy does not list it; a hub that does:
+    expect(BOOTSTRAP_PILOT_PAGES.capabilities).not.toContain('live-ppv-v1');
+    const served = { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: [...BOOTSTRAP_PILOT_PAGES.capabilities, 'live-ppv-v1'] } };
+    for (const feature of ['reply', 'fix', 'hi', 'ping'] as const) {
+      const built = buildStreamRequest(startOf({ feature, livePpv, ...(feature === 'fix' ? { draft: { text: 'my draft', revision: 1, digest: 'abcdef12' } } : {}) }), served);
+      expect(built.ok && built.request.body.livePpvContext, feature).toEqual(livePpv);
+    }
+    // A hub without the capability is never sent the field (its body is strict); nor a page without fresh text.
+    const before = buildStreamRequest(startOf({ livePpv }), ctx);
+    expect(before.ok && 'livePpvContext' in before.request.body).toBe(false);
+    const flagOff = buildStreamRequest(startOf({ livePpv }), { ...served, freshText: false });
+    expect(flagOff.ok && 'livePpvContext' in flagOff.request.body).toBe(false);
+    // The start's own rule: a draft in the dock only.
+    expect(StartOpSchema.safeParse({ ...startOf({ feature: 'review', livePpv }) }).success).toBe(false);
+    expect(StartOpSchema.safeParse({ ...startOf({ surface: 'preview', target: targetOf('2003'), livePpv }) }).success).toBe(false);
+    // The request's own check: the hub takes it on OnlyFans alone.
+    const onFansly = HubStreamRequestSchema.safeParse({ feature: 'fast-reply', body: { clientRequestId: OP, pageLabel: 'p', platform: 'fansly', conversationRef: '1', livePpvContext: livePpv }, capabilities: [] });
+    expect(onFansly.success).toBe(false);
+    const onReview = HubStreamRequestSchema.safeParse({ feature: 'chat-review', body: { clientRequestId: OP, pageLabel: 'p', platform: 'onlyfans', conversationRef: '1', livePpvContext: livePpv }, capabilities: [] });
+    expect(onReview.success).toBe(false);
   });
 
   it('[AI-121] fresh text goes only under freshText + context-v1; known fan ids only with context-v1', () => {

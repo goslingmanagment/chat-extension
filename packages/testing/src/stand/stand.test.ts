@@ -141,6 +141,24 @@ describe('stand server: who called', () => {
     ]);
   });
 
+  it('[X51] our read of a chat’s messages with the page’s bearer is `ours`, its preflight too; any other request without the native header stays foreign', async () => {
+    const since = stand.journal.read().next;
+    const messages = `/api/v0/accounts/${accountA}/chats/${a1}/messages`;
+    await fetch(`${stand.apiOrigin}${messages}?limit=50`, { method: 'OPTIONS', headers: { 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' } });
+    expect((await fetch(`${stand.apiOrigin}${messages}?limit=50`, { headers: { authorization: `Bearer ${token}` } })).status).toBe(200);
+    // Without a bearer, or a write to the same path: foreign.
+    await fetch(`${stand.apiOrigin}${messages}?limit=50`);
+    await fetch(`${stand.apiOrigin}${messages}`, { method: 'OPTIONS', headers: { 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization, content-type' } });
+    expect(journalSince(since).map((entry) => [entry.kind, entry.origin, (entry.path ?? '').split('?')[0]])).toEqual([
+      ['http', 'ours', messages],
+      // A history load, as the page's own: the stand marks the chat read.
+      ['history-load', 'ours', messages],
+      ['http', 'ours', messages],
+      ['http', 'foreign', messages],
+      ['http', 'foreign', messages],
+    ]);
+  });
+
   it("a fetch of the page's own index or bundles is foreign: only navigations and subresources are assets", async () => {
     const since = stand.journal.read().next;
     await fetch(`${stand.origin}/`, { headers: { 'sec-fetch-dest': 'empty' } });

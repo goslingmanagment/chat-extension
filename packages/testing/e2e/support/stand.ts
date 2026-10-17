@@ -144,6 +144,13 @@ export const standServer = {
   },
   fanMessage: async (accountId: string, fanId: string, text?: string): Promise<string> =>
     ((await control('/__stand/fan-message', { body: { accountId, fanId, ...(text !== undefined ? { text } : {}) } })) as { id: string }).id,
+  /** X51: the model's paid message (PPV) in a chat, bought or not; returns its id. */
+  paidMessage: async (accountId: string, fanId: string, price: number, isOpened = false): Promise<string> =>
+    ((await control('/__stand/paid-message', { body: { accountId, fanId, price, isOpened } })) as { id: string }).id,
+  /** X51: the fan buys it — the server's message changes, the page's loaded copy does not. */
+  purchase: async (accountId: string, fanId: string, messageId: string): Promise<void> => {
+    await control('/__stand/purchase', { body: { accountId, fanId, messageId } });
+  },
   wsFrame: async (frame: Record<string, unknown>, accountId: string | null = null): Promise<number> =>
     ((await control('/__stand/ws/frame', { body: { frame, accountId } })) as { delivered: number }).delivered,
   wsClose: async (code = 4000): Promise<number> => ((await control('/__stand/ws/close', { body: { code } })) as { closed: number }).closed,
@@ -185,6 +192,11 @@ export const standServer = {
 
 export function byOrigin(entries: readonly ServerJournalEntry[], origin: CallOrigin): ServerJournalEntry[] {
   return entries.filter((entry) => entry.origin === origin);
+}
+
+/** X51: our own reads of a chat's messages (`openChatMessages`), as the stand labels them. */
+export function ourCalls(entries: readonly ServerJournalEntry[]): ServerJournalEntry[] {
+  return byOrigin(entries, 'ours');
 }
 
 /** Calls that reached the stand's API or socket from anything but the page's own client or the harness. */

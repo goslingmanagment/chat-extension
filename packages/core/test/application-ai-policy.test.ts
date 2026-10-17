@@ -7,10 +7,10 @@
 // ChatSpace»). A second site's policy — here a fixture with Fansly's rules (FS-AI-1, FS-AI-2) — decides through the
 // very same controller, which is the whole point of the ports.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { FEATURE_IDS, HOST_PLATFORM, UNAVAILABLE_REASONS, type AiHostPolicy, type AiProofAsk, type AiStartFields, type ChatWindow, type FeatureId, type LiveTextTail, type OpView, type PingSegment, type Platform } from '@cg/contracts';
-import { CHATSPACE_AI } from '@cg/core/application/hosts/chatspace/ai';
+import { FEATURE_IDS, HOST_PLATFORM, LIVE_PPV_LIMITS, LivePpvStateSchema, UNAVAILABLE_REASONS, type AiHostPolicy, type AiProofAsk, type AiStartFields, type ChatWindow, type FeatureId, type LiveTextTail, type OpenChatMessage, type OpenChatPage, type OpenChatRead, type OpView, type PingSegment, type Platform } from '@cg/contracts';
+import { CHATSPACE_AI, livePpvOf, readLivePpv } from '@cg/core/application/hosts/chatspace/ai';
 import { FEATURE_POLICIES, featureGate, type GateFacts } from '@cg/core/domain/features';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, memory, openChat, startSnapshot } from '@cg/testing/host';
@@ -91,14 +91,85 @@ describe('R20 F10, ChatSpace: the gate rules give the verdicts they gave before 
     if (identity === null) throw new Error('the host world has an identity');
     expect(CHATSPACE_AI.proof(host, { feature: 'review', surface: 'dock', identity, fresh: null })).toBeNull();
     expect(read).toEqual([]);
-    expect(await CHATSPACE_AI.proof(host, { feature: 'reply', surface: 'dock', identity, fresh: { maxItems: 60, maxChars: 5000 } })).toBe(TAIL);
+    // Without the hub's `live-ppv-v1` the start reads the tail alone; the port's API is never asked.
+    expect(await CHATSPACE_AI.proof(host, { feature: 'reply', surface: 'dock', identity, fresh: { maxItems: 60, maxChars: 5000 } })).toEqual({ tail: TAIL, livePpv: null });
     expect(read).toEqual([{ identity, max: 60 }]);
-    expect(CHATSPACE_AI.fields(TAIL)).toEqual({ fresh: TAIL });
+    expect(CHATSPACE_AI.fields({ tail: TAIL, livePpv: null })).toEqual({ fresh: TAIL });
     expect(CHATSPACE_AI.fields(null)).toEqual({ fresh: null });
-    expect(CHATSPACE_AI.fingerprint(TAIL)).toBeNull();
+    expect(CHATSPACE_AI.fingerprint({ tail: TAIL, livePpv: null })).toBeNull();
     const view = { stale: { reason: 'fan-wrote', at: '2026-10-03T10:01:00.000Z' } } as OpView;
     expect(CHATSPACE_AI.verdict(view, null)).toEqual({ reason: 'fan-wrote', at: '2026-10-03T10:01:00.000Z' });
     expect(CHATSPACE_AI.verdict({} as OpView, null)).toBeNull();
+  });
+});
+
+describe('[X51] ChatSpace’s PPV state of the open chat (OnlyMonster’s API)', () => {
+  const page = (items: Array<Partial<OpenChatMessage>>): OpenChatPage => ({
+    capturedAt: '2026-10-17T06:00:00.000Z',
+    items: items.map((item, i) => ({ platformMessageId: String(9100 - i), direction: 'model', sentAt: '2026-10-17T05:59:00.000Z', text: '', price: null, isFree: null, isOpened: null, mediaCount: 0, tip: false, automatic: false, ...item })),
+    hasMore: false,
+    cursor: null,
+  });
+
+  it('the model’s paid messages whose purchase OnlyFans says; a free one, a fan’s, one without a state are left out', () => {
+    expect(
+      livePpvOf(
+        page([
+          { price: 25, isFree: false, isOpened: true },
+          { price: 15, isFree: false, isOpened: false, automatic: true },
+          { price: 10, isFree: false, isOpened: null },
+          { price: 5, isFree: true, isOpened: true },
+          { direction: 'fan', price: 7, isOpened: true },
+          { price: null, isOpened: true },
+        ]),
+      ),
+    ).toEqual({
+      capturedAt: '2026-10-17T06:00:00.000Z',
+      items: [
+        { platformMessageId: '9100', priceUsd: 25, purchased: true },
+        { platformMessageId: '9099', priceUsd: 15, purchased: false },
+      ],
+    });
+    expect(livePpvOf(page([{ price: null }]))).toBeNull();
+    // The API naming one message twice: it counts once, so the start's schema (every id once) holds.
+    const twice = page([{ price: 25, isFree: false, isOpened: true }, { price: 25, isFree: false, isOpened: false }]);
+    const doubled = { ...twice, items: twice.items.map((item) => ({ ...item, platformMessageId: '9100' })) };
+    expect(livePpvOf(doubled)?.items).toEqual([{ platformMessageId: '9100', priceUsd: 25, purchased: true }]);
+    expect(LivePpvStateSchema.safeParse(livePpvOf(doubled)).success).toBe(true);
+  });
+
+  it('read beside the tail only when the hub takes it; the click waits for it at most its budget, a failure is no state', async () => {
+    vi.useFakeTimers();
+    try {
+      const asked: unknown[] = [];
+      let answer: Promise<OpenChatRead> = Promise.resolve({ ok: true, page: page([{ price: 25, isFree: false, isOpened: true }]), cached: false });
+      const host = {
+        readVisibleTail: () => Promise.resolve(TAIL),
+        openChatMessages: (chat: unknown, options: unknown) => (asked.push({ chat, options }), answer),
+      } as unknown as Parameters<typeof CHATSPACE_AI.proof>[0];
+      const identity = startSnapshot.identity;
+      if (identity === null || identity.chat === null) throw new Error('the host world has an open chat');
+      const ask = { feature: 'reply' as const, surface: 'dock' as const, identity, fresh: { maxItems: 60, maxChars: 5000 }, livePpv: true };
+      const state = { capturedAt: '2026-10-17T06:00:00.000Z', items: [{ platformMessageId: '9100', priceUsd: 25, purchased: true }] };
+      expect(await CHATSPACE_AI.proof(host, ask)).toEqual({ tail: TAIL, livePpv: state });
+      expect(asked).toEqual([{ chat: identity.chat, options: { limit: LIVE_PPV_LIMITS.readMessages } }]);
+      expect(CHATSPACE_AI.fields({ tail: TAIL, livePpv: state })).toEqual({ fresh: TAIL, livePpv: state });
+      // Not the open chat any more, or the API failed: no state, the tail still goes.
+      answer = Promise.resolve({ ok: false, reason: 'not-open', status: null });
+      expect(await CHATSPACE_AI.proof(host, ask)).toEqual({ tail: TAIL, livePpv: null });
+      answer = Promise.reject(new Error('bridge'));
+      expect(await CHATSPACE_AI.proof(host, ask)).toEqual({ tail: TAIL, livePpv: null });
+      // A slow API: the start goes on at the budget without the state.
+      answer = new Promise(() => undefined);
+      const slow = CHATSPACE_AI.proof(host, ask);
+      await vi.advanceTimersByTimeAsync(LIVE_PPV_LIMITS.waitMs);
+      expect(await slow).toEqual({ tail: TAIL, livePpv: null });
+      // A host without the API (Fansly's port has none): no state, nothing asked.
+      const bare = { readVisibleTail: () => Promise.resolve(TAIL) } as unknown as Parameters<typeof CHATSPACE_AI.proof>[0];
+      expect(await readLivePpv(bare, identity.chat)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -135,10 +206,11 @@ describe('R20 F10, ChatSpace: the controller reaches ChatSpace’s behaviour thr
     const receipt = await h.generate('reply');
     if (!receipt.ok || receipt.opId === undefined) throw new Error('not started');
     await h.finish();
-    expect(callsTo(calls, 'proof')).toEqual([[h.host, { feature: 'reply', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 }, messageCount: 100 }]]);
+    expect(callsTo(calls, 'proof')).toEqual([[h.host, { feature: 'reply', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 }, livePpv: false, messageCount: 100 }]]);
     expect(h.host.reads.tail).toBeGreaterThanOrEqual(1);
-    expect(callsTo(calls, 'fields')).toEqual([[TAIL]]);
-    expect(callsTo(calls, 'fingerprint')).toEqual([[TAIL]]);
+    // The pilot's hub does not list `live-ppv-v1` (and the fake port has no API of the host): the tail goes alone.
+    expect(callsTo(calls, 'fields')).toEqual([[{ tail: TAIL, livePpv: null }]]);
+    expect(callsTo(calls, 'fingerprint')).toEqual([[{ tail: TAIL, livePpv: null }]]);
     expect((h.bg.callsOf('op.start')[0] as { fresh: LiveTextTail }).fresh).toEqual(TAIL);
     expect(h.ai.workspace.ops.get(receipt.opId)?.memo.fingerprint).toBeNull();
     // The result is drawn with the verdict on it: no mark (the fan wrote nothing since).
@@ -201,7 +273,7 @@ describe('R20 F10: a second site’s policy decides through the same controller 
     // The stand's chat shows forty messages: ChatSpace would not offer Hi; the second site has not proven anything yet.
     expect(h.dock().actions.hi).toMatchObject({ enabled: true, reason: null });
     expect(await h.generate('hi')).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
-    expect(asked).toEqual([{ feature: 'hi', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 }, messageCount: 25 }]);
+    expect(asked).toEqual([{ feature: 'hi', surface: 'dock', identity: h.host.current().identity, fresh: { maxItems: 60, maxChars: 5000 }, livePpv: false, messageCount: 25 }]);
     expect(h.bg.callsOf('token.issue')).toEqual([]);
     expect(h.bg.callsOf('op.start')).toEqual([]);
 
@@ -223,7 +295,7 @@ describe('R20 F10: a second site’s policy decides through the same controller 
     const h = await start({ policy: secondSite((ask) => (asked.push(ask), Promise.resolve({ personal: 0, windowIds: ['4001'] }))) });
     h.script(h.streamOf('chat-review', ['Оценка: 7/10']));
     expect(await h.generate('review')).toMatchObject({ ok: true, outcome: 'started' });
-    expect(asked).toEqual([{ feature: 'review', surface: 'dock', identity: h.host.current().identity, fresh: null, messageCount: 3000 }]);
+    expect(asked).toEqual([{ feature: 'review', surface: 'dock', identity: h.host.current().identity, fresh: null, livePpv: false, messageCount: 3000 }]);
   });
 
   it('a proof that fails is no proof: the start goes on, nothing is kept, and the verdict is asked with none', async () => {

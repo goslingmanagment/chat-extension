@@ -119,6 +119,38 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ id: message.id, delivered });
     return;
   }
+  // X51: a model's paid message (PPV) in a chat, as the model's send would leave it; delivered on the socket like one.
+  if (path === '/__stand/paid-message' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const account = accountId === null ? undefined : state.account(accountId);
+    const price = typeof body['price'] === 'number' && body['price'] > 0 ? body['price'] : null;
+    if (accountId === null || fanId === null || account === undefined || state.chat(accountId, fanId) === undefined || price === null) {
+      ok({ error: 'unknown chat or no price' }, 404);
+      return;
+    }
+    const text = asString(body['text']) ?? 'Синтетическое платное сообщение';
+    const message: StandMessage = { id: asString(body['id']) ?? state.nextMessageId(), content: `<p>${text}</p>`, sentAt: new Date().toISOString(), isFromFan: false, price, isOpened: body['isOpened'] === true };
+    state.appendMessage(accountId, fanId, message);
+    const delivered = hub.deliverNewMessage(newMessageFrame(account, fanId, message), accountId);
+    ok({ id: message.id, delivered });
+    return;
+  }
+  // X51: the fan buys a paid message. OnlyFans changes the message; ChatSpace's socket says nothing of it (client-internals.md):
+  // the page's loaded copy keeps `isOpened: false` until it loads the history again.
+  if (path === '/__stand/purchase' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const messageId = asString(body['messageId']);
+    const message = accountId === null || fanId === null ? undefined : state.chat(accountId, fanId)?.messages.find((item) => item.id === messageId);
+    if (message === undefined || (message.price ?? 0) <= 0) {
+      ok({ error: 'unknown paid message' }, 404);
+      return;
+    }
+    message.isOpened = true;
+    ok({ id: message.id });
+    return;
+  }
   if (path === '/__stand/ws/frame' && method === 'POST') {
     const frame = asRecord(body['frame']);
     ok({ delivered: hub.broadcast(frame, asString(body['accountId'])) });
