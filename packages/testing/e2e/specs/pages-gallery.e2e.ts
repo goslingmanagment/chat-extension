@@ -104,7 +104,7 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
       if (profile !== 'chatspace') {
         await browser.execute(() => { for (const detail of document.querySelectorAll<HTMLDetailsElement>('[data-pg-site-details]')) detail.open = true; });
         const facts = await text('[data-pg-site-details="fansly-web"]');
-        for (const expected of ['FBuddy', 'Фильтр слов', 'main.2e6b96097a4bb73b', 'Пейсер / охлаждение', '3/20']) expect(facts).toContain(expected);
+        for (const expected of ['FBuddy', 'Фильтр слов', 'main.2e6b96097a4bb73b', 'Темп запросов / пауза', '3/20']) expect(facts).toContain(expected);
       }
       await capture(`p14b2-status-${profile}`);
       expectHealthy(await probe(), 'light');

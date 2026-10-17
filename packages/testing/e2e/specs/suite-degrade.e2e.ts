@@ -255,7 +255,7 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     await waitForComposerText(ACC, a1, '', 'the field is empty again');
   });
 
-  it('[RB-008] [ER-049] [DB-031] ChatSpace lost its send queue (the store is gone): the preview send is off with CG-SEND-HOST, the dock still generates and inserts; «Статус» names the anchor, the popup says «контракт частично»', async () => {
+  it('[RB-008] [ER-049] [DB-031] ChatSpace lost its send queue (the store is gone): the preview send is off with CG-SEND-HOST, the dock still generates and inserts; «Статус» names the anchor, the popup says «проверен частично»', async () => {
     await openStand(chatPath(ACC, a1), { breaks: ['store:pendingMessages'] });
     await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the dock works without the send queue', 20_000);
     // The dock's own features do not need that store: Reply, then «Вставить» into the open chat.
@@ -291,7 +291,7 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(status.chatspace.text).toContain('Вставка работает.');
     expect(status.chatspace.text).not.toContain('Копировать');
     expect(status.popupCodes).toContain('CG-HOST-CONTRACT');
-    expect(status.popupPills.join(' ')).toContain('контракт частично');
+    expect(status.popupPills.join(' ')).toContain('проверен частично');
   });
 
   it('[RB-008] [UI-027] ChatSpace lost its composer bridge: only copying is left — the banner with CG-HOST-COMPOSER-MISSING, «Копировать» in place of «Вставить», nothing is written; «Статус» names the anchor', async () => {
