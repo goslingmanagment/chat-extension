@@ -89,7 +89,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -1338,6 +1338,59 @@ export declare const clientAudienceNewResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     nextCursor: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
+/**
+ * The clients that observe a send, by the page they run on: the `source` of a
+ * report. Open on the wire; a platform admits its own (the hub's
+ * CLIENT_SEND_ATTRIBUTION_ADMISSIONS): OnlyFans `chatspace-extension`, the
+ * extension on OnlyMonster ChatSpace. Another one is 409
+ * `client_feature_disabled` / `platform_unsupported`.
+ */
+export declare const CLIENT_SEND_ATTRIBUTION_SOURCES: readonly ["chatspace-extension"];
+/**
+ * What the hub did with one fact; every one is final, nothing is retried:
+ * - `recorded`: the first report of this message; it is stored.
+ * - `duplicate`: the message was already reported by the same person for the same fan: a repeat.
+ * - `conflict`: the message was already reported by another person, or for another fan. The first
+ *   report stands.
+ * - `out_of_range`: `observedAt` is more than CLIENT_SEND_ATTRIBUTION_MAX_AHEAD_MS ahead of the hub's
+ *   clock or more than CLIENT_SEND_ATTRIBUTION_MAX_AGE_DAYS old; nothing is stored.
+ */
+export declare const CLIENT_SEND_ATTRIBUTION_OUTCOMES: readonly ["recorded", "duplicate", "conflict", "out_of_range"];
+/** Facts in one report. */
+export declare const CLIENT_SEND_ATTRIBUTION_MAX_FACTS = 50;
+/** How far ahead of the hub's clock an `observedAt` may be (a client clock that runs fast). */
+export declare const CLIENT_SEND_ATTRIBUTION_MAX_AHEAD_MS: number;
+/** How old an `observedAt` may be: a report owed longer than that is not taken. */
+export declare const CLIENT_SEND_ATTRIBUTION_MAX_AGE_DAYS = 30;
+/** RFC 3339 with a zone, as `Date.prototype.toISOString` writes it. */
+export declare const CLIENT_SEND_ATTRIBUTION_TIMESTAMP_PATTERN: RegExp;
+export type ClientSendAttributionSource = (typeof CLIENT_SEND_ATTRIBUTION_SOURCES)[number];
+export type ClientSendAttributionOutcome = (typeof CLIENT_SEND_ATTRIBUTION_OUTCOMES)[number];
+export declare const clientSendAttributionFactSchema: z.ZodObject<{
+    platformMessageId: z.ZodString;
+    fanRef: z.ZodString;
+    observedAt: z.ZodString;
+    priced: z.ZodBoolean;
+    withMedia: z.ZodBoolean;
+}, z.core.$strict>;
+export declare const clientSendAttributionsBodySchema: z.ZodObject<{
+    source: z.ZodString;
+    facts: z.ZodArray<z.ZodObject<{
+        platformMessageId: z.ZodString;
+        fanRef: z.ZodString;
+        observedAt: z.ZodString;
+        priced: z.ZodBoolean;
+        withMedia: z.ZodBoolean;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
+export declare const clientSendAttributionsResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    results: z.ZodArray<z.ZodObject<{
+        platformMessageId: z.ZodString;
+        outcome: z.ZodString;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
 export declare const clientRouteSchemas: {
     readonly clientBootstrap: {
         readonly auth: {
@@ -2245,6 +2298,73 @@ export declare const clientRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly clientSendAttributions: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Report who sent outgoing messages: the caller sent these messages of the page from the platform page's own composer";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            source: z.ZodString;
+            facts: z.ZodArray<z.ZodObject<{
+                platformMessageId: z.ZodString;
+                fanRef: z.ZodString;
+                observedAt: z.ZodString;
+                priced: z.ZodBoolean;
+                withMedia: z.ZodBoolean;
+            }, z.core.$strict>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                results: z.ZodArray<z.ZodObject<{
+                    platformMessageId: z.ZodString;
+                    outcome: z.ZodString;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly clientAudienceNew: {
         readonly auth: {
             readonly kind: "apiKey";
@@ -2645,6 +2765,9 @@ export type ClientSendCustodyItem = z.infer<typeof clientSendCustodyItemSchema>;
 export type ClientSendCustodyListQuery = z.infer<typeof clientSendCustodyListQuerySchema>;
 export type ClientSendCustodyListItem = z.infer<typeof clientSendCustodyListItemSchema>;
 export type ClientSendCustodyListResponse = z.infer<typeof clientSendCustodyListResponseSchema>;
+export type ClientSendAttributionFact = z.infer<typeof clientSendAttributionFactSchema>;
+export type ClientSendAttributionsBody = z.infer<typeof clientSendAttributionsBodySchema>;
+export type ClientSendAttributionsResponse = z.infer<typeof clientSendAttributionsResponseSchema>;
 export type ClientAudienceNewQuery = z.infer<typeof clientAudienceNewQuerySchema>;
 export type ClientClaimSummary = z.infer<typeof clientClaimSummarySchema>;
 export type ClientAudienceNewItem = z.infer<typeof clientAudienceNewItemSchema>;

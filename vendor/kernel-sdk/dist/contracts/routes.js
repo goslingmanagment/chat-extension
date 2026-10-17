@@ -10,6 +10,7 @@ import { ofapiReadCollectionsRouteSchemas } from "./routes-ofapi-read-collection
 import { ofapiExportRouteSchemas } from "./routes-ofapi-exports";
 import { ofapiCollectionRouteSchemas } from "./routes-ofapi-collection";
 import { ofLinksRouteSchemas } from "./routes-of-links";
+import { pageBrowserRouteSchemas } from "./routes-page-browser";
 import { opsLiveRouteSchemas } from "./routes-ops-live";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, FANSLY_CLIENT_CHECK_ROUTES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
@@ -2315,6 +2316,11 @@ export const aiFeatureStreamBodySchema = z.object({
         // compatibility with clients released before Decision #127.
         fanSilenceDays: z.number().int().min(0).max(FAN_SILENCE_DAYS_MAX).optional(),
         transcriptCoverage: z.enum(["full-history", "window"]).optional(),
+        // The clock of the transcript's `[HH:MM]` and `--- YYYY-MM-DD ---` lines:
+        // `utc` from a client that writes them in UTC (fansly-chat E168), so the
+        // prompt's `Now:` line says so. Absent: the clock of the device that wrote
+        // the text (clients released before it).
+        transcriptClock: z.literal("utc").optional(),
         // AI media describer (hub docs/runbooks/ai-media-describe.md): the
         // describable media of the KEPT window, numbered as they appear in the
         // transcript — inline `[Photo #3]` (legacy `[Photo]`), appended
@@ -3283,8 +3289,17 @@ const onlyfansCredentialsSchema = z.object({
     // pasted credentials, no per-page proxy (egress is vendor-side).
     username: z.string().min(1),
 });
-export const verifyCredentialsBodySchema = z.discriminatedUnion("platform", [
+// Project Browser PR 16: a Fansly page connected through its own server
+// browser — no session or proxy pasted: the browser of the profile named is
+// logged in by the owner, its account read through it, its proxy the one
+// given for it (`/api/v1/page-browser/profiles/{profileId}`).
+const fanslyBrowserCredentialsSchema = z.object({
+    platform: z.literal("fansly"),
+    browserProfileId: z.string().uuid(),
+}).strict();
+export const verifyCredentialsBodySchema = z.union([
     fanslyCredentialsSchema,
+    fanslyBrowserCredentialsSchema,
     onlyfansCredentialsSchema,
 ]);
 export const verifyCredentialsResponseSchema = z.object({
@@ -3293,8 +3308,12 @@ export const verifyCredentialsResponseSchema = z.object({
     username: z.string().nullable(),
     displayName: z.string().nullable(),
 });
-export const createPageBodySchema = z.discriminatedUnion("platform", [
+export const createPageBodySchema = z.union([
     fanslyCredentialsSchema.extend({
+        modelSlug: z.string().min(1),
+        label: z.string().min(1),
+    }),
+    fanslyBrowserCredentialsSchema.extend({
         modelSlug: z.string().min(1),
         label: z.string().min(1),
     }),
@@ -5093,7 +5112,20 @@ const insightsMediaRowSchema = z.object({
     deletedAtPlatform: isoTimestamp.nullable(),
     firstObservedAt: isoTimestamp,
     lastObservedAt: isoTimestamp,
+    /** Raw rows, one per bucket AND source code, under the response-wide
+     *  `bucketLimit` — a page of rows, not a window. */
     buckets: z.array(insightsTrafficRowSchema),
+    /** The media's views over the WHOLE window, summed across buckets and
+     *  source codes; never cut by a budget. Null when no row carried it. */
+    windowViews: z.number().int().nullable(),
+    windowPreviewViews: z.number().int().nullable(),
+    /** One point per bucket (source codes summed), newest-first budget shared
+     *  with the other media; `dailyTruncated` says when it ran out. */
+    daily: z.array(z.object({
+        bucketStart: isoTimestamp,
+        views: z.number().int().nullable(),
+        previewViews: z.number().int().nullable(),
+    })),
 });
 const insightsTopMediaRowSchema = z.object({
     plane: z.string(),
@@ -5141,6 +5173,7 @@ export const statsMediaResponseSchema = z.object({
     }),
     coverage: z.array(insightsCoverageRowSchema),
     bucketsTruncated: z.boolean(),
+    dailyTruncated: z.boolean(),
     nextCursor: z.string().nullable(),
 });
 export const statsTagsQuerySchema = z.object({
@@ -5260,7 +5293,12 @@ export const contentMediaResponseSchema = z.object({
     generatedAt: isoTimestamp,
     /** Catalog heads. IDs ONLY — `mediaRef`/`previewRef` are platform ids, and no
      *  delivery or CDN address exists anywhere in this response by construction. */
-    media: z.array(insightsMediaRowSchema.omit({ buckets: true })),
+    media: z.array(insightsMediaRowSchema.omit({
+        buckets: true,
+        windowViews: true,
+        windowPreviewViews: true,
+        daily: true,
+    })),
     vaultAlbums: z.array(z.object({
         vaultKind: z.string(),
         albumRef: z.string(),
@@ -5481,6 +5519,7 @@ const baseRouteSchemas = {
     ...ofapiMediaImageRouteSchemas,
     ...ofapiCollectionRouteSchemas,
     ...ofLinksRouteSchemas,
+    ...pageBrowserRouteSchemas,
     health: {
         auth: { kind: "public" },
         tags: ["system"],

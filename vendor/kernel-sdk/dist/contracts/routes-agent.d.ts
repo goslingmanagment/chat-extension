@@ -860,6 +860,7 @@ export declare const agentFieldStateSchema: z.ZodObject<{
 }, z.core.$strict>;
 export declare const agentIngestPathEnum: z.ZodEnum<{
     unknown: "unknown";
+    operator: "operator";
     fansly_pull: "fansly_pull";
     ofapi_webhook: "ofapi_webhook";
     ofapi_rest_pull: "ofapi_rest_pull";
@@ -867,7 +868,6 @@ export declare const agentIngestPathEnum: z.ZodEnum<{
     desktop_harvest: "desktop_harvest";
     readthrough: "readthrough";
     command_result: "command_result";
-    operator: "operator";
     export_import: "export_import";
     legacy_seed: "legacy_seed";
     hot_projection: "hot_projection";
@@ -875,6 +875,7 @@ export declare const agentIngestPathEnum: z.ZodEnum<{
 export declare const agentProvenanceSchema: z.ZodObject<{
     ingestPaths: z.ZodArray<z.ZodEnum<{
         unknown: "unknown";
+        operator: "operator";
         fansly_pull: "fansly_pull";
         ofapi_webhook: "ofapi_webhook";
         ofapi_rest_pull: "ofapi_rest_pull";
@@ -882,7 +883,6 @@ export declare const agentProvenanceSchema: z.ZodObject<{
         desktop_harvest: "desktop_harvest";
         readthrough: "readthrough";
         command_result: "command_result";
-        operator: "operator";
         export_import: "export_import";
         legacy_seed: "legacy_seed";
         hot_projection: "hot_projection";
@@ -1818,8 +1818,8 @@ export declare const agentMessageDirectionEnum: z.ZodEnum<{
     outbound: "outbound";
 }>;
 export declare const agentMessageStateEnum: z.ZodEnum<{
-    materialized: "materialized";
     deleted: "deleted";
+    materialized: "materialized";
     content_pending: "content_pending";
 }>;
 export declare const agentMembershipStateEnum: z.ZodEnum<{
@@ -1908,9 +1908,9 @@ export declare const agentSyncStreamEnum: z.ZodEnum<{
 }>;
 /** = CHECK `observations_source_check`, exactly seven. */
 export declare const agentObservationSourceEnum: z.ZodEnum<{
+    operator: "operator";
     readthrough: "readthrough";
     command_result: "command_result";
-    operator: "operator";
     webhook: "webhook";
     pull: "pull";
     client_capture: "client_capture";
@@ -3347,6 +3347,7 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
     provenance: z.ZodObject<{
         ingestPaths: z.ZodArray<z.ZodEnum<{
             unknown: "unknown";
+            operator: "operator";
             fansly_pull: "fansly_pull";
             ofapi_webhook: "ofapi_webhook";
             ofapi_rest_pull: "ofapi_rest_pull";
@@ -3354,7 +3355,6 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
             desktop_harvest: "desktop_harvest";
             readthrough: "readthrough";
             command_result: "command_result";
-            operator: "operator";
             export_import: "export_import";
             legacy_seed: "legacy_seed";
             hot_projection: "hot_projection";
@@ -3585,6 +3585,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             provenance: z.ZodObject<{
                 ingestPaths: z.ZodArray<z.ZodEnum<{
                     unknown: "unknown";
+                    operator: "operator";
                     fansly_pull: "fansly_pull";
                     ofapi_webhook: "ofapi_webhook";
                     ofapi_rest_pull: "ofapi_rest_pull";
@@ -3592,7 +3593,6 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                     desktop_harvest: "desktop_harvest";
                     readthrough: "readthrough";
                     command_result: "command_result";
-                    operator: "operator";
                     export_import: "export_import";
                     legacy_seed: "legacy_seed";
                     hot_projection: "hot_projection";
@@ -4553,6 +4553,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         provenance: z.ZodObject<{
             ingestPaths: z.ZodArray<z.ZodEnum<{
                 unknown: "unknown";
+                operator: "operator";
                 fansly_pull: "fansly_pull";
                 ofapi_webhook: "ofapi_webhook";
                 ofapi_rest_pull: "ofapi_rest_pull";
@@ -4560,7 +4561,6 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 desktop_harvest: "desktop_harvest";
                 readthrough: "readthrough";
                 command_result: "command_result";
-                operator: "operator";
                 export_import: "export_import";
                 legacy_seed: "legacy_seed";
                 hot_projection: "hot_projection";
@@ -5044,6 +5044,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
     provenance: z.ZodObject<{
         ingestPaths: z.ZodArray<z.ZodEnum<{
             unknown: "unknown";
+            operator: "operator";
             fansly_pull: "fansly_pull";
             ofapi_webhook: "ofapi_webhook";
             ofapi_rest_pull: "ofapi_rest_pull";
@@ -5051,7 +5052,6 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             desktop_harvest: "desktop_harvest";
             readthrough: "readthrough";
             command_result: "command_result";
-            operator: "operator";
             export_import: "export_import";
             legacy_seed: "legacy_seed";
             hot_projection: "hot_projection";
@@ -6008,6 +6008,7 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
     provenance: z.ZodObject<{
         ingestPaths: z.ZodArray<z.ZodEnum<{
             unknown: "unknown";
+            operator: "operator";
             fansly_pull: "fansly_pull";
             ofapi_webhook: "ofapi_webhook";
             ofapi_rest_pull: "ofapi_rest_pull";
@@ -6015,7 +6016,6 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
             desktop_harvest: "desktop_harvest";
             readthrough: "readthrough";
             command_result: "command_result";
-            operator: "operator";
             export_import: "export_import";
             legacy_seed: "legacy_seed";
             hot_projection: "hot_projection";
@@ -6298,6 +6298,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
         provenance: z.ZodObject<{
             ingestPaths: z.ZodArray<z.ZodEnum<{
                 unknown: "unknown";
+                operator: "operator";
                 fansly_pull: "fansly_pull";
                 ofapi_webhook: "ofapi_webhook";
                 ofapi_rest_pull: "ofapi_rest_pull";
@@ -6305,7 +6306,6 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 desktop_harvest: "desktop_harvest";
                 readthrough: "readthrough";
                 command_result: "command_result";
-                operator: "operator";
                 export_import: "export_import";
                 legacy_seed: "legacy_seed";
                 hot_projection: "hot_projection";
@@ -7265,6 +7265,7 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
     provenance: z.ZodObject<{
         ingestPaths: z.ZodArray<z.ZodEnum<{
             unknown: "unknown";
+            operator: "operator";
             fansly_pull: "fansly_pull";
             ofapi_webhook: "ofapi_webhook";
             ofapi_rest_pull: "ofapi_rest_pull";
@@ -7272,7 +7273,6 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
             desktop_harvest: "desktop_harvest";
             readthrough: "readthrough";
             command_result: "command_result";
-            operator: "operator";
             export_import: "export_import";
             legacy_seed: "legacy_seed";
             hot_projection: "hot_projection";
@@ -7570,6 +7570,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
         provenance: z.ZodObject<{
             ingestPaths: z.ZodArray<z.ZodEnum<{
                 unknown: "unknown";
+                operator: "operator";
                 fansly_pull: "fansly_pull";
                 ofapi_webhook: "ofapi_webhook";
                 ofapi_rest_pull: "ofapi_rest_pull";
@@ -7577,7 +7578,6 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 desktop_harvest: "desktop_harvest";
                 readthrough: "readthrough";
                 command_result: "command_result";
-                operator: "operator";
                 export_import: "export_import";
                 legacy_seed: "legacy_seed";
                 hot_projection: "hot_projection";
@@ -8363,8 +8363,8 @@ export declare const agentMessageSchema: z.ZodObject<{
     isSentByMe: z.ZodBoolean;
     occurredAt: z.ZodNullable<z.ZodString>;
     state: z.ZodEnum<{
-        materialized: "materialized";
         deleted: "deleted";
+        materialized: "materialized";
         content_pending: "content_pending";
     }>;
     textPlain: z.ZodNullable<z.ZodString>;
@@ -8624,6 +8624,7 @@ export declare const agentMessageSchema: z.ZodObject<{
     provenance: z.ZodObject<{
         ingestPaths: z.ZodArray<z.ZodEnum<{
             unknown: "unknown";
+            operator: "operator";
             fansly_pull: "fansly_pull";
             ofapi_webhook: "ofapi_webhook";
             ofapi_rest_pull: "ofapi_rest_pull";
@@ -8631,7 +8632,6 @@ export declare const agentMessageSchema: z.ZodObject<{
             desktop_harvest: "desktop_harvest";
             readthrough: "readthrough";
             command_result: "command_result";
-            operator: "operator";
             export_import: "export_import";
             legacy_seed: "legacy_seed";
             hot_projection: "hot_projection";
@@ -8697,8 +8697,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
         isSentByMe: z.ZodBoolean;
         occurredAt: z.ZodNullable<z.ZodString>;
         state: z.ZodEnum<{
-            materialized: "materialized";
             deleted: "deleted";
+            materialized: "materialized";
             content_pending: "content_pending";
         }>;
         textPlain: z.ZodNullable<z.ZodString>;
@@ -8958,6 +8958,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
         provenance: z.ZodObject<{
             ingestPaths: z.ZodArray<z.ZodEnum<{
                 unknown: "unknown";
+                operator: "operator";
                 fansly_pull: "fansly_pull";
                 ofapi_webhook: "ofapi_webhook";
                 ofapi_rest_pull: "ofapi_rest_pull";
@@ -8965,7 +8966,6 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 desktop_harvest: "desktop_harvest";
                 readthrough: "readthrough";
                 command_result: "command_result";
-                operator: "operator";
                 export_import: "export_import";
                 legacy_seed: "legacy_seed";
                 hot_projection: "hot_projection";
@@ -10509,6 +10509,7 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
     provenance: z.ZodObject<{
         ingestPaths: z.ZodArray<z.ZodEnum<{
             unknown: "unknown";
+            operator: "operator";
             fansly_pull: "fansly_pull";
             ofapi_webhook: "ofapi_webhook";
             ofapi_rest_pull: "ofapi_rest_pull";
@@ -10516,7 +10517,6 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
             desktop_harvest: "desktop_harvest";
             readthrough: "readthrough";
             command_result: "command_result";
-            operator: "operator";
             export_import: "export_import";
             legacy_seed: "legacy_seed";
             hot_projection: "hot_projection";
@@ -10740,6 +10740,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
         provenance: z.ZodObject<{
             ingestPaths: z.ZodArray<z.ZodEnum<{
                 unknown: "unknown";
+                operator: "operator";
                 fansly_pull: "fansly_pull";
                 ofapi_webhook: "ofapi_webhook";
                 ofapi_rest_pull: "ofapi_rest_pull";
@@ -10747,7 +10748,6 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 desktop_harvest: "desktop_harvest";
                 readthrough: "readthrough";
                 command_result: "command_result";
-                operator: "operator";
                 export_import: "export_import";
                 legacy_seed: "legacy_seed";
                 hot_projection: "hot_projection";
@@ -12940,9 +12940,9 @@ export declare const agentObservationsQuerySchema: z.ZodObject<{
     }>>;
     pageLabel: z.ZodOptional<z.ZodString>;
     source: z.ZodOptional<z.ZodEnum<{
+        operator: "operator";
         readthrough: "readthrough";
         command_result: "command_result";
-        operator: "operator";
         webhook: "webhook";
         pull: "pull";
         client_capture: "client_capture";
@@ -12966,9 +12966,9 @@ export declare const agentObservationEnvelopeSchema: z.ZodObject<{
     receivedAt: z.ZodString;
     observedAt: z.ZodNullable<z.ZodString>;
     source: z.ZodEnum<{
+        operator: "operator";
         readthrough: "readthrough";
         command_result: "command_result";
-        operator: "operator";
         webhook: "webhook";
         pull: "pull";
         client_capture: "client_capture";
@@ -12999,9 +12999,9 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
         receivedAt: z.ZodString;
         observedAt: z.ZodNullable<z.ZodString>;
         source: z.ZodEnum<{
+            operator: "operator";
             readthrough: "readthrough";
             command_result: "command_result";
-            operator: "operator";
             webhook: "webhook";
             pull: "pull";
             client_capture: "client_capture";
@@ -13589,9 +13589,9 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
     observationRef: z.ZodNumber;
     kind: z.ZodString;
     source: z.ZodEnum<{
+        operator: "operator";
         readthrough: "readthrough";
         command_result: "command_result";
-        operator: "operator";
         webhook: "webhook";
         pull: "pull";
         client_capture: "client_capture";
@@ -14574,6 +14574,7 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
     provenance: z.ZodObject<{
         ingestPaths: z.ZodArray<z.ZodEnum<{
             unknown: "unknown";
+            operator: "operator";
             fansly_pull: "fansly_pull";
             ofapi_webhook: "ofapi_webhook";
             ofapi_rest_pull: "ofapi_rest_pull";
@@ -14581,7 +14582,6 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
             desktop_harvest: "desktop_harvest";
             readthrough: "readthrough";
             command_result: "command_result";
-            operator: "operator";
             export_import: "export_import";
             legacy_seed: "legacy_seed";
             hot_projection: "hot_projection";
@@ -14881,6 +14881,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
         provenance: z.ZodObject<{
             ingestPaths: z.ZodArray<z.ZodEnum<{
                 unknown: "unknown";
+                operator: "operator";
                 fansly_pull: "fansly_pull";
                 ofapi_webhook: "ofapi_webhook";
                 ofapi_rest_pull: "ofapi_rest_pull";
@@ -14888,7 +14889,6 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 desktop_harvest: "desktop_harvest";
                 readthrough: "readthrough";
                 command_result: "command_result";
-                operator: "operator";
                 export_import: "export_import";
                 legacy_seed: "legacy_seed";
                 hot_projection: "hot_projection";
@@ -21489,8 +21489,8 @@ export declare const agentSyncWorkKindEnum: z.ZodEnum<{
 export declare const agentSyncWorkStateEnum: z.ZodEnum<{
     cancelled: "cancelled";
     running: "running";
-    quarantined: "quarantined";
     open: "open";
+    quarantined: "quarantined";
     done: "done";
     superseded: "superseded";
 }>;
@@ -21561,6 +21561,99 @@ export declare const agentSyncResourceKeyEnum: z.ZodEnum<{
     "probe.manual": "probe.manual";
     "probe.excluded-chat": "probe.excluded-chat";
 }>;
+/** A page's browser (Project Browser plan §4.11, PR 17): the page's transport,
+ *  what its operator last said of itself and how old that is, the owner's
+ *  stop, the login, the session (no token), the exit IP against the pinned
+ *  one (never the proxy's address or credentials), the buffer against its
+ *  caps, the delivery of its events, the versions, the last self-test and
+ *  alarm, and the browser's alerts that hold now. The operator's steps,
+ *  stop reasons and alarm kinds grow with its protocol (spec §6.3): strings. */
+export declare const agentSyncBrowserStatusSchema: z.ZodObject<{
+    profileId: z.ZodString;
+    container: z.ZodString;
+    transport: z.ZodEnum<{
+        node: "node";
+        browser: "browser";
+    }>;
+    leavePendingSince: z.ZodNullable<z.ZodString>;
+    link: z.ZodObject<{
+        lastStateAt: z.ZodNullable<z.ZodString>;
+        stateAgeMs: z.ZodNullable<z.ZodNumber>;
+        error: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    state: z.ZodObject<{
+        step: z.ZodNullable<z.ZodString>;
+        stopReason: z.ZodNullable<z.ZodString>;
+        retryAt: z.ZodNullable<z.ZodString>;
+        exitOpen: z.ZodBoolean;
+        mode: z.ZodEnum<{
+            automation: "automation";
+            manual_login: "manual_login";
+        }>;
+        downSince: z.ZodNullable<z.ZodString>;
+        stopSince: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    ownerStop: z.ZodNullable<z.ZodObject<{
+        at: z.ZodString;
+        by: z.ZodString;
+        paused: z.ZodBoolean;
+    }, z.core.$strict>>;
+    halt: z.ZodNullable<z.ZodObject<{
+        reason: z.ZodString;
+        at: z.ZodString;
+    }, z.core.$strict>>;
+    login: z.ZodObject<{
+        needed: z.ZodBoolean;
+        why: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    session: z.ZodObject<{
+        present: z.ZodBoolean;
+        accountId: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    proxy: z.ZodObject<{
+        pinnedExitIp: z.ZodNullable<z.ZodString>;
+        pinnedAt: z.ZodNullable<z.ZodString>;
+        exitIp: z.ZodNullable<z.ZodString>;
+        matches: z.ZodNullable<z.ZodBoolean>;
+        problem: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    buffer: z.ZodObject<{
+        bytes: z.ZodNullable<z.ZodNumber>;
+        oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+        percent: z.ZodNullable<z.ZodNumber>;
+        capBytes: z.ZodNumber;
+        capAgeMs: z.ZodNumber;
+        haltedReason: z.ZodNullable<z.ZodString>;
+        haltedAt: z.ZodNullable<z.ZodString>;
+        undrainedSince: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    delivery: z.ZodObject<{
+        lastEventAt: z.ZodNullable<z.ZodString>;
+        lastCommitAt: z.ZodNullable<z.ZodString>;
+        p50Ms: z.ZodNullable<z.ZodNumber>;
+        p95Ms: z.ZodNullable<z.ZodNumber>;
+        at: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    versions: z.ZodObject<{
+        chrome: z.ZodNullable<z.ZodString>;
+        operator: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    selfTest: z.ZodObject<{
+        ok: z.ZodNullable<z.ZodBoolean>;
+        at: z.ZodNullable<z.ZodString>;
+        failed: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>;
+    alarm: z.ZodNullable<z.ZodObject<{
+        kind: z.ZodString;
+        at: z.ZodString;
+        detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
+    }, z.core.$strict>>;
+    alerts: z.ZodArray<z.ZodObject<{
+        kind: z.ZodString;
+        detail: z.ZodString;
+        since: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
 /** One page as the engine sees it (design §3.9): who owns it, the pause rule's
  *  record, sends by class, the queue by "why waiting", holds and breakers. */
 export declare const agentSyncPageStatusSchema: z.ZodObject<{
@@ -21691,6 +21784,92 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
         attemptsLastHour: z.ZodNumber;
         demandVsEstimate: z.ZodNullable<z.ZodNumber>;
     }, z.core.$strict>>;
+    browser: z.ZodOptional<z.ZodObject<{
+        profileId: z.ZodString;
+        container: z.ZodString;
+        transport: z.ZodEnum<{
+            node: "node";
+            browser: "browser";
+        }>;
+        leavePendingSince: z.ZodNullable<z.ZodString>;
+        link: z.ZodObject<{
+            lastStateAt: z.ZodNullable<z.ZodString>;
+            stateAgeMs: z.ZodNullable<z.ZodNumber>;
+            error: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        state: z.ZodObject<{
+            step: z.ZodNullable<z.ZodString>;
+            stopReason: z.ZodNullable<z.ZodString>;
+            retryAt: z.ZodNullable<z.ZodString>;
+            exitOpen: z.ZodBoolean;
+            mode: z.ZodEnum<{
+                automation: "automation";
+                manual_login: "manual_login";
+            }>;
+            downSince: z.ZodNullable<z.ZodString>;
+            stopSince: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        ownerStop: z.ZodNullable<z.ZodObject<{
+            at: z.ZodString;
+            by: z.ZodString;
+            paused: z.ZodBoolean;
+        }, z.core.$strict>>;
+        halt: z.ZodNullable<z.ZodObject<{
+            reason: z.ZodString;
+            at: z.ZodString;
+        }, z.core.$strict>>;
+        login: z.ZodObject<{
+            needed: z.ZodBoolean;
+            why: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        session: z.ZodObject<{
+            present: z.ZodBoolean;
+            accountId: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        proxy: z.ZodObject<{
+            pinnedExitIp: z.ZodNullable<z.ZodString>;
+            pinnedAt: z.ZodNullable<z.ZodString>;
+            exitIp: z.ZodNullable<z.ZodString>;
+            matches: z.ZodNullable<z.ZodBoolean>;
+            problem: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        buffer: z.ZodObject<{
+            bytes: z.ZodNullable<z.ZodNumber>;
+            oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+            percent: z.ZodNullable<z.ZodNumber>;
+            capBytes: z.ZodNumber;
+            capAgeMs: z.ZodNumber;
+            haltedReason: z.ZodNullable<z.ZodString>;
+            haltedAt: z.ZodNullable<z.ZodString>;
+            undrainedSince: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        delivery: z.ZodObject<{
+            lastEventAt: z.ZodNullable<z.ZodString>;
+            lastCommitAt: z.ZodNullable<z.ZodString>;
+            p50Ms: z.ZodNullable<z.ZodNumber>;
+            p95Ms: z.ZodNullable<z.ZodNumber>;
+            at: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        versions: z.ZodObject<{
+            chrome: z.ZodNullable<z.ZodString>;
+            operator: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        selfTest: z.ZodObject<{
+            ok: z.ZodNullable<z.ZodBoolean>;
+            at: z.ZodNullable<z.ZodString>;
+            failed: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        alarm: z.ZodNullable<z.ZodObject<{
+            kind: z.ZodString;
+            at: z.ZodString;
+            detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
+        }, z.core.$strict>>;
+        alerts: z.ZodArray<z.ZodObject<{
+            kind: z.ZodString;
+            detail: z.ZodString;
+            since: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>>;
+    }, z.core.$strict>>;
 }, z.core.$strict>;
 /** One work row and why it waits ("почему ждёт", plan §10). */
 export declare const agentSyncWorkSchema: z.ZodObject<{
@@ -21712,8 +21891,8 @@ export declare const agentSyncWorkSchema: z.ZodObject<{
     state: z.ZodEnum<{
         cancelled: "cancelled";
         running: "running";
-        quarantined: "quarantined";
         open: "open";
+        quarantined: "quarantined";
         done: "done";
         superseded: "superseded";
     }>;
@@ -21891,6 +22070,92 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
         shadow: z.ZodNullable<z.ZodObject<{
             attemptsLastHour: z.ZodNumber;
             demandVsEstimate: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>>;
+        browser: z.ZodOptional<z.ZodObject<{
+            profileId: z.ZodString;
+            container: z.ZodString;
+            transport: z.ZodEnum<{
+                node: "node";
+                browser: "browser";
+            }>;
+            leavePendingSince: z.ZodNullable<z.ZodString>;
+            link: z.ZodObject<{
+                lastStateAt: z.ZodNullable<z.ZodString>;
+                stateAgeMs: z.ZodNullable<z.ZodNumber>;
+                error: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            state: z.ZodObject<{
+                step: z.ZodNullable<z.ZodString>;
+                stopReason: z.ZodNullable<z.ZodString>;
+                retryAt: z.ZodNullable<z.ZodString>;
+                exitOpen: z.ZodBoolean;
+                mode: z.ZodEnum<{
+                    automation: "automation";
+                    manual_login: "manual_login";
+                }>;
+                downSince: z.ZodNullable<z.ZodString>;
+                stopSince: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            ownerStop: z.ZodNullable<z.ZodObject<{
+                at: z.ZodString;
+                by: z.ZodString;
+                paused: z.ZodBoolean;
+            }, z.core.$strict>>;
+            halt: z.ZodNullable<z.ZodObject<{
+                reason: z.ZodString;
+                at: z.ZodString;
+            }, z.core.$strict>>;
+            login: z.ZodObject<{
+                needed: z.ZodBoolean;
+                why: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            session: z.ZodObject<{
+                present: z.ZodBoolean;
+                accountId: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            proxy: z.ZodObject<{
+                pinnedExitIp: z.ZodNullable<z.ZodString>;
+                pinnedAt: z.ZodNullable<z.ZodString>;
+                exitIp: z.ZodNullable<z.ZodString>;
+                matches: z.ZodNullable<z.ZodBoolean>;
+                problem: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            buffer: z.ZodObject<{
+                bytes: z.ZodNullable<z.ZodNumber>;
+                oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+                percent: z.ZodNullable<z.ZodNumber>;
+                capBytes: z.ZodNumber;
+                capAgeMs: z.ZodNumber;
+                haltedReason: z.ZodNullable<z.ZodString>;
+                haltedAt: z.ZodNullable<z.ZodString>;
+                undrainedSince: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            delivery: z.ZodObject<{
+                lastEventAt: z.ZodNullable<z.ZodString>;
+                lastCommitAt: z.ZodNullable<z.ZodString>;
+                p50Ms: z.ZodNullable<z.ZodNumber>;
+                p95Ms: z.ZodNullable<z.ZodNumber>;
+                at: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            versions: z.ZodObject<{
+                chrome: z.ZodNullable<z.ZodString>;
+                operator: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            selfTest: z.ZodObject<{
+                ok: z.ZodNullable<z.ZodBoolean>;
+                at: z.ZodNullable<z.ZodString>;
+                failed: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            alarm: z.ZodNullable<z.ZodObject<{
+                kind: z.ZodString;
+                at: z.ZodString;
+                detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
+            }, z.core.$strict>>;
+            alerts: z.ZodArray<z.ZodObject<{
+                kind: z.ZodString;
+                detail: z.ZodString;
+                since: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>>;
         }, z.core.$strict>>;
     }, z.core.$strict>>;
     delivery: z.ZodObject<{
@@ -22520,8 +22785,8 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
         state: z.ZodEnum<{
             cancelled: "cancelled";
             running: "running";
-            quarantined: "quarantined";
             open: "open";
+            quarantined: "quarantined";
             done: "done";
             superseded: "superseded";
         }>;
@@ -24451,6 +24716,7 @@ export declare const agentRouteSchemas: {
                         provenance: z.ZodObject<{
                             ingestPaths: z.ZodArray<z.ZodEnum<{
                                 unknown: "unknown";
+                                operator: "operator";
                                 fansly_pull: "fansly_pull";
                                 ofapi_webhook: "ofapi_webhook";
                                 ofapi_rest_pull: "ofapi_rest_pull";
@@ -24458,7 +24724,6 @@ export declare const agentRouteSchemas: {
                                 desktop_harvest: "desktop_harvest";
                                 readthrough: "readthrough";
                                 command_result: "command_result";
-                                operator: "operator";
                                 export_import: "export_import";
                                 legacy_seed: "legacy_seed";
                                 hot_projection: "hot_projection";
@@ -25470,6 +25735,7 @@ export declare const agentRouteSchemas: {
                     provenance: z.ZodObject<{
                         ingestPaths: z.ZodArray<z.ZodEnum<{
                             unknown: "unknown";
+                            operator: "operator";
                             fansly_pull: "fansly_pull";
                             ofapi_webhook: "ofapi_webhook";
                             ofapi_rest_pull: "ofapi_rest_pull";
@@ -25477,7 +25743,6 @@ export declare const agentRouteSchemas: {
                             desktop_harvest: "desktop_harvest";
                             readthrough: "readthrough";
                             command_result: "command_result";
-                            operator: "operator";
                             export_import: "export_import";
                             legacy_seed: "legacy_seed";
                             hot_projection: "hot_projection";
@@ -25961,6 +26226,7 @@ export declare const agentRouteSchemas: {
                 provenance: z.ZodObject<{
                     ingestPaths: z.ZodArray<z.ZodEnum<{
                         unknown: "unknown";
+                        operator: "operator";
                         fansly_pull: "fansly_pull";
                         ofapi_webhook: "ofapi_webhook";
                         ofapi_rest_pull: "ofapi_rest_pull";
@@ -25968,7 +26234,6 @@ export declare const agentRouteSchemas: {
                         desktop_harvest: "desktop_harvest";
                         readthrough: "readthrough";
                         command_result: "command_result";
-                        operator: "operator";
                         export_import: "export_import";
                         legacy_seed: "legacy_seed";
                         hot_projection: "hot_projection";
@@ -26971,6 +27236,7 @@ export declare const agentRouteSchemas: {
                     provenance: z.ZodObject<{
                         ingestPaths: z.ZodArray<z.ZodEnum<{
                             unknown: "unknown";
+                            operator: "operator";
                             fansly_pull: "fansly_pull";
                             ofapi_webhook: "ofapi_webhook";
                             ofapi_rest_pull: "ofapi_rest_pull";
@@ -26978,7 +27244,6 @@ export declare const agentRouteSchemas: {
                             desktop_harvest: "desktop_harvest";
                             readthrough: "readthrough";
                             command_result: "command_result";
-                            operator: "operator";
                             export_import: "export_import";
                             legacy_seed: "legacy_seed";
                             hot_projection: "hot_projection";
@@ -27970,6 +28235,7 @@ export declare const agentRouteSchemas: {
                     provenance: z.ZodObject<{
                         ingestPaths: z.ZodArray<z.ZodEnum<{
                             unknown: "unknown";
+                            operator: "operator";
                             fansly_pull: "fansly_pull";
                             ofapi_webhook: "ofapi_webhook";
                             ofapi_rest_pull: "ofapi_rest_pull";
@@ -27977,7 +28243,6 @@ export declare const agentRouteSchemas: {
                             desktop_harvest: "desktop_harvest";
                             readthrough: "readthrough";
                             command_result: "command_result";
-                            operator: "operator";
                             export_import: "export_import";
                             legacy_seed: "legacy_seed";
                             hot_projection: "hot_projection";
@@ -28826,8 +29091,8 @@ export declare const agentRouteSchemas: {
                     isSentByMe: z.ZodBoolean;
                     occurredAt: z.ZodNullable<z.ZodString>;
                     state: z.ZodEnum<{
-                        materialized: "materialized";
                         deleted: "deleted";
+                        materialized: "materialized";
                         content_pending: "content_pending";
                     }>;
                     textPlain: z.ZodNullable<z.ZodString>;
@@ -29087,6 +29352,7 @@ export declare const agentRouteSchemas: {
                     provenance: z.ZodObject<{
                         ingestPaths: z.ZodArray<z.ZodEnum<{
                             unknown: "unknown";
+                            operator: "operator";
                             fansly_pull: "fansly_pull";
                             ofapi_webhook: "ofapi_webhook";
                             ofapi_rest_pull: "ofapi_rest_pull";
@@ -29094,7 +29360,6 @@ export declare const agentRouteSchemas: {
                             desktop_harvest: "desktop_harvest";
                             readthrough: "readthrough";
                             command_result: "command_result";
-                            operator: "operator";
                             export_import: "export_import";
                             legacy_seed: "legacy_seed";
                             hot_projection: "hot_projection";
@@ -30702,6 +30967,7 @@ export declare const agentRouteSchemas: {
                     provenance: z.ZodObject<{
                         ingestPaths: z.ZodArray<z.ZodEnum<{
                             unknown: "unknown";
+                            operator: "operator";
                             fansly_pull: "fansly_pull";
                             ofapi_webhook: "ofapi_webhook";
                             ofapi_rest_pull: "ofapi_rest_pull";
@@ -30709,7 +30975,6 @@ export declare const agentRouteSchemas: {
                             desktop_harvest: "desktop_harvest";
                             readthrough: "readthrough";
                             command_result: "command_result";
-                            operator: "operator";
                             export_import: "export_import";
                             legacy_seed: "legacy_seed";
                             hot_projection: "hot_projection";
@@ -32523,9 +32788,9 @@ export declare const agentRouteSchemas: {
             }>>;
             pageLabel: z.ZodOptional<z.ZodString>;
             source: z.ZodOptional<z.ZodEnum<{
+                operator: "operator";
                 readthrough: "readthrough";
                 command_result: "command_result";
-                operator: "operator";
                 webhook: "webhook";
                 pull: "pull";
                 client_capture: "client_capture";
@@ -32553,9 +32818,9 @@ export declare const agentRouteSchemas: {
                     receivedAt: z.ZodString;
                     observedAt: z.ZodNullable<z.ZodString>;
                     source: z.ZodEnum<{
+                        operator: "operator";
                         readthrough: "readthrough";
                         command_result: "command_result";
-                        operator: "operator";
                         webhook: "webhook";
                         pull: "pull";
                         client_capture: "client_capture";
@@ -33181,9 +33446,9 @@ export declare const agentRouteSchemas: {
                 observationRef: z.ZodNumber;
                 kind: z.ZodString;
                 source: z.ZodEnum<{
+                    operator: "operator";
                     readthrough: "readthrough";
                     command_result: "command_result";
-                    operator: "operator";
                     webhook: "webhook";
                     pull: "pull";
                     client_capture: "client_capture";
@@ -34252,6 +34517,7 @@ export declare const agentRouteSchemas: {
                     provenance: z.ZodObject<{
                         ingestPaths: z.ZodArray<z.ZodEnum<{
                             unknown: "unknown";
+                            operator: "operator";
                             fansly_pull: "fansly_pull";
                             ofapi_webhook: "ofapi_webhook";
                             ofapi_rest_pull: "ofapi_rest_pull";
@@ -34259,7 +34525,6 @@ export declare const agentRouteSchemas: {
                             desktop_harvest: "desktop_harvest";
                             readthrough: "readthrough";
                             command_result: "command_result";
-                            operator: "operator";
                             export_import: "export_import";
                             legacy_seed: "legacy_seed";
                             hot_projection: "hot_projection";
@@ -41040,6 +41305,92 @@ export declare const agentRouteSchemas: {
                         attemptsLastHour: z.ZodNumber;
                         demandVsEstimate: z.ZodNullable<z.ZodNumber>;
                     }, z.core.$strict>>;
+                    browser: z.ZodOptional<z.ZodObject<{
+                        profileId: z.ZodString;
+                        container: z.ZodString;
+                        transport: z.ZodEnum<{
+                            node: "node";
+                            browser: "browser";
+                        }>;
+                        leavePendingSince: z.ZodNullable<z.ZodString>;
+                        link: z.ZodObject<{
+                            lastStateAt: z.ZodNullable<z.ZodString>;
+                            stateAgeMs: z.ZodNullable<z.ZodNumber>;
+                            error: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        state: z.ZodObject<{
+                            step: z.ZodNullable<z.ZodString>;
+                            stopReason: z.ZodNullable<z.ZodString>;
+                            retryAt: z.ZodNullable<z.ZodString>;
+                            exitOpen: z.ZodBoolean;
+                            mode: z.ZodEnum<{
+                                automation: "automation";
+                                manual_login: "manual_login";
+                            }>;
+                            downSince: z.ZodNullable<z.ZodString>;
+                            stopSince: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        ownerStop: z.ZodNullable<z.ZodObject<{
+                            at: z.ZodString;
+                            by: z.ZodString;
+                            paused: z.ZodBoolean;
+                        }, z.core.$strict>>;
+                        halt: z.ZodNullable<z.ZodObject<{
+                            reason: z.ZodString;
+                            at: z.ZodString;
+                        }, z.core.$strict>>;
+                        login: z.ZodObject<{
+                            needed: z.ZodBoolean;
+                            why: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        session: z.ZodObject<{
+                            present: z.ZodBoolean;
+                            accountId: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        proxy: z.ZodObject<{
+                            pinnedExitIp: z.ZodNullable<z.ZodString>;
+                            pinnedAt: z.ZodNullable<z.ZodString>;
+                            exitIp: z.ZodNullable<z.ZodString>;
+                            matches: z.ZodNullable<z.ZodBoolean>;
+                            problem: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        buffer: z.ZodObject<{
+                            bytes: z.ZodNullable<z.ZodNumber>;
+                            oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+                            percent: z.ZodNullable<z.ZodNumber>;
+                            capBytes: z.ZodNumber;
+                            capAgeMs: z.ZodNumber;
+                            haltedReason: z.ZodNullable<z.ZodString>;
+                            haltedAt: z.ZodNullable<z.ZodString>;
+                            undrainedSince: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        delivery: z.ZodObject<{
+                            lastEventAt: z.ZodNullable<z.ZodString>;
+                            lastCommitAt: z.ZodNullable<z.ZodString>;
+                            p50Ms: z.ZodNullable<z.ZodNumber>;
+                            p95Ms: z.ZodNullable<z.ZodNumber>;
+                            at: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        versions: z.ZodObject<{
+                            chrome: z.ZodNullable<z.ZodString>;
+                            operator: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        selfTest: z.ZodObject<{
+                            ok: z.ZodNullable<z.ZodBoolean>;
+                            at: z.ZodNullable<z.ZodString>;
+                            failed: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>;
+                        alarm: z.ZodNullable<z.ZodObject<{
+                            kind: z.ZodString;
+                            at: z.ZodString;
+                            detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
+                        }, z.core.$strict>>;
+                        alerts: z.ZodArray<z.ZodObject<{
+                            kind: z.ZodString;
+                            detail: z.ZodString;
+                            since: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>>;
+                    }, z.core.$strict>>;
                 }, z.core.$strict>>;
                 delivery: z.ZodObject<{
                     returned: z.ZodNumber;
@@ -41713,8 +42064,8 @@ export declare const agentRouteSchemas: {
                     state: z.ZodEnum<{
                         cancelled: "cancelled";
                         running: "running";
-                        quarantined: "quarantined";
                         open: "open";
+                        quarantined: "quarantined";
                         done: "done";
                         superseded: "superseded";
                     }>;
@@ -42435,6 +42786,7 @@ export type AgentHistoryRequestListResponse = z.infer<typeof agentHistoryRequest
 export type AgentSyncPageMode = z.infer<typeof agentSyncPageModeEnum>;
 export type AgentSyncResourceKey = z.infer<typeof agentSyncResourceKeyEnum>;
 export type AgentSyncPageStatus = z.infer<typeof agentSyncPageStatusSchema>;
+export type AgentSyncBrowserStatus = z.infer<typeof agentSyncBrowserStatusSchema>;
 export type AgentSyncWork = z.infer<typeof agentSyncWorkSchema>;
 export type AgentSyncStatusQuery = z.infer<typeof agentSyncStatusQuerySchema>;
 export type AgentSyncStatusResponse = z.infer<typeof agentSyncStatusResponseSchema>;

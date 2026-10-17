@@ -18,6 +18,7 @@ export * from "./routes-ofapi-vendor";
 export * from "./routes-ofapi-collection";
 export * from "./of-links";
 export * from "./routes-of-links";
+export * from "./routes-page-browser";
 export * from "./routes-ops-live";
 export * from "./ofapi-extended-commands";
 export * from "./routes-ofapi-banned-words";

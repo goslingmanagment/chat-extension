@@ -15,6 +15,13 @@ export const SDK_EXCLUDED_OPERATIONS = [
     "ofapiReadGateway",
     "adminOfapiCreditsLedgerCsv",
     "voiceNoteAudio",
+    // A page browser's screenshot is image/jpeg; its screen a passthrough of
+    // KasmVNC (Project Browser PR 15).
+    "pageBrowserLoginScreenshot",
+    "pageBrowserScreen",
+    // The same of a new page's browser, by its profile (PR 16).
+    "pageBrowserProfileLoginScreenshot",
+    "pageBrowserProfileScreen",
 ];
 export class KernelApiError extends Error {
     category;
