@@ -327,7 +327,7 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     expect(await routes(since)).toEqual([]);
   });
 
-  it('[FX-009] [FS-NOTE-2] the panel over the chat in both of Fansly’s themes; «Окно по центру» belongs to its chat; the view is the same in a reloaded tab', async () => {
+  it('[FX-009] [UI-017] [FS-NOTE-2] the panel over the chat in both of Fansly’s themes; «Окно по центру» over a modal of Fansly’s and belongs to its chat; the view is the same in a reloaded tab', async () => {
     await waitBody('ready');
     expect(await readOurs('panel', '.cg-notes', (node) => node.getAttribute('data-notes-place'))).toBe('over');
     mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
@@ -338,6 +338,26 @@ describe('Fansly «Заметки» (R20 P11b)', () => {
     }
     await ours('panel', 'select.cg-notes__view').selectByAttribute('value', 'center');
     await browser.waitUntil(async () => (await readOurs('panel', '.cg-notes', (node) => node.classList.contains('is-center'))) === true, { timeout: 10_000 });
+    // X46: a modal of Fansly's that opens after the window — its composer's upload — stands under it, not over it.
+    await browser.execute((selector: string) => {
+      const input = document.querySelector<HTMLInputElement>(`${selector} input[type="file"]`);
+      if (input === null) throw new Error('no file input');
+      const files = new DataTransfer();
+      files.items.add(new File(['x'], 'probe.png', { type: 'image/png' }));
+      input.files = files.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, FANSLY_MAIN.composer);
+    await browser.waitUntil(async () => (await callFansly('modals')).length > 0, { timeout: 5000, timeoutMsg: 'Fansly’s upload modal' });
+    const centre = await browser.execute(() => {
+      const hit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      return { layer: hit?.closest('[data-host]')?.getAttribute('data-layer') ?? null, modal: hit !== null && hit.closest('.modal-wrapper') !== null };
+    });
+    expect(centre).toEqual({ layer: 'panel', modal: false });
+    await browser.saveScreenshot(`${E2E_EVIDENCE_DIR}/suite-fansly-notes-center-over-modal.png`);
+    // Fansly's backdrop closes its modal, as a press on it would; the notes stay.
+    await browser.execute(() => document.querySelector<HTMLElement>('.modal-wrapper .xdModal')?.click());
+    await browser.waitUntil(async () => (await callFansly('modals')).length === 0, { timeout: 5000, timeoutMsg: 'Fansly’s modal did not close' });
+    expect(await shown()).toBe(true);
     await callFansly('open', B.group, 'router');
     await waitShown(false);
     await browser.refresh();

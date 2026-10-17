@@ -15,7 +15,8 @@ import { createShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createFakeFanslyPage, type FakeFanslyPage } from '../testing/fake-dom';
-import { createKeyboardProbe, fanslyWindowOpen, focusInNeighbor, isFanslyComposer } from './keyboard';
+import { createKeyboardProbe, fanslyWindowOpen, focusInNeighbor, focusInOurWindow, isFanslyComposer } from './keyboard';
+import { LAUNCHER_LAYER } from './mount';
 
 const A = '700000000000000010';
 
@@ -40,11 +41,12 @@ function neighborHost(tag: string, inside: 'textarea' | 'button'): { readonly ho
 let page: FakeFanslyPage;
 let probe: KeyboardProbe;
 let ours: ClosedHost;
+let registry: ReturnType<typeof createShadowRootRegistry>;
 
 beforeEach(() => {
   page = createFakeFanslyPage();
   page.openChat(A);
-  const registry = createShadowRootRegistry();
+  registry = createShadowRootRegistry();
   probe = createKeyboardProbe(document, registry);
   const container = page.container();
   if (container === null) throw new Error('no container');
@@ -155,5 +157,40 @@ describe('[host:fansly] a window that is not ours (FS-HK-1)', () => {
     document.body.append(lookalike);
     inside.focus();
     expect(focusInNeighbor(document)).toBe(false);
+  });
+});
+
+describe('[host:fansly] a window of ours over Fansly’s modal (FS-PLC-6, X46)', () => {
+  /** An overlay host of ours in <html>, as the mounts make it, with a field in its closed root. */
+  const overlay = (layer: string): { readonly host: ClosedHost; readonly field: HTMLTextAreaElement } => {
+    const host = mountClosedHost(document.documentElement, 'overlay', 'last', registry);
+    host.host.setAttribute('data-layer', layer);
+    const field = document.createElement('textarea');
+    host.root.append(field);
+    return { host, field };
+  };
+
+  it('[UI-017] [FX-009] the focus inside our panel or window takes the keys back from Fansly’s modal under it; in the dock, the launcher or the page they yield as before', () => {
+    const panel = overlay('panel');
+    const launcher = overlay(LAUNCHER_LAYER);
+    try {
+      document.body.classList.add('modal-opened');
+      expect(probe.nativeModalOpen()).toBe(true);
+      panel.field.focus();
+      expect(document.activeElement).toBe(panel.host.host);
+      expect([focusInOurWindow(document, registry), probe.nativeModalOpen(), probe.focus(key)]).toEqual([true, false, 'ours-field']);
+      // The launcher and the dock stand under Fansly's modal: a focus there is no window of ours over it.
+      launcher.field.focus();
+      expect([focusInOurWindow(document, registry), probe.nativeModalOpen()]).toEqual([false, true]);
+      const button = document.createElement('button');
+      ours.root.append(button);
+      button.focus();
+      expect([focusInOurWindow(document, registry), probe.nativeModalOpen()]).toEqual([false, true]);
+      (document.activeElement as HTMLElement | null)?.blur();
+      expect(probe.nativeModalOpen()).toBe(true);
+    } finally {
+      panel.host.remove();
+      launcher.host.remove();
+    }
   });
 });

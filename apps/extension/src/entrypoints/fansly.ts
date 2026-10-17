@@ -8,7 +8,7 @@
 // fansly.com and, in a test build, on the stand. It starts without WXT's
 // wrapper (build/isolated-entry.ts): `main` is called bare.
 
-import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startFanslyTab, type FanslyPort, type Validation } from '@cg/host-fansly/isolated';
+import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startFanslyTab, type FanslyPort, type LauncherChunk, type Validation } from '@cg/host-fansly/isolated';
 import type { UnlistedScriptDefinition } from 'wxt';
 import { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';
 
@@ -35,6 +35,8 @@ export const FANSLY_ADAPTER: HostAdapter<FanslyPort> = {
       navInsertTimeoutMs: env.navInsertTimeoutMs,
       // R20 P9c: the relay frame of «Fansly через вкладку», its address asked at its first mount (never at document_start).
       relayUrl: () => import('@cg/platform/runtime').then(({ extensionUrl }) => extensionUrl(FANSLY_RELAY_PAGE)),
+      // X46: the floating launcher's buttons, a chunk of Fansly's build drawn once the tab is admitted.
+      launcher: () => env.lazy<LauncherChunk>('launcher'),
       onDiagnostic: env.onDiagnostic,
     });
     // The site's own early transports: the socket's sounds (P14a) and the relay frame's lease (P9c).

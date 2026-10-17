@@ -179,7 +179,7 @@ describe('this repo: the manifest is complete', () => {
     // a chunk of nothing, and a listed one its build lost is said.
     const [chatspace, fansly] = sites;
     if (chatspace === undefined || fansly === undefined || chatspace.lazyEntries === null || fansly.lazyEntries === null) throw new Error('both builds');
-    expect(SITE_APPLICATION_CHUNKS['fansly-web']).toEqual(['ai-fansly']);
+    expect(SITE_APPLICATION_CHUNKS['fansly-web']).toEqual(['ai-fansly', 'launcher']);
     expect(messages(checkManifestNames([{ ...chatspace, lazyEntries: [...chatspace.lazyEntries, 'ai-fansly'] }, fansly], vocabularies))).toEqual([
       "chatspace's lazy entry «ai-fansly» carries no feature or surface of its slice and is not the application's own",
     ]);

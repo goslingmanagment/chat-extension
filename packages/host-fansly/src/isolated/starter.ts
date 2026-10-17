@@ -18,14 +18,22 @@
 
 import { removeStaleHosts } from '@cg/host-kit/isolated/hosts';
 
+import type { LauncherViewEnv } from './launcher-view';
 import { watchCoexistence } from './legacy';
 import type { FanslyDiagnostic } from './host-port';
 import { startFanslyHost, type StartFanslyHostOptions, type StartedFanslyHost } from './start';
 
 export type { FanslyDiagnostic, FanslyTheme } from './host-port';
 
+/** The launcher's chunk of Fansly's lazy build (lazy/fansly/launcher.ts): the buttons, drawn once the tab is admitted. */
+export interface LauncherChunk {
+  drawFanslyLauncher(env: LauncherViewEnv): () => void;
+}
+
 export type FanslyStartEnv = Pick<StartFanslyHostOptions, 'win' | 'validation' | 'redeem' | 'navInsertTimeoutMs' | 'handshakeTimeoutMs' | 'searchMs' | 'relayUrl'> & {
   readonly onDiagnostic?: (diagnostic: FanslyDiagnostic) => void;
+  /** The floating launcher's chunk (X46); absent — no launcher (the e2e harness, tests). */
+  readonly launcher?: () => Promise<LauncherChunk>;
 };
 
 export interface StartedFanslyTab extends StartedFanslyHost {
@@ -34,7 +42,8 @@ export interface StartedFanslyTab extends StartedFanslyHost {
   readonly activation: { readonly ready: Promise<boolean>; readonly stopped: AbortSignal };
   /**
    * The application is wanted without a composer (R20 P13b): on `/creator/vault` the vault's entry has its place, so
-   * the application loads as for the dock's — and with it, if the page's owner switched the vault on, the entry.
+   * the application loads as for the dock's — and with it, if the page's owner switched the vault on, the entry. And
+   * from the first click on the floating launcher on (X46): the window it asked for comes with the application.
    */
   readonly wantsApp: { current(): boolean; onChange(listener: () => void): () => void };
 }
@@ -53,11 +62,34 @@ export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
     await port.recheck();
     return !coexistence.stopped.aborted;
   });
+  const { launcher } = started;
   const wantsApp = {
-    current: () => onVault(started.route.current().path),
-    onChange: (listener: () => void) => started.route.onChange((change) => {
-      if (onVault(change.route.path) !== onVault(change.previous.path)) listener();
-    }),
+    current: () => launcher.wanted() || onVault(started.route.current().path),
+    onChange(listener: () => void) {
+      const offRoute = started.route.onChange((change) => {
+        if (onVault(change.route.path) !== onVault(change.previous.path)) listener();
+      });
+      // Every click: an application whose load failed is asked for again (UP-016: nothing reloads by itself).
+      const offLauncher = launcher.onWanted(listener);
+      return () => {
+        offRoute();
+        offLauncher();
+      };
+    },
   };
+  // The launcher (X46) on every page of an admitted tab — never before its coexistence checks: with the old extension
+  // on the page this copy retires, and the old one's own «$» and «Новые» stand in the same corner.
+  const draw = env.launcher;
+  if (draw !== undefined) {
+    void ready.then(async (admitted) => {
+      if (!admitted || coexistence.stopped.aborted) return;
+      const chunk = await draw();
+      if (coexistence.stopped.aborted) return;
+      const erase = chunk.drawFanslyLauncher({ host: started.mounts.launcher(), theme: started.theme, launcher, platform: env.win.navigator.platform });
+      coexistence.stopped.addEventListener('abort', erase, { once: true });
+    }).catch((error: unknown) => {
+      env.onDiagnostic?.({ event: 'launcher-failed', detail: { name: error instanceof Error ? error.name : typeof error } });
+    });
+  }
   return { staleHosts, ...started, activation: { ready, stopped: coexistence.stopped }, wantsApp };
 }

@@ -492,6 +492,8 @@ export function checkBytesPinDiff(changedPaths: readonly string[], pinsPath: str
  * type, a file name): a dotted name (`fx.batch`, `fansly.voice.start`, a text key), a CG code, an absolute address.
  */
 const MARKER_SHAPES: readonly RegExp[] = [/^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/, /^CG-[A-Z0-9]+(?:-[A-Z0-9]+)+$/, /^https?:\/\/\S+$/];
+/** Addresses that are tokens of the web platform, not of a site: the W3C's namespaces (`createElementNS` of an SVG). */
+const PLATFORM_ADDRESSES: readonly RegExp[] = [/^http:\/\/www\.w3\.org\//];
 const MARKER_MIN_LENGTH = 6;
 
 function stringsOf(file: SourceFile): string[] {
@@ -517,7 +519,9 @@ export function deriveSiteMarkers(files: readonly SourceFile[], site: Site): str
     const target = site.owned.test(file.path) ? own : others;
     for (const text of stringsOf(file)) target.add(text);
   }
-  return [...own].filter((text) => text.length >= MARKER_MIN_LENGTH && MARKER_SHAPES.some((shape) => shape.test(text)) && !others.has(text)).sort();
+  return [...own]
+    .filter((text) => text.length >= MARKER_MIN_LENGTH && MARKER_SHAPES.some((shape) => shape.test(text)) && !PLATFORM_ADDRESSES.some((token) => token.test(text)) && !others.has(text))
+    .sort();
 }
 
 

@@ -257,6 +257,7 @@ describe('[host:fansly] the vault’s chunk comes with `/creator/vault` (R20 P13
           listeners.add(listener);
           return () => listeners.delete(listener);
         },
+        launcher: { serve: () => () => undefined },
       },
       lazy(entry: string) {
         if (entry === 'registration') return Promise.resolve({ startFanslyRegistration: () => () => undefined });

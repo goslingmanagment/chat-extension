@@ -431,6 +431,8 @@ describe('gate: no Fansly data in what ChatSpace loads (architecture §1.8, §3.
     file('packages/contracts/src/tab-messages-fansly.ts', "export const T = ['fansly.voice.start', 'voice', 'audio/mpeg', 'chatspace'];\nexport const API = 'https://apiv3.example.test/api/v1/';\nimport './errors-fansly';"),
     file('packages/contracts/src/errors-fansly.ts', "export const E = ['CG-FAN-OFF', 'CG-SEND-OFF'] as const; // 'fx.comment'"),
     file('packages/contracts/src/bridge-fansly.ts', "export const B = ['fx.batch', 'fx.gap', 'probe', 'a sentence. with a dot'];"),
+    // A namespace of the web platform (X46: the launcher's SVG glyphs) is nobody's marker: Preact names it in ChatSpace's dock too.
+    file('packages/host-fansly/src/isolated/launcher-view.ts', "export const NS = 'http://www.w3.org/2000/svg';"),
     file('packages/core/src/domain/hosts/fansly/i18n/ru.ts', "export const RU = { 'cg.fanOff.title': 'Fansly выключен' };"),
     file('packages/contracts/src/errors.ts', "export const SHARED = ['CG-SEND-OFF'];"),
     file('packages/contracts/src/bridge.ts', "export const PROBE = 'probe';"),

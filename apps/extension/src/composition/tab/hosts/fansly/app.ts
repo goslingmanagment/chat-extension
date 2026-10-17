@@ -18,7 +18,8 @@
 //   (the window check, the fan's known ids, the deletions, a draft's texts),
 //   its window cut by the effective messageCount of that start; a start of
 //   the deep window asks the background for the person's depth (R20 P8c).
-// - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`.
+// - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`; the floating launcher's clicks (X46) — Spenders
+//   and «Новые» from every page, as the popup opens them.
 
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
@@ -94,8 +95,15 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
     if (event.type === 'route') sync();
   });
   sync();
+  // X46: the floating launcher's click opens its window as the popup's command does (`Navigate` to the surface): the
+  // click kept while the application loaded at once, every next one in its own click — the gate sees it through our root.
+  // A refusal speaks for itself where the router says it (a toast, the window's own state), as for the popup's command.
+  const offLauncher = env.host.launcher.serve((surface) => {
+    void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
+  });
   return () => {
     offOps();
+    offLauncher();
     off();
     void registration?.then((stop) => stop?.());
     void notes?.then((stop) => stop?.());
