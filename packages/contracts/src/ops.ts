@@ -197,7 +197,7 @@ function proofFits(op: {
 }
 
 /**
- * 1.25.0 (decision X54): the PPV state of the open OnlyFans chat as the platform gives it at the Generate click — the
+ * 1.27.0 (decision X54): the PPV state of the open OnlyFans chat as the platform gives it at the Generate click — the
  * model's paid messages among the chat's newest, read from OnlyMonster's API, with their listed price (USD) and
  * whether the fan bought them (OnlyFans' `isOpened`). Ids and facts, no text. A draft start in the dock carries it
  * (`StartOp.livePpv`); the hub takes the same shape as `livePpvContext` and applies it to that one generation.
@@ -254,7 +254,7 @@ export const StartOpSchema = z
     ),
     /** Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14). */
     fresh: z.optional(LiveTextTailSchema),
-    /** 1.25.0 (X54): the open chat's PPV state, where `fresh` may go — a draft start in the dock. */
+    /** 1.27.0 (X54): the open chat's PPV state, where `fresh` may go — a draft start in the dock. */
     livePpv: z.optional(LivePpvStateSchema),
     /**
      * Previews: the freshness checkpoint of the Generate click (X8), kept with
@@ -671,7 +671,7 @@ export interface AiProofAsk {
   readonly identity: HostIdentity;
   /** How much fresh page text the start may carry (D-14: a draft feature in the dock, admitted on the page); null — none. */
   readonly fresh: { readonly maxItems: number; readonly maxChars: number } | null;
-  /** 1.25.0 (X54): the start may carry the open chat's PPV state — fresh text is admitted and the hub lists `live-ppv-v1`. */
+  /** 1.27.0 (X54): the start may carry the open chat's PPV state — fresh text is admitted and the hub lists `live-ppv-v1`. */
   readonly livePpv?: boolean;
 }
 
@@ -683,7 +683,7 @@ export interface AiProofAsk {
 export interface AiStartFields {
   /** The visible tail as fresh page text (D-14): ChatSpace's. */
   readonly fresh?: LiveTextTail | null;
-  /** 1.25.0 (X54): the open chat's PPV state read from the host's API: ChatSpace's. */
+  /** 1.27.0 (X54): the open chat's PPV state read from the host's API: ChatSpace's. */
   readonly livePpv?: LivePpvState;
   /** The proof of freshness the site made of its snapshot (`CoverageProof`, its texts inside): Fansly's (P8b1). */
   readonly proof?: CoverageProof;

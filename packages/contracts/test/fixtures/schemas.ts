@@ -687,7 +687,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ capturedAt: ISO, items: [openChatPaid], hasMore: null, cursor: '9002' }, { capturedAt: ISO, items: [], hasMore: false, cursor: null }],
     [{ capturedAt: ISO, items: Array.from({ length: 101 }, () => openChatPaid), hasMore: true, cursor: '9002' }, { capturedAt: ISO, items: [openChatPaid], hasMore: true }],
   ),
-  // 1.25.0 (X54): the PPV state a draft start carries and the hub takes.
+  // 1.27.0 (X54): the PPV state a draft start carries and the hub takes.
   fixture(
     'LivePpvState',
     C.LivePpvStateSchema,

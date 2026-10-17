@@ -78,7 +78,7 @@ describe('[host:fansly] Hi wire values agree with the deployed HF-5 SDK (P4b4)',
       noteValues: Array.from({ length: NOTE_FILL_LIMITS.fieldsMax }, () => '' as const),
       knownFanMessageIds: Array.from({ length: SEND_LIMITS.knownFanMessagesMax }, (_, i) => id(i)),
       liveTextContext: { capturedAt: ISO, items: Array.from({ length: LIVE_TEXT_LIMITS.maxItems }, (_, i) => ({ platformMessageId: id(i), direction: 'model', occurredAt: ISO, text: text(LIVE_TEXT_LIMITS.maxChars) })) },
-      // X54 (1.25.0): the open chat's PPV state at its caps — ids and numbers, no text.
+      // X54 (1.27.0): the open chat's PPV state at its caps — ids and numbers, no text.
       livePpvContext: { capturedAt: ISO, items: Array.from({ length: LIVE_PPV_LIMITS.maxItems }, (_, i) => ({ platformMessageId: id(i), priceUsd: OPEN_CHAT_PRICE_MAX, purchased: false })) },
       coverageCheck: {
         window: Array.from({ length: COVERAGE_CHECK_LIMITS.windowMax }, (_, i) => ({ id: id(i), dir: 'model' })),

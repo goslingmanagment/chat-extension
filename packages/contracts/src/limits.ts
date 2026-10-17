@@ -193,7 +193,7 @@ export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 export const OPEN_CHAT_LIMITS = { pageMax: 100, requestMs: 10 * SECOND, bridgeMs: 12 * SECOND, cacheMs: 15 * SECOND } as const;
 
 /**
- * 1.25.0 (X54): the PPV state of the open chat a draft start carries (`StartOp.livePpv`, hub `livePpvContext`).
+ * 1.27.0 (X54): the PPV state of the open chat a draft start carries (`StartOp.livePpv`, hub `livePpvContext`).
  * `readMessages` — how many of the chat's newest messages the start reads from the host's API for it; `waitMs` — how
  * long the Generate click waits for that read beside the tail before it starts without it (the read goes on and fills
  * the port's cache for the next click); `maxItems` — the hub's `AI_LIVE_PPV_MAX_ITEMS`.
