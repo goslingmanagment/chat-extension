@@ -182,6 +182,8 @@ describe('[host:fansly] notes fill and conversation markers', () => {
     expect(textOf(await generate('fan-notes-fill', { noteFields }))).toBe('Name: Synthetic fact from the chat.\nHobbies: Synthetic fact from the chat.');
     // R20 P11b2: the merge mode, by its switch alone — quotes under each value, a field the hub names itself.
     expect(textOf(await generate('fan-notes-fill', { noteFields, noteValues: ['', ''] }))).toBe('Name: Synthetic fact from the chat.\n> «my Name, in synthetic words»\nHobbies: Synthetic fact from the chat.\n> «my Hobbies, in synthetic words»\n+ Питомцы: synthetic cat\n> «my synthetic cat»');
+    // X43: a filled value gets the hub's rewrite of it, one that already holds the fact `=`.
+    expect(textOf(await generate('fan-notes-fill', { noteFields, noteValues: ['Ana', 'chess; Synthetic fact from the chat.'] }))).toBe('Name: Ana; Synthetic fact from the chat.\n> «my Name, in synthetic words»\nHobbies: =\n+ Питомцы: synthetic cat\n> «my synthetic cat»');
     await expect(generate('fan-notes-fill')).rejects.toMatchObject(error('bad_request'));
     await expect(generate('fan-notes-fill', { noteFields, fanRef: undefined })).rejects.toMatchObject(error('bad_request'));
     await expect(generate('fast-reply', { noteFields })).rejects.toMatchObject(error('bad_request'));

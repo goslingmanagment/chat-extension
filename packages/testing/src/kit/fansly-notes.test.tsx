@@ -259,7 +259,7 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
     ]);
   });
 
-  it('[FX-014] [FX-016] «✨ Дополнить из чата» at the foot of a questionnaire: «Сохранить» waits while the Goose reads, «Остановить» stops it; then the line of what it wrote and its additions under their fields (R20 P11c)', async () => {
+  it('[FX-014] [FX-016] «✨ Дополнить из чата» at the foot of a questionnaire: «Сохранить» waits while the Goose reads, «Остановить» stops it; then the line of what it wrote and its rewrites under their fields (R20 P11c, X43)', async () => {
     const c = controller([{ noteId: '1', title: 'Анкета', text: OLD_FORM, foreign: false }]);
     const ui = await mountKitSettled(() => <NotesPanel client={c.notes} texts={NOTES_TEXTS} />, { kind: 'notes' as never, language: 'ru' });
     mounted.push(ui);
@@ -276,11 +276,11 @@ describe('[host:fansly] «Заметки» drawn (R20 P11b)', () => {
       opId: 'op1',
       feature: 'notes-fill',
       state: 'done',
-      result: { kind: 'note-fields', fields: [{ label: 'Возраст', value: '41' }, { label: 'Работа', value: 'медбрат; в больнице' }, { label: 'Другое', value: 'просил кастом' }] },
+      result: { kind: 'note-fields', fields: [{ label: 'Возраст', value: '41' }, { label: 'Работа', value: 'медбрат; ночные смены; в больнице' }, { label: 'Другое', value: 'просил кастом' }] },
     } as unknown as SiteOpView;
     await flush(() => c.notes.fillDone(view));
     expect(ui.$('[data-notes-editor="1"]')?.getAttribute('data-notes-fill')).toBe('done');
-    expect(ui.$('[data-notes-fill-line]')?.textContent).toBe('Гусь вписал: Возраст, Другое. Добавки под полями: 1.');
+    expect(ui.$('[data-notes-fill-line]')?.textContent).toBe('Гусь вписал: Возраст, Другое. Правки под полями: 1.');
     expect((ui.$('[data-notes-field="Возраст"] textarea') as HTMLTextAreaElement | null)?.value).toBe('41');
     const under = ui.$('[data-notes-field="Работа"] [data-notes-suggestion="0"]');
     expect(under?.querySelector('.cg-notes__suggest-t')?.textContent).toBe('Гусь предлагает добавить');
@@ -339,7 +339,7 @@ describe('[host:fansly] «Заметки» drawn as in the Fansly extension 2.11
         kind: 'note-fields',
         fields: [
           { label: 'Возраст', value: '41', quotes: ['I am 41'] },
-          { label: 'Работа', value: 'медбрат; в больнице', quotes: ['at the hospital'] },
+          { label: 'Работа', value: 'медбрат; ночные смены; в больнице', quotes: ['at the hospital'] },
           { label: 'Характеристика', value: 'одинок' },
         ],
         proposed: [{ label: 'Питомцы', value: 'кот', quotes: ['my cat'] }],
@@ -355,13 +355,31 @@ describe('[host:fansly] «Заметки» drawn as in the Fansly extension 2.11
     expect(row('Возраст')?.querySelector('[data-notes-quotes]')?.textContent).toBe('«I am 41»');
     expect(button(ui, 'Скрыть слова фана')).toBeDefined();
     expect(row('Питомцы')?.querySelector('[data-notes-proposed]')?.textContent).toContain('Это поле завёл Гусь');
+    // A whole rewrite (X43): what it drops struck out, what it brings in.
+    expect([...(row('Характеристика')?.querySelectorAll('[data-notes-suggestion] del, [data-notes-suggestion] ins') ?? [])].map((node) => `${node.tagName}:${node.textContent ?? ''}`)).toEqual(['DEL:депрессивный чел', 'INS:одинок']);
     await flush(() => button(ui, 'Принять все').click());
     expect((row('Работа')?.querySelector('textarea') as HTMLTextAreaElement | null)?.value).toBe('медбрат\nночные смены\nв больнице');
+    // «Принять» rewrites the field's own line: the line written under it stays.
+    expect((row('Характеристика')?.querySelector('textarea') as HTMLTextAreaElement | null)?.value).toBe('одинок\nнужно поддерживать вайб');
     expect(ui.$('[data-notes-suggestion]')).toBeNull();
     await flush(() => button(ui, 'В Другое').click());
     expect(row('Питомцы')).toBeNull();
     expect((row('Другое')?.querySelector('textarea') as HTMLTextAreaElement | null)?.value).toBe('Питомцы: кот');
     expect(row('Другое')?.querySelector('[data-notes-quotes]')?.textContent).toBe('Питомцы — «my cat»');
     expect(c.port.edit).not.toHaveBeenCalled();
+  });
+
+  it('[FX-024] a field the hub named with no place in a full questionnaire is named in the fill’s line (X43)', async () => {
+    const full = Array.from({ length: 30 }, (_, n) => `Поле ${String(n)}: x`).join('\n');
+    const c = controller([{ noteId: '1', title: 'Анкета', text: full, foreign: false }]);
+    const ui = await mountKitSettled(() => <NotesPanel client={c.notes} texts={NOTES_TEXTS} />, { kind: 'notes' as never, language: 'ru' });
+    mounted.push(ui);
+    c.notes.sync();
+    c.notes.toggle();
+    await flush();
+    await flush(() => c.notes.dispatch({ type: 'fill-note', noteId: '1' }));
+    const view = { opId: 'op1', feature: 'notes-fill', state: 'done', result: { kind: 'note-fields', fields: [{ label: 'Поле 0', value: '' }], proposed: [{ label: 'Питомцы', value: 'кот' }] } } as unknown as SiteOpView;
+    await flush(() => c.notes.fillDone(view));
+    expect(ui.$('[data-notes-fill-line]')?.textContent).toBe('Не хватило места в анкете: Питомцы.');
   });
 });

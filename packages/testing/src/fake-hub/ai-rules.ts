@@ -62,7 +62,7 @@ export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabil
   }
   if (body.summaryMode !== undefined && feature !== 'fan-summary') return { error: 'bad_request', message: `${feature} does not accept summaryMode` };
   // assertNoteFieldsRequestShape (bd3eec065): the SDK allows these fields on any feature;
-  // the handler isolates them. Our client sends labels only, never noteValues.
+  // the handler isolates them. Our client sends noteValues with the labels (merge mode; the values since X43).
   if (feature === 'fan-notes-fill') {
     if (body.noteFields === undefined || body.noteFields.length === 0) return { error: 'bad_request', message: 'fan-notes-fill requires noteFields' };
     if (body.noteValues !== undefined && body.noteValues.length !== body.noteFields.length) return { error: 'bad_request', message: 'noteValues must hold exactly one value per noteFields label' };

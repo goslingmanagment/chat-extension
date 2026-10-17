@@ -82,13 +82,16 @@ export type NotesFormPartVM =
     }
   | { readonly kind: 'text'; readonly text: string };
 
-/** «✨ Заполнить из чата» of a questionnaire being edited (R20 P11c; FS-NOTE-6): `running` — the hub reads the chat
- * («Остановить» drops it); `done` — `wrote`: the fields the Goose wrote into (empty ones and the template's new lines),
- * in note order, while its additions to filled ones wait under them (`NotesEditorVM.suggestions`); `failed` — why. */
+/** «✨ Дополнить из чата» of a questionnaire being edited (R20 P11c; FS-NOTE-6): `running` — the hub reads the chat
+ * («Остановить» drops it); `done` — `wrote`: the fields the Goose wrote into (empty ones, «Другое» a fact joined, the
+ * template's new lines), while its rewrites of filled ones wait under them (`NotesEditorVM.suggestions`); `failed` — why. */
 export interface NotesFillVM {
   readonly status: 'idle' | 'running' | 'done' | 'failed';
   readonly wrote: readonly string[];
   readonly error: CgAnyErrorWire | null;
+  /** 1.28.0 (X43; the Fansly extension 2.11.0, decision 164): the fields the hub named that found no place — no line
+   * of their own under 30 and no «Другое» to join: «Не хватило места в анкете: …». Absent — none. */
+  readonly unplaced?: readonly string[];
 }
 
 export interface NotesEditorVM {
@@ -256,6 +259,8 @@ export interface NotesCopy {
   readonly fillOffers: string;
   readonly fillNothing: string;
   readonly fillFailed: string;
+  /** 1.28.0 (X43): «Не хватило места в анкете:» + « Питомцы, Машина.» — the fields the hub named that found no place. */
+  readonly fillUnplaced: string;
   /** 1.16.0 (R20 P11b2): «Слова фана» and its hint, «Принять все», «В Другое», a field the Goose named, a note's date. */
   readonly sources: string;
   readonly sourcesHide: string;

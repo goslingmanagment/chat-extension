@@ -348,7 +348,7 @@ describe('[host:fansly] «✨ Заполнить из чата»: the controller
     w.notes.dispatch({ type: 'edit', noteId: '1' });
   };
 
-  it('[FX-014] [FX-016] [FS-NOTE-6] the empty fields filled, the filled ones’ additions under them; «Сохранить» waits for the fill and nothing is written before it', async () => {
+  it('[FX-014] [FX-016] [FS-NOTE-6] the empty fields filled, the filled ones’ rewrites under them; «Сохранить» waits for the fill and nothing is written before it', async () => {
     const w = world();
     await editing(w);
     expect(w.notes.panel().editor?.fill).toEqual({ status: 'idle', wrote: [], error: null });
@@ -362,7 +362,7 @@ describe('[host:fansly] «✨ Заполнить из чата»: the controller
     expect(fanId).toBe('91');
     expect(fields).toEqual(['Имя', 'Локация', ...NOTE_TEMPLATE_LABELS.slice(2)]);
     w.notes.fillDone(fillView('op1', 'done', [
-      { label: 'Имя', value: 'алекс; любит шахматы' },
+      { label: 'Имя', value: 'Алекс; любит шахматы' },
       { label: 'Локация', value: 'Рига' },
       { label: 'Возраст', value: '34' },
       { label: 'Хобби', value: 'шахматы; бег' },
@@ -381,12 +381,12 @@ describe('[host:fansly] «✨ Заполнить из чата»: the controller
     expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '1', 'Анкета', 'Имя: Алекс; любит шахматы\nЛокация: Рига\nВозраст: 34\nХобби: шахматы; бег', { title: 'Анкета', text: QUESTIONNAIRE });
   });
 
-  it('[FX-015] [FS-NOTE-5] only the labels go out, never a value; a stopped fill’s operation is cancelled and its answer never lands', async () => {
+  it('[FX-015] [FX-024] [FS-NOTE-5] the labels go out with the values of their lines (X43), nothing else of the note; a stopped fill’s operation is cancelled and its answer never lands', async () => {
     const w = world();
     await editing(w);
     w.holdFill(true);
     w.notes.dispatch({ type: 'fill' });
-    expect(JSON.stringify(w.port.fill.mock.calls)).not.toMatch(/Алекс|Рига/);
+    expect(w.port.fill.mock.calls[0]?.slice(1)).toEqual(['91', ['Имя', 'Локация', ...NOTE_TEMPLATE_LABELS.slice(2)], ['Алекс', 'Рига', ...NOTE_TEMPLATE_LABELS.slice(2).map(() => '')]]);
     // Stopped before the admission came back: the admitted operation is cancelled as it comes.
     w.notes.dispatch({ type: 'fill-stop' });
     expect(w.notes.panel().editor?.fill?.status).toBe('idle');
@@ -538,6 +538,36 @@ describe('[host:fansly] «Заметки» as in the Fansly extension 2.11–2.1
     // A new fill starts clean.
     w.notes.dispatch({ type: 'fill' });
     expect(w.notes.panel().editor).toMatchObject({ sourceCount: 0, sourcesOpen: false, proposed: [] });
+  });
+
+  it('[FX-024] [FS-NOTE-6] a rewrite of «Другое» waiting under it takes a fact moved «В Другое» on both sides, so «Принять» still applies; a field with no place is named', async () => {
+    const w = world();
+    w.port.read.mockResolvedValueOnce({ ok: true, fanRef: '91', notes: [note('1', 'Анкета', 'Имя: Алекс\nДругое: из Техаса\nбрат-близнец')], customName: null });
+    await opened(w);
+    w.notes.dispatch({ type: 'fill-note', noteId: '1' });
+    await w.settle();
+    const view = fillView('op1', 'done') as unknown as Record<string, unknown>;
+    w.notes.fillDone({
+      ...view,
+      result: { kind: 'note-fields', fields: [{ label: 'Имя', value: '' }, { label: 'Другое', value: 'есть брат' }, ...NOTE_TEMPLATE_LABELS.slice(1, -1).map((label) => ({ label, value: '' }))], proposed: [{ label: 'Питомцы', value: 'кот' }] },
+    } as unknown as SiteOpView);
+    expect(w.notes.panel().editor?.suggestions).toMatchObject([{ label: 'Другое', added: ['есть брат'], removed: ['из Техаса'], proposed: 'есть брат' }]);
+    w.notes.dispatch({ type: 'to-other', label: 'Питомцы' });
+    expect(w.notes.panel().editor?.text).toBe('Имя: Алекс\nДругое: из Техаса; Питомцы: кот\nбрат-близнец');
+    expect(w.notes.panel().editor?.suggestions).toMatchObject([{ label: 'Другое', added: ['есть брат'], removed: ['из Техаса'], proposed: 'есть брат; Питомцы: кот' }]);
+    w.notes.dispatch({ type: 'suggestion', index: 0, accept: true });
+    expect(w.notes.panel().editor?.text).toBe('Имя: Алекс\nДругое: есть брат; Питомцы: кот\nбрат-близнец');
+    // A full questionnaire with no «Другое»: the hub's field has nowhere to go, and the line says so.
+    w.notes.dispatch({ type: 'cancel' });
+    const full = Array.from({ length: 30 }, (_, n) => `Поле ${String(n)}: x`).join('\n');
+    w.port.read.mockResolvedValueOnce({ ok: true, fanRef: '91', notes: [note('1', 'Анкета', full)], customName: null });
+    w.notes.dispatch({ type: 'refresh' });
+    await w.settle();
+    w.notes.dispatch({ type: 'fill-note', noteId: '1' });
+    await w.settle();
+    w.notes.fillDone({ ...(fillView('op2', 'done') as unknown as Record<string, unknown>), result: { kind: 'note-fields', fields: [{ label: 'Поле 0', value: '' }], proposed: [{ label: 'Питомцы', value: 'кот' }] } } as unknown as SiteOpView);
+    expect(w.notes.panel().editor?.fill).toEqual({ status: 'done', wrote: [], error: null, unplaced: ['Питомцы'] });
+    expect(w.notes.panel().editor?.text).toBe(full);
   });
 
   it('[FX-019] [FS-NOTE-2] every free note shows when it was created, the questionnaire does not; an edit keeps the time read, a new note without one is dated now', async () => {

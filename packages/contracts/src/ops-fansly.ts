@@ -18,7 +18,7 @@ import * as z from 'zod/mini';
 
 import { ToneSchema, type SiteOpId } from './features';
 import type { FanslyFeatureKey } from './features/fansly';
-import { NoteFieldLabelSchema, NoteFieldsSchema, type HubAiFeature } from './hub/ai';
+import { NoteFieldLabelSchema, NoteFieldsSchema, NoteValuesSchema, type HubAiFeature } from './hub/ai';
 import { HumanCauseSchema, TargetSchema } from './ids';
 import { AI_REQUEST_LIMITS, NOTE_FILL_LIMITS, OP_TIMEOUTS, type OpTimeouts } from './limits';
 import { OpDraftSchema, OpViewSchema, type SiteOpResult, type SiteStartOp, type SiteOpView } from './ops';
@@ -90,10 +90,17 @@ export const VoiceScriptStartSchema = z
     z.refine((start) => start.draft.text.trim() !== '', { message: 'the voice script is spoken from a draft' }),
   );
 
-/** «Заполнить из чата»: the questionnaire's labels and nothing of the note — its values never leave the tab (FS-NOTE-5, FX-015). */
+/**
+ * «Дополнить из чата»: the questionnaire's labels and, 1.28.0 (X43, the owner's ruling of 2026-10-17), their values,
+ * index-aligned — the body's `noteValues`, never anything else of the note (FS-NOTE-5, FX-024). Without `values` the
+ * request carries one empty value per label (the merge mode of 1.16.0).
+ */
 export const NotesFillStartSchema = z
-  .strictObject({ feature: z.literal('notes-fill'), ...START, fields: NoteFieldsSchema })
-  .check(z.refine(ofFansly, { message: "a Fansly operation is a Fansly chat's" }));
+  .strictObject({ feature: z.literal('notes-fill'), ...START, fields: NoteFieldsSchema, values: z.optional(NoteValuesSchema) })
+  .check(
+    z.refine(ofFansly, { message: "a Fansly operation is a Fansly chat's" }),
+    z.refine((start) => start.values === undefined || start.values.length === start.fields.length, { message: 'values: one per field' }),
+  );
 
 export const FanslyStartOpSchema = z.discriminatedUnion('feature', [VoiceScriptStartSchema, NotesFillStartSchema]) satisfies z.ZodMiniType<SiteStartOp>;
 export type FanslyStartOp = z.infer<typeof FanslyStartOpSchema>;

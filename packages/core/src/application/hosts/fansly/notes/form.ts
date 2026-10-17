@@ -39,7 +39,7 @@ export interface NoteFormText {
 export type NoteFormPart = NoteFormField | NoteFormText;
 
 /** A rewrite of a filled field the Goose offers (R20 P11c fills it; shown under its field, never saved by itself);
- * `current` — the field's facts as the rewrite saw them, joined with «; ». */
+ * `current` — the value of the field's own line the hub saw, `proposed` — the hub's whole rewrite of it. */
 export interface NoteFieldSuggestion {
   readonly label: string;
   readonly current: string;
@@ -133,8 +133,21 @@ export function isQuestionnaire(text: string): boolean {
 }
 
 /** Write a value into its field line, keeping the chatter's label as typed. */
-function withValue(line: string, value: string): string {
+export function withNoteFieldValue(line: string, value: string): string {
   return `${line.slice(0, line.indexOf(':') + 1)} ${value}`;
+}
+const withValue = withNoteFieldValue;
+
+/** The value on a field's own line (after its `:`), trimmed: what the fill sends and a rewrite replaces — the lines
+ * written under the field are not part of it (the Fansly extension 2.11.0, decision 164). */
+export function noteFieldLineValue(line: string): string {
+  return FIELD_LINE.exec(line)?.[2]?.trim() ?? '';
+}
+
+/** A fact appended to a field's line value (to «Другое»): after what is there, with «; ». */
+export function appendNoteFact(current: string, extra: string): string {
+  const head = current.trim();
+  return head === '' ? extra : `${head}; ${extra}`;
 }
 
 /** Write a field's facts back as its one `Label: a; b` line; its continuation lines join that line. Every other line
@@ -153,30 +166,28 @@ export function setNoteFieldFacts(text: string, label: string, facts: readonly s
 }
 
 /**
- * «В Другое» (the Fansly extension 2.11.0, decision 164): a field the Goose named itself leaves its line and joins «Другое» as one
- * fact `Label: a; b` — at the end of «Другое», or, with no «Другое» in the note, as a «Другое» line where it stood. A
- * text without that field, or that field being «Другое», comes back as is.
+ * «В Другое» (the Fansly extension 2.11.0, decision 164): a field the Goose named itself leaves its line (and the lines
+ * written under it) and joins «Другое» as one fact `Label: a; b` — at the end of «Другое»'s own line (the lines under
+ * «Другое» stay), or, with no «Другое» in the note, as a «Другое» line where it stood. `fact` — what joined «Другое»,
+ * null when nothing did: a pending rewrite of «Другое» takes it on both sides, so «Принять» still applies. A text
+ * without that field, or that field being «Другое», comes back as is.
  */
-export function moveFieldToOther(text: string, label: string, otherLabel: string): string {
+export function moveFieldToOther(text: string, label: string, otherLabel: string): { readonly text: string; readonly fact: string | null } {
   const parts = parseNoteForm(text);
   const key = noteLabelKey(label);
   const otherKey = noteLabelKey(otherLabel);
   const field = parts?.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === key);
-  if (parts === null || field === undefined || key === otherKey) return text;
+  if (parts === null || field === undefined || key === otherKey) return { text, fact: null };
   const fact = field.facts.length === 0 ? null : `${field.label}: ${field.facts.join('; ')}`;
   const other = parts.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === otherKey);
+  const lines = text.split('\n');
   if (other === undefined) {
-    const lines = text.split('\n');
     lines.splice(field.line, field.lastLine - field.line + 1, ...(fact === null ? [] : [`${otherLabel}: ${fact}`]));
-    return lines.join('\n');
+    return { text: lines.join('\n'), fact: null };
   }
-  // «Другое» first, while the text is still a questionnaire; then the field's own lines, found again.
-  const joined = fact === null ? text : setNoteFieldFacts(text, other.label, [...other.facts, fact]);
-  const moved = parseNoteForm(joined)?.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === key);
-  if (moved === undefined) return joined;
-  const rest = joined.split('\n');
-  rest.splice(moved.line, moved.lastLine - moved.line + 1);
-  return rest.join('\n');
+  if (fact !== null) lines[other.line] = withValue(lines[other.line] ?? '', appendNoteFact(noteFieldLineValue(lines[other.line] ?? ''), fact));
+  lines.splice(field.line, field.lastLine - field.line + 1);
+  return { text: lines.join('\n'), fact };
 }
 
 /** «Флорида (08.2026)»: the fact and the month the Goose stamped on it. */
@@ -197,11 +208,19 @@ export function diffNoteFacts(current: string, proposed: string): { readonly add
   return { added: after.filter((fact) => !had.has(comparable(fact))), removed: before.filter((fact) => !has.has(comparable(fact))) };
 }
 
-/** «Принять»: the field takes the proposed facts, as if typed — its line, the lines written under it joined (R20 P11c:
- * the fill's `current` holds those too). A field the chatter has since edited away is left alone. */
+/** Same value, as the merge and «Принять» compare them: entities decoded, composed, whitespace and case folded. */
+export function sameNoteValue(a: string, b: string): boolean {
+  return comparable(a) === comparable(b);
+}
+
+/** «Принять» (the Fansly extension 2.11.0, decision 164): the field's own line takes the proposed value — a whole
+ * rewrite of what the hub saw; the lines written under it stay where they are. A field the chatter has since edited
+ * away from the value the rewrite was made for is left alone. Found past 30 `Label: value` lines too. */
 export function applyFieldSuggestion(text: string, suggestion: NoteFieldSuggestion): string {
   const key = noteLabelKey(suggestion.label);
-  const field = parseNoteForm(text)?.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === key);
-  if (field === undefined || comparable(field.facts.join('; ')) !== comparable(suggestion.current)) return text;
-  return setNoteFieldFacts(text, field.label, splitNoteFacts(suggestion.proposed));
+  const field = fieldLines(text).find((entry) => noteLabelKey(entry.label) === key);
+  if (field === undefined || !sameNoteValue(field.value, suggestion.current)) return text;
+  const lines = text.split('\n');
+  lines[field.line] = withValue(lines[field.line] ?? '', suggestion.proposed);
+  return lines.join('\n');
 }

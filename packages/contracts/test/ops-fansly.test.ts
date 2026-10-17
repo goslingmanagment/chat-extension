@@ -67,12 +67,12 @@ describe('[host:fansly] the operations of Fansly’s slice (architecture §1.6, 
     expect([FANSLY_FEATURES.voice.base.flags, FANSLY_FEATURES['notes-fill'].base.flags]).toEqual([['voice'], ['notesFill']]);
   });
 
-  it('a start: the voice script from a draft in a preset’s tone, the notes fill with the labels alone — a Fansly chat’s, the group apart from the fan', () => {
+  it('a start: the voice script from a draft in a preset’s tone, the notes fill with the labels and their values (X43) — a Fansly chat’s, the group apart from the fan', () => {
     expectVerdicts('FanslyStartOp', O.FanslyStartOpSchema, FANSLY_START_OP_FIXTURES);
     expect(O.FanslyStartOpSchema.safeParse(fanslyVoiceScriptStart).success).toBe(true);
     expect(fanslyVoiceScriptStart.target.conversationRef).not.toBe(fanslyVoiceScriptStart.target.fanRef);
     expect(Object.keys(O.VoiceScriptStartSchema.def.shape).sort()).toEqual(['cause', 'draft', 'feature', 'force', 'regenerateOf', 'target', 'tone', 'window'].sort());
-    expect(Object.keys(O.NotesFillStartSchema.def.shape).sort()).toEqual(['cause', 'feature', 'fields', 'force', 'regenerateOf', 'target', 'window'].sort());
+    expect(Object.keys(O.NotesFillStartSchema.def.shape).sort()).toEqual(['cause', 'feature', 'fields', 'force', 'regenerateOf', 'target', 'values', 'window'].sort());
     // The shared StartOp knows neither: a site operation never passes the shared schemas, and no shared one widens.
     expect(C.StartOpSchema.safeParse({ ...fanslyVoiceScriptStart, surface: 'dock', split: false }).success).toBe(false);
     expect(C.StartOpSchema.safeParse({ ...fanslyNotesFillStart, surface: 'dock', tone: null, split: false }).success).toBe(false);
@@ -119,8 +119,8 @@ describe('[host:fansly] the hub’s side of the two (contracts/src/hub, HF-4а, 
     expect(C.HUB_FEATURE_ONLY_FIELDS.noteFields).toEqual(['fan-notes-fill']);
     // Fresh page text stays the four drafts' (D-14): neither the script nor the fill takes it.
     for (const hub of ['voice-script', 'fan-notes-fill'] as const) expect(C.HUB_FEATURE_ONLY_FIELDS.liveTextContext as readonly string[], hub).not.toContain(hub);
-    // The values of the fan's notes never travel: the body has no `noteValues` (the hub's merge mode) at all.
-    expect(C.AiFeatureStreamBodySchema.safeParse({ clientRequestId: '00000000-0000-4000-8000-000000000001', pageLabel: 'p', platform: 'fansly', conversationRef: '1', noteValues: ['x'] }).success).toBe(false);
+    // 1.28.0 (X43): the questionnaire's values are the fill's alone, beside its labels — never on another feature.
+    expect(C.HUB_FEATURE_ONLY_FIELDS.noteValues).toEqual(['fan-notes-fill']);
   });
 });
 

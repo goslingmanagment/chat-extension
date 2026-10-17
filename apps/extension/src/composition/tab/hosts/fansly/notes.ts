@@ -101,7 +101,7 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       return to === null ? refused : ((await ask('fansly.notes.name', { ...to, name, current })) as Awaited<ReturnType<NotesPort['name']>>);
     },
     fillAllowed,
-    async fill(t, fanId, fields) {
+    async fill(t, fanId, fields, values) {
       const { route, accounts, identity } = host.current();
       const chat = route.chat;
       const account = accounts.find((entry) => entry.hostAccountId === identity?.hostAccountId);
@@ -117,6 +117,8 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
         cause: { kind: 'click', actionToken: token.payload.actionToken },
         window: AI_REQUEST_LIMITS.messageCountMax,
         fields: [...fields],
+        // The owner's ruling of 2026-10-17 (X43): the questionnaire's values go to the hub's merge mode, in its body only.
+        values: [...values],
         force: true,
       }, NOTES_REQUEST_TIMEOUT_MS);
       if (!started.ok) return started;
