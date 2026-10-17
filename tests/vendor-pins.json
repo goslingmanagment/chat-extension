@@ -1,9 +1,9 @@
 {
   "kernelSdk": {
-    "contractHash": "10063d879124b1bfd21a496aae7235a36db9ded3712b08743ae86f5966bcb590",
-    "sourceCommit": "c1b96aafea15d04bb4ea496fab07cf4a7ce8a3a9",
-    "distSha256": "86ea6f787169890f4597e9e7fea0ee886365983b0c90e9dde57a33b5c3881961",
-    "note": "Vendored on 2026-10-17 (decision X48) with the hub's scripts/vendor-sdk.mjs from hub main c1b96aaf (#656), the commit that runs in production since 2026-10-17 03:19 UTC (prod health: contractHash 10063d87…, compatibleClientSdks lists it, 9137410d… and the older ones), so this vendor satisfies the release rule (a release is vendored only from a merged and deployed hub commit). Against bd3eec06 (#607) the contract only grew: clientSendAttributions (send-attribution-v1) and the hub's own routes since (the page-browser ones among them). Every route, operation and schema this extension calls for ChatSpace keeps its form. Re-vendor with the same script, then update this pin in the same commit."
+    "contractHash": "5578288885437558dcb108815dc53086155a0062f6199a5829dfdc0315805177",
+    "sourceCommit": "451810afd6b2b8c03dfaae93f7e169dfff859a0a",
+    "distSha256": "513d52a99560495033e655759dd7887122841ecfc405f32db00c265a0e117a46",
+    "note": "Vendored on 2026-10-17 (decision X54) with the hub's scripts/vendor-sdk.mjs from hub main 451810af (#661 livePpvContext and live-ppv-v1, #659 live-text-review-coach-v1), the commit that runs in production since 2026-10-17 ~13:15 UTC (prod health: contractHash 55782888…, compatibleClientSdks lists it, 03012453… and the older ones), so this vendor satisfies the release rule (a release is vendored only from a merged and deployed hub commit). Against c1b96aaf (#656) the contract only grew; every route, operation and schema this extension calls keeps its form. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

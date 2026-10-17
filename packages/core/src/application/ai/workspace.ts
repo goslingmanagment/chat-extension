@@ -732,7 +732,16 @@ export class AiWorkspace {
     // fresh text. A proof that fails is no proof: the start goes on without one.
     let proof: unknown = null;
     try {
-      proof = await policy.proof(host, { feature, surface, identity: chat.identity, fresh: limits, messageCount: windowFor(feature, request.options.window, settings, bootstrap, extended) });
+      proof = await policy.proof(host, {
+        feature,
+        surface,
+        identity: chat.identity,
+        fresh: limits,
+        // X54: the open chat's PPV state rides where fresh text does, to a hub that takes it.
+        // (A plain read of the list: the hub contracts' helpers would carry their module into this layer.)
+        livePpv: limits !== null && bootstrap.capabilities.includes('live-ppv-v1'),
+        messageCount: windowFor(feature, request.options.window, settings, bootstrap, extended),
+      });
     } catch {
       // A missing or rejected proof leaves the start unverified.
     }

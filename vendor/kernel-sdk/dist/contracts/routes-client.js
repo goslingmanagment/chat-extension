@@ -104,6 +104,9 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1",
     "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1",
     "send-attribution-v1",
+    // chat-extension X54: the AI feature stream takes `livePpvContext`.
+    "live-ppv-v1",
+    "live-text-review-coach-v1",
 ];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the

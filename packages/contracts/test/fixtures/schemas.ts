@@ -687,6 +687,19 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ capturedAt: ISO, items: [openChatPaid], hasMore: null, cursor: '9002' }, { capturedAt: ISO, items: [], hasMore: false, cursor: null }],
     [{ capturedAt: ISO, items: Array.from({ length: 101 }, () => openChatPaid), hasMore: true, cursor: '9002' }, { capturedAt: ISO, items: [openChatPaid], hasMore: true }],
   ),
+  // 1.27.0 (X54): the PPV state a draft start carries and the hub takes.
+  fixture(
+    'LivePpvState',
+    C.LivePpvStateSchema,
+    [{ capturedAt: ISO, items: [{ platformMessageId: '9002', priceUsd: 25, purchased: true }, { platformMessageId: '9003', priceUsd: 9.99, purchased: false }] }],
+    [
+      { capturedAt: ISO, items: [] },
+      { capturedAt: ISO, items: [{ platformMessageId: '9002', priceUsd: 25, purchased: true }, { platformMessageId: '9002', priceUsd: 25, purchased: false }] },
+      { capturedAt: ISO, items: [{ platformMessageId: '9002', priceUsd: 0, purchased: true }] },
+      { capturedAt: ISO, items: [{ platformMessageId: '9002', priceUsd: 25, purchased: true, text: 'no text' }] },
+      { capturedAt: ISO, items: Array.from({ length: 101 }, (_, i) => ({ platformMessageId: String(9000 + i), priceUsd: 5, purchased: false })) },
+    ],
+  ),
   fixture(
     'OpenChatAnswer',
     C.OpenChatAnswerSchema,

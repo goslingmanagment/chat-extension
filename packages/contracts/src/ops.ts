@@ -8,9 +8,9 @@ import * as z from 'zod/mini';
 import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
 import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hiStartProofMatches } from './hi-start-proof';
-import { LiveTextMessageSchema, LiveTextTailSchema, type ChatWindow, type HostPort, type LiveTextTail } from './host';
+import { LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveTextTail } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
-import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -196,6 +196,24 @@ function proofFits(op: {
   return proof.kind === 'pass' ? op.surface === 'newcomers' : proof.tail === undefined || isFreshTextFeature(op.feature);
 }
 
+/**
+ * 1.27.0 (decision X54): the PPV state of the open OnlyFans chat as the platform gives it at the Generate click — the
+ * model's paid messages among the chat's newest, read from OnlyMonster's API, with their listed price (USD) and
+ * whether the fan bought them (OnlyFans' `isOpened`). Ids and facts, no text. A draft start in the dock carries it
+ * (`StartOp.livePpv`); the hub takes the same shape as `livePpvContext` and applies it to that one generation.
+ */
+export const LivePpvStateSchema = z.strictObject({
+  capturedAt: IsoTimestampSchema,
+  items: z
+    .array(z.strictObject({ platformMessageId: NativeIdSchema, priceUsd: z.number().check(z.gt(0), z.lte(OPEN_CHAT_PRICE_MAX)), purchased: z.boolean() }))
+    .check(
+      z.minLength(1),
+      z.maxLength(LIVE_PPV_LIMITS.maxItems),
+      z.refine((items) => new Set(items.map((item) => item.platformMessageId)).size === items.length, { message: 'PPV ids repeat' }),
+    ),
+});
+export type LivePpvState = z.infer<typeof LivePpvStateSchema>;
+
 export const StartOpSchema = z
   .strictObject({
     feature: FeatureIdSchema,
@@ -236,6 +254,8 @@ export const StartOpSchema = z
     ),
     /** Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14). */
     fresh: z.optional(LiveTextTailSchema),
+    /** 1.27.0 (X54): the open chat's PPV state, where `fresh` may go — a draft start in the dock. */
+    livePpv: z.optional(LivePpvStateSchema),
     /**
      * Previews: the freshness checkpoint of the Generate click (X8), kept with
      * the opId. Optional so that a preview still generates when MAIN cannot
@@ -266,6 +286,7 @@ export const StartOpSchema = z
     z.refine((op) => op.fresh === undefined || (op.surface === 'dock' && isFreshTextFeature(op.feature)), {
       message: 'fresh text only for reply|fix|hi|ping in the dock',
     }),
+    z.refine((op) => op.livePpv === undefined || (op.surface === 'dock' && isFreshTextFeature(op.feature)), { message: 'PPV state only for drafts in the dock' }),
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),
     z.refine((op) => op.feature !== 'fix' || op.draft !== undefined, { message: 'fix needs the draft' }),
     z.refine((op) => op.variantCount === undefined || op.feature === 'hi', { message: 'variantCount only for hi' }),
@@ -650,6 +671,8 @@ export interface AiProofAsk {
   readonly identity: HostIdentity;
   /** How much fresh page text the start may carry (D-14: a draft feature in the dock, admitted on the page); null — none. */
   readonly fresh: { readonly maxItems: number; readonly maxChars: number } | null;
+  /** 1.27.0 (X54): the start may carry the open chat's PPV state — fresh text is admitted and the hub lists `live-ppv-v1`. */
+  readonly livePpv?: boolean;
 }
 
 /**
@@ -660,6 +683,8 @@ export interface AiProofAsk {
 export interface AiStartFields {
   /** The visible tail as fresh page text (D-14): ChatSpace's. */
   readonly fresh?: LiveTextTail | null;
+  /** 1.27.0 (X54): the open chat's PPV state read from the host's API: ChatSpace's. */
+  readonly livePpv?: LivePpvState;
   /** The proof of freshness the site made of its snapshot (`CoverageProof`, its texts inside): Fansly's (P8b1). */
   readonly proof?: CoverageProof;
   /** Hi's start evidence and avatar (1.15.0, P4b4); the shared plan carries them to StartOp unchanged. */

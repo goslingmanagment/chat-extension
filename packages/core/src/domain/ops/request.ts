@@ -18,6 +18,9 @@
 //
 // Hi where the hub decides it by the client's start proof (1.15.0, R20 P8c: Fansly, HF-5) names
 // `hi-start-proof-v1` to a hub that declared it and carries the proof, its count and the fan's avatar.
+//
+// The open chat's PPV state (1.27.0, X54) goes as `livePpvContext` where fresh text may go, to a hub that lists
+// `live-ppv-v1`: the hub's body is strict, so a hub without it is never sent the field.
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
@@ -155,6 +158,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // ChatSpace's tail, or a proof's texts taken in the same instant as its window.
   const tail = start.fresh ?? (proof?.kind === 'tab-snapshot' && proof.tail !== undefined && proof.tail.length > 0 ? { capturedAt: proof.takenAt, messages: proof.tail } : undefined);
   if (tail !== undefined && ctx.freshText) body.liveTextContext = liveTextOf(tail);
+  if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, 'live-ppv-v1')) body.livePpvContext = start.livePpv;
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };
   const parsed = HubStreamRequestSchema.safeParse(request);

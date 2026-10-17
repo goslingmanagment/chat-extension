@@ -4060,6 +4060,17 @@ export declare const aiLiveTextContextSchema: z.ZodObject<{
         text: z.ZodString;
     }, z.core.$strict>>;
 }, z.core.$strict>;
+export declare const AI_LIVE_PPV_MAX_ITEMS = 100;
+/** Above any price OnlyFans allows on a message, in USD. */
+export declare const AI_LIVE_PPV_PRICE_MAX_USD = 10000;
+export declare const aiLivePpvContextSchema: z.ZodObject<{
+    capturedAt: z.ZodString;
+    items: z.ZodArray<z.ZodObject<{
+        platformMessageId: z.ZodString;
+        priceUsd: z.ZodNumber;
+        purchased: z.ZodBoolean;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
 export declare const aiCoverageCheckSchema: z.ZodObject<{
     window: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
@@ -4172,6 +4183,14 @@ export declare const aiFeatureStreamBodySchema: z.ZodObject<{
             }>;
             occurredAt: z.ZodString;
             text: z.ZodString;
+        }, z.core.$strict>>;
+    }, z.core.$strict>>;
+    livePpvContext: z.ZodOptional<z.ZodObject<{
+        capturedAt: z.ZodString;
+        items: z.ZodArray<z.ZodObject<{
+            platformMessageId: z.ZodString;
+            priceUsd: z.ZodNumber;
+            purchased: z.ZodBoolean;
         }, z.core.$strict>>;
     }, z.core.$strict>>;
     clientContext: z.ZodOptional<z.ZodObject<{
@@ -24041,6 +24060,14 @@ declare const baseRouteSchemas: {
                     text: z.ZodString;
                 }, z.core.$strict>>;
             }, z.core.$strict>>;
+            livePpvContext: z.ZodOptional<z.ZodObject<{
+                capturedAt: z.ZodString;
+                items: z.ZodArray<z.ZodObject<{
+                    platformMessageId: z.ZodString;
+                    priceUsd: z.ZodNumber;
+                    purchased: z.ZodBoolean;
+                }, z.core.$strict>>;
+            }, z.core.$strict>>;
             clientContext: z.ZodOptional<z.ZodObject<{
                 transcript: z.ZodString;
                 messageCount: z.ZodNumber;
@@ -35300,6 +35327,7 @@ export type AiFeatureDebugPromptBlock = z.infer<typeof aiFeatureDebugPromptBlock
 export type AiFeatureDebugInputFrame = z.infer<typeof aiFeatureDebugInputFrameSchema>;
 export type AiFeatureContextFrame = z.infer<typeof aiFeatureContextFrameSchema>;
 export type AiLiveTextContext = z.infer<typeof aiLiveTextContextSchema>;
+export type AiLivePpvContext = z.infer<typeof aiLivePpvContextSchema>;
 export type AiCoverageCheck = z.infer<typeof aiCoverageCheckSchema>;
 export type AiStartProofV1 = z.infer<typeof aiStartProofV1Schema>;
 export type AiGatewayStreamBody = z.infer<typeof aiGatewayStreamBodySchema>;

@@ -1,7 +1,7 @@
 // P4b4: contracts versus the deployed hub SDK, without a request to a live service.
 import { readFileSync } from 'node:fs';
 
-import { AI_REQUEST_LIMITS, AI_STREAM_CAPABILITIES, CLIENT_HUB_CAPABILITY_NAMES, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS, AiFeatureStreamBodySchema } from '@cg/contracts';
+import { AI_REQUEST_LIMITS, AI_STREAM_CAPABILITIES, CLIENT_HUB_CAPABILITY_NAMES, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, OPEN_CHAT_PRICE_MAX, SEND_LIMITS, AiFeatureStreamBodySchema } from '@cg/contracts';
 import { FANSLY_LIMITS, FanslyAvatarUrlSchema, START_PROOF_SOURCES, StartProofV1Schema } from '@cg/contracts/fansly';
 import { ISO, uuid } from '@cg/contracts/fixtures';
 import { AI_START_PROOF_AUTOMATED_IDS_MAX, AI_START_PROOF_PASS_PERSONAL_WINDOW, AI_START_PROOF_SOURCES, AI_STREAM_CAPABILITIES as SDK_AI_STREAM_CAPABILITIES, CLIENT_HUB_CAPABILITY_NAMES as SDK_CLIENT_HUB_CAPABILITY_NAMES, routeSchemas } from '@kernel/sdk';
@@ -78,6 +78,8 @@ describe('[host:fansly] Hi wire values agree with the deployed HF-5 SDK (P4b4)',
       noteValues: Array.from({ length: NOTE_FILL_LIMITS.fieldsMax }, () => '' as const),
       knownFanMessageIds: Array.from({ length: SEND_LIMITS.knownFanMessagesMax }, (_, i) => id(i)),
       liveTextContext: { capturedAt: ISO, items: Array.from({ length: LIVE_TEXT_LIMITS.maxItems }, (_, i) => ({ platformMessageId: id(i), direction: 'model', occurredAt: ISO, text: text(LIVE_TEXT_LIMITS.maxChars) })) },
+      // X54 (1.27.0): the open chat's PPV state at its caps — ids and numbers, no text.
+      livePpvContext: { capturedAt: ISO, items: Array.from({ length: LIVE_PPV_LIMITS.maxItems }, (_, i) => ({ platformMessageId: id(i), priceUsd: OPEN_CHAT_PRICE_MAX, purchased: false })) },
       coverageCheck: {
         window: Array.from({ length: COVERAGE_CHECK_LIMITS.windowMax }, (_, i) => ({ id: id(i), dir: 'model' })),
         deletedIds: Array.from({ length: COVERAGE_CHECK_LIMITS.deletedMax }, (_, i) => id(i + COVERAGE_CHECK_LIMITS.windowMax)),
@@ -95,10 +97,11 @@ describe('[host:fansly] Hi wire values agree with the deployed HF-5 SDK (P4b4)',
     expect(realBody.safeParse(request).success).toBe(true);
     // The limit is not exported by the public SDK. Pin its definition in the vendored artifact before comparing.
     const sdk = readFileSync(new URL('../../../../../vendor/kernel-sdk/dist/contracts/routes.js', import.meta.url), 'utf8');
-    expect(sdk).toContain('export const AI_FEATURE_STREAM_BODY_LIMIT_BYTES = 12 * 1024 * 1024;');
+    // X54: the hub raised it to 13 MiB with `livePpvContext` (hub #661).
+    expect(sdk).toContain('export const AI_FEATURE_STREAM_BODY_LIMIT_BYTES = 13 * 1024 * 1024;');
     const bytes = Buffer.byteLength(JSON.stringify(request), 'utf8');
     expect(bytes).toBeGreaterThan(9_000_000);
-    expect(bytes).toBeLessThan(12 * 1024 * 1024);
+    expect(bytes).toBeLessThan(13 * 1024 * 1024);
     const hiBytes = Buffer.byteLength(JSON.stringify({ startProof: request.startProof, personalMessageCount: request.personalMessageCount, fanAvatarUrl: request.fanAvatarUrl }), 'utf8');
     expect(hiBytes).toBeGreaterThan(28_000);
   });

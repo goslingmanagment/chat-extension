@@ -24,19 +24,20 @@ export function rawAccount(account: StandAccount): Record<string, unknown> {
 }
 
 export function messageMetadata(message: StandMessage): Record<string, unknown> {
+  const paid = (message.price ?? 0) > 0;
   return {
     responseType: 'message',
-    isOpened: false,
+    isOpened: message.isOpened ?? false,
     isNew: true,
     changedAt: message.sentAt,
     cancelSeconds: message.isFromFan ? 0 : 60,
     isFromQueue: false,
     queueId: null,
-    price: 0,
-    isFree: true,
+    price: message.price ?? 0,
+    isFree: !paid,
     lockedText: false,
-    mediaCount: 0,
-    media: [],
+    mediaCount: paid ? 1 : 0,
+    media: paid ? [{ id: Number(message.id), type: 'video', canView: message.isOpened === true }] : [],
     previews: [],
     isTip: false,
     canPurchase: false,

@@ -46,12 +46,16 @@ export const STAND_SENTRY_PREFIX = '/sentry/';
  * - `control` — the test harness or `window.__stand`;
  * - `asset` — navigations and page subresources (`Sec-Fetch-Dest` other than
  *   `empty`): documents, scripts, styles, images;
+ * - `ours` — the extension's own read of the open chat (decision X54,
+ *   `openChatMessages`): a GET of a chat's messages on the API origin with the
+ *   page's bearer and without the native header, and its CORS preflight. Tests
+ *   check that it reads only the chat the person opened;
  * - `foreign` — anything else on either origin, whatever the path: a fetch or
  *   XHR without the native header (also of the page's own index or bundles), a
  *   replayed native request, a socket that never authenticated — the extension
- *   under test (its own requests to the host must stay at zero).
+ *   under test (any other request of its own to the host must stay at zero).
  */
-export type CallOrigin = 'native' | 'control' | 'asset' | 'foreign';
+export type CallOrigin = 'native' | 'control' | 'asset' | 'ours' | 'foreign';
 
 /** How the stand answers the next native send POST of a chat (queue, first in first out). */
 export type SendOutcome =
