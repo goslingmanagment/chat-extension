@@ -202,6 +202,9 @@ describe('[X22] the runtime’s callbacks: ChatSpace’s own work goes on when o
     h.armed.clear();
     h.armed.add('composerSoon');
     expect(() => h.page.showOnly(ACC, FAN)).not.toThrow();
+    // Armed for the tabs' `after` alone, which calls it inside showOnly. The editor's observer calls it again a frame
+    // later, when the shown composer has rendered; on a busy runner that came before settle() ended (#180's check).
+    h.armed.clear();
     expect(h.page.tabs[ACC]?.activeEntryId).toBe('tab-1');
     await settle();
     expect(h.faults()).toEqual([['tabs', 1], ['composerSoon', 1]]);
