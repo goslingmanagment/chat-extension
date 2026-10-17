@@ -360,6 +360,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     host,
     features: site.features,
     ...(site.registrationOf === undefined ? {} : { registrationOf: site.registrationOf }),
+    ...(site.fanPanelBesideHost === true ? { fanPanelBesideHost: true as const } : {}),
     aiPolicy,
     i18n,
     clock,

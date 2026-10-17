@@ -25,6 +25,7 @@ import {
   parseVariants,
   partialMarkerLength,
   recapBlocks,
+  recapHeadingText,
   recapHeadingOf,
   recapText,
   reviewCopyText,
@@ -459,6 +460,21 @@ describe('[AI-137] [AI-069] Recap text', () => {
       { heading: 'Покупки', markdown: '$30 сеты.' },
       { heading: 'СЕЙЧАС', markdown: 'ждёт ответа' },
     ]);
+  });
+
+  it('[AI-069] [CS-035] a block\'s heading as the reader sees it: the hub\'s sections in the reader\'s language, other capitals in sentence case (X47)', () => {
+    const ru = (key: string): string => `ru:${key}`;
+    expect(recapHeadingText('DOSSIER', ru)).toBe('ru:recap.section.dossier');
+    expect(recapHeadingText('1. DOSSIER', ru)).toBe('ru:recap.section.dossier');
+    expect(recapHeadingText('Psychological  portrait', ru)).toBe('ru:recap.section.portrait');
+    expect(recapHeadingText('STAGE AND TRAJECTORY', ru)).toBe('ru:recap.section.stage');
+    expect(recapHeadingText('COMMUNICATION DYNAMICS', ru)).toBe('ru:recap.section.communication');
+    expect(recapHeadingText('FINANCIAL PROFILE', ru)).toBe('ru:recap.section.money');
+    expect(recapHeadingText('OPEN LOOPS', ru)).toBe('ru:recap.section.openLoops');
+    expect(recapHeadingText('СТРАТЕГИЯ', ru)).toBe('ru:recap.section.strategy');
+    expect(recapHeadingText('СЕЙЧАС', ru)).toBe('Сейчас');
+    expect(recapHeadingText('KEY QUOTES', ru)).toBe('Key quotes');
+    expect(recapHeadingText('Что любит', ru)).toBe('Что любит');
   });
 
   it('a short recap, or a text with fewer than two headings, stays one text', () => {

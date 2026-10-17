@@ -63,6 +63,7 @@ const STATES: Readonly<Record<string, string>> = {
   '14a': '.cg-fp',
   '14b': '.cg-fp',
   '14c': '.cg-fp',
+  '14d': '.cg-fp',
   '15a': '.cg-pal',
   '15b': '.cg-pal',
   'quick-jump': '.cg-qj',

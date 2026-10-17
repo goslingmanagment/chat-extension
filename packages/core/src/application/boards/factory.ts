@@ -47,6 +47,8 @@ export interface BoardsDeps {
   /** This tab watches for new subscribers while «Новые» is closed (the subscriber sound). */
   readonly watchForSound?: boolean;
   readonly onNewSubscribers?: (events: readonly { readonly eventRef: string; readonly fanRef: string }[]) => void;
+  /** 1.20.0 (X47): the site's own fan panel stands next to the chat — the shared one shows only what it lacks. */
+  readonly fanPanelBesideHost?: boolean;
 }
 
 export interface BoardsControllers {
@@ -129,7 +131,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
   });
   late.preview = preview;
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
-  const fanPanel = createFanPanelController({ rpc, host, i18n, clock, context, surfaces, rowOf, rowsChanged });
+  const fanPanel = createFanPanelController({ rpc, host, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(deps.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
   const controllers: readonly SurfaceController[] = [preview, spenders, newcomers, fanPanel] as readonly SurfaceController[];
   return {

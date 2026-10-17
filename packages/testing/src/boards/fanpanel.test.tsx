@@ -172,6 +172,25 @@ describe('fan panel', () => {
     expect(ui.$$('.cg-fp__text').map(textOf)[0]).toBe('## not a heading here');
   });
 
+  it('[CS-035] the hub’s profile comes by its sections, as a full Recap does: each its own caption, never «1. DOSSIER» in capitals (X47)', async () => {
+    const bio = '1. DOSSIER\nHubert, 34, logistics.\n\n7. STRATEGY\n- ask about the trip';
+    ui = await mountBoardSettled(
+      'fan-panel',
+      panel((vm) => ({ ...vm, bio, bioSource: 'hub' as const, bioBlocks: [{ heading: 'Досье', markdown: 'Hubert, 34, logistics.' }, { heading: 'Стратегия', markdown: '- ask about the trip' }] })),
+    );
+    expect(ui.$$('[data-cg-dossier-block]').map((block) => textOf(block.querySelector('.cg-fp__cap')))).toEqual(['Досье', 'Стратегия']);
+    expect(textOf(ui.$('.cg-fp__body') as HTMLElement)).not.toContain('DOSSIER');
+    expect(ui.$$('[data-cg-dossier-block] li')).toHaveLength(1);
+  });
+
+  it('[CS-031] [CS-032] [CS-034] beside ChatSpace’s own panel only what it lacks: the hub’s money, the churn risk, the profile — no subscription dates, scores or lists (X47)', async () => {
+    ui = await mountBoardSettled('fan-panel', panel((vm) => ({ ...vm, besideHostPanel: true as const, host: null, lists: [], bio: null })));
+    expect(ui.$$('.cg-fp__sec .cg-fp__cap').map(textOf)).toEqual(['Потратил всего', 'Подписка']);
+    expect(ui.text('.cg-fp__big')).toBe('$12,480');
+    expect(rows(1)).toEqual([['Риск ухода', 'низкий']]);
+    expect(ui.$$('.cg-fp [role="tab"]').map(textOf)).toEqual(['Фан', 'Recap']);
+  });
+
   it('[CS-036] the footer says how old and how complete the data is', async () => {
     ui = await mountBoardSettled('fan-panel', '14a');
     expect(ui.$$('.cg-fp__foot span').map(textOf)).toEqual(['Данные на 09:18', 'архив полный, 412 сообщений']);

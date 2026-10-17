@@ -222,6 +222,11 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
   /** Local account metadata for the shared fan panel; absent on hosts without it. */
   readonly registrationOf?: (fanId: string, i18n: I18n) => FanPanelVM['registration'];
   /**
+   * 1.20.0 (decision X47): the site shows a fan panel of its own next to the chat, so the shared one shows only what
+   * that one lacks (`FanPanelVM.besideHostPanel`). Absent — the whole panel.
+   */
+  readonly fanPanelBesideHost?: true;
+  /**
    * What the site's contract report must name (R20 §7.12, F7): its expected anchors — one the report does not name is
    * `missing` in the tab's log — and the parts the owner switches on separately, which are no break while off.
    */

@@ -240,8 +240,36 @@ const RECAP_SHORT = {
   en: 'Hubert, 18 months subscribed, one of the top buyers ($12,480). Travels a lot, now in Warsaw. Likes it when Lora tells about her day first and answers fast in the morning. Buys sets after a teaser in the text, dislikes haggling. Bought a $25 set yesterday and waits for more.',
 } as const;
 
-function fanPanelState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c'): ScenarioViewEntry[] {
+/** 1.20.0 (X47): the hub's profile of the fan by its sections, as the panel draws it beside ChatSpace 0.195's own. */
+const DOSSIER_BLOCKS = {
+  ru: [
+    { heading: 'Досье', markdown: 'Хуберт, 34, логистика, Польша. Пьёт кофе до всего остального.\n\n- любит сеты в дороге\n- пишет вечером по Варшаве' },
+    { heading: 'Стадия и траектория', markdown: 'Лояльный, стабильно: продлевает подписку, покупает раз в неделю.' },
+    { heading: 'Стратегия', markdown: '- спросить про перелёт\n- не давить на кастом в будни' },
+  ],
+  en: [
+    { heading: 'Dossier', markdown: 'Hubert, 34, logistics, Poland. Coffee first, then everything else.\n\n- likes sets on the road\n- writes in the evening, Warsaw time' },
+    { heading: 'Stage and trajectory', markdown: 'Loyal, stable: renews, buys once a week.' },
+    { heading: 'Strategy', markdown: '- ask about the flight\n- no custom pressure on weekdays' },
+  ],
+} as const;
+
+function fanPanelState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c' | 'd'): ScenarioViewEntry[] {
   if (variant === 'c') return [entry({ of: 'fan-panel' }, fanPanel(ctx, views.empty(msg('fanPanel.empty.title'))))];
+  if (variant === 'd') {
+    const blocks = DOSSIER_BLOCKS[ctx.lang];
+    const lean = fanPanel(ctx, views.ready(), {
+      tab: 'fan',
+      fan: { name: 'Hubert', username: 'hubert_pl', initials: 'H', lastSeenAt: iso(ctx.now - 6 * MIN), online: false },
+      host: null,
+      bio: blocks.map((block) => `${block.heading.toUpperCase()}\n${block.markdown}`).join('\n\n'),
+      bioSource: 'hub',
+      bioBlocks: blocks,
+      besideHostPanel: true,
+      lists: [],
+    });
+    return [entry({ of: 'fan-panel' }, lean)];
+  }
   const panel = fanPanel(ctx, views.ready(), {
     tab: variant === 'b' ? 'recap' : 'fan',
     fan: { name: 'Hubert', username: 'hubert_pl', initials: 'H', lastSeenAt: iso(ctx.now - 6 * MIN), online: false },
@@ -387,6 +415,7 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('14a', 'Fan panel: the fan', 'fan-panel', (ctx) => fanPanelState(ctx, 'a')),
   state('14b', 'Fan panel: Recap', 'fan-panel', (ctx) => fanPanelState(ctx, 'b')),
   state('14c', 'Fan panel: «Выберите чат»', 'fan-panel', (ctx) => fanPanelState(ctx, 'c')),
+  state('14d', 'Fan panel beside ChatSpace’s own: the hub’s money, the churn risk, the profile by its sections', 'fan-panel', (ctx) => fanPanelState(ctx, 'd')),
   // 15 — the palette
   state('15a', 'Palette: empty query', 'palette', (ctx) => paletteState(ctx, 'a')),
   state('15b', 'Palette: search', 'palette', (ctx) => paletteState(ctx, 'b')),
