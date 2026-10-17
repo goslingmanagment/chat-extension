@@ -712,7 +712,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   };
 
   /**
-   * 1.24.0 (X53): one read of a preview's media picker (MediaPort). The bridge checked MAIN's answer against the union
+   * 1.28.0 (X53): one read of a preview's media picker (MediaPort). The bridge checked MAIN's answer against the union
    * of the four kinds; `kind` keeps only the one this request asks for. Never rejects.
    */
   const mediaRead = <T>(request: MediaRequest, kind: (value: object) => boolean): Promise<MediaRead<T>> => {

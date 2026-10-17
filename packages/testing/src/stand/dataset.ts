@@ -161,7 +161,7 @@ export function plainText(html: string): string {
 }
 
 /**
- * 1.24.0 (X53): the vault every stand account answers the media picker with (OnlyMonster's raw shapes): two folders,
+ * 1.28.0 (X53): the vault every stand account answers the media picker with (OnlyMonster's raw shapes): two folders,
  * twelve media — the seventh still processing —, what fans a1 and a2 already got of them, and the release form of one.
  * No thumbnail: the stand has no https origin, and the picker shows a medium without one by its type.
  */

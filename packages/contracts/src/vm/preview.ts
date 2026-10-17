@@ -97,7 +97,7 @@ export interface PreviewVM {
   };
   readonly result: ResultVM | null;
   /**
-   * 1.24.0 (X53): the media picker — the vault's media that go with the next part sent; null — no preview send here, or
+   * 1.28.0 (X53): the media picker — the vault's media that go with the next part sent; null — no preview send here, or
    * the host has no vault to read.
    */
   readonly media: MediaPickerVM | null;

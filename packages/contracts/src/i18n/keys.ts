@@ -132,7 +132,7 @@ export const UI_TEXT_KEYS = [
   'preview.feed.emptySubscribed', 'preview.feed.label', 'preview.feed.fanPrefix', 'preview.feed.deleted', 'preview.feed.automatic', 'preview.feed.priced',
   'preview.feed.notBought', 'preview.feed.older', 'preview.ping.segment', 'preview.ping.segmentNoDays', 'preview.ping.active', 'preview.ping.unknown',
   'preview.draft.placeholder', 'preview.draft.aria', 'preview.empty',
-  // 1.24.0 (X53): the media picker of a preview.
+  // 1.28.0 (X53): the media picker of a preview.
   'preview.media.button', 'preview.media.buttonTooltip', 'preview.media.label', 'preview.media.close', 'preview.media.all', 'preview.media.foldersMore',
   'preview.media.more', 'preview.media.loading', 'preview.media.empty', 'preview.media.notReady', 'preview.media.fan.paid', 'preview.media.fan.unpaid',
   'preview.media.fan.free', 'preview.media.fanTip.paid', 'preview.media.fanTip.unpaid', 'preview.media.fanTip.free', 'preview.media.type.photo',
@@ -332,7 +332,7 @@ export const UI_PLURAL_KEYS = [
   'palette.foot.chats',
   'quickJump.unread',
   'settings.status.needActions', 'settings.status.warnings', 'settings.status.row.quotaLeft', 'settings.status.row.runningCount',
-  // 1.24.0 (X53)
+  // 1.28.0 (X53)
   'preview.media.count', 'preview.media.previews',] as const;
 export type UiPluralKey = (typeof UI_PLURAL_KEYS)[number];
 

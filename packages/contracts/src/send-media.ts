@@ -1,4 +1,4 @@
-// 1.24.0 (decision X53): the vault media a preview part takes along — one
+// 1.28.0 (decision X53): the vault media a preview part takes along — one
 // message, the part's text as its caption, the media in the person's order, an
 // optional price (PPV) and the free previews among them, the creators their
 // release forms tag. The price is in cents and goes as OnlyFans takes it —

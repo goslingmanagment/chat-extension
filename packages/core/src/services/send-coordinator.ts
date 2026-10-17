@@ -132,7 +132,7 @@ export interface SendCoordinatorDeps {
     readonly platformMessageId: string;
     readonly pageId: number;
     readonly fanRef: string;
-    /** 1.24.0 (X53): what the part took along (a price, media), as the hub records who sent it. */
+    /** 1.28.0 (X53): what the part took along (a price, media), as the hub records who sent it. */
     readonly priced: boolean;
     readonly withMedia: boolean;
   }) => void;
@@ -173,7 +173,7 @@ interface Attempt {
   resolved?: 'sent' | 'not-sent';
   /** The ChatSpace build of the tab that began it (`SendBegin.hostBuild`); undefined — restored, or a tab before 1.11.0. */
   readonly hostBuild?: string | null;
-  /** 1.24.0 (X53): what the part takes along (`SendBegin.marks`, kept in the journal); undefined — its text alone. */
+  /** 1.28.0 (X53): what the part takes along (`SendBegin.marks`, kept in the journal); undefined — its text alone. */
   readonly marks?: SendMarks;
 }
 

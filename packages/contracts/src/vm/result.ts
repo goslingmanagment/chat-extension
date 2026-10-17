@@ -59,7 +59,7 @@ export const SEND_REASON_KEYS = {
   'CG-HUB-RATE-LIMIT': 'send.reason.rateLimit',
   /** The hub's `custody_held`: another send to this fan is unresolved (the desktop's included). */
   'CG-SEND-UNCERTAIN': 'send.reason.otherUncertain',
-  /** 1.24.0 (X53): the picked media cannot go yet (the controller's reason says why). */
+  /** 1.28.0 (X53): the picked media cannot go yet (the controller's reason says why). */
   'CG-SEND-MEDIA': 'send.reason.media',
 } as const satisfies Partial<Record<CgCode, I18nKey>>;
 export type SendReasonCode = keyof typeof SEND_REASON_KEYS;
