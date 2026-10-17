@@ -1,19 +1,56 @@
-// The open media panel of a preview (decision X53): the vault's folders as
-// chips, one folder's media as a grid of thumbnails, the picks numbered in the
-// order of the clicks, a free-preview mark on a pick of a priced message, what
-// the fan already got of a medium, the price and what goes. A chunk of its own
+// The media panel of a preview (decision X53): the vault's folders as chips,
+// one folder's media as a grid of thumbnails, the picks numbered in the order
+// of the clicks, a free-preview mark on a pick of a priced message, what the
+// fan already got of a medium, the price and what goes — and, once closed with
+// picks, the one line of what goes with the next part sent. A chunk of its own
 // (MediaPicker.tsx loads it on the first «Медиа» click; the extension's lazy
 // entry `preview-send`): Spenders, «Новые» and the preview window carry only
-// the toggle and the line. Nothing here sends.
+// the toggle. Nothing here sends.
 
 import { type JSX } from 'preact';
 import { useRef } from 'preact/hooks';
 
-import { type MediaCellVM, type TargetHandle } from '@cg/contracts/vm';
+import { type I18n, type MediaCellVM, type MediaPickerVM, type TargetHandle } from '@cg/contracts/vm';
 
 import { type LazyPart } from '../../dock/lazy-part';
 import { Button, ErrorCard, Icon, Spinner, TextField, useDispatch, useI18n, useTooltip, type StyleSource } from '../../kit';
-import { Notes, duration, typeWords, type MediaPanelProps } from './media-common';
+
+export interface MediaPanelProps {
+  readonly vm: MediaPickerVM;
+  readonly handle: TargetHandle;
+}
+
+const duration = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+
+const TYPE_KEYS = { photo: 'preview.media.type.photo', video: 'preview.media.type.video', gif: 'preview.media.type.anim', audio: 'preview.media.type.audio' } as const;
+
+function typeWords(i18n: I18n, cell: MediaCellVM): string {
+  return i18n.t(TYPE_KEYS[cell.type], { duration: duration(cell.duration) });
+}
+
+/** What is wrong with the picks, under the panel or in the closed line. */
+function Notes({ vm, handle }: MediaPanelProps): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const notes: JSX.Element[] = [];
+  if (vm.price.problem !== null) notes.push(<span key="price" class="cg-pvm__bad">{i18n.text(vm.price.problem)}</span>);
+  else if (vm.allFree) notes.push(<span key="free" class="cg-pvm__bad">{i18n.t('preview.media.allFree')}</span>);
+  if (vm.tags === 'loading')
+    notes.push(
+      <span key="tags" class="cg-pvm__wait-line">
+        <Spinner />
+        {i18n.t('preview.media.tagsLoading')}
+      </span>,
+    );
+  if (vm.tags === 'failed')
+    notes.push(
+      <span key="tags" class="cg-pvm__bad">
+        {i18n.t('preview.media.tagsFailed')}
+        <Button label={i18n.t('preview.media.retry')} size="sm" variant="quiet" onClick={() => void dispatch({ type: 'RetryMedia', targetHandle: handle })} />
+      </span>,
+    );
+  return notes.length === 0 ? null : <div class="cg-pvm__notes">{notes}</div>;
+}
 
 function Cell({ cell, handle, priced }: { readonly cell: MediaCellVM; readonly handle: TargetHandle; readonly priced: boolean }): JSX.Element {
   const i18n = useI18n();
@@ -149,6 +186,25 @@ function Panel({ vm, handle }: MediaPanelProps): JSX.Element {
   );
 }
 
+/** Closed with picks: one line of what goes with the next part sent, to open the panel again or drop the picks. */
+function Closed({ vm, handle }: MediaPanelProps): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  return (
+    <div class="cg-pvm__line" data-cg-media-panel="closed">
+      <Icon name="media" size={14} />
+      <span class="cg-pvm__sum">
+        {vm.summary === null ? null : <b>{i18n.text(vm.summary)}</b>} · {i18n.t('preview.media.attachedHint')}
+      </span>
+      <Button label={i18n.t('preview.media.button')} size="sm" variant="quiet" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true })} />
+      <Button label={i18n.t('preview.media.clear')} icon="x" iconOnly size="sm" variant="quiet" onClick={() => void dispatch({ type: 'ClearMedia', targetHandle: handle })} />
+      <Notes vm={vm} handle={handle} />
+    </div>
+  );
+}
+
+const MediaView = (props: MediaPanelProps): JSX.Element => (props.vm.open ? <Panel {...props} /> : <Closed {...props} />);
+
 const MEDIA_PANEL_CSS = `
 .cg-pvm { display: flex; flex-direction: column; min-width: 0; border-top: 1px solid var(--cg-rule); }
 .cg-pvm__head { display: flex; align-items: center; gap: 4px; padding: 6px 6px 4px 12px; }
@@ -202,8 +258,13 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm__price { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
 .cg-pvm__price .cg-field { width: 92px; height: 26px; }
 .cg-pvm__price .cg-field.is-bad { border-color: var(--cg-danger); }
+.cg-pvm__sum b { color: var(--cg-ink-strong); font-weight: 600; }
+.cg-pvm__notes { flex-basis: 100%; display: flex; flex-direction: column; gap: 2px; padding: 0 12px 6px 16px; font-size: var(--cg-text-sm); }
+.cg-pvm__line .cg-pvm__notes { padding: 0 0 4px; }
+.cg-pvm__bad { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-danger); }
+.cg-pvm__wait-line { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-muted); }
 `;
 
 export const MEDIA_PANEL_STYLES: StyleSource = { id: 'cg-preview-media', css: MEDIA_PANEL_CSS };
 
-export const mediaPanelPart: LazyPart<MediaPanelProps> = { view: Panel, styles: [MEDIA_PANEL_STYLES] };
+export const mediaPanelPart: LazyPart<MediaPanelProps> = { view: MediaView, styles: [MEDIA_PANEL_STYLES] };

@@ -1,8 +1,9 @@
 // The media picker of a preview (decision X53; the old desktop's vault strip
-// as the reference), its always-loaded half: the strip's toggle, the line
-// that says what goes while the panel is closed, what is wrong with the picks,
-// and «Отправить»'s words. The panel itself — folders, grid, price — is
-// media-panel.tsx, a chunk of its own loaded on the first «Медиа» click.
+// as the reference), its always-loaded half: the strip's toggle and
+// «Отправить»'s words. The panel — folders, grid, price, what is wrong with
+// the picks, and the line that says what goes while it is closed — is
+// media-panel.tsx, a chunk of its own loaded on the first «Медиа» click
+// (Fansly's boards chunk carries this half too, at the edge of its budget).
 // Nothing here sends: the picks go with the part whose «Отправить» the person
 // clicks next. It renders MediaPickerVM and nothing else.
 
@@ -13,8 +14,8 @@ import { type I18n, type MediaPickerVM, type TargetHandle } from '@cg/contracts/
 
 import { useLazyPart, type LazyPart, type PartLoader } from '../../dock/lazy-part';
 
-import { Boundary, Button, Icon, Spinner, StripButton, useDispatch, useHints, useI18n } from '../../kit';
-import { Notes, type MediaPanelProps } from './media-common';
+import { Boundary, Icon, Spinner, StripButton, useDispatch, useHints, useI18n } from '../../kit';
+import type { MediaPanelProps } from './media-panel';
 
 /** What a part's «Отправить» takes along (MediaPickerVM.attached): SendRow reads it to say so on the button. */
 export const MediaAttachedContext = createContext<MediaPickerVM['attached']>(null);
@@ -70,29 +71,15 @@ function LazyPanel(props: MediaPanelProps): JSX.Element {
 }
 
 /**
- * Under the strip: the panel while open; closed with picks — one line of what goes with the next part sent, to
- * open the panel again or drop the picks. Closed without picks — nothing (the strip's toggle opens it).
+ * Under the strip: the panel while open; closed with picks — the panel's one line of what goes with the next part
+ * sent. Closed without picks — nothing (the strip's toggle opens it).
  */
-export function MediaPicker({ vm, handle }: { readonly vm: MediaPickerVM; readonly handle: TargetHandle }): JSX.Element | null {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  if (vm.open)
-    return (
-      <Boundary surface={null}>
-        <LazyPanel vm={vm} handle={handle} />
-      </Boundary>
-    );
-  if (vm.picks === 0 || vm.summary === null) return null;
+export function MediaPicker(props: MediaPanelProps): JSX.Element | null {
+  if (!props.vm.open && (props.vm.picks === 0 || props.vm.summary === null)) return null;
   return (
-    <div class="cg-pvm__line" data-cg-media-panel="closed">
-      <Icon name="media" size={14} />
-      <span class="cg-pvm__sum">
-        <b>{i18n.text(vm.summary)}</b> · {i18n.t('preview.media.attachedHint')}
-      </span>
-      <Button label={i18n.t('preview.media.button')} size="sm" variant="quiet" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true })} />
-      <Button label={i18n.t('preview.media.clear')} icon="x" iconOnly size="sm" variant="quiet" onClick={() => void dispatch({ type: 'ClearMedia', targetHandle: handle })} />
-      <Notes vm={vm} handle={handle} />
-    </div>
+    <Boundary surface={null}>
+      <LazyPanel {...props} />
+    </Boundary>
   );
 }
 
@@ -101,13 +88,8 @@ export const MEDIA_PICKER_CSS = `
 .cg-pvm__toggle { padding: 0 7px; gap: 4px; }
 .cg-pvm__count { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--cg-ink-strong); color: var(--cg-surface); font-size: var(--cg-text-2xs); line-height: 16px; text-align: center; }
 .cg-pvm__sum { flex: 1; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); overflow-wrap: anywhere; }
-.cg-pvm__sum b { color: var(--cg-ink-strong); font-weight: 600; }
-.cg-pvm__notes { flex-basis: 100%; display: flex; flex-direction: column; gap: 2px; padding: 0 12px 6px 16px; font-size: var(--cg-text-sm); }
-.cg-pvm__bad { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-danger); }
-.cg-pvm__wait-line { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-muted); }
 .cg-pvm__line {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 30px; padding: 2px 6px 2px 16px; border-top: 1px solid var(--cg-rule);
   color: var(--cg-ink-muted);
 }
-.cg-pvm__line .cg-pvm__notes { padding: 0 0 4px; }
 `;
