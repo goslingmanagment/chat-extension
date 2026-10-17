@@ -85,6 +85,19 @@
 
 Фикстуры: `test/schemas.test.ts` (настройка и токены), `test/fixtures/vm.ts` (неверные `SetPreference` `ui.textSize`,
 `ShowRecap` и `RefreshRecap` с `panel` не `true`).
+## 1.23.0 — 2026-10-17 (свежий хвост открытого чата для Review и Coach, решение X52)
+
+Хаб принимает `liveTextContext` и на `chat-review`, и на `coach-chat`, если объявляет `live-text-review-coach-v1`;
+Recap его по-прежнему не принимает. Всё добавочное, старые фикстуры проходят без изменений. Следует за 1.22.0 (#173,
+X54).
+
+- **`features`:** `ANSWER_FRESH_TEXT_FEATURES` (`review`, `coach`) и `freshTextSurface(feature)`: где старт может нести
+  свежий текст — док для Reply, Fix, Hi, Ping и Review, своя панель для Coach, для Recap нигде. `FRESH_TEXT_FEATURES`
+  и `isFreshTextFeature` по-прежнему значат D-14 черновиков: тексты снимка Fansly — только для них.
+- **`ops`:** правило `StartOp.fresh` — по `freshTextSurface` (было: черновики в доке).
+- **`hub`:** `live-text-review-coach-v1` в `CLIENT_HUB_CAPABILITY_NAMES`; `LIVE_TEXT_HUB_NEEDS` — что нужно хабу
+  для свежего текста функции сверх флага страницы (Review и Coach — этот токен); `HUB_FEATURE_ONLY_FIELDS.
+  liveTextContext` — плюс `chat-review` и `coach-chat`.
 
 ## 1.22.0 — 2026-10-17 (своё чтение открытого чата из API OnlyMonster; решение X54)
 
