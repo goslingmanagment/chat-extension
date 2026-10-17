@@ -3,15 +3,19 @@
 // the ports of `AiHostPolicy` the shared controller of the open chat calls.
 // It is exactly what that controller did by itself before the second site:
 //
-// - the proof — the open chat's visible tail from page memory, read only when
-//   the start may carry fresh page text (D-14: a draft feature in the dock,
-//   admitted on the page); the shared plan trims it and it goes to the hub as
-//   `fresh`. Beside it, when the hub takes it (X54, `live-ppv-v1`), the PPV
-//   state of the chat's newest messages from OnlyMonster's API: the model's
-//   paid messages, their price and whether the fan bought them — what page
-//   memory holds stale, a purchase updating no loaded message. The click
-//   waits for that read at most LIVE_PPV_LIMITS.waitMs and starts without it
-//   after; a failed read is no state, and the hub keeps its own marks;
+// - the proof — read only when the start may carry fresh page text (D-14: a
+//   draft feature in the dock, Review in the dock and Coach on its panel since
+//   X52, admitted on the page): the open chat's newest messages from
+//   OnlyMonster's API and its visible tail from page memory, both at once. The
+//   tail is the API's messages typed in the chat, with what page memory holds
+//   that the page does not (a message that came in during the read); without
+//   the API's page it is page memory's, as before. The shared plan trims it
+//   and it goes to the hub as `fresh`. From the same page, when the hub takes
+//   it (X54, `live-ppv-v1`) and for the draft features, the PPV state: the
+//   model's paid messages, their price and whether the fan bought them — what
+//   page memory holds stale, a purchase updating no loaded message. The click
+//   waits for the API at most LIVE_PPV_LIMITS.waitMs and starts without it
+//   after; a failed read is no page, and the hub keeps its own marks;
 // - the pre-check — Hi is not offered in a conversation that is certainly a
 //   dialogue (AI-031); Ping is never blocked (AI-036);
 // - no fingerprint — a result keeps nothing of its start's proof (F8: after
@@ -26,7 +30,7 @@
 
 import type { ChatRef } from '@cg/contracts/ids';
 import type { HostPort, LiveTextTail, OpenChatPage } from '@cg/contracts/host';
-import { LIVE_PPV_LIMITS } from '@cg/contracts/limits';
+import { LIVE_PPV_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 import type { AiHostPolicy, LivePpvState } from '@cg/contracts/ops';
 
 /** AI-031: Hi is for a conversation with at most this many messages — of either side, as the hub counts them (`gate_hi_greeting_limit`). */
@@ -60,19 +64,57 @@ export function livePpvOf(page: OpenChatPage): LivePpvState | null {
   return items.length > 0 ? { capturedAt: page.capturedAt, items } : null;
 }
 
-/** X54: the open chat's PPV state, waited for at most `waitMs`; the read itself goes on and fills the port's cache. */
-export async function readLivePpv(host: HostPort, chat: ChatRef, waitMs: number = LIVE_PPV_LIMITS.waitMs): Promise<LivePpvState | null> {
+/**
+ * X52, X54: the open chat's newest page from the host's API, waited for at most `waitMs`; the read itself goes on and
+ * fills the port's cache. null — no API, not the open chat, a failure, or late.
+ */
+export async function readOpenPage(host: HostPort, chat: ChatRef, limit: number, waitMs: number = LIVE_PPV_LIMITS.waitMs): Promise<OpenChatPage | null> {
   if (host.openChatMessages === undefined) return null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), waitMs)));
   try {
-    const read = await Promise.race([host.openChatMessages(chat, { limit: LIVE_PPV_LIMITS.readMessages }), late]);
-    return read !== null && read.ok ? livePpvOf(read.page) : null;
+    const read = await Promise.race([host.openChatMessages(chat, { limit: Math.min(Math.max(1, limit), OPEN_CHAT_LIMITS.pageMax) }), late]);
+    return read !== null && read.ok ? read.page : null;
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** X54: the open chat's PPV state, waited for at most `waitMs`. */
+export async function readLivePpv(host: HostPort, chat: ChatRef, waitMs: number = LIVE_PPV_LIMITS.waitMs): Promise<LivePpvState | null> {
+  const page = await readOpenPage(host, chat, LIVE_PPV_LIMITS.readMessages, waitMs);
+  return page === null ? null : livePpvOf(page);
+}
+
+type LiveTextMessage = LiveTextTail['messages'][number];
+
+/** Oldest first: by the time, then by the id as a number (a longer id is a later one). */
+const older = (a: LiveTextMessage, b: LiveTextMessage): number =>
+  a.sentAt !== b.sentAt ? (a.sentAt < b.sentAt ? -1 : 1) : a.platformMessageId.length - b.platformMessageId.length || (a.platformMessageId < b.platformMessageId ? -1 : a.platformMessageId > b.platformMessageId ? 1 : 0);
+
+/**
+ * X52: the tail a start carries. With the API's page: its messages typed in the chat — not from OnlyFans' queue (a mass
+ * or scheduled message), not media alone, each id once — and the messages of page memory the page does not name at
+ * all (one that came in during the read), oldest first, the newest `max`. Without the page, or with nothing usable on
+ * it: page memory's, as it was.
+ */
+export function tailOf(page: OpenChatPage | null, memory: LiveTextTail | null, max: number): LiveTextTail | null {
+  if (page === null) return memory;
+  const named = new Set(page.items.map((item) => item.platformMessageId));
+  const seen = new Set<string>();
+  const messages: LiveTextMessage[] = [];
+  for (const item of page.items) {
+    if (item.automatic || item.text.trim() === '' || seen.has(item.platformMessageId)) continue;
+    seen.add(item.platformMessageId);
+    messages.push({ platformMessageId: item.platformMessageId, direction: item.direction, sentAt: item.sentAt, text: item.text });
+  }
+  // Nothing usable on the page: page memory's tail as it was.
+  if (messages.length === 0) return memory;
+  for (const message of memory?.messages ?? []) if (!named.has(message.platformMessageId)) messages.push(message);
+  const capturedAt = memory !== null && memory.capturedAt > page.capturedAt ? memory.capturedAt : page.capturedAt;
+  return { capturedAt, messages: messages.sort(older).slice(-Math.max(1, max)) };
 }
 
 export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
@@ -91,12 +133,15 @@ export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
    */
   preflight: (feature, window) => (feature === 'hi' && window.loaded > HI_MAX_MESSAGES ? 'hi-gate' : null),
   proof: (host, ask) => {
-    if (ask.fresh === null) return null;
+    const fresh = ask.fresh;
+    if (fresh === null) return null;
     const chat = ask.identity.chat;
-    // Both reads at once: the tail from page memory, the PPV state from the host's API (the slower of the two).
-    const tail = host.readVisibleTail(ask.identity, ask.fresh.maxItems).catch(() => null);
-    const livePpv = ask.livePpv === true && chat !== null && LIVE_PPV_FEATURES.has(ask.feature) ? readLivePpv(host, chat) : Promise.resolve(null);
-    return Promise.all([tail, livePpv]).then(([read, state]) => ({ tail: read, livePpv: state }));
+    const ppv = ask.livePpv === true && LIVE_PPV_FEATURES.has(ask.feature);
+    // Both reads at once: page memory's tail and the host's API page (the slower of the two), one page for the tail
+    // and the PPV state.
+    const memory = host.readVisibleTail(ask.identity, fresh.maxItems).catch(() => null);
+    const page = chat === null ? Promise.resolve(null) : readOpenPage(host, chat, Math.max(fresh.maxItems, ppv ? LIVE_PPV_LIMITS.readMessages : 0));
+    return Promise.all([memory, page]).then(([tail, read]) => ({ tail: tailOf(read, tail, fresh.maxItems), livePpv: ppv && read !== null ? livePpvOf(read) : null }));
   },
   fields: (proof) => ({ fresh: proof?.tail ?? null, ...(proof?.livePpv ? { livePpv: proof.livePpv } : {}) }),
   fingerprint: () => null,
