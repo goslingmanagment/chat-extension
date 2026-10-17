@@ -34,7 +34,7 @@ import {
   boundedText,
   displayText,
 } from './primitives';
-import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendFuseFactSchema, SendFuseStateSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup } from './send';
+import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendFuseFactSchema, SendFuseStateSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup, SendMarksSchema } from './send';
 import { CONTRACT_HASH_PATTERN } from './hub/auth';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
@@ -272,6 +272,8 @@ export const SendBeginSchema = z
      * send with CG-SEND-FUSE while a tripped fuse names this build. Absent — a tab before 1.11.0: a fuse holds it.
      */
     hostBuild: z.optional(z.nullable(displayText(80))),
+    /** 1.24.0 (X53): the marks of the media the part takes along (who sent it, X48); absent — its text alone. */
+    marks: z.optional(SendMarksSchema),
   })
   .check(
     z.refine((b) => partInGroup(b.part, b.group), { message: 'the part belongs to the group: same variant (absent = 0), index below partCount' }),

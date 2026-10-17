@@ -21,6 +21,8 @@ export * from './errors';
 export * from './settings';
 export * from './send-rules';
 export * from './send';
+export * from './media';
+export * from './send-media';
 export * from './host';
 export * from './ops';
 export * from './telemetry';

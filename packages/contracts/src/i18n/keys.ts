@@ -132,6 +132,16 @@ export const UI_TEXT_KEYS = [
   'preview.feed.emptySubscribed', 'preview.feed.label', 'preview.feed.fanPrefix', 'preview.feed.deleted', 'preview.feed.automatic', 'preview.feed.priced',
   'preview.feed.notBought', 'preview.feed.older', 'preview.ping.segment', 'preview.ping.segmentNoDays', 'preview.ping.active', 'preview.ping.unknown',
   'preview.draft.placeholder', 'preview.draft.aria', 'preview.empty',
+  // 1.24.0 (X53): the media picker of a preview.
+  'preview.media.button', 'preview.media.buttonTooltip', 'preview.media.label', 'preview.media.close', 'preview.media.all', 'preview.media.foldersMore',
+  'preview.media.more', 'preview.media.loading', 'preview.media.empty', 'preview.media.notReady', 'preview.media.fan.paid', 'preview.media.fan.unpaid',
+  'preview.media.fan.free', 'preview.media.fanTip.paid', 'preview.media.fanTip.unpaid', 'preview.media.fanTip.free', 'preview.media.type.photo',
+  'preview.media.type.video', 'preview.media.type.anim', 'preview.media.type.audio', 'preview.media.pickedAria', 'preview.media.free', 'preview.media.locked',
+  'preview.media.freeTooltip', 'preview.media.lockedTooltip', 'preview.media.price', 'preview.media.pricePlaceholder', 'preview.media.price.format',
+  'preview.media.price.decimals', 'preview.media.price.min', 'preview.media.price.max', 'preview.media.allFree', 'preview.media.blocked.price',
+  'preview.media.blocked.allFree', 'preview.media.blocked.tagsLoading', 'preview.media.blocked.tagsFailed', 'preview.media.tagsLoading',
+  'preview.media.tagsFailed', 'preview.media.retry', 'preview.media.clear', 'preview.media.hint', 'preview.media.attachedHint', 'preview.media.summaryFree',
+  'preview.media.summaryPaid', 'preview.media.summaryPaidPreviews', 'send.buttonMedia', 'send.buttonMediaPaid', 'send.buttonMediaTooltip', 'send.reason.media',
   'send.button', 'send.buttonTooltip', 'send.openAndInsert', 'send.openAndInsertTooltip', 'send.openAndInsertWaiting', 'send.openAndInsertCancel',
   'send.unavailable', 'send.unavailableReason', 'send.queued', 'send.sending', 'send.accepted', 'send.sent', 'send.rejected', 'send.retry', 'send.retryTooltip',
   'send.rejectedTail', 'send.uncertain', 'send.openToVerify', 'send.uncertainTail', 'send.heldStale', 'send.heldStaleTail', 'send.after',
@@ -321,7 +331,9 @@ export const UI_PLURAL_KEYS = [
   'coach.archiveLag',
   'palette.foot.chats',
   'quickJump.unread',
-  'settings.status.needActions', 'settings.status.warnings', 'settings.status.row.quotaLeft', 'settings.status.row.runningCount',] as const;
+  'settings.status.needActions', 'settings.status.warnings', 'settings.status.row.quotaLeft', 'settings.status.row.runningCount',
+  // 1.24.0 (X53)
+  'preview.media.count', 'preview.media.previews',] as const;
 export type UiPluralKey = (typeof UI_PLURAL_KEYS)[number];
 
 type CgWords<S extends string> = S extends `${infer Head}-${infer Tail}`
