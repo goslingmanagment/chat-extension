@@ -114,17 +114,17 @@ type Trip = (reason: 'text' | 'count' | 'target', where: 'request' | 'response' 
 /** The length of a text as shown (shown.ts), for the logs: never the text. */
 const charsOf = (text: unknown): number => shownForms(text)?.[0]?.length ?? 0;
 
-const some = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
-
 /**
  * What a composer send carried besides its text, as its queue call names it (decision X48; contracts SendCargoSchema):
  * a price above zero — a PPV — and media, paid or free. Marks only: never the price, the media or the text.
  */
 export const cargoOf = (args: Plain): { readonly priced: boolean; readonly media: boolean } => {
-  const meta = isPlain(args['platformMetadata']) ? args['platformMetadata'] : {};
-  const content = isPlain(args['composerContent']) ? args['composerContent'] : {};
-  const price = typeof meta['price'] === 'number' || typeof meta['price'] === 'string' ? Number(meta['price']) : Number.NaN;
-  return { priced: Number.isFinite(price) && price > 0, media: some(meta['mediaFiles']) || some(meta['previews']) || some(content['media']) };
+  const meta = (isPlain(args['platformMetadata']) ? args['platformMetadata'] : {}) as Plain;
+  return {
+    // No price, a free one or none that reads as a number: not a PPV.
+    priced: Number(meta['price']) > 0,
+    media: [meta['mediaFiles'], meta['previews'], (args['composerContent'] as Plain | undefined)?.['media']].some((list) => Array.isArray(list) && list.length > 0),
+  };
 };
 
 /** A send whose native chain has not ended. */

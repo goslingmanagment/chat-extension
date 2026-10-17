@@ -14,7 +14,7 @@ const fixture = (name: string, schema: z.ZodMiniType, valid: readonly unknown[],
 
 const PAGE = 'model-one';
 /** 1.21.0 (X48): one send as the hub takes it. */
-const attributionHubFact = { platformMessageId: '7001000001', fanRef: '518588958', observedAt: '2026-10-17T12:00:00.000Z', priced: false, withMedia: false };
+const attributionHubFact = { platformMessageId: '7001000001', fanRef: '74001001', observedAt: '2026-10-17T12:00:00.000Z', priced: false, withMedia: false };
 /** A persona definition id: opaque, 16–100 characters. */
 export const PDEF = 'pdef_0123456789abcdef';
 const GEN = uuid(6);

@@ -20,7 +20,7 @@ const send = (over: Partial<SendAttributionInput> = {}): SendAttributionInput =>
   pageLabel: PAGE,
   source: 'chatspace-extension',
   platformMessageId: String(++next),
-  fanRef: '518588958',
+  fanRef: '74001001',
   observedAt: new Date(NOW_MS).toISOString(),
   priced: false,
   withMedia: false,
