@@ -4,8 +4,10 @@
 // `host` means `system`). The result is a value signal; the mount mirrors it
 // to `data-scheme` on our host element, which the dark token values key on.
 
-import { type UiTheme } from '@cg/contracts/settings';
-import { SCHEME_ATTRIBUTE, type ColorScheme, type ValueSignal } from '@cg/contracts/vm';
+import { type UiTextSize, type UiTheme } from '@cg/contracts/settings';
+import { SCHEME_ATTRIBUTE, TEXT_SIZE_ATTRIBUTE, type ColorScheme, type ValueSignal } from '@cg/contracts/vm';
+
+import { holdAttribute } from './holds';
 
 export interface SchemeInputs {
   /** ChatSpace's scheme from its <html> class; null on extension pages (no host). */
@@ -90,6 +92,21 @@ export function resolvedSchemeSignal(
     dispose: () => {
       for (const off of offs) off();
     },
+  };
+}
+
+/**
+ * «Размер текста» on our host element as `data-text-size`, now and on every change (decision X55): the type tokens key
+ * the larger scale on it. Held like the scheme — several surfaces share the overlay host. No signal (an extension page,
+ * a test): nothing is set, the scale is the normal one. Returns the release.
+ */
+export function holdTextSize(host: Element, textSize: ValueSignal<UiTextSize> | undefined): () => void {
+  if (textSize === undefined) return () => undefined;
+  const release = holdAttribute(host, TEXT_SIZE_ATTRIBUTE, textSize.value);
+  const off = textSize.subscribe((value) => host.setAttribute(TEXT_SIZE_ATTRIBUTE, value));
+  return () => {
+    off();
+    release();
   };
 }
 

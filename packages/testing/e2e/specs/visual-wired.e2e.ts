@@ -603,6 +603,34 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       expect(await oursExists('modal', '.cg-nc')).toBe(false);
     });
 
+    it('[X55] «Размер текста: Крупнее»: the dock with a result and «Новые» a step larger, still inside the window', async function () {
+      this.timeout(240_000);
+      await shift.patch({ ui: { textSize: 'large' } });
+      await open(a1);
+      await ready(a1);
+      const rootSize = (where: Where, selector: string): Promise<string | null> => readOurs(where, selector, (node) => getComputedStyle(node).fontSize);
+      await browser.waitUntil(async () => (await rootSize('dock', '.cg-root')) === '15px', { timeout: 5000, timeoutMsg: 'the dock did not take the larger text' });
+      await generate(/^Reply/);
+      expect(await readOurs('dock', '.cg-part__t, .cg-pvp__t', (node) => getComputedStyle(node).fontSize)).toBe('16.5px');
+      await look('dock-20-large-text', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await hideResult();
+      await leaveField();
+      await browser.keys([...PANEL, 'u']);
+      await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nc' });
+      await browser.waitUntil(() => oursExists('modal', '.cg-pv'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
+      expect(await rootSize('modal', '.cg-root')).toBe('15px');
+      await look('board-20-large-text-newcomers', {
+        all: false,
+        check: async () => {
+          await inWindow('modal', '.cg-nc');
+          await inWindow('modal', '.cg-pv');
+        },
+      });
+      await closeAll();
+      await shift.patch({ ui: { textSize: 'normal' } });
+      await browser.waitUntil(async () => (await rootSize('dock', '.cg-root')) === '13px', { timeout: 5000, timeoutMsg: 'the dock did not go back to the normal text' });
+    });
+
     it('the fan panel: the fan, its Recap', async function () {
       this.timeout(180_000);
       await leaveField();

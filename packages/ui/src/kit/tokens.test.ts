@@ -4,7 +4,7 @@ import { SCHEME_ATTRIBUTE, THEME_TOKEN_NAMES, THEME_TOKENS, type ColorScheme, ty
 
 import { BASE_CSS } from './base';
 import { KIT_STYLE_SOURCES } from './sheets';
-import { DARK_HOST, DARK_PAGE, HOST_FALLBACK_TRIPLETS, THEME_CSS, TOKEN_VALUES, dark, om, tokenValue } from './tokens';
+import { DARK_HOST, DARK_PAGE, HOST_FALLBACK_TRIPLETS, LARGE_TEXT, LARGE_TEXT_SCOPE, THEME_CSS, TOKEN_VALUES, dark, om, tokenValue } from './tokens';
 
 /** `--x: value;` declarations of one rule block of THEME_CSS. */
 function declarations(block: string): Map<string, string> {
@@ -175,6 +175,19 @@ describe('[I18-007] fonts: the host’s own, locally installed only on our pages
     expect(THEME_TOKENS.space.map((name) => TOKEN_VALUES[name])).toEqual(['2px', '4px', '6px', '8px', '10px', '12px', '14px', '16px', '20px', '24px', '28px', '40px']);
     expect(THEME_TOKENS.radius.map((name) => TOKEN_VALUES[name])).toEqual(['2px', '6px', '8px', '10px', '12px', '99px']);
     expect(TOKEN_VALUES['--cg-gutter']).toBe('36px');
+  });
+
+  it('[X55] «Крупнее»: the type scale a step up under `data-text-size="large"` of our host — base 15, captions 13, AI text 16.5 — and nothing else moves', () => {
+    expect(LARGE_TEXT).toMatchObject({ '--cg-text-base': '15px', '--cg-text-xs': '13px', '--cg-text-sm': '13px', '--cg-text-ai': '16.5px', '--cg-leading-ai': '24px', '--cg-text-kbd': '11px' });
+    // Every larger value is a type token, and larger than the normal one.
+    for (const [name, value] of Object.entries(LARGE_TEXT)) {
+      expect(THEME_TOKENS.text, name).toContain(name);
+      expect(Number.parseFloat(value), name).toBeGreaterThan(Number.parseFloat(TOKEN_VALUES[name as keyof typeof TOKEN_VALUES] as string));
+    }
+    expect(THEME_CSS).toContain(`${LARGE_TEXT_SCOPE} { --cg-text-2xs: 12px;`);
+    expect(LARGE_TEXT_SCOPE).toBe(':host([data-text-size="large"])');
+    // Only the host of our roots carries it: no page rule, so the extension pages keep the agency's own scale.
+    expect(THEME_CSS).not.toContain(':root[data-text-size');
   });
 });
 

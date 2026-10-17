@@ -301,7 +301,7 @@ ${dark('.cg-btn--line[aria-disabled="true"], .cg-btn--send[aria-disabled="true"]
 .cg-act kbd {
   position: absolute; top: -6px; right: -3px; z-index: 1; padding: 0 4px; border-radius: 5px;
   background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-rule-3), 0 1px 0 var(--cg-rule-3);
-  color: var(--cg-ink-2); font-family: var(--cg-mono); font-size: 9.5px; line-height: 15px; font-weight: 500; letter-spacing: 0;
+  color: var(--cg-ink-2); font-family: var(--cg-mono); font-size: var(--cg-text-kbd); line-height: 15px; font-weight: 500; letter-spacing: 0;
   pointer-events: none; opacity: 0; transform: translateY(2px) scale(0.94); transform-origin: bottom right;
   transition: opacity 120ms var(--cg-ease), transform 120ms var(--cg-ease);
 }
