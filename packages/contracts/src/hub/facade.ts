@@ -44,6 +44,7 @@ import {
   type SpendersStats,
   type StatsQuery,
 } from './spenders';
+import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
 
@@ -171,4 +172,10 @@ export interface HubFacade {
   ingest(events: readonly (AcceptanceEvent | ClientHealthV1)[]): Promise<IngestResult>;
   /** H-15, debug only; absent without `ai-usage-v1`. */
   aiUsage?(query: AiUsageQuery): Promise<AiUsageReport>;
+  /**
+   * 1.21.0 (X48): who sent these messages of the page — the person signed in. Refused locally without
+   * `send-attribution-v1` (CG-HUB-CAPABILITY) and for a page the bootstrap does not grant; no owner switch. Never
+   * repeated by the facade: the caller's journal owns what is owed.
+   */
+  sendAttributions(request: SendAttributionsRequest): Promise<SendAttributionsResult>;
 }

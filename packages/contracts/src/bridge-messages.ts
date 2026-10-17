@@ -20,6 +20,7 @@ import {
   NavigationItemSchema,
   NavigationReceiptSchema,
   RouteStateSchema,
+  SendCargoSchema,
   SentDraftSchema,
   TailSnapshotSchema,
   thenInsertFits,
@@ -161,9 +162,14 @@ export const TO_MAIN = {
   checkpoint: { payload: z.strictObject(AccFan), data: FreshnessCheckpointSchema, write: false, timeout: 'call' },
   previewSendPreflight: { payload: z.strictObject({ req: MainSendRequestSchema }), data: PreviewSendPreflightSchema, write: false, timeout: 'call' },
   previewSendCommit: { payload: z.strictObject({ req: MainSendRequestSchema }), data: PreviewSendCommitSchema, write: true, timeout: 'call' },
+  /**
+   * The owner's switches MAIN keeps a latch of. 1.21.0 (X48): `attribution` — the hub records who sent each message
+   * (`send-attribution-v1`): MAIN follows the receipt of every human send of the composer, not only of a draft of
+   * ours. Absent — off.
+   */
   flags: {
-    payload: z.strictObject({ wsTap: z.boolean(), previewSend: z.boolean() }),
-    data: z.strictObject({ wsTap: z.boolean(), previewSend: z.boolean() }),
+    payload: z.strictObject({ wsTap: z.boolean(), previewSend: z.boolean(), attribution: z.optional(z.boolean()) }),
+    data: z.strictObject({ wsTap: z.boolean(), previewSend: z.boolean(), attribution: z.optional(z.boolean()) }),
     write: false,
     timeout: 'call',
   },
@@ -201,6 +207,8 @@ export const FROM_MAIN = {
     platformMessageId: z.nullable(NativeIdSchema),
     textDigest: DigestSchema,
     draft: SentDraftSchema,
+    /** 1.21.0 (X48): a price and media, as the queue action named them; marks only. */
+    cargo: z.optional(SendCargoSchema),
   }),
   previewSendState: z.strictObject({ view: SendAttemptViewSchema }),
   /**

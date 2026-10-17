@@ -10,7 +10,7 @@ import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
 
 import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
-import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
+import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema, SendAttributionFactSchema } from './host';
 import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, type HostKind } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
@@ -646,6 +646,16 @@ export const TAB_REQUESTS = {
     res: z.strictObject({ delivered: z.boolean() }),
     from: PAGE,
     pages: ['popup', 'options'],
+  },
+  /**
+   * 1.21.0 (decision X48): who sent a message — a human send of the site's composer whose message id the page's own
+   * response named. `queued` — the background owes it to the hub under the person signed in; false with the reason
+   * it is not ours to report (the page, its switch, the hub). Ids, a time and two marks; never a text.
+   */
+  'attribution.report': {
+    req: z.strictObject({ fact: SendAttributionFactSchema }),
+    res: z.strictObject({ queued: z.boolean(), reason: z.optional(OpenTokenSchema) }),
+    from: TAB,
   },
   /** An incoming-message fact for the one sound arbiter of the extension (§9.8). */
   'sound.event': {
