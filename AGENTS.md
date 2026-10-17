@@ -114,7 +114,8 @@ a boundary you need to cross is a design question, not a lint exception.
   (`tools/ci/e2e-docker-local.sh`) before Ready, as before. The CI shape:
   `docs/release.md` §2. `CG_E2E_SHARD=<k>/<n>` runs one part
   (`packages/testing/src/e2e-shards.ts`).
-- CI e2e sets `CG_E2E_TIMING_SLACK=3`: timing assertions use 3× budgets and log measurements; local e2e (unset: 1×) and `pnpm perf` keep their strict limits.
+- CI e2e sets `CG_E2E_TIMING_SLACK=3`: timing assertions use 3× budgets and log measurements; local e2e (unset: 1×) and a local `pnpm perf` keep their strict limits.
+- `pnpm perf` (the §11 probe and the Fansly gate P16a, about 50 minutes) is not in the CI of a PR or a push: `.github/workflows/perf.yml` runs it every night on `main` and by hand on any branch, on the PC, with the same 3× (X49).
 - `pnpm vitest run <path>` and, from `packages/testing`,
   `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` — one test
   file or one spec (the spec needs `pnpm build && pnpm build:test` first).

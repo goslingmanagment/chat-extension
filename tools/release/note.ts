@@ -15,7 +15,7 @@ export interface NoteItem {
 export const BEFORE_SIGNING: readonly NoteItem[] = [
   { id: 'smoke', text: 'Ручная проверка на тестовом чате пройдена по чек-листу `docs/pilot-readiness.md`, раздел 6. Сборка ChatSpace и дата: …' },
   { id: 'e2e', text: '`pnpm e2e` зелёный на коде этого выпуска — локально или джоба e2e в CI.' },
-  { id: 'perf', text: '`pnpm perf` зелёный на коде этого выпуска.' },
+  { id: 'perf', text: '`pnpm perf` зелёный на коде этого выпуска — локально или ручной прогон Perf в Actions на ветке выпуска.' },
   { id: 'hub-383', text: 'Исправление доступа к персонам (PR хаба #383) стоит в проде, отрицательные проверки пройдены.' },
   { id: 'hub-state', text: 'Bootstrap, возможности и флаги прод-хаба соответствуют этой сборке.' },
   { id: 'bindings', text: 'Привязки пилотных страниц сверены: аккаунт OnlyMonster → страница хаба.' },

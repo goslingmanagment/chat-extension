@@ -1,0 +1,96 @@
+# `pnpm perf` on the PC: the §11 probe on the ChatSpace stand and the Fansly
+# acceptance gate P16a (packages/testing/e2e/perf/*perf-probe.e2e.ts), about
+# 50 minutes. Too long for the CI of a PR or a push: inside it the part
+# «e2e 1/5» took 55 minutes instead of 7, and every run waited for it.
+#
+# Every night on main, and by hand on any branch (Actions → Perf → Run
+# workflow, «Use workflow from»): before a release, on its branch, for the
+# release note's line `perf` (docs/release.md, section 5).
+#
+# Only on the PC's runners: the probes compare the extension with a fresh base
+# on the same machine, and on GitHub's runners this would be some 60 paid
+# minutes a night. A night while CI is not on the PC (CI_POOL ≠ pc: the PC is
+# busy or down) is skipped; a run by hand waits for a runner of the PC.
+
+name: Perf
+
+on:
+  schedule:
+    # 22:17 UTC, 01:17 in Moscow: the quietest night hour of this repository's
+    # CI; well before hub's Nightly (02:20 UTC).
+    - cron: '17 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run at a time on the PC; a run by hand waits for the nightly one.
+concurrency:
+  group: perf
+  cancel-in-progress: false
+
+jobs:
+  perf:
+    name: pnpm perf
+    if: github.event_name != 'schedule' || vars.CI_POOL == 'pc'
+    runs-on: [self-hosted, ci-pc]
+    # About 60 minutes with setup; the PC's priority hook may hold the job up
+    # to 12 minutes before it starts, inside this limit.
+    timeout-minutes: 100
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      # The same step as in ci.yml; tools/ci/e2e-docker.sh mounts this prefix
+      # into the container.
+      - name: Setup pnpm
+        run: |
+          pinned="$(node -p 'require("./package.json").packageManager')"
+          pinned="${pinned%%+*}"
+          prefix="$RUNNER_TEMP/pnpm"
+          npm install --global --prefix "$prefix" --prefer-offline --no-audit --no-fund --loglevel=error "$pinned"
+          running="$("$prefix/bin/pnpm" --version)"
+          [ "pnpm@$running" = "$pinned" ] || { echo "::error::pnpm $running is installed but package.json pins $pinned"; exit 1; }
+          echo "$prefix/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: |
+          export npm_config_store_dir="$HOME/.local/share/pnpm/store"
+          pnpm install --frozen-lockfile
+
+      # The e2e job's container: the pinned image, --network none, and the
+      # container removed when the run is cancelled (`exec`, see ci.yml).
+      - name: pnpm perf (headless Firefox in the pinned image, no network)
+        env:
+          # As in the e2e job: other jobs share the PC. Only time limits scale
+          # (budgetMs, the Fansly gate's); memory, timers and counts stay strict.
+          CG_E2E_TIMING_SLACK: '3'
+        run: exec tools/ci/e2e-docker.sh perf
+
+      - name: Remove the e2e container, if one is left
+        if: always()
+        run: if [ -x tools/ci/e2e-docker.sh ]; then tools/ci/e2e-docker.sh --remove-container; fi
+
+      # The numbers of both probes, about:memory and Firefox profiles of the
+      # Fansly gate, and the WebdriverIO logs; the stand is synthetic.
+      - name: Upload reports, profiles and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .cache/e2e/perf.json
+            .cache/e2e/perf-fansly/gate
+            .cache/wdio
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
