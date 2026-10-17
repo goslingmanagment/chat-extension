@@ -613,8 +613,10 @@ describe('Spenders board: keyboard', () => {
     expect(expected).toBeGreaterThan(10);
     await settle();
     expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe(`1000 из 1000 фанов, охват полный. Показано: ${expected}`);
-    // Said, not only printed (ui-design §6.2).
-    expect(textOf(ui.$('[data-cg-live]'))).toBe(`Показано: ${expected}`);
+    // Said, not only printed (ui-design §6.2). The live region speaks a render later than the foot (the board's effect,
+    // then the announcement's own render): on a busy runner settle()'s 30 ms ended between the two (#184's check).
+    const live = ui.$('[data-cg-live]');
+    await vi.waitFor(() => expect(textOf(live)).toBe(`Показано: ${expected}`), { timeout: 2000, interval: 10 });
     expect(ui.$$('.cg-vlist__inner [data-cg-fan]').length).toBeLessThanOrEqual(expected);
   });
 });

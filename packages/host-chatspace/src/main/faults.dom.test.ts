@@ -202,6 +202,9 @@ describe('[X22] the runtime’s callbacks: ChatSpace’s own work goes on when o
     h.armed.clear();
     h.armed.add('composerSoon');
     expect(() => h.page.showOnly(ACC, FAN)).not.toThrow();
+    // Armed for the tabs' `after` alone, which calls it inside showOnly. The editor's observer calls it again a frame
+    // later, when the shown composer has rendered; on a busy runner that came before settle() ended (#180's check).
+    h.armed.clear();
     expect(h.page.tabs[ACC]?.activeEntryId).toBe('tab-1');
     await settle();
     expect(h.faults()).toEqual([['tabs', 1], ['composerSoon', 1]]);
@@ -262,6 +265,9 @@ describe('[X22] the runtime’s callbacks: ChatSpace’s own work goes on when o
     const h = await start();
     const editor = h.composer.editor;
     if (!editor) throw new Error('no editor');
+    // Ours are on the editor once the runtime has bound the composer, a frame or so after boot: start()'s 30 ms were
+    // not always enough on a busy runner, and then nothing of ours was there to throw (#184's check).
+    await vi.waitFor(() => expect([editor.listenerCount('transaction'), editor.listenerCount('destroy')]).toEqual([1, 1]), { timeout: 2000, interval: 10 });
     const theirs = vi.fn();
     editor.on('transaction', theirs);
     editor.on('destroy', theirs);

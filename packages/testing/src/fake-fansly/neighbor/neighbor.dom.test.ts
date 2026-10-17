@@ -150,7 +150,10 @@ describe('the neighbour: when its hooks arrive', () => {
   it('before: in place before the page’s first request — the page’s own /account/me is in its log', async () => {
     await mount({ mode: 'before' });
     await settled();
-    expect(seen()[0]).toMatch(/^GET \/api\/v1\/account\/me\?/);
+    // The log is in the order the requests ENDED: the page's first request is /account/me, but on a busy runner one
+    // of its start's /message/ack marks, sent alongside, can come back before it (#180's check). Its presence is
+    // what the timing proves; «first-xhr» below is the case where it is missing.
+    expect(seen()).toContainEqual(expect.stringMatching(/^GET \/api\/v1\/account\/me\?/));
     expect(sorted(seen())).toEqual(sorted(pageCalls()));
   });
 
@@ -305,6 +308,8 @@ describe('the neighbour: its DOM', () => {
     await openChat(first);
     await until(() => document.querySelectorAll(NEIGHBOR_TAGS.inboxBadge).length === s().control.inbox().rendered.length, 'a badge per row');
     const right = document.querySelector('app-nav-bar-top .nav-content-wrapper > .right-side');
+    // The top bar is a batch of its own: on a busy runner the badges came first (a stress run of this file saw ['a']).
+    await until(() => right?.querySelector(NEIGHBOR_TAGS.menu) !== null && right?.querySelector(NEIGHBOR_TAGS.badges) !== null, 'its two hosts in the top bar');
     expect([...(right?.children ?? [])].slice(0, 2).map((element) => element.localName)).toEqual([NEIGHBOR_TAGS.menu, NEIGHBOR_TAGS.badges]);
     const menu = right?.firstElementChild;
     expect(menu?.shadowRoot).not.toBeNull();
