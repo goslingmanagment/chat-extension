@@ -25,6 +25,8 @@
     "./settings-ext": "./src/settings-ext.ts",
     "./send-rules": "./src/send-rules.ts",
     "./send": "./src/send.ts",
+    "./media": "./src/media.ts",
+    "./send-media": "./src/send-media.ts",
     "./send-fansly": "./src/send-fansly.ts",
     "./vault-fansly": "./src/vault-fansly.ts",
     "./newcomers-fansly": "./src/newcomers-fansly.ts",

@@ -171,7 +171,7 @@ R01 делали четыре исполнителя, интегратор св�
 
 ## Мост MAIN ↔ изолированный мир (§5.3)
 
-17 запросов в MAIN (`TO_MAIN_TYPES`; `cancelInsert` — с 1.1.0, `openChatMessages` — с 1.22.0), 9 сообщений из MAIN
+18 запросов в MAIN (`TO_MAIN_TYPES`; `cancelInsert` — с 1.1.0, `openChatMessages` — с 1.22.0, `media` — с 1.24.0), 9 сообщений из MAIN
 (`FROM_MAIN_TYPES`).
 
 - **Конверт:** `{v: 1, kind, id, t, documentEpoch, seq, payload}`; ответ несёт тот

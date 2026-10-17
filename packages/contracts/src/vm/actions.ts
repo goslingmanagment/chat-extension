@@ -9,7 +9,8 @@ import * as z from 'zod/mini';
 
 import { CgCodeSchema, SettingsRouteSchema } from '../errors';
 import { FeatureIdSchema, ToneSchema } from '../features';
-import { PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
+import { MediaFolderIdSchema } from '../media';
+import { NativeIdSchema, PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
 import { SettingsV1Schema } from '../settings';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
 import { type SpendersPeriodSchema } from '../tab-messages';
@@ -195,6 +196,20 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('LoadOlder', { targetHandle: HandleSchema }),
   /** The local draft of a preview (Fix source, a greeting): never goes to ChatSpace by itself. */
   act('SetPreviewDraft', { targetHandle: HandleSchema, text: displayText(SEND_LIMITS.previewDraftMaxChars) }),
+  /**
+   * 1.24.0 (X53): the media picker of a preview — open or close it; choose a folder; read the next page of the folders
+   * or of the folder's media; pick a medium or drop it (the order of the clicks is the message's); mark a pick a free
+   * preview or take the mark off; the price as typed; drop every pick; read again what failed. None of it sends: the
+   * picks go with the next part whose «Отправить» the person clicks.
+   */
+  act('SetMediaOpen', { targetHandle: HandleSchema, open: z.boolean() }),
+  act('ChooseMediaFolder', { targetHandle: HandleSchema, folder: MediaFolderIdSchema }),
+  act('LoadMoreMedia', { targetHandle: HandleSchema, what: z.enum(['folders', 'items']) }),
+  act('PickMedia', { targetHandle: HandleSchema, mediaId: NativeIdSchema }),
+  act('ToggleMediaFree', { targetHandle: HandleSchema, mediaId: NativeIdSchema }),
+  act('SetMediaPrice', { targetHandle: HandleSchema, text: displayText(16) }),
+  act('ClearMedia', { targetHandle: HandleSchema }),
+  act('RetryMedia', { targetHandle: HandleSchema }),
   /** «Коротко | Полностью», «Открыть последний»: shows a saved slot, never generates. */
   act('ShowRecap', { length: z.enum(RECAP_LENGTHS) }),
   /** «↻ Обновить»: a new Recap from the fresh archive, bypassing the cache. */

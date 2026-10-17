@@ -174,6 +174,7 @@ export const TO_MAIN_TYPES = [
   'previewSendCommit',
   'flags',
   'openChatMessages',
+  'media',
 ] as const;
 export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 

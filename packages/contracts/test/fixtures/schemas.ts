@@ -236,6 +236,25 @@ const openChatPaid = {
   automatic: false,
 } as const;
 
+/** 1.24.0 (X53): a custom folder of the vault, a ready photo of it and the media a part takes along. */
+export const mediaFolder = { id: '880002', name: 'Stand set', kind: 'custom', photos: 14, videos: 0, other: 0 } as const;
+export const mediaItem = {
+  id: '660000155',
+  type: 'photo',
+  duration: 0,
+  ready: true,
+  thumb: 'https://pw365.ompcdn.com/cdn/v1/of/m/thumbs/300x300_a.jpg?exp=1&sig=2',
+  createdAt: ISO,
+} as const;
+export const sendMedia = {
+  items: [
+    { id: '660000155', type: 'photo', duration: 0, thumb: mediaItem.thumb, free: true },
+    { id: '660000160', type: 'video', duration: 75, thumb: null, free: false },
+  ],
+  priceCents: 2500,
+  tags: { users: ['77'], guests: [] },
+} as const;
+
 export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   { name: 'GenerationDebugSchema', schema: C.GenerationDebugSchema, valid: [generation], invalid: [{}] },
   // ── primitives ──
@@ -692,6 +711,42 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     C.OpenChatAnswerSchema,
     [{ ok: true, page: { capturedAt: ISO, items: [], hasMore: false, cursor: null } }, { ok: false, failure: 'timeout', status: null }],
     [{ ok: false, failure: 'unavailable', status: null }, { ok: false, failure: 'http' }],
+  ),
+  // 1.24.0 (X53): the media picker of a preview and the media a part takes along.
+  fixture('MediaFolderId', C.MediaFolderIdSchema, ['all', '880001'], ['favorites', '', 880001]),
+  fixture('MediaFolder', C.MediaFolderSchema, [mediaFolder, { ...mediaFolder, kind: 'messages', name: '' }], [{ ...mediaFolder, kind: 'stories' }, { ...mediaFolder, photos: -1 }]),
+  fixture('MediaType', C.MediaTypeSchema, ['photo', 'video', 'gif', 'audio'], ['image', '']),
+  fixture('MediaThumb', C.MediaThumbSchema, [mediaItem.thumb], ['http://cdn.example/x.jpg', 'javascript:alert(1)', `https://x/${'a'.repeat(4096)}`, 'https://x/a b']),
+  fixture('MediaItem', C.MediaItemSchema, [mediaItem, { ...mediaItem, type: 'video', duration: 75, ready: false, thumb: null, createdAt: null }], [{ ...mediaItem, id: 'm1' }, { ...mediaItem, duration: 1.5 }]),
+  fixture('MediaFoldersPage', C.MediaFoldersPageSchema, [{ items: [mediaFolder], hasMore: true }], [{ items: Array.from({ length: 11 }, () => mediaFolder), hasMore: true }]),
+  fixture('MediaItemsPage', C.MediaItemsPageSchema, [{ items: [mediaItem], hasMore: false }], [{ items: Array.from({ length: 41 }, () => mediaItem), hasMore: true }, { items: [] }]),
+  fixture('MediaFanState', C.MediaFanStateSchema, [{ id: mediaItem.id, state: 'unpaid', priceCents: 1500 }, { id: mediaItem.id, state: 'free', priceCents: null }], [{ id: mediaItem.id, state: 'unsent', priceCents: null }, { id: mediaItem.id, state: 'paid', priceCents: -1 }]),
+  fixture('MediaTags', C.MediaTagsSchema, [{ users: ['77'], guests: ['91'] }, { users: [], guests: [] }], [{ users: ['user-77'], guests: [] }, { users: [] }]),
+  fixture('SendMarks', C.SendMarksSchema, [{ priced: true, withMedia: true }, { priced: false, withMedia: true }], [{ priced: true }, { priced: 'yes', withMedia: true }]),
+  fixture(
+    'SendMedia',
+    C.SendMediaSchema,
+    [sendMedia, { ...sendMedia, priceCents: 0, items: [{ ...sendMedia.items[1] }] }, { ...sendMedia, priceCents: 20_000 }],
+    [
+      { ...sendMedia, priceCents: 299 },
+      { ...sendMedia, priceCents: 20_001 },
+      { ...sendMedia, priceCents: 0 },
+      { ...sendMedia, items: sendMedia.items.map((item) => ({ ...item, free: true })) },
+      { ...sendMedia, items: [] },
+      { ...sendMedia, items: [sendMedia.items[1], sendMedia.items[1]] },
+    ],
+  ),
+  fixture(
+    'MediaRequest',
+    C.MediaRequestSchema,
+    [{ of: 'folders', acc: IDS.acc, offset: 0 }, { of: 'items', acc: IDS.acc, folder: 'all', offset: 40 }, { of: 'tags', acc: IDS.acc, ids: [mediaItem.id] }],
+    [{ of: 'states', acc: IDS.acc, ids: [mediaItem.id] }, { of: 'tags', acc: IDS.acc, ids: Array.from({ length: 101 }, (_, i) => String(i + 1)) }],
+  ),
+  fixture(
+    'MediaAnswer',
+    C.MediaAnswerSchema,
+    [{ ok: true, value: { users: [], guests: [] } }, { ok: false, failure: 'account', status: null }],
+    [{ ok: false, failure: 'unavailable', status: null }, { ok: true }],
   ),
   fixture('ChatWindow', C.ChatWindowSchema, [chatWindow, { ...chatWindow, state: 'loading', loaded: 0, lastFanMessageId: null, hasOlder: null }], [{ ...chatWindow, loaded: 201 }]),
   fixture(

@@ -21,6 +21,7 @@ export * from './analysis';
 export * from './spenders';
 export * from './newcomers';
 export * from './preview';
+export * from './media';
 export * from './panels';
 export * from './pages';
 export * from './app-client';

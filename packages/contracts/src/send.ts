@@ -11,6 +11,7 @@ import * as z from 'zod/mini';
 import { CgCodeSchema, type CgCode } from './errors';
 import { HumanCauseSchema, PartRefSchema, PlatformSchema, TargetSchema, type HumanCause, type PartRef } from './ids';
 import { PART_LIMITS, SEND_LIMITS } from './limits';
+import { SendMediaSchema } from './send-media';
 import { PREVIEW_SEND_CONDITION_CODES, SEND_ATTEMPT_STATES, SEND_FUSE_EVIDENCE, SEND_FUSE_REASONS, isNativeRefusalStatus } from './send-rules';
 import {
   CountSchema,
@@ -93,6 +94,8 @@ export const PreviewSendRequestSchema = z
     /** The operation's checkpoint, taken at Generate and never retaken for a send. */
     checkpoint: FreshnessCheckpointSchema,
     cause: HumanCauseSchema,
+    /** 1.24.0 (X53): the vault media the part takes along, as picked at the click; absent — the part's text alone. */
+    media: z.optional(SendMediaSchema),
   })
   .check(z.refine((r) => checkpointMatches(r.checkpoint, r.target.chat.hostAccountId, r.target.chat.platformFanId), CHECKPOINT_OF_TARGET));
 export type PreviewSendRequest = z.infer<typeof PreviewSendRequestSchema>;
@@ -191,6 +194,13 @@ export const SendAttemptViewSchema = z
   );
 export type SendAttemptView = z.infer<typeof SendAttemptViewSchema>;
 
+/**
+ * 1.24.0 (X53): what a part took along, as the hub records who sent the message (X48, `clientSendAttributions`): a
+ * price above zero, media. The background never sees the media themselves, only these two marks.
+ */
+export const SendMarksSchema = z.strictObject({ priced: z.boolean(), withMedia: z.boolean() });
+export type SendMarks = z.infer<typeof SendMarksSchema>;
+
 /** Why the hub custody exists: an «Новые» greeting or a Spenders preview reply (H-7). */
 export const SEND_PURPOSES = ['greeting', 'preview-reply'] as const;
 export const SendPurposeSchema = z.enum(SEND_PURPOSES);
@@ -237,6 +247,8 @@ export const SendJournalEntrySchema = z
   code: z.optional(CgCodeSchema),
   pendingId: z.optional(PendingIdSchema),
   platformMessageId: z.optional(NativeIdSchema),
+  /** 1.24.0 (X53): the marks of what the part took along; absent — its text alone. */
+  marks: z.optional(SendMarksSchema),
   createdAt: EpochMsSchema,
   updatedAt: EpochMsSchema,
   })
