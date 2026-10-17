@@ -70,10 +70,13 @@ describe('popup view model', () => {
     const state = workingState();
     const w = await open({ page: 'popup', state });
     expect(w.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('фан 2002');
+    expect(w.client.getSnapshot({ of: 'popup' }).chat?.copyIds.fanId).toBeUndefined();
     world?.client.dispose();
     const named = { ...state, fanLabels: [{ chatKey: 'chatspace:1001:2002' as const, label: 'Hubert' }] };
     const w2 = await open({ page: 'popup', state: named });
     expect(w2.client.getSnapshot({ of: 'popup' }).chat?.fanName).toBe('Hubert');
+    // The id is not lost: the name copies it.
+    expect(w2.client.getSnapshot({ of: 'popup' }).chat?.copyIds).toMatchObject({ fanId: '2002', hostAccountId: '1001' });
     // The names come from the background's memory alone: no hub read, no other fan's data.
     expect(w2.background.requests('fans.labels')).toEqual([{}]);
     expect(w2.background.calls.some((call) => call.type === 'fan.card' || call.type === 'fan.dossier')).toBe(false);

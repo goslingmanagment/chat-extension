@@ -167,6 +167,20 @@ describe('popup (ui-design §4.23)', () => {
     expect(page.$('.cg-toast')?.textContent).toContain('Номер скопирован');
   });
 
+  it('[PU-007] [PU-008] the open dialog names the fan the tab knows; the id stays in the name\'s tooltip and a click copies it (X47)', async () => {
+    const state = workingState();
+    state.fanLabels = [{ chatKey: 'chatspace:1001:2002', label: 'Hubert' }];
+    const page = await mount('popup', { state });
+    const name = button(page, 'Hubert');
+    expect(page.root.querySelector(`#${name.getAttribute('aria-describedby') ?? 'none'}`)?.textContent).toBe('фан 2002');
+    await flush(() => name.click());
+    expect(page.world.browser.record.clipboard).toEqual(['2002']);
+    close(page);
+    // No name known: the id is the text, as before.
+    const plain = await mount('popup');
+    expect(plain.text()).toContain('фан 2002');
+  });
+
 
   it('[PU-002] the popup’s root asks the browser for its 360 px: Firefox sizes the panel by what the document asks for, and a size container asks for nothing', async () => {
     const page = await mount('popup', { state: signedOutState() });

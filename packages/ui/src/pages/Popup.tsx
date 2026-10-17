@@ -162,7 +162,12 @@ function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
         ) : (
           <div class="pg-popup__line">
             <b>
-              {vm.chat.copyIds.fanId === undefined ? vm.chat.fanName : <CopyValue text={vm.chat.fanName} value={vm.chat.copyIds.fanId} tooltip={i18n.t('common.copy')} />}
+              {vm.chat.copyIds.fanId === undefined ? (
+                vm.chat.fanName
+              ) : (
+                // 1.20.0 (X47): a fan named by the tab keeps the id in the tooltip of the name, and a click copies it.
+                <CopyValue text={vm.chat.fanName} value={vm.chat.copyIds.fanId} tooltip={vm.chat.copyIds.conversationRef === undefined ? i18n.t('popup.fanId', { id: vm.chat.copyIds.fanId }) : i18n.t('common.copy')} />
+              )}
               {vm.chat.fanUsername === null ? null : ` @${vm.chat.fanUsername.replace(/^@/, '')}`}
             </b>
             <span class="pg-popup__aside">

@@ -29,6 +29,8 @@ import { chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatR
 
 const { a: accountA } = STAND_IDS.accounts;
 const { a1 } = STAND_IDS.fans;
+/** The stand's name of `a1` (stand/dataset.ts: «Fan» and the first of its names). */
+const A1_NAME = 'Fan Alder';
 const PASSWORD = 'synthetic-password';
 /** A hub address that is not the stock one and not loopback: the browser has to be asked for its host. Nothing is ever sent to it. */
 const CUSTOM_HUB = 'https://hub.example.test';
@@ -296,13 +298,30 @@ describe('the extension pages wired: the popup and the settings of the installed
       },
       { timeout: 15_000, timeoutMsg: 'the background did not learn the chat of the ChatSpace tab' },
     );
+    // X47 (1.20.0): the tab tells the open chat's fan as ChatSpace names it; the popup reads the names when it opens.
+    await browser.waitUntil(
+      async () => {
+        const names = await pageRpc<{ fans: ReadonlyArray<{ chatKey: string; label: string }> }>('fans.labels');
+        return names.ok && names.payload.fans.some((fan) => fan.chatKey.endsWith(`:${a1}`));
+      },
+      { timeout: 15_000, timeoutMsg: 'the background did not learn the name of the open chat’s fan' },
+    );
     const popup = await openPopup();
     const working = await waitForPopup((state) => state.view === 'ready' && state.pills[0] === 'ChatSpace: подключён' && !state.persona.includes('Не подключено'), 'the popup of a working shift');
     expect(popup.drawn).toBe(true);
     expect(working.pills).toEqual(['ChatSpace: подключён', 'Хаб: на связи']);
     expect(working.codes).toEqual([]);
     expect(working.persona).toContain(WORLD.pages.one.title);
-    expect(working.dialog).toContain(a1);
+    // PU-008: the fan by the name the tab knows (the stand's «Fan Alder»), not «фан 74001001»; the id is one click away —
+    // in the name's tooltip, and the name copies it.
+    expect(working.dialog).toContain(A1_NAME);
+    expect(
+      await browser.execute((name) => {
+        const button = [...document.querySelectorAll('.pg-popup__line b .pg-popup__copy')].find((node) => node.textContent?.trim() === name);
+        const tip = button?.getAttribute('aria-describedby');
+        return tip === null || tip === undefined ? null : (document.getElementById(tip)?.textContent ?? null);
+      }, A1_NAME),
+    ).toBe(`фан ${a1}`);
     expect(working.buttons).toEqual({ Spenders: true, Новые: true, Клавиши: true, Настройки: true });
     // The buttons have just come on: the picture waits for their colour to settle (transitions ≤ 150 ms).
     await browser.pause(300);
