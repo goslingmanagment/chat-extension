@@ -71,7 +71,7 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     expect((await fanslyStandServer.journal(standStart)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
   });
 
-  it('[NF-001] [NF-002] [FX-017] the popup’s «Новые» opens Fansly’s own window; a pass that could ask Fansly nothing — «Список не загружен», never «nobody new»; Esc closes it', async () => {
+  it('[NF-001] [NF-002] [FX-017] the popup’s «Новые» opens Fansly’s own window; a pass that could ask Fansly nothing — its error card, never «nobody new»; Esc closes it', async () => {
     const mark = await hub().mark();
     // The popup's click: `tab.command` is the popup's (and the settings') own request.
     await shift.toPages();
@@ -81,7 +81,8 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     expect(await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } })).toEqual({ ok: true, payload: { delivered: true } });
     await browser.url(testBuildPage(QUIET_PAGE));
     await shift.toFansly();
-    await waitOursText('modal', 'Список не загружен', 'Fansly’s window says the list was not read', { timeout: 20_000, selector: WINDOW });
+    // The failed list is its error card alone (no «Список не загружен» over it since the lighter window).
+    await waitOursText('modal', 'ChatGoose · CG-FAN-REQUEST', 'Fansly’s window says the list was not read', { timeout: 20_000, selector: WINDOW });
     // After the window's entrance (≤ 150 ms, ui-design §2.9).
     await browser.pause(400);
     await picture('failed');
