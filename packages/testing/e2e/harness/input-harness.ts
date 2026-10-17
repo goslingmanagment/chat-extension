@@ -55,12 +55,12 @@ window.addEventListener(
 );
 
 // «The system took the keyup» (the app switcher, a system shortcut): when a test arms it, the next keyup of ⌘/Ctrl
-// stops here, before the dispatcher — the page never hears that the modifier went up, as it does not on a real ⌘-Tab.
+// (or Alt, the quick jump's hold since X45) stops here, before the dispatcher — the page never hears that the modifier went up, as it does not on a real ⌘-Tab.
 let loseKeyup = false;
 window.addEventListener(
   'keyup',
   (event) => {
-    if (!loseKeyup || !event.isTrusted || (event.key !== 'Meta' && event.key !== 'Control')) return;
+    if (!loseKeyup || !event.isTrusted || (event.key !== 'Meta' && event.key !== 'Control' && event.key !== 'Alt')) return;
     loseKeyup = false;
     event.stopImmediatePropagation();
   },

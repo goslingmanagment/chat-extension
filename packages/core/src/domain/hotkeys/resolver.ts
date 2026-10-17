@@ -10,7 +10,7 @@
 
 import { createHotkeyEngine, type HotkeyClient, type HotkeyEngine } from '@chatgoose/hotkeys';
 
-import { DISPATCHER_COMMAND_IDS, isModifierKey, isPrimaryModifierKey, matchExtraKey, type DispatcherCommandId, type HotkeyKeyEvent, type HotkeyPlatform } from './keymap';
+import { DISPATCHER_COMMAND_IDS, isJumpModifierKey, isModifierKey, matchExtraKey, type DispatcherCommandId, type HotkeyKeyEvent, type HotkeyPlatform } from './keymap';
 
 const isDispatcherCommand = (action: string): action is DispatcherCommandId =>
   (DISPATCHER_COMMAND_IDS as readonly string[]).includes(action);
@@ -27,8 +27,13 @@ export type KeyVerdict =
       readonly scheme: boolean;
       /** No ⌘/Ctrl/Alt in it (J, K, `]`, `?`, Esc): off while a person types. */
       readonly plain: boolean;
-      /** The fallback combination (Alt+U, Alt+1–9). */
+      /** The fallback combination (Alt+U). */
       readonly fallback: boolean;
+      /**
+       * An Alt combination of a row outside the scheme (Alt+U, Alt+1–9): Option types characters on macOS (⌥U is a
+       * dead key, ⌥1 «¡»), so in a field it is never ours. Absent — not one.
+       */
+      readonly alt?: boolean;
     }
   /** A combination of ours that must do nothing now: a retired habit, a roll-over, a letter reserved in this client. */
   | { readonly kind: 'swallow'; readonly reason: 'legacy' | 'rollover' | 'reserved' };
@@ -45,26 +50,26 @@ export interface KeyResolver {
   keyup(event: HotkeyKeyEvent): void;
   /** Window blur, a hidden tab: a modifier held across them is an unknown state. */
   reset(): void;
-  /** ⌘/Ctrl is down with nothing else pressed since: the quick jump opens after 400 ms of this. */
-  primaryHeldAlone(): boolean;
+  /** Alt (⌥) is down with nothing else pressed since: the quick jump opens after 400 ms of this (X45). */
+  jumpHeldAlone(): boolean;
 }
 
 /** `client` — the site's client of the vendored scheme (`HostAdapter.hotkeyClient`): the rows it serves run, a row of another client is a reserved letter. */
 export function createKeyResolver(platform: HotkeyPlatform, client: HotkeyClient, engine: HotkeyEngine = createHotkeyEngine({ platform, client })): KeyResolver {
-  let primaryDown = false;
+  let jumpDown = false;
   let alone = false;
 
   const track = (event: HotkeyKeyEvent): void => {
-    const flag = platform === 'mac' ? event.metaKey : event.ctrlKey;
-    if (isPrimaryModifierKey(event, platform)) {
-      if (!primaryDown) {
-        primaryDown = true;
-        alone = !event.shiftKey && !event.altKey;
+    if (isJumpModifierKey(event)) {
+      if (!jumpDown) {
+        jumpDown = true;
+        // AltGr is Ctrl+Alt on Windows: a layout's character key, never the jump's hold.
+        alone = !event.shiftKey && !event.ctrlKey && !event.metaKey;
       }
       return;
     }
-    if (!flag) {
-      primaryDown = false;
+    if (!event.altKey) {
+      jumpDown = false;
       alone = false;
       return;
     }
@@ -97,20 +102,21 @@ export function createKeyResolver(platform: HotkeyPlatform, client: HotkeyClient
         scheme: false,
         plain: extra.def.mods === 'none' || extra.def.mods === 'shift',
         fallback: extra.def.fallback,
+        ...(extra.def.mods === 'alt' ? { alt: true } : {}),
       };
     },
     keyup(event) {
       engine.keyup(event);
-      if (isPrimaryModifierKey(event, platform)) {
-        primaryDown = false;
+      if (isJumpModifierKey(event)) {
+        jumpDown = false;
         alone = false;
       }
     },
     reset() {
       engine.reset();
-      primaryDown = false;
+      jumpDown = false;
       alone = false;
     },
-    primaryHeldAlone: () => primaryDown && alone,
+    jumpHeldAlone: () => jumpDown && alone,
   };
 }

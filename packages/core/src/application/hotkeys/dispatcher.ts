@@ -25,10 +25,13 @@
 // on every way the focus can leave AND when it comes back (window blur and
 // focus, a hidden tab, pagehide): nothing that was «held» before counts
 // after, only a fresh trusted keydown does. The quick-jump popup, which is
-// alive only while ⌘/Ctrl is held, is never armed or opened in a document
+// alive only while Alt (⌥) is held (decision X45: its digits are Alt+1–9;
+// ⌘/Ctrl+1–9 are Firefox's tab keys), is never armed or opened in a document
 // that is hidden or has no focus, and while it is armed or open the pointer
 // is listened to: a trusted mouse move that says the modifier is up ends it
-// (the keyup went to the system, not to the page).
+// (the keyup went to the system, not to the page). The keyup of Alt that
+// closes an open popup is the page's: Firefox on Windows would otherwise take
+// a lone Alt press for its menu bar and move the focus there.
 
 import {
   createKeyResolver,
@@ -36,8 +39,8 @@ import {
   decideUnmatched,
   isComboLike,
   isImeKey,
+  isJumpModifierKey,
   isModifierKey,
-  isPrimaryModifierKey,
   type DispatcherCommandId,
   type FocusKind,
   type HotkeyClient,
@@ -106,7 +109,7 @@ export interface HotkeySink {
   run(command: KeyCommand): void;
   /** A claimed key that runs nothing, with the reason to show (HK-026, HK-027). */
   refuse(command: DispatcherCommandId, refusal: KeyRefusal): void;
-  /** ⌘/Ctrl held alone for 400 ms: the quick-jump popup; false — the modifier went up. */
+  /** Alt (⌥) held alone for 400 ms: the quick-jump popup; false — the modifier went up. */
   quickJump(open: boolean): void;
   /**
    * HK-025: false while the tab's first authoritative state for this command
@@ -178,7 +181,7 @@ export interface EarlyKeyDispatcher {
   dispose(): void;
 }
 
-/** ⌘/Ctrl held alone this long opens the quick jump (§9.1). */
+/** Alt (⌥) held alone this long opens the quick jump (§9.1; X45 — until then ⌘/Ctrl). */
 export const QUICK_JUMP_HOLD_MS = 400;
 /** A kept key older than this is not run: the person has moved on. */
 export const KEPT_KEY_TTL_MS = 5000;
@@ -295,9 +298,9 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
    */
   let watching = false;
   const onPointer: Listener = (raw) => {
-    const event = raw as { readonly isTrusted?: unknown; readonly metaKey?: unknown; readonly ctrlKey?: unknown } | null;
+    const event = raw as { readonly isTrusted?: unknown; readonly altKey?: unknown } | null;
     if (event === null || typeof event !== 'object' || event.isTrusted !== true) return;
-    if ((platform === 'mac' ? event.metaKey : event.ctrlKey) === false) reset();
+    if (event.altKey === false) reset();
   };
   const watchPointer = (): void => {
     const wanted = !disposed && (holdTimer !== null || quickJumpOpen);
@@ -328,20 +331,20 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     nativeModal: ownership.nativeModalOpen(),
     focus,
     route: state.route().kind,
-    // The quick-jump popup is the dispatcher's own, alive only while ⌘/Ctrl is held: it never takes a key.
+    // The quick-jump popup is the dispatcher's own, alive only while Alt is held: it never takes a key.
     overlays: state.overlays().filter((overlay) => overlay !== 'quick-jump'),
     dockSheet: state.dockSheet(),
     combo: isComboLike(event),
     inDock: ownership.focusInDock?.() ?? false,
   });
 
-  /** ⌘/Ctrl went down alone, outside any field, with the chat list on screen: the quick jump may open. */
+  /** Alt went down alone, outside any field, with the chat list on screen: the quick jump may open. */
   const armQuickJump = (event: KeyEventLike): void => {
-    // Windows repeats a held Ctrl as keydowns (from 250 ms on, at its shortest delay): the hold goes on, nothing restarts.
+    // Windows repeats a held modifier as keydowns (from 250 ms on, at its shortest delay): the hold goes on, nothing restarts.
     if (event.repeat === true) return;
     cancelHold();
-    if (sink === null || quickJumpOpen || !resolver.primaryHeldAlone()) return;
-    // Cheapest checks first: ⌘/Ctrl goes down in the composer with every ⌘V.
+    if (sink === null || quickJumpOpen || !resolver.jumpHeldAlone()) return;
+    // Cheapest checks first: in a field Option types characters on macOS.
     const focus = ownership.focus(event);
     if (focus === 'composer' || focus === 'field' || focus === 'ours-field') return;
     if (state.route().kind === 'other' || state.overlays().length > 0 || ownership.nativeModalOpen()) return;
@@ -350,7 +353,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     holdTimer = timers.setTimer(QUICK_JUMP_HOLD_MS, () => {
       holdTimer = null;
       // The hold is judged again when its time comes: the focus may have left without a word (no blur was heard).
-      if (!disposed && sink !== null && resolver.primaryHeldAlone() && !away()) {
+      if (!disposed && sink !== null && resolver.jumpHeldAlone() && !away()) {
         quickJumpOpen = true;
         sink.quickJump(true);
       }
@@ -368,7 +371,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     }
     const verdict = resolver.keydown(event);
     if (isModifierKey(event)) {
-      if (isPrimaryModifierKey(event, platform)) armQuickJump(event);
+      if (isJumpModifierKey(event)) armQuickJump(event);
       else closeQuickJump();
       return;
     }
@@ -434,7 +437,10 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     const event = asKeyEvent(raw);
     if (event === null || disposed || !event.isTrusted) return;
     resolver.keyup(event);
-    if (isPrimaryModifierKey(event, platform)) closeQuickJump();
+    if (!isJumpModifierKey(event)) return;
+    // The lone Alt that held the popup open is ours: Firefox on Windows would put the focus into its menu bar.
+    if (quickJumpOpen) event.preventDefault();
+    closeQuickJump();
   };
 
   /**

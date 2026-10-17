@@ -234,10 +234,13 @@ describe('the vendored scheme through the tab resolver', () => {
 
   it('[HK-022] reset (window blur, a hidden tab) forgets a held modifier', () => {
     const resolver = createKeyResolver('mac', 'extension');
+    resolver.keydown(ev('AltLeft', { key: 'Alt', altKey: true }));
+    expect(resolver.jumpHeldAlone()).toBe(true);
+    resolver.keyup(ev('AltLeft', { key: 'Alt' }));
     resolver.keydown(META);
-    expect(resolver.primaryHeldAlone()).toBe(true);
+    resolver.keydown(ev('AltLeft', { key: 'Alt', altKey: true }));
     resolver.reset();
-    expect(resolver.primaryHeldAlone()).toBe(false);
+    expect(resolver.jumpHeldAlone()).toBe(false);
     // The keyup was lost while the window was away: E under the still-held ⌘ is not a fresh press.
     expect(resolver.keydown(ev('KeyE', { metaKey: true }))).toEqual({ kind: 'swallow', reason: 'rollover' });
   });
@@ -268,15 +271,16 @@ describe('rows outside the scheme', () => {
     expect(matchExtraKey(ev('Slash', { shiftKey: true, ctrlKey: true, key: '?' }), 'mac')).toBeNull();
   });
 
-  it('[HK-037] J / K, ⌘U with Alt+U, ⌘1–9 with Alt+1–9', () => {
+  it('[HK-037] J / K, ⌘U with Alt+U, Alt+1–9 (X45: ⌘1–9 / Ctrl+1–9 are Firefox’s tabs, not ours)', () => {
     const resolver = createKeyResolver('win', 'extension');
     expect(resolver.keydown(ev('KeyJ'))).toMatchObject({ command: 'chat-next', plain: true });
     expect(resolver.keydown(ev('KeyK'))).toMatchObject({ command: 'chat-previous', plain: true });
     expect(press('win', 'KeyU')).toMatchObject({ command: 'next-unread', fallback: false, plain: false });
     expect(createKeyResolver('win', 'extension').keydown(ev('KeyU', { altKey: true }))).toMatchObject({ command: 'next-unread', fallback: true });
     for (let n = 1; n <= 9; n += 1) {
-      expect(press('mac', `Digit${n}`)).toMatchObject({ command: 'quick-jump', slot: n, fallback: false });
-      expect(createKeyResolver('mac', 'extension').keydown(ev(`Digit${n}`, { altKey: true }))).toMatchObject({ command: 'quick-jump', slot: n, fallback: true });
+      expect(press('mac', `Digit${n}`)).toBeNull();
+      expect(press('win', `Digit${n}`)).toBeNull();
+      expect(createKeyResolver('mac', 'extension').keydown(ev(`Digit${n}`, { altKey: true }))).toMatchObject({ command: 'quick-jump', slot: n, fallback: false, alt: true });
     }
     expect(press('mac', 'Digit0')).toBeNull();
   });
@@ -306,16 +310,23 @@ describe('rows outside the scheme', () => {
     expect(matchExtraKey(ev('Escape', { shiftKey: true }), 'mac')).toBeNull();
   });
 
-  it('[NEW-07] the resolver knows when ⌘/Ctrl is held alone', () => {
+  it('[NEW-07] the resolver knows when Alt (⌥) is held alone — the quick jump’s hold since X45; ⌘/Ctrl alone is no hold', () => {
     const resolver = createKeyResolver('win', 'extension');
-    expect(resolver.primaryHeldAlone()).toBe(false);
+    expect(resolver.jumpHeldAlone()).toBe(false);
     resolver.keydown(CTRL);
-    expect(resolver.primaryHeldAlone()).toBe(true);
-    resolver.keydown(ev('Digit3', { ctrlKey: true }));
-    expect(resolver.primaryHeldAlone()).toBe(false);
+    expect(resolver.jumpHeldAlone()).toBe(false);
     resolver.keyup(ev('ControlLeft', { key: 'Control' }));
-    resolver.keydown(ev('ControlLeft', { key: 'Control', ctrlKey: true, shiftKey: true }));
-    expect(resolver.primaryHeldAlone()).toBe(false);
+    resolver.keydown(ev('AltLeft', { key: 'Alt', altKey: true }));
+    expect(resolver.jumpHeldAlone()).toBe(true);
+    resolver.keydown(ev('Digit3', { altKey: true }));
+    expect(resolver.jumpHeldAlone()).toBe(false);
+    resolver.keyup(ev('AltLeft', { key: 'Alt' }));
+    // Alt+Shift switches the input language, AltGr is Ctrl+Alt: neither is a lone hold.
+    resolver.keydown(ev('AltLeft', { key: 'Alt', altKey: true, shiftKey: true }));
+    expect(resolver.jumpHeldAlone()).toBe(false);
+    resolver.keyup(ev('AltLeft', { key: 'Alt' }));
+    resolver.keydown(ev('AltRight', { key: 'AltGraph', altKey: true, ctrlKey: true }));
+    expect(resolver.jumpHeldAlone()).toBe(false);
   });
 
   it('a key ChatSpace\'s global listener would look at: a modifier held or a named key; plain typing is not one', () => {
@@ -434,32 +445,33 @@ describe('whose key is it', () => {
       expect(ran(decideKey(cmd(id), ctx({ route: 'account' })))).toBe(`${id}@global`);
       expect(decideKey(cmd(id), ctx({ route: 'other' }))).toEqual({ act: 'pass' });
     }
-    for (const verdict of [cmd('next-unread'), cmd('next-unread', { fallback: true }), cmd('quick-jump', { slot: 4 }), cmd('quick-jump', { slot: 4, fallback: true })]) {
+    for (const verdict of [cmd('next-unread'), cmd('next-unread', { fallback: true, alt: true }), cmd('quick-jump', { slot: 4, alt: true })]) {
       expect(ran(decideKey(verdict, ctx()))).not.toBeNull();
       expect(ran(decideKey(verdict, ctx({ route: 'account' })))).not.toBeNull();
       expect(decideKey(verdict, ctx({ route: 'other' }))).toEqual({ act: 'pass' });
       // «вне composer»: with the cursor in any field it never runs.
       for (const focus of ['composer', 'field', 'ours-field'] as const) for (const route of ['chat', 'account', 'other'] as const) expect(ran(decideKey(verdict, ctx({ focus, route })))).toBeNull();
     }
-    expect(decideKey(cmd('quick-jump', { slot: 7 }), ctx())).toMatchObject({ run: { id: 'quick-jump', slot: 7, target: 'global' } });
+    expect(decideKey(cmd('quick-jump', { slot: 7, alt: true }), ctx())).toMatchObject({ run: { id: 'quick-jump', slot: 7, target: 'global' } });
   });
 
-  it('[HK-026] in a chat ⌘U and ⌘1–9 pressed while a person types stay ours — Firefox opens no page source and switches no tab — and say why; the Alt fallbacks stay typing', () => {
-    for (const [id, slot] of [['next-unread', null], ['quick-jump', 4]] as const) {
-      for (const focus of ['composer', 'field', 'ours-field'] as const) {
-        expect(decideKey(cmd(id, { slot }), ctx({ focus }))).toEqual({ act: 'claim', run: null, refusal: 'in-field', command: id });
-        expect(decideKey(cmd(id, { slot, repeat: true }), ctx({ focus }))).toEqual({ act: 'claim', run: null, refusal: null, command: id });
-      }
-      // In the search field of a window of ours the reason is the window.
-      expect(decideKey(cmd(id, { slot }), ctx({ focus: 'ours-field', overlays: ['palette'] }))).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
-      // ⌥U is a dead key and ⌥1 a character on macOS: in a field the fallback is not ours at all.
-      expect(decideKey(cmd(id, { slot, fallback: true }), ctx({ focus: 'composer' }))).toEqual({ act: 'pass' });
-      expect(decideKey(cmd(id, { slot, fallback: true }), ctx({ focus: 'field' }))).toEqual({ act: 'pass' });
-      expect(decideKey(cmd(id, { slot, fallback: true }), ctx({ focus: 'ours-field' }))).toEqual({ act: 'isolate', otherwise: null });
-      // Outside a chat only the global keys are ours: in a field of an account's list the browser keeps these.
-      expect(decideKey(cmd(id, { slot }), ctx({ focus: 'field', route: 'account' }))).toEqual({ act: 'pass' });
-      expect(decideKey(cmd(id, { slot }), ctx({ focus: 'ours-field', route: 'account' }))).toEqual({ act: 'isolate', otherwise: null });
+  it('[HK-026] in a chat ⌘U pressed while a person types stays ours — Firefox opens no page source — and says why; the Alt keys (Alt+U, Alt+1–9) stay typing (X45)', () => {
+    const id = 'next-unread';
+    for (const focus of ['composer', 'field', 'ours-field'] as const) {
+      expect(decideKey(cmd(id), ctx({ focus }))).toEqual({ act: 'claim', run: null, refusal: 'in-field', command: id });
+      expect(decideKey(cmd(id, { repeat: true }), ctx({ focus }))).toEqual({ act: 'claim', run: null, refusal: null, command: id });
     }
+    // In the search field of a window of ours the reason is the window.
+    expect(decideKey(cmd(id), ctx({ focus: 'ours-field', overlays: ['palette'] }))).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
+    // ⌥U is a dead key and ⌥1 a character on macOS: in a field the Alt keys are not ours at all.
+    for (const alt of [cmd(id, { fallback: true, alt: true }), cmd('quick-jump', { slot: 4, alt: true })]) {
+      expect(decideKey(alt, ctx({ focus: 'composer' }))).toEqual({ act: 'pass' });
+      expect(decideKey(alt, ctx({ focus: 'field' }))).toEqual({ act: 'pass' });
+      expect(decideKey(alt, ctx({ focus: 'ours-field' }))).toEqual({ act: 'isolate', otherwise: null });
+    }
+    // Outside a chat only the global keys are ours: in a field of an account's list the browser keeps these.
+    expect(decideKey(cmd(id), ctx({ focus: 'field', route: 'account' }))).toEqual({ act: 'pass' });
+    expect(decideKey(cmd(id), ctx({ focus: 'ours-field', route: 'account' }))).toEqual({ act: 'isolate', otherwise: null });
   });
 
   it('[HK-037] [HK-039] [UI-023] J, K and ] on a part or a button of the dock do nothing — kept from the site, handed to the dock (X44); elsewhere in ours they still run', () => {
@@ -608,7 +620,9 @@ describe('the action catalog', () => {
     expect(mac.entry('palette').hotkey).toMatchObject({ display: '⌘K', aria: 'Meta+K' });
     expect(win.entry('palette').hotkey).toMatchObject({ display: 'Ctrl+K', aria: 'Control+K' });
     expect(mac.entry('next-unread').hotkey).toEqual({ display: '⌘U', aria: 'Meta+U', delivery: 'unverified', fallback: { display: '⌥U', aria: 'Alt+U', delivery: 'unverified' } });
-    expect(win.entry('quick-jump').hotkey).toEqual({ display: 'Ctrl+1–9', aria: 'Control+1', delivery: 'unverified', fallback: { display: 'Alt+1–9', aria: 'Alt+1', delivery: 'unverified' } });
+    // X45: the chat slots are Alt+1–9 / ⌥1–9 alone; ⌘/Ctrl+1–9 are Firefox's tabs and printed nowhere.
+    expect(win.entry('quick-jump').hotkey).toEqual({ display: 'Alt+1–9', aria: 'Alt+1', delivery: 'unverified', fallback: null });
+    expect(mac.entry('quick-jump').hotkey).toEqual({ display: '⌥1–9', aria: 'Alt+1', delivery: 'unverified', fallback: null });
     expect(mac.entry('chat-next').hotkey).toEqual({ display: 'J', aria: 'J', delivery: 'delivered', fallback: null });
     expect(mac.entry('cheatsheet').hotkey?.display).toBe('?');
     expect(mac.entry('close').hotkey?.display).toBe('Esc');
@@ -636,7 +650,7 @@ describe('the action catalog', () => {
       expect(Object.keys(DELIVERY[platform]).sort()).toEqual([...DELIVERY_KEYS].sort());
       for (const key of DELIVERY_KEYS) expect(values).toContain(DELIVERY[platform][key]);
       // Not pressed in a real browser yet: named unverified, never printed as measured.
-      for (const key of ['palette', 'next-unread', 'next-unread:fallback', 'quick-jump', 'quick-jump:fallback'] as const) expect(DELIVERY[platform][key]).toBe('unverified');
+      for (const key of ['palette', 'next-unread', 'next-unread:fallback', 'quick-jump'] as const) expect(DELIVERY[platform][key]).toBe('unverified');
     }
     // ⌘, on macOS is Firefox's own «Settings…» menu item (§9.1): reserved until a hand check says otherwise — it is not printed as working.
     expect([DELIVERY.mac.settings, DELIVERY.win.settings]).toEqual(['reserved', 'unverified']);
@@ -663,7 +677,8 @@ describe('the action catalog', () => {
     const preview = groups[5]?.rows ?? [];
     expect(preview[preview.length - 1]).toEqual({ label: { key: 'send.button' }, hotkey: null, note: { key: 'cheatsheet.row.sendNote' } });
     const printed = groups.flatMap((group) => group.rows.map((row) => row.hotkey?.display));
-    for (const key of ['⌘E', '⌘K', '⌘⇧M', '?', '⌘⇧O', '⌘⇧L', '⌘.', 'J', 'K', '⌘U', '⌘1–9', ']', 'Esc', '↵']) expect(printed).toContain(key);
+    for (const key of ['⌘E', '⌘K', '⌘⇧M', '?', '⌘⇧O', '⌘⇧L', '⌘.', 'J', 'K', '⌘U', '⌥1–9', ']', 'Esc', '↵']) expect(printed).toContain(key);
+    expect(printed).not.toContain('⌘1–9');
     // Firefox keeps ⌘, on macOS: not printed there; on Windows Ctrl+, is.
     expect(printed).not.toContain('⌘,');
     expect(cheatsheetGroups(createActionCatalog('win')).flatMap((group) => group.rows.map((row) => row.hotkey?.display))).toContain('Ctrl+,');

@@ -1,5 +1,5 @@
-// The quick-jump popup of ⌘1–9 (architecture.md §9.1, D-30; ui-design §10;
-// NEW-07, HK-037): shown while the modifier is held, it lists the first nine
+// The quick-jump popup of Alt+1–9 (architecture.md §9.1, D-30; ui-design §10;
+// NEW-07, HK-037): shown while Alt (⌥) is held (X45), it lists the first nine
 // chats of the list the person already sees, each with its digit on the
 // right. It is the palette's dialog shape, but not modal: the keys stay with
 // the early dispatcher and focus stays in the composer. A click on a row

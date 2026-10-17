@@ -20,7 +20,7 @@
 //
 // Which switch a navigation asks (decision X13): the token's surface says
 // who navigates.
-// - `overlay` — our own navigation: J/K, ⌘U, ⌘1–9, quick jump, the
+// - `overlay` — our own navigation: J/K, ⌘U, Alt+1–9, quick jump, the
 //   palette's chats, «Открыть чат» of a toast. The owner's `navigation`.
 // - `preview`, `newcomers` — the person clicked one fan in a board: the
 //   Spenders row, a preview's «Открыть» / «Открыть и вставить», a card of

@@ -1,5 +1,5 @@
 // Chat navigation of the tab (architecture.md §6.9, D-30; HK-037, HK-039,
-// NEW-07, CS-006): J/K, ⌘U, ⌘1–9 and the palette's «перейти» go through
+// NEW-07, CS-006): J/K, ⌘U, Alt+1–9 and the palette's «перейти» go through
 // ChatSpace's own router — `HostPort.navigate`, the same thing a click on a
 // row of its list does — and only as the result of a person's action: every
 // navigation spends a one-time `navigate` token the background issued for it
@@ -184,7 +184,7 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     // The person may have moved to another account while the switch was read.
     if (currentAccountId() !== accountId) return done('noop');
     const list = host.current().contract.capabilities.chatList;
-    // §6.2: a broken `chatList` anchor switches J/K, ⌘U and ⌘1–9 off, with the reason.
+    // §6.2: a broken `chatList` anchor switches J/K, ⌘U and Alt+1–9 off, with the reason.
     if (list.state === 'off' || list.state === 'contractBroken') return fail('CG-HOST-CONTRACT');
     const items = await readList(accountId);
     // The route is read after the list settled: the person may have clicked elsewhere meanwhile.
@@ -223,7 +223,7 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     // open, a router still moving, a refusal — so it never rides on a later click.
     const cause = deps.cause?.take() ?? 'click';
     if (to.kind === 'chat-step' || to.kind === 'next-unread' || to.kind === 'chat-slot') {
-      // J/K, ⌘U and ⌘1–9 are rows of our navigation: on a site without it they walk nowhere.
+      // J/K, ⌘U and Alt+1–9 are rows of our navigation: on a site without it they walk nowhere.
       if (!rowPresent(to.kind === 'next-unread' ? 'next-unread' : to.kind === 'chat-slot' ? 'quick-jump' : 'chat-next', deps.features)) return Promise.resolve(done('noop'));
       return walk(to, cause);
     }

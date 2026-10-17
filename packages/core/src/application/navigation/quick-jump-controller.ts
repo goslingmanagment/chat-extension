@@ -1,5 +1,5 @@
 // The quick-jump popup (architecture.md §9.1, §10.2 QuickJumpVM; NEW-07):
-// ⌘/Ctrl held alone for 400 ms shows the first nine chats of the list the
+// Alt (⌥) held alone for 400 ms (decision X45; until then ⌘/Ctrl) shows the first nine chats of the list the
 // person sees, numbered — our own window, nothing is drawn into ChatSpace's
 // rows (Б9). A digit under the held modifier opens that chat; letting the
 // modifier go closes the popup. The view itself reads the host only; whether

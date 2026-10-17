@@ -483,7 +483,7 @@
 | HK-023 | Один движок на вкладку | пилот | пилот | core/hotkeys | R17 | M1 |  |
 | HK-024 | Хоткей до загрузки модуля | пилот | пилот | core/app/hotkeys · core/hotkeys | R17 | M1 |  |
 | HK-025 | Ожидание первого состояния | пилот | пилот | core/app/hotkeys · core/hotkeys | R17 | M1 |  |
-| HK-026 | Политика preventDefault | пилот | пилот | core/app/hotkeys · core/hotkeys | R17 | M1 |  |
+| HK-026 | Политика preventDefault | пилот | пилот | core/app/hotkeys · core/hotkeys | R17 | M1 | X45: ⌘/Ctrl+1–9 в чате больше не забираются (вкладки Firefox); ⌘U в поле — по-прежнему наш с причиной |
 | HK-027 | Блок под справкой и доской | пилот | пилот | core/app/hotkeys · core/hotkeys | R17 | M1 |  |
 | HK-028 | Из поля ввода | пилот | пилот | core/app/hotkeys · core/hotkeys | R17 | M1 |  |
 | HK-029 | Esc закрывает по очереди | пилот | пилот | core/app/hotkeys · core/hotkeys | R17 | M1 |  |
@@ -494,7 +494,7 @@
 | HK-034 | Шпаргалка `?` | пилот | пилот | ui/overlays/cheatsheet · core/hotkeys | R14 · R17 | M1 |  |
 | HK-035 | Группа «Различается с приложением OF» | не нужно | не нужно | — | — | — |  |
 | HK-036 | Палитра ⌘K | решение владельца | пилот | core/navigation · core/app/hotkeys · ui/palette | R17 · R15 | M6 | **решено** А8: палитра ⌘K |
-| HK-037 | Навигация по чатам | решение владельца | пилот | core/navigation · core/app/hotkeys · ui/palette | R17 · R15 | M6 | **решено** А8: J/K, ⌘U, ⌘1–9 через роутер ChatSpace |
+| HK-037 | Навигация по чатам | решение владельца | пилот | core/navigation · core/app/hotkeys · ui/palette | R17 · R15 | M6 | **решено** А8: J/K, ⌘U, ⌘1–9 через роутер ChatSpace. X45: ⌘/Ctrl+1–9 отданы Firefox (вкладки); N-й чат — ⌥1–9 / Alt+1–9, быстрый переход — удержание ⌥ / Alt |
 | HK-038 | ⌘↵ отправить | ChatSpace | даёт ChatSpace | — | — | — |  |
 | HK-039 | `]` панель фана | решение владельца | пилот | core/navigation · core/app/hotkeys · ui/palette | R17 · R15 | M6 | **решено** А8: панель фана |
 | HK-040 | `[` скрыть список чатов | не нужно | не нужно | — | — | — |  |

@@ -265,7 +265,7 @@ a boundary you need to cross is a design question, not a lint exception.
   repeats them (`fake-hub/ai-rules.ts`) and checks bodies by the vendored
   SDK's real schema in e2e. When a hub rule changes, change it there too.
 - **Live tests** only on the owner's test chat (OnlyMonster account 36408 →
-  chat 518588958). Never press ⌘1–9, J, K or ⌘U on the live ChatSpace tab:
+  chat 518588958). Never press Alt+1–9 (⌥1–9; since X45 ⌘/Ctrl+1–9 are Firefox's), J, K or ⌘U on the live ChatSpace tab:
   our navigation opens other fans' chats; `navigation` stays off on live
   pages while checking. **Fansly read-only inspection uses Chrome DevTools
   MCP** (X38, guide above). The owner runs no repeated smoke checks (X34);

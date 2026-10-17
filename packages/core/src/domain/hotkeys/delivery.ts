@@ -6,8 +6,9 @@
 //   extension in production Firefox on both systems — `cancelable` where the
 //   browser has an action of its own on them, `delivered` where it has none;
 // - plain keys (J, K, `]`, `?`, Esc) always reach the page — `delivered`;
-// - the rows this client adds on ⌘/Ctrl (⌘K, ⌘U, ⌘1–9, Ctrl+,) and their Alt
-//   fallbacks are `unverified` until somebody presses them in a real Firefox
+// - the rows this client adds on ⌘/Ctrl (⌘K, ⌘U, Ctrl+,), the Alt fallback of
+//   ⌘U and the chat slots Alt+1–9 (X45: ⌘/Ctrl+1–9 are Firefox's tab keys
+//   again, not ours) are `unverified` until somebody presses them in a real Firefox
 //   on winpc and the Mac: the headless e2e proves only that the page gets a
 //   synthetic key, never that the browser or the OS gives up a real one;
 // - ⌘, on macOS is Firefox's own «Settings…» item of the application menu
@@ -23,7 +24,7 @@ import { type HotkeyDelivery, type HotkeyPlatform } from '@cg/contracts/vm';
 import { type DispatcherCommandId } from './keymap';
 
 /** A printed combination: a dispatcher command, or the Alt fallback of one. */
-export type DeliveryKey = DispatcherCommandId | 'next-unread:fallback' | 'quick-jump:fallback';
+export type DeliveryKey = DispatcherCommandId | 'next-unread:fallback';
 
 export const DELIVERY_KEYS: readonly DeliveryKey[] = [
   'reply',
@@ -48,7 +49,6 @@ export const DELIVERY_KEYS: readonly DeliveryKey[] = [
   'next-unread',
   'next-unread:fallback',
   'quick-jump',
-  'quick-jump:fallback',
   'notes',
 ];
 
@@ -75,8 +75,8 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     'fan-panel': 'delivered',
     'next-unread': 'unverified',
     'next-unread:fallback': 'unverified',
+    // Alt+1–9 (⌥1–9): nothing of Firefox's on macOS and Windows (X45); on Linux Alt+1–9 are its tabs (hotkeys-delivery.md).
     'quick-jump': 'unverified',
-    'quick-jump:fallback': 'unverified',
     // ⌘⇧K: nothing of Firefox's (its web console is ⌘⌥K); the Fansly extension has served it since 2.9.0.
     notes: 'delivered',
   },
@@ -102,8 +102,8 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     'fan-panel': 'delivered',
     'next-unread': 'unverified',
     'next-unread:fallback': 'unverified',
+    // Alt+1–9 (⌥1–9): nothing of Firefox's on macOS and Windows (X45); on Linux Alt+1–9 are its tabs (hotkeys-delivery.md).
     'quick-jump': 'unverified',
-    'quick-jump:fallback': 'unverified',
     notes: 'delivered',
   },
 };

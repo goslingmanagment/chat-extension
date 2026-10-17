@@ -21,7 +21,7 @@
 // `redeem`; R17 issues every navigation token for NAVIGATION_SURFACE.
 //
 // Which chat a key opens (opening one marks it read on OnlyFans): J/K, ⌘U and
-// ⌘1–9 walk ChatSpace's list as it is at the key. The host port answers
+// Alt+1–9 walk ChatSpace's list as it is at the key. The host port answers
 // `listCachedChats` at once from its own copy and reads the page's memory
 // again only in the background, so the controller reads, lets that read land
 // (LIST_SETTLE_MS) and acts on the second answer — once for keys in a row
