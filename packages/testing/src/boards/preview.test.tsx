@@ -50,7 +50,7 @@ describe('fan preview: the header and the two lines under it', () => {
       'spenders',
       withPreview((vm) => ({ ...vm, header: vm.header === null ? null : { ...vm.header, fanWroteAt: null, period30: 0 } })),
     );
-    expect(ui.text('.cg-pv__meta')).toBe('Мы писали 10 ч назад, фан —');
+    expect(ui.text('.cg-pv__meta')).toBe('Мы писали 10 ч назад, фан не писал');
     expect(ui.$$('.cg-pv__money > *').map(textOf)).toEqual(['$12,480']);
   });
 

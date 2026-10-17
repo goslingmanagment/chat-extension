@@ -829,7 +829,7 @@ describe('options: «Статус»', () => {
         'Хаб пропускает любую сборку ChatSpace (профиль «any-build»). Если после отправки что-то пойдёт не так, предохранитель выключит её сам. Открытых попыток: 0, с неизвестным исходом: 0.',
       );
       await w.client.dispatch({ type: 'SetPreference', key: 'debug.enabled', value: true });
-      expect(text(w, row(w, 'contract')?.note)).toBe(`Все якоря на месте: ${String(Object.keys(hostReport(PAGES_NOW).anchors).length)}. Профиль квитанции «any-build»: любая сборка, без проверки.`);
+      expect(text(w, row(w, 'contract')?.note)).toBe(`Все элементы страницы на месте: ${String(Object.keys(hostReport(PAGES_NOW).anchors).length)}. Профиль квитанции «any-build»: любая сборка, без проверки.`);
       await w.client.dispatch({ type: 'CopyReport', scope: 'status' });
       expect(w.browser.record.clipboard.at(-1)).toContain('Отправка из превью: включена · сборка ChatSpace не проверена');
     });
