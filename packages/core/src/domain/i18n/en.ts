@@ -915,7 +915,7 @@ export const EN: I18nCatalog<'en'> = {
   'settings.save.failed': 'Not saved',
   'settings.nav.problem': 'needs attention',
   'settings.nav.new': 'new',
-  'settings.onboarding.lead': 'Eight steps before the first shift. You can hide the list — it will not come back.',
+  'settings.onboarding.lead': 'Three steps before the first shift. The rest is the team lead’s — under “More”. You can hide the list — it will not come back.',
   'settings.onboarding.progress': '{done} of {total}',
   'settings.onboarding.stepDone': 'done',
   'settings.onboarding.stepTodo': 'to do',

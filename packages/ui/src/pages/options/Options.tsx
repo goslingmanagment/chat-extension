@@ -115,32 +115,56 @@ function SaveState({ save }: { readonly save: SaveStateVM }): JSX.Element | null
   return null;
 }
 
+type ChecklistStep = NonNullable<OptionsVM['checklist']>['steps'][number];
+
+function StepList({ steps }: { readonly steps: readonly ChecklistStep[] }): JSX.Element {
+  const i18n = useI18n();
+  return (
+    <ol class="pg-check__list">
+      {steps.map((step) => (
+        <li key={step.id} class={`pg-check__item${step.done ? ' is-done' : ''}`} data-pg-step={step.id}>
+          {step.done ? <Icon name="check" size={14} /> : <Dot kind="ring" />}
+          <span class="pg-check__t">
+            {i18n.text(step.label)}
+            <span class="cg-sr"> — {i18n.t(step.done ? 'settings.onboarding.stepDone' : 'settings.onboarding.stepTodo')}</span>
+          </span>
+          {step.action === null ? <span /> : <ActionButton vm={step.action} variant="quiet" />}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * The first run (ST-012): what the chatter does — the site's access, the sign-in, the site open — and, folded under
+ * «Ещё — для тимлида» (decision X55), the team lead's own steps: the chatter sees three, not eight.
+ */
 function Checklist({ checklist }: { readonly checklist: NonNullable<OptionsVM['checklist']> }): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
-  const done = checklist.steps.filter((step) => step.done).length;
+  const own = checklist.steps.filter((step) => step.more !== true);
+  const more = checklist.steps.filter((step) => step.more === true);
+  const done = own.filter((step) => step.done).length;
   return (
     <section class="pg-check" aria-label={i18n.t('settings.onboarding.title')}>
       <div class="pg-check__head">
         <b>{i18n.t('settings.onboarding.title')}</b>
-        <span>{i18n.t('settings.onboarding.progress', { done, total: checklist.steps.length })}</span>
+        <span>{i18n.t('settings.onboarding.progress', { done, total: own.length })}</span>
         <Button label={i18n.t('settings.onboarding.hide')} variant="quiet" onClick={() => void act(checklist.dismiss, { quiet: true })} />
       </div>
       <p class="pg-check__lead">{i18n.t('settings.onboarding.lead')}</p>
-      <ol class="pg-check__list">
-        {checklist.steps.map((step) => (
-          <li key={step.id} class={`pg-check__item${step.done ? ' is-done' : ''}`} data-pg-step={step.id}>
-            {step.done ? <Icon name="check" size={14} /> : <Dot kind="ring" />}
-            <span class="pg-check__t">
-              {i18n.text(step.label)}
-              <span class="cg-sr"> — {i18n.t(step.done ? 'settings.onboarding.stepDone' : 'settings.onboarding.stepTodo')}</span>
-            </span>
-            {step.action === null ? <span /> : <ActionButton vm={step.action} variant="quiet" />}
-          </li>
-        ))}
-      </ol>
-      {/* A site's own steps (R20 P14b1, ST-012): Fansly's three, under the eight. */}
+      <StepList steps={own} />
+      {/* A site's own steps (R20 P14b1, ST-012): Fansly's three, under the chatter's own. */}
       <Slot name="checklist" />
+      {more.length === 0 ? null : (
+        <details class="pg-check__more" data-pg-more="">
+          <summary>
+            <b>{i18n.t('settings.onboarding.more')}</b>
+            <span>{i18n.t('settings.onboarding.progress', { done: more.filter((step) => step.done).length, total: more.length })}</span>
+          </summary>
+          <StepList steps={more} />
+        </details>
+      )}
     </section>
   );
 }

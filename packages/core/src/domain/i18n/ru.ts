@@ -971,7 +971,7 @@ export const RU: I18nCatalog<'ru'> = {
   'settings.save.failed': 'Не сохранено',
   'settings.nav.problem': 'есть проблема',
   'settings.nav.new': 'нов.',
-  'settings.onboarding.lead': 'Восемь шагов до первой смены. Список можно скрыть — он не вернётся.',
+  'settings.onboarding.lead': 'Три шага до первой смены. Остальное настраивает тимлид — оно в «Ещё». Список можно скрыть — он не вернётся.',
   'settings.onboarding.progress': '{done} из {total}',
   'settings.onboarding.stepDone': 'готово',
   'settings.onboarding.stepTodo': 'не сделано',
