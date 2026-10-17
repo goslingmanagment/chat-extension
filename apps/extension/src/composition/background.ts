@@ -623,7 +623,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   ): { readonly queued: boolean; readonly reason?: string } => {
     const target = attributionTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
     const outcome = target.ok ? attributions.report({ pageLabel: target.pageLabel, source: target.source, ...fact }) : null;
-    const verdict = target.ok ? (outcome === 'signed-out' ? { queued: false, reason: 'signed_out' } : { queued: true }) : { queued: false, reason: target.reason };
+    const verdict = !target.ok ? { queued: false, reason: target.reason } : outcome === 'signed-out' ? { queued: false, reason: 'signed_out' } : outcome === 'invalid' ? { queued: false, reason: 'invalid' } : { queued: true };
     if (!verdict.queued) logger.info('bg.attribution', 'send not attributed', { fields: { reason: verdict.reason ?? null } });
     return verdict;
   };

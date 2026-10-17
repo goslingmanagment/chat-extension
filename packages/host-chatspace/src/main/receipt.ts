@@ -119,7 +119,7 @@ const charsOf = (text: unknown): number => shownForms(text)?.[0]?.length ?? 0;
  * a price above zero — a PPV — and media, paid or free. Marks only: never the price, the media or the text.
  */
 export const cargoOf = (args: Plain): { readonly priced: boolean; readonly media: boolean } => {
-  const meta = (isPlain(args['platformMetadata']) ? args['platformMetadata'] : {}) as Plain;
+  const meta: Plain = isPlain(args['platformMetadata']) ? args['platformMetadata'] : {};
   return {
     // No price, a free one or none that reads as a number: not a PPV.
     priced: Number(meta['price']) > 0,

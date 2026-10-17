@@ -24,9 +24,24 @@
 // SEND_ATTRIBUTION_LIMITS.maxFacts a request, after SEND_ATTRIBUTION_BATCH_MS
 // of quiet: a burst of sends is one request. A fact nobody could deliver for
 // SEND_ATTRIBUTION_KEEP_MS is given up (the hub takes 30 days at most), and
-// beyond SEND_ATTRIBUTIONS_MAX the oldest go.
+// beyond SEND_ATTRIBUTIONS_MAX the oldest go. A fact the hub's own schema
+// would refuse is never taken: one such fact would hold its whole group.
+//
+// The time is this browser's clock, and the hub takes nothing more than
+// 5 minutes ahead of its own. Every answer carries the hub's clock: a skew of
+// more than a minute is learned from it and corrects every time sent after,
+// and a fact the hub found ahead of its clock is sent once more, corrected —
+// a computer whose clock runs fast must not lose every send of its person.
 
-import { SEND_ATTRIBUTION_LIMITS, SEND_ATTRIBUTION_OUTCOMES, type HubFacade, type HubFailure, type SendAttributionsRequest } from '@cg/contracts/hub';
+import {
+  SEND_ATTRIBUTION_LIMITS,
+  SEND_ATTRIBUTION_OUTCOMES,
+  SendAttributionHubFactSchema,
+  type HubFacade,
+  type HubFailure,
+  type SendAttributionsRequest,
+  type SendAttributionsResult,
+} from '@cg/contracts/hub';
 
 import { REPORT_RETRY_DELAYS_MS, reportRetryable } from '../domain/send';
 import { LOCAL_KEYS } from '../domain/storage';
@@ -40,6 +55,8 @@ export const SEND_ATTRIBUTIONS_MAX = 1000;
 export const SEND_ATTRIBUTION_KEEP_MS = 14 * 24 * 60 * 60_000;
 /** How long a new fact waits for the next ones before its report goes. */
 export const SEND_ATTRIBUTION_BATCH_MS = 3_000;
+/** A difference from the hub's clock above this corrects the times sent; below it the browser's clock stands. */
+export const SEND_ATTRIBUTION_SKEW_MS = 60_000;
 
 /** One send, as the background takes it: the page and client it is reported for, and the hub's own fact. */
 export interface SendAttributionInput {
@@ -60,6 +77,8 @@ export type SendAttributionOutcome =
   | 'queued'
   /** The same message of the same page is owed or answered already: nothing new. */
   | 'known'
+  /** Not a fact the hub's schema takes (an id, a time): never owed. */
+  | 'invalid'
   /** Nobody is signed in: there is nobody whose send it could be. */
   | 'signed-out';
 
@@ -77,6 +96,8 @@ interface Owed extends SendAttributionInput {
   readonly owner: string;
   /** When it was taken (local clock): its age. */
   readonly at: number;
+  /** The hub found its time ahead of its clock once: sent again corrected, and final the next time. */
+  readonly ahead?: true;
 }
 
 const keyOf = (owner: string, fact: Pick<SendAttributionInput, 'pageLabel' | 'platformMessageId'>): string => `${owner}|${fact.pageLabel}|${fact.platformMessageId}`;
@@ -97,7 +118,8 @@ function isOwed(value: unknown): value is Owed {
     typeof item.priced === 'boolean' &&
     typeof item.withMedia === 'boolean' &&
     typeof item.at === 'number' &&
-    Number.isFinite(item.at)
+    Number.isFinite(item.at) &&
+    (item.ahead === undefined || item.ahead === true)
   );
 }
 
@@ -116,6 +138,8 @@ export class SendAttributionReporter {
   /** Deliveries in flight, by `owner|page|source`. */
   private readonly running = new Map<string, Promise<void>>();
   private timer: TimerHandle | null = null;
+  /** The hub's clock less this browser's, as the last answer said; 0 — not known, or within SEND_ATTRIBUTION_SKEW_MS. */
+  private skewMs = 0;
   private readonly writes = new WriteQueue();
   private readonly log: LogSink;
 
@@ -152,6 +176,11 @@ export class SendAttributionReporter {
   report(input: SendAttributionInput): SendAttributionOutcome {
     const owner = this.deps.owner();
     if (owner === null) return 'signed-out';
+    const { platformMessageId, fanRef, observedAt, priced, withMedia } = input;
+    if (!SendAttributionHubFactSchema.safeParse({ platformMessageId, fanRef, observedAt, priced, withMedia }).success) {
+      this.log.write({ level: 'warn', scope: 'bg.attribution', msg: 'send attribution not taken: not a fact the hub takes' });
+      return 'invalid';
+    }
     const key = keyOf(owner, input);
     if (this.owed.has(key) || this.answered.has(key)) return 'known';
     this.owed.set(key, { ...input, owner, at: this.deps.clock.now() });
@@ -223,27 +252,43 @@ export class SendAttributionReporter {
       const request: SendAttributionsRequest = {
         pageLabel: first.pageLabel,
         source: first.source,
-        facts: batch.map(({ platformMessageId, fanRef, observedAt, priced, withMedia }) => ({ platformMessageId, fanRef, observedAt, priced, withMedia })),
+        facts: batch.map(({ platformMessageId, fanRef, observedAt, priced, withMedia }) => ({ platformMessageId, fanRef, observedAt: this.corrected(observedAt), priced, withMedia })),
       };
       const outcome = await this.send(first.owner, request);
       if (outcome === 'owed') return;
-      for (const owed of batch) {
+      const hubNow = outcome.answer === null ? Number.NaN : Date.parse(outcome.answer.serverNow);
+      batch.forEach((owed, index) => {
         const key = keyOf(owed.owner, owed);
+        // Ahead of the hub's clock the first time: the skew is known now, and it goes once more, corrected.
+        if (outcome.answer?.results[index]?.outcome === 'out_of_range' && owed.ahead !== true && Date.parse(request.facts[index]?.observedAt ?? '') > hubNow) {
+          this.owed.set(key, { ...owed, ahead: true });
+          return;
+        }
         this.owed.delete(key);
         this.answered.add(key);
-      }
+      });
       while (this.answered.size > SEND_ATTRIBUTIONS_MAX) this.answered.delete(this.answered.values().next().value ?? '');
       this.save();
     }
   }
 
-  /** One report, retried while the hub may not have heard it: `answered` — final either way, `owed` — try later. */
-  private async send(owner: string, request: SendAttributionsRequest): Promise<'answered' | 'owed'> {
+  /** A time of this browser's clock as the hub's clock would say it (`toISOString`); as it is while no skew is known. */
+  private corrected(observedAt: string): string {
+    return this.skewMs === 0 ? observedAt : new Date(Date.parse(observedAt) + this.skewMs).toISOString();
+  }
+
+  /**
+   * One report, retried while the hub may not have heard it: answered — final either way (`answer` null: refused),
+   * `owed` — try later.
+   */
+  private async send(owner: string, request: SendAttributionsRequest): Promise<{ readonly answer: SendAttributionsResult | null } | 'owed'> {
     for (let i = 0; ; i += 1) {
       // Another person, or nobody: the facts are their sender's to report, and wait for their sign-in.
       if (this.deps.owner() !== owner) return 'owed';
       try {
         const answer = await this.deps.hub.sendAttributions(request);
+        const skew = Date.parse(answer.serverNow) - this.deps.clock.now();
+        if (Number.isFinite(skew)) this.skewMs = Math.abs(skew) > SEND_ATTRIBUTION_SKEW_MS ? skew : 0;
         const outcomes: Record<string, number> = {};
         for (const result of answer.results) {
           // An outcome this build does not know is final all the same; it is counted, never named.
@@ -252,8 +297,8 @@ export class SendAttributionReporter {
         }
         const all = request.facts.length;
         const recorded = outcomes['recorded'] ?? 0;
-        this.log.write({ level: recorded + (outcomes['duplicate'] ?? 0) === all ? 'info' : 'warn', scope: 'bg.attribution', msg: 'send attributions reported', fields: { facts: all, tries: i + 1, ...outcomes } });
-        return 'answered';
+        this.log.write({ level: recorded + (outcomes['duplicate'] ?? 0) === all ? 'info' : 'warn', scope: 'bg.attribution', msg: 'send attributions reported', fields: { facts: all, tries: i + 1, skewMs: this.skewMs, ...outcomes } });
+        return { answer };
       } catch (error) {
         const failure = failureOf(error);
         // The sign-in ended under the call: nothing was refused.
@@ -268,7 +313,7 @@ export class SendAttributionReporter {
         if (failure.kind === 'http' && failure.status === 401) return 'owed';
         if (!reportRetryable(failure)) {
           this.log.write({ level: 'warn', scope: 'bg.attribution', msg: 'send attributions refused by the hub, given up', fields: { facts: request.facts.length, status: failure.kind === 'http' ? failure.status : null } });
-          return 'answered';
+          return { answer: null };
         }
         const delay = REPORT_RETRY_DELAYS_MS[i];
         if (delay === undefined) return 'owed';

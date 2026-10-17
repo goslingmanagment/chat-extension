@@ -119,6 +119,46 @@ describe('the report', () => {
     expect(log.entries.find((entry) => entry.msg === 'send attributions reported')).toMatchObject({ level: 'warn', fields: { facts: 2, conflict: 1, other: 1 } });
   });
 
+  it('a fact the hub’s own schema would refuse is never taken: it would hold its whole group', () => {
+    const { reporter, store } = world();
+    expect(reporter.report(send({ observedAt: '2026-10-03T12:00:00.123456789Z' }))).toBe('invalid');
+    expect(reporter.report(send({ platformMessageId: '0123' }))).toBe('invalid');
+    expect(reporter.pending).toBe(0);
+    expect(owedIn(store)).toEqual([]);
+  });
+
+  it('a clock that runs fast: the hub’s answer says its own time, the fact goes once more corrected, and every later time is corrected too', async () => {
+    const { clock, hub, reporter } = world();
+    const AHEAD = 10 * 60_000;
+    const hubNow = (): string => new Date(clock.now() - AHEAD).toISOString();
+    const at = (): string => new Date(clock.now()).toISOString();
+    hub.answers.push((request) => ({ pageLabel: request.pageLabel, results: request.facts.map((fact) => ({ platformMessageId: fact.platformMessageId, outcome: 'out_of_range' })), serverNow: hubNow() }));
+    hub.answers.push((request) => ({ pageLabel: request.pageLabel, results: request.facts.map((fact) => ({ platformMessageId: fact.platformMessageId, outcome: 'recorded' })), serverNow: hubNow() }));
+    const one = send({ observedAt: at() });
+    reporter.report(one);
+    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
+    await reporter.idle();
+    expect(hub.calls.map((call) => call.facts[0]?.observedAt)).toEqual([one.observedAt, new Date(Date.parse(one.observedAt) - AHEAD).toISOString()]);
+    expect(reporter.pending).toBe(0);
+    // Learned: the next send goes corrected the first time.
+    hub.answers.push((request) => ({ pageLabel: request.pageLabel, results: request.facts.map((fact) => ({ platformMessageId: fact.platformMessageId, outcome: 'recorded' })), serverNow: hubNow() }));
+    const two = send({ observedAt: at() });
+    reporter.report(two);
+    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
+    await reporter.idle();
+    expect(hub.calls[2]?.facts[0]?.observedAt).toBe(new Date(Date.parse(two.observedAt) - AHEAD).toISOString());
+  });
+
+  it('a fact out of range by the hub’s clock is final: an old one, or one still ahead after its correction', async () => {
+    const { clock, hub, reporter } = world();
+    hub.answers.push((request) => ({ pageLabel: request.pageLabel, results: request.facts.map((fact) => ({ platformMessageId: fact.platformMessageId, outcome: 'out_of_range' })), serverNow: new Date(clock.now()).toISOString() }));
+    reporter.report(send({ observedAt: new Date(NOW_MS - 40 * 86_400_000).toISOString() }));
+    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
+    await reporter.idle();
+    expect(hub.calls).toHaveLength(1);
+    expect(reporter.pending).toBe(0);
+  });
+
   it('nobody signed in: there is nobody whose send it could be', () => {
     const { reporter, store } = world({ now: null });
     expect(reporter.report(send())).toBe('signed-out');

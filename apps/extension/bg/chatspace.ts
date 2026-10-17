@@ -68,8 +68,10 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
     log: log.sink,
     onSent: (fact) => {
       void telemetry.report('sent', ops.view(fact.opId), fact.opId, { part: fact.part, variant: fact.variant }, { via: 'preview', platformMessageId: fact.platformMessageId, attemptId: fact.attemptId });
-      // Decision X48: the person clicked «Отправить» of the preview — the hub records who sent the message.
-      kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId });
+      // Decision X48: the person clicked «Отправить» of the preview — the hub records who sent the message. Only while
+      // the operation is still theirs: another sign-in since (an attempt outlives a sign-out) took the operation away,
+      // and the send is not the next person's to report.
+      if (ops.view(fact.opId) !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId });
     },
     fuse: sendFuse,
   });
