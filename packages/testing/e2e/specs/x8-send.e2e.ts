@@ -832,7 +832,7 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
       await browser.keys('typed by the person');
       await pressSend();
       facts = await waitForHarnessState(humanSends, (list) => list.length === 3, 'the person’s own send');
-      expect(facts[2]).toEqual({ chat: { host: 'chatspace', hostAccountId: ACC, platformFanId: a1 }, pendingId: facts[2]?.pendingId, platformMessageId: null, textDigest: facts[2]?.textDigest, draft: { revision: facts[2]?.draft.revision, provenance: 'human-or-unknown', insertIntentId: null, editedSinceInsert: null } });
+      expect(facts[2]).toEqual({ chat: { host: 'chatspace', hostAccountId: ACC, platformFanId: a1 }, pendingId: facts[2]?.pendingId, platformMessageId: null, textDigest: facts[2]?.textDigest, draft: { revision: facts[2]?.draft.revision, provenance: 'human-or-unknown', insertIntentId: null, editedSinceInsert: null }, cargo: { priced: false, media: false } });
       await browser.waitUntil(async () => (await queueEntries()).length === 0, { timeout: 5000 });
       // Its request went out through the page's own fetch.
       expect((await pageSince(page)).filter((entry) => entry.type === 'http-request' && entry['method'] === 'POST' && String(entry['path']).endsWith('/messages')).map((entry) => entry['fetchCapture'])).toEqual(['native']);
