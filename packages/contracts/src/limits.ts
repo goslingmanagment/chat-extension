@@ -193,6 +193,14 @@ export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 export const OPEN_CHAT_LIMITS = { pageMax: 100, requestMs: 10 * SECOND, bridgeMs: 12 * SECOND, cacheMs: 15 * SECOND } as const;
 
 /**
+ * 1.25.0 (X51): the PPV state of the open chat a draft start carries (`StartOp.livePpv`, hub `livePpvContext`).
+ * `readMessages` — how many of the chat's newest messages the start reads from the host's API for it; `waitMs` — how
+ * long the Generate click waits for that read beside the tail before it starts without it (the read goes on and fills
+ * the port's cache for the next click); `maxItems` — the hub's `AI_LIVE_PPV_MAX_ITEMS`.
+ */
+export const LIVE_PPV_LIMITS = { readMessages: 50, waitMs: 1200, maxItems: 100 } as const;
+
+/**
  * 1.15.0 (R20): hub limits of the window coverage check (HF-8в `AI_COVERAGE_CHECK_WINDOW_MAX` / `_DELETED_MAX`):
  * the ids of the check window and the ids of its messages the tab saw deleted, each list at most this many.
  */

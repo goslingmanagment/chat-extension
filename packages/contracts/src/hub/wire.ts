@@ -136,6 +136,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * ours. A hub without it is never asked and MAIN follows only drafts of ours, as before.
    */
   'send-attribution-v1',
+  /**
+   * 1.25.0 (decision X51): the AI stream takes `livePpvContext`, the PPV state of the open OnlyFans chat the tab read
+   * from OnlyMonster's API. The body is strict: a hub without it answers the field 400, so a draft start reads the
+   * state and sends it only to a hub that lists this capability.
+   */
+  'live-ppv-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
