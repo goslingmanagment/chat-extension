@@ -12,7 +12,7 @@ import * as z from 'zod/mini';
 import { type ChatRef } from './ids';
 import { MEDIA_LIMITS } from './limits';
 import { CountSchema, IsoTimestampSchema, NativeIdSchema, displayText, type NativeId } from './primitives';
-import { MediaTagsSchema, MediaThumbSchema, MediaTypeSchema, type MediaTags } from './send-media';
+import { MediaIdSchema, MediaTagsSchema, MediaThumbSchema, MediaTypeSchema, type MediaTags } from './send-media';
 
 /** The folder of every medium (OnlyMonster's «All Media»), then the vault's own folders by id. */
 export const MEDIA_ALL_FOLDER = 'all';
@@ -106,7 +106,7 @@ export const MediaRequestSchema = z.discriminatedUnion('of', [
   z.strictObject({ of: z.literal('folders'), acc: NativeIdSchema, offset: OffsetSchema }),
   z.strictObject({ of: z.literal('items'), acc: NativeIdSchema, folder: MediaFolderIdSchema, offset: OffsetSchema }),
   z.strictObject({ of: z.literal('states'), acc: NativeIdSchema, fan: NativeIdSchema, ids: MediaIdsSchema }),
-  z.strictObject({ of: z.literal('tags'), acc: NativeIdSchema, ids: MediaIdsSchema }),
+  z.strictObject({ of: z.literal('tags'), acc: NativeIdSchema, ids: z.array(MediaIdSchema).check(z.minLength(1), z.maxLength(MEDIA_LIMITS.idsPerRequest)) }),
 ]);
 export type MediaRequest = z.infer<typeof MediaRequestSchema>;
 

@@ -2,7 +2,8 @@
 // the host's own API, the person's picks for one fan, the price — and what
 // the next part sent to that fan takes along. It reads no chat and sends
 // nothing: the preview controller asks `attachment` at the click of a part's
-// «Отправить» and tells `sent` once that send has started.
+// «Отправить», `take`s the picks with the send and `restore`s them when the
+// send proved it never reached the platform.
 //
 // - What the vault holds is the account's and is kept per account while a
 //   panel of the account is open: the folders as paged, one folder's media as
@@ -187,13 +188,26 @@ export class MediaDesk {
     return media === null ? { kind: 'blocked', reason: msg('preview.media.blocked.price') } : { kind: 'media', media };
   }
 
-  /** A send with the picks started (the queue took it): they are gone with it, the panel closes. */
-  sent(chat: ChatRef): void {
+  /** A part's «Отправить» takes the picks: they leave the picker with the send, and the panel closes. */
+  take(chat: ChatRef): Attachment | null {
     const picker = this.pickers.get(keyOf(chat));
-    if (picker === undefined) return;
+    if (picker === undefined || picker.attachment.picks.length === 0) return null;
+    const taken = picker.attachment;
     picker.attachment = EMPTY_ATTACHMENT;
     picker.open = false;
     this.release(picker);
+    this.picksChanged(picker);
+    return taken;
+  }
+
+  /**
+   * The send never reached the platform: its picks come back — to the same card, and only if the person has picked
+   * nothing since (their new picks stand). A closed card gets nothing back.
+   */
+  restore(chat: ChatRef, taken: Attachment): void {
+    const picker = this.pickers.get(keyOf(chat));
+    if (picker === undefined || picker.attachment.picks.length > 0) return;
+    picker.attachment = taken;
     this.picksChanged(picker);
   }
 

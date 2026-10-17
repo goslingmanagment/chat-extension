@@ -713,6 +713,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ ok: false, failure: 'unavailable', status: null }, { ok: false, failure: 'http' }],
   ),
   // 1.24.0 (X53): the media picker of a preview and the media a part takes along.
+  fixture('MediaId', C.MediaIdSchema, ['660000155', '9007199254740991'], ['9007199254740993', '0', 'm1']),
   fixture('MediaFolderId', C.MediaFolderIdSchema, ['all', '880001'], ['favorites', '', 880001]),
   fixture('MediaFolder', C.MediaFolderSchema, [mediaFolder, { ...mediaFolder, kind: 'messages', name: '' }], [{ ...mediaFolder, kind: 'stories' }, { ...mediaFolder, photos: -1 }]),
   fixture('MediaType', C.MediaTypeSchema, ['photo', 'video', 'gif', 'audio'], ['image', '']),
@@ -734,6 +735,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...sendMedia, items: sendMedia.items.map((item) => ({ ...item, free: true })) },
       { ...sendMedia, items: [] },
       { ...sendMedia, items: [sendMedia.items[1], sendMedia.items[1]] },
+      { ...sendMedia, items: [{ ...sendMedia.items[1], id: '123456789012345678' }] },
     ],
   ),
   fixture(
