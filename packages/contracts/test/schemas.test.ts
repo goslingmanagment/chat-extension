@@ -80,6 +80,20 @@ describe('settings', () => {
     expect(C.PREFERENCE_KEYS).toContain('generation.rememberTone');
   });
 
+  it('[X55] «Размер текста» (1.26.0): optional in the store — a store from before reads (normal), the two sizes read, anything else does not', () => {
+    expect(C.UI_TEXT_SIZES).toEqual(['normal', 'large']);
+    expect(C.DEFAULT_SETTINGS.ui.textSize).toBe('normal');
+    const { textSize: _dropped, ...older } = C.DEFAULT_SETTINGS.ui;
+    expect(C.SettingsV1Schema.safeParse({ ...C.DEFAULT_SETTINGS, ui: older }).success).toBe(true);
+    for (const textSize of C.UI_TEXT_SIZES) expect(C.SettingsV1Schema.safeParse({ ...C.DEFAULT_SETTINGS, ui: { ...C.DEFAULT_SETTINGS.ui, textSize } }).success).toBe(true);
+    expect(C.SettingsV1Schema.safeParse({ ...C.DEFAULT_SETTINGS, ui: { ...C.DEFAULT_SETTINGS.ui, textSize: 'huge' } }).success).toBe(false);
+    expect(C.SettingsPatchSchema.safeParse({ ui: { textSize: 'large' } }).success).toBe(true);
+    expect(C.SettingsPatchSchema.safeParse({ ui: { textSize: 15 } }).success).toBe(false);
+    expect(C.PREFERENCE_KEYS).toContain('ui.textSize');
+    expect(C.TEXT_SIZE_ATTRIBUTE).toBe('data-text-size');
+    for (const token of ['--cg-text-ai', '--cg-leading-ai', '--cg-text-kbd'] as const) expect(C.THEME_TOKEN_NAMES).toContain(token);
+  });
+
   it('a forward migration chain is typed from one version to the next', () => {
     const toV1: C.SettingsMigrationStep = {
       from: 0,

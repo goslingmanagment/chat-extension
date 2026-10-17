@@ -166,6 +166,10 @@ export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
   '--cg-text-xl': '15px',
   '--cg-text-2xl': '16px',
   '--cg-text-3xl': '22px',
+  // 1.26.0 (X55): the serif AI text (a part, a draft, Recap and Review blocks, Coach) and a chip's keycap.
+  '--cg-text-ai': '14.5px',
+  '--cg-leading-ai': '21px',
+  '--cg-text-kbd': '9.5px',
   // ── spacing ──
   '--cg-s-1': '2px',
   '--cg-s-2': '4px',

@@ -42,6 +42,27 @@
   `HostPort.openChatMessages(chat, {limit, cursor?, maxAgeMs?})` → `OpenChatRead` (никогда не бросает; `not-open`,
   `unavailable` — причины самого порта).
 - **`limits`:** `OPEN_CHAT_LIMITS` — `pageMax` 100, `requestMs` 10 с, `bridgeMs` 12 с, `cacheMs` 15 с.
+## 1.26.0 — 2026-10-17 (UX старых клиентов: размер текста, первый запуск, слова; решение X55)
+
+Владелец, 2026-10-17. Всё добавочное; старые фикстуры и сохранённые настройки проходят без изменений. Следует за 1.21.0.
+
+- **`settings`:** `UI_TEXT_SIZES` (`normal`, `large`), необязательное `ui.textSize` («Размер текста»; без него —
+  `normal`, ремонта не нужно; сборка до 1.26.0 его отбрасывает и показывает обычный текст), в `DEFAULT_SETTINGS.ui` —
+  `normal`.
+- **`vm`:** ключ `SetPreference` `ui.textSize` (одно из двух значений); `MountDeps.textSize?` — сигнал размера, который
+  монтирование кладёт атрибутом `TEXT_SIZE_ATTRIBUTE` (`data-text-size`) на хост наших корней; токены темы
+  `--cg-text-ai`, `--cg-leading-ai` (текст AI с засечками и его строка) и `--cg-text-kbd` (кепка клавиши на чипе);
+  `AppearanceBodyVM.textSize?`; `OptionsVM.checklist.steps[].more?: true` — шаг тимлида, свёрнутый под «Ещё»;
+  `ShowRecap.panel?: true`, `RefreshRecap.panel?: true` — Recap попросила вкладка Recap панели фана: полный Recap
+  показывает сама панель, окно «Развернуть ↗» над ней не открывается (из дока полный Recap открывается в окне).
+- **Ключи i18n:** `settings.appearance.textSize`, `.textSizeHint`, `.textSizeLarge`, `.textSizeNote`,
+  `settings.onboarding.more`, `stats.none` («трат нет» — известный ноль периода в статистике).
+
+Без изменения контрактов в том же решении: клавиша «Новых» (⌘⇧U / Ctrl+Alt+U — строка `ui/core` вне вендоренной
+схемы, каталожное действие `newcomers` было и раньше), окно «Развернуть ↗» для Review и полного Recap, тексты.
+
+Фикстуры: `test/schemas.test.ts` (настройка и токены), `test/fixtures/vm.ts` (неверные `SetPreference` `ui.textSize`,
+`ShowRecap` и `RefreshRecap` с `panel` не `true`).
 
 ## 1.21.0 — 2026-10-17 (кто отправил каждое сообщение, решение X48)
 

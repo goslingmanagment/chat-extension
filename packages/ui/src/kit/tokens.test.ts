@@ -170,7 +170,8 @@ describe('[I18-007] fonts: the host’s own, locally installed only on our pages
   });
 
   it('the type scale, spacing and radii are the spec values', () => {
-    expect(THEME_TOKENS.text.map((name) => TOKEN_VALUES[name])).toEqual(['10.5px', '11px', '12px', '12.5px', '13px', '13.5px', '14px', '15px', '16px', '22px']);
+    // …and since 1.26.0 (X55) the AI text, its line and the keycap.
+    expect(THEME_TOKENS.text.map((name) => TOKEN_VALUES[name])).toEqual(['10.5px', '11px', '12px', '12.5px', '13px', '13.5px', '14px', '15px', '16px', '22px', '14.5px', '21px', '9.5px']);
     expect(THEME_TOKENS.space.map((name) => TOKEN_VALUES[name])).toEqual(['2px', '4px', '6px', '8px', '10px', '12px', '14px', '16px', '20px', '24px', '28px', '40px']);
     expect(THEME_TOKENS.radius.map((name) => TOKEN_VALUES[name])).toEqual(['2px', '6px', '8px', '10px', '12px', '99px']);
     expect(TOKEN_VALUES['--cg-gutter']).toBe('36px');
