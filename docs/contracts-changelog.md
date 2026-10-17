@@ -42,6 +42,8 @@
 - **`hub`:** `AiFeatureStreamBody.livePpvContext` (тот же вид), только у `fast-reply`, `improve-draft`, `hi-greeting`,
   `ping` и только на OnlyFans; возможность хаба `live-ppv-v1`.
 - **`limits`:** `LIVE_PPV_LIMITS` — `readMessages` 50, `waitMs` 1200, `maxItems` 100.
+- **`hub`:** возможность `live-text-review-coach-v1` (хаб #659: Review и Coach берут свежий текст) — только названа, как в
+  вендоренном SDK; клиент её пока не читает, это делает PR той функции.
 
 ## 1.26.0 — 2026-10-17 (UX старых клиентов: размер текста, первый запуск, слова; решение X55)
 

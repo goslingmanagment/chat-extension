@@ -142,6 +142,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * state and sends it only to a hub that lists this capability.
    */
   'live-ppv-v1',
+  /**
+   * 1.27.0: hub #659 — Review and Coach take the open chat's fresh text. Named here because the vendored SDK names it
+   * (the lists are kept equal); this client does not read it yet — the PR of that feature does.
+   */
+  'live-text-review-coach-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
