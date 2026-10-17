@@ -1055,6 +1055,26 @@ describe('dock: fresh page text', () => {
 });
 
 describe('dock: inserting a part', () => {
+  it('[HB-011] the hub goes silent and the bootstrap can no longer be read: the result already made is still inserted, by the binding last read (X45); a hub that answers «no» is heard', async () => {
+    const h = await start();
+    const opId = await reply(h, 'the answer');
+    h.bg.bootstrap = { error: { code: 'CG-HUB-UNAVAILABLE' } };
+    h.bg.emit(null, 'bootstrap.changed', { configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1, issuedAt: new Date(NOW_MS).toISOString() });
+    await h.settle();
+    expect(h.dock().status).toBe('hub-down');
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('the answer');
+
+    // The hub answered — the access is refused: what was last read is not taken for what holds now.
+    const other = await start();
+    const next = await reply(other, 'the answer');
+    other.bg.bootstrap = { error: { code: 'CG-HUB-FORBIDDEN' } };
+    other.bg.emit(null, 'bootstrap.changed', { configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1, issuedAt: new Date(NOW_MS).toISOString() });
+    await other.settle();
+    expect(await other.dispatch({ type: 'InsertPart', operationId: next, part: 0 })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(other.fake.calls.inserts).toHaveLength(0);
+  });
+
   it('[UI-018] [AI-125] «Вставить» puts one part into the operation\'s own chat, by a token and a CAS on the draft', async () => {
     const h = await start({}, {});
     const opId = await reply(h, 'one [NEXT] two', { split: true });

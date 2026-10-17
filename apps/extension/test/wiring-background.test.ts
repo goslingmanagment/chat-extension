@@ -971,7 +971,7 @@ describe('an expired bootstrap (§8.3)', () => {
     w.fake.areas.local.set(STORAGE_KEYS.cacheBootstrap, { ...stored, fetchedAt: stored.fetchedAt - ms });
   }
 
-  it('blocks a new insert, navigation and generation while the hub is silent, and takes no result away; when the hub answers again they go through', async () => {
+  it('[HB-011] blocks navigation and a new generation while the hub is silent, lets the result already made be inserted by the cached bootstrap (X45), and takes no result away; when the hub answers again they go through', async () => {
     const w = world();
     w.start();
     await signInWithPersona(w);
@@ -988,11 +988,11 @@ describe('an expired bootstrap (§8.3)', () => {
     await until(() => w.starts() === 2 && tab.client.state() === 'ready', 'the tab registered with the new instance');
     await tab.client.request('tab.presence', { chat, routeEpoch: 2, visible: true, focused: true, accounts: [account] });
 
-    for (const kind of ['insert', 'navigate'] as const) {
-      const refused = await tab.client.request('token.issue', { kind, surface: kind === 'insert' ? 'dock' : 'overlay' });
-      expect(refused.ok).toBe(false);
-      expect(refused.ok ? null : refused.error.code).toMatch(/^CG-(NETWORK|HUB-UNAVAILABLE|HUB-TIMEOUT)$/);
-    }
+    // X45 (X12 п. 19 reversed for inserts): the hub is silent, not «off» — the result already made goes into the field.
+    expect(await tab.client.request('token.issue', { kind: 'insert', surface: 'dock' })).toMatchObject({ ok: true });
+    const refused = await tab.client.request('token.issue', { kind: 'navigate', surface: 'overlay' });
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? null : refused.error.code).toMatch(/^CG-(NETWORK|HUB-UNAVAILABLE|HUB-TIMEOUT)$/);
     // A generation is admitted by its token and refused by the hub layer before anything is asked of the model.
     const blocked = admitted(await startReply(tab, binding, '2003'));
     await until(async () => (await opsOf(tab)).find((op) => op.opId === blocked)?.state === 'failed', 'the generation was refused');

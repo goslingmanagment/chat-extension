@@ -17,6 +17,12 @@
 // An expired bootstrap is read again once, here: a hub that answers lets the
 // action through, a hub that does not refuses it with its own reason. A
 // refusal takes nothing away: results stay readable and can be copied.
+// The one exception is the insert of a ready result while the hub is silent
+// (decision X45, the owner reversing X12 п. 19): a result already generated
+// in this sign-in is put into the field when the cached bootstrap — expired,
+// unanswered — still admits the insert; the hub that answers «off» or «signed
+// out» still refuses it, and new generations still wait for the hub (their
+// own requests read the bootstrap). Navigation keeps the rule.
 //
 // Which switch a navigation asks (decision X13): the token's surface says
 // who navigates.
@@ -53,6 +59,11 @@ export interface TokenGateHub {
   cachedBootstrap(): unknown;
   /** `pageLabel: null` — usable on at least one granted page. */
   flagState(flag: ClientFeatureFlag, pageLabel: string | null): { readonly usable: boolean; readonly reason: string | null };
+  /**
+   * The same switch as the cached bootstrap says it, fresh or expired (X45): asked only for the insert of a ready
+   * result once the hub did not answer the read again. Absent — nothing is admitted on an expired bootstrap.
+   */
+  cachedFlagState?(flag: ClientFeatureFlag, pageLabel: string | null): { readonly usable: boolean; readonly reason: string | null };
   /** Reads an expired bootstrap again; rejects with the hub layer's own error. */
   bootstrap(): Promise<unknown>;
 }
@@ -67,6 +78,9 @@ export const NAVIGATE_SWITCHES: Readonly<Record<Surface, readonly ClientFeatureF
 };
 
 type State = ReturnType<TokenGateHub['flagState']>;
+
+/** The hub did not answer — away, timed out, the network down — as opposed to answering «off» or «signed out». */
+const SILENT_HUB: readonly string[] = ['CG-HUB-UNAVAILABLE', 'CG-HUB-TIMEOUT', 'CG-NETWORK', 'CG-TIMEOUT'];
 /** One thing the gate asks: a switch, or an admission. Asked again after an expired bootstrap was read. */
 type Ask = () => State;
 
@@ -76,8 +90,8 @@ type Ask = () => State;
  * need of the hub is those calls' to check, and the site's capabilities are the tab's. No slice — the extension
  * has no such site, and nothing of it is inserted.
  */
-function insertAsks(hub: TokenGateHub, features: FeatureSlice | null): Ask[] {
-  const facts = { flag: (flag: string) => hub.flagState(flag as ClientFeatureFlag, null), serves: () => true };
+function insertAsks(hub: TokenGateHub, features: FeatureSlice | null, flagState: TokenGateHub['flagState'] = (flag, page) => hub.flagState(flag, page)): Ask[] {
+  const facts = { flag: (flag: string) => flagState(flag as ClientFeatureFlag, null), serves: () => true };
   return Object.entries(features ?? {})
     .filter(([, entry]) => entry.actions.insert !== undefined)
     .map(([id]) => () => admissionState(admission(features, id, 'insert', facts)));
@@ -107,7 +121,14 @@ export async function tokenRefusal(kind: TokenKind, surface: Surface, hub: Token
     try {
       await hub.bootstrap();
     } catch (error) {
-      return errorOf(error);
+      const refused = errorOf(error);
+      // X45: the hub is silent, not «no». A ready result goes into the field by what the cached bootstrap admits.
+      if (kind === 'insert' && SILENT_HUB.includes(refused.code) && hub.cachedFlagState !== undefined && hub.cachedBootstrap() !== null) {
+        const cached = hub.cachedFlagState.bind(hub);
+        const kept = stateOf(insertAsks(hub, features, cached)).state;
+        return kept.usable ? null : { code: 'CG-FEATURE-DISABLED', ...(kept.reason === null ? {} : { detail: kept.reason }) };
+      }
+      return refused;
     }
     verdict = stateOf(asks);
   }

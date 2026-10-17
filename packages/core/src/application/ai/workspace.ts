@@ -797,7 +797,8 @@ export class AiWorkspace {
     return {
       current: {
         signInEpoch: session?.epoch ?? null,
-        bindingRevision: this.env.page(pageId)?.bindingRevision ?? null,
+        // X45: with the hub silent the result already made is checked against the binding last read in this sign-in.
+        bindingRevision: (this.env.page(pageId) ?? this.env.pageWhileHubSilent(pageId))?.bindingRevision ?? null,
         personaDefinitionId: persona.definitionId,
       },
       blocked: sameChat ? situation.copyOnly : null,
