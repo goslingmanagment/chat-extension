@@ -47,6 +47,7 @@ import { type GreetingDesk, type PreviewDirectory, type Surfaces } from '../boar
 import { ViewCell, done, refused } from '../boards/surface';
 import { dataView, failureView, loadingView, localError, msg, reason, stamp } from '../boards/views';
 import { type NewcomersController } from './controller';
+import { batchDispatch, createBatch, isBatchAction } from '../boards/batch';
 import { createCardGreeting, type PassGreetingDeps } from './greeting';
 import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQuery, type PassRow, type PassState } from './source';
 
@@ -147,6 +148,29 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   };
   const greetingSource = source.greeting;
   const card = deps.greeting === undefined || greetingSource === undefined ? null : createCardGreeting({ greeting: deps.greeting, source: greetingSource, i18n, clock, context, surfaces, changed });
+  /** 1.32.0: the batch of Hi over the pass's rows, through each fan's card; nothing is sent by it. */
+  const batch = createBatch({
+    clock,
+    start(handle) {
+      const fanRef = own(handle);
+      const row = fanRef === null ? null : rowOf(fanRef);
+      if (row === null || pass === null || card === null) return Promise.resolve({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
+      return card.batchStart(pass.passId, row);
+    },
+    // A fan whose history the pass read to its start, nobody greeted, and who can be written to.
+    pickable(handle) {
+      const fanRef = own(handle);
+      const row = fanRef === null ? null : rowOf(fanRef);
+      return row !== null && (row.check === 'ready' || row.check === 'reply') && row.conversationRef !== null;
+    },
+    live(handle) {
+      const parsed = parsePassHandle(handle);
+      return parsed === null || card === null ? null : card.batchLive(parsed.passId, parsed.fanRef);
+    },
+    changed: () => {
+      if (!disposed) cell.invalidate();
+    },
+  });
 
   function clampHours(hours: number): number {
     return Math.min(source.windows.max, Math.max(source.windows.min, Math.round(hours)));
@@ -177,6 +201,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     acting = false;
     histories.clear();
     card?.reset();
+    batch.reset();
     stage = 'idle';
   }
 
@@ -492,6 +517,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
             draftStale: false,
             selected: row.fanRef === selected,
             check: { status: row.check, customName: row.customName, dmClosed: row.dmClosed },
+            ...(card === null ? {} : { batch: batch.row(passHandle(passId, row.fanRef)) }),
           }));
 
     let view: VmView;
@@ -549,6 +575,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       hint: msg('newcomers.hint', { window: windowText(windowHours) }),
       noAutoSend: msg('newcomers.noAutoSend'),
       pass: passVM,
+      ...(card === null ? {} : { batch: batch.vm(null) }),
     };
   }
 
@@ -605,6 +632,10 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
 
   function dispatch(action: UiAction): Promise<ActionReceipt> | null {
     const type = action.type;
+    if (isBatchAction(action)) {
+      if (action.list !== 'newcomers' || card === null) return null;
+      return Promise.resolve(batchDispatch(batch, action, (handle) => own(handle) !== null));
+    }
     if (action.type === 'Navigate') {
       const to = action.to;
       if (to.kind !== 'surface' || to.surface !== 'newcomers') return null;
@@ -758,6 +789,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     draftsChanged: () => undefined,
     dispose() {
       disposed = true;
+      batch.dispose();
       card?.dispose();
       for (const off of offs.splice(0)) off();
       if (pass !== null) source.close(pass.passId);

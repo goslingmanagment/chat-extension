@@ -15,6 +15,8 @@ export type BoardItem =
 
 /** Heights of ui-design §3.5: the column header, a shelf row, the gap above a shelf, a fan row, «ещё N · показать». */
 export const BOARD_HEIGHTS = { header: 28, shelf: 34, gap: 10, fan: 36, more: 32 } as const;
+/** 1.32.0: a fan in a batch has its line under the row. */
+export const BATCH_FAN_HEIGHT = 54;
 
 /** A shelf with nothing to show (no rows and nothing hidden) is skipped (§4.14 «Пустая полка не рисуется»). */
 export function boardItems(shelves: readonly ShelfVM[]): BoardItem[] {
@@ -31,7 +33,7 @@ export function boardItems(shelves: readonly ShelfVM[]): BoardItem[] {
 }
 
 export function boardItemHeight(item: BoardItem): number {
-  return BOARD_HEIGHTS[item.kind];
+  return item.kind === 'fan' && (item.row.batch?.state ?? null) !== null ? BATCH_FAN_HEIGHT : BOARD_HEIGHTS[item.kind];
 }
 
 /** Rows the keyboard can stand on: fans and «ещё N · показать». */

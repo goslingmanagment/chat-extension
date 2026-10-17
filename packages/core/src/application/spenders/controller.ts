@@ -20,12 +20,14 @@ import { moveRow, type BoardCommand } from '../../domain/spenders/keyboard';
 import { EMPTY_QUEUE, appendQueuePage, queueHasMore, queueRow, type QueueState } from '../../domain/spenders/queue';
 import { type SpenderRow } from '../../domain/spenders/rows';
 import { statsModel, type StatsModel } from '../../domain/spenders/stats';
-import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
+import { batchDispatch, createBatch, isBatchAction, type BatchPreviewPort } from '../boards/batch';
+import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
 import { boardOpenRefusal, type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
+import { flagReasonVm } from '../flag-reason';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, localKey, msg, stamp } from '../boards/views';
 
 /** The search waits this long after the last keystroke (SP-019). */
@@ -118,6 +120,8 @@ export interface SpendersController extends SurfaceController<BoardViews> {
    * under the keyboard focus.
    */
   command(command: BoardCommand, focused: TargetHandle | null): { readonly action: UiAction } | { readonly focusRow: TargetHandle } | { readonly focusSearch: true } | null;
+  /** 1.32.0: the preview that starts a batch's generations (made after the board); until then the board has no batch. */
+  attachBatch(port: BatchPreviewPort): void;
 }
 
 export function createSpendersController(deps: SpendersControllerDeps): SpendersController {
@@ -145,6 +149,24 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   let shelfCache: { readonly view: BoardView; readonly selected: string | null; readonly pageId: number | null; readonly shelves: ShelfVM[] } | null = null;
   let disposed = false;
   const directoryListeners = new Set<() => void>();
+  /** 1.32.0: the batch — Reply to a fan who wrote last, Ping to one who did not; nothing is sent by it. */
+  let batchPort: BatchPreviewPort | null = null;
+  let offBatch: (() => void) | null = null;
+  const batch = createBatch({
+    clock,
+    start(handle) {
+      const parsed = parseFanHandle(handle);
+      if (batchPort === null || parsed === null || parsed.pageId !== pageId()) return Promise.resolve({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
+      const known = rowOf(parsed.fanRef);
+      const waiting = known === null ? queueMode() : known.waiting;
+      return batchPort.batchStart('spenders', handle, waiting ? 'reply' : 'ping');
+    },
+    live: (handle) => batchPort?.batchLive(handle) ?? null,
+    changed() {
+      shelfCache = null;
+      changed('board');
+    },
+  });
 
   const entryOf = (p: SpendersPeriod): BoardEntry => {
     let entry = boards.get(p);
@@ -206,6 +228,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       waiting: row.waiting,
       lastMessage: row.lastMessage,
       selected: row.fanRef === selected,
+      ...(batchPort === null ? {} : { batch: batch.row(handleOf(row.fanRef)) }),
     };
     return cents ? { ...base, lifetimeCents: true } : base;
   }
@@ -307,6 +330,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         { label: msg('common.close'), hotkey: localKey('Esc', 'Escape') },
       ],
       waitingFallback: queueFailed === null ? null : { error: errorOf(queueFailed, i18n), retry: boardRetry },
+      ...(batchPort === null ? {} : { batch: batch.vm(pageFlag(ctx, 'preview') ? null : flagReasonVm(pageFlagOf(ctx, 'preview')).text) }),
     };
   }
 
@@ -505,6 +529,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       // SP-042: another sign-in, hub or account — the board closes and nothing of the old identity stays.
       epoch = state.epoch;
       reset();
+      batch.reset();
       surfaces.setList('spenders', false);
     }
     changed();
@@ -616,6 +641,14 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   // ── actions ──
 
+  function rowOf(fanRef: string): SpenderRow | null {
+    for (const entry of boards.values()) {
+      const row = entry.index?.byFan.get(fanRef);
+      if (row !== undefined) return row;
+    }
+    return null;
+  }
+
   function applySearch(): void {
     searchTimer = null;
     if (applied === typed) return;
@@ -661,6 +694,10 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         return fanRef === null ? null : openChat(action.type, fanRef);
       }
       return null;
+    }
+    if (isBatchAction(action)) {
+      if (action.list !== 'spenders' || batchPort === null) return null;
+      return Promise.resolve(batchDispatch(batch, action, (handle) => own(handle) !== null));
     }
     if (action.type === 'SetSpendersPeriod') {
       if (action.period !== period) {
@@ -753,13 +790,16 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     },
     dispatch,
     directory,
-    row(id, fanRef) {
-      if (id !== pageId()) return null;
-      for (const entry of boards.values()) {
-        const row = entry.index?.byFan.get(fanRef);
-        if (row !== undefined) return row;
-      }
-      return null;
+    row: (id, fanRef) => (id === pageId() ? rowOf(fanRef) : null),
+    attachBatch(port) {
+      offBatch?.();
+      batchPort = port;
+      offBatch = port.onBatch(() => {
+        shelfCache = null;
+        changed('board');
+      });
+      shelfCache = null;
+      changed('board');
     },
     command(command, focused) {
       const current = currentView();
@@ -798,6 +838,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     },
     dispose() {
       disposed = true;
+      offBatch?.();
+      batch.dispose();
       offContext();
       offSurfaces();
       offLanguage();

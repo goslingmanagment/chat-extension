@@ -133,6 +133,12 @@ export interface GreetingDesk {
    * names its code. `taken` — this very call took a lease the tab did not hold.
    */
   claimForGenerate(fanRef: string): Promise<{ readonly ok: true; readonly taken: boolean } | { readonly ok: false; readonly code: CgCode; readonly error: CgErrorView }>;
+  /**
+   * 1.32.0: the person opened the card of a greeting a batch made while nobody looked: a lease of this tab that ran
+   * out meanwhile is taken again (never a colleague's), so the greeting's parts can be sent. Optional: a desk without
+   * it keeps «бронь истекла — нажмите Hi ещё раз».
+   */
+  reclaim?(fanRef: string): void;
   /** The Generate click that took the lease started no operation: the lease goes back at once, so colleagues are not locked out for nothing. */
   giveBack(fanRef: string): void;
   /** The lease token a greeting is sent under; null — no live lease of this tab. */

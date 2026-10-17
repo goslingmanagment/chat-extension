@@ -41,6 +41,7 @@ import {
   useTooltip,
   useView,
 } from '../kit';
+import { BatchBar, BatchCheck, BatchCheckAll, BatchLine, inBatch } from '../spenders/batch';
 import { generateAction } from '../spenders/preview/MiniStrip';
 import { Preview } from '../spenders/preview/Preview';
 import { rowKeyOf, useCardFollow, useRowFocus } from '../spenders/rowFocus';
@@ -149,16 +150,22 @@ function Row({ row, index, active, onPick }: { readonly row: NewcomerRowVM; read
       }}
     >
       <span role="cell" class="cg-nc__who">
+        {row.batch === undefined ? null : <BatchCheck list="newcomers" handle={row.handle} row={row.batch} name={row.name} />}
         <InitialAvatar name={row.name} />
         <span class="cg-nc__names">
           <span class="cg-nc__name">
             {row.name}
             {row.hasDraft ? <span class="cg-nc__tag">{i18n.t(row.draftStale ? 'newcomers.draftStale' : 'newcomers.draft')}</span> : null}
           </span>
-          <span class="cg-nc__handle">
-            {row.username === null ? '' : `@${row.username} · `}
-            {i18n.t(KIND_KEYS[row.kind])}
-          </span>
+          {/* In a batch the second line says how its Hi went, with the text that came out. */}
+          {row.batch !== undefined && inBatch(row) ? (
+            <BatchLine row={row.batch} />
+          ) : (
+            <span class="cg-nc__handle">
+              {row.username === null ? '' : `@${row.username} · `}
+              {i18n.t(KIND_KEYS[row.kind])}
+            </span>
+          )}
         </span>
       </span>
       <span role="cell" class="cg-nc__ago cg-num">
@@ -212,11 +219,14 @@ function StatusMenu({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
   );
 }
 
-function ColumnHeader(): JSX.Element {
+function ColumnHeader({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   const i18n = useI18n();
   return (
     <div class="cg-nc__grid cg-nc__colhead" role="row" aria-rowindex={1}>
-      <span role="columnheader">{i18n.t('newcomers.col.fan')}</span>
+      <span role="columnheader" class="cg-nc__who">
+        {vm.batch === undefined ? null : <BatchCheckAll list="newcomers" handles={vm.rows.map((row) => row.handle)} batch={vm.batch} />}
+        {i18n.t('newcomers.col.fan')}
+      </span>
       <span role="columnheader" class="cg-nc__ago">
         {i18n.t('newcomers.col.subscription')}
       </span>
@@ -421,6 +431,7 @@ export function NewcomersWindow(): JSX.Element {
                 <span class="cg-sp__grow" />
                 <WindowMenu vm={vm} />
               </div>
+              {vm.batch === undefined ? null : <BatchBar list="newcomers" batch={vm.batch} />}
               {vm.incomplete === null ? null : (
                 <div class="cg-sp__line cg-nc__incomplete" role="status">
                   <b>{i18n.t('newcomers.incomplete')}</b>
@@ -436,7 +447,7 @@ export function NewcomersWindow(): JSX.Element {
                     getKey={(row) => row.handle}
                     role="table"
                     label={i18n.t('newcomers.listLabel')}
-                    header={<ColumnHeader />}
+                    header={<ColumnHeader vm={vm} />}
                     headerHeight={HEADER_HEIGHT}
                     listRef={listRef}
                     onRangeChange={onRange}
@@ -482,6 +493,8 @@ export const NEWCOMERS_CSS = `
 .cg-nc__row.is-sel, .cg-nc__row.is-sel:hover, .cg-nc__row.is-sel:focus-visible { background: var(--cg-sel); }
 .cg-nc__who { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .cg-nc__names { display: block; min-width: 0; }
+.cg-nc__names .cg-bt__line { padding-left: 0; }
+.cg-nc__who .cg-bt__check { margin-right: -2px; }
 .cg-nc__name { display: block; font-weight: 500; color: var(--cg-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-nc__tag { margin-left: 8px; font-size: var(--cg-text-sm); font-weight: 400; color: var(--cg-ink-2); }
 .cg-nc__handle { display: block; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

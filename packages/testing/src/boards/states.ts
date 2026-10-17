@@ -5,9 +5,12 @@
 // render it through `useView` exactly as they render a controller's models.
 
 import {
+  type BatchRowVM,
+  type BatchVM,
   type DockActionVM,
   type Locale,
   type MountSurfaceKind,
+  type NewcomersVM,
   type PaletteItemVM,
   type PreviewSendView,
   type PreviewVM,
@@ -46,6 +49,7 @@ import {
   type ScenarioCtx,
   type ScenarioViewEntry,
 } from '../scenarios/app-client';
+import { cgTitleKey } from '@cg/contracts/i18n/keys';
 import { BOARD_FANS, GREETING_PARTS, HUBERT, NEWCOMER_FANS, REPLY_PARTS, boardHandle, boardShelves, boardStats, hubertFeed, manyFans, newcomerHandle, newcomerRows, paletteChat, type BoardFan } from './data';
 import { fanslyConnecting, fanslyExcluded, fanslyGreeted, fanslyGreeting, fanslyGreetingRefused, fanslyListFailed, fanslyPaused, fanslyQueue, fanslyScanning } from './fansly-newcomers';
 
@@ -380,6 +384,47 @@ const state = (id: string, title: string, surface: MountSurfaceKind, build: (ctx
 /** «Новые» of the background's pass, drawn by Fansly's own surface (ui/hosts/fansly/newcomers). */
 const fansly = (id: string, title: string, build: (ctx: ScenarioCtx) => ScenarioViewEntry[]): BoardState => ({ id, title, surface: 'newcomers', views: build, site: 'fansly' });
 
+/** 1.32.0: a batch on its way — two results ready, one generating, one waiting, one failed, two fans ticked for the next. */
+const BATCH_ROWS: readonly (BatchRowVM | null)[] = [
+  { pickable: true, picked: false, state: 'ready', text: 'Hey you, I was just thinking about you 😏 how was your weekend?', failure: null },
+  { pickable: true, picked: false, state: 'sent', text: 'Missed you here! Got something new I think you’d like 👀', failure: null },
+  { pickable: true, picked: false, state: 'generating', text: null, failure: null },
+  { pickable: true, picked: false, state: 'queued', text: null, failure: null },
+  { pickable: true, picked: false, state: 'failed', text: null, failure: { code: 'CG-OP-CHAT-BUSY', title: { key: cgTitleKey('CG-OP-CHAT-BUSY') } } },
+  { pickable: true, picked: true, state: null, text: null, failure: null },
+  { pickable: true, picked: true, state: null, text: null, failure: null },
+];
+const IDLE_BATCH: BatchRowVM = { pickable: true, picked: false, state: null, text: null, failure: null };
+const batchOf = (rows: readonly { readonly batch?: BatchRowVM }[]): BatchVM => {
+  const count = (state: BatchRowVM['state']): number => rows.filter((row) => row.batch?.state === state).length;
+  return { picked: rows.filter((row) => row.batch?.picked === true).length, max: 20, queued: count('queued'), generating: count('generating'), ready: count('ready'), sent: count('sent'), failed: count('failed'), reason: null };
+};
+const withBatch = <R extends { readonly batch?: BatchRowVM }>(rows: readonly R[]): R[] => rows.map((row, n) => ({ ...row, batch: BATCH_ROWS[n] ?? IDLE_BATCH }));
+
+function batchBoard(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  const base = boardOf(ctx, BOARD_FANS);
+  let n = 0;
+  const shelves = base.shelves.map((shelf) => ({ ...shelf, rows: shelf.rows.map((row) => ({ ...row, batch: BATCH_ROWS[n++] ?? IDLE_BATCH })) }));
+  return [entry({ of: 'spenders.board' }, { ...base, shelves, batch: batchOf(shelves.flatMap((shelf) => shelf.rows)) }), entry({ of: 'spenders.stats' }, statsOf(ctx))];
+}
+
+function batchNewcomers(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  return newcomersState(ctx, 'a').map((item) => {
+    if (item.selector.of !== 'newcomers') return item;
+    const vm = item.vm as NewcomersVM;
+    const rows = withBatch(vm.rows);
+    return { ...item, vm: { ...vm, rows, batch: batchOf(rows) } };
+  });
+}
+
+function batchFansly(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  return fanslyQueue(ctx).map((item) => {
+    const vm = item.vm as NewcomersVM;
+    const rows = withBatch(vm.rows);
+    return { ...item, vm: { ...vm, rows, batch: batchOf(rows) } };
+  });
+}
+
 export const BOARD_STATES: readonly BoardState[] = [
   // 11 — Spenders
   state('11a', '«Отправить» available: Reply of three parts, a draft', 'spenders', (ctx) => spendersState(ctx, [AVAILABLE, AVAILABLE, AVAILABLE])),
@@ -426,6 +471,9 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('online-c', '«Онлайн» of the palette before the page’s first chat: «Отправить» says to open any chat (CG-SEND-HOST, contracts 1.10.0)', 'preview', (ctx) =>
     onlineState(ctx, [{ s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.hostNotYet') }, AVAILABLE, AVAILABLE]),
   ),
+  state('batch-board', 'A batch on the board: results ready, one generating, one waiting, one failed, two ticked', 'spenders', batchBoard),
+  state('batch-newcomers', 'A batch of Hi in «Новые»', 'newcomers', batchNewcomers),
+  fansly('batch-fansly', 'Fansly: a batch of Hi in «Новые»', batchFansly),
   state('board-list', 'The board without a preview', 'spenders', (ctx) => [entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS)), entry({ of: 'spenders.stats' }, statsOf(ctx))]),
   state('board-1000', 'A thousand fans: the virtual list', 'spenders', (ctx) => {
     const fans = manyFans(1000);

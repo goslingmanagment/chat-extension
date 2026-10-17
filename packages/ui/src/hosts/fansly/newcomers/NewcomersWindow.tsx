@@ -66,6 +66,7 @@ import {
   useTooltip,
   useView,
 } from '../../../kit';
+import { BatchBar, BatchCheck, BatchCheckAll, BatchLine, inBatch } from '../../../spenders/batch';
 import { useOwnEchoes } from '../../../spenders/ownEchoes';
 import { rowKeyOf, useCardFollow, useRowFocus } from '../../../spenders/rowFocus';
 import { ChoiceMenu, DataFooter, InitialAvatar, WindowHeader, isPlainKey, isTextEntry } from '../../../spenders/window';
@@ -163,13 +164,19 @@ function Row({ row, index, active, onPick }: { readonly row: NewcomerRowVM; read
       }}
     >
       <span role="cell" class="cg-nc__who">
+        {row.batch === undefined ? null : <BatchCheck list="newcomers" handle={row.handle} row={row.batch} name={row.name} />}
         <InitialAvatar name={row.name} />
         <span class="cg-nc__names">
           <span class="cg-nc__name">
             {row.name}
             {custom === null ? null : <span class="cg-fnw__custom"> ({custom})</span>}
           </span>
-          {row.username === null ? null : <span class="cg-nc__handle">@{row.username}</span>}
+          {/* In a batch the second line says how its Hi went, with the text that came out. */}
+          {row.batch !== undefined && inBatch(row) ? (
+            <BatchLine row={row.batch} failureTitle={(code) => failureView(i18n, { code, retryAt: null }).title} />
+          ) : row.username === null ? null : (
+            <span class="cg-nc__handle">@{row.username}</span>
+          )}
         </span>
       </span>
       <span role="cell" class="cg-nc__ago cg-num">
@@ -182,11 +189,14 @@ function Row({ row, index, active, onPick }: { readonly row: NewcomerRowVM; read
   );
 }
 
-function ColumnHeader(): JSX.Element {
+function ColumnHeader({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   const i18n = useI18n();
   return (
     <div class="cg-nc__grid cg-nc__colhead" role="row" aria-rowindex={1}>
-      <span role="columnheader">{fanslyText(i18n, 'fansly.newcomers.col.fan')}</span>
+      <span role="columnheader" class="cg-nc__who">
+        {vm.batch === undefined ? null : <BatchCheckAll list="newcomers" handles={vm.rows.map((row) => row.handle)} batch={vm.batch} />}
+        {fanslyText(i18n, 'fansly.newcomers.col.fan')}
+      </span>
       <span role="columnheader" class="cg-nc__ago">
         {fanslyText(i18n, 'fansly.newcomers.col.followed')}
       </span>
@@ -848,6 +858,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
                   <PeriodMenu vm={vm} range={range} />
                 </div>
               )}
+              {pass === null || forbidden || failed || vm.batch === undefined ? null : <BatchBar list="newcomers" batch={vm.batch} />}
               {pass === null || forbidden ? null : <PassLines vm={vm} pass={pass} />}
               {/* The port to the background is down: what is shown stays, the banner says so (its return reads it again). */}
               {vm.view.s === 'offline' && !failed && hasRows ? <ViewState view={vm.view} /> : null}
@@ -861,7 +872,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
                     getKey={(row) => row.handle}
                     role="table"
                     label={fanslyText(i18n, 'fansly.newcomers.listLabel')}
-                    header={<ColumnHeader />}
+                    header={<ColumnHeader vm={vm} />}
                     headerHeight={HEADER_HEIGHT}
                     listRef={listRef}
                     onRangeChange={onRange}

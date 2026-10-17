@@ -5,6 +5,7 @@
 
 import { type CgErrorView } from '../errors';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
+import { type BatchRowVM, type BatchVM } from './batch';
 import { type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from './actions';
 import { type HotkeyLabel } from './catalog';
 import { type Msg } from './i18n';
@@ -36,6 +37,8 @@ export interface SpenderRowVM {
   /** «Последнее сообщение» column (≥ 860 px); «Мы: » before ours. */
   readonly lastMessage: { readonly fromUs: boolean; readonly text: string } | null;
   readonly selected: boolean;
+  /** 1.32.0: the row in a batch (`SetBatchPick`, `GenerateBatch`); absent — the board has no batch. */
+  readonly batch?: BatchRowVM;
 }
 
 export interface ShelfVM {
@@ -84,6 +87,8 @@ export interface SpendersBoardVM {
    * is local (`spenders.waitingLocal`). Absent or null — the list is what its filter says it is.
    */
   readonly waitingFallback?: { readonly error: CgErrorView; readonly retry: UiAction } | null;
+  /** 1.32.0: the batch of the board — ticked fans, how their generations go; absent — no batch here. */
+  readonly batch?: BatchVM;
 }
 
 /** One number of the statistics with its own stamp. */

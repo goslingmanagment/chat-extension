@@ -421,6 +421,9 @@ export async function startBoards(
     handover: (handover) => dock.handover(handover),
   });
   late.preview = preview;
+  // 1.32.0: a batch of a list starts its generations through the preview's own Generate.
+  spenders.attachBatch(preview);
+  newcomers.attachBatch?.(preview);
   dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });

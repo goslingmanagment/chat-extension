@@ -18,6 +18,7 @@ export * from './view';
 export * from './result';
 export * from './dock';
 export * from './analysis';
+export * from './batch';
 export * from './spenders';
 export * from './newcomers';
 export * from './preview';

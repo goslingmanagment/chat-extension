@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { type I18nKey } from '@cg/contracts/errors';
 import { type DataStamp, type I18n } from '@cg/contracts/vm';
 
+import { BATCH_CSS } from './batch';
 import { Button, Icon, Menu, MenuAnchor, menuTriggerKeys, useDispatch, useHints, useI18n, type MenuItem, type StyleSource } from '../kit';
 
 const COVERAGE_KEYS: Readonly<Record<DataStamp['coverage'], I18nKey>> = {
@@ -255,7 +256,7 @@ export const WINDOW_CSS = `
 }
 .cg-sp__state { flex: 1; min-height: 0; overflow-y: auto; }
 @media (max-width: 1360px) { .cg-sp__search { width: 200px; } }
-`;
+${BATCH_CSS}`;
 
 /** The header, the filters and the footer both list windows share. */
 export const WINDOW_STYLES: StyleSource = { id: 'cg-window', css: WINDOW_CSS };

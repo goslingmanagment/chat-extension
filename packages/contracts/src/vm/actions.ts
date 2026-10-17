@@ -14,6 +14,7 @@ import { NativeIdSchema, PersonaKeySchema, UuidSchema, boundedText, displayText 
 import { SettingsV1Schema, UI_TEXT_SIZES } from '../settings';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
 import { type SpendersPeriodSchema } from '../tab-messages';
+import { BATCH_LISTS } from './batch';
 import { HandleSchema, JOURNAL_KINDS, MOUNT_SURFACES, OVERLAY_SURFACES, ViewSelectorSchema } from './selectors';
 
 const ui = SettingsV1Schema.shape.ui.shape;
@@ -268,6 +269,20 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('InsertNewcomerGreeting', { targetHandle: HandleSchema }),
   act('SetNewcomersWindow', { hours: z.int().check(z.gte(NEWCOMERS_WINDOW_HOURS.min), z.lte(NEWCOMERS_WINDOW_HOURS.max)) }),
   act('LoadMore', { list: z.enum(['spenders', 'newcomers']) }),
+  /**
+   * 1.32.0: ticks (`picked`) or unticks fans of a list for a batch — one row, or every row the list shows; the list keeps
+   * at most `BATCH_LIMITS.picks`. Nothing starts.
+   */
+  act('SetBatchPick', { list: z.enum(BATCH_LISTS), targetHandles: z.array(HandleSchema).check(z.minLength(1), z.maxLength(1000)), picked: z.boolean() }),
+  /**
+   * 1.32.0: «Сгенерировать для N» — one generation per ticked fan, a few at a time, by this one click. Never a send: each
+   * result waits on its fan's card for the person's own «Отправить».
+   */
+  act('GenerateBatch', { list: z.enum(BATCH_LISTS) }),
+  /** 1.32.0: «Остановить» — the fans still waiting their turn are not started; those generating finish. */
+  act('StopBatch', { list: z.enum(BATCH_LISTS) }),
+  /** 1.32.0: «Очистить» — the rows forget the batch; the results stay on the fans' cards. */
+  act('ClearBatch', { list: z.enum(BATCH_LISTS) }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),

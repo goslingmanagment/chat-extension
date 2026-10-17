@@ -29,6 +29,7 @@ import { type ActionReceipt, type I18n, type NewcomerGreetingStateVM, type Newco
 import { buildDeferredInsert, buildOpenAndInsert } from '../../domain/insert/intent';
 import { FIXED_WINDOWS } from '../../domain/ops/request';
 import { type PassRow } from '../../domain/newcomers/pass';
+import { type BatchOutcome } from '../boards/batch';
 import { type PageContextPort } from '../boards/context';
 import { issueCause } from '../boards/navigate';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
@@ -90,6 +91,13 @@ export interface CardGreeting {
   refresh(): void;
   /** An action of the card; null — not the greeting's. */
   dispatch(action: UiAction, passId: string, row: PassRow): Promise<ActionReceipt> | null;
+  /**
+   * 1.32.0: one fan of a batch — «Сгенерировать» of the fan's card, open or not, with the card's own checks; resolves
+   * when the generation ended. A field that holds the person's own text is never written over: that fan is skipped.
+   */
+  batchStart(passId: string, row: PassRow): Promise<BatchOutcome>;
+  /** The card's field as it is now, and whether it went out; null — no card of the fan. */
+  batchLive(passId: string, fanRef: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** Another pass, sign-in or account: everything of the old one goes. */
   reset(): void;
   dispose(): void;
@@ -542,9 +550,35 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     ended.clear();
   }
 
+  async function batchStart(passId: string, row: PassRow): Promise<BatchOutcome> {
+    const card = cardOf(passId, row.fanRef);
+    if (card.loaded !== 'yes') {
+      card.loaded = 'loading';
+      if (!(await read(card))) return { s: 'failed', code: 'CG-RUNTIME-UNREACHABLE' };
+    }
+    if (card.busy) return { s: 'failed', code: 'CG-SEND-BUSY' };
+    if (card.state.s === 'sent' || card.state.s === 'uncertain') return { s: 'failed', code: card.state.s === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN' };
+    if (!greets(row)) return { s: 'failed', code: row.check === 'greeted' ? 'CG-SEND-PART' : 'CG-DATA-NOT-READY' };
+    if (!proven(row)) return { s: 'failed', code: 'CG-FNEW-UNVERIFIED' };
+    // The person's own text in the field is theirs: a batch never writes over it.
+    if (card.text.trim() !== '' && !unchanged(card)) return { s: 'failed', code: 'CG-DRAFT-CHANGED' };
+    const receipt = await generate('GenerateBatch', card, row);
+    if (receipt.ok) return { s: 'ready', text: card.text.trim() === '' ? null : card.text };
+    const code = card.state.s === 'refused' ? card.state.failure.code : receipt.code;
+    if (code === 'CG-OP-TAB-LIMIT') return { s: 'busy' };
+    // No token: the click's grant is spent, or the window is no longer on screen.
+    if (code === 'CG-UI-FAILED') return { s: 'spent', code };
+    return { s: 'failed', code };
+  }
+
   return {
     vm,
     open,
+    batchStart,
+    batchLive(passId, fanRef) {
+      const card = cards.get(keyOf(passId, fanRef));
+      return card === undefined ? null : { text: card.text.trim() === '' ? null : card.text, sent: card.state.s === 'sent' };
+    },
     refresh() {
       for (const card of cards.values()) {
         card.loaded = 'loading';

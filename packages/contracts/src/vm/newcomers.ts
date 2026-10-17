@@ -8,6 +8,7 @@ import { type CgErrorView } from '../errors';
 import { type LEASE_HOLDERS } from '../hub/newcomers';
 import { type StaleReason } from '../ops';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
+import { type BatchRowVM, type BatchVM } from './batch';
 import { type GreetingFilter, type NewcomerCheckFilter, type NewcomersTab } from './actions';
 import { type Msg } from './i18n';
 import { type TargetHandle } from './selectors';
@@ -81,6 +82,8 @@ export interface NewcomerRowVM {
   readonly selected: boolean;
   /** 1.15.0 (R20 P10a): the verdict of the background's pass, where a pass checks the list (`NewcomersVM.pass`). */
   readonly check?: NewcomerCheckVM;
+  /** 1.32.0: the row in a batch of Hi (`SetBatchPick`, `GenerateBatch`); absent — the list has no batch. */
+  readonly batch?: BatchRowVM;
 }
 
 export interface NewcomersVM {
@@ -114,6 +117,8 @@ export interface NewcomersVM {
    * its filters and the card it reads. Absent — the hub's list; its card is the `preview` view.
    */
   readonly pass?: NewcomersPassVM;
+  /** 1.32.0: the batch of Hi over the list — ticked fans, how their generations go; absent — no batch here. */
+  readonly batch?: BatchVM;
 }
 
 // ── A list a background pass checks (1.15.0, R20 P10a; R20 architecture §8.7) ──

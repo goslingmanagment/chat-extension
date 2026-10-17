@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type Dossier, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
+import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type Dossier, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, pageFlag, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
 import { type BoardHandover } from '@cg/core/application/preview';
 import { FEED_PAGE_SIZE, RATE_LIMIT_HOLD_MS, RESYNC_RETRY_MS } from '@cg/core/application/preview';
@@ -4000,5 +4000,31 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     expect(await none.h.dispatch({ type: 'SetMediaOpen', targetHandle: none.handle, open: true })).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
     const off = await withReply({ media: VAULT, config: { flags: { previewSend: false } } });
     expect(pv(off.h).media).toBeNull();
+  });
+});
+
+describe('1.32.0 a batch of the Spenders board', () => {
+  it('ticks fans, starts one generation each by one click, shows each row how it went, and sends nothing', async () => {
+    const h = await harness({ config: X8 });
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    const fans = ['5000', '5001'];
+    h.script(0, 'fast-reply', 'Hey you');
+    h.script(1, 'fast-reply', 'Missed me?');
+    expect(await h.dispatch({ type: 'SetBatchPick', list: 'spenders', targetHandles: fans.map(spender), picked: true })).toMatchObject({ ok: true, outcome: 'done' });
+    const board = (): SpendersBoardVM => h.boards.spenders.getSnapshot({ of: 'spenders.board' });
+    expect(board().batch).toMatchObject({ picked: 2, queued: 0 });
+    expect(await h.dispatch({ type: 'GenerateBatch', list: 'spenders' })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.advance(500);
+    expect(count(h, 'op.start')).toBe(2);
+    const rows = board().shelves.flatMap((shelf) => shelf.rows).filter((row) => fans.includes(row.handle.split(':').pop() ?? ''));
+    expect(rows.map((row) => row.batch?.state)).toEqual(['ready', 'ready']);
+    expect(rows.map((row) => row.batch?.text).sort()).toEqual(['Hey you', 'Missed me?']);
+    expect(board().batch).toMatchObject({ picked: 0, ready: 2, generating: 0 });
+    // The result waits on the fan's card; nothing went anywhere by itself.
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+    expect(h.boards.preview.getSnapshot(preview('spenders')).result?.state).toBe('done');
+    expect(h.clicks).toEqual([]);
+    expect(h.host.calls.inserts).toEqual([]);
   });
 });

@@ -20,8 +20,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const UI = fileURLToPath(new URL('../../../ui/src/', import.meta.url));
 const KIB = 1024;
-/** architecture.md §11: a lazy chunk beyond the dock, gzip. */
-const LAZY_CHUNK = 30 * KIB;
+/** architecture.md §11: a lazy chunk beyond the dock, gzip (1.32.0: 30 → 32 KiB, the batch of a list in Spenders). */
+const LAZY_CHUNK = 32 * KIB;
 
 /**
  * What the docked strip and the result sheet use from the kit: the
@@ -120,15 +120,16 @@ describe('[EX-009] the boards’ lazy chunks fit the budget (architecture.md §1
     expect(size).toBeLessThanOrEqual(LAZY_CHUNK);
   });
 
-  it('the sizes are known: Spenders ≤ 29, «Новые» ≤ 23, the palette’s preview window ≤ 18, the fan panel ≤ 10, the palette ≤ 8 and the media panel ≤ 5 KiB', () => {
+  it('the sizes are known: Spenders ≤ 31, «Новые» ≤ 25, the palette’s preview window ≤ 18, the fan panel ≤ 10, the palette ≤ 8 and the media panel ≤ 5 KiB', () => {
     const sizes = Object.fromEntries((Object.keys(SURFACES) as Surface[]).map((name) => [name, beyondDock(name)]));
     // gzip is not one number: the same bytes come out about 0.2 % larger from the zlib of an official Node build
     // (what CI installs) than from a Node linked against the system zlib (the owner's Mac). Spenders was 26 KiB
     // with 83 bytes over on CI's Node; the pin has room for the tool, the budget above is the rule. X53: the media picker's
     // toggle and the loader of its panel (its closed line is the panel's chunk) cost the three previews up to 1.7 KiB each, and the bundler's helper of
     // a dynamic import 1.1 KiB more here (in the extension it is the dock's layer's already): 27 → 29, 22 → 23, 16 → 18.
-    expect(sizes['spenders']).toBeLessThanOrEqual(29 * KIB);
-    expect(sizes['newcomers']).toBeLessThanOrEqual(23 * KIB);
+    // 1.32.0: the batch of a list (its check boxes, bar and row line, 1.8 KiB alone) — 29 → 31 and 23 → 25.
+    expect(sizes['spenders']).toBeLessThanOrEqual(31 * KIB);
+    expect(sizes['newcomers']).toBeLessThanOrEqual(25 * KIB);
     expect(sizes['fan-panel']).toBeLessThanOrEqual(10 * KIB);
     expect(sizes['palette']).toBeLessThanOrEqual(8 * KIB);
     // X53: the media panel, beyond the dock (the preview's own share of it is in the three above).
