@@ -340,20 +340,25 @@ describe('the plan from a click to a StartOp', () => {
     expect(planned({ feature: 'ping' })).toMatchObject({ feature: 'ping', window: 100, tone: null });
   });
 
-  it('fresh page text for Reply, Fix, Hi, Ping and Review in the dock, Coach on its panel (X52), with the switch and context-v1', () => {
+  it('fresh page text for Reply, Fix, Hi, Ping, Review and Recap in the dock, Coach on its panel (X52), with the switch and context-v1', () => {
     const fresh = tail([['fan', 'hey'], ['model', 'hi you']]);
-    for (const feature of ['reply', 'hi', 'ping', 'review'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toEqual(fresh);
+    for (const feature of ['reply', 'hi', 'ping', 'review', 'recap', 'recap-short'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toEqual(fresh);
     expect(planned({ feature: 'fix', draft: draft('x'), fields: { fresh } }).fresh).toEqual(fresh);
     expect(planned({ feature: 'coach', surface: 'coach', options: { question: 'what now?' }, fields: { fresh } }).fresh).toEqual(fresh);
-    // Recap never (architecture §19 п. 1); Coach only on its own panel, Review only in the dock.
-    for (const feature of ['recap', 'recap-short'] as const) expect(planned({ feature, fields: { fresh } }).fresh, feature).toBeUndefined();
+    // Coach only on its own panel, Review and Recap only in the dock.
     expect(planned({ feature: 'coach', options: { question: 'what now?' }, fields: { fresh } }).fresh).toBeUndefined();
+    expect(freshTextLimits('recap', 'coach', BOOTSTRAP_PILOT_PAGES, true)).toBeNull();
     expect(freshTextLimits('review', 'coach', BOOTSTRAP_PILOT_PAGES, true)).toBeNull();
     // Review and Coach only on a hub that takes it there (`live-text-review-coach-v1`); the draft features need nothing more.
     const olderHub: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'live-text-review-coach-v1') };
     expect(planned({ feature: 'review', fields: { fresh }, bootstrap: olderHub }).fresh).toBeUndefined();
     expect(planned({ feature: 'coach', surface: 'coach', options: { question: 'what now?' }, fields: { fresh }, bootstrap: olderHub }).fresh).toBeUndefined();
     expect(planned({ feature: 'reply', fields: { fresh }, bootstrap: olderHub }).fresh).toEqual(fresh);
+    expect(planned({ feature: 'recap', fields: { fresh }, bootstrap: olderHub }).fresh).toEqual(fresh);
+    // Recap only on a hub with `live-text-recap-v1`, which keeps such a recap shared.
+    const beforeRecap: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'live-text-recap-v1') };
+    for (const feature of ['recap', 'recap-short'] as const) expect(planned({ feature, fields: { fresh }, bootstrap: beforeRecap }).fresh, feature).toBeUndefined();
+    expect(planned({ feature: 'review', fields: { fresh }, bootstrap: beforeRecap }).fresh).toEqual(fresh);
     // Never from a preview or «Новые» ([NF-013]: the greeting of a new subscriber goes without page text).
     expect(planned({ surface: 'preview', fields: { fresh }, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
     expect(planned({ feature: 'hi', surface: 'newcomers', fields: { fresh }, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
