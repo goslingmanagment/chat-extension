@@ -67,6 +67,26 @@ describe('where the focus is', () => {
   });
 });
 
+describe('where the focus is now, with no key in hand (decision X44)', () => {
+  it('[UI-023] the dock asks before it hands the focus to the next part: none, the composer, another field, a plain element, ours', () => {
+    expect(probe.now()).toBe('none');
+    document.querySelector<HTMLElement>('.ProseMirror')?.focus();
+    expect(probe.now()).toBe('composer');
+    document.querySelector<HTMLElement>('#site-search')?.focus();
+    expect(probe.now()).toBe('field');
+    document.querySelector<HTMLElement>('#site-button')?.focus();
+    expect(probe.now()).toBe('page');
+    const card = document.createElement('div');
+    card.tabIndex = 0;
+    const field = document.createElement('textarea');
+    ours.root.append(card, field);
+    card.focus();
+    expect(probe.now()).toBe('ours');
+    field.focus();
+    expect(probe.now()).toBe('ours-field');
+  });
+});
+
 describe('a window of ChatSpace itself', () => {
   it('[HK-029] a visible dialog, menu or list of the site counts; ours never do — they live in closed roots', () => {
     expect(probe.nativeModalOpen()).toBe(false);

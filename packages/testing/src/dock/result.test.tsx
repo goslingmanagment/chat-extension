@@ -6,7 +6,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
+import { type FocusPlace, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import { DEFAULT_PARTS, DOCK_CSS, preloadPart, useSteadyView } from '@cg/ui/dock';
 import { tabbables } from '@cg/ui/kit';
@@ -257,6 +257,93 @@ describe('parts', () => {
     kit.unmount();
     kit = mountDock(withResult(reply({ parts: parts(OP, [TEXTS[0] ?? '']), meta: [meta.onePart()], splitRequested: true })));
     expect(kit.$$('.cg-head__meta').map(text)).toEqual(['получилась одна часть']);
+  });
+});
+
+describe('the part the dock offers the focus to (decision X44)', () => {
+  const offer = (part: number | null): { readonly opId: string; readonly part: number } | null => (part === null ? null : { opId: OP, part });
+  const inserted = (done: number): ResultVM => reply({}, (index) => (index <= done ? { insert: 'done', collapsed: true, next: false } : { next: index === done + 1 }));
+  /** The dock with the Reply and nothing offered, then one step per offer. */
+  const offers = (...steps: ReadonlyArray<{ readonly result?: ResultVM; readonly part: number | null }>) => ({
+    ...withResult(reply()),
+    steps: steps.map((step, index) => ({ label: `offer ${index}`, at: 10 * (index + 1), views: [entry({ of: 'dock' }, dockVm('ready', { result: step.result ?? reply(), focusPart: offer(step.part) }))] })),
+  });
+  const next = async (): Promise<void> => {
+    await flush(() => kit?.client.advance());
+  };
+
+  it('[UI-023] ⌘E → Enter: the offered part takes the focus from the composer, and Enter on it inserts THAT part — the person’s own key', async () => {
+    kit = mountDock(offers({ part: 0 }));
+    expect(kit.root.activeElement).toBeNull();
+    kit.deps.focus.place = 'composer';
+    await next();
+    expect(kit.root.activeElement).toBe(partRows()[0]);
+    // Nothing was inserted by the focus itself.
+    expect(kit.client.dispatched).toEqual([]);
+    await flush(() => partRows()[0]?.dispatchEvent(keydown('Enter')));
+    expect(kit.client.dispatched).toEqual([{ type: 'InsertPart', operationId: OP, part: 0 }]);
+  });
+
+  it('[UI-023] from the page’s body and from inside the dock as well; never from another field, a field or a window of ours, or a page element', async () => {
+    const taken = async (place: FocusPlace, before?: (mounted: MountedKit) => void): Promise<boolean> => {
+      kit?.unmount();
+      kit = mountDock(offers({ part: 0 }));
+      kit.deps.focus.place = place;
+      before?.(kit);
+      await next();
+      return kit.root.activeElement === partRows()[0];
+    };
+    expect(await taken('none')).toBe(true);
+    expect(await taken('ours', (mounted) => (mounted.$('.cg-again') as HTMLElement).focus())).toBe(true);
+    // «ours» but not this dock: one of our windows has it (Spenders, the palette).
+    expect(await taken('ours')).toBe(false);
+    expect(await taken('field')).toBe(false);
+    expect(await taken('ours-field')).toBe(false);
+    expect(await taken('page')).toBe(false);
+  });
+
+  it('[UI-023] once per part: a person who moved the focus away keeps it there; the next part offered after the send takes it', async () => {
+    kit = mountDock(offers({ part: 0 }, { part: null }, { part: 0 }, { result: inserted(0), part: null }, { result: inserted(0), part: 1 }));
+    await next();
+    expect(kit.root.activeElement).toBe(partRows()[0]);
+    // They went elsewhere; the same part is offered again (the composer emptied once more) — the focus stays where they put it.
+    partRows()[0]?.blur();
+    await next();
+    await next();
+    expect(kit.root.activeElement).toBeNull();
+    // Part 1 inserted and sent: part 2 is offered and takes the focus.
+    await next();
+    await next();
+    expect(kit.root.activeElement).toBe(partRows()[1]);
+  });
+
+  it('[UI-023] a result hidden and opened again does not take the focus back for a part it was given once', async () => {
+    kit = mountDock({
+      ...offers({ part: 0 }),
+      steps: [
+        { label: 'offered', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: reply(), focusPart: offer(0) }))] },
+        { label: 'hidden', at: 20, views: [entry({ of: 'dock' }, dockVm('ready', { result: null }))] },
+        { label: 'opened again', at: 30, views: [entry({ of: 'dock' }, dockVm('ready', { result: reply(), focusPart: offer(0) }))] },
+      ],
+    });
+    await next();
+    expect(kit.root.activeElement).toBe(partRows()[0]);
+    await next();
+    expect(partRows()).toEqual([]);
+    await next();
+    expect(partRows()).toHaveLength(3);
+    expect(kit.root.activeElement).toBeNull();
+  });
+
+  it('an offer for another operation, or a host side that cannot say where the focus is, moves nothing', async () => {
+    kit = mountDock({ ...withResult(reply()), steps: [{ label: 'other', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: reply(), focusPart: { opId: uuid(999), part: 0 } }))] }] });
+    await next();
+    expect(kit.root.activeElement).toBeNull();
+    kit.unmount();
+    kit = mountDock(offers({ part: 0 }));
+    Object.defineProperty(kit.deps.focus, 'where', { value: undefined });
+    await next();
+    expect(kit.root.activeElement).toBeNull();
   });
 });
 

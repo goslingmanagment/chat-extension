@@ -27,6 +27,7 @@
 // repeats of an Enter that went down inside a root of ours are stopped
 // wherever they land, until the key is released.
 
+import type { FocusPlace } from '@cg/contracts/vm';
 import { createEarlyKeyDispatcher, createEarlyNotices, createTabKeyState, type EarlyKeyDispatcher, type EarlyNotice, type EarlyNotices, type TabKeyState } from '@cg/core/application/hotkeys';
 import { createOverlayState, mirrorDismissible, type OverlayState } from '@cg/core/application/navigation';
 import { hotkeyPlatformOf, type HotkeyPlatform } from '@cg/core/domain/hotkeys';
@@ -41,6 +42,8 @@ export interface KeptKeydown {
 
 export interface TabKeys {
   readonly platform: HotkeyPlatform;
+  /** Where the page's focus is now (the site's probe): the composer, another field, ours, none (decision X44). */
+  focusPlace(): FocusPlace;
   /** Which of our overlays are open: the dispatcher reads it, whoever mounts an overlay writes it. */
   readonly overlays: OverlayState;
   readonly state: TabKeyState;
@@ -126,13 +129,14 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
   const overlays = createOverlayState();
   const state = createTabKeyState({ overlays, route: () => site.routeOfLocation(win.location) });
   let handlerMs: ((ms: number) => void) | null = null;
+  const ownership = site.keyProbe(doc, mounts.registry);
   // Registered after `onKeydown` above, on the same target and phase: it runs second.
   const dispatcher = createEarlyKeyDispatcher({
     platform,
     client: site.hotkeyClient,
     window: win,
     document: { source: doc, hidden: () => doc.hidden, focused: () => doc.hasFocus() },
-    ownership: site.keyProbe(doc, mounts.registry),
+    ownership,
     state,
     timers: { setTimer: (ms, fn) => win.setTimeout(fn, ms), clearTimer: (handle) => win.clearTimeout(handle as number) },
     now: () => Date.now(),
@@ -144,6 +148,7 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
 
   return {
     platform,
+    focusPlace: () => ownership.now(),
     overlays,
     state,
     dispatcher,

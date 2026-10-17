@@ -47,7 +47,7 @@ async function setup(site: typeof sites[number], boundary: 'imports' | 'settings
   const life = new AbortController();
   const keys = startTabKeys({
     win: window, mounts: host.mounts, onWaiting: () => undefined,
-    site: { hotkeyClient: site.kind === 'fansly-web' ? 'fansly' : 'extension', keyProbe: () => ({ focus: () => 'page', nativeModalOpen: () => false, deliver: () => false }), keyPending: () => () => undefined, routeOfLocation: () => ({ kind: 'other', epoch: 'test' }) },
+    site: { hotkeyClient: site.kind === 'fansly-web' ? 'fansly' : 'extension', keyProbe: () => ({ focus: () => 'page', now: () => 'none', nativeModalOpen: () => false, deliver: () => false }), keyPending: () => () => undefined, routeOfLocation: () => ({ kind: 'other', epoch: 'test' }) },
   });
   life.signal.addEventListener('abort', () => { keys.dispose(); host.mounts.dispose(); host.theme.dispose(); port.dispose(); });
   host.activation?.stopped.addEventListener('abort', () => life.abort('host-retired'));

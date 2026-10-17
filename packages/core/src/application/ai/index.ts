@@ -143,6 +143,7 @@ export function createAiSurfaces(ports: AiPorts): AiSurfaces {
 export { COACH_ARCHIVES_MAX, createCoachController, type CoachController } from '../coach/controller';
 export { type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '../board-handover';
 export { KEYS_FOOTER_RESULTS, createDockController, type DockController } from '../dock/controller';
+export { createPartFocus, type FocusPart, type PartFocus } from '../dock/focus-part';
 export { RECAP_UI_CHATS_MAX, createRecapController, type RecapController } from '../recap/controller';
 export { createReviewController, type ReviewController } from '../review/controller';
 export { TabEnvironment, type EnvironmentChange, type Loaded, type PersonaState } from './environment';

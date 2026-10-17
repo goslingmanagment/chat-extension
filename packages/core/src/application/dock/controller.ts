@@ -43,6 +43,7 @@ import { createSurface, done, refused, type ActionHandlers, type AiController, t
 import { errorVm, msg, views } from '../ai/view-models';
 import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
 import { flagReasonVm } from '../flag-reason';
+import { createPartFocus } from './focus-part';
 
 /** The keys footer is shown under the first results (ui-design §4.3). */
 export const KEYS_FOOTER_RESULTS = 5;
@@ -101,6 +102,8 @@ export function createDockController(ws: AiWorkspace): DockController {
   /** Results counted for the keys footer while it was still due. */
   const footerOps = new Set<string>();
   const counted = new Set<string>();
+  /** The part the person's next Enter would insert, once they are not typing (decision X44). */
+  const partFocus = createPartFocus();
 
   const offOps = ws.onOpEvent((event) => {
     if (event.kind !== 'done') return;
@@ -194,10 +197,13 @@ export function createDockController(ws: AiWorkspace): DockController {
     const broken = contractBroken(contract);
     const handle = chat !== null && situation.ready !== null ? chat.handle : null;
     const actionVms = actions(situation, running, activeAction);
+    const mode = situation.copyOnly === null ? 'insert' : 'copy-only';
+    const composer = situation.host.composer;
+    const focusPart = partFocus.next(result, mode, composer, chat !== null && composer !== null && chatKeyOf(composer.chat) === chat.key);
     return {
       view: viewOf(ws, situation),
       visible: chat !== null,
-      mode: situation.copyOnly === null ? 'insert' : 'copy-only',
+      mode,
       status: situation.status,
       statusError: situation.statusError === null ? null : errorVm(situation.statusError, ws.ports.i18n),
       // The owner switched ChatGoose off, or this build is too old for the hub: one line, in place of an error card after a click.
@@ -221,6 +227,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       // The bar's chips as data: what has a chip on this site, in the manifest's order (`dockChips`, domain/features/admission.ts).
       chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey),
       result,
+      focusPart,
       analysis: sheet?.kind === 'recap' ? 'recap' : sheet?.kind === 'review' ? 'review' : null,
       refusal: sheet?.kind === 'refusal' ? refusalVm(ws, sheet.refusal) : null,
       runningElsewhere: elsewhere,

@@ -16,6 +16,9 @@
 //   reason; what is typed into its search field — two layouts, `]`, `?` — is
 //   text and starts nothing;
 // - Enter on a part of ours is «Вставить»: ChatSpace sends nothing;
+// - ⌘E → Enter → Enter → Enter → Enter (X44): over the empty field the
+//   finished Reply and each send of our part hand the focus to the next part;
+//   a person typing in the field keeps it there;
 // - ⌘/Ctrl held alone opens «Быстрый переход» only where the owner's
 //   `navigation` is on for the page: with it off the hold opens nothing and
 //   says nothing, ⌘1–9 and J are refused aloud, and no chat is opened;
@@ -27,7 +30,7 @@ import { Key } from 'webdriverio';
 
 import { pilotPageFlags } from '../../src/fake-hub/config';
 import { callsTo } from '../../src/fake-hub/journal';
-import { composerText, historyLoads, MOD, pageJournal, pageJournalMark, PANEL, sendsOf, serverSince, typeDraft, waitForComposerText } from '../support/chat';
+import { clearDraft, composerText, historyLoads, MOD, pageJournal, pageJournalMark, PANEL, sendsOf, serverSince, typeDraft, waitForComposerText } from '../support/chat';
 import { pageRpc } from '../support/extension';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
@@ -264,6 +267,73 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       // Three Esc presses inside our window, and ChatSpace's chat tab is still there.
       expect(await route()).toBe(a2);
       expect(await pageEvents(page, 'chat-tab-closed')).toBe(0);
+    });
+  });
+
+  describe('⌘E → Enter → Enter → Enter → Enter: the next part takes the focus (decision X44)', () => {
+    const { a4 } = STAND_IDS.fans;
+    /** The focus is in ChatSpace's message field of the open chat. */
+    const inComposer = (): Promise<boolean> => browser.execute(() => (document.activeElement?.closest('.composer-frame') ?? null) !== null);
+    const waitPartFocus = async (label: string, message: string): Promise<void> => {
+      await browser.waitUntil(async () => (await oursFocus('dock'))?.label === label, { timeout: 10_000, timeoutMsg: `${message}: the focus is on ${JSON.stringify(await oursFocus('dock'))}` });
+    };
+
+    before(async () => {
+      await callStand('openChat', ACC, a4);
+      await waitForChatReady(ACC, a4);
+      await dockIs((d) => d.status === 'ready' && d.target?.endsWith(`:${a4}`) === true, 'the dock of a chat with an empty field');
+    });
+
+    it('[UI-023] [UI-019] over the empty field the finished Reply hands the focus to part 1; Enter inserts it, Enter in the field sends it, part 2 takes the focus, Enter, Enter — two sends, both ChatSpace’s own', async () => {
+      const standMark = await standServer.mark();
+      const page = await pageJournalMark();
+      await typeDraft('');
+      expect(await inComposer()).toBe(true);
+      await browser.keys([MOD, 'e']);
+      await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.result.parts === 2 && d.target?.endsWith(`:${a4}`) === true, 'a Reply with two parts', 20_000);
+      await waitPartFocus('Часть 1', 'the finished Reply did not hand the focus to its first part');
+      // The focus alone wrote nothing.
+      expect(await composerText(ACC, a4)).toBe('');
+      await browser.keys(Key.Enter);
+      await waitForComposerText(ACC, a4, reply(a4)[0], 'Enter on the focused part inserts it');
+      // UI-019: the insert put the focus into the field — and not yet on the next part.
+      await browser.waitUntil(inComposer, { timeout: 5000, timeoutMsg: 'the insert did not put the focus into ChatSpace’s field' });
+      expect(await oursFocus('dock')).toBeNull();
+      await browser.keys(Key.Enter);
+      await waitForComposerText(ACC, a4, '', 'Enter in ChatSpace’s field sends the part');
+      await waitPartFocus('Часть 2', 'the send did not hand the focus to the second part');
+      await browser.keys(Key.Enter);
+      await waitForComposerText(ACC, a4, reply(a4)[1], 'Enter on the second part inserts it');
+      await browser.waitUntil(inComposer, { timeout: 5000, timeoutMsg: 'the second insert did not put the focus into ChatSpace’s field' });
+      await browser.keys(Key.Enter);
+      await waitForComposerText(ACC, a4, '', 'Enter in ChatSpace’s field sends the second part');
+      await browser.waitUntil(async () => sendsOf(await serverSince(standMark), a4).length === 2, { timeout: 10_000, timeoutMsg: 'ChatSpace did not send both parts' });
+      // Every send was ChatSpace's own, from its field and through its own queue — the person's two Enter presses there.
+      expect(sendsOf(await serverSince(standMark), a4).map((entry) => [entry.origin, entry.detail?.['plain']])).toEqual(reply(a4).map((text) => ['native', text]));
+      expect(await pageEvents(page, 'queue-added')).toBe(2);
+      // Nothing is left to hand the focus to: it stays in the field.
+      await browser.pause(400);
+      expect(await inComposer()).toBe(true);
+    });
+
+    it('[UI-023] a person typing in the field keeps the focus there: the Reply finished over their words takes nothing, nor does the field they empty', async () => {
+      const { a5 } = STAND_IDS.fans;
+      await callStand('openChat', ACC, a5);
+      await waitForChatReady(ACC, a5);
+      await dockIs((d) => d.status === 'ready' && d.target?.endsWith(`:${a5}`) === true, 'the dock of another chat');
+      await typeDraft('my own line');
+      await browser.keys([MOD, 'e']);
+      await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.target?.endsWith(`:${a5}`) === true, 'a Reply over the person’s words', 20_000);
+      await browser.pause(400);
+      expect(await oursFocus('dock')).toBeNull();
+      expect(await inComposer()).toBe(true);
+      await browser.keys(' x'.split(''));
+      await waitForComposerText(ACC, a5, 'my own line x', 'what is typed goes on into the field');
+      await clearDraft();
+      await waitForComposerText(ACC, a5, '', 'the person empties the field');
+      await browser.pause(400);
+      expect(await oursFocus('dock')).toBeNull();
+      expect(await inComposer()).toBe(true);
     });
   });
 

@@ -3079,3 +3079,72 @@ describe('R20 F10, ChatSpace: the starts through ChatSpace’s AI policy are the
     expect(await played(await start(), 'coach', 'coach-chat', 'Спросите, как прошёл день.', { question: 'what now?' })).toBe(CHATSPACE_RECORDED_F10.coach);
   });
 });
+
+describe('the focus handed to the next part (decision X44, ui-design §6.3)', () => {
+  it('[UI-023] ⌘E → Enter → Enter → Enter → Enter: a two-part Reply offers part 1 over the empty composer, part 2 once the first was sent — and nothing inserts by itself', async () => {
+    const h = await start();
+    const opId = await reply(h, 'one [NEXT] two', { split: true });
+    expect(h.dock().focusPart).toEqual({ opId, part: 0 });
+    expect(h.fake.calls.inserts).toHaveLength(0);
+    // The person's Enter on the focused part: the part is in the field, nothing is offered while it waits there.
+    await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
+    await h.settle();
+    expect(h.host.draftOf(openChat)?.provenance).toBe('our-insert');
+    expect(h.dock().focusPart).toBeNull();
+    // Their Enter in the composer sends it: the field is empty again, the second part is offered.
+    h.host.type('');
+    await h.settle();
+    expect(h.dock().focusPart).toEqual({ opId, part: 1 });
+    await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 });
+    await h.settle();
+    expect(h.dock().focusPart).toBeNull();
+    h.host.type('');
+    await h.settle();
+    // Every part is in: nothing more to offer. Two inserts, both by the person's own action.
+    expect(h.dock().focusPart).toBeNull();
+    expect(h.fake.calls.inserts.map((intent) => intent.part.index)).toEqual([0, 1]);
+  });
+
+  it('[UI-023] the person typing in the composer is never interrupted: their text offers nothing, and neither does the field they emptied', async () => {
+    const h = await start();
+    h.host.type('my own words');
+    await h.settle();
+    await reply(h, 'one [NEXT] two', { split: true });
+    expect(h.dock().focusPart).toBeNull();
+    h.host.type('');
+    await h.settle();
+    expect(h.dock().focusPart).toBeNull();
+  });
+
+  it('[UI-023] a Б2 question, Fix and Hi with three variants offer nothing', async () => {
+    const h = await start();
+    const opId = await reply(h, 'the answer');
+    h.host.type('my own words');
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ outcome: 'needs-confirm' });
+    h.host.type('');
+    await h.settle();
+    expect(result(h).confirm).not.toBeNull();
+    expect(h.dock().focusPart).toBeNull();
+
+    const fix = await start();
+    fix.host.type('i mis you');
+    await fix.settle();
+    fix.script(fix.streamOf('improve-draft', ['I miss you']));
+    await fix.generate('fix');
+    await fix.finish();
+    fix.host.type('');
+    await fix.settle();
+    expect(result(fix).feature).toBe('fix');
+    expect(fix.dock().focusPart).toBeNull();
+
+    const hi = await start();
+    hi.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages: 1, modelMessages: 2, loaded: 3 }, openChat);
+    await hi.settle();
+    hi.script(hi.streamOf('hi-greeting', ['hey [VARIANT] hi stranger [VARIANT] morning']));
+    await hi.generate('hi');
+    await hi.finish();
+    expect(result(hi).variants).toHaveLength(3);
+    expect(hi.dock().focusPart).toBeNull();
+  });
+});

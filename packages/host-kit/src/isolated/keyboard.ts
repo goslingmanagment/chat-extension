@@ -29,6 +29,12 @@ export type KeyFocus = 'ours-field' | 'ours' | 'composer' | 'field' | 'page';
 
 export interface KeyboardProbe {
   focus(event: Event): KeyFocus;
+  /**
+   * Where the focus is now, with no key in hand: as `focus`, and `none` when no element has it (the page's body).
+   * The dock asks it before it hands the focus to the next part of an answer (decision X44): never away from
+   * another field.
+   */
+  now(): KeyFocus | 'none';
   /** A dialog, menu or list of the site itself is open and visible. */
   nativeModalOpen(): boolean;
   /** Dispatches a copy of the key on the focused element of our root; true — our UI called preventDefault on it. */
@@ -94,16 +100,33 @@ export function isTypingTarget(element: Element): boolean {
  */
 export function createKeyboardProbe(doc: Document, registry: ShadowRootRegistry, isComposer: (active: Element) => boolean, nativeModalOpen: () => boolean): KeyboardProbe {
   const delivered = new WeakSet<Event>();
+  /** The page's own element with the focus: none, one that takes no typing, the composer or another field. */
+  const onPage = (): KeyFocus | 'none' => {
+    const active = doc.activeElement;
+    if (active === null || active === doc.body || active === doc.documentElement) return 'none';
+    if (!isTypingTarget(active)) return 'page';
+    return isComposer(active) ? 'composer' : 'field';
+  };
+  const inside = (): KeyFocus | null => {
+    const inner = registry.focusedInside(doc);
+    return inner === null ? null : isTypingTarget(inner) ? 'ours-field' : 'ours';
+  };
   return {
     focus(event) {
-      const inner = registry.focusedInside(doc);
-      if (inner !== null) return isTypingTarget(inner) ? 'ours-field' : 'ours';
+      const ours = inside();
+      if (ours !== null) return ours;
       // Focus on the host itself, or a key that came through it while the root's focus is not readable.
       if (registry.hostOf(event) !== null) return 'ours';
+      const page = onPage();
+      return page === 'none' ? 'page' : page;
+    },
+    now() {
+      const ours = inside();
+      if (ours !== null) return ours;
       const active = doc.activeElement;
-      if (active === null || active === doc.body || active === doc.documentElement) return 'page';
-      if (!isTypingTarget(active)) return 'page';
-      return isComposer(active) ? 'composer' : 'field';
+      // Focus on one of our hosts with nothing focused inside its root.
+      if (active !== null && registry.hosts().includes(active)) return 'ours';
+      return onPage();
     },
     nativeModalOpen,
     deliver(event) {

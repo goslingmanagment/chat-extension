@@ -234,6 +234,7 @@ export function Sheet({ vm, view, parts, refusalHidden, onHideRefusal }: SheetPr
         debugPart={parts.debug}
         close={hideResult === null ? null : <HideButton onClick={() => close(hideResult)} />}
         onFirstPaint={() => deps.marks.painted('firstChunkPaintMs', result.opId)}
+        focusPart={vm.focusPart?.opId === result.opId ? vm.focusPart.part : null}
       />
     );
   }
