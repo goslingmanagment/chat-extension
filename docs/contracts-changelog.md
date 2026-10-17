@@ -28,23 +28,9 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
-## 1.22.0 — 2026-10-17 (своё чтение открытого чата из API OnlyMonster; решение X54)
-
-Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.21.0 (#169, кто отправил, X48).
-
-- **`bridge`, `bridge-messages`:** запрос в MAIN `openChatMessages` `{acc, fan, limit 1…100, cursor?}` — сообщения
-  открытого чата из API ChatSpace, новые первыми. MAIN делает запрос сам, сессией страницы, и отказывает с
-  `identity-mismatch` до запроса, если маршрут сейчас не этот чат. Неудачный запрос — ответ `ok: false` с причиной, а не
-  ошибка моста. Класс тайм-аута `network` (`OPEN_CHAT_LIMITS.bridgeMs`).
-- **`host`:** схемы `OpenChatMessage` (id, направление, время, плоский текст, `price` в USD, `isFree`, `isOpened`,
-  `mediaCount`, `tip`, `automatic`), `OpenChatPage`, `OpenChatAnswer`, список `OPEN_CHAT_FAILURES`
-  (`endpoint`, `session`, `http`, `timeout`, `network`, `invalid`), `OPEN_CHAT_PRICE_MAX`; необязательный метод
-  `HostPort.openChatMessages(chat, {limit, cursor?, maxAgeMs?})` → `OpenChatRead` (никогда не бросает; `not-open`,
-  `unavailable` — причины самого порта).
-- **`limits`:** `OPEN_CHAT_LIMITS` — `pageMax` 100, `requestMs` 10 с, `bridgeMs` 12 с, `cacheMs` 15 с.
 ## 1.26.0 — 2026-10-17 (UX старых клиентов: размер текста, первый запуск, слова; решение X55)
 
-Владелец, 2026-10-17. Всё добавочное; старые фикстуры и сохранённые настройки проходят без изменений. Следует за 1.21.0.
+Владелец, 2026-10-17. Всё добавочное; старые фикстуры и сохранённые настройки проходят без изменений. Следует за 1.22.0.
 
 - **`settings`:** `UI_TEXT_SIZES` (`normal`, `large`), необязательное `ui.textSize` («Размер текста»; без него —
   `normal`, ремонта не нужно; сборка до 1.26.0 его отбрасывает и показывает обычный текст), в `DEFAULT_SETTINGS.ui` —
@@ -65,6 +51,20 @@
 Фикстуры: `test/schemas.test.ts` (настройка и токены), `test/fixtures/vm.ts` (неверные `SetPreference` `ui.textSize`,
 `ShowRecap` и `RefreshRecap` с `panel` не `true`).
 
+## 1.22.0 — 2026-10-17 (своё чтение открытого чата из API OnlyMonster; решение X54)
+
+Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.21.0 (#169, кто отправил, X48).
+
+- **`bridge`, `bridge-messages`:** запрос в MAIN `openChatMessages` `{acc, fan, limit 1…100, cursor?}` — сообщения
+  открытого чата из API ChatSpace, новые первыми. MAIN делает запрос сам, сессией страницы, и отказывает с
+  `identity-mismatch` до запроса, если маршрут сейчас не этот чат. Неудачный запрос — ответ `ok: false` с причиной, а не
+  ошибка моста. Класс тайм-аута `network` (`OPEN_CHAT_LIMITS.bridgeMs`).
+- **`host`:** схемы `OpenChatMessage` (id, направление, время, плоский текст, `price` в USD, `isFree`, `isOpened`,
+  `mediaCount`, `tip`, `automatic`), `OpenChatPage`, `OpenChatAnswer`, список `OPEN_CHAT_FAILURES`
+  (`endpoint`, `session`, `http`, `timeout`, `network`, `invalid`), `OPEN_CHAT_PRICE_MAX`; необязательный метод
+  `HostPort.openChatMessages(chat, {limit, cursor?, maxAgeMs?})` → `OpenChatRead` (никогда не бросает; `not-open`,
+  `unavailable` — причины самого порта).
+- **`limits`:** `OPEN_CHAT_LIMITS` — `pageMax` 100, `requestMs` 10 с, `bridgeMs` 12 с, `cacheMs` 15 с.
 ## 1.21.0 — 2026-10-17 (кто отправил каждое сообщение, решение X48)
 
 Хаб записывает, кто из чаттеров отправил каждое сообщение и PPV на OnlyFans (hub `clientSendAttributions`,
