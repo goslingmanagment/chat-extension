@@ -28,6 +28,39 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
+## 1.30.0 — 2026-10-17 (медиа из vault и PPV из превью; решение X53)
+
+Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.29.0 (#181, X52). Собиралась как 1.24.0 и перенумерована при перебазировании на
+main.
+
+- **`media` (новый модуль):** что читает панель медиа превью — `MediaFolder` (папка vault: id, имя, вид `messages` /
+  `posts` / `custom` / `other`, счётчики), `MediaItem` (id, тип,
+  длительность, `ready`, миниатюра только `https`, время), страницы `MediaFoldersPage` (до 10) и `MediaItemsPage`
+  (до 40), `MediaFanState` (что фан уже получил: `paid`, `unpaid`, `free`, с ценой в центах), список
+  `MEDIA_READ_FAILURES`; запрос моста `MediaRequest` (`folders`, `items`, `states`, `tags`) и ответ `MediaAnswer`;
+  порт `MediaPort` и `MediaRead<T>` (никогда не бросает).
+- **`send-media` (новый модуль):** что часть берёт с собой — `SendMedia` (медиа в порядке выбора: id, тип,
+  длительность, миниатюра, `free`; `priceCents` 0 или 300…20000; отметки соавторов `MediaTags`) с правилами: медиа не
+  повторяются, бесплатные превью только при цене, при цене хотя бы одно медиа за ней. `MEDIA_TYPES`, `MediaThumb`,
+  `isMediaPriceCents`, а также `MediaFolderId` (`all` — «Все медиа», или id папки), который берут действия панели.
+  Отдельно от `media`, чтобы реестр вкладки и чанки досок, проверяющие действия, не платили за схемы чтения панели.
+- **`send`:** `PreviewSendRequest.media?` (`SendMedia`); `SendMarksSchema` (`priced`, `withMedia`) и
+  `SendJournalEntry.marks?`.
+- **`tab-messages`:** `SendBegin.marks?` — фон получает только отметки цены и медиа (кто отправил, X48), сами медиа —
+  нет.
+- **`bridge`, `bridge-messages`:** запрос в MAIN `media` (`MediaRequest` → `MediaAnswer`, класс тайм-аута `network`,
+  `MEDIA_LIMITS.bridgeMs`); `MainSendRequest.media?`.
+- **`host`:** необязательный `HostPort.media?: MediaPort` (у ChatSpace есть, у Fansly нет).
+- **`limits`:** `MEDIA_LIMITS` — страницы 10 и 40, до 40 медиа в сообщении, до 100 id в запросе, цена 300…20000
+  центов, миниатюра до 4096 символов, запрос 10 с, мост 12 с.
+- **`vm`:** `PreviewVM.media: MediaPickerVM | null` (папки, сетка, выбор, цена, сводка, что уйдёт с частью, почему не
+  уйдёт); действия `SetMediaOpen`, `ChooseMediaFolder`, `LoadMoreMedia`, `PickMedia`, `ToggleMediaFree`,
+  `SetMediaPrice`, `ClearMedia`, `RetryMedia`; `SEND_REASON_KEYS['CG-SEND-MEDIA']`.
+- **CG:** `CG-HOST-MEDIA` (vault не прочитан), `CG-HOST-SESSION` (у страницы нет входа для запроса), `CG-SEND-MEDIA`
+  (выбранные медиа ещё не готовы к отправке).
+- **i18n:** ключи `preview.media.*`, `send.buttonMedia`, `send.buttonMediaPaid`, `send.buttonMediaTooltip`,
+  `send.reason.media`; множественные `preview.media.count`, `preview.media.previews`.
+
 ## 1.29.0 — 2026-10-17 (свежий хвост открытого чата для Review и Coach, решение X52)
 
 Хаб принимает `liveTextContext` и на `chat-review`, и на `coach-chat`, если объявляет `live-text-review-coach-v1`;
@@ -76,7 +109,6 @@ Recap его по-прежнему не принимает. Всё добаво�
   вендоренном SDK; клиент её пока не читает, это делает PR той функции.
 
 ## 1.26.0 — 2026-10-17 (UX старых клиентов: размер текста, первый запуск, слова; решение X55)
-## 1.28.0 — 2026-10-17 (медиа из vault и PPV из превью; решение X53)
 
 Владелец, 2026-10-17. Всё добавочное; старые фикстуры и сохранённые настройки проходят без изменений. Следует за 1.22.0.
 
@@ -98,107 +130,6 @@ Recap его по-прежнему не принимает. Всё добаво�
 
 Фикстуры: `test/schemas.test.ts` (настройка и токены), `test/fixtures/vm.ts` (неверные `SetPreference` `ui.textSize`,
 `ShowRecap` и `RefreshRecap` с `panel` не `true`).
-## 1.22.0 — 2026-10-17 (своё чтение открытого чата из API OnlyMonster; решение X54)
-
-## 1.24.0 — 2026-10-17 (медиа из vault и PPV из превью; решение X53)
-
-Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.22.0 (#173, X54); 1.23.0 занят тредом свежего
-хвоста (X52). Влита после 1.26.0 (#179): `CONTRACTS_VERSION` остаётся 1.26.0.
-Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.26.0 (#179, X55); 1.27.0 занят #177. Собиралась как 1.24.0 и
-перенумерована при перебазировании на main.
-Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.27.0 (#177, X54). Собиралась как 1.24.0 и перенумерована при перебазировании на
-main.
-## 1.30.0 — 2026-10-17 (медиа из vault и PPV из превью; решение X53)
-
-Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.28.0 (#182, X43); 1.29.0 занят #181. Собиралась как 1.24.0 и перенумерована при
-перебазировании на main.
-
-- **`media` (новый модуль):** что читает панель медиа превью — `MediaFolder` (папка vault: id, имя, вид `messages` /
-  `posts` / `custom` / `other`, счётчики), `MediaItem` (id, тип,
-  длительность, `ready`, миниатюра только `https`, время), страницы `MediaFoldersPage` (до 10) и `MediaItemsPage`
-  (до 40), `MediaFanState` (что фан уже получил: `paid`, `unpaid`, `free`, с ценой в центах), список
-  `MEDIA_READ_FAILURES`; запрос моста `MediaRequest` (`folders`, `items`, `states`, `tags`) и ответ `MediaAnswer`;
-  порт `MediaPort` и `MediaRead<T>` (никогда не бросает).
-- **`send-media` (новый модуль):** что часть берёт с собой — `SendMedia` (медиа в порядке выбора: id, тип,
-  длительность, миниатюра, `free`; `priceCents` 0 или 300…20000; отметки соавторов `MediaTags`) с правилами: медиа не
-  повторяются, бесплатные превью только при цене, при цене хотя бы одно медиа за ней. `MEDIA_TYPES`, `MediaThumb`,
-  `isMediaPriceCents`, а также `MediaFolderId` (`all` — «Все медиа», или id папки), который берут действия панели.
-  Отдельно от `media`, чтобы реестр вкладки и чанки досок, проверяющие действия, не платили за схемы чтения панели.
-- **`send`:** `PreviewSendRequest.media?` (`SendMedia`); `SendMarksSchema` (`priced`, `withMedia`) и
-  `SendJournalEntry.marks?`.
-- **`tab-messages`:** `SendBegin.marks?` — фон получает только отметки цены и медиа (кто отправил, X48), сами медиа —
-  нет.
-- **`bridge`, `bridge-messages`:** запрос в MAIN `media` (`MediaRequest` → `MediaAnswer`, класс тайм-аута `network`,
-  `MEDIA_LIMITS.bridgeMs`); `MainSendRequest.media?`.
-- **`host`:** необязательный `HostPort.media?: MediaPort` (у ChatSpace есть, у Fansly нет).
-- **`limits`:** `MEDIA_LIMITS` — страницы 10 и 40, до 40 медиа в сообщении, до 100 id в запросе, цена 300…20000
-  центов, миниатюра до 4096 символов, запрос 10 с, мост 12 с.
-- **`vm`:** `PreviewVM.media: MediaPickerVM | null` (папки, сетка, выбор, цена, сводка, что уйдёт с частью, почему не
-  уйдёт); действия `SetMediaOpen`, `ChooseMediaFolder`, `LoadMoreMedia`, `PickMedia`, `ToggleMediaFree`,
-  `SetMediaPrice`, `ClearMedia`, `RetryMedia`; `SEND_REASON_KEYS['CG-SEND-MEDIA']`.
-- **CG:** `CG-HOST-MEDIA` (vault не прочитан), `CG-HOST-SESSION` (у страницы нет входа для запроса), `CG-SEND-MEDIA`
-  (выбранные медиа ещё не готовы к отправке).
-- **i18n:** ключи `preview.media.*`, `send.buttonMedia`, `send.buttonMediaPaid`, `send.buttonMediaTooltip`,
-  `send.reason.media`; множественные `preview.media.count`, `preview.media.previews`.
-
-## 1.28.0 — 2026-10-17 (значения анкеты в «✨ Дополнить из чата»; решение владельца X43, п. 6)
-
-Владелец, 2026-10-17: «4 да» — исключение 4 матрицы паритета снято, анкета уходит в хаб, как у старого 2.11.0 (E164).
-Всё добавочное; старые фикстуры проходят, кроме тех, что проверяли запрет непустых значений. Следует за 1.27.0.
-
-- **`hub/ai.ts`:** `NoteValuesSchema` принимает значения анкеты, а не только `''`: каждое — одна строка (без `\r`, `\n`,
-  U+2028, U+2029), обрезанное, не длиннее 2000 (`NOTE_FILL_LIMITS.valueMaxChars`) — то, что читает `aiNoteValueSchema`
-  вендоренного SDK; 1–30 значений, по одному на метку, как и раньше.
-- **`ops-fansly`, `ops`:** у старта `notes-fill` — необязательное `values` (`NoteValuesSchema`, по одному на `fields`);
-  без него тело несёт по пустому значению на метку, как в 1.16.0.
-- **`notes-fansly`:** `NotesFillVM.unplaced?` — поля, названные хабом, которым не нашлось места (ни своей строки до
-  30 полей, ни «Другое»); ключ текста `NotesCopy.fillUnplaced` («Не хватило места в анкете:»).
-
-Без изменения контрактов в том же решении: тексты `fillHint` и `fillOffers` («Правки под полями»), слияние ответа
-(`core/application/hosts/fansly/notes/fill.ts`), поддельный хаб (`=` для неизменного, переписывает заполненные).
-
-Фикстуры: `test/fixtures/hub.ts` (`NoteValues`, тело `fan-notes-fill` со значениями и неверные — перенос строки,
-пробел по краю, 2001 символ), `test/fixtures/ops-fansly.ts` (старт с `values` и неверные — не по одному на метку,
-перенос, пробел, 2001; запрос хаба со значениями).
-
-## 1.27.0 — 2026-10-17 (статус покупки PPV открытого чата в генерации; решение X54)
-
-Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.26.0 (X55): сначала этот PR нёс номер 1.27.0, его
-обогнал слитый раньше 1.26.0.
-
-- **`ops`:** `LivePpvStateSchema` — `capturedAt` и 1–100 платных сообщений модели `{platformMessageId, priceUsd,
-  purchased}`, каждое id один раз, без текста. `StartOp.livePpv` — только у черновика в доке (Reply, Fix, Hi, Ping), как
-  `fresh`. `AiProofAsk.livePpv` — старт может нести статус (свежий текст допущен и хаб объявил `live-ppv-v1`);
-  `AiStartFields.livePpv` — поле сайта.
-- **`hub`:** `AiFeatureStreamBody.livePpvContext` (тот же вид), только у `fast-reply`, `improve-draft`, `hi-greeting`,
-  `ping` и только на OnlyFans; возможность хаба `live-ppv-v1`.
-- **`limits`:** `LIVE_PPV_LIMITS` — `readMessages` 50, `waitMs` 1200, `maxItems` 100.
-- **`hub`:** возможность `live-text-review-coach-v1` (хаб #659: Review и Coach берут свежий текст) — только названа, как в
-  вендоренном SDK; клиент её пока не читает, это делает PR той функции.
-
-## 1.26.0 — 2026-10-17 (UX старых клиентов: размер текста, первый запуск, слова; решение X55)
-
-Владелец, 2026-10-17. Всё добавочное; старые фикстуры и сохранённые настройки проходят без изменений. Следует за 1.22.0.
-
-- **`settings`:** `UI_TEXT_SIZES` (`normal`, `large`), необязательное `ui.textSize` («Размер текста»; без него —
-  `normal`, ремонта не нужно; сборка до 1.26.0 его отбрасывает и показывает обычный текст), в `DEFAULT_SETTINGS.ui` —
-  `normal`.
-- **`vm`:** ключ `SetPreference` `ui.textSize` (одно из двух значений); `MountDeps.textSize?` — сигнал размера, который
-  монтирование кладёт атрибутом `TEXT_SIZE_ATTRIBUTE` (`data-text-size`) на корень каждой поверхности (`.cg-root`)
-  внутри закрытого shadow root — на хосте, который видит страница, его нет (X22); токены темы
-  `--cg-text-ai`, `--cg-leading-ai` (текст AI с засечками и его строка) и `--cg-text-kbd` (кепка клавиши на чипе);
-  `AppearanceBodyVM.textSize?`; `OptionsVM.checklist.steps[].more?: true` — шаг тимлида, свёрнутый под «Ещё»;
-  `ShowRecap.panel?: true`, `RefreshRecap.panel?: true` — Recap попросила вкладка Recap панели фана: полный Recap
-  показывает сама панель, окно «Развернуть ↗» над ней не открывается (из дока полный Recap открывается в окне).
-- **Ключи i18n:** `settings.appearance.textSize`, `.textSizeHint`, `.textSizeLarge`, `.textSizeNote`,
-  `settings.onboarding.more`, `stats.none` («трат нет» — известный ноль периода в статистике).
-
-Без изменения контрактов в том же решении: клавиша «Новых» (⌘⇧U / Ctrl+Alt+U — строка `ui/core` вне вендоренной
-схемы, каталожное действие `newcomers` было и раньше), окно «Развернуть ↗» для Review и полного Recap, тексты.
-
-Фикстуры: `test/schemas.test.ts` (настройка и токены), `test/fixtures/vm.ts` (неверные `SetPreference` `ui.textSize`,
-`ShowRecap` и `RefreshRecap` с `panel` не `true`).
-
 ## 1.22.0 — 2026-10-17 (своё чтение открытого чата из API OnlyMonster; решение X54)
 
 Всё добавочное; старые фикстуры проходят без изменений. Следует за 1.21.0 (#169, кто отправил, X48).
