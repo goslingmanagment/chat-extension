@@ -1,70 +1,67 @@
 // Fansly's palette for our interface (docs/project-unite/architecture.md §1.5, §7.8, §7.17; R20 P8d; FS-PLC-7,
-// FS-DOCK-1): the page's own colour variables, in the theme its page shows, translated into the kit's
-// `--color-om-*` triplets — the palette of Fansly's profile, which the mount puts on every host of ours as one
-// shared `:host` sheet. Only the application draws with it, so it is the application half's (§1.5): Fansly's
-// `tab-app` chunk and the galleries import this module, the early bundle never does (its theme reader,
-// ./theme.ts, says the scheme). Read when a surface mounts and anew whenever the theme reader says the page's theme
-// moved (a switch, or Fansly's theme class arriving), never on a timer.
+// FS-DOCK-1; decision X57): the kit's `--color-om-*` triplets of Fansly's profile, which the mount puts on every host
+// of ours as one shared `:host` sheet. Only the application draws with it, so it is the application half's (§1.5):
+// Fansly's `tab-app` chunk and the galleries import this module, the early bundle never does (its theme reader,
+// ./theme.ts, says the scheme).
 //
-// The correspondence table: docs/ui-design.md §2.1 «Fansly». ChatSpace's scale keeps one triplet per step in both
-// themes, the dark scheme taking other steps; Fansly instead redefines its variables per theme (`:root` is dark,
-// `html.bright-theme` light), and only the variables of the theme on screen can be read. So each theme has its own
-// row for a step: the variable of the role the kit gives that step in that scheme (the raised card is Fansly's
-// `--modal-bg`, the ink its `--font-1`, the muted ink its `--dark-blue-1` or `--font-tint-3`…), or, for a step that
-// scheme never reads, a value for the scheme forced against the page's (`ui.theme`): Fansly's value of the other
-// theme, or a tone that keeps the kit's contrast where that one would not (testing kit/fansly-profile.test.tsx holds
-// all four: either page, either scheme). A variable the page does not have (a new build of Fansly) stands in with its
-// value on fansly.com of 2026-10-12; a translucent one is laid over the theme's card (`--modal-bg`). Blue is
-// Fansly's `--blue-1`, and only for what reaches the fan (send, the sent bubble); green and red are not translated:
-// Fansly's are bright tones for badges (its light green #27d644 is 1.95 : 1 on white), so money and the error dot
-// keep the kit's own.
+// The greys are the family's own (X57): the warm paper of the old Fansly extension — its card #faf9f5, chip #f2f0e9,
+// groove #e8e5da, lines #e2dfd3 / #cfcaba, ink #1f1e1d and its dark twins — one ramp for both schemes, the same on
+// either theme of the page, as ChatSpace's own ramp is (ui-design §2.1 «Fansly»). Fansly's cool blue-greys under our
+// terracotta and warm drafts read as two designs at once; the owner chose the old panel's paper. Only the blue is the
+// page's: `--blue-1` in the theme it shows, and only for what reaches the fan (send, the sent bubble). Green and red
+// are not translated: Fansly's are bright tones for badges (its light green #27d644 is 1.95 : 1 on white), so money
+// and the error dot keep the kit's own. Read when a surface mounts and anew whenever the theme reader says the page's
+// theme moved, never on a timer.
 
 import type { HostTheme } from '@cg/contracts/host';
 import type { HostPalette, ValueSignal } from '@cg/contracts/vm';
 
 type Scheme = HostTheme['scheme'];
 
-/** Where a step comes from in one of Fansly's themes: the page's variable (null — not in this theme) and its value on fansly.com (2026-10-12). */
+/** Where a blue comes from in one of Fansly's themes: the page's variable (null — not in this theme) and its value on fansly.com (2026-10-12). */
 type Source = readonly [variable: string | null, value: string];
 
 /**
- * The kit's steps (ui/kit tokens.ts reads exactly these) by Fansly's theme. The roles a step plays — light / dark —
- * are the kit's (ui-design §2.2); the variables are fansly.com's `styles.css` (S2 Q9), effective values.
+ * The family's warm greys as the kit's steps (ui/kit tokens.ts reads exactly these). One triplet per step, as
+ * ChatSpace's ramp: a step plays one role in the light scheme and another in the dark one (light / dark below).
  */
-export const FANSLY_SCALE: Readonly<Record<string, { readonly light: Source; readonly dark: Source }>> = {
+export const FAMILY_NEUTRALS: Readonly<Record<string, string>> = {
   // surface, raised card / —
-  'neutral-0': { light: ['--modal-bg', '#ffffff'], dark: [null, '#ffffff'] },
+  'neutral-0': '250 249 245',
   // chip, sunk / —
-  'neutral-50': { light: ['--dark-2', '#f5f5f5'], dark: [null, '#f5f5f5'] },
+  'neutral-50': '242 240 233',
   // hover, the segment's pick / —
-  'neutral-75': { light: ['--dark-3', '#f0f2f4'], dark: [null, '#f0f2f4'] },
+  'neutral-75': '238 235 227',
   // rule, press, the groove / —
-  'neutral-100': { light: ['--v2-btn-grey-hover', '#e1e7e9'], dark: [null, '#e1e7e9'] },
+  'neutral-100': '232 229 218',
   // the card's and the chip's outline / ink
-  'neutral-200': { light: ['--v2-btn-grey-active', '#d5dcdf'], dark: ['--font-1', '#d6dce8'] },
+  'neutral-200': '226 223 211',
   // seams, key caps / secondary ink
-  'neutral-300': { light: ['--seperator', '#b0b0b098'], dark: ['--font-tint-2', '#bbc1cb'] },
+  'neutral-300': '207 202 186',
   // faint ink / muted ink
-  'neutral-400': { light: ['--font-tint-6', 'rgb(157, 162, 173)'], dark: ['--font-tint-3', '#9da2ad'] },
-  // muted ink / — (a light scheme forced on the dark page reads it on a draft card: the light theme's, 4.5 : 1 there)
-  'neutral-500': { light: ['--dark-blue-1', 'rgba(86, 102, 120, 1)'], dark: [null, '#566678'] },
+  'neutral-400': '163 158 147',
+  // muted ink / — (4.5 : 1 on a draft card)
+  'neutral-500': '107 103 94',
   // strong bars / faint ink
-  'neutral-600': { light: ['--font-tint-3', 'rgb(85, 90, 100)'], dark: ['--dark-blue-1', '#637395'] },
+  'neutral-600': '93 90 82',
   // secondary ink / seams, key caps
-  'neutral-700': { light: ['--font-tint-7', 'rgba(20, 30, 40, 0.801)'], dark: ['--dark-blue-1-outline', '#343d53'] },
+  'neutral-700': '77 73 64',
   // — / the card's and the chip's outline
-  'neutral-750': { light: [null, '#323844'], dark: ['--seperator', '#323844'] },
+  'neutral-750': '58 55 47',
   // — / press, the floating card's outline
-  'neutral-800': { light: [null, '#2a3142'], dark: ['--dropdown-bg-color-hover', '#2a3142'] },
-  // — / chip, hover, rule (a dark scheme forced on the light page has the light ink for its card: a tone off it, not
-  // the dark theme's #1a1e26, which would be the card's own)
-  'neutral-850': { light: [null, '#1f2835'], dark: ['--dark-3', '#1a1e26'] },
+  'neutral-800': '51 48 42',
+  // — / chip, hover, rule
+  'neutral-850': '46 43 38',
   // ink / raised card, sunk
-  'neutral-900': { light: ['--font-1', 'rgb(20, 30, 40)'], dark: ['--modal-bg', '#16161a'] },
+  'neutral-900': '38 36 32',
   // strong ink / surface, the groove
-  'neutral-950': { light: ['--font-tint-1', '#000'], dark: ['--dark-1', '#111215'] },
+  'neutral-950': '27 26 23',
   // — / strong ink
-  white: { light: ['--pure-white', '#fff'], dark: ['--pure-white', '#fff'] },
+  white: '250 249 245',
+};
+
+/** Fansly's blue by its theme: `--blue-1` and its hover, and the translucent tint of a sent message laid over our card. */
+export const FANSLY_BLUE: Readonly<Record<string, { readonly light: Source; readonly dark: Source }>> = {
   // «Отправить» (FS-DOCK-1)
   'brand-500': { light: ['--blue-1', '#2699f7'], dark: ['--blue-1', '#2699f7'] },
   // its hover
@@ -75,8 +72,8 @@ export const FANSLY_SCALE: Readonly<Record<string, { readonly light: Source; rea
   'brand-800': { light: [null, '#192b3d'], dark: ['--v2-blue-1-alpha-2', 'rgba(38, 153, 247, 0.16)'] },
 };
 
-/** What a translucent colour is laid over: the theme's card. */
-const BASE: Readonly<Record<Scheme, Source>> = { light: ['--modal-bg', '#ffffff'], dark: ['--modal-bg', '#16161a'] };
+/** What a translucent blue is laid over: our card in that scheme. */
+const CARD: Readonly<Record<Scheme, string>> = { light: FAMILY_NEUTRALS['neutral-0'] ?? '', dark: FAMILY_NEUTRALS['neutral-900'] ?? '' };
 
 type Rgba = readonly [number, number, number, number];
 
@@ -107,13 +104,14 @@ function colourOf([variable, value]: Source, read: (name: string) => string): Rg
 }
 
 /**
- * Fansly's palette in the theme its page shows, as the kit's triplets: `{'--color-om-neutral-0': '255 255 255', …}`.
- * `read` gives a variable of the page's <html> as computed ('' — none).
+ * Fansly's palette in the theme its page shows, as the kit's triplets: `{'--color-om-neutral-0': '250 249 245', …}` —
+ * the family's greys and the page's blue. `read` gives a variable of the page's <html> as computed ('' — none).
  */
 export function fanslyPalette(scheme: Scheme, read: (name: string) => string): HostPalette {
-  const [br, bg, bb] = colourOf(BASE[scheme], read);
+  const [br = 0, bg = 0, bb = 0] = CARD[scheme].split(' ').map(Number);
   const palette: Record<`--color-om-${string}`, string> = {};
-  for (const [step, sources] of Object.entries(FANSLY_SCALE)) {
+  for (const [step, triplet] of Object.entries(FAMILY_NEUTRALS)) palette[`--color-om-${step}`] = triplet;
+  for (const [step, sources] of Object.entries(FANSLY_BLUE)) {
     const [r, g, b, a] = colourOf(sources[scheme], read);
     const over = (channel: number, base: number): number => Math.round(channel * a + base * (1 - a));
     palette[`--color-om-${step}`] = `${over(r, br)} ${over(g, bg)} ${over(b, bb)}`;

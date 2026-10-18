@@ -41,6 +41,7 @@ export function outsideSchemeHotkey(id: CatalogActionId, platform: HotkeyPlatfor
     'insert-part': key('↵', 'Enter'),
     'copy-part': mod('C'),
     'open-and-insert': mod('↵', 'Enter'),
+    'apply-fix': mod('↵', 'Enter'),
     'chat-next': key('J', 'J'),
     'chat-previous': key('K', 'K'),
     'fan-panel': key(']', ']'),
@@ -86,6 +87,7 @@ const ROW_LABELS: Record<CatalogActionId, I18nKey> = {
   'quick-jump': 'quickJump.title',
   search: 'cheatsheet.row.search',
   notes: 'cheatsheet.row.notes',
+  'apply-fix': 'cheatsheet.row.applyFix',
 };
 
 /** The key a page prints for an action: the catalog's when there is one, else the scheme's. */

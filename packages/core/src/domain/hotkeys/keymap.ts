@@ -50,13 +50,15 @@ export const DISPATCHER_COMMAND_IDS = [
   'quick-jump',
   // R20 P11b: «Заметки» on Fansly — the `fansly` client's row; a client that does not serve it keeps the letter reserved.
   'notes',
+  // Decision X58: ⌘↵ / Ctrl+Enter — the Fix on screen into the message field; the site's own key whenever no Fix waits.
+  'apply-fix',
 ] as const;
 export type DispatcherCommandId = (typeof DISPATCHER_COMMAND_IDS)[number];
 
 /** A key outside the vendored scheme. `primary` is ⌘ on macOS and Ctrl elsewhere. */
 export interface ExtraKeyDef {
   readonly command: Exclude<DispatcherCommandId, HotkeyAction>;
-  /** Physical keys; several for the nine chat slots. */
+  /** Physical keys: the nine chat slots (each its own slot), or the twins of one key (Enter and the keypad's). */
   readonly codes: readonly string[];
   /** `panel` — the scheme's panel level: ⌘⇧ on macOS, Ctrl+Alt elsewhere (decision X55). */
   readonly mods: 'primary' | 'panel' | 'alt' | 'none' | 'shift';
@@ -91,6 +93,9 @@ export const EXTRA_KEYS: readonly ExtraKeyDef[] = [
   { command: 'fan-panel', codes: ['BracketRight'], mods: 'none', fallback: false, keycap: ']', ariaKey: ']' },
   { command: 'cheatsheet', codes: ['Slash'], mods: 'shift', fallback: false, keycap: '?', ariaKey: '?' },
   { command: 'close', codes: ['Escape'], mods: 'none', fallback: false, keycap: 'Esc', ariaKey: 'Escape' },
+  // Decision X58: the sites' own key (ChatSpace sends or breaks the line on it, Fansly sends) — ours only while a Fix
+  // waits in the open chat; the policy decides that by the dock's state (KeyContext.fix), never by the key alone.
+  { command: 'apply-fix', codes: ['Enter', 'NumpadEnter'], mods: 'primary', fallback: false, keycap: '↵', ariaKey: 'Enter' },
 ];
 
 /**
@@ -114,7 +119,8 @@ export const CHATSPACE_KEYS: readonly {
   { what: 'TipTap bold', code: 'KeyB', mods: ['mod'], status: 'theirs' },
   { what: 'send', code: 'Enter', mods: [], status: 'theirs' },
   { what: 'hard break', code: 'Enter', mods: ['shift'], status: 'theirs' },
-  { what: 'hard break', code: 'Enter', mods: ['mod'], status: 'theirs' },
+  // X58: ⌘↵ / Ctrl+Enter is ours only while a Fix waits in the open chat (KeyContext.fix): it never sends that draft.
+  { what: 'send or hard break', code: 'Enter', mods: ['mod'], status: 'shared' },
   { what: 'translator on / off', code: 'KeyS', mods: ['alt'], status: 'theirs' },
   { what: 'translator, second key', code: 'KeyA', mods: ['alt'], status: 'theirs' },
   { what: 'next chat tab', code: 'Tab', mods: ['ctrl'], status: 'theirs' },
@@ -154,7 +160,7 @@ export function matchExtraKey(event: HotkeyKeyEvent, platform: HotkeyPlatform): 
           : def.mods === 'shift'
             ? event.shiftKey && !primary && !event.altKey
             : !primary && !event.altKey && !event.shiftKey;
-    if (fits) return { def, slot: def.codes.length > 1 ? at + 1 : null };
+    if (fits) return { def, slot: def.command === 'quick-jump' ? at + 1 : null };
   }
   // «?» typed where the layout has it (Shift+7 on ЙЦУКЕН): the same key to a person.
   if (event.key === '?' && !primary && !event.altKey) {

@@ -236,7 +236,7 @@ const fixResult = (ctx: ScenarioCtx, patch: Partial<NonNullable<ResultVM['fix']>
     feature: 'fix',
     state: 'done',
     parts: parts(OP.fix, [FIX.result]),
-    meta: [meta.byDraft()],
+    meta: [],
     draftNotSent,
     fix: { sourceDraft: FIX.draft, canReplace: true, replaceReason: null, replaced: false, restoreUntil: null, restoreExpired: false, ...patch },
   });
@@ -328,7 +328,7 @@ export const GALLERY_STATES: readonly GalleryState[] = [
   state('3d', 'results', 'Одним сообщением (Split выключен)', (ctx) =>
     one(
       ctx,
-      replyDock(ctx, reply(ctx, { parts: parts(OP.reply, [SINGLE]), meta: [meta.tone('flirty'), meta.single()], splitRequested: false }), { options: withSplit(ctx, false) }),
+      replyDock(ctx, reply(ctx, { parts: parts(OP.reply, [SINGLE]), meta: [meta.tone('flirty')], splitRequested: false }), { options: withSplit(ctx, false) }),
     ),
   ),
   state('3e', 'results', 'Вставка идёт; скопировано', (ctx) => one(ctx, replyDock(ctx, reply(ctx, {}, (i) => (i === 0 ? { insert: 'pending' } : i === 1 ? { copy: 'done' } : {}))))),
@@ -504,7 +504,7 @@ export const GALLERY_STATES: readonly GalleryState[] = [
     ),
   ),
   state('x-language', 'extras', 'Блок кириллицы: «Вставить» недоступна (CG-GATE-LANGUAGE)', (ctx) =>
-    one(ctx, replyDock(ctx, reply(ctx, { parts: parts(OP.reply, ['Привет, как прошли выходные?'], () => ({ insertBlocked: reason('language') })), meta: [meta.single()], splitRequested: false }))),
+    one(ctx, replyDock(ctx, reply(ctx, { parts: parts(OP.reply, ['Привет, как прошли выходные?'], () => ({ insertBlocked: reason('language') })), meta: [], splitRequested: false }))),
   ),
   state('x-fix-no-draft', 'extras', 'Fix без черновика (CG-GATE-DRAFT)', (ctx) => one(ctx, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { gates: { fix: reason('needs-draft') } } }))),
   state('x-fix-expired', 'extras', 'Fix: вернуть текст уже нельзя', (ctx) =>

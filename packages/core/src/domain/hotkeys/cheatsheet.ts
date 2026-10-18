@@ -48,6 +48,8 @@ export const ROW_FEATURE: Readonly<Partial<Record<CatalogActionId, string>>> = {
   'next-unread': 'navigation',
   'quick-jump': 'navigation',
   send: 'preview-send',
+  // X58: ⌘↵ puts a Fix into the field — a row of Fix's.
+  'apply-fix': 'fix',
 };
 const FEATURE_ROWS: readonly CatalogActionId[] = [...DOCK_ACTION_IDS, 'spenders', 'newcomers', 'palette', 'fan-panel', 'notes'];
 
@@ -80,7 +82,7 @@ export function cheatsheetGroups(catalog: ActionCatalog, features?: FeatureSlice
     {
       id: 'result',
       title: msg('cheatsheet.group.result'),
-      rows: [...rows('cancel', 'part-step', 'insert-part', 'copy-part'), { label: msg('cheatsheet.row.collapse'), hotkey: ESC, note: null }],
+      rows: [...rows('cancel', 'part-step', 'insert-part', 'apply-fix', 'copy-part'), { label: msg('cheatsheet.row.collapse'), hotkey: ESC, note: null }],
     },
     {
       id: 'navigation',

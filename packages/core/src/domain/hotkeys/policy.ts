@@ -36,6 +36,13 @@ export type FocusKind = (typeof FOCUS_KINDS)[number];
 
 export type RouteKind = 'chat' | 'account' | 'other';
 
+/**
+ * A Fix in the open chat as ⌘↵ / Ctrl+Enter sees it (decision X58): `running` — it is being written (the key keeps the
+ * draft from the site, which would send it); `ready` — its answer is on screen and not in the field yet (the key puts
+ * it there); null — no Fix waits, the key is the site's.
+ */
+export type FixKeyState = 'running' | 'ready' | null;
+
 export interface KeyContext {
   /** IME composition (or keyCode 229): never ours. */
   readonly composing: boolean;
@@ -60,6 +67,8 @@ export interface KeyContext {
    * fan's chat (on OnlyFans that marks it read) or the fan panel. Absent — not inside the dock.
    */
   readonly inDock?: boolean;
+  /** A Fix waits in the open chat (X58): ⌘↵ / Ctrl+Enter is ours only then. Absent — none. */
+  readonly fix?: FixKeyState;
 }
 
 /** An overlay of ours as the policy sees it: the contract's surfaces plus our own confirmation dialog and the expanded result. */
@@ -74,7 +83,9 @@ export type KeyRefusal =
   /** HK-025: the chat's first state did not come while the key was still fresh. */
   | 'chat-loading'
   /** ⌘⇧H: Help is removed (Б3). */
-  | 'help-removed';
+  | 'help-removed'
+  /** ⌘↵ while the Fix is still being written (X58): the draft is kept from the site, nothing is put in the field. */
+  | 'fix-running';
 
 export type KeyDecision =
   | { readonly act: 'pass' }
@@ -172,6 +183,16 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
     if (windowOpen) return decideUnmatched(context);
     if (id === 'fan-panel') return inChat ? run('dock') : PASS;
     return context.route === 'other' ? PASS : run('global');
+  }
+
+  // ── ⌘↵ / Ctrl+Enter (X58): the site's key — send, a line break — unless a Fix waits in the open chat ──
+  if (id === 'apply-fix') {
+    const fix = context.fix ?? null;
+    // No Fix, another field of the site, a window of ours on top: the key is somebody else's (our own field gets it).
+    if (!inChat || fix === null || context.focus === 'field' || context.focus === 'ours-field' || windowOpen) return decideUnmatched(context);
+    // Being written: the draft under it must not go to the fan by this very key.
+    if (fix === 'running') return refuse('fix-running');
+    return run('dock');
   }
 
   // ── chat navigation on ⌘/Ctrl/Alt: it runs outside the composer and any field only (the table's «вне composer») ──
