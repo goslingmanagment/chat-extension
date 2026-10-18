@@ -47,6 +47,13 @@
 // BATCH_LIMITS.grantTtlMs, kept apart from the grants of single actions (which are asked first), and replaced by
 // the next batch click. It can never insert, send or navigate.
 //
+// X57: «Отправить готовые» of «Новые» (contracts 1.33.0) is the other click that buys more than one token: the person
+// read the batch's results and sends them all. Its grant is a SEND grant of its own: send tokens only, for the
+// «Новые» window only, at most BATCH_LIMITS.sendTokens of them, for BATCH_LIMITS.sendGrantTtlMs. It is opened only by
+// a click through one of our roots (a key never sends), each token is checked against that click's root again, the
+// next such click replaces it and «Остановить» (`StopNewcomerGreetings`) drops what is left. Each send it pays for is
+// still the card's own, with all of its checks.
+//
 // One human action happens outside this document: a click on our own popup
 // or options page that acts in ChatSpace (`tab.command`, §9.9). The
 // background brings this tab to the front and hands the command over its
@@ -224,6 +231,9 @@ interface BatchGrant {
 
 /** The action whose one click is a batch of generations. */
 export const BATCH_ACTION: UiAction['type'] = 'GenerateBatch';
+/** X57: the action whose one click sends a batch's results, and the one that stops it. */
+export const BATCH_SEND_ACTION: UiAction['type'] = 'SendNewcomerGreetings';
+export const BATCH_SEND_STOP: UiAction['type'] = 'StopNewcomerGreetings';
 
 export function createGestureGate(win: Window, env: GateEnv, now: () => number = () => Date.now()): GestureGate {
   let current: Event | null = null;
@@ -232,6 +242,8 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
   const given = new WeakMap<Event, Set<ActionKind>>();
   let grants: Grant[] = [];
   let batch: BatchGrant | null = null;
+  /** X57: the send grant of «Отправить готовые». */
+  let batchSend: BatchGrant | null = null;
   // A synthetic event never replaces the human one in flight (a page script may dispatch its own inside it).
   const note = (event: Event): void => {
     if (event.isTrusted) current = event;
@@ -261,6 +273,18 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         const gesture = inFlight();
         if (typeof gesture === 'string') return gesture;
         batch = { gesture, left: BATCH_LIMITS.grantTokens, at: now() };
+        return null;
+      }
+      if (action === BATCH_SEND_ACTION) {
+        const gesture = inFlight();
+        if (typeof gesture === 'string') return gesture;
+        // A send is a click through our window, never a key: said here, and checked again at every token.
+        if (!gesture.click || gesture.via === null) return 'outside';
+        batchSend = { gesture, left: BATCH_LIMITS.sendTokens, at: now() };
+        return null;
+      }
+      if (action === BATCH_SEND_STOP) {
+        batchSend = null;
         return null;
       }
       const kinds = GRANTED_KINDS[action];
@@ -299,6 +323,17 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         batch.left -= 1;
         return null;
       }
+      // X57: the next fan of «Отправить готовые»: counted, through the window the click was made in.
+      if (kind === 'send' && surface === 'newcomers' && batchSend !== null) {
+        if (now() - batchSend.at > BATCH_LIMITS.sendGrantTtlMs || batchSend.left <= 0) {
+          batchSend = null;
+          return 'expired';
+        }
+        const refused = kindRefusal(batchSend.gesture, kind, surface, env);
+        if (refused !== null) return refused;
+        batchSend.left -= 1;
+        return null;
+      }
       return refusal;
     },
     note,
@@ -324,6 +359,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       resumed = null;
       grants = [];
       batch = null;
+      batchSend = null;
     },
   };
 }

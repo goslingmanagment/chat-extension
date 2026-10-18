@@ -10,7 +10,7 @@
 //   gallery alone, in their own words.
 // - The person switches Fansly's theme: the palette follows at once, nothing remounts.
 // - The boards and the kit in both themes.
-// - «Новые» of the background's pass, Fansly's own window (R20 P10a, P10b1, P10b2, P10c), in both themes: states 13f–13n.
+// - «Новые» of the background's pass, Fansly's own window (R20 P10a, P10b1, P10b2, P10c; X57), in both themes: states 13f–13p.
 // Pictures in .cache/e2e/ (dock-fansly-*, dock-fansly-mark-*, overlay-fansly-*, boards-fansly-*, kit-fansly-*),
 // compared by eye with ui-design.md. ChatSpace's own galleries are the other specs, untouched by this profile.
 
@@ -215,7 +215,7 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
     });
 
     it(`[NF-002] [NF-007] [NF-008] [NF-038] [FX-017] [host:fansly] «Новые» of the pass in Fansly’s ${theme} theme (R20 P10a, P10b1): the queue with its card and «Пауза», «Уже писали», the list not read, the cooldown, the first page on its way, the standing queue with «Проверить оставшихся» and «Проверить чат»`, async () => {
-      for (const state of ['13f', '13g', '13h', '13i', '13j', '13k', '13l', '13m', '13n'] as const) {
+      for (const state of ['13f', '13g', '13h', '13i', '13j', '13k', '13l', '13m', '13n', '13o', '13p'] as const) {
         await openPage(BOARDS_GALLERY_PATH, `host=fansly&state=${state}&theme=${theme}&lang=ru`, 'data-boards-ready');
         const context = await browser.getWindowHandle();
         save(`boards-fansly-${state}-${theme}-ru-1440x900`, (await browser.browsingContextCaptureScreenshot({ context, origin: 'viewport' })).data);
@@ -229,11 +229,12 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
             squeezed: [...boards.squeezed()],
             scheme: boards.scheme(),
             dispatched: [...boards.dispatched()],
-            // Nothing of ours is blue (nothing here reaches the fan) and no remote picture is loaded.
+            // X57: the fans' pictures — the gallery's own drawings in 13o and 13p (the batch), none elsewhere.
             images: boards.count('img'),
           };
         });
-        expect({ state, ...probe }).toEqual({ state, failures: [], window: 1, overflow: [], squeezed: [], scheme: theme, dispatched: [], images: 0 });
+        const pictured = state === '13o' || state === '13p';
+        expect({ state, ...probe, images: probe.images > 0 }).toEqual({ state, failures: [], window: 1, overflow: [], squeezed: [], scheme: theme, dispatched: [], images: pictured });
       }
     });
 

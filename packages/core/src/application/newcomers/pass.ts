@@ -17,12 +17,19 @@
 //
 // R20 P10c (FS-NEW-3, FS-NEW-6, FS-NEW-7): the card's greeting — the draft, «Сгенерировать», «Отправить», «Открыть и
 // вставить» — is ./greeting.ts over the source's greeting port; this controller hands it the card and its actions.
+// X57 (the owner, 2026-10-18): the period opens on the one the person chose last (the site remembers it, 12 hours
+// before any choice); «Отправить готовые» sends the batch's results the person read in the list — by one click, one
+// fan at a time, each through its card's own «Отправить» with all of its checks, a pause between two; a send that may
+// have gone, or fails for a reason beyond its fan, stops the rest (never repeated); one whose draft cannot go as it is
+// (the fan wrote, the text went stale) is passed over and stays on its card.
 // It names no site; the hub's list (ChatSpace) is ./controller.ts.
 
 import { isCgCode, type CgCode, type CgErrorView } from '@cg/contracts/errors';
 import {
+  BATCH_LIMITS,
   NEWCOMER_CHECK_FILTERS,
   type ActionReceipt,
+  type GreetingStatusVM,
   type I18n,
   type NewcomerCardVM,
   type NewcomerCheckFilter,
@@ -32,6 +39,7 @@ import {
   type NewcomersFailureVM,
   type NewcomersPassStage,
   type NewcomersPassVM,
+  type NewcomersBatchSendVM,
   type NewcomersTab,
   type NewcomersVM,
   type PartialGap,
@@ -55,6 +63,10 @@ import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQu
 export const PASS_SEARCH_DEBOUNCE_MS = 150;
 /** Conversations kept in the tab at once (up to 750 messages each): the fans looked at last; an older one is read again. */
 export const PASS_HISTORIES_KEPT = 12;
+/** X57: «Отправить готовые» waits this long between two fans: a person's pace, and room for «Остановить». */
+export const PASS_SEND_GAP_MS = 3_000;
+/** X57: refusals about one fan's draft only (the fan wrote, the text went stale or changed, it went already): the run passes over that fan. */
+const SEND_SKIPS: ReadonlySet<string> = new Set(['CG-FNEW-HISTORY', 'CG-SEND-FRESHNESS', 'CG-DRAFT-CHANGED', 'CG-SEND-PART', 'CG-FNEW-DM-CLOSED', 'CG-SEND-BUSY']);
 
 const SELECTOR = { of: 'newcomers' } as const;
 const RELOAD: UiAction = { type: 'ReloadView', selector: SELECTOR };
@@ -83,6 +95,19 @@ interface History {
 }
 
 const NO_FAILURE = null;
+
+/** X57: a run of «Отправить готовые». */
+interface SendRun {
+  readonly total: number;
+  sent: number;
+  skipped: number;
+  current: string | null;
+  stopped: { readonly fanRef: string; readonly name: string; readonly failure: NewcomersFailureVM } | null;
+  running: boolean;
+  halted: boolean;
+  /** Ends the pause between two fans at once («Остановить», the window closed). */
+  wake: (() => void) | null;
+}
 
 /** A failure the shared registry knows renders as its own card; a site's own code reads as «данные недоступны» there (its words are the site's). */
 function sharedCode(failure: NewcomersFailureVM): CgCode {
@@ -133,6 +158,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   let regone = false;
   /** R20 P10b1: a button of the queue waits for the background's answer. */
   let acting = false;
+  /** X57: «Отправить готовые» under way, or the last run; null — none. */
+  let sending: SendRun | null = null;
   const histories = new Map<string, History>();
   /** Grows with every window, period and identity: an answer of an older run is nobody's (NF-026). */
   let run = 0;
@@ -199,10 +226,19 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     listFailure = null;
     selected = null;
     acting = false;
+    halt();
+    sending = null;
     histories.clear();
     card?.reset();
     batch.reset();
     stage = 'idle';
+  }
+
+  /** X57: the run of «Отправить готовые» sends to nobody more; the send in flight ends as it ends. */
+  function halt(): void {
+    if (sending === null) return;
+    sending.halted = true;
+    sending.wake?.();
   }
 
   // ── the pass and its rows ──
@@ -224,8 +260,9 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   /**
    * Opens the pass of this tab's creator and period, then reads its first page (NF-004). `close` — the pass on screen
    * is another period's: it is let go; a reload asks for the same pass again, which the background answers as it is.
+   * `chosen` (X57) — the period the person just chose; null — the one the site remembers (their last choice anywhere).
    */
-  async function start(close = true): Promise<void> {
+  async function start(close = true, chosen: number | null = null): Promise<void> {
     letGo(close);
     const mine = run;
     if (disposed || !open() || !usable()) return changed();
@@ -238,12 +275,13 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     }
     stage = 'connecting';
     changed();
-    const scanned = await source.scan(creator, windowHours);
+    const scanned = await source.scan(creator, chosen);
     if (disposed || mine !== run) return;
     if (!scanned.ok) return fail(scanned.failure);
     // NF-026: a pass of another creator is nobody's here.
     if (scanned.value.hostAccountId !== creator) return fail({ code: 'CG-CONTEXT-CHANGED', retryAt: null });
     pass = scanned.value;
+    windowHours = clampHours(pass.windowHours);
     stage = 'live';
     changed();
     await firstPage(mine, Math.max(source.pageSize, 1));
@@ -375,7 +413,12 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
 
   // ── the conversation of the card ──
 
-  const rowOf = (fanRef: string): PassRow | null => rows.find((row) => row.fanRef === fanRef) ?? null;
+  /** The rows by fan, rebuilt once per new `rows` (a lookup per row of every build stays O(1)). */
+  let index: { readonly of: PassRow[]; readonly byFan: Map<string, PassRow> } | null = null;
+  function rowOf(fanRef: string): PassRow | null {
+    if (index === null || index.of !== rows) index = { of: rows, byFan: new Map(rows.map((row) => [row.fanRef, row])) };
+    return index.byFan.get(fanRef) ?? null;
+  }
 
   /**
    * `first` — the first page, once; `older` — the page before the oldest shown («Более ранние сообщения»); `again` —
@@ -492,7 +535,91 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       proof: row.proof,
       history: historyVM(row),
       openHref: row.conversationRef === null ? null : source.chatHref(row.conversationRef),
+      avatarUrl: row.avatarUrl ?? null,
     };
+  }
+
+  /** The row's word for its greeting (X57): going out, gone, or unknown; a fan the pass found written to is greeted. */
+  function greetingOf(passId: string, row: PassRow): GreetingStatusVM {
+    if (row.check === 'greeted') return { s: 'greeted', at: null };
+    const state = card?.stateOf(passId, row.fanRef) ?? null;
+    if (state?.s === 'sending') return { s: 'sending', sent: 0, total: 1 };
+    if (state?.s === 'sent') return { s: 'greeted', at: state.at };
+    if (state?.s === 'uncertain') return { s: 'stopped', sent: 0, total: 1, part: 1 };
+    return { s: 'none' };
+  }
+
+  // ── «Отправить готовые» (X57) ──
+
+  /** The fan's card may send its field now (its own checks: proven history, a fresh or own text, nothing running). */
+  const sendable = (passId: string, row: PassRow): boolean => card?.vm(passId, row)?.canSend === true;
+
+  function batchSendOf(passId: string, ready: number): NewcomersBatchSendVM {
+    const job = sending;
+    const stopped = job?.stopped ?? null;
+    return {
+      ready: job?.running === true ? 0 : ready,
+      running: job?.running === true,
+      current: job?.current === null || job === null ? null : passHandle(passId, job.current),
+      sent: job?.sent ?? 0,
+      total: job?.total ?? 0,
+      skipped: job?.skipped ?? 0,
+      stopped: stopped === null ? null : { handle: passHandle(passId, stopped.fanRef), name: stopped.name, failure: stopped.failure },
+    };
+  }
+
+  /** The batch's results the person read, one fan at a time, by their cards' own send; this click's tokens pay for them. */
+  async function batchSend(type: UiAction['type']): Promise<ActionReceipt> {
+    if (pass === null || card === null || stage !== 'live') return stale(type);
+    if (sending?.running === true) return done(type, 'noop');
+    const passId = pass.passId;
+    const queue = rows.filter((row) => batch.row(passHandle(passId, row.fanRef)).state === 'ready' && sendable(passId, row)).slice(0, BATCH_LIMITS.sendTokens);
+    if (queue.length === 0) return done(type, 'noop');
+    const mine = run;
+    const job: SendRun = { total: queue.length, sent: 0, skipped: 0, current: null, stopped: null, running: true, halted: false, wake: null };
+    sending = job;
+    const over = (): boolean => disposed || mine !== run || job.halted;
+    changed();
+    for (const [at, { fanRef }] of queue.entries()) {
+      if (at > 0) await new Promise<void>((resolve) => {
+        const timer = clock.setTimer(PASS_SEND_GAP_MS, () => resolve());
+        job.wake = () => {
+          clock.clearTimer(timer);
+          resolve();
+        };
+      });
+      job.wake = null;
+      if (over()) break;
+      // As it is now: the person may have edited, cleared or sent it meanwhile — only what may go now goes.
+      const row = rowOf(fanRef);
+      if (row === null || !sendable(passId, row)) {
+        job.skipped += 1;
+        continue;
+      }
+      job.current = fanRef;
+      changed();
+      const receipt = await card.dispatch({ type: 'SendNewcomerGreeting', targetHandle: passHandle(passId, fanRef) }, passId, row);
+      if (disposed || mine !== run) break;
+      job.current = null;
+      const state = card.stateOf(passId, fanRef);
+      if (state?.s === 'sent') {
+        job.sent += 1;
+        continue;
+      }
+      // A refusal before any attempt leaves the card as it was: nothing went, and why is the receipt's.
+      const failure: NewcomersFailureVM = state?.s === 'refused' || state?.s === 'uncertain' ? state.failure : { code: receipt === null || receipt.ok ? 'CG-SEND-UNCERTAIN' : receipt.code, retryAt: null };
+      if (state?.s === 'refused' && SEND_SKIPS.has(failure.code)) {
+        job.skipped += 1;
+        continue;
+      }
+      job.stopped = { fanRef, name: nameOf(row), failure };
+      break;
+    }
+    job.running = false;
+    job.current = null;
+    job.wake = null;
+    if (!disposed) changed();
+    return done(type, job.sent > 0 ? 'done' : 'noop');
   }
 
   function windowText(hours: number): string {
@@ -503,22 +630,29 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     const ctx = context.current();
     const now = stageOf();
     const passId = pass?.passId ?? null;
+    let ready = 0;
     const rowVMs: NewcomerRowVM[] =
       passId === null
         ? []
-        : rows.map((row) => ({
-            handle: passHandle(passId, row.fanRef),
-            name: nameOf(row),
-            username: row.username,
-            kind: 'new',
-            subscribedAt: row.followedAt,
-            greeting: row.check === 'greeted' ? { s: 'greeted', at: null } : { s: 'none' },
-            hasDraft: false,
-            draftStale: false,
-            selected: row.fanRef === selected,
-            check: { status: row.check, customName: row.customName, dmClosed: row.dmClosed },
-            ...(card === null ? {} : { batch: batch.row(passHandle(passId, row.fanRef)) }),
-          }));
+        : rows.map((row) => {
+            const handle = passHandle(passId, row.fanRef);
+            const inBatch = card === null ? null : batch.row(handle);
+            if (inBatch?.state === 'ready' && sendable(passId, row)) ready += 1;
+            return {
+              handle,
+              name: nameOf(row),
+              username: row.username,
+              kind: 'new',
+              subscribedAt: row.followedAt,
+              greeting: greetingOf(passId, row),
+              hasDraft: false,
+              draftStale: false,
+              selected: row.fanRef === selected,
+              check: { status: row.check, customName: row.customName, dmClosed: row.dmClosed },
+              avatarUrl: row.avatarUrl ?? null,
+              ...(inBatch === null ? {} : { batch: inBatch }),
+            };
+          });
 
     let view: VmView;
     const blocked = contextView(ctx);
@@ -553,6 +687,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
           ? null
           : { ...cardOf(selectedRow, passId), checkNext: checkNextOf(selectedRow.check, now), exclude: excludeOf(selectedRow.check), ...(card === null ? {} : { greeting: card.vm(passId, selectedRow) }) },
       ...(pass === null || blocked !== null || now === 'failed' || now === 'connecting' ? {} : { run: runOf(now, pass) }),
+      ...(card === null || passId === null ? {} : { batchSend: batchSendOf(passId, ready) }),
     };
 
     return {
@@ -655,9 +790,9 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (action.type === 'SetNewcomersWindow') {
       const hours = clampHours(action.hours);
       if (hours === windowHours) return Promise.resolve(done(type, 'noop'));
-      // Another period is another pass: the old one is let go, its late answers are nobody's.
+      // Another period is another pass: the old one is let go, its late answers are nobody's. X57: the choice is remembered.
       windowHours = hours;
-      return start().then(() => done(type));
+      return start(true, hours).then(() => done(type));
     }
     if (action.type === 'Search') {
       if (action.list !== 'newcomers') return null;
@@ -709,6 +844,12 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       if (fanRef === null || pass === null) return stale(type);
       const passId = pass.passId;
       return act(type, () => source.exclude(passId, fanRef, action.excluded));
+    }
+    if (action.type === 'SendNewcomerGreetings') return batchSend(type);
+    if (action.type === 'StopNewcomerGreetings') {
+      if (sending?.running !== true) return Promise.resolve(done(type, 'noop'));
+      halt();
+      return Promise.resolve(done(type));
     }
     if (action.type === 'SetPreviewDraft' || action.type === 'Generate' || action.type === 'SendNewcomerGreeting' || action.type === 'InsertNewcomerGreeting') {
       // R20 P10c: the card's greeting; a handle that is not the pass's is a preview's or the dock's.
@@ -789,6 +930,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     draftsChanged: () => undefined,
     dispose() {
       disposed = true;
+      halt();
       batch.dispose();
       card?.dispose();
       for (const off of offs.splice(0)) off();

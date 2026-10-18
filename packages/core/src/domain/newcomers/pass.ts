@@ -50,6 +50,8 @@ export interface PassRow {
   readonly failure: NewcomersFailureVM | null;
   /** R20 P10c: the revision of the history the pass checked in full (FS-NEW-6, FS-NEW-7); null — not checked in full. Absent — not said. */
   readonly historyRevision?: string | null;
+  /** X57: the fan's picture as the site gives it; absent or null — none. */
+  readonly avatarUrl?: string | null;
 }
 
 /** A source's answer: the value, or a failure as a code — never a guess, never an empty list in its place (FX-017). */

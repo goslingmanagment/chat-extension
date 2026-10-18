@@ -40,7 +40,7 @@ const WINDOW = '.cg-fnw';
 
 /** The status filter is one menu: open it, choose the status. */
 async function chooseStatus(status: RegExp): Promise<void> {
-  await pressOurs('modal', `${WINDOW} .cg-sp__tools button.cg-nc__filter`, /./);
+  await pressOurs('modal', `${WINDOW} .cg-fnw__tools button.cg-fnw__filter`, /./);
   await pressOurs('modal', `${WINDOW} [role="menuitemradio"]`, status);
 }
 /** The test build's key for the stand's API (bg/fansly/api-probe.ts): the pass asks there, and nothing without it. */
@@ -340,16 +340,16 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect((await fanslyStandServer.journal(standMark)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
   });
 
-  it('[NF-003] [NF-004] [NF-005] [NF-007] [NF-008] [NF-009] [NF-031] [FS-NEW-1] default 48 hours, profiles and the custom name, statuses and counts; periods 1 and 720 read their own followers', async function () {
+  it('[NF-003] [NF-004] [NF-005] [NF-007] [NF-008] [NF-009] [NF-031] [FS-NEW-1] [X57] default 12 hours, profiles and the custom name, statuses and counts; periods 1 and 720 read their own followers; the choice is remembered', async function () {
     this.timeout(180_000);
     const [fresh, closed, written, old] = [fanId(), fanId(), fanId(), fanId()];
     await seed([
       { fanId: fresh, ageHours: 0.5, customName: 'Мой новый фан', messages: [] },
       { fanId: closed, ageHours: 2, dmRulesUnmet: true, messages: [] },
-      { fanId: written, ageHours: 47, messages: [{ from: 'creator', text: 'We already spoke' }] },
+      { fanId: written, ageHours: 11, messages: [{ from: 'creator', text: 'We already spoke' }] },
       { fanId: old, ageHours: 700, messages: [] },
     ]);
-    expect(await oursText('modal', `${WINDOW} .cg-fnw__period`)).toBe('48 часов');
+    expect(await oursText('modal', `${WINDOW} .cg-fnw__period`)).toBe('12 часов');
     await select(fresh, 'ready');
     await browser.waitUntil(async () => (await checkOf(closed)) === 'dm-closed' && (await checkOf(written)) === 'greeted', { timeout: 30_000 });
     expect(await oursText('modal', `${WINDOW} [role="tablist"]`)).toMatch(/К обработке 2.*Все 3/);
@@ -357,8 +357,8 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect(await oursText('modal', ROW(fresh))).toContain('Мой новый фан');
     expect(await oursText('modal', CARD)).toContain(`About stand_account_${fresh.slice(-6)}`);
     // Fansly's host account carries its id alone; the bound hub page supplies the window's display name.
-    expect(await oursText('modal', `${WINDOW} .cg-sp__page`)).toBe(PAGE.title);
-    await waitOursText('modal', / — .* · местное время/, 'the dates of the pass in the footer', { selector: `${WINDOW} .cg-nc > .cg-sp__foot`, timeout: 30_000 });
+    expect(await oursText('modal', `${WINDOW} .cg-fnw__page`)).toBe(PAGE.title);
+    await waitOursText('modal', / — .* · местное время/, 'the dates of the pass under the toolbar', { selector: `${WINDOW} .cg-fnw__range`, timeout: 30_000 });
     await waitOursText('modal', 'Проверено 3 из 3', 'the pass’s progress', { selector: WINDOW, timeout: 30_000 });
     for (const [period, count, included, excluded] of [['1 час', 1, fresh, closed], ['30 дней', 4, old, '']] as const) {
       await ours('modal', `${WINDOW} .cg-fnw__period`).click();
@@ -367,6 +367,13 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
       await select(included, 'ready');
       if (excluded !== '') expect(await oursExists('modal', ROW(excluded))).toBe(false);
     }
+    // X57: the next window opens on the period chosen last — then back to the default for the tests after this one.
+    await closeWindow();
+    await openWindow(shift);
+    await waitOursText('modal', '30 дней', 'the remembered period', { selector: `${WINDOW} .cg-fnw__period`, timeout: 20_000 });
+    await ours('modal', `${WINDOW} .cg-fnw__period`).click();
+    await pressOurs('modal', '[role="menuitemradio"]', '12 часов');
+    await waitOursText('modal', '12 часов', 'the default period again', { selector: `${WINDOW} .cg-fnw__period` });
     expect(await posts(mark)).toEqual([]);
   });
 
@@ -396,8 +403,9 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await chooseStatus(/^Все статусы/);
     await ours('modal', ROW(followers[0]?.fanId ?? '')).click();
     await browser.keys('End');
-    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} [aria-rowindex="101"]`), { timeout: 10_000, timeoutMsg: 'the end of the first 100 rows did not render' });
-    await browser.waitUntil(async () => (await readOurs('modal', `${WINDOW} .cg-nc__list`, (node) => node.style.height)) === `${28 + 105 * 52}px`, { timeout: 10_000, timeoutMsg: 'the next page was not appended' });
+    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} [aria-posinset="100"]`), { timeout: 10_000, timeoutMsg: 'the end of the first 100 rows did not render' });
+    // 105 rows of 70 px (ui/hosts/fansly/newcomers ROW_HEIGHTS): the second page is in the list.
+    await browser.waitUntil(async () => (await readOurs('modal', `${WINDOW} .cg-fnw__list .cg-vlist__inner`, (node) => node.style.height)) === `${105 * 70}px`, { timeout: 10_000, timeoutMsg: 'the next page was not appended' });
     await browser.keys('End');
     await browser.waitUntil(async () => oursExists('modal', ROW(last)), { timeout: 10_000, timeoutMsg: 'the 105th row is not reachable' });
     expect(await calls(hubMark, 'clientFanClaim')).toEqual([]);
@@ -420,11 +428,11 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await browser.waitUntil(async () => (await ids())?.length === 250, { timeout: 45_000, timeoutMsg: 'the first preview page did not arrive' });
     expect(await oursText('modal', `${CARD} .cg-fnc__feed`)).toMatch(/Авто/);
     for (const count of [500, 750]) {
-      await pressOurs('modal', `${CARD} .cg-feed__older button`, /Более ранние сообщения/);
+      await pressOurs('modal', `${CARD} .cg-fnc__older button`, /Более ранние сообщения/);
       await browser.waitUntil(async () => (await ids())?.length === count, { timeout: 45_000, timeoutMsg: `the preview did not reach ${count}` });
     }
     expect(await ids()).toEqual(messages.slice(-750).map((message) => message.id));
-    expect(await oursExists('modal', `${CARD} .cg-feed__older button`)).toBe(false);
+    expect(await oursExists('modal', `${CARD} .cg-fnc__older button`)).toBe(false);
     expect(await oursText('modal', `${CARD} .cg-fnc__feed`)).toMatch(/750/);
     expect(await posts(mark)).toEqual([]);
   });

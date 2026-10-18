@@ -288,6 +288,34 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
+  it('[X57] «Отправить готовые»: one click through the «Новые» window gives send tokens of that window only — counted, for minutes; never by a key; «Остановить» drops the rest', async () => {
+    let clock = 1_000_000;
+    const s = seam(() => clock);
+    // A key never sends: no grant opens.
+    during(s.w.overlayButton, event('keydown', true), () => s.tokens.granted('SendNewcomerGreetings'));
+    expect(await s.tokens.issue('send', 'newcomers')).toBeNull();
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SendNewcomerGreetings'));
+    clock += 60_000;
+    // The run's fans, one after another, with no event in flight.
+    expect(await s.tokens.issue('send', 'newcomers')).toBe('token-1-0123456789abcdef');
+    expect(await s.tokens.issue('send', 'newcomers')).toBe('token-2-0123456789abcdef');
+    // Nothing else: no other surface's send, no generation, no insert.
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    expect(await s.tokens.issue('generate', 'newcomers')).toBeNull();
+    expect(await s.tokens.issue('insert', 'dock')).toBeNull();
+    for (let n = 2; n < BATCH_LIMITS.sendTokens; n += 1) await s.tokens.issue('send', 'newcomers');
+    expect(await s.tokens.issue('send', 'newcomers')).toBeNull();
+    // A new click, then «Остановить»: what is left goes.
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SendNewcomerGreetings'));
+    s.tokens.granted('StopNewcomerGreetings');
+    expect(await s.tokens.issue('send', 'newcomers')).toBeNull();
+    // And it is as long-lived as its limit says.
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SendNewcomerGreetings'));
+    clock += BATCH_LIMITS.sendGrantTtlMs + 1;
+    expect(await s.tokens.issue('send', 'newcomers')).toBeNull();
+    s.gate.dispose();
+  });
+
   it('the background’s own refusal comes back as its reason; no answer and no human action are «no token»', async () => {
     const w = (current = world());
     const gate = createGestureGate(window, w.env);
