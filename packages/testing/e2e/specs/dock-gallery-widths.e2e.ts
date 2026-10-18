@@ -185,8 +185,9 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(new Set(columns).size).toBe(1);
     expect(await shown('3a', '.cg-head__meta')).toEqual([]);
     expect(await shown('3a', '.cg-head__draft')).toEqual(['черновик · не отправлено']);
-    expect(await shown('3a', '.cg-hide .cg-ico')).toEqual([]);
-    expect((await box('3a', '.cg-hide'))?.width ?? 0).toBeGreaterThan(26);
+    // «Скрыть» is × at every width (X57).
+    expect(await shown('3a', '.cg-hide .cg-ico')).toHaveLength(1);
+    expect((await box('3a', '.cg-hide'))?.width).toBe(26);
     expect(await shown('2a', '.cg-stage')).toHaveLength(1);
     // «Вставить» stands on every part: a mouse needs no hover to find it.
     expect(await shown('3a', '.cg-part .cg-ins')).toHaveLength(3);

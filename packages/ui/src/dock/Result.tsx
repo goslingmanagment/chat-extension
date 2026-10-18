@@ -16,7 +16,7 @@ import { type DockVM, type ResultMarkKey, type ResultVM } from '@cg/contracts/vm
 import { Button, Caret, Dot, ErrorCard, KeysFooter, Spinner, StageLine, hotkeyText, useDispatch, useI18n, useKit, type KeyHint } from '../kit';
 import { RetryAnnouncer, spokenReady, useReadyAnnouncement, useStageAnnouncements } from './announce';
 import { FixBody } from './Fix';
-import { AgainButton, DraftLabel, Head, Meta } from './Head';
+import { AgainButton, CancelButton, DraftLabel, Head, Meta } from './Head';
 import { DebugSlot, type DebugProps, type PartLoader } from './lazy-part';
 import { actionOf, featureKey, isRunning, metaTexts, toneOf } from './model';
 import { Parts, Variants } from './Parts';
@@ -89,7 +89,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
         <Head
           title={title}
           gutter={<Spinner />}
-          acts={cancel === null ? null : <Button label={i18n.t('common.cancelOp')} class="cg-cancel" hotkey={deps.catalog.entry('cancel').hotkey} onClick={() => void dispatch(cancel)} />}
+          acts={cancel === null ? null : <CancelButton action={cancel} />}
         >
           {result.phase === null ? null : <StageLine phase={result.phase} startedAt={result.startedAt} />}
         </Head>

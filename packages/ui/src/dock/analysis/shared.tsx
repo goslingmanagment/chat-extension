@@ -10,7 +10,7 @@ import { type OpState } from '@cg/contracts/ops';
 import { type PhaseVM, type ResultDebugVM, type UiAction } from '@cg/contracts/vm';
 
 import { Button, Caret, Spinner, StageLine, useAnnounce, useDispatch, useI18n, useKit } from '../../kit';
-import { Head, HideButton } from '../Head';
+import { CancelButton, Head, HideButton } from '../Head';
 import { DebugSlot, type AnalysisProps, type DebugProps, type PartLoader } from '../lazy-part';
 import { isRunning } from '../model';
 import { StreamText } from '../Stream';
@@ -104,8 +104,6 @@ export interface RunningProps {
 
 /** A Recap or a Review being built: the stage line, «Отменить ⌘.» and the preliminary text (Markdown waits for the end, AI-137). */
 export function Running({ title, opId, phase, text, debug }: RunningProps): JSX.Element {
-  const i18n = useI18n();
-  const { deps } = useKit();
   const dispatch = useDispatch();
   const cancel: UiAction | null = phase !== null ? phase.cancel : opId === null ? null : { type: 'CancelGeneration', operationId: opId };
   return (
@@ -113,7 +111,7 @@ export function Running({ title, opId, phase, text, debug }: RunningProps): JSX.
       <Head
         title={title}
         gutter={<Spinner />}
-        acts={cancel === null ? null : <Button label={i18n.t('common.cancelOp')} class="cg-cancel" hotkey={deps.catalog.entry('cancel').hotkey} onClick={() => void dispatch(cancel)} />}
+        acts={cancel === null ? null : <CancelButton action={cancel} />}
       >
         {phase === null ? null : <StageLine phase={phase} startedAt={phase.startedAt} />}
       </Head>

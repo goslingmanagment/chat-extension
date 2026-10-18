@@ -23,7 +23,7 @@
 //   < 500   the five icons in «Ещё» at once
 //   < 480   no seams
 //   < 440   while the chat loads, the status spinner in the place of «Ещё»
-//   ≤ 420   «Скрыть» is ×; Insert under the text
+//   ≤ 420   Insert under the text
 //   < 360   «Ещё раз» is ↻, so «черновик · не отправлено» fits whole; the
 //           buttons of a Recap or Review head take a second line; «Ещё» is ⋯
 //           and the chips closer still (a 320 px column, §6.5)
@@ -105,7 +105,12 @@ ${/* ── the sheet: what opens above the bar. «На подложке» — a
 .cg-head__sp { flex: 1; min-width: 0; order: 1; }
 .cg-head > .cg-timer { flex: none; order: 2; }
 .cg-head__acts { display: flex; align-items: center; gap: 2px; flex: none; order: 3; }
-.cg-again .cg-ico, .cg-hide .cg-ico { display: none; }
+.cg-again .cg-ico { display: none; }
+${/* «Скрыть» is × at every width, as the old panel's close (X57); its word stays its name. */ ''}
+.cg-hide { width: 26px; padding: 0; justify-content: center; }
+.cg-hide .cg-btn__t { ${VISUALLY_HIDDEN} }
+${/* A head button's key is in its hint, not printed beside it (ui-design §1 п. 7): the head says no norm. */ ''}
+.cg-head__acts kbd { display: none; }
 
 ${/* ── streaming: the draft as it is written, no buttons ── */ ''}
 ${/* A stage that does not fit ends in «…» instead of a cut letter. */ ''}
@@ -214,7 +219,7 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
   .cg-slot--more { display: inline-flex; }
 }
 @container cg (max-width: ${atBase(600)}) {
-  .cg-head__meta, .cg-head__acts kbd { display: none; }
+  .cg-head__meta { display: none; }
   .cg-refresh .cg-btn__t { ${VISUALLY_HIDDEN} }
   .cg-op { grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr) 44px auto; }
   .cg-op__feat { display: none; }
@@ -229,9 +234,6 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
 }
 @container cg (max-width: ${atBase(420)}) {
   .cg-head { gap: 6px; padding-left: 10px; }
-  .cg-hide { width: 26px; padding: 0; justify-content: center; }
-  .cg-hide .cg-ico { display: block; }
-  .cg-hide .cg-btn__t { ${VISUALLY_HIDDEN} }
 ${STALE_ROW_NARROW_CSS}
 }
 @container cg (max-width: ${atBase(359)}) {

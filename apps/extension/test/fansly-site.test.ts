@@ -167,7 +167,7 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     await expect(FANSLY_APP.ai(() => Promise.reject(new Error('nothing to load')), rpc)).rejects.toThrow('nothing to load');
   });
 
-  it('[R20-P8d] [host:fansly] its profile (§1.5): the palette of the page in the theme it shows, read anew on each switch; the variant’s sheet; the same parts the galleries draw Fansly in', () => {
+  it('[R20-P8d] [host:fansly] its profile (§1.5): the family’s greys and the page’s blue in the theme it shows, read anew on each switch; the variant’s sheet; the same parts the galleries draw Fansly in', () => {
     let theme: HostTheme = { scheme: 'dark', tokens: {}, fixedWidth: false };
     const listeners = new Set<(next: HostTheme) => void>();
     const source = {
@@ -178,19 +178,19 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
       },
       dispose: () => undefined,
     };
-    // A page with Fansly's card in each theme: `--modal-bg` is the card in light and in dark (ui-design §2.1 «Fansly»).
-    const card = { light: '#fefefe', dark: '#202020' } as const;
+    // A page with Fansly's blue in each theme: `--blue-1` is «Отправить» in light and in dark (ui-design §2.1 «Fansly»).
+    const blue = { light: '#fefefe', dark: '#202020' } as const;
     const page = (): Document =>
-      ({ documentElement: {}, defaultView: { getComputedStyle: () => ({ getPropertyValue: (name: string) => (name === '--modal-bg' ? card[theme.scheme] : '') }) } }) as unknown as Document;
+      ({ documentElement: {}, defaultView: { getComputedStyle: () => ({ getPropertyValue: (name: string) => (name === '--blue-1' ? blue[theme.scheme] : '') }) } }) as unknown as Document;
     const profile = fanslyUi(source, page);
     expect([profile.dock.variant, profile.sheet, profile.phrases.ru.onSite]).toEqual(['fansly', FANSLY_DOCK_SHEET, 'на Fansly']);
-    expect(profile.palette?.value['--color-om-neutral-900']).toBe('32 32 32');
+    expect(profile.palette?.value['--color-om-brand-500']).toBe('32 32 32');
     const heard: unknown[] = [];
-    const off = profile.palette?.subscribe((palette) => heard.push([palette['--color-om-neutral-0'], palette['--color-om-neutral-900']]));
+    const off = profile.palette?.subscribe((palette) => heard.push([palette['--color-om-neutral-0'], palette['--color-om-brand-500']]));
     theme = { scheme: 'light', tokens: {}, fixedWidth: false };
     for (const listener of listeners) listener(theme);
-    // Light: the card is step 0 and the ink is Fansly's `--font-1` (not on this page: its value on fansly.com).
-    expect(heard).toEqual([['254 254 254', '20 30 40']]);
+    // Light: the card is the family's paper whatever the page says (X57); the blue is the page's.
+    expect(heard).toEqual([['250 249 245', '254 254 254']]);
     off?.();
     expect(listeners.size).toBe(0);
     // The tab's adapter builds the same; the galleries' `?host=fansly` (packages/testing kit/profiles.ts) is this profile, part for part.

@@ -1,15 +1,16 @@
 // The head of a result sheet (ui-design §4.2): the gutter (a spinner while
 // streaming), the function's name, then meta, «черновик · не отправлено» and
-// on the right «Ещё раз ⌘E» and «Скрыть Esc». Narrow rules are CSS: meta and
-// key labels hide at 600 px, «Скрыть» becomes × at 420 px, «Ещё раз» becomes
-// ↻ below 360 px so that the draft label always fits whole (§3.3, §9.5 п. 4);
-// below 360 px the buttons of a Recap or Review head take a second line.
+// on the right «Ещё раз» and × «Скрыть»; their keys are in their hints, not
+// printed in the head (X57). Narrow rules are CSS: meta hides at 600 px,
+// «Ещё раз» becomes ↻ below 360 px so that the draft label always fits whole
+// (§3.3, §9.5 п. 4); below 360 px the buttons of a Recap or Review head take a
+// second line.
 
 import { type ComponentChildren, type JSX } from 'preact';
 
-import { type HotkeyLabel } from '@cg/contracts/vm';
+import { type HotkeyLabel, type UiAction } from '@cg/contracts/vm';
 
-import { Button, useHints, useI18n, useKit, useTooltip } from '../kit';
+import { Button, hotkeyText, useDispatch, useHints, useI18n, useKit, useTooltip } from '../kit';
 
 export interface HeadProps {
   readonly title: string;
@@ -75,23 +76,25 @@ export interface AgainButtonProps {
   readonly tooltip?: string;
 }
 
-/** «Ещё раз ⌘E»: a new generation with the original's tone (AI-007). */
+/** «Ещё раз» (⌘E in its hint): a new generation with the original's tone (AI-007). */
 export function AgainButton(props: AgainButtonProps): JSX.Element {
   const i18n = useI18n();
+  const key = hotkeyText(props.hotkey)?.display;
+  const tooltip = props.tooltip ?? i18n.t('result.againTooltip');
   return (
     <Button
       label={props.label ?? i18n.t('common.again')}
       icon="refresh"
       class="cg-again"
       hotkey={props.hotkey}
-      tooltip={props.tooltip ?? i18n.t('result.againTooltip')}
+      tooltip={key === undefined ? tooltip : `${tooltip}  ${key}`}
       reason={props.reason}
       onClick={props.onClick}
     />
   );
 }
 
-/** «Скрыть Esc»: collapses the sheet and keeps the result (AI-128). */
+/** × «Скрыть» (Esc): collapses the sheet and keeps the result (AI-128). */
 export function HideButton({ onClick }: { readonly onClick: () => void }): JSX.Element {
   const i18n = useI18n();
   const { deps } = useKit();
@@ -106,4 +109,15 @@ export function HideButton({ onClick }: { readonly onClick: () => void }): JSX.E
       onClick={onClick}
     />
   );
+}
+
+/** «Отменить» (⌘. in its hint): stops the generation the head shows. */
+export function CancelButton({ action }: { readonly action: UiAction }): JSX.Element {
+  const i18n = useI18n();
+  const { deps } = useKit();
+  const dispatch = useDispatch();
+  const hotkey = deps.catalog.entry('cancel').hotkey;
+  const key = hotkeyText(hotkey)?.display;
+  const tooltip = i18n.t('cheatsheet.row.cancel');
+  return <Button label={i18n.t('common.cancelOp')} class="cg-cancel" hotkey={hotkey} tooltip={key === undefined ? tooltip : `${tooltip}  ${key}`} onClick={() => void dispatch(action)} />;
 }

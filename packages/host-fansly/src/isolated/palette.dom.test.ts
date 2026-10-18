@@ -1,11 +1,11 @@
-// Fansly's palette for our interface (R20 P8d; docs/project-unite/architecture.md §7.8, §7.17; FS-PLC-7, FS-DOCK-1): the
-// page's own variables in the theme it shows as the kit's triplets (the correspondence table, ui-design §2.1
-// «Fansly»), read anew when the theme reader says the page switched. In Firefox on the stand, both themes with our dock
-// in them: suite-fansly-dock.e2e.ts; the galleries with Fansly's profile: dock-gallery-fansly.e2e.ts.
+// Fansly's palette for our interface (R20 P8d; decision X57; docs/project-unite/architecture.md §7.8, §7.17; FS-PLC-7,
+// FS-DOCK-1): the family's warm greys, the same on either theme of the page, and the page's own blue in the theme it
+// shows (ui-design §2.1 «Fansly»), read anew when the theme reader says the page switched. In Firefox on the stand, both
+// themes with our dock in them: suite-fansly-dock.e2e.ts; the galleries with Fansly's profile: dock-gallery-fansly.e2e.ts.
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { FANSLY_SCALE, fanslyPalette, fanslyPaletteSignal, parseColour, readFanslyPalette } from './palette';
+import { FAMILY_NEUTRALS, FANSLY_BLUE, fanslyPalette, fanslyPaletteSignal, parseColour, readFanslyPalette } from './palette';
 import { createFanslyTheme } from './theme';
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -39,45 +39,38 @@ afterEach(() => {
   for (const style of document.head.querySelectorAll('style')) style.remove();
 });
 
-describe('[host:fansly] Fansly’s palette: the page’s own variables as the kit’s triplets (R20 P8d, FS-DOCK-1)', () => {
-  it('[I18-005] in each theme every step the kit reads, from the variables of that theme: the card is `--modal-bg`, the ink `--font-1`, blue `--blue-1`', () => {
+describe('[host:fansly] Fansly’s palette: the family’s greys and the page’s blue as the kit’s triplets (R20 P8d, X57, FS-DOCK-1)', () => {
+  it('[I18-005] in each theme every step the kit reads: the warm greys of the old Fansly extension, blue from `--blue-1`', () => {
     playFansly();
     const dark = readFanslyPalette(document, 'dark');
     expect(Object.keys(dark).sort()).toEqual(STEPS.map((step) => `--color-om-${step}`).sort());
     expect(dark).toMatchObject({
-      '--color-om-neutral-950': '17 18 21',
-      '--color-om-neutral-900': '22 22 26',
-      '--color-om-neutral-850': '26 30 38',
-      '--color-om-neutral-200': '214 220 232',
-      '--color-om-neutral-400': '157 162 173',
-      '--color-om-white': '255 255 255',
+      // The old panel's paper and ink: #faf9f5, #f2f0e9, #e8e5da; its dark card #262420.
+      '--color-om-neutral-0': '250 249 245',
+      '--color-om-neutral-50': '242 240 233',
+      '--color-om-neutral-100': '232 229 218',
+      '--color-om-neutral-900': '38 36 32',
       '--color-om-brand-500': '38 153 247',
-      // Fansly's translucent blue laid over its dark card.
-      '--color-om-brand-800': '25 43 61',
+      // Fansly's translucent blue laid over our dark card.
+      '--color-om-brand-800': '38 55 66',
     });
     document.documentElement.classList.add('bright-theme');
     const light = readFanslyPalette(document, 'light');
     expect(light).toMatchObject({
-      '--color-om-neutral-0': '255 255 255',
-      '--color-om-neutral-50': '245 245 245',
-      '--color-om-neutral-500': '86 102 120',
-      '--color-om-neutral-900': '20 30 40',
-      '--color-om-neutral-950': '0 0 0',
-      // `#b0b0b098` and `rgba(20, 30, 40, 0.801)` over the light card.
-      '--color-om-neutral-300': '208 208 208',
-      '--color-om-neutral-700': '67 75 83',
+      '--color-om-neutral-0': '250 249 245',
+      '--color-om-neutral-900': '38 36 32',
       '--color-om-brand-500': '38 153 247',
-      '--color-om-brand-75': '220 239 254',
+      '--color-om-brand-600': '13 138 232',
+      // Fansly's translucent blue over our light card.
+      '--color-om-brand-75': '216 234 245',
     });
   });
 
-  it('the page’s values, not ours: a variable Fansly changes reaches its step; a translucent one is laid over the theme’s own card', () => {
-    playFansly(`${FANSLY_CSS}\n:root { --dark-1: #000000; --modal-bg: #202020; --dark-blue-1-outline: rgba(255, 255, 255, 0.5); }`);
-    expect(readFanslyPalette(document, 'dark')).toMatchObject({
-      '--color-om-neutral-950': '0 0 0',
-      '--color-om-neutral-900': '32 32 32',
-      '--color-om-neutral-700': '144 144 144',
-    });
+  it('the greys are ours whatever the page says; its blue is the page’s: a `--blue-1` Fansly changes reaches «Отправить»', () => {
+    playFansly(`${FANSLY_CSS}\n:root { --dark-1: #000000; --modal-bg: #202020; --blue-1: #0000ff; }`);
+    const palette = readFanslyPalette(document, 'dark');
+    for (const [step, triplet] of Object.entries(FAMILY_NEUTRALS)) expect(palette[`--color-om-${step}`], step).toBe(triplet);
+    expect(palette['--color-om-brand-500']).toBe('0 0 255');
   });
 
   it('a variable the page has not (another build of Fansly) stands in with its value on fansly.com: the same palette as the page’s own', () => {
@@ -87,13 +80,13 @@ describe('[host:fansly] Fansly’s palette: the page’s own variables as the ki
     document.documentElement.classList.add('bright-theme');
     expect(readFanslyPalette(document, 'light')).toEqual(bare.light);
     // Something that is no colour is no colour: the value on fansly.com stands in.
-    expect(fanslyPalette('dark', (name) => (name === '--dark-1' ? 'var(--nope)' : ''))['--color-om-neutral-950']).toBe('17 18 21');
+    expect(fanslyPalette('dark', (name) => (name === '--blue-1' ? 'var(--nope)' : ''))['--color-om-brand-500']).toBe('38 153 247');
   });
 
   it('[I18-005] either theme gives every step a triplet: a scheme forced against the page’s (`ui.theme`) reads a whole palette (its contrast in all four: testing kit/fansly-profile.test.tsx)', () => {
     for (const scheme of ['light', 'dark'] as const) expect(Object.keys(fanslyPalette(scheme, () => '')).sort(), scheme).toEqual(STEPS.map((step) => `--color-om-${step}`).sort());
-    // Every row reads the page in at least one theme; the steps each scheme reads are variables of its theme (testing kit/fansly-profile.test.tsx).
-    for (const [step, sources] of Object.entries(FANSLY_SCALE)) expect(sources.light[0] !== null || sources.dark[0] !== null, step).toBe(true);
+    // Every blue reads the page in at least one theme.
+    for (const [step, sources] of Object.entries(FANSLY_BLUE)) expect(sources.light[0] !== null || sources.dark[0] !== null, step).toBe(true);
   });
 
   it('[I18-005] the profile’s palette is the page’s as it is now: the same values keep the same palette; a switch of the theme says the new one once to each listener', async () => {
@@ -101,15 +94,15 @@ describe('[host:fansly] Fansly’s palette: the page’s own variables as the ki
     const theme = createFanslyTheme(document);
     const signal = fanslyPaletteSignal(theme, () => document);
     const first = signal.value;
-    expect(first['--color-om-neutral-900']).toBe('22 22 26');
+    expect(first['--color-om-brand-75']).toBe('220 239 254');
     expect(signal.value).toBe(first);
     const heard: string[] = [];
     const also: string[] = [];
-    const off = signal.subscribe((palette) => heard.push(palette['--color-om-neutral-900'] ?? ''));
-    const offAlso = signal.subscribe((palette) => also.push(palette['--color-om-neutral-900'] ?? ''));
+    const off = signal.subscribe((palette) => heard.push(palette['--color-om-brand-75'] ?? ''));
+    const offAlso = signal.subscribe((palette) => also.push(palette['--color-om-brand-75'] ?? ''));
     document.documentElement.classList.add('bright-theme');
     await settle();
-    expect(signal.value['--color-om-neutral-900']).toBe('20 30 40');
+    expect(signal.value['--color-om-brand-75']).toBe('216 234 245');
     document.documentElement.setAttribute('class', 'bright-theme');
     await settle();
     document.documentElement.className = 'dark-theme';
@@ -117,8 +110,8 @@ describe('[host:fansly] Fansly’s palette: the page’s own variables as the ki
     off();
     document.documentElement.className = 'bright-theme';
     await settle();
-    expect(heard).toEqual(['20 30 40', '22 22 26']);
-    expect(also).toEqual(['20 30 40', '22 22 26', '20 30 40']);
+    expect(heard).toEqual(['216 234 245', '220 239 254']);
+    expect(also).toEqual(['216 234 245', '220 239 254', '216 234 245']);
     offAlso();
     theme.dispose();
   });
@@ -127,19 +120,19 @@ describe('[host:fansly] Fansly’s palette: the page’s own variables as the ki
     // Read before Fansly's sheet and class: the dark theme in fansly.com's values.
     const theme = createFanslyTheme(document);
     const signal = fanslyPaletteSignal(theme, () => document);
-    expect(signal.value['--color-om-neutral-900']).toBe('22 22 26');
+    expect(signal.value['--color-om-brand-500']).toBe('38 153 247');
     const heard: string[] = [];
-    const off = signal.subscribe((palette) => heard.push(palette['--color-om-neutral-900'] ?? ''));
-    playFansly(`${FANSLY_CSS}\n:root { --modal-bg: #202020; }`);
+    const off = signal.subscribe((palette) => heard.push(palette['--color-om-brand-500'] ?? ''));
+    playFansly(`${FANSLY_CSS}\n:root { --blue-1: #202020; }`);
     document.documentElement.classList.add('dark-theme');
     await settle();
     expect(heard).toEqual(['32 32 32']);
-    expect(signal.value['--color-om-neutral-900']).toBe('32 32 32');
+    expect(signal.value['--color-om-brand-500']).toBe('32 32 32');
     // A sheet that lands with no class change says nothing (nothing on the page to hear), but a mount reads it.
-    playFansly(':root { --modal-bg: #303030; }');
+    playFansly(':root { --blue-1: #303030; }');
     await settle();
     expect(heard).toEqual(['32 32 32']);
-    expect(signal.value['--color-om-neutral-900']).toBe('48 48 48');
+    expect(signal.value['--color-om-brand-500']).toBe('48 48 48');
     off();
     theme.dispose();
   });
