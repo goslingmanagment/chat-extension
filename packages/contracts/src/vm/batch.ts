@@ -1,8 +1,11 @@
 // 1.32.0: a batch of generations over the rows of a list — Spenders or «Новые» (decision of the owner, 2026-10-17).
 // The person ticks fans in the list, one click «Сгенерировать для N» starts a generation for each — at most
 // `parallel` at a time, the rest wait their turn — and every row says how its own went, with the text that came out.
-// Nothing is sent by the batch: each result is on its fan's card, sent there by the person's own click, part by part,
-// as always (X8: never «send all», no hotkey, never the next part by itself).
+// The batch itself sends nothing: each result is on its fan's card, sent there by the person's own click, part by part,
+// as always (X8: no hotkey, never the next part by itself).
+// 1.33.0 (X57, the owner, 2026-10-18): «Новые» of a list a pass checks (Fansly) may send the batch's results by one
+// click «Отправить готовые» — the person read them in the list first. Each one goes by its card's own send with all of
+// its checks, one fan at a time; the first that may have gone, or fails for a reason beyond its fan, stops the rest.
 //
 // What a fan gets: «Новые» — Hi; Spenders — Reply to a fan who wrote last, Ping to one who did not.
 
@@ -23,6 +26,12 @@ export const BATCH_LIMITS = {
    */
   grantTokens: 40,
   grantTtlMs: 15 * 60_000,
+  /**
+   * 1.33.0 (X57): «Отправить готовые» of a «Новые» list a pass checks — its one click may ask this many send tokens of
+   * the list's own window (one per fan, each send still its card's own) and for this long; then it is spent.
+   */
+  sendTokens: 60,
+  sendGrantTtlMs: 10 * 60_000,
 } as const;
 
 /** How a fan of the batch stands: waiting its turn, generating, its result is ready, its result went out, or why not. */

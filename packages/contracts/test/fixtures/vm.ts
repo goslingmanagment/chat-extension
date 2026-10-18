@@ -65,6 +65,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   GenerateBatch: { type: 'GenerateBatch', list: 'newcomers' },
   StopBatch: { type: 'StopBatch', list: 'spenders' },
   ClearBatch: { type: 'ClearBatch', list: 'newcomers' },
+  SendNewcomerGreetings: { type: 'SendNewcomerGreetings' },
+  StopNewcomerGreetings: { type: 'StopNewcomerGreetings' },
   RenewClaim: { type: 'RenewClaim', targetHandle: 'newcomers:f2' },
   ReleaseClaim: { type: 'ReleaseClaim', targetHandle: 'newcomers:f2' },
   SetFanPanelTab: { type: 'SetFanPanelTab', tab: 'recap' },
@@ -134,6 +136,13 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { type: 'GenerateBatch', list: 'spenders', send: true },
       { type: 'GenerateBatch' },
     ],
+  ),
+  // 1.33.0 (X57): «Отправить готовые» and «Остановить» of «Новые» name nothing: the controller knows its batch.
+  fixture(
+    'SendNewcomerGreetings',
+    C.UiActionSchema,
+    [{ type: 'SendNewcomerGreetings' }, { type: 'StopNewcomerGreetings' }],
+    [{ type: 'SendNewcomerGreetings', list: 'newcomers' }, { type: 'SendNewcomerGreetings', targetHandles: ['newcomers:f2'] }, { type: 'StopNewcomerGreetings', all: true }],
   ),
   // 1.9.0: the palette's preview window is a surface of its own, and «Перезагрузить панель» reaches it.
   fixture(

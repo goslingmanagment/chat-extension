@@ -69,10 +69,13 @@ const Failure = z.strictObject({ ok: z.literal(false), error: CgAnyErrorWireSche
 const Done = z.strictObject({ ok: z.literal(true) });
 
 export const FANSLY_TAB_LIMITS = {
-  /** «Новые» window (NF-003): 1–720 hours, 48 by default. */
+  /**
+   * «Новые» window (NF-003): 1–720 hours. 1.33.0 (X57): 12 by default (was 48); the person's last choice is remembered
+   * by the background (`fansly.followers.scan` without hours opens the remembered period).
+   */
   windowHoursMin: 1,
   windowHoursMax: 720,
-  windowHoursDefault: 48,
+  windowHoursDefault: 12,
   /** Rows of one `fansly.followers.read` answer (NF-006 pages of 100 fit five times). */
   followerRowsPerRead: 500,
   /** Changed rows in one `fansly.followers.changed` event. */
@@ -178,6 +181,8 @@ export const FanslyFollowerRowSchema = z.strictObject({
   proof: z.optional(z.nullable(FanslyPreviewMessageSchema)),
   /** `failed` — «Не удалось проверить»: why (a Fansly code or a shared one). */
   error: z.optional(z.nullable(CgAnyErrorWireSchema)),
+  /** 1.33.0 (X57): the fan's picture from the profile the pass read — a Fansly address only (the one Hi takes, FX-018). */
+  avatarUrl: z.optional(z.nullable(HiFanAvatarUrlSchema)),
 });
 export type FanslyFollowerRow = z.infer<typeof FanslyFollowerRowSchema>;
 
@@ -411,7 +416,11 @@ export const FANSLY_TAB_REQUESTS = {
   // ── «Новые» ──
   /** Opens a pass for the creator of the tab and the window; an open one for the same creator and window is answered as is. */
   'fansly.followers.scan': {
-    req: z.strictObject({ hostAccountId: NativeIdSchema, windowHours: FanslyPassViewSchema.shape.windowHours }),
+    /**
+     * 1.33.0 (X57): `windowHours` null — the period this browser remembers (else the default); a number — the person's
+     * choice, remembered for the next window.
+     */
+    req: z.strictObject({ hostAccountId: NativeIdSchema, windowHours: z.nullable(FanslyPassViewSchema.shape.windowHours) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), pass: FanslyPassViewSchema }), Failure]),
     from: TAB,
     hosts: FANSLY,
