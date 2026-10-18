@@ -65,6 +65,8 @@ const ROWS: Readonly<Record<CatalogActionId, Row>> = {
   search: { label: 'cheatsheet.row.search', tooltip: null, scope: 'list', status: 'active', key: local('/', '/') },
   // R20 P11b: Fansly's «Заметки» — a row of the `fansly` client of the scheme; only a site with the feature draws it.
   notes: { label: 'cheatsheet.row.notes', tooltip: null, scope: 'chat', status: 'active', key: scheme('notes') },
+  // Decision X58: ⌘↵ / Ctrl+Enter — the Fix on screen into the message field, from the field itself.
+  'apply-fix': { label: 'cheatsheet.row.applyFix', tooltip: null, scope: 'result', status: 'active', key: extra('apply-fix') },
 };
 
 const extraDef = (command: DispatcherCommandId, fallback: boolean): ExtraKeyDef | undefined => EXTRA_KEYS.find((def) => def.command === command && def.fallback === fallback);

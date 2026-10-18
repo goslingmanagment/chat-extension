@@ -203,6 +203,7 @@ const CATALOG_KEYS: Partial<Record<CatalogActionId, HotkeyName>> = {
   'insert-part': 'insert',
   'copy-part': 'copy',
   'next-unread': 'nextUnread',
+  'apply-fix': 'applyFix',
 };
 
 /** Labels as the palette and the cheatsheet print them; a tooltip only where the catalog has one. */
@@ -237,6 +238,7 @@ const CATALOG_LABELS: Record<CatalogActionId, { readonly label: I18nKey; readonl
   'quick-jump': { label: 'quickJump.title', tooltip: null },
   search: { label: 'cheatsheet.row.search', tooltip: null },
   notes: { label: 'cheatsheet.row.notes', tooltip: null },
+  'apply-fix': { label: 'cheatsheet.row.applyFix', tooltip: null },
 };
 
 export function createFakeCatalog(ctx: ScenarioCtx): ActionCatalog {

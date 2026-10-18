@@ -185,6 +185,7 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.status.chatLoading': 'Чат загружается…',
   'dock.status.pageOff': 'ChatGoose выключен владельцем',
   'dock.helpRemoved': 'Help пока убран',
+  'dock.fixRunning': 'Fix ещё готовится — черновик не отправлен. Нажмите {hotkey}, когда он появится',
   'dock.hint.reply': 'Ответ на переписку — от имени персоны, в выбранном тоне',
   'dock.hint.fix': 'Переписывает ваш черновик из поля ввода. Нового не сочиняет',
   'dock.hint.hi': 'Заходы для первого сообщения новому фану',
@@ -813,6 +814,7 @@ export const RU: I18nCatalog<'ru'> = {
   'cheatsheet.row.search': 'Поиск в списке',
   'cheatsheet.row.sendNote': 'без клавиши: фану уходит только по нажатию',
   'cheatsheet.row.notes': 'Заметки о фане',
+  'cheatsheet.row.applyFix': 'Fix вместо черновика',
   'cheatsheet.note':
     'На узком поле ввода (уже 690 px) клавиши не подписаны на кнопках: они здесь и во всплывающей подсказке у каждой кнопки. «Отправить» в превью клавиши не имеет: фану уходит только по нажатию.',
   'toast.aiReady': 'AI готово · {fan}',

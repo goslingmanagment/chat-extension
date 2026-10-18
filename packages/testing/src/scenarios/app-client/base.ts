@@ -128,6 +128,7 @@ const MAC = {
   copy: key('⌘C', 'Meta+C'),
   nextUnread: { display: '⌘U', aria: 'Meta+U', delivery: 'unverified', fallback: { display: '⌥U', aria: 'Alt+U', delivery: 'delivered' } },
   help: key('⌘⇧H', 'Meta+Shift+H'),
+  applyFix: key('⌘↵', 'Meta+Enter'),
 } as const satisfies Record<string, HotkeyLabel>;
 
 const WIN: Record<keyof typeof MAC, HotkeyLabel> = {
@@ -150,6 +151,7 @@ const WIN: Record<keyof typeof MAC, HotkeyLabel> = {
   copy: key('Ctrl+C', 'Control+C'),
   nextUnread: { display: 'Ctrl+U', aria: 'Control+U', delivery: 'reserved', fallback: { display: 'Alt+U', aria: 'Alt+U', delivery: 'delivered' } },
   help: key('Ctrl+Alt+H', 'Control+Alt+H'),
+  applyFix: key('Ctrl+↵', 'Control+Enter'),
 };
 
 export type HotkeyName = keyof typeof MAC;

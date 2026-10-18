@@ -179,6 +179,7 @@ export const EN: I18nCatalog<'en'> = {
   'dock.status.chatLoading': 'Chat loading…',
   'dock.status.pageOff': 'ChatGoose is switched off by the owner',
   'dock.helpRemoved': 'Help is removed for now',
+  'dock.fixRunning': 'Fix is still being written — the draft was not sent. Press {hotkey} once it shows',
   'dock.hint.reply': 'An answer to the conversation — as the persona, in the chosen tone',
   'dock.hint.fix': 'Rewrites your draft from the message field. Writes nothing new',
   'dock.hint.hi': 'Openers for the first message to a new fan',
@@ -767,6 +768,7 @@ export const EN: I18nCatalog<'en'> = {
   'cheatsheet.row.search': 'Search the list',
   'cheatsheet.row.sendNote': 'no shortcut: it goes to the fan only on a click',
   'cheatsheet.row.notes': 'Fan notes',
+  'cheatsheet.row.applyFix': 'Fix in place of the draft',
   'cheatsheet.note':
     'On a narrow message field (under 690 px) buttons carry no shortcut labels: they are listed here and in each button’s tooltip. Send in the preview has no shortcut: a message goes to the fan only on a click.',
   'toast.aiReady': 'AI ready · {fan}',

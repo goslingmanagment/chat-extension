@@ -579,7 +579,8 @@ describe('Fix', () => {
     expect(kit.$$('.cg-fix__t').map(text)).toEqual(['hey sorry late missed u', 'hey, sorry I was late — missed you']);
     expect(kit.$$('.cg-head__meta').map(text)).toEqual([]);
     const replace = byLabel('Заменить мой черновик');
-    expect(replace.querySelector('kbd')?.textContent).toBe('↵');
+    // X58: the key is ⌘↵ / Ctrl+Enter, pressed in the message field.
+    expect(replace.querySelector('kbd')?.textContent).toBe('⌘↵');
     expect(replace.classList.contains('cg-btn--line')).toBe(true);
     await flush(() => replace.click());
     expect(kit.client.dispatched).toEqual([{ type: 'ReplaceMyDraft', operationId: uuid(103), part: 0 }]);

@@ -37,6 +37,7 @@ export {
   UNDER_COVER_COMMANDS,
   decideKey,
   decideUnmatched,
+  type FixKeyState,
   type FocusKind,
   type KeyCommand,
   type KeyContext,
