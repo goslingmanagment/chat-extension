@@ -146,7 +146,8 @@ a boundary you need to cross is a design question, not a lint exception.
   `announce`, `rollback` leave the machine: without `--confirm <version>` they
   only print their plan and make no request at all. An agent passes
   `--confirm` itself to `sign`, `publish`, `pages` and `tag` of merged work
-  whose `main` CI is green; `announce` (it posts to people) and `rollback`
+  whose `main` CI is green, and to `rollback` when a release it shipped is
+  broken (then tells the owner in one line); `announce` (it posts to people)
   only when the owner asked for that very step. A test of the tool never uses a real address: `tools/release/*.test.ts`
   run against loopback and a scripted world (`cli-world.ts`).
 - `tools/ci/e2e-docker-local.sh` — the CI e2e job on this machine: the whole
