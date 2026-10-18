@@ -185,7 +185,8 @@ export function previewResult(input: PreviewResultInput): ResultVM {
   if (result !== undefined && result.kind === 'parts') {
     parts = partList(input, opId, null, result.parts);
     if (result.parts.length > 1) meta.push(msg('result.meta.parts', { n: result.parts.length }));
-    else meta.push(msg(result.splitRequested ? 'result.meta.onePart' : 'result.meta.single'));
+    // One message is what Split off means: no word for the norm (X57); one part where Split was asked is news.
+    else if (result.splitRequested) meta.push(msg('result.meta.onePart'));
   } else if (result !== undefined && result.kind === 'variants') {
     const first = result.variants[0] ?? [];
     if (result.variants.length === 1) {
