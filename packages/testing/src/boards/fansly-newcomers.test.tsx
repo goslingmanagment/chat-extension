@@ -344,20 +344,20 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
   });
 });
 
-describe('[host:fansly] «Новые фоловеры» on Fansly: the batch — generate, read in the list, send (X57)', () => {
+describe('[host:fansly] «Новые фоловеры» on Fansly: the batch — generate for many, read in the list, send each by a click (X57)', () => {
   it('[X57] tick a fan by its picture, or «Выбрать N» — the fans in view that can be written to; the bar says what is ticked and «Сгенерировать N»', async () => {
     const base = boardScenario('13o');
     const vm = vmOf('13o');
     // Before any batch: nobody ticked, no drafts yet.
     const fresh: NewcomersVM = {
       ...vm,
-      rows: vm.rows.map((row) => ({ ...row, batch: { ...row.batch!, state: null, text: null } })),
+      rows: vm.rows.map(({ send: _send, ...row }) => ({ ...row, batch: { ...row.batch!, state: null, text: null } })),
       batch: { ...vm.batch!, ready: 0 },
-      pass: { ...vm.pass!, batchSend: { ...vm.pass!.batchSend!, ready: 0 } },
     };
     ui = await mountBoardSettled('fansly-newcomers', { ...base, views: [entry({ of: 'newcomers' }, fresh)] });
     const board = ui;
     expect(board.$('.cg-fnw__batch')).toBeNull();
+    expect(board.$$('.cg-fnw__rsend')).toEqual([]);
     // Only a fan who can be written to has the box: Jake (queued) has none.
     expect(board.$$('.cg-fnw__row .cg-fnw__pick[role="checkbox"]').map((box) => box.getAttribute('aria-label'))).toEqual(['Отметить для пакета: Tomasz W.', 'Отметить для пакета: Leo', 'Отметить для пакета: Alex M.']);
     // A click on the picture ticks the fan and never opens the card.
@@ -381,7 +381,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     expect(ui.actions().at(-1)).toEqual({ type: 'GenerateBatch', list: 'newcomers' });
   });
 
-  it('[X57] the drafts are read in the list, under each fan, in the draft’s look; «Отправить 3 →» is the bar’s one blue button — one action, never a key', async () => {
+  it('[X57] [NF-019] the drafts are read in the list, under each fan; each row’s own small «Отправить» sends that fan’s draft — one click, one fan, never the card opened, never a key', async () => {
     const board = await mount('13o');
     expect(board.$$('.cg-fnw__row .cg-fnw__draft').map(textOf)).toEqual([
       'Hey Tomasz! So happy you’re here 💕 What made you follow me — the beach set or the gym pics?',
@@ -389,38 +389,44 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
       'Hi Alex, welcome! Boston, right? 😊 I have a little surprise for my new followers…',
     ]);
     expect(board.text('.cg-fnw__batch .cg-fnw__bst')).toBe('Готово 3');
-    const send = board.$('.cg-fnw__batchsend') as HTMLElement;
-    expect([textOf(send), send.classList.contains('cg-btn--send')]).toEqual(['Отправить 3 →', true]);
-    expect(board.text('.cg-fnw__bline.is-hint')).toBe('Прочтите черновики в списке — поправить можно в карточке справа');
+    expect(board.text('.cg-fnw__bline.is-hint')).toBe('Прочтите черновик под фаном и нажмите «Отправить» в его строке; поправить — в карточке справа');
+    // One small send per draft row, the send blue; nothing sends them all.
+    const sends = board.$$('.cg-fnw__rsend');
+    expect(sends.map((button) => [textOf(button), button.classList.contains('cg-btn--send')])).toEqual([['Отправить', true], ['Отправить', true], ['Отправить', true]]);
+    expect(board.$$('.cg-fnw__batch button').map(textOf)).toEqual(['Очистить']);
     // A key on the list sends nothing.
     for (const code of ['Enter', 'Space', 'KeyS']) await flush(() => keydown(board.$$('.cg-fnw__row')[1] as HTMLElement, code === 'Space' ? ' ' : code, { code }));
-    expect(board.actionsOf('SendNewcomerGreetings')).toEqual([]);
-    await click(send);
-    expect(board.actions().at(-1)).toEqual({ type: 'SendNewcomerGreetings' });
+    expect(board.actionsOf('SendNewcomerGreeting')).toEqual([]);
+    const opened = board.actionsOf('OpenPreview').length;
+    await click(sends[1]);
+    expect(board.actions().at(-1)).toEqual({ type: 'SendNewcomerGreeting', targetHandle: handle(2) });
+    expect(board.actionsOf('OpenPreview')).toHaveLength(opened);
   });
 
-  it('[X57] while it sends: the fan going out says so, the one gone says «Отправлено», the bar counts and «Остановить» stops', async () => {
+  it('[X57] while one goes out its row says «Отправляем…» and its button waits; the one gone says «Отправлено» and has none', async () => {
     const board = await mount('13p');
     expect(rowTexts(board).slice(0, 2)).toEqual(['Tomasz W. | @tomasz_w · 14 мин назад | Отправлено', 'Leo | @leo.k · 41 мин назад | Отправляем…']);
     expect(board.$('.cg-fnw__row .cg-fnw__draft.is-sent')).not.toBeNull();
-    expect(board.text('.cg-fnw__batch .cg-fnw__bst')).toBe('Отправляем 1 из 3…');
-    expect(board.$('.cg-fnw__batchsend')).toBeNull();
-    await click(button(board, '.cg-fnw__batch', 'Остановить'));
-    expect(board.actions().at(-1)).toEqual({ type: 'StopNewcomerGreetings' });
+    const rows = board.$$('.cg-fnw__row');
+    expect(rows[0]?.querySelector('.cg-fnw__rsend')).toBeNull();
+    expect(rows[1]?.querySelector('.cg-fnw__rsend')?.getAttribute('aria-busy')).toBe('true');
+    expect(board.text('.cg-fnw__batch .cg-fnw__bst')).toBe('Готово 2 · отправлено 1');
   });
 
-  it('[X57] a run that stopped says at whom and why', async () => {
+  it('[X57] [NF-024] a refused click says why in its row; a draft that cannot go as it is has its «Отправить» off with the reason', async () => {
     const base = boardScenario('13o');
     const vm = vmOf('13o');
-    const stopped: NewcomersVM = {
-      ...vm,
-      pass: { ...vm.pass!, batchSend: { ready: 2, running: false, current: null, sent: 0, total: 3, skipped: 0, stopped: { handle: handle(1), name: 'Tomasz W.', failure: { code: 'CG-SEND-UNCERTAIN', retryAt: null } } } },
-    };
-    ui = await mountBoardSettled('fansly-newcomers', { ...base, views: [entry({ of: 'newcomers' }, stopped)] });
-    expect(ui.text('.cg-fnw__bline.is-stop')).toMatch(/^Остановлено на Tomasz W\.: .+/);
-    expect(ui.$('.cg-fnw__bline.is-stop')?.getAttribute('data-cg-code')).toBe('CG-SEND-UNCERTAIN');
-    // The hint to read the drafts gives way to the reason.
-    expect(ui.$('.cg-fnw__bline.is-hint')).toBeNull();
+    const rows = vm.rows.map((row) =>
+      row.handle === handle(2) ? { ...row, send: { can: true, refused: { code: 'CG-FNEW-HISTORY', retryAt: null } } } : row.handle === handle(8) ? { ...row, send: { can: false, refused: null } } : row,
+    );
+    ui = await mountBoardSettled('fansly-newcomers', { ...base, views: [entry({ of: 'newcomers' }, { ...vm, rows })] });
+    const leo = ui.$$('.cg-fnw__row')[1] as HTMLElement;
+    expect([leo.querySelector('.cg-fnw__st')?.getAttribute('data-cg-code'), textOf(leo.querySelector('.cg-fnw__st'))]).toEqual(['CG-FNEW-HISTORY', 'Не вышло: Проверка изменилась']);
+    const alex = ui.$$('.cg-fnw__row').find((row) => row.getAttribute('data-cg-key') === handle(8)) as HTMLElement;
+    const off = alex.querySelector('.cg-fnw__rsend') as HTMLElement;
+    expect(off.getAttribute('aria-disabled')).toBe('true');
+    await click(off);
+    expect(ui.actionsOf('SendNewcomerGreeting')).toEqual([]);
   });
 
   it('[X57] after the card’s own «Отправить →» the card moves on to the next draft of the batch', async () => {

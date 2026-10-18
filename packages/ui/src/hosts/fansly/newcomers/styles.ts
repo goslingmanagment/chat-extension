@@ -1,10 +1,11 @@
 // The look of «Новые фоловеры» on Fansly (X57; ui-design §3.12): the old Fansly extension's window in the family's
 // tokens — a compact window over a scrim (1040 × 700 at most), the serif title over «@креатор», one toolbar (the period,
-// the progress, the queue's button, the search, «Проверить заново»), the dates in a quiet line; the list of 320 px on
+// the progress, the queue's button, the search, «Проверить заново»), the dates in a quiet line; the list of 344 px on
 // the left — tabs underlined in terracotta, the fan's picture, the name, «@handle · 2 ч назад», the status in words
 // (terracotta where the person can act), the batch's draft under the fan in the family's draft look — and the card on
 // the right: the profile, «Открыть в Fansly ↗», the conversation in plain bubbles (ours on the right), the draft in the
-// serif of AI text and «Отправить →», the only blue besides «Отправить N →» of the batch: both reach fans.
+// serif of AI text and «Отправить →». Blue only on what reaches a fan: the card's «Отправить →» and a draft row's own
+// small «Отправить» (X57).
 // Every size is a token, so «Крупнее» scales the window; the rows' heights follow it in the component.
 
 import { STALE_ROW_CSS } from '../../../dock/stale-row.css';
@@ -39,8 +40,8 @@ export const FANSLY_NEWCOMERS_CSS = `
 .cg-fnw__hint2 { margin: 0; font-size: var(--cg-text-sm2); line-height: 18px; color: var(--cg-ink-muted); }
 .cg-fnw__state { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 20px; color: var(--cg-ink-muted); }
 
-.cg-fnw__main { flex: 1; min-height: 0; display: grid; grid-template-columns: 320px minmax(0, 1fr); }
-.cg-fnw.is-large .cg-fnw__main { grid-template-columns: 360px minmax(0, 1fr); }
+.cg-fnw__main { flex: 1; min-height: 0; display: grid; grid-template-columns: 344px minmax(0, 1fr); }
+.cg-fnw.is-large .cg-fnw__main { grid-template-columns: 388px minmax(0, 1fr); }
 .cg-fnw__side { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--cg-rule); }
 .cg-fnw__tabs { flex: none; display: flex; gap: 18px; padding: 0 18px; border-bottom: 1px solid var(--cg-rule); }
 .cg-fnw__tab { margin-bottom: -1px; padding: 11px 0 9px; border-bottom: 2px solid transparent; color: var(--cg-ink-muted); white-space: nowrap; }
@@ -52,7 +53,7 @@ export const FANSLY_NEWCOMERS_CSS = `
 .cg-fnw__list { flex: 1; min-height: 0; }
 
 .cg-fnw__row {
-  display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 11px; align-content: start; height: 100%; padding: 9px 14px 0;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 11px; align-content: start; height: 100%; padding: 9px 12px 0 14px;
   border-bottom: 1px solid var(--cg-rule); cursor: pointer; outline: none;
 }
 .cg-fnw__row:hover { background: var(--cg-hover); }
@@ -69,9 +70,10 @@ export const FANSLY_NEWCOMERS_CSS = `
 .cg-fnw__st.is-2, .cg-fnw__st.is-busy { color: var(--cg-ink-2); }
 .cg-fnw__st.is-done { color: var(--cg-ink-strong); font-weight: 500; }
 .cg-fnw__draft {
-  grid-column: 2; margin: 7px 0 0; padding: 4px 9px; border: 1px dashed var(--cg-clay-line); border-radius: var(--cg-r-md); background: var(--cg-draft);
+  grid-column: 2 / 4; margin: 7px 0 0; padding: 4px 9px; border: 1px dashed var(--cg-clay-line); border-radius: var(--cg-r-md); background: var(--cg-draft);
   font: var(--cg-text-sm2)/17px var(--cg-serif); color: var(--cg-ink);
 }
+.cg-fnw__rsend { grid-column: 3; grid-row: 1; align-self: center; }
 .cg-fnw__dtext { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .cg-fnw__draft.is-sent { border-style: solid; border-color: var(--cg-rule); background: none; color: var(--cg-ink-muted); }
 
@@ -101,7 +103,6 @@ export const FANSLY_NEWCOMERS_CSS = `
 .cg-fnw__batch { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px 10px 14px; border-top: 1px solid var(--cg-rule); background: var(--cg-sunk); }
 .cg-fnw__bline { display: flex; align-items: center; gap: 6px; min-height: 28px; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
 .cg-fnw__bline.is-hint { min-height: 0; color: var(--cg-ink-muted); line-height: 16px; }
-.cg-fnw__bline.is-stop { min-height: 0; color: var(--cg-ink-2); line-height: 16px; }
 .cg-fnw__bn { color: var(--cg-ink-strong); font-weight: 500; white-space: nowrap; }
 .cg-fnw__bst { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

@@ -16,7 +16,6 @@ import {
   type NewcomerRowVM,
   type NewcomersFailureVM,
   type NewcomersPassVM,
-  type NewcomersBatchSendVM,
   type NewcomersTab,
   type NewcomersVM,
 } from '@cg/contracts';
@@ -322,41 +321,37 @@ const DRAFTS: Readonly<Record<number, string>> = {
   8: 'Hi Alex, welcome! Boston, right? 😊 I have a little surprise for my new followers…',
 };
 
-/** The batch's view of a fan: ticked fans of the pass that can be written to, their drafts, how their sends went. */
-function batchRow(row: NewcomerRowVM, n: number, sent: readonly number[]): NewcomerRowVM {
+/** The batch's view of a fan: its draft, the row's own «Отправить», and how its send went (sent, going out now). */
+function batchRow(row: NewcomerRowVM, n: number, sent: readonly number[], sending: number | null): NewcomerRowVM {
   const pickable = row.check?.status === 'ready' || row.check?.status === 'reply';
   const draft = DRAFTS[n];
   const done = sent.includes(n);
+  const going = sending === n;
   return {
     ...row,
     avatarUrl: PICTURES[n] ?? null,
-    ...(done ? { greeting: { s: 'greeted', at: null } } : {}),
+    ...(done ? { greeting: { s: 'greeted', at: null } } : going ? { greeting: { s: 'sending', sent: 0, total: 1 } } : {}),
     batch: draft === undefined ? { pickable, picked: false, state: null, text: null, failure: null } : { pickable, picked: false, state: done ? 'sent' : 'ready', text: draft, failure: null },
+    ...(draft === undefined || done ? {} : { send: { can: !going, refused: null } }),
   };
 }
 
-function batchVM(ctx: ScenarioCtx, sent: readonly number[], batchSend: NewcomersBatchSendVM): ScenarioViewEntry[] {
+function batchVM(ctx: ScenarioCtx, sent: readonly number[], sending: number | null): ScenarioViewEntry[] {
   const tomasz = follower(1);
   const welcome = message(ctx, 1, 13, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true);
-  const shown = sent.includes(1) ? 2 : 1;
-  const card = shown === 1 ? { ...cardOf(ctx, tomasz, { history: history('ready', [welcome]) }), avatarUrl: PICTURES[1] ?? null, greeting: greetingOf({ text: DRAFTS[1] ?? '', ai: true, canSend: true, canInsert: true }) } : { ...cardOf(ctx, follower(2), { history: history('ready', [message(ctx, 2, 40, true, 'hey cutie, just subscribed 😍')]) }), avatarUrl: PICTURES[2] ?? null, greeting: greetingOf({ text: DRAFTS[2] ?? '', ai: true, canSend: false, canInsert: false, state: { s: 'sending' } }) };
-  const vm = fanslyNewcomersVM(ctx, { stage: 'done', selected: shown, card });
-  const rows = vm.rows.map((row) => batchRow({ ...row, selected: row.handle === handleOf(shown) }, Number(BigInt(row.handle.split(':')[2] ?? '0') - 800000000000000000n), sent));
+  const card = { ...cardOf(ctx, tomasz, { history: history('ready', [welcome]) }), avatarUrl: PICTURES[1] ?? null, greeting: greetingOf({ text: DRAFTS[1] ?? '', ai: true, canSend: !sent.includes(1), canInsert: !sent.includes(1), ...(sent.includes(1) ? { state: { s: 'sent', at: null } } : {}) }) };
+  const vm = fanslyNewcomersVM(ctx, { stage: 'done', selected: 1, card });
+  const rows = vm.rows.map((row) => batchRow(row, Number(BigInt(row.handle.split(':')[2] ?? '0') - 800000000000000000n), sent, sending));
   const count = (state: string): number => rows.filter((row) => row.batch?.state === state).length;
-  return [
-    entry(
-      { of: 'newcomers' },
-      { ...vm, rows, batch: { picked: 0, max: 20, queued: 0, generating: 0, ready: count('ready'), sent: count('sent'), failed: 0, reason: null }, pass: { ...(vm.pass as NewcomersPassVM), batchSend } },
-    ),
-  ];
+  return [entry({ of: 'newcomers' }, { ...vm, rows, batch: { picked: 0, max: 20, queued: 0, generating: 0, ready: count('ready'), sent: count('sent'), failed: 0, reason: null } })];
 }
 
-/** `o` — X57: the batch's drafts are ready: read in the list, the first one on its card, «Отправить 3 →». */
+/** `o` — X57: the batch's drafts are ready: read each in the list under its fan, a small «Отправить» in its row. */
 export function fanslyBatchReady(ctx: ScenarioCtx): ScenarioViewEntry[] {
-  return batchVM(ctx, [], { ready: 3, running: false, current: null, sent: 0, total: 0, skipped: 0, stopped: null });
+  return batchVM(ctx, [], null);
 }
 
-/** `p` — X57: «Отправить готовые» under way: one sent, the next going out, one waiting. */
+/** `p` — X57: sending one by one from the list: one sent, the next going out, one waiting for its click. */
 export function fanslyBatchSending(ctx: ScenarioCtx): ScenarioViewEntry[] {
-  return batchVM(ctx, [1], { ready: 0, running: true, current: handleOf(2), sent: 1, total: 3, skipped: 0, stopped: null });
+  return batchVM(ctx, [1], 2);
 }

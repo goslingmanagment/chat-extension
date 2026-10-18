@@ -2,9 +2,9 @@
 // the old Fansly extension, kept as the owner liked it — a compact window with the list of new followers on the left
 // (the picture, the name, «@handle · 2 ч назад», the status in words) and the selected fan on the right (the profile,
 // «Открыть в Fansly ↗», the conversation the pass read, the draft and «Отправить →») — over the shared `NewcomersVM`
-// with its `pass`. What the old one lacked is here too: a batch — tick fans (or «Выбрать N»), «Сгенерировать N», read the
-// drafts right in the list, then «Отправить N →» (X57: one click, one fan at a time, each by its card's own send);
-// after a card's own «Отправить →» the card moves on to the next draft of the batch.
+// with its `pass`. What the old one lacked is here too: a batch — tick fans (or «Выбрать N»), «Сгенерировать N», read
+// each draft right in the list under its fan and send it by the row's own small «Отправить» (X57: the card's send, one
+// click per fan); after a card's own «Отправить →» the card moves on to the next draft of the batch.
 //
 // Speed: only the rows in view are in the DOM (VirtualList), and a row is drawn again only when what it shows changed
 // (`sameRow`) — typing in the draft or a change of one fan's verdict redraws one row, not the list. Pictures load lazily,
@@ -35,7 +35,6 @@ import {
   type NewcomersFailureVM,
   type NewcomersPassRunVM,
   type NewcomersPassVM,
-  type NewcomersBatchSendVM,
   type NewcomersVM,
   type UiAction,
   type ValueSignal,
@@ -168,22 +167,22 @@ interface RowProps {
   /** Rows in the list: the row's place is said (only some rows are drawn). */
   readonly count: number;
   readonly active: boolean;
-  /** «Отправить готовые» is sending to this fan now. */
-  readonly sending: boolean;
   /** The minute of the clock: «2 ч назад» is redrawn once a minute. */
   readonly minute: number;
   readonly onPick: (handle: string) => void;
 }
 
 /** The status line: how the fan's greeting goes when it goes, else the pass's verdict in words — strong where the person can act. */
-function RowStatus({ row, sending }: { readonly row: NewcomerRowVM; readonly sending: boolean }): JSX.Element {
+function RowStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
   const i18n = useI18n();
   const check = row.check?.status ?? 'pending';
   const batch = row.batch?.state ?? null;
   const greeting = row.greeting.s;
-  if (sending || greeting === 'sending') return <span class="cg-fnw__st is-busy"><Spinner />{fanslyText(i18n, 'fansly.newcomers.row.sending')}</span>;
+  if (greeting === 'sending') return <span class="cg-fnw__st is-busy"><Spinner />{fanslyText(i18n, 'fansly.newcomers.row.sending')}</span>;
   if (batch === 'sent' || (greeting === 'greeted' && check !== 'greeted')) return <span class="cg-fnw__st is-done"><Icon name="check" size={13} />{fanslyText(i18n, 'fansly.newcomers.row.sent')}</span>;
   if (greeting === 'stopped') return <span class="cg-fnw__st is-2"><Dot kind="ink" />{fanslyText(i18n, 'fansly.newcomers.greeting.uncertain')}</span>;
+  const refused = row.send?.refused ?? null;
+  if (refused !== null) return <span class="cg-fnw__st is-2" data-cg-code={refused.code}><Dot kind="danger" />{fanslyText(i18n, 'fansly.newcomers.row.failed', { reason: failureTitle(i18n, refused.code) })}</span>;
   if (batch === 'generating') return <span class="cg-fnw__st is-busy"><Spinner />{fanslyText(i18n, 'fansly.newcomers.row.generating')}</span>;
   if (batch === 'queued') return <span class="cg-fnw__st">{fanslyText(i18n, 'fansly.newcomers.row.queued')}</span>;
   if (batch === 'failed') {
@@ -226,7 +225,35 @@ function PickAvatar({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
   );
 }
 
-function RowView({ row, index, count, active, sending, onPick }: RowProps): JSX.Element {
+/**
+ * The row's own «Отправить» of its batch draft (X57): the card's send by one click in the list — it never opens the card;
+ * off with the reason when the card's checks do not let the draft go as it is.
+ */
+function RowSend({ row }: { readonly row: NewcomerRowVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const send = row.send;
+  if (send === undefined || row.greeting.s === 'greeted') return null;
+  const sending = row.greeting.s === 'sending';
+  return (
+    <Button
+      label={fanslyText(i18n, 'fansly.newcomers.row.send')}
+      variant="send"
+      size="sm"
+      class="cg-fnw__rsend"
+      busy={sending}
+      tabIndex={-1}
+      tooltip={fanslyText(i18n, 'fansly.newcomers.row.sendTooltip')}
+      reason={send.can || sending ? null : fanslyText(i18n, 'fansly.newcomers.row.sendBlocked')}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (send.can && !sending) void dispatch({ type: 'SendNewcomerGreeting', targetHandle: row.handle });
+      }}
+    />
+  );
+}
+
+function RowView({ row, index, count, active, onPick }: RowProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const check = row.check?.status ?? 'pending';
@@ -260,8 +287,9 @@ function RowView({ row, index, count, active, sending, onPick }: RowProps): JSX.
           {row.username === null ? null : `@${row.username} · `}
           {fanslyText(i18n, 'fansly.newcomers.ago', { age: i18n.formatAge(row.subscribedAt) })}
         </span>
-        <RowStatus row={row} sending={sending} />
+        <RowStatus row={row} />
       </span>
+      <RowSend row={row} />
       {draft === null ? null : (
         <span class={`cg-fnw__draft${row.batch?.state === 'sent' ? ' is-sent' : ''}`}>
           <span class="cg-fnw__dtext">{draft}</span>
@@ -273,7 +301,7 @@ function RowView({ row, index, count, active, sending, onPick }: RowProps): JSX.
 
 /** A row is drawn again only when what it shows changed: the list re-renders on every keystroke of the draft. */
 function sameRow(a: RowProps, b: RowProps): boolean {
-  if (a.index !== b.index || a.count !== b.count || a.active !== b.active || a.sending !== b.sending || a.minute !== b.minute || a.onPick !== b.onPick) return false;
+  if (a.index !== b.index || a.count !== b.count || a.active !== b.active || a.minute !== b.minute || a.onPick !== b.onPick) return false;
   const x = a.row;
   const y = b.row;
   if (x === y) return true;
@@ -291,7 +319,9 @@ function sameRow(a: RowProps, b: RowProps): boolean {
     x.batch?.picked === y.batch?.picked &&
     x.batch?.state === y.batch?.state &&
     x.batch?.text === y.batch?.text &&
-    x.batch?.failure?.code === y.batch?.failure?.code
+    x.batch?.failure?.code === y.batch?.failure?.code &&
+    x.send?.can === y.send?.can &&
+    x.send?.refused?.code === y.send?.refused?.code
   );
 }
 
@@ -512,25 +542,19 @@ function PickAll({ rows, vm }: { readonly rows: readonly NewcomerRowVM[]; readon
 
 /**
  * The batch at the foot of the list: what is ticked and «Сгенерировать N»; while it runs, how far it got and
- * «Остановить»; once drafts are ready, «Отправить N →» (X57) — what reaches the fans, so it is the send blue —, and
- * while that runs, how far it got; where the last run stopped and why.
+ * «Остановить»; once drafts are ready, how many and «Очистить», and the hint to read each draft in its row and send it
+ * there (X57: one click per fan, never all at once).
  */
-function BatchBar({ vm, batchSend }: { readonly vm: NewcomersVM; readonly batchSend: NewcomersBatchSendVM | null }): JSX.Element | null {
+function BatchBar({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const batch = vm.batch;
   if (batch === undefined) return null;
   const made = batch.queued + batch.generating + batch.ready + batch.sent + batch.failed;
   const generating = batch.queued + batch.generating > 0;
-  const sending = batchSend?.running === true;
-  const ready = batchSend?.ready ?? 0;
-  const sent = batchSend !== null && !sending ? batchSend.sent : 0;
-  const stopped = sending ? null : (batchSend?.stopped ?? null);
-  const results = !sending && !generating && (ready > 0 || made > 0 || sent > 0);
-  if (batch.picked === 0 && !generating && !sending && !results && stopped === null) return null;
-  const stop = (action: UiAction): JSX.Element => <Button label={i18n.t('batch.stop')} variant="quiet" size="sm" onClick={() => void dispatch(action)} />;
+  if (batch.picked === 0 && made === 0) return null;
   return (
-    <div class="cg-fnw__batch" role="group" aria-label={i18n.t('batch.pickAll')} data-cg-batch={sending ? 'sending' : generating ? 'running' : batch.picked > 0 ? 'picked' : 'done'}>
+    <div class="cg-fnw__batch" role="group" aria-label={i18n.t('batch.pickAll')} data-cg-batch={generating ? 'running' : batch.picked > 0 ? 'picked' : 'done'}>
       {batch.picked > 0 && !generating ? (
         <div class="cg-fnw__bline">
           <span class="cg-fnw__bn">{fanslyText(i18n, 'fansly.newcomers.batch.picked', { n: batch.picked })}</span>
@@ -554,46 +578,20 @@ function BatchBar({ vm, batchSend }: { readonly vm: NewcomersVM; readonly batchS
             {fanslyText(i18n, 'fansly.newcomers.batch.generating', { done: batch.ready + batch.sent, total: made })}
           </span>
           <span class="cg-fnw__grow" />
-          {stop({ type: 'StopBatch', list: 'newcomers' })}
+          <Button label={i18n.t('batch.stop')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'StopBatch', list: 'newcomers' })} />
         </div>
-      ) : null}
-      {sending ? (
+      ) : made > 0 ? (
         <div class="cg-fnw__bline">
           <span class="cg-fnw__bst" role="status">
-            <Spinner />
-            {fanslyText(i18n, 'fansly.newcomers.batchSend.running', { done: batchSend.sent, total: batchSend.total })}
-          </span>
-          <span class="cg-fnw__grow" />
-          {stop({ type: 'StopNewcomerGreetings' })}
-        </div>
-      ) : null}
-      {results ? (
-        <div class="cg-fnw__bline">
-          <span class="cg-fnw__bst" role="status">
-            {ready === 0 && sent > 0 ? fanslyText(i18n, 'fansly.newcomers.batchSend.done', { n: sent }) : fanslyText(i18n, 'fansly.newcomers.batch.ready', { n: ready })}
+            {fanslyText(i18n, 'fansly.newcomers.batch.ready', { n: batch.ready })}
+            {batch.sent === 0 ? null : ` · ${fanslyText(i18n, 'fansly.newcomers.batch.sent', { n: batch.sent })}`}
             {batch.failed === 0 ? null : ` · ${fanslyText(i18n, 'fansly.newcomers.batch.failed', { n: batch.failed })}`}
           </span>
           <span class="cg-fnw__grow" />
-          {made === 0 ? null : <Button label={i18n.t('batch.clear')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'ClearBatch', list: 'newcomers' })} />}
-          {ready === 0 ? null : (
-            <Button
-              label={fanslyText(i18n, 'fansly.newcomers.batchSend', { n: ready })}
-              variant="send"
-              size="sm"
-              class="cg-fnw__batchsend"
-              tooltip={fanslyText(i18n, 'fansly.newcomers.batchSendTooltip')}
-              onClick={() => void dispatch({ type: 'SendNewcomerGreetings' })}
-            />
-          )}
+          <Button label={i18n.t('batch.clear')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'ClearBatch', list: 'newcomers' })} />
         </div>
       ) : null}
-      {results && ready > 0 && stopped === null ? <div class="cg-fnw__bline is-hint">{fanslyText(i18n, 'fansly.newcomers.batch.review')}</div> : null}
-      {stopped === null ? null : (
-        <div class="cg-fnw__bline is-stop" data-cg-code={stopped.failure.code}>
-          <Dot kind={stopped.failure.code === 'CG-SEND-UNCERTAIN' ? 'ink' : 'danger'} />
-          {fanslyText(i18n, 'fansly.newcomers.batchSend.stopped', { name: stopped.name, reason: failureTitle(i18n, stopped.failure.code) })}
-        </div>
-      )}
+      {!generating && batch.ready > 0 ? <div class="cg-fnw__bline is-hint">{fanslyText(i18n, 'fansly.newcomers.batch.review')}</div> : null}
     </div>
   );
 }
@@ -1080,8 +1078,6 @@ export function FanslyNewcomersWindow(): JSX.Element {
   const showList = hasRows && !failed && vm.view.s !== 'error' && vm.view.s !== 'forbidden' && vm.view.s !== 'empty';
   const range = rangeText(i18n, pass);
   const card = pass?.card ?? null;
-  const batchSend = pass?.batchSend ?? null;
-  const sendingTo = batchSend?.current ?? null;
   const title = fanslyText(i18n, 'fansly.newcomers.title');
 
   let list: JSX.Element;
@@ -1097,7 +1093,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
           listRef={listRef}
           onRangeChange={onRange}
           onKeyDown={onListKeyDown}
-          renderRow={(row, index) => <Row row={row} index={index} count={rows.length} active={index === current} sending={row.handle === sendingTo} minute={minute} onPick={setActiveHandle} />}
+          renderRow={(row, index) => <Row row={row} index={index} count={rows.length} active={index === current} minute={minute} onPick={setActiveHandle} />}
         />
       </div>
     );
@@ -1177,7 +1173,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
                   </div>
                 )}
                 {list}
-                <BatchBar vm={vm} batchSend={batchSend} />
+                <BatchBar vm={vm} />
               </aside>
               {card === null ? (
                 <section class="cg-fnc cg-fnc--none" aria-label={fanslyText(i18n, 'fansly.newcomers.cardLabel')}>

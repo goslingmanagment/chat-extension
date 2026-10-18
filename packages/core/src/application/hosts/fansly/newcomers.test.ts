@@ -34,7 +34,7 @@ import { checkOf, passRowOf } from '../../../domain/hosts/fansly/newcomers';
 import { inPassTab, matchesPassSearch, passesCheckFilter } from '../../../domain/newcomers/pass';
 import { Surfaces, type PageContextPort, type PageContextState, type TabRpc } from '../../boards';
 import { GREETING_DRAFT_DEBOUNCE_MS } from '../../newcomers/greeting';
-import { PASS_SEND_GAP_MS, parsePassHandle, passHandle } from '../../newcomers/pass';
+import { parsePassHandle, passHandle } from '../../newcomers/pass';
 import { createPassNewcomersController } from '../../newcomers/pass';
 import { createFanslyNewcomersSource, type FanslyFollowersAnswer, type FanslyFollowersPort, type FanslyFollowersRequest } from './newcomers';
 
@@ -1451,7 +1451,7 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
   });
 });
 
-describe('[host:fansly] «Новые» on Fansly: «Отправить готовые» of a batch (X57)', () => {
+describe('[host:fansly] «Новые» on Fansly: a batch generated for many, each draft sent by its own click in the list (X57)', () => {
   /** Three ready fans, a batch of Hi for all of them, each generation done: their drafts wait in the list. */
   async function batchReady(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2), wireRow(3)]) {
     const w = greetingWorld(rows);
@@ -1468,95 +1468,49 @@ describe('[host:fansly] «Новые» on Fansly: «Отправить гото�
   }
   const sentTo = (w: Awaited<ReturnType<typeof batchReady>>): string[] => w.background.of('fansly.followers.send').map((payload) => (payload as { fanRef: string }).fanRef);
 
-  it('[X57] [NF-019] one click sends the batch’s results one fan at a time — each by its card’s own send, the field as it is now, a pause between two; the rows say how it went', async () => {
+  it('[X57] [NF-019] a row with the batch’s draft has its own «Отправить»: one click sends that fan’s draft — the card’s send, without opening the card; the row says it went', async () => {
     const w = await batchReady();
-    // The person read the drafts and changed one: it goes as the edited result, not the generation's.
-    await w.type(2, 'Hi Fan 2, welcome!');
-    expect(w.vm().pass?.batchSend).toMatchObject({ ready: 3, running: false, sent: 0, total: 0 });
-    const run = w.controller.dispatch({ type: 'SendNewcomerGreetings' });
-    await settle();
-    expect(sentTo(w)).toEqual([fan(1)]);
-    expect(w.vm().pass?.batchSend).toMatchObject({ running: true, sent: 1, total: 3, ready: 0 });
-    // Nobody else before the pause is over.
-    await w.clock.advance(PASS_SEND_GAP_MS - 1);
-    expect(sentTo(w)).toEqual([fan(1)]);
-    await w.clock.advance(1);
-    expect(sentTo(w)).toEqual([fan(1), fan(2)]);
-    await w.clock.advance(PASS_SEND_GAP_MS);
-    expect(await run).toMatchObject({ ok: true, outcome: 'done' });
-    expect(sentTo(w)).toEqual([fan(1), fan(2), fan(3)]);
+    expect(w.vm().rows.map((row) => row.send)).toEqual([{ can: true, refused: null }, { can: true, refused: null }, { can: true, refused: null }]);
+    // The card shows fan 1; fan 2 is sent from its row.
+    expect(w.card()?.handle).toBe(w.handle(1));
+    expect(await w.send(2)).toMatchObject({ ok: true });
+    expect(sentTo(w)).toEqual([fan(2)]);
+    expect(w.tab.tokens).toEqual(['send']);
     const sends = w.background.of('fansly.followers.send') as { admission: { kind: string }; text: string }[];
-    expect(sends.map((send) => [send.admission.kind, send.text])).toEqual([['ai', 'Hey Fan 1!'], ['ai-edited', 'Hi Fan 2, welcome!'], ['ai', 'Hey Fan 3!']]);
-    // One send token per fan, every one of them asked by the card's own send.
-    expect(w.tab.tokens).toEqual(['send', 'send', 'send']);
-    expect(w.vm().pass?.batchSend).toMatchObject({ ready: 0, running: false, sent: 3, total: 3, skipped: 0, stopped: null, current: null });
-    expect(w.vm().rows.map((row) => [row.greeting.s, row.batch?.state])).toEqual([['greeted', 'sent'], ['greeted', 'sent'], ['greeted', 'sent']]);
-    // Nothing is sent twice.
-    expect(await w.controller.dispatch({ type: 'SendNewcomerGreetings' })).toMatchObject({ ok: true, outcome: 'noop' });
-    expect(sentTo(w)).toHaveLength(3);
+    expect(sends.map((send) => [send.admission.kind, send.text])).toEqual([['ai', 'Hey Fan 2!']]);
+    expect(w.card()?.handle).toBe(w.handle(1));
+    const row = w.vm().rows[1];
+    expect([row?.greeting.s, row?.batch?.state, row?.send]).toEqual(['greeted', 'sent', undefined]);
+    // Nothing else went: each fan is its own click.
+    await w.clock.advance(600_000);
+    expect(sentTo(w)).toEqual([fan(2)]);
+    // Sent: never again.
+    expect(await w.send(2)).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
   });
 
-  it('[X57] [NF-024] a draft that cannot go as it is (the fan wrote meanwhile) is passed over; one that may have gone stops the rest — never repeated', async () => {
+  it('[X57] [NF-024] [NF-018] a row whose draft cannot go as it is says so: the click is refused with its reason, nothing went; the draft stays', async () => {
     const w = await batchReady();
-    w.background.sendAnswer = (click) =>
-      click.fanRef === fan(1)
-        ? { ok: false, error: { code: 'CG-FNEW-HISTORY' } }
-        : { ok: true, attempt: { attemptId: click.attemptId, fanRef: click.fanRef, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' } };
-    const run = w.controller.dispatch({ type: 'SendNewcomerGreetings' });
+    w.background.sendAnswer = () => ({ ok: false, error: { code: 'CG-FNEW-HISTORY' } });
+    expect(await w.send(3)).toMatchObject({ ok: false });
+    expect(w.vm().rows[2]?.send).toEqual({ can: true, refused: { code: 'CG-FNEW-HISTORY', retryAt: null } });
+    expect(w.vm().rows[2]?.batch).toMatchObject({ state: 'ready', text: 'Hey Fan 3!' });
+    // An unchanged AI text the hub marked is not the row's to send: «Отправить» is off.
+    const marked = greetingWorld([wireRow(1)]);
+    await marked.open();
+    await marked.controller.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [marked.handle(1)], picked: true });
+    await marked.controller.dispatch({ type: 'GenerateBatch', list: 'newcomers' });
     await settle();
-    await w.clock.advance(PASS_SEND_GAP_MS);
-    await w.clock.advance(PASS_SEND_GAP_MS);
-    await run;
-    // Fan 1 passed over, fan 2 unknown — fan 3 is not sent to.
-    expect(sentTo(w)).toEqual([fan(1), fan(2)]);
-    expect(w.vm().pass?.batchSend).toMatchObject({
-      running: false,
-      sent: 0,
-      skipped: 1,
-      total: 3,
-      stopped: { handle: w.handle(2), name: 'Fan 2', failure: { code: 'CG-SEND-UNCERTAIN', retryAt: null } },
-    });
-    expect(w.vm().rows.map((row) => row.greeting.s)).toEqual(['none', 'stopped', 'none']);
-    // The fan whose history changed keeps the draft on the card, with the reason.
-    await w.pick(1);
-    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1!', state: { s: 'refused', failure: { code: 'CG-FNEW-HISTORY' } } });
-    // A new click sends what may go now — fan 1 (its card may try again) and fan 3; fan 2, unknown, is never repeated.
-    w.background.sendAnswer = (click) => ({ ok: true, attempt: { attemptId: click.attemptId, fanRef: click.fanRef, state: 'sent', proof: 'echo', platformMessageId: '830000000000000003' } });
-    const again = w.controller.dispatch({ type: 'SendNewcomerGreetings' });
+    marked.marks.set(uuid(0xc1), 'unverified');
+    marked.tab.done(uuid(0xc1), ['Hey!']);
     await settle();
-    await w.clock.advance(PASS_SEND_GAP_MS);
-    await again;
-    expect(sentTo(w).slice(2)).toEqual([fan(1), fan(3)]);
+    expect(marked.vm().rows[0]?.send).toEqual({ can: false, refused: null });
   });
 
-  it('[X57] «Остановить»: the send under way finishes, nobody else is sent to; closing the window stops it too', async () => {
-    const w = await batchReady();
-    const run = w.controller.dispatch({ type: 'SendNewcomerGreetings' });
-    await settle();
-    expect(sentTo(w)).toEqual([fan(1)]);
-    expect(await w.controller.dispatch({ type: 'StopNewcomerGreetings' })).toMatchObject({ ok: true, outcome: 'done' });
-    await run;
-    await w.clock.advance(10 * PASS_SEND_GAP_MS);
-    expect(sentTo(w)).toEqual([fan(1)]);
-    expect(w.vm().pass?.batchSend).toMatchObject({ running: false, sent: 1, total: 3, ready: 2 });
-
-    const closing = await batchReady();
-    const second = closing.controller.dispatch({ type: 'SendNewcomerGreetings' });
-    await settle();
-    await closing.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
-    await second;
-    await closing.clock.advance(10 * PASS_SEND_GAP_MS);
-    expect(sentTo(closing)).toEqual([fan(1)]);
-  });
-
-  it('[X57] nothing to send — no request: no batch, a result already sent, a fan whose history is not proven', async () => {
-    const w = greetingWorld([wireRow(1), wireRow(2, { historyRevision: null })]);
+  it('[X57] a draft typed on a card is no batch result: the list has no «Отправить» for it — the card has', async () => {
+    const w = greetingWorld([wireRow(1), wireRow(2)]);
     await w.open();
-    expect(w.vm().pass?.batchSend).toMatchObject({ ready: 0, running: false });
-    // A draft typed on a card is no batch result: «Отправить готовые» takes only what the batch made.
     await w.type(1, 'Hi!');
-    expect(await w.controller.dispatch({ type: 'SendNewcomerGreetings' })).toMatchObject({ ok: true, outcome: 'noop' });
-    expect(w.background.of('fansly.followers.send')).toEqual([]);
-    expect(w.tab.tokens).toEqual([]);
+    expect(w.vm().rows.map((row) => row.send)).toEqual([undefined, undefined]);
+    expect(w.greeting()).toMatchObject({ canSend: true });
   });
 });
