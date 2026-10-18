@@ -86,6 +86,19 @@ export interface NewcomerRowVM {
   readonly batch?: BatchRowVM;
   /** 1.33.0 (X57): the fan's picture as the site gives it (a list a pass checks); absent or null — the initial. */
   readonly avatarUrl?: string | null;
+  /**
+   * 1.33.0 (X57): the row's own «Отправить» of a batch's draft (a list a pass checks) — the card's send by one click
+   * in the list (`SendNewcomerGreeting` with the row's handle); absent — the row has no draft to send.
+   */
+  readonly send?: NewcomerRowSendVM;
+}
+
+/** 1.33.0 (X57): «Отправить» in a row of «Новые» a pass checks. */
+export interface NewcomerRowSendVM {
+  /** The card's checks let the draft go now (a proven history, a fresh or own text, nothing running). */
+  readonly can: boolean;
+  /** The last click was refused and nothing went: why; null — it was not. */
+  readonly refused: NewcomersFailureVM | null;
 }
 
 export interface NewcomersVM {
@@ -305,26 +318,4 @@ export interface NewcomersPassVM {
   readonly card: NewcomerCardVM | null;
   /** 1.15.0 (R20 P10b1): «Пауза» and «Проверить оставшихся» (NF-038); absent — none. */
   readonly run?: NewcomersPassRunVM;
-  /** 1.33.0 (X57): «Отправить готовые» over the batch's results; absent — the list has no greeting. */
-  readonly batchSend?: NewcomersBatchSendVM;
-}
-
-/**
- * 1.33.0 (X57): «Отправить готовые (N)» — the batch's results that may go now (`SendNewcomerGreetings`), one fan at a
- * time by the card's own send, and «Остановить» (`StopNewcomerGreetings`). What each fan's send did is on its row and card.
- */
-export interface NewcomersBatchSendVM {
-  /** Results of the batch the click would send now: unsent, unchanged or edited, each one its card may send. */
-  readonly ready: number;
-  /** A run is under way. */
-  readonly running: boolean;
-  /** The fan being sent to now; null — none. */
-  readonly current: TargetHandle | null;
-  /** The last run (or the one under way): sent so far, of how many it took. */
-  readonly sent: number;
-  readonly total: number;
-  /** Fans the run passed over: their draft cannot go as it is (the card says why — the fan wrote, the text went stale). */
-  readonly skipped: number;
-  /** The last run stopped before its end: at which fan and why; null — it did not. */
-  readonly stopped: { readonly handle: TargetHandle; readonly name: string; readonly failure: NewcomersFailureVM } | null;
 }

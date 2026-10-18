@@ -283,14 +283,6 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('StopBatch', { list: z.enum(BATCH_LISTS) }),
   /** 1.32.0: «Очистить» — the rows forget the batch; the results stay on the fans' cards. */
   act('ClearBatch', { list: z.enum(BATCH_LISTS) }),
-  /**
-   * 1.33.0 (X57): «Отправить готовые» of «Новые» a pass checks — the batch's results that may go now, one fan at a time,
-   * each by its card's own send with all of its checks (`NewcomersVM.pass.batchSend`). One click of the person's, through
-   * the window: never a key, never by itself; the first send that may have gone, or fails beyond its fan, stops the rest.
-   */
-  act('SendNewcomerGreetings', {}),
-  /** 1.33.0 (X57): «Остановить» — the send under way finishes, nobody else is sent to. */
-  act('StopNewcomerGreetings', {}),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),

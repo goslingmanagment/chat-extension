@@ -105,7 +105,7 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.greeting.stale',
   'fansly.newcomers.greeting.count',
   'fansly.newcomers.noAutoSend',
-  // 1.33.0 (X57): the window as the old one, the batch's «Отправить готовые», the remembered period.
+  // 1.33.0 (X57): the window as the old one, the batch's drafts and their «Отправить» in the list, the remembered period.
   'fansly.newcomers.title',
   'fansly.newcomers.period',
   'fansly.newcomers.ago',
@@ -124,10 +124,9 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.row.sending',
   'fansly.newcomers.row.sent',
   'fansly.newcomers.row.notSent',
-  'fansly.newcomers.batchSend',
-  'fansly.newcomers.batchSendTooltip',
-  'fansly.newcomers.batchSend.running',
-  'fansly.newcomers.batchSend.done',
-  'fansly.newcomers.batchSend.stopped',
+  'fansly.newcomers.row.send',
+  'fansly.newcomers.row.sendTooltip',
+  'fansly.newcomers.row.sendBlocked',
+  'fansly.newcomers.batch.sent',
 ] as const;
 export type FanslyNewcomersTextKey = (typeof FANSLY_NEWCOMERS_TEXT_KEYS)[number];
