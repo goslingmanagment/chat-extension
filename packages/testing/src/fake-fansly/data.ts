@@ -40,6 +40,9 @@ export const MESSAGE_TYPE = { message: 1, automated: 2, broadcast: 3 } as const;
 /** `type` of a group: a conversation, the creator's mass-send group. */
 export const GROUP_TYPE = { conversation: 1, broadcast: 3 } as const;
 /** Followers the world starts with: two pages of the pass's `limit=100` (old `getFollowerPage`). */
+/** Fansly's CDN as the fake world addresses the accounts' pictures: the window of «Новые» shows them (X59). */
+export const FAKE_FANSLY_MEDIA_HOST = 'cdn3.fansly.com';
+
 export const SEED_FOLLOWERS = 150;
 /** Of them, the first ones already have a conversation (a fan of the inbox); the rest have none yet. */
 export const SEED_FOLLOWERS_WITH_CHAT = 40;
@@ -501,7 +504,7 @@ export class FanslyWorld {
     const mediaId = String(BigInt(account.id) + 77n);
     const at = Math.floor(snowflakeMs(account.id) / 1000);
     const base = { type: 1, status: 1, accountId: account.id, mimetype: 'image/jpeg', flags: 0, metadata: '{}', createdAt: at, updatedAt: at };
-    const address = (id: string): string => `https://cdn3.fansly.com/${account.id}/${id}.jpeg`;
+    const address = (id: string): string => `https://${FAKE_FANSLY_MEDIA_HOST}/${account.id}/${id}.jpeg`;
     const variantId = String(BigInt(mediaId) + 1n);
     return {
       ...base,

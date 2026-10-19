@@ -21,6 +21,7 @@ import { mkdirSync } from 'node:fs';
 import type { NewcomerSeed } from '../../fixture-fansly/src/server-protocol';
 import type { WireMessage } from '../../fixture-fansly/src/wire';
 import type { FakeHubJournalEntry } from '../../src/fake-hub/types';
+import { FAKE_FANSLY_MEDIA_HOST } from '../../src/fake-fansly/data';
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
 import { WORLD } from '../../src/scenarios/hub';
 import { suspendBackground } from '../support/background';
@@ -53,7 +54,9 @@ async function picture(name: string): Promise<void> {
 }
 
 describe('[host:fansly] «Новые» on Fansly — the window over the background’s pass (R20 P10a)', () => {
-  useNetworkTrap();
+  const { trap } = useNetworkTrap();
+  // Each follower's picture comes from Fansly's CDN, as Fansly's own page loads it (X59).
+  before(() => trap().expectSiteMedia(FAKE_FANSLY_MEDIA_HOST));
   const { hub } = useFakeHub();
   let shift: FanslyShift;
   let standStart = 0;
@@ -264,7 +267,9 @@ async function openWindow(shift: FanslyShift): Promise<void> {
 }
 
 describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture §8.7, §8.15; FS-NEW-*)', () => {
-  useNetworkTrap();
+  const { trap } = useNetworkTrap();
+  // Each follower's picture comes from Fansly's CDN, as Fansly's own page loads it (X59).
+  before(() => trap().expectSiteMedia(FAKE_FANSLY_MEDIA_HOST));
   const { hub } = useFakeHub();
   let shift: FanslyShift;
   let seq = 0;

@@ -8,7 +8,8 @@
 //   included; it records the host and drops the connection.
 // After every test, and once more after the suite, both are read and any
 // request outside the loopback stand and fake hub fails — except, in the sink
-// only, the hosts Firefox itself still contacts (FIREFOX_OWN_HOSTS).
+// only, the hosts Firefox itself still contacts (FIREFOX_OWN_HOSTS), and the
+// pictures of a site's own CDN a suite declares (`expectSiteMedia`).
 
 import { browser } from '@wdio/globals';
 
@@ -33,6 +34,9 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
  */
 export const FIREFOX_OWN_HOSTS: ReadonlySet<string> = new Set<string>([]);
 
+/** A site's own CDN, whose pictures a surface of ours may show as the site's page does: Fansly's `cdnN.fansly.com`. */
+const SITE_MEDIA_HOST = /^cdn\d*\.fansly\.com$/;
+
 /**
  * Origins an e2e may reach: the stands (ChatSpace's page and API; Fansly's page and the fake Fansly's API and socket)
  * and the fake hub (wdio onPrepare starts them).
@@ -55,6 +59,8 @@ export class NetworkTrap {
   private egressCursor = 0;
   /** Probe hosts a test reached on purpose; the browser may retry them for a while, so they stay allowed for the suite. */
   private readonly probeHosts = new Set<string>();
+  /** A site's CDN hosts whose pictures the suite's surfaces show (`expectSiteMedia`). */
+  private readonly mediaHosts = new Set<string>();
 
   private constructor(allowedOrigins: readonly string[]) {
     // http, https, ws and wss to the same loopback host:port are one origin for this purpose.
@@ -99,7 +105,18 @@ export class NetworkTrap {
     await this.settle();
     const fresh = this.seen.slice(this.cursor);
     this.cursor = this.seen.length;
-    return fresh.filter((request) => !this.isAllowed(request.url));
+    return fresh.filter((request) => !this.isAllowed(request.url) && !this.isSiteMedia(request));
+  }
+
+  /** A picture of a declared site CDN: a GET over https, nothing sent along. */
+  private isSiteMedia(request: TrappedRequest): boolean {
+    if (request.method !== 'GET') return false;
+    try {
+      const parsed = new URL(request.url);
+      return parsed.protocol === 'https:' && this.mediaHosts.has(parsed.host);
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -109,6 +126,16 @@ export class NetworkTrap {
   expectProbeHost(host: string): void {
     if (!host.endsWith('.invalid')) throw new Error(`only .invalid probe hosts can be expected, not ${host}`);
     this.probeHosts.add(host);
+  }
+
+  /**
+   * Declares the pictures of a site's own CDN that a surface of ours shows, the way the site's page loads them (X59:
+   * the fan's picture in «Новые фоловеры» on Fansly). Their GETs and the sink's attempts there no longer fail this suite;
+   * in the e2e container they reach nothing, and the picture stays its initial. Only a site's CDN host is accepted.
+   */
+  expectSiteMedia(host: string): void {
+    if (!SITE_MEDIA_HOST.test(host)) throw new Error(`only a site's CDN host can be expected for pictures, not ${host}`);
+    this.mediaHosts.add(host);
   }
 
   /** Sink attempts to hosts other than Firefox's own since the last take, consumed. Lines lost from the bounded sink log fail. */
@@ -122,7 +149,7 @@ export class NetworkTrap {
   /** Fails on any BiDi violation or foreign sink attempt not yet taken; `where` names the test for the report. */
   async assertClean(where = ''): Promise<void> {
     const violations = await this.takeViolations();
-    const egress = (await this.takeEgress()).filter((attempt) => attempt.host === null || !this.probeHosts.has(attempt.host));
+    const egress = (await this.takeEgress()).filter((attempt) => attempt.host === null || (!this.probeHosts.has(attempt.host) && !this.mediaHosts.has(attempt.host)));
     if (violations.length === 0 && egress.length === 0) return;
     const parts = [
       ...(violations.length > 0 ? [`BiDi: ${violations.map((request) => `${request.method} ${request.url}`).join(', ')}`] : []),
