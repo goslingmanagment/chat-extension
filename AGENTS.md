@@ -236,7 +236,9 @@ a boundary you need to cross is a design question, not a lint exception.
 - **Fresh page text goes to the hub only for AI starts in the open chat**
   (Reply, Fix, Hi, Ping; since X52 Review and Coach on a hub that lists
   `live-text-review-coach-v1`, Recap on one that lists `live-text-recap-v1`),
-  never into the hub archive or money. A recap built with it stays the fan's
+  never into the hub archive or money. X69 also lets Hi in Fansly's «Новые» carry the confirmed texts already
+  read by its pass, from the same proof window, through the existing `liveTextContext` under the page's `freshText`
+  switch. No additional site reads; the pass's capture time and the hub's bounds apply. A recap built with it stays the fan's
   shared recap and its dossier (the owner's ruling, 2026-10-17); every other
   generation with it is scoped to its author. Skip queued (`isFromQueue`) and
   unsent messages.

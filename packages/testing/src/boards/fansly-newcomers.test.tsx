@@ -280,6 +280,10 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     const field = greeting.querySelector('textarea') as HTMLTextAreaElement;
     expect([field.getAttribute('aria-label'), field.value.startsWith('Hey Tomasz!'), field.maxLength]).toEqual(['Личное сообщение', true, 5000]);
     expect(board.text('.cg-fnc__ai')).toBe('AI');
+    // X69: no freshness banner or forced edit; the person sends the displayed AI draft by a click.
+    expect(board.$('.cg-fnc__mark')).toBeNull();
+    expect((button(board, '.cg-fnc__gbar', 'Отправить →') as HTMLButtonElement).disabled).toBe(false);
+    expect(board.actions()).toEqual([]);
     expect(board.$$('.cg-fnc__gbar button').map(textOf)).toEqual(['Сгенерировать', 'Открыть и вставить', 'Отправить →']);
     // Blue only on what reaches the fan.
     expect(board.$$('.cg-fnc .cg-btn--send').map(textOf)).toEqual(['Отправить →']);

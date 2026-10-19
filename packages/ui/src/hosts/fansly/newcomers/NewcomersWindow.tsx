@@ -22,7 +22,6 @@ import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { isCgCode, type CgCode, type CgErrorView, type I18nKey } from '@cg/contracts/errors';
 import { cgBodyKey, cgTitleKey } from '@cg/contracts/i18n/keys';
 import { type FanslyNewcomersTextKey } from '@cg/contracts/newcomers-fansly';
-import { type StaleReason } from '@cg/contracts/ops';
 import {
   type I18n,
   type I18nParams,
@@ -509,7 +508,6 @@ function OpenLink({ href }: { readonly href: string }): JSX.Element {
 }
 
 /** The words of a mark over an unchanged AI text, by its reason (ui-design §4.7; Fansly's catalog has the window check's). */
-const MARK_WORDS = { 'fan-wrote': '', 'archive-moved': '', unverified: '.unverified', 'window-miss': '.windowMiss', 'deleted-served': '.deletedServed' } as const satisfies Record<StaleReason, string>;
 
 /** Where the card's click stands: a spinner while it runs, «✓ Отправлено 09:21», a dot and the code's line otherwise. */
 function GreetingState({ greeting }: { readonly greeting: NewcomerGreetingVM }): JSX.Element | null {
@@ -560,7 +558,6 @@ function Greeting({ handle, greeting, onSent }: { readonly handle: string; reado
   const draft = useOwnEchoes(greeting.text, handle);
   const s = greeting.state.s;
   const running = s === 'generating' || s === 'sending';
-  const words = (reason: StaleReason, part: 'title' | 'body'): string => i18n.t(`result.stale${MARK_WORDS[reason]}.${part}` as I18nKey);
   const runningText = (): string => fanslyText(i18n, s === 'sending' ? 'fansly.newcomers.greeting.sending' : 'fansly.newcomers.greeting.generating');
   // Why a button is off, in the tooltip it always shows (ui-design §4): what runs, what the pass has not proven, how the click ended, an empty field.
   const why = (): string => {
@@ -572,16 +569,6 @@ function Greeting({ handle, greeting, onSent }: { readonly handle: string; reado
   const sendReason = greeting.canSend || s === 'sending' ? null : greeting.sendBlocked !== null ? failureView(i18n, greeting.sendBlocked).title : why();
   return (
     <div class="cg-fnc__greet" data-cg-greeting={s}>
-      {greeting.mark === null ? null : (
-        <div class="cg-stale cg-fnc__mark" role="status">
-          <span class="cg-gut">
-            <Dot kind="accent" use="result-stale" />
-          </span>
-          <span class="cg-stale__t">
-            <b>{words(greeting.mark, 'title')}</b> {words(greeting.mark, 'body')}
-          </span>
-        </div>
-      )}
       {greeting.stale ? <div class="cg-fnc__gnote is-strong">{fanslyText(i18n, 'fansly.newcomers.greeting.stale')}</div> : null}
       {greeting.waiting ? <div class="cg-fnc__gnote">{fanslyText(i18n, 'fansly.newcomers.greeting.waiting')}</div> : null}
       <div class="cg-fnc__field">

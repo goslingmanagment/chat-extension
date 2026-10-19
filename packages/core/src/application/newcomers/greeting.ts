@@ -7,12 +7,12 @@
 //   (GREETING_DRAFT_DEBOUNCE_MS), never on every key, and at once before a send or an insert.
 // - «Сгенерировать» (NF-013…NF-017): only for a fan whose history the pass read to its start (NF-014). The pass's proof
 //   of that history is asked first; more than ten personal messages among its last 30 refuse at once — a dialogue is
-//   Reply's (NF-015, CG-GATE-HI). Then one Hi with one variant: the hub builds it from its own history (X4), the
-//   start carries the pass's ids, its proof of the start and the fan's avatar (NF-034, FX-018). The sign-in, the
+//   Reply's (NF-015, CG-GATE-HI). Then one Hi with one variant: the hub combines its history with confirmed pass texts
+//   (X69); the start carries their ids, proof of the start and fan's avatar (NF-034, FX-018). The sign-in, the
 //   binding and the persona are the same before and after (NF-016) — else the result is not taken; an empty, too long
 //   or split result is unusable (NF-017, CG-OUTPUT-UNUSABLE). A usable one goes into the field: «AI» while unchanged.
 // - «Отправить» (NF-019): one click, one attempt of the site's send; the FIELD's content goes (FS-NEW-6): an unchanged
-//   AI result as that generation (its own fresh verdict — never one the hub gave a later generation), anything else as
+//   AI result as that generation (its freshness mark remains advisory, X69), anything else as
 //   the person's own text on the history revision the card shows. Nothing is repeated; every refusal says why
 //   (NF-024); one action at a time per fan (NF-023).
 // - «Открыть и вставить»: the fan's chat opens in this tab with the field's text (one navigation, its deferred
@@ -22,7 +22,7 @@
 
 import { isCgCode, type CgCode } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort, type NavigationReceipt } from '@cg/contracts/host';
-import { SEND_LIMITS } from '@cg/contracts/limits';
+import { LIVE_TEXT_LIMITS, SEND_LIMITS } from '@cg/contracts/limits';
 import { OP_TERMINAL_STATES, type GreetingDraftGeneration, type OpView, type StaleReason, type StartOp } from '@cg/contracts/ops';
 import { type ActionReceipt, type I18n, type NewcomerGreetingStateVM, type NewcomerGreetingVM, type NewcomersFailureVM, type UiAction } from '@cg/contracts/vm';
 
@@ -255,7 +255,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (card.text.trim() === '') return null;
     if (!proven(row)) return failure('CG-FNEW-UNVERIFIED');
     if (send && card.gen !== null && unchanged(card)) {
-      if (markOf(card) !== null || card.gen.generationRef === null) return failure('CG-SEND-FRESHNESS');
+      // X69: the person reviews the field and clicks Send; an AI freshness warning is not a send prohibition.
+      if (card.gen.generationRef === null) return failure('CG-SEND-FRESHNESS');
       // The pass checked the history again since: the old result is not this history's (FS-NEW-6) — only a new one.
       if (card.gen.historyRevision !== row.historyRevision) return failure('CG-FNEW-HISTORY');
     }
@@ -326,6 +327,9 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     const issued = await issueCause(rpc, 'generate', 'newcomers');
     if (!same()) return stop('CG-CONTEXT-CHANGED');
     if (!issued.ok) return stop(issued.code);
+    const textItems = Math.min(LIVE_TEXT_LIMITS.maxItems, bootstrap.limits.freshTextMaxItems);
+    const textChars = Math.min(LIVE_TEXT_LIMITS.maxChars, bootstrap.limits.freshTextMaxChars);
+    const tail = textItems > 0 && textChars > 0 ? evidence.tail?.slice(-textItems).map((message) => ({ ...message, text: message.text.slice(0, textChars) })) : undefined;
     const start: StartOp = {
       feature: 'hi',
       surface: 'newcomers',
@@ -339,12 +343,13 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       // Every deliberate click asks for a new result, as Reply's «Ещё раз» does.
       force: true,
       ...(card.gen === null ? {} : { regenerateOf: card.gen.opId }),
-      // FS-NEW-7: the pass's proof instead of a tab's snapshot — ids only; the greeting is built from the hub's history.
+      // FS-NEW-7, X69: the same checked history the card shows supplies both ids and live text.
       proof: {
         kind: 'pass',
         conversationRef: evidence.conversationRef,
         completeness: 'complete',
-        takenAt: new Date(clock.now()).toISOString(),
+        takenAt: evidence.capturedAt ?? new Date(clock.now()).toISOString(),
+        ...(tail === undefined ? {} : { tail }),
         window: [...evidence.window],
         knownFanMessageIds: [...evidence.knownFanMessageIds],
         deletedIds: [],

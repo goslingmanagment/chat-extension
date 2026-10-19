@@ -43,7 +43,8 @@ import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, OpStateSchema } from './ops';
 import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { ChatKeySchema } from './ids';
-import { SEND_LIMITS, STORAGE_LIMITS } from './limits';
+import { LiveTextMessageSchema } from './host';
+import { LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
@@ -199,7 +200,7 @@ const PassRef = { passId: UuidSchema };
 
 /**
  * 1.15.0 R20 P10c (FS-NEW-7, NF-013, NF-034): what a greeting's generation takes of the pass — the proof of the fan's
- * checked history, ids only, never a text: its group, its revision, the window of the coverage check (both directions,
+ * checked history: its group, its revision, the window of the coverage check (both directions,
  * the newest 60, oldest first), the fan's newest ids of it (newest first), the proof of the start (`pass-empty-page`)
  * and the avatar of the profile the pass read (FX-018; null — none fit to send).
  */
@@ -211,10 +212,14 @@ export const FanslyGreetingProofSchema = z
     knownFanMessageIds: z.array(NativeIdSchema).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax)),
     startProof: StartProofV1Schema,
     fanAvatarUrl: z.nullable(HiFanAvatarUrlSchema),
+    /** 1.41.0 (X69): when the pass read these confirmed texts; absent on older backgrounds. */
+    capturedAt: z.optional(IsoTimestampSchema),
+    tail: z.optional(z.array(LiveTextMessageSchema).check(z.maxLength(LIVE_TEXT_LIMITS.maxItems))),
   })
   .check(
     z.refine((p) => p.startProof.groupId === p.groupId && p.startProof.source === 'pass-empty-page', { message: 'the pass proves the start of this group' }),
     z.refine((p) => p.knownFanMessageIds.every((id) => p.window.some((entry) => entry.id === id && entry.dir === 'fan')), { message: 'known fan ids are of the window' }),
+    z.refine((p) => (p.tail ?? []).every((m) => p.window.some((entry) => entry.id === m.platformMessageId && entry.dir === m.direction)), { message: 'texts belong to the checked window and direction' }),
   );
 export type FanslyGreetingProof = z.infer<typeof FanslyGreetingProofSchema>;
 

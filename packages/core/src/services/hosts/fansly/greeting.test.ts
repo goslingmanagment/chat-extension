@@ -150,20 +150,21 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     expect(w.stored().drafts).toEqual([]);
   });
 
-  it('[FS-TAIL-8] [NF-012] an unverified AI draft keeps its generation, text and verdict after a background restart; neither own nor ai can bypass it, but an actual edit can', async () => {
+  it('[FS-TAIL-8] [NF-012] [X69] an unverified AI draft keeps its attribution and warning after restart and sends without an edit', async () => {
     const w = world();
     w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: false, mark: 'unverified' };
     await w.ask('fansly.followers.draft', { passId: PASS, fanRef: FAN, text: 'Hey you', generation: { opId: OP, historyRevision: REV } });
     w.restart();
     w.state.generation = null;
     expect(await w.draft()).toMatchObject({ text: 'Hey you', generation: { opId: OP, generationRef: GEN, text: 'Hey you', historyRevision: REV, mark: 'unverified' } });
-    for (const admission of [{ kind: 'own' }, { kind: 'ai-edited', generationRef: GEN, variant: 0 }, { kind: 'ai', generationRef: GEN, variant: 0 }] as const) {
-      expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission, ...(admission.kind === 'ai' ? { opId: OP } : {}) }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
+    for (const admission of [{ kind: 'own' }, { kind: 'ai-edited', generationRef: GEN, variant: 0 }] as const) {
+      expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
     }
     expect(w.starts).toHaveLength(0);
-    const edited = await w.draft('Hey you, welcome!');
-    expect(edited.generation?.opId).toBe(OP);
-    expect(await w.ask('fansly.followers.send', w.request({ text: edited.text, draftRevision: edited.revision, admission: { kind: 'ai-edited', generationRef: GEN, variant: 0 } }))).toMatchObject({ ok: true });
+    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: { kind: 'ai', generationRef: GEN, variant: 0 }, opId: OP }))).toMatchObject({ ok: true });
+    expect(w.log).toEqual(['recheck', 'send']);
+    expect(w.starts).toHaveLength(1);
+    expect(w.starts[0]?.request).toMatchObject({ text: 'Hey you', admission: { kind: 'ai', generationRef: GEN }, opId: OP });
   });
 
   it('[FS-NEW-6] a saved fresh verdict remains usable when the background no longer holds the operation', async () => {
@@ -216,7 +217,7 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     expect(v.log).not.toContain('recheck');
   });
 
-  it('[FS-NEW-6] [FS-TAIL-8] the three admissions: the own text and an edited AI result go on the reviewed history; an unchanged AI result only as THIS generation, the same text and its own fresh verdict — a hub that caught up later does not make it fresh', async () => {
+  it('[FS-NEW-6] [FS-TAIL-8] the three admissions: the own text and an edited AI result go on the reviewed history; [X69] an unchanged AI result keeps THIS generation and text even with an unverified verdict', async () => {
     const w = world();
     await w.draft('Hey you');
     const ai = { kind: 'ai', generationRef: GEN, variant: 0 } as const;
@@ -224,15 +225,12 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
     w.state.generation = { generationRef: '00000000-0000-4000-8000-000000000602', fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: true };
     expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai, opId: OP }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
-    // Its verdict is not fresh: «Ещё раз» only, whatever the hub says of later starts.
-    w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: false };
-    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai, opId: OP }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
     // Not its text.
     w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you!', fresh: true };
     expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai, opId: OP }))).toEqual({ ok: false, error: { code: 'CG-DRAFT-CHANGED' } });
     expect(w.starts).toEqual([]);
-    // Fresh, this generation, its text: it goes.
-    w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you\n', fresh: true };
+    // This generation and its text: its unverified verdict is advisory (X69).
+    w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you\n', fresh: false, mark: 'unverified' };
     expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai, opId: OP }))).toMatchObject({ ok: true });
     // An edited result is the person's own: no operation is asked of it.
     const e = world();

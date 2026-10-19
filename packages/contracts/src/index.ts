@@ -43,4 +43,4 @@ export * from './hub';
  * minor bump, a new meaning a major one; every bump has its entry in
  * docs/contracts-changelog.md (architecture.md §5).
  */
-export const CONTRACTS_VERSION = '1.40.0';
+export const CONTRACTS_VERSION = '1.41.0';

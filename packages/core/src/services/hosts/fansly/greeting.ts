@@ -11,8 +11,8 @@
 // - `send` — one click (FS-NEW-3): one open action per pass and fan (NF-023: a second click while one runs is
 //   CG-SEND-BUSY); the three admissions (FS-NEW-6): the person's own text and an edited AI result need a history the
 //   pass read to its start and the revision the person reviewed; an unchanged AI result needs THIS generation's
-//   result, its own fresh verdict (FS-TAIL-8) and the revision it was made on — a hub that caught up later does not
-//   make an old result fresh. Then the fan's history is read again (NF-036) — a changed one refuses CG-FNEW-HISTORY
+//   result and the revision it was made on. Its freshness verdict stays a warning (X69), without requiring an edit.
+//   Then the fan's history is read again (NF-036) — a changed one refuses CG-FNEW-HISTORY
 //   («Проверка изменилась — подтвердите черновик», NF-018) — and the send goes: the lease, the route, the journal, the
 //   custody, the durable intent, the final check, ONE `POST /message`. Every refusal names its code (NF-024).
 // - `sent` — the person sent the card's text with Fansly's own button after «Открыть и вставить» (FS-NEW-3): the hub's
@@ -42,7 +42,7 @@ export interface GreetingGeneration {
   readonly conversationRef: string;
   /** The text of the variant's one part; null — no usable result (still running, failed, split). */
   readonly text: string | null;
-  /** Its own verdict is fresh (spec §3.5): nothing else lets an unchanged AI text go. */
+  /** Its own freshness verdict (spec §3.5), kept as an advisory mark on the draft (X69). */
   readonly fresh: boolean;
   readonly mark?: StaleReason | null;
 }
@@ -201,19 +201,18 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       const saved = key === null ? undefined : findDraft(held, key, deps.now())?.generation;
       if (saved !== undefined && saved.text.trim() === request.text) {
         // A reopened or older tab cannot relabel the unchanged AI draft as its own text.
-        if (request.admission.kind !== 'ai' || request.opId !== saved.opId || request.admission.generationRef !== saved.generationRef || saved.mark !== null) return fail('CG-SEND-FRESHNESS');
+        if (request.admission.kind !== 'ai' || request.opId !== saved.opId || request.admission.generationRef !== saved.generationRef) return fail('CG-SEND-FRESHNESS');
         if (request.historyRevision !== saved.historyRevision) return fail('CG-FNEW-HISTORY');
       }
       if (request.admission.kind === 'ai') {
-        // FS-NEW-6, FS-TAIL-8: THIS generation's result, unchanged, with its own fresh verdict — else only a new one.
+        // FS-NEW-6, X69: keep THIS generation's attribution and text; freshness marks remain advisory.
         const generation = request.opId === undefined ? null : deps.generation(request.opId);
         if (generation === null) {
-          // The operations list may have been pruned/restarted; only its saved fresh verdict can replace it.
-          if (saved === undefined || saved.opId !== request.opId || saved.generationRef !== request.admission.generationRef || saved.text !== request.text || saved.mark !== null) return fail('CG-SEND-FRESHNESS');
+          // The operations list may have been pruned/restarted; its saved generation still proves the text.
+          if (saved === undefined || saved.opId !== request.opId || saved.generationRef !== request.admission.generationRef || saved.text !== request.text) return fail('CG-SEND-FRESHNESS');
         } else {
           if (generation.generationRef !== request.admission.generationRef || generation.fanRef !== request.fanRef || generation.conversationRef !== request.groupId) return fail('CG-SEND-FRESHNESS');
           if (generation.text?.trim() !== request.text) return fail('CG-DRAFT-CHANGED');
-          if (!generation.fresh) return fail('CG-SEND-FRESHNESS');
         }
       }
       if (revisionNow(page.page.pageId, request.fanRef) !== request.draftRevision) return fail('CG-DRAFT-CHANGED');

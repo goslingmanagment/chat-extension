@@ -15,7 +15,7 @@ const keyOf = (r: Pick<Row, 'host' | 'build' | 'feature'>): string => JSON.strin
 
 export function freshnessCounts(proof: CoverageProof | undefined, served: ServedContext | null | undefined): Counts {
   const truncated = proof?.kind === 'tab-snapshot' && proof.truncated;
-  const hasTail = proof?.kind === 'tab-snapshot' && (proof.tail?.length ?? 0) > 0;
+  const hasTail = (proof?.tail?.length ?? 0) > 0;
   const tailMissing = hasTail && (served?.live.status !== 'served' || (served?.live.rejected ?? 0) > 0);
   const unknown = proof === undefined || proof.completeness === 'unknown';
   const marked = unknown || truncated || tailMissing || proof === undefined || coverageCheckVerdict(proof, served?.coverageCheck) !== 'fresh';

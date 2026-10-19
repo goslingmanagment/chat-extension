@@ -768,7 +768,7 @@ describe('[host:fansly] «Нельзя написать» and «Исключит
 describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
   const SIGNED = { 'Key-Pair-Id': 'K1', Policy: 'P1', Signature: 'S1' };
 
-  it('[NF-034] [FS-NEW-7] the proof of a checked fan: the window of the history (ids only), the fan’s newest ids, the start, and the avatar of the profile the pass read — the largest variant up to 512 px, signed', async () => {
+  it('[NF-034] [FS-NEW-7] the proof of a checked fan: the window and confirmed texts of the history, the fan’s newest ids, the start, and the avatar of the profile the pass read — the largest variant up to 512 px, signed', async () => {
     const histories: [string, readonly string[], boolean][] = [];
     const t = setup({ onHistory: (groupId, ids, complete) => histories.push([groupId, ids, complete]) });
     const fan = t.world.follow(1, T0 - minutes(5), {
@@ -798,6 +798,8 @@ describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
       knownFanMessageIds: [second, first],
       startProof: { v: 1, source: 'pass-empty-page', groupId: chat.id, startWitnessId: welcome, coveredCount: 3, personalCount: 2, automatedIds: [welcome] },
       fanAvatarUrl: 'https://cdn3.fansly.com/a/300.jpeg?Key-Pair-Id=K1&Policy=P1&Signature=S1',
+      capturedAt: row.checkedAt,
+      tail: chat.messages.map((message, i) => ({ platformMessageId: message.id, direction: message.senderId === C ? 'model' : 'fan', sentAt: new Date(T0 - minutes(500) + i * 1000).toISOString(), text: message.content })),
     });
     expect(chat.id).not.toBe(fan);
     // X59: the row the window shows carries the same picture; an address the hub would refuse is none there too.

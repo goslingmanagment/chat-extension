@@ -281,12 +281,12 @@ function greetingOf(patch: Partial<NewcomerGreetingVM> = {}): NewcomerGreetingVM
   };
 }
 
-/** `m` — R20 P10c: the greeting generated and unchanged («AI»), its verdict fresh: «Отправить» and «Открыть и вставить». */
+/** `m` — R20 P10c: the greeting generated and unchanged («AI»), its freshness warning advisory (X69): «Отправить» and «Открыть и вставить». */
 export function fanslyGreeting(ctx: ScenarioCtx): ScenarioViewEntry[] {
   const tomasz = follower(1);
   const welcome = message(ctx, 1, 13, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true);
   const text = 'Hey Tomasz! So happy you’re here 💕 What made you follow me — the beach set or the gym pics? Tell me and I’ll pick something special for you 😉';
-  const card = { ...cardOf(ctx, tomasz, { history: history('ready', [welcome]) }), greeting: greetingOf({ text, ai: true, canSend: true, canInsert: true }) };
+  const card = { ...cardOf(ctx, tomasz, { history: history('ready', [welcome]) }), greeting: greetingOf({ text, ai: true, mark: 'window-miss', canSend: true, canInsert: true }) };
   return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'done', selected: 1, card }))];
 }
 

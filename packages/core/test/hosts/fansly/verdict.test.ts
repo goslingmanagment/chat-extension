@@ -200,7 +200,7 @@ describe('[host:fansly] R20 P8b2: the verdict — one pure function of spec §3.
 });
 
 describe('[host:fansly] R20 P8b2: the fingerprint, the mark over the result and the send gate', () => {
-  it('the fingerprint keeps the ids and the flags of the proof, never a text; a pass carries no text', () => {
+  it('the fingerprint keeps the ids and the flags of the proof, never a text; a pass without a tail has no text', () => {
     const kept = fingerprintOf(tabProof);
     expect(kept).toEqual({
       completeness: 'complete',
@@ -213,7 +213,7 @@ describe('[host:fansly] R20 P8b2: the fingerprint, the mark over the result and 
     const texts = tabProof.kind === 'tab-snapshot' ? (tabProof.tail ?? []).map((message) => message.text) : [];
     expect(texts.length).toBeGreaterThan(0);
     for (const text of texts) expect(JSON.stringify(kept)).not.toContain(text);
-    expect(fingerprintOf({ ...tabProof, tail: [] } as typeof tabProof).text).toBe(false);
+    expect(fingerprintOf({ ...tabProof, tail: [] }).text).toBe(false);
     expect(fingerprintOf(passProof)).toMatchObject({ truncated: false, text: false, window: passProof.window });
     // The policy keeps it with the operation (`AiHostPolicy.fingerprint`); no proof — nothing.
     const policy = createFanslyAi({ now: () => 0 });

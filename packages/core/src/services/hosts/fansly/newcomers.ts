@@ -55,6 +55,7 @@ import {
   type FanslyTabResponsePayload,
 } from '@cg/contracts/tab-messages-fansly';
 import { type AbortSignalLike } from '@cg/contracts/hub';
+import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { compareNativeIds } from '@cg/contracts/primitives';
 import { NEWCOMER_CHECK_FILTERS, type NewcomerDmClosed } from '@cg/contracts/vm';
 
@@ -1060,7 +1061,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   /**
    * «Сгенерировать» (FS-NEW-7, NF-013, NF-034): the proof of a row checked in full — the window of the coverage check,
-   * the fan's newest ids of it (newest first, ≤ 10), the start, the avatar the pass read. Ids and an address only.
+   * the fan's newest ids of it (newest first, ≤ 10), the start, avatar and confirmed texts already read (X69).
    */
   function greetingProof(passId: string, fanRef: string, tab: string): { readonly ok: true; readonly proof: FanslyGreetingProof } | { readonly ok: false; readonly code: CgAnyCode } {
     const pass = exact(passId, tab);
@@ -1069,7 +1070,12 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (row.view.status !== 'ready' || row.proof === null) return { ok: false, code: notReady(row.view) };
     const proof = row.proof;
     const known = proof.window.filter((entry) => entry.dir === 'fan').map((entry) => entry.id).reverse().slice(0, SEND_LIMITS.knownFanMessagesMax);
-    return { ok: true, proof: { groupId: proof.groupId, historyRevision: proof.historyRevision, window: [...proof.window], knownFanMessageIds: known, startProof: proof.startProof, fanAvatarUrl: row.avatar } };
+    const windowIds = new Set(proof.window.map((entry) => entry.id));
+    const tail = row.kept
+      .filter((message) => windowIds.has(message.id) && message.content.trim() !== '')
+      .slice(-LIVE_TEXT_LIMITS.maxItems)
+      .map((message) => ({ platformMessageId: message.id, direction: message.senderId === pass.creator ? 'model' as const : 'fan' as const, sentAt: iso(message.at), text: message.content.slice(0, LIVE_TEXT_LIMITS.maxChars) }));
+    return { ok: true, proof: { groupId: proof.groupId, historyRevision: proof.historyRevision, window: [...proof.window], knownFanMessageIds: known, startProof: proof.startProof, fanAvatarUrl: row.avatar, capturedAt: row.view.checkedAt ?? iso(deps.now()), tail } };
   }
 
   /**
