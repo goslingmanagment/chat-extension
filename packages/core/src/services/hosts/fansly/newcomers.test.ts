@@ -768,7 +768,7 @@ describe('[host:fansly] «Нельзя написать» and «Исключит
 describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
   const SIGNED = { 'Key-Pair-Id': 'K1', Policy: 'P1', Signature: 'S1' };
 
-  it('[NF-034] [FS-NEW-7] the proof of a checked fan: the window of the history (ids only), the fan’s newest ids, the start, and the avatar of the profile the pass read — the largest variant up to 512 px, signed', async () => {
+  it('[NF-034] [FS-NEW-7] the proof of a checked fan: the window and confirmed texts of the history, the fan’s newest ids, the start, and the avatar of the profile the pass read — the largest variant up to 512 px, signed', async () => {
     const histories: [string, readonly string[], boolean][] = [];
     const t = setup({ onHistory: (groupId, ids, complete) => histories.push([groupId, ids, complete]) });
     const fan = t.world.follow(1, T0 - minutes(5), {
