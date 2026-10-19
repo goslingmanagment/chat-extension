@@ -62,6 +62,11 @@ function world() {
       return Promise.resolve();
     },
     rateLimits: () => facts,
+    unidentified: () => (template !== null && template.connected && template.canonicalId === null ? [template] : []),
+    resolveIdentity: (legacyId, canonicalId, expected) => {
+      if (template?.legacyId === legacyId && template.headers['authorization'] === expected.headers['authorization']) template = { ...template, canonicalId };
+      return Promise.resolve();
+    },
   };
   const data = new Map<string, unknown>();
   const storage = {
@@ -385,4 +390,44 @@ it('[FS-NET-3] prepared start refuses while a new observation is still held by c
   const result = prepared.start();
   expect(made.sent).toEqual([]);
   await expect(result).rejects.toMatchObject({ kind: 'cooling', sent: false });
+});
+
+describe('the creator of a session (AU-032)', () => {
+  const LEGACY = '300000000000000099';
+  const me = { status: 200, body: JSON.stringify({ success: true, response: { account: { id: CREATOR } } }) };
+  const paths = (made: ReturnType<typeof world>): string[] => made.sent.map((request) => new URL(request.url).pathname);
+
+  it('[AU-032] a token naming another id: /account/me is asked with that very session, the creator bound to it, then the call goes', async () => {
+    const made = world();
+    made.setTemplate({ ...TEMPLATE, legacyId: LEGACY });
+    made.replies.push(me, { status: 200 });
+    await settle(made.api.client.call(registration));
+    expect(paths(made)).toEqual(['/api/v1/account/me', `/api/v1/group/${GROUP}/`]);
+    expect(made.sent[0]?.headers['authorization']).toBe('token-1');
+    expect(made.session.forAccount(CREATOR)?.legacyId).toBe(LEGACY);
+    await settle(made.api.client.call(registration));
+    expect(paths(made)).toHaveLength(3);
+  });
+
+  it('[AU-032] a session whose /account/me got no answer is asked again only after a minute; meanwhile the call is refused unsent', async () => {
+    const made = world();
+    made.setTemplate({ ...TEMPLATE, legacyId: LEGACY });
+    made.replies.push('network');
+    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'session', sent: false });
+    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'session', sent: false });
+    expect(paths(made)).toEqual(['/api/v1/account/me']);
+    await vi.advanceTimersByTimeAsync(61_000);
+    made.replies.push(me, { status: 200 });
+    await settle(made.api.client.call(registration));
+    expect(paths(made)).toEqual(['/api/v1/account/me', '/api/v1/account/me', `/api/v1/group/${GROUP}/`]);
+  });
+
+  it('[AU-032] an answer naming someone else binds nothing to the creator asked for', async () => {
+    const made = world();
+    made.setTemplate({ ...TEMPLATE, legacyId: LEGACY });
+    made.replies.push({ status: 200, body: JSON.stringify({ success: true, response: { account: { id: '300000000000000555' } } }) });
+    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'session', sent: false });
+    expect(paths(made)).toEqual(['/api/v1/account/me']);
+    expect(made.session.forAccount(CREATOR)).toBeNull();
+  });
 });

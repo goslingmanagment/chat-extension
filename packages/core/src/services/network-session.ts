@@ -79,6 +79,9 @@ const PENDING_MS = 120_000;
 const FACT_MS = 24 * 60 * 60_000;
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const id = (value: unknown): value is string => typeof value === 'string' && /^[1-9][0-9]{0,39}$/.test(value);
+/** The account a session token names (legacy): whatever compact key precedes its first `:`. */
+const ACCOUNT_KEY = /^[\w-]{1,64}$/;
+const accountKey = (value: unknown): value is string => typeof value === 'string' && ACCOUNT_KEY.test(value);
 const headerMap = (value: unknown): value is Record<string, string> => record(value) && Object.entries(value).length <= 16 && Object.values(value).every((v) => typeof v === 'string' && v.length <= 8192);
 
 export function createNetworkSession(deps: NetworkSessionDeps) {
@@ -97,11 +100,11 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
   };
   const limits: RateLimitFact[] = [];
   let sequenceAt = 0;
-  let readable = false;
   let enabled = false;
   let dirty = false;
   let flushing: Promise<void> | null = null;
-  const snapshot = (): Snapshot => ({ v: 1, templates: [...templates.values()].map((value) => ({ ...value, headers: { ...value.headers }, checks: { ...value.checks } })), tabs: [...tabs], registered: [...registered], tabTimes: [...tabTimes], limits: [...limits] });
+  const copy = (value: SessionTemplate): SessionTemplate => ({ ...value, headers: { ...value.headers }, checks: { ...value.checks } });
+  const snapshot = (): Snapshot => ({ v: 1, templates: [...templates.values()].map(copy), tabs: [...tabs], registered: [...registered], tabTimes: [...tabTimes], limits: [...limits] });
   const canonical = (legacy: string): string => templates.get(legacy)?.canonicalId ?? legacy;
   const prune = (): void => {
     for (const [key, value] of pending) if (value.at < deps.now() - PENDING_MS) pending.delete(key);
@@ -113,29 +116,28 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
     prune();
     if (!dirty) return;
     const result = await deps.storage.set({ [deps.key]: snapshot() });
-    if (!result.ok) { readable = false; throw new Error(result.code); }
+    // A failed write keeps what memory holds usable; the next change writes the whole snapshot again.
+    if (!result.ok) throw new Error(result.code);
     dirty = false;
   };
   const ready = chain(async () => {
     const stored = await deps.storage.get([deps.key]);
-    if (!stored.ok) throw new Error(stored.code);
-    const raw = stored.value[deps.key];
+    // An unreadable snapshot starts empty: the page's next request captures its session again.
+    const raw = stored.ok ? stored.value[deps.key] : undefined;
     if (record(raw) && raw['v'] === 1) {
       if (Array.isArray(raw['templates'])) for (const value of raw['templates'].slice(-MAX_ACCOUNTS)) {
-        if (record(value) && id(value['legacyId']) && (value['canonicalId'] === null || id(value['canonicalId'])) && headerMap(value['headers']) && headerMap(value['checks']) && typeof value['observedAt'] === 'number' && typeof value['connected'] === 'boolean') templates.set(value['legacyId'], value as unknown as SessionTemplate);
+        if (record(value) && accountKey(value['legacyId']) && (value['canonicalId'] === null || id(value['canonicalId'])) && headerMap(value['headers']) && headerMap(value['checks']) && typeof value['observedAt'] === 'number' && typeof value['connected'] === 'boolean') templates.set(value['legacyId'], value as unknown as SessionTemplate);
       }
-      if (Array.isArray(raw['tabs'])) for (const pair of raw['tabs']) if (Array.isArray(pair) && Number.isInteger(pair[0]) && pair[0] >= 0 && id(pair[1]) && templates.has(pair[1])) tabs.set(pair[0] as number, pair[1]);
+      if (Array.isArray(raw['tabs'])) for (const pair of raw['tabs']) if (Array.isArray(pair) && Number.isInteger(pair[0]) && pair[0] >= 0 && accountKey(pair[1]) && templates.has(pair[1])) tabs.set(pair[0] as number, pair[1]);
       if (Array.isArray(raw['registered'])) for (const value of raw['registered']) if (typeof value === 'number' && Number.isInteger(value) && value >= 0) registered.add(value);
       if (Array.isArray(raw['tabTimes'])) for (const pair of raw['tabTimes']) if (Array.isArray(pair) && tabs.has(pair[0] as number) && typeof pair[1] === 'number' && Number.isFinite(pair[1])) tabTimes.set(pair[0] as number, pair[1]);
       // Old snapshots have no per-tab clock. No in-flight request is restored,
       // so future observations safely start after every saved account clock.
-      if (Array.isArray(raw['limits'])) for (const value of raw['limits'].slice(-MAX_PENDING)) if (record(value) && typeof value['requestId'] === 'string' && typeof value['at'] === 'number' && (value['accountId'] === null || id(value['accountId'])) && ['own', 'page', 'unknown'].includes(String(value['source']))) limits.push(value as unknown as RateLimitFact);
+      if (Array.isArray(raw['limits'])) for (const value of raw['limits'].slice(-MAX_PENDING)) if (record(value) && typeof value['requestId'] === 'string' && typeof value['at'] === 'number' && (value['accountId'] === null || accountKey(value['accountId'])) && ['own', 'page', 'unknown'].includes(String(value['source']))) limits.push(value as unknown as RateLimitFact);
     }
     sequenceAt = Math.max(0, ...[...templates.values()].map((value) => value.observedAt), ...[...tabTimes.values()]);
     prune();
-    readable = true;
   });
-  // A read failure remains fail-closed, but does not become an unhandled rejection before the readiness barrier.
   void ready.catch(() => undefined);
   // Mutations arriving in the same burst share one queued write. The returned
   // promise still covers persistence (and its failure), before an API user runs.
@@ -237,11 +239,14 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
         if (legacy !== undefined && ![...tabs.values()].includes(legacy)) templates.delete(legacy);
       });
     },
-    /** The identity response is bound to the exact captured legacy session, never matched by name. */
-    resolveIdentity(tabId: number, legacyId: string, canonicalId: string): Promise<void> {
+    /**
+     * AU-032: `/account/me` asked with this very session named its creator. Bound only while the session's material
+     * headers are still the ones the question carried, never matched by name or by a tab's report.
+     */
+    resolveIdentity(legacyId: string, canonicalId: string, expected: Pick<SessionTemplate, 'headers'>): Promise<void> {
       return run(() => {
         const template = templates.get(legacyId);
-        if (!id(canonicalId) || tabs.get(tabId) !== legacyId || template === undefined) return;
+        if (!id(canonicalId) || template === undefined || deps.materialHeaders.some((name) => template.headers[name] !== expected.headers[name])) return;
         dirty ||= template.canonicalId !== canonicalId;
         template.canonicalId = canonicalId;
         for (let i = 0; i < limits.length; i++) {
@@ -255,14 +260,18 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
     },
     forTab(tabId: number): SessionTemplate | null { const legacy = tabs.get(tabId); return legacy === undefined ? null : service.forAccount(legacy); },
     forAccount(accountId: string): SessionTemplate | null {
-      if (!readable || !enabled) return null;
+      if (!enabled) return null;
       const value = [...templates.values()].find((entry) => entry.connected && (entry.legacyId === accountId || entry.canonicalId === accountId));
-      return value?.connected === true ? { ...value, headers: { ...value.headers }, checks: { ...value.checks } } : null;
+      return value === undefined ? null : copy(value);
+    },
+    /** Connected sessions no `/account/me` has tied to their creator yet (AU-032): the API asks it with each. */
+    unidentified(): SessionTemplate[] {
+      return enabled ? [...templates.values()].filter((entry) => entry.connected && entry.canonicalId === null).map(copy) : [];
     },
     /** Safe page projection: explicitly assembled, never a spread of a transport template. */
     diagnostics(tabId: number): NetworkSessionSnapshot {
       const legacy = tabs.get(tabId);
-      const value = readable && enabled && legacy !== undefined ? templates.get(legacy) : undefined;
+      const value = enabled && legacy !== undefined ? templates.get(legacy) : undefined;
       const allowed = new Set([...deps.requiredHeaders, deps.checkHeader]);
       return {
         present: value?.connected === true,
@@ -273,10 +282,9 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
     },
     /** IDs only, including disconnected templates: a previously seen model is still our own. */
     aliases(accountId: string): readonly string[] {
-      if (!readable) return [];
       return [...new Set([...templates.values()].filter((entry) => (entry.legacyId === accountId && entry.canonicalId === null) || entry.canonicalId === accountId).flatMap((entry) => entry.canonicalId === null ? [entry.legacyId] : [entry.legacyId, entry.canonicalId]))];
     },
-    rateLimits(): readonly RateLimitFact[] { return readable ? limits.map((fact) => ({ ...fact })) : []; },
+    rateLimits(): readonly RateLimitFact[] { return limits.map((fact) => ({ ...fact })); },
     onOwnRequest(listener: (fact: OwnRequestObservation) => void): () => void {
       ownListeners.add(listener);
       return () => ownListeners.delete(listener);
@@ -288,23 +296,27 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
 }
 export type NetworkSession = ReturnType<typeof createNetworkSession>;
 
-/** The legacy account prefix of a base64 session token; ids stay decimal strings. */
+/**
+ * The account a session token names (legacy, AU-031): what precedes the first `:` of the base64 token, as the old
+ * extension's `decodeLegacyAccountKey` read it — padding optional, the url-safe alphabet too, any compact key. Its
+ * creator is proven by `/account/me` asked with the session (`resolveIdentity`), never assumed from this key.
+ */
 export function legacyAccount(token: string): string | null {
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(token) || token.length % 4 !== 0 || token.length > 8192) return null;
+  const text = token.trim().replace(/=+$/, '').replace(/-/g, '+').replace(/_/g, '/');
+  if (!/^[A-Za-z0-9+/]+$/.test(text) || text.length > 8192) return null;
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   let bits = 0;
   let buffer = 0;
   let prefix = '';
-  for (const char of token) {
-    if (char === '=') break;
-    buffer = (buffer << 6) | alphabet.indexOf(char);
+  for (const char of text) {
+    buffer = ((buffer << 6) | alphabet.indexOf(char)) & 0xffff;
     bits += 6;
     if (bits < 8) continue;
     bits -= 8;
     const byte = (buffer >>> bits) & 255;
-    if (byte === 58) return id(prefix) ? prefix : null;
-    if (byte < 48 || byte > 57 || prefix.length >= 40) return null;
+    if (byte === 58) break;
     prefix += String.fromCharCode(byte);
+    if (prefix.length > 64) return null;
   }
-  return null;
+  return accountKey(prefix) ? prefix : null;
 }

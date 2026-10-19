@@ -251,8 +251,13 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     if (type === 'fansly.spenders.names' || type === 'fansly.spenders.resolve') {
       if (spenders === null) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
       const account = (payload as { hostAccountId: string }).hostAccountId;
-      const template = session?.forTab(sender.tabId);
-      if (template === null || template === undefined || (template.canonicalId ?? template.legacyId) !== account) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
+      const owns = (): boolean => {
+        const template = session?.forTab(sender.tabId) ?? null;
+        return template !== null && (template.legacyId === account || template.canonicalId === account);
+      };
+      // The tab's session names another id than its creator until `/account/me` ties them (AU-032).
+      if (!owns()) await (await clientNow())?.identify(account);
+      if (!owns()) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
       try {
         if (type === 'fansly.spenders.names') {
           const request = payload as FanslyTabRequestPayload<'fansly.spenders.names'>;
