@@ -1,7 +1,7 @@
 // The stage profiler of a generation (architecture.md §9.3; DB-011, DB-012,
 // DB-013, DB-016). The client marks moments — click → request → meta → first
 // chunk → done → parse → render → insert — and the debug footer shows the
-// segments between them («запрос 38 · meta 312 · … мс, всего 3,76 с»), a live
+// segments between them («запрос 38 · meta 312 · …», «всего 3,76 с»), a live
 // timer while running (every 100 ms, by the UI) and the failed stage when the
 // operation failed. The hub's own stages come as durations from the prompt
 // manifest («хаб: context 182 · provider 3 106 · stream 2 041»). A stage that

@@ -425,7 +425,7 @@ describe('dock gallery: both «Вид ответа» and the height limit (ui-de
     expect(await shown('3a', '.cg-debug')).toEqual([]);
     await open('state=x-recap-debug&theme=light&lang=ru&w=853');
     await captureWindow('dock-debug-recap-light-ru');
-    expect(await shown('x-recap-debug', '.cg-debug .cg-debug__line span')).toEqual(['in 9 120 tok • out 640 tok • $0.0312 • 6.2 s • model-test']);
+    expect(await shown('x-recap-debug', '.cg-debug .cg-debug__line > span')).toEqual(['in 9 120 tok • out 640 tok • $0.0312 • 6.2 s • model-test']);
     // The footer: under the facts row, the sheet's last row above the strip.
     const facts = await box('x-recap-debug', '.cg-facts');
     const debug = await box('x-recap-debug', '.cg-debug');

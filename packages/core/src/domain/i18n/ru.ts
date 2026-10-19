@@ -362,7 +362,7 @@ export const RU: I18nCatalog<'ru'> = {
   'debug.stage.stream': 'поток',
   'debug.stage.parse': 'разбор',
   'debug.stage.render': 'отрисовка',
-  'debug.total': 'мс, всего {s} с',
+  'debug.total': 'всего {s} с',
   'debug.hubStages': 'хаб: context {a}, provider {b}, stream {c}',
   'debug.profilerAria': 'Этапы генерации',
 

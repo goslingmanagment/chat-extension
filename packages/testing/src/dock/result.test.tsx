@@ -1231,8 +1231,11 @@ describe('debug', () => {
       'поток 2 041',
       'разбор 6',
       'отрисовка 9',
-      'мс, всего 3,53 с',
     ]);
+    // The total stands at the bar's end; the cost line wraps between its items only.
+    expect(text(foot.querySelector('[data-cg-total]'))).toBe('всего 3,53 с');
+    expect([...foot.querySelectorAll('.cg-debug__cost > span')].map(text)).toEqual(['in 3 412 tok', 'out 286 tok', '$0.0143', '3.8 s', 'model-test']);
+    expect([...foot.querySelectorAll('.cg-debug__ctx span')].map(text)).toEqual(['source union', 'coverage complete', 'window 100/100', 'live 3/0']);
     await flush(() => (foot.querySelector('.cg-debug__link') as HTMLElement).click());
     expect(kit.client.dispatched).toEqual([{ type: 'Navigate', to: { kind: 'debug-prompt', promptHandle: 'snap-1' } }]);
     kit.unmount();
@@ -1276,7 +1279,8 @@ describe('debug', () => {
     await settle(1);
     expect(text(kit.$('.cg-card__code'))).toBe('ChatGoose · CG-PROVIDER-STREAM');
     const foot = kit.$('.cg-debug') as HTMLElement;
-    expect([...foot.querySelectorAll('.cg-prof__legend:not(.cg-prof__legend--hub) span')].map(text)).toEqual(['запрос 38', 'meta 312', 'мс, всего 0,35 с']);
+    expect([...foot.querySelectorAll('.cg-prof__legend:not(.cg-prof__legend--hub) span')].map(text)).toEqual(['запрос 38', 'meta 312']);
+    expect(text(foot.querySelector('[data-cg-total]'))).toBe('всего 0,35 с');
     // No cost line and no «Промпт» when the controller sent none.
     expect(foot.querySelector('.cg-debug__line')).toBeNull();
     expect(text(foot.querySelector('.cg-prof__legend--hub'))).toBe('хаб: context 182, provider —, stream —');
@@ -1297,14 +1301,14 @@ describe('debug', () => {
       debug: { costLine: null, stages: [], totalMs: null, hubStages: [], prompt: null, reasoning: null, context: null, liveTimer: true },
     });
     kit = await mountDockSettled(withResult(live, { actionsOptions: { busy: 'reply' } }), { now: () => now });
-    expect(text(kit.$('[data-cg-total]'))).toBe('мс, всего 0,00 с');
+    expect(text(kit.$('[data-cg-total]'))).toBe('всего 0,00 с');
     now += 1_300;
     await flush(() => vi.advanceTimersByTime(100));
-    expect(text(kit.$('[data-cg-total]'))).toBe('мс, всего 1,30 с');
+    expect(text(kit.$('[data-cg-total]'))).toBe('всего 1,30 с');
     // The same footer of a finished result holds no fast timer.
     kit.unmount();
     kit = await mountDockSettled(withResult(reply({ debug: { ...(live.debug as NonNullable<ResultVM['debug']>), totalMs: 3_526 } })), { now: () => now });
-    expect(text(kit.$('[data-cg-total]'))).toBe('мс, всего 3,53 с');
+    expect(text(kit.$('[data-cg-total]'))).toBe('всего 3,53 с');
     await flush(() => vi.advanceTimersByTime(1_000));
     expect(vi.getTimerCount()).toBe(0);
   });

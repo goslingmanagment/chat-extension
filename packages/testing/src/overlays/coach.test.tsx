@@ -338,7 +338,8 @@ describe('the Coach panel', () => {
     await settle(2);
     const foot = kit.$('[data-cg-answer="turn-1"] .cg-debug') as HTMLElement;
     expect(text(foot.querySelector('.cg-debug__line span'))).toBe(debug.costLine);
-    expect([...foot.querySelectorAll('.cg-prof__legend:not(.cg-prof__legend--hub) span')].map(text)).toEqual(['запрос 36', 'первый чанк 1 240', 'поток 2 810', 'мс, всего 4,09 с']);
+    expect([...foot.querySelectorAll('.cg-prof__legend:not(.cg-prof__legend--hub) span')].map(text)).toEqual(['запрос 36', 'первый чанк 1 240', 'поток 2 810']);
+    expect(text(foot.querySelector('[data-cg-total]'))).toBe('всего 4,09 с');
     await flush(() => (foot.querySelector('.cg-debug__link') as HTMLElement).click());
     expect(kit.client.dispatched).toEqual([{ type: 'Navigate', to: { kind: 'debug-prompt', promptHandle: 'snap-3' } }]);
     kit.unmount();
