@@ -1,17 +1,15 @@
 // ChatSpace's entry in the host registry (docs/project-unite/architecture.md
 // §1.2): its addresses come from its runtime row (./runtime/chatspace.ts); the
-// rest is build data — its scripts, lazy build, permissions, budgets, contract
-// check, archive markers and test config — read by build/manifest.ts,
+// rest is build data — its scripts, lazy build, permissions, contract check,
+// archive markers and test config — read by build/manifest.ts,
 // wxt.config.ts, lazy/vite.config.ts and
-// tools/{gates,size-budget,archive-check,host-contract-check}. Nothing that
+// tools/{gates,archive-check,host-contract-check}. Nothing that
 // ships imports this file.
 
 import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../../lazy/entries/names.ts';
 import { CHATSPACE_LAZY_ROOT } from './runtime/chatspace.ts';
 import { CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS } from './runtime/index.ts';
 import type { HostDescriptor } from './types.ts';
-
-const CONTRACTS = './packages/contracts/src';
 
 const KIB = 1024;
 
@@ -37,40 +35,6 @@ export const CHATSPACE: HostDescriptor = {
   background: { source: 'bg/chatspace.ts', file: 'bg/chatspace.js', rawBytes: 96 * KIB },
   // The bridge, its runtime and the tap script (§4, D-06).
   mainWorldSources: ['packages/host-chatspace/src/main/'],
-  // Size budgets of architecture.md §11 (starting targets, re-approved after the baseline), gzip -9.
-  budgets: {
-    scripts: [
-      // Boot + runtime, one bundle: ≤ 10 KiB (decision X11; §11 started at 5 KiB for the boot alone). Its work at
-      // document_start stays ≤ 1 ms (e2e). X54: 10 → 12 KiB — our requests to ChatSpace's API (`omRequest`, the
-      // open chat's messages) took 0.7 KiB of a bundle that had 0.06 left; the rest is room for one more request of
-      // the same API. None of it runs at document_start.
-      { entry: 'chatspace-main', label: 'MAIN bridge: boot + runtime (chatspace-main)', gzipBytes: 12 * KIB },
-      // The tap script with the send port and the receipt observer (live.ts), registered only while `wsTap` is on.
-      // 5 KiB was met with 0.03 KiB to spare; the X8 fuse's checks live with the receipt observer and add about
-      // 0.9 KiB (decision X25); who sent each message (decision X48: the receipt of every human send, its price and
-      // media as marks) brings it to 6.08 KiB (6221 B): 0.25 KiB more room. Nothing of them runs at document_start:
-      // the tap's own work there is the constructor wrap. X53: 6.25 → 6.5 KiB — the vault media a preview part takes along
-      // (their `platformMetadata` and what ChatSpace's «back to the composer» restores) went into the send port.
-      { entry: 'chatspace-ws', label: 'MAIN WS tap (chatspace-ws)', gzipBytes: 6.5 * KIB },
-      { entry: 'chatspace', label: 'isolated early bootstrap (chatspace)', gzipBytes: 32 * KIB }, // X44: the dock focus and its key guard left no room; 30 → 32 KiB, as #152 and #159 raised theirs.
-    ],
-    // What ChatSpace's bundles pay for its slices of the contracts (docs/protocols/README.md, the light/heavy split):
-    // the early isolated start loads only the light modules, and the two big registries stay in their lazy chunks.
-    contracts: [
-      {
-        label: 'contracts: early isolated (bridge guard, envelopes, tab.register)',
-        entry: [
-          `export { checkBridgeFrame, BridgeEventEnvelopeSchema, BridgeResponseSchema } from '${CONTRACTS}/bridge.ts';`,
-          `export { TabEnvelopeSchema, TabRegisterRequestSchema, TabRegisterResponseSchema } from '${CONTRACTS}/tab-protocol.ts';`,
-        ].join('\n'),
-        gzipBytes: 12 * KIB,
-      },
-      { label: 'contracts: UiAction schema', entry: `export { UiActionSchema } from '${CONTRACTS}/vm/actions.ts';`, gzipBytes: 16 * KIB },
-      // R20 P4b3: room for Fansly's operations in the shared registry. X53: 30 → 31 KiB — the marks of a send's media
-      // (`SendBegin.marks`, the journal's) and the media a part takes along (`PreviewSendRequest.media`).
-      { label: 'contracts: tab request registry (parseTabPayload)', entry: `export { parseTabPayload } from '${CONTRACTS}/tab-messages.ts';`, gzipBytes: 31 * KIB },
-    ],
-  },
   // Local only, never in CI: the bundles are OnlyMonster's code and stay outside the repository
   // (docs/architecture.md §6.2 says where the copies live).
   contractCheck: { module: 'packages/host-chatspace/src/isolated/host-contract.ts', bundlesRootEnv: 'CG_CHATSPACE_BUNDLES' },

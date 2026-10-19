@@ -70,19 +70,13 @@ describe('[host:fansly] Fansly in the host registry (R20 P7a0)', () => {
     expect(FANSLY.background?.file).toBe('bg/fansly.js');
   });
 
-  it('[host:fansly] has MAIN and ISOLATED registrations plus the injected notice, all with their budget lines (§3.1)', () => {
+  it('[host:fansly] has MAIN and ISOLATED registrations plus the injected notice (§3.1)', () => {
     expect(scriptsOf(FANSLY).map((script) => [script.entry, script.file, script.world, script.registration])).toEqual([
       ['fansly-main', 'fansly-main.js', 'MAIN', 'dynamic'],
       ['fansly', 'fansly.js', 'ISOLATED', 'dynamic'],
       ['fansly-notice', 'fansly-notice.js', 'ISOLATED', 'execute'],
     ]);
     for (const script of scriptsOf(FANSLY)) expect(existsSync(`${entrypoints}${script.entry}.ts`), script.entry).toBe(true);
-    expect(FANSLY.budgets.scripts.map((line) => [line.entry, line.gzipBytes])).toEqual([
-      ['fansly-main', 16 * 1024],
-      // R20 P9c: 36 → 38 KiB, the relay frame and its lease (hosts/fansly.ts).
-      ['fansly', 38 * 1024],
-      ['fansly-notice', 2 * 1024],
-    ]);
     expect(FANSLY.mainWorldSources).toEqual(['packages/host-fansly/src/main/']);
   });
 

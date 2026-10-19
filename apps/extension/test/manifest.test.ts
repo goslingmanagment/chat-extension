@@ -211,8 +211,6 @@ describe('release manifest (§3)', () => {
 
   it('carries no build field of the host registry in any bundle: budgets, the contract check, archive markers, MAIN-world sources (architecture §1.2)', () => {
     const fields = HOSTS.flatMap((host) => [
-      ...host.budgets.scripts.map((budget) => budget.label),
-      ...host.budgets.contracts.map((probe) => probe.label),
       ...Object.values(host.lazy.entries),
       host.contractCheck.module,
       host.contractCheck.bundlesRootEnv,

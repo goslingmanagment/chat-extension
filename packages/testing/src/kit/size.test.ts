@@ -1,9 +1,7 @@
-// ui/kit and the first dock chunk budget (architecture.md §11: ≤ 45 KiB gzip
-// with Preact). The real dock (R14) is measured by tools/size-budget on the
-// release build; these guards keep the kit's share of that chunk (what the
-// dock imports from it) at most 27 KiB, so at least 18 KiB stay for the dock
-// itself, and keep zod (which the contracts' schema modules build at load)
-// out of it.
+// ui/kit in the first dock chunk: zod (which the contracts' schema modules
+// build at load) stays out of the kit and of what the dock takes from it.
+// X66: the owner dropped the size budgets (architecture.md §11); the sizes
+// are printed for the record, never judged.
 
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,24 +13,6 @@ import { build, type Rolldown } from 'vite';
 import { describe, expect, it } from 'vitest';
 
 const KIT_INDEX = fileURLToPath(new URL('../../../ui/src/kit/index.ts', import.meta.url));
-const KIB = 1024;
-/**
- * The whole kit with Preact, hooks and signals, nothing tree-shaken (33.6 KiB
- * at R13's review; 35.2 KiB with the five chip icons of decision X31 — on
- * CI's Linux build a few hundred bytes more): a ceiling against growth. The
- * first dock chunk holds only what the dock imports, guarded by
- * DOCK_KIT_BUDGET below and by the 45 KiB of testing/src/dock/size.test.ts.
- */
-const WHOLE_KIT_BUDGET = 36 * KIB;
-/** architecture.md §11: the first dock chunk with Preact, gzip. */
-const FIRST_DOCK_CHUNK = 45 * KIB;
-/**
- * The kit's share of the first dock chunk: what the dock surface (R14)
- * imports from the kit, with Preact, signals and every kit sheet. The rest,
- * FIRST_DOCK_CHUNK − this, is the dock's own code: R14 and the integrator
- * plan against it.
- */
-const DOCK_KIT_BUDGET = 27 * KIB; // 24.7 KiB at R13's review
 /** What the docked strip and result sheet use from the kit (ui-design §4.1–§4.10). */
 const DOCK_IMPORTS = [
   'createMountPort',
@@ -103,18 +83,17 @@ async function bundle(entrySource: string): Promise<{ readonly gzip: number; rea
   }
 }
 
-describe('[EX-009] ui/kit fits the first dock chunk (architecture.md §11)', () => {
-  it(`the whole kit with Preact is under ${WHOLE_KIT_BUDGET / KIB} KiB gzip and carries no zod`, async () => {
+describe('[EX-009] ui/kit in the first dock chunk carries no zod', () => {
+  it('the whole kit with Preact carries no zod', async () => {
     const whole = await bundle(`import * as kit from ${JSON.stringify(KIT_INDEX)};\nexport { kit };\n`);
     expect(whole.modules.filter((id) => /[/\\]zod[@/\\]/.test(id))).toEqual([]);
     expect(whole.modules.some((id) => /[/\\]preact[@/\\]/.test(id))).toBe(true);
-    expect(whole.gzip).toBeLessThanOrEqual(WHOLE_KIT_BUDGET);
+    console.info(`the whole kit with Preact: ${whole.gzip} B gzip`);
   }, 60_000);
 
-  it(`what the dock takes from the kit is under ${DOCK_KIT_BUDGET / KIB} KiB, leaving ${(FIRST_DOCK_CHUNK - DOCK_KIT_BUDGET) / KIB} KiB of the first chunk to the dock`, async () => {
+  it('what the dock takes from the kit carries no zod', async () => {
     const dock = await bundle(`import { ${DOCK_IMPORTS.join(', ')} } from ${JSON.stringify(KIT_INDEX)};\nexport { ${DOCK_IMPORTS.join(', ')} };\n`);
     expect(dock.modules.filter((id) => /[/\\]zod[@/\\]/.test(id))).toEqual([]);
-    expect(dock.gzip).toBeLessThanOrEqual(DOCK_KIT_BUDGET);
-    expect(FIRST_DOCK_CHUNK - DOCK_KIT_BUDGET).toBeGreaterThanOrEqual(18 * KIB);
+    console.info(`what the dock takes from the kit: ${dock.gzip} B gzip`);
   }, 60_000);
 });

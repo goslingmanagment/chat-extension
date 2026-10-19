@@ -3,7 +3,7 @@
 # A PR runs `check` alone — the check main's ruleset requires; a PR is opened
 # ready and merges itself (auto-merge) once it is green. Every push to main and
 # a manual run run everything:
-#   check      `pnpm check` — typecheck, lint, test, build, webext-lint, size,
+#   check      `pnpm check` — typecheck, lint, test, build, webext-lint,
 #              gates, parity, archive-check (§3);
 #   e2e-part   `pnpm e2e` in parts side by side — headless Firefox and
 #              geckodriver inside the image pinned by digest in

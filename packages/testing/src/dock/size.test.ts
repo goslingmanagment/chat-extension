@@ -1,10 +1,10 @@
-// The dock and the overlays against the bundle budgets (architecture.md §11):
-// the first dock chunk with Preact ≤ 45 KiB gzip, every lazy chunk ≤ 30 KiB
-// on top of it. tools/size-budget measures the release build; until the tab
-// composition mounts the real dock, this test builds the same graph the lazy
-// entry will have — the dock and the toast host statically, Recap/Review,
-// the debug footer, Coach, the cheatsheet and the expanded result behind
-// dynamic imports — and measures it the same way (minified, gzip -9).
+// What the first dock chunk holds and what stays in its lazy parts: this test
+// builds the graph the lazy entry has — the dock and the toast host
+// statically, Recap/Review, the debug footer, Coach, the cheatsheet and the
+// expanded result behind dynamic imports — and checks which modules land
+// where (no zod, no schemas, no overlay windows in the first chunk). X66: the
+// owner dropped the size budgets (architecture.md §11); the sizes are printed
+// for the record (minified, gzip -9), never judged.
 
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,9 +17,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const UI = fileURLToPath(new URL('../../../ui/src/', import.meta.url));
 const KIB = 1024;
-/** architecture.md §11. */
-const FIRST_DOCK_CHUNK = 45 * KIB;
-const LAZY_CHUNK = 30 * KIB;
 
 /** What the lazy entry of the extension exports once it mounts the real dock. */
 const ENTRY = `
@@ -93,14 +90,13 @@ beforeAll(async () => {
   }
 }, 120_000);
 
-describe('[EX-009] the dock and its overlays fit the bundle budgets (architecture.md §11)', () => {
-  it(`the first dock chunk — the dock, the toast host, the kit and Preact — is under ${FIRST_DOCK_CHUNK / KIB} KiB gzip`, () => {
+describe('[EX-009] the dock and its overlays: what lands in which chunk', () => {
+  it('the first dock chunk holds the dock, the toast host, the kit and Preact, and no schemas or overlay windows', () => {
     const first = closure('dock.js');
     const size = sizeOf(first);
     const modules = modulesOf(first);
     // Reported for the work package's record: `pnpm vitest run packages/testing/src/dock/size.test.ts`.
-    console.info(`first dock chunk: ${kib(size)} of ${kib(FIRST_DOCK_CHUNK)}`);
-    expect(size).toBeLessThanOrEqual(FIRST_DOCK_CHUNK);
+    console.info(`first dock chunk: ${kib(size)}`);
     expect(modules.some((id) => /[/\\]preact[@/\\]/.test(id))).toBe(true);
     expect(modules.some((id) => id.endsWith('/dock/Strip.tsx'))).toBe(true);
     expect(modules.some((id) => id.endsWith('/overlays/toasts/index.tsx'))).toBe(true);
@@ -111,7 +107,7 @@ describe('[EX-009] the dock and its overlays fit the bundle budgets (architectur
     expect(modules.filter((id) => /kit\/(markdown\/(parse|Markdown)|components\/(Choice|Field|Dialog))\.tsx?$/.test(id))).toEqual([]);
   });
 
-  it(`every lazy part — Recap and Review, the debug footer, Coach, the cheatsheet, the expanded result — adds under ${LAZY_CHUNK / KIB} KiB each`, () => {
+  it('every lazy part — Recap and Review, the debug footer, Coach, the cheatsheet, the expanded result — is a chunk of its own, without zod', () => {
     const first = closure('dock.js');
     const lazy = new Map<string, number>();
     const visit = (file: string): void => {
@@ -129,7 +125,6 @@ describe('[EX-009] the dock and its overlays fit the bundle budgets (architectur
     const named = [...lazy.entries()].map(([file, size]) => [nameOf(file), size] as const);
     console.info(`lazy chunks beyond the dock: ${named.map(([name, size]) => `${name} ${kib(size)}`).join(', ')}`);
     expect(named.map(([name]) => name).sort()).toEqual(['analysis', 'cheatsheet', 'coach', 'debug', 'expanded']);
-    for (const [name, size] of named) expect(size, name).toBeLessThanOrEqual(LAZY_CHUNK);
     expect(modulesOf([...lazy.keys()].flatMap((file) => [...closure(file)])).filter((id) => /[/\\]zod[@/\\]/.test(id))).toEqual([]);
   });
 });

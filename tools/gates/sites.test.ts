@@ -483,10 +483,10 @@ describe('gate: no Fansly data in what ChatSpace loads (architecture §1.8, §3.
 describe('gate: no build data in a bundle (architecture §1.2, §1.8)', () => {
   const parity = PARITY_EXCEPTIONS.map((exception) => exception.id);
 
-  it('the host registry’s build fields: budget labels, lazy entry sources, the contract check, MAIN-world sources, archive markers', () => {
+  it('the host registry’s build fields: lazy entry sources, the contract check, MAIN-world sources, archive markers', () => {
     const fields = registryBuildFields(HOSTS);
-    expect(fields).toEqual(expect.arrayContaining(['MAIN WS tap (chatspace-ws)', 'packages/host-chatspace/src/isolated/host-contract.ts', 'CG_CHATSPACE_BUNDLES', 'packages/host-chatspace/src/main/', 'chatspace-bundles']));
-    expect(fields.length).toBeGreaterThan(20);
+    expect(fields).toEqual(expect.arrayContaining(['packages/host-chatspace/src/isolated/host-contract.ts', 'CG_CHATSPACE_BUNDLES', 'packages/host-chatspace/src/main/', 'chatspace-bundles']));
+    expect(fields.length).toBeGreaterThan(15);
   });
 
   it('a build field or a parity row in a built file is red; a binary file is not read', () => {

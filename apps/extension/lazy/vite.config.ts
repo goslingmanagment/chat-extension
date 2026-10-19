@@ -27,8 +27,7 @@
 // 3.4 KiB that way). What the dock shares with the protocol or the application
 // is the `kernel` chunk, so the dock never pulls the schemas in and they never
 // pull Preact. The other entries are cut by the bundler itself. A build
-// without layers is cut by the bundler alone. tools/size-budget measures each
-// layer on top of the ones before it (§11).
+// without layers is cut by the bundler alone.
 //
 // wxt.config.ts runs buildLazyChunks() inside the WXT build (after WXT cleans
 // the output dir); `vite build -c lazy/vite.config.ts` builds ChatSpace's
@@ -210,7 +209,7 @@ export async function buildLazySite(extensionOutDir: string, site: LazySite, plu
  * Builds every site's lazy chunks, one site after the other, each into
  * `<extensionOutDir>/<root>/`, and writes the chunk graph next to the
  * extension dir (`<extensionOutDir>.lazy-chunks.json`, outside the XPI) for
- * tools/size-budget. Returns the chunk list.
+ * whoever inspects the build. Returns the chunk list.
  */
 export async function buildLazyChunks(extensionOutDir: string, sites: readonly LazySite[], testBuild = false): Promise<LazyChunkInfo[]> {
   const roots = sites.map((site) => site.build.root);
