@@ -180,8 +180,16 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { kind: 'page', page: 'changelog' },
       { kind: 'debug-prompt', promptHandle: 'snap-1' },
       { kind: 'journal', journal: 'operations' },
+      // 1.35.0 (X60): the popup's «Открыть ChatSpace» — the build's own site, never an address of the caller's.
+      { kind: 'site-home' },
     ],
-    [{ kind: 'chat' }, { kind: 'chat-slot', slot: 10 }, { kind: 'url', href: 'https://example.test' }, { kind: 'surface', surface: 'spenders' }],
+    [
+      { kind: 'chat' },
+      { kind: 'chat-slot', slot: 10 },
+      { kind: 'url', href: 'https://example.test' },
+      { kind: 'surface', surface: 'spenders' },
+      { kind: 'site-home', href: 'https://example.test' },
+    ],
   ),
   fixture(
     'UiAction',
@@ -727,5 +735,34 @@ export const PAGE_TAG_SAMPLES: {
     { ...PERSONA_PAGE_BASE, page: 'OnlyFans · lora-vip' } satisfies PersonaPageRow,
     // @ts-expect-error the platform's name is the site's phrase, a text — not the phrases of every language
     { platform: 'onlyfans', pageLabel: 'lora-vip', platformName: { ru: 'OnlyFans', en: 'OnlyFans' } } satisfies C.PageTagVM,
+  ],
+};
+
+/**
+ * 1.35.0 (X60): the popup's stage — the verdict and what to fix, each problem with its one remedy (a type, no schema).
+ */
+const RELOAD_FIX: C.ActionButtonVM = { label: { key: 'popup.alert.reloadOne' }, action: { type: 'ReloadTab' }, enabled: true, reason: null, hotkey: null };
+export const POPUP_VERDICT_SAMPLES: { readonly valid: readonly C.PopupVerdictVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    { s: 'ready', line: 'ChatSpace и хаб на связи', alerts: [] },
+    { s: 'checking', line: null, alerts: [] },
+    {
+      s: 'attention',
+      line: null,
+      alerts: [
+        { code: 'CG-RUNTIME-RELOADED', tone: 'state', title: 'Перезагрузите вкладку ChatSpace', body: 'Расширение обновилось, а вкладка открыта со старой версией. Черновик сохранится.', fix: RELOAD_FIX },
+        { code: 'CG-HOST-CONTRACT', tone: 'failure', title: 'ChatSpace изменился', body: null, fix: null },
+      ],
+    },
+    // The remedy is running: the tab is being reloaded.
+    { s: 'attention', line: null, alerts: [{ code: 'CG-RUNTIME-RELOADED', tone: 'state', title: 'Перезагрузите вкладку ChatSpace', body: null, fix: RELOAD_FIX, busy: true }] },
+  ],
+  invalid: [
+    // @ts-expect-error the stage is one of three: «ok» is «ready»
+    { s: 'ok', line: null, alerts: [] } satisfies C.PopupVerdictVM,
+    // @ts-expect-error a problem has its one remedy, never a list of them
+    { code: 'CG-RUNTIME-RELOADED', tone: 'state', title: 'x', body: null, fix: [RELOAD_FIX] } satisfies C.PopupAlertVM,
+    // @ts-expect-error the tone is the error card's dot: «failure» or «state»
+    { code: 'CG-RUNTIME-RELOADED', tone: 'warn', title: 'x', body: null, fix: null } satisfies C.PopupAlertVM,
   ],
 };

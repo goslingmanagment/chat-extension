@@ -314,6 +314,9 @@ export const UI_TEXT_KEYS = [
   // The journal's filters, pages and auto-refresh (NF-029), the stored deep window above the hub's limit, a sentence-case row of the reference.
   'debugPage.journal.filterAll', 'debugPage.journal.filterNone', 'debugPage.journal.matched', 'debugPage.journal.page', 'debugPage.journal.prev',
   'debugPage.journal.next', 'debugPage.journal.auto', 'settings.generation.deepOver', 'settings.hotkeys.row.variant',
+  // 1.35.0 (X60): the popup's stage — the verdict, what to fix and its remedy; a site's switch in its own quiet row.
+  'popup.verdict.readyLine', 'popup.verdict.checking', 'popup.alert.reloadOne', 'popup.alert.reloadMany', 'popup.alert.openTitle',
+  'popup.alert.openBody', 'popup.alert.openFix', 'popup.alert.recheck', 'popup.alert.personaFix', 'popup.site.on', 'popup.site.off',
   // ── end of the extension pages ──
 ] as const;
 export type UiTextKey = (typeof UI_TEXT_KEYS)[number];
@@ -334,7 +337,10 @@ export const UI_PLURAL_KEYS = [
   'quickJump.unread',
   'settings.status.needActions', 'settings.status.warnings', 'settings.status.row.quotaLeft', 'settings.status.row.runningCount',
   // 1.30.0 (X53)
-  'preview.media.count', 'preview.media.previews',] as const;
+  'preview.media.count', 'preview.media.previews',
+  // 1.35.0 (X60)
+  'popup.alert.reloadTitle', 'popup.alert.reloadBody', 'popup.site.reloadBody',
+] as const;
 export type UiPluralKey = (typeof UI_PLURAL_KEYS)[number];
 
 type CgWords<S extends string> = S extends `${infer Head}-${infer Tail}`

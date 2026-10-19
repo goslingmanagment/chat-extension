@@ -18,6 +18,7 @@ import {
   NEWCOMERS_INCOMPLETE_SAMPLES,
   OPTIONS_FOOTER_SAMPLES,
   PAGE_TAG_SAMPLES,
+  POPUP_VERDICT_SAMPLES,
   REFUSAL_VM_SAMPLES,
   SPOKEN_MONEY_SAMPLES,
   STATS_ATTENTION_SAMPLES,
@@ -590,5 +591,14 @@ describe('pages of one title are told apart (1.3.0)', () => {
     expect(PAGE_TAG_SAMPLES.popup.filter((persona) => persona.s !== 'not-connected' && persona.page !== undefined)).toHaveLength(2);
     expect(PAGE_TAG_SAMPLES.accountPages[1]?.pageLabel).toBe('lora-vip');
     expect(PAGE_TAG_SAMPLES.invalid).toHaveLength(4);
+  });
+
+  it('[PU-004] [PU-006] 1.35.0 (X60): the popup says its verdict first — ready, attention or checking — and each problem with its one remedy', () => {
+    expectTypeOf<C.PopupVM['verdict']>().toEqualTypeOf<C.PopupVerdictVM | undefined>();
+    expectTypeOf<C.PopupAlertVM['fix']>().toEqualTypeOf<C.ActionButtonVM | null>();
+    expect(POPUP_VERDICT_SAMPLES.valid.map((verdict) => verdict.s)).toEqual(['ready', 'checking', 'attention', 'attention']);
+    expect(POPUP_VERDICT_SAMPLES.valid[2]?.alerts.map((alert) => alert.fix?.action.type ?? null)).toEqual(['ReloadTab', null]);
+    expect(POPUP_VERDICT_SAMPLES.invalid).toHaveLength(3);
+    expect(C.NavigationTargetSchema.safeParse({ kind: 'site-home' }).success).toBe(true);
   });
 });
