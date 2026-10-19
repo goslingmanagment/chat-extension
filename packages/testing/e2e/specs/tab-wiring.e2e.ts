@@ -147,6 +147,8 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
   });
 
   it('[HK-002] [HK-026] [X68] a key of ours in the native composer: the early dispatcher takes ⌘I before the editor (no italic), Fix starts for the draft and its result replaces it by itself', async () => {
+    // Reply above needs Split; this scenario needs the single-part Fix that X68 inserts automatically.
+    await settingsPatch({ generation: { split: false } });
     const mark = await hub().mark();
     await $(ACTIVE_EDITOR).click();
     await dockIs((d) => d.actions['fix'] === true, 'Fix is on: the composer holds a draft');
@@ -157,6 +159,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     // TipTap never saw the key: the editor is not in italic.
     expect((await callStand('composerState', accountA, a1))?.marks['italic'] ?? false).toBe(false);
     expect((await dockIs(() => true, 'the dock')).result).toBeNull();
+    await settingsPatch({ generation: { split: true } });
   });
 
   it('[HK-036] [EX-009] ⌘K opens the palette: the window’s chunk is loaded on demand and mounted on the modal layer; Esc closes it', async () => {

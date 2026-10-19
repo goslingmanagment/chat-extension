@@ -103,7 +103,9 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
   });
 
   describe('in ChatSpace’s own message field', () => {
-    it('[HK-002] [HK-003] [HK-028] ⌘E and ⌘I over a selection start Reply and Fix: TipTap toggles neither inline code nor italic, and the draft is the person’s as it was', async () => {
+    it('[HK-002] [HK-003] [HK-028] ⌘E and ⌘I over a selection start Reply and Fix: TipTap toggles neither inline code nor italic, and a single-part Fix replaces the draft', async () => {
+      // X68 only inserts a single-part Fix automatically; a Split Fix intentionally keeps its parts in the sheet.
+      await shift.patch({ generation: { split: false } });
       const hubMark = await hub().mark();
       await typeDraft('some words of mine');
       await browser.keys([MOD, 'a']);
@@ -117,6 +119,7 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       // Without us the same keys wrap the selection in <code> and <em> (stand-fixture.e2e.ts).
       expect((await callStand('composerState', ACC, a1))?.html).not.toMatch(/<code>|<em>/);
       expect(callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').map((call) => (call.request as { feature?: string }).feature)).toEqual(['fast-reply', 'improve-draft']);
+      await shift.patch({ generation: { split: true } });
     });
 
     it('[HK-026] a key that is not ours is ChatSpace’s as before: ⌘B makes the selection bold, and nothing of ours starts', async () => {
