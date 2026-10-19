@@ -12,7 +12,7 @@
 //   binding and the persona are the same before and after (NF-016) — else the result is not taken; an empty, too long
 //   or split result is unusable (NF-017, CG-OUTPUT-UNUSABLE). A usable one goes into the field: «AI» while unchanged.
 // - «Отправить» (NF-019): one click, one attempt of the site's send; the FIELD's content goes (FS-NEW-6): an unchanged
-//   AI result as that generation (its own fresh verdict — never one the hub gave a later generation), anything else as
+//   AI result as that generation (its freshness mark remains advisory, X69), anything else as
 //   the person's own text on the history revision the card shows. Nothing is repeated; every refusal says why
 //   (NF-024); one action at a time per fan (NF-023).
 // - «Открыть и вставить»: the fan's chat opens in this tab with the field's text (one navigation, its deferred
@@ -255,7 +255,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (card.text.trim() === '') return null;
     if (!proven(row)) return failure('CG-FNEW-UNVERIFIED');
     if (send && card.gen !== null && unchanged(card)) {
-      if (markOf(card) !== null || card.gen.generationRef === null) return failure('CG-SEND-FRESHNESS');
+      // X69: the person reviews the field and clicks Send; an AI freshness warning is not a send prohibition.
+      if (card.gen.generationRef === null) return failure('CG-SEND-FRESHNESS');
       // The pass checked the history again since: the old result is not this history's (FS-NEW-6) — only a new one.
       if (card.gen.historyRevision !== row.historyRevision) return failure('CG-FNEW-HISTORY');
     }

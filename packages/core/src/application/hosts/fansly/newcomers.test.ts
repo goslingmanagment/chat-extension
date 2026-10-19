@@ -1092,7 +1092,7 @@ function greetingWorld(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2)], opt
 }
 
 describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10c)', () => {
-  it('[FS-TAIL-8] an unverified AI draft stays AI and blocked after close/open, a reload or another tab; only a changed text becomes own', async () => {
+  it('[FS-TAIL-8] [X69] an unverified AI draft keeps its warning after close/open and another tab, and sends unchanged on the person’s click', async () => {
     const w = greetingWorld();
     await w.open();
     const run = w.generate(1);
@@ -1102,16 +1102,14 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     await run;
     await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
     await w.open();
-    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1!', ai: true, mark: 'unverified', canSend: false });
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1!', ai: true, mark: 'unverified', canSend: true });
     const other = greetingWorld(undefined, { background: w.background });
     await other.open();
-    expect(other.greeting()).toMatchObject({ ai: true, mark: 'unverified', canSend: false });
-    expect(await other.send(1)).toMatchObject({ ok: false, code: 'CG-SEND-FRESHNESS' });
+    expect(other.greeting()).toMatchObject({ ai: true, mark: 'unverified', canSend: true });
     expect(w.background.of('fansly.followers.send')).toHaveLength(0);
-    await other.type(1, 'Hey Fan 1, welcome!');
-    expect(other.greeting()).toMatchObject({ ai: false, mark: null, canSend: true });
-    await other.send(1);
-    expect(w.background.of('fansly.followers.send').at(-1)).toMatchObject({ admission: { kind: 'ai-edited', generationRef: GEN }, text: 'Hey Fan 1, welcome!' });
+    expect(await other.send(1)).toMatchObject({ ok: true });
+    expect(w.background.of('fansly.followers.send')).toHaveLength(1);
+    expect(w.background.of('fansly.followers.send').at(-1)).toMatchObject({ admission: { kind: 'ai', generationRef: GEN }, text: 'Hey Fan 1!', opId: uuid(0xc1) });
   });
 
   it('[FS-NEW-3] uncertain and sent survive reopening and another tab, disabling both send and native insert', async () => {
@@ -1145,9 +1143,9 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     await run;
     w.background.reconnect();
     await settle();
-    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1!', ai: true, mark: 'unverified', canSend: false });
-    expect(await w.send(1)).toMatchObject({ ok: false, code: 'CG-SEND-FRESHNESS' });
-    expect(w.background.of('fansly.followers.send')).toHaveLength(0);
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1!', ai: true, mark: 'unverified', canSend: true });
+    expect(await w.send(1)).toMatchObject({ ok: true });
+    expect(w.background.of('fansly.followers.send').at(-1)).toMatchObject({ text: 'Hey Fan 1!', admission: { kind: 'ai', generationRef: GEN } });
   });
 
   it('[FS-NEW-3] a background refusal because another tab already sent or is uncertain keeps the native-insert ban', async () => {
@@ -1367,27 +1365,32 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     expect(edited['opId']).toBeUndefined();
   });
 
-  it('[FS-TAIL-8] [NF-018] the hub caught up after an unverified generation — the old result is still not sent, only a new one; the pass checked the history again — the old result is not this history’s', async () => {
+  it.each(['unverified', 'window-miss', 'deleted-served', 'archive-moved', 'fan-wrote'] as const)('[X69] [FS-TAIL-8] a %s greeting stays AI with its warning and sends without an edit, only on a click', async (mark) => {
     const w = greetingWorld();
     await w.open();
     const run = w.generate(1);
     await settle();
-    // Its own verdict: the hub could not say it saw the last messages.
+    w.marks.set(uuid(0xc1), mark);
+    w.tab.done(uuid(0xc1), ['Hey Fan 1!']);
+    await run;
+    await settle();
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 1!', ai: true, mark, canSend: true, sendBlocked: null });
+    expect(w.background.of('fansly.followers.send')).toEqual([]);
+    expect(await w.send(1)).toMatchObject({ ok: true });
+    expect(w.background.of('fansly.followers.send')).toHaveLength(1);
+    expect(w.background.of('fansly.followers.send')[0]).toMatchObject({ text: 'Hey Fan 1!', admission: { kind: 'ai', generationRef: GEN }, opId: uuid(0xc1) });
+  });
+
+  it('[X69] [NF-018] a freshness warning is advisory, but a changed history still blocks the old AI draft', async () => {
+    const w = greetingWorld();
+    await w.open();
+    const run = w.generate(1);
+    await settle();
     w.marks.set(uuid(0xc1), 'unverified');
     w.tab.done(uuid(0xc1), ['Hey Fan 1!']);
     await run;
     await settle();
-    expect(w.greeting()).toMatchObject({ ai: true, mark: 'unverified', canSend: false, sendBlocked: { code: 'CG-SEND-FRESHNESS' } });
-    expect(await w.send(1)).toMatchObject({ ok: false, code: 'CG-SEND-FRESHNESS' });
-    expect(w.background.of('fansly.followers.send')).toEqual([]);
-    // A new generation with a fresh verdict may go.
-    const fresh = w.generate(1);
-    await settle();
-    w.tab.done(uuid(0xc2), ['Hey Fan 1, welcome!']);
-    await fresh;
-    await settle();
-    expect(w.greeting()).toMatchObject({ mark: null, canSend: true });
-    // The pass read the history again and it changed: the unchanged result waits for a new one (NF-018).
+    expect(w.greeting()).toMatchObject({ mark: 'unverified', canSend: true });
     w.background.change(w.background.last().view.passId, [wireRow(1, { historyRevision: uuid(0x777) })]);
     await settle();
     expect(w.greeting()).toMatchObject({ canSend: false, sendBlocked: { code: 'CG-FNEW-HISTORY' } });
@@ -1494,7 +1497,7 @@ describe('[host:fansly] «Новые» on Fansly: a batch generated for many, ea
     expect(await w.send(3)).toMatchObject({ ok: false });
     expect(w.vm().rows[2]?.send).toEqual({ can: true, refused: { code: 'CG-FNEW-HISTORY', retryAt: null } });
     expect(w.vm().rows[2]?.batch).toMatchObject({ state: 'ready', text: 'Hey Fan 3!' });
-    // An unchanged AI text the hub marked is not the row's to send: «Отправить» is off.
+    // X69: the row uses the same send policy as the card; an AI warning does not require an edit.
     const marked = greetingWorld([wireRow(1)]);
     await marked.open();
     await marked.controller.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [marked.handle(1)], picked: true });
@@ -1503,7 +1506,10 @@ describe('[host:fansly] «Новые» on Fansly: a batch generated for many, ea
     marked.marks.set(uuid(0xc1), 'unverified');
     marked.tab.done(uuid(0xc1), ['Hey!']);
     await settle();
-    expect(marked.vm().rows[0]?.send).toEqual({ can: false, refused: null });
+    expect(marked.vm().rows[0]?.send).toEqual({ can: true, refused: null });
+    expect(marked.background.of('fansly.followers.send')).toHaveLength(0);
+    expect(await marked.send(1)).toMatchObject({ ok: true });
+    expect(marked.background.of('fansly.followers.send')[0]).toMatchObject({ text: 'Hey!', admission: { kind: 'ai', generationRef: GEN } });
   });
 
   it('[X59] a draft typed on a card is no batch result: the list has no «Отправить» for it — the card has', async () => {
