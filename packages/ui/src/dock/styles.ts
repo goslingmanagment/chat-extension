@@ -8,15 +8,17 @@
 // root's own text (`atBase`: N px at the base 13 px): «Размер текста: Крупнее»
 // (X55) widens every chip, and the same rules then hold a step earlier.
 //
-//   widest  everything in words: the capsule with the word «Split», Spenders
-//           and «Новые», the status in words, the persona, the palette key
+//   always  Spenders and «Новые» are their icons, on every site and width
+//           (the owner, 2026-10-19: as on Fansly); the word is the name and
+//           the hint
+//   widest  the rest in words: the capsule with the word «Split», the status
+//           in words, the persona, the palette key
 //   < 1000  no persona, no palette key; the status words short
 //   < 900   Split in the capsule is its glyph alone
 //   < 820   no lock in the capsule while a generation runs; chips 0 8 px
 //   < 720   the chips closer: gaps 3 px, chips 0 7 px
-//   < 690   Spenders and «Новые» are their icons; the status in their place
-//           while the chat loads is its spinner alone; Hi variants in a column
-//           below 680
+//   < 690   the status in the windows' place while the chat loads is its
+//           spinner alone; Hi variants in a column below 680
 //   < 610   Review, Recap, Coach are their icons too
 //   ≤ 600   head without meta and key labels
 //   < 530   the capsule's cells narrower, 24 px from one to the next; chips 0 6
@@ -72,6 +74,10 @@ ${/* What is left of a low quota: a count on the bar's frame over Reply's corner
 .cg-strip__opts > * { flex: none; }
 .cg-strip__opts > .cg-slot--persona, .cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
 .cg-act--ico > .cg-ico { display: none; width: 14px; height: 14px; }
+${/* Spenders and «Новые» are their icons at every width, on both sites (the owner, 2026-10-19): the word is in the hint and in the name. */ ''}
+.cg-strip .cg-slot--boards .cg-act--ico { width: 28px; padding: 0; }
+.cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
+.cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 .cg-act.is-busy > .cg-ico { opacity: 0.35; }
 .cg-slot--more, .cg-strip.has-status .cg-slot--boards { display: none; }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
@@ -194,11 +200,8 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 7px; }
 }
 @container cg (max-width: ${atBase(689)}) {
-  ${/* The windows are their icons alone; the word is in the hint and in the name. While the chat loads the status in their place is its spinner alone. */ ''}
+  ${/* While the chat loads the status in the windows' place is its spinner alone. */ ''}
   .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
-  .cg-strip .cg-slot--boards .cg-act--ico { width: 28px; padding: 0; }
-  .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
-  .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
 @container cg (max-width: ${atBase(609)}) {
   ${/* Review, Recap, Coach too. */ ''}
