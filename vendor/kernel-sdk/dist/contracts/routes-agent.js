@@ -2290,8 +2290,11 @@ const agentSyncClassQueueSchema = z.object({
  *  what its operator last said of itself and how old that is, the owner's
  *  stop, the login, the session (no token), the exit IP against the pinned
  *  one (never the proxy's address or credentials), the buffer against its
- *  caps, the delivery of its events, the versions, the last self-test and
- *  alarm, and the browser's alerts that hold now. The operator's steps,
+ *  caps, the delivery of its events, the versions, the last self-test,
+ *  whether a Hub request can go now, Chrome's crash dumps counted, the exit's
+ *  refusals counted, the last alarm with its age, the site's own requests as
+ *  observed (kept for Hub's word, the last hour's journal), and the browser's
+ *  alerts that hold now. The operator's steps,
  *  stop reasons and alarm kinds grow with its protocol (spec §6.3): strings. */
 export const agentSyncBrowserStatusSchema = z.object({
     profileId: z.string().uuid(),
@@ -2349,11 +2352,69 @@ export const agentSyncBrowserStatusSchema = z.object({
     }).strict(),
     versions: z.object({ chrome: z.string().nullable(), operator: z.string().nullable() }).strict(),
     selfTest: z.object({ ok: z.boolean().nullable(), at: agentIsoTimestamp.nullable(), failed: z.string().nullable() }).strict(),
-    alarm: z.object({
+    /** Whether a Hub request can go now, as the operator's last state said (protocol minor 5; null: not said). A page
+     *  may be `ready` and blocked (`header_parity` until Chrome starts anew). Blocked: the reason, since when and for how long. */
+    hubSend: z.object({
+        allowed: z.boolean().nullable(),
+        reason: z.string().nullable(),
+        since: agentIsoTimestamp.nullable(),
+        forMs: z.number().int().nonnegative().nullable(),
+    }).strict(),
+    /** Chrome's crash dumps on the profile (Crashpad's completed and pending: how many, the newest), as counted at
+     *  Chrome's last start or exit; null: not counted. Never a dump. */
+    crashDumps: z.object({
+        completed: z.object({ count: z.number().int().nonnegative(), newestAt: agentIsoTimestamp.nullable() }).strict(),
+        pending: z.object({ count: z.number().int().nonnegative(), newestAt: agentIsoTimestamp.nullable() }).strict(),
+        countedAt: agentIsoTimestamp,
+    }).strict().nullable(),
+    /** The exit's refusals since the operator started (`since`): the page's SOCKS5 failing tunnels by kind
+     *  (`unavailable`, `auth`, `refused`), step (`greeting`, `auth`, `connect`), its reply (REP; null: none) and the
+     *  host's class; the rules extension's blocks (net::ERR_BLOCKED_BY_CLIENT) by the host's class, `probe` — the
+     *  self-test's own. Each with its count, last instant and host. Null: not counted (an operator from before). */
+    egressFailures: z.object({
+        since: agentIsoTimestamp,
+        socks: z.array(z.object({
+            kind: z.string(),
+            step: z.string(),
+            rep: z.number().int().nullable(),
+            cls: z.string(),
+            count: z.number().int().nonnegative(),
+            lastAt: agentIsoTimestamp,
+            lastHost: z.string(),
+        }).strict()),
+        dnr: z.array(z.object({
+            cls: z.string(),
+            probe: z.boolean(),
+            count: z.number().int().nonnegative(),
+            lastAt: agentIsoTimestamp,
+            lastHost: z.string(),
+        }).strict()),
+    }).strict().nullable(),
+    /** The operator's last alarm and its age: what it once said, not a condition (those are `alerts`). */
+    lastAlarm: z.object({
         kind: z.string(),
         at: agentIsoTimestamp,
+        ageMs: z.number().int().nonnegative(),
         detail: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
     }).strict().nullable(),
+    /** The site's own requests as observed: what the operator keeps for Hub's word (its last state, protocol minor 6;
+     *  null: not said) — how many, the oldest one's instant and age, how many it dropped since its start — and the last
+     *  hour's hops as Hub journaled them (`unended`: a send without its end, `responsesWithoutSend`: an answer kept whose
+     *  send Hub has not journaled, each past 2 min). */
+    siteObserved: z.object({
+        unconfirmed: z.number().int().nonnegative().nullable(),
+        oldestAt: agentIsoTimestamp.nullable(),
+        oldestAgeMs: z.number().int().nonnegative().nullable(),
+        dropped: z.number().int().nonnegative().nullable(),
+        lastHour: z.object({
+            sent: z.number().int().nonnegative(),
+            ended: z.number().int().nonnegative(),
+            unended: z.number().int().nonnegative(),
+            responses: z.number().int().nonnegative(),
+            responsesWithoutSend: z.number().int().nonnegative(),
+            lastRecordedAt: agentIsoTimestamp.nullable(),
+        }).strict(),
+    }).strict(),
     /** `browser:<kind>` alerts that hold now. */
     alerts: z.array(z.object({ kind: z.string(), detail: z.string(), since: agentIsoTimestamp.nullable() }).strict()),
 }).strict();
@@ -2375,9 +2436,17 @@ export const agentSyncPageStatusSchema = z.object({
         /** The owner's pause setting S, as the engine reads it. */
         settingMs: z.number().int().positive(),
         lastSendAt: agentIsoTimestamp.nullable(),
+        /** The smallest gap before one of Hub's sends over the last hour, to the
+         *  page's send before it of any origin (the send audit's). */
         minGapLastHourMs: z.number().nonnegative().nullable(),
-        /** Sends closer than their S over the last day (the owner's rule says 0). */
+        /** Hub's sends closer than their pause to the page's send before them over
+         *  the last day, by the send audit (the owner's rule says 0). The site's
+         *  own requests are never judged. */
         violationsLastDay: agentSyncCountSchema,
+        /** The site's own requests (sent by the page's browser, never admitted)
+         *  closer than their S to the page's request before them over the last
+         *  day: the site's pace, never a violation. */
+        siteCloseLastDay: agentSyncCountSchema,
     }).strict(),
     sendsLastHour: z.object({
         urgent: agentSyncCountSchema,

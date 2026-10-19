@@ -20,6 +20,7 @@ export * from "./of-links";
 export * from "./routes-of-links";
 export * from "./routes-page-browser";
 export * from "./routes-ops-live";
+export * from "./routes-ai-accounts";
 export * from "./ofapi-extended-commands";
 export * from "./routes-ofapi-banned-words";
 export * from "./routes-ofapi-read-collections";

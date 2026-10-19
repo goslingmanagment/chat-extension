@@ -570,6 +570,7 @@ export declare const syncResourceFileEnum: z.ZodEnum<{
     payouts: "payouts";
     followers: "followers";
     repair: "repair";
+    probe: "probe";
     ws: "ws";
     "dm-conversations": "dm-conversations";
     "dm-messages": "dm-messages";
@@ -582,7 +583,6 @@ export declare const syncResourceFileEnum: z.ZodEnum<{
     "media-stats": "media-stats";
     stats: "stats";
     "media-download": "media-download";
-    probe: "probe";
 }>;
 export declare const syncPagesResponseSchema: z.ZodObject<{
     pages: z.ZodArray<z.ZodObject<{
@@ -605,6 +605,7 @@ export declare const syncPagesResponseSchema: z.ZodObject<{
             lastSendAt: z.ZodNullable<z.ZodString>;
             minGapLastHourMs: z.ZodNullable<z.ZodNumber>;
             violationsLastDay: z.ZodNumber;
+            siteCloseLastDay: z.ZodNumber;
         }, z.core.$strict>;
         sendsLastHour: z.ZodObject<{
             urgent: z.ZodNumber;
@@ -788,11 +789,62 @@ export declare const syncPagesResponseSchema: z.ZodObject<{
                 at: z.ZodNullable<z.ZodString>;
                 failed: z.ZodNullable<z.ZodString>;
             }, z.core.$strict>;
-            alarm: z.ZodNullable<z.ZodObject<{
+            hubSend: z.ZodObject<{
+                allowed: z.ZodNullable<z.ZodBoolean>;
+                reason: z.ZodNullable<z.ZodString>;
+                since: z.ZodNullable<z.ZodString>;
+                forMs: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strict>;
+            crashDumps: z.ZodNullable<z.ZodObject<{
+                completed: z.ZodObject<{
+                    count: z.ZodNumber;
+                    newestAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>;
+                pending: z.ZodObject<{
+                    count: z.ZodNumber;
+                    newestAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>;
+                countedAt: z.ZodString;
+            }, z.core.$strict>>;
+            egressFailures: z.ZodNullable<z.ZodObject<{
+                since: z.ZodString;
+                socks: z.ZodArray<z.ZodObject<{
+                    kind: z.ZodString;
+                    step: z.ZodString;
+                    rep: z.ZodNullable<z.ZodNumber>;
+                    cls: z.ZodString;
+                    count: z.ZodNumber;
+                    lastAt: z.ZodString;
+                    lastHost: z.ZodString;
+                }, z.core.$strict>>;
+                dnr: z.ZodArray<z.ZodObject<{
+                    cls: z.ZodString;
+                    probe: z.ZodBoolean;
+                    count: z.ZodNumber;
+                    lastAt: z.ZodString;
+                    lastHost: z.ZodString;
+                }, z.core.$strict>>;
+            }, z.core.$strict>>;
+            lastAlarm: z.ZodNullable<z.ZodObject<{
                 kind: z.ZodString;
                 at: z.ZodString;
+                ageMs: z.ZodNumber;
                 detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
             }, z.core.$strict>>;
+            siteObserved: z.ZodObject<{
+                unconfirmed: z.ZodNullable<z.ZodNumber>;
+                oldestAt: z.ZodNullable<z.ZodString>;
+                oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+                dropped: z.ZodNullable<z.ZodNumber>;
+                lastHour: z.ZodObject<{
+                    sent: z.ZodNumber;
+                    ended: z.ZodNumber;
+                    unended: z.ZodNumber;
+                    responses: z.ZodNumber;
+                    responsesWithoutSend: z.ZodNumber;
+                    lastRecordedAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>;
+            }, z.core.$strict>;
             alerts: z.ZodArray<z.ZodObject<{
                 kind: z.ZodString;
                 detail: z.ZodString;
@@ -1013,6 +1065,7 @@ export declare const syncPageRefreshBodySchema: z.ZodObject<{
         payouts: "payouts";
         followers: "followers";
         repair: "repair";
+        probe: "probe";
         ws: "ws";
         "dm-conversations": "dm-conversations";
         "dm-messages": "dm-messages";
@@ -1025,7 +1078,6 @@ export declare const syncPageRefreshBodySchema: z.ZodObject<{
         "media-stats": "media-stats";
         stats: "stats";
         "media-download": "media-download";
-        probe: "probe";
     }>>>;
 }, z.core.$strict>;
 export declare const syncPageRefreshResponseSchema: z.ZodObject<{
@@ -1061,6 +1113,7 @@ export declare const syncRouteSchemas: {
                         lastSendAt: z.ZodNullable<z.ZodString>;
                         minGapLastHourMs: z.ZodNullable<z.ZodNumber>;
                         violationsLastDay: z.ZodNumber;
+                        siteCloseLastDay: z.ZodNumber;
                     }, z.core.$strict>;
                     sendsLastHour: z.ZodObject<{
                         urgent: z.ZodNumber;
@@ -1244,11 +1297,62 @@ export declare const syncRouteSchemas: {
                             at: z.ZodNullable<z.ZodString>;
                             failed: z.ZodNullable<z.ZodString>;
                         }, z.core.$strict>;
-                        alarm: z.ZodNullable<z.ZodObject<{
+                        hubSend: z.ZodObject<{
+                            allowed: z.ZodNullable<z.ZodBoolean>;
+                            reason: z.ZodNullable<z.ZodString>;
+                            since: z.ZodNullable<z.ZodString>;
+                            forMs: z.ZodNullable<z.ZodNumber>;
+                        }, z.core.$strict>;
+                        crashDumps: z.ZodNullable<z.ZodObject<{
+                            completed: z.ZodObject<{
+                                count: z.ZodNumber;
+                                newestAt: z.ZodNullable<z.ZodString>;
+                            }, z.core.$strict>;
+                            pending: z.ZodObject<{
+                                count: z.ZodNumber;
+                                newestAt: z.ZodNullable<z.ZodString>;
+                            }, z.core.$strict>;
+                            countedAt: z.ZodString;
+                        }, z.core.$strict>>;
+                        egressFailures: z.ZodNullable<z.ZodObject<{
+                            since: z.ZodString;
+                            socks: z.ZodArray<z.ZodObject<{
+                                kind: z.ZodString;
+                                step: z.ZodString;
+                                rep: z.ZodNullable<z.ZodNumber>;
+                                cls: z.ZodString;
+                                count: z.ZodNumber;
+                                lastAt: z.ZodString;
+                                lastHost: z.ZodString;
+                            }, z.core.$strict>>;
+                            dnr: z.ZodArray<z.ZodObject<{
+                                cls: z.ZodString;
+                                probe: z.ZodBoolean;
+                                count: z.ZodNumber;
+                                lastAt: z.ZodString;
+                                lastHost: z.ZodString;
+                            }, z.core.$strict>>;
+                        }, z.core.$strict>>;
+                        lastAlarm: z.ZodNullable<z.ZodObject<{
                             kind: z.ZodString;
                             at: z.ZodString;
+                            ageMs: z.ZodNumber;
                             detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
                         }, z.core.$strict>>;
+                        siteObserved: z.ZodObject<{
+                            unconfirmed: z.ZodNullable<z.ZodNumber>;
+                            oldestAt: z.ZodNullable<z.ZodString>;
+                            oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+                            dropped: z.ZodNullable<z.ZodNumber>;
+                            lastHour: z.ZodObject<{
+                                sent: z.ZodNumber;
+                                ended: z.ZodNumber;
+                                unended: z.ZodNumber;
+                                responses: z.ZodNumber;
+                                responsesWithoutSend: z.ZodNumber;
+                                lastRecordedAt: z.ZodNullable<z.ZodString>;
+                            }, z.core.$strict>;
+                        }, z.core.$strict>;
                         alerts: z.ZodArray<z.ZodObject<{
                             kind: z.ZodString;
                             detail: z.ZodString;
@@ -1571,6 +1675,7 @@ export declare const syncRouteSchemas: {
                 payouts: "payouts";
                 followers: "followers";
                 repair: "repair";
+                probe: "probe";
                 ws: "ws";
                 "dm-conversations": "dm-conversations";
                 "dm-messages": "dm-messages";
@@ -1583,7 +1688,6 @@ export declare const syncRouteSchemas: {
                 "media-stats": "media-stats";
                 stats: "stats";
                 "media-download": "media-download";
-                probe: "probe";
             }>>>;
         }, z.core.$strict>;
         readonly response: {

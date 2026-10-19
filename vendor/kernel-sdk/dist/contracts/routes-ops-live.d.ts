@@ -71,6 +71,14 @@ export declare const opsLivePageSchema: z.ZodObject<{
     }, z.core.$strict>>;
     lastSentAt: z.ZodNullable<z.ZodString>;
 }, z.core.$strict>;
+/** A sent request's class: the engine's work classes, and `site` — the page's
+ *  own site requests and login operations (Project Browser), which serve no work. */
+export declare const opsLiveAttemptClassEnum: z.ZodEnum<{
+    requests: "requests";
+    planned: "planned";
+    urgent: "urgent";
+    site: "site";
+}>;
 export declare const opsLiveAttemptSchema: z.ZodObject<{
     id: z.ZodString;
     page: z.ZodString;
@@ -80,6 +88,7 @@ export declare const opsLiveAttemptSchema: z.ZodObject<{
         requests: "requests";
         planned: "planned";
         urgent: "urgent";
+        site: "site";
     }>>;
     sentAt: z.ZodString;
     completedAt: z.ZodNullable<z.ZodString>;
@@ -163,6 +172,7 @@ export declare const opsLiveResponseSchema: z.ZodObject<{
             requests: "requests";
             planned: "planned";
             urgent: "urgent";
+            site: "site";
         }>>;
         sentAt: z.ZodString;
         completedAt: z.ZodNullable<z.ZodString>;
@@ -263,6 +273,7 @@ export declare const opsLiveRouteSchemas: {
                         requests: "requests";
                         planned: "planned";
                         urgent: "urgent";
+                        site: "site";
                     }>>;
                     sentAt: z.ZodString;
                     completedAt: z.ZodNullable<z.ZodString>;
