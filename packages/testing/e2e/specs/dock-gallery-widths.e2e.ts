@@ -65,8 +65,8 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     // While the chat loads nothing can be opened from the bar: the two windows give their place to the status.
     expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
     expect(await shown('9d', '.cg-status-word .cg-short')).toEqual(['Загрузка…']);
-    // Words while the windows are words: no icon in the bar.
-    expect(await shown('1a', '.cg-act--ico > .cg-ico')).toEqual([]);
+    // X64: Spenders and «Новые» keep their icons at every width.
+    expect(await shown('1a', '.cg-act--ico > .cg-ico')).toHaveLength(2);
     expect((await health()).problems).toEqual([]);
   });
 
@@ -133,10 +133,10 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     });
   }
 
-  it('[UI-002] [UI-003] 693 px: all seven actions, the capsule and both windows in words — no «Ещё»; no persona, no palette key; Hi still in three columns', async () => {
+  it('[UI-002] [UI-003] 693 px: all seven actions in words, the capsule and both windows as icons — no «Ещё»; no persona, no palette key; Hi still in three columns', async () => {
     await open('theme=light&lang=ru&w=693');
     expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
-    expect(await shown('1a', '.cg-act--ico > .cg-ico')).toEqual([]);
+    expect(await shown('1a', '.cg-act--ico > .cg-ico')).toHaveLength(2);
     expect(await shown('1a', '.cg-persona')).toEqual([]);
     expect(await shown('1a', '.cg-hint')).toEqual([]);
     // Nothing is hidden: a ready Recap is the point on Recap itself.
