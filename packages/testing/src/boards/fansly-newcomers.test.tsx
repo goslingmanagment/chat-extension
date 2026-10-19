@@ -280,8 +280,8 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     const field = greeting.querySelector('textarea') as HTMLTextAreaElement;
     expect([field.getAttribute('aria-label'), field.value.startsWith('Hey Tomasz!'), field.maxLength]).toEqual(['Личное сообщение', true, 5000]);
     expect(board.text('.cg-fnc__ai')).toBe('AI');
-    // X69: the warning stays visible; sending needs a click, without editing the AI draft.
-    expect(board.text('.cg-fnc__mark')).toContain('Ответ мог не учесть последние сообщения чата.');
+    // X69: no freshness banner or forced edit; the person sends the displayed AI draft by a click.
+    expect(board.$('.cg-fnc__mark')).toBeNull();
     expect((button(board, '.cg-fnc__gbar', 'Отправить →') as HTMLButtonElement).disabled).toBe(false);
     expect(board.actions()).toEqual([]);
     expect(board.$$('.cg-fnc__gbar button').map(textOf)).toEqual(['Сгенерировать', 'Открыть и вставить', 'Отправить →']);
