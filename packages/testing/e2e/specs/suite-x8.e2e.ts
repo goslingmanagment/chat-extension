@@ -14,6 +14,7 @@
 // the host port, MAIN, ChatSpace's queue. Each test title names its row.
 
 import { browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
 
 import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE } from '../../src/scenarios/hub';
@@ -44,9 +45,14 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
 
   const openPreview = async (name: string): Promise<void> => {
     if (!(await oursExists('modal', '[aria-label="Spenders"]'))) await browser.keys([...PANEL, 'm']);
+    // X65: the list above a preview is shorter and virtualized; search also reaches rows below its viewport.
+    await ours('modal', '.cg-sp__search input').setValue(name);
+    await browser.keys(Key.Enter);
     await waitOursText('modal', name, `the board lists ${name}`, { timeout: 20_000, selector: '[aria-label="Доска Spenders"]' });
     await pressOurs('modal', '[data-cg-key^="fan:"]', new RegExp(`^${name}`));
     await waitOursText('modal', name, `the preview of ${name}`, { selector: '.cg-pv' });
+    await ours('modal', '.cg-sp__search input').setValue('');
+    await browser.keys(Key.Enter);
   };
   /** Reply in the preview's own strip; resolves with both parts on screen. */
   const generate = async (fan: string): Promise<void> => {
@@ -371,6 +377,9 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await ours('modal', '.cg-pvm__price input').setValue('24.99');
     await waitOursText('modal', /^1$/, 'the first pick is the message’s first', { selector: '[data-cg-media="660000004"] .cg-pvm__order' });
     await ours('modal', '[data-cg-media="660000001"] .cg-pvm__free').click();
+    // Finish choosing media: the short preview panel gives its space back to the result. Picks remain attached.
+    await pressOurs('modal', '.cg-pv [data-cg-strip="media"] button', /Медиа/);
+    expect(await oursExists('modal', '.cg-pvm')).toBe(false);
     await waitOursText('modal', 'Отправить + 2 медиа за $24.99', 'the part’s button names what goes with it', { selector: `${part(0)} .cg-pvs__send` });
     await pressSendOf(0);
     await waitSend(0, 'sent', 'the part with its media is sent');

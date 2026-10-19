@@ -265,7 +265,8 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
         long: window.__boards?.box('.cg-bd__colhead .cg-lbl-long')?.display ?? '',
         short: window.__boards?.box('.cg-bd__colhead .cg-lbl-short')?.display ?? '',
       }));
-    await open('state=11a&theme=light&lang=ru', VIEWPORTS[1]);
+    // X65: the preview no longer takes a column from the list; narrow the window itself.
+    await open('state=11a&theme=light&lang=ru', { width: 850, height: 800 });
     const narrow = await header();
     expect(narrow.width).toBeLessThanOrEqual(620);
     expect(narrow.long).toBe('none');

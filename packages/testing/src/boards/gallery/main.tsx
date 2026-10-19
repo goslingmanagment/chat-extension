@@ -169,8 +169,12 @@ window.__boards = {
     const started = performance.now();
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
     const done = await painted();
-    const shownText = root.querySelector('.cg-sp__foot span')?.textContent ?? '';
-    return { totalMs: done - started, buildMs: live.lastBuildMs, shown: Number(/(\d+)\D*$/.exec(shownText)?.[1] ?? '0') };
+    // X65: an unfiltered complete list has no footer; its count is in the pressed «Все» chip.
+    const footer = root.querySelector('.cg-sp__foot span')?.textContent;
+    const count = footer === undefined
+      ? root.querySelector('.cg-sp__filters .cg-flt[aria-pressed="true"] .cg-flt__n')?.textContent?.replace(/\D/g, '')
+      : /(\d+)\D*$/.exec(footer ?? '')?.[1];
+    return { totalMs: done - started, buildMs: live.lastBuildMs, shown: Number(count ?? '0') };
   },
   async reopen(times) {
     const samples: number[] = [];

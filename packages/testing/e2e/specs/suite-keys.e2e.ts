@@ -230,7 +230,8 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       const standMark = await standServer.mark();
       await browser.keys([...PANEL, 'm']);
       await waitOursText('modal', 'Fan Alder', 'the board', { timeout: 20_000 });
-      const rowName = async (): Promise<string> => (await oursFocus('modal'))?.text.split('@')[0] ?? '';
+      // X65: the @handle moved to a tooltip, so the whole row's text repeats the name. Read its name cell.
+      const rowName = async (): Promise<string> => (await readOurs('modal', '.cg-bd__row:focus .cg-bd__name', (node) => node.textContent ?? '')) ?? '';
       await browser.waitUntil(async () => (await rowName()) === 'Fan Alder', { timeout: 5000, timeoutMsg: 'the first row of the board does not have the focus' });
       await browser.keys(['j']);
       expect(await rowName()).toBe('Fan Birch');
