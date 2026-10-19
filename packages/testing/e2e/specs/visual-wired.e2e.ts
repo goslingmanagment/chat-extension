@@ -587,20 +587,20 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await leaveField();
       await browser.keys([MOD, 'k']);
       await pressOurs('modal', '.cg-pal__item', /^Новые(?:\s*(?:⌘⇧U|Ctrl\+Alt\+U))?$/, 'the «Новые» row of the palette (its key since X55)', 20_000);
-      await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nc' });
-      await look('board-05-newcomers', { check: async () => void (await inWindow('modal', '.cg-nc')) });
-      await ours('modal', '.cg-nc [data-cg-key]').click();
+      await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nw__side' });
+      await look('board-05-newcomers', { check: async () => void (await inWindow('modal', '.cg-nw__side')) });
+      await ours('modal', '.cg-nw__side [data-cg-key]').click();
       await browser.waitUntil(() => oursExists('modal', '.cg-pv'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
       await pressOurs('modal', '.cg-pv button', /^Hi/);
       await waitOursText('modal', 'so glad you’re here', 'the greeting', { timeout: 20_000, selector: '.cg-pv' });
       await look('board-06-newcomers-card', {
         check: async () => {
-          await inWindow('modal', '.cg-nc');
+          await inWindow('modal', '.cg-nw__side');
           await inWindow('modal', '.cg-pv');
         },
       });
       await closeAll();
-      expect(await oursExists('modal', '.cg-nc')).toBe(false);
+      expect(await oursExists('modal', '.cg-nw__side')).toBe(false);
     });
 
     it('[X55] «Размер текста: Крупнее»: the dock with a result and «Новые» a step larger, still inside the window', async function () {
@@ -620,13 +620,13 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await hideResult();
       await leaveField();
       await browser.keys([...PANEL, 'u']);
-      await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nc' });
+      await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nw__side' });
       await browser.waitUntil(() => oursExists('modal', '.cg-pv'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
       expect(await rootSize('modal', '.cg-root')).toBe('15px');
       await look('board-20-large-text-newcomers', {
         all: false,
         check: async () => {
-          await inWindow('modal', '.cg-nc');
+          await inWindow('modal', '.cg-nw__side');
           await inWindow('modal', '.cg-pv');
         },
       });

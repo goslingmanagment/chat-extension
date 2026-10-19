@@ -76,6 +76,7 @@ export {
   type SurfaceDefinition,
 } from './mount';
 export { activeIn, containsFocus, focusQuietly, isComposing, isHeldKey, rovingIndex, swallowHeldEnter, tabbables, trapTab, type RovingOrientation } from './focus';
+export { pure } from './pure';
 export {
   HOUR,
   MINUTE,

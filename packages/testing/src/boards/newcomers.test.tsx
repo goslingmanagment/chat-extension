@@ -1,6 +1,6 @@
-// «Новые» (R15; ui-design §3.6, §4.17, §10, §12 п. 5; H-7): the list of new,
-// renewed and returning subscribers with the greeting status and the lease,
-// and the card — the preview pane with Hi only. A colleague's lease shows no
+// «Новые» (R15; ui-design §3.6, §4.17, §10, §12 п. 5; H-7; X60 — the same window
+// as on Fansly): the list of new, renewed and returning subscribers with the
+// greeting status and the lease, and the card — the preview pane with Hi only. A colleague's lease shows no
 // name and no countdown; Hi is one variant split into parts, each sent by its
 // own click.
 
@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GREETING_STATUSES, type NewcomerRowVM, type NewcomersVM, type PreviewVM } from '@cg/contracts';
 import { MAX_DOM_ROWS, SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
-import { CARD_FOLLOW_MS, windowText } from '@cg/ui/newcomers';
+import { CARD_FOLLOW_MS, periodText } from '@cg/ui/newcomers';
 
 import { cgError, claimMine, ctxOf, entry, FANS, iso, MIN, msg, newcomerRow, views, type AppClientScenario } from '../scenarios/app-client';
 import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
@@ -24,7 +24,7 @@ afterEach(() => {
 
 const ctx = ctxOf({ lang: 'ru', platform: 'mac' });
 const row = (key: string): HTMLElement => ui?.$(`[data-cg-fan="newcomers:${key}"]`) as HTMLElement;
-const status = (key: string): HTMLElement => row(key).querySelector('.cg-nc__st') as HTMLElement;
+const status = (key: string): HTMLElement => row(key).querySelector('.cg-nw__st') as HTMLElement;
 
 function change(state: string, list: (vm: NewcomersVM) => NewcomersVM, card: (vm: PreviewVM) => PreviewVM = (vm) => vm): AppClientScenario {
   const base = boardScenario(state);
@@ -37,39 +37,40 @@ function change(state: string, list: (vm: NewcomersVM) => NewcomersVM, card: (vm
 }
 
 describe('«Новые»: the window and the list', () => {
-  it('[NF-001] [NF-002] a modal window «Новые» with the page, the persona Hi greets as, and «Закрыть Esc»', async () => {
+  it('[NF-001] [NF-002] a modal window «Новые» over a scrim, as on Fansly: the serif title, the page, the persona Hi greets as, and «×»', async () => {
     ui = await mountBoardSettled('newcomers', '13a');
     const dialog = ui.$('[role="dialog"]') as HTMLElement;
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-label')).toBe('Новые');
-    expect(ui.text('.cg-sp__title')).toBe('Новые');
-    expect(ui.text('.cg-sp__page')).toBe('LoraVie VIP');
-    // Whose name Hi greets in: the footer says it, the header stays short.
-    expect(ui.$('.cg-sp__note')).toBeNull();
-    expect(ui.text('.cg-nc > .cg-sp__foot span')).toBe('3 за 48 часов · Hi здоровается от имени Лора · VIP');
+    expect(ui.$('.cg-scrim')).not.toBeNull();
+    expect(ui.text('.cg-nw__title')).toBe('Новые');
+    expect(ui.text('.cg-nw__page')).toBe('LoraVie VIP');
+    // Whose name Hi greets in: the quiet line under the toolbar says it, the head stays short.
+    expect(ui.text('.cg-nw__summary span')).toBe('3 за 48 часов · Hi здоровается от имени Лора · VIP');
     expect(ui.host.hasAttribute('data-dismissible-open')).toBe(true);
-    await flush(() => (ui?.$('.cg-sp__close') as HTMLElement).click());
+    await flush(() => (ui?.$('.cg-nw__close') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
   });
 
   it('[NF-006] tabs «Поздороваться / Все», status filters with counts, the search and the window', async () => {
     vi.useFakeTimers();
     ui = await mountBoardSettled('newcomers', '13a');
-    expect(ui.$$('.cg-sp__top [role="tab"]').map(textOf)).toEqual(['Поздороваться 2', 'Все 3']);
-    await flush(() => (ui?.$$('.cg-sp__top [role="tab"]')[1] as HTMLElement).click());
+    expect(ui.$$('.cg-nw__tabs [role="tab"]').map(textOf)).toEqual(['Поздороваться 2', 'Все 3']);
+    expect(ui.$('.cg-nw__tab.is-on')?.textContent).toBe('Поздороваться 2');
+    await flush(() => (ui?.$$('.cg-nw__tabs [role="tab"]')[1] as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'SetNewcomersTab', tab: 'all' });
     // The status filter is one menu (as the old Fansly window's select), the counts inside it.
-    expect(ui.$$('.cg-nc .cg-flt')).toHaveLength(0);
-    const status = ui.$('.cg-nc .cg-nc__filter') as HTMLElement;
+    expect(ui.$$('.cg-nw__side .cg-flt')).toHaveLength(0);
+    const status = ui.$('.cg-nw__filter') as HTMLElement;
     expect(textOf(status)).toBe('Все статусы 3');
     await flush(() => status.click());
-    const filters = ui.$$('.cg-nc [role="menuitemradio"]');
+    const filters = ui.$$('.cg-nw__tools [role="menuitemradio"]');
     expect(filters.map(textOf)).toEqual(['Все статусы3', 'Не поздоровались0', 'Бронь2', 'Отправляются0', 'Остановлены0', 'Поздоровались1']);
     expect(filters[0]?.getAttribute('aria-checked')).toBe('true');
     await flush(() => (filters[2] as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'SetNewcomersFilter', filter: 'claimed' });
 
-    const input = ui.$('.cg-sp__search input') as HTMLInputElement;
+    const input = ui.$('.cg-nw__search input') as HTMLInputElement;
     await flush(() => keydown(ui?.root.activeElement as HTMLElement, '/', { code: 'Slash' }));
     expect(ui.root.activeElement).toBe(input);
     await flush(() => {
@@ -82,28 +83,31 @@ describe('«Новые»: the window and the list', () => {
 
   it('the window of «Новые»: 24 / 48 / 72 hours and a week, read as «7 дней»', async () => {
     ui = await mountBoardSettled('newcomers', '13a');
-    const trigger = ui.$$('.cg-nc .cg-menu-anchor .cg-btn').at(-1) as HTMLElement;
+    const trigger = ui.$('.cg-nw__bar .cg-nw__period') as HTMLElement;
     expect(trigger.querySelector('.cg-btn__t')?.textContent).toBe('48 часов');
     await flush(() => trigger.click());
-    const items = ui.$$('.cg-nc [role="menuitemradio"]');
+    const items = ui.$$('.cg-nw__bar [role="menuitemradio"]');
     expect(items.map((item) => item.querySelector('.cg-menu__t')?.textContent)).toEqual(['24 часа', '48 часов', '72 часа', '7 дней']);
     expect(items.map((item) => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false', 'false']);
     await flush(() => (items[3] as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'SetNewcomersWindow', hours: 168 });
     const i18n = boardWorld('13a').deps.i18n;
-    expect([1, 24, 168, 200, 720].map((hours) => windowText(i18n, hours))).toEqual(['1 час', '24 часа', '7 дней', '200 часов', '30 дней']);
+    expect([1, 24, 168, 200, 720].map((hours) => periodText(i18n, hours))).toEqual(['1 час', '24 часа', '7 дней', '200 часов', '30 дней']);
   });
 
-  it('[NF-007] a row, as on Fansly: the initial, the name over «@handle · who they are», when they subscribed, the greeting', async () => {
+  it('[NF-007] a row, as on Fansly: the initial, the name over «@handle · who they are, when they subscribed», the greeting in words', async () => {
     ui = await mountBoardSettled('newcomers', '13a');
-    expect(ui.$$('.cg-nc__colhead [role="columnheader"]').map(textOf)).toEqual(['Фан', 'Подписка', 'Приветствие']);
-    expect([...row('n001').querySelectorAll('[role="cell"]')].map(textOf)).toEqual(['TTomasz Wiśniewski@tomwis · новый', '14 мин', 'бронь: вы']);
-    expect([...row('n002').querySelectorAll('[role="cell"]')].map(textOf)).toEqual(['JJake Morrison@jake.m.88 · продлил', '2 ч', 'поздоровались']);
+    const parts = (key: string): (string | null)[] => ['.cg-nw__ava', '.cg-nw__name', '.cg-nw__meta', '.cg-nw__st'].map((selector) => textOf(row(key).querySelector(selector)));
+    expect(parts('n001')).toEqual(['T', 'Tomasz Wiśniewski', '@tomwis · новый, подписка 14 мин назад', 'бронь: вы']);
+    expect(parts('n002')).toEqual(['J', 'Jake Morrison', '@jake.m.88 · продлил, подписка 2 ч назад', 'поздоровались']);
+    // No remote picture on ChatSpace: the initial alone (ui-design §1 п. 12).
+    expect(ui.$$('.cg-nw__row img')).toEqual([]);
+    expect(ui.$('[role="listbox"]')?.getAttribute('aria-label')).toBe('Новые подписчики');
     expect(row('n001').classList.contains('is-sel')).toBe(true);
     expect(ui.root.activeElement).toBe(row('n001'));
   });
 
-  it('[NF-005] every greeting status in words: strong where it needs the eye, muted where it is done', async () => {
+  it('[NF-005] every greeting status in words: terracotta where the person can greet now, as on Fansly; muted where it is done', async () => {
     const all: NewcomerRowVM['greeting'][] = [
       { s: 'none' },
       { s: 'claim-mine' },
@@ -117,9 +121,9 @@ describe('«Новые»: the window and the list', () => {
     const fans = [FANS.hubert, FANS.theodore, FANS.marco, FANS.jake, FANS.tomasz, FANS.leo, { key: 'f2099', name: 'Seventh', username: 'seventh' }];
     const rows = all.map((greeting, index) => newcomerRow(ctx, fans[index] ?? FANS.leo, 'new', 10 + index, greeting));
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, rows, cardOpen: false })));
-    const cells = ui.$$('.cg-nc__st');
+    const cells = ui.$$('.cg-nw__st');
     expect(cells.map(textOf)).toEqual(['не поздоровались', 'бронь: вы', 'бронь: другой чаттерКоллега здоровается. Бронь снимется сама, если ничего не отправит.', 'бронь: вы, в другой вкладке', 'отправлено 1 из 3', 'отправлено 1 из 3, остановлено', 'поздоровались']);
-    expect(cells.map((cell) => cell.classList.contains('is-strong'))).toEqual([false, true, true, true, true, true, false]);
+    expect(cells.map((cell) => [...cell.classList].filter((name) => name.startsWith('is-')).join(' '))).toEqual(['is-act', 'is-act', 'is-2', 'is-2', 'is-busy', 'is-2', '']);
     expect(cells[4]?.querySelector('.cg-spin')).not.toBeNull();
     expect(cells[5]?.querySelector('.cg-dot--ink')).not.toBeNull();
     expect(cells[6]?.querySelector('.cg-ico')).not.toBeNull();
@@ -130,9 +134,9 @@ describe('«Новые»: the window and the list', () => {
     const lease = status('n003');
     expect(lease.firstChild?.textContent).toBe('бронь: другой чаттер');
     expect(textOf(row('n003'))).not.toMatch(/\d:\d\d/);
-    expect(textOf(ui.$('.cg-ncw'))).not.toMatch(/Анна|ещё \d/);
+    expect(textOf(ui.$('.cg-nw'))).not.toMatch(/Анна|ещё \d/);
     // Nothing in the window ticks for it.
-    expect(ui.$$('.cg-ncw .cg-count')).toEqual([]);
+    expect(ui.$$('.cg-nw .cg-count')).toEqual([]);
   });
 
   it('[NF-012] a saved greeting draft is marked on its row; a stale one says so', async () => {
@@ -140,9 +144,9 @@ describe('«Новые»: the window and the list', () => {
       'newcomers',
       change('13a', (vm) => ({ ...vm, rows: vm.rows.map((item, index) => (index === 1 ? { ...item, hasDraft: true } : index === 2 ? { ...item, hasDraft: true, draftStale: true } : item)) })),
     );
-    expect(textOf(row('n002').querySelector('.cg-nc__tag'))).toBe('черновик');
-    expect(textOf(row('n003').querySelector('.cg-nc__tag'))).toBe('черновик устарел');
-    expect(row('n001').querySelector('.cg-nc__tag')).toBeNull();
+    expect(textOf(row('n002').querySelector('.cg-nw__tag'))).toBe('черновик');
+    expect(textOf(row('n003').querySelector('.cg-nw__tag'))).toBe('черновик устарел');
+    expect(row('n001').querySelector('.cg-nw__tag')).toBeNull();
   });
 
   it('[NF-012] the card has the greeting draft field — Fix or not — and typing saves the draft and does nothing else', async () => {
@@ -182,45 +186,45 @@ describe('«Новые»: the window and the list', () => {
     expect(field.getAttribute('placeholder')).toBe('Greeting draft. Stays here, not in the chat');
   });
 
-  it('[NF-008] the scan shows its phase and progress in the header', async () => {
+  it('[NF-008] the scan shows its phase and progress in the toolbar', async () => {
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, scan: { stage: msg('common.loading'), done: 12, total: 40 } })));
-    expect(textOf(ui.$('.cg-nc__scan'))).toBe('Загрузка…12 из 40');
-    expect(ui.$('.cg-nc__scan')?.getAttribute('role')).toBe('status');
+    expect(textOf(ui.$('.cg-nw__bar .cg-nw__stage'))).toBe('Загрузка…12 из 40');
+    expect(ui.$('.cg-nw__stage')?.getAttribute('role')).toBe('status');
   });
 
   it('[NF-025] «Результат неполный» is said with why, above the rows that are there', async () => {
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, view: views.partial({ kind: 'coverage', level: 'partial' }), incomplete: msg('common.coverage.partial'), footer: { ...vm.footer, stamp: { asOf: vm.footer.stamp.asOf, coverage: 'partial' } } })));
-    const line = ui.$('.cg-nc__incomplete') as HTMLElement;
+    const line = ui.$('.cg-nw__incomplete') as HTMLElement;
     expect([...line.children].map(textOf)).toEqual(['Результат неполный', 'охват неполный']);
-    expect(ui.$$('.cg-nc .cg-vlist__inner [data-cg-fan]')).toHaveLength(3);
-    expect(ui.text('.cg-nc > .cg-sp__foot span')).toBe('3 за 48 часов · Hi здоровается от имени Лора · VIP');
+    expect(ui.$$('.cg-nw__side .cg-vlist__inner [data-cg-fan]')).toHaveLength(3);
+    expect(ui.text('.cg-nw__summary span')).toBe('3 за 48 часов · Hi здоровается от имени Лора · VIP');
   });
 
   it('[NF-025] with the reason the controller sends, the title is said once', async () => {
     // The controller (core/application/newcomers) puts `newcomers.incomplete.body` into the model; the title is the window's own.
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, view: views.partial({ kind: 'coverage', level: 'partial' }), incomplete: msg('newcomers.incomplete.body') })));
-    const line = ui.$('.cg-nc__incomplete') as HTMLElement;
+    const line = ui.$('.cg-nw__incomplete') as HTMLElement;
     expect([...line.children].map(textOf)).toEqual(['Результат неполный', 'Показана часть списка. Хаб ещё не собрал всех, кто подписался за это время.']);
   });
 
   it('[NF-028] «AI ничего не отправляет сам» stands at the Hi button, not as a paragraph under the list', async () => {
     ui = await mountBoardSettled('newcomers', '13a');
-    expect(ui.$$('.cg-nc__hint')).toHaveLength(0);
+    expect(ui.$$('.cg-nw__hint')).toHaveLength(0);
     const hi = ui.$('.cg-pvb [data-cg-strip="hi"] .cg-act') as HTMLElement;
     expect(ui.root.getElementById(hi.getAttribute('aria-describedby') ?? '')?.textContent).toBe('AI ничего не отправляет сам: только по вашему нажатию.');
-    expect(ui.$$('.cg-nc > .cg-sp__foot span').map(textOf)).toEqual(['3 за 48 часов · Hi здоровается от имени Лора · VIP', 'данные на 09:18']);
+    expect(ui.$$('.cg-nw__summary span').map(textOf)).toEqual(['3 за 48 часов · Hi здоровается от имени Лора · VIP', 'данные на 09:18']);
   });
 
   it('[NF-004] the list while it loads, when it failed, and when nobody is in the window', async () => {
     ui = await mountBoardSettled('newcomers', 'gallery-loading');
-    expect(ui.$('.cg-nc [role="status"][aria-busy="true"]')).not.toBeNull();
+    expect(ui.$('.cg-nw__side [role="status"][aria-busy="true"]')).not.toBeNull();
     ui.unmount();
     ui = await mountBoardSettled('newcomers', 'gallery-error');
-    expect(ui.$('.cg-nc .cg-card')?.getAttribute('data-cg-code')).toBe('CG-DATA-UNAVAILABLE');
-    expect(ui.$('.cg-nc .cg-vlist')).toBeNull();
+    expect(ui.$('.cg-nw__side .cg-card')?.getAttribute('data-cg-code')).toBe('CG-DATA-UNAVAILABLE');
+    expect(ui.$('.cg-nw__side .cg-vlist')).toBeNull();
     ui.unmount();
     ui = await mountBoardSettled('newcomers', 'gallery-empty');
-    expect(ui.$('.cg-nc .cg-state--empty')).not.toBeNull();
+    expect(ui.$('.cg-nw__side .cg-state--empty')).not.toBeNull();
   });
 
   it('keys: ↑ ↓ and J / K move, Enter or Space opens the card, Esc closes the card and then the window', async () => {
@@ -325,7 +329,7 @@ describe('«Новые»: the window and the list', () => {
 
   it('[X55] no line of keys under the list, as on Fansly: the keys are in the cheatsheet', async () => {
     ui = await mountBoardSettled('newcomers', '13a');
-    expect(ui.$$('.cg-nc .cg-keys')).toHaveLength(0);
+    expect(ui.$$('.cg-nw .cg-keys')).toHaveLength(0);
   });
 
   it('a key acts on the fan of the focused row when the list changed above it: Enter and Space never open a neighbour’s card', async () => {
@@ -345,7 +349,7 @@ describe('«Новые»: the window and the list', () => {
     });
     const focused = (): HTMLElement => ui?.root.activeElement as HTMLElement;
     const press = async (code: string, key = code): Promise<void> => flush(() => keydown(focused(), key, { code }));
-    const tabStops = (): (string | null)[] => (ui?.$$('.cg-nc [data-cg-item][tabindex="0"]') ?? []).map((element) => element.getAttribute('data-cg-fan'));
+    const tabStops = (): (string | null)[] => (ui?.$$('.cg-nw__side [data-cg-item][tabindex="0"]') ?? []).map((element) => element.getAttribute('data-cg-fan'));
     await press('ArrowDown');
     expect(focused()).toBe(row('n002'));
     for (const step of [0, 1]) {

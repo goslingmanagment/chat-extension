@@ -1,21 +1,21 @@
-// «Новые фоловеры» on Fansly (R20 P10a–P10c; X59; ui-design §3.12; FS-NEW-1; NF-001…NF-028, NF-038, FX-017): the window of
-// the old Fansly extension, kept as the owner liked it — a compact window with the list of new followers on the left
-// (the picture, the name, «@handle · 2 ч назад», the status in words) and the selected fan on the right (the profile,
-// «Открыть в Fansly ↗», the conversation the pass read, the draft and «Отправить →») — over the shared `NewcomersVM`
-// with its `pass`. What the old one lacked is here too: a batch — tick fans (or «Выбрать N»), «Сгенерировать N», read
-// each draft right in the list under its fan and send it by the row's own small «Отправить» (X59: the card's send, one
-// click per fan); after a card's own «Отправить →» the card moves on to the next draft of the batch.
+// «Новые фоловеры» on Fansly (R20 P10a–P10c; X59, X60; ui-design §3.12; FS-NEW-1; NF-001…NF-028, NF-038, FX-017): the
+// window of the old Fansly extension, kept as the owner liked it, in the family's «Новые» frame every site shares
+// (ui/newcomers frame.tsx): the list of new followers on the left (the picture, the name, «@handle · 2 ч назад», the
+// status in words) and the selected fan on the right — Fansly's own card: the profile, «Открыть в Fansly ↗», the
+// conversation the pass read, the draft and «Отправить →» — over the shared `NewcomersVM` with its `pass`. What the old
+// one lacked is here too: a batch — tick fans (or «Выбрать N»), «Сгенерировать N», read each draft right in the list
+// under its fan and send it by the row's own small «Отправить» (X59: the card's send, one click per fan); after a card's
+// own «Отправить →» the card moves on to the next draft of the batch.
 //
-// Speed: only the rows in view are in the DOM (VirtualList), and a row is drawn again only when what it shows changed
-// (`sameRow`) — typing in the draft or a change of one fan's verdict redraws one row, not the list. Pictures load lazily,
-// without a referrer, and fall back to the initial.
+// What is Fansly's here: the pass (its stage, «Пауза», the dates, the pause Fansly asked for, why it stopped), each
+// fan's verdict, the row's «Отправить», the card. The frame, the rows and the keys are the shared ones.
 //
 // Keys (X55): J / K and ↑ ↓ move along the rows, the card follows once the keys stop; Enter is the row's greeting
 // («Сгенерировать» while the field is empty, the field otherwise); Space opens the card; X ticks the row for the batch;
 // `/` is the search; Esc clears the search, then closes. «Отправить» is a click only, never a key.
 
-import { Component, h, type ComponentChildren, type ComponentType, type FunctionComponent, type JSX, type TargetedKeyboardEvent } from 'preact';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { type JSX, type TargetedKeyboardEvent } from 'preact';
+import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { isCgAnyCode, type CgAnyCode } from '@cg/contracts/errors-fansly';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
@@ -23,7 +23,6 @@ import { isCgCode, type CgCode, type CgErrorView, type I18nKey } from '@cg/contr
 import { cgBodyKey, cgTitleKey } from '@cg/contracts/i18n/keys';
 import { type FanslyNewcomersTextKey } from '@cg/contracts/newcomers-fansly';
 import { type StaleReason } from '@cg/contracts/ops';
-import { type UiTextSize } from '@cg/contracts/settings';
 import {
   type I18n,
   type I18nParams,
@@ -37,16 +36,13 @@ import {
   type NewcomersPassVM,
   type NewcomersVM,
   type UiAction,
-  type ValueSignal,
 } from '@cg/contracts/vm';
 
 import {
   Button,
-  Dialog,
   Dot,
   ErrorCard,
   Icon,
-  OverlayLayer,
   SearchBox,
   Spinner,
   TextField,
@@ -54,7 +50,7 @@ import {
   ViewState,
   focusQuietly,
   isComposing,
-  rovingIndex,
+  pure,
   useCountdown,
   useDispatch,
   useHints,
@@ -63,36 +59,38 @@ import {
   useMinuteClock,
   useNowFn,
   useTooltip,
-  useValueSignal,
   useView,
 } from '../../../kit';
+import {
+  BatchFoot,
+  CLOSE_NEWCOMERS,
+  ListTabs,
+  NewcomerAvatar,
+  NewcomerRow,
+  NewcomersFrame,
+  PeriodMenu,
+  PickAll,
+  StatusMenu,
+  periodText,
+  rowKey,
+  toggleBatchPick,
+  useLoadMore,
+  useNewcomerRows,
+  useRowHeight,
+  type BatchWords,
+  type RowParts,
+} from '../../../newcomers/frame';
 import { useOwnEchoes } from '../../../spenders/ownEchoes';
-import { rowKeyOf, useCardFollow, useRowFocus } from '../../../spenders/rowFocus';
-import { ChoiceMenu, isPlainKey, isTextEntry } from '../../../spenders/window';
+import { rowKeyOf, useCardFollow } from '../../../spenders/rowFocus';
+import { isPlainKey, isTextEntry } from '../../../spenders/window';
 
-const CLOSE_WINDOW: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } };
 const RELOAD: UiAction = { type: 'ReloadView', selector: { of: 'newcomers' } };
-const LOAD_MORE_MARGIN = 20;
-
-/** Row heights by the text size (the virtual list needs them before it draws): a fan, and the draft of a batch under it. */
-const ROW_HEIGHTS: Readonly<Record<UiTextSize, { readonly base: number; readonly draft: number }>> = {
-  // 9 + 52 px of text + 9; the draft: 7 above, a box of two 17 px lines (4 + 34 + 4, the border 2).
-  normal: { base: 70, draft: 51 },
-  // 9 + 58 + 9; two 19 px lines.
-  large: { base: 76, draft: 55 },
-};
-const NORMAL_TEXT: ValueSignal<UiTextSize> = { value: 'normal', subscribe: () => () => undefined };
 
 // ── words ──
 
 /** A text of Fansly's own pack (`fansly.newcomers.*`), through the I18n the surface laid it over. */
 export function fanslyText(i18n: I18n, key: FanslyNewcomersTextKey, params?: I18nParams): string {
   return i18n.t(key as unknown as I18nKey, params);
-}
-
-/** «12 часов», «7 дней»: whole weeks and more read as days. */
-export function periodText(i18n: I18n, hours: number): string {
-  return hours >= 168 && hours % 24 === 0 ? i18n.plural('common.days', hours / 24) : i18n.plural('common.hours', hours);
 }
 
 /** A row's status in words (NF-005), from the pass's verdict. */
@@ -129,48 +127,7 @@ export function nextDraft(rows: readonly NewcomerRowVM[], handle: string): strin
   return null;
 }
 
-/**
- * A function component drawn again only when `same` says its props changed — `memo` without preact/compat (D-05). A
- * context it reads (the I18n) still reaches it: Preact tells context consumers themselves.
- */
-function pure<P extends object>(view: FunctionComponent<P>, same: (a: Readonly<P>, b: Readonly<P>) => boolean): ComponentType<P> {
-  return class Pure extends Component<P> {
-    override shouldComponentUpdate(next: Readonly<P>): boolean {
-      return !same(this.props, next);
-    }
-    override render(): ComponentChildren {
-      return h(view, this.props);
-    }
-  };
-}
-
-// ── the picture ──
-
-/** The fan's picture over their initial: the initial stays when there is none, or it does not load. */
-function Avatar({ name, url, size }: { readonly name: string; readonly url: string | null | undefined; readonly size: 'row' | 'card' }): JSX.Element {
-  const [broken, setBroken] = useState<string | null>(null);
-  const letter = ([...name.trim()][0] ?? '?').toLocaleUpperCase();
-  const shown = url !== null && url !== undefined && url !== broken ? url : null;
-  return (
-    <span class={`cg-fnw__ava is-${size}`} aria-hidden="true">
-      {letter}
-      {shown === null ? null : <img src={shown} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" draggable={false} onError={() => setBroken(shown)} />}
-    </span>
-  );
-}
-
-// ── a row ──
-
-interface RowProps {
-  readonly row: NewcomerRowVM;
-  readonly index: number;
-  /** Rows in the list: the row's place is said (only some rows are drawn). */
-  readonly count: number;
-  readonly active: boolean;
-  /** The minute of the clock: «2 ч назад» is redrawn once a minute. */
-  readonly minute: number;
-  readonly onPick: (handle: string) => void;
-}
+// ── a row: Fansly's status line and its «Отправить» in the shared row ──
 
 /** The status line: how the fan's greeting goes when it goes, else the pass's verdict in words — strong where the person can act. */
 function RowStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
@@ -178,51 +135,22 @@ function RowStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
   const check = row.check?.status ?? 'pending';
   const batch = row.batch?.state ?? null;
   const greeting = row.greeting.s;
-  if (greeting === 'sending') return <span class="cg-fnw__st is-busy"><Spinner />{fanslyText(i18n, 'fansly.newcomers.row.sending')}</span>;
-  if (batch === 'sent' || (greeting === 'greeted' && check !== 'greeted')) return <span class="cg-fnw__st is-done"><Icon name="check" size={13} />{fanslyText(i18n, 'fansly.newcomers.row.sent')}</span>;
-  if (greeting === 'stopped') return <span class="cg-fnw__st is-2"><Dot kind="ink" />{fanslyText(i18n, 'fansly.newcomers.greeting.uncertain')}</span>;
+  if (greeting === 'sending') return <span class="cg-nw__st is-busy"><Spinner />{fanslyText(i18n, 'fansly.newcomers.row.sending')}</span>;
+  if (batch === 'sent' || (greeting === 'greeted' && check !== 'greeted')) return <span class="cg-nw__st is-done"><Icon name="check" size={13} />{fanslyText(i18n, 'fansly.newcomers.row.sent')}</span>;
+  if (greeting === 'stopped') return <span class="cg-nw__st is-2"><Dot kind="ink" />{fanslyText(i18n, 'fansly.newcomers.greeting.uncertain')}</span>;
   const refused = row.send?.refused ?? null;
-  if (refused !== null) return <span class="cg-fnw__st is-2" data-cg-code={refused.code}><Dot kind="danger" />{fanslyText(i18n, 'fansly.newcomers.row.failed', { reason: failureTitle(i18n, refused.code) })}</span>;
-  if (batch === 'generating') return <span class="cg-fnw__st is-busy"><Spinner />{fanslyText(i18n, 'fansly.newcomers.row.generating')}</span>;
-  if (batch === 'queued') return <span class="cg-fnw__st">{fanslyText(i18n, 'fansly.newcomers.row.queued')}</span>;
+  if (refused !== null) return <span class="cg-nw__st is-2" data-cg-code={refused.code}><Dot kind="danger" />{fanslyText(i18n, 'fansly.newcomers.row.failed', { reason: failureTitle(i18n, refused.code) })}</span>;
+  if (batch === 'generating') return <span class="cg-nw__st is-busy"><Spinner />{fanslyText(i18n, 'fansly.newcomers.row.generating')}</span>;
+  if (batch === 'queued') return <span class="cg-nw__st">{fanslyText(i18n, 'fansly.newcomers.row.queued')}</span>;
   if (batch === 'failed') {
     const code = row.batch?.failure?.code ?? 'CG-UNKNOWN';
-    return <span class="cg-fnw__st is-2" data-cg-code={code}><Dot kind="ink" />{fanslyText(i18n, 'fansly.newcomers.row.failed', { reason: failureTitle(i18n, code) })}</span>;
+    return <span class="cg-nw__st is-2" data-cg-code={code}><Dot kind="ink" />{fanslyText(i18n, 'fansly.newcomers.row.failed', { reason: failureTitle(i18n, code) })}</span>;
   }
-  if (check === 'checking') return <span class="cg-fnw__st"><Spinner />{checkText(i18n, check)}</span>;
-  if (check === 'greeted') return <span class="cg-fnw__st"><Icon name="check" size={13} />{checkText(i18n, check)}</span>;
-  if (check === 'failed') return <span class="cg-fnw__st is-2"><Dot kind="ink" />{checkText(i18n, check)}</span>;
+  if (check === 'checking') return <span class="cg-nw__st"><Spinner />{checkText(i18n, check)}</span>;
+  if (check === 'greeted') return <span class="cg-nw__st"><Icon name="check" size={13} />{checkText(i18n, check)}</span>;
+  if (check === 'failed') return <span class="cg-nw__st is-2"><Dot kind="ink" />{checkText(i18n, check)}</span>;
   const tone = check === 'ready' || check === 'reply' ? ' is-act' : check === 'dm-closed' || check === 'excluded' ? ' is-2' : '';
-  return <span class={`cg-fnw__st${tone}`}>{checkText(i18n, check)}</span>;
-}
-
-/** The picture is the row's box for the batch: a click on it ticks the fan, never opens the card. */
-function PickAvatar({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const batch = row.batch;
-  const busy = batch?.state === 'queued' || batch?.state === 'generating';
-  const avatar = <Avatar name={row.name} url={row.avatarUrl} size="row" />;
-  if (batch === undefined || (!batch.pickable && !batch.picked && !busy)) return <span class="cg-fnw__pick">{avatar}</span>;
-  const on = batch.picked || busy;
-  return (
-    <button
-      type="button"
-      class={`cg-fnw__pick is-box${on ? ' is-on' : ''}`}
-      role="checkbox"
-      aria-checked={on ? 'true' : 'false'}
-      aria-label={`${i18n.t('batch.pick')}: ${row.name}`}
-      tabIndex={-1}
-      {...(busy ? { 'aria-disabled': 'true' } : {})}
-      onClick={(event) => {
-        event.stopPropagation();
-        if (!busy) void dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [row.handle], picked: !batch.picked });
-      }}
-    >
-      {avatar}
-      <span class="cg-fnw__tick">{on ? <Icon name="check" size={12} /> : null}</span>
-    </button>
-  );
+  return <span class={`cg-nw__st${tone}`}>{checkText(i18n, check)}</span>;
 }
 
 /**
@@ -240,7 +168,7 @@ function RowSend({ row }: { readonly row: NewcomerRowVM }): JSX.Element | null {
       label={fanslyText(i18n, 'fansly.newcomers.row.send')}
       variant="send"
       size="sm"
-      class="cg-fnw__rsend"
+      class="cg-nw__end cg-fnw__rsend"
       busy={sending}
       tabIndex={-1}
       tooltip={fanslyText(i18n, 'fansly.newcomers.row.sendTooltip')}
@@ -253,79 +181,12 @@ function RowSend({ row }: { readonly row: NewcomerRowVM }): JSX.Element | null {
   );
 }
 
-function RowView({ row, index, count, active, onPick }: RowProps): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const check = row.check?.status ?? 'pending';
-  const custom = row.check?.customName ?? null;
-  const draft = row.batch?.state === 'ready' || row.batch?.state === 'sent' ? (row.batch.text ?? null) : null;
-  return (
-    <div
-      class={`cg-fnw__row${row.selected ? ' is-sel' : ''}${draft === null ? '' : ' has-draft'}`}
-      role="option"
-      aria-selected={row.selected ? 'true' : 'false'}
-      aria-posinset={index + 1}
-      aria-setsize={count}
-      tabIndex={active ? 0 : -1}
-      data-cg-item={index}
-      data-cg-key={row.handle}
-      data-cg-fan={row.handle}
-      data-cg-check={check}
-      onFocus={() => onPick(row.handle)}
-      onClick={() => {
-        onPick(row.handle);
-        void dispatch({ type: 'OpenPreview', targetHandle: row.handle });
-      }}
-    >
-      <PickAvatar row={row} />
-      <span class="cg-fnw__copy">
-        <span class="cg-fnw__name">
-          {row.name}
-          {custom === null ? null : <span class="cg-fnw__custom"> ({custom})</span>}
-        </span>
-        <span class="cg-fnw__meta cg-num">
-          {row.username === null ? null : `@${row.username} · `}
-          {fanslyText(i18n, 'fansly.newcomers.ago', { age: i18n.formatAge(row.subscribedAt) })}
-        </span>
-        <RowStatus row={row} />
-      </span>
-      <RowSend row={row} />
-      {draft === null ? null : (
-        <span class={`cg-fnw__draft${row.batch?.state === 'sent' ? ' is-sent' : ''}`}>
-          <span class="cg-fnw__dtext">{draft}</span>
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** A row is drawn again only when what it shows changed: the list re-renders on every keystroke of the draft. */
-function sameRow(a: RowProps, b: RowProps): boolean {
-  if (a.index !== b.index || a.count !== b.count || a.active !== b.active || a.minute !== b.minute || a.onPick !== b.onPick) return false;
-  const x = a.row;
-  const y = b.row;
-  if (x === y) return true;
-  return (
-    x.handle === y.handle &&
-    x.name === y.name &&
-    x.username === y.username &&
-    x.subscribedAt === y.subscribedAt &&
-    x.selected === y.selected &&
-    x.avatarUrl === y.avatarUrl &&
-    x.greeting.s === y.greeting.s &&
-    x.check?.status === y.check?.status &&
-    x.check?.customName === y.check?.customName &&
-    x.batch?.pickable === y.batch?.pickable &&
-    x.batch?.picked === y.batch?.picked &&
-    x.batch?.state === y.batch?.state &&
-    x.batch?.text === y.batch?.text &&
-    x.batch?.failure?.code === y.batch?.failure?.code &&
-    x.send?.can === y.send?.can &&
-    x.send?.refused?.code === y.send?.refused?.code
-  );
-}
-
-const Row = pure(RowView, sameRow);
+/** What the rows of Fansly's list say: «@handle · 2 ч назад», the pass's verdict, the row's own «Отправить». */
+const ROW_PARTS: RowParts = {
+  Status: RowStatus,
+  meta: (i18n: I18n, row: NewcomerRowVM) => `${row.username === null ? '' : `@${row.username} · `}${fanslyText(i18n, 'fansly.newcomers.ago', { age: i18n.formatAge(row.subscribedAt) })}`,
+  End: RowSend,
+};
 
 // ── the header and the toolbar ──
 
@@ -367,7 +228,7 @@ function Stage({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | null
   }
   if (text === null) return null;
   return (
-    <span class="cg-fnw__stage cg-num" role="status" data-cg-stage={pass.stage}>
+    <span class="cg-nw__stage cg-num" role="status" data-cg-stage={pass.stage}>
       {busy ? <Spinner /> : null}
       {text}
     </span>
@@ -383,28 +244,6 @@ function RunButton({ run }: { readonly run: NewcomersPassRunVM }): JSX.Element |
   return <Button label={label} variant="line" size="sm" busy={run.busy} class="cg-fnw__run" onClick={() => void dispatch({ type: 'SetNewcomersPassRunning', running: !run.pause })} />;
 }
 
-/** The period (NF-003): 1 hour to 30 days; the choice is remembered for the next window (X59). */
-function PeriodMenu({ vm, range }: { readonly vm: NewcomersVM; readonly range: string | null }): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  return (
-    <span class="cg-fnw__period-box">
-      <span class="cg-fnw__label">{fanslyText(i18n, 'fansly.newcomers.period')}</span>
-      <ChoiceMenu
-        label={periodText(i18n, vm.windowHours)}
-        menuLabel={fanslyText(i18n, 'fansly.newcomers.window')}
-        tooltip={range ?? fanslyText(i18n, 'fansly.newcomers.window')}
-        class="cg-fnw__period"
-        items={vm.windowOptions.map((hours) => ({ id: String(hours), label: periodText(i18n, hours), checked: hours === vm.windowHours }))}
-        onSelect={(id) => {
-          const hours = Number(id);
-          if (hours !== vm.windowHours) void dispatch({ type: 'SetNewcomersWindow', hours });
-        }}
-      />
-    </span>
-  );
-}
-
 /** «1 окт, 09:16 — 3 окт, 09:16 · местное время»: the dates the pass covers. */
 function rangeText(i18n: I18n, pass: NewcomersPassVM | null): string | null {
   if (pass === null || pass.range === null) return null;
@@ -417,7 +256,7 @@ function Cooldown({ until }: { readonly until: number }): JSX.Element | null {
   const left = useCountdown(until, useNowFn());
   if (left <= 0) return null;
   return (
-    <div class="cg-fnw__line cg-fnw__cool" role="status">
+    <div class="cg-nw__line cg-fnw__cool" role="status">
       {fanslyText(i18n, 'fansly.newcomers.stage.cooldown', { s: Math.ceil(left / 1000) })}
     </div>
   );
@@ -428,11 +267,12 @@ function PassLines({ vm, pass, range }: { readonly vm: NewcomersVM; readonly pas
   const i18n = useI18n();
   return (
     <>
-      {range === null ? null : <div class="cg-fnw__line cg-fnw__range">{range}</div>}
+      {range === null ? null : <div class="cg-nw__line cg-fnw__range">{range}</div>}
       {pass.stage === 'cooldown' && pass.cooldownUntil !== null ? <Cooldown until={pass.cooldownUntil} /> : null}
       {vm.incomplete === null ? null : (
-        <div class="cg-fnw__line cg-nc__incomplete" role="status">
-          <b>{i18n.t('newcomers.incomplete')}</b> {fanslyText(i18n, 'fansly.newcomers.incomplete')}
+        <div class="cg-nw__line cg-nw__incomplete" role="status">
+          <b>{i18n.t('newcomers.incomplete')}</b>{' '}
+          <span>{fanslyText(i18n, 'fansly.newcomers.incomplete')}</span>
         </div>
       )}
       {pass.stage === 'stopped' && pass.failure !== null ? (
@@ -468,48 +308,18 @@ function emptyText(i18n: I18n, vm: NewcomersVM, filterOn: boolean): string {
 
 // ── the list's own controls ──
 
-/** «К обработке N / Все M», as the old window's tabs. */
-function ListTabs({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  return (
-    <div class="cg-fnw__tabs" role="tablist" aria-label={fanslyText(i18n, 'fansly.newcomers.listLabel')}>
-      {vm.tabs.map((tab) => {
-        const on = tab.id === vm.tab;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            class={`cg-fnw__tab${on ? ' is-on' : ''}`}
-            aria-selected={on ? 'true' : 'false'}
-            tabIndex={on ? 0 : -1}
-            onClick={() => {
-              if (!on) void dispatch({ type: 'SetNewcomersTab', tab: tab.id });
-            }}
-          >
-            {fanslyText(i18n, tab.id === 'todo' ? 'fansly.newcomers.tab.todo' : 'fansly.newcomers.tab.all')}
-            {tab.count === null ? null : <span class="cg-fnw__tabn cg-num"> {tab.count}</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** The status filter (NF-004): one menu with counts, as the old window's select. */
-function StatusMenu({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | null {
+/** The pass's status filter (NF-004): the shared menu with Fansly's words for the verdicts. */
+function PassStatusMenu({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | null {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const on = pass.filters.find((filter) => filter.pressed) ?? pass.filters[0];
   if (on === undefined) return null;
   const label = (id: (typeof pass.filters)[number]['id']): string => fanslyText(i18n, `fansly.newcomers.filter.${id}`);
   return (
-    <ChoiceMenu
+    <StatusMenu
       label={on.count === null ? label(on.id) : `${label(on.id)} ${on.count}`}
       menuLabel={fanslyText(i18n, 'fansly.newcomers.filter.label')}
       pressed={on.id !== 'any'}
-      class="cg-fnw__filter"
       items={pass.filters.map((filter) => ({ id: filter.id, label: label(filter.id), count: filter.count, checked: filter.pressed }))}
       onSelect={(id) => {
         const filter = pass.filters.find((item) => item.id === id);
@@ -519,81 +329,22 @@ function StatusMenu({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element |
   );
 }
 
-/** «Выбрать N»: ticks the fans in view that can be written to (the batch keeps at most `max`). */
-function PickAll({ rows, vm }: { readonly rows: readonly NewcomerRowVM[]; readonly vm: NewcomersVM }): JSX.Element | null {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const batch = vm.batch;
-  if (batch === undefined || batch.picked > 0) return null;
-  const free = rows.filter((row) => row.batch?.pickable === true && row.batch.state !== 'ready' && row.batch.state !== 'sent').map((row) => row.handle);
-  if (free.length === 0) return null;
-  const n = Math.min(free.length, batch.max);
-  return (
-    <Button
-      label={fanslyText(i18n, 'fansly.newcomers.pickAll', { n })}
-      variant="quiet"
-      size="sm"
-      class="cg-fnw__pickall"
-      tooltip={fanslyText(i18n, 'fansly.newcomers.pickTooltip', { max: batch.max })}
-      onClick={() => void dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: free.slice(0, batch.max), picked: true })}
-    />
-  );
-}
-
-/**
- * The batch at the foot of the list: what is ticked and «Сгенерировать N»; while it runs, how far it got and
- * «Остановить»; once drafts are ready, how many and «Очистить», and the hint to read each draft in its row and send it
- * there (X59: one click per fan, never all at once).
- */
-function BatchBar({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const batch = vm.batch;
-  if (batch === undefined) return null;
-  const made = batch.queued + batch.generating + batch.ready + batch.sent + batch.failed;
-  const generating = batch.queued + batch.generating > 0;
-  if (batch.picked === 0 && made === 0) return null;
-  return (
-    <div class="cg-fnw__batch" role="group" aria-label={i18n.t('batch.pickAll')} data-cg-batch={generating ? 'running' : batch.picked > 0 ? 'picked' : 'done'}>
-      {batch.picked > 0 && !generating ? (
-        <div class="cg-fnw__bline">
-          <span class="cg-fnw__bn">{fanslyText(i18n, 'fansly.newcomers.batch.picked', { n: batch.picked })}</span>
-          <span class="cg-fnw__grow" />
-          <Button label={i18n.t('batch.unpick')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'ClearBatch', list: 'newcomers' })} />
-          <Button
-            label={fanslyText(i18n, 'fansly.newcomers.batch.generate', { n: batch.picked })}
-            variant="line"
-            size="sm"
-            class="cg-fnw__go"
-            reason={batch.reason === null ? null : i18n.text(batch.reason)}
-            tooltip={i18n.t('batch.generateTooltip')}
-            onClick={() => void dispatch({ type: 'GenerateBatch', list: 'newcomers' })}
-          />
-        </div>
-      ) : null}
-      {generating ? (
-        <div class="cg-fnw__bline">
-          <span class="cg-fnw__bst" role="status">
-            <Spinner />
-            {fanslyText(i18n, 'fansly.newcomers.batch.generating', { done: batch.ready + batch.sent, total: made })}
-          </span>
-          <span class="cg-fnw__grow" />
-          <Button label={i18n.t('batch.stop')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'StopBatch', list: 'newcomers' })} />
-        </div>
-      ) : made > 0 ? (
-        <div class="cg-fnw__bline">
-          <span class="cg-fnw__bst" role="status">
-            {fanslyText(i18n, 'fansly.newcomers.batch.ready', { n: batch.ready })}
-            {batch.sent === 0 ? null : ` · ${fanslyText(i18n, 'fansly.newcomers.batch.sent', { n: batch.sent })}`}
-            {batch.failed === 0 ? null : ` · ${fanslyText(i18n, 'fansly.newcomers.batch.failed', { n: batch.failed })}`}
-          </span>
-          <span class="cg-fnw__grow" />
-          <Button label={i18n.t('batch.clear')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'ClearBatch', list: 'newcomers' })} />
-        </div>
-      ) : null}
-      {!generating && batch.ready > 0 ? <div class="cg-fnw__bline is-hint">{fanslyText(i18n, 'fansly.newcomers.batch.review')}</div> : null}
-    </div>
-  );
+/** The batch's foot in Fansly's words: «Выбрано N · Сгенерировать N», «Готово N · отправлено M», read and send each in its row. */
+function batchWords(i18n: I18n): BatchWords {
+  return {
+    picked: (n) => fanslyText(i18n, 'fansly.newcomers.batch.picked', { n }),
+    generate: (n) => fanslyText(i18n, 'fansly.newcomers.batch.generate', { n }),
+    generating: (done, total) => fanslyText(i18n, 'fansly.newcomers.batch.generating', { done, total }),
+    done: (ready, sent, failed) =>
+      [
+        fanslyText(i18n, 'fansly.newcomers.batch.ready', { n: ready }),
+        sent === 0 ? null : fanslyText(i18n, 'fansly.newcomers.batch.sent', { n: sent }),
+        failed === 0 ? null : fanslyText(i18n, 'fansly.newcomers.batch.failed', { n: failed }),
+      ]
+        .filter((part) => part !== null)
+        .join(' · '),
+    review: fanslyText(i18n, 'fansly.newcomers.batch.review'),
+  };
 }
 
 // ── the card ──
@@ -873,7 +624,7 @@ function Greeting({ handle, greeting, onSent }: { readonly handle: string; reado
           reason={greeting.canInsert ? null : why()}
           onClick={() => void dispatch({ type: 'InsertNewcomerGreeting', targetHandle: handle })}
         />
-        <span class="cg-fnw__grow" />
+        <span class="cg-nw__grow" />
         <Button
           label={fanslyText(i18n, 'fansly.newcomers.greeting.send')}
           variant="send"
@@ -898,11 +649,11 @@ function Card({ card, onSent }: { readonly card: NewcomerCardVM; readonly onSent
   return (
     <section class="cg-fnc" aria-label={fanslyText(i18n, 'fansly.newcomers.cardLabel')} data-cg-card={card.handle}>
       <header class="cg-fnc__head">
-        <Avatar name={card.name} url={card.avatarUrl} size="card" />
+        <NewcomerAvatar name={card.name} url={card.avatarUrl} size="card" />
         <div class="cg-fnc__who">
           <h3 class="cg-fnc__name">
             {card.name}
-            {card.customName === null ? null : <span class="cg-fnw__custom"> ({card.customName})</span>}
+            {card.customName === null ? null : <span class="cg-nw__custom"> ({card.customName})</span>}
           </h3>
           <div class="cg-fnc__meta" title={fanslyText(i18n, 'fansly.newcomers.followedAt', { date: i18n.formatTime(card.followedAt, 'datetime') })}>
             {card.username === null ? null : `@${card.username} · `}
@@ -932,35 +683,21 @@ function Card({ card, onSent }: { readonly card: NewcomerCardVM; readonly onSent
 export function FanslyNewcomersWindow(): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const { root, deps } = useKit();
+  const { root } = useKit();
   const vm = useView({ of: 'newcomers' }).value;
   const pass = vm.pass ?? null;
   const rows = vm.rows;
-  const textSize = useValueSignal(deps.textSize ?? NORMAL_TEXT).value;
   useMinuteClock(rows.length > 0);
   const minute = Math.floor(useNowFn()() / 60_000);
   const frameRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Pages of 100 (NF-006): asked once per length of the list, again for another query or pass.
-  const askedMore = useRef(-1);
-  const passId = pass?.passId ?? null;
-  const filter = pass?.filters.find((item) => item.pressed)?.id ?? 'any';
-  useLayoutEffect(() => {
-    askedMore.current = -1;
-  }, [passId, vm.tab, vm.query, filter]);
-
   // The keyboard's row: the one the person is on, else the selected one.
-  const [activeHandle, setActiveHandle] = useState<string | null>(() => (rows.find((row) => row.selected) ?? rows[0])?.handle ?? null);
-  const current = useMemo(() => {
-    const at = activeHandle === null ? -1 : rows.findIndex((row) => row.handle === activeHandle);
-    return at >= 0 ? at : Math.max(0, rows.findIndex((row) => row.selected));
-  }, [rows, activeHandle]);
-  const currentHandle = rows[current]?.handle ?? null;
-  useEffect(() => {
-    if (currentHandle !== activeHandle) setActiveHandle(currentHandle);
-  }, [currentHandle, activeHandle]);
-  const { wrapRef, listRef, focusRow, settle } = useRowFocus(currentHandle);
+  const { current, currentHandle, setActiveHandle, wrapRef, listRef, focusRow, settle } = useNewcomerRows(rows, () => rows[0] ?? null);
+  const filter = pass?.filters.find((item) => item.pressed)?.id ?? 'any';
+  // Pages of 100 (NF-006): asked once per length of the list, again for another pass, tab, query or filter.
+  const onRange = useLoadMore(vm, settle, `${pass?.passId ?? ''} ${vm.tab} ${vm.query} ${filter}`);
+  const rowHeight = useRowHeight();
 
   const latestRows = useRef(rows);
   latestRows.current = rows;
@@ -968,7 +705,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
   // Esc in turn: the search, then the window.
   const close = useCallback((): void => {
     if (vm.query !== '') void dispatch({ type: 'Search', list: 'newcomers', query: '' });
-    else void dispatch(CLOSE_WINDOW);
+    else void dispatch(CLOSE_NEWCOMERS);
   }, [vm.query, dispatch]);
 
   // The window opens on the selected row — also when the rows arrive later, unless the person moved focus meanwhile.
@@ -982,26 +719,8 @@ export function FanslyNewcomersWindow(): JSX.Element {
     if (firstTime) openedOn.current = root.activeElement;
   }, [hasRows]);
 
-  const onRange = useCallback(
-    (_start: number, end: number): void => {
-      settle();
-      if (vm.canLoadMore && end >= rows.length - LOAD_MORE_MARGIN && askedMore.current !== rows.length) {
-        askedMore.current = rows.length;
-        void dispatch({ type: 'LoadMore', list: 'newcomers' });
-      }
-    },
-    [vm.canLoadMore, rows.length, dispatch, settle],
-  );
-
   // The card follows the keyboard's row once the keys stop (X55): a held J asks the pass for no card per row.
   const cardFollow = useCardFollow((handle) => void dispatch({ type: 'OpenPreview', targetHandle: handle }));
-  const move = (to: number): void => {
-    const row = rows[to];
-    if (row === undefined) return;
-    setActiveHandle(row.handle);
-    focusRow(to, row.handle);
-    cardFollow.follow(row.handle);
-  };
 
   /** X59: after the card's own «Отправить →», the next draft of the batch, so the person reads and sends on. */
   const onSent = useCallback(
@@ -1013,27 +732,25 @@ export function FanslyNewcomersWindow(): JSX.Element {
       focusRow(at, next);
       void dispatch({ type: 'OpenPreview', targetHandle: next });
     },
-    [dispatch, focusRow],
+    [dispatch, focusRow, setActiveHandle],
   );
 
   const onListKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
-    if (event.defaultPrevented || isComposing(event) || !isPlainKey(event)) return;
-    // The keys act on the row that HAS focus, found by its fan in the list as it is now.
-    const handle = rowKeyOf(event.target);
-    const at = handle === null ? -1 : rows.findIndex((entry) => entry.handle === handle);
-    const row = rows[at];
-    if (row === undefined) return;
-    const step = event.code === 'ArrowDown' || event.code === 'KeyJ' ? 1 : event.code === 'ArrowUp' || event.code === 'KeyK' ? -1 : 0;
-    if (step !== 0 || event.key === 'Home' || event.key === 'End') {
-      const to = step !== 0 ? at + step : rovingIndex(event.key, at, rows.length, 'vertical', false);
+    const key = rowKey(event, rows, rowKeyOf);
+    if (key === null) return;
+    const { at, row, to } = key;
+    if (to !== null) {
       event.preventDefault();
-      if (to !== null && to !== at) move(to);
+      const next = rows[to];
+      if (next === undefined || to === at) return;
+      setActiveHandle(next.handle);
+      focusRow(to, next.handle);
+      cardFollow.follow(next.handle);
       return;
     }
     if (event.code === 'KeyX') {
       event.preventDefault();
-      const batch = row.batch;
-      if (batch !== undefined && (batch.pickable || batch.picked)) void dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [row.handle], picked: !batch.picked });
+      toggleBatchPick(row, dispatch);
       return;
     }
     if (event.code === 'Enter' || event.code === 'NumpadEnter') {
@@ -1066,15 +783,8 @@ export function FanslyNewcomersWindow(): JSX.Element {
     }
   };
 
-  const heights = ROW_HEIGHTS[textSize];
-  const rowHeight = useCallback((row: NewcomerRowVM): number => {
-    const draft = (row.batch?.state === 'ready' || row.batch?.state === 'sent') && row.batch.text !== null;
-    return draft ? heights.base + heights.draft : heights.base;
-  }, [heights]);
-
   const failed = pass?.stage === 'failed';
   const forbidden = vm.view.s === 'forbidden' || (pass === null && vm.view.s !== 'loading');
-  const filterOn = pass?.filters.some((item) => item.pressed && item.id !== 'any') ?? false;
   const showList = hasRows && !failed && vm.view.s !== 'error' && vm.view.s !== 'forbidden' && vm.view.s !== 'empty';
   const range = rangeText(i18n, pass);
   const card = pass?.card ?? null;
@@ -1083,7 +793,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
   let list: JSX.Element;
   if (showList) {
     list = (
-      <div class="cg-fnw__list" ref={wrapRef}>
+      <div class="cg-nw__list" ref={wrapRef}>
         <VirtualList
           items={rows}
           rowHeight={rowHeight}
@@ -1093,99 +803,87 @@ export function FanslyNewcomersWindow(): JSX.Element {
           listRef={listRef}
           onRangeChange={onRange}
           onKeyDown={onListKeyDown}
-          renderRow={(row, index) => <Row row={row} index={index} count={rows.length} active={index === current} minute={minute} onPick={setActiveHandle} />}
+          renderRow={(row, index) => <NewcomerRow row={row} index={index} count={rows.length} active={index === current} minute={minute} parts={ROW_PARTS} onPick={setActiveHandle} />}
         />
       </div>
     );
   } else if (vm.view.s === 'empty') {
     list = (
-      <div class="cg-fnw__state" data-cg-empty="1">
-        {emptyText(i18n, vm, filterOn)}
+      <div class="cg-nw__state" data-cg-empty="1">
+        {emptyText(i18n, vm, filter !== 'any')}
       </div>
     );
   } else {
     list = (
-      <div class="cg-fnw__state">
+      <div class="cg-nw__state">
         <ViewState view={vm.view} />
       </div>
     );
   }
 
+  // Fansly's account may carry its id alone: the bound page names it then.
+  const sub = (
+    <>
+      {pass?.creator === null || pass?.creator === undefined ? null : <span class="cg-nw__creator">@{pass.creator}</span>}
+      {vm.pageName === null ? null : <span class="cg-nw__page">{vm.pageName}</span>}
+    </>
+  );
+
   return (
-    <OverlayLayer>
-      <Dialog
-        open
-        label={title}
-        size="wide"
-        class={`cg-fnw${textSize === 'large' ? ' is-large' : ''}`}
-        onClose={close}
-        initialFocus={() => frameRef.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}
-      >
-        <div ref={frameRef} class="cg-fnw__frame" onKeyDown={onKeyDown}>
-          <header class="cg-fnw__head">
-            <div class="cg-fnw__titles">
-              <h2 class="cg-fnw__title">{title}</h2>
-              {/* Fansly's account may carry its id alone: the bound page names it then. */}
-              <span class="cg-fnw__sub">
-                {pass?.creator === null || pass?.creator === undefined ? null : <span class="cg-fnw__creator">@{pass.creator}</span>}
-                {vm.pageName === null ? null : <span class="cg-fnw__page">{vm.pageName}</span>}
-              </span>
-            </div>
-            <Button label={i18n.t('common.close')} icon="x" iconOnly variant="quiet" class="cg-fnw__close" onClick={() => void dispatch(CLOSE_WINDOW)} />
-          </header>
-          {forbidden ? null : (
-            <div class="cg-fnw__bar" data-cg-pass={pass?.stage ?? 'none'}>
-              <PeriodMenu vm={vm} range={range} />
-              {pass === null ? null : <Stage pass={pass} />}
-              {pass?.run === undefined || failed ? null : <RunButton run={pass.run} />}
-              <span class="cg-fnw__grow" />
-              <SearchBox
-                value={vm.query}
-                label={i18n.t('spenders.search.placeholder')}
-                placeholder={i18n.t('spenders.search.placeholder')}
-                class="cg-sp__search cg-fnw__search"
-                inputRef={searchRef}
-                onQuery={(query) => void dispatch({ type: 'Search', list: 'newcomers', query })}
-              />
-              <Button label={fanslyText(i18n, 'fansly.newcomers.refresh')} icon="refresh" iconOnly variant="quiet" class="cg-fnw__refresh" busy={pass?.stage === 'connecting'} onClick={() => void dispatch(RELOAD)} />
-            </div>
-          )}
-          {pass === null || forbidden || failed ? null : <PassLines vm={vm} pass={pass} range={range} />}
-          {/* The port to the background is down: what is shown stays, the banner says so (its return reads it again). */}
-          {vm.view.s === 'offline' && !failed && hasRows ? <ViewState view={vm.view} /> : null}
-          {failed || forbidden ? (
-            failed ? (
-              <ListFailed failure={pass?.failure ?? null} />
-            ) : (
-              <div class="cg-fnw__state">
-                <ViewState view={vm.view} />
+    <NewcomersFrame title={title} sub={sub} class="cg-fnw" onEsc={close} frameRef={frameRef} onKeyDown={onKeyDown}>
+      {forbidden ? null : (
+        <div class="cg-nw__bar" data-cg-pass={pass?.stage ?? 'none'}>
+          <PeriodMenu vm={vm} lead={fanslyText(i18n, 'fansly.newcomers.period')} menuLabel={fanslyText(i18n, 'fansly.newcomers.window')} tooltip={range ?? fanslyText(i18n, 'fansly.newcomers.window')} />
+          {pass === null ? null : <Stage pass={pass} />}
+          {pass?.run === undefined || failed ? null : <RunButton run={pass.run} />}
+          <span class="cg-nw__grow" />
+          <SearchBox
+            value={vm.query}
+            label={i18n.t('spenders.search.placeholder')}
+            placeholder={i18n.t('spenders.search.placeholder')}
+            class="cg-nw__search"
+            inputRef={searchRef}
+            onQuery={(query) => void dispatch({ type: 'Search', list: 'newcomers', query })}
+          />
+          <Button label={fanslyText(i18n, 'fansly.newcomers.refresh')} icon="refresh" iconOnly variant="quiet" class="cg-fnw__refresh" busy={pass?.stage === 'connecting'} onClick={() => void dispatch(RELOAD)} />
+        </div>
+      )}
+      {pass === null || forbidden || failed ? null : <PassLines vm={vm} pass={pass} range={range} />}
+      {/* The port to the background is down: what is shown stays, the banner says so (its return reads it again). */}
+      {vm.view.s === 'offline' && !failed && hasRows ? <ViewState view={vm.view} /> : null}
+      {failed ? (
+        <ListFailed failure={pass?.failure ?? null} />
+      ) : forbidden ? (
+        <div class="cg-nw__state">
+          <ViewState view={vm.view} />
+        </div>
+      ) : (
+        <div class="cg-nw__main">
+          <aside class="cg-nw__side" aria-label={fanslyText(i18n, 'fansly.newcomers.listLabel')} data-cg-newcomers={vm.view.s}>
+            <ListTabs
+              tabs={vm.tabs.map((tab) => ({ id: tab.id, label: fanslyText(i18n, tab.id === 'todo' ? 'fansly.newcomers.tab.todo' : 'fansly.newcomers.tab.all'), count: tab.count }))}
+              value={vm.tab}
+              label={fanslyText(i18n, 'fansly.newcomers.listLabel')}
+            />
+            {pass === null ? null : (
+              <div class="cg-nw__tools" role="group" aria-label={fanslyText(i18n, 'fansly.newcomers.filter.label')}>
+                <PassStatusMenu pass={pass} />
+                <span class="cg-nw__grow" />
+                <PickAll rows={rows} batch={vm.batch} label={(n) => fanslyText(i18n, 'fansly.newcomers.pickAll', { n })} tooltip={(max) => fanslyText(i18n, 'fansly.newcomers.pickTooltip', { max })} />
               </div>
-            )
+            )}
+            {list}
+            <BatchFoot batch={vm.batch} words={batchWords(i18n)} />
+          </aside>
+          {card === null ? (
+            <section class="cg-fnc cg-fnc--none" aria-label={fanslyText(i18n, 'fansly.newcomers.cardLabel')}>
+              <div class="cg-fnc__empty">{vm.view.s === 'loading' ? <Spinner label={i18n.t('common.loading')} /> : fanslyText(i18n, 'fansly.newcomers.empty.card')}</div>
+            </section>
           ) : (
-            <div class="cg-fnw__main">
-              <aside class="cg-fnw__side" aria-label={fanslyText(i18n, 'fansly.newcomers.listLabel')} data-cg-newcomers={vm.view.s}>
-                <ListTabs vm={vm} />
-                {pass === null ? null : (
-                  <div class="cg-fnw__tools" role="group" aria-label={fanslyText(i18n, 'fansly.newcomers.filter.label')}>
-                    <StatusMenu pass={pass} />
-                    <span class="cg-fnw__grow" />
-                    <PickAll rows={rows} vm={vm} />
-                  </div>
-                )}
-                {list}
-                <BatchBar vm={vm} />
-              </aside>
-              {card === null ? (
-                <section class="cg-fnc cg-fnc--none" aria-label={fanslyText(i18n, 'fansly.newcomers.cardLabel')}>
-                  <div class="cg-fnc__empty">{vm.view.s === 'loading' ? <Spinner label={i18n.t('common.loading')} /> : fanslyText(i18n, 'fansly.newcomers.empty.card')}</div>
-                </section>
-              ) : (
-                <Card key={card.handle} card={card} onSent={onSent} />
-              )}
-            </div>
+            <Card key={card.handle} card={card} onSent={onSent} />
           )}
         </div>
-      </Dialog>
-    </OverlayLayer>
+      )}
+    </NewcomersFrame>
   );
 }
