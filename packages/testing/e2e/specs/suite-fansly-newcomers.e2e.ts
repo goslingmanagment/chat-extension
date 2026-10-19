@@ -389,17 +389,17 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await waitOursText('modal', /Проверка на паузе/, 'the queue paused', { selector: WINDOW });
     await waitOursText('modal', /Все 105\b/, 'the paused pass keeps all its followers', { selector: `${WINDOW} [role="tablist"]` });
     const hubMark = await hub().mark();
-    await ours('modal', `${WINDOW} .cg-sp__search input`).setValue('За сотой строкой');
+    await ours('modal', `${WINDOW} .cg-nw__search input`).setValue('За сотой строкой');
     const last = followers[104]?.fanId ?? '';
     await browser.waitUntil(async () => oursExists('modal', ROW(last)), { timeout: 10_000, timeoutMsg: 'search did not find an off-page fan' });
     expect(await oursText('modal', `${WINDOW} [role="tablist"]`)).toMatch(/Все 1\b/);
-    await ours('modal', `${WINDOW} .cg-sp__search input`).setValue('no-such-follower');
+    await ours('modal', `${WINDOW} .cg-nw__search input`).setValue('no-such-follower');
     await browser.waitUntil(async () => oursExists('modal', `${WINDOW} [data-cg-empty]`), { timeout: 10_000 });
     // WebDriver's elementClear (setValue('')) does not emit input in Firefox. Clear as a person does: Esc
     // dispatches the empty query; a paused queue must still return its rows without being resumed.
-    await ours('modal', `${WINDOW} .cg-sp__search input`).click();
+    await ours('modal', `${WINDOW} .cg-nw__search input`).click();
     await browser.keys('Escape');
-    expect(await ours('modal', `${WINDOW} .cg-sp__search input`).getValue()).toBe('');
+    expect(await ours('modal', `${WINDOW} .cg-nw__search input`).getValue()).toBe('');
     await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все 105$/);
     expect(await readOurs('modal', `${WINDOW} [data-cg-pass]`, (node) => node.getAttribute('data-cg-pass'))).toBe('paused');
     await chooseStatus(/^В очереди/);
