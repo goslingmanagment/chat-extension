@@ -117,7 +117,7 @@ export type SpendersSort = (typeof SPENDERS_SORTS)[number];
 export const NEWCOMERS_TABS = ['todo', 'all'] as const;
 export type NewcomersTab = (typeof NEWCOMERS_TABS)[number];
 /** Greeting status filters with counters (NF-008). */
-export const GREETING_FILTERS = ['any', 'none', 'claimed', 'sending', 'stopped', 'greeted'] as const;
+export const GREETING_FILTERS = ['any', 'none', 'claimed', 'sending', 'stopped', 'greeted', 'replied'] as const;
 export type GreetingFilter = (typeof GREETING_FILTERS)[number];
 /** «Новые» window, hours (§8.5: quick 24/48/72/168, any 1–720 within bootstrap `audienceWindowHours`). */
 export const NEWCOMERS_WINDOW_HOURS = { min: 1, max: 720, quick: [24, 48, 72, 168], default: 48 } as const;

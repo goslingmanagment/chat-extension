@@ -53,7 +53,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   SetSpendersShelf: { type: 'SetSpendersShelf', shelfId: null },
   SetStatsExpanded: { type: 'SetStatsExpanded', expanded: true },
   SetNewcomersTab: { type: 'SetNewcomersTab', tab: 'all' },
-  SetNewcomersFilter: { type: 'SetNewcomersFilter', filter: 'stopped' },
+  SetNewcomersFilter: { type: 'SetNewcomersFilter', filter: 'replied' },
   SetNewcomersCheckFilter: { type: 'SetNewcomersCheckFilter', filter: 'dm-closed' },
   SetNewcomersPassRunning: { type: 'SetNewcomersPassRunning', running: false },
   CheckNewcomerNext: { type: 'CheckNewcomerNext', targetHandle: 'pass:00000000-0000-4000-8000-000000000001:700000000000000001' },
