@@ -593,7 +593,7 @@ describe('pages of one title are told apart (1.3.0)', () => {
     expect(PAGE_TAG_SAMPLES.invalid).toHaveLength(4);
   });
 
-  it('[PU-004] [PU-006] 1.35.0 (X60): the popup says its verdict first — ready, attention or checking — and each problem with its one remedy', () => {
+  it('[PU-004] [PU-006] 1.35.0 (X61): the popup says its verdict first — ready, attention or checking — and each problem with its one remedy', () => {
     expectTypeOf<C.PopupVM['verdict']>().toEqualTypeOf<C.PopupVerdictVM | undefined>();
     expectTypeOf<C.PopupAlertVM['fix']>().toEqualTypeOf<C.ActionButtonVM | null>();
     expect(POPUP_VERDICT_SAMPLES.valid.map((verdict) => verdict.s)).toEqual(['ready', 'checking', 'attention', 'attention']);

@@ -180,7 +180,7 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { kind: 'page', page: 'changelog' },
       { kind: 'debug-prompt', promptHandle: 'snap-1' },
       { kind: 'journal', journal: 'operations' },
-      // 1.35.0 (X60): the popup's «Открыть ChatSpace» — the build's own site, never an address of the caller's.
+      // 1.35.0 (X61): the popup's «Открыть ChatSpace» — the build's own site, never an address of the caller's.
       { kind: 'site-home' },
     ],
     [
@@ -739,7 +739,7 @@ export const PAGE_TAG_SAMPLES: {
 };
 
 /**
- * 1.35.0 (X60): the popup's stage — the verdict and what to fix, each problem with its one remedy (a type, no schema).
+ * 1.35.0 (X61): the popup's stage — the verdict and what to fix, each problem with its one remedy (a type, no schema).
  */
 const RELOAD_FIX: C.ActionButtonVM = { label: { key: 'popup.alert.reloadOne' }, action: { type: 'ReloadTab' }, enabled: true, reason: null, hotkey: null };
 export const POPUP_VERDICT_SAMPLES: { readonly valid: readonly C.PopupVerdictVM[]; readonly invalid: readonly unknown[] } = {

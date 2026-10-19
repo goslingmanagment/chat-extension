@@ -128,16 +128,22 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
       expectHealthy(await probe(), theme);
       // 360 px wide (ui-design §3.10), the browser gives the frame.
       expect(await browser.execute(() => document.querySelector('.pg-popup')?.getBoundingClientRect().width)).toBe(360);
-      expect(await text('.pg-pills')).toBe('ChatSpace: подключёнХаб: на связи');
-      expect(await count('.pg-popup__btns .cg-btn')).toBe(4);
+      // X61: the verdict on the pond, the three windows in one row, «Настройки» at the head.
+      expect(await text('.pg-popup__stage')).toBe('Готово к сменеChatSpace и хаб на связи');
+      expect(await count('.pg-popup__btns .cg-btn')).toBe(3);
+      expect(await count('.pg-popup__head .pg-popup__settings')).toBe(1);
+      // It fits the browser's popup, 600 px at most, with no scroll.
+      expect(await browser.execute(() => document.querySelector('.pg-popup')?.getBoundingClientRect().height ?? 0)).toBeLessThanOrEqual(600);
     });
 
     it(`[PU-006] popup, problems (final-20b) · ${theme}`, async () => {
       await open(`page=popup&state=troubled&theme=${theme}`, POPUP);
       await capture(`pages-popup-20b-${theme}`);
       expectHealthy(await probe(), theme);
-      expect(await count('.pg-pill .cg-dot--danger')).toBe(1);
-      expect(await count('.pg-popup__err')).toBe(2);
+      // The first problem with its remedy, the rest a line each; the red dot only next to a failure.
+      expect(await count('.pg-popup__stage[data-pg-verdict="attention"] [data-cg-code]')).toBe(2);
+      expect(await count('.pg-popup__stage .pg-primary')).toBe(1);
+      expect(await count('.pg-popup__more .cg-dot--danger')).toBe(0);
     });
 
     it(`[ST-020] settings, «Статус» (final-21a) · ${theme}`, async () => {

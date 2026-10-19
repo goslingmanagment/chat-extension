@@ -9,12 +9,14 @@ import { siteLabel } from './site-details';
 // report of the tab in front is read by its site's expected anchors (R20 F7).
 
 import { type CgErrorView } from '@cg/contracts/errors';
+import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type HostCapability } from '@cg/contracts/host';
-import { type PopupVM, type ReasonVM, type UiAction, type VmView } from '@cg/contracts/vm';
+import { type ActionButtonVM, type PopupAlertVM, type PopupVerdictVM, type PopupVM, type ReasonVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { formatMicroUsd } from '../../domain/debug';
+import { errorTone } from '../../domain/errors';
 import { hotkeyOf } from './hotkeys';
-import { QUOTA_LOW, boundPageOf, boundPageTagOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
+import { QUOTA_LOW, accountKeyOf, boundPageOf, boundPageTagOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
 import { hostGaps, hostReportOf, hubState, missingAnchors, siteOfReport, statusSites } from './view-status';
 
@@ -55,6 +57,67 @@ function problemsOf(model: PagesModel, host: PopupVM['pills']['host']): CgErrorV
   }
   // One line per code: the same problem seen twice is one problem.
   return problems.filter((problem, index) => problems.findIndex((other) => other.code === problem.code) === index);
+}
+
+/** The one remedy the popup offers for a problem by itself, by the registry's recovery; null — nothing to press here. */
+function fixOf(problem: CgErrorView): ActionButtonVM | null {
+  const entry = CG_REGISTRY[problem.code];
+  if (entry.recovery === 'retry') return button('popup.alert.recheck', { type: 'RecheckStatus' });
+  if (entry.recovery === 'open-settings' || entry.recovery === 'sign-in') return button('popup.openSettings', { type: 'OpenSettings', route: entry.settings ?? { section: 'status', code: problem.code } });
+  return null;
+}
+
+function alertOf(problem: CgErrorView, fix: ActionButtonVM | null = fixOf(problem)): PopupAlertVM {
+  return { code: problem.code, tone: problem.tone ?? errorTone(problem.code), title: problem.title, body: problem.body === '' ? null : problem.body, fix };
+}
+
+const WORKING: ReadonlySet<PopupVM['pills']['host']> = new Set(['connected', 'partial', 'copy-only']);
+
+/**
+ * The stage under the persona (1.35.0, X61), the three of «Статус»: what to fix, in the order to fix it — the tab
+ * left from the old build, no tab at all, the hub, the site's contract, the page's binding, its persona — each with
+ * the one remedy the popup can offer itself; nothing to fix and a site with the hub answering — ready; a tab's report,
+ * the hub's health or the page's binding not in yet — checking.
+ */
+function verdictOf(model: PagesModel, problems: readonly CgErrorView[], sites: NonNullable<PopupVM['sites']>, hub: PopupVM['pills']['hub'], persona: PopupVM['persona']): PopupVerdictVM {
+  const alerts: PopupAlertVM[] = [];
+  const stale = staleTabsOf(model);
+  if (stale > 0 || model.reloadingHost) {
+    // While the background reloads them the count is gone: the card stays, its button busy, until the tab is back.
+    const n = Math.max(stale, 1);
+    alerts.push({
+      code: 'CG-RUNTIME-RELOADED',
+      tone: 'state',
+      title: model.t.text(n === 1 ? 'popup.alert.reloadTitleOne' : 'popup.alert.reloadTitleMany'),
+      body: model.t.text('popup.alert.reloadBody'),
+      fix: button(n === 1 ? 'popup.alert.reloadOne' : 'popup.alert.reloadMany', { type: 'ReloadTab' }),
+      ...(model.reloadingHost ? { busy: true } : {}),
+    });
+  }
+  const working = sites.some((site) => WORKING.has(site.state));
+  const checking = hub === 'unknown' || sites.some((site) => site.state === 'unknown');
+  if (alerts.length === 0 && !working && !checking) {
+    // No tab where ChatGoose runs: open one. The popup opens only the build's own site, and only when it is the one in use.
+    const own = model.env.sites[0]?.kind;
+    const list = new Intl.ListFormat(model.locale, { type: 'disjunction' }).format(sites.map((site) => site.label));
+    alerts.push({
+      code: 'CG-HOST-NOT-READY',
+      tone: 'state',
+      title: model.t.text('popup.alert.openTitle', { sites: list }),
+      body: model.t.text('popup.alert.openBody'),
+      fix: sites.length === 1 && sites[0]?.host === own ? button('popup.alert.openFix', { type: 'Navigate', to: { kind: 'site-home' } }) : null,
+    });
+  }
+  for (const problem of problems) if (problem.code !== 'CG-RUNTIME-RELOADED') alerts.push(alertOf(problem));
+  // The page of the open account: not bound on the hub (the team lead's to fix), or bound without a persona (the chatter's).
+  const current = currentAccountOf(model);
+  const binding = current === null ? undefined : model.bindings.get(accountKeyOf(current.account));
+  if (binding !== undefined && !binding.ok && binding.error.code.startsWith('CG-BINDING-')) alerts.push(alertOf(errorOf(model, binding.error)));
+  if (persona.s === 'no-persona') alerts.push(alertOf(codeError(model, 'CG-PERSONA-UNASSIGNED'), button('popup.alert.personaFix', { type: 'OpenSettings', route: { section: 'personas', code: 'CG-PERSONA-UNASSIGNED' } })));
+  if (alerts.length > 0) return { s: 'attention', line: null, alerts };
+  if (checking || persona.s === 'not-connected') return { s: 'checking', line: model.t.text('popup.verdict.checking'), alerts: [] };
+  const connected = new Intl.ListFormat(model.locale, { type: 'conjunction' }).format(sites.filter((site) => WORKING.has(site.state)).map((site) => site.label));
+  return { s: 'ready', line: model.t.text('popup.verdict.readyLine', { sites: connected }), alerts: [] };
 }
 
 function degraded(model: PagesModel): HostCapability[] {
@@ -102,18 +165,21 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
         : { id: 'host-degraded', code: 'CG-HOST-NOT-READY', text: msg('popup.needsChatSpace') }
       : null;
   const surface = (name: 'spenders' | 'newcomers' | 'cheatsheet'): UiAction => ({ type: 'Navigate', to: { kind: 'surface', surface: name, open: true } });
+  const sites = statusSites(model).map((site) => ({ host: site.kind, label: siteLabel(model, site.kind), state: hostPill(model, site.kind), waitingReload: valueOf(model.diagnostics)?.siteAccess?.find((entry) => entry.host === site.kind)?.waitingReload ?? (site.kind === model.env.sites[0]?.kind ? staleTabsOf(model) : 0) }));
+  const personaVm: PopupVM['persona'] =
+    bound === null || pageName === null || persona === null
+      ? { s: 'not-connected' }
+      : persona.s === 'set' && persona.label !== null
+        ? { s: 'set', label: persona.label, pageName, page: boundPageTagOf(model, bound) }
+        : { s: 'no-persona', pageName, page: boundPageTagOf(model, bound) };
   return {
     view,
+    ...(session === null ? {} : { verdict: verdictOf(model, problems, sites, hub, personaVm) }),
     version: model.env.version,
     pills: { host, hub },
-    sites: statusSites(model).map((site) => ({ host: site.kind, label: siteLabel(model, site.kind), state: hostPill(model, site.kind), waitingReload: valueOf(model.diagnostics)?.siteAccess?.find((entry) => entry.host === site.kind)?.waitingReload ?? (site.kind === model.env.sites[0]?.kind ? staleTabsOf(model) : 0) })),
+    sites,
     problems,
-    persona:
-      bound === null || pageName === null || persona === null
-        ? { s: 'not-connected' }
-        : persona.s === 'set' && persona.label !== null
-          ? { s: 'set', label: persona.label, pageName, page: boundPageTagOf(model, bound) }
-          : { s: 'no-persona', pageName, page: boundPageTagOf(model, bound) },
+    persona: personaVm,
     account: session === null ? null : { login: session.login, signOut: button('popup.signOut', { type: 'SignOut' }) },
     chat:
       chat === null

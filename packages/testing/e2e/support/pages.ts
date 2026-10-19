@@ -214,11 +214,14 @@ export async function choosePersona(pageName: string, personaLabel: string): Pro
 
 export interface PopupState {
   readonly drawn: boolean;
-  /** `loading`, `error`, `forbidden` (nobody signed in) or `ready` (the pills and the rows are drawn). */
+  /** `loading`, `error`, `forbidden` (nobody signed in) or `ready` (the stage and the facts are drawn). */
   readonly view: string;
   readonly codes: readonly string[];
-  readonly pills: readonly string[];
-  /** The four buttons by their words: whether each can be pressed. */
+  /** X61: the verdict on the stage — `ready`, `attention`, `checking`; '' — no stage. */
+  readonly verdict: string;
+  /** The stage's words: «Готово к сменеChatSpace и хаб на связи», or the problem first and its remedy. */
+  readonly stage: string;
+  /** The windows (Spenders, «Новые», «Клавиши») and «Настройки» of the head by their words: whether each can be pressed. */
   readonly buttons: Readonly<Record<string, boolean>>;
   readonly persona: string;
   readonly login: string | null;
@@ -237,7 +240,8 @@ export async function readPopup(): Promise<PopupState> {
     const popup = document.querySelector('.pg-popup');
     const sections = [...(popup?.querySelectorAll('.pg-popup__sec') ?? [])];
     const line = (index: number): string => clean(sections.filter((section) => section.querySelector('.pg-popup__cap') !== null)[index]?.querySelector('.pg-popup__line')?.textContent);
-    const account = sections.find((section) => section.querySelector('.pg-popup__line button.cg-btn') !== null && section.querySelector('.pg-popup__copy') === null) ?? null;
+    const fact = (name: string): Element | null => popup?.querySelector(`[data-pg-fact="${name}"]`) ?? null;
+    const stage = popup?.querySelector('.pg-popup__stage') ?? null;
     const state = popup?.querySelector('.pg-popup__state') ?? null;
     const view =
       popup === null
@@ -249,25 +253,27 @@ export async function readPopup(): Promise<PopupState> {
               state.querySelector('.pg-popup__lead') !== null || state.querySelector('.cg-card:not([role="alert"])') !== null
               ? 'forbidden'
               : 'error'
-            : popup.querySelector('.pg-pills') !== null
+            : stage !== null
               ? 'ready'
               : 'none';
     const buttons: Record<string, boolean> = {};
-    for (const button of popup?.querySelectorAll('.pg-popup__btns .cg-btn') ?? []) {
+    for (const button of popup?.querySelectorAll('.pg-popup__btns .cg-btn, .pg-popup__head .pg-popup__settings') ?? []) {
       // The words of the button itself, without its count or its key.
       const words = clean([...button.childNodes].find((node) => node.nodeType === Node.TEXT_NODE || (node instanceof HTMLElement && !node.matches('.pg-popup__count, .pg-popup__key, kbd')))?.textContent);
       buttons[words] = button.getAttribute('aria-disabled') !== 'true';
     }
+    const account = fact('account');
     return {
       drawn: popup !== null && view !== 'none' && view !== 'loading',
       view,
       codes: [...(popup?.querySelectorAll('[data-cg-code]') ?? [])].map((node) => node.getAttribute('data-cg-code') ?? ''),
-      pills: [...(popup?.querySelectorAll('.pg-pill') ?? [])].map((pill) => clean(pill.textContent)),
+      verdict: stage?.getAttribute('data-pg-verdict') ?? '',
+      stage: clean(stage?.textContent),
       buttons,
       persona: line(0),
-      login: account === null ? null : clean(account.querySelector('.pg-popup__line b')?.textContent),
-      dialog: clean(sections.find((section) => section.querySelector('.pg-popup__copy') !== null || section.querySelector('.pg-popup__line b.pg-muted') !== null)?.querySelector('.pg-popup__line')?.textContent),
-      quota: clean(sections.at(-1)?.querySelector('.pg-popup__line')?.textContent),
+      login: account === null ? null : clean(account.querySelector('dd > b')?.textContent),
+      dialog: clean(fact('dialog')?.querySelector('dd')?.textContent),
+      quota: clean(fact('quota')?.querySelector('dd')?.textContent),
       version: clean(popup?.querySelector('.pg-popup__ver')?.textContent),
       text: clean(popup?.textContent),
       spinners: popup?.querySelectorAll('.cg-spin').length ?? 0,
@@ -303,7 +309,8 @@ export async function openPopup(): Promise<PopupState> {
 export interface ChatSpaceStatus {
   readonly chatspace: StatusRow;
   readonly popupCodes: readonly string[];
-  readonly popupPills: readonly string[];
+  /** X61: the popup's stage, its words. */
+  readonly popupStage: string;
 }
 
 /**
@@ -322,9 +329,9 @@ export async function readChatSpaceStatus(
       return row !== undefined && !['unknown', ''].includes(row.level) && !row.text.includes('проверяется') && wanted(row);
     }, '«Статус» read the tab’s host contract');
     await browser.url(testBuildPage('popup.html'));
-    const popup = await waitForPopup((state) => state.view === 'ready' && !state.pills.join(' ').includes('проверяется'), 'the popup read the tab’s host contract');
+    const popup = await waitForPopup((state) => state.view === 'ready' && state.verdict !== 'checking', 'the popup read the tab’s host contract');
     const row = options.rows['chatspace'];
-    return { chatspace: { level: row?.level ?? '', text: row?.text ?? '', action: row?.action ?? null }, popupCodes: popup.codes, popupPills: popup.pills };
+    return { chatspace: { level: row?.level ?? '', text: row?.text ?? '', action: row?.action ?? null }, popupCodes: popup.codes, popupStage: popup.stage };
   } finally {
     await browser.url(testBuildPage(QUIET_PAGE));
     await tabs.toStand();

@@ -5,7 +5,7 @@
 // - «Включить Fansly»: the install asks for nothing and reaches no Fansly page; one click in the popup grants the
 //   pages and webRequest at once, nothing beyond the bundle; the background registers MAIN then ISOLATED.
 // - The tabs open before it (FS-IDN-4, UP-009): the background's notice in the old document, the popup's count and
-//   «Перезагрузить вкладки»; after an update the same, the notice saying the extension was updated.
+//   «Перезагрузить вкладку»; after an update the same, the notice saying the extension was updated.
 // - Revocation and «Выключить Fansly» in the middle of work (FS-PERM-5): a greeting send not yet requested is
 //   refused with NO POST and the custody hears «not enqueued»; one whose POST left ends by its own rules and is never
 //   repeated; nothing new starts while off; the vault's run stops at its checkpoint — the file in flight lands and is
@@ -132,7 +132,7 @@ describe('«Включить Fansly» and the tabs that wait for a reload: FS-PE
     await popupButton('Выключить Fansly');
   });
 
-  it('[FS-IDN-4] [UP-009] a tab open before the grant, then before an update: the notice in the old document, the popup counts it and «Перезагрузить вкладки» brings our scripts in', async () => {
+  it('[FS-IDN-4] [UP-009] a tab open before the grant, then before an update: the notice in the old document, the popup counts it and «Перезагрузить вкладку» brings our scripts in', async () => {
     // The tab of the previous test: open before the grant, so the background noticed it.
     await stand();
     await waitFor('no notice in the tab opened before the grant', () => hasNotice());
@@ -143,9 +143,9 @@ describe('«Включить Fansly» and the tabs that wait for a reload: FS-PE
     await popup();
     expect((await access()).waitingReload).toBe(1);
     await capturePage('p14c-popup-waiting');
-    await (await popupButton('Перезагрузить вкладки')).click();
+    await (await popupButton('Перезагрузить вкладку')).click();
     // The popup stays open: the tab's handshake takes it off the count.
-    await browser.waitUntil(async () => !(await browser.$('button=Перезагрузить вкладки').isExisting()), { timeout: 15_000, timeoutMsg: 'the count did not clear' });
+    await browser.waitUntil(async () => !(await browser.$('button=Перезагрузить вкладку').isExisting()), { timeout: 15_000, timeoutMsg: 'the count did not clear' });
     await stand();
     await waitForFanslyStandReady();
     await waitForReport((report) => report.rpc?.registered === true, 'our scripts in the reloaded tab');
@@ -163,8 +163,8 @@ describe('«Включить Fansly» and the tabs that wait for a reload: FS-PE
     await browser.newWindow(testBuildPage('popup.html'));
     popupTab = await browser.getWindowHandle();
     expect(await access()).toMatchObject({ enabled: true, granted: true, registered: true, waitingReload: 1 });
-    await (await popupButton('Перезагрузить вкладки')).click();
-    await browser.waitUntil(async () => !(await browser.$('button=Перезагрузить вкладки').isExisting()), { timeout: 15_000, timeoutMsg: 'the count did not clear after the update' });
+    await (await popupButton('Перезагрузить вкладку')).click();
+    await browser.waitUntil(async () => !(await browser.$('button=Перезагрузить вкладку').isExisting()), { timeout: 15_000, timeoutMsg: 'the count did not clear after the update' });
     await stand();
     await waitForFanslyStandReady();
     await waitForReport((report) => report.rpc?.registered === true, 'our scripts after the update');

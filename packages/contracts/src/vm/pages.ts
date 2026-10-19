@@ -35,7 +35,7 @@ export interface PageTagVM {
 }
 
 /**
- * 1.35.0 (X60). One thing the popup asks the person to fix, in words, with its one remedy: «Перезагрузите вкладку
+ * 1.35.0 (X61). One thing the popup asks the person to fix, in words, with its one remedy: «Перезагрузите вкладку
  * ChatSpace» — «Перезагрузить вкладку». `fix` null — nothing to press here (a contract change of the site, a page the
  * team lead has to bind); `busy` — the remedy is running (the tab is being reloaded), its button says so.
  */
@@ -49,7 +49,7 @@ export interface PopupAlertVM {
 }
 
 /**
- * 1.35.0 (X60). The popup's verdict, the stage under the persona — the same three as «Статус»: `ready` (the pond:
+ * 1.35.0 (X61). The popup's verdict, the stage under the persona — the same three as «Статус»: `ready` (the pond:
  * a site connected and the hub answers; `line` names them), `attention` (the gosling's yellow: `alerts`, the first
  * the one to fix first), `checking` (the shade: a tab's report or the hub's health is not in yet).
  */
@@ -60,7 +60,7 @@ export interface PopupVerdictVM {
 }
 
 export interface PopupVM {
-  /** 1.35.0 (X60): the stage under the persona; absent on older producers — the popup reads `problems`. */
+  /** 1.35.0 (X61): the stage under the persona; absent on older producers — the popup reads `problems`. */
   readonly verdict?: PopupVerdictVM;
   /** Per-site pills; absent on older producers. */
   readonly sites?: readonly { readonly host: HostKind; readonly label: string; readonly state: PopupVM['pills']['host']; readonly waitingReload: number }[];

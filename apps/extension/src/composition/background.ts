@@ -1394,6 +1394,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);
   rpc.handle('site.access', async (request) => {
+    // The build's own site has no switch; the popup's «Перезагрузить вкладку» (X61, UP-009) reloads its tabs that got
+    // our scripts late — opened before this version — so the page's own run starts with ours.
+    if (request.host !== OPTIONAL_HOST && request.enabled === undefined) {
+      const stale = rpc.tabs().filter((tab) => tab.request.host === request.host && tab.request.lateInjection);
+      const results = request.reload === true ? await Promise.allSettled(stale.map((tab) => api.tabs.reload(tab.tabId))) : [];
+      const reloaded = results.filter((result) => result.status === 'fulfilled').length;
+      if (request.reload === true) logger.info('bg.tabs', 'stale tabs reloaded', { fields: { asked: stale.length, reloaded } });
+      return ok({ host: request.host, enabled: true, granted: true, registered: true, waitingReload: stale.length - reloaded, ...(request.reload === true ? { reloaded } : {}) });
+    }
     if (request.host !== OPTIONAL_HOST) return fail('CG-UNKNOWN', 'not an optional site');
     try {
       if (request.enabled !== undefined) await siteAccess.setEnabled(request.enabled);

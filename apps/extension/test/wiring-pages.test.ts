@@ -207,6 +207,25 @@ describe('what a page asks of the browser', () => {
     await until(() => storedSettings(w).onboarding.lastSeenVersion === '1.2.3', 'the notes of this version are seen');
   });
 
+  it('[UP-009] X61: the popup’s «Перезагрузить вкладку» — the background reloads the ChatSpace tabs left from the build before the update, and only those', async () => {
+    const w = start();
+    await signInWithPersona(w);
+    // One tab of this build, one opened before the update: its scripts came late.
+    w.tabClient(7);
+    w.tabClient(9, true);
+    const popup = w.page('popup');
+    await until(async () => {
+      const diagnostics = await popup.request('diagnostics.get', {});
+      return diagnostics.ok && diagnostics.payload.tabs.length === 2;
+    }, 'both tabs registered');
+    expect(await popup.request('site.access', { host: 'chatspace' })).toMatchObject({ ok: true, payload: { host: 'chatspace', waitingReload: 1 } });
+    w.fake.tabCalls.length = 0;
+    expect(await popup.request('site.access', { host: 'chatspace', reload: true })).toMatchObject({ ok: true, payload: { waitingReload: 0, reloaded: 1 } });
+    expect(w.fake.tabCalls).toEqual(['reload 9']);
+    // The build's own site has no switch.
+    expect(await popup.request('site.access', { host: 'chatspace', enabled: false })).toMatchObject({ ok: false });
+  });
+
   it('[ST-108] [LG-020] «Выгрузить диагностику» leaves through a Blob: the JSON file, then the short text one — no download permission, nothing of a sign-in in them', async () => {
     const w = start();
     await signInWithPersona(w);

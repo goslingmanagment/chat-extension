@@ -96,7 +96,7 @@ export const NavigationTargetSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('account'), accountHandle: HandleSchema }),
   z.strictObject({ kind: z.literal('surface'), surface: z.enum(OVERLAY_SURFACES), open: z.boolean() }),
   z.strictObject({ kind: z.literal('page'), page: z.enum(['whats-new', 'changelog']) }),
-  /** 1.35.0 (X60): the popup's «Открыть ChatSpace» — the build's own site in a new tab, at its address of the manifest. */
+  /** 1.35.0 (X61): the popup's «Открыть ChatSpace» — the build's own site in a new tab, at its address of the manifest. */
   z.strictObject({ kind: z.literal('site-home') }),
   /** debug-prompt.html with the snapshot's opaque token (DB-007). */
   z.strictObject({ kind: z.literal('debug-prompt'), promptHandle: HandleSchema }),

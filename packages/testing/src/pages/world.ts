@@ -26,7 +26,7 @@ import {
 import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import { CHATSPACE_STATUS_TEXTS } from '@cg/contracts/vm';
 import { type FanslyPages } from '@cg/core/application/hosts/fansly/pages';
-import { createPagesClient, type PageEnv, type PagePorts, type PageTimers, type PagesClient } from '@cg/core/application/pages';
+import { createPagesClient, createSiteAccessControl, type PageEnv, type PagePorts, type PageTimers, type PagesClient } from '@cg/core/application/pages';
 import { withFanslyPageTexts } from '@cg/core/domain/hosts/fansly/i18n/pages';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
@@ -537,7 +537,11 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
   const fansly = fanslyBackground === null || page !== 'options' ? null : fanslyBackground.pages((tone, volume) => background.request('sound.preview', { tone, volume }));
   const client = createPagesClient(env, fansly === null ? ports : { ...ports, siteAccounts: [fansly.accounts] });
   if (fansly !== null) void fansly.control.refresh();
+  // As the composition root gives the popup «Включить Fansly» (P9a; X61: its quiet row at the foot) over the same background.
+  const access = fanslyBackground === null || page !== 'popup' ? null : createSiteAccessControl('fansly-web', fanslyBackground.accessRpc, fanslyBackground.permissions);
+  if (access !== null) void access.refresh();
   const deps: PageDeps = {
+    ...(access === null ? {} : { siteAccess: { control: access, title: FANSLY_PHRASES[language].site } }),
     client,
     i18n: fansly === null ? i18n : withFanslyPageTexts(i18n),
     catalog: createFakeCatalog(ctxOf({ lang: language, platform: env.hotkeyPlatform, now: now() })),

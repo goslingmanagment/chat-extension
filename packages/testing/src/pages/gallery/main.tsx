@@ -9,7 +9,8 @@ import { FANSLY_PAGE_SITES, fanslyPageState } from '../fansly';
 //   ?page=popup|options|debug-prompt|debug-journal
 //   &state=working|troubled|unreachable|signed-out|first-run|read-only|debug|no-chatspace|stale-tabs|same-title|long-title
 //   &theme=light|dark|system  &lang=ru|en  &platform=mac|win  &token=…
-//   &fansly=on|off — R20 P14b1: Fansly's part of the settings (on: switched on, a model, sessions; off: not yet)
+//   &fansly=on|off — R20 P14b1: Fansly's part of the settings (on: switched on, a model, sessions; off: not yet);
+//     on the popup (X61) its quiet switch at the foot, and on: a tab that waits for a reload on the stage
 //   &deep=5000 — the hub takes Recap depth up to 5000 (Fansly's row of «Генерация»)
 // The hash is the page's own: `#appearance`, `#status:CG-QUOTA-DAILY`,
 // `#hub-calls` (the journal). `window.__pages` gives the e2e what it checks.

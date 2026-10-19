@@ -291,7 +291,8 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(status.chatspace.text).toContain('Вставка работает.');
     expect(status.chatspace.text).not.toContain('Копировать');
     expect(status.popupCodes).toContain('CG-HOST-CONTRACT');
-    expect(status.popupPills.join(' ')).toContain('проверен частично');
+    // X61: the popup's stage says the same, with what was not found.
+    expect(status.popupStage).toContain('pendingMessages');
   });
 
   it('[RB-008] [UI-027] ChatSpace lost its composer bridge: only copying is left — the banner with CG-HOST-COMPOSER-MISSING, «Копировать» in place of «Вставить», nothing is written; «Статус» names the anchor', async () => {

@@ -12,13 +12,6 @@ export const RU: I18nCatalog<'ru'> = {
   'status.details.tabs': 'Слушаем {n} из {m} вкладок; без атрибуции: {unknown}',
   'popup.siteLabel': '{site}: {state}',
   'popup.waitingReload': { one: '{n} вкладка ждёт перезагрузки', few: '{n} вкладки ждут перезагрузки', many: '{n} вкладок ждут перезагрузки', other: '{n} вкладки ждут перезагрузки' },
-  'popup.alert.reloadTitle': { one: 'Перезагрузите вкладку {site}', few: 'Перезагрузите вкладки {site}', many: 'Перезагрузите вкладки {site}', other: 'Перезагрузите вкладки {site}' },
-  'popup.alert.reloadBody': {
-    one: 'Расширение обновилось. Черновик в поле сохранится.',
-    few: 'Расширение обновилось. Черновики в полях сохранятся.',
-    many: 'Расширение обновилось. Черновики в полях сохранятся.',
-    other: 'Расширение обновилось. Черновики в полях сохранятся.',
-  },
   'popup.site.reloadBody': {
     one: '{n} вкладка открыта раньше, чем ChatGoose там заработал.',
     few: '{n} вкладки открыты раньше, чем ChatGoose там заработал.',
@@ -1050,6 +1043,9 @@ export const RU: I18nCatalog<'ru'> = {
   'popup.alert.reloadOne': 'Перезагрузить вкладку',
   'popup.alert.reloadMany': 'Перезагрузить вкладки',
   'popup.alert.reloadShort': 'Перезагрузить',
+  'popup.alert.reloadTitleOne': 'Перезагрузите вкладку {site}',
+  'popup.alert.reloadTitleMany': 'Перезагрузите вкладки {site}',
+  'popup.alert.reloadBody': 'Расширение обновилось. Черновик в поле сохранится.',
   'popup.alert.openTitle': 'Откройте {sites}',
   'popup.alert.openBody': 'Spenders, «Новые» и подсказка по клавишам открываются во вкладке сайта.',
   'popup.alert.openFix': 'Открыть {site}',

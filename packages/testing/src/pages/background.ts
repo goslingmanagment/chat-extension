@@ -108,6 +108,8 @@ export class FakePageBackground implements PageRpc {
   readonly calls: RecordedCall[] = [];
   /** Nothing answers at all: every request ends as CG-RUNTIME-UNREACHABLE. */
   unreachable = false;
+  /** X61: the tabs the build's own site has once «Перезагрузить вкладку» reloaded the old build's ones; null — as before. */
+  tabsAfterReload: DiagnosticsSnapshot['tabs'] | null = null;
   /** How long the scripted background takes to answer a request type, ms (the stand: a hub that takes its time). */
   readonly delays = new Map<PageRequestType, number>();
   private readonly failures = new Map<PageRequestType, CgErrorWire[]>();
@@ -306,8 +308,17 @@ export class FakePageBackground implements PageRpc {
     const { state } = this;
     const needsSession = (): PageAnswer<never> | null => (state.session === null ? refuse('CG-AUTH-REQUIRED') : null);
     switch (type) {
-      case 'site.access':
-        return refuse('CG-RUNTIME-UNREACHABLE');
+      case 'site.access': {
+        // X61: the build's own site has no switch; the popup's «Перезагрузить вкладку» reloads its old build's tabs.
+        const request = payload as TabRequestPayload<'site.access'>;
+        if (request.host !== 'chatspace' || request.enabled !== undefined) return refuse('CG-RUNTIME-UNREACHABLE');
+        const updated = state.diagnostics.extension.updated;
+        const stale = updated?.staleTabs ?? 0;
+        if (request.reload === true && updated !== undefined) {
+          state.diagnostics = { ...state.diagnostics, extension: { ...state.diagnostics.extension, updated: { ...updated, staleTabs: 0 } }, tabs: this.tabsAfterReload ?? state.diagnostics.tabs };
+        }
+        return { ok: true, payload: { host: request.host, enabled: true, granted: true, registered: true, waitingReload: request.reload === true ? 0 : stale, ...(request.reload === true ? { reloaded: stale } : {}) } };
+      }
       case 'settings.get':
         return { ok: true, payload: this.settingsState() };
       case 'settings.patch':

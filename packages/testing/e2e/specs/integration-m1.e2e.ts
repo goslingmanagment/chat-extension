@@ -398,9 +398,9 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(accounts.find((row) => row.handle === `chatspace:${accountB}`)).toMatchObject({ page: 'не привязан', tag: null });
 
     const popup = await openPopup();
-    const settled = await waitForPopup((state) => state.view === 'ready' && state.login === WORLD.user.username && state.pills.some((pill) => pill.includes('на связи')), 'the popup of a working shift');
+    const settled = await waitForPopup((state) => state.view === 'ready' && state.login === WORLD.user.username && state.verdict === 'ready', 'the popup of a working shift');
     expect(popup.drawn).toBe(true);
-    expect(settled.pills).toEqual(['ChatSpace: подключён', 'Хаб: на связи']);
+    expect(settled.stage).toBe('Готово к смене ChatSpace и хаб на связи');
     expect(settled.codes).toEqual([]);
     expect(settled.spinners).toBe(0);
     // No sign-in form and no hub address on the popup.
