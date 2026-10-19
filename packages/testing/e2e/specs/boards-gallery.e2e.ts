@@ -258,6 +258,27 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
     }
   });
 
+  it('[X65] a short preview keeps its result and send buttons reachable by scrolling, without the composer overlapping the feed', async () => {
+    for (const viewport of [VIEWPORTS[0], { width: 720, height: 450 }]) {
+      await open('state=11a&theme=dark&lang=ru', viewport);
+      const host = browser.$('[data-host="overlay"]');
+      const send = host.shadow$('.cg-pv [data-cg-part="0"] .cg-pvs__send');
+      await send.scrollIntoView({ block: 'center' });
+      const boxes = await browser.execute(() => ({
+        panel: window.__boards?.box('.cg-pv') ?? null,
+        send: window.__boards?.box('.cg-pv [data-cg-part="0"] .cg-pvs__send') ?? null,
+        middle: window.__boards?.box('.cg-pv__mid') ?? null,
+        tools: window.__boards?.box('.cg-pv__tools') ?? null,
+      }));
+      if (boxes.panel === null || boxes.send === null || boxes.middle === null || boxes.tools === null) throw new Error('the preview did not render');
+      expect(boxes.send.top).toBeGreaterThanOrEqual(boxes.panel.top);
+      expect(boxes.send.top + boxes.send.height).toBeLessThanOrEqual(boxes.panel.top + boxes.panel.height);
+      expect(boxes.tools.top).toBeGreaterThanOrEqual(boxes.middle.top + boxes.middle.height - 1);
+      expect(await send.getText()).toContain('Отправить');
+      await capture(`boards-send-reachable-${viewport.width}x${viewport.height}`);
+    }
+  });
+
   it('[SP-012] a list column of 620 px or less prints the short column headers («Всего»)', async () => {
     const header = async (): Promise<{ width: number; long: string; short: string }> =>
       browser.execute(() => ({

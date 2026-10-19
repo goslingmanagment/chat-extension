@@ -377,9 +377,8 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await ours('modal', '.cg-pvm__price input').setValue('24.99');
     await waitOursText('modal', /^1$/, 'the first pick is the message’s first', { selector: '[data-cg-media="660000004"] .cg-pvm__order' });
     await ours('modal', '[data-cg-media="660000001"] .cg-pvm__free').click();
-    // Finish choosing media: the short preview panel gives its space back to the result. Picks remain attached.
-    await pressOurs('modal', '.cg-pv [data-cg-strip="media"] button', /Медиа/);
-    expect(await oursExists('modal', '.cg-pvm')).toBe(false);
+    // The panel can scroll with the picker open; the send action must remain reachable without closing it.
+    await ours('modal', `${part(0)} .cg-pvs__send`).scrollIntoView({ block: 'center' });
     await waitOursText('modal', 'Отправить + 2 медиа за $24.99', 'the part’s button names what goes with it', { selector: `${part(0)} .cg-pvs__send` });
     await pressSendOf(0);
     await waitSend(0, 'sent', 'the part with its media is sent');

@@ -149,7 +149,7 @@ export function PanelPreview({ fallback }: { readonly fallback: PreviewFallback 
             />
             <WorkZone vm={vm} />
           </div>
-          {/* The composer never scrolls: the strip's «Тон» menu opens upward over the feed. */}
+          {/* The composer stays below the feed; a short panel scrolls as a whole instead of crushing the result. */}
           <div class="cg-pv__tools">
             <div class="cg-pv__compose">
               <DraftField vm={vm} class="has-fix">
@@ -171,14 +171,14 @@ export function PanelPreview({ fallback }: { readonly fallback: PreviewFallback 
 
 // The feed and the work zone keep a readable measure in a wide panel: their padding grows past 920–960 px.
 export const PANEL_CSS = `
-.cg-pv.is-panel { height: 100%; }
+.cg-pv.is-panel { height: 100%; overflow-y: auto; scrollbar-width: thin; overscroll-behavior: contain; }
 .cg-pv.is-panel .cg-pv__head { align-items: center; min-height: 46px; padding: 6px 8px 6px 20px; gap: 4px; }
 .cg-pv.is-panel .cg-pv__who { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 12px; row-gap: 2px; margin-right: 8px; }
 .cg-pv.is-panel .cg-pv__name { flex: 0 1 auto; min-width: 0; }
 .cg-pv.is-panel :is(.cg-pv__money, .cg-pv__meta) { margin-top: 0; gap: 8px; font-size: var(--cg-text-sm); white-space: nowrap; }
 .cg-pv__unread { display: inline-flex; align-items: center; gap: 6px; align-self: center; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); }
 .cg-pv__unread > span { color: var(--cg-ink-2); }
-.cg-pv__mid { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cg-pv__mid { flex: 1 0 180px; min-height: 180px; display: flex; flex-direction: column; }
 .cg-pv.is-panel .cg-feed { padding-inline: max(20px, calc(50% - 460px)); }
 .cg-pv.is-panel .cg-pv__work { max-height: 60%; }
 .cg-pv.is-panel .cg-pv__work > * { margin-inline: max(0px, calc(50% - 480px)); }
