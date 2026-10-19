@@ -17,7 +17,7 @@
 
 import { createEarlyKeyDispatcher, createEarlyNotices, createTabKeyState, type EarlyNotice, type HotkeySink } from '@cg/core/application/hotkeys';
 import { createOverlayState, mirrorDismissible } from '@cg/core/application/navigation';
-import { hotkeyPlatformOf, type DispatcherCommandId, type HotkeyPlatform, type KeyCommand, type KeyRefusal, type OverlayKind } from '@cg/core/domain/hotkeys';
+import { hotkeyPlatformOf, type DispatcherCommandId, type FixKeyState, type HotkeyPlatform, type KeyCommand, type KeyRefusal, type OverlayKind } from '@cg/core/domain/hotkeys';
 import { KEY_PENDING_ATTRIBUTE, createKeyPendingMark, createKeyboardProbe, loadValidation, routeOfLocation, startChatSpaceHost } from '@cg/host-chatspace/isolated';
 
 const readyStateAtStart = document.readyState;
@@ -209,6 +209,11 @@ const api = {
     setOverlay(overlay, open);
     const host = started.mounts.overlay('modal').host;
     return { open: [...overlays.list()], dismissible: host.hasAttribute('data-dismissible-open') };
+  },
+  /** What the runner reports of the open chat's Fix (X58): ⌘↵ / Ctrl+Enter is ours only while one waits. */
+  fix(state: FixKeyState) {
+    keyState.setFix(state);
+    return true;
   },
   focus(target: string) {
     const found = element(target);

@@ -495,8 +495,13 @@ describe('R17 — the early key dispatcher on the stand', () => {
       readonly browserActed: boolean;
     }
 
+    // WebDriver's Return is the main Enter (code Enter), its Enter the keypad's (code NumpadEnter).
     const keycap = (code: string): string =>
-      code.startsWith('Key') ? code.slice(3).toLowerCase() : code.startsWith('Digit') ? code.slice(5) : ({ Period: '.', Comma: ',', BracketRight: ']', Slash: '/', Escape: Key.Escape } as Record<string, string>)[code] ?? code;
+      code.startsWith('Key')
+        ? code.slice(3).toLowerCase()
+        : code.startsWith('Digit')
+          ? code.slice(5)
+          : ({ Period: '.', Comma: ',', BracketRight: ']', Slash: '/', Escape: Key.Escape, Enter: Key.Return, NumpadEnter: Key.Enter } as Record<string, string>)[code] ?? code;
 
     const MOD_NAMES: Record<string, string> = { [Key.Command]: 'Meta', [Key.Control]: 'Control', [Key.Shift]: 'Shift', [Key.Alt]: 'Alt', [Key.Escape]: 'Escape' };
 
@@ -537,6 +542,8 @@ describe('R17 — the early key dispatcher on the stand', () => {
           const plain = item.keys.length === 1 && item.id !== 'close';
           // A side panel covers nothing: on its card the plain letters are in the same context as on the dock's before X44.
           if (plain) await input('overlay', 'fan-panel', true);
+          // ⌘↵ / Ctrl+Enter is ours only while a Fix waits in the open chat (X58): it is judged there.
+          await input('fix', item.id === 'apply-fix' ? 'ready' : null);
           await focusOurs(plain ? 'overlay-card' : 'dock-card');
           await input('clear');
           const before = (await browser.getWindowHandles()).length;
