@@ -2781,6 +2781,32 @@ describe('[RB-010] the port to the background was down: nothing of the boards ac
 });
 
 describe('[NF-001] [NF-002] [NF-004] [NF-007] [NF-008] «Новые»', () => {
+  it('[NF-005] [NF-006] [NF-014] existing incoming history is not «not greeted», even in a short chat with no ChatGoose receipt', async () => {
+    const h = await harness({ config: X8, checkpointFan: '2010' });
+    h.hub.control({
+      op: 'scriptHttp', match: 'route', unscripted: 'model',
+      exchanges: [{ route: 'clientAudienceNew', request: { pageLabel: PAGE.pageLabel, windowHours: 48 }, response: { status: 200, body: await longThread(h, 4, iso(NOW_MS - 60_000)) } }],
+    });
+    await h.dispatch(open('newcomers'));
+    let vm = h.boards.newcomers.getSnapshot(NEWCOMERS);
+    expect(vm.rows.some((row) => row.handle === newcomer('2010'))).toBe(false);
+    expect(vm.tabs.map((tab) => [tab.id, tab.count])).toEqual([['todo', 4], ['all', 5]]);
+    expect(h.boards.newcomers.greeting.greeting('2010')).toEqual({ s: 'replied' });
+    // The next fan has only the outgoing welcome: do not mistake it for a conversation.
+    expect(h.boards.newcomers.greeting.greeting('2011')).toEqual({ s: 'none' });
+    expect(h.boards.newcomers.greeting.hiBlocked('2011')).toBeNull();
+    await h.dispatch({ type: 'SetNewcomersTab', tab: 'all' });
+    await h.dispatch({ type: 'SetNewcomersFilter', filter: 'replied' });
+    vm = h.boards.newcomers.getSnapshot(NEWCOMERS);
+    expect(vm.rows.map((row) => [row.handle, row.greeting.s])).toEqual([[newcomer('2010'), 'replied']]);
+    expect(vm.filters.find((filter) => filter.id === 'replied')).toMatchObject({ count: 1, pressed: true });
+    expect(vm.rows[0]?.batch?.pickable).toBe(false);
+    await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
+    expect(h.boards.preview.getSnapshot(preview('newcomers')).bar.actions.hi).toMatchObject({ enabled: false });
+    expect(await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    expect([count(h, 'op.start'), count(h, 'newcomers.claim')]).toEqual([0, 0]);
+  });
+
   it('[NF-004] [NF-028] opens with one read of the 48-hour window and shows who subscribed, the persona Hi speaks as, and that AI sends nothing by itself', async () => {
     const h = await harness();
     expect(count(h, 'newcomers.list')).toBe(0);
@@ -3399,13 +3425,13 @@ describe('[NF-009] [NF-013] [NF-021] the card of a new fan and the greeting leas
 });
 
 /** The «Новые» page as the hub serves it now, with the first fan's thread `stored` messages long. */
-async function longThread(h: Harness, stored: number): Promise<unknown> {
+async function longThread(h: Harness, stored: number, lastFanMessageAt?: string): Promise<unknown> {
   const token = h.hub.issueToken();
   const response = await hubCall(h.hub.fetch, h.hub.origin, 'clientAudienceNew', { pageLabel: PAGE.pageLabel, windowHours: 48, limit: 100 }, { token });
   const page = (await response.json()) as { items: { thread: { storedMessageCount: number } | null }[] };
   const first = page.items[0];
   if (first === undefined || first.thread === null) throw new Error('the first newcomer has no thread');
-  first.thread = { ...first.thread, storedMessageCount: stored };
+  first.thread = { ...first.thread, storedMessageCount: stored, ...(lastFanMessageAt === undefined ? {} : { lastFanMessageAt }) };
   return page;
 }
 

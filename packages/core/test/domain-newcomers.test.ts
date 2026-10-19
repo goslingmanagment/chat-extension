@@ -244,6 +244,23 @@ describe('[NF-005] [NF-007] rows and greeting statuses', () => {
     expect(progressOfClaim(claimState('claim-uncertain-held', 2))).toMatchObject({ sent: 0, total: 2, uncertainPart: 0 });
   });
 
+  it('[NF-005] [NF-014] a fan who already wrote has a conversation, even without a ChatGoose greeting receipt', () => {
+    const replied = greetingStatus(NONE, undefined, null, true);
+    expect(replied).toEqual({ s: 'replied' });
+    expect(inTab(replied, 'todo')).toBe(false);
+    expect(inTab(replied, 'all')).toBe(true);
+    expect(passesFilter(replied, 'none')).toBe(false);
+    expect(passesFilter(replied, 'replied')).toBe(true);
+    expect(hiBlock(replied)).toBe('replied');
+    // An outgoing welcome alone is not proof that anyone talked to the fan.
+    expect(greetingStatus(NONE, undefined, null, false)).toEqual({ s: 'none' });
+    expect(greetingStatus({ ...NONE, lease: 'owned' }, undefined, null, true)).toEqual(replied);
+    // A real receipt and an unresolved send keep their meaning and recovery controls.
+    expect(greetingStatus({ ...NONE, greeting: 'confirmed' }, undefined, at(5), true)).toEqual({ s: 'greeted', at: at(5) });
+    expect(greetingStatus({ ...NONE, custody: 'uncertain-held' }, undefined, null, true)).toEqual({ s: 'claim-other' });
+    expect(greetingStatus(NONE, { leaseMine: true, heldBy: null, progress: { sent: 1, total: 3, uncertainPart: 1, inFlight: false, sentAt: at(5) } }, null, true)).toEqual({ s: 'stopped', sent: 1, total: 3, part: 2 });
+  });
+
   it('[NF-006] tabs, filters and the search', () => {
     const statuses = rows.map((row) => greetingStatus(row.claim));
     expect(statuses.filter((status) => inTab(status, 'todo'))).toHaveLength(4);

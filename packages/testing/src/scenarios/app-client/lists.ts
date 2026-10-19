@@ -267,6 +267,7 @@ const FILTER_STATES: Record<GreetingFilter, readonly GreetingStatusVM['s'][]> = 
   sending: ['sending'],
   stopped: ['stopped'],
   greeted: ['greeted'],
+  replied: ['replied'],
 };
 
 export function newcomers(ctx: ScenarioCtx, view: VmView, rows: readonly NewcomerRowVM[], patch: Partial<NewcomersVM> = {}): NewcomersVM {
@@ -276,7 +277,7 @@ export function newcomers(ctx: ScenarioCtx, view: VmView, rows: readonly Newcome
     personaLabel: PERSONA.label,
     tab: 'todo',
     tabs: [
-      { id: 'todo', label: msg('newcomers.tab.todo'), count: rows.filter((r) => r.greeting.s !== 'greeted').length },
+      { id: 'todo', label: msg('newcomers.tab.todo'), count: rows.filter((r) => r.greeting.s !== 'greeted' && r.greeting.s !== 'replied').length },
       { id: 'all', label: msg('newcomers.tab.all'), count: rows.length },
     ],
     windowHours: NEWCOMERS_WINDOW_HOURS.default,

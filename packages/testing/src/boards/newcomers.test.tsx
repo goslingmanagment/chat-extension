@@ -65,7 +65,7 @@ describe('«Новые»: the window and the list', () => {
     expect(textOf(status)).toBe('Все статусы 3');
     await flush(() => status.click());
     const filters = ui.$$('.cg-nw__tools [role="menuitemradio"]');
-    expect(filters.map(textOf)).toEqual(['Все статусы3', 'Не поздоровались0', 'Бронь2', 'Отправляются0', 'Остановлены0', 'Поздоровались1']);
+    expect(filters.map(textOf)).toEqual(['Все статусы3', 'Не поздоровались0', 'Бронь2', 'Отправляются0', 'Остановлены0', 'Поздоровались1', 'Фан уже писал0']);
     expect(filters[0]?.getAttribute('aria-checked')).toBe('true');
     await flush(() => (filters[2] as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'SetNewcomersFilter', filter: 'claimed' });
@@ -116,14 +116,15 @@ describe('«Новые»: the window and the list', () => {
       { s: 'sending', sent: 1, total: 3 },
       { s: 'stopped', sent: 1, total: 3, part: 2 },
       { s: 'greeted', at: iso(ctx.now - 60 * MIN) },
+      { s: 'replied' },
     ];
     expect(all.map((item) => item.s)).toEqual([...GREETING_STATUSES]);
-    const fans = [FANS.hubert, FANS.theodore, FANS.marco, FANS.jake, FANS.tomasz, FANS.leo, { key: 'f2099', name: 'Seventh', username: 'seventh' }];
+    const fans = [FANS.hubert, FANS.theodore, FANS.marco, FANS.jake, FANS.tomasz, FANS.leo, { key: 'f2099', name: 'Seventh', username: 'seventh' }, { key: 'f2100', name: 'Eighth', username: 'eighth' }];
     const rows = all.map((greeting, index) => newcomerRow(ctx, fans[index] ?? FANS.leo, 'new', 10 + index, greeting));
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, rows, cardOpen: false })));
     const cells = ui.$$('.cg-nw__st');
-    expect(cells.map(textOf)).toEqual(['не поздоровались', 'бронь: вы', 'бронь: другой чаттерКоллега здоровается. Бронь снимется сама, если ничего не отправит.', 'бронь: вы, в другой вкладке', 'отправлено 1 из 3', 'отправлено 1 из 3, остановлено', 'поздоровались']);
-    expect(cells.map((cell) => [...cell.classList].filter((name) => name.startsWith('is-')).join(' '))).toEqual(['is-act', 'is-act', 'is-2', 'is-2', 'is-busy', 'is-2', '']);
+    expect(cells.map(textOf)).toEqual(['не поздоровались', 'бронь: вы', 'бронь: другой чаттерКоллега здоровается. Бронь снимется сама, если ничего не отправит.', 'бронь: вы, в другой вкладке', 'отправлено 1 из 3', 'отправлено 1 из 3, остановлено', 'поздоровались', 'фан уже писал — продолжите диалог']);
+    expect(cells.map((cell) => [...cell.classList].filter((name) => name.startsWith('is-')).join(' '))).toEqual(['is-act', 'is-act', 'is-2', 'is-2', 'is-busy', 'is-2', '', '']);
     expect(cells[4]?.querySelector('.cg-spin')).not.toBeNull();
     expect(cells[5]?.querySelector('.cg-dot--ink')).not.toBeNull();
     expect(cells[6]?.querySelector('.cg-ico')).not.toBeNull();

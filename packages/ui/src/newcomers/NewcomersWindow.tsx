@@ -120,6 +120,8 @@ function GreetingStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
           {i18n.t('newcomers.status.greeted')}
         </span>
       );
+    case 'replied':
+      return <span class="cg-nw__st">{i18n.t('newcomers.status.replied')}</span>;
     case 'claim-other':
       return <ClaimOther />;
     case 'claim-elsewhere':

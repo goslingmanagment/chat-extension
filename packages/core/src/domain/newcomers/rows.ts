@@ -135,9 +135,10 @@ export function progressOfClaim(state: ClaimState | null): LocalGreeting['progre
  * the row; parts on their way show the progress; every part confirmed (or
  * the hub's fact alone) is «поздоровались»; then the lease — mine, mine in
  * another tab, a colleague's. A colleague's unresolved send holds the fan as
- * their lease does. Otherwise nobody greeted the fan yet.
+ * their lease does. Incoming archive history is a conversation without a ChatGoose greeting receipt; outgoing
+ * messages alone may be automated and do not establish that fact.
  */
-export function greetingStatus(claim: ClaimSummary, local: LocalGreeting = NO_LOCAL_GREETING, greetedAt: IsoTimestamp | null = null): GreetingStatusVM {
+export function greetingStatus(claim: ClaimSummary, local: LocalGreeting = NO_LOCAL_GREETING, greetedAt: IsoTimestamp | null = null, fanWrote = false): GreetingStatusVM {
   const progress = local.progress;
   if (progress !== null && progress.uncertainPart !== null) {
     return { s: 'stopped', sent: progress.sent, total: progress.total, part: progress.uncertainPart + 1 };
@@ -145,6 +146,10 @@ export function greetingStatus(claim: ClaimSummary, local: LocalGreeting = NO_LO
   if (progress !== null && progress.sent >= progress.total && progress.total > 0) return { s: 'greeted', at: progress.sentAt ?? greetedAt };
   if (progress !== null && (progress.sent > 0 || progress.inFlight)) return { s: 'sending', sent: progress.sent, total: progress.total };
   if (claim.greeting === 'confirmed') return { s: 'greeted', at: greetedAt };
+  // An incoming message is direct evidence of a started conversation, even without a ChatGoose send receipt.
+  // Outgoing messages alone prove nothing: the archive may contain only an automatic welcome or a mass message.
+  // An unresolved send still takes priority, so its recovery never disappears behind the history status.
+  if (fanWrote && claim.custody !== 'dispatching' && claim.custody !== 'uncertain-held') return { s: 'replied' };
   if (local.leaseMine) return { s: 'claim-mine' };
   if (local.heldBy !== null) return { s: local.heldBy === 'you-elsewhere' ? 'claim-elsewhere' : 'claim-other' };
   if (claim.lease === 'owned') return { s: 'claim-mine' };
@@ -156,17 +161,18 @@ export function greetingStatus(claim: ClaimSummary, local: LocalGreeting = NO_LO
 
 /** Which statuses a filter button shows (NF-006). */
 export const FILTER_STATUSES: Readonly<Record<GreetingFilter, readonly GreetingStatusVM['s'][]>> = {
-  any: ['none', 'claim-mine', 'claim-other', 'claim-elsewhere', 'sending', 'stopped', 'greeted'],
+  any: ['none', 'claim-mine', 'claim-other', 'claim-elsewhere', 'sending', 'stopped', 'greeted', 'replied'],
   none: ['none'],
   claimed: ['claim-mine', 'claim-other', 'claim-elsewhere'],
   sending: ['sending'],
   stopped: ['stopped'],
   greeted: ['greeted'],
+  replied: ['replied'],
 };
 
-/** «Поздороваться» holds everyone not greeted yet; «Все» everyone. */
+/** «Поздороваться» leaves out confirmed greetings and fans who already wrote; «Все» keeps everyone. */
 export function inTab(status: GreetingStatusVM, tab: NewcomersTab): boolean {
-  return tab === 'all' || status.s !== 'greeted';
+  return tab === 'all' || (status.s !== 'greeted' && status.s !== 'replied');
 }
 
 export function passesFilter(status: GreetingStatusVM, filter: GreetingFilter): boolean {
@@ -179,7 +185,7 @@ export function matchesSearch(row: NewcomerRow, query: string): boolean {
 }
 
 /** Why Hi is off for a row, by its greeting status; null — Hi may start (the hub still decides on its own). */
-export type HiBlock = 'claim-busy' | 'claim-elsewhere' | 'greeted' | 'uncertain' | 'sending';
+export type HiBlock = 'claim-busy' | 'claim-elsewhere' | 'greeted' | 'replied' | 'uncertain' | 'sending';
 
 /**
  * §6.7.9: after the first confirmed part the fan counts as greeted — the
@@ -197,6 +203,8 @@ export function hiBlock(status: GreetingStatusVM): HiBlock | null {
       return 'uncertain';
     case 'greeted':
       return 'greeted';
+    case 'replied':
+      return 'replied';
     case 'sending':
       return status.sent > 0 ? 'greeted' : 'sending';
     case 'none':

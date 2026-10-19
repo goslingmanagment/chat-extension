@@ -36,9 +36,11 @@ export type GreetingStatusVM =
   | { readonly s: 'sending'; readonly sent: number; readonly total: number }
   /** «отправлено 1 из 3, остановлено»: part `part` is uncertain. */
   | { readonly s: 'stopped'; readonly sent: number; readonly total: number; readonly part: number }
-  | { readonly s: 'greeted'; readonly at: IsoTimestamp | null };
+  | { readonly s: 'greeted'; readonly at: IsoTimestamp | null }
+  /** The archive contains an incoming message: continue the conversation instead of a first greeting. */
+  | { readonly s: 'replied' };
 
-export const GREETING_STATUSES = ['none', 'claim-mine', 'claim-other', 'claim-elsewhere', 'sending', 'stopped', 'greeted'] as const satisfies readonly GreetingStatusVM['s'][];
+export const GREETING_STATUSES = ['none', 'claim-mine', 'claim-other', 'claim-elsewhere', 'sending', 'stopped', 'greeted', 'replied'] as const satisfies readonly GreetingStatusVM['s'][];
 
 /** The greeting lease of the open card (H-7: 120 s, renewed every 40 s while the person works). */
 export type ClaimVM =
