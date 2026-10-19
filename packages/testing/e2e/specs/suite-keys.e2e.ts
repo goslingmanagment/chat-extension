@@ -103,7 +103,9 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
   });
 
   describe('in ChatSpace’s own message field', () => {
-    it('[HK-002] [HK-003] [HK-028] ⌘E and ⌘I over a selection start Reply and Fix: TipTap toggles neither inline code nor italic, and the draft is the person’s as it was', async () => {
+    it('[HK-002] [HK-003] [HK-028] ⌘E and ⌘I over a selection start Reply and Fix: TipTap toggles neither inline code nor italic, and a single-part Fix replaces the draft', async () => {
+      // X68 only inserts a single-part Fix automatically; a Split Fix intentionally keeps its parts in the sheet.
+      await shift.patch({ generation: { split: false } });
       const hubMark = await hub().mark();
       await typeDraft('some words of mine');
       await browser.keys([MOD, 'a']);
@@ -111,11 +113,13 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done', 'Reply ran by its key', 20_000);
       expect(await marks(a1)).toMatchObject({ code: false, italic: false });
       await browser.keys([MOD, 'i']);
-      await dockIs((d) => d.result?.feature === 'fix' && d.result.state === 'done', 'Fix ran by its key', 20_000);
+      // X68: Fix by its key, as by its click — the fixed text replaces the draft by itself, plain text in the field.
+      await waitForComposerText(ACC, a1, `Here is a smoother version of your draft. @${a1}`, 'Fix ran by its key and replaced the draft', 20_000);
       expect(await marks(a1)).toMatchObject({ code: false, italic: false });
       // Without us the same keys wrap the selection in <code> and <em> (stand-fixture.e2e.ts).
-      expect((await callStand('composerState', ACC, a1))?.html).toBe('<p>some words of mine</p>');
+      expect((await callStand('composerState', ACC, a1))?.html).not.toMatch(/<code>|<em>/);
       expect(callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').map((call) => (call.request as { feature?: string }).feature)).toEqual(['fast-reply', 'improve-draft']);
+      await shift.patch({ generation: { split: true } });
     });
 
     it('[HK-026] a key that is not ours is ChatSpace’s as before: ⌘B makes the selection bold, and nothing of ours starts', async () => {
@@ -132,9 +136,14 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
 
   describe('with the focus inside our closed roots', () => {
     before(async () => {
+      // Fix above now replaces the draft (X68). Give this insert/undo scenario its own text to restore.
+      await clearDraft();
+      await typeDraft('some words of mine');
       // A Reply with its parts in the dock of the first chat: something of ours to stand on.
       await browser.keys([MOD, 'e']);
       await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.result.parts === 2, 'a Reply with two parts', 20_000);
+      // The person reads before inserting: outside TipTap's 500 ms newGroupDelay, typing and insertion undo separately.
+      await browser.pause(600);
     });
 
     it('[HK-030] Enter on a part of ours is «Вставить»: the part replaces the person’s words by that key (X45), Ctrl/⌘+Z in the field brings them back, and ChatSpace sends nothing', async () => {

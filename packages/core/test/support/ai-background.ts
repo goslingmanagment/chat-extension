@@ -135,6 +135,11 @@ export class FakeBackground {
   readonly dropped = new Map<string, number>();
   /** Failures of the next `op.start` requests, in order: the background refused before any admission (its journal could not be written, its settings are not read). */
   readonly startErrors: CgErrorWire[] = [];
+  /**
+   * X68: the deferred insert token a Fix's click leaves for its result — what the tab's gate answers. `refuse` — the
+   * gate has none (expired, another Fix clicked since): the Fix result is shown with «Заменить мой черновик».
+   */
+  deferredTokens: 'issue' | 'refuse' = 'issue';
   /** Answers of `recap.save`, in order; an empty queue answers `saved`. */
   readonly saveAnswers: ({ readonly state: 'saved' | 'not-ready' | 'rejected'; readonly savedAt: string | null } | { readonly error: CgErrorWire })[] = [];
 
@@ -344,6 +349,7 @@ export class FakeBackground {
       case 'quota.get':
         return ok({ quota: this.scheduler.quota(request['pageId'] as number) });
       case 'token.issue': {
+        if (request['deferred'] === true && this.deferredTokens === 'refuse') return { ok: false, error: { code: 'CG-UI-FAILED', detail: 'no action token' } };
         const issued = this.tokens.issue(tab, request['kind'] as 'generate', request['surface'] as 'dock');
         return ok({ actionToken: issued.actionToken, expiresAt: issued.expiresAt });
       }

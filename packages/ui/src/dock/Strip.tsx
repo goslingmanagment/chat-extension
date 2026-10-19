@@ -221,19 +221,17 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
 
   // ── the capsule: tones and Split ──
   const toneOff = locked ? t('dock.option.toneLocked') : toneReason === null ? null : t('dock.option.toneUnavailable', { reason: i18n.text(toneReason.text) });
+  // X68: a tone is chosen, as in the old extension — the next Reply goes with it; Reply itself is its own click.
+  // A second click on the tone that is already chosen takes it off (AI-006).
   const chooseTone = (id: Tone): void => {
     if (vm.targetHandle === null) return;
-    // A second click on the tone that is already chosen only takes the tone off (AI-006).
-    if (id === tone) run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: null });
-    // A tone runs Reply in it at once (AI-005); with Reply off it is only remembered.
-    else if (vm.actions.reply.enabled) run({ type: 'Generate', targetHandle: vm.targetHandle, feature: 'reply', options: { tone: id } });
-    else run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: id });
+    run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: id });
   };
   const toneKeys = hotkeyText(vm.options.toneHotkey);
   const toneButton = (id: Tone): JSX.Element => {
     const name = t(`dock.tone.${id}`);
     const value = t('dock.option.toneValue', { tone: name });
-    const title = hinted(`${TONE_EMOJI[id]} ${tone === id || !vm.actions.reply.enabled ? value : `${t('dock.action.reply')} · ${value}`}`, t(`dock.hint.tone.${id}`));
+    const title = hinted(`${TONE_EMOJI[id]} ${value}`, t(`dock.hint.tone.${id}`));
     // The last line of a hint: how to take the chosen tone off, or the key that walks the tones without running Reply (AI-008).
     const last = tone === id ? t('dock.hint.toneOff') : toneKeys === null ? null : t('dock.option.toneTooltip', { hotkey: toneKeys.display });
     return (
@@ -333,7 +331,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
               {chip.group === LEAD && quotaText !== null ? <Quota count={quota === 'zero' ? 0 : remaining} text={quotaText} /> : null}
             </span>
             {chip.group !== LEAD ? null : (
-              // The capsule of Reply's options: a click on a tone is Reply in that tone; behind the seam — Split.
+              // The capsule of Reply's options: a tone is chosen for the next Reply (X68); behind the seam — Split.
               <span class="cg-tones">
                 <span class="cg-tones__track" role="group" aria-label={t('dock.option.tone')}>
                   {tones.map(toneButton)}

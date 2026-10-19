@@ -506,7 +506,11 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: ack,
   },
   'token.issue': {
-    req: { valid: [{ kind: 'send', surface: 'preview' }], invalid: [{ kind: 'eval', surface: 'preview' }] },
+    req: {
+      // 1.39.0 (X68): `deferred` — the Fix's own write, asked for when it is done; only ever `true`.
+      valid: [{ kind: 'send', surface: 'preview' }, { kind: 'insert', surface: 'dock', deferred: true }],
+      invalid: [{ kind: 'eval', surface: 'preview' }, { kind: 'insert', surface: 'dock', deferred: false }],
+    },
     res: { valid: [{ actionToken: ACTION_TOKEN, expiresAt: T0 + 5000 }], invalid: [{ actionToken: 'short', expiresAt: T0 }] },
   },
   'token.redeem': {

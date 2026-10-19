@@ -16,9 +16,9 @@
 //   translator, a restored draft) stand only where the write is not the
 //   click's: MAIN's CAS is proven in host-adapter.e2e.ts, the question's
 //   binding in the unit tests;
-// - Fix writes nothing by itself: «Заменить мой черновик» is the explicit
-//   replace, «Вернуть мой текст» restores the person's text only while the
-//   field still holds what Fix wrote, and asks once they changed it;
+// - Fix is the old extension's (X68): one click, nothing opens while it
+//   runs, and its result replaces the draft by itself — one write, through
+//   the token the click left for it, into the chat it was made for;
 // - every write went through ChatSpace's own composer bridge into the field
 //   of the chat it was aimed at; nothing of ours reached the stand's server.
 // The adapter's own rules of the insert have their spec without the extension
@@ -26,12 +26,11 @@
 // gate, the controller, the background's token, the host port, MAIN.
 
 import { $, browser, expect } from '@wdio/globals';
-import { Key } from 'webdriverio';
 
-import { bridgeWrites, clearDraft, composerText, EDITOR, listAnchor, MOD, pageJournal, pageJournalMark, scrollList, sendsOf, twoFrames, typeDraft, waitForComposerText } from '../support/chat';
+import { bridgeWrites, clearDraft, EDITOR, listAnchor, MOD, pageJournal, pageJournalMark, scrollList, sendsOf, twoFrames, typeDraft, waitForComposerText } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
+import { oursExists, oursText, pressOurs } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, composerRoots, dockPlacement, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 import { setViewport } from '../support/visual';
@@ -42,7 +41,6 @@ const { a1, a2 } = STAND_IDS.fans;
 const reply = (fan: string): readonly [string, string] => [`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`];
 const fixed = (fan: string): string => `Here is a smoother version of your draft. @${fan}`;
 const HUMAN_DRAFT = 'В поле ввода уже есть ваш текст.';
-const DRAFT_CHANGED = 'Текст в поле изменился после генерации.';
 
 describe('§12 п. 4 on the wired extension — the dock over the open chat: its place, ChatSpace’s list, the guarded insert, Fix', () => {
   useNetworkTrap();
@@ -236,11 +234,11 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
     });
   });
 
-  describe('Fix: the explicit replace and «Вернуть мой текст» (§6.4 п. 4)', () => {
+  describe('Fix as in the old extension (X68): one click, the result replaces the draft by itself', () => {
     const MINE = 'fix me pls';
 
     before(async () => {
-      // One part: Fix shows the person's text next to the fixed one (a Split Fix is plain parts).
+      // One part: a Split Fix is plain parts, each inserted by its own click.
       await shift.patch({ generation: { split: false } });
       await open(a1);
       await clearDraft();
@@ -248,47 +246,15 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       await dockIs((d) => d.actions['fix'] === true, 'Fix is on: the field holds a draft');
     });
 
-    it('[AI-020] [AI-022] Fix writes nothing by itself: the field keeps the person’s text until «Заменить мой черновик»', async () => {
+    it('[AI-020] [AI-022] [X68] one click on Fix: nothing opens while it runs, then the fixed text replaces the draft — one write, into this chat', async () => {
       const mark = await pageJournalMark();
-      await generate(/^Fix/);
-      const text = await oursText('dock');
-      expect(text).toContain(MINE);
-      expect(text).toContain(fixed(a1));
-      expect(await composerText(ACC, a1)).toBe(MINE);
-      expect(await writesSince(mark)).toEqual([]);
-      await pressOurs('dock', '.cg-dock button', /^Заменить мой черновик/);
-      await waitForComposerText(ACC, a1, fixed(a1), 'the fixed text replaced the draft');
+      await pressOurs('dock', '.cg-strip button', /^Fix/);
+      // The click's own deferred insert: the fixed text replaces the draft once it is ready, no «Заменить» to press.
+      await waitForComposerText(ACC, a1, fixed(a1), 'the fixed text replaced the draft by itself', 20_000);
       expect((await writesSince(mark)).map((write) => write.chatId)).toEqual([a1]);
-    });
-
-    it('[AI-022] «Вернуть мой текст» puts the person’s text back while the field still holds what Fix wrote — and the sheet is as before the replacement', async () => {
-      const mark = await pageJournalMark();
-      await pressOurs('dock', '.cg-dock button', /^Вернуть мой текст/);
-      await waitForComposerText(ACC, a1, MINE, 'the person’s text is back');
-      expect((await writesSince(mark)).map((write) => write.chatId)).toEqual([a1]);
-      // Not «✓ Черновик заменён» over the person's own text: the sheet is as before the replacement, and the Fix can be applied again.
-      await waitOursByText('dock', '.cg-dock button', /^Заменить мой черновик/, 'the replacement is undone on the sheet too');
-      expect(await oursExists('dock', '.cg-fix__acts .cg-done')).toBe(false);
-      const sheet = await oursText('dock', '.cg-fixbox');
-      expect(sheet).toContain(MINE);
-      expect(sheet).toContain(fixed(a1));
-    });
-
-    it('[AI-022] [NEW-05] once the person changed the fixed text, «Вернуть мой текст» asks instead of overwriting it', async () => {
-      await pressOurs('dock', '.cg-dock button', /^Заменить мой черновик/);
-      await waitForComposerText(ACC, a1, fixed(a1), 'the fixed text replaced the draft again');
-      await $(EDITOR).click();
-      await browser.keys([Key.End, '!']);
-      await waitForComposerText(ACC, a1, `${fixed(a1)}!`, 'the person edited the fixed text');
-      const mark = await pageJournalMark();
-      await pressOurs('dock', '.cg-dock button', /^Вернуть мой текст/);
-      await waitOursText('dock', DRAFT_CHANGED, 'the question about the changed draft');
-      expect(await composerText(ACC, a1)).toBe(`${fixed(a1)}!`);
-      expect(await writesSince(mark)).toEqual([]);
-      await pressOurs('dock', '.cg-dock button', /^Отмена/);
-      await waitOursText('dock', DRAFT_CHANGED, 'the question is gone', { gone: true });
-      expect(await composerText(ACC, a1)).toBe(`${fixed(a1)}!`);
-      expect(await writesSince(mark)).toEqual([]);
+      // No sheet showed the Fix: the strip alone.
+      expect(await oursExists('dock', '.cg-fixbox')).toBe(false);
+      await dockIs((d) => d.result === null, 'the dock shows no Fix result');
     });
   });
 });

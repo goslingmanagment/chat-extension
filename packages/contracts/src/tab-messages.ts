@@ -682,9 +682,13 @@ export const TAB_REQUESTS = {
    */
   'debug.open': { req: z.strictObject({ token: boundedText(128) }), res: z.strictObject({ opened: z.boolean() }), from: TAB },
   'health.report': { req: z.strictObject({ report: TabHealthReportSchema }), res: Ack, from: TAB },
-  /** One-time action token for a trusted (`isTrusted`) event inside our closed shadow root (§14). */
+  /**
+   * One-time action token for a trusted (`isTrusted`) event inside our closed shadow root (§14). 1.39.0: `deferred`
+   * — the insert of a Fix the person's click started, asked for by that Fix's own end (X68); the tab's gate answers
+   * it from that click's deferred grant only.
+   */
   'token.issue': {
-    req: z.strictObject({ kind: z.enum(ACTION_TOKEN_KINDS), surface: SurfaceSchema }),
+    req: z.strictObject({ kind: z.enum(ACTION_TOKEN_KINDS), surface: SurfaceSchema, deferred: z.optional(z.literal(true)) }),
     res: z.strictObject({ actionToken: ActionTokenSchema, expiresAt: EpochMsSchema }),
     from: TAB,
   },

@@ -73,16 +73,7 @@ export function GenerationSection({ body, readOnly }: { readonly body: Generatio
             />
           </Opt>
 
-          <Opt label={i18n.t('settings.generation.rememberTone')} hint={i18n.t('settings.generation.rememberToneHint')}>
-            <Checkbox
-              label={i18n.t('settings.generation.rememberTone')}
-              stateWord={i18n.t('settings.generation.on')}
-              checked={body.rememberTone !== false}
-              size={14}
-              reason={locked}
-              onChange={(value) => void act({ type: 'SetPreference', key: 'generation.rememberTone', value }, { quiet: true })}
-            />
-          </Opt>
+          {/* X68: «Помнить тон в чате» is retired — a tone lasts for one Reply, as in the old extension. */}
         </Card>
       }
       aside={
