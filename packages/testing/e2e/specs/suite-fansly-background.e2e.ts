@@ -74,7 +74,7 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
     await pages();
     await browser.waitUntil(async () => ((await captured())?.templates.length ?? 0) > 0, { timeout: 10_000 });
     expect((await access()).waitingReload).toBe(0);
-    await browser.waitUntil(async () => !(await browser.$('button=Перезагрузить вкладки').isExisting()), { timeout: 10_000 });
+    await browser.waitUntil(async () => !(await browser.$('button=Перезагрузить вкладку').isExisting()), { timeout: 10_000 });
     const diagnostic = await pageRpc<{ hostModules: Array<{ host: string; state: string }> }>('diagnostics.get');
     expect(diagnostic.ok && diagnostic.payload.hostModules.find((entry) => entry.host === 'fansly-web')?.state).toBe('started');
     expect(diagnostic.ok && diagnostic.payload.hostModules.find((entry) => entry.host === 'chatspace')?.state).toBe('idle');
@@ -177,12 +177,12 @@ describe('Fansly background: FS-PERM-2, FS-IDN-4, FS-NET-2 wake-up chains', () =
     // Firefox closes extension-page tabs when their add-on is replaced.
     await browser.newWindow(testBuildPage('popup.html')); pagesTab = await browser.getWindowHandle();
     expect(await access()).toMatchObject({ enabled: true, granted: true, registered: true, waitingReload: 1 });
-    const reload = browser.$('button=Перезагрузить вкладки');
+    const reload = browser.$('button=Перезагрузить вкладку');
     await reload.waitForDisplayed();
     await browser.waitUntil(async () => (await reload.getAttribute('aria-busy')) !== 'true', { timeout: 10_000 });
     await reload.click();
     // The popup stays open: the handshake updates its counter without a refresh/focus event.
-    await browser.waitUntil(async () => !(await browser.$('button=Перезагрузить вкладки').isExisting()), { timeout: 10_000 });
+    await browser.waitUntil(async () => !(await browser.$('button=Перезагрузить вкладку').isExisting()), { timeout: 10_000 });
     await stand(); await waitForFanslyStandReady();
     await waitForReport((report) => report.rpc?.registered === true, 'handshake after update');
     await pages(); expect((await access()).waitingReload).toBe(0);

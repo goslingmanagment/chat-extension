@@ -57,7 +57,8 @@ export interface World {
   /** An extension page's client. */
   page(page?: 'options' | 'popup' | 'debug-journal' | 'debug-prompt'): PageRpcClient;
   /** A raw client of the tab protocol in a ChatSpace tab (no runtime): requests of a registered tab. */
-  tabClient(tabId?: number): { readonly client: TabRpcClient; readonly context: FakeContext };
+  /** A ChatSpace tab's client; `lateInjection` — its scripts came after the page loaded (opened before an update). */
+  tabClient(tabId?: number, lateInjection?: boolean): { readonly client: TabRpcClient; readonly context: FakeContext };
   /** The tab's own runtime (composition/tab/runtime.ts) in a ChatSpace tab. */
   tabRuntime(options?: TabOptions): RunningTab;
   /** Stops everything this world started. */
@@ -180,9 +181,9 @@ export function createWorld(
       clients.push(client);
       return client;
     },
-    tabClient(tabId = 7) {
+    tabClient(tabId = 7, lateInjection = false) {
       const context = fake.context(chatSpaceSender(tabId));
-      const client = createTabRpcClient({ api: context.api, validate: parseTabPayload, register: { host: 'chatspace', lateInjection: false, contractsVersion: CONTRACTS_VERSION }, reconnectDelaysMs: [5, 10, 20] });
+      const client = createTabRpcClient({ api: context.api, validate: parseTabPayload, register: { host: 'chatspace', lateInjection, contractsVersion: CONTRACTS_VERSION }, reconnectDelaysMs: [5, 10, 20] });
       clients.push(client);
       return { client, context };
     },

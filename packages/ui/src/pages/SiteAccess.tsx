@@ -1,27 +1,78 @@
-import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+// «Включить Fansly» in the popup (P9a, FS-IDN-4; X61): the optional site's switch a quiet word in the popup's foot,
+// never above the persona; its tabs that wait for a reload are a problem on the popup's stage, with
+// «Перезагрузить вкладку». The control is the composition root's (`site.access` from the page) and live: the click
+// asks the browser for the rights in its own stack (P3b). The page shell names no site — the title is the root's.
+
+import { createContext, type JSX } from 'preact';
+import { useContext, useEffect, useState } from 'preact/hooks';
+
+import type { SiteAccessControl, SiteAccessView } from '@cg/contracts/site-access';
+
 import { Button, ErrorCard, useI18n } from '../kit';
-import type { SiteAccessControl } from '@cg/contracts/site-access';
 
 export interface SiteAccessProps {
   readonly control: SiteAccessControl;
   readonly title: string;
 }
-export function SiteAccess(props: SiteAccessProps): JSX.Element {
+
+const SiteAccessContext = createContext<SiteAccessProps | null>(null);
+export const SiteAccessProvider = SiteAccessContext.Provider;
+
+/** The optional site's control and its live state; null — this page has none. */
+export function useSiteAccess(): { readonly props: SiteAccessProps; readonly view: SiteAccessView } | null {
+  const props = useContext(SiteAccessContext);
+  const [view, setView] = useState<SiteAccessView | null>(props?.control.value ?? null);
+  useEffect(() => {
+    if (props === null) return undefined;
+    setView(props.control.value);
+    return props.control.subscribe(() => setView(props.control.value));
+  }, [props]);
+  return props === null || view === null ? null : { props, view };
+}
+
+/** The site's tabs opened before it was switched on or before an update: how many wait for a reload (0 — none, or off). */
+export function waitingReloadOf(view: SiteAccessView): number {
+  const state = view.state;
+  return state !== null && state.enabled && state.granted ? state.waitingReload : 0;
+}
+
+/**
+ * «Выключить Fansly» / «Включить Fansly» — a quiet word in the foot's one line (X61): the word says the state. The
+ * wrapper keeps the P9a hook `.pg-site-access button` the signed builds' spec presses.
+ */
+export function SiteSwitch(): JSX.Element | null {
   const i18n = useI18n();
-  const [view, setView] = useState(props.control.value);
-  useEffect(() => props.control.subscribe(() => setView(props.control.value)), [props.control]);
+  const access = useSiteAccess();
+  // Not read yet: nothing rather than a switch that may say the opposite of the truth for a moment.
+  if (access === null || access.view.state === null) return null;
+  const { props, view } = access;
   const on = view.state?.enabled === true && view.state.granted;
-  return <section class="pg-card pg-site-access" aria-label={props.title}>
-    <b>{props.title}</b>
-    <Button variant="plain" busy={view.busy} label={i18n.t(on ? 'siteAccess.disable' : 'siteAccess.enable', { site: props.title })} onClick={() => { void (on ? props.control.disable() : props.control.enable()); }} />
-    {(view.state?.waitingReload ?? 0) > 0 && <>
-      <span>{i18n.t('siteAccess.waiting', { count: view.state?.waitingReload ?? 0 })}</span>
-      <Button busy={view.busy} label={i18n.t('siteAccess.reload')} onClick={() => { void props.control.reload(); }} />
-    </>}
-    {view.state?.reloaded !== undefined && <span role="status">{i18n.t('siteAccess.reloaded', { count: view.state.reloaded })}</span>}
-    {view.error !== null && <ErrorCard tone="failure" inline error={{ code: 'CG-RUNTIME-UNREACHABLE', title: i18n.t('cg.runtimeUnreachable.title'), body: i18n.t('cg.runtimeUnreachable.body') }}>
-      <Button busy={view.busy} label={i18n.t('common.retry')} onClick={() => { void props.control.refresh(); }} />
-    </ErrorCard>}
-  </section>;
+  return (
+    <span class="pg-popup__site pg-site-access">
+      <Button
+        variant="plain"
+        size="sm"
+        busy={view.busy}
+        label={i18n.t(on ? 'siteAccess.disable' : 'siteAccess.enable', { site: props.title })}
+        onClick={() => {
+          void (on ? props.control.disable() : props.control.enable());
+        }}
+      />
+    </span>
+  );
+}
+
+/** The switch could not reach the background: said over the foot, with «Повторить». */
+export function SiteSwitchError(): JSX.Element | null {
+  const i18n = useI18n();
+  const access = useSiteAccess();
+  if (access === null || access.view.error === null) return null;
+  const { props, view } = access;
+  return (
+    <div class="pg-popup__site-error">
+      <ErrorCard tone="failure" inline error={{ code: 'CG-RUNTIME-UNREACHABLE', title: i18n.t('cg.runtimeUnreachable.title'), body: i18n.t('cg.runtimeUnreachable.body') }}>
+        <Button busy={view.busy} label={i18n.t('common.retry')} onClick={() => void props.control.refresh()} />
+      </ErrorCard>
+    </div>
+  );
 }

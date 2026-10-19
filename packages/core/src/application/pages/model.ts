@@ -135,6 +135,8 @@ export interface PagesModel {
   readonly systemScheme: ColorScheme;
   /** Popup: new subscribers of the open page in the default window; null — unknown. */
   readonly newcomers: number | null;
+  /** Popup (X61): «Перезагрузить вкладку» is running — the background reloads the old build's tabs, the popup waits for them. */
+  readonly reloadingHost: boolean;
   /** Popup, debug only: today's own AI spend from the hub, micro-USD. */
   readonly aiTodayMicroUsd: number | null;
   /**

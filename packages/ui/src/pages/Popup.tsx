@@ -1,66 +1,24 @@
 // The toolbar popup (ui-design §4.23; architecture.md §9.9; PU-001…PU-022):
 // 360 px, the frame and shadow are the browser's. In the agency identity
-// (X32): the logo, the persona's name in the display face — whose voice this
-// shift writes in — two words on what is connected, one paper-white card with
-// who, where and how much quota, the buttons that open what lives inside
-// ChatSpace and «Настройки» in ink. A background that does not answer is a
-// card with its code, never an endless spinner (PU-001); without a sign-in
-// the popup leads to «Аккаунт» (PU-002).
+// (X32), and since X61 in the order the person reads it: whose voice this
+// shift writes in (the persona's name in the display face), then the verdict —
+// the stage of «Статус», the pond when ready, the gosling's yellow with what to
+// fix and its one remedy — then the facts on one paper-white card and the
+// windows that open inside the site's tab; «Настройки» at the head, the
+// optional site's switch in the one line of the foot. A background that does not
+// answer is a card with its code, never an endless spinner (PU-001); without a
+// sign-in the popup leads to «Аккаунт» (PU-002).
 
 import { type JSX } from 'preact';
+import { useState } from 'preact/hooks';
 
-import { type PopupVM } from '@cg/contracts/vm';
+import { type CgCode, type CgErrorTone } from '@cg/contracts/errors';
+import { type PopupVerdictVM, type PopupVM } from '@cg/contracts/vm';
 
-import { ActionButton, Button, CodeLine, Dot, ErrorCard, Icon, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
-import { ChatGooseLogo } from './brand/art';
+import { Button, Dot, ErrorCard, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
+import { ChatGooseLogo, LostArt, TrioArt } from './brand/art';
 import { PageLayers, PageTag, pageTagText, useAct, usePageServices } from './shared';
-
-function Pill({ label, mark }: { readonly label: string; readonly mark: 'ok' | 'ring' | 'danger' }): JSX.Element {
-  // «ChatSpace: подключён» — the state in strong ink after the colon.
-  const cut = label.indexOf(': ');
-  return (
-    <span class="pg-pill">
-      {mark === 'ok' ? <Icon name="check" size={14} /> : <Dot kind={mark} />}
-      {cut < 0 ? (
-        <b>{label}</b>
-      ) : (
-        <>
-          {label.slice(0, cut + 1)} <b>{label.slice(cut + 2)}</b>
-        </>
-      )}
-    </span>
-  );
-}
-
-function Pills({ vm }: { readonly vm: PopupVM }): JSX.Element {
-  const i18n = useI18n();
-  const host = {
-    connected: ['popup.pill.chatspace.connected', 'ok'],
-    partial: ['popup.pill.chatspace.partial', 'ring'],
-    'copy-only': ['popup.pill.chatspace.copyOnly', 'ring'],
-    closed: ['popup.pill.chatspace.closed', 'ring'],
-    unknown: ['popup.pill.chatspace.unknown', 'ring'],
-  } as const;
-  const hub = {
-    ok: ['popup.pill.hub.online', 'ok'],
-    // The red dot stands next to a failure and its words (ui-design §12 п. 4).
-    down: ['popup.pill.hub.offline', 'danger'],
-    unknown: ['popup.pill.hub.unknown', 'ring'],
-  } as const;
-  const [hostKey, hostMark] = host[vm.pills.host];
-  const [hubKey, hubMark] = hub[vm.pills.hub];
-  return (
-    <div class="pg-pills">
-      {vm.sites === undefined ? <Pill label={i18n.t('popup.pill.chatspace', { state: i18n.t(hostKey) })} mark={hostMark} /> : vm.sites.map((site) => (
-        <span key={site.host} data-pg-site={site.host} class={vm.sites!.length > 1 || site.waitingReload > 0 ? 'pg-site-pill' : undefined}>
-          <Pill label={i18n.t('popup.siteLabel', { site: site.label, state: i18n.t(host[site.state][0]) })} mark={host[site.state][1]} />
-          {site.waitingReload > 0 ? <small>{i18n.plural('popup.waitingReload', site.waitingReload)}</small> : null}
-        </span>
-      ))}
-      <Pill label={i18n.t('popup.pill.hub', { state: i18n.t(hubKey) })} mark={hubMark} />
-    </div>
-  );
-}
+import { SiteSwitch, SiteSwitchError, useSiteAccess, waitingReloadOf } from './SiteAccess';
 
 /** A value that copies itself on a click (PU-007): the id is text the popup already holds. */
 function CopyValue({ text, value, tooltip }: { readonly text: string; readonly value: string; readonly tooltip: string }): JSX.Element {
@@ -96,42 +54,200 @@ function Persona({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
   const persona = vm.persona;
   return (
-    <>
-      <div class="pg-popup__sec pg-popup__hero">
-        <div class="pg-popup__cap">{i18n.t('popup.persona')}</div>
-        {/* The persona's name is what the popup is for: it stands alone in the display face, the page under it; each ends in «…» on its own. */}
-        <div class="pg-popup__line pg-popup__line--fit">
-          <b class={persona.s === 'set' ? undefined : 'pg-popup__none'}>{persona.s === 'set' ? persona.label : persona.s === 'no-persona' ? i18n.t('popup.personaNone') : i18n.t('popup.notConnected')}</b>
-          {persona.s === 'not-connected' ? null : (
-            <span class="pg-popup__aside" title={i18n.t('popup.personaFor', { page: persona.pageName })}>
-              {i18n.t('popup.personaFor', { page: persona.pageName })}
-            </span>
-          )}
-        </div>
-        {/* The platform and the hub's page label — what tells pages of one title apart — on a muted line of their own. */}
-        {persona.s === 'not-connected' || persona.page === undefined ? null : (
-          <div class="pg-popup__under" title={pageTagText(persona.page)}>
-            <PageTag tag={persona.page} />
-          </div>
+    <div class="pg-popup__sec pg-popup__hero">
+      <div class="pg-popup__cap">{i18n.t('popup.persona')}</div>
+      {/* The persona's name is what the popup is for: it stands alone in the display face, the page under it; each ends in «…» on its own. */}
+      <div class="pg-popup__line pg-popup__line--fit">
+        <b class={persona.s === 'set' ? undefined : 'pg-popup__none'}>{persona.s === 'set' ? persona.label : persona.s === 'no-persona' ? i18n.t('popup.personaNone') : i18n.t('popup.notConnected')}</b>
+        {persona.s === 'not-connected' ? null : (
+          <span class="pg-popup__aside" title={i18n.t('popup.personaFor', { page: persona.pageName })}>
+            {i18n.t('popup.personaFor', { page: persona.pageName })}
+          </span>
         )}
       </div>
-    </>
+      {/* The platform and the hub's page label — what tells pages of one title apart — on a muted line of their own. */}
+      {persona.s === 'not-connected' || persona.page === undefined ? null : (
+        <div class="pg-popup__under" title={pageTagText(persona.page)}>
+          <PageTag tag={persona.page} />
+        </div>
+      )}
+    </div>
   );
 }
 
-/** Who is signed in, which dialog is open, how much quota is left: the facts of the shift on one card. */
+/** One thing to fix as the stage draws it: the view model's, or the optional site's tabs that wait for a reload. */
+interface StageAlert {
+  readonly code: CgCode;
+  readonly tone: CgErrorTone;
+  readonly title: string;
+  readonly body: string | null;
+  /** `short` — the remedy's word on the line of a second problem («Перезагрузить»): the line keeps its title. */
+  readonly fix: { readonly label: string; readonly short?: string; readonly busy: boolean; readonly run: () => Promise<unknown> } | null;
+}
+
+/** A producer older than 1.35.0 says no verdict: its problems are the alerts, without remedies. */
+function verdictOf(vm: PopupVM): PopupVerdictVM {
+  if (vm.verdict !== undefined) return vm.verdict;
+  if (vm.problems.length > 0) return { s: 'attention', line: null, alerts: vm.problems.map((problem) => ({ code: problem.code, tone: problem.tone ?? 'state', title: problem.title, body: problem.body, fix: null })) };
+  return { s: vm.pills.host === 'unknown' || vm.pills.hub === 'unknown' ? 'checking' : 'ready', line: null, alerts: [] };
+}
+
+/** The remedy's button: busy while its action runs (the tab reloads, the rights are asked), whoever started it. */
+function Fix({ fix, primary }: { readonly fix: NonNullable<StageAlert['fix']>; readonly primary: boolean }): JSX.Element {
+  const [running, setRunning] = useState(false);
+  return (
+    <Button
+      label={fix.label}
+      // The first problem's remedy is the popup's one black button; another's is a quiet word on its line.
+      {...(primary ? { variant: 'line' as const, class: 'pg-primary' } : { variant: 'quiet' as const, size: 'sm' as const })}
+      busy={fix.busy || running}
+      onClick={() => {
+        setRunning(true);
+        void fix.run().finally(() => setRunning(false));
+      }}
+    />
+  );
+}
+
+/**
+ * The verdict (X61), the stage of «Статус» in the popup's width: «Готово к смене» on the pond with the three
+ * goslings; what to fix on the gosling's yellow — the first in the display face with its remedy as the one black
+ * button, the goose looking back beside it, the rest as quiet lines under it; the shade while a report is not in.
+ */
+function Stage({ vm }: { readonly vm: PopupVM }): JSX.Element {
+  const i18n = useI18n();
+  const act = useAct();
+  const services = usePageServices();
+  const access = useSiteAccess();
+  const verdict = verdictOf(vm);
+  const waiting = access === null ? 0 : waitingReloadOf(access.view);
+  const own: StageAlert[] = verdict.alerts.map((alert) => {
+    const fix = alert.fix;
+    const short = alert.code === 'CG-RUNTIME-RELOADED' ? { short: i18n.t('popup.alert.reloadShort') } : {};
+    return { code: alert.code, tone: alert.tone, title: alert.title, body: alert.body, fix: fix === null ? null : { label: i18n.text(fix.label), ...short, busy: alert.busy === true, run: () => act(fix.action) } };
+  });
+  const site: StageAlert[] =
+    access === null || waiting === 0
+      ? []
+      : [
+          {
+            code: 'CG-RUNTIME-RELOADED',
+            tone: 'state',
+            title: i18n.t(waiting === 1 ? 'popup.alert.reloadTitleOne' : 'popup.alert.reloadTitleMany', { site: access.props.title }),
+            body: i18n.plural('popup.site.reloadBody', waiting, { site: access.props.title }),
+            fix: {
+              label: i18n.t(waiting === 1 ? 'popup.alert.reloadOne' : 'siteAccess.reload'),
+              short: i18n.t('popup.alert.reloadShort'),
+              busy: access.view.busy,
+              run: async () => {
+                await access.props.control.reload();
+                const reloaded = access.props.control.value.state?.reloaded;
+                if (reloaded !== undefined && reloaded > 0) services.success(i18n.t('siteAccess.reloaded', { count: reloaded }), 'site-reload');
+              },
+            },
+          },
+        ];
+  // The optional site's tabs waiting for a reload are where the work is: «Откройте …» would only send the person away.
+  const alerts = site.length === 0 ? own : [...own.filter((alert) => alert.code === 'CG-RUNTIME-RELOADED'), ...site, ...own.filter((alert) => alert.code !== 'CG-RUNTIME-RELOADED' && alert.code !== 'CG-HOST-NOT-READY')];
+  const first = alerts[0];
+  if (first === undefined) {
+    const ready = verdict.s === 'ready';
+    return (
+      <section class="pg-popup__stage" data-pg-verdict={ready ? 'ready' : 'checking'} role="status">
+        <b>{ready ? i18n.t('settings.status.ready') : i18n.t('popup.verdict.checking')}</b>
+        {ready && verdict.line !== null ? <span>{verdict.line}</span> : null}
+        {ready ? <TrioArt class="pg-art" /> : null}
+      </section>
+    );
+  }
+  return (
+    <section class="pg-popup__stage" data-pg-verdict="attention" role="status" aria-label={i18n.t('popup.problems')}>
+      {/* The code is for whoever helps the person: it stays on the card (support, the e2e), in the tooltip, not in the words. */}
+      <div class="pg-popup__alert" data-cg-code={first.code} title={first.code}>
+        <b class="pg-popup__alert-t">{first.title}</b>
+        {first.body === null ? null : <p>{first.body}</p>}
+        {first.fix === null ? null : <Fix fix={first.fix} primary />}
+        <LostArt class="pg-art pg-art--lost" />
+      </div>
+      {alerts.length === 1 ? null : (
+        <ul class="pg-popup__more">
+          {alerts.slice(1).map((alert, index) => (
+            // The rest is a line each — the words in the tooltip: the popup fits the browser's 600 px with two problems.
+            <li key={`${alert.code}-${String(index)}`} data-cg-code={alert.code} title={alert.body === null ? alert.code : `${alert.body} (${alert.code})`}>
+              <Dot kind={alert.tone === 'failure' ? 'danger' : 'ring'} />
+              <b>{alert.title}</b>
+              {alert.fix === null ? null : <Fix fix={{ ...alert.fix, label: alert.fix.short ?? alert.fix.label }} primary={false} />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** The open dialog, the quota and who is signed in: one line each, the word on the left, the value on the right. */
 function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
   const services = usePageServices();
   const act = useAct();
   const quota = vm.quota;
   const signOut = vm.account?.signOut ?? null;
+  // The quota is said once it is known (the old popup's rule: no row beats a made-up number); the hub down is on the stage.
+  const quotaKnown = vm.pills.hub !== 'down' && quota !== null && quota.remaining !== null;
   return (
-    <div class="pg-popup__card">
+    <dl class="pg-popup__facts">
+      <div class="pg-popup__fact" data-pg-fact="dialog">
+        <dt>{i18n.t('popup.dialog')}</dt>
+        {vm.chat === null ? (
+          <dd>
+            <span class="pg-popup__nil">{i18n.t('popup.dialogNone')}</span>
+          </dd>
+        ) : (
+          <dd>
+            <b>
+              {vm.chat.copyIds.fanId === undefined ? (
+                vm.chat.fanName
+              ) : (
+                // 1.20.0 (X47): a fan named by the tab keeps the id in the tooltip of the name, and a click copies it.
+                <CopyValue text={vm.chat.fanName} value={vm.chat.copyIds.fanId} tooltip={vm.chat.copyIds.conversationRef === undefined ? i18n.t('popup.fanId', { id: vm.chat.copyIds.fanId }) : i18n.t('common.copy')} />
+              )}
+              {vm.chat.fanUsername === null ? null : ` @${vm.chat.fanUsername.replace(/^@/, '')}`}
+            </b>
+            <small>
+              {vm.chat.copyIds.conversationRef === undefined ? null : (
+                <>
+                  <CopyValue text={`groupId ${vm.chat.copyIds.conversationRef}`} value={vm.chat.copyIds.conversationRef} tooltip={i18n.t('common.copy')} />
+                  {' · '}
+                </>
+              )}
+              <CopyValue text={vm.chat.hostAccountLabel} value={vm.chat.copyIds.hostAccountId} tooltip={i18n.t('popup.copyAccountId')} />
+              {vm.chat.copyIds.creatorId === null ? null : (
+                <>
+                  {' · '}
+                  <CopyValue text={vm.chat.copyIds.creatorId} value={vm.chat.copyIds.creatorId} tooltip={i18n.t('popup.copyCreatorId')} />
+                </>
+              )}
+            </small>
+          </dd>
+        )}
+      </div>
+      {!quotaKnown || quota === null || quota.remaining === null ? null : (
+        <div class="pg-popup__fact" data-pg-fact="quota">
+          <dt>{i18n.t('popup.quota')}</dt>
+          <dd>
+            {/* PU-009 without amber: the gosling's egg before the number when the quota is low or gone, said in the tooltip. */}
+            <b title={quota.low && quota.resetsAt !== null ? i18n.plural('dock.quota.lowTooltip', quota.remaining, { time: { time: quota.resetsAt } }) : undefined}>
+              {quota.low ? <Dot kind="ring" /> : null}
+              {i18n.t('popup.quotaLeft', { n: quota.remaining })}
+            </b>
+            {quota.resetsAt === null ? null : <small class="pg-popup__by">{i18n.t('popup.quotaReset', { time: { time: quota.resetsAt } })}</small>}
+          </dd>
+        </div>
+      )}
       {vm.account === null || signOut === null ? null : (
-        <div class="pg-popup__sec">
-          <div class="pg-popup__cap">{i18n.t('popup.account')}</div>
-          <div class="pg-popup__line">
+        <div class="pg-popup__fact" data-pg-fact="account">
+          <dt>{i18n.t('popup.account')}</dt>
+          <dd>
             <b>{vm.account.login}</b>
             <Button
               label={i18n.text(signOut.label)}
@@ -150,121 +266,51 @@ function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
                   .then((answer) => (answer === 'confirm' ? act(signOut.action) : null));
               }}
             />
-          </div>
+          </dd>
         </div>
       )}
-      <div class="pg-popup__sec">
-        <div class="pg-popup__cap">{i18n.t('popup.dialog')}</div>
-        {vm.chat === null ? (
-          <div class="pg-popup__line">
-            <b class="pg-muted">{i18n.t('popup.dialogNone')}</b>
-          </div>
-        ) : (
-          <div class="pg-popup__line">
-            <b>
-              {vm.chat.copyIds.fanId === undefined ? (
-                vm.chat.fanName
-              ) : (
-                // 1.20.0 (X47): a fan named by the tab keeps the id in the tooltip of the name, and a click copies it.
-                <CopyValue text={vm.chat.fanName} value={vm.chat.copyIds.fanId} tooltip={vm.chat.copyIds.conversationRef === undefined ? i18n.t('popup.fanId', { id: vm.chat.copyIds.fanId }) : i18n.t('common.copy')} />
-              )}
-              {vm.chat.fanUsername === null ? null : ` @${vm.chat.fanUsername.replace(/^@/, '')}`}
-            </b>
-            <span class="pg-popup__aside">
-              {vm.chat.copyIds.conversationRef === undefined ? null : <><CopyValue text={`groupId ${vm.chat.copyIds.conversationRef}`} value={vm.chat.copyIds.conversationRef} tooltip={i18n.t('common.copy')} />{' · '}</>}
-              <CopyValue text={vm.chat.hostAccountLabel} value={vm.chat.copyIds.hostAccountId} tooltip={i18n.t('popup.copyAccountId')} />
-              {vm.chat.copyIds.creatorId === null ? null : (
-                <>
-                  {' · '}
-                  <CopyValue text={vm.chat.copyIds.creatorId} value={vm.chat.copyIds.creatorId} tooltip={i18n.t('popup.copyCreatorId')} />
-                </>
-              )}
-            </span>
-          </div>
-        )}
-      </div>
-      <div class="pg-popup__sec">
-        <div class="pg-popup__cap">{i18n.t('popup.quota')}</div>
-        <div class="pg-popup__line">
-          {vm.pills.hub === 'down' ? (
-            <>
-              <b>—</b>
-              <span class="pg-popup__aside">{i18n.t('popup.quotaHubDown')}</span>
-            </>
-          ) : quota === null || quota.remaining === null ? (
-            <>
-              <b>{i18n.t('popup.quotaUnknown')}</b>
-              <span class="pg-popup__aside">{i18n.t('popup.quotaAfterFirst')}</span>
-            </>
-          ) : (
-            <>
-              <b>
-                {/* PU-009 without amber: a ring before the number when the quota is low or gone. */}
-                {quota.low ? <Dot kind="ring" /> : null}
-                {i18n.t('popup.quotaLeft', { n: quota.remaining })}
-              </b>
-              {quota.resetsAt === null ? null : <span class="pg-popup__aside">{i18n.t('popup.quotaReset', { time: { time: quota.resetsAt } })}</span>}
-            </>
-          )}
-        </div>
-        {vm.aiTodayLine === null ? null : <div class="pg-sub">{vm.aiTodayLine}</div>}
-      </div>
+      {vm.aiTodayLine === null ? null : <div class="pg-popup__fact pg-popup__fact--note">{vm.aiTodayLine}</div>}
+    </dl>
+  );
+}
+
+/**
+ * Spenders, «Новые» and «Клавиши» open inside the site's tab, in one row: without the tab they are not drawn — the stage
+ * says to open or reload it (X61).
+ */
+function Windows({ vm }: { readonly vm: PopupVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const act = useAct();
+  const windows = vm.buttons.filter((button) => button.action.type !== 'OpenSettings' && button.enabled);
+  if (windows.length === 0) return null;
+  return (
+    <div class="pg-popup__btns">
+      {windows.map((button, index) => {
+        const keys = hotkeyText(button.hotkey);
+        const newcomers = button.action.type === 'Navigate' && button.action.to.kind === 'surface' && button.action.to.surface === 'newcomers';
+        const count = newcomers ? vm.newcomersCount : null;
+        return (
+          <Button
+            key={index}
+            label={i18n.text(button.label)}
+            variant="line"
+            tooltip={count === null ? null : i18n.t('popup.newcomersTooltip', { hours: 48, n: count })}
+            onClick={() => void act(button.action)}
+            trailing={
+              <>
+                {/* The count of «Новые» is not a shortcut: it stands right after the word (§4.23). */}
+                {count === null ? null : <span class="pg-popup__count">{count}</span>}
+                <span class="pg-popup__key">{keys === null ? null : <Kbd>{keys.display}</Kbd>}</span>
+              </>
+            }
+          />
+        );
+      })}
     </div>
   );
 }
 
-function Buttons({ vm }: { readonly vm: PopupVM }): JSX.Element {
-  const i18n = useI18n();
-  const act = useAct();
-  // One primary — «Настройки»; an odd one out among the rest is short and leaves the primary the wider part of its row.
-  const secondary = vm.buttons.filter((button) => button.action.type !== 'OpenSettings');
-  const shape = (button: PopupVM['buttons'][number]): string | null => {
-    if (button.action.type === 'OpenSettings') return secondary.length % 2 === 0 ? 'pg-primary pg-popup__wide' : 'pg-primary';
-    return secondary.length % 2 === 1 && button === secondary[secondary.length - 1] ? 'pg-popup__short' : null;
-  };
-  // Why a button does not work is said on the popup, not only in its tooltip: once per reason, and not again when the
-  // problems above already name the same code («Расширение обновилось»).
-  const shown = new Set(vm.problems.map((problem) => problem.code));
-  const why = [...new Set(vm.buttons.flatMap((button) => (button.enabled || button.reason === null || (button.reason.code !== null && shown.has(button.reason.code)) ? [] : [i18n.text(button.reason.text)])))];
-  return (
-    <>
-      <div class="pg-popup__btns">
-        {vm.buttons.map((button, index) => {
-          const extra = shape(button);
-          const keys = hotkeyText(button.hotkey);
-          const newcomers = button.action.type === 'Navigate' && button.action.to.kind === 'surface' && button.action.to.surface === 'newcomers';
-          const reason = button.enabled ? null : button.reason === null ? i18n.t('common.unknown') : i18n.text(button.reason.text);
-          const count = newcomers ? vm.newcomersCount : null;
-          return (
-            <Button
-              key={index}
-              label={i18n.text(button.label)}
-              variant="line"
-              {...(extra === null ? {} : { class: extra })}
-              reason={reason}
-              tooltip={count === null ? null : i18n.t('popup.newcomersTooltip', { hours: 48, n: count })}
-              onClick={() => void act(button.action)}
-              trailing={
-                <>
-                  {/* The count of «Новые» is not a shortcut: it stands right after the word (§4.23). */}
-                  {count === null ? null : <span class="pg-popup__count">{count}</span>}
-                  <span class="pg-popup__key">{keys === null || reason !== null ? null : <Kbd>{keys.display}</Kbd>}</span>
-                </>
-              }
-            />
-          );
-        })}
-      </div>
-      {why.map((text) => (
-        <p key={text} class="pg-popup__why" role="note">
-          <Dot kind="ring" />
-          {text.charAt(0).toLocaleUpperCase() + text.slice(1)}
-        </p>
-      ))}
-    </>
-  );
-}
-
+/** One line: «Что нового», the optional site's switch (X61: no row of its own), «Обновить статус». */
 function Footer({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
@@ -273,9 +319,7 @@ function Footer({ vm }: { readonly vm: PopupVM }): JSX.Element {
       <button type="button" class="pg-link" onClick={() => void act(vm.links.whatsNew)}>
         {i18n.t('popup.whatsNew')}
       </button>
-      <button type="button" class="pg-link" onClick={() => void act(vm.links.changelog)}>
-        {i18n.t('popup.history')}
-      </button>
+      <SiteSwitch />
       <Button label={vm.refreshing ? i18n.t('popup.refreshing') : i18n.text(vm.refresh.label)} variant="quiet" size="sm" icon="refresh" busy={vm.refreshing} onClick={() => void act(vm.refresh.action)} />
     </div>
   );
@@ -285,14 +329,22 @@ export function Popup(): JSX.Element {
   const vm = useView({ of: 'popup' }).value;
   const i18n = useI18n();
   const dispatch = useDispatch();
+  const act = useAct();
   const view = vm.view;
   const settings = vm.buttons.find((button) => button.action.type === 'OpenSettings') ?? null;
   const plainSignIn = view.s === 'forbidden' && view.error.code === 'CG-AUTH-REQUIRED';
   return (
     <div class="pg-popup" role="main" aria-label="ChatGoose">
+      {/* «Настройки» at the head, in every state (PU-010): the one black button is the stage's remedy, if any (X61). */}
       <div class="pg-popup__head">
         <ChatGooseLogo class="pg-logo" />
-        <span class="pg-popup__ver">{vm.version}</span>
+        {/* The version opens its history (PU-011): the foot keeps one line. */}
+        <button type="button" class="pg-popup__ver" title={i18n.t('popup.history')} aria-label={`${i18n.t('popup.history')} ${vm.version}`} onClick={() => void act(vm.links.changelog)}>
+          {vm.version}
+        </button>
+        {settings === null || view.s === 'loading' ? null : (
+          <Button label={i18n.text(settings.label)} variant="line" size="sm" class="pg-popup__settings" onClick={() => void act(settings.action)} />
+        )}
       </div>
       {view.s === 'loading' ? (
         <div class="cg-state cg-state--loading" role="status" aria-busy="true">
@@ -303,7 +355,6 @@ export function Popup(): JSX.Element {
         <div class="pg-popup__state">
           <ErrorCard tone="failure" error={view.error} inline>
             {view.retry === null ? null : <Button label={i18n.t('common.retry')} variant="line" class="pg-primary" onClick={() => void dispatch(view.retry ?? { type: 'ReloadView', selector: { of: 'popup' } })} />}
-            {settings === null ? null : <ActionButton vm={settings} />}
           </ErrorCard>
         </div>
       ) : view.s === 'forbidden' ? (
@@ -320,21 +371,12 @@ export function Popup(): JSX.Element {
       ) : (
         <>
           <Persona vm={vm} />
-          <Pills vm={vm} />
-          {vm.problems.length === 0 ? null : (
-            <div class="pg-popup__problems" role="status" aria-label={i18n.t('popup.problems')}>
-              {vm.problems.map((problem) => (
-                <div key={problem.code} class="pg-popup__err" data-cg-code={problem.code}>
-                  <CodeLine code={problem.code} class="pg-code" />
-                  {problem.body}
-                </div>
-              ))}
-            </div>
-          )}
+          <Stage vm={vm} />
           <Facts vm={vm} />
-          <Buttons vm={vm} />
+          <Windows vm={vm} />
         </>
       )}
+      <SiteSwitchError />
       <Footer vm={vm} />
       <PageLayers />
     </div>

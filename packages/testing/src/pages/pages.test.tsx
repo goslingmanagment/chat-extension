@@ -100,32 +100,47 @@ afterEach(() => {
 });
 
 describe('popup (ui-design §4.23)', () => {
-  it('[PU-003] [PU-004] [PU-005] [PU-008] [PU-009] a working shift as final-20a draws it', async () => {
+  it('[PU-003] [PU-004] [PU-005] [PU-008] [PU-009] a working shift as final-20a draws it (X61: the verdict on its stage)', async () => {
     const page = await mount('popup');
     expect(page.$('.pg-popup__ver')?.textContent).toBe('0.4.3');
-    expect(page.$$('.pg-pill').map((pill) => pill.textContent)).toEqual(['ChatSpace: подключён', 'Хаб: на связи']);
-    expect(page.$$('.pg-pill .cg-dot')).toHaveLength(0);
-    const rows = page.$$('.pg-popup__sec').map((row) => (row.textContent ?? '').replace(/\s+/g, ' ').trim());
     // Whose persona: the page's title, its platform and the hub's page label (two pages may share a title).
-    expect(rows[0]).toBe('ПерсонаЛора · VIPдля LoraVie VIPOnlyFans · loravie-vip');
-    expect(rows[1]).toBe('Аккаунт ChatGoosechatter1Выйти');
-    expect(rows[2]).toContain('Открыт диалог');
-    expect(rows[2]).toContain('OnlyMonster 1001');
-    expect(rows[3]).toBe('Квота AI на сегодняосталось 12обновится в 03:00');
+    expect((page.$('.pg-popup__hero')?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('ПерсонаЛора · VIPдля LoraVie VIPOnlyFans · loravie-vip');
+    // The verdict: the pond, «Готово к смене» and what answers — no list of pills.
+    expect(page.$('.pg-popup__stage')?.getAttribute('data-pg-verdict')).toBe('ready');
+    expect(page.$('.pg-popup__stage')?.textContent).toBe('Готово к сменеChatSpace и хаб на связи');
+    expect(page.$('.pg-pills')).toBeNull();
+    const fact = (name: string): string => (page.$(`[data-pg-fact="${name}"]`)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    expect(page.$('[data-pg-fact="dialog"] dt')?.textContent).toBe('Диалог');
+    expect(page.$('[data-pg-fact="dialog"] dd > b')?.textContent).toBe('фан 2002');
+    expect([...(page.$('[data-pg-fact="dialog"] dd > small')?.querySelectorAll('button') ?? [])].map((node) => node.textContent)).toEqual(['OnlyMonster 1001', '3003']);
+    expect(fact('quota')).toBe('Квота AIосталось 12обновится в 03:00');
+    expect(fact('account')).toBe('Аккаунт ChatGoosechatter1Выйти');
     // PU-009 without amber: a ring before a low number, no colour.
-    expect(page.$$('.pg-popup__sec')[3]?.querySelector('.cg-dot--ring')).not.toBeNull();
-    expect(page.$$('.pg-popup__btns .cg-btn').map((node) => (node.textContent ?? '').trim())).toEqual(['Spenders⌘⇧M', 'Новые3', 'Клавиши?', 'Настройки']);
+    expect(page.$('[data-pg-fact="quota"] .cg-dot--ring')).not.toBeNull();
+    // The windows in one row; «Настройки» at the head, and no black button while nothing waits for the person.
+    expect(page.$$('.pg-popup__btns .cg-btn').map((node) => (node.textContent ?? '').trim())).toEqual(['Spenders⌘⇧M', 'Новые3', 'Клавиши?']);
+    expect(page.$('.pg-popup__head .pg-popup__settings')?.textContent).toBe('Настройки');
+    expect(page.$$('.pg-primary')).toHaveLength(0);
     expect(page.text()).not.toMatch(/\$\d/);
   });
 
-  it('[PU-006] [PU-022] problems as final-20b: the red dot only next to the failure, each problem with its code', async () => {
+  it('[PU-006] [PU-022] problems as final-20b: the first with its remedy on the yellow stage, the rest a line each, each with its code', async () => {
     const page = await mount('popup', { state: troubledState(), before: (world) => world.background.failNext('bootstrap.get', { code: 'CG-HUB-UNAVAILABLE' }, 5) });
-    expect(page.$$('.pg-pill').map((pill) => pill.textContent)).toEqual(['ChatSpace: только копия', 'Хаб: нет связи']);
-    expect(page.$$('.pg-pill')[0]?.querySelector('.cg-dot--ring')).not.toBeNull();
-    expect(page.$$('.pg-pill')[1]?.querySelector('.cg-dot--danger')).not.toBeNull();
-    expect(page.$$('.pg-popup__err').map((node) => node.getAttribute('data-cg-code'))).toEqual(['CG-HUB-UNAVAILABLE', 'CG-HOST-CONTRACT']);
-    expect(page.$$('.pg-popup__err')[0]?.textContent).toContain('ChatGoose · CG-HUB-UNAVAILABLE');
-    expect(page.text()).toContain('Квота AI на сегодня—хаб не отвечает');
+    const stage = page.$('.pg-popup__stage');
+    expect(stage?.getAttribute('data-pg-verdict')).toBe('attention');
+    expect(page.$$('.pg-popup__stage [data-cg-code]').map((node) => node.getAttribute('data-cg-code'))).toEqual(['CG-HUB-UNAVAILABLE', 'CG-HOST-CONTRACT']);
+    expect(page.$('.pg-popup__alert-t')?.textContent).toBe('Хаб недоступен');
+    // The hub's remedy is the popup's one black button; the code is for whoever helps, in the tooltip.
+    expect(page.$$('.pg-primary').map((node) => node.textContent)).toEqual(['Проверить снова']);
+    expect(page.$('.pg-popup__alert')?.getAttribute('title')).toBe('CG-HUB-UNAVAILABLE');
+    // The red dot only next to the failure: the site's contract is a state, its ring.
+    expect(page.$('.pg-popup__more [data-cg-code="CG-HOST-CONTRACT"] .cg-dot--ring')).not.toBeNull();
+    expect(page.$('.pg-popup__more .cg-dot--danger')).toBeNull();
+    // The hub down: the quota is not guessed, the stage says why.
+    expect(page.$('[data-pg-fact="quota"]')).toBeNull();
+    const before = page.world.background.requests('diagnostics.get').length;
+    await flush(() => button(page, 'Проверить снова').click());
+    expect(page.world.background.requests('diagnostics.get').length).toBeGreaterThan(before);
   });
 
   it('[PU-001] the background does not answer: a card with the code and «Повторить», no spinner', async () => {
@@ -135,13 +150,13 @@ describe('popup (ui-design §4.23)', () => {
     expect(page.$('[aria-busy="true"]')).toBeNull();
     page.world.background.unreachable = false;
     await flush(() => button(page, 'Повторить').click());
-    expect(page.$$('.pg-pill')).toHaveLength(2);
+    expect(page.$('.pg-popup__stage')?.getAttribute('data-pg-verdict')).toBe('ready');
   });
 
   it('[PU-002] not signed in: «Войти» leads to «Аккаунт» in the one settings tab', async () => {
     const page = await mount('popup', { state: signedOutState() });
     expect(page.$('[data-cg-code="CG-AUTH-REQUIRED"]')).not.toBeNull();
-    expect(page.$$('.pg-pill')).toHaveLength(0);
+    expect(page.$('.pg-popup__stage')).toBeNull();
     // The popup says where to sign in — not «через значок расширения», which is the popup the person is looking at.
     expect(page.text()).toContain('Войдите в настройках');
     expect(page.text()).not.toContain('через значок расширения');
@@ -156,7 +171,7 @@ describe('popup (ui-design §4.23)', () => {
     expect(page.$('[data-cg-code="CG-AUTH-REQUIRED"]')).toBeNull();
     expect(page.$$('button').map((node) => (node.textContent ?? '').trim())).not.toContain('Войти');
     await flush(() => button(page, 'Повторить').click());
-    expect(page.$$('.pg-pill')).toHaveLength(2);
+    expect(page.$('.pg-popup__stage')?.getAttribute('data-pg-verdict')).toBe('ready');
     expect(page.text()).toContain('chatter1');
   });
 
@@ -1272,14 +1287,15 @@ describe('debug pages (§9.3)', () => {
 });
 
 describe('the pages in the agency identity (X32)', () => {
-  it('the popup: the logo, the persona’s name first, the facts on one card, «Настройки» the only primary', async () => {
+  it('the popup: the logo, the persona’s name first, the verdict on the stage of «Статус», the facts on one card (X61)', async () => {
     const page = await mount('popup');
     expect(page.$('.pg-popup__head svg.pg-logo')?.getAttribute('aria-label')).toBe('ChatGoose');
     expect(page.$('.pg-popup__hero .pg-popup__line > b')?.textContent).toBe('Лора · VIP');
-    expect(page.$$('.pg-popup__card > .pg-popup__sec')).toHaveLength(3);
-    expect(page.$$('.pg-popup__btns .pg-primary').map((node) => (node.textContent ?? '').trim())).toEqual(['Настройки']);
-    // The odd one out among the rest is short: «Spenders» and «Новые» share a row, «Клавиши» stands beside «Настройки».
-    expect(page.$$('.pg-popup__btns .pg-popup__short').map((node) => (node.textContent ?? '').trim())).toEqual(['Клавиши?']);
+    // The order the person reads: whose voice, then the verdict, then the facts, then the windows.
+    const order = [...(page.$('.pg-popup')?.children ?? [])].map((node) => node.className.split(' ')[0]);
+    expect(order.slice(0, 5)).toEqual(['pg-popup__head', 'pg-popup__sec', 'pg-popup__stage', 'pg-popup__facts', 'pg-popup__btns']);
+    expect(page.$('.pg-popup__stage[data-pg-verdict="ready"] svg.pg-art')).not.toBeNull();
+    expect(page.$$('.pg-popup__facts > .pg-popup__fact')).toHaveLength(3);
   });
 
   it('[ST-020] «Статус»: the verdict on the stage with the goslings, the steps under it, the rows in two columns', async () => {
@@ -1307,23 +1323,50 @@ describe('the pages in the agency identity (X32)', () => {
   });
 });
 
-describe('popup: why Spenders, «Новые» and «Клавиши» do not work', () => {
-  it('[PU-017] no ChatSpace tab: the buttons are off and the popup says why under them, not only in their tooltips', async () => {
+describe('popup: what to fix, and its one remedy (X61)', () => {
+  it('[PU-017] no ChatSpace tab: the windows are not drawn, the stage says to open it and «Открыть ChatSpace» opens it', async () => {
     const state = workingState();
     state.diagnostics = { ...state.diagnostics, tabs: [] };
     const page = await mount('popup', { state });
-    expect(page.$$('.pg-pill').map((pill) => pill.textContent)).toContain('ChatSpace: не подключён');
-    expect(page.$$('.pg-popup__btns .cg-btn[aria-disabled="true"]')).toHaveLength(3);
-    expect(page.$$('.pg-popup__why').map((note) => note.textContent)).toEqual(['Откройте вкладку ChatSpace: эти окна открываются в ней']);
+    expect(page.$('.pg-popup__stage')?.getAttribute('data-pg-verdict')).toBe('attention');
+    expect(page.$('.pg-popup__alert-t')?.textContent).toBe('Откройте ChatSpace');
+    expect(page.$('.pg-popup__alert')?.getAttribute('data-cg-code')).toBe('CG-HOST-NOT-READY');
+    expect(page.$('.pg-popup__btns')).toBeNull();
+    expect(page.$$('.pg-primary').map((node) => node.textContent)).toEqual(['Открыть ChatSpace']);
+    await flush(() => button(page, 'Открыть ChatSpace').click());
+    expect(page.world.browser.record.links).toEqual(['https://chatspace.example.test/']);
   });
 
-  it('[PU-017] a tab left from the build before the update: «Расширение обновилось» once, with what to do', async () => {
+  it('[PU-017] [UP-009] a tab left from the build before the update: «Перезагрузите вкладку ChatSpace», and its button reloads it — busy until the tab is back', async () => {
+    const working = workingState();
     const state = workingState();
     state.diagnostics = { ...state.diagnostics, tabs: [], extension: { ...state.diagnostics.extension, updated: { at: new Date(PAGES_NOW).toISOString(), from: '0.4.2', staleTabs: 1 } } };
     const page = await mount('popup', { state });
-    expect(page.$('.pg-popup__problems [data-cg-code="CG-RUNTIME-RELOADED"]')?.textContent).toContain('Расширение обновилось. Перезагрузите вкладку');
-    // The problems above name it already: no second line under the buttons.
-    expect(page.$$('.pg-popup__why')).toHaveLength(0);
-    expect(page.$$('.pg-popup__btns .cg-btn[aria-disabled="true"]')).toHaveLength(3);
+    expect(page.$('.pg-popup__alert')?.getAttribute('data-cg-code')).toBe('CG-RUNTIME-RELOADED');
+    expect(page.$('.pg-popup__alert-t')?.textContent).toBe('Перезагрузите вкладку ChatSpace');
+    expect(page.$('.pg-popup__alert p')?.textContent).toBe('Расширение обновилось. Черновик в поле сохранится.');
+    // Only the reload: not «Откройте ChatSpace» as well — the tab is there.
+    expect(page.$$('.pg-popup__stage [data-cg-code]')).toHaveLength(1);
+    expect(page.$('.pg-popup__btns')).toBeNull();
+    page.world.background.tabsAfterReload = working.diagnostics.tabs;
+    await flush(() => button(page, 'Перезагрузить вкладку').click());
+    expect(page.world.background.requests('site.access')).toEqual([{ host: 'chatspace', reload: true }]);
+    // The background reloaded it; the popup watches for the tab, its button busy, the card staying.
+    expect(button(page, 'Перезагрузить вкладку').getAttribute('aria-busy')).toBe('true');
+    await flush(() => vi.advanceTimersByTime(1_000));
+    await flush();
+    expect(page.$('.pg-popup__stage')?.getAttribute('data-pg-verdict')).toBe('ready');
+    expect(page.$$('.pg-popup__btns .cg-btn')).toHaveLength(3);
+  });
+
+  it('[PU-004] a page without a persona: the stage asks to choose one, «Выбрать персону» opens «Персоны»', async () => {
+    const state = workingState();
+    state.settings = { ...state.settings, personas: { ...state.settings.personas, byPageId: {} } };
+    const page = await mount('popup', { state });
+    expect(page.$('.pg-popup__hero .pg-popup__line > b')?.textContent).toBe('Аккаунт без персоны');
+    expect(page.$('.pg-popup__alert')?.getAttribute('data-cg-code')).toBe('CG-PERSONA-UNASSIGNED');
+    expect(page.$('.pg-popup__alert-t')?.textContent).toBe('Нет персоны');
+    await flush(() => button(page, 'Выбрать персону').click());
+    expect(page.world.browser.record.opened).toEqual([{ page: 'options', hash: 'personas:CG-PERSONA-UNASSIGNED' }]);
   });
 });

@@ -57,7 +57,7 @@ import { debugPromptView, isPromptToken, journalArtifact, journalText, journalVi
 import { optionsView } from './view-options';
 import { popupView } from './view-popup';
 import { pageIdOfHandle } from './view-sections';
-import { errorReport, statusReport } from './view-status';
+import { errorReport, hostReportOf, statusReport } from './view-status';
 /** «Проверить всё» not more often than this (ST-033). */
 export const RECHECK_MIN_INTERVAL_MS = 10_000;
 /** The re-check when the page gets focus again, not more often than this (ST-038). */
@@ -81,6 +81,13 @@ export const BINDING_RESOLVE_CONCURRENCY = 8;
  */
 export const BINDING_RETRY_MS = 1_000;
 export const BINDING_RETRY_TRIES = 30;
+
+/**
+ * The popup's «Перезагрузить вкладку» (X61): after the background reloaded the old build's tabs, the popup reads the
+ * state again this often until a tab of the site is back with no old one left, at most `RELOAD_WATCH_TRIES` times.
+ */
+export const RELOAD_WATCH_MS = 1_000;
+export const RELOAD_WATCH_TRIES = 15;
 
 /** Runs `task` over `items`, at most `limit` at a time. */
 async function pooled<T>(items: readonly T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
@@ -195,6 +202,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   /** The hub address write still on its way: a sign-in clicked meanwhile waits for it and learns how it ended. */
   let addressWrite: Promise<WriteOutcome> | null = null;
   let newcomers: number | null = null;
+  let reloadingHost = false;
   let aiTodayMicroUsd: number | null = null;
   let fanLabels: ReadonlyMap<string, string> = new Map();
   let localSpend: PagesModel['localSpend'] = null;
@@ -343,6 +351,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       location: location.value,
       systemScheme: ports.systemScheme.value,
       newcomers,
+      reloadingHost,
       aiTodayMicroUsd,
       fanLabels,
       localSpend,
@@ -1028,6 +1037,12 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       if (to.page === 'whats-new' && effectiveSettings()?.onboarding.lastSeenVersion !== env.version) void write('Navigate', { onboarding: { lastSeenVersion: env.version } }, 'now');
       return done('Navigate', { outcome: 'opened' });
     }
+    if (to.kind === 'site-home') {
+      // X61: «Открыть ChatSpace» — the build's own site at its address of the manifest, in a new tab of its own.
+      if (!ports.openLink(`${env.hostOrigin}/`)) return code('Navigate', 'CG-NAV-FAILED');
+      if (env.page === 'popup') ports.window.close?.();
+      return done('Navigate', { outcome: 'opened' });
+    }
     if (to.kind === 'surface') {
       if (!to.open || (to.surface !== 'spenders' && to.surface !== 'newcomers' && to.surface !== 'cheatsheet')) return code('Navigate', 'CG-NAV-FAILED');
       return tabCommand('Navigate', { kind: 'surface', surface: to.surface });
@@ -1165,7 +1180,30 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       return done('ReloadView');
     }
     if (action.type === 'ReloadTab') {
-      await open();
+      const own = env.sites[0]?.kind;
+      if (env.page !== 'popup' || own === undefined) {
+        await open();
+        return done('ReloadTab');
+      }
+      // The popup's «Перезагрузить вкладку» (X61, UP-009): the background reloads the site's tabs left from the build
+      // before the update. The card stays busy until a tab is back — not «Откройте ChatSpace» while it loads.
+      reloadingHost = true;
+      emit();
+      try {
+        const answer = await ask('site.access', { host: own, reload: true });
+        if (!answer.ok) return fail('ReloadTab', answer.error);
+        const back = (): boolean => (valueOf(diagnostics)?.extension.updated?.staleTabs ?? 0) === 0 && (hostReportOf(model(), own)?.tabs ?? 0) > 0;
+        for (let attempt = 0; attempt < RELOAD_WATCH_TRIES && !disposed; attempt += 1) {
+          await new Promise<void>((resolve) => timers.set(resolve, RELOAD_WATCH_MS));
+          await Promise.all([loadDiagnostics(), loadAccounts(), loadSiteAccounts()]);
+          if (back()) break;
+        }
+        await loadBindings(false);
+        await loadPopupExtras();
+      } finally {
+        reloadingHost = false;
+        emit();
+      }
       return done('ReloadTab');
     }
     if (action.type === 'ReloadSurface') {

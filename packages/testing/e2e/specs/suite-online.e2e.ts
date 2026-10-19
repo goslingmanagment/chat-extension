@@ -239,7 +239,7 @@ describe('CS-030 on the wired extension — the palette’s «Онлайн» ope
     expect(waiting.chatspace.text).not.toContain('частично');
     expect(waiting.chatspace.text).not.toContain('composerTranslator');
     expect(waiting.popupCodes).not.toContain('CG-HOST-CONTRACT');
-    expect(waiting.popupPills.join(' ')).toContain('подключён');
+    expect(waiting.popupStage).toContain('ChatSpace и хаб на связи');
 
     // The person opens a chat of their own and closes it: ChatSpace created what its sending reads, and keeps it.
     await callStand('openChat', ACC, a1);
@@ -249,7 +249,7 @@ describe('CS-030 on the wired extension — the palette’s «Онлайн» ope
     const ready = await readChatSpaceStatus(shift, (row) => !row.text.includes('заработает'));
     expect(ready.chatspace.level).toBe('ok');
     expect(ready.chatspace.text).toContain('проверены в');
-    expect(ready.popupPills.join(' ')).toContain('подключён');
+    expect(ready.popupStage).toContain('ChatSpace и хаб на связи');
 
     // The window of the same fan again: its Ping is there, and «Отправить» is available now. Nothing is pressed.
     const standMark = await standServer.mark();

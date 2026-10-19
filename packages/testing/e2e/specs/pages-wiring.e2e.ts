@@ -195,19 +195,19 @@ describe('the extension pages wired: the popup and the settings of the installed
     expect((await hub().journal(hubStart)).entries).toEqual([]);
   });
 
-  it('[PU-013] [PU-015] a sign-in on the settings page redraws the open popup without a reload: the account, a hub that answers, and the buttons that need ChatSpace are off with their reason', async () => {
+  it('[PU-013] [PU-015] a sign-in on the settings page redraws the open popup without a reload: the account, and — no ChatSpace tab — «Откройте ChatSpace» in place of the windows that open in it', async () => {
     await settingsTab();
     await submitSignIn(WORLD.user.username, PASSWORD);
     await waitForOptions((state) => !state.gate && state.rows['account']?.level === 'ok', 'signed in');
     await assignPersona(PAGE);
     await toPopup();
-    const popup = await waitForPopup((state) => state.view === 'ready' && state.login === WORLD.user.username && state.pills.some((pill) => pill.includes('на связи')), 'the popup after the sign-in');
-    expect(popup.pills).toEqual(['ChatSpace: не подключён', 'Хаб: на связи']);
-    expect(popup.codes).toEqual([]);
-    // Spenders, «Новые» and the cheatsheet live inside ChatSpace: without a tab there is nowhere to open them — and the
-    // popup says so under them, not only in their tooltips (0.2.4).
-    expect(popup.buttons).toEqual({ Spenders: false, Новые: false, Клавиши: false, Настройки: true });
-    expect(popup.text).toContain('Откройте вкладку ChatSpace: эти окна открываются в ней');
+    const popup = await waitForPopup((state) => state.view === 'ready' && state.login === WORLD.user.username && state.verdict === 'attention', 'the popup after the sign-in');
+    // X61: Spenders, «Новые» and the cheatsheet live inside ChatSpace — without a tab they are not drawn, and the stage
+    // says what to do, with its one remedy.
+    expect(popup.codes).toEqual(['CG-HOST-NOT-READY']);
+    expect(popup.stage).toContain('Откройте ChatSpace');
+    expect(popup.stage).toContain('Открыть ChatSpace');
+    expect(popup.buttons).toEqual({ Настройки: true });
     expect(popup.persona).toContain('Не подключено');
     await capturePage('ext-popup-no-chatspace');
   });
@@ -283,7 +283,7 @@ describe('the extension pages wired: the popup and the settings of the installed
     expect(status.plate).toBeNull();
   });
 
-  it('[PU-005] [PU-008] [PU-017] a working shift: the popup names the persona, the open dialog and both connections, and «Spenders» opens the board inside the ChatSpace tab', async () => {
+  it('[PU-005] [PU-008] [PU-017] a working shift: the popup names the persona, the open dialog and «Готово к смене», and «Spenders» opens the board inside the ChatSpace tab', async () => {
     standTab = (await browser.createWindow('tab')).handle;
     await browser.switchToWindow(standTab);
     await openStand(chatPath(accountA, a1));
@@ -303,11 +303,11 @@ describe('the extension pages wired: the popup and the settings of the installed
     // X47 (1.20.0): the fan by the name the tab knows. The popup reads the names as it opens and again whenever the
     // background hears a new one (`fans.changed`), whichever comes first — so the test waits on what the popup shows.
     const working = await waitForPopup(
-      (state) => state.view === 'ready' && state.pills[0] === 'ChatSpace: подключён' && !state.persona.includes('Не подключено') && state.dialog.includes(A1_NAME),
+      (state) => state.view === 'ready' && state.verdict === 'ready' && !state.persona.includes('Не подключено') && state.dialog.includes(A1_NAME),
       'the popup of a working shift, the open chat’s fan named',
     );
     expect(popup.drawn).toBe(true);
-    expect(working.pills).toEqual(['ChatSpace: подключён', 'Хаб: на связи']);
+    expect(working.stage).toBe('Готово к смене ChatSpace и хаб на связи');
     expect(working.codes).toEqual([]);
     expect(working.persona).toContain(WORLD.pages.one.title);
     // PU-008: the fan by the name the tab knows (the stand's «Fan Alder»), not «фан 74001001»; the id is one click away —
@@ -315,7 +315,7 @@ describe('the extension pages wired: the popup and the settings of the installed
     expect(working.dialog).toContain(A1_NAME);
     expect(
       await browser.execute((name) => {
-        const button = [...document.querySelectorAll('.pg-popup__line b .pg-popup__copy')].find((node) => node.textContent?.trim() === name);
+        const button = [...document.querySelectorAll('[data-pg-fact="dialog"] dd > b .pg-popup__copy')].find((node) => node.textContent?.trim() === name);
         const tip = button?.getAttribute('aria-describedby');
         return tip === null || tip === undefined ? null : (document.getElementById(tip)?.textContent ?? null);
       }, A1_NAME),

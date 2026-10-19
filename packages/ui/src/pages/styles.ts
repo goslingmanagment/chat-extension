@@ -140,42 +140,29 @@ ${/* ST-016: a store newer than this build — every control reads «look, do no
 .pg-page .cg-seg__b[aria-disabled="true"], .pg-page .pg-step:has([aria-disabled="true"]):not(:has(.pg-step__b:not([aria-disabled="true"]))), .pg-page .pg-choice[aria-disabled="true"], .pg-page .pg-pick[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .cg-root--page .cg-toast { border-radius: 14px; }
 
-/* ── popup (§4.23): the persona's name in the display face, the facts on one paper-white card ── */
+/* ── popup (§4.23, X61): the persona's name in the display face, the verdict on its stage, the facts on one card ── */
 /* Firefox makes the panel under the button as wide as the document itself asks for, and the root is a size container
    (.cg-root): by itself it asks for nothing, and the panel opens as a line 0 px wide. So the popup's root says its
    width; where the browser gives the width (the overflow menu of a narrow window) the root just fills it. */
 .cg-root--page[data-cg-surface="popup"] { contain-intrinsic-inline-size: 360px; }
-.pg-site-access { box-sizing: border-box; max-width: 520px; margin: 12px; padding: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.pg-site-access > .cg-card { flex-basis: 100%; }
-:root:has(.pg-popup) .pg-site-access { max-width: 336px; }
 .pg-popup { width: 360px; max-width: 100%; font-size: 14px; line-height: 20px; color: var(--cg-ink-2); background: var(--cg-surface); overflow: hidden; }
-.pg-popup__head { display: flex; align-items: flex-end; gap: 10px; padding: 16px 16px 2px; }
-.pg-popup__head .pg-logo { width: 116px; }
-.pg-popup__ver { margin-left: auto; padding-bottom: 2px; font-size: 12.5px; line-height: 16px; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
-.pg-popup__hero { padding: 16px 16px 0; min-width: 0; }
-.pg-popup__hero .pg-popup__cap { font-size: 13px; color: var(--cg-ink-muted); }
+.pg-popup__head { display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 12px 16px 0; }
+.pg-popup__head .pg-logo { width: 108px; }
+.pg-popup__ver { align-self: flex-end; margin: 0 0 1px; padding: 0; border: 0; border-radius: 4px; background: none; font: inherit; font-size: 12.5px; line-height: 16px; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; cursor: pointer; }
+.pg-popup__ver:hover { color: var(--cg-ink-strong); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 0.22em; }
+.pg-popup__head .pg-popup__settings { margin-left: auto; height: 30px; padding: 0 12px; }
+${/* The persona: a small word in capitals over the name in the display face, the page and its tag under it. */ ''}
+.pg-popup__sec.pg-popup__hero { padding: 12px 16px 0; min-width: 0; }
+.pg-popup__hero .pg-popup__cap { font-size: 11.5px; line-height: 16px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--cg-ink-muted); }
 .pg-popup__hero .pg-popup__line { display: block; }
-.pg-popup__hero .pg-popup__line > b { display: block; margin-top: 1px; font-size: 27px; line-height: 34px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-popup__hero .pg-popup__line > b { display: block; margin-top: 1px; font-size: 29px; line-height: 35px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pg-popup__hero .pg-popup__line > b.pg-popup__none { color: var(--cg-ink-muted); }
-.pg-popup__hero .pg-popup__line--fit > .pg-popup__aside { display: block; min-width: 0; text-align: left; color: var(--cg-ink-2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-popup__hero .pg-popup__line--fit > .pg-popup__aside { display: block; min-width: 0; text-align: left; color: var(--cg-ink-2); font-size: 14px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pg-popup__hero .pg-popup__under { margin-top: 0; text-align: left; }
-.pg-pills { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 12px 16px 14px; }
-.pg-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--cg-ink-2); white-space: nowrap; }
-.pg-pill b { font-weight: 600; color: var(--cg-ink-strong); }
-.pg-pill .cg-ico { color: var(--cg-ink-strong); }
-.pg-popup__card { margin: 0 16px; padding: 0 14px; border-radius: 14px; background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--pg-line); }
-.pg-popup__card > .pg-popup__sec { padding: 11px 0 12px; }
-${/* On the card a value keeps its words whole and the note beside it goes to a line of its own when both do not fit. */ ''}
-.pg-popup__card .pg-popup__line { flex-wrap: wrap; column-gap: 12px; row-gap: 0; }
-.pg-popup__card .pg-popup__line > b { flex: 0 1 auto; max-width: 100%; }
-.pg-popup__card .pg-popup__aside { margin-left: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.pg-popup__card > .pg-popup__sec + .pg-popup__sec { border-top: 1px solid var(--cg-rule); }
 .pg-popup__sec { padding: 10px 16px; min-width: 0; }
 .pg-popup__cap { font-size: 12.5px; line-height: 18px; color: var(--cg-ink-muted); }
 .pg-popup__line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
-.pg-popup__line > b, .pg-popup__main { font-weight: 600; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.pg-popup__line > b .cg-dot { margin-right: 7px; vertical-align: 1px; }
-.pg-popup__line .cg-btn--quiet { height: 22px; margin: -2px -6px -2px 0; font-size: 13px; color: var(--cg-ink-muted); }
+.pg-popup__line > b { font-weight: 600; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .pg-popup__aside { flex: none; color: var(--cg-ink-muted); font-size: 12.5px; white-space: nowrap; }
 /* A row whose right side is somebody's free text (a page title): it gives way first and ends in «…»; the name on the
    left is cut only once the title is down to its 30 %, so neither is ever squeezed out and the row never grows. */
@@ -184,27 +171,59 @@ ${/* On the card a value keeps its words whole and the note beside it goes to a 
 .pg-popup__under { margin-top: 1px; min-width: 0; font-size: 13px; color: var(--cg-ink-muted); text-align: right; }
 /* The tag is its own box of the row's width: a long label ends in «…» inside it and never reaches past the popup. */
 .pg-popup__under .pg-pagetag { display: block; font-size: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+${/* X61: the verdict on the stage of «Статус» in the popup's width — the pond when ready, the gosling's yellow when
+   something waits for the person, the shade while a report is not in. The words take the stage's own ink. */ ''}
+.pg-popup__stage { position: relative; margin: 14px 16px 0; padding: 13px 16px 15px; border-radius: 18px; background: var(--pg-pond); color: var(--pg-on-pond); overflow: hidden; }
+.pg-popup__stage[data-pg-verdict="attention"] { background: var(--pg-down); color: var(--pg-on-down); }
+.pg-popup__stage[data-pg-verdict="checking"] { padding-bottom: 14px; background: var(--pg-shade); color: var(--cg-ink-strong); }
+.pg-popup__stage > b, .pg-popup__alert-t { display: block; font-family: var(--pg-display); font-weight: 800; font-variant-numeric: lining-nums; font-size: 19px; line-height: 24px; letter-spacing: -0.014em; color: inherit; text-wrap: balance; }
+.pg-popup__stage > span { display: block; margin-top: 2px; font-size: 13.5px; line-height: 19px; color: inherit; }
+.pg-popup__stage[data-pg-verdict="checking"] > b { font-size: 17px; line-height: 22px; }
+.pg-popup__stage[data-pg-verdict="ready"] { min-height: 44px; padding-right: 130px; }
+.pg-popup__stage[data-pg-verdict="ready"] > .pg-art { position: absolute; right: 12px; bottom: 0; width: 112px; }
+.pg-popup__alert { position: relative; min-height: 60px; }
+${/* The goose stands beside the remedy, below the words: they take the stage's whole width. */ ''}
+.pg-popup__alert-t { padding-right: 8px; }
+.pg-popup__alert > .cg-btn { max-width: calc(100% - 64px); }
+.pg-popup__alert p { margin: 4px 0 0; font-size: 13.5px; line-height: 19px; color: inherit; }
+.pg-popup__alert .cg-btn { margin-top: 11px; }
+${/* The goose looking back stands on the stage's floor, or on the line over the rest when there is more to fix. */ ''}
+.pg-popup__alert > .pg-art--lost { position: absolute; right: -6px; bottom: -15px; width: 60px; }
+.pg-popup__stage:has(.pg-popup__more) .pg-popup__alert > .pg-art--lost { bottom: -10px; }
+.pg-popup__more { margin: 10px -16px 0; padding: 0 16px; list-style: none; border-top: 1.5px solid color-mix(in srgb, currentColor 24%, transparent); }
+.pg-popup__more li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: baseline; gap: 0 10px; min-height: 24px; padding-top: 6px; font-size: 13.5px; line-height: 18px; }
+.pg-popup__more b { min-width: 0; font-weight: 600; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+${/* On the yellow the egg would be a hollow ring: a state is a solid dot of the stage's ink, a failure keeps its red. */ ''}
+:root .cg-root--page .pg-popup__more .cg-dot--ring, :root[data-scheme] .cg-root--page .pg-popup__more .cg-dot--ring { width: 6px; height: 6px; margin-left: 1px; background: currentColor; box-shadow: none; }
+.pg-popup__more .cg-btn--quiet { height: 22px; margin: -3px -6px -3px 0; font-size: 13px; color: inherit; }
+.pg-popup__more .cg-btn--quiet:hover { color: inherit; }
+${/* The facts: one paper-white card, a line each — the word on the left, the value on the right, as the old popup's. */ ''}
+.pg-popup__facts { margin: 12px 16px 0; padding: 0 14px; border-radius: 14px; background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--pg-line); }
+.pg-popup__fact { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 0 16px; padding: 8px 0; }
+.pg-popup__fact + .pg-popup__fact { border-top: 1px solid var(--cg-rule); }
+.pg-popup__fact dt { font-size: 13px; line-height: 20px; color: var(--cg-ink-muted); white-space: nowrap; }
+.pg-popup__fact dd { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; column-gap: 8px; margin: 0; min-width: 0; text-align: right; }
+.pg-popup__fact dd > b { min-width: 0; max-width: 100%; font-weight: 600; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-popup__fact dd > b .cg-dot { margin-right: 7px; vertical-align: 1px; }
+.pg-popup__fact dd > small { flex-basis: 100%; min-width: 0; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-popup__fact dd > .cg-btn--quiet { height: 20px; margin: -2px -6px -2px 0; font-size: 13px; color: var(--cg-ink-muted); }
+.pg-popup__fact dd > small.pg-popup__by { flex-basis: auto; }
+.pg-popup__fact--note { display: block; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); text-align: right; }
+.pg-popup__nil { color: var(--cg-ink-muted); }
 .pg-popup__copy { font: inherit; color: inherit; border-radius: 4px; }
 .pg-popup__copy:hover { color: var(--cg-ink-strong); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 0.22em; }
-.pg-popup__err { font-size: 13px; line-height: 18px; color: var(--cg-ink-2); }
-.pg-popup__err + .pg-popup__err { margin-top: 8px; }
-.pg-popup__err .pg-code { display: flex; align-items: center; gap: 7px; }
-.pg-popup__problems { margin: 0 16px 10px; padding: 12px 14px; border-radius: 14px; background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--pg-line); }
-${/* What opens inside ChatSpace in a row, «Настройки» in ink beside a short last one: one primary, never a grid of equals. */ ''}
-.pg-popup__btns { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; padding: 14px 16px 16px; }
-.pg-popup__btns .cg-btn { grid-column: span 3; justify-content: flex-start; height: 38px; padding: 0 12px; min-width: 0; }
-.pg-popup__btns .cg-btn.pg-popup__short { grid-column: span 2; }
-.pg-popup__btns .cg-btn.pg-primary { grid-column: span 4; justify-content: center; }
-.pg-popup__btns .cg-btn.pg-primary .pg-popup__key { display: none; }
-.pg-popup__btns .cg-btn.pg-primary.pg-popup__wide { grid-column: 1 / -1; }
+${/* What opens inside the site's tab, in one row; the one black button of the popup is the stage's remedy (X61). */ ''}
+.pg-popup__btns { display: flex; gap: 8px; padding: 12px 16px 0; }
+.pg-popup__btns .cg-btn { flex: 1 1 auto; justify-content: flex-start; height: 36px; padding: 0 11px; min-width: 0; }
 .pg-popup__count { font-weight: 500; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
-${/* Why the buttons above do not work, said on the popup and not only in their tooltips. */ ''}
-.pg-popup__why { display: flex; align-items: flex-start; gap: 8px; margin: -4px 16px 14px; font-size: 13px; line-height: 18px; color: var(--cg-ink-2); }
-.pg-popup__why .cg-dot { margin-top: 5px; }
 .pg-popup__key { margin-left: auto; display: inline-flex; }
-.pg-popup__foot { display: flex; align-items: center; gap: 12px; padding: 11px 16px 13px; border-top: 1px solid var(--pg-line); font-size: 13px; color: var(--cg-ink-muted); white-space: nowrap; }
+${/* The foot: «Что нового», the optional site's switch (X61) and «Обновить статус», quiet, in one line under a line. */ ''}
+.pg-popup__foot { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 9px 16px 11px; border-top: 1px solid var(--pg-line); font-size: 13px; color: var(--cg-ink-muted); white-space: nowrap; }
+.pg-popup__site { display: inline-flex; min-width: 0; }
+.pg-popup__site .cg-btn { height: 22px; margin: 0 -6px; font-size: 13px; }
+.pg-popup__site-error { margin: 12px 16px 0; }
 .pg-popup__foot .pg-link { color: var(--cg-ink-2); }
-.pg-popup__foot .cg-btn { margin-left: auto; margin-right: -6px; }
+.pg-popup__foot > .cg-btn { margin-left: auto; margin-right: -6px; }
 /* The card of a popup state stands on the popup's own edge: no gutter, the dot inside the code line. */
 .pg-popup__state { margin: 12px 16px 4px; padding: 16px; border-radius: 14px; background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--pg-line); }
 .pg-popup__state .cg-card__acts { margin-left: 0; margin-top: 12px; }
@@ -599,8 +618,6 @@ ${/* A few words that no longer fit one line stand two by two, never torn. */ ''
   .pg-page .cg-check--14::before, .pg-page .cg-check--14::after { transition: none; }
 }
 
-.pg-site-pill { display:flex; flex-wrap:wrap; gap:6px 12px; width:100%; align-items:center; }
-.pg-site-pill small { color:var(--cg-ink-2); }
 .pg-site-details { grid-column:2 / -1; min-width:0; font-size:13px; }
 .pg-site-details summary { cursor:pointer; padding:8px 0; }
 .pg-site-details dl { margin:0; }

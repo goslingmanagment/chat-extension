@@ -29,7 +29,7 @@ import { DebugJournal } from './debug/Journal';
 import { DebugPrompt } from './debug/DebugPrompt';
 import { Options, type OptionsRoute } from './options/Options';
 import { type OptionsSlots } from './options/slots';
-import { SiteAccess, type SiteAccessProps } from './SiteAccess';
+import { SiteAccessProvider, type SiteAccessProps } from './SiteAccess';
 import { Popup } from './Popup';
 import { FONTS_SOURCE } from './brand/fonts';
 import { PageServices, PageServicesProvider } from './shared';
@@ -92,8 +92,10 @@ function mountPage(container: HTMLElement, deps: PageDeps, surface: MountSurface
     return (
       <PageServicesProvider services={services}>
         <Hints value={on}>
-          {deps.siteAccess !== undefined && <SiteAccess {...deps.siteAccess} />}
-          <View />
+          {/* The optional site's switch lives inside the page that has one (the popup's foot, X61), not above it. */}
+          <SiteAccessProvider value={deps.siteAccess ?? null}>
+            <View />
+          </SiteAccessProvider>
         </Hints>
       </PageServicesProvider>
     );

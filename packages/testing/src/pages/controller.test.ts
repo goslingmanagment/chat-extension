@@ -52,6 +52,55 @@ afterEach(() => {
 });
 
 describe('popup view model', () => {
+  it('[PU-006] X61: the verdict — ready with what answers; the problems in the order to fix them, each with its one remedy', async () => {
+    const ready = await open({ page: 'popup' });
+    expect(ready.client.getSnapshot({ of: 'popup' }).verdict).toEqual({ s: 'ready', line: 'ChatSpace и хаб на связи', alerts: [] });
+    ready.client.dispose();
+    const troubled = await open({ page: 'popup', state: troubledState() });
+    troubled.background.failNext('bootstrap.get', { code: 'CG-HUB-UNAVAILABLE' }, 5);
+    await troubled.client.dispatch({ type: 'ReloadView', selector: { of: 'popup' } });
+    await settle();
+    const verdict = troubled.client.getSnapshot({ of: 'popup' }).verdict;
+    expect(verdict?.s).toBe('attention');
+    expect(verdict?.alerts.map((alert) => [alert.code, alert.tone, alert.fix?.action ?? null])).toEqual([
+      ['CG-HUB-UNAVAILABLE', 'failure', { type: 'RecheckStatus' }],
+      ['CG-HOST-CONTRACT', 'state', null],
+    ]);
+  });
+
+  it('[PU-017] X61: no tab of the site — «Откройте ChatSpace» with «Открыть ChatSpace»; a tab of the old build — only its reload', async () => {
+    const closed = workingState();
+    closed.diagnostics = { ...closed.diagnostics, tabs: [] };
+    const none = await open({ page: 'popup', state: closed });
+    expect(none.client.getSnapshot({ of: 'popup' }).verdict?.alerts.map((alert) => [alert.code, alert.title, alert.fix?.action ?? null])).toEqual([
+      ['CG-HOST-NOT-READY', 'Откройте ChatSpace', { type: 'Navigate', to: { kind: 'site-home' } }],
+    ]);
+    expect(await none.client.dispatch({ type: 'Navigate', to: { kind: 'site-home' } })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(none.browser.record.links).toEqual([`${PAGES_HOST_ORIGIN}/`]);
+    none.client.dispose();
+    const stale = workingState();
+    stale.diagnostics = { ...stale.diagnostics, tabs: [], extension: { ...stale.diagnostics.extension, updated: { at: new Date(PAGES_NOW).toISOString(), from: '0.4.2', staleTabs: 2 } } };
+    const old = await open({ page: 'popup', state: stale });
+    expect(old.client.getSnapshot({ of: 'popup' }).verdict?.alerts.map((alert) => [alert.code, alert.title, alert.fix?.label.key])).toEqual([
+      ['CG-RUNTIME-RELOADED', 'Перезагрузите вкладки ChatSpace', 'popup.alert.reloadMany'],
+    ]);
+  });
+
+  it('[UP-009] X61: «Перезагрузить вкладку» asks the background to reload the old build’s tabs and keeps the card busy until a tab is back', async () => {
+    const stale = workingState();
+    const tabs = stale.diagnostics.tabs;
+    stale.diagnostics = { ...stale.diagnostics, tabs: [], extension: { ...stale.diagnostics.extension, updated: { at: new Date(PAGES_NOW).toISOString(), from: '0.4.2', staleTabs: 1 } } };
+    const w = await open({ page: 'popup', state: stale });
+    w.background.tabsAfterReload = tabs;
+    const receipt = w.client.dispatch({ type: 'ReloadTab' });
+    await settle();
+    expect(w.background.requests('site.access')).toEqual([{ host: 'chatspace', reload: true }]);
+    expect(w.client.getSnapshot({ of: 'popup' }).verdict?.alerts[0]).toMatchObject({ code: 'CG-RUNTIME-RELOADED', busy: true });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await receipt).toMatchObject({ ok: true });
+    expect(w.client.getSnapshot({ of: 'popup' }).verdict).toMatchObject({ s: 'ready', alerts: [] });
+  });
+
   it('[PU-003] [PU-004] [PU-005] [PU-014] a working shift: version, persona of the page, both pills, the open chat, the quota', async () => {
     const w = await open({ page: 'popup' });
     const vm = w.client.getSnapshot({ of: 'popup' });
