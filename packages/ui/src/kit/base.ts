@@ -1,6 +1,6 @@
 // The kit's base stylesheet (ui-design §2.3, §2.8, §2.9, §6.2): what every
 // root of ours needs before any component — the shadow host reset, the root
-// with the host font and the 13 px base, the `cg` size container the narrow
+// with the family's face and the 13 px base, the `cg` size container the narrow
 // rules key on (§3.3), the button reset, the one focus ring, <kbd> labels,
 // the screen-reader-only class, the shared entrance animation and the
 // reduced-motion switch. Nothing global: inside a shadow root `:host` is our
@@ -13,13 +13,14 @@ export const KIT_CONTAINER = 'cg';
 export const ROOT_CLASS = 'cg-root';
 
 export const BASE_CSS = `
-${/* ChatSpace's inherited styles stop at our host, except its font (§2.3: the host's font) and the way the host
-   smooths it: with another smoothing the same face reads half a weight heavier. A note in this sheet is a JS
-   comment: a CSS one would ship in the first dock chunk, prose for nobody (architecture.md §11). */ ''}
-:host { all: initial; display: block; font-family: inherit; -webkit-font-smoothing: inherit; -moz-osx-font-smoothing: inherit; }
+${/* A site's inherited styles stop at our host. The face is the family's on every site (§2.3; X57, X60): the system UI
+   font, smoothed as the old Fansly panel smoothed it — the page's own font and smoothing never reach in. A note in
+   this sheet is a JS comment: a CSS one would ship in the first dock chunk, prose for nobody (architecture.md §11). */ ''}
+:host { all: initial; display: block; font-family: var(--cg-font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 .cg-root {
   container: ${KIT_CONTAINER} / inline-size;
-  font-family: inherit; font-size: var(--cg-text-base); line-height: 18px; font-weight: 400;
+  font-family: var(--cg-font); font-size: var(--cg-text-base); line-height: 18px; font-weight: 400;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
   color: var(--cg-ink); text-align: left; letter-spacing: normal; text-transform: none; font-style: normal;
   -webkit-text-size-adjust: 100%; overflow-wrap: break-word;
 }

@@ -1,23 +1,23 @@
 // `--cg-*` theme tokens (architecture.md §10.1 «Тема», ui-design §2.1–§2.9).
 // The NAMES are frozen in @cg/contracts/vm (THEME_TOKENS); the values live
-// here. Inks, rules and surfaces are computed from ChatSpace's
-// `--color-om-<scale>-<step>` "R G B" triplets (identical in both host themes;
-// the dark theme takes other steps) with the ChatSpace 0.172.0 value as the
-// fallback, so the same rules work on our extension pages where no host
-// variables exist (I18-006). The family's own voice is fixed and the same in
-// every host (decision X28): the terracotta accent and the warm fill of an AI
-// draft are the ChatGoose desktop's and the Fansly extension's values.
+// here. The family's look is the same on every site (decisions X28, X57,
+// X60): the warm paper of the old Fansly extension's panel for the greys, the
+// terracotta accent, the warm fill of an AI draft, the system UI face — fixed
+// values, which no site's page changes. A site gives one thing: its blue, for
+// what reaches the fan («Отправить», a sent bubble) — the brand steps of
+// `--color-om-*`, "R G B" triplets, with ChatSpace 0.172.0's as the fallback
+// (our extension pages, I18-006; a site that gives none).
 //
 // A closed shadow root sees neither the host's `.dark` class nor
 // `:host-context()` (Firefox has none), so the mount writes the resolved
 // scheme to `data-scheme` on our host element and the dark values key on
 // it. Extension pages put the same attribute on <html>.
 //
-// The triplets are the site's (Project Unite architecture §1.5; R20 F5): on
-// ChatSpace they come from its <html> by inheritance; a site whose page has
-// no such variables gives them in its profile (`HostUiProfile.palette`), and
-// the mount puts them on our host element as a `:host` rule of one shared
-// sheet (`paletteSource`) — the same names, so every token below reads them
+// Where the blue comes from is the site's (Project Unite architecture §1.5;
+// R20 F5): on ChatSpace its own variables reach our hosts by inheritance; a
+// site whose page has none gives them in its profile (`HostUiProfile.palette`),
+// and the mount puts them on our host element as a `:host` rule of one shared
+// sheet (`paletteSource`) — the same names, so the tokens below read them
 // unchanged.
 
 import { TEXT_SIZE_ATTRIBUTE, THEME_TOKEN_NAMES, type ColorScheme, type HostPalette, type ThemeTokenName } from '@cg/contracts/vm';
@@ -25,51 +25,88 @@ import { TEXT_SIZE_ATTRIBUTE, THEME_TOKEN_NAMES, type ColorScheme, type HostPale
 import { ROOT_CLASS } from './base';
 import { type StyleSource } from './styles';
 
-/** ChatSpace 0.172.0 values of the steps we read: the fallback of each triplet (ui-design §2.2). */
-export const HOST_FALLBACK_TRIPLETS = {
-  'neutral-0': '255 255 255',
-  'neutral-50': '246 245 244',
-  'neutral-75': '241 241 238',
-  'neutral-100': '234 233 229',
-  'neutral-200': '225 224 218',
-  'neutral-300': '203 202 195',
-  'neutral-400': '171 168 156',
-  'neutral-500': '114 112 100',
-  'neutral-600': '83 81 70',
-  'neutral-700': '61 59 50',
-  'neutral-750': '51 49 41',
-  'neutral-800': '42 40 32',
-  'neutral-850': '34 32 25',
-  'neutral-900': '26 24 19',
-  'neutral-950': '19 18 15',
-  white: '255 255 255',
-  'brand-50': '235 243 255',
-  'brand-75': '200 223 255',
-  'brand-300': '71 145 255',
-  'brand-400': '10 109 255',
-  'brand-500': '0 82 204',
-  'brand-600': '0 57 143',
-  'brand-800': '0 24 61',
-  'success-400': '97 189 100',
+/**
+ * The family's palette (X57, X60; ui-design §2.1): the old Fansly panel's warm paper — its card #faf9f5, chip #f2f0e9,
+ * groove #e8e5da, lines #e2dfd3 / #cfcaba, ink #262420 and their dark twins — one ramp for both schemes, where a step
+ * plays one role in the light scheme and another in the dark one (light / dark below); and the kit's own green and red,
+ * text colours a site's bright badge tones would not carry.
+ */
+export const FAMILY_TRIPLETS = {
+  // surface, raised card / —
+  'neutral-0': '250 249 245',
+  // chip, sunk / —
+  'neutral-50': '242 240 233',
+  // hover, the segment's pick / —
+  'neutral-75': '238 235 227',
+  // rule, press, the groove / —
+  'neutral-100': '232 229 218',
+  // the card's and the chip's outline / ink
+  'neutral-200': '226 223 211',
+  // seams, key caps / secondary ink
+  'neutral-300': '207 202 186',
+  // faint ink / muted ink
+  'neutral-400': '163 158 147',
+  // muted ink / — (4.5 : 1 on a draft card)
+  'neutral-500': '107 103 94',
+  // strong bars / faint ink
+  'neutral-600': '93 90 82',
+  // secondary ink / seams, key caps
+  'neutral-700': '77 73 64',
+  // — / the card's and the chip's outline
+  'neutral-750': '58 55 47',
+  // — / press, the floating card's outline
+  'neutral-800': '51 48 42',
+  // — / chip, hover, rule
+  'neutral-850': '46 43 38',
+  // ink / raised card, sunk
+  'neutral-900': '38 36 32',
+  // strong ink / surface, the groove
+  'neutral-950': '27 26 23',
+  // — / strong ink
+  white: '250 249 245',
+  // money / — ; — / money
   'success-600': '53 129 58',
-  'error-400': '234 95 93',
+  'success-400': '97 189 100',
+  // the error dot / — ; — / the error dot
   'error-500': '217 32 28',
+  'error-400': '234 95 93',
 } as const;
 
-export type HostStep = keyof typeof HOST_FALLBACK_TRIPLETS;
+export type FamilyStep = keyof typeof FAMILY_TRIPLETS;
+
+/** The steps of the site's blue the tokens read, with ChatSpace 0.172.0's values as the fallback (ui-design §2.2). */
+export const SITE_BLUE_FALLBACK = {
+  // a sent bubble / —
+  'brand-75': '200 223 255',
+  // — / the hover of «Отправить»
+  'brand-400': '10 109 255',
+  // «Отправить»
+  'brand-500': '0 82 204',
+  // the hover of «Отправить» / —
+  'brand-600': '0 57 143',
+  // — / a sent bubble
+  'brand-800': '0 24 61',
+} as const;
+
+export type BlueStep = keyof typeof SITE_BLUE_FALLBACK;
 
 /**
- * A site's palette as the sheet the mount adopts into our roots: its triplets on our host element. One id for the
+ * A site's blue as the sheet the mount adopts into our roots: its triplets on our host element. One id for the
  * document — every root of the tab shares the one sheet, and a new value rewrites it for all of them at once.
  */
 export function paletteSource(palette: HostPalette): StyleSource {
   return { id: 'cg-host-palette', css: `:host { ${Object.entries(palette).map(([name, triplet]) => `${name}: ${triplet};`).join(' ')} }` };
 }
 
-/** `rgb(var(--color-om-neutral-900, 26 24 19))`, optionally with alpha. */
-export function om(step: HostStep, alpha?: number): string {
-  const triplet = `var(--color-om-${step}, ${HOST_FALLBACK_TRIPLETS[step]})`;
+/** `rgb(38 36 32)`: a step of the family's ramp, optionally with alpha. */
+export function family(step: FamilyStep, alpha?: number): string {
+  const triplet = FAMILY_TRIPLETS[step];
   return alpha === undefined ? `rgb(${triplet})` : `rgb(${triplet} / ${alpha})`;
+}
+
+/** `rgb(var(--color-om-brand-500, 0 82 204))`: a step of the site's blue. */
+export function blue(step: BlueStep): string {
+  return `rgb(var(--color-om-${step}, ${SITE_BLUE_FALLBACK[step]}))`;
 }
 
 /** A value that differs by scheme, or one value for both. */
@@ -80,49 +117,48 @@ const both = (light: string, dark: string): TokenValue => ({ light, dark });
 /** Every frozen token name with its value (the compiler checks completeness). */
 export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
   // ── ink: importance is ink level and weight, never hue ──
-  '--cg-ink-strong': both(om('neutral-950'), om('white')),
-  '--cg-ink': both(om('neutral-900'), om('neutral-200')),
-  '--cg-ink-2': both(om('neutral-700'), om('neutral-300')),
-  '--cg-ink-muted': both(om('neutral-500'), om('neutral-400')),
-  '--cg-ink-faint': both(om('neutral-400'), om('neutral-600')),
+  '--cg-ink-strong': both(family('neutral-950'), family('white')),
+  '--cg-ink': both(family('neutral-900'), family('neutral-200')),
+  '--cg-ink-2': both(family('neutral-700'), family('neutral-300')),
+  '--cg-ink-muted': both(family('neutral-500'), family('neutral-400')),
+  '--cg-ink-faint': both(family('neutral-400'), family('neutral-600')),
   // ── rules ──
-  '--cg-rule': both(om('neutral-100'), om('neutral-850')),
-  '--cg-rule-2': both(om('neutral-200'), om('neutral-750')),
-  '--cg-rule-3': both(om('neutral-300'), om('neutral-700')),
-  '--cg-rule-float': both(om('neutral-200'), om('neutral-800')),
+  '--cg-rule': both(family('neutral-100'), family('neutral-850')),
+  '--cg-rule-2': both(family('neutral-200'), family('neutral-750')),
+  '--cg-rule-3': both(family('neutral-300'), family('neutral-700')),
+  '--cg-rule-float': both(family('neutral-200'), family('neutral-800')),
   // Retired with the bare strip and the printed result (decision X28); the names stay frozen, as aliases.
   '--cg-divider': 'var(--cg-rule-3)',
   '--cg-bare-rule': 'var(--cg-rule)',
   '--cg-bare-edge': 'var(--cg-rule-2)',
   // ── surfaces ──
-  '--cg-surface': both(om('neutral-0'), om('neutral-950')),
-  '--cg-sunk': both(om('neutral-50'), om('neutral-900')),
-  '--cg-hover': both(om('neutral-75'), om('neutral-850')),
-  '--cg-press': both(om('neutral-100'), om('neutral-800')),
-  '--cg-seg-on': both(om('neutral-75'), om('neutral-800')),
+  '--cg-surface': both(family('neutral-0'), family('neutral-950')),
+  '--cg-sunk': both(family('neutral-50'), family('neutral-900')),
+  '--cg-hover': both(family('neutral-75'), family('neutral-850')),
+  '--cg-press': both(family('neutral-100'), family('neutral-800')),
+  '--cg-seg-on': both(family('neutral-75'), family('neutral-800')),
   '--cg-sel': both('#fbf0ea', 'rgb(63 43 33 / 0.62)'),
   '--cg-bare-hover': 'var(--cg-sunk)',
-  '--cg-input-bg': both(om('neutral-0'), om('neutral-900')),
-  '--cg-input-border': both(om('neutral-200'), om('neutral-800')),
-  '--cg-feed-bg': both(om('neutral-50'), 'rgb(0 0 0)'),
-  '--cg-debug-bg': both(om('neutral-50'), om('neutral-900', 0.6)),
-  '--cg-nav-bg': both(om('neutral-50'), om('neutral-900', 0.5)),
-  '--cg-nav-current': both(om('neutral-0'), om('neutral-850')),
-  '--cg-scrim': both(om('neutral-950', 0.18), 'rgb(0 0 0 / 0.5)'),
+  '--cg-input-bg': both(family('neutral-0'), family('neutral-900')),
+  '--cg-input-border': both(family('neutral-200'), family('neutral-800')),
+  // A conversation stands on the family's paper in both schemes, its bubbles our cards on it — no site's black.
+  '--cg-feed-bg': both(family('neutral-50'), family('neutral-950')),
+  '--cg-debug-bg': both(family('neutral-50'), family('neutral-900', 0.6)),
+  '--cg-nav-bg': both(family('neutral-50'), family('neutral-900', 0.5)),
+  '--cg-nav-current': both(family('neutral-0'), family('neutral-850')),
+  '--cg-scrim': both(family('neutral-950', 0.18), 'rgb(0 0 0 / 0.5)'),
   '--cg-tip-bg': 'var(--cg-raised)',
   '--cg-tip-ink': 'var(--cg-ink)',
-  '--cg-chat-in': both(
-    `rgb(var(--chat-incoming, var(--color-om-neutral-0, ${HOST_FALLBACK_TRIPLETS['neutral-0']})))`,
-    `rgb(var(--chat-incoming, var(--color-om-neutral-900, ${HOST_FALLBACK_TRIPLETS['neutral-900']})))`,
-  ),
+  // A fan's bubble is our card; a sent one wears the site's blue — ChatSpace's own bubble colour where its page has one.
+  '--cg-chat-in': both(family('neutral-0'), family('neutral-900')),
   '--cg-chat-out': both(
-    `rgb(var(--chat-outgoing, var(--color-om-brand-75, ${HOST_FALLBACK_TRIPLETS['brand-75']})))`,
-    `rgb(var(--chat-outgoing, var(--color-om-brand-800, ${HOST_FALLBACK_TRIPLETS['brand-800']})))`,
+    `rgb(var(--chat-outgoing, var(--color-om-brand-75, ${SITE_BLUE_FALLBACK['brand-75']})))`,
+    `rgb(var(--chat-outgoing, var(--color-om-brand-800, ${SITE_BLUE_FALLBACK['brand-800']})))`,
   ),
   // ── our own cards: the bar and a result, a raised chip, the sunken groove of a button's options, an AI draft ──
-  '--cg-raised': both(om('neutral-0'), om('neutral-900')),
-  '--cg-chip': both(om('neutral-50'), om('neutral-850')),
-  '--cg-groove': both(om('neutral-100'), om('neutral-950')),
+  '--cg-raised': both(family('neutral-0'), family('neutral-900')),
+  '--cg-chip': both(family('neutral-50'), family('neutral-850')),
+  '--cg-groove': both(family('neutral-100'), family('neutral-950')),
   // The light fill is a shade lighter than the family's #f7f1e8: muted ink (a part's number, «После Fix») reads on it at 4.5 : 1.
   '--cg-draft': both('#f9f4eb', '#2e2a21'),
   '--cg-draft-hover': both('#fbf7f1', '#363126'),
@@ -131,27 +167,28 @@ export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
   '--cg-accent': 'var(--cg-clay-ink)',
   '--cg-focus': 'var(--cg-clay-ink)',
   '--cg-focus-soft': 'rgb(217 119 87 / 0.28)',
-  '--cg-send': om('brand-500'),
-  '--cg-send-hover': both(om('brand-600'), om('brand-400')),
-  '--cg-send-ink': both(om('neutral-0'), om('white')),
+  '--cg-send': blue('brand-500'),
+  '--cg-send-hover': both(blue('brand-600'), blue('brand-400')),
+  '--cg-send-ink': both(family('neutral-0'), family('white')),
   '--cg-send-kbd': 'rgb(255 255 255 / 0.72)',
-  '--cg-money': both(om('success-600'), om('success-400')),
-  '--cg-danger': both(om('error-500'), om('error-400')),
-  '--cg-bar': both(om('neutral-300'), om('neutral-700')),
-  '--cg-bar-strong': both(om('neutral-600'), om('neutral-300')),
+  '--cg-money': both(family('success-600'), family('success-400')),
+  '--cg-danger': both(family('error-500'), family('error-400')),
+  '--cg-bar': both(family('neutral-300'), family('neutral-700')),
+  '--cg-bar-strong': both(family('neutral-600'), family('neutral-300')),
   // The family accent: the same terracotta in both schemes; its ink on a tint is deeper in light, brighter in dark.
   '--cg-clay': '#d97757',
   '--cg-clay-ink': both('#a84d2b', '#e08566'),
   '--cg-clay-bg': both('#f7e8e1', '#3f2b21'),
   '--cg-clay-line': both('#e8c3b3', '#61412f'),
   // ── elevation: page flow (none), windows, floating ──
-  '--cg-shadow': both(`0 1px 4px -1px ${om('neutral-900', 0.1)}`, '0 1px 4px -1px rgb(0 0 0 / 0.6)'),
+  '--cg-shadow': both(`0 1px 4px -1px ${family('neutral-900', 0.1)}`, '0 1px 4px -1px rgb(0 0 0 / 0.6)'),
   '--cg-shadow-float': both(
-    `0 10px 28px -12px ${om('neutral-900', 0.22)}, 0 1px 3px ${om('neutral-900', 0.06)}`,
+    `0 10px 28px -12px ${family('neutral-900', 0.22)}, 0 1px 3px ${family('neutral-900', 0.06)}`,
     '0 12px 32px -12px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(0 0 0 / 0.4)',
   ),
-  // ── fonts: the host's own font; pages use locally installed fonts only, nothing is downloaded (I18-007) ──
-  '--cg-font': 'inherit',
+  // ── fonts: the family's face is the system UI font, as the old Fansly panel's (X57, X60) — on every site, not the
+  // page's own; pages use locally installed fonts only, nothing is downloaded (I18-007) ──
+  '--cg-font': '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
   '--cg-font-page': 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   '--cg-mono': 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace',
   // AI-authored text is serif: a draft never reads as interface, nor as a sent bubble. Local faces only.
@@ -278,7 +315,7 @@ export const THEME_CSS = `${block(LIGHT_SCOPE, 'light', false)}\n${block(DARK_SC
  * The R00 placeholders' short names, kept as aliases of the real tokens until
  * R14 replaces the placeholder dock and the spike list goes away.
  */
-const LEGACY_ALIASES_CSS = `:host { --cg-bg: var(--cg-surface); --cg-fg: var(--cg-ink); --cg-muted: var(--cg-ink-muted); --cg-border: var(--cg-rule-2); --cg-radius: var(--cg-r-md); all: initial; display: block; font-family: inherit; color: var(--cg-ink); }\n`;
+const LEGACY_ALIASES_CSS = `:host { --cg-bg: var(--cg-surface); --cg-fg: var(--cg-ink); --cg-muted: var(--cg-ink-muted); --cg-border: var(--cg-rule-2); --cg-radius: var(--cg-r-md); all: initial; display: block; font-family: var(--cg-font); color: var(--cg-ink); }\n`;
 
 /** Tokens plus the legacy aliases: what the R00 placeholder dock and the spike adopt. */
 export const BASE_TOKENS_CSS = THEME_CSS + LEGACY_ALIASES_CSS;

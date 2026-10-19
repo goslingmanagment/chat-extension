@@ -60,8 +60,9 @@ export const HOST_PHRASE_NAMES = ['site', 'onSite', 'siteAccount', 'sitePlatform
 
 export interface HostUiProfile {
   /**
-   * The host's colour scale, live: the mount writes it on our host element and keeps it current. Absent — the
-   * page's own `--color-om-*` reach our hosts by inheritance, and nothing is written (ChatSpace).
+   * The site's blue, live (the brand steps of `--color-om-*`; the rest of the look is the family's, ui/kit tokens.ts, X60): the mount
+   * writes it on our host element and keeps it current. Absent — the page's own `--color-om-*` reach our hosts by
+   * inheritance, and nothing is written (ChatSpace).
    */
   readonly palette?: ValueSignal<HostPalette>;
   readonly dock: {
