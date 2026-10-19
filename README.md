@@ -688,8 +688,15 @@ await browser.storage.local.set({ 'dev.compatPageAccounts': { '<метка ст�
 
 `vendor/kernel-sdk` и `vendor/chatgoose-hotkeys` руками не правим: их
 генерируют скрипты хаба `scripts/vendor-sdk.mjs` и `scripts/vendor-hotkeys.mjs`.
-Сейчас SDK взят из `main` хаба `bd3eec06` (2026-10-14, хеш контракта `9137410d…`, R20 P2v) —
-коммита, который стоит в проде с 2026-10-14 00:55 UTC: прод отдаёт контракт `9137410d…`. Против
+Сейчас SDK взят из `main` хаба `a132b042` (2026-10-19, хеш контракта `152b37ae…`, выпуск 0.5.0) —
+коммита, который стоит в проде с 2026-10-18 16:23 UTC: прод отдаёт контракт `152b37ae…` и
+больше не держит в `compatibleClientSdks` прежний `55782888…` (вендоринг из `85931f83`, X52) —
+из-за этого гейт выпуска остановился бы на `hub-compat`. Против `85931f83` контракт только
+добавил маршруты владельца для AI-аккаунтов (`adminAiAccountsList`, `adminAiAccountUpdate`) и
+изменил `agentSyncStatus`, `opsLive` и `syncPages`; расширение ни один из них не вызывает,
+его маршруты, операции и схемы на ChatSpace и Fansly те же. Хоткеи не перевендорены: их пакет с
+`0a96105d` не менялся. До этого — `85931f83` (2026-10-17, X52) и раньше `bd3eec06`
+(2026-10-14, хеш контракта `9137410d…`, R20 P2v). Против
 вендоринга из `6ee3d627` (`03012453…`) контракт только добавился — PR хаба Project Unite R20
 (HF-2…HF-13 и `fan-notes-fill`): необязательные поля тела AI (`coverageCheck`, `startProof`,
 `personalMessageCount`, `fanAvatarUrl`, `noteFields`, `noteValues`; `messageCount` до 5000) и
