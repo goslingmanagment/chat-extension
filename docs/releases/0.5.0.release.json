@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "version": "0.5.0",
+  "geckoId": "chat-extension@gosling.agency",
+  "strictMinVersion": "142.0",
+  "commit": "800033a557f2ef269deddbe154f7ca18dff1e73a",
+  "signedAt": "2026-10-19T02:36:39.867Z",
+  "xpi": {
+    "file": "chatgoose-chatspace-0.5.0.xpi",
+    "sha256": "652990940a13c61add9c3ab8a431ed033994faf27057f8b7dd15a8df8e32dda1",
+    "bytes": 1508380
+  },
+  "unsignedXpiSha256": "73fc78e91ee80c760c0dc31daf4233fe897a0703f6d2a6ef0a2d1f3acdb4a121",
+  "sourcesSha256": "7301ebec18f00f7d06380f56e67e264522a305f54780ef3d05873d4a3f8a5cff",
+  "vendor": {
+    "sdkContractHash": "152b37aee3198a4527e1def4890ef091ec77e2c31c5b76a99c8fb9c2af82fbea",
+    "sdkSourceCommit": "a132b0422f9ad0f22a84a6d6b80ce1bbcf8e38f0",
+    "hotkeysSha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8"
+  }
+}
