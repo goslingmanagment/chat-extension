@@ -55,8 +55,7 @@ export interface HostLazyBuild {
   /** Entry name → its source, relative to apps/extension/lazy. In the build's input order. */
   readonly entries: Readonly<Record<string, string>>;
   /**
-   * The entries every tab of the site loads, in the order their budgets stack (tools/size-budget): each one layer of
-   * code, the first one the dock. [] — no layers: the bundler cuts the build by itself.
+   * The entries every tab of the site loads, in their order: each one layer of code, the first one the dock. [] — no layers: the bundler cuts the build by itself.
    */
   readonly layers: readonly string[];
   /** The layers that load before the dock or without it: what the dock shares with one of them is the kernel chunk. */
@@ -74,31 +73,6 @@ export interface LazySite {
   readonly relayPage?: string;
 }
 
-/** One line of `pnpm size`: a script of the site and its gzip -9 ceiling. */
-export interface ScriptBudget {
-  /** The script (ScriptSpec.entry). */
-  readonly entry: string;
-  readonly label: string;
-  readonly gzipBytes: number;
-}
-
-/**
- * A `pnpm size` line of what one slice of @cg/contracts costs the site's bundles, measured the way the budgets are
- * (minified, gzip -9; tools/size-budget/contracts-probes.ts): the site's own registries and envelopes.
- */
-export interface ContractsProbeBudget {
-  readonly label: string;
-  /** The probe's module source; its paths are relative to the repo root. */
-  readonly entry: string;
-  readonly gzipBytes: number;
-}
-
-export interface HostBudgets {
-  /** In the order of the size report. */
-  readonly scripts: readonly ScriptBudget[];
-  /** The site's contract probes, after the common ones. */
-  readonly contracts: readonly ContractsProbeBudget[];
-}
 
 /** `node tools/host-contract-check/index.ts --host <kind>`: the site's contract against a local copy of its bundles. */
 export interface HostContractCheck {
@@ -138,7 +112,7 @@ export interface HostBackground {
   readonly source: string;
   /** The built file inside the extension (`bg/<site>.js`): the core loads it with `import(runtime.getURL(file))`. */
   readonly file: string;
-  /** Its raw ceiling in bytes: the `pnpm size` line of the chunk and archive-check's tripwire for the file. */
+  /** archive-check's tripwire for the file, raw bytes: past it something foreign was bundled (not a size budget, X66). */
   readonly rawBytes: number;
 }
 
@@ -158,7 +132,6 @@ export interface HostDescriptor extends RuntimeHostRow {
   readonly relayPage?: string;
   /** Folders whose modules run in the page's own world: every callback they hand the page goes through `guard` (tools/gates). */
   readonly mainWorldSources: readonly string[];
-  readonly budgets: HostBudgets;
   readonly contractCheck: HostContractCheck;
   readonly archiveMarkers: HostArchiveMarkers;
   readonly test: TestHostConfig;

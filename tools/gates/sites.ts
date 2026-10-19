@@ -558,8 +558,6 @@ export function checkSiteMarkers(built: ReadonlyArray<{ readonly path: string; r
 /** What of the host registry is build data and must never ship (architecture.md §1.2): the strings its entries carry for the tools alone. */
 export function registryBuildFields(hosts: readonly HostDescriptor[]): string[] {
   return hosts.flatMap((host) => [
-    ...host.budgets.scripts.map((budget) => budget.label),
-    ...host.budgets.contracts.map((probe) => probe.label),
     ...Object.values(host.lazy.entries),
     host.contractCheck.module,
     host.contractCheck.bundlesRootEnv,

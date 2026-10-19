@@ -8,8 +8,9 @@ import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { createI18n, type LiveI18n, type SitePhrases } from '@cg/core/domain/i18n';
 import { createLiveI18n } from '@cg/core/domain/i18n/live';
 import { type Locale } from '@cg/contracts';
+import { type SpendersBoardVM } from '@cg/contracts/vm';
 
-import { FakeAppClient, createFakeMountDeps, ctxOf, fallbackView, scenarioById, siteCatalogs, type AppClientScenario, type FakeMountDeps, type ScenarioCtx, type SiteTexts } from '../scenarios/app-client';
+import { FakeAppClient, createFakeMountDeps, ctxOf, fallbackView, scenarioById, siteCatalogs, type AppClientScenario, type FakeMountDeps, type ScenarioCtx, type ScenarioViewEntry, type SiteTexts } from '../scenarios/app-client';
 import { BOARD_STATES, boardScenario } from './states';
 
 export type BoardDeps = Omit<FakeMountDeps, 'i18n'> & { readonly i18n: LiveI18n };
@@ -27,6 +28,17 @@ export const STAND_TIME_ZONE = 'Europe/Moscow';
 /** A gallery state («11a») or an AppClient scenario id («stats-error»), in `language`. */
 export function resolveScenario(id: string, language: Locale): AppClientScenario {
   return BOARD_STATES.some((state) => state.id === id) ? boardScenario(id, language) : scenarioById(id);
+}
+
+/**
+ * X66: the board as Fansly's tab has it — without the statistics (R20 P9e: they come after the pilot,
+ * `lazy/fansly/boards.ts`). The gallery drew Fansly with ChatSpace's column, and its pictures were not what a
+ * chatter sees.
+ */
+export function withoutStatistics(scenario: AppClientScenario): AppClientScenario {
+  const strip = (views: readonly ScenarioViewEntry[]): ScenarioViewEntry[] =>
+    views.map((view) => (view.selector.of === 'spenders.board' ? { ...view, vm: { ...(view.vm as SpendersBoardVM), statistics: false } } : view));
+  return { ...scenario, views: strip(scenario.views), ...(scenario.steps === undefined ? {} : { steps: scenario.steps.map((step) => ({ ...step, views: strip(step.views) })) }) };
 }
 
 /**

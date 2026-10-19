@@ -1,8 +1,6 @@
 // The lazy entries of the tab by name, and the order the tab loads the ones
-// every chat tab needs (architecture.md §11). Plain data shared by the build
-// (lazy/vite.config.ts), the size budgets (tools/size-budget, through the
-// chunk list the build writes) and the tab itself, which loads them by these
-// names (src/composition/tab).
+// every chat tab needs. Plain data shared by the build (lazy/vite.config.ts)
+// and the tab itself, which loads them by these names (src/composition/tab).
 
 /** Entry name → source. Output: lazy/<name>.js. */
 export const LAZY_ENTRIES = {
@@ -51,9 +49,8 @@ export type SiteLazyEntryName = 'ai-fansly' | 'vault' | 'registration' | 'notes'
 export type LazyEntryName = keyof typeof LAZY_ENTRIES | SiteLazyEntryName;
 
 /**
- * The entries every chat tab loads, in the order their budgets stack
- * (tools/size-budget): the first dock chunk, then each next one on top of
- * the ones before it. The tab really loads them so (composition/tab/runtime.ts
+ * The entries every chat tab loads, in their order: the first dock chunk,
+ * then each next one on top of the ones before it. The tab really loads them so (composition/tab/runtime.ts
  * and app.ts); apps/extension/test/lazy.test.ts holds the two together.
  */
 export const LAZY_LAYERS = ['dock', 'bridge-validation', 'tab-protocol', 'tab-app', 'ai', 'navigation'] as const satisfies readonly LazyEntryName[];

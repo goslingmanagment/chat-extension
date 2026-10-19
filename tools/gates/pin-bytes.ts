@@ -6,8 +6,7 @@
 // request without a second build (docs/project-unite/architecture.md §1.8):
 // `pnpm gates` fails while the build differs from them. Run this only for a
 // change of shared code that means to move those bytes, commit the file, and
-// name the delta of every line of the byte registry in the PR (`pnpm size`,
-// architecture.md §3.2). A change of Fansly's own files never needs it: if
+// name the delta in the PR (architecture.md §3.2). A change of Fansly's own files never needs it: if
 // `pnpm gates` asks such a change for new pins, something leaked.
 //
 // Usage: node tools/gates/pin-bytes.ts [--check]
@@ -53,5 +52,5 @@ if (changes.length === 0) {
 } else {
   writeFileSync(file, serializeSiteBytes(built));
   const delta = total(built) - total(pinned);
-  console.log(`gates:bytes: wrote ${CHATSPACE_BYTES_PATH} — ${changes.length} file(s) moved, ${count} files of ChatSpace, ${total(built)} B (${delta > 0 ? '+' : ''}${delta}). Commit it and name the delta of every line of the byte registry in the PR (pnpm size).`);
+  console.log(`gates:bytes: wrote ${CHATSPACE_BYTES_PATH} — ${changes.length} file(s) moved, ${count} files of ChatSpace, ${total(built)} B (${delta > 0 ? '+' : ''}${delta}). Commit it and name the delta in the PR.`);
 }

@@ -14,7 +14,7 @@ import { CHAT_IS_FAN } from '@cg/contracts/ids';
 import { type ActionReceipt, type I18n, type PartialGap, type PreviewSource, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type SpendersStatsVM, type TargetHandle, type UiAction, type ViewMap, type VmView } from '@cg/contracts/vm';
 import { type I18nKey } from '@cg/contracts/errors';
 
-import { boardFilterCounts, indexBoard, neighbours, shelfOfFan, viewBoard, type BoardIndex, type BoardView } from '../../domain/spenders/board';
+import { boardFilterCounts, indexBoard, neighbours, shelfOfFan, viewBoard, withPeriod, type BoardIndex, type BoardView } from '../../domain/spenders/board';
 import { NO_FILTERS, filterPressed, filtersActive, pressFilter, type BoardFilters } from '../../domain/spenders/filters';
 import { moveRow, type BoardCommand } from '../../domain/spenders/keyboard';
 import { EMPTY_QUEUE, appendQueuePage, queueHasMore, queueRow, type QueueState } from '../../domain/spenders/queue';
@@ -39,7 +39,10 @@ export const STATS_FRESH_MS = 60_000;
 /** The «ждут ответа» queue, a page at a time. */
 export const QUEUE_PAGE_SIZE = 100;
 
-const PERIODS = ['lifetime', '30d', 'mtd', '7d', 'today'] as const satisfies readonly SpendersPeriod[];
+/** X66: the list is always the lifetime board — every payer, as the old Fansly extension listed them. */
+const LIST_PERIOD = 'lifetime' satisfies SpendersPeriod;
+/** The period of the second sum, «+$320 за 30 дней» under the lifetime: its own board, read beside the list. */
+const PERIODS = ['30d', 'mtd', '7d', 'today'] as const satisfies readonly SpendersPeriod[];
 const FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history'] as const satisfies readonly SpendersFilter[];
 const FILTER_LABELS: Readonly<Record<SpendersFilter, I18nKey>> = {
   all: 'spenders.filter.all',
@@ -137,14 +140,15 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   let typed = '';
   let applied = '';
   let searchTimer: number | null = null;
-  let revealed = new Set<string>();
   let statsExpanded = false;
   let boards = new Map<SpendersPeriod, BoardEntry>();
   let statsEntry: StatsEntry = { raw: null, loading: false, error: null, loadedAt: null, since: null, run: 0 };
   let queue: QueueEntry = { state: EMPTY_QUEUE, loading: false, error: null, run: 0 };
   let epoch = context.current().epoch;
   /** The visible list, kept while what it was computed from is the same (by identity: every change replaces its object). */
-  let viewCache: { readonly index: BoardIndex; readonly queue: QueueState | null; readonly applied: string; readonly filters: BoardFilters; readonly sort: SpendersSort; readonly revealed: ReadonlySet<string>; readonly view: BoardView } | null = null;
+  let viewCache: { readonly index: BoardIndex; readonly queue: QueueState | null; readonly applied: string; readonly filters: BoardFilters; readonly sort: SpendersSort; readonly view: BoardView } | null = null;
+  /** The list with the period's sums (X66), kept while neither board nor the period changed. */
+  let listCache: { readonly list: BoardIndex; readonly delta: BoardIndex | null; readonly period: SpendersPeriod; readonly index: BoardIndex } | null = null;
   /** Row view models of the visible list: rebuilt only when the list or the selection changes, not on every keystroke. */
   let shelfCache: { readonly view: BoardView; readonly selected: string | null; readonly pageId: number | null; readonly shelves: ShelfVM[] } | null = null;
   let disposed = false;
@@ -190,18 +194,29 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   // ── the visible list ──
 
+  /** The lifetime board with the second sums of the period's board (X66); null until the lifetime board is read. */
+  function listIndex(): BoardIndex | null {
+    const list = entryOf(LIST_PERIOD).index;
+    if (list === null || period === LIST_PERIOD) return list;
+    const delta = entryOf(period).index;
+    if (listCache !== null && listCache.list === list && listCache.delta === delta && listCache.period === period) return listCache.index;
+    const index = withPeriod(list, period, delta);
+    listCache = { list, delta, period, index };
+    return index;
+  }
+
   function currentView(): { readonly index: BoardIndex; readonly view: BoardView; readonly sourced: boolean } | null {
-    const index = entryOf(period).index;
+    const index = listIndex();
     if (index === null) return null;
     const sourced = queueMode();
     const from = sourced ? queue.state : null;
     const cached = viewCache;
-    if (cached !== null && cached.index === index && cached.queue === from && cached.applied === applied && cached.filters === filters && cached.sort === sort && cached.revealed === revealed) {
+    if (cached !== null && cached.index === index && cached.queue === from && cached.applied === applied && cached.filters === filters && cached.sort === sort) {
       return { index, view: cached.view, sourced };
     }
-    const query = { query: applied, filters, sort, revealed };
+    const query = { query: applied, filters, sort };
     const view = from === null ? viewBoard(index, query) : viewBoard(index, query, from.items.map((item, rank) => queueRow(item, rank, index.byFan.get(item.fanRef), index.period)));
-    viewCache = { index, queue: from, applied, filters, sort, revealed, view };
+    viewCache = { index, queue: from, applied, filters, sort, view };
     return { index, view, sourced };
   }
 
@@ -238,7 +253,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   function buildBoard(): SpendersBoardVM {
     const ctx = context.current();
-    const entry = entryOf(period);
+    const entry = entryOf(LIST_PERIOD);
     const current = currentView();
     const selected = selectedFan();
     const narrowed = applied.trim().length > 0 || filtersActive(filters);
@@ -268,7 +283,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
             lifetime: shelf.totals.lifetime,
             period: shelf.totals.period,
             rows: shelf.rows.map((row) => rowVM(row, shelf.cents.has(row.fanRef), selected)),
-            collapsed: shelf.hidden > 0 ? { hidden: shelf.hidden, reveal: button(msg('spenders.shelfMore', { n: shelf.hidden }), { type: 'RevealShelf', shelfId: shelf.id }) } : null,
+            collapsed: null,
           })),
         };
       }
@@ -336,11 +351,11 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   function buildStats(): SpendersStatsVM {
     const ctx = context.current();
-    const index = entryOf('30d').index ?? entryOf(period).index;
+    const index = listIndex() ?? entryOf('30d').index;
     // Lifetime sums of shelves the board can vouch for (it holds the whole shelf); the statistics carry none.
     const lifetimeByShelf = new Map<string, number | null>();
     if (index !== null) {
-      for (const shelf of viewBoard(index, { query: '', filters: NO_FILTERS, sort: 'sum', revealed: new Set() }).shelves) lifetimeByShelf.set(shelf.id, shelf.totals.lifetime);
+      for (const shelf of viewBoard(index, { query: '', filters: NO_FILTERS, sort: 'sum' }).shelves) lifetimeByShelf.set(shelf.id, shelf.totals.lifetime);
     }
     const model: StatsModel | null = statsEntry.raw === null ? null : statsModel(statsEntry.raw, lifetimeByShelf);
 
@@ -403,10 +418,14 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     return ctx.phase === 'ready' && (flag !== 'stats' || statistics) && pageFlag(ctx, flag);
   };
 
+  /** The list and, beside it, the board of the second sum's period (X66). */
   async function loadBoard(force: boolean): Promise<void> {
+    await Promise.all([loadBoardOf(LIST_PERIOD, force), period === LIST_PERIOD ? undefined : loadBoardOf(period, force)]);
+  }
+
+  async function loadBoardOf(forPeriod: SpendersPeriod, force: boolean): Promise<void> {
     const id = pageId();
     if (id === null || !usable('spenders')) return;
-    const forPeriod = period;
     const entry = entryOf(forPeriod);
     const atEpoch = epoch;
     const run = ++entry.run;
@@ -426,7 +445,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       const loaded = entry.index.byFan;
       const missing = answer.payload.items.filter(({ fan }) => loaded.has(fan.platformUserId) && ![fan.pageAlias, fan.displayName, fan.username].some((value) => (value?.trim().length ?? 0) > 0)).map(({ fan }) => fan.platformUserId);
       const account = context.current().binding?.platformAccountId;
-      if (deps.source !== undefined && account !== undefined && missing.length > 0) {
+      // The period's board gives only its sums: names are asked for the list alone.
+      if (deps.source !== undefined && account !== undefined && missing.length > 0 && forPeriod === LIST_PERIOD) {
         void deps.source.names(account, missing).then((names) => {
           if (disposed || epoch !== atEpoch || entry.run !== run || entry.index === null) return;
           const byFan = new Map(names.map((name) => [name.fanRef, name]));
@@ -500,8 +520,11 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   /** Reads what the open board is missing or shows too old. */
   function ensure(): void {
     if (!surfaces.current().spenders || context.current().phase !== 'ready') return;
-    const entry = entryOf(period);
-    if (!entry.loading && (entry.index === null ? entry.error === null : !fresh(entry.loadedAt, BOARD_FRESH_MS) && entry.error === null)) void loadBoard(false);
+    const periods: readonly SpendersPeriod[] = period === LIST_PERIOD ? [LIST_PERIOD] : [LIST_PERIOD, period];
+    for (const forPeriod of periods) {
+      const entry = entryOf(forPeriod);
+      if (!entry.loading && (entry.index === null ? entry.error === null : !fresh(entry.loadedAt, BOARD_FRESH_MS) && entry.error === null)) void loadBoardOf(forPeriod, false);
+    }
     if (!statsEntry.loading && statsEntry.error === null && !fresh(statsEntry.loadedAt, STATS_FRESH_MS)) void loadStats(false);
     if (filters.main === 'waiting' && queue.state.total === null && !queue.loading && queue.error === null) void loadQueue(true);
   }
@@ -516,9 +539,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     sort = 'sum';
     typed = '';
     applied = '';
-    revealed = new Set();
     statsExpanded = false;
     viewCache = null;
+    listCache = null;
     shelfCache = null;
     if (searchTimer !== null) clock.clearTimer(searchTimer);
     searchTimer = null;
@@ -561,7 +584,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   };
 
   const infoOf = (fanRef: string, id: number): PreviewTargetInfo | null => {
-    const index = entryOf(period).index;
+    const index = listIndex();
     const row = index?.byFan.get(fanRef);
     if (row !== undefined && index !== undefined && index !== null) {
       return {
@@ -600,7 +623,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   async function resolveConversation(fanRef: string, active: boolean): Promise<void> {
     const binding = context.current().binding;
     const source = deps.source;
-    const row = entryOf(period).index?.byFan.get(fanRef);
+    const row = listIndex()?.byFan.get(fanRef);
     if (binding === null || CHAT_IS_FAN[binding.platform] || row === undefined || source === undefined || conversationOfRow(row).conversationRef !== undefined) return;
     const atEpoch = epoch;
     let ref = await source.cached(binding.platformAccountId, fanRef);
@@ -642,6 +665,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   // ── actions ──
 
   function rowOf(fanRef: string): SpenderRow | null {
+    const listed = listIndex()?.byFan.get(fanRef);
+    if (listed !== undefined) return listed;
     for (const entry of boards.values()) {
       const row = entry.index?.byFan.get(fanRef);
       if (row !== undefined) return row;
@@ -672,7 +697,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     catch { return refused(type, localError('CG-DATA-NOT-READY', i18n)); }
     if (disposed || epoch !== atEpoch || run !== navigationRun) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     // R20 P8a: the fan's chat as the board knows it; where a chat has an id of its own, the fan's id opens none.
-    const { conversationRef } = conversationOfRow(entryOf(period).index?.byFan.get(fanRef));
+    const { conversationRef } = conversationOfRow(listIndex()?.byFan.get(fanRef));
     if (conversationRef === undefined && !CHAT_IS_FAN[binding.platform]) return refused(type, localError('CG-DATA-NOT-READY', i18n));
     // The person's click on this fan in the Spenders board: the board's own switch on its page, not `navigation`.
     const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['spenders'], conversationRef);
@@ -702,7 +727,6 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     if (action.type === 'SetSpendersPeriod') {
       if (action.period !== period) {
         period = action.period;
-        revealed = new Set();
         changed('board');
         ensure();
       }
@@ -743,11 +767,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       return Promise.resolve(done(action.type));
     }
     if (action.type === 'RevealShelf') {
-      const known = entryOf(period).index?.shelves.some((shelf) => shelf.id === action.shelfId) ?? false;
-      if (!known) return Promise.resolve(done(action.type, 'noop'));
-      revealed = new Set(revealed).add(action.shelfId);
-      changed('board');
-      return Promise.resolve(done(action.type));
+      // Every shelf shows all its fans (X66): nothing is collapsed, so nothing is left to reveal.
+      return Promise.resolve(done(action.type, 'noop'));
     }
     if (action.type === 'LoadMore') {
       if (action.list !== 'spenders') return null;

@@ -395,6 +395,9 @@ const spender = (fanRef: string): string => fanHandle('spenders', PAGE.pageId, f
 const newcomer = (fanRef: string): string => fanHandle('newcomers', PAGE.pageId, fanRef);
 const count = (h: Harness, type: Parameters<BoardsBackground['count']>[0]): number => h.bg.count(type);
 const lastPayload = (h: Harness, type: Parameters<BoardsBackground['count']>[0]): unknown => h.bg.requests.filter((request) => request.type === type).at(-1)?.payload;
+/** X66: the board reads two boards — the lifetime list and the period of its second sum; their reads counted apart. */
+const boardReads = (h: Harness, period: string): readonly unknown[] =>
+  h.bg.requests.filter((request) => request.type === 'spenders.board' && (request.payload as { readonly period?: string }).period === period).map((request) => request.payload);
 const partsOf = (h: Harness, from: PreviewSource): readonly PartVM[] => h.boards.preview.getSnapshot(preview(from)).result?.parts ?? [];
 /** Time passes in small steps, so the hub's clock and the tab's stay together (a lease renewed at 40 s is renewed on the hub at 40 s). */
 async function walk(h: Harness, ms: number, stepMs = 10_000): Promise<void> {
@@ -413,15 +416,19 @@ describe('[SP-002] [SP-003] [SP-004] the Spenders board opens', () => {
     const vm = h.boards.spenders.getSnapshot(BOARD);
     expect(vm.view).toEqual({ s: 'partial', gaps: [{ kind: 'truncated', shown: 1000, total: 1240 }] });
     expect(vm.pageName).toBe('Model One');
+    // X66: the list is every payer by the lifetime; «30 дней» is the period of the second sum, read beside it.
     expect(vm.period).toBe('30d');
-    expect(vm.periods).toEqual(['lifetime', '30d', 'mtd', '7d', 'today']);
+    expect(vm.periods).toEqual(['30d', 'mtd', '7d', 'today']);
     expect(vm.footer).toMatchObject({ loaded: 1000, total: 1240, shown: null });
     expect(vm.footer.stamp.coverage).toBe('partial');
     expect(vm.canLoadMore).toBe(false);
-    // SP-010: the plain view previews shelves; the $600+ shelf of 1000 rows starts collapsed.
-    expect(vm.shelves[0]).toMatchObject({ id: 'shelf-600-plus', rows: [] });
-    expect(vm.shelves[0]?.collapsed?.hidden).toBe(1000);
-    expect(lastPayload(h, 'spenders.board')).toEqual({ pageId: PAGE.pageId, period: '30d' });
+    // Every fan of the shelf is listed: no preview of four rows, no «ещё N · показать».
+    expect(vm.shelves[0]).toMatchObject({ id: 'shelf-600-plus', collapsed: null });
+    expect(vm.shelves[0]?.rows).toHaveLength(1000);
+    expect(h.bg.requests.filter((request) => request.type === 'spenders.board').map((request) => request.payload)).toEqual([
+      { pageId: PAGE.pageId, period: 'lifetime' },
+      { pageId: PAGE.pageId, period: '30d' },
+    ]);
     expect(h.bg.schemaFailures).toEqual([]);
   });
 
@@ -436,20 +443,17 @@ describe('[SP-002] [SP-003] [SP-004] the Spenders board opens', () => {
     expect(h.boards.spenders.getSnapshot(BOARD).view.s).not.toBe('empty');
   });
 
-  it('[SP-009] [SP-010] [SP-045] every shelf that has fans shows with its count; «показать» reveals it; a shelf nobody has is not drawn', async () => {
+  it('[SP-009] [SP-045] [X66] every shelf that has fans shows all of them; nothing is left behind «показать»', async () => {
     const h = await harness();
     await h.dispatch(open('spenders'));
-    const shelf = h.boards.spenders.getSnapshot(BOARD).shelves[0]!;
-    expect(shelf.collapsed?.reveal.action).toEqual({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
-    await h.dispatch(shelf.collapsed!.reveal.action);
-    const revealed = h.boards.spenders.getSnapshot(BOARD).shelves;
+    const vm = h.boards.spenders.getSnapshot(BOARD);
     // SP-011: the fake hub counts 31 fans on a bucket the board lists 1000 rows on. A count its own rows disprove is not shown,
     // and a cut list is never summed as the shelf: the header says «—» instead of «31» next to the sum of a thousand rows.
-    expect(revealed.map((s) => [s.id, s.fans, s.lifetime, s.period])).toEqual([['shelf-600-plus', null, null, null]]);
-    expect(revealed[0]?.rows).toHaveLength(1000);
-    expect(revealed[0]?.collapsed).toBeNull();
-    expect(revealed[0]?.rows[0]).toMatchObject({ handle: spender('5000'), name: 'fan_0', lifetime: 3_720_000, period: 1_240_000, selected: false });
-    expect((await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-nope' })).ok).toBe(true);
+    expect(vm.shelves.map((s) => [s.id, s.fans, s.lifetime, s.period, s.collapsed])).toEqual([['shelf-600-plus', null, null, null, null]]);
+    expect(vm.shelves[0]?.rows).toHaveLength(1000);
+    // The lifetime is the list's; the second sum is the 30-day board's own for the fan.
+    expect(vm.shelves[0]?.rows[0]).toMatchObject({ handle: spender('5000'), name: 'fan_0', lifetime: 3_720_000, period: 1_240_000, selected: false });
+    expect(await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' })).toMatchObject({ ok: true, outcome: 'noop' });
   });
 });
 
@@ -463,10 +467,11 @@ describe('[SP-023] [SP-029] [SP-030] [SP-032] what the board says when it cannot
     expect(failed.shelves).toEqual([]);
     // Nothing repeats by itself.
     await h.advance(60_000);
-    expect(count(h, 'spenders.board')).toBe(1);
+    expect(boardReads(h, 'lifetime')).toHaveLength(1);
     await h.dispatch({ type: 'ReloadView', selector: BOARD });
     expect(h.boards.spenders.getSnapshot(BOARD).view.s).toBe('partial');
-    expect(lastPayload(h, 'spenders.board')).toEqual({ pageId: PAGE.pageId, period: '30d', force: true });
+    expect(boardReads(h, 'lifetime').at(-1)).toEqual({ pageId: PAGE.pageId, period: 'lifetime', force: true });
+    expect(boardReads(h, '30d').at(-1)).toEqual({ pageId: PAGE.pageId, period: '30d', force: true });
   });
 
   it('[SP-030] an answered empty board is «empty»; a hub that does not answer is «offline»', async () => {
@@ -510,10 +515,10 @@ describe('[SP-023] [SP-029] [SP-030] [SP-032] what the board says when it cannot
     await h.dispatch({ type: 'ReloadView', selector: BOARD });
     const after = h.boards.spenders.getSnapshot(BOARD);
     expect(after.footer).toMatchObject({ loaded: 5, total: 5 });
-    // The first shelf previews four rows; the fifth is behind «показать».
-    expect(after.shelves[0]?.rows.map((row) => row.handle)).toEqual([spender('5000'), spender('5001'), spender('5002'), spender('5003')]);
-    expect(after.shelves[0]?.collapsed?.hidden).toBe(1);
-    expect(seen.at(-1)).toBe(4);
+    // Every fan of the shelf is listed (X66).
+    expect(after.shelves[0]?.rows.map((row) => row.handle)).toEqual([spender('5000'), spender('5001'), spender('5002'), spender('5003'), spender('5004')]);
+    expect(after.shelves[0]?.collapsed).toBeNull();
+    expect(seen.at(-1)).toBe(5);
   });
 
   it('[SP-031] an assembly that timed out is an error with «Повторить», not a wait without end', async () => {
@@ -543,11 +548,13 @@ describe('[SP-006] [SP-018] [SP-019] [SP-020] [SP-021] period, search, filters, 
     await h.dispatch({ type: 'SetSpendersPeriod', period: '7d' });
     expect(lastPayload(h, 'spenders.board')).toEqual({ pageId: PAGE.pageId, period: '7d' });
     expect(h.boards.spenders.getSnapshot(BOARD).period).toBe('7d');
+    // The list itself is the lifetime board: a period of the second sum does not read it again.
+    expect(boardReads(h, 'lifetime')).toHaveLength(1);
     await h.dispatch({ type: 'SetSpendersPeriod', period: '30d' });
-    expect(count(h, 'spenders.board')).toBe(2);
+    expect([boardReads(h, 'lifetime').length, boardReads(h, '30d').length, boardReads(h, '7d').length]).toEqual([1, 1, 1]);
     await h.advance(10 * 60_000 + 1);
     await h.dispatch({ type: 'SetSpendersPeriod', period: '7d' });
-    expect(count(h, 'spenders.board')).toBe(3);
+    expect([boardReads(h, 'lifetime').length, boardReads(h, '30d').length, boardReads(h, '7d').length]).toEqual([2, 1, 2]);
   });
 
   it('[SP-019] the field echoes at once, the list follows 150 ms after the last keystroke — one filtering for a burst', async () => {
@@ -931,7 +938,7 @@ describe('[SP-033] [SP-034] [SP-035] [SP-042] [SP-043] keys, opening a chat, a c
     expect(vm.shelves).toEqual([]);
     expect(vm.filters.filter((f) => f.pressed).map((f) => f.id)).toEqual(['all']);
     await h.dispatch(open('spenders'));
-    expect(count(h, 'spenders.board')).toBe(2);
+    expect(boardReads(h, 'lifetime')).toHaveLength(2);
   });
 
   it('[SP-042] an answer for the previous identity is dropped, never shown', async () => {
@@ -977,7 +984,7 @@ describe('[SP-033] [SP-034] [SP-035] [SP-042] [SP-043] keys, opening a chat, a c
     h.bg.failNext('spenders.stats', { code: 'CG-DATA-NOT-READY' });
     await h.dispatch(open('spenders'));
     expect(h.boards.spenders.getSnapshot(BOARD).view).toMatchObject({ s: 'error', error: { code: 'CG-DATA-UNAVAILABLE' } });
-    expect(count(h, 'spenders.board')).toBe(1);
+    expect(boardReads(h, 'lifetime')).toHaveLength(1);
     expect(count(h, 'spenders.stats')).toBe(1);
     // The context is read again and again (flags, the catalog, the settings, the bootstrap): nothing repeats the failed reads.
     reread(h);
@@ -989,12 +996,13 @@ describe('[SP-033] [SP-034] [SP-035] [SP-042] [SP-043] keys, opening a chat, a c
     h.bg.setBootstrap(h.bootstrap);
     await h.flush();
     await h.advance(120_000);
-    expect(count(h, 'spenders.board')).toBe(1);
+    expect(boardReads(h, 'lifetime')).toHaveLength(1);
+    expect(count(h, 'spenders.board')).toBe(2);
     expect(count(h, 'spenders.stats')).toBe(1);
     expect(h.boards.spenders.getSnapshot(BOARD).view.s).toBe('error');
     // «Повторить» is the one way on.
     await h.dispatch({ type: 'ReloadView', selector: BOARD });
-    expect(count(h, 'spenders.board')).toBe(2);
+    expect(boardReads(h, 'lifetime')).toHaveLength(2);
     expect(h.boards.spenders.getSnapshot(BOARD).footer.loaded).toBe(1000);
   });
 

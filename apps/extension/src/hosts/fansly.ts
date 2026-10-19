@@ -1,9 +1,9 @@
 // Fansly's entry in the host registry (docs/project-unite/architecture.md §1.2;
 // R20 P7a0): its addresses come from its runtime row (./runtime/fansly.ts); the
-// rest is build data — its scripts, lazy build, permissions, budgets, contract
-// check, archive markers and test config — read by build/manifest.ts,
+// rest is build data — its scripts, lazy build, permissions, contract check,
+// archive markers and test config — read by build/manifest.ts,
 // wxt.config.ts, lazy/vite.config.ts and
-// tools/{gates,size-budget,archive-check,host-contract-check}. Nothing that
+// tools/{gates,archive-check,host-contract-check}. Nothing that
 // ships imports this file.
 //
 // Its two scripts are registered by the background, never by the manifest, in
@@ -97,20 +97,6 @@ export const FANSLY: HostDescriptor = {
   permissions: { origins: [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], optional: true, api: ['webRequest'] },
   // The boot, the traps and the observation run in the page's own world (§5).
   mainWorldSources: ['packages/host-fansly/src/main/'],
-  // §3.1, gzip -9. The isolated line: the part every site's early bundle carries is 18 227 B of it (F3's measure).
-  budgets: {
-    scripts: [
-      // Everything of MAIN in one script, ≤ 1 ms at document_start (e2e): the P3a prototype was 8.8 KiB.
-      { entry: 'fansly-main', label: 'MAIN: boot, traps, observation (fansly-main)', gzipBytes: 16 * KIB },
-      // P7g: admission, retirement and notices alongside P7d's dock (30.43 KiB measured); R20 P7e: → 36 KiB (33.41 measured) — the writes
-      // (the field's revision and record, the insert, «Открыть и вставить») start with the port; R20 P9c: → 38 KiB (36.04
-      // measured) — the relay frame and its lease, early: the background's work may route through a tab without a chat.
-      // X46: the floating launcher's asks and its chunk's load after admission, early — +0.32 (37.18 measured on ed642327).
-      { entry: 'fansly', label: 'early isolated start of the site (fansly)', gzipBytes: 38 * KIB },
-      { entry: 'fansly-notice', label: 'reload notice (fansly-notice)', gzipBytes: 2 * KIB },
-    ],
-    contracts: [],
-  },
   // Local only, never in CI: the copies of Fansly's bundles stay outside the repository (§0; docs/research/fansly.md
   // says where they are). The module is the check's anchor set (P7h): it reads the adapter's own selectors and addresses.
   contractCheck: { module: 'tools/host-contract-check/anchors-fansly.ts', bundlesRootEnv: 'CG_FANSLY_BUNDLES' },

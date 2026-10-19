@@ -1,11 +1,10 @@
-// The lazy chunks of the boards (architecture.md §10.1, §11: every lazy chunk
-// ≤ 30 KiB gzip on top of what the dock already loaded). The release build is
-// measured by tools/size-budget once the composition root adds the entries;
-// until then these guards measure each surface the strict way: everything it
-// needs that the dock does not use itself — its own code and the kit parts
-// only overlays use (Dialog, VirtualList, fields, Markdown…) — whatever chunk
-// the bundler puts them in. They also keep zod (which the contracts' schema
-// modules build at load) out of every surface. A part a surface loads only on
+// The lazy chunks of the boards (architecture.md §10.1): each surface is
+// measured the strict way — everything it needs that the dock does not use
+// itself, its own code and the kit parts only overlays use (Dialog,
+// VirtualList, fields, Markdown…), whatever chunk the bundler puts them in —
+// and printed. X66: the owner dropped the size budgets (§11): no size is
+// judged. The guards keep zod (which the contracts' schema modules build at
+// load) and the contracts' schema modules out of every surface. A part a surface loads only on
 // a click of its own (`import()`, the preview's media panel, X53) is not the
 // surface's: it is measured as an entry of its own.
 
@@ -19,10 +18,6 @@ import { build, type Rolldown } from 'vite';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 const UI = fileURLToPath(new URL('../../../ui/src/', import.meta.url));
-const KIB = 1024;
-/** architecture.md §11: a lazy chunk beyond the dock, gzip (1.32.0: 30 → 32 KiB, the batch of a list in Spenders). */
-const LAZY_CHUNK = 32 * KIB;
-
 /**
  * What the docked strip and the result sheet use from the kit: the
  * DOCK_IMPORTS of ../kit/size.test.ts (R13), which guards the kit's share of
@@ -102,7 +97,7 @@ async function modulesOf(source: string): Promise<Map<string, string>> {
 
 const gzip = (code: string): number => gzipSync(code, { level: 9 }).byteLength;
 
-describe('[EX-009] the boards’ lazy chunks fit the budget (architecture.md §11)', () => {
+describe('[EX-009] the boards’ lazy chunks: measured, without zod or schemas', () => {
   let dock = new Map<string, string>();
   const surfaces = new Map<Surface, Map<string, string>>();
 
@@ -114,32 +109,12 @@ describe('[EX-009] the boards’ lazy chunks fit the budget (architecture.md §1
   /** What the surface needs beyond the dock: its modules the dock does not hold, as one file. */
   const beyondDock = (name: Surface): number => gzip([...(surfaces.get(name) ?? new Map<string, string>())].filter(([id]) => !dock.has(id)).map(([, code]) => code).join('\n'));
 
-  it.each(Object.keys(SURFACES) as Surface[])(`%s is under ${LAZY_CHUNK / KIB} KiB gzip beyond the dock`, (name) => {
-    const size = beyondDock(name);
-    expect(size).toBeGreaterThan(KIB);
-    expect(size).toBeLessThanOrEqual(LAZY_CHUNK);
-  });
-
-  it('the sizes are known: Spenders ≤ 32, «Новые» ≤ 27, the palette’s preview window ≤ 18, the fan panel ≤ 10, the palette ≤ 8 and the media panel ≤ 5 KiB', () => {
-    const sizes = Object.fromEntries((Object.keys(SURFACES) as Surface[]).map((name) => [name, beyondDock(name)]));
-    // gzip is not one number: the same bytes come out about 0.2 % larger from the zlib of an official Node build
-    // (what CI installs) than from a Node linked against the system zlib (the owner's Mac). Spenders was 26 KiB
-    // with 83 bytes over on CI's Node; the pin has room for the tool, the budget above is the rule. X53: the media picker's
-    // toggle and the loader of its panel (its closed line is the panel's chunk) cost the three previews up to 1.7 KiB each, and the bundler's helper of
-    // a dynamic import 1.1 KiB more here (in the extension it is the dock's layer's already): 27 → 29, 22 → 23, 16 → 18.
-    // 1.32.0: the batch of a list (its check boxes, bar and row line, 1.8 KiB alone) — 29 → 31 and 23 → 25.
-    // X60: «Новые» in the window every site shares (its frame, rows and batch foot, 1.3 KiB) — 25 → 27.
-    // X65: Spenders with the preview as a panel under the list (its header line, Fix in the field, the border that
-    // drags), «Ждёт», the period menu in its column and the filters in the header — 31 → 32, the budget itself:
-    // the panel is a module of its own, so «Новые» and the palette's window got smaller, not larger.
-    expect(sizes['spenders']).toBeLessThanOrEqual(32 * KIB);
-    expect(sizes['newcomers']).toBeLessThanOrEqual(27 * KIB);
-    expect(sizes['fan-panel']).toBeLessThanOrEqual(10 * KIB);
-    expect(sizes['palette']).toBeLessThanOrEqual(8 * KIB);
-    // X53: the media panel, beyond the dock (the preview's own share of it is in the three above).
-    expect(sizes['preview-send']).toBeLessThanOrEqual(5 * KIB);
-    // The preview's own window (X24) is the Spenders pane without the board and the statistics.
-    expect(sizes['preview']).toBeLessThanOrEqual(18 * KIB);
+  it('every surface is built and is more than a stub; its size beyond the dock is printed, not judged (X66)', () => {
+    for (const name of Object.keys(SURFACES) as Surface[]) {
+      const size = beyondDock(name);
+      console.info(`${name}: ${size} B gzip beyond the dock`);
+      expect(size, name).toBeGreaterThan(1024);
+    }
   });
 
   it('«the dock» here is the dock of the kit’s own size guard: its list of imports, read and not copied', () => {

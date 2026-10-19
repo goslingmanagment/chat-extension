@@ -8,9 +8,11 @@
 // from SpendersBoardVM; a failed read is an error card with «Повторить», never
 // an empty list (SP-029). «Фан ждёт ответа» is the bold age in «Ждёт» and
 // nothing else: no dot, no colour; a fan we wrote to last reads «мы 18 ч».
+// The picked fan's preview unfolds right under their row (X66), its height the
+// room the list has for the row and the preview together.
 
-import { type JSX, type Ref, type TargetedKeyboardEvent } from 'preact';
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'preact/hooks';
+import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent } from 'preact';
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type I18n, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type UiAction } from '@cg/contracts/vm';
@@ -34,7 +36,7 @@ import {
 import { BatchBar, BatchCheck, BatchCheckAll, BatchLine, inBatch } from './batch';
 import { bothAges } from './preview/Preview';
 import { rowKeyOf, useRowFocus } from './rowFocus';
-import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
+import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, inlinePreviewHeight, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
 import { ChoiceMenu, FilterChip, ageOrUnknown, coverageWord, isPlainKey } from './window';
 
 export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
@@ -72,6 +74,8 @@ export interface BoardHandle {
 export interface BoardProps {
   readonly board: SpendersBoardVM;
   readonly boardRef?: Ref<BoardHandle>;
+  /** X66: the open preview, drawn under the picked fan's row; absent or null — none unfolds in the list. */
+  readonly unfolded?: (() => ComponentChildren) | null;
 }
 
 function openPreview(handle: string): UiAction {
@@ -190,6 +194,8 @@ export function waitCell(i18n: I18n, row: SpenderRowVM): { readonly text: string
 
 interface FanRowProps {
   readonly row: SpenderRowVM;
+  /** Its preview is unfolded under it (X66). */
+  readonly expanded: boolean;
   /** The row's key in the list: what the keyboard's row is remembered by. */
   readonly itemKey: string;
   readonly index: number;
@@ -198,7 +204,7 @@ interface FanRowProps {
   readonly onPick: (key: string) => void;
 }
 
-function FanRow({ row, itemKey, index, rowIndex, active, onPick }: FanRowProps): JSX.Element {
+function FanRow({ row, expanded, itemKey, index, rowIndex, active, onPick }: FanRowProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   // The @handle is the tooltip's and the preview's (X65): in the row it only made the names ragged.
@@ -208,13 +214,14 @@ function FanRow({ row, itemKey, index, rowIndex, active, onPick }: FanRowProps):
   const waitTip = useTooltip(wait.tooltip);
   // The second sum is plain ink (X65): green is income in the statistics and the preview, not a column of it.
   const period = useSpokenMoney(row.period);
-  const classes = ['cg-bd__grid', 'cg-bd__row', row.selected ? 'is-sel' : '', row.deleted ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : ''].filter((name) => name !== '').join(' ');
+  const classes = ['cg-bd__grid', 'cg-bd__row', row.selected ? 'is-sel' : '', expanded ? 'is-open' : '', row.deleted ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : ''].filter((name) => name !== '').join(' ');
   return (
     <div
       class={classes}
       role="row"
       aria-rowindex={rowIndex}
       {...(row.selected ? { 'aria-current': 'true' as const } : {})}
+      {...(expanded ? { 'aria-expanded': 'true' as const } : {})}
       tabIndex={active ? 0 : -1}
       data-cg-item={index}
       data-cg-key={itemKey}
@@ -315,14 +322,15 @@ function truncation(board: SpendersBoardVM): { readonly shown: number; readonly 
   return null;
 }
 
-export function Board({ board, boardRef }: BoardProps): JSX.Element {
+export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const announce = useAnnounce();
   // One minute ticker for every age in the list («3 ч», «19 д»).
   useMinuteClock(true);
 
-  const items = useMemo(() => boardItems(board.shelves), [board.shelves]);
+  const unfold = unfolded !== null;
+  const items = useMemo(() => boardItems(board.shelves, unfold), [board.shelves, unfold]);
   const handles = useMemo(() => items.flatMap((item) => (item.kind === 'fan' ? [item.row.handle] : [])), [items]);
   // The keyboard's row is a fan (or «ещё N»), remembered by its key and never by its place: the list changes
   // under the person — a refresh, a fan who wrote and moved up — and the row must stay on its fan.
@@ -339,6 +347,34 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
     if (currentKey !== activeKey) setActiveKey(currentKey);
   }, [currentKey, activeKey]);
   const { wrapRef, listRef, focusRow, settle } = useRowFocus(currentKey);
+
+  // X66: the unfolded preview takes the room the list has under its row; the list's height is measured, not guessed.
+  const [listHeight, setListHeight] = useState(0);
+  const showsRows = items.length > 0;
+  useLayoutEffect(() => {
+    const node = wrapRef.current;
+    if (node === null) return undefined;
+    const measure = (): void => setListHeight(node.clientHeight);
+    measure();
+    const view = node.ownerDocument.defaultView;
+    if (view === null || typeof view.ResizeObserver !== 'function') return undefined;
+    const observer = new view.ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [wrapRef, showsRows]);
+  const previewHeight = inlinePreviewHeight(listHeight);
+  const rowHeight = useCallback((item: BoardItem): number => boardItemHeight(item, previewHeight), [previewHeight]);
+  // A preview that unfolds (a click, Space, the neighbouring fan) brings its row and itself into view together, and
+  // so does a list that moved it (a search cleared, a refresh that put fans above it): a preview is a row of the
+  // virtual list, and one scrolled out by a change the person did not make would be gone from the window. The
+  // person's own scrolling moves nothing here.
+  const unfoldedAt = unfold ? items.findIndex((item) => item.kind === 'preview') : -1;
+  const unfoldedKey = unfoldedAt < 0 ? null : (items[unfoldedAt]?.key ?? null);
+  useLayoutEffect(() => {
+    if (unfoldedAt < 0) return;
+    listRef.current?.scrollToIndex(unfoldedAt - 1);
+    listRef.current?.scrollToIndex(unfoldedAt);
+  }, [unfoldedKey, unfoldedAt, previewHeight, listRef]);
 
   const move = (from: number, to: number): void => {
     const item = items[to];
@@ -468,7 +504,7 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
         <div class="cg-bd__list" ref={wrapRef}>
           <VirtualList
             items={items}
-            rowHeight={boardItemHeight}
+            rowHeight={rowHeight}
             getKey={(item) => item.key}
             role="table"
             label={i18n.t('spenders.boardLabel')}
@@ -488,9 +524,18 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
                 case 'shelf':
                   return <ShelfRow shelf={item.shelf} rowIndex={rowIndex} />;
                 case 'fan':
-                  return <FanRow row={item.row} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
+                  return <FanRow row={item.row} expanded={unfold && item.row.selected} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
                 case 'more':
                   return <MoreRow item={item} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
+                case 'preview':
+                  // Out of the rows' keys (no data-cg-key): what is typed in the preview is never a key of the list.
+                  return (
+                    <div class="cg-bd__unfold" role="row" aria-rowindex={rowIndex} data-cg-unfolded={item.handle}>
+                      <div role="cell" class="cg-bd__unfoldcell">
+                        {unfolded?.()}
+                      </div>
+                    </div>
+                  );
               }
             }}
           />
@@ -576,6 +621,14 @@ export const BOARD_CSS = `
 .cg-bd__age { color: var(--cg-ink-muted); }
 .cg-bd__age.is-wait { color: var(--cg-ink-strong); font-weight: 500; }
 .cg-bd__last { display: block; overflow: hidden; visibility: hidden; color: var(--cg-ink-muted); text-overflow: ellipsis; }
+.cg-bd__row.is-open, .cg-bd__row.is-open:hover { background: var(--cg-sel); box-shadow: inset 3px 0 var(--cg-clay); }
+.cg-bd__unfold { height: 100%; padding-bottom: 10px; }
+.cg-bd__unfoldcell {
+  display: flex; flex-direction: column; height: 100%; border-left: 3px solid var(--cg-clay); border-bottom: 1px solid var(--cg-rule-2);
+  background: var(--cg-surface);
+}
+.cg-bd__unfoldcell > * { flex: 1; min-height: 0; }
+.cg-bd__unfoldcell .cg-pv__name, .cg-bd__unfoldcell .cg-pv__money { display: none; }
 .cg-bd__more { display: flex; align-items: center; height: 32px; padding: 0 16px 0 12px; }
 .cg-bd__morebtn { height: 24px; padding: 0 8px; border-radius: var(--cg-r-sm); color: var(--cg-ink-muted); font-size: var(--cg-text-sm); }
 .cg-bd__morebtn:hover { background: var(--cg-hover); color: var(--cg-ink-strong); }

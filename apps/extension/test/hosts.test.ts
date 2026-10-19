@@ -35,14 +35,6 @@ const SECOND: HostDescriptor = {
   lazy: { root: 'lazy/site', entries: { dock: 'site/dock.ts', notes: 'site/notes.ts' }, layers: ['dock'], beforeTheDock: [] },
   permissions: { origins: ['https://site.example.test/*', 'https://api.site.example.test/*'], optional: true, api: ['webRequest'] },
   mainWorldSources: ['packages/host-site/src/main/'],
-  budgets: {
-    scripts: [
-      { entry: 'site-main', label: 'MAIN (site-main)', gzipBytes: 16 * 1024 },
-      { entry: 'site', label: 'isolated (site)', gzipBytes: 30 * 1024 },
-      { entry: 'site-notice', label: 'notice (site-notice)', gzipBytes: 2 * 1024 },
-    ],
-    contracts: [],
-  },
   contractCheck: { module: 'packages/host-site/src/isolated/host-contract.ts', bundlesRootEnv: 'CG_SITE_BUNDLES' },
   archiveMarkers: { code: [], libraries: [] },
   test: { pageMatches: ['http://localhost/*'] },
