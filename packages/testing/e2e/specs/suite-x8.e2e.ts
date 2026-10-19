@@ -182,7 +182,10 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await standServer.script(ACC, a6, [{ kind: 'ok', echo: 'after', gapMs: 1500 }]);
     await openPreview('Fan Fern');
     await generate(a6);
-    const box = await oursBox('modal', `${part(0)} .cg-pvs__send`);
+    const send = `${part(0)} .cg-pvs__send`;
+    // X66: the preview unfolds inside the list. Viewport pointer actions, unlike element.click(), do not scroll its button into view.
+    await ours('modal', send).scrollIntoView({ block: 'center' });
+    const box = await oursBox('modal', send);
     expect(box).not.toBeNull();
     const x = Math.round((box?.x ?? 0) + (box?.width ?? 0) / 2);
     const y = Math.round((box?.y ?? 0) + (box?.height ?? 0) / 2);
