@@ -136,6 +136,9 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
 
   describe('with the focus inside our closed roots', () => {
     before(async () => {
+      // Fix above now replaces the draft (X68). Give this insert/undo scenario its own text to restore.
+      await clearDraft();
+      await typeDraft('some words of mine');
       // A Reply with its parts in the dock of the first chat: something of ours to stand on.
       await browser.keys([MOD, 'e']);
       await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.result.parts === 2, 'a Reply with two parts', 20_000);
