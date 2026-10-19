@@ -9,6 +9,7 @@
 // Everything here is the site's answer in neutral words: a verdict is a `NewcomerCheck`, a failure a code (the site's
 // own registry may name it) and never a text, a conversation the site's id of it, never the fan's.
 
+import { type LiveTextTail } from '@cg/contracts/host';
 import { type HumanCause } from '@cg/contracts/ids';
 import { type CoverageWindowEntry, type GreetingDraftGeneration, type StartOp } from '@cg/contracts/ops';
 
@@ -60,7 +61,7 @@ export interface NewcomersPassSource {
 
 // ── the greeting of a card (R20 P10c) ──
 
-/** What a greeting's generation takes of the pass (FS-NEW-7): ids and an address, never a text. */
+/** What a greeting's generation takes of the pass (FS-NEW-7, X69): proof and confirmed texts of its history. */
 export interface PassGreetingProof {
   readonly conversationRef: string;
   readonly historyRevision: string;
@@ -71,6 +72,8 @@ export interface PassGreetingProof {
   readonly startProof: NonNullable<StartOp['startProof']>;
   /** The avatar of the profile the pass read (FX-018); null — none fit to send. */
   readonly fanAvatarUrl: string | null;
+  readonly capturedAt?: string | undefined;
+  readonly tail?: LiveTextTail['messages'] | undefined;
 }
 
 /** The card's draft as the site keeps it (NF-012): its text, its revision, the history revision it was written on (NF-018). */

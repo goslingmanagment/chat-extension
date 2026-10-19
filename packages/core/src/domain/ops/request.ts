@@ -159,7 +159,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   if (coverageCheck && proof !== undefined) body.coverageCheck = { window: proof.window.map((entry) => ({ id: entry.id, dir: entry.dir })), deletedIds: [...proof.deletedIds] };
   // D-14: fresh page text goes only where the page admits it (the owner's `freshText` and the hub's `context-v1`) —
   // ChatSpace's tail, or a proof's texts taken in the same instant as its window.
-  const tail = start.fresh ?? (proof?.kind === 'tab-snapshot' && proof.tail !== undefined && proof.tail.length > 0 ? { capturedAt: proof.takenAt, messages: proof.tail } : undefined);
+  const tail = start.fresh ?? (proof !== undefined && proof.tail !== undefined && proof.tail.length > 0 ? { capturedAt: proof.takenAt, messages: proof.tail } : undefined);
   const liveNeed = LIVE_TEXT_HUB_NEEDS[start.feature];
   if (tail !== undefined && ctx.freshText && (liveNeed === undefined || hasCapability(ctx.bootstrap.capabilities, liveNeed))) body.liveTextContext = liveTextOf(tail);
   if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, 'live-ppv-v1')) body.livePpvContext = start.livePpv;

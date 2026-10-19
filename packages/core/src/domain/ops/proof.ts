@@ -9,6 +9,6 @@ export function coverageFingerprintOf(proof: CoverageProof): CoverageFingerprint
     window: proof.window.map((entry) => ({ id: entry.id, dir: entry.dir })),
     knownFanMessageIds: [...proof.knownFanMessageIds],
     deletedIds: [...proof.deletedIds],
-    text: snapshot && (proof.tail?.length ?? 0) > 0,
+    text: (proof.tail?.length ?? 0) > 0,
   };
 }
