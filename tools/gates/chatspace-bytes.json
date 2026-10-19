@@ -45,7 +45,7 @@
     "lazy/chatspace/preview-send.js": { "bytes": 81, "sha256": "d98edf6ea2d857e7a5c061c0628ad4326f6f9a36adefbe38374d91cc5683387b" },
     "lazy/chatspace/preview.js": { "bytes": 895, "sha256": "a9810f57bcf228aa87c55341bc7f41e5357a541bbf930bfb56480336ee7580f6" },
     "lazy/chatspace/result-expanded.js": { "bytes": 2016, "sha256": "98805d4cb1678fd12a219e893f45ea7b7539ec85359652b04714e8ca9245c9da" },
-    "lazy/chatspace/spenders.js": { "bytes": 40156, "sha256": "ac900f2b3d6f9482fb2c6e8915b5cb759909a4f09c7bf984e0ad8ad44229fe50" },
+    "lazy/chatspace/spenders.js": { "bytes": 40239, "sha256": "2c0aa75cced3c60dc16740716675fd13a7927d18d4865235cfa644fd7dc9832a" },
     "lazy/chatspace/tab-app.js": { "bytes": 91688, "sha256": "aefaa4ec6b07ef8c4504642f5362dc0cea689556037d8502b107fa4096e3c376" },
     "lazy/chatspace/tab-health.js": { "bytes": 8831, "sha256": "e3f9e3c7c2657aff891abb704407917812ea4c92ba7c79b5ec930c7a53eeb120" },
     "lazy/chatspace/tab-protocol.js": { "bytes": 83, "sha256": "ce15e7ce34d5f9e724da262882d1f6e31fe85611382f6d30f7b0c7ccfee15998" }
