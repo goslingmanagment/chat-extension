@@ -13,8 +13,8 @@ import { type IsoTimestamp } from '@cg/contracts/primitives';
 import { type SpendersFilter, type SpendersSort } from '@cg/contracts/vm';
 
 import { filterCounts, filtersActive, rowMatches, searchNeedle, sortRows, type BoardFilters } from './filters';
-import { spenderRows, type SpenderRow } from './rows';
-import { UNBOUNDED, buildShelves, needsCents, shelfPreviewCount, shelfTotals, shownTotals, type BucketBasis, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
+import { isNewSpender, spenderRows, type SpenderRow } from './rows';
+import { UNBOUNDED, buildShelves, needsCents, shelfTotals, shownTotals, type BucketBasis, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
 
 export interface BoardIndex {
   readonly pageLabel: string;
@@ -83,13 +83,26 @@ export function indexBoard(board: SpendersBoard): BoardIndex {
   };
 }
 
+/**
+ * X66: the list is the lifetime board — every payer, as the old Fansly extension listed them — and its second sum
+ * is a period's, taken from that period's own board (the old extension's month column). A fan the period board does
+ * not list paid nothing in the period when that board is whole; otherwise, and while the period board is not read
+ * (or its read failed), the second sum is unknown. `period` of the result names the second sum's period.
+ */
+export function withPeriod(list: BoardIndex, period: HubSpenderPeriod, delta: BoardIndex | null): BoardIndex {
+  const whole = delta !== null && delta.wholeScope;
+  const rows = list.rows.map((row): SpenderRow => {
+    const amount = delta === null ? null : (delta.byFan.get(row.fanRef)?.period ?? (whole ? 0 : null));
+    return { ...row, period: amount, isNew: isNewSpender(row.lifetime, amount, period) };
+  });
+  return { ...list, period, rows, shelves: buildShelves(rows, list.tiers), byFan: new Map(rows.map((row) => [row.fanRef, row])) };
+}
+
 export interface BoardQuery {
   /** The search as typed (normalized here). */
   readonly query: string;
   readonly filters: BoardFilters;
   readonly sort: SpendersSort;
-  /** Shelves the person opened with «ещё N · показать». */
-  readonly revealed: ReadonlySet<string>;
 }
 
 export interface ShelfView {
@@ -98,8 +111,6 @@ export interface ShelfView {
   readonly totals: ShelfTotals;
   /** Rows shown now. */
   readonly rows: readonly SpenderRow[];
-  /** Matching rows not shown (a collapsed shelf); 0 — nothing hidden. */
-  readonly hidden: number;
   /** Rows of this shelf whose lifetime prints cents (SP-013). */
   readonly cents: ReadonlySet<string>;
 }
@@ -115,9 +126,10 @@ export interface BoardView {
 }
 
 /**
- * The visible list. Plain view (no search, no filter): each shelf previews
- * its first rows (SP-010) until revealed. A search or a filter shows every
- * match and drops shelves without one; an empty shelf is never drawn.
+ * The visible list: every row of every shelf, as the old Fansly extension
+ * showed them (X66: the desktop's preview of four and two rows per shelf is
+ * gone). A search or a filter shows every match and drops shelves without
+ * one; an empty shelf is never drawn.
  * `source` — rows from another read placed on the board's shelves (the
  * server's «ждут ответа» queue). The plain view's shelf headers carry the
  * board's numbers (`shelfTotals`); a narrowed list's count the fans it shows
@@ -129,7 +141,6 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
   const shelves: ShelfView[] = [];
   const order: string[] = [];
   let shown = 0;
-  let position = 0;
   const own = new Map(index.shelves.map((shelf) => [shelf.id, shelf]));
   // A sourced row is shelved by the same buckets; its shelf's totals stay those of the board's own shelf.
   const placed: readonly Shelf[] = source === undefined ? index.shelves : buildShelves(source, index.tiers);
@@ -141,10 +152,7 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
     const matching = narrowed ? shelf.rows.filter((row) => rowMatches(row, query.filters, needle)) : shelf.rows;
     shown += matching.length;
     if (matching.length === 0) continue;
-    const sorted = sortRows(matching, query.sort);
-    const visible = narrowed || query.revealed.has(shelf.id) ? sorted.length : shelfPreviewCount(position, sorted.length);
-    position += 1;
-    const rows = sorted.slice(0, visible);
+    const rows = sortRows(matching, query.sort);
     for (const row of rows) order.push(row.fanRef);
     shelves.push({
       id: shelf.id,
@@ -152,7 +160,6 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
       // A narrowed list's header counts what the list shows on the shelf; the plain view's is the shelf's own.
       totals: narrowed ? shownTotals(matching) : shelfTotals(own.get(shelf.id) ?? shelf, index),
       rows,
-      hidden: sorted.length - rows.length,
       cents: new Set(rows.filter((row) => needsCents(row.lifetime, lifetimeShelved ? shelf.range : UNBOUNDED)).map((row) => row.fanRef)),
     });
   }

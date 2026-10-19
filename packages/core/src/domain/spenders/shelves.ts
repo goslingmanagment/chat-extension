@@ -18,17 +18,6 @@ import { type SpenderRow } from './rows';
 /** The shelf of fans no bucket takes (below the lowest bound, or an unknown amount). */
 export const OUTSIDE_SHELF_ID = 'shelf-outside';
 
-/**
- * SP-010: the first shelf previews four rows, the others two; a shelf of
- * MORE than fifty fans starts collapsed. The bound is the desktop's own
- * (`shelfPresentation`: `usersCount > SHELF_COLLAPSED_MIN_COUNT`, with its
- * test pinning that exactly fifty still previews): a shelf of fifty previews,
- * a shelf of fifty-one is collapsed.
- */
-export const SHELF_PREVIEW_FIRST = 4;
-export const SHELF_PREVIEW_REST = 2;
-export const SHELF_COLLAPSED_ABOVE = 50;
-
 export interface ShelfRange {
   readonly fromMills: MoneyMills | null;
   /** Exclusive; null — open-ended. */
@@ -186,12 +175,6 @@ export function shelfTotals(shelf: Shelf, scope: ShelfScope): ShelfTotals {
  */
 export function shownTotals(rows: readonly SpenderRow[]): ShelfTotals {
   return { fans: rows.length, lifetime: sum(rows, (row) => row.lifetime), period: sum(rows, (row) => row.period) };
-}
-
-/** SP-010: rows a shelf shows in the plain «Все» view before «ещё N · показать»; `position` counts non-empty shelves. */
-export function shelfPreviewCount(position: number, members: number): number {
-  if (members > SHELF_COLLAPSED_ABOVE) return 0;
-  return Math.min(members, position === 0 ? SHELF_PREVIEW_FIRST : SHELF_PREVIEW_REST);
 }
 
 const wholeDollars = (mills: MoneyMills): MoneyMills => Math.round(mills / 1000) * 1000;

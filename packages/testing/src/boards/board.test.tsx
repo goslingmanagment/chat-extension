@@ -10,7 +10,7 @@ import { createI18n } from '@cg/core/domain/i18n';
 import { BOARD_HEIGHTS, boardItems, formatPct, initialStop, nextStop, shelfLabel, statsDayName, statsShelfLabel, zoneLabel } from '@cg/ui/spenders';
 
 import { board, button, cgError, ctxOf, entry, stats, views } from '../scenarios/app-client';
-import { BOARD_FANS, boardShelves, manyFans, type BoardFan } from './data';
+import { BOARD_FANS, HUBERT, boardHandle, boardShelves, manyFans, type BoardFan } from './data';
 import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
 import { LiveBoardClient } from './live-client';
 import { boardOf, boardScenario } from './states';
@@ -91,18 +91,40 @@ describe('Spenders window', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'SetSpendersPeriod', period: '7d' });
   });
 
-  it('[SP-042] [X65] the list and its statistics column on top; the preview a panel under them, across the window, behind a border', async () => {
+  it('[SP-042] [X66] the list and its statistics column; the picked fan\'s preview unfolds right under their row', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     const parts = (selector: string): string[] => [...(ui?.$(selector) as HTMLElement).children].map((child) => child.className.split(' ')[0] ?? '');
     expect(parts('.cg-sp__cols')).toEqual(['cg-bd', 'cg-st']);
-    expect(parts('.cg-sp__body')).toEqual(['cg-sp__cols', 'cg-sp__split', 'cg-sp__panel']);
-    expect(ui.$('.cg-sp__panel > .cg-pv.is-panel')).not.toBeNull();
-    const border = ui.$('.cg-sp__split') as HTMLElement;
-    expect([border.getAttribute('role'), border.getAttribute('aria-orientation'), border.getAttribute('aria-label')]).toEqual(['separator', 'horizontal', 'Высота превью']);
+    // No panel under the list and no border to drag: the preview is a row of the list.
+    expect(parts('.cg-sp__body')).toEqual(['cg-sp__cols']);
+    const unfolded = ui.$('.cg-vlist__inner .cg-bd__unfold') as HTMLElement;
+    expect(unfolded.querySelector('.cg-pv.is-panel')).not.toBeNull();
+    // It stands right after Hubert's row, which says it is expanded.
+    const hubert = ui.$('.cg-vlist__inner [aria-expanded="true"]') as HTMLElement;
+    expect(hubert.getAttribute('data-cg-fan')).toBe(boardHandle(HUBERT.key));
+    expect(hubert.closest('.cg-vlist__row')?.nextElementSibling?.contains(unfolded)).toBe(true);
+    expect(unfolded.getAttribute('data-cg-unfolded')).toBe(boardHandle(HUBERT.key));
     ui.unmount();
     ui = await mountBoardSettled('spenders', 'board-list');
     expect(parts('.cg-sp__body')).toEqual(['cg-sp__cols']);
     expect(parts('.cg-sp__cols')).toEqual(['cg-bd', 'cg-st']);
+    expect(ui.$('.cg-bd__unfold')).toBeNull();
+  });
+
+  it('[X66] a picked fan the list does not show (a search hides them) keeps the preview as a panel under the list', async () => {
+    const world = boardScenario('11a');
+    const hidden = world.views.map((view) => {
+      if (view.selector.of !== 'spenders.board') return view;
+      const vm = view.vm as ReturnType<typeof boardOf>;
+      return entry({ of: 'spenders.board' }, { ...vm, shelves: vm.shelves.map((shelf) => ({ ...shelf, rows: shelf.rows.filter((row) => !row.selected) })) });
+    });
+    ui = await mountBoardSettled('spenders', { ...world, views: hidden });
+    const parts = (selector: string): string[] => [...(ui?.$(selector) as HTMLElement).children].map((child) => child.className.split(' ')[0] ?? '');
+    expect(parts('.cg-sp__body')).toEqual(['cg-sp__cols', 'cg-sp__split', 'cg-sp__panel']);
+    expect(ui.$('.cg-sp__panel > .cg-pv.is-panel')).not.toBeNull();
+    expect(ui.$('.cg-bd__unfold')).toBeNull();
+    const border = ui.$('.cg-sp__split') as HTMLElement;
+    expect([border.getAttribute('role'), border.getAttribute('aria-orientation'), border.getAttribute('aria-label')]).toEqual(['separator', 'horizontal', 'Высота превью']);
   });
 });
 

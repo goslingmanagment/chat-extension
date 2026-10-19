@@ -2,8 +2,8 @@
 // §10.1; ui-design §3.5, §4.14): a column header on top, then per shelf its
 // thin divider (28 px, sticks under the column header; X65), its fans (36 px)
 // and, when the shelf is cut, «ещё N · показать». A 6 px gap stands before
-// every shelf but the first. An empty shelf is not drawn. Pure: the Board renders
-// it, the tests measure it.
+// every shelf but the first. The open preview unfolds under its fan's row (X66).
+// An empty shelf is not drawn. Pure: the Board renders it, the tests measure it.
 
 import { type I18n, type ShelfVM, type SpenderRowVM, type SpendersStatsVM } from '@cg/contracts/vm';
 
@@ -11,29 +11,54 @@ export type BoardItem =
   | { readonly kind: 'gap'; readonly key: string }
   | { readonly kind: 'shelf'; readonly key: string; readonly shelf: ShelfVM }
   | { readonly kind: 'fan'; readonly key: string; readonly row: SpenderRowVM }
-  | { readonly kind: 'more'; readonly key: string; readonly shelf: ShelfVM; readonly hidden: number };
+  | { readonly kind: 'more'; readonly key: string; readonly shelf: ShelfVM; readonly hidden: number }
+  /** X66: the preview of the picked fan, unfolded under that fan's row. */
+  | { readonly kind: 'preview'; readonly key: string; readonly handle: string };
 
 /** Heights of ui-design §3.5: the column header, a shelf divider, the gap above a shelf, a fan row, «ещё N · показать». */
 export const BOARD_HEIGHTS = { header: 28, shelf: 28, gap: 6, fan: 36, more: 32 } as const;
 /** 1.32.0: a fan in a batch has its line under the row. */
 export const BATCH_FAN_HEIGHT = 54;
 
-/** A shelf with nothing to show (no rows and nothing hidden) is skipped (§4.14 «Пустая полка не рисуется»). */
-export function boardItems(shelves: readonly ShelfVM[]): BoardItem[] {
+/**
+ * The unfolded preview keeps to these heights; between them it fills the list under its row (X66). Under `min` (a
+ * browser zoomed to 200 %) it stays that high and scrolls inside, as the short panel did (#217).
+ */
+export const INLINE_PREVIEW = { min: 220, max: 600 } as const;
+
+/**
+ * A shelf with nothing to show (no rows and nothing hidden) is skipped (§4.14 «Пустая полка не рисуется»).
+ * `unfold` — the open preview stands under the picked fan's row (X66); a picked fan the list does not show has none.
+ */
+export function boardItems(shelves: readonly ShelfVM[], unfold = false): BoardItem[] {
   const items: BoardItem[] = [];
   for (const shelf of shelves) {
     const hidden = shelf.collapsed?.hidden ?? 0;
     if (shelf.rows.length === 0 && hidden <= 0) continue;
     if (items.length > 0) items.push({ kind: 'gap', key: `gap:${shelf.id}` });
     items.push({ kind: 'shelf', key: `shelf:${shelf.id}`, shelf });
-    for (const row of shelf.rows) items.push({ kind: 'fan', key: `fan:${row.handle}`, row });
+    for (const row of shelf.rows) {
+      items.push({ kind: 'fan', key: `fan:${row.handle}`, row });
+      if (unfold && row.selected) items.push({ kind: 'preview', key: `preview:${row.handle}`, handle: row.handle });
+    }
     if (shelf.collapsed !== null && hidden > 0) items.push({ kind: 'more', key: `more:${shelf.id}`, shelf, hidden });
   }
   return items;
 }
 
-export function boardItemHeight(item: BoardItem): number {
+/** `preview` — the unfolded preview's height, as the Board measured the room for it. */
+export function boardItemHeight(item: BoardItem, preview: number = INLINE_PREVIEW.min): number {
+  if (item.kind === 'preview') return preview;
   return item.kind === 'fan' && (item.row.batch?.state ?? null) !== null ? BATCH_FAN_HEIGHT : BOARD_HEIGHTS[item.kind];
+}
+
+/**
+ * The unfolded preview's height for a list of `listHeight` px: the room under the column header, a sticky shelf
+ * divider and its fan's row, so the row and the whole preview are in view together; within INLINE_PREVIEW.
+ */
+export function inlinePreviewHeight(listHeight: number): number {
+  const room = listHeight - BOARD_HEIGHTS.header - BOARD_HEIGHTS.shelf - BOARD_HEIGHTS.fan - 8;
+  return Math.round(Math.min(INLINE_PREVIEW.max, Math.max(INLINE_PREVIEW.min, room)));
 }
 
 /** Rows the keyboard can stand on: fans and «ещё N · показать». */

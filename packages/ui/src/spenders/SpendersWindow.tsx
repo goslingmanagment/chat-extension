@@ -1,10 +1,11 @@
 // The Spenders window (architecture.md §10.1; ui-design §3.5, §4.14–§4.16,
-// §6.3, §6.4; SP-002, SP-019, SP-033, SP-049, SP-050; X65): a modal window
-// over the site's container. On top, as wide as the window, the list — with
-// the statistics as a compact right column on a site that has them —; under
-// it, once a fan is picked, the preview as a panel across the whole width,
-// its height dragged on the border between them. The statistics may also be
-// expanded in place of both. It renders three view models (`spenders.board`,
+// §6.3, §6.4; SP-002, SP-019, SP-033, SP-049, SP-050; X65, X66): a modal window
+// over the site's container. The list as wide as the window — with the
+// statistics as a compact right column on a site that has them. A picked fan's
+// preview unfolds right under their row (X66); only a fan the list does not
+// show (a filter or a search hides them) gets the preview as a panel under the
+// list, its height dragged on the border between them. The statistics may also
+// be expanded in place of both. It renders three view models (`spenders.board`,
 // `spenders.stats`, `preview` from `spenders`) and asks for everything
 // through UiAction.
 
@@ -34,6 +35,11 @@ export const LIST_MIN_PX = 160;
 const PANEL_STEP_PX = 24;
 /** The height the person dragged the panel to, kept while the tab lives: the next fan and the next opening keep it. */
 let draggedPanelHeight: number | null = null;
+
+/** The picked fan has a row in the list: their preview unfolds under it (X66). */
+function pickedInList(board: SpendersBoardVM): boolean {
+  return board.shelves.some((shelf) => shelf.rows.some((row) => row.selected));
+}
 
 /** The picked fan's last message from the list: the preview shows it while the archive has nothing yet (X65). */
 function rowFallback(board: SpendersBoardVM): PreviewFallback | null {
@@ -194,6 +200,15 @@ export function SpendersWindow(): JSX.Element {
   };
 
   const preview = board.previewOpen && !expanded;
+  const unfold = preview && pickedInList(board);
+  const unfolded = useCallback(
+    () => (
+      <Boundary surface={null}>
+        <PanelPreview fallback={fallback} />
+      </Boundary>
+    ),
+    [fallback],
+  );
 
   return (
     <OverlayLayer>
@@ -221,9 +236,9 @@ export function SpendersWindow(): JSX.Element {
               </Boundary>
             </div>
           ) : (
-            <div ref={bodyRef} class={`cg-sp__body${preview ? ' has-panel' : ''}`}>
+            <div ref={bodyRef} class={`cg-sp__body${preview && !unfold ? ' has-panel' : ''}`}>
               <div class={`cg-sp__cols${statistics ? '' : ' no-stats'}`}>
-                <Board board={board} boardRef={boardRef} />
+                <Board board={board} boardRef={boardRef} unfolded={unfold ? unfolded : null} />
                 {/* A broken statistics column does not take the board down (ER-020). */}
                 {statistics ? <Boundary surface={null}>
                   <StatsColumn stats={stats} onShelf={(shelfId) => {
@@ -232,7 +247,7 @@ export function SpendersWindow(): JSX.Element {
                   }} />
                 </Boundary> : null}
               </div>
-              {preview ? (
+              {preview && !unfold ? (
                 <>
                   <PanelSplit panelRef={panelRef} height={panelHeight} onResize={resizePanel} />
                   <div ref={panelRef} class="cg-sp__panel" {...(panelHeight === null ? {} : { style: { height: `${panelHeight}px` } })}>

@@ -54,13 +54,13 @@ import {
   queueRow,
   searchNeedle,
   shelfIdOf,
-  shelfPreviewCount,
   shelfTotals,
   spenderRow,
   spenderRows,
   orderedTiers,
   statsModel,
   viewBoard,
+  withPeriod,
   type BoardKey,
   type BoardQuery,
   type KeptFeed,
@@ -159,7 +159,7 @@ function smallBoard(specs: readonly FanSpec[], over: Partial<SpendersBoard> = {}
   return board;
 }
 
-const query = (over: Partial<BoardQuery> = {}): BoardQuery => ({ query: '', filters: NO_FILTERS, sort: 'sum', revealed: new Set(), ...over });
+const query = (over: Partial<BoardQuery> = {}): BoardQuery => ({ query: '', filters: NO_FILTERS, sort: 'sum', ...over });
 const usd = (dollars: number): number => Math.round(dollars * 1000);
 
 describe('the lists repeated from the contracts stay equal to them', () => {
@@ -250,7 +250,7 @@ describe('[SP-007] [SP-008] [SP-011] shelves are the hub buckets', () => {
 
   it('[SP-008] a fan below every bucket, or with no known amount, is «вне полок», last', () => {
     const board = smallBoard(specs);
-    const view = viewBoard(indexBoard(board), query({ revealed: new Set([OUTSIDE_SHELF_ID]) }));
+    const view = viewBoard(indexBoard(board), query());
     const last = view.shelves.at(-1);
     expect(last?.id).toBe(OUTSIDE_SHELF_ID);
     expect(last?.range).toEqual({ fromMills: null, toMills: null });
@@ -405,7 +405,7 @@ describe('[SP-013] money stays mills; cents only where whole dollars would cross
       { id: '302', lifetime: 450_000 },
       { id: '303', lifetime: 400 },
     ]);
-    const view = viewBoard(indexBoard(board), query({ revealed: new Set(['shelf-350-600', OUTSIDE_SHELF_ID]) }));
+    const view = viewBoard(indexBoard(board), query());
     expect(view.shelves.map((shelf) => [...shelf.cents])).toEqual([['301'], ['303']]);
   });
 
@@ -419,7 +419,7 @@ describe('[SP-013] money stays mills; cents only where whole dollars would cross
     // Both sit on $350–600 by their period spend; $599.60 of a lifetime is not on that shelf's bound, 40 cents still print as cents.
     expect(view.shelves.map((shelf) => [shelf.id, shelf.rows.map((row) => row.fanRef), [...shelf.cents]])).toEqual([['shelf-350-600', ['301', '302'], ['302']]]);
     // On a lifetime board the period spend IS the lifetime: the bound applies again.
-    const lifetime = viewBoard(indexBoard({ ...base, period: 'lifetime', tiers: byPeriod }), query({ revealed: new Set([OUTSIDE_SHELF_ID]) }));
+    const lifetime = viewBoard(indexBoard({ ...base, period: 'lifetime', tiers: byPeriod }), query());
     expect(lifetime.shelves.map((shelf) => [shelf.id, [...shelf.cents]])).toEqual([
       ['shelf-350-600', ['301']],
       [OUTSIDE_SHELF_ID, ['302']],
@@ -470,7 +470,7 @@ describe('[SP-012] [SP-014] [SP-016] [SP-017] a row', () => {
   });
 });
 
-describe('[SP-010] [SP-018] [SP-019] [SP-020] the visible list', () => {
+describe('[X66] [SP-018] [SP-019] [SP-020] the visible list', () => {
   const specs: FanSpec[] = [
     { id: '501', lifetime: usd(900), period: usd(900), name: 'Anna', fanAt: at(-86_400 * 3), weAt: at(-86_400) },
     { id: '502', lifetime: usd(800), name: 'Boris', fanAt: at(-60), weAt: at(-3600) },
@@ -483,40 +483,39 @@ describe('[SP-010] [SP-018] [SP-019] [SP-020] the visible list', () => {
   ];
   const index = indexBoard(smallBoard(specs));
 
-  it('[SP-010] the plain view previews four rows of the first shelf and two of the others; «показать» reveals a shelf', () => {
+  it('[X66] the plain view shows every fan of every shelf: no preview of four and two rows', () => {
     const plain = viewBoard(index, query());
-    expect(plain.shelves.map((shelf) => [shelf.id, shelf.rows.length, shelf.hidden])).toEqual([
-      ['shelf-600-plus', 4, 1],
-      ['shelf-350-600', 2, 1],
+    expect(plain.shelves.map((shelf) => [shelf.id, shelf.rows.length])).toEqual([
+      ['shelf-600-plus', 5],
+      ['shelf-350-600', 3],
     ]);
     expect(plain.shown).toBeNull();
-    expect(plain.order).toEqual(['501', '502', '503', '504', '506', '507']);
-    const revealed = viewBoard(index, query({ revealed: new Set(['shelf-600-plus']) }));
-    expect(revealed.shelves[0]).toMatchObject({ hidden: 0 });
-    expect(revealed.shelves[0]?.rows).toHaveLength(5);
-    expect(shelfPreviewCount(1, 1)).toBe(1);
+    expect(plain.order).toEqual(['501', '502', '503', '504', '505', '506', '507', '508']);
   });
 
-  it('[SP-010] a shelf of more than fifty fans starts collapsed; exactly fifty still previews, as on the desktop', () => {
-    // The desktop's `shelfPresentation` is `usersCount > 50`, and its own test pins fifty as a preview.
-    expect(shelfPreviewCount(0, 49)).toBe(4);
-    expect(shelfPreviewCount(0, 50)).toBe(4);
-    expect(shelfPreviewCount(1, 50)).toBe(2);
-    expect(shelfPreviewCount(0, 51)).toBe(0);
-    expect(shelfPreviewCount(1, 51)).toBe(0);
-    expect(shelfPreviewCount(0, 60)).toBe(0);
-    const fans = (n: number): FanSpec[] => Array.from({ length: n }, (_, i) => ({ id: String(700 + i), lifetime: usd(900) - i }));
-    const shelf = (n: number) => viewBoard(indexBoard(smallBoard(fans(n))), query()).shelves[0];
-    expect(shelf(50)).toMatchObject({ hidden: 46 });
-    expect(shelf(50)?.rows).toHaveLength(4);
-    expect(shelf(51)).toMatchObject({ hidden: 51 });
-    expect(shelf(51)?.rows).toHaveLength(0);
+  it('[X66] the list is the lifetime board; the second sum is the period board\'s, zero for a fan a whole period board does not list', () => {
+    const list = indexBoard(smallBoard([{ id: '601', lifetime: usd(900) }, { id: '602', lifetime: usd(700) }, { id: '603', lifetime: usd(40) }], { period: 'lifetime' }));
+    const d30 = indexBoard(smallBoard([{ id: '601', lifetime: usd(900), period: usd(120) }, { id: '603', lifetime: usd(40), period: usd(40) }]));
+    const merged = withPeriod(list, '30d', d30);
+    expect(merged.rows.map((row) => [row.fanRef, row.period, row.isNew])).toEqual([
+      ['601', usd(120), false],
+      ['602', 0, false],
+      ['603', usd(40), true],
+    ]);
+    expect(merged.period).toBe('30d');
+    expect([merged.loaded, merged.total, merged.basis]).toEqual([list.loaded, list.total, list.basis]);
+    expect(merged.shelves.map((shelf) => shelf.rows.map((row) => row.fanRef))).toEqual(list.shelves.map((shelf) => shelf.rows.map((row) => row.fanRef)));
+    // Not read yet, or its read failed: unknown — never the lifetime again, never a zero.
+    expect(withPeriod(list, '30d', null).rows.map((row) => row.period)).toEqual([null, null, null]);
+    // A period board cut at its limit cannot prove a zero.
+    const cut = indexBoard(smallBoard([{ id: '601', lifetime: usd(900), period: usd(120) }], { total: 5 }));
+    expect(withPeriod(list, '30d', cut).rows.map((row) => row.period)).toEqual([usd(120), null, null]);
   });
 
   it('[SP-018] inside a shelf: by the sum, or by how recently the fan wrote with never-wrote last', () => {
-    const bySum = viewBoard(index, query({ revealed: new Set(['shelf-600-plus']) }));
+    const bySum = viewBoard(index, query());
     expect(bySum.shelves[0]?.rows.map((row) => row.fanRef)).toEqual(['501', '502', '503', '504', '505']);
-    const byFan = viewBoard(index, query({ sort: 'fan-age', revealed: new Set(['shelf-600-plus']) }));
+    const byFan = viewBoard(index, query({ sort: 'fan-age' }));
     expect(byFan.shelves[0]?.rows.map((row) => row.fanRef)).toEqual(['502', '504', '505', '501', '503']);
   });
 
@@ -527,9 +526,7 @@ describe('[SP-010] [SP-018] [SP-019] [SP-020] the visible list', () => {
     expect(viewBoard(index, query({ query: 'ｇｌｅ' })).order).toEqual(['507']);
     expect(viewBoard(index, query({ query: '508' })).order).toEqual(['508']);
     const found = viewBoard(index, query({ query: 'a' }));
-    // A search shows every match and no collapsed shelf.
     expect(found.narrowed).toBe(true);
-    expect(found.shelves.every((shelf) => shelf.hidden === 0)).toBe(true);
     expect(found.shown).toBe(found.order.length);
   });
 
@@ -565,7 +562,8 @@ describe('[SP-010] [SP-018] [SP-019] [SP-020] the visible list', () => {
     const order = viewBoard(index, query()).order;
     expect(neighbours(order, '502')).toEqual({ previous: '501', next: '503' });
     expect(neighbours(order, '501')).toEqual({ previous: null, next: '502' });
-    expect(neighbours(order, '507')).toEqual({ previous: '506', next: null });
+    expect(neighbours(order, '507')).toEqual({ previous: '506', next: '508' });
+    expect(neighbours(order, '508')).toEqual({ previous: '507', next: null });
     expect(neighbours(order, '999')).toEqual({ previous: null, next: null });
   });
 });

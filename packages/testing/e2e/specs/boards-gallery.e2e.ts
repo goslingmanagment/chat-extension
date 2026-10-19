@@ -36,7 +36,7 @@ const ZOOMED = [
 ] as const;
 /** One state of each surface at every zoom: the preview with «Отправить», a greeting in work, the fan panel, the palette, the palette's preview window. */
 const ZOOM_STATES = ['11a', '11i', '13b', '14a', '15a', 'online-b'] as const;
-/** The statistics column gives way at this width and below, the list keeps its 380 px (X65: the preview is under the list). */
+/** The statistics column gives way at this width and below, the list keeps its 380 px (X66: the preview unfolds in the list). */
 const SPENDERS_NO_STATS_PX = 680;
 /** «Новые» is one column at this width and below (ui/newcomers frame.css.ts, as on Fansly). */
 const NEWCOMERS_ONE_COLUMN_PX = 760;
@@ -199,20 +199,25 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
     expect(found).toEqual([]);
   });
 
-  it('[X65] a narrow window: the list on top keeps its width, the preview a panel under it across the window; the statistics give way only at the narrowest; «Новые» becomes one column', async () => {
+  it('[X66] a narrow window: the list keeps its width, the preview unfolds under its fan\'s row and both are in view; the statistics give way only at the narrowest; «Новые» becomes one column', async () => {
     for (const viewport of ZOOMED) {
       await open('state=11a&theme=light&lang=ru', viewport);
-      const spenders = await browser.execute(() => ({ list: window.__boards?.box('.cg-bd') ?? null, preview: window.__boards?.box('.cg-pv') ?? null, stats: window.__boards?.box('.cg-st') ?? null, body: window.__boards?.box('.cg-sp__body') ?? null }));
-      if (spenders.list === null || spenders.preview === null || spenders.stats === null || spenders.body === null) throw new Error(`Spenders did not render at ${viewport.width}`);
-      // The list never gets narrower than its columns need, and keeps rows in view over the panel.
+      const spenders = await browser.execute(() => ({
+        list: window.__boards?.box('.cg-bd') ?? null,
+        preview: window.__boards?.box('.cg-pv') ?? null,
+        row: window.__boards?.box('.cg-bd__row[aria-expanded="true"]') ?? null,
+        stats: window.__boards?.box('.cg-st') ?? null,
+      }));
+      if (spenders.list === null || spenders.preview === null || spenders.row === null || spenders.stats === null) throw new Error(`Spenders did not render at ${viewport.width}`);
+      // The list never gets narrower than its columns need.
       expect(spenders.list.width).toBeGreaterThanOrEqual(380);
-      expect(spenders.list.height).toBeGreaterThanOrEqual(140);
-      // The preview: under the list, as wide as the window's body, its top inside the window.
-      expect(spenders.preview.top).toBeGreaterThanOrEqual(spenders.list.top + spenders.list.height - 1);
-      expect(Math.round(spenders.preview.left)).toBe(Math.round(spenders.body.left));
-      expect(Math.round(spenders.preview.width)).toBe(Math.round(spenders.body.width));
+      // The preview: right under the fan's row, inside the list, the row and the whole preview in view together.
+      expect(Math.abs(spenders.preview.top - (spenders.row.top + spenders.row.height))).toBeLessThanOrEqual(1);
+      expect(spenders.preview.left).toBeGreaterThanOrEqual(spenders.list.left);
+      expect(spenders.preview.left + spenders.preview.width).toBeLessThanOrEqual(spenders.list.left + spenders.list.width + 1);
       expect(spenders.preview.height).toBeGreaterThanOrEqual(150);
-      expect(spenders.preview.top + spenders.preview.height).toBeLessThanOrEqual(spenders.body.top + spenders.body.height + 1);
+      expect(spenders.row.top).toBeGreaterThanOrEqual(spenders.list.top);
+      expect(spenders.preview.top + spenders.preview.height).toBeLessThanOrEqual(spenders.list.top + spenders.list.height + 1);
       if (viewport.width <= SPENDERS_NO_STATS_PX) expect(spenders.stats.display).toBe('none');
       else {
         expect(spenders.stats.left).toBeGreaterThan(spenders.list.left);
@@ -243,22 +248,28 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
     }
   });
 
-  it('[SP-002] [X65] the list is on top and the widest; the statistics a compact column of 240–272 px beside it; the preview a panel across the window under both', async () => {
+  it('[SP-002] [X66] the list is the widest; the statistics a compact column of 240–272 px beside it; the preview unfolds inside the list, under its fan\'s row', async () => {
     for (const viewport of VIEWPORTS) {
       await open('state=11a&theme=light&lang=ru', viewport);
-      const boxes = await browser.execute(() => ({ list: window.__boards?.box('.cg-bd') ?? null, preview: window.__boards?.box('.cg-pv') ?? null, stats: window.__boards?.box('.cg-st') ?? null, body: window.__boards?.box('.cg-sp__body') ?? null }));
+      const boxes = await browser.execute(() => ({
+        list: window.__boards?.box('.cg-bd') ?? null,
+        preview: window.__boards?.box('.cg-pv') ?? null,
+        row: window.__boards?.box('.cg-bd__row[aria-expanded="true"]') ?? null,
+        stats: window.__boards?.box('.cg-st') ?? null,
+      }));
       expect(boxes.list).not.toBeNull();
       expect(boxes.stats?.width).toBeGreaterThanOrEqual(240);
       expect(boxes.stats?.width).toBeLessThanOrEqual(272);
       expect(boxes.list?.width).toBeGreaterThan(boxes.stats?.width ?? Number.POSITIVE_INFINITY);
-      // Left to right on top: the list, the statistics; under them the preview, as wide as the body.
+      // Left to right: the list, the statistics; the preview is in the list, right under the row it unfolds from.
       expect(boxes.list?.left).toBeLessThan(boxes.stats?.left ?? 0);
-      expect(boxes.preview?.top).toBeGreaterThanOrEqual((boxes.list?.top ?? 0) + (boxes.list?.height ?? 0) - 1);
-      expect(Math.round(boxes.preview?.width ?? 0)).toBe(Math.round(boxes.body?.width ?? -1));
+      expect(Math.abs((boxes.preview?.top ?? 0) - ((boxes.row?.top ?? 0) + (boxes.row?.height ?? 0)))).toBeLessThanOrEqual(1);
+      expect((boxes.preview?.left ?? 0) + (boxes.preview?.width ?? 0)).toBeLessThanOrEqual((boxes.list?.left ?? 0) + (boxes.list?.width ?? 0) + 1);
+      expect(boxes.stats?.left).toBeGreaterThanOrEqual((boxes.preview?.left ?? 0) + (boxes.preview?.width ?? 0) - 1);
     }
   });
 
-  it('[X65] a short preview keeps its result and send buttons reachable by scrolling, without the composer overlapping the feed', async () => {
+  it('[X65] [X66] a short preview keeps its result and send buttons reachable by scrolling, without the composer overlapping the feed', async () => {
     for (const viewport of [VIEWPORTS[0], { width: 720, height: 450 }]) {
       await open('state=11a&theme=dark&lang=ru', viewport);
       const host = browser.$('[data-host="overlay"]');
