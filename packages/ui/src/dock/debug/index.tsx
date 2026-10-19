@@ -5,7 +5,7 @@
 // `debug` then) and never in a collapsed dock. AI money and counters appear
 // nowhere else. A lazy part: outside debug mode nobody loads it.
 
-import { type JSX } from 'preact';
+import { Fragment, type JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
@@ -51,6 +51,7 @@ export function DebugFoot({ debug, startedAt, running }: DebugProps): JSX.Elemen
     const stage = debug.hubStages.find((item) => item.name === name);
     return stage === undefined ? '—' : number.format(stage.ms);
   };
+  const ms = i18n.t('debug.gutter.ms');
   const context = debug.context;
   const prompt = debug.prompt;
   return (
@@ -59,7 +60,15 @@ export function DebugFoot({ debug, startedAt, running }: DebugProps): JSX.Elemen
         <>
           <span class="cg-gut">{i18n.t('debug.gutter.cost')}</span>
           <div class="cg-debug__line">
-            <span>{debug.costLine ?? ''}</span>
+            {/* The line wraps between its items only: «7,0 с» and a model's name stay whole. */}
+            <span class="cg-debug__cost">
+              {(debug.costLine ?? '').split(' • ').map((item, index) => (
+                <Fragment key={index}>
+                  {index === 0 ? null : ' • '}
+                  <span>{item}</span>
+                </Fragment>
+              ))}
+            </span>
             {prompt === null ? null : (
               <button type="button" class="cg-debug__link" onClick={() => void dispatch(prompt)}>
                 {i18n.t('debug.prompt')}
@@ -68,31 +77,50 @@ export function DebugFoot({ debug, startedAt, running }: DebugProps): JSX.Elemen
           </div>
         </>
       )}
-      <span class="cg-gut">{i18n.t('debug.gutter.ms')}</span>
+      <span class="cg-gut">{ms}</span>
       <div>
+        <div class="cg-prof__row">
+          {debug.stages.length === 0 ? (
+            <div class="cg-prof cg-prof--idle" aria-hidden="true" />
+          ) : (
+            <div class="cg-prof" role="img" aria-label={i18n.t('debug.profilerAria')}>
+              {debug.stages.map((stage) => (
+                <i key={stage.name} title={`${stageName(stage.name)} ${number.format(stage.ms)} ${ms}`} style={{ flex: `${Math.max(1, stage.ms)} 1 0` }} />
+              ))}
+            </div>
+          )}
+          <span class="cg-prof__total" data-cg-total="">
+            {i18n.t('debug.total', { s: seconds.format(total / 1000) })}
+          </span>
+        </div>
         {debug.stages.length === 0 ? null : (
-          <div class="cg-prof" role="img" aria-label={i18n.t('debug.profilerAria')}>
+          <div class="cg-prof__legend">
             {debug.stages.map((stage) => (
-              <i key={stage.name} style={{ flex: `${Math.max(1, stage.ms)} 1 0` }} />
+              <span key={stage.name}>
+                {stageName(stage.name)} <b>{number.format(stage.ms)}</b>
+              </span>
             ))}
           </div>
         )}
-        <div class="cg-prof__legend">
-          {debug.stages.map((stage) => (
-            <span key={stage.name}>
-              {stageName(stage.name)} <b>{number.format(stage.ms)}</b>
-            </span>
-          ))}
-          <span data-cg-total="">{i18n.t('debug.total', { s: seconds.format(total / 1000) })}</span>
-        </div>
         {debug.hubStages.length === 0 ? null : (
           <div class="cg-prof__legend cg-prof__legend--hub">
             <span>{i18n.t('debug.hubStages', { a: hub('context'), b: hub('provider'), c: hub('stream') })}</span>
           </div>
         )}
         {context === null ? null : (
-          <div class="cg-prof__legend cg-prof__legend--hub">
-            <span>{`source=${context.source} • coverage=${context.coverage} • window=${context.windowServed}/${context.windowRequested} • live=${context.liveAccepted}/${context.liveRejected}`}</span>
+          <div class="cg-debug__ctx">
+            <span>
+              source <b>{context.source}</b>
+            </span>
+            <span>
+              coverage <b>{context.coverage}</b>
+            </span>
+            <span>
+              window <b>{`${context.windowServed}/${context.windowRequested}`}</b>
+            </span>
+            <span>
+              live <b>{`${context.liveAccepted}/${context.liveRejected}`}</b>
+            </span>
           </div>
         )}
         {debug.reasoning === null ? null : <div class="cg-debug__why">{debug.reasoning}</div>}
@@ -101,23 +129,42 @@ export function DebugFoot({ debug, startedAt, running }: DebugProps): JSX.Elemen
   );
 }
 
+// One line of the footer is the caption's size plus 5 px (11 / 16; 13 / 18 with «Размер текста: крупнее»): the gutter
+// captions, the bar's row and the text lines keep one rhythm at both sizes.
 export const DEBUG_CSS = `
 .cg-debug {
+  --cg-debug-line: calc(var(--cg-text-xs) + 5px);
   flex: none; display: grid; grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr); row-gap: 6px; padding: 9px 10px 10px 0;
-  border-top: 1px solid var(--cg-rule); background: var(--cg-debug-bg); font-size: var(--cg-text-xs); line-height: 16px;
+  border-top: 1px solid var(--cg-rule); background: var(--cg-debug-bg); font-size: var(--cg-text-xs); line-height: var(--cg-debug-line);
 }
-.cg-debug > .cg-gut { font-size: 10px; height: 16px; }
-.cg-debug__line { font-family: var(--cg-mono); color: var(--cg-ink-2); overflow-wrap: anywhere; display: flex; justify-content: space-between; gap: 12px; }
-.cg-root .cg-debug__link { flex: none; font-family: inherit; font-size: var(--cg-text-xs); color: var(--cg-ink-2); text-decoration: underline; text-decoration-color: var(--cg-rule-3); text-underline-offset: 2px; }
-.cg-prof { display: flex; gap: 2px; height: 6px; margin-top: 2px; }
+/* In a sheet held to its cap the footer gives way before the answer: down to its first line (no footer is shorter: the
+   bar's row is always there), then it scrolls. */
+.cg-root .cg-sheet > .cg-debug {
+  flex: 0 100 auto; min-height: calc(var(--cg-debug-line) + 20px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+}
+.cg-debug > .cg-gut { align-self: start; height: var(--cg-debug-line); font-family: var(--cg-mono); font-size: var(--cg-text-2xs); }
+.cg-debug__line { font-family: var(--cg-mono); color: var(--cg-ink-2); overflow-wrap: anywhere; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cg-debug__cost > span { display: inline-block; max-width: 100%; }
+.cg-root .cg-debug__link { flex: none; font-family: inherit; font-size: var(--cg-text-xs); line-height: inherit; color: var(--cg-ink-2); text-decoration: underline; text-decoration-color: var(--cg-rule-3); text-underline-offset: 2px; }
+.cg-prof__row { display: flex; align-items: center; gap: 10px; height: var(--cg-debug-line); }
+.cg-prof { flex: 1; min-width: 0; display: flex; gap: 2px; height: 6px; }
+.cg-prof--idle { border-radius: var(--cg-r-xs); background: var(--cg-rule-2); }
 .cg-prof i { display: block; height: 6px; min-width: 2px; border-radius: var(--cg-r-xs); background: var(--cg-bar); }
 .cg-prof i:nth-child(even) { background: var(--cg-bar-strong); }
-.cg-prof__legend { margin-top: 6px; font-family: var(--cg-mono); color: var(--cg-ink-muted); display: flex; flex-wrap: wrap; gap: 2px 12px; }
-.cg-prof__legend--hub { margin-top: 2px; }
-.cg-prof__legend span { white-space: nowrap; }
+.cg-prof__total { flex: none; font-family: var(--cg-mono); color: var(--cg-ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cg-prof__legend, .cg-debug__ctx { font-family: var(--cg-mono); color: var(--cg-ink-muted); display: flex; flex-wrap: wrap; gap: 0 14px; }
+.cg-prof__legend + .cg-prof__legend, .cg-prof__legend + .cg-debug__ctx, .cg-prof__row + .cg-debug__ctx { margin-top: 2px; }
+.cg-prof__legend span, .cg-debug__ctx span { white-space: nowrap; }
+.cg-prof__legend:not(.cg-prof__legend--hub) span::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 5px; vertical-align: 1px; border-radius: var(--cg-r-xs); background: var(--cg-bar);
+}
+.cg-prof__legend:not(.cg-prof__legend--hub) span:nth-child(even)::before { background: var(--cg-bar-strong); }
 .cg-prof__legend--hub span { white-space: normal; overflow-wrap: anywhere; }
-.cg-prof__legend b { font-weight: 500; color: var(--cg-ink-2); }
-.cg-debug__why { margin-top: 6px; max-height: 96px; overflow-y: auto; font-family: var(--cg-mono); color: var(--cg-ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; }
+.cg-prof__legend b, .cg-debug__ctx b { font-weight: 500; color: var(--cg-ink-2); }
+.cg-debug__why {
+  margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--cg-rule-2); max-height: calc(5 * var(--cg-debug-line)); overflow-y: auto;
+  color: var(--cg-ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin;
+}
 `;
 
 export const DEBUG_STYLE: StyleSource = { id: 'cg-dock-debug', css: DEBUG_CSS };

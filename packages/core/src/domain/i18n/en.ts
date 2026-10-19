@@ -342,7 +342,7 @@ export const EN: I18nCatalog<'en'> = {
   'debug.stage.stream': 'stream',
   'debug.stage.parse': 'parse',
   'debug.stage.render': 'render',
-  'debug.total': 'ms, {s} s total',
+  'debug.total': '{s} s total',
   'debug.hubStages': 'hub: context {a}, provider {b}, stream {c}',
   'debug.profilerAria': 'Generation stages',
 

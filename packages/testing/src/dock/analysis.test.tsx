@@ -367,7 +367,8 @@ describe('debug under Recap and Review', () => {
     await settle(2);
     const foot = kit.$('.cg-debug') as HTMLElement;
     expect(text(foot.querySelector('.cg-debug__line span'))).toBe(DEBUG.costLine);
-    expect(legend()).toEqual(['запрос 41', 'поток 6 100', 'мс, всего 6,14 с']);
+    expect(legend()).toEqual(['запрос 41', 'поток 6 100']);
+    expect(text(foot.querySelector('[data-cg-total]'))).toBe('всего 6,14 с');
     // The footer of the sheet: under the facts row.
     expect(kit.$('.cg-facts')?.nextElementSibling).toBe(foot);
     await flush(() => (foot.querySelector('.cg-debug__link') as HTMLElement).click());
@@ -391,7 +392,8 @@ describe('debug under Recap and Review', () => {
     await settle(2);
     expect(text(kit.$('.cg-card__code'))).toBe('ChatGoose · CG-PROVIDER-STREAM');
     // The stages it got through, and no cost line the controller did not send.
-    expect(legend()).toEqual(['запрос 41', 'мс, всего 0,04 с']);
+    expect(legend()).toEqual(['запрос 41']);
+    expect(text(kit.$('.cg-debug [data-cg-total]'))).toBe('всего 0,04 с');
     expect(kit.$('.cg-debug__line')).toBeNull();
   });
 
@@ -406,6 +408,6 @@ describe('debug under Recap and Review', () => {
     kit = mountDock(dockScenario(dockVm('ready', { analysis: 'recap', actionsOptions: { busy: 'recap' } }), {}, [entry({ of: 'recap.view' }, building)]));
     await settle(2);
     expect(kit.$('.cg-body')?.getAttribute('aria-busy')).toBe('true');
-    expect(text(kit.$('.cg-debug [data-cg-total]'))).toBe('мс, всего 2,00 с');
+    expect(text(kit.$('.cg-debug [data-cg-total]'))).toBe('всего 2,00 с');
   });
 });
