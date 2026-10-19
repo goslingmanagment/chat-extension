@@ -174,7 +174,7 @@ export const UI_TEXT_KEYS = [
   'coach.hint.return.revive', 'coach.hint.return.seen', 'coach.hint.return.afterPrice',
   'coach.hint.understand.likes', 'coach.hint.understand.person', 'coach.hint.understand.topics',
   'coach.attachDraft', 'coach.sentToCoach', 'coach.memoryBoundary',
-  // 1.36.0 (X62): the old window's Coach — the draft card's title, the attached reply under a question, the line under
+  // 1.36.0 (X63): the old window's Coach — the draft card's title, the attached reply under a question, the line under
   // «Приложить мой ответ», a turn the person stopped.
   'coach.draftOne', 'coach.attached', 'coach.attachHint', 'coach.canceled',
   'palette.label', 'palette.placeholder', 'palette.group.actions', 'palette.group.running', 'palette.group.waiting', 'palette.group.chats',

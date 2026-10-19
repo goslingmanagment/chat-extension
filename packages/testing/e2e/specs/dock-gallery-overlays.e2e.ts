@@ -67,7 +67,7 @@ describe('dock gallery: the overlays — toasts, the cheatsheet, Coach, the expa
       expect(await shown(id, '.cg-collapse')).toHaveLength(1);
       expect(await under(10, 10)).toBe('overlay');
     } else {
-      // Coach (X62, ui-design §4.19): the old extension's window — 720 px over the middle of the container (the gallery's:
+      // Coach (X63, ui-design §4.19): the old extension's window — 720 px over the middle of the container (the gallery's:
       // right of a 64 px rail, under a 44 px bar), 20 px under its top and never nearer the window's edges, at most 84 % of
       // the window high, over a scrim.
       const panel = await box(id, '.cg-coach');

@@ -208,7 +208,7 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     await browser.keys('Стоит ли сейчас предлагать сет?'.split(''));
     await browser.keys(Key.Enter);
     await waitOursText('panel', 'Сегодня можно, но не первым сообщением', 'the Coach answer', { timeout: 20_000 });
-    // X62: the old extension's window in the middle of the chat, on a scrim — the composer waits under it.
+    // X63: the old extension's window in the middle of the chat, on a scrim — the composer waits under it.
     await twoFrames();
     const coach = await oursBox('panel', '.cg-coach');
     const chat = await pageBox(EDITOR);

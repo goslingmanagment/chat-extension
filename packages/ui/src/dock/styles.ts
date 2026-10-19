@@ -9,7 +9,7 @@
 // (X55) widens every chip, and the same rules then hold a step earlier.
 //
 //   always  Spenders and «Новые» are their icons, on every site and width
-//           (the owner, 2026-10-19: as on Fansly); the word is the name and
+//           (X64: as on Fansly); the word is the name and
 //           the hint
 //   widest  the rest in words: the capsule with the word «Split», the status
 //           in words, the persona, the palette key
@@ -74,7 +74,7 @@ ${/* What is left of a low quota: a count on the bar's frame over Reply's corner
 .cg-strip__opts > * { flex: none; }
 .cg-strip__opts > .cg-slot--persona, .cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
 .cg-act--ico > .cg-ico { display: none; width: 14px; height: 14px; }
-${/* Spenders and «Новые» are their icons at every width, on both sites (the owner, 2026-10-19): the word is in the hint and in the name. */ ''}
+${/* Spenders and «Новые» are their icons at every width, on both sites (X64): the word is in the hint and in the name. */ ''}
 .cg-strip .cg-slot--boards .cg-act--ico { width: 28px; padding: 0; }
 .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
 .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }

@@ -1,4 +1,4 @@
-// The Coach window (ui-design §3.7, §4.19, §10; AI-080…AI-100; decision X62:
+// The Coach window (ui-design §3.7, §4.19, §10; AI-080…AI-100; decision X63:
 // the old Fansly extension's window, centred over the chat on a scrim): the
 // session of the open chat — what Coach stands on, turns, drafts in parts,
 // ready questions, the question field. It asks only through UiActions and
@@ -43,7 +43,7 @@ const type = async (value: string): Promise<void> => {
 };
 
 describe('the Coach window', () => {
-  it('[AI-080] X62: a window «Coach» over the chat on a scrim, the fan\'s name under the micro-caps, opened with focus in the question field; Esc, × and the scrim close it and Esc gives focus back', async () => {
+  it('[AI-080] X63: a window «Coach» over the chat on a scrim, the fan\'s name under the micro-caps, opened with focus in the question field; Esc, × and the scrim close it and Esc gives focus back', async () => {
     let restored = 0;
     kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1)]));
     (kit.deps.focus as { restore: () => boolean }).restore = () => {
@@ -98,7 +98,7 @@ describe('the Coach window', () => {
     ]);
   });
 
-  it('[AI-081] X62: under the chips the three headings of the old window, three questions each; a question goes into the field for the person to edit, and asks nothing', async () => {
+  it('[AI-081] X63: under the chips the three headings of the old window, three questions each; a question goes into the field for the person to edit, and asks nothing', async () => {
     kit = mount(coach(ctx, views.empty({ key: 'coach.empty.title' }), []));
     const groups = kit.$$('.cg-co__group');
     expect(groups.map((group) => text(group.querySelector('.cg-co__cap')))).toEqual(['Продать', 'Вернуть', 'Понять']);
@@ -408,7 +408,7 @@ describe('the Coach window', () => {
     expect(kit.client.dispatched).toEqual([{ type: 'RefreshArchive', targetHandle: HANDLE }]);
   });
 
-  it('X62: «Recap ▾» builds a short or a full Recap with the Recap sheet\'s own buttons, and says why one is off', async () => {
+  it('X63: «Recap ▾» builds a short or a full Recap with the Recap sheet\'s own buttons, and says why one is off', async () => {
     // The picker's buttons as the Recap controller builds them: «Собрать …» → RefreshRecap.
     const build = {
       short: button('recap.build.short', { type: 'RefreshRecap', length: 'short' }),
@@ -432,7 +432,7 @@ describe('the Coach window', () => {
     expect(kit.client.dispatched).toEqual([{ type: 'RefreshRecap', length: 'short' }]);
   });
 
-  it('X62: while Coach answers, «Отменить» stands by «Спросить» and cancels the running turn; there is none once it is done', async () => {
+  it('X63: while Coach answers, «Отменить» stands by «Спросить» and cancels the running turn; there is none once it is done', async () => {
     const cancel = { type: 'CancelGeneration', operationId: uuid(402) } as const;
     const phase = { startedAt: ctx.now - 2_000, stages: [{ id: 'context' as const, label: msg('result.stage.context'), state: 'current' as const }], retryAt: null, cancel };
     kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1), coachTurn(ctx, 2, { state: 'streaming', answer: null, phase })], { ask: { enabled: false, reason: reason('coach-busy'), attachDraft: { available: true, reason: null } } }));
@@ -443,7 +443,7 @@ describe('the Coach window', () => {
     expect(kit.$('.cg-co__send .cg-cancel')).toBeNull();
   });
 
-  it('[AI-092] X62: a turn the person stopped says so, with «Повторить» that asks the question again', async () => {
+  it('[AI-092] X63: a turn the person stopped says so, with «Повторить» that asks the question again', async () => {
     const again = button('common.retry', { type: 'Generate', targetHandle: HANDLE, feature: 'coach', options: { question: 'Как вернуть его к покупкам?' } });
     kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1, { state: 'canceled', answer: null, error: null, errorActions: [again] })]));
     const stopped = kit.$('[data-cg-answer="turn-1"] .cg-co__stopped') as HTMLElement;

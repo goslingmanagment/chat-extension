@@ -150,7 +150,7 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     expect([panel, 'dock', overlap(box, await pageBox(hostSelector('dock')))]).toEqual([panel, 'dock', 0]);
     return box;
   };
-  /** Coach (X62): the old extension's window over a scrim — whole inside the browser window, at most 720 px wide and 84 % high. */
+  /** Coach (X63): the old extension's window over a scrim — whole inside the browser window, at most 720 px wide and 84 % high. */
   const coachWindow = async (): Promise<Box> => {
     await twoFrames();
     const box = await oursBox('panel', '.cg-coach');
@@ -300,7 +300,7 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     const own = await toastBox();
     expect(own === null ? null : Math.round(WINDOW.width - (own.x + own.width))).toBe(TOAST_RIGHT);
     expect((own?.x ?? 0) + (own?.width ?? 0)).toBeGreaterThan(WINDOW.width - 320);
-    // Coach is the old extension's window in the middle (X62), not a panel at the edge: the toast keeps its corner.
+    // Coach is the old extension's window in the middle (X63), not a panel at the edge: the toast keeps its corner.
     await pressOurs('dock', '.cg-strip button', /^Coach/);
     await waitOursText('panel', 'Coach', 'the Coach window');
     await twoFrames();
@@ -350,7 +350,7 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     await askCoach();
     expect(callsTo((await hub().journal(mark)).entries, 'aiFeatureStream').length).toBe(1);
 
-    // X62: the window does not end at the dock's top as the side panel did (X19) — the composer waits under its scrim.
+    // X63: the window does not end at the dock's top as the side panel did (X19) — the composer waits under its scrim.
     const box = await coachWindow();
     expect(['Coach height', box.height >= 0.7 * Math.min(0.84 * WINDOW.height, 860)]).toEqual(['Coach height', true]);
     // The question field and «Спросить» stay on screen.

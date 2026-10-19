@@ -41,7 +41,7 @@ interface OverlaySpec {
   readonly only?: (overlays: OverlayState) => boolean;
   /**
    * A side panel at the right edge of the container (the fan panel): it takes the panel geometry, which ends above a
-   * dock under its 320 px, and the toasts stand left of it. Coach is a window centred over the chat (X62): neither.
+   * dock under its 320 px, and the toasts stand left of it. Coach is a window centred over the chat (X63): neither.
    */
   readonly edge?: true;
 }

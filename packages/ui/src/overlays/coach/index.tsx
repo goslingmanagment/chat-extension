@@ -1,5 +1,5 @@
 // @cg/ui/overlays/coach — the Coach window (ui-design §3.7, §4.19, §10;
-// decision X62: the old Fansly extension's Coach — a 720 px window centred
+// decision X63: the old Fansly extension's Coach — a 720 px window centred
 // over the chat on a flat scrim, the owner's ruling of 2026-10-19; it replaces
 // the 320 px side panel of §9.1 (б)). AI-080…AI-100.
 // The session of the open chat from `CoachVM`, laid out as the old window:
@@ -80,7 +80,7 @@ const unsent = new Map<string, string>();
 /** How many chats keep an unasked question. */
 export const UNSENT_QUESTIONS_MAX = 50;
 
-/** The window: as wide as the old one, top-inset, at most this share of the window's height and never taller (X62). */
+/** The window: as wide as the old one, top-inset, at most this share of the window's height and never taller (X63). */
 export const COACH_WINDOW = { width: 720, heightShare: 0.84, maxHeight: 860, inset: 20 } as const;
 
 /**

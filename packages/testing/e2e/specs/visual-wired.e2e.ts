@@ -733,7 +733,7 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await browser.keys('Стоит ли сейчас предлагать ему новый сет?'.split(''));
       await browser.keys(Key.Enter);
       await waitOursText('panel', 'Сегодня можно, но не первым сообщением', 'the Coach answer', { timeout: 20_000 });
-      // X62: Coach is the old extension's window over the chat — Send waits under its scrim, and is free once it closes.
+      // X63: Coach is the old extension's window over the chat — Send waits under its scrim, and is free once it closes.
       const overSend = await sendCovered('.cg-coach');
       facts['coachOverSend'] = overSend;
       expect(overSend.sendReached).toBe(false);
