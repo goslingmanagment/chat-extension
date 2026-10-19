@@ -762,38 +762,24 @@ describe('dock: Reply from the click to the parts', () => {
 });
 
 describe('dock: tones and Split', () => {
-  /** «Помнить тон в чате» off: the one-off tone of Б1. */
+  /** A store with «Помнить тон в чате» off — the same one-off tone of Б1 as every store since X68. */
   const oneOff = { settings: settingsWithPersona({ generation: { ...DEFAULT_SETTINGS.generation, rememberTone: false } }) };
 
-  it('[AI-005] [AI-003] a tone picked in the menu starts Reply in it and stays for the chat (X45, «Помнить тон в чате» on by default)', async () => {
+  it('[AI-005] [AI-003] [X68] a tone given with Reply goes with that Reply only, as in the old extension: the next one has none', async () => {
     const h = await start();
     await reply(h, 'flirty answer', { tone: 'flirty' });
     expect((h.bg.callsOf('op.start')[0] as { tone: string }).tone).toBe('flirty');
     expect(result(h).toneUsed).toBe('flirty');
     expect(result(h).meta).toContainEqual({ key: 'result.meta.tone', params: { tone: 'Flirt' } });
-    expect(h.dock().options.tone).toBe('flirty');
-    // The next Reply of the chat goes in it too, until the person changes it.
+    expect(h.dock().options.tone).toBeNull();
     await h.dispatch({ type: 'HideResult', operationId: result(h).opId });
     await reply(h, 'second');
-    expect((h.bg.callsOf('op.start')[1] as { tone: unknown }).tone).toBe('flirty');
-    // Picking it again takes it off (AI-006); the Reply after that has none.
-    await h.dispatch({ type: 'SetTone', targetHandle: h.dock().targetHandle as string, tone: 'flirty' });
-    expect(h.dock().options.tone).toBeNull();
-    await h.dispatch({ type: 'HideResult', operationId: result(h).opId });
-    await reply(h, 'third');
-    expect((h.bg.callsOf('op.start')[2] as { tone: unknown }).tone).toBeNull();
-    expect(h.dock().options.tone).toBeNull();
+    expect((h.bg.callsOf('op.start')[1] as { tone: unknown }).tone).toBeNull();
   });
 
-  it('[AI-003] a kept tone lasts until the chat switches, as in the desktop (X45): back in the chat it has none', async () => {
-    const h = await start();
+  it('[AI-003] [X68] a store that says «Помнить тон в чате» on keeps nothing: the setting is retired', async () => {
+    const h = await start({ settings: settingsWithPersona({ generation: { ...DEFAULT_SETTINGS.generation, rememberTone: true } }) });
     await reply(h, 'sell', { tone: 'upsell' });
-    expect(h.dock().options.tone).toBe('upsell');
-    h.host.openChat(previewChat);
-    await h.settle();
-    expect(h.dock().options.tone).toBeNull();
-    h.host.openChat(openChat);
-    await h.settle();
     expect(h.dock().options.tone).toBeNull();
   });
 
@@ -831,13 +817,6 @@ describe('dock: tones and Split', () => {
     h.host.openChat(openChat);
     await h.settle();
     expect(h.dock().options.tone).toBe('casual');
-  });
-
-  it('[AI-003] settings stored before 1.18.0 have no «Помнить тон в чате»: they read as on', async () => {
-    const { rememberTone: _absent, ...older } = DEFAULT_SETTINGS.generation;
-    const h = await start({ settings: settingsWithPersona({ generation: older }) });
-    await reply(h, 'kept', { tone: 'spicy' });
-    expect(h.dock().options.tone).toBe('spicy');
   });
 
   it('[AI-007] [AI-129] «Ещё раз» repeats the tone of the original, past the cache', async () => {
@@ -1393,24 +1372,85 @@ describe('dock: a result this tab did not start', () => {
 });
 
 describe('dock: Fix', () => {
-  const withDraft = async (answers: HostAnswers = {}): Promise<Harness & { fake: FakeHostPort }> => {
+  /**
+   * A draft in the field. `auto` — the click's deferred grant answers the Fix's own write (X68), as on the page; by
+   * default it is gone (another Fix was clicked, the Fix ran too long), and the result waits for «Заменить мой
+   * черновик» — the way most of this block goes.
+   */
+  const withDraft = async (answers: HostAnswers = {}, auto = false): Promise<Harness & { fake: FakeHostPort }> => {
     const h = await start({}, answers);
+    if (!auto) h.bg.deferredTokens = 'refuse';
     h.host.type('i mis you so much');
     await h.settle();
     return h;
   };
+  const deferredAsked = (h: Harness): number => h.bg.callsOf('token.issue').filter((call) => (call as { deferred?: unknown }).deferred === true).length;
 
-  it('[AI-020] [AI-025] Fix rewrites the draft it read; its stream is not shown, only the stage line', async () => {
-    const h = await withDraft();
+  it('[AI-020] [AI-025] [X68] Fix as in the old extension: one click, nothing opens while it runs, and its result replaces the draft it read by itself', async () => {
+    const h = await withDraft({}, true);
     h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('improve-draft') }, delta('I miss '), delta('you so much', 200), doneStep] });
     const receipt = await h.generate('fix');
     expect(receipt).toMatchObject({ ok: true, outcome: 'started' });
     expect((h.bg.callsOf('op.start')[0] as { draft: unknown; window: number }).draft).toEqual({ text: 'i mis you so much', revision: 5, digest: 'feedbeef00000005' });
     expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'improve-draft', body: { draftText: 'i mis you so much', messageCount: 25 } });
     await h.clock.advance(100);
-    expect(result(h)).toMatchObject({ state: 'streaming', streamText: null });
-    expect(result(h).phase).not.toBeNull();
+    // Only the chip says it runs; no sheet, no stream.
+    expect(h.dock().result).toBeNull();
+    expect(h.dock().actions.fix).toMatchObject({ busy: true });
+    // A second click while it runs does nothing.
+    expect(await h.generate('fix')).toMatchObject({ ok: true, outcome: 'noop' });
+    expect(h.dock().result).toBeNull();
     await h.finish();
+    // The token the click left for it, asked for by the Fix's own end; one write, over the draft as the field holds it.
+    expect(deferredAsked(h)).toBe(1);
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'replace', text: 'I miss you so much', expected: { draftRevision: 5, draftDigest: 'feedbeef00000005' } });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('I miss you so much');
+    expect(h.dock().result).toBeNull();
+    expect(h.dock().actions.fix).toMatchObject({ busy: false });
+  });
+
+  it('[X68] the person typed while the Fix ran: the result replaces the field as it is, as the old extension did', async () => {
+    const h = await withDraft({}, true);
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('improve-draft') }, delta('I miss you so much', 200), doneStep] });
+    await h.generate('fix');
+    h.host.type('i mis you so much!!');
+    await h.finish();
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.host.draftOf(openChat)?.plainText).toBe('I miss you so much');
+    expect(h.dock().result).toBeNull();
+  });
+
+  it('[X68] a Split Fix of several parts writes nothing by itself: its parts open, each inserted by its own click', async () => {
+    const h = await withDraft({}, true);
+    h.script(h.streamOf('improve-draft', ['I miss you [NEXT] so much']));
+    await h.generate('fix', { split: true });
+    await h.finish();
+    expect(h.fake.calls.inserts).toHaveLength(0);
+    expect(deferredAsked(h)).toBe(0);
+    expect(partsOf(h).map((part) => part.text)).toEqual(['I miss you', 'so much']);
+  });
+
+  it('[X68] the person went to another chat: nothing is written; the result waits in its own chat with «Заменить мой черновик»', async () => {
+    const h = await withDraft({}, true);
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('improve-draft') }, delta('I miss you so much', 200), doneStep] });
+    await h.generate('fix');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.finish();
+    expect(h.fake.calls.inserts).toHaveLength(0);
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(result(h).fix).toMatchObject({ canReplace: true, replaced: false });
+  });
+
+  it('[AI-025] [X68] without the click\'s grant (gone, too late) the result shows, as before X68: its stage line while it runs, «Заменить мой черновик» when done', async () => {
+    const h = await withDraft();
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('improve-draft') }, delta('I miss '), delta('you so much', 200), doneStep] });
+    await h.generate('fix');
+    await h.finish();
+    expect(deferredAsked(h)).toBe(1);
+    expect(h.fake.calls.inserts).toHaveLength(0);
     const vm = result(h);
     expect(vm.parts?.map((part) => part.text)).toEqual(['I miss you so much']);
     // A Fix is always by the draft: the head says no norm (X57).
@@ -3306,6 +3346,8 @@ describe('the focus handed to the next part (decision X44, ui-design §6.3)', ()
     expect(h.dock().focusPart).toBeNull();
 
     const fix = await start();
+    // A Fix whose result is shown: the click's grant is gone (X68), so it waits for «Заменить мой черновик».
+    fix.bg.deferredTokens = 'refuse';
     fix.host.type('i mis you');
     await fix.settle();
     fix.script(fix.streamOf('improve-draft', ['I miss you']));

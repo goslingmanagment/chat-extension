@@ -76,6 +76,8 @@ async function play(scenario: Scenario): Promise<{ readonly h: Harness; readonly
     await h.settle();
     await h.generate('hi', { split });
   } else if (hubFeature === 'improve-draft') {
+    // The scenario is the stream, not the write: the Fix's result is shown instead of written by itself (X68).
+    h.bg.deferredTokens = 'refuse';
     h.host.type(body.draftText ?? 'my draft');
     await h.settle();
     await h.generate('fix', { split });

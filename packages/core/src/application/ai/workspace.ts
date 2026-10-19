@@ -264,6 +264,7 @@ export class AiWorkspace {
       record: (opId) => this.ops.get(opId),
       context: (record) => this.insertContext(record),
       token: (kind, cause) => this.token(kind, 'dock', cause),
+      deferredToken: (cause) => this.token('insert', 'dock', cause, true),
       changed: () => this.bump(),
       wakeAt: (at) => this.wakeAt(at),
       inserted: (record, part) => {
@@ -671,9 +672,12 @@ export class AiWorkspace {
 
   // ── tokens ───────────────────────────────────────────────────────────────
 
-  /** A one-time token of the trusted click or key being handled (§14). */
-  async token(kind: 'generate' | 'insert' | 'navigate', surface: Surface, cause: HumanCause['kind']): Promise<RpcAnswer<HumanCause>> {
-    const answer = await this.ports.rpc.request('token.issue', { kind, surface });
+  /**
+   * A one-time token of the trusted click or key being handled (§14). `deferred` — the insert of a Fix the person's
+   * click started, asked for when it is done (X68): the tab's gate answers it from that click's deferred grant only.
+   */
+  async token(kind: 'generate' | 'insert' | 'navigate', surface: Surface, cause: HumanCause['kind'], deferred = false): Promise<RpcAnswer<HumanCause>> {
+    const answer = await this.ports.rpc.request('token.issue', deferred ? { kind, surface, deferred: true } : { kind, surface });
     return answer.ok ? { ok: true, payload: { kind: cause, actionToken: answer.payload.actionToken } } : answer;
   }
 

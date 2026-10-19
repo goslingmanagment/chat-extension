@@ -263,31 +263,30 @@ describe('what the strip asks for', () => {
     expect(kit.client.dispatched).toEqual([{ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } }]);
   });
 
-  it('[AI-002] [AI-005] a tone is a cell of the capsule at every width: one click runs Reply in that tone, with no menu to open', async () => {
+  it('[AI-002] [AI-005] [X68] a tone is a cell of the capsule at every width: one click chooses it for the next Reply, as in the old extension — nothing runs, no menu', async () => {
     kit = mountDock(dockScenario(dockVm()));
     expect(TONES).toEqual(['casual', 'flirty', 'upsell', 'spicy']);
     expect(button('Flirt').getAttribute('aria-pressed')).toBe('false');
-    expect(described(button('Flirt'))).toBe(`😏 Reply · Тон: Flirt\n${HINT.flirt}\nТон на один ответ  ⌘⇧O`);
+    expect(described(button('Flirt'))).toBe(`😏 Тон: Flirt\n${HINT.flirt}\nТон на один ответ  ⌘⇧O`);
     await flush(() => button('Flirt').click());
     await flush(() => button('Spice').click());
-    await flush(() => button('Sell').click());
     expect(kit.client.dispatched).toEqual([
-      { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'flirty' } },
-      { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'spicy' } },
-      { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'upsell' } },
+      { type: 'SetTone', targetHandle: HANDLE, tone: 'flirty' },
+      { type: 'SetTone', targetHandle: HANDLE, tone: 'spicy' },
     ]);
+    expect(kit.client.dispatched.some((action) => action.type === 'Generate')).toBe(false);
     expect(kit.$('[role="menu"]')).toBeNull();
   });
 
-  it('[AI-006] the chosen tone is the pressed cell; a click on it takes the tone off and runs nothing, another tone still runs Reply in it', async () => {
+  it('[AI-006] the chosen tone is the pressed cell; a click on it takes the tone off, another tone is chosen instead — neither runs Reply', async () => {
     kit = mountDock(dockScenario(dockVm('ready', { options: { ...dockVm().options, tone: 'flirty' } })));
     expect(['Casual', 'Flirt', 'Sell', 'Spice'].map((label) => button(label).getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false', 'false']);
-    expect(described(button('Flirt'))).toBe(`😏 Тон: Flirt\n${HINT.flirt}\nВыбран. Клик снимает тон`);
+    expect(described(button('Flirt'))).toBe(`😏 Тон: Flirt\n${HINT.flirt}\nВыбран для следующего Reply. Клик снимает тон`);
     await flush(() => button('Flirt').click());
     await flush(() => button('Casual').click());
     expect(kit.client.dispatched).toEqual([
-      { type: 'SetTone', targetHandle: HANDLE, tone: null },
-      { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'casual' } },
+      { type: 'SetTone', targetHandle: HANDLE, tone: 'flirty' },
+      { type: 'SetTone', targetHandle: HANDLE, tone: 'casual' },
     ]);
   });
 

@@ -7,7 +7,7 @@ import { BATCH_LIMITS } from '@cg/contracts/vm';
 import { createShadowRootRegistry } from '@cg/host-chatspace/isolated';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, createActionTokens, createGestureGate, gestureRefusal, onScreen, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
+import { DEFERRED_INSERT_TTL_MS, GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, createActionTokens, createGestureGate, gestureRefusal, onScreen, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
 
 type DockKind = 'in-flow' | 'fixed-overlay' | 'copy-only-row' | 'none';
 
@@ -452,6 +452,55 @@ describe('the action tokens of a tab', () => {
     expect(await s.tokens.issue('generate', 'dock')).toBe('token-1-0123456789abcdef');
     expect(await s.tokens.issue('insert', 'dock')).toBe('token-2-0123456789abcdef');
     expect(await s.tokens.issue('insert', 'dock')).toBeNull();
+    s.gate.dispose();
+  });
+
+  // ── X68: the Fix of a click writes its own result later ──
+
+  it('[X68] a Fix clicked in the dock leaves ONE deferred insert for the dock, asked for when it is done — long after the click', async () => {
+    let now = 1_000_000;
+    const s = seam(() => now);
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
+    expect(await s.tokens.issue('generate', 'dock')).toBe('token-1-0123456789abcdef');
+    // An ordinary request never takes the deferred insert.
+    expect(await s.tokens.issue('insert', 'dock')).toBeNull();
+    now += GRANT_TTL_MS + 30_000;
+    expect(await s.tokens.ask('insert', 'preview', true)).toEqual({ ok: false, error: null });
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: true, actionToken: 'token-2-0123456789abcdef' });
+    // One write: the grant is gone.
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
+    expect(s.asked).toEqual([['generate', 'dock'], ['insert', 'dock']]);
+    s.gate.dispose();
+  });
+
+  it('[X68] the deferred insert lives as long as a Fix may run, needs the dock on screen, and a newer Fix click replaces it', async () => {
+    let now = 1_000_000;
+    const s = seam(() => now);
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
+    now += DEFERRED_INSERT_TTL_MS + 1;
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
+    s.w.dockKind = 'none';
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
+    s.w.dockKind = 'in-flow';
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
+    expect(await s.tokens.ask('insert', 'dock', true)).toMatchObject({ ok: true });
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
+    expect(s.refused).toEqual(['expired', 'not-mounted', 'not-granted']);
+    s.gate.dispose();
+  });
+
+  it('[X68] only a Fix of the dock or a key leaves one: not a click in another root, not another action, not a synthetic click', async () => {
+    const s = seam();
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('Generate', true));
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('InsertPart', true));
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
+    during(s.w.dockButton, event('click', false), () => s.tokens.granted('Generate', true));
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate'));
+    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
     s.gate.dispose();
   });
 

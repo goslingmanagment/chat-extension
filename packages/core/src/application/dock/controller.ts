@@ -9,6 +9,13 @@
 // «Ещё раз», cancel, hide, expand, tone, Split, insert, Fix's replace and
 // restore, the Б2 answer, copy.
 //
+// Fix is the old extension's (decision X68): the person's Fix click or key
+// starts it and nothing opens while it runs; once done, its result replaces
+// the draft by itself (InsertService.applyFix, on the token the click left
+// for it). Only a result that could not be written that way — a Split Fix
+// of several parts, another chat, a field that cannot be checked, an
+// error — opens the sheet, with «Заменить мой черновик».
+//
 // What the strip's chips ask for is in each chip (`ChipVM.action`): for
 // Reply, Fix, Hi, Ping and Review — `Generate { targetHandle, feature,
 // options: {} }`, which starts a generation (or reopens the same one); Recap
@@ -116,9 +123,25 @@ export function createDockController(ws: AiWorkspace): DockController {
   const counted = new Set<string>();
   /** The part the person's next Enter would insert, once they are not typing (decision X44). */
   const partFocus = createPartFocus();
+  /** X68: the Fixes the person started from here, by the cause of their click or key — each writes its own result. */
+  const autoFix = new Map<string, CauseKind>();
+
+  /** X68: a Fix of the person's click is over — its result goes into the field; what cannot opens the sheet. */
+  async function fixOver(record: OpRecord): Promise<void> {
+    const { opId, state } = record.view;
+    const cause = autoFix.get(opId);
+    if (cause === undefined) return;
+    autoFix.delete(opId);
+    if (state === 'canceled') return;
+    const show = (): void => ws.setSheet(chatKeyOf(record.view.target.chat), { kind: 'draft', opId });
+    if (state !== 'done') return show();
+    const outcome = await ws.inserts.applyFix(opId, cause);
+    if (outcome.kind !== 'applied') show();
+  }
 
   const offOps = ws.onOpEvent((event) => {
     if (event.kind !== 'done') return;
+    if (autoFix.has(event.record.view.opId)) void fixOver(event.record);
     const { view } = event.record;
     if (view.state !== 'done' || !isDraftFeature(view.feature) || !event.record.own || counted.has(view.opId)) return;
     const settings = ws.env.settings;
@@ -265,9 +288,10 @@ export function createDockController(ws: AiWorkspace): DockController {
     const chat = regenerateOf === undefined ? chatOf(action.targetHandle) : ws.situation().chat;
     if (chat === null) return refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' });
     const running = ws.running(chat.key);
-    // AI-127: a repeated click on the running feature brings its sheet back; nothing new is started.
+    // AI-127: a repeated click on the running feature brings its sheet back; nothing new is started. A Fix that
+    // writes by itself has no sheet to bring: the click does nothing, as in the old extension (X68).
     if (running !== null && regenerateOf === undefined && policyOf(running.view.feature).dockAction === policyOf(action.feature).dockAction) {
-      ws.setSheet(chat.key, { kind: 'draft', opId: running.view.opId });
+      if (!autoFix.has(running.view.opId)) ws.setSheet(chat.key, { kind: 'draft', opId: running.view.opId });
       return done(action.type, 'noop', { opId: running.view.opId });
     }
     const result = await ws.startFeature({
@@ -278,9 +302,17 @@ export function createDockController(ws: AiWorkspace): DockController {
       ...(regenerateOf === undefined ? {} : { regenerateOf, force: true }),
     });
     switch (result.kind) {
-      case 'started':
-        ws.setSheet(chat.key, { kind: 'draft', opId: result.opId });
+      case 'started': {
+        // X68: the person's Fix shows nothing while it runs; its result goes into the field when it is done.
+        if (action.feature === 'fix' && regenerateOf === undefined) {
+          autoFix.set(result.opId, cause);
+          ws.setSheet(chat.key, null);
+          const record = ws.ops.get(result.opId);
+          // The same Fix of the same draft, already done (reopened): its result goes in now.
+          if (record !== null && isTerminalOpState(record.view.state)) void fixOver(record);
+        } else ws.setSheet(chat.key, { kind: 'draft', opId: result.opId });
         return done(action.type, result.reopened ? 'noop' : 'started', { opId: result.opId });
+      }
       case 'refused':
         ws.showRefusal(chat.key, result.refusal);
         return refused(

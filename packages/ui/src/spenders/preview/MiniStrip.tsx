@@ -101,12 +101,10 @@ export function MiniStrip({ vm, hiHint = null, omit = [] }: MiniStripProps): JSX
     focusQuietly(buttons[next]);
   };
 
+  // X68: a tone is chosen for the next Reply, as in the dock and the old extension; a second click takes it off (AI-006).
   const chooseTone = (tone: Tone): void => {
     if (vm.handle === null) return;
-    const reply = bar.actions.reply;
-    // A second click on the chosen tone only takes it off (AI-006); another tone starts Reply in it (AI-005).
-    const start = tone !== bar.tone && reply !== undefined && reply.enabled ? generateAction(vm, 'reply', tone) : null;
-    void dispatch(start ?? { type: 'SetTone', targetHandle: vm.handle, tone: tone === bar.tone ? null : tone });
+    void dispatch({ type: 'SetTone', targetHandle: vm.handle, tone: tone === bar.tone ? null : tone });
   };
   const capsule = (
     <span class="cg-tones">

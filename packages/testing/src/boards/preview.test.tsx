@@ -404,14 +404,15 @@ describe('fan preview: the work zone', () => {
     expect(ui.actionsOf('Generate')).toEqual([]);
   });
 
-  it('the capsule: a click on a tone starts Reply in it, with no menu to open; a click on the chosen tone only takes it off; Split is a setting', async () => {
+  it('[X68] the capsule: a click on a tone chooses it for the next Reply, with no menu to open; a click on the chosen tone takes it off; Split is a setting', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     const tones = ui.$$('.cg-pvb [data-cg-strip="tone"] .cg-act');
     expect(ui.$('.cg-pvb [data-cg-strip="tone"]')?.getAttribute('role')).toBe('group');
     expect(tones.map((tone) => tone.querySelector('.cg-act__t')?.textContent)).toEqual(['Casual', 'Flirt', 'Sell', 'Spice']);
     expect(tones.map((tone) => tone.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false', 'false']);
     await flush(() => (tones[1] as HTMLElement).click());
-    expect(ui.actions().at(-1)).toEqual({ type: 'Generate', targetHandle: 'spenders:b002', feature: 'reply', options: { tone: 'flirty' } });
+    expect(ui.actions().at(-1)).toEqual({ type: 'SetTone', targetHandle: 'spenders:b002', tone: 'flirty' });
+    expect(ui.actions().some((action) => action.type === 'Generate')).toBe(false);
     expect(ui.$('.cg-pvb [role="menu"]')).toBeNull();
     ui.unmount();
     ui = await mountBoardSettled(

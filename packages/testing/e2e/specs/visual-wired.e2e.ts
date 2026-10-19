@@ -297,22 +297,22 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await hideResult();
     });
 
-    it('Hi with three variants; Fix before and after the replacement', async function () {
+    it('Hi with three variants; Fix as in the old extension — the fixed text in the field, no sheet (X68)', async function () {
       this.timeout(180_000);
       await open(a2, ACC, true);
       await generate(/^Hi/);
       await look('dock-07-hi', { check: async () => void (await inWindow('dock', '.cg-dock')) });
       await hideResult();
       await open(a4, ACC, true);
-      // One message: Fix shows the person's text next to the fixed one.
+      // One message: the fixed text replaces the draft by itself (X68).
       await shift.patch({ generation: { split: false } });
-      await typeDraft('i mised you so much today tell me evrything how was the flite');
+      const draft = 'i mised you so much today tell me evrything how was the flite';
+      await typeDraft(draft);
       await dockIs((d) => d.actions['fix'] === true, 'Fix is on');
-      await generate(/^Fix/);
+      await pressOurs('dock', '.cg-strip button', /^Fix/);
+      await browser.waitUntil(async () => { const now = await composerText(ACC, a4); return now !== null && now !== '' && now !== draft; }, { timeout: 20_000, timeoutMsg: 'Fix did not replace the draft by itself' });
+      expect(await oursExists('dock', '.cg-fixbox')).toBe(false);
       await look('dock-08-fix');
-      await pressOurs('dock', '.cg-dock button', /^Заменить мой черновик/);
-      await browser.waitUntil(() => oursExists('dock', '.cg-fix__acts .cg-done'), { timeout: 5000, timeoutMsg: 'the replacement was not made' });
-      await look('dock-09-fix-replaced', { all: false });
       await shift.patch({ generation: { split: true } });
       await clearDraft();
       await hideResult();

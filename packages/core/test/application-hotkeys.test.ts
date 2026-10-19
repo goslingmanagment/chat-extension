@@ -1465,7 +1465,7 @@ describe('the hotkey runner', () => {
     expect(await r.run('apply-fix')).toBeUndefined();
     expect(toastTitles(r.toasts, r.i18n)).toEqual(['Fix вместо черновика недоступен: поле ввода нельзя проверить, скопируйте текст']);
     r.runner.refuse('apply-fix', 'fix-running');
-    expect(toastTitles(r.toasts, r.i18n)[1]).toBe('Fix ещё готовится — черновик не отправлен. Нажмите ⌘↵, когда он появится');
+    expect(toastTitles(r.toasts, r.i18n)[1]).toBe('Fix ещё готовится — черновик не отправлен. Исправленный текст сам встанет в поле');
     expect(r.client.dispatched).toEqual([]);
   });
 

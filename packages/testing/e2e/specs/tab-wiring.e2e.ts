@@ -146,18 +146,17 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     expect(foreignCalls((await standServer.journal(journalStart)).entries)).toEqual([]);
   });
 
-  it('[HK-002] [HK-026] a key of ours in the native composer: the early dispatcher takes ⌘I before the editor (no italic) and Fix starts for the draft', async () => {
+  it('[HK-002] [HK-026] [X68] a key of ours in the native composer: the early dispatcher takes ⌘I before the editor (no italic), Fix starts for the draft and its result replaces it by itself', async () => {
     const mark = await hub().mark();
     await $(ACTIVE_EDITOR).click();
     await dockIs((d) => d.actions['fix'] === true, 'Fix is on: the composer holds a draft');
     await browser.keys([MOD, 'i']);
-    const done = await dockIs((d) => d.result !== null && d.result.feature === 'fix' && d.result.state === 'done', 'the Fix result', 20_000);
-    expect(done.result?.error).toBeNull();
+    // X68: the key's deferred insert — the fixed text takes the draft's place, nothing opens for it.
+    await browser.waitUntil(async () => { const now = await composerText(a1); return now !== null && now !== '' && now !== REPLY_PARTS[0]; }, { timeout: 20_000, timeoutMsg: 'Fix by its key did not replace the draft' });
     expect(callsTo((await hub().journal(mark)).entries, 'aiFeatureStream').map((entry) => entry.status)).toEqual([200]);
     // TipTap never saw the key: the editor is not in italic.
     expect((await callStand('composerState', accountA, a1))?.marks['italic'] ?? false).toBe(false);
-    // The draft is the person's to replace: Fix wrote nothing by itself.
-    expect(await composerText(a1)).toBe(REPLY_PARTS[0]);
+    expect((await dockIs(() => true, 'the dock')).result).toBeNull();
   });
 
   it('[HK-036] [EX-009] ⌘K opens the palette: the window’s chunk is loaded on demand and mounted on the modal layer; Esc closes it', async () => {

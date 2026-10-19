@@ -47,6 +47,13 @@
 // BATCH_LIMITS.grantTtlMs, kept apart from the grants of single actions (which are asked first), and replaced by
 // the next batch click. It can never insert, send or navigate.
 //
+// One click writes later, by design: Fix (decision X68, the owner: «как в старом» — the old Fansly extension's Fix
+// put its result into the field by itself). The person's Fix click or key, in the dock or the composer, opens with
+// its `generate` grant a DEFERRED insert grant: one `insert` token, for the dock, claimable only by a request that
+// says it is that deferred write (`token.issue` with `deferred`, asked by the Fix's own end), within
+// DEFERRED_INSERT_TTL_MS — the longest a Fix may run. A newer Fix click replaces it; a click of anything else never
+// opens one, and a deferred request never takes an ordinary grant or the event in flight.
+//
 // One human action happens outside this document: a click on our own popup
 // or options page that acts in ChatSpace (`tab.command`, §9.9). The
 // background brings this tab to the front and hands the command over its
@@ -56,6 +63,7 @@
 
 import type { CgErrorWire } from '@cg/contracts/errors';
 import type { Surface } from '@cg/contracts/features';
+import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import { BATCH_LIMITS, type UiAction } from '@cg/contracts/vm';
 
 import type { HostMounts } from './adapter';
@@ -173,6 +181,8 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
 
 /** How long the action of a click or a key may ask for its tokens: it reads the page and the background first. */
 export const GRANT_TTL_MS = 10_000;
+/** X68: how long the Fix a click started may still write its result — the longest a Fix runs, and some room. */
+export const DEFERRED_INSERT_TTL_MS = OP_TIMEOUTS.fix.maxMs + 15_000;
 /** A kept key is handed over within the dispatcher's own bound (KEPT_KEY_TTL_MS, 5 s); a little room for the hand-over itself. */
 export const KEPT_KEY_MAX_AGE_MS = 6_000;
 /** Open grants kept; more is a stuck controller, the oldest go. */
@@ -187,9 +197,11 @@ export interface GestureGate {
    * synchronous step of the click or the key; null — a grant is open (or the
    * action needs no token), else why not.
    */
-  open(action: UiAction['type']): GestureRefusal | null;
+  open(action: UiAction['type'], deferInsert?: boolean): GestureRefusal | null;
   /** A token for the action that was granted it: the newest open grant that has this kind left. */
   claim(kind: ActionKind, surface: Surface): GestureRefusal | null;
+  /** X68: the one insert token of the last Fix click, for the dock, asked for when that Fix is done. */
+  claimDeferred(kind: ActionKind, surface: Surface): GestureRefusal | null;
   /** Hands in an event this gate could not see itself (stopped before `window`'s listeners of this chunk). */
   note(event: Event): void;
   /**
@@ -232,6 +244,8 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
   const given = new WeakMap<Event, Set<ActionKind>>();
   let grants: Grant[] = [];
   let batch: BatchGrant | null = null;
+  /** X68: the deferred insert of the last Fix click (see the head of this file). */
+  let deferred: { readonly gesture: Gesture; readonly at: number } | null = null;
   // A synthetic event never replaces the human one in flight (a page script may dispatch its own inside it).
   const note = (event: Event): void => {
     if (event.isTrusted) current = event;
@@ -256,7 +270,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       if (refusal !== null) return refusal;
       return spend(gesture.event, kind) ? null : 'spent';
     },
-    open(action) {
+    open(action, deferInsert = false) {
       if (action === BATCH_ACTION) {
         const gesture = inFlight();
         if (typeof gesture === 'string') return gesture;
@@ -268,7 +282,19 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       const gesture = inFlight();
       if (typeof gesture === 'string') return gesture;
       grants = [...grants.filter((grant) => now() - grant.at <= GRANT_TTL_MS), { gesture, kinds: new Set(kinds), at: now() }].slice(-GRANTS_KEPT);
+      // A Fix of the open chat's composer: the click on the dock, or a key (⌘I in the field) — never another surface's.
+      if (deferInsert && action === 'Generate' && (gesture.via === null || gesture.via === env.mounts.dock.host)) deferred = { gesture, at: now() };
       return null;
+    },
+    claimDeferred(kind, surface) {
+      const grant = deferred;
+      if (kind !== 'insert' || surface !== 'dock' || grant === null) return 'not-granted';
+      // Spent or not, a deferred grant serves one request.
+      deferred = null;
+      if (now() - grant.at > DEFERRED_INSERT_TTL_MS) return 'expired';
+      const refused = kindRefusal(grant.gesture, kind, surface, env);
+      if (refused !== null) return refused;
+      return spend(grant.gesture.event, kind) ? null : 'spent';
     },
     claim(kind, surface) {
       let refusal: GestureRefusal = 'not-granted';
@@ -324,6 +350,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       resumed = null;
       grants = [];
       batch = null;
+      deferred = null;
     },
   };
 }
@@ -343,10 +370,10 @@ export interface TabActionTokens {
    * nothing may be written.
    */
   issue(kind: ActionKind, surface: Surface): Promise<string | null>;
-  /** The same, with the background's reason when it is the one that refused. */
-  ask(kind: ActionKind, surface: Surface): Promise<TokenAnswer>;
-  /** The AppClient took `action` from the UI or the hotkey runner, in the step of the click or the key. */
-  granted(action: UiAction['type']): void;
+  /** The same, with the background's reason when it is the one that refused; `deferred` — the Fix's own write (X68). */
+  ask(kind: ActionKind, surface: Surface, deferred?: boolean): Promise<TokenAnswer>;
+  /** The AppClient took `action` from the UI or the hotkey runner, in the step of the click or the key; `deferInsert` — a Fix (X68). */
+  granted(action: UiAction['type'], deferInsert?: boolean): void;
   /** The hotkey dispatcher hands in a key press it stopped before this chunk's listeners could see it (§9.1). */
   noteGesture(event: Event): void;
   /** A click on an extension page, brought here by the background (`tab.command`): its navigation may get a token. */
@@ -374,11 +401,11 @@ export function createActionTokens(deps: ActionTokensDeps): {
   readonly redeem: (request: { readonly kind: 'insert' | 'navigate'; readonly actionToken: string; readonly intentId: string }) => Promise<boolean>;
 } {
   const surfaceOfToken = new Map<string, Surface>();
-  const ask = async (kind: ActionKind, surface: Surface): Promise<TokenAnswer> => {
+  const ask = async (kind: ActionKind, surface: Surface, deferred = false): Promise<TokenAnswer> => {
     // Synchronously, before the first await. The action that was granted this kind when it was dispatched
-    // gets it; without a grant the event must still be in flight.
-    const granted = deps.gate.claim(kind, surface);
-    const refusal = granted === 'not-granted' ? deps.gate.take(kind, surface) : granted;
+    // gets it; without a grant the event must still be in flight. The Fix's deferred write has its own grant only.
+    const granted = deferred ? deps.gate.claimDeferred(kind, surface) : deps.gate.claim(kind, surface);
+    const refusal = granted === 'not-granted' && !deferred ? deps.gate.take(kind, surface) : granted;
     if (refusal !== null) {
       deps.onRefused?.({ kind, surface, refusal });
       return { ok: false, error: null };
@@ -394,8 +421,8 @@ export function createActionTokens(deps: ActionTokensDeps): {
     tokens: {
       issue: (kind, surface) => ask(kind, surface).then((answer) => (answer.ok ? answer.actionToken : null)),
       ask,
-      granted(action) {
-        const refusal = deps.gate.open(action);
+      granted(action, deferInsert) {
+        const refusal = deps.gate.open(action, deferInsert);
         // An action without a person behind it gets no grant; whether it needed one shows when it asks.
         if (refusal !== null) deps.onUngranted?.({ action, refusal });
       },

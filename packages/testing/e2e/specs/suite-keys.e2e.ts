@@ -111,10 +111,11 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done', 'Reply ran by its key', 20_000);
       expect(await marks(a1)).toMatchObject({ code: false, italic: false });
       await browser.keys([MOD, 'i']);
-      await dockIs((d) => d.result?.feature === 'fix' && d.result.state === 'done', 'Fix ran by its key', 20_000);
+      // X68: Fix by its key, as by its click — the fixed text replaces the draft by itself, plain text in the field.
+      await waitForComposerText(ACC, a1, `Here is a smoother version of your draft. @${a1}`, 'Fix ran by its key and replaced the draft', 20_000);
       expect(await marks(a1)).toMatchObject({ code: false, italic: false });
       // Without us the same keys wrap the selection in <code> and <em> (stand-fixture.e2e.ts).
-      expect((await callStand('composerState', ACC, a1))?.html).toBe('<p>some words of mine</p>');
+      expect((await callStand('composerState', ACC, a1))?.html).not.toMatch(/<code>|<em>/);
       expect(callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').map((call) => (call.request as { feature?: string }).feature)).toEqual(['fast-reply', 'improve-draft']);
     });
 

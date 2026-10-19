@@ -31,6 +31,14 @@
 // The action token of every write is issued for the surface `dock`: the
 // write goes into the open chat's composer whichever of our panels shows
 // the part.
+//
+// Fix writes by itself (decision X68, the owner: «ровно как в старом»): the
+// result of a Fix the person's click or key started replaces the draft as the
+// field holds it when the Fix is done, in that Fix's chat only — the old
+// Fansly extension's Fix. The token is the one the click left for it (the
+// tab's deferred grant, `deferredToken`); without it, without an observed
+// editor, in another chat, or for a Split Fix of several parts, nothing is
+// written and the result is shown with «Заменить мой черновик».
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type InsertIntent, type InsertReceipt } from '@cg/contracts/host';
@@ -105,6 +113,8 @@ export interface InsertServiceDeps {
   record(opId: string): OpRecord | null;
   context(record: OpRecord): InsertContext;
   token(kind: 'insert', cause: HumanCause['kind']): Promise<RpcAnswer<HumanCause>>;
+  /** X68: the insert token the person's Fix click left for its own result, asked for when that Fix is done. */
+  deferredToken(cause: HumanCause['kind']): Promise<RpcAnswer<HumanCause>>;
   /** Something a view shows changed. */
   changed(): void;
   /** Rebuild the views at this moment (the restore window closes). */
@@ -344,6 +354,42 @@ export class InsertService {
     this.fixes.set(session.opId, { session, restoreText });
     const until = session.restoreUntil(clock.now());
     if (until !== null) this.deps.wakeAt(until);
+  }
+
+  /**
+   * X68: a Fix the person's click started, now done, replaces the draft by itself — one part only (a Split Fix is
+   * shown part by part, as in the old extension). `canceled` — nothing to write by itself; `failed` — not written,
+   * and the part is left as it is: the result is shown with «Заменить мой черновик».
+   */
+  applyFix(opId: string, cause: HumanCause['kind']): Promise<WriteOutcome> {
+    return this.exclusive(opId, () => this.runApplyFix(opId, cause));
+  }
+
+  private async runApplyFix(opId: string, cause: HumanCause['kind']): Promise<WriteOutcome> {
+    const record = this.deps.record(opId);
+    if (record === null || record.view.feature !== 'fix') return failed('CG-CONTEXT-CHANGED');
+    const result = record.view.state === 'done' ? record.view.result : undefined;
+    if (result?.kind !== 'parts' || result.parts.length !== 1) return { kind: 'canceled' };
+    const part: PartRef = { index: 0 };
+    const text = partText(record, part);
+    if (text === null) return failed('CG-OUTPUT-UNUSABLE');
+    const block = this.blockOf(record, part);
+    if (block !== null) return failed(block.code);
+    const source = record.memo.fixSource;
+    if (source === null || !this.deps.context(record).editorObserved) return failed('CG-HOST-NOT-READY');
+    const ready = await this.prepare(record, part, false);
+    if (!ready.ok) return ready.outcome;
+    // The draft as the field holds it now, as the old extension replaced it; «Вернуть мой текст» would bring it back.
+    const replacedText = ready.draft.plainText.trim() === '' ? source.text : ready.draft.plainText;
+    const session = new FixSession(opId, part, record.view.target.chat, { text: replacedText, revision: ready.draft.revision, digest: ready.draft.digest }, true);
+    const token = await this.deps.deferredToken(cause);
+    if (!token.ok) return failed(token.error.code);
+    const { ids, clock } = this.deps.ports;
+    const step = session.replace(ready.draft, text, { intentId: ids.uuid(), confirmationId: ids.uuid() }, token.payload, clock.now());
+    if (step.kind !== 'intent') return failed(step.kind === 'unavailable' ? step.code : 'CG-INSERT-FAILED');
+    const receipt = await this.send(record, part, step.intent);
+    this.replaced(session, replacedText, receipt);
+    return this.settle(record, part, receipt, { text, purpose: 'fix-replace' });
   }
 
   /** «Вернуть мой текст»: within 30 s, a CAS on the revision the replacement produced. */

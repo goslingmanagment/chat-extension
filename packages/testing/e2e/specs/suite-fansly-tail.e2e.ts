@@ -294,7 +294,7 @@ describe('suite-fansly-tail: Reply, Fix and a reopened result carry their own ev
     await shift.toFansly();
   });
 
-  it('[AI-020] [FS-TAIL-6] [FS-TAIL-8] Fix reads the Fansly draft and the same snapshot; a deletion before Generate with a lagging hub is marked and still insertable', async () => {
+  it('[AI-020] [FS-TAIL-6] [FS-TAIL-8] [X68] Fix reads the Fansly draft and the same snapshot; a deletion before Generate with a lagging hub does not stop it: the fixed text replaces the draft by itself', async () => {
     const mark = await hub().mark();
     const ids = await held();
     const deleted = ids.at(-2) ?? '';
@@ -303,19 +303,15 @@ describe('suite-fansly-tail: Reply, Fix and a reopened result carry their own ev
     const field = browser.$(FANSLY_MAIN.field);
     await field.click(); await browser.keys('my draft for Fix');
     await pressOurs('dock', '.cg-strip button', /^Fix/);
-    const fixed = await done('fix');
+    // X68: as in the old extension, the result goes into the field by itself — no sheet, no «Заменить».
+    await browser.waitUntil(async () => (await field.getValue()) === 'Here is a smoother version of your draft.', { timeout: 20_000, timeoutMsg: 'Fix did not replace its source by itself' });
     const call = (await streams(mark))[0];
     const body = (call?.request as { body: { draftText?: string; coverageCheck: { deletedIds: string[]; window: Array<{ id: string }> }; liveTextContext?: { items: unknown[] } } }).body;
     expect(body.draftText).toBe(`‹${'my draft for Fix'.length} chars›`);
     expect(body.coverageCheck.deletedIds).toContain(deleted);
     expect(body.coverageCheck.window.some((m) => m.id === deleted)).toBe(false);
     expect(body.liveTextContext?.items.length).toBeGreaterThan(0);
-    await waitOursText('dock', 'Контекст устарел', 'the deleted message is still served by the lagging hub', { selector: '.cg-stale__t' });
-    // Generation leaves the source alone; the explicit click replaces it even under this mark.
-    expect(await field.getValue()).toBe('my draft for Fix');
-    await pressOurs('dock', '.cg-dock button', /^Заменить мой черновик/);
-    await browser.waitUntil(async () => (await field.getValue()) === 'Here is a smoother version of your draft.', { timeout: 10_000, timeoutMsg: 'Fix did not replace its source under the stale mark' });
-    await waitOursText('dock', 'Контекст устарел', 'the result keeps its stale mark after replacement', { selector: '.cg-stale__t' });
-    expect((await readReport())?.dock?.result?.opId).toBe(fixed.result?.opId);
+    // Nothing opened for it: the strip alone.
+    expect((await readReport())?.dock?.result ?? null).toBeNull();
   });
 });

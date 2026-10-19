@@ -262,7 +262,7 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     expect(await oursFocus('modal')).not.toBeNull();
     expect(await oursExists('modal', '.cg-sp')).toBe(true);
 
-    // AI-005: the capsule of the preview's own strip — a tone is one click, there is no menu to open.
+    // AI-005, X68: the capsule of the preview's own strip — a tone is one click that chooses it, there is no menu to open.
     await pressOurs('modal', '[data-cg-key^="fan:"]', /^Fan Kestrel/);
     await waitOursText('modal', 'Чат не открыт, останется непрочитанным', 'the preview says the chat stays unread', { selector: '.cg-pv' });
     await twoFrames();
@@ -275,8 +275,13 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     const tone = await hub().mark();
     await pressOurs('modal', '.cg-pv [data-cg-strip="tone"] button', /Flirt$/);
     expect(await oursExists('modal', '.cg-pv [role="menu"]')).toBe(false);
-    // A tone starts Reply in it.
-    await browser.waitUntil(async () => callsTo((await hub().journal(tone)).entries, 'aiFeatureStream').length === 1, { timeout: 10_000, timeoutMsg: 'the tone did not start a Reply' });
+    // X68: the tone is chosen for the next Reply, as in the old extension — the click itself starts nothing.
+    await browser.waitUntil(async () => (await ours('modal', '.cg-pv [data-cg-strip="tone"] button:nth-of-type(2)').getAttribute('aria-pressed')) === 'true', { timeout: 5000, timeoutMsg: 'the tone was not chosen' });
+    await browser.pause(300);
+    expect(callsTo((await hub().journal(tone)).entries, 'aiFeatureStream')).toHaveLength(0);
+    // Reply goes in it.
+    await pressOurs('modal', '.cg-pv button', /^Reply/);
+    await browser.waitUntil(async () => callsTo((await hub().journal(tone)).entries, 'aiFeatureStream').length === 1, { timeout: 10_000, timeoutMsg: 'Reply did not start' });
     const [started] = callsTo((await hub().journal(tone)).entries, 'aiFeatureStream');
     expect((started?.request as { body?: { replyTone?: string } }).body?.replyTone).toBe('flirty');
     await browser.waitUntil(() => oursExists('modal', '.cg-pv [data-cg-part="0"]'), { timeout: 20_000, timeoutMsg: 'the preview shows no result' });

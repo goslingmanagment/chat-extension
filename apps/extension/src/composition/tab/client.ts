@@ -64,8 +64,8 @@ export function createTabClient(deps: TabClientDeps): AppClient {
     getSnapshot: (selector) => router.getSnapshot(selector),
     subscribe: (selector, listener) => router.subscribe(selector, listener),
     dispatch(action) {
-      // Synchronously, while the click or the key is still in flight.
-      deps.tokens.granted(action.type);
+      // Synchronously, while the click or the key is still in flight. A Fix may write its result when it is done (X68).
+      deps.tokens.granted(action.type, action.type === 'Generate' && action.feature === 'fix');
       deps.onAction?.(action);
       const waiting = deps.before(action);
       const answer = waiting === null ? router.dispatch(action) : waiting.then(() => router.dispatch(action), () => router.dispatch(action));
@@ -155,8 +155,8 @@ export type ControllerRpc = Pick<TabRpcClient, 'request' | 'onEvent' | 'onState'
  * nothing of the answer): the tab's own measurements ride on it.
  */
 export function controllerRpc(rpc: TabRpcClient, tokens: Pick<TabActionTokens, 'ask'>, observe?: (type: string, payload: unknown) => void): ControllerRpc {
-  const issue = async (payload: { readonly kind: ActionKind; readonly surface: Parameters<TabActionTokens['ask']>[1] }): Promise<Answer<{ actionToken: string; expiresAt: number }>> => {
-    const answer = await tokens.ask(payload.kind, payload.surface);
+  const issue = async (payload: { readonly kind: ActionKind; readonly surface: Parameters<TabActionTokens['ask']>[1]; readonly deferred?: true }): Promise<Answer<{ actionToken: string; expiresAt: number }>> => {
+    const answer = await tokens.ask(payload.kind, payload.surface, payload.deferred === true);
     // No human action behind the request, or the background did not answer: nothing may be written. When the
     // background itself refused (the sign-in is gone, the owner's switch, an expired bootstrap), its reason is the answer.
     if (!answer.ok) return { ok: false, error: answer.error ?? { code: 'CG-UI-FAILED', detail: 'no action token' } };
