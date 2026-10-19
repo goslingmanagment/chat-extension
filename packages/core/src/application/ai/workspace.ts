@@ -67,7 +67,7 @@ export interface RefusalState {
 }
 
 interface ChatUi {
-  /** The tone of the next Reply in this chat: kept while the chat is open (X45), or one-off (Б1) — `remembersTone`. */
+  /** The tone of the next Reply in this chat: one-off (Б1; again since X68, X45's «Помнить тон в чате» is retired). */
   tone: Tone | null;
   sheet: Sheet | null;
   /** The hub page of the chat when its sheet was set; null — not known then. */
@@ -798,7 +798,7 @@ export class AiWorkspace {
       case 'refused':
         return { kind: 'refused', refusal: { feature, error: { code: outcome.admission.code }, running: [...outcome.admission.active, ...(outcome.admission.siteActive ?? [])].sort((a, b) => a.startedAt - b.startedAt) } };
       case 'started': {
-        // The tone went with this request: it stays for the chat (X45, «Помнить тон в чате»), or is gone (Б1).
+        // The tone went with this request and is gone (Б1, X68).
         if (rule.tone) this.ui(chat.key).tone = toneAfterStart(plan.start.tone, remembersTone(settings));
         const record = this.ops.get(outcome.opId);
         if (record !== null) for (const listener of [...this.startListeners]) listener(record);
@@ -1138,7 +1138,7 @@ export class AiWorkspace {
     const remember = remembersTone(this.env.settings?.settings);
     for (const [other, ui] of this.chats) {
       if (other === key) continue;
-      // A tone kept in the chat lasts until the chat switches, as in the desktop (X45); a one-off one waits for its Reply.
+      // A one-off tone waits for its Reply (X68); `remembersTone` is off since X45's setting was retired.
       ui.tone = toneOnLeave(ui.tone, remember);
       // A start that failed before admission names no run that could end it: its card stays only while the
       // person stays in the chat.
