@@ -761,6 +761,10 @@ export const RU: I18nCatalog<'ru'> = {
   'coach.attachDraft': 'Приложить мой ответ',
   'coach.sentToCoach': 'Отправлено Coach…',
   'coach.memoryBoundary': 'Ходы выше Coach уже не помнит',
+  'coach.draftOne': 'Черновик',
+  'coach.attached': 'с вашим ответом',
+  'coach.attachHint': 'Coach увидит текст из поля ответа',
+  'coach.canceled': 'Остановлено вами',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Палитра команд',

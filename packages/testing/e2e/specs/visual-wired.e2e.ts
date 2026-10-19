@@ -733,11 +733,13 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await browser.keys('Стоит ли сейчас предлагать ему новый сет?'.split(''));
       await browser.keys(Key.Enter);
       await waitOursText('panel', 'Сегодня можно, но не первым сообщением', 'the Coach answer', { timeout: 20_000 });
+      // X63: Coach is the old extension's window over the chat — Send waits under its scrim, and is free once it closes.
       const overSend = await sendCovered('.cg-coach');
       facts['coachOverSend'] = overSend;
-      expect([overSend.coveredPx, overSend.sendReached]).toEqual([0, true]);
+      expect(overSend.sendReached).toBe(false);
       await look('panel-04-coach-answer', { check: async () => void (await inWindow('panel', '.cg-coach')) });
       await closeAll();
+      expect((await sendCovered('.cg-coach')).sendReached).toBe(true);
     });
 
     it('[ER-014] toasts: a generation that ended in another chat is named by its fan; the one of the open chat is not toasted', async function () {

@@ -171,7 +171,7 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
 
     // The fan writes after the answers: the archive lags the page — by the page's newest message, no text copied.
     await fakeFansly().command({ op: 'message', groupId: A.group, text: 'are you there?' });
-    await browser.waitUntil(() => oursExists('panel', '.cg-co__bar .is-lag'), { timeout: 15_000, timeoutMsg: 'Coach does not say the archive lags the chat' });
+    await browser.waitUntil(() => oursExists('panel', '.cg-co__lag .is-lag'), { timeout: 15_000, timeoutMsg: 'Coach does not say the archive lags the chat' });
     await browser.keys(['Escape']);
     await browser.waitUntil(async () => !(await oursExists('panel', '.cg-coach')), { timeout: 5000, timeoutMsg: 'Coach did not close' });
   });

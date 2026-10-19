@@ -718,6 +718,10 @@ export const EN: I18nCatalog<'en'> = {
   'coach.attachDraft': 'Attach my reply',
   'coach.sentToCoach': 'Sent to Coach…',
   'coach.memoryBoundary': 'Coach no longer remembers the turns above',
+  'coach.draftOne': 'Draft',
+  'coach.attached': 'with your reply',
+  'coach.attachHint': 'Coach will see the text in the reply field',
+  'coach.canceled': 'Stopped by you',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Command palette',

@@ -150,6 +150,16 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     expect([panel, 'dock', overlap(box, await pageBox(hostSelector('dock')))]).toEqual([panel, 'dock', 0]);
     return box;
   };
+  /** Coach (X63): the old extension's window over a scrim — whole inside the browser window, at most 720 px wide and 84 % high. */
+  const coachWindow = async (): Promise<Box> => {
+    await twoFrames();
+    const box = await oursBox('panel', '.cg-coach');
+    if (box === null) throw new Error('.cg-coach is not on screen');
+    const view = await browser.execute(() => ({ width: window.innerWidth, height: window.innerHeight }));
+    expect(['Coach inside the window', box.x >= 0 && box.y >= 0 && box.x + box.width <= view.width + 1 && box.y + box.height <= view.height + 1]).toEqual(['Coach inside the window', true]);
+    expect(['Coach size', box.width <= 721 && box.height <= Math.min(0.84 * view.height, 860) + 1]).toEqual(['Coach size', true]);
+    return box;
+  };
   /** The dock's full Recap, as on the live check: its sheet is open above the composer. */
   const openFullRecap = async (): Promise<void> => {
     if ((await oursText('dock')).includes('Командировка в Берлин')) return;
@@ -197,7 +207,7 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     expect(foreignCalls((await standServer.journal(journalStart)).entries)).toEqual([]);
   });
 
-  it('[CS-031] [AI-080] ChatSpace’s panel open, the full Recap open: Coach takes the whole height beside the chat and its answer is whole in view', async function () {
+  it('[CS-031] [AI-080] ChatSpace’s panel open, the full Recap open: Coach is the old window over the chat and its answer is whole in view', async function () {
     this.timeout(180_000);
     await openFullRecap();
     // The composer ends left of ChatSpace's own panel — the place our panel takes.
@@ -205,13 +215,11 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     expect((composer?.x ?? 0) + (composer?.width ?? 0)).toBeLessThan(WINDOW.width - 320);
     await askCoach();
 
-    const box = await composerFree('.cg-coach');
-    expect(['Coach height', box.height >= TALL_SHARE * WINDOW.height]).toEqual(['Coach height', true]);
-    expect(['Coach reaches the bottom', Math.round(box.y + box.height) >= WINDOW.height - 12]).toEqual(['Coach reaches the bottom', true]);
-    // The answer: its text whole on screen, nothing over it; the freshness bar and the question field whole too.
-    expect(await reach('panel', '.cg-co__turn[data-cg-answer] .cg-co__md')).toEqual({ clippedPx: 0, onTop: true });
-    expect(await reach('panel', '.cg-co__turn[data-cg-answer] [data-cg-part="0"]')).toMatchObject({ clippedPx: 0, onTop: true });
-    expect(await reach('panel', '.cg-co__bar .cg-btn')).toEqual({ clippedPx: 0, onTop: true });
+    await coachWindow();
+    // The answer: its text whole on screen, nothing over it; the topbar and the question field whole too.
+    expect(await reach('panel', '[data-cg-answer] .cg-co__md')).toEqual({ clippedPx: 0, onTop: true });
+    expect(await reach('panel', '[data-cg-answer] [data-cg-part="0"]')).toMatchObject({ clippedPx: 0, onTop: true });
+    expect(await reach('panel', '.cg-co__top .cg-btn')).toEqual({ clippedPx: 0, onTop: true });
     expect(await reach('panel', '.cg-co__ask textarea')).toEqual({ clippedPx: 0, onTop: true });
 
     await pictures('panels-0195-coach');
@@ -246,7 +254,7 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     await closeAll();
   });
 
-  it('[ER-009] [CS-031] a toast never lies over an open side panel: shown before the panel opens it moves once, left of it; shown while it is open it comes there; closed, it is back', async function () {
+  it('[ER-009] [CS-031] a toast never lies over an open side panel: shown before the panel opens it moves once, left of it; shown while it is open it comes there; closed, it is back; the Coach window leaves it in its corner', async function () {
     this.timeout(240_000);
     await closeAll();
     await callStand('setSidePanel', 'open');
@@ -292,11 +300,22 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     const own = await toastBox();
     expect(own === null ? null : Math.round(WINDOW.width - (own.x + own.width))).toBe(TOAST_RIGHT);
     expect((own?.x ?? 0) + (own?.width ?? 0)).toBeGreaterThan(WINDOW.width - 320);
+    // Coach is the old extension's window in the middle (X63), not a panel at the edge: the toast keeps its corner.
     await pressOurs('dock', '.cg-strip button', /^Coach/);
-    await waitOursText('panel', 'Coach', 'the Coach panel');
-    const moved = await besidePanel(WINDOW.width, 'Coach opened under a toast');
+    await waitOursText('panel', 'Coach', 'the Coach window');
+    await twoFrames();
+    const kept = await toastBox();
+    expect(kept === null ? null : Math.round(WINDOW.width - (kept.x + kept.width))).toBe(TOAST_RIGHT);
+    await closeAll();
+    // The fan panel opens under a toast: the toast moves once, sideways.
+    await savedToast();
+    const before = await toastBox();
+    await leaveField();
+    await browser.keys([']']);
+    await waitOursText('panel', 'Fan Alder', 'the fan panel');
+    const moved = await besidePanel(WINDOW.width, 'the fan panel opened under a toast');
     // One move, sideways: the top stays.
-    expect(Math.round(moved.y)).toBe(Math.round(own?.y ?? -1));
+    expect(Math.round(moved.y)).toBe(Math.round(before?.y ?? -1));
     await closeAll();
     await browser.waitUntil(async () => {
       const back = await toastBox();
@@ -319,7 +338,7 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     await closeAll();
   });
 
-  it('[CS-031] [AI-080] ChatSpace’s panel closed — the composer reaches under our panel’s place: the panel ends at the dock’s top, the question field stays on screen, the answer opens at its start; «Скрыть» gives the height back', async function () {
+  it('[CS-031] [AI-080] ChatSpace’s panel closed — the composer reaches across the window: Coach stands the same, in the middle, the question field on screen, the answer opens at its start', async function () {
     this.timeout(180_000);
     await closeAll();
     await callStand('setSidePanel', 'closed');
@@ -331,17 +350,16 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     await askCoach();
     expect(callsTo((await hub().journal(mark)).entries, 'aiFeatureStream').length).toBe(1);
 
-    const box = await composerFree('.cg-coach');
-    const dock = await pageBox(hostSelector('dock'));
-    // The panel ends where the dock begins — not short of it, not past it.
-    expect(Math.abs(box.y + box.height - (dock?.y ?? 0)) <= 1).toBe(true);
-    // The question field and «Спросить» stay on screen however short the panel is.
+    // X63: the window does not end at the dock's top as the side panel did (X19) — the composer waits under its scrim.
+    const box = await coachWindow();
+    expect(['Coach height', box.height >= 0.7 * Math.min(0.84 * WINDOW.height, 860)]).toEqual(['Coach height', true]);
+    // The question field and «Спросить» stay on screen.
     expect(await reach('panel', '.cg-co__ask textarea')).toEqual({ clippedPx: 0, onTop: true });
-    expect(await reach('panel', '.cg-co__send .cg-btn')).toEqual({ clippedPx: 0, onTop: true });
-    // The answer is taller than what is left for the turns: it opens at its start, not at the ready questions under it.
-    const turns = await oursBox('panel', '.cg-co__turns');
+    expect(await reach('panel', '.cg-co__send .cg-co__go')).toEqual({ clippedPx: 0, onTop: true });
+    // An answer taller than what is left for the feed opens at its start, not at the ready questions under it.
+    const turns = await oursBox('panel', '.cg-co__feed');
     // The newest answer: the earlier ones of this chat's dialog are above it.
-    const answers = await allOurs('panel', '.cg-co__turn[data-cg-answer] .cg-co__md').getElements();
+    const answers = await allOurs('panel', '[data-cg-answer] .cg-co__md').getElements();
     const newest = answers.at(-1);
     if (newest === undefined) throw new Error('no Coach answer on screen');
     const answer = await browser.execute((node: HTMLElement) => {
@@ -350,13 +368,6 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     }, newest as unknown as HTMLElement);
     expect(['answer starts inside the turns', (answer?.y ?? -1) >= (turns?.y ?? 0) && (answer?.y ?? Infinity) + 20 <= (turns?.y ?? 0) + (turns?.height ?? 0)]).toEqual(['answer starts inside the turns', true]);
     await pictures('panels-0195-closed-coach');
-
-    // «Скрыть» on the dock's result: the dock is the strip again, and the panel takes the height back.
-    await pressOurs('dock', '.cg-dock button', /^Скрыть/);
-    await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
-    await twoFrames();
-    const tall = await composerFree('.cg-coach');
-    expect(['Coach after «Скрыть»', tall.height >= 0.7 * WINDOW.height]).toEqual(['Coach after «Скрыть»', true]);
     await closeAll();
     await callStand('setSidePanel', 'open');
   });

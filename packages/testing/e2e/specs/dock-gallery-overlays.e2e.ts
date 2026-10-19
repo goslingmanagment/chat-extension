@@ -1,4 +1,4 @@
-// The overlays in headless Firefox (ui-design §3.4, §3.7…§3.9; UI-014,
+// The overlays in headless Firefox (ui-design §3.4, §3.7…§3.9, §4.19; UI-014,
 // UI-017, UI-024, ER-020): toasts, the cheatsheet, Coach and the expanded
 // result at 1440 × 900 and 1280 × 800, in both themes and languages and
 // zoomed — where each stands, what stays clickable under the layer, and that
@@ -67,18 +67,24 @@ describe('dock gallery: the overlays — toasts, the cheatsheet, Coach, the expa
       expect(await shown(id, '.cg-collapse')).toHaveLength(1);
       expect(await under(10, 10)).toBe('overlay');
     } else {
-      // Coach: a 320 px panel at the right edge under the top bar, the whole height (ui-design §3.7).
-      const panel = await box(id, '.cg-side');
-      expect(panel?.width).toBe(Math.min(320, view.width));
-      expect(panel?.top).toBe(44);
-      expect(panel?.right).toBe(view.width);
-      expect(panel?.bottom).toBe(view.height);
-      // Not modal: the chat beside the panel stays the page's own (UI-024).
-      expect(await under(80, view.height / 2)).not.toBe('overlay');
+      // Coach (X63, ui-design §4.19): the old extension's window — 720 px over the middle of the container (the gallery's:
+      // right of a 64 px rail, under a 44 px bar), 20 px under its top and never nearer the window's edges, at most 84 % of
+      // the window high, over a scrim.
+      const panel = await box(id, '.cg-coach');
+      const container = { left: 64, top: 44, width: view.width - 64, height: view.height - 44 };
+      const half = Math.min(360, view.width / 2 - 20);
+      const middle = Math.min(Math.max(container.left + container.width / 2, half + 20), view.width - half - 20);
+      expect(Math.abs((panel?.width ?? 0) - 2 * half)).toBeLessThanOrEqual(1);
+      expect(Math.abs(((panel?.left ?? 0) + (panel?.right ?? 0)) / 2 - middle)).toBeLessThanOrEqual(1);
+      expect(Math.abs((panel?.top ?? 0) - (container.top + 20))).toBeLessThanOrEqual(1);
+      expect(panel?.bottom ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(Math.min(container.top + container.height - 20, view.height) + 1);
+      expect(panel?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(Math.min(0.84 * view.height, 860) + 1);
+      // The scrim: the chat beside the window is under our layer — a press there closes Coach, as in the old window.
+      expect(await under(Math.max(2, (panel?.left ?? 0) - 10), view.height / 2)).toBe('overlay');
       // The question field and «Спросить» are on screen whatever the turns' length.
       const ask = await box(id, '.cg-co__ask');
-      expect(ask?.bottom ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(view.height);
-      // Б2 in a draft part and the debug footer of a turn stay inside the 320 px panel.
+      expect(ask?.bottom ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(panel?.bottom ?? view.height);
+      // Б2 in a draft part and the debug footer of a turn stay inside the window.
       for (const selector of ['.cg-confirm', '.cg-debug']) {
         const inner = await box(id, selector);
         if (inner === null) continue;

@@ -200,7 +200,7 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     if (await oursExists('dock', '.cg-hide')) await ours('dock', '.cg-hide').click();
   });
 
-  it('[DB-013] [DB-019] [DB-020] Coach ends above the dock too; with debug mode on a Coach answer and a Reply carry their «Отладка» block, and without it they do not', async function () {
+  it('[DB-013] [DB-019] [DB-020] Coach is the old window over the chat, the composer free again once it closes; with debug mode on a Coach answer and a Reply carry their «Отладка» block, and without it they do not', async function () {
     this.timeout(180_000);
     await setDebug(true);
     await pressOurs('dock', '.cg-strip button', /^Coach/);
@@ -208,9 +208,15 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     await browser.keys('Стоит ли сейчас предлагать сет?'.split(''));
     await browser.keys(Key.Enter);
     await waitOursText('panel', 'Сегодня можно, но не первым сообщением', 'the Coach answer', { timeout: 20_000 });
-    await composerInReach('.cg-coach');
+    // X63: the old extension's window in the middle of the chat, on a scrim — the composer waits under it.
+    await twoFrames();
+    const coach = await oursBox('panel', '.cg-coach');
+    const chat = await pageBox(EDITOR);
+    expect(coach !== null && chat !== null && Math.abs(coach.x + coach.width / 2 - (chat.x + chat.width / 2)) < chat.width / 2).toBe(true);
+    expect(await hitAt(SEND)).not.toBe('itself');
     await browser.waitUntil(() => oursExists('panel', '.cg-coach .cg-debug'), { timeout: 5000, timeoutMsg: 'the Coach answer has no «Отладка» block in debug mode' });
     await closeAll();
+    expect([await hitAt(SEND), await hitAt(EDITOR)]).toEqual(['itself', 'itself']);
 
     await pressOurs('dock', '.cg-strip button', /^Reply/);
     await dockIs((d) => d.result?.state === 'done', 'the Reply result', 20_000);

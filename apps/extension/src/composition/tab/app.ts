@@ -302,9 +302,10 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   const toasts = dockChunk.createToastHost();
   offs.push(() => toasts.dispose());
   // While a side panel is open the toasts stand left of it, never over its header (tab/panel-geometry.ts): they move
-  // when a panel opens or closes and when the window or ChatSpace's container changes — not with the dock.
+  // when a panel opens or closes and when the window or ChatSpace's container changes — not with the dock. Coach is a
+  // window in the middle (X63): the toasts keep their corner.
   const placeToasts = (): void => {
-    const panelOpen = keys.overlays.list().some((overlay) => OVERLAY_MOUNTS[overlay]?.layer === 'panel');
+    const panelOpen = keys.overlays.list().some((overlay) => OVERLAY_MOUNTS[overlay]?.edge === true);
     toasts.setPlace(toastPlaceOf(panelOpen, geometryOf(), doc.documentElement.clientWidth));
   };
   placeToasts();
