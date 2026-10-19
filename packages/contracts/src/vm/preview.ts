@@ -101,7 +101,7 @@ export interface PreviewVM {
    * the host has no vault to read.
    */
   readonly media: MediaPickerVM | null;
-  /** Before the first generation: «Нажмите Reply, Hi или Ping — ответ появится здесь…». */
+  /** Before the first generation: «Reply, Hi или Ping — черновик появится здесь…». */
   readonly idleHint: Msg | null;
   readonly neighbors: { readonly previous: UiAction | null; readonly next: UiAction | null };
   /** «Новые» only. */

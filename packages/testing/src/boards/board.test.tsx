@@ -40,7 +40,7 @@ describe('Spenders window', () => {
     expect(dialog.getAttribute('aria-label')).toBe('Spenders');
     expect(ui.text('.cg-sp__title')).toBe('Spenders');
     expect(ui.text('.cg-sp__page')).toBe('LoraVie VIP');
-    // The period is one menu at the end of the filters' row, not five tabs in the header.
+    // The period is one menu in its own column's header (X65), not five tabs in the window's header.
     expect(ui.$$('.cg-sp__top [role="tab"]')).toHaveLength(0);
     expect(textOf(ui.$('.cg-bd__period'))).toBe('30 дней');
     await flush(() => (ui?.$('.cg-bd__period') as HTMLElement).click());
@@ -79,10 +79,11 @@ describe('Spenders window', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
   });
 
-  it('«Закрыть Esc» closes the window; the period menu asks for that period', async () => {
+  it('the × of the header («Закрыть  Esc» in its tooltip) closes the window; the period menu asks for that period', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     const close = ui.$('.cg-sp__close') as HTMLElement;
-    expect(textOf(close)).toBe('ЗакрытьEsc');
+    expect(close.getAttribute('aria-label')).toBe('Закрыть');
+    expect(ui.root.getElementById(close.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Закрыть  Esc');
     await flush(() => close.click());
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
     await flush(() => (ui?.$('.cg-bd__period') as HTMLElement).click());
@@ -90,21 +91,25 @@ describe('Spenders window', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'SetSpendersPeriod', period: '7d' });
   });
 
-  it('[SP-042] the columns: the list is first and the widest, the statistics is the last column', async () => {
+  it('[SP-042] [X65] the list and its statistics column on top; the preview a panel under them, across the window, behind a border', async () => {
     ui = await mountBoardSettled('spenders', '11a');
-    const columns = ui.$('.cg-sp__cols') as HTMLElement;
-    expect(columns.classList.contains('is-preview')).toBe(true);
-    expect([...columns.children].map((child) => child.className.split(' ')[0])).toEqual(['cg-bd', 'cg-pv', 'cg-st']);
+    const parts = (selector: string): string[] => [...(ui?.$(selector) as HTMLElement).children].map((child) => child.className.split(' ')[0] ?? '');
+    expect(parts('.cg-sp__cols')).toEqual(['cg-bd', 'cg-st']);
+    expect(parts('.cg-sp__body')).toEqual(['cg-sp__cols', 'cg-sp__split', 'cg-sp__panel']);
+    expect(ui.$('.cg-sp__panel > .cg-pv.is-panel')).not.toBeNull();
+    const border = ui.$('.cg-sp__split') as HTMLElement;
+    expect([border.getAttribute('role'), border.getAttribute('aria-orientation'), border.getAttribute('aria-label')]).toEqual(['separator', 'horizontal', 'Высота превью']);
     ui.unmount();
     ui = await mountBoardSettled('spenders', 'board-list');
-    expect([...(ui.$('.cg-sp__cols') as HTMLElement).children].map((child) => child.className.split(' ')[0])).toEqual(['cg-bd', 'cg-st']);
+    expect(parts('.cg-sp__body')).toEqual(['cg-sp__cols']);
+    expect(parts('.cg-sp__cols')).toEqual(['cg-bd', 'cg-st']);
   });
 });
 
 describe('Spenders board: shelves and rows', () => {
-  it('[SP-009] filters carry their counts; the pressed one is «Все»', async () => {
+  it('[SP-009] filters carry their counts in the window\'s header; the pressed one is «Все»', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
-    const filters = ui.$$('.cg-sp__tools .cg-flt');
+    const filters = ui.$$('.cg-sp__top .cg-sp__filters .cg-flt');
     expect(filters.map(textOf)).toEqual(['Все40', 'Ждут ответа12', 'Новые3']);
     expect(filters.map((filter) => filter.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false']);
     await flush(() => (filters[1] as HTMLElement).click());
@@ -115,8 +120,8 @@ describe('Spenders board: shelves and rows', () => {
 
   it('[SP-020] the «мы» and history filters wait in «Ещё» — one row of filters; «Фан писал», the same as «Ждут ответа», is not repeated', async () => {
     ui = await mountBoardSettled('spenders', boardOnly({ ...boardOf(ctx, BOARD_FANS), filters: board(ctx, views.ready()).filters }));
-    expect(ui.$$('.cg-sp__tools')).toHaveLength(1);
-    const more = ui.$$('.cg-sp__tools .cg-choice')[0] as HTMLElement;
+    expect(ui.$$('.cg-sp__filters')).toHaveLength(1);
+    const more = ui.$$('.cg-sp__filters .cg-choice')[0] as HTMLElement;
     expect(textOf(more)).toBe('Ещё');
     await flush(() => more.click());
     expect(ui.$$('[role="menuitemradio"] .cg-menu__t').map(textOf)).toEqual(['Мы писали', 'С перепиской', 'Без переписки']);
@@ -124,15 +129,14 @@ describe('Spenders board: shelves and rows', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'SetSpendersFilter', filter: 'we-wrote' });
   });
 
-  it('[SP-011] a shelf row carries its name from the tier bounds, its fans and its sums', async () => {
+  it('[SP-011] [X65] a shelf is a thin divider: its name from the tier bounds and its fans; its sums are the statistics\'', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     const shelves = ui.$$('.cg-vlist__inner [role="rowgroup"]');
     expect(shelves[0]?.getAttribute('aria-label')).toBe('$600+');
-    expect(textOf(shelves[0]?.querySelector('.cg-bd__shelfname'))).toBe('$600+8');
-    expect([...(shelves[0] as HTMLElement).querySelectorAll('.cg-bd__shelfsum')].map(textOf)).toEqual(['$78,690', '+$4,005']);
+    expect(textOf(shelves[0])).toBe('$600+8');
     expect(shelves[1]?.getAttribute('aria-label')).toBe('$350–600');
-    // The shelf sum of the period is the only green in a shelf row: money that came in.
-    expect(shelves[0]?.querySelectorAll('.cg-money')).toHaveLength(1);
+    // No sums and no green in a divider.
+    expect(shelves[0]?.querySelectorAll('[role="cell"], .cg-money')).toHaveLength(0);
   });
 
   it('[SP-008] shelf labels: an open top, a range, «вне полок»; an empty shelf is not drawn', () => {
@@ -157,12 +161,13 @@ describe('Spenders board: shelves and rows', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'RevealShelf', shelfId: 't350' });
   });
 
-  it('[SP-012] [SP-013] a fan row: name, @handle, lifetime, the period as income, both ages', async () => {
+  it('[SP-012] [SP-013] [X65] a fan row: the name (the @handle in its tooltip), the last message, lifetime, the period, who waits', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
-    expect(cells(row('b002'))).toEqual(['Hubert@hubert_plHubert @hubert_pl', 'are you awake? 😇', '$12,480', '+$320', '10 ч', '7 минФан ждёт ответа']);
-    // A known zero is blank, an unknown age is «—»; money is whole dollars with a comma.
-    expect(cells(row('b018')).slice(2)).toEqual(['$240', '', '30 д', '—']);
-    expect(row('b002').querySelector('.cg-bd__per')?.getAttribute('aria-label')).toBe('плюс 320 долларов');
+    expect(cells(row('b002'))).toEqual(['HubertHubert @hubert_pl', 'are you awake? 😇', '$12,480', '$320', '7 минФан ждёт ответа. Мы писали 10 ч назад, фан 7 мин назад']);
+    expect(row('b002').querySelector('.cg-bd__handle')).toBeNull();
+    // A known zero is blank; we wrote last — «мы» and our age; money is whole dollars with a comma.
+    expect(cells(row('b018')).slice(2)).toEqual(['$240', '', 'мы 30 дМы писали 30 д назад, фан не писал']);
+    expect(row('b002').querySelector('.cg-bd__per')?.getAttribute('aria-label')).toBe('320 долларов');
     expect(row('b002').getAttribute('role')).toBe('row');
   });
 
@@ -173,25 +178,26 @@ describe('Spenders board: shelves and rows', () => {
     expect(cells(row('b001')).slice(2, 4)).toEqual(['—', '—']);
   });
 
-  it('[SP-013] green is income only: an unknown period amount «—» is muted and a known sum with a plus is green', async () => {
+  it('[SP-013] [X65] the period is plain ink, no plus and no green in a row; an unknown amount «—» is fainter', async () => {
     const vm = boardOf(ctx, BOARD_FANS);
     const unknown = vm.shelves.map((shelf, index) => (index === 0 ? { ...shelf, rows: shelf.rows.map((item, n) => (n === 0 ? { ...item, period: null } : item)) } : shelf));
     ui = await mountBoardSettled('spenders', boardOnly({ ...vm, shelves: unknown }));
-    const period = (handle: string): DOMTokenList => (row(handle).querySelector('.cg-bd__per') as HTMLElement).classList;
-    expect(textOf(row('b001').querySelector('.cg-bd__per'))).toBe('—');
-    expect([period('b001').contains('is-unknown'), period('b001').contains('is-in')]).toEqual([true, false]);
-    expect([period('b002').contains('is-unknown'), period('b002').contains('is-in')]).toEqual([false, true]);
-    // The colour is the class's, not the column's: the sheet paints only `.is-in` green.
+    const period = (handle: string): HTMLElement => row(handle).querySelector('.cg-bd__per') as HTMLElement;
+    expect(textOf(period('b001'))).toBe('—');
+    expect(period('b001').classList.contains('is-unknown')).toBe(true);
+    expect(textOf(period('b002'))).toBe('$320');
+    expect(period('b002').classList.contains('is-unknown')).toBe(false);
+    // Green is income in the statistics and the preview; the list paints no sum of its rows green.
+    expect(ui.$$('.cg-bd__row .cg-money')).toEqual([]);
     const sheet = [...ui.root.querySelectorAll('style')].map((style) => style.textContent ?? '').join('\n') + ui.root.adoptedStyleSheets.map((item) => [...item.cssRules].map((rule) => rule.cssText).join('\n')).join('\n');
-    expect(sheet).toMatch(/\.cg-bd__per\.is-in\s*\{\s*color:\s*var\(--cg-money\)/);
-    expect(sheet).not.toMatch(/\.cg-bd__per\s*\{[^}]*--cg-money/);
+    expect(sheet).not.toMatch(/\.cg-bd__per[^{]*\{[^}]*--cg-money/);
   });
 
   it('[SP-014] a new payer is found by «Новые», not by a word on every row', async () => {
     ui = await mountBoardSettled('spenders', boardOnly(boardOf(ctx, BOARD_FANS.filter((fan) => fan.isNew === true))));
     const jake = row('b021');
     expect(jake.querySelectorAll('.cg-bd__tag')).toHaveLength(0);
-    expect(textOf(jake.querySelector('.cg-bd__who'))).toMatch(/^Jake Morrison@jake\.m\.88/);
+    expect(textOf(jake.querySelector('.cg-bd__name'))).toBe('Jake Morrison');
   });
 
   it('[SP-015] a deleted account: a muted name and the word «удалён», no strike-through', async () => {
@@ -211,23 +217,24 @@ describe('Spenders board: shelves and rows', () => {
     expect(textOf(row('b004').querySelector('.cg-bd__last'))).toBe('ok that video was insane 🔥');
   });
 
-  it('[SP-017] «фан ждёт ответа» is the bold age of «Фан писал» with its tooltip: no dot, no colour', async () => {
+  it('[SP-017] [X65] «Ждёт»: the fan waits — their age in bold with both ages in the tooltip; we wrote last — «мы» and ours; no dot, no colour', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     const ages = [...row('b002').querySelectorAll('.cg-bd__age')];
-    expect(ages[1]?.classList.contains('is-wait')).toBe(true);
-    expect(ages[0]?.classList.contains('is-wait')).toBe(false);
-    const tip = ui.root.getElementById(ages[1]?.getAttribute('aria-describedby') ?? '');
-    expect(tip?.textContent).toBe('Фан ждёт ответа');
-    // We wrote last to Daniel: nothing is bold there.
+    expect(ages).toHaveLength(1);
+    expect(ages[0]?.classList.contains('is-wait')).toBe(true);
+    const tip = ui.root.getElementById(ages[0]?.getAttribute('aria-describedby') ?? '');
+    expect(tip?.textContent).toBe('Фан ждёт ответа. Мы писали 10 ч назад, фан 7 мин назад');
+    // We wrote last to Daniel: nothing is bold there, and the cell says so.
     expect(row('b005').querySelector('.is-wait')).toBeNull();
+    expect(row('b005').querySelector('.cg-bd__age')?.firstChild?.textContent).toMatch(/^мы /);
     // No dot and no accent anywhere in the list: importance is ink and weight only (ui-design §1 п. 5).
     expect(ui.$$('.cg-bd .cg-dot, .cg-bd [data-accent-use], .cg-bd .cg-badge')).toEqual([]);
   });
 
-  it('[SP-018] the two sort buttons: «Всё время ↓» is sorted, «Фан писал» asks for the other sort', async () => {
+  it('[SP-018] the two sort buttons: «Всё время ↓» is sorted, «Ждёт» asks for the other sort', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     const headers = ui.$$('.cg-bd__colhead [role="columnheader"]');
-    expect(headers.map((header) => header.getAttribute('aria-sort'))).toEqual([null, null, 'descending', null, null, 'none']);
+    expect(headers.map((header) => header.getAttribute('aria-sort'))).toEqual([null, null, 'descending', null, 'none']);
     const sorts = ui.$$('.cg-bd__sort');
     expect(textOf(sorts[0])).toBe('Всё времяВсего ↓');
     expect(sorts[0]?.classList.contains('is-sorted')).toBe(true);
@@ -235,24 +242,29 @@ describe('Spenders board: shelves and rows', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'SetSpendersSort', sort: 'fan-age' });
   });
 
-  it('the narrow column has short headers ready: «Всего», «Мы», «Фан» (shown at ≤ 620 px by a container query)', async () => {
+  it('the narrow column has a short header ready: «Всего» (shown at ≤ 620 px by a container query); «Ждёт» is short already', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
-    expect(ui.$$('.cg-bd__colhead .cg-lbl-short').map(textOf)).toEqual(['Всего', 'Мы', 'Фан']);
+    expect(ui.$$('.cg-bd__colhead .cg-lbl-short').map(textOf)).toEqual(['Всего', 'Ждёт']);
     const css = ui.root.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules].map((rule) => rule.cssText)).join('\n');
     expect(css).toMatch(/@container cgboard \(max-width: 620px\)/);
-    // The full label of the short «Мы» is its tooltip.
-    const we = ui.$$('.cg-bd__colhead .cg-lbl-short')[1] as HTMLElement;
-    expect(ui.root.getElementById(we.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Мы писали');
   });
 
-  it('[SP-021] the footer: «40 фанов», «данные на 09:18», and «Показано: 7» under a filter', async () => {
+  it('[SP-021] [SP-022] [X65] the footer speaks only when a search narrows the list: «40 фанов. Показано: 7» and the way back; the time is the tooltip of «Обновить»', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
-    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 фанов', 'данные на 09:18']);
+    // Everything is here and nothing narrows it: no footer; «данные на 09:18» waits in the tooltip of the header's «Обновить».
+    expect(ui.$('.cg-bd > .cg-sp__foot')).toBeNull();
+    const refresh = ui.$('.cg-sp__top .cg-sp__refresh button') as HTMLElement;
+    expect(ui.root.getElementById(refresh.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Перечитать данные хаба. AI не запускается\nДанные на 09:18');
     ui.unmount();
     const vm = boardOf(ctx, BOARD_FANS);
-    ui = await mountBoardSettled('spenders', boardOnly({ ...vm, footer: { ...vm.footer, shown: 7 }, reset: button('spenders.filter.all', { type: 'ResetFilters', list: 'spenders' }) }));
+    const reset = button('spenders.filter.all', { type: 'ResetFilters', list: 'spenders' });
+    // A chip of the header alone is a view of its own: «Все» is the way back, the footer stays quiet.
+    ui = await mountBoardSettled('spenders', boardOnly({ ...vm, footer: { ...vm.footer, shown: 7 }, reset }));
+    expect(ui.$('.cg-bd > .cg-sp__foot')).toBeNull();
+    ui.unmount();
+    ui = await mountBoardSettled('spenders', boardOnly({ ...vm, query: 'hub', footer: { ...vm.footer, shown: 7 }, reset }));
     expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe('40 фанов. Показано: 7');
-    await flush(() => (ui?.$('.cg-sp__line .cg-btn') as HTMLElement).click());
+    await flush(() => (ui?.$('.cg-bd > .cg-sp__foot .cg-btn') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'ResetFilters', list: 'spenders' });
   });
 
@@ -385,8 +397,8 @@ describe('Spenders board: states of the source', () => {
 
   it('[SP-043] the board speaks the chosen language', async () => {
     ui = await mountBoardSettled('spenders', 'board-list', { language: 'en' });
-    expect(ui.$$('.cg-sp__tools .cg-flt').map((filter) => filter.firstChild?.textContent)).toEqual(['All', 'Awaiting reply', 'New']);
-    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 fans', 'data as of 09:18']);
+    expect(ui.$$('.cg-sp__filters .cg-flt').map((filter) => filter.firstChild?.textContent)).toEqual(['All', 'Awaiting reply', 'New']);
+    expect(ui.$$('.cg-bd__colhead .cg-lbl-long').map(textOf)).toEqual(['All time', 'Waiting']);
     expect(textOf(row('b012').querySelector('.cg-bd__tag'))).toBe('deleted');
   });
 });
@@ -483,7 +495,7 @@ describe('Spenders board: keyboard', () => {
     const next = items[nextStop(items, lastOfTop, 1)];
     expect(next?.kind === 'fan' ? next.row.handle : null).toBe('spenders:b009');
     expect(nextStop(items, initialStop(items), -1)).toBe(initialStop(items));
-    expect(BOARD_HEIGHTS).toEqual({ header: 28, shelf: 34, gap: 10, fan: 36, more: 32 });
+    expect(BOARD_HEIGHTS).toEqual({ header: 28, shelf: 28, gap: 6, fan: 36, more: 32 });
   });
 
   it('[SP-019] `/` puts focus into the search; typing asks after the debounce; Esc clears it first', async () => {
@@ -584,10 +596,10 @@ describe('Spenders board: keyboard', () => {
     expect(ui.root.activeElement).toBe(row('b001'));
   });
 
-  it('[SP-024] «Обновить» of the board’s footer reads the list and the statistics again; of the expanded statistics — the statistics', async () => {
+  it('[SP-024] «Обновить» of the window\'s header reads the list and the statistics again; of the expanded statistics — the statistics', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
-    const refresh = ui.$('.cg-bd > .cg-sp__foot .cg-sp__refresh button') as HTMLElement;
-    expect(textOf(refresh)).toBe('Обновить');
+    const refresh = ui.$('.cg-sp__top .cg-sp__refresh button') as HTMLElement;
+    expect(refresh.getAttribute('aria-label')).toBe('Обновить');
     await flush(() => refresh.click());
     expect(ui.actionsOf('ReloadView')).toEqual([
       { type: 'ReloadView', selector: { of: 'spenders.board' } },

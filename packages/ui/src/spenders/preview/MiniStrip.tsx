@@ -55,7 +55,8 @@ export function generateAction(vm: PreviewVM, feature: PreviewActionId, tone: To
   return { type: 'Generate', targetHandle: vm.handle, feature, options: {} };
 }
 
-function reasonText(i18n: I18n, action: string, vm: DockActionVM): string | null {
+/** Why a chip is off, in the dock's words; null when it works. */
+export function reasonText(i18n: I18n, action: string, vm: DockActionVM): string | null {
   if (vm.enabled) return null;
   return i18n.t('dock.action.unavailable', { action, reason: vm.reason === null ? i18n.t('common.unknown') : i18n.text(vm.reason.text) });
 }
@@ -64,15 +65,17 @@ export interface MiniStripProps {
   readonly vm: PreviewVM;
   /** A hint at the Hi button (the «Новые» card: «AI ничего не отправляет сам…», NF-028). */
   readonly hiHint?: string | null;
+  /** Chips another place of the preview carries: Fix inside the draft field of the Spenders panel (X65). */
+  readonly omit?: readonly PreviewActionId[];
 }
 
-export function MiniStrip({ vm, hiHint = null }: MiniStripProps): JSX.Element {
+export function MiniStrip({ vm, hiHint = null, omit = [] }: MiniStripProps): JSX.Element {
   const i18n = useI18n();
   const hints = useHints();
   const dispatch = useDispatch();
   const barRef = useRef<HTMLDivElement>(null);
   const { bar } = vm;
-  const ids = ORDER.filter((id) => bar.actions[id] !== undefined);
+  const ids = ORDER.filter((id) => bar.actions[id] !== undefined && !omit.includes(id));
   const first = ids[0];
   const locked = bar.locked;
 

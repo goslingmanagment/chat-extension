@@ -419,6 +419,9 @@ export const RU: I18nCatalog<'ru'> = {
   'spenders.waitingLocal': 'Ниже — не очередь хаба, а локальный фильтр: только те строки доски, что уже загружены.',
   'spenders.refresh': 'Обновить',
   'spenders.refreshTooltip': 'Перечитать данные хаба. AI не запускается',
+  'spenders.col.waits': 'Ждёт',
+  'spenders.wait.ours': 'мы {age}',
+  'spenders.previewSplit': 'Высота превью',
   'spenders.footerNoTotal': {
     one: '{n} фан, {coverage}',
     few: '{n} фана, {coverage}',
@@ -494,9 +497,12 @@ export const RU: I18nCatalog<'ru'> = {
   'preview.ping.segmentNoDays': 'Сегмент {segment}',
   'preview.ping.active': 'Фан писал недавно',
   'preview.ping.unknown': 'Сегмент Ping неизвестен',
-  'preview.draft.placeholder': 'Черновик для Fix. Остаётся в превью, в чат не уходит',
+  'preview.draft.placeholder': 'Свой текст для Fix. В чат не уходит',
   'preview.draft.aria': 'Черновик для Fix',
-  'preview.empty': 'Нажмите Reply, Hi или Ping — ответ появится здесь. Отправка — только кнопкой у каждой части.',
+  'preview.empty': 'Reply, Hi или Ping — черновик появится здесь. Отправка — только кнопкой у каждой части.',
+  'preview.previousFan': 'Предыдущий фан',
+  'preview.nextFan': 'Следующий фан',
+  'preview.feed.lastOnly': 'Архив пока пуст — ниже последнее сообщение из списка',
 
   // ── Media picker of a preview (X53) ──
   'preview.media.button': 'Медиа',

@@ -1,8 +1,8 @@
 // The board's shelves as one flat list for the virtual list (architecture.md
 // §10.1; ui-design §3.5, §4.14): a column header on top, then per shelf its
-// header row (34 px, sticks under the column header), its fans (36 px) and,
-// when the shelf is cut, «ещё N · показать». A 10 px gap stands before every
-// shelf but the first. An empty shelf is not drawn. Pure: the Board renders
+// thin divider (28 px, sticks under the column header; X65), its fans (36 px)
+// and, when the shelf is cut, «ещё N · показать». A 6 px gap stands before
+// every shelf but the first. An empty shelf is not drawn. Pure: the Board renders
 // it, the tests measure it.
 
 import { type I18n, type ShelfVM, type SpenderRowVM, type SpendersStatsVM } from '@cg/contracts/vm';
@@ -13,8 +13,8 @@ export type BoardItem =
   | { readonly kind: 'fan'; readonly key: string; readonly row: SpenderRowVM }
   | { readonly kind: 'more'; readonly key: string; readonly shelf: ShelfVM; readonly hidden: number };
 
-/** Heights of ui-design §3.5: the column header, a shelf row, the gap above a shelf, a fan row, «ещё N · показать». */
-export const BOARD_HEIGHTS = { header: 28, shelf: 34, gap: 10, fan: 36, more: 32 } as const;
+/** Heights of ui-design §3.5: the column header, a shelf divider, the gap above a shelf, a fan row, «ещё N · показать». */
+export const BOARD_HEIGHTS = { header: 28, shelf: 28, gap: 6, fan: 36, more: 32 } as const;
 /** 1.32.0: a fan in a batch has its line under the row. */
 export const BATCH_FAN_HEIGHT = 54;
 

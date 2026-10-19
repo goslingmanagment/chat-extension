@@ -120,6 +120,8 @@ export const UI_TEXT_KEYS = [
   'spenders.ourPrefix', 'spenders.waitingTooltip', 'spenders.footerShown', 'spenders.shelfMore', 'spenders.empty', 'spenders.keys.row', 'spenders.resetFilters',
   'spenders.shelf.from', 'spenders.shelf.range', 'spenders.shelf.none', 'spenders.truncated', 'spenders.truncatedNoTotal', 'spenders.waitingLocal',
   'spenders.refresh', 'spenders.refreshTooltip',
+  // 1.37.0 (X65): the list's «Ждёт» column — the fan's wait, or ours — and the border of the preview under the list.
+  'spenders.col.waits', 'spenders.wait.ours', 'spenders.previewSplit',
   'stats.title', 'stats.titleFull', 'stats.expand', 'stats.expandTooltip', 'stats.collapse', 'stats.today', 'stats.d7', 'stats.d30', 'stats.payers',
   'stats.avgCheck', 'stats.shelves', 'stats.colFans', 'stats.colPeriod', 'stats.table.shelf', 'stats.table.fans', 'stats.table.lifetime',
   'stats.table.period', 'stats.attention', 'stats.awaiting', 'stats.newPayers', 'stats.newPayersObserved', 'stats.silent8to21', 'stats.silentOver21', 'stats.noData',
@@ -132,6 +134,8 @@ export const UI_TEXT_KEYS = [
   'preview.feed.emptySubscribed', 'preview.feed.label', 'preview.feed.fanPrefix', 'preview.feed.deleted', 'preview.feed.automatic', 'preview.feed.priced',
   'preview.feed.notBought', 'preview.feed.older', 'preview.ping.segment', 'preview.ping.segmentNoDays', 'preview.ping.active', 'preview.ping.unknown',
   'preview.draft.placeholder', 'preview.draft.aria', 'preview.empty',
+  // 1.37.0 (X65): the preview under the list — the neighbouring fans in its header, the row's last message while the archive has none.
+  'preview.previousFan', 'preview.nextFan', 'preview.feed.lastOnly',
   // 1.30.0 (X53): the media picker of a preview.
   'preview.media.button', 'preview.media.buttonTooltip', 'preview.media.label', 'preview.media.close', 'preview.media.all', 'preview.media.foldersMore',
   'preview.media.more', 'preview.media.loading', 'preview.media.empty', 'preview.media.notReady', 'preview.media.fan.paid', 'preview.media.fan.unpaid',
