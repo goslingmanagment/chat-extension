@@ -17,12 +17,16 @@
 //
 // R20 P10c (FS-NEW-3, FS-NEW-6, FS-NEW-7): the card's greeting — the draft, «Сгенерировать», «Отправить», «Открыть и
 // вставить» — is ./greeting.ts over the source's greeting port; this controller hands it the card and its actions.
+// X59 (the owner, 2026-10-18): the period opens on the one the person chose last (the site remembers it, 12 hours
+// before any choice); a row with a batch's draft has its own «Отправить» — the card's send by one click in the list,
+// with all of its checks (`NewcomerRowVM.send`): generate for many at once, send each by a click.
 // It names no site; the hub's list (ChatSpace) is ./controller.ts.
 
 import { isCgCode, type CgCode, type CgErrorView } from '@cg/contracts/errors';
 import {
   NEWCOMER_CHECK_FILTERS,
   type ActionReceipt,
+  type GreetingStatusVM,
   type I18n,
   type NewcomerCardVM,
   type NewcomerCheckFilter,
@@ -224,8 +228,9 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   /**
    * Opens the pass of this tab's creator and period, then reads its first page (NF-004). `close` — the pass on screen
    * is another period's: it is let go; a reload asks for the same pass again, which the background answers as it is.
+   * `chosen` (X59) — the period the person just chose; null — the one the site remembers (their last choice anywhere).
    */
-  async function start(close = true): Promise<void> {
+  async function start(close = true, chosen: number | null = null): Promise<void> {
     letGo(close);
     const mine = run;
     if (disposed || !open() || !usable()) return changed();
@@ -238,12 +243,13 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     }
     stage = 'connecting';
     changed();
-    const scanned = await source.scan(creator, windowHours);
+    const scanned = await source.scan(creator, chosen);
     if (disposed || mine !== run) return;
     if (!scanned.ok) return fail(scanned.failure);
     // NF-026: a pass of another creator is nobody's here.
     if (scanned.value.hostAccountId !== creator) return fail({ code: 'CG-CONTEXT-CHANGED', retryAt: null });
     pass = scanned.value;
+    windowHours = clampHours(pass.windowHours);
     stage = 'live';
     changed();
     await firstPage(mine, Math.max(source.pageSize, 1));
@@ -375,7 +381,12 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
 
   // ── the conversation of the card ──
 
-  const rowOf = (fanRef: string): PassRow | null => rows.find((row) => row.fanRef === fanRef) ?? null;
+  /** The rows by fan, rebuilt once per new `rows` (a lookup per row of every build stays O(1)). */
+  let index: { readonly of: PassRow[]; readonly byFan: Map<string, PassRow> } | null = null;
+  function rowOf(fanRef: string): PassRow | null {
+    if (index === null || index.of !== rows) index = { of: rows, byFan: new Map(rows.map((row) => [row.fanRef, row])) };
+    return index.byFan.get(fanRef) ?? null;
+  }
 
   /**
    * `first` — the first page, once; `older` — the page before the oldest shown («Более ранние сообщения»); `again` —
@@ -492,7 +503,24 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       proof: row.proof,
       history: historyVM(row),
       openHref: row.conversationRef === null ? null : source.chatHref(row.conversationRef),
+      avatarUrl: row.avatarUrl ?? null,
     };
+  }
+
+  /** The row's word for its greeting (X59): going out, gone, or unknown; a fan the pass found written to is greeted. */
+  function greetingOf(passId: string, row: PassRow): GreetingStatusVM {
+    if (row.check === 'greeted') return { s: 'greeted', at: null };
+    const state = card?.stateOf(passId, row.fanRef) ?? null;
+    if (state?.s === 'sending') return { s: 'sending', sent: 0, total: 1 };
+    if (state?.s === 'sent') return { s: 'greeted', at: state.at };
+    if (state?.s === 'uncertain') return { s: 'stopped', sent: 0, total: 1, part: 1 };
+    return { s: 'none' };
+  }
+
+  /** X59: the row's own «Отправить» of a batch's draft: whether the card's checks let it go now, and why a click did not. */
+  function sendOf(passId: string, row: PassRow): NonNullable<NewcomerRowVM['send']> {
+    const state = card?.stateOf(passId, row.fanRef) ?? null;
+    return { can: card?.vm(passId, row)?.canSend === true, refused: state?.s === 'refused' ? state.failure : null };
   }
 
   function windowText(hours: number): string {
@@ -506,19 +534,26 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     const rowVMs: NewcomerRowVM[] =
       passId === null
         ? []
-        : rows.map((row) => ({
-            handle: passHandle(passId, row.fanRef),
-            name: nameOf(row),
-            username: row.username,
-            kind: 'new',
-            subscribedAt: row.followedAt,
-            greeting: row.check === 'greeted' ? { s: 'greeted', at: null } : { s: 'none' },
-            hasDraft: false,
-            draftStale: false,
-            selected: row.fanRef === selected,
-            check: { status: row.check, customName: row.customName, dmClosed: row.dmClosed },
-            ...(card === null ? {} : { batch: batch.row(passHandle(passId, row.fanRef)) }),
-          }));
+        : rows.map((row) => {
+            const handle = passHandle(passId, row.fanRef);
+            const inBatch = card === null ? null : batch.row(handle);
+            return {
+              handle,
+              name: nameOf(row),
+              username: row.username,
+              kind: 'new',
+              subscribedAt: row.followedAt,
+              greeting: greetingOf(passId, row),
+              hasDraft: false,
+              draftStale: false,
+              selected: row.fanRef === selected,
+              check: { status: row.check, customName: row.customName, dmClosed: row.dmClosed },
+              avatarUrl: row.avatarUrl ?? null,
+              ...(inBatch === null ? {} : { batch: inBatch }),
+              // Only a draft the batch made is read and sent from the list.
+              ...(inBatch?.state === 'ready' ? { send: sendOf(passId, row) } : {}),
+            };
+          });
 
     let view: VmView;
     const blocked = contextView(ctx);
@@ -655,9 +690,9 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (action.type === 'SetNewcomersWindow') {
       const hours = clampHours(action.hours);
       if (hours === windowHours) return Promise.resolve(done(type, 'noop'));
-      // Another period is another pass: the old one is let go, its late answers are nobody's.
+      // Another period is another pass: the old one is let go, its late answers are nobody's. X59: the choice is remembered.
       windowHours = hours;
-      return start().then(() => done(type));
+      return start(true, hours).then(() => done(type));
     }
     if (action.type === 'Search') {
       if (action.list !== 'newcomers') return null;

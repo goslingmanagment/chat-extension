@@ -26,8 +26,8 @@ const row = (patch: Partial<FanslyFollowerRow> = {}): FanslyFollowerRow => ({
 const msg = (id: number): NewcomerMessageVM => ({ id: String(id), fromFan: id % 2 === 0, at: ISO, text: `m${id}`, automated: false, attachments: 0 });
 
 describe('[host:fansly] «Новые» on Fansly: the rows of the pass (R20 P10a)', () => {
-  it('[NF-003] the periods of the old window: 1 hour to 30 days, 48 hours first, inside the registry’s 1–720', () => {
-    expect(FANSLY_NEWCOMERS_WINDOWS).toEqual({ options: [1, 3, 6, 12, 24, 48, 72, 168, 336, 720], initial: 48, min: 1, max: 720 });
+  it('[NF-003] [X59] the periods of the old window: 1 hour to 30 days, 12 hours before any choice, inside the registry’s 1–720', () => {
+    expect(FANSLY_NEWCOMERS_WINDOWS).toEqual({ options: [1, 3, 6, 12, 24, 48, 72, 168, 336, 720], initial: 12, min: 1, max: 720 });
     for (const hours of FANSLY_NEWCOMERS_WINDOWS.options) expect(hours >= FANSLY_TAB_LIMITS.windowHoursMin && hours <= FANSLY_TAB_LIMITS.windowHoursMax).toBe(true);
     expect([FANSLY_NEWCOMERS_PAGE, FANSLY_NEWCOMERS_HISTORY]).toEqual([100, { page: 250, cap: 750 }]);
   });
@@ -58,9 +58,12 @@ describe('[host:fansly] «Новые» on Fansly: the rows of the pass (R20 P10a
       failure: { code: 'CG-FAN-REQUEST', retryAt: 99 },
       // R20 P10c: the revision of the history checked in full, which a greeting is sent on.
       historyRevision: '00000000-0000-4000-8000-000000000501',
+      avatarUrl: null,
     });
+    // X59: the fan's picture as the pass read it.
+    expect(passRowOf(row({ avatarUrl: 'https://cdn3.fansly.com/a/300.jpeg' })).avatarUrl).toBe('https://cdn3.fansly.com/a/300.jpeg');
     // What an older background leaves out is unknown, not empty.
-    expect(passRowOf(row({ groupId: null }))).toMatchObject({ conversationRef: null, customName: null, bio: null, proof: null, failure: null });
+    expect(passRowOf(row({ groupId: null }))).toMatchObject({ conversationRef: null, customName: null, bio: null, proof: null, failure: null, avatarUrl: null });
     expect(fanslyChatPath('900000000000000001')).toBe('/messages/900000000000000001');
   });
 

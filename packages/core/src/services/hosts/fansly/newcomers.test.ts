@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
-import { COOLING_LOOK_MS, NEWCOMERS_EXCLUDED_PREFIX, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal, type PassJournalEvent, type PassJournalFields } from './newcomers';
+import { COOLING_LOOK_MS, NEWCOMERS_EXCLUDED_PREFIX, NEWCOMERS_WINDOW_KEY, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal, type PassJournalEvent, type PassJournalFields } from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
 const C = '700000000000000017';
@@ -660,6 +660,29 @@ describe('[host:fansly] «Нельзя написать» and «Исключит
     expect(history.ok && history.messages.map((message) => message.text)).toEqual(['hi']);
   });
 
+  it('[NF-003] [X59] the period: a window without one opens the period the person chose last — 12 hours before any choice; a choice is kept in this browser; a store that fails gives the default', async () => {
+    const kv = createMemoryKv();
+    const t = setup({ kv });
+    t.world.follow(1, T0 - minutes(5));
+    const ask = async (windowHours: number | null): Promise<number> => {
+      const answer = await t.ask('fansly.followers.scan', { hostAccountId: C, windowHours });
+      if (!answer.ok) throw new Error('the scan was refused');
+      return answer.pass.windowHours;
+    };
+    expect(await ask(null)).toBe(12);
+    expect(kv.data.has(NEWCOMERS_WINDOW_KEY)).toBe(false);
+    expect(await ask(72)).toBe(72);
+    await t.settle();
+    expect(kv.data.get(NEWCOMERS_WINDOW_KEY)).toBe(72);
+    expect(await ask(null)).toBe(72);
+    // Something that is no period is not one.
+    kv.data.set(NEWCOMERS_WINDOW_KEY, 9999);
+    expect(await ask(null)).toBe(12);
+    kv.data.set(NEWCOMERS_WINDOW_KEY, 24);
+    kv.failNext('get');
+    expect(await ask(null)).toBe(12);
+  });
+
   it('[FX-003] [FS-NEW-2] «Исключить из очереди»: only a fan nobody can write to leaves «К обработке» — kept in this browser, back by «Вернуть в очередь»; nothing is asked of Fansly', async () => {
     const kv = createMemoryKv();
     const t = setup({ kv });
@@ -777,6 +800,9 @@ describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
       fanAvatarUrl: 'https://cdn3.fansly.com/a/300.jpeg?Key-Pair-Id=K1&Policy=P1&Signature=S1',
     });
     expect(chat.id).not.toBe(fan);
+    // X59: the row the window shows carries the same picture; an address the hub would refuse is none there too.
+    expect(row.avatarUrl).toBe('https://cdn3.fansly.com/a/300.jpeg?Key-Pair-Id=K1&Policy=P1&Signature=S1');
+    expect((await t.row(passId, plain)).avatarUrl ?? null).toBeNull();
     // An address the hub would refuse is no avatar.
     const other = t.service.greetingProof(passId, plain, TAB);
     expect(other.ok && other.proof.fanAvatarUrl).toBeNull();

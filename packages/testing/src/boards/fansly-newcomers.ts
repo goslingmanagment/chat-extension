@@ -307,3 +307,51 @@ export function fanslyConnecting(ctx: ScenarioCtx): ScenarioViewEntry[] {
   const unknown = { ...vm, tabs: vm.tabs.map((tab) => ({ ...tab, count: null })), view: views.loading(null, msg('common.loading')) };
   return [entry({ of: 'newcomers' }, { ...unknown, pass: { ...pass, checked: null, total: null, filters: pass.filters.map((filter) => ({ ...filter, count: null })) } })];
 }
+
+// ── X59: the batch in the old window's layout ──
+
+/** A synthetic picture (an inline drawing, no address of anyone's): the window shows it as a fan's photo. */
+const picture = (hue: number): string =>
+  `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 45% 62%)"/><stop offset="1" stop-color="hsl(${hue + 40} 40% 38%)"/></linearGradient></defs><rect width="40" height="40" fill="url(#g)"/><circle cx="20" cy="16" r="7" fill="hsl(${hue} 30% 88%)"/><ellipse cx="20" cy="36" rx="13" ry="10" fill="hsl(${hue} 30% 88%)"/></svg>`)}`;
+const PICTURES: Readonly<Record<number, string>> = { 1: picture(20), 2: picture(200), 5: picture(320), 8: picture(110) };
+
+const DRAFTS: Readonly<Record<number, string>> = {
+  1: 'Hey Tomasz! So happy you’re here 💕 What made you follow me — the beach set or the gym pics?',
+  2: 'Leo! Sorry for the wait, babe 🙈 I saw your message — tell me a little about you?',
+  8: 'Hi Alex, welcome! Boston, right? 😊 I have a little surprise for my new followers…',
+};
+
+/** The batch's view of a fan: its draft, the row's own «Отправить», and how its send went (sent, going out now). */
+function batchRow(row: NewcomerRowVM, n: number, sent: readonly number[], sending: number | null): NewcomerRowVM {
+  const pickable = row.check?.status === 'ready' || row.check?.status === 'reply';
+  const draft = DRAFTS[n];
+  const done = sent.includes(n);
+  const going = sending === n;
+  return {
+    ...row,
+    avatarUrl: PICTURES[n] ?? null,
+    ...(done ? { greeting: { s: 'greeted', at: null } } : going ? { greeting: { s: 'sending', sent: 0, total: 1 } } : {}),
+    batch: draft === undefined ? { pickable, picked: false, state: null, text: null, failure: null } : { pickable, picked: false, state: done ? 'sent' : 'ready', text: draft, failure: null },
+    ...(draft === undefined || done ? {} : { send: { can: !going, refused: null } }),
+  };
+}
+
+function batchVM(ctx: ScenarioCtx, sent: readonly number[], sending: number | null): ScenarioViewEntry[] {
+  const tomasz = follower(1);
+  const welcome = message(ctx, 1, 13, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true);
+  const card = { ...cardOf(ctx, tomasz, { history: history('ready', [welcome]) }), avatarUrl: PICTURES[1] ?? null, greeting: greetingOf({ text: DRAFTS[1] ?? '', ai: true, canSend: !sent.includes(1), canInsert: !sent.includes(1), ...(sent.includes(1) ? { state: { s: 'sent', at: null } } : {}) }) };
+  const vm = fanslyNewcomersVM(ctx, { stage: 'done', selected: 1, card });
+  const rows = vm.rows.map((row) => batchRow(row, Number(BigInt(row.handle.split(':')[2] ?? '0') - 800000000000000000n), sent, sending));
+  const count = (state: string): number => rows.filter((row) => row.batch?.state === state).length;
+  return [entry({ of: 'newcomers' }, { ...vm, rows, batch: { picked: 0, max: 20, queued: 0, generating: 0, ready: count('ready'), sent: count('sent'), failed: 0, reason: null } })];
+}
+
+/** `o` — X59: the batch's drafts are ready: read each in the list under its fan, a small «Отправить» in its row. */
+export function fanslyBatchReady(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  return batchVM(ctx, [], null);
+}
+
+/** `p` — X59: sending one by one from the list: one sent, the next going out, one waiting for its click. */
+export function fanslyBatchSending(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  return batchVM(ctx, [1], 2);
+}

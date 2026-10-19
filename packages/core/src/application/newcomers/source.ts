@@ -26,8 +26,11 @@ export interface NewcomersPassSource {
   /** Messages of one read of a conversation, and the most the card shows (NF-010). */
   readonly historyPage: number;
   readonly historyCap: number;
-  /** Opens the pass of this creator and period, or answers the open one as it is. */
-  scan(hostAccountId: string, windowHours: number): Promise<SourceAnswer<PassState>>;
+  /**
+   * Opens the pass of this creator and period, or answers the open one as it is. X59: `windowHours` null — the period
+   * the site remembers (the person's last choice, else the default); a number — the person's choice, remembered.
+   */
+  scan(hostAccountId: string, windowHours: number | null): Promise<SourceAnswer<PassState>>;
   /** Search, tabs, filters and counts cover the whole pass; only the matching rows are paged. */
   read(passId: string, offset: number, limit: number, query: PassQuery): Promise<SourceAnswer<PassPage>>;
   /** A fan's conversation as the pass reads it, newest first; `before` — the oldest message already shown. */

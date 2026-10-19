@@ -133,6 +133,8 @@ export interface FanslyNewcomersDeps {
 
 /** storage.local: `fansly.newcomers.excluded.<creator>.<fan>` → `{ at }` — the fan is out of «К обработке» (FS-NEW-2). */
 export const NEWCOMERS_EXCLUDED_PREFIX = 'fansly.newcomers.excluded.';
+/** storage.local: the period of «Новые» the person chose last (X59) — the next window opens on it, in any tab. */
+export const NEWCOMERS_WINDOW_KEY = 'fansly.newcomers.window';
 
 /** What the greeting (P10c) takes of a checked row (FS-NEW-7): only a history walked to its empty page has one. */
 export interface PassRowProof {
@@ -783,6 +785,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       displayName: profile.displayName ?? now.displayName,
       bio: profile.bio ?? now.bio ?? null,
       ...(profile.customName === undefined ? {} : { customName: profile.customName }),
+      // X59: the picture the window shows — the same checked Fansly address Hi takes (FX-018).
+      ...(profile.avatarUrl === null ? {} : { avatarUrl: profile.avatarUrl }),
     };
   }
 
@@ -798,8 +802,32 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   const running = (pass: Pass): boolean => pass.work !== null && !pass.work.stop.aborted;
 
-  function scan(payload: Payload<'fansly.followers.scan'>, tab: string): Answer<'fansly.followers.scan'> {
-    const { hostAccountId: creator, windowHours } = payload;
+  // ── the period the person chose last (X59): kept in this browser; a store that cannot be read gives the default ──
+
+  const validHours = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isInteger(value) && value >= FANSLY_TAB_LIMITS.windowHoursMin && value <= FANSLY_TAB_LIMITS.windowHoursMax;
+
+  async function rememberedWindow(): Promise<number> {
+    const read = await deps.local.get([NEWCOMERS_WINDOW_KEY]);
+    if (!read.ok) log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the remembered period was not read', fields: { code: read.code } });
+    const stored = read.ok ? read.value[NEWCOMERS_WINDOW_KEY] : undefined;
+    return validHours(stored) ? stored : FANSLY_TAB_LIMITS.windowHoursDefault;
+  }
+
+  function rememberWindow(hours: number): void {
+    void deps.local.set({ [NEWCOMERS_WINDOW_KEY]: hours }).then((written) => {
+      if (!written.ok) log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the chosen period was not kept', fields: { code: written.code } });
+    });
+  }
+
+  /** `windowHours` null — the period remembered; a number — the person's choice, remembered for the next window. */
+  async function scan(payload: Payload<'fansly.followers.scan'>, tab: string): Promise<Answer<'fansly.followers.scan'>> {
+    const creator = payload.hostAccountId;
+    if (!deps.tabOn(tab, creator)) return { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } };
+    const chosen = payload.windowHours;
+    if (chosen !== null) rememberWindow(chosen);
+    const windowHours = chosen ?? (await rememberedWindow());
+    // The tab may have left the creator while the store was read.
     if (!deps.tabOn(tab, creator)) return { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } };
     const open = passes.get(creator);
     if (open !== undefined && open.windowHours === windowHours && open.base !== 'done' && open.base !== 'stopped' && (open.watchers.has(tab) || running(open))) {

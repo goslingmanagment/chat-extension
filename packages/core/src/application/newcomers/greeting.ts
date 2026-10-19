@@ -98,6 +98,8 @@ export interface CardGreeting {
   batchStart(passId: string, row: PassRow): Promise<BatchOutcome>;
   /** The card's field as it is now, and whether it went out; null — no card of the fan. */
   batchLive(passId: string, fanRef: string): { readonly text: string | null; readonly sent: boolean } | null;
+  /** X59: where the fan's greeting stands (a send of «Отправить готовые» ended how); null — no card of the fan yet. */
+  stateOf(passId: string, fanRef: string): NewcomerGreetingStateVM | null;
   /** Another pass, sign-in or account: everything of the old one goes. */
   reset(): void;
   dispose(): void;
@@ -582,6 +584,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       const card = cards.get(keyOf(passId, fanRef));
       return card === undefined ? null : { text: card.text.trim() === '' ? null : card.text, sent: card.state.s === 'sent' };
     },
+    stateOf: (passId, fanRef) => cards.get(keyOf(passId, fanRef))?.state ?? null,
     refresh() {
       for (const card of cards.values()) {
         card.loaded = 'loading';

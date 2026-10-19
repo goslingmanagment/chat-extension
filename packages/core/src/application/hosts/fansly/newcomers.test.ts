@@ -11,6 +11,7 @@ import { type CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { type Bootstrap, type BootstrapPage } from '@cg/contracts/hub';
 import { type HostAccount, type HubBinding } from '@cg/contracts/ids';
 import {
+  FANSLY_TAB_LIMITS,
   mayRequestFansly,
   parseFanslyTabPayload,
   type FanslyFollowerRow,
@@ -180,6 +181,8 @@ class FakeFollowers implements FanslyFollowersPort {
   private listeners = new Set<(change: FanslyTabEventPayload<'fansly.followers.changed'>) => void>();
   private reconnects = new Set<() => void>();
   private nextPass = 0x301;
+  /** X59: the period the background remembers — the person's last choice, the default before any. */
+  remembered: number = FANSLY_TAB_LIMITS.windowHoursDefault;
   rows: FanslyFollowerRow[] = [];
   state: FanslyPassView['state'] = 'queue';
   partial = false;
@@ -219,7 +222,9 @@ class FakeFollowers implements FanslyFollowersPort {
     switch (type) {
       case 'fansly.followers.scan': {
         const passId = uuid(this.nextPass++);
-        const view = this.viewOf(passId, payload['hostAccountId'] as string, payload['windowHours'] as number);
+        const chosen = payload['windowHours'] as number | null;
+        if (chosen !== null) this.remembered = chosen;
+        const view = this.viewOf(passId, payload['hostAccountId'] as string, chosen ?? this.remembered);
         this.passes.set(passId, { view, rows: [...this.rows], seq: 0, history: new Map() });
         return { ok: true, pass: view };
       }
@@ -372,7 +377,7 @@ function world(rows: FanslyFollowerRow[], options: { readonly state?: PageContex
 const statuses = (vm: NewcomersVM): string[] => vm.rows.map((row) => `${row.username}:${row.check?.status}`);
 
 describe('[host:fansly] «Новые» on Fansly: the window over the background’s pass (R20 P10a)', () => {
-  it('[NF-001] [NF-002] [NF-004] opening the window opens the pass of the tab’s creator for 48 hours and reads its first page; nothing is asked while it is closed', async () => {
+  it('[NF-001] [NF-002] [NF-004] [X59] opening the window opens the pass of the tab’s creator for the period the browser remembers (12 hours before any choice) and reads its first page; nothing is asked while it is closed', async () => {
     const w = world([wireRow(1), wireRow(2)]);
     await w.clock.advance(600_000);
     expect(w.background.requests).toEqual([]);
@@ -382,7 +387,8 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     expect(w.surfaces.current().newcomers).toBe(true);
     // The card opens on the first fan to write to, with the conversation the pass read.
     expect(w.background.requests.map((request) => request.type)).toEqual(['fansly.followers.scan', 'fansly.followers.read', 'fansly.followers.history']);
-    expect(w.background.of('fansly.followers.scan')).toEqual([{ hostAccountId: CREATOR, windowHours: 48 }]);
+    expect(w.background.of('fansly.followers.scan')).toEqual([{ hostAccountId: CREATOR, windowHours: null }]);
+    expect(w.vm().windowHours).toBe(12);
     expect(w.background.of('fansly.followers.read')).toEqual([{ passId: uuid(0x301), offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'any' } }]);
     expect(w.vm().view.s).toBe('ready');
     expect(w.vm().rows.map((row) => row.username)).toEqual(['fan_1', 'fan_2']);
@@ -442,21 +448,26 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     expect(w.vm().tabs.map((tab) => tab.count)).toEqual([2, 2]);
   });
 
-  it('[NF-003] the period: 1 hour to 30 days, 48 hours first; another period is another pass — the old one is let go', async () => {
+  it('[NF-003] [X59] the period: 1 hour to 30 days, 12 hours before any choice; another period is another pass — the old one is let go; the choice is remembered for the next window', async () => {
     const w = world([wireRow(1)]);
-    expect([w.vm().windowHours, w.vm().windowOptions]).toEqual([48, [1, 3, 6, 12, 24, 48, 72, 168, 336, 720]]);
+    expect([w.vm().windowHours, w.vm().windowOptions]).toEqual([12, [1, 3, 6, 12, 24, 48, 72, 168, 336, 720]]);
     await w.open();
     const first = w.background.last().view.passId;
-    expect(await w.controller.dispatch({ type: 'SetNewcomersWindow', hours: 48 })).toMatchObject({ ok: true, outcome: 'noop' });
+    expect(await w.controller.dispatch({ type: 'SetNewcomersWindow', hours: 12 })).toMatchObject({ ok: true, outcome: 'noop' });
     await w.controller.dispatch({ type: 'SetNewcomersWindow', hours: 720 });
     await settle();
     expect(w.background.of('fansly.followers.scan')).toEqual([
-      { hostAccountId: CREATOR, windowHours: 48 },
+      { hostAccountId: CREATOR, windowHours: null },
       { hostAccountId: CREATOR, windowHours: 720 },
     ]);
     expect(w.background.of('fansly.followers.close')).toEqual([{ passId: first }]);
     expect(w.vm().windowHours).toBe(720);
     expect(w.vm().pass?.range).toEqual({ from: new Date(NOW - 720 * 3_600_000).toISOString(), to: ISO_NOW });
+    // Another window (here: the same one closed and opened again) asks for the remembered period — the choice above.
+    await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+    await w.open();
+    expect(w.background.of('fansly.followers.scan').at(-1)).toEqual({ hostAccountId: CREATOR, windowHours: null });
+    expect(w.vm().windowHours).toBe(720);
   });
 
   it('[NF-005] the statuses of the old window: queued, checking, not written to, waiting for a reply, not checked, written to, can’t be messaged, excluded, couldn’t check', async () => {
@@ -622,7 +633,7 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     await w.open();
     const vm = w.vm();
     expect(vm.rows[0]).toMatchObject({ name: 'Fan 1', username: 'fan_1', subscribedAt: minutesAgo(2), kind: 'new' });
-    expect(vm.pass).toMatchObject({ creator: 'lora_vie', stage: 'scanning', checked: 2, total: 3, range: { from: new Date(NOW - 48 * 3_600_000).toISOString(), to: ISO_NOW } });
+    expect(vm.pass).toMatchObject({ creator: 'lora_vie', stage: 'scanning', checked: 2, total: 3, range: { from: new Date(NOW - 12 * 3_600_000).toISOString(), to: ISO_NOW } });
     w.background.change(w.background.last().view.passId, [], { phase: 'profiles' });
     await settle();
     expect(w.vm().pass?.phase).toBe('profiles');
@@ -737,7 +748,7 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     w.context.set(readyState(OTHER_CREATOR, 2));
     await settle();
     expect(w.background.of('fansly.followers.close')).toEqual([{ passId: first }]);
-    expect(w.background.of('fansly.followers.scan').at(-1)).toEqual({ hostAccountId: OTHER_CREATOR, windowHours: 48 });
+    expect(w.background.of('fansly.followers.scan').at(-1)).toEqual({ hostAccountId: OTHER_CREATOR, windowHours: null });
 
     // The background answers a pass of another creator: refused, the list is not shown.
     const stray = world([wireRow(1)]);
@@ -1437,5 +1448,69 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     ]);
     // No request of ours sent anything.
     expect(w.background.of('fansly.followers.send')).toEqual([]);
+  });
+});
+
+describe('[host:fansly] «Новые» on Fansly: a batch generated for many, each draft sent by its own click in the list (X59)', () => {
+  /** Three ready fans, a batch of Hi for all of them, each generation done: their drafts wait in the list. */
+  async function batchReady(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2), wireRow(3)]) {
+    const w = greetingWorld(rows);
+    await w.open();
+    const handles = rows.map((_, at) => w.handle(at + 1));
+    await w.controller.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: handles, picked: true });
+    await w.controller.dispatch({ type: 'GenerateBatch', list: 'newcomers' });
+    await settle();
+    for (const [at] of rows.entries()) w.tab.done(uuid(0xc1 + at), [`Hey Fan ${at + 1}!`]);
+    await settle();
+    expect(w.vm().rows.map((row) => row.batch?.state)).toEqual(rows.map(() => 'ready'));
+    w.tab.tokens.length = 0;
+    return w;
+  }
+  const sentTo = (w: Awaited<ReturnType<typeof batchReady>>): string[] => w.background.of('fansly.followers.send').map((payload) => (payload as { fanRef: string }).fanRef);
+
+  it('[X59] [NF-019] a row with the batch’s draft has its own «Отправить»: one click sends that fan’s draft — the card’s send, without opening the card; the row says it went', async () => {
+    const w = await batchReady();
+    expect(w.vm().rows.map((row) => row.send)).toEqual([{ can: true, refused: null }, { can: true, refused: null }, { can: true, refused: null }]);
+    // The card shows fan 1; fan 2 is sent from its row.
+    expect(w.card()?.handle).toBe(w.handle(1));
+    expect(await w.send(2)).toMatchObject({ ok: true });
+    expect(sentTo(w)).toEqual([fan(2)]);
+    expect(w.tab.tokens).toEqual(['send']);
+    const sends = w.background.of('fansly.followers.send') as { admission: { kind: string }; text: string }[];
+    expect(sends.map((send) => [send.admission.kind, send.text])).toEqual([['ai', 'Hey Fan 2!']]);
+    expect(w.card()?.handle).toBe(w.handle(1));
+    const row = w.vm().rows[1];
+    expect([row?.greeting.s, row?.batch?.state, row?.send]).toEqual(['greeted', 'sent', undefined]);
+    // Nothing else went: each fan is its own click.
+    await w.clock.advance(600_000);
+    expect(sentTo(w)).toEqual([fan(2)]);
+    // Sent: never again.
+    expect(await w.send(2)).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+  });
+
+  it('[X59] [NF-024] [NF-018] a row whose draft cannot go as it is says so: the click is refused with its reason, nothing went; the draft stays', async () => {
+    const w = await batchReady();
+    w.background.sendAnswer = () => ({ ok: false, error: { code: 'CG-FNEW-HISTORY' } });
+    expect(await w.send(3)).toMatchObject({ ok: false });
+    expect(w.vm().rows[2]?.send).toEqual({ can: true, refused: { code: 'CG-FNEW-HISTORY', retryAt: null } });
+    expect(w.vm().rows[2]?.batch).toMatchObject({ state: 'ready', text: 'Hey Fan 3!' });
+    // An unchanged AI text the hub marked is not the row's to send: «Отправить» is off.
+    const marked = greetingWorld([wireRow(1)]);
+    await marked.open();
+    await marked.controller.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [marked.handle(1)], picked: true });
+    await marked.controller.dispatch({ type: 'GenerateBatch', list: 'newcomers' });
+    await settle();
+    marked.marks.set(uuid(0xc1), 'unverified');
+    marked.tab.done(uuid(0xc1), ['Hey!']);
+    await settle();
+    expect(marked.vm().rows[0]?.send).toEqual({ can: false, refused: null });
+  });
+
+  it('[X59] a draft typed on a card is no batch result: the list has no «Отправить» for it — the card has', async () => {
+    const w = greetingWorld([wireRow(1), wireRow(2)]);
+    await w.open();
+    await w.type(1, 'Hi!');
+    expect(w.vm().rows.map((row) => row.send)).toEqual([undefined, undefined]);
+    expect(w.greeting()).toMatchObject({ canSend: true });
   });
 });

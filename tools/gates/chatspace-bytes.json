@@ -1,11 +1,11 @@
 {
   "site": "chatspace",
   "files": {
-    "background.js": { "bytes": 855944, "sha256": "17a5f65d345c18f7775b2f3d4d4c47b5a5795aca8bfc9b6bdabe774ed5cc76b7" },
+    "background.js": { "bytes": 855944, "sha256": "0303e1b015b3708a9c9803fe626240e00eea62ee15d5aea7625f969ab3856f30" },
     "bg/chatspace.js": { "bytes": 92151, "sha256": "902a9f251bf7308382e789684cc65b4444e6d7cc4799cb44e1c1afe812b05bf8" },
     "chatspace-ws.js": { "bytes": 13626, "sha256": "9f566ae888270a1fb5b9ca0ef2ee800356295bdfbed265efdfad7194c6392d19" },
     "content-scripts/chatspace-main.js": { "bytes": 30634, "sha256": "44351ddb9f7d4736db9eede504dcec524098c9911f04be6e194256dc66edc270" },
-    "content-scripts/chatspace.js": { "bytes": 91872, "sha256": "04ac6ef5233bf5318cfda606040b38412a9b089d60ff15a5655b3cb1b1fcee29" },
+    "content-scripts/chatspace.js": { "bytes": 91872, "sha256": "ef32fc99c0b799559ed399d3b3203ca2d8592fd8002161c2fb6651338121d187" },
     "lazy/chatspace/ai-analysis.js": { "bytes": 15753, "sha256": "df66c8bfc6b13f85b8b31eb6c468a7c29f0298f087109f04429bff91949b645e" },
     "lazy/chatspace/ai-coach.js": { "bytes": 17740, "sha256": "0cffd9f3e878216d0940c257ea3fd467cbbf5df654ce58294a4645126d90a78e" },
     "lazy/chatspace/ai.js": { "bytes": 131, "sha256": "af55b061bfc366d23dd3adea6875ebcc9fecedd0fd722732f965d881f2acdb0a" },
