@@ -249,7 +249,7 @@ describe('§12 п. 4 on the wired extension — «Новые»: the greeting lea
     expect(state?.greeting).toBe('confirmed');
     // The fan leaves «Поздороваться» and stands greeted under «Все».
     await waitOursText('modal', `@${username}`, 'the greeted fan left the list of those to greet', { selector: LIST, gone: true, timeout: 20_000 });
-    await pressOurs('modal', '.cg-tabs [role="tab"]', /^Все/);
+    await pressOurs('modal', '.cg-nw__tabs [role="tab"]', /^Все/);
     const greeted = await rowText(username);
     expect(greeted).toContain('поздоровались');
     expect(greeted).not.toContain('не поздоровались');
@@ -259,7 +259,7 @@ describe('§12 п. 4 on the wired extension — «Новые»: the greeting lea
     // …nor in the colleague's browser: the fan is greeted for everyone.
     await there(async () => {
       await openNewcomers();
-      await pressOurs('modal', '.cg-tabs [role="tab"]', /^Все/);
+      await pressOurs('modal', '.cg-nw__tabs [role="tab"]', /^Все/);
       const theirs = await rowText(username);
       expect(theirs).toContain('поздоровались');
       expect(theirs).not.toContain('не поздоровались');

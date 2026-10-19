@@ -95,7 +95,7 @@ async function place(): Promise<Place> {
   }, DOCK);
 }
 
-/** Three steps of the palette our dock host wears (its `:host` rule, read from the page): ink 900, page 950, blue 500. */
+/** Three steps of the palette our dock host wears (its `:host` rule, read from the page): ink 900, page 950 (none since X60), blue 500. */
 const hostPalette = (): Promise<{ ink: string; page: string; blue: string }> =>
   browser.execute((selector: string) => {
     const host = document.querySelector(selector);
@@ -349,11 +349,11 @@ describe('our dock on Fansly’s stand, the extension’s test build (R20 P7d)',
       }));
       expect(global).toEqual({ styles: 0, adopted: 0 });
       // The page's theme is the dock's (its «как на сайте»): Fansly's class on <html>, dark by default. The palette on our
-      // host (R20 P8d, X57): the family's warm ink and page in either theme, Fansly's blue.
+      // host (R20 P8d, X57, X60): Fansly's blue in either theme and nothing else — the family's ink and page are the kit's.
       for (const theme of ['bright', 'dark'] as const) {
         await callFansly('setTheme', theme);
         await waitForReport((now) => now.dock?.scheme === (theme === 'bright' ? 'light' : 'dark'), `the dock in the ${theme} theme`);
-        const expected = { ink: '38 36 32', page: '27 26 23', blue: '38 153 247' };
+        const expected = { ink: '', page: '', blue: '38 153 247' };
         await browser.waitUntil(async () => JSON.stringify(await hostPalette()) === JSON.stringify(expected), { timeout: 5_000, timeoutMsg: `the ${theme} palette on our host: ${JSON.stringify(expected)}` });
         await shoot(`${mode}-${theme}-1440x900`);
       }
