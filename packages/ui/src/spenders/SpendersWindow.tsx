@@ -338,6 +338,8 @@ export const SPENDERS_CSS = `
 .cg-sp__panel { flex: none; height: clamp(180px, 46%, 560px); min-height: min(180px, 50%); max-height: calc(100% - 160px); display: flex; flex-direction: column; }
 .cg-sp__panel > * { flex: 1; min-height: 0; }
 .cg-sp .cg-keys { padding-left: 22px; }
+/* A short window (200 % zoom of a laptop) keeps its room for the list and the unfolded preview. */
+@media (max-height: 560px) { .cg-sp .cg-keys { display: none; } }
 @media (max-width: 760px) {
   .cg-dialog.cg-dialog--wide.cg-sp, .cg-dialog.cg-dialog--wide.cg-sp.has-stats { width: calc(100vw - 16px); height: calc(100vh - 16px); }
   .cg-sp__bar .cg-sp__search { width: 100%; }

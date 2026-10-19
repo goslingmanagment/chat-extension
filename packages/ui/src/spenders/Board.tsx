@@ -138,9 +138,8 @@ function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPic
       onFocus={() => onPick(itemKey)}
     >
       <span role="cell" class="cg-bd__who">
-        <span class="cg-bd__ava" aria-hidden="true">
-          {initialsOf(row.name)}
-        </span>
+        {/* The initials are drawn from the attribute: the row's text starts with the fan's name, as search and the e2e read it. */}
+        <span class="cg-bd__ava" aria-hidden="true" data-initials={initialsOf(row.name)} />
         {row.batch === undefined ? null : <BatchCheck list="spenders" handle={row.handle} row={row.batch} name={row.name} />}
       </span>
       <span role="cell" class="cg-bd__main" {...ages.props}>
@@ -521,6 +520,7 @@ export const BOARD_CSS = `
   display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px;
   background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule); color: var(--cg-ink-2); font-size: var(--cg-text-sm); font-weight: 600;
 }
+.cg-bd__ava::before { content: attr(data-initials); }
 .cg-bd__who .cg-bt__check { position: absolute; inset: 0; width: 34px; height: 34px; margin: 0; border-radius: 10px; background: var(--cg-surface); box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
 .cg-bd:not(:has(.cg-bt__check[aria-checked="true"])) .cg-bd__row:not(:hover, :focus-within, .has-batch) .cg-bt__check { visibility: hidden; }
 .cg-bd__main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }

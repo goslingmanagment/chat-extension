@@ -293,9 +293,10 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
   it('our text is the family’s on every site: the system UI face, smoothed, whatever the page’s own (ui-design §2.3; X60)', async () => {
     await open('state=11a&theme=dark&lang=ru', VIEWPORTS[0]);
     const styles = await browser.execute(() => ({
-      ours: window.__boards?.style('.cg-sp__title', '-moz-osx-font-smoothing') ?? null,
+      // X67: the window's title is the old extension's serif, as Coach's (X63); its text is the family's.
+      ours: window.__boards?.style('.cg-sp__sub', '-moz-osx-font-smoothing') ?? null,
       pageFont: getComputedStyle(document.documentElement).fontFamily,
-      ourFont: window.__boards?.style('.cg-sp__title', 'font-family') ?? null,
+      ourFont: window.__boards?.style('.cg-sp__sub', 'font-family') ?? null,
     }));
     expect(styles.ours).toBe('grayscale');
     expect(styles.ourFont).toContain('system-ui');

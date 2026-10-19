@@ -191,7 +191,7 @@ describe('Spenders board: shelves and rows', () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     const hubert = row('b002');
     expect(hubert.getAttribute('role')).toBe('row');
-    expect(textOf(hubert.querySelector('.cg-bd__ava'))).toBe('H');
+    expect(hubert.querySelector('.cg-bd__ava')?.getAttribute('data-initials')).toBe('H');
     expect(textOf(hubert.querySelector('.cg-bd__name'))).toBe('Hubert');
     expect(textOf(hubert.querySelector('.cg-bd__handle'))).toBe('@hubert_pl');
     expect(textOf(hubert.querySelector('.cg-bd__life'))).toBe('$12,480');
@@ -199,7 +199,9 @@ describe('Spenders board: shelves and rows', () => {
     const per = hubert.querySelector('.cg-bd__per') as HTMLElement;
     expect(ui.root.getElementById(per.getAttribute('aria-describedby') ?? '')?.textContent).toBe('30 дней');
     expect(hubert.querySelector('.cg-bd__sums')?.getAttribute('aria-label')).toBeTruthy();
-    expect(textOf(row('b001').querySelector('.cg-bd__ava'))).toBe('TW');
+    expect(row('b001').querySelector('.cg-bd__ava')?.getAttribute('data-initials')).toBe('TW');
+    // The row's text starts with the name: the initials are not text (search and the e2e read it so).
+    expect(textOf(hubert).startsWith('Hubert')).toBe(true);
     // A known zero has no «+»; money is whole dollars with a comma.
     expect(textOf(row('b003').querySelector('.cg-bd__life'))).toBe('$8,930');
     expect(row('b003').querySelector('.cg-bd__per')).toBeNull();
