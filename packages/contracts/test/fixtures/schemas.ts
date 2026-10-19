@@ -876,6 +876,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...tabProof, completeness: 'unknown' },
       { ...tabProof, window: [], knownFanMessageIds: [], deletedIds: [], tail: [] },
       passProof,
+      { ...passProof, tail: [{ platformMessageId: COVERAGE_MSG.m1, direction: 'fan', sentAt: ISO, text: 'hello from the checked history' }] },
       { ...passProof, completeness: 'unknown', window: [], knownFanMessageIds: [] },
     ],
     [
@@ -888,9 +889,9 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...tabProof, knownFanMessageIds: [COVERAGE_MSG.m2] },
       { ...tabProof, tail: [{ platformMessageId: '700000000000000999', direction: 'fan', sentAt: ISO, text: 'x' }] },
       { ...tabProof, tail: [{ platformMessageId: COVERAGE_MSG.m3, direction: 'model', sentAt: ISO, text: 'x' }] },
-      // Only a tail is truncated; a pass carries no text; the hub's limits.
+      // Only a tail is truncated; a pass text must belong to its window; the hub's limits.
       { ...tabProof, tail: undefined, truncated: true },
-      { ...passProof, tail: [] },
+      { ...passProof, tail: [{ platformMessageId: COVERAGE_MSG.m2, direction: 'fan', sentAt: ISO, text: 'wrong window' }] },
       { ...tabProof, window: Array.from({ length: 61 }, (_unused, i) => ({ id: String(700_000 + i), dir: 'fan' })), knownFanMessageIds: [], tail: [], deletedIds: [] },
       { ...tabProof, completeness: 'partial' },
       { ...tabProof, kind: 'snapshot' },

@@ -201,13 +201,14 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   'fansly.followers.proof': {
     req: { valid: [{ ...passRef, fanRef: F.fan }], invalid: [{ ...passRef }, { ...passRef, fanRef: F.fan, groupId: F.group }] },
     res: {
-      valid: [{ ok: true, proof: greetingProof }, { ok: true, proof: { ...greetingProof, fanAvatarUrl: null, knownFanMessageIds: [] } }, failure],
+      valid: [{ ok: true, proof: greetingProof }, { ok: true, proof: { ...greetingProof, capturedAt: ISO, tail: [{ platformMessageId: FANSLY_MSG.m2, direction: 'fan', sentAt: ISO, text: 'hello' }] } }, { ok: true, proof: { ...greetingProof, fanAvatarUrl: null, knownFanMessageIds: [] } }, failure],
       invalid: [
         { ok: true, proof: { ...greetingProof, fanAvatarUrl: 'https://example.com/a.jpg' } },
         { ok: true, proof: { ...greetingProof, groupId: F.otherGroup } },
         { ok: true, proof: { ...greetingProof, knownFanMessageIds: [FANSLY_MSG.m1] } },
         { ok: true, proof: { ...greetingProof, startProof: { ...passStartProof, source: 'tab-short-page' } } },
         { ok: true, proof: { ...greetingProof, text: 'hi' } },
+        { ok: true, proof: { ...greetingProof, tail: [{ platformMessageId: FANSLY_MSG.m2, direction: 'model', sentAt: ISO, text: 'wrong side' }] } },
       ],
     },
   },

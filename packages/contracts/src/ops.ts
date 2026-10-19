@@ -145,8 +145,8 @@ const proofShape = {
  * - `tab-snapshot` — the tab's snapshot of the Generate click (Fansly: MAIN's `FanslySnapshot`, which the site's AI
  *   policy turns into this shared form); a draft function's texts are inside (`tail`), so the text the hub reads and
  *   the ids it is asked about come from one instant;
- * - `pass` — a pass the background ran itself («Новые» on Fansly, Б17): the history it checked, no text — the
- *   greeting is built from the hub's history (X4).
+ * - `pass` — a pass the background ran itself («Новые» on Fansly, Б17): the checked history and, since 1.41.0
+ *   (X69), its confirmed messages with text for the greeting's live context.
  * The background builds the request from it and reads the hub's answer against it (`coverageCheckVerdict`).
  */
 export const CoverageProofSchema = z
@@ -160,7 +160,7 @@ export const CoverageProofSchema = z
       truncated: z.boolean(),
     }),
     // Not `host-pass`: that word is the source of a feature in Fansly's manifest alone, and stays out of ChatSpace's chunks.
-    z.strictObject({ kind: z.literal('pass'), ...proofShape }),
+    z.strictObject({ kind: z.literal('pass'), ...proofShape, tail: z.optional(z.array(LiveTextMessageSchema).check(z.maxLength(LIVE_TEXT_LIMITS.maxItems))) }),
   ])
   .check(z.refine(proofIdsHold, { message: 'proof ids: each once, all of its window' }));
 export type CoverageProof = z.infer<typeof CoverageProofSchema>;
@@ -193,7 +193,7 @@ function proofFits(op: {
   const proof = op.proof;
   if (proof === undefined) return true;
   if (proof.conversationRef !== op.target.conversationRef || op.fresh !== undefined || op.checkpoint !== undefined) return false;
-  return proof.kind === 'pass' ? op.surface === 'newcomers' : proof.tail === undefined || isFreshTextFeature(op.feature);
+  return proof.kind === 'pass' ? op.surface === 'newcomers' && (proof.tail === undefined || op.feature === 'hi') : proof.tail === undefined || isFreshTextFeature(op.feature);
 }
 
 /**
