@@ -128,7 +128,6 @@ export const meta = {
   parts: (n: number): Msg => msg('result.meta.parts', { n }),
   tone: (tone: string): Msg => msg('result.meta.tone', { tone }),
   inserted: (done: number, total: number): Msg => msg('result.meta.inserted', { done, total }),
-  single: (): Msg => msg('result.meta.single'),
   onePart: (): Msg => msg('result.meta.onePart'),
   forFan: (name: string): Msg => msg('result.meta.forFan', { name }),
   variants: (n: number): Msg => msg('result.meta.variants', { n }),

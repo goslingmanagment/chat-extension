@@ -233,6 +233,8 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
       keys.state.setDockSheet(sheet);
       keys.dockSheet(sheet);
     },
+    // X58: ⌘↵ / Ctrl+Enter is ours only while a Fix waits in the open chat.
+    onFix: (fix) => keys.state.setFix(fix),
   });
   keys.notices.attach({ toasts, refuse: (command, refusal) => runner.refuse(command, refusal) });
 

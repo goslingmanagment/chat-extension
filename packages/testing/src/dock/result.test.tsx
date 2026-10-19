@@ -239,7 +239,7 @@ describe('parts', () => {
   });
 
   it('[AI-087] a part the language gate blocks keeps Copy; «Вставить» is off with the reason and Enter only says why', async () => {
-    kit = mountDock(withResult(reply({ parts: parts(OP, ['Привет, как прошли выходные?'], () => ({ insertBlocked: reason('language') })), meta: [meta.single()] })));
+    kit = mountDock(withResult(reply({ parts: parts(OP, ['Привет, как прошли выходные?'], () => ({ insertBlocked: reason('language') })), meta: [] })));
     const row = partRows()[0] as HTMLElement;
     const insert = byLabel('Вставить', row);
     expect(insert.getAttribute('aria-disabled')).toBe('true');
@@ -251,9 +251,9 @@ describe('parts', () => {
   });
 
   it('[AI-011] one message has no number; «получилась одна часть» when Split was asked', () => {
-    kit = mountDock(withResult(reply({ parts: parts(OP, [TEXTS[0] ?? '']), meta: [meta.single()], splitRequested: false })));
+    kit = mountDock(withResult(reply({ parts: parts(OP, [TEXTS[0] ?? '']), meta: [], splitRequested: false })));
     expect(text(partRows()[0]?.querySelector('.cg-part__n'))).toBe('');
-    expect(kit.$$('.cg-head__meta').map(text)).toEqual(['одним сообщением']);
+    expect(kit.$$('.cg-head__meta').map(text)).toEqual([]);
     kit.unmount();
     kit = mountDock(withResult(reply({ parts: parts(OP, [TEXTS[0] ?? '']), meta: [meta.onePart()], splitRequested: true })));
     expect(kit.$$('.cg-head__meta').map(text)).toEqual(['получилась одна часть']);
@@ -568,7 +568,7 @@ describe('Fix', () => {
       feature: 'fix',
       state: 'done',
       parts: parts(uuid(103), ['hey, sorry I was late — missed you']),
-      meta: [meta.byDraft()],
+      meta: [],
       draftNotSent,
       fix: { sourceDraft: 'hey sorry late missed u', canReplace: true, replaceReason: null, replaced: false, restoreUntil: null, restoreExpired: false, ...patch },
     });
@@ -577,9 +577,10 @@ describe('Fix', () => {
     kit = mountDock(withResult(fix()));
     expect(kit.$$('.cg-cap').map(text)).toEqual(['Ваш текст', 'После Fix']);
     expect(kit.$$('.cg-fix__t').map(text)).toEqual(['hey sorry late missed u', 'hey, sorry I was late — missed you']);
-    expect(kit.$$('.cg-head__meta').map(text)).toEqual(['по вашему черновику']);
+    expect(kit.$$('.cg-head__meta').map(text)).toEqual([]);
     const replace = byLabel('Заменить мой черновик');
-    expect(replace.querySelector('kbd')?.textContent).toBe('↵');
+    // X58: the key is ⌘↵ / Ctrl+Enter, pressed in the message field.
+    expect(replace.querySelector('kbd')?.textContent).toBe('⌘↵');
     expect(replace.classList.contains('cg-btn--line')).toBe(true);
     await flush(() => replace.click());
     expect(kit.client.dispatched).toEqual([{ type: 'ReplaceMyDraft', operationId: uuid(103), part: 0 }]);

@@ -80,7 +80,7 @@ export const UI_TEXT_KEYS = [
   'dock.option.toneNone', 'dock.tone.casual', 'dock.tone.flirty', 'dock.tone.upsell', 'dock.tone.spicy', 'dock.option.split',
   'dock.option.splitTooltip', 'dock.option.splitLocked', 'dock.option.splitUnavailable', 'dock.option.splitNotMessage', 'dock.persona.tooltip',
   'dock.persona.notSignedIn', 'dock.paletteHint.tooltip', 'dock.quota.low', 'dock.quota.lowShort', 'dock.quota.zero', 'dock.quota.zeroTooltip',
-  'dock.status.chatLoading', 'dock.status.pageOff', 'dock.helpRemoved',
+  'dock.status.chatLoading', 'dock.status.pageOff', 'dock.helpRemoved', 'dock.fixRunning',
   // 1.13.0 (decision X28): one sentence under a control's name in its hover hint — what the button does, in the chatter's own language.
   'dock.hint.reply', 'dock.hint.fix', 'dock.hint.hi', 'dock.hint.ping', 'dock.hint.review', 'dock.hint.recap', 'dock.hint.coach',
   'dock.hint.tone.casual', 'dock.hint.tone.flirty', 'dock.hint.tone.upsell', 'dock.hint.tone.spicy', 'dock.hint.toneOff', 'dock.hint.split',
@@ -183,7 +183,7 @@ export const UI_TEXT_KEYS = [
   'cheatsheet.group.navigation', 'cheatsheet.row.fanPanel', 'cheatsheet.row.quickJump',
   'cheatsheet.row.palette', 'cheatsheet.row.spenders', 'cheatsheet.row.self', 'cheatsheet.row.tone', 'cheatsheet.row.split', 'cheatsheet.row.cancel',
   'cheatsheet.row.nextPart', 'cheatsheet.row.insert', 'cheatsheet.row.copy', 'cheatsheet.row.collapse', 'cheatsheet.row.help',
-  'cheatsheet.row.chatNext', 'cheatsheet.row.chatPrevious', 'cheatsheet.row.nextUnread', 'cheatsheet.row.search', 'cheatsheet.row.sendNote', 'cheatsheet.row.notes',
+  'cheatsheet.row.chatNext', 'cheatsheet.row.chatPrevious', 'cheatsheet.row.nextUnread', 'cheatsheet.row.search', 'cheatsheet.row.sendNote', 'cheatsheet.row.notes', 'cheatsheet.row.applyFix',
   'cheatsheet.note',
   'toast.aiReady', 'toast.closeAria', 'toast.hubSettingsUpdating', 'toast.splitOn', 'toast.splitOff', 'toast.noUnread',
   'popup.pill.chatspace', 'popup.pill.chatspace.connected', 'popup.pill.chatspace.partial', 'popup.pill.chatspace.copyOnly',

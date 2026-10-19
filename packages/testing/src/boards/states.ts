@@ -456,8 +456,8 @@ export const BOARD_STATES: readonly BoardState[] = [
   fansly('13l', 'Fansly: «Все», «Нельзя написать» — a fan taken out of the queue, «Вернуть в очередь» (R20 P10b2)', fanslyExcluded),
   fansly('13m', 'Fansly: the greeting generated and unchanged — «AI», «Отправить», «Открыть и вставить» (R20 P10c)', fanslyGreeting),
   fansly('13n', 'Fansly: the person’s greeting refused — the history changed after the review (R20 P10c)', fanslyGreetingRefused),
-  fansly('13o', 'Fansly: the batch’s drafts ready to read in the list, each with its own «Отправить» (X57)', fanslyBatchReady),
-  fansly('13p', 'Fansly: sending one by one from the list — one sent, the next going out (X57)', fanslyBatchSending),
+  fansly('13o', 'Fansly: the batch’s drafts ready to read in the list, each with its own «Отправить» (X59)', fanslyBatchReady),
+  fansly('13p', 'Fansly: sending one by one from the list — one sent, the next going out (X59)', fanslyBatchSending),
   // 14 — the fan panel
   state('14a', 'Fan panel: the fan', 'fan-panel', (ctx) => fanPanelState(ctx, 'a')),
   state('14b', 'Fan panel: Recap', 'fan-panel', (ctx) => fanPanelState(ctx, 'b')),

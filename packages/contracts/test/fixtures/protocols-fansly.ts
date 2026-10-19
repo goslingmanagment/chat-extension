@@ -130,7 +130,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     res: { valid: [{ ok: true, fanId: F.fan }, failure, sharedFailure], invalid: [{ ok: true, fanId: 123 }, { ok: true, groupId: F.group }, unknownFailure] },
   },
   'fansly.followers.scan': {
-    // 1.33.0 (X57): null — the period the browser remembers; a missing one is still no request.
+    // 1.34.0 (X59): null — the period the browser remembers; a missing one is still no request.
     req: { valid: [{ hostAccountId: F.creator, windowHours: 48 }, { hostAccountId: F.creator, windowHours: 720 }, { hostAccountId: F.creator, windowHours: null }], invalid: [{ hostAccountId: F.creator, windowHours: 721 }, { hostAccountId: F.creator, windowHours: 0 }, { windowHours: 48 }, { hostAccountId: F.creator }] },
     res: { valid: [{ ok: true, pass: fanslyPass }, failure, sharedFailure], invalid: [{ ok: true, pass: { ...fanslyPass, state: 'running' } }, unknownFailure, { pass: fanslyPass }] },
   },
@@ -159,7 +159,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
         { pass: fanslyPass, rows: [fanslyRow], total: 1, counts: followersCounts, seq: 7 },
         // P10a: the window's fields of a row, the fast part's phase, the change the snapshot holds.
         { pass: { ...fanslyPass, state: 'scanning', phase: 'profiles' }, rows: [fanslyRowShown, { ...fanslyRow, status: 'failed', historyRevision: null, error: { code: 'CG-FAN-REQUEST', httpStatus: 500 } }], total: 2, seq: 7 },
-        // 1.33.0 (X57): the fan's picture — a Fansly address, or none.
+        // 1.34.0 (X59): the fan's picture — a Fansly address, or none.
         ...['https://cdn3.fansly.com/avatar/1.jpeg?Key-Pair-Id=K1&Policy=p&Signature=s', null].map((avatarUrl) => ({ pass: fanslyPass, rows: [{ ...fanslyRow, avatarUrl }], total: 1 })),
       ],
       // A row whose conversation is not an id, and one whose status is not in the list.
@@ -171,7 +171,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
         { pass: { ...fanslyPass, phase: 'notes' }, rows: [], total: 0 },
         { pass: fanslyPass, rows: [{ ...fanslyRowShown, proof: { messageId: '700000000000000041', fromFan: false, at: ISO, text: 'hey', attachments: 0 } }], total: 1 },
         { pass: fanslyPass, rows: [{ ...fanslyRow, error: { code: 'CG-FAN-01' } }], total: 1 },
-        // 1.33.0: a picture of another site, or not https, is never shown.
+        // 1.34.0: a picture of another site, or not https, is never shown.
         ...['https://evil.example/a.jpg', 'http://cdn3.fansly.com/a.jpg'].map((avatarUrl) => ({ pass: fanslyPass, rows: [{ ...fanslyRow, avatarUrl }], total: 1 })),
         { pass: fanslyPass, rows: [], total: 0, seq: -1 },
         { pass: fanslyPass, rows: [], total: 0, counts: { ...followersCounts, tabs: { todo: -1, all: 2 } } },

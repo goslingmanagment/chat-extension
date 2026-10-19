@@ -1,9 +1,9 @@
-// «Новые фоловеры» on Fansly (R20 P10a–P10c; X57; ui-design §3.12; FS-NEW-1; NF-001…NF-028, NF-038, FX-017): the window of
+// «Новые фоловеры» on Fansly (R20 P10a–P10c; X59; ui-design §3.12; FS-NEW-1; NF-001…NF-028, NF-038, FX-017): the window of
 // the old Fansly extension, kept as the owner liked it — a compact window with the list of new followers on the left
 // (the picture, the name, «@handle · 2 ч назад», the status in words) and the selected fan on the right (the profile,
 // «Открыть в Fansly ↗», the conversation the pass read, the draft and «Отправить →») — over the shared `NewcomersVM`
 // with its `pass`. What the old one lacked is here too: a batch — tick fans (or «Выбрать N»), «Сгенерировать N», read
-// each draft right in the list under its fan and send it by the row's own small «Отправить» (X57: the card's send, one
+// each draft right in the list under its fan and send it by the row's own small «Отправить» (X59: the card's send, one
 // click per fan); after a card's own «Отправить →» the card moves on to the next draft of the batch.
 //
 // Speed: only the rows in view are in the DOM (VirtualList), and a row is drawn again only when what it shows changed
@@ -226,7 +226,7 @@ function PickAvatar({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
 }
 
 /**
- * The row's own «Отправить» of its batch draft (X57): the card's send by one click in the list — it never opens the card;
+ * The row's own «Отправить» of its batch draft (X59): the card's send by one click in the list — it never opens the card;
  * off with the reason when the card's checks do not let the draft go as it is.
  */
 function RowSend({ row }: { readonly row: NewcomerRowVM }): JSX.Element | null {
@@ -383,7 +383,7 @@ function RunButton({ run }: { readonly run: NewcomersPassRunVM }): JSX.Element |
   return <Button label={label} variant="line" size="sm" busy={run.busy} class="cg-fnw__run" onClick={() => void dispatch({ type: 'SetNewcomersPassRunning', running: !run.pause })} />;
 }
 
-/** The period (NF-003): 1 hour to 30 days; the choice is remembered for the next window (X57). */
+/** The period (NF-003): 1 hour to 30 days; the choice is remembered for the next window (X59). */
 function PeriodMenu({ vm, range }: { readonly vm: NewcomersVM; readonly range: string | null }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
@@ -543,7 +543,7 @@ function PickAll({ rows, vm }: { readonly rows: readonly NewcomerRowVM[]; readon
 /**
  * The batch at the foot of the list: what is ticked and «Сгенерировать N»; while it runs, how far it got and
  * «Остановить»; once drafts are ready, how many and «Очистить», and the hint to read each draft in its row and send it
- * there (X57: one click per fan, never all at once).
+ * there (X59: one click per fan, never all at once).
  */
 function BatchBar({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
   const i18n = useI18n();
@@ -1003,7 +1003,7 @@ export function FanslyNewcomersWindow(): JSX.Element {
     cardFollow.follow(row.handle);
   };
 
-  /** X57: after the card's own «Отправить →», the next draft of the batch, so the person reads and sends on. */
+  /** X59: after the card's own «Отправить →», the next draft of the batch, so the person reads and sends on. */
   const onSent = useCallback(
     (handle: string): void => {
       const next = nextDraft(latestRows.current, handle);

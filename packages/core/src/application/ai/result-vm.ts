@@ -84,7 +84,7 @@ function metaOf(ws: AiWorkspace, record: OpRecord, result: OpResult | undefined,
   const { view } = record;
   const meta: Msg[] = [];
   if (view.state === 'failed' || view.state === 'interrupted') return [msg('result.meta.failed')];
-  if (view.feature === 'fix') meta.push(msg('result.meta.byYourDraft'));
+  // The head says no norm (ui-design §1 п. 7, X57): a Fix is always by the draft, one message is what Split off means.
   if (toneUsed !== null) meta.push(msg('result.meta.tone', { tone: i18n.t(TONE_LABEL_KEYS[toneUsed]) }));
   if (result === undefined) return meta;
   if (unparsed) return [...meta, msg('result.meta.unparsed')];
@@ -94,7 +94,7 @@ function metaOf(ws: AiWorkspace, record: OpRecord, result: OpResult | undefined,
       meta.push(msg('result.meta.parts', { n: total }));
       const done = insertedCount(ws, view.opId, result.parts, null);
       if (done > 0) meta.push(msg('result.meta.inserted', { done, total }));
-    } else meta.push(msg(result.splitRequested ? 'result.meta.onePart' : 'result.meta.single'));
+    } else if (result.splitRequested) meta.push(msg('result.meta.onePart'));
   }
   if (result.kind === 'variants') {
     meta.push(msg('result.meta.variants', { n: result.variants.length }));

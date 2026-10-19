@@ -84,16 +84,16 @@ export interface NewcomerRowVM {
   readonly check?: NewcomerCheckVM;
   /** 1.32.0: the row in a batch of Hi (`SetBatchPick`, `GenerateBatch`); absent — the list has no batch. */
   readonly batch?: BatchRowVM;
-  /** 1.33.0 (X57): the fan's picture as the site gives it (a list a pass checks); absent or null — the initial. */
+  /** 1.34.0 (X59): the fan's picture as the site gives it (a list a pass checks); absent or null — the initial. */
   readonly avatarUrl?: string | null;
   /**
-   * 1.33.0 (X57): the row's own «Отправить» of a batch's draft (a list a pass checks) — the card's send by one click
+   * 1.34.0 (X59): the row's own «Отправить» of a batch's draft (a list a pass checks) — the card's send by one click
    * in the list (`SendNewcomerGreeting` with the row's handle); absent — the row has no draft to send.
    */
   readonly send?: NewcomerRowSendVM;
 }
 
-/** 1.33.0 (X57): «Отправить» in a row of «Новые» a pass checks. */
+/** 1.34.0 (X59): «Отправить» in a row of «Новые» a pass checks. */
 export interface NewcomerRowSendVM {
   /** The card's checks let the draft go now (a proven history, a fresh or own text, nothing running). */
   readonly can: boolean;
@@ -240,7 +240,7 @@ export interface NewcomerCardVM {
    * «Отправить», «Открыть и вставить». Absent or null — no greeting for this fan (written to already, nobody can write).
    */
   readonly greeting?: NewcomerGreetingVM | null;
-  /** 1.33.0 (X57): the fan's picture as the site gives it; absent or null — the initial. */
+  /** 1.34.0 (X59): the fan's picture as the site gives it; absent or null — the initial. */
   readonly avatarUrl?: string | null;
 }
 

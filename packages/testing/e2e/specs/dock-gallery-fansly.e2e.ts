@@ -3,14 +3,14 @@
 // that plays fansly.com — its colour variables, its theme class on <html>, its font (kit/fansly-page.ts) — in both
 // of its themes. The palette is read off that page by Fansly's own theme reader, as on fansly.com.
 // - Every dock state at Fansly's column widths (622 px in a 1728 px window, 489, 381 beside a neighbour's panel):
-//   nothing sticks out, the bar stays 40 px, the closed list of accent dots holds; the bar is Fansly's card in
-//   Fansly's ink, the chips and the capsule its greys, the font the page's; the card keeps 4 px in from the column.
+//   nothing sticks out, the bar stays 40 px, the closed list of accent dots holds; the bar, its ink, the chips and
+//   the capsule are the family's warm greys and the font the system's (X57); the card keeps 4 px in from the column.
 // - The overlays — toasts, the cheatsheet, Coach, the expanded result, the error boundary's card — in both themes.
 // - The window check's marks over a result (R20 P8b2), over Recap, Review and a Coach answer (P8c): drawn in Fansly's
 //   gallery alone, in their own words.
 // - The person switches Fansly's theme: the palette follows at once, nothing remounts.
 // - The boards and the kit in both themes.
-// - «Новые» of the background's pass, Fansly's own window (R20 P10a, P10b1, P10b2, P10c; X57), in both themes: states 13f–13p.
+// - «Новые» of the background's pass, Fansly's own window (R20 P10a, P10b1, P10b2, P10c; X59), in both themes: states 13f–13p.
 // Pictures in .cache/e2e/ (dock-fansly-*, dock-fansly-mark-*, overlay-fansly-*, boards-fansly-*, kit-fansly-*),
 // compared by eye with ui-design.md. ChatSpace's own galleries are the other specs, untouched by this profile.
 
@@ -35,10 +35,10 @@ const MARKS = [
   ['deleted-served', 'Контекст устарел: ответ учитывает сообщение, удалённое из чата.'],
 ] as const;
 
-/** What the dock is drawn in, per Fansly theme (host-fansly isolated/theme.ts over fansly.com's variables). */
+/** What the dock is drawn in, per Fansly theme: the family's warm greys (host-fansly isolated/palette.ts, X57). */
 const LOOK = {
-  light: { raised: 'rgb(255, 255, 255)', ink: 'rgb(20, 30, 40)', chip: 'rgb(245, 245, 245)', groove: 'rgb(225, 231, 233)' },
-  dark: { raised: 'rgb(22, 22, 26)', ink: 'rgb(214, 220, 232)', chip: 'rgb(26, 30, 38)', groove: 'rgb(17, 18, 21)' },
+  light: { raised: 'rgb(250, 249, 245)', ink: 'rgb(38, 36, 32)', chip: 'rgb(242, 240, 233)', groove: 'rgb(232, 229, 218)' },
+  dark: { raised: 'rgb(38, 36, 32)', ink: 'rgb(226, 223, 211)', chip: 'rgb(46, 43, 38)', groove: 'rgb(27, 26, 23)' },
 } as const;
 
 type Colours = { readonly raised: string; readonly ink: string; readonly chip: string; readonly groove: string; readonly font: string; readonly scheme: string | null };
@@ -48,8 +48,8 @@ const colours = (id: string): Promise<Colours | null> => browser.execute((state)
 async function expectFanslyLook(id: string, theme: (typeof THEMES)[number]): Promise<void> {
   const drawn = await colours(id);
   expect(drawn).toMatchObject({ ...LOOK[theme], scheme: theme });
-  // Our text is the page's font (I18-007): Fansly's Roboto, inherited, nothing downloaded.
-  expect(drawn?.font).toMatch(/Roboto/);
+  // Our text is the system's font, as the old Fansly extension's (X57): nothing downloaded (I18-007).
+  expect(drawn?.font).toMatch(/system-ui/);
   // The variant's sheet: the card keeps to the line of Fansly's composer, 4 px in from the column, 4 px over its hairline.
   const host = await browser.execute((state) => {
     const element = document.querySelector(`[data-gal-state="${state}"] [data-host="dock"]`);
@@ -79,7 +79,7 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
 
   for (const theme of THEMES) {
     for (const width of FANSLY_WIDTHS) {
-      it(`${DOCK_ROWS} [I18-006] [I18-007] [host:fansly] every dock state · ${theme} · ru · ${width} px: Fansly’s card, ink and greys, the page’s font, the card 4 px in`, async () => {
+      it(`${DOCK_ROWS} [I18-006] [I18-007] [host:fansly] every dock state · ${theme} · ru · ${width} px: the family’s card, ink and greys, the system font, the card 4 px in`, async () => {
         await open(`host=fansly&theme=${theme}&lang=ru&w=${width}`);
         // Pictures first: a failed check still leaves the evidence.
         await captureGroups(`dock-fansly-${theme}-ru-w${width}`);
@@ -229,7 +229,7 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
             squeezed: [...boards.squeezed()],
             scheme: boards.scheme(),
             dispatched: [...boards.dispatched()],
-            // X57: the fans' pictures — the gallery's own drawings in 13o and 13p (the batch), none elsewhere.
+            // X59: the fans' pictures — the gallery's own drawings in 13o and 13p (the batch), none elsewhere.
             images: boards.count('img'),
           };
         });

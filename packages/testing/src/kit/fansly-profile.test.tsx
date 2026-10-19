@@ -1,14 +1,14 @@
 // Fansly's profile on our hosts (Project Unite architecture §1.5, §7.8; R20 P8d; FS-DOCK-1, FS-PLC-7): on a page
 // that plays fansly.com, the mount puts the variant `fansly` on the host, adopts the palette read off the page by
 // Fansly's own theme reader and the variant's sheet after the surface's own, and a switch of the page's theme
-// rewrites the one palette sheet without a remount. The palette itself: every step the kit reads in a scheme comes
-// from a variable of that theme, and the family's accent still reads where it stands (the same bars as
-// ui/kit tokens.test.ts, over Fansly's greys instead of ChatSpace's). In Firefox: dock-gallery-fansly.e2e.ts.
+// rewrites the one palette sheet without a remount. The palette itself (X57): the family's warm greys whatever the
+// page's theme, the page's own blue, and the family's accent still reads where it stands (the same bars as
+// ui/kit tokens.test.ts, over the family's greys instead of ChatSpace's). In Firefox: dock-gallery-fansly.e2e.ts.
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DOCK_VARIANT_ATTRIBUTE, THEME_TOKEN_NAMES, type ColorScheme, type HostPalette, type ThemeTokenName } from '@cg/contracts';
-import { FANSLY_SCALE, fanslyPalette } from '@cg/host-fansly/isolated/palette';
+import { FAMILY_NEUTRALS, FANSLY_BLUE, fanslyPalette } from '@cg/host-fansly/isolated/palette';
 import { createFanslyTheme } from '@cg/host-fansly/isolated/theme';
 import { dockSurface } from '@cg/ui/dock';
 import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
@@ -51,10 +51,10 @@ describe('[R20-P8d] [host:fansly] Fansly’s profile on our hosts', () => {
     const css = cssOf(root);
     expect(css).toHaveLength(KIT_STYLE_SOURCES.length + 3);
     expect(css[KIT_STYLE_SOURCES.length]).toContain('cg-strip');
-    // Fansly's dark card (`--modal-bg` #16161a), its page (`--dark-1`) and its blue — read off the page.
+    // The family's dark card and page (X57), Fansly's blue read off the page.
     expect(css[KIT_STYLE_SOURCES.length + 1]).toMatch(/^:host \{/);
-    expect(css[KIT_STYLE_SOURCES.length + 1]).toContain('--color-om-neutral-900: 22 22 26');
-    expect(css[KIT_STYLE_SOURCES.length + 1]).toContain('--color-om-neutral-950: 17 18 21');
+    expect(css[KIT_STYLE_SOURCES.length + 1]).toContain('--color-om-neutral-900: 38 36 32');
+    expect(css[KIT_STYLE_SOURCES.length + 1]).toContain('--color-om-neutral-950: 27 26 23');
     expect(css[KIT_STYLE_SOURCES.length + 1]).toContain('--color-om-brand-500: 38 153 247');
     expect(css[KIT_STYLE_SOURCES.length + 2]).toContain('[data-dock-variant="fansly"]');
     expect(root.innerHTML.length).toBeGreaterThan(500);
@@ -78,20 +78,21 @@ describe('[R20-P8d] [host:fansly] Fansly’s profile on our hosts', () => {
     await settle();
     for (const root of [dock.root, overlay.root]) {
       expect(palette(root)).toBe(shared);
-      expect(cssOf(root).join('\n')).toContain('--color-om-neutral-900: 20 30 40');
-      expect(cssOf(root).join('\n')).toContain('--color-om-neutral-0: 255 255 255');
+      // Fansly's translucent blue of the light theme over our light card; the greys stay the family's.
+      expect(cssOf(root).join('\n')).toContain('--color-om-brand-75: 216 234 245');
+      expect(cssOf(root).join('\n')).toContain('--color-om-neutral-0: 250 249 245');
     }
     expect([dock.root, overlay.root].map((root) => root.querySelector('.cg-root'))).toEqual(containers);
     setFanslyTheme(document, 'dark');
     await settle();
-    expect(cssOf(dock.root).join('\n')).toContain('--color-om-neutral-900: 22 22 26');
+    expect(cssOf(dock.root).join('\n')).toContain('--color-om-brand-75: 220 239 254');
     for (const mount of mounts) mount.unmount();
   });
 
   it('the gallery’s profile is built of the parts the tab’s is (composition/tab/hosts/fansly/app.ts): Fansly’s phrases, the variant’s sheet', () => {
     playFanslyPage(document, 'light');
     const profile = fanslyProfile({ current: () => ({ scheme: 'light', tokens: {}, fixedWidth: false }), onChange: () => () => undefined });
-    expect([profile.dock.variant, profile.sheet, profile.phrases.ru.onSite, profile.palette?.value['--color-om-neutral-900']]).toEqual(['fansly', FANSLY_DOCK_SHEET, 'на Fansly', '20 30 40']);
+    expect([profile.dock.variant, profile.sheet, profile.phrases.ru.onSite, profile.palette?.value['--color-om-neutral-900']]).toEqual(['fansly', FANSLY_DOCK_SHEET, 'на Fansly', '38 36 32']);
   });
 });
 
@@ -126,15 +127,16 @@ function contrast(ink: ThemeTokenName, fill: ThemeTokenName, scheme: ColorScheme
 }
 
 describe('[R20-P8d] [host:fansly] Fansly’s palette under the kit’s tokens (ui-design §2.1 «Fansly»)', () => {
-  it('[I18-005] every step the kit reads in a scheme is a variable of that theme on Fansly’s page — but green and red, which stay the kit’s own', () => {
+  it('[I18-005] every grey the kit reads in a scheme is the family’s, the same on either theme of the page; every blue is the page’s; green and red stay the kit’s own', () => {
     for (const scheme of ['light', 'dark'] as const) {
       const read = new Set(THEME_TOKEN_NAMES.flatMap((name) => stepsOf(name, scheme)));
       for (const step of read) {
         if (step.startsWith('success-') || step.startsWith('error-')) {
-          expect(FANSLY_SCALE[step], step).toBeUndefined();
+          expect(FAMILY_NEUTRALS[step] ?? FANSLY_BLUE[step], step).toBeUndefined();
           continue;
         }
-        expect(FANSLY_SCALE[step]?.[scheme][0], `${scheme}: ${step}`).toEqual(expect.stringMatching(/^--[a-z0-9-]+$/));
+        if (step.startsWith('brand-')) expect(FANSLY_BLUE[step], `${scheme}: ${step}`).toBeDefined();
+        else for (const page of ['light', 'dark'] as const) expect(fanslyPalette(page, () => '')[`--color-om-${step}`], `${scheme} on a ${page} page: ${step}`).toBe(FAMILY_NEUTRALS[step]);
       }
     }
   });
@@ -144,7 +146,7 @@ describe('[R20-P8d] [host:fansly] Fansly’s palette under the kit’s tokens (u
   for (const page of ['light', 'dark'] as const) {
     for (const scheme of ['light', 'dark'] as const) {
       const forced = page === scheme ? '' : ' (forced against the page)';
-      it(`the family’s accent reads where it stands on Fansly’s greys (WCAG 2) · Fansly ${page}, our ${scheme}${forced}: its ink 4.5 : 1 on a chip, a tint and a draft; the focus ring and a state dot 3 : 1; muted ink and Split’s word 4.5 : 1; a chip stands off the bar`, () => {
+      it(`the family’s accent reads where it stands on the family’s greys (WCAG 2) · Fansly ${page}, our ${scheme}${forced}: its ink 4.5 : 1 on a chip, a tint and a draft; the focus ring and a state dot 3 : 1; muted ink and Split’s word 4.5 : 1; a chip stands off the bar`, () => {
         const palette = fanslyPalette(page, () => '');
         for (const fill of ['--cg-raised', '--cg-chip', '--cg-clay-bg', '--cg-draft', '--cg-draft-hover'] as const) {
           expect(contrast('--cg-clay-ink', fill, scheme, palette), `clay-ink on ${fill}`).toBeGreaterThanOrEqual(4.5);

@@ -1,7 +1,7 @@
-// «Новые фоловеры» on Fansly as drawn (R20 P10a–P10c; X57; ui-design §3.12): Fansly's own surface for the shared
+// «Новые фоловеры» on Fansly as drawn (R20 P10a–P10c; X59; ui-design §3.12): Fansly's own surface for the shared
 // `NewcomersVM` with its `pass` — mounted as its chunk mounts it (the overlay's closed root, Fansly's profile and texts)
 // over the gallery's states 13f–13p (13k and the queue's buttons: R20 P10b1; 13m, 13n — the card's greeting: R20 P10c;
-// 13o, 13p — the batch's drafts and «Отправить N →»: X57). What is drawn and what is dispatched; the controller's side
+// 13o, 13p — the batch's drafts and «Отправить N →»: X59). What is drawn and what is dispatched; the controller's side
 // is core/src/application/hosts/fansly/newcomers.test.ts.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -35,8 +35,8 @@ const vmOf = (state: string): NewcomersVM => boardScenario(state).views.find((vi
 const click = async (element: Element | null | undefined): Promise<void> => flush(() => (element as HTMLElement).click());
 const button = (board: MountedBoard, scope: string, label: string): HTMLElement | undefined => board.$$(`${scope} button`).find((item) => textOf(item) === label);
 
-describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R20 P10a, X57)', () => {
-  it('[NF-001] [NF-002] [X57] the old window: «Новые фоловеры» over «@креатор», a window over a scrim; × and Esc close it, the search first', async () => {
+describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R20 P10a, X59)', () => {
+  it('[NF-001] [NF-002] [X59] the old window: «Новые фоловеры» over «@креатор», a window over a scrim; × and Esc close it, the search first', async () => {
     const board = await mount('13f');
     const dialog = board.$('[role="dialog"]') as HTMLElement;
     expect([dialog.getAttribute('aria-modal'), dialog.getAttribute('aria-label'), board.text('.cg-fnw__title'), board.text('.cg-fnw__creator'), board.text('.cg-fnw__page')]).toEqual(['true', 'Новые фоловеры', 'Новые фоловеры', '@lora_vie', 'LoraVie VIP']);
@@ -48,7 +48,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     expect(board.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
   });
 
-  it('[NF-003] [X57] the period: «За 48 часов», from 1 hour to 30 days; the choice is the controller’s to remember', async () => {
+  it('[NF-003] [X59] the period: «За 48 часов», from 1 hour to 30 days; the choice is the controller’s to remember', async () => {
     const board = await mount('13f');
     expect(board.text('.cg-fnw__period-box .cg-fnw__label')).toBe('За');
     const trigger = board.$('.cg-fnw__period') as HTMLElement;
@@ -118,7 +118,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     expect([selected.getAttribute('data-cg-check'), selected.getAttribute('aria-selected')]).toEqual(['ready', 'true']);
   });
 
-  it('[X57] the fan’s picture: lazy, without a referrer, over the initial — the initial stays when it does not load', async () => {
+  it('[X59] the fan’s picture: lazy, without a referrer, over the initial — the initial stays when it does not load', async () => {
     const board = await mount('13o');
     const img = board.$('.cg-fnw__row img') as HTMLImageElement;
     expect([img.getAttribute('loading'), img.getAttribute('decoding'), img.getAttribute('referrerpolicy'), img.getAttribute('alt')]).toEqual(['lazy', 'async', 'no-referrer', '']);
@@ -344,8 +344,8 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
   });
 });
 
-describe('[host:fansly] «Новые фоловеры» on Fansly: the batch — generate for many, read in the list, send each by a click (X57)', () => {
-  it('[X57] tick a fan by its picture, or «Выбрать N» — the fans in view that can be written to; the bar says what is ticked and «Сгенерировать N»', async () => {
+describe('[host:fansly] «Новые фоловеры» on Fansly: the batch — generate for many, read in the list, send each by a click (X59)', () => {
+  it('[X59] tick a fan by its picture, or «Выбрать N» — the fans in view that can be written to; the bar says what is ticked and «Сгенерировать N»', async () => {
     const base = boardScenario('13o');
     const vm = vmOf('13o');
     // Before any batch: nobody ticked, no drafts yet.
@@ -381,7 +381,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     expect(ui.actions().at(-1)).toEqual({ type: 'GenerateBatch', list: 'newcomers' });
   });
 
-  it('[X57] [NF-019] the drafts are read in the list, under each fan; each row’s own small «Отправить» sends that fan’s draft — one click, one fan, never the card opened, never a key', async () => {
+  it('[X59] [NF-019] the drafts are read in the list, under each fan; each row’s own small «Отправить» sends that fan’s draft — one click, one fan, never the card opened, never a key', async () => {
     const board = await mount('13o');
     expect(board.$$('.cg-fnw__row .cg-fnw__draft').map(textOf)).toEqual([
       'Hey Tomasz! So happy you’re here 💕 What made you follow me — the beach set or the gym pics?',
@@ -403,7 +403,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     expect(board.actionsOf('OpenPreview')).toHaveLength(opened);
   });
 
-  it('[X57] while one goes out its row says «Отправляем…» and its button waits; the one gone says «Отправлено» and has none', async () => {
+  it('[X59] while one goes out its row says «Отправляем…» and its button waits; the one gone says «Отправлено» and has none', async () => {
     const board = await mount('13p');
     expect(rowTexts(board).slice(0, 2)).toEqual(['Tomasz W. | @tomasz_w · 14 мин назад | Отправлено', 'Leo | @leo.k · 41 мин назад | Отправляем…']);
     expect(board.$('.cg-fnw__row .cg-fnw__draft.is-sent')).not.toBeNull();
@@ -413,7 +413,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     expect(board.text('.cg-fnw__batch .cg-fnw__bst')).toBe('Готово 2 · отправлено 1');
   });
 
-  it('[X57] [NF-024] a refused click says why in its row; a draft that cannot go as it is has its «Отправить» off with the reason', async () => {
+  it('[X59] [NF-024] a refused click says why in its row; a draft that cannot go as it is has its «Отправить» off with the reason', async () => {
     const base = boardScenario('13o');
     const vm = vmOf('13o');
     const rows = vm.rows.map((row) =>
@@ -429,7 +429,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     expect(ui.actionsOf('SendNewcomerGreeting')).toEqual([]);
   });
 
-  it('[X57] after the card’s own «Отправить →» the card moves on to the next draft of the batch', async () => {
+  it('[X59] after the card’s own «Отправить →» the card moves on to the next draft of the batch', async () => {
     const board = await mount('13o');
     await click(button(board, '.cg-fnc__gbar', 'Отправить →'));
     await flush();

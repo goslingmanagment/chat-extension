@@ -106,7 +106,7 @@ describe('the expanded result', () => {
   });
 
   it('a result that is not expanded stays in the dock only', async () => {
-    const plain = result(ctx, { opId: uuid(101), feature: 'reply', state: 'done', parts: parts(uuid(101), ['one']), meta: [meta.single()] });
+    const plain = result(ctx, { opId: uuid(101), feature: 'reply', state: 'done', parts: parts(uuid(101), ['one']), meta: [] });
     kit = mount(scenarioOf([entry({ of: 'dock' }, dock(ctx, 'ready', { result: plain }))]));
     await settle(1);
     expect(kit.$('[role="dialog"]')).toBeNull();

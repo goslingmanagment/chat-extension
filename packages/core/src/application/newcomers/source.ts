@@ -27,7 +27,7 @@ export interface NewcomersPassSource {
   readonly historyPage: number;
   readonly historyCap: number;
   /**
-   * Opens the pass of this creator and period, or answers the open one as it is. X57: `windowHours` null — the period
+   * Opens the pass of this creator and period, or answers the open one as it is. X59: `windowHours` null — the period
    * the site remembers (the person's last choice, else the default); a number — the person's choice, remembered.
    */
   scan(hostAccountId: string, windowHours: number | null): Promise<SourceAnswer<PassState>>;

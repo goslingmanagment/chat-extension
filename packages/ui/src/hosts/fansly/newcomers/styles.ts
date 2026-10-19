@@ -1,11 +1,11 @@
-// The look of «Новые фоловеры» on Fansly (X57; ui-design §3.12): the old Fansly extension's window in the family's
+// The look of «Новые фоловеры» on Fansly (X59; ui-design §3.12): the old Fansly extension's window in the family's
 // tokens — a compact window over a scrim (1040 × 700 at most), the serif title over «@креатор», one toolbar (the period,
 // the progress, the queue's button, the search, «Проверить заново»), the dates in a quiet line; the list of 344 px on
 // the left — tabs underlined in terracotta, the fan's picture, the name, «@handle · 2 ч назад», the status in words
 // (terracotta where the person can act), the batch's draft under the fan in the family's draft look — and the card on
 // the right: the profile, «Открыть в Fansly ↗», the conversation in plain bubbles (ours on the right), the draft in the
 // serif of AI text and «Отправить →». Blue only on what reaches a fan: the card's «Отправить →» and a draft row's own
-// small «Отправить» (X57).
+// small «Отправить» (X59).
 // Every size is a token, so «Крупнее» scales the window; the rows' heights follow it in the component.
 
 import { STALE_ROW_CSS } from '../../../dock/stale-row.css';

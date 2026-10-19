@@ -105,7 +105,7 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.greeting.stale',
   'fansly.newcomers.greeting.count',
   'fansly.newcomers.noAutoSend',
-  // 1.33.0 (X57): the window as the old one, the batch's drafts and their «Отправить» in the list, the remembered period.
+  // 1.34.0 (X59): the window as the old one, the batch's drafts and their «Отправить» in the list, the remembered period.
   'fansly.newcomers.title',
   'fansly.newcomers.period',
   'fansly.newcomers.ago',

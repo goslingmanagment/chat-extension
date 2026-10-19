@@ -1,6 +1,7 @@
 // Fix (ui-design §4.5; AI-020…AI-025, NEW-05): «Ваш текст» above «После Fix»,
-// then «Заменить мой черновик ↵» — the click is the consent (Б2), no second
-// question — and a quiet «Копировать». After the replacement: «✓ Черновик
+// then «Заменить мой черновик ⌘↵» — the click, or ⌘↵ / Ctrl+Enter from the
+// message field (decision X58), is the consent (Б2), no second question — and
+// a quiet «Копировать». After the replacement: «✓ Черновик
 // заменён», «Вернуть мой текст» and the seconds left of its 30; then «Вернуть
 // текст уже нельзя». Without a verified editor «Заменить» is off with its
 // reason and «Копировать ↵» becomes the line button.
@@ -15,7 +16,7 @@ import { type ComponentChildren, type JSX } from 'preact';
 
 import { type ConfirmVM, type FixVM, type PartVM } from '@cg/contracts/vm';
 
-import { Button, ErrorCard, Icon, isComposing, isHeldKey, useCountdown, useI18n, useNowFn } from '../kit';
+import { Button, ErrorCard, Icon, isComposing, isHeldKey, useCountdown, useI18n, useKit, useNowFn } from '../kit';
 import { ConfirmRow, confirms, useConfirmFocus, usePartActions } from './Parts';
 
 export interface FixBodyProps {
@@ -43,6 +44,7 @@ function Block({ caption, text, was, children }: { readonly caption: string; rea
 
 export function FixBody({ opId, fix, part, mode, confirm }: FixBodyProps): JSX.Element {
   const i18n = useI18n();
+  const { deps } = useKit();
   const now = useNowFn();
   const { copy, run, asked } = usePartActions(opId);
   const onAnswer = useConfirmFocus(confirm);
@@ -113,7 +115,7 @@ export function FixBody({ opId, fix, part, mode, confirm }: FixBodyProps): JSX.E
             label={i18n.t('fix.replace')}
             variant="line"
             class="cg-fix__go"
-            hotkey={canReplace ? '↵' : null}
+            hotkey={canReplace ? deps.catalog.entry('apply-fix').hotkey : null}
             busy={part.insert === 'pending'}
             reason={canReplace ? null : (why ?? i18n.t('fix.cannotCheck'))}
             onClick={replace}

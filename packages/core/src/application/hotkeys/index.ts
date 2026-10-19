@@ -15,7 +15,8 @@
 //      mirror = mirrorDismissible(overlays, started.mounts.setDismissibleOpen);
 // 2. When the lazy part is up (AppClient router, toasts):
 //      runner = createHotkeyRunner({ client, catalog, i18n, toasts, overlays, cause,
-//        onDockSheet: (open) => { keyState.setDockSheet(open); mirror.dockSheet(open); } });
+//        onDockSheet: (open) => { keyState.setDockSheet(open); mirror.dockSheet(open); },
+//        onFix: (fix) => keyState.setFix(fix) });
 //      early.attach({ toasts, refuse: (command, refusal) => runner.refuse(command, refusal) });
 //      dispatcher.connect(runner);
 //    A key kept from before the lazy part — and a key of the dock pressed before the dock has its

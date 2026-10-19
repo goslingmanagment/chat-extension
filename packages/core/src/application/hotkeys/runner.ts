@@ -3,7 +3,10 @@
 // runner turns it into the same UiAction a click on the matching button
 // dispatches — through AppClient, so every controller's own checks apply —
 // or says in a toast why nothing runs. A key never does more than a button:
-// there is no key for «Отправить» and none that inserts by itself.
+// there is no key for «Отправить». One key writes into the field — ⌘↵ /
+// Ctrl+Enter puts the Fix on screen there, as its «Заменить мой черновик»
+// does (decision X58) — and the runner tells the dispatcher when a Fix waits,
+// so that the key is the site's whenever none does.
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type FeatureId, type Tone } from '@cg/contracts/features';
@@ -28,7 +31,7 @@ import {
   type UnavailableReasonId,
 } from '@cg/contracts/vm';
 
-import { type DispatcherCommandId, type KeyCommand, type KeyRefusal, type OverlayKind } from '../../domain/hotkeys';
+import { type DispatcherCommandId, type FixKeyState, type KeyCommand, type KeyRefusal, type OverlayKind } from '../../domain/hotkeys';
 import { type CauseHint } from '../navigation/navigation-controller';
 import { type OverlayState } from '../navigation/overlays';
 import { type HotkeySink } from './dispatcher';
@@ -43,6 +46,8 @@ export interface HotkeyRunnerDeps {
   readonly cause?: CauseHint;
   /** The dock's sheet opened or closed: the dispatcher's state and the dock host's `data-dismissible-open` follow. */
   readonly onDockSheet?: (open: boolean) => void;
+  /** A Fix of the open chat started, came, went into the field or went away: the dispatcher's state follows (X58). */
+  readonly onFix?: (state: FixKeyState) => void;
 }
 
 export interface HotkeyRunner extends HotkeySink {
@@ -84,7 +89,22 @@ const NEEDS_DOCK: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping'
 /** The dock has its first authoritative state: anything but «чат загружается». */
 const dockSettled = (dock: DockVM): boolean => dock.status !== 'loading-chat' && dock.view.s !== 'loading';
 
-/** A key never does more than a button and never what only a deliberate click may do: no insert, no replacement, no send. */
+/**
+ * What ⌘↵ / Ctrl+Enter finds in the open chat's dock (X58). `running` — a Fix is being written here (the key only keeps
+ * the draft from the site); `ready` — its answer is on screen and nothing of it is in the field yet: one answer until it
+ * replaced the draft, the parts of a Split Fix until the first of them went in. Anything else — the key is the site's.
+ */
+export function fixKeyOf(dock: DockVM): FixKeyState {
+  if (!dock.visible) return null;
+  if (dock.actions.fix.busy) return 'running';
+  const result = dock.result;
+  if (result === null || result.feature !== 'fix' || result.state !== 'done' || result.parts === null || result.parts.length === 0) return null;
+  const only = result.parts.length === 1 ? result.parts[0] : undefined;
+  if (only !== undefined && result.fix !== null) return result.fix.replaced ? null : 'ready';
+  return result.parts.some((part) => part.insert === 'pending' || part.insert === 'done') ? null : 'ready';
+}
+
+/** Esc never answers a question with what only a deliberate click may do: no insert, no replacement, no send. */
 const NEVER_BY_KEY: readonly UiAction['type'][] = ['InsertPart', 'OpenAndInsertPart', 'ReplaceMyDraft', 'SendPart'];
 const cancelsOnly = (action: UiAction): boolean => !NEVER_BY_KEY.includes(action.type) && (action.type !== 'AnswerConfirm' || action.choice === 'cancel');
 
@@ -99,6 +119,7 @@ export function nextTone(current: Tone | null, tones: readonly Tone[]): Tone | n
 export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
   const { client, catalog, i18n, toasts, overlays } = deps;
   let sheet = false;
+  let fix: FixKeyState = null;
 
   const dockView = (): DockVM => client.getSnapshot({ of: 'dock' });
   const previewView = (): PreviewVM | null => {
@@ -112,7 +133,14 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     sheet = open;
     deps.onDockSheet?.(open);
   };
+  const syncFix = (dock: DockVM): void => {
+    const now = fixKeyOf(dock);
+    if (now === fix) return;
+    fix = now;
+    deps.onFix?.(now);
+  };
   syncSheet(dockView());
+  syncFix(dockView());
 
   // HK-025: until the dock's first authoritative state arrives, a key of the dock is not judged against «чат
   // загружается» — the dispatcher keeps it and asks again when this fires. Later loads say the reason at once.
@@ -120,6 +148,7 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
   const readyListeners = new Set<() => void>();
   const unsubscribeDock = client.subscribe({ of: 'dock' }, (dock) => {
     syncSheet(dock);
+    syncFix(dock);
     if (settled || !dockSettled(dock)) return;
     settled = true;
     for (const listener of [...readyListeners]) listener();
@@ -258,6 +287,31 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     }
   };
 
+  /**
+   * ⌘↵ / Ctrl+Enter (X58): the Fix on screen into the field — its «Заменить мой черновик», or the first part of a Split
+   * Fix — through the same action a click dispatches; the controller's own checks (this chat, the draft's revision) apply.
+   */
+  const applyFix = (): void => {
+    const dock = dockView();
+    const result = dock.result;
+    // The dispatcher judged a moment ago; the Fix may have gone into the field or away since. The key stays taken.
+    if (fixKeyOf(dock) !== 'ready' || result === null || result.parts === null) return;
+    if (dock.mode === 'copy-only') {
+      unavailable('apply-fix', reasonOf(statusReason(dock)));
+      return;
+    }
+    const only = result.parts.length === 1 ? result.parts[0] : undefined;
+    if (only !== undefined && result.fix !== null) {
+      if (!result.fix.canReplace) unavailable('apply-fix', result.fix.replaceReason ?? reasonOf('draft-unverifiable'));
+      else send({ type: 'ReplaceMyDraft', operationId: result.opId, part: only.index });
+      return;
+    }
+    const part = result.parts.find((item) => item.next) ?? result.parts[0];
+    if (part === undefined) return;
+    if (part.insertBlocked !== null) unavailable('apply-fix', part.insertBlocked);
+    else send({ type: 'InsertPart', operationId: result.opId, part: part.index });
+  };
+
   /** HK-029: Esc closes the top of ours — the newest window first, the dock's sheet last. */
   const close = (): void => {
     const top: OverlayKind | null = overlays.top();
@@ -311,6 +365,7 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     if (id === 'split') return split(command.target);
     if (id === 'cancel') return cancel(command.target);
     if (id === 'close') return close();
+    if (id === 'apply-fix') return applyFix();
     if (id === 'coach') {
       // Opening Coach needs the chat's Coach to be available; closing it never does.
       if (overlays.isOpen('coach') || dockAction('coach') !== null) toggle('coach');
@@ -341,6 +396,12 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     refuse(command: DispatcherCommandId, refusal: KeyRefusal) {
       if (refusal === 'help-removed') {
         toasts.show({ kind: 'info', code: UNAVAILABLE_REASONS['help-removed'].code, scope: 'hotkey.help', title: { key: 'dock.helpRemoved' }, body: null });
+        return;
+      }
+      if (refusal === 'fix-running') {
+        // The draft stayed in the field and did not go: the key waits for the Fix, not the person's send.
+        const key = catalog.entry('apply-fix').hotkey?.display ?? '';
+        toasts.show({ kind: 'info', code: null, scope: 'hotkey.apply-fix', title: { key: 'dock.fixRunning', params: { hotkey: key } }, body: null });
         return;
       }
       if (refusal === 'in-field') {

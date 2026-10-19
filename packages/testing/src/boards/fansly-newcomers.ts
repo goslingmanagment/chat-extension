@@ -308,7 +308,7 @@ export function fanslyConnecting(ctx: ScenarioCtx): ScenarioViewEntry[] {
   return [entry({ of: 'newcomers' }, { ...unknown, pass: { ...pass, checked: null, total: null, filters: pass.filters.map((filter) => ({ ...filter, count: null })) } })];
 }
 
-// ── X57: the batch in the old window's layout ──
+// ── X59: the batch in the old window's layout ──
 
 /** A synthetic picture (an inline drawing, no address of anyone's): the window shows it as a fan's photo. */
 const picture = (hue: number): string =>
@@ -346,12 +346,12 @@ function batchVM(ctx: ScenarioCtx, sent: readonly number[], sending: number | nu
   return [entry({ of: 'newcomers' }, { ...vm, rows, batch: { picked: 0, max: 20, queued: 0, generating: 0, ready: count('ready'), sent: count('sent'), failed: 0, reason: null } })];
 }
 
-/** `o` — X57: the batch's drafts are ready: read each in the list under its fan, a small «Отправить» in its row. */
+/** `o` — X59: the batch's drafts are ready: read each in the list under its fan, a small «Отправить» in its row. */
 export function fanslyBatchReady(ctx: ScenarioCtx): ScenarioViewEntry[] {
   return batchVM(ctx, [], null);
 }
 
-/** `p` — X57: sending one by one from the list: one sent, the next going out, one waiting for its click. */
+/** `p` — X59: sending one by one from the list: one sent, the next going out, one waiting for its click. */
 export function fanslyBatchSending(ctx: ScenarioCtx): ScenarioViewEntry[] {
   return batchVM(ctx, [1], 2);
 }

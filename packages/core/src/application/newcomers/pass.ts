@@ -17,7 +17,7 @@
 //
 // R20 P10c (FS-NEW-3, FS-NEW-6, FS-NEW-7): the card's greeting — the draft, «Сгенерировать», «Отправить», «Открыть и
 // вставить» — is ./greeting.ts over the source's greeting port; this controller hands it the card and its actions.
-// X57 (the owner, 2026-10-18): the period opens on the one the person chose last (the site remembers it, 12 hours
+// X59 (the owner, 2026-10-18): the period opens on the one the person chose last (the site remembers it, 12 hours
 // before any choice); a row with a batch's draft has its own «Отправить» — the card's send by one click in the list,
 // with all of its checks (`NewcomerRowVM.send`): generate for many at once, send each by a click.
 // It names no site; the hub's list (ChatSpace) is ./controller.ts.
@@ -228,7 +228,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   /**
    * Opens the pass of this tab's creator and period, then reads its first page (NF-004). `close` — the pass on screen
    * is another period's: it is let go; a reload asks for the same pass again, which the background answers as it is.
-   * `chosen` (X57) — the period the person just chose; null — the one the site remembers (their last choice anywhere).
+   * `chosen` (X59) — the period the person just chose; null — the one the site remembers (their last choice anywhere).
    */
   async function start(close = true, chosen: number | null = null): Promise<void> {
     letGo(close);
@@ -507,7 +507,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     };
   }
 
-  /** The row's word for its greeting (X57): going out, gone, or unknown; a fan the pass found written to is greeted. */
+  /** The row's word for its greeting (X59): going out, gone, or unknown; a fan the pass found written to is greeted. */
   function greetingOf(passId: string, row: PassRow): GreetingStatusVM {
     if (row.check === 'greeted') return { s: 'greeted', at: null };
     const state = card?.stateOf(passId, row.fanRef) ?? null;
@@ -517,7 +517,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     return { s: 'none' };
   }
 
-  /** X57: the row's own «Отправить» of a batch's draft: whether the card's checks let it go now, and why a click did not. */
+  /** X59: the row's own «Отправить» of a batch's draft: whether the card's checks let it go now, and why a click did not. */
   function sendOf(passId: string, row: PassRow): NonNullable<NewcomerRowVM['send']> {
     const state = card?.stateOf(passId, row.fanRef) ?? null;
     return { can: card?.vm(passId, row)?.canSend === true, refused: state?.s === 'refused' ? state.failure : null };
@@ -690,7 +690,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (action.type === 'SetNewcomersWindow') {
       const hours = clampHours(action.hours);
       if (hours === windowHours) return Promise.resolve(done(type, 'noop'));
-      // Another period is another pass: the old one is let go, its late answers are nobody's. X57: the choice is remembered.
+      // Another period is another pass: the old one is let go, its late answers are nobody's. X59: the choice is remembered.
       windowHours = hours;
       return start(true, hours).then(() => done(type));
     }

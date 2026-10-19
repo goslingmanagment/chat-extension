@@ -887,10 +887,10 @@ describe('dock: tones and Split', () => {
     expect(partsOf(h)).toHaveLength(1);
     expect(partsOf(h)[0]).toMatchObject({ numbered: false, next: true });
     expect(h.bg.callsOf('op.start').length).toBe(1);
-    // Without Split the same answer reads «одним сообщением».
+    // Without Split the same answer is the norm: the head says nothing of it (X57).
     const plain = await start();
     await reply(plain, 'just one message');
-    expect(result(plain).meta).toEqual([{ key: 'result.meta.single' }]);
+    expect(result(plain).meta).toEqual([]);
   });
 });
 
@@ -1413,7 +1413,8 @@ describe('dock: Fix', () => {
     await h.finish();
     const vm = result(h);
     expect(vm.parts?.map((part) => part.text)).toEqual(['I miss you so much']);
-    expect(vm.meta[0]).toEqual({ key: 'result.meta.byYourDraft' });
+    // A Fix is always by the draft: the head says no norm (X57).
+    expect(vm.meta).toEqual([]);
     expect(vm.fix).toEqual({ sourceDraft: 'i mis you so much', canReplace: true, replaceReason: null, replaced: false, restoreUntil: null, restoreExpired: false });
     expect(vm.draftNotSent).toBe(true);
   });

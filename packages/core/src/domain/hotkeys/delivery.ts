@@ -51,6 +51,7 @@ export const DELIVERY_KEYS: readonly DeliveryKey[] = [
   'next-unread:fallback',
   'quick-jump',
   'notes',
+  'apply-fix',
 ];
 
 export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryKey, HotkeyDelivery>>>> = {
@@ -82,6 +83,8 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     'quick-jump': 'unverified',
     // ⌘⇧K: nothing of Firefox's (its web console is ⌘⌥K); the Fansly extension has served it since 2.9.0.
     notes: 'delivered',
+    // ⌘↵ (X58): Firefox acts on it only in its own address bar; in a page field it is the page's (ChatSpace and Fansly get it).
+    'apply-fix': 'delivered',
   },
   win: {
     reply: 'cancelable',
@@ -110,6 +113,8 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     // Alt+1–9 (⌥1–9): nothing of Firefox's on macOS and Windows (X45); on Linux Alt+1–9 are its tabs (hotkeys-delivery.md).
     'quick-jump': 'unverified',
     notes: 'delivered',
+    // Ctrl+Enter (X58): Firefox's only in its address bar («www…com»); in a page field it is the page's.
+    'apply-fix': 'delivered',
   },
 };
 

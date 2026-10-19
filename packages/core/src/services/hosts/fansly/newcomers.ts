@@ -133,7 +133,7 @@ export interface FanslyNewcomersDeps {
 
 /** storage.local: `fansly.newcomers.excluded.<creator>.<fan>` → `{ at }` — the fan is out of «К обработке» (FS-NEW-2). */
 export const NEWCOMERS_EXCLUDED_PREFIX = 'fansly.newcomers.excluded.';
-/** storage.local: the period of «Новые» the person chose last (X57) — the next window opens on it, in any tab. */
+/** storage.local: the period of «Новые» the person chose last (X59) — the next window opens on it, in any tab. */
 export const NEWCOMERS_WINDOW_KEY = 'fansly.newcomers.window';
 
 /** What the greeting (P10c) takes of a checked row (FS-NEW-7): only a history walked to its empty page has one. */
@@ -785,7 +785,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       displayName: profile.displayName ?? now.displayName,
       bio: profile.bio ?? now.bio ?? null,
       ...(profile.customName === undefined ? {} : { customName: profile.customName }),
-      // X57: the picture the window shows — the same checked Fansly address Hi takes (FX-018).
+      // X59: the picture the window shows — the same checked Fansly address Hi takes (FX-018).
       ...(profile.avatarUrl === null ? {} : { avatarUrl: profile.avatarUrl }),
     };
   }
@@ -802,7 +802,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   const running = (pass: Pass): boolean => pass.work !== null && !pass.work.stop.aborted;
 
-  // ── the period the person chose last (X57): kept in this browser; a store that cannot be read gives the default ──
+  // ── the period the person chose last (X59): kept in this browser; a store that cannot be read gives the default ──
 
   const validHours = (value: unknown): value is number =>
     typeof value === 'number' && Number.isInteger(value) && value >= FANSLY_TAB_LIMITS.windowHoursMin && value <= FANSLY_TAB_LIMITS.windowHoursMax;

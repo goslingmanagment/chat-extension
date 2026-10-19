@@ -42,6 +42,7 @@ import {
   isJumpModifierKey,
   isModifierKey,
   type DispatcherCommandId,
+  type FixKeyState,
   type FocusKind,
   type HotkeyClient,
   type HotkeyKeyEvent,
@@ -97,6 +98,8 @@ export interface DispatcherState {
   overlays(): readonly OverlayKind[];
   /** A result, Recap or Review is open in the dock. */
   dockSheet(): boolean;
+  /** A Fix waits in the open chat (X58): ⌘↵ / Ctrl+Enter is ours only then. Absent — never. */
+  fix?(): FixKeyState;
 }
 
 export interface DispatcherTimers {
@@ -212,6 +215,12 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
   let holdTimer: unknown = null;
   let quickJumpOpen = false;
   let disposed = false;
+  /**
+   * Keys whose press we took and that are still down (by `code`): their auto-repeat stays ours until the keyup, whatever
+   * the page's state is by then. ⌘↵ put a Fix into the field — a repeat of that held key must not then go to the site,
+   * which would send it (X58); Esc that closed our sheet must not, a moment later, close ChatSpace's chat tab.
+   */
+  const held = new Set<string>();
   const counters = { keydowns: 0, claimed: 0, isolated: 0, untrusted: 0, queued: 0, dropped: 0, maxHandlerMs: 0 };
 
   const stopWaiting = (): void => {
@@ -336,6 +345,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     dockSheet: state.dockSheet(),
     combo: isComboLike(event),
     inDock: ownership.focusInDock?.() ?? false,
+    fix: state.fix?.() ?? null,
   });
 
   /** Alt went down alone, outside any field, with the chat list on screen: the quick jump may open. */
@@ -381,6 +391,13 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     else cancelHold();
 
     if (isImeKey(event)) return;
+    // The auto-repeat of a key we took: still ours, and it runs nothing (HK-019) — even where its first press would now pass.
+    if (event.repeat === true && held.has(event.code)) {
+      counters.claimed += 1;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     // Plain typing that matched nothing: no look at the page at all.
     if (verdict === null && !isComboLike(event)) return;
     const focus = ownership.focus(event);
@@ -405,6 +422,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     counters.claimed += 1;
     event.preventDefault();
     event.stopImmediatePropagation();
+    held.add(event.code);
     if (decision.run !== null) {
       const underPopup = slotKey && quickJumpOpen;
       run(decision.run);
@@ -436,6 +454,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
   const onKeyup: Listener = (raw) => {
     const event = asKeyEvent(raw);
     if (event === null || disposed || !event.isTrusted) return;
+    held.delete(event.code);
     resolver.keyup(event);
     if (!isJumpModifierKey(event)) return;
     // The lone Alt that held the popup open is ours: Firefox on Windows would put the focus into its menu bar.
@@ -448,6 +467,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
    * when the focus comes back: its keyup may have gone anywhere meanwhile. Whatever was armed or open ends.
    */
   function reset(): void {
+    held.clear();
     resolver.reset();
     closeQuickJump();
   }

@@ -340,7 +340,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect((await fanslyStandServer.journal(standMark)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
   });
 
-  it('[NF-003] [NF-004] [NF-005] [NF-007] [NF-008] [NF-009] [NF-031] [FS-NEW-1] [X57] default 12 hours, profiles and the custom name, statuses and counts; periods 1 and 720 read their own followers; the choice is remembered', async function () {
+  it('[NF-003] [NF-004] [NF-005] [NF-007] [NF-008] [NF-009] [NF-031] [FS-NEW-1] [X59] default 12 hours, profiles and the custom name, statuses and counts; periods 1 and 720 read their own followers; the choice is remembered', async function () {
     this.timeout(180_000);
     const [fresh, closed, written, old] = [fanId(), fanId(), fanId(), fanId()];
     await seed([
@@ -367,7 +367,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
       await select(included, 'ready');
       if (excluded !== '') expect(await oursExists('modal', ROW(excluded))).toBe(false);
     }
-    // X57: the next window opens on the period chosen last — then back to the default for the tests after this one.
+    // X59: the next window opens on the period chosen last — then back to the default for the tests after this one.
     await closeWindow();
     await openWindow(shift);
     await waitOursText('modal', '30 дней', 'the remembered period', { selector: `${WINDOW} .cg-fnw__period`, timeout: 20_000 });

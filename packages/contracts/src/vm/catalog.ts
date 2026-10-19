@@ -68,6 +68,11 @@ export const CATALOG_ACTION_IDS = [
   'search',
   /** 1.15.0 (R20 P11b): ⌘⇧K / Ctrl+Alt+K — «Заметки» of a Fansly chat; a site without the feature has no such row. */
   'notes',
+  /**
+   * 1.33.0 (X58): ⌘↵ / Ctrl+Enter in the message field — the Fix on screen goes into the field in place of the draft.
+   * The key is the site's own (send, a line break) whenever no Fix waits in the open chat.
+   */
+  'apply-fix',
 ] as const;
 export type CatalogActionId = (typeof CATALOG_ACTION_IDS)[number];
 

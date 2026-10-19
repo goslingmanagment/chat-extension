@@ -303,7 +303,7 @@ const GENERATION: AppClientScenario[] = [
   })),
   make({ id: 'one-part-and-unparsed', title: 'One message with Split off; Split asked but one part came; unparsed; Cyrillic gate', covers: ['one-part', 'unparsed'] }, (ctx) => {
     const one = (splitRequested: boolean) =>
-      doneReply(ctx, { parts: parts(OP.reply, [REPLY_TEXTS[0] ?? '']), splitRequested, meta: [splitRequested ? meta.onePart() : meta.single()] });
+      doneReply(ctx, { parts: parts(OP.reply, [REPLY_TEXTS[0] ?? '']), splitRequested, meta: splitRequested ? [meta.onePart()] : [] });
     return {
       views: [entry(DOCK, dock(ctx, 'ready', { result: one(false) }))],
       steps: [
@@ -327,7 +327,7 @@ const GENERATION: AppClientScenario[] = [
         {
           label: 'cyrillic draft for a latin fan',
           at: 3_000,
-          views: [entry(DOCK, dock(ctx, 'ready', { result: doneReply(ctx, { parts: parts(OP.reply, ['Привет, как прошли выходные?'], () => ({ insertBlocked: reason('language') })), splitRequested: false, meta: [meta.single()] }) }))],
+          views: [entry(DOCK, dock(ctx, 'ready', { result: doneReply(ctx, { parts: parts(OP.reply, ['Привет, как прошли выходные?'], () => ({ insertBlocked: reason('language') })), splitRequested: false, meta: [] }) }))],
         },
       ],
     };
@@ -351,7 +351,7 @@ const GENERATION: AppClientScenario[] = [
         feature: 'fix',
         state: 'done',
         parts: parts(OP.fix, ['hey, sorry I was late — missed you']),
-        meta: [meta.byDraft()],
+        meta: [],
         draftNotSent,
         fix: { sourceDraft: 'hey sorry late missed u', canReplace: true, replaceReason: null, replaced: false, restoreUntil: null, restoreExpired: false, ...patch },
       });

@@ -181,7 +181,7 @@ class FakeFollowers implements FanslyFollowersPort {
   private listeners = new Set<(change: FanslyTabEventPayload<'fansly.followers.changed'>) => void>();
   private reconnects = new Set<() => void>();
   private nextPass = 0x301;
-  /** X57: the period the background remembers — the person's last choice, the default before any. */
+  /** X59: the period the background remembers — the person's last choice, the default before any. */
   remembered: number = FANSLY_TAB_LIMITS.windowHoursDefault;
   rows: FanslyFollowerRow[] = [];
   state: FanslyPassView['state'] = 'queue';
@@ -377,7 +377,7 @@ function world(rows: FanslyFollowerRow[], options: { readonly state?: PageContex
 const statuses = (vm: NewcomersVM): string[] => vm.rows.map((row) => `${row.username}:${row.check?.status}`);
 
 describe('[host:fansly] «Новые» on Fansly: the window over the background’s pass (R20 P10a)', () => {
-  it('[NF-001] [NF-002] [NF-004] [X57] opening the window opens the pass of the tab’s creator for the period the browser remembers (12 hours before any choice) and reads its first page; nothing is asked while it is closed', async () => {
+  it('[NF-001] [NF-002] [NF-004] [X59] opening the window opens the pass of the tab’s creator for the period the browser remembers (12 hours before any choice) and reads its first page; nothing is asked while it is closed', async () => {
     const w = world([wireRow(1), wireRow(2)]);
     await w.clock.advance(600_000);
     expect(w.background.requests).toEqual([]);
@@ -448,7 +448,7 @@ describe('[host:fansly] «Новые» on Fansly: the window over the background
     expect(w.vm().tabs.map((tab) => tab.count)).toEqual([2, 2]);
   });
 
-  it('[NF-003] [X57] the period: 1 hour to 30 days, 12 hours before any choice; another period is another pass — the old one is let go; the choice is remembered for the next window', async () => {
+  it('[NF-003] [X59] the period: 1 hour to 30 days, 12 hours before any choice; another period is another pass — the old one is let go; the choice is remembered for the next window', async () => {
     const w = world([wireRow(1)]);
     expect([w.vm().windowHours, w.vm().windowOptions]).toEqual([12, [1, 3, 6, 12, 24, 48, 72, 168, 336, 720]]);
     await w.open();
@@ -1451,7 +1451,7 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
   });
 });
 
-describe('[host:fansly] «Новые» on Fansly: a batch generated for many, each draft sent by its own click in the list (X57)', () => {
+describe('[host:fansly] «Новые» on Fansly: a batch generated for many, each draft sent by its own click in the list (X59)', () => {
   /** Three ready fans, a batch of Hi for all of them, each generation done: their drafts wait in the list. */
   async function batchReady(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2), wireRow(3)]) {
     const w = greetingWorld(rows);
@@ -1468,7 +1468,7 @@ describe('[host:fansly] «Новые» on Fansly: a batch generated for many, ea
   }
   const sentTo = (w: Awaited<ReturnType<typeof batchReady>>): string[] => w.background.of('fansly.followers.send').map((payload) => (payload as { fanRef: string }).fanRef);
 
-  it('[X57] [NF-019] a row with the batch’s draft has its own «Отправить»: one click sends that fan’s draft — the card’s send, without opening the card; the row says it went', async () => {
+  it('[X59] [NF-019] a row with the batch’s draft has its own «Отправить»: one click sends that fan’s draft — the card’s send, without opening the card; the row says it went', async () => {
     const w = await batchReady();
     expect(w.vm().rows.map((row) => row.send)).toEqual([{ can: true, refused: null }, { can: true, refused: null }, { can: true, refused: null }]);
     // The card shows fan 1; fan 2 is sent from its row.
@@ -1488,7 +1488,7 @@ describe('[host:fansly] «Новые» on Fansly: a batch generated for many, ea
     expect(await w.send(2)).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
   });
 
-  it('[X57] [NF-024] [NF-018] a row whose draft cannot go as it is says so: the click is refused with its reason, nothing went; the draft stays', async () => {
+  it('[X59] [NF-024] [NF-018] a row whose draft cannot go as it is says so: the click is refused with its reason, nothing went; the draft stays', async () => {
     const w = await batchReady();
     w.background.sendAnswer = () => ({ ok: false, error: { code: 'CG-FNEW-HISTORY' } });
     expect(await w.send(3)).toMatchObject({ ok: false });
@@ -1506,7 +1506,7 @@ describe('[host:fansly] «Новые» on Fansly: a batch generated for many, ea
     expect(marked.vm().rows[0]?.send).toEqual({ can: false, refused: null });
   });
 
-  it('[X57] a draft typed on a card is no batch result: the list has no «Отправить» for it — the card has', async () => {
+  it('[X59] a draft typed on a card is no batch result: the list has no «Отправить» for it — the card has', async () => {
     const w = greetingWorld([wireRow(1), wireRow(2)]);
     await w.open();
     await w.type(1, 'Hi!');

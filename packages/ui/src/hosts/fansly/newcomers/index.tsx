@@ -1,4 +1,4 @@
-// @cg/ui/hosts/fansly/newcomers — «Новые фоловеры» on Fansly (R20 P10a; X57; docs/project-unite/architecture.md §8.17;
+// @cg/ui/hosts/fansly/newcomers — «Новые фоловеры» on Fansly (R20 P10a; X59; docs/project-unite/architecture.md §8.17;
 // ui-design §3.12): a surface of Fansly's own for the shared view `newcomers` with its `pass`, mounted where the shared
 // one mounts — the overlay of the window layer, through Fansly's own lazy entry `newcomers` (lazy/fansly/newcomers.ts).
 // Its words are Fansly's pack, laid over the tab's I18n for this surface by `texts` (the composition passes core's

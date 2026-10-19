@@ -182,7 +182,8 @@ describe('the vendored scheme through the tab resolver', () => {
         resolver.keydown(platform === 'mac' ? META : CTRL);
         const verdict = resolver.keydown(event(item, platform));
         if (item.status === 'theirs') expect([platform, item.what, verdict]).toEqual([platform, item.what, null]);
-        if (item.status === 'shared') expect(command(verdict)).toBe('close');
+        // Esc closes ours first; ⌘↵ / Ctrl+Enter puts a waiting Fix into the field (X58) — the policy gives it back otherwise.
+        if (item.status === 'shared') expect(command(verdict)).toBe(item.code === 'Escape' ? 'close' : 'apply-fix');
       }
     }
     // Taken on purpose, before TipTap: inline code is Reply, italic is Fix; strikethrough is Recap on the mac scheme
@@ -571,7 +572,8 @@ describe('whose key is it', () => {
     expect(ran(decideKey(cmd('cancel'), preview))).toBe('cancel@preview');
     for (const id of ['recap', 'review', 'coach'] as const) expect(decideKey(cmd(id), preview)).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
     expect(PREVIEW_COMMANDS).not.toContain('send');
-    // «Отправить» has no key anywhere: no dispatcher command, no catalog key, and Enter is never a dispatcher command.
+    // «Отправить» has no key anywhere: no dispatcher command, no catalog key; plain Enter is never a dispatcher command,
+    // and ⌘↵ / Ctrl+Enter is only «Fix into the field» (X58) — which under a preview is the preview's, never ours.
     expect(DISPATCHER_COMMAND_IDS).not.toContain('send');
     expect(DISPATCHER_COMMAND_IDS).not.toContain('open-and-insert');
     expect(UI_ACTION_TYPES).toContain('SendPart');
@@ -580,7 +582,9 @@ describe('whose key is it', () => {
     for (const platform of ['mac', 'win'] as const) {
       const resolver = createKeyResolver(platform, 'extension');
       resolver.keydown(platform === 'mac' ? META : CTRL);
-      expect(resolver.keydown(ev('Enter', platform === 'mac' ? { metaKey: true } : { ctrlKey: true }))).toBeNull();
+      const modEnter = resolver.keydown(ev('Enter', platform === 'mac' ? { metaKey: true } : { ctrlKey: true }));
+      expect(command(modEnter)).toBe('apply-fix');
+      expect(decideKey(modEnter, { ...preview, fix: 'ready' })).toEqual({ act: 'isolate', otherwise: null });
       expect(createKeyResolver(platform, 'extension').keydown(ev('Enter'))).toBeNull();
     }
   });

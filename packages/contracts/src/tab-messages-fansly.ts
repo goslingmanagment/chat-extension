@@ -70,7 +70,7 @@ const Done = z.strictObject({ ok: z.literal(true) });
 
 export const FANSLY_TAB_LIMITS = {
   /**
-   * «Новые» window (NF-003): 1–720 hours. 1.33.0 (X57): 12 by default (was 48); the person's last choice is remembered
+   * «Новые» window (NF-003): 1–720 hours. 1.34.0 (X59): 12 by default (was 48); the person's last choice is remembered
    * by the background (`fansly.followers.scan` without hours opens the remembered period).
    */
   windowHoursMin: 1,
@@ -181,7 +181,7 @@ export const FanslyFollowerRowSchema = z.strictObject({
   proof: z.optional(z.nullable(FanslyPreviewMessageSchema)),
   /** `failed` — «Не удалось проверить»: why (a Fansly code or a shared one). */
   error: z.optional(z.nullable(CgAnyErrorWireSchema)),
-  /** 1.33.0 (X57): the fan's picture from the profile the pass read — a Fansly address only (the one Hi takes, FX-018). */
+  /** 1.34.0 (X59): the fan's picture from the profile the pass read — a Fansly address only (the one Hi takes, FX-018). */
   avatarUrl: z.optional(z.nullable(HiFanAvatarUrlSchema)),
 });
 export type FanslyFollowerRow = z.infer<typeof FanslyFollowerRowSchema>;
@@ -417,7 +417,7 @@ export const FANSLY_TAB_REQUESTS = {
   /** Opens a pass for the creator of the tab and the window; an open one for the same creator and window is answered as is. */
   'fansly.followers.scan': {
     /**
-     * 1.33.0 (X57): `windowHours` null — the period this browser remembers (else the default); a number — the person's
+     * 1.34.0 (X59): `windowHours` null — the period this browser remembers (else the default); a number — the person's
      * choice, remembered for the next window.
      */
     req: z.strictObject({ hostAccountId: NativeIdSchema, windowHours: z.nullable(FanslyPassViewSchema.shape.windowHours) }),

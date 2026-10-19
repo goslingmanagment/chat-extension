@@ -660,7 +660,7 @@ describe('[host:fansly] «Нельзя написать» and «Исключит
     expect(history.ok && history.messages.map((message) => message.text)).toEqual(['hi']);
   });
 
-  it('[NF-003] [X57] the period: a window without one opens the period the person chose last — 12 hours before any choice; a choice is kept in this browser; a store that fails gives the default', async () => {
+  it('[NF-003] [X59] the period: a window without one opens the period the person chose last — 12 hours before any choice; a choice is kept in this browser; a store that fails gives the default', async () => {
     const kv = createMemoryKv();
     const t = setup({ kv });
     t.world.follow(1, T0 - minutes(5));
@@ -800,7 +800,7 @@ describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
       fanAvatarUrl: 'https://cdn3.fansly.com/a/300.jpeg?Key-Pair-Id=K1&Policy=P1&Signature=S1',
     });
     expect(chat.id).not.toBe(fan);
-    // X57: the row the window shows carries the same picture; an address the hub would refuse is none there too.
+    // X59: the row the window shows carries the same picture; an address the hub would refuse is none there too.
     expect(row.avatarUrl).toBe('https://cdn3.fansly.com/a/300.jpeg?Key-Pair-Id=K1&Policy=P1&Signature=S1');
     expect((await t.row(passId, plain)).avatarUrl ?? null).toBeNull();
     // An address the hub would refuse is no avatar.
