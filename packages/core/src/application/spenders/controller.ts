@@ -19,6 +19,7 @@ import { NO_FILTERS, filterPressed, filtersActive, pressFilter, type BoardFilter
 import { moveRow, type BoardCommand } from '../../domain/spenders/keyboard';
 import { EMPTY_QUEUE, appendQueuePage, queueHasMore, queueRow, type QueueState } from '../../domain/spenders/queue';
 import { type SpenderRow } from '../../domain/spenders/rows';
+import { OUTSIDE_SHELF_ID } from '../../domain/spenders/shelves';
 import { statsModel, type StatsModel } from '../../domain/spenders/stats';
 import { batchDispatch, createBatch, isBatchAction, type BatchPreviewPort } from '../boards/batch';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
@@ -140,13 +141,15 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   let typed = '';
   let applied = '';
   let searchTimer: number | null = null;
+  /** X67: the tier chip pressed — the list shows that shelf alone; null — every shelf. */
+  let shelf: string | null = null;
   let statsExpanded = false;
   let boards = new Map<SpendersPeriod, BoardEntry>();
   let statsEntry: StatsEntry = { raw: null, loading: false, error: null, loadedAt: null, since: null, run: 0 };
   let queue: QueueEntry = { state: EMPTY_QUEUE, loading: false, error: null, run: 0 };
   let epoch = context.current().epoch;
   /** The visible list, kept while what it was computed from is the same (by identity: every change replaces its object). */
-  let viewCache: { readonly index: BoardIndex; readonly queue: QueueState | null; readonly applied: string; readonly filters: BoardFilters; readonly sort: SpendersSort; readonly view: BoardView } | null = null;
+  let viewCache: { readonly index: BoardIndex; readonly queue: QueueState | null; readonly applied: string; readonly filters: BoardFilters; readonly sort: SpendersSort; readonly shelf: string | null; readonly view: BoardView } | null = null;
   /** The list with the period's sums (X66), kept while neither board nor the period changed. */
   let listCache: { readonly list: BoardIndex; readonly delta: BoardIndex | null; readonly period: SpendersPeriod; readonly index: BoardIndex } | null = null;
   /** Row view models of the visible list: rebuilt only when the list or the selection changes, not on every keystroke. */
@@ -205,18 +208,22 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     return index;
   }
 
+  /** The pressed tier while it is a shelf of the list; a shelf the new list lacks lets go of it. */
+  const shelfOn = (index: BoardIndex): string | null => (shelf !== null && index.shelves.some((item) => item.id === shelf && item.rows.length > 0) ? shelf : null);
+
   function currentView(): { readonly index: BoardIndex; readonly view: BoardView; readonly sourced: boolean } | null {
     const index = listIndex();
     if (index === null) return null;
     const sourced = queueMode();
     const from = sourced ? queue.state : null;
+    const tier = shelfOn(index);
     const cached = viewCache;
-    if (cached !== null && cached.index === index && cached.queue === from && cached.applied === applied && cached.filters === filters && cached.sort === sort) {
+    if (cached !== null && cached.index === index && cached.queue === from && cached.applied === applied && cached.filters === filters && cached.sort === sort && cached.shelf === tier) {
       return { index, view: cached.view, sourced };
     }
-    const query = { query: applied, filters, sort };
+    const query = { query: applied, filters, sort, shelf: tier };
     const view = from === null ? viewBoard(index, query) : viewBoard(index, query, from.items.map((item, rank) => queueRow(item, rank, index.byFan.get(item.fanRef), index.period)));
-    viewCache = { index, queue: from, applied, filters, sort, view };
+    viewCache = { index, queue: from, applied, filters, sort, shelf: tier, view };
     return { index, view, sourced };
   }
 
@@ -256,7 +263,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     const entry = entryOf(LIST_PERIOD);
     const current = currentView();
     const selected = selectedFan();
-    const narrowed = applied.trim().length > 0 || filtersActive(filters);
+    const tier = current === null ? null : shelfOn(current.index);
+    const narrowed = applied.trim().length > 0 || filtersActive(filters) || tier !== null;
 
     const counts = current === null ? null : boardFilterCounts(current.index, FILTERS);
     const waitingTotal = (statistics && pageFlag(ctx, 'stats')) ? (queue.state.total ?? statsEntry.raw?.queueSummary.total ?? null) : null;
@@ -265,7 +273,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       label: msg(FILTER_LABELS[id]),
       // «Ждут ответа» is the hub's count over the whole page when it gave one; the rest count loaded rows.
       count: counts === null ? null : id === 'waiting' && waitingTotal !== null ? waitingTotal : id === 'all' ? current?.index.loaded ?? null : counts[id],
-      pressed: filterPressed(filters, id),
+      // «Все» is every fan: no filter and no tier chip.
+      pressed: filterPressed(filters, id) && (id !== 'all' || tier === null),
     }));
 
     let shelves: ShelfVM[] = [];
@@ -327,6 +336,10 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       filters: filterVMs,
       sort,
       shelves,
+      // X67: the old extension's tier chips — the list's shelves with fans, «вне полок» aside.
+      ...(index === null || index.tiers === null ? {} : {
+        tiers: index.shelves.filter((item) => item.rows.length > 0 && item.id !== OUTSIDE_SHELF_ID).map((item) => ({ id: item.id, range: item.range, fans: item.rows.length, pressed: item.id === tier })),
+      }),
       footer: {
         loaded: sourced ? queue.state.items.length : (index?.loaded ?? 0),
         total: sourced ? queue.state.total : (index?.total ?? null),
@@ -539,6 +552,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     sort = 'sum';
     typed = '';
     applied = '';
+    shelf = null;
     statsExpanded = false;
     viewCache = null;
     listCache = null;
@@ -736,6 +750,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       const next = pressFilter(filters, action.filter);
       const waitingOn = next.main === 'waiting' && filters.main !== 'waiting';
       filters = next;
+      // «Все» lets go of the tier chip too: every fan again.
+      if (action.filter === 'all') shelf = null;
       changed('board');
       if (waitingOn && usable('stats')) void loadQueue(true);
       return Promise.resolve(done(action.type));
@@ -750,6 +766,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     if (action.type === 'ResetFilters') {
       if (action.list !== 'spenders') return null;
       filters = NO_FILTERS;
+      shelf = null;
       typed = '';
       applied = '';
       if (searchTimer !== null) clock.clearTimer(searchTimer);
@@ -767,8 +784,19 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       return Promise.resolve(done(action.type));
     }
     if (action.type === 'RevealShelf') {
-      // Every shelf shows all its fans (X66): nothing is collapsed, so nothing is left to reveal.
-      return Promise.resolve(done(action.type, 'noop'));
+      // Every shelf shows all its fans (X66): a shelf is hidden only behind another tier chip, which lets go of the list.
+      const known = listIndex()?.shelves.some((item) => item.id === action.shelfId) ?? false;
+      if (!known || shelf === null || shelf === action.shelfId) return Promise.resolve(done(action.type, 'noop'));
+      shelf = null;
+      changed('board');
+      return Promise.resolve(done(action.type));
+    }
+    if (action.type === 'SetSpendersShelf') {
+      const known = action.shelfId === null || (listIndex()?.shelves.some((item) => item.id === action.shelfId) ?? false);
+      if (!known || action.shelfId === shelf) return Promise.resolve(done(action.type, 'noop'));
+      shelf = action.shelfId;
+      changed('board');
+      return Promise.resolve(done(action.type));
     }
     if (action.type === 'LoadMore') {
       if (action.list !== 'spenders') return null;

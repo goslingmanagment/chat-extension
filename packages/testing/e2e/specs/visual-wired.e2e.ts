@@ -515,7 +515,9 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await waitOursText('modal', 'Fan Alder', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
       // The hub does not answer the queue this once.
       await hub().command({ op: 'scriptHttp', match: 'route', exchanges: [{ route: 'clientSpenderAwaitingReply', request: {}, response: { status: 504, body: { error: 'gateway_timeout' } } }] });
-      await pressOurs('modal', '.cg-sp__filters button', /^Ждут ответа/);
+      // X67: «Ждут ответа» waits in the old window's «Фильтр» menu.
+      await pressOurs('modal', '.cg-sp__filters button', /^Фильтр/);
+      await pressOurs('modal', '.cg-sp__filters [role="menuitemradio"]', /^Ждут ответа/);
       await browser.waitUntil(() => oursExists('modal', '[data-cg-waiting-fallback]'), { timeout: 15_000, timeoutMsg: 'the board did not say that the queue was not read' });
       const said = await oursText('modal', '[data-cg-waiting-fallback]');
       expect(said).toMatch(/ChatGoose · CG-/);

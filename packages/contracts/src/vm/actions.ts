@@ -245,6 +245,8 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('Search', { list: z.enum(['spenders', 'newcomers', 'palette']), query: displayText(200) }),
   /** A collapsed shelf «ещё N · показать», or a click on a shelf in the stats (SP-045). */
   act('RevealShelf', { shelfId: HandleSchema }),
+  /** 1.38.0 (X67): a tier chip of the board («🐳 Whale 42»): the list shows that shelf alone; null — every shelf. */
+  act('SetSpendersShelf', { shelfId: z.nullable(HandleSchema) }),
   act('SetStatsExpanded', { expanded: z.boolean() }),
   act('SetNewcomersTab', { tab: z.enum(NEWCOMERS_TABS) }),
   act('SetNewcomersFilter', { filter: z.enum(GREETING_FILTERS) }),

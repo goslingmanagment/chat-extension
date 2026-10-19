@@ -50,6 +50,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   ResetFilters: { type: 'ResetFilters', list: 'spenders' },
   Search: { type: 'Search', list: 'palette', query: 'hub' },
   RevealShelf: { type: 'RevealShelf', shelfId: 'shelf-600' },
+  SetSpendersShelf: { type: 'SetSpendersShelf', shelfId: null },
   SetStatsExpanded: { type: 'SetStatsExpanded', expanded: true },
   SetNewcomersTab: { type: 'SetNewcomersTab', tab: 'all' },
   SetNewcomersFilter: { type: 'SetNewcomersFilter', filter: 'stopped' },

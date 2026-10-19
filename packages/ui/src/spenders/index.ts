@@ -10,10 +10,10 @@ import { SPENDERS_CSS, SpendersWindow } from './SpendersWindow';
 import { WINDOW_STYLES } from './window';
 
 export { SpendersWindow, SPENDERS_PAINT_MARKS } from './SpendersWindow';
-export { Board, BoardFilters, PERIOD_KEYS, waitCell, type BoardHandle, type BoardProps } from './Board';
+export { Board, BoardFilters, PERIOD_KEYS, type BoardHandle, type BoardProps } from './Board';
 export { StatsColumn, StatsExpanded, formatPct, statsDayName, zoneLabel, type StatsProps } from './Stats';
 export { useRowFocus, type RowFocus } from './rowFocus';
-export { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, fanCount, initialStop, isStop, nextStop, shelfLabel, statsShelfLabel, type BoardItem } from './rows';
+export { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, fanCount, initialStop, initialsOf, isStop, nextStop, shelfLabel, shelfTier, statsShelfLabel, type BoardItem } from './rows';
 export { PREVIEW_STYLES, Preview, matchesHotkey, type PreviewProps } from './preview/Preview';
 export { PANEL_STYLES, PanelPreview, type PreviewFallback } from './preview/PanelPreview';
 export { PreviewResult, type PreviewResultProps } from './preview/Result';

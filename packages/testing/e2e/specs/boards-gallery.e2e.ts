@@ -290,26 +290,6 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
     }
   });
 
-  it('[SP-012] a list column of 620 px or less prints the short column headers («Всего»)', async () => {
-    const header = async (): Promise<{ width: number; long: string; short: string }> =>
-      browser.execute(() => ({
-        width: window.__boards?.box('.cg-bd')?.width ?? 0,
-        long: window.__boards?.box('.cg-bd__colhead .cg-lbl-long')?.display ?? '',
-        short: window.__boards?.box('.cg-bd__colhead .cg-lbl-short')?.display ?? '',
-      }));
-    // X65: the preview no longer takes a column from the list; narrow the window itself.
-    await open('state=11a&theme=light&lang=ru', { width: 850, height: 800 });
-    const narrow = await header();
-    expect(narrow.width).toBeLessThanOrEqual(620);
-    expect(narrow.long).toBe('none');
-    expect(narrow.short).not.toBe('none');
-    await open('state=board-list&theme=light&lang=ru', VIEWPORTS[0]);
-    const wide = await header();
-    expect(wide.width).toBeGreaterThan(620);
-    expect(wide.long).not.toBe('none');
-    expect(wide.short).toBe('none');
-  });
-
   it('our text is the family’s on every site: the system UI face, smoothed, whatever the page’s own (ui-design §2.3; X60)', async () => {
     await open('state=11a&theme=dark&lang=ru', VIEWPORTS[0]);
     const styles = await browser.execute(() => ({
@@ -322,21 +302,21 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
     expect(styles.ourFont).not.toBe(styles.pageFont);
   });
 
-  it('[SP-015] [SP-017] «ждёт ответа» is the age in bold ink, with no blue dot; a deleted fan is a muted name and the word', async () => {
+  it('[SP-015] [SP-017] [X67] a fan who waits has the chip «ждёт N» by the name, with no blue dot; a deleted fan is a muted name and the word', async () => {
     await open('state=board-list&theme=light&lang=ru', VIEWPORTS[0]);
     const marks = await browser.execute(() => ({
-      waitWeight: Number(window.__boards?.style('.cg-bd__age.is-wait', 'font-weight') ?? '0'),
-      plainWeight: Number(window.__boards?.style('.cg-bd__age:not(.is-wait)', 'font-weight') ?? '0'),
+      wait: window.__boards?.text('.cg-bd__row .cg-bd__wait') ?? null,
       dots: window.__boards?.count('.cg-bd__row .cg-dot') ?? -1,
       deletedName: window.__boards?.style('.cg-bd__row.is-deleted .cg-bd__name', 'color') ?? null,
+      deletedWeight: Number(window.__boards?.style('.cg-bd__row.is-deleted .cg-bd__name', 'font-weight') ?? '0'),
       deletedDecoration: window.__boards?.style('.cg-bd__row.is-deleted .cg-bd__name', 'text-decoration-line') ?? null,
-      muted: window.__boards?.style('.cg-bd__age:not(.is-wait)', 'color') ?? null,
+      muted: window.__boards?.style('.cg-bd__row .cg-bd__handle', 'color') ?? null,
       word: window.__boards?.text('.cg-bd__row.is-deleted .cg-bd__tag') ?? null,
     }));
-    expect(marks.waitWeight).toBeGreaterThanOrEqual(500);
-    expect(marks.plainWeight).toBe(400);
+    expect(marks.wait).toMatch(/^ждёт /);
     expect(marks.dots).toBe(0);
     expect(marks.deletedName).toBe(marks.muted);
+    expect(marks.deletedWeight).toBe(400);
     expect(marks.deletedDecoration).toBe('none');
     expect(marks.word).toBe('удалён');
   });

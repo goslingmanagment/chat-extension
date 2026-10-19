@@ -103,6 +103,8 @@ export interface BoardQuery {
   readonly query: string;
   readonly filters: BoardFilters;
   readonly sort: SpendersSort;
+  /** X67: a tier chip — the list shows that shelf alone; null or absent — every shelf. */
+  readonly shelf?: string | null;
 }
 
 export interface ShelfView {
@@ -129,7 +131,7 @@ export interface BoardView {
  * The visible list: every row of every shelf, as the old Fansly extension
  * showed them (X66: the desktop's preview of four and two rows per shelf is
  * gone). A search or a filter shows every match and drops shelves without
- * one; an empty shelf is never drawn.
+ * one; a tier chip keeps its shelf alone (X67); an empty shelf is never drawn.
  * `source` — rows from another read placed on the board's shelves (the
  * server's «ждут ответа» queue). The plain view's shelf headers carry the
  * board's numbers (`shelfTotals`); a narrowed list's count the fans it shows
@@ -148,7 +150,7 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
   // which is the lifetime itself on a lifetime board).
   const lifetimeShelved = index.tiers === null || index.tiers.metric !== 'grossAmountMills' || index.period === 'lifetime';
   for (const shelf of placed) {
-    if (shelf.rows.length === 0) continue;
+    if (shelf.rows.length === 0 || (query.shelf !== undefined && query.shelf !== null && shelf.id !== query.shelf)) continue;
     const matching = narrowed ? shelf.rows.filter((row) => rowMatches(row, query.filters, needle)) : shelf.rows;
     shown += matching.length;
     if (matching.length === 0) continue;

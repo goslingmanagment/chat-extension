@@ -64,13 +64,15 @@ export function boardOf(ctx: ScenarioCtx, fans: readonly BoardFan[], patch: Part
   const { selected = null, ...rest } = patch;
   const counts: Record<string, number> = { all: fans.length, waiting: fans.filter((item) => item.lastFrom === 'fan').length, new: fans.filter((item) => item.isNew === true).length };
   const base = board(ctx, views.ready());
+  const shelves = boardShelves(ctx, fans, selected, rest.sort ?? 'sum');
   return {
     ...base,
     filters: base.filters.filter((filter) => PRIMARY.includes(filter.id)).map((filter) => ({ ...filter, count: counts[filter.id] ?? null })),
-    shelves: boardShelves(ctx, fans, selected, rest.sort ?? 'sum'),
+    shelves,
+    // X67: the tier chips — every shelf with fans and bounds, none pressed.
+    tiers: shelves.filter((shelf) => shelf.rows.length > 0 && (shelf.range.fromMills !== null || shelf.range.toMills !== null)).map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.rows.length, pressed: false })),
     footer: { loaded: fans.length, total: fans.length, shown: null, stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'complete' } },
     previewOpen: selected !== null,
-    keys: [],
     ...rest,
   };
 }

@@ -493,6 +493,15 @@ describe('[X66] [SP-018] [SP-019] [SP-020] the visible list', () => {
     expect(plain.order).toEqual(['501', '502', '503', '504', '505', '506', '507', '508']);
   });
 
+  it('[X67] a tier chip keeps its shelf alone; it is a view of the list, not a filter', () => {
+    const top = viewBoard(index, query({ shelf: 'shelf-350-600' }));
+    expect(top.shelves.map((shelf) => shelf.id)).toEqual(['shelf-350-600']);
+    expect(top.order).toEqual(['506', '507', '508']);
+    expect(top.narrowed).toBe(false);
+    expect(viewBoard(index, query({ shelf: 'shelf-350-600', query: 'hanna' })).order).toEqual(['508']);
+    expect(viewBoard(index, query({ shelf: null })).order).toEqual(viewBoard(index, query()).order);
+  });
+
   it('[X66] the list is the lifetime board; the second sum is the period board\'s, zero for a fan a whole period board does not list', () => {
     const list = indexBoard(smallBoard([{ id: '601', lifetime: usd(900) }, { id: '602', lifetime: usd(700) }, { id: '603', lifetime: usd(40) }], { period: 'lifetime' }));
     const d30 = indexBoard(smallBoard([{ id: '601', lifetime: usd(900), period: usd(120) }, { id: '603', lifetime: usd(40), period: usd(40) }]));

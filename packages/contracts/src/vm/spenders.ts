@@ -66,6 +66,11 @@ export interface SpendersBoardVM {
   readonly filters: readonly { readonly id: SpendersFilter; readonly label: Msg; readonly count: number | null; readonly pressed: boolean }[];
   readonly sort: SpendersSort;
   readonly shelves: readonly ShelfVM[];
+  /**
+   * 1.38.0 (X67): the tier chips of the old extension — every shelf of the board that has fans, with its count of
+   * loaded fans; `pressed` — the list shows that shelf alone (`SetSpendersShelf`). Absent — no chips.
+   */
+  readonly tiers?: readonly { readonly id: string; readonly range: ShelfVM['range']; readonly fans: number; readonly pressed: boolean }[];
   /** «40 из 40 фанов, охват полный. Показано: 7», «данные на 09:18». */
   readonly footer: {
     readonly loaded: number;
