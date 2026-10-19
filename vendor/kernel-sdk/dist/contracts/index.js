@@ -38,6 +38,8 @@ export * from "./routes-of-links";
 export * from "./routes-page-browser";
 // The operator screen's one read (`GET /api/v1/ops/live`), spread by routes.ts.
 export * from "./routes-ops-live";
+// The Anthropic accounts Hub spends (`/api/v1/admin/ai/accounts`), spread by routes.ts.
+export * from "./routes-ai-accounts";
 export * from "./ofapi-extended-commands";
 export * from "./routes-ofapi-banned-words";
 export * from "./routes-ofapi-read-collections";

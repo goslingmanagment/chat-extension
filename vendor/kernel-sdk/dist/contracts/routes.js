@@ -12,6 +12,7 @@ import { ofapiCollectionRouteSchemas } from "./routes-ofapi-collection";
 import { ofLinksRouteSchemas } from "./routes-of-links";
 import { pageBrowserRouteSchemas } from "./routes-page-browser";
 import { opsLiveRouteSchemas } from "./routes-ops-live";
+import { aiAccountRouteSchemas } from "./routes-ai-accounts";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, FANSLY_CLIENT_CHECK_ROUTES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
 // Agent Read Plane operations #1-#10. Declared in their own module (one coherent
@@ -7063,6 +7064,7 @@ const baseRouteSchemas = {
             409: errorResponseSchema,
         },
     },
+    ...aiAccountRouteSchemas,
     adminAiPersonasList: {
         auth: { kind: "owner-session" },
         tags: ["admin"],

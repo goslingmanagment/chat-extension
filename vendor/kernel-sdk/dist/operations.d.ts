@@ -1,4 +1,12 @@
 export declare const kernelOperations: {
+    readonly adminAiAccountUpdate: {
+        readonly method: "PATCH";
+        readonly path: "/api/v1/admin/ai/accounts/:accountId";
+    };
+    readonly adminAiAccountsList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/ai/accounts";
+    };
     readonly adminAiPersonaArchive: {
         readonly method: "DELETE";
         readonly path: "/api/v1/admin/ai/personas/:key";

@@ -21565,8 +21565,11 @@ export declare const agentSyncResourceKeyEnum: z.ZodEnum<{
  *  what its operator last said of itself and how old that is, the owner's
  *  stop, the login, the session (no token), the exit IP against the pinned
  *  one (never the proxy's address or credentials), the buffer against its
- *  caps, the delivery of its events, the versions, the last self-test and
- *  alarm, and the browser's alerts that hold now. The operator's steps,
+ *  caps, the delivery of its events, the versions, the last self-test,
+ *  whether a Hub request can go now, Chrome's crash dumps counted, the exit's
+ *  refusals counted, the last alarm with its age, the site's own requests as
+ *  observed (kept for Hub's word, the last hour's journal), and the browser's
+ *  alerts that hold now. The operator's steps,
  *  stop reasons and alarm kinds grow with its protocol (spec §6.3): strings. */
 export declare const agentSyncBrowserStatusSchema: z.ZodObject<{
     profileId: z.ZodString;
@@ -21643,11 +21646,62 @@ export declare const agentSyncBrowserStatusSchema: z.ZodObject<{
         at: z.ZodNullable<z.ZodString>;
         failed: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>;
-    alarm: z.ZodNullable<z.ZodObject<{
+    hubSend: z.ZodObject<{
+        allowed: z.ZodNullable<z.ZodBoolean>;
+        reason: z.ZodNullable<z.ZodString>;
+        since: z.ZodNullable<z.ZodString>;
+        forMs: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strict>;
+    crashDumps: z.ZodNullable<z.ZodObject<{
+        completed: z.ZodObject<{
+            count: z.ZodNumber;
+            newestAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        pending: z.ZodObject<{
+            count: z.ZodNumber;
+            newestAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+        countedAt: z.ZodString;
+    }, z.core.$strict>>;
+    egressFailures: z.ZodNullable<z.ZodObject<{
+        since: z.ZodString;
+        socks: z.ZodArray<z.ZodObject<{
+            kind: z.ZodString;
+            step: z.ZodString;
+            rep: z.ZodNullable<z.ZodNumber>;
+            cls: z.ZodString;
+            count: z.ZodNumber;
+            lastAt: z.ZodString;
+            lastHost: z.ZodString;
+        }, z.core.$strict>>;
+        dnr: z.ZodArray<z.ZodObject<{
+            cls: z.ZodString;
+            probe: z.ZodBoolean;
+            count: z.ZodNumber;
+            lastAt: z.ZodString;
+            lastHost: z.ZodString;
+        }, z.core.$strict>>;
+    }, z.core.$strict>>;
+    lastAlarm: z.ZodNullable<z.ZodObject<{
         kind: z.ZodString;
         at: z.ZodString;
+        ageMs: z.ZodNumber;
         detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
     }, z.core.$strict>>;
+    siteObserved: z.ZodObject<{
+        unconfirmed: z.ZodNullable<z.ZodNumber>;
+        oldestAt: z.ZodNullable<z.ZodString>;
+        oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+        dropped: z.ZodNullable<z.ZodNumber>;
+        lastHour: z.ZodObject<{
+            sent: z.ZodNumber;
+            ended: z.ZodNumber;
+            unended: z.ZodNumber;
+            responses: z.ZodNumber;
+            responsesWithoutSend: z.ZodNumber;
+            lastRecordedAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+    }, z.core.$strict>;
     alerts: z.ZodArray<z.ZodObject<{
         kind: z.ZodString;
         detail: z.ZodString;
@@ -21676,6 +21730,7 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
         lastSendAt: z.ZodNullable<z.ZodString>;
         minGapLastHourMs: z.ZodNullable<z.ZodNumber>;
         violationsLastDay: z.ZodNumber;
+        siteCloseLastDay: z.ZodNumber;
     }, z.core.$strict>;
     sendsLastHour: z.ZodObject<{
         urgent: z.ZodNumber;
@@ -21859,11 +21914,62 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
             at: z.ZodNullable<z.ZodString>;
             failed: z.ZodNullable<z.ZodString>;
         }, z.core.$strict>;
-        alarm: z.ZodNullable<z.ZodObject<{
+        hubSend: z.ZodObject<{
+            allowed: z.ZodNullable<z.ZodBoolean>;
+            reason: z.ZodNullable<z.ZodString>;
+            since: z.ZodNullable<z.ZodString>;
+            forMs: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>;
+        crashDumps: z.ZodNullable<z.ZodObject<{
+            completed: z.ZodObject<{
+                count: z.ZodNumber;
+                newestAt: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            pending: z.ZodObject<{
+                count: z.ZodNumber;
+                newestAt: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+            countedAt: z.ZodString;
+        }, z.core.$strict>>;
+        egressFailures: z.ZodNullable<z.ZodObject<{
+            since: z.ZodString;
+            socks: z.ZodArray<z.ZodObject<{
+                kind: z.ZodString;
+                step: z.ZodString;
+                rep: z.ZodNullable<z.ZodNumber>;
+                cls: z.ZodString;
+                count: z.ZodNumber;
+                lastAt: z.ZodString;
+                lastHost: z.ZodString;
+            }, z.core.$strict>>;
+            dnr: z.ZodArray<z.ZodObject<{
+                cls: z.ZodString;
+                probe: z.ZodBoolean;
+                count: z.ZodNumber;
+                lastAt: z.ZodString;
+                lastHost: z.ZodString;
+            }, z.core.$strict>>;
+        }, z.core.$strict>>;
+        lastAlarm: z.ZodNullable<z.ZodObject<{
             kind: z.ZodString;
             at: z.ZodString;
+            ageMs: z.ZodNumber;
             detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
         }, z.core.$strict>>;
+        siteObserved: z.ZodObject<{
+            unconfirmed: z.ZodNullable<z.ZodNumber>;
+            oldestAt: z.ZodNullable<z.ZodString>;
+            oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+            dropped: z.ZodNullable<z.ZodNumber>;
+            lastHour: z.ZodObject<{
+                sent: z.ZodNumber;
+                ended: z.ZodNumber;
+                unended: z.ZodNumber;
+                responses: z.ZodNumber;
+                responsesWithoutSend: z.ZodNumber;
+                lastRecordedAt: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>;
+        }, z.core.$strict>;
         alerts: z.ZodArray<z.ZodObject<{
             kind: z.ZodString;
             detail: z.ZodString;
@@ -21963,6 +22069,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             lastSendAt: z.ZodNullable<z.ZodString>;
             minGapLastHourMs: z.ZodNullable<z.ZodNumber>;
             violationsLastDay: z.ZodNumber;
+            siteCloseLastDay: z.ZodNumber;
         }, z.core.$strict>;
         sendsLastHour: z.ZodObject<{
             urgent: z.ZodNumber;
@@ -22146,11 +22253,62 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 at: z.ZodNullable<z.ZodString>;
                 failed: z.ZodNullable<z.ZodString>;
             }, z.core.$strict>;
-            alarm: z.ZodNullable<z.ZodObject<{
+            hubSend: z.ZodObject<{
+                allowed: z.ZodNullable<z.ZodBoolean>;
+                reason: z.ZodNullable<z.ZodString>;
+                since: z.ZodNullable<z.ZodString>;
+                forMs: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strict>;
+            crashDumps: z.ZodNullable<z.ZodObject<{
+                completed: z.ZodObject<{
+                    count: z.ZodNumber;
+                    newestAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>;
+                pending: z.ZodObject<{
+                    count: z.ZodNumber;
+                    newestAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>;
+                countedAt: z.ZodString;
+            }, z.core.$strict>>;
+            egressFailures: z.ZodNullable<z.ZodObject<{
+                since: z.ZodString;
+                socks: z.ZodArray<z.ZodObject<{
+                    kind: z.ZodString;
+                    step: z.ZodString;
+                    rep: z.ZodNullable<z.ZodNumber>;
+                    cls: z.ZodString;
+                    count: z.ZodNumber;
+                    lastAt: z.ZodString;
+                    lastHost: z.ZodString;
+                }, z.core.$strict>>;
+                dnr: z.ZodArray<z.ZodObject<{
+                    cls: z.ZodString;
+                    probe: z.ZodBoolean;
+                    count: z.ZodNumber;
+                    lastAt: z.ZodString;
+                    lastHost: z.ZodString;
+                }, z.core.$strict>>;
+            }, z.core.$strict>>;
+            lastAlarm: z.ZodNullable<z.ZodObject<{
                 kind: z.ZodString;
                 at: z.ZodString;
+                ageMs: z.ZodNumber;
                 detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
             }, z.core.$strict>>;
+            siteObserved: z.ZodObject<{
+                unconfirmed: z.ZodNullable<z.ZodNumber>;
+                oldestAt: z.ZodNullable<z.ZodString>;
+                oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+                dropped: z.ZodNullable<z.ZodNumber>;
+                lastHour: z.ZodObject<{
+                    sent: z.ZodNumber;
+                    ended: z.ZodNumber;
+                    unended: z.ZodNumber;
+                    responses: z.ZodNumber;
+                    responsesWithoutSend: z.ZodNumber;
+                    lastRecordedAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>;
+            }, z.core.$strict>;
             alerts: z.ZodArray<z.ZodObject<{
                 kind: z.ZodString;
                 detail: z.ZodString;
@@ -41197,6 +41355,7 @@ export declare const agentRouteSchemas: {
                         lastSendAt: z.ZodNullable<z.ZodString>;
                         minGapLastHourMs: z.ZodNullable<z.ZodNumber>;
                         violationsLastDay: z.ZodNumber;
+                        siteCloseLastDay: z.ZodNumber;
                     }, z.core.$strict>;
                     sendsLastHour: z.ZodObject<{
                         urgent: z.ZodNumber;
@@ -41380,11 +41539,62 @@ export declare const agentRouteSchemas: {
                             at: z.ZodNullable<z.ZodString>;
                             failed: z.ZodNullable<z.ZodString>;
                         }, z.core.$strict>;
-                        alarm: z.ZodNullable<z.ZodObject<{
+                        hubSend: z.ZodObject<{
+                            allowed: z.ZodNullable<z.ZodBoolean>;
+                            reason: z.ZodNullable<z.ZodString>;
+                            since: z.ZodNullable<z.ZodString>;
+                            forMs: z.ZodNullable<z.ZodNumber>;
+                        }, z.core.$strict>;
+                        crashDumps: z.ZodNullable<z.ZodObject<{
+                            completed: z.ZodObject<{
+                                count: z.ZodNumber;
+                                newestAt: z.ZodNullable<z.ZodString>;
+                            }, z.core.$strict>;
+                            pending: z.ZodObject<{
+                                count: z.ZodNumber;
+                                newestAt: z.ZodNullable<z.ZodString>;
+                            }, z.core.$strict>;
+                            countedAt: z.ZodString;
+                        }, z.core.$strict>>;
+                        egressFailures: z.ZodNullable<z.ZodObject<{
+                            since: z.ZodString;
+                            socks: z.ZodArray<z.ZodObject<{
+                                kind: z.ZodString;
+                                step: z.ZodString;
+                                rep: z.ZodNullable<z.ZodNumber>;
+                                cls: z.ZodString;
+                                count: z.ZodNumber;
+                                lastAt: z.ZodString;
+                                lastHost: z.ZodString;
+                            }, z.core.$strict>>;
+                            dnr: z.ZodArray<z.ZodObject<{
+                                cls: z.ZodString;
+                                probe: z.ZodBoolean;
+                                count: z.ZodNumber;
+                                lastAt: z.ZodString;
+                                lastHost: z.ZodString;
+                            }, z.core.$strict>>;
+                        }, z.core.$strict>>;
+                        lastAlarm: z.ZodNullable<z.ZodObject<{
                             kind: z.ZodString;
                             at: z.ZodString;
+                            ageMs: z.ZodNumber;
                             detail: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean]>>;
                         }, z.core.$strict>>;
+                        siteObserved: z.ZodObject<{
+                            unconfirmed: z.ZodNullable<z.ZodNumber>;
+                            oldestAt: z.ZodNullable<z.ZodString>;
+                            oldestAgeMs: z.ZodNullable<z.ZodNumber>;
+                            dropped: z.ZodNullable<z.ZodNumber>;
+                            lastHour: z.ZodObject<{
+                                sent: z.ZodNumber;
+                                ended: z.ZodNumber;
+                                unended: z.ZodNumber;
+                                responses: z.ZodNumber;
+                                responsesWithoutSend: z.ZodNumber;
+                                lastRecordedAt: z.ZodNullable<z.ZodString>;
+                            }, z.core.$strict>;
+                        }, z.core.$strict>;
                         alerts: z.ZodArray<z.ZodObject<{
                             kind: z.ZodString;
                             detail: z.ZodString;
