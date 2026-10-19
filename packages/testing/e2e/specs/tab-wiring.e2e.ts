@@ -39,6 +39,7 @@ const MOD = MAC ? Key.Command : Key.Control;
 const PANEL = MAC ? [Key.Command, Key.Shift] : [Key.Control, Key.Alt];
 /** The fake hub's model answers Reply with Split so (fake-hub/ai.ts). */
 const REPLY_PARTS = ['Hey you, thanks for writing!', 'How was your day?'];
+const FIXED_DRAFT = 'Here is a smoother version of your draft.';
 const ACTIVE_EDITOR = '[data-stand-composer-slot]:not([style*="display: none"]) .ProseMirror';
 
 describe('tab wiring — the real dock, its controllers and the keys on the stand against the fake hub', () => {
@@ -154,7 +155,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     await dockIs((d) => d.actions['fix'] === true, 'Fix is on: the composer holds a draft');
     await browser.keys([MOD, 'i']);
     // X68: the key's deferred insert — the fixed text takes the draft's place, nothing opens for it.
-    await browser.waitUntil(async () => { const now = await composerText(a1); return now !== null && now !== '' && now !== REPLY_PARTS[0]; }, { timeout: 20_000, timeoutMsg: 'Fix by its key did not replace the draft' });
+    await browser.waitUntil(async () => (await composerText(a1)) === FIXED_DRAFT, { timeout: 20_000, timeoutMsg: 'Fix by its key did not replace the draft' });
     expect(callsTo((await hub().journal(mark)).entries, 'aiFeatureStream').map((entry) => entry.status)).toEqual([200]);
     // TipTap never saw the key: the editor is not in italic.
     expect((await callStand('composerState', accountA, a1))?.marks['italic'] ?? false).toBe(false);
@@ -197,6 +198,9 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
   });
 
   it('[UI-012] another chat has its own dock state: the first chat’s result does not follow, and comes back with its chat', async () => {
+    // X68 leaves no Fix sheet. Open a Reply result explicitly for this separate chat-state scenario.
+    await press(await dockIs((d) => d.actions['reply'] === true, 'Reply is ready'), 'action:reply');
+    const original = await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done', 'the first chat has a Reply result');
     await callStand('openChat', accountA, a2, { newTab: true });
     await waitForChatReady(accountA, a2);
     const other = await dockIs((d) => d.status === 'ready' && d.target !== null && d.target.endsWith(`:${a2}`), 'the dock of the second chat');
@@ -204,8 +208,8 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     expect(await composerText(a2)).toBe('');
     await callStand('openChat', accountA, a1);
     const back = await dockIs((d) => d.target !== null && d.target.endsWith(`:${a1}`) && d.result !== null, 'the first chat’s result is back');
-    expect(back.result?.state).toBe('done');
-    expect(await composerText(a1)).toBe(REPLY_PARTS[0]);
+    expect(back.result).toMatchObject({ state: 'done', opId: original.result?.opId });
+    expect(await composerText(a1)).toBe(FIXED_DRAFT);
   });
 
   it('[AI-060] [UI-014] the Recap button opens the Recap sheet and generates nothing; Esc hides it', async () => {
