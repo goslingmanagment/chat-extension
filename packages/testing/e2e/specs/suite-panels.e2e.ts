@@ -241,11 +241,11 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     await browser.keys([...PANEL, 'm']);
     await waitOursText('modal', 'Fan Alder', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
 
-    // SP-024: one press, one more read of the board.
+    // SP-024: one press, one more read of the board. X65: «Обновить» is an icon of the window's header, named by its aria-label.
     const board = await hub().mark();
-    await browser.waitUntil(() => oursExists('modal', '.cg-sp__refresh button'), { timeout: 5000, timeoutMsg: 'the board has no «Обновить»' });
-    expect(await reach('modal', '.cg-sp__refresh button')).toMatchObject({ clippedPx: 0, onTop: true });
-    await pressOurs('modal', '.cg-sp__refresh button', /^Обновить/);
+    await browser.waitUntil(() => oursExists('modal', '.cg-sp__top .cg-sp__refresh button[aria-label="Обновить"]'), { timeout: 5000, timeoutMsg: 'the board has no «Обновить»' });
+    expect(await reach('modal', '.cg-sp__top .cg-sp__refresh button')).toMatchObject({ clippedPx: 0, onTop: true });
+    await ours('modal', '.cg-sp__top .cg-sp__refresh button').click();
     await browser.waitUntil(async () => (await hub().journal(board)).entries.some((call) => /spender/i.test(String(call.route)) && call.status === 200), { timeout: 10_000, timeoutMsg: '«Обновить» read nothing from the hub' });
     await waitOursText('modal', 'Fan Alder', 'the board after «Обновить»', { selector: '.cg-sp' });
 

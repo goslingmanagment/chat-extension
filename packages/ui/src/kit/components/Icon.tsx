@@ -47,6 +47,8 @@ const PATHS = {
     </>
   ),
   chevronDown: <path d="M4.5 6.5L8 10l3.5-3.5" />,
+  /** The previous fan of the Spenders preview (X65); its twin, the next one, is `chevronDown`. */
+  chevronUp: <path d="M4.5 9.5L8 6l3.5 3.5" />,
   /** Review — the conversation's score: a gauge. */
   gauge: (
     <>

@@ -8,9 +8,13 @@
 // The same pane is the card of «Новые», where the draft is the greeting
 // draft (NF-012). It renders PreviewVM and nothing else: it never reads
 // ChatSpace and never loads a chat's history.
+//
+// The pieces below are shared with the Spenders panel (PanelPreview.tsx,
+// X65), which lays them out under the list across the window.
 
-import { type JSX, type TargetedKeyboardEvent } from 'preact';
+import { type ComponentChildren, type JSX, type TargetedKeyboardEvent } from 'preact';
 
+import { type IsoTimestamp } from '@cg/contracts/primitives';
 import { type ClaimVM, type I18n, type Msg, type PreviewActionId, type PreviewSource, type PreviewVM } from '@cg/contracts/vm';
 
 import { ActionButton, Button, Dot, ErrorCard, Icon, Money, TextField, ViewState, isComposing, useCountdown, useDispatch, useI18n, useMinuteClock, useNowFn, useTooltip, useView, type StyleSource } from '../../kit';
@@ -40,9 +44,13 @@ export function matchesHotkey(event: KeyboardEvent, aria: string): boolean {
   });
 }
 
-function metaLine(i18n: I18n, header: NonNullable<PreviewVM['header']>): string | null {
+export function metaLine(i18n: I18n, header: NonNullable<PreviewVM['header']>): string | null {
   if (header.newcomer !== null) return i18n.t('newcomers.cardMeta', { kind: i18n.t(KIND_KEYS[header.newcomer.kind]), age: { age: header.newcomer.subscribedAt } });
-  const { weWroteAt, fanWroteAt } = header;
+  return bothAges(i18n, header);
+}
+
+/** «Мы писали 10 ч назад, фан 7 мин назад» (SP-052); also the tooltip of the list's «Ждёт» (X65). Null — neither is known. */
+export function bothAges(i18n: I18n, { weWroteAt, fanWroteAt }: { readonly weWroteAt: IsoTimestamp | null; readonly fanWroteAt: IsoTimestamp | null }): string | null {
   if (weWroteAt !== null && fanWroteAt !== null) return i18n.t('preview.meta', { ourAge: { age: weWroteAt }, fanAge: { age: fanWroteAt } });
   if (weWroteAt !== null) return i18n.t('preview.metaFanUnknown', { ourAge: { age: weWroteAt } });
   if (fanWroteAt !== null) return i18n.t('preview.metaOurUnknown', { fanAge: { age: fanWroteAt } });
@@ -94,14 +102,17 @@ function UnreadLine({ unread }: { readonly unread: PreviewVM['unread'] }): JSX.E
   );
 }
 
-function ArchiveLine({ vm }: { readonly vm: PreviewVM }): JSX.Element {
+/** The archive's time, lag and coverage with «Обновить архив»; `quiet` — the Spenders panel's centred line, `lead` its own words (X65). */
+export function ArchiveLine({ vm, quiet = false, lead = null }: { readonly vm: PreviewVM; readonly quiet?: boolean; readonly lead?: string | null }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const { archive } = vm;
   const time = timeOrUnknown(i18n, archive.stamp.asOf);
   const refresh = archive.refresh;
+  // In the panel an unknown coverage is the norm of a site whose archive does not say it: not spelled out.
+  const coverageSays = quiet ? archive.stamp.coverage === 'partial' : archive.stamp.coverage !== 'complete';
   return (
-    <div class="cg-pv__arch">
+    <div class={`cg-pv__arch${quiet ? ' is-quiet' : ''}`}>
       {vm.fanWroteNew ? (
         // The fan's new text is not shown until the archive has it (§6.7.5): only this line.
         <span class="cg-pv__lag" role="status">
@@ -110,8 +121,8 @@ function ArchiveLine({ vm }: { readonly vm: PreviewVM }): JSX.Element {
         </span>
       ) : (
         <span class="cg-pv__asof">
-          {archive.lagMinutes === null ? i18n.t('common.archiveAsOf', { time }) : i18n.t('preview.archiveLag', { time, n: archive.lagMinutes })}
-          {archive.stamp.coverage === 'complete' ? null : <span class="cg-pv__cov">{coverageWord(i18n, archive.stamp.coverage)}</span>}
+          {lead ?? (archive.lagMinutes === null ? i18n.t('common.archiveAsOf', { time }) : i18n.t('preview.archiveLag', { time, n: archive.lagMinutes }))}
+          {coverageSays && lead === null ? <span class="cg-pv__cov">{coverageWord(i18n, archive.stamp.coverage)}</span> : null}
         </span>
       )}
       <Button
@@ -179,37 +190,19 @@ function LeaseNote({ claim, hasResult, stoppedNote }: { readonly claim: ClaimVM;
   }
 }
 
-function hasBody(vm: PreviewVM): boolean {
+export function hasBody(vm: PreviewVM): boolean {
   return vm.view.s !== 'error' && vm.view.s !== 'forbidden';
 }
 
-export interface PreviewProps {
-  /** Which list the preview belongs to: the Spenders board, «Новые», the palette's online fans. */
-  readonly from: PreviewSource;
-  /** The × of the Spenders preview; the «Новые» card has none (ui-design §4.17). */
-  readonly closable?: boolean;
-  /** A hint at the Hi button: «AI ничего не отправляет сам…» in «Новые» (NF-028). */
-  readonly hiHint?: string | null;
-}
-
-export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.Element {
-  const i18n = useI18n();
+/**
+ * The keys of a preview with focus inside it: ⌘E / ⌘I / ⌘G / ⌘P start THIS fan's generation (HK-042); ← → and
+ * J / K outside our fields go to the neighbouring fan (SP-056).
+ */
+export function usePreviewKeys(vm: PreviewVM): (event: TargetedKeyboardEvent<HTMLElement>) => void {
   const dispatch = useDispatch();
-  const vm = useView({ of: 'preview', from }).value;
-  // «Мы писали 10 ч назад» moves with the clock.
-  useMinuteClock(vm.header !== null);
-  // The local draft: the Fix source in a Spenders preview, the greeting draft in the card of «Новые» (NF-012,
-  // ui-design §10 «черновик — поле как в превью») — there the field is always at hand, Fix or not.
-  const greetingDraft = from === 'newcomers';
-  const handle = vm.handle;
-  // The model echoes every change of the draft; an echo of an earlier one never undoes what was typed since.
-  const draft = useOwnEchoes(vm.draft.text, handle);
-  const showDraft = greetingDraft || vm.bar.actions.fix !== undefined || draft.shown !== '';
-
-  const onKeyDown = (event: TargetedKeyboardEvent<HTMLElement>): void => {
+  return (event) => {
     if (event.defaultPrevented || isComposing(event)) return;
-    // ⌘E / ⌘I / ⌘G / ⌘P with focus inside the preview: the generation of THIS fan (HK-042). The early
-    // dispatcher gets a global key first; what it took comes here already prevented.
+    // The early dispatcher gets a global key first; what it took comes here already prevented.
     for (const id of Object.keys(vm.bar.actions) as PreviewActionId[]) {
       const action = vm.bar.actions[id];
       if (action === undefined || action.hotkey === null || !matchesHotkey(event, action.hotkey.aria)) continue;
@@ -221,12 +214,93 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
     if (isTextEntry(event.target) || !isPlainKey(event) || event.shiftKey) return;
     // Arrows inside an open menu are the menu's.
     if (event.target instanceof Element && event.target.closest('[role="menu"]') !== null) return;
-    // ← → and J / K outside our fields: the neighbouring fan (SP-056). Letters by the physical key.
+    // Letters by the physical key.
     const step = event.code === 'ArrowLeft' || event.code === 'KeyK' ? vm.neighbors.previous : event.code === 'ArrowRight' || event.code === 'KeyJ' ? vm.neighbors.next : undefined;
     if (step === undefined) return;
     event.preventDefault();
     if (step !== null) void dispatch(step);
   };
+}
+
+/**
+ * The local draft: the Fix source in a Spenders preview, the greeting draft in the card of «Новые» (NF-012,
+ * ui-design §10 «черновик — поле как в превью») — there the field is always at hand, Fix or not. Nothing when the
+ * preview has no Fix and the draft is empty. `children` stand inside the field's box (Fix of the panel, X65).
+ */
+export function DraftField({ vm, class: extra, children }: { readonly vm: PreviewVM; readonly class?: string; readonly children?: ComponentChildren }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const handle = vm.handle;
+  const greetingDraft = vm.from === 'newcomers';
+  // The model echoes every change of the draft; an echo of an earlier one never undoes what was typed since.
+  const draft = useOwnEchoes(vm.draft.text, handle);
+  if (!greetingDraft && vm.bar.actions.fix === undefined && draft.shown === '') return null;
+  return (
+    <div class={`cg-pv__draft${extra === undefined ? '' : ` ${extra}`}`}>
+      <TextField
+        value={draft.shown}
+        label={i18n.t(greetingDraft ? 'newcomers.greetingDraft.aria' : 'preview.draft.aria')}
+        placeholder={i18n.text(vm.draft.placeholder)}
+        multiline
+        minHeight={36}
+        maxHeight={120}
+        maxLength={vm.draft.maxChars}
+        onValue={(typed) => {
+          if (handle === null) return;
+          const text = typed.slice(0, vm.draft.maxChars);
+          draft.sent(text);
+          void dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text });
+        }}
+      />
+      {children}
+    </div>
+  );
+}
+
+/** The work zone, which scrolls: `children` (the lease note of «Новые»), the result with «Отправить» on every part, or the hint. */
+export function WorkZone({ vm, children }: { readonly vm: PreviewVM; readonly children?: ComponentChildren }): JSX.Element {
+  const i18n = useI18n();
+  return (
+    <div class="cg-pv__work">
+      {children}
+      {vm.result !== null ? (
+        <MediaAttachedContext.Provider value={vm.media?.attached ?? null}>
+          <PreviewResult result={vm.result} stoppedNote={vm.stoppedNote} />
+        </MediaAttachedContext.Provider>
+      ) : vm.idleHint === null ? null : (
+        <div class="cg-pv__idle">{i18n.text(vm.idleHint)}</div>
+      )}
+    </div>
+  );
+}
+
+/** The archive feed of the preview; `feed` — what the Spenders panel shows while the archive has nothing (X65). */
+export function PreviewFeed({ vm, feed = vm.feed }: { readonly vm: PreviewVM; readonly feed?: PreviewVM['feed'] }): JSX.Element {
+  return (
+    <Feed
+      handle={vm.handle}
+      feed={feed}
+      empty={vm.view.s === 'empty' ? vm.view.why : vm.view.s === 'loading' ? null : { key: 'preview.feed.empty' }}
+      loading={vm.view.s === 'loading'}
+    />
+  );
+}
+
+export interface PreviewProps {
+  /** Which list the preview belongs to: «Новые», the palette's online fans (the Spenders board has its panel, X65). */
+  readonly from: PreviewSource;
+  /** The × of a preview; the «Новые» card has none (ui-design §4.17). */
+  readonly closable?: boolean;
+  /** A hint at the Hi button: «AI ничего не отправляет сам…» in «Новые» (NF-028). */
+  readonly hiHint?: string | null;
+}
+
+export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.Element {
+  const i18n = useI18n();
+  const vm = useView({ of: 'preview', from }).value;
+  // «Мы писали 10 ч назад» moves with the clock.
+  useMinuteClock(vm.header !== null);
+  const onKeyDown = usePreviewKeys(vm);
 
   return (
     <section class="cg-pv" aria-label={i18n.t(from === 'newcomers' ? 'newcomers.cardLabel' : 'preview.label')} data-cg-preview={vm.view.s} onKeyDown={onKeyDown}>
@@ -236,43 +310,16 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
           <UnreadLine unread={vm.unread} />
           <ArchiveLine vm={vm} />
           {vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
-          <Feed handle={handle} feed={vm.feed} empty={vm.view.s === 'empty' ? vm.view.why : vm.view.s === 'loading' ? null : { key: 'preview.feed.empty' }} loading={vm.view.s === 'loading'} />
+          <PreviewFeed vm={vm} />
           {/* The draft, the lease and the strip never scroll: the strip's «Тон» menu opens upward over the feed,
               and a scrolling box would clip it to its own height (only «Без тона» stayed reachable). */}
           <div class="cg-pv__tools">
-            {showDraft ? (
-              <div class="cg-pv__draft">
-                <TextField
-                  value={draft.shown}
-                  label={i18n.t(greetingDraft ? 'newcomers.greetingDraft.aria' : 'preview.draft.aria')}
-                  placeholder={i18n.text(vm.draft.placeholder)}
-                  multiline
-                  minHeight={36}
-                  maxHeight={120}
-                  maxLength={vm.draft.maxChars}
-                  onValue={(typed) => {
-                    if (handle === null) return;
-                    const text = typed.slice(0, vm.draft.maxChars);
-                    draft.sent(text);
-                    void dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text });
-                  }}
-                />
-              </div>
-            ) : null}
+            <DraftField vm={vm} />
             {vm.claim !== null && vm.claim.s === 'mine' ? <OwnLease claim={vm.claim} /> : null}
             <MiniStrip vm={vm} hiHint={hiHint ?? null} />
-            {vm.media !== null && handle !== null ? <MediaPicker vm={vm.media} handle={handle} /> : null}
+            {vm.media !== null && vm.handle !== null ? <MediaPicker vm={vm.media} handle={vm.handle} /> : null}
           </div>
-          <div class="cg-pv__work">
-            {vm.claim === null ? null : <LeaseNote claim={vm.claim} hasResult={vm.result !== null} stoppedNote={vm.stoppedNote} />}
-            {vm.result !== null ? (
-              <MediaAttachedContext.Provider value={vm.media?.attached ?? null}>
-                <PreviewResult result={vm.result} stoppedNote={vm.stoppedNote} />
-              </MediaAttachedContext.Provider>
-            ) : vm.idleHint === null ? null : (
-              <div class="cg-pv__idle">{i18n.text(vm.idleHint)}</div>
-            )}
-          </div>
+          <WorkZone vm={vm}>{vm.claim === null ? null : <LeaseNote claim={vm.claim} hasResult={vm.result !== null} stoppedNote={vm.stoppedNote} />}</WorkZone>
         </>
       ) : (
         <div class="cg-pv__state">
@@ -283,7 +330,8 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
   );
 }
 
-export const PREVIEW_CSS = `
+/** What every preview wears: the pane, its header and archive line, the feed, the strip, the result, the media picker. */
+export const PREVIEW_BASE_CSS = `
 .cg-pv { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--cg-surface); }
 .cg-pv__head { flex: none; display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px 10px 16px; border-bottom: 1px solid var(--cg-rule); min-height: 51px; }
 .cg-pv__who { flex: 1; min-width: 0; }
@@ -293,12 +341,6 @@ export const PREVIEW_CSS = `
 .cg-pv__life { font-weight: 600; color: var(--cg-ink); }
 .cg-pv__money .cg-money { font-weight: 500; }
 .cg-pv__meta { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-top: 4px; }
-.cg-pv__meta--tight { margin-top: 2px; }
-.cg-pv__note {
-  flex: none; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 12px 0 16px;
-  font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-2); border-bottom: 1px solid var(--cg-rule);
-}
-.cg-pv__note .cg-ico { color: var(--cg-ink-muted); }
 .cg-pv__arch {
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 0 8px 0 16px;
   font-size: var(--cg-text-sm); color: var(--cg-ink-muted); border-bottom: 1px solid var(--cg-rule);
@@ -311,9 +353,6 @@ export const PREVIEW_CSS = `
 .cg-pv__work > * { flex: none; }
 .cg-pv__draft { margin: 10px 12px 0 16px; }
 .cg-pv__draft .cg-field--area { min-height: 36px; }
-.cg-pv__lease { display: flex; align-items: center; gap: 4px; min-height: 30px; padding: 4px 8px 0 16px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-pv__lease > span { margin-right: auto; }
-.cg-pv__claimnote { padding: 10px 12px 2px calc(var(--cg-gutter) - 1px); color: var(--cg-ink-2); }
 .cg-pv__idle { padding: 10px 12px 12px calc(var(--cg-gutter) - 1px); border-top: 1px solid var(--cg-rule); color: var(--cg-ink-muted); }
 .cg-pv__state { flex: 1; min-height: 0; overflow-y: auto; }
 .cg-pv .cg-card { border-top: 1px solid var(--cg-rule); }
@@ -324,5 +363,18 @@ ${SEND_ROW_CSS}
 ${MEDIA_PICKER_CSS}
 `;
 
-/** The preview pane: the Spenders preview and the «Новые» card. */
+/** The card of «Новые» and the palette's window: the base, the unread line and the greeting lease. */
+export const PREVIEW_CSS = `${PREVIEW_BASE_CSS}
+.cg-pv__meta--tight { margin-top: 2px; }
+.cg-pv__note {
+  flex: none; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 12px 0 16px;
+  font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-2); border-bottom: 1px solid var(--cg-rule);
+}
+.cg-pv__note .cg-ico { color: var(--cg-ink-muted); }
+.cg-pv__lease { display: flex; align-items: center; gap: 4px; min-height: 30px; padding: 4px 8px 0 16px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-pv__lease > span { margin-right: auto; }
+.cg-pv__claimnote { padding: 10px 12px 2px calc(var(--cg-gutter) - 1px); color: var(--cg-ink-2); }
+`;
+
+/** The preview pane of «Новые» and of the palette's window (the Spenders panel has its own sheet, X65). */
 export const PREVIEW_STYLES: StyleSource = { id: 'cg-preview', css: PREVIEW_CSS };

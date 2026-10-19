@@ -140,7 +140,7 @@ window.__boards = {
       .map((element) => `${element.tagName.toLowerCase()}.${element.className.toString().split(' ').join('.')}`)
       .slice(0, 20),
   squeezed: () =>
-    [...root.querySelectorAll<HTMLElement>('.cg-sp__top, .cg-sp__tools, .cg-bd__colhead, .cg-bd__row, .cg-bd__shelfrow, .cg-nw__head, .cg-nw__bar, .cg-nw__tools, .cg-nw__row, .cg-pv__head, .cg-pvb, .cg-st__head')]
+    [...root.querySelectorAll<HTMLElement>('.cg-sp__top, .cg-sp__filters, .cg-bd__colhead, .cg-bd__row, .cg-bd__shelfrow, .cg-nw__head, .cg-nw__bar, .cg-nw__tools, .cg-nw__row, .cg-pv__head, .cg-pvb, .cg-st__head')]
       .filter((element) => element.clientWidth > 0 && element.scrollWidth > element.clientWidth + 1)
       .map((element) => `${element.className.toString().split(' ').join('.')} ${element.scrollWidth} > ${element.clientWidth}`)
       .slice(0, 20),

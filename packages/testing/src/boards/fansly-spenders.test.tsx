@@ -48,8 +48,8 @@ describe('Spenders without statistics', () => {
     expect(ui.$('.cg-sp__cols')?.classList.contains('no-stats')).toBe(true);
     await flush(() => keydown(ui?.$('[role="dialog"]') as HTMLElement, 's'));
     expect(ui.actions().filter((action) => action.type === 'SetStatsExpanded')).toEqual([]);
-    // «Обновить» reads the list alone: there is no statistics column to read again.
-    await flush(() => (ui?.$('.cg-bd > .cg-sp__foot .cg-sp__refresh button') as HTMLElement).click());
+    // «Обновить» of the header reads the list alone: there is no statistics column to read again.
+    await flush(() => (ui?.$('.cg-sp__top .cg-sp__refresh button') as HTMLElement).click());
     expect(ui.actionsOf('ReloadView')).toEqual([{ type: 'ReloadView', selector: { of: 'spenders.board' } }]);
   });
 

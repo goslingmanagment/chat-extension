@@ -1,10 +1,12 @@
 // The fan preview (R15; ui-design §4.16; architecture.md §6.5, §6.7.5,
 // §6.7.12): what a person sees of a chat they did not open — the hub's
 // archive and nothing else —, the local draft, the mini strip and the keys.
+// In Spenders it is the panel under the list (X65): one header line, Fix
+// inside the draft field, the eye for «чат не открыт».
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { type FeedItemVM, type PreviewVM } from '@cg/contracts';
+import { type FeedItemVM, type PreviewVM, type SpendersBoardVM } from '@cg/contracts';
 import { matchesHotkey, pingHint } from '@cg/ui/spenders';
 
 import { cgError, ctxOf, entry, iso, MIN, reason, usd, views, type AppClientScenario } from '../scenarios/app-client';
@@ -37,12 +39,29 @@ describe('fan preview: the header and the two lines under it', () => {
     ui = await mountBoardSettled('spenders', '11a');
     const pane = ui.$('.cg-pv') as HTMLElement;
     expect(pane.tagName).toBe('SECTION');
+    expect(pane.classList.contains('is-panel')).toBe(true);
     expect(pane.getAttribute('aria-label')).toBe('Превью фана');
     expect(textOf(ui.$('.cg-pv__name'))).toBe('Hubert@hubert_pl');
     expect(ui.$$('.cg-pv__money > *').map(textOf)).toEqual(['$12,480', '+$320 за 30 дней']);
     expect(ui.$('.cg-pv__money .cg-money')?.textContent).toBe('+$320 за 30 дней');
     expect(ui.text('.cg-pv__meta')).toBe('Мы писали 10 ч назад, фан 7 мин назад');
-    expect(ui.$$('.cg-pv__head .cg-btn').map((button) => button.getAttribute('aria-label') ?? textOf(button))).toEqual(['Открыть чат', 'Закрыть превью']);
+    expect(ui.$$('.cg-pv__head .cg-btn').map((button) => button.getAttribute('aria-label') ?? textOf(button))).toEqual(['Предыдущий фан', 'Следующий фан', 'Открыть чат', 'Закрыть превью']);
+  });
+
+  it('[SP-056] [X65] the arrows of the header are the neighbouring fans — up is the previous row, down the next one; at an end the arrow says it is off', async () => {
+    ui = await mountBoardSettled('spenders', '11a');
+    const [up, down] = ui.$$('.cg-pv__head .cg-btn') as [HTMLElement, HTMLElement];
+    const vm = boardScenario('11a').views.find((view) => view.selector.of === 'preview')?.vm as PreviewVM;
+    await flush(() => down.click());
+    expect(ui.actions().at(-1)).toEqual(vm.neighbors.next);
+    await flush(() => up.click());
+    expect(ui.actions().at(-1)).toEqual(vm.neighbors.previous);
+    ui.unmount();
+    ui = await mountBoardSettled('spenders', withPreview((model) => ({ ...model, neighbors: { previous: null, next: model.neighbors.next } })));
+    const first = ui.$$('.cg-pv__head .cg-btn')[0] as HTMLElement;
+    expect(first.getAttribute('aria-disabled')).toBe('true');
+    await flush(() => first.click());
+    expect(ui.actions()).toEqual([]);
   });
 
   it('an unknown side of the correspondence is «—», and a zero period is not printed', async () => {
@@ -56,32 +75,33 @@ describe('fan preview: the header and the two lines under it', () => {
 
   it('«Открыть чат» goes to the chat and × closes the preview: both are the person’s own clicks', async () => {
     ui = await mountBoardSettled('spenders', '11a');
-    const [open, close] = ui.$$('.cg-pv__head .cg-btn') as [HTMLElement, HTMLElement];
+    const [open, close] = ui.$$('.cg-pv__head .cg-btn').slice(-2) as [HTMLElement, HTMLElement];
     await flush(() => open.click());
     expect(ui.actions().at(-1)?.type).toBe('Navigate');
     await flush(() => close.click());
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
   });
 
-  it('«Чат не открыт, останется непрочитанным» until a send starts; then «…ChatSpace показывает его прочитанным»', async () => {
+  it('[X65] «Чат не открыт, останется непрочитанным» is an eye at the name, its words for a screen reader and in the tooltip; after a send starts the words show', async () => {
     ui = await mountBoardSettled('spenders', '11a');
-    const note = ui.$('.cg-pv__note') as HTMLElement;
+    const note = ui.$('.cg-pv__head .cg-pv__unread') as HTMLElement;
     expect(note.getAttribute('data-cg-unread')).toBe('kept');
-    expect(note.querySelector('span')?.firstChild?.textContent).toBe('Чат не открыт, останется непрочитанным');
-    expect(ui.root.getElementById(note.querySelector('span')?.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Превью строится по архиву хаба; OnlyFans не отметит чат прочитанным');
+    expect(note.querySelector('svg')).not.toBeNull();
+    expect(note.querySelector('.cg-sr')?.textContent).toBe('Чат не открыт, останется непрочитанным');
+    expect(ui.root.getElementById(note.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Чат не открыт, останется непрочитанным\nПревью строится по архиву хаба; OnlyFans не отметит чат прочитанным');
     ui.unmount();
 
     for (const state of ['11b', '11c', '11d', '11e', '11g', '11j']) {
       ui = await mountBoardSettled('spenders', state);
-      const after = ui.$('.cg-pv__note') as HTMLElement;
+      const after = ui.$('.cg-pv__unread') as HTMLElement;
       expect(after.getAttribute('data-cg-unread'), state).toBe('read-after-send');
-      expect(after.querySelector('span')?.firstChild?.textContent, state).toBe('Чат не открыт. После отправки ChatSpace показывает его прочитанным');
-      expect(ui.root.getElementById(after.querySelector('span')?.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Исходящее сообщение ChatSpace сам помечает прочитанным');
+      expect(after.querySelector('span:not(.cg-sr)')?.firstChild?.textContent, state).toBe('Чат не открыт. После отправки ChatSpace показывает его прочитанным');
+      expect(ui.root.getElementById(after.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Чат не открыт. После отправки ChatSpace показывает его прочитанным\nИсходящее сообщение ChatSpace сам помечает прочитанным');
       ui.unmount();
     }
     // Unavailable is not a started send: the chat stays unread.
     ui = await mountBoardSettled('spenders', '11f');
-    expect(ui.$('.cg-pv__note')?.getAttribute('data-cg-unread')).toBe('kept');
+    expect(ui.$('.cg-pv__unread')?.getAttribute('data-cg-unread')).toBe('kept');
   });
 
   it('[DB-026] the archive line: its time, how far it lags the chat, the coverage, «Обновить архив»', async () => {
@@ -257,12 +277,27 @@ describe('fan preview: the archive feed', () => {
     expect((ui.$('.cg-feed') as HTMLElement).scrollTop).toBe(300);
   });
 
-  it('an empty archive says so, and a preview that failed is an error card, not an empty feed', async () => {
-    ui = await mountBoardSettled(
-      'spenders',
-      withPreview((vm) => ({ ...vm, view: views.empty({ key: 'preview.feed.empty' }), feed: { items: [], hasOlder: false, loadingOlder: false, olderError: null } })),
-    );
+  it('[X65] an empty archive shows the row\'s last message and says whose it is; without one it says the archive is empty; a preview that failed is an error card', async () => {
+    const empty = withPreview((vm) => ({ ...vm, view: views.empty({ key: 'preview.feed.empty' }), feed: { items: [], hasOlder: false, loadingOlder: false, olderError: null } }));
+    ui = await mountBoardSettled('spenders', empty);
+    expect(ui.$('.cg-feed__empty')).toBeNull();
+    // The fan's message, as the list knows it, with its time.
+    expect(ui.$$('.cg-feed__msg').map((bubble) => [bubble.getAttribute('data-cg-msg'), bubble.classList.contains('is-own'), textOf(bubble.querySelector('small'))])).toEqual([['last', false, '09:13']]);
+    expect(textOf(ui.$('.cg-feed__msg'))).toContain('are you awake? 😇');
+    expect(ui.text('.cg-pv__arch.is-quiet .cg-pv__asof')).toBe('Архив пока пуст — ниже последнее сообщение из списка');
+    ui.unmount();
+    // A row without a last message: nothing stands in, the feed says the archive is empty.
+    const silent = {
+      ...empty,
+      views: empty.views.map((view) => {
+        if (view.selector.of !== 'spenders.board') return view;
+        const board = view.vm as SpendersBoardVM;
+        return { ...view, vm: { ...board, shelves: board.shelves.map((shelf) => ({ ...shelf, rows: shelf.rows.map((item) => (item.selected ? { ...item, lastMessage: null } : item)) })) } };
+      }),
+    };
+    ui = await mountBoardSettled('spenders', silent);
     expect(ui.text('.cg-feed__empty')).toBe('Сообщений пока нет.');
+    expect(ui.$$('.cg-feed__msg')).toEqual([]);
     ui.unmount();
     ui = await mountBoardSettled(
       'spenders',
@@ -270,8 +305,8 @@ describe('fan preview: the archive feed', () => {
     );
     expect(ui.$('.cg-pv__state .cg-card')?.getAttribute('data-cg-code')).toBe('CG-DATA-UNAVAILABLE');
     expect(ui.$('.cg-feed')).toBeNull();
-    // The preview can still be closed.
-    expect(ui.$$('.cg-pv__head .cg-btn')).toHaveLength(1);
+    // The preview can still be left: to the neighbouring fans or closed.
+    expect(ui.$$('.cg-pv__head .cg-btn').map((button) => button.getAttribute('aria-label'))).toEqual(['Предыдущий фан', 'Следующий фан', 'Закрыть превью']);
   });
 });
 
@@ -279,7 +314,7 @@ describe('fan preview: the work zone', () => {
   it('[NEW-10] the local draft for Fix stays in the preview: typing saves it, nothing is sent', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     const field = ui.$('.cg-pv__draft textarea') as HTMLTextAreaElement;
-    expect(field.getAttribute('placeholder')).toBe('Черновик для Fix. Остаётся в превью, в чат не уходит');
+    expect(field.getAttribute('placeholder')).toBe('Свой текст для Fix. В чат не уходит');
     expect(field.getAttribute('aria-label')).toBe('Черновик для Fix');
     expect(field.maxLength).toBe(5000);
     await flush(() => {
@@ -332,12 +367,18 @@ describe('fan preview: the work zone', () => {
     expect(ui.actionsOf('SetPreviewDraft').map((action) => action.text)).toEqual(['hey', 'hey there', 'saved yesterday, and more']);
   });
 
-  it('[SP-055] the mini strip: Reply with the capsule of its options — the four tones and Split — then Fix · Hi · Ping, without key labels; a click generates for this fan', async () => {
+  it('[SP-055] [X65] the mini strip: Reply with the capsule of its options — the four tones and Split — then Hi · Ping, without key labels; Fix stands inside the draft field; a click generates for this fan', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     const strip = ui.$('.cg-pvb') as HTMLElement;
     expect(strip.getAttribute('role')).toBe('toolbar');
     expect(strip.getAttribute('aria-label')).toBe('ChatGoose');
-    expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Reply', 'Casual', 'Flirt', 'Sell', 'Spice', 'Split', 'Fix', 'Hi', 'Ping']);
+    expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Reply', 'Casual', 'Flirt', 'Sell', 'Spice', 'Split', 'Hi', 'Ping']);
+    const fix = ui.$('.cg-pv__draft [data-cg-strip="fix"] .cg-act') as HTMLElement;
+    expect(fix.querySelector('.cg-act__t')?.textContent).toBe('Fix');
+    await flush(() => fix.click());
+    expect(ui.actions().at(-1)).toEqual({ type: 'Generate', targetHandle: 'spenders:b002', feature: 'fix', options: {} });
+    // The strip and the field sit in one row at the bottom of the panel.
+    expect(ui.$('.cg-pv__compose > .cg-pv__draft + .cg-pvb')).not.toBeNull();
     // The capsule is Reply's own: right after it, as in the dock; Reply is the main chip.
     expect(ui.$('.cg-pvb [data-cg-strip="reply"] + .cg-tones')).not.toBeNull();
     expect(ui.$('.cg-pvb [data-cg-strip="reply"] .cg-act')?.classList.contains('cg-act--main')).toBe(true);
@@ -356,7 +397,7 @@ describe('fan preview: the work zone', () => {
       'spenders',
       withPreview((vm) => ({ ...vm, bar: { ...vm.bar, actions: { ...vm.bar.actions, fix: { enabled: false, busy: false, active: false, reason: reason('needs-draft'), hotkey: null, badge: null } } } })),
     );
-    const fix = ui.$('.cg-pvb [data-cg-strip="fix"] .cg-act') as HTMLElement;
+    const fix = ui.$('.cg-pv__draft [data-cg-strip="fix"] .cg-act') as HTMLElement;
     expect(fix.getAttribute('aria-disabled')).toBe('true');
     expect(ui.root.getElementById(fix.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Fix недоступен: сначала напишите черновик в поле ввода');
     await flush(() => fix.click());
@@ -406,7 +447,7 @@ describe('fan preview: the work zone', () => {
       'spenders',
       withPreview((vm) => ({ ...vm, result: null, idleHint: { key: 'preview.empty' } })),
     );
-    expect(ui.text('.cg-pv__idle')).toBe('Нажмите Reply, Hi или Ping — ответ появится здесь. Отправка — только кнопкой у каждой части.');
+    expect(ui.text('.cg-pv__idle')).toBe('Reply, Hi или Ping — черновик появится здесь. Отправка — только кнопкой у каждой части.');
     expect(ui.$('.cg-pvr')).toBeNull();
     expect(ui.actions()).toEqual([]);
   });

@@ -1,22 +1,94 @@
 // The Spenders window (architecture.md §10.1; ui-design §3.5, §4.14–§4.16,
-// §6.3, §6.4; SP-002, SP-019, SP-033, SP-049, SP-050): a modal window over
-// ChatSpace's container with the list on the left and widest, the preview of
-// the selected fan, and the statistics as a compact right column — or
-// expanded in place of the list and the preview. It renders three view
-// models (`spenders.board`, `spenders.stats`, `preview` from `spenders`) and
-// asks for everything through UiAction.
+// §6.3, §6.4; SP-002, SP-019, SP-033, SP-049, SP-050; X65): a modal window
+// over the site's container. On top, as wide as the window, the list — with
+// the statistics as a compact right column on a site that has them —; under
+// it, once a fan is picked, the preview as a panel across the whole width,
+// its height dragged on the border between them. The statistics may also be
+// expanded in place of both. It renders three view models (`spenders.board`,
+// `spenders.stats`, `preview` from `spenders`) and asks for everything
+// through UiAction.
 
-import { type JSX, type TargetedKeyboardEvent } from 'preact';
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'preact/hooks';
+import { type JSX, type RefObject, type TargetedKeyboardEvent } from 'preact';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+
+import { type SpendersBoardVM } from '@cg/contracts/vm';
 
 import { Boundary, Dialog, OverlayLayer, SearchBox, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
-import { BOARD_CSS, Board, focusIsIdle, type BoardHandle } from './Board';
-import { Preview } from './preview/Preview';
+import { BOARD_CSS, Board, BoardFilters, focusIsIdle, type BoardHandle } from './Board';
+import { PanelPreview, type PreviewFallback } from './preview/PanelPreview';
 import { STATS_CSS, StatsColumn, StatsExpanded } from './Stats';
-import { WindowHeader, isPlainKey, isTextEntry } from './window';
+import { RefreshButton, StaleStamp, WindowHeader, isPlainKey, isTextEntry, type RefreshableView } from './window';
 
 /** Marks of the paints the UI reports; the controller starts the measure, the UI ends it (RenderMarks). */
 export const SPENDERS_PAINT_MARKS = { open: 'spenders.board', search: 'spenders.search' } as const;
+
+/** What «Обновить» of the header reads again: the list and the statistics column beside it (SP-024). */
+const BOARD_REFRESH: readonly RefreshableView[] = ['spenders.board', 'spenders.stats'];
+/** A board without the statistics (R20 P9e) reads only the list again. */
+const LIST_REFRESH: readonly RefreshableView[] = ['spenders.board'];
+
+/** The preview panel never gets lower than this, and the list above it keeps at least `LIST_MIN_PX` (X65). */
+export const PANEL_MIN_PX = 180;
+export const LIST_MIN_PX = 160;
+/** One press of ↑ / ↓ on the border moves it this far. */
+const PANEL_STEP_PX = 24;
+/** The height the person dragged the panel to, kept while the tab lives: the next fan and the next opening keep it. */
+let draggedPanelHeight: number | null = null;
+
+/** The picked fan's last message from the list: the preview shows it while the archive has nothing yet (X65). */
+function rowFallback(board: SpendersBoardVM): PreviewFallback | null {
+  for (const shelf of board.shelves) {
+    for (const row of shelf.rows) {
+      if (!row.selected) continue;
+      if (row.lastMessage === null) return null;
+      return { handle: row.handle, fromUs: row.lastMessage.fromUs, text: row.lastMessage.text, at: row.lastMessage.fromUs ? row.weWroteAt : row.fanWroteAt };
+    }
+  }
+  return null;
+}
+
+/**
+ * The border between the list and the preview: drag it, or ↑ / ↓ with focus on it. `role="separator"` with the
+ * panel's height as its value (WAI-ARIA window splitter).
+ */
+function PanelSplit({ panelRef, height, onResize }: { readonly panelRef: RefObject<HTMLDivElement | null>; readonly height: number | null; readonly onResize: (height: number) => void }): JSX.Element {
+  const i18n = useI18n();
+  const drag = useRef<{ readonly y: number; readonly height: number } | null>(null);
+  const measured = (): number => panelRef.current?.getBoundingClientRect().height ?? height ?? PANEL_MIN_PX;
+  // The pointer's capture ends with its pointerup or pointercancel by itself.
+  const end = (): void => {
+    drag.current = null;
+  };
+  return (
+    <div
+      class="cg-sp__split"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label={i18n.t('spenders.previewSplit')}
+      aria-valuemin={PANEL_MIN_PX}
+      {...(height === null ? {} : { 'aria-valuenow': Math.round(height) })}
+      tabIndex={0}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        drag.current = { y: event.clientY, height: measured() };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const start = drag.current;
+        if (start !== null) onResize(start.height + (start.y - event.clientY));
+      }}
+      onPointerUp={end}
+      onPointerCancel={end}
+      onKeyDown={(event) => {
+        const step = event.key === 'ArrowUp' ? PANEL_STEP_PX : event.key === 'ArrowDown' ? -PANEL_STEP_PX : 0;
+        if (step === 0) return;
+        event.preventDefault();
+        onResize(measured() + step);
+      }}
+    />
+  );
+}
 
 export function SpendersWindow(): JSX.Element {
   const i18n = useI18n();
@@ -30,7 +102,18 @@ export function SpendersWindow(): JSX.Element {
   const boardRef = useRef<BoardHandle>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const hasRows = board.shelves.some((shelf) => shelf.rows.length > 0);
+  const fallback = useMemo(() => rowFallback(board), [board]);
+  const [panelHeight, setPanelHeight] = useState<number | null>(draggedPanelHeight);
+  // The sheet keeps both parts in the body (the panel's min- and max-height); the window remembers what was dragged.
+  const resizePanel = useCallback((wanted: number): void => {
+    const body = bodyRef.current?.clientHeight ?? 0;
+    if (body <= 0) return;
+    draggedPanelHeight = Math.round(Math.min(body - LIST_MIN_PX, Math.max(PANEL_MIN_PX, wanted)));
+    setPanelHeight(draggedPanelHeight);
+  }, []);
 
   const close = useCallback((): void => {
     // Esc in turn: the search, the preview, the window (ui-design §6.4).
@@ -110,14 +193,18 @@ export function SpendersWindow(): JSX.Element {
     }
   };
 
-  const columns = expanded ? 'is-stats' : board.previewOpen ? 'is-preview' : 'is-list';
+  const preview = board.previewOpen && !expanded;
 
   return (
     <OverlayLayer>
       <Dialog open label={i18n.t('spenders.title')} size="window" scrim={false} class="cg-sp cg-spw" onClose={close} initialFocus={() => frameRef.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}>
         <div ref={frameRef} class="cg-sp__frame" onKeyDown={onKeyDown}>
           <WindowHeader title={i18n.t('spenders.title')} pageName={board.pageName} onClose={() => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } })}>
+            <BoardFilters board={board} />
             <span class="cg-sp__grow" />
+            <StaleStamp stamp={board.footer.stamp} />
+            {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
+            <RefreshButton views={statistics ? BOARD_REFRESH : LIST_REFRESH} stamp={board.footer.stamp} />
             <SearchBox
               value={board.query}
               label={i18n.t('spenders.search.placeholder')}
@@ -127,19 +214,16 @@ export function SpendersWindow(): JSX.Element {
               onQuery={(query) => void dispatch({ type: 'Search', list: 'spenders', query })}
             />
           </WindowHeader>
-          <div class={`cg-sp__cols ${columns}${statistics ? '' : ' no-stats'}`}>
-            {expanded ? (
+          {expanded ? (
+            <div class="cg-sp__cols is-stats">
               <Boundary surface={null}>
                 <StatsExpanded stats={stats} />
               </Boundary>
-            ) : (
-              <>
+            </div>
+          ) : (
+            <div ref={bodyRef} class={`cg-sp__body${preview ? ' has-panel' : ''}`}>
+              <div class={`cg-sp__cols${statistics ? '' : ' no-stats'}`}>
                 <Board board={board} boardRef={boardRef} />
-                {board.previewOpen ? (
-                  <Boundary surface={null}>
-                    <Preview from="spenders" />
-                  </Boundary>
-                ) : null}
                 {/* A broken statistics column does not take the board down (ER-020). */}
                 {statistics ? <Boundary surface={null}>
                   <StatsColumn stats={stats} onShelf={(shelfId) => {
@@ -147,52 +231,57 @@ export function SpendersWindow(): JSX.Element {
                     boardRef.current?.scrollToShelf(shelfId);
                   }} />
                 </Boundary> : null}
-              </>
-            )}
-          </div>
+              </div>
+              {preview ? (
+                <>
+                  <PanelSplit panelRef={panelRef} height={panelHeight} onResize={resizePanel} />
+                  <div ref={panelRef} class="cg-sp__panel" {...(panelHeight === null ? {} : { style: { height: `${panelHeight}px` } })}>
+                    <Boundary surface={null}>
+                      <PanelPreview fallback={fallback} />
+                    </Boundary>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
       </Dialog>
     </OverlayLayer>
   );
 }
 
-// The two narrow-window rules (their notes stand here and not in the sheet: a comment inside the string ships
-// with the chunk, and the Spenders surface has a budget — packages/testing/src/boards/size.test.ts).
+// The window's body (X65): the list (and the statistics column) on top, the preview panel under it across the
+// whole width. The panel opens at about half of the body and is dragged on its border; the list keeps 160 px.
+// The notes stand here and not in the sheet: a comment inside the string ships with the chunk, and the Spenders
+// surface has a budget (packages/testing/src/boards/size.test.ts).
 //
-// ≤ 1120 px — the browser's zoom of 150–200 % on a laptop (ui-design §11). The list needs about 400 px to keep
-// its columns apart; a preview no longer leaves that next to the statistics: while a preview is open the
-// statistics column gives way (S still opens the statistics in full; closing the preview brings the column back).
-//
-// ≤ 860 px — the list and the preview do not fit side by side either: one column, read top to bottom — the list
-// in a window of its own, then the preview, then the statistics. The column scrolls; a list or a feed at its end
-// hands the wheel on to it.
+// ≤ 900 px — the browser's zoom of 150–200 % on a laptop (ui-design §11): the header's filters take a line of
+// their own under the title and the search.
+// ≤ 680 px — the list needs about 380 px to keep its columns apart, so the statistics column gives way; S still
+// opens the statistics in full.
 export const SPENDERS_CSS = `
+.cg-sp__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .cg-sp__cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; }
-.cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 420px 264px; }
-.cg-sp__cols.no-stats { grid-template-columns: minmax(0, 1fr); }
-.cg-sp__cols.no-stats.is-preview { grid-template-columns: minmax(0, 1fr) 420px; }
-.cg-sp__cols.is-stats { grid-template-columns: minmax(0, 1fr); }
+.cg-sp__cols.no-stats, .cg-sp__cols.is-stats { grid-template-columns: minmax(0, 1fr); }
 .cg-sp__cols > * { min-height: 0; min-width: 0; }
 .cg-sp__cols > * + * { border-left: 1px solid var(--cg-rule); }
+.cg-sp__split {
+  flex: none; height: 9px; margin: -4px 0; position: relative; z-index: 4; cursor: row-resize; touch-action: none;
+  background: linear-gradient(var(--cg-rule-2), var(--cg-rule-2)) center / 100% 1px no-repeat;
+}
+.cg-sp__split:hover, .cg-sp__split:focus-visible { outline: none; background-image: linear-gradient(var(--cg-clay-line), var(--cg-clay-line)); background-size: 100% 3px; }
+.cg-sp__panel { flex: none; height: clamp(180px, 46%, 560px); min-height: min(180px, 50%); max-height: calc(100% - 160px); display: flex; flex-direction: column; }
+.cg-sp__panel > * { flex: 1; min-height: 0; }
 @media (max-width: 1360px) {
   .cg-sp__cols { grid-template-columns: minmax(0, 1fr) 240px; }
-  .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 392px 240px; }
-  .cg-sp__cols.no-stats.is-preview { grid-template-columns: minmax(0, 1fr) 392px; }
 }
-@media (max-width: 1120px) {
-  .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 392px; }
-  .cg-sp__cols.is-preview > .cg-st { display: none; }
+@media (max-width: 900px) {
+  .cg-sp__top { flex-wrap: wrap; height: auto; padding-block: 10px; row-gap: 6px; }
+  .cg-sp__filters { order: 1; width: 100%; margin: 0; }
 }
-@media (max-width: 860px) {
-  .cg-sp__cols, .cg-sp__cols.is-preview { display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: thin; }
-  .cg-sp__cols > * { flex: none; }
-  .cg-sp__cols > * + * { border-left: 0; border-top: 1px solid var(--cg-rule); }
-  .cg-sp__cols > .cg-bd { height: 100%; min-height: 240px; }
-  .cg-sp__cols.is-preview > .cg-bd { height: 56%; min-height: 220px; }
-  .cg-sp__cols.is-preview > .cg-st { display: block; }
-  .cg-sp__cols > .cg-st, .cg-sp__cols > .cg-stx { overflow-y: visible; }
-  .cg-sp__cols > .cg-pv .cg-feed { flex: 0 0 200px; }
-  .cg-sp__cols .cg-vlist, .cg-sp__cols .cg-feed, .cg-sp__cols .cg-pv__work { overscroll-behavior: auto; }
+@media (max-width: 680px) {
+  .cg-sp__cols { grid-template-columns: minmax(0, 1fr); }
+  .cg-sp__cols > .cg-st { display: none; }
 }
 ${BOARD_CSS}
 ${STATS_CSS}

@@ -515,7 +515,7 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await waitOursText('modal', 'Fan Alder', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
       // The hub does not answer the queue this once.
       await hub().command({ op: 'scriptHttp', match: 'route', exchanges: [{ route: 'clientSpenderAwaitingReply', request: {}, response: { status: 504, body: { error: 'gateway_timeout' } } }] });
-      await pressOurs('modal', '.cg-sp__tools button', /^Ждут ответа/);
+      await pressOurs('modal', '.cg-sp__filters button', /^Ждут ответа/);
       await browser.waitUntil(() => oursExists('modal', '[data-cg-waiting-fallback]'), { timeout: 15_000, timeoutMsg: 'the board did not say that the queue was not read' });
       const said = await oursText('modal', '[data-cg-waiting-fallback]');
       expect(said).toMatch(/ChatGoose · CG-/);
@@ -532,7 +532,7 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       // «Повторить»: the hub answers, the list is its queue, the notice is gone.
       await pressOurs('modal', '[data-cg-waiting-fallback] button', /^Повторить/);
       await browser.waitUntil(async () => !(await oursExists('modal', '[data-cg-waiting-fallback]')), { timeout: 15_000, timeoutMsg: 'the notice stayed after the queue was read' });
-      await pressOurs('modal', '.cg-sp__tools button', /^Все/);
+      await pressOurs('modal', '.cg-sp__filters button', /^Все/);
       await closeAll();
       expect(await oursExists('modal', '.cg-sp')).toBe(false);
     });
