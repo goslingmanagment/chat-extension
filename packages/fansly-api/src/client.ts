@@ -6,8 +6,9 @@
 // A call names its purpose and its route (allowlist.ts): a pair FS-NET-1 does
 // not name is refused before anything else. Then, in this order:
 // 1. the session: the core restored it (`ready`) and holds a confirmed
-//    template of the creator — without one, `session` (no old headers, no
-//    fallback, §8.2);
+//    template of the creator — none by its id, each session not yet tied to
+//    a creator asks `/account/me` first (X62, AU-032); still none, `session`
+//    (no old headers, no fallback, §8.2);
 // 2. the pacer, by the call's mode (pacer/pacer.ts): it may wait (a queued
 //    read) or refuse (`cooling`) — no request then;
 // 3. the request, built synchronously from the template as it is NOW: its
@@ -62,6 +63,10 @@ export interface FanslySessionPort {
   forAccount(accountId: string): FanslySessionTemplate | null;
   /** Fansly answered 401/403 to this session: unusable until the page's next accepted request. */
   disconnect(accountId: string, expected: FanslySessionTemplate): Promise<void>;
+  /** AU-032: the connected sessions no `/account/me` has tied to their creator yet. */
+  unidentified?(): readonly FanslySessionTemplate[];
+  /** AU-032: `/account/me` asked with `expected` named `canonicalId` (bound while its material headers are unchanged). */
+  resolveIdentity?(legacyId: string, canonicalId: string, expected: FanslySessionTemplate): Promise<void>;
 }
 
 export interface FanslyCall extends FanslyAddressParts {
@@ -129,6 +134,18 @@ const sleepFor = (ms: number, signal?: AbortSignal): Promise<void> =>
 
 const notSent = (kind: 'not-admitted' | 'session' | 'aborted' | 'tab'): FanslyApiError => new FanslyApiError(kind, { sent: false });
 
+const isAborted = (signal?: AbortSignal): boolean => signal?.aborted === true;
+
+/** How long a session whose `/account/me` failed waits before it is asked again. */
+const IDENTIFY_RETRY_MS = 60_000;
+
+/** `account.id` of an `/account/me` answer. */
+const creatorIdOf = (response: unknown): string | null => {
+  const account = typeof response === 'object' && response !== null ? (response as { account?: unknown }).account : undefined;
+  const id = typeof account === 'object' && account !== null ? (account as { id?: unknown }).id : undefined;
+  return typeof id === 'string' ? id : null;
+};
+
 export function createFanslyClient(deps: FanslyClientDeps) {
   const base = deps.base ?? FANSLY_API_BASE;
   const doFetch: FanslyFetch = deps.fetch ?? ((url, init) => fetch(url, init));
@@ -139,6 +156,30 @@ export function createFanslyClient(deps: FanslyClientDeps) {
   const clearTimer = deps.clearTimer ?? ((handle: unknown): void => clearTimeout(handle as ReturnType<typeof setTimeout>));
 
   const creatorOf = (template: FanslySessionTemplate): PacerCreator => ({ legacyId: template.legacyId, canonicalId: template.canonicalId });
+  /** When each session's `/account/me` was asked, by its legacy id. */
+  const asked = new Map<string, number>();
+
+  /**
+   * AU-032: no session names this creator by its id, yet a page's token may name another id than the creator its
+   * `/account/me` shows. Each session no answer has tied yet asks `/account/me` itself (at most once a minute), and the
+   * answer binds the creator to exactly that session — the old extension's identity lookup.
+   */
+  async function identify(account: string, signal?: AbortSignal): Promise<FanslySessionTemplate | null> {
+    for (const template of deps.session.unidentified?.() ?? []) {
+      if ((asked.get(template.legacyId) ?? -Infinity) > now() - IDENTIFY_RETRY_MS) continue;
+      asked.set(template.legacyId, now());
+      try {
+        const answer = await call({ purpose: 'identity', route: 'account.me', account: template.legacyId, ...(signal === undefined ? {} : { signal }) });
+        const creator = creatorIdOf(answer.response);
+        if (creator !== null) await deps.session.resolveIdentity?.(template.legacyId, creator, template);
+      } catch {
+        // This session stays unidentified; it is asked again after IDENTIFY_RETRY_MS.
+      }
+      const found = deps.session.forAccount(account);
+      if (found !== null) return found;
+    }
+    return null;
+  }
 
   /** Admission, the session and the pacer: everything that may wait or refuse before a request. */
   async function prepare(call: FanslyCall): Promise<PreparedFanslyCall> {
@@ -155,7 +196,9 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     if (call.signal?.aborted === true) throw notSent('aborted');
     await deps.session.ready.catch(() => { throw notSent('session'); });
     await deps.pacer.ready;
-    const template = deps.session.forAccount(call.account);
+    const template = deps.session.forAccount(call.account) ?? (call.purpose === 'identity' ? null : await identify(call.account, call.signal));
+    // The identity's own questions may have outlived the caller.
+    if (template === null && isAborted(call.signal)) throw notSent('aborted');
     if (template === null || !template.connected) throw notSent('session');
     let pass: PacerPass;
     try {
@@ -306,7 +349,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     }
   }
 
-  return { prepare, call, base, transport };
+  return { prepare, call, identify, base, transport };
 }
 
 export type FanslyClient = ReturnType<typeof createFanslyClient>;

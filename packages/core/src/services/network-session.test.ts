@@ -155,8 +155,8 @@ describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation',
     expect(store.calls.set).toBe(saved + 1);
     expect(store.read<{ templates: { headers: Record<string, string> }[] }>('session')?.templates[0]?.headers['authorization']).toBe(btoa(`${account}:token-3`));
     const writes = store.calls.set;
-    await service.resolveIdentity(1, account, other);
-    await service.resolveIdentity(1, account, other);
+    await service.resolveIdentity(account, other, service.forTab(1) ?? { headers: {} });
+    await service.resolveIdentity(account, other, service.forTab(1) ?? { headers: {} });
     const limited = complete(request('limited'), 429);
     await service.accept(limited); await service.accept(limited);
     expect(store.calls.set).toBe(writes + 2);
@@ -180,22 +180,27 @@ describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation',
     expect(service.forTab(1)?.checks).toEqual({ message: 'new-session-check' });
     expect(store.read<{ templates: { checks: Record<string, string> }[] }>('session')?.templates[0]?.checks).toEqual({ message: 'new-session-check' });
   });
-  it('storage failure is fail-closed and revoke clears credentials in memory and session', async () => {
+  it('a failed write keeps the session usable and the next write carries it; revoke clears credentials in memory and session', async () => {
     const { service, store } = setup(); await service.setEnabled(true);
     await service.accept(request('one')); await service.accept(complete(request('one')));
     store.failNext('set');
     const next = request('two', { requestHeaders: headers(account, 'changed') });
     await service.accept(next);
     await expect(service.accept(complete(next))).rejects.toThrow();
-    expect(service.forTab(1)).toBeNull();
+    expect(service.forTab(1)?.headers['authorization']).toBe(btoa(`${account}:changed`));
+    await service.register(2);
+    expect(store.read<{ templates: { headers: Record<string, string> }[] }>('session')?.templates[0]?.headers['authorization']).toBe(btoa(`${account}:changed`));
     await service.setEnabled(false);
     expect(store.read<{ templates: unknown[] }>('session')?.templates).toEqual([]);
   });
-  it('[AU-032] resolves legacy to canonical only for the captured tab/session, survives sleep, and prunes a closed last tab', async () => {
+  it('[AU-032] resolves legacy to canonical only for the session it asked with, survives sleep, and prunes a closed last tab', async () => {
     const { service, store } = setup(); await service.setEnabled(true);
     await service.accept(request('one')); await service.accept(complete(request('one')));
-    await service.resolveIdentity(2, account, other); expect(service.forAccount(other)).toBeNull();
-    await service.resolveIdentity(1, account, other);
+    expect(service.unidentified().map((entry) => entry.legacyId)).toEqual([account]);
+    await service.resolveIdentity(account, other, { headers: { authorization: btoa(`${account}:another-session`) } });
+    expect(service.forAccount(other)).toBeNull();
+    await service.resolveIdentity(account, other, service.forTab(1) ?? { headers: {} });
+    expect(service.unidentified()).toEqual([]);
     expect(service.forAccount(other)?.legacyId).toBe(account);
     expect(service.aliases(other)).toEqual([account, other]);
     expect(service.aliases('999999999999999999')).toEqual([]);
@@ -215,9 +220,13 @@ describe('[host:fansly] [BG-007] [AU-031] FS-NET-2 passive session observation',
     await service.accept(request('two')); await service.accept(complete(request('two')));
     expect(service.forTab(1)?.connected).toBe(true);
   });
-  it('legacy ids remain strings and malformed authorization is rejected', () => {
+  it('a token names its account as the old extension read it: padding optional, url-safe too, any compact key', () => {
     expect(legacyAccount(btoa(`${account}:key`))).toBe(account);
-    for (const value of ['', 'Bearer token', btoa('0:key'), btoa('x:key'), btoa(`${account}`)]) expect(legacyAccount(value)).toBeNull();
+    expect(legacyAccount(btoa(`${account}:1:2:abc`).replace(/=+$/, ''))).toBe(account);
+    expect(legacyAccount(btoa(`${account}:???>>>`).replace(/\+/g, '-').replace(/\//g, '_'))).toBe(account);
+    expect(legacyAccount(` ${btoa('acct_x-1:key')} `)).toBe('acct_x-1');
+    expect(legacyAccount(btoa(account))).toBe(account);
+    for (const value of ['', 'not base64!', btoa(':key'), btoa('two words:key'), btoa('x'.repeat(65))]) expect(legacyAccount(value)).toBeNull();
   });
 });
 
@@ -262,7 +271,7 @@ it('[host:fansly] [LG-026] [FS-PRIV-2] page snapshot keeps only header names, ow
   await service.setEnabled(true);
   const captured = request('diagnostics', { requestHeaders: [...headers(account, 'unique-token-material', 'unique-check-material').map((header) => header.name === 'Authorization' ? header : { ...header, value: `unique-${header.name}-material` }), { name: 'cookie', value: 'unique-cookie-material' }] });
   await service.accept(captured); await service.accept(complete(captured));
-  await service.resolveIdentity(1, account, other);
+  await service.resolveIdentity(account, other, service.forTab(1) ?? { headers: {} });
   advance(1500);
   const snapshot = service.diagnostics(1);
   expect(snapshot).toEqual({ present: true, ageMs: 1500, accountId: other, headerNames: ['authorization', 'fansly-client-check', 'fansly-client-id', 'fansly-client-ts', 'fansly-session-id'] });

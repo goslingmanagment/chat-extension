@@ -114,7 +114,7 @@ it.each([false, true])('[RB-023] [host:fansly] permits prepared under separate i
   if (reverse) calls.reverse();
   const [first, second] = await Promise.all(calls.map((call) => api.client.prepare(call)));
   if (first === undefined || second === undefined) throw new Error('missing permits');
-  await session.resolveIdentity(1, A, B);
+  await session.resolveIdentity(A, B, session.forAccount(A) ?? { headers: {} });
   const inFlight = first.start();
   await vi.advanceTimersByTimeAsync(1000);
   // Observe refusal synchronously, without waiting for a mistakenly dispatched read to time out.

@@ -54,7 +54,7 @@ describe('[host:fansly] «Аккаунты» on Fansly in the background (R20 P1
       await sessions.accept({ ...fact, phase: 'completed', statusCode: 200 });
     };
     await capture(LEGACY);
-    await sessions.resolveIdentity(4, LEGACY, CREATOR); // Previously proven identity of A.
+    await sessions.resolveIdentity(LEGACY, CREATOR, sessions.forAccount(LEGACY) ?? { headers: {} }); // Previously proven identity of A.
     await capture(LEGACY, 5); // A remains open in another tab.
     const tabs = tabsOf([4, 5], [{ tabId: 4, accounts: [CREATOR] }, { tabId: 5, accounts: [CREATOR] }]);
     await capture(OTHER); // B completes while tab 4 still reports A.

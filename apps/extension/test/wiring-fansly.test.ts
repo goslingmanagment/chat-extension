@@ -564,7 +564,7 @@ describe('[host:fansly] the settings page and Fansly’s module (R20 P14b1)', ()
     await network.accept({ ...fact, phase: 'completed', statusCode: 200 });
     expect(await w.page().request('settings.patch', { patch: { sound: { mutedAccounts: [`fansly-web:${legacy}`] } }, baseRevision: null })).toMatchObject({ ok: true });
     // A correlated identity response, after the legacy-only preference was stored.
-    await network.resolveIdentity(21, legacy, CREATOR);
+    await network.resolveIdentity(legacy, CREATOR, network.forAccount(legacy) ?? { headers: {} });
     expect(await page.request('fansly.accounts.read', {})).toMatchObject({ ok: true, payload: { sessions: [{ legacyId: legacy, canonicalId: CREATOR }] } });
     // P14a's real socket route uses its persistent own-account aliases for both kinds of sound.
     expect(await fanslyRequest(tab.client, 'fansly.sound.batch', { host: 'fansly-web', hostAccountId: CREATOR, events: [
