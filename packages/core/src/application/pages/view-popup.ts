@@ -116,7 +116,8 @@ function verdictOf(model: PagesModel, problems: readonly CgErrorView[], sites: N
   if (persona.s === 'no-persona') alerts.push(alertOf(codeError(model, 'CG-PERSONA-UNASSIGNED'), button('popup.alert.personaFix', { type: 'OpenSettings', route: { section: 'personas', code: 'CG-PERSONA-UNASSIGNED' } })));
   if (alerts.length > 0) return { s: 'attention', line: null, alerts };
   if (checking || persona.s === 'not-connected') return { s: 'checking', line: model.t.text('popup.verdict.checking'), alerts: [] };
-  const connected = new Intl.ListFormat(model.locale, { type: 'conjunction' }).format(sites.filter((site) => WORKING.has(site.state)).map((site) => site.label));
+  // «ChatSpace, Fansly и хаб на связи»: the sites by a comma, the hub after the one «и» of the text.
+  const connected = sites.filter((site) => WORKING.has(site.state)).map((site) => site.label).join(', ');
   return { s: 'ready', line: model.t.text('popup.verdict.readyLine', { sites: connected }), alerts: [] };
 }
 

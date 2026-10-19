@@ -114,12 +114,14 @@ function Fix({ fix, primary }: { readonly fix: NonNullable<StageAlert['fix']>; r
  * goslings; what to fix on the gosling's yellow — the first in the display face with its remedy as the one black
  * button, the goose looking back beside it, the rest as quiet lines under it; the shade while a report is not in.
  */
-function Stage({ vm }: { readonly vm: PopupVM }): JSX.Element {
+function Stage({ vm, siteOnly = false }: { readonly vm: PopupVM; readonly siteOnly?: boolean }): JSX.Element | null {
   const i18n = useI18n();
   const act = useAct();
   const services = usePageServices();
   const access = useSiteAccess();
-  const verdict = verdictOf(vm);
+  // Signed out or the background silent: the popup's own verdict is the state card; the optional site's tabs that
+  // wait for a reload still are said (FS-IDN-4: «Включить Fansly» works before a sign-in).
+  const verdict: PopupVerdictVM = siteOnly ? { s: 'checking', line: null, alerts: [] } : verdictOf(vm);
   const waiting = access === null ? 0 : waitingReloadOf(access.view);
   const own: StageAlert[] = verdict.alerts.map((alert) => {
     const fix = alert.fix;
@@ -150,6 +152,7 @@ function Stage({ vm }: { readonly vm: PopupVM }): JSX.Element {
   // The optional site's tabs waiting for a reload are where the work is: «Откройте …» would only send the person away.
   const alerts = site.length === 0 ? own : [...own.filter((alert) => alert.code === 'CG-RUNTIME-RELOADED'), ...site, ...own.filter((alert) => alert.code !== 'CG-RUNTIME-RELOADED' && alert.code !== 'CG-HOST-NOT-READY')];
   const first = alerts[0];
+  if (first === undefined && siteOnly) return null;
   if (first === undefined) {
     const ready = verdict.s === 'ready';
     return (
@@ -368,7 +371,9 @@ export function Popup(): JSX.Element {
           </ErrorCard>
           {plainSignIn ? null : <p class="pg-popup__lead pg-sub">{i18n.t('popup.signInLead')}</p>}
         </div>
-      ) : (
+      ) : null}
+      {view.s === 'error' || view.s === 'forbidden' ? <Stage vm={vm} siteOnly /> : null}
+      {view.s === 'loading' || view.s === 'error' || view.s === 'forbidden' ? null : (
         <>
           <Persona vm={vm} />
           <Stage vm={vm} />

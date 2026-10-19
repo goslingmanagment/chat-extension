@@ -6,7 +6,7 @@ import { mountPopup } from '@cg/ui/pages';
 
 import { FANSLY_PAGE_SITES, fanslyPageState } from './fansly';
 import { fanslyOffFixture, fanslyOnFixture } from './fansly-settings';
-import { PAGES_NOW, pagesWorld, settle, type PagesWorld } from './world';
+import { PAGES_NOW, pagesWorld, settle, signedOutState, type PagesWorld } from './world';
 
 let unmount: Unmount | undefined;
 let world: PagesWorld | undefined;
@@ -73,4 +73,22 @@ it('[P9a] the switch is a quiet word in the foot’s one line, never above the p
   expect(root.querySelector('.pg-site-access button')?.textContent).toBe('Включить Fansly');
   const order = [...(root.querySelector('.pg-popup')?.children ?? [])].map((node) => node.className.split(' ')[0]);
   expect(order.indexOf('pg-popup__foot')).toBeGreaterThan(order.indexOf('pg-popup__sec'));
+});
+
+it('[FS-IDN-4] [P3b] signed out, Fansly’s tabs that wait for a reload are still said, with «Перезагрузить вкладку» under «Нужно войти»', async () => {
+  const fixture = fanslyOnFixture(PAGES_NOW);
+  const w = pagesWorld({ page: 'popup', state: signedOutState(PAGES_NOW), sites: FANSLY_PAGE_SITES, fansly: fixture });
+  world = w;
+  const root = document.createElement('div');
+  document.body.append(root);
+  await act(async () => {
+    w.client.start();
+    await settle();
+    unmount = mountPopup(root, w.deps);
+    await settle();
+  });
+  for (let round = 0; round < 3; round++) await act(async () => { await settle(); });
+  expect(root.querySelector('[data-cg-code="CG-AUTH-REQUIRED"]')).not.toBeNull();
+  expect(root.querySelector('.pg-popup__stage .pg-popup__alert-t')?.textContent).toBe('Перезагрузите вкладку Fansly');
+  expect([...root.querySelectorAll('.pg-popup__stage button')].map((node) => node.textContent)).toEqual(['Перезагрузить вкладку']);
 });

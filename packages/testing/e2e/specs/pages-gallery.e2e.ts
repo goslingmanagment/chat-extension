@@ -92,9 +92,11 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
   for (const profile of ['chatspace', 'fansly', 'mixed'] as const) {
     it(`[host:fansly] [host:chatspace] [PU-005] P14b2 popup: ${profile}`, async () => {
       await open(`page=popup&state=${profile}&theme=light`, POPUP);
-      const sites = await count('[data-pg-site]');
-      expect(sites).toBe(profile === 'mixed' ? 2 : 1);
-      if (profile !== 'chatspace') expect(await text('[data-pg-site="fansly-web"]')).toContain('2 вкладки ждут перезагрузки');
+      // X61: no row per site — the stage names the sites that answer, by a comma, the hub after them.
+      expect(await count('.pg-popup__stage[data-pg-verdict="ready"]')).toBe(1);
+      expect(await browser.execute(() => (document.querySelector<HTMLElement>('.pg-popup__stage')?.innerText ?? '').replace(/\s+/g, ' ').trim())).toBe(
+        `Готово к смене ${profile === 'mixed' ? 'ChatSpace, Fansly' : profile === 'fansly' ? 'Fansly' : 'ChatSpace'} и хаб на связи`,
+      );
       await capture(`p14b2-popup-${profile}`);
       expectHealthy(await probe(), 'light');
     });
