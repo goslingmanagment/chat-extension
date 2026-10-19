@@ -39,7 +39,8 @@
   смене», `alerts`), `PopupAlertVM` (код, тон, заголовок, текст, одно действие `fix`, `busy` — действие идёт).
 - **`vm/actions`:** цель `Navigate` `{ kind: 'site-home' }` — «Открыть ChatSpace» из popup: сайт сборки в новой
   вкладке по адресу манифеста.
-- **i18n:** `popup.verdict.*`, `popup.alert.*`, `popup.site.on` / `popup.site.off`; во множественном числе —
+- **i18n:** `popup.verdict.*`, `popup.alert.*` (с `popup.alert.reloadShort` — «Перезагрузить» в строке второй
+  проблемы), `popup.site.on` / `popup.site.off`; во множественном числе —
   `popup.alert.reloadTitle`, `popup.alert.reloadBody`, `popup.site.reloadBody`.
 - **`site.access`** (без изменений схемы): для сайта сборки (ChatSpace) фон принимает `reload: true` и
   перезагружает его вкладки, открытые до обновления (UP-009); включать и выключать можно только необязательный сайт.

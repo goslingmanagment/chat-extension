@@ -317,6 +317,7 @@ export const UI_TEXT_KEYS = [
   // 1.35.0 (X60): the popup's stage — the verdict, what to fix and its remedy; a site's switch in its own quiet row.
   'popup.verdict.readyLine', 'popup.verdict.checking', 'popup.alert.reloadOne', 'popup.alert.reloadMany', 'popup.alert.openTitle',
   'popup.alert.openBody', 'popup.alert.openFix', 'popup.alert.recheck', 'popup.alert.personaFix', 'popup.site.on', 'popup.site.off',
+  'popup.alert.reloadShort',
   // ── end of the extension pages ──
 ] as const;
 export type UiTextKey = (typeof UI_TEXT_KEYS)[number];
