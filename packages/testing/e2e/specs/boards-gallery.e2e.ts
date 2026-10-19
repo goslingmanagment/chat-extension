@@ -39,8 +39,8 @@ const ZOOM_STATES = ['11a', '11i', '13b', '14a', '15a', 'online-b'] as const;
 /** With a preview open the statistics column gives way at this width and below; Spenders is one column from the second one down. */
 const SPENDERS_NO_STATS_PX = 1120;
 const SPENDERS_ONE_COLUMN_PX = 860;
-/** «Новые» is one column at this width and below. */
-const NEWCOMERS_ONE_COLUMN_PX = 900;
+/** «Новые» is one column at this width and below (ui/newcomers frame.css.ts, as on Fansly). */
+const NEWCOMERS_ONE_COLUMN_PX = 760;
 const THEMES = ['light', 'dark'] as const;
 const LANGUAGES = ['ru', 'en'] as const;
 
@@ -56,10 +56,10 @@ const STATES: Readonly<Record<string, string>> = {
   '11h': '.cg-pvp',
   '11i': '.cg-stx',
   '11j': '.cg-pvp',
-  '13a': '.cg-nc',
-  '13b': '.cg-nc',
-  '13c': '.cg-nc',
-  '13d': '.cg-nc',
+  '13a': '.cg-nw__side',
+  '13b': '.cg-nw__side',
+  '13c': '.cg-nw__side',
+  '13d': '.cg-nw__side',
   '14a': '.cg-fp',
   '14b': '.cg-fp',
   '14c': '.cg-fp',
@@ -239,10 +239,10 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
       expect(plain.overflow).toEqual([]);
 
       await open('state=13b&theme=light&lang=ru', viewport);
-      const fresh = await browser.execute(() => ({ list: window.__boards?.box('.cg-nc') ?? null, rows: window.__boards?.box('.cg-nc__list') ?? null, card: window.__boards?.box('.cg-pv') ?? null, frame: window.__boards?.box('.cg-nc__cols') ?? null }));
+      const fresh = await browser.execute(() => ({ list: window.__boards?.box('.cg-nw__side') ?? null, rows: window.__boards?.box('.cg-nw__list') ?? null, card: window.__boards?.box('.cg-pv') ?? null, frame: window.__boards?.box('.cg-nw__main') ?? null }));
       if (fresh.list === null || fresh.rows === null || fresh.card === null || fresh.frame === null) throw new Error(`«Новые» did not render at ${viewport.width}`);
-      // The rows are there at every width: three of 52 px under the column header.
-      expect(fresh.rows.height).toBeGreaterThanOrEqual(28 + 3 * 52);
+      // The rows are there at every width: three of 70 px.
+      expect(fresh.rows.height).toBeGreaterThanOrEqual(3 * 70);
       if (viewport.width <= NEWCOMERS_ONE_COLUMN_PX) {
         expect(Math.round(fresh.card.left)).toBe(Math.round(fresh.list.left));
         expect(Math.round(fresh.card.width)).toBe(Math.round(fresh.frame.width));
@@ -288,17 +288,16 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
     expect(wide.short).toBe('none');
   });
 
-  it('our text is the host’s: its font and the way it smooths it (ui-design §2.3)', async () => {
+  it('our text is the family’s on every site: the system UI face, smoothed, whatever the page’s own (ui-design §2.3; X60)', async () => {
     await open('state=11a&theme=dark&lang=ru', VIEWPORTS[0]);
     const styles = await browser.execute(() => ({
-      page: getComputedStyle(document.documentElement).getPropertyValue('-moz-osx-font-smoothing'),
       ours: window.__boards?.style('.cg-sp__title', '-moz-osx-font-smoothing') ?? null,
       pageFont: getComputedStyle(document.documentElement).fontFamily,
       ourFont: window.__boards?.style('.cg-sp__title', 'font-family') ?? null,
     }));
-    expect(styles.page).toBe('grayscale');
-    expect(styles.ours).toBe(styles.page);
-    expect(styles.ourFont).toBe(styles.pageFont);
+    expect(styles.ours).toBe('grayscale');
+    expect(styles.ourFont).toContain('system-ui');
+    expect(styles.ourFont).not.toBe(styles.pageFont);
   });
 
   it('[SP-015] [SP-017] «ждёт ответа» is the age in bold ink, with no blue dot; a deleted fan is a muted name and the word', async () => {

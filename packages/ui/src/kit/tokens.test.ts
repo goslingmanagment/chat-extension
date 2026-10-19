@@ -4,7 +4,7 @@ import { SCHEME_ATTRIBUTE, THEME_TOKEN_NAMES, THEME_TOKENS, type ColorScheme, ty
 
 import { BASE_CSS } from './base';
 import { KIT_STYLE_SOURCES } from './sheets';
-import { DARK_HOST, DARK_PAGE, HOST_FALLBACK_TRIPLETS, LARGE_TEXT, LARGE_TEXT_SCOPE, THEME_CSS, TOKEN_VALUES, dark, om, tokenValue } from './tokens';
+import { DARK_HOST, DARK_PAGE, FAMILY_TRIPLETS, LARGE_TEXT, LARGE_TEXT_SCOPE, SITE_BLUE_FALLBACK, THEME_CSS, TOKEN_VALUES, blue, dark, family, tokenValue } from './tokens';
 
 /** `--x: value;` declarations of one rule block of THEME_CSS. */
 function declarations(block: string): Map<string, string> {
@@ -32,14 +32,14 @@ function splitSelectors(list: string): string[] {
   return out.filter((part) => part !== '');
 }
 
-/** An opaque token's colour in a scheme, with ChatSpace's 0.172.0 values where it reads the host's palette. */
+/** An opaque token's colour in a scheme: the family's fixed value, or the fallback of the site's blue. */
 function rgbOf(name: ThemeTokenName, scheme: ColorScheme): readonly number[] {
   const value = tokenValue(name, scheme);
   const alias = /^var\((--cg-[a-z0-9-]+)\)$/.exec(value);
   if (alias !== null) return rgbOf(alias[1] as ThemeTokenName, scheme);
   const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value);
   if (hex !== null) return hex.slice(1).map((byte) => Number.parseInt(byte, 16));
-  const triplet = /^rgb\(var\(--color-om-[a-z0-9-]+, (\d+) (\d+) (\d+)\)\)$/.exec(value);
+  const triplet = /^rgb\((?:var\(--color-om-[a-z0-9-]+, )?(\d+) (\d+) (\d+)\)?\)$/.exec(value);
   if (triplet === null) throw new Error(`${name} is not an opaque colour: ${value}`);
   return triplet.slice(1).map(Number);
 }
@@ -87,27 +87,36 @@ describe('[I18-006] theme on every surface: one token sheet for shadow roots and
   });
 });
 
-describe('[I18-005] colours come from ChatSpace’s palette, with its 0.172.0 values as the fallback (ui-design §2.1)', () => {
-  it('a host step reads the --color-om-* triplet and falls back to the fixed one', () => {
-    expect(om('neutral-900')).toBe('rgb(var(--color-om-neutral-900, 26 24 19))');
-    expect(om('brand-400', 0.25)).toBe('rgb(var(--color-om-brand-400, 10 109 255) / 0.25)');
+describe('[I18-005] the family’s palette on every site, the site’s blue only for what reaches the fan (ui-design §2.1; X60)', () => {
+  it('a grey is the family’s fixed value; a blue reads the site’s brand triplet (--color-om-*) and falls back to ChatSpace’s', () => {
+    expect(family('neutral-900')).toBe('rgb(38 36 32)');
+    expect(family('neutral-900', 0.1)).toBe('rgb(38 36 32 / 0.1)');
+    expect(blue('brand-400')).toBe('rgb(var(--color-om-brand-400, 10 109 255))');
   });
 
-  it('the ink and surface steps of both schemes match the spec table', () => {
-    expect(tokenValue('--cg-ink-strong', 'light')).toBe(om('neutral-950'));
-    expect(tokenValue('--cg-ink-strong', 'dark')).toBe(om('white'));
-    expect(tokenValue('--cg-ink-muted', 'light')).toBe(om('neutral-500'));
-    expect(tokenValue('--cg-ink-muted', 'dark')).toBe(om('neutral-400'));
-    expect(tokenValue('--cg-surface', 'dark')).toBe(om('neutral-950'));
-    expect(tokenValue('--cg-raised', 'light')).toBe(om('neutral-0'));
-    expect(tokenValue('--cg-raised', 'dark')).toBe(om('neutral-900'));
-    expect(tokenValue('--cg-chip', 'dark')).toBe(om('neutral-850'));
-    expect(tokenValue('--cg-groove', 'light')).toBe(om('neutral-100'));
+  it('the ink and surface steps of both schemes match the spec table: the old Fansly panel’s paper (X57)', () => {
+    expect(tokenValue('--cg-ink-strong', 'light')).toBe(family('neutral-950'));
+    expect(tokenValue('--cg-ink-strong', 'dark')).toBe(family('white'));
+    expect(tokenValue('--cg-ink-muted', 'light')).toBe(family('neutral-500'));
+    expect(tokenValue('--cg-ink-muted', 'dark')).toBe(family('neutral-400'));
+    expect(tokenValue('--cg-surface', 'dark')).toBe(family('neutral-950'));
+    expect(tokenValue('--cg-raised', 'light')).toBe('rgb(250 249 245)');
+    expect(tokenValue('--cg-raised', 'dark')).toBe('rgb(38 36 32)');
+    expect(tokenValue('--cg-chip', 'light')).toBe('rgb(242 240 233)');
+    expect(tokenValue('--cg-chip', 'dark')).toBe(family('neutral-850'));
+    expect(tokenValue('--cg-groove', 'light')).toBe('rgb(232 229 218)');
     expect(tokenValue('--cg-tip-bg', 'light')).toBe('var(--cg-raised)');
   });
 
-  it('every fallback triplet is three bytes', () => {
-    for (const triplet of Object.values(HOST_FALLBACK_TRIPLETS)) {
+  it('no site’s variable reaches a grey, a line, a surface or an ink: only the blue reads the site', () => {
+    for (const name of THEME_TOKEN_NAMES) {
+      if (name === '--cg-chat-out' || name === '--cg-send' || name === '--cg-send-hover') continue;
+      expect(JSON.stringify(TOKEN_VALUES[name]), name).not.toMatch(/var\(--color-om-|--chat-incoming/);
+    }
+  });
+
+  it('every triplet is three bytes', () => {
+    for (const triplet of [...Object.values(FAMILY_TRIPLETS), ...Object.values(SITE_BLUE_FALLBACK)]) {
       const parts = triplet.split(' ').map(Number);
       expect(parts).toHaveLength(3);
       for (const part of parts) expect(part >= 0 && part <= 255 && Number.isInteger(part)).toBe(true);
@@ -149,22 +158,26 @@ describe('[I18-005] colours come from ChatSpace’s palette, with its 0.172.0 va
       }
       expect(contrast('--cg-ink-2', '--cg-groove', scheme), `${scheme}: Split in the groove`).toBeGreaterThanOrEqual(4.5);
       expect(contrast('--cg-ink', '--cg-chip', scheme), `${scheme}: a chip's word`).toBeGreaterThanOrEqual(4.5);
+      // A raised chip stands apart from its card (the old panel's own step).
+      expect(contrast('--cg-chip', '--cg-raised', scheme), `${scheme}: a chip on the card`).toBeGreaterThanOrEqual(1.05);
     }
   });
 
   it('green is only the money token', () => {
-    const green = THEME_TOKEN_NAMES.filter((name) => JSON.stringify(TOKEN_VALUES[name]).includes('success-'));
+    const greens = [family('success-600'), family('success-400')];
+    const green = THEME_TOKEN_NAMES.filter((name) => greens.some((value) => JSON.stringify(TOKEN_VALUES[name]).includes(value)));
     expect(green).toEqual(['--cg-money']);
   });
 });
 
-describe('[I18-007] fonts: the host’s own, locally installed only on our pages', () => {
-  it('surfaces inherit the host font; pages name local families; nothing is downloaded', () => {
-    expect(TOKEN_VALUES['--cg-font']).toBe('inherit');
+describe('[I18-007] fonts: the family’s system face on every site, locally installed only on our pages', () => {
+  it('surfaces wear the system UI face, smoothed, whatever the page’s font (X60); pages name local families; nothing is downloaded', () => {
+    expect(TOKEN_VALUES['--cg-font']).toBe('-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif');
+    expect(BASE_CSS).toMatch(/\.cg-root \{[^}]*font-family: var\(--cg-font\);[^}]*-webkit-font-smoothing: antialiased/);
     expect(TOKEN_VALUES['--cg-font-page']).toMatch(/^Inter, -apple-system/);
     // AI-authored text is serif; the faces are the machine's own.
     expect(TOKEN_VALUES['--cg-serif']).toMatch(/Georgia, "Times New Roman", serif$/);
-    expect(BASE_CSS).toMatch(/:host \{[^}]*font-family: inherit/);
+    expect(BASE_CSS).toMatch(/:host \{[^}]*font-family: var\(--cg-font\)/);
     const css = KIT_STYLE_SOURCES.map((source) => source.css).join('\n');
     expect(css).not.toMatch(/@font-face|@import|url\(/);
   });

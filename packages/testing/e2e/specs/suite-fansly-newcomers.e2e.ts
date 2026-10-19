@@ -41,7 +41,7 @@ const WINDOW = '.cg-fnw';
 
 /** The status filter is one menu: open it, choose the status. */
 async function chooseStatus(status: RegExp): Promise<void> {
-  await pressOurs('modal', `${WINDOW} .cg-fnw__tools button.cg-fnw__filter`, /./);
+  await pressOurs('modal', `${WINDOW} .cg-nw__tools button.cg-nw__filter`, /./);
   await pressOurs('modal', `${WINDOW} [role="menuitemradio"]`, status);
 }
 /** The test build's key for the stand's API (bg/fansly/api-probe.ts): the pass asks there, and nothing without it. */
@@ -111,7 +111,7 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     await browser.url(testBuildPage(QUIET_PAGE));
     await shift.toFansly();
     // The followers of 48 hours, as the pass read them; the queue runs and may stop.
-    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-fnw__row`), { timeout: 30_000, timeoutMsg: 'no row of the pass in the window' });
+    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-nw__row`), { timeout: 30_000, timeoutMsg: 'no row of the pass in the window' });
     expect(await oursText('modal', WINDOW)).not.toMatch(/Список не загружен/);
     await waitOursByText('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'the queue runs: «Пауза»', 30_000);
     await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза');
@@ -137,7 +137,7 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     const followed = await fakeFansly().command({ op: 'follow', silent: true, dmRulesUnmet: true });
     const fan = followed.follow?.followerId ?? '';
     expect(fan).toMatch(/^\d+$/);
-    const ROW = `${WINDOW} .cg-fnw__row[data-cg-fan$=":${fan}"]`;
+    const ROW = `${WINDOW} .cg-nw__row[data-cg-fan$=":${fan}"]`;
     const checkOf = async (): Promise<string | null> => readOurs('modal', ROW, (node) => node.getAttribute('data-cg-check'));
     const todo = async (): Promise<number> => Number(/К обработке (\d+)/.exec(await oursText('modal', `${WINDOW} [role="tablist"]`))?.[1] ?? Number.NaN);
     const mark = await fakeFansly().mark();
@@ -185,7 +185,7 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     const followed = await fakeFansly().command({ op: 'follow', silent: true });
     const fan = followed.follow?.followerId ?? '';
     expect(fan).toMatch(/^\d+$/);
-    const ROW = `${WINDOW} .cg-fnw__row[data-cg-fan$=":${fan}"]`;
+    const ROW = `${WINDOW} .cg-nw__row[data-cg-fan$=":${fan}"]`;
     const checkOf = async (): Promise<string | null> => readOurs('modal', ROW, (node) => node.getAttribute('data-cg-check'));
     const mark = await fakeFansly().mark();
     const hubMark = await hub().mark();
@@ -244,7 +244,7 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
 const CARD = `${WINDOW} .cg-fnc`;
 const FIELD = `${CARD} .cg-fnc__greet textarea`;
 const BUTTONS = `${CARD} .cg-fnc__gbar button`;
-const ROW = (fan: string): string => `${WINDOW} .cg-fnw__row[data-cg-fan$=":${fan}"]`;
+const ROW = (fan: string): string => `${WINDOW} .cg-nw__row[data-cg-fan$=":${fan}"]`;
 const checkOf = (fan: string): Promise<string | null> => readOurs('modal', ROW(fan), (node) => node.getAttribute('data-cg-check'));
 const fieldText = (): Promise<string | null> => readOurs('modal', FIELD, (node) => (node as HTMLTextAreaElement).value);
 const posts = async (mark: number, caller: 'ours' | 'page' = 'ours') => (await fakeFansly().calls(caller, mark)).filter((entry) => entry.route === 'message.send');
@@ -354,7 +354,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
       { fanId: written, ageHours: 11, messages: [{ from: 'creator', text: 'We already spoke' }] },
       { fanId: old, ageHours: 700, messages: [] },
     ]);
-    expect(await oursText('modal', `${WINDOW} .cg-fnw__period`)).toBe('12 часов');
+    expect(await oursText('modal', `${WINDOW} .cg-nw__period`)).toBe('12 часов');
     await select(fresh, 'ready');
     await browser.waitUntil(async () => (await checkOf(closed)) === 'dm-closed' && (await checkOf(written)) === 'greeted', { timeout: 30_000 });
     expect(await oursText('modal', `${WINDOW} [role="tablist"]`)).toMatch(/К обработке 2.*Все 3/);
@@ -362,11 +362,11 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect(await oursText('modal', ROW(fresh))).toContain('Мой новый фан');
     expect(await oursText('modal', CARD)).toContain(`About stand_account_${fresh.slice(-6)}`);
     // Fansly's host account carries its id alone; the bound hub page supplies the window's display name.
-    expect(await oursText('modal', `${WINDOW} .cg-fnw__page`)).toBe(PAGE.title);
+    expect(await oursText('modal', `${WINDOW} .cg-nw__page`)).toBe(PAGE.title);
     await waitOursText('modal', / — .* · местное время/, 'the dates of the pass under the toolbar', { selector: `${WINDOW} .cg-fnw__range`, timeout: 30_000 });
     await waitOursText('modal', 'Проверено 3 из 3', 'the pass’s progress', { selector: WINDOW, timeout: 30_000 });
     for (const [period, count, included, excluded] of [['1 час', 1, fresh, closed], ['30 дней', 4, old, '']] as const) {
-      await ours('modal', `${WINDOW} .cg-fnw__period`).click();
+      await ours('modal', `${WINDOW} .cg-nw__period`).click();
       await pressOurs('modal', '[role="menuitemradio"]', period);
       await waitOursText('modal', new RegExp(`Все ${count}\\b`), `the ${period} pass`, { selector: `${WINDOW} [role="tablist"]`, timeout: 40_000 });
       await select(included, 'ready');
@@ -375,10 +375,10 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     // X59: the next window opens on the period chosen last — then back to the default for the tests after this one.
     await closeWindow();
     await openWindow(shift);
-    await waitOursText('modal', '30 дней', 'the remembered period', { selector: `${WINDOW} .cg-fnw__period`, timeout: 20_000 });
-    await ours('modal', `${WINDOW} .cg-fnw__period`).click();
+    await waitOursText('modal', '30 дней', 'the remembered period', { selector: `${WINDOW} .cg-nw__period`, timeout: 20_000 });
+    await ours('modal', `${WINDOW} .cg-nw__period`).click();
     await pressOurs('modal', '[role="menuitemradio"]', '12 часов');
-    await waitOursText('modal', '12 часов', 'the default period again', { selector: `${WINDOW} .cg-fnw__period` });
+    await waitOursText('modal', '12 часов', 'the default period again', { selector: `${WINDOW} .cg-nw__period` });
     expect(await posts(mark)).toEqual([]);
   });
 
@@ -403,14 +403,14 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все 105$/);
     expect(await readOurs('modal', `${WINDOW} [data-cg-pass]`, (node) => node.getAttribute('data-cg-pass'))).toBe('paused');
     await chooseStatus(/^В очереди/);
-    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-fnw__row`), { timeout: 10_000 });
-    expect((await oursText('modal', `${WINDOW} .cg-fnw__row`))).not.toContain('Уже писали');
+    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-nw__row`), { timeout: 10_000 });
+    expect((await oursText('modal', `${WINDOW} .cg-nw__row`))).not.toContain('Уже писали');
     await chooseStatus(/^Все статусы/);
     await ours('modal', ROW(followers[0]?.fanId ?? '')).click();
     await browser.keys('End');
     await browser.waitUntil(async () => oursExists('modal', `${WINDOW} [aria-posinset="100"]`), { timeout: 10_000, timeoutMsg: 'the end of the first 100 rows did not render' });
     // 105 rows of 70 px (ui/hosts/fansly/newcomers ROW_HEIGHTS): the second page is in the list.
-    await browser.waitUntil(async () => (await readOurs('modal', `${WINDOW} .cg-fnw__list .cg-vlist__inner`, (node) => node.style.height)) === `${105 * 70}px`, { timeout: 10_000, timeoutMsg: 'the next page was not appended' });
+    await browser.waitUntil(async () => (await readOurs('modal', `${WINDOW} .cg-nw__list .cg-vlist__inner`, (node) => node.style.height)) === `${105 * 70}px`, { timeout: 10_000, timeoutMsg: 'the next page was not appended' });
     await browser.keys('End');
     await browser.waitUntil(async () => oursExists('modal', ROW(last)), { timeout: 10_000, timeoutMsg: 'the 105th row is not reachable' });
     expect(await calls(hubMark, 'clientFanClaim')).toEqual([]);
@@ -503,7 +503,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, /^Проверить оставшихся/);
     await waitOursText('modal', /Все 101\b/, 'the retry finished the list', { selector: `${WINDOW} [role="tablist"]`, timeout: 40_000 });
     await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'pause the completed list’s queue', 30_000);
-    expect(await oursExists('modal', `${WINDOW} .cg-nc__incomplete`)).toBe(false);
+    expect(await oursExists('modal', `${WINDOW} .cg-nw__incomplete`)).toBe(false);
     expect(await posts(mark)).toEqual([]);
   });
 

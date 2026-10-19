@@ -243,8 +243,11 @@ a boundary you need to cross is a design question, not a lint exception.
 - **UI speaks the family language** (decision X28, which revises X7): raised
   chips, the sunken capsule of Reply's options, draft cards, the terracotta
   accent, serif AI text — as in the Fansly extension — in a layout of its own:
-  one card docked to the top of ChatSpace's message input (the composer). The
-  host's blue is only for what reaches the fan («Отправить»). The extension
+  one card docked to the top of ChatSpace's message input (the composer). One
+  look on every site (X60): the old Fansly panel's warm greys and the system UI
+  face are the kit's own (`ui/kit/tokens.ts`), never a page's; the «Новые»
+  window is one frame (`ui/newcomers/frame.tsx`) a site fills with its words
+  and card. The host's blue is only for what reaches the fan («Отправить»). The extension
   pages (popup, settings, sign-in, debug) wear the agency identity instead
   (decision X32): paper, ink, Literata and Golos Text, the gosling logo — its
   palette lives in the pages' sheet only. `docs/ui-design.md` is binding.

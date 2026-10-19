@@ -9,11 +9,13 @@ import { useMemo } from 'preact/hooks';
 import { type I18n } from '@cg/contracts/vm';
 
 import { KitProvider, useKit, type StyleSource, type SurfaceDefinition } from '../../../kit';
+import { NEWCOMERS_FRAME_STYLES } from '../../../newcomers/frame.css';
 import { WINDOW_STYLES } from '../../../spenders/window';
 import { FanslyNewcomersWindow } from './NewcomersWindow';
 import { FANSLY_NEWCOMERS_CSS } from './styles';
 
-export { FanslyNewcomersWindow, checkText, failureView, fanslyText, greetingStart, nextDraft, periodText } from './NewcomersWindow';
+export { FanslyNewcomersWindow, checkText, failureView, fanslyText, greetingStart, nextDraft } from './NewcomersWindow';
+export { periodText } from '../../../newcomers/frame';
 
 export const FANSLY_NEWCOMERS_STYLES: StyleSource = { id: 'cg-fansly-newcomers', css: FANSLY_NEWCOMERS_CSS };
 
@@ -29,6 +31,6 @@ export function fanslyNewcomersSurface(texts: (base: I18n) => I18n): SurfaceDefi
       </KitProvider>
     );
   }
-  // The shared window sheet carries the menus' buttons (`ChoiceMenu`): its id is shared, so a page that has both carries it once.
-  return { view: FanslyNewcomers, styles: [WINDOW_STYLES, FANSLY_NEWCOMERS_STYLES] };
+  // The shared sheets — the menus' buttons (`ChoiceMenu`) and the window's frame — keep their ids: a page that has both carries each once.
+  return { view: FanslyNewcomers, styles: [WINDOW_STYLES, NEWCOMERS_FRAME_STYLES, FANSLY_NEWCOMERS_STYLES] };
 }

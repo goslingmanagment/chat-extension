@@ -200,7 +200,7 @@ describe('[host:fansly] the galleries with Fansly’s profile: its palette, its 
 
   for (const theme of THEMES) {
     it(`[I18-006] [host:fansly] the boards in Fansly’s ${theme} theme: Spenders with the preview, «Новые», the fan panel`, async () => {
-      for (const [state, marker] of [['11a', '.cg-pvp'], ['13a', '.cg-nc'], ['14a', '.cg-fp']] as const) {
+      for (const [state, marker] of [['11a', '.cg-pvp'], ['13a', '.cg-nw__side'], ['14a', '.cg-fp']] as const) {
         await openPage(BOARDS_GALLERY_PATH, `host=fansly&state=${state}&theme=${theme}&lang=ru`, 'data-boards-ready');
         const context = await browser.getWindowHandle();
         save(`boards-fansly-${state}-${theme}-ru-1440x900`, (await browser.browsingContextCaptureScreenshot({ context, origin: 'viewport' })).data);

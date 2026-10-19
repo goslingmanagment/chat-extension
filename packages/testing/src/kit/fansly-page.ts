@@ -6,10 +6,10 @@
 // roots get the palette their profile reads off this page. Nothing here is Fansly's code or CSS.
 
 import { type ColorScheme } from '@cg/contracts';
-import { HOST_FALLBACK_TRIPLETS } from '@cg/ui/kit';
+import { SITE_BLUE_FALLBACK } from '@cg/ui/kit';
 
-/** The ChatSpace triplets the galleries' own sheets put on <html>, taken away while the page plays Fansly. */
-const CHATSPACE_STEPS = [...Object.keys(HOST_FALLBACK_TRIPLETS), 'brand-50', 'brand-300'];
+/** The ChatSpace blue the galleries' own sheets put on <html>, taken away while the page plays Fansly. */
+const CHATSPACE_STEPS = [...Object.keys(SITE_BLUE_FALLBACK), 'brand-50', 'brand-300'];
 
 export const FANSLY_PAGE_CSS = `
 :root {

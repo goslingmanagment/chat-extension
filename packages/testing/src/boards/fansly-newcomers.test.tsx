@@ -30,7 +30,7 @@ const mount = async (state: string, language: 'ru' | 'en' = 'ru'): Promise<Mount
 };
 /** A row as the person reads it: the name, «@handle · 14 мин назад», the status. */
 const rowTexts = (board: MountedBoard): string[] =>
-  board.$$('.cg-fnw__row').map((row) => [row.querySelector('.cg-fnw__name'), row.querySelector('.cg-fnw__meta'), row.querySelector('.cg-fnw__st')].map(textOf).join(' | '));
+  board.$$('.cg-nw__row').map((row) => [row.querySelector('.cg-nw__name'), row.querySelector('.cg-nw__meta'), row.querySelector('.cg-nw__st')].map(textOf).join(' | '));
 const vmOf = (state: string): NewcomersVM => boardScenario(state).views.find((view) => view.selector.of === 'newcomers')?.vm as NewcomersVM;
 const click = async (element: Element | null | undefined): Promise<void> => flush(() => (element as HTMLElement).click());
 const button = (board: MountedBoard, scope: string, label: string): HTMLElement | undefined => board.$$(`${scope} button`).find((item) => textOf(item) === label);
@@ -39,19 +39,19 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
   it('[NF-001] [NF-002] [X59] the old window: «Новые фоловеры» over «@креатор», a window over a scrim; × and Esc close it, the search first', async () => {
     const board = await mount('13f');
     const dialog = board.$('[role="dialog"]') as HTMLElement;
-    expect([dialog.getAttribute('aria-modal'), dialog.getAttribute('aria-label'), board.text('.cg-fnw__title'), board.text('.cg-fnw__creator'), board.text('.cg-fnw__page')]).toEqual(['true', 'Новые фоловеры', 'Новые фоловеры', '@lora_vie', 'LoraVie VIP']);
+    expect([dialog.getAttribute('aria-modal'), dialog.getAttribute('aria-label'), board.text('.cg-nw__title'), board.text('.cg-nw__creator'), board.text('.cg-nw__page')]).toEqual(['true', 'Новые фоловеры', 'Новые фоловеры', '@lora_vie', 'LoraVie VIP']);
     // Not the whole page: a window of its own size over a scrim, as the old one.
     expect(dialog.classList.contains('cg-dialog--wide')).toBe(true);
     expect(board.$('.cg-scrim')).not.toBeNull();
     expect(board.host.hasAttribute('data-dismissible-open')).toBe(true);
-    await click(board.$('.cg-fnw__close'));
+    await click(board.$('.cg-nw__close'));
     expect(board.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
   });
 
   it('[NF-003] [X59] the period: «За 48 часов», from 1 hour to 30 days; the choice is the controller’s to remember', async () => {
     const board = await mount('13f');
-    expect(board.text('.cg-fnw__period-box .cg-fnw__label')).toBe('За');
-    const trigger = board.$('.cg-fnw__period') as HTMLElement;
+    expect(board.text('.cg-nw__period-box .cg-nw__label')).toBe('За');
+    const trigger = board.$('.cg-nw__period') as HTMLElement;
     expect(trigger.querySelector('.cg-btn__t')?.textContent).toBe('48 часов');
     await click(trigger);
     const items = board.$$('[role="menuitemradio"]');
@@ -106,48 +106,48 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
       'Chris | @chris_77 · 9 ч назад | Переписка не проверена',
       'Alex M. (Алекс из Бостона) | @alex_m · 11 ч назад | Не писали',
     ]);
-    expect(board.$$('.cg-fnw__row').map((row) => row.getAttribute('data-cg-check'))).toEqual(['ready', 'reply', 'pending', 'checking', 'dm-closed', 'failed', 'unverified', 'ready']);
+    expect(board.$$('.cg-nw__row').map((row) => row.getAttribute('data-cg-check'))).toEqual(['ready', 'reply', 'pending', 'checking', 'dm-closed', 'failed', 'unverified', 'ready']);
     // The terracotta of «можно работать» only where the person can act; a spinner while the chat is being checked; no red.
-    expect(board.$$('.cg-fnw__row .cg-fnw__st.is-act').map(textOf)).toEqual(['Не писали', 'Ждёт ответа', 'Не писали']);
+    expect(board.$$('.cg-nw__row .cg-nw__st.is-act').map(textOf)).toEqual(['Не писали', 'Ждёт ответа', 'Не писали']);
     expect(board.$('[data-cg-check="checking"] .cg-spin')).not.toBeNull();
-    expect(board.$$('.cg-fnw__row .cg-dot--danger')).toEqual([]);
+    expect(board.$$('.cg-nw__row .cg-dot--danger')).toEqual([]);
     // No picture in this state: the initial.
-    expect(board.$$('.cg-fnw__row .cg-fnw__ava').map(textOf).slice(0, 2)).toEqual(['T', 'L']);
-    expect(board.$$('.cg-fnw__row img')).toEqual([]);
-    const selected = board.$('.cg-fnw__row.is-sel') as HTMLElement;
+    expect(board.$$('.cg-nw__row .cg-nw__ava').map(textOf).slice(0, 2)).toEqual(['T', 'L']);
+    expect(board.$$('.cg-nw__row img')).toEqual([]);
+    const selected = board.$('.cg-nw__row.is-sel') as HTMLElement;
     expect([selected.getAttribute('data-cg-check'), selected.getAttribute('aria-selected')]).toEqual(['ready', 'true']);
   });
 
   it('[X59] the fan’s picture: lazy, without a referrer, over the initial — the initial stays when it does not load', async () => {
     const board = await mount('13o');
-    const img = board.$('.cg-fnw__row img') as HTMLImageElement;
+    const img = board.$('.cg-nw__row img') as HTMLImageElement;
     expect([img.getAttribute('loading'), img.getAttribute('decoding'), img.getAttribute('referrerpolicy'), img.getAttribute('alt')]).toEqual(['lazy', 'async', 'no-referrer', '']);
     expect(textOf(img.parentElement)).toBe('T');
     await flush(() => img.dispatchEvent(new Event('error')));
-    expect(board.$('.cg-fnw__row')?.querySelector('img')).toBeNull();
-    expect(textOf(board.$('.cg-fnw__row .cg-fnw__ava'))).toBe('T');
+    expect(board.$('.cg-nw__row')?.querySelector('img')).toBeNull();
+    expect(textOf(board.$('.cg-nw__row .cg-nw__ava'))).toBe('T');
     // The card shows the same picture, larger.
-    expect(board.$('.cg-fnc__head .cg-fnw__ava.is-card img')).not.toBeNull();
+    expect(board.$('.cg-fnc__head .cg-nw__ava.is-card img')).not.toBeNull();
   });
 
   it('[NF-006] «К обработке / Все» with counts, the status filter with counts, the search; a row opens its card', async () => {
     vi.useFakeTimers();
     const board = await mount('13f');
-    const tabs = board.$$('.cg-fnw__tabs [role="tab"]');
+    const tabs = board.$$('.cg-nw__tabs [role="tab"]');
     expect(tabs.map(textOf)).toEqual(['К обработке 8', 'Все 10']);
     expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['true', 'false']);
     await click(tabs[1]);
     expect(board.actions().at(-1)).toEqual({ type: 'SetNewcomersTab', tab: 'all' });
     // One status menu, as the old window's select.
-    const status = board.$('.cg-fnw__filter') as HTMLElement;
+    const status = board.$('.cg-nw__filter') as HTMLElement;
     expect(textOf(status)).toBe('Все статусы 8');
     await click(status);
-    const filters = board.$$('.cg-fnw__tools [role="menuitemradio"]');
+    const filters = board.$$('.cg-nw__tools [role="menuitemradio"]');
     expect(filters.map(textOf)).toEqual(['Все статусы8', 'Не писали2', 'В очереди1', 'Ждёт ответа1', 'Не проверены4', 'Нельзя написать1', 'Уже писали0']);
     await click(filters[5]);
     expect(board.actions().at(-1)).toEqual({ type: 'SetNewcomersCheckFilter', filter: 'dm-closed' });
 
-    const input = board.$('.cg-sp__search input') as HTMLInputElement;
+    const input = board.$('.cg-nw__search input') as HTMLInputElement;
     await flush(() => keydown(board.root.activeElement as HTMLElement, '/', { code: 'Slash' }));
     expect(board.root.activeElement).toBe(input);
     await flush(() => {
@@ -157,7 +157,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     });
     expect(board.actions().at(-1)).toEqual({ type: 'Search', list: 'newcomers', query: 'leo' });
 
-    await click(board.$$('.cg-fnw__row')[1]);
+    await click(board.$$('.cg-nw__row')[1]);
     expect(board.actions().at(-1)).toEqual({ type: 'OpenPreview', targetHandle: handle(2) });
   });
 
@@ -165,7 +165,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     const board = await mount('13f');
     expect(board.text('[data-cg-stage]')).toBe('Уточняем переписку: осталось 2');
     expect(board.$('[data-cg-stage] .cg-spin')).not.toBeNull();
-    expect(board.$$('.cg-fnw__bar button.cg-fnw__run').map(textOf)).toEqual(['Пауза']);
+    expect(board.$$('.cg-nw__bar button.cg-fnw__run').map(textOf)).toEqual(['Пауза']);
     expect(board.text('.cg-fnw__range')).toMatch(/^.+ — .+ · местное время$/);
     await click(board.$('.cg-fnw__refresh'));
     expect(board.actions().at(-1)).toEqual({ type: 'ReloadView', selector: { of: 'newcomers' } });
@@ -210,13 +210,13 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
   it('[FX-017] the list that was not read says so — with the reason and the way to «Fansly через вкладку» —, never «nobody new»', async () => {
     const board = await mount('13h');
     expect(board.$('[data-cg-list="failed"]')).not.toBeNull();
-    expect(board.$('.cg-fnw__tools')).toBeNull();
+    expect(board.$('.cg-nw__tools')).toBeNull();
     expect(board.text('[data-cg-list="failed"] .cg-codeline')).toBe('ChatGoose · CG-FAN-SESSION');
     expect(board.text('[data-cg-list="failed"] .cg-card__title')).toBe('Нет связи с Fansly');
     expect(board.text('.cg-fnw__hint2')).toMatch(/«Fansly через вкладку»/);
     expect(board.$('[data-cg-stage]')).toBeNull();
     expect(board.root.textContent).not.toMatch(/новых фоловеров нет/i);
-    expect(board.$$('.cg-fnw__row')).toEqual([]);
+    expect(board.$$('.cg-nw__row')).toEqual([]);
     await click(button(board, '[data-cg-list="failed"]', 'Повторить'));
     expect(board.actions().at(-1)).toEqual({ type: 'ReloadView', selector: { of: 'newcomers' } });
   });
@@ -235,14 +235,14 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
 
   it('[NF-025] [NF-008] «Результат неполный», the pause Fansly asked for; a fan nobody can write to says why', async () => {
     const board = await mount('13i');
-    expect(board.text('.cg-nc__incomplete')).toBe('Результат неполный Проверка прошла не до конца: показаны не все, кто подписался за это время.');
+    expect(board.text('.cg-nw__incomplete')).toBe('Результат неполный Проверка прошла не до конца: показаны не все, кто подписался за это время.');
     expect(board.text('.cg-fnw__cool')).toBe('Fansly ограничил частоту запросов. Пауза 45 с — проверка продолжится сама.');
     expect(board.text('.cg-fnc__verdict')).toMatch(/^Нельзя написатьFansly не даёт написать: этот фан принимает только платные сообщения — \$1\.70 за сообщение\.Исключить из очереди/);
   });
 
   it('[NF-038] the queue’s buttons (R20 P10b1): «Пауза» while it runs; «Проверить оставшихся: N» and «Проверить чат» while it stands — each one action', async () => {
     const running = await mount('13f');
-    await click(button(running, '.cg-fnw__bar', 'Пауза'));
+    await click(button(running, '.cg-nw__bar', 'Пауза'));
     expect(running.actions().at(-1)).toEqual({ type: 'SetNewcomersPassRunning', running: false });
     expect(running.$$('.cg-fnc button').map(textOf)).not.toContain('Проверить следующим');
     running.unmount();
@@ -306,7 +306,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     const empty = { ...list, pass: { ...(list.pass as NonNullable<NewcomersVM['pass']>), card: { ...card, greeting: { ...card.greeting, text: '', ai: false, canSend: false, canInsert: false } } } };
     const board = await mountBoardSettled('fansly-newcomers', { ...base, views: base.views.map((view) => (view.selector.of === 'newcomers' ? entry({ of: 'newcomers' }, empty) : view)) });
     ui = board;
-    const row = (at: number): HTMLElement => board.$$('.cg-fnw__row')[at] as HTMLElement;
+    const row = (at: number): HTMLElement => board.$$('.cg-nw__row')[at] as HTMLElement;
     await flush(() => keydown(row(0), 'Enter', { code: 'Enter' }));
     expect(board.actions().at(-1)).toEqual({ type: 'Generate', targetHandle: handle(1), feature: 'hi', options: {} });
     // J twice: the focus moves at once, one card is asked for once the keys stop.
@@ -321,7 +321,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     // The field has the draft: Enter starts nothing and gives the field the focus; «Отправить →» stays a click.
     const drafted = await mount('13m');
     const at = drafted.actions().length;
-    await flush(() => keydown(drafted.$$('.cg-fnw__row')[0] as HTMLElement, 'Enter', { code: 'Enter' }));
+    await flush(() => keydown(drafted.$$('.cg-nw__row')[0] as HTMLElement, 'Enter', { code: 'Enter' }));
     expect(drafted.actions().slice(at)).toEqual([]);
     expect(drafted.root.activeElement).toBe(drafted.$('.cg-fnc__field textarea'));
     expect(drafted.actions().some((action) => action.type === 'SendNewcomerGreeting')).toBe(false);
@@ -337,8 +337,8 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
 
   it('[NF-005] [I18-001] in English: the same window in the English words', async () => {
     const board = await mount('13f', 'en');
-    expect(board.text('.cg-fnw__title')).toBe('New followers');
-    expect(board.$$('.cg-fnw__tabs [role="tab"]').map(textOf)).toEqual(['To do 8', 'All 10']);
+    expect(board.text('.cg-nw__title')).toBe('New followers');
+    expect(board.$$('.cg-nw__tabs [role="tab"]').map(textOf)).toEqual(['To do 8', 'All 10']);
     expect(board.text('.cg-fnc__open')).toBe('Open in Fansly ↗');
     expect(rowTexts(board)[1]).toMatch(/^Leo \| @leo\.k · 41 min ago \| Waits for a reply$/);
   });
@@ -356,46 +356,46 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     };
     ui = await mountBoardSettled('fansly-newcomers', { ...base, views: [entry({ of: 'newcomers' }, fresh)] });
     const board = ui;
-    expect(board.$('.cg-fnw__batch')).toBeNull();
+    expect(board.$('.cg-nw__batch')).toBeNull();
     expect(board.$$('.cg-fnw__rsend')).toEqual([]);
     // Only a fan who can be written to has the box: Jake (queued) has none.
-    expect(board.$$('.cg-fnw__row .cg-fnw__pick[role="checkbox"]').map((box) => box.getAttribute('aria-label'))).toEqual(['Отметить для пакета: Tomasz W.', 'Отметить для пакета: Leo', 'Отметить для пакета: Alex M.']);
+    expect(board.$$('.cg-nw__row .cg-nw__pick[role="checkbox"]').map((box) => box.getAttribute('aria-label'))).toEqual(['Отметить для пакета: Tomasz W.', 'Отметить для пакета: Leo', 'Отметить для пакета: Alex M.']);
     // A click on the picture ticks the fan and never opens the card.
-    await click(board.$('.cg-fnw__row .cg-fnw__pick[role="checkbox"]'));
+    await click(board.$('.cg-nw__row .cg-nw__pick[role="checkbox"]'));
     expect(board.actions().at(-1)).toEqual({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [handle(1)], picked: true });
     expect(board.actionsOf('OpenPreview')).toEqual([]);
-    const pickAll = board.$('.cg-fnw__pickall') as HTMLElement;
+    const pickAll = board.$('.cg-nw__pickall') as HTMLElement;
     expect(textOf(pickAll)).toBe('Выбрать 3');
     await click(pickAll);
     expect(board.actions().at(-1)).toEqual({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [handle(1), handle(2), handle(8)], picked: true });
     // X on a row ticks it from the keyboard.
-    await flush(() => keydown(board.$$('.cg-fnw__row')[1] as HTMLElement, 'x', { code: 'KeyX' }));
+    await flush(() => keydown(board.$$('.cg-nw__row')[1] as HTMLElement, 'x', { code: 'KeyX' }));
     expect(board.actions().at(-1)).toEqual({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [handle(2)], picked: true });
     board.unmount();
 
     const picked: NewcomersVM = { ...fresh, rows: fresh.rows.map((row) => ({ ...row, batch: { ...row.batch!, picked: row.batch!.pickable } })), batch: { ...fresh.batch!, picked: 3 } };
     ui = await mountBoardSettled('fansly-newcomers', { ...base, views: [entry({ of: 'newcomers' }, picked)] });
-    expect(ui.text('.cg-fnw__batch .cg-fnw__bn')).toBe('Выбрано 3');
-    expect(ui.$('.cg-fnw__pickall')).toBeNull();
-    await click(ui.$('.cg-fnw__go'));
+    expect(ui.text('.cg-nw__batch .cg-nw__bn')).toBe('Выбрано 3');
+    expect(ui.$('.cg-nw__pickall')).toBeNull();
+    await click(ui.$('.cg-nw__go'));
     expect(ui.actions().at(-1)).toEqual({ type: 'GenerateBatch', list: 'newcomers' });
   });
 
   it('[X59] [NF-019] the drafts are read in the list, under each fan; each row’s own small «Отправить» sends that fan’s draft — one click, one fan, never the card opened, never a key', async () => {
     const board = await mount('13o');
-    expect(board.$$('.cg-fnw__row .cg-fnw__draft').map(textOf)).toEqual([
+    expect(board.$$('.cg-nw__row .cg-nw__draft').map(textOf)).toEqual([
       'Hey Tomasz! So happy you’re here 💕 What made you follow me — the beach set or the gym pics?',
       'Leo! Sorry for the wait, babe 🙈 I saw your message — tell me a little about you?',
       'Hi Alex, welcome! Boston, right? 😊 I have a little surprise for my new followers…',
     ]);
-    expect(board.text('.cg-fnw__batch .cg-fnw__bst')).toBe('Готово 3');
-    expect(board.text('.cg-fnw__bline.is-hint')).toBe('Прочтите черновик под фаном и нажмите «Отправить» в его строке; поправить — в карточке справа');
+    expect(board.text('.cg-nw__batch .cg-nw__bst')).toBe('Готово 3');
+    expect(board.text('.cg-nw__bline.is-hint')).toBe('Прочтите черновик под фаном и нажмите «Отправить» в его строке; поправить — в карточке справа');
     // One small send per draft row, the send blue; nothing sends them all.
     const sends = board.$$('.cg-fnw__rsend');
     expect(sends.map((button) => [textOf(button), button.classList.contains('cg-btn--send')])).toEqual([['Отправить', true], ['Отправить', true], ['Отправить', true]]);
-    expect(board.$$('.cg-fnw__batch button').map(textOf)).toEqual(['Очистить']);
+    expect(board.$$('.cg-nw__batch button').map(textOf)).toEqual(['Очистить']);
     // A key on the list sends nothing.
-    for (const code of ['Enter', 'Space', 'KeyS']) await flush(() => keydown(board.$$('.cg-fnw__row')[1] as HTMLElement, code === 'Space' ? ' ' : code, { code }));
+    for (const code of ['Enter', 'Space', 'KeyS']) await flush(() => keydown(board.$$('.cg-nw__row')[1] as HTMLElement, code === 'Space' ? ' ' : code, { code }));
     expect(board.actionsOf('SendNewcomerGreeting')).toEqual([]);
     const opened = board.actionsOf('OpenPreview').length;
     await click(sends[1]);
@@ -406,11 +406,11 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
   it('[X59] while one goes out its row says «Отправляем…» and its button waits; the one gone says «Отправлено» and has none', async () => {
     const board = await mount('13p');
     expect(rowTexts(board).slice(0, 2)).toEqual(['Tomasz W. | @tomasz_w · 14 мин назад | Отправлено', 'Leo | @leo.k · 41 мин назад | Отправляем…']);
-    expect(board.$('.cg-fnw__row .cg-fnw__draft.is-sent')).not.toBeNull();
-    const rows = board.$$('.cg-fnw__row');
+    expect(board.$('.cg-nw__row .cg-nw__draft.is-sent')).not.toBeNull();
+    const rows = board.$$('.cg-nw__row');
     expect(rows[0]?.querySelector('.cg-fnw__rsend')).toBeNull();
     expect(rows[1]?.querySelector('.cg-fnw__rsend')?.getAttribute('aria-busy')).toBe('true');
-    expect(board.text('.cg-fnw__batch .cg-fnw__bst')).toBe('Готово 2 · отправлено 1');
+    expect(board.text('.cg-nw__batch .cg-nw__bst')).toBe('Готово 2 · отправлено 1');
   });
 
   it('[X59] [NF-024] a refused click says why in its row; a draft that cannot go as it is has its «Отправить» off with the reason', async () => {
@@ -420,9 +420,9 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
       row.handle === handle(2) ? { ...row, send: { can: true, refused: { code: 'CG-FNEW-HISTORY', retryAt: null } } } : row.handle === handle(8) ? { ...row, send: { can: false, refused: null } } : row,
     );
     ui = await mountBoardSettled('fansly-newcomers', { ...base, views: [entry({ of: 'newcomers' }, { ...vm, rows })] });
-    const leo = ui.$$('.cg-fnw__row')[1] as HTMLElement;
-    expect([leo.querySelector('.cg-fnw__st')?.getAttribute('data-cg-code'), textOf(leo.querySelector('.cg-fnw__st'))]).toEqual(['CG-FNEW-HISTORY', 'Не вышло: Проверка изменилась']);
-    const alex = ui.$$('.cg-fnw__row').find((row) => row.getAttribute('data-cg-key') === handle(8)) as HTMLElement;
+    const leo = ui.$$('.cg-nw__row')[1] as HTMLElement;
+    expect([leo.querySelector('.cg-nw__st')?.getAttribute('data-cg-code'), textOf(leo.querySelector('.cg-nw__st'))]).toEqual(['CG-FNEW-HISTORY', 'Не вышло: Проверка изменилась']);
+    const alex = ui.$$('.cg-nw__row').find((row) => row.getAttribute('data-cg-key') === handle(8)) as HTMLElement;
     const off = alex.querySelector('.cg-fnw__rsend') as HTMLElement;
     expect(off.getAttribute('aria-disabled')).toBe('true');
     await click(off);

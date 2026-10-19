@@ -115,7 +115,7 @@ export class LongRunActions {
   /** The existing pass UI: let the queue check at least one fan, pause/resume and close. */
   async newcomers(): Promise<void> {
     await this.openNewcomers();
-    await browser.waitUntil(() => oursExists('modal', '.cg-fnw__row[data-cg-check]:not([data-cg-check="pending"]):not([data-cg-check="checking"])'), { timeout: 60_000, timeoutMsg: 'newcomers checked no fan' });
+    await browser.waitUntil(() => oursExists('modal', '.cg-nw__row[data-cg-check]:not([data-cg-check="pending"]):not([data-cg-check="checking"])'), { timeout: 60_000, timeoutMsg: 'newcomers checked no fan' });
     await pressOurs('modal', 'button.cg-fnw__run', 'Пауза', 'pause the newcomers queue', 20_000);
     await waitOursByText('modal', 'button.cg-fnw__run', /^Проверить оставшихся/, 'queue paused', 15_000);
     await pressOurs('modal', 'button.cg-fnw__run', /^Проверить оставшихся/);
@@ -137,7 +137,7 @@ export class LongRunActions {
     await this.hub.command({ op: 'config', patch: { aiTexts: { 'hi-greeting': text } } });
     await this.openNewcomers();
     await pressOurs('modal', '.cg-fnw [role="tab"]', /^Все \d+$/);
-    const row = `.cg-fnw__row[data-cg-fan$=":${fan}"]`;
+    const row = `.cg-nw__row[data-cg-fan$=":${fan}"]`;
     const card = '.cg-fnc';
     const field = `${card} .cg-fnc__greet textarea`;
     const buttons = `${card} .cg-fnc__gbar button`;
