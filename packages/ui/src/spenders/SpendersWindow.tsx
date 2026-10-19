@@ -1,11 +1,13 @@
 // The Spenders window (architecture.md §10.1; ui-design §3.5, §4.14–§4.16,
-// §6.3, §6.4; SP-002, SP-019, SP-033, SP-049, SP-050; X65, X66): a modal window
-// over the site's container. The list as wide as the window — with the
-// statistics as a compact right column on a site that has them. A picked fan's
-// preview unfolds right under their row (X66); only a fan the list does not
-// show (a filter or a search hides them) gets the preview as a panel under the
-// list, its height dragged on the border between them. The statistics may also
-// be expanded in place of both. It renders three view models (`spenders.board`,
+// §6.3, §6.4; SP-002, SP-019, SP-033, SP-049, SP-050; X66, X67): the old Fansly
+// extension's window, the same on both sites — a compact window over a scrim in
+// the middle of the page, the serif title over «page · N фанов · данные на …»,
+// «Обновить» and «Закрыть», the chips and the search under them, the list, the
+// keys at the foot. A site with statistics has them as a column right of the
+// list, inside the same window. A picked fan's preview unfolds right under their
+// row (X66); only a fan the list does not show (a filter or a search hides them)
+// gets the preview as a panel under the list, its height dragged on the border
+// between them. The statistics may also be expanded in place of both. It renders three view models (`spenders.board`,
 // `spenders.stats`, `preview` from `spenders`) and asks for everything
 // through UiAction.
 
@@ -14,11 +16,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { type SpendersBoardVM } from '@cg/contracts/vm';
 
-import { Boundary, Dialog, OverlayLayer, SearchBox, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
+import { Boundary, Button, Dialog, KeysFooter, OverlayLayer, SearchBox, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
 import { BOARD_CSS, Board, BoardFilters, focusIsIdle, type BoardHandle } from './Board';
 import { PanelPreview, type PreviewFallback } from './preview/PanelPreview';
 import { STATS_CSS, StatsColumn, StatsExpanded } from './Stats';
-import { RefreshButton, StaleStamp, WindowHeader, isPlainKey, isTextEntry, type RefreshableView } from './window';
+import { RefreshButton, isPlainKey, isTextEntry, type RefreshableView } from './window';
 
 /** Marks of the paints the UI reports; the controller starts the measure, the UI ends it (RenderMarks). */
 export const SPENDERS_PAINT_MARKS = { open: 'spenders.board', search: 'spenders.search' } as const;
@@ -212,23 +214,49 @@ export function SpendersWindow(): JSX.Element {
 
   return (
     <OverlayLayer>
-      <Dialog open label={i18n.t('spenders.title')} size="window" scrim={false} class="cg-sp cg-spw" onClose={close} initialFocus={() => frameRef.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}>
+      <Dialog
+        open
+        label={i18n.t('spenders.title')}
+        size="wide"
+        class={`cg-sp cg-spw${statistics ? ' has-stats' : ''}`}
+        onClose={close}
+        initialFocus={() => frameRef.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}
+      >
         <div ref={frameRef} class="cg-sp__frame" onKeyDown={onKeyDown}>
-          <WindowHeader title={i18n.t('spenders.title')} pageName={board.pageName} onClose={() => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } })}>
-            <BoardFilters board={board} />
-            <span class="cg-sp__grow" />
-            <StaleStamp stamp={board.footer.stamp} />
-            {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
-            <RefreshButton views={statistics ? BOARD_REFRESH : LIST_REFRESH} stamp={board.footer.stamp} />
-            <SearchBox
-              value={board.query}
-              label={i18n.t('spenders.search.placeholder')}
-              placeholder={i18n.t('spenders.search.placeholder')}
-              class="cg-sp__search"
-              inputRef={searchRef}
-              onQuery={(query) => void dispatch({ type: 'Search', list: 'spenders', query })}
-            />
-          </WindowHeader>
+          <div class="cg-sp__top">
+            <header class="cg-sp__head">
+              <div class="cg-sp__titles">
+                <h2 class="cg-sp__title">{i18n.t('spenders.title')}</h2>
+                <span class="cg-sp__sub">
+                  {board.pageName === null ? null : <span class="cg-sp__page">{board.pageName}</span>}
+                  {board.footer.loaded > 0 ? <span>{i18n.plural('common.fans', board.footer.loaded)}</span> : null}
+                  {board.footer.stamp.asOf === null ? null : <span>{i18n.t('common.dataAsOf', { time: { time: board.footer.stamp.asOf } })}</span>}
+                </span>
+              </div>
+              {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
+              <RefreshButton views={statistics ? BOARD_REFRESH : LIST_REFRESH} />
+              <Button
+                label={i18n.t('common.close')}
+                variant="line"
+                size="sm"
+                tooltip={i18n.t('spenders.closeTooltip')}
+                class="cg-sp__close"
+                onClick={() => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } })}
+              />
+            </header>
+            <div class="cg-sp__bar">
+              <BoardFilters board={board} />
+              <span class="cg-sp__grow" />
+              <SearchBox
+                value={board.query}
+                label={i18n.t('spenders.search.placeholder')}
+                placeholder={i18n.t('spenders.search.placeholder')}
+                class="cg-sp__search"
+                inputRef={searchRef}
+                onQuery={(query) => void dispatch({ type: 'Search', list: 'spenders', query })}
+              />
+            </div>
+          </div>
           {expanded ? (
             <div class="cg-sp__cols is-stats">
               <Boundary surface={null}>
@@ -259,22 +287,44 @@ export function SpendersWindow(): JSX.Element {
               ) : null}
             </div>
           )}
+          {/* The old window's foot: the list's keys (SP-034). */}
+          <KeysFooter hints={board.keys.map((key) => ({ keys: key.hotkey.display, label: i18n.text(key.label) }))} hide={null} />
         </div>
       </Dialog>
     </OverlayLayer>
   );
 }
 
-// The window's body (X65): the list (and the statistics column) on top, the preview panel under it across the
-// whole width. The panel opens at about half of the body and is dragged on its border; the list keeps 160 px.
-// The notes stand here and not in the sheet: a comment inside the string ships with the chunk, and the Spenders
-// surface has a budget (packages/testing/src/boards/size.test.ts).
+// The window (X67): the old extension's — 980 px at most over a scrim in the middle of the page, 1240 with the
+// statistics column; its head a serif title over a quiet line, «Обновить» and «Закрыть» as buttons; the chips and
+// the search a row of their own under it (they wrap in a narrow window). The body: the list (and the statistics
+// column); a preview of a fan the list does not show is a panel under them, dragged on its border.
 //
-// ≤ 900 px — the browser's zoom of 150–200 % on a laptop (ui-design §11): the header's filters take a line of
-// their own under the title and the search.
-// ≤ 680 px — the list needs about 380 px to keep its columns apart, so the statistics column gives way; S still
-// opens the statistics in full.
+// ≤ 680 px — the statistics column gives way; S still opens the statistics in full.
 export const SPENDERS_CSS = `
+.cg-dialog.cg-dialog--wide.cg-sp {
+  top: 50%; translate: -50% -50%; width: min(980px, calc(100vw - 48px)); height: min(880px, calc(100vh - 48px)); max-height: none;
+  border-radius: 14px;
+}
+.cg-dialog.cg-dialog--wide.cg-sp.has-stats { width: min(1240px, calc(100vw - 48px)); }
+.cg-sp .cg-sp__top { display: block; flex: none; height: auto; padding: 0; border-bottom: 1px solid var(--cg-rule); }
+.cg-sp__head { display: flex; align-items: flex-start; gap: 8px; padding: 16px 16px 12px 22px; }
+.cg-sp__titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cg-sp .cg-sp__title { margin: 0; font: 600 var(--cg-text-2xl)/1.2 var(--cg-serif); color: var(--cg-ink-strong); letter-spacing: -0.01em; }
+.cg-sp__sub { display: flex; gap: 6px; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-sp__sub > * + *::before { content: "·"; margin-right: 6px; }
+.cg-sp__head > .cg-sp__refresh { margin: 0; }
+.cg-sp__close { flex: none; }
+.cg-sp__bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 0 16px 12px 18px; min-width: 0; }
+.cg-sp__bar .cg-sp__filters { margin: 0; flex-wrap: wrap; gap: 6px; }
+.cg-sp__tiers { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.cg-sp__bar .cg-flt { height: 26px; padding: 0 10px; border-radius: var(--cg-r-pill); background: var(--cg-sunk); color: var(--cg-ink-2); font-weight: 500; }
+.cg-sp__bar .cg-flt:hover { background: var(--cg-hover); color: var(--cg-ink-strong); }
+.cg-sp__bar .cg-flt[aria-pressed="true"] { background: var(--cg-ink-strong); color: var(--cg-surface); }
+.cg-sp__bar .cg-flt[aria-pressed="true"] .cg-flt__n { color: inherit; opacity: 0.75; }
+.cg-sp__bar .cg-flt__n { font-family: var(--cg-mono); font-size: var(--cg-text-xs); }
+.cg-sp__bar .cg-choice { height: 26px; border-radius: var(--cg-r-pill); }
+.cg-sp__bar .cg-sp__search { width: 220px; height: 30px; }
 .cg-sp__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .cg-sp__cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; }
 .cg-sp__cols.no-stats, .cg-sp__cols.is-stats { grid-template-columns: minmax(0, 1fr); }
@@ -287,12 +337,10 @@ export const SPENDERS_CSS = `
 .cg-sp__split:hover, .cg-sp__split:focus-visible { outline: none; background-image: linear-gradient(var(--cg-clay-line), var(--cg-clay-line)); background-size: 100% 3px; }
 .cg-sp__panel { flex: none; height: clamp(180px, 46%, 560px); min-height: min(180px, 50%); max-height: calc(100% - 160px); display: flex; flex-direction: column; }
 .cg-sp__panel > * { flex: 1; min-height: 0; }
-@media (max-width: 1360px) {
-  .cg-sp__cols { grid-template-columns: minmax(0, 1fr) 240px; }
-}
-@media (max-width: 900px) {
-  .cg-sp__top { flex-wrap: wrap; height: auto; padding-block: 10px; row-gap: 6px; }
-  .cg-sp__filters { order: 1; width: 100%; margin: 0; }
+.cg-sp .cg-keys { padding-left: 22px; }
+@media (max-width: 760px) {
+  .cg-dialog.cg-dialog--wide.cg-sp, .cg-dialog.cg-dialog--wide.cg-sp.has-stats { width: calc(100vw - 16px); height: calc(100vh - 16px); }
+  .cg-sp__bar .cg-sp__search { width: 100%; }
 }
 @media (max-width: 680px) {
   .cg-sp__cols { grid-template-columns: minmax(0, 1fr); }

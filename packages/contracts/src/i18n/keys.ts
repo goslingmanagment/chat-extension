@@ -122,6 +122,9 @@ export const UI_TEXT_KEYS = [
   'spenders.refresh', 'spenders.refreshTooltip',
   // 1.37.0 (X65): the list's «Ждёт» column — the fan's wait, or ours — and the border of the preview under the list.
   'spenders.col.waits', 'spenders.wait.ours', 'spenders.previewSplit',
+  // 1.38.0 (X67): the old extension's tier chips and shelf names, the fan's wait as a chip of the row, the filters' menu.
+  'spenders.tiers', 'spenders.tier.whale', 'spenders.tier.top', 'spenders.tier.prime', 'spenders.tier.base', 'spenders.tier.low', 'spenders.tier.micro',
+  'spenders.wait.fan', 'spenders.filter.menu',
   'stats.title', 'stats.titleFull', 'stats.expand', 'stats.expandTooltip', 'stats.collapse', 'stats.today', 'stats.d7', 'stats.d30', 'stats.payers',
   'stats.avgCheck', 'stats.shelves', 'stats.colFans', 'stats.colPeriod', 'stats.table.shelf', 'stats.table.fans', 'stats.table.lifetime',
   'stats.table.period', 'stats.attention', 'stats.awaiting', 'stats.newPayers', 'stats.newPayersObserved', 'stats.silent8to21', 'stats.silentOver21', 'stats.noData',

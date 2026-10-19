@@ -455,6 +455,26 @@ describe('[SP-002] [SP-003] [SP-004] the Spenders board opens', () => {
     expect(vm.shelves[0]?.rows[0]).toMatchObject({ handle: spender('5000'), name: 'fan_0', lifetime: 3_720_000, period: 1_240_000, selected: false });
     expect(await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' })).toMatchObject({ ok: true, outcome: 'noop' });
   });
+
+  it('[X67] the tier chips: one per shelf with fans; a chip keeps its shelf alone, «Все» and «Сбросить» let go', async () => {
+    const h = await harness();
+    await h.dispatch(open('spenders'));
+    expect(h.boards.spenders.getSnapshot(BOARD).tiers).toEqual([{ id: 'shelf-600-plus', range: { fromMills: 600_000, toMills: null }, fans: 1000, pressed: false }]);
+    await h.dispatch({ type: 'SetSpendersShelf', shelfId: 'shelf-600-plus' });
+    const tier = h.boards.spenders.getSnapshot(BOARD);
+    expect(tier.tiers?.[0]?.pressed).toBe(true);
+    expect(tier.filters.find((f) => f.id === 'all')?.pressed).toBe(false);
+    expect(tier.reset).not.toBeNull();
+    expect(tier.shelves[0]?.rows).toHaveLength(1000);
+    expect(await h.dispatch({ type: 'SetSpendersShelf', shelfId: 'shelf-nope' })).toMatchObject({ ok: true, outcome: 'noop' });
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'all' });
+    expect(h.boards.spenders.getSnapshot(BOARD).tiers?.[0]?.pressed).toBe(false);
+    await h.dispatch({ type: 'SetSpendersShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'ResetFilters', list: 'spenders' });
+    const reset = h.boards.spenders.getSnapshot(BOARD);
+    expect(reset.tiers?.[0]?.pressed).toBe(false);
+    expect(reset.filters.find((f) => f.id === 'all')?.pressed).toBe(true);
+  });
 });
 
 describe('[SP-023] [SP-029] [SP-030] [SP-032] what the board says when it cannot show rows', () => {

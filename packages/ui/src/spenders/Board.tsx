@@ -1,21 +1,20 @@
 // The Spenders board (ui-design §3.5, §4.14, §6.1, §6.4; SP-008…SP-021,
-// SP-033, SP-034; X65): the list owns the top of the window and its whole
-// width — a sticky column header with «Всё время», the period's menu and
-// «Ждёт» (the two sort buttons), thin shelf dividers, fans. Its filters stand
-// in the window's header (BoardFilters), its «Обновить» too; the footer
-// speaks only when something is missing or a search narrows the list. Only
-// the rows in view are in the DOM (≤ 150 for a thousand). Everything comes
-// from SpendersBoardVM; a failed read is an error card with «Повторить», never
-// an empty list (SP-029). «Фан ждёт ответа» is the bold age in «Ждёт» and
-// nothing else: no dot, no colour; a fan we wrote to last reads «мы 18 ч».
-// The picked fan's preview unfolds right under their row (X66), its height the
-// room the list has for the row and the preview together.
+// SP-033, SP-034; X67 — the old Fansly extension's list, on both sites): every
+// payer by the lifetime under the tier's header «🐳 Whale  $600+ … 42»; a fan is
+// the initials, the name over the @handle, and on the right the lifetime in
+// green with «+$320» of the period under it; «ждёт 6 мин» next to the name when
+// the fan waits for a reply. The chips over the list — «Все», the tiers, the
+// filters' menu — are BoardFilters. The picked fan's preview unfolds right under
+// their row (X66), its height the room the list has for the row and the preview
+// together. Only the rows in view are in the DOM (≤ 150 for a thousand).
+// Everything comes from SpendersBoardVM; a failed read is an error card with
+// «Повторить», never an empty list (SP-029).
 
 import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent } from 'preact';
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
-import { type I18n, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type UiAction } from '@cg/contracts/vm';
+import { type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type UiAction } from '@cg/contracts/vm';
 
 import {
   ActionButton,
@@ -27,7 +26,6 @@ import {
   isComposing,
   useAnnounce,
   useDispatch,
-  useHints,
   useI18n,
   useMinuteClock,
   useSpokenMoney,
@@ -36,8 +34,8 @@ import {
 import { BatchBar, BatchCheck, BatchCheckAll, BatchLine, inBatch } from './batch';
 import { bothAges } from './preview/Preview';
 import { rowKeyOf, useRowFocus } from './rowFocus';
-import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, inlinePreviewHeight, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
-import { ChoiceMenu, FilterChip, ageOrUnknown, coverageWord, isPlainKey } from './window';
+import { boardItemHeight, boardItems, edgeStop, initialStop, initialsOf, inlinePreviewHeight, isStop, nextStop, shelfLabel, shelfTier, type BoardItem } from './rows';
+import { ChoiceMenu, FilterChip, coverageWord, isPlainKey } from './window';
 
 export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
   lifetime: 'spenders.period.lifetime',
@@ -47,22 +45,15 @@ export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
   today: 'spenders.period.today',
 };
 
-/** The chips of the list (ui-design §4.14); the others go into «Ещё» — one row, as the old clients had (SP-020). */
-const PRIMARY_FILTERS: readonly SpendersFilter[] = ['all', 'waiting', 'new'];
-/** «Фан писал» is «Ждут ответа» under another name: a second chip with the same count only adds noise. */
+/** «Все» is a chip of its own, beside the tiers; every other filter waits in the menu «Фильтр» (X67). */
+const MAIN_FILTER: SpendersFilter = 'all';
+/** «Фан писал» is «Ждут ответа» under another name: the menu lists it once. */
 const SAME_AS_WAITING: SpendersFilter = 'fan-wrote';
 /** Ask for the next page this many rows before the end of the loaded list. */
 const LOAD_MORE_MARGIN = 20;
 
 type FilterVM = SpendersBoardVM['filters'][number];
-
-/** The chips in the header and the rest in «Ещё»; «Фан писал» stays out while «Ждут ответа» is a chip. */
-function splitFilters(board: SpendersBoardVM): { readonly primary: readonly FilterVM[]; readonly secondary: readonly FilterVM[]; readonly secondaryOn: readonly FilterVM[] } {
-  const primary = board.filters.filter((filter) => PRIMARY_FILTERS.includes(filter.id));
-  const hasWaiting = primary.some((filter) => filter.id === 'waiting');
-  const secondary = board.filters.filter((filter) => !PRIMARY_FILTERS.includes(filter.id) && !(hasWaiting && filter.id === SAME_AS_WAITING && !filter.pressed));
-  return { primary, secondary, secondaryOn: secondary.filter((filter) => filter.pressed) };
-}
+type TierVM = NonNullable<SpendersBoardVM['tiers']>[number];
 
 export interface BoardHandle {
   /** Scrolls the list to a shelf's header row (a click on a shelf in the statistics, SP-045). */
@@ -86,114 +77,28 @@ function openChat(handle: string): UiAction {
   return { type: 'Navigate', to: { kind: 'chat', targetHandle: handle } };
 }
 
-function SortButton({ label, short, tooltip, sorted, arrow, onSort }: { readonly label: string; readonly short: string; readonly tooltip: string; readonly sorted: boolean; readonly arrow: string; readonly onSort: () => void }): JSX.Element {
-  const hints = useHints();
-  const tip = useTooltip(hints ? tooltip : null);
-  return (
-    <>
-      <button type="button" class={`cg-bd__sort${sorted ? ' is-sorted' : ''}`} {...tip.props} onClick={onSort}>
-        <span class="cg-lbl-long">{label}</span>
-        <span class="cg-lbl-short">{short}</span>
-        {sorted ? <span aria-hidden="true"> {arrow}</span> : null}
-      </button>
-      {tip.description}
-    </>
-  );
-}
-
-/** The period of the second sum: a quiet menu in its own column header (X65), as the old clients' select. */
-function PeriodHeader({ board }: { readonly board: SpendersBoardVM }): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const label = i18n.t(PERIOD_KEYS[board.period]);
-  if (board.periods.length < 2) return <span>{label}</span>;
-  return (
-    <ChoiceMenu
-      label={label}
-      menuLabel={i18n.t('spenders.period.label')}
-      items={board.periods.map((period) => ({ id: period, label: i18n.t(PERIOD_KEYS[period]), checked: period === board.period }))}
-      class="cg-bd__period"
-      align="end"
-      onSelect={(id) => {
-        const period = board.periods.find((item) => item === id);
-        if (period !== undefined && period !== board.period) void dispatch({ type: 'SetSpendersPeriod', period });
-      }}
-    />
-  );
-}
-
-function ColumnHeader({ board, handles }: { readonly board: SpendersBoardVM; readonly handles: readonly string[] }): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const bySum = board.sort === 'sum';
-  return (
-    <div class="cg-bd__grid cg-bd__colhead" role="row" aria-rowindex={1}>
-      <span role="columnheader" class="cg-bd__who">
-        {board.batch === undefined ? null : <BatchCheckAll list="spenders" handles={handles} batch={board.batch} />}
-        {i18n.t('spenders.col.fan')}
-      </span>
-      <span role="columnheader" class="cg-bd__last">
-        {i18n.t('spenders.col.lastMessage')}
-      </span>
-      <span role="columnheader" class="cg-bd__num" aria-sort={bySum ? 'descending' : 'none'}>
-        <SortButton
-          label={i18n.t('spenders.col.lifetime')}
-          short={i18n.t('spenders.col.lifetimeShort')}
-          tooltip={i18n.t('spenders.sort.sumTooltip')}
-          sorted={bySum}
-          arrow="↓"
-          onSort={() => void dispatch({ type: 'SetSpendersSort', sort: 'sum' })}
-        />
-      </span>
-      <span role="columnheader" class="cg-bd__num cg-bd__perhead">
-        <PeriodHeader board={board} />
-      </span>
-      <span role="columnheader" class="cg-bd__num" aria-sort={bySum ? 'none' : 'ascending'}>
-        <SortButton
-          label={i18n.t('spenders.col.waits')}
-          short={i18n.t('spenders.col.waits')}
-          tooltip={i18n.t('spenders.sort.fanAgeTooltip')}
-          sorted={!bySum}
-          arrow="↑"
-          onSort={() => void dispatch({ type: 'SetSpendersSort', sort: 'fan-age' })}
-        />
-      </span>
-    </div>
-  );
-}
-
-/** A shelf is a thin divider (X65): its name from the tier bounds and its fans; its sums are the statistics'. */
+/** A tier's header, as the old extension drew it: «🐳 Whale  $600+ … 42»; a bucket of other bounds — its bounds. */
 function ShelfRow({ shelf, rowIndex }: { readonly shelf: ShelfVM; readonly rowIndex: number }): JSX.Element {
   const i18n = useI18n();
-  const label = shelfLabel(i18n, shelf.range);
+  const band = shelfLabel(i18n, shelf.range);
+  const tier = shelfTier(i18n, shelf.range);
   return (
-    <div class="cg-bd__shelf" role="rowgroup" aria-label={label}>
+    <div class="cg-bd__shelf" role="rowgroup" aria-label={tier === null ? band : `${tier.name} ${band}`}>
       <div class="cg-bd__shelfrow" role="row" aria-rowindex={rowIndex}>
         <span role="rowheader" class="cg-bd__shelfname">
-          {label}
-          {shelf.fans === null ? null : <span class="cg-bd__shelfn cg-num">{shelf.fans}</span>}
+          {tier === null ? band : `${tier.mark} ${tier.name}`}
+          {tier === null ? null : <span class="cg-bd__band cg-num">{band}</span>}
         </span>
+        {shelf.fans === null ? null : <span class="cg-bd__shelfn cg-num">{shelf.fans}</span>}
       </div>
     </div>
   );
 }
 
-/**
- * «Ждёт» (X65): who waits and how long. The fan wrote last — their age in strong ink («11 ч»); we wrote last —
- * «мы 18 ч» in muted ink; nothing known — «—». The tooltip gives both ages (SP-017).
- */
-export function waitCell(i18n: I18n, row: SpenderRowVM): { readonly text: string; readonly waiting: boolean; readonly tooltip: string | null } {
-  const ages = bothAges(i18n, row);
-  if (row.waiting) {
-    const says = i18n.t('spenders.waitingTooltip');
-    return { text: ageOrUnknown(i18n, row.fanWroteAt), waiting: true, tooltip: ages === null ? says : `${says}. ${ages}` };
-  }
-  if (row.weWroteAt !== null) return { text: i18n.t('spenders.wait.ours', { age: { age: row.weWroteAt } }), waiting: false, tooltip: ages };
-  return { text: ageOrUnknown(i18n, row.fanWroteAt), waiting: false, tooltip: ages };
-}
-
 interface FanRowProps {
   readonly row: SpenderRowVM;
+  /** The period of the second sum, for its tooltip. */
+  readonly period: SpendersPeriod;
   /** Its preview is unfolded under it (X66). */
   readonly expanded: boolean;
   /** The row's key in the list: what the keyboard's row is remembered by. */
@@ -204,17 +109,17 @@ interface FanRowProps {
   readonly onPick: (key: string) => void;
 }
 
-function FanRow({ row, expanded, itemKey, index, rowIndex, active, onPick }: FanRowProps): JSX.Element {
+/** A fan as the old extension drew one: the initials, the name over the @handle, the lifetime over «+$N». */
+function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPick }: FanRowProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  // The @handle is the tooltip's and the preview's (X65): in the row it only made the names ragged.
-  const fullName = row.username === null ? row.name : `${row.name} @${row.username}`;
-  const who = useTooltip(fullName);
-  const wait = waitCell(i18n, row);
-  const waitTip = useTooltip(wait.tooltip);
-  // The second sum is plain ink (X65): green is income in the statistics and the preview, not a column of it.
-  const period = useSpokenMoney(row.period);
-  const classes = ['cg-bd__grid', 'cg-bd__row', row.selected ? 'is-sel' : '', expanded ? 'is-open' : '', row.deleted ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : ''].filter((name) => name !== '').join(' ');
+  // Who wrote when — both ages — is the tooltip of the fan's name (SP-017); the row itself only says who waits.
+  const ages = useTooltip(bothAges(i18n, row));
+  const plus = row.period !== null && row.period > 0;
+  // «+$320» is the period's: its name is the tooltip («30 дней»).
+  const perTip = useTooltip(plus ? i18n.t(PERIOD_KEYS[period]) : null);
+  const lifetime = useSpokenMoney(row.lifetime);
+  const classes = ['cg-bd__row', row.selected ? 'is-sel' : '', expanded ? 'is-open' : '', row.deleted ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : ''].filter((name) => name !== '').join(' ');
   return (
     <div
       class={classes}
@@ -232,49 +137,32 @@ function FanRow({ row, expanded, itemKey, index, rowIndex, active, onPick }: Fan
       }}
       onFocus={() => onPick(itemKey)}
     >
-      <span role="cell" class="cg-bd__who" {...who.props}>
+      <span role="cell" class="cg-bd__who">
+        <span class="cg-bd__ava" aria-hidden="true">
+          {initialsOf(row.name)}
+        </span>
         {row.batch === undefined ? null : <BatchCheck list="spenders" handle={row.handle} row={row.batch} name={row.name} />}
-        <span class="cg-bd__name">{row.name}</span>
-        {row.deleted ? <span class="cg-bd__tag">{i18n.t('spenders.tag.deleted')}</span> : null}
-        {who.description}
       </span>
-      <span role="cell" class="cg-bd__last">
-        {row.lastMessage === null ? null : row.lastMessage.fromUs ? `${i18n.t('spenders.ourPrefix')} ${row.lastMessage.text}` : row.lastMessage.text}
+      <span role="cell" class="cg-bd__main" {...ages.props}>
+        <span class="cg-bd__l1">
+          <span class="cg-bd__name">{row.name}</span>
+          {row.isNew ? <span class="cg-bd__new">{i18n.t('spenders.tag.new')}</span> : null}
+          {row.deleted ? <span class="cg-bd__tag">{i18n.t('spenders.tag.deleted')}</span> : null}
+          {row.waiting && row.fanWroteAt !== null ? <span class="cg-bd__wait">{i18n.t('spenders.wait.fan', { age: { age: row.fanWroteAt } })}</span> : null}
+        </span>
+        {row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
+        {ages.description}
       </span>
-      <Money mills={row.lifetime} cell class="cg-bd__num cg-bd__life" />
-      <span role="cell" class={`cg-bd__num cg-bd__per cg-num${row.period === null ? ' is-unknown' : ''}`} {...(period === null ? {} : { 'aria-label': period })}>
-        {i18n.formatMoneyMills(row.period)}
-      </span>
-      <span role="cell" class={`cg-bd__num cg-bd__age cg-num${wait.waiting ? ' is-wait' : ''}`} {...waitTip.props}>
-        {wait.text}
-        {waitTip.description}
+      <span role="cell" class="cg-bd__sums" {...(lifetime === null ? {} : { 'aria-label': lifetime })}>
+        <Money mills={row.lifetime} class="cg-bd__life" />
+        {plus ? (
+          <span class="cg-bd__per" {...perTip.props}>
+            <Money mills={row.period} sign="plus" />
+            {perTip.description}
+          </span>
+        ) : null}
       </span>
       {row.batch === undefined ? null : <BatchLine row={row.batch} />}
-    </div>
-  );
-}
-
-function MoreRow({ item, index, rowIndex, active, onPick }: { readonly item: Extract<BoardItem, { kind: 'more' }>; readonly index: number; readonly rowIndex: number; readonly active: boolean; readonly onPick: (key: string) => void }): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const reveal = item.shelf.collapsed?.reveal;
-  return (
-    <div class="cg-bd__more" role="row" aria-rowindex={rowIndex}>
-      <span role="cell">
-        <button
-          type="button"
-          class="cg-bd__morebtn"
-          tabIndex={active ? 0 : -1}
-          data-cg-item={index}
-          data-cg-key={item.key}
-          onFocus={() => onPick(item.key)}
-          onClick={() => {
-            if (reveal !== undefined && reveal.enabled) void dispatch(reveal.action);
-          }}
-        >
-          {i18n.t('spenders.shelfMore', { n: item.hidden })}
-        </button>
-      </span>
     </div>
   );
 }
@@ -285,28 +173,64 @@ function FilterButton({ filter }: { readonly filter: FilterVM }): JSX.Element {
   return <FilterChip label={i18n.text(filter.label)} count={filter.count} pressed={filter.pressed} onPress={() => void dispatch({ type: 'SetSpendersFilter', filter: filter.id })} />;
 }
 
+/** A tier chip of the old extension (X67): «🐳 Whale 42», its bounds in the tooltip; pressed again — every tier. */
+function TierChip({ tier }: { readonly tier: TierVM }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const band = shelfLabel(i18n, tier.range);
+  const named = shelfTier(i18n, tier.range);
+  const tip = useTooltip(named === null ? null : band);
+  return (
+    <>
+      <button
+        type="button"
+        class="cg-flt cg-tier"
+        aria-pressed={tier.pressed ? 'true' : 'false'}
+        {...tip.props}
+        onClick={() => void dispatch({ type: 'SetSpendersShelf', shelfId: tier.pressed ? null : tier.id })}
+      >
+        {named === null ? band : `${named.mark} ${named.name}`}
+        <span class="cg-flt__n cg-num">{tier.fans}</span>
+      </button>
+      {tip.description}
+    </>
+  );
+}
+
 /**
- * The list's filters in the window's header (X65): «Все», «Ждут ответа», «Новые» with their counts, the rest in
- * «Ещё», and the spinner while a new list is read over the one shown.
+ * The chips over the list, as the old extension's row of them (X67): «Все» with its count, then the tiers —
+ * «🐳 Whale 42», «⭐ Top 29» …; «Ждут ответа», «Новые» and the rest wait in «Фильтр»; the batch's «Отметить всех»
+ * before them, the spinner while a new list is read over the one shown.
  */
 export function BoardFilters({ board }: { readonly board: SpendersBoardVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const { primary, secondary, secondaryOn } = splitFilters(board);
+  const all = board.filters.find((filter) => filter.id === MAIN_FILTER);
+  const hasWaiting = board.filters.some((filter) => filter.id === 'waiting');
+  const others = board.filters.filter((filter) => filter.id !== MAIN_FILTER && !(hasWaiting && filter.id === SAME_AS_WAITING && !filter.pressed));
+  const othersOn = others.filter((filter) => filter.pressed);
   const hasRows = board.shelves.some((shelf) => shelf.rows.length > 0);
+  const handles = useMemo(() => board.shelves.flatMap((shelf) => shelf.rows.map((row) => row.handle)), [board.shelves]);
+  const tiers = board.tiers ?? [];
   return (
     <div class="cg-sp__filters">
-      {primary.map((filter) => (
-        <FilterButton key={filter.id} filter={filter} />
-      ))}
-      {secondary.length === 0 ? null : (
+      {board.batch === undefined ? null : <BatchCheckAll list="spenders" handles={handles} batch={board.batch} />}
+      {all === undefined ? null : <FilterButton filter={all} />}
+      {tiers.length < 2 ? null : (
+        <span class="cg-sp__tiers" role="group" aria-label={i18n.t('spenders.tiers')}>
+          {tiers.map((tier) => (
+            <TierChip key={tier.id} tier={tier} />
+          ))}
+        </span>
+      )}
+      {others.length === 0 ? null : (
         <ChoiceMenu
-          label={secondaryOn.length === 0 ? i18n.t('dock.action.more') : secondaryOn.map((filter) => i18n.text(filter.label)).join(' · ')}
-          menuLabel={i18n.t('dock.action.more')}
-          pressed={secondaryOn.length > 0}
-          items={secondary.map((filter) => ({ id: filter.id, label: i18n.text(filter.label), count: filter.count, checked: filter.pressed }))}
+          label={othersOn.length === 0 ? i18n.t('spenders.filter.menu') : othersOn.map((filter) => i18n.text(filter.label)).join(' · ')}
+          menuLabel={i18n.t('spenders.filter.menu')}
+          pressed={othersOn.length > 0}
+          items={others.map((filter) => ({ id: filter.id, label: i18n.text(filter.label), count: filter.count, checked: filter.pressed }))}
           onSelect={(id) => {
-            const filter = secondary.find((item) => item.id === id);
+            const filter = others.find((item) => item.id === id);
             if (filter !== undefined) void dispatch({ type: 'SetSpendersFilter', filter: filter.id });
           }}
         />
@@ -331,7 +255,6 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
 
   const unfold = unfolded !== null;
   const items = useMemo(() => boardItems(board.shelves, unfold), [board.shelves, unfold]);
-  const handles = useMemo(() => items.flatMap((item) => (item.kind === 'fan' ? [item.row.handle] : [])), [items]);
   // The keyboard's row is a fan (or «ещё N»), remembered by its key and never by its place: the list changes
   // under the person — a refresh, a fan who wrote and moved up — and the row must stay on its fan.
   const [activeKey, setActiveKey] = useState<string | null>(() => items[initialStop(items)]?.key ?? null);
@@ -466,7 +389,7 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
     }
   };
 
-  const { secondaryOn } = splitFilters(board);
+  const secondaryOn = board.filters.filter((filter) => filter.pressed && filter.id !== 'all' && filter.id !== 'waiting' && filter.id !== 'new');
   // A search or a filter of «Ещё» narrows the list: the footer says how many are shown and offers the way back.
   // A chip of the header is a view of its own, and «Все» stands next to it.
   const narrowed = board.query !== '' || secondaryOn.length > 0;
@@ -509,24 +432,17 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
             role="table"
             label={i18n.t('spenders.boardLabel')}
             class="cg-bd__scroll"
-            header={<ColumnHeader board={board} handles={handles} />}
-            headerHeight={BOARD_HEIGHTS.header}
             isGroupHeader={(item) => item.kind === 'shelf'}
             listRef={listRef}
             onRangeChange={onRange}
             onKeyDown={onKeyDown}
             renderRow={(item, index) => {
-              // Row 1 is the column header.
-              const rowIndex = index + 2;
+              const rowIndex = index + 1;
               switch (item.kind) {
-                case 'gap':
-                  return null;
                 case 'shelf':
                   return <ShelfRow shelf={item.shelf} rowIndex={rowIndex} />;
                 case 'fan':
-                  return <FanRow row={item.row} expanded={unfold && item.row.selected} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
-                case 'more':
-                  return <MoreRow item={item} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
+                  return <FanRow row={item.row} period={board.period} expanded={unfold && item.row.selected} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
                 case 'preview':
                   // Out of the rows' keys (no data-cg-key): what is typed in the preview is never a key of the list.
                   return (
@@ -572,75 +488,60 @@ export function focusIsIdle(root: ShadowRoot | Document, box: HTMLElement | null
   return focused === null || focused === box;
 }
 
-// The row's check box (1.32.0) shows under the pointer, on the keyboard's row and while anyone is ticked: an empty
-// box on every row was a column of noise (X65). The column header's «Отметить всех» follows the same rule.
+// The look is the old Fansly extension's (X67): a tier's header in strong ink with its bounds and count in mono, a
+// fan of 52 px — the initials in a rounded square, the name over the @handle, the lifetime in green mono over «+$N»
+// of the period —, the picked fan washed with the terracotta bar at its left edge, which runs on into the preview
+// unfolded under it (X66). The batch's check box takes the place of the initials under the pointer, on the keyboard's
+// row and while anyone is ticked (1.32.0).
 export const BOARD_CSS = `
-.cg-bd { display: flex; flex-direction: column; min-height: 0; min-width: 0; container: cgboard / inline-size; }
+.cg-bd { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .cg-bd__list { flex: 1; min-height: 0; min-width: 0; }
 .cg-bd__state { padding: 0; }
 .cg-bd__state .cg-state--empty { justify-content: flex-start; text-align: left; padding: 24px 20px; }
 .cg-bd__reset { padding: 0 20px 16px 12px; }
 .cg-bd__banner { flex: none; border-bottom: 1px solid var(--cg-rule); }
-.cg-bd__grid {
-  display: grid; grid-template-columns: minmax(0, 1fr) 0 96px 88px 80px; align-items: center; column-gap: 0; padding: 0 16px 0 20px;
+.cg-bd__shelf, .cg-bd__shelfrow { height: 36px; }
+.cg-bd__shelfrow { display: flex; align-items: flex-end; gap: 8px; padding: 0 20px 6px; background: var(--cg-surface); font-variant-numeric: tabular-nums; }
+.cg-bd__shelfname { display: inline-flex; align-items: baseline; gap: 10px; min-width: 0; font-weight: 600; color: var(--cg-ink-strong); white-space: nowrap; }
+.cg-bd__band, .cg-bd__shelfn { font: var(--cg-text-xs)/16px var(--cg-mono); letter-spacing: 0.04em; color: var(--cg-ink-muted); font-weight: 400; }
+.cg-bd__shelfn { margin-left: auto; }
+.cg-bd__row {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; grid-template-rows: 52px; align-items: center; column-gap: 12px;
+  padding: 0 20px 0 18px; border-radius: var(--cg-r-md); margin: 0 8px; cursor: pointer; outline: none; font-variant-numeric: tabular-nums;
 }
-.cg-bd__grid > * { min-width: 0; white-space: nowrap; }
-.cg-bd__num { text-align: right; padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }
-.cg-bd__colhead { height: 28px; grid-template-rows: 28px; border-bottom: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-bd__sort { height: 28px; max-width: 100%; border-radius: 4px; color: inherit; font: inherit; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cg-bd__sort:hover, .cg-bd__sort.is-sorted { color: var(--cg-ink-strong); }
-.cg-bd__sort.is-sorted { font-weight: 500; }
-.cg-bd__perhead { overflow: visible; display: flex; justify-content: flex-end; }
-.cg-bd__colhead .cg-bd__period { height: 24px; padding: 0 0 0 4px; margin-right: -2px; gap: 2px; font: inherit; color: inherit; }
-.cg-bd__period:is(:hover, [aria-expanded="true"]) { color: var(--cg-ink-strong); background: none; }
-.cg-bd__colhead .cg-menu { z-index: 6; font-size: var(--cg-text-base); text-align: left; }
-.cg-lbl-short { display: none; }
-.cg-bd__shelf, .cg-bd__shelfrow { height: 28px; }
-.cg-bd__shelfrow {
-  display: flex; align-items: center; gap: 10px; padding: 0 16px 0 20px; background: var(--cg-surface);
-  font-size: var(--cg-text-sm); color: var(--cg-ink-muted); font-variant-numeric: tabular-nums;
+.cg-bd__row:hover { background: var(--cg-hover); }
+.cg-bd__row:focus-visible { box-shadow: inset 0 0 0 2px var(--cg-focus); }
+.cg-bd__row.is-sel, .cg-bd__row.is-sel:hover { background: var(--cg-sel); box-shadow: inset 3px 0 var(--cg-clay); }
+.cg-bd__row.is-sel:focus-visible { box-shadow: inset 3px 0 var(--cg-clay), inset 0 0 0 1px var(--cg-focus); }
+.cg-bd__row.is-open { border-radius: var(--cg-r-md) var(--cg-r-md) 0 0; }
+.cg-bd__row.has-batch { grid-template-rows: 52px 18px; align-content: start; }
+.cg-bd__row.has-batch .cg-bt__line { padding-left: 46px; }
+.cg-bd__who { position: relative; width: 34px; height: 34px; }
+.cg-bd__ava {
+  display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px;
+  background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule); color: var(--cg-ink-2); font-size: var(--cg-text-sm); font-weight: 600;
 }
-.cg-bd__shelfrow::after { content: ""; flex: 1; height: 1px; background: var(--cg-rule); }
-.cg-bd__shelfname { flex: none; font-weight: 500; color: var(--cg-ink-2); white-space: nowrap; }
-.cg-bd__shelfn { font-weight: 400; color: var(--cg-ink-muted); margin-left: 6px; }
-.cg-bd__row { height: 36px; font-variant-numeric: tabular-nums; cursor: default; }
-.cg-bd__row:hover { background: var(--cg-sunk); }
-.cg-bd__row:focus-visible { background: var(--cg-hover); outline-offset: -2px; }
-.cg-bd__row.has-batch { height: 54px; grid-template-rows: 30px 18px; align-content: center; }
-.cg-bd__row.is-sel, .cg-bd__row.is-sel:hover, .cg-bd__row.is-sel:focus-visible { background: var(--cg-sel); }
-.cg-bd__who { display: flex; align-items: center; gap: 8px; }
-.cg-bd__who .cg-bt__check { margin-right: 0; }
-.cg-bd:not(:has(.cg-bt__check[aria-checked="true"])) :is(.cg-bd__row, .cg-bd__colhead):not(:hover, :focus-within, .has-batch) .cg-bt__check { visibility: hidden; }
-.cg-bd__name { font-weight: 500; color: var(--cg-ink); overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 48px; }
-.cg-bd__tag { flex: none; font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
+.cg-bd__who .cg-bt__check { position: absolute; inset: 0; width: 34px; height: 34px; margin: 0; border-radius: 10px; background: var(--cg-surface); box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
+.cg-bd:not(:has(.cg-bt__check[aria-checked="true"])) .cg-bd__row:not(:hover, :focus-within, .has-batch) .cg-bt__check { visibility: hidden; }
+.cg-bd__main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cg-bd__l1 { display: flex; align-items: center; gap: 6px; min-width: 0; line-height: 19px; }
+.cg-bd__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--cg-ink-strong); }
+.cg-bd__new, .cg-bd__wait {
+  flex: none; padding: 0 7px; border-radius: var(--cg-r-pill); border: 1px solid var(--cg-clay-line); background: var(--cg-clay-bg);
+  color: var(--cg-clay-ink); font-size: var(--cg-text-xs); line-height: 16px; white-space: nowrap;
+}
+.cg-bd__tag { flex: none; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-bd__row.is-deleted .cg-bd__name { color: var(--cg-ink-muted); font-weight: 400; }
-.cg-bd__row.is-deleted .cg-bd__tag { color: var(--cg-ink-muted); }
-.cg-bd__life { color: var(--cg-ink); font-weight: 500; }
-.cg-bd__per { color: var(--cg-ink-muted); }
-.cg-bd__per.is-unknown { color: var(--cg-ink-faint); }
-.cg-bd__age { color: var(--cg-ink-muted); }
-.cg-bd__age.is-wait { color: var(--cg-ink-strong); font-weight: 500; }
-.cg-bd__last { display: block; overflow: hidden; visibility: hidden; color: var(--cg-ink-muted); text-overflow: ellipsis; }
-.cg-bd__row.is-open, .cg-bd__row.is-open:hover { background: var(--cg-sel); box-shadow: inset 3px 0 var(--cg-clay); }
-.cg-bd__unfold { height: 100%; padding-bottom: 10px; }
+.cg-bd__handle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-muted); }
+.cg-bd__sums { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-family: var(--cg-mono); white-space: nowrap; }
+.cg-bd__life { font-weight: 600; line-height: 19px; color: var(--cg-money); }
+.cg-bd__per { font-size: var(--cg-text-xs); line-height: 16px; }
+.cg-bd__unfold { height: 100%; padding: 0 8px 10px; }
 .cg-bd__unfoldcell {
-  display: flex; flex-direction: column; height: 100%; border-left: 3px solid var(--cg-clay); border-bottom: 1px solid var(--cg-rule-2);
-  background: var(--cg-surface);
+  display: flex; flex-direction: column; height: 100%; border: 1px solid var(--cg-rule-2); border-top: 0; border-left: 3px solid var(--cg-clay);
+  border-radius: 0 0 var(--cg-r-md) var(--cg-r-md); background: var(--cg-surface); overflow: hidden;
 }
 .cg-bd__unfoldcell > * { flex: 1; min-height: 0; }
 .cg-bd__unfoldcell .cg-pv__name, .cg-bd__unfoldcell .cg-pv__money { display: none; }
-.cg-bd__more { display: flex; align-items: center; height: 32px; padding: 0 16px 0 12px; }
-.cg-bd__morebtn { height: 24px; padding: 0 8px; border-radius: var(--cg-r-sm); color: var(--cg-ink-muted); font-size: var(--cg-text-sm); }
-.cg-bd__morebtn:hover { background: var(--cg-hover); color: var(--cg-ink-strong); }
 .cg-bd > .cg-sp__foot .cg-btn { margin-right: -8px; }
-@container cgboard (max-width: 620px) {
-  .cg-bd__grid { grid-template-columns: minmax(0, 1fr) 0 76px 68px 64px; padding: 0 12px 0 16px; }
-  .cg-bd__num { padding-left: 4px; }
-  .cg-lbl-long { display: none; }
-  .cg-lbl-short { display: inline; }
-}
-@container cgboard (min-width: 860px) {
-  .cg-bd__grid { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.3fr) 104px 96px 84px; }
-  .cg-bd__last { visibility: visible; padding-left: 16px; }
-}
 `;

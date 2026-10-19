@@ -108,9 +108,13 @@ export function board(ctx: ScenarioCtx, view: VmView, patch: Partial<SpendersBoa
     canLoadMore: false,
     reset: null,
     previewOpen: false,
+    // The controller's own keys (X67: the old window's foot shows them).
     keys: [
-      { label: msg('spenders.search.placeholder'), hotkey: { display: '/', aria: '/', delivery: 'delivered', fallback: null } },
-      { label: msg('spenders.closeTooltip'), hotkey: hotkey(ctx, 'close') },
+      { label: msg('spenders.keys.row'), hotkey: { display: 'J / K', aria: 'J K', delivery: 'delivered', fallback: null } },
+      { label: msg('preview.label'), hotkey: { display: 'Space', aria: 'Space', delivery: 'delivered', fallback: null } },
+      { label: msg('common.openChat'), hotkey: { display: 'O', aria: 'O', delivery: 'delivered', fallback: null } },
+      { label: msg('cheatsheet.row.search'), hotkey: { display: '/', aria: '/', delivery: 'delivered', fallback: null } },
+      { label: msg('common.close'), hotkey: hotkey(ctx, 'close') },
     ],
     ...patch,
   };
