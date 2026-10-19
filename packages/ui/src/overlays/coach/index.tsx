@@ -1,22 +1,34 @@
-// @cg/ui/overlays/coach — the Coach side panel (ui-design §3.7, §4.19, §10;
-// §9.1 (б): a 320 px panel on layer 900, the coordinator's proposal — the
-// conversation stays visible and Coach never covers the chat; AI-080…AI-100).
-// The session of the open chat from `CoachVM`: the freshness of the archive
-// Coach reads, the turns with their waiting stages, answers with drafts split
-// into parts (Insert one at a time, as in the dock), ready questions, and the
-// question field (↵ asks, ⇧↵ a new line). Opening it puts focus into the
-// question field (AI-080); the panel does not trap focus, Esc closes it and
-// focus goes back. A typed question belongs to the chat it was typed for
-// (AI-099). A draft part asks the Б2 question in its place (AI-086); in debug
-// mode a turn carries its debug footer (DB-019). Coach sees the archive and
-// the Recap, never the fan's fresh text. A lazy overlay.
+// @cg/ui/overlays/coach — the Coach window (ui-design §3.7, §4.19, §10;
+// decision X62: the old Fansly extension's Coach — a 720 px window centred
+// over the chat on a flat scrim, the owner's ruling of 2026-10-19; it replaces
+// the 320 px side panel of §9.1 (б)). AI-080…AI-100.
+// The session of the open chat from `CoachVM`, laid out as the old window:
+// the head (the micro-caps «Coach» over the fan's name, ×), the topbar (the
+// Recap Coach stands on and the freshness of the archive it reads on the left;
+// «Recap ▾» — build a short or a full one, refresh the archive — and «Новый
+// диалог» on the right), the conversation (questions in terracotta bubbles on
+// the right, answers in bubbles on the left, drafts under them split into
+// parts with Insert one at a time, as in the dock), the follow-up chips under
+// the latest answer, the empty state (the ready questions that ask at once and
+// the three headings of questions that fill the field), and the composer
+// pinned to the bottom (↵ asks, ⇧↵ a new line, «Приложить мой ответ»,
+// «Отменить» while Coach answers, «Спросить»).
+// Opening it puts focus into the question field (AI-080); the window does not
+// trap focus; Esc, × and a press on the scrim close it and the session stays;
+// a draft part inserted into the composer closes it (the controller, AI-086),
+// as the old one did, and the composer has the focus. A typed question belongs to the chat it was
+// typed for (AI-099). A draft part asks the Б2 question in its place (AI-086);
+// in debug mode a turn carries its debug footer (DB-019). What the hub layer
+// does stays as it was: the core still treats Coach as a panel, so the AI keys
+// keep working under it, and the streamed text repaints one text node a frame.
+// A lazy overlay.
 
 import { type ReadonlySignal } from '@preact/signals';
 import { type JSX } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { COACH_LIMITS } from '@cg/contracts/limits';
-import { type CoachTurnVM, type CoachVM, type MountDeps } from '@cg/contracts/vm';
+import { type ActionButtonVM, type CoachTurnVM, type CoachVM, type MountDeps } from '@cg/contracts/vm';
 
 import {
   Button,
@@ -24,13 +36,16 @@ import {
   Checkbox,
   Dot,
   ErrorCard,
+  Icon,
   Markdown,
+  Menu,
+  MenuAnchor,
   OverlayLayer,
-  SidePanel,
   StageLine,
   TextField,
   ViewState,
   focusQuietly,
+  menuTriggerKeys,
   mountKitSurface,
   useDispatch,
   useI18n,
@@ -40,10 +55,12 @@ import {
   useView,
   type KitMount,
   type KitMountOptions,
+  type MenuItem,
   type StyleSource,
   type SurfaceDefinition,
 } from '../../kit';
 import { RetryAnnouncer, useReadyAnnouncement, useStageAnnouncements } from '../../dock/announce';
+import { CancelButton } from '../../dock/Head';
 import { DEFAULT_PARTS } from '../../dock/lazy';
 import { DebugSlot } from '../../dock/lazy-part';
 import { isRunning, msgOf, toneOf } from '../../dock/model';
@@ -55,13 +72,16 @@ import { overlayRootCss } from '../layer';
 
 /**
  * Questions typed and not yet asked, by the handle of the chat they were typed
- * for (AI-099): a question survives closing the panel and a switch to another
+ * for (AI-099): a question survives closing the window and a switch to another
  * chat and back, and is never asked about a chat it was not written for. In
  * memory only, never stored; the chats written in last are kept.
  */
 const unsent = new Map<string, string>();
 /** How many chats keep an unasked question. */
 export const UNSENT_QUESTIONS_MAX = 50;
+
+/** The window: as wide as the old one, top-inset, at most this share of the window's height and never taller (X62). */
+export const COACH_WINDOW = { width: 720, heightShare: 0.84, maxHeight: 860, inset: 20 } as const;
 
 /**
  * Drops every unasked question. For the composition root when the person
@@ -99,20 +119,25 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
     const parts = answer?.drafts[0]?.parts.length ?? 0;
     return parts === 0 ? null : i18n.plural('result.announce.ready', parts);
   });
+  const blocks = answer?.blocks ?? [];
   return (
     <>
-      <div class="cg-co__turn is-you" data-cg-turn={turn.id}>
-        <div class="cg-co__who">
-          {i18n.t('coach.who.you')}
-          {turn.attachedDraft ? <span class="cg-co__with"> · {i18n.t('coach.attachDraft')}</span> : null}
-        </div>
-        <p>{turn.question}</p>
+      <div class="cg-co__q" data-cg-turn={turn.id}>
+        <p class="cg-co__bubble">{turn.question}</p>
+        {turn.attachedDraft ? (
+          <span class="cg-co__with">
+            <Icon name="check" size={12} />
+            {i18n.t('coach.attached')}
+          </span>
+        ) : null}
       </div>
-      <div class="cg-co__turn" data-cg-answer={turn.id}>
-        <div class="cg-co__who">{i18n.t('coach.who.coach')}</div>
+      <div class="cg-co__a" data-cg-answer={turn.id}>
         {waiting ? (
-          <div class="cg-co__wait" aria-busy="true">
-            {turn.sentToCoach || turn.phase === null ? <span class="cg-co__sent">{i18n.t('coach.sentToCoach')}</span> : <div class="cg-co__stages"><StageLine phase={turn.phase} startedAt={turn.phase.startedAt} /></div>}
+          // The wait and the answer as it is written: one bubble, the stage and its timer over the text (the old «Думаю… 12 с»).
+          <div class="cg-co__bubble cg-co__wait" aria-busy="true">
+            <div class="cg-co__stages">
+              {turn.sentToCoach || turn.phase === null ? <span class="cg-co__sent">{i18n.t('coach.sentToCoach')}</span> : <StageLine phase={turn.phase} startedAt={turn.phase.startedAt} />}
+            </div>
             <p class="cg-co__stream">
               <StreamText text={text} />
               <Caret />
@@ -123,16 +148,21 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
           <>
             {/* The site's verdict over the answer (R20 P8c): «Ещё раз» asks the question again. */}
             {mark === null ? null : <StaleRow mark={mark} onAgain={again === null ? null : () => void dispatch(again.action)} reason={again === null || again.enabled ? null : again.reason === null ? i18n.t('common.unknown') : i18n.text(again.reason.text)} />}
-            {answer.prose === '' ? null : <Markdown source={answer.prose} class="cg-co__md" />}
-            {(answer.blocks ?? []).map((block, index) => (
-              <div key={index} class="cg-co__block" data-cg-block={block.kind}>
-                <div class="cg-cap">{i18n.text(block.title)}</div>
-                <Markdown source={block.body} class="cg-co__md" />
+            {answer.prose === '' && blocks.length === 0 ? null : (
+              <div class="cg-co__bubble">
+                {answer.prose === '' ? null : <Markdown source={answer.prose} class="cg-co__md" />}
+                {blocks.map((block, index) => (
+                  <div key={index} class="cg-co__block" data-cg-block={block.kind}>
+                    <div class="cg-co__cap">{i18n.text(block.title)}</div>
+                    <Markdown source={block.body} class="cg-co__md" />
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
             {answer.drafts.map((draft) => (
               <div key={draft.index} class="cg-co__drafts" role="group" aria-label={i18n.text(draft.label)}>
-                {answer.drafts.length > 1 ? <div class="cg-co__draft-cap">{i18n.text(draft.label)}</div> : null}
+                {/* The old card's title: «ЧЕРНОВИК», «ЧЕРНОВИК 2» when the answer brought two. */}
+                <div class="cg-co__draft-cap">{answer.drafts.length > 1 ? i18n.text(draft.label) : i18n.t('coach.draftOne')}</div>
                 <Parts
                   parts={draft.parts}
                   opId={turn.opId ?? ''}
@@ -145,6 +175,22 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
           </>
         )}
         {turn.error === null ? null : <ErrorCard error={turn.error} tone={toneOf(turn.error)} actions={turn.errorActions} inline />}
+        {turn.error !== null || turn.state !== 'canceled' ? null : (
+          // «Остановлено вами» and «Повторить» (AI-092, the old window's stopped turn): nothing failed, the question can be asked again.
+          <div class="cg-co__stopped">
+            <span>{i18n.t('coach.canceled')}</span>
+            {turn.errorActions.map((action, index) => (
+              <Button
+                key={index}
+                label={i18n.text(action.label)}
+                variant="line"
+                size="sm"
+                reason={action.enabled ? null : action.reason === null ? i18n.t('common.unknown') : i18n.text(action.reason.text)}
+                onClick={() => void dispatch(action.action)}
+              />
+            ))}
+          </div>
+        )}
         <RetryAnnouncer error={turn.error} actions={turn.errorActions} />
         {debug === null ? null : (
           <div class="cg-co__debug">
@@ -156,35 +202,7 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
   );
 }
 
-function Freshness({ freshness }: { readonly freshness: CoachVM['freshness'] }): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const { lag, asOf, refresh } = freshness;
-  return (
-    <div class="cg-co__bar">
-      {lag !== null ? (
-        <span class="is-lag">
-          <Dot kind="accent" use="archive-lag" />
-          {lag.messages === null ? i18n.t('common.coverage.partial') : i18n.t('coach.archiveLag', { n: lag.messages })}
-        </span>
-      ) : asOf === null ? (
-        <span />
-      ) : (
-        <span>{i18n.t('coach.archiveAsOf', { time: i18n.formatTime(asOf) })}</span>
-      )}
-      <Button
-        label={i18n.text(refresh.label)}
-        icon="refresh"
-        size="sm"
-        variant={lag === null ? 'plain' : 'line'}
-        reason={refresh.enabled ? null : refresh.reason === null ? i18n.t('common.unknown') : i18n.text(refresh.reason.text)}
-        onClick={() => void dispatch(refresh.action)}
-      />
-    </div>
-  );
-}
-
-/** The Recap Coach was given, folded under the head (AI-095). */
+/** The Recap Coach was given (AI-095): «Recap · сделан 1 д назад», unfolding into its text. */
 function RecapNote({ recap }: { readonly recap: NonNullable<CoachVM['recap']> }): JSX.Element {
   const i18n = useI18n();
   const now = useNowFn();
@@ -201,9 +219,78 @@ function RecapNote({ recap }: { readonly recap: NonNullable<CoachVM['recap']> })
   );
 }
 
+/** What Coach reads (AI-097): «Переписка на 06:20»; a lagging archive is the accent line with the refresh at hand. */
+function Freshness({ freshness }: { readonly freshness: CoachVM['freshness'] }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const { lag, asOf, refresh } = freshness;
+  if (lag === null) return asOf === null ? null : <span class="cg-co__asof">{i18n.t('coach.archiveAsOf', { time: i18n.formatTime(asOf) })}</span>;
+  return (
+    <span class="cg-co__lag">
+      <span class="is-lag">
+        <Dot kind="accent" use="archive-lag" />
+        {lag.messages === null ? i18n.t('common.coverage.partial') : i18n.t('coach.archiveLag', { n: lag.messages })}
+      </span>
+      <Button
+        label={i18n.text(refresh.label)}
+        icon="refresh"
+        size="sm"
+        variant="line"
+        reason={refresh.enabled ? null : refresh.reason === null ? i18n.t('common.unknown') : i18n.text(refresh.reason.text)}
+        onClick={() => void dispatch(refresh.action)}
+      />
+    </span>
+  );
+}
+
+/**
+ * «Recap ▾» (the old window's menu): build a short or a full Recap of this fan — the Recap sheet's own buttons with
+ * their own reasons, the build shows where every Recap does — and «Обновить переписку».
+ */
+function RecapMenu({ refresh }: { readonly refresh: CoachVM['freshness']['refresh'] }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const picker = useSteadyView(useView({ of: 'recap.picker' })).value;
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const why = (button: ActionButtonVM): string | null => (button.enabled ? null : button.reason === null ? i18n.t('common.unknown') : i18n.text(button.reason.text));
+  const buttons = { short: picker.build.short, full: picker.build.full, refresh } as const;
+  const items: MenuItem[] = (['short', 'full', 'refresh'] as const).map((id) => ({ id, label: i18n.text(buttons[id].label), reason: why(buttons[id]) }));
+  const label = i18n.t('dock.action.recap');
+  return (
+    <MenuAnchor>
+      <Button
+        label={`${label} ▾`}
+        variant="line"
+        size="sm"
+        class="cg-co__menu"
+        haspopup="menu"
+        expanded={open}
+        buttonRef={trigger}
+        onClick={() => setOpen(!open)}
+        onKeyDown={(event) => menuTriggerKeys(event, () => setOpen(true))}
+      />
+      <Menu
+        open={open}
+        kind="action"
+        label={label}
+        items={items}
+        align="end"
+        placement="bottom"
+        onSelect={(id) => {
+          const button = id === 'short' || id === 'full' || id === 'refresh' ? buttons[id] : null;
+          if (button !== null && button.enabled) void dispatch(button.action);
+        }}
+        onClose={() => setOpen(false)}
+        returnFocusTo={() => trigger.current}
+      />
+    </MenuAnchor>
+  );
+}
+
 export function CoachView(): JSX.Element {
   const i18n = useI18n();
-  const { deps } = useKit();
+  const { deps, geometry } = useKit();
   const dispatch = useDispatch();
   const raw = useView({ of: 'coach' });
   const vm = useSteadyView(raw).value;
@@ -220,24 +307,29 @@ export function CoachView(): JSX.Element {
   const list = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const last = vm.turns[vm.turns.length - 1];
-  // A new turn or its answer scrolls into view. A finished answer taller than the list opens at its start — its
-  // first lines, not the ready questions under it: a short panel (above an open result in the dock) still shows
-  // the answer (third live check).
+  // A new turn or its answer scrolls into view. A finished answer taller than the feed opens at its start — its
+  // first lines, not the ready questions under it (third live check).
   useLayoutEffect(() => {
     const element = list.current;
     if (element === null) return;
-    const done = last === undefined || isRunning(last.state) ? null : [...element.querySelectorAll<HTMLElement>('[data-cg-answer]')].find((node) => node.dataset['cgAnswer'] === last.id);
+    // The empty dialog reads from its top: the invitation, then the ready questions under it.
+    if (last === undefined) {
+      element.scrollTop = 0;
+      return;
+    }
+    const done = isRunning(last.state) ? null : [...element.querySelectorAll<HTMLElement>('[data-cg-answer]')].find((node) => node.dataset['cgAnswer'] === last.id);
     if (done !== undefined && done !== null && done.offsetHeight > element.clientHeight) {
       element.scrollTop += done.getBoundingClientRect().top - element.getBoundingClientRect().top;
     } else element.scrollTop = element.scrollHeight;
   }, [vm.turns.length, last?.state]);
-  // The panel is mounted when the person opens Coach: the question field takes focus (AI-080).
-  // A switch of the chat under an open panel mounts nothing and moves no focus.
+  // The window is mounted when the person opens Coach: the question field takes focus (AI-080).
+  // A switch of the chat under an open window mounts nothing and moves no focus.
   useLayoutEffect(() => {
     focusQuietly(field.current);
   }, []);
 
   const close = (): void => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } });
+
   const keep = (where: string, value: string): void => {
     remember(where, value);
     repaint((count) => count + 1);
@@ -261,6 +353,11 @@ export function CoachView(): JSX.Element {
       if (receipt?.ok === true && unsent.get(chat) === text) keep(chat, '');
     });
   };
+  /** A question of the empty dialog's headings goes into the field for the person to edit and ask (AI-081). */
+  const fill = (text: string): void => {
+    keep(chat, text);
+    focusQuietly(field.current);
+  };
   const newDialog = (): void => {
     const start = (): void => void dispatch(vm.newDialog.action);
     if (vm.turns.length === 0) return start();
@@ -271,46 +368,97 @@ export function CoachView(): JSX.Element {
       });
   };
 
-  const chips =
-    vm.chips.length === 0 ? null : (
-      <div class="cg-co__chips">
-        {vm.chips.map((chip, index) => (
-          <Button key={index} label={i18n.text(chip.label)} variant="line" size="sm" reason={whyNot} onClick={() => ask(chip.question, chip.preset)} />
-        ))}
-      </div>
-    );
   const firstRemembered = vm.turns.findIndex((turn) => !turn.outsideMemory);
   const blocked = vm.view.s === 'loading' || vm.view.s === 'error' || vm.view.s === 'forbidden';
   const empty = !blocked && vm.turns.length === 0;
   const mode = dock.mode;
+  // «Отменить» while Coach answers (the old window's red button): the running turn's own cancel, ⌘. as everywhere.
+  const cancel = last !== undefined && isRunning(last.state) ? (last.phase?.cancel ?? null) : null;
+  const chips = vm.chips.map((chip, index) => (
+    <Button
+      key={index}
+      label={i18n.text(chip.label)}
+      variant="line"
+      size="sm"
+      class={chip.preset === null ? 'cg-co__chip' : 'cg-co__chip is-preset'}
+      reason={whyNot}
+      onClick={() => ask(chip.question, chip.preset)}
+    />
+  ));
+  const hints = vm.hints ?? [];
+
+  // Over the middle of the host's container (ChatSpace: right of its account rail, under its top bar), top-inset; the
+  // CSS keeps it inside the window when the container's middle is nearer an edge than half the window's width.
+  const box = geometry.value.container;
+  const style =
+    box === null
+      ? {}
+      : {
+          '--cg-co-x': `${box.left + box.width / 2}px`,
+          top: `${box.top + COACH_WINDOW.inset}px`,
+          '--cg-co-room': `${Math.max(0, box.height - 2 * COACH_WINDOW.inset)}px`,
+        };
 
   return (
     <OverlayLayer>
-      <SidePanel label={i18n.t('coach.title')} class="cg-coach" onClose={close}>
-        <div class="cg-co__head">
-          <div class="cg-co__who-is">
-            <div class="cg-co__name">{i18n.t('coach.title')}</div>
-            {vm.targetName === null ? null : <div class="cg-co__sub">{i18n.t('coach.sub', { name: vm.targetName })}</div>}
+      <div class="cg-co-scrim" aria-hidden="true" onPointerDown={close} />
+      <section
+        class="cg-coach"
+        role="dialog"
+        aria-modal="false"
+        aria-label={i18n.t('coach.title')}
+        style={style}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !event.defaultPrevented) {
+            event.preventDefault();
+            close();
+            deps.focus.restore();
+          }
+        }}
+      >
+        <header class="cg-co__head">
+          <div class="cg-co__title">
+            <div class="cg-co__eyebrow">{i18n.t('coach.title')}</div>
+            <div class="cg-co__name">{vm.targetName ?? i18n.t('coach.title')}</div>
           </div>
-          <Button
-            label={i18n.text(vm.newDialog.label)}
-            variant="line"
-            size="sm"
-            tooltip={i18n.t('coach.newDialogTooltip')}
-            reason={vm.newDialog.enabled ? null : vm.newDialog.reason === null ? i18n.t('common.unknown') : i18n.text(vm.newDialog.reason.text)}
-            onClick={newDialog}
-          />
-          <Button label={i18n.t('common.close')} icon="x" iconOnly variant="quiet" onClick={close} />
+          <Button label={i18n.t('common.close')} icon="x" iconOnly variant="line" class="cg-co__close" onClick={close} />
+        </header>
+        <div class="cg-co__top">
+          <div class="cg-co__status">
+            {vm.recap === null ? null : <RecapNote recap={vm.recap} />}
+            <Freshness freshness={vm.freshness} />
+          </div>
+          <div class="cg-co__tools">
+            <RecapMenu refresh={vm.freshness.refresh} />
+            <Button
+              label={i18n.text(vm.newDialog.label)}
+              variant="line"
+              size="sm"
+              tooltip={i18n.t('coach.newDialogTooltip')}
+              reason={vm.newDialog.enabled ? null : vm.newDialog.reason === null ? i18n.t('common.unknown') : i18n.text(vm.newDialog.reason.text)}
+              onClick={newDialog}
+            />
+          </div>
         </div>
-        {vm.recap === null ? null : <RecapNote recap={vm.recap} />}
-        <Freshness freshness={vm.freshness} />
-        <div ref={list} class="cg-co__turns">
+        <div ref={list} class="cg-co__feed" role="log" aria-label={i18n.t('coach.title')}>
           {blocked || vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
           {empty ? (
             <div class="cg-co__empty">
               <b>{i18n.t('coach.empty.title')}</b>
-              {i18n.t('coach.empty.body', { name: vm.targetName ?? i18n.t('common.unknown') })}
-              {chips}
+              <p>{i18n.t('coach.empty.body', { name: vm.targetName ?? i18n.t('common.unknown') })}</p>
+              {chips.length === 0 ? null : <div class="cg-co__chips">{chips}</div>}
+              {hints.length === 0 ? null : (
+                <div class="cg-co__groups">
+                  {hints.map((group, index) => (
+                    <div key={index} class="cg-co__group" role="group" aria-label={i18n.text(group.label)}>
+                      <div class="cg-co__cap">{i18n.text(group.label)}</div>
+                      {group.questions.map((hint, at) => (
+                        <Button key={at} label={i18n.text(hint.label)} variant="line" size="sm" class="cg-co__hint" reason={whyNot} onClick={() => fill(hint.question)} />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null}
           {blocked
@@ -319,24 +467,15 @@ export function CoachView(): JSX.Element {
                 <div key={turn.id} class="cg-co__pair">
                   {index === firstRemembered && index > 0 ? (
                     <div class="cg-co__memory" role="separator">
-                      {i18n.t('coach.memoryBoundary')}
+                      <span>{i18n.t('coach.memoryBoundary')}</span>
                     </div>
                   ) : null}
                   <Turn turn={turn} raw={raw} mode={mode} />
                 </div>
               ))}
-          {!empty && !blocked && last !== undefined && !isRunning(last.state) ? chips : null}
+          {!empty && !blocked && chips.length > 0 && last !== undefined && !isRunning(last.state) ? <div class="cg-co__chips is-follow">{chips}</div> : null}
         </div>
         <div class="cg-co__ask">
-          <div class="cg-co__attach">
-            <Checkbox
-              label={i18n.t('coach.attachDraft')}
-              checked={attach && vm.ask.attachDraft.available}
-              semantics="toggle"
-              onChange={(on) => setAttachFor(on ? chat : null)}
-              reason={vm.ask.attachDraft.available ? null : vm.ask.attachDraft.reason === null ? i18n.t('common.unknown') : i18n.text(vm.ask.attachDraft.reason.text)}
-            />
-          </div>
           <TextField
             value={question}
             onValue={(value) => keep(chat, value)}
@@ -344,70 +483,151 @@ export function CoachView(): JSX.Element {
             label={i18n.t('coach.ask.aria')}
             placeholder={i18n.t('coach.ask.placeholder')}
             multiline
-            minHeight={56}
+            minHeight={44}
             maxHeight={160}
             maxLength={COACH_LIMITS.questionMaxChars}
             onEnter={() => ask(question)}
           />
-          <div class="cg-co__send">
-            <span>{i18n.t('coach.ask.hint')}</span>
-            <Button label={i18n.t('coach.ask.button')} variant="line" reason={whyNot} onClick={() => ask(question)} />
+          <div class="cg-co__acts">
+            <div class="cg-co__attach">
+              <Checkbox
+                label={i18n.t('coach.attachDraft')}
+                checked={attach && vm.ask.attachDraft.available}
+                semantics="toggle"
+                onChange={(on) => setAttachFor(on ? chat : null)}
+                reason={vm.ask.attachDraft.available ? null : vm.ask.attachDraft.reason === null ? i18n.t('common.unknown') : i18n.text(vm.ask.attachDraft.reason.text)}
+              />
+              <span class="cg-co__help">
+                {vm.ask.attachDraft.available ? i18n.t('coach.attachHint') : vm.ask.attachDraft.reason === null ? i18n.t('coach.attachHint') : i18n.text(vm.ask.attachDraft.reason.text)}
+              </span>
+            </div>
+            <div class="cg-co__send">
+              <span class="cg-co__keys">{i18n.t('coach.ask.hint')}</span>
+              {cancel === null ? null : <CancelButton action={cancel} />}
+              <Button label={i18n.t('coach.ask.button')} variant="line" class="cg-co__go" reason={whyNot} onClick={() => ask(question)} />
+            </div>
           </div>
         </div>
-      </SidePanel>
+      </section>
     </OverlayLayer>
   );
 }
 
 export const COACH_CSS = `
 ${overlayRootCss('coach', 'panel')}
-.cg-coach { font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); }
-.cg-co__head { flex: none; display: flex; align-items: center; gap: 10px; padding: 14px 8px 12px 16px; }
-.cg-co__who-is { flex: 1; min-width: 0; }
-.cg-co__name { font-size: var(--cg-text-xl); line-height: 20px; font-weight: 600; color: var(--cg-ink-strong); }
-.cg-co__sub { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cg-co__recap { flex: none; padding: 0 16px 8px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-co__recap summary { display: flex; gap: 8px; cursor: pointer; list-style: none; }
-.cg-co__recap summary b { font-weight: 500; color: var(--cg-ink-2); }
-.cg-co__recap-text { margin-top: 4px; max-height: 40vh; overflow-y: auto; overflow-wrap: anywhere; scrollbar-width: thin; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink-2); }
+${/* The old window's scrim: flat, no blur; a press on it closes Coach as Esc does. */ ''}
+.cg-co-scrim { position: fixed; inset: 0; background: var(--cg-scrim); }
+${/* The window: 720 px over the middle of the host's container, 20 px from its top, a fixed height whose feed scrolls. */ ''}
+.cg-coach {
+  --cg-co-half: min(${COACH_WINDOW.width / 2}px, calc(50vw - ${COACH_WINDOW.inset}px));
+  position: fixed; top: ${COACH_WINDOW.inset}px; translate: -50% 0; container: cg / inline-size;
+  left: clamp(calc(var(--cg-co-half) + ${COACH_WINDOW.inset}px), var(--cg-co-x, 50vw), calc(100vw - var(--cg-co-half) - ${COACH_WINDOW.inset}px));
+  width: calc(2 * var(--cg-co-half));
+  height: min(${COACH_WINDOW.heightShare * 100}vh, ${COACH_WINDOW.maxHeight}px, var(--cg-co-room, 100vh));
+  display: flex; flex-direction: column; gap: 12px; padding: 20px; box-sizing: border-box; overflow: hidden;
+  background: var(--cg-surface); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-xl); box-shadow: var(--cg-shadow-float);
+  font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink);
+  animation: cg-co-up 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cg-coach > * { flex: none; }
+@keyframes cg-co-up { from { opacity: 0; transform: translateY(8px); } }
+
+${/* ── head: the micro-caps «Coach» in terracotta over the fan's name in serif, × in a square; a hairline under it ── */ ''}
+.cg-co__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--cg-rule); }
+.cg-co__title { display: grid; gap: 3px; min-width: 0; }
+.cg-co__eyebrow { font-family: var(--cg-mono); font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cg-clay-ink); }
+.cg-co__name { font-family: var(--cg-serif); font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.01em; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-co__close { width: 32px; height: 32px; padding: 0; justify-content: center; flex: none; }
+
+${/* ── topbar: what Coach stands on at the left, «Recap ▾» and «Новый диалог» at the right ── */ ''}
+.cg-co__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+.cg-co__status { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-co__tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; flex: none; }
+.cg-co__recap { min-width: 0; }
+.cg-co__recap summary { display: flex; gap: 6px; cursor: pointer; list-style: none; }
+.cg-co__recap summary::-webkit-details-marker { display: none; }
+.cg-co__recap summary b { font-weight: 400; color: var(--cg-ink-muted); }
+.cg-co__recap summary span { font-weight: 600; color: var(--cg-ink-2); }
+.cg-co__recap-text { position: absolute; left: 20px; right: 20px; z-index: 4; margin-top: 6px; padding: 10px 12px; max-height: 40vh; overflow-y: auto; overflow-wrap: anywhere; scrollbar-width: thin; background: var(--cg-surface); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-lg); box-shadow: var(--cg-shadow-float); font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink-2); }
 .cg-co__recap-text p, .cg-co__recap-text li { max-width: none; }
-.cg-co__bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-height: 32px; padding: 3px 8px 3px 16px; border-top: 1px solid var(--cg-rule); border-bottom: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-co__bar .is-lag { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-strong); font-weight: 500; }
-.cg-co__bar .cg-btn { margin-left: auto; }
-.cg-co__turns { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 6px 0 12px; }
-.cg-co__turn { padding: 10px 16px 4px; }
-.cg-co__who { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-bottom: 2px; }
-.cg-co__turn > .cg-stale { margin: 2px 0 8px; grid-template-columns: 22px minmax(0, 1fr); row-gap: 4px; padding-bottom: 6px; }
-.cg-co__turn > .cg-stale > .cg-btn { grid-column: 2; justify-self: start; }
-.cg-co__turn p, .cg-co__md { font-size: var(--cg-text-md); line-height: 20px; color: var(--cg-ink); overflow-wrap: anywhere; }
-.cg-co__md, .cg-co__md p { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); }
-.cg-co__turn.is-you { display: grid; justify-items: end; }
-.cg-co__turn.is-you p { max-width: 92%; padding: 6px 10px; border-radius: 10px 10px 3px 10px; background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-ink); white-space: pre-wrap; }
-.cg-co__sent { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-co__stages { display: flex; align-items: center; min-width: 0; }
-.cg-co__stream { margin-top: 4px; white-space: pre-wrap; }
-.cg-co__block { margin-top: 8px; }
-.cg-co__drafts { display: grid; gap: 6px; margin: 8px -6px 0; }
+.cg-co__lag { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
+.cg-co__lag .is-lag { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-strong); font-weight: 500; }
+.cg-co__tools .cg-menu { min-width: 200px; }
+.cg-co__top .cg-menu--bottom { top: calc(100% + 4px); }
+
+${/* ── the conversation: a log of its own that scrolls; questions right, answers left; 20 px between turns ── */ ''}
+.cg-co__feed { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 4px; }
+.cg-co__pair { display: flex; flex-direction: column; gap: 8px; }
+.cg-co__q { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.cg-co__a { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.cg-co__a > * { max-width: 92%; }
+.cg-co__a > .cg-co__drafts, .cg-co__a > .cg-card, .cg-co__a > .cg-co__debug { align-self: stretch; max-width: none; }
+.cg-co__bubble { margin: 0; padding: 10px 12px; border-radius: 12px 12px 12px 4px; background: var(--cg-sunk); color: var(--cg-ink); font-size: var(--cg-text-base); line-height: 1.5; overflow-wrap: anywhere; min-width: 0; }
+.cg-co__q .cg-co__bubble { max-width: 82%; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--cg-clay-bg); line-height: 18px; white-space: pre-wrap; }
+.cg-co__with { display: inline-flex; align-items: center; gap: 4px; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); }
+${/* The answer reads in the UI face, as in the old window (its approved exception); the drafts for the fan keep the serif. */ ''}
+.cg-co__md, .cg-co__md p, .cg-co__md li { font-size: var(--cg-text-base); line-height: 1.5; color: var(--cg-ink); max-width: none; }
+.cg-co__block { margin-top: 10px; }
+.cg-co__block:first-child { margin-top: 0; }
+.cg-co__block[data-cg-block="move"] { padding: 8px 10px; border: 1px dashed var(--cg-clay-line); border-radius: 9px; background: var(--cg-draft); }
+.cg-co__cap { margin-bottom: 4px; font-family: var(--cg-mono); font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cg-ink-muted); text-align: left; }
+.cg-co__wait { display: grid; gap: 4px; min-width: 200px; }
+.cg-co__stages { display: flex; align-items: center; min-width: 0; font-size: var(--cg-text-sm2); color: var(--cg-ink-2); }
+.cg-co__stages .cg-timer { padding-left: 8px; color: var(--cg-ink-muted); }
+.cg-co__sent { color: var(--cg-ink-2); }
+.cg-co__stream { margin: 0; white-space: pre-wrap; }
+.cg-co__stream:has(> .cg-stream__t:empty) { line-height: 14px; }
+.cg-co__a > .cg-stale { align-self: stretch; max-width: none; margin: 0; grid-template-columns: 22px minmax(0, 1fr); row-gap: 4px; padding-bottom: 6px; }
+.cg-co__a > .cg-stale > .cg-btn { grid-column: 2; justify-self: start; }
+.cg-co__stopped { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-co__drafts { display: grid; gap: 6px; margin-top: 2px; }
 .cg-co__drafts .cg-parts { padding: 0; }
-.cg-co__draft-cap { padding: 2px 4px 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-${/* Drafts in the 320 px panel: the number in a 26 px gutter, Copy and «Вставить» under the text (ui-design §4.19). */ ''}
-.cg-co__drafts .cg-part { grid-template-columns: 26px minmax(0, 1fr); padding-right: 8px; }
-.cg-co__drafts .cg-part__a { grid-column: 2; justify-self: start; margin: 6px 0 0; }
-.cg-co__drafts .cg-part.is-done .cg-part__a { margin: 2px 0 0; }
-.cg-co__drafts .cg-part__card, .cg-co__drafts .cg-part__extra { grid-column: 2; }
-.cg-co__turn .cg-card { margin-top: 8px; }
-${/* The debug footer of a turn: the panel's width, the label column of the drafts. */ ''}
-.cg-co__debug { margin: 8px -16px 0; }
+.cg-co__draft-cap { font-family: var(--cg-mono); font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cg-clay-ink); }
 .cg-co__debug .cg-debug { grid-template-columns: 32px minmax(0, 1fr); padding-right: 8px; }
-.cg-co__memory { margin: 10px 16px 0; padding-top: 8px; border-top: 1px dashed var(--cg-rule-3); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-co__empty { padding: 28px 16px; color: var(--cg-ink-muted); }
-.cg-co__empty b { display: block; font-weight: 600; color: var(--cg-ink-strong); font-size: var(--cg-text-lg); line-height: 20px; margin-bottom: 4px; }
-.cg-co__chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 0; }
-.cg-co__empty .cg-co__chips { padding: 14px 0 0; }
-.cg-co__ask { flex: none; padding: 10px 12px 12px 16px; border-top: 1px solid var(--cg-rule); }
-.cg-co__attach { margin: -4px 0 4px -7px; }
+${/* The memory line: centred words between two dashed hairlines. */ ''}
+.cg-co__memory { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); white-space: nowrap; }
+.cg-co__memory::before, .cg-co__memory::after { content: ""; flex: 1 1 auto; border-top: 1px dashed var(--cg-rule-3); }
+.cg-co__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cg-co__chips.is-follow { margin-top: -12px; max-width: 92%; }
+.cg-co__chip.is-preset:not([aria-disabled="true"]) { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-weight: 600; }
+.cg-co__chip.is-preset:not([aria-disabled="true"]):hover { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
+
+${/* ── the empty dialog: in the middle of the feed, the ready questions under it, three headings in three columns ── */ ''}
+.cg-co__empty { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 10px; padding: 12px 2px; text-align: center; color: var(--cg-ink-2); }
+.cg-co__empty b { font-size: var(--cg-text-xl); line-height: 20px; font-weight: 600; color: var(--cg-ink-strong); }
+.cg-co__empty p { margin: 0; max-width: 46ch; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-co__empty .cg-co__chips { justify-content: center; }
+.cg-co__groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; margin-top: 6px; }
+.cg-co__group { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; }
+.cg-co__hint { height: auto; min-height: 28px; padding-top: 5px; padding-bottom: 5px; justify-content: flex-start; text-align: left; white-space: normal; }
+.cg-co__hint .cg-btn__t { white-space: normal; font-weight: 400; }
+
+${/* ── the composer, pinned under the feed: the field, then «Приложить мой ответ» at the left and the buttons at the right ── */ ''}
+.cg-co__ask { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--cg-rule); }
+.cg-co__acts { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.cg-co__attach { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-left: -7px; }
 .cg-co__attach .cg-check { font-size: var(--cg-text-sm); font-weight: 400; }
-.cg-co__send { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-co__help { padding-left: 29px; font-size: var(--cg-text-xs); line-height: 15px; color: var(--cg-ink-muted); }
+.cg-co__help::first-letter { text-transform: uppercase; }
+.cg-co__send { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: none; }
+.cg-co__keys { margin-right: 4px; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); white-space: nowrap; }
+.cg-co__send .cg-cancel { background: color-mix(in srgb, var(--cg-danger) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cg-danger) 35%, transparent); color: var(--cg-danger); }
+${/* «Спросить» filled terracotta, a step larger than the rest, as the old «Отправить». */ ''}
+.cg-co__go { height: 32px; padding: 0 16px; font-weight: 600; }
+.cg-co__go:not([aria-disabled="true"]) { background: var(--cg-clay); box-shadow: none; color: #fff; }
+.cg-co__go:not([aria-disabled="true"]):hover { background: var(--cg-clay-ink); }
+
+${/* ── a narrow window (the old ≤ 720 px rules): less padding, the headings in one column, the keys line goes ── */ ''}
+@container cg (max-width: 700px) {
+  .cg-coach { padding: 14px; }
+  .cg-co__name { font-size: 17px; line-height: 22px; }
+}
+@container cg (max-width: 560px) {
+  .cg-co__groups { grid-template-columns: minmax(0, 1fr); }
+  .cg-co__keys { display: none; }
+  .cg-co__top { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .cg-coach { animation: none; } }
 `;
 export const COACH_STYLE: StyleSource = { id: 'cg-coach', css: COACH_CSS };
 

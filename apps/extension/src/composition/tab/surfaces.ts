@@ -39,6 +39,11 @@ interface OverlaySpec {
   readonly pick: (module: Record<string, unknown>) => Surface;
   /** Mounted only while this holds too (the overlay alone may stand for a part of another window); absent — always. */
   readonly only?: (overlays: OverlayState) => boolean;
+  /**
+   * A side panel at the right edge of the container (the fan panel): it takes the panel geometry, which ends above a
+   * dock under its 320 px, and the toasts stand left of it. Coach is a window centred over the chat (X62): neither.
+   */
+  readonly edge?: true;
 }
 
 const surfaceOf = (module: Record<string, unknown>): Surface => module['surface'] as Surface;
@@ -49,7 +54,7 @@ const surfaceOf = (module: Record<string, unknown>): Surface => module['surface'
  */
 export const OVERLAY_MOUNTS: Readonly<Partial<Record<OverlayKind, OverlaySpec>>> = {
   coach: { kind: 'coach', layer: 'panel', entry: 'coach', pick: surfaceOf },
-  'fan-panel': { kind: 'fan-panel', layer: 'panel', entry: 'fan-panel', pick: surfaceOf },
+  'fan-panel': { kind: 'fan-panel', layer: 'panel', entry: 'fan-panel', pick: surfaceOf, edge: true },
   spenders: { kind: 'spenders', layer: 'modal', entry: 'spenders', pick: surfaceOf },
   newcomers: { kind: 'newcomers', layer: 'modal', entry: 'newcomers', pick: surfaceOf },
   preview: { kind: 'preview', layer: 'modal', entry: 'preview', pick: surfaceOf, only: (overlays) => overlays.previewFrom() === 'palette' },
@@ -62,7 +67,7 @@ export const OVERLAY_MOUNTS: Readonly<Partial<Record<OverlayKind, OverlaySpec>>>
 export interface SurfaceMountsEnv {
   readonly mounts: HostMounts;
   readonly deps: MountDeps;
-  /** What the side panels (layer `panel`) are mounted with: `deps` with their own geometry (tab/panel-geometry.ts). `deps` when absent. */
+  /** What the side panels at the edge (`OverlaySpec.edge`) are mounted with: `deps` with their own geometry (tab/panel-geometry.ts). `deps` when absent. */
   readonly panelDeps?: MountDeps;
   readonly ui: typeof DockChunk;
   readonly toasts: DockChunk.ToastHost;
@@ -170,7 +175,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
     // Closed, or the tab went away, while the chunk was loading.
     if (!wanted || disposed || !shown(overlay, spec)) return;
     try {
-      put(spec.kind, () => ui.mountKitSurface(spec.kind, layerRoot(spec.layer), spec.layer === 'panel' ? (env.panelDeps ?? deps) : deps, surface, options));
+      put(spec.kind, () => ui.mountKitSurface(spec.kind, layerRoot(spec.layer), spec.edge === true ? (env.panelDeps ?? deps) : deps, surface, options));
     } catch (error) {
       // The mount itself failed (not a render inside its boundary): the window is not there, and says so.
       env.report({ kind: 'render', surface: spec.kind, code: 'CG-UI-FAILED', name: error instanceof Error ? error.name : typeof error });

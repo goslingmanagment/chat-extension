@@ -154,6 +154,34 @@ export function coachTurn(ctx: ScenarioCtx, n: number, patch: Partial<CoachTurnV
   };
 }
 
+/** The empty dialog's headings and their questions (core coach/controller.ts HINT_GROUPS), with the Russian text a click puts into the field. */
+const COACH_HINTS = [
+  {
+    label: 'coach.group.sell',
+    questions: [
+      ['coach.hint.sell.how', 'Не знаю, как продать — подскажи'],
+      ['coach.hint.sell.price', 'Как подать цену, чтобы не спугнуть?'],
+      ['coach.hint.sell.discount', 'Просит скидку — что ответить?'],
+    ],
+  },
+  {
+    label: 'coach.group.return',
+    questions: [
+      ['coach.hint.return.revive', 'Как оживить остывший чат?'],
+      ['coach.hint.return.seen', 'Прочитал и молчит — что написать?'],
+      ['coach.hint.return.afterPrice', 'Пропал после цены — как вернуть?'],
+    ],
+  },
+  {
+    label: 'coach.group.understand',
+    questions: [
+      ['coach.hint.understand.likes', 'Что этому фану реально заходит?'],
+      ['coach.hint.understand.person', 'Разбери его: что за человек?'],
+      ['coach.hint.understand.topics', 'О чём говорить, кроме продаж?'],
+    ],
+  },
+] as const;
+
 export function coach(ctx: ScenarioCtx, view: VmView, turns: readonly CoachTurnVM[], patch: Partial<CoachVM> = {}): CoachVM {
   return {
     view,
@@ -172,6 +200,8 @@ export function coach(ctx: ScenarioCtx, view: VmView, turns: readonly CoachTurnV
     ],
     ask: { enabled: true, reason: null, attachDraft: { available: true, reason: null } },
     newDialog: button('coach.newDialog', { type: 'NewCoachDialog' }),
+    // AI-081: the empty dialog's three headings of questions that fill the field, as the controller gives them.
+    hints: turns.length > 0 ? [] : COACH_HINTS.map((group) => ({ label: msg(group.label), questions: group.questions.map(([key, question]) => ({ label: msg(key), question })) })),
     ...patch,
   };
 }

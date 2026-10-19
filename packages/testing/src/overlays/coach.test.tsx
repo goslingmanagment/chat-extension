@@ -1,7 +1,8 @@
-// The Coach side panel (ui-design §3.7, §4.19, §10; AI-080…AI-100): the
-// session of the open chat — freshness, turns, drafts in parts, ready
-// questions, the question field. It asks only through UiActions and never
-// sends the fan's fresh text anywhere.
+// The Coach window (ui-design §3.7, §4.19, §10; AI-080…AI-100; decision X62:
+// the old Fansly extension's window, centred over the chat on a scrim): the
+// session of the open chat — what Coach stands on, turns, drafts in parts,
+// ready questions, the question field. It asks only through UiActions and
+// never sends the fan's fresh text anywhere.
 
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
@@ -11,7 +12,7 @@ import { DEFAULT_PARTS, preloadPart } from '@cg/ui/dock';
 import { UNSENT_QUESTIONS_MAX, coachSurface, forgetUnsentQuestions } from '@cg/ui/overlays/coach';
 
 import { FANSLY_SITE_TEXTS } from '../kit/profiles';
-import { FANS, button, cgError, coach, coachTurn, dock, entry, handles, msg, parts, reason, scenarioById, uuid, views, type ScenarioStep } from '../scenarios/app-client';
+import { FANS, button, cgError, coach, coachTurn, dock, entry, handles, msg, parts, reason, recapPicker, scenarioById, uuid, views, type ScenarioStep } from '../scenarios/app-client';
 import { type MountedKit, ctx, flush, keydown, mountSurface, scenarioOf, settle, text } from '../dock/harness';
 
 let kit: MountedKit | null = null;
@@ -41,24 +42,27 @@ const type = async (value: string): Promise<void> => {
   });
 };
 
-describe('the Coach panel', () => {
-  it('[AI-080] is a complementary side panel «Coach» for the open chat, opened with focus in the question field; Esc and × close it and focus goes back', async () => {
+describe('the Coach window', () => {
+  it('[AI-080] X62: a window «Coach» over the chat on a scrim, the fan\'s name under the micro-caps, opened with focus in the question field; Esc, × and the scrim close it and Esc gives focus back', async () => {
     let restored = 0;
     kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1)]));
     (kit.deps.focus as { restore: () => boolean }).restore = () => {
       restored += 1;
       return true;
     };
-    const panel = kit.$('.cg-side') as HTMLElement;
-    expect(panel.getAttribute('role')).toBe('complementary');
-    expect(panel.getAttribute('aria-label')).toBe('Coach');
-    expect(text(kit.$('.cg-co__name'))).toBe('Coach');
-    expect(text(kit.$('.cg-co__sub'))).toBe('по чату с Hubert');
-    // Opening Coach puts focus into the question field (parity AI-080); the panel does not trap it.
+    const window = kit.$('.cg-coach') as HTMLElement;
+    expect(window.getAttribute('role')).toBe('dialog');
+    // The core keeps Coach a panel: the AI keys work under it, so the window does not claim to be modal.
+    expect(window.getAttribute('aria-modal')).toBe('false');
+    expect(window.getAttribute('aria-label')).toBe('Coach');
+    expect(text(kit.$('.cg-co__eyebrow'))).toBe('Coach');
+    expect(text(kit.$('.cg-co__name'))).toBe('Hubert');
+    // Opening Coach puts focus into the question field (parity AI-080); the window does not trap it.
     expect(kit.root.activeElement).toBe(field());
-    await flush(() => panel.dispatchEvent(keydown('Escape')));
+    await flush(() => window.dispatchEvent(keydown('Escape')));
     await flush(() => byLabel('Закрыть').click());
-    expect(kit.client.dispatched).toEqual(Array(2).fill({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } }));
+    await flush(() => kit?.$('.cg-co-scrim')?.dispatchEvent(new Event('pointerdown', { bubbles: true })));
+    expect(kit.client.dispatched).toEqual(Array(3).fill({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } }));
     expect(restored).toBe(1);
   });
 
@@ -84,12 +88,29 @@ describe('the Coach panel', () => {
     expect(text(kit.$('.cg-co__empty'))).toContain('Спросите, как ответить Hubert');
     const chips = kit.$$('.cg-co__chips button');
     expect(chips.map(text)).toEqual(['Что сейчас в чате?', 'Что предложить?']);
+    // The situation preset leads in terracotta, as the old window's «Разбор ситуации».
+    expect(chips.map((chip) => chip.classList.contains('is-preset'))).toEqual([true, false]);
     await flush(() => chips[0]?.click());
     await flush(() => chips[1]?.click());
     expect(kit.client.dispatched).toEqual([
       { type: 'Generate', targetHandle: HANDLE, feature: 'coach', options: { question: 'Что сейчас происходит в чате?', preset: 'situation' } },
       { type: 'Generate', targetHandle: HANDLE, feature: 'coach', options: { question: 'Что ему предложить?' } },
     ]);
+  });
+
+  it('[AI-081] X62: under the chips the three headings of the old window, three questions each; a question goes into the field for the person to edit, and asks nothing', async () => {
+    kit = mount(coach(ctx, views.empty({ key: 'coach.empty.title' }), []));
+    const groups = kit.$$('.cg-co__group');
+    expect(groups.map((group) => text(group.querySelector('.cg-co__cap')))).toEqual(['Продать', 'Вернуть', 'Понять']);
+    expect(groups.map((group) => group.querySelectorAll('.cg-co__hint').length)).toEqual([3, 3, 3]);
+    await flush(() => (groups[1]?.querySelector('.cg-co__hint') as HTMLElement).click());
+    expect(field().value).toBe('Как оживить остывший чат?');
+    expect(kit.root.activeElement).toBe(field());
+    expect(kit.client.dispatched).toEqual([]);
+    // With turns there are none: the follow-ups stand under the latest answer instead.
+    kit.unmount();
+    kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1)]));
+    expect(kit.$$('.cg-co__group')).toEqual([]);
   });
 
   it('[AI-082] [AI-099] Enter asks, Shift+Enter is a new line; the question leaves the field only once the turn started', async () => {
@@ -138,7 +159,7 @@ describe('the Coach panel', () => {
     // The person went back to ChatSpace and opened another chat there.
     await flush(() => field().blur());
     await flush(() => kit?.client.goTo(0));
-    expect(text(kit.$('.cg-co__sub'))).toBe('по чату с Theodore Whitfield');
+    expect(text(kit.$('.cg-co__name'))).toBe('Theodore Whitfield');
     expect(kit.root.activeElement).toBeNull();
     // Hubert's question is not Theodore's; «Приложить мой ответ» was asked for Hubert's chat only.
     expect(field().value).toBe('');
@@ -251,9 +272,10 @@ describe('the Coach panel', () => {
 
   it('[AI-084] [AI-085] an answer: prose, then drafts split into parts, inserted one at a time by the operation of that turn', async () => {
     kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1)]));
-    expect(kit.$$('.cg-co__who').map(text)).toEqual(['Вы', 'Coach']);
-    expect(text(kit.$('.cg-co__turn.is-you p'))).toBe('Как вернуть его к покупкам?');
-    expect(text(kit.$('.cg-co__md'))).toContain('He responds to warmth first.');
+    // The question in its bubble on the right, the answer in its bubble on the left, «ЧЕРНОВИК» over the draft.
+    expect(text(kit.$('.cg-co__q .cg-co__bubble'))).toBe('Как вернуть его к покупкам?');
+    expect(text(kit.$('.cg-co__a .cg-co__bubble .cg-co__md'))).toContain('He responds to warmth first.');
+    expect(text(kit.$('.cg-co__draft-cap'))).toBe('Черновик');
     const parts = kit.$$('.cg-co__drafts .cg-part');
     expect(parts).toHaveLength(2);
     expect(parts[0]?.classList.contains('is-next')).toBe(true);
@@ -346,7 +368,7 @@ describe('the Coach panel', () => {
     kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1)]));
     await settle(2);
     expect(kit.$('.cg-debug')).toBeNull();
-    expect(kit.$('.cg-side')?.textContent).not.toMatch(/\btok\b|\$0\./);
+    expect(kit.$('.cg-coach')?.textContent).not.toMatch(/\btok\b|\$0\./);
   });
 
   it('[AI-087] drafts are copy-only where the dock is (a blocked fan, a broken host contract)', () => {
@@ -358,8 +380,8 @@ describe('the Coach panel', () => {
   it('[AI-092] a failed turn shows its error card with the recovery button; the question stays in the list', () => {
     const failed = coachTurn(ctx, 1, { state: 'failed', answer: null, error: cgError(ctx, 'CG-PROVIDER-STREAM'), errorActions: [] });
     kit = mount(coach(ctx, views.ready(), [failed]));
-    expect(text(kit.$('.cg-co__turn .cg-card__code'))).toBe('ChatGoose · CG-PROVIDER-STREAM');
-    expect(text(kit.$('.cg-co__turn.is-you p'))).toBe('Как вернуть его к покупкам?');
+    expect(text(kit.$('[data-cg-answer="turn-1"] .cg-card__code'))).toBe('ChatGoose · CG-PROVIDER-STREAM');
+    expect(text(kit.$('.cg-co__q .cg-co__bubble'))).toBe('Как вернуть его к покупкам?');
   });
 
   it('[AI-094] turns beyond the history limit stand above the memory line', () => {
@@ -370,17 +392,64 @@ describe('the Coach panel', () => {
     expect(line.parentElement?.querySelector('[data-cg-turn]')?.getAttribute('data-cg-turn')).toBe('turn-2');
   });
 
-  it('[AI-097] the freshness of what Coach reads: «Переписка на 06:20» and a refresh; a lagging archive turns it into the accent line', async () => {
+  it('[AI-097] the freshness of what Coach reads: «Переписка на 06:20», refreshed from «Recap ▾»; a lagging archive turns it into the accent line with the refresh at hand', async () => {
     kit = mount(coach(ctx, views.ready(), []));
-    expect(text(kit.$('.cg-co__bar span'))).toBe('Переписка на 06:20');
-    await flush(() => byLabel('Обновить переписку').click());
+    expect(text(kit.$('.cg-co__asof'))).toBe('Переписка на 06:20');
+    expect(kit.$$('.cg-co__top .cg-btn').map((button) => button.getAttribute('aria-label') ?? text(button.querySelector('.cg-btn__t')))).toEqual(['Recap ▾', 'Новый диалог']);
+    await flush(() => byLabel('Recap ▾').click());
+    await flush(() => (kit?.$$('.cg-menu__item').find((item) => text(item) === 'Обновить переписку') as HTMLElement).click());
     expect(kit.client.dispatched).toEqual([{ type: 'RefreshArchive', targetHandle: HANDLE }]);
-    expect(byLabel('Обновить переписку').classList.contains('cg-btn--line')).toBe(false);
     kit.unmount();
     kit = mount(coach(ctx, views.partial({ kind: 'archive-lag', messages: 2, minutes: null }), []));
-    expect(text(kit.$('.cg-co__bar .is-lag'))).toBe('Архив отстаёт от чата на 2 сообщения');
-    expect(kit.$('.cg-co__bar .cg-dot--accent')?.getAttribute('data-accent-use')).toBe('archive-lag');
+    expect(text(kit.$('.cg-co__lag .is-lag'))).toBe('Архив отстаёт от чата на 2 сообщения');
+    expect(kit.$('.cg-co__lag .cg-dot--accent')?.getAttribute('data-accent-use')).toBe('archive-lag');
     expect(byLabel('Обновить переписку').classList.contains('cg-btn--line')).toBe(true);
+    await flush(() => byLabel('Обновить переписку').click());
+    expect(kit.client.dispatched).toEqual([{ type: 'RefreshArchive', targetHandle: HANDLE }]);
+  });
+
+  it('X62: «Recap ▾» builds a short or a full Recap with the Recap sheet\'s own buttons, and says why one is off', async () => {
+    // The picker's buttons as the Recap controller builds them: «Собрать …» → RefreshRecap.
+    const build = {
+      short: button('recap.build.short', { type: 'RefreshRecap', length: 'short' }),
+      full: { ...button('recap.build.full', { type: 'RefreshRecap', length: 'full' }), enabled: false, reason: reason('chat-busy') },
+    };
+    kit = mountSurface(
+      coachSurface.view,
+      scenarioOf([entry({ of: 'dock' }, dock(ctx, 'ready')), entry({ of: 'coach' }, coach(ctx, views.ready(), [coachTurn(ctx, 1)])), entry({ of: 'recap.picker' }, recapPicker(ctx, views.ready(), { build }))]),
+      'coach',
+      coachSurface.styles ?? [],
+    );
+    const trigger = byLabel('Recap ▾');
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+    await flush(() => trigger.click());
+    const items = kit.$$('.cg-menu__item');
+    expect(items.map(text)).toEqual(['Собрать коротко', 'Собрать полностью', 'Обновить переписку']);
+    expect(items.map((item) => item.getAttribute('aria-disabled'))).toEqual([null, 'true', null]);
+    await flush(() => items[1]?.click());
+    expect(kit.client.dispatched).toEqual([]);
+    await flush(() => items[0]?.click());
+    expect(kit.client.dispatched).toEqual([{ type: 'RefreshRecap', length: 'short' }]);
+  });
+
+  it('X62: while Coach answers, «Отменить» stands by «Спросить» and cancels the running turn; there is none once it is done', async () => {
+    const cancel = { type: 'CancelGeneration', operationId: uuid(402) } as const;
+    const phase = { startedAt: ctx.now - 2_000, stages: [{ id: 'context' as const, label: msg('result.stage.context'), state: 'current' as const }], retryAt: null, cancel };
+    kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1), coachTurn(ctx, 2, { state: 'streaming', answer: null, phase })], { ask: { enabled: false, reason: reason('coach-busy'), attachDraft: { available: true, reason: null } } }));
+    await flush(() => byLabel('Отменить').click());
+    expect(kit.client.dispatched).toEqual([cancel]);
+    kit.unmount();
+    kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1)]));
+    expect(kit.$('.cg-co__send .cg-cancel')).toBeNull();
+  });
+
+  it('[AI-092] X62: a turn the person stopped says so, with «Повторить» that asks the question again', async () => {
+    const again = button('common.retry', { type: 'Generate', targetHandle: HANDLE, feature: 'coach', options: { question: 'Как вернуть его к покупкам?' } });
+    kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1, { state: 'canceled', answer: null, error: null, errorActions: [again] })]));
+    const stopped = kit.$('[data-cg-answer="turn-1"] .cg-co__stopped') as HTMLElement;
+    expect(text(stopped.querySelector('span'))).toBe('Остановлено вами');
+    await flush(() => (stopped.querySelector('button') as HTMLElement).click());
+    expect(kit.client.dispatched).toEqual([again.action]);
   });
 
   it('[AI-090] «Новый диалог» asks first when there are turns (DialogPort) and starts at once when there are none', async () => {
