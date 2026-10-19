@@ -21,7 +21,7 @@ import { EDITOR, PANEL, SEND, pressSend, twoFrames, typeDraft, waitForComposerTe
 import { pageRpc } from '../support/extension';
 import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { hostSelector, ours, oursBox, oursExists, oursFocus, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
+import { hostSelector, ours, oursBox, oursByText, oursExists, oursFocus, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { foreignCalls, STAND_IDS, standServer, waitForChatReady, waitForStandReady } from '../support/stand';
 
@@ -241,9 +241,9 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     await browser.keys([...PANEL, 'm']);
     await waitOursText('modal', 'Fan Alder', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
 
-    // SP-024: one press, one more read of the board. X65: «Обновить» is an icon of the window's header, named by its aria-label.
+    // SP-024: one press, one more read of the board. X67: «Обновить» is a button of the window's header with its word, as in the old extension.
     const board = await hub().mark();
-    await browser.waitUntil(() => oursExists('modal', '.cg-sp__top .cg-sp__refresh button[aria-label="Обновить"]'), { timeout: 5000, timeoutMsg: 'the board has no «Обновить»' });
+    await browser.waitUntil(async () => (await oursByText('modal', '.cg-sp__top .cg-sp__refresh button', /^Обновить/)) !== null, { timeout: 5000, timeoutMsg: 'the board has no «Обновить»' });
     expect(await reach('modal', '.cg-sp__top .cg-sp__refresh button')).toMatchObject({ clippedPx: 0, onTop: true });
     await ours('modal', '.cg-sp__top .cg-sp__refresh button').click();
     await browser.waitUntil(async () => (await hub().journal(board)).entries.some((call) => /spender/i.test(String(call.route)) && call.status === 200), { timeout: 10_000, timeoutMsg: '«Обновить» read nothing from the hub' });
