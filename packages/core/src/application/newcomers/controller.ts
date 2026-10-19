@@ -49,7 +49,7 @@ export const NEWCOMERS_SEARCH_DEBOUNCE_MS = 150;
 const SELECTOR = { of: 'newcomers' } as const;
 const TABS = ['todo', 'all'] as const satisfies readonly NewcomersTab[];
 const TAB_LABELS: Readonly<Record<NewcomersTab, I18nKey>> = { todo: 'newcomers.tab.todo', all: 'newcomers.tab.all' };
-const FILTERS = ['any', 'none', 'claimed', 'sending', 'stopped', 'greeted'] as const satisfies readonly GreetingFilter[];
+const FILTERS = ['any', 'none', 'claimed', 'sending', 'stopped', 'greeted', 'replied'] as const satisfies readonly GreetingFilter[];
 const FILTER_LABELS: Readonly<Record<GreetingFilter, I18nKey>> = {
   any: 'newcomers.filter.any',
   none: 'newcomers.filter.none',
@@ -57,6 +57,7 @@ const FILTER_LABELS: Readonly<Record<GreetingFilter, I18nKey>> = {
   sending: 'newcomers.filter.sending',
   stopped: 'newcomers.filter.stopped',
   greeted: 'newcomers.filter.greeted',
+  replied: 'newcomers.filter.replied',
 };
 
 interface LeaseRecord {
@@ -210,7 +211,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     const detail = leases.get(fanRef)?.detail ?? null;
     const confirmed = detail?.greeting.state === 'confirmed';
     const claim = row?.claim ?? NO_CLAIM;
-    return greetingStatus(confirmed ? { ...claim, greeting: 'confirmed' } : claim, localOf(fanRef), detail?.greeting.at ?? null);
+    const fanWrote = (row?.thread?.lastFanMessageAt ?? null) !== null;
+    return greetingStatus(confirmed ? { ...claim, greeting: 'confirmed' } : claim, localOf(fanRef), detail?.greeting.at ?? null, fanWrote);
   }
 
   function stopTimer(record: LeaseRecord): void {
@@ -367,7 +369,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       if (block === 'claim-elsewhere') return { ok: false, code: 'CG-CLAIM-BUSY', error: { ...errorOf({ code: 'CG-CLAIM-BUSY' }, i18n), body: i18n.t('newcomers.claim.elsewhere') } };
       if (block === 'uncertain') return { ok: false, code: 'CG-SEND-UNCERTAIN', error: localError('CG-SEND-UNCERTAIN', i18n) };
       // §6.7.9: once a part is confirmed the fan is greeted — another generation would be a second greeting.
-      if (block === 'greeted') return { ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) };
+      if (block === 'greeted' || block === 'replied') return { ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) };
       if (block === 'sending') return { ok: false, code: 'CG-SEND-BUSY', error: localError('CG-SEND-BUSY', i18n) };
       recordOf(fanRef).lastActivityAt = clock.now();
       const mine = leaseOf(fanRef).s === 'mine';

@@ -600,6 +600,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.status.sending': 'sent {sent} of {total}',
   'newcomers.status.stopped': 'sent {sent} of {total}, stopped',
   'newcomers.status.greeted': 'greeted',
+  'newcomers.status.replied': 'fan has written — continue the conversation',
   'newcomers.hint':
     'Here are those who subscribed, renewed or came back in the last {window}. While you greet, the fan is on hold for you, so another chatter will not write at the same time.',
   'batch.pick': 'Pick for a batch',
@@ -633,6 +634,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.filter.sending': 'Sending',
   'newcomers.filter.stopped': 'Stopped',
   'newcomers.filter.greeted': 'Greeted',
+  'newcomers.filter.replied': 'Fan has written',
   'newcomers.claim.renew': 'Extend the hold',
   'newcomers.claim.release': 'Release the hold',
   'newcomers.claim.elsewhere': 'You are already greeting this fan in another tab or on another device. Continue there: a second greeting will not start from here.',

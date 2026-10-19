@@ -1,6 +1,6 @@
 // Spenders, «Новые», the fan panel and the palette in headless Firefox
 // (architecture.md §10.2 «Приёмка UI», §11; ui-design §0.2, §11): every drawn
-// state of the binding mockup (11 a–j, 13 a–d, 14 a–c, 15 a–b, the quick
+// state of the binding mockup (11 a–j, 13 a–e, 14 a–c, 15 a–b, the quick
 // jump) in both themes and both languages at 1440×900 and 1280×800. Each case
 // checks that nothing sticks out, nothing failed, nothing was dispatched by
 // merely opening, and saves a picture into .cache/e2e/ to compare by eye with
@@ -59,6 +59,7 @@ const STATES: Readonly<Record<string, string>> = {
   '13b': '.cg-nw__side',
   '13c': '.cg-nw__side',
   '13d': '.cg-nw__side',
+  '13e': '.cg-nw__side',
   '14a': '.cg-fp',
   '14b': '.cg-fp',
   '14c': '.cg-fp',

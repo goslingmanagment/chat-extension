@@ -196,7 +196,7 @@ function everySendState(ctx: ScenarioCtx): ResultVM {
 
 // ── «Новые» ──
 
-function newcomersState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c' | 'd'): ScenarioViewEntry[] {
+function newcomersState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c' | 'd' | 'e'): ScenarioViewEntry[] {
   const greeting = variant === 'a' ? ({ s: 'claim-mine' } as const) : variant === 'b' ? ({ s: 'sending', sent: 1, total: 3 } as const) : variant === 'd' ? ({ s: 'stopped', sent: 1, total: 3, part: 2 } as const) : ({ s: 'none' } as const);
   const selected = variant === 'c' ? 'leo' : 'tomasz';
   const rows = newcomerRows(ctx, selected, greeting);
@@ -213,6 +213,25 @@ function newcomersState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c' | 'd'): Scena
     archive: { ...base.archive, stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'complete' }, refresh: button('common.refreshArchive', { type: 'RefreshArchive', targetHandle: handle }) },
     idleHint: null,
   };
+  if (variant === 'e') {
+    const replied = { s: 'replied' } as const;
+    const answeredRows = rows.map((row) => row.handle === handle ? { ...row, greeting: replied } : row);
+    return [
+      entry({ of: 'newcomers' }, newcomers(ctx, views.ready(), answeredRows, { tab: 'all' })),
+      entry({ of: 'preview', from: 'newcomers' }, {
+        ...card, greeting: replied,
+        bar: { ...card.bar, actions: { hi: { ...hi(false, false), reason: reason('hi-gate') } } },
+        feed: {
+          items: [
+            { id: 'old-welcome', at: iso(ctx.now - 14 * MIN), sender: 'model', text: 'Welcome!', deleted: false, automatic: true, tip: null, price: null, attachments: [], dayBreak: true },
+            { id: 'old-incoming', at: iso(ctx.now - 10 * MIN), sender: 'fan', text: 'Hello! How was your day?', deleted: false, automatic: null, tip: null, price: null, attachments: [], dayBreak: false },
+            { id: 'old-reply', at: iso(ctx.now - 8 * MIN), sender: 'model', text: 'Hi! It was good, thanks.', deleted: false, automatic: null, tip: null, price: null, attachments: [], dayBreak: false },
+          ],
+          hasOlder: false, loadingOlder: false, olderError: null,
+        },
+      }),
+    ];
+  }
   if (variant === 'c') {
     const leo: PreviewVM = {
       ...card,
@@ -448,6 +467,7 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('13b', 'Sent 1 of 3, part 2 in ChatSpace’s queue', 'newcomers', (ctx) => newcomersState(ctx, 'b')),
   state('13c', 'A colleague holds the fan: Hi is off', 'newcomers', (ctx) => newcomersState(ctx, 'c')),
   state('13d', 'Stopped on an unknown outcome', 'newcomers', (ctx) => newcomersState(ctx, 'd')),
+  state('13e', 'An existing conversation without a ChatGoose greeting receipt', 'newcomers', (ctx) => newcomersState(ctx, 'e')),
   // 13 f–j — «Новые» on Fansly (R20 P10a): the background's pass, Fansly's own window
   fansly('13f', 'Fansly: the queue runs, the card of the first fan to write to', fanslyQueue),
   fansly('13g', 'Fansly: «Уже писали» — the proof folded, earlier messages to load', fanslyGreeted),

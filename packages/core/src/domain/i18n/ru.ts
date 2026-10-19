@@ -631,6 +631,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.status.sending': 'отправлено {sent} из {total}',
   'newcomers.status.stopped': 'отправлено {sent} из {total}, остановлено',
   'newcomers.status.greeted': 'поздоровались',
+  'newcomers.status.replied': 'фан уже писал — продолжите диалог',
   'newcomers.hint':
     'Здесь те, кто подписался, продлил подписку или вернулся за последние {window}. Пока вы здороваетесь, фан забронирован за вами, и другой чаттер не напишет ему одновременно с вами.',
   'batch.pick': 'Отметить для пакета',
@@ -664,6 +665,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.filter.sending': 'Отправляются',
   'newcomers.filter.stopped': 'Остановлены',
   'newcomers.filter.greeted': 'Поздоровались',
+  'newcomers.filter.replied': 'Фан уже писал',
   'newcomers.claim.renew': 'Продлить бронь',
   'newcomers.claim.release': 'Снять бронь',
   'newcomers.claim.elsewhere': 'Вы уже здороваетесь с этим фаном в другой вкладке или на другом устройстве. Продолжите там: второе приветствие отсюда не начнётся.',
