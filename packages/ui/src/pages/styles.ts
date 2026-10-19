@@ -194,7 +194,7 @@ ${/* The goose looking back stands on the stage's floor, or on the line over the
 .pg-popup__more li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: baseline; gap: 0 10px; min-height: 24px; padding-top: 6px; font-size: 13.5px; line-height: 18px; }
 .pg-popup__more b { min-width: 0; font-weight: 600; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 ${/* On the yellow the egg would be a hollow ring: a state is a solid dot of the stage's ink, a failure keeps its red. */ ''}
-.pg-popup__more .cg-dot--ring { width: 6px; height: 6px; margin-left: 1px; background: currentColor; box-shadow: none; }
+:root .cg-root--page .pg-popup__more .cg-dot--ring, :root[data-scheme] .cg-root--page .pg-popup__more .cg-dot--ring { width: 6px; height: 6px; margin-left: 1px; background: currentColor; box-shadow: none; }
 .pg-popup__more .cg-btn--quiet { height: 22px; margin: -3px -6px -3px 0; font-size: 13px; color: inherit; }
 .pg-popup__more .cg-btn--quiet:hover { color: inherit; }
 ${/* The facts: one paper-white card, a line each — the word on the left, the value on the right, as the old popup's. */ ''}
