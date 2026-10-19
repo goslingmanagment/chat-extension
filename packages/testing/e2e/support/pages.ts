@@ -268,7 +268,8 @@ export async function readPopup(): Promise<PopupState> {
       view,
       codes: [...(popup?.querySelectorAll('[data-cg-code]') ?? [])].map((node) => node.getAttribute('data-cg-code') ?? ''),
       verdict: stage?.getAttribute('data-pg-verdict') ?? '',
-      stage: clean(stage?.textContent),
+      // As it reads: a line break between the verdict and the line under it is a space, not glued words.
+      stage: clean(stage instanceof HTMLElement ? stage.innerText : null),
       buttons,
       persona: line(0),
       login: account === null ? null : clean(account.querySelector('dd > b')?.textContent),

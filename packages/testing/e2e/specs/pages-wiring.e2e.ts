@@ -139,7 +139,7 @@ describe('the extension pages wired: the popup and the settings of the installed
   it('[PU-002] [PU-003] the popup with nobody signed in: «Нужно войти» with its code and one button, no spinner, nothing asked of the hub', async () => {
     await toPopup();
     const popup = await openPopup();
-    expect(popup).toMatchObject({ view: 'forbidden', codes: ['CG-AUTH-REQUIRED'], pills: [], spinners: 0, login: null, width: 360 });
+    expect(popup).toMatchObject({ view: 'forbidden', codes: ['CG-AUTH-REQUIRED'], verdict: '', spinners: 0, login: null, width: 360 });
     expect(popup.version).not.toBe('');
     expect(popup.text).toContain('Войти');
     await capturePage('ext-popup-signed-out');
