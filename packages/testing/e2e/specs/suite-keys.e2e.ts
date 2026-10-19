@@ -142,6 +142,8 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       // A Reply with its parts in the dock of the first chat: something of ours to stand on.
       await browser.keys([MOD, 'e']);
       await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.result.parts === 2, 'a Reply with two parts', 20_000);
+      // The person reads before inserting: outside TipTap's 500 ms newGroupDelay, typing and insertion undo separately.
+      await browser.pause(600);
     });
 
     it('[HK-030] Enter on a part of ours is «Вставить»: the part replaces the person’s words by that key (X45), Ctrl/⌘+Z in the field brings them back, and ChatSpace sends nothing', async () => {
