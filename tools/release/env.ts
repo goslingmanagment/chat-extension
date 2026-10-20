@@ -8,7 +8,7 @@
 // ever printed — `loadReleaseEnv` reports names and files only. The server
 // address and folder are no secret and have defaults (config.ts).
 //
-// `op://fansly/Mozilla` in 1Password is the AMO website login, not the API keys.
+// The 1Password item of the AMO website login is not the API keys (docs/release.md).
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
