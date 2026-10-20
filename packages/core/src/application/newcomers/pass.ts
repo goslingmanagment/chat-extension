@@ -853,7 +853,6 @@ function noGreeting(i18n: I18n): GreetingDesk {
     claim: () => ({ s: 'none' }),
     greeting: () => ({ s: 'none' }),
     hiBlocked: () => reason('feature-disabled'),
-    subscribed: () => false,
     threadRevision: () => null,
     noteProgress: () => undefined,
     touch: () => undefined,

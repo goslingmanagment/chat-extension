@@ -108,6 +108,8 @@ export const MainSendRequestSchema = z
     plainText: boundedText(SEND_LIMITS.previewDraftMaxChars),
     isAiGenerated: z.boolean(),
     checkpoint: FreshnessCheckpointSchema,
+    /** «Отправить всё равно» (PreviewSendRequest.acceptFreshness): condition 14 is not checked. */
+    acceptFreshness: z.optional(z.literal(true)),
     /** The ticket's deadline on the local clock (send-rules localDeadline). */
     expiresAt: EpochMsSchema,
     /** 1.30.0 (X53): the vault media the part takes along (PreviewSendRequest.media). */

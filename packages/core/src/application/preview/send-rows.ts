@@ -66,6 +66,7 @@ export function sendRow(input: SendRowInput): PreviewSendView {
   const state = previewSendStateOf(input.attempt?.view ?? null, input.gate);
   switch (state.s) {
     case 'available':
+    case 'unverified':
     case 'queued':
     case 'sending':
     case 'accepted':
@@ -86,10 +87,15 @@ export function sendRow(input: SendRowInput): PreviewSendView {
   }
 }
 
-/** Whether a click of «Отправить» (or «Отправить ещё раз») may start an attempt from this row. */
-export function clickable(row: PreviewSendView, order: SendOrderVM | null): boolean {
+/** A freshness warning (rows 3–4 of the 2026-10-20 audit): «Отправить всё равно» passes it. */
+export function warnsFreshness(row: PreviewSendView): boolean {
+  return row.s === 'held-stale' || row.s === 'unverified';
+}
+
+/** Whether a click of «Отправить» («Отправить ещё раз», `anyway` — «Отправить всё равно») may start an attempt from this row. */
+export function clickable(row: PreviewSendView, order: SendOrderVM | null, anyway = false): boolean {
   if (order !== null) return false;
-  return row.s === 'available' || (row.s === 'rejected' && row.canRetry);
+  return row.s === 'available' || (row.s === 'rejected' && row.canRetry) || (anyway && warnsFreshness(row));
 }
 
 /** Attempts of a result as the group rules read them. */
@@ -109,9 +115,9 @@ export function fanAttempts(attempts: ReadonlyMap<string, PartAttempt>, purpose:
 }
 
 /**
- * The order hint of a part: behind an uncertain earlier part, behind the
- * first earlier part that is not delivered, or behind any part on its way —
- * one part of one fan is in work at a time.
+ * The order hint of a part: behind an uncertain earlier part, or behind any
+ * part on its way — one part of one fan is in work at a time. Parts go in
+ * any order and may be skipped (2026-10-20 audit, row 13).
  */
 export function partOrder(group: SendGroup, index: number, attempts: readonly FanAttempt[]): SendOrderVM | null {
   const own = sendOrderOf(group, index, attempts);

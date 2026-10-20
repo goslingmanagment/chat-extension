@@ -262,6 +262,8 @@ export const SendBeginSchema = z
     /** Revision of this part's text, the hub's custody key (H-7 `textRevision`); 0 while parts are not editable (v1). */
     textRevision: CountSchema,
     checkpoint: FreshnessCheckpointSchema,
+    /** «Отправить всё равно» on a freshness warning: the background does not hold on condition 14 (audit 2026-10-20, rows 3–4). */
+    acceptFreshness: z.optional(z.literal(true)),
     /** The MAIN document the command will go to; equals the checkpoint's. */
     documentEpoch: EpochTokenSchema,
     cause: HumanCauseSchema,

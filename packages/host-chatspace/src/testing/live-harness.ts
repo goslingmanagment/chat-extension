@@ -33,8 +33,10 @@ export interface LiveHarness {
   checkpoint(fan?: string): Checkpoint;
   /** A preview send request for FAN with a checkpoint taken now. */
   request(n: number, over?: Partial<SendRequest>): SendRequest;
-  preflight(req: SendRequest): { ok: boolean; code?: string };
+  preflight(req: SendRequest): { ok: boolean; code?: string; warn?: string };
   commit(req: SendRequest): { state: string; code?: string; pendingId?: string };
+  /** The same command where the click may wait for the account's queue (send-port.ts `whenFree`): its answer when it settles. */
+  commitLater(req: SendRequest): Promise<{ state: string; code?: string; pendingId?: string }>;
   /** `previewSendState` views posted so far, optionally of one attempt. */
   states(attemptId?: string): Array<Record<string, unknown>>;
   posted(t: string): Array<Record<string, unknown>>;
@@ -77,8 +79,9 @@ export function startLive(options: { readonly queue?: FakeQueueOptions; readonly
     socket,
     checkpoint,
     request: (n, over = {}) => ({ attemptId: uuid(n), acc: ACC, fan: FAN, platformAccountId: '3003', plainText: 'hey you', isAiGenerated: true, checkpoint: checkpoint(over.fan ?? FAN), expiresAt: Date.now() + 10_000, ...over }),
-    preflight: (req) => port.handle('previewSendPreflight', { req }) as { ok: boolean; code?: string },
+    preflight: (req) => port.handle('previewSendPreflight', { req }) as { ok: boolean; code?: string; warn?: string },
     commit: (req) => port.handle('previewSendCommit', { req }) as { state: string; code?: string; pendingId?: string },
+    commitLater: (req) => Promise.resolve(port.handle('previewSendCommit', { req }) as { state: string; code?: string; pendingId?: string }),
     states: (attemptId) => views().filter((view) => attemptId === undefined || view['attemptId'] === attemptId),
     posted: (t) => live.posted.filter((event) => event.t === t).map((event) => event.payload),
     settle: () => new Promise((resolve) => setTimeout(resolve, 5)),

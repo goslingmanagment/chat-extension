@@ -1,8 +1,8 @@
 // Parts of one generation as one send group (architecture.md §6.7.9): one
 // click — one part, each part its own attempt, custody and receipt, the
 // group's freshness checkpoint shared. A confirmed part is never sent again;
-// a proven refusal of an unchanged part is not retried (v1 parts are not
-// editable); one uncertain part holds the group and the fan; after a
+// a proven refusal of an unchanged part is not retried; parts go in any
+// order; one uncertain part holds the group and the fan; after a
 // greeting's first confirmed part another generation is a second greeting
 // and is refused, while the same owner may still send the rest of the group.
 // There is no «send all», no timer and no automatic next part.
@@ -62,18 +62,15 @@ export function partBlock(request: PartRequest, attempts: readonly FanAttempt[])
 
 /**
  * The order hint of a part (vm SendOrderVM): behind an uncertain earlier part
- * «Удержано, пока неясен исход части N», behind the first unsent earlier part
- * «Отправка после части N»; null when every earlier part is delivered.
+ * «Удержано, пока неясен исход части N»; null otherwise. Parts go in any
+ * order and may be skipped (2026-10-20 audit, row 13): an unsent earlier part
+ * holds nothing.
  */
 export function sendOrderOf(group: SendGroup, partIndex: number, attempts: readonly FanAttempt[]): SendOrderVM | null {
   const inGroup = attempts.filter((attempt) => sameGroup(attempt.group, group) && attempt.resolved === undefined);
   for (let earlier = 0; earlier < partIndex; earlier += 1) {
     const tries = inGroup.filter((attempt) => attempt.partIndex === earlier);
     if (tries.some((attempt) => attempt.state === 'uncertain')) return { kind: 'held', part: earlier + 1 };
-  }
-  for (let earlier = 0; earlier < partIndex; earlier += 1) {
-    const delivered = attempts.some((attempt) => sameGroup(attempt.group, group) && attempt.partIndex === earlier && partDelivered(attempt));
-    if (!delivered) return { kind: 'after', part: earlier + 1 };
   }
   return null;
 }

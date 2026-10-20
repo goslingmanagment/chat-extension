@@ -84,7 +84,10 @@ export type PreviewSendView =
   | { readonly s: 'available' }
   /** The code explains the disabled button (never a toast); `reason` is its text (SEND_REASON_KEYS, or SEND_REASON_HOST_NOT_YET). */
   | { readonly s: 'unavailable'; readonly code: SendReasonCode; readonly reason: Msg }
+  /** The fan wrote after Generate: a warning, «Отправить всё равно» sends (audit 2026-10-20, row 3). */
   | { readonly s: 'held-stale'; readonly at: IsoTimestamp | null }
+  /** Whether the fan wrote since Generate cannot be checked: a warning, «Отправить всё равно» sends (row 4). */
+  | { readonly s: 'unverified' }
   | { readonly s: 'queued' }
   | { readonly s: 'sending' }
   | { readonly s: 'accepted' }
@@ -99,6 +102,7 @@ export type PreviewSendState =
   | { readonly s: 'available' }
   | { readonly s: 'unavailable'; readonly code: SendReasonCode }
   | { readonly s: 'held-stale' }
+  | { readonly s: 'unverified' }
   | { readonly s: 'queued' }
   | { readonly s: 'sending' }
   | { readonly s: 'accepted' }
@@ -114,7 +118,7 @@ export type PreviewSendState =
 const HOLDS_THE_BACKGROUND_CLEARS: readonly CgCode[] = ['CG-HUB-RATE-LIMIT', 'CG-CLAIM-EXPIRED'];
 
 function fromPreflight(preflight: PreviewSendPreflight): PreviewSendState {
-  if (preflight.ok) return { s: 'available' };
+  if (preflight.ok) return preflight.warn === 'CG-SEND-STALE' ? { s: 'held-stale' } : preflight.warn === 'CG-SEND-FRESHNESS' ? { s: 'unverified' } : { s: 'available' };
   if (preflight.code === 'CG-SEND-STALE') return { s: 'held-stale' };
   return { s: 'unavailable', code: preflight.code };
 }
@@ -122,7 +126,8 @@ function fromPreflight(preflight: PreviewSendPreflight): PreviewSendState {
 /**
  * The one mapping of an attempt (or its absence) and the current preflight to
  * the «Отправить» row, total over SEND_ATTEMPT_STATES (§6.7.7, ui-design §4.13):
- * - no attempt, or `ready` → the preflight: available, unavailable by code, or held-stale;
+ * - no attempt, or `ready` → the preflight: available, unavailable by code, or the freshness warnings held-stale and
+ *   unverified (each passed by «Отправить всё равно»);
  * - `preparing` (local lock and hub dispatch, before ChatSpace starts) → queued;
  * - `nativeEnqueued` (ChatSpace's send started, X8 never queues behind a busy account) → sending;
  * - `nativeAccepted` → accepted; `sentObserved` → sent; `uncertain` → uncertain;
@@ -158,6 +163,7 @@ export function previewSendStateOf(attempt: SendAttemptView | null, preflight: P
       return { s: 'rejected', code: code ?? 'CG-SEND-QUEUE', canRetry: isRetryableEnd('notEnqueued', code) };
     case 'held':
       if (code === 'CG-SEND-STALE') return { s: 'held-stale' };
+      if (code === 'CG-SEND-FRESHNESS') return { s: 'unverified' };
       if (code !== undefined && isSendReasonCode(code) && (HOLDS_THE_BACKGROUND_CLEARS.includes(code) || !isRetryableEnd('held', code))) {
         return { s: 'unavailable', code };
       }
@@ -170,6 +176,7 @@ export const PREVIEW_SEND_STATES = [
   'available',
   'unavailable',
   'held-stale',
+  'unverified',
   'queued',
   'sending',
   'accepted',

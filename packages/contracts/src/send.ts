@@ -91,8 +91,10 @@ export const PreviewSendRequestSchema = z
     plainText: boundedText(SEND_LIMITS.previewDraftMaxChars),
     /** ChatSpace's own "text from AI" mark, by its rule against the ORIGINAL chosen AI part (§6.7.1). */
     isAiGenerated: z.boolean(),
-    /** The operation's checkpoint, taken at Generate and never retaken for a send. */
+    /** The operation's checkpoint, taken at Generate (at the click when the tab no longer has it, `acceptFreshness`). */
     checkpoint: FreshnessCheckpointSchema,
+    /** The person pressed «Отправить всё равно» on a freshness warning: condition 14 is not checked again for this attempt. */
+    acceptFreshness: z.optional(z.literal(true)),
     cause: HumanCauseSchema,
     /** 1.30.0 (X53): the vault media the part takes along, as picked at the click; absent — the part's text alone. */
     media: z.optional(SendMediaSchema),
@@ -112,9 +114,18 @@ export type DispatchTicket = z.infer<typeof DispatchTicketSchema>;
 /** One of PREVIEW_SEND_CONDITION_CODES (send-rules.ts). */
 export const PreviewSendConditionCodeSchema = z.enum(PREVIEW_SEND_CONDITION_CODES);
 
-/** Side-effect-free check for the button: a reason when it must stay disabled. */
+/** The freshness conditions a person may pass by a second click («Отправить всё равно»): a warning, never a hold of its own. */
+export const FRESHNESS_WARNING_CODES = ['CG-SEND-STALE', 'CG-SEND-FRESHNESS'] as const satisfies readonly (typeof PREVIEW_SEND_CONDITION_CODES)[number][];
+export type FreshnessWarningCode = (typeof FRESHNESS_WARNING_CODES)[number];
+export const FreshnessWarningCodeSchema = z.enum(FRESHNESS_WARNING_CODES);
+
+/**
+ * Side-effect-free check for the button: a reason when it must stay disabled. `warn` — every hold passed, but the fan
+ * wrote since Generate or that cannot be checked (2026-10-20 audit, rows 3–4): the row warns and offers «Отправить всё
+ * равно»; a send without `acceptFreshness` is still held with that code.
+ */
 export const PreviewSendPreflightSchema = z.discriminatedUnion('ok', [
-  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ ok: z.literal(true), warn: z.optional(FreshnessWarningCodeSchema) }),
   z.strictObject({ ok: z.literal(false), code: PreviewSendConditionCodeSchema, detail: z.optional(displayText(400)) }),
 ]);
 export type PreviewSendPreflight = z.infer<typeof PreviewSendPreflightSchema>;

@@ -114,6 +114,7 @@ export class PreviewSendDriver {
       plainText: click.plainText,
       isAiGenerated: click.isAiGenerated,
       checkpoint: click.checkpoint,
+      ...(click.acceptFreshness === true ? { acceptFreshness: true as const } : {}),
       cause: click.cause,
       ...(click.media === undefined ? {} : { media: click.media }),
     };
@@ -125,6 +126,8 @@ export class PreviewSendDriver {
       preflight = { ok: false as const, code: 'CG-SEND-HOST' as const };
     }
     if (!preflight.ok) return this.local({ attemptId, state: 'held', code: preflight.code });
+    // A freshness warning the person did not pass: the row warns and offers «Отправить всё равно».
+    if (preflight.warn !== undefined && click.acceptFreshness !== true) return this.local({ attemptId, state: 'held', code: preflight.warn });
 
     const { plainText: _text, isAiGenerated: _ai, media: _media, ...rest } = click;
     // The background never sees the media, only their marks (who sent it, X48).

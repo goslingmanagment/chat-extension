@@ -82,7 +82,6 @@ export const MAX_VARIANTS = 3;
 /** contracts SEND_LIMITS. */
 export const SEND_MAX_CHARS = 5000;
 export const NATIVE_TIMEOUT_MS = 30_000;
-export const QUEUE_MAX_PER_CHAT = 50;
 export const KNOWN_FAN_MESSAGES = 10;
 /** contracts OPEN_CHAT_LIMITS, OPEN_CHAT_PRICE_MAX (X54). */
 export const OPEN_CHAT_PAGE_MAX = 100;
@@ -112,7 +111,6 @@ export const CG_SEND_OFF = 'CG-SEND-OFF';
 export const CG_SEND_HOST = 'CG-SEND-HOST';
 export const CG_SEND_RECEIPT = 'CG-SEND-RECEIPT';
 export const CG_SEND_ACTIVE_CHAT = 'CG-SEND-ACTIVE-CHAT';
-export const CG_SEND_HISTORY = 'CG-SEND-HISTORY';
 export const CG_SEND_PERMISSION = 'CG-SEND-PERMISSION';
 export const CG_SEND_FAN = 'CG-SEND-FAN';
 export const CG_SEND_MIMIC = 'CG-SEND-MIMIC';

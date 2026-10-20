@@ -9,8 +9,9 @@
 //   (`canRetry`); the UI never decides it by the code;
 // - an unknown outcome offers only «Открыть чат для проверки»: no retry, no
 //   «Открыть и вставить», no copy in the row;
-// - a held send («фан написал новое») offers «Ещё раз» — a new answer — and
-//   nothing that would send the stale one;
+// - a freshness warning («фан написал новое», «не удалось проверить») offers
+//   «Отправить всё равно» — the person's second, explicit click — and, when the
+//   fan wrote, «Ещё раз» for a new answer (2026-10-20 audit, rows 3–4);
 // - «Открыть и вставить» exists only where `offersOpenInsert` says so — for
 //   the button here and for Enter on the part alike: never on a part whose
 //   outcome is unknown, that is in work, that is held, or that waits behind
@@ -75,7 +76,7 @@ export function CopyIcon({ part }: { readonly part: PartVM }): JSX.Element {
 /** The queue has not reached this part: it waits behind an earlier one, or is held by an uncertain one (§6.7.9). */
 function waitsForEarlierPart(part: PartVM): boolean {
   const send = part.send;
-  return send !== undefined && (part.sendOrder ?? null) !== null && (send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale');
+  return send !== undefined && (part.sendOrder ?? null) !== null && (send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale' || send.s === 'unverified');
 }
 
 /**
@@ -91,7 +92,7 @@ export function offersOpenInsert(part: PartVM): boolean {
   const send = part.send;
   if (send === undefined) return part.openInsert !== undefined && part.openInsert.s !== 'hidden';
   if (waitsForEarlierPart(part)) return false;
-  return send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale' || (send.s === 'rejected' && !send.canRetry);
+  return send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale' || send.s === 'unverified' || (send.s === 'rejected' && !send.canRetry);
 }
 
 /** «Открыть и вставить»: the chat opens in ChatSpace by this click, then the part goes into its composer (§6.5). */
@@ -128,8 +129,9 @@ export function openAndInsert(opId: string, part: PartVM): UiAction {
   return part.variant === null ? { type: 'OpenAndInsertPart', operationId: opId, part: part.index } : { type: 'OpenAndInsertPart', operationId: opId, variant: part.variant, part: part.index };
 }
 
-function sendPart(opId: string, part: PartVM): UiAction {
-  return part.variant === null ? { type: 'SendPart', operationId: opId, part: part.index } : { type: 'SendPart', operationId: opId, variant: part.variant, part: part.index };
+function sendPart(opId: string, part: PartVM, anyway: boolean): UiAction {
+  const flag = anyway ? { anyway: true as const } : {};
+  return part.variant === null ? { type: 'SendPart', operationId: opId, part: part.index, ...flag } : { type: 'SendPart', operationId: opId, variant: part.variant, part: part.index, ...flag };
 }
 
 /**
@@ -140,7 +142,7 @@ function sendPart(opId: string, part: PartVM): UiAction {
  * snapshot of the part once the click was accepted. A refused dispatch
  * unlocks it — nothing was started.
  */
-function SendButton({ part, opId, label, tooltip }: { readonly part: PartVM; readonly opId: string; readonly label: string; readonly tooltip: string }): JSX.Element {
+function SendButton({ part, opId, label, tooltip, anyway = false }: { readonly part: PartVM; readonly opId: string; readonly label: string; readonly tooltip: string; readonly anyway?: boolean }): JSX.Element {
   const hints = useHints();
   const dispatch = useDispatch();
   const [locked, setLocked] = useState(false);
@@ -174,7 +176,7 @@ function SendButton({ part, opId, label, tooltip }: { readonly part: PartVM; rea
         const held = { pressed: part, accepted: false };
         lock.current = held;
         setLocked(true);
-        void dispatch(sendPart(opId, part)).then((receipt) => {
+        void dispatch(sendPart(opId, part, anyway)).then((receipt) => {
           // A new state has already taken the lock off.
           if (lock.current !== held) return;
           if (receipt === null || !receipt.ok) {
@@ -314,6 +316,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
             <Dot kind="accent" use="send-held-stale" />
             {i18n.t('send.heldStale')}
           </State>
+          <SendButton part={part} opId={opId} anyway label={i18n.t('send.anyway')} tooltip={i18n.t('send.anywayTooltip')} />
           <Button
             label={i18n.t('common.again')}
             variant="line"
@@ -325,6 +328,19 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
           <OpenAndInsert part={part} opId={opId} />
           <CopyIcon part={part} />
           <CodeLine code="CG-SEND-STALE" text={i18n.t('send.heldStaleTail')} />
+        </div>
+      );
+    case 'unverified':
+      return (
+        <div class="cg-pvs" data-cg-send="unverified">
+          <State>
+            <Dot kind="accent" use="send-held-stale" />
+            {i18n.t('send.unverified')}
+          </State>
+          <SendButton part={part} opId={opId} anyway label={i18n.t('send.anyway')} tooltip={i18n.t('send.anywayTooltip')} />
+          <OpenAndInsert part={part} opId={opId} />
+          <CopyIcon part={part} />
+          <CodeLine code="CG-SEND-FRESHNESS" text={i18n.t('send.unverifiedTail')} />
         </div>
       );
   }
@@ -347,6 +363,8 @@ export function sendStateWords(i18n: I18n, send: PreviewSendView): string | null
       return i18n.t('send.uncertain');
     case 'held-stale':
       return i18n.t('send.heldStale');
+    case 'unverified':
+      return i18n.t('send.unverified');
     case 'available':
     case 'unavailable':
       return null;

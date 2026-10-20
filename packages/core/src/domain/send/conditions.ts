@@ -81,7 +81,9 @@ export function beginCondition(begin: SendBegin, op: OpForSend | null, gate: Sen
   if (gate.receiptProfiles === 0) return 'CG-SEND-RECEIPT';
   // 4 — the fuse: after a send ChatSpace did not behave as checked, X8 is off in this browser for this build.
   if (gate.fused === true) return 'CG-SEND-FUSE';
-  // 14 — freshness: the operation's own checkpoint, unchanged, nothing new since, the served context.
+  // 14 — freshness: the operation's own checkpoint, unchanged, nothing new since, the served context. A warning the
+  // person passed with «Отправить всё равно» (2026-10-20 audit, rows 3–4) is not checked again.
+  if (begin.acceptFreshness === true) return null;
   if (op.checkpoint === undefined || !checkpointEquivalent(op.checkpoint, begin.checkpoint)) return 'CG-SEND-FRESHNESS';
   if (op.stale) return 'CG-SEND-STALE';
   return servedContextHold(op.checkpoint, op.servedContext);

@@ -86,15 +86,17 @@ describe('[SP-054] «Отправить»: the states that must not send', () =>
     expect(sends()).toEqual([]);
   });
 
-  it('held-stale: the blue dot «Удержано: фан написал новое», «Ещё раз», or the chat opened on the fan’s new message — never the stale send', async () => {
+  it('held-stale: a warning «Фан написал новое»; «Отправить всё равно» sends it by the person’s own click, «Ещё раз» makes a new one (audit 2026-10-20, row 3)', async () => {
     ui = await mountBoardSettled('spenders', previewOf([{ s: 'held-stale', at: SENT_AT }]));
-    expect(stateWords(0)).toBe('Удержано: фан написал новое');
+    expect(stateWords(0)).toBe('Фан написал новое');
     expect(part(0).querySelector('.cg-dot--accent')?.getAttribute('data-accent-use')).toBe('send-held-stale');
-    expect(buttons(0)).toEqual(['Ещё раз', 'Открыть и вставить', 'Копировать часть 1']);
-    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-STALE: ответ не учитывает новое сообщение фана. Обновите архив выше и нажмите «Ещё раз».');
+    expect(buttons(0)).toEqual(['Отправить всё равно', 'Ещё раз', 'Открыть и вставить', 'Копировать часть 1']);
+    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-STALE: ответ не учитывает его новое сообщение. Посмотрите архив выше: отправьте всё равно или нажмите «Ещё раз».');
     await flush(() => (part(0).querySelector('.cg-pvs__again') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'Regenerate', operationId: OP });
     expect(sends()).toEqual([]);
+    await flush(() => (part(0).querySelector('.cg-pvs__send') as HTMLElement).click());
+    expect(sends()).toEqual([{ type: 'SendPart', operationId: OP, part: 0, anyway: true }]);
   });
 });
 

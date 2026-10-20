@@ -45,7 +45,6 @@ import {
   CG_SEND_BUSY,
   CG_SEND_FAN,
   CG_SEND_FRESHNESS,
-  CG_SEND_HISTORY,
   CG_SEND_HOST,
   CG_SEND_MIMIC,
   CG_SEND_OFF,
@@ -57,14 +56,12 @@ import {
   CG_SEND_UNCERTAIN,
   CG_TIMEOUT,
   ENTRY_FAILED,
-  KEY_MESSAGES,
   KEY_MIMIC_CHATS,
   KEY_MIMIC_SETTINGS,
   KEY_PERMISSIONS,
   MIMIC_ENABLED,
   PERMISSION_NO_SEND,
   PLATFORM,
-  QUEUE_MAX_PER_CHAT,
   STORE_TRANSLATOR,
 } from './protocol';
 import { type SendMedia, type SendRequest } from './requests';
@@ -136,6 +133,17 @@ export const queueBusy = (host: LiveHost, queue: PageStore, acc: string): boolea
   return (isPlain(processing) && !!processing[acc]) || host.entries(acc).some((entry) => entry['status'] !== ENTRY_FAILED);
 };
 
+/** §6.7.4 п. 13, as the person sees it (2026-10-20 audit, row 12): a message of THIS chat is waiting or going; a failed one holds nothing. */
+const fanBusy = (host: LiveHost, acc: string, fan: string): boolean => host.entries(acc).some((entry) => idOf(entry['chatId']) === fan && entry['status'] !== ENTRY_FAILED);
+
+/**
+ * The account's queue is sequential and the receipt is read only on the stack of our own queue call (receipt.ts), so a
+ * send of ours never waits inside it: while it sends another chat's message, the click waits outside, this often, and
+ * gives up (held, nothing queued) this long before the ticket's deadline.
+ */
+const ACCOUNT_WAIT_STEP_MS = 100;
+const ACCOUNT_WAIT_MARGIN_MS = 1_500;
+
 /** `held` answers kept for a repeated command. */
 const MAX_HELD = 256;
 const held = (code: string): Plain => ({ state: 'held', code });
@@ -155,14 +163,14 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
     }
   };
 
-  /** Attempts that reached `commit`, with their first answer. */
-  const used = new Map<string, Plain>();
+  /** Attempts that reached `commit`, with their first answer (a promise while the click waits for the account's queue). */
+  const used = new Map<string, Plain | Promise<Plain>>();
   /** The attempts answered `held`, oldest first: only these are ever forgotten. */
   const heldIds: string[] = [];
   /** The queue answered a send of ours with what §6.2 does not know: no more X8 in this document. */
   let lost = false;
 
-  /** Conditions 3–14 of §6.7.4 as the page shows them now; the first one that fails. */
+  /** Conditions 3–13 of §6.7.4 as the page shows them now; the first one that fails. */
   const conditions = (req: SendRequest): string | null => {
     const { acc, fan } = req;
     if (!enabled()) return CG_SEND_OFF;
@@ -177,18 +185,16 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
     // 6: the open chat has its composer and the dock.
     const route = host.route();
     if (route.acc === acc && route.fan === fan) return CG_SEND_ACTIVE_CHAT;
-    // 7: after the send ChatSpace invalidates this exact key; an observed or loading entry would load the history.
-    const history = host.entry(KEY_MESSAGES, acc, fan);
-    if (history && (history.active !== false || history.asyncStatus?.value !== 'idle')) return CG_SEND_HISTORY;
+    // 7 is gone (2026-10-20 audit, row 17): a history load it guarded against marks the chat read, which our own send does anyway.
     // 9: what the page knows forbids; a fan it does not hold is not a refusal (the hub's subscription check is not MAIN's).
     const known = host.fan(acc, fan);
     if (known && (known['isBlocked'] === true || known['canReceiveMessages'] === false || known['isRestricted'] === true)) return CG_SEND_FAN;
-    // 10: Mimic data must be loaded; no data is not «off».
+    // 10: Mimic leads this chat — only when the page says so; no data is no refusal (2026-10-20 audit, row 14).
     const mimic = host.data(KEY_MIMIC_SETTINGS);
     const mimicChats = host.data(KEY_MIMIC_CHATS);
     const mimicChat = isPlain(mimicChats) ? mimicChats[`${acc}:${fan}`] : null;
-    if (!isPlain(mimic) || typeof mimicChats !== 'object' || mimicChats === null || (mimic['isActive'] === true && isPlain(mimicChat) && mimicChat['status'] === MIMIC_ENABLED)) return CG_SEND_MIMIC;
-    // 11: the queue would bypass the auto-translation; it is off only when the settings say so (unreadable ones refuse).
+    if (isPlain(mimic) && mimic['isActive'] === true && isPlain(mimicChat) && mimicChat['status'] === MIMIC_ENABLED) return CG_SEND_MIMIC;
+    // 11: the queue would bypass the auto-translation — only when the settings say it is on; unreadable ones are no refusal (row 14).
     let translator: unknown;
     try {
       const store = host.store(STORE_TRANSLATOR);
@@ -196,25 +202,61 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
     } catch {
       // No store, or not the one we know.
     }
-    if (!isPlain(translator) || (translator['enabled'] !== false && translator['autoTranslate'] !== false)) return CG_SEND_TRANSLATOR;
-    // 13: never behind another send, never into a full chat queue.
-    if (queueBusy(host, queue, acc) || host.entries(acc).filter((entry) => entry['chatId'] === fan).length >= QUEUE_MAX_PER_CHAT) return CG_SEND_BUSY;
-    // 14: the checkpoint of Generate against the counters now.
+    if (isPlain(translator) && !!translator['enabled'] && !!translator['autoTranslate']) return CG_SEND_TRANSLATOR;
+    // 13: never a second message of this chat in the queue (another chat's send is waited for, `whenFree`).
+    if (fanBusy(host, acc, fan)) return CG_SEND_BUSY;
+    return null;
+  };
+  /** 14: the checkpoint of Generate against the counters now — a warning the person may pass («Отправить всё равно»). */
+  const freshness = (req: SendRequest): string | null => {
+    if (req.acceptFreshness === true) return null;
     return req.checkpoint.documentEpoch !== host.epoch() ? CG_SEND_FRESHNESS : tap.fresh(req.checkpoint);
   };
   /** A read of ours that throws is a page we do not know: refused, for the button and for the click alike. */
-  const refusal = (req: SendRequest): string | null => {
+  const refusal = (req: SendRequest): { readonly code: string } | { readonly warn: string } | null => {
     try {
-      return conditions(req);
+      const code = conditions(req);
+      if (code) return { code };
+      const warn = freshness(req);
+      return warn ? { warn } : null;
     } catch {
-      return CG_SEND_HOST;
+      return { code: CG_SEND_HOST };
     }
+  };
+
+  /** The account's queue sends nothing now: a call of ours starts its request on our own stack. */
+  const accountFree = (acc: string): boolean => {
+    const queue = host.queue();
+    return !!queue && !queueBusy(host, queue, acc);
+  };
+
+  /** Runs the send at once, or as soon as the account's queue finishes another chat's send; held when it does not in time. */
+  const whenFree = (req: SendRequest): Plain | Promise<Plain> => {
+    try {
+      if (accountFree(req.acc) || refusal(req) !== null) return send(req);
+    } catch {
+      return held(CG_SEND_HOST);
+    }
+    return new Promise((resolve) => {
+      const tick = (): void => {
+        try {
+          if (accountFree(req.acc)) return resolve(send(req));
+          if (Date.now() + ACCOUNT_WAIT_STEP_MS > req.expiresAt - ACCOUNT_WAIT_MARGIN_MS) return resolve(held(CG_SEND_BUSY));
+        } catch {
+          return resolve(held(CG_SEND_HOST));
+        }
+        setTimeout(tick, ACCOUNT_WAIT_STEP_MS);
+      };
+      setTimeout(tick, ACCOUNT_WAIT_STEP_MS);
+    });
   };
 
   const send = (req: SendRequest): Plain => {
     if (Date.now() > req.expiresAt) return held(CG_TIMEOUT);
-    const code = refusal(req);
-    if (code) return held(code);
+    const refused = refusal(req);
+    if (refused) return held('code' in refused ? refused.code : refused.warn);
+    // Never behind another chat's send: its request would not start on our stack (whenFree waited for it).
+    if (!accountFree(req.acc)) return held(CG_SEND_BUSY);
     const html = toHtml(req.plainText);
     let watch: SendWatch;
     try {
@@ -268,20 +310,27 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
   };
 
   return {
-    /** No side effects; the reason for the button. */
+    /** No side effects; the reason for the button, or the freshness warning it shows with «Отправить всё равно». */
     preflight(req: SendRequest): Plain {
-      const code = refusal(req);
-      return code ? { ok: false, code } : { ok: true };
+      const refused = refusal(req);
+      if (refused === null) return { ok: true };
+      return 'code' in refused ? { ok: false, code: refused.code } : { ok: true, warn: refused.warn };
     },
     /** One queue call per attempt id, ever; a repeated command gets the first answer. */
-    commit(req: SendRequest): Plain {
+    commit(req: SendRequest): Plain | Promise<Plain> {
       let result = used.get(req.attemptId);
       if (!result) {
         // Kept before the call: whatever happens inside, this attempt never runs again.
         used.set(req.attemptId, UNCERTAIN);
-        used.set(req.attemptId, (result = send(req)));
-        // Only «held» is ever forgotten, the oldest first: an attempt that may have reached the queue stays for the document's life.
-        if (result['state'] === 'held' && heldIds.push(req.attemptId) > MAX_HELD) used.delete(heldIds.shift() as string);
+        const settle = (answer: Plain): Plain => {
+          used.set(req.attemptId, answer);
+          // Only «held» is ever forgotten, the oldest first: an attempt that may have reached the queue stays for the document's life.
+          if (answer['state'] === 'held' && heldIds.push(req.attemptId) > MAX_HELD) used.delete(heldIds.shift() as string);
+          return answer;
+        };
+        const first = whenFree(req);
+        result = first instanceof Promise ? first.then(settle) : settle(first);
+        if (result instanceof Promise) used.set(req.attemptId, result);
       }
       return result;
     },

@@ -64,7 +64,6 @@ import { previewSendFused, previewSendWaitsForChat } from '../../domain/host';
 import { attemptReachable } from '../../domain/send/attempt';
 import { servedContextHold } from '../../domain/send/freshness';
 import { archiveLag, feedRows, firstFeedPage, keepFeed, olderFeedPage, type FeedState, type KeptFeed } from '../../domain/spenders/feed';
-import { targetPage } from '../../domain/fanpanel/model';
 import { type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '../board-handover';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
@@ -1044,16 +1043,6 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return texts === null || ref === undefined ? null : { generationRef: ref, variant, partCount: texts.length };
   }
 
-  /** The hub confirms a current subscription of the fan to this page (X8 condition 9). */
-  function subscribed(track: OpTrack): boolean {
-    if (track.source === 'newcomers') return deps.greeting?.subscribed(track.fanRef) ?? false;
-    const page = targetPage((targets.get(track.handle) ?? shownOn(track))?.card ?? null, track.pageId);
-    if (page === null || !page.isSubscriber) return false;
-    if (page.subscriptionExpiresAt === null) return true;
-    const ends = Date.parse(page.subscriptionExpiresAt);
-    return !Number.isNaN(ends) && ends > clock.now();
-  }
-
   /**
    * NF-016, §6.4 row 2: the sign-in, the binding or the persona is no longer
    * the one the operation was frozen for — its text is neither sent nor inserted.
@@ -1082,16 +1071,16 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (host.previewSend === null) return refusal(previewSendFused(host.current().contract) ? 'CG-SEND-FUSE' : 'CG-SEND-HOST');
     const route = host.current().route;
     if (route.chat !== null && chatKeyOf(route.chat) === chatKeyOf(track.target.chat)) return refusal('CG-SEND-ACTIVE-CHAT');
-    if (!subscribed(track)) return refusal('CG-SEND-FAN');
+    // No subscription check of ours (2026-10-20 audit, row 16): OnlyFans refuses a fan who left, and MAIN refuses what the page knows forbids.
     if (track.feature === 'fix' && draftRevision(track) !== track.previewRevision) return refusal('CG-SEND-PART');
-    // Freshness is the WS tap's (§6.7.5), and the tap is the page's own switch: the adapter keeps one tap for the
-    // whole tab (on while any page has it), so a page whose `wsTap` is off must not be vouched for by another's.
-    if (!pageFlag(ctx, 'wsTap')) return refusal('CG-SEND-FRESHNESS');
-    if (track.checkpoint === null) return refusal('CG-SEND-FRESHNESS');
-    if (track.fanWrote || view.stale?.reason === 'fan-wrote') return refusal('CG-SEND-STALE');
+    // The send path lives in the tap script (the receipt observer, §6.7.6), and the tap is the page's own switch: the
+    // adapter keeps one tap for the whole tab (on while any page has it), so a page whose `wsTap` is off sends nothing.
+    if (!pageFlag(ctx, 'wsTap')) return refusal('CG-SEND-OFF');
+    // Freshness (§6.7.5) is a warning the person may pass with «Отправить всё равно» (audit rows 3–4).
+    if (track.fanWrote || view.stale?.reason === 'fan-wrote') return { ok: true, warn: 'CG-SEND-STALE' };
+    if (track.checkpoint === null) return { ok: true, warn: 'CG-SEND-FRESHNESS' };
     const served = servedContextHold(track.checkpoint, view.servedContext);
-    if (served !== null) return refusal(served);
-    return { ok: true };
+    return served === null ? { ok: true } : { ok: true, warn: served === 'CG-SEND-STALE' ? 'CG-SEND-STALE' : 'CG-SEND-FRESHNESS' };
   }
 
   /** The gate of one part: the result's own, the usable output of its variant, the «Новые» lease, then MAIN's answer. */
@@ -1111,7 +1100,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         return refusal(claim.s === 'other' || claim.s === 'elsewhere' ? 'CG-CLAIM-BUSY' : 'CG-CLAIM-EXPIRED');
       }
     }
-    return track.preflight ?? { ok: true };
+    const main = track.preflight ?? { ok: true };
+    if (!main.ok) return main;
+    // The fan wrote, said by either side, is the warning shown over «cannot be checked».
+    const warn = local.warn === 'CG-SEND-STALE' || main.warn === 'CG-SEND-STALE' ? 'CG-SEND-STALE' : (local.warn ?? main.warn);
+    return warn === undefined ? { ok: true } : { ok: true, warn };
   }
 
   function requestOf(track: OpTrack, view: OpView, variant: number, index: number, text: string, attemptId: string, checkpoint: FreshnessCheckpoint): PreviewSendRequest | null {
@@ -1132,8 +1125,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   /** Asks MAIN, without side effects, whether the first unsent part could go now: the reason for the button. */
   async function refreshPreflight(track: OpTrack, view: OpView | null = track.mirror.done): Promise<void> {
     const port = host.previewSend;
-    const checkpoint = track.checkpoint;
-    if (port === null || checkpoint === null || view === null || view.state !== 'done' || !localGate(track, view).ok) return;
+    if (port === null || view === null || view.state !== 'done' || !localGate(track, view).ok) return;
+    // A result restored after a reload has no checkpoint of its Generate: the page's other conditions are asked with one taken now.
+    const checkpoint = track.checkpoint ?? (await host.checkpoint(track.target.chat).catch(() => null));
+    if (checkpoint === null || disposed) return;
     const variant = Number([...track.attempts.keys()][0]?.split(':')[0] ?? 0);
     const texts = partsOfResult(view.result, variant) ?? [];
     const index = Math.max(
@@ -1153,7 +1148,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     }
     if (disposed || track.preflightRun !== run) return;
     track.preflight = answer;
-    if (!answer.ok && answer.code === 'CG-SEND-STALE') markFanWrote(track, null);
+    if ((answer.ok ? answer.warn : answer.code) === 'CG-SEND-STALE') markFanWrote(track, null);
     changedFor(track.handle);
   }
 
@@ -1217,11 +1212,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       hostWaitsForChat: previewSendWaitsForChat(host.current().contract),
     });
     // A send of ANOTHER result holds the fan: this result's unsent parts say so before any click (the background would refuse them).
-    const unsent = row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'rejected';
+    const unsent = row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'unverified' || row.s === 'rejected';
     if (unsent && sends.uncertain !== null && sends.uncertain.opId !== track.opId) row = { s: 'unavailable', code: 'CG-SEND-UNCERTAIN', reason: msg(SEND_REASON_KEYS['CG-SEND-UNCERTAIN']) };
-    else if (row.s === 'available' && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
+    else if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
     // Decision X53: picked media that cannot go yet (the price, the release forms) hold the part's «Отправить».
-    if (row.s === 'available') {
+    if (row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') {
       const attached = media.attachment(track.target.chat);
       if (attached.kind === 'blocked') row = { s: 'unavailable', code: 'CG-SEND-MEDIA', reason: attached.reason };
     }
@@ -1826,21 +1821,23 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   // ── actions: send ──
 
-  async function sendPart(type: UiActionType, track: OpTrack, variant: number, index: number): Promise<ActionReceipt> {
+  /** `anyway` — «Отправить всё равно» on a freshness warning (2026-10-20 audit, rows 3–4). */
+  async function sendPart(type: UiActionType, track: OpTrack, variant: number, index: number, anyway = false): Promise<ActionReceipt> {
     const sender = deps.sender;
     const view = track.mirror.done;
     const texts = partsOfResult(view?.result, variant);
     const text = texts?.[index];
     const group = groupOf(track, variant);
-    const checkpoint = track.checkpoint;
     if (sender === null || view === null || text === undefined || group === null) return refused(type, localError('CG-SEND-PART', i18n));
     const key = partKey(variant, index);
     const rows = rowsOf(track, variant, index);
     if (rows.send === undefined) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
-    if (!clickable(rows.send, rows.order)) {
-      const code: CgCode = rows.order !== null ? 'CG-SEND-BUSY' : rows.send.s === 'unavailable' || rows.send.s === 'rejected' ? rows.send.code : rows.send.s === 'held-stale' ? 'CG-SEND-STALE' : rows.send?.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY';
+    if (!clickable(rows.send, rows.order, anyway)) {
+      const code: CgCode = rows.order !== null ? 'CG-SEND-BUSY' : rows.send.s === 'unavailable' || rows.send.s === 'rejected' ? rows.send.code : rows.send.s === 'held-stale' ? 'CG-SEND-STALE' : rows.send.s === 'unverified' ? 'CG-SEND-FRESHNESS' : rows.send?.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY';
       return refused(type, localError(code, i18n));
     }
+    // Sent anyway, a result restored after a reload goes with a checkpoint taken now: the page's own document and chat.
+    const checkpoint = track.checkpoint ?? (anyway ? await host.checkpoint(track.target.chat).catch(() => null) : null);
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
     // Decision X53: the picked media go with this part, as they are at the click. They leave the picker with it: what the
     // person does in the picker meanwhile neither changes nor repeats what goes.
@@ -1874,6 +1871,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       textRevision: 0,
       checkpoint,
       documentEpoch: checkpoint.documentEpoch,
+      ...(anyway ? { acceptFreshness: true as const } : {}),
       cause: issued.cause,
       ...(leaseToken === null ? {} : { leaseToken }),
       // The build the fuse is held by (decision X25): the background holds the click while a tripped fuse names it.
@@ -2203,7 +2201,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         if (!rule.allowed) return Promise.resolve(refused(type, localError(rule.reason === null ? 'CG-SEND-BUSY' : reasonCode(rule.reason), i18n)));
         return generate(type, state, track.feature, {}, track);
       }
-      if (action.type === 'SendPart') return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, track, action.variant ?? 0, action.part);
+      if (action.type === 'SendPart') return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, track, action.variant ?? 0, action.part, action.anyway === true);
       return openAndInsert(type, track, action.variant ?? 0, action.part);
     }
     if (action.type === 'ReloadView') {

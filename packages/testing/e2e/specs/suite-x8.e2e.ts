@@ -142,7 +142,8 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     const mark = await pageJournalMark();
     await openPreview('Fan Dune');
     await generate(a4);
-    expect([await sendState(0), await sendState(1)]).toEqual(['available', 'available/after']);
+    // Parts go in any order (audit 2026-10-20, row 13).
+    expect([await sendState(0), await sendState(1)]).toEqual(['available', 'available']);
     // Nothing has been asked of the hub's custody or of ChatSpace yet: looking and generating send nothing.
     expect(await custody(hubMark, a4)).toEqual([]);
     expect(queueAdds(await pageJournal(mark))).toEqual([]);
@@ -262,7 +263,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
   });
 
-  it('[X8-04] a fan’s message after Generate holds the send («Удержано: фан написал новое»); a new Generate stays held while the hub says its answer did not see that message, and is offered again once it did — zero queue calls', async () => {
+  it('[X8-04] a fan’s message after Generate is a warning («Фан написал новое», «Отправить всё равно»); a new Generate warns while the hub says its answer did not see that message, and is offered plainly once it did; «Отправить всё равно» sends by its own click', async () => {
     const hubMark = await hub().mark();
     const standMark = await standServer.mark();
     const mark = await pageJournalMark();
@@ -272,11 +273,11 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await generate(a10);
     expect(await sendState(0)).toBe('available');
     const fanWrote = await standServer.fanMessage(ACC, a10, 'a new synthetic line of the fan');
-    await waitSend(0, 'held-stale', 'the send is held: the fan wrote after the generation');
+    await waitSend(0, 'held-stale', 'the send warns: the fan wrote after the generation');
     const held = await oursText('modal', part(0));
-    expect(held).toContain('Удержано: фан написал новое');
+    expect(held).toContain('Фан написал новое');
     expect(held).toContain('CG-SEND-STALE');
-    expect(await oursExists('modal', `${part(0)} .cg-pvs__send`)).toBe(false);
+    expect(await oursText('modal', `${part(0)} .cg-pvs__send`)).toContain('Отправить всё равно');
     // «Ещё раз»: a new answer. The request names the fan's new message among the ones the tab saw, and the hub's
     // `context_v1` frame (announced through the vendored SDK) answers for it: its archive has not got the message
     // yet — `absent` — so the new answer did not see it either. The send stays held, with the way out (§6.7.5).
@@ -285,8 +286,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await waitSend(0, 'held-stale', 'the new answer did not see the fan’s message either');
     const stillHeld = await oursText('modal', part(0));
     expect(stillHeld).toContain('CG-SEND-STALE');
-    expect(stillHeld).toContain('Обновите архив');
-    expect(await oursExists('modal', `${part(0)} .cg-pvs__send`)).toBe(false);
+    expect(stillHeld).toContain('Посмотрите архив');
     const asked = callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').at(-1);
     expect((asked?.request as { capabilities?: string[]; body?: { knownFanMessageIds?: string[] } }).capabilities).toContain('context-v1');
     expect((asked?.request as { body?: { knownFanMessageIds?: string[] } }).body?.knownFanMessageIds).toContain(fanWrote);
@@ -302,6 +302,14 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     expect(await custody(hubMark, a10)).toEqual([]);
     expect(queueAdds(await pageJournal(mark))).toEqual([]);
     expect(sendsOf(await serverSince(standMark))).toEqual([]);
+    // The fan writes again; the person reads it and sends the second part anyway, by its own click (rows 3, 13).
+    await standServer.fanMessage(ACC, a10, 'one more synthetic line of the fan');
+    await waitSend(1, 'held-stale', 'the send warns again');
+    await pressOurs('modal', `${part(1)} .cg-pvs__send`, /^Отправить всё равно/);
+    await waitSend(1, 'sent', 'the part sent anyway is sent');
+    await expectCustody(hubMark, a10, ['dispatch:200', 'sent:200']);
+    expect(queueAdds(await pageJournal(mark))).toHaveLength(1);
+    expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
   });
 
   it('[X8-03] the page’s own conditions are told on the button: a blocked fan, and the chat that is open — zero dispatches, nothing of ChatSpace touched', async () => {

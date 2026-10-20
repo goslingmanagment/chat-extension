@@ -98,6 +98,8 @@ export interface SendRequest {
   readonly plainText: string;
   readonly isAiGenerated: boolean;
   readonly checkpoint: Checkpoint;
+  /** «Отправить всё равно»: condition 14 is not checked (contracts MainSendRequestSchema). */
+  readonly acceptFreshness?: true;
   /** The hub ticket's deadline on the local clock: later is `held`, never a late send (§6.7.11). */
   readonly expiresAt: number;
   /** Decision X53: the vault media the part takes along (contracts SendMediaSchema). */
@@ -156,6 +158,7 @@ const sendKeys = shape({
     observedAt: count,
     coverage: is('ok', 'unknown'),
   }),
+  'acceptFreshness?': is(true),
   expiresAt: count,
   'media?': isMedia,
 });
