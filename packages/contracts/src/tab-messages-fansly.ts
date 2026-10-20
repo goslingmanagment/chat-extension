@@ -96,7 +96,11 @@ export const FANSLY_TAB_LIMITS = {
   voiceAttemptsPerChat: 20,
   /** One MP3 voice note, as base64 in `fansly.voice.audio` (4 characters a 3 bytes). */
   voiceAudioMaxBytes: 8 * 1024 * 1024,
-  vaultFilesPerUpload: 500,
+  /**
+   * Files of one vault run. The old extension had no limit and neither does the person (2026-10-20 restrictions,
+   * item 22): this only bounds the checkpoint in storage, far above a real upload.
+   */
+  vaultFilesPerUpload: 10_000,
   /** Full URL: up to 7 query values × 2048 UTF-16 units × 9 percent-encoded chars, plus base, path and keys. */
   relayRequestUrlMaxChars: 128 * 1024,
   /** The relay: a request body we send, a response body it hands back, and the headers each way. */

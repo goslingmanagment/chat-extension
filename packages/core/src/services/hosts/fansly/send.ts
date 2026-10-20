@@ -162,13 +162,16 @@ export interface FanslySendDeps {
   readonly log?: ServiceLog;
   /** One more uncertain end (client_health by code). */
   readonly countUncertain?: () => void;
-  /** How long `send` waits for the echo after the receipt before it answers; default ECHO_WAIT_MS. */
+  /** How long the lease waits for the echo after the receipt before it goes; default ECHO_WAIT_MS. */
   readonly echoWaitMs?: number;
   /** Fansly is on and its rights granted (FS-PERM-5), read synchronously; false — nothing new leaves. Absent — on. */
   readonly active?: () => boolean;
 }
 
-/** After the receipt, `send` answers once the echo came or after this; the attempt goes on waiting for it. */
+/**
+ * After the receipt the lease is kept until the echo came or this long; the attempt goes on waiting for the echo after
+ * that. `send` itself answers at the receipt (2026-10-20 restrictions, item 21): the card reads a receipt as sent.
+ */
 export const ECHO_WAIT_MS = 10_000;
 /** R20 P10c: storage.local — the registrations of the person's own greeting sends the hub has not answered yet. */
 export const FANSLY_NATIVE_SENDS_KEY = 'fansly.send.native';
@@ -303,7 +306,7 @@ interface Attempt {
 export interface FanslySend {
   /** Restores the journal (once per background): restarts' ends and the reports they owe. */
   readonly ready: Promise<void>;
-  /** One click's attempt; resolves with its view once nothing is waited for any more (an end, or the receipt and a while for its echo). */
+  /** One click's attempt; resolves with its view at an end or at the receipt (the echo that proves it comes later). */
   send(start: FanslySendStart): Promise<FanslySendView>;
   /** Passive browser facts: annotate a repeated/late response, never change the outcome or send again (X41). */
   observeRequest(fact: OwnRequestObservation): Promise<void>;
@@ -848,16 +851,16 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
       return viewOf(attempt);
     }
     await persist();
+    // Fansly made the message: the click answers now, the card reads it as sent. Nobody waits for the echo any more;
+    // the lease still does — until the echo (its end releases it) or ECHO_WAIT_MS.
     if (attempt.outcome.state === 'receipted') {
-      await new Promise<void>((resolve) => {
-        const timer = clock.setTimer(echoWaitMs, () => resolve());
-        attempt.echoed.push(() => {
-          clock.clearTimer(timer);
-          resolve();
-        });
+      const timer = clock.setTimer(echoWaitMs, () => {
+        if (!disposed) releaseLease(attempt);
       });
+      attempt.echoed.push(() => clock.clearTimer(timer));
+    } else {
+      releaseLease(attempt);
     }
-    releaseLease(attempt);
     return viewOf(attempt);
   }
 

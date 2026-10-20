@@ -19,15 +19,15 @@
 //   checkpoint to continue from; a definite failure of Fansly's is tried again only by the person's next Start.
 
 import type { CgFanslyCode } from '@cg/contracts/errors-fansly';
-import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
+import { FANSLY_TAB_LIMITS, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 
 import { vaultMediaKey } from './dom';
 import { vaultGuard, type VaultHalt, type VaultTarget, type VaultUploader } from './upload';
 
 /** A checkpoint older than this is a forgotten run (the old extension's TTL). */
 export const VAULT_CHECKPOINT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
-/** Files of one run: the contract's `vaultFilesPerUpload` (tab-messages-fansly FANSLY_TAB_LIMITS; a test holds them equal). */
-export const VAULT_FILES_MAX = 500;
+/** Files of one run: the contract's `vaultFilesPerUpload` (tab-messages-fansly FANSLY_TAB_LIMITS) — a storage bound, not a person's limit. */
+export const VAULT_FILES_MAX = FANSLY_TAB_LIMITS.vaultFilesPerUpload;
 
 /** Where checkpoints are kept: the background, through `fansly.vault.*` (wired with the panel, P13b). */
 export interface VaultCheckpointStore {
