@@ -641,14 +641,11 @@ export const HTTP_SCENARIOS: readonly HttpScenario[] = [
   },
   {
     name: 'claim-uncertain-held',
-    description: 'Dispatch, then nothing proven: past the ticket the custody is uncertain-held, blocks every new dispatch, outlives the lease, and only an owner resolve ends it.',
+    description: 'Dispatch, then nothing proven: past the ticket the custody reads uncertain-held, and the person\'s new click of the part is dispatched — the unknown send holds nothing any more (audit 2026-10-20, row 2).',
     exchanges: [
       ok('clientFanClaim', op(lease('claim')), state({ lease: owned })),
       ok('clientFanClaim', op(dispatch(ATTEMPT.c, 0)), state({ lease: owned, group: group([]), custody: custody(ATTEMPT.c, 'dispatching', 'tkt-once-c') })),
-      ok('clientFanClaimStatus', claimParams, state({ serverNow: at(60), lease: owned, group: group([], [0]), custody: custody(ATTEMPT.c, 'uncertain-held') }), 'the ticket expired unreported'),
-      refused('clientFanClaim', op(dispatch(ATTEMPT.d, 0)), 'custody_held', { cg: 'CG-SEND-UNCERTAIN', disposition: 'show' }),
-      ok('clientFanClaimStatus', claimParams, state({ serverNow: at(300), lease: { state: 'expired', leaseToken: null, expiresAt: at(120), heldBy: null }, group: group([], [0]), custody: custody(ATTEMPT.c, 'uncertain-held') }), 'the lease expired; the custody did not'),
-      ok('clientFanClaimStatus', claimParams, state({ serverNow: at(3600), greeting: { state: 'none', at: null, messageRef: null, source: null }, group: group([]), custody: custody(ATTEMPT.c, 'resolved-not-sent') }), 'an owner resolved it «not sent» in the hub'),
+      ok('clientFanClaim', op(dispatch(ATTEMPT.d, 0)), state({ lease: owned, group: group([]), custody: custody(ATTEMPT.d, 'dispatching', 'tkt-once-d') }), 'the person sends the part again'),
     ],
   },
   {

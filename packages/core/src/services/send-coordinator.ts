@@ -188,6 +188,9 @@ interface Attempt {
 function mayTryAgain(prior: Attempt): boolean | 'ask-hub' {
   const view = prior.track.view;
   if (prior.resolved !== undefined) return prior.resolved === 'not-sent';
+  // 2026-10-20 audit, row 2: an unknown outcome is the person's to judge — their new click is a new attempt (the
+  // old one stays unknown; nothing is ever repeated by itself, X8).
+  if (view.state === 'uncertain') return true;
   if (isRetryableEnd(view.state, view.code)) return true;
   return view.state === 'held' && view.code === 'CG-SEND-UNCERTAIN' ? 'ask-hub' : false;
 }
@@ -294,6 +297,9 @@ export class SendCoordinator {
       block = partBlock({ purpose: begin.purpose, group: begin.group, partIndex: begin.part.index }, this.fanAttempts(lockKey, begin.attemptId));
     }
     if (block !== null) return this.holdLocal(attempt, block);
+    // An attempt whose outcome is unknown holds the fan no longer (row 2): a person's click takes the lock from it.
+    const holding = this.attempts.get(this.locks.holder(lockKey) ?? '');
+    if (holding !== undefined && holding.track.view.state === 'uncertain') this.locks.release(lockKey, holding.track.view.attemptId);
     if (!this.locks.acquire(lockKey, begin.attemptId)) {
       const holder = this.attempts.get(this.locks.holder(lockKey) ?? '');
       return this.holdLocal(attempt, holder?.track.view.state === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY');

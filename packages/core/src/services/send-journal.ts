@@ -5,9 +5,9 @@
 // - A record is written BEFORE the command goes to MAIN, in ONE set: a
 //   record that did not save means no `enqueue` (`begin` answers a failure,
 //   the coordinator holds). No text ever: ids, states, times.
-// - One open attempt per (hubOrigin, pageId, platform, fanRef): a second
-//   one is CG-SEND-BUSY, or CG-SEND-UNCERTAIN while an unresolved attempt
-//   to that fan exists.
+// - One attempt on its way per (hubOrigin, pageId, platform, fanRef): a
+//   second one is CG-SEND-BUSY. An uncertain one holds the fan no longer
+//   (2026-10-20 audit, row 2): the person may send again.
 // - States move only along SEND_ATTEMPT_TRANSITIONS: never back to `ready`,
 //   `uncertain` only to `sentObserved`. An observed fact is kept in memory
 //   even when its write fails, and written with the next change.
@@ -344,7 +344,8 @@ export function createSendJournal(deps: SendJournalDeps): SendJournal {
           return { ok: false, code: existing.state === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY', detail: 'attempt already journaled', holder: existing.attemptId };
         }
         const lock = sendLockKey(entry);
-        const holder = entries.find((other) => isOpenSendState(other.state) && sendLockKey(other) === lock);
+        // An uncertain record stays until it is resolved, but holds the fan no longer (2026-10-20 audit, row 2).
+        const holder = entries.find((other) => isOpenSendState(other.state) && other.state !== 'uncertain' && sendLockKey(other) === lock);
         if (holder) {
           return { ok: false, code: holder.state === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY', detail: 'an open attempt holds this fan', holder: holder.attemptId };
         }

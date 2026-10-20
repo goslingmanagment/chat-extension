@@ -233,7 +233,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
   });
 
-  it('[X8-06] [X8-07] [NF-022] a 5xx is an unknown outcome — never «not sent», never sent again: «Неизвестно, ушло ли», the fan is held, the hub’s custody stays open', async () => {
+  it('[X8-06] [X8-07] [NF-022] a 5xx is an unknown outcome — never «not sent», never sent again by itself: «Не подтвердилось» with «Открыть чат» and «Отправить ещё раз»; the person\'s own click sends again (audit 2026-10-20, row 2)', async () => {
     const hubMark = await hub().mark();
     const standMark = await standServer.mark();
     await standServer.script(ACC, a9, [{ kind: 'status', status: 503 }]);
@@ -242,25 +242,24 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await pressSendOf(0);
     await waitSend(0, 'uncertain', 'the outcome of the part is unknown');
     const shown = await oursText('modal', '.cg-pv');
-    expect(shown).toContain('Неизвестно, ушло ли');
+    expect(shown).toContain('Не подтвердилось');
     expect(shown).toContain('CG-SEND-UNCERTAIN');
-    // The only thing offered is to look: no «Отправить», no «Открыть и вставить», and nothing new is generated for this fan.
     expect(await oursExists('modal', `${part(0)} .cg-pvs__verify`)).toBe(true);
-    expect(await oursExists('modal', '.cg-pv .cg-pvs__send')).toBe(false);
-    expect(await oursExists('modal', '.cg-pv .cg-pvs__open')).toBe(false);
-    expect(shown).toContain('Нельзя, пока неясен исход части 1');
-    // One POST, never repeated; the hub holds the attempt — it does not free itself.
+    expect(await oursText('modal', `${part(0)} .cg-pvs__send`)).toContain('Отправить ещё раз');
+    // Nothing goes again by itself.
     await browser.pause(1500);
     expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
     expect(await custody(hubMark, a9)).toEqual(['dispatch:200']);
-    expect(await attemptsOf(a9)).toEqual([['dispatching', 0]]);
     // Closed and opened again, the preview still says so (the journal of this install), and «Статус» counts it.
     await openPreview('Fan Dune');
     await openPreview('Fan Iris');
     await waitSend(0, 'uncertain', 'the unknown outcome is still there after the preview was reopened');
     const diagnostics = await shift.rpc<{ sends: { open: number; uncertain: number } }>('diagnostics.get');
     expect(diagnostics.ok ? diagnostics.payload.sends : null).toEqual({ open: 0, uncertain: 1 });
-    expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
+    // The person looked and sends the part again by their own click: a new attempt, a new POST.
+    await pressSendOf(0);
+    await waitSend(0, 'sent', 'the part sent again is sent');
+    expect(sendsOf(await serverSince(standMark))).toHaveLength(2);
   });
 
   it('[X8-04] a fan’s message after Generate is a warning («Фан написал новое», «Отправить всё равно»); a new Generate warns while the hub says its answer did not see that message, and is offered plainly once it did; «Отправить всё равно» sends by its own click', async () => {

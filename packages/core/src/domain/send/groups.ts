@@ -2,7 +2,7 @@
 // click — one part, each part its own attempt, custody and receipt, the
 // group's freshness checkpoint shared. A confirmed part is never sent again;
 // a proven refusal of an unchanged part is not retried; parts go in any
-// order; one uncertain part holds the group and the fan; after a
+// order; an unknown outcome holds nothing — the person may send again; after a
 // greeting's first confirmed part another generation is a second greeting
 // and is refused, while the same owner may still send the rest of the group.
 // There is no «send all», no timer and no automatic next part.
@@ -42,12 +42,9 @@ export interface PartRequest {
 
 /** Why this part may not get a new attempt, from what is known about the fan; null — it may. */
 export function partBlock(request: PartRequest, attempts: readonly FanAttempt[]): CgCode | null {
+  // An unknown outcome holds nothing (2026-10-20 audit, row 2): the person looks at the chat and decides.
   for (const attempt of attempts) {
-    if (attempt.resolved !== undefined) {
-      if (attempt.resolved === 'sent' && sameGroup(attempt.group, request.group) && attempt.partIndex === request.partIndex) return 'CG-SEND-PART';
-      continue;
-    }
-    if (attempt.state === 'uncertain') return 'CG-SEND-UNCERTAIN';
+    if (attempt.resolved === 'sent' && sameGroup(attempt.group, request.group) && attempt.partIndex === request.partIndex) return 'CG-SEND-PART';
   }
   for (const attempt of attempts) {
     const samePart = sameGroup(attempt.group, request.group) && attempt.partIndex === request.partIndex;
@@ -61,17 +58,10 @@ export function partBlock(request: PartRequest, attempts: readonly FanAttempt[])
 }
 
 /**
- * The order hint of a part (vm SendOrderVM): behind an uncertain earlier part
- * «Удержано, пока неясен исход части N»; null otherwise. Parts go in any
- * order and may be skipped (2026-10-20 audit, row 13): an unsent earlier part
- * holds nothing.
+ * The order hint of a part (vm SendOrderVM): none of its own. Parts go in any order and may be skipped (2026-10-20
+ * audit, row 13), and an unknown outcome of an earlier part holds nothing (row 2).
  */
-export function sendOrderOf(group: SendGroup, partIndex: number, attempts: readonly FanAttempt[]): SendOrderVM | null {
-  const inGroup = attempts.filter((attempt) => sameGroup(attempt.group, group) && attempt.resolved === undefined);
-  for (let earlier = 0; earlier < partIndex; earlier += 1) {
-    const tries = inGroup.filter((attempt) => attempt.partIndex === earlier);
-    if (tries.some((attempt) => attempt.state === 'uncertain')) return { kind: 'held', part: earlier + 1 };
-  }
+export function sendOrderOf(_group: SendGroup, _partIndex: number, _attempts: readonly FanAttempt[]): SendOrderVM | null {
   return null;
 }
 

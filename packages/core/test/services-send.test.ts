@@ -334,7 +334,7 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501), previewRevision: 1 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-PART' } });
   });
 
-  it('[NF-022] [RB-007] uncertain reports nothing, holds the fan, is never retried; the late linked pair ends it as sent', async () => {
+  it('[NF-022] [RB-007] uncertain reports nothing and is never repeated by itself; the person may send the part again; the late linked pair still ends it as sent (audit 2026-10-20, row 2)', async () => {
     const h = sendHarness();
     h.hub.claimScript.push(ticketFor(A));
     await h.coordinator.begin(TAB, h.begin());
@@ -344,31 +344,15 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     await h.coordinator.idle();
     expect(actions(h)).toEqual(['dispatch']);
     expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 1 });
-    // Another part, another click: held by the uncertain one (after a safe read of the hub custody).
-    h.hub.statusScript.push(okAnswer(A, 'uncertain-held'));
-    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501), part: { index: 1 } }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-UNCERTAIN' } });
-    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502) }))).toEqual({ ok: false, view: h.coordinator.status(A) });
-    expect(h.hub.claims.filter((c) => c.body.action === 'dispatch')).toHaveLength(1);
-    // The late echo with the same id completes the already linked pair.
+    // The same part, the person's own new click: a new attempt and its own dispatch; the fan is not held.
+    h.hub.claimScript.push(ticketFor(uuid(0x502)));
+    expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502) }))).ok).toBe(true);
+    expect(h.hub.claims.filter((c) => c.body.action === 'dispatch')).toHaveLength(2);
+    // The late echo of the first one with the same id completes its linked pair.
     h.hub.claimScript.push(okAnswer(A, 'sent'));
     await report(h, 'a', 'sentObserved', { platformMessageId: WORLD.messages.sentByUs });
     await h.coordinator.idle();
     expect(h.coordinator.status(A)?.state).toBe('sentObserved');
-    expect(actions(h)).toEqual(['dispatch', 'sent']);
-  });
-
-  it('[NF-022] only the hub resolve frees an uncertain fan; a resolved «sent» part counts as delivered', async () => {
-    for (const resolved of ['resolved-not-sent', 'resolved-sent'] as const) {
-      const h = sendHarness();
-      h.hub.claimScript.push(ticketFor(A));
-      await h.coordinator.begin(TAB, h.begin());
-      await report(h, 'a', 'uncertain', { code: 'CG-SEND-UNCERTAIN' });
-      h.hub.statusScript.push(okAnswer(A, resolved));
-      h.hub.claimScript.push(ticketFor(uuid(0x501)));
-      const next = await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501), part: { index: resolved === 'resolved-sent' ? 1 : 0 }, previewRevision: 1 }));
-      expect({ resolved, ok: next.ok }).toEqual({ resolved, ok: true });
-      expect(h.coordinator.counts().uncertain).toBe(0);
-    }
   });
 
   it('[NF-022] `send.list`: a tab that lost its tracking reads the fan’s journaled attempts back — after a restart too; a resolved one and one that never reached the journal are not listed', async () => {
@@ -501,10 +485,7 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     h.hub.claimScript.push(ticketFor(uuid(0x501)));
     expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501) }))).ok).toBe(true);
     await report(h, '501', 'uncertain', { code: 'CG-SEND-UNCERTAIN' });
-    // Another part is held by the unresolved one; once the hub resolves «not sent», both may go.
-    h.hub.statusScript.push(okAnswer(uuid(0x501), 'uncertain-held'));
-    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502), part: { index: 1 } }))).toMatchObject({ ok: false, view: { code: 'CG-SEND-UNCERTAIN' } });
-    h.hub.statusScript.push(okAnswer(uuid(0x501), 'resolved-not-sent'));
+    // Another part goes at once: an unknown outcome holds nothing (row 2).
     h.hub.claimScript.push(ticketFor(uuid(0x503)));
     expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503), part: { index: 1 } }))).ok).toBe(true);
     h.hub.claimScript.push(okAnswer(uuid(0x503), 'failed'));
@@ -622,8 +603,7 @@ describe('[X8-07] [RB-007] a crash at every boundary between dispatch and enqueu
     expect(second.coordinator.status(A)?.state).toBe('preparing');
     await second.clock.advance(20_000);
     expect(second.coordinator.status(A)?.state).toBe('uncertain');
-    second.hub.statusScript.push(okAnswer(A, 'uncertain-held'));
-    expect(await second.coordinator.begin(TAB, second.begin({ attemptId: uuid(0x501), part: { index: 1 } }))).toMatchObject({ ok: false, view: { code: 'CG-SEND-UNCERTAIN' } });
+    // Nothing is dispatched or sent again by itself.
     expect(second.hub.claims).toHaveLength(0);
   });
 
@@ -873,29 +853,6 @@ describe('[X8-07] [X8-08] [NF-022] reports: from the owning tab, once, durable',
     expect(actions(h).slice(-2)).toEqual(['dispatch', 'failed:not_enqueued']);
   });
 
-  it('[NF-022] a hold by another unresolved send is lifted only through the hub: the click reads the custody, never dispatches, until resolved', async () => {
-    const h = sendHarness();
-    h.hub.claimScript.push(ticketFor(A));
-    await h.coordinator.begin(TAB, h.begin());
-    await report(h, 'a', 'uncertain', { code: 'CG-SEND-UNCERTAIN' });
-    h.hub.statusScript.push(okAnswer(A, 'uncertain-held'));
-    const held = await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501), part: { index: 1 } }));
-    expect(held).toEqual({ ok: false, view: { attemptId: uuid(0x501), state: 'held', code: 'CG-SEND-UNCERTAIN' } });
-    // Twenty clicks of the same part while A is unresolved: one safe read, no dispatch, the same held view.
-    h.hub.statusScript.push(okAnswer(A, 'uncertain-held'));
-    const again = await Promise.all(Array.from({ length: 20 }, (_, i) => h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x510 + i), part: { index: 1 } }))));
-    expect(again.every((r) => !r.ok && r.view.attemptId === uuid(0x501))).toBe(true);
-    expect(h.hub.statusReads).toHaveLength(2);
-    expect(h.hub.claims.filter((c) => c.body.action === 'dispatch')).toHaveLength(1);
-    // A read that fails keeps the hold.
-    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x530), part: { index: 1 } }))).toEqual({ ok: false, view: held.ok ? undefined : held.view });
-    // The hub resolved A «not sent»: the next click of the part goes.
-    h.hub.statusScript.push(okAnswer(A, 'resolved-not-sent'));
-    h.hub.claimScript.push(ticketFor(uuid(0x531)));
-    expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x531), part: { index: 1 } }))).ok).toBe(true);
-    expect(h.hub.claims.filter((c) => c.body.action === 'dispatch')).toHaveLength(2);
-  });
-
   it('[NF-022] the silence after a ticket counts from the ticket\'s own deadline, not the bootstrap\'s figure', async () => {
     const h = sendHarness();
     const longTicket: ClaimState = { ...claim({ attemptId: A, state: 'dispatching', ticket: 'tkt-long' }), custody: { attemptId: A, state: 'dispatching', ticket: 'tkt-long', ticketExpiresAt: at(60) } };
@@ -979,7 +936,7 @@ describe('[X8-08] [X8-09] [NF-019] the coordinator against the shared hub claim 
     expect(h.sent.map((fact) => (fact as { platformMessageId: string }).platformMessageId)).toEqual([WORLD.messages.sentByUs, WORLD.messages.sentPart2]);
   });
 
-  it('[NF-022] claim-uncertain-held: an unreported ticket holds the fan past the lease; only the owner\'s resolve frees it', async () => {
+  it('[NF-022] claim-uncertain-held: an unreported ticket is unknown, never repeated by itself; the person\'s new click of the part is dispatched (audit 2026-10-20, row 2)', async () => {
     const { hub, clock, make } = scenarioHarness('claim-uncertain-held');
     const h = make();
     greetingOp(h);
@@ -988,16 +945,7 @@ describe('[X8-08] [X8-09] [NF-019] the coordinator against the shared hub claim 
     expect(await h.coordinator.begin(TAB, greet(h, c, 0))).toMatchObject({ ok: true, ticket: { attemptId: c, ticket: 'tkt-once-c' } });
     await clock.advance(60_000);
     expect(h.coordinator.status(c)?.state).toBe('uncertain');
-    // The next part: the safe read says uncertain-held; no dispatch.
-    expect(await h.coordinator.begin(TAB, greet(h, uuid(0x40a), 1))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-UNCERTAIN' } });
-    // A client that ignored its own hold: the hub refuses the dispatch (custody_held).
-    expect(await outside(hub)).toBe('refused');
-    // The same part clicked again later: one more safe read, still held.
-    expect(await h.coordinator.begin(TAB, greet(h, uuid(0x40b), 1))).toEqual({ ok: false, view: { attemptId: uuid(0x40a), state: 'held', code: 'CG-SEND-UNCERTAIN' } });
-    expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 1 });
-    // The owner resolved it «not sent» in the hub.
-    await h.coordinator.reconcileFan(sendLockKey({ hubOrigin: WORLD.hubOrigin, pageId: WORLD.pages.one.pageId, platform: 'onlyfans', fanRef: WORLD.newFan }));
-    expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 0 });
+    expect(await h.coordinator.begin(TAB, greet(h, uuid(0x404), 0))).toMatchObject({ ok: true, ticket: { attemptId: uuid(0x404), ticket: 'tkt-once-d' } });
     expect(hub.offScript).toEqual([]);
     expect(hub.remaining).toBe(0);
     expect(hub.claims.filter((op) => op.body.action === 'dispatch' && op.body.attemptId === c)).toHaveLength(1);
@@ -1131,7 +1079,7 @@ describe('[SP-054] [RB-007] the tab-side driver over the fake host port', () => 
     expect(await driver.send(click())).toEqual({ attemptId: A, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
     await h.coordinator.idle();
     expect(h.coordinator.status(A)?.state).toBe('uncertain');
-    expect(await driver.send(click())).toEqual({ attemptId: A, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    // Nothing goes again by itself (a person's new click would be a new attempt, row 2).
     expect(h.hub.claims.filter((c) => c.body.action === 'dispatch')).toHaveLength(1);
     // MAIN may still see the pair: the driver keeps listening, within its bound.
     expect(driver.listening).toBe(1);

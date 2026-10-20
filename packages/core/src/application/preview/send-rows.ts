@@ -95,7 +95,8 @@ export function warnsFreshness(row: PreviewSendView): boolean {
 /** Whether a click of «Отправить» («Отправить ещё раз», `anyway` — «Отправить всё равно») may start an attempt from this row. */
 export function clickable(row: PreviewSendView, order: SendOrderVM | null, anyway = false): boolean {
   if (order !== null) return false;
-  return row.s === 'available' || (row.s === 'rejected' && row.canRetry) || (anyway && warnsFreshness(row));
+  // An unknown outcome is the person's to judge (2026-10-20 audit, row 2): «Отправить ещё раз» is their own new click.
+  return row.s === 'available' || row.s === 'uncertain' || (row.s === 'rejected' && row.canRetry) || (anyway && warnsFreshness(row));
 }
 
 /** Attempts of a result as the group rules read them. */
@@ -140,8 +141,8 @@ export interface OpenInsertInput {
 
 /**
  * «Открыть и вставить» of a part. Hidden once the part is sent or on its
- * way, and while its outcome is unknown: an uncertain part offers only
- * «Открыть чат для проверки» (§6.7.8).
+ * way, and while its outcome is unknown: an uncertain part offers «Открыть
+ * чат» and «Отправить ещё раз» (2026-10-20 audit, row 2).
  */
 export function openInsertRow(input: OpenInsertInput): OpenInsertVM {
   const s = input.row.s;

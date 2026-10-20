@@ -3,10 +3,11 @@
 // window, where each greeting stands, and the greeting lease. The list is a
 // cursor pass with a fixed window, read again every 30 s while the window is
 // open (and every 60 s for the subscriber sound, when this tab is asked to
-// watch) with a spread and pauses while offline. The lease is taken on
-// Generate, renewed every 40 s only while the person works with the fan,
-// and released explicitly; a colleague's lease has no countdown. Nothing
-// here sends: «AI ничего не отправляет сам» (NF-028).
+// watch) with a spread and pauses while offline. No lease is taken (2026-10-20
+// audit, row 11, as the old clients did): the hub claims the fan at the send
+// and refuses one a colleague greeted; a colleague's lease an older client
+// still holds is shown, never counted down. Nothing here sends: «AI ничего не
+// отправляет сам» (NF-028).
 
 import { type CgCode, type CgErrorView, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
@@ -361,42 +362,26 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
   }
 
   const greeting: GreetingDesk = {
-    async claimForGenerate(fanRef) {
-      // NF-015: the hub refuses a greeting for a thread of more than ten stored messages — no lease is taken for it.
-      if (rowTooLongForHi(rowOf(fanRef))) return { ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) };
+    // 2026-10-20 audit, row 11: Generate takes no lease — the hub claims the fan at «Отправить» (as the old clients did).
+    claimForGenerate(fanRef) {
+      // NF-015: the hub refuses a greeting for a thread of more than ten stored messages.
+      if (rowTooLongForHi(rowOf(fanRef))) return Promise.resolve({ ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) });
       const block = hiBlock(statusOf(fanRef));
-      if (block === 'claim-busy') return { ok: false, code: 'CG-CLAIM-BUSY', error: claimError(fanRef, 'CG-CLAIM-BUSY') };
-      if (block === 'claim-elsewhere') return { ok: false, code: 'CG-CLAIM-BUSY', error: { ...errorOf({ code: 'CG-CLAIM-BUSY' }, i18n), body: i18n.t('newcomers.claim.elsewhere') } };
-      if (block === 'uncertain') return { ok: false, code: 'CG-SEND-UNCERTAIN', error: localError('CG-SEND-UNCERTAIN', i18n) };
       // §6.7.9: once a part is confirmed the fan is greeted — another generation would be a second greeting.
-      if (block === 'greeted' || block === 'replied') return { ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) };
-      if (block === 'sending') return { ok: false, code: 'CG-SEND-BUSY', error: localError('CG-SEND-BUSY', i18n) };
+      if (block === 'greeted' || block === 'replied') return Promise.resolve({ ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) });
+      if (block === 'sending') return Promise.resolve({ ok: false, code: 'CG-SEND-BUSY', error: localError('CG-SEND-BUSY', i18n) });
       recordOf(fanRef).lastActivityAt = clock.now();
-      const mine = leaseOf(fanRef).s === 'mine';
-      const answer = await claimCall(fanRef, mine ? 'renew' : 'claim');
-      return answer.ok ? { ok: true, taken: !mine } : answer;
+      return Promise.resolve({ ok: true, taken: false });
     },
-    giveBack(fanRef) {
-      if (leaseOf(fanRef).s === 'mine') void claimCall(fanRef, 'release');
-    },
-    reclaim(fanRef) {
-      const lease = leaseOf(fanRef).s;
-      recordOf(fanRef).lastActivityAt = clock.now();
-      if ((lease === 'expired' || lease === 'none') && hiBlock(statusOf(fanRef)) === null) void claimCall(fanRef, 'claim');
-    },
-    leaseToken(fanRef) {
-      const lease = leaseOf(fanRef);
-      return lease.s === 'mine' ? lease.leaseToken : null;
-    },
+    giveBack: () => undefined,
+    // A greeting goes with no lease token: the hub admits it at the send.
+    leaseToken: () => null,
     claim: claimVM,
     greeting: statusOf,
     hiBlocked(fanRef) {
       const block = hiBlock(statusOf(fanRef));
       // NF-015: by the count the hub gave with the row — Hi is off before the card's archive is even read.
       if (block === null) return rowTooLongForHi(rowOf(fanRef)) ? reason('hi-gate') : null;
-      if (block === 'claim-busy') return reason('claim-busy');
-      if (block === 'claim-elsewhere') return reason('claim-elsewhere');
-      if (block === 'uncertain') return reason('part-uncertain', { n: (localOf(fanRef).progress?.uncertainPart ?? 0) + 1 });
       if (block === 'sending') return reason('parts-sending');
       return reason('hi-gate');
     },

@@ -586,42 +586,24 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     expect(partsOf(broken.h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-HOST', reason: { key: 'send.reason.host' } });
   });
 
-  it('uncertain: only «Открыть чат для проверки»; nothing is sent again, the group is held, «Ещё раз» is off', async () => {
+  it('uncertain (audit 2026-10-20, row 2): a quiet mark with «Открыть чат» and «Отправить ещё раз» by the person\'s own click; nothing else of the fan is held, nothing goes by itself', async () => {
     const { h, opId } = await withReply({ answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
     const attemptId = uuid(0x500);
     const [first, second] = partsOf(h, 'spenders');
     expect(first?.send).toEqual({ s: 'uncertain', since: iso(h.clock.now()), attemptId });
     expect(first?.openInsert).toEqual({ s: 'hidden' });
-    expect(second?.sendOrder).toEqual({ kind: 'held', part: 1 });
+    expect(second?.sendOrder).toBeNull();
+    expect(second?.send).toEqual({ s: 'available' });
     const vm = h.boards.preview.getSnapshot(preview('spenders'));
-    expect(vm.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
-    expect(vm.result).toMatchObject({ canRegenerate: false, regenerateReason: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN' } });
-    for (const part of [0, 1]) expect(await h.dispatch({ type: 'SendPart', operationId: opId, part })).toMatchObject({ ok: false });
-    expect((await h.dispatch({ type: 'Regenerate', operationId: opId })).ok).toBe(false);
-    expect((await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).ok).toBe(false);
+    expect(vm.stoppedNote).toBeNull();
+    expect(vm.result).toMatchObject({ canRegenerate: true });
+    // Nothing went again by itself.
     expect(h.host.calls.commits).toHaveLength(1);
-    expect(count(h, 'op.start')).toBe(1);
-    // The only way on: look at the chat. It navigates, with no insert riding it.
+    // Look at the chat: it navigates, with no insert riding it.
     expect(await h.dispatch({ type: 'OpenChatToVerify', attemptId })).toMatchObject({ ok: true, outcome: 'opened' });
     expect(h.host.calls.navigations).toHaveLength(1);
     expect(h.host.calls.navigations[0]?.thenInsert).toBeUndefined();
-    expect(h.host.calls.commits).toHaveLength(1);
-    // The chat opened, so the board got out of its way. The late linked pair is the only automatic way out:
-    // back on the card the row is «Отправлено», and the next part is free for its own click.
-    expect(h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null } });
-    h.sendState({ attemptId, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', platformMessageId: '4100' });
-    h.sendState({ attemptId, state: 'sentObserved', platformMessageId: '4100' });
-    await h.flush();
-    const sentAt = iso(h.clock.now());
-    await h.dispatch(open('spenders'));
-    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
-    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
-    const [sent, next] = partsOf(h, 'spenders');
-    expect(sent?.send).toEqual({ s: 'sent', at: sentAt });
-    expect(next?.send).toEqual({ s: 'available' });
-    expect(next?.sendOrder).toBeNull();
-    expect(h.boards.preview.getSnapshot(preview('spenders'))).toMatchObject({ stoppedNote: null, result: { canRegenerate: true, sendProgress: { sent: 1, total: 2 } } });
     expect(h.host.calls.commits).toHaveLength(1);
     expect(h.boards.preview.dispatch({ type: 'OpenChatToVerify', attemptId: uuid(0xbad) })).toBeNull();
   });
@@ -679,100 +661,7 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
 
 describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of the fan, and after a tab reload (§6.7.8, §6.7.9)', () => {
   const UNCERTAIN = { answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } } as const;
-  /** Fan 5000 of the board is also a fan ChatSpace shows online: the palette has a card of the same chat. */
-  const onlineToo = { chatList: [...hostMemory.chatList, { chat: { host: 'chatspace' as const, hostAccountId: HOST_IDS.acc, platformFanId: '5000' }, position: 2, displayName: 'fan_0', username: 'fan_0', unreadCount: 0, isOnline: true }] };
   const strip = (h: Harness, from: PreviewSource = 'spenders') => h.boards.preview.getSnapshot(preview(from)).bar.actions;
-
-  it('an unknown outcome: no feature of the strip generates for the fan, no part is offered for «Открыть и вставить», the result cannot be hidden', async () => {
-    const { h, opId, handle } = await withReply({ ...UNCERTAIN, memory: onlineToo });
-    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
-    const attemptId = uuid(0x500);
-    const held = h.boards.preview.getSnapshot(preview('spenders'));
-    expect(held.result?.parts?.[0]?.send).toMatchObject({ s: 'uncertain', attemptId });
-    // Every feature, not only «Ещё раз»: a new generation would take the unknown part off the card.
-    for (const feature of ['reply', 'fix', 'hi', 'ping'] as const) {
-      expect(strip(h)[feature], feature).toMatchObject({ enabled: false, reason: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { params: { n: 1 } } } });
-      expect(await h.dispatch({ type: 'Generate', targetHandle: handle, feature, options: { tone: 'flirty' } }), feature).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
-    }
-    expect(count(h, 'op.start')).toBe(1);
-    expect((await h.dispatch({ type: 'HideResult', operationId: opId })).ok).toBe(false);
-    const still = h.boards.preview.getSnapshot(preview('spenders'));
-    expect(still.result?.opId).toBe(opId);
-    expect(still.result?.parts?.[0]?.send).toMatchObject({ s: 'uncertain', attemptId });
-    expect(still.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
-    expect(still.unread).toBe('read-after-send');
-    // The other part of the group is held with it: neither sent nor put into the chat by us.
-    expect(still.result?.parts?.[1]?.openInsert).toMatchObject({ s: 'unavailable', reason: { id: 'part-uncertain' } });
-    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
-    expect(h.host.calls.navigations).toEqual([]);
-
-    // The same fan on another card (the palette's online fans, a window of its own — the board closes): held there too.
-    const palette = fanHandle('palette', PAGE.pageId, '5000');
-    expect((await h.dispatch({ type: 'OpenPreview', targetHandle: palette })).ok).toBe(true);
-    expect(h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null, palette } });
-    const other = h.boards.preview.getSnapshot(preview('palette'));
-    expect(other.bar.actions.reply).toMatchObject({ enabled: false, reason: { id: 'part-uncertain' } });
-    expect(other.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
-    expect(other.unread).toBe('read-after-send');
-    expect(await h.dispatch({ type: 'Generate', targetHandle: palette, feature: 'ping', options: {} })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
-    expect(count(h, 'op.start')).toBe(1);
-    expect(h.host.calls.commits).toHaveLength(1);
-
-    // The late linked pair is the only automatic way out: the part is sent, and the fan is free again — on the
-    // palette's card, and on the board's card opened again (one window at a time).
-    h.sendState({ attemptId, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', platformMessageId: '4100' });
-    h.sendState({ attemptId, state: 'sentObserved', platformMessageId: '4100' });
-    await h.flush();
-    expect(h.boards.preview.getSnapshot(preview('palette')).bar.actions.reply).toMatchObject({ enabled: true });
-    await h.dispatch(open('spenders'));
-    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
-    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
-    await h.flush();
-    const free = h.boards.preview.getSnapshot(preview('spenders'));
-    expect(free.result?.parts?.[0]?.send).toMatchObject({ s: 'sent' });
-    expect(free.stoppedNote).toBeNull();
-    expect(free.result?.canRegenerate).toBe(true);
-    expect(strip(h).reply).toMatchObject({ enabled: true, reason: null });
-    expect(free.result?.parts?.[1]?.openInsert).toEqual({ s: 'available' });
-  });
-
-  it('an unknown outcome of ANOTHER result of the fan: the parts of the result on the card say «прошлая отправка не проверена» before any click', async () => {
-    // Part 1 of the first reply is sent; the next reply's part ends unknown.
-    const { h, opId, handle } = await withReply({ answers: { commit: [{ state: 'nativeEnqueued', pendingId: 'pending-first' }, { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] }, memory: onlineToo });
-    // The palette's card of the same fan shows the first reply.
-    const palette = fanHandle('palette', PAGE.pageId, '5000');
-    await h.dispatch({ type: 'OpenPreview', targetHandle: palette });
-    expect(h.boards.preview.getSnapshot(preview('palette')).result?.opId).toBe(opId);
-    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'started' });
-    h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
-    h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
-    await h.flush();
-    // The board's card again (the palette's window closes: one window at a time): the next reply's part ends unknown.
-    await h.dispatch(open('spenders'));
-    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
-    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
-    await h.flush();
-    const second = h.script(1, 'ping', 'Ping one\n[NEXT]\nPing two');
-    expect(await h.dispatch({ type: 'Generate', targetHandle: handle, feature: 'ping', options: {} })).toMatchObject({ ok: true, opId: second.opId });
-    await h.advance(200);
-    await h.dispatch({ type: 'SendPart', operationId: second.opId, part: 0 });
-    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain', attemptId: uuid(0x501) });
-    // The first reply still stands on the palette's card, opened again: its unsent part is held by the other result's unknown outcome.
-    await h.dispatch({ type: 'OpenPreview', targetHandle: palette });
-    await h.flush();
-    const other = h.boards.preview.getSnapshot(preview('palette'));
-    expect(other.result?.opId).toBe(opId);
-    const [sent, unsent] = other.result?.parts ?? [];
-    expect(sent?.send?.s).toBe('sent');
-    expect(unsent?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-UNCERTAIN', reason: { key: 'send.reason.otherUncertain' } });
-    expect(unsent?.openInsert).toMatchObject({ s: 'unavailable', reason: { id: 'part-uncertain' } });
-    expect(other.result).toMatchObject({ canRegenerate: false, regenerateReason: { id: 'part-uncertain' } });
-    // The note names the unknown part even though it is not on this card.
-    expect(other.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
-    expect((await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 })).ok).toBe(false);
-    expect(h.clicks).toHaveLength(2);
-    expect(h.host.calls.commits).toHaveLength(2);
-  });
 
   it('a part on its way: the strip waits for it, the other part is not put into the chat meanwhile, and the result stays on the card', async () => {
     const { h, opId, handle } = await withReply();
@@ -797,7 +686,7 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     expect((await h.dispatch({ type: 'HideResult', operationId: opId })).ok).toBe(true);
   });
 
-  it('F5 with an unknown outcome: the result comes back WITH the state of its parts — the row is «неизвестно», nothing is inserted or generated', async () => {
+  it('F5 with an unknown outcome: the result comes back WITH the state of its parts — the row is «не подтвердилось», and nothing else of the fan is held (row 2)', async () => {
     const { h, opId, handle } = await withReply(UNCERTAIN);
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
     const attemptId = uuid(0x500);
@@ -815,22 +704,12 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     // «с 09:21» is when the outcome became unknown, not when the tab reloaded.
     expect(first?.send).toEqual({ s: 'uncertain', since, attemptId });
     expect(first?.openInsert).toEqual({ s: 'hidden' });
-    expect(second?.sendOrder).toEqual({ kind: 'held', part: 1 });
-    expect(second?.openInsert).toMatchObject({ s: 'unavailable', reason: { id: 'part-uncertain' } });
-    expect(vm.result).toMatchObject({ canRegenerate: false, regenerateReason: { id: 'part-uncertain' }, draftNotSent: false });
-    expect(vm.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
+    expect(second?.sendOrder).toBeNull();
+    expect(vm.stoppedNote).toBeNull();
     expect(vm.unread).toBe('read-after-send');
-    expect(vm.bar.actions.reply).toMatchObject({ enabled: false, reason: { id: 'part-uncertain' } });
-    for (const part of [0, 1]) {
-      expect((await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part })).ok).toBe(false);
-      expect((await h.dispatch({ type: 'SendPart', operationId: opId, part })).ok).toBe(false);
-    }
-    expect((await h.dispatch({ type: 'Regenerate', operationId: opId })).ok).toBe(false);
-    expect((await h.dispatch({ type: 'Generate', targetHandle: handle, feature: 'ping', options: {} })).ok).toBe(false);
-    expect(h.host.calls.navigations).toEqual([]);
+    expect(vm.bar.actions.reply).toMatchObject({ enabled: true });
     expect(h.host.calls.commits).toHaveLength(1);
-    expect(count(h, 'op.start')).toBe(1);
-    // The one way on still works from the restored row: look at the chat, with no insert riding the navigation.
+    // Look at the chat from the restored row, with no insert riding the navigation.
     expect(await h.dispatch({ type: 'OpenChatToVerify', attemptId })).toMatchObject({ ok: true, outcome: 'opened' });
     expect(h.host.calls.navigations).toHaveLength(1);
     expect(h.host.calls.navigations[0]?.thenInsert).toBeUndefined();
@@ -860,7 +739,7 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     expect((await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).ok).toBe(false);
   });
 
-  it('a result that outlived the reload but not its sends list is not shown; a fan held by a result this tab no longer has is still held', async () => {
+  it('a result that outlived the reload but not its sends list is not shown; nothing is generated while the journal does not answer', async () => {
     // The background does not answer `send.list`: the result is not brought back without the state of its parts.
     const lost = await withReply(UNCERTAIN);
     await lost.h.dispatch({ type: 'SendPart', operationId: lost.opId, part: 0 });
@@ -876,56 +755,16 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     expect(await lost.h.dispatch({ type: 'Generate', targetHandle: lost.handle, feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
     expect(count(lost.h, 'op.start')).toBe(1);
     expect(count(lost.h, 'send.list')).toBe(asked + 1);
-    // The journal answers the next click: Generate is refused by what it says, though the card itself never learned it.
+    // The journal answers the next click: an unknown outcome holds nothing (row 2), the generation starts.
     expect(lost.h.boards.preview.getSnapshot(preview('spenders')).bar.actions.reply?.enabled).toBe(true);
-    expect(await lost.h.dispatch({ type: 'Generate', targetHandle: lost.handle, feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
-    expect(count(lost.h, 'op.start')).toBe(1);
-    // …and from then on the card says so: the fan is held, though the result itself is not on the card.
-    const vm = lost.h.boards.preview.getSnapshot(preview('spenders'));
-    expect(vm.result).toBeNull();
-    expect(vm.bar.actions.reply).toMatchObject({ enabled: false, reason: { id: 'part-uncertain', text: { params: { n: 1 } } } });
-    expect(vm.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
-    expect(vm.unread).toBe('read-after-send');
+    expect(await lost.h.dispatch({ type: 'Generate', targetHandle: lost.handle, feature: 'reply', options: {} })).toMatchObject({ ok: true });
+    expect(lost.h.boards.preview.getSnapshot(preview('spenders')).unread).toBe('read-after-send');
     // «Обновить архив» reads the journal as well.
     const asked2 = count(lost.h, 'send.list');
     await lost.h.dispatch({ type: 'RefreshArchive', targetHandle: lost.handle });
     expect(count(lost.h, 'send.list')).toBe(asked2 + 1);
   });
 
-  it('two tabs of one person: a part whose outcome became unknown in one tab holds the fan in the other at its next click', async () => {
-    const { h, opId, handle } = await withReply(UNCERTAIN);
-    // The second tab opens the same fan and shows the same finished result, nothing sent yet.
-    const second = await h.secondTab();
-    const act = async (action: UiAction) => {
-      for (const controller of second.controllers) {
-        const receipt = controller.dispatch(action);
-        if (receipt !== null) {
-          const answered = await receipt;
-          await h.flush();
-          return answered;
-        }
-      }
-      throw new Error(`nobody took ${action.type}`);
-    };
-    await act(open('spenders'));
-    await act({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
-    await act({ type: 'OpenPreview', targetHandle: handle });
-    const there = (): readonly PartVM[] => second.preview.getSnapshot(preview('spenders')).result?.parts ?? [];
-    expect(second.preview.getSnapshot(preview('spenders')).result?.opId).toBe(opId);
-    expect(there().map((part) => part.openInsert)).toEqual([{ s: 'available' }, { s: 'available' }]);
-    // In the first tab part 1 is sent, and its outcome is unknown.
-    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
-    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain' });
-    // The second tab has not been told. Its next click asks the journal first: nothing is put into the chat, nothing is generated.
-    const navigations = h.host.calls.navigations.length;
-    expect(await act({ type: 'OpenAndInsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
-    expect(h.host.calls.navigations).toHaveLength(navigations);
-    expect(there()[0]?.send).toMatchObject({ s: 'uncertain', attemptId: uuid(0x500) });
-    expect(there()[1]?.openInsert).toMatchObject({ s: 'unavailable', reason: { id: 'part-uncertain' } });
-    expect(await act({ type: 'Generate', targetHandle: handle, feature: 'ping', options: {} })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
-    expect(count(h, 'op.start')).toBe(1);
-    expect(h.host.calls.commits).toHaveLength(1);
-  });
 });
 
 describe('[TL-004] [NF-019] a part the person sent with ChatSpace’s own Send is a sent part of its group (§6.6, §6.7.9)', () => {
@@ -1187,96 +1026,20 @@ async function withCard(options: Options = {}): Promise<Harness> {
 
 describe('[NF-009] [NF-013] [NF-021] the card of a new fan and the greeting lease', () => {
 
-  it('[NF-013] [NF-021] «Сгенерировать» takes the lease first, then starts Hi with one variant on the `newcomers` surface', async () => {
+  it('[NF-013] «Сгенерировать» starts Hi with one variant on the `newcomers` surface and takes no lease (audit 2026-10-20, row 11)', async () => {
     const h = await withCard();
     h.script(0, 'hi-greeting', 'Hi there!\n[NEXT]\nSo happy you are here');
     const receipt = await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} });
     expect(receipt.ok).toBe(true);
-    const types = h.bg.requests.map((r) => r.type);
-    expect(types.indexOf('newcomers.claim')).toBeGreaterThan(-1);
-    expect(types.indexOf('newcomers.claim')).toBeLessThan(types.indexOf('op.start'));
-    expect(lastPayload(h, 'newcomers.claim')).toEqual({ pageId: PAGE.pageId, fanRef: '2010', action: 'claim' });
+    expect(count(h, 'newcomers.claim')).toBe(0);
     expect(lastPayload(h, 'op.start')).toMatchObject({ feature: 'hi', surface: 'newcomers', variantCount: 1, tone: null });
     expect(h.host.calls.checkpoints).toHaveLength(1);
     await h.advance(200);
     const vm = h.boards.preview.getSnapshot(preview('newcomers'));
-    expect(vm.claim).toMatchObject({ s: 'mine', until: NOW_MS + 119_000, renew: { action: { type: 'RenewClaim', targetHandle: newcomer('2010') } }, release: { action: { type: 'ReleaseClaim', targetHandle: newcomer('2010') } } });
-    expect(vm.greeting).toEqual({ s: 'claim-mine' });
+    expect(vm.claim).toEqual({ s: 'none' });
     expect(vm.result?.parts?.map((part) => part.text)).toEqual(['Hi there!', 'So happy you are here']);
     expect(vm.result?.parts?.[0]?.variant).toBe(0);
-    expect(h.boards.newcomers.getSnapshot(NEWCOMERS).rows[0]?.greeting).toEqual({ s: 'claim-mine' });
     expect(h.host.calls.commits).toEqual([]);
-  });
-
-  it('[NF-013] §6.7.5: the freshness checkpoint is taken at the click — before the lease is asked for and before the hub request', async () => {
-    const h = await withCard();
-    h.script(0, 'hi-greeting', 'Hi there!');
-    // The hub takes its time with the lease.
-    const release = h.bg.hold('newcomers.claim');
-    const pending = h.boards.preview.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })!;
-    await h.flush();
-    expect(count(h, 'newcomers.claim')).toBe(1);
-    // MAIN was already asked while the lease is still on its way: a fan message that lands during the claim is after the checkpoint.
-    expect(h.host.calls.checkpoints).toEqual([{ host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '2010' }]);
-    expect(count(h, 'token.issue')).toBe(0);
-    expect(count(h, 'op.start')).toBe(0);
-    release();
-    expect((await pending).ok).toBe(true);
-    await h.flush();
-    expect(h.host.calls.checkpoints).toHaveLength(1);
-    expect((lastPayload(h, 'op.start') as Record<string, unknown>)['checkpoint']).toMatchObject({ platformFanId: '2010', fanSequence: 2 });
-  });
-
-  it('[NF-021] the lease is renewed every 40 s while the person works with the fan, lapses when they stop, and is released explicitly', async () => {
-    const h = await withCard();
-    h.script(0, 'hi-greeting', 'Hi there!');
-    await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} });
-    await h.advance(200);
-    const claims = (): string[] => h.bg.requests.filter((r) => r.type === 'newcomers.claim').map((r) => (r.payload as { action: string }).action);
-    expect(claims()).toEqual(['claim']);
-    await h.advance(40_000);
-    expect(claims()).toEqual(['claim', 'renew']);
-    await h.advance(40_000);
-    expect(claims()).toEqual(['claim', 'renew', 'renew']);
-    // No action with the fan for longer than the activity window: no more renewals, and the lease runs out.
-    await h.advance(80_000);
-    const renewals = claims().length;
-    await h.advance(200_000);
-    expect(claims()).toHaveLength(renewals);
-    const lapsed = h.boards.preview.getSnapshot(preview('newcomers'));
-    expect(lapsed.claim).toMatchObject({ s: 'expired', error: { code: 'CG-CLAIM-EXPIRED' } });
-    expect(lapsed.result?.parts?.[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-CLAIM-EXPIRED' });
-    expect(lapsed.result?.parts?.[0]?.openInsert).toMatchObject({ s: 'unavailable', reason: { id: 'claim-expired' } });
-    // «Продлить бронь» takes it again; «Снять бронь» releases it.
-    expect((await h.dispatch({ type: 'RenewClaim', targetHandle: newcomer('2010') })).ok).toBe(true);
-    expect(h.boards.preview.getSnapshot(preview('newcomers')).claim?.s).toBe('mine');
-    expect((await h.dispatch({ type: 'ReleaseClaim', targetHandle: newcomer('2010') })).ok).toBe(true);
-    expect(claims().at(-1)).toBe('release');
-    expect(h.boards.preview.getSnapshot(preview('newcomers')).claim).toEqual({ s: 'none' });
-    expect(h.hub.status().claims.find((c) => c.fanRef === '2010')?.lease).toBe('released');
-  });
-
-  it('[NF-021] [NF-024] claim races: a colleague’s lease refuses Hi with the fan’s name and no countdown; when it is released the fan can be claimed', async () => {
-    const h = await withCard();
-    const colleague = h.hub.issueToken({ username: WORLD.otherUser.username });
-    const theirs = { action: 'claim', leaseToken: uuid(0xc01), instanceId: WORLD.otherInstanceId } as const;
-    const claimed = await hubCall(h.hub.fetch, h.hub.origin, 'clientFanClaim', { pageLabel: PAGE.pageLabel, fanRef: '2010', body: theirs }, { token: colleague });
-    expect(claimed.status).toBe(200);
-    h.script(0, 'hi-greeting', 'Hi there!');
-    const refused = await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} });
-    expect(refused).toMatchObject({ ok: false, code: 'CG-CLAIM-BUSY', error: { title: 'Другой чаттер уже здоровается с newfan_0' } });
-    expect(count(h, 'op.start')).toBe(0);
-    const vm = h.boards.preview.getSnapshot(preview('newcomers'));
-    expect(vm.claim).toMatchObject({ s: 'other', error: { code: 'CG-CLAIM-BUSY' } });
-    expect(JSON.stringify(vm.claim)).not.toMatch(/until|expires/);
-    expect(vm.greeting).toEqual({ s: 'claim-other' });
-    expect(vm.bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'claim-busy', code: 'CG-CLAIM-BUSY' } });
-    expect(h.boards.newcomers.getSnapshot(NEWCOMERS).rows[0]?.greeting).toEqual({ s: 'claim-other' });
-    // The colleague lets go; the next read of the list shows the fan free again.
-    await hubCall(h.hub.fetch, h.hub.origin, 'clientFanClaim', { pageLabel: PAGE.pageLabel, fanRef: '2010', body: { ...theirs, action: 'release' } }, { token: colleague });
-    expect((await h.dispatch({ type: 'RenewClaim', targetHandle: newcomer('2010') })).ok).toBe(true);
-    expect(h.boards.preview.getSnapshot(preview('newcomers')).claim?.s).toBe('mine');
-    expect((await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).ok).toBe(true);
   });
 
   it('[NF-015] a thread the archive proves to be a dialogue gets no Hi, and no AI call', async () => {
@@ -1307,7 +1070,8 @@ describe('[NF-019] a greeting is sent part by part, under the lease, and counts 
     expect(partsOf(h, 'newcomers').map((part) => part.send?.s)).toEqual(['available', 'available']);
     expect(await h.dispatch({ type: 'SendPart', operationId: opId, variant: 0, part: 0 })).toMatchObject({ ok: true, attemptId: uuid(0x500) });
     expect(h.clicks[0]).toMatchObject({ purpose: 'greeting', part: { variant: 0, index: 0 }, group: { variant: 0, partCount: 2 } });
-    expect(h.clicks[0]?.leaseToken).toBe(h.boards.newcomers.greeting.leaseToken('2010'));
+    // No lease rides the greeting: the hub claims the fan at the send (row 11).
+    expect(h.clicks[0]?.leaseToken).toBeUndefined();
     expect(h.boards.preview.getSnapshot(preview('newcomers')).greeting).toEqual({ s: 'sending', sent: 0, total: 2 });
     h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
     await h.flush();
@@ -1343,44 +1107,6 @@ describe('[NF-019] a greeting is sent part by part, under the lease, and counts 
     expect(h.boards.newcomers.getSnapshot(NEWCOMERS).rows.find((row) => row.handle === newcomer('2010'))).toBeUndefined();
     await h.dispatch({ type: 'SetNewcomersTab', tab: 'all' });
     expect(h.boards.newcomers.getSnapshot(NEWCOMERS).rows.find((row) => row.handle === newcomer('2010'))?.greeting.s).toBe('greeted');
-  });
-
-  it('[NF-021] the hub lost the lease behind the tab’s back: the part is held, «Продлить бронь» takes it again, and a new click sends', async () => {
-    const { h, opId } = await greeting('Hi there!');
-    // The hub's clock ran ahead of the tab's: the lease is gone there, still live here.
-    h.hub.control({ op: 'clock', advanceMs: 200_000 });
-    expect(h.boards.preview.getSnapshot(preview('newcomers')).claim?.s).toBe('mine');
-    await h.dispatch({ type: 'SendPart', operationId: opId, variant: 0, part: 0 });
-    const held = h.boards.preview.getSnapshot(preview('newcomers'));
-    expect(held.result?.parts?.[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-CLAIM-EXPIRED' });
-    expect(held.claim).toMatchObject({ s: 'expired' });
-    expect(h.host.calls.commits).toEqual([]);
-    expect((await h.dispatch({ type: 'RenewClaim', targetHandle: newcomer('2010') })).ok).toBe(true);
-    const again = h.boards.preview.getSnapshot(preview('newcomers'));
-    expect(again.claim?.s).toBe('mine');
-    expect(again.result?.parts?.[0]?.send).toEqual({ s: 'available' });
-    // Nothing went by itself; the next send is the person's click, a new attempt.
-    expect(h.host.calls.commits).toEqual([]);
-    expect(await h.dispatch({ type: 'SendPart', operationId: opId, variant: 0, part: 0 })).toMatchObject({ ok: true, attemptId: uuid(0x501) });
-    expect(h.host.calls.commits).toHaveLength(1);
-  });
-
-  it('[NF-022] an unknown outcome stops the fan: the card says which part, Hi is off, nothing else goes', async () => {
-    const h = await withCard({ answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
-    const { opId } = h.script(0, 'hi-greeting', 'Hi there!\n[NEXT]\nSo happy you are here\n[NEXT]\nA gift for you');
-    await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} });
-    await h.advance(200);
-    await h.dispatch({ type: 'SendPart', operationId: opId, variant: 0, part: 0 });
-    const vm = h.boards.preview.getSnapshot(preview('newcomers'));
-    expect(vm.greeting).toEqual({ s: 'stopped', sent: 0, total: 3, part: 1 });
-    expect(vm.claim).toMatchObject({ s: 'held-uncertain', part: 1, error: { code: 'CG-SEND-UNCERTAIN' } });
-    expect(vm.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
-    expect(vm.bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'part-uncertain' } });
-    expect(vm.result?.parts?.map((part) => part.sendOrder)).toEqual([null, { kind: 'held', part: 1 }, { kind: 'held', part: 1 }]);
-    expect(h.boards.newcomers.getSnapshot(NEWCOMERS).rows[0]?.greeting).toEqual({ s: 'stopped', sent: 0, total: 3, part: 1 });
-    for (const part of [0, 1, 2]) expect((await h.dispatch({ type: 'SendPart', operationId: opId, variant: 0, part })).ok).toBe(false);
-    expect((await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).ok).toBe(false);
-    expect(h.host.calls.commits).toHaveLength(1);
   });
 
   it('[NF-017] an answer that cannot be a message — too long for a preview, or still carrying a part marker — is copy-only', async () => {
