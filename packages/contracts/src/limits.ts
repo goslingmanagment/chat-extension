@@ -247,16 +247,28 @@ export interface OpTimeouts {
 }
 
 const s = (seconds: number): number => seconds * SECOND;
+/**
+ * An operation that may think silently: the hub streams nothing while the model reasons, so the first chunk and the
+ * silence wait as long as the whole operation. A 45 s ceiling cut Recap, Review and «Дополнить из чата» on long chats
+ * with an empty answer, while the Fansly extension's Recap ran up to 185 s and its notes fill up to 94 s (prod,
+ * 15–20.10.2026).
+ */
+const thinking = (untilMetaSec: number, maxSec: number): OpTimeouts => ({
+  untilMetaMs: s(untilMetaSec),
+  firstChunkAfterMetaMs: s(maxSec),
+  silenceMs: s(maxSec),
+  maxMs: s(maxSec),
+});
 const QUICK: OpTimeouts = { untilMetaMs: s(30), firstChunkAfterMetaMs: s(30), silenceMs: s(30), maxMs: s(60) };
-const DEEP: OpTimeouts = { untilMetaMs: s(180), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(300) };
+const DEEP: OpTimeouts = thinking(180, 300);
 
 export const OP_TIMEOUTS: Readonly<Record<FeatureId, OpTimeouts>> = {
   reply: QUICK,
   fix: QUICK,
   hi: QUICK,
   ping: QUICK,
-  'recap-short': { untilMetaMs: s(60), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(120) },
+  'recap-short': thinking(60, 120),
   review: DEEP,
   recap: DEEP,
-  coach: { untilMetaMs: s(60), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(180) },
+  coach: thinking(60, 180),
 };
