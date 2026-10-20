@@ -194,6 +194,12 @@ export default defineConfig(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
+    // Tests, the stand and the e2e harness never ship: `tsc -b` type-checks them, the lint reads their syntax only.
+    // Type-aware linting of them was most of `pnpm lint`'s time in CI.
+    files: ['**/*.test.{ts,tsx}', 'packages/*/test/**/*.{ts,tsx}', 'apps/extension/test/**/*.ts', 'packages/testing/**/*.{ts,tsx}', 'tests/**/*.ts'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
     files: ['.dependency-cruiser.cjs', 'tools/gates/site-paths.cjs'],
     languageOptions: { sourceType: 'commonjs', globals: globals.node },
   },
