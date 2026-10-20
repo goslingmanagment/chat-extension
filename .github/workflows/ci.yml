@@ -3,11 +3,10 @@
 # A PR runs «pnpm check» alone — the check main's ruleset requires; a PR is
 # opened ready and merges itself (auto-merge) once it is green. Every push to
 # main and a manual run run everything:
-#   check-part `pnpm check` in parts side by side on GitHub-hosted runners —
-#              typecheck (`tsc -b`), lint (ESLint + dependency-cruiser), test
-#              (vitest + the dependency audit), build (build, webext-lint,
-#              gates, archive-check) (§3); on the PC one part, «all», runs
-#              `pnpm check` whole;
+#   check-part `pnpm check` in four parts side by side — typecheck (`tsc -b`),
+#              lint (ESLint + dependency-cruiser), test (vitest + the
+#              dependency audit), build (build, webext-lint, gates,
+#              archive-check) (§3);
 #   check      «pnpm check»: green only when every part is;
 #   e2e-part   `pnpm e2e` in parts side by side — headless Firefox and
 #              geckodriver inside the image pinned by digest in
@@ -45,28 +44,21 @@
 # sources archive or the site and are checked in full. Why inside the job and not
 # `paths-ignore` on the workflow: a workflow that does not start reports
 # nothing, and a PR with a required check would wait for it forever. Why not a
-# job of its own in front: that is a second wait for a runner (and for the
-# PC's priority hook).
+# job of its own in front: that is a second wait for a runner.
 #
-# Runner pool, as in hub, fansly-chat, onlyfans-chat and taskindex: GitHub-
-# hosted (4 vCPUs, free on a public repository) is the target. The repository
-# variable CI_POOL=pc sends the first attempt to the owner's self-hosted
-# runners; any other value, and every re-run (the PC may have died mid-run),
-# uses GitHub-hosted runners. A PR from a fork never runs on the PC — a fork can
-# still edit this file in its PR, so the real fence is that no self-hosted
-# runner stays registered to a public repository. The parts follow the
-# variable alone (not the attempt), so a part re-run on GitHub runs the same
-# share as on the PC: check — «all» on the PC, four parts elsewhere; the e2e
-# suite (a smoke set of the core flows, packages/testing/e2e/specs) — two parts
-# on the PC, four elsewhere. The gates «pnpm check» and «pnpm e2e» go to the
-# light runner on the PC (label ci-pc-control). The ruleset of main requires
+# Runners: GitHub-hosted only (owner, 2026-10-21), as in hub, fansly-chat,
+# onlyfans-chat and taskindex — the repository is public, so they are free, and
+# a public repository must never reach the owner's PC: no job names a
+# self-hosted label, and none is registered to the repo. The parts run on
+# ubuntu-24.04 (4 vCPUs each), the gates «pnpm check» and «pnpm e2e» on
+# ubuntu-slim. The e2e suite (a smoke set of the core flows,
+# packages/testing/e2e/specs) runs in four parts. The ruleset of main requires
 # «pnpm check» by the job's `name:`, and the release gate reads «pnpm check»
 # and «pnpm e2e» by theirs: keep the names.
 #
-# Caches (GitHub-hosted only; the PC keeps its own store in $HOME): the pnpm
-# store by lockfile, the `tsc -b` outputs (.tsbuild, incremental) for the
-# typecheck part. The e2e image downloads in the background while pnpm
-# installs.
+# Caches: the pnpm store by lockfile, the `tsc -b` outputs (.tsbuild,
+# incremental) for the typecheck part. The e2e image downloads in the
+# background while pnpm installs.
 #
 # No secret is read here and none is needed: the jobs build, lint and test
 # against the synthetic stand and the fake hub on loopback. The runners hold no
@@ -96,8 +88,8 @@ concurrency:
 
 jobs:
   check-part:
-    name: "${{ matrix.part == 'all' && 'pnpm check (all parts)' || format('pnpm check: {0}', matrix.part) }}"
-    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
+    name: "pnpm check: ${{ matrix.part }}"
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     # Reading earlier runs' proofs (tools/ci/ci-proof.ts) needs actions:read.
     permissions:
@@ -112,7 +104,7 @@ jobs:
       # Every part reports, so one run names every failing part.
       fail-fast: false
       matrix:
-        part: ${{ fromJSON(vars.CI_POOL == 'pc' && '["all"]' || '["typecheck","lint","test","build"]') }}
+        part: [typecheck, lint, test, build]
     env:
       # Type-aware ESLint exhausted the former 4 GiB heap in run 38855233102
       # as the workspace grew. Leave headroom for its TypeScript projects;
@@ -149,8 +141,7 @@ jobs:
           [ "$run" = true ] || echo 'prose only (docs/**/*.md, AGENTS.md, CLAUDE.md): nothing to check'
           echo "run=$run" >> "$GITHUB_OUTPUT"
 
-      # Node 26 (.nvmrc). The PC image has no Node on PATH: every job brings
-      # its own.
+      # Node 26 (.nvmrc).
       - name: Setup Node.js
         if: steps.scope.outputs.run != 'false'
         uses: actions/setup-node@v6
@@ -169,8 +160,7 @@ jobs:
       # Node 26 ships no corepack (the other repositories take pnpm from the
       # corepack of Node 22), so npm installs pnpm at the exact version
       # package.json "packageManager" pins — one pin, no drift — into this
-      # job's runner temp: nothing shared between runners changes. npm's own
-      # cache in $HOME serves the next job on the PC without the registry.
+      # job's runner temp.
       - name: Setup pnpm
         if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == ''
         run: |
@@ -183,26 +173,25 @@ jobs:
           [ "pnpm@$running" = "$pinned" ] || { echo "::error::pnpm $running is installed but package.json pins $pinned"; exit 1; }
           echo "$prefix/bin" >> "$GITHUB_PATH"
 
-      # GitHub-hosted: the pnpm store comes from the Actions cache, keyed by
-      # the lockfile (the PC's runners share a persistent store instead).
+      # The pnpm store comes from the Actions cache, keyed by the lockfile.
       - name: Locate the pnpm store
         id: pnpm-store
-        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted'
+        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' 
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Restore the pnpm store
-        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted'
+        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' 
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: pnpm-store-${{ runner.os }}-${{ runner.arch }}-
 
-      # GitHub-hosted typecheck: the composite projects' outputs and build
-      # info from an earlier run, so `tsc -b` re-checks only what changed
+      # Typecheck: the composite projects' outputs and build info from an
+      # earlier run, so `tsc -b` re-checks only what changed
       # (an exact key per commit; the newest earlier one is restored).
       - name: Restore the tsc -b outputs
-        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted' && matrix.part == 'typecheck'
+        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == ''  && matrix.part == 'typecheck'
         uses: actions/cache@v4
         with:
           path: |
@@ -211,15 +200,9 @@ jobs:
           key: tsbuild-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', '**/tsconfig*.json') }}-${{ github.sha }}
           restore-keys: tsbuild-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', '**/tsconfig*.json') }}-
 
-      # The PC's runners share one pnpm store in $HOME (safe for concurrent
-      # installs, same filesystem as the work dirs, so packages hard-link).
       - name: Install dependencies
         if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == ''
-        env:
-          PNPM_PC_STORE: ${{ runner.environment == 'self-hosted' && '1' || '' }}
-        run: |
-          if [ -n "$PNPM_PC_STORE" ]; then export npm_config_store_dir="$HOME/.local/share/pnpm/store"; fi
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # The part's share of `pnpm check` (package.json), in its order. Each
       # part has a fresh checkout: none reads another's output.
@@ -229,7 +212,6 @@ jobs:
           PART: ${{ matrix.part }}
         run: |
           case "$PART" in
-            all) pnpm check ;;
             typecheck) pnpm typecheck ;;
             lint) pnpm lint ;;
             test) pnpm test ;;
@@ -240,20 +222,19 @@ jobs:
       # architecture.md §14: known vulnerabilities are reported, they do not
       # fail the job (the registry's answer changes without a commit of ours).
       - name: Dependency audit (warnings only)
-        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' && (matrix.part == 'all' || matrix.part == 'test')
+        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' && matrix.part == 'test'
         run: pnpm audit --audit-level high || echo "::warning title=pnpm audit::pnpm audit reports vulnerabilities or could not reach the registry — see the log of this step"
 
   # «pnpm check», the check main's ruleset requires and the release gate reads.
   # It only reads the parts' result: green when every part is (a part that saw
   # prose alone or a proven tree is green too), red when any failed or never
   # ran. `!cancelled()`: a failed part still gets a red gate, a superseded run
-  # does not hold its runner. Seconds of shell — on the PC the light runner
-  # (ci-pc-control), off it the smallest GitHub runner.
+  # does not hold its runner. Seconds of shell on the smallest GitHub runner.
   check:
     name: pnpm check
     needs: [check-part]
     if: ${{ !cancelled() }}
-    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc-control"]') || 'ubuntu-slim' }}
+    runs-on: ubuntu-slim
     timeout-minutes: 15
     outputs:
       tree: ${{ needs.check-part.outputs.tree }}
@@ -270,8 +251,8 @@ jobs:
     name: e2e ${{ matrix.shard }}
     # Not on a PR: the suite runs on main and gates the release (see the top of the file).
     if: github.event_name != 'pull_request'
-    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
-    # A part is a few minutes; slower runners and the PC's priority hook get room.
+    runs-on: ubuntu-24.04
+    # A part is a few minutes; slower runners get room.
     timeout-minutes: 30
     permissions:
       actions: read
@@ -280,11 +261,10 @@ jobs:
       # Every part reports: a red part does not cancel the others, so one run
       # names every failing spec file.
       fail-fast: false
-      # Each part names itself and the count, «<k>/<n>»: a part re-run on
-      # GitHub runs the same spec files as on the PC (the parts are weighed by
-      # packages/testing/e2e/shard-weights.json).
+      # Each part names itself and the count, «<k>/<n>» (the parts are
+      # weighed by packages/testing/e2e/shard-weights.json).
       matrix:
-        shard: ${{ fromJSON(vars.CI_POOL == 'pc' && '["1/2","2/2"]' || '["1/4","2/4","3/4","4/4"]') }}
+        shard: ['1/4', '2/4', '3/4', '4/4']
 
     steps:
       # Two commits deep: the next step compares the pushed commit with the one
@@ -303,10 +283,10 @@ jobs:
           CG_PUSH_BEFORE: ${{ github.event.before }}
         run: tools/ci/e2e-needed.sh >> "$GITHUB_OUTPUT"
 
-      # GitHub-hosted: the pinned image (Firefox, geckodriver) downloads while
-      # pnpm installs; e2e-docker.sh finds it, or joins the pull still running.
+      # The pinned image (Firefox, geckodriver) downloads while pnpm installs;
+      # e2e-docker.sh finds it, or joins the pull still running.
       - name: Pull the e2e image in the background
-        if: steps.scope.outputs.e2e != 'false' && runner.environment == 'github-hosted'
+        if: steps.scope.outputs.e2e != 'false' 
         run: |
           # shellcheck source=tools/ci/e2e-image.sh
           . tools/ci/e2e-image.sh
@@ -343,11 +323,11 @@ jobs:
 
       - name: Locate the pnpm store
         id: pnpm-store
-        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted'
+        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == '' 
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Restore the pnpm store
-        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted'
+        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == '' 
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
@@ -356,17 +336,12 @@ jobs:
 
       - name: Install dependencies
         if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == ''
-        env:
-          PNPM_PC_STORE: ${{ runner.environment == 'self-hosted' && '1' || '' }}
-        run: |
-          if [ -n "$PNPM_PC_STORE" ]; then export npm_config_store_dir="$HOME/.local/share/pnpm/store"; fi
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # Both builds, the stand, the fake hub, WebdriverIO, geckodriver and
-      # Firefox all run inside one container with --network none: rootless
-      # Docker on the PC, the stock daemon on a hosted runner. Each part builds
-      # for itself (about 20 s on the PC — less than handing a build over
-      # through an artifact) and runs its share of the spec files.
+      # Firefox all run inside one container with --network none on the
+      # runner's Docker daemon. Each part builds for itself (less than handing
+      # a build over through an artifact) and runs its share of the spec files.
       #
       # `exec`: when a run is cancelled (a newer push to the PR does that) or
       # times out, the runner signals the step's own process and nothing below
@@ -377,7 +352,7 @@ jobs:
         if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == ''
         env:
           CG_E2E_SHARD: ${{ matrix.shard }}
-          # Parallel jobs share the PC: timings catch a 3× regression; local runs stay strict.
+          # Shared cloud runners: timings catch a 3× regression; local runs stay strict.
           CG_E2E_TIMING_SLACK: '3'
         run: exec tools/ci/e2e-docker.sh
 
@@ -407,14 +382,8 @@ jobs:
     name: pnpm e2e
     needs: [check, e2e-part]
     if: always() && github.event_name != 'pull_request'
-    # Seconds of shell. On the PC it asks for ci-pc-control, as hub's gates:
-    # the light runner winpc-chat-extension-gate-1 carries only that label,
-    # so the gate no longer waits behind other runs' parts for a heavy runner,
-    # and a job there skips the priority hook (ci-runners README «Раннеры под
-    # гейты»). The heavy runners carry it too: with the light one busy or down
-    # the gate falls back to them. Off the PC the smallest GitHub runner does.
-    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc-control"]') || 'ubuntu-slim' }}
-    # Seconds of work; the rest is room for the PC's priority hook on a heavy runner.
+    # Seconds of shell on the smallest GitHub runner.
+    runs-on: ubuntu-slim
     timeout-minutes: 15
 
     steps:
