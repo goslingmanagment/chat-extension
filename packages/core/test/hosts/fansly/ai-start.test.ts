@@ -4,7 +4,7 @@
 // — in place of ChatSpace's visible tail — for the target's group, its window min(60, N) of the start's messageCount.
 // The start carries it as its shared `proof`; the background asks the hub about it: the window and the deleted ids
 // (`coverageCheck` under `coverage-check-v1`), the fan's known ids, a draft's texts (`liveTextContext` under the
-// page's `freshText`), never a messageCount below the window. Recap, Review and Coach are checked without a text.
+// page's `freshText`), never a messageCount below the window. Recap, Review and Coach carry admitted text too.
 // No snapshot is no proof: the generation goes on, unverified (FS-TAIL-7).
 // And the verdict over the dock's result (R20 P8b2, spec §3.5, FS-TAIL-8): the tab keeps the proof's ids with the
 // operation, reads the hub's answers about them, and the shared result draws the mark the policy gives; inserting is
