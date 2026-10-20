@@ -852,8 +852,9 @@ export declare const clientClaimGroupSchema: z.ZodObject<{
     partCount: z.ZodNumber;
 }, z.core.$strict>;
 /**
- * A greeting with no AI generation behind it (`manual-greeting-v1`): one part,
- * named by the sha256 of its exact text. Only for a greeting.
+ * A text with no AI generation behind it (`manual-greeting-v1`): one part,
+ * named by the sha256 of its exact text. Which purposes take it is the
+ * platform's admission.
  */
 export declare const clientManualClaimGroupSchema: z.ZodObject<{
     kind: z.ZodLiteral<"manual">;

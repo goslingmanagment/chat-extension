@@ -130,7 +130,7 @@ export type AiStreamCapability = (typeof AI_STREAM_CAPABILITIES)[number];
  * Stream one AI generation through the gateway
  * (`POST /api/v1/ai/gateway/stream`, `event: ai` frames).
  */
-/** Stage 31: stream a kernel-assembled feature generation (Stage 30 route).
+/** Stream a kernel-assembled feature generation.
  * Same SSE framing as the raw gateway stream — one helper per entry path.
  * `debugPromptEcho` is kept for existing callers: it equals advertising
  * `debug-input-v1` in `capabilities`. */
@@ -171,10 +171,10 @@ export declare function fetchVoiceNoteAudio(options: KernelClientOptions, input:
     id: number;
 }): Promise<Response>;
 /**
- * Subscribe to the v2 domain-event stream (`GET /api/v1/events/v2/stream`,
- * kernel Stage 21). The cursor is OPAQUE — persist the last delivered one and
- * hand it back on reconnect. Single connection, no auto-reconnect (same
- * contract as v1: the server bounds stream lifetime; consumers own the loop).
+ * Subscribe to the v2 domain-event stream (`GET /api/v1/events/v2/stream`).
+ * The cursor is OPAQUE — persist the last delivered one and hand it back on
+ * reconnect. Single connection, no auto-reconnect (same contract as v1: the
+ * server bounds stream lifetime; consumers own the loop).
  * A 409 becomes `onSnapshotRequired` with the per-account detail; recover via
  * `client.eventsV2Snapshot(...)` and resubscribe with the fresh cursor.
  * `platform` narrows the stream to one platform's granted accounts; pass the

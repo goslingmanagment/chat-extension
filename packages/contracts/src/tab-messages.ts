@@ -264,6 +264,12 @@ export const SendBeginSchema = z
     checkpoint: FreshnessCheckpointSchema,
     /** «Отправить всё равно» on a freshness warning: the background does not hold on condition 14 (audit 2026-10-20, rows 3–4). */
     acceptFreshness: z.optional(z.literal(true)),
+    /**
+     * The person's own text from the preview's draft field (audit 2026-10-20, row 1): no generation behind it. `opId`
+     * and `group` are the tab's own local names for it (one part); the hub's custody keys it by `textFingerprint`, the
+     * sha256 of the exact text (lower-case hex), as a manual group (`manual-greeting-v1`).
+     */
+    manual: z.optional(z.strictObject({ textFingerprint: z.string().check(z.regex(/^[0-9a-f]{64}$/)) })),
     /** The MAIN document the command will go to; equals the checkpoint's. */
     documentEpoch: EpochTokenSchema,
     cause: HumanCauseSchema,
@@ -281,6 +287,7 @@ export const SendBeginSchema = z
     z.refine((b) => partInGroup(b.part, b.group), { message: 'the part belongs to the group: same variant (absent = 0), index below partCount' }),
     z.refine((b) => checkpointMatches(b.checkpoint, b.target.chat.hostAccountId, b.target.chat.platformFanId), { message: 'the checkpoint belongs to the target chat' }),
     z.refine((b) => b.checkpoint.documentEpoch === b.documentEpoch, { message: 'the checkpoint was taken in this document' }),
+    z.refine((b) => b.manual === undefined || (b.group.partCount === 1 && b.group.variant === 0 && b.part.index === 0), { message: 'own text is one part' }),
   );
 export type SendBegin = z.infer<typeof SendBeginSchema>;
 

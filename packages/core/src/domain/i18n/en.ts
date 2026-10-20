@@ -203,6 +203,7 @@ export const EN: I18nCatalog<'en'> = {
 
   // ── Result sheet ──
   'result.label': 'ChatGoose result',
+  'result.own': 'Your text',
   'result.draft': 'draft · not sent',
   'result.draftTooltip': 'The answer has not gone to the fan yet',
   'result.meta.tone': 'tone: {tone}',
@@ -251,6 +252,10 @@ export const EN: I18nCatalog<'en'> = {
   'part.insertTooltip': 'Insert into the {site} message field',
   'part.insertAgain': 'Insert again',
   'part.copyN': 'Copy part {n}',
+  'part.edit': 'Edit',
+  'part.editTooltip': 'Change the text before sending',
+  'part.revert': 'Back to the AI text',
+  'part.editAria': 'Text of part {n}',
   'part.inserted': 'inserted',
   'part.variant': 'Variant {n}',
   'part.oneAtATime': 'Parts are inserted one at a time',
@@ -476,8 +481,11 @@ export const EN: I18nCatalog<'en'> = {
   'preview.ping.segmentNoDays': 'Segment {segment}',
   'preview.ping.active': 'The fan wrote recently',
   'preview.ping.unknown': 'Ping segment unknown',
-  'preview.draft.placeholder': 'Your text for Fix. It does not go to the chat',
-  'preview.draft.aria': 'Draft for Fix',
+  'preview.draft.placeholder': 'Your own text: send it to the fan or fix it with Fix',
+  'preview.draft.aria': 'Your own text',
+  'preview.draft.send': 'Send',
+  'preview.draft.sendTooltip': 'Send this text to the fan as one message',
+  'preview.draft.sendEmpty': 'write the text first',
   'preview.empty': 'Reply, Hi or Ping — the draft appears here. Sending happens only with the button on each part.',
   'preview.previousFan': 'Previous fan',
   'preview.nextFan': 'Next fan',
@@ -650,7 +658,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.draftStale': 'draft is stale',
   'newcomers.scanProgress': '{done} of {total}',
   'newcomers.window.label': 'How far back to show new fans',
-  'newcomers.greetingDraft.placeholder': 'Greeting draft. Stays here, not in the chat',
+  'newcomers.greetingDraft.placeholder': 'Your own greeting: write it and send it to the fan',
   'newcomers.greetingDraft.aria': 'Greeting draft',
 
   // ── Fan panel and Coach ──

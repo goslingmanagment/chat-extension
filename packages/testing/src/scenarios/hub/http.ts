@@ -116,10 +116,10 @@ export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readon
   preview: { onlyfans: { capabilities: ['archive-feed-v1'] }, fansly: { capabilities: ['archive-feed-v1', 'conversation-recaps-v1'] } },
   stats: { onlyfans: { capabilities: ['spenders-stats-v1', 'awaiting-reply-v1'] } },
   newcomers: {
-    onlyfans: { capabilities: ['audience-new-v1', 'preview-send-custody-v1'] },
+    onlyfans: { capabilities: ['audience-new-v1', 'preview-send-custody-v1', 'manual-greeting-v1'] },
     fansly: { capabilities: ['preview-send-custody-v1', 'manual-greeting-v1'] },
   },
-  previewSend: { onlyfans: { capabilities: ['preview-send-custody-v1'] } },
+  previewSend: { onlyfans: { capabilities: ['preview-send-custody-v1', 'manual-greeting-v1'] } },
   drafts: { fansly: NOTHING },
   voice: { fansly: { capabilities: ['voice-notes-v1'], lane: 'voice-notes' } },
   notesFill: { fansly: NOTHING },

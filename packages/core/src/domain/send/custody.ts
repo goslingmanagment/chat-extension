@@ -9,7 +9,7 @@
 // or an owner's `resolve` in the hub. `dispatch` itself is never repeated.
 
 import { type CgCode } from '@cg/contracts/errors';
-import { CUSTODY_BLOCKING_STATES, isCustodyTransition, type ClaimBody, type ClaimState, type CustodyState, type HubFailure } from '@cg/contracts/hub';
+import { CUSTODY_BLOCKING_STATES, isCustodyTransition, type ClaimBody, type ClaimState, type CustodyState, type HubClaimBody, type HubFailure } from '@cg/contracts/hub';
 import { type DispatchTicket, type SEND_PURPOSES, type SendGroup } from '@cg/contracts/send';
 import { SEND_CUSTODY_REPORTS, isNativeRefusalStatus, localDeadline, type SendAttemptState } from '@cg/contracts/send-rules';
 
@@ -31,15 +31,17 @@ export interface DispatchInput {
   readonly leaseToken?: string;
   /** bootstrap configRevision the client acted on. */
   readonly flagRevision: number;
+  /** The person's own text (audit 2026-10-20, row 1): the hub's manual group, keyed by the text's sha256. */
+  readonly manual?: { readonly textFingerprint: string };
 }
 
-export function dispatchBody(input: DispatchInput): ClaimBody {
+export function dispatchBody(input: DispatchInput): HubClaimBody {
   return {
     action: 'dispatch',
     attemptId: input.attemptId,
     instanceId: input.instanceId,
     purpose: input.purpose,
-    group: { generationRef: input.group.generationRef, variant: input.group.variant, partCount: input.group.partCount },
+    group: input.manual !== undefined ? { kind: 'manual', textFingerprint: input.manual.textFingerprint } : { generationRef: input.group.generationRef, variant: input.group.variant, partCount: input.group.partCount },
     partIndex: input.partIndex,
     textRevision: input.textRevision,
     ...(input.leaseToken === undefined ? {} : { leaseToken: input.leaseToken }),
@@ -110,7 +112,7 @@ export function custodyBlocks(state: CustodyState): boolean {
  * `failed` ends only `dispatching` — once the ticket expired unreported the
  * custody is `uncertain-held` and only the late proof or a resolve ends it.
  */
-export function reportAccepted(body: ClaimBody, state: CustodyState): boolean {
+export function reportAccepted(body: HubClaimBody, state: CustodyState): boolean {
   if (body.action === 'sent') return state !== 'sent' && isCustodyTransition(state, 'sent');
   if (body.action === 'failed') return isCustodyTransition(state, 'failed') && state !== 'failed';
   return false;

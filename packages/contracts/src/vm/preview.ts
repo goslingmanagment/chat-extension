@@ -84,7 +84,11 @@ export interface PreviewVM {
   };
   readonly ping: PingSegmentVM | null;
   /** The local draft (Fix source, a greeting draft), up to 5000 characters; never sent by itself. */
-  readonly draft: { readonly text: string; readonly maxChars: number; readonly placeholder: Msg };
+  /**
+   * `send` — «Отправить» of the field: the person's own text to the fan by one click (2026-10-20 audit, row 1); absent
+   * where the preview sends nothing.
+   */
+  readonly draft: { readonly text: string; readonly maxChars: number; readonly placeholder: Msg; readonly send?: { readonly enabled: boolean; readonly reason: ReasonVM | null } };
   /** The mini strip: Reply · Fix · Hi · Ping (only Hi in «Новые»), Tone and Split; no key labels, no persona. */
   readonly bar: {
     readonly actions: Readonly<Partial<Record<PreviewActionId, DockActionVM>>>;

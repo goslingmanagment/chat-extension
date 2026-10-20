@@ -86,7 +86,7 @@ export function createTabClient(deps: TabClientDeps): AppClient {
  * not take it (`handoverToast`).
  */
 export function boardReceiptToast(action: UiAction, receipt: ActionReceipt): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey | null } | null {
-  if (action.type === 'SendPart' && !receipt.ok) return { code: receipt.code, scope: 'board.send', title: null };
+  if ((action.type === 'SendPart' || action.type === 'SendDraft') && !receipt.ok) return { code: receipt.code, scope: 'board.send', title: null };
   return null;
 }
 

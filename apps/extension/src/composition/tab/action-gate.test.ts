@@ -267,6 +267,7 @@ describe('the action tokens of a tab', () => {
       OpenChatToVerify: ['navigate'],
       Navigate: ['navigate'],
       SendPart: ['send'],
+      SendDraft: ['send'],
       SendNewcomerGreeting: ['send'],
       InsertNewcomerGreeting: ['navigate'],
     });

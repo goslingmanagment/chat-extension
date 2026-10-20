@@ -208,8 +208,14 @@ export interface PartVM {
   readonly label: Msg;
   /** A single message (Split off) has no number. */
   readonly numbered: boolean;
-  /** The parsed AI part; not editable in v1 (what «Отправить» sends, what «Вставить» inserts). */
+  /** The parsed AI part, or the person's edit of it (`edited`): what «Отправить» sends. */
   readonly text: string;
+  /** Previews: the part may be edited before it is sent (2026-10-20 audit, row 1). */
+  readonly editable?: boolean;
+  /** Its editor is open (`text` is the person's). */
+  readonly editing?: boolean;
+  /** `text` is not the AI's: no «Открыть и вставить» or copy of the AI text beside it. */
+  readonly edited?: boolean;
   /** The next part to insert: «Вставить ↵» as a line button. */
   readonly next: boolean;
   readonly insert: 'idle' | 'pending' | 'done' | 'failed';
@@ -292,6 +298,8 @@ export type ResultMarkKey = `result.stale.${'unverified' | 'windowMiss' | 'delet
 
 export interface ResultVM {
   readonly opId: Uuid;
+  /** The person's own text sent from the draft field (2026-10-20 audit, row 1): its head says so, no «Ещё раз». */
+  readonly own?: true;
   readonly feature: FeatureId;
   readonly surface: Surface;
   /** admitted/requesting/streaming → stage line; done → parts; failed → error card; canceled → closes; interrupted → CG-OP-INTERRUPTED with «Ещё раз». */

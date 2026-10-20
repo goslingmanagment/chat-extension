@@ -30,6 +30,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   OpenPreview: { type: 'OpenPreview', targetHandle: 'spenders:f1' },
   RefreshArchive: { type: 'RefreshArchive', targetHandle: 'spenders:f1' },
   LoadOlder: { type: 'LoadOlder', targetHandle: 'spenders:f1' },
+  EditPart: { type: 'EditPart', operationId: OP, part: 0, text: 'hey, edited' },
+  SendDraft: { type: 'SendDraft', targetHandle: 'spenders:f1' },
   SetPreviewDraft: { type: 'SetPreviewDraft', targetHandle: 'spenders:f1', text: 'hey, missed you' },
   SetMediaOpen: { type: 'SetMediaOpen', targetHandle: 'spenders:f1', open: true },
   ChooseMediaFolder: { type: 'ChooseMediaFolder', targetHandle: 'spenders:f1', folder: 'all' },

@@ -53,7 +53,8 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
   const sends = new SendCoordinator({
     clock,
     hub: {
-      claim: (op) => hub.call('clientFanClaim', () => hub.facade.claim(op)),
+      // `check`: the person's own text names the hub's manual group, checked by its own schema (send-coordinator.ts).
+      claim: (op, check) => hub.call('clientFanClaim', () => hub.facade.claim(op, check)),
       claimStatus: (pageLabel, fanRef) => hub.call('clientFanClaimStatus', () => hub.facade.claimStatus(pageLabel, fanRef)),
     },
     resolve: hub.resolve,

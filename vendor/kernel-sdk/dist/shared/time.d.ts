@@ -32,11 +32,7 @@ export declare function startOfBusinessDay(date: Date, timeZone?: string): Date;
 export declare function addUtcDays(date: Date, days: number): Date;
 export declare function toBusinessDate(date: Date, timeZone?: string): string;
 export declare function isValidBusinessDateString(value: string): boolean;
-export declare function parseBusinessDate(value: string): {
-    year: number;
-    month: number;
-    day: number;
-};
+export declare function parseBusinessDate(value: string): Pick<DateParts, "day" | "month" | "year">;
 export declare function resolveBusinessTimeZone(platform: Platform): string;
 export declare function businessDateToUtcStart(value: string, timeZone?: string): Date;
 export declare function resolvePeriodBounds(period: Period, now?: Date, custom?: {

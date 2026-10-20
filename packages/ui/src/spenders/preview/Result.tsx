@@ -9,9 +9,11 @@ import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
-import { type I18n, type Msg, type PartVM, type PreviewSendView, type ResultVM } from '@cg/contracts/vm';
+import { SEND_LIMITS } from '@cg/contracts/limits';
+import { type I18n, type Msg, type PartVM, type PreviewSendView, type ResultVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, Caret, ErrorCard, Spinner, StageLine, focusQuietly, isComposing, useAnnounce, useDispatch, useHints, useI18n, useKit, useTooltip } from '../../kit';
+import { Button, Caret, ErrorCard, Spinner, StageLine, TextField, focusQuietly, isComposing, useAnnounce, useDispatch, useHints, useI18n, useKit, useTooltip } from '../../kit';
+import { useOwnEchoes } from '../ownEchoes';
 import { SendRow, SentLine, offersOpenInsert, openAndInsert, sendStateWords } from './SendRow';
 
 /** Function names are Latin and the same in every language (ui-design §1 п. 13). */
@@ -63,7 +65,7 @@ function Head({ result }: { readonly result: ResultVM }): JSX.Element {
   return (
     <div class="cg-pvr__head">
       <span class="cg-gut cg-pvr__gut">{running ? <Spinner /> : null}</span>
-      <span class="cg-pvr__title">{titleKey === undefined ? result.feature : i18n.t(titleKey)}</span>
+      <span class="cg-pvr__title">{result.own === true ? i18n.t('result.own') : titleKey === undefined ? result.feature : i18n.t(titleKey)}</span>
       {running && result.phase !== null ? (
         <StageLine phase={result.phase} startedAt={result.startedAt} />
       ) : metas.length === 0 ? null : (
@@ -79,7 +81,7 @@ function Head({ result }: { readonly result: ResultVM }): JSX.Element {
       <span class="cg-pvr__sp" />
       {running ? (
         cancel === null ? null : <Button label={i18n.t('common.cancelOp')} variant="plain" onClick={() => void dispatch(cancel)} />
-      ) : (
+      ) : result.own === true ? null : (
         <Button
           label={i18n.t('common.again')}
           variant="plain"
@@ -151,10 +153,14 @@ function PreviewPart({ result, part, tabStop, onStep }: PreviewPartProps): JSX.E
         {part.numbered ? n : ''}
       </span>
       <div class="cg-pvp__main">
-        <div class="cg-pvp__t" {...fullText.props}>
-          {part.text}
-          {fullText.description}
-        </div>
+        {part.editing === true && !collapsed ? (
+          <PartEditor result={result} part={part} />
+        ) : (
+          <div class="cg-pvp__t" {...fullText.props}>
+            {part.text}
+            {fullText.description}
+          </div>
+        )}
         {collapsed ? null : <SendRow result={result} part={part} />}
         {!collapsed && part.copy === 'failed' && part.copyError !== null ? (
           <div class="cg-pvp__card">
@@ -170,6 +176,34 @@ function PreviewPart({ result, part, tabStop, onStep }: PreviewPartProps): JSX.E
       {sentAt === null ? null : <SentLine part={part} at={sentAt} />}
     </div>
   );
+}
+
+/** The person's text of a part (audit 2026-10-20, row 1): what «Отправить» below sends. */
+function PartEditor({ result, part }: { readonly result: ResultVM; readonly part: PartVM }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  // The model echoes every change; an echo of an earlier one never undoes what was typed since.
+  const text = useOwnEchoes(part.text, `${result.opId}:${part.variant ?? 0}:${part.index}`);
+  return (
+    <TextField
+      value={text.shown}
+      label={i18n.t('part.editAria', { n: part.index + 1 })}
+      multiline
+      minHeight={36}
+      maxHeight={160}
+      maxLength={SEND_LIMITS.previewDraftMaxChars}
+      onValue={(typed) => {
+        const value = typed.slice(0, SEND_LIMITS.previewDraftMaxChars);
+        text.sent(value);
+        void dispatch(editPart(result.opId, part, value));
+      }}
+    />
+  );
+}
+
+/** EditPart of one part: `text` — the part as it is to go, null — back to the AI's. */
+export function editPart(opId: string, part: PartVM, text: string | null): UiAction {
+  return part.variant === null ? { type: 'EditPart', operationId: opId, part: part.index, text } : { type: 'EditPart', operationId: opId, variant: part.variant, part: part.index, text };
 }
 
 /** Says a part's new send state once («Часть 2. Отправлено 09:21»); the first render is silent. */

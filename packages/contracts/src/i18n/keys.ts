@@ -85,7 +85,7 @@ export const UI_TEXT_KEYS = [
   'dock.hint.reply', 'dock.hint.replyAs', 'dock.hint.fix', 'dock.hint.hi', 'dock.hint.ping', 'dock.hint.review', 'dock.hint.recap', 'dock.hint.coach',
   'dock.hint.tone.casual', 'dock.hint.tone.flirty', 'dock.hint.tone.upsell', 'dock.hint.tone.spicy', 'dock.hint.toneOff', 'dock.hint.split',
   'dock.hint.spenders', 'dock.hint.newcomers',
-  'result.label', 'result.draft', 'result.draftTooltip', 'result.meta.tone', 'result.meta.inserted', 'result.meta.single', 'result.meta.onePart',
+  'result.label', 'result.own', 'result.draft', 'result.draftTooltip', 'result.meta.tone', 'result.meta.inserted', 'result.meta.single', 'result.meta.onePart',
   'result.meta.forFan', 'result.meta.byYourDraft', 'result.meta.failed', 'result.meta.notStarted', 'result.meta.unparsed',
   'result.meta.sentProgress', 'result.againTooltip', 'result.againBlocked', 'result.againBlockedUncertain', 'result.hideTooltip',
   'result.timerTooltip', 'result.stage.context',
@@ -93,7 +93,7 @@ export const UI_TEXT_KEYS = [
   'result.stale.body', 'result.keys.part',
   'result.keys.variant', 'result.keys.insert', 'result.keys.copy', 'result.keys.collapse', 'result.keys.hideTooltip',
   'result.expand', 'result.collapse', 'result.announce.stage', 'result.announce.canRetry',
-  'part.aria', 'part.ariaSent', 'part.insert', 'part.insertTooltip', 'part.insertAgain', 'part.copyN', 'part.inserted', 'part.variant',
+  'part.aria', 'part.ariaSent', 'part.insert', 'part.insertTooltip', 'part.insertAgain', 'part.copyN', 'part.edit', 'part.editTooltip', 'part.revert', 'part.editAria', 'part.inserted', 'part.variant',
   'part.oneAtATime',
   'confirm.humanDraft', 'confirm.draftChanged', 'confirm.formatLoss', 'confirm.replace', 'confirm.append',
   'fix.yourText', 'fix.after', 'fix.afterInField', 'fix.replace', 'fix.replaced', 'fix.restore', 'fix.restoreExpired', 'fix.cannotCheck',
@@ -136,7 +136,7 @@ export const UI_TEXT_KEYS = [
   'preview.notOpenedTooltip', 'preview.notOpenedAfterSend', 'preview.notOpenedAfterSendTooltip', 'preview.archiveLag', 'preview.fanWroteNew', 'preview.feed.tip', 'preview.feed.bought', 'preview.feed.empty',
   'preview.feed.emptySubscribed', 'preview.feed.label', 'preview.feed.fanPrefix', 'preview.feed.deleted', 'preview.feed.automatic', 'preview.feed.priced',
   'preview.feed.notBought', 'preview.feed.older', 'preview.ping.segment', 'preview.ping.segmentNoDays', 'preview.ping.active', 'preview.ping.unknown',
-  'preview.draft.placeholder', 'preview.draft.aria', 'preview.empty',
+  'preview.draft.placeholder', 'preview.draft.aria', 'preview.draft.send', 'preview.draft.sendTooltip', 'preview.draft.sendEmpty', 'preview.empty',
   // 1.37.0 (X65): the preview under the list — the neighbouring fans in its header, the row's last message while the archive has none.
   'preview.previousFan', 'preview.nextFan', 'preview.feed.lastOnly',
   // 1.30.0 (X53): the media picker of a preview.

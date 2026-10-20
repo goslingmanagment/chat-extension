@@ -74,7 +74,7 @@ export const authUserSchema = z.object({
     id: intId,
     username: z.string(),
     role: userRoleEnum,
-    // DEPRECATED (Decision 370): the #116(b) flag is retired — this field is a
+    // DEPRECATED: the #116(b) flag is retired — this field is a
     // wire-only constant `false`. It stays forever because the vendored client
     // SDKs declare it required (`$strip` tolerates extra fields, never missing
     // ones): dropping it would turn `me()` into response_validation_failed on
@@ -82,7 +82,7 @@ export const authUserSchema = z.object({
     mustChangePassword: z.boolean(),
     assignedPages: z.array(pageRefSchema),
 });
-// --- Stage 22: device tokens + access grants ---
+// --- Device tokens + access grants ---
 export const changePasswordBodySchema = z.object({
     currentPassword: z.string().min(1).max(1024),
     newPassword: z.string().min(8).max(256),
@@ -115,8 +115,8 @@ export const deviceTokenItemSchema = z.object({
     isActive: z.boolean(),
     expiresAt: isoTimestamp,
     lastUsedAt: isoTimestamp.nullable(),
-    // Decision 349 (Р7): the x-client-version the token last presented, written
-    // by the same UPDATE as lastUsedAt. Null until the token's first use.
+    // The x-client-version the token last presented, written by the same
+    // UPDATE as lastUsedAt. Null until the token's first use.
     lastClientVersion: z.string().nullable(),
     createdAt: isoTimestamp,
     revokedAt: isoTimestamp.nullable(),
@@ -128,8 +128,8 @@ export const deviceTokenHarvestCapabilityBodySchema = z.object({
     machineId: z.string().uuid().nullable(),
 });
 // D116(c) fleet-gate foundation (desktop D19): per active chatter, device-token
-// freshness. Read-only reporting surface. (Decision 370 retired the API-key
-// columns with the lane itself.)
+// freshness. Read-only reporting surface. (The API-key columns were retired
+// with the lane itself.)
 // Deliberately NO aggregate go/no-go boolean: chatter-role automation
 // accounts (probes/scripts) are indistinguishable from humans until the
 // service-account split lands, so any all-chatters flag would be
@@ -162,18 +162,18 @@ export const accessGrantItemSchema = z.object({
 });
 export const registrationStateEnum = z.enum(["invited", "active"]);
 export const adminUserSchema = authUserSchema.extend({
-    // Decision #126: deactivation tombstone (null = active) and the honest
-    // activity signal — the last device-token use (Decision 370 retired the
-    // API-key half of it with the lane).
+    // Deactivation tombstone (null = active) and the honest
+    // activity signal — the last device-token use (the API-key half of it was
+    // retired with the lane).
     disabledAt: isoTimestamp.nullable(),
     // Deleted accounts retain their immutable attribution but cannot authenticate.
     deletedAt: isoTimestamp.nullable(),
     lastActiveAt: isoTimestamp.nullable(),
-    // Decision 349 (§4.1 p.12): "invited" = no password yet (the invite link has
+    // "invited" = no password yet (the invite link has
     // not been redeemed); "active" = a password is set.
     registrationState: registrationStateEnum,
 });
-// --- Decision 349: unified chatter account — account links (invite / reset),
+// --- Unified chatter account — account links (invite / reset),
 // password-based device-token issuance, self-serve cabinet ---
 export const accountLinkKindEnum = z.enum(["invite", "password_reset"]);
 export const accountLinkStateEnum = z.enum(["active", "used", "expired", "revoked"]);
@@ -753,7 +753,7 @@ export const pageRevenueItemSchema = z.object({
     deltaNetMills: mills.nullable().optional(),
     deltaPct: z.number().nullable().optional(),
     platform: platformEnum.optional(),
-    // W7.2 (A33, decision #131): revenue rollups include tombstoned pages —
+    // W7.2 (A33): revenue rollups include tombstoned pages —
     // historical attribution is permanent. Optional (additive).
     status: z.enum(["active", "deleted"]).optional(),
 });
@@ -1279,8 +1279,8 @@ const pageConversationStateSchema = z.object({
     chatAccess: conversationChatAccessSchema.optional(),
 });
 /** Provenance of a conversation message (Fansly live overlay, plan §7.11).
- * Additive: present only on pages that read the live overlay
- * (`fanslyLiveOverlayReadPages`), absent everywhere else and from older
+ * Additive: present only on pages that read the live overlay (Fansly
+ * pages), absent everywhere else and from older
  * kernels; an absent value means a REST copy. `rest`: Hub's REST-synced copy.
  * `live`: the message came from the page's Fansly socket and Hub's REST copy
  * has not arrived yet: text, sender and time are provisional, and tips and
@@ -1593,9 +1593,9 @@ export const aiUsageBatchResponseSchema = z.object({
     invalidCount: z.number().int().nonnegative(),
     dedupedCount: z.number().int().nonnegative(),
 });
-// Stage 11: client-capture lane. The desktop uploads spool-backed batches of
+// Client-capture lane. The desktop uploads spool-backed batches of
 // device-held facts; each event becomes one observation (source
-// 'client_capture', dedup on <principal>:<clientEventId> via the Stage 7 key
+// 'client_capture', dedup on <principal>:<clientEventId> via the key
 // protocol). Unknown kinds are journaled, never dropped (capture-first).
 export const ingestObservationEventSchema = z.object({
     clientEventId: z.string().uuid(),
@@ -1855,7 +1855,7 @@ export const aiFeatureStreamFrameSchema = z.union([
     aiFeatureDebugInputFrameSchema,
     aiFeatureContextFrameSchema,
 ]);
-// Stage 29 restricted capture class (DP 6-A): owner-only reads.
+// Restricted capture class (DP 6-A): owner-only reads.
 // Personas are global single-tenant owner content. Legacy full-text client
 // routes remain during the read-only-client rollout; new clients consume only
 // the metadata catalog and the owner dashboard uses the separate admin CRUD.
@@ -1956,7 +1956,7 @@ export const adminAiPersonaUpdateBodySchema = z.object({
 export const adminAiPersonaArchiveQuerySchema = z.object({
     expectedVersion: z.coerce.number().int().positive(),
 }).strict();
-// Stage 30 feature services: kernel-side prompt assembly over the gateway.
+// Feature services: kernel-side prompt assembly over the gateway.
 export const aiFeatureStreamParamsSchema = z.object({
     feature: z.string().min(1).max(40),
 });
@@ -2252,12 +2252,12 @@ export const aiFeatureStreamBodySchema = z.object({
     // chatterQuestion field is absent or whitespace-only.
     preset: z.literal("situation").optional(),
     summaryMode: z.literal("short").optional(),
-    // hi-greeting only (Decision 379): how many greeting variants the unified
+    // hi-greeting only: how many greeting variants the unified
     // template asks for. The chat Hi button sends 3, the New Followers queue
     // sends 1. Absent means 3, or 1 under the deprecated alias below.
     variantCount: z.union([z.literal(1), z.literal(3)]).optional(),
-    // DEPRECATED alias (Decision 379), kept for released clients (extension
-    // <= 2.4.3, of-desktop). It keeps its Decision 333 semantics exactly: the
+    // DEPRECATED alias, kept for released clients (extension
+    // <= 2.4.3, of-desktop). It keeps its semantics exactly: the
     // identity validations, one message when variantCount is absent, and the
     // freshness gate skipped. New clients send variantCount instead. Do not
     // remove while a supported client still sends it.
@@ -2297,8 +2297,12 @@ export const aiFeatureStreamBodySchema = z.object({
     // `gate_hi_greeting_limit` with reason `history_unproven`.
     startProof: aiStartProofV1Schema.optional(),
     // The same count at the top level, as the released clients carry it in
-    // `clientContext.personalMessageCount`. It proves nothing by itself, and
-    // beside a proof it must equal `startProof.personalCount`.
+    // `clientContext.personalMessageCount`. On the Fansly lane it proves nothing
+    // by itself, and beside a proof it must equal `startProof.personalCount`.
+    // On an OnlyFans `hi-greeting` (no clientContext) it is accepted alone: the
+    // ChatSpace extension's count of the personal messages in the window it read
+    // (fan messages and the model's own, no mass, queue or welcome sends), which
+    // the Hi gate counts in place of the hub's transcript (audit 2026-10-20 row 6).
     personalMessageCount: z.number().int().min(0).optional(),
     // The fan's avatar as the page already loaded it; rides to the provider as
     // an image, exactly as `clientContext.fanAvatarUrl` does. The hub never
@@ -2309,24 +2313,23 @@ export const aiFeatureStreamBodySchema = z.object({
     // clientContext, and only from a caller that advertised `context-v1`:
     // anything else is a 400 with a machine reason. Either platform (a Fansly
     // page since R20 HF-8б).
-    // Whether it is USED is the owner's switch (`aiLiveTextContextMode` and the
-    // page's `freshText` flag); switched off, it is ignored and the `context_v1`
-    // frame says `live.status: "disabled"`.
+    // Whether it is USED is the page's `freshText` flag; switched off, it is
+    // ignored and the `context_v1` frame says `live.status: "disabled"`.
     liveTextContext: aiLiveTextContextSchema.optional(),
     // chat-extension X54: the PPV state of the open OnlyFans chat (above).
     // Accepted where `liveTextContext` is (fast-reply, improve-draft,
     // hi-greeting, ping; never beside clientContext), and on an OnlyFans page
     // only: anything else is a 400 with a machine reason. Used under the same
-    // owner's switch as the fresh text (`aiLiveTextContextMode` and the page's
-    // `freshText` flag); switched off, it is ignored.
+    // flag as the fresh text (the page's `freshText` flag); switched off, it is
+    // ignored.
     livePpvContext: aiLivePpvContextSchema.optional(),
-    // Stage 32: client-loaded context for platforms whose kernel archive is
+    // Client-loaded context for platforms whose kernel archive is
     // pull-cadenced (Fansly: dm_conversations 30 min / dm_messages 24 h — no
     // webhook lane), where the client reads the conversation live at
     // generation time. Prompt ASSEMBLY stays kernel-side (templates, personas,
     // policies, platform wording); only the context VALUES ride in. The values
     // land verbatim in the assembled prompt and are captured under the
-    // Stage 29 restricted class exactly like archive-loaded context.
+    // restricted class exactly like archive-loaded context.
     clientContext: z.object({
         transcript: z.string().min(1).max(300_000),
         messageCount: z.number().int().min(0).max(5000),
@@ -2334,15 +2337,15 @@ export const aiFeatureStreamBodySchema = z.object({
         fanSpendingData: z.string().max(20_000).default(""),
         fanSubscriptionData: z.string().max(20_000).default(""),
         fanBio: z.string().max(5_000).optional(),
-        // Decision 290: the chatter's own saved name for the fan (Fansly rename,
+        // The chatter's own saved name for the fan (Fansly rename,
         // account note contentType 12002). Read by the ping template today;
         // optional for clients released before it.
         fanCustomName: z.string().max(200).optional(),
-        // hi-greeting only (Decision 379; any hi-greeting request, no longer tied
+        // hi-greeting only (any hi-greeting request, no longer tied
         // to the deprecated greetingMode alias). The kernel never fetches the URL.
         fanUsername: z.string().max(200).optional(),
         fanAvatarUrl: fanslyAvatarUrlSchema.optional(),
-        // hi-greeting only (Decision 379): messages in the window that are NOT
+        // hi-greeting only: messages in the window that are NOT
         // automatic/mass sends (fan messages plus the model's personal ones). The
         // freshness gate counts these when present, so a fan holding only welcome
         // and mass messages is not locked out. Never above messageCount.
@@ -2350,7 +2353,7 @@ export const aiFeatureStreamBodySchema = z.object({
         pingSegment: z.enum(["segment-a", "segment-b", "active"]).optional(),
         // Whole days since the fan's latest text message, computed from the same
         // analysis (and clock) that selected pingSegment. Ping only; optional for
-        // compatibility with clients released before Decision #127.
+        // compatibility with clients released before the field existed.
         fanSilenceDays: z.number().int().min(0).max(FAN_SILENCE_DAYS_MAX).optional(),
         transcriptCoverage: z.enum(["full-history", "window"]).optional(),
         // The clock of the transcript's `[HH:MM]` and `--- YYYY-MM-DD ---` lines:
@@ -2488,7 +2491,7 @@ export const adminChatterUsageResponseSchema = z.object({
     }),
     rows: z.array(adminChatterUsageRowSchema),
 });
-// Decision 349: the caller's own AI spend (any session, any human role). Same
+// The caller's own AI spend (any session, any human role). Same
 // range semantics as the admin report; the row drops userId (it is the caller)
 // and a daily series is added for the cabinet's chart.
 export const authMyUsageDailyRowSchema = z.object({
@@ -3146,7 +3149,7 @@ const telegramChatIdSchema = z
     .string()
     .trim()
     .regex(/^(-?\d+|@[A-Za-z0-9_]{5,32})$/, "Expected a numeric chat id (e.g. 123456789 or -100…) or @username");
-// Stage 10: platform-neutral message archive reads (owner/team_lead only).
+// Platform-neutral message archive reads (owner/team_lead only).
 export const archiveMessageItemSchema = z.object({
     id: intId,
     accountId: intId,
@@ -3314,14 +3317,14 @@ const fanslyCredentialsSchema = z.object({
         fanslySessionId: z.string().optional(),
         routeChecks: z.partialRecord(z.enum(FANSLY_CLIENT_CHECK_ROUTES), z.string().min(1)).optional(),
     }),
-    // Decision #124: every standalone Fansly verification/onboarding request
+    // Every standalone Fansly verification/onboarding request
     // must carry the egress route it will actually use. Missing/null may never
     // reach the adapter's proxyless fail-closed belt as a generic runtime error.
     proxy: credentialProxySchema,
 });
 const onlyfansCredentialsSchema = z.object({
     platform: z.literal("onlyfans"),
-    // Stage 18: OnlyMonster retired — OnlyFans pages onboard against the OFAPI
+    // OnlyMonster retired — OnlyFans pages onboard against the OFAPI
     // vendor by username (the account must already be connected there); no
     // pasted credentials, no per-page proxy (egress is vendor-side).
     username: z.string().min(1),
@@ -3400,7 +3403,7 @@ export const updateCredentialsBodySchema = z.discriminatedUnion("platform", [
         proxy: credentialProxySchema.optional(),
     }),
     z.object({
-        // Stage 18: OnlyFans pages hold no pasted credentials (OFAPI vendor-side)
+        // OnlyFans pages hold no pasted credentials (OFAPI vendor-side)
         // — the update route rejects this variant with a clear 400.
         platform: z.literal("onlyfans"),
     }),
@@ -3570,7 +3573,7 @@ export const syncSnapshotRestartRequiredResponseSchema = z.object({
     replayFloor: z.number().int().nonnegative(),
     snapshotPath: z.literal("/api/v1/events/snapshot"),
 });
-// --- Event stream v2 (kernel Stage 21): domain_events, per-account ordering ---
+// --- Event stream v2: domain_events, per-account ordering ---
 /** H3: what Core knows about how a durable frame's fact reached the ledger.
  * `redelivery` — its source OFAPI webhook receipt carries the provider's
  * redelivery header (`x-ofapi-redelivery-of`); `repair` — a superseding
@@ -3602,7 +3605,7 @@ export const domainEventFrameSchema = z.object({
     type: z.string().min(1),
     occurredAt: isoTimestamp,
     data: z.unknown(),
-    // Stage 24 serve-time additions (all optional — pre-Stage-24 frames and the
+    // Serve-time additions (all optional — older frames and the
     // smoke consumer's persisted expectations stay valid):
     // the ledger's platform-native refs, surfaced so clients can route events
     // without re-deriving them from `data`...
@@ -3615,8 +3618,8 @@ export const domainEventFrameSchema = z.object({
     // ...and, on message.received/message.sent frames whose source observation
     // is an OFAPI webhook message, the same normalized message payload the v1
     // fanout serves — projection-grade ingest without a read-gateway round
-    // trip (decision #92's "payloads ride Stage 24"). Shape-tolerant clients
-    // validate it themselves (it is upstream-derived, not a kernel contract).
+    // trip. Shape-tolerant clients validate it themselves (it is
+    // upstream-derived, not a kernel contract).
     payload: z.unknown().optional(),
     // H3 serve-time additions (optional; older consumers strip unknown keys):
     // the ledger's transaction ref (transaction.posted), so money consumers
@@ -3772,7 +3775,7 @@ export const ofapiPageMappingSchema = z.object({
     label: z.string(),
     username: z.string().nullable(),
     ofapiAccountId: z.string().nullable(),
-    // OFAPI account health (decision #49 Phase 3): latest accounts.* state and
+    // OFAPI account health: latest accounts.* state and
     // webhook recency for the mapped account. Null when unmapped / no data yet.
     ofapiAuthStatus: z.string().nullable(),
     ofapiAuthChangedAt: isoTimestamp.nullable(),
@@ -4110,7 +4113,7 @@ export const ofapiCaptureOperatorStatusResponseSchema = z.object({
         ]),
         state: ofapiExportQuoteJobStateSchema,
         reasonCode: z.string().nullable(),
-        /** Decision #246: the parked job's own words — for an exhausted retry the
+        /** The parked job's own words — for an exhausted retry the
          *  governed cause is here (`... transport (body_too_large, post_dispatch)`). */
         reasonMessage: z.string().nullable(),
         rowVersion: z.number().int().nonnegative(),
@@ -4224,7 +4227,7 @@ export const ofapiCaptureJobReplayResponseSchema = z.object({
         observationReceivedAt: isoTimestamp,
     }),
 });
-/** Decision #246: a parked capture job is CANCELLED, never resumed in place.
+/** A parked capture job is CANCELLED, never resumed in place.
  *  The row and its attempts stay (append-only history); the active slot is
  *  freed, so the owning lane starts a fresh job with fresh allowances on its
  *  next request. Nothing is dispatched by this action. */
@@ -4751,10 +4754,10 @@ export const ofapiDmColdArchiveStatusResponseSchema = z.object({
     exportPolicy: agentExportPolicyEnum,
     mediaPolicy: z.literal("stable_metadata_only_no_signed_urls"),
 });
-// --- Declarative route authorization (kernel Stage 19) ---
+// --- Declarative route authorization ---
 // Every routeSchemas entry carries an `auth` declaration enforced by one API-server
-// middleware (AUTH_POLICY_ENFORCEMENT=log|enforce); a contracts unit test fails any
-// entry without one. Kinds mirror the verified guard vocabulary:
+// middleware before any handler runs; a contracts unit test fails any entry
+// without one. Kinds mirror the verified guard vocabulary:
 //   public         no principal required (health, login/logout)
 //   hmac           authenticated in-handler by HMAC over the raw body (OFAPI webhook)
 //   monitoring     x-monitoring-token OR a dashboard session (sync health)
@@ -4762,7 +4765,7 @@ export const ofapiDmColdArchiveStatusResponseSchema = z.object({
 //   any-session    any live cookie session, any human role (self-serve auth)
 //   owner-session  cookie session with the owner role (admin surface, swagger/openapi)
 //   apiKey         bearer device token (desktop/extension lanes). Historical
-//                  name, kept deliberately: Decision 370 retired API keys, and
+//                  name, kept deliberately: API keys are retired, and
 //                  renaming the kind would touch hundreds of declarations
 //   device-token   device-token bearer only (current-device self-service)
 //   agentKey       Agent Read Plane machine key only — there is no human behind
@@ -5569,7 +5572,7 @@ const baseRouteSchemas = {
     opsMetrics: {
         auth: { kind: "monitoring" },
         tags: ["system"],
-        summary: "Golden-signal lag samples (Stage 25 acceptance instrument)",
+        summary: "Golden-signal lag samples",
         response: {
             200: opsMetricsResponseSchema,
             401: errorResponseSchema,
@@ -5620,10 +5623,10 @@ const baseRouteSchemas = {
     aiUsageBatch: {
         auth: { kind: "apiKey" },
         tags: ["usage"],
-        // Stage 29 (§6.4 policy): the gateway ledger is authoritative — this
-        // client-reported lane is deprecated; successor = the gateway's own
-        // finalize write (POST /api/v1/ai/gateway/stream). Removal only after
-        // Stage 31 confirms the fleet cutover. It keeps serving until then.
+        // The gateway ledger is authoritative — this client-reported lane is
+        // deprecated; successor = the gateway's own finalize write
+        // (POST /api/v1/ai/gateway/stream). Removal only after the fleet cutover
+        // is confirmed. It keeps serving until then.
         deprecated: true,
         summary: "Ingest a batch of chatter AI usage events (deprecated: gateway ledger is authoritative)",
         body: aiUsageBatchBodySchema,
@@ -5987,7 +5990,7 @@ const baseRouteSchemas = {
         auth: { kind: "owner-session" },
         tags: ["admin"],
         summary: "Dry-run or cancel one parked OFAPI capture job",
-        description: "Decision #246: frees the job's active slot so the owning lane can start a fresh "
+        description: "Frees the job's active slot so the owning lane can start a fresh "
             + "job with fresh allowances on its next request. The cancelled row and its attempts are "
             + "kept; nothing is dispatched.",
         params: ofapiCaptureJobParamsSchema,
@@ -6512,7 +6515,7 @@ const baseRouteSchemas = {
     pageTopSpenders: {
         auth: { kind: "any", scope: "page" },
         tags: ["fans"],
-        summary: "Top spenders for one page from the fan-earnings projection (Stage 32 board)",
+        summary: "Top spenders for one page from the fan-earnings projection",
         params: pageParamsSchema,
         querystring: z.object({
             // 'lifetime' or a month window ('2026-06') — the projection's window values.
@@ -7121,7 +7124,7 @@ const baseRouteSchemas = {
         auth: { kind: "apiKey" },
         tags: ["usage"],
         summary: "Stream a kernel-assembled AI feature generation",
-        description: "Stage 30 feature services: context loads kernel-side, the migrated prompt "
+        description: "Feature services: context loads kernel-side, the migrated prompt "
             + "builder assembles the request, and the stream rides the gateway (budgets, ledger, "
             + "restricted capture).",
         params: aiFeatureStreamParamsSchema,
@@ -7393,7 +7396,7 @@ const baseRouteSchemas = {
             404: errorResponseSchema,
         },
     },
-    // --- Decision 349: unified chatter account (PR-1A) ---
+    // --- Unified chatter account (PR-1A) ---
     adminCreateInvite: {
         auth: { kind: "owner-session" },
         tags: ["admin"],

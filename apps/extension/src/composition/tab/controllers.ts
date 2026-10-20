@@ -426,6 +426,8 @@ export async function startBoards(
     // A message from a surface that has just closed («Вставка отменена», «Чат не готов…»).
     notifier: { notify: (code: CgCode, scope: string) => void toasts.show({ kind: toastKindOf(code), code, scope, title: { key: CG_REGISTRY[code].title }, body: { key: CG_REGISTRY[code].body } }) },
     handover: (handover) => dock.handover(handover),
+    // The hub's key of the person's own text (a manual group): sha256 of its UTF-8 bytes, lower-case hex.
+    sha256: async (text) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map((byte) => byte.toString(16).padStart(2, '0')).join(''),
   });
   late.preview = preview;
   // 1.32.0: a batch of a list starts its generations through the preview's own Generate.

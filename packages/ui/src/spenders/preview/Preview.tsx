@@ -234,25 +234,39 @@ export function DraftField({ vm, class: extra, children }: { readonly vm: Previe
   const greetingDraft = vm.from === 'newcomers';
   // The model echoes every change of the draft; an echo of an earlier one never undoes what was typed since.
   const draft = useOwnEchoes(vm.draft.text, handle);
-  if (!greetingDraft && vm.bar.actions.fix === undefined && draft.shown === '') return null;
+  const send = vm.draft.send;
+  if (!greetingDraft && vm.bar.actions.fix === undefined && send === undefined && draft.shown === '') return null;
   return (
-    <div class={`cg-pv__draft${extra === undefined ? '' : ` ${extra}`}`}>
-      <TextField
-        value={draft.shown}
-        label={i18n.t(greetingDraft ? 'newcomers.greetingDraft.aria' : 'preview.draft.aria')}
-        placeholder={i18n.text(vm.draft.placeholder)}
-        multiline
-        minHeight={36}
-        maxHeight={120}
-        maxLength={vm.draft.maxChars}
-        onValue={(typed) => {
-          if (handle === null) return;
-          const text = typed.slice(0, vm.draft.maxChars);
-          draft.sent(text);
-          void dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text });
-        }}
-      />
-      {children}
+    <div class={`cg-pv__draft${extra === undefined ? '' : ` ${extra}`}${send === undefined ? '' : ' has-send'}`}>
+      <div class="cg-pv__draftBox">
+        <TextField
+          value={draft.shown}
+          label={i18n.t(greetingDraft ? 'newcomers.greetingDraft.aria' : 'preview.draft.aria')}
+          placeholder={i18n.text(vm.draft.placeholder)}
+          multiline
+          minHeight={36}
+          maxHeight={120}
+          maxLength={vm.draft.maxChars}
+          onValue={(typed) => {
+            if (handle === null) return;
+            const text = typed.slice(0, vm.draft.maxChars);
+            draft.sent(text);
+            void dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text });
+          }}
+        />
+        {children}
+      </div>
+      {send === undefined || handle === null ? null : (
+        // The person's own text to the fan, one message, by this click (audit 2026-10-20, row 1).
+        <Button
+          label={i18n.t('preview.draft.send')}
+          variant="send"
+          class="cg-pv__draftSend"
+          tooltip={i18n.t('preview.draft.sendTooltip')}
+          reason={send.enabled || send.reason === null ? null : i18n.text(send.reason.text)}
+          onClick={() => void dispatch({ type: 'SendDraft', targetHandle: handle })}
+        />
+      )}
     </div>
   );
 }
@@ -353,6 +367,10 @@ export const PREVIEW_BASE_CSS = `
 .cg-pv__work > * { flex: none; }
 .cg-pv__draft { margin: 10px 12px 0 16px; }
 .cg-pv__draft .cg-field--area { min-height: 36px; }
+.cg-pv__draftBox { position: relative; min-width: 0; }
+.cg-pv__draft.has-send { display: flex; align-items: flex-end; gap: 8px; }
+.cg-pv__draft.has-send > .cg-pv__draftBox { flex: 1 1 auto; }
+.cg-pv__draftSend { flex: none; }
 .cg-pv__idle { padding: 10px 12px 12px calc(var(--cg-gutter) - 1px); border-top: 1px solid var(--cg-rule); color: var(--cg-ink-muted); }
 .cg-pv__state { flex: 1; min-height: 0; overflow-y: auto; }
 .cg-pv .cg-card { border-top: 1px solid var(--cg-rule); }

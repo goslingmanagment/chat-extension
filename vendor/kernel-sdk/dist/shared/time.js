@@ -27,7 +27,7 @@ const DEFAULT_SPENDER_TRAILING_PERIOD_OFFSETS = {
 // than the defaults above (7d spans 8 days, 30d spans 31). Introduced by
 // 153bc96 ("Fix OnlyFans revenue rollups and resync recovery", 2026-03-09)
 // without a recorded rationale — presumably to absorb vendor data lag. The
-// numbers are intentionally left as-is (decision #51): mixed-platform reports
+// numbers are intentionally left as-is: mixed-platform reports
 // disclose the per-platform windows via `platformWindows` instead of aligning
 // them (audit B2).
 const ONLYFANS_REVENUE_TRAILING_PERIOD_OFFSETS = {
@@ -105,22 +105,29 @@ export function toBusinessDate(date, timeZone = MOSCOW_TIME_ZONE) {
     const day = String(parts.day).padStart(2, "0");
     return `${parts.year}-${month}-${day}`;
 }
-export function isValidBusinessDateString(value) {
+function readBusinessDate(value) {
     if (!BUSINESS_DATE_PATTERN.test(value)) {
-        return false;
+        return null;
     }
-    const [year, month, day] = value.split("-").map(Number);
+    const year = Number(value.slice(0, 4));
+    const month = Number(value.slice(5, 7));
+    const day = Number(value.slice(8, 10));
     const parsed = new Date(Date.UTC(year, month - 1, day));
     return parsed.getUTCFullYear() === year
         && parsed.getUTCMonth() === month - 1
-        && parsed.getUTCDate() === day;
+        && parsed.getUTCDate() === day
+        ? { year, month, day }
+        : null;
+}
+export function isValidBusinessDateString(value) {
+    return readBusinessDate(value) !== null;
 }
 export function parseBusinessDate(value) {
-    if (!isValidBusinessDateString(value)) {
+    const parts = readBusinessDate(value);
+    if (parts === null) {
         throw new Error(`Invalid business date "${value}"`);
     }
-    const [year, month, day] = value.split("-").map(Number);
-    return { year, month, day };
+    return parts;
 }
 function formatBusinessDate(year, month, day) {
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;

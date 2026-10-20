@@ -98,6 +98,10 @@ export interface PartRows {
   readonly send?: PreviewSendView;
   readonly order: SendOrderVM | null;
   readonly openInsert: OpenInsertVM;
+  /** The part may be edited before it is sent (audit 2026-10-20, row 1). */
+  readonly editable?: boolean;
+  /** The person's text of the part, while its editor is open. */
+  readonly edit?: string;
 }
 
 export interface PreviewResultInput {
@@ -123,6 +127,8 @@ export interface PreviewResultInput {
   /** A part started to go: the draft is no longer «не отправлено». */
   readonly sendStarted: boolean;
   readonly regenerate: { readonly allowed: boolean; readonly reason: ReasonVM | null };
+  /** The person's own text from the draft field: no generation behind it (audit 2026-10-20, row 1). */
+  readonly own?: boolean;
 }
 
 function partVM(input: PreviewResultInput, opId: string, variant: number | null, index: number, text: string, count: number, firstOpen: number): PartVM {
@@ -133,7 +139,9 @@ function partVM(input: PreviewResultInput, opId: string, variant: number | null,
     variant,
     label: msg(sent ? 'part.ariaSent' : 'part.aria', { n: index + 1 }),
     numbered: count > 1,
-    text,
+    text: rows.edit ?? text,
+    ...(rows.editable === true ? { editable: true } : {}),
+    ...(rows.edit === undefined ? {} : { editing: true, edited: rows.edit !== text }),
     next: index === firstOpen && rows.order === null,
     // A preview has no composer to insert into: «Открыть и вставить» is its own row.
     insert: 'idle',
@@ -216,6 +224,7 @@ export function previewResult(input: PreviewResultInput): ResultVM {
 
   return {
     opId,
+    ...(input.own === true ? { own: true as const } : {}),
     feature: input.feature,
     surface: input.surface,
     state: mirror.state,
