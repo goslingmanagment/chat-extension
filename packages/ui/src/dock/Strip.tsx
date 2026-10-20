@@ -197,7 +197,9 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
 
   const chipButton = (chip: ChipVM): JSX.Element => {
     const name = nameOf(chip);
-    const hint = i18n.text(chip.hint);
+    // Reply's hint names whose voice the answer is in, as the Fansly extension's did («Ответ от имени „Lora“»): on
+    // a narrow composer it is the one place the persona is seen.
+    const hint = chip.group === LEAD && vm.persona !== null ? t('dock.hint.replyAs', { persona: vm.persona.label }) : i18n.text(chip.hint);
     const off = whyOff(chip);
     let tooltip = chip.busy ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(chip.hotkey)), hint);
     if (chip.badge !== null) tooltip = `${tooltip}\n${t('dock.badge.recapReady')}`;
@@ -397,7 +399,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
           {vm.status === 'not-signed-in' ? (
             <span class="cg-persona is-missing">{t('dock.persona.notSignedIn')}</span>
           ) : vm.persona === null ? null : (
-            <Word class="cg-persona" text={vm.persona.label} tooltip={hints ? t('dock.persona.tooltip', { page: vm.persona.pageName }) : null} />
+            <Word class="cg-persona" text={vm.persona.label} tooltip={hints ? t('dock.persona.tooltip', { persona: vm.persona.label, page: vm.persona.pageName }) : null} />
           )}
         </span>
         {vm.paletteHotkey === null ? null : <Word class="cg-hint" text={hotkeyText(vm.paletteHotkey)?.display ?? ''} tooltip={hints ? t('dock.paletteHint.tooltip') : null} />}

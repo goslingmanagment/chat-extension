@@ -13,15 +13,21 @@
 //           the hint
 //   widest  the rest in words: the capsule with the word «Split», the status
 //           in words, the persona, the palette key
-//   < 1000  no persona, no palette key; the status words short
+//   < 1000  no palette key; the status words short. The persona stays, cut
+//           with «…» to the room the chips leave it: it is the chatter's
+//           only sight of whose voice a draft is in (Fansly's dock is 600–
+//           940 px wide)
 //   < 900   Split in the capsule is its glyph alone
 //   < 820   no lock in the capsule while a generation runs; chips 0 8 px
 //   < 720   the chips closer: gaps 3 px, chips 0 7 px
 //   < 690   the status in the windows' place while the chat loads is its
 //           spinner alone; Hi variants in a column below 680
+//   < 660   the capsule's cells narrower, 24 px from one to the next; chips
+//           0 6, seams closer, the persona without its seam: the room for
+//           the persona on a 620 px composer
 //   < 610   Review, Recap, Coach are their icons too
 //   ≤ 600   head without meta and key labels
-//   < 530   the capsule's cells narrower, 24 px from one to the next; chips 0 6
+//   < 520   no persona
 //   < 500   the five icons in «Ещё» at once
 //   < 480   no seams
 //   < 440   while the chat loads, the status spinner in the place of «Ещё»
@@ -184,7 +190,7 @@ ${/* ── «Вид ответа: без подложки» (the default): the 
 
 ${/* ── narrow composer (ui-design §3.3) ── */ ''}
 @container cg (max-width: ${atBase(999)}) {
-  .cg-slot--persona, .cg-hint, .cg-status-word .cg-long { display: none; }
+  .cg-hint, .cg-status-word .cg-long { display: none; }
   .cg-status-word .cg-short { display: inline; }
 }
 @container cg (max-width: ${atBase(899)}) {
@@ -203,18 +209,26 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
   ${/* While the chat loads the status in the windows' place is its spinner alone. */ ''}
   .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
 }
+@container cg (max-width: ${atBase(659)}) {
+  ${/* The room the persona needs on a 620 px composer (Fansly's at a 1728 px window), with Review, Recap, Coach still in words. */ ''}
+  .cg-strip .cg-act:not(.cg-opt):not(.cg-act--ico), .cg-strip .cg-slot--two .cg-act--ico { padding: 0 6px; }
+  .cg-strip__opts { padding-left: 4px; }
+  .cg-strip .cg-div { margin: 0 2px; }
+  .cg-slot--persona > .cg-div { display: none; }
+  .cg-strip .cg-persona { padding: 0 2px; }
+  ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
+  .cg-tones .cg-opt { width: 22px; }
+  .cg-tones__track { gap: 2px; }
+}
 @container cg (max-width: ${atBase(609)}) {
   ${/* Review, Recap, Coach too. */ ''}
   .cg-strip .cg-slot--two .cg-act--ico { width: 28px; padding: 0; }
   .cg-slot--two .cg-act--ico > .cg-ico { display: block; }
   .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
-@container cg (max-width: ${atBase(529)}) {
-  .cg-strip .cg-act:not(.cg-opt):not(.cg-act--ico) { padding: 0 6px; }
-  .cg-strip__opts { padding-left: 4px; }
-  ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
-  .cg-tones .cg-opt { width: 22px; }
-  .cg-tones__track { gap: 2px; }
+@container cg (max-width: ${atBase(519)}) {
+  ${/* No persona: the room left to it here is a letter and «…», not a name. */ ''}
+  .cg-slot--persona { display: none; }
 }
 @container cg (max-width: ${atBase(499)}) {
   ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. */ ''}
