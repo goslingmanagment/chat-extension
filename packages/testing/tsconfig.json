@@ -26,6 +26,9 @@
     "boards-gallery.vite.config.ts",
     "pages-gallery.vite.config.ts"
   ],
+  "exclude": [
+    "e2e/see/scratch"
+  ],
   "references": [
     {
       "path": "../contracts"
