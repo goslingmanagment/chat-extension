@@ -256,7 +256,9 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await waitSend(0, 'uncertain', 'the unknown outcome is still there after the preview was reopened');
     const diagnostics = await shift.rpc<{ sends: { open: number; uncertain: number } }>('diagnostics.get');
     expect(diagnostics.ok ? diagnostics.payload.sends : null).toEqual({ open: 0, uncertain: 1 });
-    // The person looked and sends the part again by their own click: a new attempt, a new POST.
+    // The person looked and sends the part again by their own click: a new attempt, a new POST. Inside the first one's
+    // ticket the hub would still call it in flight (custody_held), so the click comes after it.
+    await browser.pause(11_000);
     await pressSendOf(0);
     await waitSend(0, 'sent', 'the part sent again is sent');
     expect(sendsOf(await serverSince(standMark))).toHaveLength(2);
