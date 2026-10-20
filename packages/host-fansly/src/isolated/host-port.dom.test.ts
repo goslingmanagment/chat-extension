@@ -322,13 +322,13 @@ describe('[host:fansly] epochs drop what came late (FS-RTE-4)', () => {
     const chat = { host: 'fansly-web', hostAccountId: CREATOR, platformFanId: FAN } as const;
     // A start for a chat the person is not looking at asks for ITS group, never the open route's.
     expect(await port.freshness.snapshot(chat, { conversationRef: GROUP, feature: 'reply', window: 30, withText: true })).toEqual(answer);
-    // Recap reads no page text, whatever it asked for.
+    // Recap preserves the request for fresh text.
     answer = { ...answer, feature: 'recap', tail: undefined, truncated: false } as unknown as FanslySnapshot;
     delete (answer as { tail?: unknown }).tail;
     expect(await port.freshness.snapshot(chat, { conversationRef: GROUP, feature: 'recap', window: 60, withText: true })).toEqual(answer);
     expect(snapshots).toEqual([
       { groupId: GROUP, feature: 'reply', window: 30, withText: true },
-      { groupId: GROUP, feature: 'recap', window: 60, withText: false },
+      { groupId: GROUP, feature: 'recap', window: 60, withText: true },
     ]);
     // Anything not of this chat, document or function is no snapshot: «свежесть не проверена».
     expect(await port.freshness.snapshot(chat, { conversationRef: OTHER, feature: 'recap', window: 60, withText: false })).toBeNull();

@@ -68,7 +68,7 @@ describe('Fansly site operations share Reply’s admission (R20 P12a)', () => {
     expect(streams.map((entry) => entry.status)).toEqual([200]);
     const request = streams[0]?.request as { feature: string; body: Record<string, unknown> };
     expect(request.feature).toBe('voice-script');
-    expect([request.body['conversationRef'], request.body['fanRef'], 'clientContext' in request.body, 'liveTextContext' in request.body]).toEqual([A.group, A.fan, false, false]);
+    expect([request.body['conversationRef'], request.body['fanRef'], 'clientContext' in request.body, 'liveTextContext' in request.body]).toEqual([A.group, A.fan, false, true]);
   });
 
   it('one chat: a script blocks Reply and notes; explicit cancellation frees the shared slot and keeps the canceled state', async () => {

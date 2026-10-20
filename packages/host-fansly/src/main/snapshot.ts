@@ -57,7 +57,7 @@ export const isFocus = /* @__PURE__ */ shape({ groupId: orNull(isId), routeEpoch
 export const isGroupForFan = /* @__PURE__ */ shape({ creatorId: isId, fanId: isId });
 export const isWindowRequest = /* @__PURE__ */ shape({ groupId: isId });
 const isSnapshotShape = /* @__PURE__ */ shape({ groupId: isId, feature: is(...FEATURES), window: int(1), withText: is(true, false) });
-/** `fx.generationSnapshot`: page text only for Reply, Fix, Hi and Ping (D-14). */
+/** `fx.generationSnapshot`: text for every supported AI snapshot feature (X70). */
 export const isSnapshotRequest = (payload: unknown): payload is SnapshotRequest =>
   isSnapshotShape(payload) && (!(payload as SnapshotRequest).withText || TEXT_FEATURES.includes((payload as SnapshotRequest).feature));
 

@@ -70,7 +70,7 @@ export const HUB_FEATURE_ONLY_FIELDS = {
    * Fresh text (D-14, H-4c): draft features; 1.29.0 (decision X52) Review and Coach too, on a hub that lists
    * `live-text-review-coach-v1`; 1.31.0 Recap, on a hub that lists `live-text-recap-v1` (`LIVE_TEXT_HUB_NEEDS`).
    */
-  liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat', 'fan-summary'],
+  liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat', 'fan-summary', 'voice-script', 'fan-notes-fill'],
   /** 1.27.0 (X54): the open chat's PPV state, where fresh text goes (the hub refuses it elsewhere, 400). */
   livePpvContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
   /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */

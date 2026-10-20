@@ -1,6 +1,6 @@
 // R20 P8c, part B: Recap, Review and Coach on Fansly (docs/project-unite/spec.md FS-AI-1, FS-TAIL-1, FS-TAIL-8,
 // FS-TAIL-10; architecture §5.8, §7.24, §7.25, §12). Each of them starts through Fansly's policy as every start does —
-// MAIN's snapshot as its proof, no page text — and:
+// MAIN's snapshot and confirmed page text as its proof — and:
 // - the verdict over what it made: the analysis surfaces draw their own models, so the shared result's mark reaches
 //   them through their own fields (`RecapViewVM.stale`, `ReviewVM.stale`, `CoachTurnVM.stale`), with «Ещё раз»;
 //   what the fan wrote after it stays their archive-lag line, never a mark;
@@ -45,7 +45,7 @@ const CHAT: readonly Held[] = Array.from({ length: 80 }, (_, n) => ({ id: idOf(n
 const WINDOW = CHAT.slice(-60);
 const NEWEST = WINDOW.at(-1)?.id ?? '';
 
-/** MAIN's snapshot of the chat (host-fansly main/snapshot.ts): the window, the fan's known ids; never a text for these. */
+/** MAIN's snapshot of the chat: the window, the fan's known ids and the requested text. */
 function snapshotOf(request: FreshnessRequest): FanslySnapshot {
   const window = CHAT.slice(-Math.min(60, request.window)).map((message) => ({ id: message.id, dir: message.dir }));
   return FanslySnapshotSchema.parse({
@@ -56,6 +56,7 @@ function snapshotOf(request: FreshnessRequest): FanslySnapshot {
     window,
     knownFanMessageIds: window.filter((entry) => entry.dir === 'fan').slice(-10).map((entry) => entry.id),
     deletedIds: [],
+    ...(request.withText ? { tail: window.map((message) => ({ platformMessageId: message.id, direction: message.dir, sentAt: new Date(NOW_MS - 120_000).toISOString(), text: `Message ${message.id}` })) } : {}),
     truncated: false,
   } satisfies FanslySnapshot);
 }
@@ -113,7 +114,7 @@ function contextOf(hubFeature: string, requested: number, absent: string | null)
     window: { requested, served: WINDOW.length },
     coverage: 'complete',
     coverageCheck: { window: WINDOW.map((message) => ({ id: message.id, state: message.id === absent ? 'absent' : 'included' })), deleted: [] },
-    live: { status: 'not_sent', accepted: 0, rejected: 0 },
+    live: { status: 'served', accepted: WINDOW.length - (absent === null ? 0 : 1), rejected: absent === null ? 0 : 1 },
   };
 }
 
@@ -149,8 +150,8 @@ describe('[host:fansly] R20 P8c: the verdict over Recap, Review and Coach — th
     await review(missed, NEWEST);
     const vm = missed.h.review();
     expect(vm).toMatchObject({ state: 'done', stale: { reason: 'window-miss', at: null }, regenerate: { enabled: true, action: { type: 'Regenerate', operationId: vm.opId } } });
-    // No page text went with it (FS-TAIL-10): the window was checked by its ids alone.
-    expect(missed.h.bg.hub.streams.map(({ body }) => [body.coverageCheck?.window.length, body.liveTextContext])).toEqual([[60, undefined]]);
+    // The latest texts and their matching coverage window travel together (FS-TAIL-10).
+    expect(missed.h.bg.hub.streams.map(({ body }) => [body.coverageCheck?.window.length, body.liveTextContext !== undefined])).toEqual([[60, true]]);
     await run(missed, 'chat-review', vm.regenerate.action, 'Rating: 8/10', [contextOf('chat-review', WINDOWS.deep, null)]);
     expect(missed.h.review()).toMatchObject({ state: 'done', stale: null });
     expect(missed.h.review().opId).not.toBe(vm.opId);
@@ -161,7 +162,7 @@ describe('[host:fansly] R20 P8c: the verdict over Recap, Review and Coach — th
     await recapShort(tab, NEWEST);
     const vm = tab.h.recapView();
     expect(vm).toMatchObject({ length: 'short', markdown: 'A short recap.', stale: { reason: 'window-miss', at: null }, refresh: { enabled: true, action: { type: 'RefreshRecap', length: 'short' } } });
-    expect(tab.h.bg.hub.streams.map(({ body }) => [body.messageCount, body.coverageCheck?.window.length, body.liveTextContext])).toEqual([[300, 60, undefined]]);
+    expect(tab.h.bg.hub.streams.map(({ body }) => [body.messageCount, body.coverageCheck?.window.length, body.liveTextContext !== undefined])).toEqual([[300, 60, true]]);
     await recapShort(tab, null);
     expect(tab.h.recapView()).toMatchObject({ length: 'short', stale: null });
   });
@@ -230,7 +231,7 @@ describe('[host:fansly] R20 P8c: the verdict over Recap, Review and Coach — th
     const tab = await fanslyTab();
     await coach(tab, NEWEST);
     expect(lastTurn(tab)).toMatchObject({ state: 'done', stale: { reason: 'window-miss', at: null }, again: { enabled: true, action: { type: 'Generate', feature: 'coach', targetHandle: target(tab), options: { question: 'What now?' } } } });
-    expect(tab.h.bg.hub.streams.map(({ body }) => [body.coverageCheck?.window.length, body.liveTextContext])).toEqual([[60, undefined]]);
+    expect(tab.h.bg.hub.streams.map(({ body }) => [body.coverageCheck?.window.length, body.liveTextContext !== undefined])).toEqual([[60, true]]);
     const again = lastTurn(tab)?.again?.action;
     if (again === undefined) throw new Error('no «Ещё раз»');
     await run(tab, 'coach-chat', again, 'Ask about the weekend, then offer.', [contextOf('coach-chat', WINDOWS.quick, null)]);

@@ -917,12 +917,16 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       // 1.2.0: a composite Coach turn — the recap first, then the question, under one admission (AI-096).
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 3000 } } },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { preset: 'situation', history: [], autoRecap: { length: 'short', window: 300 } } },
+      // 1.42.0: an automatic recap retains the Coach panel and the same confirmed text.
+      ...(['recap', 'recap-short'] as const).map((feature) => ({ ...startReply, feature, surface: 'coach', tone: null })),
+      ...(['recap', 'recap-short'] as const).map((feature) => ({ ...fanslyStartReply, feature, surface: 'coach', tone: null })),
       // 1.15.0 (R20 P4b2): wire depth above v1's 3000, up to HF-6's 5000.
       { feature: 'recap', surface: 'dock', target, cause, tone: null, split: false, window: 3001 },
       { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 5000 },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 5000 } } },
-      // 1.15.0 (R20 §9.1): Fansly — the proof instead of `fresh` and `checkpoint`; a Recap's without a text; a pass's in «Новые».
+      // Fansly uses proof instead of `fresh` and `checkpoint`; analysis can carry text since 1.42.0.
       fanslyStartReply,
+      ...(['review', 'recap', 'recap-short', 'coach'] as const).map((feature) => ({ ...fanslyStartReply, feature, surface: feature === 'coach' ? 'coach' : 'dock', tone: null })),
       { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 3000, proof: { ...tabProof, tail: undefined } },
       { feature: 'hi', surface: 'newcomers', target: fanslyTarget, cause, tone: null, split: true, window: 25, variantCount: 1, proof: passProof },
       { feature: 'reply', surface: 'preview', target: fanslyTarget, cause, tone: 'casual', split: false, window: 100, proof: tabProof },
@@ -944,12 +948,11 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'long', window: 3000 } } },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 4 } } },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: 'full' } },
-      // 1.15.0: a start proves its freshness one way; the proof is the target conversation's; page text only for a
-      // draft function (D-14); a pass's proof only in «Новые»; the proof's own rules hold inside a start too.
+      // A start proves its freshness one way; the proof is the target conversation's;
+      // a pass's proof only in «Новые»; the proof's own rules hold inside a start too.
       { ...fanslyStartReply, fresh: startReply.fresh },
       { ...fanslyStartReply, surface: 'preview', checkpoint: { ...checkpoint, hostAccountId: FANSLY_IDS.creator, platformFanId: FANSLY_IDS.fan } },
       { ...fanslyStartReply, proof: { ...tabProof, conversationRef: FANSLY_IDS.otherGroup } },
-      { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 3000, proof: tabProof },
       { ...fanslyStartReply, proof: passProof },
       { ...fanslyStartReply, proof: { ...tabProof, deletedIds: [COVERAGE_MSG.m1] } },
     ],

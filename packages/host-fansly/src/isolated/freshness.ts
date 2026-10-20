@@ -9,8 +9,8 @@
 // - The group is the TARGET's conversation (`request.conversationRef`), never
 //   the open route's: a start for a chat the person is not looking at asks
 //   for its own group (FS-IDN-6).
-// - Page text only for Reply, Fix, Hi and Ping (D-14): `withText` is dropped
-//   for any other function before MAIN is asked.
+// - Page text for every admitted AI feature (X70): the caller checks the page
+//   switch and the hub capability before asking for `withText`.
 // - The answer must be of this very chat and this document: MAIN's creator,
 //   group and fan equal to the target's, its document epoch the one the
 //   bridge knows, the function the one asked, and the port's generation —
@@ -21,15 +21,15 @@
 //   timeout — is null: «свежесть не проверена» (FS-TAIL-7), never a guess.
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
-import type { FeatureId } from '@cg/contracts/features';
+import type { OpFeature } from '@cg/contracts/features';
 import type { FreshnessPort, FreshnessRequest } from '@cg/contracts/host';
 import type { ChatRef } from '@cg/contracts/ids';
 
 import type { FanslyMainBridgeClient } from './bridge-client';
 import type { Under } from './generation';
 
-/** contracts FRESH_TEXT_FEATURES (D-14), repeated: that module builds schemas at load (freshness.test.ts pins the two). */
-export const FRESH_TEXT_FEATURES: readonly FeatureId[] = ['reply', 'fix', 'hi', 'ping'];
+/** All snapshot features; the caller has already checked the page switch and hub support. */
+export const FRESH_TEXT_FEATURES: readonly OpFeature[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'recap-short', 'coach', 'voice-script', 'notes-fill'];
 
 export interface FreshnessDeps {
   readonly bridge: FanslyMainBridgeClient | null;

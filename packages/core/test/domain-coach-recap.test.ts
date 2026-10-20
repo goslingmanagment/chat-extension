@@ -312,10 +312,11 @@ describe('[AI-096] auto-recap before the first question', () => {
 
   it('a Coach start that asks for its auto-recap reads as two steps: the recap for the same target, then the same question', () => {
     const coach = { question: 'How do I reply?', history: [{ question: 'q', answer: 'a' }], attachDraft: 'my draft' };
-    const start = startOf({ feature: 'coach', surface: 'coach', window: 100, split: true, coach: { ...coach, autoRecap: { length: 'full', window: 3000 } } });
+    const fresh: LiveTextTail = { capturedAt: '2026-10-20T00:00:00Z', messages: [{ platformMessageId: '9001', direction: 'fan', sentAt: '2026-10-19T23:59:59Z', text: 'Latest message' }] };
+    const start = startOf({ feature: 'coach', surface: 'coach', fresh, window: 100, split: true, coach: { ...coach, autoRecap: { length: 'full', window: 3000 } } });
     const steps = coachTurnSteps(start);
     // The recap is a generation of its own, past the cache: no tone, no parts, nothing of the question or the draft.
-    expect(steps?.recap).toEqual({ feature: 'recap', surface: 'coach', target: start.target, cause: start.cause, tone: null, split: false, window: 3000, force: true });
+    expect(steps?.recap).toEqual({ feature: 'recap', surface: 'coach', target: start.target, cause: start.cause, tone: null, split: false, window: 3000, force: true, fresh });
     expect(steps?.answer).toEqual({ ...start, coach });
     expect(StartOpSchema.safeParse(steps?.recap).success).toBe(true);
     expect(StartOpSchema.safeParse(steps?.answer).success).toBe(true);

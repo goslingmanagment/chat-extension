@@ -60,7 +60,7 @@ export interface FreshTextLimits {
  * D-14: whether this start may carry fresh page text, and how much. Reply,
  * Fix, Hi and Ping in the open chat (surface `dock`); since decision X52 also
  * Review in the dock and Coach on its panel (`freshTextSurface`), on a hub that
- * takes it there (`LIVE_TEXT_HUB_NEEDS`); Recap never. Only where the page
+ * takes it there (`LIVE_TEXT_HUB_NEEDS`), including both Recap lengths. Only where the page
  * admits it — `admitted`, the admission of the manifest's `fresh-text`
  * (`freshTextAdmitted`: the owner's `freshText` of the page and the hub's
  * `context-v1`). null — the generation runs on the hub archive alone.

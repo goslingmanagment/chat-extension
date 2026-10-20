@@ -137,6 +137,7 @@ export const FANSLY_SNAPSHOT_FIXTURES: Verdicts = {
     fanslyReplySnapshot,
     fanslyHiSnapshot,
     fanslyRecapSnapshot,
+    ...['review', 'coach', 'recap', 'recap-short', 'voice-script', 'notes-fill'].map((feature) => ({ ...fanslyReplySnapshot, feature })),
     // A draft function with no texts held: no tail at all.
     without(fanslyReplySnapshot, 'tail'),
     // Old texts dropped to stay within the frame.
@@ -147,8 +148,7 @@ export const FANSLY_SNAPSHOT_FIXTURES: Verdicts = {
     { ...fanslyRecapSnapshot, identity: { ...identity, fanId: FANSLY_OLD_ACCOUNT_ID } },
   ],
   invalid: [
-    // Page text only for Reply, Fix, Hi and Ping (D-14); the start proof and the avatar only for Hi.
-    { ...fanslyRecapSnapshot, tail: [] },
+    // The start proof and the avatar only for Hi.
     { ...fanslyReplySnapshot, startProof: tabStartProof },
     { ...fanslyReplySnapshot, fanAvatarUrl: fanslyHiSnapshot.fanAvatarUrl },
     { ...fanslyHiSnapshot, startProof: { ...tabStartProof, groupId: otherGroup } },
@@ -258,16 +258,15 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
         { groupId: group, feature: 'reply', window: 60, withText: true },
         { groupId: group, feature: 'hi', window: 25, withText: true },
         { groupId: group, feature: 'recap', window: 3000, withText: false },
+        ...['review', 'coach', 'recap', 'recap-short', 'voice-script', 'notes-fill'].map((feature) => ({ groupId: group, feature, window: 60, withText: true })),
       ],
-      // Page text never for Recap, Review or Coach (D-14); a window of at least one message.
+      // A window of at least one message, a known operation.
       invalid: [
-        { groupId: group, feature: 'recap', window: 3000, withText: true },
-        { groupId: group, feature: 'coach', window: 60, withText: true },
         { groupId: group, feature: 'reply', window: 0, withText: true },
         { groupId: group, feature: 'voice', window: 60, withText: false },
       ],
     },
-    data: { valid: [fanslyReplySnapshot, fanslyHiSnapshot, fanslyRecapSnapshot, null], invalid: [{ ...fanslyRecapSnapshot, tail: [] }, { completeness: 'unknown', gap: 'not-certified' }] },
+    data: { valid: [fanslyReplySnapshot, fanslyHiSnapshot, fanslyRecapSnapshot, { ...fanslyRecapSnapshot, tail: [] }, null], invalid: [{ completeness: 'unknown', gap: 'not-certified' }] },
   },
   'fx.groupForFan': { payload: { valid: [{ creatorId: FANSLY_IDS.creator, fanId: FANSLY_IDS.fan }], invalid: [{ creatorId: FANSLY_IDS.creator, fanId: 123 }, { fanId: FANSLY_IDS.fan }] }, data: { valid: [{ groupId: group }, { groupId: null }], invalid: [{ groupId: 123 }, {}] } },
   'fx.windowMeta': {

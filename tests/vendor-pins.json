@@ -1,9 +1,9 @@
 {
   "kernelSdk": {
     "contractHash": "152b37aee3198a4527e1def4890ef091ec77e2c31c5b76a99c8fb9c2af82fbea",
-    "sourceCommit": "a132b0422f9ad0f22a84a6d6b80ce1bbcf8e38f0",
-    "distSha256": "c3227fd15079ea65909017d0d37cf088b70d6e705af86483d09a495e559b2441",
-    "note": "Vendored on 2026-10-19 for release 0.5.0 with the hub's scripts/vendor-sdk.mjs from hub main a132b042 (#680), deployed to production on 2026-10-18 16:23 UTC: production serves contract 152b37ae… and no longer lists 55782888…. Against 85931f83 the contract only adds the owner's AI account routes (adminAiAccountsList, adminAiAccountUpdate) and changes agentSyncStatus, opsLive and syncPages, none of which this extension calls; every route, operation and schema it calls for ChatSpace and Fansly keeps its form. Re-vendor with the same script, then update this pin in the same commit."
+    "sourceCommit": "74c0f32251b633b76e0eb06f4c0e0762ae31eae2",
+    "distSha256": "ec4c75d654c8d672c5681e133577704d545a210e308e7190372603aa3f6d66b6",
+    "note": "Vendored on 2026-10-20 for release 0.5.7 from merged hub main 74c0f322 (#681) with scripts/vendor-sdk.mjs. Adds live-text-fansly-tools-v1 for voice-script and fan-notes-fill. Existing request schemas and contract hash are unchanged. Publish only after this hub commit is deployed; re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

@@ -13,7 +13,7 @@ import type { PageDiagnostics } from './diagnostics';
 import * as z from 'zod/mini';
 
 import { CgCodeSchema } from './errors';
-import { type FeatureId } from './features';
+import { type OpFeature } from './features';
 import { HOST_PLATFORM } from './hosts';
 import {
   ChatRefSchema,
@@ -775,10 +775,10 @@ export interface NavigateOptions {
 export interface FreshnessRequest {
   /** The conversation of the chat (on Fansly the group, FS-IDN-6): the target's — never the open route's for another chat. */
   readonly conversationRef: NativeId;
-  readonly feature: FeatureId;
+  readonly feature: OpFeature;
   /** The function's messageCount: the check window is the chat's last min(60, window) messages (FS-TAIL-1). */
   readonly window: number;
-  /** The tail's texts too: a draft function only (D-14). */
+  /** The tail's texts too, when the page switch and the hub admit them. */
   readonly withText: boolean;
 }
 

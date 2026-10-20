@@ -72,9 +72,9 @@ export const KIND_GROUP = 'group';
 export const SCRIPT_CYRILLIC = 'cyrillic';
 export const SCRIPT_OTHER = 'other';
 
-/** FEATURE_IDS, FRESH_TEXT_FEATURES: who a snapshot is for, and who may get page text in it (D-14). */
-export const FEATURES: readonly string[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'recap-short', 'coach'];
-export const TEXT_FEATURES: readonly string[] = ['reply', 'fix', 'hi', 'ping'];
+/** AI snapshot features; the isolated caller applies the page switch and hub capabilities. */
+export const FEATURES: readonly string[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'recap-short', 'coach', 'voice-script', 'notes-fill'];
+export const TEXT_FEATURES: readonly string[] = FEATURES;
 /** The one function a start proof and the fan's avatar are for. */
 export const FEATURE_HI = 'hi';
 /** START_PROOF_SOURCES: the tab's own proof. */

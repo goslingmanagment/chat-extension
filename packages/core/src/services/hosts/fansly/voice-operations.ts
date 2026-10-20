@@ -16,6 +16,7 @@ function prepare(start: SiteStartOp): ScheduledStart {
     feature: checked.feature, target: checked.target, cause: checked.cause,
     surface: 'dock', split: false, window: checked.window,
     tone: checked.feature === 'voice-script' ? checked.tone : null,
+    ...(checked.fresh === undefined ? {} : { fresh: checked.fresh }),
     // The values are part of what is asked: another value is another request, never a kept result of the old one.
     ...(checked.feature === 'voice-script' ? { draft: checked.draft } : { parametersDigest: stableDigest(checked.values === undefined ? checked.fields : { fields: checked.fields, values: checked.values }) }),
     ...(checked.force === undefined ? {} : { force: checked.force }),
@@ -44,6 +45,15 @@ function build(feature: FanslyOp, start: ScheduledStart, ctx: StreamRequestConte
       personaKey: ctx.persona.key, expectedPersonaDefinitionId: ctx.persona.definitionId,
       messageCount: Math.min(input.window, depth),
       isRegeneration: input.regenerateOf !== undefined,
+      ...(input.fresh !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, 'live-text-fansly-tools-v1') ? {
+        liveTextContext: {
+          capturedAt: input.fresh.capturedAt,
+          items: input.fresh.messages.map((message) => ({
+            platformMessageId: message.platformMessageId, direction: message.direction,
+            occurredAt: message.sentAt, text: message.text,
+          })),
+        },
+      } : {}),
       // R20 P11b2, X43 (the owner's ruling of 2026-10-17): the notes fill asks the hub's merge mode — the fan's words,
       // the month of a stale fact, `=` for a field the chat adds nothing to — with the questionnaire's values. They go
       // in this body and nowhere else: no log, diagnostics or `client_health` names them (FS-NOTE-5).

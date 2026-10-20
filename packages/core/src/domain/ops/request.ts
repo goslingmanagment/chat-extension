@@ -5,7 +5,7 @@
 // persona key + expected definition, messageCount, isRegeneration), fresh
 // text only for draft features in the open chat under the freshText switch —
 // and for Review and Coach where the hub lists `live-text-review-coach-v1`
-// (decision X52; `LIVE_TEXT_HUB_NEEDS`), never for Recap —
+// and Recap with `live-text-recap-v1` (X52, X70; `LIVE_TEXT_HUB_NEEDS`) —
 // the known fan ids of a preview checkpoint, and the capability header. The
 // result is checked against the contracts' schema: a request the hub would
 // refuse with 400 is our bug and never leaves the background.

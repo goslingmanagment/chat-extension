@@ -14,7 +14,8 @@ import {
 } from '@cg/contracts/bridge-fansly';
 import { FANSLY_FAN_SCRIPTS, FANSLY_TAP_STATES } from '@cg/contracts/bridge-messages-fansly';
 import { FANSLY_AVATAR_URL_PATTERN, FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslyAvatarUrlSchema, START_PROOF_SOURCES } from '@cg/contracts/fansly';
-import { FEATURE_IDS, FRESH_TEXT_FEATURES } from '@cg/contracts/features';
+import { FEATURE_IDS } from '@cg/contracts/features';
+import { FANSLY_OPS } from '@cg/contracts/ops-fansly';
 import { FANSLY_BRIDGE_REQUEST_FIXTURES } from '@cg/contracts/fixtures';
 import { ANCHOR_STATES, CONVERSATION_KINDS } from '@cg/contracts/host';
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
@@ -61,8 +62,8 @@ describe('[EX-008] [host:fansly] Fansly’s MAIN literals', () => {
     expect([protocol.COMPLETE, protocol.UNKNOWN]).toEqual([...FANSLY_COMPLETENESS]);
     expect([protocol.KIND_DIRECT, protocol.KIND_GROUP]).toEqual([...CONVERSATION_KINDS]);
     expect([protocol.SCRIPT_CYRILLIC, protocol.SCRIPT_OTHER, protocol.UNKNOWN]).toEqual([...FANSLY_FAN_SCRIPTS]);
-    expect([...protocol.FEATURES]).toEqual([...FEATURE_IDS]);
-    expect([...protocol.TEXT_FEATURES]).toEqual([...FRESH_TEXT_FEATURES]);
+    expect([...protocol.FEATURES]).toEqual([...FEATURE_IDS, ...FANSLY_OPS]);
+    expect([...protocol.TEXT_FEATURES]).toEqual([...FEATURE_IDS, ...FANSLY_OPS]);
     expect(FEATURE_IDS).toContain(protocol.FEATURE_HI);
     expect(START_PROOF_SOURCES[0]).toBe(protocol.PROOF_TAB);
     for (const state of [protocol.ANCHOR_OK, protocol.ANCHOR_NOT_YET, protocol.ANCHOR_SHAPE]) expect(ANCHOR_STATES).toContain(state);

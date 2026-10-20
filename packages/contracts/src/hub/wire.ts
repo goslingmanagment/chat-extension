@@ -152,6 +152,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * recap and a dossier's proof; a hub without it refuses the field there (400 `live_text_not_allowed`).
    */
   'live-text-recap-v1',
+  /** The voice script and questionnaire fill accept the open chat's latest text. */
+  'live-text-fansly-tools-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

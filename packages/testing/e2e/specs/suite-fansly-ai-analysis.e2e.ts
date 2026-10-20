@@ -1,8 +1,8 @@
 // Recap, Review and Coach on Fansly (R20 P8c, part B; docs/project-unite/spec.md FS-AI-1, FS-TAIL-1, FS-TAIL-8,
 // FS-TAIL-10; plan.md §3 `suite-fansly-ai`): the extension's test build on the Fansly stand against the fake hub, a
 // chatter signed in, the Fansly page's persona chosen and its own switches on.
-// - They read the hub's history only: each start carries MAIN's snapshot as its proof — the window the page holds,
-//   checked by its ids —, never a text of the page, never `clientContext`.
+// - They read the hub's history and the latest page text: each start carries MAIN's snapshot as its proof — the window the page holds,
+//   checked by its ids — together with its text, never `clientContext`.
 // - The verdict over what they made: an analysis whose window the hub has not got (its ordinary lag: the fan wrote,
 //   the chatter starts at once) is marked as a result is — «Ответ мог не учесть последние сообщения чата.» — on its
 //   own surface, the Review's sheet and the Coach answer, with «Ещё раз»; the hub holding the window — no mark.
@@ -106,7 +106,7 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     expect((await fanslyStandServer.journal(journalStart)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
   });
 
-  it('[AI-050] [FS-TAIL-10] [FS-TAIL-8] Review: from the hub’s history, its window checked by ids, no page text; the window the hub has not got marks the Review, «Ещё раз» on the mark rates anew — unmarked once the hub holds it', async function () {
+  it('[AI-050] [FS-TAIL-10] [FS-TAIL-8] Review: from the hub’s history, its window checked by ids and sent as text; the window the hub has not got marks the Review, «Ещё раз» on the mark rates anew — unmarked once the hub holds it', async function () {
     this.timeout(180_000);
     const page = await held();
     const mark = await hub().mark();
@@ -117,9 +117,9 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     if (first === undefined) throw new Error('the Review asked the hub nothing');
     expect([first.feature, first.status, first.body.conversationRef, first.body.fanRef]).toEqual(['chat-review', 200, A.group, A.fan]);
     expect(first.capabilities).toEqual(expect.arrayContaining(['context-v1', 'coverage-check-v1']));
-    // The window the page holds, by its ids; no text of the page and no `clientContext` (FS-TAIL-10).
+    // The same observed window is checked by ids and sent as text; no `clientContext` (FS-TAIL-10).
     expect(first.body.coverageCheck?.window.map((entry) => entry.id)).toEqual(page.slice(-60));
-    expect(['liveTextContext' in first.body, 'clientContext' in first.body]).toEqual([false, false]);
+    expect(['liveTextContext' in first.body, 'clientContext' in first.body]).toEqual([true, false]);
     expect(first.body.messageCount).toBe(3000);
 
     // The hub's archive holds none of the page's ids: the Review is marked, its «Ещё раз» on the mark.
@@ -157,7 +157,7 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     await waitOursText('panel', /Ask about their weekend/, 'the Coach answer', { timeout: 30_000 });
     await waitOursText('panel', MISS, 'the mark over the Coach answer', { selector: '.cg-stale__t' });
     const [asked] = await streamsSince(mark);
-    expect([asked?.feature, asked?.status, asked?.body.coverageCheck?.window.length, asked !== undefined && 'liveTextContext' in asked.body]).toEqual(['coach-chat', 200, window.length, false]);
+    expect([asked?.feature, asked?.status, asked?.body.coverageCheck?.window.length, asked !== undefined && 'liveTextContext' in asked.body]).toEqual(['coach-chat', 200, window.length, true]);
     await inBothThemes('suite-fansly-ai-analysis-coach-mark');
 
     // The hub catches up: «Ещё раз» asks the question again, and that answer has no mark.
@@ -214,7 +214,7 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
       ['fan-summary', 200, 'short', 300],
     ]);
     const window = Math.min(60, (await held()).length);
-    for (const { body } of streams) expect([body.coverageCheck?.window.length, 'liveTextContext' in body, 'clientContext' in body]).toEqual([window, false, false]);
+    for (const { body } of streams) expect([body.coverageCheck?.window.length, 'liveTextContext' in body, 'clientContext' in body]).toEqual([window, true, false]);
   });
 
   it('[AI-070] [NEW-02] the Recap lags the chat once the fan wrote after it: its facts say so, by the page’s newest message — no text of the page copied for it', async function () {

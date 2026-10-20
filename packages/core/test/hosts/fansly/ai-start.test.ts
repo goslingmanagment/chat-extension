@@ -167,7 +167,7 @@ const lastFan = (held: readonly Held[], count: number): string[] =>
     .reverse();
 
 describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as its proof, and the hub is asked about it', () => {
-  it('review P2: auto-Recap preserves the Coach snapshot in both hub requests, without page text', async () => {
+  it('review P2: auto-Recap preserves the Coach snapshot and text in both hub requests', async () => {
     const tab = await fanslyTab();
     const { h } = tab;
     h.script(h.streamOf('fan-summary', ['Summary']), h.streamOf('coach-chat', ['Advice']));
@@ -175,9 +175,9 @@ describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as
     await h.finish();
     const start = h.bg.callsOf('op.start')[0] as StartOp;
     expect(start.proof?.window).toHaveLength(60);
-    expect(h.bg.hub.streams.map(({ feature, body }) => [feature, body.messageCount, body.coverageCheck?.window, body.liveTextContext])).toEqual([
-      ['fan-summary', 3000, start.proof?.window, undefined],
-      ['coach-chat', WINDOWS.quick, start.proof?.window, undefined],
+    expect(h.bg.hub.streams.map(({ feature, body }) => [feature, body.messageCount, body.coverageCheck?.window, body.liveTextContext !== undefined])).toEqual([
+      ['fan-summary', 3000, start.proof?.window, true],
+      ['coach-chat', WINDOWS.quick, start.proof?.window, true],
     ]);
   });
 
@@ -246,31 +246,30 @@ describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as
     expect([request.body.startProof, request.body.personalMessageCount, request.body.fanAvatarUrl, request.capabilities.includes('hi-start-proof-v1')]).toEqual([undefined, undefined, undefined, false]);
   });
 
-  it('[AI-142] every feature: the window is min(60, its messageCount) — Fix 25, Hi 25, the rest 60 —; texts only for Reply, Fix, Hi and Ping (D-14, FS-TAIL-10); every one is checked', async () => {
+  it('[AI-142] every feature: the window is min(60, its messageCount) — Fix 25, Hi 25, the rest 60 —; texts for every admitted AI feature (FS-TAIL-10); every one is checked', async () => {
     const tab = await fanslyTab();
     const seen: Record<string, unknown> = {};
     for (const feature of ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'recap-short', 'coach'] as const) {
       tab.port.asked.length = 0;
       const { start, request } = await generate(tab, feature);
       const asked = tab.port.asked[0]?.request;
-      const draft = ['reply', 'fix', 'hi', 'ping'].includes(feature);
       seen[feature] = {
         asked: asked === undefined ? null : [asked.window, asked.withText],
         proof: [start.proof?.window.length, start.proof?.kind === 'tab-snapshot' ? start.proof.tail !== undefined : null],
         body: [request.body.coverageCheck?.window.length, request.body.liveTextContext !== undefined, request.body.messageCount],
       };
       expect([feature, (request.body.messageCount ?? 0) >= (request.body.coverageCheck?.window.length ?? Infinity)]).toEqual([feature, true]);
-      expect([feature, draft || request.body.liveTextContext === undefined]).toEqual([feature, true]);
+      expect([feature, request.body.liveTextContext !== undefined]).toEqual([feature, true]);
     }
     expect(seen).toEqual({
       reply: { asked: [60, true], proof: [60, true], body: [60, true, WINDOWS.quick] },
       fix: { asked: [25, true], proof: [25, true], body: [25, true, WINDOWS.improve] },
       hi: { asked: [25, true], proof: [25, true], body: [25, true, 25] },
       ping: { asked: [60, true], proof: [60, true], body: [60, true, WINDOWS.ping] },
-      review: { asked: [60, false], proof: [60, false], body: [60, false, WINDOWS.deep] },
-      recap: { asked: [60, false], proof: [60, false], body: [60, false, WINDOWS.deep] },
-      'recap-short': { asked: [60, false], proof: [60, false], body: [60, false, 300] },
-      coach: { asked: [60, false], proof: [60, false], body: [60, false, WINDOWS.quick] },
+      review: { asked: [60, true], proof: [60, true], body: [60, true, WINDOWS.deep] },
+      recap: { asked: [60, true], proof: [60, true], body: [60, true, WINDOWS.deep] },
+      'recap-short': { asked: [60, true], proof: [60, true], body: [60, true, 300] },
+      coach: { asked: [60, true], proof: [60, true], body: [60, true, WINDOWS.quick] },
     });
   });
 

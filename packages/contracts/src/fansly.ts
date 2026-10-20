@@ -14,7 +14,7 @@
 
 import * as z from 'zod/mini';
 
-import { FeatureIdSchema, isFreshTextFeature, type FeatureId } from './features';
+import { FeatureIdSchema } from './features';
 import { HiFanAvatarUrlSchema as FanslyAvatarUrlSchema, START_PROOF_LIMITS, StartProofV1Schema } from './hi-start-proof';
 import type { Unsubscribe } from './host';
 import type { HostIdentity, HumanCause } from './ids';
@@ -148,9 +148,12 @@ export const FanslyTailMessageSchema = z.strictObject({
   text: boundedText(LIVE_TEXT_LIMITS.maxChars),
 });
 
+export const FanslySnapshotFeatureSchema = z.union([FeatureIdSchema, z.enum(['voice-script', 'notes-fill'])]);
+export type FanslySnapshotFeature = z.infer<typeof FanslySnapshotFeatureSchema>;
+
 const snapshotShape = {
   /** The function the snapshot is for: it decides whether a tail and a start proof may be in it. */
-  feature: FeatureIdSchema,
+  feature: FanslySnapshotFeatureSchema,
   /** The chat as MAIN knows it: the creator of `/account/me`, the group of the request, the group's one fan. */
   identity: z.strictObject({ creatorId: NativeIdSchema, groupId: NativeIdSchema, fanId: NativeIdSchema }),
   /** MAIN's document epoch, the socket epoch, and the route epoch of the last `fx.focus`. */
@@ -169,15 +172,15 @@ const snapshotShape = {
   /** Hi only: the fan's avatar, when the page loaded it (FX-018). */
   fanAvatarUrl: z.optional(FanslyAvatarUrlSchema),
   /**
-   * Reply, Fix, Hi and Ping only (D-14): the texts of the window, oldest first. Empty is a lawful tail (a chat without
-   * a text); absent — another function or no texts held.
+   * The texts of the window, oldest first, for a start admitted to fresh text.
+   * Empty is a lawful tail (a chat without a text); absent — not requested or no texts held.
    */
   tail: z.optional(z.array(FanslyTailMessageSchema).check(z.maxLength(FANSLY_LIMITS.tailMax))),
   /** Old texts were dropped to keep the frame within its limit (FANSLY_BRIDGE_LIMITS.maxSnapshotBytes). */
   truncated: z.boolean(),
 };
 type SnapshotShape = {
-  readonly feature: FeatureId;
+  readonly feature: FanslySnapshotFeature;
   readonly identity: { readonly creatorId: string; readonly groupId: string; readonly fanId: string };
   readonly completeness: FanslyCompleteness;
   readonly gap?: FanslyCoverageReason | undefined;
@@ -211,9 +214,8 @@ function snapshotStateHolds(s: SnapshotShape): boolean {
   return !s.truncated || s.tail !== undefined;
 }
 
-/** Page text only for draft functions (D-14); the start proof and the avatar only for Hi, of this very chat. */
+/** The start proof and the avatar are only for Hi, of this very chat. */
 function snapshotFeatureHolds(s: SnapshotShape): boolean {
-  if (s.tail !== undefined && !isFreshTextFeature(s.feature)) return false;
   if ((s.startProof !== undefined || s.fanAvatarUrl !== undefined) && s.feature !== 'hi') return false;
   if (s.startProof !== undefined && s.startProof.groupId !== s.identity.groupId) return false;
   return s.identity.creatorId !== s.identity.fanId;
@@ -222,7 +224,7 @@ function snapshotFeatureHolds(s: SnapshotShape): boolean {
 /**
  * MAIN's answer to `fx.generationSnapshot` (§5.8, FS-TAIL-6): taken in one synchronous step after a bounded drain of
  * the deferred parse, so the tail and the check come from the same instant. Metadata for every function; texts for
- * draft functions only; within FANSLY_BRIDGE_LIMITS.maxSnapshotBytes, the oldest texts dropped first. Never on disk;
+ * admitted AI starts; within FANSLY_BRIDGE_LIMITS.maxSnapshotBytes, the oldest texts dropped first. Never on disk;
  * the background keeps no copy of the tail (FS-PRIV-1).
  */
 export const FanslySnapshotSchema = z
@@ -230,7 +232,7 @@ export const FanslySnapshotSchema = z
   .check(
     z.refine(snapshotIdsHold, { message: 'every id of the check comes from the window, in snowflake order' }),
     z.refine(snapshotStateHolds, { message: 'a gap exactly when unknown, never «certificate»; only a tail is truncated' }),
-    z.refine(snapshotFeatureHolds, { message: 'a tail for draft functions only; a start proof and an avatar for Hi of this chat only' }),
+    z.refine(snapshotFeatureHolds, { message: 'a start proof and an avatar for Hi of this chat only' }),
   );
 export type FanslySnapshot = z.infer<typeof FanslySnapshotSchema>;
 

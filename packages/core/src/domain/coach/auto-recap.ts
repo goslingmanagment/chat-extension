@@ -72,6 +72,7 @@ export function coachTurnSteps(start: StartOp): CoachTurnSteps | null {
       split: false,
       window: autoRecap.window,
       force: true,
+      ...(start.fresh === undefined ? {} : { fresh: start.fresh }),
       ...(start.proof === undefined ? {} : { proof: start.proof }),
     },
     answer: { ...start, coach: question },

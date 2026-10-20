@@ -20,8 +20,7 @@ import {
   type FromMainFanslyType,
   type ToMainFanslyType,
 } from './bridge-fansly';
-import { FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslySnapshotSchema } from './fansly';
-import { FeatureIdSchema, isFreshTextFeature } from './features';
+import { FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslySnapshotFeatureSchema, FanslySnapshotSchema } from './fansly';
 import { ANCHOR_STATES, ConversationKindSchema, type FanScript } from './host';
 import { CountSchema, DigestSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema } from './primitives';
 
@@ -185,9 +184,9 @@ export type FanslyHealth = z.infer<typeof FanslyHealthSchema>;
 // ── Requests ───────────────────────────────────────────────────────────────
 
 /** `fx.generationSnapshot` (§5.8): `window` is the function's messageCount; MAIN takes the last min(60, window). */
-export const FanslySnapshotRequestSchema = z
-  .strictObject({ groupId: NativeIdSchema, feature: FeatureIdSchema, window: z.int().check(z.gte(1)), withText: z.boolean() })
-  .check(z.refine((r) => !r.withText || isFreshTextFeature(r.feature), { message: 'page text only for Reply, Fix, Hi and Ping (D-14)' }));
+export const FanslySnapshotRequestSchema = z.strictObject({
+  groupId: NativeIdSchema, feature: FanslySnapshotFeatureSchema, window: z.int().check(z.gte(1)), withText: z.boolean(),
+});
 
 /**
  * Requests isolated → MAIN: payload and answer schema of each `t`. None is a write (FANSLY_BRIDGE_WRITE_REQUESTS);

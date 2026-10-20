@@ -71,8 +71,8 @@ describe('[host:fansly] the operations of Fansly’s slice (architecture §1.6, 
     expectVerdicts('FanslyStartOp', O.FanslyStartOpSchema, FANSLY_START_OP_FIXTURES);
     expect(O.FanslyStartOpSchema.safeParse(fanslyVoiceScriptStart).success).toBe(true);
     expect(fanslyVoiceScriptStart.target.conversationRef).not.toBe(fanslyVoiceScriptStart.target.fanRef);
-    expect(Object.keys(O.VoiceScriptStartSchema.def.shape).sort()).toEqual(['cause', 'draft', 'feature', 'force', 'regenerateOf', 'target', 'tone', 'window'].sort());
-    expect(Object.keys(O.NotesFillStartSchema.def.shape).sort()).toEqual(['cause', 'feature', 'fields', 'force', 'regenerateOf', 'target', 'values', 'window'].sort());
+    expect(Object.keys(O.VoiceScriptStartSchema.def.shape).sort()).toEqual(['cause', 'draft', 'feature', 'force', 'fresh', 'regenerateOf', 'target', 'tone', 'window'].sort());
+    expect(Object.keys(O.NotesFillStartSchema.def.shape).sort()).toEqual(['cause', 'feature', 'fields', 'force', 'fresh', 'regenerateOf', 'target', 'values', 'window'].sort());
     // The shared StartOp knows neither: a site operation never passes the shared schemas, and no shared one widens.
     expect(C.StartOpSchema.safeParse({ ...fanslyVoiceScriptStart, surface: 'dock', split: false }).success).toBe(false);
     expect(C.StartOpSchema.safeParse({ ...fanslyNotesFillStart, surface: 'dock', tone: null, split: false }).success).toBe(false);
@@ -117,8 +117,8 @@ describe('[host:fansly] the hub’s side of the two (contracts/src/hub, HF-4а, 
     expect(C.HUB_FEATURE_ONLY_FIELDS.replyTone).toEqual(['fast-reply', 'voice-script']);
     expect(C.HUB_FEATURE_ONLY_FIELDS.draftText).toEqual(['improve-draft', 'coach-chat', 'voice-script']);
     expect(C.HUB_FEATURE_ONLY_FIELDS.noteFields).toEqual(['fan-notes-fill']);
-    // Fresh page text stays the four drafts' (D-14): neither the script nor the fill takes it.
-    for (const hub of ['voice-script', 'fan-notes-fill'] as const) expect(C.HUB_FEATURE_ONLY_FIELDS.liveTextContext as readonly string[], hub).not.toContain(hub);
+    // X70: both tools take the current chat text on a hub advertising their capability.
+    for (const hub of ['voice-script', 'fan-notes-fill'] as const) expect(C.HUB_FEATURE_ONLY_FIELDS.liveTextContext as readonly string[], hub).toContain(hub);
     // 1.28.0 (X43): the questionnaire's values are the fill's alone, beside its labels — never on another feature.
     expect(C.HUB_FEATURE_ONLY_FIELDS.noteValues).toEqual(['fan-notes-fill']);
   });
