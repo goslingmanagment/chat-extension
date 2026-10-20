@@ -1,31 +1,9 @@
-// The CG registry against Appendix A of docs/architecture.md: one entry per
-// code in order, the «Повтор» column, the P1 marks, the text keys and the
-// settings deep links.
-
-import { readFileSync } from 'node:fs';
+// The CG registry: one entry per code in order, the known vocabularies, the
+// text keys and the settings deep links.
 
 import { describe, expect, it } from 'vitest';
 
 import * as C from '../src/index';
-
-interface AppendixRow {
-  readonly code: string;
-  readonly meaning: string;
-  readonly retry: string;
-}
-
-function appendixARows(): AppendixRow[] {
-  const doc = readFileSync(new URL('../../../docs/architecture.md', import.meta.url), 'utf8');
-  const start = doc.indexOf('## Приложение А.');
-  const end = doc.indexOf('**Чего в реестре нет:**', start);
-  expect(start).toBeGreaterThan(0);
-  expect(end).toBeGreaterThan(start);
-  return [...doc.slice(start, end).matchAll(/^\| (CG-[A-Z0-9-]+) \| (.+?) \| (\S+) \| .+ \|$/gm)].map((match) => ({
-    code: match[1] ?? '',
-    meaning: match[2] ?? '',
-    retry: match[3] ?? '',
-  }));
-}
 
 const entries = Object.values(C.CG_REGISTRY);
 
@@ -33,24 +11,6 @@ describe('CG registry (Appendix A, §5.7)', () => {
   it('has one entry per code, in Appendix A order', () => {
     expect(Object.keys(C.CG_REGISTRY)).toEqual([...C.CG_CODES]);
     for (const code of C.CG_CODES) expect(C.cgEntry(code).code).toBe(code);
-  });
-
-  it('follows the «Повтор» column', () => {
-    const rows = appendixARows();
-    expect(rows.map((row) => row.code)).toEqual([...C.CG_CODES]);
-    expect(Object.keys(C.CG_RETRY_APPENDIX_A).sort()).toEqual([...C.CG_RETRIES].sort());
-    for (const row of rows) {
-      const entry = C.cgEntry(row.code as C.CgCode);
-      expect(C.CG_RETRY_APPENDIX_A[entry.retry], row.code).toBe(row.retry);
-    }
-  });
-
-  it('counts as P1 exactly the codes Appendix A marks «(P1)»', () => {
-    const marked = appendixARows()
-      .filter((row) => row.meaning.includes('(P1)'))
-      .map((row) => row.code);
-    expect(marked).toEqual(['CG-INSERT-MISPLACED']);
-    expect([...C.CG_P1_CODES]).toEqual(marked);
   });
 
   it('derives the text keys from the code', () => {

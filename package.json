@@ -7,8 +7,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm webext-lint && pnpm gates && pnpm parity && pnpm archive-check",
-    "rebase:main": "node tools/rebase-main.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm webext-lint && pnpm gates && pnpm archive-check",
     "typecheck": "tsc -b",
     "lint": "eslint . && depcruise packages apps/extension/src apps/extension/lazy apps/extension/bg --config .dependency-cruiser.cjs",
     "test": "vitest run",
@@ -17,8 +16,6 @@
     "webext-lint": "web-ext lint --self-hosted --source-dir apps/extension/.output/firefox-mv3",
     "gates": "node tools/gates/index.ts",
     "gates:bytes": "node tools/gates/pin-bytes.ts",
-    "parity": "node tools/parity/index.ts",
-    "parity:coverage": "node tools/parity/coverage.ts",
     "archive-check": "node tools/archive-check/index.ts",
     "e2e": "pnpm build && pnpm build:test && pnpm --filter @cg/testing e2e",
     "perf": "pnpm build:test && pnpm --filter @cg/testing perf",

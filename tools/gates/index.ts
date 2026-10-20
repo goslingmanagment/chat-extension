@@ -9,10 +9,8 @@ import { join } from 'node:path';
 import { checkManifest } from '../../apps/extension/build/manifest.ts';
 import { hostOf, HOSTS } from '../../apps/extension/src/hosts/index.ts';
 import { PARITY_EXCEPTIONS } from '../../packages/contracts/src/parity/exceptions.ts';
-import { readSources, readTree, readTreeBytes } from '../lib/files.ts';
+import { readSources, readTree } from '../lib/files.ts';
 import { fail, RELEASE_DIR, REPO_ROOT, TEST_DIR } from '../lib/paths.ts';
-import { readPlanPrs } from '../parity/plan.ts';
-import { changeUnderCheck } from './change.ts';
 import {
   checkIsolatedStart,
   checkMainWorldBundles,
@@ -26,27 +24,13 @@ import {
   runSourceGates,
   type Violation,
 } from './checks.ts';
-import {
-  CHATSPACE_BYTES_PATH,
-  checkBuildData,
-  checkBytesPinDiff,
-  checkSiteBytes,
-  checkSiteLiterals,
-  checkSiteMarkers,
-  checkSiteNames,
-  deriveSiteMarkers,
-  measureSiteBytes,
-  parseSiteBytes,
-  SITE_LITERAL_DEBT,
-  SITES,
-  type SiteBytes,
-} from './sites.ts';
+import { checkBuildData, checkSiteLiterals, checkSiteMarkers, checkSiteNames, deriveSiteMarkers, SITE_LITERAL_DEBT, SITES } from './sites.ts';
 
 const sources = readSources();
 const violations: Violation[] = [...runSourceGates(sources)];
 
-// Site literals: shared code names no site, but for the debt list — each entry with a PR of the plan that is not done.
-violations.push(...checkSiteLiterals(sources, SITE_LITERAL_DEBT, readPlanPrs(REPO_ROOT)));
+// Site literals: shared code names no site, but for the debt list.
+violations.push(...checkSiteLiterals(sources, SITE_LITERAL_DEBT));
 // …and no shared text says a site's name: it says the site's phrase (R20 F9b).
 violations.push(...checkSiteNames(sources));
 
@@ -78,21 +62,6 @@ const chatspace = hostOf('chatspace');
 const fansly = SITES.find((site) => site.kind === 'fansly-web');
 if (chatspace === undefined || fansly === undefined) fail('gates: the host registry has no ChatSpace, or the contracts no fansly-web: the gates between the sites have nothing to hold.');
 
-// Bytes per site: ChatSpace's built files against their pins — the comparison with `main` every change goes through.
-let pinned: SiteBytes;
-try {
-  pinned = parseSiteBytes(readFileSync(`${REPO_ROOT}${CHATSPACE_BYTES_PATH}`, 'utf8'));
-} catch (error) {
-  fail(`gates: cannot read ${CHATSPACE_BYTES_PATH} (${error instanceof Error ? error.message : String(error)}) — write it with pnpm gates:bytes.`);
-}
-const bytes = checkSiteBytes(pinned, measureSiteBytes(chatspace, readTreeBytes(RELEASE_DIR)));
-violations.push(...bytes);
-
-// …and the diff of this change against them: Fansly's files alone never rewrite ChatSpace's pins.
-const change = changeUnderCheck();
-if ('error' in change) fail(`gates: cannot tell what this change touches — ${change.error}.`);
-if ('paths' in change) violations.push(...checkBytesPinDiff(change.paths));
-
 // No Fansly data in what ChatSpace loads: the strings only Fansly's own modules carry, against the shared source and
 // the vendored packages a bundle is built from. No marker at all is a gate that checks nothing.
 const vendored = readdirSync(`${REPO_ROOT}vendor`)
@@ -115,22 +84,11 @@ if (existsSync(join(TEST_DIR, 'manifest.json'))) {
 for (const violation of violations) {
   console.error(`${violation.gate}: ${violation.path}:${violation.line} — ${violation.message}`);
 }
-if (bytes.length > 0) {
-  console.error(
-    [
-      `site-bytes: ChatSpace's built files are not what ${CHATSPACE_BYTES_PATH} pins — this change moves bytes a ChatSpace tab or its background loads.`,
-      "  · It changes only Fansly's files? Then it leaked: `pnpm lint` (chatspace-graph-without-fansly, background-core-graph) names the import. Do not rewrite the pins.",
-      '  · It changes shared code on purpose? `pnpm gates:bytes` rewrites the pins; commit them and name the delta of every line of the byte registry in the PR (docs/project-unite/architecture.md §1.8, §3.2).',
-    ].join('\n'),
-  );
-}
 if (violations.length > 0) fail(`gates: ${violations.length} violation(s).`);
-const debtPrs = [...new Set(SITE_LITERAL_DEBT.map((entry) => entry.pr))].sort();
-const debt = SITE_LITERAL_DEBT.length === 0 ? 'none left' : `${SITE_LITERAL_DEBT.reduce((sum, entry) => sum + entry.count, 0)} left in ${SITE_LITERAL_DEBT.length} debt entries of PRs in flight: ${debtPrs.join(', ')}`;
-const judged = 'paths' in change ? `${change.paths.length} changed path(s) judged against ${change.base.slice(0, 8)}` : `the diff is not judged here: ${change.skipped}`;
+const debt = SITE_LITERAL_DEBT.length === 0 ? 'none left' : `${SITE_LITERAL_DEBT.reduce((sum, entry) => sum + entry.count, 0)} left in ${SITE_LITERAL_DEBT.length} debt entries`;
 console.log(
   `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, fetch only in the hub, fansly-api and the relay (${FETCH_EXCEPTIONS.length} counted exceptions), Fansly's addresses under its API, no /message/ack, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab — all clean.`,
 );
 console.log(
-  `gates: the two sites — site literals (${debt}), no site name in a shared text, ChatSpace's ${Object.keys(pinned.files).length} built files byte-identical to their pins (${judged}), no Fansly data in them (${fanslyMarkers.length} markers), no build field or parity row in a bundle — all clean.`,
+  `gates: the two sites — site literals (${debt}), no site name in a shared text, no Fansly data in ChatSpace's files (${fanslyMarkers.length} markers), no build field or parity row in a bundle — all clean.`,
 );

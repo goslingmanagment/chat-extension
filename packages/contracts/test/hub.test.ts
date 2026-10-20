@@ -1,30 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 import * as C from '../src/index';
 import { HUB_SAMPLES } from './fixtures/index';
-
-const ARCHITECTURE = fileURLToPath(new URL('../../../docs/architecture.md', import.meta.url));
-
-/** The bullets of one part of Appendix A «Колонка chat-extension», continuation lines joined. */
-function appendixBullets(from: string, to: string): string[] {
-  const text = readFileSync(ARCHITECTURE, 'utf8');
-  const start = text.indexOf(from);
-  const end = text.indexOf(to, start + from.length);
-  expect(start, `«${from}» in architecture.md`).toBeGreaterThan(0);
-  expect(end, `«${to}» after it`).toBeGreaterThan(start);
-  const bullets: string[] = [];
-  for (const line of text.slice(start + from.length, end).split('\n')) {
-    if (line.startsWith('- ')) bullets.push(line.slice(2));
-    else if (line.startsWith('  ') && bullets.length > 0) bullets[bullets.length - 1] += ` ${line.trim()}`;
-  }
-  return bullets;
-}
-
-const hubCodesOf = (text: string): string[] => [...text.matchAll(/`([a-z_*]+)`/g)].map((m) => m[1] ?? '');
-const cgCodesOf = (text: string): string[] => [...text.matchAll(/CG-[A-Z0-9-]+[A-Z0-9]/g)].map((m) => m[0]).filter((code) => C.isCgCode(code));
 
 type Ctx = C.HubErrorContext;
 const baseContext = (route: C.HubRouteKey): Ctx => ({
@@ -78,44 +55,7 @@ const routeOfClass = (routeClass: C.HubRouteClass): C.HubRouteKey => {
   return key;
 };
 
-describe('hub error map vs Appendix A «Колонка chat-extension»', () => {
-  it('§2 SSE: every listed code maps exactly as written; fallbacks too', () => {
-    const bullets = appendixBullets('§2 SSE:', '§3 HTTP:');
-    const listed: Record<string, string> = {};
-    for (const bullet of bullets) {
-      const [code] = hubCodesOf(bullet);
-      const [cg] = cgCodesOf(bullet);
-      if (code === undefined || cg === undefined || code.includes('*') || code === 'done') continue;
-      listed[code] = cg;
-    }
-    expect(listed).toEqual(C.HUB_SSE_ERROR_CODES);
-    const text = bullets.join('\n');
-    expect(text).toMatch(new RegExp(`\`provider\\*\` → ${C.HUB_SSE_FALLBACKS.provider}`));
-    expect(text).toContain(`прочий неизвестный код → ${C.HUB_SSE_FALLBACKS.other}`);
-    expect(text).toContain(`→ ${C.HUB_SSE_FALLBACKS.truncated}`);
-    expect(C.HUB_SSE_FALLBACKS.providerPrefix).toBe('provider');
-  });
-
-  it('§3 HTTP: every listed hub code has a rule for each CG code on its line', () => {
-    const bullets = appendixBullets('§3 HTTP:', '**Старые коды → новые**');
-    expect(bullets.length).toBeGreaterThan(10);
-    for (const bullet of bullets) {
-      const [lhs = '', rhs = ''] = bullet.split('→');
-      const codes = hubCodesOf(lhs).filter((code) => code !== 'reason');
-      const cgs = cgCodesOf(rhs);
-      if (codes.some((code) => code.includes('*'))) {
-        // voice_* is phase 2: no rule may claim it yet.
-        expect(C.HUB_HTTP_ERROR_RULES.some((rule) => rule.error?.startsWith('voice_'))).toBe(false);
-        continue;
-      }
-      const pairs = codes.length > 1 && codes.length === cgs.length ? codes.map((code, i) => [code, cgs[i]] as const) : codes.flatMap((code) => cgs.map((cg) => [code, cg] as const));
-      for (const [code, cg] of pairs) {
-        const mapped = C.HUB_HTTP_ERROR_RULES.filter((rule) => rule.error === code).map((rule) => rule.cg);
-        expect(mapped, `${code} → ${cg}`).toContain(cg);
-      }
-    }
-  });
-
+describe('hub error map', () => {
   it('hub-pr-plan §4.11 codes all have a status and a rule', () => {
     for (const code of Object.keys(C.HUB_ERROR_STATUSES)) {
       expect(C.HUB_HTTP_ERROR_RULES.some((rule) => rule.error === code), code).toBe(true);

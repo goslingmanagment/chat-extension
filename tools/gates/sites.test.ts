@@ -1,8 +1,6 @@
 // The gates that keep the two sites apart (docs/project-unite/architecture.md §1.8; R20 F9a): site literals with the
-// debt list, whose path is whose (a fixture for every kind of Fansly path), ChatSpace's bytes against their pins and
-// against the diff of a change, Fansly's marker strings, build data in a bundle.
-
-import { readFileSync } from 'node:fs';
+// debt list, whose path is whose (a fixture for every kind of Fansly path), the measure of ChatSpace's bytes
+// (`pnpm gates:bytes`), Fansly's marker strings, build data in a bundle.
 
 import { describe, expect, it } from 'vitest';
 
@@ -10,17 +8,10 @@ import { HOSTS, hostOf, type HostDescriptor } from '../../apps/extension/src/hos
 import { HOST_KINDS, HOST_PLATFORM } from '../../packages/contracts/src/hosts.ts';
 import { PARITY_EXCEPTIONS } from '../../packages/contracts/src/parity/exceptions.ts';
 import { readSources } from '../lib/files.ts';
-import { REPO_ROOT } from '../lib/paths.ts';
-import { parsePlanPrs, type PlanPrs } from '../parity/matrix.ts';
-import { readPlanPrs } from '../parity/plan.ts';
 import type { SourceFile } from './checks.ts';
 import {
   BACKGROUND_CORE_FILE,
-  changeKindOf,
-  CHATSPACE_BYTES_PATH,
   checkBuildData,
-  checkBytesPinDiff,
-  checkSiteBytes,
   checkSiteLiterals,
   checkSiteMarkers,
   checkSiteNames,
@@ -30,6 +21,7 @@ import {
   findSiteLiterals,
   forbiddenSiteNames,
   forbiddenSiteValues,
+  isNeutralPath,
   isSiteArtifact,
   measureSiteBytes,
   parseSiteBytes,
@@ -79,7 +71,7 @@ describe('whose path is whose (site-paths.cjs)', () => {
 
   it.each(FANSLY_PATHS)('Fansly’s own: %s', (_what, path) => {
     expect(siteOfPath(path)?.kind).toBe('fansly-web');
-    expect(changeKindOf(path)).toBe('fansly');
+    expect(isNeutralPath(path)).toBe(false);
   });
 
   it.each([
@@ -94,9 +86,9 @@ describe('whose path is whose (site-paths.cjs)', () => {
     ['the shared mechanics of the page, which every site’s bundles carry', 'packages/host-kit/src/main/bridge.ts'],
     ['the build', 'apps/extension/lazy/vite.config.ts'],
     ['the dependencies', 'pnpm-lock.yaml'],
-  ])('not Fansly’s, a change of it is a shared change: %s', (_what, path) => {
+  ])('not Fansly’s, and built into a bundle: %s', (_what, path) => {
     expect(siteOfPath(path)?.kind).not.toBe('fansly-web');
-    expect(changeKindOf(path)).toBe('shared');
+    expect(isNeutralPath(path)).toBe(false);
   });
 
   it.each([
@@ -118,8 +110,8 @@ describe('whose path is whose (site-paths.cjs)', () => {
     'apps/extension/test/hosts.test.ts',
     'packages/host-fansly/src/main/ws-tap.test.ts',
     'packages/core/src/domain/ops/flags.test.ts',
-  ])('nothing is built from %s: a change of it is neutral', (path) => {
-    expect(changeKindOf(path)).toBe('neutral');
+  ])('nothing is built from %s: it is neutral', (path) => {
+    expect(isNeutralPath(path)).toBe(true);
   });
 
   it('ChatSpace’s own paths are ChatSpace’s — but its row of the runtime table', () => {
@@ -213,11 +205,10 @@ describe('gate: site literals (architecture §1.8)', () => {
 
   describe('the debt list', () => {
     const path = 'packages/core/src/application/preview/controller.ts';
-    const debt: SiteLiteralDebt[] = [{ path, value: 'chatspace', count: 2, pr: 'F6a', note: 'binding.host' }];
-    const plan = { all: ['F6a', 'F7'], done: new Set<string>() };
+    const debt: SiteLiteralDebt[] = [{ path, value: 'chatspace', count: 2, note: 'binding.host' }];
     const twice = "const a = { host: 'chatspace' };\nconst b = { host: 'chatspace' };";
-    const messages = (files: readonly SourceFile[], list: readonly SiteLiteralDebt[] = debt, state: PlanPrs = plan): string[] =>
-      checkSiteLiterals(files, list, state).map((violation) => `${violation.gate}: ${violation.path}:${violation.line} — ${violation.message}`);
+    const messages = (files: readonly SourceFile[], list: readonly SiteLiteralDebt[] = debt): string[] =>
+      checkSiteLiterals(files, list).map((violation) => `${violation.gate}: ${violation.path}:${violation.line} — ${violation.message}`);
 
     it('lets through exactly what it names', () => {
       expect(messages([file(path, twice)])).toEqual([]);
@@ -226,7 +217,7 @@ describe('gate: site literals (architecture §1.8)', () => {
     it('a new literal in a file of the list is red, with its lines', () => {
       const [message, ...rest] = messages([file(path, `${twice}\nconst c = { host: 'chatspace' };`)]);
       expect(rest).toEqual([]);
-      expect(message).toContain(`site-literal: ${path}:1 — 'chatspace' ×3 (lines 1, 2, 3), the debt list allows ×2 (F6a)`);
+      expect(message).toContain(`site-literal: ${path}:1 — 'chatspace' ×3 (lines 1, 2, 3), the debt list allows ×2 (binding.host)`);
     });
 
     it('a literal of another value in the same file, and a literal in a file the list does not name, are red at their lines', () => {
@@ -246,43 +237,26 @@ describe('gate: site literals (architecture §1.8)', () => {
 
     it('the list only shrinks: an entry the file has outgrown is red until it is lowered or dropped', () => {
       expect(messages([file(path, "const a = { host: 'chatspace' };")])).toEqual([
-        `site-literal-debt: ${path}:1 — names 'chatspace' ×1 now, the debt list says ×2 (F6a): lower it to 1 in tools/gates/sites.ts — the list only shrinks.`,
+        `site-literal-debt: ${path}:1 — names 'chatspace' ×1 now, the debt list says ×2 (binding.host): lower it to 1 in tools/gates/sites.ts — the list only shrinks.`,
       ]);
       expect(messages([file(path, 'const a = { host: binding.host };')])).toEqual([
-        `site-literal-debt: ${path}:1 — names 'chatspace' ×0 now, the debt list says ×2 (F6a): drop the entry in tools/gates/sites.ts — the list only shrinks.`,
+        `site-literal-debt: ${path}:1 — names 'chatspace' ×0 now, the debt list says ×2 (binding.host): drop the entry in tools/gates/sites.ts — the list only shrinks.`,
       ]);
       // The file itself is gone.
       expect(messages([])).toHaveLength(1);
     });
 
-    it('every entry names a PR of the plan that is not done: its owner closes it in its own PR', () => {
-      expect(messages([file(path, twice)], debt, { all: ['F7'], done: new Set() })).toEqual([
-        `site-literal-debt: tools/gates/sites.ts:1 — the debt entry 'chatspace' in ${path} names F6a, which is no PR of docs/project-unite/plan.md.`,
-      ]);
-      const done = parsePlanPrs('# Plan\n## 2. PR по этапам\n| F6a | host routing |\n', ['F6a']);
-      expect(messages([file(path, twice)], debt, done)).toEqual([
-        `site-literal-debt: ${path}:1 — F6a is done (done file or ✓ in plan.md) but still owns 'chatspace' ×2 here (binding.host): remove the literal, or hand the entry to a later PR in tools/gates/sites.ts.`,
-      ]);
-    });
-
     it('an entry written twice, without a count, or for a place the gate does not forbid is an error of the list', () => {
-      const gates = (list: readonly SiteLiteralDebt[]): string[] => checkSiteLiterals([file(path, twice)], list, plan).map((violation) => violation.message);
+      const gates = (list: readonly SiteLiteralDebt[]): string[] => checkSiteLiterals([file(path, twice)], list).map((violation) => violation.message);
       expect(gates([...debt, ...debt])[0]).toContain('twice');
       expect(gates([{ ...debt[0]!, count: 0 }])[0]).toContain('has no count');
-      expect(gates([...debt, { path: 'packages/contracts/src/hosts.ts', value: 'chatspace', count: 1, pr: 'F6a', note: '' }])[0]).toContain('is not debt');
+      expect(gates([...debt, { path: 'packages/contracts/src/hosts.ts', value: 'chatspace', count: 1, note: '' }])[0]).toContain('is not debt');
     });
   });
 
-  it('this repo: the debt list is exactly what shared code still names, each entry with a PR of the plan that is not done', () => {
-    const plan = readPlanPrs(REPO_ROOT);
-    expect(checkSiteLiterals(readSources(), SITE_LITERAL_DEBT, plan)).toEqual([]);
-    for (const entry of SITE_LITERAL_DEBT) {
-      expect(plan.all, entry.path).toContain(entry.pr);
-      expect(plan.done.has(entry.pr), entry.path).toBe(false);
-      expect(entry.note.length, entry.path).toBeGreaterThan(0);
-    }
-    // F9b, the final gate, owns none: what is left belongs to a PR still in flight.
-    expect(SITE_LITERAL_DEBT.filter((entry) => entry.pr === 'F9b')).toEqual([]);
+  it('this repo: the debt list is exactly what shared code still names', () => {
+    expect(checkSiteLiterals(readSources(), SITE_LITERAL_DEBT)).toEqual([]);
+    for (const entry of SITE_LITERAL_DEBT) expect(entry.note.length, entry.path).toBeGreaterThan(0);
   });
 });
 
@@ -333,7 +307,7 @@ describe('gate: site names in texts (architecture §1.8, §3.4; F9b)', () => {
   });
 });
 
-describe('gate: bytes per site (architecture §1.8)', () => {
+describe('bytes per site, on demand (pnpm gates:bytes)', () => {
   const built = (files: Readonly<Record<string, string>>): SiteBytes => measureSiteBytes(chatspace, Object.entries(files).map(([path, text]) => ({ path, data: bytes(text) })));
 
   it('ChatSpace’s files are its scripts, its lazy build, its background chunk — and the background core', () => {
@@ -359,70 +333,12 @@ describe('gate: bytes per site (architecture §1.8)', () => {
     expect(() => parseSiteBytes('{"site": "chatspace", "files": {"a.js": {"bytes": 1}}}')).toThrow(/a\.js/);
   });
 
-  it('the same build is clean; a changed, a new and a missing file are each red with the bytes they moved', () => {
-    const pins = built({ 'background.js': 'core', 'bg/chatspace.js': 'chunk', 'lazy/chatspace/dock.js': 'dock' });
-    expect(checkSiteBytes(pins, built({ 'background.js': 'core', 'bg/chatspace.js': 'chunk', 'lazy/chatspace/dock.js': 'dock', 'lazy/fansly/notes.js': 'anything' }))).toEqual([]);
-    const moved = checkSiteBytes(pins, built({ 'background.js': 'core + fansly', 'lazy/chatspace/dock.js': 'dock', 'lazy/chatspace/voice.js': 'voice' }));
-    expect(moved.map((violation) => `${violation.gate}: ${violation.path} — ${violation.message}`)).toEqual([
-      "site-bytes: background.js — chatspace's built file differs from its pin: 4 → 13 B (+9).",
-      "site-bytes: bg/chatspace.js — chatspace's built file differs from its pin: gone (was 5 B).",
-      "site-bytes: lazy/chatspace/voice.js — chatspace's built file differs from its pin: new file, 5 B.",
-    ]);
-    // Same size, another byte: the hash decides.
-    expect(checkSiteBytes(pins, built({ 'background.js': 'cure', 'bg/chatspace.js': 'chunk', 'lazy/chatspace/dock.js': 'dock' }))).toHaveLength(1);
-  });
-
   it('a chunk the bundler renamed is one change, with both names', () => {
     const before = built({ 'lazy/chatspace/chunks/ai-CG6HL9UU.js': 'ai', 'lazy/chatspace/chunks/dock-98EVXy2I.js': 'dock' });
     const after = built({ 'lazy/chatspace/chunks/ai-Zx81kQ_p.js': 'ai and more', 'lazy/chatspace/chunks/dock-98EVXy2I.js': 'dock' });
     const changes = diffSiteBytes(before, after);
     expect(changes).toEqual([{ path: 'lazy/chatspace/chunks/ai-Zx81kQ_p.js', was: 'lazy/chatspace/chunks/ai-CG6HL9UU.js', before: 2, after: 11 }]);
     expect(describeByteChange(changes[0]!)).toBe('2 → 11 B (+9) (was lazy/chatspace/chunks/ai-CG6HL9UU.js)');
-  });
-
-  it('nothing compared is not a pass: a build without the site’s files, or pins of another site, are red', () => {
-    expect(checkSiteBytes(built({}), built({}))[0]?.message).toContain('nothing was compared');
-    expect(checkSiteBytes({ site: 'fansly-web', files: {} }, built({ 'background.js': 'core' }))[0]?.message).toContain('the pins are of fansly-web');
-  });
-
-  it('this repo: the pins are of ChatSpace, canonical, and name every script of its registry entry and the core', () => {
-    const text = readFileSync(`${REPO_ROOT}${CHATSPACE_BYTES_PATH}`, 'utf8');
-    const pins = parseSiteBytes(text);
-    expect(pins.site).toBe('chatspace');
-    expect(serializeSiteBytes(pins)).toBe(text);
-    const paths = Object.keys(pins.files);
-    for (const path of paths) {
-      expect(isSiteArtifact(chatspace, path), path).toBe(true);
-      expect(pins.files[path]?.sha256, path).toMatch(/^[0-9a-f]{64}$/);
-    }
-    expect(paths).toEqual(expect.arrayContaining([BACKGROUND_CORE_FILE, 'bg/chatspace.js', 'chatspace-ws.js', 'content-scripts/chatspace-main.js', 'content-scripts/chatspace.js', 'lazy/chatspace/dock.js', 'lazy/chatspace/tab-app.js']));
-  });
-
-  describe('the diff of a change against the pins', () => {
-    it.each(FANSLY_PATHS)('a change of Fansly’s files alone cannot rewrite ChatSpace’s pins — %s', (_what, path) => {
-      const violations = checkBytesPinDiff([path, CHATSPACE_BYTES_PATH]);
-      expect(violations.map((violation) => violation.gate)).toEqual(['site-bytes-diff']);
-      expect(violations[0]?.message).toContain(path);
-      // Documents, tests and tools beside it change nothing: every Fansly PR has them.
-      expect(checkBytesPinDiff([path, CHATSPACE_BYTES_PATH, 'docs/project-unite/plan.md', 'packages/testing/e2e/specs/suite-fansly-dock.e2e.ts', 'tools/gates/sites.ts'])).toHaveLength(1);
-      // The pins untouched: nothing to judge. A shared file in the same change: the delta is that change's to name.
-      expect(checkBytesPinDiff([path, 'docs/project-unite/plan.md'])).toEqual([]);
-      expect(checkBytesPinDiff([path, CHATSPACE_BYTES_PATH, 'packages/core/src/application/ai/workspace.ts'])).toEqual([]);
-    });
-
-    it('a change of shared code rewrites the pins on purpose; pins left stale are repaired by a change of their own', () => {
-      expect(checkBytesPinDiff(['packages/ui/src/dock/Strip.tsx', CHATSPACE_BYTES_PATH])).toEqual([]);
-      expect(checkBytesPinDiff(['apps/extension/src/hosts/runtime/fansly.ts', CHATSPACE_BYTES_PATH])).toEqual([]);
-      expect(checkBytesPinDiff(['pnpm-lock.yaml', CHATSPACE_BYTES_PATH])).toEqual([]);
-      expect(checkBytesPinDiff([CHATSPACE_BYTES_PATH])).toEqual([]);
-      expect(checkBytesPinDiff([CHATSPACE_BYTES_PATH, 'docs/project-unite/architecture.md'])).toEqual([]);
-      expect(checkBytesPinDiff([])).toEqual([]);
-    });
-
-    it('names a few of the files and counts the rest', () => {
-      const many = FANSLY_PATHS.map(([, path]) => path);
-      expect(checkBytesPinDiff([...many, CHATSPACE_BYTES_PATH])[0]?.message).toContain(`and ${many.length - 5} more`);
-    });
   });
 });
 

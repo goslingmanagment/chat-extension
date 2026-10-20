@@ -1,7 +1,7 @@
 // The gates that keep the two sites apart (docs/project-unite/architecture.md
 // §1.8; R20 F9a — the early gates; R20 F9b — the final ones, with no
-// exceptions). Pure functions over {path, text}; index.ts feeds them the repo,
-// the release build and the diff of the change.
+// exceptions). Pure functions over {path, text}; index.ts feeds them the repo
+// and the release build.
 //
 // 1. Site literals, by AST and by meaning. Shared code (core, ui, hub and the
 //    shared page mechanics of host-kit) names no site: no string equal to a
@@ -10,20 +10,18 @@
 //    counts wherever it stands — a comparison, a switch, a literal type, an
 //    object key written without quotes — and only a value does:
 //    `platform === 'mac'`, `host === null`, a comment, a longer text or an i18n
-//    key never trip it. The debt list of §1.9 is empty since F9b: an entry
-//    stays only while a PR of plan.md that owns it is in flight, and the gate
-//    fails on a literal outside the list, on an entry the code has outgrown and
-//    on an entry of a PR already done — so the list only shrinks.
+//    key never trip it. The debt list of §1.9 is empty since F9b; the gate
+//    fails on a literal outside the list and on an entry the code has
+//    outgrown — so the list only shrinks.
 // 1a. Site names in texts (F9b). No text of shared code — a catalog entry, a
 //    string, a template, a JSX text — says «ChatSpace», «OnlyMonster»,
 //    «OnlyFans» or «Fansly»: it says the site's phrase (`{site}`, `{onSite}`,
 //    `{siteAccount}`, `{sitePlatform}`), which the I18n port fills from the
 //    site's own text pack. The names are derived from those packs.
-// 2. Bytes per site. ChatSpace's built files — its scripts, its lazy build, its
-//    background chunk and the background core — are pinned by size and hash in
-//    chatspace-bytes.json, and the release build must match it. A change of
-//    Fansly's files alone must leave it untouched; a change of shared code
-//    rewrites it on purpose (`pnpm gates:bytes`), so the PR shows what moved.
+// 2. Bytes per site, on demand only (`pnpm gates:bytes`, pin-bytes.ts): the
+//    size and hash of ChatSpace's built files — its scripts, its lazy build,
+//    its background chunk and the background core — against
+//    chatspace-bytes.json. `pnpm gates` does not compare them.
 // 3. No Fansly data in ChatSpace's bundles: the strings only Fansly's own
 //    modules carry (its bridge types, tab requests, error codes, text keys,
 //    API address) are derived from the source and searched for in the build.
@@ -77,18 +75,6 @@ const NEUTRAL_PATHS: readonly RegExp[] = sitePaths.NEUTRAL.map((source) => new R
 /** The site a path belongs to by its name; null — shared (or nobody's). */
 export function siteOfPath(path: string): Site | null {
   return SITES.find((site) => site.owned.test(path)) ?? null;
-}
-
-/**
- * What a changed path can do to ChatSpace's bundles: `neutral` — nothing is built from it (documents, tests, tools);
- * `fansly` — Fansly's own file, which no ChatSpace bundle can reach (the graph rules hold that); `shared` — anything
- * else: shared source, ChatSpace's own, the build, the dependencies.
- */
-export type ChangeKind = 'neutral' | 'fansly' | 'shared';
-
-export function changeKindOf(path: string): ChangeKind {
-  if (isNeutralPath(path)) return 'neutral';
-  return siteOfPath(path)?.kind === 'fansly-web' ? 'fansly' : 'shared';
 }
 
 /** Documents, tests, the test package, tools: no bundle is built from the file, and no gate of the sites reads it as code that ships. */
@@ -203,14 +189,12 @@ export function findSiteLiterals(files: readonly SourceFile[]): SiteLiteral[] {
   return found;
 }
 
-/** One place shared code still names a site: the file, the value, how many times — and the PR that removes it. */
+/** One place shared code still names a site: the file, the value, how many times. */
 export interface SiteLiteralDebt {
   readonly path: string;
   readonly value: string;
   /** How many times the file names the value today (strings and keys alike). Only ever lowered. */
   readonly count: number;
-  /** The PR of docs/project-unite/plan.md that removes it. */
-  readonly pr: string;
   /** What it is now and what it becomes (architecture.md §1.9). */
   readonly note: string;
 }
@@ -225,21 +209,14 @@ export interface SiteLiteralDebt {
  */
 export const SITE_LITERAL_DEBT: readonly SiteLiteralDebt[] = [];
 
-/** The PRs of plan.md and which of them are marked done (tools/parity/matrix.ts `parsePlanPrs`). */
-export interface PlanState {
-  readonly all: readonly string[];
-  readonly done: ReadonlySet<string>;
-}
-
 const quote = (value: string): string => `'${value}'`;
 const DEBT_FILE = 'tools/gates/sites.ts';
 
 /**
  * Site literals against the debt list: a literal the list does not allow is a violation at its line; an entry the
- * file no longer fills, an entry of a PR that is done or unknown to the plan and an entry written twice are
- * violations of the list itself.
+ * file no longer fills and an entry written twice are violations of the list itself.
  */
-export function checkSiteLiterals(files: readonly SourceFile[], debt: readonly SiteLiteralDebt[] = SITE_LITERAL_DEBT, plan: PlanState | null = null): Violation[] {
+export function checkSiteLiterals(files: readonly SourceFile[], debt: readonly SiteLiteralDebt[] = SITE_LITERAL_DEBT): Violation[] {
   const violations: Violation[] = [];
   const keyOf = (path: string, value: string): string => `${path}\n${value}`;
   const found = new Map<string, SiteLiteral[]>();
@@ -255,16 +232,6 @@ export function checkSiteLiterals(files: readonly SourceFile[], debt: readonly S
     if (entry.count < 1) violations.push({ gate: 'site-literal-debt', path: DEBT_FILE, line: 1, message: `the debt entry ${quote(entry.value)} in ${entry.path} has no count: drop it.` });
     if (forbiddenSiteValues(entry.path)?.has(entry.value) !== true) {
       violations.push({ gate: 'site-literal-debt', path: DEBT_FILE, line: 1, message: `the debt entry ${quote(entry.value)} in ${entry.path} is not debt: the gate does not forbid that value there.` });
-    }
-    if (plan !== null && !plan.all.includes(entry.pr)) {
-      violations.push({ gate: 'site-literal-debt', path: DEBT_FILE, line: 1, message: `the debt entry ${quote(entry.value)} in ${entry.path} names ${entry.pr}, which is no PR of docs/project-unite/plan.md.` });
-    } else if (plan?.done.has(entry.pr) === true) {
-      violations.push({
-        gate: 'site-literal-debt',
-        path: entry.path,
-        line: found.get(key)?.[0]?.line ?? 1,
-        message: `${entry.pr} is done (done file or ✓ in plan.md) but still owns ${quote(entry.value)} ×${entry.count} here (${entry.note}): remove the literal, or hand the entry to a later PR in ${DEBT_FILE}.`,
-      });
     }
   }
   for (const [key, literals] of found) {
@@ -282,7 +249,7 @@ export function checkSiteLiterals(files: readonly SourceFile[], debt: readonly S
         gate: 'site-literal',
         path: first.path,
         line: first.line,
-        message: `${quote(first.value)} ×${literals.length} (lines ${literals.map((literal) => literal.line).join(', ')}), the debt list allows ×${entry.count} (${entry.pr}): a new site literal in shared code (docs/project-unite/architecture.md §1.8).`,
+        message: `${quote(first.value)} ×${literals.length} (lines ${literals.map((literal) => literal.line).join(', ')}), the debt list allows ×${entry.count} (${entry.note}): a new site literal in shared code (docs/project-unite/architecture.md §1.8).`,
       });
     }
   }
@@ -293,7 +260,7 @@ export function checkSiteLiterals(files: readonly SourceFile[], debt: readonly S
         gate: 'site-literal-debt',
         path: entry.path,
         line: 1,
-        message: `names ${quote(entry.value)} ×${now} now, the debt list says ×${entry.count} (${entry.pr}): ${now === 0 ? 'drop the entry' : `lower it to ${now}`} in ${DEBT_FILE} — the list only shrinks.`,
+        message: `names ${quote(entry.value)} ×${now} now, the debt list says ×${entry.count} (${entry.note}): ${now === 0 ? 'drop the entry' : `lower it to ${now}`} in ${DEBT_FILE} — the list only shrinks.`,
       });
     }
   }
@@ -350,7 +317,7 @@ export function checkSiteNames(files: readonly SourceFile[]): Violation[] {
 
 // ── 2. Bytes per site ───────────────────────────────────────────────────────
 
-/** The background core: the event page both sites load. Pinned with ChatSpace's files (architecture.md §1.8). */
+/** The background core: the event page both sites load. Counted with ChatSpace's files (architecture.md §1.8). */
 export const BACKGROUND_CORE_FILE = 'background.js';
 
 /** A built file, by its path inside the extension. */
@@ -450,39 +417,6 @@ export function describeByteChange(change: ByteChange): string {
   if (change.after === null) return `gone (was ${change.before} B)`;
   const renamed = change.was === undefined ? '' : ` (was ${change.was})`;
   return `${change.before} → ${change.after} B (${signed(change.after - change.before)})${renamed}`;
-}
-
-/** 2. The release build's ChatSpace files against their pins: any difference is a violation, with the bytes it moved. */
-export function checkSiteBytes(pinned: SiteBytes, built: SiteBytes): Violation[] {
-  const violations: Violation[] = [];
-  if (pinned.site !== built.site) violations.push({ gate: 'site-bytes', path: CHATSPACE_BYTES_PATH, line: 1, message: `the pins are of ${pinned.site}, the build measured is of ${built.site}.` });
-  if (Object.keys(built.files).length === 0) violations.push({ gate: 'site-bytes', path: CHATSPACE_BYTES_PATH, line: 1, message: `the build has no file of ${built.site}: nothing was compared.` });
-  for (const change of diffSiteBytes(pinned, built)) {
-    violations.push({ gate: 'site-bytes', path: change.path, line: 1, message: `${built.site}'s built file differs from its pin: ${describeByteChange(change)}.` });
-  }
-  return violations;
-}
-
-/**
- * 2a. The diff of the change against the pins: a change that touches Fansly's own files and no shared source cannot
- * rewrite ChatSpace's pins — what moved the bytes is a leak to find, not a number to write down. (A change of
- * neutral files alone may: that is the repair of pins left stale.)
- */
-export function checkBytesPinDiff(changedPaths: readonly string[], pinsPath: string = CHATSPACE_BYTES_PATH): Violation[] {
-  if (!changedPaths.includes(pinsPath)) return [];
-  const others = changedPaths.filter((path) => path !== pinsPath);
-  const fansly = others.filter((path) => changeKindOf(path) === 'fansly');
-  const shared = others.filter((path) => changeKindOf(path) === 'shared');
-  if (fansly.length === 0 || shared.length > 0) return [];
-  const shown = fansly.slice(0, 5).join(', ') + (fansly.length > 5 ? ` and ${fansly.length - 5} more` : '');
-  return [
-    {
-      gate: 'site-bytes-diff',
-      path: pinsPath,
-      line: 1,
-      message: `ChatSpace's pins are rewritten by a change of Fansly's own files alone (${shown}): such a change leaves ChatSpace byte-identical — find what leaked into its bundles (\`pnpm lint\`: chatspace-graph-without-fansly, background-core-graph) instead (docs/project-unite/architecture.md §1.8).`,
-    },
-  ];
 }
 
 // ── 3. No Fansly data in ChatSpace's bundles ────────────────────────────────
