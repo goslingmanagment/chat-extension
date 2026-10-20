@@ -91,6 +91,8 @@ export interface VaultResumeVM {
 
 export interface VaultStopVM {
   readonly kind: VaultStopKind;
+  /** `uploader-error`: Fansly's own words on the form («Upload failed. Retry»), as the old extension quoted them. */
+  readonly said?: string;
   /** `order-mismatch`: the file expected on top, and what is there (null — no card seen). */
   readonly expected?: string;
   readonly actual?: string | null;
@@ -110,9 +112,24 @@ export interface VaultRunVM {
   readonly stop: VaultStopVM | null;
   /** The code a stop is said with (`CG-VAULT-*`); null — none. */
   readonly code: string | null;
-  /** Once complete: uploaded now, already in the album, confirmed by an earlier run. */
-  readonly report: { readonly uploaded: number; readonly present: number; readonly previous: number } | null;
+  /** When the file in flight was handed over (epoch ms): «N с в работе»; null — none in flight. */
+  readonly startedAt: number | null;
+  /**
+   * Once complete: uploaded now, already in the album, confirmed by an earlier run, and the album's first cards read
+   * against the set (the old extension's report).
+   */
+  readonly report: { readonly uploaded: number; readonly present: number; readonly previous: number; readonly order: VaultOrderCheck } | null;
 }
+
+/**
+ * The album's first cards top to bottom against the set's order, read once the run is complete: `ok` — the first
+ * `checked` match; `mismatch` — at `position` (1-based) the album shows `actual` where `expected` was due; `unseen` — no
+ * card was seen.
+ */
+export type VaultOrderCheck =
+  | { readonly kind: 'ok'; readonly checked: number }
+  | { readonly kind: 'mismatch'; readonly position: number; readonly expected: string; readonly actual: string }
+  | { readonly kind: 'unseen' };
 
 /** Why Start is not offered now (its tooltip); null — it is. */
 export const VAULT_START_BLOCKS = ['files', 'problems', 'account', 'album', 'album-loading', 'uploader', 'uploader-busy', 'answer', 'other', 'checking', 'running', 'done', 'held'] as const;
@@ -133,7 +150,10 @@ export interface VaultPanelVM {
   readonly shown: boolean;
   /** `closed` — the entry alone (VA-001); `open` — the panel; `minimized` — its strip. */
   readonly mode: 'closed' | 'open' | 'minimized';
-  /** The tab's creator as the page names it (`@username`, else the display name); null — not said yet (AU-036). */
+  /**
+   * The tab's Fansly account as the page names it — «Имя (@handle)», `@handle` or the name (the old extension's label);
+   * the hub page's title when the page named neither; null — not said yet (AU-036).
+   */
   readonly account: string | null;
   readonly album: { readonly state: 'open' | 'loading' | 'none'; readonly title: string | null };
   readonly uploader: 'ready' | 'busy' | 'missing';
@@ -153,7 +173,7 @@ export interface VaultPanelVM {
     readonly blocked: VaultStartBlock | null;
     readonly pause: boolean;
     readonly reset: boolean;
-    /** Close and minimize: not while a file is in flight (the person pauses first). */
+    /** Close: not while a file is in flight (the person pauses first). Minimize always: the strip keeps the count. */
     readonly close: boolean;
     /** Picking files and the order: not while a run holds them. */
     readonly pick: boolean;
@@ -245,6 +265,11 @@ export const FANSLY_VAULT_TEXT_KEYS = [
   'fansly.vault.report.uploaded',
   'fansly.vault.report.present',
   'fansly.vault.report.previous',
+  'fansly.vault.report.orderOk',
+  'fansly.vault.report.orderMismatch',
+  'fansly.vault.report.orderUnseen',
+  'fansly.vault.elapsed.s',
+  'fansly.vault.elapsed.m',
   'fansly.vault.item.pending',
   'fansly.vault.item.present',
   'fansly.vault.item.uploading',
@@ -260,6 +285,7 @@ export const FANSLY_VAULT_TEXT_KEYS = [
   'fansly.vault.stop.uploader-missing',
   'fansly.vault.stop.uploader-busy',
   'fansly.vault.stop.uploader-error',
+  'fansly.vault.stop.uploader-error-said',
   'fansly.vault.stop.handoff-unavailable',
   'fansly.vault.stop.handoff-indeterminate',
   'fansly.vault.stop.not-taken',

@@ -189,6 +189,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   let companion: PageDiagnostics['companion'] = null;
   let disposed = false;
   let creator: string | null = null;
+  /** The creator's handle and name as the page's `/account/me` gave them (MAIN's `fx.identity`): the vault's «Аккаунт». */
+  let creatorNames: { readonly username: string | null; readonly displayName: string | null } = { username: null, displayName: null };
   /** Grows whenever the creator changes: an identity of another creator matches nothing (§5.7). */
   let logins = 0;
   /** Changes of creator after the first binding: a field seen before the binding is the first creator's. */
@@ -312,7 +314,14 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     identityOf({ documentEpoch: bridge?.documentEpoch ?? null, loginEpoch: loginEpoch(), route: routeState, composerInstanceId: composer?.instanceId ?? null });
   const accounts = (): readonly HostAccount[] => {
     const account = accountOf(creator);
-    return account === null ? [] : [account];
+    return account === null ? [] : [{ ...account, ...creatorNames }];
+  };
+  /** Takes the names of an identity; true — they changed (the accounts are said again). */
+  const takeNames = (identity: { readonly username?: string | null | undefined; readonly displayName?: string | null | undefined }): boolean => {
+    const next = { username: identity.username ?? null, displayName: identity.displayName ?? null };
+    if (next.username === creatorNames.username && next.displayName === creatorNames.displayName) return false;
+    creatorNames = next;
+    return true;
   };
 
   const headerSlot = (): FanslyHeaderSlot => {
@@ -479,9 +488,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (disposed) return;
     companion = { ...state.identity.fbuddy };
     network = state.contract;
+    const renamed = takeNames(state.identity);
     const changed = changeCreator(state.identity.creatorId);
     setChat(state.chat !== null && chatFits(routeNow(), state.chat) && focused === state.chat.routeEpoch ? state.chat : null);
-    if (changed) emit({ type: 'accounts', accounts: accounts() });
+    if (changed || renamed) emit({ type: 'accounts', accounts: accounts() });
   };
 
   const onEvent = (event: FromMainFansly): void => {
@@ -491,6 +501,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         companion = { ...event.p.fbuddy };
         if (event.p.legacy) options.coexistence?.stop('legacy');
         if (disposed) return;
+        if (takeNames(event.p) && event.p.creatorId === creator) emit({ type: 'accounts', accounts: accounts() });
         return setCreator(event.p.creatorId);
       case 'fx.chat':
         return takeChat(event.p);

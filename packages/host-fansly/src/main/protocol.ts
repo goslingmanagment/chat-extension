@@ -94,6 +94,8 @@ export const SNAPSHOT_MAX_BYTES = 128 * 1024;
 /** HI_FAN_AVATAR_URL_PATTERN and its length: the hub's fanslyAvatarUrlSchema. */
 export const AVATAR_PATTERN = /^https:\/\/[a-z0-9-]+\.fansly\.com\//;
 export const AVATAR_MAX_CHARS = 4096;
+/** FANSLY_CREATOR_NAME_MAX: the most of the creator's handle or name `fx.identity` carries. */
+export const CREATOR_NAME_MAX_CHARS = 100;
 
 /** ANCHOR_STATES of the network anchors (FANSLY_NETWORK_ANCHORS). */
 export const ANCHOR_OK = 'ok';

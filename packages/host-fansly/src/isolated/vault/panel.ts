@@ -16,10 +16,17 @@
 // - One run at a time, bound to its album; files and order are kept while it runs or waits for an answer; new files or
 //   another order drop a run that is not running. A run that stopped keeps its reason on screen until the person acts.
 // - The person's own steps on the checkpoint (an answer, a reset) are said when they fail and change nothing then.
+// - A run continued from the checkpoint whose file in flight already stands in the album — its card settled — counts
+//   that file on the person's Start with no question (the old panel's positive evidence, its `createRunner`); only a
+//   file whose card is not seen asks. A file left uncertain in this tab is always the person's to answer (VA-004).
+// - The panel minimizes into its strip («Загрузка в волт · Готово N из M») while a file is in flight, as the old one
+//   did; only closing waits for the pause. A complete run reads the album's first cards against the set (the old
+//   report's order line).
 
 import { vaultCheckpointFollows, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
-import type { VaultAlbumOrder, VaultItemState, VaultPanelAction, VaultPanelClient, VaultPanelNote, VaultPanelVM, VaultResumeVM, VaultRunVM, VaultStartBlock } from '@cg/contracts/vault-fansly';
+import type { VaultAlbumOrder, VaultItemState, VaultOrderCheck, VaultPanelAction, VaultPanelClient, VaultPanelNote, VaultPanelVM, VaultResumeVM, VaultRunVM, VaultStartBlock } from '@cg/contracts/vault-fansly';
 
+import { vaultMediaKey } from './dom';
 import { planVaultUpload, type VaultPlan } from './plan';
 import { VAULT_CHECKPOINT_TTL_MS, createVaultRun, findVaultCheckpoint, sameVaultFiles, type VaultCheckpointStore, type VaultRun, type VaultRunSnapshot } from './run';
 import { vaultTargetOf, type VaultTarget, type VaultUploader, type VaultView } from './upload';
@@ -61,13 +68,42 @@ interface Bound {
   readonly uploadId: string;
   /** Confirmed by an earlier run (the checkpoint it continues). */
   readonly previous: number;
-  /** Files the person said are in the album (VA-004): handed over by an earlier run, not by this one. */
+  /** Files the person said are in the album (VA-004), or counted by their card on Start: handed over by an earlier run, not by this one. */
   answered: number;
+  /** Of those, the ones counted by their card on Start: said as confirmed by the earlier run. */
+  readonly credited: Set<number>;
   readonly fromCheckpoint: boolean;
   snapshot: VaultRunSnapshot;
+  /** The album's first cards against the set, read once the run is complete. */
+  order: VaultOrderCheck | null;
 }
 
 const keyOf = (target: VaultTarget | null): string | null => (target === null ? null : `${target.hostAccountId}:${target.albumId}`);
+
+/**
+ * The album's first cards against the set (the old panel's `buildOrderReport`): the newest upload is on top, so the set
+ * top to bottom is its uploads reversed. `files` — the uploads in their order (the plan's `sequence`).
+ */
+export function checkVaultOrder(files: readonly { readonly name: string }[], view: Pick<VaultView, 'cards' | 'names'>): VaultOrderCheck {
+  if (view.cards.length === 0) return { kind: 'unseen' };
+  const expected = [...files].reverse();
+  const checked = Math.min(expected.length, view.cards.length);
+  for (let index = 0; index < checked; index += 1) {
+    const due = expected[index];
+    const card = view.cards[index];
+    if (due !== undefined && card !== undefined && vaultMediaKey(due.name) !== card) return { kind: 'mismatch', position: index + 1, expected: due.name, actual: view.names[index] ?? card };
+  }
+  return { kind: 'ok', checked };
+}
+
+/** The Fansly account as the old panel named it: «Имя (@handle)», `@handle` or the name; null — neither. */
+export function vaultAccountLabel(person: { readonly username: string | null; readonly displayName: string | null }): string | null {
+  const name = person.displayName?.trim() ?? '';
+  const handle = person.username?.trim().replace(/^@+/, '') ?? '';
+  if (name !== '' && handle !== '' && name.replace(/^@+/, '') !== handle) return `${name} (@${handle})`;
+  if (handle !== '') return `@${handle}`;
+  return name === '' ? null : name;
+}
 const refsOf = (files: readonly File[]) => files.map((file) => ({ name: file.name, size: file.size, lastModified: file.lastModified }));
 const ACTIVE: ReadonlySet<string> = new Set(['running', 'pausing']);
 
@@ -120,6 +156,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
       if (made === null || bound !== made) return;
       made.snapshot = snapshot;
       if (snapshot.state === 'complete') {
+        if (made.order === null) made.order = checkVaultOrder(made.files, uploader.view());
         // The run cleared its checkpoint; one it could not clear may be offered again on the next visit.
         checked = { key: made.key, checkpoint: null, held: false };
         if (snapshot.checkpointLeftBehind) note = 'left-behind';
@@ -128,7 +165,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
       // Not kept: another tab may hold the album, or have taken the run further — the row is read again.
       if (snapshot.state === 'stopped' && snapshot.stop?.kind === 'checkpoint-write-failed') void recheck(made.target, made);
     });
-    made = { run, key: keyOf(at) ?? '', target: at, files, uploadId, previous: checkpoint?.confirmed ?? 0, answered: 0, fromCheckpoint: checkpoint !== null, snapshot: run.snapshot() };
+    made = { run, key: keyOf(at) ?? '', target: at, files, uploadId, previous: checkpoint?.confirmed ?? 0, answered: 0, credited: new Set(), fromCheckpoint: checkpoint !== null, snapshot: run.snapshot(), order: null };
     return made;
   };
 
@@ -234,6 +271,38 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
     else bound.run.stop();
   };
 
+  /**
+   * The file a run from the checkpoint left uncertain, when its card stands settled in the album now (the old panel's
+   * `findReadyCard`: no «Processing», no failure, the form idle): Start counts it with no question. Only before that run
+   * started in this tab; null — none.
+   */
+  const creditable = (): number | null => {
+    if (bound === null || !bound.fromCheckpoint || bound.snapshot.state !== 'idle' || bound.key !== keyOf(target)) return null;
+    const index = bound.snapshot.items.findIndex((item) => item.status === 'uncertain');
+    const file = index < 0 ? undefined : bound.files[index];
+    if (file === undefined || page.loading || page.uploader === 'busy') return null;
+    return page.settled.includes(vaultMediaKey(file.name)) ? index : null;
+  };
+
+  /** Counts the creditable file as in the album, written first (VA-004); false — not written, said, nothing changed. */
+  const credit = async (run: Bound): Promise<boolean> => {
+    const index = creditable();
+    if (index === null) return true;
+    writing = true;
+    emit();
+    const written = await run.run.resolve('present');
+    writing = false;
+    if (!written) {
+      note = 'save-failed';
+      emit();
+      void recheck(run.target, run);
+      return false;
+    }
+    run.answered += 1;
+    run.credited.add(index);
+    return true;
+  };
+
   const startBlock = (): VaultStartBlock | null => {
     if (starting) return 'checking';
     if (bound !== null && ACTIVE.has(bound.snapshot.state)) return 'running';
@@ -241,7 +310,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
     if (plan === null) return 'files';
     if (plan.problems.length > 0) return 'problems';
     if (bound !== null && bound.snapshot.state === 'complete') return 'done';
-    if (bound !== null && bound.snapshot.items.some((item) => item.status === 'uncertain')) return 'answer';
+    if (bound !== null && bound.snapshot.items.some((item) => item.status === 'uncertain') && creditable() === null) return 'answer';
     if (bound === null && kept() !== null) return 'other';
     if (bound === null && (reading !== null || (target !== null && checked?.key !== keyOf(target)))) return 'checking';
     if (page.hostAccountId === null) return 'account';
@@ -253,8 +322,12 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   };
 
   const start = async (): Promise<void> => {
-    if (!shown) return;
+    if (!shown || writing) return;
     look();
+    if (bound !== null && creditable() !== null) {
+      if (!(await credit(bound))) return;
+      look();
+    }
     if (startBlock() !== null || plan === null || target === null) return emit();
     note = null;
     const mine = (starts += 1);
@@ -282,8 +355,11 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
       }
       checked = { key: keyOf(at) ?? '', checkpoint: found.kind === 'continue' ? found.checkpoint : null, held: false };
       bound = bind(at, files, found.kind === 'continue' ? found.checkpoint : null);
-      // A file left uncertain by that run: its question comes first (VA-004).
-      if (bound.snapshot.items.some((item) => item.status === 'uncertain')) return emit();
+      // A file left uncertain by that run: counted when its card stands in the album, else its question comes first (VA-004).
+      if (bound.snapshot.items.some((item) => item.status === 'uncertain')) {
+        if (creditable() === null) return emit();
+        if (!(await credit(bound))) return;
+      }
     }
     const run = bound;
     if (cancelled()) return emit();
@@ -347,13 +423,17 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   const vm = (): VaultPanelVM => {
     const snapshot = bound?.snapshot ?? null;
     const sequence = bound?.files ?? plan?.sequence ?? [];
+    // The file Start will count by its card: in the album from the earlier run, as the old panel showed it.
+    const credit = creditable();
     const stateOf = (file: File): VaultItemState => {
       if (bound === null || snapshot === null) return 'pending';
       const index = sequence.indexOf(file);
+      if (index === credit) return 'previous';
       const status = snapshot.items[index]?.status ?? 'pending';
-      return status === 'verified' && index < bound.previous ? 'previous' : status;
+      return status === 'verified' && (index < bound.previous || bound.credited.has(index)) ? 'previous' : status;
     };
-    const question = snapshot?.items.find((item) => item.status === 'uncertain') ?? null;
+    // A file Start will count by its card asks nothing.
+    const question = credit === null ? (snapshot?.items.find((item) => item.status === 'uncertain') ?? null) : null;
     const checkpoint = kept();
     let resume: VaultResumeVM | null = null;
     if (bound !== null && bound.fromCheckpoint && snapshot?.state === 'idle') resume = { kind: 'continue', done: bound.previous, total: bound.files.length };
@@ -366,6 +446,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
             done: snapshot.confirmed,
             total: snapshot.total,
             current: snapshot.current === null ? null : (bound.files[snapshot.current]?.name ?? null),
+            startedAt: snapshot.startedAt,
             album: bound.target.title ?? null,
             stop: snapshot.stop,
             code: snapshot.code,
@@ -375,12 +456,13 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
                     uploaded: snapshot.items.filter((item, index) => item.status === 'verified' && index >= bound!.previous).length - bound.answered,
                     present: snapshot.items.filter((item) => item.status === 'present').length,
                     previous: bound.previous + bound.answered,
+                    order: bound.order ?? { kind: 'unseen' },
                   }
                 : null,
           };
     const person = deps.account();
-    // The creator as the page names it; a page that names it by id alone (Fansly's `/account/me`) — by its id.
-    const label = page.hostAccountId === null ? null : person !== null && person.username !== null ? `@${person.username}` : (person?.displayName ?? page.hostAccountId);
+    // The creator as the page names it; a page that names it by id alone — by its id.
+    const label = page.hostAccountId === null ? null : ((person === null ? null : vaultAccountLabel(person)) ?? page.hostAccountId);
     const holding = active();
     // A checkpoint on disk for the open album: the bound run's (written before its first file), or one it did not adopt.
     const onDisk = bound === null ? checkpoint !== null : bound.key === keyOf(target) && snapshot !== null && snapshot.state !== 'complete' && (bound.fromCheckpoint || snapshot.state !== 'idle');
@@ -434,7 +516,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
           resetArmed = false;
           return emit();
         case 'minimize':
-          if (active()) return;
+          // While a file is in flight too: the strip keeps the count (the old panel's).
           mode = 'minimized';
           return emit();
         case 'refresh':

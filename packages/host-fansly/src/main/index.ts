@@ -59,6 +59,7 @@ import {
   ANCHOR_NOT_YET,
   ANCHOR_OK,
   ANCHOR_SHAPE,
+  CREATOR_NAME_MAX_CHARS,
   EVT_CHAT,
   EVT_CONTRACT,
   EVT_FOLLOW,
@@ -287,8 +288,16 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     }
   }
 
+  /** The creator's handle and name of the same `/account/me` answer: the vault panel's «Аккаунт». */
+  let named: { readonly username: string | null; readonly displayName: string | null } = { username: null, displayName: null };
+  const nameOf = (value: unknown): string | null => {
+    const trimmed = typeof value === 'string' ? value.trim().slice(0, CREATOR_NAME_MAX_CHARS).trim() : '';
+    return trimmed === '' ? null : trimmed;
+  };
   const identityState = (): Plain => ({
     creatorId: creator(),
+    username: creator() === null ? null : named.username,
+    displayName: creator() === null ? null : named.displayName,
     accountMeSeen: creator() !== null,
     legacy: stopped,
     fbuddy,
@@ -445,7 +454,9 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     switch (read.kind) {
       case 'me': {
         const was = identity.creator;
-        identity.creator = idOf((r as { account: Plain }).account['id']);
+        const account = (r as { account: Plain }).account;
+        identity.creator = idOf(account['id']);
+        named = { username: nameOf(account['username']), displayName: nameOf(account['displayName']) };
         // Another account in the same document: nothing observed under the old one says anything of this one.
         if (was !== null && was !== identity.creator) observation.reset(WHY_NOT_CERTIFIED);
         emitter.state(EVT_IDENTITY, identityState());

@@ -40,6 +40,8 @@ export const VAULT_SELECTORS = {
 
 /** Fansly's own failure words on an upload it gave up (the old extension's, live-seen); nothing landed then. */
 const FAILURE = /\b(?:failed|error|retry)\b/i;
+/** The most of Fansly's failure words the panel quotes. */
+const FAILURE_MAX = 200;
 /** A card of a medium Fansly is not done with (the old extension's, live-seen): not ready, whatever its name says. */
 const UNSETTLED = /verifying|processing|uploading|failed|error|\d+(?:\.\d+)?%/i;
 /** The extensions Fansly rewrites on its cards (`IMG_1.JPG` → `IMG_1.jpeg`): a match never takes part of them. */
@@ -69,6 +71,8 @@ export interface VaultPage {
   readonly busy: boolean;
   /** The uploader shows Fansly's failure words. */
   readonly failed: boolean;
+  /** Those words as the page shows them (its lines that say so, «Upload failed. Retry»); null — none. */
+  readonly failure: string | null;
   /**
    * The album's list as the page shows it now — a new element for every load that answered; its spinner while one
    * is on the way (`loading`). null — no list.
@@ -77,38 +81,54 @@ export interface VaultPage {
   readonly loading: boolean;
   /** The album's cards, in the page's order (the newest upload first), as keys. */
   readonly cards: readonly string[];
+  /** The same cards' file names as the page shows them. */
+  readonly names: readonly string[];
   /** The cards Fansly is done with: no «Processing», no failure on them. */
   readonly settled: readonly string[];
 }
 
 const text = (element: Element | null): string => element?.textContent?.trim() ?? '';
 
+/** The uploader's lines that carry Fansly's failure words, as shown (`innerText` keeps the page's line breaks). */
+function failureOf(uploader: Element | null): string | null {
+  if (uploader === null) return null;
+  const shown = (uploader as HTMLElement).innerText;
+  const lines = (typeof shown === 'string' && shown !== '' ? shown : (uploader.textContent ?? '')).split('\n');
+  const said = lines.map((line) => line.replace(/\s+/g, ' ').trim()).filter((line) => FAILURE.test(line));
+  return said.length === 0 ? null : said.join(' ').slice(0, FAILURE_MAX);
+}
+
 export function readVaultPage(doc: Document): VaultPage {
   const host = doc.querySelector(VAULT_SELECTORS.host);
-  if (host === null) return { host, albumOpen: false, title: null, input: null, busy: false, failed: false, list: null, loading: false, cards: [], settled: [] };
+  if (host === null) return { host, albumOpen: false, title: null, input: null, busy: false, failed: false, failure: null, list: null, loading: false, cards: [], names: [], settled: [] };
   const uploader = host.querySelector(VAULT_SELECTORS.uploader);
   const title = text(host.querySelector(VAULT_SELECTORS.title));
   const list = host.querySelector(VAULT_SELECTORS.list);
   const cards: string[] = [];
+  const names: string[] = [];
   const settled: string[] = [];
   for (const card of host.querySelectorAll(VAULT_SELECTORS.card)) {
     const name = text(card.querySelector(VAULT_SELECTORS.name));
     const key = vaultMediaKey(name);
     if (key === '') continue;
     cards.push(key);
+    names.push(name);
     // The card's own words beside its file name — a name may say «processing» itself.
     if (!UNSETTLED.test(text(card).replace(name, ''))) settled.push(key);
   }
+  const failure = failureOf(uploader);
   return {
     host,
     albumOpen: host.querySelector(VAULT_SELECTORS.header) !== null,
     title: title === '' ? null : title,
     input: uploader === null ? null : uploader.querySelector<HTMLInputElement>(VAULT_SELECTORS.input),
     busy: uploader !== null && uploader.querySelector(VAULT_SELECTORS.busy) !== null,
-    failed: uploader !== null && FAILURE.test(text(uploader)),
+    failed: failure !== null,
+    failure,
     list,
     loading: list !== null && list.querySelector(VAULT_SELECTORS.spinner) !== null,
     cards,
+    names,
     settled,
   };
 }

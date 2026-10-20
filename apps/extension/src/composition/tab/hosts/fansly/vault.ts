@@ -94,10 +94,13 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
   const panel = createVaultPanel({
     uploader,
     store: vaultStoreOf(rpc),
-    // Fansly's page names its creator by id alone: the hub page bound to it gives the name the person knows.
+    // The Fansly account as the page's own `/account/me` names it («Имя (@handle)», the old panel's); a page that named
+    // neither — the hub page bound to it gives the name the person knows.
     account() {
       const creator = port.current().accounts[0];
-      return creator === undefined ? null : { username: creator.username, displayName: creator.displayName ?? context.current().page?.title ?? null };
+      if (creator === undefined) return null;
+      if (creator.username !== null || creator.displayName !== null) return { username: creator.username, displayName: creator.displayName };
+      return { username: null, displayName: context.current().page?.title ?? null };
     },
     onPage(listener) {
       listeners.add(listener);
