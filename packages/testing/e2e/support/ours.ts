@@ -60,18 +60,47 @@ export async function readOurs<T>(where: Where, selector: string, read: (node: H
 
 const squash = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
+/**
+ * The rendered text of each element, read in ONE step of the page (null — the element left the page). One command for
+ * the whole list, not one `getText()` per element: on a loaded runner each WebDriver command costs a second or more,
+ * and a poll that read ten buttons one by one outlived every timeout around it (suite-x8's X8-08 hung for 120 s).
+ */
+async function renderedTexts(elements: readonly WebdriverIO.Element[]): Promise<Array<string | null>> {
+  // What getText() says, in the page: '' for what is not shown, the rendered text (CSS transforms applied) otherwise.
+  const read = (...nodes: HTMLElement[]): Array<string | null> =>
+    nodes.map((node) => (!node.isConnected ? null : !node.checkVisibility({ visibilityProperty: true, opacityProperty: true }) ? '' : node.innerText));
+  if (elements.length === 0) return [];
+  try {
+    const texts: unknown = await browser.execute(read, ...(elements as unknown as HTMLElement[]));
+    if (Array.isArray(texts)) return texts as Array<string | null>;
+  } catch {
+    // One of them left the page between the find and the read: read them one by one, the gone one as null.
+  }
+  const one: Array<string | null> = [];
+  for (const element of elements) {
+    try {
+      const [text] = await browser.execute(read, element as unknown as HTMLElement);
+      one.push(text ?? null);
+    } catch {
+      one.push(null);
+    }
+  }
+  return one;
+}
+
 /** The first element matching `selector` whose rendered text is `text` (or matches it); null — none on screen. */
 export async function oursByText(where: Where, selector: string, text: string | RegExp): Promise<WebdriverIO.Element | null> {
   const host = $(HOSTS[where]);
   if (!(await host.isExisting())) return null;
-  for (const element of await host.shadow$$(selector).getElements()) {
-    let shown: string;
-    try {
-      shown = squash(await element.getText());
-    } catch {
-      continue; // re-rendered under us
-    }
-    if (typeof text === 'string' ? shown === text : text.test(shown)) return element;
+  const elements: WebdriverIO.Element[] = Array.from(await host.shadow$$(selector).getElements());
+  const texts = await renderedTexts(elements);
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index];
+    const shown = texts[index];
+    if (element === undefined) continue;
+    if (shown === null || shown === undefined) continue;
+    const squashed = squash(shown);
+    if (typeof text === 'string' ? squashed === text : text.test(squashed)) return element;
   }
   return null;
 }
@@ -103,16 +132,25 @@ export async function pressOurs(where: Where, selector: string, text: string | R
 export async function oursText(where: Where, selector = '.cg-root'): Promise<string> {
   const host = $(HOSTS[where]);
   if (!(await host.isExisting())) return '';
-  const texts: string[] = [];
-  for (const element of await host.shadow$$(selector).getElements()) {
-    try {
-      // `textContent`, not getText(): what is drawn below the fold of a scrolled list counts too.
-      texts.push(squash(await browser.execute((node: HTMLElement) => node.textContent ?? '', element as unknown as HTMLElement)));
-    } catch {
-      // re-rendered under us
+  const elements = await host.shadow$$(selector).getElements();
+  if (elements.length === 0) return '';
+  // `textContent`, not getText(): what is drawn below the fold of a scrolled list counts too. One step for the list;
+  // one by one only when an element left the page between the find and the read.
+  const read = (...nodes: HTMLElement[]): Array<string | null> => nodes.map((node) => (node.isConnected ? (node.textContent ?? '') : null));
+  let texts: Array<string | null>;
+  try {
+    texts = await browser.execute(read, ...(elements as unknown as HTMLElement[]));
+  } catch {
+    texts = [];
+    for (const element of elements) {
+      try {
+        texts.push(...(await browser.execute(read, element as unknown as HTMLElement)));
+      } catch {
+        // re-rendered under us
+      }
     }
   }
-  return texts.join(' ¶ ');
+  return texts.filter((text): text is string => text !== null).map(squash).join(' ¶ ');
 }
 
 /** Waits until the surface shows (or stops showing) a text. */

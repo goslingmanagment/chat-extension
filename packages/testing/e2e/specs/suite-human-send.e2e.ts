@@ -13,7 +13,7 @@
 // - a send that waited in a busy queue: its request was made outside the
 //   observed step — attribution unknown, no `sent`, though the text did go.
 // The observation itself — the receipt of exactly that request, the echo with
-// the same id — has its spec on the adapter (x8-send.e2e.ts, §6.6).
+// the same id — has its unit tests on the adapter (host-chatspace receipt.test.ts, §6.6).
 // And who sent each message (decision X48): every one of these sends whose own
 // response named the message — a part of ours or the person's own text — is
 // told to the hub (`clientSendAttributions`, the person is the token's), the

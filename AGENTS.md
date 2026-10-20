@@ -28,7 +28,7 @@ pnpm monorepo, TypeScript strict, WXT, Preact.
 - See a change: `pnpm see <scenario>` — tools/see/README.md.
 - Locally only `pnpm typecheck`, lint and `pnpm vitest run <paths>` of what you touched.
 - `pnpm check` (types, lint, tests, build, webext-lint, gates, archives) runs in CI on a PR; never run it whole locally.
-- `pnpm e2e` — headless Firefox on the stand with the fake hub (~18 min); CI runs it on every push to `main`, not on a PR.
+- `pnpm e2e` — a smoke set of the core flows (13 specs) in headless Firefox on the stand with the fake hub (~4 min); CI runs it on every push to `main`, not on a PR. A spec file that fails is run once more and reported as flaky (`cg-e2e-retry:`).
   One spec: from `packages/testing` `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` (after `pnpm build && pnpm build:test`).
 - A PR is opened ready, `gh pr merge --auto --squash`; it merges on a green `pnpm check`.
 

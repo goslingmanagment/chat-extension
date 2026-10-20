@@ -6,7 +6,7 @@
 #
 #   tools/ci/e2e-docker-local.sh            the whole `pnpm e2e`
 #   tools/ci/e2e-docker-local.sh <pnpm …>   something else, for example one spec:
-#     --filter @cg/testing exec wdio run e2e/wdio.conf.ts --spec e2e/specs/stand-smoke.e2e.ts
+#     --filter @cg/testing exec wdio run e2e/wdio.conf.ts --spec e2e/specs/tab-wiring.e2e.ts
 #     (after a full run: a spec needs both builds and the built stand)
 #   CG_E2E_SHARD=2/5 tools/ci/e2e-docker-local.sh   one part of the suite, as a CI job runs it
 #   CG_E2E_WITH=<folder>   a folder git ignores, copied into the tree of the run

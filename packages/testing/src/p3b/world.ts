@@ -1,5 +1,5 @@
 // The world of the P3b harness (docs/project-unite/spike.md «P3b: как прогнать»;
-// e2e/specs/p3b-signed-builds.e2e.ts): what a SIGNED release-flavour build
+// e2e/manual/p3b-signed-builds.e2e.ts): what a SIGNED release-flavour build
 // meets in a throwaway headless Firefox, on loopback alone.
 //
 // A release build matches only the real addresses (https://fansly.com/*,

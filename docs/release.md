@@ -105,12 +105,12 @@ On the server (`/var/www/ext/chat-extension/`): the site pages, `firefox/updates
 ## 7. CI
 
 - PR: only the `pnpm check` job (`main`'s ruleset requires it); the PR merges itself when green.
-- Push to `main`: `pnpm check` and e2e in five parts on the PC (`e2e 1/5`…`5/5`, with `pnpm e2e`
-  over them); on GitHub runners — in one part. This is the release gate. A change of only
+- Push to `main`: `pnpm check` and the e2e smoke set in two parts (`e2e 1/2`, `e2e 2/2`, with `pnpm e2e`
+  over them) on either pool. This is the release gate. A change of only
   `docs/`, `site/` and `*.md` in the root does not run e2e.
 - Where CI runs (the PC or GitHub) — the `CI_POOL` variable, the `ci-pool` skill.
 - `.github/workflows/perf.yml` — `pnpm perf` nightly and by hand; not part of a release.
 - e2e locally, as in CI: `tools/ci/e2e-docker-local.sh` (needs Docker; one part —
-  `CG_E2E_SHARD=2/5`). The Firefox image is pinned by digest in `tools/ci/e2e-image.sh`.
+  `CG_E2E_SHARD=2/2`). The Firefox image is pinned by digest in `tools/ci/e2e-image.sh`.
 - Signed P3b test builds — `pnpm release test-builds`, `pnpm release sign
   --test-builds --confirm <version N>` (`docs/project-unite/spike.md`, the "P3b" run section).

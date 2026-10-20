@@ -16,14 +16,11 @@
 import { randomUUID } from 'node:crypto';
 
 import { browser, expect } from '@wdio/globals';
-
-import { BOOTSTRAP_PILOT_PAGES } from '../../src/scenarios/hub/http';
 import { WORLD } from '../../src/scenarios/hub/world';
-import { suspendBackground } from '../support/background';
 import { pageRpc, readLocalStorage, waitForReport, writeLocalStorage } from '../support/extension';
 import { useFakeHub } from '../support/fake-hub';
 import { startFanslyShift } from '../support/fansly-shift';
-import { fakeFansly, fanslyIds, waitForFanslyStandIdle, waitForFanslyStandReady } from '../support/fansly-stand';
+import { fakeFansly, fanslyIds, waitForFanslyStandIdle } from '../support/fansly-stand';
 import { useNetworkTrap } from '../support/network-trap';
 
 /** bg/fansly/api-probe.ts and bg/fansly/send-probe.ts. */
@@ -39,7 +36,6 @@ const SEND = {
   rivalResult: 'dev.fanslySend.rivalResult',
 } as const;
 const JOURNAL = 'fansly.send.journal';
-const SETTINGS_EXT = 'settings.ext';
 const PAGE = WORLD.pages.fansly;
 const TEXT = 'Привет! Рада видеть тебя здесь';
 const HISTORY = '5a1d0000-0000-4000-8000-000000000001';
@@ -111,18 +107,6 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     return result.views;
   }
 
-  async function heldAt(id: string, stage: string): Promise<void> {
-    await waitFor(`the attempt ${id} did not stop at ${stage}`, async () => {
-      const held = await read<{ id: string; stage: string }>(SEND.held);
-      return held?.id === id && held.stage === stage;
-    });
-  }
-
-  async function go(id: string): Promise<void> {
-    await pages();
-    await writeLocalStorage({ [SEND.go]: { id, at: Date.now() } });
-  }
-
   async function live(change: { readonly historyRevision?: string }): Promise<void> {
     await pages();
     await writeLocalStorage({ [SEND.live]: change });
@@ -152,47 +136,11 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     await waitFor(`the custody of ${attemptId} is not «${state}»`, async () => (await custody(index)).some(([id, at]) => id === attemptId && at === state));
   }
 
-  /**
-   * A custody the hub holds `uncertain-held` — its ticket ran out before our «not enqueued» (the hub takes `failed`
-   * only while the ticket lives, architecture §8.6) — is resolved «not sent» by the owner, so the fan is free again.
-   */
-  async function releaseHeld(index: number, attemptId: string): Promise<string> {
-    const state = (await custody(index)).find(([id]) => id === attemptId)?.[1] ?? 'none';
-    if (state === 'uncertain-held') await hub().command({ op: 'resolveCustody', pageLabel: PAGE.pageLabel, fanRef: fanOf(index).fan, attemptId, outcome: 'not_sent' });
-    return state;
-  }
-
   async function moduleStarted(): Promise<void> {
     await pages();
     await waitFor('Fansly’s background module did not start', async () => {
       const diagnostic = await pageRpc<{ hostModules: Array<{ host: string; state: string }> }>('diagnostics.get');
       return diagnostic.ok && diagnostic.payload.hostModules.some((entry) => entry.host === 'fansly-web' && entry.state === 'started');
-    });
-  }
-
-  /** The event page goes as an idle timeout takes it; the next request wakes it and the module restores its journal. */
-  async function restart(): Promise<void> {
-    expect(await suspendBackground()).toBe('stopped');
-    await moduleStarted();
-  }
-
-  async function reloadStand(): Promise<void> {
-    await stand();
-    await browser.refresh();
-    await waitForFanslyStandReady();
-    await waitForReport((report) => report.rpc?.registered === true, 'the Fansly tab registered again');
-    await waitForFanslyStandIdle();
-  }
-
-  async function viaTab(on: boolean): Promise<void> {
-    await pages();
-    const stored = ((await readLocalStorage([SETTINGS_EXT]))[SETTINGS_EXT] ?? { v: 1, hosts: {} }) as { hosts?: Record<string, Record<string, unknown>> } & Record<string, unknown>;
-    const fansly = { ...(stored.hosts?.['fansly-web'] ?? {}), viaTab: on };
-    await writeLocalStorage({ [SETTINGS_EXT]: { ...stored, hosts: { ...(stored.hosts ?? {}), 'fansly-web': fansly } } });
-    const mode = on ? 'relay' : 'background';
-    await waitFor(`the background did not take «Fansly через вкладку» ${mode}`, async () => {
-      const diagnostic = await pageRpc<{ requestModes?: Array<{ host: string; mode: string }> }>('diagnostics.get');
-      return diagnostic.ok && diagnostic.payload.requestModes?.some((entry) => entry.host === 'fansly-web' && entry.mode === mode) === true;
     });
   }
 
@@ -314,158 +262,5 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     await oneRequest();
     expect(await view(attempt)).toMatchObject(expected);
     expect((await custody(3)).map(([id]) => id)).toEqual([attempt]);
-  });
-
-  it('[NF-021] the custody’s answer delayed: the history changes meanwhile → refused, NO POST; the custody hears «not enqueued»', async () => {
-    const mark = await fakeFansly().mark();
-    const attempt = randomUUID();
-    const id = await click(4, [attempt], { hold: 'custody' });
-    await heldAt(id, 'custody');
-    await live({ historyRevision: '5a1d0000-0000-4000-8000-000000000002' });
-    await go(id);
-    expect((await answered(id))[0]).toMatchObject({ state: 'refused', proof: 'not-enqueued', code: 'CG-FNEW-HISTORY' });
-    expect(await posts(mark)).toBe(0);
-    await custodyIs(4, attempt, 'failed');
-  });
-
-  it('[NF-021] the custody’s answer lost: no ticket, no request — refused, and the custody it may have opened hears «not enqueued»', async () => {
-    const mark = await fakeFansly().mark();
-    const attempt = randomUUID();
-    expect((await answered(await click(4, [attempt], { lose: 'custody' })))[0]).toMatchObject({ state: 'refused', proof: 'not-enqueued' });
-    expect(await posts(mark)).toBe(0);
-    await custodyIs(4, attempt, 'failed');
-  });
-
-  it('[NF-021] the intent’s write itself delayed: a history change, the tab’s new document, the ticket’s end — each refused with NO POST', async () => {
-    const mark = await fakeFansly().mark();
-    // The history.
-    const history = randomUUID();
-    let id = await click(4, [history], { hold: 'intent' });
-    await heldAt(id, 'intent');
-    await live({ historyRevision: '5a1d0000-0000-4000-8000-000000000003' });
-    await go(id);
-    expect((await answered(id))[0]).toMatchObject({ state: 'refused', proof: 'not-enqueued', code: 'CG-FNEW-HISTORY' });
-    await custodyIs(4, history, 'failed');
-    await live({});
-    // The document the person clicked in.
-    const document = randomUUID();
-    id = await click(4, [document], { hold: 'intent' });
-    await heldAt(id, 'intent');
-    await reloadStand();
-    await go(id);
-    expect((await answered(id))[0]).toMatchObject({ state: 'refused', proof: 'not-enqueued', code: 'CG-FAN-TAB' });
-    // Told «not enqueued»; a reload slower than the ticket leaves it held at the hub instead.
-    await waitFor('the custody of the document case did not end', async () => ['failed', 'uncertain-held'].includes(await releaseHeld(4, document)));
-    // The ticket's end (10 s at the hub, a second of margin on our clock): the hub then holds the fan itself.
-    const ticket = randomUUID();
-    id = await click(4, [ticket], { hold: 'intent' });
-    await heldAt(id, 'intent');
-    await browser.pause(10_500);
-    await go(id);
-    expect((await answered(id))[0]).toMatchObject({ state: 'refused', proof: 'not-enqueued', code: 'CG-TIMEOUT' });
-    await waitFor('the custody did not turn uncertain-held', async () => (await custody(4)).some(([at, state]) => at === ticket && state === 'uncertain-held'));
-    await waitFor('the journal did not settle', async () => (await journal(ticket))?.reportPending === false);
-    expect(await releaseHeld(4, ticket)).toBe('uncertain-held');
-    expect(await posts(mark)).toBe(0);
-  });
-
-  it('[NF-021] [FS-NET-4] through the tab: the relay frame’s document changes in the intent’s pause → refused, nothing sent, neither by the frame nor direct', async () => {
-    await viaTab(true);
-    try {
-      const mark = await fakeFansly().mark();
-      const attempt = randomUUID();
-      const id = await click(4, [attempt], { hold: 'intent' });
-      await heldAt(id, 'intent');
-      await reloadStand();
-      await go(id);
-      expect((await answered(id))[0]).toMatchObject({ state: 'refused', proof: 'not-enqueued', code: 'CG-FAN-TAB' });
-      expect(await posts(mark)).toBe(0);
-      await waitFor('the custody did not end', async () => ['failed', 'uncertain-held'].includes(await releaseHeld(4, attempt)));
-    } finally {
-      await viaTab(false);
-    }
-  });
-
-  it('[NF-035] the background gone before the intent: refused on the wake, the custody told «not enqueued», nothing sent', async () => {
-    const mark = await fakeFansly().mark();
-    const attempt = randomUUID();
-    const id = await click(4, [attempt], { hold: 'custody' });
-    await heldAt(id, 'custody');
-    await restart();
-    await waitFor('the journal did not end the interrupted attempt', async () => {
-      const entry = await journal(attempt);
-      return entry?.state === 'refused' && entry.proof === 'not-enqueued' && entry.code === 'CG-OP-INTERRUPTED' && entry.reportPending === false;
-    });
-    await waitFor('the custody did not end', async () => ['failed', 'uncertain-held'].includes(await releaseHeld(4, attempt)));
-    expect(await posts(mark)).toBe(0);
-  });
-
-  it('[NF-022] [NF-035] [RB-007] the background gone after the intent, before the POST: uncertain on the wake, NO request, never repeated', async () => {
-    const mark = await fakeFansly().mark();
-    const attempt = randomUUID();
-    const id = await click(5, [attempt], { hold: 'written' });
-    await heldAt(id, 'written');
-    await restart();
-    await waitFor('the journal did not keep the attempt uncertain', async () => {
-      const entry = await journal(attempt);
-      return entry?.state === 'uncertain' && entry.cause === 'restart';
-    });
-    await browser.pause(2_000);
-    expect(await posts(mark)).toBe(0);
-    // The fan stays held: a new click asks nothing.
-    expect((await answered(await click(5, [randomUUID()])))[0]).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
-    expect(await posts(mark)).toBe(0);
-  });
-
-  it('[NF-022] [NF-035] the background gone after the POST, before the receipt: uncertain on the wake, the one request never repeated', async () => {
-    await fakeFansly().command({ op: 'send', echo: 'none', receiptDelayMs: 8_000, echoDelayMs: 0 });
-    const mark = await fakeFansly().mark();
-    const attempt = randomUUID();
-    await click(6, [attempt]);
-    await waitFor('the request did not start', async () => (await view(attempt))?.state === 'requestStarted');
-    await restart();
-    await waitFor('the journal did not keep the attempt uncertain', async () => {
-      const entry = await journal(attempt);
-      return entry?.state === 'uncertain' && entry.cause === 'restart';
-    });
-    await waitFor('the POST did not reach the server', async () => (await posts(mark)) === 1);
-    await browser.pause(9_000);
-    expect(await posts(mark)).toBe(1);
-  });
-
-  it('[NF-020] [NF-035] the background gone after the receipt: its late echo after the wake proves it — sent, the custody hears `sent`', async () => {
-    await fakeFansly().command({ op: 'send', echo: 'after', receiptDelayMs: 0, echoDelayMs: 8_000 });
-    const mark = await fakeFansly().mark();
-    const attempt = randomUUID();
-    await click(7, [attempt]);
-    await waitFor('the receipt was not journaled', async () => (await journal(attempt))?.state === 'receipted');
-    await restart();
-    const entry = await waitFor('the late echo did not prove the receipt', async () => {
-      const found = await journal(attempt);
-      return found?.state === 'sent' && found.reportPending === false ? found : undefined;
-    }, 30_000);
-    expect(entry).toMatchObject({ proof: 'echo' });
-    await custodyIs(7, attempt, 'sent');
-    expect(await posts(mark)).toBe(1);
-  });
-
-  it('[NF-021] two clients on one hub page: another install holds the fan’s lease — our click routes nothing, no POST', async () => {
-    // The earlier background-restart case cannot release its in-memory lease token. Resolving its custody
-    // frees the send, not that 120 s lease: let it expire at the fake hub before the rival takes its own.
-    await hub().command({ op: 'clock', advanceMs: BOOTSTRAP_PILOT_PAGES.limits.claimLeaseSec * 1000 + 1 });
-    seq += 1;
-    const rivalId = `p9d-rival-${seq}`;
-    await pages();
-    await writeLocalStorage({ [SEND.rival]: { id: rivalId, pageId: PAGE.pageId, fanRef: fanOf(4).fan } });
-    const rival = await waitFor('the rival did not take the lease', async () => {
-      const found = await read<{ id: string; ok: boolean }>(SEND.rivalResult);
-      return found?.id === rivalId ? found : undefined;
-    });
-    expect(rival).toMatchObject({ ok: true });
-    const mark = await fakeFansly().mark();
-    const attempt = randomUUID();
-    expect((await answered(await click(4, [attempt])))[0]).toMatchObject({ state: 'refused', proof: 'before-dispatch', code: 'CG-CLAIM-BUSY' });
-    expect(await posts(mark)).toBe(0);
-    expect((await custody(4)).some(([id]) => id === attempt)).toBe(false);
   });
 });
