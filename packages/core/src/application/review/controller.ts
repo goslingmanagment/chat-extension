@@ -122,9 +122,7 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
     if (result !== null && head !== null) facts.push(msg('review.archiveAsOf', { time: { time: head.at } }));
 
     const chatBusy = chat !== null && ws.running(chat.key) !== null;
-    const reason =
-      ws.offReason(situation) ??
-      (situation.quotaZero ? catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } }) : chatBusy ? catalog.reason('chat-busy') : null);
+    const reason = ws.offReason(situation) ?? (chatBusy ? catalog.reason('chat-busy') : null);
     // Without a review yet (or without a chat) the button has nothing to repeat and is off.
     const again: UiAction =
       view !== null ? { type: 'Regenerate', operationId: view.opId } : chat !== null ? { type: 'Generate', targetHandle: chat.handle, feature: 'review', options: {} } : { type: 'ReloadView', selector: { of: 'review' } };

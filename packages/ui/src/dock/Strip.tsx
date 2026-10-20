@@ -264,13 +264,11 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
 
   // ── «Ещё»: whatever a narrow composer hid — Review, Recap, Coach, the two windows ──
   const folded = chips.filter((chip) => moreIds.includes(chip.id));
-  // While the chat loads nothing can be opened from the bar: the windows are not offered in «Ещё» either.
-  const listed = folded.filter((chip) => !inWindows(chip) || !vm.statusWords);
   const hidden = folded.filter((chip) => !inWindows(chip));
   const firstOff = hidden.find((chip) => !chip.enabled) ?? null;
   // The windows open whatever the chat's state is: «Ещё» is off only while all it holds is functions that are off.
-  const moreOff = firstOff !== null && !listed.some(inWindows) && hidden.every((chip) => !chip.enabled) ? t('dock.action.moreUnavailable', { reason: whyOff(firstOff) ?? '' }) : null;
-  const moreItems: MenuItem[] = listed.map((chip) => {
+  const moreOff = firstOff !== null && !folded.some(inWindows) && hidden.every((chip) => !chip.enabled) ? t('dock.action.moreUnavailable', { reason: whyOff(firstOff) ?? '' }) : null;
+  const moreItems: MenuItem[] = folded.map((chip) => {
     const keys = hotkeyText(chip.hotkey);
     const off = whyOff(chip);
     return { id: chip.id, label: nameOf(chip), ...(keys === null ? {} : { hint: keys.display }), reason: off === null ? null : offText(chip, off) };
@@ -362,7 +360,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
               busy={hidden.some((chip) => chip.busy)}
               ready={hidden.some((chip) => chip.badge !== null)}
               reason={moreOff}
-              tooltip={listed.map(nameOf).join(', ')}
+              tooltip={folded.map(nameOf).join(', ')}
               haspopup="menu"
               expanded={menuOpen}
               buttonRef={moreRef}

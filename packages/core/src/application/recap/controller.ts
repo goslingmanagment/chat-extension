@@ -137,7 +137,6 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     if (chat === null || ready === null) return catalog.reason('chat-loading');
     const flag = flagStateOf(ready.bootstrap, ready.page.pageId, 'recap');
     if (!flag.usable) return flagReasonVm(flag);
-    if (situation.quotaZero) return catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } });
     if (ws.running(chat.key) !== null) return catalog.reason('chat-busy');
     // AI-051: the full recap needs history; the short one is the hub's to judge.
     const gate = featureGate(FEATURE_OF[length], { window: situation.window, draftEmpty: null }, ws.ports.policy);

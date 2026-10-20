@@ -79,18 +79,19 @@ function waitsForEarlierPart(part: PartVM): boolean {
 }
 
 /**
- * Whether this part's row carries «Открыть и вставить» (ui-design §4.13): only
- * a part that can be sent now, cannot be sent, or was refused with no safe
- * retry. A part in work, sent, uncertain, held («фан написал новое») or
- * waiting behind another part has none — one uncertain part holds its whole
- * group (§6.7.8, §6.7.9). The button and Enter on the part both ask here, so
- * the keyboard never offers what the row does not show.
+ * Whether this part's row carries «Открыть и вставить» (ui-design §4.13): a
+ * part that can be sent now, cannot be sent, was refused with no safe retry,
+ * or is held because the fan wrote since (the chat opens on the fan's new
+ * message, the person decides). A part in work, sent, uncertain or waiting
+ * behind another part has none — one uncertain part holds its whole group
+ * (§6.7.8, §6.7.9). The button and Enter on the part both ask here, so the
+ * keyboard never offers what the row does not show.
  */
 export function offersOpenInsert(part: PartVM): boolean {
   const send = part.send;
   if (send === undefined) return part.openInsert !== undefined && part.openInsert.s !== 'hidden';
   if (waitsForEarlierPart(part)) return false;
-  return send.s === 'available' || send.s === 'unavailable' || (send.s === 'rejected' && !send.canRetry);
+  return send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale' || (send.s === 'rejected' && !send.canRetry);
 }
 
 /** «Открыть и вставить»: the chat opens in ChatSpace by this click, then the part goes into its composer (§6.5). */
@@ -321,6 +322,8 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
             reason={result.canRegenerate ? null : result.regenerateReason === null ? i18n.t('common.unknown') : i18n.text(result.regenerateReason.text)}
             onClick={() => void dispatch({ type: 'Regenerate', operationId: opId })}
           />
+          <OpenAndInsert part={part} opId={opId} />
+          <CopyIcon part={part} />
           <CodeLine code="CG-SEND-STALE" text={i18n.t('send.heldStaleTail')} />
         </div>
       );

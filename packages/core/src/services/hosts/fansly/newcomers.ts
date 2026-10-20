@@ -79,6 +79,7 @@ import {
   type PassProfile,
 } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { checkOf, passRowOf } from '../../../domain/hosts/fansly/newcomers/rows';
+import { digestHex } from '../../../domain/ops/digest';
 import { inPassTab, matchesPassSearch, passesCheckFilter } from '../../../domain/newcomers/pass';
 import { AbortSwitch } from '../../ports';
 import { NO_LOG, type KeyValuePort, type ServiceLog } from '../../storage/ports';
@@ -163,7 +164,6 @@ interface Row {
   kept: PassMessage[];
   /** `kept` holds the whole history, to its start. */
   keptAll: boolean;
-  revisionKey: string | null;
   proof: PassRowProof | null;
   /** R20 P10c (FX-018): the avatar's address of the profile the pass read; null — none fit to send. */
   avatar: string | null;
@@ -247,6 +247,16 @@ export function notReady(view: FanslyFollowerRow): CgAnyCode {
 }
 
 /** A row the queue still has to check: never checked, failed, or interrupted. */
+/**
+ * The revision of a fan's history: the same messages read as the same revision in every pass (FS-NEW-6 asks only that
+ * a changed history changes it), so reopening the window or checking again keeps the drafts made on it. Uuid-shaped.
+ */
+function revisionOf(creator: string, groupId: string, history: readonly PassMessage[]): string {
+  const key = `${creator}|${groupId}|${history.map((message) => message.id).join(',')}`;
+  const hex = digestHex(key) + digestHex(`~${key}`);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 const needsCheck = (row: Row): boolean => row.view.status === 'pending' || row.view.status === 'failed' || row.view.status === 'checking';
 
 export type FanslyNewcomers = ReturnType<typeof createFanslyNewcomers>;
@@ -499,7 +509,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
           const at = snowflakeMs(follow.id, deps.now()) ?? 0;
           oldest = Math.min(oldest, at);
           if (at < cutoff || at > pass.startedAt || pass.byFan.has(follow.fanRef) || follow.fanRef === pass.creator) continue;
-          const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, revisionKey: null, proof: null, avatar: profiles.get(follow.fanRef)?.avatarUrl ?? null };
+          const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, proof: null, avatar: profiles.get(follow.fanRef)?.avatarUrl ?? null };
           pass.rows.push(row);
           pass.byFan.set(follow.fanRef, row);
           touch(pass, row);
@@ -711,9 +721,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     // The DMs are open (again): an exclusion made while they were closed is over. An answer without the rules says nothing.
     if (chat.dmRead) await forgetExclusion(pass.creator, fan);
     if (work.stop.aborted) throw new Aborted();
-    const key = history.map((message) => message.id).join(',');
-    const historyRevision = key === row.revisionKey && row.view.historyRevision !== null ? row.view.historyRevision : deps.uuid();
-    row.revisionKey = key;
+    const historyRevision = revisionOf(pass.creator, chat.groupId, history);
     row.proof = { groupId: chat.groupId, historyRevision, window: windowOf(history, pass.creator), startProof: passStartProof(chat.groupId, history, pass.creator, pass.welcome) };
     set(pass, row, {
       status: 'ready',
@@ -732,7 +740,6 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const excluded = await isExcluded(pass.creator, row.view.fanRef);
     if (work.stop.aborted) throw new Aborted();
     row.proof = null;
-    row.revisionKey = null;
     set(pass, row, { status: excluded ? 'excluded' : 'dm-closed', dmClosed: why, dmPriceMills: priceMills, historyRevision: null, checkedAt: iso(deps.now()), fanWrote: false, proof: null, error: null });
   }
 
@@ -740,7 +747,6 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     row.kept = history.slice(-PASS_BOUNDS.previewKept);
     row.keptAll = false;
     row.proof = null;
-    row.revisionKey = null;
     set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: previewOf(personal, pass.creator, pass.welcome), error: null, fanWrote: false, dmClosed: null, dmPriceMills: null });
   }
 
@@ -1115,7 +1121,6 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const row = pass?.byFan.get(fanRef);
     if (pass === undefined || row === undefined || row.view.status === 'greeted') return;
     row.proof = null;
-    row.revisionKey = null;
     set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: null, error: null, fanWrote: false, dmClosed: null, dmPriceMills: null });
   }
 
