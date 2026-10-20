@@ -8,8 +8,9 @@
 // - The album lists the newest upload first: «first on top» uploads the LAST file first (`sequence` is the list
 //   reversed), «last on top» uploads in the list's order. `items` stay in the album's order top to bottom — what the
 //   person sees in the panel and later on the page.
-// - Two files of one card key (`cover.jpg`, `cover.mp4`) cannot be told apart in the album; more files than one run
-//   takes (`vaultFilesPerUpload`); none the vault takes — each is a problem, and the run is not offered. A name of
+// - Two files of one card key (`cover.jpg`, `cover.mp4`) cannot be told apart in the album; more files than the
+//   checkpoint holds (`vaultFilesPerUpload`, 10 000 — no real upload); none the vault takes — each is a problem, and
+//   the run is not offered. A name of
 //   other than printable ASCII may come back renamed by Fansly, so its card may never be found: a warning.
 
 import type { VaultAlbumOrder, VaultPlanProblem, VaultPlanWarning } from '@cg/contracts/vault-fansly';

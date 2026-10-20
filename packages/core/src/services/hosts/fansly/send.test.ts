@@ -277,9 +277,12 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     w.routes[0]?.answer.resolve(receipt());
     await settle();
     expect(w.journal().map((entry) => entry.state)).toEqual(['receipted']);
+    // The receipt answers the click at once (the card reads it as sent); the lease waits for the echo.
+    await expect(view).resolves.toMatchObject({ state: 'receipted', platformMessageId: '830000000000000001' });
+    expect(w.hub.actions()).toEqual(['claim', 'dispatch']);
     w.send.echo([{ id: '830000000000000001', conversationRef: GROUP, fromFan: false }]);
-    await expect(view).resolves.toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: '830000000000000001' });
     await settle();
+    expect(w.send.view(uuid(1))).toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: '830000000000000001' });
     expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release', 'sent']);
     expect(w.hub.calls.at(-1)?.body).toEqual({ action: 'sent', attemptId: uuid(1), instanceId: uuid(0x1d), platformMessageId: '830000000000000001', evidence: 'receipt+echo' });
     expect(w.journal()).toMatchObject([{ state: 'sent', reportPending: false }]);
@@ -396,9 +399,10 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     await settle();
     expect(w.journal()).toMatchObject([{ state: 'receipted', requestId: uuid(0x900), platformMessageId: id, browserResend: true }]);
     expect(w.hub.actions()).not.toContain('sent');
+    await expect(view).resolves.toMatchObject({ state: 'receipted', platformMessageId: id });
     w.send.echo([{ id, conversationRef: GROUP, fromFan: false }]);
-    await expect(view).resolves.toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: id });
     await settle();
+    expect(w.send.view(uuid(1))).toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: id });
     expect(w.journal()).toMatchObject([{ state: 'sent', proof: 'echo', platformMessageId: id, requestId: uuid(0x900), browserResend: true }]);
     expect(w.hub.calls.at(-1)?.body).toMatchObject({ action: 'sent', platformMessageId: id, evidence: 'receipt+echo' });
     expect(w.routes).toHaveLength(1);
@@ -488,9 +492,10 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     sent.on = false;
     sent.routes[0]?.answer.resolve(receipt());
     await settle();
+    await expect(view).resolves.toMatchObject({ state: 'receipted', platformMessageId: '830000000000000001' });
     sent.send.echo([{ id: '830000000000000001', conversationRef: GROUP, fromFan: false }]);
-    await expect(view).resolves.toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: '830000000000000001' });
     await settle();
+    expect(sent.send.view(uuid(1))).toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: '830000000000000001' });
     expect(sent.hub.actions().at(-1)).toBe('sent');
 
     const lost = world();
