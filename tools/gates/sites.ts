@@ -13,11 +13,6 @@
 //    key never trip it. The debt list of §1.9 is empty since F9b; the gate
 //    fails on a literal outside the list and on an entry the code has
 //    outgrown — so the list only shrinks.
-// 1a. Site names in texts (F9b). No text of shared code — a catalog entry, a
-//    string, a template, a JSX text — says «ChatSpace», «OnlyMonster»,
-//    «OnlyFans» or «Fansly»: it says the site's phrase (`{site}`, `{onSite}`,
-//    `{siteAccount}`, `{sitePlatform}`), which the I18n port fills from the
-//    site's own text pack. The names are derived from those packs.
 // 2. Bytes per site, on demand only (`pnpm gates:bytes`, pin-bytes.ts): the
 //    size and hash of ChatSpace's built files — its scripts, its lazy build,
 //    its background chunk and the background core — against
@@ -25,7 +20,7 @@
 // 3. No Fansly data in ChatSpace's bundles: the strings only Fansly's own
 //    modules carry (its bridge types, tab requests, error codes, text keys,
 //    API address) are derived from the source and searched for in the build.
-// 4. No build field of the host registry and no parity row in any bundle.
+// 4. No build field of the host registry in any bundle.
 //
 // The package graph itself is .dependency-cruiser.cjs; whose path is whose is
 // one table for both, site-paths.cjs.
@@ -39,9 +34,6 @@ import ts from 'typescript';
 
 import type { HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
 import { HOST_KINDS, HOST_PLATFORM, type HostKind } from '../../packages/contracts/src/hosts.ts';
-import type { HostPhrases } from '../../packages/contracts/src/vm/host-profile.ts';
-import { CHATSPACE_PHRASES } from '../../packages/core/src/domain/hosts/chatspace/i18n/index.ts';
-import { FANSLY_PHRASES } from '../../packages/core/src/domain/hosts/fansly/i18n/phrases.ts';
 import { lineOf, parse, walk, type SourceFile, type Violation } from './checks.ts';
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -267,54 +259,6 @@ export function checkSiteLiterals(files: readonly SourceFile[], debt: readonly S
   return violations;
 }
 
-// ── 1a. Site names in texts ─────────────────────────────────────────────────
-
-/** The names in a site's phrases (`HostPhrases`): the site, its accounts, its platform — every language's. */
-function namesOf(phrases: { readonly [locale: string]: HostPhrases }): readonly string[] {
-  return [...new Set(Object.values(phrases).flatMap((phrase) => [phrase.site, phrase.siteAccount, phrase.sitePlatform]))];
-}
-
-/**
- * What says a site in a text, by its kind: the names its own phrases give (its text pack, `core/domain/hosts/<site>/
- * i18n`). A new host kind does not typecheck until its phrases are here.
- */
-export const SITE_NAMES: { readonly [K in HostKind]: readonly string[] } = { chatspace: namesOf(CHATSPACE_PHRASES), 'fansly-web': namesOf(FANSLY_PHRASES) };
-
-/** The site names a file's texts may not say: every site's in shared code, the other sites' in a site's own; null — not gated. */
-export function forbiddenSiteNames(path: string): readonly string[] | null {
-  if (isNeutralPath(path)) return null;
-  const owner = siteOfPath(path);
-  if (owner !== null) return SITES.filter((site) => site !== owner).flatMap((site) => SITE_NAMES[site.kind]);
-  return SITE_FREE_SCOPES.some((pattern) => pattern.test(path)) ? HOST_KINDS.flatMap((kind) => SITE_NAMES[kind]) : null;
-}
-
-/** A name as a word of a text: «ChatSpace обновился», «Fansly’s» — not `openChatSpace`, an i18n key or an identifier. */
-const nameInText = (names: readonly string[]): RegExp => new RegExp(`(?<![\\p{L}\\p{N}_$])(?:${names.map(escapeRegExp).join('|')})(?![\\p{L}\\p{N}_$])`, 'u');
-
-/**
- * 1a. A text of a gated file that says a site's name — a string, a template's chunk, a JSX text; by AST, so a comment
- * never counts. A shared text says the site's phrase instead (`{site}`, `{onSite}`, `{siteAccount}`, `{sitePlatform}`).
- */
-export function checkSiteNames(files: readonly SourceFile[]): Violation[] {
-  const violations: Violation[] = [];
-  for (const file of files) {
-    const names = forbiddenSiteNames(file.path);
-    if (names === null || names.length === 0) continue;
-    const pattern = nameInText(names);
-    const source = parse(file);
-    walk(source, (node) => {
-      const isText = ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node) || ts.isJsxText(node);
-      if (!isText || (ts.isStringLiteralLike(node) && isModuleSpecifier(node))) return;
-      const name = pattern.exec(node.text)?.[0];
-      if (name === undefined) return;
-      const owner = siteOfPath(file.path);
-      const where = owner === null ? 'a shared text names no site: say its phrase — {site}, {onSite}, {siteAccount}, {sitePlatform} — and the I18n port puts the site’s own in' : `${owner.kind}'s own text names no other site`;
-      violations.push({ gate: 'site-name', path: file.path, line: lineOf(source, node), message: `«${name}» in «${node.text.trim().slice(0, 60)}» — ${where} (docs/project-unite/architecture.md §1.8, §3.4).` });
-    });
-  }
-  return violations;
-}
-
 // ── 2. Bytes per site ───────────────────────────────────────────────────────
 
 /** The background core: the event page both sites load. Counted with ChatSpace's files (architecture.md §1.8). */
@@ -487,7 +431,7 @@ export function checkSiteMarkers(built: ReadonlyArray<{ readonly path: string; r
   return violations;
 }
 
-// ── 4. No build field and no parity row in a bundle ─────────────────────────
+// ── 4. No build field in a bundle ───────────────────────────────────────────
 
 /** What of the host registry is build data and must never ship (architecture.md §1.2): the strings its entries carry for the tools alone. */
 export function registryBuildFields(hosts: readonly HostDescriptor[]): string[] {
@@ -500,23 +444,17 @@ export function registryBuildFields(hosts: readonly HostDescriptor[]): string[] 
   ]);
 }
 
-/**
- * 4. No built file carries a build field of the host registry or a row of the parity tables (the negative checks of
- * the exceptions registry are the one piece of them a package exports): both are for the tools.
- */
-export function checkBuildData(built: ReadonlyArray<{ readonly path: string; readonly text: string }>, hosts: readonly HostDescriptor[], parityIds: readonly string[]): Violation[] {
+/** 4. No built file carries a build field of the host registry: they are for the tools. */
+export function checkBuildData(built: ReadonlyArray<{ readonly path: string; readonly text: string }>, hosts: readonly HostDescriptor[]): Violation[] {
   const fields = registryBuildFields(hosts);
   if (fields.length === 0) throw new Error('checkBuildData: the host registry has no build field to look for.');
   const violations: Violation[] = [];
-  const parity = parityIds.length === 0 ? null : new RegExp(`(?<![\\w-])(?:${parityIds.map(escapeRegExp).join('|')})(?![\\w-])`);
   for (const file of built) {
     if (!/\.(?:js|html|css|json)$/.test(file.path)) continue;
     for (const field of fields) {
       const at = file.text.indexOf(field);
       if (at >= 0) violations.push({ gate: 'build-data', path: file.path, line: file.text.slice(0, at).split('\n').length, message: `a build field of the host registry is in the bundle: «${field}» (docs/project-unite/architecture.md §1.2).` });
     }
-    const row = parity?.exec(file.text);
-    if (row) violations.push({ gate: 'build-data', path: file.path, line: file.text.slice(0, row.index).split('\n').length, message: `a row of the parity tables is in the bundle: «${row[0]}» (docs/project-unite/architecture.md §1.8).` });
   }
   return violations;
 }

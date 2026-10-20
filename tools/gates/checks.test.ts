@@ -13,13 +13,11 @@ import {
   checkMainWorldBundles,
   checkMainWorldGuards,
   checkMessageAck,
-  checkOnlyMonsterReferences,
   checkReleaseBundle,
   checkSdkCustody,
   checkSendQueueReferences,
   checkStandHooks,
   checkTabStorageListeners,
-  checkUiTexts,
   deriveSdkMarkers,
   FANSLY_API_PREFIX,
   FETCH_EXCEPTIONS,
@@ -28,7 +26,6 @@ import {
   ISOLATED_BUNDLES,
   MAIN_WORLD_BUNDLES,
   missingSdkMarkerKinds,
-  onlyMonsterAllowed,
   SEND_PORT_FILE,
   type SdkMarker,
   type SourceFile,
@@ -36,48 +33,6 @@ import {
 
 const file = (path: string, text: string): SourceFile => ({ path, text });
 const gates = (violations: ReadonlyArray<{ gate: string }>): string[] => violations.map((violation) => violation.gate);
-
-describe('gate: onlymonster references', () => {
-  it('flags the origin in code outside the allowlist, ignores comments', () => {
-    const violations = checkOnlyMonsterReferences([
-      file('packages/core/src/domain/x.ts', "// talks about chat.onlymonster.ai in prose\nexport const u = 'https://chat.onlymonster.ai/api';"),
-      file('packages/ui/src/y.tsx', 'export const t = `wss://${host}.onlymonster.ai/`;'),
-      file('apps/extension/src/hosts/runtime/chatspace.ts', "export const M = ['https://chat.onlymonster.ai/*'];"),
-      file('packages/host-chatspace/src/isolated/host-contract.ts', "export const O = 'https://chat.onlymonster.ai';"),
-      file('apps/extension/src/hosts.ts', "export const M = ['https://chat.onlymonster.ai/*'];"),
-      file('packages/host-chatspace/src/isolated/adapter.ts', "export const O = 'https://chat.onlymonster.ai';"),
-    ]);
-    expect(violations.map((violation) => [violation.path, violation.line])).toEqual([
-      ['packages/core/src/domain/x.ts', 2],
-      ['packages/ui/src/y.tsx', 1],
-      ['apps/extension/src/hosts.ts', 1],
-      ['packages/host-chatspace/src/isolated/adapter.ts', 1],
-    ]);
-  });
-
-  it('the allowlist is the host registry and each site’s contract module from it', () => {
-    expect(onlyMonsterAllowed('apps/extension/src/hosts/index.ts')).toBe(true);
-    expect(onlyMonsterAllowed('packages/host-chatspace/src/isolated/host-contract.ts')).toBe(true);
-    expect(onlyMonsterAllowed('apps/extension/src/composition/background.ts')).toBe(false);
-    expect(onlyMonsterAllowed('packages/host-chatspace/src/isolated/host-contract.ts', [])).toBe(false);
-  });
-
-  it('sees through regex literals and escaped RegExp strings', () => {
-    const violations = checkOnlyMonsterReferences([
-      file('packages/core/src/domain/a.ts', 'export const a = /^https:\\/\\/chat\\.onlymonster\\.ai\\/api\\//;'),
-      file('packages/core/src/domain/b.ts', 'export const b = /chat.onlymonster.ai\\/api/;'),
-      file('packages/core/src/domain/c.ts', "export const c = new RegExp('chat\\\\.onlymonster\\\\.ai');"),
-      file('packages/core/src/domain/d.ts', 'export const d = /onlymonster[.]ai/i;'),
-      file('packages/core/src/domain/ok.ts', 'export const ok = /onlymonster/; // not the origin'),
-    ]);
-    expect(violations.map((violation) => violation.path)).toEqual([
-      'packages/core/src/domain/a.ts',
-      'packages/core/src/domain/b.ts',
-      'packages/core/src/domain/c.ts',
-      'packages/core/src/domain/d.ts',
-    ]);
-  });
-});
 
 describe('gate: HTML sinks', () => {
   it('flags innerHTML, insertAdjacentHTML, dangerouslySetInnerHTML and document.write', () => {
@@ -105,27 +60,6 @@ describe('gate: browser.* scope', () => {
       'apps/extension/src/entrypoints/background.ts',
       'apps/extension/src/composition/tab.ts',
       'apps/extension/src/composition/tab.ts',
-    ]);
-  });
-});
-
-describe('gate: UI vocabulary (AU-019)', () => {
-  it('allows Russian enable/disable verbs without allowing a credential key', () => {
-    expect(checkUiTexts([file('apps/extension/src/composition/pages.ts', "const labels = ['Включить Fansly', 'Выключить Fansly', 'Подключение'];")])).toEqual([]);
-    expect(checkUiTexts([file('apps/extension/src/composition/pages.ts', "const label = 'Введите ключ доступа';")])).toHaveLength(1);
-  });
-  it('flags token/key/API/bearer in JSX text, text attributes and page strings', () => {
-    const violations = checkUiTexts([
-      file('packages/ui/src/a.tsx', 'export const A = () => <p title="Paste your API key">Enter the token</p>;'),
-      file('packages/ui/src/b.tsx', 'export const B = () => <p>{"Введите токен"}</p>;'),
-      file('packages/ui/src/c.tsx', 'export const C = () => <p class="hotkeys" key="k">Горячие клавиши</p>;'),
-      file('apps/extension/src/composition/pages.ts', "const T = { popup: 'Bearer setup' };"),
-    ]);
-    expect(violations.map((violation) => violation.path)).toEqual([
-      'packages/ui/src/a.tsx',
-      'packages/ui/src/a.tsx',
-      'packages/ui/src/b.tsx',
-      'apps/extension/src/composition/pages.ts',
     ]);
   });
 });

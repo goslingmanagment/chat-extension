@@ -1,8 +1,7 @@
 // How the bundle of the extension pages is cut into files (architecture.md
 // §3, §9.9). The four pages — popup, options, debug-prompt, debug-journal —
 // share one controller, one UI and one protocol, so the bundler puts all of
-// it into a single chunk: over 500 KiB minified, and tools/archive-check
-// takes a JS file over 400 KiB for a foreign bundle. The two heaviest parts
+// it into a single chunk of over 500 KiB minified. The two heaviest parts
 // that never change with the pages' own code get files of their own:
 //
 // - the texts: both catalogs, ru and en (a page switches its language on the

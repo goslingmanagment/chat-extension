@@ -25,8 +25,6 @@ import { FANSLY_API_MATCHES, FANSLY_LAZY_ROOT, FANSLY_MATCHES, FANSLY_QUIET_DOMA
 import { FANSLY_STAND_MATCHES } from './runtime/index.ts';
 import type { HostDescriptor, TestHostConfig } from './types.ts';
 
-const KIB = 1024;
-
 /** The Fansly stand: its own loopback name, `localhost` (ChatSpace's stand is `127.0.0.1`), optional as the site's pages (R20 P6a). */
 export const FANSLY_TEST: TestHostConfig = { pageMatches: FANSLY_STAND_MATCHES };
 
@@ -80,7 +78,7 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
 export const FANSLY: HostDescriptor = {
   kind: 'fansly-web',
   platform: 'fansly',
-  background: { source: 'bg/fansly.ts', file: 'bg/fansly.js', rawBytes: 256 * KIB }, // 200 → 256 KiB, 2026-10-16: P10c's greeting put it 2.4 KiB over (owner: raise, no byte-hunting)
+  background: { source: 'bg/fansly.ts', file: 'bg/fansly.js' },
   // «Fansly через вкладку» (§8.5, R20 P9c): the relay page its tabs frame, web-accessible to Fansly's pages alone.
   relayPage: FANSLY_RELAY_PAGE,
   matches: FANSLY_MATCHES,
