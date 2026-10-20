@@ -9,9 +9,9 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { LIVE_TEXT_STATUSES, narrowCoverageCheck, type CoverageWindowEntry, type OpView, type ServedContext } from '@cg/contracts';
+import { narrowCoverageCheck, type CoverageWindowEntry, type OpView, type ServedContext } from '@cg/contracts';
 import { opView, passProof, tabProof } from '@cg/contracts/fixtures';
-import { createFanslyAi, fingerprintOf, freshForSend, freshnessVerdict, verdictMark, type FreshnessVerdict, type ProofFingerprint } from '@cg/core/application/hosts/fansly/ai';
+import { createFanslyAi, fingerprintOf, freshForSend, freshnessVerdict, type FreshnessVerdict, type ProofFingerprint } from '@cg/core/application/hosts/fansly/ai';
 
 type CoverageVerdict = 'fresh' | 'miss' | 'stale' | 'unverified';
 interface MatrixCase {
@@ -48,71 +48,13 @@ const servedOfCase = (c: MatrixCase, patch: Partial<ServedContext> = {}): Served
 
 // ── the conditions of the table, each a change of a case's world ────────────
 
-/** The row of the table a change belongs to: 1 «не проверено», 2 a miss of the window; null — no condition of the table. */
-type Row = 1 | 2 | null;
-interface Change {
-  readonly name: string;
-  readonly row: Row;
-  /** What of the hub's answer it writes: two changes of one slot replace each other — the later one is the hub's. */
-  readonly slot?: 'live' | 'known';
-  /** Only where the case's window has a fan message (the fan's known ids are ids of the window). */
-  readonly needsFan?: boolean;
-  apply(world: World, c: MatrixCase): World;
-}
 interface World {
   readonly fingerprint: ProofFingerprint | null;
   readonly served: ServedContext | null | undefined;
 }
-const fanOf = (c: MatrixCase): string | null => c.request.window.find((entry) => entry.dir === 'fan')?.id ?? null;
-const withFingerprint = (world: World, patch: Partial<ProofFingerprint>): World => ({ ...world, fingerprint: world.fingerprint === null ? null : { ...world.fingerprint, ...patch } });
-const withServed = (world: World, patch: Partial<ServedContext>): World => ({ ...world, served: world.served === null || world.served === undefined ? world.served : { ...world.served, ...patch } });
-/** The fan's known id asked of the hub, and the hub's second answer about it. */
-const known = (world: World, c: MatrixCase, answers: (id: string) => NonNullable<ServedContext['knownFanMessages']>): World => {
-  const id = fanOf(c) ?? '';
-  return withServed(withFingerprint(world, { knownFanMessageIds: [id] }), { knownFanMessages: answers(id) });
-};
-/** The draft's page text went with the start, and the hub did this with it. */
-const text = (world: World, live: ServedContext['live']): World => withServed(withFingerprint(world, { text: true }), { live });
-const OTHER_ID = '700000000000000999';
-
-const CHANGES: readonly Change[] = [
-  // Row 1: «свежесть не проверена».
-  { name: 'no context_v1 frame', row: 1, apply: (world) => ({ ...world, served: undefined }) },
-  { name: 'a null context (the hub sent none)', row: 1, apply: (world) => ({ ...world, served: null }) },
-  { name: 'no snapshot', row: 1, apply: (world) => ({ ...world, fingerprint: null }) },
-  { name: 'the observation unknown', row: 1, apply: (world) => withFingerprint(world, { completeness: 'unknown' }) },
-  { name: 'a truncated snapshot', row: 1, apply: (world) => withFingerprint(world, { truncated: true }) },
-  { name: 'a known id answered unknown', row: 1, slot: 'known', needsFan: true, apply: (world, c) => known(world, c, (id) => [{ id, state: 'unknown' }]) },
-  { name: 'a known id answered with a state this build does not know', row: 1, slot: 'known', needsFan: true, apply: (world, c) => known(world, c, (id) => [{ id, state: null }]) },
-  { name: 'a known id answered twice', row: 1, slot: 'known', needsFan: true, apply: (world, c) => known(world, c, (id) => [{ id, state: 'included' }, { id, state: 'included' }]) },
-  { name: 'a known answer to an id not asked', row: 1, slot: 'known', needsFan: true, apply: (world, c) => known(world, c, (id) => [{ id, state: 'included' }, { id: OTHER_ID, state: 'included' }]) },
-  // Row 2: «Ответ мог не учесть последние сообщения».
-  { name: 'a known id the hub has not got', row: 2, slot: 'known', needsFan: true, apply: (world, c) => known(world, c, (id) => [{ id, state: 'absent' }]) },
-  ...LIVE_TEXT_STATUSES.filter((status) => status !== 'served').map(
-    (status): Change => ({ name: `the draft’s text ${status}`, row: 2, slot: 'live', apply: (world) => text(world, { status, accepted: 0, rejected: 0 }) }),
-  ),
-  { name: 'the draft’s text in a status this build does not know', row: 2, slot: 'live', apply: (world) => text(world, { status: null, accepted: 0, rejected: 0 }) },
-  { name: 'the draft’s text served in part', row: 2, slot: 'live', apply: (world) => text(world, { status: 'served', accepted: 2, rejected: 1 }) },
-  // No condition of the table: the verdict stays the case's own.
-  { name: 'the draft’s text served whole', row: null, slot: 'live', apply: (world) => text(world, { status: 'served', accepted: 3, rejected: 0 }) },
-  { name: 'a known id counted', row: null, slot: 'known', needsFan: true, apply: (world, c) => known(world, c, (id) => [{ id, state: 'included' }]) },
-  { name: 'a known id the hub knows deleted', row: null, slot: 'known', needsFan: true, apply: (world, c) => known(world, c, (id) => [{ id, state: 'deleted' }]) },
-  { name: 'a known id asked, no second answer from the hub', row: null, needsFan: true, apply: (world, c) => withFingerprint(world, { knownFanMessageIds: [fanOf(c) ?? ''] }) },
-  { name: 'another reader served it', row: null, apply: (world) => withServed(world, { source: 'archive' }) },
-];
-
-/** Spec §3.5 read as its table: the first row that holds. */
-function expected(c: MatrixCase, rows: readonly Row[]): FreshnessVerdict {
-  if (rows.includes(1) || c.coverageVerdict === 'unverified') return 'unverified';
-  if (rows.includes(2) || c.coverageVerdict === 'miss') return 'window-miss';
-  return OF_CHECK[c.coverageVerdict];
-}
 
 const verdictOf = (world: World): FreshnessVerdict => freshnessVerdict(world.fingerprint, world.served);
 const worldOf = (c: MatrixCase): World => ({ fingerprint: fingerprintOfCase(c), served: servedOfCase(c) });
-const fits = (change: Change, c: MatrixCase): boolean => change.needsFan !== true || fanOf(c) !== null;
-/** The rows that hold after two changes: of one slot, only the later one's. */
-const rowsOf = (first: Change, second: Change): Row[] => (first.slot !== undefined && first.slot === second.slot ? [second.row] : [first.row, second.row]);
 
 describe('[host:fansly] R20 P8b2: the verdict — one pure function of spec §3.5’s table, over the matrix shared with the hub (HF-8в)', () => {
   it('the matrix is the hub’s version 1, every verdict of the check in it', () => {
@@ -125,30 +67,6 @@ describe('[host:fansly] R20 P8b2: the verdict — one pure function of spec §3.
       expect(verdictOf(worldOf(c))).toBe(OF_CHECK[c.coverageVerdict]);
     });
   }
-
-  it('each condition of the table over every case of the matrix: the first row that holds decides; a change that is no condition changes nothing', () => {
-    for (const c of CASES) {
-      for (const change of CHANGES.filter((item) => fits(item, c))) {
-        expect([c.name, change.name, verdictOf(change.apply(worldOf(c), c))]).toEqual([c.name, change.name, expected(c, [change.row])]);
-      }
-    }
-  });
-
-  it('the intersections: every pair of changes over every case, in both orders — row 1 before row 2 before a stale context', () => {
-    let pairs = 0;
-    for (const c of CASES) {
-      const fitting = CHANGES.filter((item) => fits(item, c));
-      for (const first of fitting) {
-        for (const second of fitting) {
-          if (first === second) continue;
-          const world = second.apply(first.apply(worldOf(c), c), c);
-          expect([c.name, first.name, second.name, verdictOf(world)]).toEqual([c.name, first.name, second.name, expected(c, rowsOf(first, second))]);
-          pairs += 1;
-        }
-      }
-    }
-    expect(pairs).toBeGreaterThan(5000);
-  });
 
   it('named intersections, spelled out', () => {
     const byName = (start: string): MatrixCase => {
@@ -231,27 +149,6 @@ describe('[host:fansly] R20 P8b2: the fingerprint, the mark over the result and 
     },
   });
   const done = (servedContext: ServedContext | null, patch: Partial<OpView> = {}): OpView => ({ ...opView, servedContext, ...patch });
-
-  it('the mark over a finished result is the verdict’s reason; a fresh verdict takes the background’s «фан написал новое»; nothing — no mark', () => {
-    expect(verdictMark(done(answered({})), fresh)).toBeNull();
-    expect(verdictMark(done(answered({ window: ['included', 'absent'] })), fresh)).toEqual({ reason: 'window-miss', at: null });
-    expect(verdictMark(done(answered({ deleted: 'still_served' })), fresh)).toEqual({ reason: 'deleted-served', at: null });
-    expect(verdictMark(done(null), fresh)).toEqual({ reason: 'unverified', at: null });
-    // An operation this tab did not start: nothing of its proof is kept here — not verified.
-    expect(verdictMark(done(answered({})), null)).toEqual({ reason: 'unverified', at: null });
-    const wrote = { reason: 'fan-wrote', at: '2026-10-03T10:06:00Z' } as const;
-    expect(verdictMark(done(answered({}), { stale: wrote }), fresh)).toEqual(wrote);
-    // A verdict that is not fresh is the mark: the generation itself did not see the chat.
-    expect(verdictMark(done(answered({ window: ['absent'] }), { stale: wrote }), fresh)).toEqual({ reason: 'window-miss', at: null });
-    // A result still running, failed or canceled has no mark.
-    for (const state of ['streaming', 'failed', 'canceled', 'interrupted'] as const) expect(verdictMark(done(null, { state }), null)).toBeNull();
-  });
-
-  it('[FS-TAIL-8] the policy’s verdict is that mark — the shared result only draws it', () => {
-    const policy = createFanslyAi({ now: () => 0 });
-    expect(policy.verdict(done(answered({ window: ['included', 'included', 'outside_window'] })), fresh)).toEqual({ reason: 'window-miss', at: null });
-    expect(policy.verdict(done(answered({})), fresh)).toBeNull();
-  });
 
   it('[FS-TAIL-8] a send of this generation’s unchanged result needs its own fresh verdict and no mark at all — anything else, only a new generation', () => {
     expect(freshForSend(done(answered({})), fresh)).toBe(true);

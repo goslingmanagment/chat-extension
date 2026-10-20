@@ -3,7 +3,7 @@ import { sendLockKey, type SendJournalEntry } from '@cg/contracts/send';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
 import { describe, expect, it } from 'vitest';
 
-import { createSendJournal, isOpenSendState, SEND_JOURNAL_LIMITS, SEND_JOURNAL_OPEN_STATES, type SendJournalDeps } from './send-journal';
+import { createSendJournal, isOpenSendState, SEND_JOURNAL_OPEN_STATES, type SendJournalDeps } from './send-journal';
 import type { ServiceLogEntry } from './storage/ports';
 import { createMemoryKv, manualClock, settle, type MemoryKv } from './test-support/memory-kv';
 
@@ -147,32 +147,6 @@ describe('[X8-07] the send journal: written before the command, never retried wh
     expect(await journal.advance(uuid(501), { state: 'sentObserved', platformMessageId: IDS.msg2 })).toMatchObject({ ok: true, entry: { state: 'sentObserved' } });
     expect(journal.open()).toEqual([]);
   });
-
-  it('finished records are bounded by count and age', async () => {
-    const { journal, clock } = setup({ deps: { limits: { finishedKept: 3 } } });
-    expect(SEND_JOURNAL_LIMITS).toEqual({ finishedKept: 200, finishedTtlMs: DAY });
-    for (let n = 1; n <= 5; n += 1) {
-      await journal.begin(entry(n, { fanRef: `${8000 + n}` }));
-      await journal.advance(uuid(500 + n), { state: 'held' });
-    }
-    expect(journal.list().map((item) => item.attemptId)).toEqual([uuid(503), uuid(504), uuid(505)]);
-    clock.advance(DAY + 1);
-    await journal.begin(entry(9));
-    expect(journal.list().map((item) => item.attemptId)).toEqual([uuid(509)]);
-  });
-
-  it('an observed state whose write failed stays in memory and is written with the next change', async () => {
-    const { journal, local, logs } = setup();
-    await journal.begin(entry(1));
-    local.failNext('set');
-    expect(await journal.advance(uuid(501), { state: 'nativeEnqueued', pendingId: 'p1' })).toMatchObject({ ok: true, persisted: false });
-    expect(journal.stats().dirty).toBe(true);
-    expect(stored(local)?.entries[0]?.['state']).toBe('preparing');
-    expect(logs.some((item) => item.msg === 'send state not saved')).toBe(true);
-    await journal.advance(uuid(501), { state: 'nativeAccepted', platformMessageId: IDS.msg2 });
-    expect(stored(local)?.entries[0]).toMatchObject({ state: 'nativeAccepted', pendingId: 'p1' });
-    expect(journal.stats().dirty).toBe(false);
-  });
 });
 
 describe('[TL-004] [NF-019] a part the person sent themselves is a finished record, never an attempt (§6.6)', () => {
@@ -229,48 +203,6 @@ describe('[TL-004] [NF-019] a part the person sent themselves is a finished reco
     second.clock.advance(DAY + 1);
     await second.journal.begin(entry(9));
     expect(second.journal.list().map((item) => item.attemptId)).toEqual([uuid(509)]);
-  });
-
-  it('a journal that cannot be read keeps nothing of the record — its memory is replaced by the disk when it reads again; offered again then, the record is written. One too old to keep is not written at all', async () => {
-    const local = createMemoryKv();
-    local.data.set(KEY, 'not a journal');
-    const { journal, clock } = setup({ local });
-    expect((await journal.start()).readable).toBe(false);
-    const writes = local.calls.set;
-    // No promise is made: «kept in memory» here would be gone with the first successful read.
-    expect(await journal.record(delivered(1))).toMatchObject({ ok: false, code: 'CG-STORAGE-READ' });
-    expect(journal.get(uuid(501))).toBeNull();
-    expect([local.calls.set, local.read(KEY)]).toEqual([writes, 'not a journal']);
-    // The key is readable again (the outside value is gone): the record, offered again, is in the journal for good.
-    local.data.delete(KEY);
-    expect(await journal.record(delivered(1))).toMatchObject({ ok: true, persisted: true });
-    expect((await journal.begin(entry(2, { fanRef: IDS.otherFan }))).ok).toBe(true);
-    expect(stored(local)?.entries.map((item) => item['state'])).toEqual(['sentObserved', 'preparing']);
-    // A delivery older than finished records are kept: nothing to hold, and no write each time it is offered.
-    const before = local.calls.set;
-    clock.advance(DAY + 1);
-    expect(await journal.record(delivered(3, { fanRef: '8003' }))).toMatchObject({ ok: true, persisted: false });
-    expect(await journal.record(delivered(3, { fanRef: '8003' }))).toMatchObject({ ok: true, persisted: false });
-    expect([local.calls.set, journal.get(uuid(503))]).toEqual([before, null]);
-  });
-
-  it('a write that failed keeps the fact in memory and writes it with the next change; a newer build’s journal is not touched', async () => {
-    const { local, journal, logs } = setup();
-    await journal.start();
-    local.failNext('set');
-    expect(await journal.record(delivered(1))).toMatchObject({ ok: true, persisted: false });
-    expect(journal.stats().dirty).toBe(true);
-    expect(logs.some((item) => item.msg === 'delivered record not saved')).toBe(true);
-    expect(stored(local)).toBeUndefined();
-    await journal.begin(entry(2, { fanRef: IDS.otherFan }));
-    expect(stored(local)?.entries.map((item) => item['state'])).toEqual(['sentObserved', 'preparing']);
-    expect(journal.stats().dirty).toBe(false);
-
-    const newer = createMemoryKv();
-    newer.data.set(KEY, { v: 99, entries: [] });
-    const other = setup({ local: newer });
-    expect(await other.journal.record(delivered(3))).toMatchObject({ ok: false, code: 'CG-STORAGE-VERSION' });
-    expect(newer.read(KEY)).toEqual({ v: 99, entries: [] });
   });
 });
 

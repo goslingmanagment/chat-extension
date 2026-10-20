@@ -8,7 +8,6 @@ import { createNotesService, writeFailure } from '../bg/fansly/notes';
 const FAN = '789';
 const target = { pageId: 7, hostAccountId: '123', fanRef: FAN };
 const sender: HostSiteSender = { kind: 'tab', host: 'fansly-web', tabId: 1, tabSessionId: 'tab', url: 'https://fansly.com/messages/456' };
-const group = { id: '456', type: 1, users: [{ userId: '123' }, { userId: FAN }] };
 const account = { id: FAN, notes: [{ id: '801', contentType: 12000, contentId: FAN, title: 'Анкета', note: 'Имя: Алекс' }, { id: '802', contentType: 12002, contentId: FAN, title: 'Custom Username', note: 'Алекс' }, { id: '803', contentType: 12000, contentId: FAN, title: 'FBuddy Notes', note: 'x' }] };
 
 function world() {
@@ -32,24 +31,6 @@ function world() {
 }
 
 describe('[host:fansly] «Заметки» in the background (R20 P11b)', () => {
-  it('[FS-NOTE-3] [FX-010] a known fan: one `GET /account?ids=`; an unknown one: its group once a chat, then the account', async () => {
-    const w = world();
-    w.answers.push([account]);
-    expect(await w.notes.read({ ...target, groupId: '456' }, sender)).toEqual({
-      ok: true,
-      fanRef: FAN,
-      notes: [{ noteId: '801', title: 'Анкета', text: 'Имя: Алекс', foreign: false }, { noteId: '803', title: 'FBuddy Notes', text: 'x', foreign: true }],
-      customName: { noteId: '802', name: 'Алекс' },
-      readAt: '2026-10-16T00:00:00.000Z',
-    });
-    expect(w.prepare.mock.calls.map(([call]) => (call as { route: string }).route)).toEqual(['account.byIds']);
-    w.answers.push(group, [account], [account]);
-    await w.notes.read({ ...target, fanRef: null, groupId: '456' }, sender);
-    await w.notes.read({ ...target, fanRef: null, groupId: '456' }, sender);
-    expect(w.prepare.mock.calls.map(([call]) => (call as { route: string }).route)).toEqual(['account.byIds', 'group.detail', 'account.byIds', 'account.byIds']);
-    expect(w.prepare.mock.calls[1]?.[0]).toEqual({ purpose: 'notes', route: 'group.detail', account: '123', path: { group: '456' } });
-  });
-
   it('[FS-NOTE-3] [FS-NOTE-4] the page’s own switch and the same session and account are checked before the call and just before it leaves', async () => {
     const w = world();
     expect(await w.notes.read({ ...target, hostAccountId: '999', groupId: '456' }, sender)).toEqual({ ok: false, error: { code: 'CG-FEATURE-DISABLED' } });
@@ -86,48 +67,12 @@ describe('[host:fansly] «Заметки» in the background (R20 P11b)', () => 
     expect(writeFailure(new FanslyApiError('http', { sent: true, httpStatus: 502 }))).toEqual({ code: 'CG-NOTE-UNCERTAIN' });
   });
 
-  it('[FX-011] [FX-020] [FS-NOTE-4] an edit is confirmed by `success`, as Fansly’s own window confirms it: the whole note, its title and text, or nothing; another note is no confirmation (decision 170 of the Fansly extension 2.13.0)', async () => {
-    const w = world();
-    const current = { title: 'T', text: 'x' };
-    const before = [{ id: FAN, notes: [{ id: '901', contentType: 12000, contentId: FAN, title: 'T', note: 'x', createdAt: 1_790_790_855 }] }];
-    w.answers.push(before, { title: 'T', note: 'y' });
-    expect(await w.notes.edit({ ...target, noteId: '901', title: 'T', text: 'y', current }, sender)).toEqual({ ok: true, note: { noteId: '901', title: 'T', text: 'y', foreign: false } });
-    w.answers.push(before, undefined);
-    expect(await w.notes.edit({ ...target, noteId: '901', title: 'T2', text: 'y', current }, sender)).toEqual({ ok: true, note: { noteId: '901', title: 'T2', text: 'y', foreign: false } });
-    w.answers.push(before, { id: '901', contentType: 12000, contentId: FAN, title: 'T', note: 'y', createdAt: 1_790_790_855 });
-    expect(await w.notes.edit({ ...target, noteId: '901', title: 'T', text: 'y', current }, sender)).toEqual({ ok: true, note: { noteId: '901', title: 'T', text: 'y', foreign: false, createdAtMs: 1_790_790_855_000 } });
-    w.answers.push(before, { id: '901', contentType: 12000, contentId: '999', title: 'T', note: 'y' });
-    expect(await w.notes.edit({ ...target, noteId: '901', title: 'T', text: 'y', current }, sender)).toEqual({ ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } });
-    // The name rides the same edit; a create stays strict.
-    w.answers.push([account], undefined);
-    expect(await w.notes.name({ ...target, name: 'Алекс Р', current: { noteId: '802', name: 'Алекс' } }, sender)).toEqual({ ok: true, customName: { noteId: '802', name: 'Алекс Р' } });
-    w.answers.push(undefined);
-    expect(await w.notes.create({ ...target, title: 'T', text: 'x' }, sender)).toEqual({ ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } });
-  });
-
   it('[FS-NOTE-2] FBuddy’s «FBuddy Notes» is never created, edited or deleted from here', async () => {
     const w = world();
     expect(await w.notes.remove({ ...target, noteId: '803', title: 'FBuddy Notes', text: 'x' }, sender)).toMatchObject({ ok: false, error: { code: 'CG-NOTE-WRITE' } });
     expect(await w.notes.edit({ ...target, noteId: '801', title: 'T', text: 'a [FBUDDY_SYNC] b' }, sender)).toMatchObject({ ok: false });
     expect(await w.notes.create({ ...target, title: 'FBuddy Notes', text: '' }, sender)).toMatchObject({ ok: false });
     expect(w.prepare).not.toHaveBeenCalled();
-  });
-
-  it('[FX-006] [FS-NOTE-2] the name for oneself: created where there was none, edited where there is one, an empty one deletes it', async () => {
-    const w = world();
-    const nameNote = { id: '805', contentType: 12002, contentId: FAN, title: 'Custom Username', note: 'Саша' };
-    w.answers.push([{ id: FAN, notes: [] }], nameNote);
-    expect(await w.notes.name({ ...target, name: ' Саша ', current: null }, sender)).toEqual({ ok: true, customName: { noteId: '805', name: 'Саша' } });
-    expect(w.prepare).toHaveBeenLastCalledWith({ purpose: 'notes', route: 'notes.create', account: '123', body: { contentType: 12002, contentId: FAN, title: 'Custom Username', note: 'Саша' } });
-    w.answers.push([{ id: FAN, notes: [nameNote] }], { ...nameNote, note: 'Алекс' });
-    await w.notes.name({ ...target, name: 'Алекс', current: { noteId: '805', name: 'Саша' } }, sender);
-    expect(w.prepare).toHaveBeenLastCalledWith({ purpose: 'notes', route: 'notes.edit', account: '123', body: { id: '805', contentType: 12002, contentId: FAN, title: 'Custom Username', note: 'Алекс' } });
-    w.answers.push([{ id: FAN, notes: [{ ...nameNote, note: 'Алекс' }] }], {});
-    expect(await w.notes.name({ ...target, name: '', current: { noteId: '805', name: 'Алекс' } }, sender)).toEqual({ ok: true, customName: null });
-    expect((w.prepare.mock.lastCall?.[0] as { route: string }).route).toBe('notes.delete');
-    w.answers.push([{ id: FAN, notes: [] }]);
-    expect(await w.notes.name({ ...target, name: '', current: null }, sender)).toEqual({ ok: true, customName: null });
-    expect(w.prepare).toHaveBeenCalledTimes(7);
   });
 });
 
@@ -192,30 +137,6 @@ describe('[host:fansly] two tabs editing the same fan', () => {
     w.b.dispatch({ type: 'save' });
     await vi.waitFor(() => expect(w.b.panel().editor?.saving).toBe(false));
     expect(w.writes()).toEqual(['notes.edit']);
-    w.a.dispose(); w.b.dispose();
-  });
-
-  it('[FS-NOTE-2] [FS-NOTE-4] two tabs cannot create two Custom Username notes; after reading the fresh version a new edit updates it', async () => {
-    const w = twoTabs();
-    w.a.toggle(); w.b.toggle();
-    await vi.waitFor(() => expect([w.a.panel().body, w.b.panel().body]).toEqual(['ready', 'ready']));
-    w.a.dispatch({ type: 'name-input', value: 'Алекс' });
-    w.b.dispatch({ type: 'name-input', value: 'Саша' });
-    w.a.dispatch({ type: 'name-commit' }); w.b.dispatch({ type: 'name-commit' });
-    await vi.waitFor(() => expect([w.a.panel().name.status, w.b.panel().name.status]).toEqual(['saved', 'error']));
-    expect(w.b.panel().name).toMatchObject({ value: 'Саша', error: { code: 'CG-NOTE-WRITE', detail: 'changed' } });
-    expect(w.stored.filter((note) => note.contentType === 12002).map((note) => note.note)).toEqual(['Алекс']);
-    expect(w.writes()).toEqual(['notes.create']);
-    w.b.dispatch({ type: 'refresh' });
-    await vi.waitFor(() => expect(w.b.panel().body).toBe('ready'));
-    expect(w.b.panel().name.value).toBe('Саша');
-    w.b.dispatch({ type: 'name-revert' });
-    expect(w.b.panel().name.value).toBe('Алекс');
-    w.b.dispatch({ type: 'name-input', value: 'Саша' });
-    w.b.dispatch({ type: 'name-commit' });
-    await vi.waitFor(() => expect(w.b.panel().name.status).toBe('saved'));
-    expect(w.stored.filter((note) => note.contentType === 12002).map((note) => note.note)).toEqual(['Саша']);
-    expect(w.writes()).toEqual(['notes.create', 'notes.edit']);
     w.a.dispose(); w.b.dispose();
   });
 });

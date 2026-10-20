@@ -1,52 +1,15 @@
+// Who may ask what across the extension's contexts, and what crosses them: writes and secrets on the right side, the
+// site rules of a request (X8 and «Новые» are ChatSpace's, Fansly's requests Fansly's), the bridge from the page's
+// MAIN world (writes, text, tokens, unknown types, prototype keys, extra fields).
+
 import { describe, expect, it } from 'vitest';
 
+import * as F from '../src/errors-fansly';
 import * as C from '../src/index';
-import { BRIDGE_EVENT_FIXTURES, BRIDGE_REQUEST_FIXTURES, TAB_EVENT_FIXTURES, TAB_REQUEST_FIXTURES, type Verdicts } from './fixtures/index';
-
-function expectVerdicts(label: string, schema: { safeParse(value: unknown): { success: boolean } }, verdicts: Verdicts): void {
-  verdicts.valid.forEach((value, index) => expect(schema.safeParse(value).success, `${label} valid[${index}]`).toBe(true));
-  verdicts.invalid.forEach((value, index) => expect(schema.safeParse(value).success, `${label} invalid[${index}]`).toBe(false));
-}
+import * as T from '../src/tab-messages-fansly';
+import { IDS, uuid } from './fixtures/index';
 
 describe('tab/pages ↔ background protocol (§5.4)', () => {
-  it('has fixtures for exactly the registered request and event types', () => {
-    expect(Object.keys(TAB_REQUEST_FIXTURES).sort()).toEqual([...C.TAB_REQUEST_TYPES].sort());
-    expect(Object.keys(TAB_EVENT_FIXTURES).sort()).toEqual([...C.TAB_EVENT_TYPES].sort());
-  });
-
-  for (const type of C.TAB_REQUEST_TYPES) {
-    it(`${type}: payload and response schemas`, () => {
-      const spec = C.TAB_REQUESTS[type];
-      const fixtures = TAB_REQUEST_FIXTURES[type];
-      expect(fixtures.req.valid.length).toBeGreaterThan(0);
-      expect(fixtures.req.invalid.length).toBeGreaterThan(0);
-      expect(fixtures.res.valid.length).toBeGreaterThan(0);
-      expect(fixtures.res.invalid.length, `${type} needs an invalid response fixture`).toBeGreaterThan(0);
-      expectVerdicts(`${type} req`, spec.req, fixtures.req);
-      expectVerdicts(`${type} res`, spec.res, fixtures.res);
-    });
-  }
-
-  for (const type of C.TAB_EVENT_TYPES) {
-    it(`${type}: event payload schema`, () => {
-      const fixtures = TAB_EVENT_FIXTURES[type];
-      expect(fixtures.valid.length * fixtures.invalid.length).toBeGreaterThan(0);
-      expectVerdicts(`${type} evt`, C.TAB_EVENTS[type].payload, fixtures);
-    });
-  }
-
-  it('sender rules: every type has senders; page lists only on page-sendable types', () => {
-    for (const type of C.TAB_REQUEST_TYPES) {
-      const spec: { from: readonly string[]; pages?: readonly string[] } = C.TAB_REQUESTS[type];
-      expect(spec.from.length, type).toBeGreaterThan(0);
-      if (spec.pages !== undefined) {
-        expect(spec.from, type).toContain('page');
-        for (const page of spec.pages) expect(C.EXTENSION_PAGES, type).toContain(page);
-      }
-    }
-    for (const type of C.TAB_EVENT_TYPES) expect(C.TAB_EVENTS[type].to.length, type).toBeGreaterThan(0);
-  });
-
   it('keeps writes and secrets on the right side', () => {
     expect(C.mayRequest('session.signIn', 'tab', null)).toBe(false);
     expect(C.mayRequest('session.signIn', 'page', 'options')).toBe(true);
@@ -60,17 +23,6 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(C.mayRequest('site.access', 'page', 'popup')).toBe(true);
     expect(C.mayRequest('site.access', 'page', 'options')).toBe(true);
     expect(C.mayRequest('site.access', 'page', 'debug-journal')).toBe(false);
-  });
-
-  it('[ST-007] `settings.open` is a ChatSpace tab’s request: a section of the settings and a CG code, never an address', () => {
-    expect(C.mayRequest('settings.open', 'tab', null)).toBe(true);
-    // An extension page opens its own pages by itself.
-    expect(C.mayRequest('settings.open', 'page', 'popup')).toBe(false);
-    const { req, res } = C.TAB_REQUESTS['settings.open'];
-    expect(req.safeParse({ route: { section: 'personas', code: 'CG-PERSONA-UNASSIGNED' } }).success).toBe(true);
-    expect(req.safeParse({ route: { section: 'status' }, hash: '#status' }).success).toBe(false);
-    expect(req.safeParse({ route: 'options.html#status' }).success).toBe(false);
-    expect(res.safeParse({ opened: false }).success).toBe(true);
   });
 
   it('[PU-017] [ST-076] `tab.command`: only the popup and the options page ask, only a ChatSpace tab is told, and the command is the same closed set both ways', () => {
@@ -87,18 +39,64 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(C.parseTabPayload('evt', 'tab.command', { command: { kind: 'chat', host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' } })).toEqual({ ok: false });
   });
 
-  it('[DB-006] [DB-007] `debug.open` is a ChatSpace tab’s request: the opaque token of a prompt snapshot, never an address; the prompt itself is read by the page', () => {
-    expect(C.mayRequest('debug.open', 'tab', null)).toBe(true);
-    // An extension page opens its own pages by itself; the prompt is read only by `debug-prompt.html`.
-    expect(C.mayRequest('debug.open', 'page', 'options')).toBe(false);
-    expect(C.mayRequest('debug.prompt', 'tab', null)).toBe(false);
-    const { req, res } = C.TAB_REQUESTS['debug.open'];
-    expect(req.safeParse({ token: 'prompt-token-1' }).success).toBe(true);
-    expect(req.safeParse({ token: 'prompt-token-1', page: 'debug-prompt' }).success).toBe(false);
-    expect(req.safeParse({ url: 'debug-prompt.html?t=prompt-token-1' }).success).toBe(false);
-    expect(res.safeParse({ opened: false }).success).toBe(true);
-    // The answer says whether the page opened and carries nothing of the snapshot.
-    expect(res.safeParse({ opened: true, blocks: [] }).success).toBe(false);
+  it('[EX-015] X8 and the hub’s «Новые» are ChatSpace’s: a fansly.com tab is refused them, a page is not affected', () => {
+    const hosted = C.TAB_REQUEST_TYPES.filter((type) => (C.TAB_REQUESTS[type] as C.TabRequestSpec).hosts !== undefined);
+    expect(hosted.sort()).toEqual(['newcomers.claim', 'newcomers.list', 'send.begin', 'send.fuse', 'send.fuseState', 'send.list', 'send.report', 'send.status']);
+    for (const type of hosted) {
+      expect((C.TAB_REQUESTS[type] as C.TabRequestSpec).hosts, type).toEqual(['chatspace']);
+      expect(C.mayRequest(type, 'tab', null, 'chatspace'), type).toBe(true);
+      expect(C.mayRequest(type, 'tab', null, 'fansly-web'), type).toBe(false);
+      expect(C.mayRequest(type, 'tab', null), `${type}: a tab whose site is not named`).toBe(false);
+    }
+    expect(C.mayRequest('send.status', 'page', 'options', null)).toBe(true);
+    expect(C.mayRequest('newcomers.list', 'page', 'popup', null)).toBe(true);
+    // Everything else stays every site's.
+    expect(C.mayRequest('op.start', 'tab', null, 'fansly-web')).toBe(true);
+    expect(C.mayRequest('op.reportSent', 'tab', null, 'fansly-web')).toBe(true);
+  });
+
+  it('[host:fansly] every Fansly request is the site’s own: a fansly.com tab or its relay sends it, never ChatSpace; a page only the settings page’s four (P14b1)', () => {
+    const pageTypes = ['fansly.settings.read', 'fansly.settings.write', 'fansly.accounts.read', 'fansly.accounts.focus'];
+    for (const type of T.FANSLY_TAB_REQUEST_TYPES) {
+      const spec: C.TabRequestSpec = T.FANSLY_TAB_REQUESTS[type];
+      expect(spec.hosts, type).toEqual(['fansly-web']);
+      if (pageTypes.includes(type)) {
+        expect(spec.from, type).toEqual(['page']);
+        expect(T.mayRequestFansly(type, 'page', 'options', null), type).toBe(true);
+        expect(T.mayRequestFansly(type, 'page', 'popup', null), type).toBe(false);
+        expect(T.mayRequestFansly(type, 'tab', null, 'fansly-web'), type).toBe(false);
+        expect(T.mayRequestFansly(type, 'relay', null, 'fansly-web'), type).toBe(false);
+        continue;
+      }
+      const relay = type.startsWith('fansly.relay.');
+      expect(spec.from, type).toEqual(relay ? ['relay'] : ['tab']);
+      expect(T.mayRequestFansly(type, relay ? 'relay' : 'tab', null, 'fansly-web'), type).toBe(true);
+      expect(T.mayRequestFansly(type, relay ? 'relay' : 'tab', null, 'chatspace'), type).toBe(false);
+      expect(T.mayRequestFansly(type, relay ? 'relay' : 'tab', null, null), type).toBe(false);
+      expect(T.mayRequestFansly(type, relay ? 'tab' : 'relay', null, 'fansly-web'), type).toBe(false);
+      expect(T.mayRequestFansly(type, 'page', 'options', null), type).toBe(false);
+    }
+    for (const type of C.TAB_REQUEST_TYPES) expect(C.mayRequest(type, 'relay', null, 'fansly-web'), type).toBe(false);
+  });
+
+  it('[host:fansly] the relay fetches Fansly’s API only (FS-NET-1, FS-NET-4)', () => {
+    const fetch = T.FANSLY_TAB_EVENTS['fansly.relay.fetch'].payload;
+    const base = { requestId: '00000000-0000-4000-8000-000000000001', method: 'GET', headers: [], expect: { hostAccountId: '700000000000000001' } };
+    expect(fetch.safeParse({ ...base, url: `${T.FANSLY_RELAY_TARGET}group/1` }).success).toBe(true);
+    for (const url of ['https://apiv3.fansly.com/api/v2/x', 'https://apiv3.fansly.com.evil.test/api/v1/x', 'http://apiv3.fansly.com/api/v1/x', 'https://chat.onlymonster.ai/api/v1/x']) {
+      expect(fetch.safeParse({ ...base, url }).success, url).toBe(false);
+    }
+  });
+
+  it('[host:fansly] the Fansly CG codes keep the retry rule: nothing indeterminate is offered again', () => {
+    for (const entry of Object.values(F.CG_FANSLY_REGISTRY)) {
+      expect(entry.retry === 'after-deadline', entry.code).toBe(entry.recovery === 'wait-until');
+      if (entry.retry === 'never') expect(['retry', 'new-generation'], entry.code).not.toContain(entry.recovery);
+    }
+    expect(F.cgFanslyEntry('CG-VOICE-UNCERTAIN').retry).toBe('never');
+    // An unknown write is read again, never written again (FS-NOTE-4, FS-VLT-1, FS-VOI-2).
+    expect(F.cgFanslyEntry('CG-NOTE-UNCERTAIN').retry).toBe('safe-read');
+    for (const code of ['CG-VAULT-UNCERTAIN', 'CG-VOICE-ATTACH-UNKNOWN'] as const) expect(F.cgFanslyEntry(code).recovery, code).toBe('none');
   });
 
   it('parses in two stages and rejects unknown types', () => {
@@ -116,40 +114,6 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
 });
 
 describe('MAIN ↔ isolated bridge (§5.3)', () => {
-  it('has fixtures for exactly the registered request and event types', () => {
-    expect(Object.keys(BRIDGE_REQUEST_FIXTURES).sort()).toEqual([...C.TO_MAIN_TYPES].sort());
-    expect(Object.keys(BRIDGE_EVENT_FIXTURES).sort()).toEqual([...C.FROM_MAIN_TYPES].sort());
-    expect(Object.keys(C.TO_MAIN)).toEqual([...C.TO_MAIN_TYPES]);
-    expect(Object.keys(C.FROM_MAIN)).toEqual([...C.FROM_MAIN_TYPES]);
-  });
-
-  for (const t of C.TO_MAIN_TYPES) {
-    it(`${t}: payload and answer schemas, and the full request envelope`, () => {
-      const fixtures = BRIDGE_REQUEST_FIXTURES[t];
-      for (const verdicts of [fixtures.payload, fixtures.data]) expect(verdicts.valid.length * verdicts.invalid.length).toBeGreaterThan(0);
-      expectVerdicts(`${t} payload`, C.TO_MAIN[t].payload, fixtures.payload);
-      expectVerdicts(`${t} data`, C.TO_MAIN[t].data, fixtures.data);
-      for (const payload of fixtures.payload.valid) {
-        expect(C.BridgeRequestSchema.safeParse({ v: 1, kind: 'req', id: 1, t, documentEpoch: 'doc1', seq: 0, payload }).success, t).toBe(true);
-      }
-      for (const data of fixtures.data.valid) expect(C.parseBridgeData(t, data), t).toEqual(data);
-      for (const data of fixtures.data.invalid) expect(C.parseBridgeData(t, data), t).toBeNull();
-    });
-  }
-
-  for (const t of C.FROM_MAIN_TYPES) {
-    it(`${t}: event payload and envelope`, () => {
-      const fixtures = BRIDGE_EVENT_FIXTURES[t];
-      expect(fixtures.valid.length * fixtures.invalid.length).toBeGreaterThan(0);
-      expectVerdicts(`${t} evt`, C.FROM_MAIN[t], fixtures);
-      for (const payload of fixtures.valid) {
-        const frame = { v: 1, kind: 'evt', t, documentEpoch: 'doc1', seq: 1, payload };
-        expect(C.BridgeEventSchema.safeParse(frame).success, t).toBe(true);
-        expect(C.checkBridgeFrame(frame).ok, t).toBe(true);
-      }
-    });
-  }
-
   it('only insert, navigation and the preview send are writes (D-07)', () => {
     expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].write)).toEqual(['insertGuarded', 'navigate', 'previewSendCommit']);
     expect([...C.BRIDGE_WRITE_REQUESTS]).toEqual(['insertGuarded', 'navigate', 'previewSendCommit']);
@@ -164,13 +128,35 @@ describe('MAIN ↔ isolated bridge (§5.3)', () => {
     }
   });
 
-  it('freshness, receipt, fault and fuse events are the undroppable ones', () => {
-    expect([...C.BRIDGE_UNDROPPABLE_EVENTS].sort()).toEqual(['coverage', 'fault', 'humanSend', 'incoming', 'previewSendFuse', 'previewSendState']);
-  });
-
   it('MAIN gets no hub ticket, binding or action token', () => {
     const keys = Object.keys(C.MainSendRequestSchema.shape);
     for (const key of ['ticket', 'binding', 'target', 'cause', 'actionToken', 'pageId', 'pageLabel']) expect(keys).not.toContain(key);
     expect(Object.keys(C.NavigationWireSchema.shape)).not.toContain('cause');
+  });
+
+  it('unknown request types are rejected, prototype names among them', () => {
+    for (const t of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+      expect(C.BridgeRequestSchema.safeParse({ v: 1, kind: 'req', id: 1, t, documentEpoch: null, seq: 0, payload: {} }).success, t).toBe(false);
+    }
+  });
+
+  it('prototype keys are rejected at any depth', () => {
+    for (const key of C.PROTOTYPE_KEYS) {
+      const inner = `{${JSON.stringify(key)}:{"x":1}}`;
+      for (const json of [inner, `{"a":${inner}}`, `[${inner}]`, `{"a":[{"b":[${inner}]}]}`]) {
+        expect(C.checkBridgeFrame(JSON.parse(json) as unknown), `${key} in ${json}`).toEqual({ ok: false, reason: 'prototype-key' });
+      }
+    }
+  });
+
+  it('extra fields and unsafe ids are rejected', () => {
+    const base = { v: 1, kind: 'evt', t: 'chatCache', documentEpoch: 'doc1', seq: 0 } as const;
+    expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: IDS.fan } }).success).toBe(true);
+    expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: IDS.fan, extra: 1 } }).success).toBe(false);
+    expect(C.BridgeEventSchema.safeParse({ ...base, extra: 1, payload: { acc: IDS.acc, fan: IDS.fan } }).success).toBe(false);
+    for (const unsafe of ['0', '-1', '1e9', '9007199254740993.0', 'abc', '1'.repeat(31), ' 2002']) {
+      expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: unsafe } }).success, unsafe).toBe(false);
+    }
+    expect(C.BridgeRequestSchema.safeParse({ v: 1, kind: 'req', id: 1, t: 'previewSendCommit', documentEpoch: 'doc1', seq: 0, payload: { req: { attemptId: uuid(5) } } }).success).toBe(false);
   });
 });

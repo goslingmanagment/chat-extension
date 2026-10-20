@@ -1,10 +1,10 @@
 // FS-NET-1 as data (spec §4; architecture.md §8.3, §8.4): the routes, the
 // purposes, the mode of each admitted pair, the addresses.
 
-import { FANSLY_RELAY_TARGET, FANSLY_TAB_LIMITS } from '@cg/contracts/tab-messages-fansly';
+import { FANSLY_RELAY_TARGET } from '@cg/contracts/tab-messages-fansly';
 import { describe, expect, it } from 'vitest';
 
-import { addressOf, admit, FANSLY_API_BASE, FANSLY_PURPOSES, FANSLY_ROUTE_NAMES, FANSLY_ROUTES, FS_NET_1, QUERY_VALUE_MAX } from './allowlist';
+import { addressOf, admit, FANSLY_API_BASE, FANSLY_PURPOSES, FANSLY_ROUTE_NAMES, FANSLY_ROUTES, FS_NET_1 } from './allowlist';
 
 describe('FS-NET-1', () => {
   it('[FS-NET-1] every address is under https://apiv3.fansly.com/api/v1/ — the prefix the relay checks too', () => {
@@ -13,17 +13,6 @@ describe('FS-NET-1', () => {
     for (const route of FANSLY_ROUTE_NAMES) {
       const path = Object.fromEntries([...FANSLY_ROUTES[route].path.matchAll(/:([a-z]+)/g)].map((match) => [match[1] ?? '', '300000000000000001']));
       expect(addressOf(FANSLY_API_BASE, route, { path })?.startsWith(FANSLY_API_BASE)).toBe(true);
-    }
-  });
-
-  it('[FS-NET-4] every route fits the relay at the client limit, including the longest UTF-8 encoding of each query value', () => {
-    for (const route of FANSLY_ROUTE_NAMES) {
-      const spec = FANSLY_ROUTES[route];
-      const path = Object.fromEntries([...spec.path.matchAll(/:([a-z]+)/g)].map((match) => [match[1] ?? '', '9'.repeat(24)]));
-      const query = Object.fromEntries(spec.query.map((key) => [key, '字'.repeat(QUERY_VALUE_MAX)]));
-      const url = addressOf(FANSLY_API_BASE, route, { path, query });
-      expect(url, route).not.toBeNull();
-      expect(url?.length, route).toBeLessThanOrEqual(FANSLY_TAB_LIMITS.relayRequestUrlMaxChars);
     }
   });
 

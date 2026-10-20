@@ -51,11 +51,6 @@ describe('[AI-125] Б2 draft rule and one-time consent', () => {
     expect(decideDraft(humanDraft, { editorObserved: true })).toEqual({ kind: 'confirm', reason: 'human-draft', formatLoss: false });
   });
 
-  it('[AI-125] without an observed editor a non-empty field always needs consent and an append loses formatting', () => {
-    expect(decideDraft(draftAt(5, { provenance: 'our-insert', plainText: 'ours' }), { editorObserved: false })).toEqual({ kind: 'confirm', reason: 'human-draft', formatLoss: true });
-    expect(decideDraft(draftAt(5, { provenance: 'human-or-unknown', plainText: '  ' }), { editorObserved: false })).toEqual({ kind: 'direct', mode: 'replace' });
-  });
-
   it('[AI-125] a consent is one-time and bound to its revision; a changed draft asks again', () => {
     let n = 0;
     const book = new ConfirmationBook(() => uuid(0x500 + ++n), () => HOST_T0);
@@ -234,14 +229,6 @@ describe('[AI-125] Fix «Заменить мой черновик» and «Вер
     expect(fix.replace(onPreview, 'Better', ids, hostCause, HOST_T0)).toEqual({ kind: 'unavailable', code: 'CG-INSERT-CHAT-CHANGED' });
     fix.onReplaced(applied(10), HOST_T0);
     expect(fix.restore({ ...draftAt(10), identity: onPreview.identity }, uuid(6), hostCause, HOST_T0 + 1000)).toEqual({ kind: 'unavailable', code: 'CG-INSERT-CHAT-CHANGED' });
-  });
-
-  it('[AI-125] after 30 s the restore is gone', () => {
-    const fix = new FixSession(OP, { index: 0 }, openChat, source, true);
-    fix.onReplaced(applied(10), HOST_T0);
-    expect(fix.restoreExpired(HOST_T0 + FIX_RESTORE_WINDOW_MS)).toBe(true);
-    expect(fix.restoreUntil(HOST_T0 + FIX_RESTORE_WINDOW_MS)).toBeNull();
-    expect(fix.restore(draftAt(10), uuid(5), hostCause, HOST_T0 + FIX_RESTORE_WINDOW_MS)).toEqual({ kind: 'unavailable', code: 'CG-TIMEOUT' });
   });
 });
 

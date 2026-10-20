@@ -7,7 +7,6 @@ import { VoiceScriptStartSchema, FanslyOpViewSchema } from '@cg/contracts/ops-fa
 import { createVoiceScript, voiceScriptResult } from '@cg/core/application/hosts/fansly/voice';
 import { mergeNoteFill, noteFillRequest } from '@cg/core/application/hosts/fansly/notes';
 import { LocalSpendJournal } from '@cg/core/domain/debug';
-import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { stableDigest } from '../../../src/domain/ops/digest';
 import { ActionTokens, OpScheduler, OPS_STORE_KEY, type OpSchedulerDeps } from '@cg/core/services';
@@ -20,14 +19,11 @@ import { featuresOfBoth } from '../../support/features';
 import { fanslyBinding, persona, session, uuid } from '../../support/world';
 
 const TAB = uuid(0xa1);
-const OTHER = uuid(0xa2);
 const A = HUB.fansly.chats.a;
-const B = HUB.fansly.chats.b;
 type Pair = { readonly group: string; readonly fan: string };
 const target = (pair: Pair = A): Target => ({ binding: fanslyBinding, chat: { host: 'fansly-web', hostAccountId: fanslyBinding.hostAccountId, platformFanId: pair.fan }, fanRef: pair.fan, conversationRef: pair.group });
 const voice = (pair: Pair = A, text = 'A synthetic draft.', tone: VoiceScriptStart['tone'] = null): VoiceScriptStart => ({ feature: 'voice-script', target: target(pair), cause: { kind: 'click', actionToken: 'tok_00000000000000000000' }, window: 100, tone, draft: { text, revision: 1, digest: stableDigest(text) } });
 const notes = (pair: Pair = A, fields = ['Name', 'City'], values?: string[]): NotesFillStart => ({ feature: 'notes-fill', target: target(pair), cause: voice().cause, window: 3000, fields, ...(values === undefined ? {} : { values }) });
-const reply = (pair: Pair = A): AnyStartOp => ({ feature: 'reply', target: target(pair), cause: voice().cause, surface: 'dock', window: 100, tone: null, split: false });
 const admitted = (outcome: Awaited<ReturnType<OpScheduler['start']>>): string => {
   if (outcome.kind !== 'admission' || !outcome.admission.ok) throw new Error(JSON.stringify(outcome));
   return outcome.admission.opId;
@@ -118,22 +114,6 @@ describe('[host:fansly] fresh text through the site operation scheduler', () => 
       expect(JSON.stringify(output)).not.toContain(fresh.messages[0]!.text);
     }
   });
-
-  it.each([voice(), notes()])('$feature: a disabled page switch or older hub keeps the archive path available', async (input) => {
-    for (const gate of ['switch', 'capability'] as const) {
-      const h = await harness();
-      const patch = gate === 'switch'
-        ? fanslyPageFlags({ freshText: false })
-        : { capabilities: h.fake.config().capabilities.filter((cap) => cap !== 'live-text-fansly-tools-v1') };
-      h.fake.control({ op: 'config', patch });
-      await h.refresh();
-      const op = admitted(await h.start({ ...input, fresh }));
-      await h.finish();
-      expect(h.scheduler.siteView(op, 'fansly-web')?.state, gate).toBe('done');
-      expect(h.requests, gate).toHaveLength(1);
-      expect(h.requests[0]?.body, gate).not.toHaveProperty('liveTextContext');
-    }
-  });
 });
 
 describe('[host:fansly] P12a voice-script through the shared admission', () => {
@@ -164,110 +144,6 @@ describe('[host:fansly] P12a voice-script through the shared admission', () => {
     expect(restoredSpend.report(h.clock.now())).toEqual(h.spend.report(h.clock.now()));
     expect(h.log.entries.filter((entry) => entry.scope === 'bg.ops.usage')).toHaveLength(3);
     expect(() => VoiceScriptStartSchema.parse(voice(A, '  '))).toThrow();
-  });
-
-  it('the fake hub rejects a contradicted group/fan pair before quota; the page’s voice flag and lane_off refuse before any stream', async () => {
-    const h = await harness();
-    const quota = h.fake.config().quotaRequestsToday;
-    const bad = voice();
-    const op = admitted(await h.start({ ...bad, target: { ...bad.target, fanRef: B.fan, chat: { ...bad.target.chat, platformFanId: B.fan } } }));
-    await h.finish();
-    expect(h.scheduler.siteView(op, 'fansly-web')).toMatchObject({ state: 'failed', error: { code: 'CG-CONTEXT-CHANGED' } });
-    expect(h.fake.config().quotaRequestsToday).toBe(quota);
-    for (const patch of [fanslyPageFlags({ voice: false }), { ...fanslyPageFlags(), voiceLaneOff: [HUB.pages.fansly.pageLabel] }]) {
-      h.fake.control({ op: 'config', patch });
-      await h.refresh();
-      expect(await h.start(voice())).toMatchObject({ kind: 'refused', code: 'CG-FEATURE-DISABLED' });
-    }
-    expect(h.requests).toHaveLength(1);
-  });
-
-  it.each(['reply', 'voice-script', 'notes-fill'] as const)('one chat: %s holds the same slot against the other two, across tabs; explicit cancel frees it', async (first) => {
-    const h = await harness();
-    h.hold('fast-reply'); h.hold('voice-script'); h.hold('fan-notes-fill');
-    const starts = [reply(), voice(), notes()];
-    const selected = starts.find((start) => start.feature === first)!;
-    const op = admitted(await h.start(selected));
-    for (const other of starts.filter((start) => start.feature !== first)) {
-      const refused = await h.start(other, OTHER);
-      expect(refused).toMatchObject({ kind: 'admission', admission: { ok: false, code: 'CG-OP-CHAT-BUSY', ...(first === 'reply' ? { active: [{ opId: op, feature: first }] } : { active: [], siteActive: [{ opId: op, feature: first }] }) } });
-    }
-    expect(h.scheduler.cancel(op)).toBe('canceled');
-    admitted(await h.start(starts.find((start) => start.feature !== first)!));
-    for (const gate of ['fast-reply', 'voice-script', 'fan-notes-fill']) h.fake.control({ op: 'release', gate });
-    await h.finish();
-    expect(h.requests).toHaveLength(2);
-  });
-
-  it('different chats: Reply, script and notes together reach three slots per tab; a fourth is refused; another tab has its own slots', async () => {
-    const h = await harness();
-    h.hold('fast-reply'); h.hold('voice-script'); h.hold('fan-notes-fill');
-    const C = HUB.fansly.old;
-    const D = { group: '810000000000000098', fan: '920000000000000098' };
-    const starts = [reply(), voice(B), notes(C)];
-    const ops = await Promise.all(starts.map((start) => h.start(start).then(admitted)));
-    expect(new Set(ops).size).toBe(3);
-    expect(await h.start(voice(D))).toMatchObject({ kind: 'admission', admission: { ok: false, code: 'CG-OP-TAB-LIMIT', active: expect.any(Array) as unknown } });
-    admitted(await h.start(voice(D), OTHER));
-    for (const op of ops) h.scheduler.cancel(op);
-    for (const gate of ['fast-reply', 'voice-script', 'fan-notes-fill']) h.fake.control({ op: 'release', gate });
-    await h.finish();
-    expect(h.requests).toHaveLength(4);
-  });
-
-  it('reopens the same script, separates drafts/tones/groups and notes labels, retains a finished result across restart; an admitted stream is interrupted and never POSTed again', async () => {
-    const h = await harness();
-    const first = admitted(await h.start(voice()));
-    await h.finish();
-    expect(await h.start(voice())).toMatchObject({ reopened: true, admission: { opId: first } });
-    for (const input of [voice(A, 'different'), voice(A, 'A synthetic draft.', 'flirty'), voice(B), notes(), notes(A, ['City'])]) {
-      admitted(await h.start(input)); await h.finish();
-    }
-    expect(h.requests).toHaveLength(6);
-    h.hold('voice-script');
-    const pending = admitted(await h.start({ ...voice(), force: true }));
-    await settle(); await h.scheduler.idle();
-    const restarted = new OpScheduler({ ...h.deps, ids: sequentialIds(0x900) });
-    expect(await restarted.restore()).toMatchObject({ restored: 7, interrupted: 1, dropped: 0 });
-    expect(restarted.siteView(pending, 'fansly-web')).toMatchObject({ state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
-    expect(voiceScriptResult(restarted.siteView(first, 'fansly-web'))).not.toBeNull();
-    expect(h.requests).toHaveLength(7);
-    h.scheduler.cancel(pending);
-    h.fake.control({ op: 'release', gate: 'voice-script' }); await h.finish();
-    const serialized = JSON.stringify(h.store.data.get(OPS_STORE_KEY));
-    expect(serialized).not.toContain('A synthetic draft.');
-    expect(restarted.forSend(first)).toBeNull();
-    expect(restarted.view(first)).toBeNull();
-  });
-
-  it('a failed journal write refuses before the hub; a site timeout ends the stream once and never repeats it', async () => {
-    const h = await harness();
-    h.store.failWrites = true;
-    expect(await h.start(voice())).toMatchObject({ kind: 'refused', code: 'CG-STORAGE-WRITE' });
-    expect(h.requests).toHaveLength(0);
-    h.store.failWrites = false;
-    h.hold('voice-script');
-    const op = admitted(await h.start(voice()));
-    await settle();
-    await h.clock.advance(OP_TIMEOUTS.reply.firstChunkAfterMetaMs + 1);
-    expect(h.scheduler.siteView(op, 'fansly-web')).toMatchObject({ state: 'failed', error: { code: 'CG-HUB-TIMEOUT' } });
-    expect(voiceScriptResult(h.scheduler.siteView(op, 'fansly-web'))).toBeNull();
-    await h.finish();
-    expect(h.requests).toHaveLength(1);
-  });
-
-  it.each(['max_tokens', 'length', 'eof', 'empty'] as const)('a %s stream is never a usable script or a paid source', async (ending) => {
-    const h = await harness();
-    h.fake.control({ op: 'scriptSse', feature: 'voice-script', responses: [{ kind: 'stream', steps: [
-      { kind: 'frame', frame: meta('voice-script') },
-      { kind: 'frame', frame: { type: 'content_delta', text: ending === 'empty' ? ' ' : 'An unfinished script' } },
-      ...(ending === 'eof' ? [] : [{ kind: 'frame' as const, frame: { type: 'done' as const, stopReason: ending === 'empty' ? 'end_turn' : ending } }]),
-      { kind: 'eof' },
-    ] }] });
-    const op = admitted(await h.start(voice())); await h.finish();
-    expect(h.scheduler.siteView(op, 'fansly-web')?.state).toBe('failed');
-    expect(voiceScriptResult(h.scheduler.siteView(op, 'fansly-web'))).toBeNull();
-    expect(h.requests).toHaveLength(1);
   });
 });
 

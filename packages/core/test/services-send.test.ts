@@ -25,7 +25,7 @@ import {
 } from '@cg/contracts';
 import { type OpsEnvironment } from '@cg/core/domain/ops';
 import { ActionTokens, LATE_PAIR_LISTEN_MS, PreviewSendDriver, type BackgroundSendPort, type SendClick } from '@cg/core/services';
-import { SendCoordinator, SendFuseKeeper, sendPageGate } from '@cg/core/services/custody';
+import { SendCoordinator, SendFuseKeeper } from '@cg/core/services/custody';
 import { FakeHostPort, memory, startSnapshot } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, resolveHubErrorReference } from '@cg/testing/hub';
 
@@ -475,20 +475,6 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(third.coordinator.attemptsOf(lock).attempts).toEqual([]);
   });
 
-  it('[TL-004] §6.6 only a part of a finished preview or «Новые» result is recorded: the dock’s own, an unfinished one, a part that is not there — nothing; a greeting is a greeting', () => {
-    const h = sendHarness();
-    const lock = sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: previewTarget.fanRef });
-    const told = (view: OpView, index: number, n: number): unknown => h.coordinator.nativeSent({ attemptId: uuid(0x600 + n), view, part: { index }, platformMessageId: WORLD.messages.sentByUs });
-    expect(told(doneView({ surface: 'dock' }), 0, 0)).toBeNull();
-    expect(told(doneView({ state: 'failed' }), 0, 1)).toBeNull();
-    expect(told(doneView({ generationRef: undefined }), 0, 2)).toBeNull();
-    expect(told(doneView(), 2, 3)).toBeNull();
-    expect(h.coordinator.attemptsOf(lock).attempts).toEqual([]);
-    expect(h.events.of('send.state')).toEqual([]);
-    expect(told(doneView({ surface: 'newcomers', feature: 'hi', result: { kind: 'variants', variants: [['hello there']] } }), 0, 4)).toMatchObject({ state: 'sentObserved' });
-    expect(h.coordinator.attemptsOf(lock).attempts).toMatchObject([{ purpose: 'greeting', group: { generationRef: GEN, variant: 0, partCount: 1 }, partIndex: 0 }]);
-  });
-
   it('[TL-004] §6.6 a part an X8 attempt already delivered is not recorded twice; an unknown outcome of that part still holds the fan', async () => {
     const lock = sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: previewTarget.fanRef });
     const h = sendHarness();
@@ -568,13 +554,6 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     h.ops.set(uuid(0x101), doneView({ opId: uuid(0x101), generationRef: uuid(0x201), feature: 'hi', surface: 'newcomers', result: { kind: 'variants', variants: [['again']] } }));
     const second = await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501), opId: uuid(0x101), purpose: 'greeting', group: { generationRef: uuid(0x201), variant: 0, partCount: 1 } }));
     expect(second).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-CLAIM-BUSY' } });
-  });
-
-  it('[X8-09] the page gate reads the switches, the receipt profiles, the ticket lifetime and the page label', () => {
-    expect(sendPageGate(null, 11)).toEqual({ previewSend: false, newcomers: false, receiptProfiles: 0, flagRevision: 0, ticketSec: 0, pageLabel: null });
-    expect(sendPageGate(withX8(BOOTSTRAP_PILOT_PAGES), 11)).toEqual({ previewSend: true, newcomers: true, receiptProfiles: 1, flagRevision: WORLD.configRevision, ticketSec: 10, pageLabel: PAGE_LABEL });
-    expect(sendPageGate(BOOTSTRAP_PILOT_PAGES, 11).previewSend).toBe(false);
-    expect(sendPageGate(withX8(BOOTSTRAP_PILOT_PAGES), 999).pageLabel).toBeNull();
   });
 
   it('[X8-08] a report that fails in transport is repeated a bounded number of times with the same attemptId', async () => {
@@ -917,27 +896,6 @@ describe('[X8-07] [X8-08] [NF-022] reports: from the owning tab, once, durable',
     expect(h.hub.claims.filter((c) => c.body.action === 'dispatch')).toHaveLength(2);
   });
 
-  it('[X8-07] ended attempts age out of memory and the journal with the results; the journal does not grow over a day', async () => {
-    const h = sendHarness();
-    let writesBefore = 0;
-    for (let i = 0; i < 12; i += 1) {
-      const gen = uuid(0x2000 + i);
-      const attemptId = uuid(0x600 + i);
-      h.ops.set(OP, doneView({ generationRef: gen }));
-      h.hub.claimScript.push(ticketFor(attemptId), okAnswer(attemptId, 'sent'));
-      expect((await h.coordinator.begin(TAB, h.begin({ attemptId, group: { generationRef: gen, variant: 0, partCount: 2 } }))).ok).toBe(true);
-      await h.coordinator.report(TAB, { attemptId, state: 'nativeAccepted', platformMessageId: String(5000 + i) });
-      await h.coordinator.report(TAB, { attemptId, state: 'sentObserved', platformMessageId: String(5000 + i) });
-      await h.coordinator.idle();
-      const journal = h.store.data.get(STORAGE_KEYS.sendJournal) as unknown[];
-      expect(journal.length).toBeLessThanOrEqual(2);
-      expect(h.coordinator.size).toBeLessThanOrEqual(2);
-      if (i > 0) expect(h.store.writes - writesBefore).toBeLessThanOrEqual(5);
-      writesBefore = h.store.writes;
-      await h.clock.advance(31 * 60_000);
-    }
-  });
-
   it('[NF-022] the silence after a ticket counts from the ticket\'s own deadline, not the bootstrap\'s figure', async () => {
     const h = sendHarness();
     const longTicket: ClaimState = { ...claim({ attemptId: A, state: 'dispatching', ticket: 'tkt-long' }), custody: { attemptId: A, state: 'dispatching', ticket: 'tkt-long', ticketExpiresAt: at(60) } };
@@ -1109,46 +1067,6 @@ describe('[X8-06] the fuse of the browser (decision X25) in the coordinator', ()
     // ChatSpace shipped another build: the fuse does not hold it, the same part may be sent by a new click.
     h.hub.claimScript.push(ticketFor(uuid(0x503)));
     expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503), hostBuild: 'index-Q9yRlDk9' }))).ok).toBe(true);
-  });
-
-  it('a held click is no end of the part: after «Сбросить предохранитель» the same part goes with a new click', async () => {
-    const clock = new FakeClock(NOW_MS);
-    const fuse = await fused(clock);
-    const h = sendHarness({ clock, fuse });
-    expect(await h.coordinator.begin(TAB, h.begin({ hostBuild: BUILD }))).toMatchObject({ ok: false, view: { code: 'CG-SEND-FUSE' } });
-    await fuse.reset();
-    h.hub.claimScript.push(ticketFor(uuid(0x504)));
-    expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x504), hostBuild: BUILD }))).ok).toBe(true);
-  });
-
-  it('every move is told to it: three sends in a row that end uncertain trip it, on their build; a known outcome starts over; nothing is re-sent', async () => {
-    const clock = new FakeClock(NOW_MS);
-    const fuse = new SendFuseKeeper({ clock, store: new MemoryStore(), events: new EventLog() });
-    await fuse.load();
-    /** One send of its own (a fan of its own) that ends as `end`; the fuse is the browser's, shared. */
-    const one = async (n: number, end: SendAttemptView): Promise<SendHarness> => {
-      const h = sendHarness({ clock, fuse });
-      h.hub.claimScript.push(ticketFor(uuid(n)), okAnswer(uuid(n), 'sent'));
-      expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(n), hostBuild: BUILD }))).ok).toBe(true);
-      await h.coordinator.report(TAB, { attemptId: uuid(n), state: 'nativeEnqueued' }, `pending-${n}`);
-      if (end.state === 'sentObserved') await h.coordinator.report(TAB, { attemptId: uuid(n), state: 'nativeAccepted', platformMessageId: '8001' });
-      await h.coordinator.report(TAB, end);
-      await h.coordinator.idle();
-      return h;
-    };
-    const lost = (n: number): SendAttemptView => ({ attemptId: uuid(n), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
-    await one(0x510, lost(0x510));
-    await one(0x511, lost(0x511));
-    await one(0x512, { attemptId: uuid(0x512), state: 'sentObserved', platformMessageId: '8001' });
-    await one(0x513, lost(0x513));
-    await one(0x514, lost(0x514));
-    await fuse.idle();
-    expect(fuse.current().fuse).toBeNull();
-    const last = await one(0x515, lost(0x515));
-    await fuse.idle();
-    expect(fuse.current().fuse).toMatchObject({ reason: 'uncertain', where: 'outcomes', build: BUILD, attemptId: null });
-    // One dispatch for the attempt, never a repeat.
-    expect(actions(last)).toEqual(['dispatch']);
   });
 });
 

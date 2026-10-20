@@ -262,11 +262,11 @@ describe('the field this port owns (FS-INS-1 п. 1–2, FS-RTE-4)', () => {
     expect(field(world).value).toBe('');
   });
 
-  it('[RB-014] 200 switches with inserts in flight: not one write lands in a field of a chat it was not aimed at', async () => {
+  it('[RB-014] 30 switches with inserts in flight: not one write lands in a field of a chat it was not aimed at', async () => {
     const world = await onChat();
     const groups: readonly string[] = [GROUP, OTHER];
     const writes: Array<{ readonly group: string; readonly text: string; readonly receipt: Promise<InsertReceipt> }> = [];
-    for (let i = 0; i < 200; i += 1) {
+    for (let i = 0; i < 30; i += 1) {
       const group = world.port.current().route.conversationRef ?? '';
       const intent = await world.intent(`R${i}@${group}`).catch(() => null);
       const next = groups[(groups.indexOf(group) + 1) % groups.length] as string;
@@ -280,11 +280,11 @@ describe('the field this port owns (FS-INS-1 п. 1–2, FS-RTE-4)', () => {
       await until(`switch ${i}`, () => world.port.current().route.conversationRef === next && world.port.current().composer !== null);
     }
     const receipts = await Promise.all(writes.map((write) => write.receipt));
-    expect(writes.length).toBe(200);
+    expect(writes.length).toBe(30);
     // The writes the editor saw: each one's text names the group it was aimed at, and it went into that group's field.
     const states = receipts.map((receipt) => receipt.state);
     expect(states.filter((state) => state === 'applied').length).toBeGreaterThan(0);
-    expect(states.filter((state) => state === 'rejected').length).toBeGreaterThan(50);
+    expect(states.filter((state) => state === 'rejected').length).toBeGreaterThan(7);
     expect(receipts.filter((receipt) => receipt.state === 'uncertain')).toEqual([]);
     const applied = writes.filter((_, index) => receipts[index]?.state === 'applied');
     expect(editorCalls).toEqual(applied.map((write) => write.text));

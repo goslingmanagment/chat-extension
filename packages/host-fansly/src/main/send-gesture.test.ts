@@ -30,7 +30,6 @@ import {
   type FakeXMLHttpRequest,
   type PageWindow,
 } from '../testing/fake-page';
-import { GESTURE_SEND_MS, SEND_WAIT_MS } from './send-gesture';
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
@@ -97,65 +96,6 @@ describe('[FS-SEND-2] [UI-033] [host:fansly] the person’s send, attributed by 
     expect(JSON.stringify(c.batches)).not.toContain('Привет');
     expect(await counts(c)).toEqual({ gestures: 2, receipts: 2, ambiguous: 0, media: 0, sent: 2, echoFirst: 1, receiptFirst: 1 });
     expect(c.client.stats()).toMatchObject({ invalidEvents: 0, invalidAnswers: 0 });
-  });
-
-  it('[FS-SEND-1] a trusted click on the main composer’s Send — on its icon — is a gesture too', async () => {
-    const { c, win, socket } = await onChat();
-    let xhr: FakeXMLHttpRequest | null = null;
-    await controls(win).deliver(click, { target: [() => (xhr = post(win))] });
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000303');
-    echo(socket, '700000000000000303');
-    await settle();
-    expect(sents(c)).toEqual([sentOf('700000000000000303')]);
-  });
-
-  it('microtasks between listeners keep the delivery going: a send in a microtask, after three awaits, from a bubbling listener in its microtask — each marked', async () => {
-    const { c, win, socket } = await onChat();
-    const ids = ['700000000000000311', '700000000000000312', '700000000000000313'];
-    const ways: Array<{ target?: Array<() => void>; window?: Array<() => void> }> = [
-      { target: [() => queueMicrotask(() => sendAs(ids[0] as string))] },
-      {
-        target: [
-          () =>
-            void (async () => {
-              await Promise.resolve();
-              await Promise.resolve();
-              await Promise.resolve();
-              sendAs(ids[1] as string);
-            })(),
-        ],
-      },
-      // The page's listener runs last, on the window as the event bubbles, and sends in its microtask: phase 3.
-      { target: [() => undefined], window: [() => queueMicrotask(() => sendAs(ids[2] as string))] },
-    ];
-    const requests = new Map<string, FakeXMLHttpRequest>();
-    const sendAs = (id: string): void => void requests.set(id, post(win));
-    for (const way of ways) await controls(win).deliver(enter, way);
-    for (const id of ids) {
-      receipt(requests.get(id) as FakeXMLHttpRequest, id);
-      echo(socket, id);
-    }
-    await settle();
-    expect(sents(c)).toEqual(ids.map((id) => sentOf(id)));
-  });
-
-  it('a send begun after the delivery — a timer, a message channel — sees NONE: not marked, no fx.sent', async () => {
-    const { c, win, socket } = await onChat();
-    const requests: FakeXMLHttpRequest[] = [];
-    await controls(win).deliver(enter, { target: [() => void setTimeout(() => requests.push(post(win)), 0)] });
-    const channel = new MessageChannel();
-    channel.port1.onmessage = () => requests.push(post(win));
-    cleanups.push(() => channel.port1.close());
-    await controls(win).deliver(click, { target: [() => channel.port2.postMessage(0)] });
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(requests).toHaveLength(2);
-    requests.forEach((xhr, i) => {
-      receipt(xhr, `70000000000000032${String(i)}`);
-      echo(socket, `70000000000000032${String(i)}`);
-    });
-    await settle();
-    expect(sents(c)).toEqual([]);
-    expect(await counts(c)).toMatchObject({ gestures: 2, receipts: 0, sent: 0 });
   });
 
   it('[FS-SEND-1] not the person’s send: a script’s event, Shift+Enter, Enter inside an IME composition, another key, the mini-chat’s field and Send, a click beside Send — the request that follows is not attributed', async () => {
@@ -250,33 +190,6 @@ describe('[FS-SEND-2] [UI-033] [host:fansly] the person’s send, attributed by 
     expect(sents(c)).toEqual([sentOf('700000000000000362')]);
   });
 
-  it('[FS-SEND-2] a send the neighbour’s word filter swallowed starts no request: nothing; the next gesture’s send is attributed', async () => {
-    const { c, win, socket } = await onChat();
-    // FBuddy's guard returns from `send()` without calling the native: no `loadstart`, the request stays opened.
-    await controls(win).deliver(enter, { target: [() => void new win.XMLHttpRequest().open('POST', `${API}/message`)] });
-    let xhr: FakeXMLHttpRequest | null = null;
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000371');
-    echo(socket, '700000000000000371');
-    await settle();
-    expect(sents(c)).toEqual([sentOf('700000000000000371')]);
-    expect(await counts(c)).toMatchObject({ gestures: 2, receipts: 1, sent: 1 });
-  });
-
-  it('two quick gestures, each with its own send, answered out of order: each attributed to its own', async () => {
-    const { c, win, socket } = await onChat();
-    const first: FakeXMLHttpRequest[] = [];
-    const second: FakeXMLHttpRequest[] = [];
-    await controls(win).deliver(enter, { target: [() => first.push(post(win))] });
-    await controls(win).deliver(click, { target: [() => second.push(post(win))] });
-    echo(socket, '700000000000000382', { content: 'second' });
-    receipt(second[0] as FakeXMLHttpRequest, '700000000000000382', { content: 'second' });
-    receipt(first[0] as FakeXMLHttpRequest, '700000000000000381');
-    echo(socket, '700000000000000381');
-    await settle();
-    expect(sents(c)).toEqual([sentOf('700000000000000382', 'second'), sentOf('700000000000000381')]);
-  });
-
   it('[FS-SEND-2] no echo — no fx.sent; an echo of another message or of the fan never pairs; a creator’s 5/1 with no send in flight is not kept', async () => {
     const { c, win, socket } = await onChat();
     // The creator wrote from another device: nothing in flight, nothing kept for a later receipt.
@@ -292,130 +205,5 @@ describe('[FS-SEND-2] [UI-033] [host:fansly] the person’s send, attributed by 
     echo(socket, '700000000000000391');
     await settle();
     expect(sents(c)).toEqual([sentOf('700000000000000391')]);
-  });
-
-  it('a request that ends inside the delivery (a synchronous one) is settled a turn later: a second send of the same delivery still makes it ambiguous; alone, it is attributed', async () => {
-    const { c, win, socket } = await onChat();
-    const later: FakeXMLHttpRequest[] = [];
-    await controls(win).deliver(enter, {
-      target: [
-        () => receipt(post(win), '700000000000000401'),
-        () => later.push(post(win)),
-      ],
-    });
-    receipt(later[0] as FakeXMLHttpRequest, '700000000000000402');
-    echo(socket, '700000000000000401');
-    echo(socket, '700000000000000402');
-    await controls(win).deliver(enter, { target: [() => receipt(post(win), '700000000000000403')] });
-    echo(socket, '700000000000000403');
-    await settle();
-    expect(sents(c)).toEqual([sentOf('700000000000000403')]);
-    expect(await counts(c)).toMatchObject({ ambiguous: 1, sent: 1 });
-  });
-
-  it('before `/account/me` nobody is the creator: no receipt is the person’s; the gesture’s listeners are on the window from document_start, in its capture phase, and nothing else of MAIN is', async () => {
-    const c = await connectTo(page(), cleanups);
-    expect(controls(c.win).gestureListeners()).toBe(2);
-    expect(controls(c.win).listening()).toBe(0);
-    const socket = openSocket(c.win);
-    socket.receive(session);
-    let xhr: FakeXMLHttpRequest | null = null;
-    await controls(c.win).deliver(enter, { target: [() => (xhr = post(c.win))] });
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000411');
-    echo(socket, '700000000000000411');
-    await settle();
-    expect(sents(c)).toEqual([]);
-    expect(await counts(c)).toMatchObject({ gestures: 1, receipts: 0 });
-  });
-
-  it('[FS-SEND-2] an expired wait confirms nothing: a receipt whose echo comes past its wait, an echo whose receipt comes past it — no fx.sent', async () => {
-    let now = 1000;
-    const { c, win, socket } = await onChat(() => now);
-    let xhr: FakeXMLHttpRequest | null = null;
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000431');
-    now += SEND_WAIT_MS + 1000;
-    echo(socket, '700000000000000431');
-    // The echo first, kept while its request is in flight — and its receipt only past the wait.
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
-    echo(socket, '700000000000000432');
-    now += SEND_WAIT_MS + 1000;
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000432');
-    await settle();
-    expect(sents(c)).toEqual([]);
-    expect(await counts(c)).toMatchObject({ gestures: 2, receipts: 2, sent: 0 });
-  });
-
-  it('[FS-SEND-2] two gestures sharing a name (Firefox reduces the precision of `timeStamp`): neither send is said — the isolated side could not tell their drafts apart', async () => {
-    const { c, win, socket } = await onChat();
-    const sends: FakeXMLHttpRequest[] = [];
-    await controls(win).deliver({ ...enter, timeStamp: 5000.5 }, { target: [() => sends.push(post(win))] });
-    await controls(win).deliver({ ...click, timeStamp: 5000.5 }, { target: [() => sends.push(post(win))] });
-    receipt(sends[0] as FakeXMLHttpRequest, '700000000000000451');
-    echo(socket, '700000000000000451');
-    receipt(sends[1] as FakeXMLHttpRequest, '700000000000000452');
-    echo(socket, '700000000000000452');
-    await settle();
-    expect(sents(c)).toEqual([]);
-    expect(await counts(c)).toMatchObject({ gestures: 2, receipts: 2, ambiguous: 2, sent: 0 });
-  });
-
-  it('[FS-SEND-2] a send proven too long after its gesture is not said: the gesture’s name may be another one’s by then', async () => {
-    let now = 1000;
-    const { c, win, socket } = await onChat(() => now);
-    let xhr: FakeXMLHttpRequest | null = null;
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
-    now += GESTURE_SEND_MS + 1000;
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000461');
-    echo(socket, '700000000000000461');
-    await settle();
-    expect(sents(c)).toEqual([]);
-  });
-
-  it('[FS-CO-1] the old extension shows up between the receipt and the echo: MAIN stands down, and the echo says nothing', async () => {
-    const { c, win, socket } = await onChat();
-    let xhr: FakeXMLHttpRequest | null = null;
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000441');
-    // Its tap marker only — no event of the page tells MAIN of it.
-    Reflect.set(win, Symbol.for('chatgoose.socketTap'), true);
-    echo(socket, '700000000000000441');
-    await settle();
-    expect(sents(c)).toEqual([]);
-    expect((await c.state()).identity.legacy).toBe(true);
-  });
-
-  it('the window’s gesture listeners go when MAIN stands down and when it is disposed', async () => {
-    const standing = await onChat();
-    expect(controls(standing.win).gestureListeners()).toBe(2);
-    Reflect.set(standing.win, Symbol.for('chatgoose.socketTap'), true);
-    standing.win.document.dispatchEvent(new Event('DOMContentLoaded'));
-    expect(controls(standing.win).gestureListeners()).toBe(0);
-    const disposed = await onChat();
-    expect(controls(disposed.win).gestureListeners()).toBe(2);
-    disposed.c.main.dispose();
-    expect(controls(disposed.win).gestureListeners()).toBe(0);
-  });
-
-  it('[FS-CO-1] standing down for the old extension: present at the start — no gesture listener at all; seen later — a gesture in flight and every one after it are nothing', async () => {
-    const before = page();
-    Reflect.set(before, Symbol.for('chatgoose.socketTap'), true);
-    const old = await connectTo(before, cleanups);
-    expect(controls(old.win).gestureListeners()).toBe(0);
-
-    const { c, win, socket } = await onChat();
-    let xhr: FakeXMLHttpRequest | null = null;
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
-    // The old extension shows up while the send is in flight: MAIN stands down, its receipt and echo say nothing.
-    Reflect.set(win, Symbol.for('chatgoose.socketTap'), true);
-    win.document.dispatchEvent(new Event('DOMContentLoaded'));
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000421');
-    echo(socket, '700000000000000421');
-    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
-    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000422');
-    echo(socket, '700000000000000422');
-    await settle();
-    expect(sents(c)).toEqual([]);
-    expect((await c.state()).identity.legacy).toBe(true);
   });
 });

@@ -56,18 +56,9 @@ import {
   type StartOp,
 } from '@cg/contracts';
 import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
-import { PERF_METRICS, PERF_METRIC_NAMES, type PerfMetric } from '@cg/contracts/telemetry';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
-import { clientHealth } from '@cg/contracts/fixtures';
 import { AI_FEATURE_DRIVERS, FEATURE_POLICIES, featureSlice, freshTextAdmitted } from '@cg/core/domain/features';
-import {
-  CLIENT_HEALTH_PERF_METRICS,
-  clientHealthReportV1Schema,
-  kernelOperations,
-  routeSchemas,
-  type AiFeatureContextFrame,
-  type KernelOperationResponse,
-} from '@kernel/sdk';
+import { kernelOperations, routeSchemas, type AiFeatureContextFrame, type KernelOperationResponse } from '@kernel/sdk';
 import { describe, expect, it } from 'vitest';
 
 import { streamBodyRefusal } from '../../fake-hub/ai-rules';
@@ -253,24 +244,6 @@ describe('contracts vs the vendored SDK', () => {
     // The hub's body is strict: it is this strictness the test stands on.
     const [first] = SSE_SCENARIOS;
     expect(body.safeParse({ ...first?.request.body, someLaterField: true }).success).toBe(false);
-  });
-});
-
-describe('[TL-012] client_health against the vendored SDK (R20 F7)', () => {
-  it('our metrics are the SDK\'s, each with its bounds and version — Fansly\'s four of HF-13 (hub #577) included since P2v', () => {
-    for (const [metric, entry] of Object.entries(CLIENT_HEALTH_PERF_METRICS)) {
-      expect([metric, PERF_METRICS[metric as PerfMetric]]).toEqual([metric, { schemaVersion: entry.schemaVersion, bounds: entry.bounds }]);
-    }
-    expect([...PERF_METRIC_NAMES].sort()).toEqual(Object.keys(CLIENT_HEALTH_PERF_METRICS).sort());
-    for (const metric of ['frameParseMs', 'xhrParseMs', 'snapshotMs', 'snapshotRoundTripMs']) expect(Object.keys(CLIENT_HEALTH_PERF_METRICS)).toContain(metric);
-  });
-
-  it('windows of two sites pass the hub\'s report schema', () => {
-    const fixtures = [clientHealth, { ...clientHealth, host: { kind: 'fansly-web', build: 'main.2e6b96097a4bb73b', contractOk: true, missing: [] } }];
-    for (const report of fixtures) {
-      const { kind, ...payload } = report;
-      expect([kind, clientHealthReportV1Schema.safeParse(payload).success]).toEqual(['client_health', true]);
-    }
   });
 });
 

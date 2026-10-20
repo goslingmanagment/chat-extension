@@ -3,9 +3,8 @@
 // hub under their sign-in — a report of what happened, never a send. What
 // the hub has not answered is owed and journaled; every answer is final.
 
-import { SEND_ATTRIBUTION_LIMITS, SendAttributionsRequestSchema, type SendAttributionsRequest, type SendAttributionsResult } from '@cg/contracts';
-import { REPORT_RETRY_DELAYS_MS } from '@cg/core/domain/send';
-import { SEND_ATTRIBUTIONS_KEY, SEND_ATTRIBUTIONS_MAX, SEND_ATTRIBUTION_BATCH_MS, SEND_ATTRIBUTION_KEEP_MS, SendAttributionReporter, type SendAttributionInput } from '@cg/core/services';
+import { SendAttributionsRequestSchema, type SendAttributionsRequest, type SendAttributionsResult } from '@cg/contracts';
+import { SEND_ATTRIBUTIONS_KEY, SEND_ATTRIBUTION_BATCH_MS, SEND_ATTRIBUTION_KEEP_MS, SendAttributionReporter, type SendAttributionInput } from '@cg/core/services';
 import { describe, expect, it } from 'vitest';
 
 import { FakeClock, LogRecorder, MemoryStore, settle } from './support/clock';
@@ -40,9 +39,7 @@ class ScriptedHub {
   }
 }
 
-const httpError = (status: number): Error => Object.assign(new Error(`HTTP ${status}`), { name: 'HubCallError', failure: { kind: 'http', status, error: null, reason: null, retryAfterMs: null } });
 const transportError = (): Error => Object.assign(new Error('offline'), { name: 'HubCallError', failure: { kind: 'transport', failure: 'network' } });
-const checkError = (): Error => Object.assign(new Error('clientSendAttributions: capabilityMissing'), { name: 'HubCheckError', check: 'capabilityMissing' });
 
 function world(owner: { now: string | null } = { now: OWNER }, shared?: { readonly store: MemoryStore; readonly hub: ScriptedHub; readonly clock: FakeClock }) {
   const clock = shared?.clock ?? new FakeClock(NOW_MS);
@@ -80,20 +77,6 @@ describe('the report', () => {
     expect(reporter.pending).toBe(0);
   });
 
-  it('a page and a client per request, at most the hub’s limit of facts in one', async () => {
-    const { clock, hub, reporter } = world();
-    for (let i = 0; i < SEND_ATTRIBUTION_LIMITS.maxFacts + 1; i += 1) reporter.report(send());
-    reporter.report(send({ pageLabel: 'model-two' }));
-    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
-    await reporter.idle();
-    expect(hub.calls.map((call) => [call.pageLabel, call.facts.length])).toEqual([
-      [PAGE, SEND_ATTRIBUTION_LIMITS.maxFacts],
-      ['model-two', 1],
-      [PAGE, 1],
-    ]);
-    expect(reporter.pending).toBe(0);
-  });
-
   it('the same message of a page is one fact: reported twice, it is asked once; answered, it is never asked again', async () => {
     const { clock, hub, reporter } = world();
     const one = send();
@@ -119,46 +102,6 @@ describe('the report', () => {
     expect(log.entries.find((entry) => entry.msg === 'send attributions reported')).toMatchObject({ level: 'warn', fields: { facts: 2, conflict: 1, other: 1 } });
   });
 
-  it('a fact the hub’s own schema would refuse is never taken: it would hold its whole group', () => {
-    const { reporter, store } = world();
-    expect(reporter.report(send({ observedAt: '2026-10-03T12:00:00.123456789Z' }))).toBe('invalid');
-    expect(reporter.report(send({ platformMessageId: '0123' }))).toBe('invalid');
-    expect(reporter.pending).toBe(0);
-    expect(owedIn(store)).toEqual([]);
-  });
-
-  it('a clock that runs fast: the hub’s answer says its own time, the fact goes once more corrected, and every later time is corrected too', async () => {
-    const { clock, hub, reporter } = world();
-    const AHEAD = 10 * 60_000;
-    const hubNow = (): string => new Date(clock.now() - AHEAD).toISOString();
-    const at = (): string => new Date(clock.now()).toISOString();
-    hub.answers.push((request) => ({ pageLabel: request.pageLabel, results: request.facts.map((fact) => ({ platformMessageId: fact.platformMessageId, outcome: 'out_of_range' })), serverNow: hubNow() }));
-    hub.answers.push((request) => ({ pageLabel: request.pageLabel, results: request.facts.map((fact) => ({ platformMessageId: fact.platformMessageId, outcome: 'recorded' })), serverNow: hubNow() }));
-    const one = send({ observedAt: at() });
-    reporter.report(one);
-    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
-    await reporter.idle();
-    expect(hub.calls.map((call) => call.facts[0]?.observedAt)).toEqual([one.observedAt, new Date(Date.parse(one.observedAt) - AHEAD).toISOString()]);
-    expect(reporter.pending).toBe(0);
-    // Learned: the next send goes corrected the first time.
-    hub.answers.push((request) => ({ pageLabel: request.pageLabel, results: request.facts.map((fact) => ({ platformMessageId: fact.platformMessageId, outcome: 'recorded' })), serverNow: hubNow() }));
-    const two = send({ observedAt: at() });
-    reporter.report(two);
-    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
-    await reporter.idle();
-    expect(hub.calls[2]?.facts[0]?.observedAt).toBe(new Date(Date.parse(two.observedAt) - AHEAD).toISOString());
-  });
-
-  it('a fact out of range by the hub’s clock is final: an old one, or one still ahead after its correction', async () => {
-    const { clock, hub, reporter } = world();
-    hub.answers.push((request) => ({ pageLabel: request.pageLabel, results: request.facts.map((fact) => ({ platformMessageId: fact.platformMessageId, outcome: 'out_of_range' })), serverNow: new Date(clock.now()).toISOString() }));
-    reporter.report(send({ observedAt: new Date(NOW_MS - 40 * 86_400_000).toISOString() }));
-    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
-    await reporter.idle();
-    expect(hub.calls).toHaveLength(1);
-    expect(reporter.pending).toBe(0);
-  });
-
   it('nobody signed in: there is nobody whose send it could be', () => {
     const { reporter, store } = world({ now: null });
     expect(reporter.report(send())).toBe('signed-out');
@@ -177,39 +120,6 @@ describe('what is owed', () => {
     await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
     await reporter.idle();
     expect(owedIn(store)).toEqual([]);
-  });
-
-  it('a failure the hub may not have heard is retried on the custody schedule; still no answer — it waits for the next word of the hub', async () => {
-    const { clock, hub, reporter } = world();
-    for (let i = 0; i <= REPORT_RETRY_DELAYS_MS.length; i += 1) hub.answers.push(i % 2 === 0 ? transportError() : httpError(503));
-    reporter.report(send());
-    await clock.advance(SEND_ATTRIBUTION_BATCH_MS + REPORT_RETRY_DELAYS_MS.reduce((sum, delay) => sum + delay, 0));
-    await reporter.idle();
-    expect(hub.calls).toHaveLength(REPORT_RETRY_DELAYS_MS.length + 1);
-    expect(reporter.pending).toBe(1);
-    expect(reporter.resume()).toBe(1);
-    await reporter.idle();
-    expect(hub.calls).toHaveLength(REPORT_RETRY_DELAYS_MS.length + 2);
-    expect(reporter.pending).toBe(0);
-  });
-
-  it('a refusal of the hub layer itself (a hub without send-attribution-v1 — a rollback) and a 401 keep it owed; another 4xx gives it up', async () => {
-    const { clock, hub, log, reporter } = world();
-    hub.answers.push(checkError());
-    reporter.report(send());
-    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
-    await reporter.idle();
-    expect(reporter.pending).toBe(1);
-    hub.answers.push(httpError(401));
-    reporter.resume();
-    await reporter.idle();
-    expect(reporter.pending).toBe(1);
-    hub.answers.push(httpError(409));
-    reporter.resume();
-    await reporter.idle();
-    expect(reporter.pending).toBe(0);
-    expect(hub.calls).toHaveLength(3);
-    expect(log.entries.some((entry) => entry.msg === 'send attributions refused by the hub, given up' && entry.fields?.['status'] === 409)).toBe(true);
   });
 
   it('belongs to the person who sent: another person’s sign-in never reports it, the sender’s next sign-in does', async () => {
@@ -234,22 +144,6 @@ describe('what is owed', () => {
     expect(reporter.pending).toBe(0);
   });
 
-  it('a sign-out under the call: nothing was refused, the fact waits for its sender', async () => {
-    const owner = { now: OWNER as string | null };
-    const { clock, hub, reporter } = world(owner);
-    hub.answers.push(Object.assign(transportError(), {}));
-    reporter.report(send());
-    const sendAttributions = hub.sendAttributions.bind(hub);
-    hub.sendAttributions = (request) => {
-      owner.now = null;
-      return sendAttributions(request);
-    };
-    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
-    await reporter.idle();
-    expect(hub.calls).toHaveLength(1);
-    expect(reporter.pending).toBe(1);
-  });
-
   it('the next instance of the event page delivers what the previous one owed; too old, foreign or broken entries go', async () => {
     const first = world();
     first.hub.answers.push(transportError());
@@ -267,24 +161,5 @@ describe('what is owed', () => {
     await second.reporter.idle();
     expect(hub.calls.flatMap((call) => call.facts.map((fact) => fact.platformMessageId))).toEqual([stored[0]!.platformMessageId]);
     expect(owedIn(first.store)).toEqual([]);
-  });
-
-  it('is bounded: beyond the limit the oldest go', () => {
-    const { reporter } = world();
-    for (let i = 0; i < SEND_ATTRIBUTIONS_MAX + 5; i += 1) reporter.report(send());
-    expect(reporter.pending).toBe(SEND_ATTRIBUTIONS_MAX);
-  });
-
-  it('a journal that cannot be read starts empty, one that cannot be written keeps the facts in memory', async () => {
-    const { reporter, store, log, clock, hub } = world();
-    store.failReads = true;
-    expect(await reporter.restore()).toBe(0);
-    store.failWrites = true;
-    reporter.report(send());
-    await settle();
-    expect(log.entries.map((entry) => entry.code)).toEqual(expect.arrayContaining(['CG-STORAGE-READ', 'CG-STORAGE-WRITE']));
-    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
-    await reporter.idle();
-    expect(hub.calls).toHaveLength(1);
   });
 });

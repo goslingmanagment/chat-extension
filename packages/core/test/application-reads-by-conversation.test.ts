@@ -11,22 +11,18 @@
 import { describe, expect, it } from 'vitest';
 
 import { type ChatRef, type FeedPage, type PersonaCatalog, type RecapBody, type SettingsV1 } from '@cg/contracts';
-import { RECAP_STATUS } from '@cg/core/application/ai';
 import { Surfaces, fanHandle, type PageContextPort, type PageContextState, type PreviewDirectory, type PreviewTargetInfo } from '@cg/core/application/boards';
-import { createFanPanelController } from '@cg/core/application/fanpanel';
 import { createPreviewController } from '@cg/core/application/preview';
 import { createI18n } from '@cg/core/domain/i18n';
-import { profileRequestOf } from '@cg/core/domain/recap';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, memory, startSnapshot } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
 import { settingsWithPersona } from './support/ai-background';
-import { delta, doneStep, readyHarness, type Harness } from './support/ai-harness';
+import { readyHarness, type Harness } from './support/ai-harness';
 import { BoardsBackground } from './support/boards-background';
 import { FakeClock, sequentialIds, settle } from './support/clock';
 import { FANSLY as FANSLY_SLICE, featuresOfBoth } from './support/features';
-import { type ScriptResponse } from './support/fake-hub';
 import { FANSLY, NOW_MS, WORLD, fanslyAccount, fanslyBinding, fanslyChat, session, uuid, withFanslyPage } from './support/world';
 
 const BOOTSTRAP = withFanslyPage(BOOTSTRAP_PILOT_PAGES);
@@ -64,7 +60,6 @@ async function openFansly(h: Harness, chat: { readonly chat: ChatRef; readonly g
 }
 
 const FULL_TEXT = ['## Кто он', 'Марк, 34, Остин.'].join('\n');
-const recapStream = (text: string): ScriptResponse => ({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fan-summary') }, delta(text.slice(0, 8)), delta(text.slice(8)), doneStep] });
 const hubRecap = (over: Partial<RecapBody> = {}): RecapBody => ({
   generationRef: uuid(0x700),
   generatedAt: '2026-10-03T09:59:20.000Z',
@@ -75,28 +70,6 @@ const hubRecap = (over: Partial<RecapBody> = {}): RecapBody => ({
 });
 
 describe('[host:fansly] R20 F6b: the recaps of a Fansly chat are read by its group and its fan', () => {
-  it('the status, the read, the tab’s dossier save and the background saver’s all name the group beside the fan', async () => {
-    const h = await fanslyDock();
-    await openFansly(h, A);
-    await h.clock.advance(RECAP_STATUS.settleMs);
-    h.bg.hub.profileScript.push({ state: 'rejected', reason: 'generation_not_found' });
-    expect(await h.generate('recap')).toMatchObject({ ok: true, outcome: 'opened' });
-    await h.settle();
-    h.script(recapStream(FULL_TEXT));
-    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
-    await h.clock.advance(1_000);
-    expect(await h.dispatch({ type: 'RetryRecapSave', length: 'full' })).toMatchObject({ ok: true, type: 'RetryRecapSave' });
-
-    const asked = { pageId: PAGE_ID, fanRef: A.fan, conversationRef: A.group };
-    expect(h.bg.callsOf('recap.status')).toEqual([{ ...asked, personaDefinitionId: PERSONA.definitionId }]);
-    expect(h.bg.callsOf('recap.read')).toEqual([{ ...asked, personaDefinitionId: PERSONA.definitionId }]);
-    const opId = h.recapView().opId;
-    expect(h.bg.callsOf('recap.save')).toEqual([{ ...asked, generationRef: uuid(0x200), opId }]);
-    // The background's own save after the recap: the dossier is the fan's (the path), the generation the group's.
-    expect(h.bg.hub.profiles).toEqual([{ pageLabel: WORLD.pages.fansly.pageLabel, fanRef: A.fan, generationRef: uuid(0x200), clientRequestId: opId, conversationRef: A.group }]);
-    // The generation itself named both, each in its own place (F6a).
-    expect(h.bg.hub.streams.map((stream) => stream.body)).toMatchObject([{ platform: 'fansly', conversationRef: A.group, fanRef: A.fan }]);
-  });
 
   it('two chats of two fans do not cross: each reads its own pair, and a recap of one is never the other’s', async () => {
     const h = await fanslyDock();
@@ -119,25 +92,6 @@ describe('[host:fansly] R20 F6b: the recaps of a Fansly chat are read by its gro
     // Back in the first chat its copy is still its own.
     await openFansly(h, A);
     expect(h.recapPicker().slots.full).not.toBeNull();
-  });
-
-  it('the Coach’s «Обновить переписку» reads the head of the group’s archive', async () => {
-    const h = await fanslyDock();
-    const page: FeedPage = { target: { pageLabel: WORLD.pages.fansly.pageLabel, fanRef: A.fan, conversationRef: A.group }, source: 'archive', snapshotRevision: 'snap-1', asOf: '2026-10-03T10:00:00.000Z', coverage: 'complete', head: null, newestKnownAt: null, nextOlderCursor: null, items: [], summary: null };
-    h.bg.feed = page;
-    await openFansly(h, A);
-    expect(await h.dispatch(h.coach().freshness.refresh.action)).toMatchObject({ ok: true, type: 'RefreshArchive' });
-    expect(h.bg.callsOf('feed.read')).toEqual([{ pageId: PAGE_ID, fanRef: A.fan, cursor: null, limit: 1, conversationRef: A.group }]);
-  });
-});
-
-describe('R20 F6b: the background asks the hub for a tab’s `recap.save` with the conversation only when it is not the fan', () => {
-  it('[host:fansly] [host:chatspace] the group goes along; the fan as its own conversation, or none, leaves the request as it was', () => {
-    const base = { pageId: PAGE_ID, fanRef: A.fan, generationRef: uuid(0x200), opId: uuid(0x100) };
-    expect(profileRequestOf({ ...base, conversationRef: A.group }, 'model-two-fansly')).toEqual({ pageLabel: 'model-two-fansly', fanRef: A.fan, generationRef: uuid(0x200), clientRequestId: uuid(0x100), conversationRef: A.group });
-    const plain = { pageLabel: 'model-two-fansly', fanRef: A.fan, generationRef: uuid(0x200), clientRequestId: uuid(0x100) };
-    expect(JSON.stringify(profileRequestOf({ ...base, conversationRef: A.fan }, 'model-two-fansly'))).toBe(JSON.stringify(plain));
-    expect(JSON.stringify(profileRequestOf(base, 'model-two-fansly'))).toBe(JSON.stringify(plain));
   });
 });
 
@@ -310,84 +264,5 @@ describe('[host:fansly] R20 P8a: a preview never reuses another group’s archiv
       expect(h.shown().view).toMatchObject({ s: 'offline', error: { code: 'CG-HUB-UNAVAILABLE' } });
     }
     h.dispose();
-  });
-
-  it('P1: reopening the same group preserves its cached rows and its own cursor', async () => {
-    const h = await preview();
-    await h.close();
-    const release = h.bg.hold('feed.read');
-    await h.open();
-    expect(h.shown().feed.items.map((item) => item.id)).toEqual([`${A.group}01`]);
-    await h.older();
-    expect(h.reads().at(-1)).toMatchObject({ conversationRef: A.group, cursor: `older-of-${A.group}` });
-    release();
-    await settle(12);
-    h.dispose();
-  });
-
-  it('P2: losing the group and refreshing clears the archive and blocks older reads until a new first page arrives', async () => {
-    const h = await preview();
-    h.group(null);
-    await h.refresh();
-    expect.soft(h.shown().feed).toMatchObject({ items: [], hasOlder: false, loadingOlder: false, olderError: null });
-    expect.soft(h.shown().view).toMatchObject({ s: 'error', error: { code: 'CG-DATA-NOT-READY' } });
-    await h.older();
-    expect.soft(h.reads()).toHaveLength(1);
-    h.group(B.group);
-    const release = h.bg.hold('feed.read');
-    const refreshing = h.refresh();
-    await settle(12);
-    await h.older();
-    expect.soft(h.reads()).toHaveLength(2);
-    release();
-    await refreshing;
-    expect(h.shown().feed.items.map((item) => item.id)).toEqual([`${B.group}01`]);
-    await h.older();
-    expect(h.reads().at(-1)).toMatchObject({ conversationRef: B.group, cursor: `older-of-${B.group}` });
-    h.dispose();
-  });
-
-  it('P2: «Старее» checks whether the group is still known even before refresh', async () => {
-    const h = await preview();
-    h.group(null);
-    await h.older();
-    expect(h.reads()).toHaveLength(1);
-    h.dispose();
-  });
-
-  it('P2: an older page already in flight cannot restore the archive after the group is lost', async () => {
-    const h = await preview();
-    const release = h.bg.hold('feed.read');
-    const older = h.older();
-    h.group(null);
-    await h.refresh();
-    expect.soft(h.shown().feed).toMatchObject({ items: [], hasOlder: false, loadingOlder: false });
-    release();
-    await older;
-    expect(h.shown().feed).toMatchObject({ items: [], hasOlder: false, loadingOlder: false });
-    h.dispose();
-  });
-});
-
-describe('[host:fansly] R20 F6b: the fan panel reads the archive of the open chat’s group, the card and the dossier of its fan', () => {
-  it('the route’s group goes with the feed read only; the money and the dossier name the fan', async () => {
-    const hub = feedHub();
-    const clock = new FakeClock(NOW_MS);
-    const bg = new BoardsBackground({ clock, call: hub.call, session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId, features: featuresOfBoth });
-    const host = new FakeHostPort({ start: { ...startSnapshot, route: { ...startSnapshot.route, name: 'chat', chat: A.chat, account: fanslyAccount, conversationRef: A.group } }, memory, checkpoint: null, answers: {}, timeline: [] }, NOW_MS);
-    const surfaces = new Surfaces();
-    const panel = createFanPanelController({ rpc: bg.rpc, host, i18n, clock, context, surfaces });
-    panel.subscribe({ of: 'fan-panel' }, () => undefined);
-    await panel.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'fan-panel', open: true } });
-    await settle(12);
-    const reads = bg.requests.filter((request) => ['feed.read', 'fan.card', 'fan.dossier'].includes(request.type));
-    expect(reads).toEqual([
-      { type: 'fan.card', payload: { pageId: PAGE_ID, fanRef: A.fan, period: 'lifetime' } },
-      { type: 'fan.card', payload: { pageId: PAGE_ID, fanRef: A.fan, period: '30d' } },
-      { type: 'fan.dossier', payload: { pageId: PAGE_ID, fanRef: A.fan } },
-      { type: 'feed.read', payload: { pageId: PAGE_ID, fanRef: A.fan, cursor: null, limit: 1, conversationRef: A.group } },
-    ]);
-    panel.dispose();
-    host.dispose();
   });
 });

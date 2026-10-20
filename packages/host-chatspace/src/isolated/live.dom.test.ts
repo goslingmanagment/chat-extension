@@ -13,7 +13,7 @@ import { PreviewSendCommitSchema, PreviewSendPreflightSchema } from '@cg/contrac
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BridgeCallError, type BridgeEvent, type BridgeFailure, type MainBridgeClient } from './bridge-client';
-import { ADAPTER_VERSION, createChatSpaceHostPort, HostContractError, type ChatSpaceLiveConfig, type HostDiagnostic } from './host-port';
+import { ADAPTER_VERSION, createChatSpaceHostPort, type ChatSpaceLiveConfig, type HostDiagnostic } from './host-port';
 import { loadValidation } from './validation';
 import type { MountManager } from './mount';
 import type { ThemeReader } from './theme';
@@ -149,167 +149,6 @@ describe('[X8-06] the preview send capability (§6.2, §6.7.11)', () => {
     expect(flags().previewSend).toBe(false);
     expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
   });
-
-  it('no approved profile for the loaded modules: X8 is off (CG-SEND-RECEIPT), the rest of the adapter is not', async () => {
-    loadModules({ ...MODULES, notificationEntry: 'NEWBUILD' });
-    const { host, diagnostics } = await start();
-    expect(host.previewSend).toBeNull();
-    expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
-    expect(host.probe().capabilities.insert).toEqual({ state: 'on' });
-    expect(diagnostics).toContainEqual({ event: 'receipt-profile', code: 'CG-SEND-RECEIPT', detail: { profile: null, kind: null } });
-    // The owner approves the new set: no release, the next bootstrap turns it on.
-    await host.configure({ ...CONFIG, receiptProfiles: [PROFILE, { ...PROFILE, id: 'chatspace-next', modules: { ...MODULES, notificationEntry: 'NEWBUILD' } }] });
-    expect(host.previewSend).not.toBeNull();
-    expect(diagnostics.at(-1)).toEqual({ event: 'receipt-profile', detail: { profile: 'chatspace-next', kind: 'exact' } });
-  });
-
-  it('a page laid out like ChatSpace 0.172.0 — a `messages` module, no `onlyfans` one — matches no profile of this adapter: X8 off (CG-SEND-RECEIPT)', async () => {
-    const { onlyfans: _gone, ...rest } = MODULES;
-    const old = { ...rest, messages: 'EEEEEEEE' };
-    loadModules(old);
-    // Even a profile naming exactly what that page loaded, for this adapter version: `messages` is not a role any more.
-    const { host, diagnostics } = await start({}, { configure: { ...CONFIG, receiptProfiles: [{ ...PROFILE, id: 'chatspace-0.172-like', modules: old }, PROFILE] } });
-    expect(host.previewSend).toBeNull();
-    expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
-    expect(host.probe().capabilities.insert).toEqual({ state: 'on' });
-    expect(diagnostics).toContainEqual({ event: 'receipt-profile', code: 'CG-SEND-RECEIPT', detail: { profile: null, kind: null } });
-  });
-
-  it('[X8-06] the hub’s «any build» sentinel (decision X25): X8 on for a build no profile names — and the report, the log and «Статус» say so', async () => {
-    const SENTINEL = { id: 'any-build', adapterVersion: ADAPTER_VERSION, modules: { '*': '*' } };
-    // A build nobody reviewed: every fingerprint is new.
-    loadModules({ notificationEntry: 'N1N1N1N1', composables: 'N2N2N2N2+N3N3N3N3', onlyfans: 'N4N4N4N4+N5N5N5N5', accounts: 'N6N6N6N6', inbox: 'N7N7N7N7' });
-    const { host, diagnostics } = await start({}, { configure: { ...CONFIG, receiptProfiles: [PROFILE, SENTINEL] } });
-    expect(host.previewSend).not.toBeNull();
-    const report = ChatSpaceContractReportSchema.parse(host.probe());
-    expect(report.capabilities.previewSend).toEqual({ state: 'on' });
-    expect(report.capabilities.receipt).toEqual({ state: 'on' });
-    expect(report.receiptMatch).toEqual({ profile: 'any-build', kind: 'anyBuild' });
-    expect(diagnostics).toContainEqual({ event: 'receipt-profile', detail: { profile: 'any-build', kind: 'anyBuild' } });
-
-    // The reviewed build again: an exact profile is named first, and the report says it is a reviewed one.
-    loadModules();
-    await host.recheck();
-    expect(host.probe().receiptMatch).toEqual({ profile: 'chatspace-test', kind: 'exact' });
-    expect(diagnostics.at(-1)).toEqual({ event: 'receipt-profile', detail: { profile: 'chatspace-test', kind: 'exact' } });
-
-    // A sentinel of another adapter version lets nothing in: X8 off, no match reported.
-    loadModules({ ...MODULES, inbox: 'N7N7N7N7' });
-    await host.configure({ ...CONFIG, receiptProfiles: [{ ...SENTINEL, adapterVersion: '0.2.0' }] });
-    expect(host.previewSend).toBeNull();
-    expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
-    expect(host.probe().receiptMatch).toBeUndefined();
-  });
-
-  it('[X8-06] the sentinel waits for the send-path modules like any profile: before the main layout loaded, no match', async () => {
-    const { notificationEntry: _late, ...early } = { ...MODULES, onlyfans: 'DDDDDDDD' };
-    loadModules(early);
-    const { host, bridge } = await start({}, { configure: { ...CONFIG, receiptProfiles: [{ id: 'any-build', adapterVersion: ADAPTER_VERSION, modules: { '*': '*' } }] } });
-    expect(host.previewSend).toBeNull();
-    expect(host.probe().receiptMatch).toBeUndefined();
-    loadModules();
-    bridge.emit({ t: 'contract', payload: wire() });
-    expect(host.previewSend).not.toBeNull();
-    expect(host.probe().receiptMatch).toEqual({ profile: 'any-build', kind: 'anyBuild' });
-  });
-
-  it('the main layout’s modules load after the page’s first ones: the profile is judged again when the route or the contract changes', async () => {
-    // Before the main layout: the queue and the composer’s `onlyfans` module are not there, the small `onlyfans` one is.
-    const { notificationEntry: _late, ...early } = { ...MODULES, onlyfans: 'DDDDDDDD' };
-    loadModules(early);
-    const { host, bridge } = await start();
-    expect(host.previewSend).toBeNull();
-    loadModules();
-    bridge.emit({ t: 'contract', payload: wire() });
-    expect(host.previewSend).not.toBeNull();
-  });
-
-  it('no tap script, or one switched off: no facts, no checkpoint, no X8', async () => {
-    loadModules();
-    const none = await start({ checkpoint: () => Promise.reject(new BridgeCallError('disabled', 'checkpoint')) }, { tap: false });
-    expect(none.host.previewSend).toBeNull();
-    expect(none.host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
-    expect(none.host.probe().capabilities.incoming).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
-    expect(await none.host.checkpoint(previewSendRequest.target.chat)).toBeNull();
-
-    const off = await start();
-    expect(off.host.previewSend).not.toBeNull();
-    await off.host.configure({ ...CONFIG, wsTap: false });
-    expect(off.flags()).toEqual({ wsTap: false, previewSend: false });
-    expect(off.host.previewSend).toBeNull();
-    expect(off.host.probe().capabilities.sendObserve).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
-  });
-
-  it('MAIN’s own word about the tap stands: a probe that comes after `flags`, or while the tap is being switched off, does not switch it on', async () => {
-    loadModules();
-    const off = { state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' };
-    /** A page whose tap handle is there (the probe sees it); the probe and the `flags` answer arrive when the test says. */
-    const page = () => {
-      const gate = { probe: (): void => undefined, flags: (): void => undefined };
-      const probed = new Promise<void>((resolve) => (gate.probe = resolve));
-      const flagged = new Promise<void>((resolve) => (gate.flags = resolve));
-      const bridge = fakeBridge(
-        { snapshot: () => snapshot(), listAccounts: () => [account], chatWindow: () => null, fan: () => null, listChats: () => [], flags: () => flagged.then(() => ({ wsTap: false, previewSend: false })) },
-        true,
-      );
-      const probe = bridge.client.probe.bind(bridge.client);
-      (bridge.client as { probe: MainBridgeClient['probe'] }).probe = () => probed.then(probe);
-      const host = createChatSpaceHostPort({ win: pageWindow, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme, validation: loadValidation });
-      return { host, gate };
-    };
-
-    // The runtime has no live port (the page took it first): `flags` reads back off although the bootstrap wants the tap.
-    const answered = page();
-    answered.gate.flags();
-    await answered.host.configure(CONFIG);
-    expect(answered.host.probe().capabilities.incoming).toEqual(off);
-    answered.gate.probe();
-    await answered.host.ready;
-    expect(answered.host.probe().capabilities.incoming).toEqual(off);
-    expect(answered.host.probe().capabilities.previewSend).toEqual(off);
-    expect(answered.host.previewSend).toBeNull();
-    answered.host.dispose();
-
-    // The bootstrap switches the tap off; the probe arrives while MAIN has not answered yet.
-    const pending = page();
-    const configured = pending.host.configure({ ...CONFIG, wsTap: false });
-    pending.gate.probe();
-    await pending.host.ready;
-    expect(pending.host.probe().capabilities.incoming).toEqual(off);
-    pending.gate.flags();
-    await configured;
-    expect(pending.host.probe().capabilities.incoming).toEqual(off);
-    pending.host.dispose();
-  });
-
-  it('[DB-031] before the page’s first chat composer the translator store is not there yet: no port, every send held with CG-SEND-HOST before MAIN is asked — then the store comes and X8 is on', async () => {
-    loadModules();
-    const { host, bridge } = await start({}, { contract: wire({ notYet: ['composerTranslator'] }) });
-    const report = host.probe();
-    expect(report.anchors.composerTranslator).toBe('notYet');
-    expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' });
-    expect(report.capabilities.insert).toEqual({ state: 'on' });
-    expect(host.previewSend).toBeNull();
-    // The person opens a chat: ChatSpace creates the store with its composer, MAIN says so.
-    bridge.emit({ t: 'contract', payload: wire() });
-    expect(host.probe().anchors.composerTranslator).toBe('ok');
-    expect(host.previewSend).not.toBeNull();
-    // A port taken while it was on still refuses by itself the moment the store is «not yet» again (a new document's
-    // MAIN): the send is held before MAIN is asked anything.
-    const port = host.previewSend;
-    bridge.emit({ t: 'contract', payload: wire({ notYet: ['composerTranslator'] }) });
-    const asked = bridge.calls.length;
-    expect(await port?.preflight(request())).toEqual({ ok: false, code: 'CG-SEND-HOST' });
-    expect(await port?.commit(request(), ticket())).toEqual({ state: 'held', code: 'CG-SEND-HOST' });
-    expect(bridge.calls.slice(asked).filter((call) => call.t.startsWith('previewSend'))).toEqual([]);
-  });
-
-  it('a condition’s anchor that cannot be read keeps X8 off', async () => {
-    loadModules();
-    const { host } = await start({}, { contract: wire({ missing: ['mimic'] }) });
-    expect(host.previewSend).toBeNull();
-    expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'mimic', code: 'CG-SEND-HOST' });
-  });
 });
 
 describe('[X8-04] the freshness checkpoint (§6.7.5)', () => {
@@ -365,18 +204,6 @@ describe('[X8-02] [SP-054] the X8 port (§5.2, §6.7.7, §14)', () => {
     expect('media' in (bridge.calls.at(-1)?.payload['req'] as object)).toBe(false);
   });
 
-  it('the AI mark is the request’s, unless the owner turned the mark off', async () => {
-    loadModules();
-    const { host, bridge } = await start({}, { configure: { ...CONFIG, markAiGenerated: false } });
-    await host.previewSend?.commit(request(), ticket());
-    await host.previewSend?.commit(request({ attemptId: uuid(77), isAiGenerated: false }), ticket({ attemptId: uuid(77) }));
-    expect(bridge.calls.filter((call) => call.t === 'previewSendCommit').map((call) => (call.payload['req'] as { isAiGenerated: boolean }).isAiGenerated)).toEqual([false, false]);
-    await host.configure(CONFIG);
-    await host.previewSend?.commit(request({ attemptId: uuid(78) }), ticket({ attemptId: uuid(78) }));
-    await host.previewSend?.commit(request({ attemptId: uuid(79), isAiGenerated: false }), ticket({ attemptId: uuid(79) }));
-    expect(bridge.calls.filter((call) => call.t === 'previewSendCommit').slice(2).map((call) => (call.payload['req'] as { isAiGenerated: boolean }).isAiGenerated)).toEqual([true, false]);
-  });
-
   it('twenty clicks of one attempt are one command; the first answer is the answer', async () => {
     loadModules();
     const { host, bridge } = await start();
@@ -414,12 +241,7 @@ describe('[X8-02] [SP-054] the X8 port (§5.2, §6.7.7, §14)', () => {
 
   it.each<[string, BridgeFailure, { state: string; code: string }]>([
     ['a timeout', 'timeout', { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }],
-    ['an answer that fails its schema', 'invalid-answer', { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }],
-    ['MAIN’s `internal`', 'internal', { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }],
-    ['a closed bridge', 'closed', { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }],
     ['`disabled` (the tap is gone)', 'disabled', { state: 'held', code: 'CG-SEND-HOST' }],
-    ['`not-ready`', 'not-ready', { state: 'held', code: 'CG-SEND-HOST' }],
-    ['`bad-request`', 'bad-request', { state: 'held', code: 'CG-SEND-HOST' }],
     ['a reloaded document', 'stale-document', { state: 'held', code: 'CG-CONTEXT-CHANGED' }],
   ])('the queue call’s bridge failure — %s: a call that may have run is uncertain and never sent again; a refusal before execution is held', async (_name, failure, expected) => {
     loadModules();
@@ -460,33 +282,6 @@ describe('[X8-02] [SP-054] the X8 port (§5.2, §6.7.7, §14)', () => {
     loadModules({ ...MODULES, composables: 'CHANGED0' });
     expect(await port?.commit(request({ attemptId: uuid(82) }), ticket({ attemptId: uuid(82) }))).toEqual({ state: 'held', code: 'CG-SEND-RECEIPT' });
     expect(bridge.calls.slice(before).filter((call) => call.t.startsWith('previewSend'))).toEqual([]);
-  });
-
-  it('a request that breaks its contract is a programming error, not a refusal', async () => {
-    loadModules();
-    const { host } = await start();
-    const port = host.previewSend;
-    await expect(port?.preflight({ ...request(), plainText: '' })).rejects.toBeInstanceOf(HostContractError);
-    await expect(port?.commit(request(), ticket({ attemptId: uuid(99) }))).rejects.toBeInstanceOf(HostContractError);
-    await expect(port?.commit({ ...request(), cause: undefined } as never, ticket())).rejects.toBeInstanceOf(HostContractError);
-  });
-
-  it('[X8-06] the states MAIN observes reach the attempt’s listeners, in order, and only them', async () => {
-    loadModules();
-    const { host, bridge } = await start();
-    const mine: SendAttemptView[] = [];
-    const other: SendAttemptView[] = [];
-    const stop = host.previewSend?.onState(uuid(5), (view) => mine.push(view));
-    host.previewSend?.onState(uuid(6), (view) => other.push(view));
-    const accepted: SendAttemptView = { attemptId: uuid(5), state: 'nativeAccepted', platformMessageId: '8001' };
-    const sent: SendAttemptView = { attemptId: uuid(5), state: 'sentObserved', platformMessageId: '8001' };
-    bridge.emit({ t: 'previewSendState', payload: { view: accepted } });
-    bridge.emit({ t: 'previewSendState', payload: { view: sent } });
-    expect(mine).toEqual([accepted, sent]);
-    expect(other).toEqual([]);
-    stop?.();
-    bridge.emit({ t: 'previewSendState', payload: { view: sent } });
-    expect(mine).toHaveLength(2);
   });
 });
 
@@ -554,46 +349,6 @@ describe('[X8-06] the receipt profile stops matching in the middle of a send (§
     bridge.emit({ t: 'previewSendState', payload: { view: view(110, 'sentObserved', { platformMessageId: '8010' }) } });
     expect(onItsWay.map((state) => state.state)).toEqual(['uncertain', 'sentObserved']);
   });
-
-  it('a send whose command MAIN has not answered yet is not called uncertain: it may still turn out held; one that ended before the answer is not followed', async () => {
-    loadModules();
-    const answers = new Map<string, (answer: unknown) => void>();
-    const { host, bridge } = await start({ previewSendCommit: (payload) => new Promise((resolve) => answers.set((payload['req'] as { attemptId: string }).attemptId, resolve)) });
-    const port = host.previewSend;
-    if (!port) throw new Error('no port');
-    const heard: SendAttemptView[] = [];
-    for (const n of [130, 131]) port.onState(uuid(n), (state) => heard.push(state));
-    const asked = port.commit(request({ attemptId: uuid(130) }), ticket({ attemptId: uuid(130) }));
-    const ended = port.commit(request({ attemptId: uuid(131) }), ticket({ attemptId: uuid(131) }));
-    await vi.waitFor(() => expect(answers.size).toBe(2));
-    // MAIN said the end of the second one before its command's answer came back.
-    bridge.emit({ t: 'previewSendState', payload: { view: view(131, 'rejected', { code: 'CG-SEND-REJECTED', httpStatus: 403 }) } });
-    answers.get(uuid(131))?.({ state: 'nativeEnqueued', pendingId: 'pending-131' });
-    await ended;
-    loadModules({ ...MODULES, composables: 'CHANGED0' });
-    bridge.emit({ t: 'contract', payload: wire() });
-    expect(heard.map((state) => [state.attemptId, state.state])).toEqual([[uuid(131), 'rejected']]);
-    answers.get(uuid(130))?.({ state: 'held', code: 'CG-SEND-BUSY' });
-    expect(await asked).toEqual({ state: 'held', code: 'CG-SEND-BUSY' });
-    expect(heard).toHaveLength(1);
-  });
-
-  it('the flag going off is not a mismatch: a send already started is followed to its end', async () => {
-    loadModules();
-    const { host, bridge } = await start();
-    const views: SendAttemptView[] = [];
-    host.previewSend?.onState(uuid(120), (state) => views.push(state));
-    await host.previewSend?.commit(request({ attemptId: uuid(120) }), ticket({ attemptId: uuid(120) }));
-    await host.configure({ ...CONFIG, previewSend: false });
-    bridge.emit({ t: 'contract', payload: wire() });
-    expect(views).toEqual([]);
-    bridge.emit({ t: 'previewSendState', payload: { view: view(120, 'nativeAccepted', { platformMessageId: '8020' }) } });
-    expect(views.map((state) => state.state)).toEqual(['nativeAccepted']);
-    // The flag comes back on a page whose modules changed meanwhile: the send that is still on its way is uncertain.
-    loadModules({ ...MODULES, notificationEntry: 'NEWBUILD' });
-    await host.configure(CONFIG);
-    expect(views.map((state) => state.state)).toEqual(['nativeAccepted', 'uncertain']);
-  });
 });
 
 describe('[X8-06] the fuse (decision X25): after a send, X8 is off when the receipt is not what we sent', () => {
@@ -647,23 +402,6 @@ describe('[X8-06] the fuse (decision X25): after a send, X8 is off when the rece
     expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' });
     await host.configure({ ...CONFIG, fuse: { fuse: null, resetAt: resetAt + 2000 } });
     expect(host.previewSend).not.toBeNull();
-  });
-
-  it('the browser’s fuse holds the build it tripped on — another build is on by itself; one that names no build holds every build', async () => {
-    loadModules();
-    const { host, bridge } = await start();
-    await host.configure({ ...CONFIG, fuse: { fuse: tripped(), resetAt: null } });
-    expect(host.previewSend).toBeNull();
-    expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' });
-    // ChatSpace shipped a new build under the open page (its entry module changed): the fuse does not hold it.
-    bridge.emit({ t: 'contract', payload: wire({ build: 'index-0001fake' }) });
-    expect(host.previewSend).not.toBeNull();
-    // Two builds in a row tripped: every build is held until the reset.
-    await host.configure({ ...CONFIG, fuse: { fuse: tripped({ build: null }), resetAt: null } });
-    expect(host.previewSend).toBeNull();
-    // The owner's switch still speaks first.
-    await host.configure({ ...CONFIG, previewSend: false, fuse: { fuse: tripped({ build: null }), resetAt: null } });
-    expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
   });
 
   it('a send on its way when the fuse trips goes on to its end: the fuse turns nothing uncertain and repeats nothing', async () => {

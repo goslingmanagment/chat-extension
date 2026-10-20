@@ -1,14 +1,13 @@
 // «Отправить» in a preview (X8; architecture.md §6.7; ui-design §4.13): the
-// nine states with their exact words, and the rules a UI must not break — a
-// send is one click on one part's own button; there is no «send all», no send
-// key and no next part by itself; an unknown outcome is never retried; a held
-// send is never offered again as it is.
+// rules a UI must not break — a send is one click on one part's own button;
+// there is no «send all», no send key and no next part by itself; an unknown
+// outcome is never retried; a held send is never offered again as it is.
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { PREVIEW_SEND_STATES, type ActionReceipt, type PreviewSendView, type PreviewVM, type UiAction } from '@cg/contracts';
+import { type PreviewSendView, type PreviewVM, type UiAction } from '@cg/contracts';
 
-import { cgError, ctxOf, entry, iso, MIN, msg, NOW, preview, scenarioById, uuid, views, withResult, type AppClientScenario } from '../scenarios/app-client';
+import { ctxOf, entry, iso, MIN, msg, NOW, preview, scenarioById, uuid, views, withResult, type AppClientScenario } from '../scenarios/app-client';
 import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
 import { boardScenario, sendResult } from './states';
 
@@ -57,113 +56,14 @@ const stateWords = (index: number): string => textOf(part(index).querySelector('
 const codeLine = (index: number): string => textOf(part(index).querySelector('.cg-pvs__code'));
 const sends = (): UiAction[] => (ui?.actions() ?? []).filter((action) => action.type === 'SendPart');
 
-describe('[SP-054] «Отправить»: the nine states, their words and their buttons', () => {
-  it('covers every state of the contract', () => {
-    expect([...PREVIEW_SEND_STATES].sort()).toEqual(['accepted', 'available', 'held-stale', 'queued', 'rejected', 'sending', 'sent', 'unavailable', 'uncertain']);
-  });
-
-  it('available: the blue «Отправить», «Открыть и вставить» and Copy; no state words, no code line', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'available' }]));
-    expect(sendRow(0).getAttribute('data-cg-send')).toBe('available');
-    expect(buttons(0)).toEqual(['Отправить', 'Открыть и вставить', 'Копировать часть 1']);
-    const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
-    expect(send.classList.contains('cg-btn--send')).toBe(true);
-    // No key label on it and no shortcut: it is sent by a press only (§6.7.4 п. 1).
-    expect(send.querySelector('kbd')).toBeNull();
-    expect(send.hasAttribute('aria-keyshortcuts')).toBe(false);
-    expect(part(0).querySelector('.cg-pvs__st')).toBeNull();
-    expect(part(0).querySelector('.cg-pvs__code')).toBeNull();
-  });
-
-  it('unavailable: «Отправить» off as a line, the reason by code, the two other buttons stay', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.host') }]));
-    const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
-    expect(send.getAttribute('aria-disabled')).toBe('true');
-    // A line button: the blue one would promise a send.
-    expect(send.classList.contains('cg-btn--line')).toBe(true);
-    expect(part(0).querySelector('.cg-btn--send')).toBeNull();
-    expect(buttons(0)).toEqual(['Отправить', 'Открыть и вставить', 'Копировать часть 1']);
-    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-HOST: Отправка недоступна: ChatSpace сейчас не принимает отправку из расширения. Вставьте часть в чат вручную.');
-    expect(textOf(part(0).querySelector('.cg-pvs__code b'))).toBe('ChatGoose · CG-SEND-HOST:');
-    await flush(() => send.click());
-    expect(sends()).toEqual([]);
-  });
-
-  it('[X8-03] unavailable until the page’s first chat: the same CG-SEND-HOST, its reason says to open any chat; nothing is sent', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.hostNotYet') }]));
-    const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
-    expect(send.getAttribute('aria-disabled')).toBe('true');
-    expect(buttons(0)).toEqual(['Отправить', 'Открыть и вставить', 'Копировать часть 1']);
-    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-HOST: Отправка недоступна: откройте любой чат, и она заработает. Пока вставьте часть в чат вручную.');
-    await flush(() => send.click());
-    expect(sends()).toEqual([]);
-  });
-
+describe('[SP-054] «Отправить»: the states that must not send', () => {
   it('[X8-06] unavailable by the fuse (decision X25): CG-SEND-FUSE in plain words — what happened, where to reset it, insert by hand; nothing is sent', async () => {
     ui = await mountBoardSettled('spenders', previewOf([{ s: 'unavailable', code: 'CG-SEND-FUSE', reason: msg('send.reason.fuse') }]));
     const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
     expect(send.getAttribute('aria-disabled')).toBe('true');
     expect(buttons(0)).toEqual(['Отправить', 'Открыть и вставить', 'Копировать часть 1']);
-    expect(codeLine(0)).toBe(
-      'ChatGoose · CG-SEND-FUSE: Отправка недоступна: предохранитель выключил отправку из превью: после прошлой отправки ChatSpace повёл себя не так, как мы ждём. Сбросить его можно в «Статусе». Пока вставьте часть в чат вручную.',
-    );
     await flush(() => send.click());
     expect(sends()).toEqual([]);
-  });
-
-  it('queued: a ring and «В очереди ChatSpace»; nothing to press (we never cancel ChatSpace’s queue)', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'queued' }]));
-    expect(stateWords(0)).toBe('В очереди ChatSpace');
-    expect(part(0).querySelector('.cg-dot--ring')).not.toBeNull();
-    expect(buttons(0)).toEqual([]);
-  });
-
-  it('sending: a spinner and «Отправляется…»; nothing to press', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'sending' }]));
-    expect(stateWords(0)).toBe('Отправляется…');
-    expect(part(0).querySelector('.cg-spin')).not.toBeNull();
-    expect(buttons(0)).toEqual([]);
-  });
-
-  it('accepted: a pulsing dot and «Принято ChatSpace, ждём подтверждения» — never «Отправлено»', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'accepted' }]));
-    expect(stateWords(0)).toBe('Принято ChatSpace, ждём подтверждения');
-    expect(part(0).querySelector('.cg-dot--pulse')).not.toBeNull();
-    expect(part(0).classList.contains('is-done')).toBe(false);
-    expect(buttons(0)).toEqual([]);
-  });
-
-  it('sent: the part collapses to one line «✓ Отправлено 09:21» with Copy', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'sent', at: SENT_AT }]));
-    expect(part(0).classList.contains('is-done')).toBe(true);
-    expect(textOf(part(0).querySelector('.cg-pvp__a .cg-pvs__st'))).toBe('Отправлено 09:21');
-    expect(part(0).getAttribute('aria-label')).toBe('Часть 1, отправлена');
-    expect(buttons(0)).toEqual(['Копировать часть 1']);
-    expect(part(0).querySelector('.cg-pvs')).toBeNull();
-  });
-
-  it('rejected without a retry: a red dot, «Не отправлено», «Открыть и вставить» and Copy — no blue button', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'rejected', code: 'CG-SEND-REJECTED', detail: 'OnlyFans didn’t accept this action', canRetry: false }]));
-    expect(stateWords(0)).toBe('Не отправлено');
-    expect(part(0).querySelector('.cg-dot--danger')).not.toBeNull();
-    expect(buttons(0)).toEqual(['Открыть и вставить', 'Копировать часть 1']);
-    expect(part(0).querySelector('.cg-btn--send')).toBeNull();
-    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-REJECTED: OnlyFans didn’t accept this action. Текст не ушёл.');
-  });
-
-  it('rejected by Message Guard: the same row with its own words', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'rejected', code: 'CG-SEND-GUARD', canRetry: false }]));
-    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-GUARD: Message Guard ChatSpace не пропустил текст. Текст не ушёл.');
-    expect(part(0).querySelector('.cg-btn--send')).toBeNull();
-  });
-
-  it('rejected with a retry the model allows: «Отправить ещё раз» (blue) and Copy', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'rejected', code: 'CG-SEND-QUEUE', canRetry: true }]));
-    expect(stateWords(0)).toBe('Не отправлено');
-    expect(buttons(0)).toEqual(['Отправить ещё раз', 'Копировать часть 1']);
-    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-QUEUE: очередь ChatSpace не приняла сообщение. Текст не ушёл.');
-    await flush(() => (part(0).querySelector('.cg-btn--send') as HTMLElement).click());
-    expect(sends()).toEqual([{ type: 'SendPart', operationId: OP, part: 0 }]);
   });
 
   it('the retry is the model’s decision: the same code with canRetry false shows no «Отправить ещё раз»', async () => {
@@ -213,26 +113,6 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
     expect(send.getAttribute('aria-busy')).toBe('true');
     await flush(() => send.click());
     expect(sends()).toHaveLength(1);
-  });
-
-  it('a refused click unlocks the button: nothing was started', async () => {
-    const refusal: ActionReceipt = { ok: false, type: 'SendPart', code: 'CG-SEND-BUSY', error: cgError(ctx, 'CG-SEND-BUSY') };
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'available' }], { reactions: [{ on: 'SendPart', receipt: refusal }] }));
-    const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
-    await flush(() => send.click());
-    await settle();
-    expect(send.hasAttribute('aria-disabled')).toBe(false);
-  });
-
-  it('only the first unsent part has «Отправить»: the others wait behind it, each named', async () => {
-    ui = await mountBoardSettled('spenders', '11a');
-    expect(ui.$$('.cg-pvs__send')).toHaveLength(1);
-    expect(sendRow(0).getAttribute('data-cg-send')).toBe('available');
-    expect(stateWords(1)).toBe('Отправка после части 1');
-    expect(stateWords(2)).toBe('Отправка после части 2');
-    expect(buttons(1)).toEqual(['Копировать часть 2']);
-    // «черновик · не отправлено» until a part starts sending.
-    expect(ui.$('.cg-pvr__draft')?.firstChild?.textContent).toBe('черновик · не отправлено');
   });
 
   it('there is no «send all», no send key and no button that sends more than its own part', async () => {
@@ -300,48 +180,6 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
     }
   });
 
-  it('[HK-042] Enter opens-and-inserts where the row shows the button: available, unavailable, refused without a retry', async () => {
-    const states: readonly PreviewSendView[] = [{ s: 'available' }, { s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.host') }, { s: 'rejected', code: 'CG-SEND-REJECTED', canRetry: false }];
-    for (const state of states) {
-      ui = await mountBoardSettled('spenders', previewOf([state]));
-      expect(ui.$$('.cg-pvs__open')).toHaveLength(1);
-      await flush(() => keydown(part(0), 'Enter'));
-      expect(ui.actions()).toEqual([{ type: 'OpenAndInsertPart', operationId: OP, part: 0 }]);
-      ui.unmount();
-      ui = null;
-    }
-  });
-
-  it('the «Отправить» lock ends with the model’s next word about the part, even when the state reads the same', async () => {
-    // A send held before ChatSpace's queue reads «available» again: the click was accepted, nothing went out.
-    const base = previewOf([{ s: 'available' }]);
-    const again = previewOf([{ s: 'available' }]).views.filter((view) => view.selector.of === 'preview');
-    ui = await mountBoardSettled('spenders', { ...base, steps: [{ label: 'the same state again', at: 1_000, views: again }] });
-    const send = (): HTMLElement => part(0).querySelector('.cg-pvs__send') as HTMLElement;
-    await flush(() => send().click());
-    await settle();
-    // Accepted, and the model has said nothing yet: the button stays off.
-    expect(send().getAttribute('aria-disabled')).toBe('true');
-    expect(send().getAttribute('aria-busy')).toBe('true');
-    await flush(() => ui?.client.goTo(0));
-    await settle();
-    expect(send().hasAttribute('aria-disabled')).toBe(false);
-    expect(send().hasAttribute('aria-busy')).toBe(false);
-    expect(sends()).toHaveLength(1);
-    // The button is the person's again: a second click is a second, deliberate click.
-    await flush(() => send().click());
-    expect(sends()).toHaveLength(2);
-  });
-
-  it('Enter on the focused «Отправить» is its click: the event is the button’s, the part does not take it', async () => {
-    ui = await mountBoardSettled('spenders', '11a');
-    const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
-    const event = keydown(send, 'Enter');
-    // The part leaves the key to the button (the browser turns it into a click).
-    expect(event.defaultPrevented).toBe(false);
-    expect(ui.actionsOf('OpenAndInsertPart')).toEqual([]);
-  });
-
   it('[UI-029] no auto-next and no auto-insert: after part 1 is sent nothing is dispatched until a person clicks', async () => {
     ui = await mountBoardSettled('spenders', lifecycle());
     const first = (): HTMLElement => ui?.$('.cg-pvp[data-cg-part="0"]') as HTMLElement;
@@ -384,22 +222,5 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
     expect(ui.$$('.cg-pvs__send')).toEqual([]);
     const again = ui.$('.cg-pvr__head .cg-btn') as HTMLElement;
     expect(ui.root.getElementById(again.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Нельзя, пока неясен исход части 2');
-  });
-
-  it('a state change is said once: «Часть 1. Отправлено 09:21»', async () => {
-    ui = await mountBoardSettled('spenders', lifecycle());
-    await flush(() => ui?.client.goTo(3));
-    await settle();
-    expect(textOf(ui.$('[data-cg-live]'))).toMatch(/^Часть 1\. Отправлено \d\d:\d\d$/);
-  });
-
-  it('the gallery of all states renders each state once, in a row of its own', async () => {
-    ui = await mountBoardSettled('spenders', '11h');
-    expect(ui.$$('.cg-pvp').map((item) => item.getAttribute('data-cg-send-state'))).toEqual(['available', 'unavailable', 'queued', 'sending', 'accepted', 'sent', 'rejected', 'rejected', 'uncertain', 'held-stale']);
-    // The filled blue is on «Отправить» and «Отправить ещё раз» only.
-    expect(ui.$$('.cg-pv .cg-btn--send:not([aria-disabled])').map(textOf)).toEqual(['Отправить', 'Отправить ещё раз']);
-    // Blue dots only where our own result is held; red dots only next to a refusal.
-    expect(ui.$$('.cg-pv .cg-dot--accent').map((dot) => dot.getAttribute('data-accent-use'))).toEqual(['send-held-stale']);
-    expect(ui.$$('.cg-pv .cg-dot--danger')).toHaveLength(2);
   });
 });

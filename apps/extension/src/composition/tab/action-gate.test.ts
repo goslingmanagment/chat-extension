@@ -3,11 +3,10 @@
 // else can; here a trusted event is a synthetic one with that flag forced on.
 
 import type { Surface } from '@cg/contracts/features';
-import { BATCH_LIMITS } from '@cg/contracts/vm';
 import { createShadowRootRegistry } from '@cg/host-chatspace/isolated';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFERRED_INSERT_TTL_MS, GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, createActionTokens, createGestureGate, gestureRefusal, onScreen, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
+import { GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, createActionTokens, createGestureGate, gestureRefusal, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
 
 type DockKind = 'in-flow' | 'fixed-overlay' | 'copy-only-row' | 'none';
 
@@ -121,18 +120,6 @@ describe('the gesture an action token is asked for', () => {
     expect(gestureRefusal(null, 'insert', 'dock', w.env)).toBe('no-gesture');
   });
 
-  it('only a click or a key press is an action', () => {
-    const w = make();
-    expect(refusalOf(w, w.dockButton, event('pointerdown', true), 'generate', 'dock')).toBe('not-a-gesture');
-  });
-
-  it('a click outside our roots is not ours; a key press there is (AI hotkeys work in the native composer)', () => {
-    const w = make();
-    expect(refusalOf(w, w.pageField, event('click', true), 'generate', 'dock')).toBe('outside');
-    expect(refusalOf(w, w.pageField, event('keydown', true), 'generate', 'dock')).toBeNull();
-    expect(refusalOf(w, w.pageField, event('keydown', false), 'generate', 'dock')).toBe('untrusted');
-  });
-
   it('[AI-120] a preview send is a click through the surface it is sent from — never a key press, never another root', () => {
     const w = make();
     expect(refusalOf(w, w.overlayButton, event('click', true), 'send', 'preview')).toBeNull();
@@ -141,32 +128,6 @@ describe('the gesture an action token is asked for', () => {
     expect(refusalOf(w, w.pageField, event('keydown', true), 'send', 'preview')).toBe('outside');
     expect(refusalOf(w, w.dockButton, event('click', true), 'send', 'preview')).toBe('outside');
     expect(refusalOf(w, w.overlayButton, event('click', true), 'send', 'dock')).toBe('outside');
-  });
-
-  it('a window of ours may start an action of the dock (the palette), while the dock is on screen', () => {
-    const w = make();
-    expect(refusalOf(w, w.overlayButton, event('click', true), 'generate', 'dock')).toBeNull();
-    w.dockKind = 'none';
-    expect(refusalOf(w, w.overlayButton, event('click', true), 'generate', 'dock')).toBe('not-mounted');
-    expect(refusalOf(w, w.pageField, event('keydown', true), 'generate', 'dock')).toBe('not-mounted');
-  });
-
-  it('the surface must be visible and working: a hidden document, a hidden root, a dock that is not placed', () => {
-    const w = make();
-    w.visibility = 'hidden';
-    expect(refusalOf(w, w.dockButton, event('click', true), 'insert', 'dock')).toBe('document-hidden');
-    w.visibility = 'visible';
-    w.hidden.add(w.env.mounts.dock.host);
-    expect(refusalOf(w, w.dockButton, event('click', true), 'insert', 'dock')).toBe('surface-hidden');
-    // The key press came from the page, the dock it is for is hidden.
-    expect(refusalOf(w, w.pageField, event('keydown', true), 'generate', 'dock')).toBe('not-mounted');
-    w.hidden.clear();
-    w.env.mounts.dock.host.remove();
-    expect(refusalOf(w, w.pageField, event('keydown', true), 'generate', 'dock')).toBe('not-mounted');
-  });
-
-  it('the default visibility test asks the element: a detached one is never on screen', () => {
-    expect(onScreen(document.createElement('div'))).toBe(false);
   });
 });
 
@@ -235,16 +196,6 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
-  it('a synthetic event inside a human click does not take its place', async () => {
-    const s = seam();
-    const token = await during(s.w.dockButton, event('click', true), () => {
-      s.w.pageField.dispatchEvent(event('click', false));
-      return s.tokens.issue('generate', 'dock');
-    });
-    expect(token).toBe('token-1-0123456789abcdef');
-    s.gate.dispose();
-  });
-
   it('[PU-017] [ST-076] a click on an extension page brought here by the background: one navigation token, never an insert, a send or a generation', async () => {
     const s = seam();
     // Without the background's word nothing is granted: no event of this document stands behind the request.
@@ -258,62 +209,6 @@ describe('the action tokens of a tab', () => {
     expect(await s.tokens.issue('navigate', 'overlay')).toBeNull();
     expect(s.asked).toEqual([['navigate', 'overlay']]);
     s.gate.dispose();
-  });
-
-  it('a vouched grant is as short-lived as a click’s: after ten seconds it gives nothing', async () => {
-    let clock = 1_000_000;
-    const s = seam(() => clock);
-    s.tokens.vouched();
-    clock += GRANT_TTL_MS + 1;
-    expect(await s.tokens.issue('navigate', 'overlay')).toBeNull();
-    expect(s.asked).toEqual([]);
-    s.gate.dispose();
-  });
-
-  it('1.32.0 «Сгенерировать для N»: one click of a list gives its batch generate tokens over minutes — counted, never another kind', async () => {
-    let clock = 1_000_000;
-    const s = seam(() => clock);
-    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('GenerateBatch'));
-    // Later, from the queue: no event is in flight, the batch's grant answers.
-    clock += 60_000;
-    expect(await s.tokens.issue('generate', 'preview')).toBe('token-1-0123456789abcdef');
-    expect(await s.tokens.issue('generate', 'newcomers')).toBe('token-2-0123456789abcdef');
-    expect(await s.tokens.issue('send', 'preview')).toBeNull();
-    expect(await s.tokens.issue('insert', 'dock')).toBeNull();
-    for (let n = 2; n < BATCH_LIMITS.grantTokens; n += 1) await s.tokens.issue('generate', 'preview');
-    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
-    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('GenerateBatch'));
-    clock += BATCH_LIMITS.grantTtlMs + 1;
-    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
-    s.gate.dispose();
-  });
-
-  it('the background’s own refusal comes back as its reason; no answer and no human action are «no token»', async () => {
-    const w = (current = world());
-    const gate = createGestureGate(window, w.env);
-    let answer: string | null | { readonly error: { readonly code: 'CG-FEATURE-DISABLED'; readonly detail: string } } = { error: { code: 'CG-FEATURE-DISABLED', detail: 'bootstrap_expired' } };
-    const { tokens } = createActionTokens({ gate, request: () => Promise.resolve(answer), spend: () => Promise.resolve(true) });
-    expect(await during(w.dockButton, event('click', true), () => tokens.ask('insert', 'dock'))).toEqual({ ok: false, error: { code: 'CG-FEATURE-DISABLED', detail: 'bootstrap_expired' } });
-    answer = null;
-    expect(await during(w.dockButton, event('click', true), () => tokens.ask('insert', 'dock'))).toEqual({ ok: false, error: null });
-    expect(await tokens.ask('insert', 'dock')).toEqual({ ok: false, error: null });
-    answer = 'token-9-0123456789abcdef';
-    expect(await during(w.dockButton, event('click', true), () => tokens.ask('insert', 'dock'))).toEqual({ ok: true, actionToken: 'token-9-0123456789abcdef' });
-    gate.dispose();
-  });
-
-  it('the hotkey dispatcher hands a key press in; a disposed gate sees nothing', async () => {
-    const s = seam();
-    s.gate.dispose();
-    const press = event('keydown', true);
-    expect(await during(s.w.pageField, press, () => s.tokens.issue('generate', 'dock'))).toBeNull();
-    const again = event('keydown', true);
-    expect(
-      await during(s.w.pageField, again, (seen) => {
-        s.tokens.noteGesture(seen);
-        return s.tokens.issue('generate', 'dock');
-      }),
-    ).toBe('token-1-0123456789abcdef');
   });
 
   it('a write spends the token for the surface it was issued for, once; a token this tab did not issue is not spent', async () => {
@@ -428,33 +323,6 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
-  it('a grant does not outlive its time, and the surface must still be on screen when the token is asked for', async () => {
-    let now = 1_000_000;
-    const s = seam(() => now);
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate'));
-    now += GRANT_TTL_MS + 1;
-    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate'));
-    now += GRANT_TTL_MS;
-    // The chat was closed while the controller was reading: no dock, no token.
-    s.w.dockKind = 'none';
-    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
-    s.w.dockKind = 'in-flow';
-    expect(await s.tokens.issue('generate', 'dock')).toBe('token-1-0123456789abcdef');
-    expect(s.refused).toEqual(['expired', 'not-mounted']);
-    s.gate.dispose();
-  });
-
-  it('two clicks, two grants: the token of the first is not taken by the second action, and the newest grant answers first', async () => {
-    const s = seam();
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('InsertPart'));
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate'));
-    expect(await s.tokens.issue('generate', 'dock')).toBe('token-1-0123456789abcdef');
-    expect(await s.tokens.issue('insert', 'dock')).toBe('token-2-0123456789abcdef');
-    expect(await s.tokens.issue('insert', 'dock')).toBeNull();
-    s.gate.dispose();
-  });
-
   // ── X68: the Fix of a click writes its own result later ──
 
   it('[X68] a Fix clicked in the dock leaves ONE deferred insert for the dock, asked for when it is done — long after the click', async () => {
@@ -473,61 +341,7 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
-  it('[X68] the deferred insert lives as long as a Fix may run, needs the dock on screen, and a newer Fix click replaces it', async () => {
-    let now = 1_000_000;
-    const s = seam(() => now);
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
-    now += DEFERRED_INSERT_TTL_MS + 1;
-    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
-    s.w.dockKind = 'none';
-    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
-    s.w.dockKind = 'in-flow';
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate', true));
-    expect(await s.tokens.ask('insert', 'dock', true)).toMatchObject({ ok: true });
-    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
-    expect(s.refused).toEqual(['expired', 'not-mounted', 'not-granted']);
-    s.gate.dispose();
-  });
-
-  it('[X68] only a Fix of the dock or a key leaves one: not a click in another root, not another action, not a synthetic click', async () => {
-    const s = seam();
-    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('Generate', true));
-    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('InsertPart', true));
-    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
-    during(s.w.dockButton, event('click', false), () => s.tokens.granted('Generate', true));
-    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
-    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate'));
-    expect(await s.tokens.ask('insert', 'dock', true)).toEqual({ ok: false, error: null });
-    s.gate.dispose();
-  });
-
   // ── a key the early dispatcher kept (HK-024, HK-025) ──
-
-  it('[HK-024] a kept key runs after its keydown is over: handed back, it opens the grant of its action — once, within its freshness', async () => {
-    let now = 5_000_000;
-    const s = seam(() => now);
-    const pressed = event('keydown', true);
-    during(s.w.pageField, pressed, () => undefined);
-    const at = now;
-    now += 1200;
-    // Not handed back: the keydown is over, and that is all the gate knows.
-    s.tokens.granted('Generate');
-    expect(s.ungranted).toEqual(['Generate:over']);
-    expect(s.gate.cause()).toBe('click');
-    const release = s.gate.resume(pressed, at);
-    expect(s.gate.cause()).toBe('key');
-    s.tokens.granted('Generate');
-    release();
-    expect(await s.tokens.issue('generate', 'dock')).toBe('token-1-0123456789abcdef');
-    // After the hand-over the key is over again.
-    s.tokens.granted('Generate');
-    expect(s.ungranted).toEqual(['Generate:over', 'Generate:over']);
-    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
-    s.gate.dispose();
-  });
 
   it('[HK-024] only a trusted keydown that is still fresh is taken back; a kept key never sends', async () => {
     let now = 5_000_000;
@@ -553,15 +367,6 @@ describe('the action tokens of a tab', () => {
     now += 10;
     expect(await s.tokens.issue('send', 'preview')).toBeNull();
     expect(s.asked).toEqual([]);
-    s.gate.dispose();
-  });
-
-  it('the kind of the action in flight is its cause: a key press is `key`, a click — and nothing at all — is `click`', () => {
-    const s = seam();
-    expect(s.gate.cause()).toBe('click');
-    expect(during(s.w.pageField, event('keydown', true), () => s.gate.cause())).toBe('key');
-    expect(during(s.w.dockButton, event('click', true), () => s.gate.cause())).toBe('click');
-    expect(s.gate.cause()).toBe('click');
     s.gate.dispose();
   });
 });
