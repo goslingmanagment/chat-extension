@@ -29,6 +29,8 @@ export default defineConfig({
           environment: 'happy-dom',
           include: ['packages/*/src/**/*.dom.test.ts', 'packages/*/src/**/*.test.tsx', 'apps/extension/src/**/*.test.ts'],
           exclude: ['**/node_modules/**'],
+          // Vitest's 5 s default timed out a render test on a loaded CI runner; a hung test still fails, later.
+          testTimeout: 30_000,
         },
       },
     ],
