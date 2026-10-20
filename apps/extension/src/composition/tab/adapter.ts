@@ -36,7 +36,7 @@ import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendFuseState } from '@cg/contracts/send';
 import type { FanPanelVM, FocusPlace, I18n, HostUiProfile, MountDeps } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
-import type { DispatcherCommandId, HotkeyClient, RouteKind } from '@cg/core/domain/hotkeys';
+import type { DispatcherCommandId, HotkeyClient, RouteKind, SiteKeyRules } from '@cg/core/domain/hotkeys';
 import type { TabPayloadValidator, TabRpcClient } from '@cg/platform';
 import type { KitFailure } from '@cg/ui/kit';
 
@@ -173,6 +173,8 @@ export interface HostAdapter<P extends HostPort = HostPort> {
    * site's profile the early dispatcher reads, so it is the early half's.
    */
   readonly hotkeyClient: HotkeyClient;
+  /** Where the site's keys depart from the shared rules (the early dispatcher's policy, the catalog). Absent — nowhere (ChatSpace). */
+  readonly keyRules?: SiteKeyRules;
   readonly lazy: HostLazyPlan;
 }
 

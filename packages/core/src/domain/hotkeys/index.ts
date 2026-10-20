@@ -28,7 +28,6 @@ export {
 } from './keymap';
 export { createKeyResolver, isImeKey, type KeyResolver, type KeyVerdict } from './resolver';
 export {
-  CHATSPACE_ROWS,
   COVERING_OVERLAYS,
   FOCUS_KINDS,
   GENERATION_COMMANDS,
@@ -48,6 +47,7 @@ export {
   type KeyRefusal,
   type OverlayKind,
   type RouteKind,
+  type SiteKeyRules,
 } from './policy';
 export { DELIVERY, DELIVERY_KEYS, deliveryOf, type DeliveryKey, type DeliveryOverrides } from './delivery';
 export { createActionCatalog, isOutsideScheme, printableHotkey, type CatalogOptions } from './catalog';

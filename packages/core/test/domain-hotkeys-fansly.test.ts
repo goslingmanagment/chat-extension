@@ -2,7 +2,7 @@
 // a window of Fansly or FBuddy, AI keys in any field, a generation over the «Развернуть ↗» window, ⌘⇧H as Coach,
 // ChatSpace's rows left to the page — while ChatSpace keeps every decision it had.
 
-import { decideKey, type DispatcherCommandId, type KeyContext, type KeyDecision, type KeyVerdict } from '@cg/core/domain/hotkeys';
+import { decideKey, type DispatcherCommandId, type KeyContext, type KeyDecision, type KeyVerdict, type SiteKeyRules } from '@cg/core/domain/hotkeys';
 import { describe, expect, it } from 'vitest';
 
 const key = (command: DispatcherCommandId, row: 'scheme' | 'extra' | 'plain' = 'scheme'): KeyVerdict => ({
@@ -14,6 +14,9 @@ const key = (command: DispatcherCommandId, row: 'scheme' | 'extra' | 'plain' = '
   plain: row === 'plain',
   fallback: false,
 });
+
+/** Fansly's rules as its adapter gives them (apps/extension/src/entrypoints/fansly.ts). */
+const FANSLY: SiteKeyRules = { lenient: true, absent: ['palette', 'chat-next', 'chat-previous', 'next-unread', 'quick-jump'] };
 
 const BASE: KeyContext = { composing: false, nativeModal: false, focus: 'page', route: 'chat', overlays: [], dockSheet: false, combo: true };
 
@@ -41,9 +44,8 @@ describe('the key policy on Fansly', () => {
       ['⌘U in the message field', key('next-unread', 'extra'), { focus: 'composer' }, 'pass', 'refuse in-field'],
     ];
     for (const [what, verdict, page, fansly, chatspace] of cases) {
-      expect(said(decideKey(verdict, { ...BASE, ...page, client: 'fansly' })), `Fansly: ${what}`).toBe(fansly);
-      expect(said(decideKey(verdict, { ...BASE, ...page, client: 'extension' })), `ChatSpace: ${what}`).toBe(chatspace);
-      expect(said(decideKey(verdict, { ...BASE, ...page })), `no client: ${what}`).toBe(chatspace);
+      expect(said(decideKey(verdict, { ...BASE, ...page, rules: FANSLY })), `Fansly: ${what}`).toBe(fansly);
+      expect(said(decideKey(verdict, { ...BASE, ...page })), `ChatSpace: ${what}`).toBe(chatspace);
     }
   });
 });

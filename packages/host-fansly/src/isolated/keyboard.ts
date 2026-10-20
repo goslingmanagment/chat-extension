@@ -15,7 +15,7 @@
 //   focus is inside one of the neighbour's hosts (`fb-<feature>-ui`, FBuddy's
 //   shadow-root UI: its panel, its notes, its toasts), Esc and plain letters
 //   are that window's. A combination of ours still runs over it, as in the old
-//   Fansly extension (the policy's `fansly` client; ⌘↵ excepted) — the window
+//   Fansly extension (the adapter's lenient `keyRules`; ⌘↵ excepted) — the window
 //   is not ours to close, so «закройте окно» would be no answer. FBuddy's
 //   roots are open but its own: we never read inside them — the focus behind
 //   a host is enough, as `document.activeElement` names the outermost host;

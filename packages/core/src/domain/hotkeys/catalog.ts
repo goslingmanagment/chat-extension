@@ -9,7 +9,7 @@ import { type I18nKey } from '@cg/contracts/errors';
 import { CATALOG_ACTION_IDS, UNAVAILABLE_REASONS, type ActionCatalog, type ActionCatalogEntry, type CatalogActionId, type HotkeyLabel, type HotkeyPlatform, type HotkeyScope, type Msg, type ReasonVM } from '@cg/contracts/vm';
 
 import { deliveryOf, type DeliveryKey, type DeliveryOverrides } from './delivery';
-import { EXTRA_KEYS, printExtraKey, printSchemeKey, type DispatcherCommandId, type ExtraKeyDef, type HotkeyAction, type HotkeyClient, type KeyPrint } from './keymap';
+import { EXTRA_KEYS, printExtraKey, printSchemeKey, type DispatcherCommandId, type ExtraKeyDef, type HotkeyAction, type KeyPrint } from './keymap';
 
 /** A scheme action this client runs: the scheme also carries rows of other
  * clients (the Fansly extension's Notes), never a row of this catalog. */
@@ -69,7 +69,7 @@ const ROWS: Readonly<Record<CatalogActionId, Row>> = {
   'apply-fix': { label: 'cheatsheet.row.applyFix', tooltip: null, scope: 'result', status: 'active', key: extra('apply-fix') },
 };
 
-/** ⌘⇧H on Fansly: the old extension's Help key, Coach with «разбор ситуации» (the runner's `help`); only its button is removed (Б3). */
+/** ⌘⇧H on a lenient site (Fansly): the old extension's Help key, Coach with «разбор ситуации» (the runner's `help`); only its button is removed (Б3). */
 const HELP_KEY: Row = { ...ROWS.help, tooltip: null, status: 'active' };
 
 const extraDef = (command: DispatcherCommandId, fallback: boolean): ExtraKeyDef | undefined => EXTRA_KEYS.find((def) => def.command === command && def.fallback === fallback);
@@ -94,14 +94,14 @@ function labelOf(row: Row, platform: HotkeyPlatform, overrides: DeliveryOverride
 export interface CatalogOptions {
   /** Measured delivery (docs/hotkeys-delivery.md) that differs from the built-in table. */
   readonly delivery?: DeliveryOverrides;
-  /** The site's client of the key scheme: on `fansly` ⌘⇧H works (Coach with «разбор ситуации»). Absent — a page that speaks for every site. */
-  readonly client?: HotkeyClient;
+  /** ⌘⇧H works on this site (its key rules are lenient): Coach with «разбор ситуации». Absent — the key is removed (Б3). */
+  readonly helpKey?: boolean;
 }
 
 export function createActionCatalog(platform: HotkeyPlatform, options: CatalogOptions = {}): ActionCatalog {
   const overrides = options.delivery ?? {};
   const entries: readonly ActionCatalogEntry[] = CATALOG_ACTION_IDS.map((id) => {
-    const row = id === 'help' && options.client === 'fansly' ? HELP_KEY : ROWS[id];
+    const row = id === 'help' && options.helpKey === true ? HELP_KEY : ROWS[id];
     return { id, label: row.label, tooltip: row.tooltip, hotkey: labelOf(row, platform, overrides), scope: row.scope, status: row.status };
   });
   const byId = new Map(entries.map((entry) => [entry.id, entry]));

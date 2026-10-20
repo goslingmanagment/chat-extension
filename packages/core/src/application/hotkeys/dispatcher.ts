@@ -54,6 +54,7 @@ import {
   type KeyResolver,
   type OverlayKind,
   type RouteKind,
+  type SiteKeyRules,
 } from '../../domain/hotkeys';
 
 /** The part of a DOM KeyboardEvent the dispatcher reads and calls. */
@@ -156,6 +157,8 @@ export interface EarlyKeyDispatcherOptions {
   readonly platform: HotkeyPlatform;
   /** The site's client of the vendored key scheme (`HostAdapter.hotkeyClient`): ChatSpace `extension`, Fansly `fansly`. */
   readonly client: HotkeyClient;
+  /** Where the site's keys depart from the shared rules (`HostAdapter.keyRules`); omitted — nowhere. */
+  readonly rules?: SiteKeyRules;
   /** `window`: keydown and keyup in capture, blur. */
   readonly window: EventSourceLike;
   /**
@@ -347,7 +350,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     combo: isComboLike(event),
     inDock: ownership.focusInDock?.() ?? false,
     fix: state.fix?.() ?? null,
-    client: options.client,
+    ...(options.rules === undefined ? {} : { rules: options.rules }),
   });
 
   /** Alt went down alone, outside any field, with the chat list on screen: the quick jump may open. */
@@ -355,8 +358,8 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     // Windows repeats a held modifier as keydowns (from 250 ms on, at its shortest delay): the hold goes on, nothing restarts.
     if (event.repeat === true) return;
     cancelHold();
-    // The quick jump is ChatSpace's: on Fansly a held Alt is nobody's.
-    if (!servesRow('quick-jump', options.client)) return;
+    // A site without the quick jump: a held Alt is nobody's.
+    if (!servesRow('quick-jump', options.rules)) return;
     if (sink === null || quickJumpOpen || !resolver.jumpHeldAlone()) return;
     // Cheapest checks first: in a field Option types characters on macOS.
     const focus = ownership.focus(event);

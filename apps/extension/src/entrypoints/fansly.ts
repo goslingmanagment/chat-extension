@@ -49,6 +49,10 @@ export const FANSLY_ADAPTER: HostAdapter<FanslyPort> = {
   routeOfLocation,
   // The vendored scheme's rows of the Fansly extension, Notes (⌘⇧K) among them (§1.5).
   hotkeyClient: 'fansly',
+  // The old Fansly extension's ways (audit 2026-10-20, regression 10): our combinations over its modals and FBuddy, AI
+  // keys in any field, a generation over the «Развернуть ↗» window, ⌘⇧H as Coach. Fansly's slice has no `palette` and
+  // no `navigation`: ⌘K, J/K, ⌘U and Alt+1–9 stay the page's and Firefox's, as the old extension left them.
+  keyRules: { lenient: true, absent: ['palette', 'chat-next', 'chat-previous', 'next-unread', 'quick-jump'] },
   // Fansly's own lazy build (lazy/fansly/, §3.2).
   lazy: { root: FANSLY_LAZY_ROOT },
 };

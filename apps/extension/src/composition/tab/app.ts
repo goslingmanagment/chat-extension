@@ -298,7 +298,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
 
   // ── ports every controller and every surface gets ──────────────────────────
   const clock: TabClock = { now: () => Date.now(), setTimer: (ms, fn) => win.setTimeout(fn, ms), clearTimer: (handle) => win.clearTimeout(handle as number) };
-  const catalog = navigationChunk.createActionCatalog(keys.platform, { client: keys.client });
+  const catalog = navigationChunk.createActionCatalog(keys.platform, { helpKey: keys.rules.lenient === true });
   const toasts = dockChunk.createToastHost();
   offs.push(() => toasts.dispose());
   // While a side panel is open the toasts stand left of it, never over its header (tab/panel-geometry.ts): they move
