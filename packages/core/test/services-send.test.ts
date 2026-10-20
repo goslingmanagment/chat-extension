@@ -25,7 +25,7 @@ import {
 } from '@cg/contracts';
 import { type OpsEnvironment } from '@cg/core/domain/ops';
 import { ActionTokens, LATE_PAIR_LISTEN_MS, PreviewSendDriver, type BackgroundSendPort, type SendClick } from '@cg/core/services';
-import { SendCoordinator, SendFuseKeeper } from '@cg/core/services/custody';
+import { SendCoordinator } from '@cg/core/services/custody';
 import { FakeHostPort, memory, startSnapshot } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, resolveHubErrorReference } from '@cg/testing/hub';
 
@@ -100,7 +100,7 @@ interface SendHarness {
   begin(over?: Partial<SendBegin>): SendBegin;
 }
 
-function sendHarness(over: { clock?: FakeClock; store?: MemoryStore; hub?: FakeHub; fuse?: SendFuseKeeper } = {}): SendHarness {
+function sendHarness(over: { clock?: FakeClock; store?: MemoryStore; hub?: FakeHub } = {}): SendHarness {
   const clock = over.clock ?? new FakeClock(NOW_MS);
   const hub = over.hub ?? new FakeHub(clock);
   const store = over.store ?? new MemoryStore();
@@ -159,7 +159,6 @@ function sendHarness(over: { clock?: FakeClock; store?: MemoryStore; hub?: FakeH
     instanceId: WORLD.instanceId,
     log,
     onSent: (fact) => sent.push(fact),
-    ...(over.fuse === undefined ? {} : { fuse: over.fuse }),
   });
   return h;
 }
@@ -992,29 +991,6 @@ describe('[X8-08] [X8-09] [NF-019] the coordinator against the shared hub claim 
     expect(held.length).toBe(7);
     for (const row of held) expect(row.code).toBe(row.expected);
     expect(hub.offScript).toEqual([]);
-  });
-});
-
-describe('[X8-06] the fuse of the browser (decision X25) in the coordinator', () => {
-  const BUILD = 'index-p8xPkCj8';
-  const fused = async (clock: FakeClock, build: string | null = BUILD): Promise<SendFuseKeeper> => {
-    const fuse = new SendFuseKeeper({ clock, store: new MemoryStore(), events: new EventLog() });
-    await fuse.trip({ reason: 'text', where: 'echo', attemptId: uuid(0x4ff), build });
-    return fuse;
-  };
-
-  it('while it holds the tab’s build, a click is held with CG-SEND-FUSE before the journal and the hub — nothing is dispatched; a tab of another build goes on', async () => {
-    const clock = new FakeClock(NOW_MS);
-    const h = sendHarness({ clock, fuse: await fused(clock) });
-    expect(await h.coordinator.begin(TAB, h.begin({ hostBuild: BUILD }))).toEqual({ ok: false, view: { attemptId: A, state: 'held', code: 'CG-SEND-FUSE' } });
-    // A tab that does not say its build (before 1.11.0) is held too.
-    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502) }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-FUSE' } });
-    expect(h.hub.claims).toEqual([]);
-    expect(h.store.data.get(STORAGE_KEYS.sendJournal)).toBeUndefined();
-    expect(h.log.entries.some((entry) => entry.code === 'CG-SEND-FUSE' && entry.msg === 'send held before dispatch')).toBe(true);
-    // ChatSpace shipped another build: the fuse does not hold it, the same part may be sent by a new click.
-    h.hub.claimScript.push(ticketFor(uuid(0x503)));
-    expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503), hostBuild: 'index-Q9yRlDk9' }))).ok).toBe(true);
   });
 });
 

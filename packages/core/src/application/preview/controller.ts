@@ -60,7 +60,7 @@ import { digestHex } from '../../domain/ops/digest';
 import { applyOpDone, applyOpUpdate, mirrorFromView, newMirror, type OpMirror } from '../../domain/ops/mirror';
 import { messageWindowFor } from '../../domain/ops/request';
 import { isTerminalOpState } from '../../domain/ops/states';
-import { previewSendFused, previewSendWaitsForChat } from '../../domain/host';
+import { previewSendWaitsForChat } from '../../domain/host';
 import { attemptReachable } from '../../domain/send/attempt';
 import { servedContextHold } from '../../domain/send/freshness';
 import { archiveLag, feedRows, firstFeedPage, keepFeed, olderFeedPage, type FeedState, type KeptFeed } from '../../domain/spenders/feed';
@@ -1078,8 +1078,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (identityChanged(track)) return refusal('CG-CONTEXT-CHANGED');
     if (!pageFlag(ctx, 'previewSend') || (track.source === 'newcomers' && !pageFlag(ctx, 'newcomers'))) return refusal('CG-SEND-OFF');
     if ((ctx.bootstrap?.limits.previewSendReceiptProfiles.length ?? 0) === 0) return refusal('CG-SEND-RECEIPT');
-    // The fuse of this browser (decision X25) says its own words; any other host refusal is the host's.
-    if (host.previewSend === null) return refusal(previewSendFused(host.current().contract) ? 'CG-SEND-FUSE' : 'CG-SEND-HOST');
+    if (host.previewSend === null) return refusal('CG-SEND-HOST');
     const route = host.current().route;
     if (route.chat !== null && chatKeyOf(route.chat) === chatKeyOf(track.target.chat)) return refusal('CG-SEND-ACTIVE-CHAT');
     // No subscription check of ours (2026-10-20 audit, row 16): OnlyFans refuses a fan who left, and MAIN refuses what the page knows forbids.

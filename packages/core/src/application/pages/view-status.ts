@@ -14,13 +14,11 @@ import { type HostKind } from '@cg/contracts/hosts';
 import { chatKeyOf } from '@cg/contracts/ids';
 import { type OpView } from '@cg/contracts/ops';
 import { type ClientFeatureFlag } from '@cg/contracts/hub';
-import { type SendFuse } from '@cg/contracts/send';
 import { type DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
-import { SEND_FUSE_UNCERTAIN_RUN, sendFuseHolds, type SendFuseReason } from '@cg/contracts/send-rules';
 import { type I18nPlainParams, type I18nTextKey } from '@cg/contracts/i18n/catalog';
 import { type I18n, type Msg, type RunningOpVM, type StatusBodyVM, type StatusRowVM, type UiAction } from '@cg/contracts/vm';
 
-import { anchorGap, anchorsNotYet, expectedAnchors, previewSendFused, previewSendWaitsForChat, receiptMatchOf, siteCapabilitiesOf } from '../../domain/host';
+import { anchorGap, anchorsNotYet, expectedAnchors, previewSendWaitsForChat, receiptMatchOf, siteCapabilitiesOf } from '../../domain/host';
 import { flagStateOf, somePageFlagState, type FlagState } from '../../domain/ops/flags';
 import { flagReasonVm } from '../flag-reason';
 
@@ -385,27 +383,6 @@ function notes(model: PagesModel, first: PlainNote | null, second: PlainNote | n
   return `${model.t.text(first.key, first.params)} ${model.t.text(second.key, second.params)}`;
 }
 
-/** The reason of a tripped X8 fuse in plain words (decision X25). */
-const FUSE_REASON_KEYS = {
-  text: 'settings.status.fuse.reason.text',
-  count: 'settings.status.fuse.reason.count',
-  target: 'settings.status.fuse.reason.target',
-  uncertain: 'settings.status.fuse.reason.uncertain',
-} as const satisfies Record<SendFuseReason, string>;
-
-/**
- * The X8 fuse that holds the preview send off for the person (decision X25): the browser's fuse, when it holds the
- * build of the tab in front of them (no tab: whatever it holds), or a trip a tab's host reports before the
- * background has heard of it. `fuse` — what the background keeps (null — it has not heard yet).
- */
-export function fusedNow(model: PagesModel): { readonly fuse: SendFuse | null } | null {
-  const fuse = valueOf(model.diagnostics)?.sendFuse?.fuse ?? null;
-  const report = hostReportOf(model)?.report ?? null;
-  if (report !== null && previewSendFused(report)) return { fuse };
-  if (fuse !== null && (report === null || sendFuseHolds(fuse, report.build))) return { fuse };
-  return null;
-}
-
 /**
  * An owner switch as «Статус» reads it (docs/protocols/hub.md «Флаги: решает страница»): the feature of the
  * page the account in front of the person is bound to; with no such page — whether it is usable on at least one
@@ -423,7 +400,7 @@ export function statusFlag(model: PagesModel, flag: ClientFeatureFlag): FlagStat
 /**
  * «Отправка из превью» (X8): off; on — and on what (1.11.0, decision X25): a reviewed ChatSpace build (an exact
  * receipt profile) or a build nobody reviewed (the hub's «any build» sentinel), as the tab in front of the person
- * reports it; or off by the fuse, with why, when, on which build, and «Сбросить предохранитель».
+ * reports it. The fuse of decision X25 holds nothing since 2026-10-21 (restrictions, item 4).
  */
 function previewSendRow(model: PagesModel): StatusRowVM | null {
   const bootstrap = valueOf(model.bootstrap);
@@ -434,20 +411,6 @@ function previewSendRow(model: PagesModel): StatusRowVM | null {
   const counts: PlainNote | null = sends === null ? null : { key: 'settings.status.row.previewSendNote', params: { open: sends.open, uncertain: sends.uncertain } };
   const level = sends !== null && sends.uncertain > 0 ? 'warn' : 'ok';
   if (!on) return row('preview-send', level, msg('settings.status.row.previewSendOff'), notes(model, counts, null));
-  const fused = fusedNow(model);
-  if (fused !== null) {
-    // Why, when and on which build it tripped; null — the tab tripped it and the background has not heard yet.
-    const fuse = fused.fuse;
-    const why =
-      fuse === null
-        ? null
-        : msg(fuse.build === null ? 'settings.status.row.previewSendFusedEveryNote' : 'settings.status.row.previewSendFusedNote', {
-            reason: model.t.text(FUSE_REASON_KEYS[fuse.reason], { n: SEND_FUSE_UNCERTAIN_RUN }),
-            time: { time: fuse.trippedAt, style: 'datetime' },
-            build: fuse.build ?? '—',
-          });
-    return row('preview-send', 'warn', msg('settings.status.row.previewSendFused'), why, button('settings.status.fuse.reset', { type: 'ResetSendFuse' }));
-  }
   const report = hostReportOf(model)?.report ?? null;
   const match = report === null ? null : receiptMatchOf(report);
   if (match?.kind === 'anyBuild') {
@@ -528,8 +491,6 @@ export function readinessOf(model: PagesModel, rows: readonly StatusRowVM[]): St
   if (quota?.level === 'warn') warnings.push(msg(pageQuotas(model).some((entry) => entry.remaining === 0) ? 'settings.status.warning.quotaZero' : 'settings.status.warning.quotaLow'));
   const sends = valueOf(model.diagnostics)?.sends ?? null;
   if (sends !== null && sends.uncertain > 0) warnings.push(msg('settings.status.warning.sendUncertain'));
-  // The preview send is switched on, but the fuse holds it off (decision X25).
-  if (rows.find((entry) => entry.id === 'preview-send')?.action?.action.type === 'ResetSendFuse') warnings.push(msg('settings.status.warning.sendFused'));
   const needed = required.filter((entry) => entry.level === 'error' || entry.level === 'warn');
   // A partly checked site still works through «Копировать»: a warning, not a blocker (one, however many sites).
   const partial = required.filter((entry) => entry.id === 'host' && entry.level === 'warn' && entry.host !== undefined && (hostReportOf(model, entry.host)?.tabs ?? 0) > 0).length;

@@ -27,11 +27,9 @@
 // and the part is never offered for a second send — and that is all: no
 // ticket, no lock, no custody report (`nativeSent`).
 //
-// The X8 fuse of the browser (decision X25, send-fuse.ts) is one more of the
-// background's conditions: while it holds the tab's ChatSpace build
-// (`SendBegin.hostBuild`), a click is held with CG-SEND-FUSE before the
-// journal and the hub. Every move of an attempt is told to it: a run of
-// unknown outcomes trips it too.
+// The X8 fuse of the browser (decision X25) holds nothing any more (2026-10-20
+// restrictions, item 4: «забить, пока не сломается»): what MAIN sees after a
+// send is logged and counted (send-fuse.ts), no click is held for it.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
@@ -138,8 +136,6 @@ export interface SendCoordinatorDeps {
   }) => void;
   /** How long an ended attempt is kept (memory and journal); the results' lifetime by default. */
   readonly keepEndedMs?: number;
-  /** The X8 fuse of this browser (decision X25): whether it holds a build, and every move of an attempt. */
-  readonly fuse?: { holds(build: string | null | undefined): boolean; outcome(change: { readonly state: SendAttemptView['state']; readonly restored: boolean; readonly build: string | null | undefined }): void };
 }
 
 interface Attempt {
@@ -286,8 +282,8 @@ export class SendCoordinator {
       return this.holdLocal(attempt, 'CG-SEND-PART');
     }
 
-    // 1–4, 14 — the background's own conditions; the fuse is the tab's build's.
-    const condition = beginCondition(begin, this.opForSend(begin.opId), { ...this.gateOf(env, page, begin.target.binding.pageId), fused: this.deps.fuse?.holds(begin.hostBuild) ?? false });
+    // 1–4, 14 — the background's own conditions.
+    const condition = beginCondition(begin, this.opForSend(begin.opId), this.gateOf(env, page, begin.target.binding.pageId));
     if (condition !== null) return this.holdLocal(attempt, condition);
 
     // Group rules and the fan lock (one attempt at a time per fan).
@@ -628,7 +624,6 @@ export class SendCoordinator {
     }
     if (!holdsLock(state)) this.locks.release(attempt.lockKey, track.view.attemptId);
     if (state !== before) this.armSilence(attempt);
-    if (state !== before) this.deps.fuse?.outcome({ state, restored: attempt.restored, build: attempt.hostBuild });
     this.log.write({
       level: state === 'uncertain' || state === 'rejected' ? 'warn' : 'info',
       scope: 'bg.send',

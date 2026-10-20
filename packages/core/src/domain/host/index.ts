@@ -53,14 +53,6 @@ export function previewSendWaitsForChat(report: HostContractReport): boolean {
   return contractAnchorsOf(report)[anchor] === 'notYet';
 }
 
-/**
- * The X8 fuse (decision X25) keeps the preview send off in this tab: its host says CG-SEND-FUSE — the browser's fuse
- * holds this build, or MAIN tripped it in this document.
- */
-export function previewSendFused(report: HostContractReport): boolean {
-  return report.capabilities.previewSend.code === 'CG-SEND-FUSE';
-}
-
 /** A site's own capabilities beyond the shared ones (the block of its report); none for ChatSpace. */
 export function siteCapabilitiesOf(report: HostContractReport): Readonly<Record<string, CapabilityState>> {
   return 'extensions' in report ? (report.extensions[report.host]?.capabilities ?? {}) : {};

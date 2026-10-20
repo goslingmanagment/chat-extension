@@ -47,9 +47,9 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
 
   // ── the X8 custody ─────────────────────────────────────────────────────────
   const sendJournal = createSendJournal({ local: storage.local, log: log.service });
-  // The X8 fuse of this browser (decision X25): kept in storage.local, it holds the preview send off on the
-  // ChatSpace build it tripped on until another build or the person's reset; every tab hears of it (`send.fuse`).
-  const sendFuse = new SendFuseKeeper({ clock, store: storage.localKeys, events: router.events, log: log.sink, onTrip: () => telemetry.countCode('CG-SEND-FUSE') });
+  // What a tab's MAIN saw after a send that one click never does (decision X25's fuse): logged and counted, it holds
+  // nothing since 2026-10-21 (restrictions, item 4) — the preview send stays on.
+  const sendFuse = new SendFuseKeeper({ clock, store: storage.localKeys, log: log.sink, onTrip: () => telemetry.countCode('CG-SEND-FUSE') });
   const sends = new SendCoordinator({
     clock,
     hub: {
@@ -74,7 +74,6 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
       // and the send is not the next person's to report.
       if (ops.view(fact.opId) !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId, priced: fact.priced, withMedia: fact.withMedia });
     },
-    fuse: sendFuse,
   });
 
   // ── «Новые»: the greeting leases of this install (H-7) ─────────────────────
@@ -106,7 +105,7 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
     }
   }
   await step('send-journal', () => sendJournal.start());
-  // The fuse first: the coordinator's conditions read it from the first click on.
+  // An older version's stored fuse is dropped first.
   await step('sends', async () => {
     await sendFuse.load();
     await sends.restore();
@@ -139,7 +138,7 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
       case 'send.report':
         if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
         return ok({ recorded: await sends.report(sender.tabSessionId, message.payload.view, message.payload.pendingId) });
-      // The fuse (decision X25): a tab's MAIN saw, after a send, what trips it; «Статус» reads and resets it.
+      // A tab's MAIN saw, after a send, what one click never does (decision X25's fuse): logged, nothing held.
       case 'send.fuse': {
         if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
         const { fact, build } = message.payload;

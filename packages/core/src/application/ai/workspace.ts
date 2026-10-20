@@ -335,7 +335,7 @@ export class AiWorkspace {
           case 'coverage':
             this.bump();
             break;
-          // The X8 fuse (decision X25) is the tab's to report; what it turns off comes with the host contract.
+          // The fuse of decision X25 is the tab's to report (the background logs it); it turns nothing off.
           case 'sendFuse':
             break;
         }
