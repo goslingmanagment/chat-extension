@@ -41,7 +41,7 @@
 // (MAIN `insertGuarded`) the held presses write into that chat and this
 // spec fails.
 // The adapter's own race — intents aimed at a chat that is no longer open —
-// has its spec without the extension too (host-adapter.e2e.ts, 200 switches).
+// has its unit tests on the adapter too (host-chatspace host-port.dom.test.ts).
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 

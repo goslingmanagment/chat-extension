@@ -8,7 +8,7 @@
 //
 // The rows of the matrix that need no hub — the queue call itself, the page's
 // conditions, the socket's freshness, the receipt and the echo — have their
-// spec on the adapter alone (x8-send.e2e.ts). Here the whole chain is real:
+// unit tests on the adapter (host-chatspace send-port/receipt). Here the whole chain is real:
 // the click, the action gate, the preview's controller, the background's
 // coordinator and journal, the hub's custody (dispatch → ticket → report),
 // the host port, MAIN, ChatSpace's queue. Each test title names its row.
