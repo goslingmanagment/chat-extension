@@ -1,74 +1,76 @@
-# `pnpm see` — увидеть изменение своими глазами
+# `pnpm see` — see a change with your own eyes
 
-Тестовая сборка (`CG_TEST_HOSTS=1`) ставится в headless Firefox на стенде —
-синтетические ChatSpace и Fansly плюс фейковый хаб, сети нет, — сценарий
-прокликивает наш UI, картинки и отчёты ложатся в
-`.cache/see/<время>-<сценарий>/` (`.cache/see/latest` — последний прогон).
-Это не тест и не CI: сценарии лежат вне `e2e/specs`, проверок в них нет,
-сценарий падает, только если шаг нельзя сделать.
+The test build (`CG_TEST_HOSTS=1`) is installed in a headless Firefox on the
+stand — synthetic ChatSpace and Fansly plus the fake hub, no network — a
+scenario presses through our UI, and the pictures and reports land in
+`.cache/see/<time>-<scenario>/` (`.cache/see/latest` is the last run).
+This is not a test and not CI: the scenarios live outside `e2e/specs`, they
+assert nothing, and a scenario fails only when a step cannot be done.
 
-## Команды
+## Commands
 
-| Команда | Что делает | Время |
+| Command | What it does | Time |
 |---|---|---|
-| `pnpm see` | список сценариев | — |
-| `pnpm see <сценарий\|файл> [--site fansly] [--gif] [--no-build]` | сборки, если исходники новее; сценарий; в конце — папка, пути PNG и `index.html` (контактный лист) | 6–10 с; +5 с тестовая сборка, +1.5 с стенд, если менялись |
-| `pnpm see --new <имя>` | заготовка своего сценария в `packages/testing/e2e/see/scratch/` (не коммитится) | — |
-| `pnpm see:session [chatspace\|fansly]` | держит смену открытой; порт свой у каждого worktree, печатается. Агент запускает в фоне. Сама гаснет после 30 мин простоя (`--idle <мин>`) | ~5 с до готовности |
-| `pnpm see:do '<js>'` | шаг в сессии: async JS, в нём `s` (глаголы ниже) и `browser`; печатает результат и путь картинки после шага. Ещё: `--name x`, `--no-shot`, `--file f.js`, `-` (stdin), `--shot <имя>`, `--status`, `--stop` | 0.3–1.5 с |
-| `pnpm see:gallery` | галереи UI (kit, dock, boards, pages) на vite с горячей перезагрузкой, печатает адреса; Ctrl+C гасит | < 1 с |
+| `pnpm see` | lists the scenarios | — |
+| `pnpm see <scenario\|file> [--site fansly] [--gif] [--no-build]` | rebuilds only what is stale; runs the scenario; prints the folder, the PNG paths and `index.html` (a contact sheet) | 6–10 s; +5 s test build, +1.5 s stand when changed |
+| `pnpm see --new <name>` | a scenario of your own in `packages/testing/e2e/see/scratch/` (not committed) | — |
+| `pnpm see:session [chatspace\|fansly]` | holds a shift open; the port is the worktree's own and is printed. An agent runs it in the background. Stops after 30 min idle (`--idle <min>`) | ~5 s to ready |
+| `pnpm see:do '<js>'` | one step in the session: async JS with `s` (the verbs below) and `browser`; prints the result and the path of a picture taken after the step. Also: `--name x`, `--no-shot`, `--file f.js`, `-` (stdin), `--shot <name>`, `--status`, `--stop` | 0.3–1.5 s |
+| `pnpm see:gallery` | the UI galleries (kit, dock, boards, pages) on vite with hot reload, prints their URLs; Ctrl+C stops | < 1 s |
 
-Живой вид сессии — `http://127.0.0.1:<порт>/live` (кадр каждые полсекунды):
-его можно открыть владельцу в браузерной панели Claude desktop. `--gif`
-собирает `see.gif` из кадров прогона (нужен `ffmpeg`).
+The session's live view is `http://127.0.0.1:<port>/live` (a frame every half
+second): open it for the owner in the Claude desktop browser pane. `--gif`
+makes `see.gif` from the run's frames (needs `ffmpeg`).
 
-Сценарии: `dock`, `reply`, `coach`, `recap`, `review`, `fix`, `hi`,
-`spenders`, `newcomers`, `palette`, `fan-panel`, `pages` (popup и
-настройки), `fansly-dock`. На Fansly (`--site fansly`) идут `dock`, `reply`,
+Scenarios: `dock`, `reply`, `coach`, `recap`, `review`, `fix`, `hi`,
+`spenders`, `newcomers`, `palette`, `fan-panel`, `pages` (popup and
+settings), `fansly-dock`. On Fansly (`--site fansly`): `dock`, `reply`,
 `coach`, `recap`, `review`, `pages`.
 
-## Свой сценарий
+## A scenario of your own
 
-`pnpm see --new my-check` и поправить файл, или так:
+`pnpm see --new my-check` and edit the file, or:
 
 ```ts
 import { scenario } from '../kit';
 
 scenario('my-check', async (s) => {
-  await s.ready();          // док открытого чата готов
-  await s.press(/^Reply/);  // кнопка полосы дока по тексту
-  await s.done();           // генерация закончилась
+  await s.ready();          // the open chat's dock is ready
+  await s.press(/^Reply/);  // a button of the dock's strip, by its text
+  await s.done();           // the generation ended
   await s.shot('reply');    // NN-reply.png
 });
 ```
 
-Глаголы (`packages/testing/e2e/see/kit.ts`, тип `See`): `shot`, `ready`,
-`press(текст, где, селектор)`, `done`, `see(где, текст)`, `text`, `has`,
+The verbs (`packages/testing/e2e/see/kit.ts`, type `See`): `shot`, `ready`,
+`press(text, where, selector)`, `done`, `see(where, text)`, `text`, `has`,
 `keys`, `type`, `leaveField`, `openChat`, `toPages`/`toChat`/`page`, `rpc`,
-`closeAll`, `dock`, `report`; `s.hub` — фейковый хаб, `s.stand` — стенд,
-`s.h` — помощники e2e. Опции `scenario(…, { sites, viewport, settings,
-previewSend, before, hubTexts })`. Наш UI в закрытых shadow root: снимки DOM
-из Playwright или devtools его не видят — только эти помощники и
-`s.dock()`.
+`closeAll`, `dock`, `report`; `s.hub` is the fake hub, `s.stand` the stand,
+`s.h` the e2e helpers. Options: `scenario(…, { sites, viewport, settings,
+previewSend, before, hubTexts })`. Our UI lives in closed shadow roots:
+Playwright or devtools DOM snapshots cannot see it — use these helpers and
+`s.dock()`. The extension's UI speaks Russian, so labels are matched in
+Russian (`/^Собрать полностью/`).
 
-## Что в папке прогона
+## What a run folder holds
 
-PNG; `shots.json` (подписи); `report.json` — отчёт тестовой сборки (док,
-тайминги, тосты); `diagnostics.json`; `journals.json` (если в журналах есть
-записи); `hub-calls.json` — вызовы фейкового хаба; `violations.txt` — вызовы,
-которых клиент делать не должен; `console.json`; `egress.json` — попытки
-выйти в сеть; при падении `error.txt` и `99-failed.png`; `wdio.log`;
-`index.html`.
+PNGs; `shots.json` (captions); `report.json` — the test build's own report
+(dock, timings, toasts); `diagnostics.json`; `journals.json` (when the debug
+journals hold records); `hub-calls.json` — the fake hub's calls;
+`violations.txt` — calls the client must never make; `console.json`;
+`egress.json` — attempts to reach the network; on a failure `error.txt` and
+`99-failed.png`; `wdio.log`; `index.html`.
 
-## Ограничения
+## Limits
 
-- Стенд синтетический: вёрстка, данные и тайминги — наша имитация ChatSpace и
-  Fansly. Поломку от изменений на их стороне это не покажет.
-- Тестовая сборка ≠ релизная: хосты стенда и отчёт `data-cg-spike` есть только
-  в тестовой.
-- Живой сайт не покрыт; защищённый живой режим (только тестовый чат, без
-  отправки) — следующий шаг.
-- Только headless Firefox: окно Firefox из шелла агента на macOS не
-  запускать (AGENTS.md).
-- Тексты AI — строки мокапа (`SEE_AI_TEXTS` в `kit.ts`); `hubTexts: true` —
-  синтетические тексты фейкового хаба.
+- The stand is synthetic: layout, data and timings are our imitation of
+  ChatSpace and Fansly. A break caused by a change on their side does not
+  show here.
+- The test build is not the release build: the stand's hosts and the
+  `data-cg-spike` report exist only in the test build.
+- The live site is not covered; a guarded live mode (the owner's test chat
+  only, no sending) is a later step.
+- Headless Firefox only: an agent never starts a windowed Firefox from its
+  shell on macOS (AGENTS.md).
+- The AI texts are the mockup's lines (`SEE_AI_TEXTS` in `kit.ts`);
+  `hubTexts: true` uses the fake hub's synthetic texts.

@@ -44,17 +44,21 @@ export function lap(label: string): void {
   console.log(`cg-see ${label} +${((Date.now() - STARTED) / 1000).toFixed(1)}s`);
 }
 
-/** The mockup's own lines (as visual-wired.e2e.ts): the pictures read like a real shift, and a wait knows what to wait for. */
+/**
+ * What the fake hub's model writes in a `see` run, so the pictures read like a real shift and a wait knows what to
+ * wait for. The Review's section labels (ВЕРДИКТ, ДЕНЬГИ, ПЕРСОНА, ОШИБКИ, «Как надо было», ЧТО РАБОТАЕТ) are the hub's
+ * output format that core/domain/output/review.ts parses, so they stay as the hub writes them.
+ */
 export const SEE_AI_TEXTS: Readonly<Record<string, string>> = {
   'fast-reply': 'good morning, my traveler ☀️ how was the flight? [NEXT] I just woke up and saw your messages… you made me smile before my coffee 🙈 [NEXT] the set is still waiting for you 😏 want me to send it now, or do you want to guess what’s inside first?',
   'hi-greeting': 'hey you 👋 so glad you’re here! tell me one thing about your day [VARIANT] welcome, handsome ☺️ I was hoping you’d come by — what brought you to me? [VARIANT] hi! I’m Lora 💛 I read every message myself, so say hi back',
   'improve-draft': 'I missed you so much today 🥺 tell me everything — how was the flight?',
   ping: 'still thinking about what you said yesterday… are you around? 😌',
-  'fan-summary': '## Кто он\nHubert, 34, часто летает по работе. Отвечает вечером по Варшаве.\n\n## Что покупал\n- сет «Утро» за $25, вчера\n- два платных сообщения по $12 на прошлой неделе\n\n## На что отвечает\n- вопросы о поездках и о кофе\n- короткие сообщения, без давления\n\n## Чего избегать\n- длинных текстов и скидок в первом сообщении',
+  'fan-summary': '## Who he is\nHubert, 34, flies a lot for work. Answers in the evening, Warsaw time.\n\n## What he bought\n- the «Morning» set for $25, yesterday\n- two paid messages at $12 last week\n\n## What he answers to\n- questions about trips and coffee\n- short messages, no pressure\n\n## What to avoid\n- long texts and discounts in the first message',
   'chat-review':
-    '<rating>7</rating><evaluation>ВЕРДИКТ: разговор живой, но продажа сета прозвучала слишком рано.\n\nДЕНЬГИ: $25 за вчера, второй сет не предложен.\n\nПЕРСОНА: тон тёплый, в образе; одно сообщение слишком длинное.\n\nОШИБКИ:\n1. Предложили сет первым сообщением утра. Как надо было: сначала про полёт, потом тизер.\n2. Не ответили на вопрос про кофе.\n\nЧТО РАБОТАЕТ: короткие вопросы о поездке, смайлы без перебора.</evaluation><recommendations>1. Начать с вопроса про полёт.\n2. Тизер сета — вторым сообщением.\n3. Вернуться к шутке про кофе.</recommendations>',
+    '<rating>7</rating><evaluation>ВЕРДИКТ: the conversation is alive, but the set was pitched too early.\n\nДЕНЬГИ: $25 yesterday, no second set offered.\n\nПЕРСОНА: warm tone, in character; one message is too long.\n\nОШИБКИ:\n1. Offered the set as the first message of the morning. Как надо было: ask about the flight first, then a teaser.\n2. Did not answer the question about coffee.\n\nЧТО РАБОТАЕТ: short questions about the trip, emoji in moderation.</evaluation><recommendations>1. Open with a question about the flight.\n2. The set teaser as the second message.\n3. Come back to the coffee joke.</recommendations>',
   'coach-chat':
-    'Сегодня можно, но не первым сообщением. Он сам вспомнил про сет — используйте это: сначала про полёт, потом тизер.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
+    'Yes, but not as the first message. He brought up the set himself — use that: the flight first, then a teaser.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
 };
 
 export interface SeeOptions {
@@ -87,7 +91,7 @@ export interface See {
   shot(name: string): Promise<string>;
   /** The dock of the open chat is ready: Reply is on. */
   ready(timeout?: number): Promise<DockReport>;
-  /** Presses a button of ours by its text — the dock's strip by default (`s.press('Вставить', 'dock', '.cg-dock button')`). */
+  /** Presses a button of ours by its text — the dock's strip by default (`s.press(/^Reply/, 'modal', '.cg-pv button')`); the extension's UI speaks Russian, so most labels are matched in Russian. */
   press(text: string | RegExp, where?: Where, selector?: string): Promise<void>;
   /** The generation started by the last press ended (done, failed, canceled); returns the dock. */
   done(timeout?: number): Promise<DockReport>;

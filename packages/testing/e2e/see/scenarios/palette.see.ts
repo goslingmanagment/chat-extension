@@ -14,6 +14,6 @@ scenario('palette', async (s) => {
   await s.closeAll();
   await s.leaveField();
   await s.keys('?');
-  await s.see('modal', 'Клавиши ChatGoose');
+  await s.see('modal', 'Клавиши ChatGoose'); // «ChatGoose keys»
   await s.shot('cheatsheet');
 });

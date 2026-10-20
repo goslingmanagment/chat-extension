@@ -261,7 +261,7 @@ function contactSheet(out: string, title: string, status: string): string {
     .map((file) => `<a href="${file}">${file}</a>`)
     .join(' · ');
   const html = `<!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>see · ${escape(title)}</title>
 <style>
 :root { color-scheme: light dark; --bg: #f6f4ef; --ink: #222; --mute: #777; --card: #fff; }

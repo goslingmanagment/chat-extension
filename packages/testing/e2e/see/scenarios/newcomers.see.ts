@@ -1,4 +1,4 @@
-// «Новые»: the list of new subscribers, then a card with its greeting.
+// Newcomers: the list of new subscribers, then a card with its greeting (the palette row is «Новые»).
 
 import { STAND_IDS } from '../../support/stand';
 import { scenario, STAND_PAGE } from '../kit';

@@ -11,7 +11,7 @@ scenario(
     await s.see('modal', 'Fan Alder');
     await s.shot('spenders');
     await s.press(/^Fan Kestrel/, 'modal', '[data-cg-key^="fan:"]');
-    await s.see('modal', 'Чат не открыт');
+    await s.see('modal', 'Чат не открыт'); // «the chat is not opened»: the preview leaves it unread
     await s.press(/^Reply/, 'modal', '.cg-pv button');
     await s.see('modal', 'the set is still waiting', 30_000);
     await s.shot('spenders-preview');

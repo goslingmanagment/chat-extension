@@ -12,9 +12,9 @@ scenario(
     await s.browser.waitUntil(() => s.has('panel', FIELD), { timeout: 10_000, timeoutMsg: 'the Coach window did not open' });
     await s.shot('coach');
     await s.h.ours('panel', FIELD).click();
-    await s.keys('Стоит ли сейчас предлагать ему новый сет?');
+    await s.keys('Is now a good time to offer him the new set?');
     await s.keys(s.Key.Enter);
-    await s.see('panel', 'Сегодня можно, но не первым сообщением', 30_000);
+    await s.see('panel', 'Yes, but not as the first message', 30_000);
     await s.shot('coach-answer');
   },
   { sites: ['chatspace', 'fansly'] },
