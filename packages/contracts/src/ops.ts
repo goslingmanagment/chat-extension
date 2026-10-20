@@ -181,6 +181,11 @@ export const CoverageFingerprintSchema = z.strictObject({
 ));
 export type CoverageFingerprint = z.infer<typeof CoverageFingerprintSchema>;
 
+/** The automatic recap is an internal step of Coach and keeps its panel identity. */
+function textSurfaceFits(op: { readonly feature: FeatureId; readonly surface: Surface }): boolean {
+  return freshTextSurface(op.feature) === op.surface || (op.surface === 'coach' && (op.feature === 'recap' || op.feature === 'recap-short'));
+}
+
 /** A start proves its freshness one way: a proof is the target's, never beside ChatSpace's tail or X8's checkpoint. */
 function proofFits(op: {
   readonly feature: FeatureId;
@@ -193,7 +198,7 @@ function proofFits(op: {
   const proof = op.proof;
   if (proof === undefined) return true;
   if (proof.conversationRef !== op.target.conversationRef || op.fresh !== undefined || op.checkpoint !== undefined) return false;
-  return proof.kind === 'pass' ? op.surface === 'newcomers' && (proof.tail === undefined || op.feature === 'hi') : proof.tail === undefined || isFreshTextFeature(op.feature) || freshTextSurface(op.feature) === op.surface;
+  return proof.kind === 'pass' ? op.surface === 'newcomers' && (proof.tail === undefined || op.feature === 'hi') : proof.tail === undefined || isFreshTextFeature(op.feature) || textSurfaceFits(op);
 }
 
 /**
@@ -286,8 +291,8 @@ export const StartOpSchema = z
     fanLabel: z.optional(displayText(256)),
   })
   .check(
-    z.refine((op) => op.fresh === undefined || freshTextSurface(op.feature) === op.surface, {
-      message: 'fresh text only for reply|fix|hi|ping|review in the dock, coach in its panel',
+    z.refine((op) => op.fresh === undefined || textSurfaceFits(op), {
+      message: 'fresh text only in the dock or the Coach turn',
     }),
     z.refine((op) => op.livePpv === undefined || (op.surface === 'dock' && isFreshTextFeature(op.feature)), { message: 'PPV state only for drafts in the dock' }),
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),

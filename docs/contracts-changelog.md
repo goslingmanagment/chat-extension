@@ -32,6 +32,8 @@
 
 - Снимок Fansly и `CoverageProof.tail` допускают свежие тексты для Review, Coach и обоих Recap;
   действуют существующие `freshText` и отдельные возможности хаба для этих функций.
+- Автоматический Recap внутри Coach сохраняет `surface: coach` и допускает тот же
+  свежий текст, что и следующий вопрос; состояние панели остаётся частью одного хода.
 - `FanslySnapshotFeature` и `FreshnessRequest.feature` дополнены `voice-script` и `notes-fill`;
   старты этих операций принимают необязательный `fresh`, тела хаба — `liveTextContext`.
   Новая возможность `live-text-fansly-tools-v1` объявлена в hub#681; старый хаб поля не получает.
