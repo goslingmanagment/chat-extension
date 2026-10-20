@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "version": "0.5.7",
+  "commit": "a43339a4bf81c2c15a2e49f8432d00a1c9274863",
+  "createdAt": "2026-10-20T14:14:03.322Z",
+  "online": true,
+  "checks": [
+    {
+      "id": "version",
+      "ok": true,
+      "detail": "0.5.7 (apps/extension/package.json)"
+    },
+    {
+      "id": "branch",
+      "ok": true,
+      "detail": "on main"
+    },
+    {
+      "id": "clean-tree",
+      "ok": true,
+      "detail": "the working tree is clean"
+    },
+    {
+      "id": "pushed",
+      "ok": true,
+      "detail": "HEAD a43339a4bf81 is origin/main"
+    },
+    {
+      "id": "main-ci",
+      "ok": true,
+      "detail": "the CI of a43339a4bf81 on main is green: pnpm check, pnpm e2e"
+    },
+    {
+      "id": "tag-free",
+      "ok": true,
+      "detail": "v0.5.7 is free locally and on origin"
+    },
+    {
+      "id": "changelog",
+      "ok": true,
+      "detail": "CHANGELOG.md has the section of 0.5.7; the announcement is 486 characters"
+    },
+    {
+      "id": "site",
+      "ok": true,
+      "detail": "the pages are whole and match the version and the changelog"
+    },
+    {
+      "id": "note",
+      "ok": true,
+      "detail": "every line of «Перед подписью» is ticked"
+    },
+    {
+      "id": "vendor",
+      "ok": true,
+      "detail": "SDK 152b37aee319… from hub 74c0f32251b6, hotkeys 7850406c1e27…, both as pinned"
+    },
+    {
+      "id": "hub-commit",
+      "ok": true,
+      "detail": "the SDK's source commit 74c0f32251b6 is on goslingmanagment/hub main"
+    },
+    {
+      "id": "check",
+      "ok": true,
+      "detail": "pnpm check reused from successful main CI at a43339a4bf81c2c15a2e49f8432d00a1c9274863; no local tests; prebuilt local artifacts verified by commit and SHA-256"
+    },
+    {
+      "id": "versions",
+      "ok": true,
+      "detail": "package.json and the built manifest both say 0.5.7"
+    },
+    {
+      "id": "reproducible",
+      "ok": true,
+      "detail": "the sources archive rebuilds the same extension, byte for byte (120 files)"
+    },
+    {
+      "id": "feed",
+      "ok": true,
+      "detail": "the feed serves 0.5.6, 0.5.7 is higher"
+    },
+    {
+      "id": "hub-compat",
+      "ok": true,
+      "detail": "the hub lists the vendored SDK 152b37aee319… as compatible and runs the same contract"
+    }
+  ],
+  "build": {
+    "xpi": {
+      "file": "chatgoose-chatspace-0.5.7-firefox.zip",
+      "sha256": "698cf6be36e81a754d036e9e2ef5693afd71d2248f4aa157a4719a8642a6a76b",
+      "bytes": 1483061
+    },
+    "sources": {
+      "file": "chatgoose-chatspace-0.5.7-sources.zip",
+      "sha256": "ea7011711577ef321fcf3da99c7979959ec629c22feb4f905b32e6b1f35fad48",
+      "bytes": 4215533
+    }
+  },
+  "vendor": {
+    "sdkContractHash": "152b37aee3198a4527e1def4890ef091ec77e2c31c5b76a99c8fb9c2af82fbea",
+    "sdkSourceCommit": "74c0f32251b633b76e0eb06f4c0e0762ae31eae2",
+    "hotkeysSha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8"
+  }
+}
