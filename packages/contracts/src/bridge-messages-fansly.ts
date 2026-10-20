@@ -3,9 +3,10 @@
 // discriminated frames. The type lists, the credits and the envelopes are in bridge-fansly.ts. Loaded by the
 // `bridge-validation` chunk of the Fansly build only.
 //
-// What crosses from MAIN is metadata (§0 А5): ids, sides, times, states, counts. A message text crosses once — the
-// tail of a generation snapshot, for a draft function, on the person's click (FanslySnapshot). Typing and read
-// receipts never cross. A batch is checked whole: one bad event and the batch is lost as a whole — the isolated side
+// What crosses from MAIN is metadata (§0 А5): ids, sides, times, states, counts — and the creator's own handle and
+// name from the page's `/account/me` (its profile, never a fan's), for the vault panel's «Аккаунт». A message text
+// crosses once — the tail of a generation snapshot, for a draft function, on the person's click (FanslySnapshot).
+// Typing and read receipts never cross. A batch is checked whole: one bad event and the batch is lost as a whole — the isolated side
 // acknowledges it, marks every chat unknown and asks `fx.state`, as after `fx.gap`.
 
 import * as z from 'zod/mini';
@@ -45,11 +46,18 @@ export const FanslyNeighbourSchema = z.strictObject({
 });
 export type FanslyNeighbour = z.infer<typeof FanslyNeighbourSchema>;
 
+/** The most of the creator's handle or name that crosses. */
+export const FANSLY_CREATOR_NAME_MAX = 100;
+const CreatorNameSchema = z.nullable(z.string().check(z.minLength(1), z.maxLength(FANSLY_CREATOR_NAME_MAX)));
+
 /** `fx.identity` (§5.7): who the page is signed in as, by the page's own `GET /account/me` answer. */
 export const FanslyIdentityWireSchema = z
   .strictObject({
     /** `account.id` of that answer: the creator, equal to the hub page's external id (HF-1); null before it. */
     creatorId: z.nullable(NativeIdSchema),
+    /** `account.username` and `account.displayName` of that answer, trimmed: how the vault panel names the account. */
+    username: z.optional(CreatorNameSchema),
+    displayName: z.optional(CreatorNameSchema),
     accountMeSeen: z.boolean(),
     /** The old extension's tap is on the page: this MAIN stands down entirely (FS-CO-1). */
     legacy: z.boolean(),

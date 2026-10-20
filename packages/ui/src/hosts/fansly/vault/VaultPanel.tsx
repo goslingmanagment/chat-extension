@@ -13,10 +13,10 @@ import { type JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
-import { type FanslyVaultPluralKey, type FanslyVaultTextKey, type VaultItemState, type VaultPanelClient, type VaultPanelNote, type VaultPanelVM, type VaultPlanProblem, type VaultPlanWarning, type VaultRunVM } from '@cg/contracts/vault-fansly';
+import { type FanslyVaultPluralKey, type FanslyVaultTextKey, type VaultItemState, type VaultOrderCheck, type VaultPanelClient, type VaultPanelNote, type VaultPanelVM, type VaultPlanProblem, type VaultPlanWarning, type VaultRunVM } from '@cg/contracts/vault-fansly';
 import { type I18n, type I18nParams } from '@cg/contracts/vm';
 
-import { Button, Dot, Icon, Segmented, Spinner, useI18n } from '../../../kit';
+import { Button, Dot, Icon, Segmented, useElapsed, useI18n, useNowFn } from '../../../kit';
 
 type Text = (key: FanslyVaultTextKey, params?: I18nParams) => string;
 
@@ -81,11 +81,33 @@ function stopText(t: Text, run: VaultRunVM): string | null {
   const stop = run.stop;
   if (stop === null) return null;
   const album = run.album ?? '';
+  // Fansly's own words, as the old panel quoted them.
+  if (stop.kind === 'uploader-error' && stop.said !== undefined && stop.said !== '') return t('fansly.vault.stop.uploader-error-said', { said: stop.said.replace(/[.\s]+$/, '') });
   if (stop.kind === 'order-mismatch') {
     return stop.actual === null || stop.actual === undefined ? t('fansly.vault.stop.order-unseen', { expected: stop.expected ?? '' }) : t('fansly.vault.stop.order-mismatch', { expected: stop.expected ?? '', actual: stop.actual });
   }
   if (stop.kind === 'checkpoint-write-failed') return t(stop.afterUpload === true ? 'fansly.vault.stop.checkpoint-after-upload' : 'fansly.vault.stop.checkpoint-write-failed');
   return t(`fansly.vault.stop.${stop.kind}`, { album });
+}
+
+function orderText(t: Text, order: VaultOrderCheck): string {
+  switch (order.kind) {
+    case 'ok':
+      return t('fansly.vault.report.orderOk', { n: order.checked });
+    case 'mismatch':
+      return t('fansly.vault.report.orderMismatch', { position: order.position, expected: order.expected, actual: order.actual });
+    case 'unseen':
+      return t('fansly.vault.report.orderUnseen');
+  }
+}
+
+/** «12 с в работе», «2 мин 05 с в работе» (the old panel's), a second at a time while the file is in flight. */
+function Elapsed({ since }: { readonly since: number }): JSX.Element {
+  const t = textOf(useI18n());
+  const seconds = Math.floor(useElapsed(since, useNowFn()) / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return <p class="cg-vault__line">{minutes > 0 ? t('fansly.vault.elapsed.m', { m: minutes, s: String(rest).padStart(2, '0') }) : t('fansly.vault.elapsed.s', { s: rest })}</p>;
 }
 
 /** The panel's model from its own client, kept current. */
@@ -123,11 +145,14 @@ function FilePicker({ client, folder, label, reason }: { readonly client: VaultP
   );
 }
 
-function Fact({ label, value, quiet }: { readonly label: string; readonly value: string; readonly quiet: boolean }): JSX.Element {
+/** A fact of the page with its dot (the old panel's): green — fine, amber — wait, red — the person acts. */
+function Fact({ label, value, tone }: { readonly label: string; readonly value: string; readonly tone: 'ok' | 'warn' | 'bad' }): JSX.Element {
   return (
     <>
       <dt class="cg-vault__k">{label}</dt>
-      <dd class={`cg-vault__v${quiet ? ' is-quiet' : ''}`}>{value}</dd>
+      <dd class={`cg-vault__v is-${tone}`} data-cg-vault-fact={tone}>
+        {value}
+      </dd>
     </>
   );
 }
@@ -144,7 +169,8 @@ function Panel({ client, view }: { readonly client: VaultPanelClient<File>; read
 
   const album = view.album.state === 'open' ? (view.album.title ?? '') : view.album.state === 'loading' ? t('fansly.vault.albumLoading') : t('fansly.vault.albumNone');
   const uploader = view.uploader === 'ready' ? t('fansly.vault.uploaderReady') : view.uploader === 'busy' ? t('fansly.vault.uploaderBusy') : t('fansly.vault.uploaderMissing');
-  const subtitle = run === null || run.state === 'idle' ? t('fansly.vault.subtitle') : [view.account, run.album, t('fansly.vault.progress', { done: run.done, total: run.total })].filter((part) => part !== null && part !== '').join(' · ');
+  // «Готово N из M» is never split across lines.
+  const subtitle = run === null || run.state === 'idle' ? t('fansly.vault.subtitle') : [view.account, run.album, t('fansly.vault.progress', { done: run.done, total: run.total }).replace(/ /g, '\u00a0')].filter((part) => part !== null && part !== '').join(' · ');
   const notes: Array<{ readonly tone: 'problem' | 'warning' | 'info'; readonly text: string }> = [
     ...(selection?.problems ?? []).map((problem) => ({ tone: 'problem' as const, text: problemText(t, problem) })),
     ...(selection?.warnings ?? []).map((warning) => ({ tone: 'warning' as const, text: warningText(t, warning) })),
@@ -179,15 +205,15 @@ function Panel({ client, view }: { readonly client: VaultPanelClient<File>; read
           <div class="cg-vault__title">{t('fansly.vault.title')}</div>
           <div class="cg-vault__sub">{subtitle}</div>
         </div>
-        <Button variant="quiet" size="sm" iconOnly icon="collapse" label={t('fansly.vault.minimize')} {...(controls.close ? {} : { reason: t('fansly.vault.closeBlocked') })} onClick={() => client.dispatch({ type: 'minimize' })} />
+        <Button variant="quiet" size="sm" iconOnly icon="collapse" label={t('fansly.vault.minimize')} onClick={() => client.dispatch({ type: 'minimize' })} />
         <Button variant="quiet" size="sm" iconOnly icon="x" label={t('fansly.vault.close')} {...(controls.close ? {} : { reason: t('fansly.vault.closeBlocked') })} onClick={() => client.dispatch({ type: 'close' })} />
       </header>
 
       <div class="cg-vault__body">
         <dl class="cg-vault__facts">
-          <Fact label={t('fansly.vault.account')} value={view.account ?? t('fansly.vault.accountUnknown')} quiet={view.account === null} />
-          <Fact label={t('fansly.vault.album')} value={album} quiet={view.album.state !== 'open'} />
-          <Fact label={t('fansly.vault.uploader')} value={uploader} quiet={view.uploader !== 'ready'} />
+          <Fact label={t('fansly.vault.account')} value={view.account ?? t('fansly.vault.accountUnknown')} tone={view.account === null ? 'bad' : 'ok'} />
+          <Fact label={t('fansly.vault.album')} value={album} tone={view.album.state === 'open' ? 'ok' : view.album.state === 'loading' ? 'warn' : 'bad'} />
+          <Fact label={t('fansly.vault.uploader')} value={uploader} tone={view.uploader === 'ready' ? 'ok' : view.uploader === 'busy' ? 'warn' : 'bad'} />
         </dl>
 
         <div class="cg-vault__row">
@@ -252,10 +278,7 @@ function Panel({ client, view }: { readonly client: VaultPanelClient<File>; read
                   <span class="cg-vault__n">{index + 1}</span>
                   <span class="cg-vault__name">{item.name}</span>
                   <span class="cg-vault__size">{sizeText(i18n, item.size)}</span>
-                  <span class="cg-vault__state">
-                    {item.state === 'uploading' ? <Spinner /> : item.state === 'failed' ? <Dot kind="danger" size={6} /> : null}
-                    {t(ITEM_KEYS[item.state])}
-                  </span>
+                  <span class="cg-vault__state">{t(ITEM_KEYS[item.state])}</span>
                 </li>
               ))}
             </ol>
@@ -269,26 +292,30 @@ function Panel({ client, view }: { readonly client: VaultPanelClient<File>; read
                 <div class="cg-vault__bar" style={{ width: `${progress}%` }} />
               </div>
             )}
-            <div class="cg-vault__status" role="status" aria-live="polite" data-cg-vault-run={run.state}>
-              <p class="cg-vault__line is-strong">{t('fansly.vault.progress', { done: run.done, total: run.total })}</p>
+            <div class={`cg-vault__status${stop !== null ? ' is-bad' : run.report !== null ? ' is-ok' : ''}`} role="status" aria-live="polite" data-cg-vault-run={run.state}>
+              <p class="cg-vault__line is-count">{t('fansly.vault.progress', { done: run.done, total: run.total })}</p>
               {run.current === null ? null : <p class="cg-vault__line">{t('fansly.vault.current', { name: run.current })}</p>}
+              {run.current === null || run.startedAt === null ? null : <Elapsed since={run.startedAt} />}
               {run.state === 'pausing' ? <p class="cg-vault__line">{t('fansly.vault.pausing')}</p> : null}
               {run.state === 'paused' ? <p class="cg-vault__line">{t('fansly.vault.paused')}</p> : null}
               {stop === null ? null : (
                 <>
-                  <p class="cg-vault__line cg-vault__err" data-cg-vault-stop={run.stop?.kind ?? ''}>
-                    <Dot kind="danger" size={6} />
-                    {t('fansly.vault.errorFrom', { code: run.code ?? 'CG-VAULT-STOPPED' })}
+                  <p class="cg-vault__line" data-cg-vault-stop={run.stop?.kind ?? ''}>
+                    {stop}
                   </p>
-                  <p class="cg-vault__line">{stop}</p>
+                  {/* Fansly's own words name the error; our code is only for a stop of ours. */}
+                  {run.stop?.said !== undefined ? null : <p class="cg-vault__line cg-vault__code">{t('fansly.vault.errorFrom', { code: run.code ?? 'CG-VAULT-STOPPED' })}</p>}
                 </>
               )}
               {run.report === null ? null : (
                 <>
-                  <p class="cg-vault__line is-strong">{t('fansly.vault.complete')}</p>
+                  <p class="cg-vault__line">{t('fansly.vault.complete')}</p>
                   <p class="cg-vault__line">{t('fansly.vault.report.uploaded', { n: run.report.uploaded })}</p>
-                  {run.report.present === 0 ? null : <p class="cg-vault__line">{t('fansly.vault.report.present', { n: run.report.present })}</p>}
-                  {run.report.previous === 0 ? null : <p class="cg-vault__line">{t('fansly.vault.report.previous', { n: run.report.previous })}</p>}
+                  <p class="cg-vault__line">{t('fansly.vault.report.present', { n: run.report.present })}</p>
+                  <p class="cg-vault__line">{t('fansly.vault.report.previous', { n: run.report.previous })}</p>
+                  <p class="cg-vault__line" data-cg-vault-order={run.report.order.kind}>
+                    {orderText(t, run.report.order)}
+                  </p>
                 </>
               )}
             </div>
@@ -299,7 +326,7 @@ function Panel({ client, view }: { readonly client: VaultPanelClient<File>; read
       <footer class="cg-vault__foot">
         <button
           type="button"
-          class="cg-act cg-act--main"
+          class="cg-act cg-act--main cg-vault__start"
           data-cg-vault-start=""
           {...(blocked === null ? {} : { 'aria-disabled': 'true', title: blocked })}
           onClick={() => {
@@ -326,10 +353,12 @@ export function VaultView({ client }: { readonly client: VaultPanelClient<File> 
   if (view.mode === 'open') return <Panel client={client} view={view} />;
   const run = view.run;
   const strip = view.mode === 'minimized' && run !== null ? `${t('fansly.vault.title')} · ${t('fansly.vault.progress', { done: run.done, total: run.total })}` : null;
+  // The strip's tone (the old panel's): green — all in the album, red — stopped.
+  const tone = strip === null || run === null ? '' : run.stop !== null ? ' is-bad' : run.state === 'complete' ? ' is-ok' : '';
   return (
     <button
       type="button"
-      class={`cg-vault__entry${run !== null && (run.state === 'running' || run.state === 'pausing') ? ' is-busy' : ''}`}
+      class={`cg-vault__entry${strip === null ? '' : ' is-strip'}${tone}${run !== null && (run.state === 'running' || run.state === 'pausing') ? ' is-busy' : ''}`}
       data-cg-vault-entry={view.mode}
       title={t('fansly.vault.entryHint')}
       aria-label={strip ?? t('fansly.vault.entryHint')}

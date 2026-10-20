@@ -92,7 +92,8 @@ export type VaultItemStatus =
 export type VaultRunState = 'idle' | 'running' | 'pausing' | 'paused' | 'stopped' | 'complete';
 
 export type VaultStop =
-  | { readonly kind: VaultHalt }
+  /** `said` — Fansly's own words of an `uploader-error` (dom.ts `failure`). */
+  | { readonly kind: VaultHalt; readonly said?: string }
   /** The album's first card after a confirmed file is another one: the order the files were put in no longer holds. */
   | { readonly kind: 'order-mismatch'; readonly expected: string; readonly actual: string | null }
   /** `afterUpload`: the file IS in the album; only the checkpoint does not say so yet. */
@@ -104,6 +105,8 @@ export interface VaultRunSnapshot {
   readonly items: ReadonlyArray<{ readonly name: string; readonly size: number; readonly status: VaultItemStatus }>;
   /** The file in flight: its index. */
   readonly current: number | null;
+  /** When the file in flight was handed over (`now()`); null — none in flight. */
+  readonly startedAt: number | null;
   /** Files in the album, from the start (the checkpoint's `confirmed`). */
   readonly confirmed: number;
   readonly total: number;
@@ -172,6 +175,7 @@ export function createVaultRun(init: VaultRunInit, deps: VaultRunDeps, onChange:
   if (pending !== null) statuses[pending.index] = 'uncertain';
   let state: VaultRunState = 'idle';
   let current: number | null = null;
+  let startedAt: number | null = null;
   let stopped: VaultStop | null = null;
   let leftBehind = false;
   let abort: AbortController | null = null;
@@ -183,6 +187,7 @@ export function createVaultRun(init: VaultRunInit, deps: VaultRunDeps, onChange:
     state,
     items: refs.map((file, i) => ({ name: file.name, size: file.size, status: statuses[i] as VaultItemStatus })),
     current,
+    startedAt: current === null ? null : startedAt,
     confirmed,
     total: refs.length,
     stop: stopped,
@@ -208,8 +213,10 @@ export function createVaultRun(init: VaultRunInit, deps: VaultRunDeps, onChange:
     const view = uploader.view();
     const blocked = vaultGuard(view, target);
     if (blocked !== null) return halt({ kind: blocked });
-    if (view.cards.includes(key)) {
-      // In the album already, before any handoff of ours: not handed over again.
+    if (view.settled.includes(key)) {
+      // In the album already, before any handoff of ours: not handed over again. Only a card Fansly is done with
+      // counts (the old extension's `findReadyCard`): a card «Upload Failed» or still «Processing» is no upload that
+      // landed, and the file goes again.
       statuses[index] = 'present';
       confirmed = index + 1;
       if (!(await persist())) return halt({ kind: 'checkpoint-write-failed', afterUpload: false });
@@ -235,6 +242,7 @@ export function createVaultRun(init: VaultRunInit, deps: VaultRunDeps, onChange:
     }
     statuses[index] = 'uploading';
     current = index;
+    startedAt = now();
     abort = new AbortController();
     emit();
     // The step looks at the page again before it hands anything over: what changed during the write is a refusal.
@@ -249,7 +257,7 @@ export function createVaultRun(init: VaultRunInit, deps: VaultRunDeps, onChange:
         statuses[index] = 'failed';
         pending = null;
         await persist();
-        return halt({ kind: 'uploader-error' });
+        return halt(outcome.said === null ? { kind: 'uploader-error' } : { kind: 'uploader-error', said: outcome.said });
       case 'unknown':
         // `pending` stays on disk: the person answers for this file.
         statuses[index] = 'uncertain';

@@ -80,8 +80,8 @@ export type VaultUploadOutcome =
   | { readonly state: 'done'; readonly path: FanslyHandoffPath; readonly top: string | null }
   /** Nothing was handed over. */
   | { readonly state: 'refused'; readonly halt: VaultHalt }
-  /** Handed over, and Fansly gave it up: nothing landed — a new click may try again. */
-  | { readonly state: 'failed'; readonly path: FanslyHandoffPath }
+  /** Handed over, and Fansly gave it up: nothing landed — a new click may try again. `said` — Fansly's own words. */
+  | { readonly state: 'failed'; readonly path: FanslyHandoffPath; readonly said: string | null }
   /** Handed over (or maybe), the outcome not seen: only the person says what happened to it. */
   | { readonly state: 'unknown'; readonly halt: VaultHalt; readonly path: FanslyHandoffPath | null };
 
@@ -99,6 +99,10 @@ export interface VaultView {
   readonly uploader: 'ready' | 'busy' | 'missing';
   /** The album's cards as keys (dom.ts `vaultMediaKey`), the page's order: the newest first. */
   readonly cards: readonly string[];
+  /** The same cards' file names as the page shows them. */
+  readonly names: readonly string[];
+  /** The cards Fansly is done with (no «Processing», no failure on them), as keys: the ones that count as in the album. */
+  readonly settled: readonly string[];
 }
 
 export interface VaultUploaderStats {
@@ -234,6 +238,8 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
       loading: page.albumOpen && !shown && (page.loading || bound === null || page.list !== bound.list),
       uploader: page.input === null ? 'missing' : page.busy ? 'busy' : 'ready',
       cards: page.cards,
+      names: page.names,
+      settled: page.settled,
     };
   };
   const ticket = (): string => `${String(generation())}:${String(bound?.seq ?? 'none')}`;
@@ -275,7 +281,7 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
         if (!after.albumOpen) return unknown('album-closed');
         if (after.input === null) return unknown('uploader-missing');
         // Fansly gave the file up before adding anything: nothing landed.
-        if (added === null && after.failed) return settle({ state: 'failed', path });
+        if (added === null && after.failed) return settle({ state: 'failed', path, said: after.failure });
         if (reloaded && !after.busy && after.settled.includes(key)) settle({ state: 'done', path, top: after.cards[0] ?? null });
       };
       const current: Flight = {
