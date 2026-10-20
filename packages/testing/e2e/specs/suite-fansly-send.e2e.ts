@@ -116,6 +116,18 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     return (await read<Record<string, View>>(SEND.views))?.[attemptId];
   }
 
+  /**
+   * The click answers at Fansly's receipt (the card already shows it sent, restrictions item 21); the echo proves it
+   * a moment later. An answer that is still `receipted` is followed to where the attempt settles.
+   */
+  async function settled(answer: View | undefined): Promise<View | undefined> {
+    if (answer?.state !== 'receipted') return answer;
+    return waitFor(`${answer.attemptId} stayed «receipted»`, async () => {
+      const now = await view(answer.attemptId);
+      return now !== undefined && now.state !== 'receipted' ? now : undefined;
+    }, 20_000);
+  }
+
   async function journal(attemptId: string): Promise<JournalEntry | undefined> {
     return (await read<{ entries: JournalEntry[] }>(JOURNAL))?.entries.find((entry) => entry.attemptId === attemptId);
   }
@@ -183,7 +195,7 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     const mark = await fakeFansly().mark();
     const [first, second] = [randomUUID(), randomUUID()];
     const views = await answered(await click(0, [first, second]));
-    expect(views[0]).toMatchObject({ attemptId: first, state: 'sent', proof: 'echo' });
+    expect(await settled(views[0])).toMatchObject({ attemptId: first, state: 'sent', proof: 'echo' });
     expect(views[1]).toMatchObject({ attemptId: second, state: 'refused', proof: 'before-dispatch', code: 'CG-SEND-BUSY' });
     expect(await posts(mark)).toBe(1);
     await custodyIs(0, first, 'sent');
@@ -192,7 +204,7 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
       const found = await journal(first);
       return found?.state === 'sent' && found.reportPending === false ? found : undefined;
     });
-    expect(entry.platformMessageId).toBe(views[0]?.platformMessageId);
+    expect(entry.platformMessageId).toBe((await settled(views[0]))?.platformMessageId);
     expect(JSON.stringify(await read(JOURNAL))).not.toContain(TEXT);
   });
 
@@ -200,7 +212,7 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     await fakeFansly().command({ op: 'send', echo: 'before', receiptDelayMs: 300, echoDelayMs: 0 });
     const mark = await fakeFansly().mark();
     const attempt = randomUUID();
-    expect((await answered(await click(1, [attempt])))[0]).toMatchObject({ state: 'sent', proof: 'echo' });
+    expect(await settled((await answered(await click(1, [attempt])))[0])).toMatchObject({ state: 'sent', proof: 'echo' });
     expect(await posts(mark)).toBe(1);
     await custodyIs(1, attempt, 'sent');
   });
@@ -223,7 +235,7 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     await fakeFansly().command({ op: 'api', rules: [{ route: 'message.send', caller: 'ours', times: 1, outcome: { kind: 'drop' }, effect: true }] });
     const mark = await fakeFansly().mark();
     const attempt = randomUUID();
-    const result = (await answered(await click(3, [attempt])))[0];
+    const result = await settled((await answered(await click(3, [attempt])))[0]);
     const requestId = (await journal(attempt))?.requestId;
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
     // A reset before response bytes can make Firefox resend the SAME fetch. Raw hits are transport evidence,
