@@ -1,6 +1,6 @@
 // The head of a result sheet (ui-design §4.2): the gutter (a spinner while
-// streaming), the function's name, then meta, «черновик · не отправлено» and
-// on the right «Ещё раз» and × «Скрыть»; their keys are in their hints, not
+// streaming), the function's name, then meta, and on the right «Ещё раз» and
+// × «Скрыть»; their keys are in their hints, not
 // printed in the head (X57). Narrow rules are CSS: meta hides at 600 px,
 // «Ещё раз» becomes ↻ below 360 px so that the draft label always fits whole
 // (§3.3, §9.5 п. 4); below 360 px the buttons of a Recap or Review head take a
@@ -10,7 +10,7 @@ import { type ComponentChildren, type JSX } from 'preact';
 
 import { type HotkeyLabel, type UiAction } from '@cg/contracts/vm';
 
-import { Button, hotkeyText, useDispatch, useHints, useI18n, useKit, useTooltip } from '../kit';
+import { Button, hotkeyText, useDispatch, useI18n, useKit } from '../kit';
 
 export interface HeadProps {
   readonly title: string;
@@ -48,21 +48,6 @@ export function Meta({ texts }: { readonly texts: readonly string[] }): JSX.Elem
           {text}
         </span>
       ))}
-    </>
-  );
-}
-
-/** «черновик · не отправлено»: on every draft until a part is sent, at every width (ui-design §1 п. 9). */
-export function DraftLabel(): JSX.Element {
-  const i18n = useI18n();
-  const hints = useHints();
-  const tip = useTooltip(hints ? i18n.t('result.draftTooltip') : null);
-  return (
-    <>
-      <span class="cg-head__draft" data-cg-draft="" {...tip.props}>
-        {i18n.t('result.draft')}
-      </span>
-      {tip.description}
     </>
   );
 }

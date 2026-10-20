@@ -26,8 +26,8 @@
 //   < 480   no seams
 //   < 440   while the chat loads, the status spinner in the place of «Ещё»
 //   ≤ 420   Insert under the text
-//   < 360   «Ещё раз» is ↻, so «черновик · не отправлено» fits whole; the
-//           buttons of a Recap or Review head take a second line; «Ещё» is ⋯
+//   < 360   «Ещё раз» is ↻; the buttons of a Recap or Review head take a
+//           second line; «Ещё» is ⋯
 //           and the chips closer still (a 320 px column, §6.5)
 //
 // No goose in the bar (decision X31): its cell is the room that keeps every
@@ -105,9 +105,6 @@ ${/* ── the sheet: what opens above the bar. «На подложке» — a
 .cg-head > .cg-gut:empty { display: none; }
 .cg-head__title { flex: none; font-weight: 700; color: var(--cg-ink-strong); white-space: nowrap; }
 .cg-head__meta { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.cg-head__draft { flex: none; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; }
-.cg-head__score { flex: none; font-size: var(--cg-text-xl); font-weight: 600; color: var(--cg-ink-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cg-head__score span { color: var(--cg-ink-muted); font-weight: 400; font-size: var(--cg-text-sm); }
 .cg-head__sp { flex: 1; min-width: 0; order: 1; }
 .cg-head > .cg-timer { flex: none; order: 2; }
 .cg-head__acts { display: flex; align-items: center; gap: 2px; flex: none; order: 3; }

@@ -13,32 +13,49 @@ import { spokenStage, useReadyAnnouncement, useStageAnnouncements } from '../ann
 import { AgainButton, Head, Meta } from '../Head';
 import { StaleRow } from '../Result';
 import { useSteadyView, useStreamText } from '../Stream';
-import { Close, CopyAll, Expand, Fact, Facts, Running, debugFooter, running, type ViewProps } from './shared';
+import { Block, Close, CopyAll, Expand, Fact, Facts, ReportHead, Running, Score, debugFooter, running, type BlockTone, type ViewProps } from './shared';
+
+/** The old client's colour of each block: the verdict and the advice terracotta, money and what works green, the persona amber, mistakes red. */
+const TONE: Readonly<Record<ReviewSectionVM['kind'], BlockTone>> = {
+  verdict: 'clay',
+  money: 'good',
+  persona: 'amber',
+  mistakes: 'bad',
+  works: 'good',
+  recommendations: 'clay',
+};
 
 function Section({ section }: { readonly section: ReviewSectionVM }): JSX.Element {
   const i18n = useI18n();
+  const numbered = section.items.length > 0;
   return (
-    <div class="cg-block" data-cg-section={section.kind}>
-      <b>{i18n.text(section.title)}</b>
-      <div class="cg-block__main">
-        {section.body === '' ? null : <Markdown source={section.body} />}
-        {section.items.map((item, index) => (
-          <div key={index} class="cg-rv-item">
-            <Markdown source={item.body} />
-            {item.example === null ? null : (
-              <div class="cg-rv-ex">
-                <div class="cg-cap">
-                  {i18n.t('review.example')}
-                  {item.exampleWhere === null ? null : <span class="cg-rv-where"> · {item.exampleWhere}</span>}
-                </div>
-                <div class="cg-rv-ex__t">{item.example}</div>
+    <Block title={i18n.text(section.title)} tone={TONE[section.kind]} tinted={section.kind === 'verdict' || section.kind === 'works'} kind={section.kind}>
+      {section.body === '' ? null : <Markdown source={section.body} />}
+      {numbered ? (
+        <ol class="cg-ritems">
+          {section.items.map((item, index) => (
+            <li key={index} class="cg-rv-item">
+              <span class="cg-rv-item__n" aria-hidden="true">
+                {index + 1}.
+              </span>
+              <div class="cg-rv-item__b">
+                <Markdown source={item.body} />
+                {item.example === null ? null : (
+                  <div class="cg-rv-ex">
+                    <div class="cg-rv-ex__k">
+                      {i18n.t('review.example')}
+                      {item.exampleWhere === null ? null : <span class="cg-rv-where"> · {item.exampleWhere}</span>}
+                    </div>
+                    <div class="cg-rv-ex__t">{item.example}</div>
+                  </div>
+                )}
+                {item.afterExample === null ? null : <Markdown source={item.afterExample} />}
               </div>
-            )}
-            {item.afterExample === null ? null : <Markdown source={item.afterExample} />}
-          </div>
-        ))}
-      </div>
-    </div>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </Block>
   );
 }
 
@@ -61,12 +78,7 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
   if (place === 'sheet' && review.expanded) {
     return (
       <Head title={title} gutter={running(review.state) ? <Spinner /> : null} acts={close}>
-        {review.rating === null ? null : (
-          <span class="cg-head__score" data-cg-score={review.rating}>
-            {review.rating}
-            <span>/10</span>
-          </span>
-        )}
+        {review.rating === null ? null : <Score rating={review.rating} size="sm" />}
         <Meta texts={review.meta.map((line) => i18n.text(line))} />
       </Head>
     );
@@ -95,63 +107,54 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
   // The lead repeats the verdict in the hub's format: shown on its own only when no block carries it.
   const lead = review.lead !== null && !review.sections.some((section) => section.body === review.lead) ? review.lead : null;
   const coverage = review.stamp.coverage;
+  const acts = (
+    <>
+      <CopyAll handle={review.copyHandle} label={i18n.t('review.copy')} />
+      <Expand which="review" place={place} />
+      <AgainButton label={i18n.text(again.label)} hotkey={again.hotkey} tooltip={i18n.t('review.againTooltip')} reason={againReason} onClick={() => void dispatch(again.action)} />
+      {close}
+    </>
+  );
+  const meta = review.meta.map((line) => i18n.text(line));
   return (
     <>
-      <Head
-        title={title}
-        tools
-        acts={
-          <>
-            <CopyAll handle={review.copyHandle} label={i18n.t('review.copy')} />
-            <Expand which="review" place={place} />
-            <AgainButton
-              label={i18n.text(again.label)}
-              hotkey={again.hotkey}
-              tooltip={i18n.t('review.againTooltip')}
-              reason={againReason}
-              onClick={() => void dispatch(again.action)}
-            />
-            {close}
-          </>
-        }
-      >
-        {review.rating === null ? null : (
-          <span class="cg-head__score" data-cg-score={review.rating}>
-            {review.rating}
-            <span>/10</span>
-          </span>
-        )}
-        <Meta texts={review.meta.map((line) => i18n.text(line))} />
-      </Head>
+      {place === 'dialog' ? (
+        <ReportHead
+          kicker={title}
+          title={title}
+          fan={review.targetName}
+          badge={review.rating === null ? null : <Score rating={review.rating} size="lg" />}
+          acts={acts}
+          sub={meta}
+        />
+      ) : (
+        <Head title={title} tools acts={acts}>
+          {review.rating === null ? null : <Score rating={review.rating} size="sm" />}
+          <Meta texts={meta} />
+        </Head>
+      )}
       <div class="cg-body">
         {/* The site's verdict over the Review (R20 P8c): «Ещё раз» rates the chat anew. */}
         {mark === null ? null : <StaleRow mark={mark} onAgain={() => void dispatch(again.action)} reason={againReason} />}
-        {review.unparsed || review.sections.length === 0 ? (
-          <div class="cg-prose">
-            <span />
+        <div class="cg-doc">
+          {review.unparsed || review.sections.length === 0 ? (
             <div class="cg-raw">{review.raw}</div>
-          </div>
-        ) : (
-          <>
-            {lead === null ? null : (
-              <div class="cg-prose">
-                <span />
-                <Markdown source={lead} />
-              </div>
-            )}
-            <div class="cg-blocks">
+          ) : (
+            <>
+              {lead === null ? null : <Markdown source={lead} />}
               {review.sections.map((section, index) => (
                 <Section key={index} section={section} />
               ))}
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
       <Facts>
         {review.facts.map((fact, index) => (
           <Fact key={index}>{i18n.text(fact)}</Fact>
         ))}
-        {coverage === 'complete' ? null : <Fact>{i18n.t(coverage === 'partial' ? 'common.coverage.partial' : 'common.coverage.unknown')}</Fact>}
+        {/* Only what is wrong: an incomplete archive. «охват неизвестен» told nothing to act on (2026-10-20). */}
+        {coverage === 'partial' ? <Fact>{i18n.t('common.coverage.partial')}</Fact> : null}
       </Facts>
       {debug}
     </>

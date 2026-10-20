@@ -2,6 +2,11 @@
 // stage line, the close button of the sheet («Скрыть Esc») or of the window
 // («Свернуть Esc»), «Развернуть ↗», the copy icon and the facts row. Neither
 // is a message to the fan: no Insert, no Split, never a send.
+//
+// In the window they read as the old Fansly client's report (2026-10-20, the
+// owner's reference): a head with the score's badge and the fan's name in the
+// serif, then a dashed document whose blocks carry their colour — the verdict
+// on terracotta, what works on green, a mistake with «Как надо было».
 
 import { type ReadonlySignal } from '@preact/signals';
 import { type ComponentChildren, type JSX } from 'preact';
@@ -134,6 +139,76 @@ export function Running({ title, opId, phase, text, debug }: RunningProps): JSX.
       </div>
       {debug}
     </>
+  );
+}
+
+/** The score's step, as the old client coloured it: 9–10 green fill, 7–8 green, 5–6 amber, 3–4 orange, below — red. */
+export function scoreTier(rating: number): 'top' | 'good' | 'mid' | 'low' | 'poor' {
+  if (rating >= 9) return 'top';
+  if (rating >= 7) return 'good';
+  if (rating >= 5) return 'mid';
+  if (rating >= 3) return 'low';
+  return 'poor';
+}
+
+/** N/10: a badge of the score's colour — 48 px in a report's head, a chip in the dock's head. */
+export function Score({ rating, size }: { readonly rating: number; readonly size: 'lg' | 'sm' }): JSX.Element {
+  return (
+    <span class={`cg-score cg-score--${size}`} data-cg-score={rating} data-cg-tier={scoreTier(rating)}>
+      {rating}
+      <span class="cg-score__of">/10</span>
+    </span>
+  );
+}
+
+export interface ReportHeadProps {
+  /** The feature's name: the mono line above the title. */
+  readonly kicker: string;
+  readonly title: string;
+  /** The fan the report is about; null — not known. */
+  readonly fan: string | null;
+  /** The score badge, before the title. */
+  readonly badge?: ComponentChildren;
+  /** After the title block: a segment («Коротко | Полностью»). */
+  readonly tools?: ComponentChildren;
+  readonly acts: ComponentChildren;
+  /** Under the title: «последние 40 сообщений с Hubert». */
+  readonly sub?: readonly string[];
+}
+
+/** The head of a report in the «Развернуть ↗» window: badge, «REVIEW», «Review — Hubert» in the serif, the buttons. */
+export function ReportHead({ kicker, title, fan, badge, tools, acts, sub = [] }: ReportHeadProps): JSX.Element {
+  return (
+    <header class="cg-rhead">
+      {badge}
+      <div class="cg-rhead__t">
+        <span class="cg-rhead__k">{kicker}</span>
+        <h2 class="cg-rhead__h">
+          {title}
+          {fan === null ? null : <span class="cg-rhead__fan"> — {fan}</span>}
+        </h2>
+        {sub.length === 0 ? null : <span class="cg-rhead__sub">{sub.join(' · ')}</span>}
+      </div>
+      <span class="cg-head__sp" />
+      {tools === undefined || tools === null ? null : <span class="cg-rhead__tools">{tools}</span>}
+      <span class="cg-head__acts">{acts}</span>
+    </header>
+  );
+}
+
+/** A block's colour, by what it is about (the old client's dots): the verdict, money, the persona, a mistake, what works. */
+export type BlockTone = 'clay' | 'good' | 'amber' | 'bad' | 'plain';
+
+/** A block of a report: a mono heading with its dot, the text; the verdict and «что работает» on their tint. */
+export function Block({ title, tone, tinted = false, kind, children }: { readonly title: string; readonly tone: BlockTone; readonly tinted?: boolean; readonly kind?: string; readonly children: ComponentChildren }): JSX.Element {
+  return (
+    <section class={`cg-rsec is-${tone}${tinted ? ' is-tinted' : ''}`} {...(kind === undefined ? {} : { 'data-cg-section': kind })}>
+      <h3 class="cg-rsec__h">
+        <span class="cg-rsec__dot" aria-hidden="true" />
+        {title}
+      </h3>
+      <div class="cg-rsec__b">{children}</div>
+    </section>
   );
 }
 

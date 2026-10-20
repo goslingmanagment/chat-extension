@@ -14,7 +14,6 @@ import {
   ActionButton,
   Button,
   Dot,
-  Icon,
   MINUTE,
   Markdown,
   Segmented,
@@ -33,7 +32,7 @@ import { useReadyAnnouncement, useStageAnnouncements } from '../announce';
 import { Head, Meta } from '../Head';
 import { StaleRow } from '../Result';
 import { useSteadyView, useStreamText } from '../Stream';
-import { Close, CopyAll, Expand, Fact, Facts, Running, debugFooter, running, type ViewProps } from './shared';
+import { Block, Close, CopyAll, Expand, Fact, Facts, ReportHead, Running, debugFooter, running, type BlockTone, type ViewProps } from './shared';
 
 function SavedFact({ saved }: { readonly saved: RecapViewVM['saved'] }): JSX.Element | null {
   const i18n = useI18n();
@@ -49,12 +48,8 @@ function SavedFact({ saved }: { readonly saved: RecapViewVM['saved'] }): JSX.Ele
         </Fact>
       );
     case 'saved':
-      return (
-        <Fact>
-          <Icon name="check" size={13} />
-          {i18n.t('recap.savedToHub')}
-        </Fact>
-      );
+      // The toast «Recap сохранён в хаб» says it once; the row stays for what needs a hand.
+      return null;
     case 'failed':
       // The text stays shown and copyable; only the idempotent reference write repeats, never the AI — and the
       // row says so: «не сохранено в хаб», «Сохранить ещё раз», never a «Повторить» that reads as a new generation.
@@ -83,7 +78,8 @@ function RecapFacts({ recap }: { readonly recap: RecapViewVM }): JSX.Element {
         </Fact>
       )}
       <SavedFact saved={recap.saved} />
-      <Fact>{i18n.t(coverage === 'complete' ? 'recap.archiveComplete' : coverage === 'partial' ? 'common.coverage.partial' : 'common.coverage.unknown')}</Fact>
+      {/* Only what is wrong: an incomplete archive. «архив полный» and «охват неизвестен» were grey words to skip (2026-10-20). */}
+      {coverage === 'partial' ? <Fact>{i18n.t('common.coverage.partial')}</Fact> : null}
       {recap.archiveLag === null ? null : (
         <Fact strong>
           <Dot kind="accent" use="archive-lag" />
@@ -92,6 +88,21 @@ function RecapFacts({ recap }: { readonly recap: RecapViewVM }): JSX.Element {
       )}
     </Facts>
   );
+}
+
+/**
+ * A Recap block's colour by its heading (the old client matched its headings the same way): money green, what he
+ * answers to amber, what to avoid red, what to do now terracotta; any other heading stays plain.
+ */
+const HEADING_TONES: readonly (readonly [RegExp, BlockTone])[] = [
+  [/куп|трат|деньг|финанс|плат|bought|spend|money|financ|paid/i, 'good'],
+  [/избег|границ|риск|нельзя|avoid|boundar|risk/i, 'bad'],
+  [/люб|отвеча|триггер|интерес|заход|like|answers|trigger|hot/i, 'amber'],
+  [/сейчас|дальше|следующ|стратег|ход|now|next|strateg|move/i, 'clay'],
+];
+
+export function headingTone(heading: string): BlockTone {
+  return HEADING_TONES.find(([pattern]) => pattern.test(heading))?.[1] ?? 'plain';
 }
 
 /** «Сделан 1 д назад», refreshed on the shared minute ticker; under a minute — «Сделан только что». */
@@ -227,49 +238,49 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
   const none = i18n.t('cg.recapNotFound.title');
   const mark = recap.stale ?? null;
   const againReason = recap.refresh.enabled ? null : recap.refresh.reason === null ? i18n.t('common.unknown') : i18n.text(recap.refresh.reason.text);
+  const acts = (
+    <>
+      <CopyAll handle={recap.copyHandle} label={i18n.t('recap.copy')} />
+      {recap.blocks === null ? null : <Expand which="recap" place={place} />}
+      <Refresh vm={recap.refresh} />
+      {close}
+    </>
+  );
+  const lengths = (
+    <Segmented
+      label={i18n.t('recap.lengthLabel')}
+      value={recap.length}
+      options={[
+        { value: 'short', label: i18n.t('recap.short'), reason: recap.lengths.short ? null : none },
+        { value: 'full', label: i18n.t('recap.full'), reason: recap.lengths.full ? null : none },
+      ]}
+      onChange={(length) => void dispatch({ type: 'ShowRecap', length })}
+    />
+  );
   return (
     <>
-      <Head
-        title={title}
-        tools
-        acts={
-          <>
-            <CopyAll handle={recap.copyHandle} label={i18n.t('recap.copy')} />
-            {recap.blocks === null ? null : <Expand which="recap" place={place} />}
-            <Refresh vm={recap.refresh} />
-            {close}
-          </>
-        }
-      >
-        <Segmented
-          label={i18n.t('recap.lengthLabel')}
-          value={recap.length}
-          options={[
-            { value: 'short', label: i18n.t('recap.short'), reason: recap.lengths.short ? null : none },
-            { value: 'full', label: i18n.t('recap.full'), reason: recap.lengths.full ? null : none },
-          ]}
-          onChange={(length) => void dispatch({ type: 'ShowRecap', length })}
-        />
-        <Meta texts={forFan} />
-      </Head>
+      {place === 'dialog' ? (
+        <ReportHead kicker={title} title={title} fan={name} tools={lengths} acts={acts} />
+      ) : (
+        <Head title={title} tools acts={acts}>
+          {lengths}
+          <Meta texts={forFan} />
+        </Head>
+      )}
       <div class="cg-body">
         {/* The site's verdict over the Recap this tab built (R20 P8c): «Ещё раз» builds it anew, as «↻ Обновить». */}
         {mark === null ? null : <StaleRow mark={mark} onAgain={() => void dispatch(recap.refresh.action)} reason={againReason} />}
-        {recap.blocks === null ? (
-          <div class="cg-prose">
-            <span />
+        <div class="cg-doc">
+          {recap.blocks === null ? (
             <Markdown source={recap.markdown} />
-          </div>
-        ) : (
-          <div class="cg-blocks">
-            {recap.blocks.map((block, index) => (
-              <div key={index} class="cg-block">
-                <b>{block.heading}</b>
+          ) : (
+            recap.blocks.map((block, index) => (
+              <Block key={index} title={block.heading} tone={headingTone(block.heading)}>
                 <Markdown source={block.markdown} />
-              </div>
-            ))}
-          </div>
-        )}
+              </Block>
+            ))
+          )}
+        </div>
       </div>
       <RecapFacts recap={recap} />
       {debug}
