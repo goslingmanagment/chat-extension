@@ -163,26 +163,15 @@ function resolveScenario(arg: string): string {
   return fail(`\nsee: no scenario «${arg}»`);
 }
 
-const TEMPLATE = (name: string): string => `// ${name}: what this shows (the first comment line is its description in \`pnpm see\`).
-// The verbs: packages/testing/e2e/see/kit.ts (\`See\`); more examples: ../scenarios/.
-
-import { scenario } from '../kit';
-
-scenario('${name}', async (s) => {
-  await s.ready(); // the dock of the open chat is ready
-  await s.shot('before');
-  await s.press(/^Reply/); // a button of the dock's strip, by its text
-  await s.done(); // the generation ended
-  await s.shot('after');
-});
-`;
+/** The template of a scratch scenario (a plain file: the sources archive must hold no import of e2e code). */
+const TEMPLATE = join(SEE_DIR, 'scratch.template');
 
 function newScenario(name: string | undefined): void {
   if (name === undefined || !/^[\w-]+$/.test(name)) fail('see: pnpm see --new <name> (letters, digits, - and _)');
   mkdirSync(SCRATCH, { recursive: true });
   const file = join(SCRATCH, `${name}.see.ts`);
   if (existsSync(file)) fail(`see: ${file} is there already`);
-  writeFileSync(file, TEMPLATE(name));
+  writeFileSync(file, readFileSync(TEMPLATE, 'utf8').replaceAll('__NAME__', name));
   say(`${file}\nsee: run it: pnpm see ${name}`);
 }
 
