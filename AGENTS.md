@@ -52,6 +52,15 @@ again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. The
 - **The hub's prod** (`agency-de`) — read-only. AI, keys and prompts live only in the hub.
 - **Announcements to chatters** (Telegram) — the owner's call, never automatic.
 
+## What the chatter gets
+
+- The UX reference is the old clients (`~/code/1-platform/fansly-chat`, `~/code/1-platform/onlyfans-chat`): when in doubt,
+  do what they did. Fansly stays on the old extension until the switch conditions in
+  `~/code/8-docs/2026-10-20-chat-extension-one-or-two/README.md` are met.
+- A new block for the chatter (a disabled button, a refusal, a forced wait or confirmation) only with the owner's «да».
+  By default it is a warning the chatter can pass. The red lines above stay blocks.
+- One UI for both sites: a site gets its own adapter, never its own copy of a shared component or window.
+
 ## What saves time
 
 - Type-aware ESLint does not fit into 4 GB: `NODE_OPTIONS=--max-old-space-size=8192`.
