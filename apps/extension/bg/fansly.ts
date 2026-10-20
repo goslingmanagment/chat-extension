@@ -102,6 +102,7 @@ import { createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
 import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
+import { readHiStartProof } from './fansly/hi-start';
 import { createNotesService } from './fansly/notes';
 import { readRegistration } from './fansly/registration';
 import { createRelayService } from './fansly/relay';
@@ -116,7 +117,7 @@ const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? o
  * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
  * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself.
  */
-const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve']);
+const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.hi.start']);
 
 /** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
 async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, type: string, payload: unknown): Promise<HostAnswer> {
@@ -285,6 +286,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         const { opId } = payload as FanslyTabRequestPayload<'fansly.ops.cancel'>;
         return ok({ state: kit.ops.siteView(opId, 'fansly-web') === null ? null : kit.ops.cancel(opId) });
       }
+      case 'fansly.hi.start':
+        return ok(await readHiStartProof(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.hi.start'>, sender));
       case 'fansly.registration.read':
         return ok(await readRegistration(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.registration.read'>, sender));
       case 'fansly.notes.read':

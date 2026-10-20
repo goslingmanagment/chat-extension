@@ -1436,6 +1436,8 @@ export const RU: I18nCatalog<'ru'> = {
   'cg.gateHistory.body': 'Для этого действия в чате пока мало сообщений.',
   'cg.gateHi.title': 'Это уже диалог',
   'cg.gateHi.body': 'Hi — для первого сообщения. Здесь нужен Reply.',
+  'cg.gateHiUnproven.title': 'Не удалось проверить начало переписки',
+  'cg.gateHiUnproven.body': 'Hi — только для новой переписки, а дочитать этот чат до начала не вышло. Нажмите Hi ещё раз; если фан уже писал — нужен Reply.',
   'cg.gatePing.title': 'Фан активен',
   'cg.gatePing.body': 'Фан недавно писал — Ping сейчас заблокирован.',
   'cg.gateLanguage.title': 'Черновик кириллицей',

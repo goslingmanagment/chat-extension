@@ -74,6 +74,8 @@ export interface SeeOptions {
   readonly hubTexts?: true;
   /** Before the shift starts: script the fake hub or the stand (`s.hub.command(...)`, `s.stand`). */
   readonly before?: (s: Pick<See, 'hub' | 'site' | 'stand'>) => Promise<void>;
+  /** Fansly: the group the shift opens first (default the stand's first chat, 90 messages). */
+  readonly fanslyGroup?: string;
   /** The scenario's own time limit (default 3 minutes). */
   readonly timeout?: number;
 }
@@ -273,7 +275,7 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
     if (site === 'fansly') {
       // Fansly's shift takes the generation section only, as whole sub-sections.
       const generation = options.settings?.generation as Partial<SettingsV1['generation']> | undefined;
-      const shift = await startFanslyShift(hub, { path: `/messages/${WORLD.fansly.chats.a.group}`, viewport, ...(generation === undefined ? {} : { settings: { generation } }) });
+      const shift = await startFanslyShift(hub, { path: `/messages/${options.fanslyGroup ?? WORLD.fansly.chats.a.group}`, viewport, ...(generation === undefined ? {} : { settings: { generation } }) });
       toChat = () => shift.toFansly();
       toPages = () => shift.toPages();
       rpc = (type, payload) => shift.rpc(type, payload);

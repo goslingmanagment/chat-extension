@@ -5,15 +5,18 @@
 // never loads it — its policy rides in its `tab-app`.
 
 import type { CgErrorWire } from '@cg/contracts/errors';
+import type { FanslySnapshot } from '@cg/contracts/fansly';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import { SettingsExtSchema, type SettingsExt } from '@cg/contracts/settings-ext';
-import { createFanslyAi } from '@cg/core/application/hosts/fansly/ai';
+import { createFanslyAi, type HiStartAnswer } from '@cg/core/application/hosts/fansly/ai';
 import type { TabRpcClient } from '@cg/platform';
 
 export { createFanslyAi } from '@cg/core/application/hosts/fansly/ai';
 
 /** How long a deep start waits for the person's depth before it goes with the v1 window. */
 const WINDOWS_TIMEOUT_MS = 2000;
+/** How long Hi waits for the background's read of the start: the click's grant lasts 10 s (GRANT_TTL_MS). */
+const HI_START_TIMEOUT_MS = 6000;
 
 /** The tab's client as it takes a request of Fansly's registry: the shared one is typed by its own types only. */
 type AnyRequest = (type: string, payload: unknown, options?: { readonly timeoutMs?: number }) => Promise<{ readonly ok: true; readonly payload: unknown } | { readonly ok: false; readonly error: CgErrorWire }>;
@@ -30,7 +33,19 @@ export async function readFanslyWindows(rpc: Pick<TabRpcClient, 'request'>): Pro
   return checked.success ? checked.data : null;
 }
 
-/** Fansly's policy of this tab: the page's clock, the deep window asked of the background. */
+/**
+ * Hi's start read by the background (`fansly.hi.start`) when the tab saw none: its proof, or a dialog. A refusal, a
+ * timeout or a wrong shape — null: Hi goes without a proof, and the hub refuses it in its own words.
+ */
+export async function readFanslyHiStart(rpc: Pick<TabRpcClient, 'request'>, chat: FanslySnapshot['identity']): Promise<HiStartAnswer | null> {
+  const payload = { hostAccountId: chat.creatorId, fanRef: chat.fanId, groupId: chat.groupId };
+  const answer = await (rpc.request as unknown as AnyRequest)('fansly.hi.start', payload, { timeoutMs: HI_START_TIMEOUT_MS }).catch(() => null);
+  if (answer === null || !answer.ok) return null;
+  const read = answer.payload as { readonly ok: boolean; readonly proof?: HiStartAnswer['proof']; readonly dialog?: boolean };
+  return read.ok === true ? { proof: read.proof ?? null, dialog: read.dialog === true } : null;
+}
+
+/** Fansly's policy of this tab: the page's clock, the deep window and Hi's start asked of the background. */
 export function startFanslyAi(rpc: Pick<TabRpcClient, 'request'>): AiHostPolicy {
-  return createFanslyAi({ now: () => Date.now(), windows: () => readFanslyWindows(rpc) });
+  return createFanslyAi({ now: () => Date.now(), windows: () => readFanslyWindows(rpc), hiStart: (chat) => readFanslyHiStart(rpc, chat) });
 }

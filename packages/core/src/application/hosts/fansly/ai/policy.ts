@@ -38,7 +38,7 @@
 //   the deep window only (`windows`); the shared planner caps it by the hub's
 //   `limits.deepMax`.
 
-import type { FanslySnapshot } from '@cg/contracts/fansly';
+import type { FanslySnapshot, StartProofV1 } from '@cg/contracts/fansly';
 import type { FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { HostPort } from '@cg/contracts/host';
 import type { AiProofAsk, CoverageProof } from '@cg/contracts/ops';
@@ -54,12 +54,38 @@ export interface FanslyAiDeps {
   readonly now: () => number;
   /** The person's deep window in Fansly's `settings.ext` (`fansly.settings.windows`); absent — none (the v1 window). */
   readonly windows?: () => Promise<SettingsExt['windows'] | null>;
+  /**
+   * Hi's start read by the background when the tab saw none (`fansly.hi.start`): the proof, or a dialog; null — not
+   * read (a refusal, a timeout). Absent — never asked.
+   */
+  readonly hiStart?: (chat: FanslySnapshot['identity']) => Promise<HiStartAnswer | null>;
+}
+
+/** What the background's read of Hi's start found: its proof (`pass-empty-page`), or more than ten personal messages. */
+export interface HiStartAnswer {
+  readonly proof: StartProofV1 | null;
+  readonly dialog: boolean;
 }
 
 /** What a start on Fansly gathered: the snapshot MAIN gave and the start's proof made of it. */
 export interface FanslyStartProof {
   readonly snapshot: FanslySnapshot;
   readonly proof: Extract<CoverageProof, { kind: 'tab-snapshot' }>;
+  /** Hi: the background's read found more than ten personal messages — a dialog. */
+  readonly dialog?: true;
+}
+
+/**
+ * Hi without the tab's proof of the start (a cold load, a new socket: the page's history came before the socket's
+ * `t:1`): the background reads the history to its empty page, as the old extension read a page on every Hi. Its proof
+ * goes into the snapshot; a failed read leaves none, and the hub refuses `history_unproven` in its own words.
+ */
+async function withHiStart(snapshot: FanslySnapshot, deps: FanslyAiDeps): Promise<{ snapshot: FanslySnapshot; dialog: boolean }> {
+  if (snapshot.feature !== 'hi' || snapshot.startProof !== undefined || deps.hiStart === undefined) return { snapshot, dialog: false };
+  const read = await deps.hiStart(snapshot.identity).catch(() => null);
+  if (read === null) return { snapshot, dialog: false };
+  const proof = read.proof?.groupId === snapshot.identity.groupId ? read.proof : null;
+  return { snapshot: proof === null ? snapshot : { ...snapshot, startProof: proof }, dialog: read.dialog };
 }
 
 /** Fansly's port has the freshness of its own snapshot; a port without one (none but Fansly's has it) gives no proof. */
@@ -74,14 +100,18 @@ function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<Fa
   const same = route.epoch === ask.identity.routeEpoch && route.chat !== null && route.chat.hostAccountId === chat.hostAccountId && route.chat.platformFanId === chat.platformFanId;
   if (!same || route.conversationRef === undefined) return null;
   const request = { conversationRef: route.conversationRef, feature: ask.feature, window: checkWindowOf(ask.messageCount), withText: ask.fresh !== null };
-  return freshness.snapshot(chat, request).then((snapshot) => (snapshot === null ? null : { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()) }));
+  return freshness.snapshot(chat, request).then(async (taken) => {
+    if (taken === null) return null;
+    const { snapshot, dialog } = await withHiStart(taken, deps);
+    return { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()), ...(dialog ? { dialog: true as const } : {}) };
+  });
 }
 
 export function createFanslyAi(deps: FanslyAiDeps): AiPolicy<FanslyStartProof, ProofFingerprint> {
   const checks = resultChecks(deps.now);
   return {
     watch: (host, changed) => checks.watch(host, changed),
-    preflight: (feature, _window, gathered) => hiPingGate(feature, gathered?.snapshot ?? null, deps.now()),
+    preflight: (feature, _window, gathered) => (feature === 'hi' && gathered?.dialog === true ? 'hi-gate' : hiPingGate(feature, gathered?.snapshot ?? null, deps.now())),
     proof: (host, ask) => gather(host, ask, deps),
     fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof, ...hiFieldsOf(gathered.snapshot) }),
     fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),

@@ -90,7 +90,7 @@ export type FanslyRouteName = keyof typeof FANSLY_ROUTES;
 export const FANSLY_ROUTE_NAMES = Object.keys(FANSLY_ROUTES) as FanslyRouteName[];
 
 /** Why the extension asks Fansly at all: the rows of FS-NET-1's table. */
-export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity'] as const;
+export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi'] as const;
 export type FanslyPurpose = (typeof FANSLY_PURPOSES)[number];
 
 /**
@@ -142,6 +142,9 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   notes: { 'group.detail': CLICK_READ, 'account.byIds': CLICK_READ, 'notes.create': WRITE, 'notes.edit': WRITE, 'notes.delete': WRITE },
   // The identity, when the page's own answer did not give it.
   identity: { 'account.me': PASS_READ },
+  // Hi in the open chat when the tab saw no start of it (a cold load, a new socket): the welcome texts and the pages of
+  // history to the empty one, by the person's click — once, and not at all while the creator cools down.
+  hi: { 'message.history': CLICK_READ, 'message.automated': CLICK_READ },
 };
 
 const has = (record: object, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);

@@ -66,6 +66,7 @@ const SPECS = {
   'CG-GATE-DRAFT': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-GATE-HISTORY': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-GATE-HI': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
+  'CG-GATE-HI-UNPROVEN': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-GATE-PING': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-GATE-LANGUAGE': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-GATE-FAN-BLOCKED': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },

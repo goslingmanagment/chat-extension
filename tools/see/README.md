@@ -25,7 +25,7 @@ makes `see.gif` from the run's frames (needs `ffmpeg`).
 Scenarios: `dock`, `reply`, `coach`, `recap`, `review`, `fix`, `hi`,
 `spenders`, `newcomers`, `palette`, `fan-panel`, `pages` (popup and
 settings), `fansly-dock`. On Fansly (`--site fansly`): `dock`, `reply`,
-`coach`, `recap`, `review`, `pages`.
+`coach`, `recap`, `review`, `pages`, `fansly-hi` (Hi after a cold load).
 
 ## A scenario of your own
 
