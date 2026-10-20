@@ -538,7 +538,7 @@ ChatSpace расширение их не читает. На тестовой с�
 
 Это доказывает тест проводки «a hub older than the vendored SDK»
 (`apps/extension/test/wiring-background.test.ts`). Выпустить сборку на хаб без её
-контракта нельзя: гейт выпуска (`pnpm release preflight --online`) требует хеш SDK в
+контракта нельзя: гейт выпуска (`pnpm release`) требует хеш SDK в
 `compatibleClientSdks` прода. Сейчас он там есть.
 
 | Что | Изменения хаба | Состояние |

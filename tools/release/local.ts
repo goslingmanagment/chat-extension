@@ -3,16 +3,15 @@
 // .release/, and git. The only module that touches the local filesystem
 // besides cli.ts; the network is not here.
 
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 
 import { builtArtifacts } from '../lib/artifacts.ts';
 import { listTree } from '../lib/files.ts';
-import { readZip, type ZipEntry } from '../lib/zip.ts';
+import type { ZipEntry } from '../lib/zip.ts';
 import { SITE_PAGES as EXTENSION_LINKS } from '../../apps/extension/src/site.ts';
 import { parseChangelog, type Changelog } from './changelog.ts';
-import { BUILD_INSTRUCTIONS, CHANGELOG_FILE, noteFile, releaseTarget, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
+import { CHANGELOG_FILE, RELEASE_DIR, releaseTarget, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
 import { mustRun, type Exec } from './exec.ts';
 import type { VendorObservation } from './gate.ts';
 import type { LocalFile } from './publish.ts';
@@ -27,8 +26,9 @@ import {
   type ReleasePaths,
   type ReleaseRecord,
 } from './records.ts';
+import { changelogSection, withSections } from './notes.ts';
 import { SITE_FILES, type SiteContext } from './site.ts';
-import { readPackageVersion } from './version.ts';
+import { compareVersions, isVersion, readPackageVersion } from './version.ts';
 import { parseTestBuildSet, TEST_BUILDS_DIR, type TestBuildSet } from './test-builds.ts';
 import { sha256Hex } from './xpi.ts';
 
@@ -60,6 +60,7 @@ export class Checkout {
     writeFileSync(this.path(relative), text);
   }
 
+  /** The version in git's apps/extension/package.json: not raised by releases (the tags are), only a floor. */
   version(): string {
     return readPackageVersion(this.read(VERSION_FILE));
   }
@@ -68,8 +69,15 @@ export class Checkout {
     return parseChangelog(this.read(CHANGELOG_FILE));
   }
 
-  note(version: string): string | null {
-    return this.readOrNull(noteFile(version));
+  /** The files as they are now; the function puts them back (a release writes them only for its build). */
+  snapshot(relatives: readonly string[]): () => void {
+    const saved = relatives.map((relative) => ({ relative, text: this.readOrNull(relative) }));
+    return () => {
+      for (const { relative, text } of saved) {
+        if (text === null) rmSync(this.path(relative), { force: true });
+        else this.write(relative, text);
+      }
+    };
   }
 
   // ── git ──
@@ -94,6 +102,47 @@ export class Checkout {
   async tag(name: string): Promise<{ readonly commit: string; readonly annotated: boolean } | null> {
     if ((await this.gitCode('rev-parse', '-q', '--verify', `refs/tags/${name}^{commit}`)) !== 0) return null;
     return { commit: await this.git('rev-parse', `refs/tags/${name}^{commit}`), annotated: (await this.git('cat-file', '-t', `refs/tags/${name}`)) === 'tag' };
+  }
+
+  /** The released versions: the tags `vX.Y.Z` here (fetched from origin first), lowest first. */
+  async versionTags(): Promise<string[]> {
+    const names = (await this.git('tag', '-l', 'v*')).split('\n').map((line) => line.trim().replace(/^v/, ''));
+    return names.filter(isVersion).sort(compareVersions);
+  }
+
+  /** The subjects of main's own commits after `from` up to `to`, newest first. */
+  async subjects(from: string | null, to: string): Promise<string[]> {
+    const range = from === null ? [to, '-n', '50'] : [`${from}..${to}`];
+    return (await this.git('log', '--first-parent', '--format=%s', ...range)).split('\n').filter((line) => line.trim() !== '');
+  }
+
+  /**
+   * CHANGELOG.md as git has it, under the sections of every tagged version above
+   * its top one and, when given, of the version being released — each made from
+   * the commits since the tag before it (notes.ts).
+   */
+  async changelogText(pending?: { readonly version: string; readonly head: string }): Promise<string> {
+    const committed = this.read(CHANGELOG_FILE);
+    const top = parseChangelog(committed).sections[0]?.version ?? '0.0.0';
+    const tags = await this.versionTags();
+    const before = (version: string): string | null => {
+      const earlier = tags.filter((tag) => compareVersions(tag, version) < 0).at(-1);
+      return earlier === undefined ? null : `v${earlier}`;
+    };
+    const sections: string[] = [];
+    for (const tag of tags.filter((candidate) => compareVersions(candidate, top) > 0)) sections.unshift(changelogSection(tag, await this.subjects(before(tag), `v${tag}`)));
+    if (pending !== undefined && !tags.includes(pending.version) && compareVersions(pending.version, top) > 0) sections.unshift(changelogSection(pending.version, await this.subjects(before(pending.version), pending.head)));
+    return withSections(committed, sections);
+  }
+
+  /** Versions above `latest` that this checkout signed or sent to AMO and that were never tagged. */
+  unfinished(latest: string | null): string[] {
+    const dir = this.path(RELEASE_DIR);
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+      .filter((name) => isVersion(name) && (latest === null || compareVersions(name, latest) > 0))
+      .filter((name) => existsSync(this.paths(name).record) || existsSync(this.paths(name).submitted))
+      .sort(compareVersions);
   }
 
   // ── the site ──
@@ -231,44 +280,4 @@ export class Checkout {
     const dir = join(root, name);
     return { dir, set: parseTestBuildSet(readFileSync(join(dir, 'set.json'), 'utf8')) };
   }
-}
-
-/**
- * Unpacks the sources archive into a temporary folder, installs from the local
- * pnpm store without the network and builds — what Mozilla's reviewer does
- * with it (BUILD.md). Returns the files of the rebuilt extension; the folder
- * is removed.
- */
-export async function rebuildFromSources(exec: Exec, sourcesZip: string): Promise<ZipEntry[]> {
-  const dir = mkdtempSync(join(tmpdir(), 'cg-release-rebuild-'));
-  try {
-    const entries = readZip(readFileSync(sourcesZip));
-    if (!entries.some((entry) => entry.name === BUILD_INSTRUCTIONS)) throw new Error(`the sources archive has no ${BUILD_INSTRUCTIONS}: a reviewer would not know how to build it.`);
-    for (const entry of entries) {
-      if (entry.name.split('/').includes('..') || entry.name.startsWith('/')) throw new Error(`the sources archive holds a path that leaves it: ${entry.name}`);
-      const path = join(dir, entry.name);
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, entry.data);
-    }
-    await mustRun(exec, { program: 'pnpm', args: ['install', '--frozen-lockfile', '--offline'], cwd: dir, env: { CI: 'true' } });
-    await mustRun(exec, { program: 'pnpm', args: ['build'], cwd: dir, env: { CI: 'true' } });
-    const out = join(dir, 'apps/extension/.output/firefox-mv3');
-    return listTree(out).map((name) => ({ name, data: readFileSync(join(out, name)) }));
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-/** Differences between two builds of the extension, file by file; [] — the same bytes. */
-export function buildDifferences(built: readonly ZipEntry[], rebuilt: readonly ZipEntry[]): string[] {
-  const left = new Map(built.map((file) => [file.name, file.data]));
-  const right = new Map(rebuilt.map((file) => [file.name, file.data]));
-  const out: string[] = [];
-  for (const [name, data] of left) {
-    const other = right.get(name);
-    if (other === undefined) out.push(`${name}: missing from the rebuild`);
-    else if (!other.equals(data)) out.push(`${name}: differs`);
-  }
-  for (const name of right.keys()) if (!left.has(name)) out.push(`${name}: only in the rebuild`);
-  return out;
 }

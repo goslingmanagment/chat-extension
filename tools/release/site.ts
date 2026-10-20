@@ -11,9 +11,8 @@
 //                                        `whats-new` (the current version) and
 //                                        `changelog` (every version)
 //
-// `pnpm release site` rewrites them; a test fails while the committed pages
-// lag behind the version or the changelog, so the site in git is always the
-// site of the version in git. Pilot privacy and cutover copy is generated
+// `pnpm release` renders them into the tree for its build and puts the files
+// back after: the site in git stays the site of git's version and CHANGELOG.md. Pilot privacy and cutover copy is generated
 // from site-copy.ts as well. No I/O here.
 
 import { blocksHtml, escapeHtml, sectionOf, type Changelog, type ChangelogSection } from './changelog.ts';
@@ -153,7 +152,7 @@ export function siteProblems(files: ReadonlyMap<string, string>, context: SiteCo
     return [error instanceof Error ? error.message : String(error)];
   }
   for (const [name, text] of rendered) {
-    if (text !== files.get(name)) problems.push(`${name} is behind the version or the changelog — run \`pnpm release site\``);
+    if (text !== files.get(name)) problems.push(`${name} is behind the version or the changelog (the release renders it: tools/release/site.ts)`);
   }
   return problems;
 }

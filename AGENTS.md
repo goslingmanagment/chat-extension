@@ -34,8 +34,11 @@ pnpm-монорепо, TypeScript strict, WXT, Preact.
 
 ## Выпуск
 
-После слияния своего PR и зелёного CI `main` на этом коммите — одна команда `pnpm release`
-(порядок, ключи, откат — `docs/release.md`). Анонс чаттерам (`pnpm release announce`) — только по слову владельца.
+Свой PR слит, CI `main` на этом коммите зелёный — в чистом `main` (`git pull`): `pnpm release --dry-run`, затем
+`pnpm release` (patch; `minor`, `major` или `X.Y.Z`). Одна команда: замок, проверки, сборка, подпись AMO, фид и
+страницы, тег, GitHub release с заметками из коммитов. Без PR, без заметок и правок `CHANGELOG.md`. Остановился —
+запустить ещё раз. Откат: `pnpm release rollback --to <версия> --confirm <версия>`. Анонс чаттерам
+(`pnpm release announce`) — только по слову владельца. Подробно — `docs/release.md`.
 
 ## Опасно
 

@@ -1,11 +1,12 @@
 // For cli.test.ts: a throwaway checkout and a scripted world around it, so the
 // whole release tool runs in a test — every command, through `runCli` — and
 // nothing real is touched. The files of the checkout are real (the committed
-// site, changelog and version; a small build; the records in .release/); git,
-// pnpm, gh and web-ext answer from a script; the "server" is a folder of this
-// machine that `scp` and `ssh … sh -s` are played into (the scripts themselves
-// run for real) and that the scripted HTTP reads back; Telegram is a list of
-// replies. Whatever the tool asks that the script does not know is an error.
+// site, changelog and version; a small build that `pnpm build` remakes for the
+// version in package.json; the records in .release/); git, pnpm, gh and web-ext
+// answer from a script; the "server" is a folder of this machine that `scp` and
+// `ssh … sh -s` are played into (the scripts themselves run for real) and that
+// the scripted HTTP reads back; Telegram is a list of replies. Whatever the
+// tool asks that the script does not know is an error.
 
 import { cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,15 +17,17 @@ import { writeZip } from '../lib/zip-write.ts';
 import type { ZipEntry } from '../lib/zip.ts';
 import type { FetchLike } from './announce.ts';
 import { runCli, type CliDeps } from './cli.ts';
-import { CHANGELOG_FILE, ENV, HUB_HEALTH_PATH, noteFile, OPTIONAL_SITE_ORIGINS, releaseTarget, REPO_ROOT, signedXpiName, SITE_DIR, VERSION_FILE } from './config.ts';
+import { CHANGELOG_FILE, ENV, HUB_HEALTH_PATH, OPTIONAL_SITE_ORIGINS, releaseTarget, REPO_ROOT, signedXpiName, SITE_DIR, VERSION_FILE } from './config.ts';
 import { realExec, type CommandResult, type CommandSpec, type Exec } from './exec.ts';
-import { BEFORE_SIGNING, renderNote } from './note.ts';
 import type { Http } from './publish.ts';
 import type { ReleaseRecord } from './records.ts';
-import { readPackageVersion } from './version.ts';
+import { bumpVersion, readPackageVersion } from './version.ts';
 import { sha256Hex, SIGNATURE_FILES } from './xpi.ts';
 
+/** git's version: the last release, tagged v<VERSION> on COMMIT_A. */
 export const VERSION = readPackageVersion(readFileSync(join(REPO_ROOT, VERSION_FILE), 'utf8'));
+/** What `pnpm release` makes of it. */
+export const NEXT = bumpVersion(VERSION, 'patch');
 /** Commits of origin/main in these tests, oldest first. */
 export const COMMIT_A = 'a'.repeat(40);
 export const COMMIT_B = 'b'.repeat(40);
@@ -48,6 +51,13 @@ export interface World {
   localTags: Map<string, { commit: string; annotated: boolean }>;
   originTags: Set<string>;
   pushFails: boolean;
+  /** The subjects `git log --first-parent` gives for any range, newest first. */
+  subjects: string[];
+  /** The message of the lock tag here and on origin; null — none. */
+  localLock: string | null;
+  originLock: string | null;
+  /** GitHub releases by tag: the address. */
+  githubReleases: Map<string, string>;
   /** No git at all: the checkout is a copy of the tree (the e2e image's); every git command fails to start. */
   noGit: boolean;
   // ── the gate ──
@@ -91,8 +101,8 @@ export interface Harness {
   outward(): string[];
   /** Forgets what was recorded so far (the world stays). */
   forget(): void;
-  /** The signed XPI as AMO would hand it back for the build in the checkout. */
-  signedXpi(): Buffer;
+  /** The signed XPI as AMO would hand it back for the build of a version (VERSION unless named). */
+  signedXpi(version?: string): Buffer;
   /** Puts a signed XPI and its record into .release/, as `sign` leaves them. */
   seedSigned(commit: string): ReleaseRecord;
   path(relative: string): string;
@@ -100,14 +110,14 @@ export interface Harness {
   remove(): void;
 }
 
-const BUILD: readonly ZipEntry[] = [
+const buildOf = (version: string): readonly ZipEntry[] => [
   {
     name: 'manifest.json',
     data: Buffer.from(
       JSON.stringify({
         manifest_version: 3,
         name: 'ChatGoose для ChatSpace',
-        version: VERSION,
+        version,
         host_permissions: ['https://gosling-agency.ru/*'],
         optional_host_permissions: ['https://*/*', ...OPTIONAL_SITE_ORIGINS],
         optional_permissions: ['webRequest'],
@@ -117,6 +127,7 @@ const BUILD: readonly ZipEntry[] = [
   },
   { name: 'background.js', data: Buffer.from('console.log(1)') },
 ];
+const BUILD = buildOf(VERSION);
 
 const OUTWARD_RE = /^(?:git (?:fetch|ls-remote|push|tag )|ssh |scp |web-ext |gh )/;
 
@@ -130,22 +141,31 @@ export function makeHarness(): Harness {
   };
   for (const file of [VERSION_FILE, CHANGELOG_FILE]) put(file, readFileSync(join(REPO_ROOT, file)));
   cpSync(join(REPO_ROOT, SITE_DIR), join(checkout, SITE_DIR), { recursive: true });
-  put(noteFile(VERSION), BEFORE_SIGNING.reduce((text, item) => text.replace(`- [ ] \`${item.id}\``, `- [x] \`${item.id}\``), renderNote(VERSION)));
   put('vendor/kernel-sdk/kernel-sdk.vendor.json', JSON.stringify({ contractHash: SDK_HASH, sourceCommit: SDK_COMMIT }));
   put('vendor/chatgoose-hotkeys/chatgoose-hotkeys.vendor.json', JSON.stringify({ sha256: HOTKEYS }));
   put('tests/vendor-pins.json', JSON.stringify({ kernelSdk: { contractHash: SDK_HASH, sourceCommit: SDK_COMMIT }, chatgooseHotkeys: { sha256: HOTKEYS } }));
-  for (const file of BUILD) put(`apps/extension/.output/firefox-mv3/${file.name}`, file.data);
-  put(`apps/extension/.output/chatgoose-chatspace-${VERSION}-firefox.zip`, writeZip(BUILD));
-  put(`apps/extension/.output/chatgoose-chatspace-${VERSION}-sources.zip`, writeZip([{ name: 'package.json', data: Buffer.from('{}') }, { name: 'BUILD.md', data: Buffer.from('how to build') }]));
+  /** What `pnpm build` leaves: the build of the version package.json holds now. */
+  const build = (): void => {
+    const version = readPackageVersion(readFileSync(join(checkout, VERSION_FILE), 'utf8'));
+    rmSync(join(checkout, 'apps/extension/.output'), { recursive: true, force: true });
+    for (const file of buildOf(version)) put(`apps/extension/.output/firefox-mv3/${file.name}`, file.data);
+    put(`apps/extension/.output/chatgoose-chatspace-${version}-firefox.zip`, writeZip(buildOf(version)));
+    put(`apps/extension/.output/chatgoose-chatspace-${version}-sources.zip`, writeZip([{ name: 'package.json', data: Buffer.from(`{"version":"${version}"}`) }, { name: 'BUILD.md', data: Buffer.from('how to build') }]));
+  };
+  build();
 
   const world: World = {
-    head: COMMIT_A,
+    head: COMMIT_B,
     branch: 'main',
     porcelain: '',
-    main: [COMMIT_A],
-    localTags: new Map(),
-    originTags: new Set(),
+    main: [COMMIT_A, COMMIT_B],
+    localTags: new Map([[`v${VERSION}`, { commit: COMMIT_A, annotated: true }]]),
+    originTags: new Set([`v${VERSION}`]),
     pushFails: false,
+    subjects: ['feat(ai): reply drafts keep the last messages (#240)', 'docs: release notes (#241)', 'fix(fansly): Spenders opens on the first click (#239)'],
+    localLock: null,
+    originLock: null,
+    githubReleases: new Map(),
     noGit: false,
     checkExit: 0,
     hubCompare: 'ahead',
@@ -165,17 +185,49 @@ export function makeHarness(): Harness {
   const out: string[] = [];
   const err: string[] = [];
   const answer = (stdout = '', code = 0, stderr = ''): CommandResult => ({ code, stdout, stderr });
-  const signedXpi = (): Buffer => writeZip([...SIGNATURE_FILES.map((name) => ({ name, data: Buffer.from('signature') })), ...BUILD]);
+  const signedXpi = (version = VERSION): Buffer => writeZip([...SIGNATURE_FILES.map((name) => ({ name, data: Buffer.from('signature') })), ...buildOf(version)]);
   const signedFolder = (dir: string): Buffer =>
     writeZip([...SIGNATURE_FILES.map((name) => ({ name, data: Buffer.from('signature') })), ...listTree(dir).map((name) => ({ name, data: readFileSync(join(dir, name)) }))]);
 
-  const commit = (name: string): string => (name === 'HEAD' ? world.head : name === 'origin/main' ? (world.main.at(-1) ?? '') : name);
+  const commit = (name: string): string =>
+    name === 'HEAD' ? world.head : name === 'origin/main' ? (world.main.at(-1) ?? '') : name.startsWith('v') ? (world.localTags.get(name)?.commit ?? `no-such-tag-${name}`) : name;
+  const LOCK_REF = 'refs/tags/release-lock';
   function git(args: readonly string[]): CommandResult {
     const line = args.join(' ');
     if (line === 'rev-parse HEAD') return answer(`${world.head}\n`);
     if (line === 'rev-parse --abbrev-ref HEAD') return answer(`${world.branch}\n`);
-    if (line === 'status --porcelain') return answer(world.porcelain);
-    if (/^fetch origin main( --tags)? --quiet$/.test(line)) return answer();
+    if (line === 'status --porcelain' || line === 'status --porcelain --untracked-files=no') return answer(world.porcelain);
+    if (/^fetch origin main( --tags)? --quiet$/.test(line) || line === 'fetch --quiet --force origin main --tags') return answer();
+    if (line === 'tag -l v*') return answer([...world.localTags.keys()].filter((name) => name.startsWith('v')).join('\n'));
+    if (line.startsWith('log --first-parent --format=%s ')) return answer(world.subjects.join('\n'));
+    // The lock (lock.ts).
+    if (line === `ls-remote origin ${LOCK_REF}`) return answer(world.originLock === null ? '' : `${'7'.repeat(40)}\t${LOCK_REF}\n`);
+    if (line === `fetch --quiet --no-tags origin +${LOCK_REF}:${LOCK_REF}`) {
+      world.localLock = world.originLock;
+      return world.originLock === null ? answer('', 128, "fatal: couldn't find remote ref") : answer();
+    }
+    if (line === 'tag -l --format=%(contents) release-lock') return answer(world.localLock ?? '');
+    if (args[0] === 'tag' && args[1] === '-f' && args[3] === 'release-lock') {
+      world.localLock = args[5] ?? '';
+      return answer();
+    }
+    if (line === `push --quiet origin ${LOCK_REF}`) {
+      if (world.pushFails) return answer('', 128, 'fatal: unable to access the remote: Could not resolve host');
+      if (world.originLock !== null) return answer('', 1, ` ! [rejected]        release-lock -> release-lock (already exists)\nerror: failed to push some refs`);
+      world.originLock = world.localLock;
+      return answer();
+    }
+    if (line === `push --quiet origin :${LOCK_REF}`) {
+      world.originLock = null;
+      return answer();
+    }
+    if (line === 'tag -d release-lock') {
+      const had = world.localLock !== null;
+      world.localLock = null;
+      return had ? answer() : answer('', 1, "error: tag 'release-lock' not found.");
+    }
+    const drop = /^tag -d (v[0-9.]+)$/.exec(line);
+    if (drop !== null) return world.localTags.delete(drop[1] ?? '') ? answer() : answer('', 1, 'not found');
     if (line === 'rev-parse origin/main') return answer(`${world.main.at(-1) ?? ''}\n`);
     // The last commit that changed more than documents: HEAD itself here.
     if (line.startsWith('log -1 --first-parent --format=%H HEAD -- ')) return answer(`${world.head}\n`);
@@ -218,12 +270,26 @@ export function makeHarness(): Harness {
     commands.push(line);
     if (program === 'git') return world.noGit ? Promise.reject(new Error('git: spawn git ENOENT')) : Promise.resolve(git(spec.args));
     if (program === 'gh' && spec.args[0] === 'api' && spec.args[1]?.includes('/check-runs') === true) return Promise.resolve(answer(world.mainCi));
+    if (program === 'gh' && spec.args[0] === 'release' && spec.args[1] === 'view') {
+      const url = world.githubReleases.get(spec.args[2] ?? '');
+      return Promise.resolve(url === undefined ? answer('', 1, 'release not found') : answer(`${url}\n`));
+    }
+    if (program === 'gh' && spec.args[0] === 'release' && spec.args[1] === 'create') {
+      const tag = spec.args[2] ?? '';
+      if (!world.originTags.has(tag)) return Promise.resolve(answer('', 1, `tag ${tag} does not exist on the remote`));
+      const url = `https://github.com/example/chat-extension/releases/tag/${tag}`;
+      world.githubReleases.set(tag, url);
+      return Promise.resolve(answer(`${url}\n`));
+    }
     if (program === 'gh' && spec.args[0] === 'api') return Promise.resolve(world.hubCompare === null ? answer('', 1, 'gh: Not Found (HTTP 404)') : answer(`${world.hubCompare}\n`));
     if (line === 'pnpm --version') return Promise.resolve(answer('10.33.1\n'));
     if (line === 'pnpm check') return Promise.resolve(answer('', world.checkExit));
     if (line === 'pnpm install --frozen-lockfile --offline') return Promise.resolve(answer());
     if (line === 'pnpm build') {
-      if (spec.cwd !== undefined && spec.cwd.startsWith(checkout)) world.onBuild?.();
+      if (spec.cwd !== undefined && spec.cwd.startsWith(checkout)) {
+        build();
+        world.onBuild?.();
+      }
       // The rebuild in the unpacked sources archive: the same extension again.
       if (spec.cwd !== undefined && !spec.cwd.startsWith(checkout)) {
         mkdirSync(join(spec.cwd, 'apps/extension/.output/firefox-mv3'), { recursive: true });
@@ -238,8 +304,7 @@ export function makeHarness(): Harness {
         const source = spec.args[spec.args.indexOf('--source-dir') + 1] ?? '';
         mkdirSync(dir, { recursive: true });
         // A P3b test build is signed as the folder it was given; the release — as the build of the checkout.
-        const testBuild = source.includes(`${join('.release', 'test-builds')}`);
-        writeFileSync(join(dir, 'signed.xpi'), testBuild ? signedFolder(source) : signedXpi());
+        writeFileSync(join(dir, 'signed.xpi'), signedFolder(source));
       }
       return Promise.resolve(answer('', world.signExit));
     }
@@ -291,6 +356,7 @@ export function makeHarness(): Harness {
       [ENV.telegramToken]: BOT_TOKEN,
       [ENV.telegramChannel]: '-100200300',
     },
+    who: 'agent@test/pid1',
     print: (line) => out.push(line),
     printError: (line) => err.push(line),
     now: () => world.now,
@@ -315,7 +381,7 @@ export function makeHarness(): Harness {
     forget: () => {
       for (const list of [commands, requests, posts, out, err]) list.length = 0;
     },
-    signedXpi,
+    signedXpi: (version) => signedXpi(version),
     seedSigned: (signedFrom) => {
       const xpi = signedXpi();
       const record: ReleaseRecord = {

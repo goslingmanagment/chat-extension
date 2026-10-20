@@ -68,7 +68,7 @@ describe('the site in the repository', () => {
     const outdated = new Map(committed);
     outdated.set('privacy.html', (committed.get('privacy.html') ?? '').replace('https://apiv3.fansly.com/api/v1/', 'obsolete API address'));
     outdated.set('start.html', (committed.get('start.html') ?? '').replace(/ {8}<section id="fansly-cutover">[\s\S]*?<\/section>\n\n/, ''));
-    expect(siteProblems(outdated, context, linked).sort()).toEqual(['privacy.html', 'start.html'].map((name) => `${name} is behind the version or the changelog — run \`pnpm release site\``));
+    expect(siteProblems(outdated, context, linked).sort()).toEqual(['privacy.html', 'start.html'].map((name) => `${name} is behind the version or the changelog (the release renders it: tools/release/site.ts)`));
     const refreshed = renderSite(outdated, context);
     expect(refreshed).toEqual(committed);
     expect(renderSite(refreshed, context)).toEqual(refreshed);
@@ -123,8 +123,8 @@ describe('what stops the site from being published', () => {
 
   it('a bumped version or an edited changelog the pages have not followed', () => {
     const bumped: SiteContext = { ...context, version: '9.9.9', changelog: parseChangelog(`# Что нового\n\n## 9.9.9\n\nНовое.\n\n${readFileSync(join(REPO_ROOT, CHANGELOG_FILE), 'utf8').split('\n').slice(2).join('\n')}`) };
-    expect(siteProblems(committed, bumped, linked).sort()).toEqual(['changelog.html', 'index.html', 'whats-new.html'].map((name) => `${name} is behind the version or the changelog — run \`pnpm release site\``));
-    // …and `pnpm release site` is exactly what brings them back.
+    expect(siteProblems(committed, bumped, linked).sort()).toEqual(['changelog.html', 'index.html', 'whats-new.html'].map((name) => `${name} is behind the version or the changelog (the release renders it: tools/release/site.ts)`));
+    // …and rendering is exactly what brings them back.
     expect(siteProblems(renderSite(committed, bumped), bumped, linked)).toEqual([]);
   });
 
