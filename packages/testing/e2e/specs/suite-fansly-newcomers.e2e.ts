@@ -535,7 +535,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect(await posts(mark)).toEqual([]);
   });
 
-  it('[NF-013] [NF-014] [NF-023] [NF-028] [NF-034] [FS-NEW-6] [FS-NEW-7] an unchanged AI greeting: the pass’s ids, start proof and avatar, hub-only text, no automatic send; the one human click uses this generation', async () => {
+  it('[NF-013] [NF-014] [NF-023] [NF-028] [NF-034] [FS-NEW-6] [FS-NEW-7] an unchanged AI greeting: the pass’s ids, confirmed text, start proof and avatar, no automatic send; the one human click uses this generation', async () => {
     const fan = fanId();
     const messages = await seed([{ fanId: fan, messages: [{ from: 'fan', text: 'A private page-only line' }, { from: 'creator', text: 'Stand welcome: thanks for the follow' }] }]);
     const group = await select(fan, 'reply');
@@ -554,7 +554,10 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     const body = stream === undefined ? {} : bodyOf(stream);
     expect(body).toMatchObject({ fanRef: fan, conversationRef: group, variantCount: 1, personalMessageCount: 1, startProof: { source: 'pass-empty-page', groupId: group, coveredCount: 2, personalCount: 1, automatedIds: [messages[1]?.id] }, coverageCheck: { window: messages.map((message) => ({ id: message.id, dir: message.senderId === fan ? 'fan' : 'model' })) } });
     expect(body['fanAvatarUrl']).toMatch(/^‹\d+ chars›$/);
-    expect(body['liveTextContext']).toBeUndefined();
+    expect(body['liveTextContext']).toMatchObject({
+      capturedAt: expect.any(String),
+      items: messages.map((message) => ({ platformMessageId: message.id, direction: message.senderId === fan ? 'fan' : 'model', text: `‹${message.content.length} chars›` })),
+    });
     expect(body['clientContext']).toBeUndefined();
     expect(JSON.stringify(body)).not.toContain('A private page-only line');
     expect(await posts(mark)).toEqual([]);
@@ -567,14 +570,14 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     await sentText(group, 'Hi and welcome!');
   });
 
-  it('[NF-012] [NF-019] [FS-NEW-6] editing a stale AI result removes the AI label and sends the field as a manual greeting, without a second generation', async () => {
+  it('[NF-012] [NF-019] [FS-NEW-6] editing an already sendable AI result removes the AI label and sends the field as a manual greeting, without a second generation', async () => {
     const fan = fanId();
     await seed([{ fanId: fan, messages: [{ from: 'fan', text: 'hello' }] }]);
     const group = await select(fan, 'reply');
     await archive(fan, group, []);
     const hubMark = await hub().mark();
     await generate();
-    expect(await (await waitOursByText('modal', BUTTONS, 'Отправить →', 'stale AI send')).getAttribute('aria-disabled')).toBe('true');
+    expect(await (await waitOursByText('modal', BUTTONS, 'Отправить →', 'AI send without a forced edit')).getAttribute('aria-disabled')).not.toBe('true');
     const edited = 'Hi and welcome! I wrote this extra line myself.';
     await ours('modal', FIELD).setValue(edited);
     await browser.waitUntil(async () => !(await oursExists('modal', `${CARD} .cg-fnc__ai`)), { timeout: 5_000 });
@@ -606,7 +609,7 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     expect((await fakeFansly().calls('ours', beforeSend)).some((entry) => entry.route === 'message.history')).toBe(true);
   });
 
-  it('[NF-018] [NF-034] [FS-NEW-7] the hub catching up cannot refresh an old AI result: its send stays disabled; a new generation on covered history can send', async () => {
+  it('[NF-018] [NF-034] [FS-NEW-7] an unchanged AI greeting can send before and after the hub catches up, without another generation', async () => {
     const fan = fanId();
     const messages = await seed([{ fanId: fan, messages: [{ from: 'fan', text: 'The hub has not captured this yet' }] }]);
     const group = await select(fan, 'reply');
@@ -615,18 +618,15 @@ describe('[host:fansly] the full «Новые» matrix (R20 P10d; architecture �
     const hubMark = await hub().mark();
     await generate();
     const send = () => waitOursByText('modal', BUTTONS, 'Отправить →', 'the send button');
-    expect(await (await send()).getAttribute('aria-disabled')).toBe('true');
+    expect(await (await send()).getAttribute('aria-disabled')).not.toBe('true');
     await archive(fan, group, messages);
     expect(await shift.rpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
-    expect(await (await send()).getAttribute('aria-disabled')).toBe('true');
-    await (await send()).click();
+    expect(await (await send()).getAttribute('aria-disabled')).not.toBe('true');
     expect(await claims(hubMark, fan)).toEqual([]);
     expect(await posts(mark)).toEqual([]);
-    await generate();
-    await browser.waitUntil(async () => (await (await send()).getAttribute('aria-disabled')) !== 'true', { timeout: 15_000 });
     await (await send()).click();
     await greeted(fan);
-    expect(await calls(hubMark, 'aiFeatureStream')).toHaveLength(2);
+    expect(await calls(hubMark, 'aiFeatureStream')).toHaveLength(1);
     expect(await posts(mark)).toHaveLength(1);
   });
 
