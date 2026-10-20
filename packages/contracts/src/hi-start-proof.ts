@@ -80,3 +80,11 @@ export function hiStartProofMatches(fields: { readonly startProof?: StartProofV1
 export function hasHiStartFields(fields: { readonly startProof?: unknown; readonly personalMessageCount?: unknown; readonly fanAvatarUrl?: unknown }): boolean {
   return fields.startProof !== undefined || fields.personalMessageCount !== undefined || fields.fanAvatarUrl !== undefined;
 }
+
+/**
+ * The 2026-10-20 audit, row 6: on an OnlyFans page Hi carries the count of the window's personal messages alone (no
+ * proof, no avatar) — the hub counts it instead of its archive, which has no mark of a mass message.
+ */
+export function hasOnlyPersonalCount(fields: { readonly startProof?: unknown; readonly personalMessageCount?: unknown; readonly fanAvatarUrl?: unknown }): boolean {
+  return fields.personalMessageCount !== undefined && fields.startProof === undefined && fields.fanAvatarUrl === undefined;
+}

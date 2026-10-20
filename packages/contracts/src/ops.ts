@@ -7,7 +7,7 @@ import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, freshTextSurface, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
-import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hiStartProofMatches } from './hi-start-proof';
+import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from './hi-start-proof';
 import { LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveTextTail } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
@@ -307,7 +307,9 @@ export const StartOpSchema = z
     }),
     // The words are short on purpose: every schema of this module weighs on the tab's request registry (its probe).
     z.refine(proofFits, { message: 'the proof does not fit the start' }),
-    z.refine((op) => !hasHiStartFields(op) || (op.feature === 'hi' && op.target.binding.platform === 'fansly'), { message: 'Hi fields only on Fansly Hi' }),
+    z.refine((op) => !hasHiStartFields(op) || (op.feature === 'hi' && (op.target.binding.platform === 'fansly' || (op.target.binding.platform === 'onlyfans' && hasOnlyPersonalCount(op)))), {
+      message: 'Hi fields only on Fansly Hi; OnlyFans Hi only its personal count',
+    }),
     z.refine((op) => hiStartProofMatches(op, op.target.conversationRef), { message: 'Hi proof conversation or count mismatch' }),
   );
 export type StartOp = z.infer<typeof StartOpSchema>;

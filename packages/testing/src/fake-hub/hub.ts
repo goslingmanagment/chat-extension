@@ -589,7 +589,8 @@ export class FakeHub {
       }
       // A hub before HF-5 has none of these optional fields in its strict body. Advertising a future token alone
       // does not enable a handler the old hub does not have (modelAi keeps its old count gate below).
-      if (typeof body === 'object' && body !== null && ['startProof', 'personalMessageCount', 'fanAvatarUrl'].some((field) => field in body) && !s.config.capabilities.includes('hi-start-proof-v1')) {
+      const ofCountAlone = typeof body === 'object' && body !== null && (body as { platform?: unknown }).platform === 'onlyfans' && !('startProof' in body) && !('fanAvatarUrl' in body);
+      if (typeof body === 'object' && body !== null && !ofCountAlone && ['startProof', 'personalMessageCount', 'fanAvatarUrl'].some((field) => field in body) && !s.config.capabilities.includes('hi-start-proof-v1')) {
         return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['Hi start-proof fields: unknown keys on a hub without hi-start-proof-v1']);
       }
       const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body, capabilities) : null;
@@ -1019,8 +1020,9 @@ export class FakeHub {
         knownLiveIds: [...served.window.map((item) => item.messageRef), ...[...served.stores].filter(([, state]) => state === 'present').map(([id]) => id)],
       });
       if (reason !== null) return refusal('gate_hi_greeting_limit', reason);
-    } else if (feature === 'hi-greeting' && s.data.archiveFacts(page, transcript).total > HI_GREETING_MAX_TRANSCRIPT) {
-      // OnlyFans and Fansly without the proof token keep assertHiGreetingFreshness and its reason-less envelope.
+    } else if (feature === 'hi-greeting' && (body.personalMessageCount ?? s.data.archiveFacts(page, transcript).total) > HI_GREETING_MAX_TRANSCRIPT) {
+      // OnlyFans and Fansly without the proof token keep assertHiGreetingFreshness and its reason-less envelope; an
+      // OnlyFans client's count of personal messages stands for the archive's count (audit 2026-10-20, row 6).
       return refusal('gate_hi_greeting_limit');
     }
     if (feature === 'ping') {
