@@ -4063,13 +4063,39 @@ export declare const aiLiveTextContextSchema: z.ZodObject<{
 export declare const AI_LIVE_PPV_MAX_ITEMS = 100;
 /** Above any price OnlyFans allows on a message, in USD. */
 export declare const AI_LIVE_PPV_PRICE_MAX_USD = 10000;
+/** An OnlyFans item: the model's paid message (OnlyFans sells a message). */
+export declare const aiLivePpvMessageItemSchema: z.ZodObject<{
+    platformMessageId: z.ZodString;
+    priceUsd: z.ZodNumber;
+    purchased: z.ZodBoolean;
+}, z.core.$strict>;
+/** A Fansly item: one paid attachment of the model's message. */
+export declare const aiLivePpvAttachmentItemSchema: z.ZodObject<{
+    platformMessageId: z.ZodString;
+    contentKind: z.ZodEnum<{
+        media: "media";
+        bundle: "bundle";
+    }>;
+    contentRef: z.ZodString;
+    priceUsd: z.ZodOptional<z.ZodNumber>;
+    purchased: z.ZodBoolean;
+}, z.core.$strict>;
 export declare const aiLivePpvContextSchema: z.ZodObject<{
     capturedAt: z.ZodString;
-    items: z.ZodArray<z.ZodObject<{
+    items: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
         platformMessageId: z.ZodString;
         priceUsd: z.ZodNumber;
         purchased: z.ZodBoolean;
-    }, z.core.$strict>>;
+    }, z.core.$strict>, z.ZodObject<{
+        platformMessageId: z.ZodString;
+        contentKind: z.ZodEnum<{
+            media: "media";
+            bundle: "bundle";
+        }>;
+        contentRef: z.ZodString;
+        priceUsd: z.ZodOptional<z.ZodNumber>;
+        purchased: z.ZodBoolean;
+    }, z.core.$strict>]>>;
 }, z.core.$strict>;
 export declare const aiCoverageCheckSchema: z.ZodObject<{
     window: z.ZodArray<z.ZodObject<{
@@ -4187,11 +4213,20 @@ export declare const aiFeatureStreamBodySchema: z.ZodObject<{
     }, z.core.$strict>>;
     livePpvContext: z.ZodOptional<z.ZodObject<{
         capturedAt: z.ZodString;
-        items: z.ZodArray<z.ZodObject<{
+        items: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
             platformMessageId: z.ZodString;
             priceUsd: z.ZodNumber;
             purchased: z.ZodBoolean;
-        }, z.core.$strict>>;
+        }, z.core.$strict>, z.ZodObject<{
+            platformMessageId: z.ZodString;
+            contentKind: z.ZodEnum<{
+                media: "media";
+                bundle: "bundle";
+            }>;
+            contentRef: z.ZodString;
+            priceUsd: z.ZodOptional<z.ZodNumber>;
+            purchased: z.ZodBoolean;
+        }, z.core.$strict>]>>;
     }, z.core.$strict>>;
     clientContext: z.ZodOptional<z.ZodObject<{
         transcript: z.ZodString;
@@ -13127,11 +13162,20 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>>;
             livePpvContext: z.ZodOptional<z.ZodObject<{
                 capturedAt: z.ZodString;
-                items: z.ZodArray<z.ZodObject<{
+                items: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
                     platformMessageId: z.ZodString;
                     priceUsd: z.ZodNumber;
                     purchased: z.ZodBoolean;
-                }, z.core.$strict>>;
+                }, z.core.$strict>, z.ZodObject<{
+                    platformMessageId: z.ZodString;
+                    contentKind: z.ZodEnum<{
+                        media: "media";
+                        bundle: "bundle";
+                    }>;
+                    contentRef: z.ZodString;
+                    priceUsd: z.ZodOptional<z.ZodNumber>;
+                    purchased: z.ZodBoolean;
+                }, z.core.$strict>]>>;
             }, z.core.$strict>>;
             clientContext: z.ZodOptional<z.ZodObject<{
                 transcript: z.ZodString;
@@ -35483,6 +35527,8 @@ export type AiFeatureDebugInputFrame = z.infer<typeof aiFeatureDebugInputFrameSc
 export type AiFeatureContextFrame = z.infer<typeof aiFeatureContextFrameSchema>;
 export type AiLiveTextContext = z.infer<typeof aiLiveTextContextSchema>;
 export type AiLivePpvContext = z.infer<typeof aiLivePpvContextSchema>;
+export type AiLivePpvMessageItem = z.infer<typeof aiLivePpvMessageItemSchema>;
+export type AiLivePpvAttachmentItem = z.infer<typeof aiLivePpvAttachmentItemSchema>;
 export type AiCoverageCheck = z.infer<typeof aiCoverageCheckSchema>;
 export type AiStartProofV1 = z.infer<typeof aiStartProofV1Schema>;
 export type AiGatewayStreamBody = z.infer<typeof aiGatewayStreamBodySchema>;
