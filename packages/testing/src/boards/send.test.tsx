@@ -86,11 +86,11 @@ describe('[SP-054] «Отправить»: the states that must not send', () =>
     expect(sends()).toEqual([]);
   });
 
-  it('held-stale: the blue dot «Удержано: фан написал новое» and «Ещё раз» — a new answer, never the stale send', async () => {
+  it('held-stale: the blue dot «Удержано: фан написал новое», «Ещё раз», or the chat opened on the fan’s new message — never the stale send', async () => {
     ui = await mountBoardSettled('spenders', previewOf([{ s: 'held-stale', at: SENT_AT }]));
     expect(stateWords(0)).toBe('Удержано: фан написал новое');
     expect(part(0).querySelector('.cg-dot--accent')?.getAttribute('data-accent-use')).toBe('send-held-stale');
-    expect(buttons(0)).toEqual(['Ещё раз']);
+    expect(buttons(0)).toEqual(['Ещё раз', 'Открыть и вставить', 'Копировать часть 1']);
     expect(codeLine(0)).toBe('ChatGoose · CG-SEND-STALE: ответ не учитывает новое сообщение фана. Обновите архив выше и нажмите «Ещё раз».');
     await flush(() => (part(0).querySelector('.cg-pvs__again') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'Regenerate', operationId: OP });
@@ -150,7 +150,7 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
     expect(ui.$$('.cg-pvp[tabindex="0"]')).toHaveLength(1);
   });
 
-  it('[HK-042] [NF-022] Enter opens-and-inserts only where the row shows that button: never on an uncertain, held or waiting part, whatever the model sent', async () => {
+  it('[HK-042] [NF-022] Enter opens-and-inserts only where the row shows that button: never on an uncertain or waiting part, whatever the model sent', async () => {
     const uncertain: PreviewSendView = { s: 'uncertain', since: SENT_AT, attemptId: uuid(711) };
     const cases: readonly { readonly name: string; readonly states: readonly PreviewSendView[]; readonly rows: readonly (string | null)[] }[] = [
       // One uncertain part holds the group (§6.7.8, §6.7.9).
@@ -159,8 +159,6 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
       { name: 'in work and the parts after it', states: [{ s: 'sending' }, { s: 'available' }, { s: 'available' }], rows: ['sending', 'after', 'after'] },
       { name: 'queued', states: [{ s: 'queued' }], rows: ['queued'] },
       { name: 'accepted', states: [{ s: 'accepted' }], rows: ['accepted'] },
-      // «Фан написал новое»: only a new answer.
-      { name: 'held-stale', states: [{ s: 'held-stale', at: SENT_AT }], rows: ['held-stale'] },
       // A retry the model allows is «Отправить ещё раз», not an insert.
       { name: 'rejected with a retry', states: [{ s: 'rejected', code: 'CG-SEND-QUEUE', canRetry: true }], rows: ['rejected-retry'] },
     ];

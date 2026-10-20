@@ -54,7 +54,8 @@ export const OP_LIMITS = {
 
 /** Storage caps (§9.4 «Пределы хранилищ»). */
 export const STORAGE_LIMITS = {
-  resultsPerTab: 24,
+  /** A whole batch (`BATCH_LIMITS.picks`) and the dock's own results. */
+  resultsPerTab: 64,
   /** `op.list` with scope `all`: the newest across tabs, the rest cut and flagged `truncated`. */
   opListMax: 200,
   resultsTotalBytes: 4 * MiB,

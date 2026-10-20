@@ -62,8 +62,8 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     // While a generation runs the options are locked with one lock; the chips that are off carry no key.
     expect((await measure('2a'))?.buttons).toEqual(['Reply+key', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', ...WINDOWS]);
     expect(await shown('2a', '.cg-tones > .cg-lock')).toHaveLength(1);
-    // While the chat loads nothing can be opened from the bar: the two windows give their place to the status.
-    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
+    // While the chat loads the AI actions wait; Spenders and «Новые» stay one click away beside the status.
+    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', ...WINDOWS]);
     expect(await shown('9d', '.cg-status-word .cg-short')).toEqual(['Загрузка…']);
     // X64: Spenders and «Новые» keep their icons at every width.
     expect(await shown('1a', '.cg-act--ico > .cg-ico')).toHaveLength(2);
@@ -143,8 +143,8 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('1b', '.cg-slot--two .cg-badge')).toHaveLength(1);
     const columns = await browser.execute(() => [1, 2, 3].map((index) => window.__dock?.box('4', `.cg-hi__col:nth-child(${index})`)?.left ?? null));
     expect(new Set(columns).size).toBe(3);
-    // While the chat loads the windows give their place to the status words.
-    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
+    // While the chat loads the status words stand beside the windows: Spenders and «Новые» open whatever the chat's state.
+    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', ...WINDOWS]);
     expect(await shown('9d', '.cg-status-word .cg-short')).toEqual(['Загрузка…']);
   });
 
@@ -162,8 +162,8 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('1b', '.cg-slot--two .cg-badge')).toHaveLength(1);
     expect(await shown('1b', '.cg-slot--more .cg-badge')).toEqual([]);
     expect(await shown('1b', '.cg-slot--reply .cg-quota')).toEqual(['12']);
-    // While the chat loads the status is a spinner in the windows' place.
-    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
+    // While the chat loads the status is a spinner beside the windows.
+    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', ...WINDOWS]);
     expect(await shown('9d', '.cg-status-word .cg-spin')).toHaveLength(1);
     expect((await health()).problems).toEqual([]);
     // At 640 px Review, Recap and Coach are still words; only the windows are icons.
@@ -199,7 +199,7 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('1a', '.cg-strip .cg-div')).toEqual([]);
     // Four 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8).
     expect((await box('1a', '.cg-tones__track'))?.width).toBe(4 * 22 + 3 * 2);
-    // While the chat loads the status keeps its spinner: it stands in for «Ещё», which would open nothing then.
+    // While the chat loads the status keeps its spinner in «Ещё»'s place at the narrowest.
     expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping']);
     expect(await shown('9d', '.cg-status-word .cg-spin')).toHaveLength(1);
     // The quota count costs no width: it is there on every composer.

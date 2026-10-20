@@ -159,8 +159,7 @@ export function createDockController(ws: AiWorkspace): DockController {
   function actions(situation: Situation, running: OpRecord | null, activeAction: DockActionId | null): Record<DockActionId, DockActionVM> {
     const { catalog } = ws.ports;
     const { chat, ready } = situation;
-    const quotaReason = situation.quotaZero ? catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } }) : null;
-    const allOff: ReasonVM | null = ws.offReason(situation) ?? quotaReason;
+    const allOff: ReasonVM | null = ws.offReason(situation);
     // A Coach turn is the Coach's whichever of its steps runs: its auto-recap is a recap of the Coach surface.
     const busyAction = running === null ? null : running.view.surface === 'coach' ? 'coach' : policyOf(running.view.feature).dockAction;
     const recapReady = chat !== null && ready !== null && hasRecapCopy(ready);
@@ -245,7 +244,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       notice: situation.pageOff === null || chat === null ? null : noticeOf(situation.pageOff),
       targetHandle: handle,
       persona: situation.persona?.status === 'ok' && situation.persona.label !== null && situation.pageName !== null ? { label: situation.persona.label, pageName: situation.pageName } : null,
-      mark: situation.off !== null || situation.quotaZero ? 'faint' : 'normal',
+      mark: situation.off !== null ? 'faint' : 'normal',
       // UI-031: silence is the norm — the quota shows only when it is low or gone.
       quota: quota !== null && low ? { remaining, low: remaining !== 0, resetsAt: quota.resetsAt } : null,
       options: {

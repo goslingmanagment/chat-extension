@@ -12,16 +12,16 @@ export const BATCH_LISTS = ['spenders', 'newcomers'] as const;
 export type BatchList = (typeof BATCH_LISTS)[number];
 
 export const BATCH_LIMITS = {
-  /** Fans one batch may hold: the tab keeps at most 24 results (`resultsPerTab`), and room is left for the dock. */
-  picks: 20,
-  /** Generations of a batch at once: the background admits three per tab. */
-  parallel: 3,
+  /** Fans one batch may hold — a whole period of «Новые» (the owner, X59: «при 60 новых за раз»); `resultsPerTab` keeps them all. */
+  picks: 60,
+  /** Generations of a batch at once: the background admits three per tab, one stays free for the dock. */
+  parallel: 2,
   /**
    * The one click of «Сгенерировать для N» may ask this many generate tokens (one per start, a start the background
    * refused for the tab's limit is asked again) and for this long; then it is spent, and the fans left wait for a
    * new click.
    */
-  grantTokens: 40,
+  grantTokens: 120,
   grantTtlMs: 15 * 60_000,
 } as const;
 

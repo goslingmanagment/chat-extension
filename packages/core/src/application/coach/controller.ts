@@ -509,7 +509,6 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const off = ws.offReason(situation);
     if (off !== null) askReason = off;
     else if (!usable) askReason = flag === null ? catalog.reason('feature-disabled') : flagReasonVm(flag);
-    else if (situation.quotaZero) askReason = catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } });
     else if (pending !== null) askReason = catalog.reason('coach-busy');
     else if (running !== null) askReason = catalog.reason('chat-busy');
     const canAsk = askReason === null;

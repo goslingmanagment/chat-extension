@@ -79,7 +79,7 @@ ${/* Spenders and «Новые» are their icons at every width, on both sites (
 .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
 .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 .cg-act.is-busy > .cg-ico { opacity: 0.35; }
-.cg-slot--more, .cg-strip.has-status .cg-slot--boards { display: none; }
+.cg-slot--more { display: none; }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
 .cg-strip .cg-menu--top { bottom: calc(100% + 9px); }
 .cg-hint {
@@ -232,7 +232,7 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
 }
 @container cg (max-width: ${atBase(439)}) {
   .cg-strip { padding: 0 3px; }
-  ${/* While the chat loads «Ещё» would open nothing: its place is the status spinner's. */ ''}
+  ${/* At the narrowest the status spinner takes «Ещё»'s place while the chat loads. */ ''}
   .cg-strip.has-status .cg-slot--more { display: none; }
 }
 @container cg (max-width: ${atBase(420)}) {

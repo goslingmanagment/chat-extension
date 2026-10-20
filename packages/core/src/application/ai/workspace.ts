@@ -123,7 +123,6 @@ export interface Situation {
   /** The fan's display name as ChatSpace holds it; decoration only. */
   readonly fanName: string | null;
   readonly quota: AiQuotaSnapshot | null;
-  readonly quotaZero: boolean;
   readonly persona: PersonaState | null;
   readonly pageName: string | null;
 }
@@ -457,7 +456,7 @@ export class AiWorkspace {
             identity: snapshot.identity,
             routeEpoch: route.epoch,
           };
-    const base = { host: snapshot, chat, window: null, fanName: null, quota: null, quotaZero: false, persona: null, pageName: null, ready: null, copyOnly: null, pageOff: null } as const;
+    const base = { host: snapshot, chat, window: null, fanName: null, quota: null, persona: null, pageName: null, ready: null, copyOnly: null, pageOff: null } as const;
     const off = (status: DockStatus, reason: UnavailableReasonId, error: CgErrorWire | null): Situation => ({ ...base, status, statusError: error, off: reason });
 
     if (this.hostReload || this.env.reloadNeeded) return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-RELOADED' });
@@ -515,13 +514,12 @@ export class AiWorkspace {
     }
 
     const quota = this.env.quota(page.pageId);
-    const quotaZero = quota !== null && quota.remainingRequestsToday === 0;
     const window = host.chatWindow(chat.chat, 200);
     const fan = host.fan(chat.chat);
     const fanName = fan?.displayName ?? fan?.username ?? null;
     const target: Target = { binding: binding.value, chat: chat.chat, fanRef: chat.chat.platformFanId, conversationRef: chat.conversationRef };
     const ready: ReadyTarget = { target, page, bootstrap: bootstrap.value, settings: settings.settings, persona: { ...persona, key: persona.key, definitionId: persona.definitionId } };
-    const known = { ...named, window, fanName, quota, quotaZero, ready };
+    const known = { ...named, window, fanName, quota, ready };
 
     if (window === null || window.state === 'loading') return { ...known, ready: null, status: 'loading-chat', statusError: null, off: 'chat-loading' };
 
@@ -706,7 +704,6 @@ export class AiWorkspace {
     const { bootstrap, settings } = ready;
     const { feature, surface } = request;
     const rule = policyOf(feature);
-    if (situation.quotaZero) return failed('CG-QUOTA-DAILY', situation.quota === null ? {} : { retryAt: Date.parse(situation.quota.resetsAt) });
     // What the feature needs on this page to be generated; the hub's reason picks the code and goes into the technical line.
     const admitted = this.admitted(situation.host, ready, rule.dockAction, 'generate');
     if (!admitted.usable) return { kind: 'failed', error: flagRefusal(admitted) };

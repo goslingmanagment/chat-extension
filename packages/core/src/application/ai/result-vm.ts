@@ -153,7 +153,7 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
   const meta = metaOf(ws, record, result, unparsed, view.toneUsed);
   const wire = view.state === 'failed' ? view.error : view.state === 'interrupted' ? (view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : undefined;
 
-  // «Повторить» waits for its deadline; a quota of zero waits for the day to turn. On a page nothing of ours runs on
+  // «Повторить» waits for its deadline (the hub's quota refusal carries it). On a page nothing of ours runs on
   // (the owner's master switch, an outdated build) «Ещё раз» is off like every other AI action, with that reason:
   // the hub would refuse it after the click.
   const waiting = wire?.retryAt !== undefined && wire.retryAt > now;
@@ -162,8 +162,6 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
     ? null
     : pageOff !== null
       ? pageOff
-      : situation.quotaZero && sameChat
-      ? catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } })
       : waiting
         ? catalog.reason('wait-until', { n: Math.ceil(((wire?.retryAt ?? now) - now) / 1000) })
         : null;
