@@ -110,7 +110,7 @@ export interface DockVM {
   /** The open chat as a target; null while no chat is open or it is not ready. */
   readonly targetHandle: TargetHandle | null;
   /**
-   * «Лора · VIP» and the page name of the tooltip «Персона для LoraVie VIP»; null — no label
+   * «Лора · VIP» and the page name of the tooltip «Персона «Лора · VIP» для LoraVie VIP»; null — no label
    * (no binding or no persona; without sign-in the UI writes «вход не выполнен»).
    */
   readonly persona: { readonly label: string; readonly pageName: string } | null;
