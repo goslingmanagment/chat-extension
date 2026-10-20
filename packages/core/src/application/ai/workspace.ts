@@ -17,7 +17,7 @@ import type { AdmissionAction } from '@cg/contracts/features/types';
 import { type ChatWindow, type HostSnapshot, type LiveTextTail } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
-import { CHAT_IS_FAN, chatKeyOf, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
+import { CHAT_IS_FAN, LIVE_PPV_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
@@ -211,6 +211,12 @@ const BINDING_STATUS: Partial<Record<CgCode, UnavailableReasonId>> = {
 };
 
 const failed = (code: CgCode, facts: Omit<CgErrorWire, 'code'> = {}): StartResult => ({ kind: 'failed', error: { code, ...facts } });
+
+/** X54: whether the hub takes the open chat's PPV state on the page's platform (`LIVE_PPV_CAPABILITY`). */
+function livePpvServed(bootstrap: Bootstrap, pagePlatform: string): boolean {
+  const platform = narrowPlatform(pagePlatform);
+  return platform !== null && bootstrap.capabilities.includes(LIVE_PPV_CAPABILITY[platform]);
+}
 
 export class AiWorkspace {
   readonly env: TabEnvironment;
@@ -749,7 +755,7 @@ export class AiWorkspace {
         fresh: limits,
         // X54: the open chat's PPV state rides where fresh text does, to a hub that takes it on this page's platform.
         // (A plain read of the list: the hub contracts' helpers would carry their module into this layer.)
-        livePpv: limits !== null && bootstrap.capabilities.includes(ready.page.platform === 'fansly' ? 'live-ppv-fansly-v1' : 'live-ppv-v1'),
+        livePpv: limits !== null && livePpvServed(bootstrap, ready.page.platform),
         messageCount: windowFor(feature, request.options.window, settings, bootstrap, extended),
       });
     } catch {

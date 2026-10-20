@@ -27,7 +27,7 @@
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
-import { HI_BY_START_PROOF } from '@cg/contracts/ids';
+import { HI_BY_START_PROOF, LIVE_PPV_CAPABILITY } from '@cg/contracts/ids';
 import {
   HUB_FEATURE_MAP,
   HubStreamRequestSchema,
@@ -166,7 +166,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   const tail = start.fresh ?? (proof !== undefined && proof.tail !== undefined && proof.tail.length > 0 ? { capturedAt: proof.takenAt, messages: proof.tail } : undefined);
   const liveNeed = LIVE_TEXT_HUB_NEEDS[start.feature];
   if (tail !== undefined && ctx.freshText && (liveNeed === undefined || hasCapability(ctx.bootstrap.capabilities, liveNeed))) body.liveTextContext = liveTextOf(tail);
-  if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, body.platform === 'fansly' ? 'live-ppv-fansly-v1' : 'live-ppv-v1')) body.livePpvContext = start.livePpv;
+  if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, LIVE_PPV_CAPABILITY[body.platform])) body.livePpvContext = start.livePpv;
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };
   const parsed = HubStreamRequestSchema.safeParse(request);

@@ -60,6 +60,13 @@ export const CHAT_IS_FAN: Readonly<Record<Platform, boolean>> = { onlyfans: true
 export const HI_BY_START_PROOF: Readonly<Record<Platform, boolean>> = { onlyfans: false, fansly: true };
 
 /**
+ * X54: the bootstrap capability under which the hub takes the open chat's PPV state (`livePpvContext`) on the
+ * platform — OnlyFans' paid messages (`live-ppv-v1`), Fansly's paid attachments (`live-ppv-fansly-v1`, audit
+ * 2026-10-20 №3). A start reads the state and sends it only to a hub that lists its platform's.
+ */
+export const LIVE_PPV_CAPABILITY: Readonly<Record<Platform, 'live-ppv-v1' | 'live-ppv-fansly-v1'>> = { onlyfans: 'live-ppv-v1', fansly: 'live-ppv-fansly-v1' };
+
+/**
  * 1.15.0 (R20 P9d): the page's switches the hub admits a greeting's custody `dispatch` under, by platform (hub HF-3,
  * admission by platform, purpose and action). OnlyFans' greeting leaves through the preview's queue (X8): `previewSend`
  * and `newcomers`. Fansly's is our own HTTP send of «Новые»: `newcomers` alone — `previewSend` is no switch of a
