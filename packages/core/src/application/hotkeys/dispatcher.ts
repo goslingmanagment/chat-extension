@@ -41,6 +41,7 @@ import {
   isImeKey,
   isJumpModifierKey,
   isModifierKey,
+  servesRow,
   type DispatcherCommandId,
   type FixKeyState,
   type FocusKind,
@@ -346,6 +347,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     combo: isComboLike(event),
     inDock: ownership.focusInDock?.() ?? false,
     fix: state.fix?.() ?? null,
+    client: options.client,
   });
 
   /** Alt went down alone, outside any field, with the chat list on screen: the quick jump may open. */
@@ -353,6 +355,8 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     // Windows repeats a held modifier as keydowns (from 250 ms on, at its shortest delay): the hold goes on, nothing restarts.
     if (event.repeat === true) return;
     cancelHold();
+    // The quick jump is ChatSpace's: on Fansly a held Alt is nobody's.
+    if (!servesRow('quick-jump', options.client)) return;
     if (sink === null || quickJumpOpen || !resolver.jumpHeldAlone()) return;
     // Cheapest checks first: in a field Option types characters on macOS.
     const focus = ownership.focus(event);

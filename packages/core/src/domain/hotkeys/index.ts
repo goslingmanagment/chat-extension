@@ -28,8 +28,10 @@ export {
 } from './keymap';
 export { createKeyResolver, isImeKey, type KeyResolver, type KeyVerdict } from './resolver';
 export {
+  CHATSPACE_ROWS,
   COVERING_OVERLAYS,
   FOCUS_KINDS,
+  GENERATION_COMMANDS,
   GLOBAL_COMMANDS,
   LIST_COMMANDS,
   PREVIEW_COMMANDS,
@@ -37,6 +39,7 @@ export {
   UNDER_COVER_COMMANDS,
   decideKey,
   decideUnmatched,
+  servesRow,
   type FixKeyState,
   type FocusKind,
   type KeyCommand,

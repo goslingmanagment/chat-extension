@@ -13,11 +13,12 @@
 // - a window of its own: while a modal of Fansly is open (`body.modal-opened`,
 //   an O(1) read — Fansly sets it for as long as any modal stands) or the
 //   focus is inside one of the neighbour's hosts (`fb-<feature>-ui`, FBuddy's
-//   shadow-root UI: its panel, its notes, its toasts), our keys yield as they
-//   yield to a dialog of ChatSpace: Esc and plain letters are that window's,
-//   a combination of ours runs nothing over it and says why. FBuddy's roots
-//   are open but its own: we never read inside them — the focus behind a host
-//   is enough, as `document.activeElement` names the outermost host;
+//   shadow-root UI: its panel, its notes, its toasts), Esc and plain letters
+//   are that window's. A combination of ours still runs over it, as in the old
+//   Fansly extension (the policy's `fansly` client; ⌘↵ excepted) — the window
+//   is not ours to close, so «закройте окно» would be no answer. FBuddy's
+//   roots are open but its own: we never read inside them — the focus behind
+//   a host is enough, as `document.activeElement` names the outermost host;
 // - but a window of ours stands over Fansly's modals (FS-PLC-6, X46): while
 //   the focus is inside one of our overlay hosts — a panel, a window — the
 //   keys are that window's, as if no modal of Fansly's stood under it (its
@@ -48,7 +49,7 @@ export function focusInNeighbor(doc: Document): boolean {
   return false;
 }
 
-/** A window of Fansly's own is open (`body.modal-opened`), or the focus is in FBuddy's: our keys yield (FS-HK-1). */
+/** A window of Fansly's own is open (`body.modal-opened`), or the focus is in FBuddy's: Esc and plain letters are its (FS-HK-1). */
 export function fanslyWindowOpen(doc: Document): boolean {
   return doc.body?.classList.contains(FANSLY_SELECTORS.modalFlag) === true || focusInNeighbor(doc);
 }

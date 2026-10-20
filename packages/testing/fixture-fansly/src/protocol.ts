@@ -222,6 +222,8 @@ export interface FanslyStandControl {
   setOldExtension(on: boolean): void;
   /** Opens the mini-chat on a group (its own container and composer); null closes it. */
   setMiniChat(groupId: string | null): void;
+  /** Opens or closes a modal of the page — the media viewer, a chat's picture at full size: `body.modal-opened` while it stands. */
+  setMediaViewer(open: boolean): void;
   /**
    * Re-creates the main composer's field branch (`div.message-composer`, the textarea with it) inside the same
    * `app-group-message-input`, the address unchanged: what a change of the composer's `mode` does in Fansly's

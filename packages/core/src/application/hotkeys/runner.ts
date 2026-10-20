@@ -90,7 +90,7 @@ const statusReason = (dock: Pick<DockVM, 'status' | 'statusError'>): Unavailable
   dock.status === 'hub-down' && dock.statusError?.code === 'CG-RUNTIME-UNREACHABLE' ? 'runtime-unreachable' : STATUS_REASON[dock.status];
 
 /** Commands that read the open chat's dock: they wait for its first authoritative state (HK-025). */
-const NEEDS_DOCK: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach', 'tone', 'split'];
+const NEEDS_DOCK: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach', 'help', 'tone', 'split'];
 /** The dock has its first authoritative state: anything but «чат загружается». */
 const dockSettled = (dock: DockVM): boolean => dock.status !== 'loading-chat' && dock.view.s !== 'loading';
 
@@ -333,6 +333,19 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     else send({ type: 'InsertPart', operationId: result.opId, part: part.index });
   };
 
+  /**
+   * ⌘⇧H / Ctrl+Alt+H — on Fansly only (the policy refuses it elsewhere, Б3): the old extension's Help key. Coach opens
+   * and asks its «разбор ситуации», the empty dialog's first question; the Help button stays removed. While no question
+   * can be asked (a turn of Coach or a generation of the chat runs) Coach only opens, and its field says why.
+   */
+  const help = (): void => {
+    const found = dockAction('coach');
+    if (found === null) return;
+    if (!overlays.isOpen('coach')) send({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: true } });
+    // In the key's own step: the question is the person's act (the gate grants a generation only then).
+    if (client.getSnapshot({ of: 'coach' }).ask.enabled) send({ type: 'Generate', targetHandle: found.target, feature: 'coach', options: { preset: 'situation' } });
+  };
+
   /** HK-029: Esc closes the top of ours — the newest window first, the dock's sheet last. */
   const close = (): void => {
     const top: OverlayKind | null = overlays.top();
@@ -375,8 +388,9 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
 
   const run = (command: KeyCommand): void => {
     const id = command.id;
-    // X55: under the «Развернуть ↗» window only the analysis it shows answers its key; any other one stands behind it.
-    if ((id === 'recap' || id === 'review') && overlays.top() === 'result-expanded' && dockView().analysis !== id) {
+    // X55: under the «Развернуть ↗» window only the analysis it shows answers its key; any other one stands behind it —
+    // unless the window yields to the key (Fansly, `overWindow`): then the dock starts it, or says what still runs.
+    if ((id === 'recap' || id === 'review') && command.overWindow !== true && overlays.top() === 'result-expanded' && dockView().analysis !== id) {
       unavailable(id, reasonOf('overlay-open'));
       return;
     }
@@ -387,6 +401,7 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     if (id === 'cancel') return cancel(command.target);
     if (id === 'close') return close();
     if (id === 'apply-fix') return applyFix();
+    if (id === 'help') return help();
     if (id === 'coach') {
       // Opening Coach needs the chat's Coach to be available; closing it never does.
       if (overlays.isOpen('coach') || dockAction('coach') !== null) toggle('coach');
@@ -409,7 +424,6 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     }
     const surface = TOGGLED[id];
     if (surface !== undefined) toggle(surface);
-    // `help` never runs: the dispatcher refuses it (Б3).
   };
 
   return {

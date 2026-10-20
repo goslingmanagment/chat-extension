@@ -30,7 +30,7 @@
 import type { FocusPlace } from '@cg/contracts/vm';
 import { createEarlyKeyDispatcher, createEarlyNotices, createTabKeyState, type EarlyKeyDispatcher, type EarlyNotice, type EarlyNotices, type TabKeyState } from '@cg/core/application/hotkeys';
 import { createOverlayState, mirrorDismissible, type OverlayState } from '@cg/core/application/navigation';
-import { hotkeyPlatformOf, type HotkeyPlatform } from '@cg/core/domain/hotkeys';
+import { hotkeyPlatformOf, type HotkeyClient, type HotkeyPlatform } from '@cg/core/domain/hotkeys';
 
 import type { HostAdapter, HostMounts } from './adapter';
 
@@ -42,6 +42,8 @@ export interface KeptKeydown {
 
 export interface TabKeys {
   readonly platform: HotkeyPlatform;
+  /** The site's client of the key scheme (`HostAdapter.hotkeyClient`): what the catalog prints follows it. */
+  readonly client: HotkeyClient;
   /** Where the page's focus is now (the site's probe): the composer, another field, ours, none (decision X44). */
   focusPlace(): FocusPlace;
   /** Which of our overlays are open: the dispatcher reads it, whoever mounts an overlay writes it. */
@@ -148,6 +150,7 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
 
   return {
     platform,
+    client: site.hotkeyClient,
     focusPlace: () => ownership.now(),
     overlays,
     state,

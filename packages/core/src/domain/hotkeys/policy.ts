@@ -16,7 +16,7 @@
 
 import { type OverlaySurface } from '@cg/contracts/vm';
 
-import { type DispatcherCommandId } from './keymap';
+import { type DispatcherCommandId, type HotkeyClient } from './keymap';
 import { type KeyVerdict } from './resolver';
 
 /** Where the focus is, as far as keys care. */
@@ -69,6 +69,8 @@ export interface KeyContext {
   readonly inDock?: boolean;
   /** A Fix waits in the open chat (X58): ⌘↵ / Ctrl+Enter is ours only then. Absent — none. */
   readonly fix?: FixKeyState;
+  /** The site's client of the key scheme (`HostAdapter.hotkeyClient`): `fansly` keeps the old Fansly extension's ways (see the head). Absent — ChatSpace's. */
+  readonly client?: HotkeyClient;
 }
 
 /** An overlay of ours as the policy sees it: the contract's surfaces plus our own confirmation dialog and the expanded result. */
@@ -78,11 +80,11 @@ export type OverlayKind = OverlaySurface | 'dialog' | 'result-expanded';
 export type KeyRefusal =
   /** HK-027: «сначала закройте открытое окно» — a window of ours, or a modal window of ChatSpace itself. */
   | 'overlay-open'
-  /** HK-026: the cursor is in a field where the combination does not work (⌘U while typing, an AI key in a field that is not the message field). */
+  /** HK-026: the cursor is in a field where the combination does not work (⌘U while typing, an AI key in a field that is not the message field; not on Fansly). */
   | 'in-field'
   /** HK-025: the chat's first state did not come while the key was still fresh. */
   | 'chat-loading'
-  /** ⌘⇧H: Help is removed (Б3). */
+  /** ⌘⇧H: Help is removed (Б3); on Fansly the key opens Coach instead. */
   | 'help-removed'
   /** ⌘↵ while the Fix is still being written (X58): the draft is kept from the site, nothing is put in the field. */
   | 'fix-running';
@@ -100,6 +102,12 @@ export interface KeyCommand {
   readonly slot: number | null;
   /** Where the command goes: the open chat's dock or the preview on top. */
   readonly target: 'dock' | 'preview' | 'global';
+  /**
+   * Fansly: pressed over the «Развернуть ↗» window, and the window yields to it — a finished Recap, Review or result
+   * gives way to this generation, as a finished overlay did in the old extension; one still running refuses it as the
+   * dock does («уже идёт генерация»). Absent — under the window only the analysis it shows answers its key (X55).
+   */
+  readonly overWindow?: true;
 }
 
 const PASS: KeyDecision = { act: 'pass' };
@@ -120,6 +128,17 @@ export const COVERING_OVERLAYS: readonly OverlayKind[] = ['cheatsheet', 'spender
 export const UNDER_COVER_COMMANDS: readonly DispatcherCommandId[] = ['cheatsheet', 'spenders', 'newcomers', 'cancel', 'close'];
 /** Side panels next to the chat: the chat stays visible and usable, so they own no keys but their own. */
 export const SIDE_PANELS: readonly OverlayKind[] = ['fan-panel', 'coach'];
+/**
+ * ChatSpace's own rows: its palette and the walk over its chat list. Fansly has neither (its slice of the manifest
+ * lacks `palette` and `navigation`) and the old Fansly extension never took these keys: there they are the page's and
+ * Firefox's (⌘K its search, J and K the page's letters).
+ */
+export const CHATSPACE_ROWS: readonly DispatcherCommandId[] = ['palette', 'chat-next', 'chat-previous', 'next-unread', 'quick-jump'];
+/** The keys that start a generation in the open chat's dock: on Fansly they take the place of what the «Развернуть ↗» window shows. */
+export const GENERATION_COMMANDS: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping', 'recap', 'review'];
+
+/** Whether the site's client has this row of ours at all; a row it has not is a key nobody of ours matched. */
+export const servesRow = (command: DispatcherCommandId, client: HotkeyClient | undefined): boolean => client !== 'fansly' || !CHATSPACE_ROWS.includes(command);
 
 const typing = (focus: FocusKind): boolean => focus === 'ours-field' || focus === 'composer' || focus === 'field';
 const inOurs = (focus: FocusKind): boolean => focus === 'ours' || focus === 'ours-field';
@@ -148,10 +167,17 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
   const ourContext = inChat || context.overlays.length > 0;
 
   if (verdict.kind === 'swallow') return ourContext ? claim(null) : PASS;
+  // A row of ChatSpace's on a site without it: the page's key, as if nothing of ours matched it.
+  if (!servesRow(verdict.command, context.client)) return decideUnmatched(context);
+  const fansly = context.client === 'fansly';
 
   // ── a native modal window: its Esc and its letters are not touched, and nothing of ours runs over it ──
   if (context.nativeModal) {
     if (verdict.command === 'close' || verdict.plain) return PASS;
+    // Fansly, as the old extension: its modal (the media viewer, the attachment picker) and the focus in FBuddy's UI
+    // keep their Esc and letters, and our combinations run over them as if they were not there — all but ⌘↵, which
+    // would put a Fix into a field the window hides (FBuddy's own collision, ⌘⇧L, is our Split anyway: X37).
+    if (fansly) return verdict.command === 'apply-fix' ? PASS : decideKey(verdict, { ...context, nativeModal: false });
     const without = decideKey(verdict, { ...context, nativeModal: false });
     // A combination that is ours without their window stays ours — the browser prints nothing and opens no
     // page source over it — and says why it runs nothing (HK-026); the scheme's keys and the rows outside it alike.
@@ -221,14 +247,20 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
 
   // ── the scheme's chat commands: Reply, Fix, Hi, Ping, Recap, Review, Coach, Tone, Split, Help ──
   if (!ourContext) return PASS;
-  if (id === 'help') return refuse('help-removed');
+  // Б3: Help is removed. On Fansly its key stays the old extension's: Coach with «разбор ситуации» (the runner's `help`).
+  if (id === 'help' && !fansly) return refuse('help-removed');
   if (cover === 'preview') return PREVIEW_COMMANDS.includes(id) ? run('preview') : refuse('overlay-open');
-  // X55: Review and the full Recap open in the «Развернуть ↗» window; their keys are its own «Ещё раз» and «Обновить»
-  // (the runner checks that the window shows that very one).
-  if (cover === 'result-expanded' && (id === 'recap' || id === 'review') && inChat) return run('dock');
+  if (cover === 'result-expanded' && inChat) {
+    // Fansly: a generation key starts over what the window shows, as over a finished overlay of the old extension.
+    if (fansly && GENERATION_COMMANDS.includes(id)) return claim(id, verdict.repeat ? null : { ...command('dock'), overWindow: true });
+    // X55: Review and the full Recap open in the «Развернуть ↗» window; their keys are its own «Ещё раз» and «Обновить»
+    // (the runner checks that the window shows that very one).
+    if (id === 'recap' || id === 'review') return run('dock');
+  }
   if (covered) return refuse('overlay-open');
   if (!inChat) return PASS;
   // AI keys work in ChatSpace's own message field and in our UI, not in an arbitrary field of the site: taken there, with the reason (HK-026).
-  if (context.focus === 'field') return refuse('in-field');
+  // On Fansly in any field of the page — the search, the mini-chat — as in the old extension: the key generates into the dock, it sends nothing.
+  if (context.focus === 'field' && !fansly) return refuse('in-field');
   return run('dock');
 }
