@@ -512,7 +512,7 @@ describe('[host:fansly] the generation snapshot (FS-TAIL-6, FS-TAIL-7, §5.8)', 
     const hi = await snap(c, { feature: 'hi', window: 25 });
     expect(windowIds(hi)).toEqual(live.slice(-25));
     expect(hi?.deletedIds).toEqual([id(83)]);
-    // Recap: no text at all; its window is the last 60 at most.
+    // Recap without a text request: ids only; its window is the last 60 at most.
     const recap = await snap(c, { feature: 'recap', window: 3000, withText: false });
     expect(recap?.tail).toBeUndefined();
     expect(windowIds(recap)).toEqual(live);
