@@ -1,10 +1,8 @@
-// The pre-release gate (architecture.md §13 «Выпуск» п. 1–2, UP-003, UP-004):
-// what each check concludes from what was observed. preflight.ts observes
-// (git, files, the feed, the hub) and calls these; nothing here does I/O, so
-// every rule is tested as a table.
+// The checks before a release (UP-003, UP-004): what each concludes from what
+// was observed. cli.ts observes (git, GitHub, the feed, the hub) and calls
+// these; nothing here does I/O, so every rule is tested as a table.
 
 import { parseFeed, type FeedEntry } from './feed.ts';
-import { noteProblems } from './note.ts';
 import type { VendorRef } from './records.ts';
 import { compareVersions, isVersion } from './version.ts';
 
@@ -15,22 +13,6 @@ export interface Verdict {
 
 const pass = (detail: string): Verdict => ({ ok: true, detail });
 const fail = (detail: string): Verdict => ({ ok: false, detail });
-
-export function evaluateBranch(branch: string): Verdict {
-  return branch === 'main' ? pass('on main') : fail(`releases are cut from main; the current branch is «${branch}»`);
-}
-
-/** `porcelain` — the output of `git status --porcelain`. */
-export function evaluateCleanTree(porcelain: string): Verdict {
-  const lines = porcelain.split('\n').filter((line) => line.trim() !== '');
-  if (lines.length === 0) return pass('the working tree is clean');
-  return fail(`the working tree is not clean (${lines.length} path(s), first: ${lines[0]?.trim()}) — what is signed must be what is committed`);
-}
-
-/** `originMain` — the commit of origin/main right after a fetch. */
-export function evaluateHead(head: string, originMain: string): Verdict {
-  return head === originMain ? pass(`HEAD ${head.slice(0, 12)} is origin/main`) : fail(`HEAD ${head.slice(0, 12)} is not origin/main ${originMain.slice(0, 12)} — push the release commit first`);
-}
 
 export function evaluateTagFree(version: string, existsLocally: boolean, existsOnOrigin: boolean | null): Verdict {
   if (existsLocally) return fail(`the tag v${version} already exists — a tag is the evidence of a release and is never reused; bump the version`);
@@ -69,7 +51,7 @@ export function evaluateMainCi(answer: string | null, commit: string, jobs: read
   });
   return problems.length === 0
     ? pass(`the CI of ${short} on main is green: ${jobs.join(', ')}`)
-    : fail(`the CI of ${short} on main is not green: ${problems.join('; ')} — wait for a run in progress; a red main is fixed by whoever releases, then the gate again`);
+    : fail(`the CI of ${short} on main is not green: ${problems.join('; ')} — wait for a run in progress; a red main is fixed by whoever releases, then pnpm release again`);
 }
 
 export interface FeedObservation {
@@ -162,16 +144,3 @@ export function evaluateVersions(packageVersion: string, builtManifestVersion: s
     ? pass(`package.json and the built manifest both say ${packageVersion}`)
     : fail(`package.json says ${packageVersion}, the built manifest says ${builtManifestVersion} — rebuild`);
 }
-
-export function evaluateNote(text: string | null, version: string): Verdict {
-  const problems = noteProblems(text, version);
-  return problems.length === 0 ? pass('every line of «Перед подписью» is ticked') : fail(problems.join('; '));
-}
-
-/** A check that ran a command: its exit code and, on failure, the tail of what it printed. */
-export function evaluateCommand(name: string, code: number, tail = ''): Verdict {
-  return code === 0 ? pass(`${name} is green`) : fail(`${name} failed (exit ${code})${tail === '' ? '' : `: ${tail}`}`);
-}
-
-/** A check the gate could not make without the network: it does not pass, it is not run. */
-export const SKIPPED_OFFLINE = 'not checked: needs the network (`preflight --online`)';

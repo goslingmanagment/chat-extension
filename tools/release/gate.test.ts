@@ -3,11 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { releaseTarget } from './config.ts';
 import { feedEntryFor, renderFeed } from './feed.ts';
 import {
-  evaluateBranch,
-  evaluateCleanTree,
-  evaluateCommand,
   evaluateFeedAhead,
-  evaluateHead,
   evaluateHubAncestry,
   evaluateHubCompatibility,
   evaluateMainCi,
@@ -23,19 +19,8 @@ const COMMIT = 'd'.repeat(40);
 const feed = (version: string): { status: number; body: string } => ({ status: 200, body: renderFeed(target.geckoId, feedEntryFor(target, version, 'a'.repeat(64))) });
 const health = (body: Record<string, unknown>, status = 200): { status: number; body: string } => ({ status, body: JSON.stringify({ status: 'ok', contractHash: HASH, ...body }) });
 
-describe('the pre-release gate: what each check concludes', () => {
-  it('[UP-003] a release is cut from main, from a clean tree, from the commit that is origin/main, under a tag nobody used', () => {
-    expect(evaluateBranch('main').ok).toBe(true);
-    expect(evaluateBranch('r19-release')).toMatchObject({ ok: false, detail: expect.stringContaining('«r19-release»') as string });
-    expect(evaluateBranch('HEAD').ok).toBe(false);
-
-    expect(evaluateCleanTree('').ok).toBe(true);
-    expect(evaluateCleanTree('\n').ok).toBe(true);
-    expect(evaluateCleanTree(' M site/index.html\n?? notes.txt\n')).toMatchObject({ ok: false, detail: expect.stringContaining('2 path(s), first: M site/index.html') as string });
-
-    expect(evaluateHead(COMMIT, COMMIT).ok).toBe(true);
-    expect(evaluateHead(COMMIT, 'e'.repeat(40))).toMatchObject({ ok: false, detail: expect.stringContaining('push the release commit') as string });
-
+describe('the checks before a release: what each concludes', () => {
+  it('[UP-003] a release goes out under a tag nobody used', () => {
     expect(evaluateTagFree('0.1.0', false, false).ok).toBe(true);
     expect(evaluateTagFree('0.1.0', false, null)).toMatchObject({ ok: true, detail: 'v0.1.0 is free locally' });
     expect(evaluateTagFree('0.1.0', true, false).ok).toBe(false);
@@ -115,8 +100,4 @@ describe('the pre-release gate: what each check concludes', () => {
     expect(evaluateVersions('0.1', '0.1').ok).toBe(false);
   });
 
-  it('a command check is its exit code', () => {
-    expect(evaluateCommand('pnpm check', 0)).toEqual({ ok: true, detail: 'pnpm check is green' });
-    expect(evaluateCommand('pnpm check', 1, 'gates: 1 violation(s).')).toEqual({ ok: false, detail: 'pnpm check failed (exit 1): gates: 1 violation(s).' });
-  });
 });

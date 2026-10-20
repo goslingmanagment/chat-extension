@@ -117,6 +117,8 @@ afterEach(() => {
 });
 function world(): Harness {
   harness = makeHarness();
+  // These builds are made from the commit of the last release.
+  harness.world.head = COMMIT_A;
   return harness;
 }
 

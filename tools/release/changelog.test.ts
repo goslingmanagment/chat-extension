@@ -1,10 +1,6 @@
-import { readFileSync } from 'node:fs';
-
 import { describe, expect, it } from 'vitest';
 
 import { blocksHtml, blocksMarkdown, ChangelogError, parseChangelog, parseInline, sectionOf } from './changelog.ts';
-import { CHANGELOG_FILE, REPO_ROOT, VERSION_FILE } from './config.ts';
-import { readPackageVersion } from './version.ts';
 
 const SAMPLE = [
   '# Что нового',
@@ -27,18 +23,6 @@ const SAMPLE = [
 ].join('\n');
 
 describe('CHANGELOG.md', () => {
-  it('[UP-015] the committed changelog parses and has a section for the version in the tree', () => {
-    const changelog = parseChangelog(readFileSync(`${REPO_ROOT}${CHANGELOG_FILE}`, 'utf8'));
-    const version = readPackageVersion(readFileSync(`${REPO_ROOT}${VERSION_FILE}`, 'utf8'));
-    expect(changelog.title).toBe('Что нового');
-    expect(sectionOf(changelog, version).blocks.length).toBeGreaterThan(0);
-    // Future release texts may be prepared without a package-version bump,
-    // but must say so explicitly. The newest section without that label is
-    // still the current release (and the label must go when it is cut).
-    const releases = changelog.sections.filter((section) => !section.label.endsWith('готовится к выпуску'));
-    expect(releases[0]?.version).toBe(version);
-  });
-
   it('reads sections newest first, with paragraphs, subheadings, wrapped list items and inline marks', () => {
     const changelog = parseChangelog(SAMPLE);
     expect(changelog.sections.map((section) => [section.version, section.label])).toEqual([

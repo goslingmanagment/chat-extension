@@ -1,42 +1,35 @@
-// `pnpm release <command>` — cutting a release of the extension
-// (architecture.md §13, the runbook: docs/release.md).
+// `pnpm release` — a release of the extension in one command (docs/release.md).
 //
-// Local commands change nothing outside this checkout and make no network
-// request:
-//   status                         what the tree holds: version, build, gate, signed XPI
-//   version [--set X.Y.Z | --bump patch|minor|major]
-//   note                           create docs/releases/<version>.md, the manual checklist
-//   site [--check]                 rewrite the generated parts of site/ (or only compare)
-//   build                          `pnpm build` and the sha256 of both archives
-//   test-builds                    `pnpm build`, then the P3b test builds N0, N, N+1 and the control
-//                                  under a test add-on id in .release/test-builds/ (test-builds.ts)
-//   preflight [--online]           the pre-release gate; --online adds the read-only
-//                                  network checks and is what `sign` asks for
-//   announce --check               validate the Telegram post of the version
+//   pnpm release [patch|minor|major|X.Y.Z] [--dry-run]
 //
-// Outward commands leave the machine. Each one prints its plan — the exact
-// command lines, scripts and addresses — and stops unless it is given
-// `--confirm <version>`; `--dry-run` prints the plan and nothing else:
-//   sign                           AMO: web-ext sign --channel unlisted
-//   sign --test-builds             AMO: the latest set of P3b test builds, the confirmation
-//                                  names its N's version; nothing of the release is touched
-//   sign --import <file.xpi>       no network: take a signed XPI downloaded from the
-//                                  developer hub by hand (AMO signed, web-ext timed out);
-//                                  with --dry-run it checks the file and stores nothing
-//   publish                        the server: XPI and record, the feed, the pages
-//   pages [--versionless]          the server: the pages alone
-//   tag                            git: the annotated tag vX.Y.Z, pushed to origin
-//   announce [--again]             Telegram: the changelog section to the channel, once
-//                                  per version unless told --again
+// Run in a clean checkout of main after the work is merged and main's CI is
+// green on that commit. The version is the last tag `vX.Y.Z` raised (patch by
+// default); git's package.json is not raised — the release writes the version,
+// CHANGELOG.md and the site into the tree only for its build and puts them
+// back. In order: the lock on origin (one release at a time), the checks
+// (main's CI, the tag, the vendored SDK, the hub, the feed), the build, AMO,
+// the server (XPI, feed, pages), the tag, the GitHub release with notes from
+// the commits since the previous tag. A run that stopped is run again: what is
+// signed is not signed twice, what is published is not published twice.
+// `--dry-run` makes the read-only checks and prints the notes and the plan.
+//
+// Other commands:
+//   status                         what this checkout holds: tags, build, records
 //   rollback --to <version>        the server: the feed back at an earlier version
+//                                  (plan only without --confirm <version>)
+//   announce [--check|--again]     Telegram: the version's notes to the chatters' channel — the
+//                                  owner's call only (plan only without --confirm <version>)
+//   unlock                         remove the release lock a dead run left on origin
+//   sign --import <file.xpi>       a signed XPI AMO gave late, downloaded by hand; then run the
+//                                  release of that version again
+//   test-builds, sign --test-builds   the P3b test builds (docs/project-unite/spike.md)
 //
-// Secrets come from the environment at run time (config.ts `ENV`); nothing of
-// them is written to a file, an argument or the output.
+// Secrets come from the environment (index.ts loads the owner's env files);
+// nothing of them is written to a file, an argument or the output.
 //
-// Everything the commands touch outside the checkout comes in as `CliDeps` —
-// other programs, HTTP, Telegram, the environment, the clock — so the whole
-// tool runs in tests against a throwaway checkout with a scripted world;
-// index.ts is the entry point that hands it the real one.
+// Everything the commands touch outside the checkout comes in as `CliDeps`, so
+// the whole tool runs in tests against a throwaway checkout with a scripted
+// world (cli-world.ts); index.ts hands it the real one.
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -45,17 +38,18 @@ import { parseArgs } from 'node:util';
 import { writeZip } from '../lib/zip-write.ts';
 import { readZip } from '../lib/zip.ts';
 import { AnnounceError, composePost, sendPost, type FetchLike } from './announce.ts';
-import { sectionOf } from './changelog.ts';
-import { ENV, noteFile, OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS, signedXpiName, VERSION_FILE, type ReleaseTarget } from './config.ts';
-import { commandStep, mustRun, renderCommand, runSteps, type Exec, type Print, type Step } from './exec.ts';
+import { parseChangelog, sectionOf } from './changelog.ts';
+import { BEYOND_DOCUMENTS, CHANGELOG_FILE, DEFAULT_HUB_REPO, ENV, EXTENSION_REPO, HUB_HEALTH_PATH, MAIN_CI_JOBS, OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS, signedXpiName, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
+import { mustRun, renderCommand, runSteps, type Exec, type Print, type Step } from './exec.ts';
+import { evaluateFeedAhead, evaluateHubAncestry, evaluateHubCompatibility, evaluateMainCi, evaluateTagFree, evaluateVendor, evaluateVersions, type Verdict } from './gate.ts';
 import { Checkout } from './local.ts';
-import { renderNote } from './note.ts';
-import { runPreflight } from './preflight.ts';
-import { pagesOnlySteps, publishSteps, rollbackSteps, servedFeed, type Http, type ServerDeps } from './publish.ts';
-import { gateProblems, importProblems, type ArtifactRef, type GateRecord, type ReleaseRecord } from './records.ts';
+import { acquireLock, describeHolder, lockHolder, releaseLock } from './lock.ts';
+import { githubNotes } from './notes.ts';
+import { publishSteps, rollbackSteps, servedFeed, type Http, type ServerDeps } from './publish.ts';
+import { importProblems, type ArtifactRef, type GateCheck, type GateRecord, type ReleaseRecord, type VendorRef } from './records.ts';
 import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
 import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
-import { renderSite, siteProblems, SITE_FILES, SITE_STYLESHEET, VERSIONLESS_PAGES } from './site.ts';
+import { renderSite, siteProblems, SITE_FILES } from './site.ts';
 import {
   deriveTestBuild,
   differencesBeyondManifest,
@@ -74,16 +68,16 @@ import {
 import { bumpVersion, compareVersions, isVersion, setPackageVersion, type BumpKind } from './version.ts';
 import { sha256Hex } from './xpi.ts';
 
-const USAGE = `pnpm release <command>
+const USAGE = `pnpm release [patch|minor|major|X.Y.Z] [--dry-run]   the whole release, in one go
 
-local:    status · version [--set X.Y.Z | --bump patch|minor|major] · note · site [--check] · build
-          preflight [--online] · announce --check · test-builds
-outward:  sign · publish · pages [--versionless] · tag · announce [--again] · rollback --to <version>
-          each prints its plan and stops without --confirm <version>; --dry-run only prints
+          status · unlock · rollback --to <version> · announce [--check|--again]
+          rollback and announce print their plan and stop without --confirm <version>
           sign --import <file.xpi> takes a signed XPI downloaded by hand (no network)
-          sign --test-builds signs the latest set of P3b test builds (--confirm <its N's version>)
+          test-builds · sign --test-builds   the P3b test builds
 
 The runbook: docs/release.md`;
+
+const BUMPS: readonly string[] = ['patch', 'minor', 'major'];
 
 export interface CliDeps {
   /** The checkout the commands work in. */
@@ -101,6 +95,8 @@ export interface CliDeps {
   readonly sleep: (ms: number) => Promise<void>;
   /** Unique per run: the suffix of temporary uploads. */
   readonly nonce: () => string;
+  /** Who runs the release, for the lock: user@host. */
+  readonly who: string;
   /** Tests only: another site and hub than the build's own. */
   readonly target?: ReleaseTarget;
 }
@@ -111,23 +107,21 @@ function refuse(text: string): never {
   throw new Refusal(text);
 }
 
+const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 /** Runs one command; resolves with the exit code: 0, 2 — refused (nothing was done), 1 — failed. */
 export async function runCli(argv: readonly string[], deps: CliDeps): Promise<number> {
   const { print } = deps;
-  const [command = '', ...rest] = argv;
   let parsed;
   try {
     parsed = parseArgs({
-      args: rest[0] === '--' ? rest.slice(1) : rest,
+      args: argv[0] === '--' ? argv.slice(1) : argv,
+      allowPositionals: true,
       options: {
         'dry-run': { type: 'boolean', default: false },
         confirm: { type: 'string' },
-        online: { type: 'boolean', default: false },
         check: { type: 'boolean', default: false },
-        set: { type: 'string' },
-        bump: { type: 'string' },
         to: { type: 'string' },
-        versionless: { type: 'boolean', default: false },
         import: { type: 'string' },
         silent: { type: 'boolean', default: false },
         again: { type: 'boolean', default: false },
@@ -135,10 +129,11 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       },
     });
   } catch (error) {
-    deps.printError(`release: ${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`);
+    deps.printError(`release: ${message(error)}\n\n${USAGE}`);
     return 2;
   }
-  const { values } = parsed;
+  const { values, positionals } = parsed;
+  const [command = '', ...extra] = positionals;
 
   const checkout = new Checkout(deps.root, deps.exec, deps.target);
   const dryRun = values['dry-run'];
@@ -146,8 +141,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   /**
    * true — the outward command only shows its plan: `--dry-run`, no `--confirm`,
    * or a `--confirm` that names another version. Then nothing leaves the
-   * machine at all — not the steps, and not the read-only looks at origin, the
-   * feed or the server that a real run makes first.
+   * machine at all.
    */
   const planOnly = (version: string): boolean => dryRun || values.confirm !== version;
 
@@ -171,7 +165,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   function requireEnv(name: string): string {
     const value = deps.env[name];
-    if (value === undefined || value === '') refuse(`${name} is not set in the environment (docs/release.md, «Секреты и переменные»).`);
+    if (value === undefined || value === '') refuse(`${name} is not set: put it into ~/.config/agency/secrets.env (docs/release.md, «Ключи»).`);
     return value;
   }
 
@@ -197,122 +191,273 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     };
   }
 
-  /** HEAD is the commit of a release: origin/main, or exactly the tag of `version`. */
-  async function requireReleaseTree(version: string, allowTag: boolean): Promise<void> {
-    if ((await checkout.git('status', '--porcelain')) !== '') refuse('the working tree is not clean: what goes out must be what is committed.');
+  /** The latest released version (the highest tag here; `ship` fetches origin's first). */
+  async function latestTag(): Promise<string | null> {
+    return (await checkout.versionTags()).at(-1) ?? null;
+  }
+
+  // ── the release ────────────────────────────────────────────────────────────
+
+  async function ship(asked: string): Promise<void> {
+    if (!BUMPS.includes(asked) && !isVersion(asked)) refuse(`«${asked}» is no release: patch, minor, major or X.Y.Z.`);
+    if ((await checkout.git('status', '--porcelain', '--untracked-files=no')) !== '') refuse('the working tree has uncommitted changes: release from a clean checkout of main.');
     const head = await checkout.git('rev-parse', 'HEAD');
-    await checkout.git('fetch', 'origin', 'main', '--tags', '--quiet');
-    if (head === (await checkout.git('rev-parse', 'origin/main'))) return;
-    if (allowTag && (await checkout.gitCode('rev-parse', '-q', '--verify', `refs/tags/v${version}^{commit}`)) === 0 && head === (await checkout.git('rev-parse', `refs/tags/v${version}^{commit}`))) return;
-    refuse(`HEAD ${head.slice(0, 12)} is neither origin/main${allowTag ? ` nor the tag v${version}` : ''}.`);
-  }
+    const short = head.slice(0, 12);
+    await checkout.git('fetch', '--quiet', '--force', 'origin', 'main', '--tags');
+    if (!(await checkout.isAncestor(head, 'origin/main'))) refuse(`HEAD ${short} is not on origin/main: only merged work is released (git switch main && git pull).`);
 
-  /**
-   * What `publish` asks of the checkout. The XPI that goes out is the signed
-   * file, whatever HEAD is; so the signed commit only has to be merged — on
-   * origin/main, not necessarily its tip: main may have moved on since the
-   * signing, and a signed version cannot be signed again. HEAD, which the pages
-   * come from, is that commit or a later one on the way to the tip.
-   */
-  async function requirePublishable(record: ReleaseRecord): Promise<void> {
-    if ((await checkout.git('status', '--porcelain')) !== '') refuse('the working tree is not clean: what goes out must be what is committed.');
-    const head = await checkout.git('rev-parse', 'HEAD');
-    await checkout.git('fetch', 'origin', 'main', '--tags', '--quiet');
-    const signed = record.commit;
-    if (!(await checkout.isAncestor(signed, 'origin/main'))) {
-      refuse(`${record.version} was signed from ${signed.slice(0, 12)}, which is not on origin/main: only what is merged is published.`);
+    const latest = await latestTag();
+    const floor = latest === null || compareVersions(checkout.version(), latest) > 0 ? checkout.version() : latest;
+    const version = isVersion(asked) ? asked : bumpVersion(floor, asked as BumpKind);
+    if (latest !== null && compareVersions(version, latest) <= 0) refuse(`${version} is not above the last release v${latest}.`);
+    if (latest !== null && !(await checkout.isAncestor(`v${latest}`, head))) refuse(`HEAD ${short} does not hold the last release v${latest}: git pull.`);
+    const unfinished = checkout.unfinished(latest).filter((other) => other !== version);
+    if (unfinished.length > 0) refuse(`${unfinished.join(', ')} was signed or sent to AMO from this checkout and never tagged: finish it first — pnpm release ${unfinished[0] ?? ''}`);
+    const subjects = await checkout.subjects(latest === null ? null : `v${latest}`, head);
+    if (subjects.length === 0) refuse(`nothing to release: no commit since v${latest ?? '?'}.`);
+    const paths = checkout.paths(version);
+    const signed = checkout.record(version);
+    print(`release ${version} from ${short}${latest === null ? '' : `, ${subjects.length} commit(s) since v${latest}`}${signed === null ? '' : ` — signed earlier (${signed.signedAt}), going on from there`}`);
+
+    if (dryRun) {
+      const holder = await lockHolder(checkout);
+      print(holder === null ? 'lock: free' : `lock: TAKEN — ${describeHolder(holder)}`);
+    } else {
+      const lock = await acquireLock(checkout, { version, by: deps.who, at: deps.now().toISOString() });
+      if (!lock.ok) refuse(lock.reason);
+      print(`lock: taken (${deps.who})`);
     }
-    if (!(await checkout.isAncestor(signed, head)) || !(await checkout.isAncestor(head, 'origin/main'))) {
-      refuse(`HEAD ${head.slice(0, 12)} is neither the signed commit ${signed.slice(0, 12)} nor a later commit of origin/main: publish from the signed commit (git switch --detach ${signed.slice(0, 12)}) or from main.`);
+
+    let restore: (() => void) | null = null;
+    try {
+      // ── the checks: read-only, quick ──
+      const checks: GateCheck[] = [];
+      const check = async (id: string, observe: () => Promise<Verdict> | Verdict): Promise<void> => {
+        let verdict: Verdict;
+        try {
+          verdict = await observe();
+        } catch (error) {
+          verdict = { ok: false, detail: message(error) };
+        }
+        checks.push({ id, ok: verdict.ok, detail: verdict.detail });
+        print(`${verdict.ok ? 'ok  ' : 'FAIL'}  ${id.padEnd(11)} ${verdict.detail}`);
+      };
+      // main's CI on this commit — and on the last commit that changed more than documents: a push of documents alone runs no e2e.
+      await check('main-ci', async () => {
+        const code = await checkout.git('log', '-1', '--first-parent', '--format=%H', 'HEAD', '--', ...BEYOND_DOCUMENTS);
+        const verdicts: Verdict[] = [];
+        for (const commit of code === '' || code === head ? [head] : [head, code]) {
+          const result = await checkout.exec({ program: 'gh', args: ['api', `repos/${EXTENSION_REPO}/commits/${commit}/check-runs?per_page=100`] });
+          verdicts.push(evaluateMainCi(result.code === 0 ? result.stdout : null, commit, MAIN_CI_JOBS, result.stderr.trim().split('\n').at(-1) ?? ''));
+        }
+        return verdicts.find((verdict) => !verdict.ok) ?? { ok: true, detail: verdicts.map((verdict) => verdict.detail).join('; ') };
+      });
+      await check('tag-free', async () => evaluateTagFree(version, false, (await checkout.git('ls-remote', '--tags', 'origin', `refs/tags/v${version}`)) !== ''));
+      let vendor: VendorRef | null = null;
+      await check('vendor', () => {
+        const verdict = evaluateVendor(checkout.vendor());
+        vendor = verdict.vendor;
+        return verdict;
+      });
+      const vendored = vendor as VendorRef | null;
+      if (vendored !== null) {
+        const hubRepo = deps.env[ENV.hubRepo] ?? DEFAULT_HUB_REPO;
+        await check('hub-commit', async () => {
+          const result = await checkout.exec({ program: 'gh', args: ['api', `repos/${hubRepo}/compare/${vendored.sdkSourceCommit}...main`, '--jq', '.status'] });
+          return evaluateHubAncestry(result.code === 0 ? result.stdout.trim() : null, vendored.sdkSourceCommit, hubRepo, result.stderr.trim().split('\n').at(-1) ?? '');
+        });
+        await check('hub-compat', async () => {
+          const answer = await deps.http(`${checkout.target.hubOrigin}${HUB_HEALTH_PATH}`);
+          return evaluateHubCompatibility({ status: answer.status, body: answer.body.toString('utf8') }, vendored.sdkContractHash);
+        });
+      }
+      await check('feed', async () => {
+        const answer = await deps.http(checkout.target.feedUrl);
+        const verdict = evaluateFeedAhead(version, { status: answer.status, body: answer.body.toString('utf8') }, checkout.target.geckoId);
+        // A run that stopped after the feed moved: the feed serves exactly this version, from the signed file.
+        if (!verdict.ok && signed !== null && (await servedFeed({ http: deps.http, target: checkout.target }).catch(() => null))?.sha256 === signed.xpi.sha256) {
+          return { ok: true, detail: `the feed already serves ${version} from the signed file: an earlier run published it` };
+        }
+        return verdict;
+      });
+      const failed = checks.filter((item) => !item.ok).map((item) => item.id);
+      const stop = `not released: ${failed.join(', ')} failed.`;
+      // A dry run shows the rest all the same; a real run stops here.
+      if ((failed.length > 0 && !dryRun) || vendored === null) refuse(stop);
+
+      // ── what is new: CHANGELOG.md, the site, the GitHub release ──
+      const changelog = await checkout.changelogText({ version, head });
+      const section = sectionOf(parseChangelog(changelog), version);
+      const notes = githubNotes({ version, previous: latest, subjects, repo: EXTENSION_REPO });
+      print(`notes of ${version} (CHANGELOG.md, the site, the announcement):`);
+      for (const block of section.blocks) if (block.kind === 'list') for (const item of block.items) print(`  - ${item.map((part) => part.text).join('')}`);
+
+      if (dryRun) {
+        const record = { ...recordFor(version, true).record, vendor: vendored };
+        print(`plan: write ${version} into ${VERSION_FILE}, its notes into ${CHANGELOG_FILE} and the site, only for the build (put back after); pnpm build`);
+        if (signed === null) print(`plan: sign ${version} at addons.mozilla.org (unlisted, web-ext sign with ${ENV.amoKey}/${ENV.amoSecret} ${deps.env[ENV.amoKey] === undefined || deps.env[ENV.amoSecret] === undefined ? 'NOT SET' : 'set'})`);
+        await runSteps(publishSteps(serverDeps(true), { record, signedXpiPath: paths.signedXpi, recordPath: paths.record, recordSha256: '0'.repeat(64), localFeedPath: join(paths.dir, 'updates.json'), pages: checkout.publishablePages() }), { dryRun: true, print });
+        await runSteps(tagSteps(version, record, true), { dryRun: true, print });
+        print(`plan: gh release create v${version} (notes: ${subjects.length} commit(s) since ${latest === null ? 'the start' : `v${latest}`})`);
+        print('dry run: nothing was written, built, signed or published; the lock was not taken.');
+        if (failed.length > 0) refuse(stop);
+        return;
+      }
+
+      // ── the tree of the build: the version, the notes, the site — put back at the end ──
+      restore = checkout.snapshot([VERSION_FILE, CHANGELOG_FILE, ...SITE_FILES.map((name) => join(SITE_DIR, name))]);
+      if (checkout.version() !== version) checkout.write(VERSION_FILE, setPackageVersion(checkout.read(VERSION_FILE), version));
+      checkout.write(CHANGELOG_FILE, changelog);
+      const site = checkout.siteFiles();
+      for (const [name, text] of renderSite(site, checkout.siteContext(version))) if (text !== site.get(name)) checkout.write(join(SITE_DIR, name), text);
+      const problems = siteProblems(checkout.siteFiles(), checkout.siteContext(version), checkout.linkedPages());
+      if (problems.length > 0) refuse(`the site is not ready:\n  ${problems.join('\n  ')}`);
+
+      // ── build and sign, unless an earlier run did ──
+      let record = signed;
+      if (record === null) {
+        const build = await deps.exec({ program: 'pnpm', args: ['build'], cwd: checkout.root, inherit: true });
+        if (build.code !== 0) refuse('pnpm build failed.');
+        const built = checkout.build();
+        const versions = evaluateVersions(version, built.version);
+        if (!versions.ok) refuse(versions.detail);
+        const pick = ({ file, sha256, bytes }: ArtifactRef): ArtifactRef => ({ file, sha256, bytes });
+        const gate: GateRecord = { schema: 1, version, commit: head, createdAt: deps.now().toISOString(), online: true, checks, build: { xpi: pick(built.xpi), sources: pick(built.sources) }, vendor: vendored };
+        checkout.saveGate(version, gate);
+        const before = checkout.submitted(version);
+        if (before !== null) print(`note: ${version} was sent to AMO once already (from ${before.commit.slice(0, 12)}). If AMO took it, it refuses it now: download the signed file from the developer hub — pnpm release sign --import <file.xpi> — or release a higher version.`);
+        await runSteps(signSteps(version, built, gate), { dryRun: false, print });
+        record = checkout.record(version);
+        if (record === null) throw new Error(`${version} was signed, and its record is missing.`);
+      }
+
+      // ── the server, the tag, the GitHub release ──
+      if (!(await checkout.isAncestor(record.commit, 'origin/main'))) refuse(`${version} was signed from ${record.commit.slice(0, 12)}, which is not on origin/main.`);
+      const recordSha256 = sha256Hex(readFileSync(paths.record));
+      await runSteps(publishSteps(serverDeps(false), { record, signedXpiPath: paths.signedXpi, recordPath: paths.record, recordSha256, localFeedPath: join(paths.dir, 'updates.json'), pages: checkout.publishablePages() }), { dryRun: false, print });
+      await runSteps(tagSteps(version, record, false), { dryRun: false, print });
+      const url = await githubRelease(version, join(paths.dir, 'github-notes.md'), notes);
+      print(`released ${version}: ${checkout.target.feedUrl} serves it, tag v${version}, ${url}`);
+      print(`announcing it to the chatters is the owner's call: pnpm release announce --confirm ${version}`);
+    } finally {
+      restore?.();
+      if (!dryRun) {
+        try {
+          await releaseLock(checkout);
+          print('lock: released');
+        } catch (error) {
+          deps.printError(`release: ${message(error)}`);
+        }
+      }
     }
-    if (head !== signed) print(`note: HEAD ${head.slice(0, 12)} is ahead of the signed commit ${signed.slice(0, 12)}: the XPI is the signed file (sha256 ${record.xpi.sha256}), the pages are those of HEAD.`);
   }
 
-  function requireSitePages(version: string): void {
-    const problems = siteProblems(checkout.siteFiles(), checkout.siteContext(version), checkout.linkedPages());
-    if (problems.length > 0) refuse(`the site is not ready:\n  ${problems.join('\n  ')}`);
+  function signSteps(version: string, built: ReturnType<Checkout['build']>, gate: GateRecord): Step[] {
+    const paths = checkout.paths(version);
+    const artifactsDir = join(paths.dir, 'web-ext-artifacts');
+    const input = { repoRoot: checkout.root, buildDir: built.dir, sourcesZip: built.sources.path, artifactsDir, metadataPath: paths.amoMetadata };
+    const spec = signCommand(input);
+    return [
+      {
+        title: `Sign ${version} at addons.mozilla.org (unlisted) with the sources archive, check the signed XPI against the build, store it with the record`,
+        show: [...renderCommand(spec), `store ${paths.signedXpi}`, `write ${paths.record}`],
+        run: async () => {
+          requireEnv(ENV.amoKey);
+          requireEnv(ENV.amoSecret);
+          const pnpmVersion = (await mustRun(deps.exec, { program: 'pnpm', args: ['--version'], cwd: checkout.root })).stdout.trim();
+          mkdirSync(paths.dir, { recursive: true });
+          writeFileSync(paths.amoMetadata, amoMetadata(reviewerNotes({ version, commit: gate.commit, nodeVersion: process.versions.node.split('.')[0] ?? process.versions.node, pnpmVersion })));
+          checkout.saveSubmitted(gate);
+          store(version, gate, await signBuild(deps.exec, input, { version, geckoId: checkout.target.geckoId }, () => checkout.buildFiles(built.dir), spec));
+          rmSync(artifactsDir, { recursive: true, force: true });
+        },
+      },
+    ];
   }
 
-  // ── local commands ─────────────────────────────────────────────────────────
+  /** The signed XPI and the record of the release, stored once. */
+  function store(version: string, gate: GateRecord, data: Buffer): void {
+    const paths = checkout.paths(version);
+    const xpi: ArtifactRef = { file: signedXpiName(version), sha256: sha256Hex(data), bytes: data.length };
+    const record: ReleaseRecord = releaseRecord({ target: checkout.target, gate, signedXpi: xpi, signedAt: deps.now().toISOString() });
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.signedXpi, data);
+    writeFileSync(paths.record, `${JSON.stringify(record, null, 2)}\n`);
+    print(`    signed: ${xpi.file}, ${xpi.bytes} B, sha256 ${xpi.sha256}, built from ${gate.commit.slice(0, 12)}`);
+  }
+
+  /** The annotated tag on the signed commit, pushed; a tag an earlier run made and could not push is pushed as it is. */
+  function tagSteps(version: string, record: ReleaseRecord, plan: boolean): Step[] {
+    const name = `v${version}`;
+    const text = `ChatGoose ${version} — signed and served from ${checkout.target.feedBase} (xpi sha256:${record.xpi.sha256}; SDK contract ${record.vendor.sdkContractHash}); built from ${record.commit} with the version ${version}`;
+    return [
+      {
+        title: `Tag ${record.commit.slice(0, 12)} as ${name} and push it`,
+        show: [`$ git tag -a ${name} -m '…' ${record.commit}`, `$ git push origin ${name}`],
+        run: async () => {
+          if (plan) return;
+          const existing = await checkout.tag(name);
+          if (existing !== null && (existing.commit !== record.commit || !existing.annotated)) {
+            refuse(`the tag ${name} already exists here and is not the tag of this release (${existing.commit.slice(0, 12)}): look at it (git show ${name}), remove it (git tag -d ${name}) and run again.`);
+          }
+          if (existing === null) await mustRun(deps.exec, { program: 'git', args: ['tag', '-a', name, '-m', text, record.commit], cwd: checkout.root });
+          const push = await deps.exec({ program: 'git', args: ['push', 'origin', name], cwd: checkout.root });
+          if (push.code !== 0) {
+            // A tag only here would make the next run take this version for released: it goes until it is on origin.
+            await checkout.gitCode('tag', '-d', name);
+            throw new Error(`git push origin ${name} failed (${push.stderr.trim().split('\n').at(-1) ?? `exit ${push.code}`}): run the release again — it goes on from here.`);
+          }
+        },
+      },
+    ];
+  }
+
+  /** The GitHub release of the tag, with the notes; one that is there already is left alone. Resolves with its address. */
+  async function githubRelease(version: string, notesPath: string, notes: string): Promise<string> {
+    const name = `v${version}`;
+    const view = await deps.exec({ program: 'gh', args: ['release', 'view', name, '--repo', EXTENSION_REPO, '--json', 'url', '--jq', '.url'], cwd: checkout.root });
+    if (view.code === 0) return view.stdout.trim();
+    mkdirSync(dirname(notesPath), { recursive: true });
+    writeFileSync(notesPath, notes);
+    const created = await mustRun(deps.exec, { program: 'gh', args: ['release', 'create', name, '--repo', EXTENSION_REPO, '--verify-tag', '--title', `ChatGoose ${version}`, '--notes-file', notesPath], cwd: checkout.root });
+    return created.stdout.trim().split('\n').at(-1) ?? name;
+  }
+
+  // ── local ──────────────────────────────────────────────────────────────────
 
   async function status(): Promise<void> {
-    const version = checkout.version();
-    const paths = checkout.paths(version);
-    print(`version      ${version} (${VERSION_FILE})`);
-    print(`git          ${await checkout.git('rev-parse', '--abbrev-ref', 'HEAD')} @ ${(await checkout.git('rev-parse', 'HEAD')).slice(0, 12)}${(await checkout.git('status', '--porcelain')) === '' ? '' : ', not clean'}`);
+    const tags = await checkout.versionTags();
+    const latest = tags.at(-1) ?? null;
+    print(`released     ${latest === null ? 'nothing yet' : `v${latest}`} (the local tags; git fetch --tags for origin's)`);
+    print(`git          ${await checkout.git('rev-parse', '--abbrev-ref', 'HEAD')} @ ${(await checkout.git('rev-parse', 'HEAD')).slice(0, 12)}${(await checkout.git('status', '--porcelain', '--untracked-files=no')) === '' ? '' : ', not clean'}`);
     try {
       const built = checkout.build();
-      print(`build        ${built.xpi.file} sha256 ${built.xpi.sha256.slice(0, 12)}…, ${built.sources.file}${built.version === version ? '' : ` — for ${built.version}, not ${version}`}`);
+      print(`build        ${built.version}: ${built.xpi.file} sha256 ${built.xpi.sha256.slice(0, 12)}…`);
     } catch (error) {
-      print(`build        none (${error instanceof Error ? error.message : String(error)})`);
+      print(`build        none (${message(error)})`);
     }
-    print(`note         ${checkout.note(version) === null ? `none — pnpm release note` : noteFile(version)}`);
-    const gate = checkout.gate(version);
-    if (gate === null) print('gate         none — pnpm release preflight --online');
-    else {
-      const failed = gate.checks.filter((check) => !check.ok).map((check) => check.id);
-      print(`gate         ${gate.createdAt}, commit ${gate.commit.slice(0, 12)}, ${gate.online ? 'online' : 'offline (a rehearsal)'}, ${failed.length === 0 ? 'passed' : `failed: ${failed.join(', ')}`}`);
+    for (const version of checkout.unfinished(latest)) {
+      const record = checkout.record(version);
+      print(`unfinished   ${version}: ${record === null ? 'sent to AMO, no signed file here — pnpm release sign --import <file.xpi>' : `signed ${record.signedAt}`} — pnpm release ${version} finishes it`);
     }
-    const record = checkout.record(version);
-    const submitted = checkout.submitted(version);
-    if (record === null && submitted !== null) {
-      print(`submitted    to AMO from ${submitted.commit.slice(0, 12)}, no signed file here yet — look at the developer hub; a file downloaded there: pnpm release sign --import <file.xpi>`);
-    }
-    print(record === null ? 'signed       no' : `signed       ${record.xpi.file} sha256 ${record.xpi.sha256}, ${record.signedAt}, from ${record.commit.slice(0, 12)}${existsSync(paths.signedXpi) ? '' : ' — THE FILE IS MISSING'}`);
-    const announced = checkout.announced(version);
-    if (announced !== null) print(`announced    ${announced.state === 'posted' ? `posted ${announced.at}${announced.messageId === null ? '' : `, message ${announced.messageId}`}` : `${announced.at}: the send may have reached the channel — look there`}`);
-    print(`tag          v${version} ${(await checkout.gitCode('rev-parse', '-q', '--verify', `refs/tags/v${version}`)) === 0 ? 'exists' : 'is free'}`);
     const tests = checkout.latestTestBuildSet();
     if (tests !== null) {
-      const signed = TEST_BUILD_ROLES.filter((role) => existsSync(join(tests.dir, 'signed', signedTestXpiName(role))));
+      const signedRoles = TEST_BUILD_ROLES.filter((role) => existsSync(join(tests.dir, 'signed', signedTestXpiName(role))));
       const from = tests.set.commit === null ? 'outside a git checkout' : `${tests.set.commit.slice(0, 12)}${tests.set.clean ? '' : ' with changes'}`;
-      print(`test builds  ${tests.set.set} (P3b) from ${from}, signed: ${signed.length === 0 ? 'none' : signed.join(', ')}`);
+      print(`test builds  ${tests.set.set} (P3b) from ${from}, signed: ${signedRoles.length === 0 ? 'none' : signedRoles.join(', ')}`);
     }
+    const announced = latest === null ? null : checkout.announced(latest);
+    if (announced !== null && latest !== null) print(`announced    ${latest}: ${announced.state === 'posted' ? `posted ${announced.at}` : `${announced.at}, may have reached the channel — look there`}`);
   }
 
-  function version(): void {
-    const current = checkout.version();
-    if (values.set === undefined && values.bump === undefined) {
-      print(current);
+  async function unlock(): Promise<void> {
+    const holder = await lockHolder(checkout);
+    if (holder === null) {
+      print('lock: nobody holds it.');
       return;
     }
-    if (values.set !== undefined && values.bump !== undefined) refuse('give --set or --bump, not both.');
-    const kinds: readonly string[] = ['patch', 'minor', 'major'];
-    if (values.bump !== undefined && !kinds.includes(values.bump)) refuse('--bump takes patch, minor or major.');
-    const next = values.set ?? bumpVersion(current, values.bump as BumpKind);
-    checkout.write(VERSION_FILE, setPackageVersion(checkout.read(VERSION_FILE), next));
-    print(`${current} → ${next} (${VERSION_FILE})`);
-    print(`next: write the «## ${next}» section at the top of CHANGELOG.md, then pnpm release site, pnpm release note, pnpm check, commit.`);
-  }
-
-  function note(): void {
-    const version = checkout.version();
-    if (checkout.note(version) !== null) refuse(`${noteFile(version)} already exists.`);
-    checkout.write(noteFile(version), renderNote(version));
-    print(`created ${noteFile(version)} — tick what is checked, commit it with the release.`);
-  }
-
-  function site(): void {
-    const version = checkout.version();
-    const files = checkout.siteFiles();
-    if (!values.check) {
-      let changed = 0;
-      for (const [name, text] of renderSite(files, checkout.siteContext(version))) {
-        if (text === files.get(name)) continue;
-        checkout.write(join('site', name), text);
-        changed += 1;
-      }
-      print(`site: ${changed === 0 ? 'already up to date' : `${changed} file(s) rewritten`} for ${version}.`);
-    }
-    requireSitePages(version);
-    print(`site: ${SITE_FILES.length} files are whole and match ${version} and CHANGELOG.md.`);
-  }
-
-  async function build(): Promise<void> {
-    const result = await deps.exec({ program: 'pnpm', args: ['build'], cwd: checkout.root, inherit: true });
-    if (result.code !== 0) refuse('pnpm build failed.');
-    const built = checkout.build();
-    for (const artifact of [built.xpi, built.sources]) print(`${artifact.file}  ${artifact.bytes} B  sha256 ${artifact.sha256}`);
+    await releaseLock(checkout);
+    print(`lock: removed (${describeHolder(holder)}).`);
   }
 
   /** HEAD and whether the tree is clean; commit null — this is no git checkout (a copy of the tree, as in the e2e image). */
@@ -379,21 +524,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     if (problems.length === 0) print(`next: the owner signs — pnpm release sign --test-builds --confirm ${set.set} (docs/release.md «Подписанные тестовые сборки (P3b)»)`);
   }
 
-  async function preflight(): Promise<void> {
-    const result = await runPreflight(checkout, { online: values.online, http: deps.http, print, now: deps.now, env: deps.env });
-    // What is kept is this run, whatever it ended with: a pass of an earlier run does not outlive a failure.
-    if (result.version !== '' && checkout.saveGate(result.version, result.gate)) {
-      print(`preflight: the gate record of an earlier run is removed (${checkout.paths(result.version).gate}): this run did not get as far as a build.`);
-    }
-    if (result.failed.length > 0) refuse(`preflight: ${result.failed.length} check(s) failed: ${result.failed.join(', ')}.`);
-    if (!values.online) {
-      print(`preflight: the local checks passed. This is a rehearsal, not the gate: ${result.skipped.join(', ')} need the network — run pnpm release preflight --online before signing.`);
-      return;
-    }
-    print(`preflight: the gate passed for ${result.gate?.version ?? '?'} at ${result.gate?.commit.slice(0, 12) ?? '?'}. Next: pnpm release sign`);
-  }
-
-  // ── outward commands ───────────────────────────────────────────────────────
+  // ── outward ────────────────────────────────────────────────────────────────
 
   async function signTestBuilds(): Promise<void> {
     if (values.import !== undefined) refuse('sign --test-builds takes no --import: a set whose signing failed is made again (pnpm release test-builds), its versions are new.');
@@ -483,99 +614,22 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       await signTestBuilds();
       return;
     }
-    const version = checkout.version();
-    const paths = checkout.paths(version);
-    if (existsSync(paths.signedXpi) || existsSync(paths.record)) refuse(`${version} is already signed (${paths.signedXpi}): a version is signed once. Next: pnpm release publish`);
+    if (values.import === undefined) refuse('signing is part of the release: pnpm release. Here only sign --import <file.xpi> and sign --test-builds.');
+    // AMO signed the version and web-ext did not bring the file: it was downloaded from the developer hub by hand.
     const built = checkout.build();
-    const building = { version, xpiSha256: built.xpi.sha256, sourcesSha256: built.sources.sha256 };
-    /** The signed XPI and the record of the release, stored once. */
-    const store = (gate: GateRecord, data: Buffer): void => {
-      const xpi: ArtifactRef = { file: signedXpiName(version), sha256: sha256Hex(data), bytes: data.length };
-      const record: ReleaseRecord = releaseRecord({ target: checkout.target, gate, signedXpi: xpi, signedAt: deps.now().toISOString() });
-      mkdirSync(paths.dir, { recursive: true });
-      writeFileSync(paths.signedXpi, data);
-      writeFileSync(paths.record, `${JSON.stringify(record, null, 2)}\n`);
-      print(`    signed: ${xpi.file}, ${xpi.bytes} B, sha256 ${xpi.sha256}, built from ${gate.commit.slice(0, 12)}`);
-    };
-
-    if (values.import !== undefined) {
-      // AMO signed the version and web-ext did not bring the file: it was downloaded from the developer hub by hand.
-      // The gate that counts is the one the submission was made under; without a submission of ours — the last gate.
-      const gate = checkout.submitted(version) ?? checkout.gate(version);
-      const problems = gate === null ? ['no gate record and no record of a submission — this checkout never sent the version to AMO'] : importProblems(gate, building);
-      if (gate === null || problems.length > 0) refuse(`cannot take a signed XPI for ${version}:\n  ${problems.join('\n  ')}`);
-      const data = importSigned(values.import, { version, geckoId: checkout.target.geckoId }, checkout.buildFiles(built.dir));
-      if (dryRun) {
-        print(`dry run: ${values.import} is the build of ${gate.commit.slice(0, 12)}, signed (sha256 ${sha256Hex(data)}). Nothing was stored.`);
-        return;
-      }
-      store(gate, data);
-      print('Next: pnpm release publish');
+    const version = built.version;
+    const paths = checkout.paths(version);
+    if (existsSync(paths.signedXpi) || existsSync(paths.record)) refuse(`${version} is already signed (${paths.signedXpi}). Next: pnpm release ${version}`);
+    const gate = checkout.submitted(version) ?? checkout.gate(version);
+    const problems = gate === null ? ['this checkout never sent it to AMO'] : importProblems(gate, { version, xpiSha256: built.xpi.sha256, sourcesSha256: built.sources.sha256 });
+    if (gate === null || problems.length > 0) refuse(`cannot take a signed XPI for ${version}:\n  ${problems.join('\n  ')}`);
+    const data = importSigned(values.import, { version, geckoId: checkout.target.geckoId }, checkout.buildFiles(built.dir));
+    if (dryRun) {
+      print(`dry run: ${values.import} is the build of ${gate.commit.slice(0, 12)}, signed (sha256 ${sha256Hex(data)}). Nothing was stored.`);
       return;
     }
-
-    const gate = checkout.gate(version);
-    const head = await checkout.git('rev-parse', 'HEAD');
-    const problems = gate === null ? ['no gate record — run pnpm release preflight --online'] : gateProblems(gate, { ...building, commit: head, now: deps.now().getTime() });
-    if ((await checkout.git('status', '--porcelain')) !== '') problems.push('the working tree is not clean');
-    const plan = planOnly(version);
-    if (problems.length > 0 && !plan) refuse(`cannot sign ${version}:\n  ${problems.join('\n  ')}`);
-    for (const problem of problems) print(`note: ${problem}`);
-    const before = checkout.submitted(version);
-    if (before !== null && before.build.xpi.sha256 !== built.xpi.sha256) {
-      print(`note: ${version} was already sent to AMO once, from ${before.commit.slice(0, 12)} and with another build. AMO takes a version once: if it took that one, it refuses this one, and ${version} is spent — look at the developer hub first.`);
-    }
-
-    const artifactsDir = join(paths.dir, 'web-ext-artifacts');
-    const pnpmVersion = (await mustRun(deps.exec, { program: 'pnpm', args: ['--version'], cwd: checkout.root })).stdout.trim();
-    const notes = reviewerNotes({ version, commit: head, nodeVersion: process.versions.node.split('.')[0] ?? process.versions.node, pnpmVersion });
-    const input = { repoRoot: checkout.root, buildDir: built.dir, sourcesZip: built.sources.path, artifactsDir, metadataPath: paths.amoMetadata };
-    const spec = signCommand(input);
-
-    const steps: Step[] = [
-      {
-        // The gate saw origin/main some time ago; a PR may have been merged since. A version is spent
-        // the moment AMO takes it, so the last look is here, while nothing is spent yet.
-        title: 'Check that the commit is still the tip of origin/main',
-        show: ['$ git fetch origin main --quiet', `HEAD ${head.slice(0, 12)} must be origin/main: a commit that is no longer the tip is not sent for signing`],
-        run: async () => {
-          await checkout.git('fetch', 'origin', 'main', '--quiet');
-          const tip = await checkout.git('rev-parse', 'origin/main');
-          if (tip !== head) {
-            refuse(`HEAD ${head.slice(0, 12)} is no longer the tip of origin/main (${tip.slice(0, 12)}): nothing was sent to AMO. git pull, then pnpm release preflight --online again — the gate is for one commit.`);
-          }
-        },
-      },
-      {
-        title: 'Write the notes for Mozilla’s reviewers',
-        show: [`write ${paths.amoMetadata} (approval notes):`, ...notes.split('\n').map((line) => `  | ${line}`)],
-        run: () => {
-          mkdirSync(paths.dir, { recursive: true });
-          writeFileSync(paths.amoMetadata, amoMetadata(notes));
-          return Promise.resolve();
-        },
-      },
-      {
-        title: `Sign ${version} at addons.mozilla.org (unlisted) with the sources archive, check the signed XPI against the build, store it with the record`,
-        show: [
-          `write ${paths.submitted} — the gate this submission is made under (what «sign --import» goes by if AMO signs later than web-ext waits)`,
-          ...renderCommand(spec),
-          `the one .xpi in ${artifactsDir} must be signed, be ${checkout.target.geckoId} ${version} and hold the build's files unchanged`,
-          `store ${paths.signedXpi}`,
-          `write ${paths.record}`,
-        ],
-        run: async () => {
-          if (gate === null) throw new Error('no gate record.');
-          requireEnv(ENV.amoKey);
-          requireEnv(ENV.amoSecret);
-          checkout.saveSubmitted(gate);
-          store(gate, await signBuild(deps.exec, input, { version, geckoId: checkout.target.geckoId }, () => checkout.buildFiles(built.dir), spec));
-          rmSync(artifactsDir, { recursive: true, force: true });
-        },
-      },
-    ];
-    await outward('signing at AMO', version, steps);
-    if (!plan) print('Next: pnpm release publish');
+    store(version, gate, data);
+    print(`Next: pnpm release ${version}`);
   }
 
   /** The record of the signed release; in a plan made before signing — a stand-in, said aloud. */
@@ -606,78 +660,11 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     };
   }
 
-  async function publish(): Promise<void> {
-    const version = checkout.version();
-    const paths = checkout.paths(version);
-    const plan = planOnly(version);
-    const { record, recordSha256 } = recordFor(version, plan);
-    if (!plan) await requirePublishable(record);
-    requireSitePages(version);
-    const steps = publishSteps(serverDeps(plan), {
-      record,
-      signedXpiPath: paths.signedXpi,
-      recordPath: paths.record,
-      recordSha256,
-      localFeedPath: join(paths.dir, 'updates.json'),
-      pages: checkout.publishablePages(),
-    });
-    await outward('publishing to the server', version, steps);
-    if (!plan) print(`published: ${checkout.target.feedUrl} serves ${version}. Next: pnpm release tag, then the lines «После выкладки» of ${noteFile(version)}`);
-  }
-
-  async function pages(): Promise<void> {
-    const version = checkout.version();
-    const plan = planOnly(version);
-    const deps = serverDeps(plan);
-    requireSitePages(version);
-    if (values.versionless) {
-      // Ahead of a release: only the pages that say nothing about a version. The stylesheet the
-      // released pages are drawn with is not replaced — it is put in place only when there is none.
-      if (!plan) await requireReleaseTree(version, false);
-      const [stylesheetIfAbsent] = checkout.publishablePages([SITE_STYLESHEET]);
-      const steps = pagesOnlySteps(deps, checkout.publishablePages(VERSIONLESS_PAGES), stylesheetIfAbsent === undefined ? {} : { stylesheetIfAbsent });
-      await outward(`publishing ${VERSIONLESS_PAGES.length} page(s) ahead of a release`, version, steps);
-      return;
-    }
-    if (!plan) {
-      await requireReleaseTree(version, true);
-      const served = await servedFeed(deps);
-      if (served?.version !== version) {
-        refuse(`the feed serves ${served?.version ?? 'nothing'}, the tree holds ${version}: the pages of a version go out with it (pnpm release publish). Pages that name no version can go ahead: --versionless`);
-      }
-    }
-    await outward(`publishing ${SITE_FILES.length} page file(s)`, version, pagesOnlySteps(deps, checkout.publishablePages(SITE_FILES)));
-  }
-
-  async function tag(): Promise<void> {
-    const version = checkout.version();
-    const plan = planOnly(version);
-    const { record } = recordFor(version, plan);
-    const name = `v${version}`;
-    // A tag that is already here is what a run left whose push failed: the same tag is pushed,
-    // not made again. Any other tag under this name is not ours to push.
-    const existing = await checkout.tag(name);
-    const foreign = existing === null ? null : existing.commit !== record.commit ? `points at ${existing.commit.slice(0, 12)}, not at the signed commit ${record.commit.slice(0, 12)}` : existing.annotated ? null : 'is not an annotated tag';
-    if (foreign !== null) {
-      const text = `the tag ${name} already exists here and ${foreign}`;
-      if (!plan) refuse(`${text}. It is not the tag of this release: look at it (git show ${name}), remove it (git tag -d ${name}) and run the command again.`);
-      print(`note: ${text} — a real run refuses.`);
-    }
-    if (!plan) {
-      const served = await servedFeed({ http: deps.http, target: checkout.target });
-      if (served?.version !== version || served.sha256 !== record.xpi.sha256) refuse(`the feed does not serve ${version} with sha256 ${record.xpi.sha256} (it serves ${served?.version ?? 'nothing'}): tag what is served — pnpm release publish first.`);
-    }
-    const text = `ChatGoose для ChatSpace ${version} — signed and served from ${checkout.target.feedBase} (xpi sha256:${record.xpi.sha256}; SDK contract ${record.vendor.sdkContractHash}); built from ${record.commit}`;
-    const make: Step =
-      existing !== null && foreign === null
-        ? { title: `The tag ${name} is already here, on ${record.commit.slice(0, 12)}`, show: ['left by an earlier run whose push did not go through: nothing to make, only to push'], run: () => Promise.resolve() }
-        : commandStep(`Tag ${record.commit.slice(0, 12)} as ${name}`, deps.exec, { program: 'git', args: ['tag', '-a', name, '-m', text, record.commit], cwd: checkout.root });
-    await outward('pushing the release tag', version, [make, commandStep(`Push ${name} to origin`, deps.exec, { program: 'git', args: ['push', 'origin', name], cwd: checkout.root })]);
-  }
-
   async function announce(): Promise<void> {
-    const version = checkout.version();
-    const post = composePost(sectionOf(checkout.changelog(), version));
+    // The version announced is the last one released: the highest tag.
+    const version = await latestTag();
+    if (version === null) refuse('nothing is released yet: no tag vX.Y.Z here (git fetch --tags).');
+    const post = composePost(sectionOf(parseChangelog(await checkout.changelogText()), version));
     if (values.check) {
       print(`announce: the post of ${version} is valid, ${[...post].length} characters.`);
       return;
@@ -727,25 +714,23 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   async function rollback(): Promise<void> {
     const to = values.to;
     if (to === undefined || !isVersion(to)) refuse('rollback: --to <version> names the earlier version the feed must serve again.');
-    const earlier = to;
-    if (compareVersions(earlier, checkout.version()) > 0) refuse(`rollback: ${earlier} is higher than the version in the tree — that is a release, not a rollback.`);
-    const plan = planOnly(earlier);
-    const steps = rollbackSteps(serverDeps(plan), { to: earlier, localFeedPath: join(checkout.root, '.release', `rollback-to-${earlier}`, 'updates.json') });
+    const plan = planOnly(to);
+    const steps = rollbackSteps(serverDeps(plan), { to, localFeedPath: join(checkout.root, '.release', `rollback-to-${to}`, 'updates.json') });
     // The confirmation names the version the feed goes back to.
-    await outward(`pointing the feed back at ${earlier}`, earlier, steps);
+    await outward(`pointing the feed back at ${to}`, to, steps);
     if (!plan) {
-      print(`the feed serves ${earlier} again. Browsers that already took the newer version keep it: the fix for them is a higher version.`);
-      print(`the pages still describe the newer version — publish the pages of ${earlier} from its tag (docs/release.md, «Откат»).`);
+      print(`the feed serves ${to} again. Browsers that already took the newer version keep it: the fix for them is a higher version.`);
+      print('the pages still describe the newer version until the next release.');
     }
   }
 
-  const commands: Readonly<Record<string, () => Promise<void> | void>> = { status, version, note, site, build, 'test-builds': testBuilds, preflight, sign, publish, pages, tag, announce, rollback };
+  const commands: Readonly<Record<string, () => Promise<void> | void>> = { status, unlock, 'test-builds': testBuilds, sign, announce, rollback };
 
-  const run = commands[command];
-  if (run === undefined) {
-    const help = command === '' || command === 'help' || command === '--help';
-    deps.printError(help ? USAGE : `release: unknown command «${command}».\n\n${USAGE}`);
-    return command === 'help' || command === '--help' ? 0 : 2;
+  const help = command === 'help' || command === '--help';
+  const run = command === '' || BUMPS.includes(command) || isVersion(command) ? () => ship(command === '' ? 'patch' : command) : commands[command];
+  if (run === undefined || help || extra.length > 0) {
+    deps.printError(help ? USAGE : `release: ${extra.length > 0 ? `unexpected «${extra.join(' ')}»` : `unknown command «${command}»`}.\n\n${USAGE}`);
+    return help ? 0 : 2;
   }
   try {
     await run();
@@ -755,7 +740,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       deps.printError(`release: ${error.message}`);
       return 2;
     }
-    deps.printError(`release: ${error instanceof Error ? error.message : String(error)}`);
+    deps.printError(`release: ${message(error)}`);
     return 1;
   }
 }

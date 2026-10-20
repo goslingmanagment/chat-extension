@@ -29,11 +29,12 @@ ChatSpace (док, оверлеи, доски, хоткеи, звук, брон�
 [vendor manifest](vendor/kernel-sdk/kernel-sdk.vendor.json). Через SDK идут все вызовы
 хаба: лента архива, статистика Spenders и «ждут ответа», бронь и учёт отправки, «Новые»;
 поток AI объявляет `context-v1` и `split-all-v1`. Совместимость с продом проверяет
-`pnpm release preflight --online` перед выпуском; что включено на странице, решает
+`pnpm release` перед выпуском; что включено на странице, решает
 владелец её флагами. Подробно — [«Вендоринг»](#вендоринг). Впереди: отправка из
 превью (X8, решает владелец), следующие живые проверки владельца на тестовом чате (X9)
-и Fansly (R20). Выпуски и их проверки записаны в Git-тегах и [docs/releases/](docs/releases/),
-версия дерева — в [apps/extension/package.json](apps/extension/package.json).
+и Fansly (R20). Выпуски — Git-теги `vX.Y.Z` и GitHub releases (до 0.5.7 — ещё и
+[docs/releases/](docs/releases/)); версия в [apps/extension/package.json](apps/extension/package.json)
+выпуском не поднимается.
 Порядок выпуска — [docs/release.md](docs/release.md). Что
 координатор и интеграторы решили без владельца — решение X12 в
 [docs/decisions.md](docs/decisions.md).
@@ -359,7 +360,7 @@ pnpm install --frozen-lockfile
 - **Файлы и ссылки.** Диагностика сохраняется через Blob, без права
   `downloads`. «Что нового», «История версий» и «Нужна помощь со входом»
   открывают страницы сайта выпуска в новой вкладке (`apps/extension/src/site.ts`);
-  страницы находятся в `site/`, версию и тексты выпуска обновляет `pnpm release site`.
+  страницы находятся в `site/`, версию и тексты выпуска вписывает `pnpm release` на время сборки.
 - **Сборка.** Общий бандл страниц режется на три файла — тексты, контракты,
   сами страницы (`apps/extension/build/page-chunks.ts`): одним файлом он не
   проходил проверку архива (JS-файл больше 400 КиБ).

@@ -1,11 +1,8 @@
 // The records of a release (architecture.md §13 п. 4: «Записываются sha256,
 // коммит исходников и хеш SDK»), all under .release/<version>/:
 //
-//   gate.json       what the LAST run of `preflight` saw: the commit, every
-//                   check with its result, the hashes of the build it checked.
-//                   `sign` signs only against a passed gate of the same commit
-//                   and the same build. A run that fails before there is a
-//                   build removes the file: an earlier pass does not outlive it.
+//   gate.json       what `pnpm release` checked before it signed: the commit,
+//                   every check with its result, the hashes of the build.
 //   submitted.json  the gate a submission to AMO was made under, copied the
 //                   moment before `web-ext sign` starts. If AMO signs the
 //                   version later than web-ext waits, `sign --import` goes by
@@ -193,36 +190,23 @@ export function parseAnnouncedRecord(text: string): AnnouncedRecord {
 }
 
 /** How long a passed gate stays good for signing. */
-export const GATE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
 export interface GateContext {
   readonly version: string;
-  readonly commit: string;
-  readonly now: number;
   /** sha256 of the release XPI and of the sources archive as they lie in .output/ now. */
   readonly xpiSha256: string;
   readonly sourcesSha256: string;
 }
 
 /** What every use of a gate asks: it passed, with the network, for this version and for the build that lies in .output/. */
-function passedForBuild(gate: GateRecord, context: Pick<GateContext, 'version' | 'xpiSha256' | 'sourcesSha256'>, rebuilt: string): string[] {
+function passedForBuild(gate: GateRecord, context: GateContext, rebuilt: string): string[] {
   const problems: string[] = [];
-  if (!gate.online) problems.push('the gate ran without the network checks — run `pnpm release preflight --online`');
+  if (!gate.online) problems.push('the checks of that run were not made online');
   const failed = gate.checks.filter((check) => !check.ok);
   if (failed.length > 0) problems.push(`the gate did not pass: ${failed.map((check) => check.id).join(', ')}`);
   if (gate.checks.length === 0) problems.push('the gate record lists no checks');
   if (gate.version !== context.version) problems.push(`the gate is for ${gate.version}, the tree holds ${context.version}`);
   if (gate.build.xpi.sha256 !== context.xpiSha256) problems.push(`the release XPI in .output/ is not the one the gate checked — ${rebuilt}`);
   if (gate.build.sources.sha256 !== context.sourcesSha256) problems.push(`the sources archive in .output/ is not the one the gate checked — ${rebuilt}`);
-  return problems;
-}
-
-/** Why this gate does not allow signing now; [] — it does. */
-export function gateProblems(gate: GateRecord, context: GateContext): string[] {
-  const problems = passedForBuild(gate, context, 'it was rebuilt; run preflight again');
-  if (gate.commit !== context.commit) problems.push(`the gate is for commit ${gate.commit.slice(0, 12)}, HEAD is ${context.commit.slice(0, 12)}`);
-  const age = context.now - Date.parse(gate.createdAt);
-  if (age > GATE_MAX_AGE_MS || age < -60_000) problems.push(`the gate is from ${gate.createdAt}: older than 24 hours (or from the future) — run preflight again`);
   return problems;
 }
 
@@ -233,6 +217,6 @@ export function gateProblems(gate: GateRecord, context: GateContext): string[] {
  * looks at the feed, the hub and origin again. What matters is that the build
  * the file is compared with is the build this gate passed.
  */
-export function importProblems(gate: GateRecord, context: Pick<GateContext, 'version' | 'xpiSha256' | 'sourcesSha256'>): string[] {
-  return passedForBuild(gate, context, `check out ${gate.commit.slice(0, 12)}, the commit that was submitted, and run pnpm build`);
+export function importProblems(gate: GateRecord, context: GateContext): string[] {
+  return passedForBuild(gate, context, `the build in .output/ must be the one sent to AMO (from ${gate.commit.slice(0, 12)})`);
 }

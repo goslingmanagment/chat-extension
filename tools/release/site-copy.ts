@@ -1,4 +1,4 @@
-// Version-independent pilot copy. `pnpm release site` writes it into the
+// Version-independent pilot copy. The release renders it into the
 // existing pages without changing their layout, artwork or release links.
 
 import { EXTENSION_NAME } from '../../apps/extension/build/manifest.ts';

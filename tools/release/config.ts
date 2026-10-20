@@ -20,8 +20,6 @@ export const CHANGELOG_FILE = 'CHANGELOG.md';
 /** How to rebuild the XPI from the sources archive, for Mozilla's reviewers; it travels in that archive. */
 export const BUILD_INSTRUCTIONS = 'BUILD.md';
 export const SITE_DIR = 'site';
-/** The manual checklist of a release, with its ticks (§12 п. 8: «галочки в заметке выпуска»). */
-export const noteFile = (version: string): string => `docs/releases/${version}.md`;
 /** Signed XPIs and the records of a release: outside .output/, which every build cleans. Never committed. */
 export const RELEASE_DIR = '.release';
 
@@ -106,6 +104,13 @@ export const SECRET_ENV: readonly string[] = [ENV.amoKey, ENV.amoSecret, ENV.tel
 export const DEFAULT_HTTP_TIMEOUT_S = 120;
 
 export const DEFAULT_HUB_REPO = 'goslingmanagment/hub';
+
+/** The server of ext.gosling-agency.ru and the site folder on it (~/code/8-docs/server-inventory.md); env overrides. */
+export const DEFAULT_SSH = 'root@152.53.191.242';
+export const DEFAULT_REMOTE_DIR = '/var/www/ext/chat-extension';
+
+/** The tag on origin that says a release is under way: one release at a time (lock.ts). */
+export const LOCK_TAG = 'release-lock';
 
 /** This repository on GitHub: the gate reads the CI of the release commit on its main. */
 export const EXTENSION_REPO = 'goslingmanagment/chat-extension';
