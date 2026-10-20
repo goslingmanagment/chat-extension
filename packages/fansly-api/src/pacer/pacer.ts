@@ -9,13 +9,13 @@
 //   cooldown refuses it (`POST /group`); `check` and `dispatch` never wait —
 //   refused while the creator cools down, otherwise at once (their starts
 //   still count for the gaps of the queued calls).
-// - A cooldown comes from ANY 429 (§8.4): our own (the client tells the pass),
-//   or a fact the core's `webRequest.onCompleted` recorded — the page's, a
-//   neighbour's (FBuddy polls `/message/unread` every 10 s from every tab), our
-//   relay's — even while this chunk was not loaded. A fact names its creator
-//   (the tab's registration); a fact without one (a tab registered before the
-//   grant, a request without a tab) cools every creator of the profile: an
-//   extra pause is safer than an extra request.
+// - A cooldown comes from OUR OWN 429 only, as in the old extension: the client
+//   tells the pass, or the core's `webRequest.onCompleted` recorded it as a
+//   fact `own` (even while this chunk was not loaded). A 429 of the page or a
+//   neighbour (FBuddy polls `/message/unread` every 10 s from every tab) cools
+//   nothing: it held our clicks for 30–300 s for others' requests (2026-10-20
+//   restrictions, item 7). An own fact without a creator (a request the event
+//   page lost track of) cools every creator of the profile.
 // - One response is one limit: our own 429 is seen by the client and, as a
 //   fact `own`, by the listener; the two sightings pair up whichever comes
 //   first, by the opaque client request id, across a sleep of the event page too.
@@ -69,7 +69,6 @@ export interface PacerDeps {
   readonly facts: () => readonly RateLimitFactLike[];
   /** Settles the observations already delivered to the core (`networkSession.idle`). */
   readonly settle?: () => Promise<void>;
-  readonly pending?: () => boolean;
   readonly warn?: (reason: 'restore' | 'observations' | 'persist') => void;
   readonly now?: () => number;
   readonly random?: () => number;
@@ -335,7 +334,9 @@ export function createFanslyPacer(deps: PacerDeps) {
       applied.push(fact.requestId);
       appliedSet.add(fact.requestId);
       changed = true;
-      const id = fact.source === 'own' ? fact.clientRequestId : undefined;
+      // Only our own 429 cools us (the old extension's rule): the page's or a neighbour's is theirs.
+      if (fact.source !== 'own') continue;
+      const id = fact.clientRequestId;
       let own = id === undefined ? undefined : requests.get(id);
       if (own?.limitedAt !== null && own?.limitedAt !== undefined) continue;
       const ids = [...(own?.aliases ?? []), ...(fact.accountId === null ? [] : [fact.accountId])];
@@ -389,8 +390,7 @@ export function createFanslyPacer(deps: PacerDeps) {
         // old tails cannot revoke them: claim the merged lane synchronously here.
         if (unlock !== null && lane.inFlight > 0) throw new PacerAborted();
         const at = now();
-        const until = Math.max(coolingOf(lane), deps.pending?.() === true ? at + PACE_RULES.cooldownBaseMs : 0,
-          mode === 'queue' || mode === 'queue-or-refuse' ? spacingDeadline(lane, paceKey) : 0);
+        const until = Math.max(coolingOf(lane), mode === 'queue' || mode === 'queue-or-refuse' ? spacingDeadline(lane, paceKey) : 0);
         if (until > at) throw new PacerCooling(until);
         dispatched = true;
         if (unlock !== null) lane.inFlight += 1;

@@ -21,9 +21,9 @@
 // FS-NEW-4: nothing runs unless a window opened the pass (`scan`) — never at the browser's start —, and it stops
 // when no window holds it. The person's own buttons come first (NF-038): «Пауза» stops the queue after the request
 // in flight, «Проверить оставшихся» checks the rest, «Проверить следующим» puts a fan first, and «Проверить чат» on a
-// standing queue checks that fan alone, now. A cooldown of the creator's lane (a 429, ours or the page's) is waited
-// out by the pacer; meanwhile the pass says `cooldown` with its end — the window's banner — and goes on by itself.
-// Five failures in a row stop it (`stopped`); a session Fansly refused stops it at once.
+// standing queue checks that fan alone, now. A cooldown of the creator's lane (our own 429) is waited out by the
+// pacer; meanwhile the pass says `cooldown` with its end — the window's banner — and goes on by itself. Five failures
+// of Fansly's in a row stop it (`stopped`, PASS_FUSE); a session Fansly refused stops it at once.
 //
 // R20 P10b2, FS-NEW-2, FX-003: «Нельзя написать» — the group's own DM rules (`dmPermissionFlags`, Fansly's
 // `verifyNew`, domain dm-permissions.ts) the creator meets none of: decided by the check, before anything is
@@ -137,6 +137,14 @@ export interface FanslyNewcomersDeps {
 export const NEWCOMERS_EXCLUDED_PREFIX = 'fansly.newcomers.excluded.';
 /** storage.local: the period of «Новые» the person chose last (X59) — the next window opens on it, in any tab. */
 export const NEWCOMERS_WINDOW_KEY = 'fansly.newcomers.window';
+/**
+ * storage.local: `fansly.newcomers.welcome.<creator>` → `{ texts, checkedAt }` — every welcome text Fansly named for
+ * the creator, newest first, as the old extension kept them (`welcome-definitions.ts`): an edited automation's old text
+ * still marks the fans who got it as automated, and a read that failed takes these instead of stopping the pass.
+ */
+export const NEWCOMERS_WELCOME_PREFIX = 'fansly.newcomers.welcome.';
+/** Welcome texts kept per creator: far above what a creator has; it only bounds the store. */
+const WELCOME_TEXTS_MAX = 200;
 
 /** What the greeting (P10c) takes of a checked row (FS-NEW-7): only a history walked to its empty page has one. */
 export interface PassRowProof {
@@ -147,8 +155,21 @@ export interface PassRowProof {
   readonly startProof: StartProofV1;
 }
 
-/** Five failures in a row stop the pass instead of doubling the load on a failing Fansly (the old fuse). */
+/**
+ * Five failures of Fansly's in a row stop the pass instead of doubling the load on a failing Fansly (the old fuse).
+ * As in the old extension, only Fansly failing counts — no answer, no answer in time, no tab, a 404, a 5xx, a limit
+ * not waited out —; a row's own failure (an odd chat, a page that did not parse, a refusal for this fan) is the row's
+ * and starts the run over: one odd fan does not stop the check (2026-10-20 restrictions, item 16).
+ */
 export const PASS_FUSE = 5;
+
+/** Whether a failure is Fansly failing (counts toward PASS_FUSE), not the row's own. */
+function fanslyFailing(kind: string, wire: CgAnyErrorWire): boolean {
+  if (kind === 'network' || kind === 'timeout' || kind === 'tab' || kind === 'rate-limited' || kind === 'cooling') return true;
+  if (kind !== 'http') return false;
+  const status = wire.httpStatus ?? 0;
+  return status === 0 || status === 404 || status >= 500;
+}
 /** While a call is in flight, the creator's cooldown is looked at this often, for the banner. */
 export const COOLING_LOOK_MS = 1000;
 /** A cooldown that refused a call that never left is waited out at most this many times for one call. */
@@ -463,10 +484,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       touch(pass);
     };
     phase('welcome');
-    const welcome = readWelcomeTexts(await ask(pass, work, { route: 'message.automated' }));
-    if (welcome === null) throw new PassFailure({ code: 'CG-FAN-REQUEST' });
-    pass.welcome = welcome;
-    note(pass, 'welcome.refresh', { count: welcome.size });
+    pass.welcome = await welcomeTexts(pass, work);
 
     phase('followers');
     const cutoff = pass.startedAt - pass.windowHours * 3_600_000;
@@ -630,7 +648,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return kind === 'session' || kind === 'expired';
   };
 
-  /** Checks one row; a failure is the row's, five in a row (or a session refused) stop the pass. Answers the run of failures. */
+  /** Checks one row; a failure is the row's, five of Fansly's in a row (or a session refused) stop the pass. Answers the run of failures. */
   async function checkOne(pass: Pass, work: Work, row: Row, create: boolean, fails: number): Promise<number> {
     const before = row.view.status;
     try {
@@ -641,14 +659,15 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         set(pass, row, { status: before === 'checking' ? 'pending' : before });
         throw new Aborted();
       }
-      const { wire } = failureOf(error);
+      const { kind, wire } = failureOf(error);
       set(pass, row, { status: 'failed', error: wire, checkedAt: iso(deps.now()), historyRevision: null, dmClosed: null, dmPriceMills: null });
       row.proof = null;
-      if (stopsPass(error) || fails + 1 >= PASS_FUSE) {
+      const run = fanslyFailing(kind, wire) ? fails + 1 : 0;
+      if (stopsPass(error) || run >= PASS_FUSE) {
         halt(pass, wire);
         throw new Aborted();
       }
-      return fails + 1;
+      return run;
     }
   }
 
@@ -753,6 +772,36 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   // ── the person's exclusions (R20 P10b2, FS-NEW-2): in this browser, as the old window kept them ──
 
   const exclusionKey = (creator: string, fanRef: string): string => `${NEWCOMERS_EXCLUDED_PREFIX}${creator}.${fanRef}`;
+
+  /**
+   * The creator's welcome texts (NF-033): read from Fansly on each pass and joined with every text kept before
+   * (`NEWCOMERS_WELCOME_PREFIX`). A read that failed takes the kept texts, as the old extension's cache did
+   * (2026-10-20 restrictions, item 17); only with none kept does the failure stop the pass, as before.
+   */
+  async function welcomeTexts(pass: Pass, work: Work): Promise<Set<string>> {
+    const key = `${NEWCOMERS_WELCOME_PREFIX}${pass.creator}`;
+    const stored = await deps.local.get([key]).catch(() => null);
+    const value = stored?.ok === true ? (stored.value[key] as { readonly texts?: unknown } | undefined) : undefined;
+    const kept = Array.isArray(value?.texts) ? value.texts.filter((text): text is string => typeof text === 'string' && text !== '') : null;
+    let read: Set<string> | null = null;
+    let failure: CgAnyErrorWire = { code: 'CG-FAN-REQUEST' };
+    try {
+      read = readWelcomeTexts(await ask(pass, work, { route: 'message.automated' }));
+    } catch (error) {
+      if (error instanceof Aborted || work.stop.aborted || stopsPass(error) || kept === null) throw error;
+      failure = failureOf(error).wire;
+    }
+    if (read === null) {
+      if (kept === null) throw new PassFailure(failure);
+      note(pass, 'welcome.refresh', { count: kept.length, complete: false, code: failure.code });
+      log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the welcome texts were not read; the kept ones stand', fields: { count: kept.length } });
+      return new Set(kept);
+    }
+    const texts = [...new Set([...read, ...(kept ?? [])])].slice(0, WELCOME_TEXTS_MAX);
+    void deps.local.set({ [key]: { texts, checkedAt: deps.now() } }).catch(() => undefined);
+    note(pass, 'welcome.refresh', { count: texts.length, complete: true });
+    return new Set(texts);
+  }
 
   /** A store that could not be read excludes nobody: the fan stays «К обработке», where the person sees them. */
   async function isExcluded(creator: string, fanRef: string): Promise<boolean> {

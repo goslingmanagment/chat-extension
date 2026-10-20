@@ -1,6 +1,6 @@
 // The pacer (architecture.md §8.4; FS-NET-3, NF-037, RB-023): the old
-// extension's rules E130–E135 as data, a mode per call, a cooldown from ANY
-// 429 — ours and the page's (`onCompleted`) — deduplicated, and state that
+// extension's rules E130–E135 as data, a mode per call, a cooldown from our own
+// 429 only (also seen by `onCompleted`) — deduplicated, and state that
 // survives the event page. Fake timers: the pacer's own sleep and clock.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -127,10 +127,17 @@ describe('the cooldown (E133)', () => {
   });
 });
 
-describe('a cooldown from any 429 (§8.4)', () => {
-  it('[NF-037] [FS-NET-3] a foreign 429 (the page or a neighbour, onCompleted) closes our next call of that creator — and only of that creator', async () => {
+describe('a cooldown from our own 429 (§8.4)', () => {
+  it('[NF-037] a foreign 429 (the page or a neighbour, onCompleted) cools nothing, as in the old extension', async () => {
     const { pacer, facts } = rig();
-    facts.push(fact(A.legacyId, 'page'));
+    facts.push(fact(A.legacyId, 'page'), fact(null, 'unknown'));
+    expect(await startedAt(pacer, A, GROUP, 'check')).toBe(T0);
+    expect(await settle(startedAt(pacer, A, 'POST /group', 'queue-or-refuse'))).toBeLessThan(T0 + 1000);
+  });
+
+  it('[NF-037] [FS-NET-3] our own 429 seen by onCompleted closes our next call of that creator — and only of that creator', async () => {
+    const { pacer, facts } = rig();
+    facts.push(fact(A.legacyId, 'own'));
     const refused = await pacer.enter(A, GROUP, 'check').catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(PacerCooling);
     expect((refused as PacerCooling).until).toBe(T0 + 30_000);
@@ -144,12 +151,12 @@ describe('a cooldown from any 429 (§8.4)', () => {
     const first = await pacer.enter(A, GROUP, 'queue');
     const waiting = startedAt(pacer, A, MESSAGE);
     await vi.advanceTimersByTimeAsync(1000);
-    facts.push(fact(A.legacyId, 'page'));
+    facts.push(fact(A.legacyId, 'own'));
     first.release();
     expect(await settle(waiting, 100)).toBeGreaterThanOrEqual(T0 + 1000 + 30_000);
     const refusing = await settle(pacer.enter(A, GROUP, 'queue'));
     const queued = pacer.enter(A, 'POST /group', 'queue-or-refuse');
-    facts.push(fact(A.legacyId, 'page'));
+    facts.push(fact(A.legacyId, 'own'));
     refusing.release();
     await expect(settle(queued)).rejects.toBeInstanceOf(PacerCooling);
   });

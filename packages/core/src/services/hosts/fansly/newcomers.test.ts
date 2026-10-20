@@ -26,11 +26,12 @@ class ApiError extends Error {
   constructor(
     readonly kind: string,
     readonly code: string,
+    readonly httpStatus?: number,
   ) {
     super(kind);
   }
-  toWire(): { code: string } {
-    return { code: this.code };
+  toWire(): { code: string; httpStatus?: number } {
+    return this.httpStatus === undefined ? { code: this.code } : { code: this.code, httpStatus: this.httpStatus };
   }
 }
 
@@ -339,7 +340,7 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     expect(t.service.proof(passId, endless)).toBeNull();
   });
 
-  it('[FS-NEW-4] the window’s identity: a tab on another account gets no pass; a closed window stops the work; a session Fansly refused stops it at once; five failures in a row stop it', async () => {
+  it('[FS-NEW-4] the window’s identity: a tab on another account gets no pass; a closed window stops the work; a session Fansly refused stops it at once; five failures of Fansly’s in a row stop it', async () => {
     const other = setup({ tabOn: (tab) => tab === TAB });
     expect(await other.ask('fansly.followers.scan', { hostAccountId: C, windowHours: 48 }, OTHER_TAB)).toEqual({ ok: false, error: { code: 'CG-FNEW-ACCOUNT' } });
     other.world.follow(1, T0 - minutes(1));
@@ -360,11 +361,47 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
 
     const failing = setup();
     for (let n = 1; n <= 7; n += 1) failing.world.follow(n, T0 - minutes(n));
-    failing.world.failures.set('group.create', new ApiError('http', 'CG-FAN-REQUEST'));
+    failing.world.failures.set('group.create', new ApiError('http', 'CG-FAN-REQUEST', 503));
     const fused = await failing.scan();
     await failing.settle();
     expect(failing.world.calls.filter((call) => call.route === 'group.create')).toHaveLength(5);
     expect((await failing.ask('fansly.followers.read', { passId: fused, offset: 0, limit: 1 })).pass).toMatchObject({ state: 'stopped', error: { code: 'CG-FAN-REQUEST' } });
+  });
+
+  it('[FS-NEW-4] a row’s own failure (a 400, an answer that did not parse) is the row’s: seven odd fans do not stop the check, as in the old extension', async () => {
+    const t = setup();
+    for (let n = 1; n <= 7; n += 1) t.world.follow(n, T0 - minutes(n));
+    t.world.failures.set('group.create', new ApiError('http', 'CG-FAN-REQUEST', 400));
+    const passId = await t.scan();
+    await t.settle();
+    expect(t.world.calls.filter((call) => call.route === 'group.create')).toHaveLength(7);
+    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass?.state).not.toBe('stopped');
+  });
+
+  it('[NF-033] the welcome texts are kept: a read that failed takes the kept ones instead of stopping the pass; with none kept it stops as before', async () => {
+    const kv = createMemoryKv();
+    const first = setup({ kv });
+    first.world.follow(1, T0 - minutes(1));
+    await first.scan();
+    await first.settle();
+    const kept = await kv.open().get([`fansly.newcomers.welcome.${C}`]);
+    expect(kept.ok && kept.value[`fansly.newcomers.welcome.${C}`]).toMatchObject({ texts: ['Thanks for the follow'] });
+
+    const again = setup({ kv });
+    const fan = again.world.follow(1, T0 - minutes(1));
+    again.world.chat(fan, [{ from: 'model', content: 'Thanks for the follow' }]);
+    again.world.failures.set('message.automated', new ApiError('network', 'CG-FAN-REQUEST'));
+    const passId = await again.scan();
+    await again.settle();
+    expect((await again.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass?.state).not.toBe('stopped');
+    expect(await again.row(passId, fan)).toMatchObject({ status: 'ready', fanWrote: false });
+
+    const fresh = setup();
+    fresh.world.follow(1, T0 - minutes(1));
+    fresh.world.failures.set('message.automated', new ApiError('network', 'CG-FAN-REQUEST'));
+    const stopped = await fresh.scan();
+    await fresh.settle();
+    expect((await fresh.ask('fansly.followers.read', { passId: stopped, offset: 0, limit: 1 })).pass).toMatchObject({ state: 'stopped' });
   });
 });
 
