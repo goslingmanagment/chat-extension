@@ -7,7 +7,7 @@
 import * as z from 'zod/mini';
 
 import { TONES, type FeatureId } from '../features';
-import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hiStartProofMatches } from '../hi-start-proof';
+import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from '../hi-start-proof';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS } from '../limits';
 import { CoverageDeletedIdsSchema, CoverageWindowSchema, LivePpvStateSchema, coverageIdsOnce } from '../ops';
 import {
@@ -281,8 +281,8 @@ export const HubStreamRequestSchema = z
     z.refine((r) => r.body.coverageCheck === undefined || (r.capabilities.includes('coverage-check-v1') && r.capabilities.includes('context-v1')), {
       message: 'coverageCheck needs coverage-check-v1 and context-v1',
     }),
-    z.refine((r) => !hasHiStartFields(r.body) || (r.body.platform === 'fansly' && r.capabilities.includes('hi-start-proof-v1')), {
-      message: 'Hi fields need Fansly and hi-start-proof-v1',
+    z.refine((r) => !hasHiStartFields(r.body) || (r.body.platform === 'fansly' && r.capabilities.includes('hi-start-proof-v1')) || (r.body.platform === 'onlyfans' && hasOnlyPersonalCount(r.body)), {
+      message: 'Hi fields need Fansly and hi-start-proof-v1; OnlyFans takes the personal count alone',
     }),
     z.refine((r) => hiStartProofMatches(r.body, r.body.conversationRef), { message: 'start_proof_mismatch' }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),

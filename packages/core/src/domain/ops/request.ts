@@ -143,6 +143,8 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // The proof of the start, its count and the fan's avatar (FX-018) ride only on that lane: ids and an address, no text.
   if (hiByProof && start.startProof !== undefined) body.startProof = start.startProof;
   if (hiByProof && start.personalMessageCount !== undefined) body.personalMessageCount = start.personalMessageCount;
+  // 2026-10-20 audit, row 6: Hi on OnlyFans tells the hub its personal messages (no mass ones); the hub counts them instead of its archive.
+  else if (start.feature === 'hi' && start.target.binding.platform === 'onlyfans' && start.personalMessageCount !== undefined) body.personalMessageCount = start.personalMessageCount;
   if (hiByProof && start.fanAvatarUrl !== undefined) body.fanAvatarUrl = start.fanAvatarUrl;
   if (start.feature === 'recap-short') body.summaryMode = 'short';
   if (start.feature === 'coach' && start.coach !== undefined) {

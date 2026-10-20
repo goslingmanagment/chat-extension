@@ -95,7 +95,11 @@ function hiStartProofShapeRefusal(feature: string, body: StreamRuleBody, capabil
   const bad = (message: string, reason: string): StreamBodyRefusal => ({ error: 'bad_request', message, reason });
   if (feature !== 'hi-greeting') return bad(`${feature} does not accept ${fields}`, 'start_proof_not_allowed');
   if (body.clientContext !== undefined) return bad(`${fields} cannot be combined with clientContext`, 'start_proof_not_allowed');
-  if (body.platform !== 'fansly') return bad(`${fields} are only accepted for fansly pages`, 'start_proof_not_allowed');
+  if (body.platform !== 'fansly') {
+    // The hub since the 2026-10-20 audit (row 6): on an OnlyFans page the client's count of personal messages, alone.
+    if (fields === 'personalMessageCount') return null;
+    return bad(`${fields} are only accepted for fansly pages`, 'start_proof_not_allowed');
+  }
   if (!capabilities.includes('hi-start-proof-v1')) return bad(`${fields} require the hi-start-proof-v1 capability`, 'capability_required');
   // The SDK schema runs first. Without it, malformed bodies still reach the client's schema below, never throw here.
   if (body.startProof !== undefined && body.startProof !== null) {
