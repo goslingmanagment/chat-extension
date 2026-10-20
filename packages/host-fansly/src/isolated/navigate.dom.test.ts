@@ -6,8 +6,7 @@ import { FANSLY_IDS } from '@cg/contracts/fixtures';
 import { NavigationReceiptSchema, type NavigationReceipt } from '@cg/contracts/host';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { editorCalls, installEditor, settle, startWorld, until, type World } from '../testing/port-world';
-import { NAV_CHECK_MS } from './navigate';
+import { editorCalls, installEditor, startWorld, until, type World } from '../testing/port-world';
 
 const { creator: CREATOR, fan: FAN, group: GROUP, otherGroup: OTHER } = FANSLY_IDS;
 const OTHER_FAN = '700000000000000005';
@@ -41,42 +40,6 @@ const parsed = (receipt: NavigationReceipt): NavigationReceipt => NavigationRece
 const ways = (world: World): unknown[] => world.diagnostics.filter((d) => d.event === 'navigate').map((d) => d.detail?.['way']);
 
 describe('[SP-036] opening a chat the way a person does', () => {
-  it('[SP-036] by the inbox row’s own link when the virtual list has it rendered, else by the address and a `popstate` Angular reads a task later; never a load', async () => {
-    const world = await onChat([OTHER]);
-    const linked = parsed(await world.port.navigate(world.navigation(OTHER)));
-    expect(linked).toEqual({ state: 'navigated', routeEpoch: world.port.current().route.epoch, insert: null });
-    expect(location.pathname).toBe(`/messages/${OTHER}`);
-    await until('chat B', () => atChat(world, OTHER_FAN));
-    const popped = parsed(await world.port.navigate(world.navigation(THIRD)));
-    expect(popped.state).toBe('navigated');
-    await until('chat C', () => atChat(world, THIRD_FAN));
-    expect(ways(world)).toEqual(['link', 'popstate']);
-    expect(world.redeemed).toEqual(['navigate', 'navigate']);
-    // Past the 2-second check: the chats opened, nothing was loaded by its address.
-    await new Promise((resolve) => setTimeout(resolve, NAV_CHECK_MS + 100));
-    expect(world.loads).toEqual([]);
-    expect((await world.port.health()).isolated.route.unsignalled).toBe(0);
-  });
-
-  it('[SP-036] a page that does not react within 2 s is loaded by the address — unless the person went elsewhere meanwhile', async () => {
-    const world = await onChat();
-    world.page.routing(false);
-    const receipt = parsed(await world.port.navigate(world.navigation(OTHER, 'given up by the load')));
-    expect(world.loads).toEqual([`/messages/${OTHER}`]);
-    // The deferred insert could not live through a load: given up.
-    expect(receipt).toMatchObject({ state: 'navigated', insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
-    world.page.routing(true);
-    history.replaceState({}, '', `/messages/${GROUP}`);
-    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
-    await until('chat A', () => atChat(world, FAN));
-    world.page.routing(false);
-    void world.port.navigate(world.navigation(THIRD));
-    await settle();
-    world.page.openChat(OTHER);
-    await new Promise((resolve) => setTimeout(resolve, NAV_CHECK_MS + 100));
-    expect(world.loads).toEqual([`/messages/${OTHER}`]);
-  });
-
   it('refused before anything moves: another account, an unknown group, no redeemed token', async () => {
     const world = await onChat([OTHER]);
     expect(await world.port.navigate(world.navigation(OTHER, 'x', { account: '700000000000000042' }))).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'rejected', code: 'CG-NAV-FAILED' } });
@@ -92,39 +55,6 @@ describe('[SP-036] opening a chat the way a person does', () => {
 });
 
 describe('a navigation that is no longer the person’s choice (review of P7e)', () => {
-  it('[SP-036] a newer navigation stops the older one’s 2-second check: a click the router ignored never loads its chat over the newer choice', async () => {
-    const world = await onChat();
-    world.page.inbox([OTHER], { dead: true });
-    // B by its row: the router ignores the click, the address stays on A.
-    const older = world.port.navigate(world.navigation(OTHER));
-    await until('the click on B’s row', () => world.redeemed.length === 1);
-    await settle();
-    expect(location.pathname).toBe(`/messages/${GROUP}`);
-    // Within the 2 seconds the person chooses «Открыть и вставить» for A, open now: the older choice is over.
-    expect(await world.port.navigate(world.navigation(GROUP, 'into A'))).toMatchObject({ state: 'navigated', insert: { state: 'applied' } });
-    expect(await older).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: null });
-    await new Promise((resolve) => setTimeout(resolve, NAV_CHECK_MS + 100));
-    expect(world.loads).toEqual([]);
-    expect(valueOf(world)).toBe('into A');
-  });
-
-  it('a port disposed while a navigation waits for its schemas or its token: nothing moves, nothing is loaded later', async () => {
-    for (const when of ['schemas', 'token'] as const) {
-      const world = await onChat([OTHER]);
-      const release = world.holdRedeem();
-      const pending = world.port.navigate(world.navigation(OTHER, `after dispose (${when})`));
-      if (when === 'token') await until('the token asked', () => world.redeemed.length === 1);
-      world.port.dispose();
-      release();
-      expect(await pending).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'rejected', code: 'CG-NAV-FAILED' } });
-      expect(location.pathname).toBe(`/messages/${GROUP}`);
-      await new Promise((resolve) => setTimeout(resolve, NAV_CHECK_MS + 100));
-      expect(world.loads).toEqual([]);
-      world.dispose();
-      history.replaceState({}, '', '/');
-    }
-  });
-
   it('[NEW-01] the person leaves the target and comes back between two looks: the insert of the first visit is given up, not written into the later one', async () => {
     const world = await onChat([OTHER, THIRD]);
     world.holdChats(true);

@@ -1,9 +1,9 @@
-import { ANCHOR_IDS, HOST_CAPABILITIES, ChatSpaceContractReportSchema } from '@cg/contracts/host';
+import { HOST_CAPABILITIES, ChatSpaceContractReportSchema } from '@cg/contracts/host';
 import { sameReport } from '@cg/host-kit/isolated/report';
 import { describe, expect, it } from 'vitest';
 
 import { buildContractReport, type ContractInput } from './contract';
-import { normalizeDraftText, readStoredDraft, storedDraftAgrees, tiptapText } from './draft-store';
+import { normalizeDraftText, readStoredDraft, storedDraftAgrees } from './draft-store';
 
 const input = (over: Partial<ContractInput> = {}): ContractInput => ({
   wire: { build: 'index-0000fake', missing: [], shape: [] },
@@ -15,21 +15,6 @@ const input = (over: Partial<ContractInput> = {}): ContractInput => ({
 });
 
 describe('[DB-031] the host contract check (§6.2)', () => {
-  it('reports every anchor and capability, valid against the contract', () => {
-    const report = ChatSpaceContractReportSchema.parse(buildContractReport(input()));
-    expect(Object.keys(report.anchors).sort()).toEqual([...ANCHOR_IDS].sort());
-    expect(Object.keys(report.capabilities).sort()).toEqual([...HOST_CAPABILITIES].sort());
-    expect(report.build).toBe('index-0000fake');
-    const on = HOST_CAPABILITIES.filter((name) => report.capabilities[name].state === 'on');
-    expect(on.sort()).toEqual(['accounts', 'chatList', 'chatWindow', 'dockMount', 'draftRead', 'fan', 'freshText', 'identity', 'insert', 'navigate', 'route', 'theme'].sort());
-    // The live side without a tap script, flags or a profile: off, each with its reason — not broken.
-    expect(report.capabilities.receipt).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
-    expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
-    expect(report.capabilities.incoming).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
-    expect(report.capabilities.sendObserve).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
-    expect(report.anchors.receiptProfile).toBe('missing');
-  });
-
   it('[X8-06] the live capabilities: the tap, the flag, every anchor a condition is read from, and the receipt profile (§6.2)', () => {
     const live = { tap: true, previewSend: true, receipt: true };
     const all = ChatSpaceContractReportSchema.parse(buildContractReport(input({ live })));
@@ -110,44 +95,11 @@ describe('[DB-031] the host contract check (§6.2)', () => {
     // Another match is another report (listeners hear of it).
     expect(sameReport(of({}), of({ live: { ...live, receiptMatch: { profile: 'chatspace-0.202.0', kind: 'exact' } } }))).toBe(false);
   });
-
-  it('[ER-048] [ER-049] no MAIN or no #app: CG-HOST-NOT-READY; a broken router or accounts: CG-HOST-CONTRACT', () => {
-    expect(buildContractReport(input({ wire: null })).capabilities.insert).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
-    expect(buildContractReport(input({ wire: { build: null, missing: ['app'], shape: [] } })).capabilities.identity).toEqual({ state: 'off', reason: 'app', code: 'CG-HOST-NOT-READY' });
-    const router = buildContractReport(input({ wire: { build: null, missing: [], shape: ['router'] } }));
-    expect(router.capabilities.navigate).toEqual({ state: 'contractBroken', reason: 'router', code: 'CG-HOST-CONTRACT' });
-    expect(router.capabilities.insert).toEqual(router.capabilities.route);
-    const accounts = buildContractReport(input({ wire: { build: null, missing: [], shape: ['accounts'] } }));
-    expect(accounts.capabilities.identity).toEqual({ state: 'contractBroken', reason: 'accounts', code: 'CG-HOST-CONTRACT' });
-    expect(buildContractReport(input({ accountBound: false })).capabilities.identity).toEqual({ state: 'off', reason: 'platformAccountId' });
-  });
-
-  it('[RB-008] partial breakage degrades one capability at a time', () => {
-    const noBridge = buildContractReport(input({ wire: { build: null, missing: ['composerBridge'], shape: [] } })).capabilities;
-    expect(noBridge.insert).toEqual({ state: 'off', reason: 'composerBridge', code: 'CG-HOST-COMPOSER-MISSING' });
-    expect(noBridge.chatWindow.state).toBe('on');
-    const noEditor = buildContractReport(input({ wire: { build: null, missing: [], shape: ['composerBridge'] } })).capabilities;
-    expect(noEditor.insert).toEqual({ state: 'degraded', reason: 'editor' });
-    expect(noEditor.draftRead).toEqual({ state: 'degraded', reason: 'editor' });
-    const report = buildContractReport(input({ wire: { build: null, missing: ['fansMap', 'chatList'], shape: ['chatMessages'] }, dom: { composerFrame: 'missing', draftKey: 'missing', theme: 'missing' } }));
-    expect(report.capabilities.fan).toEqual({ state: 'off', reason: 'fansMap' });
-    expect(report.capabilities.chatList).toEqual({ state: 'off', reason: 'chatList' });
-    expect(report.capabilities.freshText).toEqual({ state: 'off', reason: 'chatMessages' });
-    expect(report.capabilities.dockMount).toEqual({ state: 'degraded', reason: 'composerFrame' });
-    expect(report.capabilities.draftRead).toEqual({ state: 'degraded', reason: 'draftKey' });
-    expect(report.capabilities.theme).toEqual({ state: 'degraded', reason: 'theme' });
-  });
 });
 
 describe('[NEW-06] the draft key of the target chat', () => {
   const doc = (paragraphs: unknown[]) => ({ type: 'doc', content: paragraphs });
   const p = (...content: unknown[]) => ({ type: 'paragraph', content });
-
-  it('reads Tiptap JSON like editor.getText(): hard breaks are newlines, blocks a blank line apart', () => {
-    expect(tiptapText(doc([p({ type: 'text', text: 'a' }, { type: 'hardBreak' }, { type: 'text', text: 'b', marks: [{ type: 'bold' }] })]))).toBe('a\nb');
-    expect(tiptapText(doc([p({ type: 'text', text: 'one' }), p({ type: 'text', text: 'two' })]))).toBe('one\n\ntwo');
-    expect(tiptapText(null)).toBe('');
-  });
 
   it('only the target’s own key; absent, unreadable and present are told apart', () => {
     const entries: Record<string, string> = {

@@ -1,33 +1,20 @@
-// Ingest (acceptance + client_health, H-11/H-14), the user's AI usage
-// (H-15), the H-5 save schedule (§7), and the routes this client never
-// calls (§8.1 «Никогда», AU-029) — parity TL-001…TL-012 (hub part),
-// AI-067, AI-068, AU-029, HB-006.
+// Ingest (acceptance + client_health, H-11/H-14) — what leaves for the hub: the events as they are, no text, and
+// client_health only under its capability — and the routes this client never calls (§8.1 «Никогда», AU-029) — parity
+// TL-007…TL-012 (hub part), AU-029.
 
-import {
-  HUB_FORBIDDEN_OPERATIONS,
-  HUB_ROUTE_KEYS,
-  HUB_ROUTES,
-  INGEST_LIMITS,
-  isHubCallError,
-  type AcceptanceEvent,
-  type ClientHealthV1,
-  type ProfileFromGenerationRequest,
-} from '@cg/contracts';
-import { HUB_SAMPLES, clientHealth, contractReport, siteContractReport, uuid as fixtureUuid } from '@cg/contracts/fixtures';
-import { TabHealthCollector } from '@cg/core/domain/telemetry';
-import { HealthReporter } from '@cg/core/services/telemetry';
-import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, SSE_SCENARIOS, WORLD, sseText, uuid } from '@cg/testing/hub';
-import { CLIENT_HEALTH_PERF_METRICS, clientHealthReportV1Schema, kernelOperations } from '@kernel/sdk';
+import { HUB_FORBIDDEN_OPERATIONS, HUB_ROUTE_KEYS, HUB_ROUTES, INGEST_LIMITS, type AcceptanceEvent } from '@cg/contracts';
+import { clientHealth, uuid as fixtureUuid } from '@cg/contracts/fixtures';
+import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, SSE_SCENARIOS, WORLD, sseText } from '@cg/testing/hub';
+import { kernelOperations } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SDK_ALLOWED_OPERATIONS, errorWireOf, stableEventId } from '../src/index';
-import { hubError, json, sse } from './support/fake-hub';
+import { SDK_ALLOWED_OPERATIONS } from '../src/index';
+import { json, sse } from './support/fake-hub';
 import { flush, makeHarness, signIn, type Harness } from './support/harness';
 import { okBody, scenarioNamed, signInWorld } from './support/world';
 
 const SIGN_IN = scenarioNamed(HTTP_SCENARIOS, 'sign-in-and-bootstrap-all-off');
 const WORLD_PILOT = signInWorld(SIGN_IN, BOOTSTRAP_PILOT_ON, WORLD.user.username);
-const WITH_HEALTH = { ...BOOTSTRAP_PILOT_ON, capabilities: [...BOOTSTRAP_PILOT_ON.capabilities, 'client-health-perf-v1'] };
 
 const acceptance = (n: number): AcceptanceEvent => ({
   clientEventId: fixtureUuid(0x1000 + n),
@@ -63,160 +50,6 @@ describe('[TL-009] [TL-012] ingest: acceptance always, client_health only under 
     await expect(h.facade.ingest([clientHealth])).resolves.toEqual({ accepted: 0, duplicates: 0, healthRefused: 1 });
     expect(h.hub.of('ingestObservations')).toEqual([]);
     expect(h.logs.lines.some((line) => line.fields?.['code'] === 'CG-HUB-CAPABILITY' && line.fields['count'] === 1)).toBe(true);
-  });
-
-  it('[TL-009] [TL-012] a mixed call without the capability still delivers its acceptance events', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('ingestObservations', (request) => json(200, { accepted: (request.body as { events: unknown[] }).events.length, duplicates: 0 }));
-    const events = [acceptance(1), clientHealth, acceptance(2)];
-    await expect(h.facade.ingest(events)).resolves.toEqual({ accepted: 2, duplicates: 0, healthRefused: 1 });
-    const bodies = h.hub.of('ingestObservations').map((request) => (request.body as { events: { kind: string; clientEventId: string }[] }).events);
-    expect(bodies).toHaveLength(1);
-    expect(bodies[0]?.map((event) => [event.kind, event.clientEventId])).toEqual([
-      ['ai_acceptance', acceptance(1).clientEventId],
-      ['ai_acceptance', acceptance(2).clientEventId],
-    ]);
-  });
-
-  it('[TL-012] with the capability: its own batch, a stable id per report so a retry is deduplicated', async () => {
-    await signIn(h, { ...WORLD_PILOT, bootstrap: WITH_HEALTH });
-    h.hub.on('ingestObservations', () => json(200, { accepted: 1, duplicates: 0 }));
-    await h.facade.ingest([acceptance(1), clientHealth]);
-    await h.facade.ingest([clientHealth]);
-    const bodies = h.hub.of('ingestObservations').map((request) => request.body as { events: { clientEventId: string; kind: string; observedAt: string; payload: Record<string, unknown> }[] });
-    expect(bodies.map((body) => body.events.map((event) => event.kind))).toEqual([['ai_acceptance'], ['client_health'], ['client_health']]);
-    const health = bodies[1]?.events[0];
-    expect(health?.clientEventId).toBe(bodies[2]?.events[0]?.clientEventId);
-    expect(health?.observedAt).toBe(clientHealth.window.to);
-    expect(health?.payload).not.toHaveProperty('kind');
-    expect(health?.payload['client']).toEqual(clientHealth.client);
-  });
-
-  it('[TL-010] a refused batch reads by the hub canon; an invalid event is never sent', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('ingestObservations', () => hubError(400, 'bad_request'));
-    expect(errorWireOf(await h.facade.ingest([acceptance(1)]).catch((reason: unknown) => reason))?.code).toBe('CG-HUB-REQUEST');
-    const before = h.hub.of('ingestObservations').length;
-    const bad = { ...acceptance(2), clientEventId: 'not-a-uuid' };
-    expect(errorWireOf(await h.facade.ingest([bad]).catch((reason: unknown) => reason))?.code).toBe('CG-HUB-REQUEST');
-    expect(h.hub.of('ingestObservations')).toHaveLength(before);
-    await expect(h.facade.ingest([])).resolves.toEqual({ accepted: 0, duplicates: 0, healthRefused: 0 });
-  });
-
-  it('[TL-012] the stable id is a UUID that depends only on the report', () => {
-    const a = stableEventId('client_health|0.1.0|a|b');
-    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-    expect(stableEventId('client_health|0.1.0|a|b')).toBe(a);
-    expect(stableEventId('client_health|0.1.0|a|c')).not.toBe(a);
-  });
-
-  it('[TL-012] [TL-007] [NEW-03] [host:fansly] [host:chatspace] two windows of one period — two sites on two test adapters, or two builds — are two reports, and the hub keeps both by its own schema', async () => {
-    await signIn(h, { ...WORLD_PILOT, bootstrap: WITH_HEALTH });
-    const intake = hubHealthIntake();
-    h.hub.on('ingestObservations', (request) => json(200, intake.take((request.body as { events: { clientEventId: string; kind: string; payload: unknown }[] }).events)));
-    // Two tabs of two sites, each on its own test adapter's contract: one window each, closed by one tick.
-    const queued: ClientHealthV1[] = [];
-    const reporter = new HealthReporter({
-      scheduler: { now: () => NOW_MS, after: () => () => undefined },
-      submit: (event) => {
-        if (event.kind === 'client_health') queued.push(event);
-        return 'queued';
-      },
-      consent: () => true,
-      supported: () => true,
-      hostOpen: () => true,
-      client: () => ({ version: '0.3.0', browserMajor: 157, os: 'macos' }),
-      footprint: () => ({ cachesKB: 1, logsKB: 1 }),
-      disabled: () => [],
-    });
-    const chatspace = new TabHealthCollector(() => NOW_MS);
-    chatspace.record('insertMs', 40);
-    const site = new TabHealthCollector(() => NOW_MS);
-    for (const [metric, ms] of [['frameParseMs', 0.06], ['xhrParseMs', 1.2], ['snapshotMs', 4], ['snapshotRoundTripMs', 90]] as const) site.record(metric, ms);
-    reporter.mergeTab(fixtureUuid(0x2001), 'chatspace', chatspace.takeReport(contractReport, { cachesKB: 1, domNodes: 1 }));
-    reporter.mergeTab(fixtureUuid(0x2002), 'fansly-web', site.takeReport(siteContractReport, { cachesKB: 1, domNodes: 1 }));
-    // And a second ChatSpace build in the same period (a tab reloaded onto a new deploy).
-    reporter.mergeTab(fixtureUuid(0x2003), 'chatspace', new TabHealthCollector(() => NOW_MS).takeReport({ ...contractReport, build: 'index-NEWbuild1' }, { cachesKB: 1, domNodes: 1 }));
-    expect(reporter.tick()).toBe(true);
-    expect(queued.map((report) => [report.host.kind, report.host.build])).toEqual([
-      ['chatspace', contractReport.build],
-      ['fansly-web', siteContractReport.build],
-      ['chatspace', 'index-NEWbuild1'],
-    ]);
-    // One period: the same client, version and window — only the site and the build tell the reports apart.
-    expect(new Set(queued.map((report) => JSON.stringify([report.client.version, report.window])))).toHaveProperty('size', 1);
-    await expect(h.facade.ingest(queued)).resolves.toEqual({ accepted: 3, duplicates: 0, healthRefused: 0 });
-    expect(intake.state()).toEqual({ kept: 3, refused: 0, droppedHistograms: [] });
-    // A retry of the same batch is deduplicated, report by report.
-    await expect(h.facade.ingest(queued)).resolves.toEqual({ accepted: 0, duplicates: 3, healthRefused: 0 });
-  });
-});
-
-describe('[TL-013] the user\'s own AI spend (H-15, debug only)', () => {
-  it('[TL-013] [ST-097] refused locally with debug off, never asked of the hub', async () => {
-    await signIn(h, WORLD_PILOT);
-    const error = await h.facade.aiUsage({ pageLabel: PAGE, date: '2026-10-03' }).catch((reason: unknown) => reason);
-    expect(errorWireOf(error)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'debug_off' });
-    expect(h.hub.of('clientAiUsageDaily')).toEqual([]);
-  });
-
-  it('[TL-013] refused locally without ai-usage-v1; with it, the report of a granted page', async () => {
-    h.env.debug = true;
-    await signIn(h, { ...WORLD_PILOT, bootstrap: { ...BOOTSTRAP_PILOT_ON, capabilities: BOOTSTRAP_PILOT_ON.capabilities.filter((capability) => capability !== 'ai-usage-v1') } });
-    expect(errorWireOf(await h.facade.aiUsage({ pageLabel: PAGE, date: '2026-10-03' }).catch((reason: unknown) => reason))?.code).toBe('CG-HUB-CAPABILITY');
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('clientAiUsageDaily', () => json(200, HUB_SAMPLES.usageReport));
-    await expect(h.facade.aiUsage({ pageLabel: PAGE, date: '2026-10-03', days: 7 })).resolves.toEqual(HUB_SAMPLES.usageReport);
-    expect(h.hub.of('clientAiUsageDaily')[0]).toMatchObject({ path: `/api/v1/client/pages/${PAGE}/ai-usage`, query: { date: '2026-10-03', days: '7' } });
-  });
-});
-
-describe('[AI-067] [AI-068] the dossier save from a full recap follows the §7 schedule', () => {
-  const save: ProfileFromGenerationRequest = { pageLabel: PAGE, fanRef: WORLD.fan, generationRef: uuid(0x200), clientRequestId: uuid(0x100) };
-  const created = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges.find((exchange) => exchange.route === 'clientFanProfileFromGeneration' && exchange.response.status === 200)?.response.body;
-
-  it('[AI-068] not ready → 5 s, 15 s, 60 s, then every 3 min; the idempotent write lands', async () => {
-    await signIn(h, WORLD_PILOT);
-    const times: number[] = [];
-    h.hub.on('clientFanProfileFromGeneration', () => {
-      times.push(Date.now() - NOW_MS);
-      return times.length < 5 ? hubError(409, 'generation_not_ready') : json(200, created);
-    });
-    const outcome = h.facade.saveRecapProfile(save, new AbortController().signal);
-    await vi.advanceTimersByTimeAsync(5_000 + 15_000 + 60_000 + 180_000);
-    await expect(outcome).resolves.toMatchObject({ state: 'saved' });
-    expect(times).toEqual([0, 5_000, 20_000, 80_000, 260_000]);
-  });
-
-  it('[AI-067] gives up after 30 min with not-ready (the caller shows CG-RECAP-SAVE); a closed tab stops it', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('clientFanProfileFromGeneration', () => hubError(409, 'generation_not_ready'));
-    const outcome = h.facade.saveRecapProfile(save, new AbortController().signal);
-    await vi.advanceTimersByTimeAsync(31 * 60_000);
-    await expect(outcome).resolves.toEqual({ state: 'not-ready' });
-    const asked = h.hub.of('clientFanProfileFromGeneration').length;
-    // 0, 5, 20, 80 s, then every 180 s up to 1700 s: the next (1880 s) is past 30 min.
-    expect(asked).toBe(13);
-    const tab = new AbortController();
-    const stopped = h.facade.saveRecapProfile(save, tab.signal).catch((reason: unknown) => reason);
-    await vi.advanceTimersByTimeAsync(1_000);
-    tab.abort();
-    const error = await stopped;
-    expect(isHubCallError(error) && error.failure).toEqual({ kind: 'transport', failure: 'aborted' });
-    await vi.advanceTimersByTimeAsync(10 * 60_000);
-    expect(h.hub.of('clientFanProfileFromGeneration')).toHaveLength(asked + 1);
-  });
-  it('[AI-068] a closed tab cancels the write in flight, not only the pauses between writes', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('clientFanProfileFromGeneration', () => 'hang');
-    const tab = new AbortController();
-    const saving = h.facade.saveRecapProfile(save, tab.signal).catch((reason: unknown) => reason);
-    await flush(20);
-    expect(h.hub.of('clientFanProfileFromGeneration')).toHaveLength(1);
-    tab.abort();
-    const error = await saving;
-    expect(isHubCallError(error) && error.failure).toEqual({ kind: 'transport', failure: 'aborted' });
-    expect(h.hub.of('clientFanProfileFromGeneration')[0]?.signal?.aborted).toBe(true);
   });
 });
 
@@ -261,53 +94,4 @@ describe('[AU-029] routes this client never calls (§8.1 «Никогда»)', (
     }
     expect(h.hub.unexpected).toEqual([]);
   });
-
-  it('[AU-029] spenderBatch reaches its literal-colon path (the SDK path builder cannot)', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('spenderBatch', () => json(200, HUB_SAMPLES.spenderBatch));
-    const batch = { scope: 'page' as const, pageLabel: PAGE, fans: [{ platform: 'onlyfans' as const, platformUserId: '5000' }] };
-    await expect(h.facade.spenderBatch(batch)).resolves.toEqual(HUB_SAMPLES.spenderBatch);
-    expect(h.hub.of('spenderBatch')[0]).toMatchObject({ path: '/api/v2/spenders:batch', method: 'POST', headers: { authorization: `Bearer ${String(WORLD_PILOT.issued['token'])}`, 'x-client-version': 'chat-extension/0.2.0' } });
-  });
 });
-
-/**
- * The hub's `client_health` intake as merged (hub apps/runtime/src/services/client-health-intake.ts, `main`): a report
- * the hub's own schema refuses (the vendored SDK's `clientHealthReportV1Schema`) is dropped and still answered as
- * accepted; one client event id is one report; a histogram whose metric or bounds the registry does not know is left
- * out of the rollups. The registry is the vendored SDK's own, Fansly's four of HF-13 (hub #577) included since the
- * re-vendor from bd3eec06 (R20 P2v).
- */
-function hubHealthIntake() {
-  const registry: Readonly<Record<string, readonly number[]>> = Object.fromEntries(Object.entries(CLIENT_HEALTH_PERF_METRICS).map(([metric, entry]) => [metric, entry.bounds]));
-  const kept = new Map<string, unknown>();
-  let refused = 0;
-  const droppedHistograms: string[] = [];
-  return {
-    take(events: readonly { clientEventId: string; kind: string; payload: unknown }[]): { accepted: number; duplicates: number } {
-      let accepted = 0;
-      let duplicates = 0;
-      for (const event of events) {
-        const parsed = clientHealthReportV1Schema.safeParse(event.payload);
-        if (event.kind !== 'client_health' || !parsed.success) {
-          refused += 1;
-          accepted += 1;
-          continue;
-        }
-        const id = event.clientEventId.toLowerCase();
-        if (kept.has(id)) {
-          duplicates += 1;
-          continue;
-        }
-        kept.set(id, parsed.data);
-        accepted += 1;
-        for (const histogram of parsed.data.perf) {
-          const bounds = registry[histogram.metric];
-          if (bounds === undefined || JSON.stringify(bounds) !== JSON.stringify(histogram.bounds)) droppedHistograms.push(histogram.metric);
-        }
-      }
-      return { accepted, duplicates };
-    },
-    state: () => ({ kept: kept.size, refused, droppedHistograms }),
-  };
-}

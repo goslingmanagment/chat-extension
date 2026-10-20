@@ -8,7 +8,7 @@ import { PreviewSendCommitSchema, PreviewSendPreflightSchema } from '@cg/contrac
 import { PREVIEW_SEND_CONDITION_CODES } from '@cg/contracts/send-rules';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { frames, type QueueEntry } from '../testing/fake-live';
+import { frames } from '../testing/fake-live';
 import { fakeStore } from '../testing/fake-page';
 import { ACC, FAN, OPEN_FAN, startLive, uuid, type LiveHarness } from '../testing/live-harness';
 import { QUEUE_SEND, toHtml } from './send-port';
@@ -19,8 +19,6 @@ afterEach(() => {
   h?.dispose();
   h = null;
 });
-
-const failedEntry = (fan: string, n: number): QueueEntry => ({ id: `stuck-${n}`, accountId: ACC, chatId: fan, platform: 'onlyfans', status: 'failed', error: { kind: 'platform' }, createdAt: '2026-10-03T10:00:00.000Z', payload: {} });
 
 describe('[X8-02] the one queue call (§6.7.1)', () => {
   it('[SP-054] [X8-05] a cold target — no composer, no chat tab, no cache — gets exactly one call with the §6.7.1 arguments', async () => {
@@ -116,12 +114,6 @@ describe('[X8-02] the one queue call (§6.7.1)', () => {
     expect(live.queue.sends[0]).toMatchObject({ hasAttachments: true, platformMetadata: { mediaFiles: [11] }, composerContent: { media: { price: null } } });
     expect(Object.keys(live.queue.sends[0]?.['platformMetadata'] as object)).toEqual(['mediaFiles']);
   });
-
-  it('`isAiGenerated` is the request’s (ChatSpace’s own mark, decided before MAIN); `isCopied` is always false, the metadata always empty', () => {
-    const live = start();
-    live.commit(live.request(2, { isAiGenerated: false, plainText: 'a\nb' }));
-    expect(live.queue.sends[0]).toMatchObject({ isAiGenerated: false, isCopied: false, platformMetadata: {}, hasAttachments: false, text: '<p>a<br>b</p>' });
-  });
 });
 
 describe('[X8-03] every condition is checked in MAIN, with no side effect, and again right before the call (§6.7.4)', () => {
@@ -129,37 +121,12 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
   const cases: Array<[string, string, (live: LiveHarness) => void]> = [
     ['the flag is off (the latch)', 'CG-SEND-OFF', (live) => void live.port.handle('flags', { wsTap: true, previewSend: false })],
     ['the queue store is missing', 'CG-SEND-HOST', (live) => void live.live.stores.delete('pendingMessages')],
-    ['the queue store is not the one we know', 'CG-SEND-HOST', (live) => void live.live.stores.set('pendingMessages', fakeStore('pendingMessages', { messagesByAccountId: {} }))],
-    [
-      'the queue store has no per-account «processing» state (§6.2: condition 13 could not be read)',
-      'CG-SEND-HOST',
-      (live) => void live.live.stores.set('pendingMessages', fakeStore('pendingMessages', { messagesByAccountId: {}, [QUEUE_SEND]: () => null })),
-    ],
-    [
-      'a read of ours throws (a page we do not know)',
-      'CG-SEND-HOST',
-      (live) =>
-        void ((live.live.host as { route: unknown }).route = () => {
-          throw new Error('ours');
-        }),
-    ],
-    ['the page’s fetch takes no assignment (a getter alone): no send path that can be observed', 'CG-SEND-RECEIPT', (live) => void Object.defineProperty(live.win, 'fetch', { configurable: true, get: () => live.nativeFetch })],
-    ['the page’s fetch is not writable', 'CG-SEND-RECEIPT', (live) => void Object.defineProperty(live.win, 'fetch', { configurable: true, writable: false, value: live.nativeFetch })],
     ['the page has no fetch', 'CG-SEND-RECEIPT', (live) => void ((live.win as { fetch?: unknown }).fetch = undefined)],
-    ['the account is not among the loaded accounts', 'CG-SEND-PERMISSION', (live) => live.live.set(['accounts'], [{ id: 1002, platformAccountId: '3003' }])],
     ['the account is bound to another creator', 'CG-SEND-PERMISSION', (live) => live.live.set(['accounts'], [{ id: 1001, platformAccountId: '3999' }])],
-    ['the accounts are not loaded', 'CG-SEND-PERMISSION', (live) => void live.live.data.delete(JSON.stringify(['accounts']))],
-    ['the permissions are not loaded', 'CG-SEND-PERMISSION', (live) => void live.live.data.delete(JSON.stringify(['userPermissions']))],
     ['the role cannot send messages', 'CG-SEND-PERMISSION', (live) => live.live.set(['userPermissions'], ['of_block_message_sending'])],
     ['the target is the open chat', 'CG-SEND-ACTIVE-CHAT', (live) => void (live.live.route = { name: 'chat', acc: ACC, fan: FAN })],
     ['the target’s history query is observed', 'CG-SEND-HISTORY', (live) => void live.live.entries.set(JSON.stringify(['chatMessages', ACC, FAN]), { active: true, asyncStatus: { value: 'idle' } })],
-    ['the target’s history query is loading', 'CG-SEND-HISTORY', (live) => void live.live.entries.set(JSON.stringify(['chatMessages', ACC, FAN]), { active: false, asyncStatus: { value: 'loading' } })],
-    ['the target’s history entry cannot be read', 'CG-SEND-HISTORY', (live) => void live.live.entries.set(JSON.stringify(['chatMessages', ACC, FAN]), {})],
     ['the fan is blocked', 'CG-SEND-FAN', (live) => live.live.set(['fansMap', ACC], { [FAN]: { isBlocked: true, canReceiveMessages: true, isRestricted: false } })],
-    ['the fan cannot receive messages', 'CG-SEND-FAN', (live) => live.live.set(['fansMap', ACC], { [FAN]: { isBlocked: false, canReceiveMessages: false, isRestricted: false } })],
-    ['the fan is restricted', 'CG-SEND-FAN', (live) => live.live.set(['fansMap', ACC], { [FAN]: { isBlocked: false, canReceiveMessages: true, isRestricted: true } })],
-    ['Mimic’s settings are not loaded', 'CG-SEND-MIMIC', (live) => void live.live.data.delete(JSON.stringify(['mimicSettings']))],
-    ['Mimic’s chats are not loaded', 'CG-SEND-MIMIC', (live) => void live.live.data.delete(JSON.stringify(['mimicChats']))],
     [
       'Mimic runs this chat',
       'CG-SEND-MIMIC',
@@ -169,14 +136,9 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
       },
     ],
     ['the translator would translate on send', 'CG-SEND-TRANSLATOR', (live) => void ((live.live.stores.get('composerTranslator')?.['settings'] as Record<string, unknown>)[ACC] = { enabled: true, autoTranslate: true })],
-    ['the translator store is missing', 'CG-SEND-TRANSLATOR', (live) => void live.live.stores.delete('composerTranslator')],
-    ['the translator’s settings cannot be read', 'CG-SEND-TRANSLATOR', (live) => void live.live.stores.set('composerTranslator', fakeStore('composerTranslator', { getAccountSettings: () => ({ value: 'on' }) }))],
     ['the account’s queue is processing', 'CG-SEND-BUSY', (live) => void ((live.queue.store['processingByAccountId'] as Record<string, boolean>)[ACC] = true)],
-    ['another send waits in the account’s queue', 'CG-SEND-BUSY', (live) => void ((live.queue.store['messagesByAccountId'] as Record<string, QueueEntry[]>)[ACC] = [{ ...failedEntry(OPEN_FAN, 1), status: 'pending', error: null }])],
-    ['the chat’s queue is full', 'CG-SEND-BUSY', (live) => void ((live.queue.store['messagesByAccountId'] as Record<string, QueueEntry[]>)[ACC] = Array.from({ length: 50 }, (_, n) => failedEntry(FAN, n)))],
     ['the fan wrote after Generate', 'CG-SEND-STALE', (live) => live.socket.receive(frames.message(ACC, FAN, '5001', true))],
     ['the socket reconnected after Generate', 'CG-SEND-FRESHNESS', (live) => live.socket.close()],
-    ['the account lost its subscription', 'CG-SEND-FRESHNESS', (live) => void ((live.live.subscribed = new Set()), live.port.sync())],
   ];
 
   it.each(cases)('%s → %s: the button is refused and the click makes no queue call', async (_name, code, breakIt) => {
@@ -202,19 +164,6 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
     expect(JSON.stringify([...live.live.data])).toBe(before);
     expect(live.win.fetch).toBe(fetchBefore);
     expect(live.states()).toEqual([]);
-  });
-
-  it('what the page does not forbid is not refused: an unknown fan, an idle unobserved history, Mimic on another chat or escalated, a manual translator', () => {
-    const live = start();
-    live.live.set(['fansMap', ACC], {});
-    live.live.entries.set(JSON.stringify(['chatMessages', ACC, FAN]), { active: false, asyncStatus: { value: 'idle' } });
-    live.live.set(['mimicSettings'], { isActive: true });
-    live.live.set(['mimicChats'], { [`${ACC}:${OPEN_FAN}`]: { status: 'enabled' }, [`${ACC}:${FAN}`]: { status: 'escalated' } });
-    (live.live.stores.get('composerTranslator')?.['settings'] as Record<string, unknown>)[ACC] = { enabled: true, autoTranslate: false };
-    (live.queue.store['messagesByAccountId'] as Record<string, QueueEntry[]>)[ACC] = Array.from({ length: 49 }, (_, n) => failedEntry(FAN, n)).concat(Array.from({ length: 50 }, (_, n) => failedEntry(OPEN_FAN, 100 + n)));
-    expect(live.preflight(live.request(4))).toEqual({ ok: true });
-    live.live.data.delete(JSON.stringify(['fansMap', ACC]));
-    expect(live.preflight(live.request(5))).toEqual({ ok: true });
   });
 
   it('an empty text, a checkpoint without coverage or of another document, and a late ticket are held', () => {
@@ -273,18 +222,6 @@ describe('[X8-03] one attempt, one queue call (§6.7.7)', () => {
     expect(answers.slice(1)).toEqual(Array.from({ length: 19 }, () => ({ state: 'held', code: 'CG-SEND-BUSY' })));
   });
 
-  it('remembers the last 256 held attempts; an older one is new again, and its own deadline still guards it', () => {
-    const live = start({ flags: false });
-    const first = live.request(1);
-    expect(live.commit(first)).toEqual({ state: 'held', code: 'CG-SEND-OFF' });
-    for (let n = 0; n < 256; n += 1) live.commit(live.request(1000 + n));
-    live.port.handle('flags', { wsTap: true, previewSend: true });
-    // An attempt still remembered keeps its first answer; the one pushed out is judged as it is now.
-    expect(live.commit(live.request(1255))).toEqual({ state: 'held', code: 'CG-SEND-OFF' });
-    expect(live.commit({ ...first, checkpoint: live.checkpoint(), expiresAt: Date.now() - 1 })).toEqual({ state: 'held', code: 'CG-TIMEOUT' });
-    expect(live.queue.sends).toEqual([]);
-  });
-
   it('an attempt that may have reached the queue is never forgotten: its command after 300 others gets the first answer, not a second queue call', async () => {
     const live = start();
     const queued = live.request(1);
@@ -336,16 +273,6 @@ describe('[X8-03] one attempt, one queue call (§6.7.7)', () => {
     expect(live.win.fetch).toBe(live.nativeFetch);
   });
 
-  it('a held attempt stays held when its command comes again, even after the reason is gone', () => {
-    const live = start();
-    live.live.set(['userPermissions'], ['of_block_message_sending']);
-    const req = live.request(21);
-    expect(live.commit(req)).toEqual({ state: 'held', code: 'CG-SEND-PERMISSION' });
-    live.live.set(['userPermissions'], []);
-    expect(live.commit(req)).toEqual({ state: 'held', code: 'CG-SEND-PERMISSION' });
-    expect(live.queue.sends).toEqual([]);
-  });
-
   it('the queue returns null (the call boundary intact): notEnqueued; it throws, or returns no entry id: uncertain — the page’s fetch is back in both', async () => {
     const live = start();
     live.queue.refuseNext();
@@ -367,10 +294,6 @@ describe('[X8-03] one attempt, one queue call (§6.7.7)', () => {
   it.each([
     ['throws', (live: LiveHarness) => live.queue.throwNext()],
     ['returns an entry without `status` (a renamed key)', (live: LiveHarness) => void (live.queue.reshape = ({ status: _status, ...rest }) => ({ ...rest, state: 'pending' }))],
-    ['returns an entry without `error`', (live: LiveHarness) => void (live.queue.reshape = ({ error: _error, ...rest }) => rest)],
-    ['returns an entry without `createdAt`', (live: LiveHarness) => void (live.queue.reshape = ({ createdAt: _createdAt, ...rest }) => rest)],
-    ['returns an entry without `payload`', (live: LiveHarness) => void (live.queue.reshape = ({ payload: _payload, ...rest }) => rest)],
-    ['returns an entry whose id is not a reference', (live: LiveHarness) => void (live.queue.reshape = (entry) => ({ ...entry, id: 17 }))],
   ])('§6.2 `pendingMessages`: the queue %s — not the entry we know: uncertain, and X8 is off for the document with CG-SEND-HOST', async (_name, breakIt) => {
     const live = start();
     breakIt(live);

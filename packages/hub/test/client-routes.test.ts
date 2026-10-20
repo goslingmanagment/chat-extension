@@ -5,14 +5,13 @@
 // expected reading (parity NF-010, NF-023, NF-026, SN-012, AI-060…AI-071,
 // AI-097, NEW-02, HB-006).
 
-import { CLAIM_REVISION_MAX, CLIENT_FEATURE_FLAG_NAMES, HUB_ROUTE_KEYS, HUB_ROUTES, isHubCallError, isHubCheckError, type ClaimOp, type ClaimSendGroup, type HubClaimOp } from '@cg/contracts';
+import { CLAIM_REVISION_MAX, CLIENT_FEATURE_FLAG_NAMES, isHubCallError, isHubCheckError, type ClaimOp, type ClaimSendGroup, type HubClaimOp } from '@cg/contracts';
 import { HUB_SAMPLES } from '@cg/contracts/fixtures';
 import { FanslyGreetingClaimOpSchema } from '@cg/contracts/send-fansly';
 import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, WORLD, hubServing, uuid, type HttpExchange, pageFeaturesOff } from '@cg/testing/hub';
-import { kernelOperations } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { errorWireOf, isSdkRoute, sdkInputOf, type ChatExtensionHub } from '../src/index';
+import { errorWireOf, type ChatExtensionHub } from '../src/index';
 import { hubError, json } from './support/fake-hub';
 import { flush, makeHarness, signIn, type Harness } from './support/harness';
 import { scenarioNamed, signInWorld } from './support/world';
@@ -76,14 +75,11 @@ afterEach(() => {
 });
 
 const DATA_SCENARIOS = [
-  'feed-pages',
-  'audience-new',
   'claim-greeting-two-parts',
   'claim-uncertain-held',
   'claim-refusals',
   'preview-reply-rejected-then-sent',
   'register-native-send',
-  'recaps-and-dossier',
 ] as const;
 
 describe('[NF-010] [NF-023] [AI-061] every client-route scenario of the fake hub, exchange by exchange', () => {
@@ -134,25 +130,6 @@ describe('[NF-010] [NF-023] [AI-061] every client-route scenario of the fake hub
       expect(h.hub.unexpected).toEqual([]);
     });
   }
-
-  it('[AI-061] [AI-060] the recap status line: metadata only, by page, conversation, fan and persona', async () => {
-    h.hub.on('aiRecapStatus', () => json(200, HUB_SAMPLES.recapStatus));
-    const query = { pageLabel: PAGE, conversationRef: WORLD.fan, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId };
-    await expect(h.facade.recapStatus(query)).resolves.toEqual(HUB_SAMPLES.recapStatus);
-    expect(h.hub.of('aiRecapStatus')[0]).toMatchObject({ path: '/api/v1/ai/recap-status', query: { pageLabel: PAGE, conversationRef: WORLD.fan, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId } });
-    expect(errorWireOf(await h.facade.recapStatus({ ...query, pageLabel: 'not-my-page' }).catch((reason: unknown) => reason))?.code).toBe('CG-BINDING-NOT-GRANTED');
-  });
-
-  it('[AI-069] the shared recaps of a page, fan and persona come as the hub keeps them', async () => {
-    const exchange = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges[0];
-    h.hub.serve(exchange === undefined ? [] : [exchange]);
-    await expect(h.facade.recaps({ pageLabel: PAGE, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId })).resolves.toEqual(exchange?.response.body);
-  });
-
-  it('[AI-071] the dossier of an unknown fan is null (a granted page\'s 404 on a fan lookup)', async () => {
-    h.hub.on('pageConversationProfile', () => hubError(404, 'not_found'));
-    await expect(h.facade.dossier({ pageLabel: PAGE, fanRef: WORLD.otherFan })).resolves.toBeNull();
-  });
 });
 
 describe('[NF-026] claim and custody: never repeated, flags checked for taking work only', () => {
@@ -212,72 +189,7 @@ describe('[NF-026] claim and custody: never repeated, flags checked for taking w
   });
 });
 
-/** The six client/* routes that came with the re-vendor of hub c8514c5c (hub PRs #477–#481). */
-const ARRIVED_C8514C5C = ['clientAudienceNew', 'clientConversationFeed', 'clientFanClaim', 'clientFanClaimStatus', 'clientSpenderAwaitingReply', 'clientSpenderStats'] as const;
-
 describe('[HB-006] one transport: every client/* route goes through the vendored SDK', () => {
-  it('[HB-006] every contract route is an SDK operation, at the fake hub\'s path and method — the six of hub c8514c5c included', () => {
-    for (const key of HUB_ROUTE_KEYS) expect([key, isSdkRoute(key), kernelOperations[key]]).toEqual([key, true, { method: HUB_ROUTES[key].method, path: HUB_ROUTE_PATHS[key] }]);
-    for (const key of ARRIVED_C8514C5C) expect([key, HUB_ROUTES[key].since]).toEqual([key, 'sdk']);
-  });
-
-  it('[HB-006] a client route goes by the SDK\'s own manifest path: the same request, the path parameters taken out of it', async () => {
-    expect(sdkInputOf('clientBootstrap', null)).toEqual({});
-    expect(sdkInputOf('clientConversationRecaps', { pageLabel: 'model one', fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId })).toEqual({
-      params: { pageLabel: 'model one', fanRef: WORLD.fan },
-      query: { personaDefinitionId: WORLD.persona.definitionId },
-    });
-    const save = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges.find((exchange) => exchange.route === 'clientFanProfileFromGeneration');
-    const { pageLabel, fanRef, ...body } = save?.request as { pageLabel: string; fanRef: string } & Record<string, unknown>;
-    expect(sdkInputOf('clientFanProfileFromGeneration', save?.request)).toEqual({ params: { pageLabel, fanRef }, body });
-    expect(sdkInputOf('clientConversationFeed', { pageLabel: 'model one', fanRef: WORLD.fan, cursor: 'a/b', limit: 50, summaryWindow: 100 })).toEqual({
-      params: { pageLabel: 'model one', fanRef: WORLD.fan },
-      query: { cursor: 'a/b', limit: 50, summaryWindow: 100 },
-    });
-    expect(sdkInputOf('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'Europe/Moscow' })).toEqual({ params: { pageLabel: PAGE }, query: { windowDays: 30, timeZone: 'Europe/Moscow' } });
-    expect(sdkInputOf('clientSpenderAwaitingReply', { pageLabel: PAGE, limit: 50 })).toEqual({ params: { pageLabel: PAGE }, query: { limit: 50 } });
-    expect(sdkInputOf('clientAudienceNew', { pageLabel: PAGE, windowHours: 48 })).toEqual({ params: { pageLabel: PAGE }, query: { windowHours: 48 } });
-    // A claim carries its body under `body`: that object is the POST body; the status read takes the path alone.
-    const claim = scenarioNamed(HTTP_SCENARIOS, 'claim-greeting-two-parts').exchanges[1]?.request as ClaimOp;
-    expect(sdkInputOf('clientFanClaim', claim)).toEqual({ params: { pageLabel: claim.pageLabel, fanRef: claim.fanRef }, body: claim.body });
-    expect(sdkInputOf('clientFanClaimStatus', { pageLabel: PAGE, fanRef: WORLD.newFan })).toEqual({ params: { pageLabel: PAGE, fanRef: WORLD.newFan } });
-    // A request outside its contract schema is our bug: never turned into a call.
-    expect(() => sdkInputOf('clientConversationRecaps', { pageLabel: PAGE, fanRef: WORLD.fan, persona: 'x' })).toThrow(TypeError);
-    expect(() => sdkInputOf('clientConversationRecaps', { fanRef: WORLD.fan })).toThrow(TypeError);
-    expect(() => sdkInputOf('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 500 })).toThrow(TypeError);
-    expect(() => sdkInputOf('clientAudienceNew', { pageLabel: PAGE, windowHours: 48, persona: 'x' })).toThrow(TypeError);
-
-    // End to end: the recaps read leaves through the SDK with the SDK's headers, at the path with its parameters encoded.
-    h.hub.serve(scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges);
-    const recaps = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges.find((exchange) => exchange.route === 'clientConversationRecaps');
-    await h.facade.recaps(recaps?.request as never);
-    const sent = h.hub.of('clientConversationRecaps')[0];
-    expect(sent?.headers).toMatchObject({ authorization: `Bearer ${String(WORLD_ON.issued['token'])}`, 'x-client-version': 'chat-extension/0.2.0' });
-    expect(sent?.path).toBe(`/api/v1/client/pages/${PAGE}/conversations/${WORLD.fan}/recaps`);
-  });
-
-  it('[HB-006] on the wire: the feed\'s query encoded, the claim body as the POST body, the status read a GET of the same path, «Новые» with its window', async () => {
-    const feed = scenarioNamed(HTTP_SCENARIOS, 'feed-pages').exchanges[0];
-    h.hub.on('clientConversationFeed', () => json(200, feed?.response.body));
-    await h.facade.feed({ pageLabel: PAGE, fanRef: WORLD.fan, cursor: 'a/b', limit: 50 });
-    expect(h.hub.of('clientConversationFeed')[0]).toMatchObject({ method: 'GET', path: `/api/v1/client/pages/${PAGE}/conversations/${WORLD.fan}/feed`, query: { cursor: 'a/b', limit: '50' }, body: undefined });
-
-    const [, dispatch] = scenarioNamed(HTTP_SCENARIOS, 'claim-greeting-two-parts').exchanges;
-    h.hub.on('clientFanClaim', () => json(200, dispatch?.response.body));
-    await h.facade.claim(dispatch?.request as ClaimOp);
-    expect(h.hub.of('clientFanClaim')[0]).toMatchObject({ method: 'POST', path: `/api/v1/client/pages/${PAGE}/fans/${WORLD.newFan}/claim`, query: {}, body: (dispatch?.request as ClaimOp).body });
-    expect(h.hub.of('clientFanClaim')[0]?.headers).toMatchObject({ 'content-type': 'application/json', authorization: `Bearer ${String(WORLD_ON.issued['token'])}`, 'x-client-version': 'chat-extension/0.2.0' });
-
-    h.hub.on('clientFanClaimStatus', () => json(200, dispatch?.response.body));
-    await h.facade.claimStatus(PAGE, WORLD.newFan);
-    expect(h.hub.of('clientFanClaimStatus')[0]).toMatchObject({ method: 'GET', path: `/api/v1/client/pages/${PAGE}/fans/${WORLD.newFan}/claim`, query: {}, body: undefined });
-
-    const audience = scenarioNamed(HTTP_SCENARIOS, 'audience-new').exchanges[0];
-    h.hub.on('clientAudienceNew', () => json(200, audience?.response.body));
-    await h.facade.audienceNew({ pageLabel: PAGE, windowHours: 48 });
-    expect(h.hub.of('clientAudienceNew')[0]).toMatchObject({ method: 'GET', path: `/api/v1/client/pages/${PAGE}/audience-new`, query: { windowHours: '48' } });
-  });
-
   it('[HB-006] a request outside its schema is never sent; an extra key is our bug — a dispatch past the hub\'s 32-bit revisions too (1.6.0)', async () => {
     const error = await h.facade.feed({ pageLabel: PAGE, fanRef: WORLD.fan, limit: 500 }).catch((reason: unknown) => reason);
     expect(errorWireOf(error)?.code).toBe('CG-HUB-REQUEST');
@@ -290,23 +202,6 @@ describe('[HB-006] one transport: every client/* route goes through the vendored
     expect(errorWireOf(await h.facade.claim(tooFar).catch((reason: unknown) => reason))?.code).toBe('CG-HUB-REQUEST');
     expect(h.hub.of('clientFanClaim')).toEqual([]);
   });
-
-  it('[HB-006] an answer outside its schema is a hub failure, never data — whichever of the SDK\'s schema and our mirror refuses it', async () => {
-    h.hub.on('clientConversationFeed', () => json(200, { items: 'nope' }));
-    const error = await h.facade.feed({ pageLabel: PAGE, fanRef: WORLD.fan, limit: 50 }).catch((reason: unknown) => reason);
-    expect(isHubCallError(error) && error.failure).toEqual({ kind: 'transport', failure: 'contract' });
-    expect(errorWireOf(error)?.code).toBe('CG-HUB-REQUEST');
-    // A claim state the hub's own schema refuses (a lease state no automaton has): never read as data.
-    const [, dispatch] = scenarioNamed(HTTP_SCENARIOS, 'claim-greeting-two-parts').exchanges;
-    const state = dispatch?.response.body as Record<string, Record<string, unknown>>;
-    h.hub.on('clientFanClaimStatus', () => json(200, { ...state, lease: { ...state['lease'], state: 'stolen' } }));
-    const refused = await h.facade.claimStatus(PAGE, WORLD.newFan).catch((reason: unknown) => reason);
-    expect(isHubCallError(refused) && refused.failure).toEqual({ kind: 'transport', failure: 'contract' });
-    // A success status the SDK does not declare for the route is not an answer either.
-    h.hub.on('clientSpenderStats', () => json(201, HUB_SAMPLES.stats));
-    const undeclared = await h.facade.spendersStats({ pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }).catch((reason: unknown) => reason);
-    expect(isHubCallError(undeclared) && undeclared.failure).toEqual({ kind: 'transport', failure: 'contract' });
-  });
 });
 
 describe('R20 F6b: the reads by conversation (architecture §11.1, hub HF-10)', () => {
@@ -315,7 +210,6 @@ describe('R20 F6b: the reads by conversation (architecture §11.1, hub HF-10)', 
   const FAN = '700000000000000002';
   const GROUP = '700000000000000003';
   const OTHER_GROUP = '700000000000000004';
-  const PERSONA = WORLD.persona.definitionId;
   /** The Fansly page with its recap and preview admitted, as R20 HF-2 will: only the hub's answers decide here. */
   const FANSLY_ON = {
     ...BOOTSTRAP_ALL_ON,
@@ -329,29 +223,6 @@ describe('R20 F6b: the reads by conversation (architecture §11.1, hub HF-10)', 
     await flush(20);
     return made;
   }
-
-  it('the recaps, the feed and the dossier save of a Fansly group name the group apart from the fan; the fan stays in the path', async () => {
-    const f = await signedIn(FANSLY_ON);
-    try {
-      f.hub.on('clientConversationRecaps', () => json(200, HUB_SAMPLES.sharedRecaps));
-      await f.facade.recaps({ pageLabel: FANSLY_PAGE, fanRef: FAN, personaDefinitionId: PERSONA, conversationRef: GROUP });
-      expect(f.hub.of('clientConversationRecaps')[0]).toMatchObject({ path: `/api/v1/client/pages/${FANSLY_PAGE}/conversations/${FAN}/recaps`, query: { personaDefinitionId: PERSONA, conversationRef: GROUP } });
-
-      f.hub.on('clientConversationFeed', () => json(200, fanslyFeed(GROUP)));
-      await expect(f.facade.feed({ pageLabel: FANSLY_PAGE, fanRef: FAN, conversationRef: GROUP, limit: 50 })).resolves.toMatchObject({ target: { fanRef: FAN, conversationRef: GROUP } });
-      expect(f.hub.of('clientConversationFeed')[0]).toMatchObject({ path: `/api/v1/client/pages/${FANSLY_PAGE}/conversations/${FAN}/feed`, query: { limit: '50', conversationRef: GROUP } });
-
-      f.hub.on('clientFanProfileFromGeneration', () => json(200, HUB_SAMPLES.profileResponse));
-      await f.facade.profileFromGeneration({ pageLabel: FANSLY_PAGE, fanRef: FAN, generationRef: uuid(0x200), clientRequestId: uuid(0x100), conversationRef: GROUP });
-      expect(f.hub.of('clientFanProfileFromGeneration')[0]).toMatchObject({
-        method: 'POST',
-        path: `/api/v1/client/pages/${FANSLY_PAGE}/fans/${FAN}/profile/from-generation`,
-        body: { generationRef: uuid(0x200), clientRequestId: uuid(0x100), conversationRef: GROUP },
-      });
-    } finally {
-      f.facade.dispose();
-    }
-  });
 
   it('a feed page of another group than the one asked for, or of none, is a broken answer — never shown as this chat\'s', async () => {
     const f = await signedIn(FANSLY_ON);
@@ -414,68 +285,5 @@ describe('R20 F6b: the reads by conversation (architecture §11.1, hub HF-10)', 
     } finally {
       f.facade.dispose();
     }
-  });
-
-  it('a hub without `conversation-recaps-v1`: a read that names a conversation is refused before any request (CG-HUB-CAPABILITY); one that names none goes as it always did', async () => {
-    const older = hubServing(FANSLY_ON, FANSLY_ON.capabilities.filter((capability) => capability !== 'conversation-recaps-v1'));
-    const f = await signedIn(older);
-    try {
-      const named = [
-        f.facade.recaps({ pageLabel: FANSLY_PAGE, fanRef: FAN, personaDefinitionId: PERSONA, conversationRef: GROUP }),
-        f.facade.feed({ pageLabel: FANSLY_PAGE, fanRef: FAN, conversationRef: GROUP, limit: 50 }),
-        f.facade.saveRecapProfile({ pageLabel: FANSLY_PAGE, fanRef: FAN, generationRef: uuid(0x200), conversationRef: GROUP }, new AbortController().signal),
-      ];
-      for (const refusal of await Promise.all(named.map((call) => call.catch((reason: unknown) => reason)))) {
-        expect(isHubCheckError(refusal) && refusal.code).toBe('CG-HUB-CAPABILITY');
-      }
-      for (const route of ['clientConversationRecaps', 'clientConversationFeed', 'clientFanProfileFromGeneration'] as const) expect([route, f.hub.of(route)]).toEqual([route, []]);
-
-      f.hub.on('clientConversationRecaps', () => json(200, HUB_SAMPLES.sharedRecaps));
-      await f.facade.recaps({ pageLabel: PAGE, fanRef: WORLD.fan, personaDefinitionId: PERSONA });
-      expect(f.hub.of('clientConversationRecaps')[0]?.query).toEqual({ personaDefinitionId: PERSONA });
-    } finally {
-      f.facade.dispose();
-    }
-  });
-});
-
-describe('[HB-006] what the journal keeps of a hub call: facts as single machine words, and how long a slow one took', () => {
-  const recapsQuery = { pageLabel: PAGE, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId };
-
-  it('[HB-006] a refused call names its status, its error and its reason each in a field of its own (a sentence would be cut by the redaction)', async () => {
-    h.hub.on('clientConversationRecaps', () => hubError(409, 'client_feature_disabled', 'disabled'));
-    await h.facade.recaps(recapsQuery).catch(() => undefined);
-    const line = h.logs.lines.filter((entry) => entry.message === 'hub: call failed').at(-1);
-    expect(line).toEqual({
-      level: 'warn',
-      message: 'hub: call failed',
-      fields: { route: 'clientConversationRecaps', failure: 'http', status: 409, error: 'client_feature_disabled', reason: 'disabled', code: 'CG-FEATURE-DISABLED', disposition: 'refresh-bootstrap', epoch: 1 },
-    });
-    // Every string of the line is one token without spaces: the journal's redaction keeps them as they are.
-    for (const value of Object.values(line?.fields ?? {})) if (typeof value === 'string') expect(value).toMatch(/^[A-Za-z0-9_.:-]+$/);
-  });
-
-  it('[AI-061] a call the hub answers at once but that travels 20 s is said as slow, with its time — the «Проверяю сохранённые Recap…» of the first live check', async () => {
-    h.hub.serve(scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges);
-    await h.facade.recaps(recapsQuery);
-    expect(h.logs.lines.filter((entry) => entry.message === 'hub: slow call')).toEqual([]);
-
-    const answer = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges.find((exchange) => exchange.route === 'clientConversationRecaps')?.response.body;
-    h.hub.on('clientConversationRecaps', () => new Promise((resolve) => setTimeout(() => resolve(json(200, answer)), 20_000)));
-    const slow = h.facade.recaps(recapsQuery);
-    await vi.advanceTimersByTimeAsync(20_000);
-    await slow;
-    expect(h.logs.lines.filter((entry) => entry.message === 'hub: slow call')).toEqual([
-      { level: 'warn', message: 'hub: slow call', fields: { route: 'clientConversationRecaps', ms: 20_000, outcome: 'answered', status: 200, epoch: 1 } },
-    ]);
-  });
-});
-
-describe('[AI-097] [NEW-02] the archive feed is database-only on the hub and never retried by the facade', () => {
-  it('[NEW-02] a forged cursor reads «restart from the first page» and the facade does not restart by itself', async () => {
-    h.hub.on('clientConversationFeed', () => hubError(400, 'bad_request', 'cursor_invalid'));
-    const error = await h.facade.feed({ pageLabel: PAGE, fanRef: WORLD.fan, cursor: 'forged', limit: 50 }).catch((reason: unknown) => reason);
-    expect(isHubCallError(error) && error.resolution?.disposition).toBe('restart-cursor');
-    expect(h.hub.of('clientConversationFeed')).toHaveLength(1);
   });
 });

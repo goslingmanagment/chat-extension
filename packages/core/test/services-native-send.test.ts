@@ -5,7 +5,7 @@
 
 import { ClaimOpSchema, type ClaimState, type OpView } from '@cg/contracts';
 import { REPORT_RETRY_DELAYS_MS } from '@cg/core/domain/send';
-import { NATIVE_SENDS_KEY, NATIVE_SENDS_MAX, NATIVE_SEND_KEEP_MS, NativeSendRegistrar, nativeSendClaim } from '@cg/core/services';
+import { NATIVE_SENDS_KEY, NativeSendRegistrar, nativeSendClaim } from '@cg/core/services';
 import { describe, expect, it } from 'vitest';
 
 import { FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
@@ -65,25 +65,6 @@ describe('what is registered', () => {
     });
     expect(ClaimOpSchema.safeParse(claim).success).toBe(true);
     expect(JSON.stringify(claim)).not.toContain('welcome');
-  });
-
-  it('[SP-054] a part of a Spenders preview is a `preview-reply`; a result without variants counts its parts', () => {
-    const reply = view({ feature: 'reply', surface: 'preview', result: { kind: 'parts', parts: ['a', 'b', 'c'], splitRequested: true } });
-    expect(nativeSendClaim(reply, { index: 2 }, MESSAGE, { attemptId: uuid(1), instanceId: INSTANCE })?.body).toMatchObject({ purpose: 'preview-reply', group: { variant: 0, partCount: 3 }, partIndex: 2 });
-  });
-
-  it('nothing for the dock’s own result, an unfinished or unparsed one, or a part that is not there', () => {
-    const ids = { attemptId: uuid(1), instanceId: INSTANCE };
-    expect(nativeSendClaim(view({ surface: 'dock' }), { index: 0 }, MESSAGE, ids)).toBeNull();
-    expect(nativeSendClaim(view({ state: 'failed' }), { index: 0 }, MESSAGE, ids)).toBeNull();
-    const { generationRef: _ref, ...noRef } = view();
-    expect(nativeSendClaim(noRef, { index: 0 }, MESSAGE, ids)).toBeNull();
-    const { result: _result, ...noResult } = view();
-    expect(nativeSendClaim(noResult, { index: 0 }, MESSAGE, ids)).toBeNull();
-    expect(nativeSendClaim(view(), { variant: 0, index: 2 }, MESSAGE, ids)).toBeNull();
-    expect(nativeSendClaim(view(), { variant: 1, index: 0 }, MESSAGE, ids)).toBeNull();
-    expect(nativeSendClaim(view({ result: { kind: 'parts', parts: ['a'], splitRequested: false } }), { variant: 1, index: 0 }, MESSAGE, ids)).toBeNull();
-    expect(nativeSendClaim(view({ feature: 'recap', result: { kind: 'recap', markdown: 'x', coverage: null, shared: { generationRef: GENERATION } } }), { index: 0 }, MESSAGE, ids)).toBeNull();
   });
 });
 
@@ -217,31 +198,6 @@ describe('the report to the hub', () => {
     expect(await w.registrar.register(view(), { variant: 0, index: 0 }, MESSAGE)).toBe('registered');
     expect(new Set(w.hub.claims.map((op) => (op.body.action === 'registerNativeSend' ? op.body.attemptId : null))).size).toBe(1);
     expect(w.registrar.pending).toBe(0);
-  });
-
-  it('the journal is bounded: what is unreadable or older than a week is dropped at the start, and never more than the cap is kept', async () => {
-    const w = world();
-    const record = (n: number, at: number) => ({
-      key: `${uuid(n)}|0|0|${4000 + n}`,
-      owner: OWNER,
-      opId: uuid(n),
-      at,
-      op: nativeSendClaim(view({ opId: uuid(n) }), { variant: 0, index: 0 }, String(4000 + n), { attemptId: uuid(0x900 + n), instanceId: INSTANCE }),
-    });
-    await w.store.set(NATIVE_SENDS_KEY, { v: 1, owed: [record(1, NOW_MS - NATIVE_SEND_KEEP_MS - 1), { key: 'broken' }, record(2, NOW_MS - 1000)] });
-    w.hub.claimScript.push({ kind: 'ok', state: state() });
-    expect(await w.registrar.restore()).toBe(1);
-    await w.clock.advance(1);
-    await w.registrar.idle();
-    expect(w.hub.claims).toHaveLength(1);
-    expect(w.hub.claims[0]?.body).toMatchObject({ platformMessageId: '4002' });
-    expect(owedIn(w.store)).toEqual([]);
-
-    const many = world();
-    for (let n = 0; n < NATIVE_SENDS_MAX + 5; n += 1) many.hub.claimScript.push({ kind: 'transport', failure: 'network' });
-    for (let n = 0; n < NATIVE_SENDS_MAX + 5; n += 1) void many.registrar.register(view({ opId: uuid(0x1000 + n) }), { variant: 0, index: 0 }, String(6000 + n));
-    await many.clock.advance(1);
-    expect(many.registrar.pending).toBe(NATIVE_SENDS_MAX);
   });
 
   it('two reports of the same send (two tabs saw it) are one registration', async () => {

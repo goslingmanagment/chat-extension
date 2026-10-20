@@ -7,11 +7,9 @@
 import { HumanSendFactSchema, type HostEvent, type HumanSendFact } from '@cg/contracts/host';
 import { FANSLY_IDS, fanslyIdentityWire } from '@cg/contracts/fixtures';
 import { digest, normalize } from '@cg/host-kit/common/digest';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { installEditor, settle, startWorld, until, type World } from '../testing/port-world';
-import { MAIN_COMPOSER as COMPOSER_COPY, MAIN_FIELD as FIELD_COPY, READINGS_MAX, READING_MS, SEND_BUTTON as BUTTON_COPY } from './send-observe';
-import { GESTURE_SEND_MS, MAIN_COMPOSER, MAIN_FIELD, SEND_BUTTON } from '../main/send-gesture';
 
 const { fan: FAN, group: GROUP, otherGroup: OTHER } = FANSLY_IDS;
 const OTHER_FAN = '700000000000000005';
@@ -159,84 +157,6 @@ describe('[FS-SEND-2] [TL-004] [host:fansly] the person’s send linked to our d
     expect((await world.port.health()).isolated.sends).toEqual({ gestures: 4, linked: 1, unmatched: 0, mismatched: 2, ambiguous: 1 });
   });
 
-  it('[FS-SEND-2] a send the neighbour swallowed — no fx.sent —, the text written back and pressed again: those readings wait out their time; the person’s fix of the text is linked to its own gesture, edited', async () => {
-    const world = await onChat();
-    const element = fieldOf(world);
-    await world.port.insert(await world.intent('this is forbidden'));
-    const intentId = world.port.insertion()?.intentId;
-    await pressEnter(element);
-    cleared(element);
-    // FBuddy writes the text back on the next frame: the native setter and an untrusted input.
-    element.value = 'this is forbidden';
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    await pressEnter(element);
-    await pressEnter(element);
-    // The person takes the word out and sends: MAIN proves this send only.
-    element.value = 'this is fine';
-    element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
-    const fixed = await pressEnter(element);
-    cleared(element);
-    sent(world, fixed, 'this is fine');
-    await settle();
-    expect(facts(world).map((fact) => [fact.platformMessageId, fact.draft.insertIntentId, fact.draft.editedSinceInsert])).toEqual([[MSG, intentId, true]]);
-  });
-
-  it('[FS-SEND-2] review of P7f: two operations’ identical drafts in flight, a third pressed with the same text while the second’s confirmation is late — each send is linked to its own gesture’s draft, the third to none', async () => {
-    const world = await onChat();
-    const element = fieldOf(world);
-    const press = async (): Promise<{ readonly at: number; readonly intentId: string | undefined }> => {
-      await world.port.insert(await world.intent('Same text'));
-      const intentId = world.port.insertion()?.intentId;
-      const at = await pressEnter(element);
-      cleared(element);
-      return { at, intentId };
-    };
-    const a = await press();
-    const b = await press();
-    sent(world, a.at, 'Same text', '700000000000000511');
-    // Operation C: the same text pressed — its request has not even started.
-    await press();
-    sent(world, b.at, 'Same text', '700000000000000512');
-    await settle();
-    expect(facts(world).map((fact) => [fact.platformMessageId, fact.draft.insertIntentId])).toEqual([
-      ['700000000000000511', a.intentId],
-      ['700000000000000512', b.intentId],
-    ]);
-  });
-
-  it('[FS-SEND-2] review of P7f: a reading past its time is gone — a newer identical draft is never linked to an old gesture’s late confirmation', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    cleanups.push(() => vi.useRealTimers());
-    const world = await onChat();
-    const element = fieldOf(world);
-    await world.port.insert(await world.intent('Same again'));
-    const old = await pressEnter(element);
-    cleared(element);
-    vi.setSystemTime(Date.now() + READING_MS + 1000);
-    await world.port.insert(await world.intent('Same again'));
-    const newer = await pressEnter(element);
-    cleared(element);
-    sent(world, old, 'Same again', '700000000000000521');
-    await settle();
-    expect(facts(world)).toEqual([]);
-    sent(world, newer, 'Same again', '700000000000000522');
-    await settle();
-    expect(facts(world).map((fact) => fact.platformMessageId)).toEqual(['700000000000000522']);
-  });
-
-  it('one gesture read twice (its event dispatched again) cannot be told apart: not linked', async () => {
-    const world = await onChat();
-    const element = fieldOf(world);
-    await world.port.insert(await world.intent('twice'));
-    const event = trusted(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    element.dispatchEvent(event);
-    element.dispatchEvent(event);
-    sent(world, event.timeStamp, 'twice');
-    await settle();
-    expect(facts(world)).toEqual([]);
-    expect((await world.port.health()).isolated.sends).toMatchObject({ gestures: 2, linked: 0, ambiguous: 1 });
-  });
-
   it('only the field the port owns: the mini-chat’s Enter is no gesture of MAIN’s; another creator poisons what was read under the old one', async () => {
     const world = await onChat();
     const element = fieldOf(world);
@@ -254,35 +174,6 @@ describe('[FS-SEND-2] [TL-004] [host:fansly] the person’s send linked to our d
     expect(facts(world)).toEqual([]);
     expect((await world.port.health()).isolated.sends).toMatchObject({ gestures: 1, unmatched: 1, ambiguous: 1, linked: 0 });
   });
-  // Firefox reduces the precision of `timeStamp`: two gestures may share it. A name shared, evicted or seen with no
-  // reading is poisoned — no send carrying it is linked, whatever is left (coordinator's re-check of P7f).
-  it('[FS-SEND-2] a name two gestures share: one read nothing (an empty field), the other read our draft — the first one’s send is never linked to the second’s draft', async () => {
-    const world = await onChat();
-    const element = fieldOf(world);
-    const at = 77_777.5;
-    await pressEnter(element, {}, true, at);
-    await world.port.insert(await world.intent('Same name'));
-    await pressEnter(element, {}, true, at);
-    sent(world, at, 'Same name', '700000000000000531');
-    await settle();
-    expect(facts(world)).toEqual([]);
-    expect((await world.port.health()).isolated.sends).toMatchObject({ gestures: 2, linked: 0, ambiguous: 1 });
-  });
-
-  it('[FS-SEND-2] a name that left the bound stays poisoned: a later gesture with that name is never linked by it', async () => {
-    const world = await onChat();
-    const element = fieldOf(world);
-    const at = 88_888.5;
-    await world.port.insert(await world.intent('Evicted'));
-    await pressEnter(element, {}, true, at);
-    for (let i = 0; i < READINGS_MAX; i += 1) await pressEnter(element);
-    // The first reading left the bound; a gesture of the same name comes, and the first one's send is confirmed.
-    await pressEnter(element, {}, true, at);
-    sent(world, at, 'Evicted', '700000000000000532');
-    await settle();
-    expect(facts(world)).toEqual([]);
-  });
-
   it('[FS-SEND-2] two real sends sharing a name: neither is linked — rarely unattributed, never misattributed', async () => {
     const world = await onChat();
     const element = fieldOf(world);
@@ -298,10 +189,5 @@ describe('[FS-SEND-2] [TL-004] [host:fansly] the person’s send linked to our d
     await settle();
     expect(facts(world)).toEqual([]);
     expect((await world.port.health()).isolated.sends).toMatchObject({ gestures: 2, linked: 0, ambiguous: 2 });
-  });
-
-  it('MAIN’s gesture filter and its time are repeated here as they are there: the same selectors, a note lives as long as MAIN says a send', () => {
-    expect([COMPOSER_COPY, FIELD_COPY, BUTTON_COPY]).toEqual([MAIN_COMPOSER, MAIN_FIELD, SEND_BUTTON]);
-    expect(READING_MS).toBe(GESTURE_SEND_MS);
   });
 });

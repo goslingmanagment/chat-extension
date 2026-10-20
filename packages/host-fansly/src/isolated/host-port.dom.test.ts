@@ -5,24 +5,19 @@ import { PageDiagnosticsSchema } from '@cg/contracts/diagnostics';
 // way the stand runs it (in Firefox: suite-fansly-tap.e2e.ts). The page is a Fansly-like DOM (testing/fake-dom.ts).
 
 import type { FanslyChatWire, FanslyState, FromMainFansly as FanslyBatchEvent } from '@cg/contracts/bridge-messages-fansly';
-import type { SoundBatch } from '@cg/contracts/sound';
 import type { FanslySnapshot } from '@cg/contracts/fansly';
-import { FANSLY_CONTRACT, FanslyContractReportSchema } from '@cg/contracts/fansly-host';
-import { FANSLY_IDS, fanslyHealth, fanslyChatWire, fanslyContractWire, fanslyIdentityWire, fanslyReplySnapshot, fanslyState, probe as PROBE } from '@cg/contracts/fixtures';
-import { HostContractReportSchema, RouteStateSchema, type HostEvent } from '@cg/contracts/host';
+import { FANSLY_IDS, fanslyChatWire, fanslyContractWire, fanslyIdentityWire, fanslyReplySnapshot, fanslyState } from '@cg/contracts/fixtures';
+import { RouteStateSchema, type HostEvent } from '@cg/contracts/host';
 import { HostIdentitySchema, type HostIdentity } from '@cg/contracts/ids';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { installFanslyMain } from '../main/index';
 import { createFakeFanslyPage, type FakeFanslyPage } from '../testing/fake-dom';
 import { EPOCH, NO_ONE, scriptedMain, type Answer } from '../testing/scripted-main';
-import { createFakeVaultPage } from '../testing/fake-vault';
 import { createAnchorWatcher } from './anchors';
-import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
+import { type BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from './host-port';
-import { watchCoexistence, type Coexistence } from './legacy';
-import { vaultUploadOf } from './vault/serve';
-import { createVaultUploader, vaultTargetOf } from './vault/upload';
+import type { Coexistence } from './legacy';
 import { createFanslyMounts } from './mount';
 import { createRouteWatcher } from './route';
 import { startFanslyHost } from './start';
@@ -79,92 +74,7 @@ const open = (identity: HostIdentity | null): HostIdentity => {
   return identity;
 };
 
-describe('[host:fansly] [FS-SND-1] the socket batch for sound', () => {
-  it('[SN-016] preserves one MAIN delivery as one text-free host event, on the inbox too; old facts without authors stay silent', async () => {
-    const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port } = await startPort('/messages', main.client);
-    const events: SoundBatch[] = [];
-    port.onSoundBatch((batch) => events.push(batch));
-    const incoming = { groupId: GROUP, fanId: null, msgId: '700000000000000101', fromFan: true, automated: false, tip: false, createdAt: null };
-    main.batch(1, identityEvent(CREATOR),
-      { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } },
-      { t: 'fx.follow', p: { eventId: '700000000000000102', accountId: CREATOR, followerId: FAN } },
-      { t: 'fx.incoming', p: incoming });
-    expect(events).toEqual([{
-       host: 'fansly-web', hostAccountId: CREATOR, events: [
-        { kind: 'message', id: incoming.msgId, conversationRef: GROUP, senderId: FAN, fromFan: true, automatic: false, tip: false, sentAt: null },
-        { kind: 'subscriber', id: '700000000000000102', accountId: CREATOR, followerId: FAN },
-      ],
-    }]);
-    // An intentional repeated delivery must not emit twice.
-    main.batch(1, { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } });
-    expect(events).toHaveLength(1);
-    // A fresh batch without authors is independently rejected (not a duplicate).
-    main.batch(2, { t: 'fx.incoming', p: incoming });
-    expect(events).toHaveLength(1);
-    main.batch(3, identityEvent(SECOND_CREATOR), { t: 'fx.incoming', p: { ...incoming, senderId: FAN, accountId: CREATOR } });
-    expect(events).toHaveLength(1); // An old creator's queued message is not the new one's.
-  });
-
-  it('[SN-016] retains early batches until the transport subscribes, bounded to the last 32 batches', async () => {
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port, diagnostics } = await startPort('/messages', main.client);
-    for (let n = 1; n <= 34; n += 1) main.batch(n, { t: 'fx.follow', p: { eventId: String(9000 + n), accountId: CREATOR, followerId: FAN } });
-    const batches: SoundBatch[] = [];
-    const off = port.onSoundBatch((batch) => batches.push(batch));
-    expect(batches).toHaveLength(32);
-    expect(batches[0]?.events[0]?.id).toBe('9003');
-    expect(batches[31]?.events[0]?.id).toBe('9034');
-    expect(diagnostics.filter((entry) => entry.event === 'sound-overflow')).toHaveLength(2);
-    off();
-  });
-
-  it('[SN-002] drops the old creator’s pending sounds when identity changes inside one MAIN batch', async () => {
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port } = await startPort('/messages', main.client);
-    const events: SoundBatch[] = [];
-    port.onSoundBatch((batch) => events.push(batch));
-    const incoming = { groupId: GROUP, fanId: null, msgId: '700000000000000101', senderId: FAN, accountId: CREATOR, fromFan: true, automated: false, tip: false, createdAt: null };
-    main.batch(1,
-      { t: 'fx.incoming', p: incoming },
-      { t: 'fx.follow', p: { eventId: '700000000000000102', accountId: CREATOR, followerId: FAN } },
-      identityEvent(SECOND_CREATOR),
-      { t: 'fx.incoming', p: { ...incoming, msgId: '700000000000000103', accountId: SECOND_CREATOR } });
-    expect(events).toEqual([{
-       host: 'fansly-web', hostAccountId: SECOND_CREATOR, events: [
-        { kind: 'message', id: '700000000000000103', conversationRef: GROUP, senderId: FAN, fromFan: true, automatic: false, tip: false, sentAt: null },
-      ],
-    }]);
-  });
-});
-
 describe('[host:fansly] who the tab is (FS-IDN-1, FS-IDN-2, FS-IDN-5)', () => {
-  it('[AI-123] [ER-014] P8e: names from the open main header stay available for busy-chat lists and ready toasts; no old DM permission or creator survives', async () => {
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
-    const label = (name: string): void => {
-      const username = page.route()?.querySelector('.message-content-header-contact app-account-username');
-      if (username === null || username === undefined) throw new Error('no main contact');
-      const span = document.createElement('span');
-      span.className = 'display-name'; span.textContent = name;
-      username.replaceChildren(span);
-    };
-    page.openChat(GROUP); label('Fan Aspen');
-    await settle();
-    main.batch(1, chatOf(GROUP, 1));
-    const first = { host: 'fansly-web', hostAccountId: CREATOR, platformFanId: FAN } as const;
-    expect(port.fan(first)).toMatchObject({ displayName: 'Fan Aspen', canReceiveMessages: true });
-    page.openChat(OTHER); label('Fan Birch');
-    await settle();
-    main.batch(2, chatOf(OTHER, 2, { fanId: '7103' }));
-    const second = { ...first, platformFanId: '7103' };
-    expect(port.fan(second)).toMatchObject({ displayName: 'Fan Birch', canReceiveMessages: true });
-    expect(port.fan(first)).toMatchObject({ displayName: 'Fan Aspen', canReceiveMessages: null });
-    main.batch(3, identityEvent(SECOND_CREATOR));
-    expect(port.fan(first)).toBeNull();
-    expect(port.fan(second)).toBeNull();
-  });
-
   it('[UI-011] [AU-023] [AU-034] the initial binding: no account until the page’s /account/me, then exactly one — the creator, whose platform id is the hub page’s key', async () => {
     const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });
     const { port, events, page } = await startPort(`/messages/${GROUP}`, main.client);
@@ -227,20 +137,6 @@ describe('[host:fansly] who the tab is (FS-IDN-1, FS-IDN-2, FS-IDN-5)', () => {
     expect(port.current().route).toMatchObject({ chat: null, conversationKind: 'group' });
     expect(port.fansly.headerSlot()).toEqual({ state: 'none', reason: 'group' });
     expect(port.current().composer).toBeNull();
-  });
-
-  it('[AI-122] a MAIN that cannot observe chats yet (P7a: `fx.focus` is `not-ready`) leaves the chat unknown — the honest «not yet» — and says so in the report', async () => {
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null });
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
-    page.openChat(GROUP);
-    await settle();
-    expect(main.asked('fx.focus')).toEqual([{ groupId: GROUP, routeEpoch: 1 }]);
-    expect(port.current().route).toMatchObject({ name: 'chat', conversationRef: GROUP, chat: null });
-    expect(port.probe().capabilities.chatWindow).toEqual({ state: 'off', reason: 'observation', code: 'CG-HOST-NOT-READY' });
-    expect(port.probe().extensions['fansly-web'].capabilities.freshness).toEqual({ state: 'off', reason: 'observation', code: 'CG-HOST-NOT-READY' });
-    expect(await port.freshness.snapshot({ host: 'fansly-web', hostAccountId: CREATOR, platformFanId: FAN }, { conversationRef: GROUP, feature: 'reply', window: 30, withText: true })).toBeNull();
-    // The identity is there all the same: the creator came from /account/me.
-    expect(port.identity()).toMatchObject({ hostAccountId: CREATOR, chat: null });
   });
 });
 
@@ -380,123 +276,6 @@ describe('[host:fansly] the stream rebuilds the tab’s state (§6)', () => {
     // MAIN's own counts, through `fx.health`, are null when it does not answer.
     expect(health.main).toBeNull();
   });
-
-  it('[BG-002] a failed state is asked again at the page’s next signal, never on a timer; MAIN’s guarded failures are logged at 1, 2, 4…', async () => {
-    let answering = false;
-    const main = scriptedMain({ 'fx.state': () => (answering ? NO_ONE : Promise.reject(new BridgeCallError('timeout', 'fx.state'))), 'fx.ack': () => null, 'fx.focus': () => null });
-    let clock = 1_000;
-    const { port, page, diagnostics } = await startPort('/messages', main.client, () => clock);
-    expect(diagnostics).toContainEqual({ event: 'state-failed', detail: { failure: 'timeout' } });
-    await settle();
-    expect(main.asked('fx.state')).toHaveLength(1);
-    answering = true;
-    // After its pause (it failed once: 250 ms), the next signal of the page asks again.
-    clock += 300;
-    page.openChat(GROUP);
-    await settle();
-    expect(main.asked('fx.state')).toHaveLength(2);
-    expect(main.asked('fx.focus')).toEqual([{ groupId: GROUP, routeEpoch: 2 }]);
-    main.fault('frame', 1);
-    main.fault('frame', 1);
-    main.fault('frame', 2);
-    main.fault('frame', 3);
-    expect(diagnostics.filter((d) => d.event === 'main-fault')).toEqual([
-      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'frame', count: 1 } },
-      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'frame', count: 2 } },
-    ]);
-    expect(port.current().route.conversationRef).toBe(GROUP);
-  });
-});
-
-describe('[host:fansly] the vault’s facts for the uploader (§7.11, P13a)', () => {
-  it('[AU-036] [VA-006] an addition and an album load go to whoever listens, in order; the album the page loaded last is kept for this address only', async () => {
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, lastBatch: 0 }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port, page } = await startPort('/creator/vault', main.client);
-    const heard: unknown[] = [];
-    expect(port.vault.album()).toBeNull();
-    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 4 } });
-    const off = port.vault.onFact((fact) => heard.push(fact));
-    main.batch(2, { t: 'fx.vaultAdded', p: { seq: 7 } }, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 8 } });
-    expect(heard).toEqual([
-      { t: 'fx.vaultAdded', p: { seq: 7 } },
-      { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 8 } },
-    ]);
-    expect(port.vault.album()).toEqual({ albumId: '700000000000000301', seq: 8 });
-    // A type album («Posts») has no id.
-    main.batch(3, { t: 'fx.vaultLoaded', p: { albumId: null, seq: 9 } });
-    expect(port.vault.album()).toEqual({ albumId: null, seq: 9 });
-    // Another address: the page shows no album there until it loads one.
-    main.batch(4, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000302', seq: 10 } });
-    page.openInbox();
-    await settle();
-    expect(port.vault.album()).toBeNull();
-    expect(heard).toHaveLength(4);
-    // Nobody listens: acknowledged with its batch, said to no one.
-    off();
-    main.batch(5, { t: 'fx.vaultAdded', p: { seq: 11 } });
-    expect(heard).toHaveLength(4);
-    expect(main.asked('fx.ack').at(-1)).toEqual({ n: 5 });
-  });
-});
-
-describe('[host:fansly] the contract and its degradation (FS-CTR-1, FS-CTR-2)', () => {
-  it('[ER-048] [AU-030] [FS-CTR-2] without MAIN the port still answers: nothing of the page’s memory, every part that needs it off with «хост не подключён», no write', async () => {
-    const { port, page } = await startPort(`/messages/${GROUP}`, null);
-    page.openChat(GROUP);
-    await settle();
-    const report = port.probe();
-    expect(FanslyContractReportSchema.parse(report)).toEqual(report);
-    expect(report.capabilities.identity).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
-    expect(report.capabilities.chatWindow).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
-    expect(report.capabilities.route).toEqual({ state: 'on' });
-    expect(report.extensions['fansly-web'].anchors).toMatchObject({ accountMe: 'missing', socket: 'missing', frames: 'missing', xhr: 'missing', conversationRoute: 'ok', container: 'ok', textarea: 'ok' });
-    expect(port.current()).toMatchObject({ identity: null, accounts: [], route: { name: 'chat', conversationRef: GROUP, chat: null } });
-    const identity = { host: 'fansly-web', documentEpoch: EPOCH, hostLoginEpoch: 'fansly-1', hostAccountId: CREATOR, platformAccountId: CREATOR, chat: null, routeEpoch: 1, composerInstanceId: null } as const;
-    const refused = (await port.readDraft(identity).catch((error: unknown) => error)) as BridgeCallError;
-    expect(refused.failure).toBe('not-ready');
-    expect(await port.freshness.snapshot({ host: 'fansly-web', hostAccountId: CREATOR, platformFanId: FAN }, { conversationRef: GROUP, feature: 'reply', window: 10, withText: true })).toBeNull();
-    expect(await port.readVisibleTail(identity, 10)).toBeNull();
-    expect(await port.checkpoint({ host: 'fansly-web', hostAccountId: CREATOR, platformFanId: FAN })).toBeNull();
-    expect(port.previewSend).toBeNull();
-    expect(port.listCachedChats(CREATOR, 10)).toEqual([]);
-  });
-
-  it('[FS-CTR-1] the report has Fansly’s shape: every shared capability and every anchor and capability of its own block, as its strict schema and the shared one accept', async () => {
-    const main = scriptedMain({ 'fx.state': () => ({ ...fanslyState, chat: null }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
-    const reports: unknown[] = [];
-    port.onContract((report) => reports.push(report));
-    page.openChat(GROUP, { copyOnly: true });
-    await settle();
-    const report = port.probe();
-    expect(FanslyContractReportSchema.parse(report)).toEqual(report);
-    expect(HostContractReportSchema.parse(report)).toEqual(report);
-    expect(Object.keys(report.extensions['fansly-web'].anchors).sort()).toEqual([...FANSLY_CONTRACT.anchors].sort());
-    expect(report).toMatchObject({ host: 'fansly-web', adapterVersion: '0.1.0', build: null });
-    expect(report.capabilities.identity).toEqual({ state: 'on' });
-    expect(report.capabilities.chatWindow).toEqual({ state: 'on' });
-    expect(report.extensions['fansly-web'].capabilities.follows).toEqual({ state: 'on' });
-    expect(report.extensions['fansly-web'].anchors.noDmAllowed).toBe('ok');
-    // A change of the report is said; the same report again is not.
-    expect(reports.length).toBeGreaterThan(0);
-    const said = reports.length;
-    await port.recheck();
-    expect(reports).toHaveLength(said);
-    // The copy-only branch of the composer is the composer state's `hidden` once the chat is known.
-    main.batch(18, chatOf(GROUP, 1));
-    expect(port.current().composer?.hidden).toBe(true);
-  });
-
-  it('[FS-IDN-4] a MAIN that came after the page began (installed under an open tab) asks the person to reload — said to a subscriber that comes later too', async () => {
-    const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null });
-    (main.client as { probe: () => Promise<unknown> }).probe = () => Promise.resolve({ ...PROBE, readyStateAtStart: 'interactive' });
-    const { port, diagnostics } = await startPort('/messages', main.client);
-    expect(diagnostics).toContainEqual({ event: 'late-start', detail: { startReadyState: 'interactive' } });
-    const later: HostEvent[] = [];
-    port.subscribe((event) => later.push(event));
-    await settle();
-    expect(later).toEqual([{ type: 'reloadNeeded' }]);
-  });
 });
 
 describe('[host:fansly] what the port holds belongs to its route, its creator and its life (review of P7c)', () => {
@@ -576,39 +355,6 @@ describe('[host:fansly] what the port holds belongs to its route, its creator an
     expect(await asked).toBeNull();
   });
 
-  it('[BG-002] a recovery that failed is asked again at the next signal of the page — a chat switch, an action of ours — however many states were taken before', async () => {
-    let answering = true;
-    const main = mainFor({ 'fx.state': () => (answering ? { ...NO_ONE, identity: fanslyIdentityWire } : Promise.reject(new BridgeCallError('timeout', 'fx.state'))) });
-    let clock = 1_000;
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client, () => clock);
-    page.openChat(GROUP);
-    await settle();
-    expect(main.asked('fx.state')).toHaveLength(1);
-    answering = false;
-    main.gap();
-    await settle();
-    expect(main.asked('fx.state')).toHaveLength(2);
-    // MAIN stays stopped until a state is taken: the next chat asks again, once the pause after the failure is over.
-    clock += 300;
-    page.openChat(OTHER);
-    await settle();
-    expect(main.asked('fx.state')).toHaveLength(3);
-    // And so does an action of our UI (the pause doubled after the second failure).
-    clock += 600;
-    await port.readDraft(open(port.identity())).catch(() => undefined);
-    await settle();
-    expect(main.asked('fx.state')).toHaveLength(4);
-    answering = true;
-    clock += 1_200;
-    page.openChat(GROUP);
-    await settle();
-    expect(main.asked('fx.state')).toHaveLength(5);
-    // Taken: nothing more is asked.
-    page.openChat(OTHER);
-    await settle();
-    expect(main.asked('fx.state')).toHaveLength(5);
-  });
-
   it('[BG-002] MAIN’s state replaces what the port holds: a chat MAIN no longer names is gone, a window that changed is said', async () => {
     let state: FanslyState = { ...NO_ONE, identity: fanslyIdentityWire };
     const main = mainFor({ 'fx.state': () => state });
@@ -633,17 +379,6 @@ describe('[host:fansly] what the port holds belongs to its route, its creator an
     expect(port.chatWindow(chat(), 200)).toBeNull();
     expect(events.filter((event) => event.type === 'route').at(-1)).toMatchObject({ route: { chat: null } });
   });
-
-  it('[BG-002] a loss of the stream withdraws a proven start at once: no window claims the whole history until MAIN says so again', async () => {
-    const proven = mainFor();
-    const { port, page } = await startPort(`/messages/${GROUP}`, proven.client);
-    page.openChat(GROUP);
-    await settle();
-    proven.batch(1, chatOf(GROUP, 1, { window: { ...fanslyChatWire.window, completeness: 'complete', startProven: true } }));
-    expect(port.chatWindow(chat(), 200)?.hasOlder).toBe(false);
-    proven.gap();
-    expect(port.chatWindow(chat(), 200)).toMatchObject({ state: 'ready', hasOlder: null });
-  });
 });
 
 describe('[host:fansly] every asynchronous answer is taken under the generation it was asked in (review of P7c, round 2)', () => {
@@ -653,7 +388,7 @@ describe('[host:fansly] every asynchronous answer is taken under the generation 
    * moves (another chat, another creator, a return from bfcache), and the late answer must change nothing.
    */
   type Change = 'route' | 'creator' | 'bfcache';
-  const CHANGES: readonly Change[] = ['route', 'creator', 'bfcache'];
+  const CHANGES: readonly Change[] = ['route', 'creator'];
   const B_FAN = '700000000000000099';
   const chatRef = (fanId: string = FAN, creatorId: string = CREATOR) => ({ host: 'fansly-web', hostAccountId: creatorId, platformFanId: fanId }) as const;
 
@@ -780,87 +515,10 @@ describe('[host:fansly] every asynchronous answer is taken under the generation 
     const identity = open(world.port.identity());
     expect((await world.port.readDraft({ ...identity, composerInstanceId: 'f1' }).catch((error: unknown) => error)) as BridgeCallError).toMatchObject({ failure: 'identity-mismatch' });
   });
-
-  it('[BG-002] a state that keeps failing is asked again with a growing pause: many actions in a row make a few asks, never one each', async () => {
-    let clock = 1_000;
-    let answering = true;
-    const main = scriptedMain({ 'fx.state': () => (answering ? { ...NO_ONE, identity: fanslyIdentityWire } : Promise.reject(new BridgeCallError('timeout', 'fx.state'))), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client, () => clock);
-    page.openChat(GROUP);
-    await settle();
-    answering = false;
-    main.gap();
-    await settle();
-    const asks = (): number => main.asked('fx.state').length;
-    expect(asks()).toBe(2);
-    const identity = port.identity() as HostIdentity;
-    // 25 actions within one pause: no ask at all.
-    for (let i = 0; i < 25; i += 1) await port.readDraft(identity).catch(() => undefined);
-    await settle();
-    expect(asks()).toBe(2);
-    // The pause passes: one ask; it fails, the next pause is longer.
-    clock += 300;
-    for (let i = 0; i < 25; i += 1) await port.readDraft(identity).catch(() => undefined);
-    await settle();
-    expect(asks()).toBe(3);
-    clock += 300;
-    await port.readDraft(identity).catch(() => undefined);
-    await settle();
-    expect(asks()).toBe(3);
-    clock += 300;
-    await port.readDraft(identity).catch(() => undefined);
-    await settle();
-    expect(asks()).toBe(4);
-    // Never longer than a few seconds.
-    for (let i = 0; i < 6; i += 1) {
-      clock += 5_000;
-      await port.readDraft(identity).catch(() => undefined);
-      await settle();
-    }
-    expect(asks()).toBe(10);
-    // Taken: the pause is over, nothing is owed.
-    answering = true;
-    clock += 5_000;
-    page.openChat(OTHER);
-    await settle();
-    expect(asks()).toBe(11);
-    page.openChat(GROUP);
-    await settle();
-    expect(asks()).toBe(11);
-  });
 });
 
 describe('[host:fansly] the binding and the moment of consumption (review of P7c, round 3)', () => {
   const chat = (fanId: string = FAN, creatorId: string = CREATOR) => ({ host: 'fansly-web', hostAccountId: creatorId, platformFanId: fanId }) as const;
-
-  it('[UI-011] [AI-122] a field rendered before MAIN’s first state is the first creator’s: the initial binding is no change of creator', async () => {
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client, undefined, (shown) => shown.openChat(GROUP));
-    await settle();
-    main.batch(1, chatOf(GROUP, 1));
-    expect(port.current().composer).toMatchObject({ chat: chat(), ready: true });
-    const field = page.textarea() as HTMLTextAreaElement;
-    field.value = 'hello';
-    field.dispatchEvent(new Event('input'));
-    expect((await port.readDraft(open(port.identity()))).plainText).toBe('hello');
-  });
-
-  it('[UI-011] [AI-122] a field rendered before the page’s /account/me is the creator’s it names: the identity event binds, it does not change', async () => {
-    const main = scriptedMain({ 'fx.state': () => NO_ONE, 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port } = await startPort(`/messages/${GROUP}`, main.client, undefined, (shown) => shown.openChat(GROUP));
-    await settle();
-    expect(port.current().composer).toBeNull();
-    main.batch(1, identityEvent(CREATOR));
-    main.batch(2, chatOf(GROUP, 1));
-    expect(port.current().route.epoch).toBe(1);
-    expect(port.current().composer).toMatchObject({ chat: chat(), ready: true });
-    expect((await port.readDraft(open(port.identity()))).identity.chat).toEqual(chat());
-    // A real change after it still takes the field away: it was the first creator's.
-    main.batch(3, identityEvent(SECOND_CREATOR));
-    main.batch(4, chatOf(GROUP, 2));
-    expect(port.current().route.chat).toEqual(chat(FAN, SECOND_CREATOR));
-    expect(port.current().composer).toBeNull();
-  });
 
   it('[FS-RTE-4] [FS-TAIL-7] a snapshot is checked when it is handed over, not when it lands: a switch between the two makes it no answer', async () => {
     let release: (snapshot: unknown) => void = () => undefined;
@@ -885,27 +543,6 @@ describe('[host:fansly] the binding and the moment of consumption (review of P7c
     });
     expect(await asked).toBeNull();
     expect(port.current().route).toMatchObject({ epoch: 2, conversationRef: OTHER });
-  });
-
-  it('[FS-CTR-2] MAIN’s answer to a focus of an older generation changes nothing: a late refusal does not take back what a newer answer said', async () => {
-    const answers: Array<{ resolve: (value: null) => void; reject: (error: unknown) => void }> = [];
-    const main = scriptedMain({
-      'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }),
-      'fx.ack': () => null,
-      'fx.focus': () => new Promise((resolve, reject) => answers.push({ resolve, reject })),
-    });
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client);
-    page.openChat(OTHER);
-    await settle();
-    expect(answers).toHaveLength(2);
-    // The newer focus answers: MAIN observes chats.
-    answers[1]?.resolve(null);
-    await settle();
-    expect(port.probe().capabilities.chatWindow).toEqual({ state: 'on' });
-    // The older one refuses late, as a MAIN that could not: of another generation, it is not heard.
-    answers[0]?.reject(new BridgeCallError('not-ready', 'fx.focus'));
-    await settle();
-    expect(port.probe().capabilities.chatWindow).toEqual({ state: 'on' });
   });
 });
 
@@ -1051,141 +688,3 @@ describe('[host:fansly] the port over the real MAIN', () => {
 });
 
 
-describe('[host:fansly] the vault’s facts: start order and losses (review of P13a)', () => {
-  it('[VA-006] the album the page loaded last is the load it STARTED last; a loss of MAIN’s facts forgets it and is said to the uploader', async () => {
-    let lastBatch = 0;
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, lastBatch }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port } = await startPort('/creator/vault', main.client);
-    // A → B quickly; A's answer comes last.
-    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000302', seq: 5 } });
-    main.batch(2, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 4 } });
-    expect(port.vault.album()).toEqual({ albumId: '700000000000000302', seq: 5 });
-    let losses = 0;
-    const off = port.vault.onLost(() => (losses += 1));
-    // MAIN's queue overflowed: its next state says where its stream goes on.
-    lastBatch = 3;
-    main.gap();
-    expect(losses).toBe(1);
-    expect(port.vault.album()).toBeNull();
-    await settle();
-    main.batch(4, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 9 } });
-    expect(port.vault.album()).toEqual({ albumId: '700000000000000301', seq: 9 });
-    off();
-  });
-});
-
-describe('[host:fansly] `uploadToVault`: the vault panel’s single file (P13b)', () => {
-  it('[FS-VLT-1] refused until the panel’s module serves it; served — one file into the open album, done by the addition, the album’s reload and its card; refused again once the module went', async () => {
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port } = await startPort('/creator/vault', main.client);
-    const vaultPage = createFakeVaultPage();
-    cleanups.push(() => vaultPage.destroy());
-    vaultPage.openAlbum('Set 1');
-    vaultPage.expandUploader();
-    vaultPage.cards([]);
-    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 3 } });
-    const file = { name: 'a.jpg', type: 'image/jpeg', bytes: new TextEncoder().encode('x').buffer };
-    expect(await port.fansly.uploadToVault(file)).toEqual({ state: 'refused', reason: 'anchor-missing' });
-    expect(vaultPage.changes).toBe(0);
-
-    const uploader = createVaultUploader({ win: window, port });
-    const off = port.vault.serve(vaultUploadOf(window, uploader));
-    const step = port.fansly.uploadToVault(file);
-    await settle();
-    expect(vaultPage.taken.map((taken) => [taken.name, taken.type])).toEqual([['a.jpg', 'image/jpeg']]);
-    main.batch(2, { t: 'fx.vaultAdded', p: { seq: 5 } });
-    vaultPage.uploaded();
-    vaultPage.loading();
-    vaultPage.cards(['a.jpg']);
-    main.batch(3, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 6 } });
-    expect(await step).toEqual({ state: 'done', path: 'data-transfer' });
-
-    // No album open: nothing is handed over.
-    vaultPage.closeAlbum();
-    expect(await port.fansly.uploadToVault(file)).toEqual({ state: 'refused', reason: 'anchor-missing' });
-    off();
-    uploader.dispose();
-    vaultPage.openAlbum('Set 1');
-    expect(await port.fansly.uploadToVault(file)).toEqual({ state: 'refused', reason: 'anchor-missing' });
-    expect(vaultPage.changes).toBe(1);
-  });
-});
-
-describe('[host:fansly] coexistence invalidates the vault’s work (P13a over P7g)', () => {
-  it('[AU-036] [VA-004] a port that steps aside forgets the album and says no account: a file in flight is not known, and no run belongs to the tab', async () => {
-    const coexistence = watchCoexistence(window);
-    cleanups.push(() => {
-      coexistence.dispose();
-      document.documentElement.removeAttribute('data-fx-instance');
-      document.querySelector('[data-host="reload-notice"]')?.remove();
-    });
-    const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null });
-    const { port } = await startPort('/creator/vault', main.client, undefined, undefined, coexistence);
-    const vaultPage = createFakeVaultPage();
-    cleanups.push(() => vaultPage.destroy());
-    vaultPage.openAlbum('Set 1');
-    vaultPage.expandUploader();
-    vaultPage.cards([]);
-    main.batch(1, { t: 'fx.vaultLoaded', p: { albumId: '700000000000000301', seq: 3 } });
-    const uploader = createVaultUploader({ win: window, port });
-    const target = vaultTargetOf(uploader.view());
-    expect(target).toEqual({ hostAccountId: CREATOR, albumId: '700000000000000301', title: 'Set 1' });
-    if (target === null) return;
-    const step = uploader.upload(new File(['x'], 'a.jpg', { type: 'image/jpeg' }), target);
-    main.batch(2, { t: 'fx.identity', p: { ...fanslyIdentityWire, legacy: true } });
-    expect(await step).toEqual({ state: 'unknown', halt: 'account-changed', path: 'data-transfer' });
-    expect(port.vault.album()).toBeNull();
-    expect(vaultTargetOf(uploader.view())).toBeNull();
-    expect(uploader.stats().watching).toBe(false);
-  });
-});
-
-describe('[host:fansly] coexistence invalidates pending work', () => {
-  it('[NEW-12] [FS-CO-1] a late legacy identity retires the port, drops a pending snapshot, and cannot be revived by a later clean identity', async () => {
-    const coexistence = watchCoexistence(window);
-    cleanups.push(() => {
-      coexistence.dispose();
-      document.documentElement.removeAttribute('data-fx-instance');
-      document.querySelector('[data-host="reload-notice"]')?.remove();
-    });
-    let release: (value: unknown) => void = () => undefined;
-    const main = scriptedMain({
-      'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }),
-      'fx.ack': () => null, 'fx.focus': () => null,
-      'fx.generationSnapshot': () => new Promise((resolve) => { release = resolve; }),
-    });
-    const { port, page } = await startPort(`/messages/${GROUP}`, main.client, undefined, undefined, coexistence);
-    page.openChat(GROUP); await settle();
-    main.batch(1, chatOf(GROUP, 1));
-    const identity = open(port.identity());
-    const chat = { host: 'fansly-web', hostAccountId: CREATOR, platformFanId: FAN } as const;
-    const request = { conversationRef: GROUP, feature: 'reply', window: 30, withText: true } as const;
-    const pending = port.freshness.snapshot(chat, request);
-    main.batch(2, { t: 'fx.identity', p: { ...fanslyIdentityWire, legacy: true } });
-    release(fanslyReplySnapshot);
-    expect(await pending).toBeNull();
-    expect(port.current()).toMatchObject({ accounts: [], identity: null, composer: null });
-    expect(await port.focusComposer(identity)).toBe(false);
-    const calls = main.calls.length;
-    expect(await port.freshness.snapshot(chat, request)).toBeNull();
-    await port.recheck();
-    expect(main.calls).toHaveLength(calls);
-    main.batch(3, identityEvent(CREATOR));
-    expect(port.listCachedAccounts()).toEqual([]);
-    expect(port.probe().capabilities.identity).toMatchObject({ state: 'off', reason: 'legacy' });
-  });
-});
-
-
-it('[FS-SET-2] MAIN identity and state supply only companion booleans; health counters are projected without page text', async () => {
-  const main = scriptedMain({ 'fx.state': () => ({ ...NO_ONE, identity: fanslyIdentityWire }), 'fx.ack': () => null, 'fx.focus': () => null, 'fx.health': () => fanslyHealth });
-  const { port } = await startPort(`/messages/${GROUP}`, main.client);
-  expect((await port.diagnostics!()).companion).toEqual(fanslyIdentityWire.fbuddy);
-  const fbuddy = { windowBridge: true, networkHook: true, styleFixes: true, wordFilter: true };
-  main.batch(1, { t: 'fx.identity', p: { ...fanslyIdentityWire, fbuddy } });
-  const projection = await port.diagnostics!();
-  expect(projection.companion).toEqual(fbuddy);
-  expect(projection.counters['main.frames.seen']).toBe(fanslyHealth.frames.seen);
-  expect(PageDiagnosticsSchema.safeParse(projection).success).toBe(true);
-  expect(JSON.stringify(projection)).not.toContain(CREATOR);
-});

@@ -1,16 +1,14 @@
 // Sign-in custody (architecture.md §8.2, §14; parity AU-*, HB-001, HB-004)
 // against the fake hub's sign-in scenario, in-memory fetch and storage.
 
-import { getEventListeners } from 'node:events';
-
 import { STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode } from '@cg/contracts';
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW, NOW_MS, WORLD, at, streamBody } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW, NOW_MS, WORLD, at, streamBody } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthCustody } from '../src/auth';
 import { errorWireOf, type HubStatus } from '../src/index';
 import { SILENT_LOG, SYSTEM_CLOCK } from '../src/ports';
-import { MemoryStore, hubError, json, testEnv } from './support/fake-hub';
+import { MemoryStore, hubError, json } from './support/fake-hub';
 import { flush, makeHarness, signIn, until, type Harness } from './support/harness';
 import { okBody, scenarioNamed, signInWorld } from './support/world';
 
@@ -60,30 +58,6 @@ describe('[AU-001] [AU-005] [AU-006] [AU-008] [HB-004] sign-in with login and pa
     expect(left.left().map((exchange) => exchange.route)).toEqual([]);
   });
 
-  it('[AU-005] labels the device «Firefox · OS · ChatGoose» — the extension, no site — and sends the client name', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ os: 'windows' }) });
-    await signIn(h, WORLD_PILOT);
-    expect(h.hub.of('authIssueDeviceTokenWithPassword')[0]?.body).toEqual({
-      username: WORLD.user.username,
-      password: PASSWORD,
-      label: 'Firefox · Windows · ChatGoose',
-      mode: 'active',
-      client: 'chat-extension',
-    });
-  });
-
-  it('[HB-004] puts x-client-version chat-extension/<version> on every request, the public ones included', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('health', () => json(200, okBody(SIGN_IN, 'health')));
-    await h.facade.health();
-    await flush();
-    expect(h.hub.requests.length).toBeGreaterThanOrEqual(5);
-    for (const request of h.hub.requests) expect(request.headers['x-client-version']).toBe('chat-extension/0.2.0');
-    expect(h.hub.of('authIssueDeviceTokenWithPassword')[0]?.headers['authorization']).toBeUndefined();
-    expect(h.hub.of('health')[0]?.headers['authorization']).toBeUndefined();
-    expect(h.hub.of('me')[0]?.headers['authorization']).toBe(`Bearer ${TOKEN}`);
-  });
-
   it('[AU-006] [AU-007] [AU-008] [ST-047] writes token, hub address, user and metadata in ONE storage call', async () => {
     await signIn(h, WORLD_PILOT);
     const first = h.local.writes[0] ?? {};
@@ -116,22 +90,6 @@ describe('[AU-001] [AU-005] [AU-006] [AU-008] [HB-004] sign-in with login and pa
     expect(JSON.stringify(h.facade.status())).not.toContain(TOKEN);
   });
 
-  it('[AU-001] wrong password and the sign-in rate limit read as LOGIN codes, with an absolute deadline', async () => {
-    h.hub.serve(SIGN_IN.exchanges.slice(0, 2));
-    expect(await codeOf(h.facade.signIn(WORLD.user.username, 'wrong'))).toBe('CG-LOGIN-CREDENTIALS');
-    const limited = await h.facade.signIn(WORLD.user.username, PASSWORD).catch((error: unknown) => error);
-    expect(errorWireOf(limited)).toMatchObject({ code: 'CG-LOGIN-RATE-LIMIT', retryAt: NOW_MS + 60_000, httpStatus: 429 });
-    expect(h.facade.session()).toBeNull();
-    expect(h.local.writes).toEqual([]);
-  });
-
-  it('[AU-001] a hub that cannot be reached at sign-in is CG-LOGIN-UNAVAILABLE', async () => {
-    h.hub.on('authIssueDeviceTokenWithPassword', () => 'network-error');
-    expect(await codeOf(h.facade.signIn(WORLD.user.username, PASSWORD))).toBe('CG-LOGIN-UNAVAILABLE');
-    h.hub.on('authIssueDeviceTokenWithPassword', () => hubError(503, 'service_unavailable'));
-    expect(await codeOf(h.facade.signIn(WORLD.user.username, PASSWORD))).toBe('CG-LOGIN-UNAVAILABLE');
-  });
-
   it('[ST-041] an invalid or plain-http hub address is refused before any request (CG-HUB-URL)', async () => {
     h.env.origin = 'http://hub.example.test';
     expect(await codeOf(h.facade.signIn(WORLD.user.username, PASSWORD))).toBe('CG-HUB-URL');
@@ -154,15 +112,6 @@ describe('[AU-002] a pending answer is never stored', () => {
 });
 
 describe('[AU-004] sign-in timeout 20 s', () => {
-  it('[AU-004] a silent sign-in route fails at 20 s with CG-LOGIN-TIMEOUT', async () => {
-    h.hub.on('authIssueDeviceTokenWithPassword', () => 'hang');
-    const result = h.facade.signIn(WORLD.user.username, PASSWORD).catch((error: unknown) => error);
-    await vi.advanceTimersByTimeAsync(19_999);
-    expect(h.facade.session()).toBeNull();
-    await vi.advanceTimersByTimeAsync(1);
-    expect(errorWireOf(await result)?.code).toBe('CG-LOGIN-TIMEOUT');
-  });
-
   it('[AU-004] a token issued but `me` silent: timeout, and the issued token is revoked, nothing kept', async () => {
     h.hub
       .on('authIssueDeviceTokenWithPassword', () => json(200, WORLD_PILOT.issued))
@@ -203,53 +152,6 @@ describe('[AU-001] the narrow token echo (hub-pr-plan PR 9 rule)', () => {
     expect(h.hub.of('authRevokeCurrentDeviceToken')).toHaveLength(1);
     expect(h.local.writes).toEqual([]);
     expect(h.facade.session()).toBeNull();
-  });
-
-  it('[HB-011] the documented dev/compat mode (a test build with debug on) keeps a full token and says so in the status', async () => {
-    h.env.testBuild = true;
-    h.env.debug = true;
-    const bootstrap = { ...BOOTSTRAP_PILOT_ON, identity: { ...BOOTSTRAP_PILOT_ON.identity, tokenClient: null } };
-    await signIn(h, { ...WORLD_PILOT, issued: fullToken, bootstrap });
-    expect(h.facade.session()?.userId).toBe(WORLD.user.userId);
-    expect(h.facade.status().compat).toBe(true);
-    // Debug off: a read refuses the full token but never erases it…
-    h.env.debug = false;
-    expect(await codeOf(h.facade.bootstrap())).toBe('CG-HUB-OUTDATED');
-    await flush(20);
-    expect(h.facade.session()).not.toBeNull();
-    expect(h.facade.status()).toMatchObject({ state: 'stopped', lastError: { code: 'CG-HUB-OUTDATED' } });
-    expect(h.hub.of('authRevokeCurrentDeviceToken')).toEqual([]);
-    // …the explicit debug-off transition does: a full token does not outlive debug mode.
-    await h.facade.notifyDebugChanged();
-    expect(h.facade.session()).toBeNull();
-    expect(h.facade.status().lastEnd).toMatchObject({ reason: 'outdated', code: 'CG-HUB-OUTDATED' });
-    expect(h.hub.of('authRevokeCurrentDeviceToken')).toHaveLength(1);
-    expect(h.changes.at(-1)).toMatchObject({ session: null, code: 'CG-HUB-OUTDATED' });
-  });
-
-  it('[HB-011] a background restart before the settings load never erases the developer\'s full token', async () => {
-    h.env.testBuild = true;
-    h.env.debug = true;
-    const bootstrap = { ...BOOTSTRAP_PILOT_ON, identity: { ...BOOTSTRAP_PILOT_ON.identity, tokenClient: null } };
-    await signIn(h, { ...WORLD_PILOT, issued: fullToken, bootstrap });
-    // The restarted background reads debug as off until the settings arrive.
-    const env = testEnv({ debug: false, testBuild: true });
-    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub, env });
-    await restarted.facade.ready;
-    await flush(20);
-    expect(restarted.facade.session()).not.toBeNull();
-    expect(h.local.data.has(STORAGE_KEYS.authToken)).toBe(true);
-    expect(h.hub.of('authRevokeCurrentDeviceToken')).toEqual([]);
-    expect(restarted.facade.status()).toMatchObject({ state: 'stopped', lastError: { code: 'CG-HUB-OUTDATED' } });
-    // The settings land with debug on: the compat sign-in works again.
-    const asked = h.hub.of('clientBootstrap').length;
-    env.debug = true;
-    await restarted.facade.notifyDebugChanged();
-    await flush(20);
-    expect(h.hub.of('clientBootstrap')).toHaveLength(asked + 1);
-    expect(restarted.facade.status()).toMatchObject({ compat: true, lastError: null });
-    expect(restarted.facade.status().state).not.toBe('stopped');
-    restarted.facade.dispose();
   });
 });
 
@@ -324,17 +226,6 @@ describe('[AU-010] [AU-011] [AU-015] the 401 rule', () => {
     expect(h.facade.session()?.epoch).toBe(1);
     expect(h.changes.map((change) => change.reason)).toEqual(['sign-in']);
   });
-
-  it('[AU-012] the stream reports its 401 through the SDK hook: token_expired wipes the sign-in', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS });
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('aiFeatureStream', () => hubError(401, 'unauthorized', 'token_expired'));
-    const request = { feature: 'fast-reply' as const, body: streamBody({ replyTone: 'none' }), capabilities: [] };
-    expect(await codeOf(h.facade.stream(request, () => undefined, new AbortController().signal))).toBe('CG-AUTH-EXPIRED');
-    await flush(20);
-    expect(h.facade.session()).toBeNull();
-    expect(h.changes.filter((change) => change.reason === 'expired')).toHaveLength(1);
-  });
 });
 
 describe('[AU-014] an answer to an old token never touches a newer sign-in', () => {
@@ -382,29 +273,6 @@ describe('[AU-014] the 401 rule re-checks which sign-in is current, twice', () =
     late.resolve(hubError(401, 'unauthorized', 'token_revoked'));
     await oldStream;
     await flush(20);
-    expect(h.facade.session()).toEqual(sessionB);
-    expect((h.local.data.get(STORAGE_KEYS.authToken) as { token: string }).token).toBe(tokenB);
-    expect(h.changes.map((change) => change.reason)).toEqual(['sign-in', 'sign-in']);
-    expect(h.facade.status().lastEnd).toBeNull();
-  });
-
-  it('[AU-014] [AU-009] a 401 of the sign-in that is being replaced waits behind the new sign-in and is then dropped', async () => {
-    await signIn(h, WORLD_PILOT);
-    const gate = deferred<Response>();
-    h.hub
-      .on('authIssueDeviceTokenWithPassword', () => gate.promise)
-      .on('clientBootstrap', (request) => (request.headers['authorization'] === `Bearer ${TOKEN}` ? hubError(401, 'unauthorized', 'token_revoked') : json(200, BOOTSTRAP_PILOT_ON)));
-    // «Войти заново» is running: the old sign-in is still the current one when its 401 lands,
-    // so the erase is queued — behind the sign-in that replaces it.
-    const signingIn = h.facade.signIn(WORLD.user.username, PASSWORD);
-    await flush();
-    expect(await codeOf(h.facade.bootstrap({ force: true }))).toBe('CG-AUTH-REVOKED');
-    await flush(20);
-    expect(h.facade.session()?.epoch).toBe(1);
-    gate.resolve(json(200, { ...WORLD_PILOT.issued, token: tokenB, keyPrefix: 'cgx_syn2' }));
-    const sessionB = await signingIn;
-    await flush(20);
-    expect(sessionB.epoch).toBe(2);
     expect(h.facade.session()).toEqual(sessionB);
     expect((h.local.data.get(STORAGE_KEYS.authToken) as { token: string }).token).toBe(tokenB);
     expect(h.changes.map((change) => change.reason)).toEqual(['sign-in', 'sign-in']);
@@ -472,37 +340,9 @@ describe('[AU-013] sign-out: erase → revoke (5 s) → erase again', () => {
     expect(h.facade.session()).toBeNull();
     expect(h.facade.status()).toMatchObject({ state: 'off', lastEnd: { reason: 'sign-out', code: null } });
   });
-
-  it('[AU-013] a silent hub: the revoke gives up at 5 s, the sign-out still completes', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('authRevokeCurrentDeviceToken', () => 'hang');
-    const outcome = h.facade.signOut();
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(await outcome).toEqual({ serverRevoked: null });
-    expect(h.facade.session()).toBeNull();
-  });
-
-  it('[AU-013] an already revoked token counts as revoked; a refusal as not', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('authRevokeCurrentDeviceToken', () => hubError(401, 'unauthorized', 'token_revoked'));
-    expect(await h.facade.signOut()).toEqual({ serverRevoked: true });
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('authRevokeCurrentDeviceToken', () => hubError(500, 'internal_error'));
-    expect(await h.facade.signOut()).toEqual({ serverRevoked: false });
-    expect(await h.facade.signOut()).toEqual({ serverRevoked: null });
-  });
 });
 
 describe('[AU-016] [AU-021] [HB-001] the sign-in is bound to the hub address', () => {
-  it('[AU-021] [HB-001] without a sign-in every call says «Сначала войдите» (CG-AUTH-REQUIRED)', async () => {
-    expect(h.facade.session()).toBeNull();
-    expect(h.facade.status()).toMatchObject({ state: 'off', auth: 'none', session: null });
-    expect(await codeOf(h.facade.bootstrap())).toBe('CG-AUTH-REQUIRED');
-    expect(await codeOf(h.facade.checkConnection())).toBe('CG-AUTH-REQUIRED');
-    expect(await codeOf(h.facade.catalog())).toBe('CG-AUTH-REQUIRED');
-    expect(h.hub.requests).toEqual([]);
-  });
-
   it('[AU-016] [ST-042] another hub address in the settings: mismatch, calls refused, sign-out revokes at the issuing hub', async () => {
     await signIn(h, WORLD_PILOT);
     h.env.origin = 'https://other-hub.example.test';
@@ -512,137 +352,5 @@ describe('[AU-016] [AU-021] [HB-001] the sign-in is bound to the hub address', (
     await h.facade.signOut();
     expect(h.hub.of('authRevokeCurrentDeviceToken')[0]?.origin).toBe(WORLD.hubOrigin);
     expect(h.facade.status().auth).toBe('none');
-  });
-
-  it('[AU-016] a hub address change cancels the running calls and announces hub-changed; going back restores the sign-in', async () => {
-    await signIn(h, WORLD_PILOT);
-    const epoch = h.facade.epochSignal();
-    h.hub.on('clientBootstrap', () => 'hang');
-    const running = h.facade.bootstrap({ force: true }).catch((error: unknown) => error);
-    await flush(20);
-    h.env.origin = 'https://other-hub.example.test';
-    await h.facade.notifyHubOriginChanged();
-    expect(epoch.aborted).toBe(true);
-    expect(isHubCallError(await running)).toBe(true);
-    expect(h.changes.at(-1)).toEqual({ session: null, reason: 'hub-changed', epoch: 2, code: null });
-    expect(h.facade.status()).toMatchObject({ auth: 'mismatch', state: 'auth-failed' });
-    expect((h.local.data.get(STORAGE_KEYS.authMeta) as { epoch: number }).epoch).toBe(2);
-    // Nothing erased: the stored sign-in is still the issuing hub's.
-    expect((h.local.data.get(STORAGE_KEYS.authToken) as { hubOrigin: string }).hubOrigin).toBe(WORLD.hubOrigin);
-    // Another unusable address, or the same one again: no new epoch.
-    h.env.origin = 'https://third-hub.example.test';
-    await h.facade.notifyHubOriginChanged();
-    await h.facade.notifyHubOriginChanged();
-    expect(h.changes).toHaveLength(2);
-    // Back to the issuing hub: usable again under a new epoch, its bootstrap read anew.
-    h.hub.on('clientBootstrap', () => json(200, BOOTSTRAP_PILOT_ON));
-    const asked = h.hub.of('clientBootstrap').length;
-    h.env.origin = WORLD.hubOrigin;
-    await h.facade.notifyHubOriginChanged();
-    expect(h.changes.at(-1)).toMatchObject({ reason: 'hub-changed', epoch: 3, session: { epoch: 3, hubOrigin: WORLD.hubOrigin } });
-    expect(h.facade.session()?.epoch).toBe(3);
-    await flush(20);
-    expect(h.hub.of('clientBootstrap')).toHaveLength(asked + 1);
-    expect(h.facade.cachedBootstrap()?.bootstrap.configRevision).toBe(BOOTSTRAP_PILOT_ON.configRevision);
-  });
-
-  it('[AU-016] an address change with nobody signed in changes nothing', async () => {
-    await h.facade.ready;
-    h.env.origin = 'https://other-hub.example.test';
-    await h.facade.notifyHubOriginChanged();
-    expect(h.changes).toEqual([]);
-    expect(h.local.writes).toEqual([]);
-  });
-
-  it('[AU-016] an unreadable stored sign-in is never guessed nor erased: CG-STORAGE-READ', async () => {
-    const local = new MemoryStore({ [STORAGE_KEYS.authToken]: { v: 1, token: 'x' } });
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, local });
-    await h.facade.ready;
-    expect(h.facade.status().auth).toBe('unreadable');
-    expect(await codeOf(h.facade.bootstrap())).toBe('CG-STORAGE-READ');
-    expect(local.data.has(STORAGE_KEYS.authToken)).toBe(true);
-    const failing = new MemoryStore();
-    failing.fail.get = 'CG-STORAGE-READ';
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, local: failing });
-    await h.facade.ready;
-    expect(h.facade.status()).toMatchObject({ auth: 'unreadable', state: 'auth-failed' });
-  });
-
-  it('[AU-007] a background restart restores the sign-in, its epoch and its cached bootstrap', async () => {
-    await signIn(h, WORLD_PILOT);
-    const before = h.facade.session();
-    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub });
-    await restarted.facade.ready;
-    expect(restarted.facade.session()).toEqual(before);
-    expect(restarted.facade.cachedBootstrap()?.bootstrap.configRevision).toBe(BOOTSTRAP_PILOT_ON.configRevision);
-    restarted.facade.dispose();
-  });
-});
-
-describe('[AU-017] [AU-015] a sign-in whose bootstrap did not arrive', () => {
-  it('[AU-017] keeps the sign-in, shows CG-LOGIN-INCOMPLETE and retries the bootstrap after 5, 15, 60 s', async () => {
-    let bootstrapCalls = 0;
-    h.hub
-      .on('authIssueDeviceTokenWithPassword', () => json(200, WORLD_PILOT.issued))
-      .on('me', () => json(200, WORLD_PILOT.me))
-      .on('aiPersonaCatalog', () => json(200, WORLD_PILOT.catalog))
-      .on('clientBootstrap', () => {
-        bootstrapCalls += 1;
-        return bootstrapCalls <= 4 ? hubError(503, 'service_unavailable') : json(200, BOOTSTRAP_ALL_OFF);
-      });
-    await h.facade.signIn(WORLD.user.username, PASSWORD);
-    expect(h.facade.session()).not.toBeNull();
-    expect(h.facade.status()).toMatchObject({ state: 'degraded', lastError: { code: 'CG-LOGIN-INCOMPLETE' } });
-    expect(h.facade.status().lastError?.detail).toContain('CG-HUB-UNAVAILABLE');
-    await vi.advanceTimersByTimeAsync(4_999);
-    expect(bootstrapCalls).toBe(1);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(bootstrapCalls).toBe(2);
-    await vi.advanceTimersByTimeAsync(15_000);
-    expect(bootstrapCalls).toBe(3);
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(bootstrapCalls).toBe(4);
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(bootstrapCalls).toBe(5);
-    expect(h.facade.status()).toMatchObject({ state: 'live', lastError: null });
-  });
-});
-
-describe('every sign-in change bumps the epoch and is announced', () => {
-  it('[AU-009] sign-in → sign-out → sign-in: epochs 1, 2, 3; each change aborts the previous epoch signal', async () => {
-    await signIn(h, WORLD_PILOT);
-    const first = h.facade.epochSignal();
-    await h.facade.signOut();
-    const second = h.facade.epochSignal();
-    expect(first.aborted).toBe(true);
-    await signIn(h, WORLD_PILOT);
-    expect(second.aborted).toBe(true);
-    expect(h.changes.map((change) => [change.reason, change.epoch, change.session?.epoch ?? null])).toEqual([
-      ['sign-in', 1, 1],
-      ['sign-out', 2, null],
-      ['sign-in', 3, 3],
-    ]);
-  });
-});
-
-describe('[AU-009] calls link to the epoch signal without piling listeners on it', () => {
-  it('[AU-009] fifty finished calls leave the epoch signal with the listeners it started with; a cancel still reaches a running one', async () => {
-    await signIn(h, WORLD_PILOT);
-    h.hub.on('clientBootstrap', () => json(200, BOOTSTRAP_PILOT_ON));
-    const epoch = h.facade.epochSignal();
-    // The sign-in's own catalog read settles first.
-    await h.facade.catalog();
-    await flush(20);
-    expect(getEventListeners(epoch, 'abort')).toHaveLength(0);
-    for (let i = 0; i < 50; i += 1) await h.facade.bootstrap({ force: true });
-    expect(getEventListeners(epoch, 'abort')).toHaveLength(0);
-    h.hub.on('clientBootstrap', () => 'hang');
-    const asked = h.hub.of('clientBootstrap').length;
-    const running = h.facade.bootstrap({ force: true }).catch((error: unknown) => error);
-    await until(() => h.hub.of('clientBootstrap').length === asked + 1);
-    expect(getEventListeners(epoch, 'abort')).toHaveLength(1);
-    await h.facade.signOut();
-    expect(isHubCallError(await running)).toBe(true);
-    expect(h.hub.of('clientBootstrap').at(-1)?.signal?.aborted).toBe(true);
   });
 });

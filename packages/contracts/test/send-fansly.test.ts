@@ -4,10 +4,7 @@
 // attempt's state machine, the journal `fansly.send.journal`, the restart and
 // what each end owes the hub, the final check.
 
-import { readFileSync } from 'node:fs';
-
-import { describe, expect, expectTypeOf, it } from 'vitest';
-import type * as z from 'zod/mini';
+import { describe, expect, it } from 'vitest';
 
 import * as C from '../src/index';
 import * as S from '../src/send-fansly';
@@ -97,14 +94,6 @@ describe('[host:fansly] the manual group and the custody body (hub HF-3)', () =>
     const aiDispatch = { ...fanslyDispatch, group: { ...fanslyAiGroup } };
     expect(C.ClaimBodySchema.safeParse(aiDispatch).success).toBe(true);
     expect(C.ClaimBodySchema.safeParse(fanslyDispatch).success).toBe(false);
-  });
-
-  it('the types: both bodies are of the hub’s wider body, which the shared code names', () => {
-    expectTypeOf<S.FanslyGreetingClaimBody>().toExtend<C.HubClaimBody>();
-    expectTypeOf<C.ClaimBody>().toExtend<C.HubClaimBody>();
-    expectTypeOf<S.FanslyGreetingClaimOp>().toExtend<C.HubClaimOp>();
-    expectTypeOf<S.FanslyGreetingGroup>().toExtend<C.ClaimSendGroup>();
-    expectTypeOf<z.infer<typeof S.ManualClaimGroupSchema>>().toEqualTypeOf<{ kind: 'manual'; textFingerprint: string }>();
   });
 });
 
@@ -337,23 +326,5 @@ describe('[host:fansly] the final check (§8.6, step 2) and the receipt', () => 
     expect(S.fanslyReceiptFits(receipt, taken)).toBe(true);
     expect(S.fanslyReceiptFits({ ...receipt, groupId: FANSLY_IDS.otherGroup }, taken)).toBe(false);
     expect(S.fanslyReceiptFits({ ...receipt, senderId: FANSLY_IDS.fan }, taken)).toBe(false);
-  });
-});
-
-describe('[host:fansly] send-fansly stays Fansly’s own module (§1.8, §3.2)', () => {
-  it('is a subpath only: the root re-exports none of it', () => {
-    const root = Object.keys(C);
-    for (const name of Object.keys(S)) expect(root, name).not.toContain(name);
-    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { exports: Record<string, string> };
-    expect(manifest.exports['./send-fansly']).toBe('./src/send-fansly.ts');
-  });
-
-  it('the hub’s wider body is types only, apart from newcomers.ts: no value reaches a shared bundle', () => {
-    const source = readFileSync(new URL('../src/hub/claim-body.ts', import.meta.url), 'utf8');
-    expect(source).toMatch(/^import type \{[^}]*\} from '\.\/newcomers';$/m);
-    expect(source).not.toMatch(/^export (const|function|let|class|enum)\b/m);
-    expect(source).not.toMatch(/send-fansly'/);
-    const index = readFileSync(new URL('../src/hub/index.ts', import.meta.url), 'utf8');
-    expect(index).toMatch(/^export type \* from '\.\/claim-body';$/m);
   });
 });

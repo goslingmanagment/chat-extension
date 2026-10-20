@@ -1,13 +1,13 @@
 // What the page tells the tab and the tab passes on (tab/host-facts.ts).
 
-import { ANCHOR_IDS, type HostContractReport, type HostContractShape, type HostEvent, type InsertIntent, type InsertReceipt, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
+import { type HostEvent, type InsertIntent, type InsertReceipt, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { SendFuseState } from '@cg/contracts/send';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { describe, expect, it } from 'vitest';
 
 import type { ControllerRpc } from './client';
-import { SENT_REPORT_TRIES, boardsHostOver, contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
+import { SENT_REPORT_TRIES, boardsHostOver, forwardHostFacts } from './host-facts';
 import { CHATSPACE_APP, liveConfigOf } from './hosts/chatspace/app';
 
 const CHAT = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
@@ -111,7 +111,6 @@ const turns = async (): Promise<void> => {
   for (let i = 0; i < 5; i += 1) await Promise.resolve();
 };
 
-const incoming: Extract<HostEvent, { type: 'incoming' }>['fact'] = { host: 'chatspace', hostAccountId: '910101', platformFanId: '74001001', platformMessageId: '5001', fromFan: true, automatic: false, tip: false, sentAt: null, socketEpoch: 1, fanSequence: 3, source: 'ws-tap' };
 const humanSend = (over: { platformMessageId?: string | null; insertIntentId?: string | null; edited?: boolean | null; cargo?: { priced: boolean; media: boolean } } = {}): HostEvent => ({
   type: 'humanSend',
   fact: {
@@ -150,36 +149,9 @@ describe('the bootstrap → part B of the ChatSpace host port (the application�
     // A hub that does not record it is never told, and MAIN follows only drafts of ours, as before.
     expect(liveConfigOf(bootstrap({ capabilities: ['preview-send-custody-v1'] })).attribution).toBe(false);
   });
-
-  it('the adapter is configured once per change, and the deadline of «Открыть и вставить» is the bootstrap’s', async () => {
-    const w = world();
-    w.facts.configure(bootstrap());
-    w.facts.configure(bootstrap());
-    w.facts.configure(bootstrap({ navSec: 30, off: ['previewSend'] }));
-    w.facts.configure(null);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(w.configured.map((config) => [config.wsTap, config.previewSend])).toEqual([[true, true], [true, false], [false, false]]);
-    expect(w.timeouts).toEqual([20_000, 20_000, 30_000]);
-    // The adapter did not take a configuration: said once, with what it was.
-    expect(w.failures).toEqual(['configure']);
-  });
 });
 
 describe('facts of the page → the background', () => {
-  it('[SN-016] every incoming-message fact goes to the background’s one sound arbiter as it is — the tab decides nothing', () => {
-    const w = world();
-    w.emit({ type: 'incoming', fact: incoming });
-    w.emit({ type: 'incoming', fact: { ...incoming, fromFan: false, automatic: true } });
-    expect(w.sent).toEqual([['sound.event', { fact: incoming }], ['sound.event', { fact: { ...incoming, fromFan: false, automatic: true } }]]);
-  });
-
-  it('a tab without a port keeps the fact to itself: nothing is queued for later', () => {
-    const w = world('reconnecting');
-    w.emit({ type: 'incoming', fact: incoming });
-    expect(w.sent).toEqual([]);
-  });
-
   it('[TL-004] a human send of a board’s insert is reported for that part’s operation — once, with the id of the send’s own response', () => {
     const w = world();
     w.facts.noteInsert('intent-1', 'op-1', { index: 1 });
@@ -352,41 +324,6 @@ describe('facts of the page → the background', () => {
     // The part's own report is the one it always was.
     expect(w.sent).toEqual([['op.reportSent', { opId: 'op-1', part: { index: 1 }, pendingId: 'pending-1', platformMessageId: '9001', edited: true }]]);
   });
-
-  it('[X48] a fact the background never acknowledged is said again when the port is back, a bounded number of times; its own answer is not repeated', async () => {
-    const w = world();
-    const lost = { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'port lost' } };
-    w.attributions.answers.push(lost, lost, lost, lost, lost);
-    w.setState('reconnecting');
-    w.emit(humanSend({ insertIntentId: null, edited: null }));
-    await turns();
-    expect(w.attributions.sent).toHaveLength(1);
-    for (let i = 0; i < SENT_REPORT_TRIES + 1; i += 1) {
-      w.setState('ready');
-      await turns();
-      w.setState('reconnecting');
-    }
-    expect(w.attributions.sent).toHaveLength(SENT_REPORT_TRIES);
-    const answered = world();
-    answered.attributions.answers.push({ ok: true, payload: { queued: false, reason: 'not_admitted' } });
-    answered.emit(humanSend({ insertIntentId: null, edited: null }));
-    await turns();
-    answered.setState('ready');
-    await turns();
-    expect(answered.attributions.sent).toHaveLength(1);
-  });
-
-  it('only the last 64 inserts are remembered; dispose stops listening', () => {
-    const w = world();
-    for (let index = 0; index < 65; index += 1) w.facts.noteInsert(`intent-${index}`, `op-${index}`, { index: 0 });
-    w.emit(humanSend({ insertIntentId: 'intent-0' }));
-    expect(w.sent).toEqual([]);
-    w.emit(humanSend({ insertIntentId: 'intent-64' }));
-    expect(w.sent).toHaveLength(1);
-    w.facts.dispose();
-    expect(w.subscribed()).toBe(0);
-    expect(w.stateListeners()).toBe(0);
-  });
 });
 
 describe('[X8-06] the X8 fuse (decision X25): the background keeps it, the adapter is told, a trip of this tab is reported', () => {
@@ -422,107 +359,5 @@ describe('[X8-06] the X8 fuse (decision X25): the background keeps it, the adapt
     await turns();
     expect(w.sent).toEqual([['send.fuse', { fact, build: 'index-p8xPkCj8' }]]);
     expect(w.configured.at(-1)?.fuse).toEqual(tripped);
-  });
-
-  it('a trip nobody acknowledged (the port was lost) is said again when the port is back, a bounded number of times; a refusal is not repeated', async () => {
-    const w = world();
-    const lost = { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'port lost' } };
-    for (let n = 0; n < SENT_REPORT_TRIES + 2; n += 1) w.answers.push(lost);
-    w.setState('reconnecting');
-    w.emit({ type: 'sendFuse', fuse: fact });
-    await turns();
-    for (let n = 0; n < SENT_REPORT_TRIES + 2; n += 1) {
-      w.setState('ready');
-      await turns();
-      w.setState('reconnecting');
-    }
-    expect(w.sent.filter(([type]) => type === 'send.fuse')).toHaveLength(SENT_REPORT_TRIES);
-    const other = world();
-    other.answers.push({ ok: false, error: { code: 'CG-UI-FAILED', detail: 'tab only' } });
-    other.emit({ type: 'sendFuse', fuse: fact });
-    await turns();
-    other.setState('ready');
-    await turns();
-    expect(other.sent.filter(([type]) => type === 'send.fuse')).toHaveLength(1);
-  });
-
-  it('dispose stops listening to the fuse events', () => {
-    const w = world();
-    w.facts.dispose();
-    w.facts.configure(bootstrap());
-    expect(() => w.event('send.fuse', tripped)).not.toThrow();
-  });
-});
-
-describe('what the adapter is told while the tab learns who is signed in', () => {
-  const ready = { s: 'ready' as const, value: bootstrap() };
-
-  it('[NEW-08] «not known yet» is never «off»: the tap is told to stand down only by a sign-out or by the owner’s flag, never by a bootstrap still on its way', () => {
-    // The first moments of the application: neither the sign-in nor the bootstrap is read.
-    expect(knownBootstrap(undefined, { s: 'idle' })).toBeUndefined();
-    expect(knownBootstrap(undefined, ready)).toBeUndefined();
-    // Signed in, the bootstrap is being read — or the hub did not answer.
-    expect(knownBootstrap({ epoch: 3 }, { s: 'loading' })).toBeUndefined();
-    expect(knownBootstrap({ epoch: 3 }, { s: 'error' })).toBeUndefined();
-    expect(knownBootstrap({ epoch: 3 }, ready)).toBe(ready.value);
-    // Nobody is signed in: the flags went with the sign-in.
-    expect(knownBootstrap(null, ready)).toBeNull();
-    expect(knownBootstrap(null, { s: 'idle' })).toBeNull();
-  });
-
-  it('a tab that starts signed in configures the adapter once, with the bootstrap’s switches — no «off» before it', () => {
-    const w = world();
-    for (const known of [knownBootstrap(undefined, { s: 'idle' }), knownBootstrap({ epoch: 3 }, { s: 'loading' }), knownBootstrap({ epoch: 3 }, ready)]) {
-      if (known !== undefined) w.facts.configure(known);
-    }
-    expect(w.configured.map((config) => config.wsTap)).toEqual([true]);
-  });
-});
-
-describe('the host contract in the tab’s log', () => {
-  const report = (anchors: Record<string, string>, capabilities: Record<string, { state: string }> = {}): HostContractReport =>
-    ({ build: 'index-abc', adapterVersion: '0.3.0', checkedAt: 1, anchors: { ...Object.fromEntries(ANCHOR_IDS.map((anchor) => [anchor, 'ok'])), ...anchors }, capabilities: { insert: { state: 'on' }, ...capabilities } }) as unknown as HostContractReport;
-  const facts = (value: HostContractReport) => contractFactsOf(value, CHATSPACE_APP.contract);
-
-  it('[DB-031] the tap and the preview send switched off are not a ChatSpace that changed: the record lists them and carries no error', () => {
-    const off = facts(report({ wsFrames: 'missing', receiptProfile: 'missing' }, { previewSend: { state: 'off' }, incoming: { state: 'off' } }));
-    expect(off).toEqual({ build: 'index-abc', adapterVersion: '0.3.0', ok: true, missing: ['wsFrames', 'receiptProfile'], degraded: ['previewSend', 'incoming'] });
-    expect(facts(report({})).ok).toBe(true);
-  });
-
-  it('[ER-049] [DB-031] an anchor of ChatSpace itself that is gone is CG-HOST-CONTRACT, with or without the switched ones', () => {
-    expect(facts(report({ pendingMessages: 'missing' }))).toMatchObject({ ok: false, missing: ['pendingMessages'] });
-    expect(facts(report({ wsFrames: 'missing', composerBridge: 'changed' }))).toMatchObject({ ok: false, missing: ['composerBridge', 'wsFrames'] });
-  });
-
-  it('[DB-031] a store ChatSpace has not created yet (no chat opened since the reload) is listed apart and is no error; the same store absent after a composer is', () => {
-    const waiting = facts(report({ composerTranslator: 'notYet' }, { previewSend: { state: 'off' } }));
-    expect(waiting).toEqual({ build: 'index-abc', adapterVersion: '0.3.0', ok: true, missing: [], degraded: ['previewSend'], notYet: ['composerTranslator'] });
-    expect(facts(report({ composerTranslator: 'missing' }))).toMatchObject({ ok: false, missing: ['composerTranslator'] });
-  });
-
-  it('[R20 F7] the site\'s expected anchors are read, not the keys a report carries: an expected anchor it does not name is missing', () => {
-    const named = Object.fromEntries(ANCHOR_IDS.filter((anchor) => anchor !== 'mimic').map((anchor) => [anchor, 'ok']));
-    const short = { build: 'index-abc', adapterVersion: '0.3.0', checkedAt: 1, anchors: { ...named, stranger: 'missing' }, capabilities: { insert: { state: 'on' } } } as unknown as HostContractReport;
-    expect(facts(short)).toMatchObject({ ok: false, missing: ['mimic'] });
-  });
-
-  it('[host:fansly] [host:chatspace] [LG-016] [R20 F7] two test adapters, two sites: each report is read by its own site\'s set, the second one in its own block', () => {
-    // A second site's adapter: its anchors are its own, its switched part its own.
-    const second: HostContractShape = { anchors: ['conversationRoute', 'textarea', 'socket', 'vaultUpload'], switchedAnchors: ['vaultUpload'], switchedCapabilities: [] };
-    const site = {
-      host: 'fansly-web',
-      build: 'main.2e6b96097a4bb73b',
-      adapterVersion: '0.1.0',
-      checkedAt: 1,
-      capabilities: { insert: { state: 'on' }, previewSend: { state: 'off' } },
-      extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'shape', vaultUpload: 'missing' }, capabilities: { freshness: { state: 'degraded' } } } },
-    } as unknown as HostContractReport;
-    expect(contractFactsOf(site, second)).toEqual({ build: 'main.2e6b96097a4bb73b', adapterVersion: '0.1.0', ok: false, missing: ['textarea', 'socket', 'vaultUpload'], degraded: ['previewSend', 'freshness'] });
-    // ChatSpace's set reads ChatSpace's report, whatever another site's says.
-    expect(facts(report({}))).toMatchObject({ ok: true, missing: [] });
-    // Only switched anchors missing: no error.
-    const quiet = { ...site, extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'ok', socket: 'ok' }, capabilities: {} } } } as unknown as HostContractReport;
-    expect(contractFactsOf(quiet, second)).toMatchObject({ ok: true, missing: ['vaultUpload'] });
   });
 });

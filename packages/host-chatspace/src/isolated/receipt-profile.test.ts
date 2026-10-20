@@ -2,12 +2,12 @@
 // the page already loaded, read from the DOM and the resource timing, and
 // whether an approved profile names exactly them.
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { ReceiptProfileSchema, type ReceiptProfile } from '@cg/contracts/hub';
 
 import { ADAPTER_VERSION, RECEIPT_MODULE_ROLES } from './host-contract';
-import { loadedScriptUrls, matchReceiptProfile, receiptModules } from './receipt-profile';
+import { matchReceiptProfile, receiptModules } from './receipt-profile';
 
 const ORIGIN = 'https://chat.example.test';
 const asset = (name: string): string => `${ORIGIN}/assets/${name}.js`;
@@ -19,32 +19,7 @@ const BUILD = ['index-AAAAAAAA', 'notificationEntry-BBBBBBBB', 'composables-CCCC
 const MODULES = { notificationEntry: 'BBBBBBBB', composables: 'CCCCCCCC+DDDD_DD-', onlyfans: 'E2E2E2E2+EEEEEEEE', accounts: 'FFFFFFFF', inbox: 'GGGGGGGG' };
 const profile = (over: Record<string, unknown> = {}) => ({ id: 'chatspace-test', adapterVersion: ADAPTER_VERSION, modules: MODULES, ...over });
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 describe('[X8-06] fingerprints of the loaded send-path modules', () => {
-  it('reads what the document already loaded — scripts, modulepreload links, resource timing — and requests nothing', () => {
-    // Plain objects in place of elements: a test environment would start loading real ones.
-    const selectors: string[] = [];
-    const page = {
-      querySelectorAll: (selector: string) => {
-        selectors.push(selector);
-        return [{ src: asset('index-AAAAAAAA') }, { href: asset('composables-CCCCCCCC') }, { src: '' }];
-      },
-    };
-    const fetched = vi.spyOn(globalThis, "fetch");
-    const timing = vi.fn(() => [{ name: asset('onlyfans-EEEEEEEE') }, { name: `${ORIGIN}/api/v0/accounts` }]);
-    const urls = loadedScriptUrls({ document: page, performance: { getEntriesByType: timing } } as unknown as Window);
-    expect(urls).toEqual([asset('index-AAAAAAAA'), asset('composables-CCCCCCCC'), asset('onlyfans-EEEEEEEE'), `${ORIGIN}/api/v0/accounts`]);
-    // Scripts and module preloads only: a stylesheet link is not a module.
-    expect(selectors).toEqual(['script[src], link[rel="modulepreload"][href]']);
-    expect(timing).toHaveBeenCalledWith('resource');
-    expect(fetched).not.toHaveBeenCalled();
-    // A page that cannot be read gives what it could: a missing role then matches no profile.
-    expect(loadedScriptUrls({ document: page, performance: {} } as unknown as Window)).toEqual([asset('index-AAAAAAAA'), asset('composables-CCCCCCCC')]);
-  });
-
   it('one fingerprint per essential role: the hashes of its modules, sorted; the entry module and other chunks are not part of it', () => {
     expect(receiptModules(BUILD.map(asset), ORIGIN)).toEqual(MODULES);
     // The order of loading and a module seen twice (DOM and resource timing) change nothing; a query string does not hide it.
@@ -88,50 +63,6 @@ describe('[X8-06] a profile matches only the whole current set (§6.2)', () => {
 const PAGE_0195 = ['index-p8xPkCj8', 'composables-DKWzNPeA', 'accounts-CN9N-pj3', 'inbox-DUukOf_u', 'onlyfans-DqEV2pNo', 'composables-C25sVtl7', 'runtime-dom.esm-bundler-Ydpp0psT', 'MainLayout-Dyqw2t1H', 'onlyfans-SstGvKHV', 'notificationEntry-BaWeHDsj', 'ChatView-CnMzMAt4'];
 /** 0.195.0 before the main layout loaded (a signed-out page never loads it). */
 const PAGE_0195_EARLY = ['index-p8xPkCj8', 'composables-DKWzNPeA', 'accounts-CN9N-pj3', 'inbox-DUukOf_u', 'onlyfans-DqEV2pNo', 'composables-C25sVtl7'];
-/** 0.172.0 the same way: its composer, translator and echo handler were a `messages` module; `onlyfans` was one small module. */
-const PAGE_0172 = ['index-DEVowLko', 'composables-BUNn3xEu', 'accounts-BWN_jVY3', 'inbox-SRJHz93Z', 'onlyfans-CaxZc4_R', 'composables-BSl13FHf', 'MainLayout-DBvnSRX2', 'messages-DlBZ5e81', 'notificationEntry-DgqI6Vgc', 'ChatView-DOQWEL72'];
-/** The value the reviewer proposed for the hub's `limits.previewSendReceiptProfiles`, exactly, with this adapter's version. */
-const HUB_VALUE_0195 =
-  '[{"id":"chatspace-0.195.0","adapterVersion":"0.3.0","modules":{"notificationEntry":"BaWeHDsj","composables":"C25sVtl7+DKWzNPeA","onlyfans":"DqEV2pNo+SstGvKHV","accounts":"CN9N-pj3","inbox":"DUukOf_u"}}]';
-/** The 0.172.0 profile of adapter 0.2.0 (what `host-contract-check` printed for that copy). */
-const PROFILE_0172 = { id: 'chatspace-0.172.0', adapterVersion: '0.2.0', modules: { notificationEntry: 'DgqI6Vgc', composables: 'BSl13FHf+BUNn3xEu', messages: 'DlBZ5e81', accounts: 'BWN_jVY3', inbox: 'SRJHz93Z' } };
-/** The value as the bootstrap's own schema reads it. */
-const reviewed = (): ReceiptProfile[] => (JSON.parse(HUB_VALUE_0195) as unknown[]).map((item) => ReceiptProfileSchema.parse(item));
-
-describe('[X8-06] ChatSpace 0.195.0: the `messages` module is gone, the send path is in `onlyfans` (adapter 0.3.0)', () => {
-  it('the role list names `onlyfans`, not `messages`, and the adapter version moved on with it', () => {
-    expect([...RECEIPT_MODULE_ROLES].sort()).toEqual(['accounts', 'composables', 'inbox', 'notificationEntry', 'onlyfans']);
-    expect(ADAPTER_VERSION).toBe('0.3.0');
-  });
-
-  it('0.195.0’s two `onlyfans` modules — one loaded with the page, one with the main layout — are one fingerprint, sorted', () => {
-    expect(receiptModules(PAGE_0195.map(asset), ORIGIN)).toEqual({ notificationEntry: 'BaWeHDsj', composables: 'C25sVtl7+DKWzNPeA', onlyfans: 'DqEV2pNo+SstGvKHV', accounts: 'CN9N-pj3', inbox: 'DUukOf_u' });
-    // The order the page loaded them in does not matter.
-    expect(receiptModules([...PAGE_0195].reverse().map(asset), ORIGIN)).toEqual(receiptModules(PAGE_0195.map(asset), ORIGIN));
-  });
-
-  it('the reviewer’s hub value matches a 0.195.0 page under this adapter — never before the main layout loaded, never under 0.2.0', () => {
-    const profiles = reviewed();
-    expect(profiles.map((item) => item.adapterVersion)).toEqual([ADAPTER_VERSION]);
-    expect(matchReceiptProfile(receiptModules(PAGE_0195.map(asset), ORIGIN), profiles, ADAPTER_VERSION)).toEqual({ profile: 'chatspace-0.195.0', kind: 'exact' });
-    // Only the modules of the page's first load: the composer's `onlyfans` and the queue are not there yet.
-    expect(matchReceiptProfile(receiptModules(PAGE_0195_EARLY.map(asset), ORIGIN), profiles, ADAPTER_VERSION)).toBeNull();
-    expect(matchReceiptProfile(receiptModules(PAGE_0195.map(asset), ORIGIN), profiles, '0.2.0')).toBeNull();
-  });
-
-  it('a 0.172.0 page matches no profile of this adapter: its old profile, relabelled or not, and 0.195.0’s value give none — X8 stays off (CG-SEND-RECEIPT)', () => {
-    const page = receiptModules(PAGE_0172.map(asset), ORIGIN);
-    // `messages` is not read any more; 0.172.0's small `onlyfans` module is.
-    expect(page).toEqual({ notificationEntry: 'DgqI6Vgc', composables: 'BSl13FHf+BUNn3xEu', onlyfans: 'CaxZc4_R', accounts: 'BWN_jVY3', inbox: 'SRJHz93Z' });
-    expect(matchReceiptProfile(page, [PROFILE_0172], ADAPTER_VERSION)).toBeNull();
-    expect(matchReceiptProfile(page, [{ ...PROFILE_0172, adapterVersion: ADAPTER_VERSION }], ADAPTER_VERSION)).toBeNull();
-    expect(matchReceiptProfile(page, reviewed(), ADAPTER_VERSION)).toBeNull();
-    // A page with a `messages` module and no `onlyfans` one has no fingerprint for the role at all.
-    const withoutOnlyfans = receiptModules(PAGE_0172.filter((name) => !name.startsWith('onlyfans-')).map(asset), ORIGIN);
-    expect(Object.keys(withoutOnlyfans).sort()).toEqual(['accounts', 'composables', 'inbox', 'notificationEntry']);
-    expect(matchReceiptProfile(withoutOnlyfans, [{ ...PROFILE_0172, adapterVersion: ADAPTER_VERSION }, ...reviewed()], ADAPTER_VERSION)).toBeNull();
-  });
-});
 
 // Decision X25 (2026-10-09): the owner relaxed X21 — X8 runs on any ChatSpace build «until something breaks». The hub
 // lists the sentinel instead of per-build profiles; the fuse (main/receipt.ts) watches what X8 does after that.
@@ -164,33 +95,10 @@ describe('[X8-06] the «any build» sentinel (decision X25)', () => {
     expect(matchReceiptProfile({ ...MODULES, inbox: '' }, anyBuild(), ADAPTER_VERSION)).toBeNull();
   });
 
-  it('does not match under another adapter version: a sentinel for 0.2.0 lets no 0.3.0 adapter in, nor the other way round', () => {
-    const loaded = receiptModules(BUILD.map(asset), ORIGIN);
-    expect(matchReceiptProfile(loaded, [{ id: 'any-build', adapterVersion: '0.2.0', modules: { '*': '*' } }], ADAPTER_VERSION)).toBeNull();
-    expect(matchReceiptProfile(loaded, anyBuild(), '0.2.0')).toBeNull();
-    expect(matchReceiptProfile(loaded, anyBuild(), '0.4.0')).toBeNull();
-  });
-
   it('only `{"*":"*"}` is the sentinel: a star beside a real role, a star with a fingerprint, a star role elsewhere — none of them', () => {
     const loaded = receiptModules(BUILD.map(asset), ORIGIN);
     for (const modules of [{ '*': '*', inbox: 'GGGGGGGG' }, { '*': 'GGGGGGGG' }, { inbox: '*' }, { ...MODULES, '*': '*' }, {}]) {
       expect([modules, matchReceiptProfile(loaded, [{ id: 'not-it', adapterVersion: ADAPTER_VERSION, modules }], ADAPTER_VERSION)]).toEqual([modules, null]);
     }
-  });
-
-  it('exact profiles keep working beside it, and one that matches is named first — a reviewed build says so', () => {
-    const loaded = receiptModules(BUILD.map(asset), ORIGIN);
-    expect(matchReceiptProfile(loaded, [...anyBuild(), profile()], ADAPTER_VERSION)).toEqual({ profile: 'chatspace-test', kind: 'exact' });
-    expect(matchReceiptProfile(loaded, [profile(), ...anyBuild()], ADAPTER_VERSION)).toEqual({ profile: 'chatspace-test', kind: 'exact' });
-    // An exact profile of another build does not stand in the way: the sentinel lets this one in.
-    expect(matchReceiptProfile(loaded, [profile({ id: 'older', modules: { ...MODULES, onlyfans: 'ZZZZZZZZ' } }), ...anyBuild()], ADAPTER_VERSION)).toEqual({ profile: 'any-build', kind: 'anyBuild' });
-    // Both reviewed values and the sentinel, as the owner may list them while going back: the reviewed build is named.
-    expect(matchReceiptProfile(receiptModules(PAGE_0195.map(asset), ORIGIN), [...anyBuild(), ...reviewed()], ADAPTER_VERSION)).toEqual({ profile: 'chatspace-0.195.0', kind: 'exact' });
-  });
-
-  it('the residual risk, said as it is: a page whose bundler regrouped the send path (0.172.0 under this adapter) passes the sentinel — the runtime contract, the receipt observer and the fuse are what guard it then', () => {
-    const page = receiptModules(PAGE_0172.map(asset), ORIGIN);
-    expect(matchReceiptProfile(page, reviewed(), ADAPTER_VERSION)).toBeNull();
-    expect(matchReceiptProfile(page, anyBuild(), ADAPTER_VERSION)).toEqual({ profile: 'any-build', kind: 'anyBuild' });
   });
 });

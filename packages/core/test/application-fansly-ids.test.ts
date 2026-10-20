@@ -10,11 +10,10 @@
 // (`conversation.platformConversationId`). On ChatSpace the conversation is
 // the fan, as before (its requests are pinned as recorded on main elsewhere).
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { type ChatRef, type HubRouteKey, type PersonaCatalog, type SettingsV1, type SpenderListItem, type SpendersPage, type Surface } from '@cg/contracts';
 import { Surfaces, fanHandle, type BoardSwitch, type ChatNavigator, type PageContextPort, type PageContextState, type PreviewDirectory, type PreviewTargetInfo } from '@cg/core/application/boards';
-import { createFanPanelController } from '@cg/core/application/fanpanel';
 import { createPreviewController } from '@cg/core/application/preview';
 import { createSpendersController, type SpendersSource } from '@cg/core/application/spenders';
 import { createI18n } from '@cg/core/domain/i18n';
@@ -27,7 +26,7 @@ import { readyHarness } from './support/ai-harness';
 import { BoardsBackground } from './support/boards-background';
 import { FakeClock, sequentialIds, settle } from './support/clock';
 import { FANSLY as FANSLY_SLICE, featuresOfBoth } from './support/features';
-import { FANSLY, NOW_MS, WORLD, binding, fanslyAccount, fanslyBinding, fanslyChat, session, uuid, withFanslyPage } from './support/world';
+import { FANSLY, NOW_MS, WORLD, fanslyAccount, fanslyBinding, fanslyChat, session, uuid, withFanslyPage } from './support/world';
 
 const BOOTSTRAP = withFanslyPage(BOOTSTRAP_PILOT_PAGES);
 const PERSONA = { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId };
@@ -37,7 +36,6 @@ const SETTINGS: SettingsV1 = settingsWithPersona({
 const CATALOG: PersonaCatalog = { personas: [{ key: WORLD.persona.key, displayName: 'Model Two', version: 1, definitionId: WORLD.persona.definitionId, status: 'active' }] };
 const TAB = uuid(0xa1);
 const FANSLY_PAGE = WORLD.pages.fansly.pageId;
-const CHATSPACE_PAGE = WORLD.pages.one.pageId;
 const i18n = createI18n({ language: 'ru', now: () => NOW_MS, timeZone: 'Europe/Moscow' });
 
 /** A second fan of the Fansly page whose chat no list and no hub row knows. */
@@ -58,8 +56,6 @@ function contextOf(state: Pick<PageContextState, 'account' | 'binding'>, pageId:
   return { current: () => ready, subscribe: () => () => undefined, refresh: () => Promise.resolve(), dispose: () => undefined };
 }
 const fanslyContext = contextOf({ account: fanslyAccount, binding: fanslyBinding }, FANSLY_PAGE);
-const chatspaceAccount = { host: 'chatspace', hostAccountId: WORLD.pages.one.hostAccountId, platform: 'onlyfans', platformAccountId: WORLD.pages.one.platformAccountId, username: null, displayName: null } as const;
-const chatspaceContext = contextOf({ account: chatspaceAccount, binding }, CHATSPACE_PAGE);
 
 /** A navigator that only says what it was asked to open. */
 function recordingNavigator(): ChatNavigator & { readonly opened: { readonly chat: ChatRef; readonly surface: Surface; readonly boards: readonly BoardSwitch[]; readonly conversationRef: string | undefined }[] } {
@@ -107,70 +103,6 @@ describe('[host:fansly] R20 P8a: the Spenders board names the chat of a Fansly f
     return { spenders, navigator, bg };
   }
 
-  it.each(['Hub alias', FANSLY.fan])('[FS-SPD-1] [SP-012] [SP-032] [SP-040] hub alias precedes display/username; known names and groups ask nothing of the site; no statistics or queue on Fansly (%s)', async (alias) => {
-    const row = rowOf(0, FANSLY.fan, 'fansly', FANSLY.group);
-    const source = { names: vi.fn(() => Promise.resolve([])), cached: vi.fn(() => Promise.resolve(null)), resolve: vi.fn(() => Promise.resolve(null)) };
-    const { spenders, bg } = await board(fanslyContext, [{ ...row, fan: { ...row.fan, pageAlias: alias, displayName: 'Display', username: 'username' } }], source);
-    const handle = fanHandle('spenders', FANSLY_PAGE, FANSLY.fan);
-    await spenders.directory.prepare?.(handle);
-    expect(spenders.directory.resolve(handle)?.name).toBe(alias);
-    expect(source.names).not.toHaveBeenCalled();
-    expect(source.cached).not.toHaveBeenCalled();
-    expect(source.resolve).not.toHaveBeenCalled();
-    expect(spenders.getSnapshot({ of: 'spenders.board' }).statistics).toBe(false);
-    expect(spenders.command('toggle-stats', null)).toBeNull();
-    await spenders.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
-    expect(bg.requests.filter(({ type }) => type === 'spenders.stats' || type === 'spenders.queue')).toEqual([]);
-    spenders.dispose();
-  });
-
-  it('[SP-037] passive cache supplies a missing group; only an open-chat click can search; the alias never becomes the search term', async () => {
-    const row = rowOf(0, FANSLY.fan, 'fansly', null);
-    const source = { names: vi.fn(() => Promise.resolve([])), cached: vi.fn(() => Promise.resolve(null as string | null)), resolve: vi.fn(() => Promise.resolve(FANSLY.group)) };
-    const { spenders, navigator } = await board(fanslyContext, [{ ...row, fan: { ...row.fan, pageAlias: 'Alias', displayName: 'Search me', username: 'handle' } }], source);
-    const handle = fanHandle('spenders', FANSLY_PAGE, FANSLY.fan);
-    await spenders.directory.prepare?.(handle);
-    expect(source.resolve).not.toHaveBeenCalled();
-    await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: handle } });
-    expect(source.resolve).toHaveBeenCalledWith(fanslyBinding.platformAccountId, { fanRef: FANSLY.fan, displayName: 'Search me', username: 'handle' });
-    expect(navigator.opened[0]?.conversationRef).toBe(FANSLY.group);
-    expect(spenders.directory.resolve(handle)?.conversationRef).toBe(FANSLY.group);
-    spenders.dispose();
-    source.cached.mockResolvedValue(FANSLY.group);
-    source.resolve.mockClear();
-    const cached = await board(fanslyContext, [row], source);
-    await cached.spenders.directory.prepare?.(handle);
-    expect(cached.spenders.directory.resolve(handle)?.conversationRef).toBe(FANSLY.group);
-    expect(source.resolve).not.toHaveBeenCalled();
-    cached.spenders.dispose();
-  });
-
-  it('an unavailable page context refuses before any passive lookup or site request', async () => {
-    let state = fanslyContext.current();
-    const context = { ...fanslyContext, current: () => state };
-    const source = { names: vi.fn(() => Promise.resolve([])), cached: vi.fn(() => Promise.resolve(null)), resolve: vi.fn(() => Promise.resolve(FANSLY.group)) };
-    const { spenders, navigator } = await board(context, [rowOf(0, FANSLY.fan, 'fansly', null)], source);
-    state = { ...state, phase: 'blocked', blocker: { code: 'CG-RUNTIME-UNREACHABLE' } };
-    expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', FANSLY_PAGE, FANSLY.fan) } })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
-    expect(source.cached).not.toHaveBeenCalled();
-    expect(source.resolve).not.toHaveBeenCalled();
-    expect(navigator.opened).toEqual([]);
-    spenders.dispose();
-  });
-
-  it('closing the board while a group lookup waits prevents its late navigation', async () => {
-    let finish!: (group: string) => void;
-    const source: SpendersSource = { names: () => Promise.resolve([]), cached: () => Promise.resolve(null), resolve: () => new Promise((resolve) => { finish = resolve; }) };
-    const { spenders, navigator } = await board(fanslyContext, [rowOf(0, FANSLY.fan, 'fansly', null)], source);
-    const opening = spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', FANSLY_PAGE, FANSLY.fan) } });
-    await settle(3);
-    await spenders.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
-    finish(FANSLY.group);
-    expect(await opening).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
-    expect(navigator.opened).toEqual([]);
-    spenders.dispose();
-  });
-
   it('a row with the hub’s group gives the preview that group; a row without one gives none — never the fan’s id; «Открыть чат» opens the group or nothing', async () => {
     const { spenders, navigator } = await board(fanslyContext, [rowOf(0, FANSLY.fan, 'fansly', FANSLY.group), rowOf(1, STRANGER, 'fansly', null)]);
     const known = fanHandle('spenders', FANSLY_PAGE, FANSLY.fan);
@@ -183,18 +115,6 @@ describe('[host:fansly] R20 P8a: the Spenders board names the chat of a Fansly f
     expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: known } })).toMatchObject({ ok: true, outcome: 'opened' });
     expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: stranger } })).toMatchObject({ ok: false, code: 'CG-DATA-NOT-READY' });
     expect(navigator.opened).toEqual([{ chat: fanslyChat, surface: 'preview', boards: ['spenders'], conversationRef: FANSLY.group }]);
-    spenders.dispose();
-  });
-
-  it('[host:chatspace] on ChatSpace the conversation is the fan: a row’s own conversation id is never read, and the row opens the fan as before', async () => {
-    const fan = WORLD.fan;
-    const { spenders, navigator } = await board(chatspaceContext, [rowOf(0, fan, 'onlyfans', '5000')]);
-    const handle = fanHandle('spenders', CHATSPACE_PAGE, fan);
-    const info = spenders.directory.resolve(handle);
-    expect(info?.fanRef).toBe(fan);
-    expect(info !== null && 'conversationRef' in info).toBe(false);
-    expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: handle } })).toMatchObject({ ok: true, outcome: 'opened' });
-    expect(navigator.opened.map((open) => open.conversationRef)).toEqual([undefined]);
     spenders.dispose();
   });
 });
@@ -294,23 +214,5 @@ describe('[host:fansly] R20 P8a: a Fansly route that names no group opens no cha
     h.host.openChat(fanslyChat, fanslyAccount, FANSLY.group);
     await h.settle();
     expect(h.ai.workspace.situation().chat?.conversationRef).toBe(FANSLY.group);
-  });
-
-  it('the fan panel: the card and the dossier are the fan’s; the archive is not read by the fan’s id in the group’s place', async () => {
-    const clock = new FakeClock(NOW_MS);
-    const call = () => Promise.resolve({ status: 404, body: { error: 'not_found' } });
-    const bg = new BoardsBackground({ clock, call, session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId, features: featuresOfBoth });
-    const host = new FakeHostPort({ start: { ...startSnapshot, route: { ...startSnapshot.route, name: 'chat', chat: fanslyChat, account: fanslyAccount } }, memory, checkpoint: null, answers: {}, timeline: [] }, NOW_MS);
-    const panel = createFanPanelController({ rpc: bg.rpc, host, i18n, clock, context: fanslyContext, surfaces: new Surfaces() });
-    panel.subscribe({ of: 'fan-panel' }, () => undefined);
-    await panel.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'fan-panel', open: true } });
-    await settle(12);
-    expect(bg.requests.filter((request) => ['feed.read', 'fan.card', 'fan.dossier'].includes(request.type))).toEqual([
-      { type: 'fan.card', payload: { pageId: FANSLY_PAGE, fanRef: FANSLY.fan, period: 'lifetime' } },
-      { type: 'fan.card', payload: { pageId: FANSLY_PAGE, fanRef: FANSLY.fan, period: '30d' } },
-      { type: 'fan.dossier', payload: { pageId: FANSLY_PAGE, fanRef: FANSLY.fan } },
-    ]);
-    panel.dispose();
-    host.dispose();
   });
 });

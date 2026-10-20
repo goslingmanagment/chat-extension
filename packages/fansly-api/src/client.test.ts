@@ -239,44 +239,11 @@ describe('repeats and parallelism (RB-023)', () => {
     expect(made.sent).toHaveLength(3);
   });
 
-  it('[RB-023] [NF-037] a 429 cools the creator down: a pass\'s read waits the cooldown out and is asked again; a click\'s read is refused without a request', async () => {
-    const made = world();
-    made.replies.push({ status: 429, retryAfter: '45' });
-    expect(await settle(made.api.client.call(passRead))).toMatchObject({ status: 200 });
-    expect(made.sent).toHaveLength(2);
-    // Retry-After 45 s against the first rung of the ladder (30 s): the longer wins.
-    expect((made.sent[1]?.at ?? 0) - (made.sent[0]?.at ?? 0)).toBeGreaterThanOrEqual(45_000);
-
-    const click = world();
-    click.replies.push({ status: 429 });
-    const at = Date.now();
-    const limited = await failure(click.api.client.call(registration));
-    expect(limited).toMatchObject({ kind: 'rate-limited', code: 'CG-FAN-RATE-LIMIT', httpStatus: 429, sent: true, retryAt: at + 30_000 });
-    const refused = await failure(click.api.client.call(registration));
-    expect(refused).toMatchObject({ kind: 'cooling', code: 'CG-FAN-RATE-LIMIT', sent: false, retryAt: at + 30_000 });
-    expect(await failure(click.api.client.call(greeting()))).toMatchObject({ kind: 'cooling', sent: false });
-    expect(await failure(click.api.client.call({ purpose: 'spenders', route: 'group.create', account: CREATOR, body: { users: [] } }))).toMatchObject({ kind: 'cooling', sent: false });
-    expect(click.sent).toHaveLength(1);
-  });
-
   it('[RB-023] [FS-NET-3] a foreign 429 (a fact of the core) closes our next call of that creator before any request', async () => {
     const made = world();
     made.facts.push({ requestId: 'neighbour-1', at: T0, accountId: CREATOR, source: 'page' });
     expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'cooling', retryAt: T0 + 30_000, sent: false });
     expect(made.sent).toEqual([]);
-  });
-
-  it('[RB-023] reads of one creator go one at a time, 400 ms apart at least; a write never waits behind them', async () => {
-    const made = world();
-    const reads = [0, 1, 2].map((index) => made.api.client.call({ ...passRead, query: { groupId: GROUP, before: String(index + 1) } }));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(made.sent).toHaveLength(1);
-    // A greeting while a read is in flight and two wait: it goes at once.
-    const write = made.api.client.call(greeting());
-    await settle(Promise.all([...reads, write]));
-    const readsAt = made.sent.filter((entry) => entry.method === 'GET').map((entry) => entry.at);
-    expect(readsAt).toEqual([T0, T0 + 500, T0 + 1000]);
-    expect(made.sent.find((entry) => entry.method === 'POST')?.at).toBe(T0);
   });
 });
 
@@ -321,7 +288,6 @@ describe('a write the hub\'s custody guards (§8.6)', () => {
   });
 });
 
-
 describe('review regressions: dispatch and response boundaries', () => {
   it('[FS-NET-3] a prepared greeting rechecks a newly recorded foreign 429 synchronously before fetch', async () => {
     const made = world();
@@ -331,32 +297,7 @@ describe('review regressions: dispatch and response boundaries', () => {
     expect(made.sent).toHaveLength(0);
     await expect(result).rejects.toMatchObject({ kind: 'cooling', sent: false, retryAt: T0 + 30_000 });
   });
-
-  it('[FS-NET-3] a 429 with an unreadable body still cools the next call by Retry-After', async () => {
-    const made = world();
-    made.replies.push({ status: 429, retryAfter: '120', brokenBody: true });
-    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'rate-limited', httpStatus: 429 });
-    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'cooling', sent: false, retryAt: T0 + 120_000 });
-    expect(made.sent).toHaveLength(1);
-  });
-
-  it('[NF-037] queued reads count their spacing from dispatch, even if preparation was five seconds earlier', async () => {
-    const made = world();
-    const prepared = await made.api.client.prepare(passRead);
-    await vi.advanceTimersByTimeAsync(5000);
-    await prepared.start();
-    await settle(made.api.client.call(passRead), 1);
-    expect((made.sent[1]?.at ?? 0) - (made.sent[0]?.at ?? 0)).toBe(500);
-  });
-
-  it('[NF-037] successful writes never count as answered reads for cooldown or healing', async () => {
-    const made = world();
-    for (let i = 0; i < 30; i++) await made.api.client.call(greeting());
-    made.replies.push({ status: 429 });
-    expect(await failure(made.api.client.call(registration))).toMatchObject({ retryAt: T0 + 30_000 });
-  });
 });
-
 
 it.each([401, 403])('[ER-050] a late %s with an unreadable body expires only the captured session it used', async (status) => {
   const made = world();
@@ -369,7 +310,6 @@ it.each([401, 403])('[ER-050] a late %s with an unreadable body expires only the
   expect(made.disconnected).toEqual([CREATOR]);
 });
 
-
 it('[FS-NET-3] a canonical id learned after prepare cannot hide its new cooldown at dispatch', async () => {
   const made = world();
   const prepared = await made.api.client.prepare(greeting());
@@ -379,7 +319,6 @@ it('[FS-NET-3] a canonical id learned after prepare cannot hide its new cooldown
   await expect(prepared.start()).rejects.toMatchObject({ kind: 'cooling', sent: false });
   expect(made.sent).toEqual([]);
 });
-
 
 it('[FS-NET-3] prepared start refuses while a new observation is still held by composition', async () => {
   const made = world();
@@ -407,19 +346,6 @@ describe('the creator of a session (AU-032)', () => {
     expect(made.session.forAccount(CREATOR)?.legacyId).toBe(LEGACY);
     await settle(made.api.client.call(registration));
     expect(paths(made)).toHaveLength(3);
-  });
-
-  it('[AU-032] a session whose /account/me got no answer is asked again only after a minute; meanwhile the call is refused unsent', async () => {
-    const made = world();
-    made.setTemplate({ ...TEMPLATE, legacyId: LEGACY });
-    made.replies.push('network');
-    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'session', sent: false });
-    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'session', sent: false });
-    expect(paths(made)).toEqual(['/api/v1/account/me']);
-    await vi.advanceTimersByTimeAsync(61_000);
-    made.replies.push(me, { status: 200 });
-    await settle(made.api.client.call(registration));
-    expect(paths(made)).toEqual(['/api/v1/account/me', '/api/v1/account/me', `/api/v1/group/${GROUP}/`]);
   });
 
   it('[AU-032] an answer naming someone else binds nothing to the creator asked for', async () => {

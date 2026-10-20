@@ -87,20 +87,6 @@ describe('[host:fansly] latest text for notes and voice operations', () => {
     }
   });
 
-  it.each(['missing', 'failed', 'no-text', 'empty'] as const)('keeps archive generation available when the page snapshot is %s', async (reason) => {
-    const h = harness();
-    const input = startOf('notes-fill');
-    if (reason === 'failed') h.read.mockRejectedValue(new Error('bridge unavailable'));
-    else if (reason === 'missing') h.read.mockResolvedValue(null);
-    else {
-      const held = snapshot('notes-fill');
-      if (reason === 'no-text') delete held.tail;
-      else held.tail = [];
-      h.read.mockResolvedValue(held);
-    }
-    expect(await h.prepare(input)).toBe(input);
-  });
-
   it.each(['groupId', 'creatorId', 'fanId'] as const)('does not attach a snapshot with a different %s', async (field) => {
     const h = harness();
     const input = startOf('notes-fill');

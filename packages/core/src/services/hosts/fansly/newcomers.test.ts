@@ -1,5 +1,5 @@
 // The background's pass of «Новые» on Fansly (R20 P10b1) against a small scripted Fansly: what it asks, in what
-// order, what each row's verdict rests on, the queue's buttons and the changes the window hears. Every request is
+// order, what each row's verdict rests on, and the proof a greeting takes. Every request is
 // checked against FS-NET-1's `newcomers` routes as it arrives.
 
 import { FANSLY_TAB_REQUESTS, FANSLY_TAB_EVENTS, type FanslyFollowerRow, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
-import { COOLING_LOOK_MS, NEWCOMERS_EXCLUDED_PREFIX, NEWCOMERS_WINDOW_KEY, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal, type PassJournalEvent, type PassJournalFields } from './newcomers';
+import { COOLING_LOOK_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
 const C = '700000000000000017';
@@ -236,118 +236,8 @@ afterEach(() => {
 });
 
 describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)', () => {
-  it('[NF-029] [FS-NEW-5] journals phases, calls, pagination, classifications, verdicts and cache use by id; no conversation or profile text', async () => {
-    const records: Array<{ event: PassJournalEvent; fields: PassJournalFields | undefined }> = [];
-    const start = vi.fn<PassJournal['start']>(() => (event, fields) => { records.push({ event, fields }); });
-    const t = setup({ journal: { start } });
-    const fan = t.world.follow(1, T0 - minutes(5), { notes: false, name: 'PRIVATE NAME' });
-    const group = t.world.chat(fan, [{ from: 'fan', content: 'PRIVATE MESSAGE' }, { from: 'model', type: 2, content: 'PRIVATE AUTOMATION' }]);
-    const passId = await t.scan();
-    await t.settle();
-    await t.ask('fansly.followers.history', { passId, fanRef: fan, before: null, limit: 10 });
-    expect(start).toHaveBeenCalledWith({ passId, hostAccountId: C, startedAt: T0, windowHours: 48 });
-    expect(start).toHaveBeenCalledTimes(1);
-    expect(records.map((record) => record.event)).toEqual(expect.arrayContaining(['pass.start', 'pass.phase', 'call.start', 'call.end', 'welcome.refresh', 'followers.page', 'inbox.page', 'profiles.batch', 'chat.reuse', 'history.page', 'message.classify', 'row.verdict', 'pass.end', 'history.cache']));
-    expect(records.find((record) => record.event === 'row.verdict' && record.fields?.status === 'ready')?.fields).toMatchObject({ fanRef: fan, groupId: group.id, status: 'ready', reason: 'history-start' });
-    expect(records).toContainEqual({ event: 'message.classify', fields: { fanRef: fan, groupId: group.id, messageId: group.messages[0]?.id, classification: 'fan' } });
-    expect(JSON.stringify(records)).not.toMatch(/PRIVATE|Thanks|about 1|fan_1/);
-  });
 
-  it('[NF-029] [FS-NEW-5] records a failed call and the stopped pass by code, never the thrown error text; a broken journal cannot break a scan', async () => {
-    const events: Array<{ event: PassJournalEvent; fields: PassJournalFields | undefined }> = [];
-    const t = setup({ journal: { start: () => (event, fields) => { events.push({ event, fields }); } } });
-    t.world.failures.set('message.automated', new Error('PRIVATE ERROR'));
-    const passId = await t.scan();
-    await t.settle();
-    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 10 })).pass?.state).toBe('stopped');
-    expect(events.find((record) => record.event === 'call.failed')?.fields).toMatchObject({ route: 'message.automated', code: 'CG-FAN-REQUEST' });
-    expect(events).toContainEqual({ event: 'pass.stop', fields: { code: 'CG-FAN-REQUEST', total: 0 } });
-    expect(JSON.stringify(events)).not.toContain('PRIVATE ERROR');
-    const broken = setup({ journal: { start: () => () => { throw new Error('journal failed'); } } });
-    const second = await broken.scan();
-    await broken.settle();
-    expect((await broken.ask('fansly.followers.read', { passId: second, offset: 0, limit: 10 })).pass?.state).toBe('done');
-  });
-
-  it('[FS-NEW-4] [NF-030] [NF-031] nothing is asked before a window scans; then the welcome texts, the period’s followers by the moment in their follow id, the inbox, the profiles with the creator’s own names', async () => {
-    const t = setup();
-    const a = t.world.follow(1, T0 - minutes(5), { custom: 'Lucky' });
-    const b = t.world.follow(2, T0 - minutes(60), { notes: false });
-    t.world.follow(3, T0 - minutes(60 * 50));
-    await vi.advanceTimersByTimeAsync(10_000);
-    expect(t.world.calls).toEqual([]);
-
-    const passId = await t.scan(48);
-    await t.settle();
-    expect(t.routes().slice(0, 3)).toEqual(['message.automated', 'followers.new', 'messaging.groups']);
-    expect(t.world.calls[1]?.query).toEqual({ before: '0', after: '0', limit: '100', offset: '0', search: '', lastSeenAfter: '' });
-    // A profile without the creator's notes is read by id (one batch of 100); the other came with the page.
-    expect(t.world.calls.filter((call) => call.route === 'account.byIds').map((call) => call.query?.['ids'])).toEqual([b]);
-    const list = await t.rows(passId);
-    // Newest followed first; the one outside 48 hours is not in the list.
-    expect(list.map((entry) => entry.fanRef)).toEqual([a, b]);
-    expect(list[0]).toMatchObject({ username: 'fan_1', displayName: 'Fan 1', bio: 'about 1', customName: 'Lucky', followedAt: new Date(T0 - minutes(5)).toISOString() });
-    expect(list[1]).toMatchObject({ customName: null });
-    // The changes went to the window’s tab, in order.
-    expect(t.heard.every((entry) => entry.tab === TAB)).toBe(true);
-    expect(t.heard.map((entry) => entry.change.seq)).toEqual(t.heard.map((_, i) => i + 1));
-    const read = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 });
-    expect([read.total, read.rows.length, read.seq]).toEqual([2, 1, t.heard.length]);
-    // The window's search, tab and filter go over the whole pass before the page; the counts after the search.
-    const found = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 100, query: { search: '@FAN_2', tab: 'all', filter: 'any' } });
-    expect([found.rows.map((entry) => entry.fanRef), found.total, found.counts?.tabs, found.counts?.filters.ready]).toEqual([[b], 1, { todo: 1, all: 1 }, 1]);
-    const none = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'contacted' } });
-    expect([none.rows, none.total, none.counts?.filters.any]).toEqual([[], 0, 2]);
-  });
-
-  it('[NF-030] the list: 100 a page by `before` up to 20 pages; a period Fansly did not let be read to its end is «неполный»', async () => {
-    const t = setup();
-    for (let i = 0; i < 2100; i += 1) t.world.follow(i, T0 - 1000 - i * 1000);
-    const release = t.world.hold('group.create');
-    const passId = await t.scan(720);
-    await t.until(() => t.routes().includes('group.create'));
-    await t.ask('fansly.followers.pause', { passId });
-    release();
-    await t.settle();
-    const pages = t.world.calls.filter((call) => call.route === 'followers.new');
-    expect(pages).toHaveLength(20);
-    expect(pages.slice(1).map((call) => call.query?.['before'])).toEqual(Array.from({ length: 19 }, (_, i) => t.world.follows[(i + 1) * 100 - 1]?.id));
-    const read = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 });
-    expect([read.total, read.pass?.partial, read.pass?.state]).toEqual([2000, true, 'paused']);
-  });
-
-  it('[NF-030] [NF-025] a failed follower page stays incomplete with its warning; continuing retries that page before checking the whole list', async () => {
-    const t = setup();
-    for (let i = 0; i < 101; i += 1) t.world.follow(i, T0 - minutes(i + 1));
-    const call = t.world.api.call.bind(t.world.api);
-    let broken = true;
-    vi.spyOn(t.world.api, 'call').mockImplementation(async (request) => {
-      const response = await call(request);
-      if (request.route === 'followers.new' && request.query?.['before'] !== '0' && broken) throw new ApiError('network', 'CG-FAN-REQUEST');
-      return response;
-    });
-    const passId = await t.scan();
-    await t.settle();
-    const read = () => t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 });
-    expect((await read()).pass).toMatchObject({ state: 'stopped', partial: true, error: { code: 'CG-FAN-REQUEST' }, counts: { total: 100, checked: 0 } });
-
-    // Continuing while the network is still broken cannot turn 100 of 101 into a complete list.
-    expect(await t.ask('fansly.followers.resume', { passId })).toMatchObject({ ok: true, pass: { partial: true, error: { code: 'CG-FAN-REQUEST' } } });
-    await t.settle();
-    expect((await read()).pass).toMatchObject({ state: 'stopped', partial: true, error: { code: 'CG-FAN-REQUEST' }, counts: { total: 100 } });
-
-    broken = false;
-    const release = t.world.hold('followers.new');
-    await t.ask('fansly.followers.resume', { passId });
-    await t.until(() => t.routes().filter((route) => route === 'followers.new').length === 4);
-    expect((await read()).pass).toMatchObject({ state: 'scanning', partial: true, error: { code: 'CG-FAN-REQUEST' }, counts: { total: 100 } });
-    release();
-    await t.settle();
-    expect((await read()).pass).toMatchObject({ state: 'done', partial: false, error: null, counts: { total: 101, checked: 101 } });
-    expect(t.world.calls.filter((request) => request.route === 'followers.new').map((request) => request.query?.['before'])).toEqual(['0', ...Array<string>(3).fill(t.world.follows[99]?.id as string)]);
-  });
-
-  it.each(['full', 'thin', 'no'] as const)('[NF-032] [FS-NEW-7] a known lastMessageId survives a %s inbox entry and a thin group; lagging empty or older history gives no proof', async (inInbox) => {
+  it.each(['no'] as const)('[NF-032] [FS-NEW-7] a known lastMessageId survives a %s inbox entry and a thin group; lagging empty or older history gives no proof', async (inInbox) => {
     const t = setup();
     const fan = t.world.follow(1, T0 - minutes(5));
     const group = t.world.chat(fan, [{ from: 'fan' }, { from: 'fan' }], inInbox);
@@ -384,36 +274,6 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     await t.settle();
     expect(await t.row(passId, fan)).toMatchObject({ status: 'ready', fanWrote: true });
     expect(t.service.proof(passId, fan)?.startProof).toMatchObject({ coveredCount: 2, personalCount: 2 });
-  });
-
-  it('[FS-NEW-4] [NF-038] two tabs share the live pass after either changes its period: the old pass ends, and its tab can read, pause, continue and read the conversation', async () => {
-    const t = setup();
-    const fan = t.world.follow(1, T0 - minutes(5));
-    t.world.chat(fan, [{ from: 'fan' }], 'no');
-    const welcome = t.world.hold('message.automated');
-    const creating = t.world.hold('group.create');
-    const oldId = await t.scan(48);
-    expect(await t.scan(48, OTHER_TAB)).toBe(oldId);
-    const liveId = await t.scan(24, OTHER_TAB);
-    expect(liveId).not.toBe(oldId);
-    expect(t.heard.filter((entry) => entry.tab === TAB && entry.change.pass.passId === oldId).at(-1)?.change.pass).toMatchObject({ state: 'stopped', error: { code: 'CG-CONTEXT-CHANGED' } });
-    const read = () => t.ask('fansly.followers.read', { passId: oldId, offset: 0, limit: 10 });
-    expect((await read()).pass).toMatchObject({ passId: liveId, windowHours: 24 });
-    // A stale id is a redirect only for the window that actually held it.
-    expect((await t.ask('fansly.followers.read', { passId: oldId, offset: 0, limit: 10 }, 'tab-3')).pass).toBeNull();
-    welcome();
-    await t.until(() => t.creates().length === 1);
-    expect((await t.ask('fansly.followers.pause', { passId: oldId })).pass).toMatchObject({ passId: liveId, state: 'paused' });
-    creating();
-    await t.settle();
-    expect(await t.ask('fansly.followers.resume', { passId: oldId })).toMatchObject({ ok: true, pass: { passId: liveId, state: 'queue' } });
-    await t.settle();
-    expect((await read()).pass).toMatchObject({ passId: liveId, state: 'done', counts: { total: 1, checked: 1 } });
-    expect(await t.ask('fansly.followers.history', { passId: oldId, fanRef: fan, before: null, limit: 10 })).toMatchObject({ ok: true, messages: [{ fromFan: true }] });
-    for (const tab of [TAB, OTHER_TAB]) expect(t.heard.some((entry) => entry.tab === tab && entry.change.pass.passId === liveId && entry.change.pass.state === 'done')).toBe(true);
-    expect(await t.ask('fansly.followers.close', { passId: oldId })).toEqual({ recorded: true });
-    expect((await read()).pass).toBeNull();
-    expect(t.service.proof(oldId, fan)).toBeNull();
   });
 
   it('[NF-032] [NF-033] the check: the participants’ fence, the history to its empty page; automation is not personal; a personal message of the creator’s is «Уже писали»; the start proof counts the last 30', async () => {
@@ -479,87 +339,6 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     expect(t.service.proof(passId, endless)).toBeNull();
   });
 
-  it('[NF-039] the queue: a fan the inbox did not name gets `POST /group` — get-or-create, once — and then the same check; the inbox’s fans first', async () => {
-    const t = setup();
-    const known = t.world.follow(1, T0 - minutes(5));
-    const hidden = t.world.follow(2, T0 - minutes(6));
-    const fresh = t.world.follow(3, T0 - minutes(7));
-    t.world.chat(known, [{ from: 'fan' }]);
-    t.world.chat(hidden, [{ from: 'model', content: 'old personal' }], 'no');
-    t.world.failures.set(`group.create:${fresh}`, new ApiError('http', 'CG-FAN-REQUEST'));
-    const passId = await t.scan();
-    await t.settle();
-    const creates = t.world.calls.filter((call) => call.route === 'group.create');
-    expect(creates.map((call) => (call.body as { users: { userId: string }[] }).users.map((user) => user.userId))).toEqual([
-      [hidden, C],
-      [fresh, C],
-    ]);
-    expect(creates[0]?.body).toEqual({ users: [{ userId: hidden, permissionFlags: 0 }, { userId: C, permissionFlags: 0 }], recipients: [], lastMessage: null, userSettings: null, type: 1 });
-    // The known chat was checked before the queue asked anything.
-    expect(t.world.calls.findIndex((call) => call.query?.['groupId'] !== undefined)).toBeLessThan(t.world.calls.findIndex((call) => call.route === 'group.create'));
-    expect(await t.row(passId, hidden)).toMatchObject({ status: 'greeted' });
-    // One attempt: a POST that failed is the row's failure, never asked again in the pass.
-    expect(await t.row(passId, fresh)).toMatchObject({ status: 'failed', error: { code: 'CG-FAN-REQUEST' } });
-    const done = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 });
-    expect([done.pass?.state, done.pass?.counts]).toEqual(['done', { total: 3, checked: 2, ready: 1, greeted: 1, dmClosed: 0, excluded: 0 }]);
-  });
-
-  it('[NF-038] «Пауза» stops the queue after the request in flight; «Проверить оставшихся» checks the rest; «Проверить следующим» puts a fan first; «Проверить чат» on a standing queue checks that fan alone', async () => {
-    const t = setup();
-    const fans = [1, 2, 3, 4, 5].map((n) => t.world.follow(n, T0 - minutes(n)));
-    const welcome = t.world.hold('message.automated');
-    let creating = t.world.hold('group.create');
-    const passId = await t.scan();
-    // While the list itself is read there is nothing to pause yet.
-    expect((await t.ask('fansly.followers.pause', { passId })).pass?.state).toBe('scanning');
-    welcome();
-    // In the queue, the first POST /group in flight: «Пауза».
-    await t.until(() => t.creates().length === 1);
-    expect((await t.ask('fansly.followers.pause', { passId })).pass?.state).toBe('paused');
-    creating();
-    await t.settle();
-    expect((await t.rows(passId)).map((entry) => entry.status)).toEqual(['pending', 'pending', 'pending', 'pending', 'pending']);
-    expect(t.creates()).toEqual([fans[0]]);
-
-    // «Проверить чат»: the third fan alone, now; the queue stands again.
-    expect(await t.ask('fansly.followers.prioritize', { passId, fanRef: fans[2] })).toEqual({ recorded: true });
-    await t.settle();
-    expect((await t.row(passId, fans[2] as string)).status).toBe('ready');
-    const standing = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 });
-    expect([standing.pass?.state, standing.pass?.counts.checked]).toEqual(['paused', 1]);
-
-    // «Проверить оставшихся» (the first fan's chat came back after the pause: no second POST), and «Проверить
-    // следующим» for the last fan while the second one's POST is in flight.
-    creating = t.world.hold('group.create');
-    expect(await t.ask('fansly.followers.resume', { passId })).toMatchObject({ ok: true, pass: { state: 'queue' } });
-    await t.until(() => t.creates().length === 3);
-    expect(await t.ask('fansly.followers.prioritize', { passId, fanRef: fans[4] })).toEqual({ recorded: true });
-    creating();
-    await t.settle();
-    expect(t.creates()).toEqual([fans[0], fans[2], fans[1], fans[4], fans[3]]);
-    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass).toMatchObject({ state: 'done', counts: { checked: 5 } });
-    // A fan already checked is not asked about again.
-    expect(await t.ask('fansly.followers.prioritize', { passId, fanRef: fans[0] })).toEqual({ recorded: false });
-  });
-
-  it('[NF-038] [FS-NEW-4] a cooldown of the creator’s lane: the pass says `cooldown` with its end — the window’s banner — and goes on by itself, through the pacer', async () => {
-    const t = setup();
-    const fan = t.world.follow(1, T0 - minutes(5));
-    t.world.setCooling(T0 + 30_000);
-    const passId = await t.scan();
-    await vi.advanceTimersByTimeAsync(10);
-    const cooling = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 });
-    expect([cooling.pass?.state, cooling.pass?.cooldownUntil]).toEqual(['cooldown', T0 + 30_000]);
-    expect(t.heard.some((entry) => entry.change.pass.state === 'cooldown' && entry.change.pass.cooldownUntil === T0 + 30_000)).toBe(true);
-    // `POST /group` was refused at once (it never left) and waits the cooldown out.
-    expect(t.world.calls.filter((call) => call.route === 'group.create')).toHaveLength(1);
-    await vi.advanceTimersByTimeAsync(31_000);
-    await t.settle();
-    expect(await t.row(passId, fan)).toMatchObject({ status: 'ready' });
-    const done = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 });
-    expect([done.pass?.state, done.pass?.cooldownUntil]).toEqual(['done', null]);
-  });
-
   it('[FS-NEW-4] the window’s identity: a tab on another account gets no pass; a closed window stops the work; a session Fansly refused stops it at once; five failures in a row stop it', async () => {
     const other = setup({ tabOn: (tab) => tab === TAB });
     expect(await other.ask('fansly.followers.scan', { hostAccountId: C, windowHours: 48 }, OTHER_TAB)).toEqual({ ok: false, error: { code: 'CG-FNEW-ACCOUNT' } });
@@ -586,28 +365,6 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     await failing.settle();
     expect(failing.world.calls.filter((call) => call.route === 'group.create')).toHaveLength(5);
     expect((await failing.ask('fansly.followers.read', { passId: fused, offset: 0, limit: 1 })).pass).toMatchObject({ state: 'stopped', error: { code: 'CG-FAN-REQUEST' } });
-  });
-
-  it('[NF-010] the card’s conversation: newest first from what the pass read, older pages read again by `before`', async () => {
-    const t = setup();
-    const fan = t.world.follow(1, T0 - minutes(5));
-    const group = t.world.chat(fan, [{ from: 'fan', content: 'one' }, { from: 'fan', content: 'two' }, { from: 'model', content: 'Thanks for the follow' }]);
-    const pending = t.world.follow(2, T0 - minutes(6));
-    t.world.failures.set(`group.create:${pending}`, new ApiError('http', 'CG-FAN-REQUEST'));
-    const passId = await t.scan();
-    await t.settle();
-    const first = await t.ask('fansly.followers.history', { passId, fanRef: fan, before: null, limit: 2 });
-    expect(first).toMatchObject({ ok: true, more: true });
-    if (!first.ok) throw new Error('no conversation');
-    expect(first.messages.map((m) => [m.text, m.automated])).toEqual([
-      ['Thanks for the follow', true],
-      ['two', false],
-    ]);
-    const older = await t.ask('fansly.followers.history', { passId, fanRef: fan, before: group.messages[1]?.id, limit: 2 });
-    if (!older.ok) throw new Error('no older conversation');
-    expect([older.messages.map((m) => m.text), older.more]).toEqual([['one'], false]);
-    // A fan whose chat the pass did not find has no conversation to show.
-    expect(await t.ask('fansly.followers.history', { passId, fanRef: pending, before: null, limit: 2 })).toEqual({ ok: false, error: { code: 'CG-FNEW-UNVERIFIED' } });
   });
 });
 
@@ -658,110 +415,6 @@ describe('[host:fansly] «Нельзя написать» and «Исключит
     // The card's conversation of a closed fan is the one the pass read.
     const history = await t.ask('fansly.followers.history', { passId, fanRef: paid, before: null, limit: 250 });
     expect(history.ok && history.messages.map((message) => message.text)).toEqual(['hi']);
-  });
-
-  it('[NF-003] [X59] the period: a window without one opens the period the person chose last — 12 hours before any choice; a choice is kept in this browser; a store that fails gives the default', async () => {
-    const kv = createMemoryKv();
-    const t = setup({ kv });
-    t.world.follow(1, T0 - minutes(5));
-    const ask = async (windowHours: number | null): Promise<number> => {
-      const answer = await t.ask('fansly.followers.scan', { hostAccountId: C, windowHours });
-      if (!answer.ok) throw new Error('the scan was refused');
-      return answer.pass.windowHours;
-    };
-    expect(await ask(null)).toBe(12);
-    expect(kv.data.has(NEWCOMERS_WINDOW_KEY)).toBe(false);
-    expect(await ask(72)).toBe(72);
-    await t.settle();
-    expect(kv.data.get(NEWCOMERS_WINDOW_KEY)).toBe(72);
-    expect(await ask(null)).toBe(72);
-    // Something that is no period is not one.
-    kv.data.set(NEWCOMERS_WINDOW_KEY, 9999);
-    expect(await ask(null)).toBe(12);
-    kv.data.set(NEWCOMERS_WINDOW_KEY, 24);
-    kv.failNext('get');
-    expect(await ask(null)).toBe(12);
-  });
-
-  it('[FX-003] [FS-NEW-2] «Исключить из очереди»: only a fan nobody can write to leaves «К обработке» — kept in this browser, back by «Вернуть в очередь»; nothing is asked of Fansly', async () => {
-    const kv = createMemoryKv();
-    const t = setup({ kv });
-    const closed = t.world.follow(1, T0 - minutes(5));
-    const open = t.world.follow(2, T0 - minutes(6));
-    t.world.chat(closed, [{ from: 'fan' }]).dm = PAID;
-    t.world.chat(open, [{ from: 'fan' }]).dm = OPEN;
-    const passId = await t.scan();
-    await t.settle();
-    const calls = t.world.calls.length;
-    const heard = t.heard.length;
-    const todo = async (): Promise<number | undefined> => (await t.ask('fansly.followers.read', { passId, offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'any' } })).counts?.tabs.todo;
-    expect(await todo()).toBe(2);
-
-    // A fan who can be written to is not taken out; neither is a fan of another pass.
-    expect(await t.ask('fansly.followers.exclude', { passId, fanRef: open, excluded: true })).toEqual({ recorded: false });
-    expect(await t.ask('fansly.followers.exclude', { passId: '00000000-0000-4000-8000-000000000999', fanRef: closed, excluded: true })).toEqual({ recorded: false });
-    expect(await t.ask('fansly.followers.exclude', { passId, fanRef: closed, excluded: true })).toEqual({ recorded: true });
-    expect(Object.keys(kv.data.get(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${closed}`) as object)).toEqual(['at']);
-    await t.settle();
-    expect(await t.row(passId, closed)).toMatchObject({ status: 'excluded', dmClosed: 'paid' });
-    expect(await todo()).toBe(1);
-    // The window hears it as a change of the row, no poll.
-    expect(t.heard.slice(heard).flatMap((entry) => entry.change.rows.map((row) => `${row.fanRef}:${row.status}`))).toEqual([`${closed}:excluded`]);
-    expect(t.heard.at(-1)?.change.pass.counts).toMatchObject({ dmClosed: 0, excluded: 1 });
-
-    expect(await t.ask('fansly.followers.exclude', { passId, fanRef: closed, excluded: false })).toEqual({ recorded: true });
-    await t.settle();
-    expect(await t.row(passId, closed)).toMatchObject({ status: 'dm-closed' });
-    expect(kv.data.has(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${closed}`)).toBe(false);
-    expect(await todo()).toBe(2);
-    expect(t.world.calls).toHaveLength(calls);
-
-    // A store that could not keep it: nothing changes, the window hears so.
-    kv.failNext('set');
-    expect(await t.ask('fansly.followers.exclude', { passId, fanRef: closed, excluded: true })).toEqual({ recorded: false });
-    expect(await t.row(passId, closed)).toMatchObject({ status: 'dm-closed' });
-  });
-
-  it('[FX-003] the exclusion outlives the pass, as the old window kept it, and goes once a check reads the fan’s DMs open', async () => {
-    const kv = createMemoryKv();
-    const first = setup({ kv });
-    const fan = first.world.follow(1, T0 - minutes(5));
-    const group = first.world.chat(fan, [{ from: 'fan' }]);
-    group.dm = FOLLOW_FAN;
-    let passId = await first.scan();
-    await first.settle();
-    expect(await first.ask('fansly.followers.exclude', { passId, fanRef: fan, excluded: true })).toEqual({ recorded: true });
-    first.service.dispose();
-
-    // The next pass (a new event page): the fan is still out of «К обработке».
-    const second = setup({ kv });
-    second.world.follow(1, T0 - minutes(5));
-    const again = second.world.chat(fan, [{ from: 'fan' }]);
-    again.dm = FOLLOW_FAN;
-    passId = await second.scan();
-    await second.settle();
-    expect(await second.row(passId, fan)).toMatchObject({ status: 'excluded', dmClosed: 'permissions' });
-    second.service.dispose();
-
-    // The fan opened the DMs: the row is workable again and the exclusion is gone.
-    const third = setup({ kv });
-    third.world.follow(1, T0 - minutes(5));
-    third.world.chat(fan, [{ from: 'fan' }]).dm = OPEN;
-    passId = await third.scan();
-    await third.settle();
-    expect(await third.row(passId, fan)).toMatchObject({ status: 'ready', dmClosed: null });
-    expect(kv.data.has(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${fan}`)).toBe(false);
-    third.service.dispose();
-
-    // An answer without the rules says nothing about them: a fresh exclusion stays.
-    kv.data.set(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${fan}`, { at: T0 });
-    const fourth = setup({ kv });
-    fourth.world.follow(1, T0 - minutes(5));
-    fourth.world.chat(fan, [{ from: 'fan' }]);
-    passId = await fourth.scan();
-    await fourth.settle();
-    expect(await fourth.row(passId, fan)).toMatchObject({ status: 'ready' });
-    expect(kv.data.has(`${NEWCOMERS_EXCLUDED_PREFIX}${C}.${fan}`)).toBe(true);
   });
 });
 

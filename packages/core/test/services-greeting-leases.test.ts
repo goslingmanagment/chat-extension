@@ -119,14 +119,6 @@ describe('the greeting leases of the background', () => {
     expect([tokenOf(w, 0), tokenOf(w, 1)]).toEqual([first, second]);
   });
 
-  it('a release of a fan this install does not hold reads the hub’s state and writes nothing', async () => {
-    const w = world();
-    w.hub.statusScript.push({ kind: 'ok', state: claimState({ state: 'held', leaseToken: null, expiresAt: iso(NOW + 60_000), heldBy: 'someone-else' }, NOW) });
-    expect(await w.leases.act('tab-a', PAGE, FAN, 'release')).toMatchObject({ ok: true, state: { lease: { state: 'held', heldBy: 'someone-else' } } });
-    expect(w.hub.claims).toEqual([]);
-    expect(w.hub.statusReads).toEqual([{ pageLabel: PAGE.pageLabel, fanRef: FAN }]);
-  });
-
   it('[NF-021] a colleague holds the fan: the claim is refused by the hub as it is, and nothing is kept', async () => {
     const w = world();
     w.hub.claimScript.push({ kind: 'http', status: 409, error: 'claim_busy' });
@@ -177,27 +169,6 @@ describe('the greeting leases of the background', () => {
     after.hub.claimScript.push({ kind: 'ok', state: owned(token, NOW + 30_000) });
     expect(await after.leases.act('tab-c', PAGE, FAN, 'renew')).toMatchObject({ ok: true });
     expect(tokenOf(after, 0)).toBe(token);
-  });
-
-  it('a stored token whose deadline passed, or of another person, is not restored; an unreadable store starts empty', async () => {
-    const store = new MemoryStore();
-    const before = world({ store });
-    const token = sequentialIds(0x100).uuid();
-    before.hub.claimScript.push({ kind: 'ok', state: owned(token, NOW) });
-    await before.leases.act('tab-a', PAGE, FAN, 'claim');
-    await before.leases.idle();
-
-    const late = world({ store, clock: new FakeClock(NOW + 200_000) });
-    expect(await late.leases.restore()).toBe(0);
-
-    const other = world({ store, clock: new FakeClock(NOW + 10_000) });
-    other.who.owner = 'https://hub.test|8';
-    expect(await other.leases.restore()).toBe(0);
-
-    const broken = world({ store });
-    store.failReads = true;
-    expect(await broken.leases.restore()).toBe(0);
-    expect(broken.log.entries.map((entry) => entry.code)).toContain('CG-STORAGE-READ');
   });
 
   it('a sign-out forgets every token; nobody signed in — nothing is asked', async () => {

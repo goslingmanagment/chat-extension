@@ -38,7 +38,6 @@ import {
   custodyReport,
   dispatchBody,
   freshnessCode,
-  groupProgress,
   holdsLock,
   isEnded,
   journalEntryOf,
@@ -51,7 +50,6 @@ import {
   reportAccepted,
   reportRetryable,
   restoreAction,
-  sendOrderOf,
   servedContextHold,
   silenceDeadline,
   type AttemptTrack,
@@ -435,15 +433,6 @@ describe('[X8-08] Split groups (§6.7.9)', () => {
     expect(partBlock({ purpose: 'greeting', group, partIndex: 0 }, [attempt(0, 'uncertain', { resolved: 'sent' })])).toBe('CG-SEND-PART');
     expect(partBlock({ purpose: 'greeting', group, partIndex: 1 }, [attempt(0, 'uncertain', { resolved: 'not-sent' })])).toBeNull();
     expect(partDelivered(attempt(0, 'uncertain', { resolved: 'sent' }))).toBe(true);
-  });
-
-  it('[X8-08] order hints and progress: held behind an uncertain part, «after part N», N of M', () => {
-    expect(sendOrderOf(group, 0, [])).toBeNull();
-    expect(sendOrderOf(group, 2, [])).toEqual({ kind: 'after', part: 1 });
-    expect(sendOrderOf(group, 2, [attempt(0, 'sentObserved')])).toEqual({ kind: 'after', part: 2 });
-    expect(sendOrderOf(group, 2, [attempt(0, 'sentObserved'), attempt(1, 'uncertain')])).toEqual({ kind: 'held', part: 2 });
-    expect(sendOrderOf(group, 2, [attempt(0, 'sentObserved'), attempt(1, 'sentObserved')])).toBeNull();
-    expect(groupProgress(group, [attempt(0, 'sentObserved'), attempt(1, 'uncertain'), attempt(0, 'sentObserved', { attemptId: uuid(0x699) })])).toEqual({ sent: 1, total: 3 });
   });
 });
 

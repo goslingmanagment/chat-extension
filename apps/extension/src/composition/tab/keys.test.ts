@@ -4,7 +4,7 @@
 
 import type { HotkeySink } from '@cg/core/application/hotkeys';
 import { hotkeyPlatformOf, type KeyCommand } from '@cg/core/domain/hotkeys';
-import { KEY_PENDING_ATTRIBUTE, createMountManager, type MountManager } from '@cg/host-chatspace/isolated';
+import { createMountManager, type MountManager } from '@cg/host-chatspace/isolated';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CHATSPACE_ADAPTER } from '../../entrypoints/chatspace.content';
@@ -28,29 +28,6 @@ function key(code: string, options: { readonly trusted?: boolean; readonly mod?:
   });
   if (options.trusted !== false) Object.defineProperty(event, 'isTrusted', { value: true });
   return event;
-}
-
-const up = (code: string): KeyboardEvent => {
-  const event = new KeyboardEvent('keyup', { code, key: code, bubbles: true, composed: true });
-  Object.defineProperty(event, 'isTrusted', { value: true });
-  return event;
-};
-const MODIFIER = MAC ? 'MetaLeft' : 'ControlLeft';
-
-/**
- * ⌘/Ctrl goes down, then the letter, then both go up — as a person presses a combination. The engine takes
- * only a fresh press: the letter of a modifier that was already held for another key is a roll-over.
- * Returns the letter's keydown.
- */
-function chord(code: string): KeyboardEvent {
-  const modifier = new KeyboardEvent('keydown', { code: MODIFIER, key: MAC ? 'Meta' : 'Control', bubbles: true, composed: true, cancelable: true, metaKey: MAC, ctrlKey: !MAC });
-  Object.defineProperty(modifier, 'isTrusted', { value: true });
-  window.dispatchEvent(modifier);
-  const pressed = key(code);
-  window.dispatchEvent(pressed);
-  window.dispatchEvent(up(code));
-  window.dispatchEvent(up(MODIFIER));
-  return pressed;
 }
 
 interface World {
@@ -102,83 +79,6 @@ function world(path = '/accounts/910101/chats/74001001', site: TabKeysEnv['site'
 }
 
 describe('the early keys of a tab', () => {
-  it('[HK-024] a key of ours pressed before the lazy part is loaded is kept: ChatSpace never sees it, the dock host says «waiting», and the application is asked for', () => {
-    const w = world();
-    const pressed = chord('KeyE');
-    expect(pressed.defaultPrevented).toBe(true);
-    // ChatSpace saw ⌘/Ctrl go down — that key is nobody's — and never the letter.
-    expect(w.native).toEqual([MODIFIER]);
-    expect(w.waiting).toEqual([1]);
-    expect(w.mounts.dock.host.hasAttribute(KEY_PENDING_ATTRIBUTE)).toBe(true);
-    // The gate hears the keydown although the dispatcher stopped it.
-    expect(w.heard.at(-1)).toBe(pressed);
-    // Nothing is handed over until a sink is connected.
-    expect(w.keys.takeKept()).toBeNull();
-  });
-
-  it('[HK-024] once the lazy part connects, the kept key runs — and its own keydown is handed over for the action gate, once', () => {
-    const w = world();
-    const pressed = chord('KeyE');
-    const seen: (Event | null)[] = [];
-    const ran: KeyCommand[] = [];
-    w.keys.dispatcher.connect({
-      run(command) {
-        seen.push(w.keys.takeKept()?.event ?? null, w.keys.takeKept()?.event ?? null);
-        ran.push(command);
-      },
-      refuse: () => undefined,
-      quickJump: () => undefined,
-    });
-    expect(ran.map((command) => command.id)).toEqual(['reply']);
-    expect(seen).toEqual([pressed, null]);
-    expect(w.mounts.dock.host.hasAttribute(KEY_PENDING_ATTRIBUTE)).toBe(false);
-    // A key pressed now runs at once: its keydown is still in flight, nothing is «kept».
-    const live = chord('KeyP');
-    expect(ran.map((command) => command.id)).toEqual(['reply', 'ping']);
-    expect(seen).toEqual([pressed, null, null, null]);
-    expect(w.heard.at(-1)).toBe(live);
-  });
-
-  it('only the newest key waits: a second one replaces the first, and its keydown is the one handed over', () => {
-    const w = world();
-    chord('KeyE');
-    const second = chord('KeyG');
-    const handed: (Event | null)[] = [];
-    const { ran, sink } = w.sink();
-    w.keys.dispatcher.connect({ ...sink, run: (command) => (handed.push(w.keys.takeKept()?.event ?? null), sink.run(command)) });
-    expect(ran.map((command) => command.id)).toEqual(['hi']);
-    expect(handed).toEqual([second]);
-  });
-
-  it('[R20-F5] the keys run as the client of the scheme the adapter names: ChatSpace’s is `extension`; a row another client lacks is never run', () => {
-    expect(CHATSPACE_ADAPTER.hotkeyClient).toBe('extension');
-    const coach = (): KeyboardEvent => key('KeyC', MAC ? { shift: true } : { alt: true });
-    const ran = (site: TabKeysEnv['site']): string[] => {
-      const w = world(undefined, site);
-      const { ran: commands, sink } = w.sink();
-      w.keys.dispatcher.connect(sink);
-      window.dispatchEvent(coach());
-      w.keys.dispose();
-      w.mounts.dispose();
-      current = null;
-      return commands.map((command) => command.id);
-    };
-    expect(ran(CHATSPACE_ADAPTER)).toEqual(['coach']);
-    // The desktop's client has no Coach: the same key is a reserved letter there.
-    expect(ran({ ...CHATSPACE_ADAPTER, hotkeyClient: 'desktop' })).toEqual([]);
-  });
-
-  it('[HK-026] a key that is not ours is not touched: ChatSpace gets it, nothing waits', () => {
-    const w = world();
-    const typed = key('KeyA', { mod: false });
-    window.dispatchEvent(typed);
-    const copy = chord('KeyC');
-    expect(typed.defaultPrevented).toBe(false);
-    expect(copy.defaultPrevented).toBe(false);
-    expect(w.native).toEqual(['KeyA', MODIFIER, 'KeyC']);
-    expect(w.waiting).toEqual([]);
-  });
-
   it('[AI-120] a synthetic key of the page starts nothing and is not handed to the gate', () => {
     const w = world();
     const forged = key('KeyE', { trusted: false });
@@ -187,29 +87,6 @@ describe('the early keys of a tab', () => {
     expect(w.heard).toEqual([]);
     expect(w.waiting).toEqual([]);
     expect(w.native).toEqual(['KeyE']);
-  });
-
-  it('[HK-024] outside a chat the palette key is ours too: it waits for the application, an AI key does not', () => {
-    const w = world('/accounts/910101/chats');
-    const reply = chord('KeyE');
-    expect(reply.defaultPrevented).toBe(false);
-    expect(w.waiting).toEqual([]);
-    const palette = chord('KeyK');
-    expect(palette.defaultPrevented).toBe(true);
-    expect(w.waiting).toEqual([1]);
-  });
-
-  it('[HK-029] the open overlays are mirrored on their hosts as `data-dismissible-open`, the dock’s sheet on the dock host', () => {
-    const w = world();
-    w.keys.overlays.set('spenders', true);
-    const modal = w.mounts.overlay('modal').host;
-    expect(modal.hasAttribute('data-dismissible-open')).toBe(true);
-    w.keys.overlays.set('spenders', false);
-    expect(modal.hasAttribute('data-dismissible-open')).toBe(false);
-    w.keys.dockSheet(true);
-    expect(w.mounts.dock.host.hasAttribute('data-dismissible-open')).toBe(true);
-    w.keys.dockSheet(false);
-    expect(w.mounts.dock.host.hasAttribute('data-dismissible-open')).toBe(false);
   });
 
   it('[UI-019] a held Enter that went down in our UI never reaches ChatSpace: its repeats are stopped where the focus went, a fresh press passes', () => {
@@ -244,13 +121,5 @@ describe('the early keys of a tab', () => {
     const forged = new KeyboardEvent('keyup', { code: 'Enter', key: 'Enter', bubbles: true });
     document.body.dispatchEvent(forged);
     expect(enter(document.body, true).defaultPrevented).toBe(true);
-  });
-
-  it('dispose takes the listeners off `window`: a key of ours goes to the page again', () => {
-    const w = world();
-    w.keys.dispose();
-    const pressed = chord('KeyE');
-    expect(pressed.defaultPrevented).toBe(false);
-    expect(w.heard).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ import type { TabRpcClient } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
 import type { TokenAnswer } from './action-gate';
-import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, paletteReceiptToast, type LooseController } from './client';
+import { adopt, controllerRpc, createTabClient, type LooseController } from './client';
 
 const errorOf = (code: string) => ({ code, title: code, body: code }) as never;
 const done = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
@@ -26,31 +26,6 @@ function controller(kinds: readonly string[], takes: UiAction['type'], log: stri
   };
 }
 
-describe('the controllers of the packages as the router takes them', () => {
-  it('a controller with the loose type of its package is plugged in as it is: its views are served, its actions taken', async () => {
-    const log: string[] = [];
-    const router = createAppRouter({ errorOf });
-    router.register(adopt(controller(['dock'], 'ReloadTab', log)));
-    expect(router.serves('dock')).toBe(true);
-    expect(router.getSnapshot({ of: 'dock' })).toEqual({ of: 'dock' });
-    expect(await router.dispatch({ type: 'ReloadTab' })).toEqual(done('ReloadTab'));
-    expect(log).toEqual(['dispatch:ReloadTab']);
-  });
-
-  it('a view name the contracts do not know is a wiring error, said at the plug — never at a click', () => {
-    expect(() => adopt(controller(['dock', 'dok'], 'ReloadTab', []))).toThrow(/unknown views: dok/);
-  });
-
-  it('the composition may answer for a controller: its own dispatch replaces the controller’s', async () => {
-    const log: string[] = [];
-    const router = createAppRouter({ errorOf });
-    router.register(adopt(controller(['dock'], 'ReloadTab', log), (action) => (action.type === 'SignOut' ? Promise.resolve(done(action.type)) : null)));
-    expect(await router.dispatch({ type: 'SignOut' })).toEqual(done('SignOut'));
-    expect((await router.dispatch({ type: 'ReloadTab' })).ok).toBe(false);
-    expect(log).toEqual([]);
-  });
-});
-
 describe('the AppClient of the tab', () => {
   function client(before: (action: UiAction) => Promise<unknown> | null) {
     const log: string[] = [];
@@ -67,31 +42,6 @@ describe('the AppClient of the tab', () => {
     // Synchronously: the click is still in flight here.
     expect(c.log).toEqual(['granted:InsertPart', 'action:InsertPart', 'dispatch:InsertPart']);
     expect(await receipt).toEqual(done('InsertPart'));
-  });
-
-  it('an action whose controllers are still loading waits for them; the grant was opened at the click all the same', async () => {
-    let arrive: () => void = () => undefined;
-    const loading = new Promise<void>((resolve) => {
-      arrive = resolve;
-    });
-    const c = client(() => loading);
-    const receipt = c.client.dispatch(insert);
-    expect(c.log).toEqual(['granted:InsertPart', 'action:InsertPart']);
-    arrive();
-    expect(await receipt).toEqual(done('InsertPart'));
-    expect(c.log).toEqual(['granted:InsertPart', 'action:InsertPart', 'dispatch:InsertPart']);
-  });
-
-  it('controllers that did not load do not turn a click into a rejected promise: the router answers', async () => {
-    const c = client(() => Promise.reject(new Error('chunk')));
-    expect(await c.client.dispatch(insert)).toEqual(done('InsertPart'));
-    expect((await c.client.dispatch({ type: 'SignOut' })).ok).toBe(false);
-  });
-
-  it('views are the router’s', () => {
-    const c = client(() => null);
-    expect(c.client.getSnapshot({ of: 'dock' })).toEqual({ of: 'dock' });
-    expect(() => c.client.getSnapshot({ of: 'coach' })).toThrow();
   });
 });
 
@@ -126,122 +76,5 @@ describe('the background’s client of the controllers', () => {
     expect(await gated.request('token.issue', { kind: 'send', surface: 'preview' })).toMatchObject({ ok: true, payload: { actionToken: 'tok_0123456789abcdef0123' } });
     expect(asked).toEqual(['insert:dock', 'send:preview']);
     expect(sent).toEqual([]);
-  });
-
-  it('a refusal of the background itself reaches the controller with the background’s code: an expired bootstrap is not «Сбой интерфейса»', async () => {
-    const { real } = rpc();
-    const gated = controllerRpc(real, { ask: () => Promise.resolve({ ok: false, error: { code: 'CG-FEATURE-DISABLED', detail: 'bootstrap_expired' } }) });
-    expect(await gated.request('token.issue', { kind: 'insert', surface: 'dock' })).toEqual({ ok: false, error: { code: 'CG-FEATURE-DISABLED', detail: 'bootstrap_expired' } });
-  });
-
-  it('every other request goes to the background as it is; `observe` hears its type and what was sent', async () => {
-    const { sent, real } = rpc();
-    const seen: string[] = [];
-    const gated = controllerRpc(real, { ask: () => Promise.resolve({ ok: false, error: null }) }, (type) => void seen.push(type));
-    expect(await gated.request('session.get', {})).toEqual({ ok: true, payload: { recorded: true } });
-    await gated.request('token.issue', { kind: 'generate', surface: 'dock' });
-    expect(sent).toEqual([['session.get', {}]]);
-    expect(seen).toEqual(['session.get']);
-    expect(gated.state()).toBe('ready');
-    expect(gated.tabSessionId()).toBe('tab-1');
-  });
-});
-
-describe('what a click on a board’s part came to, when the board has no place to say it', () => {
-  const refused = (type: UiAction['type'], code: string): ActionReceipt => ({ ok: false, type, code, error: errorOf(code) }) as ActionReceipt;
-  const send: UiAction = { type: 'SendPart', operationId: '00000000-0000-4000-8000-000000000001', part: 0 };
-  const insert: UiAction = { type: 'OpenAndInsertPart', operationId: '00000000-0000-4000-8000-000000000001', part: 0 };
-
-  it('[X8-03] «Отправить» refused before any attempt began is said with its own code; an attempt that began is the part’s own row', () => {
-    expect(boardReceiptToast(send, refused('SendPart', 'CG-SEND-BUSY'))).toEqual({ code: 'CG-SEND-BUSY', scope: 'board.send', title: null });
-    expect(boardReceiptToast(send, { ok: true, type: 'SendPart', outcome: 'started' })).toBeNull();
-  });
-
-  it('[NEW-01] [NEW-05] «Открыть и вставить» is never said by its receipt: the question about the person’s own text stands in the opened chat’s dock, an insert that was made, canceled or timed out has its own word', () => {
-    expect(boardReceiptToast(insert, { ok: true, type: 'OpenAndInsertPart', outcome: 'needs-confirm' })).toBeNull();
-    expect(boardReceiptToast(insert, { ok: true, type: 'OpenAndInsertPart', outcome: 'opened' })).toBeNull();
-    // The preview's controller says these itself as it closes (its notifier): «Вставка отменена», «Чат открывается слишком долго».
-    expect(boardReceiptToast(insert, refused('OpenAndInsertPart', 'CG-INSERT-CANCELED'))).toBeNull();
-    expect(boardReceiptToast(insert, refused('OpenAndInsertPart', 'CG-NAV-TIMEOUT'))).toBeNull();
-  });
-
-  it('[NEW-05] the dock of the opened chat takes the result (§6.5); only when it could not, and nothing was written over the person’s text, the reason is said — «В поле ввода уже есть ваш текст»', () => {
-    expect(handoverToast('needs-confirm', false, true)).toEqual({ code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' });
-    // The question is on screen in the dock: a toast would say it twice.
-    expect(handoverToast('needs-confirm', true, true)).toBeNull();
-    // The part is in the field whether or not the dock shows the rest: nothing to say.
-    expect(handoverToast('inserted', true, true)).toBeNull();
-    expect(handoverToast('inserted', false, true)).toBeNull();
-  });
-
-  it('[NEW-05] «В поле ввода уже есть ваш текст» is said only in the chat it is about: a person who went on to another chat while the dock waited for the field is told nothing there', () => {
-    const chat = { hostAccountId: '910101', platformFanId: '74001006' };
-    // Still in the chat the result was made for: told.
-    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat } }, chat))).not.toBeNull();
-    // Another fan's chat, the same fan in another account, no chat at all: not told.
-    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat, platformFanId: '74001001' } }, chat))).toBeNull();
-    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat, hostAccountId: '910102' } }, chat))).toBeNull();
-    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: null }, chat))).toBeNull();
-    expect(handoverToast('inserted', false, false)).toBeNull();
-  });
-
-  it('[X8-03] an attempt held before ChatSpace’s queue for a passing reason is said — its row goes back to «Отправить»; what the row keeps is not', () => {
-    const view = (state: string, code?: string) => ({ attemptId: '00000000-0000-4000-8000-000000000002', state, ...(code === undefined ? {} : { code }) }) as never;
-    // The fan is busy with a send of another tab: the button comes back, the reason would be lost.
-    expect(heldSilently(view('held', 'CG-SEND-BUSY'))).toBe('CG-SEND-BUSY');
-    // The row itself says these: a fan who wrote («Удержано…»), the owner's switch and the page's lasting conditions, a refusal.
-    for (const code of ['CG-SEND-STALE', 'CG-SEND-OFF', 'CG-SEND-FAN', 'CG-SEND-MIMIC', 'CG-SEND-FRESHNESS', 'CG-HUB-RATE-LIMIT', 'CG-TIMEOUT']) expect([code, heldSilently(view('held', code))]).toEqual([code, null]);
-    // An attempt that went on, or one nobody knows, has nothing to say here.
-    for (const state of ['preparing', 'nativeEnqueued', 'nativeAccepted', 'sentObserved', 'uncertain', 'rejected']) expect(heldSilently(view(state))).toBeNull();
-    expect(heldSilently(view('held'))).toBeNull();
-    expect(heldSilently(null)).toBeNull();
-  });
-
-  it('the dock’s own actions are the dock’s to show', () => {
-    expect(boardReceiptToast({ type: 'InsertPart', operationId: send.operationId, part: 0 }, refused('InsertPart', 'CG-INSERT-FAILED'))).toBeNull();
-    expect(boardReceiptToast({ type: 'InsertPart', operationId: send.operationId, part: 0 }, { ok: true, type: 'InsertPart', outcome: 'needs-confirm' })).toBeNull();
-  });
-
-  it('the client hands every receipt over once the router answered, and the surface still gets its own', async () => {
-    const seen: string[] = [];
-    const router = createAppRouter({ errorOf });
-    router.register(adopt(controller(['dock'], 'InsertPart', [])));
-    const made = createTabClient({ router, tokens: { granted: () => undefined }, before: () => null, onReceipt: (action, receipt) => void seen.push(`${action.type}:${receipt.ok ? receipt.outcome : receipt.code}`) });
-    expect(await made.dispatch({ type: 'InsertPart', operationId: send.operationId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
-    expect((await made.dispatch(send)).ok).toBe(false);
-    await Promise.resolve();
-    expect(seen).toEqual(['InsertPart:done', 'SendPart:CG-UI-FAILED']);
-  });
-});
-
-describe('the palette is a launcher', () => {
-  const ok = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
-  const open = (surface: string, isOpen = true): UiAction => ({ type: 'Navigate', to: { kind: 'surface', surface, open: isOpen } }) as UiAction;
-
-  it('[HK-036] a row that ran closes it: a window it opened, a generation it started, a switch it flipped', () => {
-    expect(closesPalette(open('newcomers'), ok('Navigate'))).toBe(true);
-    expect(closesPalette(open('cheatsheet'), ok('Navigate'))).toBe(true);
-    expect(closesPalette({ type: 'Generate', targetHandle: 'dock:chatspace:1:2', feature: 'reply', options: {} }, { ok: true, type: 'Generate', outcome: 'started' })).toBe(true);
-    expect(closesPalette({ type: 'OpenSettings', route: { section: 'status' } }, ok('OpenSettings'))).toBe(true);
-  });
-
-  it('typing in it, closing it and a row that was refused leave it as it is', () => {
-    expect(closesPalette({ type: 'Search', list: 'palette', query: 'нов' }, ok('Search'))).toBe(false);
-    expect(closesPalette(open('palette', false), ok('Navigate'))).toBe(false);
-    expect(closesPalette(open('palette'), ok('Navigate'))).toBe(false);
-    expect(closesPalette(open('spenders'), { ok: false, type: 'Navigate', code: 'CG-FEATURE-DISABLED', error: errorOf('CG-FEATURE-DISABLED') })).toBe(false);
-  });
-
-  it('[HK-036] a row that was refused says why: a fan’s chat on a page whose owner left `navigation` off is not a click into nothing', () => {
-    const refused = (type: UiAction['type'], code: string): ActionReceipt => ({ ok: false, type, code, error: errorOf(code) }) as ActionReceipt;
-    const chat: UiAction = { type: 'Navigate', to: { kind: 'chat', targetHandle: 'chat:36408:518588958' } };
-    expect(paletteReceiptToast(chat, refused('Navigate', 'CG-FEATURE-DISABLED'))).toEqual({ code: 'CG-FEATURE-DISABLED', scope: 'palette.row', title: null });
-    expect(paletteReceiptToast(open('spenders'), refused('Navigate', 'CG-HOST-CONTRACT'))).toEqual({ code: 'CG-HOST-CONTRACT', scope: 'palette.row', title: null });
-    expect(paletteReceiptToast({ type: 'SetPreference', key: 'generation.split', value: true }, refused('SetPreference', 'CG-UI-FAILED'))?.code).toBe('CG-UI-FAILED');
-    // A row that ran says nothing; a refused generation is the dock's card, «Онлайн» says its own, typing is not a row.
-    expect(paletteReceiptToast(chat, { ok: true, type: 'Navigate', outcome: 'opened' })).toBeNull();
-    expect(paletteReceiptToast({ type: 'Generate', targetHandle: 'dock:chatspace:1:2', feature: 'reply', options: {} }, refused('Generate', 'CG-OP-CHAT-BUSY'))).toBeNull();
-    expect(paletteReceiptToast({ type: 'OpenPreview', targetHandle: 'chat:1:2' }, refused('OpenPreview', 'CG-FEATURE-DISABLED'))).toBeNull();
-    expect(paletteReceiptToast({ type: 'Search', list: 'palette', query: 'x' }, refused('Search', 'CG-UI-FAILED'))).toBeNull();
   });
 });

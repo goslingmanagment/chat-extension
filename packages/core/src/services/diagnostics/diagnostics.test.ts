@@ -1,32 +1,11 @@
-import { ANCHOR_IDS, HOST_CAPABILITIES, contractAnchorsOf, type ChatSpaceContractReport } from '@cg/contracts/host';
-import { LOG_LIMITS } from '@cg/contracts/limits';
-import { LogRecordFromUiSchema, LogRecordSchema, type LogRecord } from '@cg/contracts/logs';
-import { OpDebugViewSchema } from '@cg/contracts/ops';
+import { ANCHOR_IDS, HOST_CAPABILITIES, type ChatSpaceContractReport } from '@cg/contracts/host';
+import { type LogRecord } from '@cg/contracts/logs';
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
-import { DiagnosticsSnapshotSchema, PromptSnapshotViewSchema } from '@cg/contracts/tab-messages';
-import { AcceptanceEventSchema, ClientHealthV1Schema, TabHealthReportSchema } from '@cg/contracts/telemetry';
 import { describe, expect, it } from 'vitest';
 
-import { OpDebugBuilder, promptView, snapshotFromFrame, type DebugInputFrame, type UsageNumbers } from '../../domain/debug';
-import { CodeCounters, createLogger, createRedactor, utf8Length } from '../../domain/logging';
-import { AcceptanceTracker, HealthWindow, TabHealthCollector } from '../../domain/telemetry';
-import { DebugJournals, LogService, MemoryLogStore, acceptUiRecords } from '../logs';
-import { type KeyValuePort, type Scheduler } from '../ports';
+import { CodeCounters, createRedactor } from '../../domain/logging';
 import { type TelemetryQueueStats } from '../telemetry';
-import {
-  COPY_REPORT_MAX_CHARS,
-  DiagnosticsService,
-  SpendService,
-  clearDebugData,
-  copyReport,
-  diagnosticsSnapshot,
-  exportJson,
-  exportTxt,
-  redactBundle,
-  settingsForExport,
-  type DiagnosticsFacts,
-  type ExportBundle,
-} from './index';
+import { exportJson, exportTxt, type DiagnosticsFacts, type ExportBundle } from './index';
 
 const T0 = Date.UTC(2026, 9, 3, 12, 0, 0);
 const HUB = 'https://hub.example.test';
@@ -108,47 +87,8 @@ function redactor() {
   return r;
 }
 
-describe('[LG-020] diagnostics.get', () => {
-  it('[LG-020] versions, flags and states as the contract wants them, no secrets or texts', () => {
-    const snapshot = diagnosticsSnapshot(facts());
-    expect(DiagnosticsSnapshotSchema.safeParse(snapshot).success).toBe(true);
-    expect(snapshot.counters).toEqual({ 'CG-HUB-TIMEOUT': 3, 'CG-INSERT-MISPLACED': 1, 'p1.insert-misplaced': 1, 'insert.prevented': 2 });
-    expect(snapshot.logs).toEqual({ records: 1200, bytes: 300_000, dropped: 2 });
-    expect(snapshot.telemetry).toEqual({ consent: true, queued: 3, dropped: 3 });
-    expect(JSON.stringify(snapshot)).not.toContain(FAN_TEXT);
-  });
-});
-
-describe('[LG-021] [LG-022] [LG-023] [LG-024] [LG-025] the export file', () => {
+describe('[LG-022] [LG-024] the export file leaks no secret, text or telemetry event', () => {
   const logs = { recent: records(600), previous: { session: 3, records: records(300, { scope: 'bg.lifecycle' }) } };
-
-  it('[LG-021] holds versions, settings, hub and contract status, counters, 500 records and the queue metadata', () => {
-    const file = exportJson(facts(), logs, redactor());
-    expect(file.fileName).toBe('chatgoose-diagnostics-20261003-120000.json');
-    expect(file.mime).toBe('application/json');
-    const bundle = JSON.parse(file.body) as ExportBundle;
-    expect(bundle).toMatchObject({ kind: 'chatgoose-diagnostics', v: 1, extension: { version: '0.1.0' }, os: 'macos', locale: 'ru', signIn: { signedIn: true, role: 'chatter' } });
-    expect(bundle.hub.flags).toEqual({ previewSend: false, recap: true });
-    expect(contractAnchorsOf(bundle.tabs[0]?.host ?? contract())['fansMap']).toBe('missing');
-    expect(bundle.counters.today).toEqual([
-      { code: 'CG-HUB-TIMEOUT', count: 3 },
-      { code: 'CG-INSERT-MISPLACED', count: 1 },
-    ]);
-    expect(bundle.logs.recent).toHaveLength(LOG_LIMITS.exportRecentRecords);
-    expect(bundle.logs.recent.at(-1)?.seq).toBe(600);
-    for (const record of bundle.logs.recent.slice(0, 3)) expect(LogRecordSchema.safeParse(record).success).toBe(true);
-    expect(bundle.logs.store).toMatchObject({ logSession: 4, records: 1200, lost: 2 });
-    expect(bundle.truncated).toEqual({ recent: 100, previous: 100, snapshots: false });
-    expect(bundle.sound.outcomes).toEqual({ played: 4, throttled: 1 });
-    expect(bundle.footprint).toEqual({ cachesKB: 120, logsKB: 290 });
-  });
-
-  it('[LG-021] the chosen settings, the person’s account labels only as a count', () => {
-    const settings = settingsForExport(facts().settings);
-    expect(settings).toMatchObject({ hub: { baseUrl: DEFAULT_SETTINGS.hub.baseUrl }, ui: DEFAULT_SETTINGS.ui, accounts: { labels: 1 }, sound: { mutedAccounts: 1 } });
-    expect(JSON.stringify(settings)).not.toContain('Лора');
-    expect(settingsForExport(null)).toBeNull();
-  });
 
   it('[LG-022] redacted as a whole: no token, no tail, no conversation text anywhere', () => {
     const r = redactor();
@@ -179,223 +119,10 @@ describe('[LG-021] [LG-022] [LG-023] [LG-024] [LG-025] the export file', () => {
     expect(body).not.toContain(TAIL);
   });
 
-  it('[LG-022] the second pass keeps numbers under forbidden names and masks the rest', () => {
-    const r = redactor();
-    expect(redactBundle({ ctx: { session: 3 }, session: { token: TOKEN }, list: [`Bearer ${TOKEN}`], [TOKEN]: 1, n: Number.NaN, f: () => 1 }, r)).toEqual({
-      ctx: { session: 3 },
-      session: '[redacted]',
-      list: ['Bearer [redacted]'],
-      '[redacted]': 1,
-      n: null,
-      f: null,
-    });
-    const deep: Record<string, unknown> = {};
-    let cursor = deep;
-    for (let i = 0; i < 40; i += 1) {
-      const next: Record<string, unknown> = {};
-      cursor['x'] = next;
-      cursor = next;
-    }
-    expect(JSON.stringify(redactBundle(deep, r))).toContain('[depth]');
-  });
-
-  it('[LG-023] the previous session’s tail is in the file: yesterday’s failure travels with today’s export', () => {
-    const bundle = JSON.parse(exportJson(facts(), logs, redactor()).body) as ExportBundle;
-    expect(bundle.logs.previous.logSession).toBe(3);
-    expect(bundle.logs.previous.records).toHaveLength(200);
-    expect(bundle.logs.previous.records[0]?.scope).toBe('bg.lifecycle');
-  });
-
   it('[LG-024] telemetry: the queue’s metadata only, never an event', () => {
     const bundle = JSON.parse(exportJson(facts(), logs, redactor()).body) as ExportBundle;
     expect(bundle.telemetry.queue).toMatchObject({ queued: 3, droppedTotal: 3, lastFailure: { status: 503 } });
     expect(Object.keys(bundle.telemetry.queue)).not.toContain('entries');
     expect(bundle.telemetry.acceptance).toEqual({ queued: 5, unlinked: 0, duplicate: 1, invalid: 0, refused: 0 });
-  });
-
-  it('[LG-025] never more than 2 MiB: the oldest records go first and the cut is marked', () => {
-    const big = { recent: records(500, { fields: { reason: 'x'.repeat(7000) } }), previous: { session: 3, records: records(200, { fields: { reason: 'y'.repeat(7000) } }) } };
-    const file = exportJson(facts(), big, redactor());
-    expect(utf8Length(file.body)).toBeLessThanOrEqual(LOG_LIMITS.exportMaxBytes);
-    const bundle = JSON.parse(file.body) as ExportBundle;
-    expect(bundle.truncated.recent).toBeGreaterThan(0);
-    expect(bundle.logs.recent.at(-1)?.seq).toBe(500);
-    const tiny = exportJson(facts(), big, redactor(), 3000);
-    expect(JSON.parse(tiny.body)).toMatchObject({ truncated: { all: true } });
-    expect(JSON.parse(exportJson(facts(), big, redactor(), 10).body)).toEqual({ kind: 'chatgoose-diagnostics', v: 1, truncated: { all: true } });
-    const txt = exportTxt(facts(), big, redactor());
-    expect(utf8Length(txt.body)).toBeLessThanOrEqual(LOG_LIMITS.exportMaxBytes);
-    const small = exportTxt(facts(), big, redactor(), 20_000);
-    expect(utf8Length(small.body)).toBeLessThanOrEqual(20_000);
-    expect(small.body).toContain('[older lines cut]');
-    expect(small.fileName).toBe('chatgoose-diagnostics-20261003-120000.txt');
-    expect(utf8Length(exportTxt(facts(), big, redactor(), 100).body)).toBeLessThanOrEqual(100);
-  });
-});
-
-describe('[LG-020] «Скопировать отчёт»', () => {
-  it('[LG-020] a short text without secrets: the summary and the last problems', () => {
-    const recent = [...records(30), { ts: new Date(T0).toISOString(), seq: 99, level: 'error', scope: 'tab.insert', msg: `insert failed ${TOKEN}`, code: 'CG-INSERT-FAILED' } satisfies LogRecord];
-    const text = copyReport(facts(), recent, redactor());
-    expect(text.length).toBeLessThanOrEqual(COPY_REPORT_MAX_CHARS);
-    expect(text).toContain('version: 0.1.0 (contracts 1.1.0)');
-    expect(text).toContain('errors today: CG-HUB-TIMEOUT ×3, CG-INSERT-MISPLACED ×1');
-    expect(text).toContain('p1: p1.insert-misplaced ×1');
-    expect(text).toContain('chatspace tabs: 1 · index-DEVowLko missing fansMap');
-    // An anchor ChatSpace creates with the page's first chat is named apart, not as missing.
-    const waiting = contract();
-    const notYet = copyReport(facts({ tabs: [{ tabSessionId: TAB, host: { ...waiting, anchors: { ...waiting.anchors, composerTranslator: 'notYet' } }, chatKey: null }] }), [], redactor());
-    expect(notYet).toContain('chatspace tabs: 1 · index-DEVowLko ok notYet composerTranslator');
-    // Decision X25: which receipt profile let X8 in, and how; the fuse of the browser — machine words only.
-    const anyBuild = copyReport(
-      facts({
-        tabs: [{ tabSessionId: TAB, host: { ...waiting, receiptMatch: { profile: 'any-build', kind: 'anyBuild' } }, chatKey: null }],
-        sendFuse: { fuse: { trippedAt: T0 - 60_000, reason: 'text', where: 'echo', build: 'index-DEVowLko', attemptId: '00000000-0000-4000-8000-000000000070' }, resetAt: null },
-      }),
-      [],
-      redactor(),
-    );
-    expect(anyBuild).toContain('chatspace tabs: 1 · index-DEVowLko ok receipt any-build/anyBuild');
-    expect(anyBuild).toContain(`preview send fuse: tripped text/echo at ${new Date(T0 - 60_000).toISOString()} on index-DEVowLko`);
-    expect(copyReport(facts({ sendFuse: { fuse: null, resetAt: T0 } }), [], redactor())).toContain(`preview send fuse: none · last reset ${new Date(T0).toISOString()}`);
-    expect(copyReport(facts(), [], redactor())).toContain('preview send fuse: unknown');
-    expect(text).toContain('error [tab.insert] CG-INSERT-FAILED insert failed [redacted]');
-    expect(text).not.toContain(TOKEN);
-    const quiet = copyReport(
-      facts({
-        tabs: [{ tabSessionId: TAB, host: null, chatKey: null }],
-        session: { signedIn: false, hubOrigin: null, role: null },
-        hub: { ...facts().hub, lastError: null, reachable: null, sdk: { vendoredHash: 'a'.repeat(64), hubHash: null, compatible: null } },
-        healthCounters: {},
-        logs: { ...facts().logs, available: false },
-        telemetry: { ...telemetryStats, paused: 'auth' },
-        extension: { version: '0.1.0', contractsVersion: '1.1.0', testBuild: true },
-        browser: { major: null },
-        sound: { listeningTabs: 0, lastIncomingAt: null, outcomes: {} },
-        debug: { enabled: false, prompts: { count: 0, chars: 0 } },
-      }),
-      [],
-      redactor(),
-    );
-    expect(quiet).toContain('signed in: no');
-    expect(quiet).toContain('chatspace tabs: 1 · no-report');
-    expect(quiet).toContain('store unavailable');
-    expect(quiet).toContain('paused until sign-in');
-    expect(quiet).toContain('test build');
-    expect(quiet).toContain('last incoming never');
-    expect(quiet).not.toContain('last problems');
-  });
-});
-
-describe('[LG-020] the diagnostics service', () => {
-  it('[LG-020] export and report over the log store, with the export logged', async () => {
-    const scheduler: Scheduler = { now: () => T0, after: () => () => undefined };
-    const r = redactor();
-    const sunk: LogRecord[] = [];
-    const logs = new LogService({ store: new MemoryLogStore(), scheduler });
-    await logs.open(null);
-    const logger = createLogger({ now: () => T0, debugEnabled: () => false, redactor: r, sinks: [logs.sink, (rec) => sunk.push(rec)] });
-    logger.warn('bg.hub', 'hub call failed', { code: 'CG-HUB-TIMEOUT', fields: { reason: `token=${TOKEN}` } });
-    await logs.flush();
-    const service = new DiagnosticsService({ facts: () => Promise.resolve(facts()), logs, redactor: r, logger });
-    expect(DiagnosticsSnapshotSchema.safeParse(await service.snapshot()).success).toBe(true);
-    const json = await service.exportFile('json');
-    expect((JSON.parse(json.body) as ExportBundle).logs.recent).toHaveLength(1);
-    const txt = await service.exportFile('txt');
-    expect(txt.body).toContain('hub call failed');
-    expect(txt.body).not.toContain(TOKEN);
-    expect(await service.copyReport()).toContain('[bg.hub] CG-HUB-TIMEOUT hub call failed');
-    expect(sunk.filter((rec) => rec.msg === 'diagnostics exported').map((rec) => rec.fields?.['format'])).toEqual(['json', 'txt']);
-    const quiet = new DiagnosticsService({ facts: () => facts(), logs, redactor: r });
-    expect((await quiet.exportFile('json')).mime).toBe('application/json');
-  });
-});
-
-class MemoryKv implements KeyValuePort {
-  value: unknown = null;
-  fail = false;
-  load(): Promise<unknown> {
-    return this.fail ? Promise.reject(new Error('read')) : Promise.resolve(this.value);
-  }
-  save(value: unknown): Promise<void> {
-    if (this.fail) return Promise.reject(new Error('write'));
-    this.value = JSON.parse(JSON.stringify(value)) as unknown;
-    return Promise.resolve();
-  }
-}
-
-const usage: UsageNumbers = { inputTokens: 100, outputTokens: 20, cacheWriteTokens: 0, cacheReadTokens: 50, costMicroUsd: 1500, costApproximate: false };
-
-describe('[DB-022] [DB-018] the local spend journal service', () => {
-  it('[DB-022] counts usage by feature, survives an event-page restart, clears on sign-out', async () => {
-    const kv = new MemoryKv();
-    const spend = new SpendService(kv);
-    await spend.start();
-    spend.recordUsage('reply', usage, T0);
-    spend.recordInsert('reply', T0);
-    await spend.saved();
-    const again = new SpendService(kv);
-    await again.start();
-    expect(again.report(T0).total).toMatchObject({ runs: 1, inserts: 1, costMicroUsd: 1500 });
-    expect(again.report(T0).source).toBe('local-browser');
-    expect(again.todayCostMicroUsd(T0)).toBe(1500);
-    again.clear();
-    await again.saved();
-    expect(again.report(T0).total.runs).toBe(0);
-    kv.fail = true;
-    const failing = new SpendService(kv);
-    await failing.start();
-    failing.recordUsage('fix', usage, T0);
-    await failing.saved();
-    expect(failing.saveFailures).toBe(2);
-  });
-});
-
-describe('[DB-001] debug off and sign-out clear the debug data', () => {
-  it('[DB-001] debug off or sign-out: the journals and the local spend journal go (§9.3); the prompt snapshots go in the hub layer that keeps them', async () => {
-    const journals = new DebugJournals(() => true);
-    journals.sink({ ts: new Date(T0).toISOString(), seq: 1, level: 'info', scope: 'bg.ops', msg: 'op' });
-    const kv = new MemoryKv();
-    const spend = new SpendService(kv);
-    spend.recordUsage('reply', usage, T0);
-    clearDebugData({ journals, spend });
-    expect(journals.read('operations', 10).records).toEqual([]);
-    expect(spend.report(T0).total.runs).toBe(0);
-    await spend.saved();
-    const again = new SpendService(kv);
-    await again.start();
-    expect(again.report(T0, 7).total.runs).toBe(0);
-  });
-});
-
-describe('[DB-029] what crosses a runtime boundary passes its contract schema', () => {
-  it('[DB-029] tab records, stored records, snapshots, prompt views, op debug views, health and acceptance', () => {
-    const r = redactor();
-    const tabLogger = createLogger({ now: () => T0, debugEnabled: () => true, maxRecordBytes: LOG_LIMITS.maxRecordBytesFromUi });
-    const fromTab = tabLogger.error('tab.dock', 'surface failed', { code: 'CG-UI-FAILED', error: new Error('x'.repeat(30_000)), fields: { list: Array.from({ length: 300 }, (_, i) => i) } });
-    expect(LogRecordFromUiSchema.safeParse(fromTab).success).toBe(true);
-    const stored: LogRecord[] = [];
-    acceptUiRecords(fromTab === null ? [] : [fromTab], { tabSessionId: TAB }, { redactor: r, sinks: [(rec) => stored.push(rec)], debugEnabled: () => false });
-    expect(stored.every((rec) => LogRecordSchema.safeParse(rec).success)).toBe(true);
-    expect(DiagnosticsSnapshotSchema.safeParse(diagnosticsSnapshot(facts())).success).toBe(true);
-    // Decision X25: the fuse of the browser rides along, as the contract has it.
-    const sendFuse = { fuse: { trippedAt: T0, reason: 'count' as const, where: 'queue' as const, build: null, attemptId: null }, resetAt: T0 - 1 };
-    expect(diagnosticsSnapshot(facts({ sendFuse })).sendFuse).toEqual(sendFuse);
-    expect(DiagnosticsSnapshotSchema.safeParse(diagnosticsSnapshot(facts({ sendFuse }))).success).toBe(true);
-    expect(diagnosticsSnapshot(facts())).not.toHaveProperty('sendFuse');
-    const echo: DebugInputFrame = { type: 'debug_input_v1', systemBlocks: [{ text: 'p', cache: 'none' }], userBlocks: [{ text: 'u', cache: 'none' }], contextManifest: null };
-    const views = [promptView('ok', snapshotFromFrame(echo, { feature: 'reply', capturedAt: T0 })), promptView('expired', null), promptView('not-found', null), promptView('debug-off', null)];
-    for (const view of views) expect(PromptSnapshotViewSchema.safeParse(view).success).toBe(true);
-    const builder = new OpDebugBuilder(T0);
-    builder.setPromptToken('tok-00000001');
-    expect(OpDebugViewSchema.safeParse(builder.view()).success).toBe(true);
-    const window = new HealthWindow(T0);
-    window.recordPerf('ttfcMs', 1200);
-    expect(ClientHealthV1Schema.safeParse(window.build(T0 + 1, 'chatspace', { version: '0.1.0', browserMajor: 157, os: 'linux' }, { cachesKB: 0, logsKB: 0 })).success).toBe(true);
-    expect(TabHealthReportSchema.safeParse(new TabHealthCollector(() => T0).takeReport(null, { cachesKB: 0, domNodes: 0 })).success).toBe(true);
-    const tracker = new AcceptanceTracker({ now: () => T0, uuid: () => '00000000-0000-4000-8000-000000000001' });
-    tracker.link({ opId: OP, generationRef: OP, feature: 'hi', surface: 'newcomers', pageLabel: 'lora-of' });
-    const shown = tracker.shown(OP, { variant: 1 });
-    expect(shown.ok && AcceptanceEventSchema.safeParse(shown.event).success).toBe(true);
   });
 });

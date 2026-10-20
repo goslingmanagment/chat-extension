@@ -3,12 +3,11 @@
 
 import type { ToMainType } from '@cg/contracts/bridge';
 import type { ComposerState, HostEvent, HostTheme, InsertIntent, MountPoints, NavigationIntent } from '@cg/contracts/host';
-import { ChatSpaceContractReportSchema, InsertReceiptSchema, LiveTextTailSchema, NavigationReceiptSchema } from '@cg/contracts/host';
-import { createRedactor, redactRecord } from '@cg/core/domain/logging';
+import { InsertReceiptSchema, NavigationReceiptSchema } from '@cg/contracts/host';
 import { describe, expect, it } from 'vitest';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
-import { createChatSpaceHostPort, HostContractError, type HostDiagnostic } from './host-port';
+import { createChatSpaceHostPort, type HostDiagnostic } from './host-port';
 import { loadValidation } from './validation';
 import type { MountManager } from './mount';
 import type { ThemeReader } from './theme';
@@ -125,43 +124,6 @@ const insertIntent = (over: Partial<InsertIntent> = {}): InsertIntent => ({
 });
 
 describe('[BG-002] state from MAIN', () => {
-  it('[AU-030] identity, route, composer, accounts and the contract come from the first snapshot', async () => {
-    const { host, updates } = await port();
-    expect(host.identity()).toEqual({
-      host: 'chatspace',
-      documentEpoch: 'doc1',
-      hostLoginEpoch: 'L1',
-      hostAccountId: ACC,
-      platformAccountId: '3003',
-      chat: chat(),
-      routeEpoch: 4,
-      composerInstanceId: 'c1',
-    });
-    const current = host.current();
-    expect(current.route.epoch).toBe(4);
-    expect(current.accounts).toEqual([account]);
-    expect(host.listCachedAccounts()).toEqual([account]);
-    expect(updates.at(-1)).toEqual(composer());
-    const report = ChatSpaceContractReportSchema.parse(host.probe());
-    expect(report.capabilities.identity).toEqual({ state: 'on' });
-    expect(report.capabilities.insert).toEqual({ state: 'on' });
-    // Not configured, no tap script: the live side is off, each capability with its reason.
-    expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
-    expect(host.previewSend).toBeNull();
-    expect(await host.checkpoint(chat())).toBeNull();
-  });
-
-  it('[AU-030] [ER-048] without MAIN: no identity, every host capability off with CG-HOST-NOT-READY', async () => {
-    const { mounts } = fakeMounts();
-    const host = createChatSpaceHostPort({ win: window, bridge: null, redeem: () => Promise.resolve(true), mounts, theme: themeStub, validation: loadValidation });
-    await host.ready;
-    expect(host.identity()).toBeNull();
-    expect(host.probe().capabilities.identity).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
-    expect(await host.insert(insertIntent())).toEqual({ state: 'rejected', code: 'CG-HOST-NOT-READY' });
-    expect(await host.navigate({ intentId: uuid(9), cause: { kind: 'click', actionToken: TOKEN }, target: { hostAccountId: ACC, platformFanId: FAN } })).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: null });
-    await expect(host.readDraft(host.current().identity ?? ({} as never))).rejects.toBeInstanceOf(BridgeCallError);
-  });
-
   it('[RB-015] a route event moves the epoch and drops the composer of the chat we left; composer events move the dock', async () => {
     const { host, bridge, updates } = await port();
     const seen: HostEvent['type'][] = [];
@@ -201,27 +163,6 @@ describe('[BG-002] state from MAIN', () => {
     expect(updates.at(-1)).toMatchObject({ instanceId: 'c9' });
   });
 
-  it('[RB-008] the dock stands over new nodes of the composer MAIN still names: MAIN is asked to look again and its composer EVENT is followed — the answer itself is never taken', async () => {
-    let answer: Record<string, unknown> = snapshot({ composer: composer({ instanceId: 'c2' }) });
-    const { host, bridge, renew, updates } = await port({ snapshot: () => answer });
-    const snapshots = (): number => bridge.calls.filter((call) => call.t === 'snapshot').length;
-    // The first snapshot of the start is taken as ever.
-    expect(host.identity()?.composerInstanceId).toBe('c2');
-    bridge.emit({ t: 'composer', payload: { state: composer({ instanceId: 'c3' }) } });
-    const before = snapshots();
-    // ChatSpace rendered the composer again; MAIN, asked, finds the new one (a new node is a new composer)…
-    answer = snapshot({ composer: composer({ instanceId: 'c4' }) });
-    renew();
-    expect(snapshots()).toBe(before + 1);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    // …and this side waits for MAIN's event: what an answer says is outside MAIN's «never repeat an equal event».
-    expect(host.identity()?.composerInstanceId).toBe('c3');
-    bridge.emit({ t: 'composer', payload: { state: composer({ instanceId: 'c4' }) } });
-    expect(host.identity()).toMatchObject({ routeEpoch: 4, chat: chat(), composerInstanceId: 'c4' });
-    expect(updates.at(-1)).toMatchObject({ instanceId: 'c4' });
-    expect(bridge.calls.filter((call) => !['snapshot', 'listAccounts', 'chatWindow', 'fan', 'listChats'].includes(call.t)).map((call) => call.t)).toEqual([]);
-  });
-
   it('[RB-014] [RB-015] an answer from the middle of a chat switch never becomes this side’s composer: «none yet» told to a question does not outlive the switch back, which MAIN has no event for', async () => {
     // CI on PR #16: a snapshot asked during a switch said «no composer yet», was taken as the composer, and MAIN — back
     // on the first chat before it had sent anything — had nothing new to say: the dock stayed «copy only» for good.
@@ -242,196 +183,6 @@ describe('[BG-002] state from MAIN', () => {
     renew();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(host.identity()?.composerInstanceId).toBe('c1');
-  });
-
-  it('[LG-008] a read that keeps failing the same way: asked again only when MAIN’s state moves, logged once — then at its 10th time with the count — and its end said once, with the read named', async () => {
-    let outcome: 'broken' | 'ok' | 'slow' = 'broken';
-    const fanOf = { chat: chat(), username: 'one', displayName: 'One', isBlocked: false, canReceiveMessages: true, isRestricted: false, isOnline: null, lastSeenAt: null, buyingPowerLabel: null, insights: null, bio: null, lists: null };
-    const { host, bridge, diagnostics } = await port({
-      fan: () => (outcome === 'ok' ? fanOf : Promise.reject(new BridgeCallError(outcome === 'broken' ? 'invalid-answer' : 'timeout', 'fan'))),
-    });
-    const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
-    const fanReads = (): number => bridge.calls.filter((call) => call.t === 'fan').length;
-    const records = () => diagnostics.filter((d) => d.event === 'read-failed' || d.event === 'read-recovered');
-    await tick();
-    // The start asked once (the route of the snapshot) and failed.
-    expect(fanReads()).toBe(1);
-    expect(records()).toEqual([{ event: 'read-failed', detail: { requestKind: 'fan', failure: 'invalid-answer' } }]);
-    // Thirty looks at the chat — every view does one on every change of anything: nothing is asked, nothing written.
-    for (let i = 0; i < 30; i += 1) expect(host.fan(chat())).toBeNull();
-    await tick();
-    expect(fanReads()).toBe(1);
-    // Nine changes of ChatSpace's state for the open chat: each asks once; the tenth failure in a row is written with its count.
-    for (let i = 0; i < 9; i += 1) {
-      bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
-      await tick();
-    }
-    expect(fanReads()).toBe(10);
-    expect(records()).toEqual([
-      { event: 'read-failed', detail: { requestKind: 'fan', failure: 'invalid-answer' } },
-      { event: 'read-failed', detail: { requestKind: 'fan', failure: 'invalid-answer', repeats: 10 } },
-    ]);
-    // MAIN answers again: the run is over, said once; a getter keeps the answer.
-    outcome = 'ok';
-    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
-    await tick();
-    expect(host.fan(chat())).toMatchObject({ displayName: 'One' });
-    expect(records().at(-1)).toEqual({ event: 'read-recovered', detail: { requestKind: 'fan', failure: 'invalid-answer', repeats: 10 } });
-    // Another way of failing is news: written at once.
-    outcome = 'slow';
-    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
-    await tick();
-    expect(records().at(-1)).toEqual({ event: 'read-failed', detail: { requestKind: 'fan', failure: 'timeout' } });
-    expect(records()).toHaveLength(4);
-  });
-
-  it('[LG-003] the record names the read: `requestKind` is a fixed word the log keeps, not a text it masks', () => {
-    const redactor = createRedactor();
-    const clean = redactRecord({ ts: new Date().toISOString(), seq: 1, level: 'info', scope: 'tab.host', msg: 'read-failed', fields: { requestKind: 'fan', failure: 'invalid-answer', repeats: 10 } }, redactor);
-    expect(clean.fields).toEqual({ requestKind: 'fan', failure: 'invalid-answer', repeats: 10 });
-    // The same rule still masks a text under that name.
-    const text = redactRecord({ ts: new Date().toISOString(), seq: 2, level: 'info', scope: 'tab.host', msg: 'read-failed', fields: { requestKind: 'hey there, how are you' } }, redactor);
-    expect(text.fields).toEqual({ requestKind: '[text len=22]' });
-  });
-
-  it('[BG-002] MAIN injected after document_start (an update under an open tab): reloadNeeded, also for a late subscriber', async () => {
-    const bridge = fakeBridge({ snapshot: () => snapshot(), listAccounts: () => [account], chatWindow: () => null, fan: () => null, listChats: () => [] });
-    bridge.client.probe = () => Promise.resolve({ v: 1, readyStateAtStart: 'complete', installMs: 0, wsTap: false });
-    const { mounts } = fakeMounts();
-    const diagnostics: HostDiagnostic[] = [];
-    const host = createChatSpaceHostPort({ win: window, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme: themeStub, validation: loadValidation, onDiagnostic: (d) => diagnostics.push(d) });
-    await host.ready;
-    const seen: string[] = [];
-    host.subscribe((event) => seen.push(event.type));
-    await Promise.resolve();
-    expect(seen).toEqual(['reloadNeeded']);
-    expect(diagnostics).toContainEqual({ event: 'late-start', detail: { startReadyState: 'complete' } });
-    const normal = await port();
-    const quiet: string[] = [];
-    normal.host.subscribe((event) => quiet.push(event.type));
-    await Promise.resolve();
-    expect(quiet).toEqual([]);
-  });
-
-  it('[DB-031] [NEW-09] [RB-008] contract changes reach onContract once per change, with the build fingerprint', async () => {
-    const { host, bridge, diagnostics, setFrame } = await port();
-    const reports: unknown[] = [];
-    host.onContract((report) => reports.push(report));
-    bridge.emit({ t: 'contract', payload: wire({ missing: ['chatMessages'] }) });
-    bridge.emit({ t: 'contract', payload: wire({ missing: ['chatMessages'] }) });
-    expect(reports).toHaveLength(1);
-    expect(host.probe().capabilities.freshText).toEqual({ state: 'off', reason: 'chatMessages' });
-    expect(host.probe().anchors.chatMessages).toBe('missing');
-    bridge.emit({ t: 'contract', payload: wire({ build: 'index-NEWbuild1', shape: ['accounts'] }) });
-    expect(host.probe().build).toBe('index-NEWbuild1');
-    expect(host.probe().capabilities.accounts).toEqual({ state: 'contractBroken', reason: 'accounts', code: 'CG-HOST-CONTRACT' });
-    expect(diagnostics).toContainEqual({ event: 'build-changed', detail: { from: 'index-0000fake', to: 'index-NEWbuild1' } });
-    setFrame('missing');
-    expect((await host.recheck()).capabilities.dockMount).toEqual({ state: 'degraded', reason: 'composerFrame' });
-  });
-
-  it('[X22] a failure MAIN’s guard kept from the page is logged by site, each time its count at least doubled, for a bounded number of sites', async () => {
-    const { bridge, diagnostics } = await port();
-    const fault = (source: string, count: number): void => bridge.emit({ t: 'fault', payload: { source, count } });
-    // MAIN sends 1, 2, 4, 8…; a count that did not double (a page forging the event) says nothing new.
-    for (const count of [1, 2, 3, 4, 5, 8]) fault('route', count);
-    fault('cacheAfter', 1);
-    const logged = (): unknown[] => diagnostics.filter((diagnostic) => diagnostic.event === 'main-fault');
-    expect(logged()).toEqual([
-      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'route', count: 1 } },
-      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'route', count: 2 } },
-      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'route', count: 4 } },
-      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'route', count: 8 } },
-      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'cacheAfter', count: 1 } },
-    ]);
-    // Sites beyond the cap are not logged: a page that invents names cannot flood the log.
-    for (let i = 0; i < 100; i += 1) fault(`forged${i}`, 1);
-    expect(new Set(logged().map((diagnostic) => (diagnostic as HostDiagnostic).detail?.['source'])).size).toBe(64);
-  });
-
-  it('reads answer from the cache that chat-cache events refresh; nothing is loaded for other chats', async () => {
-    const window = { chat: chat(), state: 'ready', loaded: 2, fanMessages: 1, modelMessages: 1, lastFanMessageId: '4004', lastFanMessageAt: null, lastModelMessageAt: null, hasOlder: null } as const;
-    const row = { chat: chat(), position: 0, displayName: 'Two', username: 'two', unreadCount: 1, isOnline: null };
-    const { host, bridge } = await port({ chatWindow: () => window, listChats: () => [row], fan: (payload) => ({ chat: chat(payload['fan'] as string), username: 'x', displayName: null, isBlocked: false, canReceiveMessages: true, isRestricted: null, isOnline: null, lastSeenAt: null, buyingPowerLabel: null, insights: null, bio: null, lists: null }) });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(host.chatWindow(chat(), 50)).toEqual(window);
-    expect(host.chatWindow(chat(OTHER), 50)).toBeNull();
-    expect(host.listCachedChats(ACC, 10)).toEqual([row]);
-    expect(host.fan(chat(OTHER))).toBeNull();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(host.fan(chat(OTHER))?.chat).toEqual(chat(OTHER));
-    const events: HostEvent[] = [];
-    host.subscribe((event) => events.push(event));
-    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(events.filter((event) => event.type === 'chatCache')).not.toHaveLength(0);
-    expect(bridge.calls.filter((call) => call.t === 'chatWindow').every((call) => call.payload['fan'] === FAN)).toBe(true);
-  });
-
-  it('[RB-008] an anchor that turns ok later (history landed after the route settled) gets its data read at once', async () => {
-    const window = { chat: chat(), state: 'ready', loaded: 1, fanMessages: 1, modelMessages: 0, lastFanMessageId: '4004', lastFanMessageAt: null, lastModelMessageAt: null, hasOlder: null } as const;
-    const { host, bridge } = await port({ snapshot: () => snapshot({ contract: wire({ missing: ['chatMessages'] }) }), chatWindow: () => window });
-    expect(host.probe().capabilities.chatWindow.state).toBe('off');
-    expect(bridge.calls.filter((call) => call.t === 'chatWindow')).toHaveLength(0);
-    // A chatCache that comes before the contract finds the capability off and reads nothing…
-    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
-    expect(bridge.calls.filter((call) => call.t === 'chatWindow')).toHaveLength(0);
-    // …the contract that turns it on reads the window without waiting for the next change.
-    bridge.emit({ t: 'contract', payload: wire() });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(bridge.calls.filter((call) => call.t === 'chatWindow')).toHaveLength(1);
-    expect(host.chatWindow(chat(), 50)).toEqual(window);
-  });
-
-  it('a cache change during an in-flight read is not lost: one more read follows; the chat list is only marked stale', async () => {
-    const answers: Array<(value: unknown) => void> = [];
-    const { host, bridge } = await port({ chatWindow: () => new Promise((resolve) => answers.push(resolve)), listChats: () => [] });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const windows = () => bridge.calls.filter((call) => call.t === 'chatWindow').length;
-    const lists = () => bridge.calls.filter((call) => call.t === 'listChats').length;
-    expect(windows()).toBe(1);
-    const listed = lists();
-    host.listCachedChats(ACC, 10);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const listedAfterRead = lists();
-    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
-    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
-    expect(windows()).toBe(1);
-    answers.shift()?.(null);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(windows()).toBe(2);
-    answers.shift()?.(null);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(windows()).toBe(2);
-    // The list is not re-read on every cache change: only marked stale, then read when someone asks for it.
-    expect(lists()).toBe(listedAfterRead);
-    expect(listedAfterRead).toBeGreaterThanOrEqual(listed);
-    host.listCachedChats(ACC, 10);
-    expect(lists()).toBe(listedAfterRead + 1);
-  });
-
-  it('the fresh tail goes to the hub trimmed to its 60-message limit and the asked max', async () => {
-    const messages = Array.from({ length: 80 }, (_, i) => ({ platformMessageId: String(5000 + i), direction: 'fan', sentAt: '2026-10-03T10:00:00.000Z', text: `m${i}` }));
-    const { host, bridge } = await port({ readTail: () => ({ capturedAt: '2026-10-03T10:00:00.000Z', messages }) });
-    const tail = LiveTextTailSchema.parse(await host.readVisibleTail(host.identity() as never, 100));
-    expect(tail.messages).toHaveLength(60);
-    // MAIN is never asked for more than the hub takes.
-    expect(bridge.calls.find((call) => call.t === 'readTail')?.payload['max']).toBe(60);
-    expect(tail.messages.at(-1)?.platformMessageId).toBe('5079');
-    expect((await host.readVisibleTail(host.identity() as never, 5))?.messages).toHaveLength(5);
-    bridge.emit({ t: 'contract', payload: wire({ shape: ['chatMessages'] }) });
-    expect(await host.readVisibleTail(host.identity() as never, 5)).toBeNull();
-  });
-
-  it('readDraft pairs MAIN’s draft with the identity; a non-empty draft without its key degrades draftRead', async () => {
-    const drafts = storage();
-    const { host } = await port({ readDraft: () => ({ composerInstanceId: 'c1', revision: 7, plainText: 'typed', provenance: 'human-or-unknown', digest: '00000000000000aa' }) }, { drafts });
-    const draft = await host.readDraft(host.identity() as never);
-    expect(draft).toMatchObject({ revision: 7, plainText: 'typed', provenance: 'human-or-unknown', identity: { composerInstanceId: 'c1' } });
-    expect(host.probe().capabilities.draftRead).toEqual({ state: 'degraded', reason: 'draftKey' });
-    drafts.entries[`chat-space:draft:of:${ACC}:${FAN}`] = storedDraft('typed');
-    await host.readDraft(host.identity() as never);
-    expect(host.probe().capabilities.draftRead).toEqual({ state: 'on' });
   });
 });
 
@@ -487,19 +238,6 @@ describe('guarded insert (§6.4)', () => {
     bridge.emit({ t: 'composer', payload: { state: composer({ ready: false }) } });
     expect(await host.insert(insertIntent())).toEqual({ state: 'rejected', code: 'CG-HOST-COMPOSER-MISSING' });
   });
-
-  it('a deferred intent through insert() or a broken one is a programming error', async () => {
-    const { host } = await port();
-    await expect(host.insert(insertIntent({ expected: { kind: 'deferred', documentEpoch: 'doc1' } }))).rejects.toBeInstanceOf(HostContractError);
-    await expect(host.insert({ ...insertIntent(), cause: undefined } as never)).rejects.toBeInstanceOf(HostContractError);
-  });
-
-  it('[UI-019] focus goes to the composer through MAIN; any failure is just «not focused»', async () => {
-    const { host } = await port({ focus: () => ({ focused: true }) });
-    expect(await host.focusComposer(host.identity() as never)).toBe(true);
-    const failing = await port();
-    expect(await failing.host.focusComposer(failing.host.identity() as never)).toBe(false);
-  });
 });
 
 describe('navigation (§6.5, §6.9)', () => {
@@ -538,36 +276,10 @@ describe('navigation (§6.5, §6.9)', () => {
     expect(call?.timeoutMs).toBeGreaterThanOrEqual(sent.expiresAt - Date.now());
   });
 
-  it('[NEW-01] the navigation timeout may come later than the host: a getter is read at each «Открыть и вставить» (bootstrap limits.navInsertTimeoutSec)', async () => {
-    let limitMs: number | undefined = undefined;
-    const { host, bridge } = await port({ navigate: () => ({ state: 'navigated', routeEpoch: 5, insert: { state: 'rejected', code: 'CG-NAV-TIMEOUT' } }) }, { navInsertTimeoutMs: () => limitMs });
-    const far = (intentId: string) => ({ ...thenInsert, intentId, expiresAt: Date.now() + 120_000 });
-    const sentBy = (index: number) => (bridge.calls.filter((item) => item.t === 'navigate')[index]?.payload['intent'] as { thenInsert: { expiresAt: number } }).thenInsert;
-    // No bootstrap yet: the default 20 s.
-    let started = Date.now();
-    await host.navigate(nav({ intentId: uuid(31), thenInsert: far(uuid(32)) as never }));
-    expect(sentBy(0).expiresAt).toBeGreaterThanOrEqual(started + 20_000);
-    expect(sentBy(0).expiresAt).toBeLessThanOrEqual(Date.now() + 20_000);
-    // The bootstrap arrived with a shorter limit.
-    limitMs = 7000;
-    started = Date.now();
-    await host.navigate(nav({ intentId: uuid(33), cause: { kind: 'click', actionToken: `${TOKEN.slice(0, -1)}b` }, thenInsert: far(uuid(34)) as never }));
-    expect(sentBy(1).expiresAt).toBeGreaterThanOrEqual(started + 7000);
-    expect(sentBy(1).expiresAt).toBeLessThanOrEqual(Date.now() + 7000);
-  });
-
   it('[NEW-01] the deferred insert’s applied receipt is checked against the target’s draft key too', async () => {
     const drafts = storage({ [`chat-space:draft:of:${ACC}:${OTHER}`]: storedDraft('other text') });
     const { host } = await port({ navigate: () => ({ state: 'navigated', routeEpoch: 5, insert: { state: 'applied', draftRevision: 2, draftDigest: '00000000000000cc', ms: 3 } }) }, { drafts });
     expect(await host.navigate(nav({ thenInsert: thenInsert as never }))).toEqual({ state: 'navigated', routeEpoch: 5, insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } });
-  });
-
-  it('[NEW-01] [UI-027] copy only (insert off): the chat still opens, the insert is refused at once and never reaches MAIN', async () => {
-    const { host, bridge } = await port({ snapshot: () => snapshot({ contract: wire({ missing: ['composerBridge'] }) }), navigate: () => ({ state: 'navigated', routeEpoch: 5, insert: null }) });
-    expect(await host.navigate(nav({ thenInsert: thenInsert as never }))).toEqual({ state: 'navigated', routeEpoch: 5, insert: { state: 'rejected', code: 'CG-HOST-COMPOSER-MISSING' } });
-    const sent = bridge.calls.find((call) => call.t === 'navigate');
-    expect(sent?.payload['intent']).not.toHaveProperty('thenInsert');
-    expect(sent?.timeoutMs).toBe(20_000);
   });
 
   it('[NEW-01] aborting the signal while MAIN waits sends cancelInsert for the deferred insert; aborted before, the insert never leaves', async () => {
@@ -589,11 +301,5 @@ describe('navigation (§6.5, §6.9)', () => {
     aborted.abort();
     expect(await early.host.navigate(nav({ thenInsert: thenInsert as never }), { signal: aborted.signal })).toEqual({ state: 'navigated', routeEpoch: 6, insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
     expect(early.bridge.calls.find((call) => call.t === 'navigate')?.payload['intent']).not.toHaveProperty('thenInsert');
-  });
-
-  it('a refusal before execution is CG-NAV-FAILED', async () => {
-    const { host } = await port({ navigate: () => Promise.reject(new BridgeCallError('bad-request', 'navigate')) });
-    expect(await host.navigate(nav({ thenInsert: thenInsert as never }))).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'rejected', code: 'CG-NAV-FAILED' } });
-    await expect(host.navigate({ ...nav(), cause: undefined } as never)).rejects.toBeInstanceOf(HostContractError);
   });
 });

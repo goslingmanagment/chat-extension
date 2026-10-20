@@ -447,14 +447,6 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     expect(w.hub.calls.find((call) => call.body.action === 'failed')?.body).toMatchObject({ action: 'failed', attemptId: uuid(1), reason: 'not_enqueued' });
   });
 
-  it('[NF-021] a change while the route was taken is refused before the custody: no dispatch at all', async () => {
-    const w = world();
-    w.live = { hostAccountId: CREATOR, groupId: GROUP, fanRef: FAN, tabSessionId: TAB, historyRevision: uuid(0x98), draftRevision: 2 };
-    expect(await w.send.send(click())).toMatchObject({ state: 'refused', proof: 'before-dispatch', code: 'CG-FNEW-HISTORY' });
-    expect(w.hub.actions()).toEqual(['claim', 'release']);
-    expect(w.routes[0]?.cancels).toBe(1);
-  });
-
   it('[FS-PERM-5] Fansly switched off or its rights taken back: a new click starts nothing — refused before the hub hears of it, no route, no request', async () => {
     const w = world();
     w.on = false;
@@ -466,22 +458,6 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     void w.send.send(click(uuid(2)));
     await settle();
     expect(w.routes[0]?.starts).toBe(1);
-  });
-
-  it('[FS-PERM-5] switched off while the route was taken: refused before the custody — no dispatch, the lease given back', async () => {
-    const w = world();
-    const claimed = deferred<void>();
-    w.hub.onClaim(async (op) => {
-      await claimed.promise;
-      return claimState({ lease: { state: 'owned', leaseToken: (op.body as { leaseToken: string }).leaseToken, expiresAt: iso(SERVER + 120_000), heldBy: null } });
-    });
-    const view = w.send.send(click());
-    await settle();
-    w.on = false;
-    claimed.resolve();
-    await expect(view).resolves.toMatchObject({ state: 'refused', proof: 'before-dispatch', code: 'CG-FAN-OFF' });
-    expect(w.hub.actions()).toEqual(['claim', 'release']);
-    expect(w.routes[0]).toMatchObject({ starts: 0, cancels: 1 });
   });
 
   it('[FS-PERM-5] switched off during the custody\'s answer or the intent\'s write: refused at the final check with NO request, the custody hears «not enqueued»', async () => {

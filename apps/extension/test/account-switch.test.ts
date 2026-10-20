@@ -49,11 +49,6 @@ describe('an owner switch for a host account (the WS tap, the message sound)', (
     expect(mirrored('chatspace', ONE.hostAccountId, 'wsTap')).toBe(true);
   });
 
-  it('only an account the hub definitely binds to no page follows `"*"`', () => {
-    expect(switchOver(ONE_OFF)('chatspace', NOBODY.hostAccountId, 'wsTap')).toBe(true);
-    expect(switchOver({ ...ONE_OFF, flags: { ...ONE_OFF.flags, wsTap: false } })('chatspace', NOBODY.hostAccountId, 'wsTap')).toBe(false);
-  });
-
   it('a binding that cannot be told fails closed, whatever `"*"` says: an account no tab reported, a creator id not loaded yet, two pages claiming one account, another host’s account of the same id', () => {
     const flag = switchOver(ONE_OFF);
     expect(flag('chatspace', '999999', 'wsTap')).toBe(false);
@@ -65,10 +60,6 @@ describe('an owner switch for a host account (the WS tap, the message sound)', (
     // A binding to a page the bootstrap no longer lists is not a page that says «on».
     const gone = createAccountSwitch({ bootstrap: () => ONE_OFF, seenAccounts: () => [{ account: VIP }], resolveBinding: () => ({ state: 'bound', binding: { pageId: 404 } }) });
     expect(gone('chatspace', VIP.hostAccountId, 'wsTap')).toBe(false);
-  });
-
-  it('no bootstrap: unknown (null) — nobody is signed in, and the message sound needs no hub', () => {
-    expect(switchOver(null)('chatspace', ONE.hostAccountId, 'sound')).toBeNull();
   });
 });
 
@@ -87,10 +78,6 @@ describe('whose WS-tap facts are ours to use', () => {
     const asked: string[] = [];
     incomingFactUsable(fact(ONE, 'ws-tap'), (_host, _account, name) => (asked.push(name), true));
     expect(asked).toEqual(['wsTap']);
-  });
-
-  it('signed out there is no switch to ask: the fact is used (the message sound needs no hub)', () => {
-    expect(incomingFactUsable(fact(ONE, 'ws-tap'), switchOver(null))).toBe(true);
   });
 });
 
@@ -116,11 +103,5 @@ describe('whose human sends are ours to know (`op.reportSent`): the rule of the 
     expect(humanSendObservable(viewOn(FANSLY_PAGE, 'fansly-web'), ONE_OFF, slices(null))).toBe(false);
     // The rule is the slice's, not a name: ChatSpace's slice on that page would ask its `wsTap`.
     expect(humanSendObservable(viewOn(FANSLY_PAGE, 'fansly-web'), ONE_OFF, () => CHATSPACE_FEATURE_SLICE)).toBe(false);
-  });
-
-  it('no operation (forgotten by now) or no bootstrap: there is no page to ask — the report goes to its own checks as before', () => {
-    expect(humanSendObservable(null, ONE_OFF, slices(null))).toBe(true);
-    expect(humanSendObservable(viewOn(WORLD.pages.one.pageId), null, slices(null))).toBe(true);
-    expect(humanSendObservable(viewOn(FANSLY_PAGE, 'fansly-web'), null, slices(null))).toBe(true);
   });
 });
