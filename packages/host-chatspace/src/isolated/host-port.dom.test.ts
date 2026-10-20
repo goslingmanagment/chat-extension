@@ -4,7 +4,7 @@
 import type { ToMainType } from '@cg/contracts/bridge';
 import type { ComposerState, HostEvent, HostTheme, InsertIntent, MountPoints, NavigationIntent } from '@cg/contracts/host';
 import { InsertReceiptSchema, NavigationReceiptSchema } from '@cg/contracts/host';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { createChatSpaceHostPort, type HostDiagnostic } from './host-port';
@@ -244,6 +244,11 @@ describe('navigation (§6.5, §6.9)', () => {
   const nav = (over: Partial<NavigationIntent> = {}): NavigationIntent => ({ intentId: uuid(10), cause: { kind: 'click', actionToken: TOKEN }, target: { hostAccountId: ACC, platformFanId: OTHER }, ...over });
   const thenInsert = { ...insertIntent({ target: chat(OTHER), expected: { kind: 'deferred', documentEpoch: 'doc1' }, expiresAt: Date.now() + 5000 }), cause: undefined } as unknown as Record<string, unknown>;
   delete thenInsert['cause'];
+  // The deadline is five seconds from each test's start, not from collecting the file: on a loaded runner the gap ate
+  // into it and the bridge's wait came out under 5000 ms.
+  beforeEach(() => {
+    thenInsert['expiresAt'] = Date.now() + 5000;
+  });
 
   it('[SP-035] [NF-011] redeems the human cause and pushes; MAIN gets the target without a token', async () => {
     const { host, bridge, redeemed } = await port({ navigate: () => ({ state: 'navigated', routeEpoch: 5, insert: null }) });
