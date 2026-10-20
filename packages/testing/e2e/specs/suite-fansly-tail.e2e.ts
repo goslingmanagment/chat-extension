@@ -193,7 +193,7 @@ describe('suite-fansly-tail: the observed window, certificates, gaps and bounded
     expect((await snapshot()).window.length).toBeGreaterThan(0);
   });
 
-  it('[FS-TAIL-1] [FS-TAIL-6] [FS-TAIL-10] Hi checks only its 25-message window; Recap gets ids without text; frame overflow trims old texts and says truncated', async () => {
+  it('[FS-TAIL-1] [FS-TAIL-6] [FS-TAIL-10] Hi checks only its 25-message window; Recap without a text request gets ids only; frame overflow trims old texts and says truncated', async () => {
     for (let n = 0; n < 36; n++) await fakeFansly().command({ op: 'message', groupId: A.group, text: 'я'.repeat(5000) });
     await waitForTap(() => snapshot(), (s) => s.window.length === 60, 'sixty observed messages');
     const hi = await snapshot(A.group, 'hi', 25);

@@ -521,12 +521,13 @@ describe('Fansly’s isolated world over P7a’s MAIN on its stand: the route by
         expect(atFirst.composer).toMatchObject({ ready: true, hidden: false });
         expect(atFirst.slot).toEqual({ state: 'ready', groupId: first, fanId: ids.fans[first] });
         expect(atFirst.identity).toMatchObject({ chat: chatOf(first), routeEpoch: 2, composerInstanceId: atFirst.composer?.instanceId });
-        // The target's generation snapshot through the port: its own group and fan; texts for Reply, none for Recap.
+        // The target's snapshot through the port: its own group and fan; text is opt-in for both Reply and Recap.
         await waitForFanslyStandIdle();
         const reply = await tap<{ group: string; fan: string; window: number; tail: number | null } | null>('portSnapshot', 'reply', true);
         expect(reply).toMatchObject({ group: first, fan: ids.fans[first] });
         expect(reply?.tail).not.toBeNull();
-        expect(await tap('portSnapshot', 'recap', true)).toMatchObject({ group: first, fan: ids.fans[first], tail: null });
+        expect(await tap('portSnapshot', 'recap', true)).toMatchObject({ group: first, fan: ids.fans[first], tail: reply?.tail });
+        expect(await tap('portSnapshot', 'recap', false)).toMatchObject({ group: first, fan: ids.fans[first], tail: null });
       } else {
         // No fan named: no composer, no header slot, no snapshot — and the report says why.
         expect([atFirst.composer, atFirst.slot]).toEqual([null, { state: 'none', reason: 'no-chat' }]);
