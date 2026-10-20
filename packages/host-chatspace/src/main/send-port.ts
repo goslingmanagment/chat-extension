@@ -150,6 +150,8 @@ const held = (code: string): Plain => ({ state: 'held', code });
 const UNCERTAIN: Plain = { state: 'uncertain', code: CG_SEND_UNCERTAIN };
 
 export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver, enabled: () => boolean) {
+  /** The tap script's guard of what the browser calls back (decision X22). */
+  const { guard } = tap;
   /** The fuse (decision X25): one queue call of ours adds at most one entry, and only to the chat it names. */
   const added = (req: SendRequest, entry: unknown, before: ReadonlySet<unknown>, watch: SendWatch): void => {
     try {
@@ -238,7 +240,8 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
       return held(CG_SEND_HOST);
     }
     return new Promise((resolve) => {
-      const tick = (): void => {
+      // The browser calls it: guarded (decision X22); it settles the click whatever happens inside.
+      const tick = guard('sendWait', (): void => {
         try {
           if (accountFree(req.acc)) return resolve(send(req));
           if (Date.now() + ACCOUNT_WAIT_STEP_MS > req.expiresAt - ACCOUNT_WAIT_MARGIN_MS) return resolve(held(CG_SEND_BUSY));
@@ -246,7 +249,7 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
           return resolve(held(CG_SEND_HOST));
         }
         setTimeout(tick, ACCOUNT_WAIT_STEP_MS);
-      };
+      });
       setTimeout(tick, ACCOUNT_WAIT_STEP_MS);
     });
   };
