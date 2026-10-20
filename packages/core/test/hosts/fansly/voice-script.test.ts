@@ -2,7 +2,7 @@
 // body validator is the vendored SDK and whose gates repeat HF-4а/б.
 import { describe, expect, it } from 'vitest';
 import { createClient, routeSchemas } from '@kernel/sdk';
-import { BootstrapSchema, HubFrameSchema, type HubStreamRequest, type Target, type AnyStartOp, type SiteOpView, type VoiceScriptStart, type NotesFillStart } from '@cg/contracts';
+import { BootstrapSchema, HubFrameSchema, type HubStreamRequest, type Target, type AnyStartOp, type LiveTextTail, type SiteOpView, type VoiceScriptStart, type NotesFillStart } from '@cg/contracts';
 import { VoiceScriptStartSchema, FanslyOpViewSchema } from '@cg/contracts/ops-fansly';
 import { createVoiceScript, voiceScriptResult } from '@cg/core/application/hosts/fansly/voice';
 import { mergeNoteFill, noteFillRequest } from '@cg/core/application/hosts/fansly/notes';
@@ -85,6 +85,56 @@ async function harness(over: { store?: MemoryStore; firstId?: number } = {}) {
     },
   };
 }
+
+describe('[host:fansly] fresh text through the site operation scheduler', () => {
+  const fresh: LiveTextTail = {
+    capturedAt: new Date(NOW_MS).toISOString(),
+    messages: [{ platformMessageId: '880000000000000100', direction: 'fan', sentAt: new Date(NOW_MS - 1000).toISOString(), text: 'context-only-zebra-quartz-7731' }],
+  };
+
+  it.each([voice(), notes()])('$feature: the request carries page text, cache identity includes its contents, storage and events do not', async (input) => {
+    const h = await harness();
+    const first = admitted(await h.start({ ...input, fresh }));
+    // Admission is durable before the hub request, but the transcript is not journaled.
+    expect(JSON.stringify([...h.store.data.entries()])).not.toContain(fresh.messages[0]!.text);
+    await h.finish();
+    expect(h.scheduler.siteView(first, 'fansly-web')?.state).toBe('done');
+    expect(h.requests[0]?.body.liveTextContext).toEqual({
+      capturedAt: fresh.capturedAt,
+      items: [{ platformMessageId: '880000000000000100', direction: 'fan', occurredAt: fresh.messages[0]!.sentAt, text: fresh.messages[0]!.text }],
+    });
+    expect(h.requests[0]?.capabilities).toContain('context-v1');
+
+    // Another observation of the same text reopens; an edit with the same message id must regenerate.
+    const later = { ...fresh, capturedAt: new Date(NOW_MS + 1000).toISOString() };
+    expect(await h.start({ ...input, fresh: later })).toMatchObject({ kind: 'admission', admission: { ok: true, opId: first }, reopened: true });
+    const changed = { ...fresh, messages: fresh.messages.map((message) => ({ ...message, text: `${message.text}-edited` })) };
+    const second = admitted(await h.start({ ...input, fresh: changed }));
+    expect(second).not.toBe(first);
+    await h.finish();
+    expect(h.requests).toHaveLength(2);
+    expect(h.requests[1]?.body.liveTextContext?.items[0]?.text).toBe(changed.messages[0]!.text);
+    for (const output of [h.store.data.get(OPS_STORE_KEY), h.log.entries, h.events.events, h.done, h.spend.snapshot()]) {
+      expect(JSON.stringify(output)).not.toContain(fresh.messages[0]!.text);
+    }
+  });
+
+  it.each([voice(), notes()])('$feature: a disabled page switch or older hub keeps the archive path available', async (input) => {
+    for (const gate of ['switch', 'capability'] as const) {
+      const h = await harness();
+      const patch = gate === 'switch'
+        ? fanslyPageFlags({ freshText: false })
+        : { capabilities: h.fake.config().capabilities.filter((cap) => cap !== 'live-text-fansly-tools-v1') };
+      h.fake.control({ op: 'config', patch });
+      await h.refresh();
+      const op = admitted(await h.start({ ...input, fresh }));
+      await h.finish();
+      expect(h.scheduler.siteView(op, 'fansly-web')?.state, gate).toBe('done');
+      expect(h.requests, gate).toHaveLength(1);
+      expect(h.requests[0]?.body, gate).not.toHaveProperty('liveTextContext');
+    }
+  });
+});
 
 describe('[host:fansly] P12a voice-script through the shared admission', () => {
   it('[AI-111] script from the draft in each preset’s tone, group ≠ fan, the quick window, no clientContext or page text; only a completed result reaches the editor port', async () => {
