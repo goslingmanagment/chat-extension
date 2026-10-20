@@ -27,7 +27,8 @@
 //           the persona on a 620 px composer
 //   < 610   Review, Recap, Coach are their icons too
 //   ≤ 600   head without meta and key labels
-//   < 520   no persona
+//   < 520   no persona (520 px at either text size: with «Крупнее» the
+//           chips fold earlier and leave it room down to here)
 //   < 500   the five icons in «Ещё» at once
 //   < 480   no seams
 //   < 440   while the chat loads, the status spinner in the place of «Ещё»
@@ -226,8 +227,8 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
   .cg-slot--two .cg-act--ico > .cg-ico { display: block; }
   .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
-@container cg (max-width: ${atBase(519)}) {
-  ${/* No persona: the room left to it here is a letter and «…», not a name. */ ''}
+@container cg (max-width: 519px) {
+  ${/* No persona: at the base text the room left to it here is a letter and «…», not a name. In px, not in the root's text: with «Крупнее» the chips fold a step earlier (Review, Recap, Coach to icons below 704 px, all five into «Ещё» below 577 px), which leaves the persona a name's room down to here — it is the chatter's only sight of whose voice a draft is in. */ ''}
   .cg-slot--persona { display: none; }
 }
 @container cg (max-width: ${atBase(499)}) {
