@@ -53,6 +53,8 @@ export class TabEnvironment {
   private readonly quotas = new Map<number, AiQuotaSnapshot>();
   private readonly quotaAsked = new Set<number>();
   private readonly bindings = new Map<string, Loaded<HubBinding>>();
+  /** The last binding read of each account in this sign-in and config (X45): kept across a failed read again. */
+  private readonly lastBindings = new Map<string, HubBinding>();
   private connectionValue: RpcConnection;
   /** Grows whenever the sign-in changes: a late answer of an older read is dropped. */
   private generation = 0;
@@ -174,6 +176,22 @@ export class TabEnvironment {
     return this.lastBootstrap?.pages.find((page) => page.pageId === pageId) ?? null;
   }
 
+  /**
+   * The bootstrap to read an owner switch by while the hub is silent (X45; 2026-10-21 restrictions, item 6): the
+   * last one this sign-in read. null — the bootstrap reads, the hub answered «no», or nothing was read in this sign-in.
+   */
+  bootstrapWhileHubSilent(): Bootstrap | null {
+    const bootstrap = this.bootstrapValue;
+    if (bootstrap.s !== 'error' || !SILENT_HUB.includes(bootstrap.error.code)) return null;
+    return this.lastBootstrap;
+  }
+
+  /** The binding of an account as last read in this sign-in and config, when reading it now failed because the hub is silent; null otherwise. */
+  bindingWhileHubSilent(account: HostAccount, now: Loaded<HubBinding>): HubBinding | null {
+    if (now.s !== 'error' || !SILENT_HUB.includes(now.error.code)) return null;
+    return this.lastBindings.get(accountKey(account)) ?? null;
+  }
+
   /** The page's quota as the last generation's `meta` reported it; null — unknown. Asked once per page. */
   quota(pageId: number): AiQuotaSnapshot | null {
     const known = this.quotas.get(pageId);
@@ -204,6 +222,7 @@ export class TabEnvironment {
     void this.rpc.request('binding.resolve', { account }).then((answer) => {
       if (epoch !== this.bindingEpoch) return;
       this.bindings.set(key, answer.ok ? { s: 'ready', value: answer.payload.binding } : { s: 'error', error: answer.error });
+      if (answer.ok) this.lastBindings.set(key, answer.payload.binding);
       this.emit('binding');
     });
     return LOADING;
@@ -336,6 +355,7 @@ export class TabEnvironment {
       this.starRevision = 0;
       this.bootstrapValue = IDLE;
       this.lastBootstrap = null;
+      this.lastBindings.clear();
       this.catalogValue = IDLE;
     }
     this.emit('session');
@@ -352,10 +372,12 @@ export class TabEnvironment {
     void this.rpc.request('bootstrap.get', {}).then((answer) => {
       if (generation !== this.generation) return;
       const before = this.bootstrapValue;
+      const lastRevision = this.lastBootstrap?.configRevision ?? null;
       this.bootstrapValue = answer.ok ? { s: 'ready', value: answer.payload } : { s: 'error', error: answer.error };
       if (answer.ok) this.lastBootstrap = answer.payload;
       // A new config may bind accounts differently: the bindings are resolved again.
       if (answer.ok && (before.s !== 'ready' || before.value.configRevision !== answer.payload.configRevision)) this.dropBindings();
+      if (answer.ok && lastRevision !== answer.payload.configRevision) this.lastBindings.clear();
       this.emit('bootstrap');
     });
   }

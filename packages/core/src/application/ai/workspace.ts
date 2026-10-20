@@ -176,6 +176,8 @@ export const BOARD_QUESTION_STEP_MS = 100;
  */
 export const SENT_REPORT_TRIES = 4;
 const SENT_REPORTS_KEPT = 32;
+/** How long an owner switch of our navigation waits for a just-loaded tab's first bootstrap (2026-10-21 restrictions, item 6). */
+const FLAG_BOOTSTRAP_WAIT_MS = 5_000;
 type SentReport = TabRequestPayload<'op.reportSent'>;
 /** A part of a board's result the board no longer answers for: «часть устарела — обновите ответ» (CG-SEND-PART). */
 const STALE_BOARD_PART: PartBlock = { reason: 'send-unavailable', code: 'CG-SEND-PART', view: { id: 'send-unavailable', code: 'CG-SEND-PART', text: { key: 'send.reason.part' } } };
@@ -576,27 +578,56 @@ export class AiWorkspace {
 
   /**
    * An owner switch for a host account of this tab — what our navigation asks before it goes into the account
-   * (opening a chat marks it read on OnlyFans, so the answer is never a guess). Read once the account's binding
-   * is: the feature of the hub page the account is bound to. Only an account the hub DEFINITELY binds to no
-   * page (`CG-BINDING-MISSING`) has no page row to ask, and only there the owner's `"*"` value decides — so does
-   * `null`, no account on screen. Everything in between fails closed, `false`: the binding is ambiguous, could
-   * not be read (the hub or the background did not answer, the data is not ready), or ChatSpace has not listed
-   * the account yet — its page may well say «off». So does a sign-in whose switches are not in hand: the
-   * bootstrap is not read yet, is being read again after the port was down, or could not be read — the page may
-   * say «off», and what was known before an outage is not what it says now. null — unknown — is left for the
-   * one case that needs no hub: nobody is signed in (ChatSpace's own list goes on, §6.9).
+   * (opening a chat marks it read on OnlyFans). Read once the account's binding is: the feature of the hub page the
+   * account is bound to. Only an account the hub DEFINITELY binds to no page (`CG-BINDING-MISSING`) has no page row
+   * to ask, and only there the owner's `"*"` value decides — so does `null`, no account on screen.
+   *
+   * By the cache, as an insert since X45 (2026-10-21 restrictions, item 6): while the hub is silent the switch is
+   * read from the last bootstrap and the last binding this sign-in read — the owner's value as last seen, not a
+   * refusal. A tab that has just loaded waits a moment for its first bootstrap. `false` stays for what is not known
+   * at all: no bootstrap ever read, an ambiguous binding, an account ChatSpace has not listed yet. null — unknown —
+   * is left for the one case that needs no hub: nobody is signed in (ChatSpace's own list goes on, §6.9).
    */
   async accountFlag(hostAccountId: string | null, flag: ClientFeatureFlag): Promise<boolean | null> {
-    if (this.env.bootstrap.s !== 'ready') return this.env.session === null ? null : false;
-    if (hostAccountId === null) return starFlag(this.env.bootstrap.value, flag);
+    await this.bootstrapSettled();
+    const flags = this.flagBootstrap();
+    if (flags === null) return this.env.session === null ? null : false;
+    if (hostAccountId === null) return starFlag(flags, flag);
     const account = this.ports.host.current().accounts.find((candidate) => candidate.hostAccountId === hostAccountId) ?? null;
     if (account === null) return false;
     const binding = await this.env.bindingRead(account);
     // The bootstrap may have been read again (or lost with the sign-in) while the binding was.
+    const now = this.flagBootstrap();
+    if (now === null || binding.s === 'idle') return this.env.session === null ? null : false;
+    if (binding.s === 'ready') return flagUsable(now, binding.value.pageId, flag);
+    if (binding.s === 'error' && binding.error.code === 'CG-BINDING-MISSING') return starFlag(now, flag);
+    const last = this.env.bindingWhileHubSilent(account, binding);
+    return last === null ? false : flagUsable(now, last.pageId, flag);
+  }
+
+  /** The bootstrap an owner switch is read by: the current one, or the last one while the hub is silent; null — none. */
+  private flagBootstrap(): Bootstrap | null {
     const bootstrap = this.env.bootstrap;
-    if (bootstrap.s !== 'ready' || binding.s === 'idle') return this.env.session === null ? null : false;
-    if (binding.s === 'ready') return flagUsable(bootstrap.value, binding.value.pageId, flag);
-    return binding.s === 'error' && binding.error.code === 'CG-BINDING-MISSING' ? starFlag(bootstrap.value, flag) : false;
+    return bootstrap.s === 'ready' ? bootstrap.value : this.env.bootstrapWhileHubSilent();
+  }
+
+  /** A tab that has just loaded (or got its port back) reads its bootstrap: wait for it a moment, never longer. */
+  private bootstrapSettled(): Promise<void> {
+    const pending = (): boolean => this.env.session !== null && (this.env.bootstrap.s === 'idle' || this.env.bootstrap.s === 'loading');
+    if (!pending()) return Promise.resolve();
+    const { clock } = this.ports;
+    return new Promise((resolve) => {
+      let off: () => void = () => undefined;
+      const timer = clock.setTimer(FLAG_BOOTSTRAP_WAIT_MS, () => finish());
+      const finish = (): void => {
+        off();
+        clock.clearTimer(timer);
+        resolve();
+      };
+      off = this.env.subscribe(() => {
+        if (!pending()) finish();
+      });
+    });
   }
 
   /** Why every AI action of the open chat is off, in the words of a tooltip; null — actions are decided one by one. */
