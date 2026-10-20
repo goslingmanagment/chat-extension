@@ -66,7 +66,7 @@ const LIMITS = {
   claimLeaseSec: 120,
   claimRenewSec: 40,
   claimActivityWindowSec: 120,
-  previewSendPerMinute: 6,
+  previewSendPerMinute: 30,
   navInsertTimeoutSec: 20,
   dispatchTicketSec: 10,
   previewSendReceiptProfiles: [],
