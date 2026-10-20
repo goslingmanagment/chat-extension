@@ -316,7 +316,7 @@ describe('[AI-096] auto-recap before the first question', () => {
     const start = startOf({ feature: 'coach', surface: 'coach', fresh, window: 100, split: true, coach: { ...coach, autoRecap: { length: 'full', window: 3000 } } });
     const steps = coachTurnSteps(start);
     // The recap is a generation of its own, past the cache: no tone, no parts, nothing of the question or the draft.
-    expect(steps?.recap).toEqual({ feature: 'recap', surface: 'dock', target: start.target, cause: start.cause, tone: null, split: false, window: 3000, force: true, fresh });
+    expect(steps?.recap).toEqual({ feature: 'recap', surface: 'coach', target: start.target, cause: start.cause, tone: null, split: false, window: 3000, force: true, fresh });
     expect(steps?.answer).toEqual({ ...start, coach });
     expect(StartOpSchema.safeParse(steps?.recap).success).toBe(true);
     expect(StartOpSchema.safeParse(steps?.answer).success).toBe(true);

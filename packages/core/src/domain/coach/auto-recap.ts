@@ -65,7 +65,7 @@ export function coachTurnSteps(start: StartOp): CoachTurnSteps | null {
   return {
     recap: {
       feature: autoRecap.length === 'full' ? 'recap' : 'recap-short',
-      surface: 'dock',
+      surface: start.surface,
       target: start.target,
       cause: start.cause,
       tone: null,

@@ -1,6 +1,6 @@
 // R20 P8c, part B: Recap, Review and Coach on Fansly (docs/project-unite/spec.md FS-AI-1, FS-TAIL-1, FS-TAIL-8,
 // FS-TAIL-10; architecture §5.8, §7.24, §7.25, §12). Each of them starts through Fansly's policy as every start does —
-// MAIN's snapshot as its proof, no page text — and:
+// MAIN's snapshot and confirmed page text as its proof — and:
 // - the verdict over what it made: the analysis surfaces draw their own models, so the shared result's mark reaches
 //   them through their own fields (`RecapViewVM.stale`, `ReviewVM.stale`, `CoachTurnVM.stale`), with «Ещё раз»;
 //   what the fan wrote after it stays their archive-lag line, never a mark;
@@ -45,7 +45,7 @@ const CHAT: readonly Held[] = Array.from({ length: 80 }, (_, n) => ({ id: idOf(n
 const WINDOW = CHAT.slice(-60);
 const NEWEST = WINDOW.at(-1)?.id ?? '';
 
-/** MAIN's snapshot of the chat (host-fansly main/snapshot.ts): the window, the fan's known ids; never a text for these. */
+/** MAIN's snapshot of the chat: the window, the fan's known ids and the requested text. */
 function snapshotOf(request: FreshnessRequest): FanslySnapshot {
   const window = CHAT.slice(-Math.min(60, request.window)).map((message) => ({ id: message.id, dir: message.dir }));
   return FanslySnapshotSchema.parse({
@@ -56,6 +56,7 @@ function snapshotOf(request: FreshnessRequest): FanslySnapshot {
     window,
     knownFanMessageIds: window.filter((entry) => entry.dir === 'fan').slice(-10).map((entry) => entry.id),
     deletedIds: [],
+    ...(request.withText ? { tail: window.map((message) => ({ platformMessageId: message.id, direction: message.dir, sentAt: new Date(NOW_MS - 120_000).toISOString(), text: `Message ${message.id}` })) } : {}),
     truncated: false,
   } satisfies FanslySnapshot);
 }
@@ -113,7 +114,7 @@ function contextOf(hubFeature: string, requested: number, absent: string | null)
     window: { requested, served: WINDOW.length },
     coverage: 'complete',
     coverageCheck: { window: WINDOW.map((message) => ({ id: message.id, state: message.id === absent ? 'absent' : 'included' })), deleted: [] },
-    live: { status: 'not_sent', accepted: 0, rejected: 0 },
+    live: { status: 'served', accepted: WINDOW.length - (absent === null ? 0 : 1), rejected: absent === null ? 0 : 1 },
   };
 }
 
