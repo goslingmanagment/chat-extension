@@ -1378,6 +1378,8 @@ export const EN: I18nCatalog<'en'> = {
   'cg.gateHistory.body': 'There are not enough messages in this chat for this action yet.',
   'cg.gateHi.title': 'Already a conversation',
   'cg.gateHi.body': 'Hi is for the first message. Use Reply here.',
+  'cg.gateHiUnproven.title': 'Could not check the start of the conversation',
+  'cg.gateHiUnproven.body': 'Hi is only for a new conversation, and this chat could not be read to its start. Press Hi again; if the fan has already written, use Reply.',
   'cg.gatePing.title': 'The fan is active',
   'cg.gatePing.body': 'The fan wrote recently, so Ping is blocked for now.',
   'cg.gateLanguage.title': 'Draft in Cyrillic',
