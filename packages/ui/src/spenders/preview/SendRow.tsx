@@ -7,8 +7,9 @@
 //   says what happened: a double click never makes two sends;
 // - «Отправить ещё раз» exists only when the model says the retry is safe
 //   (`canRetry`); the UI never decides it by the code;
-// - an unknown outcome offers only «Открыть чат для проверки»: no retry, no
-//   «Открыть и вставить», no copy in the row;
+// - an unknown outcome is a quiet mark with «Открыть чат» and «Отправить ещё
+//   раз» — the person's own new click; nothing is ever repeated by itself
+//   (2026-10-20 audit, row 2);
 // - a freshness warning («фан написал новое», «не удалось проверить») offers
 //   «Отправить всё равно» — the person's second, explicit click — and, when the
 //   fan wrote, «Ещё раз» for a new answer (2026-10-20 audit, rows 3–4);
@@ -321,11 +322,13 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
     case 'uncertain':
       return (
         <div class="cg-pvs" data-cg-send="uncertain">
-          <State>
+          <State strong={false}>
             <Dot kind="ink" />
             {i18n.t('send.uncertain')}
           </State>
-          <Button label={i18n.t('send.openToVerify')} variant="line" class="cg-pvs__verify" onClick={() => void dispatch({ type: 'OpenChatToVerify', attemptId: send.attemptId })} />
+          <Button label={i18n.t('send.openToVerify')} variant="quiet" class="cg-pvs__verify" onClick={() => void dispatch({ type: 'OpenChatToVerify', attemptId: send.attemptId })} />
+          <SendButton part={part} opId={opId} label={i18n.t('send.retry')} tooltip={i18n.t('send.uncertainRetryTooltip')} />
+          <CopyIcon part={part} />
           <CodeLine code="CG-SEND-UNCERTAIN" text={i18n.t('send.uncertainTail', { time: { time: send.since } })} />
         </div>
       );

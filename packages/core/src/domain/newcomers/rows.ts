@@ -185,28 +185,28 @@ export function matchesSearch(row: NewcomerRow, query: string): boolean {
 }
 
 /** Why Hi is off for a row, by its greeting status; null — Hi may start (the hub still decides on its own). */
-export type HiBlock = 'claim-busy' | 'claim-elsewhere' | 'greeted' | 'replied' | 'uncertain' | 'sending';
+export type HiBlock = 'greeted' | 'replied' | 'sending';
 
 /**
  * §6.7.9: after the first confirmed part the fan counts as greeted — the
  * owner may still send the rest of that group, but another generation would
  * be a second greeting, so Hi is off from then on. While the first part is
- * still on its way Hi waits for it.
+ * still on its way Hi waits for it. A colleague's lease and an unknown
+ * outcome hold nothing (2026-10-20 audit, rows 2 and 11): the hub claims the
+ * fan at the send and refuses one somebody greeted.
  */
 export function hiBlock(status: GreetingStatusVM): HiBlock | null {
   switch (status.s) {
-    case 'claim-other':
-      return 'claim-busy';
-    case 'claim-elsewhere':
-      return 'claim-elsewhere';
-    case 'stopped':
-      return 'uncertain';
     case 'greeted':
       return 'greeted';
     case 'replied':
       return 'replied';
     case 'sending':
       return status.sent > 0 ? 'greeted' : 'sending';
+    case 'stopped':
+      return status.sent > 0 ? 'greeted' : null;
+    case 'claim-other':
+    case 'claim-elsewhere':
     case 'none':
     case 'claim-mine':
       return null;

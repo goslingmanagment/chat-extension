@@ -99,12 +99,14 @@ describe('[X8-07] the send journal: written before the command, never retried wh
     expect(SEND_JOURNAL_OPEN_STATES).toEqual(['preparing', 'nativeEnqueued', 'nativeAccepted', 'uncertain']);
   });
 
-  it('[RB-007] an uncertain attempt holds its fan until resolved: no TTL, no cap, no sign-out removes it', async () => {
+  it('[RB-007] an uncertain attempt stays until resolved — no TTL, no cap, no sign-out removes it — but holds its fan no longer (audit 2026-10-20, row 2)', async () => {
     const { journal, clock, local } = setup({ deps: { limits: { finishedKept: 2 } } });
     await journal.begin(entry(1));
     await journal.advance(uuid(501), { state: 'nativeEnqueued', pendingId: 'p1' });
     await journal.advance(uuid(501), { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
-    expect(await journal.begin(entry(2))).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN', holder: uuid(501) });
+    // The person's new click to the same fan is journaled beside it.
+    expect((await journal.begin(entry(2))).ok).toBe(true);
+    await journal.advance(uuid(502), { state: 'notEnqueued' });
     // Many finished attempts to other fans and a week later: the uncertain one stays.
     for (let n = 10; n < 15; n += 1) {
       await journal.begin(entry(n, { fanRef: `${7000 + n}` }));
@@ -234,8 +236,9 @@ describe('[X8-07] the journal after the background unloads or the browser restar
       [uuid(505), 'held'],
     ]);
     expect(second.journal.get(uuid(503))).toMatchObject({ code: 'CG-SEND-UNCERTAIN', platformMessageId: IDS.msg1, updatedAt: T0 + 60_000 });
-    // Nothing is retried: the fans stay held.
-    expect(await second.journal.begin(entry(6))).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    // Nothing is retried by itself; the fans are not held (row 2): a person's new click is journaled.
+    expect((await second.journal.begin(entry(6))).ok).toBe(true);
+    await second.journal.advance(uuid(506), { state: 'notEnqueued' });
     expect(second.logs.find((item) => item.code === 'CG-SEND-UNCERTAIN')?.fields).toEqual({ count: 3 });
     // A later start does not touch them again.
     second.port.detach();
@@ -252,7 +255,8 @@ describe('[X8-07] the journal after the background unloads or the browser restar
     first.port.detach();
     const second = setup({ local: first.local });
     expect((await second.journal.start()).madeUncertain).toEqual([uuid(501)]);
-    expect(await second.journal.begin(entry(2))).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    // Never resent by itself; the person's own new click is a new attempt (row 2).
+    expect(second.journal.get(uuid(501))).toMatchObject({ state: 'uncertain' });
   });
 
   it('a recovery that could not be written is still uncertain in memory', async () => {
@@ -283,12 +287,11 @@ describe('[RB-007] the key removed or overwritten outside the journal', () => {
       [uuid(503), 'held'],
     ]);
     expect(logs.find((item) => item.msg === 'send journal removed outside: open records written back')?.fields).toEqual({ open: 2, saved: true });
-    // The event page unloads right after: the next one still holds both fans.
+    // The event page unloads right after: the next one still has both records.
     journal.dispose();
     port.detach();
     const next = setup({ local });
-    expect(await next.journal.begin(entry(4))).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
-    expect(await next.journal.begin(entry(5, { fanRef: '7002' }))).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect((await next.journal.start()).records).toBeGreaterThanOrEqual(2);
   });
 
   it('a value that dropped an open record is rewritten; a late echo of an own write is not a removal', async () => {
@@ -357,9 +360,9 @@ describe('a journal this build cannot read is never overwritten (§9.4)', () => 
     expect(await journal.begin(entry(2, { fanRef: '7002' }))).toMatchObject({ ok: false, code: 'CG-STORAGE-READ' });
     expect(local.calls.set).toBe(0);
     expect(journal.stats()).toMatchObject({ available: false, mode: 'unreadable' });
-    // Readable again: the uncertain record is there and still holds its fan.
+    // Readable again: the uncertain record is there (it holds its fan no longer, row 2).
     expect((await journal.begin(entry(3, { fanRef: '7003' }))).ok).toBe(true);
-    expect(await journal.begin(entry(4))).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(journal.get(uuid(501))).toMatchObject({ state: 'uncertain' });
   });
 
   it('garbage and unknown versions are left untouched; a newer build’s journal is read-only (CG-STORAGE-VERSION)', async () => {

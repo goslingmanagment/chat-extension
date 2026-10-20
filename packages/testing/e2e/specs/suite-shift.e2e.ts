@@ -139,7 +139,7 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await waitForComposerText(ACC, a6, '', 'ChatSpace sent it and cleared its field');
   });
 
-  it('a greeting from «Новые»: Hi takes the lease, one click sends it', async () => {
+  it('a greeting from «Новые»: Hi, then one click sends it (no lease, audit 2026-10-20, row 11)', async () => {
     await browser.keys([MOD, 'k']);
     await pressOurs('modal', '.cg-pal__item', /^Новые(?:\s*(?:⌘⇧U|Ctrl\+Alt\+U))?$/, 'the «Новые» row of the palette (its key since X55)', 20_000);
     const username = `newfan_${a5}`;
@@ -212,7 +212,7 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     expect(calls.filter((call) => call.kind !== 'route').map((call) => `${call.kind} ${call.method} ${call.path}`)).toEqual([]);
     expect(calls.filter((call) => call.route !== 'authIssueDeviceTokenWithPassword' && call.route !== 'health' && call.token?.client !== 'chat-extension').map((call) => String(call.route))).toEqual([]);
     const custody = callsTo(calls, 'clientFanClaim').map((call) => `${String((call.request as { fanRef?: string }).fanRef)}:${(call.request as { body: { action: string } }).body.action}:${call.status}`);
-    expect(custody).toEqual([`${a4}:dispatch:200`, `${a4}:sent:200`, `${a6}:registerNativeSend:200`, `${a5}:claim:200`, `${a5}:dispatch:200`, `${a5}:sent:200`]);
+    expect(custody).toEqual([`${a4}:dispatch:200`, `${a4}:sent:200`, `${a6}:registerNativeSend:200`, `${a5}:dispatch:200`, `${a5}:sent:200`]);
     // The dock's text of the open chat is not checked here; what the person's panel showed last is one line.
     expect(await oursText('toast')).not.toContain('CG-UI-FAILED');
   });

@@ -79,7 +79,11 @@ export type ClaimResult =
   | { readonly ok: true; readonly state: ClaimState }
   | { readonly ok: false; readonly error: HubErrorCode; readonly reason?: string; readonly retryAfterSec?: number };
 
-type StoredState = 'dispatching' | 'sent' | 'failed' | 'resolved-sent' | 'resolved-not-sent';
+/**
+ * `unconfirmed` — the hub since the 2026-10-20 audit (row 2): a send past its ticket with no proof that a person's
+ * new dispatch moved past. It holds nothing; a late `sent` still ends it; it reads as `uncertain-held`.
+ */
+type StoredState = 'dispatching' | 'sent' | 'failed' | 'resolved-sent' | 'resolved-not-sent' | 'unconfirmed';
 
 interface Lease {
   readonly leaseToken: string;
@@ -164,6 +168,7 @@ export class ClaimsModel {
   }
 
   private static custodyOf(attempt: Attempt, now: number): CustodyState {
+    if (attempt.state === 'unconfirmed') return 'uncertain-held';
     return attempt.state === 'dispatching' && attempt.ticketExpiresAt !== null && attempt.ticketExpiresAt <= now ? 'uncertain-held' : attempt.state;
   }
 
@@ -230,7 +235,7 @@ export class ClaimsModel {
     return [...fan.attempts].reverse().find((a) => a.state === 'dispatching') ?? null;
   }
 
-  private move(attempt: Attempt, to: StoredState, now: number): void {
+  private move(attempt: Attempt, to: Exclude<StoredState, 'unconfirmed'>, now: number): void {
     const from = ClaimsModel.custodyOf(attempt, now);
     if (!isCustodyTransition(from, to)) throw new Error(`fake hub: custody ${from} → ${to} is not a frozen transition`);
     attempt.state = to;
@@ -342,8 +347,11 @@ export class ClaimsModel {
       const oldest = recent[0] ?? ctx.now;
       return refuse('preview_send_rate_limited', { retryAfterSec: Math.max(1, Math.ceil((oldest + 60_000 - ctx.now) / 1000)) });
     }
-    // 4–5. No open custody of anyone on this fan (the desktop's held new-follower command included, for a greeting).
-    if (this.openAttempt(fan) !== null) return refuse('custody_held');
+    // 4–5. No send of anyone to this fan inside its ticket (the desktop's held new-follower command included, for a
+    // greeting). One past its ticket holds nothing any more (row 2): it is `unconfirmed` from this dispatch on.
+    const open = this.openAttempt(fan);
+    if (open !== null && ClaimsModel.custodyOf(open, ctx.now) === 'dispatching') return refuse('custody_held');
+    if (open !== null) open.state = 'unconfirmed';
     if (body.purpose === 'greeting' && fan.desktopHeld) return refuse('custody_held');
     const group = storedClaimGroup(body.group);
     // 6. The greeting: confirmed → only its owner's group; not yet → a live lease of this caller.
@@ -355,10 +363,14 @@ export class ClaimsModel {
         if (g !== null && (g.generationRef !== group.generationRef || g.variant !== group.variant || g.partCount !== group.partCount)) {
           return refuse('generation_mismatch');
         }
+      } else if (body.leaseToken === undefined) {
+        // Claimed at the send (row 11): only a colleague's live lease (an older client working the fan) holds it.
+        const live = ClaimsModel.liveLease(fan);
+        if (live !== null && live.userId !== ctx.userId) return refuse('claim_busy');
       } else {
         const live = ClaimsModel.liveLease(fan);
         if (live === null) return refuse('claim_expired');
-        if (body.leaseToken === undefined || !ClaimsModel.owns(live, caller)) {
+        if (!ClaimsModel.owns(live, caller)) {
           return refuse(live.userId === ctx.userId && live.instanceId === body.instanceId ? 'claim_expired' : 'claim_busy');
         }
       }
@@ -398,8 +410,10 @@ export class ClaimsModel {
     if (attempt.state === 'sent') {
       return attempt.platformMessageId === body.platformMessageId ? { ok: true, state: this.view(fan, caller, attempt, ctx, false) } : refuse('attempt_conflict');
     }
-    if (attempt.state !== 'dispatching') return refuse('attempt_conflict');
+    if (attempt.state !== 'dispatching' && attempt.state !== 'unconfirmed') return refuse('attempt_conflict');
     if (this.messageTaken(body.platformMessageId, attempt)) return refuse('attempt_conflict');
+    // A late proof of an unconfirmed send whose part went again meanwhile: the part is sent once in the custody.
+    if (attempt.state === 'unconfirmed' && this.partSent(fan, attempt.group, attempt.partIndex)) return refuse('attempt_conflict');
     this.move(attempt, 'sent', ctx.now);
     attempt.platformMessageId = body.platformMessageId;
     this.confirmGreeting(fan, attempt, 'preview-send', ctx.now, body.platformMessageId);

@@ -50,7 +50,6 @@ function lifecycle(): AppClientScenario {
 }
 
 const part = (index: number): HTMLElement => ui?.$(`.cg-pvp[data-cg-part="${index}"]`) as HTMLElement;
-const sendRow = (index: number): HTMLElement => part(index).querySelector('.cg-pvs') as HTMLElement;
 const buttons = (index: number): string[] => [...part(index).querySelectorAll('button')].map((button) => button.getAttribute('aria-label') ?? textOf(button));
 const stateWords = (index: number): string => textOf(part(index).querySelector('.cg-pvs__st'));
 const codeLine = (index: number): string => textOf(part(index).querySelector('.cg-pvs__code'));
@@ -71,19 +70,21 @@ describe('[SP-054] «Отправить»: the states that must not send', () =>
     expect(buttons(0)).toEqual(['Открыть и вставить', 'Копировать часть 1']);
   });
 
-  it('[NF-022] uncertain: «Неизвестно, ушло ли» and only «Открыть чат для проверки» — no retry, no insert, no copy', async () => {
+  it('[NF-022] uncertain (audit 2026-10-20, row 2): a quiet «Не подтвердилось», «Открыть чат» and «Отправить ещё раз» by the person’s own click', async () => {
     const attemptId = uuid(711);
     ui = await mountBoardSettled('spenders', previewOf([{ s: 'uncertain', since: SENT_AT, attemptId }]));
-    expect(stateWords(0)).toBe('Неизвестно, ушло ли');
+    expect(stateWords(0)).toBe('Не подтвердилось');
     expect(part(0).querySelector('.cg-dot--ink')).not.toBeNull();
-    expect(buttons(0)).toEqual(['Открыть чат для проверки']);
-    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-UNCERTAIN: с 09:21. Ждём проверки тимлидом или владельцем; повторно не отправляем.');
+    expect(buttons(0)).toEqual(['Открыть чат', 'Отправить ещё раз', 'Копировать часть 1']);
+    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-UNCERTAIN: с 09:21: ChatSpace не подтвердил отправку. Откройте чат — если сообщения нет, отправьте ещё раз.');
     await flush(() => (part(0).querySelector('.cg-pvs__verify') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'OpenChatToVerify', attemptId });
-    // Enter on the part does not open-and-insert an uncertain part either.
+    // Enter on the part does not open-and-insert an uncertain part, and nothing goes by itself.
     await flush(() => keydown(part(0), 'Enter'));
     expect(ui.actionsOf('OpenAndInsertPart')).toEqual([]);
     expect(sends()).toEqual([]);
+    await flush(() => (part(0).querySelector('.cg-pvs__send') as HTMLElement).click());
+    expect(sends()).toEqual([{ type: 'SendPart', operationId: OP, part: 0 }]);
   });
 
   it('held-stale: a warning «Фан написал новое»; «Отправить всё равно» sends it by the person’s own click, «Ещё раз» makes a new one (audit 2026-10-20, row 3)', async () => {
@@ -211,16 +212,5 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
     expect(ui.root.getElementById(again.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Нельзя, пока части отправляются');
     expect(textOf(ui.$('.cg-pvr__progress'))).toBe('отправлено 1 из 3');
     expect(ui.$('.cg-pvr__draft')).toBeNull();
-  });
-
-  it('an uncertain part holds the ones after it: «Удержано, пока неясен исход части 2», no send anywhere', async () => {
-    ui = await mountBoardSettled('spenders', '11d');
-    expect(stateWords(1)).toBe('Неизвестно, ушло ли');
-    expect(stateWords(2)).toBe('Удержано, пока неясен исход части 2');
-    expect(sendRow(2).getAttribute('data-cg-send')).toBe('held-group');
-    expect(buttons(2)).toEqual(['Копировать часть 3']);
-    expect(ui.$$('.cg-pvs__send')).toEqual([]);
-    const again = ui.$('.cg-pvr__head .cg-btn') as HTMLElement;
-    expect(ui.root.getElementById(again.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Нельзя, пока неясен исход части 2');
   });
 });

@@ -417,12 +417,13 @@ describe('[X8-08] Split groups (§6.7.9)', () => {
   const group = { generationRef: GEN, variant: 0, partCount: 3 };
   const attempt = (partIndex: number, state: SendAttemptState, over: Partial<FanAttempt> = {}): FanAttempt => ({ attemptId: uuid(0x600 + partIndex), purpose: 'greeting', group, partIndex, state, ...over });
 
-  it('[X8-08] a delivered or refused part is never sent again; one uncertain part holds the fan', () => {
+  it('[X8-08] a delivered or refused part is never sent again; an uncertain part holds nothing — the person may send it again (audit 2026-10-20, row 2)', () => {
     expect(partBlock({ purpose: 'greeting', group, partIndex: 0 }, [])).toBeNull();
     expect(partBlock({ purpose: 'greeting', group, partIndex: 0 }, [attempt(0, 'sentObserved')])).toBe('CG-SEND-PART');
     expect(partBlock({ purpose: 'greeting', group, partIndex: 0 }, [attempt(0, 'rejected')])).toBe('CG-SEND-PART');
     expect(partBlock({ purpose: 'greeting', group, partIndex: 1 }, [attempt(0, 'sentObserved')])).toBeNull();
-    expect(partBlock({ purpose: 'greeting', group, partIndex: 2 }, [attempt(0, 'uncertain')])).toBe('CG-SEND-UNCERTAIN');
+    expect(partBlock({ purpose: 'greeting', group, partIndex: 2 }, [attempt(0, 'uncertain')])).toBeNull();
+    expect(partBlock({ purpose: 'greeting', group, partIndex: 0 }, [attempt(0, 'uncertain')])).toBeNull();
     expect(partBlock({ purpose: 'greeting', group, partIndex: 0 }, [attempt(0, 'held'), attempt(0, 'notEnqueued')])).toBeNull();
   });
 

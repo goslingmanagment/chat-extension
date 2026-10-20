@@ -1105,14 +1105,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // Parts of another variant are not sent once a part of one variant reached ChatSpace's queue.
     const started = [...track.attempts].filter(([, attempt]) => attempt.view.state !== 'held' && attempt.view.state !== 'notEnqueued' && attempt.view.state !== 'ready').map(([key]) => Number(key.split(':')[0]));
     if (started.length > 0 && !started.includes(variant)) return refusal('CG-SEND-PART');
-    if (track.source === 'newcomers' && deps.greeting !== null) {
-      const greeted = [...track.attempts.values()].some((attempt) => attempt.view.state === 'sentObserved');
-      // Until the first part is confirmed the greeting goes under this tab's live lease; after it, the group's owner may finish it.
-      if (!greeted && deps.greeting.leaseToken(track.fanRef) === null) {
-        const claim = deps.greeting.claim(track.fanRef);
-        return refusal(claim.s === 'other' || claim.s === 'elsewhere' ? 'CG-CLAIM-BUSY' : 'CG-CLAIM-EXPIRED');
-      }
-    }
+    // «Новые»: no lease to hold (2026-10-20 audit, row 11) — the hub claims the fan at the send and says when a colleague greeted.
     const main = track.preflight ?? { ok: true };
     if (!main.ok) return main;
     if (track.manual !== null) return { ok: true };
@@ -1179,15 +1172,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    * lease until the first part is confirmed.
    */
   function fanHold(track: OpTrack, variant: number, sends: FanSends): ReasonVM | null {
-    if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
+    // An unknown outcome holds nothing (2026-10-20 audit, row 2); «Новые» needs no lease (row 11).
     if (sends.inFlight) return reason('parts-sending');
     const texts = partsOfResult(track.mirror.done?.result, variant);
     if (texts === null || greetingOutputProblem(texts) !== null) return reason('unparsed');
-    if (track.source === 'newcomers' && deps.greeting !== null && deps.greeting.leaseToken(track.fanRef) === null) {
-      const greeted = [...track.attempts.values()].some((attempt) => attempt.view.state === 'sentObserved' || attempt.resolved === 'sent');
-      // §6.5: in «Новые» the insert needs a live lease (the greeting is not confirmed yet).
-      if (!greeted) return reason(deps.greeting.claim(track.fanRef).s === 'other' ? 'claim-busy' : 'claim-expired');
-    }
     return null;
   }
 
@@ -1225,10 +1213,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       nowIso: nowIso(),
       hostWaitsForChat: previewSendWaitsForChat(host.current().contract),
     });
-    // A send of ANOTHER result holds the fan: this result's unsent parts say so before any click (the background would refuse them).
-    const unsent = row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'unverified' || row.s === 'rejected';
-    if (unsent && sends.uncertain !== null && sends.uncertain.opId !== track.opId) row = { s: 'unavailable', code: 'CG-SEND-UNCERTAIN', reason: msg(SEND_REASON_KEYS['CG-SEND-UNCERTAIN']) };
-    else if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
+    // A part of another result on its way: one part of the fan goes at a time (an unknown outcome holds nothing, row 2).
+    if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
     // Decision X53: picked media that cannot go yet (the price, the release forms) hold the part's «Отправить».
     if (row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') {
       const attached = media.attachment(track.target.chat);
@@ -1431,10 +1417,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // R20 P8a (FS-IDN-6): no chat of the fan is known — nothing starts on the fan's id in its place.
     if (conversationNow(state) === null) return reason('conversation-unknown');
     if (otherRunning) return reason('chat-busy');
-    // §6.7.8, §6.7.9: an unknown outcome holds the fan, and one part is in work at a time — for every feature of the strip,
-    // not only «Ещё раз»: a new generation would take the held result, its notice and its «Открыть чат для проверки» off the card.
+    // One part is in work at a time: a new generation would take the result whose part is on its way off the card. An
+    // unknown outcome holds nothing (2026-10-20 audit, row 2): the person looks at the chat and goes on.
     const sends = fanSends(state.pageId, state.fanRef, currentOp.get(state.handle) ?? null);
-    if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
     if (sends.inFlight) return reason('parts-sending');
     if (feature === 'fix' && draftText(state).trim().length === 0) return reason('needs-draft');
     if (feature === 'hi') {
@@ -1552,7 +1537,6 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
           });
     // The fan's sends over every result made for the fan, not only the one on the card.
     const sends = fanSends(state.pageId, state.fanRef, shown?.opId ?? null);
-    const held = sends.uncertain;
 
     const around = deps.directories[source]?.neighbours(handle) ?? { previous: null, next: null };
     const openChat: UiAction = { type: 'Navigate', to: { kind: 'chat', targetHandle: handle } };
@@ -1599,8 +1583,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       },
       claim: source === 'newcomers' && deps.greeting !== null ? deps.greeting.claim(state.fanRef) : null,
       greeting: source === 'newcomers' && deps.greeting !== null ? deps.greeting.greeting(state.fanRef) : null,
-      // Under the parts while a later part waits behind the unknown one; and whenever the unknown part is not on the card at all.
-      stoppedNote: held !== null && (held.opId !== shown?.opId || held.part + 1 < held.total) ? msg('newcomers.stopped', { n: held.part + 1 }) : null,
+      // An unknown outcome stops nothing (row 2): its own part says it, with «Открыть чат» and «Отправить ещё раз».
+      stoppedNote: null,
     };
   }
 
@@ -1623,7 +1607,6 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // The person's own text has no generation to make again.
     if (track.manual !== null) return { allowed: false, reason: null };
     const sends = fanSends(track.pageId, track.fanRef, track.opId);
-    if (sends.uncertain !== null) return { allowed: false, reason: reason('part-uncertain', { n: sends.uncertain.part + 1 }) };
     if (sends.inFlight) return { allowed: false, reason: reason('parts-sending') };
     if (track.source === 'newcomers') {
       const blocked = deps.greeting?.hiBlocked(track.fanRef) ?? null;
@@ -1926,6 +1909,15 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const early = unclaimed.get(answered.attemptId);
     unclaimed.delete(answered.attemptId);
     const latest = early !== undefined && attemptReachable(answered.state, early.state) ? early : answered;
+    // «Отправить ещё раз» of a part whose outcome is unknown, stopped before ChatSpace's queue (the first one is still
+    // inside its ticket, a busy queue): the row keeps the unknown outcome, and the click's answer says why.
+    const before = track.attempts.get(key);
+    if (latest.state === 'held' && before !== undefined && before.view.state === 'uncertain') {
+      if (taken !== null) media.restore(chat, taken);
+      reportProgress(track);
+      changed();
+      return refused(type, localError(latest.code ?? 'CG-SEND-BUSY', i18n));
+    }
     attemptOwner.set(latest.attemptId, { opId: track.opId, key });
     if (taken !== null) mediaAttempts.set(latest.attemptId, { chat, taken });
     track.attempts.set(key, {
@@ -2083,7 +2075,6 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (draftText(state).trim() === '') return reason('draft-empty');
     if (shown !== null && !isTerminalOpState(shown.mirror.state)) return reason('chat-busy');
     const sends = fanSends(state.pageId, state.fanRef, shown?.opId ?? null);
-    if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
     if (sends.inFlight) return reason('parts-sending');
     const binding = context.current().binding;
     const route = host.current().route;
@@ -2125,11 +2116,6 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (conversationRef === null) return refused(type, localError('CG-DATA-NOT-READY', i18n));
     const target: Target = { binding, chat, fanRef: state.fanRef, conversationRef };
     const atEpoch = epoch;
-    // «Новые»: a greeting goes under the fan's lease until it is confirmed (H-7), the person's own as the AI's.
-    if (state.source === 'newcomers' && deps.greeting !== null) {
-      const lease = await deps.greeting.claimForGenerate(state.fanRef);
-      if (!lease.ok) return refused(type, lease.error);
-    }
     let textFingerprint: string;
     try {
       textFingerprint = await sha256(text);
