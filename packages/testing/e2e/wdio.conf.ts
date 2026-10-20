@@ -120,8 +120,8 @@ export const config: WebdriverIO.Config = {
           // machine that runs the e2e stays silent, the decisions are read from the diagnostics.
           'media.volume_scale': '0.0',
           // No slow-script killing: on a loaded runner a script of the page, of the stand or of our content scripts can
-          // run past Firefox's limits (10 s, extensions 5 s); a killed script left the extension half-started and the
-          // spec waiting for a state that never came. Marionette already zeroes the first; the extensions' limit is ours.
+          // run past Firefox's limits (10 s, extensions 5 s) — the PC's geckodriver logs show such kills — and a killed
+          // script of ours leaves the spec waiting for a state that never comes. Marionette zeroes the first already.
           'dom.max_script_run_time': 0,
           'dom.max_ext_content_script_run_time': 0,
         },
