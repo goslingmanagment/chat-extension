@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The P3b harness — packages/testing/e2e/specs/p3b-signed-builds.e2e.ts, the
+# The P3b harness — packages/testing/e2e/manual/p3b-signed-builds.e2e.ts, the
 # release gate's check of SIGNED test builds (docs/project-unite/spike.md
 # «P3b: как прогнать») — in the pinned Firefox image with no network, through
 # e2e-docker-local.sh (its own volume: CG_E2E_VOLUME, default cg-e2e-p3b).
@@ -17,7 +17,7 @@ set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 export CG_E2E_VOLUME=${CG_E2E_VOLUME:-cg-e2e-p3b}
-spec='pnpm --filter @cg/testing build:stand && pnpm --filter @cg/testing exec wdio run e2e/wdio.conf.ts --spec e2e/specs/p3b-signed-builds.e2e.ts'
+spec='pnpm --filter @cg/testing build:stand && pnpm --filter @cg/testing exec wdio run e2e/wdio.conf.ts --spec e2e/manual/p3b-signed-builds.e2e.ts'
 
 if [ "${1:-}" = --stand-in ]; then
   # No git in the container's copy of the tree: the set records no commit, which is what keeps it from ever being signed.

@@ -50,7 +50,7 @@
   "scripts": {
     "build:stand": "vite build --config fixture-chatspace.vite.config.ts && vite build --config fixture-fansly.vite.config.ts && vite build --config fansly-neighbor.vite.config.ts",
     "stand": "pnpm build:stand && tsx src/stand-cli.ts",
-    "e2e": "pnpm build:stand && pnpm build:gallery && pnpm build:pages && wdio run e2e/wdio.conf.ts",
+    "e2e": "pnpm build:stand && wdio run e2e/wdio.conf.ts",
     "perf": "pnpm build:stand && wdio run e2e/wdio.conf.ts --spec e2e/perf/perf-probe.e2e.ts --spec e2e/perf/fansly-perf-probe.e2e.ts",
     "long-run": "pnpm build:stand && wdio run e2e/long/wdio.conf.ts",
     "build:gallery": "vite build --config kit-gallery.vite.config.ts && vite build --config dock-gallery.vite.config.ts && vite build --config boards-gallery.vite.config.ts",

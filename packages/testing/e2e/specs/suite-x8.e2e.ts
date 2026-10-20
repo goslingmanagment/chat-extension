@@ -185,7 +185,18 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     const send = `${part(0)} .cg-pvs__send`;
     // X66: the preview unfolds inside the list. Viewport pointer actions, unlike element.click(), do not scroll its button into view.
     await ours('modal', send).scrollIntoView({ block: 'center' });
-    const box = await oursBox('modal', send);
+    // The burst goes to fixed viewport coordinates: read them once the list has stopped moving (on a loaded runner the
+    // scroll and the virtual list settle late, and a burst at the old place clicked nothing — the part stayed «available»).
+    let box = await oursBox('modal', send);
+    await browser.waitUntil(
+      async () => {
+        const next = await oursBox('modal', send);
+        const still = next !== null && box !== null && next.x === box.x && next.y === box.y;
+        box = next;
+        return still;
+      },
+      { timeout: 5000, interval: 150, timeoutMsg: 'the send button did not stop moving' },
+    );
     expect(box).not.toBeNull();
     const x = Math.round((box?.x ?? 0) + (box?.width ?? 0) / 2);
     const y = Math.round((box?.y ?? 0) + (box?.height ?? 0) / 2);

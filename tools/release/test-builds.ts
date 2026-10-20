@@ -33,7 +33,7 @@ export const TEST_BUILDS_GECKO_ID = 'chatgoose-p3b-test@gosling.agency';
 export const TEST_BUILDS_DIR = '.release/test-builds';
 export const TEST_BUILD_ROLES = ['n0', 'n', 'n1', 'control'] as const;
 export type TestBuildRole = (typeof TEST_BUILD_ROLES)[number];
-/** The names the harness takes the signed XPIs under (packages/testing/e2e/specs/p3b-signed-builds.e2e.ts). */
+/** The names the harness takes the signed XPIs under (packages/testing/e2e/manual/p3b-signed-builds.e2e.ts). */
 export const TEST_BUILD_ENV: Readonly<Record<TestBuildRole, string>> = { n0: 'CG_P3B_XPI_N0', n: 'CG_P3B_XPI_N', n1: 'CG_P3B_XPI_N1', control: 'CG_P3B_XPI_CONTROL' };
 
 /** The optional sites' permissions (the host registry's): their origins and their API permissions (webRequest). */

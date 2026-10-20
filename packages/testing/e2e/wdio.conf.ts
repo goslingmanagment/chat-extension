@@ -52,6 +52,10 @@ const shardFiles = shard === null ? null : shardSpecs(shard);
 
 /** When each worker started, by its id: the launcher prints how long its spec file took. */
 const workerStarts = new Map<string, number>();
+/** Spec files that failed an attempt, by name: one that passes on its retry is reported as flaky at the end. */
+const failedOnce = new Set<string>();
+const passedOnRetry: string[] = [];
+const failedForGood: string[] = [];
 
 /**
  * Fixed ports for the run, from CG_E2E_PORTS (JSON: `fansly`, `fanslyApi`, `fanslySocket`, `hub`; any may be left
@@ -115,6 +119,11 @@ export const config: WebdriverIO.Config = {
           // The extension's notification tones are really played by the event page's AudioContext: the
           // machine that runs the e2e stays silent, the decisions are read from the diagnostics.
           'media.volume_scale': '0.0',
+          // No slow-script killing: on a loaded runner a script of the page, of the stand or of our content scripts can
+          // run past Firefox's limits (10 s, extensions 5 s); a killed script left the extension half-started and the
+          // spec waiting for a state that never came. Marionette already zeroes the first; the extensions' limit is ours.
+          'dom.max_script_run_time': 0,
+          'dom.max_ext_content_script_run_time': 0,
         },
       },
     },
@@ -123,8 +132,14 @@ export const config: WebdriverIO.Config = {
   outputDir: logsDir,
   bail: 0,
   waitforTimeout: 15_000,
-  connectionRetryTimeout: 120_000,
+  // A WebDriver command that gets no answer fails in 60 s with its own name — not as the test's 120 s timeout.
+  connectionRetryTimeout: 60_000,
   connectionRetryCount: 1,
+  // The safety net, not the fix: a spec file that fails runs once more, after the rest of the part (deferred). Every
+  // retry is printed (`cg-e2e-retry:`) and one that passes on it is a GitHub warning at the end of the run, so a flaky
+  // spec stays visible; the cause is fixed in the spec.
+  specFileRetries: 1,
+  specFileRetriesDeferred: true,
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: { ui: 'bdd', timeout: 120_000 },
@@ -170,17 +185,27 @@ export const config: WebdriverIO.Config = {
   onWorkerStart: (cid) => {
     workerStarts.set(cid, performance.now());
   },
-  onWorkerEnd: (cid, exitCode, specs) => {
+  onWorkerEnd: (cid, exitCode, specs, retries) => {
     const started = workerStarts.get(cid);
-    if (started === undefined) return;
-    const seconds = ((performance.now() - started) / 1000).toFixed(1);
+    const seconds = started === undefined ? '?' : ((performance.now() - started) / 1000).toFixed(1);
     for (const spec of specs) {
       const path = spec.startsWith('file://') ? fileURLToPath(spec) : spec;
-      const name = relative(SPECS_DIR, path).split('\\').join('/');
-      console.log(`${TIME_LINE} ${name.startsWith('..') ? basename(path) : name} ${seconds} ${exitCode === 0 ? 'passed' : 'failed'}`);
+      const relativeName = relative(SPECS_DIR, path).split('\\').join('/');
+      const name = relativeName.startsWith('..') ? basename(path) : relativeName;
+      console.log(`${TIME_LINE} ${name} ${seconds} ${exitCode === 0 ? 'passed' : 'failed'}`);
+      if (exitCode !== 0 && retries > 0) {
+        failedOnce.add(name);
+        console.log(`cg-e2e-retry: ${name} failed, running it once more`);
+      } else if (exitCode === 0 && failedOnce.has(name)) {
+        passedOnRetry.push(name);
+      } else if (exitCode !== 0) {
+        failedForGood.push(name);
+      }
     }
   },
   onComplete: async () => {
+    for (const name of passedOnRetry) console.log(`::warning title=e2e flaky::${name} failed once and passed on its retry — fix its cause`);
+    for (const name of failedForGood) console.log(`::error title=e2e failed::${name} failed${failedOnce.has(name) ? ' twice' : ''}`);
     await hub?.close();
     await stand?.close();
     await egress?.close();

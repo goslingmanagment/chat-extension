@@ -1,4 +1,4 @@
-// The P3b harness's browser (e2e/specs/p3b-signed-builds.e2e.ts): a Firefox of
+// The P3b harness's browser (e2e/manual/p3b-signed-builds.e2e.ts): a Firefox of
 // its own, started by the spec with a profile folder it keeps across restarts,
 // the P3b world as its only way out (src/p3b/world.ts) and the test builds
 // installed PERMANENTLY, as a chatter's Firefox holds them. Firefox's own side

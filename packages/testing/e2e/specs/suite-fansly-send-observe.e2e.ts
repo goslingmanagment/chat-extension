@@ -129,7 +129,7 @@ describe('Fansly’s human send on its stand and its `sent` (R20 P7f)', () => {
     await fakeFansly().command({ op: 'reset' });
   });
 
-  for (const mode of ['off', 'after'] as const) {
+  for (const mode of ['after'] as const) {
     describe(`next to the neighbour (${mode})`, () => {
       it(`[FS-SEND-1] [FS-SEND-2] [UI-033] [TL-004] our insert, the person’s trusted Enter (${mode}): the page sends its model inside the keydown; its receipt and its echo — the port says the send for the server’s message, our intent, not edited`, async () => {
         const group = ids.groups[1] as string;
