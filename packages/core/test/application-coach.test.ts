@@ -880,8 +880,9 @@ describe('coach: the recap it stands on', () => {
     await h.clock.advance(160);
     // The answer streams into the turn like any other.
     expect(lastTurn(h)).toMatchObject({ state: 'streaming', streamText: 'Сначала согрей, пото' });
-    // X52: the open chat's tail goes with the question only; the recap step stays on the hub's archive (§19 п. 1).
-    expect(h.bg.hub.streams.map((stream) => [stream.feature, stream.body.liveTextContext?.items.length])).toEqual([['fan-summary', undefined], ['coach-chat', 1]]);
+    // X70: both steps use the same confirmed text read for this Coach turn.
+    expect(h.bg.hub.streams.map((stream) => [stream.feature, stream.body.liveTextContext?.items.length])).toEqual([['fan-summary', 1], ['coach-chat', 1]]);
+    expect(h.bg.hub.streams[0]?.body.liveTextContext).toEqual(h.bg.hub.streams[1]?.body.liveTextContext);
     expect(h.ai.workspace.ops.get(answerOp)).toMatchObject({ own: true, desynced: false });
     await h.finish();
     expect(lastTurn(h)).toMatchObject({ opId: answerOp, state: 'done', question: 'How do I reply?' });
