@@ -36,6 +36,8 @@ export interface BoardsDeps {
   readonly notifier?: BoardsNotifier | null;
   /** §6.5: «Открыть и вставить» opened the chat — the dock of that chat goes on with the result. */
   readonly handover?: ((handover: BoardHandover) => void) | null;
+  /** sha256 of a text, lower-case hex: «Отправить» of a preview's draft field (PreviewControllerDeps.sha256). */
+  readonly sha256?: (text: string) => Promise<string>;
   readonly connectivity?: Connectivity | null;
   readonly random?: RandomSource;
   /** IANA zone of the statistics' calendar; the browser's own when absent. */
@@ -128,6 +130,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     clipboard: deps.clipboard ?? null,
     notifier: deps.notifier ?? null,
     handover: deps.handover ?? null,
+    ...(deps.sha256 === undefined ? {} : { sha256: deps.sha256 }),
   });
   late.preview = preview;
   // 1.32.0: a batch of a list starts its generations through the preview's own Generate.

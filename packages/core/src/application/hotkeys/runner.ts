@@ -110,7 +110,7 @@ export function fixKeyOf(dock: DockVM): FixKeyState {
 }
 
 /** Esc never answers a question with what only a deliberate click may do: no insert, no replacement, no send. */
-const NEVER_BY_KEY: readonly UiAction['type'][] = ['InsertPart', 'OpenAndInsertPart', 'ReplaceMyDraft', 'SendPart'];
+const NEVER_BY_KEY: readonly UiAction['type'][] = ['InsertPart', 'OpenAndInsertPart', 'ReplaceMyDraft', 'SendPart', 'SendDraft'];
 const cancelsOnly = (action: UiAction): boolean => !NEVER_BY_KEY.includes(action.type) && (action.type !== 'AnswerConfirm' || action.choice === 'cancel');
 
 const isRunning = (state: OpState | null | undefined): boolean => state !== null && state !== undefined && !(OP_TERMINAL_STATES as readonly string[]).includes(state);

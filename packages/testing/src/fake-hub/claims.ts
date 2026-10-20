@@ -38,9 +38,10 @@ interface SendAdmission {
   readonly limit: 'perMinute' | 'greetingPerMinute';
 }
 const SEND_ADMISSIONS: Record<HubPlatform, Partial<Record<'greeting' | 'preview-reply', SendAdmission>>> = {
+  // The hub since the 2026-10-20 audit (row 1): the chatter's own or edited text as a manual group on OnlyFans too.
   onlyfans: {
-    greeting: { flags: ['previewSend', 'newcomers'], groups: ['generation'], limit: 'perMinute' },
-    'preview-reply': { flags: ['previewSend'], groups: ['generation'], limit: 'perMinute' },
+    greeting: { flags: ['previewSend', 'newcomers'], groups: ['generation', 'manual'], limit: 'perMinute' },
+    'preview-reply': { flags: ['previewSend'], groups: ['generation', 'manual'], limit: 'perMinute' },
   },
   fansly: { greeting: { flags: ['newcomers'], groups: ['generation', 'manual'], limit: 'greetingPerMinute' } },
 };

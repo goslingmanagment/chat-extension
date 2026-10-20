@@ -189,6 +189,13 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * part by itself. `anyway` — «Отправить всё равно» on a freshness warning.
    */
   act('SendPart', { operationId: UuidSchema, variant, part, anyway: z.optional(z.literal(true)) }),
+  /**
+   * A preview part the person edits before sending (2026-10-20 audit, row 1): `text` — the part as it is to go (opens
+   * the editor), null — back to the AI text. Local only: what «Отправить» then sends is this text.
+   */
+  act('EditPart', { operationId: UuidSchema, variant, part, text: z.nullable(displayText(SEND_LIMITS.previewDraftMaxChars)) }),
+  /** «Отправить» of the preview's draft field: the person's own text, one message, by this click (row 1). */
+  act('SendDraft', { targetHandle: HandleSchema }),
   act('OpenChatToVerify', { attemptId: UuidSchema }),
   /** Writes `copied` only after the clipboard write succeeded. */
   act('Copy', { artifactHandle: HandleSchema }),

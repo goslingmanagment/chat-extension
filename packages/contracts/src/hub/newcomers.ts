@@ -139,6 +139,27 @@ export type ClaimBody = z.infer<typeof ClaimBodySchema>;
 export const ClaimOpSchema = z.strictObject({ pageLabel: PageLabelSchema, fanRef: NativeIdSchema, body: ClaimBodySchema });
 export type ClaimOp = z.infer<typeof ClaimOpSchema>;
 
+/**
+ * The `dispatch` of the person's own text from a preview (audit 2026-10-20, row 1): the hub's manual group (with
+ * `manual-greeting-v1`), one part named by the sha256 of the exact text. The facade checks such a call by this schema
+ * instead of ClaimOpSchema, which takes AI groups only.
+ */
+export const ManualDispatchOpSchema = z.strictObject({
+  pageLabel: PageLabelSchema,
+  fanRef: NativeIdSchema,
+  body: z.strictObject({
+    action: z.literal('dispatch'),
+    attemptId: UuidSchema,
+    instanceId: UuidSchema,
+    purpose: SendPurposeSchema,
+    group: z.strictObject({ kind: z.literal('manual'), textFingerprint: z.string().check(z.regex(/^[0-9a-f]{64}$/)) }),
+    partIndex: z.literal(0),
+    textRevision: ClaimRevisionSchema,
+    leaseToken: z.optional(UuidSchema),
+    flagRevision: ClaimRevisionSchema,
+  }),
+});
+
 /** Answer of POST (and, without a ticket, of GET) `…/claim`. */
 export const ClaimStateSchema = z.object({
   greeting: z.object({

@@ -5659,8 +5659,8 @@ export declare const syncBlockSubstreamSchema: z.ZodObject<{
     engine: z.ZodOptional<z.ZodObject<{
         stopped: z.ZodEnum<{
             all: "all";
-            some: "some";
             none: "none";
+            some: "some";
         }>;
         stops: z.ZodArray<z.ZodObject<{
             reason: z.ZodEnum<{
@@ -5714,8 +5714,8 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
         pausedAll: z.ZodBoolean;
         stopped: z.ZodEnum<{
             all: "all";
-            some: "some";
             none: "none";
+            some: "some";
         }>;
         stops: z.ZodArray<z.ZodObject<{
             reason: z.ZodEnum<{
@@ -5857,8 +5857,8 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
         engine: z.ZodOptional<z.ZodObject<{
             stopped: z.ZodEnum<{
                 all: "all";
-                some: "some";
                 none: "none";
+                some: "some";
             }>;
             stops: z.ZodArray<z.ZodObject<{
                 reason: z.ZodEnum<{
@@ -5961,8 +5961,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 pausedAll: z.ZodBoolean;
                 stopped: z.ZodEnum<{
                     all: "all";
-                    some: "some";
                     none: "none";
+                    some: "some";
                 }>;
                 stops: z.ZodArray<z.ZodObject<{
                     reason: z.ZodEnum<{
@@ -6104,8 +6104,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 engine: z.ZodOptional<z.ZodObject<{
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -6160,8 +6160,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 pausedAll: z.ZodBoolean;
                 stopped: z.ZodEnum<{
                     all: "all";
-                    some: "some";
                     none: "none";
+                    some: "some";
                 }>;
                 stops: z.ZodArray<z.ZodObject<{
                     reason: z.ZodEnum<{
@@ -6303,8 +6303,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 engine: z.ZodOptional<z.ZodObject<{
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -6359,8 +6359,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 pausedAll: z.ZodBoolean;
                 stopped: z.ZodEnum<{
                     all: "all";
-                    some: "some";
                     none: "none";
+                    some: "some";
                 }>;
                 stops: z.ZodArray<z.ZodObject<{
                     reason: z.ZodEnum<{
@@ -6502,8 +6502,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 engine: z.ZodOptional<z.ZodObject<{
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -6558,8 +6558,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 pausedAll: z.ZodBoolean;
                 stopped: z.ZodEnum<{
                     all: "all";
-                    some: "some";
                     none: "none";
+                    some: "some";
                 }>;
                 stops: z.ZodArray<z.ZodObject<{
                     reason: z.ZodEnum<{
@@ -6701,8 +6701,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 engine: z.ZodOptional<z.ZodObject<{
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -6757,8 +6757,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 pausedAll: z.ZodBoolean;
                 stopped: z.ZodEnum<{
                     all: "all";
-                    some: "some";
                     none: "none";
+                    some: "some";
                 }>;
                 stops: z.ZodArray<z.ZodObject<{
                     reason: z.ZodEnum<{
@@ -6900,8 +6900,8 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 engine: z.ZodOptional<z.ZodObject<{
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -7008,8 +7008,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -7151,8 +7151,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -7207,8 +7207,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -7350,8 +7350,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -7406,8 +7406,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -7549,8 +7549,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -7605,8 +7605,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -7748,8 +7748,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -7804,8 +7804,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -7947,8 +7947,8 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -8041,8 +8041,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -8184,8 +8184,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -8240,8 +8240,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -8383,8 +8383,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -8439,8 +8439,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -8582,8 +8582,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -8638,8 +8638,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -8781,8 +8781,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -8837,8 +8837,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     pausedAll: z.ZodBoolean;
                     stopped: z.ZodEnum<{
                         all: "all";
-                        some: "some";
                         none: "none";
+                        some: "some";
                     }>;
                     stops: z.ZodArray<z.ZodObject<{
                         reason: z.ZodEnum<{
@@ -8980,8 +8980,8 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     engine: z.ZodOptional<z.ZodObject<{
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -9071,8 +9071,8 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
             pausedAll: z.ZodBoolean;
             stopped: z.ZodEnum<{
                 all: "all";
-                some: "some";
                 none: "none";
+                some: "some";
             }>;
             stops: z.ZodArray<z.ZodObject<{
                 reason: z.ZodEnum<{
@@ -9214,8 +9214,8 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
             engine: z.ZodOptional<z.ZodObject<{
                 stopped: z.ZodEnum<{
                     all: "all";
-                    some: "some";
                     none: "none";
+                    some: "some";
                 }>;
                 stops: z.ZodArray<z.ZodObject<{
                     reason: z.ZodEnum<{
@@ -11278,7 +11278,7 @@ export declare const ofapiCaptureJobReplayResponseSchema: z.ZodObject<{
         observationReceivedAt: z.ZodString;
     }, z.core.$strip>;
 }, z.core.$strip>;
-/** Decision #246: a parked capture job is CANCELLED, never resumed in place.
+/** A parked capture job is CANCELLED, never resumed in place.
  *  The row and its attempts stay (append-only history); the active slot is
  *  freed, so the owning lane starts a fresh job with fresh allowances on its
  *  next request. Nothing is dispatched by this action. */
@@ -12480,8 +12480,8 @@ export declare const statsCoverageResponseSchema: z.ZodObject<{
             paused: z.ZodBoolean;
             stopped: z.ZodEnum<{
                 all: "all";
-                some: "some";
                 none: "none";
+                some: "some";
             }>;
             stops: z.ZodArray<z.ZodObject<{
                 reason: z.ZodEnum<{
@@ -17818,8 +17818,8 @@ declare const baseRouteSchemas: {
                         paused: z.ZodBoolean;
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -23685,7 +23685,7 @@ declare const baseRouteSchemas: {
             readonly scope: "page";
         };
         readonly tags: readonly ["fans"];
-        readonly summary: "Top spenders for one page from the fan-earnings projection (Stage 32 board)";
+        readonly summary: "Top spenders for one page from the fan-earnings projection";
         readonly params: z.ZodObject<{
             pageLabel: z.ZodString;
         }, z.core.$strip>;
@@ -26228,8 +26228,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -26371,8 +26371,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -26427,8 +26427,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -26570,8 +26570,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -26626,8 +26626,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -26769,8 +26769,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -26825,8 +26825,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -26968,8 +26968,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -27024,8 +27024,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -27167,8 +27167,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -27285,8 +27285,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -27428,8 +27428,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -27484,8 +27484,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -27627,8 +27627,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -27683,8 +27683,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -27826,8 +27826,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -27882,8 +27882,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -28025,8 +28025,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -28081,8 +28081,8 @@ declare const baseRouteSchemas: {
                                 pausedAll: z.ZodBoolean;
                                 stopped: z.ZodEnum<{
                                     all: "all";
-                                    some: "some";
                                     none: "none";
+                                    some: "some";
                                 }>;
                                 stops: z.ZodArray<z.ZodObject<{
                                     reason: z.ZodEnum<{
@@ -28224,8 +28224,8 @@ declare const baseRouteSchemas: {
                                 engine: z.ZodOptional<z.ZodObject<{
                                     stopped: z.ZodEnum<{
                                         all: "all";
-                                        some: "some";
                                         none: "none";
+                                        some: "some";
                                     }>;
                                     stops: z.ZodArray<z.ZodObject<{
                                         reason: z.ZodEnum<{
@@ -28349,8 +28349,8 @@ declare const baseRouteSchemas: {
                         pausedAll: z.ZodBoolean;
                         stopped: z.ZodEnum<{
                             all: "all";
-                            some: "some";
                             none: "none";
+                            some: "some";
                         }>;
                         stops: z.ZodArray<z.ZodObject<{
                             reason: z.ZodEnum<{
@@ -28492,8 +28492,8 @@ declare const baseRouteSchemas: {
                         engine: z.ZodOptional<z.ZodObject<{
                             stopped: z.ZodEnum<{
                                 all: "all";
-                                some: "some";
                                 none: "none";
+                                some: "some";
                             }>;
                             stops: z.ZodArray<z.ZodObject<{
                                 reason: z.ZodEnum<{
@@ -29614,7 +29614,7 @@ declare const baseRouteSchemas: {
             readonly kind: "monitoring";
         };
         readonly tags: readonly ["system"];
-        readonly summary: "Golden-signal lag samples (Stage 25 acceptance instrument)";
+        readonly summary: "Golden-signal lag samples";
         readonly response: {
             readonly 200: z.ZodObject<{
                 samples: z.ZodArray<z.ZodObject<{

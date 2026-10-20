@@ -63,8 +63,23 @@ function partsOf(result: OpResult | null, variant: number): readonly string[] | 
 
 const sameSession = (a: OpForSend['session'], b: NonNullable<SendGate['session']>): boolean => a.hubOrigin === b.hubOrigin && a.userId === b.userId && a.epoch === b.epoch;
 
+/**
+ * The person's own text (audit 2026-10-20, row 1): no operation to check it against — the page, the sign-in and the
+ * binding of now, the owner's switch, the receipt profile and the fuse. Freshness is not asked: the person wrote it
+ * looking at the chat.
+ */
+function manualCondition(begin: SendBegin, gate: SendGate): CgCode | null {
+  if (gate.session === null || gate.session.hubOrigin !== begin.target.binding.hubOrigin) return 'CG-CONTEXT-CHANGED';
+  if (gate.bindingRevision !== begin.target.binding.bindingRevision) return 'CG-CONTEXT-CHANGED';
+  if (!gate.previewSend || (begin.purpose === 'greeting' && !gate.newcomers)) return 'CG-SEND-OFF';
+  if (gate.receiptProfiles === 0) return 'CG-SEND-RECEIPT';
+  if (gate.fused === true) return 'CG-SEND-FUSE';
+  return null;
+}
+
 /** The first failed condition, in the table's order; null — ask the hub. */
 export function beginCondition(begin: SendBegin, op: OpForSend | null, gate: SendGate): CgCode | null {
+  if (begin.manual !== undefined) return manualCondition(begin, gate);
   // 1 — a finished draft of a sendable feature, from the matching surface, an existing part.
   if (op === null || op.state !== 'done') return 'CG-SEND-PART';
   if (!(SENDABLE_FEATURES as readonly FeatureId[]).includes(op.feature) || op.surface !== PURPOSE_SURFACE[begin.purpose]) return 'CG-SEND-PART';

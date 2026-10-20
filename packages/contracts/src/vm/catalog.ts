@@ -147,6 +147,10 @@ export const UNAVAILABLE_REASONS = {
   /** «Повторить» before the fixed retry deadline (ER-007). */
   'wait-until': { key: 'cg.retryIn', code: null },
   'send-unavailable': { key: 'send.unavailable', code: null },
+  /** «Отправить» of a preview's draft field with nothing in it (audit 2026-10-20, row 1). */
+  'draft-empty': { key: 'preview.draft.sendEmpty', code: null },
+  /** «Отправить» of a preview's draft field for the chat that is open: its own composer is the place. */
+  'chat-open': { key: 'send.reason.activeChat', code: 'CG-SEND-ACTIVE-CHAT' },
 } as const satisfies Record<string, { readonly key: I18nKey; readonly code: CgCode | null }>;
 
 export type UnavailableReasonId = keyof typeof UNAVAILABLE_REASONS;

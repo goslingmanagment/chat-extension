@@ -149,6 +149,10 @@ interface OpTrack {
   openInsert: { readonly key: string; readonly until: number } | null;
   /** Timers that lift a hub rate-limit hold, by part. */
   readonly holdTimers: Map<string, number>;
+  /** Parts the person edited (audit 2026-10-20, row 1), by part key: the text that goes, and its revision (the hub's `textRevision`). */
+  readonly edits: Map<string, { readonly text: string; readonly revision: number }>;
+  /** The person's own text from the draft field, not a generation: the hub's manual group (row 1). */
+  readonly manual: { readonly textFingerprint: string } | null;
 }
 
 interface TargetState {
@@ -247,6 +251,11 @@ export interface PreviewControllerDeps {
   readonly notifier: BoardsNotifier | null;
   /** §6.5: «Открыть и вставить» opened the chat — the result goes on in that chat's dock. Absent — no dock takes it. */
   readonly handover?: ((handover: BoardHandover) => void) | null;
+  /**
+   * sha256 of a text's UTF-8 bytes, lower-case hex: the hub's key of the person's own text (a manual group, audit
+   * 2026-10-20, row 1). Absent — the draft field sends nothing.
+   */
+  readonly sha256?: (text: string) => Promise<string>;
 }
 
 export interface PreviewController extends SurfaceController<'preview'> {
@@ -764,6 +773,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       fanWroteAt: null,
       openInsert: null,
       holdTimers: new Map(),
+      edits: new Map(),
+      manual: null,
     };
   }
 
@@ -1076,6 +1087,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // The send path lives in the tap script (the receipt observer, §6.7.6), and the tap is the page's own switch: the
     // adapter keeps one tap for the whole tab (on while any page has it), so a page whose `wsTap` is off sends nothing.
     if (!pageFlag(ctx, 'wsTap')) return refusal('CG-SEND-OFF');
+    // The person's own text was written looking at the chat: no generation to be stale.
+    if (track.manual !== null) return { ok: true };
     // Freshness (§6.7.5) is a warning the person may pass with «Отправить всё равно» (audit rows 3–4).
     if (track.fanWrote || view.stale?.reason === 'fan-wrote') return { ok: true, warn: 'CG-SEND-STALE' };
     if (track.checkpoint === null) return { ok: true, warn: 'CG-SEND-FRESHNESS' };
@@ -1102,6 +1115,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     }
     const main = track.preflight ?? { ok: true };
     if (!main.ok) return main;
+    if (track.manual !== null) return { ok: true };
     // The fan wrote, said by either side, is the warning shown over «cannot be checked».
     const warn = local.warn === 'CG-SEND-STALE' || main.warn === 'CG-SEND-STALE' ? 'CG-SEND-STALE' : (local.warn ?? main.warn);
     return warn === undefined ? { ok: true } : { ok: true, warn };
@@ -1220,12 +1234,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const attached = media.attachment(track.target.chat);
       if (attached.kind === 'blocked') row = { s: 'unavailable', code: 'CG-SEND-MEDIA', reason: attached.reason };
     }
+    // An edit with nothing in it cannot go (MAIN refuses an empty text the same way).
+    const edit = track.edits.get(key);
+    if (edit !== undefined && edit.text.trim() === '' && (row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified')) row = { s: 'unavailable', code: 'CG-SEND-PART', reason: msg(SEND_REASON_KEYS['CG-SEND-PART']) };
     const settled = row.s === 'sent' || row.s === 'uncertain' || row.s === 'queued' || row.s === 'sending' || row.s === 'accepted';
     const order = group === null || settled ? null : partOrder(group, index, attempts);
     return {
       ...(deps.previewSend === false && row.s !== 'sent' ? {} : { send: row }),
       order,
-      openInsert: openInsertRow({ row, waitingUntil: track.openInsert?.key === key ? track.openInsert.until : null, blocked: openInsertBlock(track, v, sends) }),
+      // «Открыть и вставить» puts the AI's text into the chat (the background's copy of it): not beside the person's own words.
+      openInsert: edit !== undefined || track.manual !== null ? { s: 'hidden' } : openInsertRow({ row, waitingUntil: track.openInsert?.key === key ? track.openInsert.until : null, blocked: openInsertBlock(track, v, sends) }),
+      editable: deps.previewSend !== false && track.manual === null && order === null && (row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'unverified' || (row.s === 'rejected' && row.canRetry)),
+      ...(edit === undefined ? {} : { edit: edit.text }),
     };
   }
 
@@ -1528,6 +1548,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
             progress: p !== null && p.sent > 0 ? { sent: p.sent, total: p.total } : null,
             sendStarted,
             regenerate: regenerateRule(shown),
+            own: shown.manual !== null,
           });
     // The fan's sends over every result made for the fan, not only the one on the card.
     const sends = fanSends(state.pageId, state.fanRef, shown?.opId ?? null);
@@ -1567,7 +1588,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         olderError: state.olderError === null ? null : errorOf(state.olderError, i18n),
       },
       ping: source === 'newcomers' || feed === null || feed.ping === null ? null : { segment: feed.ping.segment, fanSilenceDays: feed.ping.fanSilenceDays },
-      draft: { text: draftText(state), maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg(draftPlaceholder(source)) },
+      draft: { text: draftText(state), maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg(draftPlaceholder(source)), ...draftSendOf(state, shown) },
       bar: barOf(state, track),
       result,
       media: mediaVm(state),
@@ -1599,6 +1620,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    * second greeting (§6.7.9).
    */
   function regenerateRule(track: OpTrack): { readonly allowed: boolean; readonly reason: ReasonVM | null } {
+    // The person's own text has no generation to make again.
+    if (track.manual !== null) return { allowed: false, reason: null };
     const sends = fanSends(track.pageId, track.fanRef, track.opId);
     if (sends.uncertain !== null) return { allowed: false, reason: reason('part-uncertain', { n: sends.uncertain.part + 1 }) };
     if (sends.inFlight) return { allowed: false, reason: reason('parts-sending') };
@@ -1826,18 +1849,23 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const sender = deps.sender;
     const view = track.mirror.done;
     const texts = partsOfResult(view?.result, variant);
-    const text = texts?.[index];
+    const key = partKey(variant, index);
+    // The person's edit of the part goes instead of the AI's text (audit 2026-10-20, row 1).
+    const edit = track.edits.get(key);
+    const original = texts?.[index];
+    const text = edit?.text ?? original;
     const group = groupOf(track, variant);
     if (sender === null || view === null || text === undefined || group === null) return refused(type, localError('CG-SEND-PART', i18n));
-    const key = partKey(variant, index);
     const rows = rowsOf(track, variant, index);
     if (rows.send === undefined) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
     if (!clickable(rows.send, rows.order, anyway)) {
       const code: CgCode = rows.order !== null ? 'CG-SEND-BUSY' : rows.send.s === 'unavailable' || rows.send.s === 'rejected' ? rows.send.code : rows.send.s === 'held-stale' ? 'CG-SEND-STALE' : rows.send.s === 'unverified' ? 'CG-SEND-FRESHNESS' : rows.send?.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY';
       return refused(type, localError(code, i18n));
     }
+    // The person's own text passes no freshness warning: it was written looking at the chat.
+    const accept = anyway || track.manual !== null;
     // Sent anyway, a result restored after a reload goes with a checkpoint taken now: the page's own document and chat.
-    const checkpoint = track.checkpoint ?? (anyway ? await host.checkpoint(track.target.chat).catch(() => null) : null);
+    const checkpoint = track.checkpoint ?? (accept ? await host.checkpoint(track.target.chat).catch(() => null) : null);
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
     // Decision X53: the picked media go with this part, as they are at the click. They leave the picker with it: what the
     // person does in the picker meanwhile neither changes nor repeats what goes.
@@ -1868,16 +1896,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       group,
       part: partRef(track, variant, index),
       previewRevision: track.previewRevision,
-      textRevision: 0,
+      textRevision: edit?.revision ?? 0,
       checkpoint,
       documentEpoch: checkpoint.documentEpoch,
-      ...(anyway ? { acceptFreshness: true as const } : {}),
+      ...(accept ? { acceptFreshness: true as const } : {}),
+      ...(track.manual === null ? {} : { manual: track.manual }),
       cause: issued.cause,
       ...(leaseToken === null ? {} : { leaseToken }),
       // The build the fuse is held by (decision X25): the background holds the click while a tripped fuse names it.
       hostBuild: host.current().contract.build,
       plainText: text,
-      isAiGenerated: pageFlag(context.current(), 'previewSendMarkAiGenerated'),
+      // ChatSpace's «from AI» mark only on the AI's own words (§6.7.1).
+      isAiGenerated: pageFlag(context.current(), 'previewSendMarkAiGenerated') && track.manual === null && text === original,
       ...(attached.kind === 'media' ? { media: attached.media } : {}),
     };
     let answered: SendAttemptView;
@@ -2014,13 +2044,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   async function copy(type: UiActionType, track: OpTrack, variant: number, index: number): Promise<ActionReceipt> {
     const key = partKey(variant, index);
-    const text = partsOfResult(track.mirror.done?.result, variant)?.[index];
+    const edit = track.edits.get(key);
+    const text = edit?.text ?? partsOfResult(track.mirror.done?.result, variant)?.[index];
     const wrote = text !== undefined && deps.clipboard !== null && (await deps.clipboard.writeText(text).catch(() => false));
     track.copy.set(key, wrote ? 'done' : 'failed');
     changedFor(track.handle);
     if (!wrote) return refused(type, localError('CG-CLIPBOARD', i18n));
-    // `copied` is reported only after the clipboard took the text (Б14).
-    void rpc.request('op.reportCopy', { opId: track.opId, part: partRef(track, variant, index) });
+    // `copied` is reported only after the clipboard took the text (Б14), and only of the AI's own words.
+    if (edit === undefined && track.manual === null) void rpc.request('op.reportCopy', { opId: track.opId, part: partRef(track, variant, index) });
     clock.setTimer(COPY_MARK_MS, () => {
       if (track.copy.get(key) !== 'done') return;
       track.copy.delete(key);
@@ -2039,6 +2070,109 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     surfaces.closeBoards();
     return done(type, 'opened');
+  }
+
+  /** The result the card shows now; null — none. */
+  const shownTrackOf = (state: TargetState): OpTrack | null => {
+    const opId = currentOp.get(state.handle);
+    return opId === undefined ? null : (tracks.get(opId) ?? null);
+  };
+
+  /** Why «Отправить» of the draft field cannot send now (audit 2026-10-20, row 1); null — it can. */
+  function draftSendBlock(state: TargetState, shown: OpTrack | null): ReasonVM | null {
+    if (draftText(state).trim() === '') return reason('draft-empty');
+    if (shown !== null && !isTerminalOpState(shown.mirror.state)) return reason('chat-busy');
+    const sends = fanSends(state.pageId, state.fanRef, shown?.opId ?? null);
+    if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
+    if (sends.inFlight) return reason('parts-sending');
+    const binding = context.current().binding;
+    const route = host.current().route;
+    if (binding !== null && route.chat !== null && chatKeyOf(route.chat) === chatKeyOf({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef })) return reason('chat-open');
+    if (state.source === 'newcomers' && deps.greeting !== null) {
+      // The fan's lease and greeting hold the person's own greeting as they hold Hi; «это уже диалог» is the AI's rule only.
+      const blocked = deps.greeting.hiBlocked(state.fanRef);
+      if (blocked !== null && blocked.id !== 'hi-gate') return blocked;
+    }
+    return null;
+  }
+
+  /** «Отправить» of the draft field, where this page sends from a preview. */
+  function draftSendOf(state: TargetState, shown: OpTrack | null): { readonly send?: { readonly enabled: boolean; readonly reason: ReasonVM | null } } {
+    const ctx = context.current();
+    if (deps.previewSend === false || deps.sha256 === undefined || deps.sender === null || ctx.phase !== 'ready') return {};
+    if (!pageFlag(ctx, 'previewSend') || (state.source === 'newcomers' && !pageFlag(ctx, 'newcomers'))) return {};
+    const why = draftSendBlock(state, shown);
+    return { send: { enabled: why === null, reason: why } };
+  }
+
+  /**
+   * «Отправить» of the draft field (audit 2026-10-20, row 1): the person's own text to the fan, one message, by this
+   * click. It becomes the card's result — one part of no generation, the hub's manual group by the text's sha256 —
+   * so its send shows, ends and holds the fan like any part's. The field is empty for the next one.
+   */
+  async function sendDraft(type: UiActionType, state: TargetState): Promise<ActionReceipt> {
+    const sha256 = deps.sha256;
+    if (sha256 === undefined || deps.sender === null || deps.previewSend === false) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
+    const text = draftText(state).trim();
+    const why = draftSendBlock(state, shownTrackOf(state));
+    if (why !== null) return refused(type, localError(why.id === 'draft-empty' ? 'CG-SEND-PART' : why.id === 'chat-open' ? 'CG-SEND-ACTIVE-CHAT' : reasonCode(why), i18n));
+    const journal = await sendsNow(state.pageId, state.fanRef);
+    if (journal !== null || targets.get(state.handle) !== state) return refused(type, localError(journal ?? 'CG-CONTEXT-CHANGED', i18n));
+    const binding = context.current().binding;
+    if (binding === null) return refused(type, localError('CG-HUB-UNAVAILABLE', i18n));
+    const chat = { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef };
+    const conversationRef = conversationOfTarget(state.info, binding.platform);
+    if (conversationRef === null) return refused(type, localError('CG-DATA-NOT-READY', i18n));
+    const target: Target = { binding, chat, fanRef: state.fanRef, conversationRef };
+    const atEpoch = epoch;
+    // «Новые»: a greeting goes under the fan's lease until it is confirmed (H-7), the person's own as the AI's.
+    if (state.source === 'newcomers' && deps.greeting !== null) {
+      const lease = await deps.greeting.claimForGenerate(state.fanRef);
+      if (!lease.ok) return refused(type, lease.error);
+    }
+    let textFingerprint: string;
+    try {
+      textFingerprint = await sha256(text);
+    } catch {
+      return refused(type, localError('CG-SEND-HOST', i18n));
+    }
+    const checkpoint = await host.checkpoint(chat).catch(() => null);
+    if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    const now = clock.now();
+    const opId = ids.uuid();
+    const view: OpView = {
+      opId,
+      feature: state.source === 'newcomers' ? 'hi' : 'reply',
+      surface: surfaceOf(state.source),
+      target,
+      state: 'done',
+      phase: { name: 'settled', since: now },
+      startedAt: now,
+      endedAt: now,
+      toneUsed: null,
+      generationRef: ids.uuid(),
+      result: { kind: 'parts', parts: [text], splitRequested: false },
+    };
+    const track: OpTrack = { ...trackOf(view, state, { checkpoint }), manual: { textFingerprint } };
+    tracks.set(opId, track);
+    currentOp.set(state.handle, opId);
+    setDraft(state, '');
+    pruneTracks();
+    changedFor(state.handle);
+    return sendPart(type, track, 0, 0, true);
+  }
+
+  /** «Править» / the editor of a part / «Вернуть текст AI» (audit 2026-10-20, row 1). Local only. */
+  function editPart(type: UiActionType, track: OpTrack, variant: number, index: number, text: string | null): ActionReceipt {
+    const key = partKey(variant, index);
+    if (partsOfResult(track.mirror.done?.result, variant)?.[index] === undefined) return refused(type, localError('CG-SEND-PART', i18n));
+    if (text === null) track.edits.delete(key);
+    else {
+      if (track.edits.get(key) === undefined && rowsOf(track, variant, index).editable !== true) return refused(type, localError('CG-SEND-PART', i18n));
+      track.edits.set(key, { text, revision: (track.edits.get(key)?.revision ?? 0) + 1 });
+    }
+    changedFor(track.handle);
+    return done(type);
   }
 
   function setDraft(state: TargetState, text: string): void {
@@ -2172,6 +2306,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const track = owner === undefined ? undefined : tracks.get(owner.opId);
       // §6.7.8: the only way on from an unknown outcome — look at the chat. Nothing is sent or inserted.
       return track === undefined ? null : openChat(type, track.fanRef, track.surface, track.source, track.target.conversationRef);
+    }
+    if (action.type === 'EditPart') {
+      const track = tracks.get(action.operationId);
+      return track === undefined ? null : Promise.resolve(editPart(type, track, action.variant ?? 0, action.part, action.text));
+    }
+    if (action.type === 'SendDraft') {
+      const state = stateOf(action.targetHandle);
+      return state === null ? null : sendDraft(type, state);
     }
     if (action.type === 'Regenerate' || action.type === 'CancelGeneration' || action.type === 'HideResult' || action.type === 'ExpandResult' || action.type === 'SendPart' || action.type === 'OpenAndInsertPart') {
       const track = tracks.get(action.operationId);

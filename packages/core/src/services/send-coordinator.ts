@@ -35,7 +35,7 @@
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
-import { type Bootstrap, type ClaimBody, type ClaimState, type CustodyState, type HubFacade, type HubFailure, type ResolveHubError } from '@cg/contracts/hub';
+import { ManualDispatchOpSchema, type Bootstrap, type ClaimBody, type ClaimState, type CustodyState, type HubFacade, type HubFailure, type ResolveHubError } from '@cg/contracts/hub';
 import { type PartRef } from '@cg/contracts/ids';
 import { BRIDGE_LIMITS, OP_LIMITS } from '@cg/contracts/limits';
 import { type OpView } from '@cg/contracts/ops';
@@ -322,10 +322,13 @@ export class SendCoordinator {
       textRevision: begin.textRevision,
       flagRevision: page.flagRevision,
       ...(begin.leaseToken === undefined ? {} : { leaseToken: begin.leaseToken }),
+      ...(begin.manual === undefined ? {} : { manual: begin.manual }),
     });
     let state: ClaimState;
     try {
-      state = await this.deps.hub.claim({ pageLabel: page.pageLabel, fanRef: begin.target.fanRef, body });
+      const op = { pageLabel: page.pageLabel, fanRef: begin.target.fanRef, body };
+      // The person's own text names the hub's manual group: checked by its own schema (the registry's takes AI groups only).
+      state = await (begin.manual === undefined ? this.deps.hub.claim(op) : this.deps.hub.claim(op, ManualDispatchOpSchema));
     } catch (error) {
       return this.dispatchFailed(attempt, error);
     }

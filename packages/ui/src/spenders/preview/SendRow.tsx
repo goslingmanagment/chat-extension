@@ -73,6 +73,23 @@ export function CopyIcon({ part }: { readonly part: PartVM }): JSX.Element {
   );
 }
 
+/**
+ * «Править» opens the part's editor, «Вернуть текст AI» closes it with the AI's text back (audit 2026-10-20, row 1).
+ * Nothing goes by either: «Отправить» sends what the editor holds.
+ */
+function EditToggle({ part, opId }: { readonly part: PartVM; readonly opId: string }): JSX.Element | null {
+  const i18n = useI18n();
+  const hints = useHints();
+  const dispatch = useDispatch();
+  if (part.editing === true) return <Button label={i18n.t('part.revert')} variant="quiet" class="cg-pvs__revert" onClick={() => void dispatch(editPartAction(opId, part, null))} />;
+  if (part.editable !== true) return null;
+  return <Button label={i18n.t('part.edit')} variant="quiet" class="cg-pvs__edit" tooltip={hints ? i18n.t('part.editTooltip') : null} onClick={() => void dispatch(editPartAction(opId, part, part.text))} />;
+}
+
+function editPartAction(opId: string, part: PartVM, text: string | null): UiAction {
+  return part.variant === null ? { type: 'EditPart', operationId: opId, part: part.index, text } : { type: 'EditPart', operationId: opId, variant: part.variant, part: part.index, text };
+}
+
 /** The queue has not reached this part: it waits behind an earlier one, or is held by an uncertain one (§6.7.9). */
 function waitsForEarlierPart(part: PartVM): boolean {
   const send = part.send;
@@ -242,6 +259,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
         <div class="cg-pvs" data-cg-send="available">
           <SendButton part={part} opId={opId} label={withMedia ?? i18n.t('send.button')} tooltip={i18n.t(withMedia === null ? 'send.buttonTooltip' : 'send.buttonMediaTooltip')} />
           <OpenAndInsert part={part} opId={opId} />
+          <EditToggle part={part} opId={opId} />
           <CopyIcon part={part} />
         </div>
       );
@@ -252,6 +270,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
           {/* Unavailable is a line button, not the blue one (ui-design §4.13). */}
           <Button label={i18n.t('send.button')} variant="line" class="cg-pvs__send" reason={i18n.t('send.unavailableReason', { reason })} />
           <OpenAndInsert part={part} opId={opId} />
+          <EditToggle part={part} opId={opId} />
           <CopyIcon part={part} />
           <CodeLine code={send.code} text={i18n.t('send.unavailableReason', { reason })} />
         </div>
@@ -294,6 +313,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
             {i18n.t('send.rejected')}
           </State>
           {send.canRetry ? <SendButton part={part} opId={opId} label={withMedia ?? i18n.t('send.retry')} tooltip={i18n.t('send.retryTooltip')} /> : <OpenAndInsert part={part} opId={opId} />}
+          <EditToggle part={part} opId={opId} />
           <CopyIcon part={part} />
           <CodeLine code={send.code} text={rejectedText(i18n, send)} />
         </div>
@@ -326,6 +346,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
             onClick={() => void dispatch({ type: 'Regenerate', operationId: opId })}
           />
           <OpenAndInsert part={part} opId={opId} />
+          <EditToggle part={part} opId={opId} />
           <CopyIcon part={part} />
           <CodeLine code="CG-SEND-STALE" text={i18n.t('send.heldStaleTail')} />
         </div>
@@ -339,6 +360,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
           </State>
           <SendButton part={part} opId={opId} anyway label={i18n.t('send.anyway')} tooltip={i18n.t('send.anywayTooltip')} />
           <OpenAndInsert part={part} opId={opId} />
+          <EditToggle part={part} opId={opId} />
           <CopyIcon part={part} />
           <CodeLine code="CG-SEND-FRESHNESS" text={i18n.t('send.unverifiedTail')} />
         </div>

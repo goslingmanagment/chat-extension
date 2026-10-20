@@ -167,9 +167,9 @@ describe('[host:fansly] the Fansly greeting claim body (contracts 1.15.0, P4c) a
 
   it('every body our schema lets out the hub takes; what the hub refuses, ours refuses too', () => {
     for (const value of FANSLY_CLAIM_BODY_FIXTURES.valid) expect(body.safeParse(value).success, JSON.stringify(value)).toBe(true);
-    // A reply's manual group, two parts of a manual group, a text beside the fingerprint, a 401 as proof, a mixed group.
+    // Two parts of a manual group, a text beside the fingerprint, a 401 as proof, a mixed group. (A reply's manual
+    // group the hub's schema takes since the 2026-10-20 audit, row 1 — its platform admission decides; ours refuses it on Fansly.)
     const hubRefuses = [
-      { ...fanslyDispatch, purpose: 'preview-reply' },
       { ...fanslyDispatch, partIndex: 1 },
       { ...fanslyDispatch, group: { ...fanslyManualGroup, text: 'Привет' } },
       { action: 'failed', attemptId: uuid(402), instanceId: uuid(404), reason: 'native_rejected', httpStatus: 401 },

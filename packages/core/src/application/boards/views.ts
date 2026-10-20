@@ -58,6 +58,8 @@ const REASONS = {
   unparsed: { key: 'result.meta.unparsed', code: null },
   'draft-unverifiable': { key: 'fix.cannotCheck', code: null },
   'send-unavailable': { key: 'send.unavailable', code: null },
+  'draft-empty': { key: 'preview.draft.sendEmpty', code: null },
+  'chat-open': { key: 'send.reason.activeChat', code: 'CG-SEND-ACTIVE-CHAT' },
 } as const satisfies Partial<Record<ReasonVM['id'], { readonly key: I18nKey; readonly code: CgCode | null }>>;
 
 export type BoardReasonId = keyof typeof REASONS;

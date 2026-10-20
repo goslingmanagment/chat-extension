@@ -211,6 +211,7 @@ export const RU: I18nCatalog<'ru'> = {
 
   // ── Result sheet ──
   'result.label': 'Результат ChatGoose',
+  'result.own': 'Свой текст',
   'result.draft': 'черновик · не отправлено',
   'result.draftTooltip': 'Ответ ещё не ушёл фану',
   'result.meta.tone': 'тон: {tone}',
@@ -264,6 +265,10 @@ export const RU: I18nCatalog<'ru'> = {
   'part.insertTooltip': 'Вставить в поле ввода {site}',
   'part.insertAgain': 'Вставить ещё раз',
   'part.copyN': 'Копировать часть {n}',
+  'part.edit': 'Править',
+  'part.editTooltip': 'Поправить текст перед отправкой',
+  'part.revert': 'Вернуть текст AI',
+  'part.editAria': 'Текст части {n}',
   'part.inserted': 'вставлено',
   'part.variant': 'Вариант {n}',
   'part.oneAtATime': 'Части вставляются по одной',
@@ -507,8 +512,11 @@ export const RU: I18nCatalog<'ru'> = {
   'preview.ping.segmentNoDays': 'Сегмент {segment}',
   'preview.ping.active': 'Фан писал недавно',
   'preview.ping.unknown': 'Сегмент Ping неизвестен',
-  'preview.draft.placeholder': 'Свой текст для Fix. В чат не уходит',
-  'preview.draft.aria': 'Черновик для Fix',
+  'preview.draft.placeholder': 'Свой текст: отправьте фану или исправьте через Fix',
+  'preview.draft.aria': 'Свой текст',
+  'preview.draft.send': 'Отправить',
+  'preview.draft.sendTooltip': 'Отправить этот текст фану одним сообщением',
+  'preview.draft.sendEmpty': 'сначала напишите текст',
   'preview.empty': 'Reply, Hi или Ping — черновик появится здесь. Отправка — только кнопкой у каждой части.',
   'preview.previousFan': 'Предыдущий фан',
   'preview.nextFan': 'Следующий фан',
@@ -681,7 +689,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.draftStale': 'черновик устарел',
   'newcomers.scanProgress': '{done} из {total}',
   'newcomers.window.label': 'За какой срок показывать новых',
-  'newcomers.greetingDraft.placeholder': 'Черновик приветствия. Остаётся здесь, в чат не уходит',
+  'newcomers.greetingDraft.placeholder': 'Своё приветствие: напишите и отправьте фану',
   'newcomers.greetingDraft.aria': 'Черновик приветствия',
 
   // ── Fan panel and Coach ──

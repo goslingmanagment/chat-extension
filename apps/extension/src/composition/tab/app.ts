@@ -349,7 +349,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       const said = boardReceiptToast(action, receipt);
       if (said !== null) return say(said.code, said.scope, said.title);
       // «Отправить» began an attempt: if it was stopped before ChatSpace's queue and its row will not say why, we do.
-      if (action.type !== 'SendPart' || !receipt.ok || receipt.attemptId === undefined) return;
+      if ((action.type !== 'SendPart' && action.type !== 'SendDraft') || !receipt.ok || receipt.attemptId === undefined) return;
       void rpc.request('send.status', { attemptId: receipt.attemptId }).then((answer) => {
         const code = heldSilently(answer.ok ? answer.payload.view : null);
         if (code !== null && !disposed) say(code, 'board.send', null);

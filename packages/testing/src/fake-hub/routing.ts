@@ -276,7 +276,7 @@ export function validateRequest(route: HubRouteKey, request: unknown): Validatio
     if (typeof body === 'object' && body !== null && 'group' in body && typeof body.group === 'object' && body.group !== null) {
       if ('kind' in body.group) {
         const manual = ManualClaimGroupSchema.safeParse(body.group);
-        if (!manual.success || !('purpose' in body) || body.purpose !== 'greeting') return { ok: false, issues: ['body.group: a manual greeting needs a lower-case sha256 fingerprint'] };
+        if (!manual.success || !('purpose' in body)) return { ok: false, issues: ['body.group: a manual group needs a lower-case sha256 fingerprint'] };
         const checked = ClaimOpSchema.safeParse({ ...request, body: { ...body, group: { generationRef: '00000000-0000-4000-8000-000000000000', variant: 0, partCount: 1 } } });
         return checked.success
           ? { ok: true, request: { ...checked.data, body: { ...checked.data.body, group: manual.data } } }
