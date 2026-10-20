@@ -1,4 +1,4 @@
-// The e2e suite in parts (docs/release.md «CI»): on the owner's PC the CI job runs it as N parts side by side, each
+// The e2e suite in parts (docs/release.md, section 7): on the owner's PC the CI job runs it as N parts side by side, each
 // in a container of its own. CG_E2E_SHARD=<k>/<n> makes e2e/wdio.conf.ts run part k of n; without it the whole
 // suite runs, as before.
 //

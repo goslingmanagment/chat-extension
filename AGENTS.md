@@ -1,67 +1,68 @@
-# AGENTS.md — ChatGoose для ChatSpace (`chat-extension`)
+# AGENTS.md — ChatGoose for ChatSpace (`chat-extension`)
 
-Расширение Firefox (MV3): AI ChatGoose (Reply, Fix, Hi, Ping, Recap, Review, Help, Coach), Spenders,
-«Новые», хоткеи и звук поверх ChatSpace (`chat.onlymonster.ai`, OnlyFans) и fansly.com.
-Клиент Agency Hub (`~/code/1-platform/hub`): весь AI и данные платформ — только через хаб и вендоренный `@kernel/sdk`.
+Firefox extension (MV3): ChatGoose AI (Reply, Fix, Hi, Ping, Recap, Review, Help, Coach), Spenders,
+"New" subscribers, hotkeys and sound on top of ChatSpace (`chat.onlymonster.ai`, OnlyFans) and fansly.com.
+A client of the Agency Hub (`~/code/1-platform/hub`): all AI and all platform data go only through the hub and the vendored `@kernel/sdk`.
 
-## Устройство
+## Layout
 
-pnpm-монорепо, TypeScript strict, WXT, Preact.
+pnpm monorepo, TypeScript strict, WXT, Preact.
 
-- `apps/extension` — точки входа, манифест, корни композиции `src/composition/{background,tab,pages}.ts`, реестр сайтов `src/hosts`.
-- `packages/contracts` — типы, zod-схемы, реестр ошибок CG, ключи i18n; без логики.
-- `packages/core` — вся логика, без DOM, `browser.*` и `fetch`. `packages/platform` — единственный, кто трогает `browser.*`.
-- `packages/hub` — фасад хаба над SDK (только фон). `packages/ui` — Preact-поверхности, данные только через `AppClient`.
-- `packages/host-kit`, `host-chatspace`, `host-fansly`, `fansly-api` — машинерия страниц сайтов и их адаптеры.
-- `packages/testing` — стенд, поддельный хаб, e2e; не шипится.
-- `vendor/` — `@kernel/sdk`, `@chatgoose/hotkeys`: руками не править, перевендорить скриптами хаба (`scripts/vendor-*.mjs`).
-- `tools/` — гейты, проверка архивов, `dev`, выпуск (`release`), e2e в CI (`ci`). `site/` — сайт расширения.
+- `apps/extension` — entry points, the manifest, the composition roots `src/composition/{background,tab,pages}.ts`, the site registry `src/hosts`.
+- `packages/contracts` — types, zod schemas, the CG error registry, i18n keys; no logic.
+- `packages/core` — all logic, no DOM, `browser.*` or `fetch`. `packages/platform` — the only package that touches `browser.*`.
+- `packages/hub` — the hub facade over the SDK (background only). `packages/ui` — Preact surfaces, data only through `AppClient`.
+- `packages/host-kit`, `host-chatspace`, `host-fansly`, `fansly-api` — the page machinery of the sites and their adapters.
+- `packages/testing` — the stand, the fake hub, e2e; never ships.
+- `vendor/` — `@kernel/sdk`, `@chatgoose/hotkeys`: never edit by hand, re-vendor with the hub's scripts (`scripts/vendor-*.mjs`).
+- `tools/` — gates, archive check, `dev`, the release (`release`), e2e in CI (`ci`). `site/` — the extension's site.
 
-Граф пакетов держит `pnpm lint` (ESLint + dependency-cruiser): пересечь границу — вопрос дизайна, не исключение линта.
-`docs/` — справка, не правила. Решения и что изменилось — в описании PR; обязательных записей в документы нет.
+`pnpm lint` (ESLint + dependency-cruiser) holds the package graph: crossing a boundary is a design question, not a lint exception.
+`docs/` is reference, not rules. Decisions and what changed go in the PR description; no doc records are required.
 
-## Запуск и проверка
+## Run and check
 
 - `pnpm install --frozen-lockfile` — Node 26, pnpm 10.33.1.
-- `pnpm dev` — тестовая сборка в своём профиле Firefox, пересборка на лету. Профиль владельца:
+- `pnpm dev` — the test build in its own Firefox profile, rebuilt on change. The owner's profile:
   `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev --debugger-port 6111`.
 - Увидеть изменение: `pnpm see <сценарий>` — см. tools/see/README.md.
-- Локально — только `pnpm typecheck`, линт и `pnpm vitest run <пути>` затронутого.
-- `pnpm check` (типы, линт, тесты, сборка, webext-lint, гейты, архивы) гоняет CI на PR; целиком локально не запускать.
-- `pnpm e2e` — headless Firefox на стенде с поддельным хабом (~18 мин); CI гоняет его на каждом push в `main`, не на PR.
-  Одна спека: из `packages/testing` `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<имя>.e2e.ts` (после `pnpm build && pnpm build:test`).
-- PR — сразу готовым, `gh pr merge --auto --squash`; сливается по зелёному `pnpm check`.
+- Locally only `pnpm typecheck`, lint and `pnpm vitest run <paths>` of what you touched.
+- `pnpm check` (types, lint, tests, build, webext-lint, gates, archives) runs in CI on a PR; never run it whole locally.
+- `pnpm e2e` — headless Firefox on the stand with the fake hub (~18 min); CI runs it on every push to `main`, not on a PR.
+  One spec: from `packages/testing` `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` (after `pnpm build && pnpm build:test`).
+- A PR is opened ready, `gh pr merge --auto --squash`; it merges on a green `pnpm check`.
 
-## Выпуск
+## Release
 
-Свой PR слит, CI `main` на этом коммите зелёный — в чистом `main` (`git pull`): `pnpm release --dry-run`, затем
-`pnpm release` (patch; `minor`, `major` или `X.Y.Z`). Одна команда: замок, проверки, сборка, подпись AMO, фид и
-страницы, тег, GitHub release с заметками из коммитов. Без PR, без заметок и правок `CHANGELOG.md`. Остановился —
-запустить ещё раз. Откат: `pnpm release rollback --to <версия> --confirm <версия>`. Анонс чаттерам
-(`pnpm release announce`) — только по слову владельца. Подробно — `docs/release.md`.
+Your PR is merged and `main` CI is green on that commit — in a clean `main` (`git pull`): `pnpm release --dry-run`, then
+`pnpm release` (patch; `minor`, `major` or `X.Y.Z`). One command: lock, checks, build, AMO signing, feed and pages,
+tag, GitHub release with notes from the commits. No PR, no notes, no `CHANGELOG.md` edits. If it stopped — run it
+again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. The announcement to chatters
+(`pnpm release announce`) — only on the owner's word. Details — `docs/release.md`.
 
-## Опасно
+## Dangerous
 
-- **Живой сайт — только тестовый чат владельца** (OnlyMonster 36408 → чат 518588958). Реальным фанам ничего не отправлять.
-  Открытие чата в ChatSpace и наше чтение его истории помечают чат прочитанным в OnlyFans: чужие чаты не открывать,
-  на живой вкладке не нажимать Alt+1–9, J, K, ⌘U (наша навигация открывает чужие чаты).
-- **Расширение само не отправляет.** Только по клику человека: в открытом чате — вставка через `__omComposerBridge`
-  и Send ChatSpace, из превью — через очередь отправки ChatSpace (X8). Неопределённое не повторять автоматически.
-  В OnlyMonster — только чтения (страница своей сессией, `host-chatspace/src/main/om-api.ts`), своих записей нет.
-- **Fansly** — Chrome DevTools MCP, только чтение: открытие разговора помечает прочитанным, ввод шлёт typing.
-- **Прод хаба** (`agency-de`) — только чтение. AI, ключи и промпты живут только в хабе.
-- **Анонсы чаттерам** (Telegram) — решение владельца, никогда не автоматически.
+- **Live site — only the owner's test chat** (OnlyMonster 36408 → chat 518588958). Never send anything to real fans.
+  Opening a chat in ChatSpace and our own read of its history mark the chat read on OnlyFans: never open other chats,
+  never press Alt+1–9, J, K, ⌘U on the live tab (our navigation opens other fans' chats).
+- **The extension never sends on its own.** Only on a human click: in an open chat — insertion through `__omComposerBridge`
+  and ChatSpace's own Send; from a preview — through ChatSpace's own send queue (X8). Never auto-retry anything indeterminate.
+  Toward OnlyMonster — reads only (the page's own session, `host-chatspace/src/main/om-api.ts`), no writes of our own.
+- **Fansly** — Chrome DevTools MCP, read-only: opening a conversation marks it read, typing sends typing events.
+- **The hub's prod** (`agency-de`) — read-only. AI, keys and prompts live only in the hub.
+- **Announcements to chatters** (Telegram) — the owner's call, never automatic.
 
-## Что экономит время
+## What saves time
 
-- ESLint с типами не влезает в 4 ГБ: `NODE_OPTIONS=--max-old-space-size=8192`.
-- В основном чекауте лежат чужие вложенные worktree (`.claude/worktrees/*`): `eslint .` из корня линтит и их
-  (тысячи ошибок). Линтить свои пути; работать в своём worktree, выпускать из чистого `main`.
-- Наш UI — в закрытых shadow root: WebDriver и DevTools внутрь не видят. Тестовая сборка на стенде пишет отчёт
-  в `<html data-cg-spike>`; в e2e — `packages/testing/e2e/support/ours.ts`.
-- Только Firefox: Chrome годится для изучения fansly.com, но наше расширение не проверяет.
-- На macOS агент не запускает Firefox с окном напрямую (бинарник, `web-ext run`): `pnpm dev` открывает его через `open`.
-- Флаги решает страница: читать через `packages/core/src/domain/ops/flags.ts`, не `bootstrap.flags`.
-- Поменялось правило хаба для тела AI-запроса — повторить его в `packages/testing/src/fake-hub/ai-rules.ts`.
-- ID не смешивать: id аккаунта OnlyMonster, числовые id OnlyFans, `pageId` хаба; страницы — по `platform_account_id`.
-- Секреты — через `op` и файлы окружения, в репо ничего. Тексты для владельца и чаттеров — по-русски.
+- Type-aware ESLint does not fit into 4 GB: `NODE_OPTIONS=--max-old-space-size=8192`.
+- The main checkout holds other sessions' nested worktrees (`.claude/worktrees/*`): `eslint .` from the root lints them
+  too (thousands of errors). Lint your own paths; work in your own worktree, release from a clean `main`.
+- Our UI lives in closed shadow roots: WebDriver and DevTools cannot see inside. On the stand the test build writes
+  a report into `<html data-cg-spike>`; in e2e — `packages/testing/e2e/support/ours.ts`.
+- Firefox only: Chrome is fine for studying fansly.com, but it does not check our extension.
+- On macOS an agent never starts a windowed Firefox directly (the binary, `web-ext run`): `pnpm dev` opens it through `open`.
+- Flags are the page's: read them through `packages/core/src/domain/ops/flags.ts`, never `bootstrap.flags`.
+- A hub rule for an AI request body changed — repeat it in `packages/testing/src/fake-hub/ai-rules.ts`.
+- Never mix IDs: the OnlyMonster account id, OnlyFans numeric ids, the hub's `pageId`; bind pages by `platform_account_id`.
+- Secrets through `op` and env files, nothing in the repo. Everything on GitHub (commits, PRs, docs, comments) is in
+  English; chatter-facing texts (UI, site, announcements) are in Russian.

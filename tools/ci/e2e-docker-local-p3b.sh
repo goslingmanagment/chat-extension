@@ -30,7 +30,7 @@ set_dir=''
 for dir in "$root"/.release/test-builds/*/; do
   [ -f "$dir/signed/n0.xpi" ] && [ -f "$dir/signed/n.xpi" ] && [ -f "$dir/signed/n1.xpi" ] && [ -f "$dir/signed/control.xpi" ] && set_dir=${dir%/}
 done
-[ -n "$set_dir" ] || { echo "e2e-docker-local-p3b: no signed set in .release/test-builds/ — pnpm release test-builds, then pnpm release sign --test-builds (docs/release.md «Подписанные тестовые сборки (P3b)»)" >&2; exit 1; }
+[ -n "$set_dir" ] || { echo "e2e-docker-local-p3b: no signed set in .release/test-builds/ — pnpm release test-builds, then pnpm release sign --test-builds (docs/release.md, section 7)" >&2; exit 1; }
 signed=${set_dir#"$root"/}/signed
 echo "e2e-docker-local-p3b: the signed set $signed"
 export CG_E2E_WITH=$signed CG_P3B_XPI_N0=$signed/n0.xpi CG_P3B_XPI_N=$signed/n.xpi CG_P3B_XPI_N1=$signed/n1.xpi CG_P3B_XPI_CONTROL=$signed/control.xpi

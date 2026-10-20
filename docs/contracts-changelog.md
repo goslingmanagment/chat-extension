@@ -1,4 +1,4 @@
-> Заморожен 2026-10-20: новое сюда не пишется; решения — в описании PR.
+> Frozen 2026-10-20: nothing new is written here; decisions go in the PR description.
 
 # Журнал изменений контрактов (`@cg/contracts`)
 
