@@ -344,9 +344,9 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
       await waitForChatReady(ACC, a1);
       await dockIs((d) => d.status === 'ready', 'the dock of the second tab');
       await openPreview('Fan Kestrel');
-      // The first tab's answer is shown here too, without the right to send it: this tab took no checkpoint for it.
+      // The first tab's answer is shown here too: this tab took no checkpoint for it, so it only warns (audit 2026-10-20, row 4).
       await waitOursText('modal', reply(a11)[0], 'the result of the other tab', { selector: '.cg-pvr' });
-      await waitSend(0, /^unavailable/, 'a result this tab did not generate cannot be sent from it');
+      await waitSend(0, 'unverified', 'a result this tab did not generate warns that its freshness cannot be checked here');
       await pressOurs('modal', '.cg-pvr .cg-again, .cg-pvr button', /^Ещё раз/);
       await waitSend(0, 'available', 'this tab’s own answer can be sent', 20_000);
 
