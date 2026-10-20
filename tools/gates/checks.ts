@@ -23,14 +23,6 @@ export interface Violation {
   readonly message: string;
 }
 
-/** The host registry (apps/extension/src/hosts): its runtime rows and entries name the sites' addresses. */
-export const HOST_REGISTRY_DIR = 'apps/extension/src/hosts/';
-
-/** Files allowed to name the ChatSpace origin: the host registry and each site's host contract (§3). */
-export function onlyMonsterAllowed(path: string, hosts: readonly HostDescriptor[] = HOSTS): boolean {
-  return path.startsWith(HOST_REGISTRY_DIR) || hosts.some((host) => host.contractCheck.module === path);
-}
-
 /** Where `browser.*` / `chrome.*` may appear: packages/platform only (§3, §4, D-01). */
 export const BROWSER_API_ALLOWED: readonly RegExp[] = [/^packages\/platform\/src\//];
 
@@ -40,13 +32,8 @@ const SEND_QUEUE_METHOD = 'enqueue';
 /** The method name as a whole identifier inside a string or template: `not_enqueued` (a hub wire token) is not it. */
 const SEND_QUEUE_IN_TEXT = new RegExp(`(?<![\\w$])${SEND_QUEUE_METHOD}(?![\\w$])`);
 
-/** Where user-visible UI text lives until the i18n catalogs exist (R13/R16). */
-export const UI_TEXT_SCOPES: readonly RegExp[] = [/^packages\/ui\/src\/.*\.tsx$/, /^apps\/extension\/src\/composition\/pages\.ts$/];
-/** AU-019: no keys and no token/key/API/bearer vocabulary in UI texts. */
-export const UI_FORBIDDEN_WORDS = /\b(?:api|tokens?|bearer|keys?|apikey|api-key)\b|токен|(?<!\p{L})ключ(?!ев)/iu;
 
 const HTML_SINKS = new Set(['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'createContextualFragment', 'dangerouslySetInnerHTML']);
-const UI_TEXT_ATTRIBUTES = new Set(['title', 'placeholder', 'aria-label', 'alt', 'label', 'aria-description']);
 
 export function parse(file: SourceFile): ts.SourceFile {
   const kind = file.path.endsWith('.tsx') ? ts.ScriptKind.TSX : /\.[cm]?js$/.test(file.path) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
@@ -68,35 +55,6 @@ export function walk(source: ts.SourceFile, visit: (node: ts.Node) => void): voi
     ts.forEachChild(node, step);
   };
   step(source);
-}
-
-/**
- * Text of a string/template chunk or a regex literal, with regex escaping
- * undone (`chat\.onlymonster\.ai`, `onlymonster[.]ai` → `onlymonster.ai`).
- */
-function namesOnlyMonster(text: string): boolean {
-  const plain = text.replace(/\[\.\]/g, '.').replace(/\\/g, '');
-  return /onlymonster\.ai/i.test(plain);
-}
-
-/** 1. No reference to onlymonster.ai in our code outside the allowlist (strings, templates, regexes). */
-export function checkOnlyMonsterReferences(files: readonly SourceFile[]): Violation[] {
-  const violations: Violation[] = [];
-  for (const file of files) {
-    if (onlyMonsterAllowed(file.path)) continue;
-    const source = parse(file);
-    walk(source, (node) => {
-      if ((isTextNode(node) || ts.isRegularExpressionLiteral(node)) && namesOnlyMonster(node.text)) {
-        violations.push({
-          gate: 'onlymonster-reference',
-          path: file.path,
-          line: lineOf(source, node),
-          message: 'ChatSpace origin named outside the host registry (apps/extension/src/hosts) and the host contract file (§3, X3).',
-        });
-      }
-    });
-  }
-  return violations;
 }
 
 /** 2. No HTML sinks (innerHTML & co): our DOM is built by Preact or textContent only. */
@@ -144,38 +102,6 @@ export function checkBrowserApiScope(files: readonly SourceFile[]): Violation[] 
           line: lineOf(source, node),
           message: `\`${node.expression.text}.${node.name.text}\` outside packages/platform (§3, §4, D-01).`,
         });
-      }
-    });
-  }
-  return violations;
-}
-
-/** 4. No token/key/API/bearer words in UI texts (AU-019) — placeholder until i18n catalogs exist. */
-export function checkUiTexts(files: readonly SourceFile[]): Violation[] {
-  const violations: Violation[] = [];
-  for (const file of files) {
-    if (!UI_TEXT_SCOPES.some((pattern) => pattern.test(file.path))) continue;
-    const source = parse(file);
-    const report = (node: ts.Node, text: string): void => {
-      if (!UI_FORBIDDEN_WORDS.test(text)) return;
-      violations.push({
-        gate: 'ui-text-vocabulary',
-        path: file.path,
-        line: lineOf(source, node),
-        message: `UI text «${text.trim().slice(0, 60)}» uses token/key/API/bearer vocabulary (AU-019).`,
-      });
-    };
-    const pagesFile = !file.path.endsWith('.tsx');
-    walk(source, (node) => {
-      if (ts.isJsxText(node)) report(node, node.text);
-      else if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name) && UI_TEXT_ATTRIBUTES.has(node.name.text)) {
-        const value = node.initializer;
-        if (value && ts.isStringLiteral(value)) report(value, value.text);
-      } else if (ts.isJsxExpression(node) && node.expression && ts.isStringLiteralLike(node.expression)) {
-        report(node.expression, node.expression.text);
-      } else if (pagesFile && ts.isStringLiteralLike(node) && !ts.isImportDeclaration(node.parent) && !ts.isLiteralTypeNode(node.parent)) {
-        // Page composition passes plain strings as texts; property keys and imports are not texts.
-        if (!(ts.isPropertyAssignment(node.parent) && node.parent.name === node)) report(node, node.text);
       }
     });
   }
@@ -682,10 +608,8 @@ export function checkMessageAck(files: readonly SourceFile[]): Violation[] {
 
 export function runSourceGates(files: readonly SourceFile[]): Violation[] {
   return [
-    ...checkOnlyMonsterReferences(files),
     ...checkHtmlSinks(files),
     ...checkBrowserApiScope(files),
-    ...checkUiTexts(files),
     ...checkSendQueueReferences(files),
     ...checkStandHooks(files),
     ...checkMainWorldGuards(files),

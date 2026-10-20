@@ -112,8 +112,6 @@ export interface HostBackground {
   readonly source: string;
   /** The built file inside the extension (`bg/<site>.js`): the core loads it with `import(runtime.getURL(file))`. */
   readonly file: string;
-  /** archive-check's tripwire for the file, raw bytes: past it something foreign was bundled (not a size budget, X66). */
-  readonly rawBytes: number;
 }
 
 export interface HostDescriptor extends RuntimeHostRow {

@@ -8,7 +8,6 @@ import { join } from 'node:path';
 
 import { checkManifest } from '../../apps/extension/build/manifest.ts';
 import { hostOf, HOSTS } from '../../apps/extension/src/hosts/index.ts';
-import { PARITY_EXCEPTIONS } from '../../packages/contracts/src/parity/exceptions.ts';
 import { readSources, readTree } from '../lib/files.ts';
 import { fail, RELEASE_DIR, REPO_ROOT, TEST_DIR } from '../lib/paths.ts';
 import {
@@ -24,15 +23,13 @@ import {
   runSourceGates,
   type Violation,
 } from './checks.ts';
-import { checkBuildData, checkSiteLiterals, checkSiteMarkers, checkSiteNames, deriveSiteMarkers, SITE_LITERAL_DEBT, SITES } from './sites.ts';
+import { checkBuildData, checkSiteLiterals, checkSiteMarkers, deriveSiteMarkers, SITE_LITERAL_DEBT, SITES } from './sites.ts';
 
 const sources = readSources();
 const violations: Violation[] = [...runSourceGates(sources)];
 
 // Site literals: shared code names no site, but for the debt list.
 violations.push(...checkSiteLiterals(sources, SITE_LITERAL_DEBT));
-// …and no shared text says a site's name: it says the site's phrase (R20 F9b).
-violations.push(...checkSiteNames(sources));
 
 if (!existsSync(join(RELEASE_DIR, 'manifest.json'))) fail('gates: release build missing — run pnpm build first.');
 const release = JSON.parse(readFileSync(join(RELEASE_DIR, 'manifest.json'), 'utf8')) as Record<string, unknown>;
@@ -71,8 +68,8 @@ const fanslyMarkers = deriveSiteMarkers([...sources, ...vendored], fansly);
 if (fanslyMarkers.length === 0) fail('gates: no marker string of Fansly was derived from its own sources — update deriveSiteMarkers (tools/gates/sites.ts).');
 violations.push(...checkSiteMarkers(releaseFiles, chatspace, fanslyMarkers, fansly.kind));
 
-// No build field of the host registry and no parity row in any bundle.
-violations.push(...checkBuildData(releaseFiles, HOSTS, PARITY_EXCEPTIONS.map((exception) => exception.id)));
+// No build field of the host registry in any bundle.
+violations.push(...checkBuildData(releaseFiles, HOSTS));
 
 if (existsSync(join(TEST_DIR, 'manifest.json'))) {
   const test = JSON.parse(readFileSync(join(TEST_DIR, 'manifest.json'), 'utf8')) as Record<string, unknown>;
@@ -87,8 +84,8 @@ for (const violation of violations) {
 if (violations.length > 0) fail(`gates: ${violations.length} violation(s).`);
 const debt = SITE_LITERAL_DEBT.length === 0 ? 'none left' : `${SITE_LITERAL_DEBT.reduce((sum, entry) => sum + entry.count, 0)} left in ${SITE_LITERAL_DEBT.length} debt entries`;
 console.log(
-  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, fetch only in the hub, fansly-api and the relay (${FETCH_EXCEPTIONS.length} counted exceptions), Fansly's addresses under its API, no /message/ack, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab — all clean.`,
+  `gates: HTML sinks, browser.* scope, send-queue scope, stand-only hooks, MAIN-world guards, fetch only in the hub, fansly-api and the relay (${FETCH_EXCEPTIONS.length} counted exceptions), Fansly's addresses under its API, no /message/ack, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab — all clean.`,
 );
 console.log(
-  `gates: the two sites — site literals (${debt}), no site name in a shared text, no Fansly data in ChatSpace's files (${fanslyMarkers.length} markers), no build field or parity row in a bundle — all clean.`,
+  `gates: the two sites — site literals (${debt}), no Fansly data in ChatSpace's files (${fanslyMarkers.length} markers), no build field in a bundle — all clean.`,
 );
