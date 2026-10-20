@@ -10,7 +10,7 @@
 # The two versions below are what that digest holds. e2e-in-container.sh
 # compares them with the binaries and fails on a difference, so a new digest
 # cannot go in without saying which Firefox it brings. How to move to a newer
-# one: docs/release.md, «Образ для e2e».
+# one: docs/release.md, section 7.
 
 # shellcheck shell=bash
 CG_E2E_IMAGE='selenium/standalone-firefox@sha256:430b43aa2a573ad692fdde106e19330bdae68c8d5841615c45fd7627225d81d6'

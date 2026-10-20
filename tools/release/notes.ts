@@ -2,7 +2,7 @@
 // nobody writes it by hand. The squash commits of main (`git log
 // --first-parent`) give one line each:
 //
-//   - the CHANGELOG section (the site's «Что нового», the history, the
+//   - the CHANGELOG section (the site's "What's new" page, the history, the
 //     announcement): what a chatter may notice — features and fixes, without
 //     the conventional prefix and the PR number;
 //   - the GitHub release: every commit as it is, with its PR number.

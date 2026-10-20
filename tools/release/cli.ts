@@ -165,7 +165,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   function requireEnv(name: string): string {
     const value = deps.env[name];
-    if (value === undefined || value === '') refuse(`${name} is not set: put it into ~/.config/agency/secrets.env (docs/release.md, «Ключи»).`);
+    if (value === undefined || value === '') refuse(`${name} is not set: put it into ~/.config/agency/secrets.env (docs/release.md, "Keys").`);
     return value;
   }
 
@@ -521,7 +521,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const problems = setSigningProblems(set);
     for (const problem of problems) print(`note: ${problem}.`);
     print(`unsigned, for a stand-in run of the harness (docs/project-unite/spike.md «P3b: как прогнать»): CG_P3B_UNSIGNED=1 ${harnessEnv(dir, (build) => build.xpi.file, set)}`);
-    if (problems.length === 0) print(`next: the owner signs — pnpm release sign --test-builds --confirm ${set.set} (docs/release.md «Подписанные тестовые сборки (P3b)»)`);
+    if (problems.length === 0) print(`next: the owner signs — pnpm release sign --test-builds --confirm ${set.set} (docs/release.md, section 7)`);
   }
 
   // ── outward ────────────────────────────────────────────────────────────────

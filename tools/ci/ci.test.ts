@@ -12,7 +12,7 @@
 //   - the tree a local run copies into its volume is archived without its
 //     extended attributes: the stand-in keeps what that step is fed.
 // The real thing — the same line, the real Docker, a real cancel sequence; two
-// real starts on one volume — was run by hand; docs/release.md, «Что проверено».
+// real starts on one volume — was run by hand (git show c081f47f:docs/release.md).
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
