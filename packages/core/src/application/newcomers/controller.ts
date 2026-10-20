@@ -368,7 +368,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       if (rowTooLongForHi(rowOf(fanRef))) return Promise.resolve({ ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) });
       const block = hiBlock(statusOf(fanRef));
       // §6.7.9: once a part is confirmed the fan is greeted — another generation would be a second greeting.
-      if (block === 'greeted' || block === 'replied') return Promise.resolve({ ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) });
+      if (block === 'greeted') return Promise.resolve({ ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) });
       if (block === 'sending') return Promise.resolve({ ok: false, code: 'CG-SEND-BUSY', error: localError('CG-SEND-BUSY', i18n) });
       recordOf(fanRef).lastActivityAt = clock.now();
       return Promise.resolve({ ok: true, taken: false });

@@ -170,9 +170,12 @@ export const FILTER_STATUSES: Readonly<Record<GreetingFilter, readonly GreetingS
   replied: ['replied'],
 };
 
-/** «Поздороваться» leaves out confirmed greetings and fans who already wrote; «Все» keeps everyone. */
+/**
+ * «Поздороваться» leaves out confirmed greetings; «Все» keeps everyone. A fan who already wrote stays: it is a row to
+ * work with, as «Ждёт ответа» in the old Fansly window (X59; 2026-10-21 restrictions, item 14).
+ */
 export function inTab(status: GreetingStatusVM, tab: NewcomersTab): boolean {
-  return tab === 'all' || (status.s !== 'greeted' && status.s !== 'replied');
+  return tab === 'all' || status.s !== 'greeted';
 }
 
 export function passesFilter(status: GreetingStatusVM, filter: GreetingFilter): boolean {
@@ -185,7 +188,7 @@ export function matchesSearch(row: NewcomerRow, query: string): boolean {
 }
 
 /** Why Hi is off for a row, by its greeting status; null — Hi may start (the hub still decides on its own). */
-export type HiBlock = 'greeted' | 'replied' | 'sending';
+export type HiBlock = 'greeted' | 'sending';
 
 /**
  * §6.7.9: after the first confirmed part the fan counts as greeted — the
@@ -193,18 +196,19 @@ export type HiBlock = 'greeted' | 'replied' | 'sending';
  * be a second greeting, so Hi is off from then on. While the first part is
  * still on its way Hi waits for it. A colleague's lease and an unknown
  * outcome hold nothing (2026-10-20 audit, rows 2 and 11): the hub claims the
- * fan at the send and refuses one somebody greeted.
+ * fan at the send and refuses one somebody greeted. A fan who already wrote
+ * is no block either (2026-10-21 restrictions, item 14): the person sees the
+ * thread and decides; the hub's own count of the thread still applies.
  */
 export function hiBlock(status: GreetingStatusVM): HiBlock | null {
   switch (status.s) {
     case 'greeted':
       return 'greeted';
-    case 'replied':
-      return 'replied';
     case 'sending':
       return status.sent > 0 ? 'greeted' : 'sending';
     case 'stopped':
       return status.sent > 0 ? 'greeted' : null;
+    case 'replied':
     case 'claim-other':
     case 'claim-elsewhere':
     case 'none':
