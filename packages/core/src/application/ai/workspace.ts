@@ -1052,6 +1052,11 @@ export class AiWorkspace {
     const artifact = readArtifactHandle(handle);
     const found = artifact === null ? null : this.artifactText(artifact);
     if (found === null) return { ok: false, error: { code: 'CG-CLIPBOARD' } };
+    // AI-087: a Coach draft in Cyrillic for a fan who does not write Cyrillic never reaches the clipboard — checked
+    // here, at the write, whatever asked for it (a click, ⌘C, a stale view).
+    const record = found.opId === null || found.part === null ? null : this.ops.get(found.opId);
+    const block = record === null || found.part === null ? null : this.inserts.copyBlockOf(record, found.part);
+    if (block !== null) return { ok: false, error: { code: block.code } };
     let written: boolean;
     try {
       written = (await this.ports.clipboard.writeText(found.text)).ok;

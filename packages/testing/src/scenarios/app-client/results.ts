@@ -58,6 +58,7 @@ export function part(index: number, text: string, options: PartOptions): PartVM 
     insert: 'idle',
     insertError: null,
     insertBlocked: null,
+    copyBlocked: null,
     copy: 'idle',
     copyError: null,
     copyHandle: handles.part(opId, variant, index),

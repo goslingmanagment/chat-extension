@@ -739,6 +739,7 @@ export const EN: I18nCatalog<'en'> = {
   'coach.attached': 'with your reply',
   'coach.attachHint': 'Coach will see the text in the reply field',
   'coach.canceled': 'Stopped by you',
+  'coach.draftLanguage': 'The draft has Cyrillic in it. Ask Coach to rewrite it in English.',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Command palette',

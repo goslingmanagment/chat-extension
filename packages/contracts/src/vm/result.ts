@@ -207,8 +207,10 @@ export interface PartVM {
   readonly next: boolean;
   readonly insert: 'idle' | 'pending' | 'done' | 'failed';
   readonly insertError: CgErrorView | null;
-  /** Insert is off for this part while Copy works (CG-GATE-LANGUAGE, copy-only). */
+  /** Insert is off for this part (CG-GATE-LANGUAGE, copy-only, a held board part). */
   readonly insertBlocked: ReasonVM | null;
+  /** Copy is off too: a Coach draft in Cyrillic for a fan who does not write Cyrillic (CG-GATE-LANGUAGE, AI-087). */
+  readonly copyBlocked: ReasonVM | null;
   readonly copy: 'idle' | 'done' | 'failed';
   readonly copyError: CgErrorView | null;
   readonly copyHandle: ArtifactHandle;

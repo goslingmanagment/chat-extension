@@ -12,7 +12,9 @@
 // (never a collapsed one: «Вставить ещё раз» is a click of its own; with
 // «Вставить» unavailable Enter says why; a held Enter counts once);
 // ⌘C / Ctrl+C — the physical C key, so the Russian layout works too —
-// copies it when nothing inside is selected. Surfaces put
+// copies it when nothing inside is selected. A part whose copy is closed
+// (a Coach draft in Cyrillic, AI-087) copies by no way of these: its copy
+// buttons are off with the reason, ⌘C and the row say it. Surfaces put
 // their rows (the X8 send row, the Б2 question) in `children`.
 
 import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent, type TargetedMouseEvent } from 'preact';
@@ -72,9 +74,15 @@ export function PartRow(props: PartRowProps): JSX.Element {
   const insertKey = props.insertKey ?? '↵';
 
   const canAgain = collapsed && props.onInsertAgain !== undefined && sentAt === null && mode === 'insert';
+  const copyBlocked = part.copyBlocked === null ? null : i18n.text(part.copyBlocked.text);
+  /** «Копировать», or why it is off. */
+  const copy = (): void => {
+    if (copyBlocked !== null) announce(copyBlocked);
+    else props.onCopy(part);
+  };
   /** The main action of an open part: «Вставить», or «Копировать» where nothing can be inserted; unavailable — it says why. */
   const act = (): void => {
-    if (mode === 'copy-only') props.onCopy(part);
+    if (mode === 'copy-only') copy();
     else if (part.insertBlocked !== null) announce(i18n.text(part.insertBlocked.text));
     else if (part.insert !== 'pending') props.onInsert(part);
   };
@@ -95,7 +103,7 @@ export function PartRow(props: PartRowProps): JSX.Element {
     if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.code === 'KeyC') {
       if (hasSelectionInside(root, event.currentTarget)) return;
       event.preventDefault();
-      props.onCopy(part);
+      copy();
     }
   };
 
@@ -111,7 +119,7 @@ export function PartRow(props: PartRowProps): JSX.Element {
   };
 
   const copyIcon = (
-    <Button label={copyLabel} icon={part.copy === 'done' ? 'check' : 'copy'} iconOnly variant="quiet" class="cg-part__copy" onClick={() => props.onCopy(part)} />
+    <Button label={copyLabel} icon={part.copy === 'done' ? 'check' : 'copy'} iconOnly variant="quiet" class="cg-part__copy" reason={copyBlocked} onClick={() => props.onCopy(part)} />
   );
 
   let main: JSX.Element | null = null;
@@ -125,6 +133,7 @@ export function PartRow(props: PartRowProps): JSX.Element {
           variant={part.next ? 'line' : 'quiet'}
           class="cg-copy-main"
           hotkey={part.next ? insertKey : null}
+          reason={copyBlocked}
           onClick={() => props.onCopy(part)}
         />
       );
@@ -228,9 +237,9 @@ export const PART_CSS = `
 .cg-part__t { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); color: var(--cg-ink); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
 .cg-part__a { display: flex; align-items: center; gap: 4px; margin: -3px 0 -3px 10px; }
 .cg-part .cg-ins, .cg-part .cg-copy-main { background: var(--cg-raised); }
-.cg-part.is-next .cg-ins:not([aria-disabled="true"]), .cg-part.is-next .cg-copy-main { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); }
-.cg-part.is-next .cg-ins:not([aria-disabled="true"]):hover, .cg-part.is-next .cg-copy-main:hover { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
-.cg-part .cg-ins[aria-disabled="true"] { background: none; }
+.cg-part.is-next .cg-ins:not([aria-disabled="true"]), .cg-part.is-next .cg-copy-main:not([aria-disabled="true"]) { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); }
+.cg-part.is-next .cg-ins:not([aria-disabled="true"]):hover, .cg-part.is-next .cg-copy-main:not([aria-disabled="true"]):hover { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
+.cg-part .cg-ins[aria-disabled="true"], .cg-part .cg-copy-main[aria-disabled="true"] { background: none; }
 .cg-part.is-done { padding-top: 3px; padding-bottom: 3px; align-items: center; border-style: solid; border-color: var(--cg-rule); background: none; }
 .cg-part.is-done.is-click:hover, .cg-part.is-done:focus-within { background: var(--cg-sunk); border-color: var(--cg-rule-3); }
 .cg-part.is-done .cg-part__t { color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--cg-text-md); }

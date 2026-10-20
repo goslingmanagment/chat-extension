@@ -80,10 +80,11 @@ export function fanScriptOf(tail: LiveTextTail | null): FanScript {
 }
 
 /**
- * AI-087 (CG-GATE-LANGUAGE): a draft in Cyrillic is not inserted unless the
- * fan is known to write Cyrillic. The model sometimes proposes the fan
- * message in the chatter's language; inserting it would send Russian to an
- * English-speaking fan. Copy stays available.
+ * AI-087 (CG-GATE-LANGUAGE): a draft in Cyrillic is neither inserted nor
+ * copied unless the fan is known to write Cyrillic. The model sometimes
+ * proposes the fan message in the chatter's language; inserting or copying
+ * it would send Russian to an English-speaking fan (the old Fansly
+ * extension closed both).
  */
 export function languageGate(text: string, fan: FanScript): Gate | null {
   return CYRILLIC.test(text) && fan !== 'cyrillic' ? gate('language') : null;

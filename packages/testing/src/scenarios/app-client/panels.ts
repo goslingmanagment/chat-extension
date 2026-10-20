@@ -146,7 +146,7 @@ export function coachTurn(ctx: ScenarioCtx, n: number, patch: Partial<CoachTurnV
     answer: {
       prose: 'He responds to warmth first. Ask about his weekend, then offer the new set.',
       blocks: null,
-      drafts: [{ index: 0, label: msg('coach.draft', { n: 1 }), parts: parts(opId, ['Hey you, how was the weekend?', 'I saved something new for you']) }],
+      drafts: [{ index: 0, label: msg('coach.draft', { n: 1 }), parts: parts(opId, ['Hey you, how was the weekend?', 'I saved something new for you']), note: null }],
     },
     error: null,
     errorActions: [],

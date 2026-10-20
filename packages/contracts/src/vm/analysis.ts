@@ -148,7 +148,13 @@ export interface CoachTurnVM {
     readonly prose: string;
     readonly blocks: readonly { readonly kind: (typeof COACH_BLOCK_KINDS)[number]; readonly title: Msg; readonly body: string }[] | null;
     /** Up to two drafts, each split into parts with their own insert/copy (AI-084, AI-085). */
-    readonly drafts: readonly { readonly index: number; readonly label: Msg; readonly parts: readonly PartVM[] }[];
+    readonly drafts: readonly {
+      readonly index: number;
+      readonly label: Msg;
+      readonly parts: readonly PartVM[];
+      /** The line under a draft that can be neither inserted nor copied (AI-087, the old card's note); null — none. */
+      readonly note: Msg | null;
+    }[];
   } | null;
   readonly error: CgErrorView | null;
   readonly errorActions: readonly ActionButtonVM[];

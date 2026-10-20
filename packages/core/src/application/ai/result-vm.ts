@@ -17,7 +17,7 @@ import { type OpRecord } from './op-store';
 import { debugVm, errorActions, errorVm, featureHotkey, msg, phaseVm } from './view-models';
 import { type AiWorkspace } from './workspace';
 
-/** One part: its text, its insert and copy state, and why it can only be copied. */
+/** One part: its text, its insert and copy state, why it cannot be inserted, and why not copied either. */
 export function partVm(ws: AiWorkspace, record: OpRecord, part: PartRef, text: string, options: { readonly numbered: boolean; readonly next: boolean }): PartVM {
   const { catalog, i18n } = ws.ports;
   const opId = record.view.opId;
@@ -26,6 +26,7 @@ export function partVm(ws: AiWorkspace, record: OpRecord, part: PartRef, text: s
   const copy = ws.copyState(handle);
   const block = ws.inserts.blockOf(record, part);
   const insertBlocked: ReasonVM | null = block === null ? null : (block.view ?? catalog.reason(block.reason));
+  const copyBlock = ws.inserts.copyBlockOf(record, part);
   // A board's result shown in its chat's dock (§6.5): a part that is delivered reads «Отправлено», as in its preview.
   const sentAt = ws.boardPart(opId, part)?.sentAt ?? null;
   return {
@@ -38,6 +39,7 @@ export function partVm(ws: AiWorkspace, record: OpRecord, part: PartRef, text: s
     insert: state.insert,
     insertError: state.insertError === null ? null : errorVm(state.insertError, i18n),
     insertBlocked,
+    copyBlocked: copyBlock === null ? null : catalog.reason(copyBlock.reason),
     copy,
     copyError: copy === 'failed' ? errorVm({ code: 'CG-CLIPBOARD' }, i18n) : null,
     copyHandle: handle,
