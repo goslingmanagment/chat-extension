@@ -60,6 +60,22 @@ export const THEME_TOKENS = {
     '--cg-clay-ink',
     '--cg-clay-bg',
     '--cg-clay-line',
+    /**
+     * The old Fansly client's report colours (2026-10-20: the owner's reference for Review and Recap): green = what
+     * works and money, amber = the persona and what he answers to, red = mistakes and what to avoid; each an ink, a
+     * tint and its line. Only for the blocks of a report and the score — never a chip or a state.
+     */
+    '--cg-good-ink',
+    '--cg-good-bg',
+    '--cg-good-line',
+    '--cg-good-fill',
+    '--cg-amber-ink',
+    '--cg-amber-bg',
+    '--cg-amber-line',
+    '--cg-bad-ink',
+    '--cg-bad-bg',
+    '--cg-bad-line',
+    '--cg-warn-ink',
   ],
   elevation: ['--cg-shadow', '--cg-shadow-float'],
   font: ['--cg-font', '--cg-font-page', '--cg-mono', '--cg-serif'],

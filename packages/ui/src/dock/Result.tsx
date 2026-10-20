@@ -1,8 +1,8 @@
 // What a result sheet shows for a ResultVM (ui-design §4.2…§4.8, §8.2;
 // architecture.md §7): while the operation runs — the stage line with its
 // timer, «Отменить ⌘.» and the preliminary text with no buttons; after
-// `done` — parts, Hi variants or Fix, the stale row, the keys footer and (in
-// debug mode) the debug footer; after `failed` or `interrupted` — the error
+// `done` — parts, Hi variants or Fix, the stale row and (in debug mode) the
+// debug footer; after `failed` or `interrupted` — the error
 // card with its recovery buttons. Used by the dock sheet and by the
 // «Развернуть ↗» window alike.
 
@@ -13,10 +13,10 @@ import { type I18nKey } from '@cg/contracts/errors';
 import { type ResultMarkVM, type StaleReason } from '@cg/contracts/ops';
 import { type DockVM, type ResultMarkKey, type ResultVM } from '@cg/contracts/vm';
 
-import { Button, Caret, Dot, ErrorCard, KeysFooter, Spinner, StageLine, hotkeyText, useDispatch, useI18n, useKit, type KeyHint } from '../kit';
+import { Button, Caret, Dot, ErrorCard, Spinner, StageLine, useDispatch, useI18n, useKit } from '../kit';
 import { RetryAnnouncer, spokenReady, useReadyAnnouncement, useStageAnnouncements } from './announce';
 import { FixBody } from './Fix';
-import { AgainButton, CancelButton, DraftLabel, Head, Meta } from './Head';
+import { AgainButton, CancelButton, Head, Meta } from './Head';
 import { DebugSlot, type DebugProps, type PartLoader } from './lazy-part';
 import { actionOf, featureKey, isRunning, metaTexts, toneOf } from './model';
 import { Parts, Variants } from './Parts';
@@ -26,8 +26,6 @@ export interface ResultContentProps {
   readonly result: ResultVM;
   /** `copy-only`: «Копировать» instead of «Вставить» in every part (UI-027). */
   readonly mode: DockVM['mode'];
-  /** The keys footer under the result: the first five results until dismissed (ui-design §4.3). */
-  readonly keysFooter: boolean;
   /** The streamed text of the raw view (never the steady one). */
   readonly streamText: ReadonlySignal<string>;
   readonly debugPart: PartLoader<DebugProps>;
@@ -131,15 +129,6 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
   // A result a board made, shown in the dock of its chat (architecture.md §6.5): the rest of an answer to insert.
   // «Ещё раз» is the board's (its tone, its Fix source, the lease of «Новые»); here a new answer is the strip's buttons.
   const board = result.surface === 'preview' || result.surface === 'newcomers';
-  const hint = (keys: string, label: string, optional = false): KeyHint => ({ keys, label, ...(optional ? { optional } : {}) });
-  const copyKey = hotkeyText(deps.catalog.entry('copy-part').hotkey)?.display ?? null;
-  const hints: KeyHint[] = [
-    hint('↑↓', i18n.t('result.keys.part')),
-    ...(result.variants === null ? [] : [hint('←→', i18n.t('result.keys.variant'))]),
-    hint('↵', i18n.t(mode === 'insert' ? 'result.keys.insert' : 'result.keys.copy')),
-    ...(result.variants !== null || mode !== 'insert' || copyKey === null ? [] : [hint(copyKey, i18n.t('result.keys.copy'), true)]),
-    hint(i18n.t('common.key.esc'), i18n.t('result.keys.collapse')),
-  ];
   return (
     <>
       <Head
@@ -151,8 +140,9 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
           </>
         }
       >
+        {/* No «черновик · не отправлено» and no keys footer (2026-10-20): the answer is the sheet's; its keys are in
+            the hints and the cheatsheet, as the old client had them. */}
         <Meta texts={metaTexts(i18n, result)} />
-        {result.draftNotSent ? <DraftLabel /> : null}
       </Head>
       <div class="cg-body">
         {result.stale === null ? null : <StaleRow mark={result.stale} onAgain={board ? null : again} reason={againReason} />}
@@ -164,17 +154,6 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
           <Parts parts={result.parts ?? []} focus={props.focusPart ?? null} {...scope} />
         )}
       </div>
-      {props.keysFooter && fix === null ? (
-        <KeysFooter
-          label={i18n.t('cheatsheet.title')}
-          hints={hints}
-          hide={{
-            label: i18n.t('common.hide'),
-            tooltip: i18n.t('result.keys.hideTooltip'),
-            onHide: () => void dispatch({ type: 'SetPreference', key: 'onboarding.keysFooter.dismissed', value: true }),
-          }}
-        />
-      ) : null}
       {debug}
     </>
   );

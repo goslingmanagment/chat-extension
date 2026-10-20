@@ -230,7 +230,6 @@ export function Sheet({ vm, view, parts, refusalHidden, onHideRefusal }: SheetPr
       <ResultContent
         result={result}
         mode={vm.mode}
-        keysFooter={vm.keysFooter}
         streamText={streamText}
         debugPart={parts.debug}
         close={hideResult === null ? null : <HideButton onClick={() => close(hideResult)} />}

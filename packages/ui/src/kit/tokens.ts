@@ -116,7 +116,7 @@ const both = (light: string, dark: string): TokenValue => ({ light, dark });
 
 /** Every frozen token name with its value (the compiler checks completeness). */
 export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
-  // ── ink: importance is ink level and weight, never hue ──
+  // ── ink: importance is ink level and weight; hue only where a meaning is fixed (below), and in a report's blocks ──
   '--cg-ink-strong': both(family('neutral-950'), family('white')),
   '--cg-ink': both(family('neutral-900'), family('neutral-200')),
   '--cg-ink-2': both(family('neutral-700'), family('neutral-300')),
@@ -180,6 +180,18 @@ export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
   '--cg-clay-ink': both('#a84d2b', '#e08566'),
   '--cg-clay-bg': both('#f7e8e1', '#3f2b21'),
   '--cg-clay-line': both('#e8c3b3', '#61412f'),
+  // The old client's report colours (its styles.css, both schemes): the blocks of Review and Recap and the score.
+  '--cg-good-ink': both('#3a7d44', '#54a263'),
+  '--cg-good-bg': both('#e9f1e5', '#233a28'),
+  '--cg-good-line': both('#c9dcc2', '#38583f'),
+  '--cg-good-fill': '#3a7d44',
+  '--cg-amber-ink': both('#96691c', '#cda04b'),
+  '--cg-amber-bg': both('#f6efdc', '#3a3220'),
+  '--cg-amber-line': both('#e4d4a8', '#5c4c29'),
+  '--cg-bad-ink': both('#bb4430', '#e25549'),
+  '--cg-bad-bg': both('#f8e6e1', '#3d2320'),
+  '--cg-bad-line': both('#ecc4ba', '#64332c'),
+  '--cg-warn-ink': both('#b45309', '#d0863e'),
   // ── elevation: page flow (none), windows, floating ──
   '--cg-shadow': both(`0 1px 4px -1px ${family('neutral-900', 0.1)}`, '0 1px 4px -1px rgb(0 0 0 / 0.6)'),
   '--cg-shadow-float': both(
