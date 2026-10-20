@@ -1,4 +1,6 @@
-# R20 P16b. An agent's manual checklist, never PR/push CI and never a GitHub-hosted/Mac browser run.
+# R20 P16b. An agent's manual checklist, never PR/push CI and never a Mac browser run. On a
+# GitHub-hosted runner since 2026-10-21 (the repository is public: free, and it must never reach the
+# owner's PC); the browser runs in the pinned image there as on the PC.
 name: R20 long run
 
 on:
@@ -18,7 +20,7 @@ on:
 permissions:
   contents: read
 
-# One soak at a time on the PC; parallel to release prep, never a pilot gate (X42).
+# One soak at a time; parallel to release prep, never a pilot gate (X42).
 concurrency:
   group: r20-long-run
   cancel-in-progress: false
@@ -26,7 +28,7 @@ concurrency:
 jobs:
   long-run:
     name: Manual Fansly long run
-    runs-on: [self-hosted, ci-pc]
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
       CG_LONG_RUN_MINUTES: ${{ inputs.minutes }}
@@ -66,9 +68,7 @@ jobs:
           echo "$prefix/bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
-        run: |
-          export npm_config_store_dir="$HOME/.local/share/pnpm/store"
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # The ordinary e2e wrapper supplies the exact image digest, Firefox/geckodriver version checks,
       # --network none, the silent audio sink, and cancellation/container cleanup. No live credentials.

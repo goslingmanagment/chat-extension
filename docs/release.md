@@ -104,16 +104,13 @@ On the server (`/var/www/ext/chat-extension/`): the site pages, `firefox/updates
 
 ## 7. CI
 
-- PR: only `pnpm check` (`main`'s ruleset requires it); the PR merges itself when green. On GitHub-hosted
-  runners it is four parallel parts (`pnpm check: typecheck`, `lint`, `test`, `build`) with the gate
-  `pnpm check` over them; on the PC one part (`pnpm check (all parts)`). A PR of prose nothing reads
-  (`docs/**/*.md`, `AGENTS.md`, `CLAUDE.md`) is green in seconds.
-- Push to `main`: `pnpm check` and the e2e smoke set in parts (`e2e 1/4` … `4/4` on GitHub-hosted runners,
-  `e2e 1/2`, `2/2` on the PC, with `pnpm e2e` over them). This is the release gate. A change of only
-  `docs/`, `site/` and `*.md` in the root does not run e2e.
-- Where CI runs (GitHub-hosted, the target, or the PC) — the `CI_POOL` variable, the `ci-pool` skill. A PR from
-  a fork never runs on the PC.
-- `.github/workflows/perf.yml` — `pnpm perf` nightly and by hand; not part of a release.
+- PR: only `pnpm check` (`main`'s ruleset requires it); the PR merges itself when green. It is four parallel parts
+  (`pnpm check: typecheck`, `lint`, `test`, `build`) with the gate `pnpm check` over them. A PR of prose nothing
+  reads (`docs/**/*.md`, `AGENTS.md`, `CLAUDE.md`) is green in seconds.
+- Push to `main`: `pnpm check` and the e2e smoke set in four parts (`e2e 1/4` … `4/4`, with `pnpm e2e` over them).
+  This is the release gate. A change of only `docs/`, `site/` and `*.md` in the root does not run e2e.
+- CI runs only on GitHub-hosted runners (the repository is public); no job may name a self-hosted label.
+- `.github/workflows/perf.yml` — `pnpm perf` nightly and by hand on a GitHub-hosted runner; not part of a release.
 - e2e locally, as in CI: `tools/ci/e2e-docker-local.sh` (needs Docker; one part —
   `CG_E2E_SHARD=2/2`). The Firefox image is pinned by digest in `tools/ci/e2e-image.sh`.
 - Signed P3b test builds — `pnpm release test-builds`, `pnpm release sign

@@ -1,4 +1,4 @@
-# `pnpm perf` on the PC: the §11 probe on the ChatSpace stand and the Fansly
+# `pnpm perf`: the §11 probe on the ChatSpace stand and the Fansly
 # acceptance gate P16a (packages/testing/e2e/perf/*perf-probe.e2e.ts), about
 # 50 minutes. Too long for the CI of a PR or a push: inside it the part
 # «e2e 1/5» took 55 minutes instead of 7, and every run waited for it.
@@ -7,10 +7,10 @@
 # workflow, «Use workflow from»): before a release, on its branch, for the
 # release note's line `perf` (docs/release.md, section 5).
 #
-# Only on the PC's runners: the probes compare the extension with a fresh base
-# on the same machine, and on GitHub's runners this would be some 60 paid
-# minutes a night. A night while CI is not on the PC (CI_POOL ≠ pc: the PC is
-# busy or down) is skipped; a run by hand waits for a runner of the PC.
+# On a GitHub-hosted runner (owner, 2026-10-21: the repository is public, so
+# the ~60 minutes a night are free, and it must never reach the owner's PC).
+# The probes compare the extension with a fresh base on the same machine — the
+# job's own runner — so a cloud runner's speed does not move the verdict.
 
 name: Perf
 
@@ -24,7 +24,7 @@ on:
 permissions:
   contents: read
 
-# One run at a time on the PC; a run by hand waits for the nightly one.
+# One run at a time; a run by hand waits for the nightly one.
 concurrency:
   group: perf
   cancel-in-progress: false
@@ -32,13 +32,8 @@ concurrency:
 jobs:
   perf:
     name: pnpm perf
-    if: github.event_name != 'schedule' || vars.CI_POOL == 'pc'
-    runs-on: [self-hosted, ci-pc]
-    # 40-60 minutes with setup. Before that the PC's priority hook holds the
-    # job, inside this limit, while any other heavy CI job runs (this
-    # repository's CI too), up to 30 minutes: run beside eight e2e parts on
-    # 17.10 it pushed the load to 3x the CPUs and both went red (ci-runners
-    # README, «Приоритет»).
+    runs-on: ubuntu-24.04
+    # 40-60 minutes with setup on the PC; a cloud runner gets room.
     timeout-minutes: 120
     env:
       NODE_OPTIONS: --max-old-space-size=8192
@@ -66,15 +61,13 @@ jobs:
           echo "$prefix/bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
-        run: |
-          export npm_config_store_dir="$HOME/.local/share/pnpm/store"
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # The e2e job's container: the pinned image, --network none, and the
       # container removed when the run is cancelled (`exec`, see ci.yml).
       - name: pnpm perf (headless Firefox in the pinned image, no network)
         env:
-          # As in the e2e job: other jobs share the PC. Only time limits scale
+          # As in the e2e job: a shared cloud runner. Only time limits scale
           # (budgetMs, the Fansly gate's); memory, timers and counts stay strict.
           CG_E2E_TIMING_SLACK: '3'
         run: exec tools/ci/e2e-docker.sh perf
