@@ -112,7 +112,7 @@ jobs:
       # Every part reports, so one run names every failing part.
       fail-fast: false
       matrix:
-        part: ["typecheck","lint","test","build"]
+        part: ${{ fromJSON(vars.CI_POOL == 'pc' && '["all"]' || '["typecheck","lint","test","build"]') }}
     env:
       # Type-aware ESLint exhausted the former 4 GiB heap in run 38855233102
       # as the workspace grew. Leave headroom for its TypeScript projects;
@@ -284,7 +284,7 @@ jobs:
       # GitHub runs the same spec files as on the PC (the parts are weighed by
       # packages/testing/e2e/shard-weights.json).
       matrix:
-        shard: ['1/4', '2/4', '3/4', '4/4']
+        shard: ${{ fromJSON(vars.CI_POOL == 'pc' && '["1/2","2/2"]' || '["1/4","2/4","3/4","4/4"]') }}
 
     steps:
       # Two commits deep: the next step compares the pushed commit with the one
