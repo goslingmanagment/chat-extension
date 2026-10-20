@@ -65,13 +65,13 @@ const PAGE_0195 = ['index-p8xPkCj8', 'composables-DKWzNPeA', 'accounts-CN9N-pj3'
 const PAGE_0195_EARLY = ['index-p8xPkCj8', 'composables-DKWzNPeA', 'accounts-CN9N-pj3', 'inbox-DUukOf_u', 'onlyfans-DqEV2pNo', 'composables-C25sVtl7'];
 
 // Decision X25 (2026-10-09): the owner relaxed X21 — X8 runs on any ChatSpace build «until something breaks». The hub
-// lists the sentinel instead of per-build profiles; the fuse (main/receipt.ts) watches what X8 does after that.
+// lists the sentinel instead of per-build profiles.
 /** The hub value of the sentinel, exactly as it goes into `limits.previewSendReceiptProfiles`. */
 const HUB_VALUE_ANY_BUILD = '[{"id":"any-build","adapterVersion":"0.3.0","modules":{"*":"*"}}]';
 const anyBuild = (): ReceiptProfile[] => (JSON.parse(HUB_VALUE_ANY_BUILD) as unknown[]).map((item) => ReceiptProfileSchema.parse(item));
 
 describe('[X8-06] the «any build» sentinel (decision X25)', () => {
-  it('is plain data the bootstrap takes, and it matches any build whose send-path roles are all loaded — whatever their fingerprints', () => {
+  it('is plain data the bootstrap takes, and it matches any build — whatever its fingerprints', () => {
     const profiles = anyBuild();
     expect(profiles).toEqual([{ id: 'any-build', adapterVersion: ADAPTER_VERSION, modules: { '*': '*' } }]);
     const kind = { profile: 'any-build', kind: 'anyBuild' };
@@ -87,12 +87,14 @@ describe('[X8-06] the «any build» sentinel (decision X25)', () => {
     expect(matchReceiptProfile(receiptModules(BUILD.map(asset), ORIGIN), [{ id: 'всё что угодно', adapterVersion: ADAPTER_VERSION, modules: { '*': '*' } }], ADAPTER_VERSION)).toEqual({ profile: 'всё что угодно', kind: 'anyBuild' });
   });
 
-  it('does not match while a send-path role has no module on the page: before the main layout loaded, or on a page without the queue', () => {
-    expect(matchReceiptProfile(receiptModules(PAGE_0195_EARLY.map(asset), ORIGIN), anyBuild(), ADAPTER_VERSION)).toBeNull();
-    expect(matchReceiptProfile(receiptModules(BUILD.filter((name) => !name.startsWith('notificationEntry-')).map(asset), ORIGIN), anyBuild(), ADAPTER_VERSION)).toBeNull();
-    expect(matchReceiptProfile({}, anyBuild(), ADAPTER_VERSION)).toBeNull();
-    // A role with an empty fingerprint is no loaded module.
-    expect(matchReceiptProfile({ ...MODULES, inbox: '' }, anyBuild(), ADAPTER_VERSION)).toBeNull();
+  it('matches whatever the page loaded and whatever adapter version it names (2026-10-20 restrictions, item 5)', () => {
+    const kind = { profile: 'any-build', kind: 'anyBuild' };
+    expect(matchReceiptProfile(receiptModules(PAGE_0195_EARLY.map(asset), ORIGIN), anyBuild(), ADAPTER_VERSION)).toEqual(kind);
+    expect(matchReceiptProfile(receiptModules(BUILD.filter((name) => !name.startsWith('notificationEntry-')).map(asset), ORIGIN), anyBuild(), ADAPTER_VERSION)).toEqual(kind);
+    expect(matchReceiptProfile({}, anyBuild(), ADAPTER_VERSION)).toEqual(kind);
+    expect(matchReceiptProfile({ ...MODULES, inbox: '' }, anyBuild(), ADAPTER_VERSION)).toEqual(kind);
+    // A release of ours with another adapter version is not switched off by the hub's older sentinel.
+    expect(matchReceiptProfile(receiptModules(BUILD.map(asset), ORIGIN), anyBuild(), '9.9.9')).toEqual(kind);
   });
 
   it('only `{"*":"*"}` is the sentinel: a star beside a real role, a star with a fingerprint, a star role elsewhere — none of them', () => {

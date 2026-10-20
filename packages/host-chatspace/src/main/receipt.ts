@@ -75,7 +75,8 @@
 //   - `target` — a POST through the observer to another chat or account, or
 //     the echo of our receipt's id in another chat or account.
 //   The outcome of the attempt is what it is (a linked pair stays
-//   `sentObserved`); the fuse only turns X8 off. It never sends, never
+//   `sentObserved`); since 2026-10-21 the fuse turns nothing off — the word
+//   is logged and counted (restrictions, item 4). It never sends, never
 //   retries, never changes a request. The echo's text is read here only for
 //   such a comparison and is kept nowhere.
 

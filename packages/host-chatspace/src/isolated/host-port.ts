@@ -40,21 +40,19 @@
 //   never sent again. A receipt profile that stops matching while a send is
 //   on its way makes that send `uncertain` here (§6.2): of what MAIN still
 //   says about it only the late linked pair (`sentObserved`) passes.
-// - The fuse (decision X25): MAIN tells, after an X8 send, that the text, the
+// - The fuse of decision X25: MAIN tells, after an X8 send, that the text, the
 //   number of messages or the chat of its receipt are not what we sent
-//   (`previewSendFuse`). X8 is off in this document from that moment — the
-//   capability says CG-SEND-FUSE — and the tab tells the background
-//   (`sendFuse`), which keeps the fuse for the browser and hands it back to
-//   every tab through `configure`: it holds on the build it was seen on, until
-//   another build or the person's reset. Nothing is ever sent or repeated
-//   because of it.
+//   (`previewSendFuse`). Since 2026-10-21 it switches nothing off (restrictions,
+//   item 4: «забить, пока не сломается»): the diagnostics hear it and the tab
+//   tells the background (`sendFuse`), which logs and counts it. Nothing is
+//   ever sent or repeated because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import type { ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
-import { PREVIEW_SEND_CONDITION_CODES, sendFuseHolds, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
+import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
 import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 import type { MediaFanState, MediaFoldersPage, MediaItemsPage, MediaRead, MediaRequest } from '@cg/contracts/media';
 import type { MediaTags } from '@cg/contracts/send-media';
@@ -87,11 +85,7 @@ export interface ChatSpaceLiveConfig {
    * every human send of the composer, so that its `humanSend` names the message. Absent — off.
    */
   readonly attribution?: boolean;
-  /**
-   * The X8 fuse as the background keeps it (decision X25); absent or null — not known yet: only a trip seen in this
-   * document holds. A fuse holds while this page runs the build it names; a reset after a trip of this document
-   * lifts that one too.
-   */
+  /** What the background said of the X8 fuse (decision X25): it holds nothing any more; kept for the wiring. */
   readonly fuse?: SendFuseState | null;
 }
 
@@ -203,8 +197,6 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   let receiptProfile: ReceiptMatch | null = null;
   /** The last judgement said in the diagnostics; undefined — not judged (the flag is off). */
   let lastJudged: ReceiptMatch | null | undefined;
-  /** When MAIN tripped the fuse in this document (decision X25); null — it did not. A reset after it lifts it. */
-  let trippedAt: number | null = null;
   /** The last judgement found a profile (kept while the flag is off: a send started before goes on). */
   let matched = false;
   const adapterVersion = options.adapterVersion ?? ADAPTER_VERSION;
@@ -262,21 +254,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       accountBound: Boolean(route.account?.platformAccountId),
       adapterVersion,
       checkedAt: clock(),
-      live: { tap, previewSend: live?.previewSend === true, receipt: receiptProfile !== null, receiptMatch: receiptProfile, fused: fused() },
+      live: { tap, previewSend: live?.previewSend === true, receipt: receiptProfile !== null, receiptMatch: receiptProfile },
     });
-  }
-  /**
-   * The fuse holds X8 off (decision X25): the background's, while this page runs the build it was seen on; or a
-   * trip of this document, until the person resets the fuse after it.
-   */
-  function fused(): boolean {
-    const state = live?.fuse ?? null;
-    return (state !== null && sendFuseHolds(state.fuse, wire?.build ?? null)) || latched();
-  }
-  /** A trip of this document that no reset after it lifted. */
-  function latched(): boolean {
-    const resetAt = live?.fuse?.resetAt ?? null;
-    return trippedAt !== null && !(resetAt !== null && resetAt >= trippedAt);
   }
   const recompute = (): void => {
     const next = compute();
@@ -532,14 +511,10 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         for (const listener of [...(sendListeners.get(view.attemptId) ?? [])]) listener(view);
         return;
       }
-      // The fuse (decision X25): X8 is off in this document at once; the tab tells the background, the logs hear it.
+      // The fuse of decision X25: X8 stays on; the logs hear it, the tab tells the background (which counts it).
       case 'previewSendFuse': {
         const fact = event.payload;
-        // A trip after a reset is a new one: it holds until a reset after it.
-        const first = !latched();
-        if (first) trippedAt = clock();
-        diag({ event: 'x8-fuse', code: 'CG-SEND-FUSE', detail: { reason: fact.reason, where: fact.where, first, sentChars: fact.sentChars ?? null, seenChars: fact.seenChars ?? null } });
-        recompute();
+        diag({ event: 'x8-fuse', code: 'CG-SEND-FUSE', detail: { reason: fact.reason, where: fact.where, sentChars: fact.sentChars ?? null, seenChars: fact.seenChars ?? null } });
         return emit({ type: 'sendFuse', fuse: fact });
       }
       // A failure of our own MAIN code that its guard kept from the page: only the logs hear of it.

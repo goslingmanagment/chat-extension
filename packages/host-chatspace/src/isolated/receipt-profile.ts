@@ -10,17 +10,21 @@
 // timing entries — never downloaded, never requested. A role's fingerprint
 // is the sorted set of its hashes joined with `+` (0.172.0 has two modules
 // named `composables`); a role loaded in two versions therefore matches no
-// profile. A missing role, an unknown hash, another adapter version — no
-// match, X8 stays off (CG-SEND-RECEIPT); the open-and-insert path still works.
+// exact profile. A missing role, an unknown hash, another adapter version —
+// no exact match; without the sentinel below X8 stays off (CG-SEND-RECEIPT)
+// and the open-and-insert path still works.
 //
 // The profile comes from the hub as data only: no code, no selectors. The
 // roles that must be there are the adapter's own (host-contract.ts).
 //
 // The «any build» sentinel (decision X25, contracts 1.11.0): a profile whose
-// `modules` is exactly `{"*":"*"}` matches any build for the adapter version it
-// names — still only when the page has loaded a module of every role (the
-// main layout is up). Exact profiles are tried first: a reviewed build is named
-// as one. The fuse (main/receipt.ts) watches what X8 does after that.
+// `modules` is exactly `{"*":"*"}` matches any build — whatever modules the
+// page has loaded and whatever adapter version it names (the owner: «забить,
+// пока не сломается»; 2026-10-20 restrictions, item 5). A ChatSpace that
+// regroups its modules, or a release of ours with a new adapter version, no
+// longer turns the send off in silence: MAIN still refuses a send whose queue
+// store it cannot find. Exact profiles are tried first: a reviewed build is
+// named as one.
 
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import { isAnyBuildReceiptProfile, type ReceiptMatchKind } from '@cg/contracts/send-rules';
@@ -82,9 +86,8 @@ export interface ReceiptMatch {
  * The profile the loaded modules match, for this adapter version; null — none.
  * - `exact`: the first profile that names, for every essential role, exactly
  *   the loaded fingerprint (and nothing the page did not load);
- * - `anyBuild`: else the first «any build» sentinel, when a module of every
- *   essential role is loaded — whatever its fingerprint. A page whose role
- *   modules have not loaded (no main layout yet, no sign-in) matches nothing.
+ * - `anyBuild`: else the first «any build» sentinel of any adapter version,
+ *   whatever the page loaded.
  */
 export function matchReceiptProfile(modules: Readonly<Record<string, string>>, profiles: readonly ReceiptProfile[], adapterVersion: string, roles: readonly string[] = RECEIPT_MODULE_ROLES): ReceiptMatch | null {
   const ours = profiles.filter((profile) => profile.adapterVersion === adapterVersion);
@@ -93,7 +96,6 @@ export function matchReceiptProfile(modules: Readonly<Record<string, string>>, p
     const named = Object.keys(profile.modules);
     if (roles.every((role) => named.includes(role)) && named.every((role) => roles.includes(role) && modules[role] === profile.modules[role])) return { profile: profile.id, kind: 'exact' };
   }
-  const loaded = roles.length > 0 && roles.every((role) => typeof modules[role] === 'string' && modules[role] !== '');
-  const sentinel = loaded ? ours.find((profile) => isAnyBuildReceiptProfile(profile)) : undefined;
+  const sentinel = ours.find((profile) => isAnyBuildReceiptProfile(profile)) ?? profiles.find((profile) => isAnyBuildReceiptProfile(profile));
   return sentinel === undefined ? null : { profile: sentinel.id, kind: 'anyBuild' };
 }

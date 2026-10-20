@@ -12,9 +12,9 @@
 //   read well, degraded until then (sound falls back to the stores);
 // - `sendObserve` — a human send with its receipt (§6.6);
 // - `receipt` — a bootstrap profile matches the loaded send-path modules (§6.2);
-// - `previewSend` — X8: its flag, the fuse (decision X25: tripped in this
-//   browser on this build, CG-SEND-FUSE), every anchor a condition is read
-//   from, the tap, and the receipt profile. The socket being armed is not part
+// - `previewSend` — X8: its flag, every anchor a condition is read from, the
+//   tap, and the receipt profile (the fuse of decision X25 holds nothing since
+//   2026-10-21). The socket being armed is not part
 //   of it: that is the preflight's answer (CG-SEND-FRESHNESS), the capability
 //   does not flap with reconnects.
 // The report names the profile that matched and how (`receiptMatch`: a
@@ -59,8 +59,6 @@ export interface ContractInput {
     readonly receipt: boolean;
     /** Which one, and how (reported while `receipt`). */
     readonly receiptMatch?: ReceiptMatch | null;
-    /** The X8 fuse holds in this browser for this build, or tripped in this document (decision X25). */
-    readonly fused?: boolean;
   };
 }
 
@@ -133,9 +131,7 @@ export function buildContractReport(input: ContractInput): ChatSpaceContractRepo
       ? route
       : !live.previewSend
         ? coded('off', 'flag', 'CG-SEND-OFF')
-        : live.fused === true
-          ? coded('off', 'fuse', 'CG-SEND-FUSE')
-          : brokenSendAnchor
+        : brokenSendAnchor
           ? coded('off', brokenSendAnchor, 'CG-SEND-HOST')
           : !live.tap
             ? noTapSend

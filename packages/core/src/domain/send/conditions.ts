@@ -1,7 +1,7 @@
 // The send conditions the background checks before it journals a click and
 // asks the hub (architecture.md §6.7.4, conditions 1–4 and 14): the human
 // and the part, the frozen identity, the owner switch and the verified
-// receipt profile, the X8 fuse of this browser (decision X25), and freshness. MAIN checks the page conditions (5–13)
+// receipt profile, and freshness. MAIN checks the page conditions (5–13)
 // again in the same synchronous step as the queue call; the hub checks the
 // flag, rights, rate, lease and other sends atomically on `dispatch` (3, 15).
 
@@ -47,8 +47,6 @@ export interface SendGate {
   readonly newcomers: boolean;
   /** Verified profiles of the send path and receipt; none — X8 is off whatever the flags say. */
   readonly receiptProfiles: number;
-  /** The X8 fuse holds on the tab's ChatSpace build (decision X25); absent — not checked. */
-  readonly fused?: boolean;
 }
 
 /** The surface a purpose belongs to: a greeting from «Новые», a reply from a Spenders preview. */
@@ -65,7 +63,7 @@ const sameSession = (a: OpForSend['session'], b: NonNullable<SendGate['session']
 
 /**
  * The person's own text (audit 2026-10-20, row 1): no operation to check it against — the page, the sign-in and the
- * binding of now, the owner's switch, the receipt profile and the fuse. Freshness is not asked: the person wrote it
+ * binding of now, the owner's switch and the receipt profile. Freshness is not asked: the person wrote it
  * looking at the chat.
  */
 function manualCondition(begin: SendBegin, gate: SendGate): CgCode | null {
@@ -73,7 +71,6 @@ function manualCondition(begin: SendBegin, gate: SendGate): CgCode | null {
   if (gate.bindingRevision !== begin.target.binding.bindingRevision) return 'CG-CONTEXT-CHANGED';
   if (!gate.previewSend || (begin.purpose === 'greeting' && !gate.newcomers)) return 'CG-SEND-OFF';
   if (gate.receiptProfiles === 0) return 'CG-SEND-RECEIPT';
-  if (gate.fused === true) return 'CG-SEND-FUSE';
   return null;
 }
 
@@ -94,8 +91,6 @@ export function beginCondition(begin: SendBegin, op: OpForSend | null, gate: Sen
   // 3, 4 — the owner switch and a verified receipt profile (the hub re-checks the flag on dispatch).
   if (!gate.previewSend || (begin.purpose === 'greeting' && !gate.newcomers)) return 'CG-SEND-OFF';
   if (gate.receiptProfiles === 0) return 'CG-SEND-RECEIPT';
-  // 4 — the fuse: after a send ChatSpace did not behave as checked, X8 is off in this browser for this build.
-  if (gate.fused === true) return 'CG-SEND-FUSE';
   // 14 — freshness: the operation's own checkpoint, unchanged, nothing new since, the served context. A warning the
   // person passed with «Отправить всё равно» (2026-10-20 audit, rows 3–4) is not checked again.
   if (begin.acceptFreshness === true) return null;
