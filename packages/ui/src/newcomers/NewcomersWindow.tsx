@@ -121,7 +121,9 @@ function GreetingStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
         </span>
       );
     case 'replied':
-      return <span class="cg-nw__st">{i18n.t('newcomers.status.replied')}</span>;
+      // A row to work with, as «Ждёт ответа» on Fansly (X59): terracotta, and the batch's step while it runs.
+      if (batch !== 'generating' && batch !== 'queued' && batch !== 'failed') return <span class="cg-nw__st is-act">{i18n.t('newcomers.status.replied')}</span>;
+      break;
     case 'claim-other':
       return <ClaimOther />;
     case 'claim-elsewhere':

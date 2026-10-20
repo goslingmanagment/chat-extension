@@ -419,7 +419,7 @@ export class FakeHub {
         s.data.setThread(command.pageLabel, command.conversationRef, command.fanRef);
         return { ok: true };
       case 'audienceEvent':
-        return { ok: true, eventRef: s.data.addAudienceEvent(this.page(command.pageLabel), command.fanRef, command.kind ?? 'new', command.trial ?? false, now) };
+        return { ok: true, eventRef: s.data.addAudienceEvent(this.page(command.pageLabel), command.fanRef, command.kind ?? 'new', command.trial ?? false, now, command.fanWrote ?? false) };
       case 'spenderFans':
         s.data.useSpenderFans(command.fans);
         return { ok: true, fans: command.fans.length };

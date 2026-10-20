@@ -217,10 +217,11 @@ function newcomersState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c' | 'd' | 'e'):
     const replied = { s: 'replied' } as const;
     const answeredRows = rows.map((row) => row.handle === handle ? { ...row, greeting: replied } : row);
     return [
-      entry({ of: 'newcomers' }, newcomers(ctx, views.ready(), answeredRows, { tab: 'all' })),
+      entry({ of: 'newcomers' }, newcomers(ctx, views.ready(), answeredRows)),
       entry({ of: 'preview', from: 'newcomers' }, {
+        // A fan who already wrote is no block for Hi (2026-10-21 restrictions, item 14).
         ...card, greeting: replied,
-        bar: { ...card.bar, actions: { hi: { ...hi(false, false), reason: reason('hi-gate') } } },
+        bar: { ...card.bar, actions: { hi: hi(true, true) } },
         feed: {
           items: [
             { id: 'old-welcome', at: iso(ctx.now - 14 * MIN), sender: 'model', text: 'Welcome!', deleted: false, automatic: true, tip: null, price: null, attachments: [], dayBreak: true },

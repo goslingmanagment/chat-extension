@@ -797,7 +797,8 @@ export class DataModel {
     return events;
   }
 
-  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number): string {
+  /** `fanWrote` — the fan already wrote a message (one stored message of the fan's). */
+  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false): string {
     const events = this.audienceOf(page);
     const eventRef = `evt-${page.pageId}-${2000 + events.length}`;
     const { claim: _claim, ...seed } = SCENARIO_DATA.audienceItem(0);
@@ -813,7 +814,7 @@ export class DataModel {
         subscribedAt: iso(now),
         subscribedAtSource: 'notification',
         status: { isSubscriber: true, subscriptionStatus: 'active', endsAt: iso(now + 30 * DAY_MS), asOf: iso(now), source: 'webhook' },
-        thread: null,
+        thread: fanWrote ? { lastMessageAt: iso(now), lastFanMessageAt: iso(now), lastModelMessageAt: null, storedMessageCount: 1, coverage: 'complete', backfillComplete: true } : null,
       },
     });
     return eventRef;

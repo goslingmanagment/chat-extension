@@ -471,11 +471,11 @@ const X8: AppClientScenario[] = [
 const NEWCOMERS_LIST = { of: 'newcomers' } as const;
 
 const LEASE: AppClientScenario[] = [
-  make({ id: 'newcomers-replied', title: 'The fan has already written: keep the conversation in All', covers: [] }, (ctx) => ({
+  make({ id: 'newcomers-replied', title: 'The fan has already written: the row stays to work with', covers: [] }, (ctx) => ({
     views: [
       entry(NEWCOMERS_LIST, newcomers(ctx, views.ready(), [
         newcomerRow(ctx, FANS.tomasz, 'new', 14, { s: 'replied' }),
-      ], { tab: 'all' })),
+      ])),
     ],
   })),
   make({ id: 'claim-busy', title: 'Another chatter holds the fan: Hi is off', covers: ['claim-busy'] }, (ctx) => {
