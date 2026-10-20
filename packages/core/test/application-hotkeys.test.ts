@@ -278,17 +278,35 @@ function runnerRig(dockPatch: Parameters<typeof dock>[2] = {}, status: Parameter
   const sheet: boolean[] = [];
   const fixes: FixKeyState[] = [];
   const i18n = createI18n({ language: 'ru', now: () => CTX.now });
-  const runner = createHotkeyRunner({ client, catalog: createActionCatalog('mac'), i18n, toasts, overlays, cause, onDockSheet: (open) => sheet.push(open), onFix: (fix) => fixes.push(fix) });
+  /** The operation that runs in the open chat, shown or not. */
+  const here = { opId: null as string | null };
+  const runner = createHotkeyRunner({ client, catalog: createActionCatalog('mac'), i18n, toasts, overlays, cause, onDockSheet: (open) => sheet.push(open), onFix: (fix) => fixes.push(fix), runningHere: () => here.opId });
   const run = async (id: KeyCommand['id'], target: KeyCommand['target'] = 'dock', slot: number | null = null): Promise<UiAction | undefined> => {
     const before = client.dispatched.length;
     runner.run({ id, slot, target });
     await settle();
     return client.dispatched[before];
   };
-  return { client, toasts, overlays, cause, sheet, fixes, runner, run, i18n };
+  return { client, toasts, overlays, cause, sheet, fixes, runner, run, i18n, here };
 }
 
 describe('the hotkey runner', () => {
+  it('[X68] ⌘. stops a Fix that runs with no sheet; over a finished answer its own key is its «Ещё раз» — a new answer, not the cached one', async () => {
+    const r = runnerRig();
+    expect(await r.run('cancel')).toBeUndefined();
+    r.here.opId = uuid(0x71);
+    expect(await r.run('cancel')).toEqual({ type: 'CancelGeneration', operationId: uuid(0x71) });
+
+    const opId = uuid(0x72);
+    const shown = runnerRig({ result: result(CTX, { opId, feature: 'reply', state: 'done' }) });
+    expect(await shown.run('reply')).toEqual({ type: 'Regenerate', operationId: opId });
+    // Another button's key starts its own feature.
+    expect((await shown.run('ping'))?.type).toBe('Generate');
+    // Where the sheet has no «Ещё раз» (a board's result, a Fix already in the field), the key starts as the button does.
+    const replaced = runnerRig({ result: result(CTX, { opId, feature: 'reply', state: 'done', canRegenerate: false }) });
+    expect((await replaced.run('reply'))?.type).toBe('Generate');
+  });
+
 
   it('[HK-042] in a preview the same keys generate for the preview\'s fan and ⌘. cancels there; no key ever sends or inserts', async () => {
     const r = runnerRig();

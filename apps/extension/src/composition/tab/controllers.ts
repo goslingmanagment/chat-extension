@@ -235,6 +235,11 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     },
     // X58: ⌘↵ / Ctrl+Enter is ours only while a Fix waits in the open chat.
     onFix: (fix) => keys.state.setFix(fix),
+    // ⌘. stops what runs in the open chat when no sheet shows it: a Fix of the person's click has none (X68).
+    runningHere: () => {
+      const chat = ai.workspace.situation().chat;
+      return chat === null ? null : (ai.workspace.running(chat.key)?.view.opId ?? null);
+    },
   });
   keys.notices.attach({ toasts, refuse: (command, refusal) => runner.refuse(command, refusal) });
 

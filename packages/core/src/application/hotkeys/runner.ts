@@ -48,6 +48,11 @@ export interface HotkeyRunnerDeps {
   readonly onDockSheet?: (open: boolean) => void;
   /** A Fix of the open chat started, came, went into the field or went away: the dispatcher's state follows (X58). */
   readonly onFix?: (state: FixKeyState) => void;
+  /**
+   * The operation that runs in the open chat — the one that makes a strip button busy — whether or not a sheet shows
+   * it: a Fix runs with none (X68), a hidden result runs on. ⌘. stops it, as the old extension's did; null — none.
+   */
+  readonly runningHere?: () => string | null;
 }
 
 export interface HotkeyRunner extends HotkeySink {
@@ -167,7 +172,7 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     void client.dispatch(action).then(
       (receipt: ActionReceipt) => {
         // A refused generation shows in its own place (the dock's refusal card); a failed switch or navigation only here.
-        if (receipt.ok || action.type === 'Generate') return;
+        if (receipt.ok || action.type === 'Generate' || action.type === 'Regenerate') return;
         const entry = CG_REGISTRY[receipt.code];
         toasts.show({ kind: entry.severity === 'error' ? 'error' : 'warning', code: receipt.code, scope: `hotkey.${action.type}`, title: { key: entry.title }, body: { key: entry.body } });
       },
@@ -211,7 +216,17 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
       return;
     }
     const found = dockAction(id);
-    if (found !== null) send({ type: 'Generate', targetHandle: found.target, feature: id, options: {} });
+    if (found === null) return;
+    // Over the finished answer of this very button the key is that answer's «Ещё раз» (its hint prints the key): a new
+    // answer, never the same one reopened from the cache (AI-128). Where the sheet has no «Ещё раз» (a board's result,
+    // a Fix already in the field) the key starts as the button does.
+    const shown = found.dock.result;
+    if (shown !== null && shown.feature === id && shown.state === 'done' && (shown.canRegenerate || shown.regenerateReason !== null)) {
+      if (shown.regenerateReason === null) send({ type: 'Regenerate', operationId: shown.opId });
+      else unavailable(id, shown.regenerateReason);
+      return;
+    }
+    send({ type: 'Generate', targetHandle: found.target, feature: id, options: {} });
   };
 
   const recap = (): void => {
@@ -263,7 +278,7 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     );
   };
 
-  /** ⌘.: the generation that runs where the person looks — the preview's, else the dock's, Recap, Review or Coach. */
+  /** ⌘.: the generation that runs where the person looks — the preview's, else the dock's, Recap, Review or Coach — else the open chat's. */
   const cancel = (where: KeyCommand['target']): void => {
     if (where === 'preview') {
       const result = previewView()?.result ?? null;
@@ -283,8 +298,14 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     if (overlays.isOpen('coach')) {
       const turns = client.getSnapshot({ of: 'coach' }).turns;
       const last = turns[turns.length - 1];
-      if (last !== undefined && last.opId !== null && isRunning(last.state)) send({ type: 'CancelGeneration', operationId: last.opId });
+      if (last !== undefined && last.opId !== null && isRunning(last.state)) {
+        send({ type: 'CancelGeneration', operationId: last.opId });
+        return;
+      }
     }
+    // Nothing on screen shows it — a Fix runs with no sheet (X68), a result was hidden: what runs in the open chat.
+    const here = deps.runningHere?.() ?? null;
+    if (here !== null) send({ type: 'CancelGeneration', operationId: here });
   };
 
   /**
