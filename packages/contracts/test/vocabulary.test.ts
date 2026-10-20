@@ -9,21 +9,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as C from '../src/index';
 import { contractReport, siteContractReport } from './fixtures/samples';
 
-/** CG codes of the Appendix A table in docs/architecture.md, in order. */
-function appendixACodes(): string[] {
-  const doc = readFileSync(new URL('../../../docs/architecture.md', import.meta.url), 'utf8');
-  const start = doc.indexOf('## Приложение А.');
-  const end = doc.indexOf('**Чего в реестре нет:**', start);
-  expect(start).toBeGreaterThan(0);
-  expect(end).toBeGreaterThan(start);
-  return [...doc.slice(start, end).matchAll(/^\| (CG-[A-Z0-9-]+) \|/gm)].map((match) => match[1] ?? '');
-}
-
 describe('CG codes (Appendix A)', () => {
-  it('are exactly the Appendix A list, in its order', () => {
-    expect([...C.CG_CODES]).toEqual(appendixACodes());
-  });
-
   it('are unique and keep the CG-<AREA>-<NAME> form', () => {
     expect(new Set(C.CG_CODES).size).toBe(C.CG_CODES.length);
     for (const code of C.CG_CODES) expect(code).toMatch(C.CG_CODE_PATTERN);

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -221,13 +221,9 @@ describe('archive check', () => {
     expect(rules('lazy/x.js', 'import "./messages-DlBZ5e81.js"', 'xpi', [])).toEqual([]);
   });
 
-  it('the shipped hashes are the X9 test account and chat (recomputed from the decision log)', () => {
-    // docs/ is not in the sources archive; this check runs in the repo only.
-    const decisions = fileURLToPath(new URL('../../docs/decisions.md', import.meta.url));
-    if (!existsSync(decisions)) return;
-    const x9 = /аккаунт OnlyMonster (\d+) → чат (\d+)/.exec(readFileSync(decisions, 'utf8'));
-    expect(x9).not.toBeNull();
-    const ids = [x9?.[1] ?? '', x9?.[2] ?? ''];
+  it('the shipped hashes are the X9 test account and chat', () => {
+    // The owner's test chat: OnlyMonster account 36408 → chat 518588958 (tests are not in the sources archive).
+    const ids = ['36408', '518588958'];
     expect(new Set(ids.map(sha256))).toEqual(REAL_ID_SHA256);
   });
 

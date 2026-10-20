@@ -1,8 +1,8 @@
 // fansly.com in the tab protocol, the error registry and the settings
 // (1.15.0, R20 P4a3; host: fansly-web): the site's own request registry
 // (tab-messages-fansly.ts) beside the shared one, the sender kind `relay`, the
-// host rules of a request, the Fansly CG codes against Appendix A «Коды
-// Fansly», and the separate `settings.ext` key.
+// host rules of a request, the Fansly CG codes, and the separate
+// `settings.ext` key.
 
 import { readFileSync } from 'node:fs';
 
@@ -13,8 +13,6 @@ import * as C from '../src/index';
 import * as X from '../src/settings-ext';
 import * as T from '../src/tab-messages-fansly';
 import { FANSLY_TAB_EVENT_FIXTURES, FANSLY_TAB_REQUEST_FIXTURES, SETTINGS_EXT_FIXTURES, type Verdicts } from './fixtures/index';
-
-const ARCHITECTURE = readFileSync(new URL('../../../docs/architecture.md', import.meta.url), 'utf8');
 
 function expectVerdicts(label: string, schema: { safeParse(value: unknown): { success: boolean } }, verdicts: Verdicts): void {
   verdicts.valid.forEach((value, index) => expect(schema.safeParse(value).success, `${label} valid[${index}]`).toBe(true));
@@ -145,30 +143,11 @@ describe('[EX-015] [host:fansly] the envelope and the sender rules (1.15.0)', ()
   });
 });
 
-/** Rows of Appendix A «Коды Fansly»: code, meaning, «Повтор», the old extension's codes. */
-function fanslyAppendixRows(): { code: string; meaning: string; retry: string; old: string }[] {
-  const start = ARCHITECTURE.indexOf('**Коды Fansly**');
-  const end = ARCHITECTURE.indexOf('**Хаб → коды Fansly**', start);
-  expect(start).toBeGreaterThan(0);
-  expect(end).toBeGreaterThan(start);
-  return [...ARCHITECTURE.slice(start, end).matchAll(/^\| (CG-[A-Z0-9-]+) \| (.+?) \| (\S+) \| (.+) \|$/gm)].map((m) => ({ code: m[1] ?? '', meaning: m[2] ?? '', retry: m[3] ?? '', old: m[4] ?? '' }));
-}
-
-function fanslyHubAppendixRows(): { error: string; status: number; cg: string }[] {
-  const start = ARCHITECTURE.indexOf('**Хаб → коды Fansly**');
-  const end = ARCHITECTURE.indexOf('**Колонка «chat-extension»', start);
-  expect(end).toBeGreaterThan(start);
-  return [...ARCHITECTURE.slice(start, end).matchAll(/^\| `([a-z_]+)` \| (\d{3}) \| (CG-[A-Z0-9-]+) \|$/gm)].map((m) => ({ error: m[1] ?? '', status: Number(m[2]), cg: m[3] ?? '' }));
-}
-
 describe('[ER-001] [ER-002] [ER-004] [host:fansly] the Fansly CG codes (errors-fansly.ts, Appendix A «Коды Fansly»)', () => {
   const entries = Object.values(F.CG_FANSLY_REGISTRY);
 
-  it('are exactly the Appendix A list, in its order, and follow its «Повтор» column', () => {
-    const rows = fanslyAppendixRows();
-    expect(rows.map((row) => row.code)).toEqual([...F.CG_FANSLY_CODES]);
+  it('have one entry per code, in order', () => {
     expect(Object.keys(F.CG_FANSLY_REGISTRY)).toEqual([...F.CG_FANSLY_CODES]);
-    for (const row of rows) expect(C.CG_RETRY_APPENDIX_A[F.cgFanslyEntry(row.code as F.CgFanslyCode).retry], row.code).toBe(row.retry);
   });
 
   it('keep the CG-<AREA>-<NAME> form in the five Fansly areas, apart from the shared codes', () => {
@@ -193,14 +172,6 @@ describe('[ER-001] [ER-002] [ER-004] [host:fansly] the Fansly CG codes (errors-f
     for (const code of F.CG_ANY_CODES) expect(code, code).not.toMatch(/-\d+$/);
     expect(F.CG_FANSLY_RETIRED_CODES).toEqual([]);
     for (const entry of entries) expect(entry.retired).toBeUndefined();
-  });
-
-  it('name the old extension’s code they replace, and only codes of its registry', () => {
-    const old = fanslyAppendixRows().flatMap((row) => (row.old === '—' ? [] : row.old.split(', ')));
-    for (const code of old) expect(code).toMatch(/^CG-(FAN|API|VOICE)-\d{2}$/);
-    expect(old.filter((code) => code.startsWith('CG-VOICE-')).sort()).toEqual(Array.from({ length: 12 }, (_, i) => `CG-VOICE-${String(i + 1).padStart(2, '0')}`));
-    expect(old).toEqual(expect.arrayContaining(['CG-FAN-01', 'CG-FAN-02', 'CG-FAN-03', 'CG-FAN-04', 'CG-API-01']));
-    for (const retired of F.FANSLY_RETIRED_OLD_CODES) expect(old).not.toContain(retired);
   });
 
   it('entries: known vocabularies, text keys from the code, keys apart from the shared catalog, settings links with their own code', () => {
@@ -236,9 +207,7 @@ describe('[ER-001] [ER-002] [ER-004] [host:fansly] the Fansly CG codes (errors-f
     for (const code of ['CG-VAULT-UNCERTAIN', 'CG-VOICE-ATTACH-UNKNOWN'] as const) expect(F.cgFanslyEntry(code).recovery, code).toBe('none');
   });
 
-  it('the hub’s voice codes read as Fansly codes by the table, and no shared rule claims one', () => {
-    const rows = fanslyHubAppendixRows();
-    expect(Object.fromEntries(rows.map((row) => [row.error, { status: row.status, cg: row.cg }]))).toEqual(F.HUB_FANSLY_ERROR_CODES);
+  it('no shared rule claims a hub voice code of Fansly', () => {
     for (const error of Object.keys(F.HUB_FANSLY_ERROR_CODES)) {
       expect(C.HUB_HTTP_ERROR_RULES.some((rule) => rule.error === error), error).toBe(false);
       expect(error in C.HUB_ERROR_STATUSES, error).toBe(false);

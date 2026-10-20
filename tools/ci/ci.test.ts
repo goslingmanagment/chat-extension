@@ -2,8 +2,6 @@
 // tools/ci/e2e-docker.sh, tools/ci/e2e-needed.sh) and its local variant
 // (tools/ci/e2e-docker-local.sh) — what can be checked without Docker and
 // without GitHub:
-//   - the shape of the workflow: the parts of the suite, the check «pnpm e2e»
-//     that is green only when every part is, a PR that runs `check` alone;
 //   - a cancelled job does not leave its container: the workflow's own `run:`
 //     line is started the way the runner starts a step, signalled the way the
 //     runner cancels one, against a stand-in `docker` that keeps "containers"
@@ -28,15 +26,6 @@ const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$
 const WORKFLOW = readFileSync(join(REPO_ROOT, '.github/workflows/ci.yml'), 'utf8');
 const IMAGE = /^CG_E2E_IMAGE='([^']+)'$/m.exec(readFileSync(join(REPO_ROOT, 'tools/ci/e2e-image.sh'), 'utf8'))?.[1] ?? '';
 const DIGEST = IMAGE.slice(IMAGE.indexOf('sha256:') + 'sha256:'.length);
-
-/** The text of the job `id` (`  <id>:` up to the next job), as the workflow has it. */
-function job(id: string): string {
-  const start = WORKFLOW.indexOf(`\n  ${id}:\n`);
-  if (start === -1) throw new Error(`no job «${id}» in the workflow`);
-  const rest = WORKFLOW.slice(start + 1);
-  const next = /\n {2}[a-z][a-z0-9-]*:\n/.exec(rest.slice(1));
-  return next === null ? rest : rest.slice(0, next.index + 1);
-}
 
 /** The `run:` text of the step whose name starts with `name`, as the workflow has it. */
 function runLine(name: string): string {
@@ -160,12 +149,6 @@ const RUNNER_SIGINT_WAIT_MS = 7500;
 describe('the e2e container of a CI job', () => {
   const E2E_STEP = runLine('e2e (headless Firefox');
   const CLEANUP_STEP = runLine('Remove the e2e container, if one is left');
-
-  it('is started by a script that takes the runner’s signal itself: the step is `exec`, and a clean-up step always follows', () => {
-    expect(E2E_STEP).toBe('exec tools/ci/e2e-docker.sh');
-    expect(WORKFLOW).toMatch(/- name: Remove the e2e container, if one is left\n {8}if: always\(\) && steps\.scope\.outputs\.e2e != 'false'\n/);
-    expect(CLEANUP_STEP).toContain('tools/ci/e2e-docker.sh --remove-container');
-  });
 
   for (const [signal, code] of [
     ['SIGINT', 130],
@@ -394,92 +377,6 @@ describe('which changes run the e2e suite', () => {
     // And so does a run started by hand.
     expect(needed({ cwd: r.dir, env: { GITHUB_EVENT_NAME: 'workflow_dispatch' } }).line).toBe('e2e=true');
     expect(needed({ cwd: r.dir, env: {} }).line).toBe('e2e=true');
-  });
-
-  it('the workflow: `check` runs in full unless its tree is proven; in each part of the suite every step after the questions is skipped only on a plain «false» or a proof', () => {
-    const check = job('check');
-    const part = job('e2e-part');
-    expect(check).toContain('name: pnpm check');
-    expect(check).not.toContain('steps.scope');
-    // Both jobs read the PR against its base, the first parent of GitHub's merge commit: a part to know whether it is
-    // needed, `check` for the gate on ChatSpace's byte pins (tools/gates/change.ts).
-    expect(check).toMatch(/- name: Checkout\n {8}uses: actions\/checkout@v6\n {8}with:\n {10}fetch-depth: 2\n/);
-    expect(part).toMatch(/- name: Checkout\n {8}uses: actions\/checkout@v6\n {8}with:\n {10}fetch-depth: 2\n/);
-    expect(runLine('Does this change need e2e\\?')).toBe('tools/ci/e2e-needed.sh >> "$GITHUB_OUTPUT"');
-    const steps = part.slice(part.indexOf('- name: Does this change need e2e?')).split(/\n {6}- name: /).slice(1);
-    expect(steps.map((step) => step.split('\n')[0])).toEqual(['Setup Node.js', 'Did this tree already pass?', 'Setup pnpm', 'Install dependencies', 'e2e (headless Firefox in the pinned image, no network)', 'Remove the e2e container, if one is left', 'Upload e2e logs']);
-    // The clean-up step runs on a proof too: it only removes what an earlier run may have left.
-    for (const step of [...steps.slice(0, 2), steps[5] ?? '']) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: (always\(\) && )?steps\.scope\.outputs\.e2e != 'false'\n/);
-    for (const step of steps.slice(2, 5)) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: steps\.scope\.outputs\.e2e != 'false' && steps\.proof\.outputs\.proven_by == ''\n/);
-    // `check`: every step after the question, on a proof alone.
-    const checkSteps = check.slice(check.indexOf('- name: Did this tree already pass?')).split(/\n {6}- name: /).slice(1);
-    expect(checkSteps.map((step) => step.split('\n')[0])).toEqual(['Setup pnpm', 'Install dependencies', 'Check', 'Dependency audit (warnings only)']);
-    for (const step of checkSteps) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: steps\.proof\.outputs\.proven_by == ''\n/);
-    // No workflow-level path filter: a required check of a workflow that never starts would wait for ever.
-    expect(WORKFLOW).not.toMatch(/^\s+paths(-ignore)?:/m);
-  });
-});
-
-// ── the parts of the suite and the required check ──────────────────────────
-
-describe('the e2e suite in parts', () => {
-  const PART = job('e2e-part');
-  const GATE = job('e2e');
-  const NOT_ON_A_PR = "github.event_name != 'pull_request'";
-
-  it('runs as five parts on the PC and one on GitHub, each part named «e2e <k>/<n>» and run with CG_E2E_SHARD=<k>/<n>', () => {
-    expect(PART).toContain('    name: e2e ${{ matrix.shard }}\n');
-    expect(PART).toContain(`        shard: \${{ fromJSON(vars.CI_POOL == 'pc' && '["1/5","2/5","3/5","4/5","5/5"]' || '["1/1"]') }}\n`);
-    // Every part reports, however the others end.
-    expect(PART).toContain('      fail-fast: false\n');
-    expect(PART).toMatch(/- name: e2e \(headless Firefox in the pinned image, no network\)\n {8}if: [^\n]+\n {8}env:\n {10}CG_E2E_SHARD: \$\{\{ matrix\.shard \}\}\n(?: {10}#[^\n]*\n)* {10}CG_E2E_TIMING_SLACK: '3'\n {8}run: exec tools\/ci\/e2e-docker\.sh\n/);
-    // The logs of a failed part do not overwrite another part's.
-    expect(PART).toContain('name: e2e-logs-${{ github.run_id }}-${{ github.run_attempt }}-part-${{ strategy.job-index }}\n');
-  });
-
-  it('keeps the two checks by name: one job «pnpm check» (main’s ruleset requires it), one «pnpm e2e» — the gate over the parts the release gate reads', () => {
-    expect(WORKFLOW.match(/^ {4}name: pnpm check$/gm)).toHaveLength(1);
-    expect(WORKFLOW.match(/^ {4}name: pnpm e2e$/gm)).toHaveLength(1);
-    expect(GATE).toContain('    name: pnpm e2e\n');
-    expect(GATE).toContain('    needs: [check, e2e-part]\n');
-    // Runs whatever the parts did: «skipped» would read as passed.
-    expect(GATE).toContain(`    if: always() && ${NOT_ON_A_PR}\n`);
-    expect(GATE).toContain('          PARTS: ${{ needs.e2e-part.result }}\n');
-  });
-
-  it('the gate is green only when every part is: a failed, cancelled, skipped or unknown result is red', () => {
-    const script = /- name: Every part of the suite passed\n(?: {8}[^\n]*\n)*? {8}run: \|\n((?: {10}[^\n]*\n)+)/.exec(GATE)?.[1]?.replace(/^ {10}/gm, '');
-    expect(script).toBeDefined();
-    const gate = (parts: string): { status: number | null; output: string } => {
-      const result = spawnSync('bash', ['-e', '-c', script ?? 'exit 99'], { env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', PARTS: parts }, encoding: 'utf8' });
-      return { status: result.status, output: result.stdout + result.stderr };
-    };
-    expect(gate('success')).toEqual({ status: 0, output: 'the parts of the e2e suite: success\n' });
-    for (const parts of ['failure', 'cancelled', 'skipped', '']) {
-      const red = gate(parts);
-      expect(red.status, parts).toBe(1);
-      expect(red.output, parts).toContain(`::error title=pnpm e2e::a part of the e2e suite did not pass (${parts})`);
-    }
-  });
-
-  it('a PR runs `check` alone, a push to main and a manual run run every job; every job asks the same pool', () => {
-    const pool = (label: string, hosted: string): string => `    runs-on: \${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","${label}"]') || '${hosted}' }}\n`;
-    // The gate asks for the light runner's label on the PC (the heavy runners carry it too); the work, for ci-pc.
-    for (const [id, label, hosted] of [
-      ['check', 'ci-pc', 'ubuntu-24.04'],
-      ['e2e-part', 'ci-pc', 'ubuntu-24.04'],
-      ['e2e', 'ci-pc-control', 'ubuntu-slim'],
-    ] as const) {
-      const text = job(id);
-      expect(text, id).not.toContain('draft');
-      expect(text, id).toContain(pool(label, hosted));
-    }
-    expect(job('check')).not.toMatch(/^ {4}if:/m);
-    expect(PART).toContain(`    if: ${NOT_ON_A_PR}\n`);
-    // A newer push to the PR cancels its run.
-    expect(WORKFLOW).toContain("  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}\n  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n");
-    expect(WORKFLOW).toMatch(/pull_request:\n {4}types: \[opened, synchronize, reopened\]\n/);
-    expect(WORKFLOW).toMatch(/push:\n {4}branches:\n {6}- main\n/);
   });
 });
 

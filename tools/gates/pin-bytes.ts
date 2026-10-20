@@ -2,12 +2,8 @@
 // the hash of every file a ChatSpace tab and its background load, in the
 // release build (`pnpm build` first) — and prints what moved.
 //
-// The pins are how ChatSpace's bundles are compared with `main` in every pull
-// request without a second build (docs/project-unite/architecture.md §1.8):
-// `pnpm gates` fails while the build differs from them. Run this only for a
-// change of shared code that means to move those bytes, commit the file, and
-// name the delta in the PR (architecture.md §3.2). A change of Fansly's own files never needs it: if
-// `pnpm gates` asks such a change for new pins, something leaked.
+// On demand only: a tool to see what a change did to ChatSpace's bundles, not
+// a per-PR duty — `pnpm gates` does not compare the build with the pins.
 //
 // Usage: node tools/gates/pin-bytes.ts [--check]
 //   --check  writes nothing; exits 1 when the pins differ from the build.
@@ -52,5 +48,5 @@ if (changes.length === 0) {
 } else {
   writeFileSync(file, serializeSiteBytes(built));
   const delta = total(built) - total(pinned);
-  console.log(`gates:bytes: wrote ${CHATSPACE_BYTES_PATH} — ${changes.length} file(s) moved, ${count} files of ChatSpace, ${total(built)} B (${delta > 0 ? '+' : ''}${delta}). Commit it and name the delta in the PR.`);
+  console.log(`gates:bytes: wrote ${CHATSPACE_BYTES_PATH} — ${changes.length} file(s) moved, ${count} files of ChatSpace, ${total(built)} B (${delta > 0 ? '+' : ''}${delta}).`);
 }

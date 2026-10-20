@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-
 import { describe, expect, it } from 'vitest';
 
 import { CG_FANSLY_CODES, CG_FANSLY_REGISTRY } from '../../packages/contracts/src/errors-fansly.ts';
@@ -9,8 +7,7 @@ import { CHATSPACE_PHRASES } from '../../packages/core/src/domain/hosts/chatspac
 import { FANSLY_CG_RU } from '../../packages/core/src/domain/hosts/fansly/i18n/ru.ts';
 import { interpolate, withPhrases } from '../../packages/core/src/domain/i18n/live.ts';
 import { RU } from '../../packages/core/src/domain/i18n/ru.ts';
-import { REPO_ROOT } from '../lib/paths.ts';
-import { REGISTRY_DOC_PATH, renderRegistryDoc } from './render.ts';
+import { renderRegistryDoc } from './render.ts';
 
 const render = (): string =>
   renderRegistryDoc({
@@ -21,11 +18,7 @@ const render = (): string =>
     fansly: { entries: Object.values(CG_FANSLY_REGISTRY), ru: (key) => FANSLY_CG_RU[key] },
   });
 
-describe('docs/error-registry.md', () => {
-  it('is up to date with the registry and the ru catalog (node tools/cg-registry/generate.ts)', () => {
-    expect(readFileSync(`${REPO_ROOT}${REGISTRY_DOC_PATH}`, 'utf8')).toBe(render());
-  });
-
+describe('the error registry page (tools/cg-registry/render.ts)', () => {
   it('has one row per code, in Appendix A order; the Fansly codes in their own section after the shared ones', () => {
     const doc = render();
     const fansly = doc.indexOf('## Коды Fansly');

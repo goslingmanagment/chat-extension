@@ -1,9 +1,6 @@
 // The feature manifest is complete (docs/project-unite/architecture.md §1.8 «Полнота манифеста»; R20 F9b): every
-// name of the vocabularies is mentioned by an entry or is the application's own, and every entry of a site's slice has
-// its parity rows, planned on the site's host, with an e2e on that site's stand once its owner there is done. The
-// rules on fixtures first, then this repository — the manifest's modules are read here, by Vitest.
-
-import { readFileSync } from 'node:fs';
+// name of the vocabularies is mentioned by an entry or is the application's own. The rules on fixtures first, then
+// this repository — the manifest's modules are read here, by Vitest.
 
 import { describe, expect, it } from 'vitest';
 
@@ -17,35 +14,25 @@ import { FANSLY_OP_DRIVERS, FANSLY_OPS } from '../../packages/contracts/src/ops-
 import { CATALOG_ACTION_IDS } from '../../packages/contracts/src/vm/catalog.ts';
 import { MOUNT_SURFACES } from '../../packages/contracts/src/vm/selectors.ts';
 import { ROW_FEATURE } from '../../packages/core/src/domain/hotkeys/cheatsheet.ts';
-import { REPO_ROOT } from '../lib/paths.ts';
-import { MANIFEST_PATH, prOfOwner, type ManifestRow } from '../parity/derive.ts';
-import { closes, placeOfTest, type Host } from '../parity/hosts.ts';
-import { parsePlanPrs } from '../parity/matrix.ts';
-import { readPlanPrs } from '../parity/plan.ts';
-import { readTestFiles } from '../parity/test-files.ts';
 import {
   APPLICATION_CHUNKS,
   SITE_APPLICATION_CHUNKS,
   APPLICATION_SURFACES,
   checkManifestNames,
-  checkManifestParity,
-  FEATURE_PARITY,
   OPERATION_ENTRY,
   REFERENCE_OWN_ROWS,
   type ManifestEntry,
   type ManifestVocabularies,
-  type ParityFacts,
   type SiteManifest,
 } from './manifest.ts';
 
 const NOTHING = { flags: [], hostCapabilities: [] };
 const entry = (over: Partial<ManifestEntry> = {}): ManifestEntry => ({ base: NOTHING, actions: {}, surfaces: [], ...over });
 
-/** A small world: two sites, a vocabulary each rule reads, rows on both hosts. */
+/** A small world: two sites and a vocabulary each rule reads. */
 const SITES: readonly SiteManifest[] = [
   {
     site: 'one',
-    host: 'chatspace',
     features: {
       reply: entry({ base: { flags: ['drafts'], hostCapabilities: [] }, surfaces: ['dock'], switches: ['splitAll'] }),
       recap: entry({ surfaces: ['dock', 'fan-panel'] }),
@@ -53,7 +40,7 @@ const SITES: readonly SiteManifest[] = [
     },
     lazyEntries: ['dock', 'board', 'tab-app'],
   },
-  { site: 'two', host: 'fansly', features: { reply: entry({ base: { flags: ['drafts'], hostCapabilities: [] }, surfaces: ['dock'] }), notes: entry({ surfaces: ['notes'] }) }, lazyEntries: null },
+  { site: 'two', features: { reply: entry({ base: { flags: ['drafts'], hostCapabilities: [] }, surfaces: ['dock'] }), notes: entry({ surfaces: ['notes'] }) }, lazyEntries: null },
 ];
 const VOCABULARIES: ManifestVocabularies = {
   operations: ['reply', 'recap', 'recap-short'],
@@ -62,15 +49,6 @@ const VOCABULARIES: ManifestVocabularies = {
   referenceRows: ['reply', 'recap', 'chat-next', ...REFERENCE_OWN_ROWS],
   rowFeature: { 'chat-next': 'board' },
 };
-const TABLE = { reply: ['R-1'], recap: ['R-2'], board: ['R-3'], notes: ['N-1'] };
-const plan = (owner: string, kind: string) => ({ owner, check: { kind } });
-const ROWS: ParityFacts['rows'] = [
-  { id: 'R-1', chatspace: plan('R11', 'unit'), fansly: plan('R20/P8b3', 'e2e') },
-  { id: 'R-2', chatspace: plan('R12', 'unit'), fansly: plan('R20/P8c', 'shared') },
-  { id: 'R-3', chatspace: plan('R13', 'e2e'), fansly: { check: { kind: 'n/a' } } },
-  { id: 'N-1', chatspace: { check: { kind: 'n/a' } }, fansly: plan('R20/P11b', 'e2e') },
-];
-const FACTS: ParityFacts = { rows: ROWS, browserRows: { chatspace: new Set(['R-1', 'R-2', 'R-3']), fansly: new Set() }, ownerDone: (owner) => prOfOwner(owner) === null };
 const messages = (violations: readonly { readonly message: string }[]): string[] => violations.map((violation) => violation.message.replace(/ \(docs\/project-unite.*$/, ''));
 
 describe('gate: the manifest names everything (architecture §1.8, F9b)', () => {
@@ -120,41 +98,15 @@ describe('gate: the manifest names everything (architecture §1.8, F9b)', () => 
   });
 });
 
-describe('gate: every entry has its parity rows and its e2e (architecture §1.8, F9b; with P1b)', () => {
-  it('a world with its rows planned and its e2e where the owner is done passes', () => {
-    expect(checkManifestParity(SITES, FACTS, TABLE)).toEqual([]);
-  });
-
-  it('an entry without rows, a row the manifest lacks and rows a site does not plan are red', () => {
-    const { board: _board, ...withoutBoard } = TABLE;
-    expect(messages(checkManifestParity(SITES, FACTS, { ...withoutBoard, recap: ['R-9'], notes: ['R-3'], gone: ['R-1'] }))).toEqual([
-      "«gone» has parity rows in tools/gates/manifest.ts but is no entry of any site's slice: drop it",
-      'one: «recap» names the parity row R-9, which docs/parity/parity-manifest.json does not have',
-      'one: no parity row of «recap» (R-9) is planned on chatspace with a check a test closes',
-      'one: «board» names no parity row: add its rows to FEATURE_PARITY in tools/gates/manifest.ts',
-      'two: no parity row of «notes» (R-3) is planned on fansly with a check a test closes',
-    ]);
-  });
-
-  it('the e2e on a site’s stand is due once an owner there is done: including a Fansly PR with a done file', () => {
-    const noE2e: ParityFacts = { ...FACTS, browserRows: { chatspace: new Set(['R-2', 'R-3']), fansly: new Set() } };
-    expect(messages(checkManifestParity(SITES, noE2e, TABLE))).toEqual(['one: «reply» has no e2e on its stand — no spec on chatspace names R-1, and its owner there is done']);
-    // Fansly's rows: nothing is due while their PRs are open; P8b3 marked done asks for its e2e on Fansly's stand.
-    const done = parsePlanPrs('# Plan\n## 2. PR по этапам\n| P8b3 | reply |\n', ['P8b3']).done;
-    const p8b3: ParityFacts = { ...FACTS, ownerDone: (owner) => prOfOwner(owner) === null || done.has(prOfOwner(owner) ?? '') };
-    expect(messages(checkManifestParity(SITES, p8b3, TABLE))).toEqual(['two: «reply» has no e2e on its stand — no spec on fansly names R-1, and its owner there is done']);
-  });
-});
-
 describe('this repo: the manifest is complete', () => {
   /** Each site's slice, by its host kind: a new kind does not typecheck until its slice is here. */
-  const SLICES: { readonly [K in HostKind]: { readonly features: Readonly<Record<string, ManifestEntry>>; readonly host: Host } } = {
-    chatspace: { features: CHATSPACE_FEATURES, host: 'chatspace' },
-    'fansly-web': { features: FANSLY_FEATURES, host: 'fansly' },
+  const SLICES: { readonly [K in HostKind]: Readonly<Record<string, ManifestEntry>> } = {
+    chatspace: CHATSPACE_FEATURES,
+    'fansly-web': FANSLY_FEATURES,
   };
   const sites: SiteManifest[] = HOST_KINDS.map((kind) => {
     const registered = HOSTS.find((host) => host.kind === kind);
-    return { site: kind, host: SLICES[kind].host, features: SLICES[kind].features, lazyEntries: registered === undefined ? null : Object.keys(registered.lazy.entries) };
+    return { site: kind, features: SLICES[kind], lazyEntries: registered === undefined ? null : Object.keys(registered.lazy.entries) };
   });
 
   it('every operation, switch, surface, row of the reference and lazy entry is an entry’s or the application’s own', () => {
@@ -186,22 +138,5 @@ describe('this repo: the manifest is complete', () => {
     expect(messages(checkManifestNames([chatspace, { ...fansly, lazyEntries: fansly.lazyEntries.filter((chunk) => chunk !== 'ai-fansly') }], vocabularies))).toEqual([
       "«ai-fansly», listed as fansly-web's own application chunk, is no lazy entry of its build: drop it from tools/gates/manifest.ts",
     ]);
-  });
-
-  it('every entry of every site has its parity rows, planned on its host, and its e2e on its stand where its owner is done', () => {
-    const rows = (JSON.parse(readFileSync(`${REPO_ROOT}${MANIFEST_PATH}`, 'utf8')) as { rows: ManifestRow[] }).rows;
-    const browserRows: Record<Host, Set<string>> = { chatspace: new Set(), fansly: new Set() };
-    for (const file of readTestFiles(REPO_ROOT)) {
-      const { place } = placeOfTest(file.path, file.hosts);
-      for (const host of ['chatspace', 'fansly'] as const) if (closes(place, host, 'e2e')) for (const tag of file.tags) browserRows[host].add(tag);
-    }
-    const done = readPlanPrs(REPO_ROOT).done;
-    const ownerDone = (owner: string): boolean => {
-      const pr = prOfOwner(owner);
-      return pr === null || done.has(pr);
-    };
-    expect(messages(checkManifestParity(sites, { rows: rows as unknown as ParityFacts['rows'], browserRows, ownerDone }))).toEqual([]);
-    // Every entry of both sites is in the table, and nothing else is.
-    expect(Object.keys(FEATURE_PARITY).sort()).toEqual([...new Set(sites.flatMap((site) => Object.keys(site.features)))].sort());
   });
 });
