@@ -147,8 +147,6 @@ export interface GreetingDesk {
   greeting(fanRef: string): GreetingStatusVM;
   /** Why Hi is off for the fan; null — it may start. */
   hiBlocked(fanRef: string): ReasonVM | null;
-  /** The hub confirms a current subscription to this page (X8 condition 9). */
-  subscribed(fanRef: string): boolean;
   /** A fingerprint of the fan's thread as the list shows it now; a draft written on another one is stale (NF-018). */
   threadRevision(fanRef: string): string | null;
   /** Parts of the greeting this tab sends, as the preview's attempts stand. */

@@ -175,7 +175,7 @@ describe('[X8-05] a preview send through the whole MAIN side (§6.7)', () => {
     expect(h.composer.calls).toEqual([]);
   });
 
-  it('the page’s own facts refuse: the open chat, a blocked fan from fansMap, an observed history entry, a subscription ChatSpace dropped', async () => {
+  it('the page’s own facts refuse: the open chat, a blocked fan from fansMap; a loaded history does not (audit 2026-10-20, row 17); a subscription ChatSpace dropped warns', async () => {
     const h = await start();
     h.call('flags', { wsTap: true, previewSend: true });
     h.socket();
@@ -185,14 +185,13 @@ describe('[X8-05] a preview send through the whole MAIN side (§6.7)', () => {
     expect(h.call('previewSendPreflight', req)).toEqual({ ok: false, code: 'CG-SEND-FAN' });
     h.page.cache.set(['fansMap', ACC], {});
     h.page.cache.set(['chatMessages', ACC, TARGET], { pages: [], pageParams: [] });
-    expect(h.call('previewSendPreflight', req)).toEqual({ ok: false, code: 'CG-SEND-HISTORY' });
-    h.page.cache.delete(['chatMessages', ACC, TARGET]);
     expect(h.call('previewSendPreflight', req)).toEqual({ ok: true });
     // ChatSpace unsubscribes the account (its tab was closed): the store's change reaches the tap at once.
     const accounts = h.page.stores.get('accounts');
     if (accounts) accounts['subscribedAccountIds'] = new Set();
     accounts?.$changed();
     expect(h.of('coverage').at(-1)).toEqual({ acc: ACC, state: 'unknown', reason: 'subscription' });
+    expect(h.call('previewSendPreflight', req)).toEqual({ ok: true, warn: 'CG-SEND-FRESHNESS' });
     expect(h.call('previewSendCommit', req)).toEqual({ state: 'held', code: 'CG-SEND-FRESHNESS' });
     expect(h.queue.sends).toEqual([]);
   });

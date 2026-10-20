@@ -124,7 +124,6 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
     ['the account is bound to another creator', 'CG-SEND-PERMISSION', (live) => live.live.set(['accounts'], [{ id: 1001, platformAccountId: '3999' }])],
     ['the role cannot send messages', 'CG-SEND-PERMISSION', (live) => live.live.set(['userPermissions'], ['of_block_message_sending'])],
     ['the target is the open chat', 'CG-SEND-ACTIVE-CHAT', (live) => void (live.live.route = { name: 'chat', acc: ACC, fan: FAN })],
-    ['the target’s history query is observed', 'CG-SEND-HISTORY', (live) => void live.live.entries.set(JSON.stringify(['chatMessages', ACC, FAN]), { active: true, asyncStatus: { value: 'idle' } })],
     ['the fan is blocked', 'CG-SEND-FAN', (live) => live.live.set(['fansMap', ACC], { [FAN]: { isBlocked: true, canReceiveMessages: true, isRestricted: false } })],
     [
       'Mimic runs this chat',
@@ -135,9 +134,7 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
       },
     ],
     ['the translator would translate on send', 'CG-SEND-TRANSLATOR', (live) => void ((live.live.stores.get('composerTranslator')?.['settings'] as Record<string, unknown>)[ACC] = { enabled: true, autoTranslate: true })],
-    ['the account’s queue is processing', 'CG-SEND-BUSY', (live) => void ((live.queue.store['processingByAccountId'] as Record<string, boolean>)[ACC] = true)],
-    ['the fan wrote after Generate', 'CG-SEND-STALE', (live) => live.socket.receive(frames.message(ACC, FAN, '5001', true))],
-    ['the socket reconnected after Generate', 'CG-SEND-FRESHNESS', (live) => live.socket.close()],
+    ['a message of this chat waits in the queue', 'CG-SEND-BUSY', (live) => void ((live.queue.store['messagesByAccountId'] as Record<string, unknown[]>)[ACC] ??= []).push({ id: 'p-1', accountId: ACC, chatId: FAN, platform: 'onlyfans', status: 'pending', error: null, createdAt: 1, payload: {} })],
   ];
 
   it.each(cases)('%s → %s: the button is refused and the click makes no queue call', async (_name, code, breakIt) => {
@@ -163,6 +160,29 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
     expect(JSON.stringify([...live.live.data])).toBe(before);
     expect(live.win.fetch).toBe(fetchBefore);
     expect(live.states()).toEqual([]);
+  });
+
+  it.each([
+    ['the fan wrote after Generate', 'CG-SEND-STALE', (live: LiveHarness) => live.socket.receive(frames.message(ACC, FAN, '5001', true))],
+    ['the socket reconnected after Generate', 'CG-SEND-FRESHNESS', (live: LiveHarness) => live.socket.close()],
+  ])('%s → a %s warning: held without «Отправить всё равно», sent with it (audit 2026-10-20, rows 3–4)', (_name, code, breakIt) => {
+    const live = start();
+    const req = live.request(4);
+    breakIt(live);
+    expect(live.preflight(req)).toEqual({ ok: true, warn: code });
+    expect(live.commit(req)).toEqual({ state: 'held', code });
+    expect(live.queue.sends).toEqual([]);
+    const anyway = { ...live.request(5), checkpoint: req.checkpoint, acceptFreshness: true as const };
+    expect(live.preflight(anyway)).toEqual({ ok: true });
+    expect(live.commit(anyway)).toMatchObject({ state: 'nativeEnqueued' });
+    expect(live.queue.sends).toHaveLength(1);
+  });
+
+  it('Mimic or the translator with no data, or off, is no refusal (audit 2026-10-20, row 14)', () => {
+    const live = start();
+    live.live.data.delete(JSON.stringify(['mimicSettings']));
+    live.live.stores.delete('composerTranslator');
+    expect(live.preflight(live.request(6))).toEqual({ ok: true });
   });
 
   it('an empty text, a checkpoint without coverage or of another document, and a late ticket are held', () => {
@@ -213,12 +233,29 @@ describe('[X8-03] one attempt, one queue call (§6.7.7)', () => {
     expect(answers[0]?.state).toBe('nativeEnqueued');
   });
 
-  it('twenty attempts for the account in one tick: the first is queued, the others find the queue busy', () => {
+  it('twenty attempts for the account in one tick: the first is queued, the others wait outside the queue and give up before their ticket ends', async () => {
     const live = start();
-    const answers = Array.from({ length: 20 }, (_, n) => live.commit(live.request(30 + n, { fan: String(2100 + n) })));
+    // The wait gives up 1.5 s before the deadline: with 1.55 s left that is after one look.
+    const soon = Date.now() + 1_550;
+    const answers = Array.from({ length: 20 }, (_, n) => live.commitLater(live.request(30 + n, { fan: String(2100 + n), expiresAt: soon })));
     expect(live.queue.sends).toHaveLength(1);
-    expect(answers[0]?.state).toBe('nativeEnqueued');
-    expect(answers.slice(1)).toEqual(Array.from({ length: 19 }, () => ({ state: 'held', code: 'CG-SEND-BUSY' })));
+    expect((await answers[0])?.state).toBe('nativeEnqueued');
+    // Never queued behind another chat's send: its request would not start on our stack (receipt.ts).
+    expect(await Promise.all(answers.slice(1))).toEqual(Array.from({ length: 19 }, () => ({ state: 'held', code: 'CG-SEND-BUSY' })));
+    expect(live.queue.sends).toHaveLength(1);
+  });
+
+  it('a click while the account sends another chat’s message waits and goes once the queue is free (audit 2026-10-20, row 12)', async () => {
+    const live = start();
+    expect(live.commit(live.request(40, { fan: '2200' })).state).toBe('nativeEnqueued');
+    const second = live.request(41, { fan: '2201' });
+    expect(live.preflight(second)).toEqual({ ok: true });
+    const waiting = live.commitLater(second);
+    expect(live.queue.sends).toHaveLength(1);
+    await live.settle();
+    live.calls[0]?.respond(200, { id: '8001' });
+    expect(await waiting).toMatchObject({ state: 'nativeEnqueued' });
+    expect(live.queue.sends.map((send) => send['chatId'])).toEqual(['2200', '2201']);
   });
 
   it('an attempt that may have reached the queue is never forgotten: its command after 300 others gets the first answer, not a second queue call', async () => {

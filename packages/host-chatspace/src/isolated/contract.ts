@@ -83,8 +83,11 @@ const ANCHORS: readonly AnchorId[] = [
   'receiptProfile',
   'theme',
 ];
-/** Anchors an X8 condition is read from (§6.2, §6.7.4): one that is not ok keeps the preview send off. */
-const SEND_ANCHORS: readonly AnchorId[] = ['accounts', 'pendingMessages', 'composerTranslator', 'mimic', 'userPermissions'];
+/**
+ * Anchors an X8 condition is read from (§6.2, §6.7.4): one that is not ok keeps the preview send off. Mimic and the
+ * translator are not among them (2026-10-20 audit, row 14): MAIN refuses only when their data says they are on.
+ */
+const SEND_ANCHORS: readonly AnchorId[] = ['accounts', 'pendingMessages', 'userPermissions'];
 
 export function buildContractReport(input: ContractInput): ChatSpaceContractReport {
   const { wire, dom } = input;
@@ -119,6 +122,8 @@ export function buildContractReport(input: ContractInput): ChatSpaceContractRepo
   const cached = (id: AnchorId): CapabilityState => (route.state !== 'on' ? route : anchors[id] === 'ok' ? on : off(id));
   const coded = (state: 'off' | 'degraded', reason: string, code: CapabilityState['code']): CapabilityState => ({ state, reason, ...(code ? { code } : {}) });
   const noTap = coded('off', 'wsTap', 'CG-SEND-FRESHNESS');
+  // The send path is the tap script's (the receipt observer): without it nothing is sent from the preview at all.
+  const noTapSend = coded('off', 'wsTap', 'CG-SEND-OFF');
   const incoming = route.state !== 'on' ? route : !live.tap ? noTap : anchors.wsFrames === 'ok' ? on : coded('degraded', 'wsFrames', 'CG-SEND-FRESHNESS');
   const sendObserve = route.state !== 'on' ? route : anchors.pendingMessages !== 'ok' ? coded('off', 'pendingMessages', 'CG-SEND-HOST') : !live.tap ? noTap : on;
   const receipt = live.receipt ? on : coded('off', 'receiptProfile', 'CG-SEND-RECEIPT');
@@ -133,7 +138,7 @@ export function buildContractReport(input: ContractInput): ChatSpaceContractRepo
           : brokenSendAnchor
           ? coded('off', brokenSendAnchor, 'CG-SEND-HOST')
           : !live.tap
-            ? noTap
+            ? noTapSend
             : receipt;
 
   const capabilities: Record<HostCapability, CapabilityState> = {

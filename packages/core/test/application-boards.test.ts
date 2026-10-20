@@ -520,10 +520,8 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     expect(first?.sendOrder).toBeNull();
     expect(first?.openInsert).toEqual({ s: 'available' });
     expect(second?.send).toEqual({ s: 'available' });
-    expect(second?.sendOrder).toEqual({ kind: 'after', part: 1 });
-    // The second part cannot jump the queue.
-    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 })).toMatchObject({ ok: false });
-    expect(h.host.calls.commits).toEqual([]);
+    // Parts go in any order (audit 2026-10-20, row 13); only one of the fan's is on its way at a time.
+    expect(second?.sendOrder).toBeNull();
 
     const sending = h.boards.preview.dispatch({ type: 'SendPart', operationId: opId, part: 0 })!;
     // Off from the first click, before anything answers.
@@ -856,8 +854,8 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     expect(first?.openInsert).toEqual({ s: 'hidden' });
     expect(vm.result?.sendProgress).toEqual({ sent: 1, total: 2 });
     expect(vm.unread).toBe('read-after-send');
-    // The checkpoint of the generation did not survive the reload: the rest can be inserted by the person, not sent by us.
-    expect(second?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-FRESHNESS' });
+    // The checkpoint of the generation did not survive the reload: a warning; «Отправить всё равно» takes one now (rows 3–4).
+    expect(second?.send).toEqual({ s: 'unverified' });
     expect(second?.openInsert).toEqual({ s: 'available' });
     expect((await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).ok).toBe(false);
   });
@@ -942,8 +940,8 @@ describe('[TL-004] [NF-019] a part the person sent with ChatSpace’s own Send i
     const { h, opId, handle } = await withReply({ config: {}, answers: { navigate: [applied, applied] } });
     const before = partsOf(h, 'spenders');
     expect(before.map((part) => part.send)).toMatchObject([{ s: 'unavailable', code: 'CG-SEND-OFF' }, { s: 'unavailable', code: 'CG-SEND-OFF' }]);
-    // Parts go in their order: the second one waits behind the first, with only «Копировать» on its row.
-    expect(before.map((part) => part.sendOrder)).toEqual([null, { kind: 'after', part: 1 }]);
+    // Parts go in any order (audit 2026-10-20, row 13).
+    expect(before.map((part) => part.sendOrder)).toEqual([null, null]);
     expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'opened' });
     expect(h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null } });
     // The person presses ChatSpace's Send; the tab proves it by the receipt and the echo, the background journals the part as delivered.
@@ -1407,34 +1405,7 @@ describe('[NF-019] a greeting is sent part by part, under the lease, and counts 
     expect(await long.h.dispatch({ type: 'OpenAndInsertPart', operationId: long.opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-OUTPUT-UNUSABLE' });
     expect(long.h.host.calls.navigations).toEqual([]);
   });
-
-  it('[X8-09] [NF-019] «Новые» confirms the subscription only by a status with its data time: without one the greeting is not sent from the card', async () => {
-    const h = await harness({ config: X8, checkpointFan: '2010' });
-    const page = (await movedThread(h)) as { items: { status: { asOf: string | null } }[] };
-    page.items[0]!.status.asOf = null;
-    h.hub.control({ op: 'scriptHttp', match: 'route', unscripted: 'model', exchanges: [{ route: 'clientAudienceNew', request: { pageLabel: PAGE.pageLabel, windowHours: 48 }, response: { status: 200, body: page } }] });
-    await h.dispatch(open('newcomers'));
-    await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
-    const { opId } = h.script(0, 'hi-greeting', 'Hi there!');
-    await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} });
-    await h.advance(200);
-    expect(partsOf(h, 'newcomers')[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-FAN', reason: { key: 'send.reason.fan' } });
-    expect(await h.dispatch({ type: 'SendPart', operationId: opId, variant: 0, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-FAN' });
-    expect(h.clicks).toEqual([]);
-    // «Открыть и вставить» stays: the person sends with ChatSpace's own button.
-    expect(partsOf(h, 'newcomers')[0]?.openInsert).toEqual({ s: 'available' });
-  });
 });
-
-/** The «Новые» page as the hub serves it now, with the first fan's thread one message further. */
-async function movedThread(h: Harness): Promise<unknown> {
-  const token = h.hub.issueToken();
-  const response = await hubCall(h.hub.fetch, h.hub.origin, 'clientAudienceNew', { pageLabel: PAGE.pageLabel, windowHours: 48, limit: 100 }, { token });
-  const page = (await response.json()) as { items: { thread: { storedMessageCount: number; lastMessageAt: string | null } | null }[] };
-  const first = page.items[0]!;
-  first.thread = { ...(first.thread as NonNullable<typeof first.thread>), storedMessageCount: 2, lastMessageAt: iso(NOW_MS) };
-  return page;
-}
 
 // ── decision X53: the media picker of a preview ──
 

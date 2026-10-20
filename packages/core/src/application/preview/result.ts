@@ -153,7 +153,7 @@ function partVM(input: PreviewResultInput, opId: string, variant: number | null,
 function partList(input: PreviewResultInput, opId: string, variant: number | null, texts: readonly string[]): PartVM[] {
   // The first part that is not on its way and not delivered is the next one to act on.
   const states = texts.map((_, index) => input.rows(variant, index).send?.s);
-  const firstOpen = states.findIndex((s) => s === undefined || s === 'available' || s === 'unavailable' || s === 'held-stale' || s === 'rejected');
+  const firstOpen = states.findIndex((s) => s === undefined || s === 'available' || s === 'unavailable' || s === 'held-stale' || s === 'unverified' || s === 'rejected');
   return texts.map((text, index) => partVM(input, opId, variant, index, text, texts.length, firstOpen));
 }
 

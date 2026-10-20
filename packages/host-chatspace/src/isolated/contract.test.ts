@@ -33,11 +33,13 @@ describe('[DB-031] the host contract check (§6.2)', () => {
     expect(noProfile.sendObserve).toEqual({ state: 'on' });
     // No tap script: no facts, no freshness, no X8.
     const noTap = of({ live: { ...live, tap: false } });
-    expect(noTap.previewSend).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
-    expect(noTap.incoming).toEqual(noTap.previewSend);
-    expect(noTap.sendObserve).toEqual(noTap.previewSend);
+    expect(noTap.previewSend).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-OFF' });
+    expect(noTap.incoming).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
+    expect(noTap.sendObserve).toEqual(noTap.incoming);
+    // Mimic and the translator unreadable are no hold (audit 2026-10-20, row 14): MAIN refuses only when they are on.
+    for (const anchor of ['composerTranslator', 'mimic'] as const) expect([anchor, of({ wire: { build: null, missing: [anchor], shape: [] } }).previewSend]).toEqual([anchor, { state: 'on' }]);
     // A condition that cannot be read keeps X8 off (CG-SEND-HOST), one anchor at a time.
-    for (const anchor of ['pendingMessages', 'composerTranslator', 'mimic', 'userPermissions'] as const) {
+    for (const anchor of ['pendingMessages', 'userPermissions'] as const) {
       const missing = of({ wire: { build: null, missing: [anchor], shape: [] } });
       expect([anchor, missing.previewSend]).toEqual([anchor, { state: 'off', reason: anchor, code: 'CG-SEND-HOST' }]);
       const shape = of({ wire: { build: null, missing: [], shape: [anchor] } });
@@ -54,17 +56,17 @@ describe('[DB-031] the host contract check (§6.2)', () => {
     expect(of({ wire: null }).previewSend).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
   });
 
-  it('[X8-06] [DB-031] a store ChatSpace has not created yet (`notYet`): no break, but X8 stays off with CG-SEND-HOST and the anchor as its reason; a real break is named first', () => {
+  it('[X8-06] [DB-031] a store ChatSpace has not created yet (`notYet`): no break; the translator store is no hold of X8 (audit 2026-10-20, row 14); a real break is named', () => {
     const live = { tap: true, previewSend: true, receipt: true };
     const report = ChatSpaceContractReportSchema.parse(buildContractReport(input({ live, wire: { build: null, missing: [], shape: [], notYet: ['composerTranslator'] } })));
     expect(report.anchors.composerTranslator).toBe('notYet');
-    expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' });
+    expect(report.capabilities.previewSend).toEqual({ state: 'on' });
     // Nothing else reads it: the dock, the insert, the facts of the tap are as before.
-    const others = HOST_CAPABILITIES.filter((name) => name !== 'previewSend' && report.capabilities[name].state !== 'on');
+    const others = HOST_CAPABILITIES.filter((name) => report.capabilities[name].state !== 'on');
     expect(others).toEqual([]);
-    // Another send anchor really broken: that one is the reason — opening a chat would not lift it.
-    const both = buildContractReport(input({ live, wire: { build: null, missing: ['mimic'], shape: [], notYet: ['composerTranslator'] } }));
-    expect(both.capabilities.previewSend).toEqual({ state: 'off', reason: 'mimic', code: 'CG-SEND-HOST' });
+    // A send anchor really broken: that one is the reason.
+    const both = buildContractReport(input({ live, wire: { build: null, missing: ['pendingMessages'], shape: [], notYet: ['composerTranslator'] } }));
+    expect(both.capabilities.previewSend).toEqual({ state: 'off', reason: 'pendingMessages', code: 'CG-SEND-HOST' });
     expect(buildContractReport(input({ live, wire: { build: null, missing: [], shape: ['userPermissions'], notYet: ['composerTranslator'] } })).capabilities.previewSend).toEqual({ state: 'off', reason: 'userPermissions', code: 'CG-SEND-HOST' });
     // The owner's switch is said first, as before.
     expect(buildContractReport(input({ live: { ...live, previewSend: false }, wire: { build: null, missing: [], shape: [], notYet: ['composerTranslator'] } })).capabilities.previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });

@@ -31,7 +31,7 @@ import {
 import { RENEW_RETRY_MS, RowLocks, claimRefusal, leaseNow, leaseOfClaim, leasePolicy, shouldRenew, type LeasePolicy, type LeaseView } from '../../domain/newcomers/claim';
 import { draftStale } from '../../domain/newcomers/greeting';
 import { NO_SEEN_EVENTS, nextPollDelay, observeEvents, pollMode, resumeDelay, unprime, type SeenEvents } from '../../domain/newcomers/poll';
-import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, rowTooLongForHi, subscriptionCurrent, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
+import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, rowTooLongForHi, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
 import { WINDOW_HOURS, appendAudiencePage, clampWindow, startWalk, walkHasMore, walkIncomplete, windowLimit, windowOptions, type AudienceWalk } from '../../domain/newcomers/window';
 import { batchDispatch, createBatch, isBatchAction, type BatchPreviewPort } from '../boards/batch';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
@@ -399,10 +399,6 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       if (block === 'uncertain') return reason('part-uncertain', { n: (localOf(fanRef).progress?.uncertainPart ?? 0) + 1 });
       if (block === 'sending') return reason('parts-sending');
       return reason('hi-gate');
-    },
-    subscribed(fanRef) {
-      const row = rowOf(fanRef);
-      return row !== null && subscriptionCurrent(row.subscription, clock.now());
     },
     threadRevision(fanRef) {
       const row = rowOf(fanRef);

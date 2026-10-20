@@ -186,10 +186,9 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('OpenAndInsertPart', { operationId: UuidSchema, variant, part }),
   /**
    * X8: a button click only; never a hotkey, never «send all», never the next
-   * part by itself. No revision: parts are not editable in v1, the part sent
-   * is the parsed AI part the PartVM shows.
+   * part by itself. `anyway` — «Отправить всё равно» on a freshness warning.
    */
-  act('SendPart', { operationId: UuidSchema, variant, part }),
+  act('SendPart', { operationId: UuidSchema, variant, part, anyway: z.optional(z.literal(true)) }),
   act('OpenChatToVerify', { attemptId: UuidSchema }),
   /** Writes `copied` only after the clipboard write succeeded. */
   act('Copy', { artifactHandle: HandleSchema }),

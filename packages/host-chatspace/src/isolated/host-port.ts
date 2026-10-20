@@ -636,6 +636,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     plainText: req.plainText,
     isAiGenerated: live?.markAiGenerated === true && req.isAiGenerated,
     checkpoint: req.checkpoint,
+    ...(req.acceptFreshness === true ? { acceptFreshness: true as const } : {}),
     expiresAt,
     // X53: the vault media the part takes along go to MAIN as they are (MainSendRequest.media).
     ...(req.media === undefined ? {} : { media: req.media }),
@@ -660,7 +661,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     flying.set(req.attemptId, null);
     if (flying.size > FLYING_MAX) flying.delete(flying.keys().next().value as string);
     try {
-      const answer = await bridge.request('previewSendCommit', { req: toMain(req, ticket.expiresAt) });
+      // MAIN may wait for the account's queue to finish another chat's send, up to the ticket's deadline (send-port.ts).
+      const answer = await bridge.request('previewSendCommit', { req: toMain(req, ticket.expiresAt) }, Math.max(0, ticket.expiresAt - clock()) + BRIDGE_LIMITS.callTimeoutMs);
       // Only a send that is in the queue is on its way; its end may have been heard already — then it is not put back.
       if (answer.state !== 'nativeEnqueued') flying.delete(req.attemptId);
       else if (flying.has(req.attemptId)) flying.set(req.attemptId, false);
