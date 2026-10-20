@@ -170,6 +170,12 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
                   // Б2 opens in the part it names (AI-086): with two drafts their parts carry the draft as `variant`.
                   confirm={confirm}
                 />
+                {/* The old card's line: a draft in Cyrillic for a fan who does not write it is neither inserted nor copied (AI-087). */}
+                {draft.note === null ? null : (
+                  <p class="cg-co__draft-note" role="status">
+                    {i18n.text(draft.note)}
+                  </p>
+                )}
               </div>
             ))}
           </>
@@ -582,6 +588,7 @@ ${/* The answer reads in the UI face, as in the old window (its approved excepti
 .cg-co__stopped { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-co__drafts { display: grid; gap: 6px; margin-top: 2px; }
 .cg-co__drafts .cg-parts { padding: 0; }
+.cg-co__draft-note { margin: 0; font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-danger); }
 .cg-co__draft-cap { font-family: var(--cg-mono); font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cg-clay-ink); }
 .cg-co__debug .cg-debug { grid-template-columns: 32px minmax(0, 1fr); padding-right: 8px; }
 ${/* The memory line: centred words between two dashed hairlines. */ ''}

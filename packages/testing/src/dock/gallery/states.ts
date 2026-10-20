@@ -276,7 +276,7 @@ const coachTurns = (ctx: ScenarioCtx, patch: Partial<CoachTurnVM> = {}): CoachTu
   return [
     coachTurn(ctx, 1, {
       question: text.question,
-      answer: { prose: text.answer, blocks: null, drafts: [{ index: 0, label: msg('coach.draft', { n: 1 }), parts: parts(opId, COACH_DRAFTS) }] },
+      answer: { prose: text.answer, blocks: null, drafts: [{ index: 0, label: msg('coach.draft', { n: 1 }), parts: parts(opId, COACH_DRAFTS), note: null }] },
       ...patch,
     }),
   ];

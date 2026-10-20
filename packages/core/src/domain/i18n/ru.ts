@@ -782,6 +782,7 @@ export const RU: I18nCatalog<'ru'> = {
   'coach.attached': 'с вашим ответом',
   'coach.attachHint': 'Coach увидит текст из поля ответа',
   'coach.canceled': 'Остановлено вами',
+  'coach.draftLanguage': 'В черновике есть кириллица. Попросите Coach переписать его на английском.',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Палитра команд',

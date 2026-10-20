@@ -214,7 +214,7 @@ export class InsertService {
     return this.intents.get(intentId) ?? null;
   }
 
-  /** Why this part cannot be inserted while it can be copied (AI-087, UI-027, UI-032); null — it can. */
+  /** Why this part cannot be inserted (AI-087, UI-027, UI-032); null — it can. */
   blockOf(record: OpRecord, part: PartRef): PartBlock | null {
     const ctx = this.deps.context(record);
     if (ctx.blocked !== null) return ctx.blocked;
@@ -223,7 +223,21 @@ export class InsertService {
     const result = record.view.result;
     const text = partText(record, part);
     if (result === undefined || text === null || !policyOf(record.view.feature).insertable || isUnparsedResult(result)) return { reason: 'unparsed', code: 'CG-OUTPUT-UNUSABLE' };
-    // AI-087: the Coach may propose the fan message in the chatter's language.
+    return this.languageBlock(record, text, ctx);
+  }
+
+  /**
+   * Why this part cannot be copied either; null — it can. Only the AI-087 gate of a Coach draft: the old Fansly
+   * extension closed both «Вставить» and «Копировать» of a Cyrillic draft for a fan who does not write Cyrillic —
+   * a copied draft is pasted and sent all the same.
+   */
+  copyBlockOf(record: OpRecord, part: PartRef): PartBlock | null {
+    const text = partText(record, part);
+    return text === null ? null : this.languageBlock(record, text, this.deps.context(record));
+  }
+
+  /** AI-087: the Coach may propose the fan message in the chatter's language. */
+  private languageBlock(record: OpRecord, text: string, ctx: InsertContext): PartBlock | null {
     const gate = record.view.feature === 'coach' ? languageGate(text, ctx.fanScript()) : null;
     return gate === null ? null : { reason: gate.reason, code: gate.code };
   }

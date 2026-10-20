@@ -1,7 +1,7 @@
 // The Coach controller over the fake tab RPC (the real scheduler with R11's
 // drivers), @cg/testing's FakeHostPort and the fake hub's frames: opening
 // the panel, the empty state and its chips, a turn from the question to the
-// answer with drafts, inserting a draft part (Б2, the language gate), the
+// answer with drafts, inserting and copying a draft part (Б2, the language gate), the
 // history sent back, sessions and «Новый диалог», «приложить мой ответ»,
 // failures and cancel, the auto-recap as one composite turn, «Обновить
 // переписку» and the archive lag, and the panel yielding to other features.
@@ -195,22 +195,33 @@ describe('coach: a turn', () => {
     expect(lastTurn(h).answer?.drafts[0]?.parts[0]).toMatchObject({ insert: 'done' });
   });
 
-  it('[AI-087] a draft in Cyrillic is not inserted for a fan who does not write Cyrillic — copy stays', async () => {
+  it('[AI-087] a draft in Cyrillic is neither inserted nor copied for a fan who does not write Cyrillic', async () => {
+    // The old Fansly extension closed both: a copied draft is pasted and sent to the fan all the same.
     const h = await start();
     const opId = await exchange(h, 'Что ему написать?', ['Напиши теплее.', fence('привет, как выходные?'), fence('hey, how was the weekend?')].join('\n'));
     await h.settle();
     const drafts = lastTurn(h).answer?.drafts ?? [];
-    expect(drafts[0]?.parts[0]?.insertBlocked).toMatchObject({ id: 'language', code: 'CG-GATE-LANGUAGE' });
-    expect(drafts[1]?.parts[0]?.insertBlocked).toBeNull();
+    const gate = { id: 'language', code: 'CG-GATE-LANGUAGE' };
+    expect(drafts[0]?.parts[0]).toMatchObject({ insertBlocked: gate, copyBlocked: gate });
+    expect(drafts[0]?.note).toEqual({ key: 'coach.draftLanguage' });
+    expect(drafts[1]?.parts[0]).toMatchObject({ insertBlocked: null, copyBlocked: null });
+    expect(drafts[1]?.note).toBeNull();
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 0 })).toMatchObject({ ok: false, code: 'CG-GATE-LANGUAGE' });
     expect(h.fake.calls.inserts).toHaveLength(0);
-    expect((await h.dispatch({ type: 'Copy', artifactHandle: drafts[0]?.parts[0]?.copyHandle as string })).ok).toBe(true);
-    expect(h.clipboard.texts).toEqual(['привет, как выходные?']);
+    expect(await h.dispatch({ type: 'Copy', artifactHandle: drafts[0]?.parts[0]?.copyHandle as string })).toMatchObject({ ok: false, code: 'CG-GATE-LANGUAGE' });
+    expect(h.clipboard.texts).toEqual([]);
+    expect(h.bg.callsOf('op.reportCopy')).toEqual([]);
+    // The Latin draft of the same answer copies as before.
+    expect(await h.dispatch({ type: 'Copy', artifactHandle: drafts[1]?.parts[0]?.copyHandle as string })).toMatchObject({ ok: true });
+    expect(h.clipboard.texts).toEqual(['hey, how was the weekend?']);
 
     // Only the fan's own lines are the signal: once the fan wrote Cyrillic the draft may go.
     h.host.setTail(openChat, { capturedAt: hostIso(0), messages: [{ platformMessageId: HOST_IDS.messages.fanBefore, direction: 'fan', sentAt: hostIso(-60), text: 'привет' }] });
     await h.settle();
-    expect(lastTurn(h).answer?.drafts[0]?.parts[0]?.insertBlocked).toBeNull();
+    expect(lastTurn(h).answer?.drafts[0]?.parts[0]).toMatchObject({ insertBlocked: null, copyBlocked: null });
+    expect(lastTurn(h).answer?.drafts[0]?.note).toBeNull();
+    expect(await h.dispatch({ type: 'Copy', artifactHandle: drafts[0]?.parts[0]?.copyHandle as string })).toMatchObject({ ok: true });
+    expect(h.clipboard.texts).toEqual(['hey, how was the weekend?', 'привет, как выходные?']);
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
   });
 });

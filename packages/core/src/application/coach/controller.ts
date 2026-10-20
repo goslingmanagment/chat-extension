@@ -89,6 +89,15 @@ export const COACH_ARCHIVES_MAX = 32;
 /** AI-094: follow-ups under the latest answer. */
 const FOLLOW_UP_CHIPS: readonly I18nKey[] = ['coach.chip.another', 'coach.chip.shorter', 'coach.chip.refusal'];
 
+type CoachDraftVM = NonNullable<CoachTurnVM['answer']>['drafts'][number];
+
+/** One draft of an answer: its parts, and the old card's line when the language gate closes them (AI-087). */
+function draftVm(ws: AiWorkspace, record: OpRecord, draft: { readonly index: number; readonly parts: readonly string[] }): CoachDraftVM {
+  const parts = partVms(ws, record, draft.parts, draft.index, true);
+  const closed = parts.some((part) => part.copyBlocked?.id === 'language');
+  return { index: draft.index, label: msg('coach.draft', { n: draft.index + 1 }), parts, note: closed ? msg('coach.draftLanguage') : null };
+}
+
 interface ArchiveRead {
   readonly state: 'loading' | 'ready' | 'error';
   readonly asOf: string | null;
@@ -406,8 +415,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       answer: {
         prose: answer.prose,
         blocks: answer.blocks === null ? null : answer.blocks.map((block) => ({ kind: block.kind, title: msg(BLOCK_TITLES[block.kind]), body: block.body })),
-        // Each draft is a message to the fan: its parts insert and copy like any other part.
-        drafts: record === null ? [] : answer.drafts.map((draft) => ({ index: draft.index, label: msg('coach.draft', { n: draft.index + 1 }), parts: partVms(ws, record, draft.parts, draft.index, true) })),
+        // Each draft is a message to the fan: its parts insert and copy like any other part. One in Cyrillic for a fan
+        // who does not write Cyrillic does neither, and says so under it (AI-087, the old card's note).
+        drafts: record === null ? [] : answer.drafts.map((draft) => draftVm(ws, record, draft)),
       },
       error: null,
       errorActions: [],
