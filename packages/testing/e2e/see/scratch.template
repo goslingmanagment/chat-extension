@@ -1,0 +1,12 @@
+// __NAME__: what this shows (the first comment line is its description in `pnpm see`).
+// The verbs: packages/testing/e2e/see/kit.ts (`See`); more examples: ../scenarios/.
+
+import { scenario } from '../kit';
+
+scenario('__NAME__', async (s) => {
+  await s.ready(); // the dock of the open chat is ready
+  await s.shot('before');
+  await s.press(/^Reply/); // a button of the dock's strip, by its text
+  await s.done(); // the generation ended
+  await s.shot('after');
+});

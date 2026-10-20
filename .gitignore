@@ -7,6 +7,8 @@ dist/
 coverage/
 .dev-profile/
 .cache/
+# one-off `pnpm see` scenarios (pnpm see --new)
+packages/testing/e2e/see/scratch/
 # signed XPIs and the records of a release (tools/release); never committed
 .release/
 test-results/
