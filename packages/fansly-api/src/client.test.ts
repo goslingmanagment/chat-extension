@@ -239,11 +239,15 @@ describe('repeats and parallelism (RB-023)', () => {
     expect(made.sent).toHaveLength(3);
   });
 
-  it('[RB-023] [FS-NET-3] a foreign 429 (a fact of the core) closes our next call of that creator before any request', async () => {
+  it('[RB-023] [FS-NET-3] our own 429 seen by the core closes our next call of that creator before any request; a foreign one cools nothing', async () => {
     const made = world();
     made.facts.push({ requestId: 'neighbour-1', at: T0, accountId: CREATOR, source: 'page' });
-    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'cooling', retryAt: T0 + 30_000, sent: false });
-    expect(made.sent).toEqual([]);
+    made.replies.push({ status: 200 });
+    await expect(made.api.client.call(registration)).resolves.toMatchObject({ status: 200 });
+    expect(made.sent).toHaveLength(1);
+    made.facts.push({ requestId: 'own-1', at: Date.now(), accountId: CREATOR, source: 'own' });
+    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'cooling', sent: false });
+    expect(made.sent).toHaveLength(1);
   });
 });
 
@@ -279,7 +283,7 @@ describe('a write the hub\'s custody guards (§8.6)', () => {
 
   it('[FS-NET-3] a cooldown refuses the write in prepare — before the custody — and a caller that gave up is told so without a request', async () => {
     const made = world();
-    made.facts.push({ requestId: 'page-1', at: T0, accountId: CREATOR, source: 'page' });
+    made.facts.push({ requestId: 'own-1', at: T0, accountId: CREATOR, source: 'own' });
     expect(await failure(made.api.client.prepare(greeting()))).toMatchObject({ kind: 'cooling', sent: false });
     const controller = new AbortController();
     controller.abort();
@@ -289,10 +293,10 @@ describe('a write the hub\'s custody guards (§8.6)', () => {
 });
 
 describe('review regressions: dispatch and response boundaries', () => {
-  it('[FS-NET-3] a prepared greeting rechecks a newly recorded foreign 429 synchronously before fetch', async () => {
+  it('[FS-NET-3] a prepared greeting rechecks a newly recorded own 429 synchronously before fetch', async () => {
     const made = world();
     const prepared = await made.api.client.prepare(greeting());
-    made.facts.push({ requestId: 'late-page', at: T0, accountId: CREATOR, source: 'page' });
+    made.facts.push({ requestId: 'late-own', at: T0, accountId: CREATOR, source: 'own' });
     const result = prepared.start();
     expect(made.sent).toHaveLength(0);
     await expect(result).rejects.toMatchObject({ kind: 'cooling', sent: false, retryAt: T0 + 30_000 });
@@ -315,20 +319,9 @@ it('[FS-NET-3] a canonical id learned after prepare cannot hide its new cooldown
   const prepared = await made.api.client.prepare(greeting());
   const canonicalId = '300000000000000009';
   made.setTemplate({ ...TEMPLATE, canonicalId });
-  made.facts.push({ requestId: 'canonical-late', at: T0, accountId: canonicalId, source: 'page' });
+  made.facts.push({ requestId: 'canonical-late', at: T0, accountId: canonicalId, source: 'own' });
   await expect(prepared.start()).rejects.toMatchObject({ kind: 'cooling', sent: false });
   expect(made.sent).toEqual([]);
-});
-
-it('[FS-NET-3] prepared start refuses while a new observation is still held by composition', async () => {
-  const made = world();
-  let pending = false;
-  made.session.observationsPending = () => pending;
-  const prepared = await made.api.client.prepare(greeting());
-  pending = true;
-  const result = prepared.start();
-  expect(made.sent).toEqual([]);
-  await expect(result).rejects.toMatchObject({ kind: 'cooling', sent: false });
 });
 
 describe('the creator of a session (AU-032)', () => {

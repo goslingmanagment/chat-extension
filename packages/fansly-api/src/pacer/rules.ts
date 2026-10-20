@@ -3,8 +3,9 @@
 // `fansly-pacer` (E130–E135 in fansly-chat docs/decisions.md; its
 // src/background/fansly-pacer/policy.ts, pacer.ts), measured on production
 // there and kept as they are — what changes here is around them: a mode per
-// call (allowlist.ts), a cooldown from ANY 429 (ours and the page's, seen by
-// the core's `webRequest.onCompleted`), state that survives the event page.
+// call (allowlist.ts), our own 429 seen also by the core's
+// `webRequest.onCompleted` (a 429 of the page or a neighbour cools nothing, as
+// in the old extension), state that survives the event page.
 //
 // A new key or a different pace is a row here, not a change of the pacer.
 
@@ -36,7 +37,7 @@ export const PACE_RULES = {
   keys: { 'GET /account*': { startMs: 5000, ceilMs: 20_000, isolated: true } } satisfies Record<string, KeyPolicy>,
   /**
    * E133: a cooldown = max(Retry-After, capped; the ladder 30/60/120/240/300 s by level; 1.25 s per read answered since
-   * the previous limit, up to 300 s). The page's 429 carries no Retry-After for us (`onCompleted` has no headers): its
+   * the previous limit, up to 300 s). Our 429 seen only by `onCompleted` carries no Retry-After (no headers there): its
    * ladder and answers decide.
    */
   cooldownBaseMs: 30_000,

@@ -58,7 +58,6 @@ export interface NetworkSessionDeps {
   readonly storage: KeyValuePort;
   /** Observations delivered to composition but not yet accepted by this owner. */
   readonly settleObservations?: () => Promise<void>;
-  readonly observationsPending?: () => boolean;
   readonly key: string;
   readonly now: () => number;
   readonly pageRequest: (fact: RequestFact) => boolean;
@@ -289,7 +288,6 @@ export function createNetworkSession(deps: NetworkSessionDeps) {
       ownListeners.add(listener);
       return () => ownListeners.delete(listener);
     },
-    observationsPending: () => deps.observationsPending?.() ?? false,
     idle: async () => { await deps.settleObservations?.(); await run(() => undefined); },
   };
   return service;
