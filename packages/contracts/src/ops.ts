@@ -193,7 +193,7 @@ function proofFits(op: {
   const proof = op.proof;
   if (proof === undefined) return true;
   if (proof.conversationRef !== op.target.conversationRef || op.fresh !== undefined || op.checkpoint !== undefined) return false;
-  return proof.kind === 'pass' ? op.surface === 'newcomers' && (proof.tail === undefined || op.feature === 'hi') : proof.tail === undefined || isFreshTextFeature(op.feature);
+  return proof.kind === 'pass' ? op.surface === 'newcomers' && (proof.tail === undefined || op.feature === 'hi') : proof.tail === undefined || isFreshTextFeature(op.feature) || freshTextSurface(op.feature) === op.surface;
 }
 
 /**
@@ -750,6 +750,8 @@ interface SiteStartBase<F extends SiteOpId> {
   readonly cause: HumanCause;
   /** The hub body's `messageCount`: the voice script reads the quick window, the notes fill the deep one. */
   readonly window: number;
+  /** Latest confirmed texts of the open chat, sent only to a hub that supports this operation. */
+  readonly fresh?: LiveTextTail | undefined;
   readonly regenerateOf?: string | undefined;
   /** Bypass the result cache (Regenerate). */
   readonly force?: boolean | undefined;

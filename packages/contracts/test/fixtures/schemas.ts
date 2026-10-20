@@ -923,6 +923,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 5000 } } },
       // 1.15.0 (R20 §9.1): Fansly — the proof instead of `fresh` and `checkpoint`; a Recap's without a text; a pass's in «Новые».
       fanslyStartReply,
+      ...(['review', 'recap', 'recap-short', 'coach'] as const).map((feature) => ({ ...fanslyStartReply, feature, surface: feature === 'coach' ? 'coach' : 'dock', tone: null })),
       { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 3000, proof: { ...tabProof, tail: undefined } },
       { feature: 'hi', surface: 'newcomers', target: fanslyTarget, cause, tone: null, split: true, window: 25, variantCount: 1, proof: passProof },
       { feature: 'reply', surface: 'preview', target: fanslyTarget, cause, tone: 'casual', split: false, window: 100, proof: tabProof },
@@ -949,7 +950,6 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...fanslyStartReply, fresh: startReply.fresh },
       { ...fanslyStartReply, surface: 'preview', checkpoint: { ...checkpoint, hostAccountId: FANSLY_IDS.creator, platformFanId: FANSLY_IDS.fan } },
       { ...fanslyStartReply, proof: { ...tabProof, conversationRef: FANSLY_IDS.otherGroup } },
-      { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 3000, proof: tabProof },
       { ...fanslyStartReply, proof: passProof },
       { ...fanslyStartReply, proof: { ...tabProof, deletedIds: [COVERAGE_MSG.m1] } },
     ],

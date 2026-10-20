@@ -18,6 +18,7 @@ import * as z from 'zod/mini';
 
 import { ToneSchema, type SiteOpId } from './features';
 import type { FanslyFeatureKey } from './features/fansly';
+import { LiveTextTailSchema } from './host';
 import { NoteFieldLabelSchema, NoteFieldsSchema, NoteValuesSchema, type HubAiFeature } from './hub/ai';
 import { HumanCauseSchema, TargetSchema } from './ids';
 import { AI_REQUEST_LIMITS, NOTE_FILL_LIMITS, OP_TIMEOUTS, type OpTimeouts } from './limits';
@@ -78,6 +79,7 @@ const START = {
   cause: HumanCauseSchema,
   /** The body's `messageCount`, within its bounds: the quick window for the script, the deep one for the notes fill. */
   window: z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax)),
+  fresh: z.optional(LiveTextTailSchema),
   regenerateOf: z.optional(UuidSchema),
   force: z.optional(z.boolean()),
 };

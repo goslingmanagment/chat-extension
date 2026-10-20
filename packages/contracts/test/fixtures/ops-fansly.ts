@@ -45,6 +45,8 @@ export const NOTE_FIELDS_FIXTURES: Verdicts = {
   ],
 };
 
+const fresh = { capturedAt: '2026-10-03T10:00:00Z', messages: [{ platformMessageId: '700000000000000101', direction: 'fan', sentAt: '2026-10-03T10:00:00Z', text: 'hi' }] } as const;
+
 const draft = { text: 'привет, я соскучилась — как прошёл день?', revision: 4, digest: DIGEST } as const;
 
 export const fanslyVoiceScriptStart = { feature: 'voice-script', target: fanslyTarget, cause, tone: 'flirty', draft, window: 100 } as const;
@@ -53,10 +55,12 @@ export const fanslyNotesFillStart = { feature: 'notes-fill', target: fanslyTarge
 export const FANSLY_START_OP_FIXTURES: Verdicts = {
   valid: [
     fanslyVoiceScriptStart,
+    { ...fanslyVoiceScriptStart, fresh },
     // «Спокойный»: no tone, the hub's `none`.
     { ...fanslyVoiceScriptStart, tone: null },
     { ...fanslyVoiceScriptStart, regenerateOf: uuid(0x501), force: true },
     fanslyNotesFillStart,
+    { ...fanslyNotesFillStart, fresh },
     { ...fanslyNotesFillStart, window: 5, regenerateOf: uuid(0x502) },
     // 1.28.0 (X43): the questionnaire's values beside its labels, index-aligned.
     { ...fanslyNotesFillStart, values: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] },
@@ -159,6 +163,8 @@ export const notesFillBody = {
 export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
   valid: [
     { feature: 'voice-script', body: voiceScriptBody, capabilities: ['context-v1'] },
+    { feature: 'voice-script', body: { ...voiceScriptBody, liveTextContext: { capturedAt: '2026-10-03T10:00:00Z', items: [{ platformMessageId: '700000000000000101', direction: 'fan', occurredAt: '2026-10-03T10:00:00Z', text: 'hi' }] } }, capabilities: ['context-v1'] },
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, liveTextContext: { capturedAt: '2026-10-03T10:00:00Z', items: [{ platformMessageId: '700000000000000101', direction: 'fan', occurredAt: '2026-10-03T10:00:00Z', text: 'hi' }] } }, capabilities: ['context-v1'] },
     { feature: 'voice-script', body: { ...voiceScriptBody, replyTone: undefined, isRegeneration: true }, capabilities: [] },
     { feature: 'fan-notes-fill', body: notesFillBody, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound() }, capabilities: ['debug-input-v1', 'context-v1'] },
@@ -187,8 +193,6 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'voice-script', body: { ...voiceScriptBody, noteValues: [''] }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, replyTone: 'flirty' }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, draftText: 'x' }, capabilities: [] },
-    // Fresh page text is a draft feature's only (D-14): the voice script reads the hub's history.
-    { feature: 'voice-script', body: { ...voiceScriptBody, liveTextContext: { capturedAt: '2026-10-03T10:00:00Z', items: [{ platformMessageId: '700000000000000101', direction: 'fan', occurredAt: '2026-10-03T10:00:00Z', text: 'hi' }] } }, capabilities: ['context-v1'] },
     { feature: 'voice-script', body: { ...voiceScriptBody, variantCount: 3 }, capabilities: [] },
   ],
 };
