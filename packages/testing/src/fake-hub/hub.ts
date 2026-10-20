@@ -54,7 +54,7 @@ import {
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
-import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, pingActiveRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
+import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, livePpvRefusal, pingActiveRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
@@ -229,11 +229,8 @@ export { HI_GREETING_MAX_TRANSCRIPT } from './ai-rules';
 function streamRefusalReason(request: unknown): string | undefined {
   if (typeof request !== 'object' || request === null) return undefined;
   const { feature, body, capabilities } = request as { feature?: unknown; body?: Partial<AiFeatureStreamBody>; capabilities?: unknown };
-  // X54 (hub `assertLivePpvRequestShape`): the PPV state where fresh text goes, on an OnlyFans page, the same reason.
-  if (body?.livePpvContext !== undefined) {
-    const allowed = HUB_FEATURE_ONLY_FIELDS.livePpvContext as readonly string[];
-    if ((typeof feature === 'string' && !allowed.includes(feature)) || body.platform !== 'onlyfans') return 'live_text_not_allowed';
-  }
+  // X54 (hub `assertLivePpvRequestShape`, ai-rules.ts): the PPV state on its features, in its page's shape, the same reason.
+  if (body?.livePpvContext !== undefined && typeof feature === 'string' && livePpvRefusal(feature, body) !== null) return 'live_text_not_allowed';
   if (body?.liveTextContext === undefined) return undefined;
   const allowed = HUB_FEATURE_ONLY_FIELDS.liveTextContext as readonly string[];
   if (typeof feature === 'string' && !allowed.includes(feature)) return 'live_text_not_allowed';

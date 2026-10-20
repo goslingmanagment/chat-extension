@@ -154,6 +154,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'live-text-recap-v1',
   /** The voice script and questionnaire fill accept the open chat's latest text. */
   'live-text-fansly-tools-v1',
+  /**
+   * The AI stream takes `livePpvContext` on a Fansly page too: each paid attachment of the open chat with the fan's
+   * purchase as Fansly answers at the click. A hub without it refuses the field there (400), so a Fansly start reads
+   * the state and sends it only to a hub that lists this capability.
+   */
+  'live-ppv-fansly-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

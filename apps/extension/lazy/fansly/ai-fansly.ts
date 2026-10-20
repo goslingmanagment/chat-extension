@@ -6,7 +6,7 @@
 
 import type { CgErrorWire } from '@cg/contracts/errors';
 import type { FanslySnapshot } from '@cg/contracts/fansly';
-import type { AiHostPolicy } from '@cg/contracts/ops';
+import { LivePpvStateSchema, type AiHostPolicy, type LivePpvState } from '@cg/contracts/ops';
 import { SettingsExtSchema, type SettingsExt } from '@cg/contracts/settings-ext';
 import { createFanslyAi, type HiStartAnswer } from '@cg/core/application/hosts/fansly/ai';
 import type { TabRpcClient } from '@cg/platform';
@@ -17,6 +17,11 @@ export { createFanslyAi } from '@cg/core/application/hosts/fansly/ai';
 const WINDOWS_TIMEOUT_MS = 2000;
 /** How long Hi waits for the background's read of the start: the click's grant lasts 10 s (GRANT_TTL_MS). */
 const HI_START_TIMEOUT_MS = 6000;
+/**
+ * How long a start waits for the open chat's PPV state: the background answers with what it knows after 1.3 s
+ * (core services/hosts/fansly/ppv.ts `PPV_READ.answerMs`); this bounds a first page that has not come back by then.
+ */
+const PPV_TIMEOUT_MS = 2000;
 
 /** The tab's client as it takes a request of Fansly's registry: the shared one is typed by its own types only. */
 type AnyRequest = (type: string, payload: unknown, options?: { readonly timeoutMs?: number }) => Promise<{ readonly ok: true; readonly payload: unknown } | { readonly ok: false; readonly error: CgErrorWire }>;
@@ -45,7 +50,22 @@ export async function readFanslyHiStart(rpc: Pick<TabRpcClient, 'request'>, chat
   return read.ok === true ? { proof: read.proof ?? null, dialog: read.dialog === true } : null;
 }
 
-/** Fansly's policy of this tab: the page's clock, the deep window and Hi's start asked of the background. */
+/**
+ * The open chat's PPV state (X54 on Fansly): each paid attachment of its newest messages with the fan's purchase, read
+ * by the background from Fansly (`fansly.ppv.read`) and checked here by the start's own schema. A refusal, a timeout,
+ * a wrong shape or nothing known — null: the hub marks the attachments from its own stores.
+ */
+export async function readFanslyPpv(rpc: Pick<TabRpcClient, 'request'>, chat: { readonly creatorId: string; readonly fanId: string; readonly groupId: string }): Promise<LivePpvState | null> {
+  const payload = { hostAccountId: chat.creatorId, fanRef: chat.fanId, groupId: chat.groupId };
+  const answer = await (rpc.request as unknown as AnyRequest)('fansly.ppv.read', payload, { timeoutMs: PPV_TIMEOUT_MS }).catch(() => null);
+  if (answer === null || !answer.ok) return null;
+  const read = answer.payload as { readonly ok?: unknown; readonly capturedAt?: unknown; readonly items?: unknown };
+  if (read.ok !== true || !Array.isArray(read.items) || read.items.length === 0) return null;
+  const checked = LivePpvStateSchema.safeParse({ capturedAt: read.capturedAt, items: read.items });
+  return checked.success ? checked.data : null;
+}
+
+/** Fansly's policy of this tab: the page's clock, the deep window, Hi's start and the open chat's PPV state asked of the background. */
 export function startFanslyAi(rpc: Pick<TabRpcClient, 'request'>): AiHostPolicy {
-  return createFanslyAi({ now: () => Date.now(), windows: () => readFanslyWindows(rpc), hiStart: (chat) => readFanslyHiStart(rpc, chat) });
+  return createFanslyAi({ now: () => Date.now(), windows: () => readFanslyWindows(rpc), hiStart: (chat) => readFanslyHiStart(rpc, chat), ppv: (chat) => readFanslyPpv(rpc, chat) });
 }

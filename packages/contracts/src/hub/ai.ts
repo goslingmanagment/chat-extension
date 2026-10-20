@@ -9,7 +9,7 @@ import * as z from 'zod/mini';
 import { TONES, type FeatureId } from '../features';
 import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from '../hi-start-proof';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS } from '../limits';
-import { CoverageDeletedIdsSchema, CoverageWindowSchema, LivePpvStateSchema, coverageIdsOnce } from '../ops';
+import { CoverageDeletedIdsSchema, CoverageWindowSchema, LivePpvStateSchema, coverageIdsOnce, livePpvShapeIs } from '../ops';
 import {
   CountSchema,
   IsoTimestampSchema,
@@ -71,8 +71,11 @@ export const HUB_FEATURE_ONLY_FIELDS = {
    * `live-text-review-coach-v1`; 1.31.0 Recap, on a hub that lists `live-text-recap-v1` (`LIVE_TEXT_HUB_NEEDS`).
    */
   liveTextContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat', 'fan-summary', 'voice-script', 'fan-notes-fill'],
-  /** 1.27.0 (X54): the open chat's PPV state, where fresh text goes (the hub refuses it elsewhere, 400). */
-  livePpvContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
+  /**
+   * 1.27.0 (X54): the open chat's PPV state, on the features the hub takes it (`AI_LIVE_PPV_FEATURES`; elsewhere 400).
+   * ChatSpace sends it with the drafts only; Fansly wherever fresh text goes.
+   */
+  livePpvContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat', 'fan-summary'],
   /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */
   noteFields: ['fan-notes-fill'],
   /** 1.16.0 (R20 P11b2): the merge mode — the questionnaire's values (`NoteValuesSchema`; empty only before 1.28.0). */
@@ -238,8 +241,9 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   ),
   liveTextContext: z.optional(LiveTextContextSchema),
   /**
-   * 1.27.0 (X54; hub `aiLivePpvContextSchema`): the PPV state of the open OnlyFans chat as OnlyMonster's API gives it,
-   * only to a hub that lists `live-ppv-v1`, on an OnlyFans page; ids, prices and purchase flags, no text.
+   * 1.27.0 (X54; hub `aiLivePpvContextSchema`): the PPV state of the open chat — on an OnlyFans page its paid messages
+   * as OnlyMonster's API gives them, to a hub that lists `live-ppv-v1`; on a Fansly page each paid attachment as Fansly
+   * answers at the click, to a hub that lists `live-ppv-fansly-v1`. Ids, prices and purchase flags, no text.
    */
   livePpvContext: z.optional(LivePpvStateSchema),
   /** 1.15.0 (R20 HF-8в): the window check — only from a start's proof, under `coverage-check-v1`. */
@@ -275,8 +279,11 @@ export const HubStreamRequestSchema = z
     z.refine((r) => r.body.liveTextContext === undefined || r.capabilities.includes('context-v1'), {
       message: 'liveTextContext needs the context-v1 header (else 400 capability_required)',
     }),
-    // 1.27.0 (X54): the hub takes the PPV state on an OnlyFans page only (`live_text_not_allowed` elsewhere).
-    z.refine((r) => r.body.livePpvContext === undefined || r.body.platform === 'onlyfans', { message: 'livePpvContext only on OnlyFans' }),
+    // 1.27.0 (X54): the hub takes the PPV state in its page's shape — paid messages on OnlyFans, paid attachments on
+    // Fansly (`live_text_not_allowed` otherwise).
+    z.refine((r) => r.body.livePpvContext === undefined || livePpvShapeIs(r.body.livePpvContext, r.body.platform === 'fansly' ? 'attachments' : 'messages'), {
+      message: "livePpvContext not in its platform's shape",
+    }),
     // 1.15.0: a hub before HF-8в refuses the field (its body is strict); one after answers it only to both tokens.
     z.refine((r) => r.body.coverageCheck === undefined || (r.capabilities.includes('coverage-check-v1') && r.capabilities.includes('context-v1')), {
       message: 'coverageCheck needs coverage-check-v1 and context-v1',

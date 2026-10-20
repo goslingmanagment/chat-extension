@@ -196,7 +196,7 @@ const pilotFeatures = featuresOn('onlyfans', (flag) => (PILOT_FLAGS_ON.includes(
 
 /**
  * Pilot on both OF pages through the `"*"` row, explicit host bindings, every capability but client-health (B′ ingest
- * still off) and the open chat's PPV state (X54, `live-ppv-v1`: not deployed yet; a test that proves it adds it). The
+ * still off) and the open chat's PPV state (X54, `live-ppv-v1` and `live-ppv-fansly-v1`; a test that proves it adds it). The
  * Fansly page reads `flag_off`: the `"*"` row never reaches it (R20 HF-2).
  */
 export const BOOTSTRAP_PILOT_ON: Bootstrap = {
@@ -207,7 +207,7 @@ export const BOOTSTRAP_PILOT_ON: Bootstrap = {
   bindingsByHost: { [BINDING_KEY_ONE]: pages.one.pageId, [BINDING_KEY_VIP]: pages.vip.pageId },
   flags: pilotFlags,
   limits: LIMITS,
-  capabilities: CLIENT_HUB_CAPABILITY_NAMES.filter((capability) => capability !== 'client-health-perf-v1' && capability !== 'live-ppv-v1'),
+  capabilities: CLIENT_HUB_CAPABILITY_NAMES.filter((capability) => capability !== 'client-health-perf-v1' && capability !== 'live-ppv-v1' && capability !== 'live-ppv-fansly-v1'),
 };
 
 /**

@@ -79,6 +79,27 @@ export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabil
   return hiStartProofShapeRefusal(feature, body, capabilities);
 }
 
+// ── The open chat's PPV state (hub context/live-ppv.ts `assertLivePpvRequestShape`) ──
+
+/** The hub's `AI_LIVE_PPV_FEATURES`. */
+const LIVE_PPV_FEATURES: readonly string[] = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat', 'fan-summary'];
+
+/**
+ * Why the hub refuses `livePpvContext` before any context loads (400, reason `live_text_not_allowed`): another feature,
+ * beside `clientContext`, or items of the other platform's shape — a Fansly page takes paid attachments
+ * (`contentKind`, `contentRef`; `live-ppv-fansly-v1`), an OnlyFans page paid messages. Null — taken.
+ */
+export function livePpvRefusal(feature: string, body: StreamRuleBody): string | null {
+  const state = body.livePpvContext;
+  if (state === undefined) return null;
+  if (!LIVE_PPV_FEATURES.includes(feature)) return `${feature} does not accept livePpvContext`;
+  if (body.clientContext !== undefined) return 'livePpvContext cannot be combined with clientContext';
+  const attachments = state.items.filter((item) => 'contentRef' in item).length;
+  if (body.platform === 'fansly' && attachments !== state.items.length) return 'livePpvContext on a Fansly page names paid attachments';
+  if (body.platform !== 'fansly' && attachments > 0) return 'livePpvContext on an OnlyFans page names paid messages';
+  return null;
+}
+
 // ── Hi by the start proof (hub context/hi-start-proof.ts, HF-5, bd3eec065) ──
 
 /** The hub's HI_GREETING_MAX_TRANSCRIPT: on the proof lane, personal messages only. */

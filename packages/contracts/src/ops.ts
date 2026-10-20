@@ -207,17 +207,44 @@ function proofFits(op: {
  * whether the fan bought them (OnlyFans' `isOpened`). Ids and facts, no text. A draft start in the dock carries it
  * (`StartOp.livePpv`); the hub takes the same shape as `livePpvContext` and applies it to that one generation.
  */
+/** ChatSpace's item: the model's paid message (OnlyFans sells a message). */
+export const LivePpvMessageItemSchema = z.strictObject({ platformMessageId: NativeIdSchema, priceUsd: z.number().check(z.gt(0), z.lte(OPEN_CHAT_PRICE_MAX)), purchased: z.boolean() });
+
+/**
+ * Fansly's item (hub `live-ppv-fansly-v1`): one paid attachment of the model's message — Fansly sells each media or
+ * bundle, not the message — read by the background from Fansly at the click (core services/hosts/fansly/ppv.ts): paid
+ * by its PPV permission row, bought by the fan's inline order on the chat's page, not bought only by the fan's own empty
+ * `/media/orderhistory` answer. The price when the page served one.
+ */
+export const LivePpvAttachmentItemSchema = z.strictObject({
+  platformMessageId: NativeIdSchema,
+  contentKind: z.enum(['media', 'bundle']),
+  contentRef: NativeIdSchema,
+  priceUsd: z.optional(z.number().check(z.gt(0), z.lte(OPEN_CHAT_PRICE_MAX))),
+  purchased: z.boolean(),
+});
+export type LivePpvAttachmentItem = z.infer<typeof LivePpvAttachmentItemSchema>;
+
+/** An item's identity (the hub's key): a message once; an attachment once per message. */
+const livePpvItemKey = (item: { readonly platformMessageId: string; readonly contentKind?: string; readonly contentRef?: string }): string =>
+  item.contentRef === undefined ? item.platformMessageId : `${item.platformMessageId}/${item.contentKind}:${item.contentRef}`;
+
 export const LivePpvStateSchema = z.strictObject({
   capturedAt: IsoTimestampSchema,
   items: z
-    .array(z.strictObject({ platformMessageId: NativeIdSchema, priceUsd: z.number().check(z.gt(0), z.lte(OPEN_CHAT_PRICE_MAX)), purchased: z.boolean() }))
+    .array(z.union([LivePpvMessageItemSchema, LivePpvAttachmentItemSchema]))
     .check(
       z.minLength(1),
       z.maxLength(LIVE_PPV_LIMITS.maxItems),
-      z.refine((items) => new Set(items.map((item) => item.platformMessageId)).size === items.length, { message: 'PPV ids repeat' }),
+      z.refine((items) => new Set(items.map(livePpvItemKey)).size === items.length, { message: 'PPV ids repeat' }),
     ),
 });
 export type LivePpvState = z.infer<typeof LivePpvStateSchema>;
+
+/** Whether every item is of one site's shape: Fansly's attachments, or ChatSpace's messages. */
+export function livePpvShapeIs(state: LivePpvState, shape: 'attachments' | 'messages'): boolean {
+  return state.items.every((item) => ('contentRef' in item) === (shape === 'attachments'));
+}
 
 export const StartOpSchema = z
   .strictObject({
@@ -262,7 +289,10 @@ export const StartOpSchema = z
      * the dock and coach on its panel (`freshTextSurface`).
      */
     fresh: z.optional(LiveTextTailSchema),
-    /** 1.27.0 (X54): the open chat's PPV state, where `fresh` may go — a draft start in the dock. */
+    /**
+     * 1.27.0 (X54): the open chat's PPV state, where `fresh` may go — ChatSpace's in a draft start in the dock; Fansly's
+     * (each paid attachment) on every start that may carry fresh text.
+     */
     livePpv: z.optional(LivePpvStateSchema),
     /**
      * Previews: the freshness checkpoint of the Generate click (X8), kept with
@@ -294,7 +324,10 @@ export const StartOpSchema = z
     z.refine((op) => op.fresh === undefined || textSurfaceFits(op), {
       message: 'fresh text only in the dock or the Coach turn',
     }),
-    z.refine((op) => op.livePpv === undefined || (op.surface === 'dock' && isFreshTextFeature(op.feature)), { message: 'PPV state only for drafts in the dock' }),
+    // ChatSpace's PPV state rides with the drafts in the dock; Fansly's (its attachments) wherever fresh text may go.
+    z.refine((op) => op.livePpv === undefined || (livePpvShapeIs(op.livePpv, 'messages') ? op.surface === 'dock' && isFreshTextFeature(op.feature) : textSurfaceFits(op)), {
+      message: 'PPV state only where fresh text may go',
+    }),
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),
     z.refine((op) => op.feature !== 'fix' || op.draft !== undefined, { message: 'fix needs the draft' }),
     z.refine((op) => op.variantCount === undefined || op.feature === 'hi', { message: 'variantCount only for hi' }),
@@ -681,7 +714,10 @@ export interface AiProofAsk {
   readonly identity: HostIdentity;
   /** How much fresh page text the start may carry (D-14: a draft feature in the dock, admitted on the page); null — none. */
   readonly fresh: { readonly maxItems: number; readonly maxChars: number } | null;
-  /** 1.27.0 (X54): the start may carry the open chat's PPV state — fresh text is admitted and the hub lists `live-ppv-v1`. */
+  /**
+   * 1.27.0 (X54): the start may carry the open chat's PPV state — fresh text is admitted and the hub lists the site's
+   * capability (`live-ppv-v1` for ChatSpace, `live-ppv-fansly-v1` for Fansly).
+   */
   readonly livePpv?: boolean;
 }
 
@@ -693,7 +729,7 @@ export interface AiProofAsk {
 export interface AiStartFields {
   /** The visible tail as fresh page text (D-14): ChatSpace's. */
   readonly fresh?: LiveTextTail | null;
-  /** 1.27.0 (X54): the open chat's PPV state read from the host's API: ChatSpace's. */
+  /** 1.27.0 (X54): the open chat's PPV state read from the host's API: ChatSpace's paid messages, Fansly's attachments. */
   readonly livePpv?: LivePpvState;
   /** The proof of freshness the site made of its snapshot (`CoverageProof`, its texts inside): Fansly's (P8b1). */
   readonly proof?: CoverageProof;

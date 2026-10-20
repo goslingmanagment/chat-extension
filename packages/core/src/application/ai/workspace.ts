@@ -747,9 +747,9 @@ export class AiWorkspace {
         surface,
         identity: chat.identity,
         fresh: limits,
-        // X54: the open chat's PPV state rides where fresh text does, to a hub that takes it.
+        // X54: the open chat's PPV state rides where fresh text does, to a hub that takes it on this page's platform.
         // (A plain read of the list: the hub contracts' helpers would carry their module into this layer.)
-        livePpv: limits !== null && bootstrap.capabilities.includes('live-ppv-v1'),
+        livePpv: limits !== null && bootstrap.capabilities.includes(ready.page.platform === 'fansly' ? 'live-ppv-fansly-v1' : 'live-ppv-v1'),
         messageCount: windowFor(feature, request.options.window, settings, bootstrap, extended),
       });
     } catch {

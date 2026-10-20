@@ -202,11 +202,20 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     // The start's own rule: a draft in the dock only.
     expect(StartOpSchema.safeParse({ ...startOf({ feature: 'review', livePpv }) }).success).toBe(false);
     expect(StartOpSchema.safeParse({ ...startOf({ surface: 'preview', target: targetOf('2003'), livePpv }) }).success).toBe(false);
-    // The request's own check: the hub takes it on OnlyFans alone.
-    const onFansly = HubStreamRequestSchema.safeParse({ feature: 'fast-reply', body: { clientRequestId: OP, pageLabel: 'p', platform: 'fansly', conversationRef: '1', livePpvContext: livePpv }, capabilities: [] });
-    expect(onFansly.success).toBe(false);
-    const onReview = HubStreamRequestSchema.safeParse({ feature: 'chat-review', body: { clientRequestId: OP, pageLabel: 'p', platform: 'onlyfans', conversationRef: '1', livePpvContext: livePpv }, capabilities: [] });
-    expect(onReview.success).toBe(false);
+    // The request's own check (hub `assertLivePpvRequestShape`): in its page's shape — paid messages on OnlyFans, paid
+    // attachments on Fansly — and on the features the hub takes it.
+    const request = (feature: string, platform: 'onlyfans' | 'fansly', state: unknown) =>
+      HubStreamRequestSchema.safeParse({
+        feature,
+        body: { clientRequestId: OP, pageLabel: 'p', platform, conversationRef: '1', ...(platform === 'fansly' ? { fanRef: '2' } : {}), ...(feature === 'fan-notes-fill' ? { noteFields: ['Имя'] } : {}), ...(state === undefined ? {} : { livePpvContext: state }) },
+        capabilities: [],
+      }).success;
+    const attachments = { capturedAt: '2026-10-20T12:00:00.000Z', items: [{ platformMessageId: '9002', contentKind: 'media', contentRef: '9100', priceUsd: 25, purchased: false }] };
+    expect(request('fast-reply', 'fansly', livePpv)).toBe(false);
+    expect(request('fast-reply', 'onlyfans', attachments)).toBe(false);
+    expect(request('fast-reply', 'fansly', attachments)).toBe(true);
+    expect(request('chat-review', 'onlyfans', livePpv)).toBe(true);
+    expect([request('fan-notes-fill', 'fansly', undefined), request('fan-notes-fill', 'fansly', attachments)]).toEqual([true, false]);
   });
 
   it('[AI-121] fresh text goes only under freshText + context-v1; known fan ids only with context-v1', () => {

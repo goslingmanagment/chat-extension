@@ -40,11 +40,11 @@ import { SoundBatchSchema } from './sound';
 
 import { CgAnyErrorWireSchema } from './errors-fansly';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
-import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, OpStateSchema } from './ops';
+import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { ChatKeySchema } from './ids';
 import { LiveTextMessageSchema } from './host';
-import { LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
+import { LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
@@ -426,6 +426,20 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.hi.start': {
     req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, groupId: NativeIdSchema }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), proof: z.nullable(StartProofV1Schema), dialog: z.boolean() }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * An AI start in the open chat (X54 on Fansly): the background reads the chat's newest pages and the fan's orders of
+   * its paid attachments from Fansly, by the click (core services/hosts/fansly/ppv.ts). `items` — what it could tell
+   * by its deadline, newest first; none — nothing paid, or nothing known.
+   */
+  'fansly.ppv.read': {
+    req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, groupId: NativeIdSchema }),
+    res: z.discriminatedUnion('ok', [
+      z.strictObject({ ok: z.literal(true), capturedAt: IsoTimestampSchema, items: z.array(LivePpvAttachmentItemSchema).check(z.maxLength(LIVE_PPV_LIMITS.maxItems)) }),
+      Failure,
+    ]),
     from: TAB,
     hosts: FANSLY,
   },
