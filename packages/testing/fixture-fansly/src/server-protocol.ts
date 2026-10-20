@@ -97,6 +97,14 @@ export type FakeFanslyCommand =
     }
   /** A mass send: a `type 3` parent in the creator's mass-send group and a copy with its `correlationId` in each group. */
   | { readonly op: 'broadcast'; readonly text: string; readonly groupIds: readonly string[]; readonly silent?: boolean }
+  /**
+   * X54 on Fansly: the creator's message with one paid attachment — a media or a bundle whose PPV permission row
+   * carries `priceUsd` — and its `5/1` frame; `purchased` — the group's fan has bought it (an order, served inline on
+   * the history pages and by `/media/orderhistory`).
+   */
+  | { readonly op: 'ppv'; readonly groupId: string; readonly kind: 'media' | 'bundle'; readonly priceUsd: number; readonly purchased?: boolean; readonly text?: string; readonly silent?: boolean }
+  /** The group's fan buys a paid attachment: its order appears; no frame. */
+  | { readonly op: 'purchase'; readonly groupId: string; readonly contentId: string }
   /** Deletes a message: ONE `5/10` frame, for it; the copies of a `type 3` parent go with it on the server. */
   | { readonly op: 'delete'; readonly messageId: string; readonly silent?: boolean }
   /** A receipt `4/2`: the fan of the messages' group read them (type 2) unless told otherwise. */

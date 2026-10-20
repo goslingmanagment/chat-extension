@@ -80,6 +80,15 @@ export const FANSLY_ROUTES = {
   'message.history': { method: 'GET', path: 'message', query: ['groupId', 'before', 'limit'], write: false, checkFamily: 'message', pace: 'GET /message' },
   'message.automated': { method: 'GET', path: 'message/automated', query: [], write: false, checkFamily: 'message', pace: 'GET /message/automated' },
   'message.send': { method: 'POST', path: 'message', query: [], write: true, checkFamily: 'message', pace: 'POST /message' },
+  // One fan's orders of one paid media or bundle (the old extension's purchase check, fansly-client.ts 2.13.0).
+  'media.orderhistory': {
+    method: 'GET',
+    path: 'media/orderhistory',
+    query: ['accountMediaId', 'accountMediaBundleId', 'accountIds', 'limit'],
+    write: false,
+    checkFamily: 'media',
+    pace: 'GET /media/orderhistory',
+  },
   'notes.create': { method: 'POST', path: 'notes', query: [], write: true, checkFamily: null, pace: 'POST /notes' },
   // decision 170 of the Fansly extension: Fansly's window takes `success` alone as an edit's confirmation.
   'notes.edit': { method: 'POST', path: 'notes/edit', query: [], write: true, checkFamily: null, pace: 'POST /notes', emptyAnswer: true },
@@ -90,7 +99,7 @@ export type FanslyRouteName = keyof typeof FANSLY_ROUTES;
 export const FANSLY_ROUTE_NAMES = Object.keys(FANSLY_ROUTES) as FanslyRouteName[];
 
 /** Why the extension asks Fansly at all: the rows of FS-NET-1's table. */
-export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi'] as const;
+export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv'] as const;
 export type FanslyPurpose = (typeof FANSLY_PURPOSES)[number];
 
 /**
@@ -145,6 +154,9 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   // Hi in the open chat when the tab saw no start of it (a cold load, a new socket): the welcome texts and the pages of
   // history to the empty one, by the person's click — once, and not at all while the creator cools down.
   hi: { 'message.history': CLICK_READ, 'message.automated': CLICK_READ },
+  // An AI start in the open chat: its newest pages of history and, for each paid attachment no inline order shows bought,
+  // the fan's orders of it — by the person's click, once, and not at all while the creator cools down.
+  ppv: { 'message.history': CLICK_READ, 'media.orderhistory': CLICK_READ },
 };
 
 const has = (record: object, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);

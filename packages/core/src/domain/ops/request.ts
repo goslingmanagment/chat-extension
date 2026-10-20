@@ -22,11 +22,12 @@
 // `hi-start-proof-v1` to a hub that declared it and carries the proof, its count and the fan's avatar.
 //
 // The open chat's PPV state (1.27.0, X54) goes as `livePpvContext` where fresh text may go, to a hub that lists
-// `live-ppv-v1`: the hub's body is strict, so a hub without it is never sent the field.
+// `live-ppv-v1` (ChatSpace) or `live-ppv-fansly-v1` (Fansly's attachments): a hub without it refuses the field, so it
+// is never sent one.
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
-import { HI_BY_START_PROOF } from '@cg/contracts/ids';
+import { HI_BY_START_PROOF, LIVE_PPV_CAPABILITY } from '@cg/contracts/ids';
 import {
   HUB_FEATURE_MAP,
   HubStreamRequestSchema,
@@ -165,7 +166,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   const tail = start.fresh ?? (proof !== undefined && proof.tail !== undefined && proof.tail.length > 0 ? { capturedAt: proof.takenAt, messages: proof.tail } : undefined);
   const liveNeed = LIVE_TEXT_HUB_NEEDS[start.feature];
   if (tail !== undefined && ctx.freshText && (liveNeed === undefined || hasCapability(ctx.bootstrap.capabilities, liveNeed))) body.liveTextContext = liveTextOf(tail);
-  if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, 'live-ppv-v1')) body.livePpvContext = start.livePpv;
+  if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, LIVE_PPV_CAPABILITY[body.platform])) body.livePpvContext = start.livePpv;
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };
   const parsed = HubStreamRequestSchema.safeParse(request);

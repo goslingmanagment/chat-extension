@@ -37,11 +37,18 @@
 //   3000 from Fansly's `settings.ext`, asked of the background by a start of
 //   the deep window only (`windows`); the shared planner caps it by the hub's
 //   `limits.deepMax`.
+// - The PPV state (X54 on Fansly, audit 2026-10-20 №3): a start that may carry
+//   fresh text, to a hub that lists `live-ppv-fansly-v1`, asks the background
+//   beside the snapshot whether the fan bought each paid attachment of the
+//   chat's newest messages (`ppv`, core services/hosts/fansly/ppv.ts) — as the
+//   old extension read `orderhistory` on every generation — and carries it as
+//   `livePpv`. The read is bounded (≤ 2 s, an answer with what is known after
+//   1.3 s); none is no state: the hub marks from its own stores.
 
 import type { FanslySnapshot, StartProofV1 } from '@cg/contracts/fansly';
 import type { FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { HostPort } from '@cg/contracts/host';
-import type { AiProofAsk, CoverageProof } from '@cg/contracts/ops';
+import type { AiProofAsk, CoverageProof, LivePpvState } from '@cg/contracts/ops';
 import type { SettingsExt } from '@cg/contracts/settings-ext';
 
 import { type AiPolicy } from '../../../ai/ports';
@@ -59,6 +66,11 @@ export interface FanslyAiDeps {
    * read (a refusal, a timeout). Absent — never asked.
    */
   readonly hiStart?: (chat: FanslySnapshot['identity']) => Promise<HiStartAnswer | null>;
+  /**
+   * The open chat's PPV state read by the background (`fansly.ppv.read`): its paid attachments with the fan's
+   * purchase; null — none known (a refusal, a timeout, nothing paid). Absent — never asked.
+   */
+  readonly ppv?: (chat: { readonly creatorId: string; readonly fanId: string; readonly groupId: string }) => Promise<LivePpvState | null>;
 }
 
 /** What the background's read of Hi's start found: its proof (`pass-empty-page`), or more than ten personal messages. */
@@ -71,6 +83,8 @@ export interface HiStartAnswer {
 export interface FanslyStartProof {
   readonly snapshot: FanslySnapshot;
   readonly proof: Extract<CoverageProof, { kind: 'tab-snapshot' }>;
+  /** The open chat's PPV state, when the start asked for it and the background knew some. */
+  readonly livePpv?: LivePpvState;
   /** Hi: the background's read found more than ten personal messages — a dialog. */
   readonly dialog?: true;
 }
@@ -100,10 +114,14 @@ function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<Fa
   const same = route.epoch === ask.identity.routeEpoch && route.chat !== null && route.chat.hostAccountId === chat.hostAccountId && route.chat.platformFanId === chat.platformFanId;
   if (!same || route.conversationRef === undefined) return null;
   const request = { conversationRef: route.conversationRef, feature: ask.feature, window: checkWindowOf(ask.messageCount), withText: ask.fresh !== null };
-  return freshness.snapshot(chat, request).then(async (taken) => {
+  // The PPV state beside the snapshot: the start waits for the slower of the two, the PPV read at most its bound.
+  const ppv = ask.livePpv === true && ask.fresh !== null && deps.ppv !== undefined
+    ? deps.ppv({ creatorId: chat.hostAccountId, fanId: chat.platformFanId, groupId: route.conversationRef }).catch(() => null)
+    : Promise.resolve(null);
+  return Promise.all([freshness.snapshot(chat, request), ppv]).then(async ([taken, livePpv]) => {
     if (taken === null) return null;
     const { snapshot, dialog } = await withHiStart(taken, deps);
-    return { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()), ...(dialog ? { dialog: true as const } : {}) };
+    return { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()), ...(dialog ? { dialog: true as const } : {}), ...(livePpv === null ? {} : { livePpv }) };
   });
 }
 
@@ -113,7 +131,7 @@ export function createFanslyAi(deps: FanslyAiDeps): AiPolicy<FanslyStartProof, P
     watch: (host, changed) => checks.watch(host, changed),
     preflight: (feature, _window, gathered) => (feature === 'hi' && gathered?.dialog === true ? 'hi-gate' : hiPingGate(feature, gathered?.snapshot ?? null, deps.now())),
     proof: (host, ask) => gather(host, ask, deps),
-    fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof, ...hiFieldsOf(gathered.snapshot) }),
+    fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof, ...hiFieldsOf(gathered.snapshot), ...(gathered.livePpv === undefined ? {} : { livePpv: gathered.livePpv }) }),
     fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),
     verdict: (view, fingerprint) => verdictMark(view, checks.current(view, fingerprint)),
     unverifiedAnalysisMark: { reason: 'unverified', at: null },

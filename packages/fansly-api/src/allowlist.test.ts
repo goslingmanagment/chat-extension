@@ -23,6 +23,7 @@ describe('FS-NET-1', () => {
         'GET /account/:account/followersnew',
         'GET /account/me',
         'GET /group/:group/',
+        'GET /media/orderhistory',
         'GET /message',
         'GET /message/automated',
         'GET /messaging/groups',
@@ -54,6 +55,7 @@ describe('FS-NET-1', () => {
       notes: { 'group.detail': 'check×1', 'account.byIds': 'check×1', 'notes.create': 'dispatch×1', 'notes.edit': 'dispatch×1', 'notes.delete': 'dispatch×1' },
       identity: { 'account.me': 'queue×4' },
       hi: { 'message.history': 'check×1', 'message.automated': 'check×1' },
+      ppv: { 'message.history': 'check×1', 'media.orderhistory': 'check×1' },
     });
     // A write is never asked twice.
     for (const purpose of FANSLY_PURPOSES) for (const [route, admission] of Object.entries(FS_NET_1[purpose])) if (FANSLY_ROUTES[route as keyof typeof FANSLY_ROUTES].write) expect(admission.attempts).toBe(1);

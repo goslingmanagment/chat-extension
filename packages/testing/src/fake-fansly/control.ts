@@ -67,6 +67,23 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
       const sent = command.silent === true ? 0 : hub.emit([parentWire, ...wires].map(messageCreatedFrame), '5/1 mass send');
       return { ok: true, message: parentWire, messages: wires, sent };
     }
+    case 'ppv': {
+      const group = groupOf(state, command.groupId);
+      if (group.fanId === null) throw new FakeFanslyCommandError(`group ${group.id} has no fan`);
+      const contentId = world.nextId();
+      world.paid.set(contentId, { kind: command.kind, priceMills: Math.round(command.priceUsd * 1000) });
+      const message = world.addMessage({ groupId: group.id, senderId: world.creatorId, content: command.text ?? '', attachments: [{ messageId: null, pos: 0, contentType: command.kind === 'media' ? 1 : 2, contentId }] });
+      if (command.purchased === true) world.orders.push({ id: world.nextId(), accountId: group.fanId, contentId, kind: command.kind, createdAt: Date.now() });
+      const wire = world.wireMessage(message);
+      return { ok: true, message: wire, sent: command.silent === true ? 0 : hub.emit([messageCreatedFrame(wire)], '5/1') };
+    }
+    case 'purchase': {
+      const group = groupOf(state, command.groupId);
+      const content = world.paid.get(command.contentId);
+      if (group.fanId === null || content === undefined) throw new FakeFanslyCommandError(`no paid content ${command.contentId} in ${group.id}`);
+      world.orders.push({ id: world.nextId(), accountId: group.fanId, contentId: command.contentId, kind: content.kind, createdAt: Date.now() });
+      return { ok: true };
+    }
     case 'delete': {
       // The frame carries the message as it was: its `type` decides the page's cascade.
       const known = world.messages.get(command.messageId);

@@ -128,6 +128,22 @@ export interface FakeMedia {
   readonly createdAt: number;
 }
 
+/** A paid attachment the stand's `ppv` command made (X54 on Fansly): its kind and its PPV price, in mills. */
+export interface FakePaidContent {
+  readonly kind: 'media' | 'bundle';
+  readonly priceMills: number;
+}
+
+/** A fan's order of a paid attachment: served inline on the history pages and in `/media/orderhistory`. */
+export interface FakeOrder {
+  readonly id: string;
+  readonly accountId: string;
+  readonly contentId: string;
+  readonly kind: 'media' | 'bundle';
+  /** Milliseconds. */
+  readonly createdAt: number;
+}
+
 export interface NewMessage {
   readonly groupId: string;
   readonly senderId: string;
@@ -169,6 +185,9 @@ export class FanslyWorld {
   readonly albums: FakeAlbum[];
   /** The account's media by id: what the page uploaded. */
   readonly media = new Map<string, FakeMedia>();
+  /** Paid attachments by content id (the `ppv` command), and the fans' orders of them. */
+  readonly paid = new Map<string, FakePaidContent>();
+  readonly orders: FakeOrder[] = [];
   /** The creator's mass-send group: the parents of its mass sends live there. */
   readonly broadcastGroupId = BROADCAST_GROUP_ID;
   private readonly ids = new Snowflakes();
@@ -459,7 +478,29 @@ export class FanslyWorld {
   }
 
   wireHistory(messages: readonly FakeMessage[]): WireHistoryPage {
-    return { messages: messages.map((message) => this.wireMessage(message)), ...EMPTY_HISTORY };
+    // The page's own aggregation: each paid attachment's media or bundle with its PPV permission row, and the orders of it.
+    const paid = [...new Set(messages.flatMap((message) => message.attachments.map((attachment) => attachment.contentId)))].flatMap((id) => {
+      const content = this.paid.get(id);
+      return content === undefined ? [] : [{ id, ...content }];
+    });
+    const permissions = (priceMills: number) => ({ permissionFlags: [{ id: this.nextId(), flags: 1, price: priceMills, metadata: '' }] });
+    return {
+      messages: messages.map((message) => this.wireMessage(message)),
+      ...EMPTY_HISTORY,
+      accountMedia: paid.filter((item) => item.kind === 'media').map((item) => ({ id: item.id, accountId: this.creatorId, media: { type: 2, mimetype: 'video/mp4' }, permissions: permissions(item.priceMills) })),
+      accountMediaBundles: paid.filter((item) => item.kind === 'bundle').map((item) => ({ id: item.id, accountId: this.creatorId, accountMediaIds: [], permissions: permissions(item.priceMills) })),
+      // Inline, a bundle's order names the bundle in `accountMediaId` with type 2 (the old extension's reading).
+      accountMediaOrders: this.orders.filter((order) => paid.some((item) => item.id === order.contentId)).map((order) => ({ id: order.id, accountId: order.accountId, accountMediaId: order.contentId, type: order.kind === 'media' ? 1 : 2, createdAt: order.createdAt })),
+    };
+  }
+
+  /** `/media/orderhistory`: the orders of one media or bundle, by the accounts asked (all when none). */
+  wireOrderHistory(contentId: string, kind: 'media' | 'bundle', accountIds: readonly string[]): { accountMediaOrderHistory: unknown[] } {
+    return {
+      accountMediaOrderHistory: this.orders
+        .filter((order) => order.contentId === contentId && order.kind === kind && (accountIds.length === 0 || accountIds.includes(order.accountId)))
+        .map((order) => ({ id: order.id, orderId: order.id, accountId: order.accountId, accountMediaId: kind === 'media' ? contentId : null, accountMediaBundleId: kind === 'bundle' ? contentId : null, type: kind === 'media' ? 1 : 2, createdAt: order.createdAt })),
+    };
   }
 
   wireUnread(before: string | null, limit: number, offset: number): WireUnreadPage {

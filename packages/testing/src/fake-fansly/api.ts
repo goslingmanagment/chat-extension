@@ -263,6 +263,18 @@ const ROUTES: readonly Route[] = [
   { name: 'message.typing', method: 'POST', path: /^\/message\/typing$/, run: ({ body }) => (typeof asRecord(body)?.['groupId'] === 'string' ? { response: {} } : bad('groupId')) },
   { name: 'message.automated', method: 'GET', path: /^\/message\/automated$/, run: ({ world }) => ({ response: world.automated }) },
   {
+    // One media's or bundle's orders, by the accounts asked (X54 on Fansly: the purchase check of an AI start).
+    name: 'media.orderhistory',
+    method: 'GET',
+    path: /^\/media\/orderhistory$/,
+    run: ({ world, params }) => {
+      const media = params.get('accountMediaId');
+      const bundle = params.get('accountMediaBundleId');
+      if ((media === null) === (bundle === null)) return bad('accountMediaId or accountMediaBundleId');
+      return { response: world.wireOrderHistory((media ?? bundle) as string, media !== null ? 'media' : 'bundle', idList(params.get('accountIds'))) };
+    },
+  },
+  {
     name: 'notes.create',
     method: 'POST',
     path: /^\/notes$/,
