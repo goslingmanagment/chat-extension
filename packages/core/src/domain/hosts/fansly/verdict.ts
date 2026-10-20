@@ -15,11 +15,21 @@
 // | 1 | no `context_v1`; no snapshot; observation `unknown`; snapshot          | `unverified`     |
 // |   | `truncated`; an id not checked (no answer, two, an unknown state, an   |                  |
 // |   | answer to an id not asked)                                             |                  |
-// | 2 | a miss of the window; a draft's non-empty page text the hub did not    | `window-miss`    |
-// |   | serve (`live.status` not `served`, or `rejected > 0`)                  |                  |
+// | 2 | the model did not read one of the chat's LATEST messages: a miss of    | `window-miss`    |
+// |   | the window (or a known id `absent`) newer than the newest message it   |                  |
+// |   | read (`included`), or it read none of the window                       |                  |
 // | 3 | a message the tab saw deleted is in the context                        | `deleted-served` |
 // | 4 | otherwise: every id counted, the observation `complete` — an empty     | `fresh`          |
 // |   | window (no conversation) only under it                                 |                  |
+//
+// The mark says «ответ мог не учесть последние сообщения чата», so only a miss
+// of the latest messages is one (owner, 2026-10-20: the mark only when messages
+// were really missed). An older gap — a message the prompt budget cut
+// (`outside_window`), a media message the archive does not hold, a side the hub
+// reads otherwise — leaves what the fan said last read, and it was on nearly
+// every answer. The page's text is not a condition of its own: the hub merges
+// what it serves of it into the window it answers about, so an unserved text
+// of a message the model did not read is that message's miss.
 //
 // The fan's known ids (`knownFanMessageIds`) are ids of the window: the window
 // check answers each of them once. The hub answers them a second time
@@ -34,7 +44,7 @@
 // a preview, «Новые» — P10c) needs a fresh verdict and no mark at all
 // (`freshForSend`); inserting in the dock never waits for one.
 
-import { coverageCheckVerdict, type CoverageProof, type CoverageWindowEntry, type OpView, type ResultMarkVM, type ServedContext } from '@cg/contracts/ops';
+import { COVERAGE_CHECK_CLASSES, coverageCheckVerdict, type CoverageProof, type CoverageWindowEntry, type OpView, type ResultMarkVM, type ServedContext } from '@cg/contracts/ops';
 import { coverageFingerprintOf } from '../../ops/proof';
 
 /** The verdict of the table: `fresh`, or the reason of the mark (`StaleReason`). */
@@ -71,14 +81,49 @@ function knownAnswers(asked: readonly string[], answers: ServedContext['knownFan
   return miss ? 'miss' : 'counted';
 }
 
+const DECIMAL = /^\d+$/;
+
+/** Fansly's ids grow with time (snowflakes): the larger is the newer; an id that is not decimal goes by the window's order (oldest first). */
+function newer(a: string, b: string, order: ReadonlyMap<string, number>): boolean {
+  if (DECIMAL.test(a) && DECIMAL.test(b)) return BigInt(a) > BigInt(b);
+  return (order.get(a) ?? -1) > (order.get(b) ?? -1);
+}
+
+/**
+ * Whether the model missed one of the chat's latest messages: a missed id (a window answer read as a miss, a known id
+ * `absent`) newer than the newest one it read (`included`), or any miss when it read none. Called on a check already
+ * read as verified: every asked id has its one answer.
+ */
+function latestMissed(fingerprint: ProofFingerprint, served: ServedContext): boolean {
+  const order = new Map(fingerprint.window.map((entry, index) => [entry.id, index]));
+  const read: string[] = [];
+  const missed: string[] = [];
+  for (const answer of served.coverageCheck?.window ?? []) {
+    if (answer.state === 'included') read.push(answer.id);
+    else if (answer.state !== null && COVERAGE_CHECK_CLASSES.window[answer.state] === 'miss') missed.push(answer.id);
+  }
+  for (const answer of served.knownFanMessages ?? []) {
+    if (answer.state === 'included') read.push(answer.id);
+    else if (answer.state === 'absent') missed.push(answer.id);
+  }
+  // An id the hub answers both ways is a miss: it never stands for what the model read.
+  const newest = read.filter((id) => !missed.includes(id)).reduce<string | null>((best, id) => (best === null || newer(id, best, order) ? id : best), null);
+  return missed.some((id) => newest === null || newer(id, newest, order));
+}
+
+/** Whether a message the tab saw deleted was in the context: the deleted list's own part of the check. */
+function deletedServed(served: ServedContext): boolean {
+  return (served.coverageCheck?.deleted ?? []).some((answer) => answer.state !== null && COVERAGE_CHECK_CLASSES.deleted[answer.state] === 'stale');
+}
+
 /** Spec §3.5: the verdict on one generation — what the tab kept of its proof against the hub's `context_v1`. */
 export function freshnessVerdict(fingerprint: ProofFingerprint | null, served: ServedContext | null | undefined): FreshnessVerdict {
   if (served === null || served === undefined || fingerprint === null || fingerprint.completeness !== 'complete' || fingerprint.truncated) return 'unverified';
   const check = coverageCheckVerdict(fingerprint, served.coverageCheck);
   const known = knownAnswers(fingerprint.knownFanMessageIds, served.knownFanMessages);
   if (check === 'unverified' || known === 'unverified') return 'unverified';
-  if (check === 'miss' || known === 'miss' || (fingerprint.text && (served.live.status !== 'served' || served.live.rejected > 0))) return 'window-miss';
-  return check === 'stale' ? 'deleted-served' : 'fresh';
+  if ((check === 'miss' || known === 'miss') && latestMissed(fingerprint, served)) return 'window-miss';
+  return deletedServed(served) ? 'deleted-served' : 'fresh';
 }
 
 /**

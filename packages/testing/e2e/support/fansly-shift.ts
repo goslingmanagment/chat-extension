@@ -25,7 +25,7 @@ import { chatPath, openStand, STAND_IDS, waitForChatReady } from './stand';
 
 export interface FanslyShiftOptions {
   /** Settings on top of the defaults (the hub address is the fake hub's). */
-  readonly settings?: { readonly generation?: Partial<SettingsV1['generation']> };
+  readonly settings?: { readonly generation?: Partial<SettingsV1['generation']>; readonly ui?: Partial<SettingsV1['ui']> };
   /** The Fansly stand's path the tab opens with. */
   readonly path: string;
   /** The neighbour next to it (`off` by default). */
@@ -50,7 +50,12 @@ export async function startFanslyShift(hub: FakeHubControlClient, options: Fansl
   if (options.world !== false) await hub.command({ op: 'config', patch: fanslyPageFlags() });
   await installTestBuild();
   await browser.url(testBuildPage(QUIET_PAGE));
-  const settings: SettingsV1 = { ...DEFAULT_SETTINGS, hub: { baseUrl: fakeHubOrigin() }, generation: { ...DEFAULT_SETTINGS.generation, ...options.settings?.generation } };
+  const settings: SettingsV1 = {
+    ...DEFAULT_SETTINGS,
+    hub: { baseUrl: fakeHubOrigin() },
+    ui: { ...DEFAULT_SETTINGS.ui, ...options.settings?.ui },
+    generation: { ...DEFAULT_SETTINGS.generation, ...options.settings?.generation },
+  };
   await writeLocalStorage({ [STORAGE_KEYS.settings]: settings, 'dev.fanslyApi.origin': fakeFansly().apiOrigin });
   await browser.waitUntil(
     async () => {

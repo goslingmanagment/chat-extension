@@ -70,6 +70,28 @@ describe('[RB-012] migrations run forward, at start, before the first answer', (
   });
 });
 
+describe('the look of the old Fansly client, taken once (2026-10-20)', () => {
+  it('a store from before moves «как на сайте» to light and the text to «Крупнее»; a choice made after that stays', async () => {
+    const before = (ui: Record<string, unknown>): Record<string, unknown> => ({ ...clone(customSettings), ui });
+    const load = async (stored: Record<string, unknown>): Promise<unknown> => {
+      const local = createMemoryKv();
+      local.data.set(KEY, stored);
+      const { owner } = setup({ local });
+      return (await owner.state()).ok ? (await settingsRequestHandlers(owner)['settings.get']()) : null;
+    };
+    const ui = (answer: unknown): unknown => (answer as { ok: true; payload: { settings: { ui: unknown } } }).payload.settings.ui;
+    expect({
+      siteTheme: ui(await load(before({ theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal' }))),
+      chosenDark: ui(await load(before({ theme: 'dark', locale: 'ru', hints: true, resultStyle: 'bare' }))),
+      takenThenChosen: ui(await load(before({ theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal', defaultsTaken: 2 }))),
+    }).toEqual({
+      siteTheme: { theme: 'light', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 2 },
+      chosenDark: { theme: 'dark', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 2 },
+      takenThenChosen: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal', defaultsTaken: 2 },
+    });
+  });
+});
+
 describe('[ST-016] a store written by a newer build is read-only (CG-STORAGE-VERSION)', () => {
   it('answers what it can read, flags read-only, writes nothing — not even the persona scope', async () => {
     const local = createMemoryKv();

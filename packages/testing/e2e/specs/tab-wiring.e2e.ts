@@ -193,7 +193,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     await settingsPatch({ ui: { theme: other, locale: 'en', resultStyle: 'sheet' } });
     const changed = await dockIs((d) => d.scheme === other && d.language === 'en' && d.resultStyle === 'sheet', 'the dock took the new theme, language and result style');
     expect(changed.status).toBe('ready');
-    await settingsPatch({ ui: { theme: 'host', locale: 'ru', resultStyle: 'bare' } });
+    await settingsPatch({ ui: { theme: DEFAULT_SETTINGS.ui.theme, locale: 'ru', resultStyle: 'bare' } });
     await dockIs((d) => d.scheme === before.scheme && d.language === 'ru' && d.resultStyle === 'bare', 'the dock is back');
   });
 
