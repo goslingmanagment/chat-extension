@@ -1,9 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "152b37aee3198a4527e1def4890ef091ec77e2c31c5b76a99c8fb9c2af82fbea",
-    "sourceCommit": "74c0f32251b633b76e0eb06f4c0e0762ae31eae2",
-    "distSha256": "ec4c75d654c8d672c5681e133577704d545a210e308e7190372603aa3f6d66b6",
-    "note": "Vendored on 2026-10-20 for release 0.5.7 from merged hub main 74c0f322 (#681) with scripts/vendor-sdk.mjs. Adds live-text-fansly-tools-v1 for voice-script and fan-notes-fill. Existing request schemas and contract hash are unchanged. Publish only after this hub commit is deployed; re-vendor with the same script and update this pin together."
+    "contractHash": "db838fab3e9aa6949b38653aa321f907e6fddc218c2bd2b22dcae065a8929583",
+    "sourceCommit": "d7de039a522ce8764f3b48a6a84ae152764b7049",
+    "note": "Vendored on 2026-10-21 for release 0.5.9 from merged and deployed hub main d7de039a (#702) with scripts/vendor-sdk.mjs (chat-extension #260): adds live-ppv-fansly-v1, the Fansly page's PPV purchase state from the client. Publish only after this hub commit is deployed; re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
