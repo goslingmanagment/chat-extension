@@ -69,6 +69,9 @@ const ROWS: Readonly<Record<CatalogActionId, Row>> = {
   'apply-fix': { label: 'cheatsheet.row.applyFix', tooltip: null, scope: 'result', status: 'active', key: extra('apply-fix') },
 };
 
+/** ⌘⇧H on a lenient site (Fansly): the old extension's Help key, Coach with «разбор ситуации» (the runner's `help`); only its button is removed (Б3). */
+const HELP_KEY: Row = { ...ROWS.help, tooltip: null, status: 'active' };
+
 const extraDef = (command: DispatcherCommandId, fallback: boolean): ExtraKeyDef | undefined => EXTRA_KEYS.find((def) => def.command === command && def.fallback === fallback);
 
 function labelOf(row: Row, platform: HotkeyPlatform, overrides: DeliveryOverrides): HotkeyLabel | null {
@@ -91,12 +94,14 @@ function labelOf(row: Row, platform: HotkeyPlatform, overrides: DeliveryOverride
 export interface CatalogOptions {
   /** Measured delivery (docs/hotkeys-delivery.md) that differs from the built-in table. */
   readonly delivery?: DeliveryOverrides;
+  /** ⌘⇧H works on this site (its key rules are lenient): Coach with «разбор ситуации». Absent — the key is removed (Б3). */
+  readonly helpKey?: boolean;
 }
 
 export function createActionCatalog(platform: HotkeyPlatform, options: CatalogOptions = {}): ActionCatalog {
   const overrides = options.delivery ?? {};
   const entries: readonly ActionCatalogEntry[] = CATALOG_ACTION_IDS.map((id) => {
-    const row = ROWS[id];
+    const row = id === 'help' && options.helpKey === true ? HELP_KEY : ROWS[id];
     return { id, label: row.label, tooltip: row.tooltip, hotkey: labelOf(row, platform, overrides), scope: row.scope, status: row.status };
   });
   const byId = new Map(entries.map((entry) => [entry.id, entry]));

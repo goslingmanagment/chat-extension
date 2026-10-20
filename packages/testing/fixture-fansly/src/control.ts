@@ -11,12 +11,14 @@ import type { StandApp } from './app';
 import { liveComposers } from './composer';
 import { newMessageId, standIds } from './data';
 import { readJournal, record } from './journal';
+import { openMediaViewer, type ModalRef } from './modal';
 import { FANSLY_STAND_GLOBAL, type FanslyStandControl, type GroupView, type OpenVia } from './protocol';
 import type { FakeFanslyCommand } from './server-protocol';
 import { currentTheme, setTheme } from './theme';
 
 export function installControl(app: StandApp): { markReady(): void } {
   let ready = false;
+  let viewer: ModalRef | null = null;
   const world = app.world;
   const live = app.live;
   /** A command to the fake Fansly: its failure is the stand's, journaled, never an exception inside a control call. */
@@ -129,6 +131,14 @@ export function installControl(app: StandApp): { markReady(): void } {
     setTheme: (theme) => setTheme(theme),
     setOldExtension: (on) => app.oldMarks.set(on),
     setMiniChat: (groupId) => app.miniChat.open(groupId),
+    setMediaViewer: (open) => {
+      // A click on the backdrop may have closed it already.
+      if (open && (viewer === null || !app.modals.tags.includes(viewer.element.localName))) viewer = openMediaViewer(app.modals);
+      if (!open) {
+        viewer?.close();
+        viewer = null;
+      }
+    },
     recreateField: () => {
       const composer = app.mainContainer()?.composer ?? null;
       if (composer === null) throw new Error('no main composer');

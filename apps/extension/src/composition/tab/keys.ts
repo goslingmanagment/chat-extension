@@ -30,7 +30,7 @@
 import type { FocusPlace } from '@cg/contracts/vm';
 import { createEarlyKeyDispatcher, createEarlyNotices, createTabKeyState, type EarlyKeyDispatcher, type EarlyNotice, type EarlyNotices, type TabKeyState } from '@cg/core/application/hotkeys';
 import { createOverlayState, mirrorDismissible, type OverlayState } from '@cg/core/application/navigation';
-import { hotkeyPlatformOf, type HotkeyPlatform } from '@cg/core/domain/hotkeys';
+import { hotkeyPlatformOf, type HotkeyPlatform, type SiteKeyRules } from '@cg/core/domain/hotkeys';
 
 import type { HostAdapter, HostMounts } from './adapter';
 
@@ -42,6 +42,8 @@ export interface KeptKeydown {
 
 export interface TabKeys {
   readonly platform: HotkeyPlatform;
+  /** Where the site's keys depart from the shared rules (`HostAdapter.keyRules`): what the catalog prints follows them. */
+  readonly rules: SiteKeyRules;
   /** Where the page's focus is now (the site's probe): the composer, another field, ours, none (decision X44). */
   focusPlace(): FocusPlace;
   /** Which of our overlays are open: the dispatcher reads it, whoever mounts an overlay writes it. */
@@ -68,7 +70,7 @@ export interface TabKeysEnv {
   readonly win: Window;
   readonly mounts: Pick<HostMounts, 'dock' | 'registry' | 'setDismissibleOpen'>;
   /** The page side of the dispatcher: whose the focus is, the address's route, the dock host's waiting mark; the site's client of the key scheme. */
-  readonly site: Pick<HostAdapter, 'keyProbe' | 'keyPending' | 'routeOfLocation' | 'hotkeyClient'>;
+  readonly site: Pick<HostAdapter, 'keyProbe' | 'keyPending' | 'routeOfLocation' | 'hotkeyClient' | 'keyRules'>;
   /** A key waits for the lazy part: load it now. */
   readonly onWaiting: () => void;
 }
@@ -134,6 +136,7 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
   const dispatcher = createEarlyKeyDispatcher({
     platform,
     client: site.hotkeyClient,
+    ...(site.keyRules === undefined ? {} : { rules: site.keyRules }),
     window: win,
     document: { source: doc, hidden: () => doc.hidden, focused: () => doc.hasFocus() },
     ownership,
@@ -148,6 +151,7 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
 
   return {
     platform,
+    rules: site.keyRules ?? {},
     focusPlace: () => ownership.now(),
     overlays,
     state,

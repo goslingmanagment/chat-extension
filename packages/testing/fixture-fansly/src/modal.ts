@@ -78,6 +78,23 @@ export class ModalService {
   }
 }
 
+/** A modal of the page that is not the composer's: the media viewer over a picture of the chat (its own close icon). */
+export function openMediaViewer(modals: ModalService): ModalRef {
+  const s = scope();
+  const viewer = host(s, 'app-media-viewer-modal');
+  let ref: ModalRef | null = null;
+  const close = el(s, 'i', { class: 'fa-fw fa fa-xmark pointer blue-1-hover-only hover-effect' }, ['✕']);
+  close.addEventListener('click', handler(() => ref?.close()));
+  viewer.append(
+    el(s, 'div', { class: 'modal' }, [
+      el(s, 'div', { class: 'modal-header' }, [el(s, 'div', { class: 'title' }, [el(s, 'xd-localization-string', {}, ['Media'])]), el(s, 'div', { class: 'actions' }, [close])]),
+      el(s, 'div', { class: 'modal-content' }, [el(s, 'div', { class: 'media-viewer-picture' })]),
+    ]),
+  );
+  ref = modals.open(viewer, () => ref?.close());
+  return ref;
+}
+
 /** How long a template takes to upload on the stand (the component refreshes its progress every 500 ms). */
 export const TEMPLATE_UPLOAD_MS = 1200;
 const PROCESS_MS = 80;

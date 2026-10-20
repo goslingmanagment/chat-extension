@@ -30,6 +30,7 @@ export { createKeyResolver, isImeKey, type KeyResolver, type KeyVerdict } from '
 export {
   COVERING_OVERLAYS,
   FOCUS_KINDS,
+  GENERATION_COMMANDS,
   GLOBAL_COMMANDS,
   LIST_COMMANDS,
   PREVIEW_COMMANDS,
@@ -37,6 +38,7 @@ export {
   UNDER_COVER_COMMANDS,
   decideKey,
   decideUnmatched,
+  servesRow,
   type FixKeyState,
   type FocusKind,
   type KeyCommand,
@@ -45,6 +47,7 @@ export {
   type KeyRefusal,
   type OverlayKind,
   type RouteKind,
+  type SiteKeyRules,
 } from './policy';
 export { DELIVERY, DELIVERY_KEYS, deliveryOf, type DeliveryKey, type DeliveryOverrides } from './delivery';
 export { createActionCatalog, isOutsideScheme, printableHotkey, type CatalogOptions } from './catalog';
