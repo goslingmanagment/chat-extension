@@ -12,6 +12,8 @@
 // - Every ask is said again to whoever wants the application: an application whose load failed is asked for again by
 //   the next click (nothing reloads by itself, UP-016).
 
+import type { ColorScheme, ValueSignal } from '@cg/contracts/vm';
+
 /** What the launcher opens: the shared surfaces of the boards. */
 export type LauncherTarget = 'spenders' | 'newcomers';
 
@@ -28,10 +30,20 @@ export interface FanslyLauncher {
   onPending(listener: () => void): () => void;
   /** The application's runner: a kept click runs at once, the next ones in their own click. The answer stops it. */
   serve(run: (target: LauncherTarget) => void): () => void;
+  /**
+   * The scheme the buttons wear: the one the application resolved from «Тема» for our surfaces (`follow`), so the
+   * buttons are the dock's chips in every theme; null until the application came — the light paper, the default.
+   */
+  scheme(): ColorScheme | null;
+  onScheme(listener: () => void): () => void;
+  /** The application hands its scheme; the answer stops following it. */
+  follow(scheme: ValueSignal<ColorScheme>): () => void;
 }
 
 export function createFanslyLauncher(): FanslyLauncher {
   let kept: LauncherTarget | null = null;
+  let scheme: ColorScheme | null = null;
+  const schemeListeners = new Set<() => void>();
   let asked = false;
   let runner: ((target: LauncherTarget) => void) | null = null;
   const wantedListeners = new Set<() => void>();
@@ -63,6 +75,17 @@ export function createFanslyLauncher(): FanslyLauncher {
     onWanted: (listener) => listen(wantedListeners, listener),
     pending: () => kept,
     onPending: (listener) => listen(pendingListeners, listener),
+    scheme: () => scheme,
+    onScheme: (listener) => listen(schemeListeners, listener),
+    follow(signal) {
+      const take = (value: ColorScheme): void => {
+        if (value === scheme) return;
+        scheme = value;
+        say(schemeListeners);
+      };
+      take(signal.value);
+      return signal.subscribe(take);
+    },
     serve(run) {
       runner = run;
       const waiting = kept;

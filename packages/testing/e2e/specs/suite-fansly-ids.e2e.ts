@@ -114,7 +114,7 @@ describe('groupId on every Fansly surface: the dock, the fan panel, the toast, t
     // The page's board: the stand's two fans, whose chats the hub's capture knows, and a stranger whose chat it does not.
     await hub().command({ op: 'spenderFans', fans: [A.fan, B.fan, STRANGER].map((fanRef, rank) => ({ fanRef, displayName: nameOf(fanRef), lifetimeUsd: 900 - rank * 100 })) });
     await hub().command({ op: 'config', patch: { spendersTotal: 3 } });
-    await startFanslyShift(hub(), { path: `/messages/${A.group}`, settings: { generation: { split: true } }, viewport: { width: 1440, height: 900 } });
+    await startFanslyShift(hub(), { path: `/messages/${A.group}`, settings: { generation: { split: true }, ui: { theme: 'host' } }, viewport: { width: 1440, height: 900 } });
     await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true && d.target?.endsWith(`:${A.fan}`) === true, 'the dock of the first Fansly chat, ready', 20_000);
   });
 
@@ -386,7 +386,7 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     await fakeFansly().command({ op: 'reset' });
     await hub().command({ op: 'spenderFans', fans: seeds });
     await hub().command({ op: 'config', patch: { spendersTotal: 3 } });
-    await startFanslyShift(hub(), { path: `/messages/${A.group}`, settings: { generation: { split: true } }, viewport: { width: 1440, height: 900 } });
+    await startFanslyShift(hub(), { path: `/messages/${A.group}`, settings: { generation: { split: true }, ui: { theme: 'host' } }, viewport: { width: 1440, height: 900 } });
     await openChat(B.group, B.fan); // The person's earlier visit puts Birch in the page's passive cache.
     await openChat(A.group, A.fan);
   });

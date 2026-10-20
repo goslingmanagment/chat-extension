@@ -27,7 +27,8 @@ export type { FanslyDiagnostic, FanslyTheme } from './host-port';
 
 /** The launcher's chunk of Fansly's lazy build (lazy/fansly/launcher.ts): the buttons, drawn once the tab is admitted. */
 export interface LauncherChunk {
-  drawFanslyLauncher(env: LauncherViewEnv): () => void;
+  /** The chunk hands the kit's token sheet in itself (`LauncherViewEnv.tokens`). */
+  drawFanslyLauncher(env: Omit<LauncherViewEnv, 'tokens'>): () => void;
 }
 
 export type FanslyStartEnv = Pick<StartFanslyHostOptions, 'win' | 'validation' | 'redeem' | 'navInsertTimeoutMs' | 'handshakeTimeoutMs' | 'searchMs' | 'relayUrl'> & {
@@ -85,7 +86,7 @@ export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
       if (!admitted || coexistence.stopped.aborted) return;
       const chunk = await draw();
       if (coexistence.stopped.aborted) return;
-      const erase = chunk.drawFanslyLauncher({ host: started.mounts.launcher(), theme: started.theme, launcher, platform: env.win.navigator.platform });
+      const erase = chunk.drawFanslyLauncher({ host: started.mounts.launcher(), launcher, platform: env.win.navigator.platform });
       coexistence.stopped.addEventListener('abort', erase, { once: true });
     }).catch((error: unknown) => {
       env.onDiagnostic?.({ event: 'launcher-failed', detail: { name: error instanceof Error ? error.name : typeof error } });

@@ -62,11 +62,44 @@ describe('[host:fansly] R20 P8b2: the verdict — one pure function of spec §3.
     expect(new Set(CASES.map((c) => c.coverageVerdict))).toEqual(new Set(['fresh', 'miss', 'stale', 'unverified']));
   });
 
+  // The mark is for the chat's latest messages only (2026-10-20): a miss OLDER than the newest message the model read
+  // is no mark. Of the matrix, one case is such a gap; every other miss in it is of the newest message.
+  const OLDER_GAP = new Set(['a message the hub holds for the chat, older than the served window']);
   for (const c of CASES) {
-    it(`${c.name} → ${OF_CHECK[c.coverageVerdict]}`, () => {
-      expect(verdictOf(worldOf(c))).toBe(OF_CHECK[c.coverageVerdict]);
+    const expected = OLDER_GAP.has(c.name) ? 'fresh' : OF_CHECK[c.coverageVerdict];
+    it(`${c.name} → ${expected}`, () => {
+      expect(verdictOf(worldOf(c))).toBe(expected);
     });
   }
+
+  it('a miss counts only when it is newer than the newest message the model read, or the model read none', () => {
+    const ids = ['700000000000000101', '700000000000000102', '700000000000000103'];
+    const window = ids.map((id) => ({ id, dir: 'fan' as const }));
+    const verdict = (states: readonly string[], deleted: readonly { id: string; state: string }[] = []): FreshnessVerdict => {
+      const c: MatrixCase = {
+        name: 'local',
+        request: { window, deletedIds: deleted.map((item) => item.id) },
+        answer: { window: ids.map((id, index) => ({ id, state: states[index] ?? 'included' })), deleted },
+        coverageVerdict: 'fresh',
+      };
+      return verdictOf(worldOf(c));
+    };
+    expect({
+      oldestCut: verdict(['outside_window', 'included', 'included']),
+      middleAbsent: verdict(['included', 'absent', 'included']),
+      newestAbsent: verdict(['included', 'included', 'absent']),
+      noneRead: verdict(['absent', 'outside_window', 'deleted']),
+      newestDeleted: verdict(['included', 'included', 'deleted']),
+      gapAndStale: verdict(['absent', 'included', 'included'], [{ id: '700000000000000201', state: 'still_served' }]),
+    }).toEqual({
+      oldestCut: 'fresh',
+      middleAbsent: 'fresh',
+      newestAbsent: 'window-miss',
+      noneRead: 'window-miss',
+      newestDeleted: 'fresh',
+      gapAndStale: 'deleted-served',
+    });
+  });
 
   it('named intersections, spelled out', () => {
     const byName = (start: string): MatrixCase => {
@@ -86,7 +119,7 @@ describe('[host:fansly] R20 P8b2: the verdict — one pure function of spec §3.
     expect({
       // A miss of the window, under a truncated snapshot: not verified at all.
       missTruncated: verdict(miss, { truncated: true, text: true }, served),
-      // A stale context with the draft's text rejected in part: the miss of the text comes first.
+      // A stale context with the draft's text rejected in part: every message of the window was read, the context is stale.
       staleRejected: verdict(stale, { text: true }, { live: { status: 'served', accepted: 1, rejected: 1 } }),
       // A stale context, the draft's text served whole: the context is stale.
       staleServed: verdict(stale, { text: true }, served),
@@ -104,7 +137,7 @@ describe('[host:fansly] R20 P8b2: the verdict — one pure function of spec §3.
       everything: verdict(both, { truncated: true, text: true, completeness: 'unknown' }, { live: { status: 'rejected', accepted: 0, rejected: 3 } }),
     }).toEqual({
       missTruncated: 'unverified',
-      staleRejected: 'window-miss',
+      staleRejected: 'deleted-served',
       staleServed: 'deleted-served',
       missAndStale: 'window-miss',
       freshUnknown: 'unverified',
@@ -152,7 +185,11 @@ describe('[host:fansly] R20 P8b2: the fingerprint, the mark over the result and 
 
   it('[FS-TAIL-8] a send of this generation’s unchanged result needs its own fresh verdict and no mark at all — anything else, only a new generation', () => {
     expect(freshForSend(done(answered({})), fresh)).toBe(true);
-    expect(freshForSend(done(answered({ window: ['absent'] })), fresh)).toBe(false);
+    // The newest message unread holds the send; an older gap of the window does not (the latest were read).
+    const newestAbsent = tabProof.window.map((_, index, all) => (index === all.length - 1 ? 'absent' : 'included'));
+    expect(freshForSend(done(answered({ window: newestAbsent })), fresh)).toBe(false);
+    expect(tabProof.window.length).toBeGreaterThan(1);
+    expect(freshForSend(done(answered({ window: ['absent'] })), fresh)).toBe(true);
     expect(freshForSend(done(answered({ deleted: 'included' })), fresh)).toBe(false);
     expect(freshForSend(done(answered({})), null)).toBe(false);
     expect(freshForSend(done(answered({}), { stale: { reason: 'fan-wrote', at: null } }), fresh)).toBe(false);

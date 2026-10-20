@@ -4,11 +4,12 @@
 // build (lazy/fansly/launcher.ts), loaded once the tab is admitted (starter.ts); plain DOM in a closed root: the
 // application — Preact, the kit, the texts — is loaded by the first click, never for the buttons.
 //
-// - Family look without the kit (ui-design §3.11 «Вход», the vault's entry): `--cg-raised` card, a hairline of
-//   `--cg-rule-2`, `--cg-shadow`, the glyph in terracotta, the label in ink; hover and the wait — terracotta's chip.
-//   The colours are Fansly's own variables in the theme its page shows (ui-design §2.1 «Fansly», the same steps as
-//   `palette.ts`) — they reach the closed root by inheritance; a variable a new build lacks falls back to its value on
-//   fansly.com of 2026-10-12. The scheme is the page's: `data-scheme` on the host, kept by the theme reader.
+// - The dock's chips without the kit's code (ui-design §3.11 «Вход», the vault's entry): the kit's own tokens
+//   (`--cg-raised` card, a hairline of `--cg-rule-2`, `--cg-shadow`, the glyph in terracotta, the label in ink; hover
+//   and the wait — terracotta's chip), whose sheet the chunk hands in (`tokens`, lazy/fansly/launcher.ts), so the
+//   buttons are the chips by the composer in colour and face (2026-10-20: no palette of their own). The scheme is the
+//   one «Тема» gives our surfaces, once the application hands it (`FanslyLauncher.follow`); until then the light
+//   paper, the default.
 // - Where: fixed, 16 px from the bottom left corner, on our layer under Fansly's modals (mount.ts `LAUNCHER_Z`): a
 //   modal of Fansly's covers it, as it covers Fansly's own page. FBuddy's toasts stand bottom right, our toasts top
 //   right, the vault's entry bottom right: the corner is nobody's.
@@ -19,7 +20,6 @@
 import type { ClosedHost } from '@cg/host-kit/isolated/hosts';
 
 import type { FanslyLauncher, LauncherTarget } from './launcher';
-import type { FanslyTheme } from './theme';
 
 /** The launcher's words: Russian, as the old extension's (the application's language setting is not read this early). */
 export const LAUNCHER_TEXT: Readonly<Record<LauncherTarget, { readonly label: string; readonly title: string; readonly aria: string }>> = {
@@ -47,40 +47,31 @@ const GLYPHS: Readonly<Record<LauncherTarget, readonly (readonly [string, Readon
 };
 
 export const LAUNCHER_CSS = `
-:host {
-  all: initial; display: flex; gap: 8px; font-family: inherit;
-  --l-raised: var(--modal-bg, #16161a); --l-line: var(--seperator, #323844); --l-ink: var(--font-1, #d6dce8);
-  --l-clay: #d97757; --l-clay-ink: #e08566; --l-clay-bg: #3f2b21; --l-clay-line: #61412f;
-  --l-shadow: 0 1px 4px -1px rgb(0 0 0 / 0.6);
-}
-:host([data-scheme="light"]) {
-  --l-raised: var(--modal-bg, #fff); --l-line: var(--v2-btn-grey-active, #d5dcdf); --l-ink: var(--font-1, #141e28);
-  --l-clay-ink: #a84d2b; --l-clay-bg: #f7e8e1; --l-clay-line: #e8c3b3;
-  --l-shadow: 0 1px 4px -1px rgb(20 30 40 / 0.1);
-}
+:host { all: initial; display: flex; gap: 8px; font-family: var(--cg-font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 button {
   all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 13px 0 10px;
-  border-radius: 999px; background: var(--l-raised); box-shadow: inset 0 0 0 1px var(--l-line), var(--l-shadow);
-  color: var(--l-ink); font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer;
+  border-radius: var(--cg-r-pill); background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-rule-2), var(--cg-shadow);
+  color: var(--cg-ink); font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer;
   transition: background-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
 }
-button:hover, button[aria-busy="true"] { background: var(--l-clay-bg); box-shadow: inset 0 0 0 1px var(--l-clay-line), var(--l-shadow); color: var(--l-clay-ink); }
-button:focus-visible { outline: 2px solid var(--l-clay-ink); outline-offset: 2px; }
-svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--l-clay); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+button:hover, button[aria-busy="true"] { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line), var(--cg-shadow); color: var(--cg-clay-ink); }
+button:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 2px; }
+svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--cg-clay); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 button[aria-busy="true"] svg { animation: l-wait 900ms ease-in-out infinite alternate; }
 @keyframes l-wait { to { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } button[aria-busy="true"] svg { animation: none; } }
 `;
 
-/** The launcher's sheet in its closed root: adopted, or — where the content script's world refuses — a <style> of its own. */
-function dress(root: ShadowRoot, doc: Document): void {
+/** The launcher's sheet in its closed root, after the kit's tokens: adopted, or — where the content script's world refuses — a <style> of its own. */
+function dress(root: ShadowRoot, doc: Document, tokens: string): void {
+  const css = `${tokens}\n${LAUNCHER_CSS}`;
   try {
     const sheet = new CSSStyleSheet();
-    sheet.replaceSync(LAUNCHER_CSS);
+    sheet.replaceSync(css);
     root.adoptedStyleSheets = [sheet];
   } catch {
     const style = doc.createElement('style');
-    style.textContent = LAUNCHER_CSS;
+    style.textContent = css;
     root.append(style);
   }
 }
@@ -91,8 +82,9 @@ export const BUSY_MS = 15_000;
 export interface LauncherViewEnv {
   /** The launcher's host (mount.ts `launcher()`): fixed in the corner, its closed root registered for the keys. */
   readonly host: ClosedHost;
-  readonly theme: Pick<FanslyTheme, 'current' | 'onChange'>;
   readonly launcher: FanslyLauncher;
+  /** The kit's token sheet (`THEME_CSS`): `--cg-*` on `:host`, the dark values under `data-scheme="dark"`. */
+  readonly tokens: string;
   /** `navigator.platform`, for the key in the tooltip. */
   readonly platform: string;
 }
@@ -102,10 +94,10 @@ export function drawFanslyLauncher(env: LauncherViewEnv): () => void {
   const { host, launcher } = env;
   const doc = host.host.ownerDocument;
   const root = host.root;
-  dress(root, doc);
-  const scheme = (): void => host.host.setAttribute('data-scheme', env.theme.current().scheme);
+  dress(root, doc, env.tokens);
+  const scheme = (): void => host.host.setAttribute('data-scheme', launcher.scheme() ?? 'light');
   scheme();
-  const offTheme = env.theme.onChange(scheme);
+  const offTheme = launcher.onScheme(scheme);
   const buttons = (['spenders', 'newcomers'] as const).map((target) => {
     const text = LAUNCHER_TEXT[target];
     const button = doc.createElement('button');

@@ -344,7 +344,7 @@ export const logRecord: LogRecord = {
 
 export const customSettings: SettingsV1 = {
   ...DEFAULT_SETTINGS,
-  ui: { theme: 'dark', locale: 'ru', hints: false, resultStyle: 'sheet' },
+  ui: { theme: 'dark', locale: 'ru', hints: false, resultStyle: 'sheet', textSize: 'normal', defaultsTaken: 2 },
   sound: { ...DEFAULT_SETTINGS.sound, volume: 35, mutedAccounts: [`chatspace:${IDS.otherAcc}`] },
   personas: { scope: { hubOrigin: HUB, userId: 7 }, byPageId: { '11': { key: 'lora', definitionId: 'pdef_0123456789abcdef' } } },
   accounts: { labels: { [`chatspace:${IDS.acc}`]: 'Main model' } },

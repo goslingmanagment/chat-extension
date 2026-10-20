@@ -8,6 +8,7 @@
     "./hosts/fansly/registration": "./src/hosts/fansly/Registration.tsx",
     ".": "./src/index.ts",
     "./kit": "./src/kit/index.ts",
+    "./kit/tokens": "./src/kit/tokens.ts",
     "./dock": "./src/dock/index.ts",
     "./dock/analysis": "./src/dock/analysis/index.tsx",
     "./dock/debug": "./src/dock/debug/index.tsx",

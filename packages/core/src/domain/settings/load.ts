@@ -7,8 +7,10 @@
 import {
   DEFAULT_SETTINGS,
   SETTINGS_SCHEMA_VERSION,
+  UI_DEFAULTS_REVISION,
   type SettingsLoadOutcome,
   type SettingsMigrations,
+  type SettingsV1,
 } from '@cg/contracts/settings';
 
 import { isPlainRecord } from '../storage/json';
@@ -39,6 +41,18 @@ export function oldestSupportedVersion(steps: SettingsMigrations, current: numbe
   return steps[0]?.from ?? current;
 }
 
+/**
+ * The look's defaults a store from before 2026-10-20 takes once (`ui.defaultsTaken`, 2026-10-20): the theme «как на сайте»
+ * — the default it was written down with — becomes «Светлая», and the text «Крупнее». Another theme, chosen, stays; so
+ * does the large text. The store is marked, so «как на сайте» or «Обычный» chosen after this stays too. Not written
+ * back on its own: the next write of the settings carries it, and until then every load takes the same.
+ */
+export function takeUiDefaults(settings: SettingsV1): SettingsV1 {
+  if (settings.ui.defaultsTaken === UI_DEFAULTS_REVISION) return settings;
+  const theme = settings.ui.theme === 'host' ? 'light' : settings.ui.theme;
+  return { ...settings, ui: { ...settings.ui, theme, textSize: 'large', defaultsTaken: UI_DEFAULTS_REVISION } };
+}
+
 export function loadStoredSettings(
   raw: unknown,
   migrations: SettingsMigrations = SETTINGS_MIGRATIONS,
@@ -49,12 +63,12 @@ export function loadStoredSettings(
   const version = raw['schemaVersion'];
   if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
     const { settings, repaired } = repairSettings(raw);
-    return { kind: 'current', settings, repaired: ['schemaVersion', ...repaired] };
+    return { kind: 'current', settings: takeUiDefaults(settings), repaired: ['schemaVersion', ...repaired] };
   }
   if (version > current) return { kind: 'newer', settings: repairSettings(raw).settings, storedVersion: version };
   if (version === current) {
     const { settings, repaired } = repairSettings(raw);
-    return { kind: 'current', settings, repaired };
+    return { kind: 'current', settings: takeUiDefaults(settings), repaired };
   }
   if (migrationChainProblems(migrations, current).length > 0) return { kind: 'unreadable', code: 'CG-STORAGE-READ' };
   let value: Record<string, unknown> = { ...raw };
@@ -70,7 +84,7 @@ export function loadStoredSettings(
     }
   }
   const { settings, repaired } = repairSettings(value);
-  return { kind: 'migrated', settings, from: version, repaired };
+  return { kind: 'migrated', settings: takeUiDefaults(settings), from: version, repaired };
 }
 
 function structuredCopy<T>(value: T): T {

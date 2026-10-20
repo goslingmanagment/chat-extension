@@ -35,6 +35,9 @@ export type UiResultStyle = (typeof UI_RESULT_STYLES)[number];
  * the toasts) read the type scale a step up (base 13 → 15 px, captions 11–12 → 13 px). The extension pages keep theirs.
  */
 export const UI_TEXT_SIZES = ['normal', 'large'] as const;
+
+/** The revision of the look's defaults (`ui.defaultsTaken`): 2 — the light paper and the larger text (2026-10-20). */
+export const UI_DEFAULTS_REVISION = 2;
 export type UiTextSize = (typeof UI_TEXT_SIZES)[number];
 export const COACH_AUTO_RECAP = ['off', 'short', 'full'] as const;
 export type CoachAutoRecap = (typeof COACH_AUTO_RECAP)[number];
@@ -106,6 +109,13 @@ export const SettingsV1Schema = z.strictObject({
      * drops it (its repair keeps only the fields it knows), and the text is normal there.
      */
     textSize: z.optional(z.enum(UI_TEXT_SIZES)),
+    /**
+     * 2026-10-20: the revision of the look's defaults the store took. Absent — written before it: the load
+     * moves the old defaults once — «Тема: как на сайте» to «Светлая», the text to «Крупнее» (the old Fansly client's
+     * light paper and larger text, the owner's reference) — and a choice made after that stays. Optional, so a build
+     * before it reads the store as ever (its repair drops the key).
+     */
+    defaultsTaken: z.optional(z.literal(UI_DEFAULTS_REVISION)),
   }),
   generation: z.strictObject({
     /** Б7: snapshot of this flag is taken when an operation starts. */
@@ -178,11 +188,15 @@ export const DEFAULT_HUB_ORIGIN = 'https://gosling-agency.ru';
  * default was `system`, and the first start writes the defaults down: an
  * install made before 1.14.0 has `system` stored and keeps it (no migration;
  * the person switches in «Вид и звук»).
+ *
+ * The look is the old Fansly client's (2026-10-20): light paper on every site, whatever the page's theme
+ * («как на сайте», the default until then, stays a choice), and the larger text. A store from before takes both once
+ * on load (`takeUiDefaults`).
  */
 export const DEFAULT_SETTINGS: SettingsV1 = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
   hub: { baseUrl: DEFAULT_HUB_ORIGIN },
-  ui: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal' },
+  ui: { theme: 'light', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: UI_DEFAULTS_REVISION },
   generation: {
     split: false,
     rememberTone: true,

@@ -101,9 +101,12 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   const offLauncher = env.host.launcher.serve((surface) => {
     void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
   });
+  // The buttons wear the scheme of our surfaces, so they stay the dock's chips under «Тема» (2026-10-20).
+  const offScheme = env.host.launcher.follow(env.deps.scheme);
   return () => {
     offOps();
     offLauncher();
+    offScheme();
     off();
     void registration?.then((stop) => stop?.());
     void notes?.then((stop) => stop?.());
