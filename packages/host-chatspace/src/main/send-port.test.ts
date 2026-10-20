@@ -2,7 +2,6 @@
 // the live port, over a ChatSpace-like queue: what reaches the queue, what
 // never does, and the answer of each case.
 
-/* eslint-disable @typescript-eslint/unbound-method -- the tests compare the page's `fetch` by identity */
 
 import { PreviewSendCommitSchema, PreviewSendPreflightSchema } from '@cg/contracts/send';
 import { PREVIEW_SEND_CONDITION_CODES } from '@cg/contracts/send-rules';

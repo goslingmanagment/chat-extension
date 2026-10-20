@@ -5,7 +5,6 @@
 // the X8 send port, the flags, the `wsFrames` anchor), whichever script ran
 // first. Answers and events are checked with the contracts' own schemas.
 
-/* eslint-disable @typescript-eslint/unbound-method -- the tests compare the page's `fetch` by identity */
 
 import { FROM_MAIN, parseBridgeData } from '@cg/contracts/bridge-messages';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

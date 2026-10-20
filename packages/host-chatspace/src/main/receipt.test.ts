@@ -3,7 +3,6 @@
 // chain ends in. The queue and its HTTP client are the fake ones of
 // testing/fake-live.ts; the page's fetch is answered by the test.
 
-/* eslint-disable @typescript-eslint/unbound-method -- the tests compare the page's `fetch` by identity */
 
 import { FROM_MAIN } from '@cg/contracts/bridge-messages';
 import { afterEach, describe, expect, it, vi } from 'vitest';

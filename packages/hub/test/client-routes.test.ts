@@ -31,7 +31,6 @@ const WORLD_ON = signInWorld(SIGN_IN, BOOTSTRAP_ALL_ON, WORLD.user.username);
 /** The facade method of one scenario exchange (the routes the data scenarios use). */
 function call(facade: ChatExtensionHub, exchange: HttpExchange): Promise<unknown> {
   const request = exchange.request as never;
-  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- only the data scenarios' routes
   switch (exchange.route) {
     case 'clientConversationFeed':
       return facade.feed(request);
