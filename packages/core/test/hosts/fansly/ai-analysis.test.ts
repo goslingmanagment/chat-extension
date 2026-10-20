@@ -149,8 +149,8 @@ describe('[host:fansly] R20 P8c: the verdict over Recap, Review and Coach — th
     await review(missed, NEWEST);
     const vm = missed.h.review();
     expect(vm).toMatchObject({ state: 'done', stale: { reason: 'window-miss', at: null }, regenerate: { enabled: true, action: { type: 'Regenerate', operationId: vm.opId } } });
-    // No page text went with it (FS-TAIL-10): the window was checked by its ids alone.
-    expect(missed.h.bg.hub.streams.map(({ body }) => [body.coverageCheck?.window.length, body.liveTextContext])).toEqual([[60, undefined]]);
+    // The latest texts and their matching coverage window travel together (FS-TAIL-10).
+    expect(missed.h.bg.hub.streams.map(({ body }) => [body.coverageCheck?.window.length, body.liveTextContext !== undefined])).toEqual([[60, true]]);
     await run(missed, 'chat-review', vm.regenerate.action, 'Rating: 8/10', [contextOf('chat-review', WINDOWS.deep, null)]);
     expect(missed.h.review()).toMatchObject({ state: 'done', stale: null });
     expect(missed.h.review().opId).not.toBe(vm.opId);
@@ -161,7 +161,7 @@ describe('[host:fansly] R20 P8c: the verdict over Recap, Review and Coach — th
     await recapShort(tab, NEWEST);
     const vm = tab.h.recapView();
     expect(vm).toMatchObject({ length: 'short', markdown: 'A short recap.', stale: { reason: 'window-miss', at: null }, refresh: { enabled: true, action: { type: 'RefreshRecap', length: 'short' } } });
-    expect(tab.h.bg.hub.streams.map(({ body }) => [body.messageCount, body.coverageCheck?.window.length, body.liveTextContext])).toEqual([[300, 60, undefined]]);
+    expect(tab.h.bg.hub.streams.map(({ body }) => [body.messageCount, body.coverageCheck?.window.length, body.liveTextContext !== undefined])).toEqual([[300, 60, true]]);
     await recapShort(tab, null);
     expect(tab.h.recapView()).toMatchObject({ length: 'short', stale: null });
   });
@@ -230,7 +230,7 @@ describe('[host:fansly] R20 P8c: the verdict over Recap, Review and Coach — th
     const tab = await fanslyTab();
     await coach(tab, NEWEST);
     expect(lastTurn(tab)).toMatchObject({ state: 'done', stale: { reason: 'window-miss', at: null }, again: { enabled: true, action: { type: 'Generate', feature: 'coach', targetHandle: target(tab), options: { question: 'What now?' } } } });
-    expect(tab.h.bg.hub.streams.map(({ body }) => [body.coverageCheck?.window.length, body.liveTextContext])).toEqual([[60, undefined]]);
+    expect(tab.h.bg.hub.streams.map(({ body }) => [body.coverageCheck?.window.length, body.liveTextContext !== undefined])).toEqual([[60, true]]);
     const again = lastTurn(tab)?.again?.action;
     if (again === undefined) throw new Error('no «Ещё раз»');
     await run(tab, 'coach-chat', again, 'Ask about the weekend, then offer.', [contextOf('coach-chat', WINDOWS.quick, null)]);

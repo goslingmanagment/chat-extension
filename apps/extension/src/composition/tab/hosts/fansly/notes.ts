@@ -19,7 +19,8 @@ import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext } from '@cg/core/application/boards';
 import { createNotesController, type NotesPort } from '@cg/core/application/hosts/fansly/notes';
-import { admittedOn } from '@cg/core/domain/features';
+import { withFanslyOpText } from '@cg/core/application/hosts/fansly/ai';
+import { admittedOn, freshTextAdmitted } from '@cg/core/domain/features';
 import { NOTES_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanslyModalOpen, notesMeasure } from '@cg/host-fansly/isolated/notes-place';
@@ -111,7 +112,8 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       if (!binding.ok) return binding;
       const token = await rpc.request('token.issue', { kind: 'generate', surface: 'dock' });
       if (!token.ok) return token;
-      const started = await fanslyRequest(rpc, 'fansly.ops.start', {
+      const ctx = context.current();
+      const input = await withFanslyOpText(host, {
         feature: 'notes-fill',
         target: { binding: binding.payload.binding, chat, fanRef: fanId, conversationRef: t.groupId },
         cause: { kind: 'click', actionToken: token.payload.actionToken },
@@ -120,7 +122,9 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
         // The owner's ruling of 2026-10-17 (X43): the questionnaire's values go to the hub's merge mode, in its body only.
         values: [...values],
         force: true,
-      }, NOTES_REQUEST_TIMEOUT_MS);
+      }, ctx.bootstrap, freshTextAdmitted(env.features, ctx.bootstrap, binding.payload.binding.pageId));
+      if (input === null) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
+      const started = await fanslyRequest(rpc, 'fansly.ops.start', input, NOTES_REQUEST_TIMEOUT_MS);
       if (!started.ok) return started;
       if (!started.payload.ok) return { ok: false, error: { code: started.payload.code } };
       const { opId } = started.payload;

@@ -604,7 +604,7 @@ export class FakeHub {
       }
       // Decision X52: a hub before `live-text-review-coach-v1` takes fresh text on the four draft features only, one
       // before `live-text-recap-v1` not on Recap.
-      const liveNeed = feature === 'chat-review' || feature === 'coach-chat' ? 'live-text-review-coach-v1' : feature === 'fan-summary' ? 'live-text-recap-v1' : null;
+      const liveNeed = feature === 'chat-review' || feature === 'coach-chat' ? 'live-text-review-coach-v1' : feature === 'fan-summary' ? 'live-text-recap-v1' : feature === 'voice-script' || feature === 'fan-notes-fill' ? 'live-text-fansly-tools-v1' : null;
       if (typeof body === 'object' && body !== null && (body as { liveTextContext?: unknown }).liveTextContext !== undefined && liveNeed !== null && !s.config.capabilities.includes(liveNeed)) {
         return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', 'live_text_not_allowed', undefined, [`${feature} does not accept liveTextContext`]);
       }

@@ -65,13 +65,14 @@ export function coachTurnSteps(start: StartOp): CoachTurnSteps | null {
   return {
     recap: {
       feature: autoRecap.length === 'full' ? 'recap' : 'recap-short',
-      surface: start.surface,
+      surface: 'dock',
       target: start.target,
       cause: start.cause,
       tone: null,
       split: false,
       window: autoRecap.window,
       force: true,
+      ...(start.fresh === undefined ? {} : { fresh: start.fresh }),
       ...(start.proof === undefined ? {} : { proof: start.proof }),
     },
     answer: { ...start, coach: question },

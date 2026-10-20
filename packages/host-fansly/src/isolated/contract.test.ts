@@ -4,7 +4,8 @@
 
 import { FANSLY_ANCHOR_IDS, FANSLY_CAPABILITIES, FANSLY_NETWORK_ANCHORS } from '@cg/contracts/fansly';
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
-import { FRESH_TEXT_FEATURES as CONTRACT_FRESH_TEXT } from '@cg/contracts/features';
+import { FEATURE_IDS } from '@cg/contracts/features';
+import { FANSLY_OPS } from '@cg/contracts/ops-fansly';
 import { HOST_CAPABILITIES } from '@cg/contracts/host';
 import { describe, expect, it } from 'vitest';
 
@@ -66,7 +67,7 @@ describe('[host:fansly] the early bundle’s copies of the contracts', () => {
   });
 
   it('page text only for the draft functions (D-14): the same list as the contracts’', () => {
-    expect([...FRESH_TEXT_FEATURES]).toEqual([...CONTRACT_FRESH_TEXT]);
+    expect([...FRESH_TEXT_FEATURES]).toEqual([...FEATURE_IDS, ...FANSLY_OPS]);
   });
 
   it('a batch its schemas refuse comes on as its number alone — never as events — and one without a number is dropped', () => {

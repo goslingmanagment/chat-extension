@@ -15,10 +15,10 @@
 //   more than 60 the tab cannot have the hub check them all, and a stale context
 //   could pass unseen: the newest 60 go, and the observation reads `unknown` —
 //   «свежесть не проверена», never a guess.
-// - The tail — Reply, Fix, Hi and Ping only, and only where the page admits fresh
+// - The tail — for every AI feature where the page and hub admit fresh
 //   text (D-14: `AiProofAsk.fresh`) — is cut to the bootstrap's limits as
 //   ChatSpace's tail is (`trimFreshTail`): the newest texts, each within the
-//   limit. Recap, Review and Coach never carry one (FS-TAIL-10).
+//   limit, including Review, Coach and Recap (X70, FS-TAIL-10).
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import { COVERAGE_CHECK_LIMITS } from '@cg/contracts/limits';
