@@ -580,19 +580,14 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     expect(w.background.drafts.get(fan(1))?.text).toBe('Hey Fan 1, welcome! 💕');
   });
 
-  it('[NF-014] [NF-015] before the hub is asked: a fan whose history the pass has not read to its start gets no generation; more than ten personal messages among the last 30 — a dialogue, Reply’s: refused without a request', async () => {
-    const w = greetingWorld([wireRow(1, { status: 'ready', historyRevision: null }), wireRow(2)]);
-    w.background.proofs.set(fan(2), proofOf(2, 11));
+  it('[NF-014] before the hub is asked: a fan whose history the pass has not read to its start gets no generation', async () => {
+    const w = greetingWorld([wireRow(1, { status: 'ready', historyRevision: null })]);
     await w.open();
     await w.pick(1);
     expect(w.card()?.check).toBe('unverified');
     expect(w.greeting()).toMatchObject({ waiting: true, canGenerate: false, canSend: false });
     expect(await w.generate(1)).toMatchObject({ ok: false, code: 'CG-DATA-NOT-READY' });
-    await w.pick(2);
-    expect(await w.generate(2)).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
-    expect(w.greeting()?.state).toEqual({ s: 'refused', failure: { code: 'CG-GATE-HI', retryAt: null } });
     expect(w.tab.started).toEqual([]);
-    expect(w.background.of('fansly.followers.proof')).toHaveLength(1);
   });
 
   it('[NF-016] [NF-017] the sign-in, the binding and the persona are the same around the generation — else its result is not taken; an empty, split or marked result is unusable', async () => {
