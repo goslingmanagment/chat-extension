@@ -14,7 +14,7 @@
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
 import type { AdmissionAction } from '@cg/contracts/features/types';
-import { type ChatWindow, type HostSnapshot, type LiveTextTail } from '@cg/contracts/host';
+import { type ChatWindow, type HostSnapshot, type LiveTextTail, type RouteState } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { CHAT_IS_FAN, LIVE_PPV_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
@@ -125,6 +125,11 @@ export interface Situation {
   readonly quota: AiQuotaSnapshot | null;
   readonly persona: PersonaState | null;
   readonly pageName: string | null;
+  /**
+   * A conversation is open, but the page has not named its account or its fan for `UNIDENTIFIED_GRACE_MS`: `chat`
+   * stays null (nothing can start), yet the dock is shown with the reason (audit 2026-10-20 №15).
+   */
+  readonly unidentified?: boolean;
 }
 
 export interface StartRequest {
@@ -183,6 +188,14 @@ type SentReport = TabRequestPayload<'op.reportSent'>;
 const STALE_BOARD_PART: PartBlock = { reason: 'send-unavailable', code: 'CG-SEND-PART', view: { id: 'send-unavailable', code: 'CG-SEND-PART', text: { key: 'send.reason.part' } } };
 /** «Cannot ask yet»: the field of the chat is not seen (not ready, or the host's identity is still on its way). */
 const FIELD_NOT_SEEN_YET: readonly CgCode[] = ['CG-HOST-COMPOSER-MISSING', 'CG-HOST-NOT-READY'];
+/**
+ * Audit 2026-10-20 №15 (UI-011): how long a conversation may stand open without the page naming its account or its
+ * fan before the dock says so. A chat switch names them within a second; past this the page will not by itself, and
+ * the dock shows its strip, all off, with «Аккаунт не определён» / «Чат не определён» and «Перезагрузить вкладку» —
+ * as the Fansly extension's bar said «Аккаунт не определён» (old `content/button-bar.ts:206-208, 431`). Before it,
+ * nothing: a dock that blinks a warning on every chat switch would be worse than none.
+ */
+export const UNIDENTIFIED_GRACE_MS = 8_000;
 /** Chats whose tone or open sheet the tab remembers. */
 export const CHAT_UI_MAX = 64;
 /** UI-031: «AI: осталось N» from this many requests down. */
@@ -246,6 +259,8 @@ export class AiWorkspace {
   private readonly offs: (() => void)[] = [];
   private readonly timers = new Set<unknown>();
   private hostReload = false;
+  /** The open conversation the page has not tied to its account and fan yet: its route epoch, and since when. */
+  private unnamed: { readonly epoch: number; readonly since: number } | null = null;
   private versionValue = 0;
   private flushing = false;
   private situationCache: { version: number; value: Situation } | null = null;
@@ -485,7 +500,10 @@ export class AiWorkspace {
     const bootstrap = this.env.bootstrap;
     if (bootstrap.s === 'error') return off('hub-down', 'hub-down', bootstrap.error);
     if (bootstrap.s !== 'ready') return off('loading-chat', 'chat-loading', null);
-    if (chat === null) return off('ready', 'chat-loading', null);
+    if (chat === null) {
+      const unknown = this.unidentifiedCode(route);
+      return unknown === null ? off('ready', 'chat-loading', null) : { ...off('host-degraded', 'host-unidentified', { code: unknown }), unidentified: true };
+    }
 
     // UI-011: without the host's identity the account is not known — nothing sensitive runs. It is the
     // «ChatSpace обновился» banner («вставка недоступна — только Копировать»), so parts are copy-only too:
@@ -1169,8 +1187,33 @@ export class AiWorkspace {
 
   // ── reactions ────────────────────────────────────────────────────────────
 
+  /**
+   * A conversation of the address whose account or fan the page has not named (Fansly: `conversationRef` before `chat`;
+   * a group chat is not one — it has no AI by design): since when, by route epoch; the views are rebuilt once the grace
+   * is over. ChatSpace names the chat with the route, so nothing here ever waits there.
+   */
+  private watchUnnamed(route: RouteState): void {
+    const waiting = route.name === 'chat' && route.chat === null && route.conversationRef !== undefined && route.conversationKind !== 'group';
+    if (!waiting) {
+      this.unnamed = null;
+      return;
+    }
+    if (this.unnamed?.epoch === route.epoch) return;
+    const since = this.ports.clock.now();
+    this.unnamed = { epoch: route.epoch, since };
+    this.wakeAt(since + UNIDENTIFIED_GRACE_MS);
+  }
+
+  /** What the dock says of a conversation still unnamed past the grace: which of the two the page did not name. */
+  private unidentifiedCode(route: RouteState): CgCode | null {
+    const unnamed = this.unnamed;
+    if (unnamed === null || unnamed.epoch !== route.epoch || this.ports.clock.now() < unnamed.since + UNIDENTIFIED_GRACE_MS) return null;
+    return route.account === null ? 'CG-HOST-ACCOUNT-UNKNOWN' : 'CG-HOST-CHAT-UNKNOWN';
+  }
+
   private routeChanged(): void {
     const route = this.ports.host.current().route;
+    this.watchUnnamed(route);
     const key = route.name === 'chat' && route.chat !== null ? chatKeyOf(route.chat) : null;
     // The page tail is kept for the open chat only: a chat that was left is read again when it is opened.
     for (const other of [...this.tails.keys()]) if (other !== key) this.tails.delete(other);

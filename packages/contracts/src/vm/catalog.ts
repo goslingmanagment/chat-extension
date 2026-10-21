@@ -125,6 +125,8 @@ export const UNAVAILABLE_REASONS = {
   'overlay-open': { key: 'dock.reason.overlayOpen', code: 'CG-GATE-OVERLAY' },
   'host-degraded': { key: 'dock.reason.hostDegraded', code: 'CG-HOST-CONTRACT' },
   'composer-missing': { key: 'dock.reason.composerMissing', code: 'CG-HOST-COMPOSER-MISSING' },
+  /** Audit 2026-10-20 №15: a conversation is open, but the page has not named its account or fan (old «Аккаунт не определён»). */
+  'host-unidentified': { key: 'dock.reason.hostUnidentified', code: 'CG-HOST-ACCOUNT-UNKNOWN' },
   'claim-busy': { key: 'dock.reason.claimedBy', code: 'CG-CLAIM-BUSY' },
   /** The same person holds the lease in another tab or on another device (H-7 `you-elsewhere`). */
   'claim-elsewhere': { key: 'dock.reason.claimElsewhere', code: null },

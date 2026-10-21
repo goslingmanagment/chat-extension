@@ -37,6 +37,9 @@ function button(label: ActionButtonVM['label']['key'], action: UiAction): Action
   return { label: msgOf(label), action, enabled: true, reason: null, hotkey: null };
 }
 
+/** «Аккаунт не определён», «Чат не определён»: the strip stands, all off, over this banner. */
+const UNIDENTIFIED_CODES: ReadonlySet<string> = new Set(['CG-HOST-ACCOUNT-UNKNOWN', 'CG-HOST-CHAT-UNKNOWN']);
+
 interface BannerModel {
   readonly error: CgErrorView;
   readonly dot: 'danger' | 'ring';
@@ -62,6 +65,8 @@ function bannerOf(vm: DockVM, t: (key: 'cg.hubUnavailable.banner' | 'cg.hostCont
     case 'no-persona':
       return { error, dot: 'ring', action: remedy === null ? null : button('cg.personaUnassigned.action', remedy), copyCode: false };
     case 'host-degraded':
+      // The page never named the account or the fan of the open chat (audit 2026-10-20 №15): a reload is the remedy.
+      if (UNIDENTIFIED_CODES.has(error.code)) return { error, dot: 'ring', action: button('common.reloadTab', { type: 'ReloadTab' }), copyCode: false };
       return {
         error: error.code === 'CG-HOST-CONTRACT' ? withBody(error, t('cg.hostContract.banner')) : error,
         dot: 'ring',

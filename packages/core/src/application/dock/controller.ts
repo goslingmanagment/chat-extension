@@ -236,7 +236,8 @@ export function createDockController(ws: AiWorkspace): DockController {
     const focusPart = partFocus.next(result, mode, composer, chat !== null && composer !== null && chatKeyOf(composer.chat) === chat.key);
     return {
       view: viewOf(ws, situation),
-      visible: chat !== null,
+      // A conversation the page never named past the grace shows the strip, all off, and why (audit 2026-10-20 №15).
+      visible: chat !== null || situation.unidentified === true,
       mode,
       status: situation.status,
       statusError: situation.statusError === null ? null : errorVm(situation.statusError, ws.ports.i18n),
