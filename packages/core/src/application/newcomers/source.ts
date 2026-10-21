@@ -41,8 +41,11 @@ export interface NewcomersPassSource {
    * is gone.
    */
   setRunning(passId: string, running: boolean): Promise<SourceAnswer<PassState | null>>;
-  /** R20 P10b1, NF-038: «Проверить следующим» / «Проверить чат» — true: the queue took this fan. */
-  checkNext(passId: string, fanRef: string): Promise<SourceAnswer<boolean>>;
+  /**
+   * R20 P10b1, NF-038: «Проверить следующим» / «Проверить чат» — true: the queue took this fan. `next` — a click on the
+   * row (the old window): only a running queue takes the fan first; a standing one is never started by it.
+   */
+  checkNext(passId: string, fanRef: string, next?: boolean): Promise<SourceAnswer<boolean>>;
   /**
    * R20 P10b2, FS-NEW-2: «Исключить из очереди» (`true`) / «Вернуть в очередь» (`false`) of a fan nobody can write to —
    * true: kept; false — the fan is not such a fan (any more), or the exclusion could not be kept.

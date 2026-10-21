@@ -14,7 +14,7 @@ export type PassJournalEvent =
   | 'call.start' | 'call.end' | 'call.failed' | 'call.wait'
   | 'http.start' | 'http.end' | 'http.failed'
   | 'welcome.refresh' | 'followers.page' | 'inbox.page' | 'profiles.batch'
-  | 'chat.reuse' | 'history.page' | 'history.cache' | 'message.classify' | 'row.verdict';
+  | 'chat.reuse' | 'history.page' | 'history.cache' | 'message.classify' | 'row.verdict' | 'row.recheck';
 
 /** Only ids, enums, counters and timing facts; never request/response objects or error messages. */
 export interface PassJournalFields {

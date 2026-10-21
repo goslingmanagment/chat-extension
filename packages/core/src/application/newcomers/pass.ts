@@ -134,6 +134,13 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   let loadingMore = false;
   let moreFailure: NewcomersFailureVM | null = null;
   let selected: string | null = null;
+  /**
+   * The fan the person is on (a click, the keys, a draft, a button of the card): the card stays on them when the pass
+   * moves them out of the list on screen — «Уже писали» found by a check, another filter — instead of jumping to another
+   * fan while they read or type (the old window's `pinned`). Their row as last told; null — none.
+   */
+  let pinned: string | null = null;
+  let pinnedRow: PassRow | null = null;
   let regone = false;
   /** R20 P10b1: a button of the queue waits for the background's answer. */
   let acting = false;
@@ -202,6 +209,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     moreFailure = null;
     listFailure = null;
     selected = null;
+    pinned = null;
+    pinnedRow = null;
     acting = false;
     histories.clear();
     card?.reset();
@@ -319,6 +328,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       total = count;
       counts = latestCounts;
       rows = placePassPage([], 0, read);
+      track(rows);
       seq = firstSeq ?? null;
     }
     const pending = held;
@@ -352,6 +362,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     else if (answer.value.pass.passId !== pass.passId) return replaced(answer.value.pass);
     else {
       rows = placePassPage(rows, rows.length, answer.value.rows);
+      track(answer.value.rows);
       total = answer.value.total;
       counts = answer.value.counts;
       pass = answer.value.pass;
@@ -372,6 +383,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
 
   function heard(change: PassChange): void {
     if (disposed || pass === null || change.pass.passId !== pass.passId) return;
+    // The pinned fan's row as the pass tells it, also once it is out of the list on screen.
+    track(change.rows);
     if (reading || loadingMore) {
       held.push(change);
       return;
@@ -383,9 +396,42 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
 
   /** The rows by fan, rebuilt once per new `rows` (a lookup per row of every build stays O(1)). */
   let index: { readonly of: PassRow[]; readonly byFan: Map<string, PassRow> } | null = null;
-  function rowOf(fanRef: string): PassRow | null {
+  /** A fan's row in the list on screen; null — not in it. */
+  function listed(fanRef: string): PassRow | null {
     if (index === null || index.of !== rows) index = { of: rows, byFan: new Map(rows.map((row) => [row.fanRef, row])) };
     return index.byFan.get(fanRef) ?? null;
+  }
+  /** A fan's row: in the list, or the pinned one out of it. */
+  function rowOf(fanRef: string): PassRow | null {
+    return listed(fanRef) ?? (fanRef === pinned ? pinnedRow : null);
+  }
+
+  /** The person is on this fan: the card stays on them (the old window's pin). */
+  function pin(fanRef: string): void {
+    const row = rowOf(fanRef);
+    if (row === null) return;
+    pinned = fanRef;
+    pinnedRow = row;
+  }
+
+  function unpin(fanRef?: string): void {
+    if (fanRef !== undefined && pinned !== fanRef) return;
+    pinned = null;
+    pinnedRow = null;
+  }
+
+  function track(told: readonly PassRow[]): void {
+    if (pinned === null) return;
+    const row = told.find((entry) => entry.fanRef === pinned);
+    if (row !== undefined) pinnedRow = row;
+  }
+
+  /** A click on a fan the queue has not reached: a running queue checks them next; a standing one is not started. */
+  function nudge(fanRef: string): void {
+    const row = rowOf(fanRef);
+    if (pass === null || row === null || row.check !== 'pending') return;
+    if (pass.state !== 'scanning' && pass.state !== 'queue' && pass.state !== 'cooldown') return;
+    void source.checkNext(pass.passId, fanRef, true).catch(() => undefined);
   }
 
   /**
@@ -442,7 +488,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
    */
   function reselect(): void {
     if (reading && rows.length === 0) return;
-    if (selected === null || !rows.some((row) => row.fanRef === selected)) selected = (rows.find((row) => writable(row.check)) ?? rows[0])?.fanRef ?? null;
+    if (selected === null || rowOf(selected) === null) selected = (rows.find((row) => writable(row.check)) ?? rows[0])?.fanRef ?? null;
     // The chosen fan's chat may have become readable meanwhile (the pass gave its verdict): it is read once.
     if (selected !== null && !histories.has(selected)) void Promise.resolve().then(ensureHistory);
     // R20 P10c: the card's draft is read once it is on screen.
@@ -504,6 +550,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       history: historyVM(row),
       openHref: row.conversationRef === null ? null : source.chatHref(row.conversationRef),
       avatarUrl: row.avatarUrl ?? null,
+      // The pinned fan the pass moved out of the list on screen: the card stays and says so.
+      ...(listed(row.fanRef) === null ? { moved: true } : {}),
     };
   }
 
@@ -678,11 +726,14 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       return Promise.resolve(done(type, to.open ? 'opened' : 'done'));
     }
     if (action.type === 'SetNewcomersTab') {
+      // Another list on purpose: the card follows it.
+      unpin();
       tab = action.tab;
       filter = 'any';
       return queryChanged().then(() => done(type));
     }
     if (action.type === 'SetNewcomersCheckFilter') {
+      unpin();
       filter = action.filter;
       if (filterLeavesTodo(action.filter)) tab = 'all';
       return queryChanged().then(() => done(type));
@@ -702,6 +753,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
         searchTimer = null;
         if (applied === typed) return;
         applied = typed;
+        unpin();
         void queryChanged();
       });
       cell.invalidate();
@@ -709,6 +761,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     }
     if (action.type === 'ResetFilters') {
       if (action.list !== 'newcomers') return null;
+      unpin();
       filter = 'any';
       typed = '';
       applied = '';
@@ -736,6 +789,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       const fanRef = own(action.targetHandle);
       if (fanRef === null || pass === null) return stale(type);
       const passId = pass.passId;
+      if (fanRef === selected) pin(fanRef);
       return act(type, () => source.checkNext(passId, fanRef));
     }
     if (action.type === 'ExcludeNewcomer') {
@@ -743,7 +797,14 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       const fanRef = own(action.targetHandle);
       if (fanRef === null || pass === null) return stale(type);
       const passId = pass.passId;
-      return act(type, () => source.exclude(passId, fanRef, action.excluded));
+      // Out of «К обработке» on the person's own click: the card goes on to the next fan (the old window).
+      return act(type, () => source.exclude(passId, fanRef, action.excluded)).then((receipt) => {
+        if (receipt.ok && action.excluded) {
+          unpin(fanRef);
+          changed();
+        }
+        return receipt;
+      });
     }
     if (action.type === 'SetPreviewDraft' || action.type === 'Generate' || action.type === 'SendNewcomerGreeting' || action.type === 'InsertNewcomerGreeting') {
       // R20 P10c: the card's greeting; a handle that is not the pass's is a preview's or the dock's.
@@ -751,7 +812,21 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       const fanRef = own(action.targetHandle);
       const row = fanRef === null ? null : rowOf(fanRef);
       if (row === null || pass === null || card === null) return stale(type);
-      return card.dispatch(action, pass.passId, row) ?? stale(type);
+      // Typing, generating, sending on the card: the person is on this fan.
+      if (row.fanRef === selected) pin(row.fanRef);
+      const passId = pass.passId;
+      const going = card.dispatch(action, passId, row);
+      if (going === null) return stale(type);
+      if (action.type !== 'SendNewcomerGreeting') return going;
+      // Our greeting went: the card goes on to the next fan, as the old window did after «Отправлено». A refusal — written to
+      // by someone else meanwhile, a cooldown — keeps the card on the fan with why.
+      return going.then((receipt) => {
+        if (receipt.ok && pass?.passId === passId && card.stateOf(passId, row.fanRef)?.s === 'sent') {
+          unpin(row.fanRef);
+          changed();
+        }
+        return receipt;
+      });
     }
     if (action.type === 'OpenPreview' || action.type === 'LoadOlder' || action.type === 'RefreshArchive') {
       // A handle of the pass is this window's; any other is a list's or the dock's.
@@ -760,6 +835,9 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       if (fanRef === null) return stale(type);
       if (action.type === 'OpenPreview') {
         selected = fanRef;
+        pin(fanRef);
+        // The old window: a click on a fan not checked yet puts them first in a running queue.
+        nudge(fanRef);
         changed();
         ensureHistory();
         return Promise.resolve(done(type, 'opened'));

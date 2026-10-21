@@ -102,6 +102,10 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.greeting.sent',
   'fansly.newcomers.greeting.refused',
   'fansly.newcomers.greeting.uncertain',
+  // 2026-10-21 (as the old window): the wait a cooldown of Fansly's asks for, said at once; the card that stays.
+  'fansly.newcomers.greeting.retryIn',
+  'fansly.newcomers.moved.greeted',
+  'fansly.newcomers.moved.filter',
   'fansly.newcomers.greeting.stale',
   'fansly.newcomers.greeting.count',
   'fansly.newcomers.noAutoSend',

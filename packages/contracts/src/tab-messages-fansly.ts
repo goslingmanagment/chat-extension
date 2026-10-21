@@ -493,8 +493,12 @@ export const FANSLY_TAB_REQUESTS = {
     from: TAB,
     hosts: FANSLY,
   },
-  /** «Проверить следующим» (FS-NEW-1): the selected fan goes first in the queue. */
-  'fansly.followers.prioritize': { req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema }), res: Ack, from: TAB, hosts: FANSLY },
+  /**
+   * «Проверить следующим» (FS-NEW-1): the selected fan goes first in the queue; on a standing queue «Проверить чат»
+   * checks them alone, now. `next` — a click on the row (2026-10-21, as the old window): only a running queue takes it
+   * first, a standing one is never started by it.
+   */
+  'fansly.followers.prioritize': { req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema, next: z.optional(z.literal(true)) }), res: Ack, from: TAB, hosts: FANSLY },
   /** Out of «К обработке» and back (FS-NEW-2). */
   'fansly.followers.exclude': { req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema, excluded: z.boolean() }), res: Ack, from: TAB, hosts: FANSLY },
   /** The preview of a fan's conversation, newest first; `before` — the oldest message already shown. */

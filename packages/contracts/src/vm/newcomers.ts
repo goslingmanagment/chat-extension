@@ -244,6 +244,11 @@ export interface NewcomerCardVM {
   readonly greeting?: NewcomerGreetingVM | null;
   /** 1.34.0 (X59): the fan's picture as the site gives it; absent or null — the initial. */
   readonly avatarUrl?: string | null;
+  /**
+   * 2026-10-21 (as the old Fansly window): the fan the person is on left the list on screen — a check found them written
+   * to, or they no longer match the filter —; the card stays on them and says so instead of jumping. Absent — in the list.
+   */
+  readonly moved?: boolean;
 }
 
 /** 1.15.0 (R20 P10c): what the card's greeting is doing, or how its last click ended. */

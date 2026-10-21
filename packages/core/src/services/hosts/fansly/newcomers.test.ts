@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
-import { COOLING_LOOK_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
+import { COOLING_LOOK_MS, KNOWN_FLUSH_MS, NEWCOMERS_KNOWN_PREFIX, RECHECK_DELAY_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
 const C = '700000000000000017';
@@ -551,5 +551,149 @@ describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
     expect(await t.row(passId, fan)).toMatchObject({ status: 'greeted', historyRevision: null });
     expect(t.service.greetingProof(passId, fan, TAB)).toEqual({ ok: false, code: 'CG-SEND-PART' });
     expect(t.heard.at(-1)?.change.rows.map((entry) => [entry.fanRef, entry.status])).toContainEqual([fan, 'greeted']);
+  });
+});
+
+describe('[host:fansly] «Новые» as the old extension did it (audit 2026-10-20, regression 7)', () => {
+  /** A world of three new followers: one written to, one who only wrote, one with no chat (the queue's `POST /group`). */
+  const world = (t: ReturnType<typeof setup>, personal = 'hey you') => {
+    const greeted = t.world.follow(1, T0 - minutes(5));
+    const wrote = t.world.follow(2, T0 - minutes(6));
+    const none = t.world.follow(3, T0 - minutes(7));
+    const greetedChat = t.world.chat(greeted, [{ from: 'fan', content: 'hi' }, { from: 'model', content: personal }], 'no');
+    const wroteChat = t.world.chat(wrote, [{ from: 'fan', content: 'hello?' }], 'no');
+    return { greeted, wrote, none, greetedChat, wroteChat };
+  };
+  const touching = (t: ReturnType<typeof setup>, groupId: string, from = 0): NewcomersCall[] =>
+    t.world.calls.slice(from).filter((call) => call.query?.['groupId'] === groupId || call.path?.['group'] === groupId);
+
+  it('[FS:713-743] what a pass proved outlives it: the next window takes a fan written to without a request and a known chat instead of `POST /group`; «nobody wrote» is read again', async () => {
+    const kv = createMemoryKv();
+    const first = setup({ kv });
+    const a = world(first);
+    await first.scan();
+    await first.settle();
+    await vi.advanceTimersByTimeAsync(KNOWN_FLUSH_MS + 1);
+    const book = kv.read<{ v: number; fans: Record<string, { g: string; p?: unknown }> }>(`${NEWCOMERS_KNOWN_PREFIX}${C}`);
+    expect(book?.v).toBe(1);
+    expect(book?.fans[a.greeted]).toMatchObject({ g: a.greetedChat.id, p: { fold: expect.stringMatching(/^[0-9a-f]{16}$/) } });
+    expect(book?.fans[a.wrote]).toEqual(expect.not.objectContaining({ p: expect.anything() }));
+    expect(book?.fans[a.none]?.g).toMatch(/^\d+$/);
+    // Never a text of a message in the store.
+    expect(JSON.stringify(book)).not.toMatch(/hey you|hello/);
+
+    // Another window, another background: the same followers.
+    const second = setup({ kv });
+    const b = world(second);
+    second.world.chat(b.none, [], 'no');
+    const passId = await second.scan();
+    await second.settle();
+    expect(await second.row(passId, b.greeted)).toMatchObject({ status: 'greeted', groupId: b.greetedChat.id, historyRevision: null });
+    expect(touching(second, b.greetedChat.id)).toEqual([]);
+    expect(second.creates()).toEqual([]);
+    // A known chat passes the participants' fence and its history is read to the start again.
+    expect(touching(second, b.wroteChat.id).map((call) => call.route)).toEqual(['group.detail', 'message.history', 'message.history']);
+    expect(await second.row(passId, b.wrote)).toMatchObject({ status: 'ready' });
+    expect(await second.row(passId, b.none)).toMatchObject({ status: 'ready' });
+  });
+
+  it('[FS:713-743] a greeting of ours that went is kept; a personal message whose text has since become a welcome text proves nothing again', async () => {
+    const kv = createMemoryKv();
+    const first = setup({ kv });
+    const a = world(first, 'Welcome, love');
+    const passId = await first.scan();
+    await first.settle();
+    first.service.greeted(C, a.wrote);
+    await vi.advanceTimersByTimeAsync(KNOWN_FLUSH_MS + 1);
+    expect(kv.read<{ fans: Record<string, { p?: unknown }> }>(`${NEWCOMERS_KNOWN_PREFIX}${C}`)?.fans[a.wrote]?.p).toBe('sent');
+    expect(await first.row(passId, a.greeted)).toMatchObject({ status: 'greeted' });
+
+    const second = setup({ kv });
+    // The technical chat the first pass made is gone: the kept chat is forgotten, the queue's get-or-create finds one.
+    const b = world(second, 'Welcome, love');
+    const call = second.world.api.call.bind(second.world.api);
+    // The creator made that text an automation meanwhile.
+    vi.spyOn(second.world.api, 'call').mockImplementation(async (request) =>
+      request.route === 'message.automated' ? (second.world.calls.push(request), [{ messageTemplate: JSON.stringify({ content: 'Welcome,  love' }) }]) : call(request),
+    );
+    const again = await second.scan();
+    await second.settle();
+    expect(await second.row(again, b.wrote)).toMatchObject({ status: 'greeted' });
+    expect(touching(second, b.wroteChat.id)).toEqual([]);
+    expect(await second.row(again, b.greeted)).toMatchObject({ status: 'ready' });
+    expect(touching(second, b.greetedChat.id).map((call) => call.route)).toContain('message.history');
+    expect(await second.row(again, b.none)).toMatchObject({ status: 'ready' });
+    expect(second.creates()).toEqual([b.none]);
+  });
+
+  it('[2.4.3] a blip of Fansly’s (a 404, no answer) is asked again once, at the end of the queue, after 3 s; a second one is the row’s failure; a failed `POST /group` is never asked again by itself', async () => {
+    const t = setup();
+    const lucky = t.world.follow(1, T0 - minutes(5));
+    const unlucky = t.world.follow(2, T0 - minutes(6));
+    const lone = t.world.follow(3, T0 - minutes(7));
+    const luckyChat = t.world.chat(lucky, [{ from: 'fan' }]);
+    const unluckyChat = t.world.chat(unlucky, [{ from: 'fan' }]);
+    const call = t.world.api.call.bind(t.world.api);
+    let blips = 0;
+    vi.spyOn(t.world.api, 'call').mockImplementation(async (request) => {
+      const group = request.query?.['groupId'];
+      if (request.route === 'message.history' && (group === unluckyChat.id || (group === luckyChat.id && blips++ === 0))) {
+        t.world.calls.push(request);
+        throw new ApiError(group === luckyChat.id ? 'network' : 'http', 'CG-FAN-REQUEST', group === luckyChat.id ? undefined : 404);
+      }
+      if (request.route === 'group.create') {
+        t.world.calls.push(request);
+        throw new ApiError('http', 'CG-FAN-REQUEST', 404);
+      }
+      return call(request);
+    });
+    const passId = await t.scan();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await t.row(passId, lucky)).toMatchObject({ status: 'pending' });
+    await vi.advanceTimersByTimeAsync(RECHECK_DELAY_MS + 10);
+    await t.settle();
+    expect(await t.row(passId, lucky)).toMatchObject({ status: 'ready' });
+    expect(touching(t, luckyChat.id).filter((entry) => entry.route === 'message.history')).toHaveLength(3);
+    expect(await t.row(passId, unlucky)).toMatchObject({ status: 'failed', error: { code: 'CG-FAN-REQUEST', httpStatus: 404 } });
+    expect(touching(t, unluckyChat.id).filter((entry) => entry.route === 'message.history')).toHaveLength(2);
+    expect(await t.row(passId, lone)).toMatchObject({ status: 'failed' });
+    expect(t.creates()).toEqual([lone]);
+    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass?.state).toBe('done');
+  });
+
+  it('[FS:595-601] the check right before a send never waits out a cooldown: refused at once with its end; its reads are the greeting’s (refused, not waited)', async () => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(5));
+    t.world.chat(fan, [{ from: 'fan', content: 'hi' }]);
+    const passId = await t.scan();
+    await t.settle();
+    const before = t.world.calls.length;
+    expect((await t.service.recheck(passId, fan, TAB)).ok).toBe(true);
+    expect(t.world.calls.slice(before).length).toBeGreaterThan(0);
+    expect(t.world.calls.slice(before).every((call) => call.click === true)).toBe(true);
+
+    const until = Date.now() + 90_000;
+    t.world.setCooling(until);
+    const asked = t.world.calls.length;
+    expect(await t.service.recheck(passId, fan, TAB)).toEqual({ ok: false, code: 'CG-FAN-RATE-LIMIT', retryAt: until });
+    expect(t.world.calls.length).toBe(asked);
+    expect(await t.row(passId, fan)).toMatchObject({ status: 'ready' });
+  });
+
+  it('[FW:298-301] a click on a row puts the fan first in a running queue and never starts a standing one', async () => {
+    const t = setup();
+    for (let n = 1; n <= 3; n += 1) t.world.follow(n, T0 - minutes(n));
+    const release = t.world.hold('group.create');
+    const passId = await t.scan();
+    await t.until(() => t.creates().length === 1);
+    expect(await t.ask('fansly.followers.pause', { passId })).toMatchObject({ pass: { passId } });
+    release();
+    await t.settle();
+    const pending = (await t.rows(passId)).find((row) => row.status === 'pending');
+    expect(pending).toBeDefined();
+    const calls = t.world.calls.length;
+    expect(await t.ask('fansly.followers.prioritize', { passId, fanRef: pending?.fanRef ?? '', next: true })).toEqual({ recorded: false });
+    await t.settle();
+    expect(t.world.calls.length).toBe(calls);
   });
 });

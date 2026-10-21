@@ -49,7 +49,7 @@ describe('FS-NET-1', () => {
         'message.history': 'queue×4',
         'message.automated': 'queue×4',
       },
-      greeting: { 'message.send': 'dispatch×1' },
+      greeting: { 'message.send': 'dispatch×1', 'group.detail': 'queue-or-refuse×1', 'message.history': 'queue-or-refuse×1' },
       spenders: { 'messaging.groups': 'check×1', 'group.create': 'queue-or-refuse×1', 'account.byIds': 'check×1' },
       registration: { 'group.detail': 'check×1' },
       notes: { 'group.detail': 'check×1', 'account.byIds': 'check×1', 'notes.create': 'dispatch×1', 'notes.edit': 'dispatch×1', 'notes.delete': 'dispatch×1' },
@@ -63,7 +63,7 @@ describe('FS-NET-1', () => {
 
   it('[FS-NET-1] a pair the list does not name is not admitted: another purpose, an unknown route, an inherited name', () => {
     expect(admit('registration', 'group.detail')).toEqual({ mode: 'check', attempts: 1 });
-    expect(admit('greeting', 'group.detail')).toBeNull();
+    expect(admit('greeting', 'group.create')).toBeNull();
     expect(admit('registration', 'message.send')).toBeNull();
     expect(admit('newcomers', 'message.ack')).toBeNull();
     expect(admit('ai', 'message.history')).toBeNull();

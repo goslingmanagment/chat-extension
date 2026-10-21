@@ -176,9 +176,10 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
   });
 
   async function send(request: FanslyGreetingRequest, tab: string): Promise<Answer<'fansly.followers.send'>> {
-    const fail = (code: CgAnyCode): Answer<'fansly.followers.send'> => {
+    /** `retryAt` — a cooldown of Fansly's: the card says how long, at once (never «Отправляем…» while it lasts). */
+    const fail = (code: CgAnyCode, retryAt?: number): Answer<'fansly.followers.send'> => {
       log({ level: 'info', scope: 'bg.fansly.greeting', msg: 'greeting refused before an attempt', fields: { attemptId: request.attemptId, code } });
-      return { ok: false, error: { code } };
+      return { ok: false, error: retryAt === undefined ? { code } : { code, retryAt } };
     };
     const lock = `${request.hostAccountId}|${request.fanRef}`;
     if (busy.has(lock)) return fail('CG-SEND-BUSY');
@@ -218,7 +219,7 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       if (revisionNow(page.page.pageId, request.fanRef) !== request.draftRevision) return fail('CG-DRAFT-CHANGED');
       // NF-036: the history read again before the custody; another revision than the one reviewed refuses (NF-018).
       const again = await deps.newcomers.recheck(request.passId, request.fanRef, tab);
-      if (!again.ok) return fail(again.code);
+      if (!again.ok) return fail(again.code, again.retryAt);
       if (again.historyRevision !== request.historyRevision) return fail('CG-FNEW-HISTORY');
       started.set(request.attemptId, { creator: row.creator, fanRef: request.fanRef, pageId: page.page.pageId });
       const view: FanslySendView = await deps.send.send({ request, tabSessionId: tab, page: page.page });

@@ -135,7 +135,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
   let disposed = false;
 
   const keyOf = (passId: string, fanRef: string): string => `${passId}|${fanRef}`;
-  const failure = (code: string): NewcomersFailureVM => ({ code, retryAt: null });
+  const failure = (code: string, retryAt: number | null = null): NewcomersFailureVM => ({ code, retryAt });
   const said = (card: Card, state: NewcomerGreetingStateVM): void => {
     card.state = state;
     changed();
@@ -420,9 +420,9 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     const clickedText = card.text;
     card.busy = true;
     said(card, { s: 'sending' });
-    const stop = (code: string, uncertain = false): ActionReceipt => {
+    const stop = (code: string, uncertain = false, retryAt: number | null = null): ActionReceipt => {
       card.busy = false;
-      said(card, code === 'CG-SEND-PART' ? { s: 'sent', at: new Date(clock.now()).toISOString() } : uncertain || code === 'CG-SEND-UNCERTAIN' ? { s: 'uncertain', failure: failure(code) } : { s: 'refused', failure: failure(code) });
+      said(card, code === 'CG-SEND-PART' ? { s: 'sent', at: new Date(clock.now()).toISOString() } : uncertain || code === 'CG-SEND-UNCERTAIN' ? { s: 'uncertain', failure: failure(code) } : { s: 'refused', failure: failure(code, retryAt) });
       return refused(type, localError(isShared(code) ? code : 'CG-DATA-UNAVAILABLE', i18n));
     };
     // The field as it goes is the field as stored: its revision is the one the send's final check compares (FS-NEW-6).
@@ -463,7 +463,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       return stop('CG-SEND-UNCERTAIN', true);
     }
     if (at !== generation || disposed) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
-    if (!answer.ok) return stop(answer.failure.code, answer.failure.code === 'CG-RUNTIME-UNREACHABLE' || answer.failure.code === 'CG-RUNTIME-RELOADED' || answer.failure.code === 'CG-TIMEOUT');
+    // A cooldown of Fansly's refuses at once with its end: the card says how long to wait.
+    if (!answer.ok) return stop(answer.failure.code, answer.failure.code === 'CG-RUNTIME-UNREACHABLE' || answer.failure.code === 'CG-RUNTIME-RELOADED' || answer.failure.code === 'CG-TIMEOUT', answer.failure.retryAt);
     const outcome = answer.value;
     card.busy = false;
     if (outcome.s === 'sent') {

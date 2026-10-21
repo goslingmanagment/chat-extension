@@ -545,10 +545,19 @@ function GreetingState({ greeting }: { readonly greeting: NewcomerGreetingVM }):
           <b>{fanslyText(i18n, state.s === 'refused' ? 'fansly.newcomers.greeting.refused' : 'fansly.newcomers.greeting.uncertain')}</b>
           <span class="cg-fnc__gcode">
             ChatGoose · {state.failure.code}: {failureView(i18n, state.failure).title}
+            {state.s === 'refused' && state.failure.retryAt !== null ? <RetryIn until={state.failure.retryAt} /> : null}
           </span>
         </div>
       );
   }
+}
+
+/** A cooldown of Fansly's refused the send at once (as the old window): how long to wait, counted down; nothing once it is over. */
+function RetryIn({ until }: { readonly until: number }): JSX.Element | null {
+  const i18n = useI18n();
+  const left = useCountdown(until, useNowFn());
+  if (left <= 0) return null;
+  return <span data-cg-retry-in="1"> · {fanslyText(i18n, 'fansly.newcomers.greeting.retryIn', { s: Math.ceil(left / 1000) })}</span>;
 }
 
 /** The card's greeting (R20 P10c): the draft, «AI» while it is the generation unchanged, «Сгенерировать», «Открыть и вставить», «Отправить →». */
@@ -650,6 +659,11 @@ function Card({ card, onSent }: { readonly card: NewcomerCardVM; readonly onSent
         </div>
         {card.openHref === null ? null : <OpenLink href={card.openHref} />}
       </header>
+      {card.moved === true ? (
+        <div class="cg-fnc__moved" role="status" data-cg-moved={card.check}>
+          {fanslyText(i18n, card.check === 'greeted' ? 'fansly.newcomers.moved.greeted' : 'fansly.newcomers.moved.filter')}
+        </div>
+      ) : null}
       {card.bio === null || card.bio.trim() === '' ? null : <div class="cg-fnc__bio">{card.bio}</div>}
       {card.proof === null ? null : (
         <details class="cg-fnc__proof">
