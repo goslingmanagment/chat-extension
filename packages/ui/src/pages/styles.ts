@@ -224,6 +224,9 @@ ${/* The foot: «Что нового», the optional site's switch (X61) and «�
 .pg-popup__site-error { margin: 12px 16px 0; }
 .pg-popup__foot .pg-link { color: var(--cg-ink-2); }
 .pg-popup__foot > .cg-btn { margin-left: auto; margin-right: -6px; }
+${/* «Скачать лог» (2026-10-21): a quiet line of its own under the foot, in every state of the popup. */ ''}
+.pg-popup__log { display: flex; padding: 0 16px 10px; margin-top: -4px; }
+.pg-popup__log .cg-btn { margin-left: -6px; color: var(--cg-ink-2); }
 /* The card of a popup state stands on the popup's own edge: no gutter, the dot inside the code line. */
 .pg-popup__state { margin: 12px 16px 4px; padding: 16px; border-radius: 14px; background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--pg-line); }
 .pg-popup__state .cg-card__acts { margin-left: 0; margin-top: 12px; }

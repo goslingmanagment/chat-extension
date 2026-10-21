@@ -32,6 +32,9 @@ import { E2E_ADDON_UUID, E2E_RELEASE_ADDON_UUID, RELEASE_GECKO_ID, TEST_GECKO_ID
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const logsDir = `${repoRoot}.cache/wdio`;
 mkdirSync(logsDir, { recursive: true });
+/** Where a file the extension saves goes: a `pnpm see` run's folder, or the e2e logs. */
+const downloadsDir = `${process.env['CG_SEE_OUT'] ?? logsDir}/downloads`;
+mkdirSync(downloadsDir, { recursive: true });
 
 const macFirefox = '/Applications/Firefox.app/Contents/MacOS/firefox';
 const firefoxBinary = process.env['FIREFOX_BIN'] ?? (existsSync(macFirefox) ? macFirefox : undefined);
@@ -124,6 +127,14 @@ export const config: WebdriverIO.Config = {
           // script of ours leaves the spec waiting for a state that never comes. Marionette zeroes the first already.
           'dom.max_script_run_time': 0,
           'dom.max_ext_content_script_run_time': 0,
+          // «Скачать лог» (2026-10-21): a file the extension saves lands in the run's own folder, never in the
+          // machine's Downloads, and without a dialog.
+          'browser.download.folderList': 2,
+          'browser.download.dir': downloadsDir,
+          'browser.download.useDownloadDir': true,
+          'browser.download.always_ask_before_handling_new_types': false,
+          'browser.download.alwaysOpenPanel': false,
+          'browser.helperApps.neverAsk.saveToDisk': 'text/plain,application/json',
         },
       },
     },

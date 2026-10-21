@@ -23,8 +23,8 @@ afterEach(() => {
 async function exportedLogs(w: World): Promise<LogRecord[]> {
   const file = await w.page().request('diagnostics.export', { format: 'json' });
   if (!file.ok) throw new Error(`diagnostics.export: ${file.error.code}`);
-  const bundle = JSON.parse(file.payload.body) as { logs?: { recent?: LogRecord[] } };
-  return bundle.logs?.recent ?? [];
+  const bundle = JSON.parse(file.payload.body) as { logs?: { records?: LogRecord[] } };
+  return bundle.logs?.records ?? [];
 }
 
 async function signIn(w: World): Promise<void> {

@@ -44,6 +44,8 @@ export interface ShellTab {
   openPrompt?(token: string): Promise<boolean>;
   /** Writes a short text of ours to the clipboard, inside the click; false — the browser refused. */
   copyText?(text: string): Promise<boolean>;
+  /** 2026-10-21 «Скачать лог»: the log files of the last 24 hours, saved by the tab; false — they were not. Absent — this tab cannot. */
+  downloadLog?(): Promise<boolean>;
 }
 
 export interface ShellPorts {
@@ -201,6 +203,13 @@ export function createShellController(ports: ShellPorts): ShellController {
       if (action.type === 'ExportDiagnostics' && tab.openSettings !== undefined) {
         return tab.openSettings({ section: 'diagnostics' }).then(
           (opened) => (opened ? done(action.type, 'opened') : refused(action.type, 'CG-RUNTIME-UNREACHABLE')),
+          () => refused(action.type, 'CG-RUNTIME-UNREACHABLE'),
+        );
+      }
+      // «Скачать лог» (2026-10-21): the files are saved here, in this click's tab — the dock's button, its key.
+      if (action.type === 'DownloadLog' && tab.downloadLog !== undefined) {
+        return tab.downloadLog().then(
+          (saved) => (saved ? done(action.type) : refused(action.type, 'CG-UNKNOWN')),
           () => refused(action.type, 'CG-RUNTIME-UNREACHABLE'),
         );
       }

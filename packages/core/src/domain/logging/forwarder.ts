@@ -35,7 +35,7 @@ export interface LogForwarder {
   stats(): ForwarderStats;
 }
 
-export const FORWARDER_BACKLOG_MAX = 500;
+export const FORWARDER_BACKLOG_MAX = 2000;
 
 export function createLogForwarder(options: ForwarderOptions): LogForwarder {
   const batchMax = Math.max(1, Math.min(options.batchMax ?? LOG_LIMITS.maxRecordsPerWrite, LOG_LIMITS.maxRecordsPerWrite));

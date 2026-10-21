@@ -191,7 +191,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
       const saved = await deps.local.set({ [KEY]: outcome.settings });
       writing = null;
       if (saved.ok) known = stableJson(outcome.settings);
-      log({ level: saved.ok ? 'info' : 'warn', scope: SCOPE, msg: 'settings migrated', ...(saved.ok ? {} : { code: saved.code }), fields: { from: outcome.from, saved: saved.ok } });
+      log({ level: saved.ok ? 'info' : 'warn', scope: SCOPE, msg: 'settings migrated', ...(saved.ok ? {} : { code: saved.code }), fields: { fromVersion: outcome.from, saved: saved.ok } });
     }
     return outcome;
   }
@@ -219,7 +219,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
     // Not interpretable: logged by adopt; no revision, no broadcast (`settings.get` answers CG-STORAGE-READ).
     if (mode === 'unreadable') return true;
     revision = await bumpRevision();
-    log({ level: 'info', scope: SCOPE, msg: 'settings read again', fields: { from: before, mode } });
+    log({ level: 'info', scope: SCOPE, msg: 'settings read again', fields: { fromState: before, mode } });
     broadcast(snapshot());
     return true;
   }
@@ -502,7 +502,7 @@ export function createSettingsExtOwner(deps: SettingsExtOwnerDeps): SettingsExtO
     const before = mode;
     adopt(loadStoredSettingsExt(value, version), value);
     revision = await bumpRevision();
-    log({ level: 'info', scope: EXT_SCOPE, msg: 'settings.ext read again', fields: { from: before, mode } });
+    log({ level: 'info', scope: EXT_SCOPE, msg: 'settings.ext read again', fields: { fromState: before, mode } });
     broadcast(snapshot());
     return true;
   }

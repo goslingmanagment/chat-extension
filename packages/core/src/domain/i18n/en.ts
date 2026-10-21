@@ -1545,4 +1545,8 @@ export const EN: I18nCatalog<'en'> = {
   'cg.runtimeUnreachable.body': 'No connection to the extension background. It reconnects by itself; if it does not come back, reload the tab.',
   'cg.unknown.title': 'Unknown error',
   'cg.unknown.body': 'Something went wrong. Copy the code and tell your team lead.',
+  'log.download': 'Download log',
+  'log.downloadHint': 'The extension log of the last 24 hours: what was pressed, what was unavailable and why. No conversations or passwords — send the file to your lead.',
+  'log.downloaded': 'Log saved to Downloads',
+  'log.downloadFailed': 'The log was not saved. Try again or download it from the extension menu.',
 };

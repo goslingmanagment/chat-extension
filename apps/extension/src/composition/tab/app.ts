@@ -23,7 +23,7 @@
 import type { CgCode, CgErrorView, I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { HostContractReport, HostContractShape, HostPort } from '@cg/contracts/host';
-import type { ChatRef } from '@cg/contracts/ids';
+import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
 import { DEFAULT_LOCALE, type Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import type { UiLocale, UiTextSize, UiTheme } from '@cg/contracts/settings';
@@ -58,6 +58,7 @@ import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts'
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
 import { panelGeometryOf, toastPlaceOf, type DockBox } from './panel-geometry';
+import { startTabJournal, type TabJournal } from './journal';
 import { followRecapTab } from './recap-tab';
 import { mountSurfaces, OVERLAY_MOUNTS, overlayRoot } from './surfaces';
 import { toastOfTab, type ToastFacts } from './toast-events';
@@ -197,7 +198,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     maxRecordBytes: LOG_LIMITS.maxRecordBytesFromUi,
     ctx: () => {
       const tabSessionId = rpc.tabSessionId();
-      return { ...(tabSessionId === null ? {} : { tabSessionId }), routeEpoch: host.current().route.epoch };
+      const route = host.current().route;
+      // The chatter's log (2026-10-21): every record of the tab names its site, and the chat on screen by its ids.
+      return { ...(tabSessionId === null ? {} : { tabSessionId }), routeEpoch: route.epoch, site: host.kind, ...(route.chat === null ? {} : { chatKey: chatKeyOf(route.chat) }) };
     },
   });
   const capture = installErrorCapture(win, logger, { ownOrigin: env.ownOrigin, everythingIsOurs: false }, () => Date.now());
@@ -299,7 +302,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   // ── ports every controller and every surface gets ──────────────────────────
   const clock: TabClock = { now: () => Date.now(), setTimer: (ms, fn) => win.setTimeout(fn, ms), clearTimer: (handle) => win.clearTimeout(handle as number) };
   const catalog = navigationChunk.createActionCatalog(keys.platform, { helpKey: keys.rules.lenient === true });
-  const toasts = dockChunk.createToastHost();
+  /** The chatter's log of this tab (tab/journal.ts): it starts once the AI environment it reads exists, below. */
+  let journal: TabJournal | null = null;
+  const toasts = dockChunk.createToastHost({ onShow: (request) => journal?.toast(request) });
   offs.push(() => toasts.dispose());
   // While a side panel is open the toasts stand left of it, never over its header (tab/panel-geometry.ts): they move
   // when a panel opens or closes and when the window or ChatSpace's container changes — not with the dock. Coach is a
@@ -337,6 +342,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       return stageTwoIn ? null : stageTwo;
     },
     onAction: (action) => health?.action(action.type, action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open ? action.to.surface : undefined),
+    onPressed: (action) => journal?.pressed(action) ?? (() => undefined),
     onReceipt(action, receipt) {
       // A row of the palette ran: the palette goes (R17's controller closes it only for a preview it opened itself).
       // A row that was refused leaves it open, and the reason is said: the palette has no place for it.
@@ -387,6 +393,24 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   // ── stage one: the dock's controller, keys and navigation, the shell ───────
   const ai = startAi(world, aiChunk, catalog);
   offs.push(() => ai.dispose());
+  journal = startTabJournal({
+    win,
+    logger,
+    router,
+    overlays: keys.overlays,
+    gate,
+    host,
+    contract: site.contract,
+    contractWord: (report) => contractOf(report, site.contract),
+    i18n,
+    errorOf,
+    env: ai.workspace.env,
+    rpc,
+    version: env.extensionVersion,
+    contractsVersion: env.contractsVersion,
+  });
+  const started = journal;
+  offs.push(() => started.dispose());
 
   /** The strip's Coach and its key ask with `Navigate`; R11's Coach opens on a `Generate` without a question. */
   const openCoach = async (): Promise<ActionReceipt> => {
@@ -437,6 +461,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       onEvent: (type, listener) =>
         rpc.onEvent(type, ({ toast }) => {
           const shown = toastOfTab(toast, toastFacts);
+          journal?.backgroundToast(toast, shown !== null);
           if (shown !== null) listener({ toast: shown });
         }),
     },
@@ -451,6 +476,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       // «Промпт» of a debug block: the prompt page, by the opaque token of the snapshot (`debug.open`).
       openPrompt: (token) => rpc.request('debug.open', { token }).then((answer) => answer.ok && answer.payload.opened),
       copyText: (text) => clipboard.writeText(text).then((result) => result.ok),
+      downloadLog: () => downloadLog(),
     },
   });
   offs.push(router.register(adopt(shell)), () => shell.dispose());
@@ -523,6 +549,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       // Telemetry `shown` only for a result that was really visible (§9.6).
       resultShown: (opId) => ai.workspace.resultShown(opId),
       painted: (metric, mark) => health?.painted(metric, mark),
+      offClick: (control, reason) => journal?.offClick(control, reason),
     },
   };
 
@@ -568,7 +595,28 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       };
     },
   };
-  if (site.start !== undefined) offs.push(site.start({ win, life: env.life, rpc, host, mounts, lazy: env.lazy, deps: { ...deps, geometry: panelGeometry }, features: site.features, report: reportSurface, probe, keys: keysOfSite }));
+  if (site.start !== undefined) {
+    const siteJournal = journal;
+    offs.push(
+      site.start({
+        win,
+        life: env.life,
+        rpc,
+        host,
+        mounts,
+        lazy: env.lazy,
+        deps: { ...deps, geometry: panelGeometry },
+        features: site.features,
+        report: reportSurface,
+        probe,
+        keys: keysOfSite,
+        journal: {
+          watch: (surface) => siteJournal.watch(surface),
+          action: (surface, name, fields) => logger.info('ui.action', 'pressed', { fields: { action: name, via: surface, input: gate.describe().input, ...fields } }),
+        },
+      }),
+    );
+  }
 
   // ── what the dock's view says about our overlays ───────────────────────────
   // «Развернуть ↗» is a window while a result, a Recap or a Review is expanded; a Б2 question is a dialog for
@@ -677,6 +725,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     rpc.onEvent('settings.changed', (state) => {
       const before = ui;
       ui = readSettings(state);
+      journal?.settings(state.settings);
       // The theme follows the settings at once (ST-122): host, system, light or dark.
       scheme.set(schemeOf());
       textSize.set(ui.textSize);
@@ -860,6 +909,41 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     offs.push(shell.subscribe({ of: 'toasts' }, reportToasts));
   }
 
+  /**
+   * «Скачать лог» of the dock (2026-10-21): the background gathers the last 24 hours of the log — every tab's and its
+   * own — as a TXT and a JSON, and this tab saves them through a Blob, inside our own closed root (no `downloads`
+   * right, §3; the page never sees the link). The person is told where the files went.
+   */
+  async function downloadLog(): Promise<boolean> {
+    const files: { readonly fileName: string; readonly mime: string; readonly body: string }[] = [];
+    for (const format of ['txt', 'json'] as const) {
+      const answer = await rpc.request('diagnostics.export', { format }, { timeoutMs: 120_000 });
+      if (answer.ok) files.push(answer.payload);
+      else if (format === 'txt') return false;
+    }
+    let saved = false;
+    for (const file of files) saved = saveFile(file) || saved;
+    if (saved && !disposed) toasts.show({ kind: 'success', code: null, scope: 'log.download', title: { key: 'log.downloaded' }, body: null });
+    return saved;
+  }
+  function saveFile(file: { readonly fileName: string; readonly mime: string; readonly body: string }): boolean {
+    try {
+      const url = URL.createObjectURL(new Blob([file.body], { type: file.mime }));
+      const link = doc.createElement('a');
+      link.href = url;
+      link.download = file.fileName;
+      link.rel = 'noopener';
+      link.style.display = 'none';
+      mounts.dock.root.append(link);
+      link.click();
+      link.remove();
+      win.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
@@ -895,7 +979,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
         ? { type: 'Navigate', to: { kind: 'surface', surface: asked.surface, open: true } }
         : { type: 'Navigate', to: { kind: 'account', accountHandle: navigationChunk.accountHandle(asked.hostAccountId) } };
     tokens.vouched();
-    void client.dispatch(action).then(
+    const dispatched = journal === null ? client.dispatch(action) : journal.asCommand(() => client.dispatch(action));
+    void dispatched.then(
       (receipt) => {
         if (!receipt.ok) logger.warn('tab.command', 'a page command was refused', { code: receipt.code, fields: { kind: asked.kind } });
       },

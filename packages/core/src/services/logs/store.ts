@@ -1,7 +1,8 @@
 // The background's persistent log (architecture.md §9.2; LG-004…LG-006,
-// LG-012, LG-023): IndexedDB `cg-logs` behind a platform port, the current
-// session and the two before it, at most 20 000 records, 10 MiB and 7 days —
-// whichever comes first. The logger hands every finished, redacted record to
+// LG-012, LG-023): IndexedDB `cg-logs` behind a platform port, the sessions
+// of a week at most, within LOG_LIMITS' records and bytes and 7 days —
+// whichever comes first (2026-10-21: a day of a shift at least, for the
+// chatter's «Скачать лог»). The logger hands every finished, redacted record to
 // `sink`; the service batches them into one write a little later and never
 // throws, never waits and never makes the caller wait. What could not be
 // kept is counted (pending overflow, write failures, pruning) and shown in
@@ -50,6 +51,11 @@ export interface LogStorePort {
   sessions(): Promise<readonly LogSessionInfo[]>;
   /** The newest `limit` rows of a session, oldest first. */
   tail(session: number, limit: number): Promise<readonly StoredLog[]>;
+  /**
+   * 2026-10-21 («Скачать лог»): the newest `limit` rows of every session — only those at or after `since` (epoch ms)
+   * when it is given — oldest first.
+   */
+  newest(limit: number, since?: number): Promise<readonly StoredLog[]>;
   /** Deletes the `count` rows with the smallest ids (the oldest, whatever their session). */
   dropOldest(count: number): Promise<void>;
   /** Deletes every session below `session`. */
@@ -344,6 +350,36 @@ export class LogService {
     });
   }
 
+  /**
+   * The chatter's file (2026-10-21): every record of the last `windowMs` across sessions — every tab's and the
+   * background's — and at least the newest `minRecords` however old, at most `maxRecords`, oldest first; the records
+   * still waiting for the store are the newest of all.
+   */
+  window(options: { readonly windowMs: number; readonly minRecords: number; readonly maxRecords: number }): Promise<{ readonly records: LogRecord[]; readonly sessions: readonly number[] }> {
+    return this.serial(async () => {
+      const max = Math.max(0, Math.floor(options.maxRecords));
+      const since = this.options.scheduler.now() - options.windowMs;
+      let rows: readonly StoredLog[] = [];
+      if (this.available && max > 0) {
+        try {
+          rows = await this.options.store.newest(max, since);
+          if (rows.length < options.minRecords) rows = await this.options.store.newest(Math.min(max, Math.floor(options.minRecords)));
+        } catch {
+          this.fail('read');
+          rows = [];
+        }
+      }
+      // By the time each record names: a click is written once its answer came, stamped with the click's own time.
+      const records = [...rows.map((row) => row.record), ...this.pending]
+        .map((record, index) => ({ record, index, at: Date.parse(record.ts) }))
+        .sort((a, b) => (Number.isFinite(a.at) && Number.isFinite(b.at) && a.at !== b.at ? a.at - b.at : a.index - b.index))
+        .map((entry) => entry.record)
+        .slice(-max);
+      const sessions = [...new Set(rows.map((row) => row.session))].sort((a, b) => a - b);
+      return { records, sessions };
+    });
+  }
+
   /** The newest `limit` records of the session before this one: yesterday's failure in today's export (LG-023). */
   previousTail(limit: number): Promise<{ readonly session: number | null; readonly records: LogRecord[] }> {
     return this.serial(async () => {
@@ -446,6 +482,11 @@ export class MemoryLogStore implements LogStorePort {
 
   tail(session: number, limit: number): Promise<readonly StoredLog[]> {
     const rows = this.rows.filter((row) => row.session === session).sort((a, b) => a.id - b.id);
+    return Promise.resolve(limit <= 0 ? [] : rows.slice(-limit));
+  }
+
+  newest(limit: number, since?: number): Promise<readonly StoredLog[]> {
+    const rows = this.rows.filter((row) => since === undefined || row.ts >= since).sort((a, b) => a.ts - b.ts || a.id - b.id);
     return Promise.resolve(limit <= 0 ? [] : rows.slice(-limit));
   }
 

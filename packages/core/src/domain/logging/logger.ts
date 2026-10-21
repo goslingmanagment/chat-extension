@@ -30,6 +30,8 @@ export interface ConsolePort {
 export type LogSink = (record: LogRecord) => void;
 
 export interface LogOptions {
+  /** When the fact happened, written later (a click whose answer came after it): the record's time; default — now. */
+  readonly at?: number;
   readonly code?: CgCode;
   readonly fields?: Readonly<Record<string, unknown>>;
   readonly error?: unknown;
@@ -130,7 +132,7 @@ function makeLogger(shared: Shared, extraCtx: Partial<LogCtx>): Logger {
         shared.skippedDebug += 1;
         return null;
       }
-      const now = safeNow(shared.options);
+      const now = options.at !== undefined && Number.isFinite(options.at) ? options.at : safeNow(shared.options);
       let baseCtx: Partial<LogCtx> | undefined;
       try {
         baseCtx = shared.options.ctx?.();

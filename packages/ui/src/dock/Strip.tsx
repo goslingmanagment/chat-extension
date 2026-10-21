@@ -62,6 +62,12 @@ const TONE_EMOJI: Readonly<Record<Tone, string>> = { casual: '😌', flirty: '�
 /** The kit's menus are at least this wide (ui-design §4.1). */
 const MENU_MIN_WIDTH_PX = 200;
 const NO_CHIPS: readonly ChipVM[] = [];
+/**
+ * «Скачать лог» (2026-10-21): the log of the last 24 hours for the lead, in one click. An icon at the bar's right end;
+ * where a narrow composer shows «Ещё», the last item of its menu instead.
+ */
+const LOG_ID = 'download-log';
+const LOG_ACTION: UiAction = { type: 'DownloadLog' };
 
 /** A chip by its feature's key, the capsule's cells, «Ещё». */
 type StopId = string;
@@ -132,7 +138,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   /** The bar's chips in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
   const STOPS: readonly StopId[] = acts
     .flatMap((chip): StopId[] => (chip.group === LEAD ? [chip.id, ...tones.map((item): StopId => `tone:${item}`), 'split'] : [chip.id]))
-    .concat('more', ...windows.map((chip) => chip.id));
+    .concat('more', ...windows.map((chip) => chip.id), LOG_ID);
 
   const buttons = (): HTMLElement[] => [...(bar.current?.querySelectorAll<HTMLElement>('.cg-act') ?? [])];
   const stopOf = (target: EventTarget | null): StopId | null => {
@@ -267,14 +273,16 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   // ── «Ещё»: whatever a narrow composer hid — Review, Recap, Coach, the two windows ──
   const folded = chips.filter((chip) => moreIds.includes(chip.id));
   const hidden = folded.filter((chip) => !inWindows(chip));
-  const firstOff = hidden.find((chip) => !chip.enabled) ?? null;
-  // The windows open whatever the chat's state is: «Ещё» is off only while all it holds is functions that are off.
-  const moreOff = firstOff !== null && !folded.some(inWindows) && hidden.every((chip) => !chip.enabled) ? t('dock.action.moreUnavailable', { reason: whyOff(firstOff) ?? '' }) : null;
-  const moreItems: MenuItem[] = folded.map((chip) => {
-    const keys = hotkeyText(chip.hotkey);
-    const off = whyOff(chip);
-    return { id: chip.id, label: nameOf(chip), ...(keys === null ? {} : { hint: keys.display }), reason: off === null ? null : offText(chip, off) };
-  });
+  // «Ещё» always opens (2026-10-21): «Скачать лог» is its last item, and it works whatever the chat's state is — an
+  // off dock is exactly when the lead needs the log. Each function it holds that is off says why in its own row.
+  const moreItems: MenuItem[] = [
+    ...folded.map((chip) => {
+      const keys = hotkeyText(chip.hotkey);
+      const off = whyOff(chip);
+      return { id: chip.id, label: nameOf(chip), ...(keys === null ? {} : { hint: keys.display }), reason: off === null ? null : offText(chip, off) };
+    }),
+    { id: LOG_ID, label: t('log.download'), reason: null },
+  ];
   const openMore = (): void => {
     alignMore();
     setMenuOpen(true);
@@ -361,15 +369,13 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
               active={hidden.some((chip) => chip.active)}
               busy={hidden.some((chip) => chip.busy)}
               ready={hidden.some((chip) => chip.badge !== null)}
-              reason={moreOff}
+              reason={null}
               tooltip={folded.map(nameOf).join(', ')}
               haspopup="menu"
               expanded={menuOpen}
               buttonRef={moreRef}
               onClick={() => (menuOpen ? setMenuOpen(false) : openMore())}
-              onKeyDown={(event) => {
-                if (moreOff === null) menuTriggerKeys(event, openMore);
-              }}
+              onKeyDown={(event) => menuTriggerKeys(event, openMore)}
               {...stopProps('more')}
             />
             <Menu
@@ -378,7 +384,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
               label={t('dock.action.more')}
               items={moreItems}
               align={moreAlign}
-              onSelect={(id) => run(chips.find((chip) => chip.id === id)?.action ?? null)}
+              onSelect={(id) => run(id === LOG_ID ? LOG_ACTION : (chips.find((chip) => chip.id === id)?.action ?? null))}
               onClose={() => setMenuOpen(false)}
               returnFocusTo={() => moreRef.current}
             />
@@ -403,6 +409,17 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
           )}
         </span>
         {vm.paletteHotkey === null ? null : <Word class="cg-hint" text={hotkeyText(vm.paletteHotkey)?.display ?? ''} tooltip={hints ? t('dock.paletteHint.tooltip') : null} />}
+        <span class="cg-slot cg-slot--log">
+          <StripButton
+            label={t('log.download')}
+            class="cg-act--ico cg-log"
+            iconable
+            leading={<Icon name="download" size={14} />}
+            tooltip={`${t('log.download')}\n${t('log.downloadHint')}`}
+            onClick={() => run(LOG_ACTION)}
+            {...stopProps(LOG_ID)}
+          />
+        </span>
       </div>
     </div>
   );

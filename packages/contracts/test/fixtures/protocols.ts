@@ -458,7 +458,7 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     },
   },
   'diagnostics.export': {
-    req: { valid: [{ format: 'json' }, { format: 'txt' }], invalid: [{ format: 'zip' }] },
+    req: { valid: [{ format: 'json' }, { format: 'txt' }, { format: 'txt', site: 'chatspace' }], invalid: [{ format: 'zip' }, { format: 'txt', site: 'onlyfans' }] },
     res: {
       valid: [{ fileName: 'chatgoose-diagnostics.json', mime: 'application/json', body: '{}' }],
       invalid: [{ fileName: 'x.json', mime: 'application/zip', body: '{}' }],

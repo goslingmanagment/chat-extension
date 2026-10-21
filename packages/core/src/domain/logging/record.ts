@@ -8,7 +8,7 @@
 
 import { isCgCode } from '@cg/contracts/errors';
 import { checkBridgeFrame } from '@cg/contracts/bridge';
-import { ChatKeySchema } from '@cg/contracts/ids';
+import { ChatKeySchema, HOST_KINDS } from '@cg/contracts/ids';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { LOG_SCOPE_PATTERN, type LogLevel, type LogRecord } from '@cg/contracts/logs';
 import { EPOCH_TOKEN_PATTERN, UUID_PATTERN } from '@cg/contracts/primitives';
@@ -74,6 +74,7 @@ export function cleanCtx(ctx: RecordInput['ctx']): LogCtx | undefined {
   if (isCount(ctx.routeEpoch)) out.routeEpoch = ctx.routeEpoch;
   if (isCount(ctx.session)) out.session = ctx.session;
   if (typeof ctx.documentEpoch === 'string' && EPOCH_TOKEN_PATTERN.test(ctx.documentEpoch)) out.documentEpoch = ctx.documentEpoch;
+  if (typeof ctx.site === 'string' && (HOST_KINDS as readonly string[]).includes(ctx.site)) out.site = ctx.site as LogCtx['site'];
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

@@ -8,7 +8,7 @@
 import { type ComponentChildren, type JSX, type TargetedFocusEvent, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useId, useLayoutEffect, useRef } from 'preact/hooks';
 
-import { useKit } from '../context';
+import { useKit, useOffClick } from '../context';
 import { focusQuietly, isHeldKey, rovingIndex } from '../focus';
 import { useTooltip } from './Tooltip';
 
@@ -41,6 +41,7 @@ export interface MenuProps {
 
 export function Menu(props: MenuProps): JSX.Element | null {
   const { root, host } = useKit();
+  const offClick = useOffClick();
   const listRef = useRef<HTMLDivElement>(null);
   const id = useId();
   const { open, items: entries, onClose, returnFocusTo } = props;
@@ -89,7 +90,10 @@ export function Menu(props: MenuProps): JSX.Element | null {
     if (refocus) focusQuietly(props.returnFocusTo());
   };
   const choose = (item: MenuItem): void => {
-    if (item.reason !== null && item.reason !== undefined && item.reason !== '') return;
+    if (item.reason !== null && item.reason !== undefined && item.reason !== '') {
+      offClick(item.label, item.reason);
+      return;
+    }
     props.onSelect(item.id);
     close('select', true);
   };

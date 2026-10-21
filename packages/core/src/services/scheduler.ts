@@ -236,6 +236,8 @@ interface Settled {
   readonly result?: AnyOpResult;
   /** Show a toast to the owning tab when it is elsewhere. */
   readonly toast: boolean;
+  /** `canceled`: by whom — the person, a persona, sign-in or hub change, the hub's own stop (the chatter's log). */
+  readonly cancelReason?: CancelReason | 'session-aborted' | 'stale-answer';
 }
 
 /**
@@ -693,7 +695,7 @@ export class OpScheduler {
       // (its epoch signal goes first, the event follows the storage writes). That abort is the automatic
       // cancel itself, not a failure of the hub: the operation ends as the session change would end it.
       if (failure.kind === 'transport' && failure.failure === 'aborted' && this.environmentLost(run)) {
-        this.settle(run, { state: 'canceled', code: 'CG-CONTEXT-CHANGED', toast: true });
+        this.settle(run, { state: 'canceled', code: 'CG-CONTEXT-CHANGED', toast: true, cancelReason: 'session-aborted' });
         return null;
       }
       const resolution = this.resolve(run, failure, isHubCallError(error) ? error.epoch : null);
@@ -854,7 +856,7 @@ export class OpScheduler {
     switch (resolution.disposition) {
       case 'ignore':
         // An answer to an older sign-in (AU-014): the session change cancels the operation; nothing to show.
-        this.settle(run, { state: 'canceled', toast: false });
+        this.settle(run, { state: 'canceled', toast: false, cancelReason: 'stale-answer' });
         return;
       case 'refresh-catalog':
         this.deps.hooks?.refreshCatalog?.();
@@ -888,7 +890,7 @@ export class OpScheduler {
     if (run === undefined) return null;
     if (run.ended) return run.view.state;
     const code: CgCode | undefined = reason === 'persona' ? 'CG-PERSONA-CHANGED' : reason === 'explicit' ? undefined : 'CG-CONTEXT-CHANGED';
-    this.settle(run, code === undefined ? { state: 'canceled', toast: false } : { state: 'canceled', code, toast: true });
+    this.settle(run, code === undefined ? { state: 'canceled', toast: false, cancelReason: reason } : { state: 'canceled', code, toast: true, cancelReason: reason });
     run.abort?.abort();
     return run.view.state;
   }
@@ -1263,7 +1265,7 @@ export class OpScheduler {
       scope: 'bg.ops',
       msg: 'operation ended',
       ...(settled.code === undefined ? {} : { code: settled.code }),
-      fields: { state: settled.state, feature: run.view.feature, attempts: run.attempt, ms: now - run.view.startedAt },
+      fields: { state: settled.state, feature: run.view.feature, attempts: run.attempt, ms: now - run.view.startedAt, ...(settled.cancelReason === undefined ? {} : { cancelReason: settled.cancelReason }) },
       ctx: { opId: run.view.opId, chatKey: run.chatKey },
     });
     this.emitDone(run);

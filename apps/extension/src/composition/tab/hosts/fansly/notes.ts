@@ -15,9 +15,12 @@
 
 import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
 import type { SiteOpView } from '@cg/contracts/ops';
+import { chatKeyOf } from '@cg/contracts/ids';
+import type { NotesClient } from '@cg/contracts/notes-fansly';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext } from '@cg/core/application/boards';
+import { notesActionFacts, notesAvailability } from '@cg/core/application/hosts/fansly/journal';
 import { createNotesController, type NotesPort } from '@cg/core/application/hosts/fansly/notes';
 import { withFanslyOpText } from '@cg/core/application/hosts/fansly/ai';
 import { admittedOn, freshTextAdmitted } from '@cg/core/domain/features';
@@ -145,6 +148,26 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     clearTimer: (handle) => win.clearTimeout(handle as number),
   };
   const controller = createNotesController(port);
+  // The chatter's log (2026-10-21): the surfaces dispatch through this, so every click is written, never its text.
+  const client: NotesClient = {
+    panel: () => controller.panel(),
+    trigger: () => controller.trigger(),
+    subscribe: (listener) => controller.subscribe(listener),
+    dispatch(action) {
+      env.journal?.action('notes', `notes.${action.type}`, notesActionFacts(action));
+      controller.dispatch(action);
+    },
+  };
+  const decisions = env.journal?.watch('notes') ?? null;
+  const decide = (): void => {
+    if (decisions === null) return;
+    const chat = host.current().route.chat;
+    try {
+      decisions.see(chat === null ? 'notes' : chatKeyOf(chat), notesAvailability(controller.trigger(), controller.panel()));
+    } catch {
+      // The log never breaks the panel.
+    }
+  };
 
   let slot: ReturnType<FanslyPort['header']['mount']> | null = null;
   let button: KitMount | null = null;
@@ -160,14 +183,14 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     const on = allowed();
     if (on && slot === null) {
       slot = host.header.mount(NOTES_ORDER);
-      button = mountKitSurface('header-slot' as MountSurfaceKind, slot.root, env.deps, notesButtonSurface(controller, NOTES_TEXTS), { report: env.report });
+      button = mountKitSurface('header-slot' as MountSurfaceKind, slot.root, env.deps, notesButtonSurface(client, NOTES_TEXTS), { report: env.report });
     } else if (!on && slot !== null) {
       button?.unmount();
       button = null;
       slot.remove();
       slot = null;
     }
-    if (on && panel === null) panel = mountKitSurface(NOTES_SURFACE, overlayRoot(env.mounts, 'panel'), env.deps, notesPanelSurface(controller, NOTES_TEXTS), { report: env.report });
+    if (on && panel === null) panel = mountKitSurface(NOTES_SURFACE, overlayRoot(env.mounts, 'panel'), env.deps, notesPanelSurface(client, NOTES_TEXTS), { report: env.report });
     else if (!on && panel !== null) {
       panel.unmount();
       panel = null;
@@ -203,12 +226,14 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     host.header.onChange(sync),
     context.subscribe(sync),
     controller.subscribe(report),
+    controller.subscribe(decide),
     (rpc.onEvent as unknown as (type: string, listener: (payload: unknown) => void) => () => void)('fansly.notes.viewChanged', onView),
     (rpc.onEvent as unknown as (type: string, listener: (payload: unknown) => void) => () => void)('fansly.ops.done', (payload) => {
       const view = (payload as { readonly view?: SiteOpView } | null)?.view;
       if (view !== undefined) controller.fillDone(view);
     }),
     env.keys.handle('notes', () => {
+      env.journal?.action('notes', 'notes.toggle', { input: 'key' });
       controller.toggle();
     }),
     () => win.removeEventListener('resize', onResize),

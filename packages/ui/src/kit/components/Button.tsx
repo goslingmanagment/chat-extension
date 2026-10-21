@@ -10,7 +10,7 @@ import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent,
 
 import { type ActionButtonVM, type HotkeyLabel } from '@cg/contracts/vm';
 
-import { useDispatch, useHints, useI18n } from '../context';
+import { useDispatch, useHints, useI18n, useOffClick } from '../context';
 import { swallowHeldEnter } from '../focus';
 import { dark } from '../tokens';
 import { Icon, type IconName } from './Icon';
@@ -65,6 +65,7 @@ export interface ButtonProps {
 
 export function Button(props: ButtonProps): JSX.Element {
   const hints = useHints();
+  const offClick = useOffClick();
   const variant = props.variant ?? 'plain';
   const unavailable = props.reason !== null && props.reason !== undefined && props.reason !== '';
   const busy = props.busy === true;
@@ -100,6 +101,7 @@ export function Button(props: ButtonProps): JSX.Element {
         onClick={(event) => {
           if (unavailable || busy) {
             event.preventDefault();
+            if (unavailable) offClick(props.label, props.reason ?? '');
             return;
           }
           props.onClick?.(event);
@@ -180,6 +182,7 @@ export interface StripButtonProps {
 /** A chip of the dock's bar (ui-design §4.1): 28 px, 13 / 600, raised; the key is a cap at its corner. */
 export function StripButton(props: StripButtonProps): JSX.Element {
   const hints = useHints();
+  const offClick = useOffClick();
   const unavailable = props.reason !== null && props.reason !== undefined && props.reason !== '';
   const keys = hotkeyText(props.hotkey);
   const tip = useTooltip(unavailable ? (props.reason ?? null) : hints ? (props.tooltip ?? null) : props.iconable === true ? props.label : null);
@@ -203,6 +206,7 @@ export function StripButton(props: StripButtonProps): JSX.Element {
         onClick={(event) => {
           if (unavailable) {
             event.preventDefault();
+            offClick(props.label, props.reason ?? '');
             return;
           }
           props.onClick?.();

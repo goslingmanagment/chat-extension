@@ -358,9 +358,11 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
   /** One step of the machine: only what isFanslySendStep admits; anything else is our bug and changes nothing. */
   function step(attempt: Attempt, next: FanslySendOutcome): boolean {
     if (!isFanslySendStep(attempt.outcome, next)) {
-      log({ level: 'error', scope: 'fansly.send', msg: 'refused a step the machine does not name', fields: { attemptId: attempt.attemptId, from: attempt.outcome.state, to: next.state } });
+      log({ level: 'error', scope: 'fansly.send', msg: 'refused a step the machine does not name', fields: { attemptId: attempt.attemptId, fromState: attempt.outcome.state, toState: next.state } });
       return false;
     }
+    // The chatter's log (2026-10-21): every step of a send, as the X8 attempts have it.
+    log({ level: next.state === 'uncertain' || next.state === 'refused' ? 'warn' : 'info', scope: 'fansly.send', msg: 'attempt moved', fields: { attemptId: attempt.attemptId, fromState: attempt.outcome.state, toState: next.state } });
     attempt.outcome = next;
     if (attempt.base !== null) attempt.base = { ...attempt.base, updatedAt: Math.max(attempt.base.createdAt, clock.now()) };
     if (isEnd(next)) {
