@@ -153,7 +153,7 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     if (env.probe === null) return;
     const { shown, view, place, body, notes, editor, name } = controller.panel();
     // Test builds: what the e2e reads — states and ids, never a note's text.
-    env.probe.set('notes', { shown, view, place: place?.kind ?? null, body, notes: notes.map((note) => ({ id: note.noteId, foreign: note.foreign })), editor: editor === null ? null : { noteId: editor.noteId, saving: editor.saving, blocked: editor.blocked, problem: editor.problem?.kind ?? null }, name: name.status, count: controller.trigger().count });
+    env.probe.set('notes', { shown, view, place: place?.kind ?? null, body, notes: notes.map((note) => ({ id: note.noteId, foreign: note.foreign, ...(note.cut === true ? { cut: true } : {}) })), editor: editor === null ? null : { noteId: editor.noteId, saving: editor.saving, blocked: editor.blocked, problem: editor.problem?.kind ?? null }, name: name.status, count: controller.trigger().count });
   };
   const sync = (): void => {
     if (env.life.aborted) return;

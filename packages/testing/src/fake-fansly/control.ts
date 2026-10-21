@@ -159,6 +159,13 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
     }
     case 'note':
       return { ok: true, noteId: world.createNote(command.fanId, command.contentType ?? 12000, command.title, command.note, command.createdAt).id };
+    case 'note-edit': {
+      const found = world.findNote(command.noteId);
+      if (found === null) throw new FakeFanslyCommandError(`note-edit: no note ${command.noteId}`);
+      if (command.title !== undefined) found.note.title = command.title;
+      found.note.note = command.note;
+      return { ok: true, noteId: found.note.id };
+    }
     case 'frames':
       return { ok: true, sent: hub.emit(command.frames, 'raw', command.batch === true) };
     case 'socket': {

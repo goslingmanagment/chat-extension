@@ -76,7 +76,13 @@ function NameField({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }):
       />
       {focused || status !== 'idle' ? (
         <p class="cg-notes__hint" data-status={status} role={status === 'idle' ? undefined : 'status'}>
-          {vm.name.error?.code === 'CG-NOTE-WRITE' && vm.name.error.detail === 'changed' ? copy.problem.changed : copy.name[status]}
+          {vm.name.changed !== undefined
+            ? vm.name.changed.latest === null
+              ? copy.nameRemoved
+              : copy.nameChanged.replace('{name}', vm.name.changed.latest)
+            : vm.name.error?.code === 'CG-NOTE-WRITE' && vm.name.error.detail === 'changed'
+              ? copy.problem.changed
+              : copy.name[status]}
         </p>
       ) : null}
     </>
@@ -345,6 +351,14 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
           {problem.kind === 'failed' ? problem.error.code === 'CG-NOTE-WRITE' && problem.error.detail === 'changed' ? copy.problem.changed : `${errorText(problem.error)}. ${copy.problem[problem.created ? 'failed-create' : 'failed-edit']}` : copy.problem[problem.kind]}
         </p>
       )}
+      {/* Changed elsewhere (audit №13): what Fansly holds now, to compare before «Сохранить» writes the draft over it. */}
+      {problem?.kind === 'changed' ? (
+        <div class="cg-notes__latest" data-notes-latest="">
+          <span class="cg-notes__latest-h">{copy.latest}</span>
+          {problem.latest.title === '' ? null : <span class="cg-notes__note-title">{problem.latest.title}</span>}
+          {problem.latest.text === '' ? null : <p class="cg-notes__note-text">{problem.latest.text}</p>}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -367,7 +381,7 @@ function NoteItem({ client, copy, vm, note }: Props & { readonly vm: NotesPanelV
   // An untitled free note with a date is headed by the date alone (decision 171).
   const title = note.title !== '' ? note.title : form !== undefined ? copy.questionnaire : date === undefined ? copy.untitled : null;
   return (
-    <li class={`cg-notes__note${note.foreign ? ' is-foreign' : ''}`} data-note-id={note.noteId} {...(note.foreign ? { 'data-foreign': 'true' } : {})}>
+    <li class={`cg-notes__note${note.foreign ? ' is-foreign' : ''}${note.cut === true ? ' is-cut' : ''}`} data-note-id={note.noteId} {...(note.foreign ? { 'data-foreign': 'true' } : {})} {...(note.cut === true ? { 'data-cut': 'true' } : {})}>
       <div class="cg-notes__note-head">
         {title === null ? null : <span class="cg-notes__note-title">{title}</span>}
         {date === undefined ? null : <NoteDate copy={copy} date={date} />}
@@ -376,6 +390,12 @@ function NoteItem({ client, copy, vm, note }: Props & { readonly vm: NotesPanelV
           <span class="cg-notes__tag" title={copy.foreignHint}>
             <Icon name="lock" size={12} />
             {copy.foreign}
+          </span>
+        ) : note.cut === true ? (
+          // Longer than the panel holds (audit №13): shown cut, edited and deleted in Fansly's own window only.
+          <span class="cg-notes__tag" title={copy.cutHint}>
+            <Icon name="lock" size={12} />
+            {copy.cut}
           </span>
         ) : vm.editor === null && !asked ? (
           <span class="cg-notes__note-acts">
@@ -386,6 +406,7 @@ function NoteItem({ client, copy, vm, note }: Props & { readonly vm: NotesPanelV
         ) : null}
       </div>
       {form !== undefined ? <FormView copy={copy} form={form} /> : note.text === '' ? null : <p class="cg-notes__note-text">{note.text}</p>}
+      {note.cut === true ? <p class="cg-notes__blank" data-notes-cut="">{copy.cutHint}</p> : null}
       {asked ? (
         <div class="cg-notes__confirm" role="alert" data-notes-confirm="">
           <span class="cg-notes__confirm-t">{vm.deleteError === null ? copy.removeAsk : errorText(vm.deleteError)}</span>

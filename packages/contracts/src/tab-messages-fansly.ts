@@ -84,7 +84,10 @@ export const FANSLY_TAB_LIMITS = {
   /** Messages of one preview read; the window shows up to 750 by «загрузить ещё» (NF-010). */
   historyMessagesPerRead: 250,
   historyMessageMaxChars: 20_000,
-  /** Fansly states no limit; ours sit far above any real note and are never cut (FS-NOTE-4: a longer text is refused). */
+  /**
+   * Fansly states no limit; ours sit far above any real note. A text written here is never cut (FS-NOTE-4: a longer one
+   * is refused); a longer note read from Fansly (its window, FBuddy) is shown cut and read-only (`FanslyNote.cut`).
+   */
   noteTitleMaxChars: 1_000,
   noteTextMaxChars: 50_000,
   customNameMaxChars: 1_000,
@@ -249,6 +252,11 @@ export const FanslyNoteSchema = z.strictObject({
   text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars),
   foreign: z.boolean(),
   createdAtMs: z.optional(z.nullable(z.int().check(z.gt(0)))),
+  /**
+   * 2026-10-21 (audit №13): the note is longer than the limits above — its title or text is cut to them for the panel.
+   * Read-only here: an edit or a delete would write the cut text over the whole one, which stays in Fansly.
+   */
+  cut: z.optional(z.literal(true)),
 });
 export type FanslyNote = z.infer<typeof FanslyNoteSchema>;
 
@@ -605,7 +613,11 @@ export const FANSLY_TAB_REQUESTS = {
       /** The version the editor opened on. Older callers parse, but cannot overwrite without a version. */
       current: z.optional(z.strictObject({ title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars), text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars) })),
     }),
-    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), note: FanslyNoteSchema }), Failure]),
+    /**
+     * 2026-10-21 (audit №13): a refusal because the note changed since the editor opened (`CG-NOTE-WRITE` `changed`)
+     * carries the version Fansly holds now, `latest` — the panel shows it and saves over it on the next «Сохранить».
+     */
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), note: FanslyNoteSchema }), z.strictObject({ ok: z.literal(false), error: CgAnyErrorWireSchema, latest: z.optional(FanslyNoteSchema) })]),
     from: TAB,
     hosts: FANSLY,
   },
@@ -627,7 +639,8 @@ export const FANSLY_TAB_REQUESTS = {
    */
   'fansly.notes.name': {
     req: z.strictObject({ ...NoteTarget, name: displayText(FANSLY_TAB_LIMITS.customNameMaxChars), current: z.nullable(FanslyCustomNameSchema) }),
-    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), customName: z.nullable(FanslyCustomNameSchema) }), Failure]),
+    /** 2026-10-21 (audit №13): a `changed` refusal carries the name Fansly holds now (null — none), `latest`. */
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), customName: z.nullable(FanslyCustomNameSchema) }), z.strictObject({ ok: z.literal(false), error: CgAnyErrorWireSchema, latest: z.optional(z.nullable(FanslyCustomNameSchema)) })]),
     from: TAB,
     hosts: FANSLY,
   },

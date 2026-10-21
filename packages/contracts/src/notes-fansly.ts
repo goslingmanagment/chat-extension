@@ -25,6 +25,9 @@ export type NotesProblem =
   | { readonly kind: 'empty' }
   | { readonly kind: 'too-long' }
   | { readonly kind: 'deleted' }
+  /** 2026-10-21 (audit №13): the note changed elsewhere since the editor opened — `latest` is what Fansly holds now; the
+   * next «Сохранить» writes the draft over it. */
+  | { readonly kind: 'changed'; readonly latest: { readonly title: string; readonly text: string } }
   | { readonly kind: 'failed'; readonly error: CgAnyErrorWire; readonly created: boolean };
 
 /** A fact of a questionnaire's field and the month the Goose stamped on it («Флорида (08.2026)»), R20 P11b2. */
@@ -133,7 +136,9 @@ export interface NotesPanelVM {
   readonly error: CgAnyErrorWire | null;
   /** Regular notes (12000) in Fansly's order; `foreign` — FBuddy's, read only. */
   readonly notes: readonly FanslyNote[];
-  readonly name: { readonly value: string; readonly status: NotesNameStatus; readonly error: CgAnyErrorWire | null };
+  /** `changed` (2026-10-21, audit №13): the name changed elsewhere — `latest` is Fansly's now (null — none); the next
+   * Enter writes the typed one over it. */
+  readonly name: { readonly value: string; readonly status: NotesNameStatus; readonly error: CgAnyErrorWire | null; readonly changed?: { readonly latest: string | null } };
   readonly editor: NotesEditorVM | null;
   readonly confirmDelete: string | null;
   readonly deleting: string | null;
@@ -229,6 +234,14 @@ export interface NotesCopy {
   readonly saveHint: string;
   readonly cancel: string;
   readonly problem: Readonly<Record<'empty' | 'too-long' | 'deleted' | 'changed' | 'failed-create' | 'failed-edit', string>>;
+  /** 2026-10-21 (audit №13): the head of the version Fansly holds now, under «changed». */
+  readonly latest: string;
+  /** The name for oneself changed elsewhere: `{name}` — the one Fansly holds now; `nameRemoved` — none any more. */
+  readonly nameChanged: string;
+  readonly nameRemoved: string;
+  /** A note longer than the panel's limits: its mark and why it is read-only. */
+  readonly cut: string;
+  readonly cutHint: string;
   readonly foreign: string;
   readonly foreignHint: string;
   readonly viewLabel: string;
