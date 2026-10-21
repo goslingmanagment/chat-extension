@@ -137,6 +137,36 @@ describe('[host:fansly] «Заметки»: the controller (R20 P11b)', () => {
     expect(w.notes.panel().editor).toMatchObject({ title: NOTE_TEMPLATE_TITLE, text: NOTE_TEMPLATE_TEXT });
   });
 
+  it('audit №13: a note longer than the panel holds is read only — no edit, delete or fill from here', async () => {
+    const w = world();
+    w.port.read.mockResolvedValueOnce({ ok: true, fanRef: '91', notes: [{ ...note('3', 'Анкета', 'Имя: Алекс'), cut: true }], customName: null });
+    w.notes.toggle();
+    await w.settle();
+    w.notes.dispatch({ type: 'edit', noteId: '3' });
+    w.notes.dispatch({ type: 'fill-note', noteId: '3' });
+    w.notes.dispatch({ type: 'ask-delete', noteId: '3' });
+    w.notes.dispatch({ type: 'delete' });
+    await w.settle();
+    expect(w.notes.panel()).toMatchObject({ editor: null, confirmDelete: null });
+    expect(w.port.remove).not.toHaveBeenCalled();
+    expect(w.port.fill).not.toHaveBeenCalled();
+  });
+
+  it('audit №13: a name changed elsewhere is shown, and the next Enter writes the typed one over it', async () => {
+    const w = world();
+    w.notes.toggle();
+    await w.settle();
+    w.port.name.mockResolvedValueOnce({ ok: false, error: { code: 'CG-NOTE-WRITE', detail: 'changed' }, latest: { noteId: '5', name: 'Шура' } } as never);
+    w.notes.dispatch({ type: 'name-input', value: 'Саша' });
+    w.notes.dispatch({ type: 'name-commit' });
+    await w.settle();
+    expect(w.notes.panel().name).toMatchObject({ value: 'Саша', status: 'error', changed: { latest: 'Шура' } });
+    w.notes.dispatch({ type: 'name-commit' });
+    await w.settle();
+    expect(w.port.name).toHaveBeenLastCalledWith({ accountId: '7', fanId: '91' }, 'Саша', { noteId: '5', name: 'Шура' });
+    expect(w.notes.panel().name).toMatchObject({ value: 'Саша', status: 'saved' });
+  });
+
   it('[FX-012] another account of the tab drops what was read and typed under the previous one', async () => {
     const w = world();
     w.notes.toggle();

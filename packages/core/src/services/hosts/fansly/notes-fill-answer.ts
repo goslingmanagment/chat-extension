@@ -13,7 +13,11 @@
 // - The prompt escapes `<`, `>`, `&` in what the model reads: `&lt;`, `&gt;`, `&amp;` are decoded once everywhere.
 // - Preambles, blank lines and lines of labels nobody asked are ignored; an answer with no asked label at all is no
 //   answer (null).
+// - One value over the result's 2000 characters is nothing for its field (a field the hub named itself is dropped), never
+//   a reason to drop the answer (audit №13: one long «Другое» made the whole fill «не заполнено»); a Unicode line or
+//   paragraph separator inside a value is a space.
 
+import { NOTE_FILL_LIMITS } from '@cg/contracts/limits';
 import { FANSLY_OP_LIMITS, NoteFieldsResultSchema } from '@cg/contracts/ops-fansly';
 import type { NoteFieldValue, SiteOpResult } from '@cg/contracts/ops';
 
@@ -30,6 +34,11 @@ const QUOTE_PAIRS: readonly (readonly [string, string])[] = [
 ];
 
 const decodeEntities = (text: string): string => text.replace(/&(lt|gt|amp);/g, (_, name: string) => (name === 'lt' ? '<' : name === 'gt' ? '>' : '&'));
+/** A field's value as the result takes it: one line; over the result's bound — nothing (`''`). */
+const fieldValue = (raw: string): string => {
+  const value = decodeEntities(raw.trim());
+  return value.length > NOTE_FILL_LIMITS.valueMaxChars ? '' : value;
+};
 const labelKey = (label: string): string => label.trim().replace(/^[-*•]+\s*/, '').normalize('NFC').toLocaleLowerCase('ru');
 /** A label the result takes (`NoteFieldLabelSchema`): trimmed, one line, none of `:`, `<`, `>`, `&`, within 60. */
 const usableLabel = (label: string): boolean => label !== '' && label.length <= 60 && !/[\r\n\u2028\u2029:<>&]/.test(label);
@@ -56,7 +65,8 @@ export function parseNoteFillAnswer(text: string, asked: readonly string[]): Ext
   const fields = new Map<string, Mutable>();
   const proposed: Mutable[] = [];
   let anchor: Mutable | null = null;
-  for (const raw of text.split(/\r?\n/)) {
+  // A line or paragraph separator is no line break of the answer's: a space, so the line still reads as its field.
+  for (const raw of text.split(/\r?\n/).map((line) => line.replace(/[\u2028\u2029]+/g, ' '))) {
     if (raw.trim() === '') continue;
     const quote = QUOTE_LINE.exec(raw);
     if (quote !== null) {
@@ -70,7 +80,7 @@ export function parseNoteFillAnswer(text: string, asked: readonly string[]): Ext
     const plus = label === undefined ? PROPOSED_LINE.exec(raw) : null;
     if (plus !== null) {
       const name = decodeEntities((plus[1] ?? '').trim());
-      const value = decodeEntities((plus[2] ?? '').trim());
+      const value = fieldValue(plus[2] ?? '');
       const fresh = !wanted.has(labelKey(name)) && !proposed.some((entry) => labelKey(entry.label) === labelKey(name));
       if (value !== '' && value !== UNCHANGED && usableLabel(name) && fresh && proposed.length < FANSLY_OP_LIMITS.noteProposedMax) {
         anchor = { label: name, value, quotes: [] };
@@ -79,7 +89,7 @@ export function parseNoteFillAnswer(text: string, asked: readonly string[]): Ext
       continue;
     }
     if (label === undefined || fields.has(label)) continue;
-    const value = decodeEntities((match?.[2] ?? '').trim());
+    const value = fieldValue(match?.[2] ?? '');
     const entry: Mutable = { label, value: value === UNCHANGED ? '' : value, quotes: [] };
     fields.set(label, entry);
     // Nothing for the field: no words to hang under it.

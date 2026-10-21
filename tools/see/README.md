@@ -26,7 +26,8 @@ Scenarios: `dock`, `reply`, `coach`, `recap`, `review`, `fix`, `hi`,
 `spenders`, `newcomers`, `palette`, `fan-panel`, `pages` (popup and
 settings), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
 first). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `recap`,
-`review`, `pages`, `fansly-hi` (Hi after a cold load), `fansly-ppv` (Reply's
+`review`, `pages`, `fansly-hi` (Hi after a cold load), `fansly-notes` («Заметки»: a long note, an edit after
+someone else's change), `fansly-ppv` (Reply's
 PPV state in `hub-calls.json`).
 
 ## A scenario of your own

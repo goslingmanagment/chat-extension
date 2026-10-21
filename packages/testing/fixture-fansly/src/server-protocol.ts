@@ -125,6 +125,8 @@ export type FakeFanslyCommand =
   /** R20 P11b: a note of the creator on a fan's account, as Fansly's own window (or FBuddy) would have written it. */
   /** `createdAt` — when it was created, ms (default: now); Fansly serves it in seconds. */
   | { readonly op: 'note'; readonly fanId: string; readonly title: string; readonly note: string; readonly contentType?: 12000 | 12002; readonly createdAt?: number }
+  /** A note changed elsewhere (another chatter, Fansly's window, FBuddy): its title and text now. */
+  | { readonly op: 'note-edit'; readonly noteId: string; readonly title?: string; readonly note: string }
   /** Raw text frames to every verified socket as they are (a damaged frame, an unknown `t`); `batch` — inside one `t: 10001`. */
   | { readonly op: 'frames'; readonly frames: readonly string[]; readonly batch?: boolean }
   /**

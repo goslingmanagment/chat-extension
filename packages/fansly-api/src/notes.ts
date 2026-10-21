@@ -15,7 +15,7 @@
 //   this note. A create stays strict: only its answer gives the new note's id.
 // - Nothing here logs, keeps or returns more than the note itself (FS-NOTE-5).
 
-import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
+import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
 import type { FanslyCall } from './client';
 
@@ -76,7 +76,22 @@ export function storedNote(raw: unknown, fanId: string): StoredNote | null {
 /** FBuddy's own note: its title, or its sync mark in the text. */
 export const isForeignNote = (note: Pick<StoredNote, 'title' | 'note'>): boolean => note.title.trim() === FBUDDY_NOTE_TITLE || note.note.includes(FBUDDY_MARK);
 
-export const panelNote = (note: StoredNote): FanslyNote => ({ noteId: note.id, title: note.title, text: note.note, foreign: isForeignNote(note), ...(note.createdAtMs === null ? {} : { createdAtMs: note.createdAtMs }) });
+/**
+ * A note as the panel shows it. One longer than the tab's limits (a title over 1000, a text over 50 000 — written in
+ * Fansly's window or by FBuddy) is cut to them and marked `cut`: shown, never written back from here (audit №13 — before,
+ * one such note failed the whole read and the panel showed no note at all).
+ */
+export function panelNote(note: StoredNote): FanslyNote {
+  const cut = note.title.length > FANSLY_TAB_LIMITS.noteTitleMaxChars || note.note.length > FANSLY_TAB_LIMITS.noteTextMaxChars;
+  return {
+    noteId: note.id,
+    title: note.title.slice(0, FANSLY_TAB_LIMITS.noteTitleMaxChars),
+    text: note.note.slice(0, FANSLY_TAB_LIMITS.noteTextMaxChars),
+    foreign: isForeignNote(note),
+    ...(note.createdAtMs === null ? {} : { createdAtMs: note.createdAtMs }),
+    ...(cut ? { cut: true as const } : {}),
+  };
+}
 
 /**
  * The fan's notes from `GET /account?ids=<fan>` (the envelope already unwrapped): the regular ones in Fansly's own order
@@ -92,7 +107,8 @@ export function fanNotesOf(response: unknown, fanId: string): FanNotes | null {
     const note = storedNote(raw, fanId);
     if (note === null || note.contentId !== fanId) continue;
     if (note.contentType === FANSLY_NOTE_TYPE) notes.push(panelNote(note));
-    else if (note.contentType === FANSLY_NAME_NOTE_TYPE && customName === null) customName = { noteId: note.id, name: note.note };
+    // A name over the limit is cut for the head's field: a new name replaces it whole anyway.
+    else if (note.contentType === FANSLY_NAME_NOTE_TYPE && customName === null) customName = { noteId: note.id, name: note.note.slice(0, FANSLY_TAB_LIMITS.customNameMaxChars) };
   }
   return { notes, customName };
 }

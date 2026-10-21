@@ -155,9 +155,11 @@ export interface NotesPort {
   target(): NotesTarget | null;
   read(target: NotesTarget, force: boolean): Promise<{ readonly ok: true; readonly fanRef: string; readonly notes: readonly FanslyNote[]; readonly customName: CustomName | null } | Failure>;
   create(who: NotesWho, title: string, text: string): Promise<{ readonly ok: true; readonly note: FanslyNote } | Failure>;
-  edit(who: NotesWho, noteId: string, title: string, text: string, current: Pick<FanslyNote, 'title' | 'text'>): Promise<{ readonly ok: true; readonly note: FanslyNote } | Failure>;
+  /** A `changed` refusal carries `latest`, the version Fansly holds now (audit №13). */
+  edit(who: NotesWho, noteId: string, title: string, text: string, current: Pick<FanslyNote, 'title' | 'text'>): Promise<{ readonly ok: true; readonly note: FanslyNote } | (Failure & { readonly latest?: FanslyNote | undefined })>;
   remove(who: NotesWho, note: FanslyNote): Promise<{ readonly ok: true } | Failure>;
-  name(who: NotesWho, name: string, current: CustomName | null): Promise<{ readonly ok: true; readonly customName: CustomName | null } | Failure>;
+  /** A `changed` refusal carries `latest`, the name Fansly holds now (null — none). */
+  name(who: NotesWho, name: string, current: CustomName | null): Promise<{ readonly ok: true; readonly customName: CustomName | null } | (Failure & { readonly latest?: CustomName | null | undefined })>;
   /** The page's «Заполнить из чата» is on (the manifest's `notes-fill`: the page's `notesFill`, R20 P11c). */
   fillAllowed(): boolean;
   /** Start `notes-fill` in the open chat with the questionnaire's labels and, index-aligned, their values (the owner's
@@ -188,7 +190,8 @@ type Entry = { readonly kind: 'loading'; readonly token: number } | { readonly k
 
 interface Draft {
   noteId: string | null;
-  readonly current: Pick<FanslyNote, 'title' | 'text'>;
+  /** The version the next «Сохранить» writes over: the one opened, or Fansly's newer one once it was shown (audit №13). */
+  current: Pick<FanslyNote, 'title' | 'text'>;
   title: string;
   text: string;
   saving: boolean;
@@ -217,9 +220,22 @@ type Fill =
 interface NameState {
   readonly status: NotesNameStatus;
   readonly error: CgAnyErrorWire | null;
+  /** The name changed elsewhere: Fansly's now (null — none). */
+  readonly changed?: { readonly latest: string | null };
 }
 
 const toFailure = (error: unknown): Failure => ({ ok: false, error: { code: 'CG-FAN-REQUEST', ...(error instanceof Error ? { detail: error.name } : {}) } });
+
+/** The background's refusal of a write because the note (or the name) changed since it was read. */
+const isChanged = (error: CgAnyErrorWire): boolean => error.code === 'CG-NOTE-WRITE' && error.detail === 'changed';
+
+/** A newer version of a note in place of the one read: it keeps the creation time read when Fansly's answer gave none. */
+const withTime = (fresh: FanslyNote, read: FanslyNote): FanslyNote => (fresh.createdAtMs !== undefined && fresh.createdAtMs !== null) || read.createdAtMs === undefined || read.createdAtMs === null ? fresh : { ...fresh, createdAtMs: read.createdAtMs };
+
+/** What a `changed` refusal carries: the version Fansly holds now; undefined — none was given. */
+const latestOf = <T>(failure: Failure): T | undefined => (failure as Failure & { readonly latest?: T }).latest;
+
+const sameName = (a: CustomName | null, b: CustomName | null): boolean => a?.noteId === b?.noteId && a?.name === b?.name;
 
 export type NotesController = NotesClient & {
   /** The route, the account, the header changed: follow the open chat. */
@@ -311,7 +327,7 @@ export function createNotesController(port: NotesPort): NotesController {
       body: entry === undefined || entry.kind === 'loading' ? 'loading' : entry.kind,
       error: entry?.kind === 'error' ? entry.error : null,
       notes: data?.notes ?? [],
-      name: { value: (fanId === null ? undefined : nameDrafts.get(fanId)?.value) ?? data?.customName?.name ?? '', status: name?.status ?? 'idle', error: name?.error ?? null },
+      name: { value: (fanId === null ? undefined : nameDrafts.get(fanId)?.value) ?? data?.customName?.name ?? '', status: name?.status ?? 'idle', error: name?.error ?? null, ...(name?.changed === undefined ? {} : { changed: name.changed }) },
       editor: draft === undefined ? null : editorVM(draft, port.fillAllowed()),
       confirmDelete: confirm !== null && confirm.fanId === fanId ? confirm.noteId : null,
       deleting: deleting !== null && deleting.fanId === fanId ? deleting.noteId : null,
@@ -353,7 +369,7 @@ export function createNotesController(port: NotesPort): NotesController {
     if (now?.kind !== 'loading' || now.token !== token) return;
     if (answer.ok) {
       entries.set(group, { kind: 'ready', data: { fanRef: answer.fanRef, notes: answer.notes, customName: answer.customName } });
-      afterReread(answer.fanRef, answer.notes);
+      afterReread(answer.fanRef, answer.notes, answer.customName);
     } else entries.set(group, { kind: 'error', error: answer.error });
     while (entries.size > KEPT_CHATS) entries.delete(entries.keys().next().value as string);
     emit();
@@ -361,18 +377,38 @@ export function createNotesController(port: NotesPort): NotesController {
 
   /**
    * A fresh read answers what an unconfirmed write could not: the person now sees whether it landed, so a create may
-   * go out again. A draft of a note deleted elsewhere becomes a new note instead of an editor of nothing.
+   * go out again. A draft of a note deleted elsewhere becomes a new note instead of an editor of nothing. A note changed
+   * elsewhere since its editor opened is shown as Fansly holds it now, and the next «Сохранить» writes the draft over it
+   * (audit №13); one that already holds the draft (an edit landed, its answer lost) closes the editor as saved.
    */
-  function afterReread(fanId: string, notes: readonly FanslyNote[]): void {
+  function afterReread(fanId: string, notes: readonly FanslyNote[], customName: CustomName | null): void {
     const draft = drafts.get(fanId);
     if (draft !== undefined && !draft.saving) {
       draft.blocked = false;
-      if (draft.noteId !== null && !notes.some((note) => note.noteId === draft.noteId)) {
+      const fresh = draft.noteId === null ? undefined : notes.find((note) => note.noteId === draft.noteId);
+      if (draft.noteId !== null && fresh === undefined) {
         draft.noteId = null;
         draft.problem = { kind: 'deleted' };
-      } else if (draft.problem?.kind === 'failed' && draft.problem.error.detail !== 'changed') draft.problem = null;
+      } else if (fresh !== undefined && (fresh.title !== draft.current.title || fresh.text !== draft.current.text)) {
+        if (fresh.title === draft.title.trim() && fresh.text === draft.text.trimEnd() && draft.fill.status !== 'running') drafts.delete(fanId);
+        else showLatest(draft, fresh);
+      } else if (draft.problem?.kind === 'failed') draft.problem = null;
     }
     if (nameStates.get(fanId)?.status === 'unconfirmed') nameStates.delete(fanId);
+    const typed = nameDrafts.get(fanId);
+    if (typed !== undefined && nameStates.get(fanId)?.status !== 'saving' && !sameName(typed.current, customName)) nameChanged(fanId, typed.value, customName);
+  }
+
+  /** Fansly holds a newer version than the draft was opened on: shown, and the one the next «Сохранить» writes over. */
+  function showLatest(draft: Draft, latest: FanslyNote): void {
+    draft.current = { title: latest.title, text: latest.text };
+    draft.problem = { kind: 'changed', latest: { title: latest.title, text: latest.text } };
+  }
+
+  /** The name changed elsewhere: the typed one stays, the next Enter writes it over Fansly's (Esc keeps Fansly's). */
+  function nameChanged(fanId: string, value: string, latest: CustomName | null): void {
+    nameDrafts.set(fanId, { value, current: latest });
+    nameStates.set(fanId, { status: 'error', error: null, changed: { latest: latest?.name ?? null } });
   }
 
   function ensureLoaded(mode: 'now' | 'follow'): void {
@@ -510,6 +546,17 @@ export function createNotesController(port: NotesPort): NotesController {
         notes: d.notes.some((note) => note.noteId === saved.noteId) ? d.notes.map((note) => (note.noteId === saved.noteId ? dated(saved, note.createdAtMs) : note)) : [...d.notes, dated(saved, now())],
       }));
       drafts.delete(data.fanRef);
+    } else if (draft.noteId !== null && isChanged(answer.error) && latestOf<FanslyNote>(answer) !== undefined) {
+      // Changed elsewhere (audit №13): Fansly's version now, in the list and under the draft; «Сохранить» again writes over it.
+      const latest = latestOf<FanslyNote>(answer) as FanslyNote;
+      showLatest(draft, latest);
+      patch(data.fanRef, (d) => ({ ...d, notes: d.notes.map((note) => (note.noteId === latest.noteId ? withTime(latest, note) : note)) }));
+    } else if (draft.noteId !== null && isChanged(answer.error)) {
+      // Changed with no version to show: the note is gone in Fansly — the draft becomes a new note, as after a reread.
+      const gone = draft.noteId;
+      draft.noteId = null;
+      draft.problem = { kind: 'deleted' };
+      patch(data.fanRef, (d) => ({ ...d, notes: d.notes.filter((note) => note.noteId !== gone) }));
     } else {
       // A create may have landed: another one now could make a duplicate.
       if (draft.noteId === null) draft.blocked = true;
@@ -524,7 +571,8 @@ export function createNotesController(port: NotesPort): NotesController {
     const asked = confirm;
     if (data === null || to === null || asked === null || deleting !== null || asked.fanId !== data.fanRef) return;
     const note = data.notes.find((entry) => entry.noteId === asked.noteId);
-    if (note === undefined || note.foreign) return;
+    // A cut note's delete would send Fansly a text that is not the note's: deleted in Fansly's window only.
+    if (note === undefined || note.foreign || note.cut === true) return;
     deleting = asked;
     deleteError = null;
     emit();
@@ -567,6 +615,10 @@ export function createNotesController(port: NotesPort): NotesController {
       patch(fanId, (d) => ({ ...d, customName: saved }));
       nameDrafts.delete(fanId);
       nameStates.set(fanId, { status: 'saved', error: null });
+    } else if (isChanged(answer.error) && latestOf<CustomName | null>(answer) !== undefined) {
+      const latest = latestOf<CustomName | null>(answer) as CustomName | null;
+      patch(fanId, (d) => ({ ...d, customName: latest }));
+      nameChanged(fanId, typed.value, latest);
     } else nameStates.set(fanId, { status: answer.error.code === 'CG-NOTE-UNCERTAIN' ? 'unconfirmed' : 'error', error: answer.error });
     emit();
   }
@@ -661,7 +713,8 @@ export function createNotesController(port: NotesPort): NotesController {
         return startDraft(null, action.template ? NOTE_TEMPLATE_TITLE : '', action.template ? NOTE_TEMPLATE_TEXT : '');
       case 'edit': {
         const note = data?.notes.find((entry) => entry.noteId === action.noteId);
-        if (note === undefined || note.foreign) return;
+        // FBuddy's and a cut one (audit №13: its tail lives in Fansly alone) are read only.
+        if (note === undefined || note.foreign || note.cut === true) return;
         return startDraft(note.noteId, note.title, note.text);
       }
       case 'input':
@@ -714,7 +767,7 @@ export function createNotesController(port: NotesPort): NotesController {
       case 'fill-note': {
         // «✨ Дополнить из чата» on the questionnaire being read: open it and fill (the Fansly extension 2.12.0).
         const note = data?.notes.find((entry) => entry.noteId === action.noteId);
-        if (data === null || draft !== undefined || note === undefined || note.foreign || !port.fillAllowed() || writing(data.fanRef) || parseNoteForm(note.text) === null) return;
+        if (data === null || draft !== undefined || note === undefined || note.foreign || note.cut === true || !port.fillAllowed() || writing(data.fanRef) || parseNoteForm(note.text) === null) return;
         startDraft(note.noteId, note.title, note.text);
         void startFill();
         return;
@@ -732,7 +785,7 @@ export function createNotesController(port: NotesPort): NotesController {
         drafts.delete(data.fanRef);
         return emit();
       case 'ask-delete':
-        if (data === null || deleting !== null) return;
+        if (data === null || deleting !== null || data.notes.some((note) => note.noteId === action.noteId && note.cut === true)) return;
         confirm = { fanId: data.fanRef, noteId: action.noteId };
         deleteError = null;
         return emit();

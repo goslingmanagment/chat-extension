@@ -115,7 +115,7 @@ function twoTabs() {
 }
 
 describe('[host:fansly] two tabs editing the same fan', () => {
-  it('[FS-NOTE-4] a stale edit keeps its draft and never wipes the other tab’s saved text, including after a refresh', async () => {
+  it('[FS-NOTE-4] audit №13: a stale edit never wipes the other tab’s text unseen — it shows Fansly’s version, and the next «Сохранить» writes over it', async () => {
     const w = twoTabs();
     w.a.toggle(); w.b.toggle();
     await vi.waitFor(() => expect([w.a.panel().body, w.b.panel().body]).toEqual(['ready', 'ready']));
@@ -127,16 +127,50 @@ describe('[host:fansly] two tabs editing the same fan', () => {
     const draft = 'Имя: Алекс\nЛокация: Рига';
     w.b.dispatch({ type: 'input', title: 'Анкета', text: draft });
     w.b.dispatch({ type: 'save' });
-    const conflict = { kind: 'failed', error: { code: 'CG-NOTE-WRITE', detail: 'changed' } };
+    const conflict = { kind: 'changed', latest: { title: 'Анкета', text: 'Имя: Алекс\nРабота: врач' } };
     await vi.waitFor(() => expect(w.b.panel().editor).toMatchObject({ saving: false, text: draft, problem: conflict }));
+    // Nothing of B's went out, and its list already holds A's text.
     expect(w.stored[0]?.note).toBe('Имя: Алекс\nРабота: врач');
     expect(w.writes()).toEqual(['notes.edit']);
-    w.b.dispatch({ type: 'refresh' });
-    await vi.waitFor(() => expect(w.b.panel().notes[0]?.text).toBe('Имя: Алекс\nРабота: врач'));
-    expect(w.b.panel().editor).toMatchObject({ text: draft, problem: conflict });
+    expect(w.b.panel().notes[0]?.text).toBe('Имя: Алекс\nРабота: врач');
     w.b.dispatch({ type: 'save' });
-    await vi.waitFor(() => expect(w.b.panel().editor?.saving).toBe(false));
-    expect(w.writes()).toEqual(['notes.edit']);
+    await vi.waitFor(() => expect(w.b.panel().editor).toBeNull());
+    expect(w.stored[0]?.note).toBe(draft);
+    expect(w.writes()).toEqual(['notes.edit', 'notes.edit']);
     w.a.dispose(); w.b.dispose();
+  });
+
+  it('audit №13: «Обновить» under an open editor brings a newer version the same way; one that already holds the draft closes it as saved', async () => {
+    const w = twoTabs();
+    w.b.toggle();
+    await vi.waitFor(() => expect(w.b.panel().body).toBe('ready'));
+    w.b.dispatch({ type: 'edit', noteId: '801' });
+    w.b.dispatch({ type: 'input', title: 'Анкета', text: 'Имя: Саша' });
+    w.stored[0]!.note = 'Имя: Алекс\nРабота: врач';
+    w.b.dispatch({ type: 'refresh' });
+    await vi.waitFor(() => expect(w.b.panel().editor).toMatchObject({ text: 'Имя: Саша', problem: { kind: 'changed', latest: { text: 'Имя: Алекс\nРабота: врач' } } }));
+    w.stored[0]!.note = 'Имя: Саша';
+    w.b.dispatch({ type: 'refresh' });
+    await vi.waitFor(() => expect(w.b.panel().editor).toBeNull());
+    expect(w.writes()).toEqual([]);
+    w.b.dispose();
+  });
+});
+
+describe('[host:fansly] audit №13: a note longer than the panel holds', () => {
+  it('is read cut and marked instead of failing the whole read; an edit of it is refused, one already landed is done without a write', async () => {
+    const w = world();
+    const long = 'я'.repeat(60_000);
+    w.answers.push([{ id: FAN, notes: [...account.notes, { id: '804', contentType: 12000, contentId: FAN, title: 'Старое', note: long }] }]);
+    const read = await w.notes.read({ ...target, groupId: '456' }, sender);
+    expect(read).toMatchObject({ ok: true, notes: [{ noteId: '801' }, { noteId: '803', foreign: true }, { noteId: '804', cut: true }] });
+    const cut = read.ok ? read.notes.find((note) => note.noteId === '804') : undefined;
+    expect(cut?.text.length).toBe(50_000);
+    expect(read.ok ? read.notes[0] : null).not.toHaveProperty('cut');
+    w.answers.push([{ id: FAN, notes: [{ id: '804', contentType: 12000, contentId: FAN, title: 'Старое', note: long }] }]);
+    expect(await w.notes.edit({ ...target, noteId: '804', title: 'Старое', text: 'x', current: { title: 'Старое', text: long.slice(0, 50_000) } }, sender)).toEqual({ ok: false, error: { code: 'CG-NOTE-WRITE', detail: 'long note' } });
+    w.answers.push([{ id: FAN, notes: [{ id: '801', contentType: 12000, contentId: FAN, title: 'Анкета', note: 'Имя: Саша' }] }]);
+    expect(await w.notes.edit({ ...target, noteId: '801', title: 'Анкета', text: 'Имя: Саша', current: { title: 'Анкета', text: 'Имя: Алекс' } }, sender)).toEqual({ ok: true, note: { noteId: '801', title: 'Анкета', text: 'Имя: Саша', foreign: false } });
+    expect(w.prepare.mock.calls.map(([call]) => (call as { route: string }).route)).toEqual(['account.byIds', 'account.byIds', 'account.byIds']);
   });
 });

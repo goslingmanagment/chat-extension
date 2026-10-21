@@ -13,7 +13,7 @@
 // - A note's text is answered to the tab and to nobody else: nothing of it is logged (FS-NOTE-5).
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
-import type { FanslyTabRequestPayload, FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
+import type { FanslyNote, FanslyTabRequestPayload, FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 import { pageFlagState } from '@cg/core/domain/ops';
 import {
   FANSLY_NAME_NOTE_TITLE,
@@ -162,6 +162,9 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
 
   const foreign: CgAnyErrorWire = { code: 'CG-NOTE-WRITE', detail: 'foreign note' };
   const changed: CgAnyErrorWire = { code: 'CG-NOTE-WRITE', detail: 'changed' };
+  /** A note longer than the tab's limits is read cut (`cut`): written from here, its tail in Fansly would be lost. */
+  const long: CgAnyErrorWire = { code: 'CG-NOTE-WRITE', detail: 'long note' };
+  const isChanged = (error: CgAnyErrorWire): boolean => error.code === changed.code && error.detail === changed.detail;
 
   return {
     read,
@@ -170,16 +173,30 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
       const done = await write(request, sender, notesCalls.create(request.hostAccountId, request.fanRef, FANSLY_NOTE_TYPE, request.title, request.text), (raw) => writtenNote(raw, request.fanRef, FANSLY_NOTE_TYPE));
       return done.ok && done.note !== null ? { ok: true, note: panelNote(done.note) } : { ok: false, error: done.ok ? { code: 'CG-NOTE-UNCERTAIN' } : done.error };
     },
+    /**
+     * The edit of a note as the editor opened it (`current`). Changed since (another chatter, Fansly's window, FBuddy):
+     * refused with the version Fansly holds now (`latest`), which the panel shows and the next «Сохранить» writes over
+     * (audit №13: never a dead end). Already holding what is sent (the edit landed, its answer was lost): done, nothing
+     * is written again.
+     */
     async edit(request: FanslyTabRequestPayload<'fansly.notes.edit'>, sender: HostSiteSender): Promise<Answer<'fansly.notes.edit'>> {
       if (isForeignNote({ title: request.title, note: request.text })) return { ok: false, error: foreign };
+      // What the fresh read found (a holder: it is set inside the queued write).
+      const seen: { latest?: FanslyNote } = {};
       const done = await write(request, sender, async (allowed) => {
         const note = (await fresh(request, allowed)).notes.find((note) => note.noteId === request.noteId);
-        if (note === undefined || request.current === undefined || note.title !== request.current.title || note.text !== request.current.text) throw new Refused(changed);
+        if (note === undefined) throw new Refused(changed);
         if (note.foreign) throw new Refused(foreign);
+        if (note.cut === true) throw new Refused(long);
+        seen.latest = note;
+        if (note.title === request.title && note.text === request.text) return null;
+        if (request.current === undefined || note.title !== request.current.title || note.text !== request.current.text) throw new Refused(changed);
         const stored: StoredNote = { id: note.noteId, contentType: FANSLY_NOTE_TYPE, contentId: request.fanRef, title: note.title, note: note.text, createdAtMs: note.createdAtMs ?? null };
         return notesCalls.edit(request.hostAccountId, stored, request.title, request.text);
       }, (raw) => editedNote(raw, request.fanRef, { id: request.noteId, contentType: FANSLY_NOTE_TYPE, title: request.title, note: request.text }));
-      return done.ok && done.note !== null ? { ok: true, note: panelNote(done.note) } : { ok: false, error: done.ok ? { code: 'CG-NOTE-UNCERTAIN' } : done.error };
+      const latest = seen.latest;
+      if (done.ok) return done.note !== null ? { ok: true, note: panelNote(done.note) } : latest !== undefined ? { ok: true, note: latest } : { ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } };
+      return isChanged(done.error) && latest !== undefined ? { ok: false, error: done.error, latest } : { ok: false, error: done.error };
     },
     async remove(request: FanslyTabRequestPayload<'fansly.notes.delete'>, sender: HostSiteSender): Promise<Answer<'fansly.notes.delete'>> {
       if (isForeignNote({ title: request.title, note: request.text })) return { ok: false, error: foreign };
@@ -191,8 +208,15 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
     async name(request: FanslyTabRequestPayload<'fansly.notes.name'>, sender: HostSiteSender): Promise<Answer<'fansly.notes.name'>> {
       const name = request.name.trim();
       let expectedId: string | undefined;
+      /** The name Fansly holds now: a `changed` refusal carries it; one already equal to what is sent is the answer. */
+      const seen: { held?: { readonly noteId: string; readonly name: string } | null; landed?: true } = {};
       const done = await write(request, sender, async (allowed) => {
         const latest = (await fresh(request, allowed)).customName;
+        seen.held = latest;
+        if (name === '' ? latest === null : latest?.name === name) {
+          seen.landed = true;
+          return null;
+        }
         if (latest?.noteId !== request.current?.noteId || latest?.name !== request.current?.name) throw new Refused(changed);
         const current: StoredNote | null = latest === null ? null : { id: latest.noteId, contentType: FANSLY_NAME_NOTE_TYPE, contentId: request.fanRef, title: FANSLY_NAME_NOTE_TITLE, note: latest.name, createdAtMs: null };
         expectedId = current?.id;
@@ -204,8 +228,11 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
         sent.route === 'notes.edit' && expectedId !== undefined
           ? editedNote(raw, request.fanRef, { id: expectedId, contentType: FANSLY_NAME_NOTE_TYPE, title: FANSLY_NAME_NOTE_TITLE, note: name })
           : writtenNote(raw, request.fanRef, FANSLY_NAME_NOTE_TYPE, expectedId));
-      if (name === '') return done.ok ? { ok: true, customName: null } : { ok: false, error: done.error };
-      return done.ok && done.note !== null ? { ok: true, customName: { noteId: done.note.id, name: done.note.note } } : { ok: false, error: done.ok ? { code: 'CG-NOTE-UNCERTAIN' } : done.error };
+      const held = seen.held;
+      if (!done.ok) return isChanged(done.error) && held !== undefined ? { ok: false, error: done.error, latest: held } : { ok: false, error: done.error };
+      if (name === '') return { ok: true, customName: null };
+      if (seen.landed === true && held !== undefined && held !== null) return { ok: true, customName: held };
+      return done.note !== null ? { ok: true, customName: { noteId: done.note.id, name: done.note.note } } : { ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } };
     },
   };
 }
