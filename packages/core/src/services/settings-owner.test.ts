@@ -70,8 +70,8 @@ describe('[RB-012] migrations run forward, at start, before the first answer', (
   });
 });
 
-describe('the look of the old Fansly client, taken once (2026-10-20)', () => {
-  it('a store from before moves «как на сайте» to light and the text to «Крупнее»; a choice made after that stays', async () => {
+describe('the site theme restored after the forced light defaults', () => {
+  it('upgrades revision 2 light stores while preserving earlier theme choices and the chosen text size', async () => {
     const before = (ui: Record<string, unknown>): Record<string, unknown> => ({ ...clone(customSettings), ui });
     const load = async (stored: Record<string, unknown>): Promise<unknown> => {
       const local = createMemoryKv();
@@ -82,13 +82,36 @@ describe('the look of the old Fansly client, taken once (2026-10-20)', () => {
     const ui = (answer: unknown): unknown => (answer as { ok: true; payload: { settings: { ui: unknown } } }).payload.settings.ui;
     expect({
       siteTheme: ui(await load(before({ theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal' }))),
+      chosenLight: ui(await load(before({ theme: 'light', locale: 'ru', hints: true, resultStyle: 'bare' }))),
       chosenDark: ui(await load(before({ theme: 'dark', locale: 'ru', hints: true, resultStyle: 'bare' }))),
+      chosenSystem: ui(await load(before({ theme: 'system', locale: 'ru', hints: true, resultStyle: 'bare' }))),
+      forcedLight: ui(await load(before({ theme: 'light', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 2 }))),
+      missingTextSize: ui(await load(before({ theme: 'light', locale: 'ru', hints: true, resultStyle: 'bare', defaultsTaken: 2 }))),
       takenThenChosen: ui(await load(before({ theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal', defaultsTaken: 2 }))),
     }).toEqual({
-      siteTheme: { theme: 'light', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 2 },
-      chosenDark: { theme: 'dark', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 2 },
-      takenThenChosen: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal', defaultsTaken: 2 },
+      siteTheme: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 3 },
+      chosenLight: { theme: 'light', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 3 },
+      chosenDark: { theme: 'dark', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 3 },
+      chosenSystem: { theme: 'system', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 3 },
+      forcedLight: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: 3 },
+      missingTextSize: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal', defaultsTaken: 3 },
+      takenThenChosen: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'normal', defaultsTaken: 3 },
     });
+  });
+
+  it.each(['host', 'system', 'dark', 'light'] as const)('keeps %s chosen after the upgrade when the background restarts', async (theme) => {
+    const local = createMemoryKv();
+    local.data.set(KEY, { ...clone(customSettings), ui: { ...customSettings.ui, theme: 'light', textSize: 'normal', defaultsTaken: 2 } });
+    const first = setup({ local });
+    expect(await first.owner.state()).toMatchObject({ ok: true, state: { settings: { ui: { theme: 'host', textSize: 'normal', defaultsTaken: 3 } } } });
+    expect(await first.owner.patch({ ui: { theme } }, { baseRevision: null, restricted: false })).toMatchObject({ ok: true });
+    // Even choosing the new default must carry the revision when the next real change is saved.
+    expect(await first.owner.patch({ ui: { hints: true } }, { baseRevision: null, restricted: false })).toMatchObject({ ok: true });
+    first.unload();
+    const restarted = setup({ local, session: first.session });
+    expect(await restarted.owner.state()).toMatchObject({ ok: true, state: { settings: { ui: { theme, textSize: 'normal', hints: true, defaultsTaken: 3 } } } });
+    expect(local.read(KEY)).toMatchObject({ ui: { theme, defaultsTaken: 3 } });
+    restarted.unload();
   });
 });
 

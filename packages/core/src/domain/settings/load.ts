@@ -42,15 +42,16 @@ export function oldestSupportedVersion(steps: SettingsMigrations, current: numbe
 }
 
 /**
- * The look's defaults a store from before 2026-10-20 takes once (`ui.defaultsTaken`, 2026-10-20): the theme «как на сайте»
- * — the default it was written down with — becomes «Светлая», and the text «Крупнее». Another theme, chosen, stays; so
- * does the large text. The store is marked, so «как на сайте» or «Обычный» chosen after this stays too. Not written
- * back on its own: the next write of the settings carries it, and until then every load takes the same.
+ * Undo revision 2's forced light theme once. That revision did not record whether light was chosen or imposed,
+ * so every light store marked 2 returns to «Как на сайте»; older explicit light choices stay. Preserve the text
+ * size of revision 2 stores, and keep the larger-text upgrade for older stores. The next settings write carries
+ * the new marker, so a theme chosen after this survives reloads (including light).
  */
 export function takeUiDefaults(settings: SettingsV1): SettingsV1 {
   if (settings.ui.defaultsTaken === UI_DEFAULTS_REVISION) return settings;
-  const theme = settings.ui.theme === 'host' ? 'light' : settings.ui.theme;
-  return { ...settings, ui: { ...settings.ui, theme, textSize: 'large', defaultsTaken: UI_DEFAULTS_REVISION } };
+  const theme = settings.ui.defaultsTaken === 2 && settings.ui.theme === 'light' ? 'host' : settings.ui.theme;
+  const textSize = settings.ui.defaultsTaken === 2 ? settings.ui.textSize ?? 'normal' : 'large';
+  return { ...settings, ui: { ...settings.ui, theme, textSize, defaultsTaken: UI_DEFAULTS_REVISION } };
 }
 
 export function loadStoredSettings(

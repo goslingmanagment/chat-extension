@@ -110,7 +110,7 @@ interface UiSettings {
   readonly debug: boolean;
 }
 /** Settings that could not be read: what a fresh install has (DEFAULT_SETTINGS.ui; the tab does not carry the settings schemas). */
-const UNKNOWN_SETTINGS: UiSettings = { locale: DEFAULT_LOCALE, theme: 'light', textSize: 'large', debug: false };
+const UNKNOWN_SETTINGS: UiSettings = { locale: DEFAULT_LOCALE, theme: 'host', textSize: 'large', debug: false };
 
 /** Rows of ChatSpace's cached chat list read for the name of a toast's fan. */
 const TOAST_NAME_ROWS = 200;
