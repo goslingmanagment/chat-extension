@@ -431,17 +431,6 @@ export const FANSLY_TAB_REQUESTS = {
   },
   'fansly.sound.batch': { req: z.extend(SoundBatchSchema, { host: z.literal('fansly-web') }), res: Ack, from: TAB, hosts: FANSLY },
   /**
-   * Hi in the open chat whose start the tab did not see (a cold load, a new socket): the background reads the history to
-   * its empty page as the pass does, by the click. `proof` — the start, proven (`pass-empty-page`); `dialog` — more than
-   * ten personal messages among the newest 30; neither — the start was not reached.
-   */
-  'fansly.hi.start': {
-    req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, groupId: NativeIdSchema }),
-    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), proof: z.nullable(StartProofV1Schema), dialog: z.boolean() }), Failure]),
-    from: TAB,
-    hosts: FANSLY,
-  },
-  /**
    * An AI start in the open chat (X54 on Fansly): the background reads the chat's newest pages and the fan's orders of
    * its paid attachments from Fansly, by the click (core services/hosts/fansly/ppv.ts). `items` — what it could tell
    * by its deadline, newest first; none — nothing paid, or nothing known.

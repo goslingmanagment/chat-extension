@@ -51,11 +51,11 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
+import { MIN_MESSAGES_FOR_PING } from '../../domain/features/policy';
 import { DeferredInsertSlot, type DeferredOutcome } from '../../domain/insert/deferred';
 import { buildDeferredInsert, buildOpenAndInsert } from '../../domain/insert/intent';
 import { EMPTY_DRAFTS, changedDraftKeys, draftKey, draftUserPrefix, findDraft, keepOnly, mergeDraftStores, putDraft, readDraftStore, removeDraft, sameDraftStore, type DraftStore } from '../../domain/newcomers/drafts';
 import { greetingOutputProblem } from '../../domain/newcomers/greeting';
-import { storedMessages, tooManyForHi } from '../../domain/newcomers/rows';
 import { digestHex } from '../../domain/ops/digest';
 import { applyOpDone, applyOpUpdate, mirrorFromView, newMirror, type OpMirror } from '../../domain/ops/mirror';
 import { messageWindowFor } from '../../domain/ops/request';
@@ -1421,15 +1421,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const sends = fanSends(state.pageId, state.fanRef, currentOp.get(state.handle) ?? null);
     if (sends.inFlight) return reason('parts-sending');
     if (feature === 'fix' && draftText(state).trim().length === 0) return reason('needs-draft');
-    if (feature === 'hi') {
-      if (state.source === 'newcomers') {
-        const blocked = deps.greeting?.hiBlocked(state.fanRef) ?? null;
-        if (blocked !== null) return blocked;
-      }
-      // NF-015: a thread the archive proves to be a dialogue gets no Hi, and no AI call is spent on it. The count is
-      // the hub's own: every stored message (the rows of the feed as they came), not only the fan's.
-      if (state.feed !== null && tooManyForHi(storedMessages(state.feed.items))) return reason('hi-gate');
+    // Hi has no message limit (the owner, 2026-10-21): only the fan's greeting holds it.
+    if (feature === 'hi' && state.source === 'newcomers') {
+      const blocked = deps.greeting?.hiBlocked(state.fanRef) ?? null;
+      if (blocked !== null) return blocked;
     }
+    // Ping only from ten messages (2026-10-21): the archive's whole thread, read to its start, is shorter. The count is
+    // the hub's own (`gate_min_messages`): every stored message, the rows of the feed as they came.
+    if (feature === 'ping' && state.feed !== null && state.feed.nextOlderCursor === null && state.feed.items.length < MIN_MESSAGES_FOR_PING) return reason('ping-few');
     return null;
   }
 

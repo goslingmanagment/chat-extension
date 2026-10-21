@@ -6,8 +6,8 @@
 // - The field (NF-012) is the draft the site keeps per creator and fan; what the person types is written after a pause
 //   (GREETING_DRAFT_DEBOUNCE_MS), never on every key, and at once before a send or an insert.
 // - «Сгенерировать» (NF-013…NF-017): only for a fan whose history the pass read to its start (NF-014). The pass's proof
-//   of that history is asked first; more than ten personal messages among its last 30 refuse at once — a dialogue is
-//   Reply's (NF-015, CG-GATE-HI). Then one Hi with one variant: the hub combines its history with confirmed pass texts
+//   of that history is asked first; Hi has no message limit (the owner, 2026-10-21), so its count refuses nothing.
+//   Then one Hi with one variant: the hub combines its history with confirmed pass texts
 //   (X69); the start carries their ids, proof of the start and fan's avatar (NF-034, FX-018). The sign-in, the
 //   binding and the persona are the same before and after (NF-016) — else the result is not taken; an empty, too long
 //   or split result is unusable (NF-017, CG-OUTPUT-UNUSABLE). A usable one goes into the field: «AI» while unchanged.
@@ -40,8 +40,6 @@ import { type PassAdmission, type PassDraft, type PassGreetingSource } from './s
 
 /** What the person types is written this long after the last key. */
 export const GREETING_DRAFT_DEBOUNCE_MS = 400;
-/** NF-015: more personal messages than this among the last 30 the pass walked — a dialogue: Reply, not Hi. */
-export const GREETING_PERSONAL_MAX = 10;
 const MAX_CHARS = SEND_LIMITS.previewDraftMaxChars;
 /** Insert intents of the card kept for the person's own send at once (the newest). */
 const INSERTS_KEPT = 16;
@@ -321,8 +319,6 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (!same()) return stop('CG-CONTEXT-CHANGED');
     if (!proof.ok) return stop(proof.failure.code);
     const evidence = proof.value;
-    // NF-015 (FS-AI-2): a dialogue is Reply's: the hub is not asked.
-    if (evidence.startProof.personalCount > GREETING_PERSONAL_MAX) return stop('CG-GATE-HI');
     const fanLabel = (row.displayName ?? row.username)?.trim().slice(0, 256) || null;
     const issued = await issueCause(rpc, 'generate', 'newcomers');
     if (!same()) return stop('CG-CONTEXT-CHANGED');

@@ -71,7 +71,7 @@ export const UI_TEXT_KEYS = [
   'dock.action.moreTooltip', 'dock.action.moreUnavailable', 'dock.badge.recapReady', 'dock.reason.quotaZero', 'dock.reason.notSignedIn',
   'dock.reason.hubDown', 'dock.reason.chatLoading', 'dock.reason.reloadNeeded', 'dock.reason.claimedBy', 'dock.reason.claimElsewhere', 'dock.reason.coachBusy',
   'dock.reason.noBinding', 'dock.reason.notGranted', 'dock.reason.noPersona', 'dock.reason.featureDisabled', 'dock.reason.chatBusy',
-  'dock.reason.needsDraft', 'dock.reason.noHistory', 'dock.reason.hiGate', 'dock.reason.pingGate', 'dock.reason.language', 'dock.reason.fanBlocked',
+  'dock.reason.needsDraft', 'dock.reason.noHistory', 'dock.reason.hiGate', 'dock.reason.pingGate', 'dock.reason.pingFew', 'dock.reason.language', 'dock.reason.fanBlocked',
   'dock.reason.fanUnknown', 'dock.reason.conversationUnknown', 'dock.reason.overlayOpen', 'dock.reason.hostDegraded',
   'dock.reason.composerMissing', 'dock.reason.hostUnidentified', 'dock.reason.claimExpired',
   'dock.reason.lockedDuringGeneration', 'dock.reason.hotkeyReserved', 'dock.reason.keyInField', 'dock.reason.pageOff', 'dock.reason.hubNotReady',

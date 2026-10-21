@@ -176,8 +176,12 @@ export const HUB_HTTP_ERROR_RULES: readonly HubHttpErrorRule[] = [
   show('unknown_ai_feature', 'CG-HUB-CAPABILITY'),
   { error: 'persona_definition_changed', cg: 'CG-PERSONA-CHANGED', disposition: 'refresh-catalog' },
   show('gate_draft_required', 'CG-GATE-DRAFT'),
+  /** Review and the full Recap under 30 messages; Ping under 10 (2026-10-21). */
   show('gate_min_messages', 'CG-GATE-HISTORY'),
-  /** Hi on Fansly whose start nobody proved (a read that failed, a history longer than the walk): not «a dialog». */
+  /**
+   * Hi's message limit, as a hub before 2026-10-21 refused it (the current hub has no limit on Hi). On Fansly a start
+   * nobody proved (a read that failed, a history longer than the walk): not «a dialog».
+   */
   show('gate_hi_greeting_limit', 'CG-GATE-HI-UNPROVEN', { reason: 'history_unproven' }),
   show('gate_hi_greeting_limit', 'CG-GATE-HI'),
   show('gate_ping_active', 'CG-GATE-PING'),

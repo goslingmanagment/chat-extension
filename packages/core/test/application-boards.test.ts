@@ -1041,17 +1041,6 @@ describe('[NF-009] [NF-013] [NF-021] the card of a new fan and the greeting leas
     expect(vm.result?.parts?.[0]?.variant).toBe(0);
     expect(h.host.calls.commits).toEqual([]);
   });
-
-  it('[NF-015] a thread the archive proves to be a dialogue gets no Hi, and no AI call', async () => {
-    const h = await harness({ config: X8, checkpointFan: '2010' });
-    for (let i = 0; i < 11; i += 1) h.hub.control({ op: 'archiveMessage', pageLabel: PAGE.pageLabel, fanRef: '2010', sender: 'fan', messageId: String(8100 + i) });
-    await h.dispatch(open('newcomers'));
-    await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
-    expect(h.boards.preview.getSnapshot(preview('newcomers')).bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-gate', code: 'CG-GATE-HI' } });
-    expect(await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
-    expect(count(h, 'op.start')).toBe(0);
-    expect(count(h, 'newcomers.claim')).toBe(0);
-  });
 });
 
 describe('[NF-019] a greeting is sent part by part, under the lease, and counts only by the receipt and its echo', () => {

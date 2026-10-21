@@ -52,10 +52,10 @@ export function narrowPlatform(token: string): Platform | null {
 export const CHAT_IS_FAN: Readonly<Record<Platform, boolean>> = { onlyfans: true, fansly: false };
 
 /**
- * 1.15.0 (R20 P8c, HF-5): whether the hub decides a Hi on the platform by the client's proof of the conversation's
- * start (`StartProofV1`) once it declares `hi-start-proof-v1` — the hub's `hiStartProofDecides`. There every Hi names
- * the capability, with a proof or without one: without one the hub refuses `history_unproven` (fail closed), never
- * by its old count of the archive. OnlyFans keeps the hub's count.
+ * 1.15.0 (R20 P8c, HF-5): the platforms where a Hi carries the client's proof of the conversation's start
+ * (`StartProofV1`) under `hi-start-proof-v1` — the hub's `hiStartProofDecides`; every Hi there names the capability,
+ * which the hub's Fansly manifest still requires. Since 2026-10-21 Hi has no message limit: the hub refuses no Hi for
+ * its count or for a start nobody proved, and the proof only rides along.
  */
 export const HI_BY_START_PROOF: Readonly<Record<Platform, boolean>> = { onlyfans: false, fansly: true };
 

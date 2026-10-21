@@ -120,8 +120,8 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // HF-8в: the window check only to a hub that declared it, beside the context frame its answer rides in.
   const coverageCheck = proof !== undefined && contextV1 && hasCapability(ctx.bootstrap.capabilities, 'coverage-check-v1');
   if (coverageCheck) capabilities.push('coverage-check-v1');
-  // HF-5: where the hub decides Hi by the start proof, every Hi names `hi-start-proof-v1` to a hub that declared it —
-  // without a proof too, so the hub refuses `history_unproven` instead of counting its archive (fail closed).
+  // HF-5: where Hi carries the start proof, every Hi names `hi-start-proof-v1` to a hub that declared it — without a
+  // proof too: the hub's Fansly manifest asks for the capability. Hi has no message limit (2026-10-21).
   const hiByProof = start.feature === 'hi' && HI_BY_START_PROOF[start.target.binding.platform] && hasCapability(ctx.bootstrap.capabilities, 'hi-start-proof-v1');
   if (hiByProof) capabilities.push('hi-start-proof-v1');
 
@@ -144,8 +144,8 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // The proof of the start, its count and the fan's avatar (FX-018) ride only on that lane: ids and an address, no text.
   if (hiByProof && start.startProof !== undefined) body.startProof = start.startProof;
   if (hiByProof && start.personalMessageCount !== undefined) body.personalMessageCount = start.personalMessageCount;
-  // 2026-10-20 audit, row 6: a count with no start proof (ChatSpace's Hi: its personal messages, no mass ones) goes
-  // alone; the hub counts it instead of its archive. A site with a proof sends both on its lane above.
+  // 2026-10-20 audit, row 6: a count with no start proof goes alone (no site sends one since Hi lost its limit,
+  // 2026-10-21; the hub still takes it). A site with a proof sends both on its lane above.
   else if (start.feature === 'hi' && start.startProof === undefined && start.personalMessageCount !== undefined) body.personalMessageCount = start.personalMessageCount;
   if (hiByProof && start.fanAvatarUrl !== undefined) body.fanAvatarUrl = start.fanAvatarUrl;
   if (start.feature === 'recap-short') body.summaryMode = 'short';

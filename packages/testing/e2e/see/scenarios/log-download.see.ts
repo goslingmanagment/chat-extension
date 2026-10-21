@@ -1,4 +1,5 @@
-// log-download: Hi goes off in a chat that is already a dialog (hi-gate), Hi is pressed by a click and by its key, then «Скачать лог» in the dock and in the popup.
+// log-download: Hi stays on in a long chat (no message limit); Ping goes off in a short chat (fewer than ten messages,
+// ping-few), Ping is pressed by a click and by its key, then «Скачать лог» in the dock and in the popup.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,24 +16,20 @@ scenario(
     // A generation, for the operations' lines of the log.
     await s.press(/^Reply/);
     await s.done();
-    // A dialog already: the fan writes until the loaded window holds more than Hi's ten messages.
-    for (let i = 0; i < 14; i += 1) {
-      const dock = await s.dock();
-      if (dock?.actions['hi'] === false) break;
-      await s.stand.fanMessage(s.ids.accounts.a, s.ids.fans.a1, `synthetic line ${String(i + 1)}`);
-      await s.wait(250);
-    }
-    await s.h.dockIs((dock) => dock.actions['hi'] === false, 'Hi is off in this chat (hi-gate)');
-    await s.shot('hi-off');
-    // The click on the dimmed Hi and its key: nothing starts, the log says why.
-    await s.press(/^Hi/);
-    await s.leaveField();
-    await s.keys(s.MOD, 'g');
-    await s.wait(600);
-    await s.shot('hi-key-refused');
-    // Another chat (a new fan): the route, and the dock's first look at that chat.
+    // A long chat (a1, forty messages): Hi and Ping are both on — Hi has no message limit.
+    await s.h.dockIs((dock) => dock.actions['hi'] === true && dock.actions['ping'] === true, 'Hi and Ping are on in a long chat');
+    await s.shot('long-chat');
+    // A short chat (a2, fewer than ten messages, its whole history loaded): Ping is off (ping-few), Hi is on.
     await s.openChat(s.ids.fans.a2);
     await s.ready();
+    await s.h.dockIs((dock) => dock.actions['ping'] === false && dock.actions['hi'] === true, 'Ping is off in a short chat (ping-few)');
+    await s.shot('short-chat-ping-off');
+    // The click on the dimmed Ping and its key: nothing starts, the log says why.
+    await s.press(/^Ping/);
+    await s.leaveField();
+    await s.keys(s.MOD, 'p');
+    await s.wait(600);
+    await s.shot('ping-key-refused');
     await s.openChat(s.ids.fans.a1);
     await s.ready();
     // «Скачать лог» at the bar's right end.
@@ -59,7 +56,7 @@ scenario(
     const first = txt[0];
     if (first !== undefined) {
       const body = readFileSync(join(downloads, first), 'utf8');
-      console.log(`cg-see txt lines with Hi: ${String(body.split('\n').filter((line) => line.includes('Hi')).length)}`);
+      console.log(`cg-see txt lines with Ping: ${String(body.split('\n').filter((line) => line.includes('Ping')).length)}`);
     }
   },
   { timeout: 240_000 },
