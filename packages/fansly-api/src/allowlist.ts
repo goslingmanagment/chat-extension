@@ -126,6 +126,11 @@ const CLICK_READ: FanslyAdmission = { mode: 'check', attempts: 1 };
 const GROUP_WRITE: FanslyAdmission = { mode: 'queue-or-refuse', attempts: 1 };
 /** A write the person asked for: one attempt, no wait (the hub's custody is already taken for a greeting). */
 const WRITE: FanslyAdmission = { mode: 'dispatch', attempts: 1 };
+/**
+ * A read a send waits for (the check right before it, NF-036): its turn in the creator's FIFO, one attempt, refused at
+ * once during a cooldown — the click is told how long, it never sits the cooldown out (the old `assertNotCooling`).
+ */
+const SEND_CHECK: FanslyAdmission = { mode: 'queue-or-refuse', attempts: 1 };
 
 /** FS-NET-1: the admitted pairs and their mode. A pair not here is never requested. */
 export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRouteName, FanslyAdmission>> } = {
@@ -140,8 +145,8 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
     'message.history': PASS_READ,
     'message.automated': PASS_READ,
   },
-  // The greeting of «Новые»: one click, one attempt.
-  greeting: { 'message.send': WRITE },
+  // The greeting of «Новые»: one click, one attempt; the fan's group and history read again right before it.
+  greeting: { 'message.send': WRITE, 'group.detail': SEND_CHECK, 'message.history': SEND_CHECK },
   // Spenders: the inbox search, `POST /group`, the names — by a click; the names only when the hub gave none.
   spenders: { 'messaging.groups': CLICK_READ, 'group.create': GROUP_WRITE, 'account.byIds': CLICK_READ },
   // «Регистрация»: `GET /group/<id>` when the fan's id is unknown, one attempt, nothing during a cooldown.

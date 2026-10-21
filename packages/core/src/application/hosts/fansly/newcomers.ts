@@ -96,8 +96,8 @@ export function createFanslyNewcomersSource(port: FanslyFollowersPort, origin: s
       if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
       return { ok: true, value: answer.payload.pass === null ? null : passStateOf(answer.payload.pass) };
     },
-    async checkNext(passId, fanRef) {
-      const answer = await port.request('fansly.followers.prioritize', { passId, fanRef });
+    async checkNext(passId, fanRef, next) {
+      const answer = await port.request('fansly.followers.prioritize', { passId, fanRef, ...(next === true ? { next: true as const } : {}) });
       return answer.ok ? { ok: true, value: answer.payload.recorded } : { ok: false, failure: envelope(answer.error) };
     },
     async exclude(passId, fanRef, excluded) {

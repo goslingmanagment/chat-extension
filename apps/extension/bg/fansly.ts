@@ -401,7 +401,8 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
       if (signal.aborted) abort.abort();
       else signal.addEventListener('abort', () => abort.abort());
       const answer = await asking.call({
-        purpose: 'newcomers',
+        // The check right before a send is the greeting's: refused at once during a cooldown, never waited out.
+        purpose: call.click === true ? 'greeting' : 'newcomers',
         route: call.route,
         account: call.account,
         ...(call.path === undefined ? {} : { path: call.path }),

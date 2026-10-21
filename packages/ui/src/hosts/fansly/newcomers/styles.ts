@@ -28,6 +28,8 @@ export const FANSLY_NEWCOMERS_CSS = `
   flex: none; margin: 0 22px 10px; max-height: 54px; overflow-y: auto; font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-ink-2);
   white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin;
 }
+/* The fan the person is on left the list (the old window's banner): the card stays and says so. */
+.cg-fnc__moved { flex: none; margin: 0 22px 10px; padding: 7px 10px; border-radius: var(--cg-r-md); font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-ink-strong); background: var(--cg-sunk); }
 .cg-fnc__proof { flex: none; margin: 0 22px 10px; padding: 7px 10px; max-height: 130px; overflow: auto; border: 1px solid var(--cg-rule); border-radius: var(--cg-r-md); font-size: var(--cg-text-sm); }
 .cg-fnc__proof summary { cursor: pointer; color: var(--cg-ink-strong); font-weight: 500; }
 .cg-fnc__proofNote { margin-top: 4px; color: var(--cg-ink-muted); }
@@ -78,7 +80,7 @@ export const FANSLY_NEWCOMERS_CSS = `
 @media (max-width: 760px) {
   .cg-fnc__head, .cg-fnc__greet, .cg-fnc__verdict { padding-left: 16px; padding-right: 16px; }
   .cg-fnc__feed { padding: 8px 16px; }
-  .cg-fnc__bio, .cg-fnc__proof { margin-left: 16px; margin-right: 16px; }
+  .cg-fnc__bio, .cg-fnc__proof, .cg-fnc__moved { margin-left: 16px; margin-right: 16px; }
 }
 ${STALE_ROW_CSS}
 `;
