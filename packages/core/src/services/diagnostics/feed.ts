@@ -1,7 +1,7 @@
 // The chatter's log as a person reads it (2026-10-21, «Скачать лог»): one line per record, by time, in Russian —
 //
-//   14:30:12 ChatSpace чат 518588958 · док · Hi — недоступно: это уже диалог, здесь нужен Reply (CG-GATE-HI)
-//   14:30:15 ChatSpace чат 518588958 · нажато Hi (док, клик) → отказ: Hi недоступен (CG-GATE-HI)
+//   14:30:12 ChatSpace чат 74001001 · док · Hi — недоступно: это уже диалог, здесь нужен Reply (CG-GATE-HI)
+//   14:30:15 ChatSpace чат 74001001 · нажато Hi (док, клик) → отказ: Hi недоступен (CG-GATE-HI)
 //
 // and the configuration snapshots as blocks. Every record of the file is a line here: the ones this file has no
 // words for are said with their scope, message and machine fields as they are. The texts are the records' own —
@@ -72,7 +72,7 @@ export function localTime(ts: string): { readonly day: string; readonly time: st
   return { day: `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`, time: `${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}` };
 }
 
-/** «ChatSpace чат 518588958», «Fansly», «фон». */
+/** «ChatSpace чат 74001001», «Fansly», «фон». */
 function where(record: LogRecord): string {
   const chat = record.ctx?.chatKey;
   const siteOf = chat?.split(':')[0] ?? record.ctx?.site ?? null;

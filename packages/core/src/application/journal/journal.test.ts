@@ -25,18 +25,18 @@ describe('the chatter\'s log: what a click was, by ids only', () => {
   it('a typed text is its length, a sign-in is only its type, a handle is read back into the fan\'s ids', () => {
     expect(actionFacts({ type: 'Search', list: 'spenders', query: 'Jessica from Ohio' })).toEqual({ action: 'Search', list: 'spenders', queryChars: 17 });
     expect(actionFacts({ type: 'SignIn', login: 'chatter1', password: 'secret-password' })).toEqual({ action: 'SignIn' });
-    expect(actionFacts({ type: 'Generate', targetHandle: 'dock:chatspace:36408:518588958', feature: 'hi', options: { variants: 3 } })).toEqual({
+    expect(actionFacts({ type: 'Generate', targetHandle: 'dock:chatspace:910101:74001001', feature: 'hi', options: { variants: 3 } })).toEqual({
       action: 'Generate',
       source: 'dock',
-      accountId: '36408',
-      fanId: '518588958',
+      accountId: '910101',
+      fanId: '74001001',
       feature: 'hi',
       variants: 3,
     });
     expect(actionFacts({ type: 'SendPart', operationId: OP, variant: 0, part: 1 })).toEqual({ action: 'SendPart', opId: OP, variant: 0, part: 1 });
     expect(actionFacts({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } })).toEqual({ action: 'Navigate', toKind: 'surface', surface: 'spenders', open: true });
     expect(handleFacts('spenders:11:5001')).toEqual({ source: 'spenders', pageId: 11, fanId: '5001' });
-    expect(handleFacts('chatspace:36408:518588958')).toEqual({ accountId: '36408', fanId: '518588958' });
+    expect(handleFacts('chatspace:910101:74001001')).toEqual({ accountId: '910101', fanId: '74001001' });
     // The log's own redaction keeps every one of these words, and turns a name under any of them into its length.
     const kept = sanitizeFields({ ...actionFacts({ type: 'Search', list: 'spenders', query: 'Jessica' }), input: 'click', via: 'spenders', toKind: 'surface' }, createRedactor());
     expect(kept).toEqual({ action: 'Search', list: 'spenders', queryChars: 7, input: 'click', via: 'spenders', toKind: 'surface' });
