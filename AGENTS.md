@@ -74,5 +74,6 @@ again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. The
 - Flags are the page's: read them through `packages/core/src/domain/ops/flags.ts`, never `bootstrap.flags`.
 - A hub rule for an AI request body changed — repeat it in `packages/testing/src/fake-hub/ai-rules.ts`.
 - Never mix IDs: the OnlyMonster account id, OnlyFans numeric ids, the hub's `pageId`; bind pages by `platform_account_id`.
-- Secrets through `op` and env files, nothing in the repo. Everything on GitHub (commits, PRs, docs, comments) is in
-  English; chatter-facing texts (UI, site, announcements) are in Russian.
+- Agent secrets come from `~/.config/agency/secrets.env`, never `op` or the repo. Commits, branches, PRs, GitHub
+  comments, tags and releases are in English; repository documents follow the file's language, chatter-facing texts
+  (UI, site, announcements) are in Russian.

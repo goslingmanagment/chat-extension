@@ -36,8 +36,8 @@ export type UiResultStyle = (typeof UI_RESULT_STYLES)[number];
  */
 export const UI_TEXT_SIZES = ['normal', 'large'] as const;
 
-/** The revision of the look's defaults (`ui.defaultsTaken`): 2 — the light paper and the larger text (2026-10-20). */
-export const UI_DEFAULTS_REVISION = 2;
+/** The revision of the look's defaults: 3 follows the site again, undoing revision 2's forced light theme. */
+export const UI_DEFAULTS_REVISION = 3;
 export type UiTextSize = (typeof UI_TEXT_SIZES)[number];
 export const COACH_AUTO_RECAP = ['off', 'short', 'full'] as const;
 export type CoachAutoRecap = (typeof COACH_AUTO_RECAP)[number];
@@ -110,12 +110,12 @@ export const SettingsV1Schema = z.strictObject({
      */
     textSize: z.optional(z.enum(UI_TEXT_SIZES)),
     /**
-     * 2026-10-20: the revision of the look's defaults the store took. Absent — written before it: the load
-     * moves the old defaults once — «Тема: как на сайте» to «Светлая», the text to «Крупнее» (the old Fansly client's
-     * light paper and larger text, the owner's reference) — and a choice made after that stays. Optional, so a build
-     * before it reads the store as ever (its repair drops the key).
+     * The revision of the look's defaults the store took. Revision 2 forced the light theme; revision 3 restores
+     * «Как на сайте» for those light stores once. Older unmarked stores keep their theme and take the larger text.
+     * Keep revision 2 readable until `takeUiDefaults` upgrades it. Choices made after revision 3 stay.
+     * Optional, so a build before it reads the store as ever (its repair drops the key).
      */
-    defaultsTaken: z.optional(z.literal(UI_DEFAULTS_REVISION)),
+    defaultsTaken: z.optional(z.union([z.literal(2), z.literal(UI_DEFAULTS_REVISION)])),
   }),
   generation: z.strictObject({
     /** Б7: snapshot of this flag is taken when an operation starts. */
@@ -189,14 +189,13 @@ export const DEFAULT_HUB_ORIGIN = 'https://gosling-agency.ru';
  * install made before 1.14.0 has `system` stored and keeps it (no migration;
  * the person switches in «Вид и звук»).
  *
- * The look is the old Fansly client's (2026-10-20): light paper on every site, whatever the page's theme
- * («как на сайте», the default until then, stays a choice), and the larger text. A store from before takes both once
- * on load (`takeUiDefaults`).
+ * The theme follows the site, with larger text. Revision 2's forced light theme is restored to «Как на сайте»
+ * once on load (`takeUiDefaults`); explicit themes remain available in the settings.
  */
 export const DEFAULT_SETTINGS: SettingsV1 = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
   hub: { baseUrl: DEFAULT_HUB_ORIGIN },
-  ui: { theme: 'light', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: UI_DEFAULTS_REVISION },
+  ui: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare', textSize: 'large', defaultsTaken: UI_DEFAULTS_REVISION },
   generation: {
     split: false,
     rememberTone: true,
