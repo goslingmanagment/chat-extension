@@ -625,16 +625,19 @@ export const TAB_REQUESTS = {
     from: PAGE,
     pages: ['popup', 'options'],
   },
-  /** The page saves it through a Blob; no `downloads` permission (§3). */
+  /**
+   * The page or the tab saves it through a Blob; no `downloads` permission (§3). 2026-10-21: «Скачать лог» of the
+   * popup and of the dock asks it too; `site` names the file (a tab's own site wins over it).
+   */
   'diagnostics.export': {
-    req: z.strictObject({ format: z.enum(['json', 'txt']) }),
+    req: z.strictObject({ format: z.enum(['json', 'txt']), site: z.optional(HostKindSchema) }),
     res: z.strictObject({
       fileName: boundedText(128),
       mime: z.enum(['application/json', 'text/plain']),
       body: displayText(LOG_LIMITS.exportMaxBytes),
     }),
-    from: PAGE,
-    pages: ['options'],
+    from: ANY,
+    pages: ['options', 'popup'],
   },
   /**
    * «Очистить локальные данные» (options «Диагностика», ST-110; 1.2.0): our

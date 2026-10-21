@@ -56,6 +56,11 @@ export interface TabClientDeps {
   readonly onAction?: (action: UiAction) => void;
   /** What the action came to, as its surface was told (the composition says aloud what no surface draws). */
   readonly onReceipt?: (action: UiAction, receipt: ActionReceipt) => void;
+  /**
+   * The chatter's log (2026-10-21): the action in the step of its click or key — what the gate still sees of it —
+   * and where its answer goes (null — it threw).
+   */
+  readonly onPressed?: (action: UiAction) => (receipt: ActionReceipt | null) => void;
 }
 
 export function createTabClient(deps: TabClientDeps): AppClient {
@@ -66,9 +71,11 @@ export function createTabClient(deps: TabClientDeps): AppClient {
     dispatch(action) {
       // Synchronously, while the click or the key is still in flight. A Fix may write its result when it is done (X68).
       deps.tokens.granted(action.type, action.type === 'Generate' && action.feature === 'fix');
+      const answered = deps.onPressed?.(action);
       deps.onAction?.(action);
       const waiting = deps.before(action);
       const answer = waiting === null ? router.dispatch(action) : waiting.then(() => router.dispatch(action), () => router.dispatch(action));
+      if (answered !== undefined) void answer.then(answered, () => answered(null)).catch(() => undefined);
       if (deps.onReceipt !== undefined) void answer.then((receipt) => deps.onReceipt?.(action, receipt)).catch(() => undefined);
       return answer;
     },

@@ -328,6 +328,24 @@ function Footer({ vm }: { readonly vm: PopupVM }): JSX.Element {
   );
 }
 
+/** «Скачать лог» (2026-10-21): the files of the last 24 hours, in one click, for the lead — under the foot, in every state of the popup. */
+function LogDownload(): JSX.Element {
+  const i18n = useI18n();
+  const act = useAct();
+  return (
+    <div class="pg-popup__log">
+      <Button
+        label={i18n.t('log.download')}
+        variant="quiet"
+        size="sm"
+        icon="download"
+        tooltip={i18n.t('log.downloadHint')}
+        onClick={() => void act({ type: 'DownloadLog' }, { success: i18n.t('log.downloaded') })}
+      />
+    </div>
+  );
+}
+
 export function Popup(): JSX.Element {
   const vm = useView({ of: 'popup' }).value;
   const i18n = useI18n();
@@ -383,6 +401,7 @@ export function Popup(): JSX.Element {
       )}
       <SiteSwitchError />
       <Footer vm={vm} />
+      <LogDownload />
       <PageLayers />
     </div>
   );

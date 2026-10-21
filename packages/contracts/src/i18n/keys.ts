@@ -327,6 +327,8 @@ export const UI_TEXT_KEYS = [
   'popup.verdict.readyLine', 'popup.verdict.checking', 'popup.alert.reloadOne', 'popup.alert.reloadMany', 'popup.alert.openTitle',
   'popup.alert.openBody', 'popup.alert.openFix', 'popup.alert.recheck', 'popup.alert.personaFix', 'popup.site.on', 'popup.site.off',
   'popup.alert.reloadShort', 'popup.alert.reloadTitleOne', 'popup.alert.reloadTitleMany', 'popup.alert.reloadBody',
+  // 2026-10-21: «Скачать лог» (the popup and the dock)
+  'log.download', 'log.downloadHint', 'log.downloaded', 'log.downloadFailed',
   // ── end of the extension pages ──
 ] as const;
 export type UiTextKey = (typeof UI_TEXT_KEYS)[number];

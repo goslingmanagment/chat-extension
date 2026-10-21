@@ -324,6 +324,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** «Скопировать отчёт» / «…для тимлида»: a short redacted text, no correspondence, no fan money. */
   act('CopyReport', { scope: z.enum(['status', 'error']), code: z.optional(CgCodeSchema) }),
   act('ExportDiagnostics', {}),
+  /**
+   * 2026-10-21: «Скачать лог» of the popup and of the dock — the log of the last 24 hours of every tab and of the
+   * background, as a TXT to read and a JSON to parse, saved by this one click. Nothing goes to the hub.
+   */
+  act('DownloadLog', {}),
   /** The UI asks DialogPort first; `confirmed` records that it did. */
   act('ClearLocalData', { confirmed: z.literal(true) }),
   /**

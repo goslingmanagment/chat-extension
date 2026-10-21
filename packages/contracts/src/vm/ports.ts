@@ -79,6 +79,11 @@ export interface RenderMarks {
   resultShown(opId: Uuid): void;
   /** The interaction behind `mark` painted (after the next animation frame). */
   painted(metric: UiPaintMetric, mark: string): void;
+  /**
+   * 2026-10-21 (the chatter's log): a click on a control that is off — its own label and the reason its tooltip
+   * gives, both our texts. The click does nothing else; the log says it was pressed and why nothing happened.
+   */
+  offClick?(control: string, reason: string): void;
 }
 
 /** A toast the UI raises itself, e.g. CG-UI-FAILED from a surface's error boundary (ER-020). */

@@ -25,7 +25,8 @@ makes `see.gif` from the run's frames (needs `ffmpeg`).
 Scenarios: `dock`, `reply`, `coach`, `recap`, `review`, `fix`, `hi`,
 `spenders`, `newcomers`, `palette`, `fan-panel`, `pages` (popup and
 settings), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
-first). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `recap`,
+first), `log-download` (Hi off by its gate, pressed, then «Скачать лог» in the
+dock and the popup; the files land in the run's `downloads/`). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `recap`,
 `review`, `pages`, `fansly-hi` (Hi after a cold load), `fansly-notes` («Заметки»: a long note, an edit after
 someone else's change), `fansly-ppv` (Reply's
 PPV state in `hub-calls.json`).

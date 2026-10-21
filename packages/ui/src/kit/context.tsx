@@ -175,6 +175,19 @@ export function useKit(): KitEnv {
   return env;
 }
 
+/** A click on a control that is off (RenderMarks.offClick); a no-op outside a kit or where nobody listens. */
+export function useOffClick(): (control: string, reason: string) => void {
+  const env = useContext(KitContext);
+  return (control, reason) => {
+    try {
+      // The first line: a hint's second line is the control's own description, not the reason.
+      env?.deps.marks.offClick?.(control, reason.split('\n')[0] ?? reason);
+    } catch {
+      // The log never breaks a button.
+    }
+  };
+}
+
 export function useHints(): boolean {
   return useContext(HintsContext);
 }

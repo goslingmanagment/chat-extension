@@ -220,6 +220,11 @@ export interface GestureGate {
   vouch(): void;
   /** `click` or `key`: what the action in flight is (HumanCause); `click` when there is none. */
   cause(): 'click' | 'key';
+  /**
+   * The chatter's log (2026-10-21): what the action in flight is — a click, a key, or none seen (a timer, a stage
+   * that loaded) — and where it came through: the dock, one of our overlays, or the site's own page (a key).
+   */
+  describe(): { readonly input: 'click' | 'key' | 'none'; readonly via: 'dock' | 'overlay' | 'page' };
   dispose(): void;
 }
 
@@ -345,6 +350,11 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
     cause() {
       const gesture = inFlight();
       return typeof gesture !== 'string' && !gesture.click ? 'key' : 'click';
+    },
+    describe() {
+      const gesture = inFlight();
+      if (typeof gesture === 'string') return { input: 'none', via: 'page' };
+      return { input: gesture.click ? 'click' : 'key', via: gesture.via === null ? 'page' : gesture.via === env.mounts.dock.host ? 'dock' : 'overlay' };
     },
     dispose() {
       for (const type of GESTURES) win.removeEventListener(type, note, true);

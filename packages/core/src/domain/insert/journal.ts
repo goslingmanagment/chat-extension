@@ -21,7 +21,8 @@ export function routeChangeEntry(route: RouteState, tabSessionId?: string): Jour
     level: 'info',
     scope: ROUTE_SCOPE,
     msg: 'route changed',
-    fields: { name: route.name, hostAccountId: route.account?.hostAccountId ?? null },
+    // `route`, not `name`: the log keeps a machine word only under a machine field's name (redact.ts).
+    fields: { route: route.name, hostAccountId: route.account?.hostAccountId ?? null },
     ctx: {
       routeEpoch: route.epoch,
       ...(route.chat === null ? {} : { chatKey: chatKeyOf(route.chat) }),

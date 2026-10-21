@@ -122,7 +122,7 @@ describe('operations (§7)', () => {
 
     const file = await w.page().request('diagnostics.export', { format: 'json' });
     if (!file.ok) throw new Error(file.error.code);
-    const records = (JSON.parse(file.payload.body) as { logs: { recent: { scope: string; msg: string; level: string; code?: string; fields?: Record<string, unknown> }[] } }).logs.recent;
+    const records = (JSON.parse(file.payload.body) as { logs: { records: { scope: string; msg: string; level: string; code?: string; fields?: Record<string, unknown> }[] } }).logs.records;
     const hub = records.filter((record) => record.scope === 'bg.hub');
     const sent = hub.find((record) => record.msg === 'stream request sent');
     const answered = hub.find((record) => record.msg === 'stream answered');

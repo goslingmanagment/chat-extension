@@ -7,7 +7,7 @@ import * as z from 'zod/mini';
 
 import { checkBridgeFrame } from './bridge';
 import { CgCodeSchema } from './errors';
-import { ChatKeySchema } from './ids';
+import { ChatKeySchema, HostKindSchema } from './ids';
 import { LOG_LIMITS } from './limits';
 import { CountSchema, EpochTokenSchema, IsoTimestampSchema, UuidSchema, boundedText } from './primitives';
 
@@ -71,6 +71,8 @@ const logRecordShape = {
       /** Sign-in epoch. */
       session: z.optional(CountSchema),
       documentEpoch: z.optional(EpochTokenSchema),
+      /** The site of the tab that wrote it (2026-10-21): the chatter's file names it on every line. */
+      site: z.optional(HostKindSchema),
     }),
   ),
 };
@@ -84,4 +86,4 @@ export type LogRecord = z.infer<typeof LogRecordSchema>;
 /** A record a tab or page sends with `log.write`: the same, at most LOG_LIMITS.maxRecordBytesFromUi. */
 export const LogRecordFromUiSchema = z
   .strictObject(logRecordShape)
-  .check(z.refine((r) => checkBridgeFrame(r, UI_RECORD_FRAME).ok, { message: 'a record from a tab or page is plain JSON within 4 KiB' }));
+  .check(z.refine((r) => checkBridgeFrame(r, UI_RECORD_FRAME).ok, { message: 'a record from a tab or page is plain JSON within LOG_LIMITS.maxRecordBytesFromUi' }));

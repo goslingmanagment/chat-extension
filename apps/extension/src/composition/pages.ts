@@ -37,6 +37,7 @@ import { createActionCatalog, hotkeyPlatformOf } from '@cg/core/domain/hotkeys';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
 import { createI18n, resolveLocale, type SitePhrases } from '@cg/core/domain/i18n';
+import { createActionJournal } from '@cg/core/application/journal';
 import { createLogForwarder, createLogger } from '@cg/core/domain/logging';
 import {
   createConsent,
@@ -243,7 +244,18 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   const fanslyRequest = ((type: string, payload: unknown) => rpc.request(type as never, payload as never)) as unknown as FanslyPagesDeps['request'];
   const fansly = page === 'options' ? createFanslyPages({ access, request: fanslyRequest, preview: (tone, volume) => rpc.request('sound.preview', { tone, volume }) }) : null;
 
-  const client = createPagesClient(env, fansly === null ? ports : { ...ports, siteAccounts: [fansly.accounts] });
+  const pagesClient = createPagesClient(env, fansly === null ? ports : { ...ports, siteAccounts: [fansly.accounts] });
+  // The chatter's log (2026-10-21, «Скачать лог»): every click of the page, with what it came to — never a text.
+  const actions = createActionJournal(logger, { now: () => Date.now(), setTimer: (ms, fn) => win.setTimeout(fn, ms), clearTimer: (handle) => win.clearTimeout(handle as number) });
+  const client: PagesClient = {
+    ...pagesClient,
+    dispatch(action) {
+      const answered = actions.pressed(action, { input: 'click', via: page });
+      const answer = pagesClient.dispatch(action);
+      void answer.then(answered, () => answered(null));
+      return answer;
+    },
+  };
   client.start();
 
   // ── the page itself ────────────────────────────────────────────────────────

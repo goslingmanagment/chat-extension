@@ -87,6 +87,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   ReloadSurface: { type: 'ReloadSurface', surface: 'spenders' },
   CopyReport: { type: 'CopyReport', scope: 'error', code: 'CG-SEND-UNCERTAIN' },
   ExportDiagnostics: { type: 'ExportDiagnostics' },
+  DownloadLog: { type: 'DownloadLog' },
   ClearLocalData: { type: 'ClearLocalData', confirmed: true },
   ResetSendFuse: { type: 'ResetSendFuse' },
   TestSound: { type: 'TestSound', which: 'subscribers' },

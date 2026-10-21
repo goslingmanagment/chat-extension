@@ -88,7 +88,7 @@ function redactor() {
 }
 
 describe('[LG-022] [LG-024] the export file leaks no secret, text or telemetry event', () => {
-  const logs = { recent: records(600), previous: { session: 3, records: records(300, { scope: 'bg.lifecycle' }) } };
+  const logs = { records: [...records(300, { scope: 'bg.lifecycle' }), ...records(600)], sessions: [3, 4] };
 
   it('[LG-022] redacted as a whole: no token, no tail, no conversation text anywhere', () => {
     const r = redactor();
@@ -112,7 +112,7 @@ describe('[LG-022] [LG-024] the export file leaks no secret, text or telemetry e
   });
 
   it('[LG-022] the TXT is redacted as a whole: a record that names the live token loses it', () => {
-    const leaky = { recent: [...records(3), ...records(1, { msg: `retry with ${TOKEN}`, scope: 'bg.hub' })], previous: { session: null, records: [] } };
+    const leaky = { records: [...records(3), ...records(1, { msg: `retry with ${TOKEN}`, scope: 'bg.hub' })], sessions: [4] };
     const body = exportTxt(facts(), leaky, redactor()).body;
     expect(body).toContain('retry with [redacted]');
     expect(body).not.toContain(TOKEN);
@@ -124,5 +124,25 @@ describe('[LG-022] [LG-024] the export file leaks no secret, text or telemetry e
     expect(bundle.telemetry.queue).toMatchObject({ queued: 3, droppedTotal: 3, lastFailure: { status: 503 } });
     expect(Object.keys(bundle.telemetry.queue)).not.toContain('entries');
     expect(bundle.telemetry.acceptance).toEqual({ queued: 5, unlinked: 0, duplicate: 1, invalid: 0, refused: 0 });
+  });
+});
+
+describe('the file of the last 24 hours (2026-10-21, «Скачать лог»)', () => {
+  it('over the size limit the oldest records go, the newest stay, and the cut is written into the file', () => {
+    const window = { records: records(2000), sessions: [5, 6] };
+    const full = exportJson(facts(), window, redactor());
+    const limit = Math.floor(full.body.length * 0.6);
+    const cut = JSON.parse(exportJson(facts(), window, redactor(), limit).body) as ExportBundle;
+    const kept = cut.logs.records.length;
+    expect(kept).toBeGreaterThan(0);
+    expect(kept).toBeLessThan(2000);
+    expect(cut.truncated.records).toBe(2000 - kept);
+    expect(cut.logs.records.at(-1)?.seq).toBe(2000);
+    expect(cut.logs.window.to).toBe(window.records.at(-1)?.ts);
+    expect(cut.logs.window.sessions).toEqual([5, 6]);
+    const txt = exportTxt(facts(), window, redactor(), 20_000);
+    expect(txt.body.length).toBeLessThanOrEqual(20_000);
+    expect(txt.body).toContain('[старые строки срезаны:');
+    expect(txt.fileName).toMatch(/^chatgoose-log-all-\d{8}-\d{6}\.txt$/);
   });
 });

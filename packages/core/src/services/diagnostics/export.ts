@@ -1,17 +1,20 @@
 // Diagnostics for the person and for support (architecture.md §9.2
 // «Выгрузка»; LG-020…LG-025, ST-110, TL-011, SN-015 data): the
-// `diagnostics.get` snapshot, the «Выгрузить диагностику» file (JSON or a
-// short TXT, at most 2 MiB) and the «Скопировать отчёт» text.
+// `diagnostics.get` snapshot, the «Выгрузить диагностику» / «Скачать лог»
+// file (JSON to parse, TXT to read, at most LOG_LIMITS.exportMaxBytes each)
+// and the «Скопировать отчёт» text.
 //
 // The file holds versions and flags, the chosen settings (local account
-// labels only as a count), hub and host contract status, counters, the last
-// 500 log records and the previous session's tail, telemetry queue metadata
+// labels only as a count), hub and host contract status, counters, every log
+// record of the last 24 hours across sessions, tabs and the background
+// (2026-10-21, the chatter's full log), telemetry queue metadata
 // (never the events), sound diagnostics and a snapshot of operations and X8
 // attempts with every text turned into its length. The whole bundle is then
 // redacted once more with the live secrets (LG-022): the token and its tail
 // cannot survive in any corner. Too large — the oldest records go first, the
 // cut is marked. Prompt snapshots never enter it.
 
+import { type HostKind } from '@cg/contracts/ids';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { isRedactedLogField, type LogRecord } from '@cg/contracts/logs';
 import { type SendFuseState } from '@cg/contracts/send';
@@ -22,7 +25,6 @@ import { type DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
 import { anchorGap, anchorsNotYet, expectedAnchors, receiptMatchOf } from '../../domain/host';
 import {
   REDACTED,
-  formatRecordLine,
   logEvent,
   sanitizeValue,
   truncateText,
@@ -34,6 +36,7 @@ import {
 } from '../../domain/logging';
 import { type LogStoreStats } from '../logs';
 import { type AcceptanceCounts, type HealthReporterStats, type TelemetryQueueStats } from '../telemetry';
+import { feedText } from './feed';
 
 /** Prompt snapshots held now, as counts (the snapshots themselves live in the hub layer's echo store and never enter a file). */
 export interface PromptStoreStats {
@@ -184,31 +187,21 @@ export function redactBundle(value: unknown, redactor: Pick<Redactor, 'text'>): 
 // ── The bundle ─────────────────────────────────────────────────────────────
 
 export const EXPORT_FORMAT = 'chatgoose-diagnostics' as const;
-/** Records of the previous session's tail at most (LG-023). */
+/** Kept for the readers of the first format: the previous session's tail it carried (LG-023). */
 export const PREVIOUS_TAIL_RECORDS = 200;
 
 /** Ops and X8 snapshots: machine values only, any text becomes its length. */
 const SNAPSHOT_LIMITS = { maxDepth: 8, maxArrayLength: 200, maxObjectKeys: 100, maxStringLength: 2000 } as const;
 
+/**
+ * The records of the file (2026-10-21, «Скачать лог»): every record of the last LOG_LIMITS.exportWindowMs across the
+ * log's sessions — the background's and every tab's — and at least the newest LOG_LIMITS.exportMinRecords, oldest
+ * first; `sessions` — the log sessions they come from.
+ */
 export interface ExportLogs {
-  readonly recent: readonly LogRecord[];
-  readonly previous: { readonly session: number | null; readonly records: readonly LogRecord[] };
+  readonly records: readonly LogRecord[];
+  readonly sessions: readonly number[];
 }
-
-interface Shape {
-  readonly recent: number;
-  readonly previous: number;
-  readonly snapshots: boolean;
-}
-
-/** Tighter and tighter until the file fits 2 MiB; the cut is written into the file. */
-const SHAPES: readonly Shape[] = [
-  { recent: LOG_LIMITS.exportRecentRecords, previous: PREVIOUS_TAIL_RECORDS, snapshots: true },
-  { recent: 250, previous: 100, snapshots: true },
-  { recent: 100, previous: 50, snapshots: true },
-  { recent: 50, previous: 20, snapshots: false },
-  { recent: 0, previous: 0, snapshots: false },
-];
 
 function codeList(record: Readonly<Partial<Record<string, number>>>): { code: string; count: number }[] {
   return Object.entries(record)
@@ -216,11 +209,13 @@ function codeList(record: Readonly<Partial<Record<string, number>>>): { code: st
     .sort((a, b) => b.count - a.count || (a.code < b.code ? -1 : 1));
 }
 
-/** The JSON file's shape (before the second redaction pass, which keeps it). */
+/** The JSON file's shape (before the second redaction pass, which keeps it). `v: 2` — the records of a window (2026-10-21). */
 export interface ExportBundle {
   readonly kind: typeof EXPORT_FORMAT;
-  readonly v: 1;
+  readonly v: 2;
   readonly generatedAt: string;
+  /** The site of the tab or the page the file was asked from; null — not named. */
+  readonly site: HostKind | null;
   readonly extension: DiagnosticsFacts['extension'];
   readonly browser: { readonly name: 'firefox'; readonly major: number | null };
   readonly os: DiagnosticsFacts['os'];
@@ -241,8 +236,9 @@ export interface ExportBundle {
   readonly logs: {
     readonly store: Omit<LogStoreStats, 'session'> & { readonly logSession: number | null };
     readonly logger: LoggerStats | null;
-    readonly recent: readonly LogRecord[];
-    readonly previous: { readonly logSession: number | null; readonly records: readonly LogRecord[] };
+    /** The file's window: from its oldest record to its newest, the log sessions they come from. */
+    readonly window: { readonly from: string | null; readonly to: string | null; readonly hours: number | null; readonly sessions: readonly number[] };
+    readonly records: readonly LogRecord[];
   };
   readonly telemetry: { readonly queue: TelemetryQueueStats; readonly health: HealthReporterStats | null; readonly acceptance: AcceptanceCounts | null };
   readonly sound: DiagnosticsFacts['sound'];
@@ -253,18 +249,25 @@ export interface ExportBundle {
   /** The sites' background modules (R20 F1); null — not known. */
   readonly hostModules: DiagnosticsFacts['hostModules'] | null;
   readonly debug: DiagnosticsFacts['debug'];
-  readonly truncated: { readonly recent: number; readonly previous: number; readonly snapshots: boolean };
+  /** Records of the window the size limit cut (the oldest go first); the snapshots cut too. */
+  readonly truncated: { readonly records: number; readonly snapshots: boolean };
 }
 
-function buildBundle(facts: DiagnosticsFacts, logs: ExportLogs, redactor: Pick<Redactor, 'text'>, shape: Shape): ExportBundle {
-  const recent = shape.recent === 0 ? [] : logs.recent.slice(-shape.recent);
-  const previous = shape.previous === 0 ? [] : logs.previous.records.slice(-shape.previous);
+function windowOf(records: readonly LogRecord[], sessions: readonly number[]): ExportBundle['logs']['window'] {
+  const from = records[0]?.ts ?? null;
+  const to = records.at(-1)?.ts ?? null;
+  const hours = from === null || to === null ? null : Math.round(((Date.parse(to) - Date.parse(from)) / 3_600_000) * 10) / 10;
+  return { from, to, hours: hours !== null && Number.isFinite(hours) ? hours : null, sessions: [...sessions] };
+}
+
+function buildBundle(facts: DiagnosticsFacts, records: readonly LogRecord[], logs: ExportLogs, redactor: Pick<Redactor, 'text'>, cut: { readonly records: number; readonly snapshots: boolean }, site: HostKind | null): ExportBundle {
   const { session: logSession, ...store } = facts.logs;
   const snapshot = (value: unknown): unknown => (value === undefined ? null : sanitizeValue(value, redactor, { limits: SNAPSHOT_LIMITS, allowlist: true }));
   return {
     kind: EXPORT_FORMAT,
-    v: 1,
+    v: 2,
     generatedAt: new Date(facts.now).toISOString(),
+    site,
     extension: facts.extension,
     browser: { name: 'firefox', major: facts.browser.major },
     os: facts.os,
@@ -285,27 +288,30 @@ function buildBundle(facts: DiagnosticsFacts, logs: ExportLogs, redactor: Pick<R
     logs: {
       store: { ...store, logSession },
       logger: facts.logger ?? null,
-      recent,
-      previous: { logSession: logs.previous.session, records: previous },
+      window: windowOf(records, logs.sessions),
+      records,
     },
     telemetry: { queue: facts.telemetry, health: facts.health ?? null, acceptance: facts.acceptance ?? null },
     sound: facts.sound,
-    ops: { active: facts.ops.active, snapshot: shape.snapshots ? snapshot(facts.ops.snapshot) : '[cut]' },
-    sends: { open: facts.sends.open, uncertain: facts.sends.uncertain, journal: shape.snapshots ? snapshot(facts.sends.journal) : '[cut]' },
+    ops: { active: facts.ops.active, snapshot: cut.snapshots ? '[cut]' : snapshot(facts.ops.snapshot) },
+    sends: { open: facts.sends.open, uncertain: facts.sends.uncertain, journal: cut.snapshots ? '[cut]' : snapshot(facts.sends.journal) },
     sendFuse: facts.sendFuse ?? null,
     hostModules: facts.hostModules ?? null,
     debug: { enabled: facts.debug.enabled, prompts: facts.debug.prompts },
-    truncated: {
-      recent: Math.max(0, logs.recent.length - recent.length),
-      previous: Math.max(0, logs.previous.records.length - previous.length),
-      snapshots: !shape.snapshots,
-    },
+    truncated: cut,
   };
 }
 
+/** `20261021-143012`, the browser's local time: the person finds the file by the hour they downloaded it. */
 function stamp(now: number): string {
-  const iso = new Date(Number.isFinite(now) ? now : 0).toISOString();
-  return `${iso.slice(0, 10).replace(/-/g, '')}-${iso.slice(11, 19).replace(/:/g, '')}`;
+  const at = new Date(Number.isFinite(now) ? now : 0);
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${at.getFullYear()}${two(at.getMonth() + 1)}${two(at.getDate())}-${two(at.getHours())}${two(at.getMinutes())}${two(at.getSeconds())}`;
+}
+
+/** `chatgoose-log-chatspace-20261021-143012.txt`: the site it was asked from and the time. */
+export function exportFileName(now: number, site: HostKind | null, extension: 'json' | 'txt'): string {
+  return `chatgoose-log-${site ?? 'all'}-${stamp(now)}.${extension}`;
 }
 
 export interface ExportFile {
@@ -314,15 +320,46 @@ export interface ExportFile {
   readonly body: string;
 }
 
-/** «Выгрузить диагностику» as JSON: within 2 MiB, redacted as a whole (LG-020…LG-023, LG-025). */
-export function exportJson(facts: DiagnosticsFacts, logs: ExportLogs, redactor: Pick<Redactor, 'text'>, maxBytes: number = LOG_LIMITS.exportMaxBytes): ExportFile {
-  const fileName = `chatgoose-diagnostics-${stamp(facts.now)}.json`;
-  for (const shape of SHAPES) {
-    const body = JSON.stringify(redactBundle(buildBundle(facts, logs, redactor, shape), redactor), null, 1);
+/** The newest of `items` whose sizes fit `budget` bytes together (each item costs its size and a separator). */
+function newestFitting(sizes: readonly number[], budget: number): number {
+  let used = 0;
+  let take = 0;
+  for (let i = sizes.length - 1; i >= 0; i -= 1) {
+    const size = (sizes[i] ?? 0) + 1;
+    if (used + size > budget) break;
+    used += size;
+    take += 1;
+  }
+  return take;
+}
+
+const RECORDS_MARK = '"__cg_records__"';
+
+/**
+ * «Скачать лог» / «Выгрузить диагностику» as JSON (LG-020…LG-023, LG-025): the facts and every record of the window,
+ * redacted as a whole; one line, at most `maxBytes` — the oldest records go first, the cut is written into the file.
+ */
+export function exportJson(facts: DiagnosticsFacts, logs: ExportLogs, redactor: Pick<Redactor, 'text'>, maxBytes: number = LOG_LIMITS.exportMaxBytes, site: HostKind | null = null): ExportFile {
+  const fileName = exportFileName(facts.now, site, 'json');
+  const lines = logs.records.map((record) => JSON.stringify(redactBundle(record, redactor)));
+  const sizes = lines.map(utf8Length);
+  for (const snapshots of [false, true]) {
+    const head = (cutRecords: number, kept: readonly LogRecord[]): string => {
+      const built = buildBundle(facts, kept, logs, redactor, { records: cutRecords, snapshots }, site);
+      // The records are redacted one by one above; the head is redacted whole with a mark where they go.
+      return JSON.stringify(redactBundle({ ...built, logs: { ...built.logs, records: '__cg_records__' } }, redactor));
+    };
+    // The head with the whole window's bounds, to measure; a cut only moves `from` and the count.
+    const probe = head(logs.records.length, logs.records);
+    const budget = maxBytes - utf8Length(probe) - 64;
+    if (budget < 0) continue;
+    const take = newestFitting(sizes, budget);
+    const kept = logs.records.slice(logs.records.length - take);
+    const body = head(logs.records.length - take, kept).replace(RECORDS_MARK, `[${lines.slice(lines.length - take).join(',')}]`);
     if (utf8Length(body) <= maxBytes) return { fileName, mime: 'application/json', body };
   }
-  const minimal = JSON.stringify(redactBundle({ kind: EXPORT_FORMAT, v: 1, generatedAt: new Date(facts.now).toISOString(), snapshot: diagnosticsSnapshot(facts), truncated: { all: true } }, redactor));
-  return { fileName, mime: 'application/json', body: utf8Length(minimal) <= maxBytes ? minimal : '{"kind":"chatgoose-diagnostics","v":1,"truncated":{"all":true}}' };
+  const minimal = JSON.stringify(redactBundle({ kind: EXPORT_FORMAT, v: 2, generatedAt: new Date(facts.now).toISOString(), snapshot: diagnosticsSnapshot(facts), truncated: { all: true } }, redactor));
+  return { fileName, mime: 'application/json', body: utf8Length(minimal) <= maxBytes ? minimal : '{"kind":"chatgoose-diagnostics","v":2,"truncated":{"all":true}}' };
 }
 
 // ── Short texts ────────────────────────────────────────────────────────────
@@ -375,27 +412,27 @@ export function summaryLines(facts: DiagnosticsFacts): string[] {
   ];
 }
 
-/** The short TXT of «Выгрузить диагностику»: the summary and the record lines, newest last, within 2 MiB. */
-export function exportTxt(facts: DiagnosticsFacts, logs: ExportLogs, redactor: Pick<Redactor, 'text'>, maxBytes: number = LOG_LIMITS.exportMaxBytes): ExportFile {
-  const lines = [...summaryLines(facts), '', `records (last ${Math.min(logs.recent.length, LOG_LIMITS.exportRecentRecords)}):`];
-  lines.push(...logs.recent.slice(-LOG_LIMITS.exportRecentRecords).map(formatRecordLine));
-  if (logs.previous.records.length > 0) {
-    lines.push('', `previous session ${logs.previous.session ?? '?'} (last ${Math.min(logs.previous.records.length, PREVIOUS_TAIL_RECORDS)}):`);
-    lines.push(...logs.previous.records.slice(-PREVIOUS_TAIL_RECORDS).map(formatRecordLine));
-  }
-  let body = redactor.text(lines.join('\n'));
-  // Over the limit: the oldest lines after the summary go, a mark says so.
-  if (utf8Length(body) > maxBytes) {
-    const head = summaryLines(facts).length;
-    const all = body.split('\n');
-    let keep = all.length;
-    while (keep > head && utf8Length(body) > maxBytes) {
-      keep = Math.max(head, Math.floor(keep * 0.8));
-      body = [...all.slice(0, head), '[older lines cut]', ...all.slice(all.length - (keep - head))].join('\n');
-    }
-    if (utf8Length(body) > maxBytes) body = truncateText(body, Math.floor(maxBytes / 4));
-  }
-  return { fileName: `chatgoose-diagnostics-${stamp(facts.now)}.txt`, mime: 'text/plain', body };
+/**
+ * «Скачать лог» / «Выгрузить диагностику» as TXT, for a person to read: the summary, then the feed of the window by
+ * time in Russian (feed.ts) — what was pressed, what was off and why, the operations, the configuration in blocks.
+ * At most `maxBytes`: the oldest lines of the feed go first, a line says so.
+ */
+export function exportTxt(facts: DiagnosticsFacts, logs: ExportLogs, redactor: Pick<Redactor, 'text'>, maxBytes: number = LOG_LIMITS.exportMaxBytes, site: HostKind | null = null): ExportFile {
+  const window = windowOf(logs.records, logs.sessions);
+  const head = [
+    ...summaryLines(facts),
+    `site: ${site ?? 'all'}`,
+    `log: ${logs.records.length} records${window.from === null ? '' : ` from ${window.from} to ${window.to ?? '?'} (${window.hours ?? '?'} h)`}, sessions ${window.sessions.join(',') || '-'}`,
+    '',
+    'Журнал по времени (местное время браузера). Тексты переписки, черновиков, промптов и ответов сюда не пишутся — только длины и id.',
+  ].map((line) => redactor.text(line));
+  const feed = feedText(logs.records).map((line) => redactor.text(line));
+  const headBytes = utf8Length(head.join('\n')) + 64;
+  const sizes = feed.map(utf8Length);
+  const take = newestFitting(sizes, Math.max(0, maxBytes - headBytes));
+  const kept = feed.slice(feed.length - take);
+  const body = [...head, ...(take < feed.length ? ['', `[старые строки срезаны: ${feed.length - take}]`] : []), ...kept].join('\n');
+  return { fileName: exportFileName(facts.now, site, 'txt'), mime: 'text/plain', body: utf8Length(body) <= maxBytes ? body : truncateText(body, Math.floor(maxBytes / 4)) };
 }
 
 /** «Скопировать отчёт»: the summary and the last warnings and errors, at most 4000 characters, no secrets. */
@@ -417,7 +454,8 @@ export interface DiagnosticsServiceDeps {
   readonly facts: () => DiagnosticsFacts | Promise<DiagnosticsFacts>;
   readonly logs: {
     recent(limit: number): Promise<LogRecord[]>;
-    previousTail(limit: number): Promise<{ readonly session: number | null; readonly records: LogRecord[] }>;
+    /** The file's records (LogService.window). */
+    window(options: { readonly windowMs: number; readonly minRecords: number; readonly maxRecords: number }): Promise<{ readonly records: readonly LogRecord[]; readonly sessions: readonly number[] }>;
   };
   readonly redactor: Pick<Redactor, 'text'>;
   readonly logger?: Logger;
@@ -431,11 +469,11 @@ export class DiagnosticsService {
     return diagnosticsSnapshot(await this.deps.facts());
   }
 
-  async exportFile(format: 'json' | 'txt'): Promise<ExportFile> {
+  async exportFile(format: 'json' | 'txt', site: HostKind | null = null): Promise<ExportFile> {
     const facts = await this.deps.facts();
-    const [recent, previous] = await Promise.all([this.deps.logs.recent(LOG_LIMITS.exportRecentRecords), this.deps.logs.previousTail(PREVIOUS_TAIL_RECORDS)]);
-    const file = format === 'json' ? exportJson(facts, { recent, previous }, this.deps.redactor) : exportTxt(facts, { recent, previous }, this.deps.redactor);
-    if (this.deps.logger !== undefined) logEvent(this.deps.logger, 'diagnosticsExported', { fields: { format, bytes: utf8Length(file.body) } });
+    const logs = await this.deps.logs.window({ windowMs: LOG_LIMITS.exportWindowMs, minRecords: LOG_LIMITS.exportMinRecords, maxRecords: LOG_LIMITS.exportMaxRecords });
+    const file = format === 'json' ? exportJson(facts, logs, this.deps.redactor, LOG_LIMITS.exportMaxBytes, site) : exportTxt(facts, logs, this.deps.redactor, LOG_LIMITS.exportMaxBytes, site);
+    if (this.deps.logger !== undefined) logEvent(this.deps.logger, 'diagnosticsExported', { fields: { format, site, bytes: utf8Length(file.body), records: logs.records.length } });
     return file;
   }
 

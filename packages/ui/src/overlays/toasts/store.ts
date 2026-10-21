@@ -53,6 +53,8 @@ export interface ToastHost extends ToastPort {
 
 export interface ToastHostOptions {
   readonly now?: () => number;
+  /** Every toast as it is shown (the chatter's log, 2026-10-21): facts of the request, never a body's text. */
+  readonly onShow?: (toast: ToastRequest) => void;
 }
 
 interface Entry {
@@ -114,6 +116,11 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
       entries = kept.slice(0, TOAST_LIMIT);
       arm(entry, request.kind === 'error' ? TOAST_LIFETIME_MS.error : TOAST_LIFETIME_MS.normal);
       publish();
+      try {
+        options.onShow?.(request);
+      } catch {
+        // The log never takes a toast away.
+      }
       return entry.toast.id;
     },
     dismiss: remove,

@@ -1434,7 +1434,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     await hostModules.settled(HEALTH_WAIT_MS);
     return ok(await diagnostics.snapshot());
   });
-  rpc.handle('diagnostics.export', async ({ format }) => ok(await diagnostics.exportFile(format)));
+  // «Скачать лог» of a tab names the file by the tab's own site; the popup names its site itself (2026-10-21).
+  rpc.handle('diagnostics.export', async ({ format, site }, sender) => ok(await diagnostics.exportFile(format, (sender.kind === 'tab' ? hostOfTab(sender.tabSessionId) : null) ?? site ?? null)));
   rpc.handle('journal.read', async ({ journal, limit }) => {
     const read = await readPassJournals(logging.journals.read(journal, limit), journal, limit, [...passJournals.values()]);
     return ok({ records: read.records, truncated: read.truncated, runs: read.runs === null ? null : [...read.runs] });

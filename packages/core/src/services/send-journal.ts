@@ -373,7 +373,7 @@ export function createSendJournal(deps: SendJournalDeps): SendJournal {
         // The same state again only adds facts, and only while the attempt is open: a finished record is final.
         const same = update.state === current.state && isOpenSendState(current.state);
         if (!same && !allowed.includes(update.state)) {
-          log({ level: 'warn', scope: SCOPE, msg: 'send state transition refused', fields: { from: current.state, to: update.state } });
+          log({ level: 'warn', scope: SCOPE, msg: 'send state transition refused', fields: { fromState: current.state, toState: update.state } });
           return { ok: false, code: 'transition', detail: `${current.state} → ${update.state}` };
         }
         // An observed id is never replaced: another id is another message, not this attempt's.

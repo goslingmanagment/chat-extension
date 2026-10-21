@@ -36,6 +36,7 @@ import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendFuseState } from '@cg/contracts/send';
 import type { FanPanelVM, FocusPlace, I18n, HostUiProfile, MountDeps } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
+import type { DecisionWatch } from '@cg/core/application/journal';
 import type { DispatcherCommandId, HotkeyClient, RouteKind, SiteKeyRules } from '@cg/core/domain/hotkeys';
 import type { TabPayloadValidator, TabRpcClient } from '@cg/platform';
 import type { KitFailure } from '@cg/ui/kit';
@@ -202,6 +203,15 @@ export interface SiteAppEnv<P extends HostPort = HostPort> {
    * registered, the key runs it instead of the shared runner. The answer unregisters it.
    */
   readonly keys: { handle(command: DispatcherCommandId, run: () => void): () => void };
+  /**
+   * The chatter's log (2026-10-21, tab/journal.ts): a site's own surface (Fansly's notes, its vault) writes its
+   * decisions with `watch` — what is off and why, on change only — and the person's clicks on it with `action`
+   * (machine fields only, never a text).
+   */
+  readonly journal?: {
+    watch(surface: string): DecisionWatch;
+    action(surface: string, action: string, fields?: Readonly<Record<string, unknown>>): void;
+  };
 }
 
 /**

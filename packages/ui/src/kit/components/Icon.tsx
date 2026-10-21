@@ -96,6 +96,13 @@ const PATHS = {
       <path d="M2 13.2c.5-2.4 2.2-3.8 4.4-3.8s3.9 1.4 4.4 3.8M12.6 4.8v4.4M10.4 7h4.4" />
     </>
   ),
+  /** «Скачать лог» (2026-10-21): an arrow down into a tray. */
+  download: (
+    <>
+      <path d="M8 2.6v7.2M4.9 6.9L8 10l3.1-3.1" />
+      <path d="M2.8 10.6v1.6c0 .7.5 1.2 1.2 1.2h8c.7 0 1.2-.5 1.2-1.2v-1.6" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

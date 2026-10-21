@@ -93,32 +93,43 @@ export const SEND_LIMITS = {
   knownFanMessagesMax: 10,
 } as const;
 
-/** Logs (§9.2, LG-004…LG-012, LG-023). */
+/**
+ * Logs (§9.2, LG-004…LG-012, LG-023). 2026-10-21 (the chatter's full log): the chatter sends the owner the file of
+ * a shift when something does not work, so the store keeps at least a day of every tab and the background — what
+ * was pressed, what the extension decided and why, the configuration — and the file carries the last 24 hours.
+ */
 export const LOG_LIMITS = {
   maxDepth: 8,
   maxArrayLength: 100,
   maxObjectKeys: 100,
   maxStringLength: 20_000,
   /** One record after redaction and truncation. */
-  maxRecordBytes: 8 * KiB,
-  /** One record sent from a tab or page to the background. */
-  maxRecordBytesFromUi: 4 * KiB,
+  maxRecordBytes: 16 * KiB,
+  /** One record sent from a tab or page to the background (a configuration snapshot fits). */
+  maxRecordBytesFromUi: 12 * KiB,
   /** Records per `log.write` request. */
   maxRecordsPerWrite: 50,
   /** In-memory ring per context. */
-  ringSize: 1000,
-  /** IndexedDB `cg-logs`: current + two previous sessions, whichever limit comes first. */
-  sessionsKept: 3,
-  idbMaxRecords: 20_000,
-  idbMaxBytes: 10 * MiB,
+  ringSize: 5000,
+  /** IndexedDB `cg-logs`: the sessions (a browser start, an update) of a week at most, whichever limit comes first. */
+  sessionsKept: 40,
+  idbMaxRecords: 150_000,
+  idbMaxBytes: 64 * MiB,
   idbMaxAgeMs: 7 * 24 * 60 * MINUTE,
   /** «Новые» check journal (NF-029). */
   newcomersJournalRuns: 8,
   newcomersJournalEvents: 100_000,
   newcomersJournalBytes: 10 * MiB,
-  /** Diagnostics export (LG-020…LG-025). */
-  exportMaxBytes: 2 * MiB,
+  /** Diagnostics export (LG-020…LG-025): one file at most this size. */
+  exportMaxBytes: 20 * MiB,
+  /** The debug journals' reads (`journal.read`). */
   exportRecentRecords: 500,
+  /** The file holds every record of this window, across sessions, tabs and the background… */
+  exportWindowMs: 24 * 60 * MINUTE,
+  /** …and at least this many of the newest ones, however old (a shift that ended days ago). */
+  exportMinRecords: 3000,
+  /** Records read for one file at most. */
+  exportMaxRecords: 150_000,
 } as const;
 
 /** Telemetry queue and client_health (§9.6, TL-009…TL-012). */

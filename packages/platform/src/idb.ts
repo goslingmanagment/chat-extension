@@ -62,8 +62,11 @@ export interface BoundedStoreStats {
 
 export interface BoundedStore {
   append(records: readonly BoundedRecordInput[]): Promise<{ readonly stored: number; readonly rejected: number }>;
-  /** The newest `limit` records (of one group, when given), oldest first. */
-  latest(limit: number, query?: { readonly group?: number }): Promise<readonly BoundedRecord[]>;
+  /**
+   * The newest `limit` records (of one group, when given), oldest first. `since` (epoch ms): only records at or after
+   * it, newest by their time — every group's.
+   */
+  latest(limit: number, query?: { readonly group?: number; readonly since?: number }): Promise<readonly BoundedRecord[]>;
   stats(): BoundedStoreStats;
   prune(): Promise<void>;
   clear(): Promise<boolean>;
@@ -299,7 +302,9 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
       if (!t || limit <= 0) return [];
       const found: BoundedRecord[] = [];
       try {
-        await walk(t.store.openCursor(null, 'prev'), (cursor) => {
+        const since = query?.since;
+        const cursor = since === undefined ? t.store.openCursor(null, 'prev') : t.store.index('at').openCursor(IDBKeyRange.lowerBound(since), 'prev');
+        await walk(cursor, (cursor) => {
           const row = cursor.value as StoredRow;
           if (query?.group === undefined || row.group === query.group) found.push({ id: row.id, at: row.at, group: row.group, bytes: row.bytes, value: row.value });
           return found.length < limit;

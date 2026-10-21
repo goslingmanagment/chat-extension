@@ -629,7 +629,8 @@ export class SendCoordinator {
       scope: 'bg.send',
       msg: 'attempt moved',
       ...(track.view.code === undefined ? {} : { code: track.view.code }),
-      fields: { from: before, to: state },
+      // `fromState`/`toState`: the log keeps a machine word only under a machine field's name (redact.ts).
+      fields: { fromState: before, toState: state },
       ctx: { attemptId: track.view.attemptId, opId: attempt.opId },
     });
     this.emit(attempt);

@@ -87,6 +87,10 @@ ${/* Spenders and «Новые» are their icons at every width, on both sites (
 .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 .cg-act.is-busy > .cg-ico { opacity: 0.35; }
 .cg-slot--more { display: none; }
+${/* «Скачать лог» (2026-10-21): its icon at the bar's right end, the word in its hint; into «Ещё» where «Ещё» shows. */ ''}
+.cg-strip .cg-slot--log .cg-act--ico { width: 28px; padding: 0; }
+.cg-slot--log .cg-act--ico > .cg-ico { display: block; }
+.cg-slot--log .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
 .cg-strip .cg-menu--top { bottom: calc(100% + 9px); }
 .cg-hint {
@@ -230,7 +234,7 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
 }
 @container cg (max-width: ${atBase(499)}) {
   ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. */ ''}
-  .cg-slot--two, .cg-slot--boards { display: none; }
+  .cg-slot--two, .cg-slot--boards, .cg-slot--log { display: none; }
   .cg-slot--more { display: inline-flex; }
 }
 @container cg (max-width: ${atBase(600)}) {

@@ -134,12 +134,29 @@ export const LOG_VALUE_LIMITS: SanitizeLimits = {
 
 /** Exact field names whose string values are machine data (enumerations, codes, versions) and may be logged after scrubbing. */
 const ALLOWED_STRING_FIELDS: ReadonlySet<string> = new Set([
-  'action', 'adapter', 'anchor', 'anchors', 'browser', 'build', 'capabilities', 'capability', 'category', 'client', 'code', 'contract',
-  'coverage', 'degraded', 'disabled', 'disposition', 'error', 'event', 'failure', 'feature', 'features', 'file', 'flag', 'flags', 'format',
-  'host', 'journal', 'kind', 'level', 'lifecycle', 'locale', 'method', 'metric', 'mime', 'missing', 'mode', 'model', 'origin',
-  'os', 'outcome', 'pagelabel', 'phase', 'platform', 'provider', 'reason', 'route', 'scope', 'section', 'source', 'stage',
-  'stages', 'state', 'status', 'surface', 'theme', 'tone', 'trigger', 'type', 'unit', 'version', 'via', 'why',
+  'action', 'adapter', 'anchor', 'anchors', 'browser', 'build', 'capabilities', 'capability', 'category', 'changed', 'choice', 'client', 'code', 'contract',
+  'coverage', 'degraded', 'direction', 'disabled', 'disposition', 'error', 'event', 'failure', 'feature', 'features', 'file', 'filter', 'flag', 'flags', 'format',
+  'host', 'input', 'journal', 'kind', 'level', 'lifecycle', 'list', 'locale', 'method', 'metric', 'mime', 'missing', 'mode', 'model', 'origin',
+  'os', 'outcome', 'pagelabel', 'period', 'phase', 'preset', 'platform', 'provider', 'reason', 'role', 'route', 'scope', 'section', 'settings', 'site', 'sort', 'source', 'stage',
+  'stages', 'state', 'status', 'surface', 'tab', 'theme', 'tone', 'trigger', 'type', 'unit', 'version', 'via', 'view', 'which', 'why',
 ]);
+
+/**
+ * 2026-10-21 (the chatter's full log): the few fields whose value is a text of OUR OWN making, never a person's —
+ * `say`, a sentence of our catalog as the chatter saw it (why a button is off, a toast's title), `control`, the label
+ * of one of our buttons, and the names of
+ * the configuration the owner gave (`pageName`, `personaName`, `personaNames`). They are kept as one line of at most
+ * LABEL_MAX_CHARS, scrubbed of secrets like any string. A conversation, a draft, a prompt or an answer never goes
+ * under these names: whoever writes one must pass a catalog text or a configured name, nothing the fan or the
+ * chatter typed.
+ */
+const LABEL_FIELDS: ReadonlySet<string> = new Set(['say', 'control', 'pagename', 'personaname', 'personanames']);
+export const LABEL_MAX_CHARS = 300;
+
+/** Whether a string under this field name is a label of ours (see LABEL_FIELDS). */
+export function isLabelField(key: string | null): boolean {
+  return key !== null && LABEL_FIELDS.has(normalizedKey(key));
+}
 
 /** Endings of machine-valued field names: `opId`, `chatKey`, `startedAt`, `insertMs`, `draftDigest`… */
 const ALLOWED_SUFFIX_WORDS = [
@@ -238,6 +255,7 @@ interface Walk {
 
 function sanitizeString(walk: Walk, value: string, key: string | null, parentKey: string | null): string {
   if (OWN_MARK.test(value)) return value;
+  if (walk.allowlist && isLabelField(key)) return truncateText(walk.redactor.text(value.replace(/\s+/g, ' ').trim()), Math.min(LABEL_MAX_CHARS, walk.limits.maxStringLength));
   if (walk.allowlist && !isAllowedString(value, key, parentKey)) return lengthMark(value);
   return truncateText(walk.redactor.text(value), walk.limits.maxStringLength);
 }

@@ -12,8 +12,10 @@
 
 import type { I18nKey } from '@cg/contracts/errors';
 import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
+import type { VaultPanelClient } from '@cg/contracts/vault-fansly';
 import type { I18n } from '@cg/contracts/vm';
 import { createPageContext } from '@cg/core/application/boards';
+import { vaultActionFacts, vaultAvailability } from '@cg/core/application/hosts/fansly/journal';
 import { admittedOn } from '@cg/core/domain/features';
 import { FANSLY_VAULT_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import { createLiveI18n } from '@cg/core/domain/i18n/live';
@@ -110,6 +112,16 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
     },
   });
   const deps = { ...env.deps, i18n: withVaultTexts(env.deps.i18n) };
+  // The chatter's log (2026-10-21): the panel's clicks (files counted, never named) and what is off and why.
+  const client: VaultPanelClient<File> = {
+    view: () => panel.view(),
+    subscribe: (listener) => panel.subscribe(listener),
+    dispatch(action) {
+      env.journal?.action('vault', `vault.${action.type}`, vaultActionFacts(action));
+      panel.dispatch(action);
+    },
+  };
+  const decisions = env.journal?.watch('vault') ?? null;
   const upload = vaultUploadOf(win, uploader);
 
   /** On the vault page, the feature admitted on the page this tab's creator is bound to. */
@@ -128,7 +140,7 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
   };
   const sync = (): void => {
     const now = shown();
-    if (now && mount === null) mount = mountKitSurface(VAULT_SURFACE, overlayRoot(mounts, 'panel'), deps, vaultSurface(panel), { report: env.report });
+    if (now && mount === null) mount = mountKitSurface(VAULT_SURFACE, overlayRoot(mounts, 'panel'), deps, vaultSurface(client), { report: env.report });
     // Away from the vault: the surface goes, unless a file is still in flight (the run stops by itself, and says why).
     else if (!now && mount !== null && !panel.running()) {
       mount.unmount();
@@ -155,6 +167,11 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
       page();
     }),
     panel.subscribe((view) => {
+      try {
+        decisions?.see('vault', vaultAvailability(view));
+      } catch {
+        // The log never breaks the panel.
+      }
       mounts.setDismissibleOpen('panel', 'vault', view.shown && view.mode === 'open');
       // A run that held the surface away from the vault has settled: it goes now.
       if (!view.shown && mount !== null && !panel.running()) sync();

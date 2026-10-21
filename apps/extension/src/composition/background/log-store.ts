@@ -1,6 +1,6 @@
 // The persistent log behind R18's `LogStorePort`, on R07's bounded IndexedDB
-// store (`cg-logs`, architecture.md §9.2: three log sessions, 20 000 records,
-// 10 MiB, 7 days — whichever comes first).
+// store (`cg-logs`, architecture.md §9.2: the sessions, records, bytes and days
+// of LOG_LIMITS — whichever comes first).
 //
 // The two were written against each other's sketch, so the shapes differ:
 // R18's service prunes through the port (`dropOldest`, `dropBefore`,
@@ -63,6 +63,16 @@ export function logStoreOver(open: () => Promise<BoundedStore>): LogStorePort {
       const out: StoredLog[] = [];
       for (const row of rows) {
         // Our own database, but a record is shown and exported: it is read through its schema.
+        const record = LogRecordSchema.safeParse(row.value);
+        if (record.success) out.push({ id: row.id, session: row.group, ts: row.at, bytes: row.bytes, record: record.data });
+      }
+      return out;
+    },
+    async newest(limit, since) {
+      const bounded = await store();
+      const rows = await bounded.latest(limit, since === undefined ? {} : { since });
+      const out: StoredLog[] = [];
+      for (const row of rows) {
         const record = LogRecordSchema.safeParse(row.value);
         if (record.success) out.push({ id: row.id, session: row.group, ts: row.at, bytes: row.bytes, record: record.data });
       }

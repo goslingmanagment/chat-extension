@@ -1090,15 +1090,22 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   }
 
   const stamp = (): string => new Date(clock.now()).toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+  /** «Скачать лог» / «Выгрузить диагностику»: the file of a day is gathered and redacted in the background. */
+  const EXPORT_TIMEOUT_MS = 120_000;
 
-  async function exportDiagnostics(): Promise<ActionReceipt> {
-    // JSON for support, the short TXT for a quick look (§9.2); both through a Blob, no `downloads` right.
-    const json = await ask('diagnostics.export', { format: 'json' });
-    if (!json.ok) return fail('ExportDiagnostics', json.error);
-    if (!ports.download(json.payload)) return code('ExportDiagnostics', 'CG-UNKNOWN', 'download refused');
-    const txt = await ask('diagnostics.export', { format: 'txt' });
-    if (txt.ok) ports.download(txt.payload);
-    return done('ExportDiagnostics');
+  /**
+   * «Выгрузить диагностику» of the settings and «Скачать лог» of the popup (2026-10-21): the log of the last 24 hours
+   * as a TXT to read and a JSON to parse (§9.2), both through a Blob, no `downloads` right. The popup names its site.
+   */
+  async function exportDiagnostics(type: 'ExportDiagnostics' | 'DownloadLog'): Promise<ActionReceipt> {
+    const site = type === 'DownloadLog' ? env.sites[0]?.kind : undefined;
+    // A day of the log is a few megabytes: the background takes its time to gather and redact it.
+    const txt = await ask('diagnostics.export', { format: 'txt', ...(site === undefined ? {} : { site }) }, { timeoutMs: EXPORT_TIMEOUT_MS });
+    if (!txt.ok) return fail(type, txt.error);
+    if (!ports.download(txt.payload)) return code(type, 'CG-UNKNOWN', 'download refused');
+    const json = await ask('diagnostics.export', { format: 'json', ...(site === undefined ? {} : { site }) }, { timeoutMs: EXPORT_TIMEOUT_MS });
+    if (json.ok) ports.download(json.payload);
+    return done(type);
   }
 
   async function testSound(action: UiActionOf<'TestSound'>): Promise<ActionReceipt> {
@@ -1227,7 +1234,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       return copy('CopyReport', action.scope === 'status' ? statusReport(model(), i18n) : action.code === undefined ? null : errorReport(model(), i18n, action.code));
     }
     if (action.type === 'Copy') return copy('Copy', artifactText(action.artifactHandle));
-    if (action.type === 'ExportDiagnostics') return exportDiagnostics();
+    if (action.type === 'ExportDiagnostics' || action.type === 'DownloadLog') return exportDiagnostics(action.type);
     if (action.type === 'ClearLocalData') {
       const answer = await ask('data.clear', { confirmed: true });
       if (!answer.ok) return fail('ClearLocalData', answer.error);
