@@ -1,5 +1,5 @@
-// Client gates (architecture.md Appendix A `CG-GATE-*`; AI-021, AI-031,
-// AI-036, AI-051, AI-087, AI-122): reasons a feature cannot start in the
+// Client gates (architecture.md Appendix A `CG-GATE-*`; AI-021, AI-036,
+// AI-051, AI-087, AI-122): reasons a feature cannot start in the
 // open chat, decided from what the host page already holds — before a token
 // is asked for or anything reaches the hub. They only spare a round trip:
 // the hub decides the same gates itself (`gate_*` → the same codes), from
@@ -8,7 +8,7 @@
 // «too few messages» gate here.
 //
 // The rules here are the same on every site. What a site decides of its own —
-// Hi and Ping, which each site judges from its own facts — is the site's AI
+// Ping for an active fan, which each site judges from its own facts — is the site's AI
 // policy (`AiHostPolicy.preflight`, R20 F10; docs/project-unite/architecture.md
 // §1.6), asked after them.
 
@@ -19,7 +19,7 @@ import { type PingSegment } from '@cg/contracts/hub';
 import { type AiGateReason, type AiHostPolicy } from '@cg/contracts/ops';
 import { UNAVAILABLE_REASONS } from '@cg/contracts/vm';
 
-import { MIN_MESSAGES_FOR_DEEP, policyOf } from './policy';
+import { MIN_MESSAGES_FOR_DEEP, MIN_MESSAGES_FOR_PING, policyOf } from './policy';
 
 export interface Gate {
   readonly reason: AiGateReason;
@@ -54,8 +54,11 @@ export function featureGate(feature: FeatureId, facts: GateFacts, site: Pick<AiH
   if (policyOf(feature).requiresDraft && facts.draftEmpty === true) return gate('needs-draft');
   // AI-051: Review and the full Recap only when the whole conversation is loaded and it is short.
   if ((feature === 'review' || feature === 'recap') && wholeHistory(window) && window.loaded < MIN_MESSAGES_FOR_DEEP) return gate('no-history');
+  // Ping only from ten messages (the owner, 2026-10-21), on the same certain facts: the whole conversation is loaded
+  // and it is shorter. The hub refuses the same (`gate_min_messages`). Hi has no message limit.
+  if (feature === 'ping' && wholeHistory(window) && window.loaded < MIN_MESSAGES_FOR_PING) return gate('ping-few');
   // Reply has no client gate of its own (neither predecessor had one): whether a chat without a fan message can be
-  // answered is the hub's to say. Hi and Ping are each site's own to judge.
+  // answered is the hub's to say. Ping for an active fan is each site's own to judge.
   const reason = site.preflight(feature, window, facts.proof ?? null);
   return reason === null ? null : gate(reason);
 }

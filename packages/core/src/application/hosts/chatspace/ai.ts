@@ -18,8 +18,9 @@
 //   page memory holds stale, a purchase updating no loaded message. The click
 //   waits for the API at most LIVE_PPV_LIMITS.waitMs and starts without it
 //   after; a failed read is no page, and the hub keeps its own marks;
-// - the pre-check — Hi is not offered in a conversation that is certainly a
-//   dialogue (AI-031); Ping is never blocked (AI-036);
+// - the pre-check — none of its own: Hi has no message limit (the owner,
+//   2026-10-21), Ping is never blocked for an active fan (AI-036); Ping under
+//   ten messages is the shared gate's (domain/features/gates.ts);
 // - no fingerprint — a result keeps nothing of its start's proof (F8: after
 //   the start no tail is kept anywhere in the tab);
 // - the verdict — the background's «фан написал новое» (§6.7.5) as the mark.
@@ -35,11 +36,6 @@ import type { HostPort, LiveTextTail, OpenChatPage } from '@cg/contracts/host';
 import { LIVE_PPV_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 import type { AiHostPolicy, LivePpvState } from '@cg/contracts/ops';
 
-/** AI-031: Hi is for a conversation with at most this many personal messages — of either side, no mass or queued send (`gate_hi_greeting_limit`). */
-export const HI_MAX_MESSAGES = 10;
-/** The window Hi counts in: the page's newest messages, as the dock's pre-check reads them (workspace.ts). */
-const HI_WINDOW = 200;
-
 /**
  * X54: the starts that carry the PPV state — the draft features, as the start's schema admits it (`StartOp.livePpv`).
  * Its own list, not the fresh text's: a later start that may carry fresh text (Review, Coach) does not carry the state
@@ -47,16 +43,10 @@ const HI_WINDOW = 200;
  */
 const LIVE_PPV_FEATURES: ReadonlySet<string> = new Set(['reply', 'fix', 'hi', 'ping']);
 
-/** What a ChatSpace start gathers of the open chat: the visible tail (D-14), the PPV state (X54), Hi's personal count; each may be absent. */
+/** What a ChatSpace start gathers of the open chat: the visible tail (D-14) and the PPV state (X54); each may be absent. */
 export interface ChatSpaceProof {
   readonly tail: LiveTextTail | null;
   readonly livePpv: LivePpvState | null;
-  /**
-   * Hi (2026-10-20 audit, row 6): the open chat's personal messages in page memory — the fan's and the model's own,
-   * never OnlyFans' queue (mass messages): page memory leaves those out. The hub counts them instead of its archive,
-   * which has no mark of a mass message. null — not Hi, or the page holds no window.
-   */
-  readonly personal?: number | null;
 }
 
 /**
@@ -129,27 +119,22 @@ export function tailOf(page: OpenChatPage | null, memory: LiveTextTail | null, m
 
 export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
   /**
-   * AI-031, NF-015, 2026-10-20 audit row 6: Hi counts personal messages only, as the old Fansly extension did. The
-   * dock sees ChatSpace's window of the open chat, whose confirmed messages leave OnlyFans' queue (mass messages)
-   * out: more than ten of them is a dialogue, and Reply is the feature for it — Hi is not offered. The start tells
-   * the hub that count (`personalMessageCount`), and the hub's gate counts it instead of its whole transcript.
-   *
-   * AI-036 (the owner's ruling В4): a manual Ping is never blocked on OnlyFans — the hub's segment is a hint.
+   * Nothing of ChatSpace's own: Hi has no message limit (the owner, 2026-10-21), and a manual Ping is never blocked
+   * for an active fan on OnlyFans (AI-036, the owner's ruling В4) — the hub's segment is a hint.
    */
-  preflight: (feature, window) => (feature === 'hi' && window.loaded > HI_MAX_MESSAGES ? 'hi-gate' : null),
+  preflight: () => null,
   proof: (host, ask) => {
     const fresh = ask.fresh;
     const chat = ask.identity.chat;
-    const personal = ask.feature === 'hi' && chat !== null ? (host.chatWindow(chat, HI_WINDOW)?.loaded ?? null) : null;
-    if (fresh === null) return personal === null ? null : Promise.resolve({ tail: null, livePpv: null, personal });
+    if (fresh === null) return null;
     const ppv = ask.livePpv === true && LIVE_PPV_FEATURES.has(ask.feature);
     // Both reads at once: page memory's tail and the host's API page (the slower of the two), one page for the tail
     // and the PPV state. The API only where the hub takes the state: a hub without it is asked of nothing of ours.
     const memory = host.readVisibleTail(ask.identity, fresh.maxItems).catch(() => null);
     const page = ask.livePpv !== true || chat === null ? Promise.resolve(null) : readOpenPage(host, chat, Math.max(fresh.maxItems, ppv ? LIVE_PPV_LIMITS.readMessages : 0));
-    return Promise.all([memory, page]).then(([tail, read]) => ({ tail: tailOf(read, tail, fresh.maxItems), livePpv: ppv && read !== null ? livePpvOf(read) : null, personal }));
+    return Promise.all([memory, page]).then(([tail, read]) => ({ tail: tailOf(read, tail, fresh.maxItems), livePpv: ppv && read !== null ? livePpvOf(read) : null }));
   },
-  fields: (proof) => ({ fresh: proof?.tail ?? null, ...(proof?.livePpv ? { livePpv: proof.livePpv } : {}), ...(proof?.personal === undefined || proof.personal === null ? {} : { personalMessageCount: proof.personal }) }),
+  fields: (proof) => ({ fresh: proof?.tail ?? null, ...(proof?.livePpv ? { livePpv: proof.livePpv } : {}) }),
   fingerprint: () => null,
   verdict: (view) => view.stale ?? null,
 };

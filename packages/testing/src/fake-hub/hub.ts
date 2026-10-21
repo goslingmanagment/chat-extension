@@ -54,7 +54,7 @@ import {
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
-import { HI_GREETING_MAX_TRANSCRIPT, aiFeatureExistsOn, aiFeatureFlag, hiStartProofDecides, judgeHiStartProof, livePpvRefusal, pingActiveRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
+import { aiFeatureExistsOn, aiFeatureFlag, livePpvRefusal, pingActiveRefusal, pingFewRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
@@ -222,8 +222,8 @@ const LEGACY_PAGES_PATH = '/api/v1/pages';
  * list of new subscribers is part of «Новые» on OnlyFans alone (Fansly's are found by the extension itself).
  */
 const ROUTE_PARTS: Partial<Record<HubRouteKey, ClientHubCapability>> = { clientAudienceNew: 'audience-new-v1' };
-/** The hub's `HI_GREETING_MAX_TRANSCRIPT` (feature-policies.ts): a greeting is for a conversation of at most this many messages. */
-export { HI_GREETING_MAX_TRANSCRIPT } from './ai-rules';
+/** The hub's Ping minimum (feature-policies.ts): Ping is for a conversation of at least this many messages. */
+export { PING_MIN_MESSAGES } from './ai-rules';
 
 /** Why the hub refuses an AI body before the generic 400 (hub-pr-plan.md §4.11). */
 function streamRefusalReason(request: unknown): string | undefined {
@@ -1001,28 +1001,15 @@ export class FakeHub {
       if (body.expectedPersonaDefinitionId !== undefined && body.expectedPersonaDefinitionId !== persona.definitionId) return refusal('persona_definition_changed');
       definitionId = persona.definitionId;
     }
-    const hiByStartProof = s.config.capabilities.includes('hi-start-proof-v1') && hiStartProofDecides(feature, body, request.capabilities);
-    // assertHiStartProofSent: no proof fails before reading the context, even if that read would fail too.
-    if (hiByStartProof && body.startProof === undefined) return refusal('gate_hi_greeting_limit', 'history_unproven');
     const window = transcriptWindow(request, s.config.limits.deepMax);
     const served = s.data.served(page, transcript, window.limit);
-    if (hiByStartProof) {
-      // assertHiStartProof reads the served window AND the oldest live archive ref. In the fake, `stores` holds
-      // every ref outside the window: checking all its live refs is equivalent to checking their oldest one.
-      // A failed archive lookup is fatal on this lane, never an admission on a guess (unlike HF-8's unknown).
-      if (served.stores === null) return refusal('internal_error');
-      const reason = judgeHiStartProof({
-        proof: body.startProof,
-        windowIds: body.coverageCheck?.window.map((item) => item.id) ?? [],
-        knownLiveIds: [...served.window.map((item) => item.messageRef), ...[...served.stores].filter(([, state]) => state === 'present').map(([id]) => id)],
-      });
-      if (reason !== null) return refusal('gate_hi_greeting_limit', reason);
-    } else if (feature === 'hi-greeting' && (body.personalMessageCount ?? s.data.archiveFacts(page, transcript).total) > HI_GREETING_MAX_TRANSCRIPT) {
-      // OnlyFans and Fansly without the proof token keep assertHiGreetingFreshness and its reason-less envelope; an
-      // OnlyFans client's count of personal messages stands for the archive's count (audit 2026-10-20, row 6).
-      return refusal('gate_hi_greeting_limit');
-    }
+    // Hi has no message limit (2026-10-21): neither its count nor its start proof refuses it.
     if (feature === 'ping') {
+      // The hub's minimum counts the transcript it reads: the archive the reader serves and, merged by id under
+      // context-v1 and the page's fresh-text switch, the page's texts.
+      const liveIds = request.capabilities.includes('context-v1') && featureVerdict(s.config, page, 'freshText').available ? (body.liveTextContext?.items ?? []).map((item) => item.platformMessageId) : [];
+      const few = pingFewRefusal(new Set([...served.window.map((item) => item.messageRef), ...liveIds]).size);
+      if (few !== null) return refusal(few);
       // The hub's segment reads its transcript: the archive the reader serves and, under context-v1, the page's texts.
       const live = request.capabilities.includes('context-v1') ? (body.liveTextContext?.items ?? []).filter((item) => item.direction === 'fan' && item.text.trim() !== '').map((item) => Date.parse(item.occurredAt)) : [];
       const active = pingActiveRefusal({ platform: page.platform, fanTextTimes: [...s.data.fanTextTimes(page, transcript, window.limit), ...live], now: this.clock.now() });

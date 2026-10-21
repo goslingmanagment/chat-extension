@@ -3525,7 +3525,8 @@ CG-NETWORK, CG-TIMEOUT и CG-CONTEXT-CHANGED; занятый или уже по�
   структурированный ответ до первого кадра; никогда для отправки;
 - `quota_denied` → CG-QUOTA-DAILY;
 - `gate_draft_required`, `gate_min_messages`, `gate_hi_greeting_limit`, `gate_ping_active` →
-  CG-GATE-DRAFT, CG-GATE-HISTORY, CG-GATE-HI, CG-GATE-PING;
+  CG-GATE-DRAFT, CG-GATE-HISTORY, CG-GATE-HI, CG-GATE-PING (`gate_min_messages` — Review и полный Recap короче 30
+  сообщений, Ping короче 10; `gate_hi_greeting_limit` хаб с 2026-10-21 не шлёт: у Hi нет предела);
 - `context_conflict` → CG-CONTEXT-CONFLICT;
 - `conversation_fan_mismatch` → CG-CONTEXT-CHANGED (R20 HF-9: группа и фан запроса Fansly — не пара по захвату
   страницы; повтора как есть нет, вкладка заново определяет фана чата);

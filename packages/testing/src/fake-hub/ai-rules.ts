@@ -31,7 +31,6 @@
 // isolation and the transcript reader's depth (HF-4а/б, HF-6), from bd3eec065.
 
 import { type AiFeatureStreamBody, type HubStreamRequest } from '@cg/contracts';
-import { type StartProofV1 } from '@cg/contracts/fansly';
 
 export interface StreamBodyRefusal {
   /** The hub's error code: a gate (`gate_draft_required`) or the plain `bad_request`. */
@@ -101,9 +100,8 @@ export function livePpvRefusal(feature: string, body: StreamRuleBody): string | 
 }
 
 // ── Hi by the start proof (hub context/hi-start-proof.ts, HF-5, bd3eec065) ──
-
-/** The hub's HI_GREETING_MAX_TRANSCRIPT: on the proof lane, personal messages only. */
-export const HI_GREETING_MAX_TRANSCRIPT = 10;
+// Since 2026-10-21 Hi has no message limit: the hub refuses no Hi for its count or for a start nobody proved
+// (`gate_hi_greeting_limit` is gone); only the shape of the lane's fields is still checked.
 
 export function hiStartProofDecides(feature: string, body: StreamRuleBody, capabilities: readonly string[]): boolean {
   return feature === 'hi-greeting' && body.platform === 'fansly' && body.clientContext === undefined && capabilities.includes('hi-start-proof-v1');
@@ -130,17 +128,17 @@ function hiStartProofShapeRefusal(feature: string, body: StreamRuleBody, capabil
   return null;
 }
 
-export type HiGreetingRefusalReason = 'history_unproven' | 'too_many_personal';
+// ── Ping from ten messages (hub feature-policies.ts, the owner 2026-10-21) ──
 
-/** judgeHiStartProof: a missing/contradicted start outranks the count; deleted messages are not knownLiveIds. */
-export function judgeHiStartProof(input: { readonly proof: StartProofV1 | undefined; readonly windowIds: readonly string[]; readonly knownLiveIds: readonly string[] }): HiGreetingRefusalReason | null {
-  const { proof } = input;
-  if (proof === undefined) return 'history_unproven';
-  const witness = proof.startWitnessId;
-  // Canonical snowflakes: length, then lexical order. Never round an 18-digit id through Number.
-  const beforeStart = (id: string): boolean => witness === null || id.length < witness.length || (id.length === witness.length && id < witness);
-  if (input.windowIds.some(beforeStart) || input.knownLiveIds.some(beforeStart)) return 'history_unproven';
-  return proof.personalCount > HI_GREETING_MAX_TRANSCRIPT ? 'too_many_personal' : null;
+/** The hub's Ping minimum: fewer messages in the transcript it reads and Ping is `gate_min_messages`. */
+export const PING_MIN_MESSAGES = 10;
+
+/**
+ * The hub's Ping minimum on the lane this client rides (no `clientContext`): the messages of the transcript it reads —
+ * the archive the reader serves and, merged by id, the page's fresh texts. Both platforms.
+ */
+export function pingFewRefusal(count: number): 'gate_min_messages' | null {
+  return count < PING_MIN_MESSAGES ? 'gate_min_messages' : null;
 }
 
 // ── Ping for an active fan (hub features/index.ts `gate_ping_active`, ping-segment.ts at 305f4e18) ─────────

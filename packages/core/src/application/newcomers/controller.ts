@@ -32,7 +32,7 @@ import {
 import { RENEW_RETRY_MS, RowLocks, claimRefusal, leaseNow, leaseOfClaim, leasePolicy, shouldRenew, type LeasePolicy, type LeaseView } from '../../domain/newcomers/claim';
 import { draftStale } from '../../domain/newcomers/greeting';
 import { NO_SEEN_EVENTS, nextPollDelay, observeEvents, pollMode, resumeDelay, unprime, type SeenEvents } from '../../domain/newcomers/poll';
-import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, rowTooLongForHi, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
+import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
 import { WINDOW_HOURS, appendAudiencePage, clampWindow, startWalk, walkHasMore, walkIncomplete, windowLimit, windowOptions, type AudienceWalk } from '../../domain/newcomers/window';
 import { batchDispatch, createBatch, isBatchAction, type BatchPreviewPort } from '../boards/batch';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
@@ -147,7 +147,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     // A fan nobody greeted, holds or is sending to — as Hi of the card would start.
     pickable: (handle) => {
       const fanRef = own(handle);
-      return fanRef !== null && hiBlock(statusOf(fanRef)) === null && !rowTooLongForHi(rowOf(fanRef));
+      return fanRef !== null && hiBlock(statusOf(fanRef)) === null;
     },
     live: (handle) => batchPort?.batchLive(handle) ?? null,
     changed: () => {
@@ -364,8 +364,6 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
   const greeting: GreetingDesk = {
     // 2026-10-20 audit, row 11: Generate takes no lease — the hub claims the fan at «Отправить» (as the old clients did).
     claimForGenerate(fanRef) {
-      // NF-015: the hub refuses a greeting for a thread of more than ten stored messages.
-      if (rowTooLongForHi(rowOf(fanRef))) return Promise.resolve({ ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) });
       const block = hiBlock(statusOf(fanRef));
       // §6.7.9: once a part is confirmed the fan is greeted — another generation would be a second greeting.
       if (block === 'greeted') return Promise.resolve({ ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) });
@@ -380,8 +378,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     greeting: statusOf,
     hiBlocked(fanRef) {
       const block = hiBlock(statusOf(fanRef));
-      // NF-015: by the count the hub gave with the row — Hi is off before the card's archive is even read.
-      if (block === null) return rowTooLongForHi(rowOf(fanRef)) ? reason('hi-gate') : null;
+      if (block === null) return null;
       if (block === 'sending') return reason('parts-sending');
       return reason('hi-gate');
     },

@@ -47,6 +47,7 @@ const REASONS = {
   'chat-busy': { key: 'dock.reason.chatBusy', code: 'CG-OP-CHAT-BUSY' },
   'needs-draft': { key: 'dock.reason.needsDraft', code: 'CG-GATE-DRAFT' },
   'hi-gate': { key: 'dock.reason.hiGate', code: 'CG-GATE-HI' },
+  'ping-few': { key: 'dock.reason.pingFew', code: 'CG-GATE-HISTORY' },
   'conversation-unknown': { key: 'dock.reason.conversationUnknown', code: 'CG-DATA-NOT-READY' },
   'host-degraded': { key: 'dock.reason.hostDegraded', code: 'CG-HOST-CONTRACT' },
   'claim-busy': { key: 'dock.reason.claimedBy', code: 'CG-CLAIM-BUSY' },

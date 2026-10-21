@@ -125,10 +125,6 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     req: { valid: [{ hostAccountId: F.creator, fanRef: F.fan, displayName: 'Fan', username: null }], invalid: [{ hostAccountId: F.creator, fanRef: 123, displayName: null, username: null }, { fanRef: F.fan }] },
     res: { valid: [{ ok: true, groupId: F.group }, { ok: true, groupId: null }, failure], invalid: [{ ok: true, groupId: Number(F.group) }, unknownFailure] },
   },
-  'fansly.hi.start': {
-    req: { valid: [{ hostAccountId: F.creator, fanRef: F.fan, groupId: F.group }], invalid: [{ hostAccountId: F.creator, fanRef: F.fan }, { hostAccountId: F.creator, fanRef: 123, groupId: F.group }] },
-    res: { valid: [{ ok: true, proof: passStartProof, dialog: false }, { ok: true, proof: null, dialog: true }, failure], invalid: [{ ok: true, proof: null }, { ok: true, proof: { v: 1 }, dialog: false }, unknownFailure] },
-  },
   'fansly.ppv.read': {
     req: { valid: [{ hostAccountId: F.creator, fanRef: F.fan, groupId: F.group }], invalid: [{ hostAccountId: F.creator, fanRef: F.fan }, { hostAccountId: F.creator, fanRef: 123, groupId: F.group }] },
     res: {

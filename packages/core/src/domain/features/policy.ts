@@ -34,7 +34,7 @@ export interface FeaturePolicy {
   readonly requiresDraft: boolean;
   /** May carry fresh page text from the open chat (D-14; Review and Coach since X52 — `freshTextSurface`). */
   readonly freshText: boolean;
-  /** Messages a deep feature needs (AI-051); 0 — no gate. */
+  /** Messages a feature needs (AI-051: the deep ones; Ping, 2026-10-21); 0 — no gate. */
   readonly minMessages: number;
   /** «Ещё раз» repeats the request; «Обновить» also bypasses every cache. */
   readonly rerun: 'regenerate' | 'refresh';
@@ -47,6 +47,8 @@ export interface FeaturePolicy {
 
 /** AI-051: Review and the full Recap need this many messages. */
 export const MIN_MESSAGES_FOR_DEEP = 30;
+/** Ping is for a conversation of at least this many messages (the owner, 2026-10-21; the hub's `gate_min_messages`). */
+export const MIN_MESSAGES_FOR_PING = 10;
 
 function policy(feature: FeatureId, row: Omit<FeaturePolicy, 'split' | 'freshText' | 'timeouts'>): FeaturePolicy {
   return { ...row, split: isSplitFeature(feature), freshText: freshTextSurface(feature) !== null, timeouts: OP_TIMEOUTS[feature] };
@@ -96,7 +98,7 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     window: 'ping',
     tone: false,
     requiresDraft: false,
-    minMessages: 0,
+    minMessages: MIN_MESSAGES_FOR_PING,
     rerun: 'regenerate',
     streamShown: true,
     insertable: true,

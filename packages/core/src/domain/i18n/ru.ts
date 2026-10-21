@@ -143,6 +143,7 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.reason.noHistory': 'в чате пока мало сообщений',
   'dock.reason.hiGate': 'это уже диалог, здесь нужен Reply',
   'dock.reason.pingGate': 'фан недавно писал',
+  'dock.reason.pingFew': 'от 10 сообщений',
   'dock.reason.language': 'черновик кириллицей, а фан пишет не кириллицей',
   'dock.reason.fanBlocked': 'фан заблокирован, можно только копировать',
   'dock.reason.fanUnknown': 'не удалось понять, с каким фаном открыт чат',

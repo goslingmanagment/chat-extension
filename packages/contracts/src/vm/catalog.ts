@@ -114,6 +114,8 @@ export const UNAVAILABLE_REASONS = {
   'no-history': { key: 'dock.reason.noHistory', code: 'CG-GATE-HISTORY' },
   'hi-gate': { key: 'dock.reason.hiGate', code: 'CG-GATE-HI' },
   'ping-gate': { key: 'dock.reason.pingGate', code: 'CG-GATE-PING' },
+  /** Ping is for a conversation of at least ten messages (the owner, 2026-10-21; the hub's `gate_min_messages` on Ping). */
+  'ping-few': { key: 'dock.reason.pingFew', code: 'CG-GATE-HISTORY' },
   'language': { key: 'dock.reason.language', code: 'CG-GATE-LANGUAGE' },
   'fan-blocked': { key: 'dock.reason.fanBlocked', code: 'CG-GATE-FAN-BLOCKED' },
   'fan-unknown': { key: 'dock.reason.fanUnknown', code: 'CG-GATE-FAN-UNKNOWN' },

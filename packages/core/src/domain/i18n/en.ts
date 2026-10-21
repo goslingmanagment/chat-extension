@@ -137,6 +137,7 @@ export const EN: I18nCatalog<'en'> = {
   'dock.reason.noHistory': 'not enough messages in this chat yet',
   'dock.reason.hiGate': 'this is already a conversation, use Reply',
   'dock.reason.pingGate': 'the fan wrote recently',
+  'dock.reason.pingFew': 'from 10 messages',
   'dock.reason.language': 'the draft is in Cyrillic and the fan does not write in Cyrillic',
   'dock.reason.fanBlocked': 'the fan is blocked, copy only',
   'dock.reason.fanUnknown': 'could not tell which fan this chat is with',
