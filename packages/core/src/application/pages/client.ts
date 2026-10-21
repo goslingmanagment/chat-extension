@@ -49,7 +49,8 @@ import {
 import { errorView } from '../../domain/errors';
 import { admission, onPage } from '../../domain/features/admission';
 import { createI18n, createTranslator, resolveLocale, type LiveI18n, type Translator } from '../../domain/i18n';
-import { IDLE, accountKeyOf, aliasesOf, boundPageOf, currentAccountOf, isHostKind, knownAccounts, openChatOf, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
+import { legacyPersonaOf, readLegacyPersonas } from './legacy-personas';
+import { IDLE, accountKeyOf, aliasesOf, boundPageOf, currentAccountOf, isHostKind, knownAccounts, openChatOf, personaOfPage, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
 import { type OptionsLocation, type PageAnswer, type PageEnv, type PagePorts, type PageRequestType, type SiteAccountsFacts } from './ports';
 import { hashOfRoute, routeOfHash } from './route';
 import { SettingsWriter, settingsWithPending, type WriteMode, type WriteOutcome } from './settings-writer';
@@ -1163,6 +1164,23 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       if (pageId === null || persona === undefined) return code('ChoosePersona', 'CG-PERSONA-UNAVAILABLE');
       // A reference, never a prompt body (§8.2); the background cancels that page's operations on the change.
       return write('ChoosePersona', { personas: { byPageId: { [String(pageId)]: { key: persona.key, definitionId: persona.definitionId } } } }, 'now');
+    }
+    if (action.type === 'ImportLegacyPersonas') {
+      // Audit №9: the old Fansly extension's mapping (Fansly account → persona key), for the pages bound to those accounts
+      // that have no persona yet or a gone one. Its accounts are Fansly's: no other page is bound to such an id.
+      const legacy = readLegacyPersonas(action.text);
+      if (legacy === null) return code('ImportLegacyPersonas', 'CG-UNKNOWN', 'not an export');
+      const now = model();
+      const personas = valueOf(catalog)?.personas ?? [];
+      const byPageId: Record<string, { readonly key: string; readonly definitionId: string }> = {};
+      for (const page of valueOf(bootstrap)?.pages ?? []) {
+        if (page.platformAccountId === null || personaOfPage(now, page.pageId).s === 'set') continue;
+        const key = legacyPersonaOf(legacy, page.platformAccountId);
+        const persona = personas.find((entry) => entry.key === key && entry.status === 'active');
+        if (persona !== undefined) byPageId[String(page.pageId)] = { key: persona.key, definitionId: persona.definitionId };
+      }
+      if (Object.keys(byPageId).length === 0) return done('ImportLegacyPersonas', { outcome: 'noop' });
+      return write('ImportLegacyPersonas', { personas: { byPageId } }, 'now');
     }
     if (action.type === 'RetrySettingsWrite') {
       const retried = writer.retry();

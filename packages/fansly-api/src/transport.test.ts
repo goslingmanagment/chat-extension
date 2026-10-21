@@ -218,6 +218,7 @@ describe('[host:fansly] the client through the tab (R20 P9c, FS-NET-4, FX-001)',
     expect(await failure(refused)).toMatchObject({ kind: 'tab', sent: false });
     const lost = (await settle(w.api.client.prepare(greeting))).start();
     w.hub.gone(FRAME);
-    expect(await failure(lost)).toMatchObject({ kind: 'network', sent: true });
+    // Through the tab already: no pointer to «Fansly через вкладку» (CG-FAN-NETWORK is the direct route's).
+    expect(await failure(lost)).toMatchObject({ kind: 'network', code: 'CG-FAN-REQUEST', sent: true });
   });
 });

@@ -78,11 +78,29 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     return state();
   }
   const schedule = (notice = false, grant = false, force = false): Promise<SiteAccessState> => chain(() => sync(notice, grant, force));
+  /** The tabs that wait for a reload, reloaded now; those that failed keep waiting with their notice. */
+  const reloadWaiting = (): Promise<SiteAccessState> =>
+    chain(async () => {
+      if (!(await deps.permissions.has())) return sync(false, false);
+      const alive = await deps.tabs.list();
+      const targets = [...waiting].filter((tab) => alive.includes(tab));
+      const results = await Promise.allSettled(targets.map((tab) => deps.tabs.reload(tab)));
+      let reloaded = 0;
+      for (const [index, result] of results.entries()) {
+        if (result.status === 'fulfilled') { waiting.delete(targets[index] as number); reloaded++; }
+      }
+      const remaining = await deps.tabs.list();
+      for (const tab of [...waiting]) if (!remaining.includes(tab)) waiting.delete(tab);
+      await save();
+      return { ...state(), reloaded };
+    });
   deps.permissions.onChange((added) => {
     // The permission exposes webRequest immediately, before the queue's asynchronous storage work.
     if (added) deps.observe.attach();
     else deps.observe.detach();
-    void schedule(false, added).then(async (next) => { if (added && next.registered) await deps.startModule(); }).catch(deps.failed);
+    // The grant is the person's «Включить» (2026-10-21 audit, №9: one step, as the old extension's install): the tabs open
+    // across it reload at once. Here, not on the page that asked: Firefox closes the toolbar popup while it asks.
+    void schedule(false, added).then(async (next) => { if (added && next.registered) { await deps.startModule(); await reloadWaiting(); } }).catch(deps.failed);
   });
   deps.settings.onChange(() => { void schedule().catch(deps.failed); });
   deps.tabs.onRemoved((tab) => { void chain(async () => { if (waiting.delete(tab)) await save(); }).catch(deps.failed); });
@@ -96,22 +114,7 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     registered(tabId: number): Promise<void> {
       return chain(async () => { await ready; if (waiting.delete(tabId)) await save(); });
     },
-    reload(): Promise<SiteAccessState> {
-      return chain(async () => {
-        if (!(await deps.permissions.has())) return sync(false, false);
-        const alive = await deps.tabs.list();
-        const targets = [...waiting].filter((tab) => alive.includes(tab));
-        const results = await Promise.allSettled(targets.map((tab) => deps.tabs.reload(tab)));
-        let reloaded = 0;
-        for (const [index, result] of results.entries()) {
-          if (result.status === 'fulfilled') { waiting.delete(targets[index] as number); reloaded++; }
-        }
-        const remaining = await deps.tabs.list();
-        for (const tab of [...waiting]) if (!remaining.includes(tab)) waiting.delete(tab);
-        await save();
-        return { ...state(), reloaded };
-      });
-    },
+    reload: reloadWaiting,
     active: () => enabled && granted && registered,
     idle: () => chain(async () => { await ready; }),
   };

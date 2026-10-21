@@ -9,6 +9,7 @@
 // - «Вид и звук»: the tones on Fansly (messages, subscribers) with «Проверить»; on, volume and muted models are shared.
 // - «Генерация»: the Recap depth on Fansly above 3000, only when the hub takes more than 3000.
 // - The first run: Fansly's three steps under the eight.
+// - «Персоны»: the old Fansly extension's personas, carried over from its export (2026-10-21 audit, №9).
 // Only to whom Fansly concerns (it is switched on, a page of the sign-in is on Fansly, or a Fansly account was seen):
 // a ChatSpace chatter's settings stay as they were. Imported by the pages' composition root and the stand only.
 
@@ -22,10 +23,10 @@ import { SETTINGS_RANGES, SOUND_TONE_IDS, type ToneId } from '@cg/contracts/sett
 import { SETTINGS_EXT_RANGES } from '@cg/contracts/settings-ext';
 import type { I18n } from '@cg/contracts/vm';
 
-import { Button, Checkbox, CodeLine, Dot, Icon, Spinner, useI18n, useView } from '../../../kit';
+import { Button, Checkbox, CodeLine, Dot, Icon, Spinner, TextField, useI18n, useView } from '../../../kit';
 import { Picker, Stepper } from '../../../pages/options/controls';
 import type { OptionsSlots } from '../../../pages/options/slots';
-import { Card, Opt } from '../../../pages/shared';
+import { Card, Opt, useAct } from '../../../pages/shared';
 
 const FANSLY = 'fansly-web';
 
@@ -343,6 +344,71 @@ function Steps({ control }: { readonly control: FanslyPagesControl }): JSX.Eleme
   );
 }
 
+/**
+ * «Персоны» → «Перенос из старого расширения» (2026-10-21 audit, №9), to whom a page of the sign-in is on Fansly: the
+ * old extension keeps which persona each Fansly account had in its own storage, which no other extension can read; its
+ * Settings → «Персоны» → «Архив локальной персоны» copies or downloads it. Pasted here or picked as a file, it gives
+ * each page bound to such an account and without a persona that one (core pages `ImportLegacyPersonas`); nothing of the
+ * text is kept or sent. The old one's other settings are in no export: they are set here again.
+ */
+function LegacyPersonas(): JSX.Element | null {
+  const i18n = useI18n();
+  const act = useAct();
+  const facts = useFacts();
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<'done' | 'none' | 'bad' | null>(null);
+  if (!facts.fanslyPage) return null;
+  const run = async (pasted: string): Promise<void> => {
+    if (pasted.trim() === '' || busy) return;
+    setBusy(true);
+    setSaid(null);
+    const receipt = await act({ type: 'ImportLegacyPersonas', text: pasted }, { quiet: true }).finally(() => setBusy(false));
+    if (receipt === null) return;
+    setSaid(!receipt.ok ? 'bad' : receipt.outcome === 'noop' ? 'none' : 'done');
+    if (receipt.ok && receipt.outcome !== 'noop') setValue('');
+  };
+  const placeholder = text(i18n, 'fansly.pages.importPlaceholder');
+  return (
+    <Card title={text(i18n, 'fansly.pages.importTitle')} lead={text(i18n, 'fansly.pages.importLead')} anchor="legacy-personas">
+      <TextField
+        multiline
+        minHeight={56}
+        maxHeight={120}
+        value={value}
+        label={placeholder}
+        placeholder={placeholder}
+        onValue={(next) => {
+          setValue(next);
+          setSaid(null);
+        }}
+      />
+      <div class="pg-line" data-pg-legacy-personas="">
+        <Button label={text(i18n, 'fansly.pages.importRun')} variant="line" busy={busy} {...(value.trim() === '' ? { reason: placeholder } : {})} onClick={() => void run(value)} />
+        <label class="pg-link">
+          {text(i18n, 'fansly.pages.importFile')}
+          <input
+            type="file"
+            accept=".json,application/json,text/plain"
+            hidden
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = '';
+              if (file !== undefined) void file.text().then(run, () => setSaid('bad'));
+            }}
+          />
+        </label>
+        {said === null ? null : (
+          <span class="pg-line" role="status" data-pg-legacy-import={said}>
+            {said === 'bad' ? <Dot kind="danger" /> : null}
+            {text(i18n, said === 'done' ? 'fansly.pages.importDone' : said === 'none' ? 'fansly.pages.importNone' : 'fansly.pages.importBad')}
+          </span>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 /** Fansly's parts of the settings page, over its control: what the composition root hands to `mountOptions`. */
 export function fanslyOptionsSlots(control: FanslyPagesControl): OptionsSlots {
   return {
@@ -351,5 +417,6 @@ export function fanslyOptionsSlots(control: FanslyPagesControl): OptionsSlots {
     appearanceSound: () => <SoundRows control={control} />,
     generationWindows: () => <DeepRow control={control} />,
     checklist: () => <Steps control={control} />,
+    personas: () => <LegacyPersonas />,
   };
 }

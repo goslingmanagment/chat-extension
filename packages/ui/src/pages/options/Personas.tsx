@@ -10,6 +10,7 @@ import { type PersonasBodyVM, type VmView } from '@cg/contracts/vm';
 import { Button, Dot, useI18n } from '../../kit';
 import { Card, Columns, PageTag, pageNameWithTag, useAct } from '../shared';
 import { Picker } from './controls';
+import { Slot } from './slots';
 
 export function PersonasSection({ body, view, readOnly }: { readonly body: PersonasBodyVM; readonly view: VmView; readonly readOnly: boolean }): JSX.Element {
   const i18n = useI18n();
@@ -28,37 +29,40 @@ export function PersonasSection({ body, view, readOnly }: { readonly body: Perso
       </div>
       <Columns
         main={
-          <Card title={i18n.t('settings.personas.pages')}>
-            {body.pages.length === 0 ? (
-              <p class="pg-note">{i18n.t('settings.personas.emptyPages')}</p>
-            ) : (
-              <ul class="pg-list pg-zone" data-pg-anchor="pages">
-                {body.pages.map((page) => (
-                  <li key={page.pageHandle} data-pg-page={page.pageHandle}>
-                    <b>{page.pageName}</b>
-                    <PageTag tag={page.page} />
-                    <Picker
-                      label={i18n.t('settings.personas.choose', { page: pageNameWithTag(page.pageName, page.page) })}
-                      text={page.persona ?? i18n.t('settings.personas.none')}
-                      value={page.choices.find((choice) => choice.label === page.persona)?.key ?? null}
-                      options={page.choices.map((choice) => ({ value: choice.key, label: choice.label }))}
-                      reason={locked ?? (page.choices.length === 0 ? i18n.t('settings.personas.emptyCatalog') : null)}
-                      onChange={(key) => {
-                        const choice = page.choices.find((entry) => entry.key === key);
-                        if (choice !== undefined) void act(choice.choose, { quiet: true });
-                      }}
-                    />
-                    {page.replacementNeeded ? (
-                      <span class="pg-line">
-                        <Dot kind="ring" />
-                        {page.persona === null ? i18n.t('settings.personas.notFound') : i18n.t('settings.personas.archived')}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+          <>
+            <Card title={i18n.t('settings.personas.pages')}>
+              {body.pages.length === 0 ? (
+                <p class="pg-note">{i18n.t('settings.personas.emptyPages')}</p>
+              ) : (
+                <ul class="pg-list pg-zone" data-pg-anchor="pages">
+                  {body.pages.map((page) => (
+                    <li key={page.pageHandle} data-pg-page={page.pageHandle}>
+                      <b>{page.pageName}</b>
+                      <PageTag tag={page.page} />
+                      <Picker
+                        label={i18n.t('settings.personas.choose', { page: pageNameWithTag(page.pageName, page.page) })}
+                        text={page.persona ?? i18n.t('settings.personas.none')}
+                        value={page.choices.find((choice) => choice.label === page.persona)?.key ?? null}
+                        options={page.choices.map((choice) => ({ value: choice.key, label: choice.label }))}
+                        reason={locked ?? (page.choices.length === 0 ? i18n.t('settings.personas.emptyCatalog') : null)}
+                        onChange={(key) => {
+                          const choice = page.choices.find((entry) => entry.key === key);
+                          if (choice !== undefined) void act(choice.choose, { quiet: true });
+                        }}
+                      />
+                      {page.replacementNeeded ? (
+                        <span class="pg-line">
+                          <Dot kind="ring" />
+                          {page.persona === null ? i18n.t('settings.personas.notFound') : i18n.t('settings.personas.archived')}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+            {readOnly ? null : <Slot name="personas" />}
+          </>
         }
         aside={
           <Card title={i18n.t('settings.personas.catalog')} lead={i18n.t('settings.personas.readOnly')}>
@@ -87,3 +91,4 @@ export function PersonasSection({ body, view, readOnly }: { readonly body: Perso
     </>
   );
 }
+

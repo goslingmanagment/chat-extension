@@ -149,6 +149,19 @@ function Stage({ vm, siteOnly = false }: { readonly vm: PopupVM; readonly siteOn
             },
           },
         ];
+  // The optional site off while the person has pages on it (audit №9, the switch from the old Fansly extension): its
+  // «Включить …» first — the browser's prompt runs inside this click (`enable` asks before anything is awaited).
+  const state = access?.view.state ?? null;
+  if (access !== null && state !== null && !(state.enabled && state.granted) && (vm.sitesOff ?? []).includes(state.host)) {
+    const name = access.props.title;
+    site.push({
+      code: 'CG-HOST-NOT-READY',
+      tone: 'state',
+      title: i18n.t('popup.site.off', { site: name }),
+      body: i18n.t('popup.alert.siteOffBody', { site: name }),
+      fix: { label: i18n.t('siteAccess.enable', { site: name }), busy: access.view.busy, run: () => access.props.control.enable() },
+    });
+  }
   // The optional site's tabs waiting for a reload are where the work is: «Откройте …» would only send the person away.
   const alerts = site.length === 0 ? own : [...own.filter((alert) => alert.code === 'CG-RUNTIME-RELOADED'), ...site, ...own.filter((alert) => alert.code !== 'CG-RUNTIME-RELOADED' && alert.code !== 'CG-HOST-NOT-READY')];
   const first = alerts[0];

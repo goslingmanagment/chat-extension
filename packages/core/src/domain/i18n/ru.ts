@@ -1090,6 +1090,7 @@ export const RU: I18nCatalog<'ru'> = {
   'popup.alert.personaFix': 'Выбрать персону',
   'popup.site.on': '{site} включён',
   'popup.site.off': '{site} выключен',
+  'popup.alert.siteOffBody': 'У вас есть страницы на {site}. Включите: браузер один раз спросит доступ, открытые вкладки {site} перезагрузятся сами.',
   'signIn.lead': 'Один логин и пароль для всех клиентов ChatGoose.',
   'signIn.help': 'Нужна помощь со входом',
   'signIn.accessNote': 'Перед входом браузер спросит доступ к адресу хаба — разрешите.',

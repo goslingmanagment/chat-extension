@@ -79,6 +79,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   SetAccountLabel: { type: 'SetAccountLabel', accountHandle: 'acc-1', label: 'Main' },
   SetAccountMuted: { type: 'SetAccountMuted', accountHandle: 'acc-1', muted: true },
   ChoosePersona: { type: 'ChoosePersona', pageHandle: 'page-11', personaKey: 'lora' },
+  ImportLegacyPersonas: { type: 'ImportLegacyPersonas', text: '{"currentLegacyData":{"accountMappings":{"100000000000000001":"lora"}}}' },
   SignIn: { type: 'SignIn', login: 'chatter1', password: 'synthetic-password' },
   SignOut: { type: 'SignOut' },
   RecheckStatus: { type: 'RecheckStatus' },

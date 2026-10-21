@@ -18,6 +18,8 @@ export const FANSLY_CG_EN: CgFanslyCatalog = {
   'cg.fanTab.body': '«Fansly via tab» is on: requests go through this model’s open Fansly tab. Reload it and try again.',
   'cg.fanGroup.title': 'Chat with the fan not found',
   'cg.fanGroup.body': 'Fansly found no conversation with this fan. Open it in Fansly yourself or try again later.',
+  'cg.fanNetwork.title': 'No connection to Fansly — try «Fansly through the tab»',
+  'cg.fanNetwork.body': 'The extension could not reach Fansly directly. If Fansly opens for you only through a VPN or a proxy, switch on «Fansly through the tab»: Settings → Accounts → Fansly. Otherwise try again later.',
   'cg.noteRead.title': 'The notes did not load',
   'cg.noteRead.body': 'Fansly did not return the fan’s notes. Press «Refresh».',
   'cg.noteWrite.title': 'The note was not saved',

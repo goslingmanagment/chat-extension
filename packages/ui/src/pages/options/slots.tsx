@@ -17,6 +17,8 @@ export interface OptionsSlots {
   readonly signIn?: ComponentType;
   /** The first-run checklist, after its own steps (ST-012). */
   readonly checklist?: ComponentType;
+  /** «Персоны», under the card of the pages: the site's own way to their personas (Fansly: the old extension's, audit №9). */
+  readonly personas?: ComponentType;
 }
 
 export type OptionsSlotName = keyof OptionsSlots;

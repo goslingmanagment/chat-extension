@@ -106,5 +106,14 @@ export const FANSLY_PAGE_TEXT_KEYS = [
   'fansly.pages.stepEnable',
   'fansly.pages.stepOpen',
   'fansly.pages.stepReload',
+  // 2026-10-21 (audit №9): «Персоны» — the old Fansly extension's personas, carried over from its export.
+  'fansly.pages.importTitle',
+  'fansly.pages.importLead',
+  'fansly.pages.importPlaceholder',
+  'fansly.pages.importFile',
+  'fansly.pages.importRun',
+  'fansly.pages.importDone',
+  'fansly.pages.importNone',
+  'fansly.pages.importBad',
 ] as const;
 export type FanslyPageTextKey = (typeof FANSLY_PAGE_TEXT_KEYS)[number];

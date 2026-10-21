@@ -73,6 +73,11 @@ export interface FanslyFailureFacts {
   readonly fanslyCode?: string;
   /** Not before then (a cooldown): epoch ms. */
   readonly retryAt?: number;
+  /**
+   * The request went from the event page itself, not through a tab's relay frame: its `network` or `timeout` is
+   * CG-FAN-NETWORK, which points to «Fansly через вкладку» (2026-10-21 audit №9; the old extension's CG-NET-01).
+   */
+  readonly direct?: boolean;
 }
 
 export class FanslyApiError extends Error {
@@ -87,7 +92,7 @@ export class FanslyApiError extends Error {
   constructor(kind: FanslyFailureKind, facts: FanslyFailureFacts) {
     super(`fansly-api: ${kind}${facts.httpStatus === undefined ? '' : ` (HTTP ${facts.httpStatus})`}`);
     this.kind = kind;
-    this.code = CODES[kind];
+    this.code = facts.direct === true && (kind === 'network' || kind === 'timeout') ? 'CG-FAN-NETWORK' : CODES[kind];
     this.sent = facts.sent;
     this.httpStatus = facts.httpStatus;
     this.fanslyCode = facts.fanslyCode;

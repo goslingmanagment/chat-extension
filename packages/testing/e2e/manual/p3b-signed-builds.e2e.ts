@@ -386,9 +386,10 @@ if (read.skip !== null) {
           ['fansly-main', 'MAIN', 'document_start'],
           ['fansly', 'ISOLATED', 'document_start'],
         ]);
-        expect(state).toMatchObject({ enabled: true, granted: true, registered: true, waitingReload: 1 });
+        // Audit №9 (2026-10-21): the grant reloads the tab open across it by itself — our scripts first, nothing waits.
+        expect(state).toMatchObject({ enabled: true, granted: true, registered: true });
         await browser.switchToWindow(fanslyTab);
-        await browser.waitUntil(async () => (await pageProbe(browser)).notice !== null, { timeout: 10_000, timeoutMsg: 'no reload notice in the tab open before the grant' });
+        await browser.waitUntil(async () => oursFirst(await pageProbe(browser)) === true, { timeout: 15_000, timeoutMsg: 'the tab open before the grant did not reload with our scripts' });
       });
 
       it('[P3b-4] the same from the popup page: one prompt, registered', async () => {
@@ -407,7 +408,7 @@ if (read.skip !== null) {
         expect(asked).toHaveLength(1);
       });
 
-      it('[P3b-4] the real toolbar popup: it closes while Firefox asks and the background sleeps; «Allow» alone finishes the switch-on (onAdded) and notices the open tab', async () => {
+      it('[P3b-4] the real toolbar popup: it closes while Firefox asks and the background sleeps; «Allow» alone finishes the switch-on (onAdded) and reloads the open tab', async () => {
         await browser.switchToWindow(pagesTab);
         await revoke();
         // The Fansly tab open across the grant: a document of its own without our scripts and without a notice yet.
@@ -472,10 +473,10 @@ if (read.skip !== null) {
         // site.access answers the settings and the popup alone.
         await browser.url(p3bPage('options.html'));
         const state = await inBrowser(browser, () => access());
-        // §4: on onAdded the background notices the Fansly tabs open across the grant, and counts them «ждут перезагрузки».
+        // §4, audit №9: on onAdded the background reloads the Fansly tabs open across the grant — the popup is gone by then.
         await browser.switchToWindow(fanslyTab);
         const notice = await browser
-          .waitUntil(async () => (await pageProbe(browser)).notice !== null, { timeout: 10_000 })
+          .waitUntil(async () => oursFirst(await pageProbe(browser)) === true, { timeout: 15_000 })
           .then(() => true)
           .catch(() => false);
         await browser.switchToWindow(pagesTab);
@@ -490,7 +491,7 @@ if (read.skip !== null) {
         };
         if (popup !== null) expect(optionalPrompts(events)).toHaveLength(1);
         expect(state).toMatchObject({ enabled: true, granted: true, registered: true });
-        expect({ notice, waitingReload: state.waitingReload }).toEqual({ notice: true, waitingReload: 1 });
+        expect({ reloaded: notice, waitingReload: state.waitingReload }).toEqual({ reloaded: true, waitingReload: 0 });
       });
 
       it('[P3b-5] grant → reload → capture: the reloaded tab gets our scripts first, and its 2xx API requests make the session template', async () => {

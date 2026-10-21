@@ -29,7 +29,10 @@ export function createSiteAccessControl(host: HostKind, rpc: PageRpc, permission
     enable() {
       // MUST happen in the original click stack, before any await or RPC.
       const granted = permissions.request();
-      return run(async () => { if (!(await granted)) return request({}); return request({ enabled: true }); });
+      // One step, as the old extension's install was (2026-10-21 audit, №9): switched on, the site's tabs that were
+      // open reload at once — our page scripts start only with a document — instead of a second step «Перезагрузить
+      // вкладки». The person is on this page, not typing in those tabs; one that failed to reload still waits with its notice.
+      return run(async () => { if (!(await granted)) return request({}); return request({ enabled: true, reload: true }); });
     },
     disable: () => run(() => request({ enabled: false })),
     reload: () => run(() => request({ reload: true })),

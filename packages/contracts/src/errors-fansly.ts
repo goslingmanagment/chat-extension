@@ -38,6 +38,7 @@ export const CG_FANSLY_CODES = [
   'CG-FAN-RATE-LIMIT',
   'CG-FAN-TAB',
   'CG-FAN-GROUP',
+  'CG-FAN-NETWORK',
   'CG-NOTE-READ',
   'CG-NOTE-WRITE',
   'CG-NOTE-UNCERTAIN',
@@ -131,6 +132,9 @@ const SPECS = {
   'CG-FAN-RATE-LIMIT': { kind: 'fansly', severity: 'warn', recovery: 'wait-until', retry: 'after-deadline', telemetry: 'count', settings: 'status' },
   'CG-FAN-TAB': { kind: 'fansly', severity: 'warn', recovery: 'reload-tab', retry: 'new-click', telemetry: 'count', settings: 'status' },
   'CG-FAN-GROUP': { kind: 'fansly', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
+  // 2026-10-21 (audit №9; the old extension's CG-NET-01): our direct request got no answer — where Fansly opens only
+  // through a VPN or proxy, «Fansly через вкладку» (Аккаунты → Fansly) is the way.
+  'CG-FAN-NETWORK': { kind: 'fansly', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count', settings: 'accounts' },
   // ── «Заметки» ──
   'CG-NOTE-READ': { kind: 'note', severity: 'warn', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
   'CG-NOTE-WRITE': { kind: 'note', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count' },

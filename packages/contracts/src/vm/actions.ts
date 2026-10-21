@@ -15,6 +15,9 @@ import { SettingsV1Schema, UI_TEXT_SIZES } from '../settings';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
 import { type SpendersPeriodSchema } from '../tab-messages';
 import { BATCH_LISTS } from './batch';
+
+/** The old Fansly extension's persona export may carry the old local persona texts too: a generous bound. */
+export const LEGACY_PERSONAS_MAX_CHARS = 4_000_000;
 import { HandleSchema, JOURNAL_KINDS, MOUNT_SURFACES, OVERLAY_SURFACES, ViewSelectorSchema } from './selectors';
 
 const ui = SettingsV1Schema.shape.ui.shape;
@@ -310,6 +313,12 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('SetAccountLabel', { accountHandle: HandleSchema, label: z.nullable(boundedText(60)) }),
   act('SetAccountMuted', { accountHandle: HandleSchema, muted: z.boolean() }),
   act('ChoosePersona', { pageHandle: HandleSchema, personaKey: PersonaKeySchema }),
+  /**
+   * 2026-10-21 (audit №9): the old Fansly extension's persona export as the person pasted or picked it (its Settings →
+   * «Персоны» → «Архив локальной персоны»): each Fansly page without a persona gets the one its account had there.
+   * Read on the page itself; nothing of the text is stored or sent.
+   */
+  act('ImportLegacyPersonas', { text: boundedText(LEGACY_PERSONAS_MAX_CHARS) }),
   /** Only from the options page; the password goes to the background and is never stored. */
   act('SignIn', { login: boundedText(SIGN_IN_LIMITS.loginMaxChars), password: boundedText(SIGN_IN_LIMITS.passwordMaxChars) }),
   act('SignOut', {}),
