@@ -172,7 +172,7 @@ describe('a request of ours', () => {
     const { api, sent } = world();
     const refused = [
       { purpose: 'newcomers', route: 'message.ack', account: CREATOR },
-      { purpose: 'greeting', route: 'group.detail', account: CREATOR, path: { group: GROUP } },
+      { purpose: 'greeting', route: 'messaging.groups', account: CREATOR },
       { ...registration, body: {} },
       { ...greeting(), body: undefined },
       { ...registration, path: { group: 'me' } },
