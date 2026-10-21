@@ -102,6 +102,9 @@ const SPECS = {
   // 1.30.0 (X53): a read of the vault from the host's API failed; the page has no session token for it.
   'CG-HOST-MEDIA': { kind: 'host', severity: 'warn', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
   'CG-HOST-SESSION': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
+  // Audit 2026-10-20 №15: a conversation is open, but the page has not named its account, or its fan, for a while.
+  'CG-HOST-ACCOUNT-UNKNOWN': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
+  'CG-HOST-CHAT-UNKNOWN': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
   'CG-RUNTIME-RELOADED': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
   'CG-INSERT-CHAT-CHANGED': { kind: 'insert', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
   'CG-INSERT-FAILED': { kind: 'insert', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count+sample' },

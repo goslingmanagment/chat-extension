@@ -73,7 +73,7 @@ export const UI_TEXT_KEYS = [
   'dock.reason.noBinding', 'dock.reason.notGranted', 'dock.reason.noPersona', 'dock.reason.featureDisabled', 'dock.reason.chatBusy',
   'dock.reason.needsDraft', 'dock.reason.noHistory', 'dock.reason.hiGate', 'dock.reason.pingGate', 'dock.reason.language', 'dock.reason.fanBlocked',
   'dock.reason.fanUnknown', 'dock.reason.conversationUnknown', 'dock.reason.overlayOpen', 'dock.reason.hostDegraded',
-  'dock.reason.composerMissing', 'dock.reason.claimExpired',
+  'dock.reason.composerMissing', 'dock.reason.hostUnidentified', 'dock.reason.claimExpired',
   'dock.reason.lockedDuringGeneration', 'dock.reason.hotkeyReserved', 'dock.reason.keyInField', 'dock.reason.pageOff', 'dock.reason.hubNotReady',
   'dock.reason.platformUnsupported', 'dock.reason.clientOutdated', 'dock.reason.runtimeUnreachable', 'dock.option.tone',
   'dock.option.toneValue', 'dock.option.toneTooltip', 'dock.option.toneLocked', 'dock.option.toneUnavailable', 'dock.option.toneMenuTitle',

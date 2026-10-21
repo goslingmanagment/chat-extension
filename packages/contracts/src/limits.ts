@@ -261,6 +261,12 @@ const thinking = (untilMetaSec: number, maxSec: number): OpTimeouts => ({
 });
 const QUICK: OpTimeouts = { untilMetaMs: s(30), firstChunkAfterMetaMs: s(30), silenceMs: s(30), maxMs: s(60) };
 const DEEP: OpTimeouts = thinking(180, 300);
+/**
+ * Coach runs on the Fansly extension's deep stream budget: its answer may take 300 s (old `shared/constants.ts:226`,
+ * audit 2026-10-20 №6). At 180 s a long Coach answer was cut with a timeout. The hub sends `meta` once the context
+ * is loaded, so the wait for it stays short.
+ */
+const COACH: OpTimeouts = thinking(60, 300);
 
 export const OP_TIMEOUTS: Readonly<Record<FeatureId, OpTimeouts>> = {
   reply: QUICK,
@@ -270,5 +276,5 @@ export const OP_TIMEOUTS: Readonly<Record<FeatureId, OpTimeouts>> = {
   'recap-short': thinking(60, 120),
   review: DEEP,
   recap: DEEP,
-  coach: thinking(60, 180),
+  coach: COACH,
 };
