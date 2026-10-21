@@ -1,7 +1,8 @@
-// The switch from the old Fansly extension (audit №9): the popup offers «Включить Fansly» to whom a hub page is on
-// Fansly, and one press brings the open Fansly tab up by itself; a direct request without an answer points to «Fansly
-// через вкладку»; the old extension's marks on a tab — the notice that says which ChatGoose to switch off; «Персоны» —
-// the old extension's personas carried over from its export.
+// The switch from the old Fansly extension (audit №9): «Включить Fansly» — the popup's quiet word in its foot (the
+// verdict stays as it is: Fansly chatters stay on the old extension until the switch conditions) — and one press brings
+// the open Fansly tab up by itself; a direct request without an answer points to «Fansly через вкладку»; the old
+// extension's marks on a tab — the notice that says which ChatGoose to switch off; «Персоны» — the old extension's
+// personas carried over from its export.
 
 import { pageRpc } from '../../support/extension';
 import { neighborUrl } from '../../support/fansly-neighbor';
@@ -20,17 +21,17 @@ scenario(
     // A mark on the open Fansly document: gone after the switch-on means the tab reloaded by itself.
     await s.browser.execute(() => { (window as unknown as { cgSeeMark?: number }).cgSeeMark = 1; });
 
-    // 1. Fansly switched off in this browser: the popup's stage offers it, one press, the tab comes up by itself.
+    // 1. Fansly switched off in this browser: «Включить Fansly» in the popup's foot, one press, the tab comes up by itself.
     await s.toPages();
     // `site.access` is the popup's and the settings' own request.
     await openOptions('accounts');
     const off = await pageRpc('site.access', { host: 'fansly-web', enabled: false });
     if (!off.ok) throw new Error(`site.access: ${off.error.code}`);
     await openPopup();
-    await waitForPopup((state) => /Fansly выключен/.test(state.stage), 'the popup offers «Включить Fansly»');
+    await waitForPopup((state) => /Включить Fansly/.test(state.text), 'the popup offers «Включить Fansly»');
     await s.shot('popup-fansly-off');
     await press('Включить Fansly');
-    await waitForPopup((state) => !/Fansly выключен/.test(state.stage), 'Fansly on, its tab reloaded');
+    await waitForPopup((state) => /Выключить Fansly/.test(state.text), 'Fansly on, its tab reloaded');
     await s.toChat();
     await s.browser.waitUntil(async () => (await s.browser.execute(() => (window as unknown as { cgSeeMark?: number }).cgSeeMark)) === undefined, { timeout: 15_000, timeoutMsg: 'the Fansly tab did not reload by itself' });
     await s.ready(30_000);

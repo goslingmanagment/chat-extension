@@ -329,8 +329,6 @@ export const UI_TEXT_KEYS = [
   'popup.alert.reloadShort', 'popup.alert.reloadTitleOne', 'popup.alert.reloadTitleMany', 'popup.alert.reloadBody',
   // 2026-10-21: «Скачать лог» (the popup and the dock)
   'log.download', 'log.downloadHint', 'log.downloaded', 'log.downloadFailed',
-  // 2026-10-21 (audit №9): an optional site off while a page of the person is on it.
-  'popup.alert.siteOffBody',
   // ── end of the extension pages ──
 ] as const;
 export type UiTextKey = (typeof UI_TEXT_KEYS)[number];
