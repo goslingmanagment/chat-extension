@@ -167,9 +167,6 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
       : null;
   const surface = (name: 'spenders' | 'newcomers' | 'cheatsheet'): UiAction => ({ type: 'Navigate', to: { kind: 'surface', surface: name, open: true } });
   const sites = statusSites(model).map((site) => ({ host: site.kind, label: siteLabel(model, site.kind), state: hostPill(model, site.kind), waitingReload: valueOf(model.diagnostics)?.siteAccess?.find((entry) => entry.host === site.kind)?.waitingReload ?? (site.kind === model.env.sites[0]?.kind ? staleTabsOf(model) : 0) }));
-  // An optional site off while a page of the signed-in person is on it: its switch goes on the stage (audit №9).
-  const pages = session === null ? [] : (valueOf(model.bootstrap)?.pages ?? []);
-  const sitesOff = (valueOf(model.diagnostics)?.siteAccess ?? []).filter((entry) => !(entry.enabled && entry.granted) && pages.some((page) => page.platform === HOST_PLATFORM[entry.host])).map((entry) => entry.host);
   const personaVm: PopupVM['persona'] =
     bound === null || pageName === null || persona === null
       ? { s: 'not-connected' }
@@ -182,7 +179,6 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
     version: model.env.version,
     pills: { host, hub },
     sites,
-    ...(sitesOff.length === 0 ? {} : { sitesOff }),
     problems,
     persona: personaVm,
     account: session === null ? null : { login: session.login, signOut: button('popup.signOut', { type: 'SignOut' }) },

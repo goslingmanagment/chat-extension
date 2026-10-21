@@ -1032,7 +1032,6 @@ export const EN: I18nCatalog<'en'> = {
   'popup.alert.personaFix': 'Choose a persona',
   'popup.site.on': '{site} is on',
   'popup.site.off': '{site} is off',
-  'popup.alert.siteOffBody': 'You have pages on {site}. Turn it on: the browser asks once for access, and the open {site} tabs reload by themselves.',
   'signIn.lead': 'One login and password for every ChatGoose client.',
   'signIn.help': 'Help with signing in',
   'signIn.accessNote': 'Before signing in the browser asks for access to the hub address — allow it.',
