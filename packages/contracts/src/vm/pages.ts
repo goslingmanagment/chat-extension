@@ -64,6 +64,12 @@ export interface PopupVM {
   readonly verdict?: PopupVerdictVM;
   /** Per-site pills; absent on older producers. */
   readonly sites?: readonly { readonly host: HostKind; readonly label: string; readonly state: PopupVM['pills']['host']; readonly waitingReload: number }[];
+  /**
+   * The optional sites switched off in this browser (or not granted) where the person signed in has a hub page: the
+   * popup offers «Включить …» on its stage (2026-10-21 audit, №9: a chatter moving from the old Fansly extension).
+   * Absent on older producers — nothing offered.
+   */
+  readonly sitesOff?: readonly HostKind[];
   /** `error` — CG-RUNTIME-UNREACHABLE (a card, never an endless spinner); `forbidden` — CG-AUTH-REQUIRED → «Аккаунт». */
   readonly view: VmView;
   readonly version: string;

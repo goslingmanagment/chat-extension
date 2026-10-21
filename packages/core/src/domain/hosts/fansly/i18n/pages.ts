@@ -15,7 +15,7 @@ export type FanslyPageCatalog = Readonly<Record<FanslyPageTextKey, string>>;
 
 const RU: FanslyPageCatalog = {
   'fansly.pages.card': 'Fansly',
-  'fansly.pages.leadOff': 'ChatGoose на Fansly выключен. При включении браузер спросит доступ к fansly.com; потом перезагрузите открытые вкладки Fansly.',
+  'fansly.pages.leadOff': 'ChatGoose на Fansly выключен. При включении браузер спросит доступ к fansly.com, открытые вкладки Fansly перезагрузятся сами.',
   'fansly.pages.leadOn': 'ChatGoose работает на Fansly в этом браузере.',
   'fansly.pages.state': 'Состояние',
   'fansly.pages.stateHint': 'Только в этом браузере. Выключено — на Fansly нет ни панели, ни звука.',
@@ -41,11 +41,19 @@ const RU: FanslyPageCatalog = {
   'fansly.pages.stepEnable': 'Включить Fansly',
   'fansly.pages.stepOpen': 'Открыть Fansly под моделью',
   'fansly.pages.stepReload': 'Перезагрузить вкладки Fansly',
+  'fansly.pages.importTitle': 'Перенос из старого расширения',
+  'fansly.pages.importLead': 'Персоны страниц Fansly можно взять из старого ChatGoose для Fansly: в нём Настройки → «Персоны» → «Архив локальной персоны» → «Копировать» (или «Скачать JSON»). Вставьте сюда — персону получат только страницы, у которых её ещё нет.',
+  'fansly.pages.importPlaceholder': 'Вставьте сюда то, что скопировали в старом расширении',
+  'fansly.pages.importFile': 'Выбрать файл',
+  'fansly.pages.importRun': 'Перенести',
+  'fansly.pages.importDone': 'Персоны из старого расширения перенесены.',
+  'fansly.pages.importNone': 'Переносить нечего: у страниц Fansly уже есть персоны, или в старом расширении их аккаунты ни с какой персоной не связаны.',
+  'fansly.pages.importBad': 'Это не данные старого расширения. Скопируйте их там ещё раз.',
 };
 
 const EN: FanslyPageCatalog = {
   'fansly.pages.card': 'Fansly',
-  'fansly.pages.leadOff': 'ChatGoose on Fansly is off. Turning it on, the browser asks for access to fansly.com; then reload the open Fansly tabs.',
+  'fansly.pages.leadOff': 'ChatGoose on Fansly is off. Turning it on, the browser asks for access to fansly.com; the open Fansly tabs reload by themselves.',
   'fansly.pages.leadOn': 'ChatGoose works on Fansly in this browser.',
   'fansly.pages.state': 'State',
   'fansly.pages.stateHint': 'This browser only. Off — no panel and no sound on Fansly.',
@@ -71,6 +79,14 @@ const EN: FanslyPageCatalog = {
   'fansly.pages.stepEnable': 'Turn Fansly on',
   'fansly.pages.stepOpen': 'Open Fansly as the model',
   'fansly.pages.stepReload': 'Reload the Fansly tabs',
+  'fansly.pages.importTitle': 'Carry over from the old extension',
+  'fansly.pages.importLead': 'The Fansly pages’ personas can come from the old ChatGoose for Fansly: there Settings → Personas → «Архив локальной персоны» → «Копировать» (or «Скачать JSON»). Paste it here — only pages without a persona get one.',
+  'fansly.pages.importPlaceholder': 'Paste what you copied in the old extension',
+  'fansly.pages.importFile': 'Choose a file',
+  'fansly.pages.importRun': 'Carry over',
+  'fansly.pages.importDone': 'The personas of the old extension are carried over.',
+  'fansly.pages.importNone': 'Nothing to carry over: the Fansly pages already have personas, or the old extension tied their accounts to none.',
+  'fansly.pages.importBad': 'This is not the old extension’s data. Copy it there again.',
 };
 
 export const FANSLY_PAGE_TEXTS: { readonly [L in Locale]: FanslyPageCatalog } = { ru: RU, en: EN };

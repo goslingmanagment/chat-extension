@@ -22,6 +22,8 @@ export const FANSLY_CG_RU: CgFanslyCatalog = {
   'cg.fanTab.body': 'Включён режим «Fansly через вкладку»: запросы идут через открытую вкладку Fansly этой модели. Обновите её и повторите.',
   'cg.fanGroup.title': 'Чат с фаном не найден',
   'cg.fanGroup.body': 'Fansly не нашёл переписку с этим фаном. Откройте её в Fansly сами или повторите позже.',
+  'cg.fanNetwork.title': 'Нет связи с Fansly — попробуйте «Fansly через вкладку»',
+  'cg.fanNetwork.body': 'Расширение не достучалось до Fansly напрямую. Если Fansly у вас открывается только через VPN или прокси, включите «Fansly через вкладку»: Настройки → Аккаунты → Fansly. Иначе повторите позже.',
   'cg.noteRead.title': 'Заметки не загрузились',
   'cg.noteRead.body': 'Fansly не отдал заметки фана. Нажмите «Обновить».',
   'cg.noteWrite.title': 'Заметка не сохранилась',

@@ -229,10 +229,11 @@ describe('repeats and parallelism (RB-023)', () => {
   it('[RB-023] no answer is not asked again: a network failure, a request that hangs past 30 s; a write\'s lost answer stays the caller\'s to read', async () => {
     const made = world();
     made.replies.push('network');
-    expect(await failure(made.api.client.call(passRead))).toMatchObject({ kind: 'network', sent: true });
+    // A direct request (no relay frame) that got no answer points to «Fansly через вкладку» (audit №9, the old CG-NET-01).
+    expect(await failure(made.api.client.call(passRead))).toMatchObject({ kind: 'network', code: 'CG-FAN-NETWORK', sent: true });
     made.replies.push('hang');
     const hung = failure(made.api.client.call(passRead));
-    expect(await hung).toMatchObject({ kind: 'timeout', code: 'CG-FAN-REQUEST', sent: true });
+    expect(await hung).toMatchObject({ kind: 'timeout', code: 'CG-FAN-NETWORK', sent: true });
     expect(Date.now() - T0).toBeGreaterThanOrEqual(30_000);
     made.replies.push('network');
     expect(await failure(made.api.client.call(greeting()))).toMatchObject({ kind: 'network', sent: true });

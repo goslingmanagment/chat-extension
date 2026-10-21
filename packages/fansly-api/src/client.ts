@@ -283,7 +283,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
         } catch {
           request = Promise.reject(new TypeError('send threw'));
         }
-        return answerOf(request, () => timedOut, live, pass, spec).finally(() => {
+        return answerOf(request, () => timedOut, live, pass, spec, route.transport === 'direct').finally(() => {
           finish();
           pass.release();
         });
@@ -292,7 +292,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
   }
 
   /** Reads the answer of a request; the pass learns what Fansly said of the pace. */
-  async function answerOf(request: Promise<FanslyHttpResponse>, timedOut: () => boolean, template: FanslySessionTemplate, pass: PacerPass, spec: FanslyRouteSpec): Promise<FanslyAnswer> {
+  async function answerOf(request: Promise<FanslyHttpResponse>, timedOut: () => boolean, template: FanslySessionTemplate, pass: PacerPass, spec: FanslyRouteSpec, direct: boolean): Promise<FanslyAnswer> {
     let response: FanslyHttpResponse;
     let text: string;
     try {
@@ -300,7 +300,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     } catch (error) {
       // The route took nothing (no frame took the post, or the frame's own check refused): provably no request.
       if (error instanceof FanslyRouteRefused) throw notSent('tab');
-      throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true });
+      throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true, direct });
     }
     const status = response.status;
     if (status === 429) {
@@ -315,7 +315,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     try {
       text = await response.text();
     } catch {
-      throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true });
+      throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true, direct });
     }
     const reading = readEnvelope(status, text, spec.emptyAnswer === true);
     if (!reading.ok) throw reading.error;
