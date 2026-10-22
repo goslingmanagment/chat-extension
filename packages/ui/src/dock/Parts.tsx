@@ -174,14 +174,19 @@ function movePartFocus(event: TargetedKeyboardEvent<HTMLDivElement>): void {
   focusQuietly(next);
 }
 
-interface RowsProps extends PartsScope {
+/** How a surface's rows act: `rowClick` false — only the buttons insert (Coach's drafts, the old card). */
+export interface RowLook {
+  readonly rowClick?: boolean;
+}
+
+interface RowsProps extends PartsScope, RowLook {
   readonly parts: readonly PartVM[];
   /** The part Tab lands on (the next one to insert; the first when none is next). */
   readonly stop: PartVM | null;
   readonly actions: ReturnType<typeof usePartActions>;
 }
 
-function Rows({ parts, stop, mode, confirm, actions }: RowsProps): JSX.Element {
+function Rows({ parts, stop, mode, confirm, actions, rowClick }: RowsProps): JSX.Element {
   const onAnswer = useConfirmFocus(confirm);
   return (
     <>
@@ -198,6 +203,7 @@ function Rows({ parts, stop, mode, confirm, actions }: RowsProps): JSX.Element {
             onInsertAgain={actions.insert}
             onCopy={actions.copy}
             onKeyDown={movePartFocus}
+            {...(rowClick === undefined ? {} : { rowClick })}
           >
             {asking ? <ConfirmRow confirm={confirm} takeFocus={actions.asked} onAnswer={onAnswer} home=".cg-part" asker=".cg-ins" /> : undefined}
           </PartRow>
@@ -236,7 +242,7 @@ function useOfferedFocus(list: { readonly current: HTMLElement | null }, opId: s
 }
 
 /** The parts of Reply, Fix, Ping or a one-variant Hi; `focus` — the part the dock offers the focus to (X44). */
-export function Parts({ parts, focus = null, ...scope }: PartsScope & { readonly parts: readonly PartVM[]; readonly focus?: number | null }): JSX.Element {
+export function Parts({ parts, focus = null, ...scope }: PartsScope & RowLook & { readonly parts: readonly PartVM[]; readonly focus?: number | null }): JSX.Element {
   const actions = usePartActions(scope.opId);
   const list = useRef<HTMLDivElement>(null);
   useOfferedFocus(list, scope.opId, focus);

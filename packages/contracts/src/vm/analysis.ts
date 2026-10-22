@@ -186,6 +186,8 @@ export interface CoachVM {
   };
   /** The Recap shown in the header (auto-recap `short` / `full`, §5.6). */
   readonly recap: { readonly length: RecapLength; readonly generatedAt: IsoTimestamp; readonly summary: string } | null;
+  /** A Recap of this chat is being built (from «Recap ▾», the strip or a turn's auto-recap step): «Recap собирается…». */
+  readonly recapRunning?: boolean;
   readonly turns: readonly CoachTurnVM[];
   /** `generation.coach.historyLimit`. */
   readonly historyLimit: number;
@@ -198,7 +200,7 @@ export interface CoachVM {
     /** «Приложить мой ответ»: the composer draft goes along (never the fan's fresh text). */
     readonly attachDraft: { readonly available: boolean; readonly reason: ReasonVM | null };
   };
-  /** «Новый диалог» — confirmed through DialogPort; the old one stays in history. */
+  /** «Новый диалог» — the window asks «Точно начать заново?» in its place first; the old dialog is not kept. */
   readonly newDialog: ActionButtonVM;
   /**
    * The ready questions of the empty dialog under their three headings —

@@ -152,11 +152,24 @@ describe('coach: a turn', () => {
     expect(await h.dispatch({ type: 'Copy', artifactHandle: first?.copyHandle as string })).toMatchObject({ ok: true });
     expect(h.clipboard.texts).toEqual(['hey you']);
     expect(h.bg.callsOf('op.reportCopy')).toEqual([{ opId, part: { variant: 0, index: 0 } }]);
-    // The follow-up chips replace the opening ones (AI-094).
-    expect(vm.chips.map((chip) => chip.question)).toEqual(['Другой вариант', 'Сделай короче', 'А если откажет?']);
-    expect(vm.chips.every((chip) => chip.preset === null)).toBe(true);
+    // The follow-up chips replace the opening ones (AI-094); «Разбор ситуации» stays first, as in the old window.
+    expect(vm.chips.map((chip) => chip.question)).toEqual(['Разбор ситуации', 'Другой вариант', 'Сделай короче', 'А если откажет?']);
+    expect(vm.chips.map((chip) => chip.preset)).toEqual(['situation', null, null, null]);
     // The dock's result sheet is not the Coach's: its answer lives in the panel.
     expect(h.dock().result).toBeNull();
+  });
+
+  it('[AI-084] an answer in the labelled sections reads each section once: the bubble holds only the lead, the blocks the rest', async () => {
+    const h = await start();
+    const labelled = ['Коротко: он остыл.', 'СИТУАЦИЯ: молчит два дня.', 'ЧТО УПУЩЕНО: не спросили про поездку.', 'СЛЕДУЮЩИЙ ХОД: спроси про поездку.'].join('\n');
+    await exchange(h, 'situation', labelled);
+    const answer = lastTurn(h).answer;
+    expect(answer?.prose).toBe('Коротко: он остыл.');
+    expect(answer?.blocks?.map((block) => [block.kind, block.body])).toEqual([
+      ['situation', 'молчит два дня.'],
+      ['missed', 'не спросили про поездку.'],
+      ['move', 'спроси про поездку.'],
+    ]);
   });
 
   it('[AI-086] a draft part goes into an empty field at once, and the panel folds so the field and Send are in view', async () => {
@@ -409,7 +422,8 @@ describe('coach: the recap it stands on', () => {
     // The recap is being written: its text is not the Coach's answer, and nothing was «отправлено коучу» yet.
     expect(h.ai.workspace.ops.get(recapOp)?.view).toMatchObject({ state: 'streaming', text: FULL.slice(0, 12) });
     expect(lastTurn(h)).toMatchObject({ opId: recapOp, state: 'streaming', sentToCoach: false, streamText: null });
-    expect(lastTurn(h).phase?.stages.at(-1)).toMatchObject({ id: 'writing', state: 'current' });
+    // The step is named as the old window named it: «Обновляю Recap (полный)…».
+    expect(lastTurn(h).phase?.stages).toMatchObject([{ label: { key: 'coach.recapStep.full' }, state: 'current' }]);
 
     await h.clock.advance(90);
     // The recap is done and is now the shared artifact. The answer step holds the chat's slot already — the

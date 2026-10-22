@@ -184,6 +184,7 @@ export const UI_TEXT_KEYS = [
   // 1.36.0 (X63): the old window's Coach — the draft card's title, the attached reply under a question, the line under
   // «Приложить мой ответ», a turn the person stopped.
   'coach.draftOne', 'coach.attached', 'coach.attachHint', 'coach.canceled',
+  'coach.draft.calm', 'coach.draft.flirt', 'coach.recapStep.full', 'coach.recapStep.short', 'coach.recapRunning', 'coach.newDialog.confirm', 'coach.newDialog.keep',
   // The old card's line under a Coach draft in Cyrillic for a fan who does not write Cyrillic: neither Insert nor Copy.
   'coach.draftLanguage',
   'palette.label', 'palette.placeholder', 'palette.group.actions', 'palette.group.running', 'palette.group.waiting', 'palette.group.chats',

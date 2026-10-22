@@ -41,6 +41,7 @@ import {
   Menu,
   MenuAnchor,
   OverlayLayer,
+  Spinner,
   StageLine,
   TextField,
   ViewState,
@@ -63,7 +64,7 @@ import { RetryAnnouncer, useReadyAnnouncement, useStageAnnouncements } from '../
 import { CancelButton } from '../../dock/Head';
 import { DEFAULT_PARTS } from '../../dock/lazy';
 import { DebugSlot } from '../../dock/lazy-part';
-import { isRunning, msgOf, toneOf } from '../../dock/model';
+import { isRunning, toneOf } from '../../dock/model';
 import { Parts } from '../../dock/Parts';
 import { StaleRow } from '../../dock/Result';
 import { StreamText, useSteadyView, useStreamText } from '../../dock/Stream';
@@ -169,6 +170,9 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
                   mode={turn.opId === null ? 'copy-only' : mode}
                   // Б2 opens in the part it names (AI-086): with two drafts their parts carry the draft as `variant`.
                   confirm={confirm}
+                  // The old card: only its buttons insert — a click to select a word of a draft does not put it into the
+                  // composer and close the window.
+                  rowClick={false}
                 />
                 {/* The old card's line: a draft in Cyrillic for a fan who does not write it is neither inserted nor copied (AI-087). */}
                 {draft.note === null ? null : (
@@ -208,11 +212,20 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
   );
 }
 
-/** The Recap Coach was given (AI-095): «Recap · сделан 1 д назад», unfolding into its text. */
-function RecapNote({ recap }: { readonly recap: NonNullable<CoachVM['recap']> }): JSX.Element {
+/** The Recap Coach was given (AI-095): «Recap · сделан 1 д назад», unfolding into its text; «Recap · собирается…» while one is built. */
+function RecapNote({ recap, running }: { readonly recap: CoachVM['recap']; readonly running: boolean }): JSX.Element | null {
   const i18n = useI18n();
   const now = useNowFn();
   useMinuteClock();
+  if (running)
+    return (
+      <span class="cg-co__recap is-running" role="status">
+        <b>{i18n.t('dock.action.recap')}</b>
+        <Spinner />
+        <span>{i18n.t('coach.recapRunning')}</span>
+      </span>
+    );
+  if (recap === null) return null;
   return (
     <details class="cg-co__recap">
       <summary>
@@ -268,7 +281,6 @@ function RecapMenu({ refresh }: { readonly refresh: CoachVM['freshness']['refres
       <Button
         label={`${label} ▾`}
         variant="line"
-        size="sm"
         class="cg-co__menu"
         haspopup="menu"
         expanded={open}
@@ -285,7 +297,9 @@ function RecapMenu({ refresh }: { readonly refresh: CoachVM['freshness']['refres
         placement="bottom"
         onSelect={(id) => {
           const button = id === 'short' || id === 'full' || id === 'refresh' ? buttons[id] : null;
-          if (button !== null && button.enabled) void dispatch(button.action);
+          if (button === null || !button.enabled) return;
+          // Built from here, the Recap opens no window over Coach: the topbar follows it and shows it when it is done.
+          void dispatch(button.action.type === 'RefreshRecap' ? { ...button.action, panel: true } : button.action);
         }}
         onClose={() => setOpen(false)}
         returnFocusTo={() => trigger.current}
@@ -313,21 +327,44 @@ export function CoachView(): JSX.Element {
   const list = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const last = vm.turns[vm.turns.length - 1];
-  // A new turn or its answer scrolls into view. A finished answer taller than the feed opens at its start — its
-  // first lines, not the ready questions under it (third live check).
+  const answering = last !== undefined && isRunning(last.state);
+  /** The feed is read at its end (the old window's rule): only then does it follow the answer; scrolled up, it stays put. */
+  const pinned = useRef(true);
+  const turnsSeen = useRef(vm.turns.length);
+  // A new turn scrolls into view; its answer only while the feed is read at its end. A finished answer taller than the
+  // feed opens at its start — its first lines, not the ready questions under it (third live check).
   useLayoutEffect(() => {
     const element = list.current;
     if (element === null) return;
+    const added = vm.turns.length !== turnsSeen.current;
+    turnsSeen.current = vm.turns.length;
     // The empty dialog reads from its top: the invitation, then the ready questions under it.
     if (last === undefined) {
       element.scrollTop = 0;
       return;
     }
+    if (!added && !pinned.current) return;
+    pinned.current = true;
     const done = isRunning(last.state) ? null : [...element.querySelectorAll<HTMLElement>('[data-cg-answer]')].find((node) => node.dataset['cgAnswer'] === last.id);
     if (done !== undefined && done !== null && done.offsetHeight > element.clientHeight) {
       element.scrollTop += done.getBoundingClientRect().top - element.getBoundingClientRect().top;
     } else element.scrollTop = element.scrollHeight;
   }, [vm.turns.length, last?.state]);
+  // The answer as it is written grows its bubble: the feed follows it to the end while it is read there.
+  useLayoutEffect(() => {
+    const element = list.current;
+    const tail = element === null ? undefined : [...element.querySelectorAll<HTMLElement>('.cg-co__pair')].at(-1);
+    if (element === null || tail === undefined || !answering || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (pinned.current) element.scrollTop = element.scrollHeight;
+    });
+    observer.observe(tail);
+    return () => observer.disconnect();
+  }, [vm.turns.length, answering]);
+  const onFeedScroll = (): void => {
+    const element = list.current;
+    if (element !== null) pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < 48;
+  };
   // The window is mounted when the person opens Coach: the question field takes focus (AI-080).
   // A switch of the chat under an open window mounts nothing and moves no focus.
   useLayoutEffect(() => {
@@ -364,14 +401,14 @@ export function CoachView(): JSX.Element {
     keep(chat, text);
     focusQuietly(field.current);
   };
+  /** «Новый диалог» asks in its own place, as the old window did: «Точно начать заново?» and «Оставить». */
+  const [arming, setArming] = useState(false);
+  // Another chat's dialog is not reset by a question asked over this one.
+  useLayoutEffect(() => setArming(false), [handle]);
   const newDialog = (): void => {
-    const start = (): void => void dispatch(vm.newDialog.action);
-    if (vm.turns.length === 0) return start();
-    void deps.dialogs
-      .confirm({ title: msgOf('coach.newDialog'), body: msgOf('coach.newDialogTooltip'), confirm: msgOf('coach.newDialog'), cancel: msgOf('common.cancel'), tone: 'normal' })
-      .then((answer) => {
-        if (answer === 'confirm') start();
-      });
+    if (vm.turns.length > 0 && !arming) return setArming(true);
+    setArming(false);
+    void dispatch(vm.newDialog.action);
   };
 
   const firstRemembered = vm.turns.findIndex((turn) => !turn.outsideMemory);
@@ -385,7 +422,6 @@ export function CoachView(): JSX.Element {
       key={index}
       label={i18n.text(chip.label)}
       variant="line"
-      size="sm"
       class={chip.preset === null ? 'cg-co__chip' : 'cg-co__chip is-preset'}
       reason={whyNot}
       onClick={() => ask(chip.question, chip.preset)}
@@ -431,22 +467,23 @@ export function CoachView(): JSX.Element {
         </header>
         <div class="cg-co__top">
           <div class="cg-co__status">
-            {vm.recap === null ? null : <RecapNote recap={vm.recap} />}
+            <RecapNote recap={vm.recap} running={vm.recapRunning === true} />
             <Freshness freshness={vm.freshness} />
           </div>
           <div class="cg-co__tools">
             <RecapMenu refresh={vm.freshness.refresh} />
             <Button
-              label={i18n.text(vm.newDialog.label)}
+              label={arming ? i18n.t('coach.newDialog.confirm') : i18n.text(vm.newDialog.label)}
               variant="line"
-              size="sm"
+              class={arming ? 'cg-co__reset is-arming' : 'cg-co__reset'}
               tooltip={i18n.t('coach.newDialogTooltip')}
               reason={vm.newDialog.enabled ? null : vm.newDialog.reason === null ? i18n.t('common.unknown') : i18n.text(vm.newDialog.reason.text)}
               onClick={newDialog}
             />
+            {arming ? <Button label={i18n.t('coach.newDialog.keep')} variant="quiet" onClick={() => setArming(false)} /> : null}
           </div>
         </div>
-        <div ref={list} class="cg-co__feed" role="log" aria-label={i18n.t('coach.title')}>
+        <div ref={list} class="cg-co__feed" role="log" aria-label={i18n.t('coach.title')} onScroll={onFeedScroll}>
           {blocked || vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
           {empty ? (
             <div class="cg-co__empty">
@@ -459,7 +496,7 @@ export function CoachView(): JSX.Element {
                     <div key={index} class="cg-co__group" role="group" aria-label={i18n.text(group.label)}>
                       <div class="cg-co__cap">{i18n.text(group.label)}</div>
                       {group.questions.map((hint, at) => (
-                        <Button key={at} label={i18n.text(hint.label)} variant="line" size="sm" class="cg-co__hint" reason={whyNot} onClick={() => fill(hint.question)} />
+                        <Button key={at} label={i18n.text(hint.label)} variant="line" class="cg-co__hint" reason={whyNot} onClick={() => fill(hint.question)} />
                       ))}
                     </div>
                   ))}
@@ -554,6 +591,10 @@ ${/* ── topbar: what Coach stands on at the left, «Recap ▾» and «Нов
 .cg-co__recap summary::-webkit-details-marker { display: none; }
 .cg-co__recap summary b { font-weight: 400; color: var(--cg-ink-muted); }
 .cg-co__recap summary span { font-weight: 600; color: var(--cg-ink-2); }
+.cg-co__recap.is-running { display: inline-flex; align-items: center; gap: 6px; }
+.cg-co__recap.is-running b { font-weight: 400; color: var(--cg-ink-muted); }
+.cg-co__recap.is-running span { color: var(--cg-ink-2); }
+.cg-co__reset.is-arming { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-weight: 600; }
 .cg-co__recap-text { position: absolute; left: 20px; right: 20px; z-index: 4; margin-top: 6px; padding: 10px 12px; max-height: 40vh; overflow-y: auto; overflow-wrap: anywhere; scrollbar-width: thin; background: var(--cg-surface); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-lg); box-shadow: var(--cg-shadow-float); font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink-2); }
 .cg-co__recap-text p, .cg-co__recap-text li { max-width: none; }
 .cg-co__lag { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
@@ -596,6 +637,7 @@ ${/* The memory line: centred words between two dashed hairlines. */ ''}
 .cg-co__memory::before, .cg-co__memory::after { content: ""; flex: 1 1 auto; border-top: 1px dashed var(--cg-rule-3); }
 .cg-co__chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cg-co__chips.is-follow { margin-top: -12px; max-width: 92%; }
+.cg-co__chip { font-weight: 600; }
 .cg-co__chip.is-preset:not([aria-disabled="true"]) { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-weight: 600; }
 .cg-co__chip.is-preset:not([aria-disabled="true"]):hover { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
 
