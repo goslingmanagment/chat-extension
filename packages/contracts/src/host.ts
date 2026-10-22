@@ -896,6 +896,12 @@ export interface HostPort {
    */
   openChatMessages?(chat: ChatRef, options: OpenChatReadOptions): Promise<OpenChatRead>;
   /**
+   * The open chat's newest `limit` messages (1…OPEN_CHAT_LIMITS.pageMax) as the page itself has them loaded, in the shape
+   * of `openChatMessages`' page, without a request: the PPV state as the page loaded it (a later purchase is not in it).
+   * null — another chat than the open one, nothing loaded, or no answer. Absent on a host that keeps no such copy.
+   */
+  cachedChatMessages?(chat: ChatRef, limit: number): Promise<OpenChatPage | null>;
+  /**
    * Whether the fan has read the chat's newest message: the host's own chat list searched by the fan's `username`,
    * then — only when its last message is ours and nothing in the chat is unread — the history's newest message, which
    * marks nothing new read. Any chat, open or not; nothing is cached. Absent on a host without such a list.

@@ -231,6 +231,10 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
         lists: null,
       };
     },
+    /** The raw `chatMessages` cache value of a chat (`{pages}`), as ChatSpace holds it; undefined — none. */
+    messagesData(acc: string, fan: string): unknown {
+      return entry(KEY_MESSAGES, acc, fan)?.state?.value?.data ?? data(KEY_MESSAGES, acc, fan);
+    },
     chatWindow(acc: string, fan: string, max: number) {
       const read = messages(acc, fan);
       if (read === null) return null;

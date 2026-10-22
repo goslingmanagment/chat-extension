@@ -203,6 +203,7 @@ export const PAYLOAD: Record<string, Check> = {
   previewSendCommit: isSend,
   flags: shape({ wsTap: is(true, false), previewSend: is(true, false), 'attribution?': is(true, false) }),
   openChatMessages: shape({ ...accFan, limit: int(1, OPEN_CHAT_PAGE_MAX), 'cursor?': isId }),
+  cachedChatMessages: shape({ ...accFan, limit: int(1, OPEN_CHAT_PAGE_MAX) }),
   chatReadState: shape({ ...accFan, username: (value) => typeof value === 'string' && value.length > 0 && value.length <= CHAT_READ_USERNAME_MAX }),
   // Decision X53: the media picker's reads (media.ts), each with its own keys.
   media: (value) =>

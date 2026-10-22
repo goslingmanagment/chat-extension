@@ -23,7 +23,7 @@ type PageWindow = Window & { readonly Clerk?: { readonly session?: { readonly ge
 const fail = (failure: string, status: number | null = null): Plain & { readonly ok: false } => ({ ok: false, failure, status });
 const flag = (value: unknown): boolean | null => (typeof value === 'boolean' ? value : null);
 /** A listed price in USD (a number or its text); anything else — none. */
-const price = (value: unknown): number | null => {
+export const price = (value: unknown): number | null => {
   const amount = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   return amount > 0 && amount <= OPEN_CHAT_PRICE_MAX ? amount : null;
 };
