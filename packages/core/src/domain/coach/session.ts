@@ -48,8 +48,8 @@ export interface CoachExchange {
   readonly attachedDraft: boolean;
   readonly askedAt: number;
   readonly completedAt: number;
-  /** The Recaps the hub put into this answer (`OpView.recapsUsed`): when each was made, null — none; absent — not said. */
-  readonly recapsUsed?: { readonly full: string | null; readonly short: string | null };
+  /** The Recaps the hub put into this answer (`OpView.recapsUsed`): when each was made, null — none; absent — not said; `off` — «Учитывать Recap» unticked. */
+  readonly recapsUsed?: { readonly full: string | null; readonly short: string | null; readonly off?: true | undefined };
 }
 
 /** A turn that did not finish: the question is kept, the partial answer is not (AI-092). */

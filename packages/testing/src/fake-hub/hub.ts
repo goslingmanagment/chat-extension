@@ -1168,13 +1168,16 @@ export class FakeHub {
   /**
    * As the hub says what a prompt stood on (the meta frame's `attachedRecaps`): Coach — the full Recap of its persona
    * and the short one when it is newer; Reply and Ping — the fan's dossier (the latest saved full Recap) as `full`,
-   * as under the owner's switch `fast-reply,ping` (hub #754, #756). Other features say nothing.
+   * as under the owner's switch `fast-reply,ping` (hub #754, #756). Other features say nothing. `recap: 'off'` (hub
+   * #760, «с Recap» unticked): none went in.
    */
   private attachedRecaps(page: FakePage, request: HubStreamRequest, persona: string | null): Partial<Pick<ModelStreamFacts, 'attachedRecaps'>> {
     const { body, feature } = request;
     const now = this.clock.now();
     const fanRef = body.fanRef ?? body.conversationRef;
     const slot = (at: string | null | undefined): { generatedAt: string; ageMs: number } | null => (at === null || at === undefined ? null : { generatedAt: at, ageMs: Math.max(0, now - Date.parse(at)) });
+    const reads = feature === 'coach-chat' || feature === 'fast-reply' || feature === 'ping';
+    if (reads && body.recap === 'off') return { attachedRecaps: { full: null, short: null } };
     if (feature === 'coach-chat') {
       const { full, short } = this.state.data.sharedRecaps(page.pageLabel, fanRef, persona ?? undefined, body.conversationRef);
       const newer = short !== null && (full === null || Date.parse(short.generatedAt) > Date.parse(full.generatedAt));

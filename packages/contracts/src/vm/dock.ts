@@ -146,6 +146,11 @@ export interface DockVM {
     readonly splitReason: ReasonVM | null;
     readonly toneHotkey: HotkeyLabel | null;
     readonly splitHotkey: HotkeyLabel | null;
+    /**
+     * 1.48.0: «с Recap» of the open chat (`SetRecap`): Reply, Ping and Coach read the fan's Recap. Shown while the fan
+     * has one (or it is unticked) and the hub can leave it out; absent or null — no tick.
+     */
+    readonly recap?: { readonly on: boolean } | null;
   };
   readonly actions: Readonly<Record<DockActionId, DockActionVM>>;
   /**

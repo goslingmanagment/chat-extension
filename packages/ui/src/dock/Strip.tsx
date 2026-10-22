@@ -131,9 +131,10 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   void useGeometry().value;
   const t = i18n.t.bind(i18n);
   const { tone, tones, locked, toneReason, splitReason, split } = vm.options;
+  const recap = vm.options.recap ?? null;
   /** The bar's chips in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
   const STOPS: readonly StopId[] = acts
-    .flatMap((chip): StopId[] => (chip.group === LEAD ? [chip.id, ...tones.map((item): StopId => `tone:${item}`), 'split'] : [chip.id]))
+    .flatMap((chip): StopId[] => (chip.group === LEAD ? [chip.id, ...tones.map((item): StopId => `tone:${item}`), 'split', ...(recap === null ? [] : ['recap-tick'])] : [chip.id]))
     .concat('more', ...windows.map((chip) => chip.id));
 
   const buttons = (): HTMLElement[] => [...(bar.current?.querySelectorAll<HTMLElement>('.cg-act') ?? [])];
@@ -350,6 +351,19 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
                   onClick={() => run({ type: 'SetSplit', split: !split })}
                   {...stopProps('split')}
                 />
+                {recap === null ? null : (
+                  // Whether Reply, Ping and Coach of this chat read the fan's Recap; what each answer stood on is in its head.
+                  <StripButton
+                    label={t('recap.tick')}
+                    class="cg-opt cg-recap-tick"
+                    pressed={recap.on}
+                    reason={null}
+                    tooltip={t(recap.on ? 'recap.tick.onHint' : 'recap.tick.offHint')}
+                    leading={<CheckGlyph on={recap.on} />}
+                    onClick={() => run({ type: 'SetRecap', on: !recap.on })}
+                    {...stopProps('recap-tick')}
+                  />
+                )}
                 {locked ? <Icon name="lock" size={12} class="cg-lock" /> : null}
               </span>
             )}

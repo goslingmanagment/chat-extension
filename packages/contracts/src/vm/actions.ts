@@ -201,6 +201,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * stored. A new tab starts from the settings' «Split по умолчанию» (`generation.split`, SetPreference).
    */
   act('SetSplit', { split: z.boolean() }),
+  /**
+   * 1.48.0: «с Recap» of the open chat — Reply, Ping and Coach read the fan's Recap (true, the default) or not. For this
+   * tab's session, as Split; a Recap built in the chat ticks it again.
+   */
+  act('SetRecap', { on: z.boolean() }),
   act('InsertPart', { operationId: UuidSchema, variant, part }),
   /** Fix: the click is the consent for the revision Fix was made from (Б2). */
   act('ReplaceMyDraft', { operationId: UuidSchema, part }),

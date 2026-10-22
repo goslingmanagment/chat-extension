@@ -69,6 +69,8 @@ export interface RequestIdentity {
   readonly proofDigest?: string;
   /** Extra parameters of an injected site driver, as a fingerprint only. */
   readonly parametersDigest?: string;
+  /** 1.48.0: «с Recap» unticked (`StartOp.recap`) — another request than the same one with the Recap. Absent — ticked, the key as before. */
+  readonly recapOff?: true;
 }
 
 export interface IdentityInputs {
@@ -120,6 +122,7 @@ export function requestIdentityOf({ session, start, persona, archiveHead }: Iden
     coachDigest: start.coach === undefined ? null : stableDigest(start.coach),
     checkpoint: start.checkpoint === undefined ? null : checkpointIdentity(start.checkpoint),
     ...(start.proof === undefined ? {} : { proofDigest: proofDigestOf(start.proof) }),
+    ...(start.recap === undefined ? {} : { recapOff: true }),
   };
 }
 

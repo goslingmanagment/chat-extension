@@ -105,9 +105,11 @@ function metaOf(ws: AiWorkspace, record: OpRecord, result: OpResult | undefined,
     if (longest > 1) meta.push(msg('result.meta.partsEach', { n: longest }));
   }
   // What the answer stood on, as the hub says it (a Reply's or a Ping's dossier — the latest saved full Recap):
-  // «с Recap · 3 д назад». Nothing when the fan has none or the hub did not say: most chats have no Recap.
+  // «с Recap · 3 д назад». Nothing when the fan has none or the hub did not say: most chats have no Recap. «с Recap»
+  // unticked says so: «Recap выключен».
   const recap = view.recapsUsed?.full ?? null;
   if (recap !== null) meta.push(msg('result.meta.recap', { age: { age: recap } }));
+  else if (view.recapsUsed?.off === true) meta.push(msg('result.meta.recapOff'));
   return meta;
 }
 

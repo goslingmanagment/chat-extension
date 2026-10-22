@@ -28,7 +28,7 @@
 // window (Spenders, «Новые») opens.
 
 import { TONES, type FeatureId } from '@cg/contracts/features';
-import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
+import { RECAP_OFF_CAPABILITY, chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { type AnyActiveOpSummary } from '@cg/contracts/ops';
 import {
   DOCK_ACTION_IDS,
@@ -353,6 +353,14 @@ export function createDockController(ws: AiWorkspace): DockController {
     const mode = situation.copyOnly === null ? 'insert' : 'copy-only';
     const composer = situation.host.composer;
     const focusPart = partFocus.next(result, mode, composer, chat !== null && composer !== null && chatKeyOf(composer.chat) === chat.key);
+    // «с Recap»: where the hub can leave the Recap out, while the fan has one (a copy, the hub's status, or an answer
+    // that stood on the dossier) — or it is unticked, so it can be ticked again.
+    const ready = situation.ready;
+    const recapOn = chat === null ? true : ws.recapOn(chat.key);
+    const recapTick =
+      chat !== null && ready !== null && ready.bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY) && (!recapOn || hasRecapCopy(ready) || (shown?.view.recapsUsed?.full ?? null) !== null)
+        ? { on: recapOn }
+        : null;
     return {
       view: viewOf(ws, situation),
       // A conversation the page never named past the grace shows the strip, all off, and why (audit 2026-10-20 №15).
@@ -379,6 +387,7 @@ export function createDockController(ws: AiWorkspace): DockController {
         splitReason: lockReason,
         toneHotkey: catalog.entry('tone').hotkey,
         splitHotkey: catalog.entry('split').hotkey,
+        recap: recapTick,
       },
       actions: actionVms,
       // The bar's chips as data: what has a chip on this site, in the manifest's order (`dockChips`, domain/features/admission.ts).
@@ -585,6 +594,12 @@ export function createDockController(ws: AiWorkspace): DockController {
       // AI-009: Split is frozen while a generation runs in the open chat.
       if (chat !== null && ws.running(chat.key) !== null) return Promise.resolve(done(action.type, 'noop'));
       ws.setSplit(action.split);
+      return Promise.resolve(done(action.type));
+    },
+    SetRecap(action) {
+      const chat = ws.situation().chat;
+      if (chat === null) return Promise.resolve(done(action.type, 'noop'));
+      ws.setRecapOn(chat.key, action.on);
       return Promise.resolve(done(action.type));
     },
     ChoosePersona(action) {

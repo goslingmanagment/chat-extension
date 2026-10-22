@@ -266,6 +266,8 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   personalMessageCount: z.optional(CountSchema),
   /** FX-018: same schema as the old clientContext avatar; the hub forwards it as an image, never fetches it. */
   fanAvatarUrl: z.optional(HiFanAvatarUrlSchema),
+  /** 1.48.0: «с Recap» unticked for the chat (`StartOp.recap`) — only to a hub that lists `recap-off-v1`. */
+  recap: z.optional(z.literal('off')),
 });
 export type AiFeatureStreamBody = z.infer<typeof AiFeatureStreamBodySchema>;
 

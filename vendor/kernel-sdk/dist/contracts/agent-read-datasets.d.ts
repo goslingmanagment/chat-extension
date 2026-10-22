@@ -332,6 +332,9 @@ export declare const AGENT_DATASETS: {
             readonly firstSeenAt: "timestamp";
             readonly lastSeenAt: "timestamp";
             readonly lifetimeSpendMills: "mills";
+            readonly accountLookupMissAt: "timestamp";
+            readonly accountCheckedAt: "timestamp";
+            readonly accountContactability: "string";
         };
         readonly defaultSort: {
             readonly field: "lastSeenAt";

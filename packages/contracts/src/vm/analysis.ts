@@ -79,6 +79,8 @@ export interface RecapViewVM {
   readonly blocks: readonly { readonly heading: string; readonly markdown: string }[] | null;
   readonly generatedAt: IsoTimestamp | null;
   readonly saved: HubSaveVM;
+  /** 1.48.0: «с Recap» of the chat is unticked — Reply, Ping and Coach do not read this Recap now. Absent — they do. */
+  readonly unread?: boolean;
   readonly stamp: RecapStampVM;
   /** «После Recap ещё 2 сообщения»: the fan or the chatter wrote after it; null — not behind. */
   readonly archiveLag: { readonly messages: number | null } | null;
@@ -192,8 +194,11 @@ export interface CoachTurnVM {
   readonly stale?: ResultMarkVM | null;
   /** 1.15.0 (R20 P8c): «Ещё раз» of a marked answer — the turn's question asked again; null — no mark, or no chat to ask in. */
   readonly again?: ActionButtonVM | null;
-  /** 1.46.0: the Recaps the hub put into this answer — when each was made, null — none; null or absent — the hub did not say. */
-  readonly recapsUsed?: { readonly full: IsoTimestamp | null; readonly short: IsoTimestamp | null } | null;
+  /**
+   * 1.46.0: the Recaps the hub put into this answer — when each was made, null — none; null or absent — the hub did not
+   * say. 1.48.0: `off` — none, because «Учитывать Recap» was unticked.
+   */
+  readonly recapsUsed?: { readonly full: IsoTimestamp | null; readonly short: IsoTimestamp | null; readonly off?: boolean | undefined } | null;
 }
 
 export interface CoachVM {
@@ -216,6 +221,11 @@ export interface CoachVM {
   readonly autoRecapNext: 'short' | 'full' | null;
   /** 1.46.0: how many of the chat's latest messages Coach reads (its window); null — not known yet. */
   readonly window: number | null;
+  /**
+   * 1.48.0: «Учитывать Recap» of this chat — the same tick as the dock's «с Recap» (`SetRecap`): false — the next
+   * question goes without the Recaps. Absent or null — no tick: the hub cannot leave them out.
+   */
+  readonly recapOn?: boolean | null;
   /** A Recap of this chat is being built (from the topbar's «Собрать Recap», the strip or a turn's auto-recap step): «Recap собирается…». */
   readonly recapRunning?: boolean;
   readonly turns: readonly CoachTurnVM[];

@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "56068ced14f588bb556dd277bdb997f38419830dae0122776a99837454310e38",
-    "sourceCommit": "a303e0b77340b24313728f18c0e5448ec9e3c9a5",
-    "note": "Vendored on 2026-10-22 from hub main a303e0b7 (#746), deployed on agency-de, with scripts/vendor-sdk.mjs: adds the AI stream body's liveImages and the live-images-v1 capability. Re-vendor with the same script and update this pin together."
+    "contractHash": "e4987d274e038f05ea22d56ced50ac66e5b550e1d0871a1ddf949d9ff9185c25",
+    "sourceCommit": "0bb3611d716007f15a4a5128545719ce8f258cb1",
+    "note": "Vendored on 2026-10-23 from hub #760 (recap-off), with scripts/vendor-sdk.mjs: adds the AI stream body's recap: 'off' and the recap-off-v1 capability. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

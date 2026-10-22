@@ -319,6 +319,11 @@ export const StartOpSchema = z
     /** Bypass the result cache (Regenerate, Refresh). */
     force: z.optional(z.boolean()),
     /**
+     * 1.48.0: «с Recap» is unticked in this chat — the generation reads no Recap of the fan (hub `recap: 'off'`, sent
+     * to a hub that lists `recap-off-v1`). Never on a Recap build: a build switches it back on.
+     */
+    recap: z.optional(z.literal('off')),
+    /**
      * 1.20.0 (decision X47): the fan as the starting surface already names them (the site's header or memory, the
      * hub's page alias of a board row) — for the refusal list, the toasts and the pages' «Идут сейчас». Display only:
      * not part of the request's identity, never sent to the hub, never logged.
@@ -337,6 +342,7 @@ export const StartOpSchema = z
       message: 'photos only on Reply, Fix and Coach where fresh text may go',
     }),
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),
+    z.refine((op) => op.recap === undefined || (op.feature !== 'recap' && op.feature !== 'recap-short'), { message: 'a Recap build reads no Recap switch' }),
     z.refine((op) => op.feature !== 'fix' || op.draft !== undefined, { message: 'fix needs the draft' }),
     z.refine((op) => op.variantCount === undefined || op.feature === 'hi', { message: 'variantCount only for hi' }),
     z.refine((op) => op.tone === null || op.feature === 'reply', { message: 'a tone belongs to reply only (§8.4 replyTone)' }),
@@ -674,9 +680,10 @@ export const OpViewSchema = z.strictObject({
   /**
    * 1.46.0: the Recaps the hub put into this generation's prompt, as its meta frame says (`attachedRecaps`): Coach's
    * full and short ones; a Reply's or a Ping's dossier — the latest saved full Recap — as `full`. Each is when that
-   * Recap was made; null — none went in. Absent — the hub did not say.
+   * Recap was made; null — none went in. Absent — the hub did not say. 1.48.0: `off` — none went in because the start
+   * asked so (`StartOp.recap`, «с Recap» unticked).
    */
-  recapsUsed: z.optional(z.strictObject({ full: z.nullable(IsoTimestampSchema), short: z.nullable(IsoTimestampSchema) })),
+  recapsUsed: z.optional(z.strictObject({ full: z.nullable(IsoTimestampSchema), short: z.nullable(IsoTimestampSchema), off: z.optional(z.literal(true)) })),
   /** The operation's own evidence survives a reload. An older result without it is unverified. */
   freshnessProof: z.optional(z.strictObject({
     windowSize: z.number().check(z.int(), z.minimum(1), z.maximum(COVERAGE_CHECK_LIMITS.windowMax)),

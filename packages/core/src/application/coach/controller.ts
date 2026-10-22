@@ -22,7 +22,7 @@
 
 import { type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
+import { RECAP_OFF_CAPABILITY, chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { type COACH_BLOCK_KINDS } from '@cg/contracts/ops';
 import {
   type ActionButtonVM,
@@ -275,7 +275,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     // first; a status that cannot be read is no reason to build one — the question then goes right away.
     const mode = ready.settings.generation.coach.autoRecap;
     let recap: 'short' | 'full' | null = null;
-    if (mode !== 'off' && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
+    // «Учитывать Recap» unticked: a Recap the question would not read is not built for it either.
+    const recapOn = ws.recapOn(chatKeyOf(ready.target.chat));
+    if (mode !== 'off' && recapOn && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
       // The depth a full recap is built at takes the person's deep window the site keeps (R20 §12): one built at it is no stale one.
       const [read, extended] = await Promise.all([ws.recaps.readStatus(ws.slotKey(ready)), ws.windows()]);
       // The person left the chat while the status was read: nothing is started for another fan.
@@ -577,6 +579,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const hints: CoachHintGroupVM[] = emptyDialog ? HINT_GROUPS.map((group) => ({ label: msg(group.label), questions: group.questions.map((key) => ({ label: msg(key), question: i18n.t(key) })) })) : [];
 
     const autoRecap = ready?.settings.generation.coach.autoRecap ?? ws.env.settings?.settings.generation.coach.autoRecap ?? 'off';
+    // «Учитывать Recap»: the dock's «с Recap» of the chat, where the hub can leave the Recaps out.
+    const recapOn = ready === null || !ready.bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY) ? null : ws.recapOn(chatKeyOf(ready.target.chat));
     const composer = situation.host.composer;
     const draftEmpty = composer === null || composer.draft.provenance === 'empty';
     // «Обновить переписку» reads the archive feed: the PAGE's own `preview` feature (the owner's switch and what
@@ -598,8 +602,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       recaps,
       recapRunning,
       window: ready === null ? null : windowFor('coach', undefined, ready.settings, ready.bootstrap),
-      // Before the first question of a session only; a page without Recap builds none (AI-096).
-      autoRecapNext: emptyDialog && session?.autoRecapAttempted !== true && ready !== null && flagUsable(ready.bootstrap, ready.page.pageId, 'recap') ? autoRecapAhead(autoRecap, slots, clock.now()) : null,
+      recapOn,
+      // Before the first question of a session only; a page without Recap builds none (AI-096), nor an unticked chat.
+      autoRecapNext: emptyDialog && session?.autoRecapAttempted !== true && ready !== null && recapOn !== false && flagUsable(ready.bootstrap, ready.page.pageId, 'recap') ? autoRecapAhead(autoRecap, slots, clock.now()) : null,
       turns,
       historyLimit,
       chips,
