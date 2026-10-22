@@ -31,6 +31,8 @@ export const JOURNAL_KEPT_STRING_KEYS: ReadonlySet<string> = new Set([
   'source', 'groupId', 'startWitnessId', 'automatedIds',
   // claims and custody
   'action', 'attemptId', 'instanceId', 'leaseToken', 'purpose', 'generationRef', 'evidence', 'reason',
+  // voice notes (1.46.0): the source generation of a take (its script stays a length)
+  'sourceGenerationRef',
   // reads
   'cursor', 'period', 'scope', 'sortBy', 'sortDir', 'retentionStatus', 'from', 'to', 'date', 'timeZone',
   // ingest envelope, acceptance and health payloads (health codes and metric names)

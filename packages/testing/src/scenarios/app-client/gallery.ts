@@ -23,7 +23,7 @@ import { dock, dockOutsideChat } from './dock';
 import { entry, type ScenarioViewEntry } from './fake-app-client';
 import { board, newcomers, defaultNewcomerRows, preview, stats } from './lists';
 import { debugPrompt, journal, options, popup } from './pages';
-import { cheatsheet, coach, coachTurn, fanPanel, palette, quickJump, recapPicker, recapView, review, toasts, toast } from './panels';
+import { cheatsheet, coach, coachTurn, fanPanel, palette, quickJump, recapPicker, recapView, review, toasts, toast, voiceStudio } from './panels';
 
 /** Every selector the UI can ask for (one token for the prompt page). */
 export const ALL_SELECTORS: readonly ViewSelector[] = VIEW_NAMES.flatMap((of): ViewSelector[] => {
@@ -72,6 +72,7 @@ const EMPTY_KEY: Partial<Record<ViewSelector['of'], I18nKey>> = {
   options: 'common.empty',
   'debug-prompt': 'common.empty',
   journal: 'common.empty',
+  voice: 'voice.empty.title',
 };
 
 const COVERAGE_GAPS = (ctx: ScenarioCtx): PartialGap[] => [
@@ -160,6 +161,8 @@ export function galleryEntry(ctx: ScenarioCtx, selector: ViewSelector, state: Vm
       return entry(selector, debugPrompt(ctx, view));
     case 'journal':
       return entry(selector, journal(ctx, selector.journal, view));
+    case 'voice':
+      return entry(selector, voiceStudio(ctx, view));
   }
 }
 
