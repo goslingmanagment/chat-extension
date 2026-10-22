@@ -579,6 +579,7 @@ export declare const clientSpenderStatsTierSchema: z.ZodObject<{
     members: z.ZodNumber;
     windowPayers: z.ZodNumber;
     windowGrossMills: z.ZodNumber;
+    windowNetMills: z.ZodNumber;
 }, z.core.$strip>;
 export declare const clientSpenderStatsResponseSchema: z.ZodObject<{
     pageLabel: z.ZodString;
@@ -648,6 +649,7 @@ export declare const clientSpenderStatsResponseSchema: z.ZodObject<{
         members: z.ZodNumber;
         windowPayers: z.ZodNumber;
         windowGrossMills: z.ZodNumber;
+        windowNetMills: z.ZodNumber;
     }, z.core.$strip>>;
     silence: z.ZodObject<{
         d8to21: z.ZodObject<{
@@ -1900,6 +1902,7 @@ export declare const clientRouteSchemas: {
                     members: z.ZodNumber;
                     windowPayers: z.ZodNumber;
                     windowGrossMills: z.ZodNumber;
+                    windowNetMills: z.ZodNumber;
                 }, z.core.$strip>>;
                 silence: z.ZodObject<{
                     d8to21: z.ZodObject<{

@@ -12308,6 +12308,145 @@ export declare const creatorStatsOverviewResponseSchema: z.ZodObject<{
         updatedAt: z.ZodString;
     }, z.core.$strip>>;
 }, z.core.$strip>;
+/** The media plane (0293) over the last `days` UTC days: the page's media by
+ *  views in the window, each tied to the post that carries it. */
+export declare const creatorStatsContentResponseSchema: z.ZodObject<{
+    page: z.ZodObject<{
+        label: z.ZodString;
+        platform: z.ZodEnum<{
+            fansly: "fansly";
+            onlyfans: "onlyfans";
+        }>;
+    }, z.core.$strip>;
+    window: z.ZodObject<{
+        fromDay: z.ZodString;
+        toDay: z.ZodString;
+        days: z.ZodNumber;
+    }, z.core.$strip>;
+    media: z.ZodArray<z.ZodObject<{
+        mediaOfferId: z.ZodString;
+        mediaType: z.ZodNullable<z.ZodNumber>;
+        durationMs: z.ZodNullable<z.ZodNumber>;
+        postId: z.ZodNullable<z.ZodString>;
+        postedAt: z.ZodNullable<z.ZodString>;
+        caption: z.ZodNullable<z.ZodString>;
+        views: z.ZodNullable<z.ZodNumber>;
+        forYouViews: z.ZodNullable<z.ZodNumber>;
+        timelineViews: z.ZodNullable<z.ZodNumber>;
+        otherViews: z.ZodNullable<z.ZodNumber>;
+        videoViews: z.ZodNullable<z.ZodNumber>;
+        completedViews: z.ZodNullable<z.ZodNumber>;
+        watchMs: z.ZodNullable<z.ZodNumber>;
+        watchPctSum: z.ZodNullable<z.ZodNumber>;
+        likes: z.ZodNullable<z.ZodNumber>;
+        allTimeViews: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const creatorStatsMediaParamsSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    mediaOfferId: z.ZodString;
+}, z.core.$strip>;
+export declare const creatorStatsMediaResponseSchema: z.ZodObject<{
+    mediaOfferId: z.ZodString;
+    window: z.ZodObject<{
+        fromDay: z.ZodString;
+        toDay: z.ZodString;
+        days: z.ZodNumber;
+    }, z.core.$strip>;
+    daily: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        source: z.ZodNumber;
+        views: z.ZodNullable<z.ZodNumber>;
+        videoViews: z.ZodNullable<z.ZodNumber>;
+        completedViews: z.ZodNullable<z.ZodNumber>;
+        watchMs: z.ZodNullable<z.ZodNumber>;
+        uniqueViewers: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    hourly: z.ZodArray<z.ZodObject<{
+        hour: z.ZodString;
+        source: z.ZodNumber;
+        views: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    retention: z.ZodArray<z.ZodObject<{
+        source: z.ZodNumber;
+        sampleSize: z.ZodNullable<z.ZodNumber>;
+        capturedDay: z.ZodString;
+        points: z.ZodArray<z.ZodObject<{
+            percent: z.ZodNumber;
+            stillWatching: z.ZodNumber;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    tags: z.ZodArray<z.ZodObject<{
+        tag: z.ZodString;
+        source: z.ZodNumber;
+        views: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/** The audience plane (0294) over the last `days` UTC days. */
+export declare const creatorStatsAudienceResponseSchema: z.ZodObject<{
+    page: z.ZodObject<{
+        label: z.ZodString;
+        platform: z.ZodEnum<{
+            fansly: "fansly";
+            onlyfans: "onlyfans";
+        }>;
+    }, z.core.$strip>;
+    window: z.ZodObject<{
+        fromDay: z.ZodString;
+        toDay: z.ZodString;
+        days: z.ZodNumber;
+    }, z.core.$strip>;
+    countries: z.ZodArray<z.ZodObject<{
+        country: z.ZodString;
+        source: z.ZodNumber;
+        views: z.ZodNullable<z.ZodNumber>;
+        watchMs: z.ZodNullable<z.ZodNumber>;
+        profileVisits: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    countriesCoveredDays: z.ZodNumber;
+    tags: z.ZodNullable<z.ZodObject<{
+        fromDay: z.ZodString;
+        toDay: z.ZodString;
+        rows: z.ZodArray<z.ZodObject<{
+            tag: z.ZodString;
+            source: z.ZodNumber;
+            views: z.ZodNullable<z.ZodNumber>;
+            videoViews: z.ZodNullable<z.ZodNumber>;
+            completedViews: z.ZodNullable<z.ZodNumber>;
+            liftPoints: z.ZodNullable<z.ZodNumber>;
+            liftAvailable: z.ZodNullable<z.ZodBoolean>;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    activeHours: z.ZodNullable<z.ZodObject<{
+        fromDay: z.ZodString;
+        toDay: z.ZodString;
+        cells: z.ZodArray<z.ZodObject<{
+            source: z.ZodNumber;
+            weekday: z.ZodNumber;
+            hour: z.ZodNumber;
+            views: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    benchmarks: z.ZodNullable<z.ZodObject<{
+        fromDay: z.ZodString;
+        toDay: z.ZodString;
+        rows: z.ZodArray<z.ZodObject<{
+            source: z.ZodNumber;
+            lengthBucket: z.ZodNumber;
+            minMs: z.ZodNullable<z.ZodNumber>;
+            maxMs: z.ZodNullable<z.ZodNumber>;
+            mediaCount: z.ZodNullable<z.ZodNumber>;
+            avgWatchPercent: z.ZodNullable<z.ZodNumber>;
+            completionRate: z.ZodNullable<z.ZodNumber>;
+            videoViews: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    mediaShown: z.ZodArray<z.ZodObject<{
+        hour: z.ZodString;
+        source: z.ZodNumber;
+        mediaShown: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
 export declare const statsTrafficQuerySchema: z.ZodObject<{
     from: z.ZodString;
     to: z.ZodString;
@@ -17815,6 +17954,274 @@ declare const baseRouteSchemas: {
                     oldestCapturedAt: z.ZodNullable<z.ZodString>;
                     newestCapturedAt: z.ZodNullable<z.ZodString>;
                     updatedAt: z.ZodString;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly creatorStatsContent: {
+        readonly auth: {
+            readonly kind: "owner-session";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["insights"];
+        readonly summary: "Fansly's 2026-10 media statistics of one page: its media by views in the window, with their posts";
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+            to: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                page: z.ZodObject<{
+                    label: z.ZodString;
+                    platform: z.ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                    }>;
+                }, z.core.$strip>;
+                window: z.ZodObject<{
+                    fromDay: z.ZodString;
+                    toDay: z.ZodString;
+                    days: z.ZodNumber;
+                }, z.core.$strip>;
+                media: z.ZodArray<z.ZodObject<{
+                    mediaOfferId: z.ZodString;
+                    mediaType: z.ZodNullable<z.ZodNumber>;
+                    durationMs: z.ZodNullable<z.ZodNumber>;
+                    postId: z.ZodNullable<z.ZodString>;
+                    postedAt: z.ZodNullable<z.ZodString>;
+                    caption: z.ZodNullable<z.ZodString>;
+                    views: z.ZodNullable<z.ZodNumber>;
+                    forYouViews: z.ZodNullable<z.ZodNumber>;
+                    timelineViews: z.ZodNullable<z.ZodNumber>;
+                    otherViews: z.ZodNullable<z.ZodNumber>;
+                    videoViews: z.ZodNullable<z.ZodNumber>;
+                    completedViews: z.ZodNullable<z.ZodNumber>;
+                    watchMs: z.ZodNullable<z.ZodNumber>;
+                    watchPctSum: z.ZodNullable<z.ZodNumber>;
+                    likes: z.ZodNullable<z.ZodNumber>;
+                    allTimeViews: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly creatorStatsMedia: {
+        readonly auth: {
+            readonly kind: "owner-session";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["insights"];
+        readonly summary: "Fansly's 2026-10 statistics of one media offer: days by surface, last hours, retention, tags";
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            mediaOfferId: z.ZodString;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+            to: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                mediaOfferId: z.ZodString;
+                window: z.ZodObject<{
+                    fromDay: z.ZodString;
+                    toDay: z.ZodString;
+                    days: z.ZodNumber;
+                }, z.core.$strip>;
+                daily: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    source: z.ZodNumber;
+                    views: z.ZodNullable<z.ZodNumber>;
+                    videoViews: z.ZodNullable<z.ZodNumber>;
+                    completedViews: z.ZodNullable<z.ZodNumber>;
+                    watchMs: z.ZodNullable<z.ZodNumber>;
+                    uniqueViewers: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                hourly: z.ZodArray<z.ZodObject<{
+                    hour: z.ZodString;
+                    source: z.ZodNumber;
+                    views: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                retention: z.ZodArray<z.ZodObject<{
+                    source: z.ZodNumber;
+                    sampleSize: z.ZodNullable<z.ZodNumber>;
+                    capturedDay: z.ZodString;
+                    points: z.ZodArray<z.ZodObject<{
+                        percent: z.ZodNumber;
+                        stillWatching: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                tags: z.ZodArray<z.ZodObject<{
+                    tag: z.ZodString;
+                    source: z.ZodNumber;
+                    views: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly creatorStatsAudience: {
+        readonly auth: {
+            readonly kind: "owner-session";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["insights"];
+        readonly summary: "Fansly's 2026-10 audience statistics of one page: countries, tags, active hours, benchmarks, media shown";
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+            to: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                page: z.ZodObject<{
+                    label: z.ZodString;
+                    platform: z.ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                    }>;
+                }, z.core.$strip>;
+                window: z.ZodObject<{
+                    fromDay: z.ZodString;
+                    toDay: z.ZodString;
+                    days: z.ZodNumber;
+                }, z.core.$strip>;
+                countries: z.ZodArray<z.ZodObject<{
+                    country: z.ZodString;
+                    source: z.ZodNumber;
+                    views: z.ZodNullable<z.ZodNumber>;
+                    watchMs: z.ZodNullable<z.ZodNumber>;
+                    profileVisits: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                countriesCoveredDays: z.ZodNumber;
+                tags: z.ZodNullable<z.ZodObject<{
+                    fromDay: z.ZodString;
+                    toDay: z.ZodString;
+                    rows: z.ZodArray<z.ZodObject<{
+                        tag: z.ZodString;
+                        source: z.ZodNumber;
+                        views: z.ZodNullable<z.ZodNumber>;
+                        videoViews: z.ZodNullable<z.ZodNumber>;
+                        completedViews: z.ZodNullable<z.ZodNumber>;
+                        liftPoints: z.ZodNullable<z.ZodNumber>;
+                        liftAvailable: z.ZodNullable<z.ZodBoolean>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                activeHours: z.ZodNullable<z.ZodObject<{
+                    fromDay: z.ZodString;
+                    toDay: z.ZodString;
+                    cells: z.ZodArray<z.ZodObject<{
+                        source: z.ZodNumber;
+                        weekday: z.ZodNumber;
+                        hour: z.ZodNumber;
+                        views: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                benchmarks: z.ZodNullable<z.ZodObject<{
+                    fromDay: z.ZodString;
+                    toDay: z.ZodString;
+                    rows: z.ZodArray<z.ZodObject<{
+                        source: z.ZodNumber;
+                        lengthBucket: z.ZodNumber;
+                        minMs: z.ZodNullable<z.ZodNumber>;
+                        maxMs: z.ZodNullable<z.ZodNumber>;
+                        mediaCount: z.ZodNullable<z.ZodNumber>;
+                        avgWatchPercent: z.ZodNullable<z.ZodNumber>;
+                        completionRate: z.ZodNullable<z.ZodNumber>;
+                        videoViews: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                mediaShown: z.ZodArray<z.ZodObject<{
+                    hour: z.ZodString;
+                    source: z.ZodNumber;
+                    mediaShown: z.ZodNullable<z.ZodNumber>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -35774,6 +36181,9 @@ export type StatsTrafficQuery = z.infer<typeof statsTrafficQuerySchema>;
 export type StatsTrafficResponse = z.infer<typeof statsTrafficResponseSchema>;
 export type CreatorStatsOverviewQuery = z.infer<typeof creatorStatsOverviewQuerySchema>;
 export type CreatorStatsOverviewResponse = z.infer<typeof creatorStatsOverviewResponseSchema>;
+export type CreatorStatsContentResponse = z.infer<typeof creatorStatsContentResponseSchema>;
+export type CreatorStatsMediaResponse = z.infer<typeof creatorStatsMediaResponseSchema>;
+export type CreatorStatsAudienceResponse = z.infer<typeof creatorStatsAudienceResponseSchema>;
 export type StatsMediaQuery = z.infer<typeof statsMediaQuerySchema>;
 export type StatsMediaResponse = z.infer<typeof statsMediaResponseSchema>;
 export type StatsTagsQuery = z.infer<typeof statsTagsQuerySchema>;
