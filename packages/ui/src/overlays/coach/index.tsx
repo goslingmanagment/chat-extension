@@ -1,7 +1,8 @@
 // @cg/ui/overlays/coach — the Coach window (ui-design §3.7, §4.19, §10;
-// decision X63: the old Fansly extension's Coach — a 720 px window centred
-// over the chat on a flat scrim, the owner's ruling of 2026-10-19; it replaces
-// the 320 px side panel of §9.1 (б)). AI-080…AI-100.
+// decision X63: the old Fansly extension's Coach — a window centred over the
+// chat on a flat scrim, the owner's ruling of 2026-10-19; it replaces the
+// 320 px side panel of §9.1 (б)). 860 px wide since 2026-10-23 (the owner: «мб
+// пошире коача в целом»), 720 before. AI-080…AI-100.
 // The session of the open chat from `CoachVM`, laid out as the old window:
 // the head (the micro-caps «Coach» over the fan's name; «Новый диалог» and ×),
 // the topbar (what Coach reads: the fan's Recap — «☑ Учитывать Recap · 3 д
@@ -87,8 +88,12 @@ const unsent = new Map<string, string>();
 /** How many chats keep an unasked question. */
 export const UNSENT_QUESTIONS_MAX = 50;
 
-/** The window: as wide as the old one, top-inset, at most this share of the window's height and never taller (X63). */
-export const COACH_WINDOW = { width: 720, heightShare: 0.84, maxHeight: 860, inset: 20 } as const;
+/**
+ * The window: top-inset, at most this share of the window's height and never taller (X63); never wider than the browser's
+ * window less the inset at each side. 860 px since 2026-10-23 (720 before, as the old one): a Review's blocks and the
+ * drafts take the width; prose keeps the measure it had (`proseMax`), so its lines do not grow long.
+ */
+export const COACH_WINDOW = { width: 860, proseMax: 640, heightShare: 0.84, maxHeight: 860, inset: 20 } as const;
 
 /**
  * Drops every unasked question. For the composition root when the person
@@ -672,7 +677,7 @@ export const COACH_CSS = `
 ${overlayRootCss('coach', 'panel')}
 ${/* The old window's scrim: flat, no blur; a press on it closes Coach as Esc does. */ ''}
 .cg-co-scrim { position: fixed; inset: 0; background: var(--cg-scrim); }
-${/* The window: 720 px over the middle of the host's container, 20 px from its top, a fixed height whose feed scrolls. */ ''}
+${/* The window: 860 px over the middle of the host's container — never wider than the browser's window less 20 px at each side —, 20 px from its top, a fixed height whose feed scrolls. */ ''}
 .cg-coach {
   --cg-co-half: min(${COACH_WINDOW.width / 2}px, calc(50vw - ${COACH_WINDOW.inset}px));
   position: fixed; top: ${COACH_WINDOW.inset}px; translate: -50% 0; container: cg / inline-size;
@@ -729,6 +734,8 @@ ${/* ── the conversation: a log of its own that scrolls; questions right, an
 .cg-co__a { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 .cg-co__a > * { max-width: 92%; }
 .cg-co__a > .cg-co__drafts, .cg-co__a > .cg-card, .cg-co__a > .cg-co__debug { align-self: stretch; max-width: none; }
+${/* The answer's prose keeps the measure of the 720 px window: on the wider one its lines do not grow long; drafts and cards take the width. */ ''}
+.cg-co__a > .cg-co__bubble { max-width: min(92%, ${COACH_WINDOW.proseMax}px); }
 .cg-co__bubble { margin: 0; padding: 10px 12px; border-radius: 12px 12px 12px 4px; background: var(--cg-sunk); color: var(--cg-ink); font-size: var(--cg-text-base); line-height: 1.5; overflow-wrap: anywhere; min-width: 0; }
 .cg-co__q .cg-co__bubble { max-width: 82%; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--cg-clay-bg); line-height: 18px; white-space: pre-wrap; }
 .cg-co__with { display: inline-flex; align-items: center; gap: 4px; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); }
