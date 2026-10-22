@@ -42,6 +42,8 @@ export class StandState {
    * mark's race (a fan writing between the chat-list read and the history read).
    */
   readonly racingHistory = new Set<string>();
+  /** How long a history load past OnlyMonster's cache (`force=true`, our own read of the open chat) takes; 0 — at once. */
+  forcedHistoryDelayMs = 0;
   private readonly tokens = new Set<string>();
   private tokenSeq = 0;
   private messageSeq = 5_900_000_000;
@@ -60,6 +62,7 @@ export class StandState {
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.onlineFans.clear();
     this.racingHistory.clear();
+    this.forcedHistoryDelayMs = 0;
     this.scripts.clear();
     // Issued tokens stay valid: an open page keeps its session across a reset.
   }

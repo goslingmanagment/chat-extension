@@ -148,6 +148,17 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ read: true });
     return;
   }
+  // A history load past OnlyMonster's cache (`force=true`) answers this much later; 0 — at once.
+  if (path === '/__stand/forced-history-delay' && method === 'POST') {
+    const ms = typeof body['ms'] === 'number' && body['ms'] >= 0 && body['ms'] <= 60_000 ? body['ms'] : null;
+    if (ms === null) {
+      ok({ error: 'ms 0…60000' }, 400);
+      return;
+    }
+    state.forcedHistoryDelayMs = ms;
+    ok({ ms });
+    return;
+  }
   // The chat's next history load meets a fan message that came the same moment (the read mark's race).
   if (path === '/__stand/race-history' && method === 'POST') {
     const accountId = asString(body['accountId']);

@@ -193,6 +193,8 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
       return log(204, { accountId, chatId: fanId });
     }
     if (method === 'GET') {
+      // A load past OnlyMonster's cache asks OnlyFans live, and that takes its time (`/__stand/forced-history-delay`).
+      if (url.searchParams.get('force') === 'true' && state.forcedHistoryDelayMs > 0) await delay(state.forcedHistoryDelayMs);
       // A fan message that came the same moment as this load (`/__stand/race-history`): it is in the page, unread
       // before the load, and the load marks it read like the rest.
       if (state.racingHistory.delete(`${accountId}:${fanId}`)) {

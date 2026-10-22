@@ -151,6 +151,10 @@ export const standServer = {
   fanRead: async (accountId: string, fanId: string): Promise<void> => {
     await control('/__stand/fan-read', { body: { accountId, fanId } });
   },
+  /** A history load past OnlyMonster's cache (our own read of the open chat) answers `ms` later; 0 — at once. */
+  forcedHistoryDelay: async (ms: number): Promise<void> => {
+    await control('/__stand/forced-history-delay', { body: { ms } });
+  },
   /** The chat's next history load meets a fan message that came the same moment (the read mark's race). */
   raceHistory: async (accountId: string, fanId: string): Promise<void> => {
     await control('/__stand/race-history', { body: { accountId, fanId } });
