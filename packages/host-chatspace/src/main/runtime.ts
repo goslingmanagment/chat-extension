@@ -84,6 +84,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   let reader: Reader = createReader(doc, null);
   let composers: Composers | null = null;
   let routeEpoch = 0;
+  /** The open chat's own messages moved since the last `chatCache` went out (its `history`). */
+  let historyMoved = false;
   /** The route has stood at least one frame (§6.4 п. 1). */
   let settled = false;
   let settleTicket = 0;
@@ -495,8 +497,16 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       if (!read.fan || (key[1] !== undefined && key[1] !== read.acc)) return;
       const fan = read.fan;
       if (COMPOSER_KEYS.includes(head)) composerSoon();
-      // The open chat's history, its fan, its row of the list: the isolated side re-reads what it shows.
-      if ((head === KEY_MESSAGES && key[2] === fan) || head === KEY_FANS || head === KEY_CHAT_LIST) emit('chatCache', () => ({ acc: read.acc, fan }));
+      // The open chat's history, its fan, its row of the list: the isolated side re-reads what it shows. Whether the
+      // history itself moved rides along until the signal goes (the latest of a throttled run wins, so it is kept here).
+      if (head === KEY_MESSAGES && key[2] === fan) historyMoved = true;
+      if ((head === KEY_MESSAGES && key[2] === fan) || head === KEY_FANS || head === KEY_CHAT_LIST) {
+        emit('chatCache', () => {
+          const history = historyMoved;
+          historyMoved = false;
+          return { acc: read.acc, fan, history };
+        });
+      }
     }));
   });
 

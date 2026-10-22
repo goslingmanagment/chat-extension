@@ -476,7 +476,9 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       case 'chatCache': {
         const chat: ChatRef = { host: 'chatspace', hostAccountId: event.payload.acc, platformFanId: event.payload.fan };
         if (!sameChat(chat, route.chat)) return;
-        staleOpen(chat);
+        // Our read of the open chat is stale only when its own messages moved: the account's chat list and fans move
+        // with any fan's message, and a busy account would drop every read before a click could use it.
+        if (event.payload.history) staleOpen(chat);
         if (capability('chatWindow')) refreshWindow(chat);
         if (capability('fan')) refreshFan(chat, true);
         staleList(chat.hostAccountId);

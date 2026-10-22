@@ -86,6 +86,16 @@ describe('[X54] HostPort.openChatMessages — the open chat from ChatSpace’s A
     expect(reads()).toEqual([{ t: 'openChatMessages', payload: { acc: ACC, fan: OPEN, limit: 50 }, timeoutMs: OPEN_CHAT_LIMITS.bridgeMs }]);
   });
 
+  it('the account’s chat list or the fan moving keeps the page; the chat’s own messages drop it', async () => {
+    const { host, reads, emit } = await start(() => ({ ok: true, page: page(['9001']) }));
+    await host.openChatMessages?.(chatOf(OPEN), { limit: 10 });
+    emit({ t: 'chatCache', payload: { acc: ACC, fan: OPEN, history: false } });
+    expect(await host.openChatMessages?.(chatOf(OPEN), { limit: 10 })).toMatchObject({ ok: true, cached: true });
+    emit({ t: 'chatCache', payload: { acc: ACC, fan: OPEN, history: true } });
+    expect(await host.openChatMessages?.(chatOf(OPEN), { limit: 10 })).toMatchObject({ ok: true, cached: false });
+    expect(reads()).toHaveLength(2);
+  });
+
   it('a move to another chat: the old one is `not-open`, its page gone', async () => {
     const { host, reads, emit } = await start(() => ({ ok: true, page: page(['9001']) }));
     await host.openChatMessages?.(chatOf(OPEN), { limit: 10 });

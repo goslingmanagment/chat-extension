@@ -544,7 +544,7 @@ type ToMain =
 type FromMain =
   | { t: 'res'; id: number; ok: true; data: unknown } | { t: 'res'; id: number; ok: false; err: string }
   | { t: 'route'; route: RouteWire } | { t: 'accounts' } | { t: 'composer'; state: ComposerWire }
-  | { t: 'chatCache'; acc: NativeId; fan: NativeId }            // кэш открытого чата изменился
+  | { t: 'chatCache'; acc: NativeId; fan: NativeId; history: boolean } // кэш открытого чата изменился; history — его собственные сообщения
   | { t: 'contract'; missing: string[] }
   | { t: 'incoming'; acc: NativeId; fan: NativeId; msgId: NativeId; fromFan: boolean; automatic: boolean;
       tip: boolean; sentAt: string | null; socketEpoch: number; fanSequence: number }   // без текста

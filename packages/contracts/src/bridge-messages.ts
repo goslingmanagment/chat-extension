@@ -219,8 +219,11 @@ export const FROM_MAIN = {
   /** The accounts store changed; the isolated side asks `listAccounts`. */
   accounts: EmptySchema,
   composer: z.strictObject({ state: z.nullable(ComposerStateSchema) }),
-  /** The cache of the open chat changed. */
-  chatCache: z.strictObject(AccFan),
+  /**
+   * The cache of the open chat changed. `history` — its own messages did (else only its fan or the account's chat
+   * list, which moves with any fan's message): only then is our read of the open chat stale.
+   */
+  chatCache: z.strictObject({ ...AccFan, history: z.boolean() }),
   contract: ContractWireSchema,
   incoming: z.strictObject({
     ...AccFan,
