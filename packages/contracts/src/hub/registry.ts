@@ -38,7 +38,7 @@ import {
 import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
 import { AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
 import { PageFanParamsSchema, PageParamsSchema } from './wire';
-import { VoiceNoteAudioBytesSchema, VoiceNoteCreateRequestSchema, VoiceNoteRefSchema, VoiceNoteViewSchema } from '../voice';
+import { VoiceAllowanceQuerySchema, VoiceAllowanceSchema, VoiceNoteAudioBytesSchema, VoiceNoteCreateRequestSchema, VoiceNoteRefSchema, VoiceNoteViewSchema } from '../voice';
 
 export interface HubRouteSchemas {
   /** Path params + query or body as the facade takes them; null = the route takes nothing. */
@@ -75,4 +75,5 @@ export const HUB_ROUTE_SCHEMAS = {
   voiceNoteCreate: { request: VoiceNoteCreateRequestSchema, response: VoiceNoteViewSchema },
   voiceNoteStatus: { request: VoiceNoteRefSchema, response: VoiceNoteViewSchema },
   voiceNoteAudio: { request: VoiceNoteRefSchema, response: VoiceNoteAudioBytesSchema },
+  voiceNoteAllowance: { request: VoiceAllowanceQuerySchema, response: VoiceAllowanceSchema },
 } as const satisfies Record<HubRouteKey, HubRouteSchemas>;

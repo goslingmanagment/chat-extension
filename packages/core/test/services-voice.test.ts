@@ -3,11 +3,13 @@
 // itself; «Проверить» asks again with the same id; a refusal the hub said
 // spent nothing; the state is read until it settles; the MP3 is checked
 // before anyone gets it; a rewrite keeps what was paid for; a restart turns
-// an open create uncertain; another sign-in finds none of the sessions.
+// an open create uncertain; another sign-in finds none of the sessions; the
+// page's day allowance (1.49.0) is kept a few seconds and read again once a
+// take moves, and a failure of it is «not known».
 
 import { createHash } from 'node:crypto';
 
-import { type CgErrorWire, type HumanCause, type Target, type VoiceNoteView, type VoiceOpView, type VoiceScriptStartWire, type VoiceSession } from '@cg/contracts';
+import { type CgErrorWire, type HumanCause, type Target, type VoiceAllowance, type VoiceNoteView, type VoiceOpView, type VoiceScriptStartWire, type VoiceSession } from '@cg/contracts';
 import type { StartOutcome } from '@cg/core/services';
 import type { KeyValuePort, StorageResult } from '@cg/core/services';
 import { VOICE_SESSIONS_KEY, VoiceService, type VoiceFailure, type VoiceServiceDeps } from '@cg/core/services/voice';
@@ -37,6 +39,9 @@ const start = (over: Partial<VoiceScriptStartWire> = {}): VoiceScriptStartWire =
   draft: { text: 'miss you, want to hear my voice?', revision: 1, digest: DIGEST_LIKE },
   ...over,
 });
+
+/** The page's day as the hub says it: `remainingChars` left of 5000, renewed at the next UTC midnight. */
+const day = (remainingChars: number): VoiceAllowance => ({ scriptMaxChars: 600, dailyChars: 5_000, remainingChars, resetsAt: '2026-10-23T00:00:00.000Z' });
 
 const note = (over: Partial<VoiceNoteView> = {}): VoiceNoteView => ({
   voiceNoteId: 77,
@@ -87,12 +92,16 @@ interface World {
   readonly store: MemoryPort;
   readonly creates: { clientRequestId: string; script: string; fanRef?: string; storedAt: readonly VoiceSession[] }[];
   readonly statuses: number[];
+  /** The pages whose allowance the hub was asked for, in order. */
+  readonly allowanceReads: string[];
   readonly started: VoiceScriptStartWire[];
   readonly emitted: (VoiceSession | null)[];
-  readonly hub: { create: () => Promise<VoiceNoteView>; status: () => Promise<VoiceNoteView>; audio: () => Promise<ArrayBuffer> };
+  readonly hub: { create: () => Promise<VoiceNoteView>; status: () => Promise<VoiceNoteView>; audio: () => Promise<ArrayBuffer>; allowance: () => Promise<VoiceAllowance> };
   readonly views: Map<string, VoiceOpView>;
   owner: { hubOrigin: string; userId: number } | null;
   redeemable: boolean;
+  /** Called with each session the tabs are told of, after it is recorded. */
+  onEmit: ((session: VoiceSession | null) => void) | null;
   timers: (() => void)[];
   now: number;
   /** Runs the timers that are due (all of them: the service's pauses are short). */
@@ -110,17 +119,20 @@ function world(over: { store?: MemoryPort } = {}): World {
     store,
     creates: [],
     statuses: [],
+    allowanceReads: [],
     started: [],
     emitted: [],
     views: new Map(),
     owner: { hubOrigin: 'https://hub.example.test', userId: 7 },
     redeemable: true,
+    onEmit: null,
     timers: [],
     now: NOW,
     hub: {
       create: () => Promise.resolve(note()),
       status: () => Promise.resolve(note({ state: 'completed', billed: true, audioSha256: sha(MP3), audioBytesLen: MP3.byteLength })),
       audio: () => Promise.resolve(MP3.slice(0)),
+      allowance: () => Promise.resolve(day(1_400)),
     },
     service: null as unknown as VoiceService<string>,
     async tick() {
@@ -144,6 +156,10 @@ function world(over: { store?: MemoryPort } = {}): World {
         return w.hub.status();
       },
       audio: () => w.hub.audio(),
+      allowance: (query) => {
+        w.allowanceReads.push(query.pageLabel);
+        return w.hub.allowance();
+      },
     },
     failure: (error) => (error instanceof Failed ? error.read : { error: { code: 'CG-UNKNOWN' }, reached: 'unknown' }),
     page: (pageId) => Promise.resolve(pageId === PAGE.pageId ? { ok: true, page: PAGE } : { ok: false, code: 'CG-BINDING-NOT-GRANTED' }),
@@ -158,7 +174,10 @@ function world(over: { store?: MemoryPort } = {}): World {
       view: (opId) => w.views.get(opId) ?? null,
     },
     owner: () => w.owner,
-    emit: (change) => w.emitted.push(change.session),
+    emit: (change) => {
+      w.emitted.push(change.session);
+      w.onEmit?.(change.session);
+    },
     sha256: (bytes) => Promise.resolve(sha(bytes)),
     log: () => undefined,
   };
@@ -367,6 +386,82 @@ describe('voice notes in the background', () => {
     expect(edited).toMatchObject({ ok: true, session: { script: { edited: '[whispers] Hey you' } } });
     const back = await w.service.edit(TAB, session.sessionId, `  ${SCRIPT}\r\n`);
     expect(back).toMatchObject({ ok: true, session: { script: { edited: null } } });
+  });
+});
+
+describe('the page’s day allowance (1.49.0)', () => {
+  it('is kept a few seconds, then read again; reads at the same time share one request', async () => {
+    const w = world();
+    const [first, second] = await Promise.all([w.service.allowance(TAB, PAGE.pageId), w.service.allowance(TAB, PAGE.pageId)]);
+    expect([first, second]).toEqual([{ allowance: day(1_400) }, { allowance: day(1_400) }]);
+    expect(w.allowanceReads).toEqual([PAGE.pageLabel]);
+    w.now += 14_000;
+    w.hub.allowance = () => Promise.resolve(day(900));
+    expect(await w.service.allowance(TAB, PAGE.pageId)).toEqual({ allowance: day(1_400) });
+    w.now += 1_000;
+    expect(await w.service.allowance(TAB, PAGE.pageId)).toEqual({ allowance: day(900) });
+    expect(w.allowanceReads).toHaveLength(2);
+  });
+
+  it('a take the hub admits, refuses or settles moves the day: a tab told of it reads the hub’s new count', async () => {
+    const w = world();
+    const session = await withScript(w);
+    await w.service.allowance(TAB, PAGE.pageId);
+    // Admitted: a tab that reads the day as it hears of the take gets the hub's new count, not the one kept a moment ago.
+    const told: Promise<{ readonly allowance: VoiceAllowance | null }>[] = [];
+    w.onEmit = (changed) => {
+      if (changed?.takes[0]?.state === 'working') told.push(w.service.allowance(TAB, PAGE.pageId));
+    };
+    w.hub.allowance = () => Promise.resolve(day(1_400 - SCRIPT.length));
+    await w.service.take(TAB, session.sessionId, uuid(0x901), SCRIPT, CAUSE);
+    await flush();
+    w.onEmit = null;
+    expect(told).toHaveLength(1);
+    expect(await told[0]).toEqual({ allowance: day(1_400 - SCRIPT.length) });
+    expect(w.allowanceReads).toHaveLength(2);
+    // A status read that finds it still working moves nothing; the one that finds it ready does.
+    w.hub.status = () => Promise.resolve(note());
+    await w.tick();
+    await w.service.allowance(TAB, PAGE.pageId);
+    expect(w.allowanceReads).toHaveLength(2);
+    w.hub.status = () => Promise.resolve(note({ state: 'completed', billed: true, audioSha256: sha(MP3), audioBytesLen: MP3.byteLength }));
+    await w.tick();
+    expect(w.store.stored()[0]!.takes[0]!.state).toBe('ready');
+    await w.service.allowance(TAB, PAGE.pageId);
+    expect(w.allowanceReads).toHaveLength(3);
+    // A refusal spent nothing, yet says something of the day (another chatter may have spent it): read again too.
+    w.hub.create = () => Promise.reject(new Failed({ error: { code: 'CG-VOICE-QUOTA', httpStatus: 429 }, reached: 'refused' }));
+    await w.service.take(TAB, session.sessionId, uuid(0x902), SCRIPT, CAUSE);
+    await flush();
+    await w.service.allowance(TAB, PAGE.pageId);
+    expect(w.allowanceReads).toHaveLength(4);
+  });
+
+  it('an answer on its way when a take moves is not kept: the next read asks again', async () => {
+    const w = world();
+    const session = await withScript(w);
+    let answer: (value: VoiceAllowance) => void = () => undefined;
+    w.hub.allowance = () => new Promise((resolve) => (answer = resolve));
+    const before = w.service.allowance(TAB, PAGE.pageId);
+    await flush();
+    await w.service.take(TAB, session.sessionId, uuid(0x903), SCRIPT, CAUSE);
+    await flush();
+    answer(day(1_400));
+    expect(await before).toEqual({ allowance: day(1_400) });
+    w.hub.allowance = () => Promise.resolve(day(1_400 - SCRIPT.length));
+    expect(await w.service.allowance(TAB, PAGE.pageId)).toEqual({ allowance: day(1_400 - SCRIPT.length) });
+    expect(w.allowanceReads).toHaveLength(2);
+  });
+
+  it('a failure is «not known», kept like an answer; a page not the sender’s is never asked; nothing paid is asked by it', async () => {
+    const w = world();
+    w.hub.allowance = () => Promise.reject(new Failed({ error: { code: 'CG-HUB-REQUEST', httpStatus: 404 }, reached: 'refused' }));
+    expect(await w.service.allowance(TAB, PAGE.pageId)).toEqual({ allowance: null });
+    expect(await w.service.allowance(TAB, PAGE.pageId)).toEqual({ allowance: null });
+    expect(w.allowanceReads).toHaveLength(1);
+    expect(await w.service.allowance(TAB, 99)).toEqual({ allowance: null });
+    expect(w.allowanceReads).toHaveLength(1);
+    expect(w.creates).toHaveLength(0);
   });
 });
 

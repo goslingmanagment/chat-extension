@@ -4,14 +4,16 @@
 // on the right, each with its own player and waveform; one column on a narrow
 // composer. The footer holds the next step: «Озвучить» while no take of this
 // text is ready, «Прикрепить для …» once one is, «Ещё вариант» beside it.
-// What a click costs is said on the button itself.
+// What a click costs is said on the button itself; what the page may still
+// voice today (1.49.0), just before the buttons — above them where the row
+// has no room for it.
 
 import { type JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { VOICE_TAGS, type VoiceTag, type VoiceTone } from '@cg/contracts/voice';
-import { type VoiceAttachVM, type VoiceTakeVM, type VoiceVM } from '@cg/contracts/vm';
+import { type VoiceAllowanceVM, type VoiceAttachVM, type VoiceTakeVM, type VoiceVM } from '@cg/contracts/vm';
 
 import { ActionButton, Button, Caret, Dot, ElapsedTimer, ErrorCard, Icon, Segmented, Spinner, useDispatch, useI18n, useKit, useTooltip, useView, windowOf } from '../../kit';
 import { Head, HideButton } from '../Head';
@@ -563,17 +565,39 @@ function Leftover({ leftover }: { readonly leftover: VoiceAttachVM['leftover'] }
   );
 }
 
+/**
+ * What the page may still voice today, above «Озвучить»: a quiet line of what is left; amber with a ring when the
+ * script is longer than that or nothing is left. A warning only — the buttons stay as they are.
+ */
+function AllowanceLine({ allowance }: { readonly allowance: VoiceAllowanceVM }): JSX.Element {
+  const i18n = useI18n();
+  const chars = new Intl.NumberFormat(i18n.language).format(allowance.remaining);
+  const text =
+    allowance.state === 'out'
+      ? i18n.t('voice.allowance.out', { time: { time: allowance.resetsAt } })
+      : i18n.plural(allowance.state === 'short' ? 'voice.allowance.short' : 'voice.allowance.left', allowance.remaining, { chars });
+  return (
+    <div class={allowance.state === 'left' ? 'cg-voice__day' : 'cg-voice__day is-warn'} role="status">
+      {allowance.state === 'left' ? null : <Dot kind="ring" />}
+      <span class="cg-voice__day-t">{text}</span>
+    </div>
+  );
+}
+
 function Footer({ vm }: { readonly vm: VoiceVM }): JSX.Element | null {
-  if (vm.primary === null && vm.secondary === null && vm.restart === null && vm.again === null && vm.attach === null) return null;
+  if (vm.primary === null && vm.secondary === null && vm.restart === null && vm.again === null && vm.attach === null && vm.allowance === null) return null;
   return (
     <footer class="cg-voice__foot">
       {vm.attach === null ? null : <AttachLine attach={vm.attach} />}
       <div class="cg-voice__acts">
         {vm.restart === null ? null : <ActionButton vm={vm.restart} variant="quiet" class="cg-voice__restart" />}
         <span class="cg-voice__sp" />
-        {vm.again === null ? null : <ActionButton vm={vm.again} variant="quiet" />}
-        {vm.secondary === null ? null : <ActionButton vm={vm.secondary} variant="line" />}
-        {vm.primary === null ? null : <ActionButton vm={vm.primary} variant="line" class="cg-voice__go" />}
+        {vm.allowance === null ? null : <AllowanceLine allowance={vm.allowance} />}
+        <span class="cg-voice__btns">
+          {vm.again === null ? null : <ActionButton vm={vm.again} variant="quiet" />}
+          {vm.secondary === null ? null : <ActionButton vm={vm.secondary} variant="line" />}
+          {vm.primary === null ? null : <ActionButton vm={vm.primary} variant="line" class="cg-voice__go" />}
+        </span>
       </div>
     </footer>
   );

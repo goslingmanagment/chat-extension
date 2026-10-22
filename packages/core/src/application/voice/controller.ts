@@ -12,6 +12,11 @@
 // it with the site's own Send. Nothing here sends, and nothing paid or handed
 // over is repeated by itself: a take whose create was not answered, or a
 // handover that was not seen, waits for the person's own click.
+//
+// 1.49.0: the footer says what the page may still voice today (the hub's
+// `voiceNoteAllowance`, read when the studio opens and when a take moves), and
+// the editor counts to the hub's live cap of one script. A warning only: the
+// hub refuses a take over the limit itself and charges nothing.
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type AttachIntent, type AttachReceipt, type InsertReceipt } from '@cg/contracts/host';
@@ -21,7 +26,7 @@ import { type ActionButtonVM, type ActionReceipt, type Msg, type UiActionOf, typ
 
 import { windowFor } from '../../domain/features';
 import { buildOpenInsert } from '../../domain/insert/intent';
-import { canonicalVoiceScript, currentScriptText, takeIsStale, voiceScriptIssue, voiceSeconds, type VoiceScriptIssue } from '../../domain/voice';
+import { canonicalVoiceScript, currentScriptText, takeIsStale, voiceAllowanceLine, voiceScriptIssue, voiceScriptMax, voiceSeconds, type VoiceScriptIssue } from '../../domain/voice';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, errorVm, msg, views } from '../ai/view-models';
 import { type DeskUi } from '../ai/voice-desk';
@@ -150,12 +155,19 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       again: null,
       confirm: null,
       attach: null,
+      allowance: null,
     };
     if (now === null) return empty;
     const { chat, ready } = now;
     const handle = chat.handle;
     const ui = desk.ui(chat.key);
     const studio = ws.sheet(chat.key)?.kind === 'voice';
+    // The page's day: read once the studio is open (the chip's click reads it again), counted in the editor and said
+    // in the footer.
+    const pageId = ready.page.pageId;
+    if (studio) desk.ensureAllowance(pageId);
+    const allowance = desk.allowance(pageId);
+    const max = voiceScriptMax(allowance);
     const situation = ws.situation();
     const state = desk.session(ready.page.pageId, chat.conversationRef);
     if (state.state === 'loading') return { ...empty, view: views.loading(), open: studio, targetHandle: handle, fanName: situation.fanName };
@@ -177,16 +189,16 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
     let issue: VoiceScriptIssue | null = null;
     if (writing !== null) {
       const streamed = desk.streamText(writing.opId);
-      scriptVm = { text: streamed, streaming: true, edited: false, chars: streamed.length, max: VOICE_LIMITS.scriptChars, seconds: voiceSeconds(streamed.length), issue: null };
+      scriptVm = { text: streamed, streaming: true, edited: false, chars: streamed.length, max, seconds: voiceSeconds(streamed.length), issue: null };
     } else if (script !== null && text !== null) {
       const canonical = canonicalVoiceScript(text);
-      issue = voiceScriptIssue(canonical, VOICE_LIMITS.scriptChars);
+      issue = voiceScriptIssue(canonical, max);
       scriptVm = {
         text,
         streaming: false,
         edited: canonical !== canonicalVoiceScript(script.original),
         chars: canonical.length,
-        max: VOICE_LIMITS.scriptChars,
+        max,
         seconds: voiceSeconds(canonical.length),
         issue: issue === null ? null : issueMsg(issue),
       };
@@ -267,6 +279,7 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       again,
       confirm: confirmVm(session, ui, handle),
       attach: attachVm,
+      allowance: studio ? voiceAllowanceLine(allowance, stage === 'ready' ? (scriptVm?.chars ?? null) : null, clock.now()) : null,
     };
   }
 
@@ -524,6 +537,8 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
         if (state.state === 'ready' && state.session !== null) void desk.save(chat.key, state.session.sessionId);
         return done(action.type);
       }
+      // The page's day as the hub says it now (the background keeps it a few seconds), before the studio shows.
+      desk.readAllowance(ready.page.pageId);
       ws.setSheet(chat.key, { kind: 'voice' });
       desk.seen(chat.key);
       const ui = desk.ui(chat.key);

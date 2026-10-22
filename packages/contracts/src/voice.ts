@@ -53,6 +53,8 @@ export const VOICE_LIMITS = {
   slowMs: 45_000,
   /** Characters a second of speech, for «≈ N с». */
   charsPerSecond: 14,
+  /** 1.49.0: a page's day allowance is read from the hub again after this long (a free read; a take that moves reads it at once). */
+  allowanceTtlMs: 15_000,
 } as const;
 
 /**
@@ -293,3 +295,23 @@ export type VoiceNoteRef = z.infer<typeof VoiceNoteRefSchema>;
 
 /** The audio route answers bytes, not JSON: the registry's marker of that answer (the caller checks sha256 and length). */
 export const VoiceNoteAudioBytesSchema = z.custom<ArrayBuffer>((value) => value instanceof ArrayBuffer && value.byteLength > 0 && value.byteLength <= VOICE_LIMITS.audioMaxBytes);
+
+// ── the day's allowance (1.49.0; `voiceNoteAllowance`) ───────────────────────
+
+/**
+ * What a page may still voice today, as the hub counts it (`voiceNoteAllowance`, a free read): the live cap of one
+ * script, the page's day budget, what a create could reserve now — the smaller of the page's and the whole hub's day
+ * budget left, never below 0 — and when the day (UTC) renews. The studio says it beside «Озвучить»; the hub still
+ * decides every create (`voice_quota_denied` charges nothing).
+ */
+export const VoiceAllowanceSchema = z.strictObject({
+  scriptMaxChars: z.int().check(z.gte(1)),
+  dailyChars: CountSchema,
+  remainingChars: CountSchema,
+  resetsAt: IsoTimestampSchema,
+});
+export type VoiceAllowance = z.infer<typeof VoiceAllowanceSchema>;
+
+/** The allowance of a page, as the facade takes it. */
+export const VoiceAllowanceQuerySchema = z.strictObject({ pageLabel: boundedText(120) });
+export type VoiceAllowanceQuery = z.infer<typeof VoiceAllowanceQuerySchema>;

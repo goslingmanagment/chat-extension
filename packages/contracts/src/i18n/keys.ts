@@ -383,6 +383,8 @@ export const UI_TEXT_KEYS = [
   'voice.confirm.working', 'voice.confirm.question', 'voice.confirm.yes', 'voice.reason.writing',
   'voice.reason.noScript', 'voice.reason.issue', 'voice.reason.working', 'voice.reason.attachOff', 'voice.reason.takesFull',
   'voice.reason.attaching',
+  // 1.49.0: the day's allowance beside «Озвучить» (the left and short lines are plural keys).
+  'voice.allowance.out',
   // ── end of the extension pages ──
 ] as const;
 export type UiTextKey = (typeof UI_TEXT_KEYS)[number];
@@ -407,6 +409,8 @@ export const UI_PLURAL_KEYS = [
   'preview.media.count', 'preview.media.previews',
   // 1.35.0 (X61)
   'popup.site.reloadBody',
+  // 1.49.0: what the page may still voice today; `{chars}` is the count as the studio prints it, the form follows `n`.
+  'voice.allowance.left', 'voice.allowance.short',
 ] as const;
 export type UiPluralKey = (typeof UI_PLURAL_KEYS)[number];
 

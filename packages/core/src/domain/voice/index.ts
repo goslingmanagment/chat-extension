@@ -1,6 +1,7 @@
 // Voice notes, the pure rules (1.47.0; contracts voice.ts): what the hub will
 // take as a script, how a take reads the hub's view of its note, what an MP3
-// looks like, how long a script sounds. No clock, no storage, no hub.
+// looks like, how long a script sounds, and (1.49.0) what the studio says of
+// the page's day allowance. No clock, no storage, no hub.
 //
 // The script's canonical form and its checks are the hub's own law
 // (hub voice-script-validation.ts): NFC, CRLF → LF, trimmed; at most the
@@ -8,7 +9,7 @@
 // tags. The studio says what the hub would refuse before the paid click.
 
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
-import { VOICE_LIMITS, VOICE_TAGS, type VoiceNoteView, type VoiceSession, type VoiceTake, type VoiceTakeState } from '@cg/contracts/voice';
+import { VOICE_LIMITS, VOICE_TAGS, type VoiceAllowance, type VoiceNoteView, type VoiceSession, type VoiceTake, type VoiceTakeState } from '@cg/contracts/voice';
 
 /** NFC-normalised, CRLF folded to LF, trimmed: the bytes the hub hashes, checks and voices. */
 export function canonicalVoiceScript(raw: string): string {
@@ -92,6 +93,48 @@ export function takeMayMove(from: VoiceTakeState, to: VoiceTakeState): boolean {
   // An uncertain take may turn out to be anything the hub says; a creating one too.
   if (from === 'creating' || from === 'uncertain') return true;
   return RANK[to] > RANK[from] || (from === 'ready' && to === 'expired');
+}
+
+/**
+ * A take of the same session left `creating` (the hub answered its create) or `working` (it settled): what the hub
+ * counts of the page's day has moved, so its allowance is read again (1.49.0).
+ */
+export function voiceTakesMoved(before: Pick<VoiceSession, 'sessionId' | 'takes'> | null, after: Pick<VoiceSession, 'sessionId' | 'takes'> | null): boolean {
+  if (before === null || after === null || before.sessionId !== after.sessionId) return false;
+  return after.takes.some((take) => {
+    const was = before.takes.find((candidate) => candidate.takeId === take.takeId);
+    return was !== undefined && was.state !== take.state && (was.state === 'creating' || was.state === 'working');
+  });
+}
+
+// ── the day's allowance (1.49.0) ─────────────────────────────────────────────
+
+/** The cap of one script the editor counts to: the hub's live one, else its default; never past the wire's own bound. */
+export function voiceScriptMax(allowance: Pick<VoiceAllowance, 'scriptMaxChars'> | null): number {
+  return Math.min(allowance?.scriptMaxChars ?? VOICE_LIMITS.scriptChars, VOICE_LIMITS.scriptMaxChars);
+}
+
+/** What the studio says of the day beside «Озвучить» (VoiceAllowanceVM). */
+export interface VoiceAllowanceLine {
+  readonly state: 'left' | 'short' | 'out';
+  readonly remaining: number;
+  readonly resetsAt: string;
+}
+
+/**
+ * The line beside «Озвучить» from the hub's allowance: nothing left — `out`, whatever the studio holds; a script to
+ * voice longer than what is left — `short`; otherwise what is left (`left`). null — nothing to say: the allowance is
+ * not known, its day is over (it is read again), or there is no script to voice and something is left. A warning
+ * only: the hub decides every take.
+ */
+export function voiceAllowanceLine(allowance: Pick<VoiceAllowance, 'remainingChars' | 'resetsAt'> | null, scriptChars: number | null, now: number): VoiceAllowanceLine | null {
+  if (allowance === null) return null;
+  const resets = Date.parse(allowance.resetsAt);
+  if (!Number.isFinite(resets) || now >= resets) return null;
+  const remaining = Math.max(0, allowance.remainingChars);
+  if (remaining === 0) return { state: 'out', remaining, resetsAt: allowance.resetsAt };
+  if (scriptChars === null) return null;
+  return { state: scriptChars > remaining ? 'short' : 'left', remaining, resetsAt: allowance.resetsAt };
 }
 
 // ── MP3 ──────────────────────────────────────────────────────────────────────

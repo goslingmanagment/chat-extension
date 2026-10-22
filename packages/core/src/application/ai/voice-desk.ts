@@ -4,14 +4,16 @@
 // `op.update` batches), the checked MP3 of a ready take once the studio asks
 // for it, and what only this tab knows — the take the person chose, their
 // text while they type, a handover into the field, a question asked in the
-// studio, the takes that got ready while nobody looked (the chip's dot).
+// studio, the takes that got ready while nobody looked (the chip's dot) —
+// and (1.49.0) what the page may still voice today, read when the studio
+// opens and again when a take of the page moves.
 // The chip of the dock and the studio both read it, so it lives with the
 // workspace, not with one controller.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
-import { type VoiceSession, type VoiceTone, type VoiceWriteResult } from '@cg/contracts/voice';
-import { base64ToBytes } from '../../domain/voice';
+import { type VoiceAllowance, type VoiceSession, type VoiceTone, type VoiceWriteResult } from '@cg/contracts/voice';
+import { base64ToBytes, voiceTakesMoved } from '../../domain/voice';
 import { type AiPorts } from './ports';
 
 /** A session of a chat as the tab knows it: `loading` until the first read answers. */
@@ -53,6 +55,10 @@ const SESSIONS_KEPT = 16;
 const AUDIO_KEPT = 12;
 /** The person's text is stored this long after the last keystroke. */
 export const VOICE_EDIT_SAVE_MS = 600;
+/** A day's allowance is dropped this long after its day ends (the hub's clock and ours differ a little). */
+const ALLOWANCE_DAY_SLACK_MS = 1_000;
+/** No timer waits longer than this for a day to end (an answer that names a far reset is read again by then). */
+const ALLOWANCE_TIMER_MAX_MS = 25 * 60 * 60 * 1000;
 
 const sessionKey = (pageId: number, conversationRef: string): string => `${String(pageId)}:${conversationRef}`;
 
@@ -71,6 +77,12 @@ export class VoiceDesk {
   private readonly audios = new Map<string, DeskAudio>();
   private readonly uis = new Map<ChatKey, DeskUi>();
   private readonly saveTimers = new Map<string, unknown>();
+  /** 1.49.0: the pages' day allowances as the background last said (null — not known), by pageId. */
+  private readonly allowances = new Map<number, VoiceAllowance | null>();
+  /** The pages whose allowance is being read; `again` — a take moved meanwhile, so it is read once more after. */
+  private readonly allowanceReads = new Map<number, { again: boolean }>();
+  /** A kept allowance goes when its day ends. */
+  private readonly allowanceTimers = new Map<number, unknown>();
   private readonly offs: (() => void)[];
 
   constructor(private readonly deps: VoiceDeskDeps) {
@@ -95,6 +107,8 @@ export class VoiceDesk {
     for (const off of this.offs.splice(0)) off();
     for (const timer of this.saveTimers.values()) this.deps.ports.clock.clearTimer(timer);
     this.saveTimers.clear();
+    for (const timer of this.allowanceTimers.values()) this.deps.ports.clock.clearTimer(timer);
+    this.allowanceTimers.clear();
   }
 
   // ── sessions ─────────────────────────────────────────────────────────────
@@ -146,6 +160,8 @@ export class VoiceDesk {
         }
       }
     }
+    // A take that moved (the hub answered its create, or it settled) moved the page's day: the open studio reads it again.
+    if (voiceTakesMoved(previous, session) && this.deps.studioOpen(chatKey)) this.readAllowance(pageId);
     // A session that went (another tab's «Новый войс») takes this tab's state of it along.
     if (session === null || previous?.sessionId !== session.sessionId) {
       const ui = this.uis.get(chatKey);
@@ -181,6 +197,66 @@ export class VoiceDesk {
     if (open !== null && open.key === chatKey && open.conversationRef === conversationRef) return open.pageId;
     for (const [key, state] of this.sessions) if (state.state === 'ready' && state.session !== null && chatKeyOf(state.session.chat) === chatKey && key.endsWith(`:${conversationRef}`)) return state.session.pageId;
     return null;
+  }
+
+  // ── the day's allowance (1.49.0) ─────────────────────────────────────────
+
+  /** The page's day allowance as the background last said; null — not known (not read yet, an older hub, a failed read). */
+  allowance(pageId: number): VoiceAllowance | null {
+    return this.allowances.get(pageId) ?? null;
+  }
+
+  /** The studio of the page is open and its allowance was never read (the studio opened before this tab knew it): reads it. */
+  ensureAllowance(pageId: number): void {
+    if (!this.allowances.has(pageId) && !this.allowanceReads.has(pageId)) this.readAllowance(pageId);
+  }
+
+  /**
+   * Asks the background for the page's allowance (its short cache, or the hub): when the studio opens, when a take of
+   * the page moves, when the kept one's day ends. One read of a page at a time; one asked meanwhile follows it — the
+   * take that moved may be newer than the answer on its way. A failure is «not known», never an error of the studio.
+   */
+  readAllowance(pageId: number): void {
+    const reading = this.allowanceReads.get(pageId);
+    if (reading !== undefined) {
+      reading.again = true;
+      return;
+    }
+    this.allowanceReads.set(pageId, { again: false });
+    const done = (allowance: VoiceAllowance | null): void => {
+      const again = this.allowanceReads.get(pageId)?.again === true;
+      this.allowanceReads.delete(pageId);
+      this.keepAllowance(pageId, allowance);
+      if (again) this.readAllowance(pageId);
+    };
+    void this.deps.ports.rpc.request('voice.allowance', { pageId }).then(
+      (answer) => done(answer.ok ? answer.payload.allowance : null),
+      () => done(null),
+    );
+  }
+
+  private keepAllowance(pageId: number, allowance: VoiceAllowance | null): void {
+    const { clock } = this.deps.ports;
+    const timer = this.allowanceTimers.get(pageId);
+    if (timer !== undefined) clock.clearTimer(timer);
+    this.allowanceTimers.delete(pageId);
+    this.allowances.set(pageId, allowance);
+    // Once its day ends, what was left of it no longer holds: it goes, and an open studio of the page reads the new day.
+    // An answer whose day is already over here (a clock ahead of the hub's) shows nothing and is not read again by itself.
+    const left = allowance === null ? Number.NaN : Date.parse(allowance.resetsAt) - clock.now();
+    if (Number.isFinite(left) && left > 0) {
+      this.allowanceTimers.set(
+        pageId,
+        clock.setTimer(Math.min(left + ALLOWANCE_DAY_SLACK_MS, ALLOWANCE_TIMER_MAX_MS), () => {
+          this.allowanceTimers.delete(pageId);
+          this.allowances.delete(pageId);
+          const open = this.deps.openChat();
+          if (open !== null && open.pageId === pageId && this.deps.studioOpen(open.key)) this.readAllowance(pageId);
+          this.deps.changed();
+        }),
+      );
+    }
+    this.deps.changed();
   }
 
   // ── this tab's state of a chat ───────────────────────────────────────────

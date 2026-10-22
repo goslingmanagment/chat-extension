@@ -97,3 +97,18 @@ export const VOICE_OP_VIEW_FIXTURES = {
 } as const;
 
 export const voiceAudio = { mime: 'audio/mpeg', base64: 'SUQz', sha256: SHA, bytes: 3 } as const;
+
+/** 1.49.0: the day's allowance of a page (`voiceNoteAllowance`). */
+export const voiceAllowance = { scriptMaxChars: 600, dailyChars: 5000, remainingChars: 1400, resetsAt: '2026-10-04T00:00:00.000Z' } as const;
+export const VOICE_ALLOWANCE_FIXTURES = {
+  valid: [voiceAllowance, { ...voiceAllowance, remainingChars: 0 }, { ...voiceAllowance, dailyChars: 0, remainingChars: 0, resetsAt: '2026-10-04T00:00:00Z' }],
+  invalid: [
+    // The hub clamps what is left at 0; a script's cap is at least one character.
+    { ...voiceAllowance, remainingChars: -1 },
+    { ...voiceAllowance, scriptMaxChars: 0 },
+    { ...voiceAllowance, remainingChars: 14.5 },
+    { ...voiceAllowance, resetsAt: 'tomorrow' },
+    { ...voiceAllowance, spentChars: 3600 },
+    { scriptMaxChars: 600, dailyChars: 5000, remainingChars: 1400 },
+  ],
+} as const;
