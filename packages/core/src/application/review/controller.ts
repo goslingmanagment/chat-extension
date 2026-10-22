@@ -17,13 +17,13 @@
 // keeps it; «Ещё раз» rates anew where the Review stands (the window or the
 // sheet), the next start or reopen opens the window again.
 
-import { type I18nKey } from '@cg/contracts/errors';
+import { type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { chatKeyOf } from '@cg/contracts/ids';
 import { COVERAGE_LEVELS, type CoverageLevel, type ReviewDoc } from '@cg/contracts/ops';
 import { type ActionReceipt, type Msg, type PartialGap, type ReviewItemVM, type ReviewSectionVM, type ReviewVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { flagRefusal, flagStateOf, isTerminalOpState } from '../../domain/ops';
-import { streamPreview } from '../../domain/output';
+import { reviewRawText, reviewTags, streamPreview } from '../../domain/output';
 import { analysisMark } from '../../domain/recap';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
@@ -39,9 +39,6 @@ const SECTION_TITLES: Readonly<Record<ReviewSectionVM['kind'], I18nKey>> = {
   works: 'review.section.works',
   recommendations: 'review.section.recommendations',
 };
-
-/** «Сделан только что» for this long after the review ended. */
-const JUST_MADE_MS = 60_000;
 
 const itemVm = (item: ReviewDoc['sections'][number]['items'][number]): ReviewItemVM => ({ body: item.body, example: item.fix, exampleWhere: item.fixWhere, afterExample: item.afterFix });
 
@@ -65,29 +62,43 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
    * one whose persona this tab does not know, is never shown as the current
    * one (AI-126); the same click reopens a cached review of this persona.
    */
-  function current(): OpRecord | null {
+  function reviews(): OpRecord[] {
     const chat = ws.situation().chat;
-    if (chat === null) return null;
-    return (
-      ws.ops.ofChat(chat.key).find((record) => {
-        if (record.view.feature !== 'review' || record.view.state === 'canceled') return false;
-        const persona = record.memo.personaDefinitionId;
-        return persona !== null && persona === ws.env.assignedDefinition(record.view.target.binding.pageId);
-      }) ?? null
-    );
+    if (chat === null) return [];
+    return ws.ops.ofChat(chat.key).filter((record) => {
+      if (record.view.feature !== 'review' || record.view.state === 'canceled') return false;
+      const persona = record.memo.personaDefinitionId;
+      return persona !== null && persona === ws.env.assignedDefinition(record.view.target.binding.pageId);
+    });
   }
+
+  function current(): OpRecord | null {
+    return reviews()[0] ?? null;
+  }
+
+  const failure = (record: OpRecord | null): CgErrorWire | undefined => {
+    const view = record?.view;
+    if (view === undefined) return undefined;
+    return view.state === 'failed' ? view.error : view.state === 'interrupted' ? (view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : undefined;
+  };
 
   function build(): ReviewVM {
     const situation = ws.situation();
     const { chat, ready } = situation;
     const now = clock.now();
-    const record = current();
+    const all = reviews();
+    // The newest one: what the window, «Скрыть» and «Ещё раз» are about.
+    const newest = all[0] ?? null;
+    const newestFailed = failure(newest);
+    // A newer Review that failed does not take the earlier good one off the screen: it stays, «Не обновилось» under it.
+    const earlier = newestFailed === undefined ? null : (all.find((record) => record.view.state === 'done' && record.view.result?.kind === 'review') ?? null);
+    const record = earlier ?? newest;
     const view = record?.view ?? null;
     const running = view !== null && !isTerminalOpState(view.state);
     const result = view?.state === 'done' && view.result?.kind === 'review' ? view.result : null;
     const doc = result?.doc ?? null;
-    const expanded = view !== null && ws.isExpanded(view.opId);
-    const wire = view === null ? undefined : view.state === 'failed' ? view.error : view.state === 'interrupted' ? (view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : undefined;
+    const expanded = newest !== null && ws.isExpanded(newest.view.opId);
+    const wire = earlier === null ? failure(record) : undefined;
 
     // What the review was built from: the served head of its generation (context_v1).
     const head = view?.servedContext?.servedHead ?? null;
@@ -117,35 +128,39 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
     const window = result !== null && context !== null ? { messages: context.windowServed } : null;
     const targetName = chat === null ? null : situation.fanName;
     const meta: Msg[] = window !== null && targetName !== null ? [msg('review.meta', { n: window.messages, name: targetName })] : [];
+    const debugOn = ws.env.settings?.settings.debug.enabled ?? false;
+    // Its age ticks in the UI («Сделан 5 мин назад»); the archive's moment is a debug fact, nothing to act on.
     const facts: Msg[] = [];
-    if (result !== null && view?.endedAt !== undefined) facts.push(now - view.endedAt < JUST_MADE_MS ? msg('review.madeNow') : msg('recap.madeAgo', { age: { age: view.endedAt } }));
-    if (result !== null && head !== null) facts.push(msg('review.archiveAsOf', { time: { time: head.at } }));
+    if (debugOn && result !== null && head !== null) facts.push(msg('review.archiveAsOf', { time: { time: head.at } }));
 
     const chatBusy = chat !== null && ws.running(chat.key) !== null;
     const reason = ws.offReason(situation) ?? (chatBusy ? catalog.reason('chat-busy') : null);
     // Without a review yet (or without a chat) the button has nothing to repeat and is off.
     const again: UiAction =
-      view !== null ? { type: 'Regenerate', operationId: view.opId } : chat !== null ? { type: 'Generate', targetHandle: chat.handle, feature: 'review', options: {} } : { type: 'ReloadView', selector: { of: 'review' } };
+      newest !== null ? { type: 'Regenerate', operationId: newest.view.opId } : chat !== null ? { type: 'Generate', targetHandle: chat.handle, feature: 'review', options: {} } : { type: 'ReloadView', selector: { of: 'review' } };
     const preview = running && view.text !== undefined ? streamPreview('review', view.text) : '';
-    const debugOn = ws.env.settings?.settings.debug.enabled ?? false;
     return {
       view: state,
       opId: view?.opId ?? null,
       state: view?.state ?? null,
       phase: view === null ? null : phaseVm(view, now),
       streamText: preview.length > 0 ? preview : null,
-      rating: doc?.rating ?? null,
+      // An answer whose frame does not read keeps its score when its <rating> does (AI-052).
+      rating: doc?.rating ?? (result === null ? null : reviewTags(result.raw).rating),
       window,
       targetName,
       meta,
       lead: doc === null ? null : doc.lead.length > 0 ? doc.lead : null,
       sections: doc === null ? [] : sectionsOf(doc),
-      raw: result?.raw ?? null,
+      // Shown as is when the frame does not read — without the frame's own tags.
+      raw: result === null ? null : reviewRawText(result.raw),
       // AI-052: no frame — the raw text is shown as it is.
       unparsed: result !== null && doc === null,
       copyHandle: result === null || view === null ? null : artifactHandle({ kind: 'review', opId: view.opId }),
       regenerate: button('common.again', again, { enabled: reason === null && chat !== null, reason, hotkey: reason === null ? featureHotkey(catalog, 'review') : null }),
+      generatedAt: result === null || view?.endedAt === undefined ? null : new Date(view.endedAt).toISOString(),
       facts,
+      refreshFailed: earlier === null || newestFailed === undefined || newest === null ? null : { error: errorVm(newestFailed, i18n), retry: again },
       stamp: { asOf: head?.at ?? null, coverage },
       splitReason: catalog.reason('not-a-message'),
       expanded,

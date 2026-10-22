@@ -1,9 +1,9 @@
 // Recap text (architecture.md §10.1 «Markdown разбирается один раз, по
 // готовому результату», AI-069, AI-137). The answer is prepared once, on
-// `done`: reasoning removed, line ends normalised. A full Recap is also cut
-// into its headed blocks for the two-column sheet («Кто он», «Что любит»…);
-// a short one stays one paragraph. Recap is never a message to the fan: no
-// Split, no markers, nothing insertable.
+// `done`: reasoning removed, line ends normalised. A Recap of either length is
+// also cut into its headed blocks («Кто», «Траты»… of the short one, «Досье»…
+// of the full one); a text with fewer than two headings stays one text. Recap
+// is never a message to the fan: no Split, no markers, nothing insertable.
 
 import { type UiTextKey } from '@cg/contracts/i18n/keys';
 
@@ -47,9 +47,9 @@ export function recapHeadingOf(line: string): string | null {
 }
 
 /**
- * The headed blocks of a full Recap, or null when the text has fewer than
- * two headings (it is then shown as one text). Text before the first
- * heading becomes a block without a heading.
+ * The headed blocks of a Recap, or null when the text has fewer than two
+ * headings (it is then shown as one text). Text before the first heading
+ * becomes a block without a heading (shown without a heading line).
  */
 export function recapBlocks(markdown: string): RecapBlock[] | null {
   const blocks: { heading: string; lines: string[] }[] = [];
@@ -80,10 +80,31 @@ export const RECAP_SECTION_KEYS = {
   money: 'recap.section.money',
   openLoops: 'recap.section.openLoops',
   strategy: 'recap.section.strategy',
+  // The short Recap's sections (the hub's short fan-summary prompt: WHO … NEXT MOVE; the old client's summary-markdown.ts).
+  who: 'recap.section.who',
+  spend: 'recap.section.spend',
+  triggers: 'recap.section.triggers',
+  boundaries: 'recap.section.boundaries',
+  threads: 'recap.section.threads',
+  nextMove: 'recap.section.nextMove',
 } as const satisfies Readonly<Record<string, UiTextKey>>;
 
-/** The prompt's headings («1. DOSSIER» …, `templates.ts` FAN_SUMMARY_TEMPLATE) and the Russian a model may write instead. */
+/** The prompts' headings («1. DOSSIER» …, «WHO» …; `templates.ts` FAN_SUMMARY_TEMPLATE) and the Russian a model may write instead. */
 const SECTION_OF: Readonly<Record<string, keyof typeof RECAP_SECTION_KEYS>> = {
+  WHO: 'who',
+  'КТО': 'who',
+  'SPEND PATTERN': 'spend',
+  'ТРАТЫ': 'spend',
+  'ПАТТЕРН ТРАТ': 'spend',
+  TRIGGERS: 'triggers',
+  'ТРИГГЕРЫ': 'triggers',
+  BOUNDARIES: 'boundaries',
+  'ГРАНИЦЫ': 'boundaries',
+  'ACTIVE THREADS': 'threads',
+  'АКТИВНЫЕ НИТИ': 'threads',
+  'ОТКРЫТЫЕ НИТИ': 'threads',
+  'NEXT MOVE': 'nextMove',
+  'СЛЕДУЮЩИЙ ХОД': 'nextMove',
   DOSSIER: 'dossier',
   'ДОСЬЕ': 'dossier',
   'PSYCHOLOGICAL PORTRAIT': 'portrait',

@@ -59,14 +59,16 @@ interface RecapUi {
   /** The sheet's own id, for hide and expand while nothing else names it. */
   readonly sheetId: string;
   /**
-   * Decision X55: the full recap opens in the «Развернуть ↗» window, as the old Fansly extension's overlay showed it —
-   * when the person asks for it in the dock (⌘⇧S, the bar's button, «Полностью»); a build asked from there follows it
-   * (the picker's «Собрать полностью» of a recap asked for in full). «Свернуть» and «Скрыть» clear it, and a build from
-   * the sheet then stays in the sheet; the fan panel's Recap tab (`panel`) shows the recap itself and clears it too.
-   * The window shows only a full recap there is (saved or being built): the short one and an empty one with its build
-   * buttons stay in the sheet.
+   * Decision X55: a recap opens in the «Развернуть ↗» window, as the old Fansly extension's overlay showed it — when the
+   * person asks for it in the dock (⌘⇧S, the bar's button, «Полностью», «Развернуть ↗»); a build asked from there
+   * follows it. Since 2026-10-22 the short one too (the owner: «правь все»). «Свернуть» and «Скрыть» clear it, and a
+   * build or «Коротко» from the sheet then stays in the sheet; the fan panel's Recap tab (`panel`) shows the recap
+   * itself and clears it too. The window shows a recap there is (saved, being built, or a build that failed): an empty
+   * one with its build buttons stays in the sheet — unless the window is open already (`holds`).
    */
   window: boolean;
+  /** The window is open and stays for a length with nothing saved yet (its build buttons show there): «Коротко» in it must not close it. */
+  holds: boolean;
 }
 
 export interface RecapController extends AiController {
@@ -86,7 +88,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
   function uiOf(key: ChatKey): RecapUi {
     let ui = uis.get(key);
     if (ui === undefined) {
-      ui = { length: 'full', opId: null, sheetId: ids.uuid(), window: false };
+      ui = { length: 'full', opId: null, sheetId: ids.uuid(), window: false, holds: false };
       uis.set(key, ui);
       // The sheet state of the chats visited longest ago goes: a shift opens hundreds of chats.
       while (uis.size > RECAP_UI_CHATS_MAX) {
@@ -201,9 +203,12 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     const op = record !== null && record.view.state !== 'canceled' && isRecap(record.view.feature) && lengthOf(record.view.feature) === length ? record : null;
     const running = op !== null && !isTerminalOpState(op.view.state);
     const failed = op !== null && (op.view.state === 'failed' || op.view.state === 'interrupted');
-    const copy = running || failed ? null : slots[length];
+    // A failed build keeps the Recap saved at its length on screen: «Не обновилось» goes under it, never in its place.
+    const copy = running ? null : slots[length];
+    const failure = failed && op !== null ? (op.view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : null;
     const id = op?.view.opId ?? copy?.localId ?? ui?.sheetId ?? null;
-    const expanded = id !== null && (ws.isExpanded(id) || (ui?.window === true && length === 'full' && blocked === null && (copy !== null || running)));
+    const windowed = ui !== null && ui.window && (copy !== null || running || failed || ui.holds);
+    const expanded = id !== null && (ws.isExpanded(id) || (blocked === null && windowed));
 
     // The archive point this recap stands on: the served head of its generation, else the moment it was made.
     const head = op?.view.state === 'done' ? (op.view.servedContext?.servedHead ?? null) : null;
@@ -213,7 +218,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     let view: VmView;
     if (blocked !== null) view = blocked;
     else if (running && op !== null) view = views.loading(op.view.startedAt, null);
-    else if (failed && op !== null) view = views.error(errorVm(op.view.error ?? { code: 'CG-OP-INTERRUPTED' }, i18n), { type: 'RefreshRecap', length });
+    else if (failure !== null && copy === null) view = views.error(errorVm(failure, i18n), { type: 'RefreshRecap', length });
     else if (copy === null) {
       const read = key === null ? null : book.read(key);
       if (read === null || read.state === 'loading') view = views.loading(read?.at ?? null, msg('recap.checking'));
@@ -249,8 +254,9 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       blocks: copy?.blocks?.map((block) => (block.heading === '' ? block : { heading: recapHeadingText(block.heading, (key) => i18n.t(key)), markdown: block.markdown })) ?? null,
       generatedAt: copy?.revision ?? null,
       saved: saveVm(copy),
-      stamp: { asOf: point?.at ?? null, coverage: copy?.coverage.level ?? 'unknown' },
+      stamp: { asOf: point?.at ?? null, coverage: copy?.coverage.level ?? 'unknown', served: copy?.coverage.served ?? null },
       archiveLag: lag,
+      refreshFailed: failure === null || copy === null ? null : { error: errorVm(failure, i18n), retry: { type: 'RefreshRecap', length } },
       copyHandle: copy === null ? null : artifactHandle({ kind: 'recap', localId: copy.localId }),
       refresh: buildButton(situation, length, 'recap.refresh'),
       splitReason: catalog.reason('not-a-message'),
@@ -286,8 +292,9 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       ui.length = lengthOf(running.view.feature);
       ui.opId = running.view.opId;
     } else ui.opId = null;
-    // X55: the full one in its window.
-    ui.window = ui.length === 'full';
+    // X55: in its window, the short one as the full one (2026-10-22).
+    ui.window = true;
+    ui.holds = false;
     ws.setSheet(chat.key, { kind: 'recap' });
     return done(type, 'opened');
   }
@@ -302,7 +309,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     if (running !== null && isRecap(running.view.feature) && lengthOf(running.view.feature) === length) {
       ui.length = length;
       ui.opId = running.view.opId;
-      if (panel) ui.window = false;
+      if (panel) ui.window = ui.holds = false;
       ws.setSheet(chat.key, { kind: 'recap' });
       return done(type, 'noop', { opId: running.view.opId });
     }
@@ -320,7 +327,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       case 'started':
         ui.length = length;
         ui.opId = result.opId;
-        if (panel) ui.window = false;
+        if (panel) ui.window = ui.holds = false;
         ws.setSheet(chat.key, { kind: 'recap' });
         return done(type, 'started', { opId: result.opId });
       case 'refused':
@@ -350,11 +357,18 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       const { chat, ready } = ws.situation();
       if (chat === null) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
       const ui = uiOf(chat.key);
+      const shown = ws.sheet(chat.key)?.kind === 'recap';
+      // The window is open: the other length opens in it, even one with nothing saved yet (its build buttons show there).
+      const inWindow = shown && viewVm().expanded;
       ui.length = action.length;
-      ui.opId = null;
-      // X55: the full one in its window — asked in the dock; the fan panel shows it itself.
+      // A build of this length that runs is what it shows.
+      const running = ws.running(chat.key);
+      ui.opId = running !== null && isRecap(running.view.feature) && lengthOf(running.view.feature) === action.length ? running.view.opId : null;
+      // X55: in its window — asked in the dock (⌘⇧S, «Полностью»); the short one of a sheet the window was folded into
+      // stays in the sheet; the fan panel shows it itself.
       if (action.panel === true) ui.window = false;
-      else if (action.length === 'full') ui.window = true;
+      else if (!shown || inWindow || action.length === 'full') ui.window = true;
+      ui.holds = ui.window && inWindow;
       const key = ready === null ? null : ws.slotKey(ready);
       if (key !== null) book.loadShared(key);
       ws.setSheet(chat.key, { kind: 'recap' });
@@ -373,18 +387,23 @@ export function createRecapController(ws: AiWorkspace): RecapController {
         if (!shown) return Promise.resolve(done(action.type, 'noop'));
         const id = viewVm().opId;
         if (id !== null) ws.setExpanded(id, false);
-        uiOf(chat.key).window = false;
+        const ui = uiOf(chat.key);
+        ui.window = ui.holds = false;
         ws.setSheet(chat.key, null);
         return Promise.resolve(done(action.type));
       }
-      // A sheet that is already open keeps the length the person chose; one that opens now shows the full recap in its
+      // A sheet that is already open keeps the length the person chose; one that opens now shows its recap in the
       // window (X55) — `open` says so. «Свернуть» of the window asks for the sheet of the open one: it stays in the sheet.
       const opened = shown ? null : open(action.type, null);
       if (opened !== null && !opened.ok) return Promise.resolve(opened);
-      if (shown || action.mode === 'expanded') {
-        uiOf(chat.key).window = false;
+      const ui = uiOf(chat.key);
+      if (action.mode === 'expanded') {
+        // «Развернуть ↗»: the window follows what the sheet shows, a build started from it too.
+        ui.window = ui.holds = true;
+      } else if (shown) {
+        ui.window = ui.holds = false;
         const id = viewVm().opId;
-        if (id !== null) ws.setExpanded(id, action.mode === 'expanded');
+        if (id !== null) ws.setExpanded(id, false);
       }
       return Promise.resolve(done(action.type, 'opened'));
     },
@@ -406,14 +425,16 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     HideResult(action) {
       const chat = ws.situation().chat;
       if (chat === null || ws.sheet(chat.key)?.kind !== 'recap' || !sheetOwns(chat.key, action.operationId)) return null;
-      uiOf(chat.key).window = false;
+      const ui = uiOf(chat.key);
+      ui.window = ui.holds = false;
       ws.setSheet(chat.key, null);
       return Promise.resolve(done(action.type));
     },
     ExpandResult(action) {
       const chat = ws.situation().chat;
       if (chat === null || ws.sheet(chat.key)?.kind !== 'recap' || !sheetOwns(chat.key, action.operationId)) return null;
-      uiOf(chat.key).window = false;
+      const ui = uiOf(chat.key);
+      ui.window = ui.holds = action.expanded;
       ws.setExpanded(action.operationId, action.expanded);
       return Promise.resolve(done(action.type, action.expanded ? 'opened' : 'done'));
     },

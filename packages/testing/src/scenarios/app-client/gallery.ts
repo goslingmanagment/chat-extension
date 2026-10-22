@@ -151,7 +151,7 @@ export function galleryEntry(ctx: ScenarioCtx, selector: ViewSelector, state: Vm
     case 'cheatsheet':
       return entry(selector, cheatsheet(ctx, view));
     case 'toasts':
-      return entry(selector, toasts(view, state === 'ready' ? [toast(ctx, 'toast-info', 'info', { title: ctx.lang === 'ru' ? 'Recap сохранён в хаб' : 'Recap saved to the hub' })] : []));
+      return entry(selector, toasts(view, state === 'ready' ? [toast(ctx, 'toast-info', 'info', { title: ctx.lang === 'ru' ? 'Split включён: ответ придёт частями' : 'Split is on: the answer comes in parts' })] : []));
     case 'popup':
       return entry(selector, popup(ctx, view));
     case 'options':

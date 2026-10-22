@@ -95,15 +95,16 @@ export function parseReviewDoc(raw: string): ReviewDoc | null {
 
 /**
  * AI-054: what «Копировать» writes — the rating, the evaluation and the
- * recommendations as plain text without the XML frame; the raw answer when
- * the frame does not read.
+ * recommendations as plain text without the XML frame, the recommendations
+ * under their own header («Рекомендации:», as the old client's
+ * «Recommendations:»); the raw answer when the frame does not read.
  */
-export function reviewCopyText(raw: string): string {
+export function reviewCopyText(raw: string, recommendationsHeader: string): string {
   const tags = reviewTags(raw);
   const blocks: string[] = [];
   if (tags.rating !== null) blocks.push(`${tags.rating}/10`);
   if (tags.evaluation !== null && tags.evaluation.length > 0) blocks.push(tags.evaluation);
-  if (tags.recommendations !== null && tags.recommendations.length > 0) blocks.push(tags.recommendations);
+  if (tags.recommendations !== null && tags.recommendations.length > 0) blocks.push(`${recommendationsHeader}:\n${tags.recommendations}`);
   const formatted = blocks.join('\n\n').trim();
   return formatted.length > 0 ? formatted : raw.trim();
 }
@@ -115,6 +116,18 @@ export function reviewPreview(text: string): string {
     .replace(/<rating>[\s\S]*$/i, '')
     .replace(/<\/?(?:evaluation|recommendations)>/gi, '\n')
     .replace(/<\/?[a-z]*$/i, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * An answer whose frame does not read, as shown (AI-052): the frame's tags out as in the preview, and any other bare
+ * tag a model wrapped it in («<summary>»); the score stays in its badge. The text itself is not touched.
+ */
+export function reviewRawText(raw: string): string {
+  return reviewPreview(raw)
+    .replace(/<\/?[a-z][\w-]{0,30}>/gi, '\n')
+    .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }

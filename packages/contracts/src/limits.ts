@@ -278,13 +278,18 @@ const DEEP: OpTimeouts = thinking(180, 300);
  * is loaded, so the wait for it stays short.
  */
 const COACH: OpTimeouts = thinking(60, 300);
+/**
+ * The short Recap reads the same history as the full one, only answers shorter: at 120 s it was cut where the old
+ * Fansly extension still waited (its deep stream budget, 300 s). The wait for `meta` stays short.
+ */
+const RECAP_SHORT: OpTimeouts = thinking(60, 300);
 
 export const OP_TIMEOUTS: Readonly<Record<FeatureId, OpTimeouts>> = {
   reply: QUICK,
   fix: QUICK,
   hi: QUICK,
   ping: QUICK,
-  'recap-short': thinking(60, 120),
+  'recap-short': RECAP_SHORT,
   review: DEEP,
   recap: DEEP,
   coach: COACH,

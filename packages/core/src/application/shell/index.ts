@@ -110,8 +110,7 @@ export function createShellController(ports: ShellPorts): ShellController {
     if (error !== null) {
       title = fan === null ? error.title : `${error.title} · ${fan}`;
       body = error.body;
-    } else if (toast.scope === 'recap.profile') title = i18n.t('recap.savedToast');
-    else if (toast.feature !== undefined) title = i18n.t('toast.aiReady', { fan: fan ?? i18n.t(toast.feature === 'recap-short' ? 'dock.action.recap' : `dock.action.${toast.feature}`) });
+    } else if (toast.feature !== undefined) title = i18n.t('toast.aiReady', { fan: fan ?? i18n.t(toast.feature === 'recap-short' ? 'dock.action.recap' : `dock.action.${toast.feature}`) });
     else title = i18n.t('result.label');
     return { id: toast.toastId, kind: toast.kind, code, title, body, actions, copyCode: toast.kind === 'error' && code !== null, expiresAt: entry.expiresAt };
   }
@@ -158,7 +157,15 @@ export function createShellController(ports: ShellPorts): ShellController {
     changed();
   }
 
-  const offs = [ports.rpc.onEvent('toast', ({ toast }) => show(toast)), i18n.subscribe(() => changed())];
+  const offs = [
+    ports.rpc.onEvent('toast', ({ toast }) => {
+      // A full Recap linked as the dossier is the recap book's to know (`recap-book.ts`); nobody needs a toast for it
+      // (the owner, 2026-10-22): only a failed save is said — here and as «Сохранить ещё раз» under the Recap.
+      if (toast.scope === 'recap.profile' && toast.kind === 'success') return;
+      show(toast);
+    }),
+    i18n.subscribe(() => changed()),
+  ];
 
   return {
     kinds: ['toasts'],

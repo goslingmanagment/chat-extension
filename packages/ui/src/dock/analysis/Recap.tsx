@@ -1,38 +1,41 @@
-// Recap in the dock sheet (ui-design §4.11, §10; AI-060…AI-071): «Коротко |
-// Полностью», the text (one paragraph, or blocks «Кто он / Что любит /
-// Покупки…»), and the facts row — when it was made, whether it is saved to
-// the hub, how complete the archive is and whether it lags the chat. With
-// nothing saved the sheet is the picker: what exists («Открыть последний»)
-// and the two build buttons (Enter builds the full one). The shared Recap of
-// the page and fan comes from the hub; nothing here generates by itself.
+// Recap in the dock sheet and its window (ui-design §4.11, §10; AI-060…AI-071):
+// «Коротко | Полностью», the text (one paragraph, or blocks «Кто / Траты /
+// Триггеры…», «Досье…»), and the facts row — when it was made, what it covers
+// («вся переписка (90 сообщений)»), whether it is saved to the hub, whether
+// the chat went on after it. With nothing saved the sheet is the picker: what
+// exists («Открыть последний») and the two build buttons; it takes the focus
+// on its full one, so ⌘⇧S then Enter builds the full Recap (AI-060) and never
+// sends the draft in the site's field. The shared Recap of the page and fan
+// comes from the hub; nothing here generates by itself.
 
 import { type JSX } from 'preact';
+import { useLayoutEffect, useRef } from 'preact/hooks';
 
-import { type ActionButtonVM, type Msg, type RecapPickerVM, type RecapViewVM } from '@cg/contracts/vm';
+import { type ActionButtonVM, type Msg, type RecapLength, type RecapPickerVM, type RecapViewVM } from '@cg/contracts/vm';
 
 import {
   ActionButton,
   Button,
   Dot,
-  MINUTE,
   Markdown,
   Segmented,
   Spinner,
   ViewState,
+  activeIn,
+  focusQuietly,
   hotkeyText,
   isComposing,
   isHeldKey,
   useDispatch,
   useI18n,
-  useMinuteClock,
-  useNowFn,
+  useKit,
   useView,
 } from '../../kit';
 import { useReadyAnnouncement, useStageAnnouncements } from '../announce';
 import { Head, Meta } from '../Head';
 import { StaleRow } from '../Result';
 import { useSteadyView, useStreamText } from '../Stream';
-import { Block, Close, CopyAll, Expand, Fact, Facts, ReportHead, Running, debugFooter, running, type BlockTone, type ViewProps } from './shared';
+import { Block, Close, CopyAll, Expand, Fact, Facts, MadeAgo, RefreshFailedFact, ReportHead, Running, debugFooter, running, type BlockTone, type ViewProps } from './shared';
 
 function SavedFact({ saved }: { readonly saved: RecapViewVM['saved'] }): JSX.Element | null {
   const i18n = useI18n();
@@ -48,7 +51,7 @@ function SavedFact({ saved }: { readonly saved: RecapViewVM['saved'] }): JSX.Ele
         </Fact>
       );
     case 'saved':
-      // The toast «Recap сохранён в хаб» says it once; the row stays for what needs a hand.
+      // Nothing to say (2026-10-22: no toast either): the row stays for what needs a hand.
       return null;
     case 'failed':
       // The text stays shown and copyable; only the idempotent reference write repeats, never the AI — and the
@@ -67,9 +70,21 @@ function SavedFact({ saved }: { readonly saved: RecapViewVM['saved'] }): JSX.Ele
   }
 }
 
+/** What the Recap read, as the old client said it: «вся переписка (90 сообщений)» or «последние 300 — история длиннее». */
+function coverageLine(i18n: ReturnType<typeof useI18n>, stamp: RecapViewVM['stamp']): string | null {
+  const { coverage, served } = stamp;
+  if (served !== null && coverage === 'complete') return i18n.plural('recap.coverage.whole', served);
+  if (served !== null && coverage === 'partial') return i18n.t('recap.coverage.window', { n: served });
+  // A cut whose size is not known is still said; «охват неизвестен» was a grey word to skip (2026-10-20).
+  return coverage === 'partial' ? i18n.t('common.coverage.partial') : null;
+}
+
 function RecapFacts({ recap }: { readonly recap: RecapViewVM }): JSX.Element {
   const i18n = useI18n();
-  const coverage = recap.stamp.coverage;
+  const dispatch = useDispatch();
+  const covers = coverageLine(i18n, recap.stamp);
+  const lag = recap.archiveLag;
+  const refresh = recap.refresh;
   return (
     <Facts>
       {recap.generatedAt === null ? null : (
@@ -77,14 +92,26 @@ function RecapFacts({ recap }: { readonly recap: RecapViewVM }): JSX.Element {
           <MadeAgo at={recap.generatedAt} />
         </Fact>
       )}
+      {covers === null ? null : <Fact>{covers}</Fact>}
       <SavedFact saved={recap.saved} />
-      {/* Only what is wrong: an incomplete archive. «архив полный» and «охват неизвестен» were grey words to skip (2026-10-20). */}
-      {coverage === 'partial' ? <Fact>{i18n.t('common.coverage.partial')}</Fact> : null}
-      {recap.archiveLag === null ? null : (
-        <Fact strong>
-          <Dot kind="accent" use="archive-lag" />
-          {recap.archiveLag.messages === null ? i18n.t('common.coverage.partial') : i18n.t('recap.archiveLag', { n: recap.archiveLag.messages })}
-        </Fact>
+      <RefreshFailedFact failed={recap.refreshFailed} />
+      {/* The chat went on after the Recap: said in its words, «Обновить» right by it. */}
+      {lag === null ? null : (
+        <>
+          <Fact strong>
+            <Dot kind="accent" use="archive-lag" />
+            {lag.messages === null ? i18n.t('recap.newAfterSome') : i18n.plural('recap.newAfter', lag.messages)}
+          </Fact>
+          {recap.refreshFailed === null ? (
+            <Button
+              label={i18n.text(refresh.label)}
+              size="sm"
+              class="cg-fact__btn"
+              reason={refresh.enabled ? null : refresh.reason === null ? i18n.t('common.unknown') : i18n.text(refresh.reason.text)}
+              onClick={() => void dispatch(refresh.action)}
+            />
+          ) : null}
+        </>
       )}
     </Facts>
   );
@@ -92,26 +119,18 @@ function RecapFacts({ recap }: { readonly recap: RecapViewVM }): JSX.Element {
 
 /**
  * A Recap block's colour by its heading (the old client matched its headings the same way): money green, what he
- * answers to amber, what to avoid red, what to do now terracotta; any other heading stays plain.
+ * answers to amber, what to avoid red, what to do now terracotta — the tinted card; any other heading stays plain.
+ * «трат» only at a word's start: «Стратегия» is what to do, not money.
  */
 const HEADING_TONES: readonly (readonly [RegExp, BlockTone])[] = [
-  [/куп|трат|деньг|финанс|плат|bought|spend|money|financ|paid/i, 'good'],
-  [/избег|границ|риск|нельзя|avoid|boundar|risk/i, 'bad'],
-  [/люб|отвеча|триггер|интерес|заход|like|answers|trigger|hot/i, 'amber'],
-  [/сейчас|дальше|следующ|стратег|ход|now|next|strateg|move/i, 'clay'],
+  [/куп|(?<!\p{L})трат|деньг|финанс|плат|bought|spend|money|financ|paid/iu, 'good'],
+  [/избег|границ|риск|нельзя|avoid|boundar|risk/iu, 'bad'],
+  [/люб|отвеча|триггер|интерес|заход|like|answers|trigger|hot/iu, 'amber'],
+  [/сейчас|дальше|следующ|стратег|ход|now|next|strateg|move/iu, 'clay'],
 ];
 
 export function headingTone(heading: string): BlockTone {
   return HEADING_TONES.find(([pattern]) => pattern.test(heading))?.[1] ?? 'plain';
-}
-
-/** «Сделан 1 д назад», refreshed on the shared minute ticker; under a minute — «Сделан только что». */
-export function MadeAgo({ at }: { readonly at: string }): JSX.Element {
-  const i18n = useI18n();
-  const now = useNowFn();
-  useMinuteClock();
-  const fresh = now() - Date.parse(at) < MINUTE;
-  return <>{fresh ? i18n.t('review.madeNow') : i18n.t('recap.madeAgo', { age: i18n.formatAge(at, now()) })}</>;
 }
 
 function Refresh({ vm }: { readonly vm: ActionButtonVM }): JSX.Element {
@@ -140,25 +159,73 @@ export function checkingWithBuild(picker: RecapPickerVM): boolean {
   return picker.view.s === 'loading' && (picker.build.short.enabled || picker.build.full.enabled);
 }
 
-function Picker({ picker, why }: { readonly picker: RecapPickerVM; readonly why: Msg | null }): JSX.Element {
+/**
+ * Where the picker puts the focus when the sheet opens on it (⌘⇧S or the bar's button): «Собрать полностью», so Enter
+ * builds the full Recap and never reaches the site's field, where it would send the draft (the old client focused its
+ * «Полный» the same way). Only from the site's composer, the page or this dock — never from a field the person types
+ * in or another panel of ours (the fan panel's own Recap tab). While the saved recaps are still read the group holds
+ * the focus — Enter builds nothing yet — and hands it to the button once they are known, unless the person took the
+ * focus elsewhere meanwhile.
+ */
+function usePickerFocus(take: boolean, checking: boolean): { readonly group: { current: HTMLDivElement | null }; readonly full: { current: HTMLButtonElement | null } } {
+  const { deps, root } = useKit();
+  const group = useRef<HTMLDivElement>(null);
+  const full = useRef<HTMLButtonElement>(null);
+  const wanted = useRef(take);
+  const held = useRef(false);
+  useLayoutEffect(() => {
+    if (!wanted.current || group.current === null) return;
+    // After the group took it, only a focus still on the group moves on.
+    if (held.current && activeIn(root) !== group.current) {
+      wanted.current = false;
+      return;
+    }
+    if (!held.current) {
+      const where = deps.focus.where?.();
+      const idle = where === 'composer' || where === 'none' || where === 'page' || (where === 'ours' && activeIn(root) !== null);
+      if (!idle) {
+        wanted.current = false;
+        return;
+      }
+    }
+    if (checking) {
+      if (!held.current) held.current = focusQuietly(group.current);
+      return;
+    }
+    focusQuietly(full.current ?? group.current);
+    wanted.current = false;
+  });
+  return { group, full };
+}
+
+/**
+ * `primary` — the build that comes first, highlighted and on Enter: the full one in the sheet (AI-060); in the window the
+ * length the person switched to («Коротко» with nothing saved yet: «Собрать коротко»).
+ */
+function Picker({ picker, why, takeFocus, primary }: { readonly picker: RecapPickerVM; readonly why: Msg | null; readonly takeFocus: boolean; readonly primary: RecapLength }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const checking = checkingWithBuild(picker);
-  if (!checking && (picker.view.s === 'loading' || picker.view.s === 'error' || picker.view.s === 'forbidden' || picker.view.s === 'offline')) {
-    return <ViewState view={picker.view} />;
-  }
+  const listed = checking || !(picker.view.s === 'loading' || picker.view.s === 'error' || picker.view.s === 'forbidden' || picker.view.s === 'offline');
+  const focus = usePickerFocus(takeFocus, checking);
+  if (!listed) return <ViewState view={picker.view} />;
   const slots = [picker.slots.short, picker.slots.full].filter((slot) => slot !== null);
   // «Recap ещё не сделан» only when nothing is saved: with a saved one the rows speak for themselves.
   const note = checking || slots.length > 0 ? null : (why ?? (picker.view.s === 'empty' ? picker.view.why : null));
-  const build = picker.build.full;
+  const build = picker.build[primary];
+  const other = picker.build[primary === 'full' ? 'short' : 'full'];
+  // The Recap key builds the length shown (it is the sheet's «Обновить»): its label goes on that button, else ↵.
+  const keyed = picker.build.full.hotkey ?? { display: '↵', aria: 'Enter', delivery: 'delivered' as const, fallback: null };
+  const first = checking ? { ...build, hotkey: null } : { ...build, hotkey: build.enabled ? keyed : null };
   return (
     <div
+      ref={focus.group}
       class="cg-pick"
       role="group"
       aria-label={i18n.t('dock.action.recap')}
       tabIndex={0}
       onKeyDown={(event) => {
-        // Enter builds the full Recap (AI-060); a focused button answers for itself.
+        // Enter builds the first one — the full Recap in the sheet (AI-060); a focused button answers for itself.
         if (event.target !== event.currentTarget || event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || isComposing(event)) return;
         event.preventDefault();
         // A held Enter builds one Recap. While the saved ones are still being read a build takes an explicit
@@ -183,9 +250,18 @@ function Picker({ picker, why }: { readonly picker: RecapPickerVM; readonly why:
             <ActionButton vm={slot.open} variant="line" size="sm" />
           </div>
         ))}
+        {/* The primary one first: what Enter builds (AI-060), as the old client's «Полный». */}
         <div class="cg-pick__acts">
-          <ActionButton vm={picker.build.short} variant="line" />
-          <ActionButton vm={checking ? { ...build, hotkey: null } : { ...build, hotkey: build.hotkey ?? { display: '↵', aria: 'Enter', delivery: 'delivered', fallback: null } }} variant="line" />
+          <Button
+            label={i18n.text(first.label)}
+            variant="line"
+            class="cg-pick__first"
+            hotkey={first.hotkey}
+            buttonRef={focus.full}
+            reason={first.enabled ? null : first.reason === null ? i18n.t('common.unknown') : i18n.text(first.reason.text)}
+            onClick={() => void dispatch(first.action)}
+          />
+          <ActionButton vm={{ ...other, hotkey: null }} variant="line" />
         </div>
       </div>
     </div>
@@ -203,49 +279,7 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
   const close = <Close which="recap" place={place} />;
   const name = recap.targetName ?? picker.targetName;
   const forFan = name === null ? [] : [i18n.t('result.meta.forFan', { name })];
-
-  const debug = debugFooter(debugPart, recap.debug, recap.state, recap.phase);
-  // The live region: the stages while it is built, then «Recap готов». The sheet says it; the window stays quiet.
-  const said = place === 'sheet' ? (recap.opId ?? 'recap') : null;
-  useStageAnnouncements(title, running(recap.state) ? said : null, recap.phase);
-  useReadyAnnouncement(place === 'sheet' ? 'recap' : null, running(recap.state), recap.markdown !== null, () => i18n.t('dock.badge.recapReady'));
-
-  // In the «Развернуть ↗» window (X55: where the full Recap opens) the sheet keeps only its head: the text is read once, up there.
-  if (place === 'sheet' && recap.expanded) {
-    return (
-      <Head title={title} gutter={running(recap.state) ? <Spinner /> : null} acts={close}>
-        <Meta texts={forFan} />
-      </Head>
-    );
-  }
-
-  if (running(recap.state)) return <Running title={title} opId={recap.opId} phase={recap.phase} text={text} debug={debug} />;
-
-  if (recap.markdown === null) {
-    // The read of the saved recaps does not hold the build buttons back: the picker shows its own «Проверяю…» line.
-    const failed = recap.view.s === 'error' || recap.view.s === 'forbidden' || recap.view.s === 'offline' || (recap.view.s === 'loading' && !checkingWithBuild(picker));
-    return (
-      <>
-        <Head title={title} acts={close}>
-          <Meta texts={forFan} />
-        </Head>
-        <div class="cg-body">{failed ? <ViewState view={recap.view} /> : <Picker picker={picker} why={recap.view.s === 'empty' ? recap.view.why : null} />}</div>
-        {debug}
-      </>
-    );
-  }
-
   const none = i18n.t('cg.recapNotFound.title');
-  const mark = recap.stale ?? null;
-  const againReason = recap.refresh.enabled ? null : recap.refresh.reason === null ? i18n.t('common.unknown') : i18n.text(recap.refresh.reason.text);
-  const acts = (
-    <>
-      <CopyAll handle={recap.copyHandle} label={i18n.t('recap.copy')} />
-      {recap.blocks === null ? null : <Expand which="recap" place={place} />}
-      <Refresh vm={recap.refresh} />
-      {close}
-    </>
-  );
   const lengths = (
     <Segmented
       label={i18n.t('recap.lengthLabel')}
@@ -256,6 +290,66 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
       ]}
       onChange={(length) => void dispatch({ type: 'ShowRecap', length })}
     />
+  );
+
+  const debug = debugFooter(debugPart, recap.debug, recap.state, recap.phase);
+  // The live region: the stages while it is built, then «Recap готов». The sheet says it; the window stays quiet.
+  const said = place === 'sheet' ? (recap.opId ?? 'recap') : null;
+  useStageAnnouncements(title, running(recap.state) ? said : null, recap.phase);
+  useReadyAnnouncement(place === 'sheet' ? 'recap' : null, running(recap.state), recap.markdown !== null, () => i18n.t('dock.badge.recapReady'));
+
+  // The picker takes the focus only on the sheet's opening (⌘⇧S, the bar's button): the first time this sheet shows
+  // something other than its loading state. A picker shown later (a canceled build) leaves the focus where it is.
+  const opening = useRef(place === 'sheet');
+  const settled = recap.expanded || running(recap.state) || recap.markdown !== null || recap.view.s !== 'loading' || checkingWithBuild(picker);
+  useLayoutEffect(() => {
+    if (settled) opening.current = false;
+  });
+
+  // In the «Развернуть ↗» window (X55: where a Recap opens) the sheet keeps only its head: the text is read once, up there.
+  if (place === 'sheet' && recap.expanded) {
+    return (
+      <Head title={title} gutter={running(recap.state) ? <Spinner /> : null} acts={close}>
+        <Meta texts={forFan} />
+      </Head>
+    );
+  }
+
+  if (running(recap.state)) return <Running title={title} opId={recap.opId} phase={recap.phase} text={text} debug={debug} place={place} which="recap" fan={name} />;
+
+  if (recap.markdown === null) {
+    // The read of the saved recaps does not hold the build buttons back: the picker shows its own «Проверяю…» line.
+    const failed = recap.view.s === 'error' || recap.view.s === 'forbidden' || recap.view.s === 'offline' || (recap.view.s === 'loading' && !checkingWithBuild(picker));
+    const body = failed ? (
+      <ViewState view={recap.view} />
+    ) : (
+      <Picker picker={picker} why={recap.view.s === 'empty' ? recap.view.why : null} takeFocus={opening.current} primary={place === 'dialog' ? recap.length : 'full'} />
+    );
+    return (
+      <>
+        {place === 'dialog' ? (
+          // In the window the length stays switchable: «Коротко» with nothing saved yet shows its build buttons here.
+          <ReportHead kicker={title} title={title} fan={name} tools={lengths} acts={close} />
+        ) : (
+          <Head title={title} acts={close}>
+            <Meta texts={forFan} />
+          </Head>
+        )}
+        <div class="cg-body">{body}</div>
+        {debug}
+      </>
+    );
+  }
+
+  const mark = recap.stale ?? null;
+  const againReason = recap.refresh.enabled ? null : recap.refresh.reason === null ? i18n.t('common.unknown') : i18n.text(recap.refresh.reason.text);
+  const acts = (
+    <>
+      <CopyAll handle={recap.copyHandle} label={i18n.t('recap.copy')} />
+      <Expand which="recap" place={place} />
+      <Refresh vm={recap.refresh} />
+      {close}
+    </>
   );
   return (
     <>
@@ -272,13 +366,16 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
         {mark === null ? null : <StaleRow mark={mark} onAgain={() => void dispatch(recap.refresh.action)} reason={againReason} />}
         <div class="cg-doc">
           {recap.blocks === null ? (
-            <Markdown source={recap.markdown} />
+            <Markdown source={recap.markdown} decorate />
           ) : (
-            recap.blocks.map((block, index) => (
-              <Block key={index} title={block.heading} tone={headingTone(block.heading)}>
-                <Markdown source={block.markdown} />
-              </Block>
-            ))
+            recap.blocks.map((block, index) => {
+              const tone = headingTone(block.heading);
+              return (
+                <Block key={index} title={block.heading} tone={tone} tinted={tone === 'clay'}>
+                  <Markdown source={block.markdown} decorate />
+                </Block>
+              );
+            })
           )}
         </div>
       </div>

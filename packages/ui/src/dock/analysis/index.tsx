@@ -17,6 +17,7 @@ export function AnalysisView({ which, place, debugPart }: AnalysisProps): JSX.El
 
 export const analysisPart: LazyPart<AnalysisProps> = { view: AnalysisView, styles: [ANALYSIS_STYLE] };
 
-export { MadeAgo, RecapView } from './Recap';
+export { RecapView } from './Recap';
+export { MadeAgo } from './shared';
 export { ReviewView } from './Review';
 export { ANALYSIS_CSS, ANALYSIS_STYLE } from './styles';
