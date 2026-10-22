@@ -192,6 +192,8 @@ export interface CoachTurnVM {
   readonly stale?: ResultMarkVM | null;
   /** 1.15.0 (R20 P8c): «Ещё раз» of a marked answer — the turn's question asked again; null — no mark, or no chat to ask in. */
   readonly again?: ActionButtonVM | null;
+  /** 1.46.0: the Recaps the hub put into this answer — when each was made, null — none; null or absent — the hub did not say. */
+  readonly recapsUsed?: { readonly full: IsoTimestamp | null; readonly short: IsoTimestamp | null } | null;
 }
 
 export interface CoachVM {
@@ -205,9 +207,16 @@ export interface CoachVM {
     readonly lag: { readonly messages: number | null } | null;
     readonly refresh: ActionButtonVM;
   };
-  /** The Recap shown in the header (auto-recap `short` / `full`, §5.6). */
-  readonly recap: { readonly length: RecapLength; readonly generatedAt: IsoTimestamp; readonly summary: string } | null;
-  /** A Recap of this chat is being built (from «Recap ▾», the strip or a turn's auto-recap step): «Recap собирается…». */
+  /**
+   * 1.46.0: the Recaps Coach stands on, as the hub attaches them to every question — the full one, and the short one
+   * when it is newer (AI-095). Empty — none: the topbar says «Recap · нет», Coach answers from the chat alone.
+   */
+  readonly recaps: readonly CoachRecapVM[];
+  /** 1.46.0: the setting's auto Recap the first question of this dialog builds first (no fresh one is known); null — it asks at once. */
+  readonly autoRecapNext: 'short' | 'full' | null;
+  /** 1.46.0: how many of the chat's latest messages Coach reads (its window); null — not known yet. */
+  readonly window: number | null;
+  /** A Recap of this chat is being built (from the topbar's «Собрать Recap», the strip or a turn's auto-recap step): «Recap собирается…». */
   readonly recapRunning?: boolean;
   readonly turns: readonly CoachTurnVM[];
   /** `generation.coach.historyLimit`. */
@@ -231,6 +240,13 @@ export interface CoachVM {
    * dialog already has turns).
    */
   readonly hints?: readonly CoachHintGroupVM[];
+}
+
+/** A Recap in Coach's topbar (1.46.0): «полный · 3 д назад», unfolding into its text. */
+export interface CoachRecapVM {
+  readonly length: RecapLength;
+  readonly generatedAt: IsoTimestamp;
+  readonly summary: string;
 }
 
 /** One heading of the empty Coach dialog with its ready questions (1.2.0, AI-081). */

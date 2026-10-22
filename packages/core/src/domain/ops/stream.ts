@@ -60,9 +60,15 @@ export interface StreamExpectation {
   readonly debug: boolean;
 }
 
+/** The Recaps the hub put into the prompt (`attachedRecaps` of the meta frame): when each was made, or null — none. */
+export interface RecapsUsed {
+  readonly full: string | null;
+  readonly short: string | null;
+}
+
 export type FrameEffect =
   | { readonly kind: 'ignored'; readonly reason: 'after-terminal' | 'foreign-meta' | 'duplicate-meta' | 'foreign-context' | 'empty-delta' | 'reasoning-off' }
-  | { readonly kind: 'meta'; readonly generationRef: string; readonly quota: QuotaSnapshot }
+  | { readonly kind: 'meta'; readonly generationRef: string; readonly quota: QuotaSnapshot; readonly recapsUsed: RecapsUsed | null }
   | { readonly kind: 'context'; readonly served: ServedContext }
   | { readonly kind: 'delta'; readonly text: string; readonly first: boolean }
   | { readonly kind: 'reasoning' }
@@ -128,6 +134,7 @@ export function readFrame(state: StreamState, frame: HubFrame, expect: StreamExp
         kind: 'meta',
         generationRef: frame.requestId,
         quota: { remainingRequestsToday: frame.quota.remainingRequestsToday, remainingMicroUsdToday: frame.quota.remainingMicroUsdToday },
+        recapsUsed: frame.attachedRecaps === undefined ? null : { full: frame.attachedRecaps.full?.generatedAt ?? null, short: frame.attachedRecaps.short?.generatedAt ?? null },
       },
     };
   }

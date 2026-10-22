@@ -54,11 +54,9 @@ function blocks(list: readonly Block[]): string[] {
   });
 }
 
+/** Each screenshot full width with its own caption: a collage shrinks screenshots of different shapes past reading. */
 function images(note: Note, siteBase: string): string[] {
-  const shot = (file: string): string => `<img src="${esc(`${siteBase}${noteImageHref(file)}`)}"/>`;
-  if (note.images.length === 0) return [];
-  if (note.images.length === 1) return note.images.map((image) => `<figure>${shot(image.file)}<figcaption>${esc(image.alt)}</figcaption></figure>`);
-  return [`<tg-collage>${note.images.map((image) => shot(image.file)).join('')}<figcaption>${esc(note.images.map((image) => image.alt).join(' · '))}</figcaption></tg-collage>`];
+  return note.images.map((image) => `<figure><img src="${esc(`${siteBase}${noteImageHref(image.file)}`)}"/><figcaption>${esc(image.alt)}</figcaption></figure>`);
 }
 
 function noteHtml(note: Note, siteBase: string): string[] {
@@ -112,9 +110,8 @@ export function telegramPreview(post: string, siteBase: string): string {
   h1 { margin: 4px 0 2px; font-size: 22px; } h2 { margin: 14px 0 4px; font-size: 19px; } h3 { margin: 12px 0 2px; font-size: 16px; } h4 { margin: 8px 0 0; font-size: 15px; }
   p, ul { margin: 4px 0; } ul { padding-left: 20px; } i { color: #8ba3b8; } a { color: #6ab3f3; }
   hr { border: 0; border-top: 1px solid #2b3a4a; margin: 12px 0; }
-  figure { margin: 8px -14px; } figure img, tg-collage img { display: block; width: 100%; }
+  figure { margin: 8px -14px; } figure img { display: block; width: 100%; }
   figcaption { padding: 4px 14px 0; color: #8ba3b8; font-size: 13px; }
-  tg-collage { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin: 8px -14px; } tg-collage figcaption { grid-column: 1 / -1; }
   details { margin: 6px 0; padding: 6px 10px; border-left: 3px solid #6ab3f3; border-radius: 4px; background: #1e2c3a; }
   summary { cursor: pointer; color: #6ab3f3; font-weight: 600; }
   footer { color: #8ba3b8; font-size: 13px; }

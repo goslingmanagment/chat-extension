@@ -50,6 +50,7 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
 - The tool picks the version: a `new` note since the last tag — minor, else patch. Run `pnpm release` with no argument.
 - `major` or an exact `X.Y.Z` — only on the owner's word (`--confirm <version>`). 1.x and 2.x belong to the old Fansly
   extension; the next major is **3.0.0**, the launch of the one extension that replaces it (`docs/release.md` §2).
+  Its notes wait in `changes/` with `release: 3.0.0`, its landing in `site/drafts/3.0.0/`; add to them, never release them early.
 - No version in PR titles, commits or notes; never edit the version in `apps/extension/package.json` — the tags hold it.
 - A version that reached AMO is spent: never reused or skipped, its tag never moved or deleted.
 - The Telegram announcement (`pnpm release announce`) — only on the owner's word, and only from 3.0.0 on.

@@ -66,10 +66,15 @@ previews of the page and the post to `.cache/notes/`.
 5. A version is spent once it reached AMO: never reused, never skipped, its tag never moved or
    deleted. A release that stopped is the same `pnpm release` again.
 
-**3.0.0 — the launch.** The one extension replaces the old Fansly one under the number 3.0. On the
-owner's word: a PR with an `intro` note (`changes/chatgoose-3.md`: what the one extension is, how to
-move from the old one, a screenshot), then `pnpm release 3.0.0 --confirm 3.0.0`, then the first
-announcement (section 6). The old extension gets no more releases after it.
+**3.0.0 — the launch.** The one extension replaces the old Fansly one under the number 3.0. Its notes
+are written ahead and held with `release: 3.0.0` (`changes/chatgoose-3.md` — the intro, then how to
+switch, Spenders, the read mark, the settings, «Скачать лог»): the releases before it leave them out,
+`pnpm release notes` previews them in `.cache/notes/3.0.0/`. Its landing is drafted in
+`site/drafts/3.0.0/index.html` (not published: `site/drafts/` is no file of the site) and previewed
+there too. On the owner's word: a PR that moves the landing over `site/index.html` (the index's
+rewrites in `tools/release/site-copy.ts` go with it) and retakes the screenshots of the notes, then
+`pnpm release 3.0.0 --confirm 3.0.0`, then the first announcement (section 6). The old extension gets
+no more releases after it.
 
 ## 3. Keys
 

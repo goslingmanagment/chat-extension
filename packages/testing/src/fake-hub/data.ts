@@ -925,6 +925,11 @@ export class DataModel {
     });
   }
 
+  /** The fan's dossier as a prompt reads it (the latest saved full Recap); null — none. */
+  dossierOf(pageLabel: string, fanRef: string): NonNullable<Dossier['profile']> | null {
+    return this.dossiers.get(this.key(pageLabel, fanRef)) ?? null;
+  }
+
   /** H-5: links a finished full recap into the dossier; idempotent per generation. */
   saveDossier(pageLabel: string, fanRef: string, generationRef: string, body: string, sourceGeneratedAt: number, userId: number, now: number): { outcome: 'created' | 'existing'; profile: NonNullable<Dossier['profile']> } {
     const key = this.key(pageLabel, fanRef);

@@ -749,7 +749,7 @@ export class OpScheduler {
         return;
       case 'meta':
         run.times = { ...run.times, metaAt: now };
-        run.view = { ...run.view, generationRef: effect.generationRef };
+        run.view = { ...run.view, generationRef: effect.generationRef, ...(effect.recapsUsed === null ? {} : { recapsUsed: effect.recapsUsed }) };
         this.stage(run, 'meta', now);
         this.noteQuota(run, effect.quota, now);
         this.move(run, 'streaming', { name: 'awaiting-first-chunk', since: now });

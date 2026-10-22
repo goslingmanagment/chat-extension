@@ -49,6 +49,23 @@ export function autoRecapFor(facts: AutoRecapFacts): 'short' | 'full' | null {
   return fresh(status.full) && status.full?.requestedCount === facts.deepWindow ? null : 'full';
 }
 
+/** A copy of a shared Recap as the tab holds it: when it was made. */
+interface HeldRecap {
+  readonly revision: string;
+}
+
+/**
+ * What the next first question of a session would build first, as far as the tab's own copies tell — the line of the
+ * empty dialog that says the first answer comes later. The status the hub answers at the question decides
+ * (`autoRecapFor`); a full Recap made at another depth is not seen here.
+ */
+export function autoRecapAhead(mode: CoachAutoRecap, held: { readonly short: HeldRecap | null; readonly full: HeldRecap | null }, now: number): 'short' | 'full' | null {
+  const young = (copy: HeldRecap | null): boolean => copy !== null && now - Date.parse(copy.revision) <= COACH_RECAP_FRESH_MS;
+  if (mode === 'off') return null;
+  if (mode === 'short') return young(held.short) || young(held.full) ? null : 'short';
+  return young(held.full) ? null : 'full';
+}
+
 /** The two steps of a composite Coach turn. */
 export interface CoachTurnSteps {
   /** The recap built first: a generation of its own for the same target, past the cache — never a message to the fan. */

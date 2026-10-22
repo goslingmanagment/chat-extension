@@ -7,6 +7,9 @@
 //   ---
 //   kind: new                  new | improved | fixed | intro
 //   sites: chatspace, fansly   the sites it changes
+//   release: 3.0.0             optional: held for that version (the launch), left out of
+//                              the releases before it
+//   order: 1                   optional: lower goes first within its kind (default 50)
 //   ---
 //
 //   # What changed, in the chatter's words
@@ -24,6 +27,7 @@
 // I/O here: the caller hands in the text and the sizes of the images.
 
 import { ChangelogError, parseBlocks, parseInline, type Block, type Inline } from './changelog.ts';
+import { isVersion, reservedVersionProblem } from './version.ts';
 
 export const NOTES_DIR = 'changes';
 /** The heading of the technical part. */
@@ -63,6 +67,10 @@ export interface Note {
   readonly images: readonly NoteImage[];
   /** Empty only for an intro. */
   readonly tech: readonly Block[];
+  /** The version the note is held for (the launch); null — the next release takes it. */
+  readonly release: string | null;
+  /** Lower goes first within its kind; 50 when the note names none. */
+  readonly order: number;
 }
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -105,7 +113,13 @@ export function parseNote(slug: string, source: string, imageBytes: (file: strin
     if (fields.has(key)) fail(`«${key}» twice`, index + 1);
     fields.set(key, { value, line: index + 1 });
   }
-  for (const [key, { line }] of fields) if (key !== 'kind' && key !== 'sites') fail(`unknown field «${key}»: only kind and sites`, line);
+  for (const [key, { line }] of fields) if (!['kind', 'sites', 'release', 'order'].includes(key)) fail(`unknown field «${key}»: kind, sites, release and order`, line);
+  const orderField = fields.get('order');
+  const order = orderField === undefined ? DEFAULT_ORDER : Number(orderField.value);
+  if (!Number.isInteger(order) || order < 1 || order > 99) fail(`order is a whole number from 1 to 99, got «${orderField?.value ?? ''}»`, orderField?.line);
+  const releaseField = fields.get('release');
+  const release = releaseField === undefined ? null : releaseField.value;
+  if (release !== null && (!isVersion(release) || reservedVersionProblem(release) !== null)) fail(`release is the version the note waits for, X.Y.Z (3.0.0 — the launch), got «${release}»`, releaseField?.line);
   const kindField = fields.get('kind');
   const kind = kindField?.value as NoteKind | undefined;
   if (kind === undefined || !NOTE_KINDS.includes(kind)) fail(`kind is one of ${NOTE_KINDS.join(', ')}`, kindField?.line ?? 1);
@@ -172,14 +186,18 @@ export function parseNote(slug: string, source: string, imageBytes: (file: strin
   const techText = blocksText(tech);
   if (techText.length > LIMITS.tech) fail(`the technical part is ${techText.length} characters, at most ${LIMITS.tech}`);
 
-  return { slug, kind: kind as NoteKind, sites: sites as NoteSite[], title, story, images, tech };
+  return { slug, kind: kind as NoteKind, sites: sites as NoteSite[], title, story, images, tech, release, order };
 }
 
 const ORDER: Readonly<Record<NoteKind, number>> = { intro: 0, new: 1, improved: 2, fixed: 3 };
+const DEFAULT_ORDER = 50;
 
-/** The notes of a release in reading order: the intro, new, improved, fixed; within a kind, as they came. */
+/** The notes of a release in reading order: the intro, new, improved, fixed; within a kind by `order`, then as they came. */
 export function sortNotes(notes: readonly Note[]): Note[] {
-  return notes.map((note, index) => ({ note, index })).sort((a, b) => ORDER[a.note.kind] - ORDER[b.note.kind] || a.index - b.index).map(({ note }) => note);
+  return notes
+    .map((note, index) => ({ note, index }))
+    .sort((a, b) => ORDER[a.note.kind] - ORDER[b.note.kind] || a.note.order - b.note.order || a.index - b.index)
+    .map(({ note }) => note);
 }
 
 /** What one release's notes may not be together. */

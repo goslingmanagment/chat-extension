@@ -38,7 +38,7 @@
 // the whole tool runs in tests against a throwaway checkout with a scripted
 // world (cli-world.ts); index.ts hands it the real one.
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -49,14 +49,14 @@ import { KIND_EMOJI, KIND_LABEL, NOTES_DIR, bumpOf, releaseProblems, sortNotes, 
 import { BEYOND_DOCUMENTS, CHANGELOG_FILE, DEFAULT_HUB_REPO, ENV, EXTENSION_REPO, HUB_HEALTH_PATH, MAIN_CI_JOBS, OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS, signedXpiName, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
 import { mustRun, renderCommand, runSteps, type Exec, type Print, type Step } from './exec.ts';
 import { evaluateFeedAhead, evaluateHubAncestry, evaluateHubCompatibility, evaluateMainCi, evaluateTagFree, evaluateVendor, evaluateVersions, type Verdict } from './gate.ts';
-import { Checkout } from './local.ts';
+import { Checkout, heldFor } from './local.ts';
 import { acquireLock, describeHolder, lockHolder, releaseLock } from './lock.ts';
 import { githubNotes, needsNote, releaseOf, type History } from './notes.ts';
 import { publishSteps, rollbackSteps, servedFeed, type Http, type ServerDeps } from './publish.ts';
 import { importProblems, type ArtifactRef, type GateCheck, type GateRecord, type ReleaseRecord, type VendorRef } from './records.ts';
 import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
 import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
-import { historyImages, renderSite, siteProblems, SITE_FILES, SITE_STYLESHEET } from './site.ts';
+import { historyImages, renderPage, renderSite, siteProblems, SITE_FILES, SITE_STYLESHEET } from './site.ts';
 import {
   deriveTestBuild,
   differencesBeyondManifest,
@@ -221,11 +221,13 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     // The notes since the last tag name the part raised: something new — minor, else patch (docs/release.md «Versions»).
     const noteProblems = checkout.noteProblems();
     if (noteProblems.length > 0) refuse(`the notes of changes do not parse — fix them in a PR first:\n  ${noteProblems.join('\n  ')}`);
-    const pending = await checkout.pendingNotes(head);
-    const together = releaseProblems(pending);
-    if (together.length > 0) refuse(`the notes since v${latest ?? '?'}: ${together.join('; ')}`);
+    const all = checkout.notes();
+    const pending = await checkout.pendingNotes(head, { all });
     const computed = bumpVersion(floor, bumpOf(pending));
     const version = asked === '' ? computed : isVersion(asked) ? asked : bumpVersion(floor, asked as BumpKind);
+    const together = releaseProblems([...pending, ...heldFor(all, version)]);
+    if (together.length > 0) refuse(`the notes of ${version}: ${together.join('; ')}`);
+    for (const held of checkout.heldVersions(all).filter((other) => other !== version)) print(`note: ${heldFor(all, held).length} note(s) wait for ${held} and stay out of ${version}`);
     if (latest !== null && compareVersions(version, latest) <= 0) refuse(`${version} is not above the last release v${latest}.`);
     const reserved = reservedVersionProblem(version);
     if (reserved !== null) refuse(reserved);
@@ -461,29 +463,50 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     }
   }
 
-  /** Checks every note; shows the next release's notes and version; writes previews of the page and the post. */
+  /**
+   * Checks every note; shows the next release's notes and version, and the notes held for a later one (the launch);
+   * writes previews of the page and the post of each: .cache/notes/ and .cache/notes/<held version>/.
+   */
   async function notesCommand(): Promise<void> {
     const problems = checkout.noteProblems();
     if (problems.length > 0) refuse(`the notes of changes:\n  ${problems.join('\n  ')}`);
     const latest = await latestTag();
-    const pending = await checkout.pendingNotes('HEAD', { uncommitted: true });
-    const together = releaseProblems(pending);
-    if (together.length > 0) refuse(together.join('; '));
+    const all = checkout.notes();
+    const pending = await checkout.pendingNotes('HEAD', { all, uncommitted: true });
     const floor = latest === null || compareVersions(checkout.version(), latest) > 0 ? checkout.version() : latest;
     const next = bumpVersion(floor, bumpOf(pending));
+    const together = releaseProblems([...pending, ...heldFor(all, next)]);
+    if (together.length > 0) refuse(together.join('; '));
     print(`next release: ${next} (pnpm release; ${latest === null ? 'no tag yet' : `v${latest} + ${bumpOf(pending)}`})`);
-    await printNotes(next, pending, latest, 'HEAD');
-    const history = await checkout.history({ version: next, head: 'HEAD', day: deps.now().toISOString().slice(0, 10), uncommitted: true });
+    await printNotes(next, [...pending, ...heldFor(all, next)], latest, 'HEAD');
     const out = checkout.path(join('.cache', 'notes'));
     rmSync(out, { recursive: true, force: true });
+    await writePreview(out, next);
+    for (const held of checkout.heldVersions(all).filter((version) => version !== next && (latest === null || compareVersions(version, latest) > 0))) {
+      const notes = heldFor(all, held);
+      const problemsOfHeld = releaseProblems([...pending, ...notes]);
+      if (problemsOfHeld.length > 0) refuse(`the notes of ${held}: ${problemsOfHeld.join('; ')}`);
+      print(`held for ${held} (released only as ${held}, with the notes pending then) — ${notes.length}:`);
+      for (const note of sortNotes(notes)) print(`  ${KIND_EMOJI[note.kind]} ${KIND_LABEL[note.kind].padEnd(10)} ${note.title.map((part) => part.text).join('')}  (${NOTES_DIR}/${note.slug}.md)`);
+      await writePreview(join(out, held), held);
+    }
+  }
+
+  /** The page «Что нового», the history and the post of `version` as the release would make them, into `out`. */
+  async function writePreview(out: string, version: string): Promise<void> {
+    const history = await checkout.history({ version, head: 'HEAD', day: deps.now().toISOString().slice(0, 10), uncommitted: true });
     mkdirSync(join(out, NOTES_DIR), { recursive: true });
     for (const file of historyImages(history)) if (existsSync(checkout.path(join(NOTES_DIR, file)))) copyFileSync(checkout.path(join(NOTES_DIR, file)), join(out, NOTES_DIR, file));
     copyFileSync(checkout.path(join(SITE_DIR, SITE_STYLESHEET)), join(out, SITE_STYLESHEET));
-    const context = checkout.siteContext(next, history);
+    const context = checkout.siteContext(version, history);
     const pages = new Map(['whats-new.html', 'changelog.html'].map((page) => [page, checkout.read(join(SITE_DIR, page))]));
     for (const [page, text] of renderSite(pages, context)) writeFileSync(join(out, page), text);
-    writeFileSync(join(out, 'telegram.html'), telegramPreview(composePost(releaseOf(history, next), checkout.target.siteBase), checkout.target.siteBase));
-    print(`previews: ${join(out, 'whats-new.html')} (the site) and ${join(out, 'telegram.html')} (the post, as near as a browser draws it)`);
+    writeFileSync(join(out, 'telegram.html'), telegramPreview(composePost(releaseOf(history, version), checkout.target.siteBase), checkout.target.siteBase));
+    // Pages drafted for this version (site/drafts/<version>/, the 3.0 landing): not published until they move into site/.
+    const drafts = checkout.path(join(SITE_DIR, 'drafts', version));
+    const drafted = existsSync(drafts) ? readdirSync(drafts).filter((name) => name.endsWith('.html')) : [];
+    for (const name of drafted) writeFileSync(join(out, name), renderPage(readFileSync(join(drafts, name), 'utf8'), context));
+    print(`previews of ${version}: ${join(out, 'whats-new.html')} (the site), ${join(out, 'telegram.html')} (the post, as near as a browser draws it)${drafted.map((name) => `, ${join(out, name)} (a draft page)`).join('')}`);
   }
 
   // ── local ──────────────────────────────────────────────────────────────────
