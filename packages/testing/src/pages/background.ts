@@ -475,6 +475,7 @@ function newcomerItem(index: number, at: string): AudienceNewItem {
     subscribedAtSource: 'notification',
     status: { isSubscriber: true, subscriptionStatus: 'active', endsAt: null, asOf: at, source: 'webhook' },
     thread: null,
+    lastPersonalSendAt: null,
     claim: { greeting: 'none', lease: 'none', heldBy: null, custody: null },
   };
 }
