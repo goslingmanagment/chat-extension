@@ -157,6 +157,24 @@ describe('[host:fansly] the route of a request (R20 P9c, FS-NET-4)', () => {
     route.send(wire()).catch(() => undefined);
     expect(core.fetches()[0]?.expect).toEqual({ hostAccountId: OTHER, relayId: RELAY_ID });
   });
+
+  it('a request asked through the tab goes through the frame with «Fansly через вкладку» off; no frame — no direct request', async () => {
+    const core = corePorts();
+    core.state.viaTab = false;
+    const hub = createRelayTransport(core.ports);
+    // The switch decides any other request: direct.
+    expect((await hub.route({ legacyId: CREATOR, canonicalId: null })).transport).toBe('direct');
+    hub.hello(FRAME, hello);
+    const route = await hub.route({ legacyId: CREATOR, canonicalId: null, tab: true });
+    expect(route.transport).toBe(`tab:${TAB.tabSessionId}`);
+    route.send(wire()).catch(() => undefined);
+    expect(core.fetches()).toHaveLength(1);
+    expect(core.direct).toEqual([]);
+    // A session without a tab: unavailable, never the direct route instead.
+    core.state.tabs = [];
+    await expect(hub.route({ legacyId: CREATOR, canonicalId: null, tab: true })).rejects.toBeInstanceOf(FanslyRouteUnavailable);
+    expect(core.direct).toEqual([]);
+  });
 });
 
 describe('[host:fansly] the client through the tab (R20 P9c, FS-NET-4, FX-001)', () => {

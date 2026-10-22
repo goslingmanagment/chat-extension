@@ -20,6 +20,8 @@ const WINDOWS_TIMEOUT_MS = 2000;
  * (core services/hosts/fansly/ppv.ts `PPV_READ.answerMs`); this bounds a first page that has not come back by then.
  */
 const PPV_TIMEOUT_MS = 2000;
+/** With the photos asked: the newest page may be read once more through the model's tab (bg/fansly/ppv.ts `TAB_READ_MS`). */
+const PHOTOS_TIMEOUT_MS = 3600;
 
 /** The tab's client as it takes a request of Fansly's registry: the shared one is typed by its own types only. */
 type AnyRequest = (type: string, payload: unknown, options?: { readonly timeoutMs?: number }) => Promise<{ readonly ok: true; readonly payload: unknown } | { readonly ok: false; readonly error: CgErrorWire }>;
@@ -48,7 +50,7 @@ export async function readFanslyPpv(
   want: { readonly ppv: boolean; readonly photos: boolean } = { ppv: true, photos: false },
 ): Promise<FanslyChatRead | null> {
   const payload = { hostAccountId: chat.creatorId, fanRef: chat.fanId, groupId: chat.groupId, ...(want.ppv ? {} : { ppv: false }), ...(want.photos ? { photos: true } : {}) };
-  const answer = await (rpc.request as unknown as AnyRequest)('fansly.ppv.read', payload, { timeoutMs: PPV_TIMEOUT_MS }).catch(() => null);
+  const answer = await (rpc.request as unknown as AnyRequest)('fansly.ppv.read', payload, { timeoutMs: want.photos ? PHOTOS_TIMEOUT_MS : PPV_TIMEOUT_MS }).catch(() => null);
   if (answer === null || !answer.ok) return null;
   const read = answer.payload as { readonly ok?: unknown; readonly capturedAt?: unknown; readonly items?: unknown; readonly photos?: unknown };
   if (read.ok !== true) return null;
