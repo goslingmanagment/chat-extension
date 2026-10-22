@@ -765,14 +765,27 @@ export class FakeHub {
         now,
         timeScale: this.options.timeScale ?? 1,
         laneOff: s.config.voiceLaneOff.includes(page.pageLabel),
+        day: s.config.voiceDay,
         generations: s.generations,
         pair: (conversation, fan) => s.data.pair(page.pageLabel, conversation, fan),
       });
+    } else if (route === 'voiceNoteAllowance') {
+      answer = s.voice.allowance({ pageId: page.pageId, pageLabel: page.pageLabel, chatIsFan: chatIsFan(page) }, s.config.voiceDay, s.config.voiceLaneOff.includes(page.pageLabel), now);
     } else {
       const { voiceNoteId } = valid.request as VoiceNoteRef;
       answer = route === 'voiceNoteStatus' ? s.voice.status(voiceNoteId, page.pageId, userId, now) : s.voice.audio(voiceNoteId, page.pageId, userId, now);
     }
     if (answer.kind === 'refuse') return refuse(answer.error, { servedBy: 'model' });
+    if (answer.kind === 'allowance') {
+      // By our contract's schema and the hub's own of its answer: one either refuses is a fake hub bug.
+      const issues = [
+        ...((HUB_ROUTE_SCHEMAS.voiceNoteAllowance.response as unknown as SafeParser).safeParse(answer.allowance).success ? [] : ['self-check: refused by our contract']),
+        ...(schema.response[200]?.safeParse(answer.allowance).success === true ? [] : ['self-check: refused by the hub’s own response schema of 200 (vendored SDK)']),
+      ];
+      if (issues.length > 0) return refuse('internal_error', { reason: 'fake_hub_bug', issues });
+      record(200, 'model');
+      return json(200, answer.allowance);
+    }
     if (answer.kind === 'audio') {
       // The route's raw bytes (`fetchVoiceNoteAudio`): each answer its own copy of the take.
       const bytes = answer.bytes.slice();
@@ -1069,6 +1082,7 @@ export class FakeHub {
       case 'voiceNoteCreate':
       case 'voiceNoteStatus':
       case 'voiceNoteAudio':
+      case 'voiceNoteAllowance':
         // The voice-notes lane answers on its own path (handleVoice).
         throw new Error(`${route} is answered by the voice lane`);
     }

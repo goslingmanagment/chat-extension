@@ -95,6 +95,14 @@ export interface FakeHubConfigPatch {
    * Models the spend switch: existing renders remain readable and replayable.
    */
   readonly voiceLaneOff?: readonly string[];
+  /**
+   * 1.49.0: the voice-notes lane's day (hub `voiceNotesDailyCharBudget` per page, `voiceNotesGlobalDailyCharBudget` over
+   * every page, `voiceNotesScriptMaxChars`; 5000, 20000 and 600 by default) and what pages spent today before the
+   * stand's own takes (`spentToday`, by page label; merged page by page). `voiceNoteAllowance` answers from it, and a
+   * fresh create longer than what is left is `voice_quota_denied`: `spentToday: { [page]: 4_800 }` puts a page near
+   * its limit, `5_000` over it.
+   */
+  readonly voiceDay?: { readonly pageChars?: number; readonly globalChars?: number; readonly scriptMaxChars?: number; readonly spentToday?: Readonly<Record<string, number>> };
 }
 
 /**

@@ -46,6 +46,8 @@ export const HUB_ROUTE_PATHS = {
   voiceNoteCreate: '/api/v1/pages/:pageLabel/voice-notes',
   voiceNoteStatus: '/api/v1/pages/:pageLabel/voice-notes/:id',
   voiceNoteAudio: '/api/v1/pages/:pageLabel/voice-notes/:id/audio',
+  // 1.49.0: the page's day allowance — a literal segment where the status route has `:id` (the router takes the literal).
+  voiceNoteAllowance: '/api/v1/pages/:pageLabel/voice-notes/allowance',
 } as const satisfies Record<HubRouteKey, string>;
 
 /** What the client must make of an error answer (HubErrorResolution without the clock-dependent parts). */

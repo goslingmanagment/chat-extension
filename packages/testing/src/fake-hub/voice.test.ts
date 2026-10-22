@@ -20,7 +20,7 @@ import { createFakeHub, type FakeHub, type FakeHubOptions } from './hub';
 import { hubCall, readSse, type FetchLike } from './kit';
 import { facadeRequestOf, matchRoute, wireOf } from './routing';
 import { startFakeHub } from './server';
-import { HUB_VOICE_TAGS, VOICE_RENDER_MS, VoiceLane, canonicalVoiceScript, voiceRequestHash } from './voice';
+import { DEFAULT_VOICE_DAY, HUB_VOICE_TAGS, VOICE_RENDER_MS, VoiceLane, canonicalVoiceScript, voiceRequestHash } from './voice';
 import { voiceAudioSamples } from './voice-audio';
 
 const CLIENT_VERSION = 'chat-extension/1.0.0';
@@ -145,6 +145,39 @@ describe('[fake hub] the voice-notes lane on both sites (hub HF-4а/б, #757)', 
     expect((await h.status(OF, c.voiceNoteId)).state).toBe('completed');
   });
 
+  it('the day (1.49.0): the allowance follows the spend and both budgets; a create past it is 429, nothing reserved; a definite failure gives its characters back', async () => {
+    const h = lane({ config: { voiceDay: { pageChars: 120, spentToday: { [WORLD.pages.vip.pageLabel]: 40 } } } });
+    const client = createClient(h.sdk);
+    const left = async (chat: Chat): Promise<number> => (await client.voiceNoteAllowance({ params: { pageLabel: chat.pageLabel } })).remainingChars;
+    const DAY = 86_400_000;
+    const now = h.hub.status().clock.now;
+    // The literal route, never the status of a note called «allowance»; the next UTC midnight renews it.
+    expect(await client.voiceNoteAllowance({ params: { pageLabel: OF.pageLabel } })).toEqual({ scriptMaxChars: 600, dailyChars: 120, remainingChars: 120, resetsAt: new Date((Math.floor(now / DAY) + 1) * DAY).toISOString() });
+    const source = await h.script(OF);
+    await h.create(OF, h.body(source));
+    expect(await left(OF)).toBe(120 - SCRIPT.length);
+    h.hub.control({ op: 'scriptVoice', outcomes: ['failed_definite'] });
+    const failed = await h.create(OF, h.body(source));
+    expect((await h.status(OF, failed.voiceNoteId)).state).toBe('failed_definite');
+    expect(await left(OF)).toBe(120 - SCRIPT.length);
+    await h.create(OF, h.body(source));
+    expect(await left(OF)).toBe(120 - 2 * SCRIPT.length);
+    // Longer than what is left: refused before anything is reserved; the same id is admitted once the day allows it.
+    const over = h.body(source);
+    expect(await h.call('voiceNoteCreate', { pageLabel: OF.pageLabel, body: over })).toEqual(refusal(429, 'voice_quota_denied'));
+    expect([await left(OF), h.hub.status().voiceNotes.length]).toEqual([120 - 2 * SCRIPT.length, 3]);
+    h.hub.control({ op: 'config', patch: { voiceDay: { pageChars: 1_000 } } });
+    expect((await h.create(OF, over)).state).toBe('dispatched');
+    // Every page's day bounds a page's: the other page spent 40 before, this one 144.
+    h.hub.control({ op: 'config', patch: { voiceDay: { globalChars: 200 } } });
+    expect(await left(OF)).toBe(200 - 40 - 3 * SCRIPT.length);
+    h.hub.control({ op: 'config', patch: { voiceDay: { globalChars: 100 } } });
+    expect(await left(OF)).toBe(0);
+    // The lane's switch refuses the read as it refuses a fresh create.
+    h.hub.control({ op: 'config', patch: { voiceLaneOff: [OF.pageLabel] } });
+    expect(await h.call('voiceNoteAllowance', { pageLabel: OF.pageLabel })).toEqual(refusal(403, 'voice_disabled'));
+  });
+
   it('a replay: the same id with the same request answers the same note, admitted once; another request under the id is 409 idempotency_mismatch', async () => {
     const h = lane();
     const source = await h.script(OF);
@@ -230,7 +263,7 @@ describe('[fake hub] what the hub admits a render from (HF-4а)', () => {
       requestId: uuid(0x7f10), clientRequestId: uuid(0x7f11), feature: 'voice-script', pageLabel: OF.pageLabel, fanRef: WORLD.otherFan, conversationRef: OF.chat, userId: WORLD.user.userId, summaryMode: null,
       messageCount: 100, personaDefinitionId: null, startedAt: 0, completedAt: 1, outcome: 'done', text: SCRIPT, stopReason: 'end_turn', window: { requested: 100, served: 10 },
     };
-    const input = { userId: WORLD.user.userId, now: 0, timeScale: 0, laneOff: false, generations: new Map([[generation.requestId, generation]]), pair: () => 'verified' as const };
+    const input = { userId: WORLD.user.userId, now: 0, timeScale: 0, laneOff: false, day: DEFAULT_VOICE_DAY, generations: new Map([[generation.requestId, generation]]), pair: () => 'verified' as const };
     const body = { clientRequestId: uuid(0x7f12), conversationRef: OF.chat, fanRef: WORLD.otherFan, sourceGenerationRef: generation.requestId, script: SCRIPT };
     expect(new VoiceLane().create(body, { ...input, page: { pageId: WORLD.pages.one.pageId, pageLabel: OF.pageLabel, chatIsFan: true } })).toEqual({ kind: 'refuse', error: 'conversation_fan_mismatch' });
     // On Fansly the same pair is the capture's to judge.

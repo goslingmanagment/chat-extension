@@ -100,7 +100,7 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
   });
 
   it('voice notes are every site’s (1.47.0): a tab of either site asks, a page never; the paid step and the attach keep their rules', () => {
-    for (const type of ['voice.read', 'voice.script', 'voice.edit', 'voice.take', 'voice.check', 'voice.audio', 'voice.attached', 'voice.discard'] as const) {
+    for (const type of ['voice.read', 'voice.allowance', 'voice.script', 'voice.edit', 'voice.take', 'voice.check', 'voice.audio', 'voice.attached', 'voice.discard'] as const) {
       expect(C.mayRequest(type, 'tab', null, 'chatspace'), type).toBe(true);
       expect(C.mayRequest(type, 'tab', null, 'fansly-web'), type).toBe(true);
       expect(C.mayRequest(type, 'page', 'options'), type).toBe(false);
@@ -123,6 +123,8 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     for (const invalid of FX.VOICE_OP_VIEW_FIXTURES.invalid) expect(C.VoiceOpViewSchema.safeParse(invalid).success).toBe(false);
     for (const valid of FX.VOICE_SCRIPT_START_FIXTURES.valid) expect(C.VoiceScriptStartSchema.safeParse(valid).success).toBe(true);
     for (const invalid of FX.VOICE_SCRIPT_START_FIXTURES.invalid) expect(C.VoiceScriptStartSchema.safeParse(invalid).success).toBe(false);
+    for (const valid of FX.VOICE_ALLOWANCE_FIXTURES.valid) expect(C.VoiceAllowanceSchema.safeParse(valid).success).toBe(true);
+    for (const invalid of FX.VOICE_ALLOWANCE_FIXTURES.invalid) expect(C.VoiceAllowanceSchema.safeParse(invalid).success, JSON.stringify(invalid)).toBe(false);
   });
 
   it('parses in two stages and rejects unknown types', () => {

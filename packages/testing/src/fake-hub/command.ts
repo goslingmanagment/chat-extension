@@ -145,7 +145,17 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'aiNameFan',
   'aiTexts',
   'voiceLaneOff',
+  'voiceDay',
 ]);
+
+const VOICE_DAY_FIELDS: Readonly<Record<string, FieldCheck>> = {
+  pageChars: (value) => isNumber(value) && Number.isInteger(value) && (value as number) >= 1,
+  globalChars: (value) => isNumber(value) && Number.isInteger(value) && (value as number) >= 1,
+  scriptMaxChars: (value) => isNumber(value) && Number.isInteger(value) && (value as number) >= 1,
+  spentToday: (value) => isObject(value) && Object.values(value as object).every((chars) => isNumber(chars) && Number.isInteger(chars) && (chars as number) >= 0),
+};
+/** `config.patch.voiceDay`: whole positive budgets and caps, whole spends of zero or more, nothing else. */
+const isVoiceDay: FieldCheck = (value) => isObject(value) && Object.entries(value as Record<string, unknown>).every(([key, field]) => field === undefined || VOICE_DAY_FIELDS[key]?.(field) === true);
 
 const isOp = (op: unknown): op is FakeHubCommand['op'] => typeof op === 'string' && Object.hasOwn(FIELDS, op);
 
@@ -172,6 +182,8 @@ export function checkCommand(value: unknown): FakeHubCommand {
     if (limits !== undefined && (!isObject(limits) || ((limits as Record<string, unknown>)['deepMax'] !== undefined && !oneOf(1500, 3000, 5000)((limits as Record<string, unknown>)['deepMax'])))) throw new Error('fake hub control: limits.deepMax must be 1500, 3000 or 5000');
     const texts = patch['aiTexts'];
     if (texts !== undefined && !(isObject(texts) && Object.values(texts as object).every(isString))) throw new Error('fake hub control: config.patch.aiTexts is not a map of feature → text');
+    const day = patch['voiceDay'];
+    if (day !== undefined && !isVoiceDay(day)) throw new Error('fake hub control: config.patch.voiceDay takes pageChars, globalChars, scriptMaxChars (whole, ≥ 1) and spentToday (page → whole chars ≥ 0)');
   }
   return value as FakeHubCommand;
 }

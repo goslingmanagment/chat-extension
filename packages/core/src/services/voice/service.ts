@@ -14,6 +14,11 @@
 //
 // The sessions are the signed-in person's: another sign-in finds none of the
 // previous one's (their notes are not that person's to read).
+//
+// 1.49.0: what a page may still voice today (`voiceNoteAllowance`), for the
+// studio's line beside «Озвучить» — a free read, kept a few seconds, read
+// again once a take of the page moves. It decides nothing: the hub refuses a
+// take over the limit itself and charges nothing.
 
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { ChatRef, HumanCause } from '@cg/contracts/ids';
@@ -23,6 +28,8 @@ import {
   VOICE_TONE_REPLY,
   VOICE_TONES,
   VoiceSessionSchema,
+  type VoiceAllowance,
+  type VoiceAllowanceQuery,
   type VoiceAudio,
   type VoiceNoteCreateRequest,
   type VoiceNoteRef,
@@ -46,6 +53,8 @@ export interface VoiceHubPort {
   create(request: VoiceNoteCreateRequest): Promise<VoiceNoteView>;
   status(ref: VoiceNoteRef): Promise<VoiceNoteView>;
   audio(ref: VoiceNoteRef): Promise<ArrayBuffer>;
+  /** 1.49.0: what the page may still voice today. */
+  allowance(query: VoiceAllowanceQuery): Promise<VoiceAllowance>;
 }
 
 /**
@@ -95,6 +104,13 @@ interface Stored {
   readonly sessions: readonly unknown[];
 }
 
+/** A page's day allowance as the hub last said (null — the read failed): when, and in which round of the page's takes. */
+interface KeptAllowance {
+  readonly value: VoiceAllowance | null;
+  readonly at: number;
+  readonly round: number;
+}
+
 /** A take's free status reads: a pause that grows with each failure, and a time after which nobody waits by itself. */
 interface PollState {
   failures: number;
@@ -119,6 +135,12 @@ export class VoiceService<S> {
   private readonly polls = new Map<string, PollState>();
   private pollTimer: unknown = null;
   private readonly audioCache = new Map<string, VoiceAudio>();
+  /** 1.49.0: the pages' day allowances, by pageId. */
+  private readonly allowances = new Map<number, KeptAllowance>();
+  /** Grows each time a take of the page moves: an allowance read before that is older than the move. */
+  private readonly allowanceRounds = new Map<number, number>();
+  /** The read of a page's allowance on its way, one at a time. */
+  private readonly allowanceReads = new Map<number, { readonly round: number; readonly read: Promise<VoiceAllowance | null> }>();
 
   constructor(private readonly deps: VoiceServiceDeps<S>) {}
 
@@ -134,6 +156,50 @@ export class VoiceService<S> {
   /** The background woke: the sessions are read, an earlier background's open creates turn uncertain, reads go on. */
   async resume(): Promise<void> {
     await this.ready();
+  }
+
+  // ── the day's allowance (1.49.0) ─────────────────────────────────────────
+
+  /**
+   * What the sender's page may still voice today: kept for `VOICE_LIMITS.allowanceTtlMs`, read from the hub again
+   * once a take of the page moved; one read of a page at a time. A failure reads as not known (null), never as an
+   * error of the studio; nothing paid is ever asked by it.
+   */
+  async allowance(sender: S, pageId: number): Promise<{ readonly allowance: VoiceAllowance | null }> {
+    const page = await this.deps.page(pageId, sender);
+    if (!page.ok) return { allowance: null };
+    await this.ready();
+    return { allowance: await this.allowanceOf(pageId, page.page.pageLabel) };
+  }
+
+  private allowanceOf(pageId: number, pageLabel: string): Promise<VoiceAllowance | null> {
+    const round = this.allowanceRounds.get(pageId) ?? 0;
+    const kept = this.allowances.get(pageId);
+    if (kept !== undefined && kept.round === round && this.deps.now() - kept.at < VOICE_LIMITS.allowanceTtlMs) return Promise.resolve(kept.value);
+    const pending = this.allowanceReads.get(pageId);
+    if (pending !== undefined && pending.round === round) return pending.read;
+    const read = this.readAllowance(pageId, pageLabel, round);
+    this.allowanceReads.set(pageId, { round, read });
+    return read;
+  }
+
+  private async readAllowance(pageId: number, pageLabel: string, round: number): Promise<VoiceAllowance | null> {
+    let value: VoiceAllowance | null = null;
+    try {
+      value = await this.deps.hub.allowance({ pageLabel });
+    } catch (error) {
+      this.log('info', 'voice allowance not known', this.deps.failure(error).error.code);
+    }
+    // A take of the page moved while the read was on its way: its answer may be older than the move, so it is not kept.
+    if ((this.allowanceRounds.get(pageId) ?? 0) === round) this.allowances.set(pageId, { value, at: this.deps.now(), round });
+    if (this.allowanceReads.get(pageId)?.round === round) this.allowanceReads.delete(pageId);
+    return value;
+  }
+
+  /** A take of the page moved (the hub answered its create, or it settled): the next read of the allowance asks the hub. */
+  private allowanceMoved(pageId: number): void {
+    this.allowanceRounds.set(pageId, (this.allowanceRounds.get(pageId) ?? 0) + 1);
+    this.allowances.delete(pageId);
   }
 
   // ── the script ───────────────────────────────────────────────────────────
@@ -329,6 +395,7 @@ export class VoiceService<S> {
       this.sessions.clear();
       this.audioCache.clear();
       this.polls.clear();
+      this.allowances.clear();
       await this.persist();
       for (const session of gone) this.deps.emit({ chat: session.chat, conversationRef: session.conversationRef, session: null });
     });
@@ -400,6 +467,9 @@ export class VoiceService<S> {
       failure = this.deps.failure(error);
     }
     this.inFlight.delete(takeId);
+    // Whatever the hub answered (admitted, refused) — or did not — its count of the page's day may have moved; before
+    // the tabs hear of the take, so that their read of the allowance follows it.
+    this.allowanceMoved(session.pageId);
     await this.serial(() =>
       this.markTake(sessionId, takeId, (current) => {
         if (view !== null) {
@@ -428,6 +498,8 @@ export class VoiceService<S> {
       if (pageLabel === null) throw new Error('page not granted');
       const view = await this.deps.hub.status({ pageLabel, voiceNoteId });
       this.polls.delete(takeId);
+      // A take that settled (rendered, failed and given back, expired): the page's day as the hub counts it moved.
+      if (readNoteView(view).state !== take.state) this.allowanceMoved(session.pageId);
       await this.serial(() =>
         this.markTake(sessionId, takeId, (current) => {
           const reading = readNoteView(view);
@@ -489,6 +561,7 @@ export class VoiceService<S> {
         this.sessions.clear();
         this.audioCache.clear();
         this.polls.clear();
+        this.allowances.clear();
         this.owner = owner;
         await this.persist();
       }

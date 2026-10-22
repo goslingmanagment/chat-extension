@@ -82,8 +82,11 @@ import {
   type SpendersQuery,
   type SpendersStats,
   type StatsQuery,
+  VoiceAllowanceQuerySchema,
   VoiceNoteCreateRequestSchema,
   VoiceNoteRefSchema,
+  type VoiceAllowance,
+  type VoiceAllowanceQuery,
   type VoiceNoteCreateRequest,
   type VoiceNoteRef,
   type VoiceNoteView,
@@ -918,12 +921,18 @@ export class ChatExtensionHub implements HubFacade {
     return this.ctx.unwrap('voiceNoteAudio', result, connection, { pageLabel: ref.pageLabel }) as ArrayBuffer;
   }
 
+  /** 1.49.0: what the page may still voice today — a free read for the studio's line; the hub still decides every create. */
+  async voiceNoteAllowance(query: VoiceAllowanceQuery): Promise<VoiceAllowance> {
+    const connection = await this.voiceRoute('voiceNoteAllowance', query.pageLabel, VoiceAllowanceQuerySchema.safeParse(query).success);
+    return (await this.ctx.sdk('voiceNoteAllowance', { params: { pageLabel: query.pageLabel } }, { facts: { pageLabel: query.pageLabel } }, connection)) as VoiceAllowance;
+  }
+
   /**
    * A voice-note route of a page, the hub's own checks first: signed in, the request inside its contract (never sent
    * otherwise, HB-006), `voice-notes-v1` declared, the page granted, and its `voice` usable — the hub checks the same
    * switch on every call of the narrow token, a replay's included.
    */
-  private async voiceRoute(route: 'voiceNoteCreate' | 'voiceNoteStatus' | 'voiceNoteAudio', pageLabel: string, valid: boolean): Promise<Connection> {
+  private async voiceRoute(route: 'voiceNoteCreate' | 'voiceNoteStatus' | 'voiceNoteAudio' | 'voiceNoteAllowance', pageLabel: string, valid: boolean): Promise<Connection> {
     await this.ready;
     const connection = this.ctx.connection(route);
     if (!valid) throw this.ctx.failure(route, transportFailure('contract'), connection);

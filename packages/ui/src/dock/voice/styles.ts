@@ -97,6 +97,8 @@ ${/* ── the question, the handover, the footer ── */ ''}
 .cg-voice__confirm-a { display: inline-flex; gap: 4px; margin-left: auto; }
 .cg-voice__foot { display: grid; gap: 6px; padding: 7px 8px 8px 12px; border-top: 1px solid var(--cg-rule); }
 .cg-voice__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+${/* The buttons keep together at the row's end; a row too short for them takes them below, still at the end. */ ''}
+.cg-voice__btns { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 6px; margin-left: auto; min-width: 0; }
 .cg-voice__go:not([aria-disabled="true"]) { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-weight: 600; }
 .cg-voice__go:not([aria-disabled="true"]):hover { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
 .cg-voice__attach { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--cg-ink-2); font-size: var(--cg-text-sm2); line-height: 18px; }
@@ -108,6 +110,11 @@ ${/* ── the question, the handover, the footer ── */ ''}
 }
 .cg-voice__leftover.is-cleared { background: none; box-shadow: none; padding-left: 0; color: var(--cg-ink-2); }
 .cg-voice__leftover-t { flex: 1 1 200px; min-width: 0; }
+${/* 1.49.0: the page's day, just before the buttons (above them, at the row's end, where the row is short) — quiet, amber with its ring when it warns. */ ''}
+.cg-voice__day { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; margin: 0 6px 0 auto; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); line-height: 18px; text-align: right; font-variant-numeric: tabular-nums; }
+.cg-voice__day.is-warn { color: var(--cg-amber-ink); }
+.cg-voice__day.is-warn .cg-dot--ring { box-shadow: inset 0 0 0 1.5px currentColor; }
+.cg-voice__day-t { min-width: 0; }
 @container cg (max-width: 420px) {
   .cg-voice { padding: 6px 8px 8px 10px; }
   .cg-voice__foot { padding-left: 10px; }

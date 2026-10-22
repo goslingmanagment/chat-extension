@@ -70,6 +70,8 @@ export const HUB_ROUTES = {
   voiceNoteCreate: { method: 'POST', routeClass: 'page', since: 'sdk', flag: 'voice', capabilities: ['voice-notes-v1'], narrowToken: true },
   voiceNoteStatus: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'voice', capabilities: ['voice-notes-v1'], narrowToken: true },
   voiceNoteAudio: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'voice', capabilities: ['voice-notes-v1'], narrowToken: true },
+  /** 1.49.0: what the page may still voice today — a free read for the studio's line beside «Озвучить». */
+  voiceNoteAllowance: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'voice', capabilities: ['voice-notes-v1'], narrowToken: true },
 } as const satisfies Record<string, HubRouteSpec>;
 
 export type HubRouteKey = keyof typeof HUB_ROUTES;

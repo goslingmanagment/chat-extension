@@ -47,7 +47,7 @@ import {
 import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
-import { type VoiceNoteCreateRequest, type VoiceNoteRef, type VoiceNoteView } from '../voice';
+import { type VoiceAllowance, type VoiceAllowanceQuery, type VoiceNoteCreateRequest, type VoiceNoteRef, type VoiceNoteView } from '../voice';
 
 /** Fixed timings of the facade (§7, §8.2, §8.3); the board and «Новые» ones are SPENDERS_BOARD and AUDIENCE_LIMITS. */
 export const HUB_FACADE_TIMING = {
@@ -188,4 +188,6 @@ export interface HubFacade {
   voiceNoteStatus(ref: VoiceNoteRef): Promise<VoiceNoteView>;
   /** 1.47.0: a voice note's MP3 as the hub serves it (`fetchVoiceNoteAudio`); the caller checks its sha256 and length. */
   voiceNoteAudio(ref: VoiceNoteRef): Promise<ArrayBuffer>;
+  /** 1.49.0: what the page may still voice today; a free read, never a render. The hub still decides every create. */
+  voiceNoteAllowance(query: VoiceAllowanceQuery): Promise<VoiceAllowance>;
 }

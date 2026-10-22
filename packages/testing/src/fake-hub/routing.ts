@@ -69,7 +69,11 @@ function compile(template: string): CompiledPath {
   return { regex: new RegExp(`^${source}$`), params };
 }
 
-const ROUTE_MATCHERS = HUB_ROUTE_KEYS.map((route) => ({ route, method: HUB_ROUTES[route].method, ...compile(HUB_ROUTE_PATHS[route]) }));
+/**
+ * The hub's router takes a literal segment over a parameter (`/voice-notes/allowance` before `/voice-notes/:id`): a
+ * route with fewer parameters is tried first, in the table's order otherwise.
+ */
+const ROUTE_MATCHERS = HUB_ROUTE_KEYS.map((route) => ({ route, method: HUB_ROUTES[route].method, ...compile(HUB_ROUTE_PATHS[route]) })).sort((a, b) => a.params.length - b.params.length);
 const FORBIDDEN_MATCHERS = Object.entries(FORBIDDEN_OPERATION_ROUTES).map(([operation, spec]) => ({ operation, method: spec.method, ...compile(spec.path) }));
 
 export type RouteMatch =
@@ -153,6 +157,7 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   voiceNoteCreate: { params: PAGE, body: 'nest' },
   voiceNoteStatus: { params: VOICE_NOTE, integers: ['voiceNoteId'] },
   voiceNoteAudio: { params: VOICE_NOTE, integers: ['voiceNoteId'] },
+  voiceNoteAllowance: { params: PAGE },
 };
 
 /** What arrived on the wire, already split (the hub's own request parsing). */

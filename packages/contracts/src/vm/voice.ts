@@ -5,6 +5,7 @@
 // view once fetched and checked) and hands everything else to the controller.
 
 import { type CgErrorView } from '../errors';
+import { type IsoTimestamp } from '../primitives';
 import { type VoiceTone } from '../voice';
 import type { UiAction } from './actions';
 import { type ReasonVM } from './catalog';
@@ -62,6 +63,19 @@ export interface VoiceAttachVM {
    * stays empty. null — the field holds nothing of it.
    */
   readonly leftover: { readonly cleared: boolean; readonly action: UiAction | null } | null;
+}
+
+/**
+ * 1.49.0: the line beside «Озвучить» — what the page may still voice today, as the hub last said. `left` — a quiet
+ * line; `short` — the script in the editor is longer than what is left (amber); `out` — nothing is left until
+ * `resetsAt`. A warning only: «Озвучить» stays pressable; the hub refuses a take over the limit and charges nothing.
+ */
+export interface VoiceAllowanceVM {
+  readonly state: 'left' | 'short' | 'out';
+  /** Characters left today. */
+  readonly remaining: number;
+  /** When the day's budget renews: the studio prints it in the person's own time. */
+  readonly resetsAt: IsoTimestamp;
 }
 
 /** A question in the studio itself (no dialog): the person's answer goes on, the other button leaves it. */
@@ -122,6 +136,8 @@ export interface VoiceVM {
   readonly again: ActionButtonVM | null;
   readonly confirm: VoiceConfirmVM | null;
   readonly attach: VoiceAttachVM | null;
+  /** 1.49.0: the day's allowance beside «Озвучить»; null — not known (not read yet, an older hub, a failed read) or nothing to say. */
+  readonly allowance: VoiceAllowanceVM | null;
 }
 
 /** What the dock's chip shows of the chat's voice: a take renders (busy), a take got ready while the studio was closed (the dot). */

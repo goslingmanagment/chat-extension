@@ -61,7 +61,7 @@ import { DEFAULT_SETTINGS } from '../../src/index';
 /** 1.21.0 (X48): who sent a message, as the tab tells the background. */
 const attributionFact = { chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false };
 import { HUB_SAMPLES as H } from './hub';
-import { VOICE_SCRIPT_START_FIXTURES, fanslyVoiceSession, voiceAudio, voiceScriptStart, voiceSession } from './voice';
+import { VOICE_ALLOWANCE_FIXTURES, VOICE_SCRIPT_START_FIXTURES, fanslyVoiceSession, voiceAudio, voiceScriptStart, voiceSession } from './voice';
 import { cause } from './samples';
 
 export interface Verdicts {
@@ -342,6 +342,11 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'voice.read': {
     req: { valid: [{ pageId: 11, conversationRef: IDS.fan }, { pageId: 13, conversationRef: FANSLY_IDS.group }], invalid: [{ pageId: 11 }, { pageId: 0, conversationRef: IDS.fan }] },
     res: { valid: [{ session: voiceSession }, { session: fanslyVoiceSession }, { session: null }], invalid: [{ session: { ...voiceSession, takes: null } }, {}] },
+  },
+  // 1.49.0: the day's allowance; null — not known.
+  'voice.allowance': {
+    req: { valid: [{ pageId: 11 }, { pageId: 13 }], invalid: [{}, { pageId: 0 }, { pageId: 11, conversationRef: IDS.fan }] },
+    res: { valid: [...VOICE_ALLOWANCE_FIXTURES.valid.map((allowance) => ({ allowance })), { allowance: null }], invalid: [...VOICE_ALLOWANCE_FIXTURES.invalid.map((allowance) => ({ allowance })), {}] },
   },
   'voice.script': {
     req: {

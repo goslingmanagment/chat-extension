@@ -3,9 +3,16 @@
 // admission of a paid render in the hub's order, its idempotent replay by
 // `clientRequestId`, a render that goes from queued or dispatched to its end,
 // and the MP3 of a completed one — real audio, one of three spoken takes
-// (voice-audio.ts). No provider and no character budget: `billed` says what
-// the hub would, and a test scripts what the hub's switches, its provider and
-// its budget make of the next creates (`scriptVoice`).
+// (voice-audio.ts). No provider: `billed` says what the hub would, and a test
+// scripts what the hub's switches and its provider make of the next creates
+// (`scriptVoice`).
+//
+// The day's budget (1.49.0, hub `reserveVoiceCharBudget`): a page's and the
+// whole hub's characters of the UTC day (config `voiceDay`), what each page
+// spent before the stand's own takes, and the notes admitted today — a
+// definite failure gives its characters back. `voiceNoteAllowance` answers
+// from it, and a fresh create longer than what is left is refused
+// `voice_quota_denied` with nothing reserved.
 //
 // Time. A render's steps are hub time, scaled by the hub's `timeScale` like
 // its SSE delays: with 0 a render is over by its first status read; with the
@@ -19,13 +26,13 @@
 
 import { createHash } from 'node:crypto';
 
-import { type HubRouteKey, type VoiceNoteCreateBody, type VoiceNoteState, type VoiceNoteView } from '@cg/contracts';
+import { type HubRouteKey, type VoiceAllowance, type VoiceNoteCreateBody, type VoiceNoteState, type VoiceNoteView } from '@cg/contracts';
 
 import { type PairState } from './ai-rules';
 import { iso } from './clock';
 import { voiceAudioSamples, type VoiceAudioSample } from './voice-audio';
 
-export const VOICE_ROUTES = ['voiceNoteCreate', 'voiceNoteStatus', 'voiceNoteAudio'] as const satisfies readonly HubRouteKey[];
+export const VOICE_ROUTES = ['voiceNoteCreate', 'voiceNoteStatus', 'voiceNoteAudio', 'voiceNoteAllowance'] as const satisfies readonly HubRouteKey[];
 export type VoiceRoute = (typeof VOICE_ROUTES)[number];
 export const isVoiceRoute = (route: HubRouteKey): route is VoiceRoute => (VOICE_ROUTES as readonly HubRouteKey[]).includes(route);
 
@@ -46,6 +53,25 @@ export function voiceClientOutdated(minimum: string, header: string | null): boo
 export const HUB_VOICE_TAGS: readonly string[] = ['[warmly]', '[cheerfully]', '[thoughtful]', '[excited]', '[whispers]', '[chuckles]', '[giggles]', '[sighs]', '[short pause]', '[long pause]'];
 /** The live `voiceNotesScriptMaxChars` at its default. */
 export const HUB_VOICE_SCRIPT_MAX_CHARS = 600;
+/** The live `voiceNotesDailyCharBudget` (a page's day) and `voiceNotesGlobalDailyCharBudget` (every page's) at their defaults. */
+export const HUB_VOICE_PAGE_DAY_CHARS = 5_000;
+export const HUB_VOICE_GLOBAL_DAY_CHARS = 20_000;
+
+/**
+ * The lane's day as the owner set it (config `voiceDay`): a page's and every page's characters, the cap of one script,
+ * and what pages spent today before the stand's own takes (by page label).
+ */
+export interface VoiceDay {
+  readonly pageChars: number;
+  readonly globalChars: number;
+  readonly scriptMaxChars: number;
+  readonly spentToday: Readonly<Record<string, number>>;
+}
+
+export const DEFAULT_VOICE_DAY: VoiceDay = { pageChars: HUB_VOICE_PAGE_DAY_CHARS, globalChars: HUB_VOICE_GLOBAL_DAY_CHARS, scriptMaxChars: HUB_VOICE_SCRIPT_MAX_CHARS, spentToday: {} };
+
+const DAY_MS = 86_400_000;
+const utcDayOf = (ms: number): number => Math.floor(ms / DAY_MS);
 
 /** `canonicalizeVoiceScript`: what the hub hashes, checks and counts. */
 export const canonicalVoiceScript = (script: string): string => script.normalize('NFC').replace(/\r\n/g, '\n').trim();
@@ -56,8 +82,8 @@ export function voiceRequestHash(pageId: number, conversationRef: string, source
 }
 
 /** `validateVoiceScript` of a canonical script: empty, too long, `<`/`>` markup, a bracket group off the list. */
-export function voiceScriptInvalid(canonicalScript: string): boolean {
-  if (canonicalScript.length === 0 || canonicalScript.length > HUB_VOICE_SCRIPT_MAX_CHARS || /[<>]/.test(canonicalScript)) return true;
+export function voiceScriptInvalid(canonicalScript: string, maxChars: number = HUB_VOICE_SCRIPT_MAX_CHARS): boolean {
+  if (canonicalScript.length === 0 || canonicalScript.length > maxChars || /[<>]/.test(canonicalScript)) return true;
   return (canonicalScript.match(/\[[^[\]]*\]/g) ?? []).some((group) => !HUB_VOICE_TAGS.includes(group));
 }
 
@@ -175,6 +201,8 @@ export interface VoiceCreateInput {
   readonly timeScale: number;
   /** The lane does not serve the page (config `voiceLaneOff`): a fresh render is `voice_disabled`. */
   readonly laneOff: boolean;
+  /** The day's budget and the cap of one script (config `voiceDay`). */
+  readonly day: VoiceDay;
   readonly generations: ReadonlyMap<string, VoiceSource>;
   /** The page's capture of a Fansly group (HF-9). */
   readonly pair: (conversationRef: string, fanRef: string) => PairState;
@@ -184,6 +212,7 @@ export interface VoiceCreateInput {
 export type VoiceAnswer =
   | { readonly kind: 'view'; readonly status: 200 | 202; readonly view: VoiceNoteView; readonly lost: 'drop' | 'hang' | null }
   | { readonly kind: 'audio'; readonly bytes: Uint8Array<ArrayBuffer> }
+  | { readonly kind: 'allowance'; readonly allowance: VoiceAllowance }
   | { readonly kind: 'refuse'; readonly error: string };
 
 /** A note as `status` lists it (no script, no audio). */
@@ -236,7 +265,7 @@ export class VoiceLane {
     for (const code of SWITCH_REFUSALS) {
       if (this.take((kind) => kind === code) !== null || (code === 'voice_disabled' && input.laneOff)) return refuse(code);
     }
-    if (voiceScriptInvalid(script)) return refuse('voice_script_invalid');
+    if (voiceScriptInvalid(script, input.day.scriptMaxChars)) return refuse('voice_script_invalid');
     // The source: a whole `voice-script` generation of this user, page, chat and fan (the generation's record is the ledger).
     const fanRef = body.fanRef ?? body.conversationRef;
     const source = input.generations.get(body.sourceGenerationRef);
@@ -260,6 +289,7 @@ export class VoiceLane {
     }
     // The day's character budget: refused statelessly, so the same id may be admitted once there is budget again.
     if (this.take((kind) => kind === 'voice_quota_denied') !== null) return refuse('voice_quota_denied');
+    if (script.length > this.remaining(page.pageLabel, input.day, now)) return refuse('voice_quota_denied');
     const scripted = (this.take((kind) => !REFUSALS.includes(kind)) as Scripted<RenderOutcome> | null) ?? { outcome: 'completed', ms: null };
     const note = this.admit(body, input, hash, script.length, scripted);
     return { kind: 'view', status: 202, view: this.view(note, now, true), lost: scripted.outcome === 'drop' || scripted.outcome === 'hang' ? scripted.outcome : null };
@@ -279,6 +309,33 @@ export class VoiceLane {
     const state = this.stateOf(note, now);
     if (state === 'artifact_expired') return refuse('artifact_expired');
     return state === 'completed' ? { kind: 'audio', bytes: note.audio.bytes } : refuse('not_found');
+  }
+
+  /**
+   * `voiceNoteAllowance`: the page's day as the hub counts it — the cap of one script, the page's budget, what a create
+   * could reserve now (the smaller of the page's and every page's day left, never below 0) and the next UTC midnight.
+   * The lane's switch stops it as it stops a fresh create; a read, never a render.
+   */
+  allowance(page: VoicePage, day: VoiceDay, laneOff: boolean, now: number): VoiceAnswer {
+    if (laneOff) return refuse('voice_disabled');
+    return {
+      kind: 'allowance',
+      allowance: { scriptMaxChars: day.scriptMaxChars, dailyChars: day.pageChars, remainingChars: this.remaining(page.pageLabel, day, now), resetsAt: iso((utcDayOf(now) + 1) * DAY_MS) },
+    };
+  }
+
+  /** What a create could reserve now: the page's and every page's day, less what was spent before and the notes admitted today. */
+  private remaining(pageLabel: string, day: VoiceDay, now: number): number {
+    const today = utcDayOf(now);
+    let page = day.spentToday[pageLabel] ?? 0;
+    let all = Object.values(day.spentToday).reduce((sum, chars) => sum + chars, 0);
+    for (const note of this.notes) {
+      // A definite failure gave its characters back (the hub's refund of a certainly unbilled render).
+      if (utcDayOf(note.createdAt) !== today || this.stateOf(note, now) === 'failed_definite') continue;
+      all += note.scriptChars;
+      if (note.pageLabel === pageLabel) page += note.scriptChars;
+    }
+    return Math.max(0, Math.min(day.pageChars - page, day.globalChars - all));
   }
 
   snapshot(now: number): VoiceNoteSnapshot[] {

@@ -290,6 +290,8 @@ export function voiceStudio(ctx: ScenarioCtx, view: VmView, patch: Partial<Voice
     again: null,
     confirm: null,
     attach: null,
+    // 1.49.0: what the page may still voice today, above the buttons (the next UTC midnight renews it).
+    allowance: hasScript ? { state: 'left', remaining: 4_640, resetsAt: iso((Math.floor(ctx.now / DAY) + 1) * DAY) } : null,
     ...patch,
   };
 }

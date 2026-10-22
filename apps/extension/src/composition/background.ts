@@ -1383,6 +1383,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('fan.dossier', data['fan.dossier']);
   // 1.47.0: voice notes, both sites.
   rpc.handle('voice.read', voice.handlers['voice.read']);
+  rpc.handle('voice.allowance', voice.handlers['voice.allowance']);
   rpc.handle('voice.script', voice.handlers['voice.script']);
   rpc.handle('voice.edit', voice.handlers['voice.edit']);
   rpc.handle('voice.take', voice.handlers['voice.take']);

@@ -54,6 +54,7 @@ import {
   type SpendersPage,
   type SpendersStats,
   type StartOp,
+  type VoiceAllowance,
   type VoiceNoteView,
 } from '@cg/contracts';
 import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
@@ -99,6 +100,8 @@ export type SdkResponsesFitOurDtos = [
   // 1.47.0: the voice notes (hub HF-4б; both sites since hub #757). The audio route answers bytes, not a DTO.
   Assignable<KernelOperationResponse<'voiceNoteCreate'>, VoiceNoteView>,
   Assignable<KernelOperationResponse<'voiceNoteStatus'>, VoiceNoteView>,
+  // 1.49.0: the page's day allowance (hub #762).
+  Assignable<KernelOperationResponse<'voiceNoteAllowance'>, VoiceAllowance>,
 ];
 
 /** The hub's answer to a window check fits what our frame mirror reads (contracts 1.15.0, P4b1). */

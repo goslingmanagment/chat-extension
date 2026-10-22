@@ -46,7 +46,7 @@ import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
 import { SETTINGS_OPTIONS_ONLY_SECTIONS, SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
 import { TabRegisterRequestSchema, TabRegisterResponseSchema, senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
-import { VOICE_LIMITS, VoiceAudioSchema, VoiceScriptStartSchema, VoiceSessionSchema, VoiceWriteResultSchema } from './voice';
+import { VOICE_LIMITS, VoiceAllowanceSchema, VoiceAudioSchema, VoiceScriptStartSchema, VoiceSessionSchema, VoiceWriteResultSchema } from './voice';
 import { JOURNAL_KINDS } from './vm/selectors';
 import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
 
@@ -533,6 +533,16 @@ export const TAB_REQUESTS = {
   'voice.read': {
     req: z.strictObject({ pageId: HubIntIdSchema, conversationRef: NativeIdSchema }),
     res: z.strictObject({ session: z.nullable(VoiceSessionSchema) }),
+    from: TAB,
+  },
+  /**
+   * 1.49.0: what the page may still voice today, as the hub last said (kept by the background for
+   * `VOICE_LIMITS.allowanceTtlMs`, read again once a take moves); null — not known (a failed read, an older hub, a page
+   * not the tab's). A free read: no token.
+   */
+  'voice.allowance': {
+    req: z.strictObject({ pageId: HubIntIdSchema }),
+    res: z.strictObject({ allowance: z.nullable(VoiceAllowanceSchema) }),
     from: TAB,
   },
   /**

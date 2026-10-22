@@ -77,6 +77,7 @@ export function createBackgroundVoice(deps: BackgroundVoiceDeps) {
       create: (request) => deps.hub().voiceNoteCreate(request),
       status: (ref) => deps.hub().voiceNoteStatus(ref),
       audio: (ref) => deps.hub().voiceNoteAudio(ref),
+      allowance: (query) => deps.hub().voiceNoteAllowance(query),
     },
     failure: (error) => voiceFailureOf(error, deps.errorOf),
     page: deps.page,
@@ -119,6 +120,7 @@ export function createBackgroundVoice(deps: BackgroundVoiceDeps) {
 
   const handlers: {
     readonly 'voice.read': TabRequestHandler<'voice.read'>;
+    readonly 'voice.allowance': TabRequestHandler<'voice.allowance'>;
     readonly 'voice.script': TabRequestHandler<'voice.script'>;
     readonly 'voice.edit': TabRequestHandler<'voice.edit'>;
     readonly 'voice.take': TabRequestHandler<'voice.take'>;
@@ -128,6 +130,8 @@ export function createBackgroundVoice(deps: BackgroundVoiceDeps) {
     readonly 'voice.discard': TabRequestHandler<'voice.discard'>;
   } = {
     'voice.read': async ({ pageId, conversationRef }, sender) => ok(await service.read(sender, pageId, conversationRef)),
+    // 1.49.0: a free read, like `voice.read` — no token, and a site switched off still reads it.
+    'voice.allowance': async ({ pageId }, sender) => ok(await service.allowance(sender, pageId)),
     'voice.script': async ({ start, sessionId }, sender) => refuseSwitchedOff(sender) ?? ok(await service.script(sender, start, sessionId)),
     'voice.edit': async ({ sessionId, text }, sender) => ok(await service.edit(sender, sessionId, text)),
     'voice.take': async ({ sessionId, takeId, script, cause }, sender) => refuseSwitchedOff(sender) ?? ok(await service.take(sender, sessionId, takeId, script, cause)),

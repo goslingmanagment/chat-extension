@@ -1787,4 +1787,13 @@ export const EN: I18nCatalog<'en'> = {
   'voice.reason.attachOff': 'the site takes no file now — download the MP3',
   'voice.reason.takesFull': 'already {max} takes — start a new voice note',
   'voice.reason.attaching': 'the voice note is already on its way to the field',
+  'voice.allowance.left': {
+    one: '{chars} character left today',
+    other: '{chars} characters left today',
+  },
+  'voice.allowance.short': {
+    one: 'Only {chars} character left today — the script is longer',
+    other: 'Only {chars} characters left today — the script is longer',
+  },
+  'voice.allowance.out': 'Voice limit for today is used up — resets at {time}',
 };
