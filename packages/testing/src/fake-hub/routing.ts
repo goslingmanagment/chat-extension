@@ -116,12 +116,13 @@ interface WireSpec {
   readonly query?: boolean;
   /** `merge`: body keys join the request; `nest`: the body is the request's `body`. */
   readonly body?: 'merge' | 'nest';
-  /** Query keys the hub reads as integers (`z.coerce.number().int()`). */
+  /** Query keys and path params (by their request key) the hub reads as integers (`z.coerce.number().int()`). */
   readonly integers?: readonly string[];
 }
 
 const PAGE = { pageLabel: 'pageLabel' } as const;
 const PAGE_FAN = { pageLabel: 'pageLabel', fanRef: 'fanRef' } as const;
+const VOICE_NOTE = { pageLabel: 'pageLabel', id: 'voiceNoteId' } as const;
 
 /** How each route's wire request becomes its facade request (null spec: the route takes nothing). */
 export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>, WireSpec | null>> = {
@@ -149,6 +150,9 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientAudienceNew: { params: PAGE, query: true, integers: ['windowHours', 'limit'] },
   clientAiUsageDaily: { params: PAGE, query: true, integers: ['days'] },
   clientSendAttributions: { params: PAGE, body: 'merge' },
+  voiceNoteCreate: { params: PAGE, body: 'nest' },
+  voiceNoteStatus: { params: VOICE_NOTE, integers: ['voiceNoteId'] },
+  voiceNoteAudio: { params: VOICE_NOTE, integers: ['voiceNoteId'] },
 };
 
 /** What arrived on the wire, already split (the hub's own request parsing). */
@@ -207,7 +211,10 @@ export function facadeRequestOf(route: HubRouteKey, wire: WireRequest): FacadeRe
     return issues.length > 0 ? { ok: false, issues } : { ok: true, request: null };
   }
   const request: Record<string, unknown> = {};
-  for (const [wireName, key] of Object.entries(spec.params ?? {})) request[key] = wire.params[wireName];
+  for (const [wireName, key] of Object.entries(spec.params ?? {})) {
+    const value = wire.params[wireName];
+    request[key] = value !== undefined && spec.integers?.includes(key) === true && INTEGER.test(value) ? Number(value) : value;
+  }
   const issues: string[] = [];
   const merge = (part: string, extra: Record<string, unknown>): void => {
     for (const [key, value] of Object.entries(extra)) {

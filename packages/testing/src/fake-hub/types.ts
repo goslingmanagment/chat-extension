@@ -6,6 +6,7 @@
 import type { ClientFeatureFlag, HubAiFeature, HubErrorBody, HubFrame, HubRouteKey } from '@cg/contracts';
 
 import type { HttpExchange, HttpScenario, SseScenario, SseStep } from '../scenarios/hub/types';
+import type { FakeVoiceOutcome, VoiceNoteSnapshot } from './voice';
 
 // ── SSE ────────────────────────────────────────────────────────────────────
 
@@ -88,7 +89,11 @@ export interface FakeHubConfigPatch {
    * Features not named keep their synthetic answer; `{}` restores them all.
    */
   readonly aiTexts?: Readonly<Record<string, string>>;
-  /** Pages the hub's voice-notes lane does not serve (R20 HF-4б): their `voice` reads `lane_off` in the bootstrap. `[]` — it serves every page. Models the spend switch: existing renders remain readable/replayable. */
+  /**
+   * Pages the hub's voice-notes lane does not serve (R20 HF-4б), on either site: their `voice` reads `lane_off` in the
+   * bootstrap, a voice script is `gate_voice_disabled`, a fresh create `voice_disabled`. `[]` — it serves every page.
+   * Models the spend switch: existing renders remain readable and replayable.
+   */
   readonly voiceLaneOff?: readonly string[];
 }
 
@@ -124,6 +129,13 @@ export type FakeHubCommand =
   | { readonly op: 'scriptHttp'; readonly exchanges: readonly HttpExchange[]; readonly match?: ScriptMatch; readonly unscripted?: UnscriptedPolicy }
   /** The next AI stream POSTs (of `feature`, or any) get these responses, in order. */
   | { readonly op: 'scriptSse'; readonly responses: readonly FakeSseResponse[]; readonly feature?: HubAiFeature }
+  /**
+   * What becomes of the next fresh voice-note creates (voice.ts `FAKE_VOICE_OUTCOMES`), one outcome each, in order:
+   * each is used by the next create — never a replay — that gets as far as the point where it applies (a refusal at
+   * its place in the hub's admission, a render or a lost answer once admitted). Unscripted, a render completes.
+   */
+  | { readonly op: 'scriptVoice'; readonly outcomes: readonly FakeVoiceOutcome[] }
+  /** Drops every scripted HTTP answer, stream and voice outcome not used yet, and the unscripted policy. */
   | { readonly op: 'clearScripts' }
   | { readonly op: 'release'; readonly gate: string }
   | { readonly op: 'clock'; readonly mode?: 'manual' | 'system'; readonly setMs?: number; readonly advanceMs?: number }
@@ -195,7 +207,7 @@ export interface FakeHubStatus {
   readonly configRevision: number;
   readonly master: boolean;
   readonly tokens: ReadonlyArray<{ readonly id: number; readonly userId: number; readonly client: string | null; readonly state: 'active' | 'pending' | 'revoked' | 'expired' }>;
-  readonly script: { readonly httpLeft: number; readonly sseLeft: number; readonly httpLeftRoutes: readonly HubRouteKey[] };
+  readonly script: { readonly httpLeft: number; readonly sseLeft: number; readonly httpLeftRoutes: readonly HubRouteKey[]; readonly voiceLeft: number };
   /** Gates a stream waits on now. */
   readonly waitingGates: readonly string[];
   readonly openStreams: number;
@@ -209,12 +221,14 @@ export interface FakeHubStatus {
     readonly attempts: ReadonlyArray<{ readonly attemptId: string; readonly state: string; readonly partIndex: number }>;
   }>;
   readonly ingested: number;
+  /** Every voice note the lane admitted, in order, with its state now: one per paid create (a replay adds none). */
+  readonly voiceNotes: readonly VoiceNoteSnapshot[];
 }
 
 // ── Journal ────────────────────────────────────────────────────────────────
 
 /**
- * - `route` — one of the client's routes (HUB_ROUTES), or an SDK-only voice route (P6c4);
+ * - `route` — one of the client's routes (HUB_ROUTES);
  * - `forbidden` — an operation or route family the client must never call (§8.1 «Никогда»);
  * - `unknown` — any other path or method;
  * - `foreign-origin` — the in-process fetch was asked for another origin (the request never left);
@@ -236,9 +250,10 @@ export interface FakeHubJournalEntry {
   /** Pathname only: queries and bodies are in `request`, redacted. */
   readonly path: string;
   readonly kind: FakeHubCallKind;
-  readonly route: HubRouteKey | 'voiceNoteCreate' | 'voiceNoteStatus' | 'voiceNoteAudio' | null;
+  readonly route: HubRouteKey | null;
   /** Forbidden operation key or family (`ofapi`, `events`…). */
   readonly operation: string | null;
+  /** 0 — no answer: the request never left (`foreign-origin`), or got none (a voice create scripted `drop` or `hang`; `reason` says which). */
   readonly status: number;
   /** Hub error code of a refusal. */
   readonly error: string | null;

@@ -28,7 +28,8 @@
 // pair `groupId ↔ fanRef` (HF-9, chat-access.ts) and the answer to the
 // window check (HF-8в, context-frame.ts `resolveCoverageCheck`).
 // HF-5 (Hi's start proof) follows below (P6c2). P6c4 adds voice identity, notes fill
-// isolation and the transcript reader's depth (HF-4а/б, HF-6), from bd3eec065.
+// isolation and the transcript reader's depth (HF-4а/б, HF-6), from bd3eec065;
+// the voice script on OnlyFans pages too is hub #757 (10fe275d6).
 
 import { type AiFeatureStreamBody, type HubStreamRequest } from '@cg/contracts';
 
@@ -154,10 +155,18 @@ export function pingFewRefusal(count: number): 'gate_min_messages' | null {
   return count < PING_MIN_MESSAGES ? 'gate_min_messages' : null;
 }
 
-/** HF-4а: after access and HF-9's pair check, before any spend. The old client-context form still needs fan/fan. */
+/** The platforms the voice-notes lane renders for (hub voice-lane.ts `isVoiceLanePlatform`; OnlyFans since hub #757). */
+const VOICE_LANE_PLATFORMS: readonly string[] = ['fansly', 'onlyfans'];
+
+/**
+ * The voice script's gate (HF-4а; hub #757), after access and HF-9's pair check, before any spend: a page of the
+ * lane's platforms; the fan always named, and the chat itself wherever no pair was checked — on OnlyFans, where the
+ * chat is the fan, and on the client-context lane (the released Fansly extension's fan/fan); then the lane's switch.
+ */
 export function voiceScriptRefusal(body: Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown }, laneOff: boolean): string | null {
-  if (body.platform !== 'fansly') return 'gate_voice_unsupported_platform';
-  if (blank(body.fanRef) || (body.clientContext !== undefined && body.conversationRef !== body.fanRef)) return 'gate_voice_identity_required';
+  if (body.platform === undefined || !VOICE_LANE_PLATFORMS.includes(body.platform)) return 'gate_voice_unsupported_platform';
+  const pairChecked = body.platform === 'fansly' && body.clientContext === undefined;
+  if (blank(body.fanRef) || (body.conversationRef !== body.fanRef && !pairChecked)) return 'gate_voice_identity_required';
   return laneOff ? 'gate_voice_disabled' : null;
 }
 

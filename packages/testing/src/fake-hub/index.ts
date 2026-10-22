@@ -5,7 +5,7 @@
 // automaton, and a request journal. In-process (`createFakeHub().fetch`) for
 // unit tests, loopback (`startFakeHub`) for e2e.
 
-export { FakeHub, createFakeHub, hubErrorBody, FAKE_HUB_CONTROL_HEADER, FAKE_HUB_CONTROL_PREFIX, type FakeHubOptions } from './hub';
+export { FakeHub, FakeHubConnectionDrop, createFakeHub, hubErrorBody, FAKE_HUB_CONTROL_HEADER, FAKE_HUB_CONTROL_PREFIX, type FakeHubOptions } from './hub';
 export { startFakeHub, type FakeHubServer, type FakeHubServerOptions } from './server';
 export { fakeHubControl, type FakeHubControlClient } from './control-client';
 export { checkCommand } from './command';
@@ -31,4 +31,17 @@ export { classifyPair, resolveCoverageCheck, streamBodyRefusal, type BodySchemaL
 export { sseFrameText, SSE_HEARTBEAT } from './sse';
 export { hubCall, readSse, type FetchLike, type HubCallOptions, type SseRead } from './kit';
 export { FakeHubClock, iso } from './clock';
+export {
+  FAKE_VOICE_OUTCOMES,
+  HUB_VOICE_SCRIPT_MAX_CHARS,
+  HUB_VOICE_TAGS,
+  VOICE_RENDER_MS,
+  VOICE_ROUTES,
+  canonicalVoiceScript,
+  voiceRequestHash,
+  type FakeVoiceOutcome,
+  type FakeVoiceOutcomeKind,
+  type VoiceNoteSnapshot,
+} from './voice';
+export { voiceAudioSamples, type VoiceAudioSample } from './voice-audio';
 export type * from './types';

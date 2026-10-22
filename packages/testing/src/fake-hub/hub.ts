@@ -16,6 +16,10 @@
 // switch by platform (HF-12), the pair `groupId ↔ fanRef` against the page's
 // capture (HF-9) for a generation and a read, the transcript of a Fansly
 // generation read by its group, and the answer to the window check (HF-8в).
+//
+// 1.46.0: the voice-notes lane on both sites (voice.ts) has a path of its own
+// (handleVoice): the hub's own schemas are required there, a narrow token
+// alone is asked for the page's `voice`, and its audio answers raw bytes.
 
 import {
   CHAT_IS_FAN,
@@ -23,6 +27,7 @@ import {
   HUB_FEATURE_ONLY_FIELDS,
   HUB_ROUTE_SCHEMAS,
   HUB_ROUTES,
+  HUB_VOICE_ERROR_CODES,
   type AiFeatureStreamBody,
   type AiUsageQuery,
   type AudienceNewQuery,
@@ -50,6 +55,8 @@ import {
   type SpenderDetailQuery,
   type SpendersQuery,
   type StatsQuery,
+  type VoiceNoteCreateRequest,
+  type VoiceNoteRef,
 } from '@cg/contracts';
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
@@ -78,7 +85,7 @@ import {
   type UnscriptedPolicy,
 } from './types';
 
-import { matchVoiceRoute, voiceClientOutdated, VoiceModel, type VoiceCreateBody, type VoiceRouteMatch } from './voice';
+import { isVoiceRoute, voiceClientOutdated, VoiceLane, type VoiceAnswer, type VoiceRoute } from './voice';
 
 /** Control endpoints of the loopback mode (the harness only; the client never calls them). */
 export const FAKE_HUB_CONTROL_PREFIX = '/__fake-hub/';
@@ -92,7 +99,10 @@ export interface FakeHubOptions {
   readonly clock?: number | 'system';
   readonly preset?: BootstrapPresetName;
   readonly config?: FakeHubConfigPatch;
-  /** Multiplies every SSE delay (0 = none; default 1). */
+  /**
+   * Multiplies every SSE delay and every step of a voice render (0 = none; default 1). A render runs on the hub's
+   * clock: with a manual clock and 1 it moves only when the test moves the clock (voice.ts).
+   */
   readonly timeScale?: number;
   /**
    * The hub's REAL body schema of the AI stream — the vendored SDK's
@@ -110,10 +120,21 @@ export interface FakeHubOptions {
    * answer the model serves on a client/* route by the hub's own response
    * schema besides ours (an answer the SDK would refuse is a fake hub bug).
    * The e2e harness and the wiring tests pass it; this package's shipped-side
-   * code never imports the SDK. The SDK-only voice routes require this option
-   * and check both requests and JSON responses with it (R20 P6c4).
+   * code never imports the SDK. The voice routes require this option and
+   * check both requests and JSON responses with it (R20 P6c4).
    */
   readonly routeSchemas?: HubRouteTableLike;
+}
+
+/**
+ * A request the hub never answered: the connection broke (a voice create scripted `drop`), or the hub closed while
+ * the request waited (`hang`). In-process it is what `fetch` rejects with on a network error; the loopback server
+ * closes the socket without a word.
+ */
+export class FakeHubConnectionDrop extends TypeError {
+  constructor(why = 'the fake hub dropped the connection') {
+    super(`fetch failed: ${why}`);
+  }
 }
 
 /** The routes the hub's own schemas are checked on (`FakeHubOptions.routeSchemas`): the client family. */
@@ -155,7 +176,7 @@ interface State {
   readonly claims: ClaimsModel;
   readonly data: DataModel;
   readonly generations: Map<string, Generation>;
-  readonly voice: VoiceModel;
+  readonly voice: VoiceLane;
   /** Pages granted per user id (FakeUser.pages, changed by `grantPages`). */
   readonly grants: Map<number, readonly string[]>;
   /** Platform accounts the owner linked to pages after the fact (`pageAccount`), by page label. */
@@ -188,7 +209,8 @@ export function hubErrorBody(error: HubErrorCode | (string & {}), status: number
   return reason === undefined ? body : { ...body, reason };
 }
 
-const statusOfCode = (error: string): number => (HUB_ERROR_STATUSES as Readonly<Record<string, number>>)[error] ?? (error.startsWith('gate_voice_') ? 400 : 500);
+const statusOfCode = (error: string): number =>
+  (HUB_ERROR_STATUSES as Readonly<Record<string, number>>)[error] ?? (HUB_VOICE_ERROR_CODES as Readonly<Partial<Record<string, { readonly status: number }>>>)[error]?.status ?? (error.startsWith('gate_voice_') ? 400 : 500);
 
 /** The `error` and `reason` of an error answer's body, for the journal. */
 function errorFields(status: number, body: unknown): { error: string | null; reason: string | null } {
@@ -200,7 +222,7 @@ function errorFields(status: number, body: unknown): { error: string | null; rea
 /** Deep equality of two facade requests (undefined keys dropped, key order ignored). */
 const sameRequest = (a: unknown, b: unknown): boolean => stableJson(JSON.parse(JSON.stringify(a ?? null))) === stableJson(JSON.parse(JSON.stringify(b ?? null)));
 
-const PATH_KEYS = ['pageLabel', 'fanRef', 'platform', 'platformUserId', 'feature'] as const;
+const PATH_KEYS = ['pageLabel', 'fanRef', 'platform', 'platformUserId', 'feature', 'voiceNoteId'] as const;
 const samePathParams = (a: unknown, b: unknown): boolean => {
   const read = (value: unknown, key: string): unknown => (typeof value === 'object' && value !== null ? (value as Record<string, unknown>)[key] : undefined);
   return PATH_KEYS.every((key) => read(a, key) === undefined || read(a, key) === read(b, key));
@@ -271,7 +293,7 @@ export class FakeHub {
       claims: new ClaimsModel(),
       data: new DataModel(new CursorSigner(crypto.randomUUID()), now),
       generations: new Map(),
-      voice: new VoiceModel(),
+      voice: new VoiceLane(),
       grants: new Map(FAKE_USERS.map((user) => [user.userId, user.pages])),
       pageAccounts: new Map(),
       catalog: [...DEFAULT_CATALOG],
@@ -348,10 +370,13 @@ export class FakeHub {
       case 'scriptSse':
         s.sseScript.push(...command.responses.map((response) => ({ response, feature: command.feature ?? null, request: null, match: 'route' as const, used: false })));
         return { ok: true, responses: s.sseScript.filter((entry) => !entry.used).length };
+      case 'scriptVoice':
+        return { ok: true, outcomes: s.voice.plan(command.outcomes) };
       case 'clearScripts':
         s.httpScript = [];
         s.sseScript = [];
         s.unscripted = null;
+        s.voice.clear();
         return { ok: true };
       case 'release':
         s.gates.release(command.gate);
@@ -441,12 +466,13 @@ export class FakeHub {
       configRevision: s.config.configRevision,
       master: s.config.master,
       tokens: s.auth.list(now),
-      script: { httpLeft: httpLeft.length, sseLeft: s.sseScript.filter((entry) => !entry.used).length, httpLeftRoutes: httpLeft.map((entry) => entry.exchange.route) },
+      script: { httpLeft: httpLeft.length, sseLeft: s.sseScript.filter((entry) => !entry.used).length, httpLeftRoutes: httpLeft.map((entry) => entry.exchange.route), voiceLeft: s.voice.scripted },
       waitingGates: s.gates.waiting(),
       openStreams: s.openStreams,
       grants: [...s.grants].map(([userId, pages]) => ({ userId, pages: [...pages] })),
       claims: s.claims.snapshot(now),
       ingested: s.data.ingestedEvents().length,
+      voiceNotes: s.voice.snapshot(now),
     };
   }
 
@@ -524,10 +550,9 @@ export class FakeHub {
       return json(status, hubErrorBody(error, status, reason, issues.length > 0 ? `fake hub: ${issues.join('; ')}` : undefined), retryAfterSec);
     };
 
-    const voice = matchVoiceRoute(method, url.pathname);
-    if (voice !== null) {
-      if (!verdict.ok) return refuse({ route: voice.route, servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
-      return this.handleVoice(voice, request, bodyText, { token: verdict.token, user: verdict.user }, base);
+    if (match.kind === 'route' && isVoiceRoute(match.route)) {
+      if (!verdict.ok) return refuse({ route: match.route, servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
+      return this.handleVoice(match.route, match.params, { request, url, bodyText, signal }, { token: verdict.token, user: verdict.user }, base);
     }
 
     if (match.kind !== 'route' && method === 'GET' && url.pathname === LEGACY_PAGES_PATH) {
@@ -673,39 +698,122 @@ export class FakeHub {
     return this.respond(outcome, record, 'model', principal, signal, base);
   }
 
-  /** SDK-only voice routes, checked by the actual SDK schemas rather than a second facade schema. */
-  private handleVoice(match: VoiceRouteMatch, request: Request, bodyText: string, principal: Principal, base: Omit<JournalRecord, 'kind' | 'status' | 'servedBy'>): Response {
+  /**
+   * The voice-notes lane's routes (hub modules/voice) on their own path: the hub's own schemas (the vendored SDK's,
+   * required here) and our contract's mirror, a script, the page — a narrow token's page not granted is 409
+   * `not_granted`, a full token's the 404 of a page that is not there —, the narrow token's `voice` and version on
+   * every call (a full device token is not asked: the released clients are not affected), then the lane (voice.ts).
+   */
+  private async handleVoice(
+    route: VoiceRoute,
+    params: Readonly<Record<string, string>>,
+    wire: { readonly request: Request; readonly url: URL; readonly bodyText: string; readonly signal: AbortSignal },
+    principal: Principal,
+    base: Omit<JournalRecord, 'kind' | 'status' | 'servedBy'>,
+  ): Promise<Response> {
     const s = this.state;
-    const record = { ...base, kind: 'route' as const, route: match.route, token: { id: principal.token.id, client: principal.token.client } };
-    let body: unknown;
-    const answer = (status: number, value: unknown, error: string | null = null, reason: string | null = null, issues: readonly string[] = []): Response => {
-      this.journal.record({ ...record, request: { ...match.params, body }, status, error, reason, issues, servedBy: error === null ? 'model' : 'check' });
-      return json(status, value);
+    const { request, url, bodyText } = wire;
+    const token = { id: principal.token.id, client: principal.token.client };
+    // The request as far as it was read: the path params, then the facade request.
+    let read: unknown = params;
+    const record = (status: number, servedBy: FakeHubServedBy, fields: { readonly error?: string; readonly reason?: string; readonly issues?: readonly string[] } = {}): void => {
+      this.journal.record({ ...base, kind: 'route', route, token, request: read, status, error: fields.error ?? null, reason: fields.reason ?? null, issues: fields.issues ?? [], servedBy });
     };
-    const refuse = (status: number, error: string, reason?: string, issues: readonly string[] = []): Response => answer(status, hubErrorBody(error, status, reason), error, reason ?? null, issues);
-    if (bodyText !== '') {
-      if (!/^application\/json\b/i.test(request.headers.get('content-type') ?? '')) return refuse(400, 'bad_request');
-      try { body = JSON.parse(bodyText) as unknown; } catch { return refuse(400, 'bad_request'); }
-    }
-    const schema = this.options.routeSchemas?.[match.route];
+    const refuse = (error: string, fields: { readonly reason?: string; readonly issues?: readonly string[]; readonly servedBy?: FakeHubServedBy } = {}): Response => {
+      const status = statusOfCode(error);
+      const issues = fields.issues ?? [];
+      record(status, fields.servedBy ?? 'check', { error, ...(fields.reason === undefined ? {} : { reason: fields.reason }), issues });
+      return json(status, hubErrorBody(error, status, fields.reason, issues.length > 0 ? `fake hub: ${issues.join('; ')}` : undefined));
+    };
+    const facade = facadeRequestOf(route, { params, query: url.searchParams, bodyText, contentType: request.headers.get('content-type'), capabilitiesHeader: null });
+    if (!facade.ok) return refuse('bad_request', { issues: facade.issues });
+    read = facade.request;
+    const schema = this.options.routeSchemas?.[route];
     // No permissive fallback: a test of these routes must inject the vendored schemas, like the e2e harness.
-    if (schema === undefined) return refuse(500, 'internal_error', 'fake_hub_bug', ['voice routes need FakeHubOptions.routeSchemas from the vendored SDK']);
-    const issues = hubSchemaRefusal(schema, { params: match.params, query: new URL(request.url).searchParams, body });
-    if (issues.length > 0) return refuse(400, 'bad_request', undefined, issues);
-    const page = this.pages().find((candidate) => candidate.pageLabel === match.params['pageLabel']);
-    if (page === undefined || !this.granted(principal.user.userId, page)) return principal.token.client === null ? refuse(404, 'not_found') : refuse(409, 'client_feature_disabled', 'not_granted');
+    if (schema === undefined) return refuse('internal_error', { reason: 'fake_hub_bug', issues: ['voice routes need FakeHubOptions.routeSchemas from the vendored SDK'] });
+    const hubIssues = hubSchemaRefusal(schema, { params, query: url.searchParams, body: bodyText === '' ? undefined : (JSON.parse(bodyText) as unknown) });
+    if (hubIssues.length > 0) return refuse('bad_request', { issues: hubIssues });
+    const valid = validateRequest(route, facade.request);
+    if (!valid.ok) return refuse('bad_request', { issues: valid.issues });
+    read = valid.request;
+
+    // Scripts answer before the hub's own checks of the page, as on every route; a scripted answer is JSON.
+    const scripted = this.takeHttp(route, valid.request);
+    if (scripted !== null) {
+      const answer = scripted.response;
+      const { error, reason } = errorFields(answer.status, answer.body);
+      record(answer.status, 'script', { ...(error === null ? {} : { error }), ...(reason === null ? {} : { reason }) });
+      return json(answer.status, answer.body, answer.retryAfterSec);
+    }
+    if (s.unscripted === 'fail') return refuse('internal_error', { reason: 'unscripted_request', servedBy: 'unscripted' });
+
+    const page = this.pages().find((candidate) => candidate.pageLabel === params['pageLabel']);
+    if (page === undefined || !this.granted(principal.user.userId, page)) return principal.token.client === null ? refuse('not_found') : refuse('client_feature_disabled', { reason: 'not_granted' });
     if (principal.token.client !== null) {
       const verdict = featureVerdict(s.config, page, 'voice');
-      if (!verdict.available) return refuse(409, 'client_feature_disabled', verdict.reason ?? 'flag_off');
-      if (voiceClientOutdated(s.config.minVersion, request.headers.get('x-client-version'))) return refuse(409, 'client_feature_disabled', 'client_outdated');
+      if (!verdict.available) return refuse('client_feature_disabled', { reason: verdict.reason ?? 'flag_off' });
+      if (voiceClientOutdated(s.config.minVersion, request.headers.get('x-client-version'))) return refuse('client_feature_disabled', { reason: 'client_outdated' });
     }
-    // A synthetic render stays queued: no provider is invoked; audio is not ready (the real route's 404).
-    const result = match.route === 'voiceNoteCreate'
-      ? s.voice.create(body as VoiceCreateBody, { userId: principal.user.userId, pageId: page.pageId, pageLabel: page.pageLabel, now: this.clock.now(), laneOff: s.config.voiceLaneOff.includes(page.pageLabel), generations: s.generations, pair: (conversation, fan) => s.data.pair(page.pageLabel, conversation, fan) })
-      : match.route === 'voiceNoteStatus' ? s.voice.status(Number(match.params['id']), page.pageId, principal.user.userId) : { status: 404 as const, error: 'not_found' };
-    if ('error' in result) return refuse(result.status, result.error);
-    if (schema.response[result.status]?.safeParse(result.body).success !== true) return refuse(500, 'internal_error', 'fake_hub_bug', ['voice response refused by the vendored SDK']);
-    return answer(result.status, result.body);
+
+    const now = this.clock.now();
+    const userId = principal.user.userId;
+    let answer: VoiceAnswer;
+    if (route === 'voiceNoteCreate') {
+      answer = s.voice.create((valid.request as VoiceNoteCreateRequest).body, {
+        userId,
+        page: { pageId: page.pageId, pageLabel: page.pageLabel, chatIsFan: chatIsFan(page) },
+        now,
+        timeScale: this.options.timeScale ?? 1,
+        laneOff: s.config.voiceLaneOff.includes(page.pageLabel),
+        generations: s.generations,
+        pair: (conversation, fan) => s.data.pair(page.pageLabel, conversation, fan),
+      });
+    } else {
+      const { voiceNoteId } = valid.request as VoiceNoteRef;
+      answer = route === 'voiceNoteStatus' ? s.voice.status(voiceNoteId, page.pageId, userId, now) : s.voice.audio(voiceNoteId, page.pageId, userId, now);
+    }
+    if (answer.kind === 'refuse') return refuse(answer.error, { servedBy: 'model' });
+    if (answer.kind === 'audio') {
+      // The route's raw bytes (`fetchVoiceNoteAudio`): each answer its own copy of the take.
+      const bytes = answer.bytes.slice();
+      if (!(HUB_ROUTE_SCHEMAS.voiceNoteAudio.response as unknown as SafeParser).safeParse(bytes.buffer).success) return refuse('internal_error', { reason: 'fake_hub_bug', issues: ['self-check: the audio is no MP3 the client takes'] });
+      record(200, 'model');
+      return new Response(bytes, { status: 200, headers: { 'content-type': 'audio/mpeg', 'content-length': String(bytes.byteLength), 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' } });
+    }
+    // A view, by our contract's schema and the hub's own of its status: an answer either refuses is a fake hub bug.
+    const checked = (HUB_ROUTE_SCHEMAS[route].response as unknown as SafeParser).safeParse(answer.view);
+    if (!checked.success || schema.response[answer.status]?.safeParse(answer.view).success !== true) {
+      const issues = checked.success ? [`self-check: refused by the hub’s own response schema of ${String(answer.status)} (vendored SDK)`] : checked.error.issues.map((issue) => `self-check ${issue.path.map(String).join('.')}: ${issue.code}`);
+      return refuse('internal_error', { reason: 'fake_hub_bug', issues });
+    }
+    // Admitted, and the answer lost on the way: the client cannot know whether it was charged.
+    if (answer.lost === 'drop') {
+      record(0, 'model', { reason: 'connection_dropped' });
+      throw new FakeHubConnectionDrop();
+    }
+    if (answer.lost === 'hang') {
+      record(0, 'model', { reason: 'no_answer' });
+      return this.noAnswer(wire.signal);
+    }
+    record(answer.status, 'model');
+    return json(answer.status, answer.view);
+  }
+
+  /** An answer that never comes: it ends when the client gives up (fetch's abort) or the hub closes (a dropped connection). */
+  private noAnswer(signal: AbortSignal): Promise<never> {
+    const hub = this.state.streams.signal;
+    return new Promise((_resolve, reject) => {
+      const end = (): void => {
+        signal.removeEventListener('abort', end);
+        hub.removeEventListener('abort', end);
+        reject(signal.aborted ? new DOMException('The operation was aborted.', 'AbortError') : new FakeHubConnectionDrop('the fake hub closed the connection'));
+      };
+      if (signal.aborted || hub.aborted) end();
+      else {
+        signal.addEventListener('abort', end, { once: true });
+        hub.addEventListener('abort', end, { once: true });
+      }
+    });
   }
 
   private respond(
@@ -958,6 +1066,11 @@ export class FakeHub {
         return read(s.data.aiUsage(need(page), request as AiUsageQuery, need(principal).user.userId, now, s.config.quotaRequestsToday));
       case 'clientSendAttributions':
         return read(s.data.sendAttributions(need(page), need(principal).user.userId, request as SendAttributionsRequest, now));
+      case 'voiceNoteCreate':
+      case 'voiceNoteStatus':
+      case 'voiceNoteAudio':
+        // The voice-notes lane answers on its own path (handleVoice).
+        throw new Error(`${route} is answered by the voice lane`);
     }
   }
 
