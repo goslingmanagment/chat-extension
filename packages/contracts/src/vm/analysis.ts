@@ -7,6 +7,7 @@
 import { type CgErrorView } from '../errors';
 import { type COACH_BLOCK_KINDS, type OpState, type REVIEW_SECTION_KINDS, type ResultMarkVM } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
+import { type CoachAutoRecap } from '../settings';
 import { type RecapLength, type UiAction } from './actions';
 import { type ReasonVM } from './catalog';
 import { type Msg } from './i18n';
@@ -205,8 +206,15 @@ export interface CoachVM {
     readonly lag: { readonly messages: number | null } | null;
     readonly refresh: ActionButtonVM;
   };
-  /** The Recap shown in the header (auto-recap `short` / `full`, §5.6). */
-  readonly recap: { readonly length: RecapLength; readonly generatedAt: IsoTimestamp; readonly summary: string } | null;
+  /**
+   * 1.46.0: the Recaps Coach stands on, as the hub attaches them to every question — the full one, and the short one
+   * when it is newer (AI-095). Empty — none: the topbar says «Recap · нет», Coach answers from the chat alone.
+   */
+  readonly recaps: readonly CoachRecapVM[];
+  /** 1.46.0: «Авто-Recap перед первым вопросом» of «Recap ▾» — `generation.coach.autoRecap`, the same as in the settings. */
+  readonly autoRecap: CoachAutoRecap;
+  /** 1.46.0: the empty dialog's word that the first answer builds this Recap first (no fresh one is known); null — it asks at once. */
+  readonly autoRecapNext: 'short' | 'full' | null;
   /** A Recap of this chat is being built (from «Recap ▾», the strip or a turn's auto-recap step): «Recap собирается…». */
   readonly recapRunning?: boolean;
   readonly turns: readonly CoachTurnVM[];
@@ -231,6 +239,13 @@ export interface CoachVM {
    * dialog already has turns).
    */
   readonly hints?: readonly CoachHintGroupVM[];
+}
+
+/** A Recap in Coach's topbar (1.46.0): «полный · 3 д назад», unfolding into its text. */
+export interface CoachRecapVM {
+  readonly length: RecapLength;
+  readonly generatedAt: IsoTimestamp;
+  readonly summary: string;
 }
 
 /** One heading of the empty Coach dialog with its ready questions (1.2.0, AI-081). */

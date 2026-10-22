@@ -28,6 +28,7 @@ import { type JSX } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { COACH_LIMITS } from '@cg/contracts/limits';
+import { COACH_AUTO_RECAP } from '@cg/contracts/settings';
 import { type ActionButtonVM, type CoachTurnVM, type CoachVM, type MountDeps } from '@cg/contracts/vm';
 
 import {
@@ -212,28 +213,47 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
   );
 }
 
-/** The Recap Coach was given (AI-095): «Recap · сделан 1 д назад», unfolding into its text; «Recap · собирается…» while one is built. */
-function RecapNote({ recap, running }: { readonly recap: CoachVM['recap']; readonly running: boolean }): JSX.Element | null {
+/**
+ * What Coach stands on (AI-095), always said: «Recap · полный · 3 д назад · короткий · 2 ч назад» — the Recaps the hub
+ * attaches to every question, unfolding into their texts; «Recap · нет» — Coach answers from the chat alone;
+ * «Recap · собирается…» while one is built.
+ */
+function RecapNote({ recaps, running }: { readonly recaps: CoachVM['recaps']; readonly running: boolean }): JSX.Element {
   const i18n = useI18n();
   const now = useNowFn();
   useMinuteClock();
+  const label = <b>{i18n.t('dock.action.recap')}</b>;
   if (running)
     return (
       <span class="cg-co__recap is-running" role="status">
-        <b>{i18n.t('dock.action.recap')}</b>
+        {label}
         <Spinner />
         <span>{i18n.t('coach.recapRunning')}</span>
       </span>
     );
-  if (recap === null) return null;
+  if (recaps.length === 0)
+    return (
+      <span class="cg-co__recap is-none">
+        {label}
+        <span>{i18n.t('coach.recap.none')}</span>
+      </span>
+    );
+  const said = (recap: CoachVM['recaps'][number]): string => i18n.t(recap.length === 'full' ? 'coach.recap.full' : 'coach.recap.short', { age: i18n.formatAge(recap.generatedAt, now()) });
   return (
     <details class="cg-co__recap">
       <summary>
-        <b>{i18n.t('dock.action.recap')}</b>
-        <span>{i18n.t('recap.madeAgo', { age: i18n.formatAge(recap.generatedAt, now()) })}</span>
+        {label}
+        <span>{recaps.map(said).join(' · ')}</span>
       </summary>
-      {/* The Recap is a Markdown document: read as one, not as its source. */}
-      <Markdown source={recap.summary} class="cg-co__recap-text" />
+      {/* A Recap is a Markdown document: read as one, not as its source; two read one under the other, each named. */}
+      <div class="cg-co__recap-text">
+        {recaps.map((recap) => (
+          <section key={recap.length}>
+            {recaps.length > 1 ? <div class="cg-co__cap">{said(recap)}</div> : null}
+            <Markdown source={recap.summary} />
+          </section>
+        ))}
+      </div>
     </details>
   );
 }
@@ -264,9 +284,10 @@ function Freshness({ freshness }: { readonly freshness: CoachVM['freshness'] }):
 
 /**
  * «Recap ▾» (the old window's menu): build a short or a full Recap of this fan — the Recap sheet's own buttons with
- * their own reasons, the build shows where every Recap does — and «Обновить переписку».
+ * their own reasons, the build shows where every Recap does — «Авто-Recap перед первым вопросом» (the setting
+ * `generation.coach.autoRecap`, chosen where it acts), and «Обновить переписку».
  */
-function RecapMenu({ refresh }: { readonly refresh: CoachVM['freshness']['refresh'] }): JSX.Element {
+function RecapMenu({ refresh, auto }: { readonly refresh: CoachVM['freshness']['refresh']; readonly auto: CoachVM['autoRecap'] }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const picker = useSteadyView(useView({ of: 'recap.picker' })).value;
@@ -274,7 +295,12 @@ function RecapMenu({ refresh }: { readonly refresh: CoachVM['freshness']['refres
   const [open, setOpen] = useState(false);
   const why = (button: ActionButtonVM): string | null => (button.enabled ? null : button.reason === null ? i18n.t('common.unknown') : i18n.text(button.reason.text));
   const buttons = { short: picker.build.short, full: picker.build.full, refresh } as const;
-  const items: MenuItem[] = (['short', 'full', 'refresh'] as const).map((id) => ({ id, label: i18n.text(buttons[id].label), reason: why(buttons[id]) }));
+  const autoGroup = i18n.t('coach.recapMenu.auto');
+  const items: MenuItem[] = [
+    ...(['short', 'full'] as const).map((id) => ({ id, label: i18n.text(buttons[id].label), reason: why(buttons[id]) })),
+    ...COACH_AUTO_RECAP.map((mode) => ({ id: `auto:${mode}`, label: i18n.t(`coach.recapMenu.auto.${mode}`), checked: mode === auto, kind: 'radio' as const, group: autoGroup })),
+    { id: 'refresh', label: i18n.text(refresh.label), reason: why(refresh), group: '' },
+  ];
   const label = i18n.t('dock.action.recap');
   return (
     <MenuAnchor>
@@ -296,6 +322,11 @@ function RecapMenu({ refresh }: { readonly refresh: CoachVM['freshness']['refres
         align="end"
         placement="bottom"
         onSelect={(id) => {
+          const mode = COACH_AUTO_RECAP.find((value) => id === `auto:${value}`);
+          if (mode !== undefined) {
+            if (mode !== auto) void dispatch({ type: 'SetPreference', key: 'generation.coach.autoRecap', value: mode });
+            return;
+          }
           const button = id === 'short' || id === 'full' || id === 'refresh' ? buttons[id] : null;
           if (button === null || !button.enabled) return;
           // Built from here, the Recap opens no window over Coach: the topbar follows it and shows it when it is done.
@@ -467,11 +498,11 @@ export function CoachView(): JSX.Element {
         </header>
         <div class="cg-co__top">
           <div class="cg-co__status">
-            <RecapNote recap={vm.recap} running={vm.recapRunning === true} />
+            <RecapNote recaps={vm.recaps} running={vm.recapRunning === true} />
             <Freshness freshness={vm.freshness} />
           </div>
           <div class="cg-co__tools">
-            <RecapMenu refresh={vm.freshness.refresh} />
+            <RecapMenu refresh={vm.freshness.refresh} auto={vm.autoRecap} />
             <Button
               label={arming ? i18n.t('coach.newDialog.confirm') : i18n.text(vm.newDialog.label)}
               variant="line"
@@ -489,6 +520,7 @@ export function CoachView(): JSX.Element {
             <div class="cg-co__empty">
               <b>{i18n.t('coach.empty.title')}</b>
               <p>{i18n.t('coach.empty.body', { name: vm.targetName ?? i18n.t('common.unknown') })}</p>
+              {vm.autoRecapNext === null ? null : <p class="cg-co__ahead">{i18n.t(vm.autoRecapNext === 'full' ? 'coach.empty.autoRecap.full' : 'coach.empty.autoRecap.short')}</p>}
               {chips.length === 0 ? null : <div class="cg-co__chips">{chips}</div>}
               {hints.length === 0 ? null : (
                 <div class="cg-co__groups">
@@ -594,9 +626,13 @@ ${/* ── topbar: what Coach stands on at the left, «Recap ▾» and «Нов
 .cg-co__recap.is-running { display: inline-flex; align-items: center; gap: 6px; }
 .cg-co__recap.is-running b { font-weight: 400; color: var(--cg-ink-muted); }
 .cg-co__recap.is-running span { color: var(--cg-ink-2); }
+.cg-co__recap.is-none { display: inline-flex; gap: 6px; }
+.cg-co__recap.is-none b { font-weight: 400; color: var(--cg-ink-muted); }
+.cg-co__recap.is-none span { color: var(--cg-ink-muted); }
 .cg-co__reset.is-arming { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-weight: 600; }
 .cg-co__recap-text { position: absolute; left: 20px; right: 20px; z-index: 4; margin-top: 6px; padding: 10px 12px; max-height: 40vh; overflow-y: auto; overflow-wrap: anywhere; scrollbar-width: thin; background: var(--cg-surface); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-lg); box-shadow: var(--cg-shadow-float); font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink-2); }
 .cg-co__recap-text p, .cg-co__recap-text li { max-width: none; }
+.cg-co__recap-text section + section { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--cg-rule-float); }
 .cg-co__lag { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
 .cg-co__lag .is-lag { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-strong); font-weight: 500; }
 .cg-co__tools .cg-menu { min-width: 200px; }
@@ -645,6 +681,7 @@ ${/* ── the empty dialog: in the middle of the feed, the ready questions und
 .cg-co__empty { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 10px; padding: 12px 2px; text-align: center; color: var(--cg-ink-2); }
 .cg-co__empty b { font-size: var(--cg-text-xl); line-height: 20px; font-weight: 600; color: var(--cg-ink-strong); }
 .cg-co__empty p { margin: 0; max-width: 46ch; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-co__empty p.cg-co__ahead { color: var(--cg-clay-ink); }
 .cg-co__empty .cg-co__chips { justify-content: center; }
 .cg-co__groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; margin-top: 6px; }
 .cg-co__group { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; }

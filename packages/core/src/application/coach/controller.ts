@@ -28,6 +28,7 @@ import {
   type ActionButtonVM,
   type ActionReceipt,
   type CoachHintGroupVM,
+  type CoachRecapVM,
   type CoachTurnVM,
   type CoachVM,
   type ReasonVM,
@@ -39,6 +40,7 @@ import {
 
 import {
   CoachSessions,
+  autoRecapAhead,
   autoRecapFor,
   clampHistoryLimit,
   exchangesOf,
@@ -54,7 +56,7 @@ import {
 import { windowFor } from '../../domain/features';
 import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState } from '../../domain/ops';
 import { COACH_SECTION_LABELS, coachAnswerText, splitLabelledSections, streamPreview } from '../../domain/output';
-import { analysisMark, latestLength, type ArchivePoint } from '../../domain/recap';
+import { analysisMark, type ArchivePoint } from '../../domain/recap';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
 import { confirmVm, partVms } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
@@ -556,10 +558,13 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       for (const turnId of [...built.keys()]) if (!shown.has(turnId)) built.delete(turnId);
     }
 
-    // AI-095: the recap the Coach stands on — the fresher of the two shared slots.
+    // AI-095: the Recaps Coach stands on, as the hub attaches them to every question — the full one, and the short one
+    // when it is newer (an older short one adds nothing the full one does not carry).
     const slots = ready === null ? { short: null, full: null } : ws.recaps.both(ws.slotKey(ready));
-    const which = latestLength(slots);
-    const copy = which === null ? null : slots[which];
+    const recaps: CoachRecapVM[] = [];
+    if (slots.full !== null) recaps.push({ length: 'full', generatedAt: slots.full.revision, summary: slots.full.markdown });
+    if (slots.short !== null && (slots.full === null || Date.parse(slots.short.revision) > Date.parse(slots.full.revision)))
+      recaps.push({ length: 'short', generatedAt: slots.short.revision, summary: slots.short.markdown });
     // A Recap of this chat being built — from «Recap ▾», the strip or a turn's own step: the topbar says so.
     const recapRunning = running !== null && (running.view.feature === 'recap' || running.view.feature === 'recap-short');
     const hasExchange = session !== null && exchangesOf(session).length > 0;
@@ -568,6 +573,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const emptyDialog = session === null || (session.feed.length === 0 && pending === null);
     const hints: CoachHintGroupVM[] = emptyDialog ? HINT_GROUPS.map((group) => ({ label: msg(group.label), questions: group.questions.map((key) => ({ label: msg(key), question: i18n.t(key) })) })) : [];
 
+    const autoRecap = ready?.settings.generation.coach.autoRecap ?? ws.env.settings?.settings.generation.coach.autoRecap ?? 'off';
     const composer = situation.host.composer;
     const draftEmpty = composer === null || composer.draft.provenance === 'empty';
     // «Обновить переписку» reads the archive feed: the PAGE's own `preview` feature (the owner's switch and what
@@ -586,8 +592,11 @@ export function createCoachController(ws: AiWorkspace): CoachController {
           reason: chat !== null ? archiveOff : null,
         }),
       },
-      recap: copy === null ? null : { length: copy.length, generatedAt: copy.revision, summary: copy.markdown },
+      recaps,
       recapRunning,
+      autoRecap,
+      // Before the first question of a session only; a page without Recap builds none (AI-096).
+      autoRecapNext: emptyDialog && session?.autoRecapAttempted !== true && ready !== null && flagUsable(ready.bootstrap, ready.page.pageId, 'recap') ? autoRecapAhead(autoRecap, slots, clock.now()) : null,
       turns,
       historyLimit,
       chips,
@@ -635,6 +644,13 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       // Only the open chat's own handle: previews refresh their feeds themselves.
       if (chat === null || action.targetHandle !== chat.handle) return null;
       return refreshArchive(action);
+    },
+    // «Авто-Recap перед первым вопросом» of «Recap ▾»: the same setting as the settings page's, written from the window
+    // where it acts. It is read when a session's first question is asked.
+    SetPreference(action) {
+      if (action.key !== 'generation.coach.autoRecap') return null;
+      const autoRecap = action.value;
+      return ws.env.patchSettings({ generation: { coach: { autoRecap } } }).then((answer) => (answer.ok ? done(action.type, 'done', { revision: answer.payload.revision }) : refused(ws, action.type, answer.error)));
     },
     ReloadView(action) {
       if (action.selector.of !== 'coach') return null;

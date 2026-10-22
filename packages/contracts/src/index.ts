@@ -43,4 +43,4 @@ export * from './hub';
  * minor bump, a new meaning a major one; the PR description says why
  * (architecture.md §5).
  */
-export const CONTRACTS_VERSION = '1.45.0';
+export const CONTRACTS_VERSION = '1.46.0';

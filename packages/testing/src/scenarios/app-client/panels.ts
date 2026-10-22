@@ -194,7 +194,9 @@ export function coach(ctx: ScenarioCtx, view: VmView, turns: readonly CoachTurnV
       lag: view.s === 'partial' ? { messages: 2 } : null,
       refresh: button('coach.refresh', { type: 'RefreshArchive', targetHandle: handles.dock(FANS.hubert) }),
     },
-    recap: turns.length > 0 ? { length: 'short', generatedAt: iso(ctx.now - DAY), summary: RECAP_SHORT } : null,
+    recaps: turns.length > 0 ? [{ length: 'short', generatedAt: iso(ctx.now - DAY), summary: RECAP_SHORT }] : [],
+    autoRecap: 'off',
+    autoRecapNext: null,
     turns,
     historyLimit: 10,
     chips: [
