@@ -101,6 +101,8 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.greeting.aiTooltip',
   'fansly.newcomers.greeting.sent',
   'fansly.newcomers.greeting.refused',
+  // 2026-10-22 (as the old window): a generation that failed is «Черновик не создан: …», never «Не отправлено».
+  'fansly.newcomers.greeting.notDrafted',
   'fansly.newcomers.greeting.uncertain',
   'fansly.newcomers.greeting.uncertainTail',
   'fansly.newcomers.greeting.sendAgain',
@@ -116,6 +118,9 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.period',
   'fansly.newcomers.ago',
   'fansly.newcomers.refresh',
+  // 2026-10-22 (as the old window): ↻ waits while the pass runs or stands paused — it would ask for the same pass.
+  'fansly.newcomers.refreshRunning',
+  'fansly.newcomers.refreshPaused',
   'fansly.newcomers.pickAll',
   'fansly.newcomers.pickTooltip',
   'fansly.newcomers.batch.picked',

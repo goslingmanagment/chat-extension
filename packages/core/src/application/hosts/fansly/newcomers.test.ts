@@ -275,6 +275,9 @@ class FakeFollowers implements FanslyFollowersPort {
         this.drafts.set(fanRef, next);
         return { ok: true, draft: { ...next, ...status } };
       }
+      // 2026-10-22: the newest attempt of each fan, for the list's word before a card opens; nothing refused.
+      case 'fansly.followers.outcomes':
+        return { ok: true, attempts: [...this.attempts.values()].filter((attempt) => attempt.state !== 'refused') };
       case 'fansly.followers.send': {
         const answer = this.sendAnswer(payload as FanslyTabRequestPayload<'fansly.followers.send'>);
         if (answer.ok) this.attempts.set(answer.attempt.fanRef, answer.attempt);
@@ -503,6 +506,20 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     }
   });
 
+  it('[FS-NEW-3] a greeting whose outcome is unknown says so in the list as the window opens — before its card is opened, never «Не писали»; one that went is «Отправлено»', async () => {
+    const w = greetingWorld([wireRow(1), wireRow(2), wireRow(3)]);
+    w.background.attempts.set(fan(2), { attemptId: uuid(0xb1), fanRef: fan(2), state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' });
+    w.background.attempts.set(fan(3), { attemptId: uuid(0xb2), fanRef: fan(3), state: 'requestStarted' });
+    await w.open();
+    // Only the first fan's card is open; the others' words come from the kept attempts.
+    expect(w.background.of('fansly.followers.draft')).toHaveLength(1);
+    expect(w.vm().rows.map((row) => row.greeting.s)).toEqual(['none', 'stopped', 'stopped']);
+    // The card says the same once opened, and lets the person send again by their own click.
+    await w.pick(2);
+    expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' }, canSend: false, canGenerate: true });
+    expect(w.background.of('fansly.followers.send')).toHaveLength(0);
+  });
+
   it('[FS-NEW-3] a background refusal because another tab already sent keeps the native-insert ban; an unknown outcome there holds nothing', async () => {
     for (const code of ['CG-SEND-UNCERTAIN', 'CG-SEND-PART'] as const) {
       const w = greetingWorld();
@@ -629,7 +646,8 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
       await settle();
       v.tab.done(uuid(0xc1), parts);
       expect(await run, JSON.stringify(parts).slice(0, 40)).toMatchObject({ ok: false });
-      expect(v.greeting()).toMatchObject({ text: '', ai: false, state: { s: 'refused', failure: { code: 'CG-OUTPUT-UNUSABLE' } } });
+      // No draft came of it: «Черновик не создан», never «Не отправлено» (nothing was sent).
+      expect(v.greeting()).toMatchObject({ text: '', ai: false, state: { s: 'not-drafted', failure: { code: 'CG-OUTPUT-UNUSABLE' } } });
     }
   });
 

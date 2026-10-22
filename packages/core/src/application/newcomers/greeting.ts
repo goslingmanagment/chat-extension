@@ -39,7 +39,7 @@ import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type Surfaces } from '../boards/shared';
 import { done, refused } from '../boards/surface';
 import { localError } from '../boards/views';
-import { type PassAdmission, type PassDraft, type PassGreetingSource } from './source';
+import { type PassAdmission, type PassDraft, type PassGreetingSource, type PassSendOutcome } from './source';
 
 /** What the person types is written this long after the last key. */
 export const GREETING_DRAFT_DEBOUNCE_MS = 400;
@@ -103,6 +103,8 @@ export interface CardGreeting {
   fromBatch(opId: string): boolean;
   /** X59: where the fan's greeting stands (a send of «Отправить готовые» ended how); null — no card of the fan yet. */
   stateOf(passId: string, fanRef: string): NewcomerGreetingStateVM | null;
+  /** 2026-10-22: the site's kept attempts of the pass's fans, for the list's word before a card is opened. */
+  known(passId: string, outcomes: readonly { readonly fanRef: string; readonly outcome: PassSendOutcome }[]): void;
   /** Another pass, sign-in or account: everything of the old one goes. */
   reset(): void;
   dispose(): void;
@@ -163,10 +165,32 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       card.text = draft.text;
       card.gen = draft.generation ?? null;
     } else if (card.gen === null) card.gen = draft.generation ?? null;
-    const outcome = draft.outcome;
-    if (outcome?.s === 'sent') card.state = { s: 'sent', at: new Date(clock.now()).toISOString() };
-    else if (outcome?.s === 'uncertain' || outcome?.s === 'pending') card.state = { s: 'uncertain', failure: failure(outcome.s === 'pending' ? 'CG-SEND-UNCERTAIN' : outcome.code) };
-    else if (outcome?.s === 'refused') card.state = { s: 'refused', failure: failure(outcome.code) };
+    const state = draft.outcome === undefined ? null : stateOfOutcome(draft.outcome);
+    if (state !== null) card.state = state;
+  }
+
+  /** Where a kept attempt leaves the card: gone out, unknown (also one still under way: never sent again by itself), refused. */
+  function stateOfOutcome(outcome: PassSendOutcome): NewcomerGreetingStateVM {
+    if (outcome.s === 'sent') return { s: 'sent', at: new Date(clock.now()).toISOString() };
+    if (outcome.s === 'uncertain' || outcome.s === 'pending') return { s: 'uncertain', failure: failure(outcome.s === 'pending' ? 'CG-SEND-UNCERTAIN' : outcome.code) };
+    return { s: 'refused', failure: failure(outcome.code) };
+  }
+
+  /**
+   * 2026-10-22 (the old window's «Нужно проверить» in the list): the site's kept attempts of the pass's fans, read when
+   * the pass opens — a fan whose card was not opened yet gets its word in the list at once. A card that read its own
+   * draft knows better, and a click under way is not overwritten.
+   */
+  function known(passId: string, outcomes: readonly { readonly fanRef: string; readonly outcome: PassSendOutcome }[]): void {
+    let moved = false;
+    for (const { fanRef, outcome } of outcomes) {
+      if (outcome.s === 'refused') continue;
+      const card = cardOf(passId, fanRef);
+      if (card.loaded === 'yes' || card.busy || card.state.s !== 'idle') continue;
+      card.state = stateOfOutcome(outcome);
+      moved = true;
+    }
+    if (moved) changed();
   }
 
   async function read(card: Card): Promise<boolean> {
@@ -230,8 +254,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
   function setDraft(card: Card, text: string): void {
     card.text = text.slice(0, MAX_CHARS);
     card.dirty = true;
-    // A new text is a new decision: the last refusal is the old text's.
-    if (card.state.s === 'refused' || card.state.s === 'inserted') card.state = { s: 'idle' };
+    // A new text is a new decision: the last refusal (or a draft that was not made) is the old text's.
+    if (card.state.s === 'refused' || card.state.s === 'not-drafted' || card.state.s === 'inserted') card.state = { s: 'idle' };
     if (card.timer !== null) clock.clearTimer(card.timer);
     card.timer = clock.setTimer(GREETING_DRAFT_DEBOUNCE_MS, () => {
       card.timer = null;
@@ -316,9 +340,10 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     const same = (): boolean => !disposed && at === generation && context.current().epoch === epoch && (context.current().persona?.key ?? null) === persona;
     card.busy = true;
     said(card, { s: 'generating' });
+    // No draft came of it: «Черновик не создан: …» (the old window), never «Не отправлено» — nothing was sent.
     const stop = (code: string): ActionReceipt => {
       card.busy = false;
-      said(card, { s: 'refused', failure: failure(code) });
+      said(card, { s: 'not-drafted', failure: failure(code) });
       return refused(type, localError(isShared(code) ? code : 'CG-DATA-UNAVAILABLE', i18n));
     };
     const proof = await source.proof(card.passId, card.fanRef);
@@ -578,7 +603,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (card.text.trim() !== '' && !unchanged(card)) return { s: 'failed', code: 'CG-DRAFT-CHANGED' };
     const receipt = await generate('GenerateBatch', card, row);
     if (receipt.ok) return { s: 'ready', text: card.text.trim() === '' ? null : card.text };
-    const code = card.state.s === 'refused' ? card.state.failure.code : receipt.code;
+    const code = card.state.s === 'not-drafted' || card.state.s === 'refused' ? card.state.failure.code : receipt.code;
     if (code === 'CG-OP-TAB-LIMIT') return { s: 'busy' };
     // No token: the click's grant is spent, or the window is no longer on screen.
     if (code === 'CG-UI-FAILED') return { s: 'spent', code };
@@ -594,7 +619,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       return card === undefined ? null : { text: card.text.trim() === '' ? null : card.text, sent: card.state.s === 'sent' };
     },
     fromBatch: (opId) => batchOps.has(opId),
-    stateOf:(passId, fanRef) => cards.get(keyOf(passId, fanRef))?.state ?? null,
+    stateOf: (passId, fanRef) => cards.get(keyOf(passId, fanRef))?.state ?? null,
+    known,
     refresh() {
       for (const card of cards.values()) {
         card.loaded = 'loading';

@@ -243,6 +243,27 @@ function RunButton({ run }: { readonly run: NewcomersPassRunVM }): JSX.Element |
   return <Button label={label} variant="line" size="sm" busy={run.busy} class="cg-fnw__run" onClick={() => void dispatch({ type: 'SetNewcomersPassRunning', running: !run.pause })} />;
 }
 
+/**
+ * Why ↻ waits (the old window's `refresh.disabled` while it scanned): a running or paused pass is the same pass when
+ * asked again, so ↻ would do nothing — «Пауза» / «Проверить оставшихся» are its buttons then. Null — ↻ checks anew.
+ */
+function refreshWait(i18n: I18n, pass: NewcomersPassVM | null): string | null {
+  switch (pass?.stage) {
+    case 'scanning':
+    case 'queue':
+    case 'cooldown':
+      return fanslyText(i18n, 'fansly.newcomers.refreshRunning');
+    case 'paused':
+      return fanslyText(i18n, 'fansly.newcomers.refreshPaused');
+    case 'connecting':
+    case 'done':
+    case 'stopped':
+    case 'failed':
+    case undefined:
+      return null;
+  }
+}
+
 /** «1 окт, 09:16 — 3 окт, 09:16 · местное время»: the dates the pass covers. */
 function rangeText(i18n: I18n, pass: NewcomersPassVM | null): string | null {
   if (pass === null || pass.range === null) return null;
@@ -401,7 +422,10 @@ function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
         )}
       </div>
     );
-  } else if (history.messages.length === 0) body = state('fansly.newcomers.history.empty');
+  } else if (history.messages.length === 0) {
+    // An empty chat of a fan the check found «Не писали» / «Ждёт ответа» is the finding itself, as the old window said it.
+    body = state(card.check === 'ready' || card.check === 'reply' ? 'fansly.newcomers.history.none' : 'fansly.newcomers.history.empty');
+  }
   return (
     <div
       ref={scroller}
@@ -440,7 +464,8 @@ function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
 
 /**
  * What the pass has to say about the fan when it is not «Не писали» or «Ждёт ответа»: «Уже писали», why nobody can write to them and
- * «Исключить из очереди» (FS-NEW-2), why the check failed, that the chat is not checked yet and «Проверить чат» (NF-038).
+ * «Исключить из очереди» (FS-NEW-2), why the check failed, that the chat is not checked yet and «Проверить чат» (NF-038). A check
+ * under way says it once, in the conversation («Проверяем переписку…»), as the old window did: no verdict line of its own.
  */
 function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element | null {
   const i18n = useI18n();
@@ -449,7 +474,7 @@ function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element | nul
   const closed = card.dmClosed !== null && (card.check === 'dm-closed' || card.check === 'excluded');
   const checkNext = card.checkNext ?? null;
   const exclude = card.exclude ?? null;
-  if (card.check === 'ready' || card.check === 'reply') return null;
+  if (card.check === 'ready' || card.check === 'reply' || card.check === 'checking') return null;
   return (
     <div class="cg-fnc__verdict" data-cg-check={card.check}>
       <div class="cg-fnc__why">
@@ -550,6 +575,15 @@ function GreetingState({ greeting, openHref }: { readonly greeting: NewcomerGree
           </span>
         </div>
       );
+    case 'not-drafted':
+      // «Сгенерировать» made no draft (the old window's words): nothing was sent, the field is the person's to retry or write.
+      return (
+        <div class="cg-fnc__gst" role="status" data-cg-code={state.failure.code} data-cg-not-drafted="1">
+          <Dot kind="danger" />
+          <b>{fanslyText(i18n, 'fansly.newcomers.greeting.notDrafted', { reason: inSentence(failureView(i18n, state.failure).title) })}</b>
+          <span class="cg-fnc__gcode">{fanslyText(i18n, 'fansly.newcomers.errorFrom', { code: state.failure.code })}</span>
+        </div>
+      );
     case 'uncertain':
       return (
         <div class="cg-fnc__gst" role="status" data-cg-code={state.failure.code} data-cg-uncertain="1">
@@ -567,6 +601,13 @@ function GreetingState({ greeting, openHref }: { readonly greeting: NewcomerGree
         </div>
       );
   }
+}
+
+/** A code's title inside a sentence after a colon: «Хаб недоступен» → «хаб недоступен»; «AI…», «Fansly…» stay as they are. */
+function inSentence(title: string): string {
+  const first = title.charAt(0);
+  const next = title.charAt(1);
+  return /[А-ЯЁ]/.test(first) && next === next.toLowerCase() ? first.toLowerCase() + title.slice(1) : title;
 }
 
 /** A cooldown of Fansly's refused the send at once (as the old window): how long to wait, counted down; nothing once it is over. */
@@ -596,12 +637,12 @@ function Greeting({ handle, greeting, openHref, onSent }: { readonly handle: str
   return (
     <div class="cg-fnc__greet" data-cg-greeting={s}>
       {greeting.stale ? <div class="cg-fnc__gnote is-strong">{fanslyText(i18n, 'fansly.newcomers.greeting.stale')}</div> : null}
-      {greeting.waiting ? <div class="cg-fnc__gnote">{fanslyText(i18n, 'fansly.newcomers.greeting.waiting')}</div> : null}
       <div class="cg-fnc__field">
         <TextField
           value={draft.shown}
           label={fanslyText(i18n, 'fansly.newcomers.greeting.label')}
-          placeholder={fanslyText(i18n, 'fansly.newcomers.greeting.placeholder')}
+          // Not checked yet: the field itself says the draft may be typed and goes after the check (the old window's placeholder).
+          placeholder={fanslyText(i18n, greeting.waiting ? 'fansly.newcomers.greeting.waiting' : 'fansly.newcomers.greeting.placeholder')}
           multiline
           minHeight={72}
           maxHeight={180}
@@ -863,7 +904,16 @@ export function FanslyNewcomersWindow(): JSX.Element {
             inputRef={searchRef}
             onQuery={(query) => void dispatch({ type: 'Search', list: 'newcomers', query })}
           />
-          <Button label={fanslyText(i18n, 'fansly.newcomers.refresh')} icon="refresh" iconOnly variant="quiet" class="cg-fnw__refresh" busy={pass?.stage === 'connecting'} onClick={() => void dispatch(RELOAD)} />
+          <Button
+            label={fanslyText(i18n, 'fansly.newcomers.refresh')}
+            icon="refresh"
+            iconOnly
+            variant="quiet"
+            class="cg-fnw__refresh"
+            busy={pass?.stage === 'connecting'}
+            reason={refreshWait(i18n, pass)}
+            onClick={() => void dispatch(RELOAD)}
+          />
         </div>
       )}
       {pass === null || forbidden || failed ? null : <PassLines vm={vm} pass={pass} range={range} />}

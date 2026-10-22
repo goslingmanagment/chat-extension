@@ -27,7 +27,7 @@ import { type CgAnyCode } from '@cg/contracts/errors-fansly';
 import { type GreetingDraftGeneration, type StaleReason } from '@cg/contracts/ops';
 import { type FanslyGreetingRequest, type FanslySendView } from '@cg/contracts/send-fansly';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
-import { type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
+import { FANSLY_TAB_LIMITS, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 
 import { EMPTY_DRAFTS, draftKey, findDraft, mergeDraftStores, putDraft, readDraftStore, removeDraft, type DraftStore, type PreviewDraft } from '../../../domain/newcomers/drafts';
 import { WriteQueue } from '../../ports';
@@ -50,8 +50,8 @@ export interface GreetingGeneration {
 }
 
 export interface FanslyGreetingDeps {
-  readonly newcomers: Pick<FanslyNewcomers, 'row' | 'greetingProof' | 'recheck' | 'live' | 'greeted'>;
-  readonly send: Pick<FanslySend, 'send' | 'native' | 'onChange' | 'status'>;
+  readonly newcomers: Pick<FanslyNewcomers, 'row' | 'creatorOf' | 'greetingProof' | 'recheck' | 'live' | 'greeted'>;
+  readonly send: Pick<FanslySend, 'send' | 'native' | 'onChange' | 'status' | 'latest'>;
   /** storage.local: the drafts (the shared `newcomers.drafts`). */
   readonly local: KeyValuePort;
   /** Who is signed in; null — nobody (no draft is anybody's then). */
@@ -68,8 +68,14 @@ export interface FanslyGreetingDeps {
 
 type Payload<T extends GreetingRequest> = FanslyTabRequestPayload<T>;
 type Answer<T extends GreetingRequest> = FanslyTabResponsePayload<T>;
-export type GreetingRequest = 'fansly.followers.proof' | 'fansly.followers.draft' | 'fansly.followers.send' | 'fansly.followers.sent';
-const REQUESTS: Readonly<Record<GreetingRequest, true>> = { 'fansly.followers.proof': true, 'fansly.followers.draft': true, 'fansly.followers.send': true, 'fansly.followers.sent': true };
+export type GreetingRequest = 'fansly.followers.proof' | 'fansly.followers.draft' | 'fansly.followers.outcomes' | 'fansly.followers.send' | 'fansly.followers.sent';
+const REQUESTS: Readonly<Record<GreetingRequest, true>> = {
+  'fansly.followers.proof': true,
+  'fansly.followers.draft': true,
+  'fansly.followers.outcomes': true,
+  'fansly.followers.send': true,
+  'fansly.followers.sent': true,
+};
 
 export type FanslyGreeting = ReturnType<typeof createFanslyGreeting>;
 
@@ -156,6 +162,25 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
     const written = await write(key, payload.text, historyRevision, generation);
     if (!written.ok) return { ok: false, error: { code: 'CG-STORAGE-WRITE' } };
     return { ok: true, draft: viewOf(written.draft, written.revision) };
+  }
+
+  /**
+   * The list's word for each fan's greeting before any card is opened (the old window's «Нужно проверить»): the newest
+   * attempt of every fan of the creator's page, from memory, and the clicks running in this background now. A refused
+   * attempt is left out: nothing went, the row says «Не писали» as it is.
+   */
+  async function outcomes(payload: Payload<'fansly.followers.outcomes'>, tab: string): Promise<Answer<'fansly.followers.outcomes'>> {
+    const creator = deps.newcomers.creatorOf(payload.passId, tab);
+    if (creator === null) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
+    const page = await deps.page(creator, tab);
+    if (!page.ok) return { ok: false, error: { code: page.code } };
+    const byFan = new Map<string, FanslySendView>();
+    for (const view of await deps.send.latest(page.page)) if (view.state !== 'refused') byFan.set(view.fanRef, view);
+    for (const [lock, attemptId] of busy) {
+      const [owner, fanRef] = lock.split('|');
+      if (owner === creator && fanRef !== undefined && byFan.get(fanRef)?.attemptId !== attemptId) byFan.set(fanRef, { attemptId, fanRef, state: 'ready' });
+    }
+    return { ok: true, attempts: [...byFan.values()].slice(0, FANSLY_TAB_LIMITS.followerOutcomesMax) };
   }
 
   // ── the generation's proof (FS-NEW-7) ──
@@ -271,6 +296,8 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
           return proof(payload as Payload<'fansly.followers.proof'>, tab);
         case 'fansly.followers.draft':
           return draft(payload as Payload<'fansly.followers.draft'>, tab);
+        case 'fansly.followers.outcomes':
+          return outcomes(payload as Payload<'fansly.followers.outcomes'>, tab);
         case 'fansly.followers.send':
           return send(payload as FanslyGreetingRequest, tab);
         case 'fansly.followers.sent':

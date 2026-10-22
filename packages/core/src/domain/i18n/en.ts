@@ -510,6 +510,7 @@ export const EN: I18nCatalog<'en'> = {
   'preview.draft.sendTooltip': 'Send this text to the fan as one message',
   'preview.draft.sendEmpty': 'write the text first',
   'preview.empty': 'Reply, Hi or Ping — the draft appears here. Sending happens only with the button on each part.',
+  'preview.emptyNewcomers': 'Press Hi — the greeting appears here. Sending happens only with the button on each part.',
   'preview.previousFan': 'Previous fan',
   'preview.nextFan': 'Next fan',
   'preview.feed.lastOnly': 'The archive is empty so far — below is the last message from the list',

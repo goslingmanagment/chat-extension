@@ -261,7 +261,25 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     windowHours = clampHours(pass.windowHours);
     stage = 'live';
     changed();
+    knownOutcomes(mine);
     await firstPage(mine, Math.max(source.pageSize, 1));
+  }
+
+  /**
+   * 2026-10-22 (the old window's «Нужно проверить» in the list): where each fan's greeting stands as the site keeps its
+   * attempts, read once per pass — a greeting whose outcome is unknown says so in its row before its card is opened,
+   * never «Не писали» (a second greeting's risk). A failed read leaves the rows to their cards.
+   */
+  function knownOutcomes(mine: number): void {
+    if (card === null || pass === null || greetingSource?.outcomes === undefined) return;
+    const passId = pass.passId;
+    void greetingSource.outcomes(passId).then(
+      (answer) => {
+        if (disposed || mine !== run || pass?.passId !== passId || !answer.ok) return;
+        card.known(passId, answer.value);
+      },
+      () => undefined,
+    );
   }
 
   function fail(failure: NewcomersFailureVM): void {
@@ -280,6 +298,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     pass = current;
     windowHours = clampHours(current.windowHours);
     stage = 'live';
+    knownOutcomes(run);
     return firstPage(run, source.pageSize);
   }
 
@@ -669,11 +688,14 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     return { pause: running, resume: !running && now !== 'scanning' && remaining > 0, remaining, busy: acting };
   }
 
-  /** «Проверить следующим» while the queue runs, «Проверить чат» while it stands; nothing for a fan already checked. */
+  /**
+   * «Проверить следующим» while the queue runs, «Проверить чат» while it stands — paused, done or stopped (the old window
+   * offered it for any fan not checked, 2026-10-22); nothing for a fan already checked.
+   */
   function checkNextOf(check: PassRow['check'], now: NewcomersPassStage): 'next' | 'now' | null {
     if (check !== 'pending' && check !== 'failed' && check !== 'unverified') return null;
     if (now === 'scanning' || now === 'queue' || now === 'cooldown') return 'next';
-    return now === 'paused' || now === 'done' ? 'now' : null;
+    return now === 'paused' || now === 'done' || now === 'stopped' ? 'now' : null;
   }
 
   /** R20 P10b2, FS-NEW-2: only a fan nobody can write to leaves «К обработке» by hand, and comes back. */
@@ -853,6 +875,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     source.onChange(heard),
     source.onReconnect(() => {
       card?.refresh();
+      if (pass !== null && stage === 'live' && !disposed) knownOutcomes(run);
       // The changes while the port was down are lost: what is on screen is read again.
       if (pass !== null && stage === 'live' && !disposed) void firstPage(run, Math.max(rows.length, source.pageSize));
     }),

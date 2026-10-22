@@ -323,6 +323,11 @@ export interface FanslySend {
   view(attemptId: string): FanslySendView | null;
   /** A card reopening in any tab reads the same durable attempt; a proved resolution may lift uncertainty. */
   status(page: FanslySendPage, fanRef: string): Promise<FanslySendView | null>;
+  /**
+   * 2026-10-22 (the old window's «Нужно проверить» in the list): the attempt `status` would give of every fan of the page
+   * with one, from memory — no resolution is asked (a card's own read does that).
+   */
+  latest(page: FanslySendPage): Promise<readonly FanslySendView[]>;
   onChange(listener: (view: FanslySendView) => void): () => void;
   /** The reports still owed go now (a new bootstrap, a sign-in). */
   pump(): void;
@@ -634,6 +639,12 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
       now: clock.now(),
     });
     return resolution.disposition === 'read-status' ? 'CG-SEND-PART' : (resolution.code ?? 'CG-HUB-UNKNOWN');
+  }
+
+  /** The fan's newest attempt that holds no lock now: a later refused duplicate never hides an earlier message that went out. */
+  function settledOf(key: FanslySendLockKey): Attempt | undefined {
+    const known = [...attempts.values()].reverse().filter((attempt) => attempt.lockKey === key);
+    return known.find((attempt) => attempt.outcome.state === 'sent' || attempt.outcome.state === 'receipted') ?? known[0];
   }
 
   /** A click blocked by an uncertain attempt of ours: the hub's resolve of it (a status read, never a dispatch). */
@@ -1069,10 +1080,21 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
         if (holder.outcome.state === 'uncertain') await liftUncertain(holder, page.pageLabel);
         return viewOf(holder);
       }
-      const known = [...attempts.values()].reverse().filter((attempt) => attempt.lockKey === key);
-      // A later refused duplicate must never hide the earlier message that went out.
-      const latest = known.find((attempt) => attempt.outcome.state === 'sent' || attempt.outcome.state === 'receipted') ?? known[0];
+      const latest = settledOf(key);
       return latest === undefined ? null : viewOf(latest);
+    },
+    async latest(page) {
+      await ready;
+      const hubOrigin = deps.hub.hubOrigin() ?? '';
+      const fans = new Set<string>();
+      for (const attempt of attempts.values()) if (attempt.lockKey === fanslySendLockKey({ hubOrigin, pageId: page.pageId, fanRef: attempt.fanRef })) fans.add(attempt.fanRef);
+      const views: FanslySendView[] = [];
+      for (const fanRef of fans) {
+        const key = fanslySendLockKey({ hubOrigin, pageId: page.pageId, fanRef });
+        const found = attempts.get(locks.get(key) ?? '') ?? settledOf(key);
+        if (found !== undefined) views.push(viewOf(found));
+      }
+      return views;
     },
     onChange(listener) {
       listeners.add(listener);

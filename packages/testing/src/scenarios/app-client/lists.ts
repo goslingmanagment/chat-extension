@@ -226,7 +226,7 @@ export function preview(ctx: ScenarioCtx, source: PreviewSource, view: VmView, o
     bar: previewBar(ctx, source, barPatch),
     result: null,
     media: null,
-    idleHint: hasData ? msg('preview.empty') : null,
+    idleHint: hasData ? msg(source === 'newcomers' ? 'preview.emptyNewcomers' : 'preview.empty') : null,
     neighbors: {
       previous: { type: 'OpenPreview', targetHandle: handles.spenders(FANS.theodore) },
       next: { type: 'OpenPreview', targetHandle: handles.spenders(FANS.marco) },

@@ -130,6 +130,12 @@ export interface PassGreetingSource {
   proof(passId: string, fanRef: string): Promise<SourceAnswer<PassGreetingProof>>;
   /** Without `text` — reads the draft; with it — writes it (an empty one clears it). */
   draft(passId: string, fanRef: string, text?: string, generation?: { readonly opId: string; readonly historyRevision: string }): Promise<SourceAnswer<PassDraft>>;
+  /**
+   * 2026-10-22: where the greeting of each fan of the pass stands as the site keeps its attempts — the fans with one that
+   * went, may have gone or is under way — so the list says it before a card is opened (never «Не писали» over an unknown
+   * outcome). Absent — the site keeps none.
+   */
+  outcomes?(passId: string): Promise<SourceAnswer<readonly { readonly fanRef: string; readonly outcome: PassSendOutcome }[]>>;
   send(click: PassGreetingSend): Promise<SourceAnswer<PassSendOutcome>>;
   /** True — the site took the report (the hub hears it now or later). */
   sent(report: PassNativeSend): Promise<SourceAnswer<boolean>>;

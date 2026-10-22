@@ -67,6 +67,8 @@ export function NewcomersFrame({ title, sub, class: own, onEsc, frameRef, onKeyD
         size="wide"
         class={`cg-nw${own === undefined ? '' : ` ${own}`}${large ? ' is-large' : ''}`}
         onClose={onEsc}
+        // One press outside closes the window at once, as the old Fansly extension's backdrop did; Esc still steps back.
+        onScrim={() => void dispatch(CLOSE_NEWCOMERS)}
         initialFocus={() => frame.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}
       >
         <div ref={setFrame} class="cg-nw__frame" onKeyDown={onKeyDown}>

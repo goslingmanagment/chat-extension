@@ -1308,7 +1308,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   function prioritize(payload: Payload<'fansly.followers.prioritize'>, tab: string): Answer<'fansly.followers.prioritize'> {
     const pass = find(payload.passId, tab);
     const row = pass?.byFan.get(payload.fanRef);
-    if (pass === null || pass === undefined || row === undefined || !needsCheck(row) || pass.base === 'stopped') return { recorded: false };
+    if (pass === null || pass === undefined || row === undefined || !needsCheck(row)) return { recorded: false };
     if (running(pass)) {
       // «Проверить следующим»: the running queue takes this fan next.
       pass.preferred = row.view.fanRef;
@@ -1319,13 +1319,14 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (pass.work !== null) return { recorded: false };
     // A click on a row only reorders a running queue, never starts one (the old window's selection).
     if (payload.next === true) return { recorded: false };
-    // «Проверить чат»: the queue stands — this fan alone, now; then it stands again.
+    // «Проверить чат»: the queue stands (paused, done, or stopped by a failure — the old window offered it for any fan
+    // not checked) — this fan alone, now; then it stands again.
     const was = pass.base;
     note(pass, 'queue.prioritize', { fanRef: row.view.fanRef, reason: 'now' });
     begin(pass, 'queue', async (work) => {
       await queue(pass, work, row.view.fanRef);
-      // Not «done» while others wait: the queue stands as it stood.
-      if (was === 'paused' && pass.rows.some(needsCheck)) throw new Aborted();
+      // Not «done» while others wait: the queue stands, «Проверить оставшихся: N».
+      if ((was === 'paused' || was === 'stopped') && pass.rows.some(needsCheck)) throw new Aborted();
     });
     return { recorded: true };
   }
@@ -1519,6 +1520,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     },
     greetingProof,
     row: rowFor,
+    /** The creator of the tab's pass (exactly this pass); null — no such pass for this tab. */
+    creatorOf: (passId: string, tab: string): string | null => exact(passId, tab)?.creator ?? null,
     recheck,
     live,
     greeted: markGreeted,
