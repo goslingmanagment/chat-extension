@@ -277,7 +277,7 @@ function toastsOf(ctx: ScenarioCtx): ToastVM[] {
     }),
     toast(ctx, 'w', 'warning', { code: 'CG-HOST-CONTRACT', title: contract.title, actions: [settings] }),
     aiReadyToast(ctx, 'Theodore Whitfield', 'h-chat'),
-    toast(ctx, 'i', 'info', { title: ctx.lang === 'ru' ? 'Recap сохранён в хаб' : 'Recap saved to the hub' }),
+    toast(ctx, 'i', 'info', { title: ctx.lang === 'ru' ? 'Split включён: ответ придёт частями' : 'Split is on: the answer comes in parts' }),
   ];
 }
 

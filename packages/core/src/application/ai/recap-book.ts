@@ -136,9 +136,13 @@ export class RecapBook {
     const copy = refreshOnly ? this.byOp(view.opId) : copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
     if (!copy) return null;
     const { binding, fanRef, conversationRef } = view.target;
-    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, conversationRef: conversationRef === fanRef ? undefined : conversationRef, personaDefinitionId }, { ...copy, stale: analysisMark(policy.verdict(view, fingerprint)) }, false);
+    const key: RecapSlotKey = { hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, conversationRef: conversationRef === fanRef ? undefined : conversationRef, personaDefinitionId };
+    const stored = this.remember(key, { ...copy, stale: analysisMark(policy.verdict(view, fingerprint)) }, false);
     // The background's saver is on it for the tab that owns the operation; its toast ends the wait.
     if (stored.length === 'full' && record.own && !this.saves.has(stored.id)) this.saves.set(stored.id, saveStarted(clock.now()));
+    // The stream does not say how much it read; the hub keeps it with the artifact. Read back, the same artifact brings
+    // its counts — «вся переписка (812 сообщений)» under the Recap just built, as the old client said it (2026-10-22).
+    if (record.own && refreshOnly !== true) this.loadShared(key, true);
     this.deps.changed();
     return stored;
   }

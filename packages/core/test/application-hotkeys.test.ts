@@ -308,6 +308,15 @@ describe('the hotkey runner', () => {
   });
 
 
+  it('over a finished Review ⌘⇧B is its «Ещё раз» (a new rating, not the cached one); one Esc closes its window with the sheet', async () => {
+    const opId = uuid(0x73);
+    const r = runnerRig({ analysis: 'review' });
+    r.client.set({ of: 'review' }, review(CTX, views.ready(), { opId, state: 'done', regenerate: { label: { key: 'common.again' }, action: { type: 'Regenerate', operationId: opId }, enabled: true, reason: null, hotkey: null } }));
+    expect(await r.run('review')).toEqual({ type: 'Regenerate', operationId: opId });
+    r.overlays.set('result-expanded', true);
+    expect(await r.run('close')).toEqual({ type: 'ShowAnalysis', view: 'review', mode: 'hidden' });
+  });
+
   it('[HK-042] in a preview the same keys generate for the preview\'s fan and ⌘. cancels there; no key ever sends or inserts', async () => {
     const r = runnerRig();
     r.overlays.set('spenders', true);

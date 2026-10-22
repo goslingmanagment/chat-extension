@@ -95,15 +95,15 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
     await pressOurs('dock', '.cg-dock button', /^Собрать коротко/);
-    await waitOursText('dock', 'Synthetic short recap.', 'the short Recap', { timeout: 20_000 });
+    // X55 (2026-10-22: the short one too): the Recap opens in its window; one Esc closes the window and the sheet.
+    await waitOursText('modal', 'Synthetic short recap.', 'the short Recap in its window', { timeout: 20_000, selector: '.cg-xdlg' });
     await browser.keys('Escape');
     await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
     await pressOurs('dock', '.cg-strip button', /^Review/);
-    // X55: the Review opens in its «Развернуть ↗» window; Esc folds it into the sheet, the next Esc hides the sheet.
+    // X55: the Review opens in its «Развернуть ↗» window; one Esc closes it with its sheet.
     await waitOursText('modal', 'Synthetic review of the chat.', 'the Review in its window', { timeout: 20_000, selector: '.cg-xdlg' });
     await browser.keys('Escape');
-    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not fold the Review window' });
-    await browser.keys('Escape');
+    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not close the Review window' });
     await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
     await pressOurs('dock', '.cg-strip button', /^Coach/);
     await browser.waitUntil(async () => (await oursFocus('panel'))?.label === 'Вопрос Coach', { timeout: 10_000, timeoutMsg: 'the Coach field did not take the focus' });

@@ -23,4 +23,6 @@ export const MARKDOWN_CSS = `
 .cg-md hr { border: 0; border-top: 1px solid var(--cg-rule); margin: 12px 0 0; }
 .cg-md a { color: inherit; text-decoration: underline; text-decoration-color: var(--cg-rule-3); text-underline-offset: 2px; }
 .cg-md a:hover { text-decoration-color: currentColor; }
+.cg-md .cg-money { font-family: var(--cg-mono); font-variant-numeric: tabular-nums; font-size: 0.93em; font-weight: 600; color: var(--cg-ink-strong); }
+.cg-md .cg-quote { color: var(--cg-clay-ink); }
 `;

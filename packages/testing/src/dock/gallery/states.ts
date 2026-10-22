@@ -465,7 +465,7 @@ export const GALLERY_STATES: readonly GalleryState[] = [
   // ── 18, 19. Recap and Review in the sheet ──
   state('18a', 'analysis', 'Recap: коротко', (ctx) => one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'short')), entry({ of: 'recap.picker' }, recapPicker(ctx, views.ready()))])),
   state('18b', 'analysis', 'Recap: полностью, архив отстаёт', (ctx) =>
-    one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'full', views.partial({ kind: 'archive-lag', messages: 2, minutes: null }), { stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'complete' } }))]),
+    one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'full', views.partial({ kind: 'archive-lag', messages: 2, minutes: null }), { stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'complete', served: 90 } }))]),
   ),
   state('18c', 'analysis', 'Recap: не сохранено в хаб', (ctx) =>
     one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'short', views.ready(), { saved: { s: 'failed', error: cgError(ctx, 'CG-RECAP-SAVE'), retry: { type: 'RetryRecapSave', length: 'short' } } }))]),
@@ -617,7 +617,7 @@ export const GALLERY_STATES: readonly GalleryState[] = [
       entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx) })),
       entry(
         { of: 'toasts' },
-        toasts(views.ready(), [errorToast(ctx), aiReadyToast(ctx, FANS.theodore.name, handles.dock(FANS.theodore)), toast(ctx, 'toast-info', 'info', { title: ctx.lang === 'ru' ? 'Recap сохранён в хаб' : 'Recap saved to the hub' })]),
+        toasts(views.ready(), [errorToast(ctx), aiReadyToast(ctx, FANS.theodore.name, handles.dock(FANS.theodore)), toast(ctx, 'toast-info', 'info', { title: ctx.lang === 'ru' ? 'Split включён: ответ придёт частями' : 'Split is on: the answer comes in parts' })]),
       ),
     ],
     { surface: 'toasts' },

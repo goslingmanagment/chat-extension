@@ -1084,7 +1084,7 @@ export class AiWorkspace {
       case 'review': {
         const record = this.ops.get(artifact.opId);
         const result = record?.view.result;
-        return result === undefined || result.kind !== 'review' ? null : { text: reviewCopyText(result.raw), opId: artifact.opId, part: null };
+        return result === undefined || result.kind !== 'review' ? null : { text: reviewCopyText(result.raw, this.ports.i18n.t('review.section.recommendations')), opId: artifact.opId, part: null };
       }
       case 'recap': {
         const copy = this.recaps.slots.byLocalId(artifact.localId);

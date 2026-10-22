@@ -217,6 +217,16 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     }
     const found = dockAction(id);
     if (found === null) return;
+    // Over a finished Review (its sheet or its window) ⌘⇧B is its «Ещё раз», as its hint promises — a new rating, never
+    // the one reopened from the cache; Recap's key is its «Обновить» the same way.
+    if (id === 'review' && found.dock.analysis === 'review') {
+      const review = client.getSnapshot({ of: 'review' });
+      if (review.state !== null && !isRunning(review.state) && review.regenerate.action.type === 'Regenerate') {
+        if (review.regenerate.enabled) send(review.regenerate.action);
+        else unavailable(id, review.regenerate.reason ?? reasonOf('chat-busy'));
+        return;
+      }
+    }
     // Over the finished answer of this very button the key is that answer's «Ещё раз» (its hint prints the key): a new
     // answer, never the same one reopened from the cache (AI-128). Where the sheet has no «Ещё раз» (a board's result,
     // a Fix already in the field) the key starts as the button does.
@@ -356,10 +366,10 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     }
     if (top === 'result-expanded') {
       const dock = dockView();
-      // A Recap or a Review in the window — where they open since X55 — folds into its sheet, as its «Свернуть» does;
-      // the focus need not be in the window (a finished Review took its «Отменить» away under it).
+      // A Recap or a Review in the window — where they open since X55 — closes with one Esc, window and sheet, as the old
+      // Fansly extension's overlay did (2026-10-22); «Свернуть» is its own button. The focus need not be in the window.
       if (dock.analysis === 'recap' || dock.analysis === 'review') {
-        send({ type: 'ShowAnalysis', view: dock.analysis, mode: 'sheet' });
+        send({ type: 'ShowAnalysis', view: dock.analysis, mode: 'hidden' });
         return;
       }
       const opId = dock.result?.opId ?? null;

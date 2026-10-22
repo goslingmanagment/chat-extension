@@ -1,11 +1,13 @@
 // @cg/ui/overlays/result-expanded — «Развернуть ↗» (ui-design §10, UI-014,
 // UI-015, UI-017): the result of the open chat in a window like the
 // cheatsheet (min(720px, 100vw − 32px), layer 950) without the sheet's
-// height limit — a full Recap, a Review, or a draft result with its parts
-// and, in debug mode, the debug footer. «Свернуть Esc» returns it to the
-// dock sheet, which keeps showing it. The window holds focus and gives it
-// back; a press on the scrim collapses it. Nothing is shown unless a view
-// model says `expanded`. A lazy overlay.
+// height limit — a Recap, a Review, or a draft result with its parts and, in
+// debug mode, the debug footer. A Recap or a Review closes with one Esc, a
+// press on the scrim or × «Скрыть», window and sheet at once (the old Fansly
+// extension's overlay); «Свернуть» returns it to the dock sheet, which keeps
+// showing it. A draft result folds back into its sheet. The window holds focus
+// and gives it back. Nothing is shown unless a view model says `expanded`. A
+// lazy overlay.
 
 import { type JSX } from 'preact';
 import { useLayoutEffect } from 'preact/hooks';
@@ -75,8 +77,12 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
   if (!open) return null;
 
   const collapse = (): void => {
-    if (which !== null) void dispatch({ type: 'ShowAnalysis', view: which, mode: 'sheet' });
-    else if (result !== null) void dispatch({ type: 'ExpandResult', operationId: result.opId, expanded: false });
+    if (result !== null) void dispatch({ type: 'ExpandResult', operationId: result.opId, expanded: false });
+  };
+  // Esc and the scrim: a Recap or a Review goes away whole, as its × «Скрыть»; a draft result folds into its sheet.
+  const close = (): void => {
+    if (which !== null) void dispatch({ type: 'ShowAnalysis', view: which, mode: 'hidden' });
+    else collapse();
   };
   const title = i18n.t(which !== null ? featureKey(which) : result !== null ? featureKey(result.feature) : 'result.label');
   return (
@@ -86,9 +92,10 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
         label={`${i18n.t('result.label')}: ${title}`}
         size="wide"
         class="cg-xdlg"
-        onClose={collapse}
-        // Focus opens on «Свернуть», not on the first icon of the head (whose tooltip would pop up by itself).
-        initialFocus={() => root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse')}
+        onClose={close}
+        // Focus opens on «Свернуть», not on the first icon of the head (whose tooltip would pop up by itself) nor on a
+        // running Review's «Отменить» (a stray Enter must not cancel a paid run); without one — the window itself.
+        initialFocus={() => root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse') ?? root.querySelector<HTMLElement>('.cg-xdlg')}
       >
         {/* A part that fails here (a chunk that did not load) shows its card inside the window, which stays and collapses as before. */}
         <Boundary surface={null}>

@@ -41,7 +41,7 @@ export interface RecapCopy {
   readonly localId: string;
   /** The finished text, prepared once. */
   readonly markdown: string;
-  /** Headed blocks of a full recap; null — shown as one text. */
+  /** Headed blocks of a recap of either length; null — shown as one text. */
   readonly blocks: readonly RecapBlock[] | null;
   readonly coverage: { readonly level: CoverageLevel; readonly requested: number | null; readonly served: number | null };
   /** The dossier holds this recap (H-5); null — unknown; always null for the short one. */

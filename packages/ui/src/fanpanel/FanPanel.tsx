@@ -191,14 +191,15 @@ function RecapTab({ archive }: { readonly archive: Coverage }): JSX.Element {
           </div>
         ) : null}
         {hasText && mark !== null ? <StaleRow mark={mark} onAgain={() => void dispatch(refresh.action)} reason={againReason} /> : null}
-        {hasText && recap.blocks === null ? <Markdown source={recap.markdown ?? ''} class="cg-fp__md" /> : null}
+        {hasText && recap.blocks === null ? <Markdown source={recap.markdown ?? ''} class="cg-fp__md" decorate /> : null}
         {!hasText && !running ? <ViewState view={recap.view} /> : null}
       </div>
       {hasText && recap.blocks !== null
-        ? recap.blocks.map((block) => (
-            <div key={block.heading} class="cg-fp__sec">
-              <div class="cg-fp__cap">{block.heading}</div>
-              <Markdown source={block.markdown} class="cg-fp__md" />
+        ? recap.blocks.map((block, index) => (
+            <div key={index} class="cg-fp__sec">
+              {/* The text before the first heading has none of its own. */}
+              {block.heading === '' ? null : <div class="cg-fp__cap">{block.heading}</div>}
+              <Markdown source={block.markdown} class="cg-fp__md" decorate />
             </div>
           ))
         : null}

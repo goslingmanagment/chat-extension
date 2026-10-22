@@ -13,7 +13,7 @@ import { spokenStage, useReadyAnnouncement, useStageAnnouncements } from '../ann
 import { AgainButton, Head, Meta } from '../Head';
 import { StaleRow } from '../Result';
 import { useSteadyView, useStreamText } from '../Stream';
-import { Block, Close, CopyAll, Expand, Fact, Facts, ReportHead, Running, Score, debugFooter, running, type BlockTone, type ViewProps } from './shared';
+import { Block, Close, CopyAll, Expand, Fact, Facts, MadeAgo, RefreshFailedFact, ReportHead, Running, Score, debugFooter, running, type BlockTone, type ViewProps } from './shared';
 
 /** The old client's colour of each block: the verdict and the advice terracotta, money and what works green, the persona amber, mistakes red. */
 const TONE: Readonly<Record<ReviewSectionVM['kind'], BlockTone>> = {
@@ -30,7 +30,7 @@ function Section({ section }: { readonly section: ReviewSectionVM }): JSX.Elemen
   const numbered = section.items.length > 0;
   return (
     <Block title={i18n.text(section.title)} tone={TONE[section.kind]} tinted={section.kind === 'verdict' || section.kind === 'works'} kind={section.kind}>
-      {section.body === '' ? null : <Markdown source={section.body} />}
+      {section.body === '' ? null : <Markdown source={section.body} decorate />}
       {numbered ? (
         <ol class="cg-ritems">
           {section.items.map((item, index) => (
@@ -39,7 +39,7 @@ function Section({ section }: { readonly section: ReviewSectionVM }): JSX.Elemen
                 {index + 1}.
               </span>
               <div class="cg-rv-item__b">
-                <Markdown source={item.body} />
+                <Markdown source={item.body} decorate />
                 {item.example === null ? null : (
                   <div class="cg-rv-ex">
                     <div class="cg-rv-ex__k">
@@ -49,7 +49,7 @@ function Section({ section }: { readonly section: ReviewSectionVM }): JSX.Elemen
                     <div class="cg-rv-ex__t">{item.example}</div>
                   </div>
                 )}
-                {item.afterExample === null ? null : <Markdown source={item.afterExample} />}
+                {item.afterExample === null ? null : <Markdown source={item.afterExample} decorate />}
               </div>
             </li>
           ))}
@@ -67,6 +67,8 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
   const text = useStreamText(raw, (view) => view.streamText);
   const title = i18n.t('dock.action.review');
   const close = <Close which="review" place={place} />;
+  // The window it looked at (debug mode only), else whom it is about — as Recap's head says it.
+  const meta = review.meta.length > 0 ? review.meta.map((line) => i18n.text(line)) : review.targetName === null ? [] : [i18n.t('result.meta.forFan', { name: review.targetName })];
 
   const debug = debugFooter(debugPart, review.debug, review.state, review.phase);
   // The live region: the stages while it is written, then «Review: сделан только что». The sheet says it; the window stays quiet.
@@ -79,19 +81,19 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
     return (
       <Head title={title} gutter={running(review.state) ? <Spinner /> : null} acts={close}>
         {review.rating === null ? null : <Score rating={review.rating} size="sm" />}
-        <Meta texts={review.meta.map((line) => i18n.text(line))} />
+        <Meta texts={meta} />
       </Head>
     );
   }
 
-  if (running(review.state)) return <Running title={title} opId={review.opId} phase={review.phase} text={text} debug={debug} />;
+  if (running(review.state)) return <Running title={title} opId={review.opId} phase={review.phase} text={text} debug={debug} place={place} which="review" fan={review.targetName} />;
 
   const hasText = review.sections.length > 0 || review.raw !== null;
   if (!hasText) {
     return (
       <>
         <Head title={title} acts={close}>
-          <Meta texts={review.view.s === 'error' ? [i18n.t('result.meta.failed')] : []} />
+          <Meta texts={review.view.s === 'error' ? [i18n.t('result.meta.failed'), ...meta] : meta} />
         </Head>
         <div class="cg-body">
           <ViewState view={review.view} />
@@ -115,7 +117,6 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
       {close}
     </>
   );
-  const meta = review.meta.map((line) => i18n.text(line));
   return (
     <>
       {place === 'dialog' ? (
@@ -125,7 +126,7 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
           fan={review.targetName}
           badge={review.rating === null ? null : <Score rating={review.rating} size="lg" />}
           acts={acts}
-          sub={meta}
+          sub={review.meta.map((line) => i18n.text(line))}
         />
       ) : (
         <Head title={title} tools acts={acts}>
@@ -141,7 +142,7 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
             <div class="cg-raw">{review.raw}</div>
           ) : (
             <>
-              {lead === null ? null : <Markdown source={lead} />}
+              {lead === null ? null : <Markdown source={lead} decorate />}
               {review.sections.map((section, index) => (
                 <Section key={index} section={section} />
               ))}
@@ -150,9 +151,15 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
         </div>
       </div>
       <Facts>
+        {review.generatedAt === null ? null : (
+          <Fact>
+            <MadeAgo at={review.generatedAt} />
+          </Fact>
+        )}
         {review.facts.map((fact, index) => (
           <Fact key={index}>{i18n.text(fact)}</Fact>
         ))}
+        <RefreshFailedFact failed={review.refreshFailed} />
         {/* Only what is wrong: an incomplete archive. «охват неизвестен» told nothing to act on (2026-10-20). */}
         {coverage === 'partial' ? <Fact>{i18n.t('common.coverage.partial')}</Fact> : null}
       </Facts>

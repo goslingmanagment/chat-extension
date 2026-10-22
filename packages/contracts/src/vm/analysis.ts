@@ -46,6 +46,21 @@ export interface RecapPickerVM {
   readonly splitReason: ReasonVM;
 }
 
+/** What a Recap stands on: the archive point and its coverage, and how many messages it read («вся переписка (90 сообщений)»). */
+export interface RecapStampVM extends DataStamp {
+  /** The messages the Recap was built over; null — not known (a copy without the hub's counts). */
+  readonly served: number | null;
+}
+
+/**
+ * A build of the shown length failed while an earlier Recap of it is kept (or a newer Review failed over an earlier
+ * good one): the text stays, the facts say «Не обновилось · CG-… · Повторить».
+ */
+export interface RefreshFailedVM {
+  readonly error: CgErrorView;
+  readonly retry: UiAction;
+}
+
 export interface RecapViewVM {
   /** `loading` while generating (with `phase`), `empty` — CG-RECAP-NOT-FOUND, `partial` — coverage or a lagging archive. */
   readonly view: VmView;
@@ -60,13 +75,15 @@ export interface RecapViewVM {
   readonly streamText: string | null;
   /** Rendered through the safe Markdown AST, parsed once on the finished text (AI-137). */
   readonly markdown: string | null;
-  /** Full Recap split by headings («Кто он», «Что любит», «Покупки», «Чего избегать», «Сейчас»); null for the short one. */
+  /** The Recap split by headings («Кто он», «Траты», «Триггеры»… of the short one, «Досье»… of the full one); null — one text. */
   readonly blocks: readonly { readonly heading: string; readonly markdown: string }[] | null;
   readonly generatedAt: IsoTimestamp | null;
   readonly saved: HubSaveVM;
-  readonly stamp: DataStamp;
-  /** «архив отстаёт от чата на 2 сообщения»; null — not behind. */
+  readonly stamp: RecapStampVM;
+  /** «После Recap ещё 2 сообщения»: the fan or the chatter wrote after it; null — not behind. */
   readonly archiveLag: { readonly messages: number | null } | null;
+  /** «Обновить» failed: the saved text stays shown; null — no failed build over it. */
+  readonly refreshFailed: RefreshFailedVM | null;
   readonly copyHandle: ArtifactHandle | null;
   /** «↻ Обновить ⌘⇧S»: from the fresh archive, bypassing the cache. */
   readonly refresh: ActionButtonVM;
@@ -115,14 +132,18 @@ export interface ReviewVM {
   readonly meta: readonly Msg[];
   readonly lead: string | null;
   readonly sections: readonly ReviewSectionVM[];
-  /** The source of truth for Copy (AI-053); `unparsed` shows it as is. */
+  /** The answer as text, the frame's tags taken out; `unparsed` shows it so. Copy writes the record's own text (AI-053). */
   readonly raw: string | null;
   readonly unparsed: boolean;
   readonly copyHandle: ArtifactHandle | null;
   /** «Ещё раз ⌘⇧B» — «Оценить заново». */
   readonly regenerate: ActionButtonVM;
-  /** Footer facts: «Сделан только что», «архив на 09:18». */
+  /** When the shown Review was made: «Сделан 5 мин назад», ticking in the UI; null — none shown. */
+  readonly generatedAt: IsoTimestamp | null;
+  /** Footer facts besides its age: «архив на 09:18» in debug mode. */
   readonly facts: readonly Msg[];
+  /** The newest Review failed over an earlier good one, which stays shown; null — none. */
+  readonly refreshFailed: RefreshFailedVM | null;
   readonly stamp: DataStamp;
   readonly splitReason: ReasonVM;
   readonly expanded: boolean;

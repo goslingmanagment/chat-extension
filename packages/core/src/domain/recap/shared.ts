@@ -3,8 +3,8 @@
 // answers the full and the short recap of a page, fan and persona — the
 // same for every granted chatter; this module turns a body, or a recap
 // this tab just generated, into the copy a slot keeps. The text is prepared
-// once here (AI-137): reasoning out, line ends normalised, a full recap cut
-// into its headed blocks.
+// once here (AI-137): reasoning out, line ends normalised, a recap of either
+// length cut into its headed blocks.
 
 import { RECAP_TRANSCRIPT_COVERAGES, type RecapBody, type SharedRecaps } from '@cg/contracts/hub';
 import { type CoverageLevel, type OpView, type ResultMarkVM } from '@cg/contracts/ops';
@@ -44,7 +44,7 @@ export function copyOfShared(body: RecapBody, length: RecapLength, savedToProfil
     revision: body.generatedAt,
     localId: ids.newLocalId(),
     markdown,
-    blocks: length === 'full' ? recapBlocks(markdown) : null,
+    blocks: recapBlocks(markdown),
     coverage: { level: coverageLevelOf(body.coverage.transcriptCoverage), requested: count(body.coverage.requestedCount), served: count(body.coverage.keptCount) },
     savedToProfile: length === 'full' ? savedToProfile : null,
     source: 'hub',
@@ -78,7 +78,7 @@ export function copyOfResult(view: Pick<OpView, 'opId' | 'feature' | 'result' | 
     revision: new Date(view.endedAt ?? ids.now).toISOString(),
     localId: ids.newLocalId(),
     markdown: result.markdown,
-    blocks: length === 'full' ? recapBlocks(result.markdown) : null,
+    blocks: recapBlocks(result.markdown),
     coverage: coverage === null ? { level: 'unknown', requested: null, served: null } : { level: coverage.level, requested: coverage.requested, served: coverage.served },
     savedToProfile: length === 'full' ? false : null,
     source: 'generated',

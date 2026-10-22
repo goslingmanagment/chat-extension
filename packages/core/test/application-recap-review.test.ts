@@ -156,6 +156,26 @@ describe('recap: building one', () => {
   });
 });
 
+describe('recap: a build that fails over a saved one', () => {
+  it('a failed «Обновить» keeps the Recap on screen and its window open: «Не обновилось» with «Повторить» under it', async () => {
+    const h = await start();
+    h.bg.hub.profileScript.push(saved);
+    await openRecap(h);
+    h.script(recapStream(FULL_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.finish();
+    expect(h.recapView()).toMatchObject({ markdown: FULL_TEXT, expanded: true, refreshFailed: null });
+
+    h.script({ kind: 'http-error', status: 500, body: { error: 'internal_error' } });
+    await h.dispatch(h.recapView().refresh.action);
+    await h.finish();
+    const failed = h.recapView();
+    expect(failed).toMatchObject({ markdown: FULL_TEXT, expanded: true, refreshFailed: { retry: { type: 'RefreshRecap', length: 'full' } } });
+    expect(failed.view.s === 'ready' || failed.view.s === 'partial').toBe(true);
+    expect(failed.copyHandle).not.toBeNull();
+  });
+});
+
 describe('recap: the dossier of a full recap', () => {
   const built = async (h: Harness): Promise<RecapViewVM> => {
     await openRecap(h);
@@ -237,6 +257,20 @@ describe('review', () => {
     expect(running.regenerate).toMatchObject({ enabled: false });
     await h.finish();
     expect(h.review().state).toBe('done');
+  });
+
+  it('a newer Review that failed keeps the earlier one on screen, «Не обновилось» under it; «Ещё раз» stays on the newest', async () => {
+    const h = await start();
+    const first = await run(h);
+    h.script({ kind: 'http-error', status: 500, body: { error: 'internal_error' } });
+    await h.dispatch({ type: 'Regenerate', operationId: first });
+    await h.finish();
+    const vm = h.review();
+    expect(vm).toMatchObject({ opId: first, state: 'done', rating: 7, view: { s: 'ready' } });
+    expect(vm.sections.length).toBeGreaterThan(0);
+    expect(vm.refreshFailed?.retry).toMatchObject({ type: 'Regenerate' });
+    expect(vm.refreshFailed?.retry).toEqual(vm.regenerate.action);
+    expect(vm.regenerate.action).not.toEqual({ type: 'Regenerate', operationId: first });
   });
 
   it('a review belongs to its chat: another chat shows none, and «Ещё раз» of it is refused there', async () => {
