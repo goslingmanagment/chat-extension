@@ -1,7 +1,8 @@
 // Usage and AI money for debug only (architecture.md §9.3, Б4; DB-017,
 // DB-018, DB-022, PU-016). The `usage` frame is always logged (numbers only)
-// and shown only in debug mode: the cost line of a result, and the local
-// spend journal by feature for today and 7 days. Until the hub's own report
+// and shown in debug mode: the cost line of a result, and the local spend
+// journal by feature for today and 7 days. Since 2026-10-22 a result's head
+// carries its short cost line in every mode, as the old Fansly extension's did. Until the hub's own report
 // (H-15) answers, the journal is built from the usage frames this browser
 // saw and says so — «только этот браузер»; its sum is never presented as the
 // person's full daily spend. Hub credits are never shown to anyone.
@@ -26,6 +27,36 @@ export function usageOf(frame: UsageFrame | null): OpDebugView['usage'] {
 /** `$0.0143`: micro-USD with four decimals, the debug notation (not the money of fans). */
 export function formatMicroUsd(micro: number): string {
   return `$${(micro / 1_000_000).toFixed(4)}`;
+}
+
+/** `2.3k`, `12k`, `1.5M`: a token count as the old Fansly extension's head printed it. */
+function compactTokens(n: number): string {
+  if (n < 1000) return String(n);
+  const short = (value: number, unit: string): string => `${value.toFixed(1).replace(/\.0$/, '')}${unit}`;
+  if (n < 10_000) return short(n / 1000, 'k');
+  if (n < 1_000_000) return `${String(Math.round(n / 1000))}k`;
+  return short(n / 1_000_000, 'M');
+}
+
+/** `$0.002500`, `$0.0143`, `$1.20`: the old head's money, more digits the smaller the sum. */
+function headUsd(micro: number): string {
+  const value = micro / 1_000_000;
+  return `$${value.toFixed(value >= 1 ? 2 : value >= 0.01 ? 4 : 6)}`;
+}
+
+/**
+ * The cost line of a result's head (2026-10-22, the old Fansly extension's `spend-format.ts`): «$0.002500 · 2.3k usage»,
+ * and its hint «in 1.2k · write 0 · read 900 · out 210». Technical, not translated. Null — nothing known.
+ */
+export function usageHead(usage: OpDebugView['usage'] | undefined): { readonly line: string; readonly detail: string } | null {
+  if (usage === null || usage === undefined) return null;
+  const counts = [usage.inputTokens, usage.cacheWriteTokens, usage.cacheReadTokens, usage.outputTokens];
+  const known = counts.some((n) => n !== null);
+  if (!known && usage.costMicroUsd === null) return null;
+  const total = counts.reduce<number>((sum, n) => sum + (n ?? 0), 0);
+  const line = [usage.costMicroUsd === null ? null : headUsd(usage.costMicroUsd), known ? `${compactTokens(total)} usage` : null].filter((part) => part !== null).join(' · ');
+  const n = (value: number | null): string => (value === null ? '?' : compactTokens(value));
+  return { line, detail: `in ${n(usage.inputTokens)} · write ${n(usage.cacheWriteTokens)} · read ${n(usage.cacheReadTokens)} · out ${n(usage.outputTokens)}` };
 }
 
 export interface CostLineFacts {

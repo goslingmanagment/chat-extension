@@ -33,6 +33,11 @@ describe('the key policy on Fansly', () => {
       // what, the key, the page, Fansly, ChatSpace
       ['⌘E under a site window (a modal, FBuddy)', key('reply'), { nativeModal: true }, 'run reply', 'refuse overlay-open'],
       ['Esc under a site window', key('close', 'plain'), { nativeModal: true, dockSheet: true }, 'pass', 'pass'],
+      // 2026-10-22, the old extension's rule: Esc typed in a field is the page's — it never hides the dock's sheet.
+      ['Esc in the message field over the dock’s sheet', key('close', 'plain'), { focus: 'composer', dockSheet: true }, 'pass', 'pass'],
+      ['Esc in another field of the site over the dock’s sheet', key('close', 'plain'), { focus: 'field', dockSheet: true }, 'pass', 'pass'],
+      ['Esc on the page over the dock’s sheet', key('close', 'plain'), { dockSheet: true }, 'run close', 'run close'],
+      ['Esc in the message field under a window of ours', key('close', 'plain'), { focus: 'composer', overlays: ['palette'], dockSheet: true }, 'run close', 'run close'],
       ['⌘↵ under a site window', key('apply-fix', 'extra'), { nativeModal: true, focus: 'composer', fix: 'ready' }, 'pass', 'refuse overlay-open'],
       ['⌘E in another field of the site', key('reply'), { focus: 'field' }, 'run reply', 'refuse in-field'],
       ['⌘E over the «Развернуть ↗» window', key('reply'), { overlays: ['result-expanded'] }, 'run reply over-window', 'refuse overlay-open'],

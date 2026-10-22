@@ -114,6 +114,18 @@ export interface DockVM {
    * (no binding or no persona; without sign-in the UI writes «вход не выполнен»).
    */
   readonly persona: { readonly label: string; readonly pageName: string } | null;
+  /**
+   * 2026-10-22 (as the old Fansly extension, which picked the persona right in the chat): what the «Нет персоны» banner
+   * offers in its own menu — the active personas of the catalog, each with the settings page's `ChoosePersona` for the
+   * open chat's page. Absent or empty — no menu: a persona is set, the catalog is not read, or nothing is active.
+   */
+  readonly personaChoices?: readonly { readonly key: string; readonly label: string; readonly choose: UiAction }[];
+  /**
+   * 2026-10-22: the owner's `insertion` switch of the page is off, so parts are copy-only — the line that says so over a
+   * result (a state, the ring), in the switch's own words. Absent or null — inserting is allowed, or a banner of the
+   * dock's status already says why not.
+   */
+  readonly insertOff?: CgErrorView | null;
   /** The goose mark is faint when everything is off (no sign-in, hub down, chat loading, reload needed, quota 0). */
   readonly mark: 'normal' | 'faint';
   /**

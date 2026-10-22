@@ -1,7 +1,8 @@
 // What a result sheet shows for a ResultVM (ui-design §4.2…§4.8, §8.2;
 // architecture.md §7): while the operation runs — the stage line with its
 // timer, «Отменить ⌘.» and the preliminary text with no buttons; after
-// `done` — parts, Hi variants or Fix, the stale row and (in debug mode) the
+// `done` — parts, Hi variants or Fix, the stale row, the Split note when one
+// message came for a Split (the old Fansly extension's), and (in debug mode) the
 // debug footer; after `failed` or `interrupted` — the error
 // card with its recovery buttons. Used by the dock sheet and by the
 // «Развернуть ↗» window alike.
@@ -36,6 +37,8 @@ export interface ResultContentProps {
   readonly quiet?: boolean;
   /** The part the dock offers the focus to (`DockVM.focusPart`, decision X44); the dock sheet only. */
   readonly focusPart?: number | null;
+  /** ↗ «Развернуть» of a finished result: the dock sheet's; the window has «Свернуть» instead. */
+  readonly expand?: JSX.Element | null;
 }
 
 /**
@@ -65,6 +68,25 @@ export function StaleRow({ mark, onAgain, reason }: { readonly mark: ResultMarkV
   );
 }
 
+/**
+ * Split was asked and one message came (the old Fansly extension's note, AI-011): a row over the part with «Ещё раз» —
+ * the answer is whole, only the ask to split it missed. Never a regeneration by itself.
+ */
+function SplitNote({ onAgain, reason }: { readonly onAgain: (() => void) | null; readonly reason: string | null }): JSX.Element {
+  const i18n = useI18n();
+  return (
+    <div class="cg-stale cg-stale--split" role="status">
+      <span class="cg-gut">
+        <Dot kind="ring" />
+      </span>
+      <span class="cg-stale__t">
+        <b>{i18n.t('result.splitOne.title')}</b> {i18n.t('result.splitOne.body')}
+      </span>
+      {onAgain === null ? null : <Button label={i18n.t('common.again')} variant="line" reason={reason} onClick={onAgain} />}
+    </div>
+  );
+}
+
 export function ResultContent(props: ResultContentProps): JSX.Element | null {
   const { result } = props;
   const i18n = useI18n();
@@ -86,6 +108,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
       <>
         <Head
           title={title}
+          fan={result.targetName}
           gutter={<Spinner />}
           acts={cancel === null ? null : <CancelButton action={cancel} />}
         >
@@ -109,7 +132,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
   if (result.state === 'failed' || result.state === 'interrupted') {
     return (
       <>
-        <Head title={title} acts={props.close}>
+        <Head title={title} fan={result.targetName} acts={props.close}>
           <Meta texts={metaTexts(i18n, result)} />
         </Head>
         <div class="cg-body">{result.error === null ? null : <ErrorCard error={result.error} tone={toneOf(result.error)} actions={result.errorActions} />}</div>
@@ -129,23 +152,30 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
   // A result a board made, shown in the dock of its chat (architecture.md §6.5): the rest of an answer to insert.
   // «Ещё раз» is the board's (its tone, its Fix source, the lease of «Новые»); here a new answer is the strip's buttons.
   const board = result.surface === 'preview' || result.surface === 'newcomers';
+  // Split was asked, one message came: the note says it over the part, so the head does not say it again.
+  const splitMissed = result.splitRequested && fix === null && result.variants === null && result.parts?.length === 1 && !result.unparsed;
+  const meta = metaTexts(i18n, result).filter((text) => !splitMissed || text !== i18n.t('result.meta.onePart'));
   return (
     <>
       <Head
         title={title}
+        fan={result.targetName}
         acts={
           <>
             {replaced || board ? null : <AgainButton hotkey={deps.catalog.entry(actionOf(result.feature)).hotkey} reason={againReason} onClick={again} />}
+            {props.expand ?? null}
             {props.close}
           </>
         }
       >
         {/* No «черновик · не отправлено» and no keys footer (2026-10-20): the answer is the sheet's; its keys are in
-            the hints and the cheatsheet, as the old client had them. */}
-        <Meta texts={metaTexts(i18n, result)} />
+            the hints and the cheatsheet, as the old client had them. The cost line is the head's last word, as the
+            old head's was. */}
+        <Meta texts={meta} usage={result.usage ?? null} />
       </Head>
       <div class="cg-body">
         {result.stale === null ? null : <StaleRow mark={result.stale} onAgain={board ? null : again} reason={againReason} />}
+        {splitMissed ? <SplitNote onAgain={board || replaced ? null : again} reason={againReason} /> : null}
         {fix !== null ? (
           <FixBody opId={result.opId} fix={fix.vm} part={fix.part} mode={mode} confirm={result.confirm} />
         ) : result.variants !== null ? (

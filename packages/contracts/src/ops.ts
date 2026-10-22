@@ -596,6 +596,16 @@ export const GreetingDraftGenerationSchema = z.strictObject({
 });
 export type GreetingDraftGeneration = z.infer<typeof GreetingDraftGenerationSchema>;
 
+/** What the hub's `usage` frame said of a generation: numbers only, never a text. */
+export const OpUsageSchema = z.strictObject({
+  inputTokens: z.nullable(CountSchema),
+  outputTokens: z.nullable(CountSchema),
+  cacheReadTokens: z.nullable(CountSchema),
+  cacheWriteTokens: z.nullable(CountSchema),
+  costMicroUsd: z.nullable(MicroUsdSchema),
+});
+export type OpUsage = z.infer<typeof OpUsageSchema>;
+
 /** Debug-only details (debug.enabled): profiler stages, usage and cost, reasoning, prompt token. */
 /** Debug only: the exact start proof (including its draft tail) and the narrowed hub answer. Never logged. */
 export const GenerationDebugSchema = z.strictObject({ proof: CoverageProofSchema, served: z.nullable(ServedContextSchema) });
@@ -606,15 +616,7 @@ export const OpDebugViewSchema = z.strictObject({
   stages: z
     .array(z.strictObject({ name: boundedText(48), at: EpochMsSchema }))
     .check(z.maxLength(32)),
-  usage: z.nullable(
-    z.strictObject({
-      inputTokens: z.nullable(CountSchema),
-      outputTokens: z.nullable(CountSchema),
-      cacheReadTokens: z.nullable(CountSchema),
-      cacheWriteTokens: z.nullable(CountSchema),
-      costMicroUsd: z.nullable(MicroUsdSchema),
-    }),
-  ),
+  usage: z.nullable(OpUsageSchema),
   reasoning: z.nullable(displayText(64_000)),
   /** Opaque token for debug-prompt.html (DB-006); the prompt itself never reaches a tab. */
   promptToken: z.nullable(boundedText(128)),
@@ -668,6 +670,11 @@ export const OpViewSchema = z.strictObject({
   })),
   /** The result is not shown as fresh (the dock may still insert; previews hold sends, §6.7.5): STALE_REASONS. */
   stale: z.optional(z.strictObject({ reason: z.enum(STALE_REASONS), at: z.nullable(IsoTimestampSchema) })),
+  /**
+   * 2026-10-22: the generation's usage as the hub's `usage` frame said it (numbers only) — the cost line of the result's
+   * head, as the old Fansly extension printed it whatever the debug mode. Absent — no frame came.
+   */
+  usage: z.optional(OpUsageSchema),
   /** Only when debug.enabled. */
   debug: z.optional(OpDebugViewSchema),
   /**

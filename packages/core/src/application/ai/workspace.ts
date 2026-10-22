@@ -125,6 +125,8 @@ export interface Situation {
   readonly quota: AiQuotaSnapshot | null;
   readonly persona: PersonaState | null;
   readonly pageName: string | null;
+  /** The hub page of the open chat, once its binding is read (2026-10-22: the dock's «Нет персоны» menu writes for it). */
+  readonly pageId?: number;
   /**
    * A conversation is open, but the page has not named its account or its fan for `UNIDENTIFIED_GRACE_MS`: `chat`
    * stays null (nothing can start), yet the dock is shown with the reason (audit 2026-10-20 №15).
@@ -266,6 +268,8 @@ export class AiWorkspace {
   private situationCache: { version: number; value: Situation } | null = null;
   private personas: Readonly<Record<string, { key: string; definitionId: string }>> = {};
   private syncedChat: ChatKey | null = null;
+  /** Split of the dock's next Reply and Fix, chosen in this tab (2026-10-22): null — the settings' default holds. Never stored. */
+  private splitChoice: boolean | null = null;
   /** Whose results the tab holds: undefined — not known yet, null — nobody is signed in. */
   private signIn: string | null | undefined = undefined;
   private portWasDown = false;
@@ -522,7 +526,7 @@ export class AiWorkspace {
     if (page === null) return off('no-binding', 'not-granted', { code: 'CG-BINDING-NOT-GRANTED' });
 
     const persona = this.env.persona(page.pageId);
-    const named = { ...base, persona, pageName: page.title };
+    const named = { ...base, persona, pageName: page.title, pageId: page.pageId };
     // The owner's master switch is off for this page: whatever else is missing (a persona, the chat's history),
     // nothing of ours would run here — the hub refuses every AI call of this client on the page. One line says
     // so; what was generated before can still be copied.
@@ -685,6 +689,20 @@ export class AiWorkspace {
     this.bump();
   }
 
+  /**
+   * Split of the dock's next Reply and Fix (2026-10-22, as the old Fansly extension): the tab's own choice until its own
+   * click or a reload, else the settings' «Split по умолчанию». Hi and Ping take it only where the page's `splitAll`
+   * switch lets them (`splitFor`).
+   */
+  split(): boolean {
+    return this.splitChoice ?? this.env.settings?.settings.generation.split ?? false;
+  }
+
+  setSplit(split: boolean): void {
+    this.splitChoice = split;
+    this.bump();
+  }
+
   sheet(key: ChatKey): Sheet | null {
     return this.chats.get(key)?.sheet ?? null;
   }
@@ -826,7 +844,8 @@ export class AiWorkspace {
       options: request.options,
       settings,
       bootstrap,
-      tone: original !== undefined ? toneForRegenerate(original.view) : this.tone(chat.key),
+      // «Ещё раз» takes a tone chosen after the answer; without one it repeats the original's (AI-007, the old extension).
+      tone: this.tone(chat.key) ?? (original !== undefined ? toneForRegenerate(original.view) : null),
       draft,
       fields: policy.fields(proof),
       freshText: limits !== null,
@@ -834,7 +853,8 @@ export class AiWorkspace {
       autoRecap,
       extendedWindows: extended,
       regenerateOf: original?.view.opId,
-      splitWanted: original?.memo.split,
+      // Split as the bar shows it now, for «Ещё раз» too: a Split switched after the answer is the one the person wants.
+      splitWanted: this.split(),
       force: request.force === true,
     });
     if (!plan.ok) return failed(plan.code);
@@ -1225,6 +1245,9 @@ export class AiWorkspace {
       // A start that failed before admission names no run that could end it: its card stays only while the
       // person stays in the chat.
       if (ui.sheet !== null && ui.sheet.kind === 'refusal' && ui.sheet.refusal.running.length === 0) ui.sheet = null;
+      // An answer that is used up — every part of it inserted — or that no longer fits the chat (the fan wrote since) is
+      // not brought back on the next visit (2026-10-22): the person starts the next one themselves.
+      if (ui.sheet !== null && ui.sheet.kind === 'draft' && this.spent(ui.sheet.opId)) ui.sheet = null;
       // A chat without a chosen tone or an open sheet keeps nothing.
       if (ui.tone === null && ui.sheet === null) this.chats.delete(other);
     }
@@ -1241,6 +1264,28 @@ export class AiWorkspace {
       }
     } else this.syncedChat = null;
     this.bump();
+  }
+
+  /** A finished answer whose every part went into the field (or out, from its board), or one stale for its chat. */
+  private spent(opId: string): boolean {
+    const record = this.ops.get(opId);
+    if (record === null || record.view.state !== 'done') return false;
+    const mark = this.ports.policy.verdict(record.view, record.memo.fingerprint);
+    // «Свежесть не проверена» says nothing of the answer itself; every other mark says it missed what the chat holds now.
+    if (mark !== null && mark.reason !== 'unverified') return true;
+    const result = record.view.result;
+    if (result === undefined) return false;
+    const used = (part: PartRef): boolean => this.inserts.partState(opId, part).insert === 'done' || (this.boardPart(opId, part)?.sentAt ?? null) !== null;
+    if (result.kind === 'parts') {
+      if (record.view.feature === 'fix' && this.inserts.fix(record).replaced) return true;
+      return result.parts.length > 0 && result.parts.every((_, index) => used({ index }));
+    }
+    if (result.kind === 'variants') {
+      const chosen = this.inserts.chosenVariant(opId);
+      const parts = chosen === null ? undefined : result.variants[chosen];
+      return chosen !== null && parts !== undefined && parts.length > 0 && parts.every((_, index) => used({ variant: chosen, index }));
+    }
+    return false;
   }
 
   private onOp(event: OpStoreEvent): void {

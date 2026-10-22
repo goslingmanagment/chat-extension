@@ -278,7 +278,7 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       const nextTone = tones[(tones.indexOf(dock.options.tone) + 1) % tones.length] ?? null;
       rows.push(
         item('action.tone', text({ key: 'palette.item.tone' }), { type: 'SetTone', targetHandle: target, tone: nextTone }, { hotkey: hotkeyOf(catalog.entry('tone').hotkey), enabled: !dock.options.locked && dock.options.toneReason === null, reason: dock.options.toneReason }),
-        item('action.split', text({ key: 'palette.item.split' }), { type: 'SetPreference', key: 'generation.split', value: !dock.options.split }, { hotkey: hotkeyOf(catalog.entry('split').hotkey), enabled: !dock.options.locked && dock.options.splitReason === null, reason: dock.options.splitReason }),
+        item('action.split', text({ key: 'palette.item.split' }), { type: 'SetSplit', split: !dock.options.split }, { hotkey: hotkeyOf(catalog.entry('split').hotkey), enabled: !dock.options.locked && dock.options.splitReason === null, reason: dock.options.splitReason }),
         item('action.fan-panel', text({ key: catalog.entry('fan-panel').label }), { type: 'Navigate', to: { kind: 'surface', surface: 'fan-panel', open: !overlays.isOpen('fan-panel') } }, { hotkey: hotkeyOf(catalog.entry('fan-panel').hotkey) }),
       );
     }

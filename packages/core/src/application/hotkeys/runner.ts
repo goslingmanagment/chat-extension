@@ -269,7 +269,8 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     }
     const value = !options.split;
     // HK-011: a switch with a toast — the strip may be out of sight or too narrow to show it.
-    void client.dispatch({ type: 'SetPreference', key: 'generation.split', value }).then(
+    // The dock's Split lasts for this tab's session (SetSplit); a preview's is its stored one, as its bar shows it.
+    void client.dispatch(where === 'preview' ? { type: 'SetPreference', key: 'generation.split', value } : { type: 'SetSplit', split: value }).then(
       (receipt) => {
         if (receipt.ok) toasts.show({ kind: 'info', code: null, scope: 'hotkey.split', title: { key: value ? 'toast.splitOn' : 'toast.splitOff' }, body: null });
         else toasts.show({ kind: 'warning', code: receipt.code, scope: 'hotkey.split', title: { key: CG_REGISTRY[receipt.code].title }, body: { key: CG_REGISTRY[receipt.code].body } });
@@ -382,6 +383,9 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
       return;
     }
     const dock = dockView();
+    // A running generation is never hidden by Esc (2026-10-22): its answer would then show nowhere — the «AI готово» toast
+    // is not said for the open chat. The key stays ours, so the site's Esc does not close the chat under it either.
+    if (dock.result !== null && isRunning(dock.result.state)) return;
     const opId = dock.result?.opId ?? (dock.analysis === 'recap' ? client.getSnapshot({ of: 'recap.view' }).opId : dock.analysis === 'review' ? client.getSnapshot({ of: 'review' }).opId : null);
     if (opId !== null) send({ type: 'HideResult', operationId: opId });
   };

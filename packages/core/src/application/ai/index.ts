@@ -113,7 +113,7 @@ export function createAiSurfaces(ports: AiPorts): AiSurfaces {
     if (id === 'split') {
       const reason = vm.options.splitReason;
       if (reason !== null) return hint(reason, msg('dock.option.splitUnavailable', { reason: i18n.text(reason.text) }));
-      return run({ type: 'SetPreference', key: 'generation.split', value: !vm.options.split });
+      return run({ type: 'SetSplit', split: !vm.options.split });
     }
     if (id === 'cancel') {
       // ⌘. / Ctrl+.: the generation running in the open chat.

@@ -46,6 +46,7 @@ import {
   type StatsQuery,
 } from '@cg/contracts';
 
+import { createWorld, type ServerGroup } from '../../fixture-fansly/src/data';
 import { SCENARIO_DATA, WORLD, spenderRow } from '../scenarios/hub';
 import { classifyPair, type PairState, type ServedRef, type StoreState } from './ai-rules';
 import { iso } from './clock';
@@ -159,6 +160,13 @@ interface Archive {
   readonly messages: ArchiveMessage[];
   /** R20 P6c1: the hub's lookup of the ids outside the served window fails here (the window check answers them `unknown`). */
   lookupFails?: boolean;
+}
+
+let fanslyStand: ReadonlyMap<string, ServerGroup> | null = null;
+/** A conversation of the Fansly stand's own world (fixture-fansly: deterministic ids), by its group id. */
+function fanslyStandGroup(groupId: string): ServerGroup | undefined {
+  fanslyStand ??= createWorld().byId;
+  return fanslyStand.get(groupId);
 }
 
 /** One message of a conversation seeded as a whole (`archiveConversation`), oldest first. */
@@ -590,6 +598,30 @@ export class DataModel {
   private archive(page: FakePage, fanRef: string): Archive {
     const key = this.key(page.pageLabel, fanRef);
     let archive = this.archives.get(key);
+    // A conversation of the Fansly stand (2026-10-22): the hub holds what the stand's page shows, by the page's own ids —
+    // so the window check over the stand's chat finds its messages, and a result is marked only when a test makes the
+    // archive lag (`archiveConversation`).
+    const stand = archive === undefined && !CHAT_IS_FAN[page.platform] ? fanslyStandGroup(fanRef) : undefined;
+    if (stand !== undefined) {
+      const newestFirst = [...stand.history].reverse();
+      archive = {
+        generation: 1,
+        revision: 1,
+        messages: newestFirst.map((message, n) => ({
+          messageId: message.id,
+          at: iso(this.base - 600_000 * n),
+          sender: message.senderId === stand.fan.id ? 'fan' : 'model',
+          text: message.content,
+          automatic: null,
+          deleted: false,
+          tipMills: null,
+          priceMills: null,
+          attachmentLabels: [],
+          order: -(n + 1),
+        })),
+      };
+      this.archives.set(key, archive);
+    }
     if (archive === undefined) {
       // A conversation with an id of its own (a Fansly group, R20 F6b) holds three messages of its own, ids from its id.
       const seeded = fanRef === WORLD.fan ? SCENARIO_DATA.feedTotal : this.knowsFanStatic(fanRef) || !CHAT_IS_FAN[page.platform] ? 3 : 0;

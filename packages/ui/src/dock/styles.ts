@@ -2,37 +2,35 @@
 // the kit's sheets into the dock's closed shadow root. Tokens only: no colour
 // outside the `--cg-*` list. The family look (decision X28): the bar is a card
 // of raised chips with Reply's options in a sunken capsule, a result is a
-// panel of draft cards. The narrow rules are container queries on the kit's
-// `cg` container (the dock's own width, not the window's) and go one way: what
-// hides at a width stays hidden below it. Their widths are measured in the
-// root's own text (`atBase`: N px at the base 13 px): «Размер текста: Крупнее»
-// (X55) widens every chip, and the same rules then hold a step earlier.
+// panel of draft cards. The bar's chips are the old Fansly extension's buttons
+// (2026-10-22, the owner's word): 13 px, weight 600, 30 px high, 0 8 px, and
+// neither they nor a result's head follow «Размер текста: Крупнее» (X55) —
+// only the AI text, the parts and the cards grow. The narrow rules are
+// container queries on the kit's `cg` container (the dock's own width, not the
+// window's), in px whatever the text size, and go one way: what hides at a
+// width stays hidden below it. Between two of them a row that does not fit
+// scrolls sideways, as the old bar did; it never drops a word.
 //
 //   always  Spenders and «Новые» are their icons, on every site and width
 //           (X64: as on Fansly); the word is the name and
-//           the hint
+//           the hint. No persona and no «Скачать лог» on the bar
+//           (2026-10-22): the persona is in Reply's hint, the log in the popup
 //   widest  the rest in words: the capsule with the word «Split», the status
-//           in words, the persona, the palette key
-//   < 1000  no palette key; the status words short. The persona stays, cut
-//           with «…» to the room the chips leave it: it is the chatter's
-//           only sight of whose voice a draft is in (Fansly's dock is 600–
-//           940 px wide)
+//           in words, the palette key
+//   < 1000  no palette key; the status words short
 //   < 900   Split in the capsule is its glyph alone
-//   < 820   no lock in the capsule while a generation runs; chips 0 8 px
-//   < 720   the chips closer: gaps 3 px, chips 0 7 px
+//   < 820   no lock in the capsule while a generation runs
 //   < 690   the status in the windows' place while the chat loads is its
 //           spinner alone; Hi variants in a column below 680
-//   < 660   the capsule's cells narrower, 24 px from one to the next; chips
-//           0 6, seams closer, the persona without its seam: the room for
-//           the persona on a 620 px composer
-//   < 610   Review, Recap, Coach are their icons too
-//   ≤ 600   head without meta and key labels
-//   < 520   no persona (520 px at either text size: with «Крупнее» the
-//           chips fold earlier and leave it room down to here)
-//   < 500   the five icons in «Ещё» at once
+//   < 660   the capsule's cells narrower, 24 px from one to the next. Every
+//           word needs ~600 px of bar (Fansly's composer is 600–940 px
+//           wide); below that the row scrolls, as the old bar did
+//   < 492   Review, Recap, Coach are their icons too: the row of icons is
+//           491 px, so it fits again here
 //   < 480   no seams
-//   < 440   while the chat loads, the status spinner in the place of «Ещё»
-//   ≤ 420   Insert under the text
+//   < 420   the five icons in «Ещё» at once; while the chat loads, the
+//           status spinner in its place
+//   ≤ 420   no head meta; Insert under the text
 //   < 360   «Ещё раз» is ↻; the buttons of a Recap or Review head take a
 //           second line; «Ещё» is ⋯
 //           and the chips closer still (a 320 px column, §6.5)
@@ -41,7 +39,7 @@
 // chip on a ~540 px composer, as on a 1512 px window with ChatSpace's side
 // panel open.
 
-import { type StyleSource } from '../kit';
+import { BASE_TEXT_DECLARATIONS, dark, type StyleSource } from '../kit';
 import { STALE_ROW_CSS, STALE_ROW_NARROW_CSS } from './stale-row.css';
 
 /** Text kept for screen readers while its button shows an icon only. */
@@ -53,20 +51,30 @@ const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1
  * drops; it stands where a CSS comment would.
  */
 /**
- * A width of the narrow rules, given at the base text of 13 px, in the root's own text (X55): «Размер текста: Крупнее»
- * moves every breakpoint with the wider chips (Firefox reads `em` of a container query on the container itself).
+ * Where Review, Recap and Coach turn into their icons, and where the five icons go into «Ещё»: the bar's own width in
+ * px, whatever the text size (2026-10-22: in the root's text they folded at ~703 px under «Крупнее», on every Fansly
+ * composer). Above `ICONS_BELOW` the bar shows every word — scrolling below ~600 px, as the old bar did —; between the
+ * two, the three are their icons.
  */
-const atBase = (px: number): string => `calc(${px}em / 13)`;
+export const ICONS_BELOW = 492;
+export const MORE_BELOW = 420;
 
 export const DOCK_CSS = `
 ${/* The bar is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. In the dock the gutter is the number cell of a draft card. */ ''}
 .cg-dock { position: relative; display: flex; flex-direction: column-reverse; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); --cg-gutter: 31px; --cg-lead: 12px; }
+${/* The bar and a result's head keep the base type scale under «Крупнее» (2026-10-22): only the AI text, parts and cards grow. */ ''}
+.cg-strip, .cg-head { ${BASE_TEXT_DECLARATIONS} }
 
-${/* ── the bar: a card of raised chips ── */ ''}
+${/* ── the bar: a card of raised chips, the old Fansly extension's toolbar — 8 px around 30 px buttons; a row that does not fit scrolls ── */ ''}
 .cg-strip {
-  display: flex; align-items: center; gap: 4px; height: 40px; min-width: 0; padding: 0 5px;
+  display: flex; align-items: center; gap: 4px; height: 48px; min-width: 0; padding: 0 8px;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; overscroll-behavior-x: contain;
   background: var(--cg-raised); border: 1px solid var(--cg-rule-2); border-radius: var(--cg-r-lg); box-shadow: var(--cg-shadow);
 }
+.cg-strip .cg-act:not(.cg-opt) { height: 30px; padding: 0 8px; border-radius: 7px; font-size: 13px; line-height: 1; font-weight: 600; }
+.cg-strip .cg-tones { height: 30px; }
+${/* The old dark bar: its buttons a step darker than the card (#21201c on #262420), a hairline of the line colour. */ ''}
+${dark('.cg-strip')} { --cg-chip: color-mix(in srgb, var(--cg-surface) 50%, var(--cg-raised)); }
 ${/* What is left of a low quota: a count on the bar's frame over Reply's corner, clear of its word. */ ''}
 .cg-slot--reply { position: relative; }
 .cg-quota {
@@ -79,26 +87,20 @@ ${/* What is left of a low quota: a count on the bar's frame over Reply's corner
 .cg-strip__acts { flex: none; display: flex; align-items: center; gap: 4px; }
 .cg-strip__opts { display: flex; align-items: center; gap: 4px; min-width: 0; margin-left: auto; padding-left: 8px; }
 .cg-strip__opts > * { flex: none; }
-.cg-strip__opts > .cg-slot--persona, .cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
+.cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
 .cg-act--ico > .cg-ico { display: none; width: 14px; height: 14px; }
 ${/* Spenders and «Новые» are their icons at every width, on both sites (X64): the word is in the hint and in the name. */ ''}
-.cg-strip .cg-slot--boards .cg-act--ico { width: 28px; padding: 0; }
+.cg-strip .cg-slot--boards .cg-act--ico { width: 30px; padding: 0; }
 .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
 .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 .cg-act.is-busy > .cg-ico { opacity: 0.35; }
 .cg-slot--more { display: none; }
-${/* «Скачать лог» (2026-10-21): its icon at the bar's right end, the word in its hint; into «Ещё» where «Ещё» shows. */ ''}
-.cg-strip .cg-slot--log .cg-act--ico { width: 28px; padding: 0; }
-.cg-slot--log .cg-act--ico > .cg-ico { display: block; }
-.cg-slot--log .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
 .cg-strip .cg-menu--top { bottom: calc(100% + 9px); }
 .cg-hint {
   padding: 0 5px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cg-rule-3), 0 1px 0 var(--cg-rule-3);
   font-family: var(--cg-mono); font-size: var(--cg-text-2xs); line-height: 18px; color: var(--cg-ink-muted); white-space: nowrap;
 }
-.cg-persona { display: block; line-height: 26px; height: 26px; padding: 0 4px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; min-width: 0; }
-.cg-persona.is-missing { color: var(--cg-ink-2); }
 .cg-status-word { display: inline-flex; align-items: center; gap: 6px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; padding: 0 4px; overflow: hidden; text-overflow: ellipsis; }
 .cg-status-word .cg-short { display: none; }
 
@@ -115,7 +117,11 @@ ${/* ── the sheet: what opens above the bar. «На подложке» — a
 .cg-head > .cg-gut { width: auto; }
 .cg-head > .cg-gut:empty { display: none; }
 .cg-head__title { flex: none; font-weight: 700; color: var(--cg-ink-strong); white-space: nowrap; }
-.cg-head__meta { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+${/* «Reply — @fan» (the old head, 2026-10-22): the name gives way with «…», never to the meta rule. */ ''}
+.cg-head__fan { flex: 0 1 auto; min-width: 3em; margin-left: -4px; font-weight: 700; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-head__meta { flex: 0 3 auto; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+${/* What the answer cost, the head's last quiet word, as the old head printed it; in/write/read/out in its hint. */ ''}
+.cg-head__usage { font-family: var(--cg-mono); font-size: var(--cg-text-xs); letter-spacing: 0; cursor: default; }
 .cg-head__sp { flex: 1; min-width: 0; order: 1; }
 .cg-head > .cg-timer { flex: none; order: 2; }
 .cg-head__acts { display: flex; align-items: center; gap: 2px; flex: none; order: 3; }
@@ -137,7 +143,7 @@ ${/* ── parts: Hi variants, the Б2 question ── */ ''}
 .cg-vhead b { color: var(--cg-ink-2); font-weight: 600; }
 .cg-hi { display: grid; gap: 8px; padding: 6px 8px 8px; }
 .cg-hi__col { display: grid; gap: 6px; align-content: start; min-width: 0; }
-@container cg (min-width: ${atBase(680)}) {
+@container cg (min-width: 680px) {
   .cg-hi { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
   .cg-hi .cg-part { grid-template-columns: 24px minmax(0, 1fr); }
   .cg-hi .cg-part__t { font-size: var(--cg-text-lg); line-height: 20px; }
@@ -170,6 +176,10 @@ ${/* ── Fix: «Ваш текст» is plain, «После Fix» is the draft
 
 ${/* ── «Фан написал новое»: a tinted notice over the parts ── */ ''}
 ${STALE_ROW_CSS}
+${/* Split was asked and one message came (the old extension's note): the same row, amber — a miss of the ask, not of the chat. */ ''}
+.cg-stale.cg-stale--split { background: var(--cg-amber-bg); box-shadow: inset 0 0 0 1px var(--cg-amber-line); }
+${/* ↵ is printed on «Вставить» only while its part holds the focus (2026-10-22): elsewhere Enter is the site's, and would send the draft. */ ''}
+.cg-part:not(:focus-within) .cg-ins kbd, .cg-part:not(:focus-within) .cg-copy-main kbd { display: none; }
 
 ${/* ── the refusal of a fourth generation: what runs now ── */ ''}
 .cg-card + .cg-ops { border-top: 1px solid var(--cg-rule); }
@@ -185,81 +195,73 @@ ${/* A countdown that leads the card's actions starts at the text column, as a b
 
 ${/* ── the status banner: the sheet's last row ── */ ''}
 .cg-sheet > * + .cg-banner { border-top: 1px solid var(--cg-rule); }
+${/* «Нет персоны»: the persona picked in the banner — the browser's own list, «Сохранить», «Настройки». */ ''}
+.cg-pick { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.cg-pick__list {
+  height: 26px; max-width: 200px; padding: 0 6px; border: 0; border-radius: 7px; cursor: pointer;
+  background: var(--cg-chip); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink); font-size: var(--cg-text-base);
+}
 
 ${/* ── «Вид ответа: без подложки» (the default): the result and the bar are one card — the sheet is its upper part ── */ ''}
 .cg-bare .cg-sheet { margin-bottom: 0; border-bottom: 0; border-radius: var(--cg-r-lg) var(--cg-r-lg) 0 0; box-shadow: none; }
 .cg-bare .cg-strip:has(+ .cg-sheet) { border-radius: 0 0 var(--cg-r-lg) var(--cg-r-lg); border-top-color: var(--cg-rule); }
 
-${/* ── narrow composer (ui-design §3.3) ── */ ''}
-@container cg (max-width: ${atBase(999)}) {
+${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whatever the text size ── */ ''}
+@container cg (max-width: 999px) {
   .cg-hint, .cg-status-word .cg-long { display: none; }
   .cg-status-word .cg-short { display: inline; }
 }
-@container cg (max-width: ${atBase(899)}) {
+@container cg (max-width: 899px) {
   .cg-split .cg-act__t { ${VISUALLY_HIDDEN} }
   .cg-tones .cg-split { width: 26px; padding: 0; }
 }
-@container cg (max-width: ${atBase(819)}) {
+@container cg (max-width: 819px) {
   .cg-lock { display: none; }
-  .cg-strip .cg-act:not(.cg-opt) { padding: 0 8px; }
 }
-@container cg (max-width: ${atBase(719)}) {
-  .cg-strip, .cg-strip__acts, .cg-strip__opts, .cg-slot { gap: 3px; }
-  .cg-strip .cg-act:not(.cg-opt) { padding: 0 7px; }
-}
-@container cg (max-width: ${atBase(689)}) {
+@container cg (max-width: 689px) {
   ${/* While the chat loads the status in the windows' place is its spinner alone. */ ''}
   .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
 }
-@container cg (max-width: ${atBase(659)}) {
-  ${/* The room the persona needs on a 620 px composer (Fansly's at a 1728 px window), with Review, Recap, Coach still in words. */ ''}
-  .cg-strip .cg-act:not(.cg-opt):not(.cg-act--ico), .cg-strip .cg-slot--two .cg-act--ico { padding: 0 6px; }
+@container cg (max-width: 659px) {
   .cg-strip__opts { padding-left: 4px; }
   .cg-strip .cg-div { margin: 0 2px; }
-  .cg-slot--persona > .cg-div { display: none; }
-  .cg-strip .cg-persona { padding: 0 2px; }
   ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
   .cg-tones .cg-opt { width: 22px; }
   .cg-tones__track { gap: 2px; }
 }
-@container cg (max-width: ${atBase(609)}) {
-  ${/* Review, Recap, Coach too. */ ''}
-  .cg-strip .cg-slot--two .cg-act--ico { width: 28px; padding: 0; }
+@container cg (max-width: ${ICONS_BELOW - 1}px) {
+  ${/* Review, Recap, Coach too: below here their words no longer fit the bar. */ ''}
+  .cg-strip .cg-slot--two .cg-act--ico { width: 30px; padding: 0; }
   .cg-slot--two .cg-act--ico > .cg-ico { display: block; }
   .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
-@container cg (max-width: 519px) {
-  ${/* No persona: at the base text the room left to it here is a letter and «…», not a name. In px, not in the root's text: with «Крупнее» the chips fold a step earlier (Review, Recap, Coach to icons below 704 px, all five into «Ещё» below 577 px), which leaves the persona a name's room down to here — it is the chatter's only sight of whose voice a draft is in. */ ''}
-  .cg-slot--persona { display: none; }
-}
-@container cg (max-width: ${atBase(499)}) {
-  ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. */ ''}
-  .cg-slot--two, .cg-slot--boards, .cg-slot--log { display: none; }
+@container cg (max-width: ${MORE_BELOW - 1}px) {
+  ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. Nothing scrolls then, and «Ещё» opens above the bar. */ ''}
+  .cg-strip { overflow: visible; }
+  .cg-slot--two, .cg-slot--boards { display: none; }
   .cg-slot--more { display: inline-flex; }
+  ${/* At the narrowest the status spinner takes «Ещё»'s place while the chat loads. */ ''}
+  .cg-strip.has-status .cg-slot--more { display: none; }
 }
-@container cg (max-width: ${atBase(600)}) {
-  .cg-head__meta { display: none; }
+@container cg (max-width: 600px) {
   .cg-refresh .cg-btn__t { ${VISUALLY_HIDDEN} }
   .cg-op { grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr) 44px auto; }
   .cg-op__feat { display: none; }
 }
-@container cg (max-width: ${atBase(479)}) {
+@container cg (max-width: 479px) {
   .cg-strip .cg-div { display: none; }
 }
-@container cg (max-width: ${atBase(439)}) {
-  .cg-strip { padding: 0 3px; }
-  ${/* At the narrowest the status spinner takes «Ещё»'s place while the chat loads. */ ''}
-  .cg-strip.has-status .cg-slot--more { display: none; }
-}
-@container cg (max-width: ${atBase(420)}) {
+@container cg (max-width: 420px) {
   .cg-head { gap: 6px; padding-left: 10px; }
+  .cg-head__meta { display: none; }
 ${STALE_ROW_NARROW_CSS}
 }
-@container cg (max-width: ${atBase(359)}) {
+@container cg (max-width: 359px) {
   .cg-again { width: 26px; padding: 0; justify-content: center; }
   .cg-again .cg-ico { display: block; }
   .cg-again .cg-btn__t { ${VISUALLY_HIDDEN} }
   ${/* The bar in a 320 px column (ui-design §6.5): «Ещё» is ⋯ and the chips closer still, so that the capsule stays inside the dock in both languages. */ ''}
+  .cg-strip { padding: 0 4px; }
   .cg-strip, .cg-strip__acts, .cg-slot { gap: 2px; }
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 5px; }
   .cg-tones__seam { margin: 0 2px; }

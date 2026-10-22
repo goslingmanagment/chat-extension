@@ -2,8 +2,10 @@
 // AI-010): one 40 px card above the composer — Reply with the capsule of its
 // options, the other AI actions as raised chips in groups, «Ещё» where a
 // narrow composer hid some, then the status words, the two windows (Spenders,
-// «Новые»), the persona and the palette key. No goose: its cell is the room
-// that keeps every chip on a ~540 px composer (decision X31).
+// «Новые») and the palette key. No goose: its cell is the room that keeps
+// every chip on a ~540 px composer (decision X31). No persona and no «Скачать
+// лог» (2026-10-22, the owner's word): the persona is named in Reply's hint, as
+// the old Fansly extension did, and the log is the popup's.
 // `role="toolbar"`: one tab stop, arrows inside. What hides at which width is
 // CSS (container queries, styles.ts); the markup is the same at every width.
 //
@@ -62,12 +64,6 @@ const TONE_EMOJI: Readonly<Record<Tone, string>> = { casual: '😌', flirty: '�
 /** The kit's menus are at least this wide (ui-design §4.1). */
 const MENU_MIN_WIDTH_PX = 200;
 const NO_CHIPS: readonly ChipVM[] = [];
-/**
- * «Скачать лог» (2026-10-21): the log of the last 24 hours for the lead, in one click. An icon at the bar's right end;
- * where a narrow composer shows «Ещё», the last item of its menu instead.
- */
-const LOG_ID = 'download-log';
-const LOG_ACTION: UiAction = { type: 'DownloadLog' };
 
 /** A chip by its feature's key, the capsule's cells, «Ещё». */
 type StopId = string;
@@ -138,7 +134,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   /** The bar's chips in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
   const STOPS: readonly StopId[] = acts
     .flatMap((chip): StopId[] => (chip.group === LEAD ? [chip.id, ...tones.map((item): StopId => `tone:${item}`), 'split'] : [chip.id]))
-    .concat('more', ...windows.map((chip) => chip.id), LOG_ID);
+    .concat('more', ...windows.map((chip) => chip.id));
 
   const buttons = (): HTMLElement[] => [...(bar.current?.querySelectorAll<HTMLElement>('.cg-act') ?? [])];
   const stopOf = (target: EventTarget | null): StopId | null => {
@@ -273,16 +269,12 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   // ── «Ещё»: whatever a narrow composer hid — Review, Recap, Coach, the two windows ──
   const folded = chips.filter((chip) => moreIds.includes(chip.id));
   const hidden = folded.filter((chip) => !inWindows(chip));
-  // «Ещё» always opens (2026-10-21): «Скачать лог» is its last item, and it works whatever the chat's state is — an
-  // off dock is exactly when the lead needs the log. Each function it holds that is off says why in its own row.
-  const moreItems: MenuItem[] = [
-    ...folded.map((chip) => {
-      const keys = hotkeyText(chip.hotkey);
-      const off = whyOff(chip);
-      return { id: chip.id, label: nameOf(chip), ...(keys === null ? {} : { hint: keys.display }), reason: off === null ? null : offText(chip, off) };
-    }),
-    { id: LOG_ID, label: t('log.download'), reason: null },
-  ];
+  // Each function «Ещё» holds that is off says why in its own row.
+  const moreItems: MenuItem[] = folded.map((chip) => {
+    const keys = hotkeyText(chip.hotkey);
+    const off = whyOff(chip);
+    return { id: chip.id, label: nameOf(chip), ...(keys === null ? {} : { hint: keys.display }), reason: off === null ? null : offText(chip, off) };
+  });
   const openMore = (): void => {
     alignMore();
     setMenuOpen(true);
@@ -353,7 +345,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
                   reason={splitOff}
                   tooltip={hinted(splitKeys === null ? t('dock.option.split') : t('dock.option.splitTooltip', { hotkey: splitKeys.display }), t('dock.hint.split'))}
                   leading={<CheckGlyph on={split} />}
-                  onClick={() => run({ type: 'SetPreference', key: 'generation.split', value: !split })}
+                  onClick={() => run({ type: 'SetSplit', split: !split })}
                   {...stopProps('split')}
                 />
                 {locked ? <Icon name="lock" size={12} class="cg-lock" /> : null}
@@ -384,7 +376,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
               label={t('dock.action.more')}
               items={moreItems}
               align={moreAlign}
-              onSelect={(id) => run(id === LOG_ID ? LOG_ACTION : (chips.find((chip) => chip.id === id)?.action ?? null))}
+              onSelect={(id) => run(chips.find((chip) => chip.id === id)?.action ?? null)}
               onClose={() => setMenuOpen(false)}
               returnFocusTo={() => moreRef.current}
             />
@@ -400,26 +392,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
           </span>
         ) : null}
         {windows.length === 0 ? null : <span class={DOCK_GROUP_SLOT[WINDOWS]}>{windows.map(chipButton)}</span>}
-        <span class="cg-slot cg-slot--persona">
-          <Divider />
-          {vm.status === 'not-signed-in' ? (
-            <span class="cg-persona is-missing">{t('dock.persona.notSignedIn')}</span>
-          ) : vm.persona === null ? null : (
-            <Word class="cg-persona" text={vm.persona.label} tooltip={hints ? t('dock.persona.tooltip', { persona: vm.persona.label, page: vm.persona.pageName }) : null} />
-          )}
-        </span>
         {vm.paletteHotkey === null ? null : <Word class="cg-hint" text={hotkeyText(vm.paletteHotkey)?.display ?? ''} tooltip={hints ? t('dock.paletteHint.tooltip') : null} />}
-        <span class="cg-slot cg-slot--log">
-          <StripButton
-            label={t('log.download')}
-            class="cg-act--ico cg-log"
-            iconable
-            leading={<Icon name="download" size={14} />}
-            tooltip={`${t('log.download')}\n${t('log.downloadHint')}`}
-            onClick={() => run(LOG_ACTION)}
-            {...stopProps(LOG_ID)}
-          />
-        </span>
       </div>
     </div>
   );

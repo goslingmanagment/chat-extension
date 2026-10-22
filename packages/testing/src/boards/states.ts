@@ -339,7 +339,7 @@ function paletteState(ctx: ScenarioCtx, variant: 'a' | 'b'): ScenarioViewEntry[]
     item('spenders', msg('palette.item.spenders'), surface('spenders'), { hotkey: hotkey(ctx, 'spenders') }),
     item('newcomers', msg('palette.item.newcomers'), surface('newcomers')),
     item('tone', msg('palette.item.tone'), { type: 'SetTone', targetHandle: dock, tone: 'flirty' }, { hotkey: hotkey(ctx, 'tone') }),
-    item('split', msg('palette.item.split'), { type: 'SetPreference', key: 'generation.split', value: true }, { hotkey: hotkey(ctx, 'split') }),
+    item('split', msg('palette.item.split'), { type: 'SetSplit', split: true }, { hotkey: hotkey(ctx, 'split') }),
     item('cheatsheet', msg('palette.item.cheatsheet'), surface('cheatsheet'), { hotkey: hotkey(ctx, 'cheatsheet') }),
     item('settings', msg('palette.item.settings'), { type: 'OpenSettings', route: { section: 'status' } }),
   ];

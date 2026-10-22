@@ -32,7 +32,7 @@ const SURFACES: Readonly<Record<string, string>> = {
 const INPUTS: Readonly<Record<string, string>> = { click: 'клик', key: 'клавиша', command: 'из попапа', none: 'без клика' };
 
 const ACTIONS: Readonly<Record<string, string>> = {
-  Regenerate: '«Ещё раз»', CancelGeneration: '«Отменить»', HideResult: '«Скрыть»', ExpandResult: '«Развернуть»', SetTone: 'тон', InsertPart: '«Вставить»',
+  Regenerate: '«Ещё раз»', CancelGeneration: '«Отменить»', HideResult: '«Скрыть»', ExpandResult: '«Развернуть»', SetTone: 'тон', SetSplit: 'Split', InsertPart: '«Вставить»',
   ReplaceMyDraft: '«Заменить мой черновик»', RestoreMyDraft: '«Вернуть мой текст»', AnswerConfirm: 'ответ на вопрос о черновике', OpenAndInsertPart: '«Открыть и вставить»',
   SendPart: '«Отправить»', EditPart: 'правка части', SendDraft: '«Отправить» своего текста', OpenChatToVerify: '«Открыть чат для проверки»', Copy: '«Копировать»',
   OpenPreview: 'превью фана', RefreshArchive: '«Обновить» архив', LoadOlder: 'более ранние сообщения', SetPreviewDraft: 'черновик превью',

@@ -52,6 +52,9 @@ import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type S
 import { flagReasonVm } from '../flag-reason';
 import { createPartFocus } from './focus-part';
 
+/** A hub page as the dock's «Нет персоны» menu names it: the settings page's own handle form (`page-<id>`). */
+const dockPageHandle = (pageId: number): string => `page-${String(pageId)}`;
+
 /** The keys footer is shown under the first results (ui-design §4.3). */
 export const KEYS_FOOTER_RESULTS = 5;
 
@@ -82,6 +85,8 @@ export function refusalVm(ws: AiWorkspace, refusal: RefusalState): RefusalVM {
       : errorActions(refusal.error, { catalog, now: clock.now(), again: retry, againHotkey: featureHotkey(catalog, refusal.feature), openChat: null }).filter((button) => button.action === retry);
   return {
     feature: refusal.feature,
+    // A refusal stands in the sheet of the open chat: its fan is the one the dock shows.
+    targetName: ws.situation().fanName,
     error: errorVm(refusal.error, i18n),
     running: refusal.running.map((summary) => runningVm(ws, summary)),
     ...(refusal.at === undefined ? {} : { at: refusal.at }),
@@ -202,6 +207,28 @@ export function createDockController(ws: AiWorkspace): DockController {
     return pageOff.why === 'disabled' ? { ...view, title: ws.ports.i18n.t('dock.status.pageOff'), body: '', tone: 'state' } : { ...view, tone: 'state' };
   }
 
+  /**
+   * The owner's `insertion` switch of the page is off: parts are copy-only, and one line over the result says why, in
+   * the switch's own words (2026-10-22). Other copy-only reasons have a status banner of their own.
+   */
+  function insertOffOf(situation: Situation): NonNullable<DockVM['insertOff']> | null {
+    const block = situation.copyOnly;
+    if (block === null || block.reason !== 'feature-disabled' || situation.pageOff !== null || situation.statusError !== null) return null;
+    const { i18n } = ws.ports;
+    const reason = block.view === undefined ? i18n.t('dock.reason.featureDisabled') : i18n.text(block.view.text);
+    return { ...errorVm({ code: block.code }, i18n), title: i18n.t('dock.status.insertOff', { reason }), body: i18n.t('dock.status.insertOffBody'), tone: 'state' };
+  }
+
+  /** «Нет персоны»: the catalog's active personas for the open chat's page, picked right in the dock (2026-10-22). */
+  function personaChoicesOf(situation: Situation): NonNullable<DockVM['personaChoices']> {
+    const catalog = ws.env.catalog;
+    if (situation.status !== 'no-persona' || situation.pageId === undefined || catalog.s !== 'ready') return [];
+    const pageHandle = dockPageHandle(situation.pageId);
+    return catalog.value.personas
+      .filter((persona) => persona.status === 'active')
+      .map((persona) => ({ key: persona.key, label: persona.displayName, choose: { type: 'ChoosePersona', pageHandle, personaKey: persona.key } as const }));
+  }
+
   /** UI-010: a recap of this chat can be opened at once (a local copy, or the hub's status line once the chat settled). */
   function hasRecapCopy(ready: NonNullable<Situation['ready']>): boolean {
     return ws.recaps.hasAny(ws.recapOwner(ready), flagUsable(ready.bootstrap, ready.page.pageId, 'recap'));
@@ -245,13 +272,16 @@ export function createDockController(ws: AiWorkspace): DockController {
       notice: situation.pageOff === null || chat === null ? null : noticeOf(situation.pageOff),
       targetHandle: handle,
       persona: situation.persona?.status === 'ok' && situation.persona.label !== null && situation.pageName !== null ? { label: situation.persona.label, pageName: situation.pageName } : null,
+      personaChoices: personaChoicesOf(situation),
+      insertOff: insertOffOf(situation),
       mark: situation.off !== null ? 'faint' : 'normal',
       // UI-031: silence is the norm — the quota shows only when it is low or gone.
       quota: quota !== null && low ? { remaining, low: remaining !== 0, resetsAt: quota.resetsAt } : null,
       options: {
         tone: chat === null ? null : ws.tone(chat.key),
         tones: TONES,
-        split: settings?.generation.split ?? false,
+        // The tab's own Split until its own click or a reload; a new tab starts from «Split по умолчанию» (2026-10-22).
+        split: ws.split(),
         locked: generating,
         toneReason: lockReason,
         splitReason: lockReason,
@@ -294,6 +324,8 @@ export function createDockController(ws: AiWorkspace): DockController {
       if (!autoFix.has(running.view.opId)) ws.setSheet(chat.key, { kind: 'draft', opId: running.view.opId });
       return done(action.type, 'noop', { opId: running.view.opId });
     }
+    // What the field held at the click: an answer the person waited for over it may take the focus (X44).
+    const composerAtClick = ws.situation().host.composer;
     const result = await ws.startFeature({
       feature: action.feature,
       surface: 'dock',
@@ -303,6 +335,7 @@ export function createDockController(ws: AiWorkspace): DockController {
     });
     switch (result.kind) {
       case 'started': {
+        if (!result.reopened) partFocus.started(result.opId, composerAtClick !== null && chatKeyOf(composerAtClick.chat) === chat.key ? composerAtClick : null);
         // X68: the person's Fix shows nothing while it runs; its result goes into the field when it is done.
         if (action.feature === 'fix' && regenerateOf === undefined) {
           autoFix.set(result.opId, cause);
@@ -345,7 +378,7 @@ export function createDockController(ws: AiWorkspace): DockController {
     }
   }
 
-  async function savePreference(action: UiActionOf<'SetPreference'>, patch: Parameters<AiWorkspace['env']['patchSettings']>[0]): Promise<ActionReceipt> {
+  async function savePreference(action: UiActionOf<'SetPreference' | 'ChoosePersona'>, patch: Parameters<AiWorkspace['env']['patchSettings']>[0]): Promise<ActionReceipt> {
     const answer = await ws.env.patchSettings(patch);
     return answer.ok ? done(action.type, 'done', { revision: answer.payload.revision }) : refused(ws, action.type, answer.error);
   }
@@ -395,6 +428,9 @@ export function createDockController(ws: AiWorkspace): DockController {
         (sheet.kind === 'draft' && sheet.opId === action.operationId && (record === null || ws.answersFor(record))) ||
         (sheet.kind === 'refusal' && sheet.refusal.running.some((running) => running.opId === action.operationId));
       if (!mine) return null;
+      // A generation that runs is never hidden (2026-10-22): its finished answer would then show nowhere — the «AI готово»
+      // toast is not said for the open chat. «Скрыть» is not offered while it runs; Esc passes it by.
+      if (sheet.kind === 'draft' && record !== null && !isTerminalOpState(record.view.state)) return Promise.resolve(done(action.type, 'noop'));
       // «Скрыть» keeps the result: the same click with the same parameters opens it again (AI-128).
       ws.setSheet(chat.key, null);
       return Promise.resolve(done(action.type));
@@ -435,7 +471,26 @@ export function createDockController(ws: AiWorkspace): DockController {
       if (!ws.holds(action.artifactHandle)) return null;
       return ws.copy(action.artifactHandle).then((copied) => (copied.ok ? done(action.type) : refused(ws, action.type, copied.error)));
     },
+    SetSplit(action) {
+      const chat = ws.situation().chat;
+      // AI-009: Split is frozen while a generation runs in the open chat.
+      if (chat !== null && ws.running(chat.key) !== null) return Promise.resolve(done(action.type, 'noop'));
+      ws.setSplit(action.split);
+      return Promise.resolve(done(action.type));
+    },
+    ChoosePersona(action) {
+      const situation = ws.situation();
+      // Only the open chat's page, from the dock's «Нет персоны»; the settings page handles its own.
+      if (situation.pageId === undefined || action.pageHandle !== dockPageHandle(situation.pageId)) return null;
+      const pageId = situation.pageId;
+      const catalog = ws.env.catalog;
+      const persona = catalog.s === 'ready' ? catalog.value.personas.find((entry) => entry.key === action.personaKey && entry.status === 'active') : undefined;
+      if (persona === undefined) return Promise.resolve(refused(ws, action.type, { code: 'CG-PERSONA-UNAVAILABLE' }));
+      // The settings page's own write: a reference, never a prompt body (§8.2).
+      return savePreference(action, { personas: { byPageId: { [String(pageId)]: { key: persona.key, definitionId: persona.definitionId } } } });
+    },
     SetPreference(action) {
+      // The settings' «Split по умолчанию», and a preview's own Split: stored. The dock's bar switches its own (SetSplit).
       if (action.key === 'generation.split') {
         const chat = ws.situation().chat;
         // AI-009: Split is frozen while a generation runs in the open chat.
