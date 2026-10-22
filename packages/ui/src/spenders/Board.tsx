@@ -52,10 +52,11 @@ const SAME_AS_WAITING: SpendersFilter = 'fan-wrote';
 /** Ask for the next page this many rows before the end of the loaded list. */
 const LOAD_MORE_MARGIN = 20;
 /**
- * A click's preview waits this long before the list scrolls it into view: the row stays under the pointer for the
- * second click of a double click (it opens the chat), and nothing of the preview slides under it instead.
+ * A double click on a row: its second click within this long of the first, on the same row. A click's preview also
+ * waits this long before the list scrolls it into view: the row stays under the pointer for that second click, and
+ * nothing of the preview slides under it instead.
  */
-const DOUBLE_CLICK_MS = 450;
+const DOUBLE_CLICK_MS = 500;
 
 type FilterVM = SpendersBoardVM['filters'][number];
 type TierVM = NonNullable<SpendersBoardVM['tiers']>[number];
@@ -142,8 +143,11 @@ interface FanRowProps {
   readonly rowIndex: number;
   readonly active: boolean;
   readonly onPick: (key: string) => void;
-  /** A click on the row (not the keyboard's focus): the list holds its scroll for a second click. */
-  readonly onPress: () => void;
+  /**
+   * A click on the row (not the keyboard's focus): the list holds its scroll for a second click. true — it is the second
+   * click of a double click on this same row.
+   */
+  readonly onPress: (key: string) => boolean;
 }
 
 /** A fan as the old extension drew one: the initials, the name over the @handle, the lifetime over «+$N». */
@@ -170,10 +174,11 @@ function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPic
       data-cg-fan={row.handle}
       onClick={(event) => {
         onPick(itemKey);
-        onPress();
         // X66: a click opens the preview; a double click opens the chat, as the old Fansly board's click did. The second
-        // click of the pair is itself a click — the person's own, which the chat's opening needs.
-        void dispatch(event.detail >= 2 ? openChat(row.handle) : openPreview(row.handle));
+        // click of the pair is itself a click — the person's own, which the chat's opening needs. The browser's count
+        // alone is not enough (a click elsewhere a moment before counts in it): the first click must be this row's.
+        const second = onPress(itemKey);
+        void dispatch(second && event.detail >= 2 ? openChat(row.handle) : openPreview(row.handle));
       }}
       onFocus={() => onPick(itemKey)}
     >
@@ -334,8 +339,14 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
   const unfoldedAt = unfold ? items.findIndex((item) => item.kind === 'preview') : -1;
   const unfoldedKey = unfoldedAt < 0 ? null : (items[unfoldedAt]?.key ?? null);
   const pressedAt = useRef(-Infinity);
-  const onPress = useCallback((): void => {
-    pressedAt.current = Date.now();
+  const pressedKey = useRef<string | null>(null);
+  const onPress = useCallback((key: string): boolean => {
+    const now = Date.now();
+    const second = pressedKey.current === key && now - pressedAt.current < DOUBLE_CLICK_MS;
+    // A pair is two clicks: the third starts the next pair.
+    pressedKey.current = second ? null : key;
+    pressedAt.current = now;
+    return second;
   }, []);
   useLayoutEffect(() => {
     if (unfoldedAt < 0) return undefined;

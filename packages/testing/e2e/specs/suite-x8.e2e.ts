@@ -46,9 +46,16 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
   const openPreview = async (name: string): Promise<void> => {
     if (!(await oursExists('modal', '[aria-label="Spenders"]'))) await browser.keys([...PANEL, 'm']);
     // X65: the list above a preview is shorter and virtualized; search also reaches rows below its viewport. No Enter:
-    // in the search it opens the top match's chat (the old Fansly board); the list follows the typing by itself.
+    // in the search it opens the top match's chat (the old Fansly board). The list follows the typing by itself: the
+    // row is pressed once every row shown is a match, so the press never lands on a list being re-drawn under it.
     await ours('modal', '.cg-sp__search input').setValue(name);
-    await waitOursText('modal', name, `the board lists ${name}`, { timeout: 20_000, selector: '[aria-label="Доска Spenders"]' });
+    await browser.waitUntil(
+      async () => {
+        const rows = (await oursText('modal', '[data-cg-key^="fan:"]')).split(' ¶ ').filter((row) => row !== '');
+        return rows.length > 0 && rows.every((row) => row.startsWith(name));
+      },
+      { timeout: 20_000, interval: 100, timeoutMsg: `the board did not narrow to ${name}` },
+    );
     await pressOurs('modal', '[data-cg-key^="fan:"]', new RegExp(`^${name}`));
     await waitOursText('modal', name, `the preview of ${name}`, { selector: '.cg-pv' });
     await ours('modal', '.cg-sp__search input').setValue('');
