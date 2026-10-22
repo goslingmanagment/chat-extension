@@ -10,8 +10,11 @@
 // container's classes outside the route. On request (R20 P7e) the inbox rows
 // with their links, Angular's `popstate` read a task later, and the page's
 // draft cache: a new field gets its group's cached draft a microtask after it
-// appears, with no event. The Firefox stand is packages/testing/fixture-fansly;
-// this is only the shape of it.
+// appears, with no event. And (R20 P12c) the composer's upload path: a file
+// on its input opens the upload modal within the `change`, «Upload» puts a
+// create template into the attachments and closes the modal in one task
+// (main:42646, :55953, :55967-55972). The Firefox stand is
+// packages/testing/fixture-fansly; this is only the shape of it.
 
 export interface FakeChatOptions {
   /** The group is in the page's cache: its container comes in the same task (default); false — `arrive()` brings it. */
@@ -54,6 +57,16 @@ export interface FakeFanslyPage {
   routing(on: boolean): void;
   /** The page's draft cache by group: typed text kept; a new field shows its group's a microtask after it appears. Off by default. */
   cacheDrafts(on: boolean): void;
+  /** The files the main composer's input took, one list per `change`. */
+  readonly taken: ReadonlyArray<readonly File[]>;
+  /**
+   * The person in Fansly's upload modal: «Upload» — `count` create templates into the main composer's attachments
+   * (one, as Fansly; two — what no single upload makes), then the modal closes, in one task; `dismiss` — its ✕.
+   */
+  upload(count?: number): void;
+  dismiss(): void;
+  /** A modal of the page that is not the upload's (a picture viewed): `body.modal-opened` while it stands. */
+  modal(open: boolean): void;
   route(): Element | null;
   container(): Element | null;
   composer(): Element | null;
@@ -89,11 +102,29 @@ export function createFakeFanslyPage(): FakeFanslyPage {
   document.addEventListener('input', remember, true);
   const onPopState = (): void => void setTimeout(() => show(location.pathname), 0);
 
-  const branch = (copyOnly: boolean): HTMLElement =>
-    make('div', copyOnly ? 'message-composer hidden' : 'message-composer', [
-      make('div', 'collapsable-actions', [Object.assign(document.createElement('input'), { type: 'file' })]),
+  const taken: File[][] = [];
+  /** The composer whose upload modal is open; null — none. */
+  let uploadFor: Element | null = null;
+  let viewer = false;
+  const modals = (): void => void document.body.classList.toggle('modal-opened', uploadFor !== null || viewer);
+  /** `handleFileUploads`: the composer's modal opens within the `change`, the files listed in it (main:56066, :55953). */
+  const onFiles = (input: HTMLInputElement): void => {
+    const files = [...(input.files ?? [])];
+    if (files.length === 0) return;
+    taken.push(files);
+    uploadFor ??= input.closest('app-group-message-input');
+    modals();
+    input.value = '';
+  };
+
+  const branch = (copyOnly: boolean): HTMLElement => {
+    const input = Object.assign(document.createElement('input'), { type: 'file' });
+    input.addEventListener('change', () => onFiles(input));
+    return make('div', copyOnly ? 'message-composer hidden' : 'message-composer', [
+      make('div', 'collapsable-actions', [input]),
       make('div', 'message-entry', [make('textarea', 'message-input'), make('button', 'send-button')]),
     ]);
+  };
   const field = (copyOnly: boolean): HTMLElement => make('app-group-message-input', undefined, [make('div', 'message-attachments'), ...(copyOnly ? [make('div', 'no-dm-allowed')] : []), branch(copyOnly)]);
   const containerOf = (options: FakeChatOptions): HTMLElement => make('app-group-message-container', 'message-content', [make('div', 'message-content-list'), field(options.copyOnly === true)]);
   const contact = (): HTMLElement => make('div', 'message-content-header-contact', [make('app-account-username'), make('div', 'flex-row content-header-sub-row', [make('div', 'gallery-hot-icon')])]);
@@ -249,6 +280,22 @@ export function createFakeFanslyPage(): FakeFanslyPage {
     cacheDrafts(on) {
       drafts = on ? new Map() : null;
     },
+    taken,
+    upload(count = 1) {
+      const attachments = uploadFor?.querySelector(':scope > .message-attachments');
+      if (attachments === null || attachments === undefined) return;
+      for (let index = 0; index < count; index += 1) attachments.append(make('app-account-media-create-template', 'attachment'));
+      uploadFor = null;
+      modals();
+    },
+    dismiss() {
+      uploadFor = null;
+      modals();
+    },
+    modal(open) {
+      viewer = open;
+      modals();
+    },
     route: () => conversation,
     container: () => conversation?.querySelector(':scope > app-group-message-container') ?? null,
     composer: () => conversation?.querySelector(':scope > app-group-message-container > app-group-message-input') ?? null,
@@ -257,6 +304,7 @@ export function createFakeFanslyPage(): FakeFanslyPage {
     destroy() {
       window.removeEventListener('popstate', onPopState);
       document.removeEventListener('input', remember, true);
+      document.body.classList.remove('modal-opened');
       root.remove();
       history.replaceState({}, '', '/');
     },

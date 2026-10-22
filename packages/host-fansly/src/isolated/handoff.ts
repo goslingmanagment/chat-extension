@@ -6,7 +6,8 @@
 //   own DataTransfer gets a copy of the file made for the page (`wrappedJSObject` + `cloneInto`), and the page's own
 //   `change` goes on the one input the page's selector names.
 // Nothing leaves the extension: what the page does with the file is the page's own upload. Which path worked is
-// said back (client_health counts them). Not a vault rule: the voice's attachment (P12c) takes the same two paths.
+// said back (client_health counts them). Not a vault rule: the voice's attachment (voice-attach.ts, P12c) takes the
+// same two paths — so it lives here, in the early bundle, and the vault's lazy chunk takes it from here.
 
 import type { FanslyHandoffPath } from '@cg/contracts/fansly';
 
