@@ -69,6 +69,47 @@ export const adminAiAccountUpdateBodySchema = z.object({
      *  null forgets the reading. */
     balanceMicroUsd: z.number().int().nonnegative().max(100_000_000_000).nullable().optional(),
 }).strict().refine((body) => body.enabled !== undefined || body.move !== undefined || body.balanceMicroUsd !== undefined, { message: "Nothing to change" });
+/**
+ * The ElevenLabs account behind voice notes, as Hub's account check last saw
+ * it (every 30 min while voice notes are on). Read from Hub's own record —
+ * opening this never asks ElevenLabs. Characters are ElevenLabs credits of
+ * the current billing period.
+ */
+export const adminVoiceAccountResponseSchema = z.object({
+    generatedAt: isoTimestamp,
+    /** ELEVENLABS_API_KEY and the service proxy were set when the runtime started. */
+    configured: z.boolean(),
+    /** The live voiceNotesEnabled switch: Hub checks the account only while it is on. */
+    enabled: z.boolean(),
+    /** Null until the first check. */
+    check: z.object({
+        /** healthy; characters_low / characters_out (less than one voice note
+         *  left); subscription_inactive; key_rejected; unreadable (the key may
+         *  not read the account); check_failed (network, ElevenLabs down — not
+         *  the account). */
+        state: z.enum([
+            "healthy",
+            "characters_low",
+            "characters_out",
+            "subscription_inactive",
+            "key_rejected",
+            "unreadable",
+            "check_failed",
+        ]),
+        checkedAt: isoTimestamp,
+        /** The last check's HTTP status when it got no reading (0: no answer). */
+        httpStatus: z.number().int().nullable(),
+        /** The last successful reading; a failed check keeps it. */
+        readAt: isoTimestamp.nullable(),
+        tier: z.string().nullable(),
+        subscriptionStatus: z.string().nullable(),
+        charactersUsed: z.number().int().nonnegative().nullable(),
+        charactersLimit: z.number().int().nonnegative().nullable(),
+        nextResetAt: isoTimestamp.nullable(),
+        /** Hub pages the owner when fewer characters than this are left. */
+        lowThresholdChars: z.number().int().nonnegative().nullable(),
+    }).nullable(),
+});
 export const aiAccountRouteSchemas = {
     adminAiAccountsList: {
         auth: { kind: "owner-session" },
@@ -93,6 +134,16 @@ export const aiAccountRouteSchemas = {
             403: errorResponseSchema,
             404: errorResponseSchema,
             409: errorResponseSchema,
+        },
+    },
+    adminVoiceAccount: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "The ElevenLabs account behind voice notes: Hub's last check and reading",
+        response: {
+            200: adminVoiceAccountResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
         },
     },
 };
