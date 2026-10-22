@@ -125,7 +125,7 @@ export const UI_TEXT_KEYS = [
   'spenders.filter.waiting', 'spenders.filter.new', 'spenders.filter.weWrote', 'spenders.filter.fanWrote', 'spenders.filter.history',
   'spenders.filter.noHistory', 'spenders.sortNote.sum', 'spenders.sortNote.fanAge', 'spenders.col.fan',
   'spenders.col.lastMessage', 'spenders.col.lifetime', 'spenders.col.lifetimeShort', 'spenders.col.weWrote', 'spenders.col.weWroteShort', 'spenders.col.fanWrote',
-  'spenders.col.fanWroteShort', 'spenders.sort.sumTooltip', 'spenders.sort.fanAgeTooltip', 'spenders.tag.new', 'spenders.tag.deleted',
+  'spenders.col.fanWroteShort', 'spenders.sort.sumTooltip', 'spenders.sort.fanAgeTooltip', 'spenders.tag.deleted',
   'spenders.ourPrefix', 'spenders.waitingTooltip', 'spenders.footerShown', 'spenders.shelfMore', 'spenders.empty', 'spenders.keys.row', 'spenders.resetFilters',
   'spenders.shelf.from', 'spenders.shelf.range', 'spenders.shelf.none', 'spenders.truncated', 'spenders.truncatedNoTotal', 'spenders.waitingLocal',
   'spenders.refresh', 'spenders.refreshTooltip',
@@ -133,18 +133,23 @@ export const UI_TEXT_KEYS = [
   'spenders.col.waits', 'spenders.wait.ours', 'spenders.previewSplit',
   // 1.38.0 (X67): the old extension's tier chips and shelf names, the fan's wait as a chip of the row, the filters' menu.
   'spenders.tiers', 'spenders.tier.whale', 'spenders.tier.top', 'spenders.tier.prime', 'spenders.tier.base', 'spenders.tier.low', 'spenders.tier.micro',
-  'spenders.wait.fan', 'spenders.filter.menu',
+  'spenders.filter.menu',
   // 2026-10-22: the old Fansly board's chat chip of a row whose chat is not known yet.
   'spenders.chat.find', 'spenders.chat.findHint', 'spenders.chat.finding', 'spenders.chat.missing', 'spenders.chat.missingHint',
-  // 2026-10-22: when each side last wrote, as the row's own column (SP-017).
-  'spenders.age.ours', 'spenders.age.oursNone', 'spenders.age.fan', 'spenders.age.fanNone',
-  'stats.title', 'stats.titleFull', 'stats.expand', 'stats.expandTooltip', 'stats.collapse', 'stats.today', 'stats.d7', 'stats.d30', 'stats.payers',
-  'stats.avgCheck', 'stats.shelves', 'stats.colFans', 'stats.colPeriod', 'stats.table.shelf', 'stats.table.fans', 'stats.table.lifetime',
-  'stats.table.period', 'stats.attention', 'stats.awaiting', 'stats.newPayers', 'stats.newPayersObserved', 'stats.silent8to21', 'stats.silentOver21', 'stats.noData',
-  'stats.noSilenceData', 'stats.chart.title', 'stats.chart.max', 'stats.chart.axisToday', 'stats.chart.dayTip', 'stats.tile.todaySub',
-  'stats.tile.d7Sub', 'stats.tile.payersSub', 'stats.footer', 'stats.footerFull', 'stats.regionLabel', 'stats.shelf.untiered', 'stats.shelf.unattributed',
+  'stats.title', 'stats.titleFull', 'stats.expand', 'stats.collapse', 'stats.today', 'stats.d7', 'stats.d30', 'stats.payers',
+  'stats.avgCheck', 'stats.shelves', 'stats.colFans', 'stats.colPeriod', 'stats.table.shelf',
+  'stats.attention', 'stats.awaiting', 'stats.silent8to21', 'stats.silentOver21', 'stats.noData',
+  'stats.chart.title', 'stats.chart.max', 'stats.chart.axisToday', 'stats.chart.dayTip', 'stats.tile.todaySub',
+  'stats.tile.payersSub', 'stats.footer', 'stats.footerFull', 'stats.regionLabel', 'stats.shelf.untiered', 'stats.shelf.unattributed',
   // 1.26.0 (X55): a known zero of the period in words, as the rows and the fan panel say it.
   'stats.none',
+  // 1.44.0: the board as a table — its columns, the groups of a sort, the batch's row; the statistics in the model's net,
+  // a rail by default, «Кому написать».
+  'spenders.col.waiting', 'spenders.col.spent', 'spenders.col.tier', 'spenders.noChat', 'spenders.sort.by', 'spenders.group.waiting',
+  'spenders.group.waitingNote', 'spenders.group.rest', 'spenders.group.restNote', 'spenders.filter.silent8to21', 'spenders.filter.silentOver21',
+  'spenders.batch.picked', 'spenders.batch.write', 'spenders.batch.unpick', 'spenders.batch.hint',
+  'stats.open', 'stats.close', 'stats.netCap', 'stats.paid', 'stats.fee', 'stats.d7Same', 'stats.d7Change', 'stats.byTier', 'stats.colNet',
+  'stats.show', 'stats.monthNote',
   'preview.label', 'preview.moneyIn', 'preview.meta', 'preview.metaFanUnknown', 'preview.metaOurUnknown', 'preview.closeAria', 'preview.notOpened',
   'preview.notOpenedTooltip', 'preview.notOpenedAfterSend', 'preview.notOpenedAfterSendTooltip', 'preview.archiveLag', 'preview.fanWroteNew', 'preview.feed.tip', 'preview.feed.bought', 'preview.feed.empty',
   'preview.feed.emptySubscribed', 'preview.feed.label', 'preview.feed.fanPrefix', 'preview.feed.deleted', 'preview.feed.automatic', 'preview.feed.priced',
@@ -368,7 +373,6 @@ export const UI_PLURAL_KEYS = [
   'spenders.footer', 'spenders.footerNoTotal',
   // 2026-10-22: the Spenders header's count of a list the hub has more fans for than it holds («1000 из 1240 фанов»).
   'spenders.headOf',
-  'stats.tile.d30Sub',
   'fanPanel.footer', 'fanPanel.footerCoverage',
   'coach.archiveLag',
   'palette.foot.chats',

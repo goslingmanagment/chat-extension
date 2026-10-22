@@ -12,7 +12,7 @@ import { type CoverageLevel } from '@cg/contracts/ops';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import { type SpendersFilter, type SpendersSort } from '@cg/contracts/vm';
 
-import { filterCounts, filtersActive, rowMatches, searchNeedle, sortRows, type BoardFilters } from './filters';
+import { filterCounts, filtersActive, rowMatches, searchNeedle, sortRows, waitingGroups, type BoardFilters } from './filters';
 import { isNewSpender, spenderRows, type SpenderRow } from './rows';
 import { UNBOUNDED, buildShelves, needsCents, shelfTotals, shownTotals, type BucketBasis, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
 
@@ -105,7 +105,12 @@ export interface BoardQuery {
   readonly sort: SpendersSort;
   /** X67: a tier chip — the list shows that shelf alone; null or absent — every shelf. */
   readonly shelf?: string | null;
+  /** The clock a silence filter counts the fan's days to; absent — no silence filter can pass a row. */
+  readonly now?: number;
 }
+
+/** 1.44.0: a group of a sort other than `sum`, in place of the tiers (ShelfVM.group). */
+export type BoardGroup = 'waiting' | 'rest' | 'flat';
 
 export interface ShelfView {
   readonly id: string;
@@ -115,6 +120,8 @@ export interface ShelfView {
   readonly rows: readonly SpenderRow[];
   /** Rows of this shelf whose lifetime prints cents (SP-013). */
   readonly cents: ReadonlySet<string>;
+  /** A group of the sort, not a tier; absent — a tier. */
+  readonly group?: BoardGroup;
 }
 
 export interface BoardView {
@@ -125,7 +132,12 @@ export interface BoardView {
   readonly narrowed: boolean;
   /** Fan ids in the order the list shows them: keyboard movement and the preview's neighbours. */
   readonly order: readonly string[];
+  /** Every shown fan's tier: the «Тир» column of a list not grouped by the tiers. */
+  readonly tierOf: ReadonlyMap<string, ShelfRange>;
 }
+
+/** Ids of the groups: never a shelf's (`shelf-…`), never dispatched back. */
+const GROUP_IDS: Readonly<Record<BoardGroup, string>> = { waiting: 'group-waiting', rest: 'group-rest', flat: 'group-all' };
 
 /**
  * The visible list: every row of every shelf, as the old Fansly extension
@@ -135,14 +147,20 @@ export interface BoardView {
  * `source` — rows from another read placed on the board's shelves (the
  * server's «ждут ответа» queue). The plain view's shelf headers carry the
  * board's numbers (`shelfTotals`); a narrowed list's count the fans it shows
- * there, and sum over them (`shownTotals`).
+ * there, and sum over them (`shownTotals`). A sort other than `sum` (1.44.0)
+ * lists the same rows without the tiers' headers: «Ждёт ответа» as two groups
+ * — who waits, then the rest —, the other two as one list; each row keeps its
+ * tier for the «Тир» column.
  */
 export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonly SpenderRow[]): BoardView {
   const needle = searchNeedle(query.query);
   const narrowed = needle.length > 0 || filtersActive(query.filters) || source !== undefined;
+  // Without a clock no fan is «silent»: a silence filter then shows nobody rather than a guess.
+  const now = query.now ?? Number.NaN;
   const shelves: ShelfView[] = [];
-  const order: string[] = [];
-  let shown = 0;
+  const tierOf = new Map<string, ShelfRange>();
+  const centsOf = new Set<string>();
+  const shown: SpenderRow[] = [];
   const own = new Map(index.shelves.map((shelf) => [shelf.id, shelf]));
   // A sourced row is shelved by the same buckets; its shelf's totals stay those of the board's own shelf.
   const placed: readonly Shelf[] = source === undefined ? index.shelves : buildShelves(source, index.tiers);
@@ -151,26 +169,39 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
   const lifetimeShelved = index.tiers === null || index.tiers.metric !== 'grossAmountMills' || index.period === 'lifetime';
   for (const shelf of placed) {
     if (shelf.rows.length === 0 || (query.shelf !== undefined && query.shelf !== null && shelf.id !== query.shelf)) continue;
-    const matching = narrowed ? shelf.rows.filter((row) => rowMatches(row, query.filters, needle)) : shelf.rows;
-    shown += matching.length;
+    const matching = narrowed ? shelf.rows.filter((row) => rowMatches(row, query.filters, needle, now)) : shelf.rows;
     if (matching.length === 0) continue;
-    const rows = sortRows(matching, query.sort);
-    for (const row of rows) order.push(row.fanRef);
+    for (const row of matching) {
+      tierOf.set(row.fanRef, shelf.range);
+      if (needsCents(row.lifetime, lifetimeShelved ? shelf.range : UNBOUNDED)) centsOf.add(row.fanRef);
+    }
+    shown.push(...matching);
+    if (query.sort !== 'sum') continue;
+    const rows = sortRows(matching, 'sum');
     shelves.push({
       id: shelf.id,
       range: shelf.range,
       // A narrowed list's header counts what the list shows on the shelf; the plain view's is the shelf's own.
       totals: narrowed ? shownTotals(matching) : shelfTotals(own.get(shelf.id) ?? shelf, index),
       rows,
-      cents: new Set(rows.filter((row) => needsCents(row.lifetime, lifetimeShelved ? shelf.range : UNBOUNDED)).map((row) => row.fanRef)),
+      cents: new Set(rows.filter((row) => centsOf.has(row.fanRef)).map((row) => row.fanRef)),
     });
   }
-  return { shelves, shown: narrowed ? shown : null, narrowed, order };
+  if (query.sort !== 'sum') {
+    const split = query.sort === 'waiting' ? waitingGroups(shown) : null;
+    const groups: readonly (readonly [BoardGroup, readonly SpenderRow[]])[] = split === null ? [['flat', sortRows(shown, query.sort)]] : [['waiting', split.waiting], ['rest', split.rest]];
+    for (const [group, rows] of groups) {
+      if (rows.length === 0) continue;
+      shelves.push({ id: GROUP_IDS[group], range: UNBOUNDED, totals: shownTotals(rows), rows, cents: new Set(rows.filter((row) => centsOf.has(row.fanRef)).map((row) => row.fanRef)), group });
+    }
+  }
+  const order = shelves.flatMap((shelf) => shelf.rows.map((row) => row.fanRef));
+  return { shelves, shown: narrowed ? shown.length : null, narrowed, order, tierOf };
 }
 
 /** Counters of the filter buttons over the loaded rows («Все 40», «Ждут ответа 12», «Новые 3»). */
-export function boardFilterCounts(index: BoardIndex, ids: readonly SpendersFilter[]): Record<SpendersFilter, number> {
-  return filterCounts(index.rows, ids);
+export function boardFilterCounts(index: BoardIndex, ids: readonly SpendersFilter[], now: number): Record<SpendersFilter, number> {
+  return filterCounts(index.rows, ids, now);
 }
 
 /** The fan before and after `fanRef` in the visible order (SP-056); null at either end or when it is not listed. */

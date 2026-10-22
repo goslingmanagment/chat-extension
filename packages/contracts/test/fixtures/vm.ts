@@ -49,12 +49,13 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   ShowAnalysis: { type: 'ShowAnalysis', view: 'recap', mode: 'expanded' },
   SetSpendersPeriod: { type: 'SetSpendersPeriod', period: '30d' },
   SetSpendersFilter: { type: 'SetSpendersFilter', filter: 'waiting' },
-  SetSpendersSort: { type: 'SetSpendersSort', sort: 'fan-age' },
+  SetSpendersSort: { type: 'SetSpendersSort', sort: 'waiting' },
   ResetFilters: { type: 'ResetFilters', list: 'spenders' },
   Search: { type: 'Search', list: 'palette', query: 'hub' },
   RevealShelf: { type: 'RevealShelf', shelfId: 'shelf-600' },
   SetSpendersShelf: { type: 'SetSpendersShelf', shelfId: null },
   SetStatsExpanded: { type: 'SetStatsExpanded', expanded: true },
+  SetStatsOpen: { type: 'SetStatsOpen', open: true },
   SetNewcomersTab: { type: 'SetNewcomersTab', tab: 'all' },
   SetNewcomersFilter: { type: 'SetNewcomersFilter', filter: 'replied' },
   SetNewcomersCheckFilter: { type: 'SetNewcomersCheckFilter', filter: 'dm-closed' },
@@ -270,7 +271,6 @@ const ROW_BASE: C.SpenderRowVM = {
   username: 'fan_1',
   lifetime: 599_600,
   period: 25_000,
-  isNew: false,
   deleted: false,
   weWroteAt: null,
   fanWroteAt: null,
@@ -301,7 +301,6 @@ export const MONEY_CENTS_SAMPLES: {
 const STAMP: C.DataStamp = { asOf: '2026-10-03T06:18:00.000Z', coverage: 'complete' };
 const ATTENTION_BASE: C.SpendersStatsVM['attention'] = {
   awaiting: { count: 12, stamp: STAMP },
-  newPayers: { count: 3, stamp: STAMP, firstObserved: false },
   silent8to21: { count: 10, stamp: STAMP },
   silentOver21: { count: 6, stamp: STAMP },
   noData: { count: 4, stamp: STAMP },
@@ -327,13 +326,13 @@ export const STATS_ATTENTION_SAMPLES: { readonly valid: readonly C.SpendersStats
  * it is a tier with its bounds, as before.
  */
 type StatsShelf = C.SpendersStatsVM['shelves'][number];
-const SHELF_BASE: StatsShelf = { id: 'shelf-600-plus', range: { fromMills: 600_000, toMills: null }, fans: 31, lifetime: 52_000_000, period: 40_000_000, share: 0.42 };
+const SHELF_BASE: StatsShelf = { id: 'shelf-600-plus', range: { fromMills: 600_000, toMills: null }, fans: 31, net: 32_000_000 };
 const NO_BOUNDS = { fromMills: null, toMills: null } as const;
 export const STATS_REMAINDER_SAMPLES: { readonly valid: readonly StatsShelf[]; readonly invalid: readonly unknown[] } = {
   valid: [
     SHELF_BASE,
-    { ...SHELF_BASE, id: 'shelf-outside', range: NO_BOUNDS, remainder: 'untiered', fans: 109, lifetime: null, period: 0, share: 0 },
-    { ...SHELF_BASE, id: 'shelf-unattributed', range: NO_BOUNDS, remainder: 'unattributed', fans: 0, lifetime: null, period: 1_250_000, share: 0.04 },
+    { ...SHELF_BASE, id: 'shelf-outside', range: NO_BOUNDS, remainder: 'untiered', fans: 109, net: 0 },
+    { ...SHELF_BASE, id: 'shelf-unattributed', range: NO_BOUNDS, remainder: 'unattributed', fans: 0, net: null },
   ],
   invalid: [
     // @ts-expect-error a remainder is one of the hub's two keys, not any tier key
@@ -585,7 +584,6 @@ export const BOARDS_I18N_KEYS: { readonly text: readonly C.UiTextKey[]; readonly
     'spenders.shelf.none',
     'spenders.truncated',
     'spenders.truncatedNoTotal',
-    'stats.newPayersObserved',
     'stats.regionLabel',
     'preview.metaOurUnknown',
     'preview.notOpenedAfterSendTooltip',

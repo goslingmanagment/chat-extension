@@ -44,7 +44,7 @@ export const QUEUE_PAGE_SIZE = 100;
 const LIST_PERIOD = 'lifetime' satisfies SpendersPeriod;
 /** The period of the second sum, «+$320 за 30 дней» under the lifetime: its own board, read beside the list. */
 const PERIODS = ['30d', 'mtd', '7d', 'today'] as const satisfies readonly SpendersPeriod[];
-const FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history'] as const satisfies readonly SpendersFilter[];
+const FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history', 'silent-8-21', 'silent-over-21'] as const satisfies readonly SpendersFilter[];
 const FILTER_LABELS: Readonly<Record<SpendersFilter, I18nKey>> = {
   all: 'spenders.filter.all',
   waiting: 'spenders.filter.waiting',
@@ -53,7 +53,11 @@ const FILTER_LABELS: Readonly<Record<SpendersFilter, I18nKey>> = {
   'fan-wrote': 'spenders.filter.fanWrote',
   history: 'spenders.filter.history',
   'no-history': 'spenders.filter.noHistory',
+  'silent-8-21': 'spenders.filter.silent8to21',
+  'silent-over-21': 'spenders.filter.silentOver21',
 };
+/** A silence filter's list is counted again at most this often: a fan's silence grows by whole days. */
+const SILENCE_RECOUNT_MS = 60_000;
 const BOARD_SELECTOR = { of: 'spenders.board' } as const;
 const STATS_SELECTOR = { of: 'spenders.stats' } as const;
 
@@ -150,12 +154,14 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   /** X67: the tier chip pressed — the list shows that shelf alone; null — every shelf. */
   let shelf: string | null = null;
   let statsExpanded = false;
+  /** 1.44.0: the statistics column beside the list; every opening of the board starts with the rail. */
+  let statsOpen = false;
   let boards = new Map<SpendersPeriod, BoardEntry>();
   let statsEntry: StatsEntry = { raw: null, loading: false, error: null, loadedAt: null, since: null, run: 0 };
   let queue: QueueEntry = { state: EMPTY_QUEUE, loading: false, error: null, run: 0 };
   let epoch = context.current().epoch;
   /** The visible list, kept while what it was computed from is the same (by identity: every change replaces its object). */
-  let viewCache: { readonly index: BoardIndex; readonly queue: QueueState | null; readonly applied: string; readonly filters: BoardFilters; readonly sort: SpendersSort; readonly shelf: string | null; readonly view: BoardView } | null = null;
+  let viewCache: { readonly index: BoardIndex; readonly queue: QueueState | null; readonly applied: string; readonly filters: BoardFilters; readonly sort: SpendersSort; readonly shelf: string | null; readonly tick: number; readonly view: BoardView } | null = null;
   /** The list with the period's sums (X66), kept while neither board nor the period changed. */
   let listCache: { readonly list: BoardIndex; readonly delta: BoardIndex | null; readonly period: SpendersPeriod; readonly index: BoardIndex } | null = null;
   /** Row view models of the visible list: rebuilt only when the list or the selection changes, not on every keystroke. */
@@ -223,13 +229,16 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     const sourced = queueMode();
     const from = sourced ? queue.state : null;
     const tier = shelfOn(index);
+    const now = clock.now();
+    // A silence filter's list follows the clock (a fan's days grow); without one the list does not depend on it.
+    const tick = filters.silence === null ? 0 : Math.floor(now / SILENCE_RECOUNT_MS);
     const cached = viewCache;
-    if (cached !== null && cached.index === index && cached.queue === from && cached.applied === applied && cached.filters === filters && cached.sort === sort && cached.shelf === tier) {
+    if (cached !== null && cached.index === index && cached.queue === from && cached.applied === applied && cached.filters === filters && cached.sort === sort && cached.shelf === tier && cached.tick === tick) {
       return { index, view: cached.view, sourced };
     }
-    const query = { query: applied, filters, sort, shelf: tier };
+    const query = { query: applied, filters, sort, shelf: tier, now };
     const view = from === null ? viewBoard(index, query) : viewBoard(index, query, from.items.map((item, rank) => queueRow(item, rank, index.byFan.get(item.fanRef), index.period)));
-    viewCache = { index, queue: from, applied, filters, sort, shelf: tier, view };
+    viewCache = { index, queue: from, applied, filters, sort, shelf: tier, tick, view };
     return { index, view, sourced };
   }
 
@@ -252,7 +261,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     return lookup ?? 'find';
   }
 
-  function rowVM(row: SpenderRow, cents: boolean, selected: string | null): SpenderRowVM {
+  function rowVM(row: SpenderRow, cents: boolean, selected: string | null, tier: ShelfVM['range'] | undefined): SpenderRowVM {
     const chat = chatOfRow(row);
     const base: SpenderRowVM = {
       handle: handleOf(row.fanRef),
@@ -260,13 +269,13 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       username: row.username,
       lifetime: row.lifetime,
       period: row.period,
-      isNew: row.isNew,
       deleted: row.deleted,
       weWroteAt: row.weWroteAt,
       fanWroteAt: row.fanWroteAt,
       waiting: row.waiting,
       lastMessage: row.lastMessage,
       selected: row.fanRef === selected,
+      ...(tier === undefined ? {} : { tier }),
       ...(chat === undefined ? {} : { chat }),
       ...(batchPort === null ? {} : { batch: batch.row(handleOf(row.fanRef)) }),
     };
@@ -284,7 +293,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     const tier = current === null ? null : shelfOn(current.index);
     const narrowed = applied.trim().length > 0 || filtersActive(filters) || tier !== null;
 
-    const counts = current === null ? null : boardFilterCounts(current.index, FILTERS);
+    const counts = current === null ? null : boardFilterCounts(current.index, FILTERS, clock.now());
     const waitingTotal = (statistics && pageFlag(ctx, 'stats')) ? (queue.state.total ?? statsEntry.raw?.queueSummary.total ?? null) : null;
     const filterVMs = FILTERS.map((id) => ({
       id,
@@ -309,8 +318,10 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
             fans: shelf.totals.fans,
             lifetime: shelf.totals.lifetime,
             period: shelf.totals.period,
-            rows: shelf.rows.map((row) => rowVM(row, shelf.cents.has(row.fanRef), selected)),
+            // A group of the sort names each row's tier in a column of its own; under a tier's header the header says it.
+            rows: shelf.rows.map((row) => rowVM(row, shelf.cents.has(row.fanRef), selected, shelf.group === undefined ? undefined : current.view.tierOf.get(row.fanRef))),
             collapsed: null,
+            ...(shelf.group === undefined ? {} : { group: shelf.group }),
           })),
         };
       }
@@ -382,13 +393,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   function buildStats(): SpendersStatsVM {
     const ctx = context.current();
-    const index = listIndex() ?? entryOf('30d').index;
-    // Lifetime sums of shelves the board can vouch for (it holds the whole shelf); the statistics carry none.
-    const lifetimeByShelf = new Map<string, number | null>();
-    if (index !== null) {
-      for (const shelf of viewBoard(index, { query: '', filters: NO_FILTERS, sort: 'sum' }).shelves) lifetimeByShelf.set(shelf.id, shelf.totals.lifetime);
-    }
-    const model: StatsModel | null = statsEntry.raw === null ? null : statsModel(statsEntry.raw, lifetimeByShelf);
+    const model: StatsModel | null = statsEntry.raw === null ? null : statsModel(statsEntry.raw);
 
     let view: VmView;
     const blocked = contextView(ctx, 'stats', statsRetry);
@@ -409,12 +414,13 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     return {
       view,
       expanded: statsExpanded,
+      open: statsOpen || statsExpanded,
       windowDays: model?.windowDays ?? 30,
       timeZone: model?.timeZone ?? null,
       days: model?.days ?? [],
       today: money(model?.today ?? null),
       d7: { ...money(model?.d7 ?? null), changePct: model?.changePct ?? null, prev7: model?.prev7 ?? null },
-      d30: { ...money(model?.d30 ?? null), purchases: model?.purchases ?? null },
+      d30: { ...money(model?.d30 ?? null), purchases: model?.purchases ?? null, gross: model?.d30Gross ?? null, feePct: model?.feePct ?? null },
       payers: count(model?.payers ?? null),
       avgCheck: money(model?.avgCheck ?? null),
       shelves: model?.shelves ?? [],
@@ -422,7 +428,6 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         awaiting: count(model?.awaiting ?? null),
         // §8.7: «ждёт ответа; прочтение неизвестно» is a category of its own, as the hub counts it.
         awaitingUnknown: count(model?.awaitingUnknown ?? null),
-        newPayers: { ...count(model?.newPayers ?? null), firstObserved: model?.newPayersFirstObserved ?? false },
         silent8to21: count(model?.silent8to21 ?? null),
         // SP-046: what the fans silent for more than 21 days spent in all, as the hub sums it.
         silentOver21: { ...count(model?.silentOver21 ?? null), lifetime: model?.silentOver21Lifetime ?? null },
@@ -573,6 +578,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     applied = '';
     shelf = null;
     statsExpanded = false;
+    statsOpen = false;
     viewCache = null;
     listCache = null;
     shelfCache = null;
@@ -592,7 +598,15 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     ensure();
   });
   const offSurfaces = surfaces.subscribe((state, previous) => {
-    if (state.spenders && !previous.spenders) ensure();
+    if (state.spenders && !previous.spenders) {
+      // 1.44.0: every opening of the board shows the list with the statistics as a rail at its edge.
+      if (statsOpen || statsExpanded) {
+        statsOpen = false;
+        statsExpanded = false;
+        changed('stats');
+      }
+      ensure();
+    }
     if (!state.spenders && previous.spenders) navigationRun++;
     if (!state.spenders && previous.spenders && searchTimer !== null) {
       clock.clearTimer(searchTimer);
@@ -870,6 +884,17 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       if (!statistics) return Promise.resolve(done(action.type, 'noop'));
       if (statsExpanded !== action.expanded) {
         statsExpanded = action.expanded;
+        // Collapsed from the full view, the statistics stay a column beside the list.
+        if (action.expanded) statsOpen = true;
+        changed('stats');
+      }
+      return Promise.resolve(done(action.type));
+    }
+    if (action.type === 'SetStatsOpen') {
+      if (!statistics) return Promise.resolve(done(action.type, 'noop'));
+      if (statsOpen !== action.open || (!action.open && statsExpanded)) {
+        statsOpen = action.open;
+        if (!action.open) statsExpanded = false;
         changed('stats');
       }
       return Promise.resolve(done(action.type));
@@ -930,7 +955,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
           return focusedFan === null ? null : { action: { type: 'OpenPreview', targetHandle: handleOf(focusedFan) } };
         case 'toggle-stats':
           if (!statistics) return null;
-          return { action: { type: 'SetStatsExpanded', expanded: !statsExpanded } };
+          // S: the rail and the column; from the full view, back to the column beside the list.
+          return { action: statsExpanded ? { type: 'SetStatsExpanded', expanded: false } : { type: 'SetStatsOpen', open: !statsOpen } };
         case 'focus-search':
           return { focusSearch: true };
         case 'clear-search':

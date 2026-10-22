@@ -160,6 +160,8 @@ export interface SearchBoxProps {
   readonly onEnter?: (query: string) => void;
   /** ↓ / ↑ in the field, with the query typed: the list takes the keys from here (1 — down, -1 — up); true — taken. */
   readonly onArrow?: (direction: 1 | -1, query: string) => boolean;
+  /** The key that focuses the field, printed at its end («/»). */
+  readonly hotkey?: string;
 }
 
 export function SearchBox(props: SearchBoxProps): JSX.Element {
@@ -227,6 +229,7 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
           }
         }}
       />
+      {props.hotkey === undefined ? null : <kbd class="cg-search__key" aria-hidden="true">{props.hotkey}</kbd>}
     </label>
   );
 }

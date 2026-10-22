@@ -24,18 +24,21 @@ export interface SpenderRowVM {
    * (SP-013). 1.2.0; absent — whole dollars.
    */
   readonly lifetimeCents?: boolean;
-  /** Spent in the selected period, shown as «+$N» in green; zero is blank. */
+  /** Spent in the selected period: the period's column, plain muted ink; zero or unknown — a faint «—». */
   readonly period: MoneyMills | null;
-  /** The `новый` tag (SP-014). */
-  readonly isNew: boolean;
-  /** «удалён», muted, no strike-through (SP-015). */
+  /** «удалён» after the name, the whole row muted (SP-015). */
   readonly deleted: boolean;
   readonly weWroteAt: IsoTimestamp | null;
   readonly fanWroteAt: IsoTimestamp | null;
-  /** The fan wrote last: «Фан писал» in strong ink. */
+  /** The fan wrote last: «Ждёт ответа» shows the age of their message, the board's one colour. */
   readonly waiting: boolean;
-  /** «Последнее сообщение» column (≥ 860 px); «Мы: » before ours. */
+  /** «Последнее сообщение» column; «Мы: » before ours; null — «нет переписки». */
   readonly lastMessage: { readonly fromUs: boolean; readonly text: string } | null;
+  /**
+   * 1.44.0: the fan's tier where the list is not grouped by the tiers (a sort other than `sum`): the narrow «Тир»
+   * column. Both bounds null — no tier takes the fan. Absent — the rows stand under their tier's header.
+   */
+  readonly tier?: ShelfVM['range'];
   readonly selected: boolean;
   /**
    * The fan's chat where a chat has an id of its own and the board does not know it yet (the old Fansly board's chip):
@@ -57,6 +60,11 @@ export interface ShelfVM {
   readonly rows: readonly SpenderRowVM[];
   /** «ещё N · показать». */
   readonly collapsed: { readonly hidden: number; readonly reveal: ActionButtonVM } | null;
+  /**
+   * 1.44.0: a group of a sort other than `sum`, not a tier: `waiting` — «Ждут ответа · дольше ждущие — первыми · N»,
+   * `rest` — «Остальные · по «Потратил» · N», `flat` — one list without a header row. Absent — a tier by `range`.
+   */
+  readonly group?: 'waiting' | 'rest' | 'flat';
 }
 
 export interface SpendersBoardVM {
@@ -121,34 +129,48 @@ export interface SpendersStatsVM {
   /** `error` — the stats failed; the board keeps working (the stats-error scenario). */
   readonly view: VmView;
   readonly expanded: boolean;
+  /**
+   * 1.44.0: the column beside the list is open (`SetStatsOpen`); false — a 40 px rail at the window's right edge,
+   * as every opening of the board starts.
+   */
+  readonly open: boolean;
   /** «30 дней»; the window is calendar dates in `timeZone` up to `asOf` (§8.7). */
   readonly windowDays: number;
   readonly timeZone: string | null;
-  readonly days: readonly { readonly date: string; readonly gross: MoneyMills | null; readonly today: boolean }[];
+  /**
+   * 1.44.0: every sum of the statistics is what the model keeps — the hub's `creatorNetMills` («на руки модели»), the
+   * unit of the platform's own earnings page; what the fans paid is `d30.gross` alone.
+   */
+  readonly days: readonly { readonly date: string; readonly net: MoneyMills | null; readonly today: boolean }[];
   readonly today: MoneyStat;
   readonly d7: MoneyStat & {
     /** Change to the previous seven days; null when they were zero or unknown. */
     readonly changePct: number | null;
     readonly prev7: MoneyMills | null;
   };
-  readonly d30: MoneyStat & { readonly purchases: number | null };
+  readonly d30: MoneyStat & {
+    readonly purchases: number | null;
+    /** 1.44.0: what the fans paid in the window (gross), the muted line under the model's net. */
+    readonly gross: MoneyMills | null;
+    /** 1.44.0: the platform's share, `round(100 − net / gross · 100)`; null — either is unknown or gross is zero. */
+    readonly feePct: number | null;
+  };
   readonly payers: CountStat;
+  /** The hub's average check scaled to the net by the window's net / gross. */
   readonly avgCheck: MoneyStat;
   readonly shelves: readonly {
     readonly id: string;
     readonly range: { readonly fromMills: MoneyMills | null; readonly toMills: MoneyMills | null };
     /**
      * 1.4.0. A remainder row of the hub's tier table — a tier without bounds, told by its key, never by the
-     * missing bounds (the hub sends two of them): `untiered` — fans no tier takes («Без тира»,
-     * `stats.shelf.untiered`), `unattributed` — money of the window no fan is counted for («Не распределено»,
-     * `stats.shelf.unattributed`). Absent — a tier with its bounds, labelled by `range`.
+     * missing bounds (the hub sends two of them): `untiered` — fans no tier takes, «Удалённые аккаунты»
+     * (`stats.shelf.untiered`), `unattributed` — money of the window no fan is counted for, «Без фана»
+     * (`stats.shelf.unattributed`; only when it is not zero). Absent — a tier with its bounds, labelled by `range`.
      */
     readonly remainder?: StatsRemainder;
     readonly fans: number | null;
-    readonly lifetime: MoneyMills | null;
-    readonly period: MoneyMills | null;
-    /** Bar length 0–1 by sum (min 4 % when not zero). */
-    readonly share: number;
+    /** 1.44.0: what the model keeps of the tier's window; null — the hub gave none. */
+    readonly net: MoneyMills | null;
   }[];
   readonly attention: {
     readonly awaiting: CountStat;
@@ -158,7 +180,6 @@ export interface SpendersStatsVM {
      * absent — the two are not told apart.
      */
     readonly awaitingUnknown?: CountStat;
-    readonly newPayers: CountStat & { readonly firstObserved: boolean };
     readonly silent8to21: CountStat;
     /**
      * `lifetime` (1.2.0): what these fans spent in all — «сумма трат молчащих

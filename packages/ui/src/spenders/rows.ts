@@ -1,10 +1,10 @@
 // The board's shelves as one flat list for the virtual list (architecture.md
-// §10.1; ui-design §3.5, §4.14; X67 — the old Fansly extension's list): per
-// shelf its header «🐳 Whale  $600+ … 42» (36 px, sticks while its fans are in
-// view), then every one of its fans (52 px: the initials, the name over the
-// @handle, the lifetime over «+$N» of the period). The open preview unfolds
-// under its fan's row (X66). An empty shelf is not drawn. Pure: the Board
-// renders it, the tests measure it.
+// §10.1; ui-design §3.5, §4.14; 1.44.0 — the board as a table): per shelf its
+// header «Whale  $600+ · 4 фана» (32 px, sticks while its fans are in view),
+// or a group of the sort («Ждут ответа · дольше ждущие — первыми · 26 фанов»;
+// a flat list has none), then every one of its fans (a 40 px row of the
+// table's columns). The open preview unfolds under its fan's row (X66). An
+// empty shelf is not drawn. Pure: the Board renders it, the tests measure it.
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type I18n, type ShelfVM, type SpenderRowVM, type SpendersStatsVM } from '@cg/contracts/vm';
@@ -15,10 +15,10 @@ export type BoardItem =
   /** X66: the preview of the picked fan, unfolded under that fan's row. */
   | { readonly kind: 'preview'; readonly key: string; readonly handle: string };
 
-/** Heights of ui-design §3.5 (X67): a shelf's header with the air above it, a fan row. */
-export const BOARD_HEIGHTS = { shelf: 36, fan: 52 } as const;
+/** 1.44.0: the table's sticky column header, a shelf's (or a group's) header row, a fan row. */
+export const BOARD_HEIGHTS = { head: 32, shelf: 32, fan: 40 } as const;
 /** 1.32.0: a fan in a batch has its line under the row. */
-export const BATCH_FAN_HEIGHT = 72;
+export const BATCH_FAN_HEIGHT = 60;
 
 /**
  * The unfolded preview keeps to these heights; between them it fills the list under its row (X66). Under `min` (a
@@ -27,14 +27,14 @@ export const BATCH_FAN_HEIGHT = 72;
 export const INLINE_PREVIEW = { min: 220, max: 600 } as const;
 
 /**
- * A shelf with no rows is skipped (§4.14 «Пустая полка не рисуется»). `unfold` — the open preview stands under the
- * picked fan's row (X66); a picked fan the list does not show has none.
+ * A shelf with no rows is skipped (§4.14 «Пустая полка не рисуется»); a flat list of a sort has no header row.
+ * `unfold` — the open preview stands under the picked fan's row (X66); a picked fan the list does not show has none.
  */
 export function boardItems(shelves: readonly ShelfVM[], unfold = false): BoardItem[] {
   const items: BoardItem[] = [];
   for (const shelf of shelves) {
     if (shelf.rows.length === 0) continue;
-    items.push({ kind: 'shelf', key: `shelf:${shelf.id}`, shelf });
+    if (shelf.group !== 'flat') items.push({ kind: 'shelf', key: `shelf:${shelf.id}`, shelf });
     for (const row of shelf.rows) {
       items.push({ kind: 'fan', key: `fan:${row.handle}`, row });
       if (unfold && row.selected) items.push({ kind: 'preview', key: `preview:${row.handle}`, handle: row.handle });
@@ -50,11 +50,11 @@ export function boardItemHeight(item: BoardItem, preview: number = INLINE_PREVIE
 }
 
 /**
- * The unfolded preview's height for a list of `listHeight` px: the room under a sticky shelf header and its fan's
- * row, so the row and the whole preview are in view together; within INLINE_PREVIEW.
+ * The unfolded preview's height for a list of `listHeight` px: the room under the column header, a sticky shelf
+ * header and its fan's row, so the row and the whole preview are in view together; within INLINE_PREVIEW.
  */
 export function inlinePreviewHeight(listHeight: number): number {
-  const room = listHeight - BOARD_HEIGHTS.shelf - BOARD_HEIGHTS.fan - 8;
+  const room = listHeight - BOARD_HEIGHTS.head - BOARD_HEIGHTS.shelf - BOARD_HEIGHTS.fan - 8;
   return Math.round(Math.min(INLINE_PREVIEW.max, Math.max(INLINE_PREVIEW.min, room)));
 }
 
@@ -105,43 +105,34 @@ export function shelfLabel(i18n: I18n, range: ShelfVM['range']): string {
 }
 
 /**
- * A row of the statistics' tier table: a remainder is named by what it is — «Без тира», «Не распределено» (1.4.0;
- * the hub sends both, and neither has bounds) — a tier by its bounds.
+ * A row of the statistics' tier table: a remainder is named by what it is — «Удалённые аккаунты», «Без фана» (1.4.0;
+ * the hub sends both, and neither has bounds) — a tier by its name, or its bounds where it has none.
  */
 export function statsShelfLabel(i18n: I18n, shelf: Pick<SpendersStatsVM['shelves'][number], 'range' | 'remainder'>): string {
-  return shelf.remainder === undefined ? shelfLabel(i18n, shelf.range) : i18n.t(`stats.shelf.${shelf.remainder}`);
+  if (shelf.remainder !== undefined) return i18n.t(`stats.shelf.${shelf.remainder}`);
+  return shelfTier(i18n, shelf.range) ?? shelfLabel(i18n, shelf.range);
 }
 
 /**
- * The old Fansly extension's tiers (X67): its names and marks for the hub's buckets of the same lower bounds —
- * 🐳 Whale $600+, ⭐ Top $350–600, ✅ Prime $150–350, ③ Base $50–150, ② Low $25–50, ① Micro $1–25 (or $0–25). A
- * bucket of other bounds has no name: its bounds alone say what it is.
+ * The old Fansly extension's tiers (X67): its names for the hub's buckets of the same lower bounds — Whale $600+,
+ * Top $350–600, Prime $150–350, Base $50–150, Low $25–50, Micro $1–25 (or $0–25). A bucket of other bounds has no
+ * name: its bounds alone say what it is. No marks (1.44.0): the name and the bounds say it.
  */
-const TIERS: readonly { readonly from: number; readonly mark: string; readonly key: I18nKey }[] = [
-  { from: 600_000, mark: '🐳', key: 'spenders.tier.whale' },
-  { from: 350_000, mark: '⭐', key: 'spenders.tier.top' },
-  { from: 150_000, mark: '✅', key: 'spenders.tier.prime' },
-  { from: 50_000, mark: '③', key: 'spenders.tier.base' },
-  { from: 25_000, mark: '②', key: 'spenders.tier.low' },
-  { from: 1_000, mark: '①', key: 'spenders.tier.micro' },
-  { from: 0, mark: '①', key: 'spenders.tier.micro' },
+const TIERS: readonly { readonly from: number; readonly key: I18nKey }[] = [
+  { from: 600_000, key: 'spenders.tier.whale' },
+  { from: 350_000, key: 'spenders.tier.top' },
+  { from: 150_000, key: 'spenders.tier.prime' },
+  { from: 50_000, key: 'spenders.tier.base' },
+  { from: 25_000, key: 'spenders.tier.low' },
+  { from: 1_000, key: 'spenders.tier.micro' },
+  { from: 0, key: 'spenders.tier.micro' },
 ];
 
-export function shelfTier(i18n: I18n, range: ShelfVM['range']): { readonly mark: string; readonly name: string } | null {
+/** The tier's name («Whale»); null — a bucket of other bounds, or none. */
+export function shelfTier(i18n: I18n, range: ShelfVM['range']): string | null {
   if (range.fromMills === null && range.toMills === null) return null;
   const from = range.fromMills ?? 0;
   // The lowest tier is «$1–25» or «$0–25»; a bucket under a dollar is not Micro.
   const tier = TIERS.find((item) => item.from === from && (from > 1_000 || range.toMills === 25_000));
-  return tier === undefined ? null : { mark: tier.mark, name: i18n.t(tier.key) };
-}
-
-/** The row's picture where there is none: the first letters of the first two words that have one («Theodore Whitfield» → TW). */
-export function initialsOf(name: string): string {
-  const letters = name
-    .split(/\s+/)
-    .map((word) => /[\p{L}\p{N}]/u.exec(word)?.[0] ?? '')
-    .filter((letter) => letter !== '')
-    .slice(0, 2)
-    .join('');
-  return letters === '' ? '?' : letters.toLocaleUpperCase();
+  return tier === undefined ? null : i18n.t(tier.key);
 }

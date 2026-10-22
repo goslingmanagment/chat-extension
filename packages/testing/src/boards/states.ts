@@ -57,28 +57,38 @@ const OP = { reply: uuid(701), hi: uuid(702) };
 const SENT_AT = iso(NOW + MIN);
 const UNCERTAIN: PreviewSendView = { s: 'uncertain', since: SENT_AT, attemptId: uuid(711) };
 
-const PRIMARY: readonly SpendersFilter[] = ['all', 'waiting', 'new'];
+const PRIMARY: readonly SpendersFilter[] = ['all', 'waiting', 'new', 'silent-8-21', 'silent-over-21'];
+const DAY_MIN = 24 * 60;
 
-/** The board over `fans`: three filters with their counts, the 30-day period, the coverage footer. */
+/** The board over `fans`: the filters with their counts, the 30-day period, the coverage footer. */
 export function boardOf(ctx: ScenarioCtx, fans: readonly BoardFan[], patch: Partial<SpendersBoardVM> & { readonly selected?: string | null } = {}): SpendersBoardVM {
   const { selected = null, ...rest } = patch;
-  const counts: Record<string, number> = { all: fans.length, waiting: fans.filter((item) => item.lastFrom === 'fan').length, new: fans.filter((item) => item.isNew === true).length };
+  const silent = (from: number, to: number): number => fans.filter((item) => item.fanAgo !== null && item.fanAgo >= from * DAY_MIN && item.fanAgo < to * DAY_MIN).length;
+  const counts: Record<string, number> = {
+    all: fans.length,
+    waiting: fans.filter((item) => item.lastFrom === 'fan').length,
+    new: fans.filter((item) => item.isNew === true).length,
+    'silent-8-21': silent(8, 22),
+    'silent-over-21': silent(22, Infinity),
+  };
   const base = board(ctx, views.ready());
   const shelves = boardShelves(ctx, fans, selected, rest.sort ?? 'sum');
+  const tiers = boardShelves(ctx, fans, selected, 'sum');
   return {
     ...base,
     filters: base.filters.filter((filter) => PRIMARY.includes(filter.id)).map((filter) => ({ ...filter, count: counts[filter.id] ?? null })),
     shelves,
     // X67: the tier chips — every shelf with fans and bounds, none pressed.
-    tiers: shelves.filter((shelf) => shelf.rows.length > 0 && (shelf.range.fromMills !== null || shelf.range.toMills !== null)).map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.rows.length, pressed: false })),
+    tiers: tiers.filter((shelf) => shelf.rows.length > 0 && (shelf.range.fromMills !== null || shelf.range.toMills !== null)).map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.rows.length, pressed: false })),
     footer: { loaded: fans.length, total: fans.length, shown: null, stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'complete' } },
     previewOpen: selected !== null,
     ...rest,
   };
 }
 
-function statsOf(ctx: ScenarioCtx, expanded = false) {
-  return { ...stats(ctx, views.ready()), ...boardStats(ctx, BOARD_FANS), expanded };
+/** The statistics of the board's fans: a rail by default (1.44.0), `open` — the column, `expanded` — the full view. */
+function statsOf(ctx: ScenarioCtx, expanded = false, open = expanded) {
+  return { ...stats(ctx, views.ready()), ...boardStats(ctx, BOARD_FANS), expanded, open };
 }
 
 function replyBar(ctx: ScenarioCtx, active: 'reply' | 'hi' | null): Partial<Record<'reply' | 'fix' | 'hi' | 'ping', DockActionVM>> {
@@ -503,6 +513,15 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('batch-newcomers', 'A batch of Hi in «Новые»', 'newcomers', batchNewcomers),
   fansly('batch-fansly', 'Fansly: a batch of Hi in «Новые»', batchFansly),
   state('board-list', 'The board without a preview', 'spenders', (ctx) => [entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS)), entry({ of: 'spenders.stats' }, statsOf(ctx))]),
+  state('board-stats', 'The board with the statistics column open', 'spenders', (ctx) => [entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS)), entry({ of: 'spenders.stats' }, statsOf(ctx, false, true))]),
+  state('board-waiting', 'Sorted by «Ждёт ответа», the statistics open, three fans ticked', 'spenders', (ctx) => {
+    const base = boardOf(ctx, BOARD_FANS, { sort: 'waiting' });
+    let n = 0;
+    const ticked = new Set([13, 15, 17]);
+    const shelves = base.shelves.map((shelf) => ({ ...shelf, rows: shelf.rows.map((row) => ({ ...row, batch: { ...IDLE_BATCH, picked: ticked.has(n++) } })) }));
+    return [entry({ of: 'spenders.board' }, { ...base, shelves, batch: batchOf(shelves.flatMap((shelf) => shelf.rows)) }), entry({ of: 'spenders.stats' }, statsOf(ctx, false, true))];
+  }),
+  state('board-we-wrote', 'Sorted by «Мы писали»: one list with the «Тир» column', 'spenders', (ctx) => [entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS, { sort: 'we-wrote' })), entry({ of: 'spenders.stats' }, statsOf(ctx))]),
   state('board-1000', 'A thousand fans: the virtual list', 'spenders', (ctx) => {
     const fans = manyFans(1000);
     return [
