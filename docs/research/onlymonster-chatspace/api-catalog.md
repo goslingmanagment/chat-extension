@@ -283,7 +283,11 @@ WS: `account_scheduled_message_created/cancelled/sent/failed` (messages:5337-538
 так же урезан `lastMessage` в сыром списке самого OnlyFans (фикстура OFAPI `list-chats.json` старого клиента). Чатовый
 `lastReadMessageId` — наше собственное прочтение, не фана: у чатов, где последнее сообщение фана, он равен его id при
 `unread_messages_count` = 0 (16 из 16) и меньше при непрочитанном (3 из 4). Прочитал ли фан наше сообщение, говорит только
-история (`isNew` у каждого сообщения), а её загрузка помечает чат прочитанным.
+история (`isNew` у каждого сообщения), а её загрузка помечает чат прочитанным. «Подглядеть» нельзя: `messages?peek=true`
+для OnlyFans отвечает 400 `PLATFORM_BAD_REQUEST` «Reading without marking as read is supported only for Telegram» (живьём,
+2026-10-22); отдельного сообщения по id нет (404). Поэтому отметка превью (`chatReadState`) читает историю (`limit=5`)
+только после живого поиска списка, где последнее сообщение — креатора (`fromUser.id`) и `unread_messages_count` = 0:
+тогда помечать нечего, кроме сообщения фана, пришедшего между двумя запросами (его видно в ответе как `isNew: true`).
 
 ### 3.4 Фан — `GET api/v0/accounts/{acc}/platforms/onlyfans/fans?fan_ids=…` (реальное тело)
 `{items:[сырой пользователь OF]}`, ключи: `avatar, avatarThumbs, canAddSubscriber, canCommentStory, canEarn, canLookStory, canPayInternal, canReceiveChatMessage, canReport, canRestrict, canTrialSend, currentSubscribePrice, displayName (= custom name), hasNotViewedStory, hasScheduledStream, hasStories, hasStream, header, headerSize, headerThumbs, hideChat, id, isActive, isBlocked, isPerformer, isRealPerformer, isRestricted, isVerified, lastSeen, listsStates[{id,type,name,hasUser,canAddUser,cannotAddUserReason}], name, notice (заметка), subscribePrice, subscribedBy, subscribedByAutoprolong, subscribedByData{…}, subscribedByExpire, subscribedByExpireDate, subscribedIsExpiredNow, subscribedOn, subscribedOnData{price, newPrice, regularPrice, subscribePrice, discountPercent, discountPeriod, subscribeAt, expiredAt, renewedAt, discountStartedAt, discountFinishedAt, status, isMuted, unsubscribeReason, duration, tipsSumm, subscribesSumm, messagesSumm, postsSumm, streamsSumm, totalSumm, subscribes[…], hasActivePaidSubscriptions}, subscribedOnDuration, subscribedOnExpire, subscribedOnExpiredNow, tipsEnabled, tipsMax, tipsMin, tipsMinInternal, tipsTextEnabled, username, view`. Время ответа ~350 мс (кэш OM; `force=true` — обновить).

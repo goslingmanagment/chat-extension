@@ -28,7 +28,7 @@ export function messageMetadata(message: StandMessage): Record<string, unknown> 
   return {
     responseType: 'message',
     isOpened: message.isOpened ?? false,
-    isNew: true,
+    isNew: message.isNew ?? true,
     changedAt: message.sentAt,
     cancelSeconds: message.isFromFan ? 0 : 60,
     isFromQueue: false,

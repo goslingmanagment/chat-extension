@@ -544,6 +544,8 @@ export const RU: I18nCatalog<'ru'> = {
   'preview.notOpenedTooltip': 'Превью строится по архиву хаба; {sitePlatform} не отметит чат прочитанным',
   'preview.notOpenedAfterSend': 'Чат не открыт. После отправки {site} показывает его прочитанным',
   'preview.notOpenedAfterSendTooltip': 'Исходящее сообщение {site} сам помечает прочитанным',
+  'preview.readByCheck': 'Во время проверки «прочитано» фан написал — его сообщение могло стать прочитанным',
+  'preview.readByCheckTooltip': 'Проверка загружала историю чата, когда пришло сообщение фана: {sitePlatform} мог показать фану «прочитано» и убрать чат из непрочитанных. Ответьте ему',
   'preview.archiveLag': 'Архив на {time}, отстаёт от чата на {n} мин',
   'preview.fanWroteNew': 'Фан написал новое после ответа',
   'preview.feed.tip': ', чаевые {moneyIn}',

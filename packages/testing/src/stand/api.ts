@@ -193,6 +193,14 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
       return log(204, { accountId, chatId: fanId });
     }
     if (method === 'GET') {
+      // A fan message that came the same moment as this load (`/__stand/race-history`): it is in the page, unread
+      // before the load, and the load marks it read like the rest.
+      if (state.racingHistory.delete(`${accountId}:${fanId}`)) {
+        const account = state.account(accountId);
+        const message: StandMessage = { id: state.nextMessageId(), content: '<p>wait, one more thing</p>', sentAt: new Date().toISOString(), isFromFan: true };
+        state.appendMessage(accountId, fanId, message);
+        if (account) context.hub.deliverNewMessage(newMessageFrame(account, fanId, message), accountId);
+      }
       // Loading a chat's history marks it read on the platform (live-verified on
       // ChatSpace, docs/research/onlymonster-chatspace/facts.md): the journal
       // keeps every such load so tests can prove none happened unasked.

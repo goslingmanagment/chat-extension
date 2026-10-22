@@ -37,6 +37,11 @@ export class StandState {
   traffic: SocketTraffic = DEFAULT_SOCKET_TRAFFIC;
   /** Fans the presence endpoint (`fans-online`) answers as online, by `${accountId}:${fanId}`; nobody on start. */
   readonly onlineFans = new Set<string>();
+  /**
+   * Chats whose next history load meets a fan message that came the same moment, by `${accountId}:${fanId}`: the read
+   * mark's race (a fan writing between the chat-list read and the history read).
+   */
+  readonly racingHistory = new Set<string>();
   private readonly tokens = new Set<string>();
   private tokenSeq = 0;
   private messageSeq = 5_900_000_000;
@@ -54,6 +59,7 @@ export class StandState {
     this.failReleaseForms = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.onlineFans.clear();
+    this.racingHistory.clear();
     this.scripts.clear();
     // Issued tokens stay valid: an open page keeps its session across a reset.
   }

@@ -93,15 +93,22 @@ function Header({ vm, closable }: { readonly vm: PreviewVM; readonly closable: b
   );
 }
 
+/** The words of the chat's unread state and their tooltip. */
+export function unreadWords(i18n: I18n, unread: PreviewVM['unread']): { readonly words: string; readonly tooltip: string } {
+  if (unread === 'kept') return { words: i18n.t('preview.notOpened'), tooltip: i18n.t('preview.notOpenedTooltip') };
+  if (unread === 'read-by-check') return { words: i18n.t('preview.readByCheck'), tooltip: i18n.t('preview.readByCheckTooltip') };
+  return { words: i18n.t('preview.notOpenedAfterSend'), tooltip: i18n.t('preview.notOpenedAfterSendTooltip') };
+}
+
 export function UnreadLine({ unread }: { readonly unread: PreviewVM['unread'] }): JSX.Element {
   const i18n = useI18n();
-  const kept = unread === 'kept';
-  const tip = useTooltip(i18n.t(kept ? 'preview.notOpenedTooltip' : 'preview.notOpenedAfterSendTooltip'));
+  const { words, tooltip } = unreadWords(i18n, unread);
+  const tip = useTooltip(tooltip);
   return (
     <div class="cg-pv__note" data-cg-unread={unread}>
       <Icon name="eyeOff" size={14} />
       <span {...tip.props}>
-        {i18n.t(kept ? 'preview.notOpened' : 'preview.notOpenedAfterSend')}
+        {words}
         {tip.description}
       </span>
     </div>

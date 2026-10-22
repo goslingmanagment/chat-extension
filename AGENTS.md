@@ -49,6 +49,10 @@ again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. The
 - **The extension never sends on its own.** Only on a human click: in an open chat — insertion through `__omComposerBridge`
   and ChatSpace's own Send; from a preview — through ChatSpace's own send queue (X8). Never auto-retry anything indeterminate.
   Toward OnlyMonster — reads only (the page's own session, `host-chatspace/src/main/om-api.ts`), no writes of our own.
+- **Another chat's history — only for the read mark** (`chatReadState`): a fan's preview reads it only after a live
+  chat-list search says our message is the chat's last with nothing unread, so nothing new is marked read. A fan
+  message that lands between the two reads gets marked read: it is shown to the chatter, never hidden. No other
+  history read of a chat the person has not opened, no background sweep, no mark-read/unread.
 - **Fansly** — Chrome DevTools MCP, read-only: opening a conversation marks it read, typing sends typing events.
 - **The hub's prod** (`agency-de`) — read-only. AI, keys and prompts live only in the hub.
 - **Announcements to chatters** (Telegram) — the owner's call, never automatic.

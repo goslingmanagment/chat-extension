@@ -5,13 +5,18 @@
 // page's own requests (its resource timing): ChatSpace's API lives on another
 // host than the page, and MAIN names no origin. The runtime refuses any chat
 // but the one on the route before this file runs: loading a chat's history
-// marks it read on OnlyFans (facts.md). Nothing is written, retried or kept;
-// the isolated side checks the answer with its schema.
+// marks it read on OnlyFans (facts.md). Whether a fan read our newest message
+// (`chatReadState`) is the one exception, for any chat: OnlyFans says it only
+// in a history, so the chat list is asked first, and the history's newest
+// message is read only when the list says it is ours and nothing in the chat
+// is unread — then every fan message is read already and the read marks
+// nothing new. Nothing is written, retried or kept; the isolated side checks
+// the answer with its schema.
 
 import { count, idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 import { ERR_IDENTITY } from '@cg/host-kit/main/protocol';
 import { iso, plain, utf8Bytes } from './page';
-import { API_ACCOUNTS_PATH, API_PATH, FRAME_DATA_BUDGET, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS } from './protocol';
+import { API_ACCOUNTS_PATH, API_PATH, CHAT_READ_HISTORY_LIMIT, CHAT_READ_SEARCH_LIMIT, FRAME_DATA_BUDGET, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS } from './protocol';
 
 type PageWindow = Window & { readonly Clerk?: { readonly session?: { readonly getToken?: () => unknown } | null } };
 
@@ -43,6 +48,88 @@ const message = (raw: unknown): Plain | null => {
     tip: meta['isTip'] === true,
     automatic: meta['isFromQueue'] === true,
   };
+};
+
+/** OnlyFans' `isNew` of a raw message: false once its reader opened it; null — not said. */
+const isNewOf = (raw: unknown): boolean | null => {
+  const meta = isPlain(raw) && isPlain(raw['platform_metadata']) ? raw['platform_metadata'] : null;
+  return typeof meta?.['isNew'] === 'boolean' ? meta['isNew'] : null;
+};
+
+/** The id of a raw message's sender (`platform_metadata.fromUser.id`); null — not said. */
+const senderOf = (raw: unknown): string | null => {
+  const meta = isPlain(raw) && isPlain(raw['platform_metadata']) ? raw['platform_metadata'] : null;
+  const sender = meta?.['fromUser'];
+  return isPlain(sender) ? idOf(sender['id']) : null;
+};
+
+/** A history's message as contracts ChatReadState (on the model's, whether the fan has seen it); null — unreadable. */
+const historyMessage = (raw: unknown): Plain | null => {
+  const id = isPlain(raw) ? idOf(raw['id']) : null;
+  const fromFan = (raw as Plain | null)?.['is_from_fan'];
+  if (id === null || typeof fromFan !== 'boolean') return null;
+  const isNew = isNewOf(raw);
+  return { messageId: id, direction: fromFan ? 'fan' : 'model', sentAt: iso((raw as Plain)['sent_at']), read: !fromFan && isNew !== null ? !isNew : null, readAt: null };
+};
+
+/** Whether message id `a` is newer than `b` (OnlyFans' ids grow); null — not numeric ids. */
+const newer = (a: string, b: string): boolean | null => (/^\d{1,30}$/.test(a) && /^\d{1,30}$/.test(b) ? BigInt(a) > BigInt(b) : null);
+
+/**
+ * The fan's chat of a chat list's answer (`{items: [{platform_fan_id, unread_messages_count, last_message,
+ * platform_metadata}]}`, the chats a username search found): its last message — the list's carries no `isNew` and no
+ * `is_from_fan`; the sender is `fromUser` —, and whether the history may be read for it: the last message is the
+ * account's own (`fromUser` is the creator `creator`) and nothing in the chat is unread (no unread message, no unread
+ * tip). Matched by the exact fan id only; anything missing forbids the read.
+ */
+export const listedOf = (body: unknown, fan: string, creator: string | null): { readonly last: Plain | null; readonly mayRead: boolean } | Failed => {
+  const items = isPlain(body) ? body['items'] : null;
+  if (!Array.isArray(items)) return fail('invalid');
+  const chat = items.find((item): item is Plain => isPlain(item) && idOf(item['platform_fan_id']) === fan);
+  const raw = chat?.['last_message'];
+  const id = isPlain(raw) ? idOf(raw['id']) : null;
+  const from = senderOf(raw);
+  if (chat === undefined || id === null || from === null) return { last: null, mayRead: false };
+  const direction = from === fan ? 'fan' : from === creator ? 'model' : null;
+  if (direction === null) return { last: null, mayRead: false };
+  const meta = isPlain(chat['platform_metadata']) ? chat['platform_metadata'] : {};
+  const last = { messageId: id, direction, sentAt: iso((raw as Plain)['sent_at']), read: null, readAt: null };
+  return { last, mayRead: direction === 'model' && chat['unread_messages_count'] === 0 && meta['hasUnreadTips'] !== true };
+};
+
+/**
+ * A history's answer (`{items: [message]}`, newest first, as it stood before the read) after a list that named our
+ * message `listed` as the chat's last, as contracts ChatReadAnswer:
+ * - a fan message newer than it, still unread (`isNew: true`): it came between the two reads, and the history read has
+ *   marked it read on OnlyFans — `raced`;
+ * - a fan message newer than it, read already: someone opened the chat meanwhile — that message, no read state;
+ * - else our newest message, and whether the fan has seen it: OnlyFans' `isNew` turns false once the fan opened it
+ *   (ChatSpace's own «прочитано», composables:89277).
+ * Our message gone from the history (deleted): `last` null.
+ */
+export const readStateOf = (body: unknown, listed: Plain): Plain => {
+  const items = isPlain(body) ? body['items'] : null;
+  if (!Array.isArray(items)) return fail('invalid');
+  const ours = listed['messageId'] as string;
+  let fanNewer: Plain | null = null;
+  let raced = false;
+  let model: Plain | null = null;
+  for (const raw of items) {
+    const message = historyMessage(raw);
+    if (message === null) continue;
+    const id = message['messageId'] as string;
+    const after = id === ours ? false : newer(id, ours);
+    if (after !== true) {
+      if (id === ours) model ??= message;
+      break;
+    }
+    if (message['direction'] === 'fan') {
+      fanNewer ??= message;
+      if (isNewOf(raw) === true) raced = true;
+    } else model ??= message;
+  }
+  if (raced) return { ok: true, last: fanNewer, raced: true };
+  return { ok: true, last: fanNewer ?? model };
 };
 
 type Timer = (callback: () => void, ms: number) => unknown;
@@ -107,6 +194,24 @@ export function createOmApi(win: Window, setTimer: Timer) {
 
   return {
     omRequest,
+    /**
+     * Whether the fan read the chat's newest message. First the account's chat list searched by the fan's username,
+     * past OnlyMonster's own cache (`force=true`: a reading changes no message the socket would bring); a list read
+     * marks nothing read. Only when that live list says the last message is the account's own (`creator`, its
+     * OnlyFans id) and nothing in the chat is unread, the history's newest messages (live): every fan message is read
+     * already, so the read marks nothing new — but a fan message that came between the two reads it does mark read
+     * (`raced`). A page of `CHAT_READ_HISTORY_LIMIT`, not one: OnlyFans marks the whole chat read either way, and the
+     * page shows what came between. Anything else answers the list's last message, with no read state.
+     */
+    async chatReadState(acc: string, fan: string, username: string, creator: string | null): Promise<Plain | typeof ERR_IDENTITY> {
+      const list = await omRequest(`accounts/${acc}/chats?limit=${CHAT_READ_SEARCH_LIMIT}&query=${encodeURIComponent(username)}&force=true`);
+      if (typeof list === 'string' || !list.ok) return list;
+      const listed = listedOf(list.body, fan, creator);
+      if ('ok' in listed) return listed;
+      if (listed.last === null || !listed.mayRead) return { ok: true, last: listed.last };
+      const history = await omRequest(`accounts/${acc}/chats/${fan}/messages?limit=${CHAT_READ_HISTORY_LIMIT}&force=true`);
+      return typeof history === 'string' || !history.ok ? history : readStateOf(history.body, listed.last);
+    },
     /**
      * The open chat's newest `limit` messages (before `cursor`), newest first, within one frame's byte budget — read
      * past OnlyMonster's own cache (`force=true`, its Refresh): a purchase changes a message, and only a fresh read
