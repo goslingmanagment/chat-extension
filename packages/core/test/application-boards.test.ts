@@ -647,9 +647,10 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     await h.flush();
     const [a, b, c] = variants();
     expect(b?.[0]?.send?.s).toBe('sent');
+    // The block stays (X5); it says what it is — another variant went — not «часть устарела».
     expect(a?.map((part) => part.send)).toEqual([
-      { s: 'unavailable', code: 'CG-SEND-PART', reason: { key: 'send.reason.part' } },
-      { s: 'unavailable', code: 'CG-SEND-PART', reason: { key: 'send.reason.part' } },
+      { s: 'unavailable', code: 'CG-SEND-PART', reason: { key: 'send.reason.otherVariant' } },
+      { s: 'unavailable', code: 'CG-SEND-PART', reason: { key: 'send.reason.otherVariant' } },
     ]);
     expect(c?.[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-PART' });
     expect(await h.dispatch({ type: 'SendPart', operationId: opId, variant: 0, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });

@@ -165,7 +165,7 @@ export const UI_TEXT_KEYS = [
   'send.rejectedTail', 'send.uncertain', 'send.openToVerify', 'send.uncertainTail', 'send.uncertainRetryTooltip', 'send.heldStale', 'send.heldStaleTail', 'send.unverified', 'send.unverifiedTail', 'send.anyway', 'send.anywayTooltip', 'send.after',
   'send.codeLine', 'send.reason.off', 'send.reason.host', 'send.reason.hostNotYet', 'send.reason.receipt', 'send.reason.activeChat',
   'send.reason.permission', 'send.reason.fan', 'send.reason.mimic', 'send.reason.translator', 'send.reason.freshness', 'send.reason.busy',
-  'send.reason.queue', 'send.reason.part', 'send.reason.guard',
+  'send.reason.queue', 'send.reason.part', 'send.reason.otherVariant', 'send.reason.guard',
   'send.reason.contextChanged', 'send.reason.claimBusy', 'send.reason.rateLimit', 'send.reason.otherUncertain',
   'batch.pick', 'batch.pickAll', 'batch.picked', 'batch.generate', 'batch.generateTooltip', 'batch.unpick', 'batch.stop', 'batch.clear', 'batch.progress', 'batch.failedCount', 'batch.hint', 'batch.max', 'batch.state.queued', 'batch.state.generating', 'batch.state.ready', 'batch.state.sent', 'batch.state.failed',
   'newcomers.title', 'newcomers.personaNote', 'newcomers.col.fan', 'newcomers.col.kind', 'newcomers.col.subscription', 'newcomers.col.greeting',

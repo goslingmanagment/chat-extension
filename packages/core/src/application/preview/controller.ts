@@ -1101,6 +1101,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return served === null ? { ok: true } : { ok: true, warn: served === 'CG-SEND-STALE' ? 'CG-SEND-STALE' : 'CG-SEND-FRESHNESS' };
   }
 
+  /** A part of another variant of this result reached ChatSpace's queue: this one's parts are not sent (X5, one greeting). */
+  function otherVariantStarted(track: OpTrack, variant: number): boolean {
+    const started = [...track.attempts].filter(([, attempt]) => attempt.view.state !== 'held' && attempt.view.state !== 'notEnqueued' && attempt.view.state !== 'ready').map(([key]) => Number(key.split(':')[0]));
+    return started.length > 0 && !started.includes(variant);
+  }
+
   /** The gate of one part: the result's own, the usable output of its variant, the «Новые» lease, then MAIN's answer. */
   function gateOf(track: OpTrack, variant: number): PreviewSendPreflight {
     const local = localGate(track);
@@ -1108,8 +1114,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const texts = partsOfResult(track.mirror.done?.result, variant);
     if (texts === null || greetingOutputProblem(texts) !== null) return refusal('CG-SEND-PART');
     // Parts of another variant are not sent once a part of one variant reached ChatSpace's queue.
-    const started = [...track.attempts].filter(([, attempt]) => attempt.view.state !== 'held' && attempt.view.state !== 'notEnqueued' && attempt.view.state !== 'ready').map(([key]) => Number(key.split(':')[0]));
-    if (started.length > 0 && !started.includes(variant)) return refusal('CG-SEND-PART');
+    if (otherVariantStarted(track, variant)) return refusal('CG-SEND-PART');
     // «Новые»: no lease to hold (2026-10-20 audit, row 11) — the hub claims the fan at the send and says when a colleague greeted.
     const main = track.preflight ?? { ok: true };
     if (!main.ok) return main;
@@ -1218,6 +1223,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       nowIso: nowIso(),
       hostWaitsForChat: previewSendWaitsForChat(host.current().contract),
     });
+    // Another variant went: the block stays (X5), said as what it is, not as a part gone stale.
+    if (row.s === 'unavailable' && row.code === 'CG-SEND-PART' && otherVariantStarted(track, v)) row = { ...row, reason: msg('send.reason.otherVariant') };
     // A part of another result on its way: one part of the fan goes at a time (an unknown outcome holds nothing, row 2).
     if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
     // Decision X53: picked media that cannot go yet (the price, the release forms) hold the part's «Отправить».

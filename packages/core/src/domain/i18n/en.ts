@@ -605,6 +605,7 @@ export const EN: I18nCatalog<'en'> = {
   'send.reason.busy': 'a send to this fan is already in progress.',
   'send.reason.queue': 'the {site} queue did not accept the message.',
   'send.reason.part': 'the part is out of date — refresh the answer.',
+  'send.reason.otherVariant': 'another variant was already sent — Reply from here.',
   'send.reason.guard': '{site}’s Message Guard did not let the text through.',
   'send.reason.contextChanged': 'the account, binding or persona changed after the generation — make the answer again.',
   'send.reason.claimBusy': 'a colleague already greeted this fan or is greeting them right now.',
