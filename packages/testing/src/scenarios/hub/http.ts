@@ -93,9 +93,9 @@ const NOTHING: HubFeatureNeeds = { capabilities: [] };
  * needs there. A platform with no entry has no such feature (`platform_unsupported`). R20 HF-2 made it per platform:
  * on Fansly Recap and the preview read by conversation (`conversation-recaps-v1`), «Новые» are the greeting custody
  * with the manual group and not the hub's list of new subscribers, and Fansly has its own `drafts`, `voice`,
- * `notesFill`, `notes`, `vault` and `registration`; it has no X8 send, ChatSpace navigation, socket tap or Spenders
- * statistics. It is the HUB's rule: the client does not carry this table (R20 F4). A hub rule that changes is
- * changed here.
+ * `notesFill`, `notes`, `vault` and `registration`; it has no X8 send, ChatSpace navigation or socket tap. The Spenders
+ * statistics and «ждут ответа» exist on both (hub #730). It is the HUB's rule: the client does not carry this table
+ * (R20 F4). A hub rule that changes is changed here.
  */
 export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readonly<Partial<Record<HubPlatform, HubFeatureNeeds>>>>> = {
   insertion: { onlyfans: NOTHING, fansly: NOTHING },
@@ -114,7 +114,7 @@ export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readon
     fansly: { capabilities: ['shared-recaps-v1', 'recap-profile-v1', 'conversation-recaps-v1'] },
   },
   preview: { onlyfans: { capabilities: ['archive-feed-v1'] }, fansly: { capabilities: ['archive-feed-v1', 'conversation-recaps-v1'] } },
-  stats: { onlyfans: { capabilities: ['spenders-stats-v1', 'awaiting-reply-v1'] } },
+  stats: { onlyfans: { capabilities: ['spenders-stats-v1', 'awaiting-reply-v1'] }, fansly: { capabilities: ['spenders-stats-v1', 'awaiting-reply-v1'] } },
   newcomers: {
     onlyfans: { capabilities: ['audience-new-v1', 'preview-send-custody-v1', 'manual-greeting-v1'] },
     fansly: { capabilities: ['preview-send-custody-v1', 'manual-greeting-v1'] },

@@ -24,7 +24,7 @@ import { manyFans } from '../data';
 import { FANSLY_NEWCOMERS_SURFACE } from '../fansly-newcomers';
 import { LiveBoardClient } from '../live-client';
 import { BOARD_STATES } from '../states';
-import { boardWorld, resolveScenario, withoutStatistics } from '../world';
+import { boardWorld, resolveScenario } from '../world';
 
 const SURFACES: Partial<Record<MountSurfaceKind, SurfaceDefinition>> = {
   spenders: spendersSurface,
@@ -91,9 +91,8 @@ html.lang = language;
 const site = galleryHostOf(params);
 const { profile, play, texts } = site;
 play(scheme);
-// X66: Fansly's board as its tab has it — no statistics column (R20 P9e).
-const scenario = resolveScenario(stateId, language);
-const world = boardWorld(site.host === 'fansly' ? withoutStatistics(scenario) : scenario, language, profile.phrases, texts);
+// Fansly's board as its tab has it: with the statistics column, as ChatSpace's.
+const world = boardWorld(resolveScenario(stateId, language), language, profile.phrases, texts);
 world.deps.scheme.set(scheme);
 if (step >= 0) world.client.goTo(step);
 // The side panel stands at the right edge of ChatSpace's container, inside its 1 px frame, left of its rail (ui-design §3.7).

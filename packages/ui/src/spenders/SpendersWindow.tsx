@@ -104,7 +104,7 @@ export function SpendersWindow(): JSX.Element {
   const { root, deps } = useKit();
   const board = useView({ of: 'spenders.board' }).value;
   const stats = useView({ of: 'spenders.stats' }).value;
-  // A host without the statistics (Fansly, R20 P9e): no column, no S, the preview next to the list alone.
+  // A board without the statistics (its controller's `statistics: false`; both sites have them): no column, no S, the preview next to the list alone.
   const statistics = board.statistics !== false;
   const expanded = statistics && stats.expanded;
   const boardRef = useRef<BoardHandle>(null);

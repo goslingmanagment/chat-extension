@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type ChatRef, type HubRouteKey, type PersonaCatalog, type SettingsV1, type SpenderListItem, type SpendersPage, type Surface } from '@cg/contracts';
+import { type ChatRef, type HubRouteKey, type PersonaCatalog, type QueuePage, type SettingsV1, type SpenderListItem, type SpendersPage, type Surface } from '@cg/contracts';
 import { Surfaces, fanHandle, type BoardSwitch, type ChatNavigator, type PageContextPort, type PageContextState, type PreviewDirectory, type PreviewTargetInfo } from '@cg/core/application/boards';
 import { createPreviewController } from '@cg/core/application/preview';
 import { createSpendersController, type SpendersSource } from '@cg/core/application/spenders';
@@ -69,9 +69,10 @@ function recordingNavigator(): ChatNavigator & { readonly opened: { readonly cha
   };
 }
 
-/** The hub's Spenders board of one page: its rows, one route; the tiers are not this test's subject. */
-function spendersHub(rows: readonly SpenderListItem[]) {
+/** The hub's Spenders board of one page: its rows (and its «ждут ответа» queue, when given); the tiers are not this test's subject. */
+function spendersHub(rows: readonly SpenderListItem[], queue?: QueuePage) {
   return (route: HubRouteKey) => {
+    if (route === 'clientSpenderAwaitingReply' && queue !== undefined) return Promise.resolve({ status: 200, body: queue });
     if (route !== 'spenders') return Promise.resolve({ status: 404, body: { error: 'not_found' } });
     const body: SpendersPage = {
       scope: { kind: 'page', platform: 'fansly', pageCount: 1, page: null, model: null },
@@ -92,11 +93,11 @@ const rowOf = (rank: number, fan: string, platform: 'onlyfans' | 'fansly', conve
 };
 
 describe('[host:fansly] R20 P8a: the Spenders board names the chat of a Fansly fan from the hub’s own row', () => {
-  async function board(context: PageContextPort, rows: readonly SpenderListItem[], source?: SpendersSource) {
+  async function board(context: PageContextPort, rows: readonly SpenderListItem[], source?: SpendersSource, queue?: QueuePage) {
     const clock = new FakeClock(NOW_MS);
-    const bg = new BoardsBackground({ clock, call: spendersHub(rows), session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId, features: featuresOfBoth });
+    const bg = new BoardsBackground({ clock, call: spendersHub(rows, queue), session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId, features: featuresOfBoth });
     const navigator = recordingNavigator();
-    const spenders = createSpendersController({ rpc: bg.rpc, i18n, clock, context, surfaces: new Surfaces(), navigator, timeZone: 'Europe/Moscow', statistics: false, ...(source === undefined ? {} : { source }) });
+    const spenders = createSpendersController({ rpc: bg.rpc, i18n, clock, context, surfaces: new Surfaces(), navigator, timeZone: 'Europe/Moscow', ...(source === undefined ? {} : { source }) });
     spenders.subscribe({ of: 'spenders.board' }, () => undefined);
     await spenders.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } });
     await settle(20);
@@ -136,6 +137,42 @@ describe('[host:fansly] R20 P8a: the Spenders board names the chat of a Fansly f
     expect(await opening).toMatchObject({ ok: false, code: 'CG-HOST-CHAT-NOT-FOUND' });
     expect(chatOf(STRANGER)).toBe('missing');
     expect(navigator.opened).toEqual([]);
+    spenders.dispose();
+  });
+
+  it('a «ждут ответа» fan the board did not load is searched by the queue’s names and opened in the group found — never by the fan’s id', async () => {
+    const GROUP = '810000000000000777';
+    const asked: { readonly fanRef: string; readonly displayName: string | null; readonly username: string | null }[] = [];
+    let found: string | null = null;
+    const source: SpendersSource = {
+      cached: () => Promise.resolve(null),
+      resolve: (_account, fan) => {
+        asked.push(fan);
+        return Promise.resolve(found);
+      },
+      names: () => Promise.resolve([]),
+    };
+    const queue: QueuePage = {
+      items: [{ fanRef: STRANGER, username: 'stranger_fan', displayName: 'Stranger', lifetimeGrossMills: 50_000, lastFanMessageAt: '2026-10-03T09:00:00.000Z', lastModelMessageAt: null, unreadCount: 1, readState: 'unread' }],
+      total: 1,
+      loaded: 1,
+      unknown: 0,
+      nextCursor: null,
+      asOf: '2026-10-03T10:00:00.000Z',
+    };
+    const { spenders, navigator } = await board(fanslyContext, [rowOf(0, FANSLY.fan, 'fansly', FANSLY.group)], source, queue);
+    await spenders.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    await settle(20);
+    const stranger = fanHandle('spenders', FANSLY_PAGE, STRANGER);
+    const chatOf = (): string | undefined => spenders.getSnapshot({ of: 'spenders.board' }).shelves.flatMap((shelf) => shelf.rows).find((row) => row.handle === stranger)?.chat;
+    expect(chatOf()).toBe('find');
+    expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: stranger } })).toMatchObject({ ok: false, code: 'CG-HOST-CHAT-NOT-FOUND' });
+    expect(navigator.opened).toEqual([]);
+    found = GROUP;
+    expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: stranger } })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(asked).toEqual([{ fanRef: STRANGER, displayName: 'Stranger', username: 'stranger_fan' }, { fanRef: STRANGER, displayName: 'Stranger', username: 'stranger_fan' }]);
+    expect(navigator.opened.map(({ chat, conversationRef }) => [chat.platformFanId, conversationRef])).toEqual([[STRANGER, GROUP]]);
+    expect(spenders.directory.resolve(stranger)).toMatchObject({ fanRef: STRANGER, conversationRef: GROUP });
     spenders.dispose();
   });
 });
