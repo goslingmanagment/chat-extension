@@ -725,6 +725,19 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
       ],
     },
   },
+  // Whether the fan read the chat's newest message: the host's chat list searched by the fan's username.
+  chatReadState: {
+    payload: { valid: [{ ...accFan, username: 'dhruva9.2' }], invalid: [{ ...accFan, username: '' }, { ...accFan, username: 'x'.repeat(101) }, { acc: IDS.acc, username: 'dhruva9.2' }] },
+    data: {
+      valid: [
+        { ok: true, last: { messageId: IDS.msg2, direction: 'model', sentAt: ISO, read: false, readAt: null } },
+        { ok: true, last: { messageId: IDS.msg2, direction: 'fan', sentAt: null, read: null, readAt: null } },
+        { ok: true, last: null },
+        { ok: false, failure: 'http', status: 429 },
+      ],
+      invalid: [{ ok: true, last: { messageId: IDS.msg2, direction: 'creator', sentAt: ISO, read: true, readAt: null } }, { ok: false, failure: 'not-open', status: null }, { ok: true }],
+    },
+  },
 };
 
 export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } = {

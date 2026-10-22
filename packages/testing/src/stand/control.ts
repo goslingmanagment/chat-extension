@@ -135,6 +135,31 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ id: message.id, delivered });
     return;
   }
+  // The fan opens the chat: every model's message in it reads as seen (`isNew: false`). The socket says nothing of it.
+  if (path === '/__stand/fan-read' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const chat = accountId === null || fanId === null ? undefined : state.chat(accountId, fanId);
+    if (chat === undefined) {
+      ok({ error: 'unknown chat' }, 404);
+      return;
+    }
+    for (const message of chat.messages) if (!message.isFromFan) message.isNew = false;
+    ok({ read: true });
+    return;
+  }
+  // The chat's next history load meets a fan message that came the same moment (the read mark's race).
+  if (path === '/__stand/race-history' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    if (accountId === null || fanId === null || state.chat(accountId, fanId) === undefined) {
+      ok({ error: 'unknown chat' }, 404);
+      return;
+    }
+    state.racingHistory.add(`${accountId}:${fanId}`);
+    ok({ armed: true });
+    return;
+  }
   // X54: a model's paid message (PPV) in a chat, as the model's send would leave it; delivered on the socket like one.
   if (path === '/__stand/paid-message' && method === 'POST') {
     const accountId = asString(body['accountId']);

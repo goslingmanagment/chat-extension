@@ -65,8 +65,12 @@ export interface PreviewVM {
   } | null;
   readonly openChat: ActionButtonVM;
   readonly close: UiAction;
-  /** «Чат не открыт, останется непрочитанным»; after the first started send — «…ChatSpace показывает его прочитанным» (§6.7.12). */
-  readonly unread: 'kept' | 'read-after-send';
+  /**
+   * «Чат не открыт, останется непрочитанным»; after the first started send — «…ChatSpace показывает его прочитанным»
+   * (§6.7.12); `read-by-check` — the fan wrote while the read mark's check loaded the chat's history, so OnlyFans marked
+   * that message read.
+   */
+  readonly unread: 'kept' | 'read-after-send' | 'read-by-check';
   readonly archive: {
     readonly stamp: DataStamp;
     /** «отстаёт от чата на 2 мин». */
@@ -77,8 +81,9 @@ export interface PreviewVM {
   /** A fan message newer than the result: the blue dot line «Фан написал новое после ответа», no text. */
   readonly fanWroteNew: boolean;
   /**
-   * Whether the fan read our newest message, read live from the site (OnlyFans' chat list, Fansly's group) without the
-   * chat being opened; Fansly says when (`readAt`). `inFeed` — the message is in the feed and the mark stands under it,
+   * Whether the fan read our newest message, read live from the site (OnlyFans: the history's newest messages, read
+   * only when ours is the newest with nothing unread; Fansly's group) without the chat being opened; Fansly says when
+   * (`readAt`). `inFeed` — the message is in the feed and the mark stands under it,
    * else beside the header's ages. null — the newest message is the fan's, the site did not say or was not asked yet,
    * or the archive shows a newer message than the one the site named.
    */

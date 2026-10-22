@@ -615,6 +615,12 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         };
         return open() ? om.openChatMessages(acc, fan, payload['limit'] as number, payload['cursor'] as string | undefined, open) : ERR_IDENTITY;
       }
+      case 'chatReadState':
+        // The chat list, and the history's newest messages only when the live list says ours is the last with nothing
+        // unread: nothing new is marked read, so the chat need not be the open one. What the page already knows may
+        // only forbid it (the fan typing or writing last): then nothing is requested and there is no mark.
+        if (reader.chatReadVetoed(acc, fan)) return { ok: true, last: null };
+        return om.chatReadState(acc, fan, payload['username'] as string, reader.accounts().find((account) => account.hostAccountId === acc)?.platformAccountId ?? null);
       case 'media':
         // Decision X53: the vault of an account the page has loaded, by its OnlyFans id; never a chat's history.
         return mediaRead(om, reader.accounts().find((account) => account.hostAccountId === acc)?.platformAccountId ?? null, payload);

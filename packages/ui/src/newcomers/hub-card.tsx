@@ -16,7 +16,7 @@ import { Button, Dot, Icon, Spinner, ViewState, useDispatch, useI18n, useMinuteC
 import { SeenMark } from '../spenders/preview/Feed';
 import { MediaPicker, MediaToggle, sendWithMediaLabel } from '../spenders/preview/MediaPicker';
 import { generateAction } from '../spenders/preview/MiniStrip';
-import { LeaseNote, OwnLease, PreviewFeed, hasBody, metaLine, usePreviewKeys } from '../spenders/preview/Preview';
+import { LeaseNote, OwnLease, PreviewFeed, hasBody, metaLine, unreadWords, usePreviewKeys } from '../spenders/preview/Preview';
 import { CodeLine, offersOpenInsert, rejectedText } from '../spenders/preview/SendRow';
 import { coverageWord, timeOrUnknown } from '../spenders/window';
 import { CardOpen, GreetingEditor, GreetingState, NewcomerCard, NoCard, type EditorButton, type EditorSend, type GreetingModel } from './card';
@@ -45,8 +45,8 @@ function inSentence(title: string): string {
 function Notes({ vm }: { readonly vm: PreviewVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const kept = vm.unread === 'kept';
-  const tip = useTooltip(i18n.t(kept ? 'preview.notOpenedTooltip' : 'preview.notOpenedAfterSendTooltip'));
+  const { words, tooltip } = unreadWords(i18n, vm.unread);
+  const tip = useTooltip(tooltip);
   const { archive } = vm;
   const refresh = archive.refresh;
   const time = timeOrUnknown(i18n, archive.stamp.asOf);
@@ -55,7 +55,7 @@ function Notes({ vm }: { readonly vm: PreviewVM }): JSX.Element {
     <div class="cg-nc__note" data-cg-unread={vm.unread}>
       <Icon name="eyeOff" size={14} />
       <span {...tip.props}>
-        {i18n.t(kept ? 'preview.notOpened' : 'preview.notOpenedAfterSend')}
+        {words}
         {tip.description}
       </span>
       <span class="cg-nw__grow" />

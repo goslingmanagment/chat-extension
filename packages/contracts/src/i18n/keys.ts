@@ -151,7 +151,7 @@ export const UI_TEXT_KEYS = [
   'stats.open', 'stats.close', 'stats.netCap', 'stats.paid', 'stats.fee', 'stats.d7Same', 'stats.d7Change', 'stats.byTier', 'stats.colNet',
   'stats.show', 'stats.monthNote',
   'preview.label', 'preview.moneyIn', 'preview.meta', 'preview.metaFanUnknown', 'preview.metaOurUnknown', 'preview.closeAria', 'preview.notOpened',
-  'preview.notOpenedTooltip', 'preview.notOpenedAfterSend', 'preview.notOpenedAfterSendTooltip', 'preview.archiveLag', 'preview.fanWroteNew', 'preview.feed.tip', 'preview.feed.bought', 'preview.feed.empty',
+  'preview.notOpenedTooltip', 'preview.notOpenedAfterSend', 'preview.notOpenedAfterSendTooltip', 'preview.readByCheck', 'preview.readByCheckTooltip', 'preview.archiveLag', 'preview.fanWroteNew', 'preview.feed.tip', 'preview.feed.bought', 'preview.feed.empty',
   'preview.feed.emptySubscribed', 'preview.feed.label', 'preview.feed.fanPrefix', 'preview.feed.deleted', 'preview.feed.automatic', 'preview.feed.priced',
   'preview.feed.notBought', 'preview.feed.older', 'preview.ping.segment', 'preview.ping.segmentNoDays', 'preview.ping.active', 'preview.ping.unknown',
   'preview.draft.placeholder', 'preview.draft.aria', 'preview.draft.send', 'preview.draft.sendTooltip', 'preview.draft.sendEmpty', 'preview.empty', 'preview.emptyNewcomers',

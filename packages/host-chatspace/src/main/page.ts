@@ -263,6 +263,27 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
       }
       return out.length === 0 ? null : { capturedAt: new Date().toISOString(), messages: out };
     },
+    /**
+     * Whether the page itself already forbids reading the fan's history for the read mark (`chatReadState`): the fan
+     * is typing (ChatSpace's own five-second flag), or the freshest row of the fan in any chat list the page holds has
+     * the fan's message last or something unread. The page's list may only forbid: it zeroes a row's count on our own
+     * outgoing message, so a «nothing unread» there allows nothing — the live search decides.
+     */
+    chatReadVetoed(acc: string, fan: string): boolean {
+      if (call(STORE_CHATS, 'isFanTyping', acc, fan) === true) return true;
+      let row: Plain | null = null;
+      let at = -1;
+      for (const item of list(call(STORE_CACHE, 'getEntries', { key: [KEY_CHAT_LIST, acc] }))) {
+        const entry = isPlain(item) ? (item as Entry) : null;
+        if (entry === null || (entry.when ?? 0) <= at) continue;
+        const found = rows(entry.state?.value?.data).find((chat): chat is Plain => isPlain(chat) && idOf(chat['id']) === fan);
+        if (found !== undefined) [row, at] = [found, entry.when ?? 0];
+      }
+      if (row === null) return false;
+      const unread = row['unreadMessagesCount'];
+      const last = row['lastMessage'];
+      return (typeof unread === 'number' && unread > 0) || (isPlain(last) && last['isOutgoing'] === false);
+    },
     /** The list the person looks at: the observed `["chatList", acc, …]` entry, newest; nothing is loaded for it. */
     chatList(acc: string, limit: number) {
       let best: Entry | null = null;

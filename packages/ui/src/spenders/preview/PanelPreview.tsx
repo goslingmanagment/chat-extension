@@ -17,7 +17,7 @@ import { ActionButton, Button, Icon, Money, StripButton, ViewState, useDispatch,
 import { MediaPicker } from './MediaPicker';
 import { MiniStrip, generateAction, reasonText } from './MiniStrip';
 import { SeenMark } from './Feed';
-import { ArchiveLine, DraftField, PREVIEW_BASE_CSS, PreviewFeed, WorkZone, bothAges, hasBody, usePreviewKeys } from './Preview';
+import { ArchiveLine, DraftField, PREVIEW_BASE_CSS, PreviewFeed, WorkZone, bothAges, hasBody, unreadWords, usePreviewKeys } from './Preview';
 
 /** The picked row's last message, with whose it is: the panel shows it while that fan's archive is empty. */
 export interface PreviewFallback {
@@ -34,8 +34,8 @@ export interface PreviewFallback {
 function UnreadMark({ unread }: { readonly unread: PreviewVM['unread'] }): JSX.Element {
   const i18n = useI18n();
   const kept = unread === 'kept';
-  const words = i18n.t(kept ? 'preview.notOpened' : 'preview.notOpenedAfterSend');
-  const tip = useTooltip(`${words}\n${i18n.t(kept ? 'preview.notOpenedTooltip' : 'preview.notOpenedAfterSendTooltip')}`);
+  const { words, tooltip } = unreadWords(i18n, unread);
+  const tip = useTooltip(`${words}\n${tooltip}`);
   return (
     <span class="cg-pv__unread" data-cg-unread={unread} {...tip.props}>
       <Icon name="eyeOff" size={14} />

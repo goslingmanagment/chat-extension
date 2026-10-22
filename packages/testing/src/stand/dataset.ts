@@ -43,6 +43,8 @@ export interface StandMessage {
   /** X54: a model's paid message (PPV): its listed price, USD, and whether the fan bought it (OnlyFans' `isOpened`). */
   readonly price?: number;
   isOpened?: boolean;
+  /** OnlyFans' `isNew`: on the model's message, false once the fan has seen it; absent — true, as a fresh message. */
+  isNew?: boolean;
 }
 
 export interface StandChat {

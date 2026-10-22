@@ -503,6 +503,8 @@ export const EN: I18nCatalog<'en'> = {
   'preview.notOpenedTooltip': 'The preview is built from the hub archive; {sitePlatform} will not mark the chat read',
   'preview.notOpenedAfterSend': 'The chat is not opened. After a send {site} shows it as read',
   'preview.notOpenedAfterSendTooltip': '{site} itself marks the chat read on an outgoing message',
+  'preview.readByCheck': 'The fan wrote during the read check — their message may now read as read',
+  'preview.readByCheckTooltip': 'The check was loading the chat’s history when the fan’s message came: {sitePlatform} may have shown the fan it was read and taken the chat out of the unread ones. Answer them',
   'preview.archiveLag': 'Archive as of {time}, {n} min behind the chat',
   'preview.fanWroteNew': 'The fan wrote something new after the answer',
   'preview.feed.tip': ', tip {moneyIn}',
