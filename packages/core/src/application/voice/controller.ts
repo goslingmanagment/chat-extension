@@ -416,12 +416,13 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
     }
     const token = await ws.token('insert', 'dock', cause);
     if (!token.ok) return studioError(chat.key, action.type, token.error);
-    const n = session.takes.indexOf(take) + 1;
     const intent: AttachIntent = {
       intentId: ids.uuid(),
       expected: chat.identity,
       cause: token.payload,
-      file: { name: fileName(ws.situation().fanName, n), type: 'audio/mpeg', bytes: audio.bytes.slice(0) },
+      // A fresh UUID name, as ChatSpace names the voice notes it records (ATTACH_FILE_NAME_PATTERN): nothing of the
+      // extension, the fan or the text; another handover of the same take is another file.
+      file: { name: `${ids.uuid()}.mp3`, type: 'audio/mpeg', bytes: audio.bytes.slice(0) },
     };
     ui.attach = { takeId: take.takeId, state: 'handing', error: null };
     ws.bump();
