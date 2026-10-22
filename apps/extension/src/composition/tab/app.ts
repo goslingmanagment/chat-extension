@@ -835,9 +835,10 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
           const rect = element?.getBoundingClientRect();
           if (rect !== undefined && rect.width > 0 && rect.height > 0) hits[name] = { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
         };
-        // The tone buttons stand in a slot of their own right after Reply: it is not an action's slot.
-        const slots = [...root.querySelectorAll('.cg-strip__acts > .cg-slot:not(.cg-slot--more):not(.cg-slot--tones)')];
-        Object.keys(dock.actions).forEach((id, index) => hit(`action:${id}`, slots[index]?.querySelector('button')));
+        // The tone buttons stand in a slot of their own right after Reply: it is not an action's slot. Every chip of the
+        // bar but the windows' has a slot of its own, in the chips' order (Voice, 1.47.0, is one with no strip action).
+        const slots = [...root.querySelectorAll('.cg-strip__acts > .cg-slot:not(.cg-slot--more):not(.cg-slot--tones):not(.cg-slot--boards)')];
+        (dock.chips ?? []).filter((chip) => chip.group !== 'windows').forEach((chip, index) => hit(`action:${chip.id}`, slots[index]?.querySelector('button')));
         for (const row of root.querySelectorAll('[data-cg-part]')) hit(`insert:${row.getAttribute('data-cg-part') ?? ''}`, row.querySelector('.cg-ins'));
         // The one button of the status banner («Войти», «Назначить персону», «Повторить», «Подробнее»).
         hit('banner', root.querySelector('.cg-banner > .cg-btn--line'));
