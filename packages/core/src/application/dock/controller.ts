@@ -9,6 +9,11 @@
 // «Ещё раз», cancel, hide, expand, tone, Split, insert, Fix's replace and
 // restore, the Б2 answer, copy.
 //
+// A click opens its sheet at once (2026-10-22): while its start is still
+// gathered — on ChatSpace the open chat's read, up to a second — the sheet
+// shows the feature with the context stage and the button is busy; the
+// operation takes the sheet once it is admitted.
+//
 // Fix is the old extension's (decision X68): the person's Fix click or key
 // starts it and nothing opens while it runs; once done, its result replaces
 // the draft by itself (InsertService.applyFix, on the token the click left
@@ -22,8 +27,8 @@
 // opens its sheet and Coach its panel and never generate by themselves; a
 // window (Spenders, «Новые») opens.
 
-import { TONES } from '@cg/contracts/features';
-import { chatKeyOf } from '@cg/contracts/ids';
+import { TONES, type FeatureId } from '@cg/contracts/features';
+import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { type AnyActiveOpSummary } from '@cg/contracts/ops';
 import {
   DOCK_ACTION_IDS,
@@ -33,6 +38,7 @@ import {
   type DockVM,
   type ReasonVM,
   type RefusalVM,
+  type ResultVM,
   type RunningOpVM,
   type UiAction,
   type UiActionOf,
@@ -47,13 +53,24 @@ import { chatHandle } from '../navigation/chat-handle';
 import { type OpRecord } from '../ai/op-store';
 import { resultVm } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
-import { errorActions, errorVm, featureHotkey, msg, views } from '../ai/view-models';
-import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
+import { errorActions, errorVm, featureHotkey, msg, startingPhaseVm, views } from '../ai/view-models';
+import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation, type StartResult } from '../ai/workspace';
 import { flagReasonVm } from '../flag-reason';
 import { createPartFocus } from './focus-part';
 
 /** A hub page as the dock's «Нет персоны» menu names it: the settings page's own handle form (`page-<id>`). */
 const dockPageHandle = (pageId: number): string => `page-${String(pageId)}`;
+
+/** A dock click whose start is still being gathered: what its sheet shows until the operation takes it. */
+interface Starting {
+  /** The sheet's own id until the operation's (never an operation's). */
+  readonly id: string;
+  readonly feature: FeatureId;
+  /** Epoch ms of the click. */
+  readonly at: number;
+  /** False — the person's Fix: no sheet while it runs (X68), only its busy button. */
+  readonly sheet: boolean;
+}
 
 /** The keys footer is shown under the first results (ui-design §4.3). */
 export const KEYS_FOOTER_RESULTS = 5;
@@ -130,6 +147,10 @@ export function createDockController(ws: AiWorkspace): DockController {
   const partFocus = createPartFocus();
   /** X68: the Fixes the person started from here, by the cause of their click or key — each writes its own result. */
   const autoFix = new Map<string, CauseKind>();
+  /** The click of each chat whose start is still being gathered: its sheet (none for the person's Fix, X68) and its busy button. */
+  const starting = new Map<ChatKey, Starting>();
+  /** When the person clicked for a generation started here: its stage line counts from the click, not from its admission. */
+  const clickedAt = new Map<string, number>();
 
   /** X68: a Fix of the person's click is over — its result goes into the field; what cannot opens the sheet. */
   async function fixOver(record: OpRecord): Promise<void> {
@@ -146,6 +167,7 @@ export function createDockController(ws: AiWorkspace): DockController {
 
   const offOps = ws.onOpEvent((event) => {
     if (event.kind !== 'done') return;
+    clickedAt.delete(event.record.view.opId);
     if (autoFix.has(event.record.view.opId)) void fixOver(event.record);
     const { view } = event.record;
     if (view.state !== 'done' || !isDraftFeature(view.feature) || !event.record.own || counted.has(view.opId)) return;
@@ -161,12 +183,13 @@ export function createDockController(ws: AiWorkspace): DockController {
 
   // ── the view ─────────────────────────────────────────────────────────────
 
-  function actions(situation: Situation, running: OpRecord | null, activeAction: DockActionId | null): Record<DockActionId, DockActionVM> {
+  function actions(situation: Situation, running: OpRecord | null, pending: Starting | null, activeAction: DockActionId | null): Record<DockActionId, DockActionVM> {
     const { catalog } = ws.ports;
     const { chat, ready } = situation;
     const allOff: ReasonVM | null = ws.offReason(situation);
-    // A Coach turn is the Coach's whichever of its steps runs: its auto-recap is a recap of the Coach surface.
-    const busyAction = running === null ? null : running.view.surface === 'coach' ? 'coach' : policyOf(running.view.feature).dockAction;
+    // A Coach turn is the Coach's whichever of its steps runs: its auto-recap is a recap of the Coach surface. A click
+    // whose start is still being gathered is its button's already.
+    const busyAction = running !== null ? (running.view.surface === 'coach' ? 'coach' : policyOf(running.view.feature).dockAction) : pending === null ? null : policyOf(pending.feature).dockAction;
     const recapReady = chat !== null && ready !== null && hasRecapCopy(ready);
     const entries = DOCK_ACTION_IDS.map((id): [DockActionId, DockActionVM] => {
       let reason: ReasonVM | null = allOff;
@@ -234,18 +257,63 @@ export function createDockController(ws: AiWorkspace): DockController {
     return ws.recaps.hasAny(ws.recapOwner(ready), flagUsable(ready.bootstrap, ready.page.pageId, 'recap'));
   }
 
+  /** The sheet of a click whose start is still being gathered: the feature and the fan, the context stage, nothing to act on yet. */
+  function startingVm(pending: Starting, targetName: string | null): ResultVM {
+    return {
+      opId: pending.id,
+      feature: pending.feature,
+      surface: 'dock',
+      state: 'admitted',
+      startedAt: pending.at,
+      phase: startingPhaseVm(pending.at),
+      streamText: null,
+      parts: null,
+      variants: null,
+      meta: [],
+      splitRequested: ws.split(),
+      targetName,
+      draftNotSent: false,
+      sendProgress: null,
+      error: null,
+      errorActions: [],
+      stale: null,
+      toneUsed: null,
+      canRegenerate: false,
+      regenerateReason: null,
+      confirm: null,
+      fix: null,
+      unparsed: false,
+      cachedAt: null,
+      expanded: false,
+      debug: null,
+    };
+  }
+
+  /** A generation started from here counts its stage line from the person's click, as its starting sheet did. */
+  function fromClick(result: ResultVM): ResultVM {
+    const at = clickedAt.get(result.opId);
+    return at === undefined ? result : { ...result, startedAt: at, phase: result.phase === null ? null : { ...result.phase, startedAt: at } };
+  }
+
   function build(): DockVM {
     const { catalog } = ws.ports;
     const situation = ws.situation();
     const { chat } = situation;
     const settings = ws.env.settings?.settings ?? null;
-    const sheet = chat === null ? null : ws.sheet(chat.key);
     const running = chat === null ? null : ws.running(chat.key);
+    const pending = chat === null ? null : (starting.get(chat.key) ?? null);
+    // A click whose start is still being gathered has the sheet until its operation, a refusal or an error takes it.
+    const sheet = chat === null || pending?.sheet === true ? null : ws.sheet(chat.key);
     const shown = sheet !== null && sheet.kind === 'draft' ? ws.ops.get(sheet.opId) : null;
     // A canceled generation leaves no sheet; a result of a draft feature is the sheet.
-    const result = shown !== null && shown.view.state !== 'canceled' ? resultVm(ws, shown, { regenerate: { type: 'Regenerate', operationId: shown.view.opId } }) : null;
+    const result =
+      pending?.sheet === true
+        ? startingVm(pending, situation.fanName)
+        : shown !== null && shown.view.state !== 'canceled'
+          ? fromClick(resultVm(ws, shown, { regenerate: { type: 'Regenerate', operationId: shown.view.opId } }))
+          : null;
     const activeAction: DockActionId | null = result !== null ? policyOf(result.feature).dockAction : sheet?.kind === 'recap' ? 'recap' : sheet?.kind === 'review' ? 'review' : null;
-    const generating = running !== null;
+    const generating = running !== null || pending !== null;
     const lockReason = ws.offReason(situation) ?? (generating ? catalog.reason('locked-during-generation') : null);
     const quota = situation.quota;
     const remaining = quota?.remainingRequestsToday ?? null;
@@ -257,7 +325,7 @@ export function createDockController(ws: AiWorkspace): DockController {
     const contract = situation.host.contract;
     const broken = contractBroken(contract);
     const handle = chat !== null && situation.ready !== null ? chat.handle : null;
-    const actionVms = actions(situation, running, activeAction);
+    const actionVms = actions(situation, running, pending, activeAction);
     const mode = situation.copyOnly === null ? 'insert' : 'copy-only';
     const composer = situation.host.composer;
     const focusPart = partFocus.next(result, mode, composer, chat !== null && composer !== null && chatKeyOf(composer.chat) === chat.key);
@@ -324,18 +392,34 @@ export function createDockController(ws: AiWorkspace): DockController {
       if (!autoFix.has(running.view.opId)) ws.setSheet(chat.key, { kind: 'draft', opId: running.view.opId });
       return done(action.type, 'noop', { opId: running.view.opId });
     }
+    // The click's start is still being gathered: this one is that start's click again.
+    if (starting.has(chat.key)) return done(action.type, 'noop');
     // What the field held at the click: an answer the person waited for over it may take the focus (X44).
     const composerAtClick = ws.situation().host.composer;
-    const result = await ws.startFeature({
-      feature: action.feature,
-      surface: 'dock',
-      options: action.options,
-      cause,
-      ...(regenerateOf === undefined ? {} : { regenerateOf, force: true }),
-    });
+    // The click answers at once: its sheet opens (the person's Fix has none, X68) and its button is busy while the start
+    // is gathered; on ChatSpace that is the open chat's read, up to a second.
+    const click: Starting = { id: ws.ports.ids.uuid(), feature: action.feature, at: ws.ports.clock.now(), sheet: action.feature !== 'fix' || regenerateOf !== undefined };
+    starting.set(chat.key, click);
+    ws.bump();
+    let result: StartResult;
+    try {
+      result = await ws.startFeature({
+        feature: action.feature,
+        surface: 'dock',
+        options: action.options,
+        cause,
+        ...(regenerateOf === undefined ? {} : { regenerateOf, force: true }),
+      });
+    } finally {
+      if (starting.get(chat.key) === click) starting.delete(chat.key);
+      ws.bump();
+    }
     switch (result.kind) {
       case 'started': {
-        if (!result.reopened) partFocus.started(result.opId, composerAtClick !== null && chatKeyOf(composerAtClick.chat) === chat.key ? composerAtClick : null);
+        if (!result.reopened) {
+          clickedAt.set(result.opId, click.at);
+          partFocus.started(result.opId, composerAtClick !== null && chatKeyOf(composerAtClick.chat) === chat.key ? composerAtClick : null);
+        }
         // X68: the person's Fix shows nothing while it runs; its result goes into the field when it is done.
         if (action.feature === 'fix' && regenerateOf === undefined) {
           autoFix.set(result.opId, cause);

@@ -119,6 +119,11 @@ export function phaseVm(view: Pick<OpView, 'opId' | 'state' | 'phase' | 'started
   };
 }
 
+/** The stage line of a click whose start is still being gathered (no operation yet): the context, nothing to cancel. */
+export function startingPhaseVm(startedAt: number): PhaseVM {
+  return { startedAt, stages: [{ id: 'context', label: msg(STAGE_KEYS.context), state: 'current' }], retryAt: null, cancel: null };
+}
+
 // ── error cards (ui-design §4.8) ────────────────────────────────────────────
 
 export interface ErrorActionContext {
