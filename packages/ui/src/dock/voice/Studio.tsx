@@ -17,7 +17,7 @@ import { ActionButton, Button, Caret, Dot, ElapsedTimer, ErrorCard, Icon, Segmen
 import { Head, HideButton } from '../Head';
 import { type VoiceProps } from '../lazy-part';
 import { toneOf } from '../model';
-import { WAVE_BARS, clockText, decodeTake, nowPlaying, play, positionOf, stop, type DecodedTake } from './player';
+import { WAVE_BARS, clockText, decodeTake, nowPlaying, pause, pausedAt, play, positionOf, stop, type DecodedTake } from './player';
 
 const TAG_KEYS: Readonly<Record<VoiceTag, I18nKey>> = {
   '[warmly]': 'voice.tag.warmly',
@@ -413,6 +413,7 @@ function Player({ take }: { readonly take: VoiceTakeVM }): JSX.Element {
   }, [sha, win]);
   const now = nowPlaying.value;
   const isPlaying = now !== null && sha !== null && now.sha256 === sha;
+  const stopped = sha === null ? null : (pausedAt.value.get(sha) ?? null);
   // While this take plays, the waveform follows it frame by frame; otherwise nothing ticks.
   useLayoutEffect(() => {
     if (!isPlaying || win === null) return undefined;
@@ -422,13 +423,13 @@ function Player({ take }: { readonly take: VoiceTakeVM }): JSX.Element {
     });
     return () => win.cancelAnimationFrame(frame);
   }, [isPlaying, win]);
-  const position = sha === null || win === null || !isPlaying ? 0 : (positionOf(win, sha) ?? 0);
+  const position = sha === null ? 0 : isPlaying ? (positionOf(sha) ?? 0) : (stopped ?? 0);
   const duration = decoded?.duration ?? 0;
   const progress = duration > 0 ? position / duration : 0;
   const toggle = (): void => {
     if (win === null || decoded === null || sha === null) return;
-    if (isPlaying) stop();
-    else play(win, sha, decoded, 0).catch(() => setFailed(true));
+    if (isPlaying) pause();
+    else play(win, sha, decoded).catch(() => setFailed(true));
   };
   const seekTo = (seconds: number): void => {
     if (win === null || decoded === null || sha === null) return;
@@ -485,7 +486,7 @@ function Player({ take }: { readonly take: VoiceTakeVM }): JSX.Element {
           <i key={index} class={(index + 0.5) / peaks.length <= progress ? 'is-past' : undefined} style={{ height: `${String(Math.round(3 + peak * 17))}px` }} />
         ))}
       </span>
-      <span class="cg-take__time cg-num">{decoded === null ? '–:––' : isPlaying ? clockText(position) : clockText(duration)}</span>
+      <span class="cg-take__time cg-num">{decoded === null ? '–:––' : isPlaying || stopped !== null ? clockText(position) : clockText(duration)}</span>
     </span>
   );
 }

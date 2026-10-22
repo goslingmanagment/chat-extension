@@ -31,9 +31,20 @@ let context: AudioContext | null = null;
 let source: AudioBufferSourceNode | null = null;
 const decoded = new Map<string, Promise<DecodedTake>>();
 const playing = signal<NowPlaying | null>(null);
+/** Where a paused take stopped, by its sha256: its next ▶ goes on from there. */
+const paused = signal<ReadonlyMap<string, number>>(new Map());
 
 /** The take that plays, for every row to read; null — silence. */
 export const nowPlaying: ReadonlySignal<NowPlaying | null> = playing;
+/** The paused takes and where they stopped. */
+export const pausedAt: ReadonlySignal<ReadonlyMap<string, number>> = paused;
+
+function withPaused(sha256: string, at: number | null): void {
+  const next = new Map(paused.value);
+  if (at === null) next.delete(sha256);
+  else next.set(sha256, at);
+  paused.value = next;
+}
 
 /** The one context that plays, made on the first ▶ (a click: the page's autoplay rules let it start). */
 function contextOf(win: Window): AudioContext {
@@ -84,33 +95,50 @@ export function decodeTake(win: Window, sha256: string, bytes: ArrayBuffer): Pro
   return run;
 }
 
-/** Where the take that plays is now, in seconds; null — it does not play. */
-export function positionOf(_win: Window, sha256: string): number | null {
+/** Where a take is, in seconds: the playing one's live place, a paused one's stop; null — at its start, silent. */
+export function positionOf(sha256: string): number | null {
   const now = playing.value;
-  if (now === null || now.sha256 !== sha256 || context === null) return null;
-  return Math.min(now.duration, now.offset + (context.currentTime - now.startedAt));
+  if (now !== null && now.sha256 === sha256 && context !== null) return Math.min(now.duration, now.offset + (context.currentTime - now.startedAt));
+  return paused.value.get(sha256) ?? null;
 }
 
-/** Plays a take from `offset` seconds; whatever played stops. Called on the person's click (the context may start then). */
-export async function play(win: Window, sha256: string, take: DecodedTake, offset = 0): Promise<void> {
-  stop();
+/**
+ * Plays a take from `offset` seconds — by default from where it was paused, else from its start; whatever played
+ * pauses. Called on the person's click (the context may start then).
+ */
+export async function play(win: Window, sha256: string, take: DecodedTake, offset?: number): Promise<void> {
+  pause();
+  const at = offset ?? paused.value.get(sha256) ?? 0;
   const ctx = contextOf(win);
   if (ctx.state === 'suspended') await ctx.resume();
   const node = ctx.createBufferSource();
   node.buffer = take.buffer;
   node.connect(ctx.destination);
-  const from = offset >= take.duration - 0.05 ? 0 : Math.max(0, offset);
+  const from = at >= take.duration - 0.05 ? 0 : Math.max(0, at);
   node.onended = () => {
     if (source !== node) return;
+    // Played to its end: its next ▶ starts it again.
     source = null;
     playing.value = null;
+    withPaused(sha256, null);
   };
   node.start(0, from);
   source = node;
+  withPaused(sha256, null);
   playing.value = { sha256, offset: from, startedAt: ctx.currentTime, duration: take.duration };
 }
 
-/** Stops what plays (a pause keeps nothing: the next play says where from). */
+/** Pauses what plays: the take keeps its place for the next ▶. */
+export function pause(): void {
+  const now = playing.value;
+  if (now !== null) {
+    const at = positionOf(now.sha256);
+    if (at !== null) withPaused(now.sha256, at);
+  }
+  stop();
+}
+
+/** Stops what plays, keeping no place (the studio closed, another chat). */
 export function stop(): void {
   const node = source;
   source = null;

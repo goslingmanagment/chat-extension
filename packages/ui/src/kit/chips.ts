@@ -16,7 +16,7 @@ import { type IconName } from './components/Icon';
  */
 export const DOCK_GROUP_SLOT: Readonly<Record<DockChipGroup, string>> = {
   reply: 'cg-slot cg-slot--reply',
-  draft: 'cg-slot',
+  draft: 'cg-slot cg-slot--draft',
   openers: 'cg-slot',
   analysis: 'cg-slot cg-slot--two',
   windows: 'cg-slot cg-slot--boards',

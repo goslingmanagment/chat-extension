@@ -2,6 +2,9 @@
 // (the fake hub's MP3), «Ещё вариант» a second one, then «Прикрепить» hands the chosen take to the site's field — on
 // ChatSpace by a drop on the composer, on Fansly through its own upload window, whose «Upload» the person presses.
 
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { FANSLY_MAIN } from '../../support/fansly-stand';
 import { scenario } from '../kit';
 
@@ -31,6 +34,17 @@ scenario(
     });
     await s.wait(800);
     await s.shot('two-takes');
+    // ▶ of the first take: Web Audio plays it in our root, the waveform and the clock follow; ‖ keeps its place.
+    await (await s.h.ours('dock', '.cg-take__play')).click();
+    await s.wait(1200);
+    await (await s.h.ours('dock', '.cg-take__play')).click();
+    await s.shot('paused');
+    // «Скачать MP3» of the chosen take: a Blob saved from our closed root.
+    const downloads = join(s.out, 'downloads');
+    const saved = (): string[] => (existsSync(downloads) ? readdirSync(downloads).filter((name) => name.endsWith('.mp3')) : []);
+    await (await s.h.ours('dock', '.cg-take.is-selected .cg-take__dl')).click();
+    await s.browser.waitUntil(() => saved().length > 0, { timeout: 15_000, timeoutMsg: 'the MP3 was not saved' });
+    console.log(`cg-see downloads: ${saved().join(', ')}`);
     await s.press(/^Прикрепить/, 'dock', '.cg-voice__foot button');
     if (s.site === 'fansly') {
       // The site's own upload window: the person presses «Upload».
