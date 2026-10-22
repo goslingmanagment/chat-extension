@@ -471,6 +471,18 @@ export const HostPhotoUrlSchema = z.string().check(
   z.regex(/^https:\/\/[a-z0-9-]+\.ompcdn\.com\/[^\s"'<>\\]+$/),
 );
 
+/**
+ * A photo's address on Fansly's CDN (`cdn*.fansly.com`), as the open chat's history names it: CloudFront-signed for the
+ * reader's own address, so only this browser can load it, and the CDN lets only fansly.com read it.
+ */
+export const FanslyPhotoUrlSchema = z.string().check(
+  z.maxLength(LIVE_IMAGE_LIMITS.urlMaxChars),
+  z.regex(/^https:\/\/cdn[0-9]*\.fansly\.com\/[^\s"'<>\\]+$/),
+);
+
+/** A photo of the fan's latest turn on Fansly (`fansly.ppv.read` `photos`), for the tab to draw (`HostPort.loadImages`). */
+export const FanslyPhotoRefSchema = z.strictObject({ platformMessageId: NativeIdSchema, sentAt: IsoTimestampSchema, mediaId: NativeIdSchema, url: FanslyPhotoUrlSchema });
+
 /** One photo of a message as the host's API names it: the platform's media id and the address of its mid-size rendition. */
 export const HostPhotoSchema = z.strictObject({ mediaId: NativeIdSchema, url: HostPhotoUrlSchema });
 export type HostPhoto = z.infer<typeof HostPhotoSchema>;
@@ -890,9 +902,9 @@ export interface HostPort {
    */
   chatReadState?(chat: ChatRef, username: string): Promise<ChatReadRead>;
   /**
-   * The photos the page already shows, drawn as JPEG of at most `LIVE_IMAGE_LIMITS.maxEdgePx` (the host's media proxy
-   * lets the page read them). Those that came within `waitMs`, in the order asked; never rejects. Absent on a host
-   * that cannot.
+   * The photos the page already shows, drawn as JPEG of at most `LIVE_IMAGE_LIMITS.maxEdgePx` (ChatSpace: the media
+   * proxy lets the page read them; Fansly: read as the page from its CDN). Those that came within `waitMs`, in the order
+   * asked; never rejects. Absent on a host that cannot.
    */
   loadImages?(refs: readonly LiveImageRef[], options: { readonly waitMs: number }): Promise<readonly LiveImage[]>;
   /** Prechecks of the open chat. */

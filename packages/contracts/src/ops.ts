@@ -748,7 +748,7 @@ export interface AiStartFields {
   readonly fresh?: LiveTextTail | null;
   /** 1.27.0 (X54): the open chat's PPV state read from the host's API: ChatSpace's paid messages, Fansly's attachments. */
   readonly livePpv?: LivePpvState;
-  /** The fan's newest photos the host drew (ChatSpace's), JPEG. */
+  /** The fan's newest photos the host drew (ChatSpace's from its media proxy, Fansly's from its CDN), JPEG. */
   readonly liveImages?: readonly LiveImage[];
   /** The proof of freshness the site made of its snapshot (`CoverageProof`, its texts inside): Fansly's (P8b1). */
   readonly proof?: CoverageProof;

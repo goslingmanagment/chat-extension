@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { PPV_READ, readPpvState, type PpvCache, type PpvReadPort } from '../../../src/services/hosts/fansly/ppv';
+import { PPV_READ, latestFanPhotos, readOpenChat, readPpvState, type PpvCache, type PpvReadPort } from '../../../src/services/hosts/fansly/ppv';
 
 const CREATOR = '700000000000000017';
 const FAN = '920000000000000003';
@@ -91,5 +91,76 @@ describe('readPpvState', () => {
     const stranger: PpvReadPort = { history: () => Promise.resolve({ ...page(), messages: [{ id: '830000000000000001', groupId: '810000000000000099', senderId: CREATOR, attachments: [] }] }), orders: history(true) };
     expect(await readPpvState(stranger, chat, deps())).toEqual([]);
     expect(await readPpvState({ history: () => Promise.reject(new Error('429')), orders: history(true) }, chat, deps())).toEqual([]);
+  });
+});
+
+describe('the photos of the fan\'s latest turn', () => {
+  const cdn = (name: string, signed = true) => `https://cdn3.fansly.com/${FAN}/${name}.jpeg?ngsw-bypass=true${signed ? '&Policy=P&Key-Pair-Id=K&Signature=S' : ''}`;
+  /** A fan's photo: a 2048 original, its 1080 and 720 resizes and a blurred copy. */
+  const photo = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    ...extra,
+    media: {
+      mimetype: 'image/jpeg',
+      width: 2048,
+      height: 1536,
+      locations: [{ location: cdn(`${id}-original`) }],
+      variants: [
+        { type: 1, mimetype: 'image/jpeg', width: 720, height: 540, locations: [{ location: cdn(`${id}-720`) }] },
+        { type: 3, mimetype: 'image/jpeg', width: 1080, height: 810, locations: [{ location: cdn(`${id}-blur`) }] },
+        // The signature in `metadata`, as an avatar's may carry it.
+        { type: 1, mimetype: 'image/jpeg', width: 1080, height: 810, locations: [{ location: cdn(`${id}-1080`, false), metadata: { Policy: 'P', 'Key-Pair-Id': 'K', Signature: 'S' } }] },
+      ],
+    },
+  });
+  const message = (n: number, senderId: string, ...contentIds: string[]) => ({
+    id: String(830000000000000000n + BigInt(n)),
+    groupId: GROUP,
+    senderId,
+    createdAt: 1_790_000_000 + n,
+    attachments: contentIds.map((contentId) => ({ contentType: 1, contentId })),
+  });
+  const A = '770000000000000101';
+  const B = '770000000000000102';
+  const OLD = '770000000000000103';
+  const PRICED = '770000000000000104';
+  const VIDEO_FAN = '770000000000000105';
+  const fanPage = () => ({
+    // Fansly's order: newest first. The fan's two messages after the creator's last one; an older photo before it.
+    messages: [message(9, FAN, A, PRICED), message(8, FAN), message(7, FAN, B, A), message(6, CREATOR), message(5, FAN, OLD)],
+    accountMedia: [
+      photo(A),
+      photo(B),
+      photo(OLD),
+      photo(PRICED, { permissions: ppvRow(5_000) }),
+      { id: VIDEO_FAN, media: { mimetype: 'video/mp4', width: 1920, height: 1080, locations: [{ location: cdn('video') }] } },
+    ],
+  });
+
+  it('only after the creator\'s last message, newest first, each once, the resize that covers 1024 px, never a priced one', () => {
+    expect(latestFanPhotos(fanPage(), chat)).toEqual([
+      { platformMessageId: '830000000000000009', sentAt: new Date((1_790_000_000 + 9) * 1000).toISOString(), mediaId: A, url: `https://cdn3.fansly.com/${FAN}/${A}-1080.jpeg?ngsw-bypass=true&Key-Pair-Id=K&Policy=P&Signature=S` },
+      { platformMessageId: '830000000000000007', sentAt: new Date((1_790_000_000 + 7) * 1000).toISOString(), mediaId: B, url: `https://cdn3.fansly.com/${FAN}/${B}-1080.jpeg?ngsw-bypass=true&Key-Pair-Id=K&Policy=P&Signature=S` },
+    ]);
+  });
+
+  it('none when the creator wrote last, for a video, or off Fansly\'s CDN', () => {
+    expect(latestFanPhotos({ ...fanPage(), messages: [message(10, CREATOR), ...fanPage().messages] }, chat)).toEqual([]);
+    expect(latestFanPhotos({ ...fanPage(), messages: [message(10, FAN, VIDEO_FAN)] }, chat)).toEqual([]);
+    const elsewhere = { id: A, media: { mimetype: 'image/jpeg', width: 800, height: 600, locations: [{ location: 'https://evil.example/a.jpeg' }] } };
+    expect(latestFanPhotos({ messages: [message(10, FAN, A)], accountMedia: [elsewhere] }, chat)).toEqual([]);
+  });
+
+  it('a start without the PPV state reads one page and asks no order', async () => {
+    const calls: string[] = [];
+    const read = await readOpenChat(
+      { history: (query) => (calls.push(`history ${query['before'] ?? 'fresh'}`), Promise.resolve({ ...fanPage(), messages: [...fanPage().messages, ...page()['messages'] as unknown[]] })), orders: () => (calls.push('orders'), Promise.resolve({})) },
+      chat,
+      deps(),
+      { ppv: false, photos: true },
+    );
+    expect(calls).toEqual(['history fresh']);
+    expect(read.items).toEqual([]);
+    expect(read.photos.map((ref) => ref.mediaId)).toEqual([A, B]);
   });
 });

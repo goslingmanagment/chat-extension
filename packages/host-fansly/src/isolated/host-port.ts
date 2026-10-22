@@ -1,7 +1,8 @@
 import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 // HostPort for Fansly (docs/project-unite/architecture.md §7.7): the isolated
-// world's face of a Fansly tab. It never touches the network or the hub token
-// and makes no request of its own to Fansly; it reads MAIN's stream (stream.ts)
+// world's face of a Fansly tab. It never touches the hub token and makes no
+// request of its own to Fansly's API (only `loadImages` reads the fan's photos
+// from its CDN, as the page would); it reads MAIN's stream (stream.ts)
 // and the page's DOM by its anchors (anchors.ts), and the address (route.ts).
 //
 // - `current`/`subscribe`: the identity (identity.ts), the route with its
@@ -53,14 +54,16 @@ import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, Fro
 import type { CgCode } from '@cg/contracts/errors';
 import type { FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
 import type { FanslyContractReport, FanslyHostPort } from '@cg/contracts/fansly-host';
-import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
+import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, LiveImage, LiveImageRef, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
 import type { ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import { digest } from '@cg/host-kit/common/digest';
+import { photosAsLiveImages } from '@cg/host-kit/isolated/photos';
 import { sameReport } from '@cg/host-kit/isolated/report';
 
 import { DOM_ANCHORS_NOT_YET, judgeAnchors, type AnchorStats, type AnchorWatcher, type DomAnchorStates } from './anchors';
 import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { FANSLY_ADAPTER_VERSION, buildFanslyReport, buildOf, type Observation } from './contract';
+import { fanslyCdnFetch } from './cdn-photos';
 import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
 import { createHeaderSlots, type HeaderSlots } from './header-slot';
@@ -841,6 +844,12 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       return Promise.resolve({ identity: current, revision: composerField.revision(), plainText: text.slice(0, DRAFT_MAX), provenance: composerField.provenance(), digest: digest(text) });
     },
     readVisibleTail: () => Promise.resolve(null),
+    /** The photos of the fan's latest turn, read from Fansly's CDN as the page (it lets only fansly.com read them). */
+    async loadImages(refs: readonly LiveImageRef[], wait: { readonly waitMs: number }): Promise<readonly LiveImage[]> {
+      if (disposed || refs.length === 0) return [];
+      const { win } = options;
+      return photosAsLiveImages(win.document, refs, wait.waitMs, (callback, ms) => win.setTimeout(callback, ms), fanslyCdnFetch(win)).catch(() => []);
+    },
     chatWindow(chat: ChatRef): ChatWindow | null {
       return chatWire !== null && sameChat(chat, routeState.chat) ? chatWindowOf(chat, chatWire) : null;
     },

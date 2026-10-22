@@ -18,7 +18,13 @@
 // The answer waits at most `answerMs`; what is not known by then is left out, and the reads go on and fill the cache
 // for the next click (Regenerate). A fan's «bought» is kept for the session (a purchase does not come undone), «not
 // bought» only briefly: a purchase since then shows on the fresh page's inline orders first.
+//
+// The same newest page names the photos of the fan's latest turn (`latestFanPhotos`) for Reply, Fix and Coach: the tab
+// draws them and they ride to the hub as images (`liveImages`). No request more: a start without the PPV state reads
+// only that page.
 
+import { FanslyPhotoUrlSchema, type LiveImageRef } from '@cg/contracts/host';
+import { LIVE_IMAGE_LIMITS } from '@cg/contracts/limits';
 import type { LivePpvAttachmentItem } from '@cg/contracts/ops';
 
 export const PPV_READ = {
@@ -138,6 +144,86 @@ export function orderHistoryRows(response: unknown): readonly unknown[] | null {
   return [...arrayOf(direct), ...arrayOf(aggregated)];
 }
 
+/** Fansly's blurred copy of a medium (variant type 3): never what the fan sent. */
+const BLURRED_VARIANT = 3;
+/** CloudFront's signature, when a location carries it in `metadata` instead of its address. */
+const SIGNATURE_KEYS = ['Key-Pair-Id', 'Policy', 'Signature', 'Expires'] as const;
+
+const numberOf = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+
+/** A node's first https location, signed, if it fits the CDN's address; null — none. */
+function locationOf(node: Record<string, unknown>): string | null {
+  for (const entry of arrayOf(node['locations']).map(recordOf)) {
+    const raw = entry?.['location'];
+    if (typeof raw !== 'string' || !raw.startsWith('https://')) continue;
+    try {
+      const url = new URL(raw);
+      const metadata = recordOf(entry?.['metadata']);
+      if (metadata !== null) for (const key of SIGNATURE_KEYS) if (typeof metadata[key] === 'string' && !url.searchParams.has(key)) url.searchParams.set(key, metadata[key]);
+      if (FanslyPhotoUrlSchema.safeParse(url.href).success) return url.href;
+    } catch {
+      // A broken address: the next one.
+    }
+  }
+  return null;
+}
+
+/**
+ * The still image of a fan's photo to draw (the hub describer's `pickFanslyImageLocation`): the smallest of its resizes
+ * and the original that covers `maxEdgePx`, else the largest; never a blurred copy. Null — not a photo, or no address.
+ */
+export function photoLocationOf(media: unknown): string | null {
+  const node = recordOf(media);
+  const mime = node?.['mimetype'];
+  if (node === null || typeof mime !== 'string' || !mime.startsWith('image/')) return null;
+  const candidates = arrayOf(node['variants'])
+    .map(recordOf)
+    .filter((variant): variant is Record<string, unknown> => variant !== null && typeof variant['mimetype'] === 'string' && variant['mimetype'].startsWith('image/') && Number(variant['type']) !== BLURRED_VARIANT)
+    .map((variant) => ({ edge: Math.max(numberOf(variant['width']), numberOf(variant['height'])), url: locationOf(variant) }));
+  candidates.push({ edge: Math.max(numberOf(node['width']), numberOf(node['height'])), url: locationOf(node) });
+  // Ties go to the resize (listed first), which is never larger in bytes.
+  const sorted = candidates.filter((candidate): candidate is { edge: number; url: string } => candidate.url !== null).sort((left, right) => left.edge - right.edge);
+  return (sorted.find((candidate) => candidate.edge >= LIVE_IMAGE_LIMITS.maxEdgePx) ?? sorted.at(-1))?.url ?? null;
+}
+
+/**
+ * The photos of the fan's latest turn on the chat's newest page — the fan's messages after the creator's last one,
+ * among the newest `LIVE_IMAGE_LIMITS.windowMessages` — newest first, each medium once, at most `maxImages`; never a
+ * priced one. Empty — none, or not this chat's page.
+ */
+export function latestFanPhotos(response: unknown, chat: PpvChat): LiveImageRef[] {
+  const page = recordOf(response);
+  if (page === null || !Array.isArray(page['messages'])) return [];
+  const media = new Map<string, unknown>();
+  for (const item of arrayOf(page['accountMedia'])) {
+    const id = idOf(recordOf(item)?.['id']);
+    if (id !== null) media.set(id, item);
+  }
+  const messages = page['messages']
+    .map(recordOf)
+    .filter((message): message is Record<string, unknown> => message !== null && idOf(message['id']) !== null && message['groupId'] === chat.groupId)
+    .sort((left, right) => newestFirst(left['id'] as string, right['id'] as string))
+    .slice(0, LIVE_IMAGE_LIMITS.windowMessages);
+  const refs: LiveImageRef[] = [];
+  for (const message of messages) {
+    if (message['senderId'] !== chat.fanId) break;
+    const seconds = message['createdAt'];
+    if (typeof seconds !== 'number' || !Number.isSafeInteger(seconds) || seconds <= 0) continue;
+    const sentAt = new Date(seconds * 1000).toISOString();
+    for (const attachment of arrayOf(message['attachments']).map(recordOf)) {
+      const mediaId = idOf(attachment?.['contentId']);
+      if (attachment?.['contentType'] !== ATTACHMENT_MEDIA || mediaId === null || refs.some((ref) => ref.mediaId === mediaId)) continue;
+      const item = media.get(mediaId);
+      if (item === undefined || ppvPriceOf(item) !== null) continue;
+      const url = photoLocationOf(recordOf(item)?.['media']);
+      if (url === null) continue;
+      refs.push({ platformMessageId: message['id'] as string, sentAt, mediaId, url });
+      if (refs.length >= LIVE_IMAGE_LIMITS.maxImages) return refs;
+    }
+  }
+  return refs;
+}
+
 /** One paid attachment of a creator's message on the pages read. */
 interface Paid {
   readonly messageId: string;
@@ -218,6 +304,21 @@ function remember(deps: PpvReadDeps, key: string, bought: boolean): void {
  * failed first page is an empty answer; a failed check leaves its attachment out.
  */
 export async function readPpvState(port: PpvReadPort, chat: PpvChat, deps: PpvReadDeps): Promise<LivePpvAttachmentItem[]> {
+  return (await readOpenChat(port, chat, deps, { ppv: true, photos: false })).items;
+}
+
+/** What one read of the open chat answers: the PPV state (`ppv`) and the photos of the fan's latest turn (`photos`). */
+export interface OpenChatRead {
+  readonly items: LivePpvAttachmentItem[];
+  readonly photos: LiveImageRef[];
+}
+
+/**
+ * The PPV state (`readPpvState`) and, from the same newest page, the photos of the fan's latest turn. Without `ppv`
+ * only that page is read and no order is asked.
+ */
+export async function readOpenChat(port: PpvReadPort, chat: PpvChat, deps: PpvReadDeps, want: { readonly ppv: boolean; readonly photos: boolean }): Promise<OpenChatRead> {
+  let photos: LiveImageRef[] = [];
   const paid: Paid[] = [];
   const seen = new Set<string>();
   /** `kind:id` → the fan bought it (inline, an order history, the cache). */
@@ -255,16 +356,18 @@ export async function readPpvState(port: PpvReadPort, chat: PpvChat, deps: PpvRe
 
   const work = (async () => {
     let before: string | null = null;
-    for (let page = 0; page < PPV_READ.pages; page += 1) {
+    for (let page = 0; page < (want.ppv ? PPV_READ.pages : 1); page += 1) {
       const query: Record<string, string> = { groupId: chat.groupId, limit: String(PPV_READ.pageSize) };
       if (before !== null) query['before'] = before;
       let read: HistoryPage | null;
       try {
-        read = readHistoryPage(await port.history(query), chat);
+        const response = await port.history(query);
+        read = readHistoryPage(response, chat);
+        if (page === 0 && want.photos && read !== null) photos = latestFanPhotos(response, chat);
       } catch {
         read = null;
       }
-      if (read === null) break;
+      if (read === null || !want.ppv) break;
       for (const key of read.bought) state.set(key, true);
       const fresh = read.paid
         .filter((item) => !seen.has(`${item.messageId}/${item.kind}:${item.id}`))
@@ -308,5 +411,5 @@ export async function readPpvState(port: PpvReadPort, chat: PpvChat, deps: PpvRe
     });
     if (items.length >= PPV_READ.maxItems) break;
   }
-  return items;
+  return { items, photos };
 }
