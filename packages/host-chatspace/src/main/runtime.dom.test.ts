@@ -618,6 +618,16 @@ describe('MAIN runtime — our read of the open chat from the API (X54)', () => 
     expect(fetches).toEqual([]);
   });
 
+  it('[read mark] a loaded row’s unread count forbids nothing; the fan’s message the socket brought does', async () => {
+    const h = harness as Harness;
+    // The seeded row is a loaded one (OnlyMonster's cached count, 2): the live search decides.
+    expect(await h.call('chatReadState', { acc: ACC, fan: OTHER, username: 'fan_three' })).toEqual({ ok: true, last: null });
+    expect(fetches.map((fetched) => fetched.url)).toEqual([`${API}accounts/${ACC}/chats?limit=10&query=fan_three&force=true`]);
+    h.page.cache.set(['chatList', ACC, 'all'], { pages: [{ items: [{ id: OTHER, unreadMessagesCount: 3, lastMessage: { id: '9100', isOutgoing: false } }] }] });
+    expect(await h.call('chatReadState', { acc: ACC, fan: OTHER, username: 'fan_three' })).toEqual({ ok: true, last: null });
+    expect(fetches).toHaveLength(1);
+  });
+
   it('[X54] only the page’s own read of its accounts names the API: another `/api/v0/` address carries no token', async () => {
     (harness as Harness).dispose();
     entries = [{ name: 'https://elsewhere.example.test/api/v0/chats/1' }];
