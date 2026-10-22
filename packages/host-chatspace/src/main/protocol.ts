@@ -87,10 +87,6 @@ export const KNOWN_FAN_MESSAGES = 10;
 export const OPEN_CHAT_PAGE_MAX = 100;
 export const OPEN_CHAT_REQUEST_MS = 10_000;
 export const OPEN_CHAT_PRICE_MAX = 10_000;
-/** contracts CHAT_READ_LIMITS.usernameMax. */
-export const CHAT_READ_USERNAME_MAX = 100;
-/** Chats one search of the list asks for: the page ChatSpace's own list asks (`limit=10`). */
-export const CHAT_READ_SEARCH_LIMIT = 10;
 /** contracts MEDIA_LIMITS, MEDIA_TYPES (decision X53). */
 export const MEDIA_FOLDERS_PAGE = 10;
 export const MEDIA_ITEMS_PAGE = 40;

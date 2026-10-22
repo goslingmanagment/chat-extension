@@ -5,7 +5,6 @@
 import { count, int, is, isDigest, isId, isToken, isUuid, orNull, shape, type Check, type Plain } from '@cg/host-kit/main/check';
 import { type Checkpoint } from './live';
 import {
-  CHAT_READ_USERNAME_MAX,
   KNOWN_FAN_MESSAGES,
   MAX_PARTS,
   MAX_SNAPSHOT,
@@ -203,7 +202,6 @@ export const PAYLOAD: Record<string, Check> = {
   previewSendCommit: isSend,
   flags: shape({ wsTap: is(true, false), previewSend: is(true, false), 'attribution?': is(true, false) }),
   openChatMessages: shape({ ...accFan, limit: int(1, OPEN_CHAT_PAGE_MAX), 'cursor?': isId }),
-  chatReadState: shape({ ...accFan, username: (value) => typeof value === 'string' && value.length > 0 && value.length <= CHAT_READ_USERNAME_MAX }),
   // Decision X53: the media picker's reads (media.ts), each with its own keys.
   media: (value) =>
     shape({ of: is('folders'), acc: isId, offset: int(0, 100_000) })(value) ||

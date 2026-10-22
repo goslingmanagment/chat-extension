@@ -77,7 +77,7 @@ import { ViewCell, done, refused, type SurfaceController } from '../boards/surfa
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
 import { type Attachment } from '../../domain/media/attachment';
 import { MediaDesk } from './media';
-import { SeenDesk, hostChatReadPort, type ChatReadPort } from './seen';
+import { SeenDesk, type ChatReadPort } from './seen';
 import { partsOfResult, previewResult, type PartRows } from './result';
 import { clickable, fanAttempts, fanSendsOf, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type FanSendFact, type FanSends, type PartAttempt } from './send-rows';
 
@@ -261,8 +261,8 @@ export interface PreviewControllerDeps {
    */
   readonly sha256?: (text: string) => Promise<string>;
   /**
-   * Whether the fan read our newest message, read live from the site (Fansly's, by its background); absent — the
-   * host's own chat list where it has one (ChatSpace), null — none.
+   * Whether the fan read our newest message, read live from the site (Fansly's, by its background); absent or null —
+   * none (ChatSpace: OnlyFans says it only in a chat's history, seen.ts).
    */
   readonly readState?: ChatReadPort | null;
 }
@@ -349,7 +349,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const mediaAttempts = new Map<string, { readonly chat: ChatRef; readonly taken: Attachment }>();
   /** Whether the fan read our newest message, by page and fan; its answers draw the fan's cards again. */
   const seen = new SeenDesk({
-    port: deps.readState === undefined ? hostChatReadPort(host) : deps.readState,
+    port: deps.readState ?? null,
     clock,
     changed: (key) => {
       for (const target of targets.values()) if (fanKey(target.pageId, target.fanRef) === key) changedFor(target.handle);
@@ -661,8 +661,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         const chat = chatOf(state);
         // A card a batch opened unseen asks nothing: only the one the person looks at.
         if (disposed || targets.get(state.handle) !== state || shadows.has(state.handle) || ctx.phase !== 'ready' || !pageFlag(ctx, 'preview') || chat === null) return null;
-        const info = infoNow(state);
-        return { pageId: state.pageId, chat, username: info.username, conversationRef: conversationNow(state) };
+        return { pageId: state.pageId, chat, conversationRef: conversationNow(state) };
       },
       force,
     );

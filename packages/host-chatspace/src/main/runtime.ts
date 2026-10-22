@@ -615,9 +615,6 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         };
         return open() ? om.openChatMessages(acc, fan, payload['limit'] as number, payload['cursor'] as string | undefined, open) : ERR_IDENTITY;
       }
-      case 'chatReadState':
-        // The chat list, not the history: nothing is marked read, so the chat need not be the open one.
-        return om.chatReadState(acc, fan, payload['username'] as string);
       case 'media':
         // Decision X53: the vault of an account the page has loaded, by its OnlyFans id; never a chat's history.
         return mediaRead(om, reader.accounts().find((account) => account.hostAccountId === acc)?.platformAccountId ?? null, payload);

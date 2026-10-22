@@ -175,7 +175,6 @@ export const TO_MAIN_TYPES = [
   'flags',
   'openChatMessages',
   'media',
-  'chatReadState',
 ] as const;
 export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 

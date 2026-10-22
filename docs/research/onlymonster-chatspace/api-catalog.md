@@ -271,12 +271,19 @@ WS: `account_scheduled_message_created/cancelled/sent/failed` (messages:5337-538
 ### 3.3 Список чатов — `GET api/v0/accounts/{acc}/chats?limit=10&offset=…` (реальное тело)
 ```json
 { "items": [ { "platform_fan_id": "str", "unread_messages_count": "num",
-    "last_message": { "id","content","sent_at", "platform_metadata": { …как в истории…, "fromUser": {сырой объект пользователя OF}, "toUser"? } },
+    "last_message": { "id","content","sent_at", "platform_metadata": { "isOpened","giphyId","lockedText","isFree","mediaCount","isTip","fromUser":{"id":num} } },
     "platform_metadata": { "canGoToProfile","canNotSendReason","canSendMessage","countPinnedMessages",
       "hasPurchasedFeed","hasUnreadTips","isMutedNotifications","lastReadMessageId" } } ],
   "has_more": "bool", "next_offset": "num" }
 ```
 Маппер `w7` composables:89361-89372.
+
+**Прочтения фаном в списке нет** (живые ответы 2026-10-09…22, 114 чатов, в том числе `query=<username>&force=true`): у
+`last_message.platform_metadata` ровно эти семь ключей, без `isNew` и без `is_from_fan` (отправитель — `fromUser.id`);
+так же урезан `lastMessage` в сыром списке самого OnlyFans (фикстура OFAPI `list-chats.json` старого клиента). Чатовый
+`lastReadMessageId` — наше собственное прочтение, не фана: у чатов, где последнее сообщение фана, он равен его id при
+`unread_messages_count` = 0 (16 из 16) и меньше при непрочитанном (3 из 4). Прочитал ли фан наше сообщение, говорит только
+история (`isNew` у каждого сообщения), а её загрузка помечает чат прочитанным.
 
 ### 3.4 Фан — `GET api/v0/accounts/{acc}/platforms/onlyfans/fans?fan_ids=…` (реальное тело)
 `{items:[сырой пользователь OF]}`, ключи: `avatar, avatarThumbs, canAddSubscriber, canCommentStory, canEarn, canLookStory, canPayInternal, canReceiveChatMessage, canReport, canRestrict, canTrialSend, currentSubscribePrice, displayName (= custom name), hasNotViewedStory, hasScheduledStream, hasStories, hasStream, header, headerSize, headerThumbs, hideChat, id, isActive, isBlocked, isPerformer, isRealPerformer, isRestricted, isVerified, lastSeen, listsStates[{id,type,name,hasUser,canAddUser,cannotAddUserReason}], name, notice (заметка), subscribePrice, subscribedBy, subscribedByAutoprolong, subscribedByData{…}, subscribedByExpire, subscribedByExpireDate, subscribedIsExpiredNow, subscribedOn, subscribedOnData{price, newPrice, regularPrice, subscribePrice, discountPercent, discountPeriod, subscribeAt, expiredAt, renewedAt, discountStartedAt, discountFinishedAt, status, isMuted, unsubscribeReason, duration, tipsSumm, subscribesSumm, messagesSumm, postsSumm, streamsSumm, totalSumm, subscribes[…], hasActivePaidSubscriptions}, subscribedOnDuration, subscribedOnExpire, subscribedOnExpiredNow, tipsEnabled, tipsMax, tipsMin, tipsMinInternal, tipsTextEnabled, username, view`. Время ответа ~350 мс (кэш OM; `force=true` — обновить).

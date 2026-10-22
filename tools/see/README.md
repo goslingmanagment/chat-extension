@@ -23,8 +23,7 @@ second): open it for the owner in the Claude desktop browser pane. `--gif`
 makes `see.gif` from the run's frames (needs `ffmpeg`).
 
 Scenarios: `dock`, `reply`, `coach`, `recap`, `review`, `fix`, `hi`,
-`spenders`, `spenders-seen` (whether the fan read our newest message: «не
-прочитано», then «прочитано» by the header and under its bubble), `newcomers`, `palette`, `fan-panel`, `pages` (popup and
+`spenders`, `newcomers`, `palette`, `fan-panel`, `pages` (popup and
 settings), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
 first), `log-download` (Hi on in a long chat, Ping off in a short one by its
 gate, pressed, then «Скачать лог» in the popup; the files land in
