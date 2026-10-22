@@ -23,9 +23,9 @@ export const FEATURES_COMMON = {
   coach: { kind: 'ai', chip: { group: 'analysis', priority: 30, icon: 'bulb' }, hotkey: 'coach' },
   /**
    * 1.47.0: Voice — the draft spoken in the model's voice (the hub's voice-notes lane): a free script, paid takes, the
-   * MP3 into the chat's field. Its studio is the dock's sheet; a tool of the draft, beside Fix.
+   * MP3 into the chat's field. Its studio is the dock's sheet. 1.50.0: its chip stands after Ping, behind a seam.
    */
-  voice: { kind: 'panel', chip: { group: 'draft', priority: 20, icon: 'mic' } },
+  voice: { kind: 'panel', chip: { group: 'voice', priority: 10, icon: 'mic' } },
   /** Fresh page text of the open chat for a draft (D-14): not a button, a part of Reply, Fix, Hi and Ping. */
   'fresh-text': { kind: 'service' },
   spenders: { kind: 'board', chip: { group: 'windows', priority: 10, icon: 'bill' }, hotkey: 'spenders' },

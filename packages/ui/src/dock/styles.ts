@@ -227,17 +227,17 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
   .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
 }
 @container cg (max-width: 719px) {
-  ${/* 1.47.0: Voice, the draft group's chip with an icon, is its 🎙 here — the words of the bar fit a little longer; its name stays in its hint. */ ''}
-  .cg-strip .cg-slot--draft .cg-act--ico { width: 28px; padding: 0; }
-  .cg-slot--draft .cg-act--ico > .cg-ico { display: block; }
-  .cg-slot--draft .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
+  ${/* 1.47.0: Voice, the chip after Ping, is its 🎙 here — the words of the bar fit a little longer; its name stays in its hint. */ ''}
+  .cg-strip .cg-slot--voice .cg-act--ico { width: 28px; padding: 0; }
+  .cg-slot--voice .cg-act--ico > .cg-ico { display: block; }
+  .cg-slot--voice .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
 @container cg (max-width: 659px) {
   .cg-strip__opts { padding-left: 4px; }
   .cg-strip .cg-div { margin: 0 2px; }
   ${/* The words' chips 6 px in (2026-10-23): with 🎙 the bar still fits a ~600 px composer, as it did before Voice; an icon's chip keeps its own width. */ ''}
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 6px; }
-  .cg-strip .cg-slot--draft .cg-act--ico, .cg-strip .cg-slot--boards .cg-act--ico { padding: 0; }
+  .cg-strip .cg-slot--voice .cg-act--ico, .cg-strip .cg-slot--boards .cg-act--ico { padding: 0; }
   ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
   .cg-tones .cg-opt { width: 22px; }
   .cg-tones__track { gap: 2px; }

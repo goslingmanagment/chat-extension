@@ -60,9 +60,10 @@ export interface DockActionVM {
  * 1.15.0 (R20 F4). The groups of the bar's chips, in the bar's order (ui-design §3.1): Reply with the capsule of
  * its options │ the draft's tools │ the openers │ what is known about the fan — and, at the right end, the windows.
  * A seam stands before the first chip of a group. How a group is laid out is `ui/kit`'s; its test holds every
- * value here to a row there.
+ * value here to a row there. 1.50.0: Voice, a group of its own between the openers and the analysis (the owner,
+ * 2026-10-23: «справа от Ping через перегородку»).
  */
-export const DOCK_CHIP_GROUPS = ['reply', 'draft', 'openers', 'analysis', 'windows'] as const;
+export const DOCK_CHIP_GROUPS = ['reply', 'draft', 'openers', 'voice', 'analysis', 'windows'] as const;
 export type DockChipGroup = (typeof DOCK_CHIP_GROUPS)[number];
 
 /** 1.15.0 (R20 F4). The icons a chip may show on a narrow bar instead of its word; `ui/kit` draws each (its test holds the list to the kit's icon set). */

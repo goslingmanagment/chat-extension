@@ -204,7 +204,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     const hint = chip.group === LEAD && vm.persona !== null ? t('dock.hint.replyAs', { persona: vm.persona.label }) : i18n.text(chip.hint);
     const off = whyOff(chip);
     // A panel that works on (Voice renders a take) is no generation ⌘. stops: its hint stays its own.
-    let tooltip = chip.busy && chip.group !== 'draft' ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(chip.hotkey)), hint);
+    let tooltip = chip.busy && chip.group !== 'voice' ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(chip.hotkey)), hint);
     if (chip.badge !== null) tooltip = `${tooltip}\n${t(chip.badge === 'voice-ready' ? 'dock.badge.voiceReady' : 'dock.badge.recapReady')}`;
     return (
       <StripButton
