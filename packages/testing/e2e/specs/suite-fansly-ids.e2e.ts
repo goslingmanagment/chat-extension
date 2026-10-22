@@ -378,6 +378,11 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     { fanRef: C.fan, displayName: 'Stand Fan 41', conversationRef: null, lifetimeUsd: 800, windowUsd: 80 },
     { fanRef: STRANGER, displayName: 'Unknown fan', conversationRef: null, lifetimeUsd: 700, windowUsd: 70 },
   ];
+  /**
+   * Our calls since `mark` besides the preview's reads of a group (whether the fan read our newest message: `GET
+   * /group/<id>/`, once the preview rests on a fan whose group is known — or got known by «Открыть чат» meanwhile).
+   */
+  const oursBesidesReadState = async (mark: number) => (await fakeFansly().calls('ours', mark)).filter((entry) => !(entry.method === 'GET' && entry.route === 'group.detail'));
   const show = async (name: string): Promise<void> => {
     await leaveField();
     await browser.keys([...PANEL, 'm']);
@@ -398,9 +403,6 @@ describe('Spenders on Fansly (R20 P9e)', () => {
   it('[SP-037] [SP-035] [FS-SPD-2] [SP-055] [TL-004] Reply inserts part 0, Fansly’s own Send confirms it, the reopened preview offers part 1; both themes without statistics', async function () {
     this.timeout(120_000);
     const mark = await fakeFansly().mark();
-    // Ours besides the preview's read of Birch's group (whether the fan read our newest message): nothing.
-    const oursBesidesReadState = async (): Promise<unknown[]> =>
-      (await fakeFansly().calls('ours', mark)).filter((entry) => !(entry.method === 'GET' && entry.route === 'group.detail' && (entry.path ?? '').startsWith(`/api/v1/group/${B.group}/`)));
     const hubMark = await hub().mark();
     await show('Hub Birch');
     await browser.waitUntil(async () => (await callsOf(hub(), hubMark, ['clientConversationFeed'])).some((call) => call.fan === B.fan && call.conversation === B.group), { timeout: 15_000, timeoutMsg: 'the preview did not read Birch’s group from the hub archive' });
@@ -426,12 +428,12 @@ describe('Spenders on Fansly (R20 P9e)', () => {
       await browser.pause(100);
       writeFileSync(join(E2E_EVIDENCE_DIR, `spenders-fansly-p9e-${theme}.png`), Buffer.from(await browser.takeScreenshot(), 'base64'));
     }
-    expect(await oursBesidesReadState()).toEqual([]);
+    expect(await oursBesidesReadState(mark)).toEqual([]);
     await ours('modal', first).click();
     await browser.keys(['Enter']);
     await browser.waitUntil(async () => (await route()).groupId === B.group && (await $(FANSLY_MAIN.field).getValue()).length > 0, { timeout: 25_000, timeoutMsg: '«Открыть и вставить» did not put the preview’s part into Birch’s composer' });
     expect(await oursExists('modal', '.cg-spw')).toBe(false);
-    expect(await oursBesidesReadState()).toEqual([]);
+    expect(await oursBesidesReadState(mark)).toEqual([]);
     expect(await $(FANSLY_MAIN.field).getValue()).toBe(firstText);
     // A trusted click on the site's own send button: P7f needs its receipt AND echo, linked to this insert.
     await $(FANSLY_MAIN.send).click();
@@ -451,17 +453,17 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     await browser.keys(['Enter']);
     await browser.waitUntil(async () => (await $(FANSLY_MAIN.field).getValue()) === secondText, { timeout: 25_000, timeoutMsg: 'Enter did not insert the next, unsent part 1' });
     expect((await fakeFansly().calls('page', mark)).filter((entry) => entry.route === 'message.send' && entry.status === 200)).toHaveLength(1);
-    expect(await oursBesidesReadState()).toEqual([]);
+    expect(await oursBesidesReadState(mark)).toEqual([]);
   });
 
   it('[SP-041] one search on «Открыть чат», by displayName, opens the exact fan’s group; preview alone stays quiet', async () => {
     await openChat(A.group, A.fan);
     const mark = await fakeFansly().mark();
     await show('Stand Fan 41');
-    expect(await fakeFansly().calls('ours', mark)).toEqual([]);
+    expect(await oursBesidesReadState(mark)).toEqual([]);
     await pressOurs('modal', '.cg-pv button', /^Открыть чат$/);
     await browser.waitUntil(async () => (await route()).groupId === C.group, { timeout: 20_000, timeoutMsg: 'the inbox search did not open the found group' });
-    expect((await fakeFansly().calls('ours', mark)).map((entry) => [entry.method, entry.route, entry.status])).toEqual([['GET', 'messaging.groups', 200]]);
+    expect((await oursBesidesReadState(mark)).map((entry) => [entry.method, entry.route, entry.status])).toEqual([['GET', 'messaging.groups', 200]]);
   });
 
   it('[SP-041] a successful empty search gets-or-creates once; no message or ack from us', async () => {
@@ -471,6 +473,6 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     await pressOurs('modal', '.cg-pv button', /^Открыть чат$/);
     await browser.waitUntil(async () => (await route()).groupId !== A.group, { timeout: 20_000, timeoutMsg: 'the one get-or-create did not open a group' });
     expect((await route()).groupId).not.toBe(STRANGER);
-    expect((await fakeFansly().calls('ours', mark)).map((entry) => [entry.method, entry.route, entry.status])).toEqual([['GET', 'messaging.groups', 200], ['POST', 'group.create', 200]]);
+    expect((await oursBesidesReadState(mark)).map((entry) => [entry.method, entry.route, entry.status])).toEqual([['GET', 'messaging.groups', 200], ['POST', 'group.create', 200]]);
   });
 });
