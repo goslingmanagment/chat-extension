@@ -147,10 +147,6 @@ export const standServer = {
   /** The model's message in a chat, not yet seen by the fan; returns its id. */
   modelMessage: async (accountId: string, fanId: string, text?: string): Promise<string> =>
     ((await control('/__stand/model-message', { body: { accountId, fanId, ...(text !== undefined ? { text } : {}) } })) as { id: string }).id,
-  /** The fan opens the chat: the model's messages in it read as seen. */
-  fanRead: async (accountId: string, fanId: string): Promise<void> => {
-    await control('/__stand/fan-read', { body: { accountId, fanId } });
-  },
   /** X54: the model's paid message (PPV) in a chat, bought or not; returns its id. */
   paidMessage: async (accountId: string, fanId: string, price: number, isOpened = false): Promise<string> =>
     ((await control('/__stand/paid-message', { body: { accountId, fanId, price, isOpened } })) as { id: string }).id,

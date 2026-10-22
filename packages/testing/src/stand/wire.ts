@@ -28,7 +28,7 @@ export function messageMetadata(message: StandMessage): Record<string, unknown> 
   return {
     responseType: 'message',
     isOpened: message.isOpened ?? false,
-    isNew: message.isNew ?? true,
+    isNew: true,
     changedAt: message.sentAt,
     cancelSeconds: message.isFromFan ? 0 : 60,
     isFromQueue: false,
@@ -59,6 +59,15 @@ export function rawMessage(message: StandMessage): Record<string, unknown> {
   };
 }
 
+/**
+ * The chat list's last message's metadata: the few keys the live list carries (every chat of sixteen captured pages,
+ * 2026-10-09…22) — never the history's whole message, so no `isNew`: whether the fan read it is not in the list.
+ */
+function listMessageMetadata(message: StandMessage, fromUserId: number): Record<string, unknown> {
+  const { isOpened, lockedText, isFree, mediaCount, isTip } = messageMetadata(message);
+  return { isOpened, giphyId: null, lockedText, isFree, mediaCount, isTip, fromUser: { id: fromUserId } };
+}
+
 export function rawChat(chat: StandChat, account: StandAccount): Record<string, unknown> {
   const last = chat.messages.at(-1);
   return {
@@ -69,7 +78,7 @@ export function rawChat(chat: StandChat, account: StandAccount): Record<string, 
           id: last.id,
           content: last.content,
           sent_at: last.sentAt,
-          platform_metadata: { ...messageMetadata(last), fromUser: { id: Number(last.isFromFan ? chat.fan.id : account.platformAccountId) } },
+          platform_metadata: listMessageMetadata(last, Number(last.isFromFan ? chat.fan.id : account.platformAccountId)),
         }
       : null,
     platform_metadata: {

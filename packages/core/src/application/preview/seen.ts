@@ -1,7 +1,8 @@
 // Whether the fan read our newest message, for a fan's preview (Spenders, «Новые», the palette): read live from the
-// site when the card rests on the fan, never by opening the chat — on ChatSpace the account's chat list searched by
-// the fan's username (OnlyFans' `isNew` of the last message), on Fansly the group's last message (the fan's
-// `readAt`). Neither read marks anything read.
+// site when the card rests on the fan, never by opening the chat — on Fansly the group's last message (the fan's
+// `readAt`), which marks nothing read. OnlyFans has no such read: only a chat's history says it (each message's
+// `isNew`), and loading a history marks the chat read; its chat list (OnlyFans' own, and OnlyMonster's on
+// ChatSpace) carries no `isNew` on the last message. A ChatSpace preview says nothing of it.
 //
 // - A walk through the list (J / K, ← →) asks nothing of the fans it passes: the read goes once the card has rested
 //   on a fan for `settleMs`. An answer is shown again for `freshMs` without a new read; «Обновить» reads again at once.
@@ -13,35 +14,23 @@
 //   answer is older than the feed).
 // - A read that failed shows nothing and is not repeated by itself: the next rest on the fan asks again.
 
-import { type ChatReadRead, type ChatReadState, type HostPort } from '@cg/contracts/host';
+import { type ChatReadRead, type ChatReadState } from '@cg/contracts/host';
 import { type ChatRef } from '@cg/contracts/ids';
 import { CHAT_READ_LIMITS } from '@cg/contracts/limits';
 import { type FeedItemVM, type PreviewVM } from '@cg/contracts/vm';
 
 import { type BoardsClock } from '../boards/ports';
 
-/** The fan a read is about: the chat, the username the chat list is searched by, the conversation (Fansly's group). */
+/** The fan a read is about: the chat and the conversation (Fansly's group). */
 export interface ChatReadTarget {
   readonly pageId: number;
   readonly chat: ChatRef;
-  readonly username: string | null;
   readonly conversationRef: string | null;
 }
 
 /** The site's read of whether the fan read the newest message; it never rejects. */
 export interface ChatReadPort {
   read(target: ChatReadTarget): Promise<ChatReadRead>;
-}
-
-const UNAVAILABLE: ChatReadRead = { ok: false, reason: 'unavailable' };
-
-/** The read over the host's own chat list (ChatSpace's `chatReadState`), by the fan's username; null — a host without one. */
-export function hostChatReadPort(host: Pick<HostPort, 'chatReadState'>): ChatReadPort | null {
-  if (host.chatReadState === undefined) return null;
-  return {
-    read: ({ chat, username }) =>
-      username === null || username.length === 0 || username.length > CHAT_READ_LIMITS.usernameMax ? Promise.resolve(UNAVAILABLE) : (host.chatReadState?.(chat, username) ?? Promise.resolve(UNAVAILABLE)),
-  };
 }
 
 /** Answers kept at most: the fans of one long walk. */
