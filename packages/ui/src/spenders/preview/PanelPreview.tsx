@@ -72,7 +72,7 @@ function PanelHeader({ vm }: { readonly vm: PreviewVM }): JSX.Element {
             </div>
             {meta === null ? null : (
               <div class="cg-pv__meta">
-                {meta}
+                <span class="cg-pv__ages">{meta}</span>
                 {/* Our newest message is not in the archive yet: whether the fan read it stands by the ages. */}
                 {vm.seen !== null && !vm.seen.inFeed ? <SeenMark seen={vm.seen} /> : null}
               </div>

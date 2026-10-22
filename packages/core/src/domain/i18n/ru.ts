@@ -468,6 +468,10 @@ export const RU: I18nCatalog<'ru'> = {
   'spenders.tier.low': 'Low',
   'spenders.tier.micro': 'Micro',
   'spenders.wait.fan': 'ждёт {age}',
+  'spenders.age.ours': 'мы {age}',
+  'spenders.age.oursNone': 'мы —',
+  'spenders.age.fan': 'фан {age}',
+  'spenders.age.fanNone': 'фан —',
   'spenders.filter.menu': 'Фильтр',
   'spenders.headOf': { one: '{loaded} из {n} фана', few: '{loaded} из {n} фанов', many: '{loaded} из {n} фанов', other: '{loaded} из {n} фана' },
   'spenders.footerNoTotal': {

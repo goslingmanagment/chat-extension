@@ -148,46 +148,91 @@ interface FanRowProps {
    * click of a double click on this same row.
    */
   readonly onPress: (key: string) => boolean;
+  /** The row's sticky copy over its unfolded preview: no ids, no keys, no handlers — the real row has them. */
+  readonly copy?: boolean;
 }
 
-/** A fan as the old extension drew one: the initials, the name over the @handle, the lifetime over «+$N». */
-function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPick, onPress }: FanRowProps): JSX.Element {
+/** The row's last message, «Мы: » before ours (SP-016): what the chat is at, without opening it. */
+function LastMessage({ last }: { readonly last: SpenderRowVM['lastMessage'] }): JSX.Element {
+  const i18n = useI18n();
+  return (
+    <span role="cell" class={`cg-bd__last${last?.fromUs === true ? ' is-ours' : ''}`}>
+      {last === null ? null : (
+        <span class="cg-bd__lasttext">
+          {last.fromUs ? <span class="cg-bd__us">{i18n.t('spenders.ourPrefix')} </span> : null}
+          {last.text}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * When each side last wrote, as a column the eye runs down: «мы 4 ч» over «фан 2 д», the newer of the two in strong
+ * ink (SP-017). The whole sentence is its tooltip.
+ */
+function Ages({ row }: { readonly row: SpenderRowVM }): JSX.Element {
+  const i18n = useI18n();
+  const tip = useTooltip(bothAges(i18n, row));
+  const ours = row.weWroteAt === null ? null : Date.parse(row.weWroteAt);
+  const fans = row.fanWroteAt === null ? null : Date.parse(row.fanWroteAt);
+  const newer = ours === null && fans === null ? null : fans === null || (ours !== null && ours >= fans) ? 'ours' : 'fan';
+  return (
+    <span role="cell" class="cg-bd__ages cg-num" {...tip.props}>
+      <span class={newer === 'ours' ? 'is-newer' : undefined} data-cg-age="ours">
+        {row.weWroteAt === null ? i18n.t('spenders.age.oursNone') : i18n.t('spenders.age.ours', { age: { age: row.weWroteAt } })}
+      </span>
+      <span class={newer === 'fan' ? `is-newer${row.waiting ? ' is-waiting' : ''}` : undefined} data-cg-age="fan">
+        {row.fanWroteAt === null ? i18n.t('spenders.age.fanNone') : i18n.t('spenders.age.fan', { age: { age: row.fanWroteAt } })}
+      </span>
+      {tip.description}
+    </span>
+  );
+}
+
+/**
+ * A fan as the old extension drew one — the initials, the name over the @handle, the lifetime over «+$N» — and
+ * between them what the old desktop's columns said: the last message and when each side wrote.
+ */
+function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPick, onPress, copy = false }: FanRowProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  // Who wrote when — both ages — is the tooltip of the fan's name (SP-017); the row itself only says who waits.
-  const ages = useTooltip(bothAges(i18n, row));
   const plus = row.period !== null && row.period > 0;
   // «+$320» is the period's: its name is the tooltip («30 дней»).
   const perTip = useTooltip(plus ? i18n.t(PERIOD_KEYS[period]) : null);
   const lifetime = useSpokenMoney(row.lifetime);
   const classes = ['cg-bd__row', row.selected ? 'is-sel' : '', expanded ? 'is-open' : '', row.deleted ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : ''].filter((name) => name !== '').join(' ');
+  // The sticky copy is drawn for the eye: the list, its keys and the e2e find the real row by these.
+  const live = copy
+    ? {}
+    : {
+        role: 'row' as const,
+        'aria-rowindex': rowIndex,
+        ...(row.selected ? { 'aria-current': 'true' as const } : {}),
+        ...(expanded ? { 'aria-expanded': 'true' as const } : {}),
+        tabIndex: active ? 0 : -1,
+        'data-cg-item': index,
+        'data-cg-key': itemKey,
+        'data-cg-fan': row.handle,
+        onClick: (event: MouseEvent) => {
+          onPick(itemKey);
+          // X66: a click opens the preview; a double click opens the chat, as the old Fansly board's click did. The
+          // second click of the pair is itself a click — the person's own, which the chat's opening needs. The
+          // browser's count alone is not enough (a click elsewhere a moment before counts in it): the first click
+          // must be this row's.
+          const second = onPress(itemKey);
+          void dispatch(second && event.detail >= 2 ? openChat(row.handle) : openPreview(row.handle));
+        },
+        onFocus: () => onPick(itemKey),
+      };
   return (
-    <div
-      class={classes}
-      role="row"
-      aria-rowindex={rowIndex}
-      {...(row.selected ? { 'aria-current': 'true' as const } : {})}
-      {...(expanded ? { 'aria-expanded': 'true' as const } : {})}
-      tabIndex={active ? 0 : -1}
-      data-cg-item={index}
-      data-cg-key={itemKey}
-      data-cg-fan={row.handle}
-      onClick={(event) => {
-        onPick(itemKey);
-        // X66: a click opens the preview; a double click opens the chat, as the old Fansly board's click did. The second
-        // click of the pair is itself a click — the person's own, which the chat's opening needs. The browser's count
-        // alone is not enough (a click elsewhere a moment before counts in it): the first click must be this row's.
-        const second = onPress(itemKey);
-        void dispatch(second && event.detail >= 2 ? openChat(row.handle) : openPreview(row.handle));
-      }}
-      onFocus={() => onPick(itemKey)}
-    >
+    <div class={classes} {...live}>
       <span role="cell" class="cg-bd__who">
         {/* The initials are drawn from the attribute: the row's text starts with the fan's name, as search and the e2e read it. */}
         <span class="cg-bd__ava" aria-hidden="true" data-initials={initialsOf(row.name)} />
-        {row.batch === undefined ? null : <BatchCheck list="spenders" handle={row.handle} row={row.batch} name={row.name} />}
+        {row.batch === undefined || copy ? null : <BatchCheck list="spenders" handle={row.handle} row={row.batch} name={row.name} />}
       </span>
-      <span role="cell" class="cg-bd__main" {...ages.props}>
+      <span role="cell" class="cg-bd__main">
         <span class="cg-bd__l1">
           <span class="cg-bd__name">{row.name}</span>
           {row.isNew ? <span class="cg-bd__new">{i18n.t('spenders.tag.new')}</span> : null}
@@ -196,8 +241,9 @@ function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPic
           {row.chat === undefined ? null : <ChatState state={row.chat} />}
         </span>
         {row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
-        {ages.description}
       </span>
+      <LastMessage last={row.lastMessage} />
+      <Ages row={row} />
       <span role="cell" class="cg-bd__sums" {...(lifetime === null ? {} : { 'aria-label': lifetime })}>
         <Money mills={row.lifetime} class="cg-bd__life" />
         {plus ? (
@@ -207,7 +253,7 @@ function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPic
           </span>
         ) : null}
       </span>
-      {row.batch === undefined ? null : <BatchLine row={row.batch} />}
+      {row.batch === undefined || copy ? null : <BatchLine row={row.batch} />}
     </div>
   );
 }
@@ -351,8 +397,9 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
   useLayoutEffect(() => {
     if (unfoldedAt < 0) return undefined;
     const reveal = (): void => {
-      listRef.current?.scrollToIndex(unfoldedAt - 1);
-      listRef.current?.scrollToIndex(unfoldedAt);
+      const list = listRef.current;
+      // The row and its whole preview in view; when they are not, the row goes to the top, right under its shelf.
+      if (list !== null && !(list.isInView(unfoldedAt - 1) && list.isInView(unfoldedAt))) list.scrollToIndex(unfoldedAt - 1, 'start');
     };
     // A click's preview: the row stays where the pointer is until a second click could have come (a double click).
     const wait = DOUBLE_CLICK_MS - (Date.now() - pressedAt.current);
@@ -501,16 +548,19 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
             label={i18n.t('spenders.boardLabel')}
             class="cg-bd__scroll"
             isGroupHeader={(item) => item.kind === 'shelf'}
+            stickyLead={unfoldedAt < 1 ? null : { index: unfoldedAt - 1, until: unfoldedAt + 1 }}
+            // A press on the stuck fan brings their row back, the preview whole under it.
+            onStickyPress={(index) => listRef.current?.scrollToIndex(index, 'start')}
             listRef={listRef}
             onRangeChange={onRange}
             onKeyDown={onKeyDown}
-            renderRow={(item, index) => {
+            renderRow={(item, index, copy) => {
               const rowIndex = index + 1;
               switch (item.kind) {
                 case 'shelf':
                   return <ShelfRow shelf={item.shelf} rowIndex={rowIndex} />;
                 case 'fan':
-                  return <FanRow row={item.row} period={board.period} expanded={unfold && item.row.selected} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} onPress={onPress} />;
+                  return <FanRow row={item.row} period={board.period} expanded={unfold && item.row.selected} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} onPress={onPress} copy={copy === true} />;
                 case 'preview':
                   // Out of the rows' keys (no data-cg-key): what is typed in the preview is never a key of the list.
                   return (
@@ -558,7 +608,7 @@ export function focusIsIdle(root: ShadowRoot | Document, box: HTMLElement | null
 // row and while anyone is ticked (1.32.0).
 export const BOARD_CSS = `
 .cg-bd { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.cg-bd__list { flex: 1; min-height: 0; min-width: 0; }
+.cg-bd__list { flex: 1; min-height: 0; min-width: 0; container: cg-board / inline-size; }
 .cg-bd__state { padding: 0; }
 .cg-bd__state .cg-state--empty { justify-content: flex-start; text-align: left; padding: 24px 20px; }
 .cg-bd__reset { padding: 0 20px 16px 12px; }
@@ -569,8 +619,9 @@ export const BOARD_CSS = `
 .cg-bd__band, .cg-bd__shelfn { font: var(--cg-text-xs)/16px var(--cg-mono); letter-spacing: 0.04em; color: var(--cg-ink-muted); font-weight: 400; }
 .cg-bd__shelfn { margin-left: auto; }
 .cg-bd__row {
-  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; grid-template-rows: 52px; align-items: center; column-gap: 12px;
-  padding: 0 20px 0 18px; border-radius: var(--cg-r-md); margin: 0 8px; cursor: pointer; outline: none; font-variant-numeric: tabular-nums;
+  display: grid; grid-template-columns: 34px minmax(132px, 0.85fr) minmax(0, 1.4fr) 76px 88px; grid-template-rows: 52px; align-items: center;
+  column-gap: 12px; padding: 0 20px 0 18px; border-radius: var(--cg-r-md); margin: 0 8px; cursor: pointer; outline: none;
+  font-variant-numeric: tabular-nums;
 }
 .cg-bd__row:hover { background: var(--cg-hover); }
 .cg-bd__row:focus-visible { box-shadow: inset 0 0 0 2px var(--cg-focus); }
@@ -602,7 +653,23 @@ export const BOARD_CSS = `
 .cg-bd__chat[data-cg-chat="missing"] { color: var(--cg-ink-2); background: var(--cg-sunk); }
 .cg-bd__row.is-deleted .cg-bd__name { color: var(--cg-ink-muted); font-weight: 400; }
 .cg-bd__handle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-muted); }
+.cg-bd__last { min-width: 0; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-2); }
+.cg-bd__lasttext { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.cg-bd__last.is-ours { color: var(--cg-ink-muted); }
+.cg-bd__us { color: var(--cg-ink-muted); font-weight: 500; }
+.cg-bd__ages { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: var(--cg-text-xs); line-height: 16px; color: var(--cg-ink-muted); white-space: nowrap; }
+.cg-bd__ages > .is-newer { color: var(--cg-ink-strong); }
+.cg-bd__ages > .is-waiting { color: var(--cg-clay-ink); }
 .cg-bd__sums { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-family: var(--cg-mono); white-space: nowrap; }
+/* A narrow list keeps the fan, the ages and the money; the last message gives way first. */
+@container cg-board (max-width: 640px) {
+  .cg-bd__row { grid-template-columns: 34px minmax(0, 1fr) 76px 88px; }
+  .cg-bd__last { display: none; }
+}
+@container cg-board (max-width: 420px) {
+  .cg-bd__row { grid-template-columns: 34px minmax(0, 1fr) auto; }
+  .cg-bd__ages { display: none; }
+}
 .cg-bd__life { font-weight: 600; line-height: 19px; color: var(--cg-money); }
 .cg-bd__per { font-size: var(--cg-text-xs); line-height: 16px; }
 .cg-bd__unfold { height: 100%; padding: 0 8px 10px; }
@@ -611,6 +678,8 @@ export const BOARD_CSS = `
   border-radius: 0 0 var(--cg-r-md) var(--cg-r-md); background: var(--cg-surface); overflow: hidden;
 }
 .cg-bd__unfoldcell > * { flex: 1; min-height: 0; }
-.cg-bd__unfoldcell .cg-pv__name, .cg-bd__unfoldcell .cg-pv__money { display: none; }
+/* The fan's row stands over the unfolded preview (stuck at the top while it scrolls): its name, money and ages are not
+   said twice. */
+.cg-bd__unfoldcell :is(.cg-pv__name, .cg-pv__money, .cg-pv__ages) { display: none; }
 .cg-bd > .cg-sp__foot .cg-btn { margin-right: -8px; }
 `;

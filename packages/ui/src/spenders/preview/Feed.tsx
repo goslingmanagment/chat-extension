@@ -199,6 +199,11 @@ export const FEED_CSS = `
 }
 .cg-feed:focus-visible { outline-offset: -2px; }
 .cg-feed__day, .cg-feed__sys { align-self: center; font-size: var(--cg-text-xs); line-height: 18px; color: var(--cg-ink-muted); margin: 6px 0 2px; text-align: center; }
+/* The day of what is in view stays at the top of the feed: «22:14» is never read as today's when it was yesterday's. */
+.cg-feed__day {
+  position: sticky; top: -2px; z-index: 1; padding: 0 10px; border-radius: var(--cg-r-pill); background: var(--cg-surface);
+  box-shadow: 0 0 0 1px var(--cg-rule);
+}
 .cg-feed__msg {
   max-width: 82%; padding: 6px 10px; border-radius: var(--cg-r-xl); font-size: var(--cg-text-base); line-height: 18px;
   background: var(--cg-chat-in); color: var(--cg-ink); overflow-wrap: anywhere; white-space: pre-wrap;

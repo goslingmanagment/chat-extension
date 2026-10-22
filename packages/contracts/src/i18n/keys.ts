@@ -136,6 +136,8 @@ export const UI_TEXT_KEYS = [
   'spenders.wait.fan', 'spenders.filter.menu',
   // 2026-10-22: the old Fansly board's chat chip of a row whose chat is not known yet.
   'spenders.chat.find', 'spenders.chat.findHint', 'spenders.chat.finding', 'spenders.chat.missing', 'spenders.chat.missingHint',
+  // 2026-10-22: when each side last wrote, as the row's own column (SP-017).
+  'spenders.age.ours', 'spenders.age.oursNone', 'spenders.age.fan', 'spenders.age.fanNone',
   'stats.title', 'stats.titleFull', 'stats.expand', 'stats.expandTooltip', 'stats.collapse', 'stats.today', 'stats.d7', 'stats.d30', 'stats.payers',
   'stats.avgCheck', 'stats.shelves', 'stats.colFans', 'stats.colPeriod', 'stats.table.shelf', 'stats.table.fans', 'stats.table.lifetime',
   'stats.table.period', 'stats.attention', 'stats.awaiting', 'stats.newPayers', 'stats.newPayersObserved', 'stats.silent8to21', 'stats.silentOver21', 'stats.noData',
