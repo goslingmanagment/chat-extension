@@ -174,6 +174,7 @@ export const TO_MAIN_TYPES = [
   'previewSendCommit',
   'flags',
   'openChatMessages',
+  'cachedChatMessages',
   'media',
   'chatReadState',
 ] as const;

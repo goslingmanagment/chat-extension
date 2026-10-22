@@ -14,10 +14,11 @@
 //   the API's page it is page memory's, as before. The shared plan trims it
 //   and it goes to the hub as `fresh`. From the same page, when the hub takes
 //   it (X54, `live-ppv-v1`) and for the draft features, the PPV state: the
-//   model's paid messages, their price and whether the fan bought them — what
-//   page memory holds stale, a purchase updating no loaded message. The click
-//   waits for the API at most LIVE_PPV_LIMITS.waitMs and starts without it
-//   after; a failed read is no page, and the hub keeps its own marks;
+//   model's paid messages, their price and whether the fan bought them. The
+//   click waits for the API at most LIVE_PPV_LIMITS.waitMs; late or failed, it
+//   takes the chat as ChatSpace has it loaded (`startPage`) — the PPV state as
+//   the page holds it, which ChatSpace keeps current from its socket's
+//   purchases; with neither, the hub keeps its own marks;
 // - the pre-check — none of its own: Hi has no message limit (the owner,
 //   2026-10-21), Ping is never blocked for an active fan (AI-036); Ping under
 //   ten messages is the shared gate's (domain/features/gates.ts);
@@ -117,6 +118,22 @@ export async function readOpenPage(host: HostPort, chat: ChatRef, limit: number,
   }
 }
 
+/**
+ * The open chat's newest page for a start: our API read, waited for at most `waitMs`; when it is late or fails, the
+ * page as ChatSpace has it loaded (no request) — the PPV state as the page holds it, the photos and the text. Our API
+ * read takes seconds on a chat with much media (live, 2026-10-22: 7-25 s), so without the page's copy a start mostly
+ * carried no PPV state and no photo at all.
+ */
+export async function startPage(host: HostPort, chat: ChatRef, limit: number, waitMs: number = LIVE_PPV_LIMITS.waitMs): Promise<OpenChatPage | null> {
+  const read = await readOpenPage(host, chat, limit, waitMs);
+  if (read !== null || host.cachedChatMessages === undefined) return read;
+  try {
+    return await host.cachedChatMessages(chat, Math.min(Math.max(1, limit), OPEN_CHAT_LIMITS.pageMax));
+  } catch {
+    return null;
+  }
+}
+
 /** X54: the open chat's PPV state, waited for at most `waitMs`. */
 export async function readLivePpv(host: HostPort, chat: ChatRef, waitMs: number = LIVE_PPV_LIMITS.waitMs): Promise<LivePpvState | null> {
   const page = await readOpenPage(host, chat, LIVE_PPV_LIMITS.readMessages, waitMs);
@@ -164,11 +181,11 @@ export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
     if (fresh === null) return null;
     const ppv = ask.livePpv === true && LIVE_PPV_FEATURES.has(ask.feature);
     const images = ask.liveImages === true && LIVE_IMAGE_FEATURES.has(ask.feature) && host.loadImages !== undefined;
-    // Both reads at once: page memory's tail and the host's API page (the slower of the two), one page for the tail,
-    // the PPV state and the photos of the fan's latest turn, drawn as soon as the page names them. The API only where
-    // the hub takes the state or the photos: a hub without them is asked of nothing of ours.
+    // Both reads at once: page memory's tail and the open chat's page — the host's API, or ChatSpace's own copy when the
+    // API is late —, one page for the tail, the PPV state and the photos of the fan's latest turn, drawn as soon as the
+    // page names them. Only where the hub takes the state or the photos: a hub without them is asked of nothing of ours.
     const memory = host.readVisibleTail(ask.identity, fresh.maxItems).catch(() => null);
-    const page = (ask.livePpv !== true && !images) || chat === null ? Promise.resolve(null) : readOpenPage(host, chat, Math.max(fresh.maxItems, ppv ? LIVE_PPV_LIMITS.readMessages : 0));
+    const page = (ask.livePpv !== true && !images) || chat === null ? Promise.resolve(null) : startPage(host, chat, Math.max(fresh.maxItems, ppv ? LIVE_PPV_LIMITS.readMessages : 0));
     const photos = images ? page.then((read) => liveImagesOf(host, read)) : Promise.resolve([]);
     return Promise.all([memory, page, photos]).then(([tail, read, liveImages]) => ({
       tail: tailOf(read, tail, fresh.maxItems),

@@ -690,6 +690,17 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
       ],
     },
   },
+  // The open chat as the page has it loaded: a page or null, never a failure of a request.
+  cachedChatMessages: {
+    payload: {
+      valid: [{ ...accFan, limit: 50 }, { ...accFan, limit: 1 }],
+      invalid: [{ ...accFan, limit: 0 }, { ...accFan, limit: 101 }, { ...accFan, limit: 50, cursor: '9001' }, { acc: IDS.acc, limit: 50 }],
+    },
+    data: {
+      valid: [openChatPage, { capturedAt: ISO, items: [], hasMore: null, cursor: null }, null],
+      invalid: [{ ok: true, page: openChatPage }, { ...openChatPage, items: [{ ...openChatPaid, price: 0 }] }, { ok: false, failure: 'session', status: null }],
+    },
+  },
   // 1.30.0 (X53): the media picker's reads from the host's API; a failed request is an answer, not an error.
   media: {
     payload: {

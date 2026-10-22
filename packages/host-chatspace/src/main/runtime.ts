@@ -60,6 +60,7 @@ import {
   STORE_TABS,
 } from './protocol';
 import { mediaRead } from './media';
+import { cachedOpenPage } from './cached-page';
 import { createOmApi } from './om-api';
 import { PAYLOAD, type Identity, type InsertWire, type NavigationWire } from './requests';
 import { QUEUE_SEND, queueShape } from './send-port';
@@ -624,6 +625,11 @@ export function createMainRuntime(context: MainContext): MainRuntime {
           return read.name === 'chat' && read.acc === acc && read.fan === fan;
         };
         return open() ? om.openChatMessages(acc, fan, payload['limit'] as number, payload['cursor'] as string | undefined, open) : ERR_IDENTITY;
+      }
+      case 'cachedChatMessages': {
+        // What ChatSpace already holds of the chat on the route: no request, nothing marked read.
+        const read = route();
+        return read.name === 'chat' && read.acc === acc && read.fan === fan ? cachedOpenPage(reader.messagesData(acc, fan), payload['limit'] as number) : ERR_IDENTITY;
       }
       case 'chatReadState':
         // The chat list, and the history's newest messages only when the live list says ours is the last with nothing

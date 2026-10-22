@@ -809,6 +809,16 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       return done;
     },
 
+    /** The open chat as ChatSpace has it loaded: no request, so nothing is kept or shared here. */
+    async cachedChatMessages(chat: ChatRef, limit: number): Promise<OpenChatPage | null> {
+      if (!Number.isInteger(limit) || limit < 1 || limit > OPEN_CHAT_LIMITS.pageMax) throw new HostContractError('cachedChatMessages: limit 1…pageMax');
+      if (!sameChat(chat, route.chat) || !bridge || disposed) return null;
+      return bridge.request('cachedChatMessages', { acc: chat.hostAccountId, fan: chat.platformFanId, limit }).then(
+        (page) => page,
+        () => null,
+      );
+    },
+
     async chatReadState(chat: ChatRef, username: string): Promise<ChatReadRead> {
       if (username.length === 0 || username.length > CHAT_READ_LIMITS.usernameMax) throw new HostContractError('chatReadState: a username of 1…usernameMax characters');
       if (!bridge || disposed) return { ok: false, reason: 'unavailable' };

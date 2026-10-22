@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { OpenChatMessage, OpenChatPage } from '@cg/contracts/host';
-import { liveImageRefsOf } from '@cg/core/application/hosts/chatspace/ai';
+import type { HostPort, OpenChatMessage, OpenChatPage } from '@cg/contracts/host';
+import { liveImageRefsOf, livePpvOf, startPage } from '@cg/core/application/hosts/chatspace/ai';
 
 const at = (minute: number): string => new Date(Date.UTC(2026, 9, 22, 6, minute)).toISOString();
 const photo = (id: string) => ({ mediaId: id, url: `https://pw365.ompcdn.com/cdn/v1/of/m/${id}.jpg?exp=1&sig=2` });
@@ -35,5 +35,26 @@ describe('liveImageRefsOf', () => {
       msg('902', 'fan', 2, { photos: [photo('30'), photo('20'), photo('21')] }),
     ]));
     expect(refs.map((ref) => ref.mediaId)).toEqual(['30', '31', '20']);
+  });
+});
+
+describe('startPage', () => {
+  const chat = { host: 'chatspace' as const, hostAccountId: '1001', platformFanId: '2099' };
+  const cached = page([msg('902', 'fan', 2, { photos: [photo('20')] }), msg('901', 'model', 1, { price: 25, isFree: false, isOpened: true, mediaCount: 1 })]);
+
+  it('our API read late: the page as ChatSpace has it loaded, with its PPV state and photos', async () => {
+    const host = { openChatMessages: () => new Promise(() => undefined), cachedChatMessages: () => Promise.resolve(cached) } as unknown as HostPort;
+    const read = await startPage(host, chat, 50, 5);
+    expect(read).toBe(cached);
+    expect(livePpvOf(read as OpenChatPage)?.items).toEqual([{ platformMessageId: '901', priceUsd: 25, purchased: true }]);
+    expect(liveImageRefsOf(read as OpenChatPage).map((ref) => ref.mediaId)).toEqual(['20']);
+  });
+
+  it('our API read in time wins; neither — none', async () => {
+    const fresh = page([msg('903', 'fan', 3)]);
+    const both = { openChatMessages: () => Promise.resolve({ ok: true, page: fresh, cached: false }), cachedChatMessages: () => Promise.resolve(cached) } as unknown as HostPort;
+    expect(await startPage(both, chat, 50, 1000)).toBe(fresh);
+    const none = { openChatMessages: () => Promise.resolve({ ok: false, reason: 'timeout', status: null }), cachedChatMessages: () => Promise.reject(new Error('gone')) } as unknown as HostPort;
+    expect(await startPage(none, chat, 50, 1000)).toBeNull();
   });
 });

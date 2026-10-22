@@ -18,6 +18,7 @@ import {
   HostFanSchema,
   InsertReceiptSchema,
   OpenChatAnswerSchema,
+  OpenChatPageSchema,
   InsertWireSchema,
   NavigationItemSchema,
   NavigationReceiptSchema,
@@ -194,6 +195,17 @@ export const TO_MAIN = {
     timeout: 'network',
   },
   /**
+   * The open chat's newest messages as the page itself has them loaded (ChatSpace's own cache), in the shape of
+   * `openChatMessages`' page: no request. MAIN refuses with `identity-mismatch` unless the route is that very chat now;
+   * null — the page holds nothing of it. What a start takes when our API read is late.
+   */
+  cachedChatMessages: {
+    payload: z.strictObject({ ...AccFan, limit: z.int().check(z.gte(1), z.lte(OPEN_CHAT_LIMITS.pageMax)) }),
+    data: z.nullable(OpenChatPageSchema),
+    write: false,
+    timeout: 'call',
+  },
+  /**
    * 1.30.0 (X53): one read of a preview's media picker from the host's own API (MediaRequest): the vault's folders, a
    * folder's media, what a fan got of them, their release forms. Never a chat's history. A failed request is an answer
    * (`ok: false`), not a bridge error. Its deadline is MEDIA_LIMITS.bridgeMs.
@@ -298,6 +310,7 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('previewSendCommit'),
   requestFrame('flags'),
   requestFrame('openChatMessages'),
+  requestFrame('cachedChatMessages'),
   requestFrame('media'),
   requestFrame('chatReadState'),
 ]);
