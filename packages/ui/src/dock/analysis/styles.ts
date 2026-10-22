@@ -82,6 +82,7 @@ ${/* Under the title (Recap's «Коротко | Полностью»): the fan'
 .cg-pick { display: grid; grid-template-columns: var(--cg-lead, calc(var(--cg-gutter) - 1px)) minmax(0, 1fr); padding: 10px 10px 10px 0; }
 .cg-pick:focus-visible { outline: none; border-radius: 0; box-shadow: inset 2px 0 0 var(--cg-focus); }
 .cg-pick__note { color: var(--cg-ink-2); }
+.cg-pick__explain { max-width: 64ch; font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-ink-muted); }
 .cg-pick__slot { display: flex; align-items: center; gap: 10px; min-height: 28px; }
 .cg-pick__name { font-weight: 500; color: var(--cg-ink); }
 .cg-pick__age { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); margin-right: auto; }

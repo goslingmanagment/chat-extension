@@ -48,6 +48,8 @@ export interface CoachExchange {
   readonly attachedDraft: boolean;
   readonly askedAt: number;
   readonly completedAt: number;
+  /** The Recaps the hub put into this answer (`OpView.recapsUsed`): when each was made, null — none; absent — not said. */
+  readonly recapsUsed?: { readonly full: string | null; readonly short: string | null };
 }
 
 /** A turn that did not finish: the question is kept, the partial answer is not (AI-092). */
@@ -181,7 +183,7 @@ export class CoachSessions {
   }
 
   /** The answer finished usable: the turn becomes an exchange. */
-  complete(sessionId: string, turnId: string, done: Pick<CoachExchange, 'opId' | 'generationRef' | 'answerRaw' | 'answer' | 'completedAt'>): CoachSession | null {
+  complete(sessionId: string, turnId: string, done: Pick<CoachExchange, 'opId' | 'generationRef' | 'answerRaw' | 'answer' | 'completedAt' | 'recapsUsed'>): CoachSession | null {
     const session = this.byId(sessionId);
     const pending = session?.pending ?? null;
     if (session === null || pending === null || pending.turnId !== turnId) return null;
@@ -194,6 +196,7 @@ export class CoachSessions {
       preset: pending.preset,
       answerRaw: done.answerRaw,
       answer: done.answer,
+      ...(done.recapsUsed === undefined ? {} : { recapsUsed: done.recapsUsed }),
       attachedDraft: pending.attachedDraft,
       askedAt: pending.askedAt,
       completedAt: done.completedAt,

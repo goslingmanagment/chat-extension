@@ -671,6 +671,12 @@ export const OpViewSchema = z.strictObject({
   /** The tone the result was generated with; Regenerate repeats it (AI-007). */
   toneUsed: z.nullable(ToneSchema),
   servedContext: z.optional(z.nullable(ServedContextSchema)),
+  /**
+   * 1.46.0: the Recaps the hub put into this generation's prompt, as its meta frame says (`attachedRecaps`): Coach's
+   * full and short ones; a Reply's or a Ping's dossier — the latest saved full Recap — as `full`. Each is when that
+   * Recap was made; null — none went in. Absent — the hub did not say.
+   */
+  recapsUsed: z.optional(z.strictObject({ full: z.nullable(IsoTimestampSchema), short: z.nullable(IsoTimestampSchema) })),
   /** The operation's own evidence survives a reload. An older result without it is unverified. */
   freshnessProof: z.optional(z.strictObject({
     windowSize: z.number().check(z.int(), z.minimum(1), z.maximum(COVERAGE_CHECK_LIMITS.windowMax)),

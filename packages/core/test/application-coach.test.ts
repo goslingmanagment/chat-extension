@@ -447,7 +447,7 @@ describe('coach: the recap it stands on', () => {
     expect(h.ai.workspace.ops.get(answerOp)).toMatchObject({ own: true, desynced: false });
     await h.finish();
     expect(lastTurn(h)).toMatchObject({ opId: answerOp, state: 'done', question: 'How do I reply?' });
-    expect(h.coach().recap).toMatchObject({ length: 'full', summary: FULL });
+    expect(h.coach().recaps).toMatchObject([{ length: 'full', summary: FULL }]);
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary', 'coach-chat']);
     expect(h.bg.hub.streams[1]?.body).toMatchObject({ chatterQuestion: 'How do I reply?' });
     // The whole turn was one trusted action: one token and one start of the Coach surface (the other is the refused Reply).
