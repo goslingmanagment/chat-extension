@@ -131,7 +131,7 @@ export function createBackgroundVoice(deps: BackgroundVoiceDeps) {
     'voice.script': async ({ start, sessionId }, sender) => refuseSwitchedOff(sender) ?? ok(await service.script(sender, start, sessionId)),
     'voice.edit': async ({ sessionId, text }, sender) => ok(await service.edit(sender, sessionId, text)),
     'voice.take': async ({ sessionId, takeId, script, cause }, sender) => refuseSwitchedOff(sender) ?? ok(await service.take(sender, sessionId, takeId, script, cause)),
-    'voice.check': async ({ sessionId, takeId, cause }, sender) => ok(await service.check(sender, sessionId, takeId, cause)),
+    'voice.check': async ({ sessionId, takeId, cause }, sender) => refuseSwitchedOff(sender) ?? ok(await service.check(sender, sessionId, takeId, cause)),
     'voice.audio': async ({ sessionId, takeId }, sender) => ok(await service.audio(sender, sessionId, takeId)),
     'voice.attached': async ({ sessionId, takeId, state }, sender) => ok(await service.attached(sender, sessionId, takeId, state)),
     'voice.discard': async ({ sessionId }, sender) => ok(await service.discard(sender, sessionId)),
