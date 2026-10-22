@@ -11,6 +11,7 @@ import { listTree } from '../lib/files.ts';
 import type { ZipEntry } from '../lib/zip.ts';
 import { SITE_PAGES as EXTENSION_LINKS } from '../../apps/extension/src/site.ts';
 import { parseChangelog, type Changelog } from './changelog.ts';
+import { NOTES_DIR, noteSlug, parseNote, type Note } from './changes.ts';
 import { CHANGELOG_FILE, RELEASE_DIR, releaseTarget, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
 import { mustRun, type Exec } from './exec.ts';
 import type { VendorObservation } from './gate.ts';
@@ -26,7 +27,7 @@ import {
   type ReleasePaths,
   type ReleaseRecord,
 } from './records.ts';
-import { changelogSection, withSections } from './notes.ts';
+import { changelogMarkdown, historyOf, type History } from './notes.ts';
 import { SITE_FILES, type SiteContext } from './site.ts';
 import { compareVersions, isVersion, readPackageVersion } from './version.ts';
 import { parseTestBuildSet, TEST_BUILDS_DIR, type TestBuildSet } from './test-builds.ts';
@@ -116,23 +117,116 @@ export class Checkout {
     return (await this.git('log', '--first-parent', '--format=%s', ...range)).split('\n').filter((line) => line.trim() !== '');
   }
 
+  /** main's own commits after `from` up to `to` (newest first): the subject, and whether the commit added or changed a note. */
+  async commitsWithNotes(from: string | null, to: string): Promise<Array<{ readonly subject: string; readonly note: boolean }>> {
+    const range = from === null ? [to, '-n', '50'] : [`${from}..${to}`];
+    const out = await this.git('log', '--first-parent', '--format=%x01%s', '--name-only', ...range, '--');
+    return out
+      .split('\x01')
+      .filter((chunk) => chunk.trim() !== '')
+      .map((chunk) => {
+        const [subject = '', ...files] = chunk.split('\n');
+        return { subject, note: files.some((file) => file.startsWith(`${NOTES_DIR}/`) && noteSlug(file.slice(NOTES_DIR.length + 1)) !== null) };
+      });
+  }
+
+  // ── the notes of changes (changes/) ──
+
+  /** Every note in the tree by its slug; throws on the first one that does not parse (changes.ts). */
+  notes(): Map<string, Note> {
+    const dir = this.path(NOTES_DIR);
+    const notes = new Map<string, Note>();
+    if (!existsSync(dir)) return notes;
+    for (const name of readdirSync(dir).sort()) {
+      const slug = noteSlug(name);
+      if (slug === null) continue;
+      const size = (file: string): number | null => (existsSync(join(dir, file)) ? statSync(join(dir, file)).size : null);
+      notes.set(slug, parseNote(slug, readFileSync(join(dir, name), 'utf8'), size));
+    }
+    return notes;
+  }
+
+  /** The problems of the notes in the tree, each with its file; [] — all of them parse. */
+  noteProblems(): string[] {
+    const dir = this.path(NOTES_DIR);
+    if (!existsSync(dir)) return [];
+    const problems: string[] = [];
+    for (const name of readdirSync(dir).sort()) {
+      const slug = noteSlug(name);
+      if (slug === null) {
+        if (name !== 'README.md' && !name.startsWith('_') && !/\.(?:png|jpe?g)$/.test(name)) problems.push(`${NOTES_DIR}/${name}: neither a note (.md) nor its screenshot (.png, .jpg)`);
+        continue;
+      }
+      const size = (file: string): number | null => (existsSync(join(dir, file)) ? statSync(join(dir, file)).size : null);
+      try {
+        parseNote(slug, readFileSync(join(dir, name), 'utf8'), size);
+      } catch (error) {
+        problems.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    return problems;
+  }
+
+  /** The slugs of the notes added to main after `from` up to `to`, in the order they came. */
+  async notesAdded(from: string | null, to: string): Promise<string[]> {
+    const range = from === null ? [to] : [`${from}..${to}`];
+    const out = await this.git('log', '--first-parent', '--reverse', '--diff-filter=A', '--no-renames', '--format=', '--name-only', ...range, '--', `${NOTES_DIR}/`);
+    const slugs = out
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith(`${NOTES_DIR}/`) && !line.slice(NOTES_DIR.length + 1).includes('/'))
+      .flatMap((line) => {
+        const slug = noteSlug(line.slice(NOTES_DIR.length + 1));
+        return slug === null ? [] : [slug];
+      });
+    return [...new Set(slugs)];
+  }
+
+  /** The day a tag's commit was made, YYYY-MM-DD. */
+  async tagDay(version: string): Promise<string> {
+    return this.git('log', '-1', '--format=%cs', `v${version}^{commit}`);
+  }
+
   /**
-   * CHANGELOG.md as git has it, under the sections of every tagged version above
-   * its top one and, when given, of the version being released — each made from
-   * the commits since the tag before it (notes.ts).
+   * The history (notes.ts): the hand-written sections of CHANGELOG.md, under the
+   * releases of notes of every tagged version above its top one and, when
+   * given, of the version being released — each made of the notes added since
+   * the tag before it, as the tree has them now. Throws on a note that does not parse.
    */
-  async changelogText(pending?: { readonly version: string; readonly head: string }): Promise<string> {
-    const committed = this.read(CHANGELOG_FILE);
-    const top = parseChangelog(committed).sections[0]?.version ?? '0.0.0';
+  async history(pending?: { readonly version: string; readonly head: string; readonly day: string; readonly uncommitted?: boolean }): Promise<History> {
+    const changelog = this.changelog();
+    const top = changelog.sections[0]?.version ?? '0.0.0';
     const tags = await this.versionTags();
+    const all = this.notes();
     const before = (version: string): string | null => {
       const earlier = tags.filter((tag) => compareVersions(tag, version) < 0).at(-1);
       return earlier === undefined ? null : `v${earlier}`;
     };
-    const sections: string[] = [];
-    for (const tag of tags.filter((candidate) => compareVersions(candidate, top) > 0)) sections.unshift(changelogSection(tag, await this.subjects(before(tag), `v${tag}`)));
-    if (pending !== undefined && !tags.includes(pending.version) && compareVersions(pending.version, top) > 0) sections.unshift(changelogSection(pending.version, await this.subjects(before(pending.version), pending.head)));
-    return withSections(committed, sections);
+    const notesOf = async (from: string | null, to: string): Promise<Note[]> => (await this.notesAdded(from, to)).flatMap((slug) => all.get(slug) ?? []);
+    const later: Array<{ version: string; date: string | null; notes: Note[] }> = [];
+    for (const tag of tags.filter((candidate) => compareVersions(candidate, top) > 0)) later.unshift({ version: tag, date: await this.tagDay(tag), notes: await notesOf(before(tag), `v${tag}`) });
+    if (pending !== undefined && !tags.includes(pending.version) && compareVersions(pending.version, top) > 0) {
+      later.unshift({ version: pending.version, date: pending.day, notes: await this.pendingNotes(pending.head, { all, uncommitted: pending.uncommitted ?? false }) });
+    }
+    return historyOf(changelog, later);
+  }
+
+  /**
+   * The notes no tag holds yet: those committed since the last tag up to `head`, in the order they came, and with
+   * `uncommitted` (a preview) those only in the working tree — a note being written — by name.
+   */
+  async pendingNotes(head: string, options: { readonly all?: ReadonlyMap<string, Note>; readonly uncommitted?: boolean } = {}): Promise<Note[]> {
+    const all = options.all ?? this.notes();
+    const latest = (await this.versionTags()).at(-1);
+    const released = new Set(latest === undefined ? [] : await this.notesAdded(null, `v${latest}`));
+    const committed = (await this.notesAdded(latest === undefined ? null : `v${latest}`, head)).filter((slug) => !released.has(slug));
+    const fresh = options.uncommitted === true ? [...all.keys()].filter((slug) => !released.has(slug) && !committed.includes(slug)) : [];
+    return [...committed, ...fresh].flatMap((slug) => all.get(slug) ?? []);
+  }
+
+  /** CHANGELOG.md as the build of a release holds it: git's hand-written sections under the releases of notes. */
+  changelogText(history: History): string {
+    return changelogMarkdown(this.read(CHANGELOG_FILE), history);
   }
 
   /** Versions above `latest` that this checkout signed or sent to AMO and that were never tagged. */
@@ -153,8 +247,8 @@ export class Checkout {
     return new Map(names.sort().map((name) => [name, readFileSync(join(dir, name), 'utf8')]));
   }
 
-  siteContext(version: string = this.version()): SiteContext {
-    return { version, target: this.target, changelog: this.changelog() };
+  siteContext(version: string, history: History): SiteContext {
+    return { version, target: this.target, history };
   }
 
   /** File names of the site pages the extension itself opens (apps/extension/src/site.ts). */
@@ -162,12 +256,17 @@ export class Checkout {
     return Object.values(EXTENSION_LINKS).map((url) => url.slice(url.lastIndexOf('/') + 1));
   }
 
-  /** The files of the site as they go to the server. */
-  publishablePages(only: readonly string[] = SITE_FILES): LocalFile[] {
-    return only.map((name) => {
+  /** The files of the site as they go to the server, and the notes' screenshots under changes/. */
+  publishablePages(only: readonly string[] = SITE_FILES, images: readonly string[] = []): LocalFile[] {
+    const pages = only.map((name) => {
       const path = this.path(join(SITE_DIR, name));
       return { name, path, sha256: sha256Hex(readFileSync(path)) };
     });
+    const shots = images.map((file) => {
+      const path = this.path(join(NOTES_DIR, file));
+      return { name: `${NOTES_DIR}/${file}`, path, sha256: sha256Hex(readFileSync(path)) };
+    });
+    return [...shots, ...pages];
   }
 
   // ── vendored packages ──

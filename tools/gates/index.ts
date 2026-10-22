@@ -23,10 +23,14 @@ import {
   runSourceGates,
   type Violation,
 } from './checks.ts';
+import { notesViolations } from './notes.ts';
 import { checkBuildData, checkSiteLiterals, checkSiteMarkers, deriveSiteMarkers, SITE_LITERAL_DEBT, SITES } from './sites.ts';
 
 const sources = readSources();
 const violations: Violation[] = [...runSourceGates(sources)];
+
+// The notes of changes parse; a PR keeps the rules of notes and versions (notes.ts).
+violations.push(...notesViolations());
 
 // Site literals: shared code names no site, but for the debt list.
 violations.push(...checkSiteLiterals(sources, SITE_LITERAL_DEBT));

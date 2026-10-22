@@ -18,7 +18,7 @@ pnpm monorepo, TypeScript strict, WXT, Preact.
 - `tools/` — gates, archive check, `dev`, the release (`release`), e2e in CI (`ci`). `site/` — the extension's site.
 
 `pnpm lint` (ESLint + dependency-cruiser) holds the package graph: crossing a boundary is a design question, not a lint exception.
-`docs/` is reference, not rules. Decisions and what changed go in the PR description; no doc records are required.
+`docs/` is reference, not rules. Decisions go in the PR description; what a chatter gets goes in a note (below).
 
 ## Run and check
 
@@ -33,13 +33,26 @@ pnpm monorepo, TypeScript strict, WXT, Preact.
   One spec: from `packages/testing` `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` (after `pnpm build && pnpm build:test`).
 - A PR is opened ready, `gh pr merge --auto --squash`; it merges on a green `pnpm check`.
 
-## Release
+## Notes for chatters
+
+A `feat`/`fix` PR — anything a chatter notices — adds `changes/<slug>.md` in the same PR: a title in the chatter's
+words, who it is for and why, `## Как это устроено` (the technical side), and a screenshot from `pnpm see` for a
+visible change. Format and tone — `changes/README.md`; check and preview — `pnpm release notes`. The site, the
+history and the Telegram post are made from these notes only; commit subjects never reach chatters. `pnpm check`
+fails a `feat`/`fix` PR without a note unless its description says `No chatter note: <why>`.
+
+## Release and versions
 
 Your PR is merged and `main` CI is green on that commit — in a clean `main` (`git pull`): `pnpm release --dry-run`, then
-`pnpm release` (patch; `minor`, `major` or `X.Y.Z`). One command: lock, checks, build, AMO signing, feed and pages,
-tag, GitHub release with notes from the commits. No PR, no notes, no `CHANGELOG.md` edits. If it stopped — run it
-again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. The announcement to chatters
-(`pnpm release announce`) — only on the owner's word. Details — `docs/release.md`.
+`pnpm release`. One command: lock, checks, build, AMO signing, feed and pages, tag, GitHub release. If it stopped — run
+it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. Details — `docs/release.md`.
+
+- The tool picks the version: a `new` note since the last tag — minor, else patch. Run `pnpm release` with no argument.
+- `major` or an exact `X.Y.Z` — only on the owner's word (`--confirm <version>`). 1.x and 2.x belong to the old Fansly
+  extension; the next major is **3.0.0**, the launch of the one extension that replaces it (`docs/release.md` §2).
+- No version in PR titles, commits or notes; never edit the version in `apps/extension/package.json` — the tags hold it.
+- A version that reached AMO is spent: never reused or skipped, its tag never moved or deleted.
+- The Telegram announcement (`pnpm release announce`) — only on the owner's word, and only from 3.0.0 on.
 
 ## Dangerous
 
@@ -55,7 +68,7 @@ again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. The
   history read of a chat the person has not opened, no background sweep, no mark-read/unread.
 - **Fansly** — Chrome DevTools MCP, read-only: opening a conversation marks it read, typing sends typing events.
 - **The hub's prod** (`agency-de`) — read-only. AI, keys and prompts live only in the hub.
-- **Announcements to chatters** (Telegram) — the owner's call, never automatic.
+- **Announcements to chatters** (Telegram) — the owner's call, never automatic; the channel starts at 3.0.0.
 
 ## What the chatter gets
 

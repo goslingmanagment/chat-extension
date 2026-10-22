@@ -60,3 +60,14 @@ export function readPackageVersion(packageJson: string): string {
   if (typeof version !== 'string' || !isVersion(version)) throw new Error(`package.json version ${JSON.stringify(version)} is not X.Y.Z.`);
   return version;
 }
+
+/**
+ * 1.x and 2.x are the versions of the old Fansly extension (fansly-chat, chatgoose@gosling.agency, last 2.13.x).
+ * This extension goes from 0.5.x straight to 3.0.0, the launch of the one extension for both sites (owner,
+ * 2026-10-22), so a chatter never sees the two products under one number. null — the version is free.
+ */
+export function reservedVersionProblem(version: string): string | null {
+  const [major] = parseVersion(version);
+  if (major === 1 || major === 2) return `${version}: 1.x and 2.x are the old Fansly extension's numbers — this one goes from 0.5.x to 3.0.0 (docs/release.md «Versions»).`;
+  return null;
+}

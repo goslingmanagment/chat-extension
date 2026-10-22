@@ -6,6 +6,7 @@
 # drives Firefox through them. None of that reads:
 #   docs/**           the documents;
 #   site/**           the release site, static pages;
+#   changes/**        the notes of changes and their screenshots (changes/README.md);
 #   *.md in the root  README, AGENTS, CHANGELOG, BUILD.
 # A change that touches nothing else gets `e2e=false`. Those files are not
 # unchecked: `pnpm check` tests the site, the changelog and the parity tables,
@@ -38,14 +39,14 @@ decide() {
     [ -n "$path" ] || continue
     seen=$((seen + 1))
     case "$path" in
-      docs/* | site/*) ;;
+      docs/* | site/* | changes/*) ;;
       */*) answer true "$path is not a document — the run is needed" ;;
       *.md) ;;
       *) answer true "$path is not a document — the run is needed" ;;
     esac
   done
   [ "$seen" -gt 0 ] || answer true 'no changed file was found — the run is not skipped on a guess'
-  answer false "all $seen changed file(s) are under docs/, site/ or are *.md in the root — the e2e run reads none of them"
+  answer false "all $seen changed file(s) are under docs/, site/, changes/ or are *.md in the root — the e2e run reads none of them"
 }
 
 if [ "${1:-}" = '--paths' ]; then

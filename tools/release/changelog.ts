@@ -88,7 +88,7 @@ const UNSUPPORTED: ReadonlyArray<[RegExp, string]> = [
   [/^(?:-{3,}|\*{3,}|_{3,})\s*$/, 'horizontal rules'],
 ];
 
-function parseBlocks(lines: ReadonlyArray<{ readonly text: string; readonly line: number }>): Block[] {
+export function parseBlocks(lines: ReadonlyArray<{ readonly text: string; readonly line: number }>): Block[] {
   const blocks: Block[] = [];
   let paragraph: { text: string; line: number } | null = null;
   let list: Array<{ text: string; line: number }> | null = null;

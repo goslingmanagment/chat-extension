@@ -7,16 +7,19 @@
 //   <… data-cg="firefox">142</…>        the oldest Firefox the manifest allows
 //   <a data-cg="xpi" href="…">           the address of the signed XPI
 //   <!-- cg:begin NAME --> … <!-- cg:end NAME -->
-//                                        a part made from CHANGELOG.md:
+//                                        a part made from the history (notes.ts):
 //                                        `whats-new` (the current version) and
 //                                        `changelog` (every version)
 //
 // `pnpm release` renders them into the tree for its build and puts the files
-// back after: the site in git stays the site of git's version and CHANGELOG.md. Pilot privacy and cutover copy is generated
+// back after: the site in git stays the site of git's version and CHANGELOG.md. The screenshots of the notes
+// (changes/*.png) go up next to the pages, under changes/. Pilot privacy and cutover copy is generated
 // from site-copy.ts as well. No I/O here.
 
-import { blocksHtml, escapeHtml, sectionOf, type Changelog, type ChangelogSection } from './changelog.ts';
+import { blocksHtml, escapeHtml, inlineHtml } from './changelog.ts';
+import { KIND_LABEL, NOTES_DIR, SITE_LABEL, TECH_HEADING, type Note } from './changes.ts';
 import { signedXpiName, type ReleaseTarget } from './config.ts';
+import { groups, NOTHING_NEW, releaseLabel, releaseOf, type History, type Release } from './notes.ts';
 import { renderSiteCopy } from './site-copy.ts';
 
 /** Every page of the site; the first is its index. */
@@ -35,26 +38,49 @@ export const VERSIONLESS_PAGES: readonly string[] = ['start.html', 'guide.html',
 export interface SiteContext {
   readonly version: string;
   readonly target: ReleaseTarget;
-  readonly changelog: Changelog;
+  readonly history: History;
 }
 
 /** The XPI's address as the install page links to it: relative to the site folder. */
 export const xpiHref = (context: Pick<SiteContext, 'version' | 'target'>): string => `${context.target.feedDir}/${signedXpiName(context.version)}`;
 
-function releaseHtml(section: ChangelogSection, indent: string): string {
-  const label = section.label === '' ? '' : ` <span class="release__label">${escapeHtml(section.label)}</span>`;
-  return [
-    `${indent}<section class="release" id="v${section.version}">`,
-    `${indent}  <h2 class="release__title"><span class="release__version">${section.version}</span>${label}</h2>`,
-    blocksHtml(section.blocks, `${indent}  `),
-    `${indent}</section>`,
-  ].join('\n');
+/** The address of a note's screenshot on the site, relative to its pages. */
+export const noteImageHref = (file: string): string => `${NOTES_DIR}/${file}`;
+
+/** Every screenshot the history shows: the files of changes/ that go up with the pages. */
+export function historyImages(history: History): string[] {
+  return [...new Set(history.releases.flatMap((release) => (release.kind === 'notes' ? release.notes.flatMap((note) => note.images.map((image) => image.file)) : [])))].sort();
+}
+
+function noteHtml(note: Note, version: string, indent: string): string {
+  const sites = note.sites.map((site) => `<span class="note__site">${SITE_LABEL[site]}</span>`).join('');
+  const lines = [
+    `<article class="note note--${note.kind}" id="v${version}-${note.slug}">`,
+    `  <p class="note__meta"><span class="note__kind">${KIND_LABEL[note.kind]}</span>${sites}</p>`,
+    `  <h3 class="note__title">${inlineHtml(note.title)}</h3>`,
+    blocksHtml(note.story, '  '),
+    ...note.images.map((image) => `  <figure class="note__shot"><img src="${escapeHtml(noteImageHref(image.file))}" alt="${escapeHtml(image.alt)}" loading="lazy"><figcaption>${escapeHtml(image.alt)}</figcaption></figure>`),
+    ...(note.tech.length === 0 ? [] : [`  <details class="note__tech">`, `    <summary>${TECH_HEADING}</summary>`, blocksHtml(note.tech, '    '), '  </details>']),
+    '</article>',
+  ];
+  return lines.join('\n').split('\n').map((line) => `${indent}${line}`).join('\n');
+}
+
+function releaseHtml(release: Release, indent: string): string {
+  const label = releaseLabel(release);
+  const head = [
+    `${indent}<section class="release" id="v${release.version}">`,
+    `${indent}  <h2 class="release__title"><span class="release__version">${release.version}</span>${label === '' ? '' : ` <span class="release__label">${escapeHtml(label)}</span>`}</h2>`,
+  ];
+  if (release.kind === 'legacy') return [...head, blocksHtml(release.blocks, `${indent}  `), `${indent}</section>`].join('\n');
+  const body = release.notes.length === 0 ? [`${indent}  <p class="muted">${NOTHING_NEW}</p>`] : groups(release.notes).flatMap((group) => group.notes.map((note) => noteHtml(note, release.version, `${indent}  `)));
+  return [...head, ...body, `${indent}</section>`].join('\n');
 }
 
 function regions(context: SiteContext): Record<string, (indent: string) => string> {
   return {
-    'whats-new': (indent) => releaseHtml(sectionOf(context.changelog, context.version), indent),
-    changelog: (indent) => context.changelog.sections.map((section) => releaseHtml(section, indent)).join('\n'),
+    'whats-new': (indent) => releaseHtml(releaseOf(context.history, context.version), indent),
+    changelog: (indent) => context.history.releases.map((release) => releaseHtml(release, indent)).join('\n'),
   };
 }
 
@@ -89,9 +115,9 @@ const count = (text: string, pattern: RegExp): number => [...text.matchAll(patte
 /**
  * What is wrong with the site; [] — it can be published. `files` are the
  * files of site/ by name; `linked` are the page addresses the extension itself
- * opens (file names).
+ * opens (file names); `images` — the screenshots in changes/ that go up with them.
  */
-export function siteProblems(files: ReadonlyMap<string, string>, context: SiteContext, linked: readonly string[]): string[] {
+export function siteProblems(files: ReadonlyMap<string, string>, context: SiteContext, linked: readonly string[], images: ReadonlySet<string> = new Set(historyImages(context.history))): string[] {
   const problems: string[] = [];
   for (const name of SITE_FILES) if (!files.has(name)) problems.push(`${name} is missing`);
   for (const name of files.keys()) if (!SITE_FILES.includes(name)) problems.push(`${name} is not a file of the site (tools/release/site.ts lists them)`);
@@ -111,7 +137,12 @@ export function siteProblems(files: ReadonlyMap<string, string>, context: SiteCo
     // Static and self-contained: no script, no handler, nothing loaded from another host.
     if (/<script\b/i.test(html)) say('no scripts on the site');
     if (/\son[a-z]+\s*=/i.test(html)) say('no inline event handlers');
-    if (/<(?:img|iframe|object|embed|video|audio|source)\b/i.test(html)) say('no embedded media (icons are inline SVG)');
+    // The only pictures are the notes' screenshots, from the site's own changes/ folder.
+    if (/<(?:iframe|object|embed|video|audio|source)\b/i.test(html)) say('no embedded media (icons are inline SVG)');
+    for (const match of html.matchAll(/<img\b[^>]*>/gi)) {
+      const src = /\bsrc="([^"]*)"/.exec(match[0])?.[1] ?? '';
+      if (!src.startsWith(`${NOTES_DIR}/`) || !images.has(src.slice(NOTES_DIR.length + 1))) say(`the picture ${src || '(no src)'} is no screenshot of a note in ${NOTES_DIR}/`);
+    }
     for (const match of html.matchAll(/<link\b[^>]*\bhref="([^"]*)"/g)) {
       if (/^(?:[a-z]+:)?\/\//i.test(match[1] ?? '')) say(`loads ${match[1]} from another host`);
     }
