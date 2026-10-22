@@ -73,6 +73,18 @@ export function GenerationSection({ body, readOnly }: { readonly body: Generatio
             />
           </Opt>
 
+          {/* 1.50.0: where a chat's «с Recap» starts (a Reply's or a Ping's head, Coach's «Учитывать Recap»). */}
+          <Opt label={i18n.t('settings.generation.recapDefault')} hint={i18n.t('settings.generation.recapHint')}>
+            <Checkbox
+              label={i18n.t('settings.generation.recapDefault')}
+              stateWord={i18n.t('settings.generation.on')}
+              checked={body.recap !== false}
+              size={14}
+              reason={locked}
+              onChange={(value) => void act({ type: 'SetPreference', key: 'generation.recap', value }, { quiet: true })}
+            />
+          </Opt>
+
           {/* X68: «Помнить тон в чате» is retired — a tone lasts for one Reply, as in the old extension. */}
         </Card>
       }

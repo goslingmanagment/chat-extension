@@ -1294,6 +1294,8 @@ export const EN: I18nCatalog<'en'> = {
   'settings.generation.less': 'Less',
   'settings.generation.more': 'More',
   'settings.generation.splitHint': 'An answer as several short messages',
+  'settings.generation.recapDefault': 'Use the Recap',
+  'settings.generation.recapHint': "Reply, Ping and Coach use the fan's Recap when there is one. Off — they answer from the chat alone. In a chat, the «with Recap» tick in the answer's head and at the top of Coach changes it",
   'settings.generation.rememberTone': 'Remember the tone in a chat',
   'settings.generation.rememberToneHint': 'The tone chosen for Reply stays in this chat until you change it or open another chat. Off — a tone lasts for one Reply',
   'settings.generation.on': 'On',

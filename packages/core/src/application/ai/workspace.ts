@@ -75,8 +75,8 @@ interface ChatUi {
   sheet: Sheet | null;
   /** The hub page of the chat when its sheet was set; null — not known then. */
   pageId: number | null;
-  /** «с Recap» unticked: Reply, Ping and Coach of this chat read no Recap of the fan, until a tick, a build or a reload. */
-  recapOff: boolean;
+  /** «с Recap» of this chat as the person set it (a tick, a build); null — the settings' «Учитывать Recap». Until a reload. */
+  recap: boolean | null;
 }
 
 export interface OpenChat {
@@ -685,7 +685,7 @@ export class AiWorkspace {
   private ui(key: ChatKey): ChatUi {
     let ui = this.chats.get(key);
     if (ui === undefined) {
-      ui = { tone: null, sheet: null, pageId: null, recapOff: false };
+      ui = { tone: null, sheet: null, pageId: null, recap: null };
       this.chats.set(key, ui);
       // A sheet left open in a chat visited long ago is not kept for ever: the oldest go.
       while (this.chats.size > CHAT_UI_MAX) {
@@ -721,16 +721,18 @@ export class AiWorkspace {
   }
 
   /**
-   * «с Recap» of a chat (the dock's bar and Coach's topbar tick it alike): Reply, Ping and Coach read the fan's Recap
-   * unless it is unticked. For the tab's session, as Split; a Recap built in the chat ticks it again.
+   * «с Recap» of a chat (a Reply's or a Ping's head and Coach's topbar tick it alike): Reply, Ping and Coach read the
+   * fan's Recap unless it is unticked. The chat's own choice until a reload, as Split's, else the settings' «Учитывать
+   * Recap» (absent — on); a Recap built in the chat ticks it again.
    */
   recapOn(key: ChatKey): boolean {
-    return this.chats.get(key)?.recapOff !== true;
+    return this.chats.get(key)?.recap ?? (this.env.settings?.settings.generation.recap !== false);
   }
 
   setRecapOn(key: ChatKey, on: boolean): void {
-    if (this.recapOn(key) === on) return;
-    this.ui(key).recapOff = !on;
+    const ui = this.ui(key);
+    if (ui.recap === on) return;
+    ui.recap = on;
     this.bump();
   }
 
