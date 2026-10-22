@@ -1,5 +1,5 @@
-// Recap, Review, Coach, the fan panel, the palette, quick jump, the
-// cheatsheet and toasts for the scenarios.
+// Recap, Coach (and a Review as its turn), the fan panel, the palette, quick
+// jump, the cheatsheet and toasts for the scenarios.
 
 import {
   DOCK_ACTION_IDS,
@@ -17,7 +17,6 @@ import {
   type RecapLength,
   type RecapPickerVM,
   type RecapViewVM,
-  type ReviewVM,
   type ToastVM,
   type ToastsVM,
   type VmView,
@@ -91,50 +90,6 @@ export function recapView(ctx: ScenarioCtx, view: VmView, length: RecapLength, p
   };
 }
 
-// ── Review ──
-
-export function review(ctx: ScenarioCtx, view: VmView, patch: Partial<ReviewVM> = {}): ReviewVM {
-  const hasText = view.s === 'ready' || view.s === 'partial' || view.s === 'offline';
-  return {
-    view,
-    opId: hasText ? uuid(301) : null,
-    state: hasText ? 'done' : null,
-    phase: null,
-    streamText: null,
-    rating: hasText ? 7 : null,
-    window: hasText ? { messages: 40 } : null,
-    targetName: FANS.hubert.name,
-    meta: [msg('review.meta', { n: 40, name: FANS.hubert.name })],
-    lead: hasText ? 'Warm and consistent; the upsell came too early.' : null,
-    sections: hasText
-      ? [
-          { kind: 'verdict', title: msg('review.section.verdict'), body: 'Warm and consistent; the upsell came too early.', items: [] },
-          { kind: 'money', title: msg('review.section.money'), body: '$30 set bought after the tip; one offer left on the table.', items: [] },
-          { kind: 'persona', title: msg('review.section.persona'), body: 'Voice matches Лора: playful, short sentences.', items: [] },
-          {
-            kind: 'mistakes',
-            title: msg('review.section.mistakes'),
-            body: 'One mistake.',
-            items: [{ body: 'The set was offered right after his tip.', example: 'Missed you today — want to see what I saved for you?', exampleWhere: 'after "[Photo]"', afterExample: null }],
-          },
-          { kind: 'recommendations', title: msg('review.section.recommendations'), body: 'Ask about his weekend before the next offer.', items: [] },
-        ]
-      : [],
-    raw: hasText ? 'Rating: 7/10 …' : null,
-    unparsed: false,
-    copyHandle: hasText ? handles.artifact('review', 1) : null,
-    regenerate: button('common.again', { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'review', options: {} }, { hotkey: hotkey(ctx, 'review') }),
-    generatedAt: hasText ? iso(ctx.now - 5 * MIN) : null,
-    facts: [msg('review.archiveAsOf', { time: { time: ctx.now - 2 * MIN } })],
-    refreshFailed: null,
-    stamp: stamp(ctx, view.s === 'partial' ? 'partial' : 'complete'),
-    splitReason: reason('not-a-message'),
-    expanded: false,
-    debug: null,
-    ...patch,
-  };
-}
-
 // ── Coach ──
 
 export function coachTurn(ctx: ScenarioCtx, n: number, patch: Partial<CoachTurnVM> = {}): CoachTurnVM {
@@ -157,6 +112,57 @@ export function coachTurn(ctx: ScenarioCtx, n: number, patch: Partial<CoachTurnV
     },
     error: null,
     errorActions: [],
+    ...patch,
+  };
+}
+
+/**
+ * 1.51.0: a Review as a turn of Coach's dialog — the question line «Review», its card the answer; «Ещё раз» rates anew
+ * as the next turn.
+ */
+export function coachReviewTurn(ctx: ScenarioCtx, n: number, patch: Partial<CoachTurnVM> = {}): CoachTurnVM {
+  const opId = uuid(400 + n);
+  return {
+    feature: 'review',
+    id: `turn-${n}`,
+    opId,
+    question: 'Review',
+    askedAt: ctx.now - (10 - n) * MIN,
+    state: 'done',
+    phase: null,
+    sentToCoach: false,
+    streamText: null,
+    attachedDraft: false,
+    outsideMemory: false,
+    answer: null,
+    review: {
+      rating: 7,
+      lead: null,
+      sections: [
+        { kind: 'verdict', title: msg('review.section.verdict'), body: 'Warm and consistent; the upsell came too early.', items: [] },
+        { kind: 'money', title: msg('review.section.money'), body: '$30 set bought after the tip; one offer left on the table.', items: [] },
+        { kind: 'persona', title: msg('review.section.persona'), body: 'Voice matches Лора: playful, short sentences.', items: [] },
+        {
+          kind: 'mistakes',
+          title: msg('review.section.mistakes'),
+          body: '',
+          items: [
+            { body: 'The set was offered right after his tip.', example: 'Missed you today — want to see what I saved for you?', exampleWhere: 'after "[Photo]"', afterExample: null },
+            { body: 'His question about the weekend went unanswered.', example: null, exampleWhere: null, afterExample: null },
+          ],
+        },
+        { kind: 'works', title: msg('review.section.works'), body: 'Short warm questions about his day.', items: [] },
+        { kind: 'recommendations', title: msg('review.section.recommendations'), body: 'Ask about his weekend before the next offer.', items: [] },
+      ],
+      raw: 'Rating: 7/10 …',
+      unparsed: false,
+      copyHandle: handles.artifact('review', n),
+      generatedAt: iso(ctx.now - 5 * MIN),
+      partial: false,
+    },
+    error: null,
+    errorActions: [],
+    again: button('common.again', { type: 'Regenerate', operationId: opId }),
     ...patch,
   };
 }
@@ -211,6 +217,8 @@ export function coach(ctx: ScenarioCtx, view: VmView, turns: readonly CoachTurnV
     newDialog: button('coach.newDialog', { type: 'NewCoachDialog' }),
     // AI-081: the empty dialog's three headings of questions that fill the field, as the controller gives them.
     hints: turns.length > 0 ? [] : COACH_HINTS.map((group) => ({ label: msg(group.label), questions: group.questions.map(([key, question]) => ({ label: msg(key), question })) })),
+    // 1.51.0: «Review» by the ready questions.
+    review: button('coach.chip.review', { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'review', options: {} }, { hotkey: hotkey(ctx, 'review') }),
     ...patch,
   };
 }

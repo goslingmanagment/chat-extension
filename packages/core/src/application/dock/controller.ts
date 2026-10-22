@@ -22,10 +22,11 @@
 // error — opens the sheet, with «Заменить мой черновик».
 //
 // What the strip's chips ask for is in each chip (`ChipVM.action`): for
-// Reply, Fix, Hi, Ping and Review — `Generate { targetHandle, feature,
-// options: {} }`, which starts a generation (or reopens the same one); Recap
-// opens its sheet and Coach its panel and never generate by themselves; a
-// window (Spenders, «Новые») opens.
+// Reply, Fix, Hi and Ping — `Generate { targetHandle, feature, options: {} }`,
+// which starts a generation (or reopens the same one); Recap opens its sheet
+// and Coach its window and never generate by themselves; a window (Spenders,
+// «Новые») opens. Review has no chip since 1.51.0: it is a turn of Coach's
+// dialog — its state here is what its key and the palette's row say.
 
 import { TONES, type FeatureId } from '@cg/contracts/features';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
@@ -187,18 +188,22 @@ export function createDockController(ws: AiWorkspace): DockController {
     const { catalog } = ws.ports;
     const { chat, ready } = situation;
     const allOff: ReasonVM | null = ws.offReason(situation);
-    // A Coach turn is the Coach's whichever of its steps runs: its auto-recap is a recap of the Coach surface. A click
-    // whose start is still being gathered is its button's already.
+    // A Coach turn is the Coach's whichever of its steps runs: its auto-recap is a recap of the Coach surface, and so is
+    // a Review (1.51.0, a turn of Coach) — which is Review's own run too. A click whose start is still being gathered is
+    // its button's already.
     const busyAction = running !== null ? (running.view.surface === 'coach' ? 'coach' : policyOf(running.view.feature).dockAction) : pending === null ? null : policyOf(pending.feature).dockAction;
+    const busyOf = (id: DockActionId): boolean => busyAction === id || (id === 'review' && running?.view.feature === 'review');
     const recapReady = chat !== null && ready !== null && hasRecapCopy(ready);
     const entries = DOCK_ACTION_IDS.map((id): [DockActionId, DockActionVM] => {
       let reason: ReasonVM | null = allOff;
       if (reason === null && ready !== null) {
         // What the feature needs on THIS page to be generated; the hub's own reason picks the words («выключена», «хаб пока не умеет»…).
         const admitted = ws.admitted(situation.host, ready, id, 'generate');
-        if (!admitted.usable) reason = flagReasonVm(admitted);
+        // 1.51.0: Coach's window holds Review too — where Coach's questions are off and Review is on, it opens for Review alone.
+        const opensForReview = id === 'coach' && !admitted.usable && ws.admitted(situation.host, ready, 'review', 'generate').usable;
+        if (!admitted.usable && !opensForReview) reason = flagReasonVm(admitted);
         // UI-008: while a generation runs in this chat only its own button works.
-        else if (busyAction !== null && busyAction !== id) reason = catalog.reason('chat-busy');
+        else if (busyAction !== null && !busyOf(id)) reason = catalog.reason('chat-busy');
         else if (busyAction === null && id !== 'recap' && id !== 'coach') {
           // Recap opens its sheet and Coach its panel: their gates sit on the build and ask buttons.
           const composer = situation.host.composer;
@@ -207,7 +212,7 @@ export function createDockController(ws: AiWorkspace): DockController {
           if (gate !== null) reason = catalog.reason(gate.reason);
         }
       }
-      const busy = busyAction === id;
+      const busy = busyOf(id);
       return [
         id,
         {
@@ -336,7 +341,7 @@ export function createDockController(ws: AiWorkspace): DockController {
         : shown !== null && shown.view.state !== 'canceled'
           ? fromClick(resultVm(ws, shown, { regenerate: { type: 'Regenerate', operationId: shown.view.opId } }))
           : null;
-    const activeAction: DockActionId | null = result !== null ? policyOf(result.feature).dockAction : sheet?.kind === 'recap' ? 'recap' : sheet?.kind === 'review' ? 'review' : null;
+    const activeAction: DockActionId | null = result !== null ? policyOf(result.feature).dockAction : sheet?.kind === 'recap' ? 'recap' : null;
     const generating = running !== null || pending !== null;
     const lockReason = ws.offReason(situation) ?? (generating ? catalog.reason('locked-during-generation') : null);
     const quota = situation.quota;
@@ -385,7 +390,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey, panels(situation, handle, sheet)),
       result,
       focusPart,
-      analysis: sheet?.kind === 'recap' ? 'recap' : sheet?.kind === 'review' ? 'review' : null,
+      analysis: sheet?.kind === 'recap' ? 'recap' : null,
       voice: sheet?.kind === 'voice',
       refusal: sheet?.kind === 'refusal' ? refusalVm(ws, sheet.refusal) : null,
       runningElsewhere: elsewhere,

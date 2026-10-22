@@ -27,7 +27,7 @@ import { PAGE } from '../../src/scenarios/hub';
 import { MOD, PANEL, pressSend, typeDraft, waitForComposerText } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { oursExists, oursFocus, oursText, pressOurs, readOurs, waitOursText } from '../support/ours';
+import { ours, oursExists, oursFocus, oursText, pressOurs, readOurs, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, standApiOrigin, standOrigin, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -90,7 +90,7 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await waitForComposerText(ACC, a1, 'a line of my own', 'the person’s own line');
   });
 
-  it('[AI-050] analysis asks the hub only: a short Recap, a Review and a question to Coach, each with the open chat\'s tail (X52)', async () => {
+  it('[AI-050] analysis asks the hub only: a short Recap, a Review (a turn of Coach) and a question to Coach, each with the open chat\'s tail (X52)', async () => {
     const mark = await hub().mark();
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
@@ -99,14 +99,13 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await waitOursText('modal', 'Synthetic short recap.', 'the short Recap in its window', { timeout: 20_000, selector: '.cg-xdlg' });
     await browser.keys('Escape');
     await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
-    await pressOurs('dock', '.cg-strip button', /^Review/);
-    // X55: the Review opens in its «Развернуть ↗» window; one Esc closes it with its sheet.
-    await waitOursText('modal', 'Synthetic review of the chat.', 'the Review in its window', { timeout: 20_000, selector: '.cg-xdlg' });
-    await browser.keys('Escape');
-    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not close the Review window' });
-    await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
+    // 1.51.0: Review is a turn of Coach — its window, its «Review» chip; then a question in the same dialog.
     await pressOurs('dock', '.cg-strip button', /^Coach/);
     await browser.waitUntil(async () => (await oursFocus('panel'))?.label === 'Вопрос Coach', { timeout: 10_000, timeoutMsg: 'the Coach field did not take the focus' });
+    await pressOurs('panel', '.cg-co__chip', /^Review/);
+    await waitOursText('panel', 'Synthetic review of the chat.', 'the Review turn', { timeout: 20_000, selector: '[data-cg-review]' });
+    await dockIs((d) => d.analysis === null && d.result === null, 'nothing of the Review in the dock');
+    await ours('panel', '.cg-co__ask textarea, .cg-co__ask input').click();
     await browser.keys('What do I say next?'.split(''));
     await browser.keys('Enter');
     await waitOursText('panel', 'Ask about their weekend before you offer anything.', 'the Coach answer', { timeout: 20_000 });

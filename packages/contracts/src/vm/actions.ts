@@ -146,8 +146,8 @@ export type NewcomerCheckFilter = (typeof NEWCOMER_CHECK_FILTERS)[number];
 export const RECAP_LENGTHS = ['short', 'full'] as const;
 export type RecapLength = (typeof RECAP_LENGTHS)[number];
 
-/** Recap and Review of the open chat: the two analysis views of the dock sheet (ui-design §4.11). */
-export const ANALYSIS_VIEWS = ['recap', 'review'] as const;
+/** Recap of the open chat: the analysis view of the dock sheet (ui-design §4.11). 1.51.0: Review is a turn of Coach's dialog. */
+export const ANALYSIS_VIEWS = ['recap'] as const;
 export type AnalysisView = (typeof ANALYSIS_VIEWS)[number];
 /** Where an analysis view is shown: the dock sheet, the «Развернуть ↗» dialog (UI-014), or hidden (kept). */
 export const ANALYSIS_MODES = ['sheet', 'expanded', 'hidden'] as const;
@@ -264,12 +264,13 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** CG-RECAP-SAVE «Сохранить ещё раз»: the idempotent dossier reference write only, never a new generation. */
   act('RetryRecapSave', { length: z.enum(RECAP_LENGTHS) }),
   /**
-   * Where Recap or Review of the open chat is shown (1.2.0): the dock sheet,
-   * the «Развернуть ↗» dialog (UI-014) or hidden — kept, the same button opens
-   * it again. They follow the open chat and may have no operation (a saved
+   * Where Recap of the open chat is shown (1.2.0): the dock sheet, the
+   * «Развернуть ↗» dialog (UI-014) or hidden — kept, the same button opens it
+   * again. It follows the open chat and may have no operation (a saved
    * Recap), so HideResult and ExpandResult, which name an operation, cannot
-   * address them. Never generates: a Recap sheet with nothing saved shows the
-   * picker («Собрать коротко / полностью»).
+   * address it. Never generates: a Recap sheet with nothing saved shows the
+   * picker («Собрать коротко / полностью»). 1.51.0: Review is no view of its
+   * own any more — it is a turn of Coach's dialog.
    */
   act('ShowAnalysis', { view: z.enum(ANALYSIS_VIEWS), mode: z.enum(ANALYSIS_MODES) }),
 

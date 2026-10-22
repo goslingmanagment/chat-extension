@@ -204,7 +204,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     const hint = chip.group === LEAD && vm.persona !== null ? t('dock.hint.replyAs', { persona: vm.persona.label }) : i18n.text(chip.hint);
     const off = whyOff(chip);
     // A panel that works on (Voice renders a take) is no generation ⌘. stops: its hint stays its own.
-    let tooltip = chip.busy && chip.group !== 'draft' ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(chip.hotkey)), hint);
+    let tooltip = chip.busy && chip.group !== 'voice' ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(chip.hotkey)), hint);
     if (chip.badge !== null) tooltip = `${tooltip}\n${t(chip.badge === 'voice-ready' ? 'dock.badge.voiceReady' : 'dock.badge.recapReady')}`;
     return (
       <StripButton
@@ -268,7 +268,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
           : t('dock.option.splitUnavailable', { reason: i18n.text(splitReason.text) });
   const splitKeys = hotkeyText(vm.options.splitHotkey);
 
-  // ── «Ещё»: whatever a narrow composer hid — Review, Recap, Coach, the two windows ──
+  // ── «Ещё»: whatever a narrow composer hid — Recap, Coach, the two windows ──
   const folded = chips.filter((chip) => moreIds.includes(chip.id));
   const hidden = folded.filter((chip) => !inWindows(chip));
   // Each function «Ещё» holds that is off says why in its own row.
@@ -327,7 +327,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
         {acts.map((chip, index) => (
           <Fragment key={chip.id}>
             <span class={DOCK_GROUP_SLOT[chip.group]}>
-              {/* A hairline seam before the first chip of every next group: Reply and its options │ Fix │ Hi · Ping │ Review · Recap · Coach. */}
+              {/* A hairline seam before the first chip of every next group: Reply and its options │ Fix │ Hi · Ping │ Voice │ Recap · Coach. */}
               {index > 0 && acts[index - 1]?.group !== chip.group ? <Divider /> : null}
               {chipButton(chip)}
               {chip.group === LEAD && quotaText !== null ? <Quota count={quota === 'zero' ? 0 : remaining} text={quotaText} /> : null}

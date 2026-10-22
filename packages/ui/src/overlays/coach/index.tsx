@@ -1,7 +1,8 @@
 // @cg/ui/overlays/coach — the Coach window (ui-design §3.7, §4.19, §10;
-// decision X63: the old Fansly extension's Coach — a 720 px window centred
-// over the chat on a flat scrim, the owner's ruling of 2026-10-19; it replaces
-// the 320 px side panel of §9.1 (б)). AI-080…AI-100.
+// decision X63: the old Fansly extension's Coach — a window centred over the
+// chat on a flat scrim, the owner's ruling of 2026-10-19; it replaces the
+// 320 px side panel of §9.1 (б)). 860 px wide since 2026-10-23 (the owner: «мб
+// пошире коача в целом»), 720 before. AI-080…AI-100.
 // The session of the open chat from `CoachVM`, laid out as the old window:
 // the head (the micro-caps «Coach» over the fan's name; «Новый диалог» and ×),
 // the topbar (what Coach reads: the fan's Recap — «☑ Учитывать Recap · 3 д
@@ -15,7 +16,11 @@
 // the latest answer, the empty state (the ready questions that ask at once and
 // the three headings of questions that fill the field), and the composer
 // pinned to the bottom (↵ asks, ⇧↵ a new line, «Приложить мой ответ»,
-// «Отменить» while Coach answers, «Спросить»).
+// «Отменить» while Coach answers, «Спросить»). Review is a turn of the dialog
+// (1.51.0): the «Review» chip by the ready questions runs it, its question
+// line is «Review» and its answer the Review's card (./review.tsx) — the
+// score, the blocks, «Копировать Review», its age and «Ещё раз»; a page whose
+// Coach is off but whose Review is on shows that chip alone.
 // Opening it puts focus into the question field (AI-080); the window does not
 // trap focus; Esc, × and a press on the scrim close it and the session stays;
 // a draft part inserted into the composer closes it (the controller, AI-086),
@@ -47,6 +52,7 @@ import {
   TextField,
   ViewState,
   focusQuietly,
+  hotkeyText,
   mountKitSurface,
   useDispatch,
   useI18n,
@@ -63,12 +69,14 @@ import { RetryAnnouncer, useReadyAnnouncement, useStageAnnouncements } from '../
 import { CancelButton } from '../../dock/Head';
 import { DEFAULT_PARTS } from '../../dock/lazy';
 import { DebugSlot } from '../../dock/lazy-part';
+import { ANALYSIS_STYLE } from '../../dock/analysis/styles';
 import { isRunning, toneOf } from '../../dock/model';
 import { Parts } from '../../dock/Parts';
 import { StaleRow } from '../../dock/Result';
 import { StreamText, useSteadyView, useStreamText } from '../../dock/Stream';
 import { DOCK_STYLE } from '../../dock/styles';
 import { overlayRootCss } from '../layer';
+import { REVIEW_TURN_CSS, ReviewCard } from './review';
 
 /**
  * Questions typed and not yet asked, by the handle of the chat they were typed
@@ -80,8 +88,12 @@ const unsent = new Map<string, string>();
 /** How many chats keep an unasked question. */
 export const UNSENT_QUESTIONS_MAX = 50;
 
-/** The window: as wide as the old one, top-inset, at most this share of the window's height and never taller (X63). */
-export const COACH_WINDOW = { width: 720, heightShare: 0.84, maxHeight: 860, inset: 20 } as const;
+/**
+ * The window: top-inset, at most this share of the window's height and never taller (X63); never wider than the browser's
+ * window less the inset at each side. 860 px since 2026-10-23 (720 before, as the old one): a Review's blocks and the
+ * drafts take the width; prose keeps the measure it had (`proseMax`), so its lines do not grow long.
+ */
+export const COACH_WINDOW = { width: 860, proseMax: 640, heightShare: 0.84, maxHeight: 860, inset: 20 } as const;
 
 /**
  * Drops every unasked question. For the composition root when the person
@@ -111,11 +123,15 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
   const mark = turn.stale ?? null;
   const again = turn.again ?? null;
   const dispatch = useDispatch();
-  // The live region: the stages of the wait, then «Ответ готов: 2 части» when the answer brought a draft.
+  const isReview = turn.feature === 'review';
+  const review = turn.review ?? null;
+  // The live region: the stages of the wait, then «Ответ готов: 2 части» when the answer brought a draft — or «Сделан
+  // только что» of a Review.
   const said = turn.opId ?? turn.id;
   const waiting = isRunning(turn.state);
-  useStageAnnouncements(i18n.t('coach.title'), waiting ? said : null, turn.phase);
+  useStageAnnouncements(i18n.t(isReview ? 'dock.action.review' : 'coach.title'), waiting ? said : null, turn.phase);
   useReadyAnnouncement(said, waiting, turn.state === 'done', () => {
+    if (isReview) return review === null ? null : `${i18n.t('dock.action.review')}: ${i18n.t('review.madeNow')}`;
     const parts = answer?.drafts[0]?.parts.length ?? 0;
     return parts === 0 ? null : i18n.plural('result.announce.ready', parts);
   });
@@ -123,7 +139,14 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
   return (
     <>
       <div class="cg-co__q" data-cg-turn={turn.id}>
-        <p class="cg-co__bubble">{turn.question}</p>
+        {isReview ? (
+          <p class="cg-co__bubble is-review">
+            <Icon name="gauge" size={14} />
+            {turn.question}
+          </p>
+        ) : (
+          <p class="cg-co__bubble">{turn.question}</p>
+        )}
         {turn.attachedDraft ? (
           <span class="cg-co__with">
             <Icon name="check" size={12} />
@@ -144,10 +167,13 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
             </p>
           </div>
         ) : null}
+        {/* The site's verdict over the answer (R20 P8c): «Ещё раз» asks the question again — or rates the chat anew. */}
+        {(answer === null && review === null) || mark === null ? null : (
+          <StaleRow mark={mark} onAgain={again === null ? null : () => void dispatch(again.action)} reason={again === null || again.enabled ? null : again.reason === null ? i18n.t('common.unknown') : i18n.text(again.reason.text)} />
+        )}
+        {review === null ? null : <ReviewCard review={review} again={again} />}
         {answer === null ? null : (
           <>
-            {/* The site's verdict over the answer (R20 P8c): «Ещё раз» asks the question again. */}
-            {mark === null ? null : <StaleRow mark={mark} onAgain={again === null ? null : () => void dispatch(again.action)} reason={again === null || again.enabled ? null : again.reason === null ? i18n.t('common.unknown') : i18n.text(again.reason.text)} />}
             {answer.prose === '' && blocks.length === 0 ? null : (
               <div class="cg-co__bubble">
                 {answer.prose === '' ? null : <Markdown source={answer.prose} class="cg-co__md" />}
@@ -395,7 +421,8 @@ export function CoachView(): JSX.Element {
   const pinned = useRef(true);
   const turnsSeen = useRef(vm.turns.length);
   // A new turn scrolls into view; its answer only while the feed is read at its end. A finished answer taller than the
-  // feed opens at its start — its first lines, not the ready questions under it (third live check).
+  // feed opens at its start — its question, then its first lines, not the ready questions under it (third live check;
+  // a Review's card is that tall, 1.51.0).
   useLayoutEffect(() => {
     const element = list.current;
     if (element === null) return;
@@ -408,9 +435,11 @@ export function CoachView(): JSX.Element {
     }
     if (!added && !pinned.current) return;
     pinned.current = true;
-    const done = isRunning(last.state) ? null : [...element.querySelectorAll<HTMLElement>('[data-cg-answer]')].find((node) => node.dataset['cgAnswer'] === last.id);
-    if (done !== undefined && done !== null && done.offsetHeight > element.clientHeight) {
-      element.scrollTop += done.getBoundingClientRect().top - element.getBoundingClientRect().top;
+    const ofLast = (attribute: string): HTMLElement | undefined => [...element.querySelectorAll<HTMLElement>(`[${attribute}]`)].find((node) => node.getAttribute(attribute) === last.id);
+    const done = isRunning(last.state) ? undefined : ofLast('data-cg-answer');
+    if (done !== undefined && done.offsetHeight > element.clientHeight) {
+      const start = ofLast('data-cg-turn') ?? done;
+      element.scrollTop += start.getBoundingClientRect().top - element.getBoundingClientRect().top;
     } else element.scrollTop = element.scrollHeight;
   }, [vm.turns.length, last?.state]);
   // The answer as it is written grows its bubble: the feed follows it to the end while it is read there.
@@ -428,10 +457,12 @@ export function CoachView(): JSX.Element {
     const element = list.current;
     if (element !== null) pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < 48;
   };
-  // The window is mounted when the person opens Coach: the question field takes focus (AI-080).
-  // A switch of the chat under an open window mounts nothing and moves no focus.
+  // The window is mounted when the person opens Coach: the question field takes focus (AI-080) — where Coach's
+  // questions are off and its Review on, the «Review» chip does (1.51.0). A switch of the chat under an open window
+  // mounts nothing and moves no focus.
   useLayoutEffect(() => {
-    focusQuietly(field.current);
+    if (vm.reviewOnly === true) focusQuietly(list.current?.querySelector<HTMLElement>('.cg-co__chip.is-review'));
+    else focusQuietly(field.current);
   }, []);
 
   const close = (): void => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } });
@@ -480,7 +511,7 @@ export function CoachView(): JSX.Element {
   const mode = dock.mode;
   // «Отменить» while Coach answers (the old window's red button): the running turn's own cancel, ⌘. as everywhere.
   const cancel = last !== undefined && isRunning(last.state) ? (last.phase?.cancel ?? null) : null;
-  const chips = vm.chips.map((chip, index) => (
+  const questions = vm.chips.map((chip, index) => (
     <Button
       key={index}
       label={i18n.text(chip.label)}
@@ -490,6 +521,28 @@ export function CoachView(): JSX.Element {
       onClick={() => ask(chip.question, chip.preset)}
     />
   ));
+  // 1.51.0: «Review» by the ready questions — a Review of the chatter's work in this chat as the next turn. Off, its hint
+  // is the reason the bar's Review button gave.
+  const review = vm.review ?? null;
+  const reviewKeys = hotkeyText(review?.hotkey ?? null)?.display ?? null;
+  const chips =
+    review === null
+      ? questions
+      : [
+          ...questions,
+          <Button
+            key="review"
+            label={i18n.text(review.label)}
+            icon="gauge"
+            variant="line"
+            class="cg-co__chip is-review"
+            tooltip={reviewKeys === null ? i18n.t('coach.chip.reviewHint') : `${i18n.t('coach.chip.reviewHint')}  ${reviewKeys}`}
+            reason={review.enabled ? null : review.reason === null ? i18n.t('common.unknown') : i18n.text(review.reason.text)}
+            onClick={() => void dispatch(review.action)}
+          />,
+        ];
+  // Coach's questions are off on this page, its Review on: the window is there for the «Review» chip alone.
+  const reviewOnly = vm.reviewOnly === true;
   const hints = vm.hints ?? [];
 
   // Over the middle of the host's container (ChatSpace: right of its account rail, under its top bar), top-inset; the
@@ -549,8 +602,8 @@ export function CoachView(): JSX.Element {
           {blocked || vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
           {empty ? (
             <div class="cg-co__empty">
-              <b>{i18n.t('coach.empty.title')}</b>
-              <p>{i18n.t('coach.empty.body', { name: vm.targetName ?? i18n.t('common.unknown') })}</p>
+              <b>{i18n.t(reviewOnly ? 'coach.reviewOnly.title' : 'coach.empty.title')}</b>
+              <p>{reviewOnly ? i18n.t('coach.reviewOnly.body', { reason: whyNot ?? i18n.t('common.unknown') }) : i18n.t('coach.empty.body', { name: vm.targetName ?? i18n.t('common.unknown') })}</p>
               {chips.length === 0 ? null : <div class="cg-co__chips">{chips}</div>}
               {hints.length === 0 ? null : (
                 <div class="cg-co__groups">
@@ -586,11 +639,13 @@ export function CoachView(): JSX.Element {
             onValue={(value) => keep(chat, value)}
             inputRef={field}
             label={i18n.t('coach.ask.aria')}
-            placeholder={i18n.t('coach.ask.placeholder')}
+            placeholder={reviewOnly ? i18n.t('coach.reviewOnly.placeholder', { reason: whyNot ?? i18n.t('common.unknown') }) : i18n.t('coach.ask.placeholder')}
             multiline
             minHeight={44}
             maxHeight={160}
             maxLength={COACH_LIMITS.questionMaxChars}
+            // Where Coach's questions are off (its Review on), the field says why and takes nothing.
+            {...(reviewOnly ? { reason: whyNot } : {})}
             onEnter={() => ask(question)}
           />
           <div class="cg-co__acts">
@@ -622,7 +677,7 @@ export const COACH_CSS = `
 ${overlayRootCss('coach', 'panel')}
 ${/* The old window's scrim: flat, no blur; a press on it closes Coach as Esc does. */ ''}
 .cg-co-scrim { position: fixed; inset: 0; background: var(--cg-scrim); }
-${/* The window: 720 px over the middle of the host's container, 20 px from its top, a fixed height whose feed scrolls. */ ''}
+${/* The window: 860 px over the middle of the host's container — never wider than the browser's window less 20 px at each side —, 20 px from its top, a fixed height whose feed scrolls. */ ''}
 .cg-coach {
   --cg-co-half: min(${COACH_WINDOW.width / 2}px, calc(50vw - ${COACH_WINDOW.inset}px));
   position: fixed; top: ${COACH_WINDOW.inset}px; translate: -50% 0; container: cg / inline-size;
@@ -679,6 +734,8 @@ ${/* ── the conversation: a log of its own that scrolls; questions right, an
 .cg-co__a { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 .cg-co__a > * { max-width: 92%; }
 .cg-co__a > .cg-co__drafts, .cg-co__a > .cg-card, .cg-co__a > .cg-co__debug { align-self: stretch; max-width: none; }
+${/* The answer's prose keeps the measure of the 720 px window: on the wider one its lines do not grow long; drafts and cards take the width. */ ''}
+.cg-co__a > .cg-co__bubble { max-width: min(92%, ${COACH_WINDOW.proseMax}px); }
 .cg-co__bubble { margin: 0; padding: 10px 12px; border-radius: 12px 12px 12px 4px; background: var(--cg-sunk); color: var(--cg-ink); font-size: var(--cg-text-base); line-height: 1.5; overflow-wrap: anywhere; min-width: 0; }
 .cg-co__q .cg-co__bubble { max-width: 82%; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--cg-clay-bg); line-height: 18px; white-space: pre-wrap; }
 .cg-co__with { display: inline-flex; align-items: center; gap: 4px; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); }
@@ -748,10 +805,12 @@ ${/* ── a narrow window (the old ≤ 720 px rules): less padding, the headin
   .cg-co__top { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { .cg-coach { animation: none; } }
+${REVIEW_TURN_CSS}
 `;
 export const COACH_STYLE: StyleSource = { id: 'cg-coach', css: COACH_CSS };
 
-export const coachSurface: SurfaceDefinition = { view: CoachView, styles: [DOCK_STYLE, COACH_STYLE] };
+// The report's sheet (the score, the blocks) comes with the window: a Review is a turn of its dialog (1.51.0).
+export const coachSurface: SurfaceDefinition = { view: CoachView, styles: [DOCK_STYLE, ANALYSIS_STYLE, COACH_STYLE] };
 
 export function mountCoach(root: ShadowRoot, deps: MountDeps, options: KitMountOptions = {}): KitMount {
   return mountKitSurface('coach', root, deps, coachSurface, options);

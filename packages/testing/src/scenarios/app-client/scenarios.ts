@@ -15,7 +15,7 @@ import { entry, type AppClientScenario, type ScenarioReaction, type ScenarioStep
 import { gallery, galleryEntry } from './gallery';
 import { board, newcomerRow, newcomers, preview, stats, withResult, defaultNewcomerRows } from './lists';
 import { options, popup } from './pages';
-import { aiReadyToast, coach, coachTurn, fanPanel, palette, recapPicker, recapView, review, toast, toasts } from './panels';
+import { aiReadyToast, coach, coachReviewTurn, coachTurn, fanPanel, palette, recapPicker, recapView, toast, toasts } from './panels';
 import { failedResult, meta, part, parts, phase, result, sendParts, variants } from './results';
 
 interface Meta {
@@ -532,7 +532,7 @@ const LEASE: AppClientScenario[] = [
   })),
 ];
 
-// ── Recap, Review, Coach, lists ──
+// ── Recap, Coach (and its Review), lists ──
 
 const ANALYSIS: AppClientScenario[] = [
   make({ id: 'recap-short', title: 'Short Recap from the hub, saved', covers: ['recap-short'] }, (ctx) => ({
@@ -572,8 +572,8 @@ const ANALYSIS: AppClientScenario[] = [
       ),
     ],
   })),
-  make({ id: 'review', title: 'Review 7/10 in the dock sheet', covers: ['review'] }, (ctx) => ({
-    views: [entry(DOCK, dock(ctx, 'ready', { analysis: 'review', actionsOptions: { active: 'review' } })), entry({ of: 'review' }, review(ctx, views.ready()))],
+  make({ id: 'review', title: 'Review 7/10 as a turn of Coach, a question about it after', covers: ['review', 'coach'] }, (ctx) => ({
+    views: [entry({ of: 'coach' }, coach(ctx, views.ready(), [coachReviewTurn(ctx, 1), coachTurn(ctx, 2)]))],
   })),
   make({ id: 'coach-session', title: 'Coach: two turns, the second answering', covers: ['coach'] }, (ctx) => ({
     views: [

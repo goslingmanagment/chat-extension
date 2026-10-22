@@ -1,8 +1,8 @@
 // Recap, Review and Coach (architecture.md §10.2, §7 «Recap», §8.5; ui-design
-// §4.11, §4.18, §4.19, §10). They follow the open chat: Recap and Review in
-// the dock sheet under the same height limit, the Recap tab of the fan panel,
-// Coach as a side panel. None of them is a message to the fan: Split is off
-// with «это не сообщение фану».
+// §4.11, §4.18, §4.19, §10). They follow the open chat: Recap in the dock
+// sheet, the Recap tab of the fan panel, Coach as its window — and Review as a
+// turn of Coach's dialog (1.51.0). Recap and Review are no message to the fan:
+// Split is off with «это не сообщение фану».
 
 import { type CgErrorView } from '../errors';
 import { type COACH_BLOCK_KINDS, type OpState, type REVIEW_SECTION_KINDS, type ResultMarkVM } from '../ops';
@@ -53,8 +53,8 @@ export interface RecapStampVM extends DataStamp {
 }
 
 /**
- * A build of the shown length failed while an earlier Recap of it is kept (or a newer Review failed over an earlier
- * good one): the text stays, the facts say «Не обновилось · CG-… · Повторить».
+ * A build of the shown length failed while an earlier Recap of it is kept: the text stays, the facts say «Не
+ * обновилось · CG-… · Повторить».
  */
 export interface RefreshFailedVM {
   readonly error: CgErrorView;
@@ -120,38 +120,26 @@ export interface ReviewSectionVM {
   readonly items: readonly ReviewItemVM[];
 }
 
-export interface ReviewVM {
-  readonly view: VmView;
-  readonly opId: Uuid | null;
-  readonly state: OpState | null;
-  readonly phase: PhaseVM | null;
-  readonly streamText: string | null;
+/**
+ * 1.51.0: a finished Review as the answer of its turn in Coach's dialog — the old Review window's card, in the thread:
+ * the score, the blocks of parity AI-053, «Копировать Review» and its age. Its progress, its error, its mark and «Ещё
+ * раз» are the turn's own (`CoachTurnVM`).
+ */
+export interface CoachReviewVM {
   /** N/10; null when the model gave none. */
   readonly rating: number | null;
-  /** «последние 40 сообщений с Hubert»: the window and the fan; null while unknown. */
-  readonly window: { readonly messages: number } | null;
-  readonly targetName: string | null;
-  readonly meta: readonly Msg[];
+  /** The text before the first block, when no block repeats it; null — none. */
   readonly lead: string | null;
   readonly sections: readonly ReviewSectionVM[];
-  /** The answer as text, the frame's tags taken out; `unparsed` shows it so. Copy writes the record's own text (AI-053). */
-  readonly raw: string | null;
+  /** The answer as text, the frame's tags taken out; `unparsed` shows it so (AI-052). */
+  readonly raw: string;
   readonly unparsed: boolean;
+  /** «Копировать Review»: the record's own text (AI-054); null — nothing to copy any more. */
   readonly copyHandle: ArtifactHandle | null;
-  /** «Ещё раз ⌘⇧B» — «Оценить заново». */
-  readonly regenerate: ActionButtonVM;
-  /** When the shown Review was made: «Сделан 5 мин назад», ticking in the UI; null — none shown. */
-  readonly generatedAt: IsoTimestamp | null;
-  /** Footer facts besides its age: «архив на 09:18» in debug mode. */
-  readonly facts: readonly Msg[];
-  /** The newest Review failed over an earlier good one, which stays shown; null — none. */
-  readonly refreshFailed: RefreshFailedVM | null;
-  readonly stamp: DataStamp;
-  readonly splitReason: ReasonVM;
-  readonly expanded: boolean;
-  readonly debug: ResultDebugVM | null;
-  /** 1.15.0 (R20 P8c): the mark over the Review — as `RecapViewVM.stale`; its «Ещё раз» is `regenerate`. */
-  readonly stale?: ResultMarkVM | null;
+  /** When it was made: «Сделан 5 мин назад», ticking in the UI. */
+  readonly generatedAt: IsoTimestamp;
+  /** The archive it read was incomplete: «архив неполный». */
+  readonly partial: boolean;
 }
 
 export interface CoachTurnVM {
@@ -192,13 +180,23 @@ export interface CoachTurnVM {
   readonly debug?: ResultDebugVM | null;
   /** 1.15.0 (R20 P8c): the mark over a finished answer — as `RecapViewVM.stale`; null — none. */
   readonly stale?: ResultMarkVM | null;
-  /** 1.15.0 (R20 P8c): «Ещё раз» of a marked answer — the turn's question asked again; null — no mark, or no chat to ask in. */
+  /**
+   * 1.15.0 (R20 P8c): «Ещё раз» of a marked answer — the turn's question asked again; null — no mark, or no chat to ask
+   * in. 1.51.0: a finished Review has it always — a new Review as the next turn.
+   */
   readonly again?: ActionButtonVM | null;
   /**
    * 1.46.0: the Recaps the hub put into this answer — when each was made, null — none; null or absent — the hub did not
    * say. 1.48.0: `off` — none, because «Учитывать Recap» was unticked.
    */
   readonly recapsUsed?: { readonly full: IsoTimestamp | null; readonly short: IsoTimestamp | null; readonly off?: boolean | undefined } | null;
+  /**
+   * 1.51.0: what the turn is — a question to Coach, or a Review of the chat (the «Review» chip, its key, the palette):
+   * its question line is «Review», its answer `review`. Absent — `coach`.
+   */
+  readonly feature?: 'coach' | 'review';
+  /** 1.51.0: the finished Review of a Review turn, never with `answer`; null or absent — none (a question, or a Review not done). */
+  readonly review?: CoachReviewVM | null;
 }
 
 export interface CoachVM {
@@ -242,6 +240,17 @@ export interface CoachVM {
   };
   /** «Новый диалог» — the window asks «Точно начать заново?» in its place first; the old dialog is not kept. */
   readonly newDialog: ActionButtonVM;
+  /**
+   * 1.51.0: the «Review» chip by the ready questions — a Review of the chatter's work in this chat, run as the next turn
+   * (the page's `review`, its gates and its quota: off with the reason the bar's Review button gave). Over a dialog that
+   * holds a Review already it rates anew, past the cache. null or absent — the page has no Review.
+   */
+  readonly review?: ActionButtonVM | null;
+  /**
+   * 1.51.0: Coach's questions are off on this page while its Review is on: the window offers the «Review» chip alone,
+   * `ask.reason` says why. Absent — false.
+   */
+  readonly reviewOnly?: boolean;
   /**
    * The ready questions of the empty dialog under their three headings —
    * «Продать», «Вернуть», «Понять», three each (1.2.0, AI-081). A click puts

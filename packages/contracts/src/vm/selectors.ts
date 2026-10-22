@@ -1,6 +1,6 @@
 // What the UI can look at (architecture.md §10.2 п. 2): one selector per view
-// model. Views that follow the open chat (dock, Recap, Review, Coach, the fan
-// panel) take no parameters: the controller knows the active chat, the UI
+// model. Views that follow the open chat (dock, Recap, Coach, the fan panel)
+// take no parameters: the controller knows the active chat, the UI
 // never names a fan. Handles are opaque strings minted by the controller; the
 // UI passes them back unchanged and cannot build a target out of ids.
 
@@ -14,7 +14,7 @@ export const HANDLE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const HandleSchema = z.string().check(z.regex(HANDLE_PATTERN));
 /** A fan as a target on one surface (dock, a preview, a «Новые» card, a palette row). */
 export type TargetHandle = string;
-/** Something «Копировать» can write: a part, a Recap, a Review, a Coach draft, a prompt. */
+/** Something «Копировать» can write: a part, a Recap, a Review (a turn of Coach), a Coach draft, a prompt. */
 export type ArtifactHandle = string;
 /** A host account (OnlyMonster) the person can switch to or label. */
 export type AccountHandle = string;
@@ -34,8 +34,9 @@ export type JournalKind = (typeof JOURNAL_KINDS)[number];
 /**
  * Where the UI is mounted (§10.1): the dock host above the composer, the
  * overlay host (one active window at layer 950, side panels at 900, toasts at
- * 960) and the extension pages. Recap and Review render inside the dock sheet
- * (ui-design §9.1 п. 3); `result-expanded` is the «Развернуть ↗» dialog.
+ * 960) and the extension pages. Recap renders inside the dock sheet (ui-design
+ * §9.1 п. 3), Review inside Coach's dialog (1.51.0); `result-expanded` is the
+ * «Развернуть ↗» dialog.
  * `preview` (1.9.0) is the preview's own window, for a fan the palette's
  * «Онлайн» lists (CS-030); a preview from Spenders or «Новые» is a part of
  * that window and mounts with it.
@@ -67,7 +68,6 @@ export const VIEW_NAMES = [
   'dock',
   'recap.picker',
   'recap.view',
-  'review',
   'coach',
   'spenders.board',
   'spenders.stats',
@@ -92,7 +92,6 @@ export const ViewSelectorSchema = z.discriminatedUnion('of', [
   z.strictObject({ of: view('dock') }),
   z.strictObject({ of: view('recap.picker') }),
   z.strictObject({ of: view('recap.view') }),
-  z.strictObject({ of: view('review') }),
   z.strictObject({ of: view('coach') }),
   z.strictObject({ of: view('spenders.board') }),
   z.strictObject({ of: view('spenders.stats') }),

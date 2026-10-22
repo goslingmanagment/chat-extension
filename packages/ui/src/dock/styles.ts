@@ -22,17 +22,20 @@
 //   < 820   no lock in the capsule while a generation runs
 //   < 690   the status in the windows' place while the chat loads is its
 //           spinner alone; Hi variants in a column below 680
-//   < 660   the capsule's cells narrower, 24 px from one to the next. Every
-//           word needs ~600 px of bar (Fansly's composer is 600–940 px
-//           wide); below that the row scrolls, as the old bar did
-//   < 492   Review, Recap, Coach are their icons too: the row of icons is
-//           491 px, so it fits again here
-//   < 480   no seams
-//   < 420   the five icons in «Ещё» at once; while the chat loads, the
+//   < 634   the words' chips 6 px in, the capsule's cells narrower, 24 px
+//           from one to the next: every word, Voice's too, fits on ~570 px
+//           of bar (all of them at full padding need ~625; Fansly's composer
+//           is 600–940 px wide, ChatSpace's ~540–1020) — 2026-10-23, the bar
+//           without Review (a turn of Coach since 1.51.0)
+//   < 576   Voice is its 🎙, its name in its hint (the row needs ~550)
+//   < 556   Recap and Coach are their icons too (the row needs ~506)
+//   < 512   no seams (the row of icons needs ~470); below that it scrolls,
+//           as the old bar did
+//   < 420   the four icons in «Ещё» at once; while the chat loads, the
 //           status spinner in its place
 //   ≤ 420   no head meta; Insert under the text
-//   < 360   «Ещё раз» is ↻; the buttons of a Recap or Review head take a
-//           second line; «Ещё» is ⋯
+//   < 360   «Ещё раз» is ↻; the buttons of a Recap head take a second
+//           line; «Ещё» is ⋯
 //           and the chips closer still (a 320 px column, §6.5)
 //
 // No goose in the bar (decision X31): its cell is the room that keeps every
@@ -51,12 +54,17 @@ const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1
  * drops; it stands where a CSS comment would.
  */
 /**
- * Where Review, Recap and Coach turn into their icons, and where the five icons go into «Ещё»: the bar's own width in
- * px, whatever the text size (2026-10-22: in the root's text they folded at ~703 px under «Крупнее», on every Fansly
- * composer). Above `ICONS_BELOW` the bar shows every word — scrolling below ~600 px, as the old bar did —; between the
- * two, the three are their icons.
+ * The steps of a narrow bar, in px of the bar's own width whatever the text size (2026-10-22: in the root's text they
+ * folded at ~703 px under «Крупнее», on every Fansly composer), each a few px above the width its row needs (measured
+ * on both sites' stands, 2026-10-23, the bar without Review): below `TIGHT_BELOW` the words' chips and the capsule
+ * close up, below `VOICE_ICON_BELOW` Voice is its 🎙, below `ICONS_BELOW` Recap and Coach are their icons, below
+ * `SEAMS_BELOW` the seams go, below `MORE_BELOW` the four icons go into «Ещё». Above `ICONS_BELOW` the bar shows every
+ * word but Voice's; nothing scrolls above `SEAMS_BELOW`.
  */
-export const ICONS_BELOW = 492;
+export const TIGHT_BELOW = 634;
+export const VOICE_ICON_BELOW = 576;
+export const ICONS_BELOW = 556;
+export const SEAMS_BELOW = 512;
 export const MORE_BELOW = 420;
 
 export const DOCK_CSS = `
@@ -226,30 +234,30 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
   ${/* While the chat loads the status in the windows' place is its spinner alone. */ ''}
   .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
 }
-@container cg (max-width: 719px) {
-  ${/* 1.47.0: Voice, the draft group's chip with an icon, is its 🎙 here — the words of the bar fit a little longer; its name stays in its hint. */ ''}
-  .cg-strip .cg-slot--draft .cg-act--ico { width: 28px; padding: 0; }
-  .cg-slot--draft .cg-act--ico > .cg-ico { display: block; }
-  .cg-slot--draft .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
-}
-@container cg (max-width: 659px) {
+@container cg (max-width: ${TIGHT_BELOW - 1}px) {
   .cg-strip__opts { padding-left: 4px; }
   .cg-strip .cg-div { margin: 0 2px; }
-  ${/* The words' chips 6 px in (2026-10-23): with 🎙 the bar still fits a ~600 px composer, as it did before Voice; an icon's chip keeps its own width. */ ''}
+  ${/* The words' chips 6 px in (2026-10-23): every word, Voice's too, still fits a ~580 px composer; an icon's chip keeps its own width. */ ''}
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 6px; }
-  .cg-strip .cg-slot--draft .cg-act--ico, .cg-strip .cg-slot--boards .cg-act--ico { padding: 0; }
+  .cg-strip .cg-slot--boards .cg-act--ico { padding: 0; }
   ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
   .cg-tones .cg-opt { width: 22px; }
   .cg-tones__track { gap: 2px; }
 }
+@container cg (max-width: ${VOICE_ICON_BELOW - 1}px) {
+  ${/* 1.47.0: Voice, the chip after Ping, is its 🎙 here — the other words fit a little longer; its name stays in its hint. */ ''}
+  .cg-strip .cg-slot--voice .cg-act--ico { width: 28px; padding: 0; }
+  .cg-slot--voice .cg-act--ico > .cg-ico { display: block; }
+  .cg-slot--voice .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
+}
 @container cg (max-width: ${ICONS_BELOW - 1}px) {
-  ${/* Review, Recap, Coach too: below here their words no longer fit the bar. */ ''}
+  ${/* Recap and Coach too: below here their words no longer fit the bar. */ ''}
   .cg-strip .cg-slot--two .cg-act--ico { width: 30px; padding: 0; }
   .cg-slot--two .cg-act--ico > .cg-ico { display: block; }
   .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
 @container cg (max-width: ${MORE_BELOW - 1}px) {
-  ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. Nothing scrolls then, and «Ещё» opens above the bar. */ ''}
+  ${/* The four icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. Nothing scrolls then, and «Ещё» opens above the bar. */ ''}
   .cg-strip { overflow: visible; }
   .cg-slot--two, .cg-slot--boards { display: none; }
   .cg-slot--more { display: inline-flex; }
@@ -261,7 +269,7 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
   .cg-op { grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr) 44px auto; }
   .cg-op__feat { display: none; }
 }
-@container cg (max-width: 479px) {
+@container cg (max-width: ${SEAMS_BELOW - 1}px) {
   .cg-strip .cg-div { display: none; }
 }
 @container cg (max-width: 420px) {
@@ -280,7 +288,7 @@ ${STALE_ROW_NARROW_CSS}
   .cg-tones__seam { margin: 0 2px; }
   .cg-more .cg-act__t { ${VISUALLY_HIDDEN} }
   .cg-more::before { content: "⋯"; }
-  ${/* Recap and Review: a segment or a score and up to four buttons. They do not fit one line here, and nothing may run out of the dock. */ ''}
+  ${/* Recap: a segment and up to four buttons. They do not fit one line here, and nothing may run out of the dock. */ ''}
   .cg-head--tools { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 3px; }
   .cg-head--tools > .cg-head__sp { display: none; }
   .cg-head--tools > .cg-head__acts { margin-left: auto; }

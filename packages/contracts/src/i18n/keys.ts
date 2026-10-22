@@ -84,7 +84,7 @@ export const UI_TEXT_KEYS = [
   // 2026-10-22: the copy-only line of the page's `insertion` switch; the persona picker of the «Нет персоны» banner.
   'dock.status.insertOff', 'dock.status.insertOffBody', 'dock.persona.menu',
   // 1.13.0 (decision X28): one sentence under a control's name in its hover hint — what the button does, in the chatter's own language.
-  'dock.hint.reply', 'dock.hint.replyAs', 'dock.hint.fix', 'dock.hint.hi', 'dock.hint.ping', 'dock.hint.review', 'dock.hint.recap', 'dock.hint.coach',
+  'dock.hint.reply', 'dock.hint.replyAs', 'dock.hint.fix', 'dock.hint.hi', 'dock.hint.ping', 'dock.hint.recap', 'dock.hint.coach',
   'dock.hint.tone.casual', 'dock.hint.tone.flirty', 'dock.hint.tone.upsell', 'dock.hint.tone.spicy', 'dock.hint.toneOff', 'dock.hint.split',
   'dock.hint.spenders', 'dock.hint.newcomers',
   'result.label', 'result.own', 'result.draft', 'result.draftTooltip', 'result.meta.tone', 'result.meta.inserted', 'result.meta.single', 'result.meta.onePart',
@@ -116,7 +116,7 @@ export const UI_TEXT_KEYS = [
   // 2026-10-22: the short Recap's sections (the hub's WHO … NEXT MOVE), what it covers, a failed «Обновить» under the kept text.
   'recap.section.who', 'recap.section.spend', 'recap.section.triggers', 'recap.section.boundaries', 'recap.section.threads',
   'recap.section.nextMove', 'recap.newAfterSome', 'recap.coverage.window', 'result.notRefreshed',
-  'review.copy', 'review.againTooltip', 'review.archiveAsOf', 'review.madeNow', 'review.section.verdict', 'review.section.money',
+  'review.copy', 'review.againTooltip', 'review.madeNow', 'review.section.verdict', 'review.section.money',
   'review.section.persona', 'review.section.mistakes', 'review.section.works', 'review.section.recommendations', 'review.example',
   'debug.label', 'debug.prompt', 'debug.gutter.cost', 'debug.gutter.ms', 'debug.stage.request', 'debug.stage.meta', 'debug.stage.firstChunk',
   'debug.stage.stream', 'debug.stage.parse', 'debug.stage.render', 'debug.total', 'debug.hubStages', 'debug.profilerAria',
@@ -218,6 +218,8 @@ export const UI_TEXT_KEYS = [
   'recap.usedBy.full', 'recap.usedBy.short', 'recap.picker.explain', 'coach.newDialog.confirm', 'coach.newDialog.keep',
   // The old card's line under a Coach draft in Cyrillic for a fan who does not write Cyrillic: neither Insert nor Copy.
   'coach.draftLanguage',
+  // 1.51.0: Review is a turn of Coach — its chip and hint by the ready questions, the window of a page whose Coach is off.
+  'coach.chip.review', 'coach.chip.reviewHint', 'coach.reviewOnly.title', 'coach.reviewOnly.body', 'coach.reviewOnly.placeholder',
   'palette.label', 'palette.placeholder', 'palette.group.actions', 'palette.group.running', 'palette.group.waiting', 'palette.group.chats',
   'palette.group.accounts', 'palette.group.navigation', 'palette.group.online', 'palette.empty', 'palette.foot.hostOnly',
   'palette.item.running', 'palette.item.waiting', 'palette.item.spenders', 'palette.item.newcomers', 'palette.item.tone', 'palette.item.split',
@@ -396,7 +398,6 @@ export const UI_PLURAL_KEYS = [
   'dock.quota.lowTooltip',
   'result.meta.parts', 'result.meta.variants', 'result.meta.partsEach', 'result.announce.ready', 'result.announce.retryIn',
   'recap.archiveLag', 'recap.newAfter', 'recap.coverage.whole',
-  'review.meta',
   'spenders.footer', 'spenders.footerNoTotal',
   // 2026-10-22: the Spenders header's count of a list the hub has more fans for than it holds («1000 из 1240 фанов»).
   'spenders.headOf',

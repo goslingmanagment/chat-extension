@@ -4,14 +4,16 @@
 // answer with drafts, inserting and copying a draft part (Б2, the language gate), the
 // history sent back, sessions and «Новый диалог», «приложить мой ответ»,
 // failures and cancel, the auto-recap as one composite turn, «Обновить
-// переписку» and the archive lag, and the panel yielding to other features.
+// переписку» and the archive lag, the panel yielding to other features — and
+// Review as a turn of the dialog (1.51.0): its chip, its card, its place in
+// the history, its gates, a page whose Coach is off and Review on.
 
 import { describe, expect, it } from 'vitest';
 
 import { COACH_LIMITS, UiActionSchema, type CoachTurnVM, type FeedPage, type HubFrame, type SettingsV1 } from '@cg/contracts';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostIso, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, meta, pageFeaturesOff, resolveHubErrorReference } from '@cg/testing/hub';
 
 import { settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
@@ -522,5 +524,171 @@ describe('coach: the archive it reads', () => {
     expect(h.coach().freshness).toMatchObject({ asOf: hostIso(0), lag: null });
     // Nothing was generated to learn that.
     expect(h.bg.callsOf('op.start')).toEqual([]);
+  });
+});
+
+const REVIEW = [
+  '<rating>7</rating>',
+  '',
+  '<evaluation>',
+  'Коротко о диалоге.',
+  'ВЕРДИКТ: Диалог тёплый, но апселл пришёл рано.',
+  'ДЕНЬГИ: Сет за $30 куплен после чаевых.',
+  'ПЕРСОНА: Голос держится.',
+  'ОШИБКИ:',
+  '1. Оффер сразу после чаевых: "want more?" — давит. Как надо было (после "[Photo]"): "missed you today, want to see what I saved?" Это мягче.',
+  '2. Не ответила на вопрос про кофе.',
+  'ЧТО РАБОТАЕТ: Короткие тёплые сообщения.',
+  '</evaluation>',
+  '',
+  '<recommendations>',
+  'Общий совет.',
+  '1. Вместо оффера в лоб делай разогрев.',
+  '</recommendations>',
+].join('\n');
+
+const reviewStream = (text: string): ScriptResponse => ({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('chat-review') }, delta(text.slice(0, 40), 100), delta(text.slice(40), 100), doneStep] });
+
+/** One finished Review turn; its operation id. */
+async function reviewTurn(h: Harness): Promise<string> {
+  h.script(reviewStream(REVIEW));
+  const receipt = await h.generate('review');
+  if (!receipt.ok || receipt.opId === undefined) throw new Error(`no Review: ${JSON.stringify(receipt)}`);
+  await h.finish();
+  return receipt.opId;
+}
+
+describe('coach: a Review as a turn of the dialog (1.51.0)', () => {
+  it('[AI-050] the «Review» chip runs the page\'s Review as a turn — the deep window, the open chat\'s tail, Coach\'s window opened for it; its card is the answer, its copy the record\'s text', async () => {
+    const h = await start();
+    const chip = h.coach().review;
+    expect(chip).toMatchObject({ enabled: true, reason: null, label: { key: 'coach.chip.review' }, action: { type: 'Generate', targetHandle: h.dock().targetHandle, feature: 'review', options: {} } });
+    h.script(reviewStream(REVIEW));
+    const receipt = await h.dispatch(chip?.action as never);
+    expect(receipt).toMatchObject({ ok: true, outcome: 'started' });
+    // The window it is read in opens; nothing of it goes to the dock's sheet.
+    expect(h.overlays.opened).toEqual(['coach']);
+    const started = h.bg.callsOf('op.start')[0] as { feature: string; surface: string; window: number; split: boolean; tone: unknown; fresh?: unknown; force?: boolean };
+    expect(started).toMatchObject({ feature: 'review', surface: 'coach', window: 3000, split: false, tone: null });
+    expect(started.force).toBeUndefined();
+    expect(started.fresh).toMatchObject({ messages: [{ platformMessageId: '4004', direction: 'fan', text: 'hey' }] });
+    expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'coach' }]);
+    expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'chat-review', body: { messageCount: 3000 } });
+
+    // While it runs: a turn «Review» with its stages, the preview without the frame; the chip and the question wait.
+    await h.clock.advance(150);
+    const running = lastTurn(h);
+    expect(running).toMatchObject({ feature: 'review', question: 'Review', state: 'streaming', answer: null, sentToCoach: false });
+    expect(running.streamText).not.toMatch(/<\/?(rating|evaluation)/);
+    expect(h.coach().review).toMatchObject({ enabled: false, reason: { id: 'coach-busy' } });
+    expect(h.coach().ask).toMatchObject({ enabled: false, reason: { id: 'coach-busy' } });
+    expect(h.dock()).toMatchObject({ analysis: null, result: null });
+    expect(h.dock().actions.review).toMatchObject({ busy: true });
+    expect(h.dock().actions.coach).toMatchObject({ busy: true });
+
+    await h.finish();
+    const turn = lastTurn(h);
+    expect(turn).toMatchObject({ feature: 'review', question: 'Review', state: 'done', answer: null, review: { rating: 7, lead: 'Коротко о диалоге.', unparsed: false, partial: false } });
+    expect(turn.review?.sections.map((section) => section.kind)).toEqual(['verdict', 'money', 'persona', 'mistakes', 'works', 'recommendations']);
+    expect(turn.review?.sections.find((section) => section.kind === 'mistakes')?.items[0]).toMatchObject({ example: 'missed you today, want to see what I saved?', exampleWhere: 'после "[Photo]"', afterExample: 'Это мягче.' });
+    expect(turn.again).toMatchObject({ enabled: true, action: { type: 'Regenerate', operationId: (receipt as { opId: string }).opId } });
+    expect(await h.dispatch({ type: 'Copy', artifactHandle: turn.review?.copyHandle ?? '' })).toMatchObject({ ok: true });
+    expect(h.clipboard.texts[0]).toMatch(/^7\/10\n\nКоротко о диалоге\./);
+
+    // ⌘⇧B does the same, as a key: a Review over a dialog that holds one is a new rating, never the cached one.
+    h.script(reviewStream(REVIEW));
+    expect(await h.ai.command('review')).toMatchObject({ kind: 'dispatched', action: { type: 'Generate', feature: 'review' }, receipt: { ok: true, outcome: 'started' } });
+    await h.finish();
+    expect(h.bg.callsOf('op.start')[1]).toMatchObject({ feature: 'review', surface: 'coach', force: true, cause: { kind: 'key' } });
+    expect(h.coach().turns.map((item) => `${item.feature ?? 'coach'}:${item.state}`)).toEqual(['review:done', 'review:done']);
+  });
+
+  it('[1.51.0] a question after a Review carries it as history — «Review» and its text, every block with «Как надо было»; «Новый диалог» starts over without it', async () => {
+    const h = await start();
+    await reviewTurn(h);
+    // Coach's answers have not begun: the opening questions stand by the «Review» chip.
+    expect(h.coach().chips.map((chip) => chip.label)).toEqual([{ key: 'coach.chip.situation' }, { key: 'coach.chip.offer' }]);
+    await exchange(h, 'А как исправить первую ошибку?');
+    const asked = h.bg.callsOf('op.start')[1] as { coach: { question: string; history: { question: string; answer: string }[] } };
+    expect(asked.coach.question).toBe('А как исправить первую ошибку?');
+    expect(asked.coach.history).toEqual([
+      {
+        question: 'Review',
+        answer: [
+          'Оценка: 7/10',
+          'Коротко о диалоге.',
+          'ВЕРДИКТ: Диалог тёплый, но апселл пришёл рано.',
+          'ДЕНЬГИ: Сет за $30 куплен после чаевых.',
+          'ПЕРСОНА: Голос держится.',
+          'ОШИБКИ:\n1. Оффер сразу после чаевых: "want more?" — давит.\nКак надо было (после "[Photo]"): "missed you today, want to see what I saved?"\nЭто мягче.\n2. Не ответила на вопрос про кофе.',
+          'ЧТО РАБОТАЕТ: Короткие тёплые сообщения.',
+          'РЕКОМЕНДАЦИИ: Общий совет.\n1. Вместо оффера в лоб делай разогрев.',
+        ].join('\n\n'),
+      },
+    ]);
+    expect(h.bg.hub.streams[1]?.body.coachHistory).toEqual(asked.coach.history);
+    // Coach answered: its follow-ups come.
+    expect(h.coach().chips[1]?.label).toEqual({ key: 'coach.chip.another' });
+
+    // «Новый диалог» starts over: neither the Review nor the answer goes as history.
+    await h.dispatch({ type: 'NewCoachDialog' });
+    expect(h.coach().turns).toEqual([]);
+    await exchange(h, 'And now?');
+    expect((h.bg.callsOf('op.start')[2] as { coach: { history: unknown[] } }).coach.history).toEqual([]);
+  });
+
+  it('[1.51.0] «Ещё раз» of a Review rates the chat anew as the next turn, past the cache; a Review that failed keeps its line with «Повторить» — a Review again', async () => {
+    const h = await start();
+    const first = await reviewTurn(h);
+    h.script({ kind: 'http-error', status: 500, body: { error: 'internal_error' } });
+    expect(await h.dispatch(lastTurn(h).again?.action as never)).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(h.bg.callsOf('op.start')[1]).toMatchObject({ feature: 'review', surface: 'coach', force: true, regenerateOf: first });
+    const failed = lastTurn(h);
+    expect(failed).toMatchObject({ feature: 'review', question: 'Review', state: 'failed', answer: null });
+    expect(failed.error).not.toBeNull();
+    const retry = failed.errorActions[0]?.action;
+    expect(retry).toEqual({ type: 'Generate', targetHandle: h.dock().targetHandle, feature: 'review', options: {} });
+    h.script(reviewStream(REVIEW));
+    expect(await h.dispatch(retry as never)).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    // The new attempt replaces the failed line: one line per question.
+    expect(h.coach().turns.map((turn) => `${turn.feature ?? 'coach'}:${turn.state}`)).toEqual(['review:done', 'review:done']);
+    // Only the finished Reviews go as history.
+    await exchange(h, 'What now?');
+    expect((h.bg.callsOf('op.start')[3] as { coach: { history: { question: string }[] } }).coach.history.map((turn) => turn.question)).toEqual(['Review', 'Review']);
+  });
+
+  it('[1.51.0] the «Review» chip is off for the reason the bar\'s Review button gave: the page\'s switch, a short history (AI-051); nothing starts', async () => {
+    const off = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['review']) });
+    expect(off.coach().review).toMatchObject({ enabled: false, hotkey: null });
+    expect(off.coach().review?.reason).not.toBeNull();
+    expect(off.coach().review?.reason).toEqual(off.dock().actions.review.reason);
+    expect(await off.ai.command('review')).toMatchObject({ kind: 'hint' });
+
+    const short = await start();
+    short.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), loaded: 12, hasOlder: false }, openChat);
+    await short.settle();
+    expect(short.coach().review).toMatchObject({ enabled: false, reason: { id: 'no-history' } });
+    expect(short.coach().review?.reason).toEqual(short.dock().actions.review.reason);
+    expect(short.bg.callsOf('op.start')).toEqual([]);
+  });
+
+  it('[1.51.0] Coach off and Review on: the bar\'s Coach opens the window, which offers the «Review» chip alone, its field says why; both off — Coach is off', async () => {
+    const h = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['coach']) });
+    expect(h.dock().actions.coach).toMatchObject({ enabled: true, reason: null });
+    const vm = h.coach();
+    expect(vm).toMatchObject({ reviewOnly: true, view: { s: 'empty' }, chips: [], hints: [], ask: { enabled: false }, autoRecapNext: null });
+    expect(vm.ask.reason).not.toBeNull();
+    expect(vm.review).toMatchObject({ enabled: true });
+    h.script(reviewStream(REVIEW));
+    expect(await h.dispatch(vm.review?.action as never)).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(lastTurn(h)).toMatchObject({ feature: 'review', state: 'done' });
+    expect(h.coach()).toMatchObject({ reviewOnly: true, view: { s: 'ready' }, chips: [] });
+
+    const both = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['coach', 'review']) });
+    expect(both.dock().actions.coach.enabled).toBe(false);
+    expect(both.coach()).toMatchObject({ reviewOnly: false, view: { s: 'forbidden' } });
   });
 });

@@ -1,5 +1,5 @@
 // Parts of the dock that stay out of its first chunk (architecture.md §10.1,
-// §11: ≤ 45 KiB with Preact): Recap and Review with the Markdown renderer,
+// §11: ≤ 45 KiB with Preact): Recap with the Markdown renderer,
 // the voice studio (1.47.0) and the debug footer nobody sees outside debug
 // mode. Each is a component
 // with its own stylesheet behind a loader (the defaults are in lazy.ts); this
@@ -22,10 +22,11 @@ export interface LazyPart<P> {
 export type PartLoader<P> = () => Promise<LazyPart<P>>;
 
 export interface AnalysisProps {
-  readonly which: 'recap' | 'review';
+  /** The analysis of the sheet: Recap (Review is a turn of Coach's dialog since 1.51.0). */
+  readonly which: 'recap';
   /** `dialog`: the «Развернуть ↗» window — no height limit, «Свернуть» instead of «Скрыть». */
   readonly place: 'sheet' | 'dialog';
-  /** The loader of the debug footer; without it a Recap or a Review shows none. */
+  /** The loader of the debug footer; without it a Recap shows none. */
   readonly debugPart?: PartLoader<DebugProps>;
 }
 

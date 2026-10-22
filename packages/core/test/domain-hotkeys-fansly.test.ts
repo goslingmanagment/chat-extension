@@ -41,7 +41,9 @@ describe('the key policy on Fansly', () => {
       ['⌘↵ under a site window', key('apply-fix', 'extra'), { nativeModal: true, focus: 'composer', fix: 'ready' }, 'pass', 'refuse overlay-open'],
       ['⌘E in another field of the site', key('reply'), { focus: 'field' }, 'run reply', 'refuse in-field'],
       ['⌘E over the «Развернуть ↗» window', key('reply'), { overlays: ['result-expanded'] }, 'run reply over-window', 'refuse overlay-open'],
-      ['⌘⇧B over the window', key('review'), { overlays: ['result-expanded'] }, 'run review over-window', 'run review'],
+      // 1.51.0: Review is a turn of Coach — under a covering window its key waits, as Coach's own does.
+      ['⌘⇧B over the window', key('review'), { overlays: ['result-expanded'] }, 'refuse overlay-open', 'refuse overlay-open'],
+      ['⌘⇧B with Coach open', key('review'), { overlays: ['coach'], focus: 'ours-field' }, 'run review', 'run review'],
       ['⌘⇧O over the window', key('tone'), { overlays: ['result-expanded'] }, 'refuse overlay-open', 'refuse overlay-open'],
       ['⌘⇧H', key('help'), {}, 'run help', 'refuse help-removed'],
       ['J outside a field', key('chat-next', 'plain'), { combo: false }, 'pass', 'run chat-next'],

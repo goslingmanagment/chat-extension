@@ -131,3 +131,42 @@ export function reviewRawText(raw: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
+/** How the history's text names the score, the recommendations and an example: the hub's own words, whatever the UI's language. */
+const HISTORY_WORDS = { score: 'Оценка', recommendations: 'РЕКОМЕНДАЦИИ', fix: 'Как надо было' } as const;
+
+/** A numbered item as text: its body, then its «Как надо было (…): "…"» and what follows the example. */
+function itemText(item: ReviewDoc['sections'][number]['items'][number], index: number): string {
+  const lines = [`${index + 1}. ${item.body}`.trimEnd()];
+  if (item.fix !== null) lines.push(`${HISTORY_WORDS.fix}${item.fixWhere === null ? '' : ` (${item.fixWhere})`}: "${item.fix}"`);
+  if (item.afterFix !== null) lines.push(item.afterFix);
+  return lines.join('\n');
+}
+
+/** A block as text: «ЛЕЙБЛ: тело», then its numbered items. */
+function blockText(label: string, body: string, items: ReviewDoc['sections'][number]['items']): string {
+  return [body.length > 0 ? `${label}: ${body}` : `${label}:`, ...items.map(itemText)].join('\n');
+}
+
+/**
+ * 1.51.0: a Review as Coach's history replays it — the answer of its turn «Review» in `coachHistory` — so a question
+ * after it («а как исправить вторую ошибку?») reads it: plain text in the hub's own words, the score, the blocks in
+ * their order (each mistake with its «Как надо было»), what worked, the recommendations. A frame that did not read is
+ * its text as shown, the score kept. Not bounded here: the history's projection (AI-088) holds it to the hub's bounds.
+ */
+export function reviewHistoryText(doc: ReviewDoc | null, raw: string): string {
+  const blocks: string[] = [];
+  const rating = doc?.rating ?? reviewTags(raw).rating;
+  if (rating !== null) blocks.push(`${HISTORY_WORDS.score}: ${rating}/10`);
+  if (doc === null) {
+    const text = reviewRawText(raw);
+    if (text.length > 0) blocks.push(text);
+    return blocks.join('\n\n');
+  }
+  // The lead is the text before the first block; a block that repeats it says it once.
+  if (doc.lead.length > 0 && !doc.sections.some((section) => section.body === doc.lead)) blocks.push(doc.lead);
+  for (const section of doc.sections) blocks.push(blockText(REVIEW_SECTION_LABELS.find((spec) => spec.kind === section.kind)?.label ?? section.kind, section.body, section.items));
+  const recommendations = doc.recommendations;
+  if (recommendations !== null && (recommendations.lead.length > 0 || recommendations.items.length > 0)) blocks.push(blockText(HISTORY_WORDS.recommendations, recommendations.lead, recommendations.items));
+  return blocks.join('\n\n');
+}

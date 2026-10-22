@@ -1,5 +1,5 @@
 // The one surface that opens above the strip (ui-design §3.2, §4.2, §4.8…
-// §4.11, §8.1): a result, Recap or Review, the refusal of a fourth
+// §4.11, §8.1): a result, Recap, the voice studio, the refusal of a fourth
 // generation, the «расширение обновилось» card — and, as its last row, the
 // status banner. No sheet means the collapsed dock: the strip alone. Esc
 // inside it hides what «Скрыть» hides and gives focus back to the composer;
@@ -193,8 +193,8 @@ function RefusalContent({ refusal, onHide }: { readonly refusal: RefusalVM; read
   );
 }
 
-/** Recap or Review in the sheet; the chunk with them (and Markdown) loads on first use. */
-function Analysis({ loader, which, debugPart }: { readonly loader: PartLoader<AnalysisProps>; readonly which: 'recap' | 'review'; readonly debugPart: PartLoader<DebugProps> }): JSX.Element {
+/** Recap in the sheet; the chunk with it (and Markdown) loads on first use. */
+function Analysis({ loader, which, debugPart }: { readonly loader: PartLoader<AnalysisProps>; readonly which: AnalysisProps['which']; readonly debugPart: PartLoader<DebugProps> }): JSX.Element {
   const i18n = useI18n();
   const part = useLazyPart(loader);
   if (part === null) return <Head title={i18n.t(featureKey(which))} gutter={<Spinner label={i18n.t('common.loading')} />} />;

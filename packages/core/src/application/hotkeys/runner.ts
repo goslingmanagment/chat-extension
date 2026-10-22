@@ -56,7 +56,7 @@ export interface HotkeyRunnerDeps {
 }
 
 export interface HotkeyRunner extends HotkeySink {
-  /** A result, Recap or Review is open in the dock. */
+  /** A result or a Recap is open in the dock. */
   dockSheet(): boolean;
   dispose(): void;
 }
@@ -217,15 +217,11 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     }
     const found = dockAction(id);
     if (found === null) return;
-    // Over a finished Review (its sheet or its window) ⌘⇧B is its «Ещё раз», as its hint promises — a new rating, never
-    // the one reopened from the cache; Recap's key is its «Обновить» the same way.
-    if (id === 'review' && found.dock.analysis === 'review') {
-      const review = client.getSnapshot({ of: 'review' });
-      if (review.state !== null && !isRunning(review.state) && review.regenerate.action.type === 'Regenerate') {
-        if (review.regenerate.enabled) send(review.regenerate.action);
-        else unavailable(id, review.regenerate.reason ?? reasonOf('chat-busy'));
-        return;
-      }
+    // 1.51.0: ⌘⇧B is a Review turn of Coach — its controller opens Coach's window when it is closed and runs the Review
+    // there; over a dialog that holds a Review already it is a new rating, never the cached one (the old «Ещё раз»).
+    if (id === 'review') {
+      send({ type: 'Generate', targetHandle: found.target, feature: 'review', options: {} });
+      return;
     }
     // Over the finished answer of this very button the key is that answer's «Ещё раз» (its hint prints the key): a new
     // answer, never the same one reopened from the cache (AI-128). Where the sheet has no «Ещё раз» (a board's result,
@@ -289,7 +285,7 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     );
   };
 
-  /** ⌘.: the generation that runs where the person looks — the preview's, else the dock's, Recap, Review or Coach — else the open chat's. */
+  /** ⌘.: the generation that runs where the person looks — the preview's, else the dock's, Recap, Coach's turn (a Review too) — else the open chat's. */
   const cancel = (where: KeyCommand['target']): void => {
     if (where === 'preview') {
       const result = previewView()?.result ?? null;
@@ -301,7 +297,7 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
       send({ type: 'CancelGeneration', operationId: dock.result.opId });
       return;
     }
-    const analysis = dock.analysis === 'recap' ? client.getSnapshot({ of: 'recap.view' }) : dock.analysis === 'review' ? client.getSnapshot({ of: 'review' }) : null;
+    const analysis = dock.analysis === 'recap' ? client.getSnapshot({ of: 'recap.view' }) : null;
     if (analysis !== null && analysis.opId !== null && isRunning(analysis.state)) {
       send({ type: 'CancelGeneration', operationId: analysis.opId });
       return;
@@ -367,9 +363,9 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     }
     if (top === 'result-expanded') {
       const dock = dockView();
-      // A Recap or a Review in the window — where they open since X55 — closes with one Esc, window and sheet, as the old
-      // Fansly extension's overlay did (2026-10-22); «Свернуть» is its own button. The focus need not be in the window.
-      if (dock.analysis === 'recap' || dock.analysis === 'review') {
+      // A Recap in the window — where it opens since X55 — closes with one Esc, window and sheet, as the old Fansly
+      // extension's overlay did (2026-10-22); «Свернуть» is its own button. The focus need not be in the window.
+      if (dock.analysis === 'recap') {
         send({ type: 'ShowAnalysis', view: dock.analysis, mode: 'hidden' });
         return;
       }
@@ -396,15 +392,15 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     // A running generation is never hidden by Esc (2026-10-22): its answer would then show nowhere — the «AI готово» toast
     // is not said for the open chat. The key stays ours, so the site's Esc does not close the chat under it either.
     if (dock.result !== null && isRunning(dock.result.state)) return;
-    const opId = dock.result?.opId ?? (dock.analysis === 'recap' ? client.getSnapshot({ of: 'recap.view' }).opId : dock.analysis === 'review' ? client.getSnapshot({ of: 'review' }).opId : null);
+    const opId = dock.result?.opId ?? (dock.analysis === 'recap' ? client.getSnapshot({ of: 'recap.view' }).opId : null);
     if (opId !== null) send({ type: 'HideResult', operationId: opId });
   };
 
   const run = (command: KeyCommand): void => {
     const id = command.id;
-    // X55: under the «Развернуть ↗» window only the analysis it shows answers its key; any other one stands behind it —
+    // X55: under the «Развернуть ↗» window only the Recap it shows answers its key; another one stands behind it —
     // unless the window yields to the key (Fansly, `overWindow`): then the dock starts it, or says what still runs.
-    if ((id === 'recap' || id === 'review') && command.overWindow !== true && overlays.top() === 'result-expanded' && dockView().analysis !== id) {
+    if (id === 'recap' && command.overWindow !== true && overlays.top() === 'result-expanded' && dockView().analysis !== id) {
       unavailable(id, reasonOf('overlay-open'));
       return;
     }

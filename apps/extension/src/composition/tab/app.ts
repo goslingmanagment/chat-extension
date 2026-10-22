@@ -9,7 +9,7 @@
 // The start, in three steps:
 // 1. the dock, its controller (the AI workspace) and the keys' other half —
 //    three chunks at once; the dock is mounted with a controller behind it;
-// 2. Recap, Review and Coach over the same workspace; then the early key
+// 2. Recap and Coach (Review is a turn of Coach) over the same workspace; then the early key
 //    dispatcher is connected — a key pressed before that was kept (HK-024);
 // 3. the boards (Spenders, «Новые», the fan panel, the preview) with the
 //    first action that opens one, and each overlay's UI with its first show.
@@ -623,11 +623,11 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   }
 
   // ── what the dock's view says about our overlays ───────────────────────────
-  // «Развернуть ↗» is a window while a result, a Recap or a Review is expanded; a Б2 question is a dialog for
-  // the keys (Esc is its «Отмена», ui-contract.md, decision 12). Recap and Review are read only while the sheet
-  // shows them — their views start reads of their own.
+  // «Развернуть ↗» is a window while a result or a Recap is expanded; a Б2 question is a dialog for the keys (Esc is
+  // its «Отмена», ui-contract.md, decision 12). Recap is read only while the sheet shows it — its views start reads of
+  // their own. Review is a turn of Coach's dialog (1.51.0): it has no sheet and no window of its own.
   let offAnalysis: (() => void) | null = null;
-  let analysisOf: 'recap' | 'review' | null = null;
+  let analysisOf: 'recap' | null = null;
   let analysisExpanded = false;
   const syncDock = (): void => {
     const dock = router.getSnapshot({ of: 'dock' });
@@ -643,9 +643,6 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       if (analysisOf === 'recap' && router.serves('recap.view')) {
         offAnalysis = router.subscribe({ of: 'recap.view' }, read);
         analysisExpanded = router.getSnapshot({ of: 'recap.view' }).expanded;
-      } else if (analysisOf === 'review' && router.serves('review')) {
-        offAnalysis = router.subscribe({ of: 'review' }, read);
-        analysisExpanded = router.getSnapshot({ of: 'review' }).expanded;
       }
     }
     setOverlay('result-expanded', analysisExpanded || dock.result?.expanded === true);
@@ -740,7 +737,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     }),
   );
 
-  // ── stage two: Recap, Review, Coach — then the keys ────────────────────────
+  // ── stage two: Recap, Coach (and its Review) — then the keys ───────────────
   stageTwo = Promise.all([env.lazy<typeof AnalysisChunk>('ai-analysis'), env.lazy<typeof CoachChunk>('ai-coach')])
     .then(([analysis, coach]) => {
       if (!disposed) startAnalysis(ai, analysis, coach);

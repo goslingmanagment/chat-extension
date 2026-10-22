@@ -5,7 +5,8 @@
 //   checked by its ids — together with its text, never `clientContext`.
 // - The verdict over what they made: an analysis whose window the hub has not got (its ordinary lag: the fan wrote,
 //   the chatter starts at once) is marked as a result is — «Ответ мог не учесть последние сообщения чата.» — on its
-//   own surface, the Review's sheet and the Coach answer, with «Ещё раз»; the hub holding the window — no mark.
+//   own surface, the Review's turn in Coach (1.51.0) and the Coach answer, with «Ещё раз»; the hub holding the
+//   window — no mark.
 //   The marks in both of Fansly's themes (pictures in .cache/e2e/, compared by eye with ui-design.md §4.7).
 // - The full Recap's depth: the person's wish above 3000 from the settings page (`settings.ext`), never above the
 //   hub's `limits.deepMax` (5000, then 3000); the short one 300.
@@ -111,13 +112,16 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     expect((await fanslyStandServer.journal(journalStart)).filter((entry) => entry.origin !== 'asset')).toEqual([]);
   });
 
-  it('[AI-050] [FS-TAIL-10] [FS-TAIL-8] Review: from the hub’s history, its window checked by ids and sent as text; the window the hub has not got marks the Review, «Ещё раз» on the mark rates anew — unmarked once the hub holds it', async function () {
+  it('[AI-050] [FS-TAIL-10] [FS-TAIL-8] Review, a turn of Coach (1.51.0): from the hub’s history, its window checked by ids and sent as text; the window the hub has not got marks the Review, «Ещё раз» on the mark rates anew as the next turn — unmarked once the hub holds it', async function () {
     this.timeout(180_000);
     const page = await held();
     const mark = await hub().mark();
-    await pressOurs('dock', '.cg-strip button', /^Review/);
-    // X55: a Review opens in its «Развернуть ↗» window, over the page; the sheet under it keeps its head.
-    await waitOursText('modal', 'Synthetic review of the chat.', 'the Review in its window', { timeout: 30_000, selector: '.cg-xdlg' });
+    await leaveField();
+    // Coach's window, then its «Review» chip: the Review is a turn of the dialog.
+    await pressOurs('dock', '.cg-strip button', /^Coach/);
+    await browser.waitUntil(async () => (await oursFocus('panel'))?.label === 'Вопрос Coach', { timeout: 10_000, timeoutMsg: 'the Coach field did not take the focus' });
+    await pressOurs('panel', '.cg-co__chip', /^Review/);
+    await waitOursText('panel', 'Synthetic review of the chat.', 'the Review turn', { timeout: 30_000, selector: '[data-cg-review]' });
     const [first] = await streamsSince(mark);
     if (first === undefined) throw new Error('the Review asked the hub nothing');
     expect([first.feature, first.status, first.body.conversationRef, first.body.fanRef]).toEqual(['chat-review', 200, A.group, A.fan]);
@@ -128,23 +132,24 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     expect(first.body.messageCount).toBe(3000);
 
     // The hub's archive holds none of the page's ids: the Review is marked, its «Ещё раз» on the mark.
-    await waitOursText('modal', MISS, 'the mark over the Review', { selector: '.cg-xdlg .cg-stale__t' });
-    expect(await oursText('modal', '.cg-xdlg .cg-stale button')).toBe('Ещё раз');
+    await waitOursText('panel', MISS, 'the mark over the Review', { selector: '[data-cg-answer] .cg-stale__t' });
+    expect(await oursText('panel', '[data-cg-answer] .cg-stale button')).toBe('Ещё раз');
     await inBothThemes('suite-fansly-ai-analysis-review-mark');
 
-    // The hub catches up with the page: «Ещё раз» on the mark rates the chat anew, with no mark.
+    // The hub catches up with the page: «Ещё раз» on the mark rates the chat anew — the next turn, with no mark.
     await seed(first.body.coverageCheck?.window ?? []);
     const again = await hub().mark();
-    await pressOurs('modal', '.cg-xdlg .cg-stale button', /^Ещё раз/);
-    await browser.waitUntil(async () => (await streamsSince(again)).length === 1 && !(await oursExists('modal', '.cg-xdlg .cg-stale')), {
+    await pressOurs('panel', '[data-cg-answer] .cg-stale button', /^Ещё раз/);
+    await browser.waitUntil(async () => (await streamsSince(again)).length === 1 && (await allOurs('panel', '[data-cg-review]').getElements()).length === 2, {
       timeout: 30_000,
-      timeoutMsg: 'the Review was not rated anew without a mark',
+      timeoutMsg: 'the Review was not rated anew as the next turn',
     });
-    await waitOursText('modal', 'Synthetic review of the chat.', 'the new Review', { selector: '.cg-xdlg' });
-    // One Esc closes the window and the sheet under it (2026-10-22, as the old extension's overlay).
+    // The first Review keeps its mark; the new one has none.
+    await browser.waitUntil(async () => (await allOurs('panel', '[data-cg-answer] .cg-stale').getElements()).length === 1, { timeout: 10_000, timeoutMsg: 'the new Review is marked too' });
+    // Esc closes Coach; nothing of the Review stands in the dock.
     await browser.keys(['Escape']);
-    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'Esc did not close the Review window' });
-    await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
+    await browser.waitUntil(async () => !(await oursExists('panel', '.cg-coach')), { timeout: 5000, timeoutMsg: 'Esc did not close Coach' });
+    await dockIs((d) => d.analysis === null && d.result === null, 'nothing of the Review in the dock');
   });
 
   it('[AI-080] [FS-TAIL-8] [FS-TAIL-10] [NEW-02] Coach: a question answered from the hub’s history; the answer marked while the hub lacks the window’s newest message, «Ещё раз» asks it again; then the fan writes — «архив отстаёт» in Coach', async function () {
@@ -156,6 +161,11 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     await leaveField();
     await pressOurs('dock', '.cg-strip button', /^Coach/);
     await browser.waitUntil(async () => (await oursFocus('panel'))?.label === 'Вопрос Coach', { timeout: 10_000, timeoutMsg: 'the Coach field did not take the focus' });
+    // A clean dialog: the Reviews of the test before are no part of this one.
+    await pressOurs('panel', '.cg-co__reset', /^Новый диалог/);
+    await pressOurs('panel', '.cg-co__reset', /^Точно начать заново/);
+    await browser.waitUntil(async () => !(await oursExists('panel', '[data-cg-review]')), { timeout: 5000, timeoutMsg: 'the old dialog stayed' });
+    await (await allOurs('panel', '.cg-co__ask textarea, .cg-co__ask input').getElements())[0]?.click();
     await browser.keys('What do I say next?'.split(''));
     await browser.keys('Enter');
     await waitOursText('panel', /Ask about their weekend/, 'the Coach answer', { timeout: 30_000 });
