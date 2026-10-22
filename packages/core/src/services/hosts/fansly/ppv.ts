@@ -188,8 +188,9 @@ export function photoLocationOf(media: unknown): string | null {
 
 /**
  * The photos of the fan's latest turn on the chat's newest page — the fan's messages after the creator's last one,
- * among the newest `LIVE_IMAGE_LIMITS.windowMessages` — newest first, each medium once, at most `maxImages`; never a
- * priced one. Empty — none, or not this chat's page.
+ * among the newest `LIVE_IMAGE_LIMITS.windowMessages` — newest first, each medium once, at most `maxImages`; a bundle's
+ * photos in its order (a fan's several photos come as one); never a priced medium or bundle. Empty — none, or not this
+ * chat's page.
  */
 export function latestFanPhotos(response: unknown, chat: PpvChat): LiveImageRef[] {
   const page = recordOf(response);
@@ -199,6 +200,25 @@ export function latestFanPhotos(response: unknown, chat: PpvChat): LiveImageRef[
     const id = idOf(recordOf(item)?.['id']);
     if (id !== null) media.set(id, item);
   }
+  const bundles = new Map<string, Record<string, unknown>>();
+  for (const item of arrayOf(page['accountMediaBundles']).map(recordOf)) {
+    const id = idOf(item?.['id']);
+    if (item !== null && id !== null) bundles.set(id, item);
+  }
+  /** An attachment's media ids: itself, or a bundle's members in its order; none — priced, or not on the page. */
+  const membersOf = (attachment: Record<string, unknown> | null): string[] => {
+    const id = idOf(attachment?.['contentId']);
+    if (id === null) return [];
+    if (attachment?.['contentType'] === ATTACHMENT_MEDIA) return [id];
+    const bundle = attachment?.['contentType'] === ATTACHMENT_BUNDLE ? bundles.get(id) : undefined;
+    if (bundle === undefined || ppvPriceOf(bundle) !== null) return [];
+    const listed = arrayOf(bundle['accountMediaIds']).map(idOf);
+    const content = arrayOf(bundle['bundleContent'])
+      .map(recordOf)
+      .sort((left, right) => numberOf(left?.['pos']) - numberOf(right?.['pos']))
+      .map((entry) => idOf(entry?.['accountMediaId']));
+    return (listed.length > 0 ? listed : content).filter((member): member is string => member !== null);
+  };
   const messages = page['messages']
     .map(recordOf)
     .filter((message): message is Record<string, unknown> => message !== null && idOf(message['id']) !== null && message['groupId'] === chat.groupId)
@@ -210,9 +230,8 @@ export function latestFanPhotos(response: unknown, chat: PpvChat): LiveImageRef[
     const seconds = message['createdAt'];
     if (typeof seconds !== 'number' || !Number.isSafeInteger(seconds) || seconds <= 0) continue;
     const sentAt = new Date(seconds * 1000).toISOString();
-    for (const attachment of arrayOf(message['attachments']).map(recordOf)) {
-      const mediaId = idOf(attachment?.['contentId']);
-      if (attachment?.['contentType'] !== ATTACHMENT_MEDIA || mediaId === null || refs.some((ref) => ref.mediaId === mediaId)) continue;
+    for (const mediaId of arrayOf(message['attachments']).map(recordOf).flatMap(membersOf)) {
+      if (refs.some((ref) => ref.mediaId === mediaId)) continue;
       const item = media.get(mediaId);
       if (item === undefined || ppvPriceOf(item) !== null) continue;
       const url = photoLocationOf(recordOf(item)?.['media']);

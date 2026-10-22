@@ -151,6 +151,17 @@ describe('the photos of the fan\'s latest turn', () => {
     expect(latestFanPhotos({ messages: [message(10, FAN, A)], accountMedia: [elsewhere] }, chat)).toEqual([]);
   });
 
+  it('a bundle of the fan\'s photos gives its members in its order; a priced bundle gives none', () => {
+    const bundle = (id: string, members: readonly string[], extra: Record<string, unknown> = {}) => ({ id, ...extra, bundleContent: members.map((accountMediaId, pos) => ({ pos, accountMediaId })).reverse() });
+    const withBundle = (contentId: string) => ({
+      messages: [{ ...message(10, FAN), attachments: [{ contentType: 2, contentId }] }],
+      accountMedia: [photo(A), photo(B)],
+      accountMediaBundles: [bundle('770000000000000201', [B, A]), bundle('770000000000000202', [A, B], { permissions: ppvRow(9_000) })],
+    });
+    expect(latestFanPhotos(withBundle('770000000000000201'), chat).map((ref) => ref.mediaId)).toEqual([B, A]);
+    expect(latestFanPhotos(withBundle('770000000000000202'), chat)).toEqual([]);
+  });
+
   it('a start without the PPV state reads one page and asks no order', async () => {
     const calls: string[] = [];
     const read = await readOpenChat(
