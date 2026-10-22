@@ -236,7 +236,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     await dockIs((d) => !d.overlays.includes('coach') && !d.surfaces.includes('coach'), 'the Coach panel is closed');
   });
 
-  it('[AI-081] the «Что сейчас в чате?» chip of an empty Coach asks with the hub\'s preset alone — a body the hub\'s own schema and handler accept — and the answer comes', async function () {
+  it('[AI-081] the «Разбор ситуации» chip of an empty Coach asks with the hub\'s preset alone — a body the hub\'s own schema and handler accept — and the answer comes', async function () {
     this.timeout(120_000);
     const mark = await hub().mark();
     const dock = await dockIs((d) => d.hits['action:coach'] !== undefined, 'the Coach button is on screen');
@@ -244,7 +244,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     await dockIs((d) => d.overlays.includes('coach') && d.surfaces.includes('coach'), 'the Coach panel is open');
     // The chip carries its own words (for the dialog) and the preset; the hub answers 400 to a body that names both —
     // the first live check met exactly that. The fake hub checks every AI body by the hub's own schema and rules.
-    await pressOurs('panel', '.cg-co__chips button', /^Что сейчас в чате/);
+    await pressOurs('panel', '.cg-co__chips button', /^Разбор ситуации/);
     await waitOursText('panel', 'Ask about their weekend', 'the Coach answered the preset', { timeout: 60_000 });
     const calls = callsTo((await hub().journal(mark)).entries, 'aiFeatureStream');
     expect(calls.filter((call) => call.status !== 200).map((call) => `${String(call.status)}:${call.error ?? ''}`)).toEqual([]);
@@ -254,7 +254,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     expect(body['preset']).toBe('situation');
     expect(Object.keys(body)).not.toContain('chatterQuestion');
     // The dialog shows the chip's words as the question.
-    expect(await oursText('panel')).toContain('Что сейчас в чате?');
+    expect(await oursText('panel')).toContain('Разбор ситуации');
     await browser.keys(Key.Escape);
     await dockIs((d) => !d.overlays.includes('coach') && !d.surfaces.includes('coach'), 'the Coach panel is closed');
   });

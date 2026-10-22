@@ -2,8 +2,9 @@
 // draft card — a dashed frame, a warm fill, the text in the serif AI-authored
 // text is set in — with its number, a quiet Copy icon and «Вставить» on every
 // part (the next part's is the main one and carries ↵), a spinner while
-// inserting, an inline error card when inserting or copying failed, and one
-// collapsed line once a part is inserted or sent.
+// inserting, an inline error card when inserting or copying failed. An
+// inserted part keeps its whole text, a step dimmer, with «✓ Вставлено ·
+// Вставить ещё раз» beside it (the old card); a sent one is one collapsed line.
 // The whole row is the target (UI-018, X26): a click anywhere on it but its
 // own controls does what the row's main button does — «Вставить» THIS part,
 // «Вставить ещё раз» on an inserted one, «Копировать» where nothing can be
@@ -47,6 +48,8 @@ export interface PartRowProps {
   readonly partRef?: Ref<HTMLDivElement>;
   /** Extra rows under the text (columns 2–3): the send row, the Б2 question. */
   readonly children?: ComponentChildren;
+  /** false — only the row's buttons, Enter and ⌘C act; a click on the text selects it, nothing else (Coach). */
+  readonly rowClick?: boolean;
 }
 
 /** What a click inside the row belongs to instead of the row: a control, the error card, the surface's own rows. */
@@ -69,7 +72,9 @@ export function PartRow(props: PartRowProps): JSX.Element {
   const sentAt = part.send?.s === 'sent' ? part.send.at : null;
   // A sent part is always the one collapsed line: nothing on it can put the text back into a composer.
   const collapsed = part.collapsed || sentAt !== null;
-  const fullText = useTooltip(collapsed ? part.text : null);
+  // An inserted part reads whole (the old card); only a sent one folds to a line, its text in the tooltip.
+  const kept = collapsed && sentAt === null;
+  const fullText = useTooltip(collapsed && !kept ? part.text : null);
   const copyLabel = part.copy === 'done' ? i18n.t('common.copied') : i18n.t('part.copyN', { n });
   const insertKey = props.insertKey ?? '↵';
 
@@ -107,9 +112,10 @@ export function PartRow(props: PartRowProps): JSX.Element {
     }
   };
 
+  const rowClick = props.rowClick !== false;
   const onClick = (event: TargetedMouseEvent<HTMLDivElement>): void => {
     // While the Б2 question stands in the part, only its three buttons answer.
-    if (event.defaultPrevented || event.button !== 0 || props.confirming === true) return;
+    if (!rowClick || event.defaultPrevented || event.button !== 0 || props.confirming === true) return;
     // A control of the row, its error card and the surface's rows (the Б2 question) answer their own clicks.
     if (event.target instanceof Element && event.target.closest(ROW_OWN) !== null) return;
     // The click that ends a drag over the text selected it; it asks for nothing more.
@@ -118,8 +124,17 @@ export function PartRow(props: PartRowProps): JSX.Element {
     else if (canAgain && part.insert !== 'pending') props.onInsertAgain?.(part);
   };
 
+  // «Копировать» in words, as the old card's button, where the row has room; the icon alone on a narrow one.
   const copyIcon = (
-    <Button label={copyLabel} icon={part.copy === 'done' ? 'check' : 'copy'} iconOnly variant="quiet" class="cg-part__copy" reason={copyBlocked} onClick={() => props.onCopy(part)} />
+    <Button
+      label={part.copy === 'done' ? i18n.t('common.copied') : i18n.t('common.copy')}
+      icon={part.copy === 'done' ? 'check' : 'copy'}
+      variant="quiet"
+      class="cg-part__copy"
+      tooltip={copyLabel}
+      reason={copyBlocked}
+      onClick={() => props.onCopy(part)}
+    />
   );
 
   let main: JSX.Element | null = null;
@@ -160,7 +175,8 @@ export function PartRow(props: PartRowProps): JSX.Element {
     part.numbered ? '' : 'is-solo',
     collapsed ? 'is-done' : '',
     canAgain ? 'can-again' : '',
-    (!collapsed || canAgain) && props.confirming !== true ? 'is-click' : '',
+    rowClick && (!collapsed || canAgain) && props.confirming !== true ? 'is-click' : '',
+    kept ? 'is-kept' : '',
     props.confirming === true ? 'is-confirm' : '',
   ]
     .filter((name) => name !== '')
@@ -244,6 +260,18 @@ export const PART_CSS = `
 .cg-part.is-done.is-click:hover, .cg-part.is-done:focus-within { background: var(--cg-sunk); border-color: var(--cg-rule-3); }
 .cg-part.is-done .cg-part__t { color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--cg-text-md); }
 .cg-part.is-done .cg-part__a { margin-top: -1px; margin-bottom: -1px; }
+.cg-part.is-done.is-kept { padding-top: 7px; padding-bottom: 7px; align-items: start; border-style: dashed; border-color: var(--cg-rule-3); }
+.cg-part.is-done.is-kept .cg-part__t { color: var(--cg-ink-2); white-space: pre-wrap; overflow: visible; font-size: var(--cg-text-ai); }
+.cg-part.is-done.is-kept .cg-part__again { display: inline-flex; }
+.cg-part.is-done.is-kept .cg-part__state { display: inline-flex; }
+.cg-part.is-done.is-kept .cg-part__a { margin: -3px 0 -3px 10px; }
+.cg-part__copy { color: var(--cg-ink-2); }
+.cg-part.is-kept .cg-part__copy { width: 28px; padding: 0; justify-content: center; }
+.cg-part.is-kept .cg-part__copy .cg-btn__t { display: none; }
+@container cg (max-width: 599px) {
+  .cg-part__copy { width: 28px; padding: 0; justify-content: center; }
+  .cg-part__copy .cg-btn__t { display: none; }
+}
 .cg-part__state { display: inline-flex; align-items: center; gap: 5px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); padding: 0 6px; white-space: nowrap; }
 .cg-part__again { display: none; }
 .cg-part.is-done:hover .cg-part__again, .cg-part.is-done:focus-within .cg-part__again { display: inline-flex; }

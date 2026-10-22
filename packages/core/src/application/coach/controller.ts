@@ -53,7 +53,7 @@ import {
 } from '../../domain/coach';
 import { windowFor } from '../../domain/features';
 import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState } from '../../domain/ops';
-import { coachAnswerText, streamPreview } from '../../domain/output';
+import { COACH_SECTION_LABELS, coachAnswerText, splitLabelledSections, streamPreview } from '../../domain/output';
 import { analysisMark, latestLength, type ArchivePoint } from '../../domain/recap';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
 import { confirmVm, partVms } from '../ai/result-vm';
@@ -86,16 +86,25 @@ const HINT_GROUPS: readonly { readonly label: I18nKey; readonly questions: reado
 const COACH_BUILT_SLACK = 50;
 /** Chats whose archive point («Переписка на 09:20») is remembered; the one refreshed longest ago goes first. */
 export const COACH_ARCHIVES_MAX = 32;
-/** AI-094: follow-ups under the latest answer. */
-const FOLLOW_UP_CHIPS: readonly I18nKey[] = ['coach.chip.another', 'coach.chip.shorter', 'coach.chip.refusal'];
+/** AI-094: follow-ups under the latest answer; «Разбор ситуации» first, as the old window had it on every turn. */
+const FOLLOW_UP_CHIPS: readonly { readonly key: I18nKey; readonly preset: 'situation' | null }[] = [
+  { key: 'coach.chip.situation', preset: 'situation' },
+  { key: 'coach.chip.another', preset: null },
+  { key: 'coach.chip.shorter', preset: null },
+  { key: 'coach.chip.refusal', preset: null },
+];
 
 type CoachDraftVM = NonNullable<CoachTurnVM['answer']>['drafts'][number];
 
+/** The two drafts of «Разбор ситуации» are a calm one and a flirty one, titled so, as the old window titled them. */
+const SITUATION_DRAFTS: readonly I18nKey[] = ['coach.draft.calm', 'coach.draft.flirt'];
+
 /** One draft of an answer: its parts, and the old card's line when the language gate closes them (AI-087). */
-function draftVm(ws: AiWorkspace, record: OpRecord, draft: { readonly index: number; readonly parts: readonly string[] }): CoachDraftVM {
+function draftVm(ws: AiWorkspace, record: OpRecord, draft: { readonly index: number; readonly parts: readonly string[] }, situation: boolean): CoachDraftVM {
   const parts = partVms(ws, record, draft.parts, draft.index, true);
   const closed = parts.some((part) => part.copyBlocked?.id === 'language');
-  return { index: draft.index, label: msg('coach.draft', { n: draft.index + 1 }), parts, note: closed ? msg('coach.draftLanguage') : null };
+  const titled = situation ? SITUATION_DRAFTS[draft.index] : undefined;
+  return { index: draft.index, label: titled === undefined ? msg('coach.draft', { n: draft.index + 1 }) : msg(titled), parts, note: closed ? msg('coach.draftLanguage') : null };
 }
 
 interface ArchiveRead {
@@ -185,9 +194,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     if (event.kind === 'done') settle(event.record);
   });
 
-  // AI-100: without a turn in flight the panel yields to another feature that starts.
+  // AI-100: without a turn in flight the panel yields to another feature that starts. A Recap does not take it:
+  // Coach stands on it, «Recap ▾» builds it from here and the topbar follows it, as the old window did.
   const offStarted = ws.onStarted((record) => {
-    if (record.view.surface === 'coach') return;
+    if (record.view.surface === 'coach' || record.view.feature === 'recap' || record.view.feature === 'recap-short') return;
     const busy = sessions.all().some((session) => session.pending !== null);
     if (!busy) ws.ports.overlays?.close('coach');
   });
@@ -350,8 +360,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   // ── the view ─────────────────────────────────────────────────────────────
 
-  function retryAction(handle: string, turn: Pick<CoachFailedTurn, 'question' | 'preset'>): UiAction {
-    return { type: 'Generate', targetHandle: handle, feature: 'coach', options: turn.preset === null ? { question: turn.question } : { preset: turn.preset } };
+  /** The same question again — with the person's draft read anew when the turn was asked with it, as the old «Повторить». */
+  function retryAction(handle: string, turn: Pick<CoachFailedTurn, 'question' | 'preset' | 'attachedDraft'>): UiAction {
+    const asked = turn.preset === null ? { question: turn.question } : { preset: turn.preset };
+    return { type: 'Generate', targetHandle: handle, feature: 'coach', options: { ...asked, ...(turn.attachedDraft ? { attachMyDraft: true } : {}) } };
   }
 
   /**
@@ -401,6 +413,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   function buildExchange(exchange: CoachExchange, outside: ReadonlySet<string>, record: OpRecord | null): CoachTurnVM {
     const answer = exchange.answer;
+    // The labelled sections are drawn as blocks: the bubble's prose is only what stands before the first of them,
+    // or every section would read twice (the old window drew the lead and the sections, nothing else).
+    const prose = answer.blocks === null ? answer.prose : (splitLabelledSections(answer.prose, COACH_SECTION_LABELS)?.lead ?? '');
+    const situation = exchange.preset === 'situation' && answer.drafts.length === SITUATION_DRAFTS.length;
     return {
       id: exchange.turnId,
       opId: exchange.opId,
@@ -413,11 +429,11 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       attachedDraft: exchange.attachedDraft,
       outsideMemory: outside.has(exchange.turnId),
       answer: {
-        prose: answer.prose,
+        prose,
         blocks: answer.blocks === null ? null : answer.blocks.map((block) => ({ kind: block.kind, title: msg(BLOCK_TITLES[block.kind]), body: block.body })),
         // Each draft is a message to the fan: its parts insert and copy like any other part. One in Cyrillic for a fan
         // who does not write Cyrillic does neither, and says so under it (AI-087, the old card's note).
-        drafts: record === null ? [] : answer.drafts.map((draft) => draftVm(ws, record, draft)),
+        drafts: record === null ? [] : answer.drafts.map((draft) => draftVm(ws, record, draft, situation)),
       },
       error: null,
       errorActions: [],
@@ -458,9 +474,11 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const record = turn.opId === null ? null : ws.ops.get(turn.opId);
     const view = record?.view ?? null;
     const now = clock.now();
-    // The recap step of a composite turn shows its stages and its cancel; its text is not the Coach's answer.
+    // The recap step of a composite turn shows its timer and its cancel under its own name (the old «Полный рекап
+    // (авто) · обновляется…»); its text is not the Coach's answer.
     const answering = view !== null && view.feature === 'coach';
     const preview = answering && view.text !== undefined ? streamPreview('coach', view.text) : '';
+    const phase = view === null ? null : phaseVm(view, now);
     return {
       id: turn.turnId,
       opId: turn.opId,
@@ -468,7 +486,12 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       askedAt: turn.askedAt,
       state: view === null || isTerminalOpState(view.state) ? 'admitted' : view.state,
       // The start is still on its way to the background (nothing is admitted yet): the first stage, nothing to cancel.
-      phase: view === null ? { startedAt: turn.askedAt, stages: [{ id: 'context', label: msg('result.stage.context'), state: 'current' }], retryAt: null, cancel: null } : phaseVm(view, now),
+      phase:
+        phase === null
+          ? { startedAt: turn.askedAt, stages: [{ id: 'context', label: msg('result.stage.context'), state: 'current' }], retryAt: null, cancel: null }
+          : answering
+            ? phase
+            : { ...phase, stages: [{ id: 'context', label: msg(view?.feature === 'recap-short' ? 'coach.recapStep.short' : 'coach.recapStep.full'), state: 'current' }] },
       // AI-093: «Отправлено коучу…» until the hub's first frame.
       sentToCoach: answering && (view.state === 'admitted' || view.state === 'requesting'),
       streamText: preview.length > 0 ? preview : null,
@@ -537,10 +560,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const slots = ready === null ? { short: null, full: null } : ws.recaps.both(ws.slotKey(ready));
     const which = latestLength(slots);
     const copy = which === null ? null : slots[which];
+    // A Recap of this chat being built — from «Recap ▾», the strip or a turn's own step: the topbar says so.
+    const recapRunning = running !== null && (running.view.feature === 'recap' || running.view.feature === 'recap-short');
     const hasExchange = session !== null && exchangesOf(session).length > 0;
-    const chips = hasExchange
-      ? FOLLOW_UP_CHIPS.map((key) => ({ label: msg(key), question: i18n.t(key), preset: null }))
-      : OPENING_CHIPS.map((chip) => ({ label: msg(chip.key), question: i18n.t(chip.key), preset: chip.preset }));
+    const chips = (hasExchange ? FOLLOW_UP_CHIPS : OPENING_CHIPS).map((chip) => ({ label: msg(chip.key), question: i18n.t(chip.key), preset: chip.preset }));
     // AI-081: the empty dialog also offers three headings of ready questions; a click fills the input, the person sends.
     const emptyDialog = session === null || (session.feed.length === 0 && pending === null);
     const hints: CoachHintGroupVM[] = emptyDialog ? HINT_GROUPS.map((group) => ({ label: msg(group.label), questions: group.questions.map((key) => ({ label: msg(key), question: i18n.t(key) })) })) : [];
@@ -564,6 +587,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
         }),
       },
       recap: copy === null ? null : { length: copy.length, generatedAt: copy.revision, summary: copy.markdown },
+      recapRunning,
       turns,
       historyLimit,
       chips,
