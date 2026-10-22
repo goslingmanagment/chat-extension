@@ -66,8 +66,11 @@ export function checkSiteFolder(remoteDir: string, siteBase: string): string {
 
 const q = (text: string): string => `'${text.replace(/'/g, `'\\''`)}'`;
 
-/** A name unique to this run, for temporary uploads. */
-export const uploadName = (name: string, nonce: string): string => `.${name}.upload-${nonce}`;
+/** A name unique to this run for a temporary upload, in the folder of its final name: «changes/a.png» → «changes/.a.png.upload-…». */
+export const uploadName = (name: string, nonce: string): string => {
+  const slash = name.lastIndexOf('/');
+  return `${name.slice(0, slash + 1)}.${name.slice(slash + 1)}.upload-${nonce}`;
+};
 
 const SUM = `sum() { if command -v sha256sum > /dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }`;
 

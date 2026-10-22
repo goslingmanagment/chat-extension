@@ -16,6 +16,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import { readZip } from '../lib/zip.ts';
+import { NOTES_DIR } from './changes.ts';
 import { DEFAULT_HTTP_TIMEOUT_S, ENV, FEED_FILE, FEED_PREVIOUS_FILE, HUB_HEALTH_PATH, recordName, signedXpiName, type ReleaseTarget } from './config.ts';
 import { commandStep, mustRun, renderCommand, type Exec, type Print, type Step } from './exec.ts';
 import { feedDifferences, feedEntryFor, parseFeed, renderFeed, type FeedEntry } from './feed.ts';
@@ -209,7 +210,7 @@ function pagesSteps(deps: ServerDeps, pages: readonly LocalFile[]): Step[] {
 }
 
 const mkdirStep = (deps: ServerDeps): Step =>
-  commandStep(`Make the folders on ${deps.transport.label}`, deps.exec, deps.transport.shell(mkdirScript([deps.remoteDir, `${deps.remoteDir}/${deps.target.feedDir}`])));
+  commandStep(`Make the folders on ${deps.transport.label}`, deps.exec, deps.transport.shell(mkdirScript([deps.remoteDir, `${deps.remoteDir}/${deps.target.feedDir}`, `${deps.remoteDir}/${NOTES_DIR}`])));
 
 /** What the feed serves now: an entry, or null when no feed is published yet (404). Anything else throws. */
 export async function servedFeed(deps: Pick<ServerDeps, 'http' | 'target'>): Promise<FeedEntry | null> {

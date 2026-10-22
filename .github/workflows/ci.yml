@@ -34,7 +34,7 @@
 # workflow files included; a manual run and a re-run always run in full, and a
 # failed lookup is a miss.
 #
-# A change of documents alone — docs/**, site/**, *.md in the root — does not
+# A change of documents alone — docs/**, site/**, changes/**, *.md in the root — does not
 # run the e2e suite: each part starts, sees what the push changed (its second
 # step, tools/ci/e2e-needed.sh) and ends green within seconds instead of
 # running its share. The check parts skip only on a PR of prose that nothing

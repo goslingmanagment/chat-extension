@@ -87,6 +87,8 @@ export const ENV = {
   remoteDir: 'CG_RELEASE_REMOTE_DIR',
   telegramToken: 'TELEGRAM_BOT_TOKEN',
   telegramChannel: 'TELEGRAM_CHANNEL_ID',
+  /** The owner's own test chat or channel with the bot in it: `announce --preview` posts there instead. */
+  telegramPreview: 'TELEGRAM_PREVIEW_CHAT_ID',
   /** owner/repo of the hub on GitHub, for the «vendored from hub main» check (default below). */
   hubRepo: 'CG_HUB_REPO',
   /** Seconds one read of a public address may take (default below): raise it over a slow route to the server. */
@@ -120,8 +122,8 @@ export const EXTENSION_REPO = 'goslingmanagment/chat-extension';
  */
 export const MAIN_CI_JOBS: readonly string[] = ['pnpm check', 'pnpm e2e'];
 /**
- * Git pathspecs of everything but documents (docs/, site/, *.md in the root). A push of documents alone ends its e2e
+ * Git pathspecs of everything but documents (docs/, site/, changes/, *.md in the root). A push of documents alone ends its e2e
  * parts green without running them (tools/ci/e2e-needed.sh), so the gate also reads the CI of the last commit of main
  * that changed anything else.
  */
-export const BEYOND_DOCUMENTS: readonly string[] = ['.', ':(exclude)docs', ':(exclude)site', ':(exclude,glob)*.md'];
+export const BEYOND_DOCUMENTS: readonly string[] = ['.', ':(exclude)docs', ':(exclude)site', ':(exclude)changes', ':(exclude,glob)*.md'];

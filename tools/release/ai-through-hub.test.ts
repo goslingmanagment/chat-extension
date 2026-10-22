@@ -1,5 +1,5 @@
 // UP-007, the release half of «AI lives only in the hub»: nothing that ships —
-// the extension's source, the site, the changelog — talks to an AI vendor,
+// the extension's source, the site, the changelog, the notes — talks to an AI vendor,
 // names one to a chatter or asks a chatter for a key. The model and its keys
 // are the hub's; a chatter has a login and a password. (That the hub SDK stays
 // in the background and the manifest names no other host is `pnpm gates` and
@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { readSources } from '../lib/files.ts';
+import { NOTES_DIR } from './changes.ts';
 import { CHANGELOG_FILE, REPO_ROOT, SITE_DIR } from './config.ts';
 
 const VENDOR_ENDPOINTS = /api\.anthropic\.com|console\.anthropic\.com|openrouter\.ai|api\.openai\.com|generativelanguage\.googleapis\.com|api\.mistral\.ai|api\.x\.ai/i;
@@ -24,9 +25,10 @@ describe('AI only through the hub', () => {
     expect(sources.filter((file) => VENDOR_ENDPOINTS.test(file.text)).map((file) => file.path)).toEqual([]);
   });
 
-  it('[UP-007] the site and the changelog name no AI vendor and ask a chatter for no key', () => {
+  it('[UP-007] the site, the changelog and the notes of changes name no AI vendor and ask a chatter for no key', () => {
     const siteDir = join(REPO_ROOT, SITE_DIR);
-    const texts = [...readdirSync(siteDir).map((name) => join(SITE_DIR, name)), CHANGELOG_FILE].map((path) => ({ path, text: readFileSync(join(REPO_ROOT, path), 'utf8') }));
+    const notes = readdirSync(join(REPO_ROOT, NOTES_DIR)).filter((name) => name.endsWith('.md')).map((name) => join(NOTES_DIR, name));
+    const texts = [...readdirSync(siteDir).map((name) => join(SITE_DIR, name)), CHANGELOG_FILE, ...notes].map((path) => ({ path, text: readFileSync(join(REPO_ROOT, path), 'utf8') }));
     const found = texts.flatMap((file) => {
       const match = VENDOR_ENDPOINTS.exec(file.text) ?? VENDOR_WORDS.exec(file.text);
       return match === null ? [] : [`${file.path}: «${match[0]}»`];

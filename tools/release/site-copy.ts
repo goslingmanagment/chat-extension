@@ -107,7 +107,9 @@ export function renderSiteCopy(name: string, source: string): string {
   const product = escapeHtml(EXTENSION_NAME);
   const html = source
     .replace(/(<title>[^<]* — )[^<]*(<\/title>)/, `$1${product}$2`)
-    .replace(/<span class="nav__host">[^<]*<\/span>/, '<span class="nav__host">для ChatSpace и Fansly</span>');
+    .replace(/<span class="nav__host">[^<]*<\/span>/, '<span class="nav__host">для ChatSpace и Fansly</span>')
+    .replace(/(<p class="foot">)ChatGoose(?: для ChatSpace)? /, `$1${product} `)
+    .replace('Все версии ChatGoose для ChatSpace, от новой к старой.', `Все версии ${product}, от новой к старой.`);
   if (name === 'index.html') {
     return html
       .replace(/<h1>[^<]*<\/h1>/, `<h1>${product}</h1>`)
@@ -120,8 +122,7 @@ export function renderSiteCopy(name: string, source: string): string {
       .replace(/<h2>Если у вас уже стоит ChatGoose<\/h2>[\s\S]*?(?=\n {8}<p class="foot">)/, `<h2>Если у вас уже стоит ChatGoose</h2>
         <p>В день перехода на Fansly выключите старое расширение во всём профиле Firefox, а в новом нажмите «Включить Fansly». Все чаттеры страницы переходят вместе. Порядок и подготовка — в <a href="start.html#fansly-cutover">«Как начать»</a>; пилот проходит без войсов.</p>
         <p>Приложение ChatGoose для OnlyFans остаётся установленным. Страницы, которые тимлид перевёл на ChatSpace, ведите здесь; приветствия на них отправляйте только из расширения. Id нового расширения и его обновления остаются прежними.</p>
-`)
-      .replace(/(<p class="foot">)ChatGoose(?: для ChatSpace)? /, `$1${product} `);
+`);
   }
   if (name === 'privacy.html') {
     const body = /^[ \t]*<h1>О данных<\/h1>[\s\S]*?(?=\n {6}<\/div>\n {4}<\/main>)/m;

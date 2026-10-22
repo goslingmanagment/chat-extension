@@ -111,6 +111,6 @@ export default defineConfig({
     zipSources: flavor === 'release',
     sourcesRoot: repoRoot,
     includeSources: ['**/*', ...SOURCE_DOTFILES],
-    excludeSources: ['docs/**', 'AGENTS.md', '**/.output/**', '**/.wxt/**', '**/.tsbuild/**', '**/coverage/**', '**/*.tsbuildinfo', ...STAND_SOURCE_GLOBS],
+    excludeSources: ['docs/**', 'changes/**', 'AGENTS.md', '**/.output/**', '**/.wxt/**', '**/.tsbuild/**', '**/coverage/**', '**/*.tsbuildinfo', ...STAND_SOURCE_GLOBS],
   },
 });
