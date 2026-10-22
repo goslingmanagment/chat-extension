@@ -132,6 +132,11 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   const { rpc, i18n, clock, context, surfaces, navigator } = deps;
   const statistics = deps.statistics !== false;
   let conversations = new Map<string, string>();
+  /**
+   * The chat of a fan the person asked to open and the board did not know (the old Fansly board's chip): being found
+   * by the site's inbox search, or not found by it. A fan with neither has «найти чат» while its chat is unknown.
+   */
+  let lookups = new Map<string, 'finding' | 'missing'>();
   let navigationRun = 0;
 
   let period: SpendersPeriod = '30d';
@@ -236,7 +241,18 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     return null;
   }
 
+  /** What the row says of its chat: nothing where the chat is the fan or is known, else «найти чат» and how the search went. */
+  function chatOfRow(row: SpenderRow): SpenderRowVM['chat'] {
+    const platform = context.current().binding?.platform;
+    if (platform === undefined || CHAT_IS_FAN[platform] || deps.source === undefined || conversationOfRow(row).conversationRef !== undefined) return undefined;
+    const lookup = lookups.get(row.fanRef);
+    // A deleted fan with no name to search by has nothing to find; one whose search ran says how it went.
+    if (lookup === undefined && row.deleted) return undefined;
+    return lookup ?? 'find';
+  }
+
   function rowVM(row: SpenderRow, cents: boolean, selected: string | null): SpenderRowVM {
+    const chat = chatOfRow(row);
     const base: SpenderRowVM = {
       handle: handleOf(row.fanRef),
       name: row.name,
@@ -250,6 +266,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       waiting: row.waiting,
       lastMessage: row.lastMessage,
       selected: row.fanRef === selected,
+      ...(chat === undefined ? {} : { chat }),
       ...(batchPort === null ? {} : { batch: batch.row(handleOf(row.fanRef)) }),
     };
     return cents ? { ...base, lifetimeCents: true } : base;
@@ -545,6 +562,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   function reset(): void {
     boards = new Map();
     conversations = new Map();
+    lookups = new Map();
     navigationRun++;
     statsEntry = { raw: null, loading: false, error: null, loadedAt: null, since: null, run: statsEntry.run + 1 };
     queue = { state: EMPTY_QUEUE, loading: false, error: null, run: queue.run + 1 };
@@ -644,6 +662,18 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     if (!disposed && epoch === atEpoch && ref === null && active) ref = await source.resolve(binding.platformAccountId, { fanRef, displayName: row.displayName ?? null, username: row.username });
     if (disposed || epoch !== atEpoch || ref === null) return;
     conversations.set(fanRef, ref);
+    lookups.delete(fanRef);
+    // The row's «найти чат» goes with the chat found.
+    shelfCache = null;
+    changed('board');
+  }
+
+  /** The search for a fan's chat ended (`found` — the board knows the chat now): the row says so. */
+  function lookupEnded(fanRef: string, found: boolean): void {
+    if (disposed) return;
+    if (found) lookups.delete(fanRef);
+    else lookups.set(fanRef, 'missing');
+    shelfCache = null;
     changed('board');
   }
 
@@ -707,12 +737,25 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     if (admission !== null) return refused(type, errorOf(admission, i18n));
     const atEpoch = epoch;
     const run = ++navigationRun;
+    // The chat is not known yet: the site's inbox search finds it (up to its budget), and the row says «ищу чат…» meanwhile.
+    const row = listIndex()?.byFan.get(fanRef);
+    const looks = row !== undefined && chatOfRow(row) !== undefined;
+    if (looks) {
+      lookups.set(fanRef, 'finding');
+      shelfCache = null;
+      changed('board');
+    }
+    let failed = false;
     try { await resolveConversation(fanRef, true); }
-    catch { return refused(type, localError('CG-DATA-NOT-READY', i18n)); }
-    if (disposed || epoch !== atEpoch || run !== navigationRun) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    catch { failed = true; }
+    if (disposed || epoch !== atEpoch) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     // R20 P8a: the fan's chat as the board knows it; where a chat has an id of its own, the fan's id opens none.
     const { conversationRef } = conversationOfRow(listIndex()?.byFan.get(fanRef));
-    if (conversationRef === undefined && !CHAT_IS_FAN[binding.platform]) return refused(type, localError('CG-DATA-NOT-READY', i18n));
+    const found = conversationRef !== undefined || CHAT_IS_FAN[binding.platform];
+    // What the search found is the row's, whoever clicked since: a chat not found stays «чат не найден».
+    if (looks) lookupEnded(fanRef, found && !failed);
+    if (run !== navigationRun) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    if (failed || !found) return refused(type, localError('CG-HOST-CHAT-NOT-FOUND', i18n));
     // The person's click on this fan in the Spenders board: the board's own switch on its page, not `navigation`.
     const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['spenders'], conversationRef);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
@@ -776,11 +819,16 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     }
     if (action.type === 'Search') {
       if (action.list !== 'spenders') return null;
-      // The field shows what was typed at once (an IME's composition is never fought); the list follows after the pause.
+      // The field shows what was typed at once (an IME's composition is never fought); the list follows after the pause,
+      // or at once on Enter (`now`): the top match the same key opens is one of what was typed.
       typed = action.query;
       if (searchTimer !== null) clock.clearTimer(searchTimer);
-      searchTimer = clock.setTimer(SEARCH_DEBOUNCE_MS, applySearch);
-      boardCell.invalidate();
+      searchTimer = null;
+      if (action.now === true && applied !== typed) applySearch();
+      else {
+        if (action.now !== true) searchTimer = clock.setTimer(SEARCH_DEBOUNCE_MS, applySearch);
+        boardCell.invalidate();
+      }
       return Promise.resolve(done(action.type));
     }
     if (action.type === 'RevealShelf') {

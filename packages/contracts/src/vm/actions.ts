@@ -250,8 +250,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('SetSpendersSort', { sort: z.enum(SPENDERS_SORTS) }),
   /** «Сбросить фильтры». */
   act('ResetFilters', { list: z.enum(['spenders', 'newcomers']) }),
-  /** Debounced by the controller (150 ms, IME-safe, SP-019). */
-  act('Search', { list: z.enum(['spenders', 'newcomers', 'palette']), query: displayText(200) }),
+  /**
+   * Debounced by the controller (150 ms, IME-safe, SP-019). `now` — Enter in the field: the list follows at once, so the
+   * top match the same key opens is the one of what was typed (the old Fansly board's Enter).
+   */
+  act('Search', { list: z.enum(['spenders', 'newcomers', 'palette']), query: displayText(200), now: z.optional(z.literal(true)) }),
   /** A collapsed shelf «ещё N · показать», or a click on a shelf in the stats (SP-045). */
   act('RevealShelf', { shelfId: HandleSchema }),
   /** 1.38.0 (X67): a tier chip of the board («🐳 Whale 42»): the list shows that shelf alone; null — every shelf. */

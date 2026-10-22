@@ -329,6 +329,8 @@ export const TAB_REQUESTS = {
        * name; absent — a tab before 1.20.0. Never read from anywhere for this.
        */
       fanLabel: z.optional(z.nullable(displayText(256))),
+      /** 2026-10-22: the open chat's fan's @handle as the tab already knows it (without «@»), for the popup; display only. */
+      fanUsername: z.optional(z.nullable(displayText(64))),
     }),
     res: Ack,
     from: TAB,
@@ -621,7 +623,8 @@ export const TAB_REQUESTS = {
    */
   'fans.labels': {
     req: Empty,
-    res: z.strictObject({ fans: z.array(z.strictObject({ chatKey: ChatKeySchema, label: displayText(256) })).check(z.maxLength(FAN_LABELS_MAX)) }),
+    // 2026-10-22: `username` — the fan's @handle where an open chat's tab knows it (the popup's «Диалог»).
+    res: z.strictObject({ fans: z.array(z.strictObject({ chatKey: ChatKeySchema, label: displayText(256), username: z.optional(displayText(64)) })).check(z.maxLength(FAN_LABELS_MAX)) }),
     from: PAGE,
     pages: ['popup', 'options'],
   },

@@ -29,7 +29,7 @@ import type { NotesClient, NotesCopy, NotesDateVM, NotesEditorVM, NotesFillVM, N
 import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
-import { Button, Dot, Icon, TextField, hotkeyText, isComposing, useI18n, useKit } from '../../../kit';
+import { Button, Dot, Icon, StageLine, TextField, hotkeyText, isComposing, useI18n, useKit } from '../../../kit';
 import { useNotesTick, type NotesTexts } from './NotesButton';
 
 type Props = { readonly client: NotesClient; readonly copy: NotesCopy };
@@ -43,37 +43,43 @@ function NameField({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }):
   const [focused, setFocused] = useState(false);
   const status = vm.name.status;
   const locked = status === 'saving' || status === 'unconfirmed';
+  // The fan's own name stands in the field until a name for oneself is typed: it reads as the name, not as a hint.
+  // The field is as wide as what it shows (its box mirrors the text), so the @handle stands right after the name.
+  const shown = vm.name.value || vm.fan?.name || copy.namePlaceholder;
   return (
     <>
-      <input
-        class="cg-notes__name"
-        type="text"
-        value={vm.name.value}
-        placeholder={vm.fan?.name ?? copy.namePlaceholder}
-        aria-label={copy.namePlaceholder}
-        title={copy.name.idle}
-        data-notes-name=""
-        size={Math.max(8, Math.min(40, (vm.name.value || vm.fan?.name || copy.namePlaceholder).length + 1))}
-        {...(locked ? { readOnly: true, 'aria-busy': 'true' } : {})}
-        onFocus={() => setFocused(true)}
-        onBlur={() => {
-          setFocused(false);
-          client.dispatch({ type: 'name-commit' });
-        }}
-        onInput={(event) => client.dispatch({ type: 'name-input', value: event.currentTarget.value })}
-        onKeyDown={(event) => {
-          if (isComposing(event)) return;
-          if (event.key === 'Enter') {
-            event.preventDefault();
+      <span class="cg-notes__namebox" data-value={shown}>
+        <input
+          class="cg-notes__name"
+          type="text"
+          value={vm.name.value}
+          placeholder={vm.fan?.name ?? copy.namePlaceholder}
+          {...(vm.fan?.name === undefined || vm.fan.name === null ? {} : { 'data-notes-fan-name': '' })}
+          aria-label={copy.namePlaceholder}
+          title={copy.name.idle}
+          data-notes-name=""
+          size={1}
+          {...(locked ? { readOnly: true, 'aria-busy': 'true' } : {})}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
             client.dispatch({ type: 'name-commit' });
-          } else if (event.key === 'Escape') {
-            // The field's own Esc: the name goes back, the panel stays.
-            event.preventDefault();
-            event.stopPropagation();
-            client.dispatch({ type: 'name-revert' });
-          }
-        }}
-      />
+          }}
+          onInput={(event) => client.dispatch({ type: 'name-input', value: event.currentTarget.value })}
+          onKeyDown={(event) => {
+            if (isComposing(event)) return;
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              client.dispatch({ type: 'name-commit' });
+            } else if (event.key === 'Escape') {
+              // The field's own Esc: the name goes back, the panel stays.
+              event.preventDefault();
+              event.stopPropagation();
+              client.dispatch({ type: 'name-revert' });
+            }
+          }}
+        />
+      </span>
       {focused || status !== 'idle' ? (
         <p class="cg-notes__hint" data-status={status} role={status === 'idle' ? undefined : 'status'}>
           {vm.name.changed !== undefined
@@ -248,6 +254,15 @@ function FillStrip({ client, copy, editor }: Props & { readonly editor: NotesEdi
 function FillLine({ copy, fill, offered }: { readonly copy: NotesCopy; readonly fill: NotesFillVM; readonly offered: number }): JSX.Element | null {
   const errorText = useErrorText();
   if (fill.status === 'idle') return null;
+  // The running fill says its stage and counts its time, as a generation in the dock does: «Читаю переписку…» →
+  // «Заполняю анкету…» with m:ss (the Fansly extension's progress), never one line frozen for a minute and a half.
+  if (fill.status === 'running' && fill.phase !== undefined) {
+    return (
+      <div class="cg-notes__fill cg-notes__stage is-running" role="status" data-notes-fill-line="">
+        <StageLine phase={fill.phase} startedAt={fill.phase.startedAt} />
+      </div>
+    );
+  }
   const text =
     fill.status === 'running'
       ? copy.filling

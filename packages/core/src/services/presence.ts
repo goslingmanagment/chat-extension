@@ -35,6 +35,7 @@ export interface TabPresenceReport {
   readonly routeAccount?: HostAccount | null | undefined;
   /** 1.20.0: the open chat's fan as the tab names it; null or absent — no name (display only, memory alone). */
   readonly fanLabel?: string | null | undefined;
+  readonly fanUsername?: string | null | undefined;
 }
 
 export interface TabPresence {
@@ -54,6 +55,8 @@ export interface TabPresence {
   readonly routeAccount: HostAccountKey | null;
   /** 1.20.0 (decision X47): the open chat's fan as the tab named it; null — no name. Never stored. */
   readonly fanLabel: string | null;
+  /** The open chat's fan's @handle as the tab knows it (without «@»); null — none. */
+  readonly fanUsername: string | null;
   readonly updatedAt: number;
 }
 
@@ -154,10 +157,13 @@ export function createPresence(deps: PresenceDeps): PresenceService {
     const iso = new Date(now).toISOString();
     let changed = false;
     let next = [...seen];
-    for (const account of accounts) {
-      const key = hostAccountKeyOf(account.host, account.hostAccountId);
+    for (const reported of accounts) {
+      const key = hostAccountKeyOf(reported.host, reported.hostAccountId);
       const index = next.findIndex((item) => hostAccountKeyOf(item.account.host, item.account.hostAccountId) === key);
       const previous = index >= 0 ? next[index] : undefined;
+      // A report that does not know the account's names (a tab before its page named them) keeps the names seen:
+      // unknown is not «none», and «Аккаунты» never goes back from the creator's name to the bare number.
+      const account = previous === undefined || previous.account.platformAccountId !== reported.platformAccountId ? reported : { ...reported, username: reported.username ?? previous.account.username, displayName: reported.displayName ?? previous.account.displayName };
       const stale = previous === undefined || now - Date.parse(previous.lastSeenAt) >= refreshMs || stableJson(previous.account) !== stableJson(account);
       if (!stale) continue;
       changed = true;
@@ -201,6 +207,7 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         // says nothing of it, and nothing is assumed.
         routeAccount: report.routeAccount ? hostAccountKeyOf(report.routeAccount.host, report.routeAccount.hostAccountId) : null,
         fanLabel: report.chat !== null && typeof report.fanLabel === 'string' && report.fanLabel.trim() !== '' ? report.fanLabel.trim() : null,
+        fanUsername: report.chat !== null && typeof report.fanUsername === 'string' && report.fanUsername.trim().replace(/^@/, '') !== '' ? report.fanUsername.trim().replace(/^@/, '') : null,
         updatedAt: now,
       });
       notify();

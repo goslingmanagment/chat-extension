@@ -144,6 +144,8 @@ export interface PagesModel {
    * popup and «Идут сейчас» name the fan by them; empty — none known (the id stands in).
    */
   readonly fanLabels: ReadonlyMap<string, string>;
+  /** 2026-10-22: the @handles of those fans an open chat's tab knows (without «@»), by chat key. */
+  readonly fanUsernames: ReadonlyMap<string, string>;
   /** 1.20.0 (DB-022): this browser's AI spend by feature, today and 7 days; debug only, options page. null — not read. */
   readonly localSpend: { readonly today: LocalSpendReport; readonly week: LocalSpendReport } | null;
   /** 1.20.0 (DB-027): «Аккаунт → Дополнительно»; debug only, options page. null — not read or off. */

@@ -113,8 +113,29 @@ describe('[host:fansly] R20 P8a: the Spenders board names the chat of a Fansly f
     expect(unknown !== null && 'conversationRef' in unknown).toBe(false);
 
     expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: known } })).toMatchObject({ ok: true, outcome: 'opened' });
-    expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: stranger } })).toMatchObject({ ok: false, code: 'CG-DATA-NOT-READY' });
+    expect(await spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: stranger } })).toMatchObject({ ok: false, code: 'CG-HOST-CHAT-NOT-FOUND' });
     expect(navigator.opened).toEqual([{ chat: fanslyChat, surface: 'preview', boards: ['spenders'], conversationRef: FANSLY.group }]);
+    spenders.dispose();
+  });
+
+  it('a row whose chat is not known says «найти чат», «ищу чат…» while the inbox search runs, «чат не найден» when it finds none — and opens nothing', async () => {
+    let answer: (ref: string | null) => void = () => undefined;
+    const source: SpendersSource = {
+      cached: () => Promise.resolve(null),
+      resolve: () => new Promise((resolve) => (answer = resolve)),
+      names: () => Promise.resolve([]),
+    };
+    const { spenders, navigator } = await board(fanslyContext, [rowOf(0, FANSLY.fan, 'fansly', FANSLY.group), rowOf(1, STRANGER, 'fansly', null)], source);
+    const chatOf = (fan: string): string | undefined => spenders.getSnapshot({ of: 'spenders.board' }).shelves.flatMap((shelf) => shelf.rows).find((row) => row.handle === fanHandle('spenders', FANSLY_PAGE, fan))?.chat;
+    expect(chatOf(FANSLY.fan)).toBeUndefined();
+    expect(chatOf(STRANGER)).toBe('find');
+    const opening = spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', FANSLY_PAGE, STRANGER) } });
+    await settle(5);
+    expect(chatOf(STRANGER)).toBe('finding');
+    answer(null);
+    expect(await opening).toMatchObject({ ok: false, code: 'CG-HOST-CHAT-NOT-FOUND' });
+    expect(chatOf(STRANGER)).toBe('missing');
+    expect(navigator.opened).toEqual([]);
     spenders.dispose();
   });
 });

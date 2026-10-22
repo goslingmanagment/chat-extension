@@ -137,6 +137,22 @@ describe('[host:fansly] «Заметки»: the controller (R20 P11b)', () => {
     expect(w.notes.panel().editor).toMatchObject({ title: NOTE_TEMPLATE_TITLE, text: NOTE_TEMPLATE_TEXT });
   });
 
+  it('2026-10-22: a moment without the chat (the header re-drawn, the hub out of reach) never hides a panel with an edit not saved', async () => {
+    const w = world();
+    w.notes.toggle();
+    await w.settle();
+    w.notes.dispatch({ type: 'create', template: false });
+    w.notes.dispatch({ type: 'input', title: 'Half', text: 'typed' });
+    w.go(null);
+    expect(w.notes.panel()).toMatchObject({ shown: true, fan: { name: 'Alex', handle: 'alex' }, editor: { title: 'Half', text: 'typed' } });
+    w.go(A);
+    expect(w.notes.panel()).toMatchObject({ shown: true, editor: { title: 'Half', text: 'typed' } });
+    // Without an edit the panel follows the page as before.
+    w.notes.dispatch({ type: 'cancel' });
+    w.go(null);
+    expect(w.notes.panel().shown).toBe(false);
+  });
+
   it('audit №13: a note longer than the panel holds is read only — no edit, delete or fill from here', async () => {
     const w = world();
     w.port.read.mockResolvedValueOnce({ ok: true, fanRef: '91', notes: [{ ...note('3', 'Анкета', 'Имя: Алекс'), cut: true }], customName: null });

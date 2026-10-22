@@ -89,7 +89,9 @@ export const UI_TEXT_KEYS = [
   'result.meta.forFan', 'result.meta.byYourDraft', 'result.meta.failed', 'result.meta.notStarted', 'result.meta.unparsed',
   'result.meta.sentProgress', 'result.againTooltip', 'result.againBlocked', 'result.againBlockedUncertain', 'result.hideTooltip',
   'result.timerTooltip', 'result.stage.context',
-  'result.stage.thinking', 'result.stage.writing', 'result.stage.retry503', 'result.stage.parsing', 'result.stage.saving', 'result.stale.title',
+  'result.stage.thinking', 'result.stage.writing', 'result.stage.retry503', 'result.stage.parsing', 'result.stage.saving',
+  // 2026-10-22: «✨ Дополнить из чата» of «Заметки» (Fansly): the stage of its answer.
+  'result.stage.fillForm', 'result.stale.title',
   'result.stale.body', 'result.keys.part',
   'result.keys.variant', 'result.keys.insert', 'result.keys.copy', 'result.keys.collapse', 'result.keys.hideTooltip',
   'result.expand', 'result.collapse', 'result.announce.stage', 'result.announce.canRetry',
@@ -128,6 +130,8 @@ export const UI_TEXT_KEYS = [
   // 1.38.0 (X67): the old extension's tier chips and shelf names, the fan's wait as a chip of the row, the filters' menu.
   'spenders.tiers', 'spenders.tier.whale', 'spenders.tier.top', 'spenders.tier.prime', 'spenders.tier.base', 'spenders.tier.low', 'spenders.tier.micro',
   'spenders.wait.fan', 'spenders.filter.menu',
+  // 2026-10-22: the old Fansly board's chat chip of a row whose chat is not known yet.
+  'spenders.chat.find', 'spenders.chat.findHint', 'spenders.chat.finding', 'spenders.chat.missing', 'spenders.chat.missingHint',
   'stats.title', 'stats.titleFull', 'stats.expand', 'stats.expandTooltip', 'stats.collapse', 'stats.today', 'stats.d7', 'stats.d30', 'stats.payers',
   'stats.avgCheck', 'stats.shelves', 'stats.colFans', 'stats.colPeriod', 'stats.table.shelf', 'stats.table.fans', 'stats.table.lifetime',
   'stats.table.period', 'stats.attention', 'stats.awaiting', 'stats.newPayers', 'stats.newPayersObserved', 'stats.silent8to21', 'stats.silentOver21', 'stats.noData',
@@ -201,10 +205,13 @@ export const UI_TEXT_KEYS = [
   'cheatsheet.row.nextPart', 'cheatsheet.row.insert', 'cheatsheet.row.copy', 'cheatsheet.row.collapse', 'cheatsheet.row.help',
   'cheatsheet.row.chatNext', 'cheatsheet.row.chatPrevious', 'cheatsheet.row.nextUnread', 'cheatsheet.row.search', 'cheatsheet.row.sendNote', 'cheatsheet.row.notes', 'cheatsheet.row.applyFix',
   'cheatsheet.note',
+  // 2026-10-22: the sheet's one-line descriptions, as the old Fansly sheet had them.
+  'cheatsheet.row.reply', 'cheatsheet.row.fix', 'cheatsheet.row.hi', 'cheatsheet.row.ping', 'cheatsheet.row.review', 'cheatsheet.row.recap',
+  'cheatsheet.row.coach', 'cheatsheet.row.spendersBoard', 'cheatsheet.row.newcomers', 'cheatsheet.row.splitSeries',
   'toast.aiReady', 'toast.closeAria', 'toast.hubSettingsUpdating', 'toast.splitOn', 'toast.splitOff', 'toast.noUnread',
   'popup.pill.chatspace', 'popup.pill.chatspace.connected', 'popup.pill.chatspace.partial', 'popup.pill.chatspace.copyOnly',
   'popup.pill.chatspace.closed', 'popup.pill.hub', 'popup.pill.hub.online', 'popup.pill.hub.offline', 'popup.persona', 'popup.personaFor',
-  'popup.personaNone', 'popup.notConnected', 'popup.account', 'popup.signOut', 'popup.dialog', 'popup.dialogAccount', 'popup.copiedId',
+  'popup.personaNone', 'popup.notConnected', 'popup.account', 'popup.signOut', 'popup.dialog', 'popup.dialogAccount', 'popup.copiedId', 'popup.copyChatId',
   'popup.quota', 'popup.quotaLeft', 'popup.quotaReset', 'popup.quotaHubDown', 'popup.aiCostToday', 'popup.btn.spenders', 'popup.btn.newcomers',
   'popup.btn.keys', 'popup.btn.settings', 'popup.whatsNew', 'popup.history', 'popup.refreshStatus', 'popup.version',
   'signIn.title', 'signIn.login', 'signIn.password', 'signIn.submit', 'signIn.pending',
@@ -346,6 +353,8 @@ export const UI_PLURAL_KEYS = [
   'recap.archiveLag', 'recap.newAfter', 'recap.coverage.whole',
   'review.meta',
   'spenders.footer', 'spenders.footerNoTotal',
+  // 2026-10-22: the Spenders header's count of a list the hub has more fans for than it holds («1000 из 1240 фанов»).
+  'spenders.headOf',
   'stats.tile.d30Sub',
   'fanPanel.footer', 'fanPanel.footerCoverage',
   'coach.archiveLag',

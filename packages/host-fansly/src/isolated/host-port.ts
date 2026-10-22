@@ -178,6 +178,9 @@ const DRAFT_MAX = 20_000;
 /** Shown: not under `display: none`, `visibility: hidden` or a zero opacity. */
 const shown = (element: Element): boolean => typeof element.checkVisibility !== 'function' || element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
 
+/** A Fansly username as its header prints it after «@». */
+const FAN_HANDLE = /^[A-Za-z0-9_.-]{1,64}$/;
+
 export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort {
   const { win, bridge, mounts, theme, route, anchors, redeem, validation } = options;
   const doc = win.document;
@@ -316,9 +319,14 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const account = accountOf(creator);
     return account === null ? [] : [{ ...account, ...creatorNames }];
   };
-  /** Takes the names of an identity; true — they changed (the accounts are said again). */
-  const takeNames = (identity: { readonly username?: string | null | undefined; readonly displayName?: string | null | undefined }): boolean => {
-    const next = { username: identity.username ?? null, displayName: identity.displayName ?? null };
+  /**
+   * Takes the names of an identity; true — they changed (the accounts are said again). A message of the same creator
+   * that names none (MAIN said it before its `/account/me`, an older bridge) keeps the names known: «Аккаунты» never
+   * falls back from «Stand Creator» to «Fansly 7000…0017» for a moment that knew less.
+   */
+  const takeNames = (identity: { readonly creatorId?: string | null | undefined; readonly username?: string | null | undefined; readonly displayName?: string | null | undefined }): boolean => {
+    const same = identity.creatorId !== undefined && identity.creatorId !== null && identity.creatorId === creator;
+    const next = { username: identity.username ?? (same ? creatorNames.username : null), displayName: identity.displayName ?? (same ? creatorNames.displayName : null) };
     if (next.username === creatorNames.username && next.displayName === creatorNames.displayName) return false;
     creatorNames = next;
     return true;
@@ -846,7 +854,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       const contact = composer?.ready === true ? anchors.current().conversation?.contact : null;
       const text = (selector: string): string | null => contact?.querySelector(selector)?.textContent?.trim().slice(0, 256) || null;
       const displayName = text('app-account-username .display-name') ?? text('app-account-username .user-name') ?? cached?.displayName ?? null;
-      const fan = { ...fanOf(chat, chatWire), displayName };
+      // The header's «@handle» (the old Fansly extension's notes and panel named the fan by it): display data alone.
+      const handle = text('app-account-username .user-name')?.replace(/^@/, '') ?? null;
+      const username = handle !== null && FAN_HANDLE.test(handle) ? handle : (cached?.username ?? null);
+      const fan = { ...fanOf(chat, chatWire), displayName, username };
       if (displayName !== null) {
         fanLabels.delete(key);
         fanLabels.set(key, { ...fan, canReceiveMessages: null });

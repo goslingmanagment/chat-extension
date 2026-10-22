@@ -30,7 +30,8 @@
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import type { NotesAction, NotesClient, NotesDateVM, NotesEditorVM, NotesFillVM, NotesFormPartVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesQuoteVM, NotesSuggestionVM, NotesTriggerVM } from '@cg/contracts/notes-fansly';
-import type { SiteOpView } from '@cg/contracts/ops';
+import type { Phase, SiteOpView } from '@cg/contracts/ops';
+import type { PhaseVM } from '@cg/contracts/vm';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
@@ -88,12 +89,32 @@ function formVM(parts: readonly NoteFormPart[], suggestions: readonly NotesSugge
   });
 }
 
+/**
+ * A running fill's stage line (the Fansly extension: «Читаю переписку…», then «Заполняю анкету…»): the operation's phase
+ * as the background last said it, the timer from the click. Its own words for the answer: a questionnaire is filled in.
+ */
+export function fillPhaseVM(startedAt: number, phase: Phase | null): PhaseVM {
+  const name = phase?.name ?? 'admitted';
+  const retryAt = name === 'retry-wait' ? (phase?.retryAt ?? null) : null;
+  const context = { id: 'context', label: { key: 'result.stage.context' } } as const;
+  const form = { id: 'writing', label: { key: 'result.stage.fillForm' } } as const;
+  const parsing = { id: 'parsing', label: { key: 'result.stage.parsing' } } as const;
+  const stages =
+    name === 'parsing' || name === 'saving-profile' || name === 'settled'
+      ? [{ ...context, state: 'done' as const }, { ...form, state: 'done' as const }, { ...parsing, state: 'current' as const }]
+      : name === 'awaiting-first-chunk' || name === 'streaming'
+        ? [{ ...context, state: 'done' as const }, { ...form, state: 'current' as const }]
+        : [{ ...context, state: 'current' as const }];
+  return { startedAt, stages, retryAt, cancel: null };
+}
+
 function fillVM(fill: Fill): NotesFillVM {
   return {
     status: fill.status,
     wrote: fill.status === 'done' ? fill.wrote : [],
     error: fill.status === 'failed' ? fill.error : null,
     ...(fill.status === 'done' && fill.unplaced.length > 0 ? { unplaced: fill.unplaced } : {}),
+    ...(fill.status === 'running' ? { phase: fillPhaseVM(fill.startedAt, fill.phase) } : {}),
   };
 }
 
@@ -213,7 +234,7 @@ interface Draft {
 /** «✨ Заполнить из чата» of a draft: `opId` null — its start is on its way. */
 type Fill =
   | { readonly status: 'idle' }
-  | { readonly status: 'running'; opId: string | null }
+  | { readonly status: 'running'; opId: string | null; readonly startedAt: number; phase: Phase | null }
   | { readonly status: 'done'; readonly wrote: readonly string[]; readonly unplaced: readonly string[] }
   | { readonly status: 'failed'; readonly error: CgAnyErrorWire };
 
@@ -248,6 +269,8 @@ export type NotesController = NotesClient & {
   toggle(): boolean;
   /** A site operation ended (`fansly.ops.done`): a fill of this tab's lands in its fan's draft. */
   fillDone(view: SiteOpView): void;
+  /** An operation's phase moved (`op.update`): a running fill of this tab's says its stage. */
+  fillPhase(opId: string, phase: Phase): void;
   dispose(): void;
 };
 
@@ -272,6 +295,8 @@ export function createNotesController(port: NotesPort): NotesController {
   let deleteError: { readonly fanId: string; readonly noteId: string; readonly error: CgAnyErrorWire } | null = null;
   let disposed = false;
   let panelVM: NotesPanelVM | null = null;
+  /** The open chat's fan and the panel's place as last seen, for a panel kept while its chat is gone for a moment. */
+  let held: { readonly groupId: string; readonly fan: NotesTarget['fan']; readonly place: NotesPlace | null } | null = null;
   let triggerVM: NotesTriggerVM | null = null;
   let shape = '';
   const now = (): number => port.now?.() ?? Date.now();
@@ -312,6 +337,10 @@ export function createNotesController(port: NotesPort): NotesController {
   function build(): void {
     const t = port.target();
     const shown = visible();
+    const seen = shown && view !== 'center' ? port.place() : null;
+    // A panel kept over a moment without its chat (an unsaved edit, `sync`) keeps who it is about and where it stood.
+    if (t !== null && t.groupId === groupId) held = { groupId: t.groupId, fan: t.fan, place: seen ?? (held?.groupId === t.groupId ? held.place : null) };
+    const kept = t === null && held !== null && held.groupId === groupId ? held : null;
     const entry = groupId === null ? undefined : entries.get(groupId);
     const data = entry?.kind === 'ready' ? entry.data : null;
     const fanId = data?.fanRef ?? null;
@@ -322,8 +351,8 @@ export function createNotesController(port: NotesPort): NotesController {
       shown,
       view,
       narrow,
-      place: shown && view !== 'center' ? port.place() : null,
-      fan: t?.fan ?? null,
+      place: shown && view !== 'center' ? (seen ?? kept?.place ?? null) : null,
+      fan: t?.fan ?? kept?.fan ?? null,
       body: entry === undefined || entry.kind === 'loading' ? 'loading' : entry.kind,
       error: entry?.kind === 'error' ? entry.error : null,
       notes: data?.notes ?? [],
@@ -441,6 +470,13 @@ export function createNotesController(port: NotesPort): NotesController {
   function sync(): void {
     const t = target();
     const next = t?.groupId ?? null;
+    // A panel with an edit not saved stays while no other chat takes its place (the header re-drawn, the context read
+    // again): what was typed is never hidden by a moment of the page. Another chat follows as always; the draft waits.
+    const data = current();
+    if (next === null && groupId !== null && data !== null && drafts.has(data.fanRef)) {
+      update('follow');
+      return;
+    }
     if (next !== groupId) {
       clearFollow();
       confirm = null;
@@ -632,7 +668,7 @@ export function createNotesController(port: NotesPort): NotesController {
     if (draft === undefined || draft.saving || draft.fill.status === 'running') return;
     const asked = noteFillRequest(draft.text);
     if (asked === null) return;
-    const run: Fill & { status: 'running' } = { status: 'running', opId: null };
+    const run: Fill & { status: 'running' } = { status: 'running', opId: null, startedAt: now(), phase: null };
     draft.fill = run;
     draft.suggestions = [];
     draft.sources = [];
@@ -653,6 +689,7 @@ export function createNotesController(port: NotesPort): NotesController {
     }
     run.opId = answer.opId;
     fills.set(answer.opId, fanId);
+    if (answer.view !== null) run.phase = answer.view.phase;
     const state = answer.view?.state;
     if (answer.view !== null && state !== 'admitted' && state !== 'requesting' && state !== 'streaming') return fillDone(answer.view);
     emit();
@@ -685,6 +722,14 @@ export function createNotesController(port: NotesPort): NotesController {
       draft.fill = { status: 'done', wrote: merged.wrote, unplaced: merged.unplaced };
     } else draft.fill = view.state === 'canceled' ? { status: 'idle' } : { status: 'failed', error: view.error ?? { code: 'CG-OUTPUT-UNUSABLE' } };
     if (draft.problem?.kind === 'empty' || draft.problem?.kind === 'too-long') draft.problem = null;
+    emit();
+  }
+
+  function fillPhase(opId: string, phase: Phase): void {
+    const fanId = fills.get(opId);
+    const fill = fanId === undefined ? undefined : drafts.get(fanId)?.fill;
+    if (disposed || fill?.status !== 'running' || fill.opId !== opId || (fill.phase?.name === phase.name && fill.phase.retryAt === phase.retryAt)) return;
+    fill.phase = phase;
     emit();
   }
 
@@ -831,6 +876,7 @@ export function createNotesController(port: NotesPort): NotesController {
     sync,
     toggle,
     fillDone,
+    fillPhase,
     applyView(next) {
       if (next === view) return;
       view = next;

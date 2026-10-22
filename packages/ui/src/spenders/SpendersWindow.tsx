@@ -17,7 +17,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { type SpendersBoardVM } from '@cg/contracts/vm';
 
 import { Boundary, Button, Dialog, KeysFooter, OverlayLayer, SearchBox, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
-import { BOARD_CSS, Board, BoardFilters, focusIsIdle, type BoardHandle } from './Board';
+import { BOARD_CSS, Board, BoardFilters, firstFan, focusIsIdle, openChat, type BoardHandle } from './Board';
 import { PanelPreview, type PreviewFallback } from './preview/PanelPreview';
 import { STATS_CSS, StatsColumn, StatsExpanded } from './Stats';
 import { RefreshButton, isPlainKey, isTextEntry, type RefreshableView } from './window';
@@ -123,8 +123,9 @@ export function SpendersWindow(): JSX.Element {
     setPanelHeight(draggedPanelHeight);
   }, []);
 
+  const closeWindow = useCallback((): void => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } }), [dispatch]);
   const close = useCallback((): void => {
-    // Esc in turn: the search, the preview, the window (ui-design §6.4).
+    // Esc in turn: the search, the preview, the window (ui-design §6.4). A press outside the window closes it at once.
     if (board.query !== '') void dispatch({ type: 'Search', list: 'spenders', query: '' });
     else if (board.previewOpen && !expanded) void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
     else void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
@@ -188,6 +189,31 @@ export function SpendersWindow(): JSX.Element {
     statsWereExpanded.current = expanded;
   }, [expanded]);
 
+  // The old Fansly board's search: Enter opens the top match of what was typed, ↓ / ↑ go on to the list.
+  const searchEnter = useCallback(
+    (query: string): void => {
+      // The list follows the field at once, in this same key press: the chat it opens is the person's choice of it.
+      void dispatch({ type: 'Search', list: 'spenders', query, now: true });
+      // An empty field has no match: Enter there only settles it.
+      if (query.trim() === '') return;
+      const now = deps.client.getSnapshot({ of: 'spenders.board' });
+      // A list still on its way (or another query) opens nothing: Enter never opens a fan the person did not see match.
+      if (now.query !== query) return;
+      const top = firstFan(now);
+      if (top !== null) void dispatch(openChat(top.handle));
+    },
+    [dispatch, deps],
+  );
+  const searchArrow = useCallback(
+    (query: string): boolean => {
+      void dispatch({ type: 'Search', list: 'spenders', query, now: true });
+      // The rows of what was typed are drawn on the next frame; the keyboard's row is one of them.
+      requestAnimationFrame(() => boardRef.current?.focusActiveRow());
+      return true;
+    },
+    [dispatch],
+  );
+
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
     if (event.defaultPrevented || isComposing(event) || isTextEntry(event.target) || !isPlainKey(event)) return;
     if (event.code === 'Slash' || event.key === '/') {
@@ -220,6 +246,7 @@ export function SpendersWindow(): JSX.Element {
         size="wide"
         class={`cg-sp cg-spw${statistics ? ' has-stats' : ''}`}
         onClose={close}
+        onScrim={closeWindow}
         initialFocus={() => frameRef.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}
       >
         <div ref={frameRef} class="cg-sp__frame" onKeyDown={onKeyDown}>
@@ -229,7 +256,8 @@ export function SpendersWindow(): JSX.Element {
                 <h2 class="cg-sp__title">{i18n.t('spenders.title')}</h2>
                 <span class="cg-sp__sub">
                   {board.pageName === null ? null : <span class="cg-sp__page">{board.pageName}</span>}
-                  {board.footer.loaded > 0 ? <span>{i18n.plural('common.fans', board.footer.loaded)}</span> : null}
+                  {/* «1000 из 1240 фанов» when the hub has more than the list holds; else «1240 фанов». */}
+                  {board.footer.loaded > 0 ? <span>{board.footer.total !== null && board.footer.total > board.footer.loaded ? i18n.plural('spenders.headOf', board.footer.total, { loaded: board.footer.loaded }) : i18n.plural('common.fans', board.footer.loaded)}</span> : null}
                   {board.footer.stamp.asOf === null ? null : <span>{i18n.t('common.dataAsOf', { time: { time: board.footer.stamp.asOf } })}</span>}
                 </span>
               </div>
@@ -241,7 +269,7 @@ export function SpendersWindow(): JSX.Element {
                 size="sm"
                 tooltip={i18n.t('spenders.closeTooltip')}
                 class="cg-sp__close"
-                onClick={() => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } })}
+                onClick={closeWindow}
               />
             </header>
             <div class="cg-sp__bar">
@@ -254,6 +282,8 @@ export function SpendersWindow(): JSX.Element {
                 class="cg-sp__search"
                 inputRef={searchRef}
                 onQuery={(query) => void dispatch({ type: 'Search', list: 'spenders', query })}
+                onEnter={searchEnter}
+                onArrow={(_direction, query) => searchArrow(query)}
               />
             </div>
           </div>

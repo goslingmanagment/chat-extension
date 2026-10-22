@@ -173,12 +173,23 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   let sentAccounts = '';
   let withAccounts = true;
   let sentLabel: string | null = null;
+  let sentUsername: string | null = null;
   /** The open chat's fan as the site's memory already names it; null — no chat, no name, or the port cannot say. */
   const fanLabelOf = (port: HostPort): string | null => {
     try {
       const chat = port.current().route.chat;
       const fan = chat === null ? null : port.fan(chat);
       return fan === null ? null : ((fan.displayName ?? fan.username)?.trim().slice(0, 256) || null);
+    } catch {
+      return null;
+    }
+  };
+  /** The open chat's fan's @handle as the site already knows it (without «@»); null — none. */
+  const fanUsernameOf = (port: HostPort): string | null => {
+    try {
+      const chat = port.current().route.chat;
+      const handle = chat === null ? null : port.fan(chat)?.username?.trim().replace(/^@/, '').slice(0, 64);
+      return handle === undefined || handle === null || handle === '' ? null : handle;
     } catch {
       return null;
     }
@@ -197,6 +208,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         withAccounts = false;
         // 1.20.0 (X47): the open chat's fan as ChatSpace already names it — for the popup and «Идут сейчас».
         sentLabel = fanLabelOf(port);
+        sentUsername = sentLabel === null ? null : fanUsernameOf(port);
         void rpc
           .request('tab.presence', {
             chat: snapshot.route.chat,
@@ -207,6 +219,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
             visible: doc.visibilityState === 'visible',
             focused: doc.hasFocus(),
             fanLabel: sentLabel,
+            fanUsername: sentUsername,
             ...(include ? { accounts: [...accounts] } : {}),
           })
           .then((answer) => {
@@ -249,7 +262,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     const off = port.subscribe((event) => {
       if (event.type === 'route' || event.type === 'accounts') reportPresence();
       // ChatSpace learned the open chat's fan after the route: its name goes too (once it changes).
-      else if (event.type === 'chatCache' && fanLabelOf(port) !== sentLabel) reportPresence();
+      else if (event.type === 'chatCache' && (fanLabelOf(port) !== sentLabel || (sentLabel !== null && fanUsernameOf(port) !== sentUsername))) reportPresence();
     });
     life.addEventListener('abort', off);
     reportPresence(true);

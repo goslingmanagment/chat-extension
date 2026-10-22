@@ -236,7 +236,7 @@ describe('R20 F6a, Fansly: a board row or card opens the fan of the binding\'s s
     const spenders = createSpendersController({ rpc: world.bg.rpc, i18n, clock: world.clock, context, surfaces: world.surfaces, navigator, timeZone: 'Europe/Moscow' });
     const newcomers = createNewcomersController({ rpc: world.bg.rpc, host: world.host, i18n, clock: world.clock, context, surfaces: world.surfaces, navigator, connectivity: null, random: () => 0.5 });
     // The board is not read here: no row names the fan's group, and the fan's id names none on Fansly.
-    expect(await dispatchTo(spenders, { type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', WORLD.pages.fansly.pageId, FANSLY.fan) } })).toMatchObject({ ok: false, code: 'CG-DATA-NOT-READY' });
+    expect(await dispatchTo(spenders, { type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', WORLD.pages.fansly.pageId, FANSLY.fan) } })).toMatchObject({ ok: false, code: 'CG-HOST-CHAT-NOT-FOUND' });
     expect(await dispatchTo(newcomers, { type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('newcomers', WORLD.pages.fansly.pageId, FANSLY.fan) } })).toMatchObject({ ok: true, outcome: 'opened' });
     expect(navigator.opened.map((open) => open.chat)).toEqual([fanslyChat]);
     spenders.dispose();
