@@ -855,7 +855,9 @@ export class AiWorkspace {
       regenerateOf: original?.view.opId,
       // Split as the bar shows it now, for «Ещё раз» too: a Split switched after the answer is the one the person wants.
       splitWanted: this.split(),
-      force: request.force === true,
+      // A used-up or stale answer of this chat is not what a new click asks for: the click makes a new one, never the
+      // cached one again (2026-10-22, with the sheet that leaves on the chat switch).
+      force: request.force === true || (original === undefined && this.spentIn(chat.key, feature)),
     });
     if (!plan.ok) return failed(plan.code);
 
@@ -1264,6 +1266,11 @@ export class AiWorkspace {
       }
     } else this.syncedChat = null;
     this.bump();
+  }
+
+  /** Whether this chat holds a used-up or stale answer of the feature (`spent`) that the result cache could give back. */
+  private spentIn(key: ChatKey, feature: FeatureId): boolean {
+    return this.ops.all().some((record) => record.view.feature === feature && isOwnSurface(record.view.surface) && chatKeyOf(record.view.target.chat) === key && this.spent(record.view.opId));
   }
 
   /** A finished answer whose every part went into the field (or out, from its board), or one stale for its chat. */
