@@ -266,8 +266,10 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
     /**
      * Whether the page itself already forbids reading the fan's history for the read mark (`chatReadState`): the fan
      * is typing (ChatSpace's own five-second flag), or the freshest row of the fan in any chat list the page holds has
-     * the fan's message last or something unread. The page's list may only forbid: it zeroes a row's count on our own
-     * outgoing message, so a «nothing unread» there allows nothing — the live search decides.
+     * the fan's message last as the socket brought it (`isOutgoing` false; a row the page loaded says null). The row's
+     * unread count forbids nothing: a loaded row carries OnlyMonster's cached count, which stays above zero after the
+     * chat was opened in ChatSpace (opening zeroes it only in the page's cache), and the socket zeroes it on our own
+     * outgoing message — whether anything is unread, only the live search says.
      */
     chatReadVetoed(acc: string, fan: string): boolean {
       if (call(STORE_CHATS, 'isFanTyping', acc, fan) === true) return true;
@@ -279,10 +281,8 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
         const found = rows(entry.state?.value?.data).find((chat): chat is Plain => isPlain(chat) && idOf(chat['id']) === fan);
         if (found !== undefined) [row, at] = [found, entry.when ?? 0];
       }
-      if (row === null) return false;
-      const unread = row['unreadMessagesCount'];
-      const last = row['lastMessage'];
-      return (typeof unread === 'number' && unread > 0) || (isPlain(last) && last['isOutgoing'] === false);
+      const last = row?.['lastMessage'];
+      return isPlain(last) && last['isOutgoing'] === false;
     },
     /** The list the person looks at: the observed `["chatList", acc, …]` entry, newest; nothing is loaded for it. */
     chatList(acc: string, limit: number) {
