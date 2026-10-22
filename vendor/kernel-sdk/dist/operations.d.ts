@@ -1251,6 +1251,10 @@ export declare const kernelOperations: {
         readonly method: "PUT";
         readonly path: "/api/v1/pages/:pageLabel/fans/:platformUserId/profile";
     };
+    readonly voiceNoteAllowance: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/voice-notes/allowance";
+    };
     readonly voiceNoteAudio: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/voice-notes/:id/audio";

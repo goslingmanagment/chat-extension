@@ -59,6 +59,9 @@ export const CLIENT_TOKEN_PROFILES = {
             "voiceNoteCreate",
             "voiceNoteStatus",
             "voiceNoteAudio",
+            // The page's voice-note limits and what is left of today's characters
+            // (free, read-only), behind the same flag.
+            "voiceNoteAllowance",
         ],
         // `client_health` (H-11b) is never journaled: the capture lane folds it
         // into hourly rollups that hold no user.
