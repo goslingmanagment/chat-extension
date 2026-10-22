@@ -30,6 +30,7 @@ export const NEWCOMERS_FRAME_CSS = `
 .cg-nw__label { color: var(--cg-ink-2); }
 .cg-nw__stage { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-nw .cg-nw__search { width: 220px; height: 30px; min-width: 120px; flex: 0 1 auto; }
+.cg-nw__refresh { flex: none; }
 .cg-nw__line { flex: none; display: flex; align-items: baseline; gap: 12px; padding: 5px 22px; border-bottom: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-ink-muted); }
 .cg-nw__line > span:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cg-nw__line > span + span { flex: none; white-space: nowrap; }
@@ -104,8 +105,6 @@ ${/* «Крупнее»: 58 px of text (20 + 18 + 2 + 18), the draft's two lines
 .cg-nw__bline.is-hint { min-height: 0; color: var(--cg-ink-muted); line-height: 16px; }
 .cg-nw__bn { color: var(--cg-ink-strong); font-weight: 500; white-space: nowrap; }
 .cg-nw__bst { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.cg-nw__none { display: flex; align-items: center; justify-content: center; padding: 16px; color: var(--cg-ink-muted); background: var(--cg-surface); }
 
 ${/* A narrow window (the browser's zoom of 200 %, ui-design §11): one column that scrolls — the list in a box of its own, the card under it. */ ''}
 @media (max-width: 760px) {

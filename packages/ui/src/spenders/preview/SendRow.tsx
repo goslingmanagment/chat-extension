@@ -37,14 +37,14 @@ export function codeLineParts(i18n: I18n, code: string, text: string): { readonl
 }
 
 /** Why a refused send did not go out: the upstream's own words, else the reason of the code. */
-function rejectedText(i18n: I18n, send: Extract<PreviewSendView, { s: 'rejected' }>): string {
+export function rejectedText(i18n: I18n, send: Extract<PreviewSendView, { s: 'rejected' }>): string {
   const detail = send.detail ?? (isSendReasonCode(send.code) ? i18n.t(SEND_REASON_KEYS[send.code]) : null);
   // A code with no reason text of its own: the registry's explanation, which already says the text did not go out.
   if (detail === null) return i18n.t(cgBodyKey(send.code));
   return i18n.t('send.rejectedTail', { detail: detail.trim().replace(/[.!?…]+$/, '') });
 }
 
-function CodeLine({ code, text }: { readonly code: string; readonly text: string }): JSX.Element {
+export function CodeLine({ code, text }: { readonly code: string; readonly text: string }): JSX.Element {
   const i18n = useI18n();
   const parts = codeLineParts(i18n, code, text);
   return (

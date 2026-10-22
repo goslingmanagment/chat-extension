@@ -144,11 +144,15 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     await pressOurs('modal', '.cg-pal__item', /^Новые(?:\s*(?:⌘⇧U|Ctrl\+Alt\+U))?$/, 'the «Новые» row of the palette (its key since X55)', 20_000);
     const username = `newfan_${a5}`;
     await pressOurs('modal', '[aria-label="Новые подписчики"] [data-cg-key]', new RegExp(`@${username}\\b`), 'the row of the stand’s new subscriber', 20_000);
-    await pressOurs('modal', '.cg-pv button', /^Hi/);
-    await waitOursText('modal', greeting(a5), 'the greeting draft', { timeout: 20_000, selector: '.cg-pv' });
-    await pressOurs('modal', `${part(0)} .cg-pvs__send`, /^Отправить/);
+    // The family's card (X60): Hi lands in the field, «Отправить →» sends it through ChatSpace's own queue.
+    await pressOurs('modal', '.cg-nc__gbar button', /^Сгенерировать/);
+    await browser.waitUntil(async () => (await readOurs('modal', '.cg-nc__field textarea', (node) => (node as HTMLTextAreaElement).value)) === greeting(a5), {
+      timeout: 20_000,
+      timeoutMsg: 'the greeting is not in the card’s field',
+    });
+    await pressOurs('modal', '.cg-nc__gbar button', /^Отправить/);
     sent.push({ chat: a5, text: greeting(a5), by: 'x8-click' });
-    await sentInPreview();
+    await browser.waitUntil(async () => (await readOurs('modal', '.cg-nc__greet', (node) => node.getAttribute('data-cg-greeting'))) === 'sent', { timeout: 20_000, timeoutMsg: 'the greeting was not confirmed as sent' });
     await closeWindows();
   });
 
