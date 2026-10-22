@@ -131,7 +131,7 @@ export type NewcomersTab = (typeof NEWCOMERS_TABS)[number];
 export const GREETING_FILTERS = ['any', 'none', 'sending', 'stopped', 'greeted', 'replied'] as const;
 export type GreetingFilter = (typeof GREETING_FILTERS)[number];
 /** «Новые» window, hours (§8.5: quick 24/48/72/168, any 1–720 within bootstrap `audienceWindowHours`). */
-export const NEWCOMERS_WINDOW_HOURS = { min: 1, max: 720, quick: [24, 48, 72, 168], default: 48 } as const;
+export const NEWCOMERS_WINDOW_HOURS = { min: 1, max: 720, quick: [1, 3, 6, 12, 24, 48, 72, 168, 336, 720], default: 48 } as const;
 
 /**
  * 1.15.0 (R20 P10a): the status filters of a list a background pass checks (NF-006; `NewcomersVM.pass`): «Не писали»,

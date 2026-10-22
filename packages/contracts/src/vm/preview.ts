@@ -60,7 +60,7 @@ export interface PreviewVM {
     readonly period30: MoneyMills | null;
     readonly weWroteAt: IsoTimestamp | null;
     readonly fanWroteAt: IsoTimestamp | null;
-    /** The «Новые» card: «новый, подписка 14 мин назад». */
+    /** The «Новые» card: «подписался 14 мин назад». */
     readonly newcomer: { readonly kind: NewcomerKind; readonly subscribedAt: IsoTimestamp } | null;
   } | null;
   readonly openChat: ActionButtonVM;

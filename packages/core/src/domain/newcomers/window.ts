@@ -1,6 +1,6 @@
 // The «Новые» window and its cursor pass (architecture.md §8.5 «Новые», hub
-// H-7c; NF-003, NF-006, NF-025): 48 hours by default, the quick 24 / 48 / 72 /
-// 168, any whole number of hours from 1 to 720 inside the hub's
+// H-7c; NF-003, NF-006, NF-025): 48 hours by default, the quick choices of
+// Fansly's window (1, 3, 6, 12, 24, 48, 72 hours, 7, 14, 30 days), any whole number of hours from 1 to 720 inside the hub's
 // `limits.audienceWindowHours`. The window is fixed for a whole pass: a
 // cursor is never continued with another window (the hub refuses it), a new
 // window starts a new pass from the first page.
@@ -11,7 +11,7 @@ import { type CoverageLevel } from '@cg/contracts/ops';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 
 /** NEWCOMERS_WINDOW_HOURS of the contracts, repeated so this module loads no schema module (a test pins them equal). */
-export const WINDOW_HOURS = { min: 1, max: 720, quick: [24, 48, 72, 168], default: 48 } as const;
+export const WINDOW_HOURS = { min: 1, max: 720, quick: [1, 3, 6, 12, 24, 48, 72, 168, 336, 720], default: 48 } as const;
 
 /** Rows per page of the list (NF-006 «страницы по 100», the hub's cap). */
 export const AUDIENCE_PAGE_SIZE = 100;

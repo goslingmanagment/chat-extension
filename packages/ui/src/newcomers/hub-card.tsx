@@ -279,7 +279,7 @@ export function HubCard({ vm: list }: { readonly vm: NewcomersVM }): JSX.Element
   const i18n = useI18n();
   const preview = useView({ of: 'preview', from: 'newcomers' });
   const vm = preview.value;
-  // «новый, подписка 14 мин назад» moves with the clock.
+  // «подписался 14 мин назад» moves with the clock.
   useMinuteClock(vm.header !== null);
   const onKeyDown = usePreviewKeys(vm);
   const label = i18n.t('newcomers.cardLabel');
