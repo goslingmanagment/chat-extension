@@ -61,6 +61,10 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
   never press Alt+1–9, J, K, ⌘U on the live tab (our navigation opens other fans' chats).
 - **The extension never sends on its own.** Only on a human click: in an open chat — insertion through `__omComposerBridge`
   and ChatSpace's own Send; from a preview — through ChatSpace's own send queue (X8). Never auto-retry anything indeterminate.
+- **Voice costs money.** «Озвучить» / «Ещё вариант» spend the page's ElevenLabs characters: only by the person's click, never
+  retried by itself (a lost answer stays `uncertain` until «Проверить» re-sends the same id). «Прикрепить» only puts the MP3
+  into the field (ChatSpace: one drop on the composer frame from MAIN; Fansly: its file input and its own upload window).
+  On the stand the fake hub renders; on the live site — only the owner's test chat.
   Toward OnlyMonster — reads only (the page's own session, `host-chatspace/src/main/om-api.ts`), no writes of our own.
 - **Another chat's history — only for the read mark** (`chatReadState`): a fan's preview reads it only after a live
   chat-list search says our message is the chat's last with nothing unread, so nothing new is marked read. A fan

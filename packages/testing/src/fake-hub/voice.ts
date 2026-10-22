@@ -21,7 +21,6 @@ import { createHash } from 'node:crypto';
 
 import { type HubRouteKey, type VoiceNoteCreateBody, type VoiceNoteState, type VoiceNoteView } from '@cg/contracts';
 
-import { type Generation } from './ai';
 import { type PairState } from './ai-rules';
 import { iso } from './clock';
 import { voiceAudioSamples, type VoiceAudioSample } from './voice-audio';
@@ -158,6 +157,17 @@ export interface VoicePage {
   readonly chatIsFan: boolean;
 }
 
+/** What the lane reads of the generation a script came from (ai.ts `Generation`; structural, so no cycle with ai.ts). */
+export interface VoiceSource {
+  readonly feature: string;
+  readonly userId: number;
+  readonly pageLabel: string;
+  readonly conversationRef: string;
+  readonly fanRef: string;
+  readonly outcome: 'open' | 'done' | 'error' | 'aborted';
+  readonly stopReason: string | null;
+}
+
 export interface VoiceCreateInput {
   readonly userId: number;
   readonly page: VoicePage;
@@ -165,7 +175,7 @@ export interface VoiceCreateInput {
   readonly timeScale: number;
   /** The lane does not serve the page (config `voiceLaneOff`): a fresh render is `voice_disabled`. */
   readonly laneOff: boolean;
-  readonly generations: ReadonlyMap<string, Generation>;
+  readonly generations: ReadonlyMap<string, VoiceSource>;
   /** The page's capture of a Fansly group (HF-9). */
   readonly pair: (conversationRef: string, fanRef: string) => PairState;
 }

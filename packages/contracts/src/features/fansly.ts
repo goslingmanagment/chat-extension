@@ -69,7 +69,7 @@ const FEATURES = {
 
   // A script from the draft and its paid voicing (the hub, HF-4); the MP3 goes into the field of this chat through
   // Fansly's own input and upload modal (§7.10, HostPort.attachFile).
-  voice: { base: { flags: ['voice'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: { flags: [], hostCapabilities: ['fileAttach'] } }, surfaces: ['dock'], source: 'hub' },
+  voice: { base: { flags: ['voice'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: { flags: ['insertion'], hostCapabilities: ['fileAttach'] } }, surfaces: ['dock'], source: 'hub' },
 
   // ── only Fansly ──
   notes: { kind: 'panel', hotkey: 'notes', base: { flags: ['notes'], hostCapabilities: ['headerSlot'] }, actions: {}, surfaces: ['header-slot', 'notes'], source: 'host-pass' },

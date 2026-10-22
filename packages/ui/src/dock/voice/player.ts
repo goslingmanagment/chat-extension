@@ -36,17 +36,17 @@ const playing = signal<NowPlaying | null>(null);
 export const nowPlaying: ReadonlySignal<NowPlaying | null> = playing;
 
 /** The one context that plays, made on the first ▶ (a click: the page's autoplay rules let it start). */
-function contextOf(win: AudioWindow): AudioContext {
+function contextOf(win: Window): AudioContext {
   if (context !== null && context.state !== 'closed') return context;
-  const Ctor = win.AudioContext;
+  const Ctor = (win as AudioWindow).AudioContext;
   if (Ctor === undefined) throw new Error('no Web Audio');
   context = new Ctor();
   return context;
 }
 
 /** A take is decoded offline: showing its waveform starts no audio and asks the page for nothing. */
-function decoderOf(win: AudioWindow): BaseAudioContext {
-  const Offline = win.OfflineAudioContext;
+function decoderOf(win: Window): BaseAudioContext {
+  const Offline = (win as AudioWindow).OfflineAudioContext;
   if (Offline !== undefined) return new Offline(1, 1, 44_100);
   return contextOf(win);
 }
@@ -74,7 +74,7 @@ export function decodeTake(win: Window, sha256: string, bytes: ArrayBuffer): Pro
   const known = decoded.get(sha256);
   if (known !== undefined) return known;
   const run = (async (): Promise<DecodedTake> => {
-    const ctx = decoderOf(win as AudioWindow);
+    const ctx = decoderOf(win);
     // decodeAudioData takes the buffer over: the view's bytes stay whole for the handover and «Скачать».
     const buffer = await ctx.decodeAudioData(bytes.slice(0));
     return { duration: buffer.duration, peaks: peaksOf(buffer), buffer };
@@ -94,7 +94,7 @@ export function positionOf(_win: Window, sha256: string): number | null {
 /** Plays a take from `offset` seconds; whatever played stops. Called on the person's click (the context may start then). */
 export async function play(win: Window, sha256: string, take: DecodedTake, offset = 0): Promise<void> {
   stop();
-  const ctx = contextOf(win as AudioWindow);
+  const ctx = contextOf(win);
   if (ctx.state === 'suspended') await ctx.resume();
   const node = ctx.createBufferSource();
   node.buffer = take.buffer;

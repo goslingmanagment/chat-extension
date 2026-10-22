@@ -151,7 +151,9 @@ describe('[AI-125] insert guards and intents', () => {
 
   it('[AI-125] no composer or an unusable text never becomes an intent', () => {
     expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: openChat, draft: draftAt(1, {}, { composerInstanceId: null }), confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-HOST-COMPOSER-MISSING' });
-    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: '', mode: 'replace', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-FAILED' });
+    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: '', mode: 'append', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-FAILED' });
+    // 1.46.0: an empty replace is Voice's «Убрать текст» — the draft out of the field.
+    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: '', mode: 'replace', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 }).ok).toBe(true);
     expect(buildOpenInsert({ intentId: 'bad', operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-FAILED' });
   });
 

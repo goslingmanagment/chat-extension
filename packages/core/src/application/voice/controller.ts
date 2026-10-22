@@ -274,8 +274,11 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
     const label = handed ? msg('voice.attach.again') : fanName === null ? msg('voice.attachNoName') : msg('voice.attach', { name: fanName });
     const action = { type: 'AttachVoiceTake', targetHandle: handle, takeId: take.takeId } as const;
     const host = ws.ports.host;
-    const capability = ws.situation().host.contract.capabilities.fileAttach;
+    const situation = ws.situation();
+    const capability = situation.host.contract.capabilities.fileAttach;
     if (host.attachFile === undefined || capability?.state !== 'on') return button(label, action, { enabled: false, reason: ws.ports.catalog.reason('voice-attach-off') });
+    // The handover writes the chat's field: the page's `insertion` switch holds it as it holds «Вставить».
+    if (situation.ready !== null && !ws.admitted(situation.host, situation.ready, 'voice', 'insert').usable) return button(label, action, { enabled: false, reason: ws.ports.catalog.reason('feature-disabled') });
     if (ui.attach !== null && ui.attach.state === 'handing') return button(label, action, { enabled: false, reason: ws.ports.catalog.reason('voice-attaching') });
     return button(label, action);
   }
@@ -336,7 +339,7 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
     return now !== null && now.chat.handle === handle ? now : null;
   }
 
-  const gone = (type: UiActionOf<'ShowVoice'>['type'] | string): ActionReceipt => refused(ws, type as never, { code: 'CG-CONTEXT-CHANGED' });
+  const gone = (type: string): ActionReceipt => refused(ws, type as never, { code: 'CG-CONTEXT-CHANGED' });
 
   /** A refusal said in the studio itself (and as the click's receipt). */
   function studioError(key: OpenChat['key'], type: string, error: CgErrorWire): ActionReceipt {

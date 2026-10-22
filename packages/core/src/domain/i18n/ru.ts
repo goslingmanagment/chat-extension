@@ -1774,7 +1774,7 @@ export const RU: I18nCatalog<'ru'> = {
   'voice.tag.shortPause': 'короткая пауза',
   'voice.tag.longPause': 'долгая пауза',
   'voice.make': 'Озвучить · {chars} симв.',
-  'voice.makeTooltip': 'Озвучка тратит символы ElevenLabs: {chars} из дневного лимита страницы. Повторно этот же запрос не оплачивается',
+  'voice.makeTooltip': 'Озвучка тратит символы: {chars} из дневного лимита страницы. Проверка того же варианта не тратит ничего',
   'voice.makeAgain': 'Ещё вариант · {chars} симв.',
   'voice.makeAgainTooltip': 'Тот же текст ещё раз — интонация выйдет другой. Потратит {chars} симв.',
   'voice.makeNew': 'Озвучить новый текст · {chars} симв.',
