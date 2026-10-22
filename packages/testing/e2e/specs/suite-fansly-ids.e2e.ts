@@ -398,6 +398,9 @@ describe('Spenders on Fansly (R20 P9e)', () => {
   it('[SP-037] [SP-035] [FS-SPD-2] [SP-055] [TL-004] Reply inserts part 0, Fansly’s own Send confirms it, the reopened preview offers part 1; both themes without statistics', async function () {
     this.timeout(120_000);
     const mark = await fakeFansly().mark();
+    // Ours besides the preview's read of Birch's group (whether the fan read our newest message): nothing.
+    const oursBesidesReadState = async (): Promise<unknown[]> =>
+      (await fakeFansly().calls('ours', mark)).filter((entry) => !(entry.method === 'GET' && entry.route === 'group.detail' && (entry.path ?? '').startsWith(`/api/v1/group/${B.group}/`)));
     const hubMark = await hub().mark();
     await show('Hub Birch');
     await browser.waitUntil(async () => (await callsOf(hub(), hubMark, ['clientConversationFeed'])).some((call) => call.fan === B.fan && call.conversation === B.group), { timeout: 15_000, timeoutMsg: 'the preview did not read Birch’s group from the hub archive' });
@@ -423,12 +426,12 @@ describe('Spenders on Fansly (R20 P9e)', () => {
       await browser.pause(100);
       writeFileSync(join(E2E_EVIDENCE_DIR, `spenders-fansly-p9e-${theme}.png`), Buffer.from(await browser.takeScreenshot(), 'base64'));
     }
-    expect(await fakeFansly().calls('ours', mark)).toEqual([]);
+    expect(await oursBesidesReadState()).toEqual([]);
     await ours('modal', first).click();
     await browser.keys(['Enter']);
     await browser.waitUntil(async () => (await route()).groupId === B.group && (await $(FANSLY_MAIN.field).getValue()).length > 0, { timeout: 25_000, timeoutMsg: '«Открыть и вставить» did not put the preview’s part into Birch’s composer' });
     expect(await oursExists('modal', '.cg-spw')).toBe(false);
-    expect(await fakeFansly().calls('ours', mark)).toEqual([]);
+    expect(await oursBesidesReadState()).toEqual([]);
     expect(await $(FANSLY_MAIN.field).getValue()).toBe(firstText);
     // A trusted click on the site's own send button: P7f needs its receipt AND echo, linked to this insert.
     await $(FANSLY_MAIN.send).click();
@@ -448,7 +451,7 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     await browser.keys(['Enter']);
     await browser.waitUntil(async () => (await $(FANSLY_MAIN.field).getValue()) === secondText, { timeout: 25_000, timeoutMsg: 'Enter did not insert the next, unsent part 1' });
     expect((await fakeFansly().calls('page', mark)).filter((entry) => entry.route === 'message.send' && entry.status === 200)).toHaveLength(1);
-    expect(await fakeFansly().calls('ours', mark)).toEqual([]);
+    expect(await oursBesidesReadState()).toEqual([]);
   });
 
   it('[SP-041] one search on «Открыть чат», by displayName, opens the exact fan’s group; preview alone stays quiet', async () => {
